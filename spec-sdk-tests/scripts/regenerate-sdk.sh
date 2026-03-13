@@ -26,6 +26,11 @@ run_ts() {
 
 run_go() {
   echo "Regenerating Go SDK..."
+  # Use default Go module/cache dirs so go mod tidy and go build succeed. When run inside
+  # Cursor/sandbox, GOMODCACHE can point at a sandbox path and module resolution fails
+  # with "module found but does not contain package"; unsetting fixes that.
+  unset GOMODCACHE
+  unset GOCACHE
   speakeasy run -t outpost-go
   echo "Building Go SDK..."
   (cd "$REPO_ROOT/sdks/outpost-go" && go build ./...)

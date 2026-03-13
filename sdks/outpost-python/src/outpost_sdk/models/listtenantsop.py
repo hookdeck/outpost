@@ -7,8 +7,16 @@ from outpost_sdk.types import BaseModel, UNSET_SENTINEL
 from outpost_sdk.utils import FieldMetadata, QueryParamMetadata
 import pydantic
 from pydantic import model_serializer
-from typing import Callable, Optional
-from typing_extensions import Annotated, NotRequired, TypedDict
+from typing import Callable, List, Optional, Union
+from typing_extensions import Annotated, NotRequired, TypeAliasType, TypedDict
+
+
+ListTenantsIDTypedDict = TypeAliasType("ListTenantsIDTypedDict", Union[str, List[str]])
+r"""Filter tenants by ID(s). Use bracket notation for multiple values (e.g., `id[0]=t1&id[1]=t2` or `id[]=t1&id[]=t2`)."""
+
+
+ListTenantsID = TypeAliasType("ListTenantsID", Union[str, List[str]])
+r"""Filter tenants by ID(s). Use bracket notation for multiple values (e.g., `id[0]=t1&id[1]=t2` or `id[]=t1&id[]=t2`)."""
 
 
 class ListTenantsDir(str, Enum):
@@ -19,51 +27,63 @@ class ListTenantsDir(str, Enum):
 
 
 class ListTenantsRequestTypedDict(TypedDict):
+    id: NotRequired[ListTenantsIDTypedDict]
+    r"""Filter tenants by ID(s). Use bracket notation for multiple values (e.g., `id[0]=t1&id[1]=t2` or `id[]=t1&id[]=t2`)."""
     limit: NotRequired[int]
     r"""Number of tenants to return per page (1-100, default 20)."""
-    dir: NotRequired[ListTenantsDir]
+    direction: NotRequired[ListTenantsDir]
     r"""Sort direction."""
-    direction: NotRequired[str]
+    next_cursor: NotRequired[str]
     r"""Cursor for the next page of results. Mutually exclusive with `prev`."""
-    prev: NotRequired[str]
+    prev_cursor: NotRequired[str]
     r"""Cursor for the previous page of results. Mutually exclusive with `next`."""
 
 
 class ListTenantsRequest(BaseModel):
+    id: Annotated[
+        Optional[ListTenantsID],
+        FieldMetadata(query=QueryParamMetadata(style="form", explode=True)),
+    ] = None
+    r"""Filter tenants by ID(s). Use bracket notation for multiple values (e.g., `id[0]=t1&id[1]=t2` or `id[]=t1&id[]=t2`)."""
+
     limit: Annotated[
         Optional[int],
         FieldMetadata(query=QueryParamMetadata(style="form", explode=True)),
     ] = 20
     r"""Number of tenants to return per page (1-100, default 20)."""
 
-    dir: Annotated[
+    direction: Annotated[
         Optional[ListTenantsDir],
+        pydantic.Field(alias="dir"),
         FieldMetadata(query=QueryParamMetadata(style="form", explode=True)),
     ] = ListTenantsDir.DESC
     r"""Sort direction."""
 
-    direction: Annotated[
+    next_cursor: Annotated[
         Optional[str],
         pydantic.Field(alias="next"),
         FieldMetadata(query=QueryParamMetadata(style="form", explode=True)),
     ] = None
     r"""Cursor for the next page of results. Mutually exclusive with `prev`."""
 
-    prev: Annotated[
+    prev_cursor: Annotated[
         Optional[str],
+        pydantic.Field(alias="prev"),
         FieldMetadata(query=QueryParamMetadata(style="form", explode=True)),
     ] = None
     r"""Cursor for the previous page of results. Mutually exclusive with `next`."""
 
     @model_serializer(mode="wrap")
     def serialize_model(self, handler):
-        optional_fields = set(["limit", "dir", "direction", "prev"])
+        optional_fields = set(
+            ["id", "limit", "direction", "next_cursor", "prev_cursor"]
+        )
         serialized = handler(self)
         m = {}
 
         for n, f in type(self).model_fields.items():
             k = f.alias or n
-            val = serialized.get(k)
+            val = serialized.get(k, serialized.get(n))
 
             if val != UNSET_SENTINEL:
                 if val is not None or k not in optional_fields:

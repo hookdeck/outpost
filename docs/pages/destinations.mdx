@@ -92,4 +92,6 @@ See the [building your own UI guide](/docs/guides/building-your-own-ui) for reco
 
 The destination type definitions (label, description, icon, etc) and instructions can be customized by setting the `DESTINATIONS_METADATA_PATH` environment variable to a path on disk containing the destination type definitions and instructions. Outpost will load both the default destination type definitions and any custom destination type definitions and merge them.
 
-The metadata path is a directory containing a `providers` directory with a subdirectory for each destination type. Each destination type directory contains a `metadata.json` file and an `instructions.md` file. You can find the default destination type definitions and instructions in the [outpost-providers](https://github.com/hookdeck/outpost/tree/main/internal/destregistry/providers) folder.
+> Note: Core fields (`config_fields` and `credential_fields`) cannot be overridden via custom metadata. Only non-core fields such as `label`, `description`, `icon`, and `instructions` can be customized.
+
+The metadata path is a directory containing a subdirectory for each destination type. Each destination type directory contains a `metadata.json` file and an `instructions.md` file. You can find the default destination type definitions and instructions in the [outpost-providers](https://github.com/hookdeck/outpost/tree/main/internal/destregistry/metadata/providers) folder.

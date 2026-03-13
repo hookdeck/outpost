@@ -532,6 +532,11 @@ func unmarshalValue(value json.RawMessage, v reflect.Value, tag reflect.StructTa
 			m.SetMapIndex(reflect.ValueOf(k), itemVal.Elem())
 		}
 
+		// Dereference pointer before setting the map value.
+		// v may be a pointer to a map (e.g., from reflect.ValueOf(&mapVar)).
+		if v.Kind() == reflect.Ptr {
+			v = v.Elem()
+		}
 		v.Set(m)
 		return nil
 	case reflect.Slice, reflect.Array:
@@ -576,7 +581,7 @@ func unmarshalValue(value json.RawMessage, v reflect.Value, tag reflect.StructTa
 			}
 
 			if v.Kind() == reflect.Ptr {
-				if v.IsNil() {
+				if v.IsNil() && v.CanSet() {
 					v.Set(reflect.New(typ))
 				}
 				v = v.Elem()
@@ -624,7 +629,7 @@ func unmarshalValue(value json.RawMessage, v reflect.Value, tag reflect.StructTa
 			}
 
 			if v.Kind() == reflect.Ptr {
-				if v.IsNil() {
+				if v.IsNil() && v.CanSet() {
 					v.Set(reflect.New(typ))
 				}
 				v = v.Elem()

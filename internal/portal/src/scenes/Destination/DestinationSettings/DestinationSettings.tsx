@@ -120,16 +120,7 @@ const DestinationSettings = ({
       if (type.credential_fields.some((field) => field.key === key)) {
         credentials[key] = String(value);
       } else {
-        let configValue = String(value);
-        // Webhook custom_headers must have at least one header or be null/empty
-        if (
-          type.type === "webhook" &&
-          key === "custom_headers" &&
-          (configValue === "{}" || configValue === "")
-        ) {
-          configValue = "";
-        }
-        config[key] = configValue;
+        config[key] = String(value);
       }
     });
 

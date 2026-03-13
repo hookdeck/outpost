@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
+	"github.com/hookdeck/outpost/sdks/outpost-go/models/operations"
 	"github.com/joho/godotenv"
 )
 
@@ -66,6 +67,16 @@ func withAdminApiKey(ctx context.Context, apiServerURL string, adminAPIKey strin
 		log.Printf("Successfully listed %d destinations using Admin Key for tenant %s.", len(destRes.Destinations), tenantID)
 	} else {
 		log.Println("List destinations with Admin Key returned no data or an unexpected response structure.")
+	}
+
+	// List tenants (v0.14+: Tenants.List with request object)
+	tenantsRes, err := adminClient.Tenants.List(ctx, operations.ListTenantsRequest{
+		Limit: outpostgo.Pointer(int64(5)),
+	})
+	if err != nil {
+		log.Printf("List tenants failed (e.g. 501 if RediSearch not available): %v", err)
+	} else if tenantsRes != nil && tenantsRes.TenantPaginatedResult != nil {
+		log.Printf("Successfully listed %d tenant(s) (first page).", len(tenantsRes.TenantPaginatedResult.Models))
 	}
 
 	tokenRes, err := adminClient.Tenants.GetToken(ctx, tenantID)

@@ -12,34 +12,34 @@ from typing_extensions import Annotated, NotRequired, TypeAliasType, TypedDict
 ListTenantDestinationsTypeTypedDict = TypeAliasType(
     "ListTenantDestinationsTypeTypedDict", Union[DestinationType, List[DestinationType]]
 )
-r"""Filter destinations by type(s)."""
+r"""Filter destinations by type(s). Use bracket notation for multiple values (e.g., `type[0]=webhook&type[1]=aws_sqs`)."""
 
 
 ListTenantDestinationsType = TypeAliasType(
     "ListTenantDestinationsType", Union[DestinationType, List[DestinationType]]
 )
-r"""Filter destinations by type(s)."""
+r"""Filter destinations by type(s). Use bracket notation for multiple values (e.g., `type[0]=webhook&type[1]=aws_sqs`)."""
 
 
 ListTenantDestinationsTopicsTypedDict = TypeAliasType(
     "ListTenantDestinationsTopicsTypedDict", Union[str, List[str]]
 )
-r"""Filter destinations by supported topic(s)."""
+r"""Filter destinations by supported topic(s). Use bracket notation for multiple values (e.g., `topics[0]=user.created&topics[1]=user.deleted`)."""
 
 
 ListTenantDestinationsTopics = TypeAliasType(
     "ListTenantDestinationsTopics", Union[str, List[str]]
 )
-r"""Filter destinations by supported topic(s)."""
+r"""Filter destinations by supported topic(s). Use bracket notation for multiple values (e.g., `topics[0]=user.created&topics[1]=user.deleted`)."""
 
 
 class ListTenantDestinationsRequestTypedDict(TypedDict):
     tenant_id: str
     r"""The ID of the tenant. Required when using AdminApiKey authentication."""
     type: NotRequired[ListTenantDestinationsTypeTypedDict]
-    r"""Filter destinations by type(s)."""
+    r"""Filter destinations by type(s). Use bracket notation for multiple values (e.g., `type[0]=webhook&type[1]=aws_sqs`)."""
     topics: NotRequired[ListTenantDestinationsTopicsTypedDict]
-    r"""Filter destinations by supported topic(s)."""
+    r"""Filter destinations by supported topic(s). Use bracket notation for multiple values (e.g., `topics[0]=user.created&topics[1]=user.deleted`)."""
 
 
 class ListTenantDestinationsRequest(BaseModel):
@@ -52,13 +52,13 @@ class ListTenantDestinationsRequest(BaseModel):
         Optional[ListTenantDestinationsType],
         FieldMetadata(query=QueryParamMetadata(style="form", explode=True)),
     ] = None
-    r"""Filter destinations by type(s)."""
+    r"""Filter destinations by type(s). Use bracket notation for multiple values (e.g., `type[0]=webhook&type[1]=aws_sqs`)."""
 
     topics: Annotated[
         Optional[ListTenantDestinationsTopics],
         FieldMetadata(query=QueryParamMetadata(style="form", explode=True)),
     ] = None
-    r"""Filter destinations by supported topic(s)."""
+    r"""Filter destinations by supported topic(s). Use bracket notation for multiple values (e.g., `topics[0]=user.created&topics[1]=user.deleted`)."""
 
     @model_serializer(mode="wrap")
     def serialize_model(self, handler):
@@ -68,7 +68,7 @@ class ListTenantDestinationsRequest(BaseModel):
 
         for n, f in type(self).model_fields.items():
             k = f.alias or n
-            val = serialized.get(k)
+            val = serialized.get(k, serialized.get(n))
 
             if val != UNSET_SENTINEL:
                 if val is not None or k not in optional_fields:

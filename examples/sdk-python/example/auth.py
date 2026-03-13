@@ -1,7 +1,7 @@
 import os
 import sys
 from dotenv import load_dotenv
-from outpost_sdk import Outpost
+from outpost_sdk import Outpost, models
 
 
 def with_tenant_api_key(outpost: Outpost, tenant_api_key: str, tenant_id: str):
@@ -40,6 +40,16 @@ def with_admin_api_key(outpost: Outpost, tenant_id: str):
             f"Destinations listed successfully using Admin Key for tenant {tenant_id}:"
         )
         print(destinations_res)
+
+        # List tenants (tenants.list(request) with request object)
+        try:
+            tenants_res = outpost.tenants.list(request=models.ListTenantsRequest(limit=5))
+            if tenants_res and tenants_res.result and tenants_res.result.models is not None:
+                print(f"Tenants (first page): {len(tenants_res.result.models)} tenant(s)")
+            else:
+                print("Tenants (first page): (no tenants or 501 if RediSearch not available)")
+        except Exception as list_err:
+            print(f"List tenants skipped or failed: {list_err}")
 
         token_res = outpost.tenants.get_token(tenant_id=tenant_id)
         print(f"Tenant token obtained for tenant {tenant_id}:")

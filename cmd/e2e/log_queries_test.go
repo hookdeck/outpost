@@ -80,7 +80,7 @@ func (s *basicSuite) TestLogQueries_Attempts() {
 		s.Equal(setup.destinationID, first["destination_id"])
 		s.NotEmpty(first["status"])
 		s.NotEmpty(first["time"])
-		s.Equal(float64(0), first["attempt_number"])
+		s.Equal(float64(1), first["attempt_number"])
 	})
 
 	s.Run("filter by destination_id", func() {

@@ -5,4 +5,4 @@
 
 | Field                                       | Type                                        | Required                                    | Description                                 |
 | ------------------------------------------- | ------------------------------------------- | ------------------------------------------- | ------------------------------------------- |
-| `Metadata`                                  | map[string]*string*                         | :heavy_minus_sign:                          | Optional metadata to store with the tenant. |
+| `Metadata`                                  | map[string]`string`                         | :heavy_minus_sign:                          | Optional metadata to store with the tenant. |

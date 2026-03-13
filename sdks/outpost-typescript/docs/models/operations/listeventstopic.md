@@ -1,6 +1,6 @@
 # ListEventsTopic
 
-Filter events by topic(s). Can be specified multiple times or comma-separated.
+Filter events by topic(s). Use bracket notation for multiple values (e.g., `topic[0]=user.created&topic[1]=user.updated`).
 
 
 ## Supported Types

@@ -15,6 +15,7 @@ import { ClientSDK, RequestOptions } from "../lib/sdks.js";
 import * as components from "../models/components/index.js";
 import * as operations from "../models/operations/index.js";
 import { unwrapAsync } from "../types/fp.js";
+import { PageIterator, unwrapResultIterator } from "../types/operations.js";
 
 export class Destinations extends ClientSDK {
   /**
@@ -46,13 +47,13 @@ export class Destinations extends ClientSDK {
    */
   async create(
     tenantId: string,
-    params: components.DestinationCreate,
+    body: components.DestinationCreate,
     options?: RequestOptions,
   ): Promise<components.Destination> {
     return unwrapAsync(destinationsCreate(
       this,
       tenantId,
-      params,
+      body,
       options,
     ));
   }
@@ -85,14 +86,14 @@ export class Destinations extends ClientSDK {
   async update(
     tenantId: string,
     destinationId: string,
-    params: components.DestinationUpdate,
+    body: components.DestinationUpdate,
     options?: RequestOptions,
   ): Promise<operations.UpdateTenantDestinationResponse> {
     return unwrapAsync(destinationsUpdate(
       this,
       tenantId,
       destinationId,
-      params,
+      body,
       options,
     ));
   }
@@ -163,8 +164,13 @@ export class Destinations extends ClientSDK {
   async listAttempts(
     request: operations.ListTenantDestinationAttemptsRequest,
     options?: RequestOptions,
-  ): Promise<components.AttemptPaginatedResult> {
-    return unwrapAsync(destinationsListAttempts(
+  ): Promise<
+    PageIterator<
+      operations.ListTenantDestinationAttemptsResponse,
+      { cursor: string }
+    >
+  > {
+    return unwrapResultIterator(destinationsListAttempts(
       this,
       request,
       options,

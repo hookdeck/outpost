@@ -90,9 +90,6 @@ type Config struct {
 	PublishIdempotencyKeyTTL  int `yaml:"publish_idempotency_key_ttl" env:"PUBLISH_IDEMPOTENCY_KEY_TTL" desc:"Time-to-live in seconds for publish queue idempotency keys. Controls how long processed events are remembered to prevent duplicate processing. Default: 3600 (1 hour)." required:"N"`
 	DeliveryIdempotencyKeyTTL int `yaml:"delivery_idempotency_key_ttl" env:"DELIVERY_IDEMPOTENCY_KEY_TTL" desc:"Time-to-live in seconds for delivery queue idempotency keys. Controls how long processed deliveries are remembered to prevent duplicate delivery attempts. Default: 3600 (1 hour)." required:"N"`
 
-	// Destination Registry
-	DestinationMetadataPath string `yaml:"destination_metadata_path" env:"DESTINATION_METADATA_PATH" desc:"Path to the directory containing custom destination type definitions. Overrides 'destinations.metadata_path' if set." required:"N"`
-
 	// Log batcher configuration
 	LogBatchThresholdSeconds int `yaml:"log_batch_threshold_seconds" env:"LOG_BATCH_THRESHOLD_SECONDS" desc:"Maximum time in seconds to buffer logs before flushing them to storage, if batch size is not reached." required:"N"`
 	LogBatchSize             int `yaml:"log_batch_size" env:"LOG_BATCH_SIZE" desc:"Maximum number of log entries to batch together before writing to storage." required:"N"`

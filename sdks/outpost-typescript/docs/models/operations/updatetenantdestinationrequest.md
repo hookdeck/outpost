@@ -8,7 +8,7 @@ import { UpdateTenantDestinationRequest } from "@hookdeck/outpost-sdk/models/ope
 let value: UpdateTenantDestinationRequest = {
   tenantId: "<id>",
   destinationId: "<id>",
-  params: {
+  body: {
     topics: "*",
     filter: {
       "data": {
@@ -41,4 +41,4 @@ let value: UpdateTenantDestinationRequest = {
 | --------------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- |
 | `tenantId`                                                            | *string*                                                              | :heavy_check_mark:                                                    | The ID of the tenant. Required when using AdminApiKey authentication. |
 | `destinationId`                                                       | *string*                                                              | :heavy_check_mark:                                                    | The ID of the destination.                                            |
-| `params`                                                              | *components.DestinationUpdate*                                        | :heavy_check_mark:                                                    | N/A                                                                   |
+| `body`                                                                | *components.DestinationUpdate*                                        | :heavy_check_mark:                                                    | N/A                                                                   |

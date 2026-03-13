@@ -9,7 +9,7 @@ import { formatResult, ToolDefinition } from "../tools.js";
 
 const args = {
   tenantId: z.string(),
-  params: components.TenantUpsert$inboundSchema.optional(),
+  body: components.TenantUpsert$inboundSchema.optional(),
 };
 
 export const tool$tenantsUpsert: ToolDefinition<typeof args> = {
@@ -22,7 +22,7 @@ Idempotently creates or updates a tenant. Required before associating destinatio
     const [result, apiCall] = await tenantsUpsert(
       client,
       args.tenantId,
-      args.params,
+      args.body,
       { fetchOptions: { signal: ctx.signal } },
     ).$inspect();
 

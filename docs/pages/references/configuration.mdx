@@ -53,7 +53,7 @@ Global configurations are provided through env variables or a YAML file. ConfigM
 | `DEPLOYMENT_ID` | Optional deployment identifier for multi-tenancy. Enables multiple deployments to share the same infrastructure while maintaining data isolation. | `nil` | No |
 | `DESTINATIONS_AWS_KINESIS_METADATA_IN_PAYLOAD` | If true, includes Outpost metadata (event ID, topic, etc.) within the Kinesis record payload. | `true` | No |
 | `DESTINATIONS_INCLUDE_MILLISECOND_TIMESTAMP` | If true, includes a 'timestamp-ms' field with millisecond precision in destination metadata. Useful for load testing and debugging. | `false` | No |
-| `DESTINATIONS_METADATA_PATH` | Path to the directory containing custom destination type definitions. This can be overridden by the root-level 'destination_metadata_path' if also set. | `config/outpost/destinations` | No |
+| `DESTINATIONS_METADATA_PATH` | Path to the directory containing custom destination type definitions. | `config/outpost/destinations` | No |
 | `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_EVENT_ID_HEADER` | If true, disables adding the default 'X-Outpost-Event-Id' header to webhook requests. Only applies to 'default' mode. | `false` | No |
 | `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_SIGNATURE_HEADER` | If true, disables adding the default 'X-Outpost-Signature' header to webhook requests. Only applies to 'default' mode. | `false` | No |
 | `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_TIMESTAMP_HEADER` | If true, disables adding the default 'X-Outpost-Timestamp' header to webhook requests. Only applies to 'default' mode. | `false` | No |
@@ -65,7 +65,6 @@ Global configurations are provided through env variables or a YAML file. ConfigM
 | `DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE` | Go template for constructing the content to be signed for webhook requests. Only applies to 'default' mode. | `{{.Body}}` | No |
 | `DESTINATIONS_WEBHOOK_SIGNATURE_ENCODING` | Encoding for the signature (e.g., 'hex', 'base64'). Only applies to 'default' mode. | `hex` | No |
 | `DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE` | Go template for the value of the signature header. Only applies to 'default' mode. | `v0={{.Signatures \| join ","}}` | No |
-| `DESTINATION_METADATA_PATH` | Path to the directory containing custom destination type definitions. Overrides 'destinations.metadata_path' if set. | `nil` | No |
 | `DISABLE_TELEMETRY` | Global flag to disable all telemetry (anonymous usage statistics to Hookdeck and error reporting to Sentry). If true, overrides 'telemetry.disabled'. | `false` | No |
 | `GCP_PUBSUB_DELIVERY_SUBSCRIPTION` | Name of the GCP Pub/Sub subscription for delivery events. | `outpost-delivery-sub` | No |
 | `GCP_PUBSUB_DELIVERY_TOPIC` | Name of the GCP Pub/Sub topic for delivery events. | `outpost-delivery` | No |
@@ -212,9 +211,6 @@ delivery_timeout_seconds: 5
 # Optional deployment identifier for multi-tenancy. Enables multiple deployments to share the same infrastructure while maintaining data isolation.
 deployment_id: ""
 
-# Path to the directory containing custom destination type definitions. Overrides 'destinations.metadata_path' if set.
-destination_metadata_path: ""
-
 destinations:
   # Configuration specific to AWS Kinesis destinations.
   aws_kinesis:
@@ -225,7 +221,7 @@ destinations:
   # If true, includes a 'timestamp-ms' field with millisecond precision in destination metadata. Useful for load testing and debugging.
   include_millisecond_timestamp: false
 
-  # Path to the directory containing custom destination type definitions. This can be overridden by the root-level 'destination_metadata_path' if also set.
+  # Path to the directory containing custom destination type definitions.
   metadata_path: "config/outpost/destinations"
 
   # Configuration specific to webhook destinations.

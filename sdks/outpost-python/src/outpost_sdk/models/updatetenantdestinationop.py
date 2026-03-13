@@ -13,7 +13,7 @@ class UpdateTenantDestinationRequestTypedDict(TypedDict):
     r"""The ID of the tenant. Required when using AdminApiKey authentication."""
     destination_id: str
     r"""The ID of the destination."""
-    params: DestinationUpdateTypedDict
+    body: DestinationUpdateTypedDict
 
 
 class UpdateTenantDestinationRequest(BaseModel):
@@ -27,7 +27,7 @@ class UpdateTenantDestinationRequest(BaseModel):
     ]
     r"""The ID of the destination."""
 
-    params: Annotated[
+    body: Annotated[
         DestinationUpdate,
         FieldMetadata(request=RequestMetadata(media_type="application/json")),
     ]
