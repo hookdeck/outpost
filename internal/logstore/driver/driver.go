@@ -16,12 +16,18 @@ type TimeFilter struct {
 	LT  *time.Time // Less than (<)
 }
 
-type LogStore interface {
+type Records interface {
 	ListEvent(context.Context, ListEventRequest) (ListEventResponse, error)
 	ListAttempt(context.Context, ListAttemptRequest) (ListAttemptResponse, error)
 	RetrieveEvent(ctx context.Context, request RetrieveEventRequest) (*models.Event, error)
 	RetrieveAttempt(ctx context.Context, request RetrieveAttemptRequest) (*AttemptRecord, error)
 	InsertMany(context.Context, []*models.LogEntry) error
+}
+
+// LogStore is the combined interface that all driver implementations must satisfy.
+type LogStore interface {
+	Records
+	Metrics
 }
 
 type ListEventRequest struct {

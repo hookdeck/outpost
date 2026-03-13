@@ -1,0 +1,571 @@
+package chlogstore
+
+import (
+	"context"
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/hookdeck/outpost/internal/logstore/bucket"
+	"github.com/hookdeck/outpost/internal/logstore/driver"
+)
+
+const metricsSettings = " SETTINGS max_execution_time = 30, max_rows_to_group_by = 5000000, group_by_overflow_mode = 'throw'"
+
+const (
+	defaultRowLimit     = 100000
+	metricsQueryTimeout = 30 * time.Second
+)
+
+func metricsCtx(ctx context.Context) (context.Context, context.CancelFunc) {
+	if _, ok := ctx.Deadline(); ok {
+		return ctx, func() {}
+	}
+	return context.WithTimeout(ctx, metricsQueryTimeout)
+}
+
+// chTimeBucketExpr returns a ClickHouse expression that truncates a DateTime64
+// column to the given granularity, matching the Go truncation semantics used
+// in the in-memory driver.
+func chTimeBucketExpr(col string, g *driver.Granularity) string {
+	switch g.Unit {
+	case "s":
+		return fmt.Sprintf("toStartOfInterval(%s, INTERVAL %d SECOND)", col, g.Value)
+	case "m":
+		return fmt.Sprintf("toStartOfInterval(%s, INTERVAL %d MINUTE)", col, g.Value)
+	case "h":
+		return fmt.Sprintf("toStartOfInterval(%s, INTERVAL %d HOUR)", col, g.Value)
+	case "d":
+		if g.Value == 1 {
+			return fmt.Sprintf("toStartOfDay(%s)", col)
+		}
+		return fmt.Sprintf("toStartOfInterval(%s, INTERVAL %d DAY)", col, g.Value)
+	case "w":
+		if g.Value == 1 {
+			// mode 0 = Sunday-based weeks, matching Go's time.Weekday convention.
+			return fmt.Sprintf("toStartOfWeek(%s, 0)", col)
+		}
+		// Multi-week: use N*7 day intervals anchored to 1970-01-04 (Sunday).
+		return fmt.Sprintf("toStartOfInterval(%s, INTERVAL %d DAY, toDateTime('1970-01-04'))", col, g.Value*7)
+	case "M":
+		if g.Value == 1 {
+			return fmt.Sprintf("toStartOfMonth(%s)", col)
+		}
+		return fmt.Sprintf("toStartOfInterval(%s, INTERVAL %d MONTH)", col, g.Value)
+	default:
+		return col
+	}
+}
+
+// addInFilter appends an IN condition with individual ? placeholders.
+func addInFilter(conditions []string, args []any, col string, vals []string) ([]string, []any) {
+	if len(vals) == 0 {
+		return conditions, args
+	}
+	conditions = append(conditions, col+" IN ?")
+	args = append(args, vals)
+	return conditions, args
+}
+
+// ── Event Metrics ─────────────────────────────────────────────────────────
+
+func (s *logStoreImpl) QueryEventMetrics(ctx context.Context, req driver.MetricsRequest) (*driver.EventMetricsResponse, error) {
+	if err := driver.ValidateMetricsRequest(req); err != nil {
+		return nil, err
+	}
+	req.Measures = driver.EnrichMeasuresForRates(req.Measures)
+	ctx, cancel := metricsCtx(ctx)
+	defer cancel()
+
+	start := time.Now()
+
+	var (
+		selectExprs []string
+		groupExprs  []string
+		conditions  []string
+		args        []any
+	)
+
+	type sf int
+	const (
+		sfTimeBucket sf = iota
+		sfTenantID
+		sfTopic
+		sfDestID
+		sfCount
+	)
+	var order []sf
+
+	// Time bucket
+	if req.Granularity != nil {
+		expr := chTimeBucketExpr("event_time", req.Granularity)
+		selectExprs = append(selectExprs, expr+" AS time_bucket")
+		groupExprs = append(groupExprs, expr)
+		order = append(order, sfTimeBucket)
+	}
+
+	// Dimensions
+	for _, dim := range req.Dimensions {
+		switch dim {
+		case "tenant_id":
+			selectExprs = append(selectExprs, "tenant_id")
+			groupExprs = append(groupExprs, "tenant_id")
+			order = append(order, sfTenantID)
+		case "topic":
+			selectExprs = append(selectExprs, "topic")
+			groupExprs = append(groupExprs, "topic")
+			order = append(order, sfTopic)
+		case "destination_id":
+			selectExprs = append(selectExprs, "destination_id")
+			groupExprs = append(groupExprs, "destination_id")
+			order = append(order, sfDestID)
+		}
+	}
+
+	// Measures — use uniqExact(event_id) instead of count() to handle
+	// ReplacingMergeTree duplicates from unmerged parts without FINAL.
+	for _, measure := range req.Measures {
+		switch measure {
+		case "count":
+			selectExprs = append(selectExprs, "uniqExact(event_id)")
+			order = append(order, sfCount)
+		}
+	}
+
+	// WHERE
+	if tenantIDs, ok := req.Filters["tenant_id"]; ok {
+		conditions, args = addInFilter(conditions, args, "tenant_id", tenantIDs)
+	}
+	conditions = append(conditions, "event_time >= ?")
+	args = append(args, req.TimeRange.Start)
+	conditions = append(conditions, "event_time < ?")
+	args = append(args, req.TimeRange.End)
+
+	if topics, ok := req.Filters["topic"]; ok {
+		conditions, args = addInFilter(conditions, args, "topic", topics)
+	}
+	if dests, ok := req.Filters["destination_id"]; ok {
+		conditions, args = addInFilter(conditions, args, "destination_id", dests)
+	}
+
+	// Build SQL — no FINAL needed; uniqExact(event_id) handles dedup from
+	// unmerged ReplacingMergeTree parts.
+	query := fmt.Sprintf("SELECT %s FROM %s WHERE %s",
+		strings.Join(selectExprs, ", "),
+		s.eventsTable,
+		strings.Join(conditions, " AND "))
+	if len(groupExprs) > 0 {
+		query += " GROUP BY " + strings.Join(groupExprs, ", ")
+	}
+	query += " HAVING count() > 0"
+	if len(groupExprs) > 0 {
+		query += " ORDER BY " + strings.Join(groupExprs, ", ")
+	}
+	query += fmt.Sprintf(" LIMIT %d", defaultRowLimit+1)
+	query += metricsSettings
+
+	rows, err := s.chDB.Query(ctx, query, args...)
+	if err != nil {
+		return nil, wrapCHMetricsError("query event metrics", err)
+	}
+	defer rows.Close()
+
+	var (
+		tbVal       time.Time
+		tenantIDVal string
+		topicVal    string
+		destIDVal   string
+		countVal    uint64
+	)
+	scanDests := make([]any, len(order))
+	for i, f := range order {
+		switch f {
+		case sfTimeBucket:
+			scanDests[i] = &tbVal
+		case sfTenantID:
+			scanDests[i] = &tenantIDVal
+		case sfTopic:
+			scanDests[i] = &topicVal
+		case sfDestID:
+			scanDests[i] = &destIDVal
+		case sfCount:
+			scanDests[i] = &countVal
+		}
+	}
+
+	data := []driver.EventMetricsDataPoint{}
+	for rows.Next() {
+		if err := rows.Scan(scanDests...); err != nil {
+			return nil, fmt.Errorf("scan event metrics: %w", err)
+		}
+
+		dp := driver.EventMetricsDataPoint{}
+		for _, f := range order {
+			switch f {
+			case sfTimeBucket:
+				t := tbVal.UTC()
+				dp.TimeBucket = &t
+			case sfTenantID:
+				v := tenantIDVal
+				dp.TenantID = &v
+			case sfTopic:
+				v := topicVal
+				dp.Topic = &v
+			case sfDestID:
+				v := destIDVal
+				dp.DestinationID = &v
+			case sfCount:
+				v := int(countVal)
+				dp.Count = &v
+			}
+		}
+		data = append(data, dp)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("rows error: %w", err)
+	}
+
+	truncated := len(data) > defaultRowLimit
+	if truncated {
+		data = data[:defaultRowLimit]
+	}
+
+	data, err = bucket.FillEventBuckets(data, req)
+	if err != nil {
+		return nil, fmt.Errorf("fill event buckets: %w: %w", driver.ErrResourceLimit, err)
+	}
+	driver.ComputeEventRates(data, req)
+
+	elapsed := time.Since(start)
+	return &driver.EventMetricsResponse{
+		Data: data,
+		Metadata: driver.MetricsMetadata{
+			QueryTimeMs: elapsed.Milliseconds(),
+			RowCount:    len(data),
+			RowLimit:    defaultRowLimit,
+			Truncated:   truncated,
+		},
+	}, nil
+}
+
+// ── Attempt Metrics ───────────────────────────────────────────────────────
+
+func (s *logStoreImpl) QueryAttemptMetrics(ctx context.Context, req driver.MetricsRequest) (*driver.AttemptMetricsResponse, error) {
+	if err := driver.ValidateMetricsRequest(req); err != nil {
+		return nil, err
+	}
+	req.Measures = driver.EnrichMeasuresForRates(req.Measures)
+	ctx, cancel := metricsCtx(ctx)
+	defer cancel()
+
+	start := time.Now()
+
+	var (
+		selectExprs []string
+		groupExprs  []string
+		conditions  []string
+		args        []any
+	)
+
+	type sf int
+	const (
+		sfTimeBucket sf = iota
+		sfTenantID
+		sfDestID
+		sfTopic
+		sfStatus
+		sfCode
+		sfManual
+		sfAttemptNumber
+		sfCount
+		sfSuccessCount
+		sfFailedCount
+		sfErrorRate
+		sfFirstAttempt
+		sfRetryCount
+		sfManualRetry
+		sfAvgAttemptNum
+	)
+	var order []sf
+
+	// Time bucket
+	if req.Granularity != nil {
+		expr := chTimeBucketExpr("attempt_time", req.Granularity)
+		selectExprs = append(selectExprs, expr+" AS time_bucket")
+		groupExprs = append(groupExprs, expr)
+		order = append(order, sfTimeBucket)
+	}
+
+	// Dimensions
+	for _, dim := range req.Dimensions {
+		switch dim {
+		case "tenant_id":
+			selectExprs = append(selectExprs, "tenant_id")
+			groupExprs = append(groupExprs, "tenant_id")
+			order = append(order, sfTenantID)
+		case "destination_id":
+			selectExprs = append(selectExprs, "destination_id")
+			groupExprs = append(groupExprs, "destination_id")
+			order = append(order, sfDestID)
+		case "topic":
+			selectExprs = append(selectExprs, "topic")
+			groupExprs = append(groupExprs, "topic")
+			order = append(order, sfTopic)
+		case "status":
+			selectExprs = append(selectExprs, "status")
+			groupExprs = append(groupExprs, "status")
+			order = append(order, sfStatus)
+		case "code":
+			selectExprs = append(selectExprs, "code")
+			groupExprs = append(groupExprs, "code")
+			order = append(order, sfCode)
+		case "manual":
+			selectExprs = append(selectExprs, "manual")
+			groupExprs = append(groupExprs, "manual")
+			order = append(order, sfManual)
+		case "attempt_number":
+			selectExprs = append(selectExprs, "attempt_number")
+			groupExprs = append(groupExprs, "attempt_number")
+			order = append(order, sfAttemptNumber)
+		}
+	}
+
+	// Measures — use uniqExact/uniqExactIf(attempt_id, ...) instead of
+	// count/countIf to handle ReplacingMergeTree duplicates without FINAL.
+	// avg(attempt_number) is kept as-is: duplicates have identical values,
+	// so the average is only negligibly affected during brief merge windows.
+	for _, measure := range req.Measures {
+		switch measure {
+		case "count":
+			selectExprs = append(selectExprs, "uniqExact(attempt_id)")
+			order = append(order, sfCount)
+		case "successful_count":
+			selectExprs = append(selectExprs, "uniqExactIf(attempt_id, status = 'success')")
+			order = append(order, sfSuccessCount)
+		case "failed_count":
+			selectExprs = append(selectExprs, "uniqExactIf(attempt_id, status = 'failed')")
+			order = append(order, sfFailedCount)
+		case "error_rate":
+			selectExprs = append(selectExprs, "uniqExactIf(attempt_id, status = 'failed') / uniqExact(attempt_id)")
+			order = append(order, sfErrorRate)
+		case "first_attempt_count":
+			selectExprs = append(selectExprs, "uniqExactIf(attempt_id, attempt_number = 1 AND NOT manual)")
+			order = append(order, sfFirstAttempt)
+		case "retry_count":
+			selectExprs = append(selectExprs, "uniqExactIf(attempt_id, attempt_number > 1)")
+			order = append(order, sfRetryCount)
+		case "manual_retry_count":
+			selectExprs = append(selectExprs, "uniqExactIf(attempt_id, manual)")
+			order = append(order, sfManualRetry)
+		case "avg_attempt_number":
+			selectExprs = append(selectExprs, "avg(attempt_number)")
+			order = append(order, sfAvgAttemptNum)
+		}
+	}
+
+	// WHERE
+	if tenantIDs, ok := req.Filters["tenant_id"]; ok {
+		conditions, args = addInFilter(conditions, args, "tenant_id", tenantIDs)
+	}
+	conditions = append(conditions, "attempt_time >= ?")
+	args = append(args, req.TimeRange.Start)
+	conditions = append(conditions, "attempt_time < ?")
+	args = append(args, req.TimeRange.End)
+
+	if statuses, ok := req.Filters["status"]; ok {
+		conditions, args = addInFilter(conditions, args, "status", statuses)
+	}
+	if dests, ok := req.Filters["destination_id"]; ok {
+		conditions, args = addInFilter(conditions, args, "destination_id", dests)
+	}
+	if topics, ok := req.Filters["topic"]; ok {
+		conditions, args = addInFilter(conditions, args, "topic", topics)
+	}
+	if codes, ok := req.Filters["code"]; ok {
+		conditions, args = addInFilter(conditions, args, "code", codes)
+	}
+	if manuals, ok := req.Filters["manual"]; ok {
+		conditions, args = addInFilter(conditions, args, "manual", manuals)
+	}
+	if attemptNums, ok := req.Filters["attempt_number"]; ok {
+		conditions, args = addInFilter(conditions, args, "attempt_number", attemptNums)
+	}
+
+	// Build SQL
+	query := fmt.Sprintf("SELECT %s FROM %s WHERE %s",
+		strings.Join(selectExprs, ", "),
+		s.attemptsTable,
+		strings.Join(conditions, " AND "))
+	if len(groupExprs) > 0 {
+		query += " GROUP BY " + strings.Join(groupExprs, ", ")
+	}
+	query += " HAVING count() > 0"
+	if len(groupExprs) > 0 {
+		query += " ORDER BY " + strings.Join(groupExprs, ", ")
+	}
+	query += fmt.Sprintf(" LIMIT %d", defaultRowLimit+1)
+	query += metricsSettings
+
+	rows, err := s.chDB.Query(ctx, query, args...)
+	if err != nil {
+		return nil, wrapCHMetricsError("query attempt metrics", err)
+	}
+	defer rows.Close()
+
+	var (
+		tbVal            time.Time
+		tenantIDVal      string
+		destIDVal        string
+		topicVal         string
+		statusVal        string
+		codeVal          string
+		manualVal        bool
+		attemptNumberVal uint32
+		countVal         uint64
+		successCount     uint64
+		failedCount      uint64
+		errorRate        float64
+		firstAttempt     uint64
+		retryCount       uint64
+		manualRetry      uint64
+		avgAttemptNum    float64
+	)
+
+	scanDests := make([]any, len(order))
+	for i, f := range order {
+		switch f {
+		case sfTimeBucket:
+			scanDests[i] = &tbVal
+		case sfTenantID:
+			scanDests[i] = &tenantIDVal
+		case sfDestID:
+			scanDests[i] = &destIDVal
+		case sfTopic:
+			scanDests[i] = &topicVal
+		case sfStatus:
+			scanDests[i] = &statusVal
+		case sfCode:
+			scanDests[i] = &codeVal
+		case sfManual:
+			scanDests[i] = &manualVal
+		case sfAttemptNumber:
+			scanDests[i] = &attemptNumberVal
+		case sfCount:
+			scanDests[i] = &countVal
+		case sfSuccessCount:
+			scanDests[i] = &successCount
+		case sfFailedCount:
+			scanDests[i] = &failedCount
+		case sfErrorRate:
+			scanDests[i] = &errorRate
+		case sfFirstAttempt:
+			scanDests[i] = &firstAttempt
+		case sfRetryCount:
+			scanDests[i] = &retryCount
+		case sfManualRetry:
+			scanDests[i] = &manualRetry
+		case sfAvgAttemptNum:
+			scanDests[i] = &avgAttemptNum
+		}
+	}
+
+	data := []driver.AttemptMetricsDataPoint{}
+	for rows.Next() {
+		if err := rows.Scan(scanDests...); err != nil {
+			return nil, fmt.Errorf("scan attempt metrics: %w", err)
+		}
+
+		dp := driver.AttemptMetricsDataPoint{}
+		for _, f := range order {
+			switch f {
+			case sfTimeBucket:
+				t := tbVal.UTC()
+				dp.TimeBucket = &t
+			case sfTenantID:
+				v := tenantIDVal
+				dp.TenantID = &v
+			case sfDestID:
+				v := destIDVal
+				dp.DestinationID = &v
+			case sfTopic:
+				v := topicVal
+				dp.Topic = &v
+			case sfStatus:
+				v := statusVal
+				dp.Status = &v
+			case sfCode:
+				v := codeVal
+				dp.Code = &v
+			case sfManual:
+				v := manualVal
+				dp.Manual = &v
+			case sfAttemptNumber:
+				v := int(attemptNumberVal)
+				dp.AttemptNumber = &v
+			case sfCount:
+				v := int(countVal)
+				dp.Count = &v
+			case sfSuccessCount:
+				v := int(successCount)
+				dp.SuccessfulCount = &v
+			case sfFailedCount:
+				v := int(failedCount)
+				dp.FailedCount = &v
+			case sfErrorRate:
+				v := errorRate
+				dp.ErrorRate = &v
+			case sfFirstAttempt:
+				v := int(firstAttempt)
+				dp.FirstAttemptCount = &v
+			case sfRetryCount:
+				v := int(retryCount)
+				dp.RetryCount = &v
+			case sfManualRetry:
+				v := int(manualRetry)
+				dp.ManualRetryCount = &v
+			case sfAvgAttemptNum:
+				v := avgAttemptNum
+				dp.AvgAttemptNumber = &v
+			}
+		}
+		data = append(data, dp)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("rows error: %w", err)
+	}
+
+	truncated := len(data) > defaultRowLimit
+	if truncated {
+		data = data[:defaultRowLimit]
+	}
+
+	data, err = bucket.FillAttemptBuckets(data, req)
+	if err != nil {
+		return nil, fmt.Errorf("fill attempt buckets: %w: %w", driver.ErrResourceLimit, err)
+	}
+	driver.ComputeAttemptRates(data, req)
+
+	elapsed := time.Since(start)
+	return &driver.AttemptMetricsResponse{
+		Data: data,
+		Metadata: driver.MetricsMetadata{
+			QueryTimeMs: elapsed.Milliseconds(),
+			RowCount:    len(data),
+			RowLimit:    defaultRowLimit,
+			Truncated:   truncated,
+		},
+	}, nil
+}
+
+// wrapCHMetricsError detects ClickHouse resource-limit errors (TOO_MANY_ROWS,
+// TIMEOUT_EXCEEDED) and wraps them as driver.ErrResourceLimit so the handler
+// can return 400 instead of 500.
+func wrapCHMetricsError(op string, err error) error {
+	msg := err.Error()
+	if strings.Contains(msg, "TOO_MANY_ROWS") ||
+		strings.Contains(msg, "TIMEOUT_EXCEEDED") ||
+		strings.Contains(msg, "max_rows_to_group_by") {
+		return fmt.Errorf("%s: %w: %w", op, driver.ErrResourceLimit, err)
+	}
+	return fmt.Errorf("%s: %w", op, err)
+}

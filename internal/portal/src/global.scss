@@ -189,6 +189,12 @@ $COLORS_DATAVIZ_SUCCESS_DARK: #004d26 !default;
 $COLORS_DATAVIZ_ERROR_LIGHT: #cc2314 !default;
 $COLORS_DATAVIZ_ERROR_DARK: #d64f43 !default;
 
+$COLORS_DATAVIZ_INFO_LIGHT: #99b8f5 !default;
+$COLORS_DATAVIZ_INFO_DARK: #5599dd !default;
+
+$COLORS_DATAVIZ_WARNING_LIGHT: #cc8800 !default;
+$COLORS_DATAVIZ_WARNING_DARK: #dd9933 !default;
+
 :root {
   --base-font-size: #{$BASE_FONT_SIZE};
   --base-grid-multiplier: #{$BASE_GRID_MULTIPLIER};
@@ -243,6 +249,8 @@ $COLORS_DATAVIZ_ERROR_DARK: #d64f43 !default;
 
   --colors-dataviz-error: #{$COLORS_DATAVIZ_ERROR_LIGHT};
   --colors-dataviz-success: #{$COLORS_DATAVIZ_SUCCESS_LIGHT};
+  --colors-dataviz-info: #{$COLORS_DATAVIZ_INFO_LIGHT};
+  --colors-dataviz-warning: #{$COLORS_DATAVIZ_WARNING_LIGHT};
 
   --colors-foreground-neutral: #{$COLORS_FOREGROUND_NEUTRAL_LIGHT};
   --colors-foreground-neutral-2: #{$COLORS_FOREGROUND_NEUTRAL_2_LIGHT};
@@ -283,6 +291,8 @@ $COLORS_DATAVIZ_ERROR_DARK: #d64f43 !default;
 
     --colors-dataviz-error: #{$COLORS_DATAVIZ_ERROR_DARK};
     --colors-dataviz-success: #{$COLORS_DATAVIZ_SUCCESS_DARK};
+    --colors-dataviz-info: #{$COLORS_DATAVIZ_INFO_DARK};
+    --colors-dataviz-warning: #{$COLORS_DATAVIZ_WARNING_DARK};
 
     --colors-foreground-neutral: #{$COLORS_FOREGROUND_NEUTRAL_DARK};
     --colors-foreground-neutral-2: #{$COLORS_FOREGROUND_NEUTRAL_2_DARK};

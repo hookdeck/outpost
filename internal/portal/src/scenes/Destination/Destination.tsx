@@ -13,6 +13,7 @@ import {
   DestinationTypeReference,
 } from "../../typings/Destination";
 import getLogo from "../../utils/logo";
+import DestinationMetrics from "./DestinationMetrics";
 import DestinationSettings from "./DestinationSettings/DestinationSettings";
 import { AttemptRoutes } from "./Events/Attempts";
 
@@ -229,19 +230,7 @@ const Destination = () => {
                         </pre>
                       </div>
                     )}
-                  {/* 
-                  TODO: Uncomment when metrics are implemented
-                  <div className="metrics-container">
-                    <h2 className="title-l">Metrics</h2>
-                    <div className="metrics-container__metrics">
-                      <div className="metrics-container__metric">
-                        <div>[TODO]</div>
-                      </div>
-                      <div className="metrics-container__metric">
-                        <div>[TODO]</div>
-                      </div>
-                    </div>
-                  </div> */}
+                  <DestinationMetrics destination={destination} />
                 </>
               }
             />

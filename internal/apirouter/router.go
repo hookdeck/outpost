@@ -142,6 +142,7 @@ func NewRouter(cfg RouterConfig, deps RouterDeps) http.Handler {
 	logHandlers := NewLogHandlers(deps.Logger, deps.LogStore)
 	retryHandlers := NewRetryHandlers(deps.Logger, deps.TenantStore, deps.LogStore, deps.DeliveryPublisher)
 	topicHandlers := NewTopicHandlers(deps.Logger, cfg.Topics)
+	metricsHandlers := NewMetricsHandlers(deps.Logger, deps.LogStore)
 
 	routes := []RouteDefinition{
 		// Schemas & Topics
@@ -179,6 +180,10 @@ func NewRouter(cfg RouterConfig, deps RouterDeps) http.Handler {
 		// Attempts
 		{Method: http.MethodGet, Path: "/attempts", Handler: logHandlers.ListAttempts},
 		{Method: http.MethodGet, Path: "/attempts/:attempt_id", Handler: logHandlers.RetrieveAttempt},
+
+		// Metrics
+		{Method: http.MethodGet, Path: "/metrics/events", Handler: metricsHandlers.MetricsEvents},
+		{Method: http.MethodGet, Path: "/metrics/attempts", Handler: metricsHandlers.MetricsAttempts},
 	}
 
 	registerRoutes(apiRouter, cfg, deps.TenantStore, routes)
