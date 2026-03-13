@@ -165,3 +165,6 @@ func (d *DestinationAwss3) GetTargetURL() *string {
 	}
 	return d.TargetURL
 }
+
+// #region class-body-destinationawss3
+// #endregion class-body-destinationawss3

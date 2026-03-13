@@ -55,3 +55,6 @@ func (a *Awss3Config) GetStorageClass() *string {
 	}
 	return a.StorageClass
 }
+
+// #region class-body-awss3config
+// #endregion class-body-awss3config

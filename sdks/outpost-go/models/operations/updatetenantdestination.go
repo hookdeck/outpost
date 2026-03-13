@@ -14,7 +14,7 @@ type UpdateTenantDestinationRequest struct {
 	TenantID string `pathParam:"style=simple,explode=false,name=tenant_id"`
 	// The ID of the destination.
 	DestinationID string                       `pathParam:"style=simple,explode=false,name=destination_id"`
-	Params        components.DestinationUpdate `request:"mediaType=application/json"`
+	Body          components.DestinationUpdate `request:"mediaType=application/json"`
 }
 
 func (u *UpdateTenantDestinationRequest) GetTenantID() string {
@@ -31,11 +31,11 @@ func (u *UpdateTenantDestinationRequest) GetDestinationID() string {
 	return u.DestinationID
 }
 
-func (u *UpdateTenantDestinationRequest) GetParams() components.DestinationUpdate {
+func (u *UpdateTenantDestinationRequest) GetBody() components.DestinationUpdate {
 	if u == nil {
 		return components.DestinationUpdate{}
 	}
-	return u.Params
+	return u.Body
 }
 
 type UpdateTenantDestinationResponseBodyType string

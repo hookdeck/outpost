@@ -13,7 +13,10 @@ import (
 	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
 	"github.com/hookdeck/outpost/sdks/outpost-go/models/operations"
 	"github.com/hookdeck/outpost/sdks/outpost-go/retry"
+	"github.com/spyzhov/ajson"
 	"net/http"
+	"strconv"
+	"strings"
 )
 
 // Destinations are the endpoints where events are sent. Each destination is associated with a tenant and can be configured to receive specific event topics.
@@ -57,7 +60,7 @@ func newDestinations(rootSDK *Outpost, sdkConfig config.SDKConfiguration, hooks 
 
 // List Destinations
 // Return a list of the destinations for the tenant. The endpoint is not paged.
-func (s *Destinations) List(ctx context.Context, tenantID string, type_ *operations.ListTenantDestinationsType, topics *operations.Topics, opts ...operations.Option) (*operations.ListTenantDestinationsResponse, error) {
+func (s *Destinations) List(ctx context.Context, tenantID string, type_ []components.DestinationType, topics []string, opts ...operations.Option) (*operations.ListTenantDestinationsResponse, error) {
 	request := operations.ListTenantDestinationsRequest{
 		TenantID: tenantID,
 		Type:     type_,
@@ -336,10 +339,10 @@ func (s *Destinations) List(ctx context.Context, tenantID string, type_ *operati
 
 // Create Destination
 // Creates a new destination for the tenant. The request body structure depends on the `type`.
-func (s *Destinations) Create(ctx context.Context, tenantID string, params components.DestinationCreate, opts ...operations.Option) (*operations.CreateTenantDestinationResponse, error) {
+func (s *Destinations) Create(ctx context.Context, tenantID string, body components.DestinationCreate, opts ...operations.Option) (*operations.CreateTenantDestinationResponse, error) {
 	request := operations.CreateTenantDestinationRequest{
 		TenantID: tenantID,
-		Params:   params,
+		Body:     body,
 	}
 
 	o := operations.Options{}
@@ -374,7 +377,7 @@ func (s *Destinations) Create(ctx context.Context, tenantID string, params compo
 		OAuth2Scopes:     nil,
 		SecuritySource:   s.sdkConfiguration.Security,
 	}
-	bodyReader, reqContentType, err := utils.SerializeRequestBody(ctx, request, false, false, "Params", "json", `request:"mediaType=application/json"`)
+	bodyReader, reqContentType, err := utils.SerializeRequestBody(ctx, request, false, false, "Body", "json", `request:"mediaType=application/json"`)
 	if err != nil {
 		return nil, err
 	}
@@ -912,11 +915,11 @@ func (s *Destinations) Get(ctx context.Context, tenantID string, destinationID s
 
 // Update Destination
 // Updates the configuration of an existing destination. The request body structure depends on the destination's `type`. Type itself cannot be updated. May return an OAuth redirect URL for certain types.
-func (s *Destinations) Update(ctx context.Context, tenantID string, destinationID string, params components.DestinationUpdate, opts ...operations.Option) (*operations.UpdateTenantDestinationResponse, error) {
+func (s *Destinations) Update(ctx context.Context, tenantID string, destinationID string, body components.DestinationUpdate, opts ...operations.Option) (*operations.UpdateTenantDestinationResponse, error) {
 	request := operations.UpdateTenantDestinationRequest{
 		TenantID:      tenantID,
 		DestinationID: destinationID,
-		Params:        params,
+		Body:          body,
 	}
 
 	o := operations.Options{}
@@ -951,7 +954,7 @@ func (s *Destinations) Update(ctx context.Context, tenantID string, destinationI
 		OAuth2Scopes:     nil,
 		SecuritySource:   s.sdkConfiguration.Security,
 	}
-	bodyReader, reqContentType, err := utils.SerializeRequestBody(ctx, request, false, false, "Params", "json", `request:"mediaType=application/json"`)
+	bodyReader, reqContentType, err := utils.SerializeRequestBody(ctx, request, false, false, "Body", "json", `request:"mediaType=application/json"`)
 	if err != nil {
 		return nil, err
 	}
@@ -2198,6 +2201,72 @@ func (s *Destinations) ListAttempts(ctx context.Context, request operations.List
 			Response: httpRes,
 		},
 	}
+	res.Next = func() (*operations.ListTenantDestinationAttemptsResponse, error) {
+		rawBody, err := utils.ConsumeRawBody(httpRes)
+		if err != nil {
+			return nil, err
+		}
+
+		b, err := ajson.Unmarshal(rawBody)
+		if err != nil {
+			return nil, err
+		}
+		nC, err := ajson.Eval(b, "$.pagination.next")
+		if err != nil {
+			return nil, err
+		}
+		var nCVal string
+
+		if nC.IsNumeric() {
+			numVal, err := nC.GetNumeric()
+			if err != nil {
+				return nil, err
+			}
+			// GetNumeric returns as float64 so convert to the appropriate type.
+			nCVal = strconv.FormatFloat(numVal, 'f', 0, 64)
+		} else {
+			val, err := nC.Value()
+			if err != nil {
+				return nil, err
+			}
+			if val == nil {
+				return nil, nil
+			}
+			nCVal = val.(string)
+			if strings.TrimSpace(nCVal) == "" {
+				return nil, nil
+			}
+		}
+		r, err := ajson.Eval(b, "$.models")
+		if err != nil {
+			return nil, err
+		}
+		if !r.IsArray() {
+			return nil, nil
+		}
+		arr, err := r.GetArray()
+		if err != nil {
+			return nil, err
+		}
+		if len(arr) == 0 {
+			return nil, nil
+		}
+
+		l := 0
+		if request.Limit != nil {
+			l = int(*request.Limit)
+		}
+		if len(arr) < l {
+			return nil, nil
+		}
+		request.Next = &nCVal
+
+		return s.ListAttempts(
+			ctx,
+			request,
+			opts...,
+		)
+	}
 
 	switch {
 	case httpRes.StatusCode == 200:
@@ -2310,7 +2379,7 @@ func (s *Destinations) ListAttempts(ctx context.Context, request operations.List
 
 // GetAttempt - Get Destination Attempt
 // Retrieves details for a specific attempt scoped to a destination.
-func (s *Destinations) GetAttempt(ctx context.Context, tenantID string, destinationID string, attemptID string, include *operations.GetTenantDestinationAttemptInclude, opts ...operations.Option) (*operations.GetTenantDestinationAttemptResponse, error) {
+func (s *Destinations) GetAttempt(ctx context.Context, tenantID string, destinationID string, attemptID string, include []string, opts ...operations.Option) (*operations.GetTenantDestinationAttemptResponse, error) {
 	request := operations.GetTenantDestinationAttemptRequest{
 		TenantID:      tenantID,
 		DestinationID: destinationID,

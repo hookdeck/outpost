@@ -75,3 +75,6 @@ func (d *DestinationUpdateAwss3) GetMetadata() map[string]string {
 	}
 	return d.Metadata
 }
+
+// #region class-body-destinationupdateawss3
+// #endregion class-body-destinationupdateawss3
