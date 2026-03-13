@@ -158,6 +158,19 @@ describe('Events (PR #491)', () => {
   });
 
   describe('GET /events', () => {
+    it('should accept array params for tenantId and topic (events.list)', async function () {
+      const sdk: Outpost = client.getSDK();
+      const tid = client.getTenantId();
+      // SDK accepts string | string[] for tenantId and topic; verify array form is accepted
+      const response = await sdk.events.list({
+        tenantId: [tid],
+        topic: [TEST_TOPICS[0]],
+        limit: 5,
+      });
+      expect(response).to.not.be.undefined;
+      expect(response?.models).to.be.an('array');
+    });
+
     it('should list events by tenant', async function () {
       this.timeout(60000);
 
