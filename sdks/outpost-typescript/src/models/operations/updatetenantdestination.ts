@@ -18,7 +18,7 @@ export type UpdateTenantDestinationRequest = {
    * The ID of the destination.
    */
   destinationId: string;
-  params: components.DestinationUpdate;
+  body: components.DestinationUpdate;
 };
 
 /**
@@ -34,7 +34,7 @@ export const UpdateTenantDestinationRequest$inboundSchema: z.ZodType<
 > = z.object({
   tenant_id: z.string(),
   destination_id: z.string(),
-  params: components.DestinationUpdate$inboundSchema,
+  body: components.DestinationUpdate$inboundSchema,
 }).transform((v) => {
   return remap$(v, {
     "tenant_id": "tenantId",
@@ -45,7 +45,7 @@ export const UpdateTenantDestinationRequest$inboundSchema: z.ZodType<
 export type UpdateTenantDestinationRequest$Outbound = {
   tenant_id: string;
   destination_id: string;
-  params: components.DestinationUpdate$Outbound;
+  body: components.DestinationUpdate$Outbound;
 };
 
 /** @internal */
@@ -56,7 +56,7 @@ export const UpdateTenantDestinationRequest$outboundSchema: z.ZodType<
 > = z.object({
   tenantId: z.string(),
   destinationId: z.string(),
-  params: components.DestinationUpdate$outboundSchema,
+  body: components.DestinationUpdate$outboundSchema,
 }).transform((v) => {
   return remap$(v, {
     tenantId: "tenant_id",

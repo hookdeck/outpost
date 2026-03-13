@@ -17,7 +17,7 @@ export type UpsertTenantRequest = {
   /**
    * Optional tenant metadata
    */
-  params?: components.TenantUpsert | undefined;
+  body?: components.TenantUpsert | undefined;
 };
 
 /** @internal */
@@ -27,7 +27,7 @@ export const UpsertTenantRequest$inboundSchema: z.ZodType<
   unknown
 > = z.object({
   tenant_id: z.string(),
-  params: components.TenantUpsert$inboundSchema.optional(),
+  body: components.TenantUpsert$inboundSchema.optional(),
 }).transform((v) => {
   return remap$(v, {
     "tenant_id": "tenantId",
@@ -36,7 +36,7 @@ export const UpsertTenantRequest$inboundSchema: z.ZodType<
 /** @internal */
 export type UpsertTenantRequest$Outbound = {
   tenant_id: string;
-  params?: components.TenantUpsert$Outbound | undefined;
+  body?: components.TenantUpsert$Outbound | undefined;
 };
 
 /** @internal */
@@ -46,7 +46,7 @@ export const UpsertTenantRequest$outboundSchema: z.ZodType<
   UpsertTenantRequest
 > = z.object({
   tenantId: z.string(),
-  params: components.TenantUpsert$outboundSchema.optional(),
+  body: components.TenantUpsert$outboundSchema.optional(),
 }).transform((v) => {
   return remap$(v, {
     tenantId: "tenant_id",

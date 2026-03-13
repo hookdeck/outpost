@@ -9,14 +9,14 @@ If your system is not multi-tenant, create a single tenant with a hard-code tena
 
 ### Available Operations
 
-* [listTenants](#listtenants) - List Tenants
+* [list](#list) - List Tenants
 * [upsert](#upsert) - Create or Update Tenant
 * [get](#get) - Get Tenant
 * [delete](#delete) - Delete Tenant
 * [getPortalUrl](#getportalurl) - Get Portal Redirect URL
 * [getToken](#gettoken) - Get Tenant JWT Token
 
-## listTenants
+## list
 
 List all tenants with cursor-based pagination.
 
@@ -37,9 +37,11 @@ const outpost = new Outpost({
 });
 
 async function run() {
-  const result = await outpost.tenants.listTenants();
+  const result = await outpost.tenants.list({});
 
-  console.log(result);
+  for await (const page of result) {
+    console.log(page);
+  }
 }
 
 run();
@@ -51,7 +53,7 @@ The standalone function version of this method:
 
 ```typescript
 import { OutpostCore } from "@hookdeck/outpost-sdk/core.js";
-import { tenantsListTenants } from "@hookdeck/outpost-sdk/funcs/tenantsListTenants.js";
+import { tenantsList } from "@hookdeck/outpost-sdk/funcs/tenantsList.js";
 
 // Use `OutpostCore` for best tree-shaking performance.
 // You can create one instance of it to use across an application.
@@ -60,12 +62,14 @@ const outpost = new OutpostCore({
 });
 
 async function run() {
-  const res = await tenantsListTenants(outpost);
+  const res = await tenantsList(outpost, {});
   if (res.ok) {
     const { value: result } = res;
-    console.log(result);
+    for await (const page of result) {
+    console.log(page);
+  }
   } else {
-    console.log("tenantsListTenants failed:", res.error);
+    console.log("tenantsList failed:", res.error);
   }
 }
 
@@ -76,17 +80,14 @@ run();
 
 | Parameter                                                                                                                                                                      | Type                                                                                                                                                                           | Required                                                                                                                                                                       | Description                                                                                                                                                                    |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `limit`                                                                                                                                                                        | *number*                                                                                                                                                                       | :heavy_minus_sign:                                                                                                                                                             | Number of tenants to return per page (1-100, default 20).                                                                                                                      |
-| `dir`                                                                                                                                                                          | [operations.ListTenantsDir](../../models/operations/listtenantsdir.md)                                                                                                         | :heavy_minus_sign:                                                                                                                                                             | Sort direction.                                                                                                                                                                |
-| `next`                                                                                                                                                                         | *string*                                                                                                                                                                       | :heavy_minus_sign:                                                                                                                                                             | Cursor for the next page of results. Mutually exclusive with `prev`.                                                                                                           |
-| `prev`                                                                                                                                                                         | *string*                                                                                                                                                                       | :heavy_minus_sign:                                                                                                                                                             | Cursor for the previous page of results. Mutually exclusive with `next`.                                                                                                       |
+| `request`                                                                                                                                                                      | [operations.ListTenantsRequest](../../models/operations/listtenantsrequest.md)                                                                                                 | :heavy_check_mark:                                                                                                                                                             | The request object to use for the request.                                                                                                                                     |
 | `options`                                                                                                                                                                      | RequestOptions                                                                                                                                                                 | :heavy_minus_sign:                                                                                                                                                             | Used to set various options for making HTTP requests.                                                                                                                          |
 | `options.fetchOptions`                                                                                                                                                         | [RequestInit](https://developer.mozilla.org/en-US/docs/Web/API/Request/Request#options)                                                                                        | :heavy_minus_sign:                                                                                                                                                             | Options that are passed to the underlying HTTP request. This can be used to inject extra headers for examples. All `Request` options, except `method` and `body`, are allowed. |
 | `options.retries`                                                                                                                                                              | [RetryConfig](../../lib/utils/retryconfig.md)                                                                                                                                  | :heavy_minus_sign:                                                                                                                                                             | Enables retrying HTTP requests under certain failure conditions.                                                                                                               |
 
 ### Response
 
-**Promise\<[components.TenantPaginatedResult](../../models/components/tenantpaginatedresult.md)\>**
+**Promise\<[operations.ListTenantsResponse](../../models/operations/listtenantsresponse.md)\>**
 
 ### Errors
 
@@ -153,7 +154,7 @@ run();
 | Parameter                                                                                                                                                                      | Type                                                                                                                                                                           | Required                                                                                                                                                                       | Description                                                                                                                                                                    |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `tenantId`                                                                                                                                                                     | *string*                                                                                                                                                                       | :heavy_check_mark:                                                                                                                                                             | The ID of the tenant. Required when using AdminApiKey authentication.                                                                                                          |
-| `params`                                                                                                                                                                       | [components.TenantUpsert](../../models/components/tenantupsert.md)                                                                                                             | :heavy_minus_sign:                                                                                                                                                             | Optional tenant metadata                                                                                                                                                       |
+| `body`                                                                                                                                                                         | [components.TenantUpsert](../../models/components/tenantupsert.md)                                                                                                             | :heavy_minus_sign:                                                                                                                                                             | Optional tenant metadata                                                                                                                                                       |
 | `options`                                                                                                                                                                      | RequestOptions                                                                                                                                                                 | :heavy_minus_sign:                                                                                                                                                             | Used to set various options for making HTTP requests.                                                                                                                          |
 | `options.fetchOptions`                                                                                                                                                         | [RequestInit](https://developer.mozilla.org/en-US/docs/Web/API/Request/Request#options)                                                                                        | :heavy_minus_sign:                                                                                                                                                             | Options that are passed to the underlying HTTP request. This can be used to inject extra headers for examples. All `Request` options, except `method` and `body`, are allowed. |
 | `options.retries`                                                                                                                                                              | [RetryConfig](../../lib/utils/retryconfig.md)                                                                                                                                  | :heavy_minus_sign:                                                                                                                                                             | Enables retrying HTTP requests under certain failure conditions.                                                                                                               |

@@ -25,6 +25,7 @@ Outpost API: The Outpost API is a REST-based JSON API for managing tenants, dest
   * [Authentication](#authentication)
   * [Available Resources and Operations](#available-resources-and-operations)
   * [Standalone functions](#standalone-functions)
+  * [Pagination](#pagination)
   * [Retries](#retries)
   * [Error Handling](#error-handling)
   * [Server Selection](#server-selection)
@@ -254,7 +255,7 @@ run();
 
 ### [Tenants](docs/sdks/tenants/README.md)
 
-* [listTenants](docs/sdks/tenants/README.md#listtenants) - List Tenants
+* [list](docs/sdks/tenants/README.md#list) - List Tenants
 * [upsert](docs/sdks/tenants/README.md#upsert) - Create or Update Tenant
 * [get](docs/sdks/tenants/README.md#get) - Get Tenant
 * [delete](docs/sdks/tenants/README.md#delete) - Delete Tenant
@@ -305,12 +306,44 @@ To read more about standalone functions, check [FUNCTIONS.md](./FUNCTIONS.md).
 - [`tenantsGet`](docs/sdks/tenants/README.md#get) - Get Tenant
 - [`tenantsGetPortalUrl`](docs/sdks/tenants/README.md#getportalurl) - Get Portal Redirect URL
 - [`tenantsGetToken`](docs/sdks/tenants/README.md#gettoken) - Get Tenant JWT Token
-- [`tenantsListTenants`](docs/sdks/tenants/README.md#listtenants) - List Tenants
+- [`tenantsList`](docs/sdks/tenants/README.md#list) - List Tenants
 - [`tenantsUpsert`](docs/sdks/tenants/README.md#upsert) - Create or Update Tenant
 - [`topicsList`](docs/sdks/topics/README.md#list) - List Available Topics
 
 </details>
 <!-- End Standalone functions [standalone-funcs] -->
+
+<!-- Start Pagination [pagination] -->
+## Pagination
+
+Some of the endpoints in this SDK support pagination. To use pagination, you
+make your SDK calls as usual, but the returned response object will also be an
+async iterable that can be consumed using the [`for await...of`][for-await-of]
+syntax.
+
+[for-await-of]: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/for-await...of
+
+Here's an example of one such pagination call:
+
+```typescript
+import { Outpost } from "@hookdeck/outpost-sdk";
+
+const outpost = new Outpost({
+  apiKey: "<YOUR_BEARER_TOKEN_HERE>",
+});
+
+async function run() {
+  const result = await outpost.tenants.list({});
+
+  for await (const page of result) {
+    console.log(page);
+  }
+}
+
+run();
+
+```
+<!-- End Pagination [pagination] -->
 
 <!-- Start Retries [retries] -->
 ## Retries

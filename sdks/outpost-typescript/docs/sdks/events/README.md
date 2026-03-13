@@ -30,7 +30,9 @@ const outpost = new Outpost({
 async function run() {
   const result = await outpost.events.list({});
 
-  console.log(result);
+  for await (const page of result) {
+    console.log(page);
+  }
 }
 
 run();
@@ -54,7 +56,9 @@ async function run() {
   const res = await eventsList(outpost, {});
   if (res.ok) {
     const { value: result } = res;
-    console.log(result);
+    for await (const page of result) {
+    console.log(page);
+  }
   } else {
     console.log("eventsList failed:", res.error);
   }
@@ -74,7 +78,7 @@ run();
 
 ### Response
 
-**Promise\<[components.EventPaginatedResult](../../models/components/eventpaginatedresult.md)\>**
+**Promise\<[operations.ListEventsResponse](../../models/operations/listeventsresponse.md)\>**
 
 ### Errors
 

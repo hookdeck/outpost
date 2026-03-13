@@ -1,6 +1,6 @@
-# ListEventsTopic
+# ListEventsId
 
-Filter events by topic(s). Use bracket notation for multiple values (e.g., `topic[0]=user.created&topic[1]=user.updated`).
+Filter events by ID(s). Use bracket notation for multiple values (e.g., `id[0]=abc&id[1]=def`).
 
 
 ## Supported Types
