@@ -2,10 +2,10 @@ overlay: 1.0.0
 x-speakeasy-jsonpath: rfc9535
 info:
   title: Pagination Field Fixes
-  version: 0.0.2
+  version: 0.0.3
   x-speakeasy-metadata:
     type: pagination-fixes
-    description: "Fixes pagination field conflicts with Python built-ins; v0.13 uses SeekPagination and models/pagination envelope"
+    description: "Fixes pagination field conflicts with Python built-ins; uses filter expressions instead of positional indices for resilience to parameter reordering"
 extends: ../../docs/apis/openapi.yaml
 actions:
   # Fix 'next' field in SeekPagination to avoid Python built-in next() conflict
@@ -24,89 +24,87 @@ actions:
       type: field-name-override
       description: "Rename 'prev' to 'prev_cursor' for consistency"
 
-  # Rename query param 'dir' (sort direction) to 'direction' to avoid Python builtin shadowing (W0622)
-  - target: $["paths"]["/tenants"]["get"]["parameters"][2]
+  # Rename query param 'dir' to 'direction' to avoid Python builtin shadowing (W0622)
+  # Uses filter expressions to target by name — immune to parameter reordering
+  - target: $["paths"]["/tenants"]["get"]["parameters"][?@.name == 'dir']
     update:
       x-speakeasy-name-override: "direction"
     x-speakeasy-metadata:
       type: parameter-name-override
       description: "Rename 'dir' to 'direction' (sort direction) to avoid shadowing builtin dir()"
 
-  - target: $["paths"]["/events"]["get"]["parameters"][8]
+  - target: $["paths"]["/events"]["get"]["parameters"][?@.name == 'dir']
     update:
       x-speakeasy-name-override: "direction"
     x-speakeasy-metadata:
       type: parameter-name-override
       description: "Rename 'dir' to 'direction' (sort direction)"
 
-  - target: $["paths"]["/attempts"]["get"]["parameters"][12]
+  - target: $["paths"]["/attempts"]["get"]["parameters"][?@.name == 'dir']
     update:
       x-speakeasy-name-override: "direction"
     x-speakeasy-metadata:
       type: parameter-name-override
       description: "Rename 'dir' to 'direction' (sort direction)"
 
-  - target: $["paths"]["/tenants/{tenant_id}/destinations/{destination_id}/attempts"]["get"]["parameters"][10]
+  - target: $["paths"]["/tenants/{tenant_id}/destinations/{destination_id}/attempts"]["get"]["parameters"][?@.name == 'dir']
     update:
       x-speakeasy-name-override: "direction"
     x-speakeasy-metadata:
       type: parameter-name-override
       description: "Rename 'dir' to 'direction' (sort direction)"
 
-  # GET /tenants: parameters limit=0, order_by=1, dir=2, created_at[gte]=3, created_at[lte]=4, next=5, prev=6
-  - target: $["paths"]["/tenants"]["get"]["parameters"][5]
+  # Rename 'next'/'prev' query params to 'next_cursor'/'prev_cursor'
+  - target: $["paths"]["/tenants"]["get"]["parameters"][?@.name == 'next']
     update:
       x-speakeasy-name-override: "next_cursor"
     x-speakeasy-metadata:
       type: parameter-name-override
       description: "Rename 'next' query parameter to 'next_cursor'"
 
-  - target: $["paths"]["/tenants"]["get"]["parameters"][6]
+  - target: $["paths"]["/tenants"]["get"]["parameters"][?@.name == 'prev']
     update:
       x-speakeasy-name-override: "prev_cursor"
     x-speakeasy-metadata:
       type: parameter-name-override
       description: "Rename 'prev' query parameter to 'prev_cursor'"
 
-  # GET /events: tenant_id=0, topic=1, time[gte]=2, time[lte]=3, limit=4, next=5, prev=6 (destination_id removed in v0.13)
-  - target: $["paths"]["/events"]["get"]["parameters"][5]
+  - target: $["paths"]["/events"]["get"]["parameters"][?@.name == 'next']
     update:
       x-speakeasy-name-override: "next_cursor"
     x-speakeasy-metadata:
       type: parameter-name-override
       description: "Rename 'next' query parameter to 'next_cursor'"
 
-  - target: $["paths"]["/events"]["get"]["parameters"][6]
+  - target: $["paths"]["/events"]["get"]["parameters"][?@.name == 'prev']
     update:
       x-speakeasy-name-override: "prev_cursor"
     x-speakeasy-metadata:
       type: parameter-name-override
       description: "Rename 'prev' query parameter to 'prev_cursor'"
 
-  # GET /attempts: next=8, prev=9
-  - target: $["paths"]["/attempts"]["get"]["parameters"][8]
+  - target: $["paths"]["/attempts"]["get"]["parameters"][?@.name == 'next']
     update:
       x-speakeasy-name-override: "next_cursor"
     x-speakeasy-metadata:
       type: parameter-name-override
       description: "Rename 'next' query parameter to 'next_cursor'"
 
-  - target: $["paths"]["/attempts"]["get"]["parameters"][9]
+  - target: $["paths"]["/attempts"]["get"]["parameters"][?@.name == 'prev']
     update:
       x-speakeasy-name-override: "prev_cursor"
     x-speakeasy-metadata:
       type: parameter-name-override
       description: "Rename 'prev' query parameter to 'prev_cursor'"
 
-  # GET /tenants/{tenant_id}/destinations/{destination_id}/attempts: next=6, prev=7
-  - target: $["paths"]["/tenants/{tenant_id}/destinations/{destination_id}/attempts"]["get"]["parameters"][6]
+  - target: $["paths"]["/tenants/{tenant_id}/destinations/{destination_id}/attempts"]["get"]["parameters"][?@.name == 'next']
     update:
       x-speakeasy-name-override: "next_cursor"
     x-speakeasy-metadata:
       type: parameter-name-override
       description: "Rename 'next' query parameter to 'next_cursor'"
 
-  - target: $["paths"]["/tenants/{tenant_id}/destinations/{destination_id}/attempts"]["get"]["parameters"][7]
+  - target: $["paths"]["/tenants/{tenant_id}/destinations/{destination_id}/attempts"]["get"]["parameters"][?@.name == 'prev']
     update:
       x-speakeasy-name-override: "prev_cursor"
     x-speakeasy-metadata:
