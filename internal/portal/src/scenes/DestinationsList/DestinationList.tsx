@@ -1,6 +1,6 @@
 import "./DestinationList.scss";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import useSWR from "swr";
 
 import Badge from "../../common/Badge/Badge";
@@ -8,6 +8,7 @@ import Button from "../../common/Button/Button";
 import { Checkbox } from "../../common/Checkbox/Checkbox";
 import Dropdown from "../../common/Dropdown/Dropdown";
 import { AddIcon, FilterIcon, Loading } from "../../common/Icons";
+import { useBatchedMetrics } from "../../common/MetricsChart/useMetrics";
 import SearchInput from "../../common/SearchInput/SearchInput";
 import Table from "../../common/Table/Table";
 import Tooltip from "../../common/Tooltip/Tooltip";
@@ -20,6 +21,20 @@ import DestinationEventsCell from "./DestinationEventsCell";
 const DestinationList: React.FC = () => {
   const { data: destinations } = useSWR<Destination[]>("destinations");
   const destination_types = useDestinationTypes();
+
+  const destinationIds = useMemo(
+    () => destinations?.map((d) => d.id) ?? [],
+    [destinations],
+  );
+  const { data: batchedMetrics, isLoading: metricsLoading } =
+    useBatchedMetrics({
+      measures: ["successful_count", "failed_count"],
+      destinationIds,
+      timeframe: "24h",
+      granularity: "4h",
+      filters: { attempt_number: "1", manual: "false" },
+    });
+
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedStatus, setSelectedStatus] = useState<Record<string, boolean>>(
     {},
@@ -122,7 +137,10 @@ const DestinationList: React.FC = () => {
         ) : (
           <Badge text="Active" success />
         ),
-        <DestinationEventsCell destinationId={destination.id} />,
+        <DestinationEventsCell
+          metricsData={batchedMetrics?.[destination.id]}
+          isLoading={metricsLoading}
+        />,
       ].filter((entry) => entry !== null),
       link: `/destinations/${destination.id}`,
     })) || [];

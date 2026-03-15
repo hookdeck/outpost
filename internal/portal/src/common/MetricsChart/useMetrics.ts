@@ -137,3 +137,85 @@ export function useMetrics({
 
   return { data, error, isLoading };
 }
+
+export function useBatchedMetrics({
+  measures,
+  destinationIds,
+  timeframe,
+  filters,
+  granularity: granularityOverride,
+}: {
+  measures: string[];
+  destinationIds: string[];
+  timeframe: Timeframe;
+  filters?: Record<string, string>;
+  granularity?: string;
+}) {
+  const apiClient = useContext(ApiContext);
+
+  const measuresKey = measures.join(",");
+  const filtersKey = filters
+    ? Object.entries(filters)
+        .map(([k, v]) => `${k}=${v}`)
+        .join(",")
+    : "";
+  const idsKey = [...destinationIds].sort().join(",");
+
+  const url = useMemo(() => {
+    if (destinationIds.length === 0) return null;
+
+    const { start, end } = getDateRange(timeframe);
+    const params = new URLSearchParams();
+    params.set("time[start]", start);
+    params.set("time[end]", end);
+
+    for (const m of measures) {
+      params.append("measures[]", m);
+    }
+
+    const sortedIds = [...destinationIds].sort();
+    for (const id of sortedIds) {
+      params.append("filters[destination_id][]", id);
+    }
+
+    params.append("dimensions[]", "destination_id");
+
+    if (filters) {
+      for (const [k, v] of Object.entries(filters)) {
+        params.set(`filters[${k}]`, v);
+      }
+    }
+
+    params.set(
+      "granularity",
+      granularityOverride ?? getGranularity(timeframe),
+    );
+
+    return `metrics/attempts?${params.toString()}`;
+  }, [idsKey, measuresKey, filtersKey, granularityOverride, timeframe]);
+
+  const { data, error, isLoading } = useSWR<MetricsResponse>(
+    url,
+    (path: string) => apiClient.fetchRoot(path),
+    {
+      refreshInterval: 60_000,
+      revalidateOnFocus: false,
+    },
+  );
+
+  const grouped = useMemo(() => {
+    if (!data) return undefined;
+
+    const result: Record<string, MetricsDataPoint[]> = {};
+    for (const point of data.data) {
+      const destId = point.dimensions.destination_id;
+      if (!result[destId]) {
+        result[destId] = [];
+      }
+      result[destId].push(point);
+    }
+    return result;
+  }, [data]);
+
+  return { data: grouped, error, isLoading };
+}

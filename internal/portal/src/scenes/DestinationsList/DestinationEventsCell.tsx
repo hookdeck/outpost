@@ -1,8 +1,9 @@
 import Sparkline from "../../common/Sparkline/Sparkline";
-import { useMetrics } from "../../common/MetricsChart/useMetrics";
+import { MetricsDataPoint } from "../../common/MetricsChart/useMetrics";
 
 interface DestinationEventsCellProps {
-  destinationId: string;
+  metricsData?: MetricsDataPoint[];
+  isLoading: boolean;
 }
 
 function formatCount(n: number): string {
@@ -12,21 +13,14 @@ function formatCount(n: number): string {
 }
 
 const DestinationEventsCell: React.FC<DestinationEventsCellProps> = ({
-  destinationId,
+  metricsData,
+  isLoading,
 }) => {
-  const { data, isLoading } = useMetrics({
-    measures: ["successful_count", "failed_count"],
-    destinationId,
-    timeframe: "24h",
-    granularity: "4h",
-    filters: { attempt_number: "0", manual: "false" },
-  });
-
-  if (isLoading || !data) {
+  if (isLoading || !metricsData) {
     return <span className="histogram-cell__loading"></span>;
   }
 
-  const points = data.data.map((d) => ({
+  const points = metricsData.map((d) => ({
     successful: d.metrics.successful_count ?? 0,
     failed: d.metrics.failed_count ?? 0,
   }));
