@@ -2003,7 +2003,7 @@ components:
       properties:
         type:
           type: string
-          enum: [text, checkbox]
+          enum: [text, checkbox, key_value_map]
           example: "text"
         label:
           type: string
