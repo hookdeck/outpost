@@ -1,19 +1,19 @@
 lockVersion: 2.0.0
 id: f0627709-5a00-43ac-8678-ca716d6f379c
 management:
-  docChecksum: 7e20fdf7c3883f789b51123b26930b4b
+  docChecksum: 9f9ff1119215b8ddec5bff30b20e09e4
   docVersion: 0.0.1
-  speakeasyVersion: 1.753.0
-  generationVersion: 2.862.0
-  releaseVersion: 0.8.0
-  configChecksum: 1b4ad99ab978d199eb74ecd45f9832a0
+  speakeasyVersion: 1.755.0
+  generationVersion: 2.865.2
+  releaseVersion: 0.8.1
+  configChecksum: f02c81872a9c1b3485067c91a779f409
   repoURL: https://github.com/hookdeck/outpost.git
   repoSubDirectory: sdks/outpost-go
   installationURL: https://github.com/hookdeck/outpost
 persistentEdits:
-  generation_id: 9af00e67-b1d9-43d1-b605-72620af1b098
-  pristine_commit_hash: 2eea143646696ddcaf3509287f5755ce502bccc2
-  pristine_tree_hash: 901e2d63ee5a0ae0967135aa16c0495ca6bd809a
+  generation_id: 4de79089-e877-4b1b-8b39-945807a81ff0
+  pristine_commit_hash: 9e4fded31dd17ea2a88c0a76460d9eec5bf09ef6
+  pristine_tree_hash: 6995c7018d734deadad1ffae5b00cd941cd5ff02
 features:
   go:
     additionalDependencies: 0.1.0
@@ -262,8 +262,8 @@ trackedFiles:
     pristine_git_object: eecb304b06eeefe79bfe49006cfc8c9585968e11
   docs/models/components/destinationschemafieldtype.md:
     id: a3bc014869f3
-    last_write_checksum: sha1:33e186a363ae7e65ad31eb5a724562c4fecfbc80
-    pristine_git_object: 77fe465a4dc0c922f44d676d8247db8acd05d3a4
+    last_write_checksum: sha1:e7c1316e4b238bd6498e3e3d4ce1819174aa67a7
+    pristine_git_object: 41f7938ecf16f05765851213e9e0aa2774341501
   docs/models/components/destinationtype.md:
     id: 72fecd6c9840
     last_write_checksum: sha1:d2ac64219675c514e60bec282d1b86e25232aa50
@@ -934,8 +934,8 @@ trackedFiles:
     pristine_git_object: 500eadda28a3d255cf02b5bc5fdb9b9000d7dce2
   models/components/destinationschemafield.go:
     id: 54ed09758e6d
-    last_write_checksum: sha1:4e673c171966efc80b1a36460f39285558e1e2f5
-    pristine_git_object: 751f6fa6e0e191631806e6a13e5d58374a3eb9b4
+    last_write_checksum: sha1:ecdfc20e9c45982885455f72b826ab99b5d837e1
+    pristine_git_object: 7512b27eef2132204978a222c3485d9c2ce0b5cc
   models/components/destinationtype.go:
     id: fc3677283784
     last_write_checksum: sha1:08c04642323577efc63daf63451fc3642f6758a6
@@ -1198,8 +1198,8 @@ trackedFiles:
     pristine_git_object: e6e5a01c6e721e879e24a38a1f97e3e27d4686d4
   outpost.go:
     id: 7aebc57e3f81
-    last_write_checksum: sha1:9eaa256937c8f4463b6453478a50e672342f5ff0
-    pristine_git_object: 61e79c800e7736bda9a88b87ad7d2925349b9bf3
+    last_write_checksum: sha1:45f644d95df8abbd46de76275178f0425a003c9a
+    pristine_git_object: ece5f32e51108940106cd935c05a2c8c1d39a6af
   publish.go:
     id: b4cd78c909e0
     last_write_checksum: sha1:2591f3410b71150c66f40f3c9448e35594e4b6ab
@@ -1683,14 +1683,8 @@ examplesVersion: 1.0.2
 generatedTests: {}
 releaseNotes: |
   ## Go SDK Changes:
-  * `Outpost.Events.List()`:  `request.Request` **Changed** (Breaking ⚠️)
-  * `Outpost.Attempts.List()`:  `request.Request` **Changed** (Breaking ⚠️)
-  * `Outpost.Attempts.Get()`:  `request.Include` **Changed** (Breaking ⚠️)
-  * `Outpost.Destinations.List()`:  `request` **Changed** (Breaking ⚠️)
-  * `Outpost.Destinations.ListAttempts()`:  `request.Request` **Changed** (Breaking ⚠️)
-  * `Outpost.Destinations.GetAttempt()`:  `request.Include` **Changed** (Breaking ⚠️)
-  * `Outpost.Tenants.List()`: **Added**
-  * `Outpost.Tenants.ListTenants()`: **Removed** (Breaking ⚠️)
+  * `Outpost.Schemas.ListDestinationTypes()`:  `response.[].ConfigFields[].Type.Enum(keyValueMap)` **Added** (Breaking ⚠️)
+  * `Outpost.Schemas.GetDestinationType()`:  `response.ConfigFields[].Type.Enum(keyValueMap)` **Added** (Breaking ⚠️)
 generatedFiles:
   - .gitattributes
   - /models/apierrors/badrequesterror.go
