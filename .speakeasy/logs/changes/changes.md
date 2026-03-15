@@ -1,3 +1,3 @@
-## Python SDK Changes:
-* `outpost.schemas.list_destination_types()`:  `response.[].config_fields[].type.enum(key_value_map)` **Added** (Breaking ⚠️)
-* `outpost.schemas.get_destination_type()`:  `response.config_fields[].type.enum(key_value_map)` **Added** (Breaking ⚠️)
+## Typescript SDK Changes:
+* `outpost.schemas.listDestinationTypes()`:  `response.[].configFields[].type.enum(keyValueMap)` **Added** (Breaking ⚠️)
+* `outpost.schemas.getDestinationType()`:  `response.configFields[].type.enum(keyValueMap)` **Added** (Breaking ⚠️)
