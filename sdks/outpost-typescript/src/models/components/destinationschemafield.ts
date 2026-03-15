@@ -11,6 +11,7 @@ import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 export const TypeEnum = {
   Text: "text",
   Checkbox: "checkbox",
+  KeyValueMap: "key_value_map",
 } as const;
 export type TypeEnum = ClosedEnum<typeof TypeEnum>;
 

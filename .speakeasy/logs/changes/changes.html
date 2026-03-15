@@ -98,32 +98,10 @@
 <body><h2 id="typescript-sdk-changes">Typescript SDK Changes:</h2>
 
 <ul>
-<li><code>outpost.events.list()</code>: <code>request</code> <strong>Changed</strong> (Breaking ⚠️)
-
-<ul>
-<li><code>id</code> <strong>Added</strong></li>
-<li><code>tenantId</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>time[gt]</code> <strong>Added</strong></li>
-<li><code>time[lt]</code> <strong>Added</strong></li>
-</ul></li>
-<li><code>outpost.attempts.list()</code>: <code>request</code> <strong>Changed</strong> (Breaking ⚠️)
-
-<ul>
-<li><code>destinationId</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>eventId</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>tenantId</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>time[gt]</code> <strong>Added</strong></li>
-<li><code>time[lt]</code> <strong>Added</strong></li>
-</ul></li>
-<li><code>outpost.destinations.listAttempts()</code>: <code>request</code> <strong>Changed</strong> (Breaking ⚠️)
-
-<ul>
-<li><code>eventId</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>time[gt]</code> <strong>Added</strong></li>
-<li><code>time[lt]</code> <strong>Added</strong></li>
-</ul></li>
-<li><code>outpost.tenants.list()</code>: <strong>Added</strong></li>
-<li><code>outpost.tenants.listTenants()</code>: <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>outpost.schemas.listDestinationTypes()</code>:  <code>response.[].configFields[].type.enum(keyValueMap)</code> <strong>Added</strong> (Breaking ⚠️)</li>
+<li><code>outpost.schemas.getDestinationType()</code>:  <code>response.configFields[].type.enum(keyValueMap)</code> <strong>Added</strong> (Breaking ⚠️)</li>
+<li><code>outpost.metrics.getEventMetrics()</code>: <strong>Added</strong></li>
+<li><code>outpost.metrics.getAttemptMetrics()</code>: <strong>Added</strong></li>
 </ul>
 </body>
 </html>

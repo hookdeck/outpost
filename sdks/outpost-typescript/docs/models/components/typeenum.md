@@ -11,5 +11,5 @@ let value: TypeEnum = "text";
 ## Values
 
 ```typescript
-"text" | "checkbox"
+"text" | "checkbox" | "key_value_map"
 ```
