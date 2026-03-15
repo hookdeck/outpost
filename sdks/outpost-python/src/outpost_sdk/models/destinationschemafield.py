@@ -11,6 +11,7 @@ from typing_extensions import NotRequired, TypedDict
 class DestinationSchemaFieldType(str, Enum):
     TEXT = "text"
     CHECKBOX = "checkbox"
+    KEY_VALUE_MAP = "key_value_map"
 
 
 class DestinationSchemaFieldTypedDict(TypedDict):
