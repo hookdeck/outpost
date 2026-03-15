@@ -2,7 +2,7 @@
 
 package outpostgo
 
-// Generated from OpenAPI doc version 0.0.1 and generator version 2.862.0
+// Generated from OpenAPI doc version 0.0.1 and generator version 2.865.2
 
 import (
 	"context"
@@ -110,6 +110,9 @@ type Outpost struct {
 	Schemas *Schemas
 	// Operations for retrieving available event topics.
 	Topics *Topics
+	// Aggregated metrics for events and delivery attempts. Supports time bucketing, dimensional grouping, and filtering.
+	//
+	Metrics *Metrics
 
 	sdkConfiguration config.SDKConfiguration
 	hooks            *hooks.Hooks
@@ -186,9 +189,9 @@ func WithTimeout(timeout time.Duration) SDKOption {
 // New creates a new instance of the SDK with the provided options
 func New(opts ...SDKOption) *Outpost {
 	sdk := &Outpost{
-		SDKVersion: "0.8.0",
+		SDKVersion: "0.8.1",
 		sdkConfiguration: config.SDKConfiguration{
-			UserAgent:  "speakeasy-sdk/go 0.8.0 2.862.0 0.0.1 github.com/hookdeck/outpost/sdks/outpost-go",
+			UserAgent:  "speakeasy-sdk/go 0.8.1 2.865.2 0.0.1 github.com/hookdeck/outpost/sdks/outpost-go",
 			ServerList: ServerList,
 		},
 		hooks: hooks.New(),
@@ -217,6 +220,7 @@ func New(opts ...SDKOption) *Outpost {
 	sdk.Publish = newPublish(sdk, sdk.sdkConfiguration, sdk.hooks)
 	sdk.Schemas = newSchemas(sdk, sdk.sdkConfiguration, sdk.hooks)
 	sdk.Topics = newTopics(sdk, sdk.sdkConfiguration, sdk.hooks)
+	sdk.Metrics = newMetrics(sdk, sdk.sdkConfiguration, sdk.hooks)
 
 	return sdk
 }

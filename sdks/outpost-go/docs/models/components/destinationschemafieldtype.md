@@ -13,7 +13,8 @@ value := components.DestinationSchemaFieldTypeText
 
 ## Values
 
-| Name                                 | Value                                |
-| ------------------------------------ | ------------------------------------ |
-| `DestinationSchemaFieldTypeText`     | text                                 |
-| `DestinationSchemaFieldTypeCheckbox` | checkbox                             |
+| Name                                    | Value                                   |
+| --------------------------------------- | --------------------------------------- |
+| `DestinationSchemaFieldTypeText`        | text                                    |
+| `DestinationSchemaFieldTypeCheckbox`    | checkbox                                |
+| `DestinationSchemaFieldTypeKeyValueMap` | key_value_map                           |

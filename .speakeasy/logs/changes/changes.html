@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="color-scheme" content="light dark">
-    <title>SDK Changelog - typescript</title>
+    <title>SDK Changelog - go</title>
     <style>
         :root {
             --bg-color: #ffffff;
@@ -95,35 +95,13 @@
         }
     </style>
 </head>
-<body><h2 id="typescript-sdk-changes">Typescript SDK Changes:</h2>
+<body><h2 id="go-sdk-changes">Go SDK Changes:</h2>
 
 <ul>
-<li><code>outpost.events.list()</code>: <code>request</code> <strong>Changed</strong> (Breaking ⚠️)
-
-<ul>
-<li><code>id</code> <strong>Added</strong></li>
-<li><code>tenantId</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>time[gt]</code> <strong>Added</strong></li>
-<li><code>time[lt]</code> <strong>Added</strong></li>
-</ul></li>
-<li><code>outpost.attempts.list()</code>: <code>request</code> <strong>Changed</strong> (Breaking ⚠️)
-
-<ul>
-<li><code>destinationId</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>eventId</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>tenantId</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>time[gt]</code> <strong>Added</strong></li>
-<li><code>time[lt]</code> <strong>Added</strong></li>
-</ul></li>
-<li><code>outpost.destinations.listAttempts()</code>: <code>request</code> <strong>Changed</strong> (Breaking ⚠️)
-
-<ul>
-<li><code>eventId</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>time[gt]</code> <strong>Added</strong></li>
-<li><code>time[lt]</code> <strong>Added</strong></li>
-</ul></li>
-<li><code>outpost.tenants.list()</code>: <strong>Added</strong></li>
-<li><code>outpost.tenants.listTenants()</code>: <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>Outpost.Schemas.ListDestinationTypes()</code>:  <code>response.[].ConfigFields[].Type.Enum(keyValueMap)</code> <strong>Added</strong> (Breaking ⚠️)</li>
+<li><code>Outpost.Schemas.GetDestinationType()</code>:  <code>response.ConfigFields[].Type.Enum(keyValueMap)</code> <strong>Added</strong> (Breaking ⚠️)</li>
+<li><code>Outpost.Metrics.GetEventMetrics()</code>: <strong>Added</strong></li>
+<li><code>Outpost.Metrics.GetAttemptMetrics()</code>: <strong>Added</strong></li>
 </ul>
 </body>
 </html>

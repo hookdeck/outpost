@@ -10,8 +10,9 @@ import (
 type DestinationSchemaFieldType string
 
 const (
-	DestinationSchemaFieldTypeText     DestinationSchemaFieldType = "text"
-	DestinationSchemaFieldTypeCheckbox DestinationSchemaFieldType = "checkbox"
+	DestinationSchemaFieldTypeText        DestinationSchemaFieldType = "text"
+	DestinationSchemaFieldTypeCheckbox    DestinationSchemaFieldType = "checkbox"
+	DestinationSchemaFieldTypeKeyValueMap DestinationSchemaFieldType = "key_value_map"
 )
 
 func (e DestinationSchemaFieldType) ToPointer() *DestinationSchemaFieldType {
@@ -26,6 +27,8 @@ func (e *DestinationSchemaFieldType) UnmarshalJSON(data []byte) error {
 	case "text":
 		fallthrough
 	case "checkbox":
+		fallthrough
+	case "key_value_map":
 		*e = DestinationSchemaFieldType(v)
 		return nil
 	default:
