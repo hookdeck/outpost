@@ -19,6 +19,7 @@ if TYPE_CHECKING:
     from outpost_sdk.destinations import Destinations
     from outpost_sdk.events import Events
     from outpost_sdk.health import Health
+    from outpost_sdk.metrics import Metrics
     from outpost_sdk.publish import Publish
     from outpost_sdk.schemas import Schemas
     from outpost_sdk.tenants import Tenants
@@ -88,6 +89,10 @@ class Outpost(BaseSDK):
     r"""Operations for retrieving destination type schemas."""
     topics: "TopicsSDK"
     r"""Operations for retrieving available event topics."""
+    metrics: "Metrics"
+    r"""Aggregated metrics for events and delivery attempts. Supports time bucketing, dimensional grouping, and filtering.
+
+    """
     _sub_sdk_map = {
         "health": ("outpost_sdk.health", "Health"),
         "tenants": ("outpost_sdk.tenants", "Tenants"),
@@ -97,6 +102,7 @@ class Outpost(BaseSDK):
         "publish": ("outpost_sdk.publish", "Publish"),
         "schemas": ("outpost_sdk.schemas", "Schemas"),
         "topics": ("outpost_sdk.topics_sdk", "TopicsSDK"),
+        "metrics": ("outpost_sdk.metrics", "Metrics"),
     }
 
     def __init__(

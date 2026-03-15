@@ -1,18 +1,5 @@
-## Typescript SDK Changes:
-* `outpost.events.list()`: `request` **Changed** (Breaking ⚠️)
-    - `id` **Added**
-    - `tenantId` **Changed** (Breaking ⚠️)
-    - `time[gt]` **Added**
-    - `time[lt]` **Added**
-* `outpost.attempts.list()`: `request` **Changed** (Breaking ⚠️)
-    - `destinationId` **Changed** (Breaking ⚠️)
-    - `eventId` **Changed** (Breaking ⚠️)
-    - `tenantId` **Changed** (Breaking ⚠️)
-    - `time[gt]` **Added**
-    - `time[lt]` **Added**
-* `outpost.destinations.listAttempts()`: `request` **Changed** (Breaking ⚠️)
-    - `eventId` **Changed** (Breaking ⚠️)
-    - `time[gt]` **Added**
-    - `time[lt]` **Added**
-* `outpost.tenants.list()`: **Added**
-* `outpost.tenants.listTenants()`: **Removed** (Breaking ⚠️)
+## Python SDK Changes:
+* `outpost.schemas.list_destination_types()`:  `response.[].config_fields[].type.enum(key_value_map)` **Added** (Breaking ⚠️)
+* `outpost.schemas.get_destination_type()`:  `response.config_fields[].type.enum(key_value_map)` **Added** (Breaking ⚠️)
+* `outpost.metrics.get_event_metrics()`: **Added**
+* `outpost.metrics.get_attempt_metrics()`: **Added**

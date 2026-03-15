@@ -204,11 +204,13 @@ components:
           nullable: true
           description: Cursor for the next page of results. Null if no more results.
           example: "MTcwNDA2NzIwMA=="
+          x-speakeasy-name-override: "next_cursor"
         prev:
           type: string
           nullable: true
           description: Cursor for the previous page of results. Null if on first page.
           example: null
+          x-speakeasy-name-override: "prev_cursor"
     APIErrorResponse:
       type: object
       description: Standard error response format.
@@ -2168,6 +2170,16 @@ paths:
         When authenticated with a Tenant JWT, returns only the authenticated tenant. Pagination is not used in this case.
       operationId: listTenants
       parameters:
+        - name: id
+          in: query
+          required: false
+          schema:
+            oneOf:
+              - type: string
+              - type: array
+                items:
+                  type: string
+          description: Filter tenants by ID(s). Use bracket notation for multiple values (e.g., `id[0]=t1&id[1]=t2` or `id[]=t1&id[]=t2`).
         - name: limit
           in: query
           required: false
@@ -2185,18 +2197,21 @@ paths:
             enum: [asc, desc]
             default: desc
           description: Sort direction.
+          x-speakeasy-name-override: "direction"
         - name: next
           in: query
           required: false
           schema:
             type: string
           description: Cursor for the next page of results. Mutually exclusive with `prev`.
+          x-speakeasy-name-override: "next_cursor"
         - name: prev
           in: query
           required: false
           schema:
             type: string
           description: Cursor for the previous page of results. Mutually exclusive with `next`.
+          x-speakeasy-name-override: "prev_cursor"
       responses:
         "200":
           description: List of tenants.
@@ -2238,8 +2253,22 @@ paths:
                   error:
                     type: string
                     example: "list tenant not supported"
+      x-speakeasy-name-override: list
+      x-speakeasy-max-method-params: 0
       security:
         - BearerAuth: []
+      x-speakeasy-pagination:
+        type: cursor
+        inputs:
+          - name: next
+            in: parameters
+            type: cursor
+          - name: limit
+            in: parameters
+            type: limit
+        outputs:
+          nextCursor: $.pagination.next
+          results: $.models
   /tenants/{tenant_id}:
     parameters:
       - name: tenant_id
@@ -2333,12 +2362,29 @@ paths:
         When authenticated with Admin API Key, returns events across all tenants. Use `tenant_id` query parameter to filter by tenant.
       operationId: listEvents
       parameters:
+        - name: id
+          in: query
+          required: false
+          schema:
+            oneOf:
+              - type: string
+              - type: array
+                items:
+                  type: string
+          description: Filter events by ID(s). Use bracket notation for multiple values (e.g., `id[0]=abc&id[1]=def`).
         - name: tenant_id
           in: query
           required: false
           schema:
-            type: string
-          description: Filter events by tenant ID. If not provided, returns events from all tenants.
+            oneOf:
+              - type: string
+              - type: array
+                items:
+                  type: string
+          description: |
+            Filter events by tenant ID(s). Use bracket notation for multiple values (e.g., `tenant_id[0]=t1&tenant_id[1]=t2`).
+            When authenticated with a Tenant JWT, this parameter is ignored and the JWT's tenant is used.
+            If not provided with API key auth, returns events from all tenants.
         - name: topic
           in: query
           required: false
@@ -2348,7 +2394,7 @@ paths:
               - type: array
                 items:
                   type: string
-          description: Filter events by topic(s). Can be specified multiple times or comma-separated.
+          description: Filter events by topic(s). Use bracket notation for multiple values (e.g., `topic[0]=user.created&topic[1]=user.updated`).
         - name: time[gte]
           in: query
           required: false
@@ -2363,6 +2409,20 @@ paths:
             type: string
             format: date-time
           description: Filter events with time <= value (RFC3339 or YYYY-MM-DD format).
+        - name: time[gt]
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+          description: Filter events with time > value (RFC3339 or YYYY-MM-DD format).
+        - name: time[lt]
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+          description: Filter events with time < value (RFC3339 or YYYY-MM-DD format).
         - name: limit
           in: query
           required: false
@@ -2378,12 +2438,14 @@ paths:
           schema:
             type: string
           description: Cursor for next page of results.
+          x-speakeasy-name-override: "next_cursor"
         - name: prev
           in: query
           required: false
           schema:
             type: string
           description: Cursor for previous page of results.
+          x-speakeasy-name-override: "prev_cursor"
         - name: order_by
           in: query
           required: false
@@ -2400,6 +2462,7 @@ paths:
             enum: [asc, desc]
             default: desc
           description: Sort direction.
+          x-speakeasy-name-override: "direction"
       responses:
         "200":
           description: A paginated list of events.
@@ -2436,6 +2499,18 @@ paths:
       x-speakeasy-name-override: list
       security:
         - BearerAuth: []
+      x-speakeasy-pagination:
+        type: cursor
+        inputs:
+          - name: next
+            in: parameters
+            type: cursor
+          - name: limit
+            in: parameters
+            type: limit
+        outputs:
+          nextCursor: $.pagination.next
+          results: $.models
   /events/{event_id}:
     parameters:
       - name: event_id
@@ -2491,20 +2566,35 @@ paths:
           in: query
           required: false
           schema:
-            type: string
-          description: Filter attempts by tenant ID. If not provided, returns attempts from all tenants.
+            oneOf:
+              - type: string
+              - type: array
+                items:
+                  type: string
+          description: |
+            Filter attempts by tenant ID(s). Use bracket notation for multiple values (e.g., `tenant_id[0]=t1&tenant_id[1]=t2`).
+            When authenticated with a Tenant JWT, this parameter is ignored and the JWT's tenant is used.
+            If not provided with API key auth, returns attempts from all tenants.
         - name: event_id
           in: query
           required: false
           schema:
-            type: string
-          description: Filter attempts by event ID.
+            oneOf:
+              - type: string
+              - type: array
+                items:
+                  type: string
+          description: Filter attempts by event ID(s). Use bracket notation for multiple values (e.g., `event_id[0]=e1&event_id[1]=e2`).
         - name: destination_id
           in: query
           required: false
           schema:
-            type: string
-          description: Filter attempts by destination ID.
+            oneOf:
+              - type: string
+              - type: array
+                items:
+                  type: string
+          description: Filter attempts by destination ID(s). Use bracket notation for multiple values (e.g., `destination_id[0]=d1&destination_id[1]=d2`).
         - name: status
           in: query
           required: false
@@ -2521,7 +2611,7 @@ paths:
               - type: array
                 items:
                   type: string
-          description: Filter attempts by event topic(s). Can be specified multiple times or comma-separated.
+          description: Filter attempts by event topic(s). Use bracket notation for multiple values (e.g., `topic[0]=user.created&topic[1]=user.updated`).
         - name: time[gte]
           in: query
           required: false
@@ -2536,6 +2626,20 @@ paths:
             type: string
             format: date-time
           description: Filter attempts by event time <= value (RFC3339 or YYYY-MM-DD format).
+        - name: time[gt]
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+          description: Filter attempts by event time > value (RFC3339 or YYYY-MM-DD format).
+        - name: time[lt]
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+          description: Filter attempts by event time < value (RFC3339 or YYYY-MM-DD format).
         - name: limit
           in: query
           required: false
@@ -2551,12 +2655,14 @@ paths:
           schema:
             type: string
           description: Cursor for next page of results.
+          x-speakeasy-name-override: "next_cursor"
         - name: prev
           in: query
           required: false
           schema:
             type: string
           description: Cursor for previous page of results.
+          x-speakeasy-name-override: "prev_cursor"
         - name: include
           in: query
           required: false
@@ -2567,7 +2673,7 @@ paths:
                 items:
                   type: string
           description: |
-            Fields to include in the response. Can be specified multiple times or comma-separated.
+            Fields to include in the response. Use bracket notation for multiple values (e.g., `include[0]=event&include[1]=response_data`).
             - `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
             - `event.data`: Include full event with payload data
             - `response_data`: Include response body and headers
@@ -2587,6 +2693,7 @@ paths:
             enum: [asc, desc]
             default: desc
           description: Sort direction.
+          x-speakeasy-name-override: "direction"
       responses:
         "200":
           description: A paginated list of attempts.
@@ -2648,6 +2755,18 @@ paths:
       x-speakeasy-name-override: list
       security:
         - BearerAuth: []
+      x-speakeasy-pagination:
+        type: cursor
+        inputs:
+          - name: next
+            in: parameters
+            type: cursor
+          - name: limit
+            in: parameters
+            type: limit
+        outputs:
+          nextCursor: $.pagination.next
+          results: $.models
   /attempts/{attempt_id}:
     parameters:
       - name: attempt_id
@@ -2676,7 +2795,7 @@ paths:
                 items:
                   type: string
           description: |
-            Fields to include in the response. Can be specified multiple times or comma-separated.
+            Fields to include in the response. Use bracket notation for multiple values (e.g., `include[0]=event&include[1]=response_data`).
             - `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
             - `event.data`: Include full event with payload data
             - `response_data`: Include response body and headers
@@ -2828,7 +2947,7 @@ paths:
               - type: array
                 items:
                   $ref: "#/components/schemas/DestinationType"
-          description: Filter destinations by type(s).
+          description: Filter destinations by type(s). Use bracket notation for multiple values (e.g., `type[0]=webhook&type[1]=aws_sqs`).
         - name: topics
           in: query
           required: false
@@ -2838,7 +2957,7 @@ paths:
               - type: array
                 items:
                   type: string
-          description: Filter destinations by supported topic(s).
+          description: Filter destinations by supported topic(s). Use bracket notation for multiple values (e.g., `topics[0]=user.created&topics[1]=user.deleted`).
       responses:
         "200":
           description: A list of destinations.
@@ -3171,8 +3290,12 @@ paths:
           in: query
           required: false
           schema:
-            type: string
-          description: Filter attempts by event ID.
+            oneOf:
+              - type: string
+              - type: array
+                items:
+                  type: string
+          description: Filter attempts by event ID(s). Use bracket notation for multiple values (e.g., `event_id[0]=e1&event_id[1]=e2`).
         - name: status
           in: query
           required: false
@@ -3189,7 +3312,7 @@ paths:
               - type: array
                 items:
                   type: string
-          description: Filter attempts by event topic(s). Can be specified multiple times or comma-separated.
+          description: Filter attempts by event topic(s). Use bracket notation for multiple values (e.g., `topic[0]=user.created&topic[1]=user.updated`).
         - name: time[gte]
           in: query
           required: false
@@ -3204,6 +3327,20 @@ paths:
             type: string
             format: date-time
           description: Filter attempts by event time <= value (RFC3339 or YYYY-MM-DD format).
+        - name: time[gt]
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+          description: Filter attempts by event time > value (RFC3339 or YYYY-MM-DD format).
+        - name: time[lt]
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+          description: Filter attempts by event time < value (RFC3339 or YYYY-MM-DD format).
         - name: limit
           in: query
           required: false
@@ -3219,12 +3356,14 @@ paths:
           schema:
             type: string
           description: Cursor for next page of results.
+          x-speakeasy-name-override: "next_cursor"
         - name: prev
           in: query
           required: false
           schema:
             type: string
           description: Cursor for previous page of results.
+          x-speakeasy-name-override: "prev_cursor"
         - name: include
           in: query
           required: false
@@ -3235,7 +3374,7 @@ paths:
                 items:
                   type: string
           description: |
-            Fields to include in the response. Can be specified multiple times or comma-separated.
+            Fields to include in the response. Use bracket notation for multiple values (e.g., `include[0]=event&include[1]=response_data`).
             - `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
             - `event.data`: Include full event with payload data
             - `response_data`: Include response body and headers
@@ -3255,6 +3394,7 @@ paths:
             enum: [asc, desc]
             default: desc
           description: Sort direction.
+          x-speakeasy-name-override: "direction"
       responses:
         "200":
           description: A paginated list of attempts for the destination.
@@ -3293,6 +3433,18 @@ paths:
         "500":
           $ref: "#/components/responses/InternalServerError"
       x-speakeasy-name-override: listAttempts
+      x-speakeasy-pagination:
+        type: cursor
+        inputs:
+          - name: next
+            in: parameters
+            type: cursor
+          - name: limit
+            in: parameters
+            type: limit
+        outputs:
+          nextCursor: $.pagination.next
+          results: $.models
   /tenants/{tenant_id}/destinations/{destination_id}/attempts/{attempt_id}:
     parameters:
       - name: tenant_id
@@ -3329,7 +3481,7 @@ paths:
                 items:
                   type: string
           description: |
-            Fields to include in the response. Can be specified multiple times or comma-separated.
+            Fields to include in the response. Use bracket notation for multiple values (e.g., `include[0]=event&include[1]=response_data`).
             - `event`: Include event summary
             - `event.data`: Include full event with payload data
             - `response_data`: Include response body and headers

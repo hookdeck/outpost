@@ -214,6 +214,11 @@ with Outpost(
 
 * [check](docs/sdks/health/README.md#check) - Health Check
 
+### [Metrics](docs/sdks/metrics/README.md)
+
+* [get_event_metrics](docs/sdks/metrics/README.md#get_event_metrics) - Get Event Metrics
+* [get_attempt_metrics](docs/sdks/metrics/README.md#get_attempt_metrics) - Get Attempt Metrics
+
 ### [Publish](docs/sdks/publish/README.md)
 
 * [event](docs/sdks/publish/README.md#event) - Publish Event
@@ -352,9 +357,8 @@ with Outpost() as outpost:
 * [`OutpostError`](./src/outpost_sdk/errors/outposterror.py): The base class for HTTP error responses.
   * [`UnauthorizedError`](./src/outpost_sdk/errors/unauthorizederror.py): A collection of codes that generally means the client was not authenticated correctly for the request they want to make.
   * [`InternalServerError`](./src/outpost_sdk/errors/internalservererror.py): A collection of status codes that generally mean the server failed in an unexpected way.
-  * [`NotFoundError`](./src/outpost_sdk/errors/notfounderror.py): Status codes relating to the resource/entity they are requesting not being found or endpoints/routes not existing. *
 
-<details><summary>Less common errors (10)</summary>
+<details><summary>Less common errors (11)</summary>
 
 <br />
 
@@ -365,11 +369,12 @@ with Outpost() as outpost:
 
 
 **Inherit from [`OutpostError`](./src/outpost_sdk/errors/outposterror.py)**:
-* [`BadRequestError`](./src/outpost_sdk/errors/badrequesterror.py): A collection of codes that generally means the end user got something wrong in making the request. Applicable to 6 of 25 methods.*
-* [`TimeoutErrorT`](./src/outpost_sdk/errors/timeouterrort.py): Timeouts occurred with the request. Applicable to 5 of 25 methods.*
-* [`RateLimitedError`](./src/outpost_sdk/errors/ratelimitederror.py): Status codes relating to the client being rate limited by the server. Status code `429`. Applicable to 5 of 25 methods.*
-* [`APIErrorResponse`](./src/outpost_sdk/errors/apierrorresponse.py): Standard error response format. Status code `422`. Applicable to 3 of 25 methods.*
-* [`NotImplementedErrorT`](./src/outpost_sdk/errors/notimplementederrort.py): List Tenants feature is not available. Requires Redis with RediSearch module. Status code `501`. Applicable to 1 of 25 methods.*
+* [`NotFoundError`](./src/outpost_sdk/errors/notfounderror.py): Status codes relating to the resource/entity they are requesting not being found or endpoints/routes not existing. Applicable to 21 of 27 methods.*
+* [`BadRequestError`](./src/outpost_sdk/errors/badrequesterror.py): A collection of codes that generally means the end user got something wrong in making the request. Applicable to 8 of 27 methods.*
+* [`APIErrorResponse`](./src/outpost_sdk/errors/apierrorresponse.py): Standard error response format. Applicable to 5 of 27 methods.*
+* [`TimeoutErrorT`](./src/outpost_sdk/errors/timeouterrort.py): Timeouts occurred with the request. Applicable to 5 of 27 methods.*
+* [`RateLimitedError`](./src/outpost_sdk/errors/ratelimitederror.py): Status codes relating to the client being rate limited by the server. Status code `429`. Applicable to 5 of 27 methods.*
+* [`NotImplementedErrorT`](./src/outpost_sdk/errors/notimplementederrort.py): List Tenants feature is not available. Requires Redis with RediSearch module. Status code `501`. Applicable to 1 of 27 methods.*
 * [`ResponseValidationError`](./src/outpost_sdk/errors/responsevalidationerror.py): Type mismatch between the response data and the expected Pydantic model. Provides access to the Pydantic validation error via the `cause` attribute.
 
 </details>
