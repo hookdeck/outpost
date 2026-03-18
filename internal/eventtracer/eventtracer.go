@@ -25,6 +25,8 @@ var _ EventTracer = &eventTracerImpl{}
 
 func NewEventTracer() EventTracer {
 	traceProvider := otel.GetTracerProvider()
+	// emetrics.New only fails if OTel meter instrument creation fails, which
+	// effectively never happens — the SDK returns noop instruments on failure.
 	emeter, _ := emetrics.New()
 
 	return &eventTracerImpl{
@@ -63,6 +65,8 @@ type DeliverSpan struct {
 	emeter      emetrics.OutpostMetrics
 	task        *models.DeliveryTask
 	destination *models.Destination
+	delivered   bool
+	deliveryOk  bool
 	err         error
 }
 
@@ -71,7 +75,17 @@ func (d *DeliverSpan) RecordError(err error, options ...trace.EventOption) {
 	d.Span.RecordError(err, options...)
 }
 
+// RecordDeliveryResult records whether a delivery attempt succeeded or failed.
+func (d *DeliverSpan) RecordDeliveryResult(ok bool) {
+	d.delivered = true
+	d.deliveryOk = ok
+}
+
 func (d *DeliverSpan) End(options ...trace.SpanEndOption) {
+	if d.delivered {
+		d.emeter.EventDelivered(context.Background(), d.deliveryOk, d.destination.Type)
+	}
+
 	if d.task.Event.Telemetry == nil {
 		d.Span.End(options...)
 		return
@@ -79,7 +93,6 @@ func (d *DeliverSpan) End(options ...trace.SpanEndOption) {
 
 	startTime, err := time.Parse(time.RFC3339Nano, d.task.Event.Telemetry.ReceivedTime)
 	if err != nil {
-		// TODO: handle error?
 		d.Span.End(options...)
 		return
 	}

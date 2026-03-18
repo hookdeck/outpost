@@ -195,6 +195,11 @@ func (h *messageHandler) doHandle(ctx context.Context, task models.DeliveryTask,
 			return &PreDeliveryError{err: err}
 		}
 
+		// Record delivery failure for metrics
+		if recorder, ok := span.(interface{ RecordDeliveryResult(bool) }); ok {
+			recorder.RecordDeliveryResult(false)
+		}
+
 		h.logger.Ctx(ctx).Error("failed to publish event",
 			zap.Error(err),
 			zap.String("attempt_id", attempt.ID),
@@ -210,6 +215,11 @@ func (h *messageHandler) doHandle(ctx context.Context, task models.DeliveryTask,
 			}
 		}
 		return h.logDeliveryResult(ctx, &task, destination, attempt, attemptErr)
+	}
+
+	// Record delivery success for metrics
+	if recorder, ok := span.(interface{ RecordDeliveryResult(bool) }); ok {
+		recorder.RecordDeliveryResult(true)
 	}
 
 	// Handle successful delivery
