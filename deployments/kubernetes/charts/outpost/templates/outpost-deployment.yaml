@@ -15,6 +15,10 @@ spec:
       labels:
         app: outpost-api
         {{- include "outpost.labels" . | nindent 8 }}
+      {{- with .Values.outpost.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
     spec:
       {{- with .Values.outpost.imagePullSecrets }}
       imagePullSecrets:
@@ -71,6 +75,10 @@ spec:
       labels:
         app: outpost-delivery
         {{- include "outpost.labels" . | nindent 8 }}
+      {{- with .Values.outpost.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
     spec:
       {{- with .Values.outpost.imagePullSecrets }}
       imagePullSecrets:
@@ -115,6 +123,10 @@ spec:
       labels:
         app: outpost-log
         {{- include "outpost.labels" . | nindent 8 }}
+      {{- with .Values.outpost.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
     spec:
       {{- with .Values.outpost.imagePullSecrets }}
       imagePullSecrets:
