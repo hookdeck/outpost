@@ -13,6 +13,9 @@ outpost:
     delivery: 1 # Default to 1, scale based on queue size
     log: 1 # Default to 1, scale based on log volume
 
+  # ServiceAccount to use for pods
+  serviceAccountName: ""
+
   # Container resources (optional)
   resources: {}
 
