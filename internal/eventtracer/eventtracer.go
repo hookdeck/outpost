@@ -25,6 +25,8 @@ var _ EventTracer = &eventTracerImpl{}
 
 func NewEventTracer() EventTracer {
 	traceProvider := otel.GetTracerProvider()
+	// emetrics.New only fails if OTel meter instrument creation fails, which
+	// effectively never happens — the SDK returns noop instruments on failure.
 	emeter, _ := emetrics.New()
 
 	return &eventTracerImpl{
