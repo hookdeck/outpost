@@ -13,6 +13,13 @@ outpost:
     delivery: 1 # Default to 1, scale based on queue size
     log: 1 # Default to 1, scale based on log volume
 
+  # Environment variables from Secrets/ConfigMaps
+  envFrom: []
+  # - secretRef:
+  #     name: my-secret
+  # - configMapRef:
+  #     name: my-configmap
+
   service:
     type: ClusterIP
     port: 3333
