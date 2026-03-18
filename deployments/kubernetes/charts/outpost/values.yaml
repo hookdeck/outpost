@@ -44,7 +44,7 @@ outpost:
   config: {}
 
 ingress:
-  enabled: true
+  enabled: false
   className: nginx
   annotations: {}
   hosts:
