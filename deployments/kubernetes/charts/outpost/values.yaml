@@ -16,6 +16,10 @@ outpost:
   # ServiceAccount to use for pods
   serviceAccountName: ""
 
+  # Security contexts
+  podSecurityContext: {}
+  securityContext: {}
+
   # Container resources (optional)
   resources: {}
 

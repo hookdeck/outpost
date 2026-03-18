@@ -30,10 +30,18 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- with .Values.outpost.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
         - name: {{ include "outpost.name" . }}-api
           image: {{ .Values.outpost.image.repository }}:{{ .Values.outpost.image.tag }}
           imagePullPolicy: {{ .Values.outpost.image.pullPolicy }}
+          {{- with .Values.outpost.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           {{- with .Values.outpost.resources.api }}
           resources:
             {{- toYaml . | nindent 12 }}
@@ -122,10 +130,18 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- with .Values.outpost.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
         - name: {{ include "outpost.name" . }}-delivery
           image: {{ .Values.outpost.image.repository }}:{{ .Values.outpost.image.tag }}
           imagePullPolicy: {{ .Values.outpost.image.pullPolicy }}
+          {{- with .Values.outpost.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           {{- with .Values.outpost.resources.delivery }}
           resources:
             {{- toYaml . | nindent 12 }}
@@ -206,10 +222,18 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- with .Values.outpost.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
         - name: {{ include "outpost.name" . }}-log
           image: {{ .Values.outpost.image.repository }}:{{ .Values.outpost.image.tag }}
           imagePullPolicy: {{ .Values.outpost.image.pullPolicy }}
+          {{- with .Values.outpost.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           {{- with .Values.outpost.resources.log }}
           resources:
             {{- toYaml . | nindent 12 }}
