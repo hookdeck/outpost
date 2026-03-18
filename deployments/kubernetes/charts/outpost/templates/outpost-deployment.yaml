@@ -65,6 +65,9 @@ spec:
           volumeMounts:
           - name: config
             mountPath: /config/outpost
+          {{- with .Values.outpost.extraVolumeMounts }}
+            {{- toYaml . | nindent 10 }}
+          {{- end }}
           env:
             - name: SERVICE
               value: api
@@ -97,6 +100,9 @@ spec:
         - name: config
           configMap:
             name: "{{ include "outpost.fullname" . }}"
+        {{- with .Values.outpost.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -165,6 +171,9 @@ spec:
           volumeMounts:
           - name: config
             mountPath: /config/outpost
+          {{- with .Values.outpost.extraVolumeMounts }}
+            {{- toYaml . | nindent 10 }}
+          {{- end }}
           env:
             - name: SERVICE
               value: delivery
@@ -189,6 +198,9 @@ spec:
         - name: config
           configMap:
             name: "{{ include "outpost.fullname" . }}"
+        {{- with .Values.outpost.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -257,6 +269,9 @@ spec:
           volumeMounts:
           - name: config
             mountPath: /config/outpost
+          {{- with .Values.outpost.extraVolumeMounts }}
+            {{- toYaml . | nindent 10 }}
+          {{- end }}
           env:
             - name: SERVICE
               value: log
@@ -281,3 +296,6 @@ spec:
         - name: config
           configMap:
             name: "{{ include "outpost.fullname" . }}"
+        {{- with .Values.outpost.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}

@@ -34,6 +34,10 @@ outpost:
   affinity: {}
   tolerations: []
 
+  # Additional volumes and mounts
+  extraVolumes: []
+  extraVolumeMounts: []
+
   # Environment variables from Secrets/ConfigMaps
   envFrom: []
   # - secretRef:
