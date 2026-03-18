@@ -16,6 +16,11 @@ outpost:
   # Annotations added to pod templates
   podAnnotations: {}
 
+  # Pod scheduling constraints
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
+
   # Environment variables from Secrets/ConfigMaps
   envFrom: []
   # - secretRef:
