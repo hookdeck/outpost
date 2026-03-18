@@ -13,6 +13,9 @@ outpost:
     delivery: 1 # Default to 1, scale based on queue size
     log: 1 # Default to 1, scale based on log volume
 
+  # Container resources (optional)
+  resources: {}
+
   # Annotations added to pod templates
   podAnnotations: {}
 

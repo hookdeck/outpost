@@ -28,8 +28,10 @@ spec:
         - name: {{ include "outpost.name" . }}-api
           image: {{ .Values.outpost.image.repository }}:{{ .Values.outpost.image.tag }}
           imagePullPolicy: {{ .Values.outpost.image.pullPolicy }}
+          {{- with .Values.outpost.resources.api }}
           resources:
-            {{- toYaml .Values.outpost.resources.api | nindent 12 }}
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           ports:
           - name: http
             containerPort: 3333
@@ -100,8 +102,10 @@ spec:
         - name: {{ include "outpost.name" . }}-delivery
           image: {{ .Values.outpost.image.repository }}:{{ .Values.outpost.image.tag }}
           imagePullPolicy: {{ .Values.outpost.image.pullPolicy }}
+          {{- with .Values.outpost.resources.delivery }}
           resources:
-            {{- toYaml .Values.outpost.resources.delivery | nindent 12 }}
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           volumeMounts:
           - name: config
             mountPath: /config/outpost
@@ -160,8 +164,10 @@ spec:
         - name: {{ include "outpost.name" . }}-log
           image: {{ .Values.outpost.image.repository }}:{{ .Values.outpost.image.tag }}
           imagePullPolicy: {{ .Values.outpost.image.pullPolicy }}
+          {{- with .Values.outpost.resources.log }}
           resources:
-            {{- toYaml .Values.outpost.resources.log | nindent 12 }}
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           volumeMounts:
           - name: config
             mountPath: /config/outpost
