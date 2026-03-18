@@ -15,6 +15,9 @@ spec:
       labels:
         app: outpost-api
         {{- include "outpost.labels" . | nindent 8 }}
+        {{- with .Values.outpost.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
       {{- with .Values.outpost.podAnnotations }}
       annotations:
         {{- toYaml . | nindent 8 }}
@@ -101,6 +104,9 @@ spec:
       labels:
         app: outpost-delivery
         {{- include "outpost.labels" . | nindent 8 }}
+        {{- with .Values.outpost.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
       {{- with .Values.outpost.podAnnotations }}
       annotations:
         {{- toYaml . | nindent 8 }}
@@ -179,6 +185,9 @@ spec:
       labels:
         app: outpost-log
         {{- include "outpost.labels" . | nindent 8 }}
+        {{- with .Values.outpost.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
       {{- with .Values.outpost.podAnnotations }}
       annotations:
         {{- toYaml . | nindent 8 }}

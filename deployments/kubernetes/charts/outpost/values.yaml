@@ -16,6 +16,9 @@ outpost:
   # Container resources (optional)
   resources: {}
 
+  # Extra labels added to pod templates
+  podLabels: {}
+
   # Annotations added to pod templates
   podAnnotations: {}
 
