@@ -1,0 +1,92 @@
+---
+title: Cloudflare Queues
+---
+
+Send events to Cloudflare Queues.
+
+## Configuration
+
+### Config
+
+| Field | Type | Required | Description |
+| ----- | ---- | -------- | ----------- |
+| `config.account_id` | string | Yes | Cloudflare Account ID |
+| `config.queue_id` | string | Yes | Queue ID |
+
+### Credentials
+
+| Field | Type | Required | Description |
+| ----- | ---- | -------- | ----------- |
+| `credentials.api_token` | string | Yes | Cloudflare API Token |
+
+### Example
+
+```sh
+curl --location 'https://<OUTPOST_API_URL>/api/v1/tenants/<TENANT_ID>/destinations' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer <API_KEY>' \
+--data '{
+  "type": "cloudflare_queues",
+  "topics": ["orders"],
+  "config": {
+    "account_id": "<CLOUDFLARE_ACCOUNT_ID>",
+    "queue_id": "<QUEUE_ID>"
+  },
+  "credentials": {
+    "api_token": "<CLOUDFLARE_API_TOKEN>"
+  }
+}'
+```
+
+## Message Format
+
+Events are sent to Cloudflare Queues as JSON messages with the following structure:
+
+```json
+{
+  "data": <event.Data>,
+  "metadata": <merged_metadata>
+}
+```
+
+### Example Message
+
+If you publish an event:
+
+```json
+{
+  "topic": "orders",
+  "data": {
+    "order_id": "123",
+    "status": "created"
+  },
+  "metadata": {
+    "source": "checkout-service"
+  }
+}
+```
+
+The message sent to Cloudflare Queues will be:
+
+```json
+{
+  "data": {
+    "order_id": "123",
+    "status": "created"
+  },
+  "metadata": {
+    "event-id": "evt_123",
+    "topic": "orders",
+    "timestamp": "1704067200",
+    "source": "checkout-service"
+  }
+}
+```
+
+The `metadata` field contains system metadata (`event-id`, `topic`, `timestamp`) merged with any custom event metadata.
+
+## Required Permissions
+
+The Cloudflare API Token must have the following permission:
+
+- `queues:write` - Required to send messages to the queue
