@@ -192,5 +192,9 @@
       height: 238px;
       grid-column: span 2;
     }
+
+    &--row2-half {
+      grid-column: span 3;
+    }
   }
 }

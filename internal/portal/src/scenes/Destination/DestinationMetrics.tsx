@@ -165,7 +165,7 @@ const DestinationMetrics: React.FC<DestinationMetricsProps> = ({
         </div>
 
         {/* Row 2 — Error Breakdown (3 columns) */}
-        <div className="metrics-container__cell metrics-container__cell--row2">
+        <div className={`metrics-container__cell metrics-container__cell--row2${destination.type !== "webhook" ? " metrics-container__cell--row2-half" : ""}`}>
           <MetricsChart
             title="Errors"
             subtitle="rate"
@@ -214,7 +214,7 @@ const DestinationMetrics: React.FC<DestinationMetricsProps> = ({
             />
           </div>
         )}
-        <div className="metrics-container__cell metrics-container__cell--row2">
+        <div className={`metrics-container__cell metrics-container__cell--row2${destination.type !== "webhook" ? " metrics-container__cell--row2-half" : ""}`}>
           <MetricsBreakdown
             title="Events count by topic"
             data={by_topic.data?.data}
