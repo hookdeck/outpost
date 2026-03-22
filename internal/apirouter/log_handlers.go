@@ -304,12 +304,21 @@ func (h *LogHandlers) listAttemptsInternal(c *gin.Context, tenantIDs []string, d
 			}
 			seen[k] = struct{}{}
 			dest, err := h.tenantStore.RetrieveDestination(c.Request.Context(), k.tenantID, k.destinationID)
-			if err != nil || dest == nil {
+			if err != nil {
+				// Deleted/not-found destinations are expected — skip silently.
+				if errors.Is(err, tenantstore.ErrDestinationDeleted) || errors.Is(err, tenantstore.ErrDestinationNotFound) {
+					continue
+				}
+				AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
+				return
+			}
+			if dest == nil {
 				continue
 			}
 			display, err := h.displayer.Display(dest)
 			if err != nil {
-				continue
+				AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
+				return
 			}
 			destDisplayMap[dest.ID] = display
 		}
@@ -394,11 +403,17 @@ func (h *LogHandlers) RetrieveAttempt(c *gin.Context) {
 	var destDisplay *destregistry.DestinationDisplay
 	if includeOpts.Destination {
 		dest, err := h.tenantStore.RetrieveDestination(c.Request.Context(), attemptRecord.Attempt.TenantID, attemptRecord.Attempt.DestinationID)
+		if err != nil && !errors.Is(err, tenantstore.ErrDestinationDeleted) && !errors.Is(err, tenantstore.ErrDestinationNotFound) {
+			AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
+			return
+		}
 		if err == nil && dest != nil {
 			display, err := h.displayer.Display(dest)
-			if err == nil {
-				destDisplay = display
+			if err != nil {
+				AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
+				return
 			}
+			destDisplay = display
 		}
 	}
 

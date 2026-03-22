@@ -1241,6 +1241,109 @@ func TestAPI_Attempts(t *testing.T) {
 			_, hasDestination := raw["destination"]
 			assert.False(t, hasDestination, "destination should be omitted without include=destination")
 		})
+
+		t.Run("include destination with soft-deleted destination omits field", func(t *testing.T) {
+			h := newAPITest(t)
+
+			require.NoError(t, h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1"))))
+			dest := df.Any(df.WithID("d1"), df.WithTenantID("t1"))
+			require.NoError(t, h.tenantStore.CreateDestination(t.Context(), dest))
+
+			e := ef.AnyPointer(ef.WithID("e1"), ef.WithTenantID("t1"), ef.WithDestinationID("d1"))
+			a := attemptForEvent(e, af.WithID("a1"))
+			require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
+				{Event: e, Attempt: a},
+			}))
+
+			// Soft-delete the destination after the attempt was recorded
+			require.NoError(t, h.tenantStore.DeleteDestination(t.Context(), "t1", "d1"))
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/attempts/a1?include=destination", nil)
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+
+			var raw map[string]any
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &raw))
+
+			_, hasDestination := raw["destination"]
+			assert.False(t, hasDestination, "destination should be omitted when destination is deleted")
+		})
+
+		t.Run("include destination with nonexistent destination omits field", func(t *testing.T) {
+			// Simulates TTL-expired destination: attempt references a destination
+			// that no longer exists in the tenant store at all.
+			h := newAPITest(t)
+
+			e := ef.AnyPointer(ef.WithID("e1"), ef.WithTenantID("t1"), ef.WithDestinationID("gone"))
+			a := attemptForEvent(e, af.WithID("a1"))
+			require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
+				{Event: e, Attempt: a},
+			}))
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/attempts/a1?include=destination", nil)
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+
+			var raw map[string]any
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &raw))
+
+			_, hasDestination := raw["destination"]
+			assert.False(t, hasDestination, "destination should be omitted when destination doesn't exist")
+		})
+
+		t.Run("include destination on list with soft-deleted destination omits field", func(t *testing.T) {
+			h := newAPITest(t)
+
+			require.NoError(t, h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1"))))
+			dest := df.Any(df.WithID("d1"), df.WithTenantID("t1"))
+			require.NoError(t, h.tenantStore.CreateDestination(t.Context(), dest))
+
+			e := ef.AnyPointer(ef.WithID("e1"), ef.WithTenantID("t1"), ef.WithDestinationID("d1"))
+			a := attemptForEvent(e, af.WithID("a1"))
+			require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
+				{Event: e, Attempt: a},
+			}))
+
+			// Soft-delete the destination after the attempt was recorded
+			require.NoError(t, h.tenantStore.DeleteDestination(t.Context(), "t1", "d1"))
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/attempts?include=destination", nil)
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+
+			var raw map[string]any
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &raw))
+			models := raw["models"].([]any)
+			attempt := models[0].(map[string]any)
+			_, hasDestination := attempt["destination"]
+			assert.False(t, hasDestination, "destination should be omitted when destination is deleted")
+		})
+
+		t.Run("include destination on list with nonexistent destination omits field", func(t *testing.T) {
+			// Simulates TTL-expired destination on list endpoint.
+			h := newAPITest(t)
+
+			e := ef.AnyPointer(ef.WithID("e1"), ef.WithTenantID("t1"), ef.WithDestinationID("gone"))
+			a := attemptForEvent(e, af.WithID("a1"))
+			require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
+				{Event: e, Attempt: a},
+			}))
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/attempts?include=destination", nil)
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+
+			var raw map[string]any
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &raw))
+			models := raw["models"].([]any)
+			attempt := models[0].(map[string]any)
+			_, hasDestination := attempt["destination"]
+			assert.False(t, hasDestination, "destination should be omitted when destination doesn't exist")
+		})
 	})
 
 	t.Run("DestinationAttempts", func(t *testing.T) {
@@ -1347,6 +1450,32 @@ func TestAPI_Attempts(t *testing.T) {
 				var result apirouter.AttemptPaginatedResult
 				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
 				assert.Empty(t, result.Models, "must not leak attempts from other tenants")
+			})
+
+			t.Run("include destination on destination-scoped list", func(t *testing.T) {
+				h := newAPITest(t)
+				require.NoError(t, h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1"))))
+				dest := df.Any(df.WithID("d1"), df.WithTenantID("t1"))
+				require.NoError(t, h.tenantStore.CreateDestination(t.Context(), dest))
+
+				e := ef.AnyPointer(ef.WithTenantID("t1"), ef.WithDestinationID("d1"))
+				a := attemptForEvent(e, af.WithID("a1"))
+				require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
+					{Event: e, Attempt: a},
+				}))
+
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1/destinations/d1/attempts?include=destination", nil)
+				resp := h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusOK, resp.Code)
+
+				var raw map[string]any
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &raw))
+				models := raw["models"].([]any)
+				attempt := models[0].(map[string]any)
+				destMap, ok := attempt["destination"].(map[string]any)
+				require.True(t, ok, "destination should be an object when include=destination")
+				assert.Equal(t, "d1", destMap["id"])
 			})
 		})
 
