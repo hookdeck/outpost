@@ -172,6 +172,26 @@ const DestinationConfigFields = ({
                   )}
               </div>
             )}
+            {field.type === "select" && (
+              <select
+                id={field.key}
+                name={field.key}
+                defaultValue={
+                  destination?.config[field.key] ||
+                  destination?.credentials[field.key] ||
+                  field.default ||
+                  ""
+                }
+                disabled={field.disabled}
+                required={field.required}
+              >
+                {field.options?.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            )}
             {field.type === "checkbox" && (
               <Checkbox
                 label=""

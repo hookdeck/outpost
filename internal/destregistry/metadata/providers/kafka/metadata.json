@@ -20,10 +20,16 @@
     },
     {
       "key": "sasl_mechanism",
-      "type": "text",
+      "type": "select",
       "label": "SASL Mechanism",
-      "description": "SASL authentication mechanism (plain, scram-sha-256, scram-sha-512). Leave empty for no authentication.",
-      "required": false
+      "description": "SASL authentication mechanism. Leave empty for no authentication.",
+      "required": false,
+      "options": [
+        { "label": "None", "value": "" },
+        { "label": "PLAIN", "value": "plain" },
+        { "label": "SCRAM-SHA-256", "value": "scram-sha-256" },
+        { "label": "SCRAM-SHA-512", "value": "scram-sha-512" }
+      ]
     },
     {
       "key": "tls",
