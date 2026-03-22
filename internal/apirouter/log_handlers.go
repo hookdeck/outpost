@@ -9,22 +9,30 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/hookdeck/outpost/internal/cursor"
+	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/logstore"
+	"github.com/hookdeck/outpost/internal/tenantstore"
 )
 
 type LogHandlers struct {
-	logger   *logging.Logger
-	logStore logstore.LogStore
+	logger      *logging.Logger
+	logStore    logstore.LogStore
+	tenantStore tenantstore.TenantStore
+	registry    destregistry.Registry
 }
 
 func NewLogHandlers(
 	logger *logging.Logger,
 	logStore logstore.LogStore,
+	tenantStore tenantstore.TenantStore,
+	registry destregistry.Registry,
 ) *LogHandlers {
 	return &LogHandlers{
-		logger:   logger,
-		logStore: logStore,
+		logger:      logger,
+		logStore:    logStore,
+		tenantStore: tenantStore,
+		registry:    registry,
 	}
 }
 
@@ -48,6 +56,7 @@ type IncludeOptions struct {
 	Event        bool
 	EventData    bool
 	ResponseData bool
+	Destination  bool
 }
 
 func parseIncludeOptions(c *gin.Context) IncludeOptions {
@@ -61,6 +70,8 @@ func parseIncludeOptions(c *gin.Context) IncludeOptions {
 			opts.EventData = true
 		case "response_data":
 			opts.ResponseData = true
+		case "destination":
+			opts.Destination = true
 		}
 	}
 	return opts
@@ -82,6 +93,7 @@ type APIAttempt struct {
 	EventID       string      `json:"event_id"`
 	DestinationID string      `json:"destination_id"`
 	Event         interface{} `json:"event,omitempty"`
+	Destination   interface{} `json:"destination,omitempty"`
 }
 
 // APIEventSummary is the event object when expand=event (without data)
@@ -131,8 +143,10 @@ type EventPaginatedResult struct {
 	Pagination SeekPagination `json:"pagination"`
 }
 
-// toAPIAttempt converts an AttemptRecord to APIAttempt with expand options
-func toAPIAttempt(ar *logstore.AttemptRecord, opts IncludeOptions) APIAttempt {
+// toAPIAttempt converts an AttemptRecord to APIAttempt with expand options.
+// destDisplay is optional; when non-nil and opts.Destination is true, the
+// destination field is populated.
+func toAPIAttempt(ar *logstore.AttemptRecord, opts IncludeOptions, destDisplay *destregistry.DestinationDisplay) APIAttempt {
 	api := APIAttempt{
 		ID:            ar.Attempt.ID,
 		TenantID:      ar.Attempt.TenantID,
@@ -172,6 +186,10 @@ func toAPIAttempt(ar *logstore.AttemptRecord, opts IncludeOptions) APIAttempt {
 				Metadata:         ar.Event.Metadata,
 			}
 		}
+	}
+
+	if opts.Destination && destDisplay != nil {
+		api.Destination = destDisplay
 	}
 
 	return api
@@ -272,9 +290,34 @@ func (h *LogHandlers) listAttemptsInternal(c *gin.Context, tenantIDs []string, d
 
 	includeOpts := parseIncludeOptions(c)
 
+	// Batch-fetch destinations when include=destination is requested.
+	destDisplayMap := map[string]*destregistry.DestinationDisplay{}
+	if includeOpts.Destination {
+		type destKey struct {
+			tenantID, destinationID string
+		}
+		seen := map[destKey]struct{}{}
+		for _, ar := range response.Data {
+			k := destKey{ar.Attempt.TenantID, ar.Attempt.DestinationID}
+			if _, ok := seen[k]; ok {
+				continue
+			}
+			seen[k] = struct{}{}
+			dest, err := h.tenantStore.RetrieveDestination(c.Request.Context(), k.tenantID, k.destinationID)
+			if err != nil || dest == nil {
+				continue
+			}
+			display, err := h.registry.DisplayDestination(dest)
+			if err != nil {
+				continue
+			}
+			destDisplayMap[dest.ID] = display
+		}
+	}
+
 	apiAttempts := make([]APIAttempt, len(response.Data))
 	for i, ar := range response.Data {
-		apiAttempts[i] = toAPIAttempt(ar, includeOpts)
+		apiAttempts[i] = toAPIAttempt(ar, includeOpts, destDisplayMap[ar.Attempt.DestinationID])
 	}
 
 	c.JSON(http.StatusOK, AttemptPaginatedResult{
@@ -348,7 +391,18 @@ func (h *LogHandlers) RetrieveAttempt(c *gin.Context) {
 
 	includeOpts := parseIncludeOptions(c)
 
-	c.JSON(http.StatusOK, toAPIAttempt(attemptRecord, includeOpts))
+	var destDisplay *destregistry.DestinationDisplay
+	if includeOpts.Destination {
+		dest, err := h.tenantStore.RetrieveDestination(c.Request.Context(), attemptRecord.Attempt.TenantID, attemptRecord.Attempt.DestinationID)
+		if err == nil && dest != nil {
+			display, err := h.registry.DisplayDestination(dest)
+			if err == nil {
+				destDisplay = display
+			}
+		}
+	}
+
+	c.JSON(http.StatusOK, toAPIAttempt(attemptRecord, includeOpts, destDisplay))
 }
 
 // ListEvents handles GET /events

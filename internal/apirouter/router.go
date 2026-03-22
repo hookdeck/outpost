@@ -139,7 +139,7 @@ func NewRouter(cfg RouterConfig, deps RouterDeps) http.Handler {
 	tenantHandlers := NewTenantHandlers(deps.Logger, deps.Telemetry, cfg.JWTSecret, cfg.DeploymentID, deps.TenantStore)
 	destinationHandlers := NewDestinationHandlers(deps.Logger, deps.Telemetry, deps.TenantStore, cfg.Topics, cfg.Registry)
 	publishHandlers := NewPublishHandlers(deps.Logger, deps.EventHandler)
-	logHandlers := NewLogHandlers(deps.Logger, deps.LogStore)
+	logHandlers := NewLogHandlers(deps.Logger, deps.LogStore, deps.TenantStore, cfg.Registry)
 	retryHandlers := NewRetryHandlers(deps.Logger, deps.TenantStore, deps.LogStore, deps.DeliveryPublisher)
 	topicHandlers := NewTopicHandlers(deps.Logger, cfg.Topics)
 	metricsHandlers := NewMetricsHandlers(deps.Logger, deps.LogStore)

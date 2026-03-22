@@ -1157,6 +1157,90 @@ func TestAPI_Attempts(t *testing.T) {
 			assert.Equal(t, "ok", respData["status"])
 			assert.Equal(t, "response-body", respData["body"])
 		})
+
+		t.Run("include destination expands destination on retrieve", func(t *testing.T) {
+			h := newAPITest(t)
+
+			require.NoError(t, h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1"))))
+			dest := df.Any(df.WithID("d1"), df.WithTenantID("t1"))
+			require.NoError(t, h.tenantStore.CreateDestination(t.Context(), dest))
+
+			e := ef.AnyPointer(ef.WithID("e1"), ef.WithTenantID("t1"), ef.WithDestinationID("d1"))
+			a := attemptForEvent(e, af.WithID("a1"))
+			require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
+				{Event: e, Attempt: a},
+			}))
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/attempts/a1?include=destination", nil)
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+
+			var raw map[string]any
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &raw))
+
+			destMap, ok := raw["destination"].(map[string]any)
+			require.True(t, ok, "destination should be an object when include=destination")
+			assert.Equal(t, "d1", destMap["id"])
+			assert.Equal(t, "t1", destMap["tenant_id"])
+		})
+
+		t.Run("include destination on list populates destination", func(t *testing.T) {
+			h := newAPITest(t)
+
+			require.NoError(t, h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1"))))
+			dest := df.Any(df.WithID("d1"), df.WithTenantID("t1"))
+			require.NoError(t, h.tenantStore.CreateDestination(t.Context(), dest))
+
+			e := ef.AnyPointer(ef.WithID("e1"), ef.WithTenantID("t1"), ef.WithDestinationID("d1"))
+			a := attemptForEvent(e, af.WithID("a1"))
+			require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
+				{Event: e, Attempt: a},
+			}))
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/attempts?include=destination", nil)
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+
+			var result apirouter.AttemptPaginatedResult
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
+			require.Len(t, result.Models, 1)
+
+			// Re-parse as raw to check the destination field
+			var raw map[string]any
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &raw))
+			models := raw["models"].([]any)
+			attempt := models[0].(map[string]any)
+			destMap, ok := attempt["destination"].(map[string]any)
+			require.True(t, ok, "destination should be an object when include=destination")
+			assert.Equal(t, "d1", destMap["id"])
+		})
+
+		t.Run("without include destination field is omitted", func(t *testing.T) {
+			h := newAPITest(t)
+
+			require.NoError(t, h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1"))))
+			dest := df.Any(df.WithID("d1"), df.WithTenantID("t1"))
+			require.NoError(t, h.tenantStore.CreateDestination(t.Context(), dest))
+
+			e := ef.AnyPointer(ef.WithID("e1"), ef.WithTenantID("t1"), ef.WithDestinationID("d1"))
+			a := attemptForEvent(e, af.WithID("a1"))
+			require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
+				{Event: e, Attempt: a},
+			}))
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/attempts/a1", nil)
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+
+			var raw map[string]any
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &raw))
+
+			_, hasDestination := raw["destination"]
+			assert.False(t, hasDestination, "destination should be omitted without include=destination")
+		})
 	})
 
 	t.Run("DestinationAttempts", func(t *testing.T) {
