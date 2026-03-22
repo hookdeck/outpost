@@ -184,6 +184,7 @@ const DestinationConfigFields = ({
                 }
                 disabled={field.disabled}
                 required={field.required}
+                onChange={onChange}
               >
                 {field.options?.map((option) => (
                   <option key={option.value} value={option.value}>
