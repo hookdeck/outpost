@@ -116,14 +116,14 @@ func (d *KafkaDestination) CreatePublisher(ctx context.Context, destination *mod
 		transport.TLS = &tls.Config{}
 	}
 
-	// Create writer with hash balancer for consistent partition key routing
+	// Create writer with hash balancer for consistent partition key routing.
+	// No WriteTimeout — the caller's context deadline (registry DeliveryTimeout)
+	// controls the timeout, consistent with how other providers work.
 	writer := &kafka.Writer{
-		Addr:         kafka.TCP(config.Brokers...),
-		Topic:        config.Topic,
-		Balancer:     &kafka.Hash{},
-		Transport:    transport,
-		WriteTimeout: 10 * time.Second,
-		MaxAttempts:  3,
+		Addr:      kafka.TCP(config.Brokers...),
+		Topic:     config.Topic,
+		Balancer:  &kafka.Hash{},
+		Transport: transport,
 	}
 
 	return &KafkaPublisher{
