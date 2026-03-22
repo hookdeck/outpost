@@ -2,6 +2,7 @@ package destkafka_test
 
 import (
 	"context"
+	"fmt"
 	"maps"
 	"testing"
 
@@ -239,6 +240,74 @@ func TestKafkaDestination_ComputeTarget(t *testing.T) {
 		target := kafkaDestination.ComputeTarget(&dest)
 		assert.Equal(t, "broker1:9092 / my-topic", target.Target)
 	})
+}
+
+func TestKafkaDestination_CreatePublisher_SASL(t *testing.T) {
+	t.Parallel()
+
+	kafkaDestination, err := destkafka.New(testutil.Registry.MetadataLoader(), nil)
+	require.NoError(t, err)
+
+	testCases := []struct {
+		name      string
+		mechanism string
+	}{
+		{name: "plain", mechanism: "plain"},
+		{name: "scram-sha-256", mechanism: "scram-sha-256"},
+		{name: "scram-sha-512", mechanism: "scram-sha-512"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			dest := testutil.DestinationFactory.Any(
+				testutil.DestinationFactory.WithType("kafka"),
+				testutil.DestinationFactory.WithConfig(map[string]string{
+					"brokers":        "localhost:9092",
+					"topic":          "test-topic",
+					"sasl_mechanism": tc.mechanism,
+				}),
+				testutil.DestinationFactory.WithCredentials(map[string]string{
+					"username": "testuser",
+					"password": "testpass",
+				}),
+			)
+			publisher, err := kafkaDestination.CreatePublisher(context.Background(), &dest)
+			require.NoError(t, err)
+			assert.NotNil(t, publisher)
+			publisher.Close()
+		})
+	}
+}
+
+func TestClassifyKafkaError(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		err      error
+		expected string
+	}{
+		{name: "nil error", err: nil, expected: "unknown"},
+		{name: "SASL error", err: fmt.Errorf("SASL handshake failed"), expected: "auth_failed"},
+		{name: "authentication error", err: fmt.Errorf("authentication failed"), expected: "auth_failed"},
+		{name: "connection refused", err: fmt.Errorf("dial tcp: connection refused"), expected: "connection_refused"},
+		{name: "dns error", err: fmt.Errorf("no such host"), expected: "dns_error"},
+		{name: "unknown topic", err: fmt.Errorf("Unknown Topic Or Partition"), expected: "topic_not_found"},
+		{name: "message too large", err: fmt.Errorf("MESSAGE_TOO_LARGE"), expected: "message_too_large"},
+		{name: "timeout", err: fmt.Errorf("i/o timeout"), expected: "timeout"},
+		{name: "context deadline", err: fmt.Errorf("context deadline exceeded"), expected: "timeout"},
+		{name: "tls error", err: fmt.Errorf("tls: handshake failure"), expected: "tls_error"},
+		{name: "x509 error", err: fmt.Errorf("x509: certificate signed by unknown authority"), expected: "tls_error"},
+		{name: "generic error", err: fmt.Errorf("something went wrong"), expected: "kafka_error"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.expected, destkafka.ClassifyKafkaError(tt.err))
+		})
+	}
 }
 
 func TestKafkaDestination_Preprocess(t *testing.T) {
