@@ -3,6 +3,7 @@ package destkafka_test
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -23,7 +24,7 @@ type KafkaConsumer struct {
 	reader       *kafka.Reader
 	msgChan      chan testsuite.Message
 	done         chan struct{}
-	shuttingDown bool
+	shuttingDown atomic.Bool
 	wg           sync.WaitGroup
 }
 
@@ -66,7 +67,7 @@ func (c *KafkaConsumer) consume() {
 				metadata[h.Key] = string(h.Value)
 			}
 
-			if !c.shuttingDown {
+			if !c.shuttingDown.Load() {
 				c.msgChan <- testsuite.Message{
 					Data:     msg.Value,
 					Metadata: metadata,
@@ -82,7 +83,7 @@ func (c *KafkaConsumer) Consume() <-chan testsuite.Message {
 }
 
 func (c *KafkaConsumer) Close() error {
-	c.shuttingDown = true
+	c.shuttingDown.Store(true)
 	close(c.done)
 	c.wg.Wait()
 	close(c.msgChan)

@@ -91,6 +91,7 @@ func initConfig() {
 		GCPURL:            "",
 		AzureSBConnString: "",
 		RabbitMQURL:       "",
+		KafkaURL:          "",
 		MockServerURL:     "",
 	}
 }
