@@ -3713,6 +3713,12 @@ paths:
                             description: "Enable TLS for the connection.",
                             default: "false",
                           },
+                          {
+                            type: "text",
+                            label: "Partition Key Template",
+                            description: "JMESPath template to extract the partition key from the event payload.",
+                            required: false,
+                          },
                         ]
                       credential_fields:
                         [
