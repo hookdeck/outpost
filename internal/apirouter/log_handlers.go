@@ -19,20 +19,20 @@ type LogHandlers struct {
 	logger      *logging.Logger
 	logStore    logstore.LogStore
 	tenantStore tenantstore.TenantStore
-	registry    destregistry.Registry
+	displayer   destinationDisplayer
 }
 
 func NewLogHandlers(
 	logger *logging.Logger,
 	logStore logstore.LogStore,
 	tenantStore tenantstore.TenantStore,
-	registry destregistry.Registry,
+	displayer destinationDisplayer,
 ) *LogHandlers {
 	return &LogHandlers{
 		logger:      logger,
 		logStore:    logStore,
 		tenantStore: tenantStore,
-		registry:    registry,
+		displayer:   displayer,
 	}
 }
 
@@ -307,7 +307,7 @@ func (h *LogHandlers) listAttemptsInternal(c *gin.Context, tenantIDs []string, d
 			if err != nil || dest == nil {
 				continue
 			}
-			display, err := h.registry.DisplayDestination(dest)
+			display, err := h.displayer.Display(dest)
 			if err != nil {
 				continue
 			}
@@ -395,7 +395,7 @@ func (h *LogHandlers) RetrieveAttempt(c *gin.Context) {
 	if includeOpts.Destination {
 		dest, err := h.tenantStore.RetrieveDestination(c.Request.Context(), attemptRecord.Attempt.TenantID, attemptRecord.Attempt.DestinationID)
 		if err == nil && dest != nil {
-			display, err := h.registry.DisplayDestination(dest)
+			display, err := h.displayer.Display(dest)
 			if err == nil {
 				destDisplay = display
 			}

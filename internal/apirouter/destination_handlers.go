@@ -22,15 +22,17 @@ type DestinationHandlers struct {
 	tenantStore tenantstore.TenantStore
 	topics      []string
 	registry    destregistry.Registry
+	displayer   destinationDisplayer
 }
 
-func NewDestinationHandlers(logger *logging.Logger, telemetry telemetry.Telemetry, tenantStore tenantstore.TenantStore, topics []string, registry destregistry.Registry) *DestinationHandlers {
+func NewDestinationHandlers(logger *logging.Logger, telemetry telemetry.Telemetry, tenantStore tenantstore.TenantStore, topics []string, registry destregistry.Registry, displayer destinationDisplayer) *DestinationHandlers {
 	return &DestinationHandlers{
 		logger:      logger,
 		telemetry:   telemetry,
 		tenantStore: tenantStore,
 		topics:      topics,
 		registry:    registry,
+		displayer:   displayer,
 	}
 }
 
@@ -56,7 +58,7 @@ func (h *DestinationHandlers) List(c *gin.Context) {
 	// Convert destinations to display format
 	displayDestinations := make([]*destregistry.DestinationDisplay, len(destinations))
 	for i, dest := range destinations {
-		display, err := h.registry.DisplayDestination(&dest)
+		display, err := h.displayer.Display(&dest)
 		if err != nil {
 			AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 			return
@@ -97,7 +99,7 @@ func (h *DestinationHandlers) Create(c *gin.Context) {
 	}
 	h.telemetry.DestinationCreated(c.Request.Context(), destination.Type)
 
-	display, err := h.registry.DisplayDestination(&destination)
+	display, err := h.displayer.Display(&destination)
 	if err != nil {
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return
@@ -112,7 +114,7 @@ func (h *DestinationHandlers) Retrieve(c *gin.Context) {
 		return
 	}
 
-	display, err := h.registry.DisplayDestination(destination)
+	display, err := h.displayer.Display(destination)
 	if err != nil {
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return
@@ -190,7 +192,7 @@ func (h *DestinationHandlers) Update(c *gin.Context) {
 		return
 	}
 
-	display, err := h.registry.DisplayDestination(&updatedDestination)
+	display, err := h.displayer.Display(&updatedDestination)
 	if err != nil {
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return
@@ -209,7 +211,7 @@ func (h *DestinationHandlers) Delete(c *gin.Context) {
 		return
 	}
 
-	display, err := h.registry.DisplayDestination(destination)
+	display, err := h.displayer.Display(destination)
 	if err != nil {
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return
@@ -263,7 +265,7 @@ func (h *DestinationHandlers) setDisabilityHandler(c *gin.Context, disabled bool
 		}
 	}
 
-	display, err := h.registry.DisplayDestination(destination)
+	display, err := h.displayer.Display(destination)
 	if err != nil {
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return
