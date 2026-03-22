@@ -92,7 +92,12 @@ func TestKafkaDestination_Validate(t *testing.T) {
 				t.Parallel()
 				dest := validDestination
 				dest.Config = maps.Clone(validDestination.Config)
-				dest.Credentials = maps.Clone(validDestination.Credentials)
+				// Provide credentials when mechanism is set so we only test mechanism validation
+				if tc.mechanism != "" {
+					dest.Credentials = map[string]string{"username": "user", "password": "pass"}
+				} else {
+					dest.Credentials = maps.Clone(validDestination.Credentials)
+				}
 				if tc.mechanism != "" {
 					dest.Config["sasl_mechanism"] = tc.mechanism
 				}
@@ -122,7 +127,7 @@ func TestKafkaDestination_Validate(t *testing.T) {
 			{name: "valid on", tlsValue: "on", shouldError: false},
 			{name: "valid false", tlsValue: "false", shouldError: false},
 			{name: "invalid value", tlsValue: "yes", shouldError: true},
-			{name: "empty value", tlsValue: "", shouldError: true},
+			{name: "empty value is valid (not configured)", tlsValue: "", shouldError: false},
 			{name: "case sensitive True", tlsValue: "True", shouldError: true},
 		}
 
@@ -141,6 +146,50 @@ func TestKafkaDestination_Validate(t *testing.T) {
 					}
 					assert.Equal(t, "config.tls", validationErr.Errors[0].Field)
 					assert.Equal(t, "invalid", validationErr.Errors[0].Type)
+				} else {
+					assert.NoError(t, err)
+				}
+			})
+		}
+	})
+
+	t.Run("should require credentials when sasl_mechanism is set", func(t *testing.T) {
+		t.Parallel()
+		testCases := []struct {
+			name        string
+			mechanism   string
+			username    string
+			password    string
+			shouldError bool
+		}{
+			{name: "plain with credentials", mechanism: "plain", username: "user", password: "pass", shouldError: false},
+			{name: "plain without username", mechanism: "plain", username: "", password: "pass", shouldError: true},
+			{name: "plain without password", mechanism: "plain", username: "user", password: "", shouldError: true},
+			{name: "scram-sha-256 with credentials", mechanism: "scram-sha-256", username: "user", password: "pass", shouldError: false},
+			{name: "scram-sha-256 without credentials", mechanism: "scram-sha-256", username: "", password: "", shouldError: true},
+			{name: "no mechanism no credentials", mechanism: "", username: "", password: "", shouldError: false},
+		}
+
+		for _, tc := range testCases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				dest := validDestination
+				dest.Config = maps.Clone(validDestination.Config)
+				dest.Credentials = map[string]string{
+					"username": tc.username,
+					"password": tc.password,
+				}
+				if tc.mechanism != "" {
+					dest.Config["sasl_mechanism"] = tc.mechanism
+				}
+				err := kafkaDestination.Validate(context.Background(), &dest)
+				if tc.shouldError {
+					var validationErr *destregistry.ErrDestinationValidation
+					if !assert.ErrorAs(t, err, &validationErr) {
+						return
+					}
+					assert.Equal(t, "credentials", validationErr.Errors[0].Field)
+					assert.Equal(t, "required", validationErr.Errors[0].Type)
 				} else {
 					assert.NoError(t, err)
 				}

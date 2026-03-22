@@ -54,10 +54,19 @@ func (d *KafkaDestination) Validate(ctx context.Context, destination *models.Des
 	}
 
 	// Validate SASL mechanism if provided
-	if mechanism := destination.Config["sasl_mechanism"]; mechanism != "" {
-		switch mechanism {
+	saslMechanism := destination.Config["sasl_mechanism"]
+	if saslMechanism != "" {
+		switch saslMechanism {
 		case "plain", "scram-sha-256", "scram-sha-512":
-			// valid
+			// valid — require credentials when SASL is configured
+			if destination.Credentials["username"] == "" || destination.Credentials["password"] == "" {
+				return destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{
+					{
+						Field: "credentials",
+						Type:  "required",
+					},
+				})
+			}
 		default:
 			return destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{
 				{
@@ -68,8 +77,8 @@ func (d *KafkaDestination) Validate(ctx context.Context, destination *models.Des
 		}
 	}
 
-	// Validate TLS config if provided
-	if tlsStr, ok := destination.Config["tls"]; ok {
+	// Validate TLS config if provided — empty string is treated as "not configured"
+	if tlsStr, ok := destination.Config["tls"]; ok && tlsStr != "" {
 		if tlsStr != "on" && tlsStr != "true" && tlsStr != "false" {
 			return destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{
 				{
@@ -109,10 +118,12 @@ func (d *KafkaDestination) CreatePublisher(ctx context.Context, destination *mod
 
 	// Create writer with hash balancer for consistent partition key routing
 	writer := &kafka.Writer{
-		Addr:      kafka.TCP(config.Brokers...),
-		Topic:     config.Topic,
-		Balancer:  &kafka.Hash{},
-		Transport: transport,
+		Addr:         kafka.TCP(config.Brokers...),
+		Topic:        config.Topic,
+		Balancer:     &kafka.Hash{},
+		Transport:    transport,
+		WriteTimeout: 10 * time.Second,
+		MaxAttempts:  3,
 	}
 
 	return &KafkaPublisher{
@@ -285,7 +296,7 @@ func ClassifyKafkaError(err error) string {
 	errStr := err.Error()
 
 	switch {
-	case strings.Contains(errStr, "SASL") || strings.Contains(errStr, "auth") || strings.Contains(errStr, "Authentication"):
+	case strings.Contains(errStr, "SASL") || strings.Contains(errStr, "authentication") || strings.Contains(errStr, "Authentication"):
 		return "auth_failed"
 	case strings.Contains(errStr, "connection refused"):
 		return "connection_refused"
