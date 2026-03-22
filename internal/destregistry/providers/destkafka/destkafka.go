@@ -295,7 +295,7 @@ func ClassifyKafkaError(err error) string {
 		return "topic_not_found"
 	case strings.Contains(errStr, "Message Size Too Large") || strings.Contains(errStr, "MESSAGE_TOO_LARGE"):
 		return "message_too_large"
-	case strings.Contains(errStr, "i/o timeout") || strings.Contains(errStr, "context deadline exceeded"):
+	case strings.Contains(errStr, "i/o timeout") || strings.Contains(errStr, "context deadline exceeded") || strings.Contains(errStr, "Timed Out"):
 		return "timeout"
 	case strings.Contains(errStr, "tls:") || strings.Contains(errStr, "x509:"):
 		return "tls_error"
