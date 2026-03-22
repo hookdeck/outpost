@@ -84,10 +84,10 @@ type EventMetricsResponse struct {
 type AttemptMetricsDataPoint struct {
 	TimeBucket *time.Time
 	// Measures
-	Count             *int
-	SuccessfulCount   *int
-	FailedCount       *int
-	ErrorRate         *float64
+	Count           *int
+	SuccessfulCount *int
+	FailedCount     *int
+	ErrorRate       *float64
 	// NOTE: The following three measures are equivalent to using "count" with
 	// the corresponding filters (attempt_number=1 AND manual=false, attempt_number>1,
 	// manual=true). They exist for composability — callers can request multiple
