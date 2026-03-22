@@ -1,18 +1,18 @@
 name: "outpost-test"
 
 services:
-  mock:
+  test-mock:
     image: outpost-mock
     build:
       context: ../../
       dockerfile: ./build/test/Dockerfile.mock
     ports:
       - 35555:5555
-  clickhouse:
+  test-clickhouse:
     image: clickhouse/clickhouse-server:24-alpine
     ports:
       - 39000:9000
-  postgres:
+  test-postgres:
     image: postgres:16-alpine
     environment:
       - POSTGRES_USER=outpost
@@ -20,19 +20,26 @@ services:
       - POSTGRES_DB=default
     ports:
       - 35432:5432
-  rabbitmq:
+  test-rabbitmq:
     image: rabbitmq:3-management
     ports:
       - 35672:5672
       - 45672:15672
-  aws:
+  test-aws:
     image: localstack/localstack:latest
     environment:
       - SERVICES=s3,sns,sts,sqs,kinesis
     ports:
       - 34566:4566
       - 34571:4571
-  gcp:
+  test-kafka:
+    image: confluentinc/confluent-local:7.4.0
+    environment:
+      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://test-kafka:29092,PLAINTEXT_HOST://localhost:39092
+      - KAFKA_LISTENERS=PLAINTEXT://0.0.0.0:29092,CONTROLLER://localhost:29093,PLAINTEXT_HOST://0.0.0.0:9092
+    ports:
+      - 39092:9092
+  test-gcp:
     image: gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators
     command:
       [
@@ -46,3 +53,8 @@ services:
       ]
     ports:
       - "38085:8085"
+
+networks:
+  default:
+    name: outpost
+    external: true
