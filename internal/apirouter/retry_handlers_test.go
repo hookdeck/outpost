@@ -23,7 +23,7 @@ func TestAPI_Retry(t *testing.T) {
 		h.tenantStore.UpsertDestination(t.Context(), df.Any(df.WithID("d1"), df.WithTenantID("t1"), df.WithTopics([]string{"*"})))
 		e := ef.AnyPointer(ef.WithID("e1"), ef.WithTenantID("t1"), ef.WithTopic("user.created"))
 		require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
-			{Event: e, Attempt: attemptForEvent(e)},
+			{Event: e, Attempt: attemptForEvent(e, af.WithDestinationID("d1"))},
 		}))
 		return h
 	}
@@ -134,7 +134,7 @@ func TestAPI_Retry(t *testing.T) {
 			// Event belongs to t1
 			e := ef.AnyPointer(ef.WithID("e1"), ef.WithTenantID("t1"), ef.WithTopic("user.created"))
 			require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
-				{Event: e, Attempt: attemptForEvent(e)},
+				{Event: e, Attempt: attemptForEvent(e, af.WithDestinationID("d1"))},
 			}))
 
 			// JWT for t2 tries to retry t1's event
@@ -154,7 +154,7 @@ func TestAPI_Retry(t *testing.T) {
 			h.tenantStore.UpsertDestination(t.Context(), dest)
 			e := ef.AnyPointer(ef.WithID("e1"), ef.WithTenantID("t1"), ef.WithTopic("user.created"))
 			require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
-				{Event: e, Attempt: attemptForEvent(e)},
+				{Event: e, Attempt: attemptForEvent(e, af.WithDestinationID("d1"))},
 			}))
 
 			req := h.jsonReq(http.MethodPost, "/api/v1/retry", map[string]any{
@@ -188,7 +188,7 @@ func TestAPI_Retry(t *testing.T) {
 			h.tenantStore.UpsertDestination(t.Context(), dest)
 			e := ef.AnyPointer(ef.WithID("e1"), ef.WithTenantID("t1"), ef.WithTopic("user.created"))
 			require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
-				{Event: e, Attempt: attemptForEvent(e)},
+				{Event: e, Attempt: attemptForEvent(e, af.WithDestinationID("d1"))},
 			}))
 
 			req := h.jsonReq(http.MethodPost, "/api/v1/retry", map[string]any{
@@ -209,7 +209,7 @@ func TestAPI_Retry(t *testing.T) {
 			// Event has topic "user.created"
 			e := ef.AnyPointer(ef.WithID("e1"), ef.WithTenantID("t1"), ef.WithTopic("user.created"))
 			require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
-				{Event: e, Attempt: attemptForEvent(e)},
+				{Event: e, Attempt: attemptForEvent(e, af.WithDestinationID("d1"))},
 			}))
 
 			req := h.jsonReq(http.MethodPost, "/api/v1/retry", map[string]any{
@@ -252,6 +252,7 @@ func TestAPI_Retry(t *testing.T) {
 			assert.Equal(t, "e1", task.Event.ID)
 			assert.Equal(t, "t1", task.Event.TenantID)
 			assert.Equal(t, "d1", task.DestinationID)
+			assert.Equal(t, 2, task.Attempt, "should derive attempt_number=2 from 1 prior attempt")
 		})
 
 		t.Run("returns success body", func(t *testing.T) {

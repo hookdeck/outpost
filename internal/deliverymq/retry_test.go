@@ -132,7 +132,6 @@ func TestDeliveryMQRetry_EligibleForRetryFalse(t *testing.T) {
 		},
 	})
 	eventGetter := newMockEventGetter()
-	eventGetter.registerEvent(&event)
 
 	suite := &RetryDeliveryMQSuite{
 		ctx:                  ctx,
@@ -194,14 +193,15 @@ func TestDeliveryMQRetry_EligibleForRetryTrue(t *testing.T) {
 		nil, // succeeds on 3rd try
 	})
 	eventGetter := newMockEventGetter()
-	eventGetter.registerEvent(&event)
+	logPublisher := newMockLogPublisher(nil)
+	logPublisher.eventGetter = eventGetter
 
 	suite := &RetryDeliveryMQSuite{
 		ctx:                  ctx,
 		mqConfig:             &mqs.QueueConfig{InMemory: &mqs.InMemoryConfig{Name: testutil.RandomString(5)}},
 		publisher:            publisher,
 		eventGetter:          eventGetter,
-		logPublisher:         newMockLogPublisher(nil),
+		logPublisher:         logPublisher,
 		destGetter:           &mockDestinationGetter{dest: &destination},
 		alertMonitor:         newMockAlertMonitor(),
 		retryMaxCount:        10,
@@ -251,7 +251,6 @@ func TestDeliveryMQRetry_SystemError(t *testing.T) {
 	// Setup mocks with system error
 	destGetter := &mockDestinationGetter{err: errors.New("destination lookup failed")}
 	eventGetter := newMockEventGetter()
-	eventGetter.registerEvent(&event)
 
 	suite := &RetryDeliveryMQSuite{
 		ctx:                  ctx,
@@ -320,14 +319,15 @@ func TestDeliveryMQRetry_RetryMaxCount(t *testing.T) {
 		}, // 4th attempt should never happen
 	})
 	eventGetter := newMockEventGetter()
-	eventGetter.registerEvent(&event)
+	logPublisher := newMockLogPublisher(nil)
+	logPublisher.eventGetter = eventGetter
 
 	suite := &RetryDeliveryMQSuite{
 		ctx:                  ctx,
 		mqConfig:             &mqs.QueueConfig{InMemory: &mqs.InMemoryConfig{Name: testutil.RandomString(5)}},
 		publisher:            publisher,
 		eventGetter:          eventGetter,
-		logPublisher:         newMockLogPublisher(nil),
+		logPublisher:         logPublisher,
 		destGetter:           &mockDestinationGetter{dest: &destination},
 		alertMonitor:         newMockAlertMonitor(),
 		retryMaxCount:        2, // 1 initial + 2 retries = 3 total attempts
@@ -381,10 +381,8 @@ func TestRetryScheduler_EventNotFound(t *testing.T) {
 		},
 	})
 
-	// Event getter does NOT have the event registered
-	// This simulates event being deleted from logstore before retry
+	// Event getter has no records — simulates data not yet in logstore
 	eventGetter := newMockEventGetter()
-	// Intentionally NOT calling: eventGetter.registerEvent(&event)
 
 	suite := &RetryDeliveryMQSuite{
 		ctx:                  ctx,
@@ -417,8 +415,8 @@ func TestRetryScheduler_EventNotFound(t *testing.T) {
 	// 50ms backoff + 10ms poll = 60ms minimum for retry
 	time.Sleep(200 * time.Millisecond)
 
-	// Should only have 1 attempt - the retry was skipped because event not found
-	assert.Equal(t, 1, publisher.Current(), "should skip retry when event not found in logstore (returns nil, nil)")
+	// Should only have 1 attempt - the retry was skipped because no prior attempt found
+	assert.Equal(t, 1, publisher.Current(), "should skip retry when no prior attempt found in logstore")
 }
 
 func TestRetryScheduler_EventFetchError(t *testing.T) {
@@ -455,7 +453,6 @@ func TestRetryScheduler_EventFetchError(t *testing.T) {
 
 	// Event getter returns error (simulating transient DB error)
 	eventGetter := newMockEventGetter()
-	eventGetter.registerEvent(&event)
 	eventGetter.err = errors.New("database connection error")
 
 	suite := &RetryDeliveryMQSuite{
@@ -524,11 +521,10 @@ func TestRetryScheduler_EventFetchSuccess(t *testing.T) {
 		nil, // Second attempt succeeds
 	})
 
-	// Event getter has the event registered
 	eventGetter := newMockEventGetter()
-	eventGetter.registerEvent(&event)
 
 	logPublisher := newMockLogPublisher(nil)
+	logPublisher.eventGetter = eventGetter
 
 	suite := &RetryDeliveryMQSuite{
 		ctx:                  ctx,
