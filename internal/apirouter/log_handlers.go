@@ -19,14 +19,14 @@ type LogHandlers struct {
 	logger      *logging.Logger
 	logStore    logstore.LogStore
 	tenantStore tenantstore.TenantStore
-	displayer   destinationDisplayer
+	displayer   *destinationDisplayer
 }
 
 func NewLogHandlers(
 	logger *logging.Logger,
 	logStore logstore.LogStore,
 	tenantStore tenantstore.TenantStore,
-	displayer destinationDisplayer,
+	displayer *destinationDisplayer,
 ) *LogHandlers {
 	return &LogHandlers{
 		logger:      logger,

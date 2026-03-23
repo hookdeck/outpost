@@ -22,10 +22,10 @@ type DestinationHandlers struct {
 	tenantStore tenantstore.TenantStore
 	topics      []string
 	registry    destregistry.Registry
-	displayer   destinationDisplayer
+	displayer   *destinationDisplayer
 }
 
-func NewDestinationHandlers(logger *logging.Logger, telemetry telemetry.Telemetry, tenantStore tenantstore.TenantStore, topics []string, registry destregistry.Registry, displayer destinationDisplayer) *DestinationHandlers {
+func NewDestinationHandlers(logger *logging.Logger, telemetry telemetry.Telemetry, tenantStore tenantstore.TenantStore, topics []string, registry destregistry.Registry, displayer *destinationDisplayer) *DestinationHandlers {
 	return &DestinationHandlers{
 		logger:      logger,
 		telemetry:   telemetry,
@@ -49,15 +49,10 @@ func (h *DestinationHandlers) List(c *gin.Context) {
 		return
 	}
 
-	// Convert destinations to display format
-	displayDestinations := make([]*destregistry.DestinationDisplay, len(destinations))
-	for i, dest := range destinations {
-		display, err := h.displayer.Display(&dest)
-		if err != nil {
-			AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
-			return
-		}
-		displayDestinations[i] = display
+	displayDestinations, err := h.displayer.DisplayList(destinations)
+	if err != nil {
+		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
+		return
 	}
 
 	c.JSON(http.StatusOK, displayDestinations)
