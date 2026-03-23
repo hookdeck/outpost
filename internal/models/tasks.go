@@ -2,8 +2,8 @@ package models
 
 import (
 	"encoding/json"
+	"strconv"
 
-	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/mqs"
 )
 
@@ -39,7 +39,6 @@ type DeliveryTask struct {
 	DestinationID string             `json:"destination_id"`
 	Attempt       int                `json:"attempt"`
 	Manual        bool               `json:"manual"`
-	Nonce         string             `json:"nonce,omitempty"`
 	Telemetry     *DeliveryTelemetry `json:"telemetry,omitempty"`
 }
 
@@ -58,17 +57,12 @@ func (t *DeliveryTask) ToMessage() (*mqs.Message, error) {
 }
 
 // IdempotencyKey returns the key used for idempotency checks.
-// Manual retries include a nonce so each /retry request gets its own idempotency key,
-// while MQ redeliveries of the same message (same nonce) are still deduplicated.
-// Nonce was added to fix a regression from #653 where removing DeliveryEvent.ID
-// made the manual retry idempotency key static per event+destination.
+// Uses event_id:destination_id:attempt_number so that:
+//   - Manual and auto retries with the same attempt_number are deduplicated (race protection)
+//   - Each new attempt gets a fresh key (no need to clear on failure)
+//   - MQ redeliveries of the same message are still deduplicated
 func (t *DeliveryTask) IdempotencyKey() string {
-	if t.Manual {
-		return t.Event.ID + ":" + t.DestinationID + ":manual:" + t.Nonce
-	}
-	// Non-manual deliveries share a key per event+destination. On failure, the
-	// idempotency key is cleared so the scheduled retry can execute with the same key.
-	return t.Event.ID + ":" + t.DestinationID
+	return t.Event.ID + ":" + t.DestinationID + ":" + strconv.Itoa(t.Attempt)
 }
 
 // RetryID returns the ID used for scheduling and canceling retries.
@@ -88,14 +82,12 @@ func NewDeliveryTask(event Event, destinationID string) DeliveryTask {
 
 // NewManualDeliveryTask creates a new DeliveryTask for a manual retry.
 // attemptNumber is the 1-indexed attempt number derived from the count of prior attempts.
-// Each manual retry gets a unique nonce so separate /retry requests are not deduplicated.
 func NewManualDeliveryTask(event Event, destinationID string, attemptNumber int) DeliveryTask {
 	return DeliveryTask{
 		Event:         event,
 		DestinationID: destinationID,
 		Attempt:       attemptNumber,
 		Manual:        true,
-		Nonce:         idgen.String(),
 	}
 }
 

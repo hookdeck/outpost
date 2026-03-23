@@ -108,13 +108,15 @@ func (m *mockMultiDestinationGetter) RetrieveDestination(ctx context.Context, te
 
 type mockEventGetter struct {
 	events          map[string]*models.Event
+	attempts        []*models.Attempt // tracks logged attempts for ListAttempt
 	err             error
 	lastRetrievedID string
 }
 
 func newMockEventGetter() *mockEventGetter {
 	return &mockEventGetter{
-		events: make(map[string]*models.Event),
+		events:   make(map[string]*models.Event),
+		attempts: make([]*models.Attempt, 0),
 	}
 }
 
@@ -133,6 +135,35 @@ func (m *mockEventGetter) RetrieveEvent(ctx context.Context, req logstore.Retrie
 	m.lastRetrievedID = req.EventID
 	// Match actual logstore behavior: return (nil, nil) when event not found
 	return m.events[req.EventID], nil
+}
+
+func (m *mockEventGetter) ListAttempt(ctx context.Context, req logstore.ListAttemptRequest) (logstore.ListAttemptResponse, error) {
+	if m.err != nil {
+		return logstore.ListAttemptResponse{}, m.err
+	}
+	// Filter attempts matching the request criteria
+	var matched []*logstore.AttemptRecord
+	for _, a := range m.attempts {
+		if len(req.EventIDs) > 0 && !contains(req.EventIDs, a.EventID) {
+			continue
+		}
+		if len(req.DestinationIDs) > 0 && !contains(req.DestinationIDs, a.DestinationID) {
+			continue
+		}
+		matched = append(matched, &logstore.AttemptRecord{Attempt: a})
+	}
+	// Sort desc by AttemptNumber (highest first)
+	for i := 0; i < len(matched); i++ {
+		for j := i + 1; j < len(matched); j++ {
+			if matched[j].Attempt.AttemptNumber > matched[i].Attempt.AttemptNumber {
+				matched[i], matched[j] = matched[j], matched[i]
+			}
+		}
+	}
+	if req.Limit > 0 && len(matched) > req.Limit {
+		matched = matched[:req.Limit]
+	}
+	return logstore.ListAttemptResponse{Data: matched}, nil
 }
 
 // mockDelayedEventGetter simulates the race condition where event is not yet
@@ -163,9 +194,24 @@ func (m *mockDelayedEventGetter) RetrieveEvent(ctx context.Context, req logstore
 	return m.event, nil
 }
 
+func (m *mockDelayedEventGetter) ListAttempt(ctx context.Context, req logstore.ListAttemptRequest) (logstore.ListAttemptResponse, error) {
+	// Return empty — simulates no prior attempts logged yet (consistent with delayed persistence)
+	return logstore.ListAttemptResponse{}, nil
+}
+
+func contains(slice []string, s string) bool {
+	for _, v := range slice {
+		if v == s {
+			return true
+		}
+	}
+	return false
+}
+
 type mockLogPublisher struct {
-	err     error
-	entries []models.LogEntry
+	err          error
+	entries      []models.LogEntry
+	eventGetter  *mockEventGetter // if set, feed logged attempts to this getter
 }
 
 func newMockLogPublisher(err error) *mockLogPublisher {
@@ -177,6 +223,10 @@ func newMockLogPublisher(err error) *mockLogPublisher {
 
 func (m *mockLogPublisher) Publish(ctx context.Context, entry models.LogEntry) error {
 	m.entries = append(m.entries, entry)
+	// Feed attempt to mockEventGetter so ListAttempt returns correct data
+	if m.eventGetter != nil && entry.Attempt != nil {
+		m.eventGetter.attempts = append(m.eventGetter.attempts, entry.Attempt)
+	}
 	return m.err
 }
 

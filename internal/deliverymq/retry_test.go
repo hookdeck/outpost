@@ -195,13 +195,15 @@ func TestDeliveryMQRetry_EligibleForRetryTrue(t *testing.T) {
 	})
 	eventGetter := newMockEventGetter()
 	eventGetter.registerEvent(&event)
+	logPublisher := newMockLogPublisher(nil)
+	logPublisher.eventGetter = eventGetter
 
 	suite := &RetryDeliveryMQSuite{
 		ctx:                  ctx,
 		mqConfig:             &mqs.QueueConfig{InMemory: &mqs.InMemoryConfig{Name: testutil.RandomString(5)}},
 		publisher:            publisher,
 		eventGetter:          eventGetter,
-		logPublisher:         newMockLogPublisher(nil),
+		logPublisher:         logPublisher,
 		destGetter:           &mockDestinationGetter{dest: &destination},
 		alertMonitor:         newMockAlertMonitor(),
 		retryMaxCount:        10,
@@ -321,13 +323,15 @@ func TestDeliveryMQRetry_RetryMaxCount(t *testing.T) {
 	})
 	eventGetter := newMockEventGetter()
 	eventGetter.registerEvent(&event)
+	logPublisher := newMockLogPublisher(nil)
+	logPublisher.eventGetter = eventGetter
 
 	suite := &RetryDeliveryMQSuite{
 		ctx:                  ctx,
 		mqConfig:             &mqs.QueueConfig{InMemory: &mqs.InMemoryConfig{Name: testutil.RandomString(5)}},
 		publisher:            publisher,
 		eventGetter:          eventGetter,
-		logPublisher:         newMockLogPublisher(nil),
+		logPublisher:         logPublisher,
 		destGetter:           &mockDestinationGetter{dest: &destination},
 		alertMonitor:         newMockAlertMonitor(),
 		retryMaxCount:        2, // 1 initial + 2 retries = 3 total attempts
@@ -529,6 +533,7 @@ func TestRetryScheduler_EventFetchSuccess(t *testing.T) {
 	eventGetter.registerEvent(&event)
 
 	logPublisher := newMockLogPublisher(nil)
+	logPublisher.eventGetter = eventGetter
 
 	suite := &RetryDeliveryMQSuite{
 		ctx:                  ctx,

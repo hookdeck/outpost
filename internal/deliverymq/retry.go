@@ -19,6 +19,7 @@ import (
 // This is defined separately from EventGetter in messagehandler.go to avoid circular dependencies.
 type RetryEventGetter interface {
 	RetrieveEvent(ctx context.Context, request logstore.RetrieveEventRequest) (*models.Event, error)
+	ListAttempt(ctx context.Context, request logstore.ListAttemptRequest) (logstore.ListAttemptResponse, error)
 }
 
 // RetrySchedulerOption is a functional option for configuring the retry scheduler.
@@ -103,7 +104,30 @@ func NewRetryScheduler(deliverymq *DeliveryMQ, redisConfig *redis.RedisConfig, d
 			return fmt.Errorf("event not found in logstore")
 		}
 
-		deliveryTask := retryTask.ToDeliveryTask(*event)
+		// Derive attempt number from logstore (single source of truth)
+		attemptResp, err := eventGetter.ListAttempt(ctx, logstore.ListAttemptRequest{
+			TenantIDs:      []string{retryTask.TenantID},
+			EventIDs:       []string{retryTask.EventID},
+			DestinationIDs: []string{retryTask.DestinationID},
+			Limit:          1,
+			SortOrder:      "desc",
+		})
+		if err != nil {
+			if logger != nil {
+				logger.Ctx(ctx).Error("failed to list attempts for retry",
+					zap.Error(err),
+					zap.String("event_id", retryTask.EventID),
+					zap.String("tenant_id", retryTask.TenantID),
+					zap.String("destination_id", retryTask.DestinationID))
+			}
+			return err
+		}
+		attemptNumber := 1
+		if len(attemptResp.Data) > 0 {
+			attemptNumber = attemptResp.Data[0].Attempt.AttemptNumber + 1
+		}
+
+		deliveryTask := retryTask.ToDeliveryTask(*event, attemptNumber)
 		if err := deliverymq.Publish(ctx, deliveryTask); err != nil {
 			return err
 		}
@@ -125,7 +149,6 @@ type RetryTask struct {
 	EventID       string
 	TenantID      string
 	DestinationID string
-	Attempt       int
 	Telemetry     *models.DeliveryTelemetry
 }
 
@@ -141,9 +164,9 @@ func (m *RetryTask) FromString(str string) error {
 	return json.Unmarshal([]byte(str), &m)
 }
 
-func (m *RetryTask) ToDeliveryTask(event models.Event) models.DeliveryTask {
+func (m *RetryTask) ToDeliveryTask(event models.Event, attemptNumber int) models.DeliveryTask {
 	return models.DeliveryTask{
-		Attempt:       m.Attempt,
+		Attempt:       attemptNumber,
 		DestinationID: m.DestinationID,
 		Event:         event,
 		Telemetry:     m.Telemetry,
@@ -155,7 +178,6 @@ func RetryTaskFromDeliveryTask(task models.DeliveryTask) RetryTask {
 		EventID:       task.Event.ID,
 		TenantID:      task.Event.TenantID,
 		DestinationID: task.DestinationID,
-		Attempt:       task.Attempt + 1,
 		Telemetry:     task.Telemetry,
 	}
 }
