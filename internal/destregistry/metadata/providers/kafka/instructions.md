@@ -13,9 +13,11 @@ To configure Kafka as a destination you must provide:
 
 - **Brokers** — A comma-separated list of Kafka broker addresses (e.g., `broker1:9092,broker2:9092`)
 - **Topic** — The Kafka topic to publish messages to
+- **SASL Mechanism** — Authentication mechanism: `plain`, `scram-sha-256`, or `scram-sha-512`
+- **Username** — SASL username for authentication
+- **Password** — SASL password for authentication
 
 ### Optional settings
 
-- **SASL Mechanism** — Authentication mechanism: `plain`, `scram-sha-256`, or `scram-sha-512`. If set, you must also provide **Username** and **Password**.
-- **TLS** — Enable TLS encryption for the connection.
+- **TLS** — Enable TLS encryption for the connection. Enabled by default.
 - **Partition Key Template** — A JMESPath expression to extract the message key from the event payload. If not set, the event ID is used as the message key.

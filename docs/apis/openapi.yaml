@@ -3696,28 +3696,27 @@ paths:
                             required: true,
                           },
                           {
-                            type: "select",
-                            label: "SASL Mechanism",
-                            description: "SASL authentication mechanism.",
-                            required: false,
-                            options: [
-                              { label: "None", value: "" },
-                              { label: "PLAIN", value: "plain" },
-                              { label: "SCRAM-SHA-256", value: "scram-sha-256" },
-                              { label: "SCRAM-SHA-512", value: "scram-sha-512" },
-                            ],
-                          },
-                          {
                             type: "checkbox",
                             label: "TLS",
                             description: "Enable TLS for the connection.",
-                            default: "false",
+                            default: "true",
                           },
                           {
                             type: "text",
                             label: "Partition Key Template",
                             description: "JMESPath template to extract the partition key from the event payload.",
                             required: false,
+                          },
+                          {
+                            type: "select",
+                            label: "SASL Mechanism",
+                            description: "SASL authentication mechanism.",
+                            required: true,
+                            options: [
+                              { label: "PLAIN", value: "plain" },
+                              { label: "SCRAM-SHA-256", value: "scram-sha-256" },
+                              { label: "SCRAM-SHA-512", value: "scram-sha-512" },
+                            ],
                           },
                         ]
                       credential_fields:
@@ -3726,13 +3725,13 @@ paths:
                             type: "text",
                             label: "Username",
                             description: "SASL username for authentication.",
-                            required: false,
+                            required: true,
                           },
                           {
                             type: "text",
                             label: "Password",
                             description: "SASL password for authentication.",
-                            required: false,
+                            required: true,
                             sensitive: true,
                           },
                         ]

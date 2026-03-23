@@ -53,28 +53,18 @@ func (d *KafkaDestination) Validate(ctx context.Context, destination *models.Des
 		return err
 	}
 
-	// Validate SASL mechanism if provided
+	// Validate SASL mechanism value (field itself is required via metadata)
 	saslMechanism := destination.Config["sasl_mechanism"]
-	if saslMechanism != "" {
-		switch saslMechanism {
-		case "plain", "scram-sha-256", "scram-sha-512":
-			// valid — require credentials when SASL is configured
-			if destination.Credentials["username"] == "" || destination.Credentials["password"] == "" {
-				return destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{
-					{
-						Field: "credentials",
-						Type:  "required",
-					},
-				})
-			}
-		default:
-			return destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{
-				{
-					Field: "config.sasl_mechanism",
-					Type:  "invalid",
-				},
-			})
-		}
+	switch saslMechanism {
+	case "plain", "scram-sha-256", "scram-sha-512":
+		// valid
+	default:
+		return destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{
+			{
+				Field: "config.sasl_mechanism",
+				Type:  "invalid",
+			},
+		})
 	}
 
 	// Validate TLS config if provided — empty string is treated as "not configured"

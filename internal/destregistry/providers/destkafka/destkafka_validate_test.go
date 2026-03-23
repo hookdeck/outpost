@@ -19,10 +19,14 @@ func TestKafkaDestination_Validate(t *testing.T) {
 	validDestination := testutil.DestinationFactory.Any(
 		testutil.DestinationFactory.WithType("kafka"),
 		testutil.DestinationFactory.WithConfig(map[string]string{
-			"brokers": "localhost:9092",
-			"topic":   "test-topic",
+			"brokers":        "localhost:9092",
+			"topic":          "test-topic",
+			"sasl_mechanism": "plain",
 		}),
-		testutil.DestinationFactory.WithCredentials(map[string]string{}),
+		testutil.DestinationFactory.WithCredentials(map[string]string{
+			"username": "user",
+			"password": "pass",
+		}),
 	)
 
 	kafkaDestination, err := destkafka.New(testutil.Registry.MetadataLoader(), nil)
@@ -50,7 +54,8 @@ func TestKafkaDestination_Validate(t *testing.T) {
 		t.Parallel()
 		dest := validDestination
 		dest.Config = map[string]string{
-			"topic": "test-topic",
+			"topic":          "test-topic",
+			"sasl_mechanism": "plain",
 		}
 		dest.Credentials = maps.Clone(validDestination.Credentials)
 		err := kafkaDestination.Validate(context.Background(), &dest)
@@ -64,7 +69,8 @@ func TestKafkaDestination_Validate(t *testing.T) {
 		t.Parallel()
 		dest := validDestination
 		dest.Config = map[string]string{
-			"brokers": "localhost:9092",
+			"brokers":        "localhost:9092",
+			"sasl_mechanism": "plain",
 		}
 		dest.Credentials = maps.Clone(validDestination.Credentials)
 		err := kafkaDestination.Validate(context.Background(), &dest)
@@ -85,7 +91,7 @@ func TestKafkaDestination_Validate(t *testing.T) {
 			{name: "valid scram-sha-256", mechanism: "scram-sha-256", shouldError: false},
 			{name: "valid scram-sha-512", mechanism: "scram-sha-512", shouldError: false},
 			{name: "invalid mechanism", mechanism: "oauth", shouldError: true},
-			{name: "empty is valid (no auth)", mechanism: "", shouldError: false},
+			{name: "empty is invalid (auth required)", mechanism: "", shouldError: true},
 		}
 
 		for _, tc := range testCases {
@@ -93,15 +99,8 @@ func TestKafkaDestination_Validate(t *testing.T) {
 				t.Parallel()
 				dest := validDestination
 				dest.Config = maps.Clone(validDestination.Config)
-				// Provide credentials when mechanism is set so we only test mechanism validation
-				if tc.mechanism != "" {
-					dest.Credentials = map[string]string{"username": "user", "password": "pass"}
-				} else {
-					dest.Credentials = maps.Clone(validDestination.Credentials)
-				}
-				if tc.mechanism != "" {
-					dest.Config["sasl_mechanism"] = tc.mechanism
-				}
+				dest.Credentials = map[string]string{"username": "user", "password": "pass"}
+				dest.Config["sasl_mechanism"] = tc.mechanism
 				err := kafkaDestination.Validate(context.Background(), &dest)
 				if tc.shouldError {
 					var validationErr *destregistry.ErrDestinationValidation
@@ -109,7 +108,6 @@ func TestKafkaDestination_Validate(t *testing.T) {
 						return
 					}
 					assert.Equal(t, "config.sasl_mechanism", validationErr.Errors[0].Field)
-					assert.Equal(t, "invalid", validationErr.Errors[0].Type)
 				} else {
 					assert.NoError(t, err)
 				}
@@ -154,21 +152,19 @@ func TestKafkaDestination_Validate(t *testing.T) {
 		}
 	})
 
-	t.Run("should require credentials when sasl_mechanism is set", func(t *testing.T) {
+	t.Run("should require credentials", func(t *testing.T) {
 		t.Parallel()
 		testCases := []struct {
-			name        string
-			mechanism   string
-			username    string
-			password    string
-			shouldError bool
+			name          string
+			username      string
+			password      string
+			shouldError   bool
+			expectedField string
 		}{
-			{name: "plain with credentials", mechanism: "plain", username: "user", password: "pass", shouldError: false},
-			{name: "plain without username", mechanism: "plain", username: "", password: "pass", shouldError: true},
-			{name: "plain without password", mechanism: "plain", username: "user", password: "", shouldError: true},
-			{name: "scram-sha-256 with credentials", mechanism: "scram-sha-256", username: "user", password: "pass", shouldError: false},
-			{name: "scram-sha-256 without credentials", mechanism: "scram-sha-256", username: "", password: "", shouldError: true},
-			{name: "no mechanism no credentials", mechanism: "", username: "", password: "", shouldError: false},
+			{name: "with credentials", username: "user", password: "pass", shouldError: false},
+			{name: "without username", username: "", password: "pass", shouldError: true, expectedField: "credentials.username"},
+			{name: "without password", username: "user", password: "", shouldError: true, expectedField: "credentials.password"},
+			{name: "without both", username: "", password: "", shouldError: true, expectedField: "credentials.username"},
 		}
 
 		for _, tc := range testCases {
@@ -180,16 +176,13 @@ func TestKafkaDestination_Validate(t *testing.T) {
 					"username": tc.username,
 					"password": tc.password,
 				}
-				if tc.mechanism != "" {
-					dest.Config["sasl_mechanism"] = tc.mechanism
-				}
 				err := kafkaDestination.Validate(context.Background(), &dest)
 				if tc.shouldError {
 					var validationErr *destregistry.ErrDestinationValidation
 					if !assert.ErrorAs(t, err, &validationErr) {
 						return
 					}
-					assert.Equal(t, "credentials", validationErr.Errors[0].Field)
+					assert.Equal(t, tc.expectedField, validationErr.Errors[0].Field)
 					assert.Equal(t, "required", validationErr.Errors[0].Type)
 				} else {
 					assert.NoError(t, err)
@@ -321,11 +314,15 @@ func TestKafkaDestination_Preprocess(t *testing.T) {
 		dest := testutil.DestinationFactory.Any(
 			testutil.DestinationFactory.WithType("kafka"),
 			testutil.DestinationFactory.WithConfig(map[string]string{
-				"brokers": "broker1:9092",
-				"topic":   "my-topic",
-				"tls":     "on",
+				"brokers":        "broker1:9092",
+				"topic":          "my-topic",
+				"tls":            "on",
+				"sasl_mechanism": "plain",
 			}),
-			testutil.DestinationFactory.WithCredentials(map[string]string{}),
+			testutil.DestinationFactory.WithCredentials(map[string]string{
+				"username": "user",
+				"password": "pass",
+			}),
 		)
 		err := kafkaDestination.Preprocess(&dest, nil, nil)
 		require.NoError(t, err)
@@ -337,11 +334,15 @@ func TestKafkaDestination_Preprocess(t *testing.T) {
 		dest := testutil.DestinationFactory.Any(
 			testutil.DestinationFactory.WithType("kafka"),
 			testutil.DestinationFactory.WithConfig(map[string]string{
-				"brokers": "broker1:9092",
-				"topic":   "my-topic",
-				"tls":     "",
+				"brokers":        "broker1:9092",
+				"topic":          "my-topic",
+				"tls":            "",
+				"sasl_mechanism": "plain",
 			}),
-			testutil.DestinationFactory.WithCredentials(map[string]string{}),
+			testutil.DestinationFactory.WithCredentials(map[string]string{
+				"username": "user",
+				"password": "pass",
+			}),
 		)
 		err := kafkaDestination.Preprocess(&dest, nil, nil)
 		require.NoError(t, err)
@@ -353,10 +354,14 @@ func TestKafkaDestination_Preprocess(t *testing.T) {
 		dest := testutil.DestinationFactory.Any(
 			testutil.DestinationFactory.WithType("kafka"),
 			testutil.DestinationFactory.WithConfig(map[string]string{
-				"brokers": " broker1:9092 , broker2:9092 ",
-				"topic":   "my-topic",
+				"brokers":        " broker1:9092 , broker2:9092 ",
+				"topic":          "my-topic",
+				"sasl_mechanism": "plain",
 			}),
-			testutil.DestinationFactory.WithCredentials(map[string]string{}),
+			testutil.DestinationFactory.WithCredentials(map[string]string{
+				"username": "user",
+				"password": "pass",
+			}),
 		)
 		err := kafkaDestination.Preprocess(&dest, nil, nil)
 		require.NoError(t, err)

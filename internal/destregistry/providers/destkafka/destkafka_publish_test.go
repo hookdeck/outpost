@@ -138,10 +138,14 @@ func (s *KafkaPublishSuite) SetupSuite() {
 	dest := testutil.DestinationFactory.Any(
 		testutil.DestinationFactory.WithType("kafka"),
 		testutil.DestinationFactory.WithConfig(map[string]string{
-			"brokers": brokerAddr,
-			"topic":   topic,
+			"brokers":        brokerAddr,
+			"topic":          topic,
+			"sasl_mechanism": "plain",
 		}),
-		testutil.DestinationFactory.WithCredentials(map[string]string{}),
+		testutil.DestinationFactory.WithCredentials(map[string]string{
+			"username": "user",
+			"password": "pass",
+		}),
 	)
 
 	consumer, err := NewKafkaConsumer(brokerAddr, topic)
@@ -203,10 +207,14 @@ func TestKafkaPublisher_ConnectionErrors(t *testing.T) {
 			destination := testutil.DestinationFactory.Any(
 				testutil.DestinationFactory.WithType("kafka"),
 				testutil.DestinationFactory.WithConfig(map[string]string{
-					"brokers": tt.brokers,
-					"topic":   "test-topic",
+					"brokers":        tt.brokers,
+					"topic":          "test-topic",
+					"sasl_mechanism": "plain",
 				}),
-				testutil.DestinationFactory.WithCredentials(map[string]string{}),
+				testutil.DestinationFactory.WithCredentials(map[string]string{
+					"username": "user",
+					"password": "pass",
+				}),
 			)
 
 			publisher, err := provider.CreatePublisher(context.Background(), &destination)

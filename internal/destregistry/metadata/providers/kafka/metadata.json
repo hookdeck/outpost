@@ -19,24 +19,11 @@
       "required": true
     },
     {
-      "key": "sasl_mechanism",
-      "type": "select",
-      "label": "SASL Mechanism",
-      "description": "SASL authentication mechanism. Leave empty for no authentication.",
-      "required": false,
-      "options": [
-        { "label": "None", "value": "" },
-        { "label": "PLAIN", "value": "plain" },
-        { "label": "SCRAM-SHA-256", "value": "scram-sha-256" },
-        { "label": "SCRAM-SHA-512", "value": "scram-sha-512" }
-      ]
-    },
-    {
       "key": "tls",
       "type": "checkbox",
       "label": "TLS",
       "description": "Enable TLS for the connection",
-      "default": "false"
+      "default": "true"
     },
     {
       "key": "partition_key_template",
@@ -44,6 +31,18 @@
       "label": "Partition Key Template",
       "description": "JMESPath template to extract the partition key from the event payload (e.g., metadata.\"event-id\"). Default is event ID, which is also used as fallback if template evaluation fails or returns empty.",
       "required": false
+    },
+    {
+      "key": "sasl_mechanism",
+      "type": "select",
+      "label": "SASL Mechanism",
+      "description": "SASL authentication mechanism",
+      "required": true,
+      "options": [
+        { "label": "PLAIN", "value": "plain" },
+        { "label": "SCRAM-SHA-256", "value": "scram-sha-256" },
+        { "label": "SCRAM-SHA-512", "value": "scram-sha-512" }
+      ]
     }
   ],
   "credential_fields": [
@@ -52,7 +51,7 @@
       "type": "text",
       "label": "Username",
       "description": "SASL username for authentication",
-      "required": false,
+      "required": true,
       "sensitive": false
     },
     {
@@ -60,7 +59,7 @@
       "type": "text",
       "label": "Password",
       "description": "SASL password for authentication",
-      "required": false,
+      "required": true,
       "sensitive": true
     }
   ],
