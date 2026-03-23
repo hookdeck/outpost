@@ -32,7 +32,7 @@ const DestinationList: React.FC = () => {
       destinationIds,
       timeframe: "24h",
       granularity: "4h",
-      filters: { attempt_number: "1", manual: "false" },
+      filters: {},
     });
 
   const [searchTerm, setSearchTerm] = useState("");
@@ -46,7 +46,7 @@ const DestinationList: React.FC = () => {
     { header: "Target" },
     CONFIGS.TOPICS ? { header: "Topics", width: 120 } : null,
     { header: "Status", width: 120 },
-    { header: "Events 24h", width: 140 },
+    { header: "Event Deliveries 24h", width: 170 },
   ].filter((column) => column !== null);
 
   const filtered_destinations =
