@@ -322,14 +322,14 @@ func (h *LogHandlers) listAttemptsInternal(c *gin.Context, tenantIDs []string, d
 					AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 					return
 				}
-				destDisplayMap[dests[i].ID] = display
+				destDisplayMap[tid+"\x00"+dests[i].ID] = display
 			}
 		}
 	}
 
 	apiAttempts := make([]APIAttempt, len(response.Data))
 	for i, ar := range response.Data {
-		apiAttempts[i] = toAPIAttempt(ar, includeOpts, destDisplayMap[ar.Attempt.DestinationID])
+		apiAttempts[i] = toAPIAttempt(ar, includeOpts, destDisplayMap[ar.Attempt.TenantID+"\x00"+ar.Attempt.DestinationID])
 	}
 
 	c.JSON(http.StatusOK, AttemptPaginatedResult{

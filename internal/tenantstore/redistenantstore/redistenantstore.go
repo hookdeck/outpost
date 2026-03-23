@@ -441,9 +441,7 @@ func (s *store) ListDestination(ctx context.Context, req driver.ListDestinationR
 	if len(req.IDs) > 0 {
 		// Batch-by-ID: use HMGET on the summary key to fetch only requested IDs.
 		summaryKey := s.redisTenantDestinationSummaryKey(req.TenantID)
-		args := make([]string, len(req.IDs))
-		copy(args, req.IDs)
-		vals, err := s.redisClient.HMGet(ctx, summaryKey, args...).Result()
+		vals, err := s.redisClient.HMGet(ctx, summaryKey, req.IDs...).Result()
 		if err != nil {
 			return nil, err
 		}

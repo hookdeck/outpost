@@ -319,7 +319,6 @@ func testListDestination(t *testing.T, newHarness HarnessMaker) {
 		})
 		require.NoError(t, err)
 		require.Len(t, destinations, 3)
-		_ = data
 	})
 }
 
