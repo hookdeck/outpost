@@ -803,7 +803,7 @@ func TestManualDelivery_PublishError(t *testing.T) {
 	logPublisher := newMockLogPublisher(nil)
 	alertMonitor := newMockAlertMonitor()
 
-	// Seed: a pending automatic retry exists (scheduled after attempt 1 failed)
+	// Seed: a pending automatic retry exists (scheduled after attempt 1 failed at tier 0 = 1s)
 	retryScheduler.entries[retryID] = scheduledEntry{task: "old-retry", delay: 1 * time.Second}
 
 	// Backoff schedule: tier N has delay (N+1)s, so we can assert the exact tier
@@ -847,7 +847,8 @@ func TestManualDelivery_PublishError(t *testing.T) {
 	assert.Equal(t, models.AttemptStatusFailed, logPublisher.entries[0].Attempt.Status, "delivery status should be Failed")
 	assertAlertMonitor(t, alertMonitor, false, &destination, publishErr.Data)
 
-	// Assert retry state: the old pending retry was atomically replaced
+	// Assert retry state: the old pending retry (tier 0, 1s) was atomically
+	// replaced with the next tier. Attempt 2 uses backoff index 1 → 2s.
 	require.Len(t, retryScheduler.entries, 1, "should have exactly 1 scheduled retry")
 	entry, ok := retryScheduler.entries[retryID]
 	require.True(t, ok, "scheduled retry should use the same RetryID")

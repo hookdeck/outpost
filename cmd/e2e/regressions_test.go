@@ -362,9 +362,27 @@ func TestE2E_ManualRetryScheduleInteraction(t *testing.T) {
 		Models []map[string]any `json:"models"`
 	}
 	client.doJSON(t, http.MethodGet,
-		apiURL+"/attempts?tenant_id="+tenantID+"&event_id="+eventID, nil, &finalResp)
+		apiURL+"/attempts?tenant_id="+tenantID+"&event_id="+eventID+"&dir=asc", nil, &finalResp)
 	require.Len(t, finalResp.Models, 3,
 		"should have exactly 3 attempts (budget exhausted: 1 initial + 2 retries)")
+
+	// Assert the full picture: attempt_number is sequential, manual flag is correct
+	expected := []struct {
+		attemptNumber float64
+		manual        bool
+	}{
+		{1, false}, // initial auto delivery
+		{2, true},  // manual retry
+		{3, false}, // auto retry (advanced tier)
+	}
+	for i, exp := range expected {
+		atm := finalResp.Models[i]
+		require.Equal(t, exp.attemptNumber, atm["attempt_number"],
+			"attempt %d: expected attempt_number=%v", i+1, exp.attemptNumber)
+		manual, _ := atm["manual"].(bool)
+		require.Equal(t, exp.manual, manual,
+			"attempt %d: expected manual=%v", i+1, exp.manual)
+	}
 }
 
 // TestE2E_Regression_RetryRaceCondition verifies that retries are not lost when
