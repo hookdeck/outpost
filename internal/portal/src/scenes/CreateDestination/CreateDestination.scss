@@ -6,7 +6,6 @@
   margin: 0 auto;
   flex-direction: row;
   padding-top: calc(var(--base-grid-multiplier) * 18);
-  height: calc(100vh - calc(var(--base-grid-multiplier) * 18));
 
   &__sidebar {
     display: flex;
@@ -55,8 +54,6 @@
   }
 
   &__step {
-    height: 100%;
-    overflow: hidden;
     display: flex;
     flex-direction: column;
     padding-bottom: var(--spacing-16);
@@ -78,8 +75,6 @@
     form {
       display: flex;
       flex-direction: column;
-      flex: 1;
-      min-height: 0;
 
       > div {
         padding: 4px;
@@ -88,15 +83,12 @@
 
     &__fields {
       flex: 1 1 auto;
-      min-height: 0;
-      overflow-y: auto;
     }
 
     &__actions {
       margin-top: var(--spacing-8);
       display: flex;
       justify-content: flex-end;
-      flex-shrink: 0;
     }
   }
 }
@@ -105,13 +97,10 @@
   border: 1px solid var(--colors-outline-neutral);
   border-radius: var(--radius-m);
   overflow: hidden;
-  height: 100%;
 
   &__container {
-    overflow-y: auto;
     display: flex;
     flex-direction: column;
-    height: 100%;
   }
 }
 
