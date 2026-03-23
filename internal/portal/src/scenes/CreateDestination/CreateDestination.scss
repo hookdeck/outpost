@@ -10,6 +10,9 @@
   &__sidebar {
     display: flex;
     flex-direction: column;
+    position: sticky;
+    top: calc(var(--base-grid-multiplier) * 18);
+    align-self: start;
 
     &__steps {
       margin-top: var(--spacing-8);
