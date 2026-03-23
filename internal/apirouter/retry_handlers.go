@@ -54,19 +54,29 @@ func (h *RetryHandlers) Retry(c *gin.Context) {
 
 	tenantID := tenantIDFromContext(c)
 
-	// 1. Look up event by ID
-	event, err := h.logStore.RetrieveEvent(c.Request.Context(), logstore.RetrieveEventRequest{
-		TenantID: tenantID,
-		EventID:  req.EventID,
-	})
+	// 1. Look up prior attempt (includes event data) — single logstore query
+	listReq := logstore.ListAttemptRequest{
+		EventIDs:       []string{req.EventID},
+		DestinationIDs: []string{req.DestinationID},
+		Limit:          1,
+		SortOrder:      "desc",
+	}
+	if tenantID != "" {
+		listReq.TenantIDs = []string{tenantID}
+	}
+	attemptResp, err := h.logStore.ListAttempt(c.Request.Context(), listReq)
 	if err != nil {
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return
 	}
-	if event == nil {
+	if len(attemptResp.Data) == 0 {
 		AbortWithError(c, http.StatusNotFound, NewErrNotFound("event"))
 		return
 	}
+
+	record := attemptResp.Data[0]
+	event := record.Event
+	attemptNumber := record.Attempt.AttemptNumber + 1
 
 	// Authz: JWT tenant can only retry their own events
 	if tenant := tenantFromContext(c); tenant != nil {
@@ -105,24 +115,7 @@ func (h *RetryHandlers) Retry(c *gin.Context) {
 		return
 	}
 
-	// 3. Derive attempt number from existing attempts
-	attemptResp, err := h.logStore.ListAttempt(c.Request.Context(), logstore.ListAttemptRequest{
-		TenantIDs:      []string{event.TenantID},
-		EventIDs:       []string{req.EventID},
-		DestinationIDs: []string{req.DestinationID},
-		Limit:          1,
-		SortOrder:      "desc",
-	})
-	if err != nil {
-		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
-		return
-	}
-	attemptNumber := 1
-	if len(attemptResp.Data) > 0 {
-		attemptNumber = attemptResp.Data[0].Attempt.AttemptNumber + 1
-	}
-
-	// 4. Create and publish manual delivery task
+	// 3. Create and publish manual delivery task
 	task := models.NewManualDeliveryTask(*event, req.DestinationID, attemptNumber)
 
 	if err := h.deliveryPublisher.Publish(c.Request.Context(), task); err != nil {

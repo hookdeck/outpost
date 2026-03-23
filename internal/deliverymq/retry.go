@@ -15,10 +15,9 @@ import (
 	"go.uber.org/zap"
 )
 
-// RetryEventGetter is the interface for fetching events from logstore.
-// This is defined separately from EventGetter in messagehandler.go to avoid circular dependencies.
+// RetryEventGetter is the interface for fetching prior attempts from logstore.
+// ListAttempt returns both the attempt and the associated event data.
 type RetryEventGetter interface {
-	RetrieveEvent(ctx context.Context, request logstore.RetrieveEventRequest) (*models.Event, error)
 	ListAttempt(ctx context.Context, request logstore.ListAttemptRequest) (logstore.ListAttemptResponse, error)
 }
 
@@ -73,38 +72,9 @@ func NewRetryScheduler(deliverymq *DeliveryMQ, redisConfig *redis.RedisConfig, d
 			return err
 		}
 
-		// Fetch full event data from logstore
-		event, err := eventGetter.RetrieveEvent(ctx, logstore.RetrieveEventRequest{
-			TenantID: retryTask.TenantID,
-			EventID:  retryTask.EventID,
-		})
-		if err != nil {
-			// Returning an error leaves the message in the RSMQ queue. After the
-			// visibility timeout expires, the message becomes visible again and will
-			// be reprocessed. This handles both transient DB errors and the race
-			// condition where logmq hasn't flushed the event yet.
-			if logger != nil {
-				logger.Ctx(ctx).Error("failed to fetch event for retry",
-					zap.Error(err),
-					zap.String("event_id", retryTask.EventID),
-					zap.String("tenant_id", retryTask.TenantID),
-					zap.String("destination_id", retryTask.DestinationID))
-			}
-			return err
-		}
-		if event == nil {
-			// Event not found - may be race condition with logmq batching delay.
-			// Return error so scheduler retries later.
-			if logger != nil {
-				logger.Ctx(ctx).Warn("event not found in logstore, will retry",
-					zap.String("event_id", retryTask.EventID),
-					zap.String("tenant_id", retryTask.TenantID),
-					zap.String("destination_id", retryTask.DestinationID))
-			}
-			return fmt.Errorf("event not found in logstore")
-		}
-
-		// Derive attempt number from logstore (single source of truth)
+		// Fetch prior attempt from logstore (single source of truth for both
+		// event data and attempt number). A retry always has at least one prior
+		// attempt — the one that failed and triggered this retry.
 		attemptResp, err := eventGetter.ListAttempt(ctx, logstore.ListAttemptRequest{
 			TenantIDs:      []string{retryTask.TenantID},
 			EventIDs:       []string{retryTask.EventID},
@@ -122,12 +92,20 @@ func NewRetryScheduler(deliverymq *DeliveryMQ, redisConfig *redis.RedisConfig, d
 			}
 			return err
 		}
-		attemptNumber := 1
-		if len(attemptResp.Data) > 0 {
-			attemptNumber = attemptResp.Data[0].Attempt.AttemptNumber + 1
+		if len(attemptResp.Data) == 0 {
+			// No prior attempt found — may be race condition with logmq batching delay.
+			// Return error so scheduler retries later.
+			if logger != nil {
+				logger.Ctx(ctx).Warn("no prior attempt found in logstore, will retry",
+					zap.String("event_id", retryTask.EventID),
+					zap.String("tenant_id", retryTask.TenantID),
+					zap.String("destination_id", retryTask.DestinationID))
+			}
+			return fmt.Errorf("no prior attempt found in logstore")
 		}
 
-		deliveryTask := retryTask.ToDeliveryTask(*event, attemptNumber)
+		record := attemptResp.Data[0]
+		deliveryTask := retryTask.ToDeliveryTask(*record.Event, record.Attempt.AttemptNumber+1)
 		if err := deliverymq.Publish(ctx, deliveryTask); err != nil {
 			return err
 		}
