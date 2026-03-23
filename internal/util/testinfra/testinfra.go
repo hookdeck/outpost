@@ -26,6 +26,7 @@ type Config struct {
 	PostgresURL       string
 	LocalStackURL     string
 	RabbitMQURL       string
+	KafkaURL          string
 	MockServerURL     string
 	GCPURL            string
 	AzureSBConnString string
@@ -75,6 +76,7 @@ func initConfig() {
 			GCPURL:            v.GetString("TEST_GCP_URL"),
 			AzureSBConnString: v.GetString("TEST_AZURE_SB_CONNSTRING"),
 			RabbitMQURL:       rabbitmqURL,
+			KafkaURL:          v.GetString("TEST_KAFKA_URL"),
 			MockServerURL:     mockServerURL,
 		}
 		return
@@ -89,6 +91,7 @@ func initConfig() {
 		GCPURL:            "",
 		AzureSBConnString: "",
 		RabbitMQURL:       "",
+		KafkaURL:          "",
 		MockServerURL:     "",
 	}
 }

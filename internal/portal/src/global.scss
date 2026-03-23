@@ -569,7 +569,8 @@ body {
 }
 
 input,
-textarea {
+textarea,
+select {
   font-size: var(--font-size-m);
   line-height: var(--line-height-m);
   border-radius: var(--radius-m);

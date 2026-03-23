@@ -8,6 +8,7 @@ import (
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destazureservicebus"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destgcppubsub"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/desthookdeck"
+	"github.com/hookdeck/outpost/internal/destregistry/providers/destkafka"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destrabbitmq"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destwebhook"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destwebhookstandard"
@@ -137,6 +138,12 @@ func RegisterDefault(registry destregistry.Registry, opts RegisterDefaultDestina
 		return err
 	}
 	registry.RegisterProvider("rabbitmq", rabbitmq)
+
+	kafkaDest, err := destkafka.New(loader, basePublisherOpts)
+	if err != nil {
+		return err
+	}
+	registry.RegisterProvider("kafka", kafkaDest)
 
 	return nil
 }

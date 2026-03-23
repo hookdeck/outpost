@@ -2009,7 +2009,7 @@ components:
       properties:
         type:
           type: string
-          enum: [text, checkbox, key_value_map]
+          enum: [text, checkbox, key_value_map, select]
           example: "text"
         label:
           type: string
@@ -2040,6 +2040,19 @@ components:
           type: string
           description: Regex pattern for validation (compatible with HTML5 pattern attribute).
           example: "^[a-zA-Z0-9_]+$"
+        options:
+          type: array
+          description: Available options for select fields.
+          items:
+            type: object
+            required: [label, value]
+            properties:
+              label:
+                type: string
+                example: "PLAIN"
+              value:
+                type: string
+                example: "plain"
 
     MetricsDataPoint:
       type: object
@@ -3675,6 +3688,64 @@ paths:
                             sensitive: true, # Added sensitive
                           },
                         ]
+                    - type: "kafka"
+                      label: "Apache Kafka"
+                      description: "Send events to Apache Kafka topics for real-time event streaming"
+                      icon: "<svg />"
+                      config_fields:
+                        [
+                          {
+                            type: "text",
+                            label: "Brokers",
+                            description: "Comma-separated list of Kafka broker addresses.",
+                            required: true,
+                          },
+                          {
+                            type: "text",
+                            label: "Topic",
+                            description: "The Kafka topic to publish messages to.",
+                            required: true,
+                          },
+                          {
+                            type: "checkbox",
+                            label: "TLS",
+                            description: "Enable TLS for the connection.",
+                            default: "true",
+                          },
+                          {
+                            type: "text",
+                            label: "Partition Key Template",
+                            description: "JMESPath template to extract the partition key from the event payload.",
+                            required: false,
+                          },
+                          {
+                            type: "select",
+                            label: "SASL Mechanism",
+                            description: "SASL authentication mechanism.",
+                            required: true,
+                            options: [
+                              { label: "PLAIN", value: "plain" },
+                              { label: "SCRAM-SHA-256", value: "scram-sha-256" },
+                              { label: "SCRAM-SHA-512", value: "scram-sha-512" },
+                            ],
+                          },
+                        ]
+                      credential_fields:
+                        [
+                          {
+                            type: "text",
+                            label: "Username",
+                            description: "SASL username for authentication.",
+                            required: true,
+                          },
+                          {
+                            type: "text",
+                            label: "Password",
+                            description: "SASL password for authentication.",
+                            required: true,
+                            sensitive: true,
+                          },
+                        ]
                     - type: "aws_sqs"
                       label: "AWS SQS"
                       description: "Send event to an AWS SQS queue"
@@ -3731,7 +3802,7 @@ paths:
         required: true
         schema:
           type: string
-          enum: [webhook, aws_sqs, rabbitmq, hookdeck, aws_kinesis, azure_servicebus, aws_s3, gcp_pubsub]
+          enum: [webhook, aws_sqs, rabbitmq, hookdeck, aws_kinesis, azure_servicebus, aws_s3, gcp_pubsub, kafka]
         description: The type of the destination.
     get:
       tags: [Schemas]

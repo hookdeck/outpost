@@ -34,6 +34,7 @@ type Step = {
     destinationTypes?: Record<string, DestinationTypeReference>;
   }) => React.ReactNode;
   action: string;
+  autoAdvance?: boolean;
 };
 
 const EVENT_TOPICS_STEP: Step = {
@@ -137,6 +138,7 @@ const DESTINATION_TYPE_STEP: Step = {
     </div>
   ),
   action: "Next",
+  autoAdvance: true,
 };
 
 const CONFIGURATION_STEP: Step = {
@@ -383,6 +385,12 @@ export default function CreateDestination() {
             const values = Object.fromEntries(formData.entries());
             const allValues = { ...stepValues, ...values };
 
+            if (currentStep.autoAdvance && nextStep && currentStep.isValid?.(allValues)) {
+              setStepValues(allValues);
+              setCurrentStepIndex(currentStepIndex + 1);
+              return;
+            }
+
             if (currentStep.isValid) {
               setIsValid(currentStep.isValid(allValues));
             } else {
@@ -423,16 +431,18 @@ export default function CreateDestination() {
               </div>
             )}
           </div>
-          <div className="create-destination__step__actions">
-            <Button
-              disabled={!isValid}
-              primary
-              type="submit"
-              loading={isCreating}
-            >
-              {currentStep.action}
-            </Button>
-          </div>
+          {!currentStep.autoAdvance && (
+            <div className="create-destination__step__actions">
+              <Button
+                disabled={!isValid}
+                primary
+                type="submit"
+                loading={isCreating}
+              >
+                {currentStep.action}
+              </Button>
+            </div>
+          )}
         </form>
       </div>
     </div>

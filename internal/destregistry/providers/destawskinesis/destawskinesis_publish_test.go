@@ -13,13 +13,13 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/kinesis"
 	"github.com/aws/aws-sdk-go-v2/service/kinesis/types"
+	"github.com/hookdeck/outpost/internal/destregistry/partitionkey"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destawskinesis"
 	testsuite "github.com/hookdeck/outpost/internal/destregistry/testing"
 	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/util/testinfra"
 	"github.com/hookdeck/outpost/internal/util/testutil"
-	"github.com/jmespath/go-jmespath"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -164,38 +164,7 @@ type KinesisAsserter struct {
 
 // evaluateTemplate is a test helper that evaluates a JMESPath template against payload data
 func (a *KinesisAsserter) evaluateTemplate(payload map[string]interface{}, eventID string) (string, error) {
-	// If no template is specified or empty, use event ID
-	if a.partitionKeyTemplate == "" {
-		return eventID, nil
-	}
-
-	// Evaluate the JMESPath template
-	result, err := jmespath.Search(a.partitionKeyTemplate, payload)
-	if err != nil {
-		return "", fmt.Errorf("error evaluating partition key template: %w", err)
-	}
-
-	// Handle nil result - fall back to event ID
-	if result == nil {
-		return eventID, nil
-	}
-
-	// Convert the result to string based on its type
-	switch v := result.(type) {
-	case string:
-		if v == "" {
-			return eventID, nil // Fall back to event ID if empty string
-		}
-		return v, nil
-	case float64:
-		return fmt.Sprintf("%g", v), nil
-	case int:
-		return fmt.Sprintf("%d", v), nil
-	case bool:
-		return fmt.Sprintf("%t", v), nil
-	default:
-		return fmt.Sprintf("%v", v), nil
-	}
+	return partitionkey.Evaluate(a.partitionKeyTemplate, payload, eventID)
 }
 
 func (a *KinesisAsserter) AssertMessage(t testsuite.TestingT, msg testsuite.Message, event models.Event) {
