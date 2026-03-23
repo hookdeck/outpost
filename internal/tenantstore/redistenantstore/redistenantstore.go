@@ -187,7 +187,7 @@ func (s *store) RetrieveTenant(ctx context.Context, tenantID string) (*models.Te
 		return nil, err
 	}
 
-	destinationSummaryList, err := parseListDestinationSummaryByTenantCmd(destinationListCmd, driver.ListDestinationByTenantOpts{})
+	destinationSummaryList, err := parseListDestinationSummaryByTenantCmd(destinationListCmd, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -342,7 +342,7 @@ func (s *store) ListTenant(ctx context.Context, req driver.ListTenantRequest) (*
 		}
 
 		for i := range tenants {
-			destinationSummaryList, err := parseListDestinationSummaryByTenantCmd(cmds[i], driver.ListDestinationByTenantOpts{})
+			destinationSummaryList, err := parseListDestinationSummaryByTenantCmd(cmds[i], nil)
 			if err != nil {
 				return nil, err
 			}
@@ -422,43 +422,90 @@ func (s *store) fetchTenants(ctx context.Context, baseFilter string, q paginatio
 	return tenants, nil
 }
 
-func (s *store) listDestinationSummaryByTenant(ctx context.Context, tenantID string, opts driver.ListDestinationByTenantOpts) ([]destinationSummary, error) {
-	return parseListDestinationSummaryByTenantCmd(s.redisClient.HGetAll(ctx, s.redisTenantDestinationSummaryKey(tenantID)), opts)
+func (s *store) listDestinationSummaryByTenant(ctx context.Context, tenantID string, filter *destinationFilter) ([]destinationSummary, error) {
+	return parseListDestinationSummaryByTenantCmd(s.redisClient.HGetAll(ctx, s.redisTenantDestinationSummaryKey(tenantID)), filter)
 }
 
-func (s *store) ListDestinationByTenant(ctx context.Context, tenantID string, options ...driver.ListDestinationByTenantOpts) ([]models.Destination, error) {
-	var opts driver.ListDestinationByTenantOpts
-	if len(options) > 0 {
-		opts = options[0]
-	}
-
-	destinationSummaryList, err := s.listDestinationSummaryByTenant(ctx, tenantID, opts)
-	if err != nil {
-		return nil, err
-	}
-
-	pipe := s.redisClient.Pipeline()
-	cmds := make([]*redis.MapStringStringCmd, len(destinationSummaryList))
-	for i, destinationSummary := range destinationSummaryList {
-		cmds[i] = pipe.HGetAll(ctx, s.redisDestinationID(destinationSummary.ID, tenantID))
-	}
-	_, err = pipe.Exec(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	destinations := make([]models.Destination, len(destinationSummaryList))
-	for i, cmd := range cmds {
-		destination, err := parseDestinationHash(cmd, tenantID, s.cipher)
-		if err != nil {
-			return []models.Destination{}, err
+func (s *store) ListDestination(ctx context.Context, req driver.ListDestinationRequest) ([]models.Destination, error) {
+	var filter *destinationFilter
+	hasFilter := len(req.Type) > 0 || len(req.Topics) > 0
+	if hasFilter {
+		filter = &destinationFilter{
+			Type:   req.Type,
+			Topics: req.Topics,
 		}
-		destinations[i] = *destination
+	}
+
+	var summaries []destinationSummary
+
+	if len(req.IDs) > 0 {
+		// Batch-by-ID: use HMGET on the summary key to fetch only requested IDs.
+		summaryKey := s.redisTenantDestinationSummaryKey(req.TenantID)
+		args := make([]string, len(req.IDs))
+		copy(args, req.IDs)
+		vals, err := s.redisClient.HMGet(ctx, summaryKey, args...).Result()
+		if err != nil {
+			return nil, err
+		}
+		for _, val := range vals {
+			if val == nil {
+				continue
+			}
+			str, ok := val.(string)
+			if !ok {
+				continue
+			}
+			var ds destinationSummary
+			if err := ds.UnmarshalBinary([]byte(str)); err != nil {
+				return nil, err
+			}
+			if hasFilter && !matchDestinationFilter(filter, ds) {
+				continue
+			}
+			summaries = append(summaries, ds)
+		}
+	} else {
+		// List-all: HGETALL summary key, filter in-memory.
+		var err error
+		summaries, err = s.listDestinationSummaryByTenant(ctx, req.TenantID, filter)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if len(summaries) == 0 {
+		return []models.Destination{}, nil
+	}
+
+	// Pipeline fetch full destination hashes.
+	pipe := s.redisClient.Pipeline()
+	cmds := make([]*redis.MapStringStringCmd, len(summaries))
+	for i, ds := range summaries {
+		cmds[i] = pipe.HGetAll(ctx, s.redisDestinationID(ds.ID, req.TenantID))
+	}
+	if _, err := pipe.Exec(ctx); err != nil {
+		return nil, err
+	}
+
+	var destinations []models.Destination
+	for _, cmd := range cmds {
+		dest, err := parseDestinationHash(cmd, req.TenantID, s.cipher)
+		if err != nil {
+			if err == redis.Nil || err == driver.ErrDestinationDeleted {
+				continue
+			}
+			return nil, err
+		}
+		destinations = append(destinations, *dest)
 	}
 
 	sort.Slice(destinations, func(i, j int) bool {
 		return destinations[i].CreatedAt.Before(destinations[j].CreatedAt)
 	})
+
+	if destinations == nil {
+		destinations = []models.Destination{}
+	}
 
 	return destinations, nil
 }
@@ -598,7 +645,7 @@ func (s *store) DeleteDestination(ctx context.Context, tenantID, destinationID s
 }
 
 func (s *store) MatchEvent(ctx context.Context, event models.Event) ([]string, error) {
-	destinationSummaryList, err := s.listDestinationSummaryByTenant(ctx, event.TenantID, driver.ListDestinationByTenantOpts{})
+	destinationSummaryList, err := s.listDestinationSummaryByTenant(ctx, event.TenantID, nil)
 	if err != nil {
 		return nil, err
 	}

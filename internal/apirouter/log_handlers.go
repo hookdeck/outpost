@@ -293,34 +293,37 @@ func (h *LogHandlers) listAttemptsInternal(c *gin.Context, tenantIDs []string, d
 	// Batch-fetch destinations when include=destination is requested.
 	destDisplayMap := map[string]*destregistry.DestinationDisplay{}
 	if includeOpts.Destination {
-		type destKey struct {
-			tenantID, destinationID string
-		}
-		seen := map[destKey]struct{}{}
+		// Group destination IDs by tenant.
+		byTenant := map[string]map[string]struct{}{}
 		for _, ar := range response.Data {
-			k := destKey{ar.Attempt.TenantID, ar.Attempt.DestinationID}
-			if _, ok := seen[k]; ok {
-				continue
+			tid := ar.Attempt.TenantID
+			if byTenant[tid] == nil {
+				byTenant[tid] = map[string]struct{}{}
 			}
-			seen[k] = struct{}{}
-			dest, err := h.tenantStore.RetrieveDestination(c.Request.Context(), k.tenantID, k.destinationID)
+			byTenant[tid][ar.Attempt.DestinationID] = struct{}{}
+		}
+
+		for tid, idSet := range byTenant {
+			ids := make([]string, 0, len(idSet))
+			for id := range idSet {
+				ids = append(ids, id)
+			}
+			dests, err := h.tenantStore.ListDestination(c.Request.Context(), tenantstore.ListDestinationRequest{
+				TenantID: tid,
+				IDs:      ids,
+			})
 			if err != nil {
-				// Deleted/not-found destinations are expected — skip silently.
-				if errors.Is(err, tenantstore.ErrDestinationDeleted) || errors.Is(err, tenantstore.ErrDestinationNotFound) {
-					continue
+				AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
+				return
+			}
+			for i := range dests {
+				display, err := h.displayer.Display(&dests[i])
+				if err != nil {
+					AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
+					return
 				}
-				AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
-				return
+				destDisplayMap[dests[i].ID] = display
 			}
-			if dest == nil {
-				continue
-			}
-			display, err := h.displayer.Display(dest)
-			if err != nil {
-				AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
-				return
-			}
-			destDisplayMap[dest.ID] = display
 		}
 	}
 

@@ -8,6 +8,7 @@ import (
 
 	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/models"
+	"github.com/hookdeck/outpost/internal/tenantstore/driver"
 	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -97,7 +98,7 @@ func testMatch(t *testing.T, newHarness HarnessMaker) {
 			require.NoError(t, err)
 			assert.Equal(t, updatedDestination.Topics, actual.Topics)
 
-			destinations, err := store.ListDestinationByTenant(ctx, data.tenant.ID)
+			destinations, err := store.ListDestination(ctx, driver.ListDestinationRequest{TenantID: data.tenant.ID})
 			require.NoError(t, err)
 			assert.Len(t, destinations, 5)
 

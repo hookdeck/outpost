@@ -37,19 +37,13 @@ func NewDestinationHandlers(logger *logging.Logger, telemetry telemetry.Telemetr
 }
 
 func (h *DestinationHandlers) List(c *gin.Context) {
-	typeParams := ParseArrayQueryParam(c, "type")
-	topicsParams := ParseArrayQueryParam(c, "topics")
-	var opts tenantstore.ListDestinationByTenantOpts
-	if len(typeParams) > 0 || len(topicsParams) > 0 {
-		opts = tenantstore.WithDestinationFilter(tenantstore.DestinationFilter{
-			Type:   typeParams,
-			Topics: topicsParams,
-		})
-	}
-
 	tenant := mustTenantFromContext(c)
 
-	destinations, err := h.tenantStore.ListDestinationByTenant(c.Request.Context(), tenant.ID, opts)
+	destinations, err := h.tenantStore.ListDestination(c.Request.Context(), tenantstore.ListDestinationRequest{
+		TenantID: tenant.ID,
+		Type:     ParseArrayQueryParam(c, "type"),
+		Topics:   ParseArrayQueryParam(c, "topics"),
+	})
 	if err != nil {
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return

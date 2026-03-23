@@ -50,7 +50,7 @@ func testMisc(t *testing.T, newHarness HarnessMaker) {
 		require.ErrorIs(t, err, driver.ErrMaxDestinationsPerTenantReached)
 
 		// Should be able to create after deleting one
-		destinations, err := store.ListDestinationByTenant(ctx, tenant.ID)
+		destinations, err := store.ListDestination(ctx, driver.ListDestinationRequest{TenantID: tenant.ID})
 		require.NoError(t, err)
 		require.NoError(t, store.DeleteDestination(ctx, tenant.ID, destinations[0].ID))
 
@@ -106,12 +106,12 @@ func testMisc(t *testing.T, newHarness HarnessMaker) {
 		assert.Equal(t, "dp_002", retrieved2.Config["deployment"])
 
 		// Verify list operations are isolated
-		list1, err := store1.ListDestinationByTenant(ctx, tenantID)
+		list1, err := store1.ListDestination(ctx, driver.ListDestinationRequest{TenantID: tenantID})
 		require.NoError(t, err)
 		require.Len(t, list1, 1)
 		assert.Equal(t, "dp_001", list1[0].Config["deployment"])
 
-		list2, err := store2.ListDestinationByTenant(ctx, tenantID)
+		list2, err := store2.ListDestination(ctx, driver.ListDestinationRequest{TenantID: tenantID})
 		require.NoError(t, err)
 		require.Len(t, list2, 1)
 		assert.Equal(t, "dp_002", list2[0].Config["deployment"])
