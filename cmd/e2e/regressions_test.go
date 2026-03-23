@@ -182,6 +182,191 @@ func TestE2E_Regression_AutoDisableWithoutCallbackURL(t *testing.T) {
 	t.Fatal("timed out waiting for destination to be disabled (disabled_at should not be null) - issue #596")
 }
 
+// TestE2E_ManualRetryScheduleInteraction is a standalone E2E test that verifies
+// manual retries correctly interact with the automatic retry schedule.
+//
+// Setup:
+//   - Isolated outpost instance with a scheduled backoff: [2s, 4s] (2 retries, 3 max attempts)
+//   - Fast log flush (immediate) so logstore queries in the retry handler are reliable
+//   - Fast retry poll (50ms) so retries fire promptly after their delay expires
+//   - A destination that always fails (should_err metadata)
+//
+// Timeline:
+//
+//	t=0s     Publish always-failing event
+//	t~0s     Attempt 1 (auto) fails → auto retry scheduled at tier 0 (2s)
+//	t<2s     Trigger manual retry via POST /retry
+//	t~0s     Attempt 2 (manual) fails → cancels pending 2s retry, schedules at tier 1 (4s)
+//	         Key assertion: NO attempt 3 arrives at t~2s (the 2s retry was canceled)
+//	t~4s     Attempt 3 (auto) fires → fails → budget exhausted (3 = 1 initial + 2 retries)
+//	         Key assertion: no attempt 4 arrives (budget exhausted)
+//
+// What this proves:
+//  1. Manual retry gets correct sequential attempt_number (2, derived from logstore)
+//  2. Manual retry failure cancels the pending automatic retry (the 2s tier never fires)
+//  3. Manual retry failure schedules the next tier (4s) — the schedule advances
+//  4. Budget is correctly exhausted after 3 total attempts (1 auto + 1 manual + 1 auto)
+//  5. No further retries after budget exhaustion
+func TestE2E_ManualRetryScheduleInteraction(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.Skip("skipping e2e test")
+	}
+
+	testinfraCleanup := testinfra.Start(t)
+	defer testinfraCleanup()
+	gin.SetMode(gin.TestMode)
+	mockServerBaseURL := testinfra.GetMockServer(t)
+
+	cfg := configs.Basic(t, configs.BasicOpts{
+		LogStorage: configs.LogStorageTypeClickHouse,
+	})
+
+	// Scheduled backoff: 2s, 4s — enough window to trigger manual retry before
+	// the first auto retry fires at 2s, while keeping the test under 10s
+	cfg.RetrySchedule = []int{2, 4}
+	cfg.RetryPollBackoffMs = 50
+	cfg.LogBatchThresholdSeconds = 0 // Immediate flush so logstore queries work
+
+	require.NoError(t, cfg.Validate(config.Flags{}))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	appDone := make(chan struct{})
+	go func() {
+		defer close(appDone)
+		application := app.New(&cfg)
+		if err := application.Run(ctx); err != nil {
+			log.Println("Application stopped:", err)
+		}
+	}()
+	defer func() {
+		cancel()
+		<-appDone
+	}()
+
+	waitForHealthy(t, cfg.APIPort, 5*time.Second)
+
+	client := newRegressionHTTPClient(cfg.APIKey)
+	apiURL := fmt.Sprintf("http://localhost:%d/api/v1", cfg.APIPort)
+
+	tenantID := fmt.Sprintf("tenant_manual_%d", time.Now().UnixNano())
+	destinationID := fmt.Sprintf("dest_manual_%d", time.Now().UnixNano())
+	eventID := fmt.Sprintf("evt_manual_%d", time.Now().UnixNano())
+	secret := testSecret
+
+	// Create tenant
+	status := client.doJSON(t, http.MethodPut, apiURL+"/tenants/"+tenantID, nil, nil)
+	require.Equal(t, 201, status, "failed to create tenant")
+
+	// Configure mock server destination (always returns error)
+	status = client.doJSONRaw(t, http.MethodPut, mockServerBaseURL+"/destinations", map[string]any{
+		"id":   destinationID,
+		"type": "webhook",
+		"config": map[string]any{
+			"url": fmt.Sprintf("%s/webhook/%s", mockServerBaseURL, destinationID),
+		},
+		"credentials": map[string]any{
+			"secret": secret,
+		},
+	}, nil)
+	require.Equal(t, 200, status, "failed to configure mock server")
+
+	// Create destination
+	status = client.doJSON(t, http.MethodPost, apiURL+"/tenants/"+tenantID+"/destinations", map[string]any{
+		"id":     destinationID,
+		"type":   "webhook",
+		"topics": "*",
+		"config": map[string]any{
+			"url": fmt.Sprintf("%s/webhook/%s", mockServerBaseURL, destinationID),
+		},
+		"credentials": map[string]any{
+			"secret": secret,
+		},
+	}, nil)
+	require.Equal(t, 201, status, "failed to create destination")
+
+	// Publish always-failing event with retry enabled
+	status = client.doJSON(t, http.MethodPost, apiURL+"/publish", map[string]any{
+		"id":                 eventID,
+		"tenant_id":          tenantID,
+		"topic":              "user.created",
+		"eligible_for_retry": true,
+		"metadata": map[string]any{
+			"should_err": "true",
+		},
+		"data": map[string]any{
+			"test": "manual-retry-schedule",
+		},
+	}, nil)
+	require.Equal(t, 202, status, "failed to publish event")
+
+	// Wait for attempt 1 (initial auto delivery, fails)
+	// TODO: extract into a shared standalone poll helper (not tied to basicSuite)
+	pollAttempts := func(t *testing.T, minCount int, timeout time.Duration) []map[string]any {
+		t.Helper()
+		deadline := time.Now().Add(timeout)
+		for time.Now().Before(deadline) {
+			var resp struct {
+				Models []map[string]any `json:"models"`
+			}
+			s := client.doJSON(t, http.MethodGet,
+				apiURL+"/attempts?tenant_id="+tenantID+"&event_id="+eventID+"&dir=asc", nil, &resp)
+			if s == http.StatusOK && len(resp.Models) >= minCount {
+				return resp.Models
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+		t.Fatalf("timed out waiting for %d attempts", minCount)
+		return nil
+	}
+
+	attempts := pollAttempts(t, 1, 5*time.Second)
+	require.Len(t, attempts, 1, "should have exactly 1 attempt (initial delivery)")
+	require.Equal(t, float64(1), attempts[0]["attempt_number"], "initial attempt should be attempt_number=1")
+
+	// Trigger manual retry BEFORE the 3s auto retry fires
+	// This should cancel the pending 3s retry and schedule a 6s retry
+	status = client.doJSON(t, http.MethodPost, apiURL+"/retry", map[string]any{
+		"event_id":       eventID,
+		"destination_id": destinationID,
+	}, nil)
+	require.Equal(t, 202, status, "manual retry should be accepted")
+
+	// Wait for attempt 2 (manual retry, fails)
+	attempts = pollAttempts(t, 2, 5*time.Second)
+	require.Equal(t, float64(2), attempts[1]["attempt_number"], "manual retry should be attempt_number=2")
+	require.Equal(t, true, attempts[1]["manual"], "attempt 2 should be manual=true")
+
+	// Verify the 2s auto retry was canceled: wait 2.5s and confirm no attempt 3 arrived
+	// (if the cancel failed, a 3rd attempt would appear at ~t=2s)
+	time.Sleep(2500 * time.Millisecond)
+	var midResp struct {
+		Models []map[string]any `json:"models"`
+	}
+	client.doJSON(t, http.MethodGet,
+		apiURL+"/attempts?tenant_id="+tenantID+"&event_id="+eventID, nil, &midResp)
+	require.Len(t, midResp.Models, 2,
+		"should still have only 2 attempts at t~2.5s (2s auto retry was canceled)")
+
+	// Wait for attempt 3 (auto retry at tier 1 = 4s from manual retry time)
+	attempts = pollAttempts(t, 3, 5*time.Second)
+	require.Equal(t, float64(3), attempts[2]["attempt_number"], "auto retry should be attempt_number=3")
+	require.NotEqual(t, true, attempts[2]["manual"], "attempt 3 should be auto (not manual)")
+
+	// Verify budget exhaustion: no attempt 4 should arrive
+	// Schedule has 2 entries → 2 retries max → 3 total attempts. Budget is exhausted.
+	time.Sleep(2 * time.Second)
+	var finalResp struct {
+		Models []map[string]any `json:"models"`
+	}
+	client.doJSON(t, http.MethodGet,
+		apiURL+"/attempts?tenant_id="+tenantID+"&event_id="+eventID, nil, &finalResp)
+	require.Len(t, finalResp.Models, 3,
+		"should have exactly 3 attempts (budget exhausted: 1 initial + 2 retries)")
+}
+
 // TestE2E_Regression_RetryRaceCondition verifies that retries are not lost when
 // the retry scheduler queries logstore before the event has been persisted.
 func TestE2E_Regression_RetryRaceCondition(t *testing.T) {

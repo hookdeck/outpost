@@ -180,7 +180,16 @@ func (m *mockLogPublisher) Publish(ctx context.Context, entry models.LogEntry) e
 	return m.err
 }
 
+// scheduledEntry represents a retry entry in the stateful mock scheduler.
+// Mirrors the real scheduler's upsert semantics: Schedule with the same ID
+// overwrites the previous entry, Cancel removes it.
+type scheduledEntry struct {
+	task  string
+	delay time.Duration
+}
+
 type mockRetryScheduler struct {
+	// Call-recording fields (used by existing tests)
 	schedules    []string
 	taskIDs      []string
 	canceled     []string
@@ -188,6 +197,11 @@ type mockRetryScheduler struct {
 	cancelResp   []error
 	scheduleIdx  int
 	cancelIdx    int
+
+	// Stateful map: tracks the current set of scheduled retries.
+	// Schedule upserts by ID, Cancel deletes by ID — matching real
+	// scheduler behavior (RSMQ ZAdd+HSet overwrites, DeleteMessage removes).
+	entries map[string]scheduledEntry
 }
 
 func newMockRetryScheduler() *mockRetryScheduler {
@@ -197,6 +211,7 @@ func newMockRetryScheduler() *mockRetryScheduler {
 		canceled:     make([]string, 0),
 		scheduleResp: make([]error, 0),
 		cancelResp:   make([]error, 0),
+		entries:      make(map[string]scheduledEntry),
 	}
 }
 
@@ -204,12 +219,14 @@ func (m *mockRetryScheduler) Schedule(ctx context.Context, task string, delay ti
 	m.schedules = append(m.schedules, task)
 
 	// Capture the task ID by applying the option
-	if len(opts) > 0 {
-		options := &scheduler.ScheduleOptions{}
-		opts[0](options)
-		if options.ID != "" {
-			m.taskIDs = append(m.taskIDs, options.ID)
-		}
+	options := &scheduler.ScheduleOptions{}
+	for _, opt := range opts {
+		opt(options)
+	}
+	if options.ID != "" {
+		m.taskIDs = append(m.taskIDs, options.ID)
+		// Upsert into stateful map
+		m.entries[options.ID] = scheduledEntry{task: task, delay: delay}
 	}
 
 	if m.scheduleIdx < len(m.scheduleResp) {
@@ -222,6 +239,8 @@ func (m *mockRetryScheduler) Schedule(ctx context.Context, task string, delay ti
 
 func (m *mockRetryScheduler) Cancel(ctx context.Context, taskID string) error {
 	m.canceled = append(m.canceled, taskID)
+	delete(m.entries, taskID)
+
 	if m.cancelIdx < len(m.cancelResp) {
 		err := m.cancelResp[m.cancelIdx]
 		m.cancelIdx++

@@ -87,12 +87,16 @@ func NewDeliveryTask(event Event, destinationID string) DeliveryTask {
 }
 
 // NewManualDeliveryTask creates a new DeliveryTask for a manual retry.
+// attemptNumber is the 1-indexed attempt number derived from the count of prior attempts.
 // Each manual retry gets a unique nonce so separate /retry requests are not deduplicated.
-func NewManualDeliveryTask(event Event, destinationID string) DeliveryTask {
-	task := NewDeliveryTask(event, destinationID)
-	task.Manual = true
-	task.Nonce = idgen.String()
-	return task
+func NewManualDeliveryTask(event Event, destinationID string, attemptNumber int) DeliveryTask {
+	return DeliveryTask{
+		Event:         event,
+		DestinationID: destinationID,
+		Attempt:       attemptNumber,
+		Manual:        true,
+		Nonce:         idgen.String(),
+	}
 }
 
 // LogEntry represents a message for the log queue.
