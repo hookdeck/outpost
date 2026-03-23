@@ -13,8 +13,7 @@ type TenantStore = driver.TenantStore
 type ListTenantRequest = driver.ListTenantRequest
 type SeekPagination = driver.SeekPagination
 type TenantPaginatedResult = driver.TenantPaginatedResult
-type ListDestinationByTenantOpts = driver.ListDestinationByTenantOpts
-type DestinationFilter = driver.DestinationFilter
+type ListDestinationRequest = driver.ListDestinationRequest
 
 // Error sentinels re-exported from driver.
 var (
@@ -29,9 +28,6 @@ var (
 	ErrInvalidOrder                    = driver.ErrInvalidOrder
 	ErrConflictingCursors              = driver.ErrConflictingCursors
 )
-
-// WithDestinationFilter creates a ListDestinationByTenantOpts with the given filter.
-var WithDestinationFilter = driver.WithDestinationFilter
 
 // Config holds the configuration for creating a TenantStore.
 type Config struct {

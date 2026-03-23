@@ -288,8 +288,14 @@ func parseResp3SearchResult(resultMap map[interface{}]interface{}) ([]models.Ten
 	return tenants, totalCount, nil
 }
 
+// destinationFilter specifies criteria for filtering destinations (package-private).
+type destinationFilter struct {
+	Type   []string
+	Topics []string
+}
+
 // parseListDestinationSummaryByTenantCmd parses a Redis HGetAll command result into destination summaries.
-func parseListDestinationSummaryByTenantCmd(cmd *redis.MapStringStringCmd, opts driver.ListDestinationByTenantOpts) ([]destinationSummary, error) {
+func parseListDestinationSummaryByTenantCmd(cmd *redis.MapStringStringCmd, filter *destinationFilter) ([]destinationSummary, error) {
 	destinationSummaryListHash, err := cmd.Result()
 	if err != nil {
 		if err == redis.Nil {
@@ -304,8 +310,8 @@ func parseListDestinationSummaryByTenantCmd(cmd *redis.MapStringStringCmd, opts 
 			return nil, err
 		}
 		included := true
-		if opts.Filter != nil {
-			included = matchDestinationFilter(opts.Filter, ds)
+		if filter != nil {
+			included = matchDestinationFilter(filter, ds)
 		}
 		if included {
 			destinationSummaryList = append(destinationSummaryList, ds)
@@ -342,7 +348,7 @@ func parseTenantTopics(destinationSummaryList []destinationSummary) []string {
 }
 
 // matchDestinationFilter checks if a destination summary matches the given filter criteria.
-func matchDestinationFilter(filter *driver.DestinationFilter, summary destinationSummary) bool {
+func matchDestinationFilter(filter *destinationFilter, summary destinationSummary) bool {
 	if len(filter.Type) > 0 {
 		found := false
 		for _, t := range filter.Type {

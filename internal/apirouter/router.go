@@ -136,10 +136,12 @@ func NewRouter(cfg RouterConfig, deps RouterDeps) http.Handler {
 
 	apiRouter := r.Group("/api/v1")
 
+	displayer := newDestinationDisplayer(cfg.Registry)
+
 	tenantHandlers := NewTenantHandlers(deps.Logger, deps.Telemetry, cfg.JWTSecret, cfg.DeploymentID, deps.TenantStore)
-	destinationHandlers := NewDestinationHandlers(deps.Logger, deps.Telemetry, deps.TenantStore, cfg.Topics, cfg.Registry)
+	destinationHandlers := NewDestinationHandlers(deps.Logger, deps.Telemetry, deps.TenantStore, cfg.Topics, cfg.Registry, displayer)
 	publishHandlers := NewPublishHandlers(deps.Logger, deps.EventHandler)
-	logHandlers := NewLogHandlers(deps.Logger, deps.LogStore)
+	logHandlers := NewLogHandlers(deps.Logger, deps.LogStore, deps.TenantStore, displayer)
 	retryHandlers := NewRetryHandlers(deps.Logger, deps.TenantStore, deps.LogStore, deps.DeliveryPublisher)
 	topicHandlers := NewTopicHandlers(deps.Logger, cfg.Topics)
 	metricsHandlers := NewMetricsHandlers(deps.Logger, deps.LogStore)

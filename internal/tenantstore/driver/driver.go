@@ -15,7 +15,7 @@ type TenantStore interface {
 	UpsertTenant(ctx context.Context, tenant models.Tenant) error
 	DeleteTenant(ctx context.Context, tenantID string) error
 	ListTenant(ctx context.Context, req ListTenantRequest) (*TenantPaginatedResult, error)
-	ListDestinationByTenant(ctx context.Context, tenantID string, options ...ListDestinationByTenantOpts) ([]models.Destination, error)
+	ListDestination(ctx context.Context, req ListDestinationRequest) ([]models.Destination, error)
 	RetrieveDestination(ctx context.Context, tenantID, destinationID string) (*models.Destination, error)
 	CreateDestination(ctx context.Context, destination models.Destination) error
 	UpsertDestination(ctx context.Context, destination models.Destination) error
@@ -61,18 +61,10 @@ type TenantPaginatedResult struct {
 	Count      int             `json:"count"`
 }
 
-// ListDestinationByTenantOpts contains options for listing destinations.
-type ListDestinationByTenantOpts struct {
-	Filter *DestinationFilter
-}
-
-// DestinationFilter specifies criteria for filtering destinations.
-type DestinationFilter struct {
-	Type   []string
-	Topics []string
-}
-
-// WithDestinationFilter creates a ListDestinationByTenantOpts with the given filter.
-func WithDestinationFilter(filter DestinationFilter) ListDestinationByTenantOpts {
-	return ListDestinationByTenantOpts{Filter: &filter}
+// ListDestinationRequest contains parameters for listing destinations.
+type ListDestinationRequest struct {
+	TenantID string   // required — destinations are always tenant-scoped
+	IDs      []string // optional — filter to these destination IDs only
+	Type     []string // optional — OR semantics (matches any)
+	Topics   []string // optional — AND semantics ("*" = wildcard-only)
 }

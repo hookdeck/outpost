@@ -123,7 +123,12 @@ func testList(t *testing.T, newHarness HarnessMaker) {
 		require.Equal(t, []string{}, tenant.Topics)
 	})
 
-	t.Run("MultiDestinationListDestinationByTenant", func(t *testing.T) {
+}
+
+func testListDestination(t *testing.T, newHarness HarnessMaker) {
+	t.Helper()
+
+	t.Run("ListAllForTenant", func(t *testing.T) {
 		ctx := context.Background()
 		h, err := newHarness(ctx, t)
 		require.NoError(t, err)
@@ -133,15 +138,17 @@ func testList(t *testing.T, newHarness HarnessMaker) {
 		require.NoError(t, err)
 		data := setupMultiDestination(t, ctx, store)
 
-		destinations, err := store.ListDestinationByTenant(ctx, data.tenant.ID)
+		destinations, err := store.ListDestination(ctx, driver.ListDestinationRequest{
+			TenantID: data.tenant.ID,
+		})
 		require.NoError(t, err)
 		require.Len(t, destinations, 5)
-		for index, destination := range destinations {
-			require.Equal(t, data.destinations[index].ID, destination.ID)
+		for i, dest := range destinations {
+			assert.Equal(t, data.destinations[i].ID, dest.ID)
 		}
 	})
 
-	t.Run("MultiDestinationListDestinationWithOpts", func(t *testing.T) {
+	t.Run("FilterByIDs", func(t *testing.T) {
 		ctx := context.Background()
 		h, err := newHarness(ctx, t)
 		require.NoError(t, err)
@@ -151,64 +158,168 @@ func testList(t *testing.T, newHarness HarnessMaker) {
 		require.NoError(t, err)
 		data := setupMultiDestination(t, ctx, store)
 
-		t.Run("filter by type: webhook", func(t *testing.T) {
-			destinations, err := store.ListDestinationByTenant(ctx, data.tenant.ID, driver.WithDestinationFilter(driver.DestinationFilter{
-				Type: []string{"webhook"},
-			}))
-			require.NoError(t, err)
-			require.Len(t, destinations, 5)
+		destinations, err := store.ListDestination(ctx, driver.ListDestinationRequest{
+			TenantID: data.tenant.ID,
+			IDs:      []string{data.destinations[0].ID, data.destinations[2].ID},
 		})
-
-		t.Run("filter by type: rabbitmq", func(t *testing.T) {
-			destinations, err := store.ListDestinationByTenant(ctx, data.tenant.ID, driver.WithDestinationFilter(driver.DestinationFilter{
-				Type: []string{"rabbitmq"},
-			}))
-			require.NoError(t, err)
-			require.Len(t, destinations, 0)
-		})
-
-		t.Run("filter by type: webhook,rabbitmq", func(t *testing.T) {
-			destinations, err := store.ListDestinationByTenant(ctx, data.tenant.ID, driver.WithDestinationFilter(driver.DestinationFilter{
-				Type: []string{"webhook", "rabbitmq"},
-			}))
-			require.NoError(t, err)
-			require.Len(t, destinations, 5)
-		})
-
-		t.Run("filter by topic: user.created", func(t *testing.T) {
-			destinations, err := store.ListDestinationByTenant(ctx, data.tenant.ID, driver.WithDestinationFilter(driver.DestinationFilter{
-				Topics: []string{"user.created"},
-			}))
-			require.NoError(t, err)
-			require.Len(t, destinations, 3)
-		})
-
-		t.Run("filter by topic: user.created,user.updated", func(t *testing.T) {
-			destinations, err := store.ListDestinationByTenant(ctx, data.tenant.ID, driver.WithDestinationFilter(driver.DestinationFilter{
-				Topics: []string{"user.created", "user.updated"},
-			}))
-			require.NoError(t, err)
-			require.Len(t, destinations, 2)
-		})
-
-		t.Run("filter by type: rabbitmq, topic: user.created,user.updated", func(t *testing.T) {
-			destinations, err := store.ListDestinationByTenant(ctx, data.tenant.ID, driver.WithDestinationFilter(driver.DestinationFilter{
-				Type:   []string{"rabbitmq"},
-				Topics: []string{"user.created", "user.updated"},
-			}))
-			require.NoError(t, err)
-			require.Len(t, destinations, 0)
-		})
-
-		t.Run("filter by topic: *", func(t *testing.T) {
-			destinations, err := store.ListDestinationByTenant(ctx, data.tenant.ID, driver.WithDestinationFilter(driver.DestinationFilter{
-				Topics: []string{"*"},
-			}))
-			require.NoError(t, err)
-			require.Len(t, destinations, 1)
-		})
+		require.NoError(t, err)
+		require.Len(t, destinations, 2)
+		assert.Equal(t, data.destinations[0].ID, destinations[0].ID)
+		assert.Equal(t, data.destinations[2].ID, destinations[1].ID)
 	})
 
+	t.Run("IDsWithNonexistent", func(t *testing.T) {
+		ctx := context.Background()
+		h, err := newHarness(ctx, t)
+		require.NoError(t, err)
+		t.Cleanup(h.Close)
+
+		store, err := h.MakeDriver(ctx)
+		require.NoError(t, err)
+		data := setupMultiDestination(t, ctx, store)
+
+		destinations, err := store.ListDestination(ctx, driver.ListDestinationRequest{
+			TenantID: data.tenant.ID,
+			IDs:      []string{data.destinations[0].ID, "gone"},
+		})
+		require.NoError(t, err)
+		require.Len(t, destinations, 1)
+		assert.Equal(t, data.destinations[0].ID, destinations[0].ID)
+	})
+
+	t.Run("ExcludesDeleted", func(t *testing.T) {
+		ctx := context.Background()
+		h, err := newHarness(ctx, t)
+		require.NoError(t, err)
+		t.Cleanup(h.Close)
+
+		store, err := h.MakeDriver(ctx)
+		require.NoError(t, err)
+		data := setupMultiDestination(t, ctx, store)
+
+		// Delete one destination
+		require.NoError(t, store.DeleteDestination(ctx, data.tenant.ID, data.destinations[4].ID))
+
+		destinations, err := store.ListDestination(ctx, driver.ListDestinationRequest{
+			TenantID: data.tenant.ID,
+		})
+		require.NoError(t, err)
+		require.Len(t, destinations, 4)
+	})
+
+	t.Run("IDsExcludesDeleted", func(t *testing.T) {
+		ctx := context.Background()
+		h, err := newHarness(ctx, t)
+		require.NoError(t, err)
+		t.Cleanup(h.Close)
+
+		store, err := h.MakeDriver(ctx)
+		require.NoError(t, err)
+		data := setupMultiDestination(t, ctx, store)
+
+		// Delete one destination
+		require.NoError(t, store.DeleteDestination(ctx, data.tenant.ID, data.destinations[4].ID))
+
+		destinations, err := store.ListDestination(ctx, driver.ListDestinationRequest{
+			TenantID: data.tenant.ID,
+			IDs:      []string{data.destinations[0].ID, data.destinations[4].ID},
+		})
+		require.NoError(t, err)
+		require.Len(t, destinations, 1)
+		assert.Equal(t, data.destinations[0].ID, destinations[0].ID)
+	})
+
+	t.Run("WrongTenant", func(t *testing.T) {
+		ctx := context.Background()
+		h, err := newHarness(ctx, t)
+		require.NoError(t, err)
+		t.Cleanup(h.Close)
+
+		store, err := h.MakeDriver(ctx)
+		require.NoError(t, err)
+		data := setupMultiDestination(t, ctx, store)
+
+		destinations, err := store.ListDestination(ctx, driver.ListDestinationRequest{
+			TenantID: "other-tenant",
+			IDs:      []string{data.destinations[0].ID},
+		})
+		require.NoError(t, err)
+		require.Len(t, destinations, 0)
+	})
+
+	t.Run("EmptyTenant", func(t *testing.T) {
+		ctx := context.Background()
+		h, err := newHarness(ctx, t)
+		require.NoError(t, err)
+		t.Cleanup(h.Close)
+
+		store, err := h.MakeDriver(ctx)
+		require.NoError(t, err)
+
+		destinations, err := store.ListDestination(ctx, driver.ListDestinationRequest{
+			TenantID: "unknown",
+		})
+		require.NoError(t, err)
+		require.Len(t, destinations, 0)
+	})
+
+	t.Run("FilterByTypeMiss", func(t *testing.T) {
+		ctx := context.Background()
+		h, err := newHarness(ctx, t)
+		require.NoError(t, err)
+		t.Cleanup(h.Close)
+
+		store, err := h.MakeDriver(ctx)
+		require.NoError(t, err)
+		data := setupMultiDestination(t, ctx, store)
+
+		destinations, err := store.ListDestination(ctx, driver.ListDestinationRequest{
+			TenantID: data.tenant.ID,
+			Type:     []string{"rabbitmq"},
+		})
+		require.NoError(t, err)
+		require.Len(t, destinations, 0)
+	})
+
+	t.Run("FilterByTypeAndIDs", func(t *testing.T) {
+		ctx := context.Background()
+		h, err := newHarness(ctx, t)
+		require.NoError(t, err)
+		t.Cleanup(h.Close)
+
+		store, err := h.MakeDriver(ctx)
+		require.NoError(t, err)
+		data := setupMultiDestination(t, ctx, store)
+
+		destinations, err := store.ListDestination(ctx, driver.ListDestinationRequest{
+			TenantID: data.tenant.ID,
+			IDs:      []string{data.destinations[0].ID, data.destinations[1].ID},
+			Type:     []string{"webhook"},
+		})
+		require.NoError(t, err)
+		require.Len(t, destinations, 2)
+	})
+
+	t.Run("FilterByTopics", func(t *testing.T) {
+		ctx := context.Background()
+		h, err := newHarness(ctx, t)
+		require.NoError(t, err)
+		t.Cleanup(h.Close)
+
+		store, err := h.MakeDriver(ctx)
+		require.NoError(t, err)
+		data := setupMultiDestination(t, ctx, store)
+
+		// Topics filter uses AND semantics; "user.created" matches:
+		// destinations[0] (topics ["*"] → matches all), destinations[1] (["user.created"]),
+		// destinations[4] (["user.created","user.updated"])
+		destinations, err := store.ListDestination(ctx, driver.ListDestinationRequest{
+			TenantID: data.tenant.ID,
+			Topics:   []string{"user.created"},
+		})
+		require.NoError(t, err)
+		require.Len(t, destinations, 3)
+	})
 }
 
 func testListTenant(t *testing.T, newHarness HarnessMaker) {
