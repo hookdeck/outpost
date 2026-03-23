@@ -280,35 +280,53 @@ func (s *store) fetchTenants(activeTenants []models.Tenant, q pagination.QueryIn
 	return filtered, nil
 }
 
-func (s *store) ListDestinationByTenant(_ context.Context, tenantID string, options ...driver.ListDestinationByTenantOpts) ([]models.Destination, error) {
+func (s *store) ListDestination(_ context.Context, req driver.ListDestinationRequest) ([]models.Destination, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	var opts driver.ListDestinationByTenantOpts
-	if len(options) > 0 {
-		opts = options[0]
-	}
-
-	destIDs := s.destsByTenant[tenantID]
-	if len(destIDs) == 0 {
-		return []models.Destination{}, nil
+	var filter *destinationFilter
+	hasFilter := len(req.Type) > 0 || len(req.Topics) > 0
+	if hasFilter {
+		filter = &destinationFilter{
+			Type:   req.Type,
+			Topics: req.Topics,
+		}
 	}
 
 	var destinations []models.Destination
-	for destID := range destIDs {
-		drec, ok := s.destinations[destKey(tenantID, destID)]
-		if !ok || drec.deletedAt != nil {
-			continue
+
+	if len(req.IDs) > 0 {
+		for _, id := range req.IDs {
+			drec, ok := s.destinations[destKey(req.TenantID, id)]
+			if !ok || drec.deletedAt != nil {
+				continue
+			}
+			if hasFilter && !matchDestFilter(filter, drec.destination) {
+				continue
+			}
+			destinations = append(destinations, drec.destination)
 		}
-		if opts.Filter != nil && !matchDestFilter(opts.Filter, drec.destination) {
-			continue
+	} else {
+		destIDs := s.destsByTenant[req.TenantID]
+		for destID := range destIDs {
+			drec, ok := s.destinations[destKey(req.TenantID, destID)]
+			if !ok || drec.deletedAt != nil {
+				continue
+			}
+			if hasFilter && !matchDestFilter(filter, drec.destination) {
+				continue
+			}
+			destinations = append(destinations, drec.destination)
 		}
-		destinations = append(destinations, drec.destination)
 	}
 
 	sort.Slice(destinations, func(i, j int) bool {
 		return destinations[i].CreatedAt.Before(destinations[j].CreatedAt)
 	})
+
+	if destinations == nil {
+		destinations = []models.Destination{}
+	}
 
 	return destinations, nil
 }
@@ -443,7 +461,13 @@ func (s *store) computeTenantTopics(tenantID string) []string {
 	return topics
 }
 
-func matchDestFilter(filter *driver.DestinationFilter, dest models.Destination) bool {
+// destinationFilter specifies criteria for filtering destinations (package-private).
+type destinationFilter struct {
+	Type   []string
+	Topics []string
+}
+
+func matchDestFilter(filter *destinationFilter, dest models.Destination) bool {
 	if len(filter.Type) > 0 && !slices.Contains(filter.Type, dest.Type) {
 		return false
 	}

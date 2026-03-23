@@ -38,6 +38,9 @@ func RunConformanceTests(t *testing.T, newHarness HarnessMaker) {
 	t.Run("List", func(t *testing.T) {
 		testList(t, newHarness)
 	})
+	t.Run("ListDestination", func(t *testing.T) {
+		testListDestination(t, newHarness)
+	})
 	t.Run("Match", func(t *testing.T) {
 		testMatch(t, newHarness)
 	})
