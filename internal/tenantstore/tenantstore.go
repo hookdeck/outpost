@@ -29,7 +29,6 @@ var (
 	ErrConflictingCursors              = driver.ErrConflictingCursors
 )
 
-
 // Config holds the configuration for creating a TenantStore.
 type Config struct {
 	RedisClient              redis.Cmdable
