@@ -244,6 +244,11 @@ run();
 
 * [check](docs/sdks/health/README.md#check) - Health Check
 
+### [Metrics](docs/sdks/metrics/README.md)
+
+* [getEventMetrics](docs/sdks/metrics/README.md#geteventmetrics) - Get Event Metrics
+* [getAttemptMetrics](docs/sdks/metrics/README.md#getattemptmetrics) - Get Attempt Metrics
+
 ### [Publish](docs/sdks/publish/README.md)
 
 * [event](docs/sdks/publish/README.md#event) - Publish Event
@@ -299,6 +304,8 @@ To read more about standalone functions, check [FUNCTIONS.md](./FUNCTIONS.md).
 - [`eventsGet`](docs/sdks/events/README.md#get) - Get Event
 - [`eventsList`](docs/sdks/events/README.md#list) - List Events
 - [`healthCheck`](docs/sdks/health/README.md#check) - Health Check
+- [`metricsGetAttemptMetrics`](docs/sdks/metrics/README.md#getattemptmetrics) - Get Attempt Metrics
+- [`metricsGetEventMetrics`](docs/sdks/metrics/README.md#geteventmetrics) - Get Event Metrics
 - [`publishEvent`](docs/sdks/publish/README.md#event) - Publish Event
 - [`schemasGetDestinationType`](docs/sdks/schemas/README.md#getdestinationtype) - Get Destination Type Schema
 - [`schemasListDestinationTypes`](docs/sdks/schemas/README.md#listdestinationtypes) - List Destination Type Schemas
@@ -457,9 +464,8 @@ run();
 * [`OutpostError`](./src/models/errors/outposterror.ts): The base class for HTTP error responses.
   * [`UnauthorizedError`](./src/models/errors/unauthorizederror.ts): A collection of codes that generally means the client was not authenticated correctly for the request they want to make.
   * [`InternalServerError`](./src/models/errors/internalservererror.ts): A collection of status codes that generally mean the server failed in an unexpected way.
-  * [`NotFoundError`](./src/models/errors/notfounderror.ts): Status codes relating to the resource/entity they are requesting not being found or endpoints/routes not existing. *
 
-<details><summary>Less common errors (11)</summary>
+<details><summary>Less common errors (12)</summary>
 
 <br />
 
@@ -472,11 +478,12 @@ run();
 
 
 **Inherit from [`OutpostError`](./src/models/errors/outposterror.ts)**:
-* [`BadRequestError`](./src/models/errors/badrequesterror.ts): A collection of codes that generally means the end user got something wrong in making the request. Applicable to 6 of 25 methods.*
-* [`TimeoutError`](./src/models/errors/timeouterror.ts): Timeouts occurred with the request. Applicable to 5 of 25 methods.*
-* [`RateLimitedError`](./src/models/errors/ratelimitederror.ts): Status codes relating to the client being rate limited by the server. Status code `429`. Applicable to 5 of 25 methods.*
-* [`APIErrorResponse`](./src/models/errors/apierrorresponse.ts): Standard error response format. Status code `422`. Applicable to 3 of 25 methods.*
-* [`NotImplementedError`](./src/models/errors/notimplementederror.ts): List Tenants feature is not available. Requires Redis with RediSearch module. Status code `501`. Applicable to 1 of 25 methods.*
+* [`NotFoundError`](./src/models/errors/notfounderror.ts): Status codes relating to the resource/entity they are requesting not being found or endpoints/routes not existing. Applicable to 21 of 27 methods.*
+* [`BadRequestError`](./src/models/errors/badrequesterror.ts): A collection of codes that generally means the end user got something wrong in making the request. Applicable to 8 of 27 methods.*
+* [`APIErrorResponse`](./src/models/errors/apierrorresponse.ts): Standard error response format. Applicable to 5 of 27 methods.*
+* [`TimeoutError`](./src/models/errors/timeouterror.ts): Timeouts occurred with the request. Applicable to 5 of 27 methods.*
+* [`RateLimitedError`](./src/models/errors/ratelimitederror.ts): Status codes relating to the client being rate limited by the server. Status code `429`. Applicable to 5 of 27 methods.*
+* [`NotImplementedError`](./src/models/errors/notimplementederror.ts): List Tenants feature is not available. Requires Redis with RediSearch module. Status code `501`. Applicable to 1 of 27 methods.*
 * [`ResponseValidationError`](./src/models/errors/responsevalidationerror.ts): Type mismatch between the data returned from the server and the structure expected by the SDK. See `error.rawValue` for the raw value and `error.pretty()` for a nicely formatted multi-line string.
 
 </details>
