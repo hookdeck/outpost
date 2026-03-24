@@ -9,7 +9,7 @@ This document is the **primary** guide for cutting an Outpost release. It covers
 **Order of operations:**
 
 1. **You:** Create the **GitHub Release** with the version tag (e.g. `v0.13.2`). That is when Outpost is released. (Create the tag from the target branch when drafting the release if it doesn’t exist yet, or push the tag first and select it.)
-2. **Automated:** The tag triggers two workflows — [release.yml](../.github/workflows/release.yml) builds Outpost binaries and Docker images; [sdk-generate-on-release.yml](../.github/workflows/sdk-generate-on-release.yml) auto-generates the Go, Python, and TypeScript SDKs **sequentially** and opens a PR for each, targeting your default branch (e.g. `main`).
+2. **Automated:** The tag triggers two workflows — [release.yml](../.github/workflows/release.yml) builds Outpost binaries and Docker images; [sdk-generate-on-release-dispatch.yml](../.github/workflows/sdk-generate-on-release-dispatch.yml) dispatches [sdk-generate-on-release.yml](../.github/workflows/sdk-generate-on-release.yml) (on `main`) so SDK generation runs with the correct PR base, generating the Go, Python, and TypeScript SDKs **sequentially** and opening a PR for each, targeting your default branch (e.g. `main`).
 3. **You:** Merge the three SDK PRs into main.
 4. **Automated:** The SDKs are released when those PRs are merged.
 
@@ -39,11 +39,11 @@ The tag triggers two workflows (they do not depend on each other):
 | Workflow | What it does |
 |----------|----------------|
 | [release.yml](../.github/workflows/release.yml) | Builds Outpost binaries and Docker images (via GoReleaser) and uploads binary assets so they are available for the tag. Pushes Docker images to Docker Hub (e.g. `hookdeck/outpost:{{ tag }}-amd64`). |
-| [sdk-generate-on-release.yml](../.github/workflows/sdk-generate-on-release.yml) | Auto-generates the Go, Python, and TypeScript SDKs **sequentially** and opens **three pull requests** (one per SDK), targeting your default branch (e.g. `main`). Sequential runs avoid conflicts on the shared `.speakeasy/workflow.lock` (see [SDKs – SDK generation and lock files](sdks.md#sdk-generation-and-lock-files)). |
+| [sdk-generate-on-release-dispatch.yml](../.github/workflows/sdk-generate-on-release-dispatch.yml) → [sdk-generate-on-release.yml](../.github/workflows/sdk-generate-on-release.yml) | The dispatch workflow starts generation on `main` (so Speakeasy opens PRs against `main`). Auto-generates the Go, Python, and TypeScript SDKs **sequentially** and opens **three pull requests** (one per SDK), targeting your default branch. Sequential runs avoid conflicts on the shared `.speakeasy/workflow.lock` (see [SDKs – SDK generation and lock files](sdks.md#sdk-generation-and-lock-files)). |
 
 ### 3. Merge the SDK PRs into main
 
-Review and merge the **three pull requests** (Go, Python, TypeScript) opened by [sdk-generate-on-release.yml](../.github/workflows/sdk-generate-on-release.yml). Merge order does not matter. See [sdks.md](sdks.md) for testing and review.
+Review and merge the **three pull requests** (Go, Python, TypeScript) opened by the SDK generate workflows. Merge order does not matter. See [sdks.md](sdks.md) for testing and review.
 
 - **SDK versions** are set by **Speakeasy detection** (breaking vs non-breaking), not by the Outpost tag. Exception: when you release **Outpost v1.0.0**, the workflow sets all three SDKs to **1.0.0**.
 
@@ -61,7 +61,7 @@ When the SDK PRs are merged into main, the SDKs are released (published).
 ## When cutting an Outpost release (checklist)
 
 1. **Create the GitHub Release** — In GitHub, draft a new release, attach the version tag (e.g. `v0.13.2`; create the tag from the target branch if needed), add release notes, and publish. **Outpost is released** when you publish the release.
-2. **Workflows run automatically** — The tag triggers [release.yml](../.github/workflows/release.yml) (Outpost binaries + Docker) and [sdk-generate-on-release.yml](../.github/workflows/sdk-generate-on-release.yml), which generates the three SDKs **sequentially** and opens a PR for each.
+2. **Workflows run automatically** — The tag triggers [release.yml](../.github/workflows/release.yml) (Outpost binaries + Docker) and the SDK generate workflows ([sdk-generate-on-release-dispatch.yml](../.github/workflows/sdk-generate-on-release-dispatch.yml) → [sdk-generate-on-release.yml](../.github/workflows/sdk-generate-on-release.yml)), which generates the three SDKs **sequentially** and opens a PR for each.
 3. **Merge the SDK PRs** — Review and merge the three PRs (Go, Python, TypeScript) into main. See [SDKs](sdks.md) for testing and review guidance.
 4. **SDKs are released** when those PRs are merged to main.
 
@@ -69,7 +69,7 @@ For more detail on SDK generation, versioning, and lock files, see [contributing
 
 ## Testing the tag-triggered SDK workflow
 
-To verify that [sdk-generate-on-release.yml](../.github/workflows/sdk-generate-on-release.yml) works without cutting a real release:
+To verify that the SDK release workflows ([sdk-generate-on-release-dispatch.yml](../.github/workflows/sdk-generate-on-release-dispatch.yml) / [sdk-generate-on-release.yml](../.github/workflows/sdk-generate-on-release.yml)) work without cutting a real release:
 
 1. **Option A — Push a temporary tag**  
    From the branch you want to test (e.g. `main` or a feature branch):
@@ -77,7 +77,7 @@ To verify that [sdk-generate-on-release.yml](../.github/workflows/sdk-generate-o
    git tag v0.0.0-sdk-gen-test   # or e.g. v99.99.99-test
    git push origin v0.0.0-sdk-gen-test
    ```
-   - In the repo **Actions** tab, open the run for **SDK generate on release tag** and confirm all three jobs (generate-go, generate-python, generate-ts) run in order and open PRs (or commit, depending on the Speakeasy action behaviour).
+   - In the repo **Actions** tab, you should see **SDK generate on release tag — dispatch** (quick) then **SDK generate on release tag** with all three jobs (generate-go, generate-python, generate-ts) in order and PRs opened against `main`.
    - To remove the tag after testing (optional):
      ```bash
      git tag -d v0.0.0-sdk-gen-test
@@ -86,4 +86,4 @@ To verify that [sdk-generate-on-release.yml](../.github/workflows/sdk-generate-o
    **Note:** Pushing a tag also triggers [release.yml](../.github/workflows/release.yml) (Outpost build/release). If you use a test tag, consider using a clearly non-release value (e.g. `v0.0.0-sdk-gen-test`) and skip creating a GitHub Release for it.
 
 2. **Option B — Manual run from Actions**  
-   The workflow supports **Run workflow** from the Actions tab (workflow_dispatch). Go to **Actions → SDK generate on release tag**, click **Run workflow**, choose the branch (e.g. `main`), and run. This uses the branch ref instead of a tag, so no tag or release is created; useful for a quick smoke test. Note: `set_version` is only applied when the ref is tag `v1.0.0`, so on manual runs Speakeasy detection applies.
+   Go to **Actions → SDK generate on release tag** (the Speakeasy run, not the dispatch workflow), click **Run workflow**, choose the branch (e.g. `main`), optionally set **release_tag** (e.g. `v0.0.0-test`), and run. This does not push a tag; useful for a quick smoke test. Note: the workflow sets all SDKs to `1.0.0` only when **release_tag** is exactly `v1.0.0`; otherwise Speakeasy detection applies.
