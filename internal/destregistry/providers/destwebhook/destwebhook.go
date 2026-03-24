@@ -713,10 +713,15 @@ func (d *WebhookDestination) generateSignatureSecret() (string, error) {
 		return "", fmt.Errorf("failed to generate random bytes: %w", err)
 	}
 
+	alphanumeric, err := randomAlphanumeric(32)
+	if err != nil {
+		return "", err
+	}
+
 	data := signingSecretTemplateData{
 		RandomHex:          hex.EncodeToString(randomBytes),
 		RandomBase64:       base64.StdEncoding.EncodeToString(randomBytes),
-		RandomAlphanumeric: randomAlphanumeric(32),
+		RandomAlphanumeric: alphanumeric,
 	}
 
 	var buf bytes.Buffer
@@ -728,13 +733,16 @@ func (d *WebhookDestination) generateSignatureSecret() (string, error) {
 
 const alphanumericChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 
-func randomAlphanumeric(n int) string {
+func randomAlphanumeric(n int) (string, error) {
 	result := make([]byte, n)
 	for i := range result {
-		idx, _ := rand.Int(rand.Reader, big.NewInt(int64(len(alphanumericChars))))
+		idx, err := rand.Int(rand.Reader, big.NewInt(int64(len(alphanumericChars))))
+		if err != nil {
+			return "", fmt.Errorf("failed to generate random alphanumeric: %w", err)
+		}
 		result[i] = alphanumericChars[idx.Int64()]
 	}
-	return string(result)
+	return string(result), nil
 }
 
 // GetEncoder returns the appropriate SignatureEncoder for the given encoding
