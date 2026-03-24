@@ -19,6 +19,11 @@ on:
         required: false
         type: boolean
         default: false
+      pr_base_is_main:
+        description: "Speakeasy reads GITHUB_REF for PR base; set true when checkout is a tag so PRs still target main"
+        required: false
+        type: boolean
+        default: false
     secrets:
       github_access_token:
         required: true
@@ -37,12 +42,13 @@ jobs:
       pull-requests: write
       statuses: write
       id-token: write
-    uses: speakeasy-api/sdk-generation-action/.github/workflows/workflow-executor.yaml@v15
+    uses: ./.github/workflows/speakeasy-workflow-executor-v15.yml
     with:
       force: ${{ inputs.force }}
       mode: pr
       target: ${{ inputs.target }}
       set_version: ${{ inputs.set_version || '' }}
+      pr_base_is_main: ${{ inputs.pr_base_is_main }}
     secrets:
       github_access_token: ${{ secrets.github_access_token }}
       speakeasy_api_key: ${{ secrets.speakeasy_api_key }}

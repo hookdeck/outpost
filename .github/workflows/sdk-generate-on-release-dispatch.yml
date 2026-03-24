@@ -1,0 +1,31 @@
+# Tag pushes would make Speakeasy use refs/tags/... as the GitHub PR base (invalid). We dispatch
+# sdk-generate-on-release.yml with ref = the tag so checkout matches the release commit; that workflow
+# sets pr_base_is_main on sdk-generate-one so GITHUB_REF is forced to main for Speakeasy only.
+name: SDK generate on release tag — dispatch
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  dispatch-generate:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      contents: read
+    steps:
+      - name: Dispatch SDK generation at release tag
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const tag = context.ref.replace('refs/tags/', '');
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'sdk-generate-on-release.yml',
+              ref: tag,
+              inputs: {
+                release_tag: tag
+              }
+            });

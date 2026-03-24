@@ -1,0 +1,794 @@
+# Vendored from speakeasy-api/sdk-generation-action (.github/workflows/workflow-executor.yaml, tag v15).
+# Outpost patch: workflow_call input `pr_base_is_main` and job `env` on `run-workflow` so Speakeasy’s
+# Go code sees GITHUB_REF=refs/heads/main for PR base while actions/checkout still uses the workflow ref (tag).
+# When upgrading Speakeasy, re-copy this file from upstream and re-apply the two marked patches.
+name: Speakeasy SDK Generation Workflow
+on:
+  workflow_call:
+    inputs:
+      runs-on:
+        description: |-
+          Define the type of machine to run the job on. This can be a single string value or a JSON-encoded string value
+          to define a runs-on compatible array/object, such as '["one", "two"]'. Refer to the GitHub Actions
+          documentation at https://docs.github.com/en/actions/writing-workflows/workflow-syntax-for-github-actions#jobsjob_idruns-on
+          for more details about runs-on values.
+        default: ubuntu-22.04
+        required: false
+        type: string
+      speakeasy_version:
+        description: The version of the Speakeasy CLI to use or "latest" [DEPRECATED]
+        default: latest
+        required: false
+        type: string
+      mode:
+        description: |-
+          The mode to run the workflow in, valid options are 'direct' or 'pr', defaults to 'direct'.
+            - 'direct' will create a commit with the changes to the SDKs and push them directly to the branch the workflow is configure to run on (normally 'main' or 'master').
+              If publishing and creating a release are configured this will happen immediately after the commit is created on the branch.
+            - 'pr' will instead create a new branch to commit the changes to the SDKs to and then create a PR from this branch.
+              The sdk-publish workflow will then need to be configured to run when the PR is merged to publish the SDKs and create a release.
+          See documentation for more details.
+        default: "direct"
+        required: false
+        type: string
+      target:
+        description: "Generate a specific target by name"
+        required: false
+        type: string
+      force:
+        description: "Force the generation of the SDKs"
+        default: "false"
+        required: false
+        type: string
+      signed_commits:
+        required: false
+        description: "This will set commits to be signed and and verified"
+        type: boolean
+      speakeasy_server_url:
+        required: false
+        description: "Internal use only"
+        type: string
+      working_directory:
+        description: "The working directory for running Speakeasy CLI commands in the action"
+        required: false
+        type: string
+      registry_tags:
+        description: "Multi-line or single-line string input of tags to apply to speakeasy registry builds"
+        required: false
+        type: string
+      push_code_samples_only:
+        description: "This will generate code samples, tag them with the `main` branch name, and push them to the registry. It will not create a pull request or commit any code. This is useful for pushing up some code samples to the registry the first time when there are no code samples in the registry."
+        required: false
+        type: boolean
+      set_version:
+        description: "Version to manually set for SDK generation"
+        required: false
+        type: string
+      skip_versioning:
+        description: Skip versioning during SDK generation, preventing version bumps
+        default: "false"
+        required: false
+        type: string
+      environment:
+        description: "Any required environment variables to set for the speakeasy run execution. Set as a string with each entry of the form \"key=value\".\n\nExample: \n  environment: |\n    SPECIFICATION_URL=https://api.example.com/swagger.json\nWhere .speakeasy/workflow.yaml contains:\n  sources:\n    my-source:\n      inputs:\n        - location: $SPECIFICATION_URL\n\nNote: This should not be used for secrets as inputs will *not* be masked. Something akin to $npm_token should be explicitly passed as a secret.\n"
+        required: false
+        type: string
+      dotnet_version:
+        description: "The version of dotnet to use when compiling the C# SDK"
+        required: false
+        type: string
+        default: "5.x"
+      pnpm_version:
+        description: "Version of pnpm to install. Not recommended for use without consulting Speakeasy support."
+        required: false
+        type: string
+      skip_testing:
+        description: "Skip Speakeasy workflow target testing after generation. In mode: pr, testing is always skipped during generation regardless of this input — tests should run separately via the sdk-test.yaml workflow (set up with 'speakeasy configure test'). This input only takes effect in mode: direct."
+        default: false
+        required: false
+        type: boolean
+      skip_compile:
+        description: "Skip environment setup and Speakeasy compile steps when generating."
+        default: false
+        required: false
+        type: boolean
+      feature_branch:
+        description: "The branch that represents the SDK feature. Will be upserted when manually dispatching the workflow."
+        required: false
+        type: string
+      poetry_version:
+        description: "Version of poetry to install. Not recommended for use without consulting Speakeasy support."
+        required: false
+        type: string
+        default: "2.2.1"
+      uv_version:
+        description: "Version of uv to install. Not recommended for use without consulting Speakeasy support."
+        required: false
+        type: string
+      github_repository:
+        description: "The GitHub repository path for the SDK. Eg: speakeasy-api/speakeasy-sdk-python"
+        default: ""
+        required: false
+        type: string
+      enable_sdk_changelog:
+        description: "Enable the new SDK changelog feature"
+        default: true
+        required: false
+        type: boolean
+      npm_tag:
+        description: "Custom npm dist-tag to use instead of 'latest' for non-prerelease versions"
+        required: false
+        type: string
+      # --- Outpost patch (keep when re-vendoring) ---
+      pr_base_is_main:
+        description: "If true, force GITHUB_REF to main for Speakeasy PR creation (checkout ref unchanged)."
+        required: false
+        type: boolean
+        default: false
+    secrets:
+      github_access_token:
+        description: A GitHub access token with write access to the repo
+        required: true
+      pypi_token:
+        description: A PyPi access token for publishing the package to PyPi, include the `pypi-` prefix
+        required: false
+      npm_token:
+        description: An NPM access token for publishing the package to NPM, include the `npm_` prefix
+        required: false
+      packagist_username:
+        description: A Packagist username for publishing the package to Packagist
+        required: false
+      packagist_token:
+        description: A Packagist API token for publishing the package to Packagist
+        required: false
+      openapi_doc_auth_token:
+        description: The auth token to use when fetching the OpenAPI document if it is not publicly hosted. For example `Bearer <token>` or `<token>`.
+        required: false
+      speakeasy_api_key:
+        description: The API key to use to authenticate the Speakeasy CLI
+        required: true
+      pr_creation_pat:
+        description: A specific Github PAT used to create Pull Requests
+        required: false
+      ossrh_username:
+        description: A username for publishing the Java package to the OSSRH URL provided in gen.yml
+        required: false
+      ossrh_password:
+        description: The corresponding password for publishing the Java package to the OSSRH URL provided in gen.yml
+        required: false
+      java_gpg_secret_key:
+        description: The GPG secret key to use for signing the Java package
+        required: false
+      java_gpg_passphrase:
+        description: The passphrase for the GPG secret key
+        required: false
+      slack_webhook_url:
+        description: A Slack webhook URL that pipeline failures will be posted to
+        required: false
+      terraform_gpg_secret_key:
+        description: The GPG secret key to use for signing the Terraform provider
+        required: false
+      terraform_gpg_passphrase:
+        description: The passphrase for the Terraform GPG secret key
+        required: false
+      rubygems_auth_token:
+        description: The auth token (api key) for publishing to RubyGems
+        required: false
+      nuget_api_key:
+        description: The api key for publishing to the Nuget registry
+        required: false
+jobs:
+  run-workflow:
+    name: Generate Target
+    runs-on: ${{ ((startsWith(inputs.runs-on, '[') || startsWith(inputs.runs-on, '{') || startsWith(inputs.runs-on, '"')) && fromJSON(inputs.runs-on)) || inputs.runs-on }}
+    # --- Outpost patch (keep when re-vendoring): tag-triggered runs need PR base main ---
+    env:
+      GITHUB_REF: ${{ inputs.pr_base_is_main == true && 'refs/heads/main' || github.ref }}
+      GITHUB_REF_NAME: ${{ inputs.pr_base_is_main == true && 'main' || github.ref_name }}
+    outputs:
+      commit_hash: ${{ steps.run-workflow.outputs.commit_hash }}
+      publish_python: ${{ steps.run-workflow.outputs.publish_python }}
+      publish_typescript: ${{ steps.run-workflow.outputs.publish_typescript }}
+      publish_terraform: ${{ steps.run-workflow.outputs.publish_terraform }}
+      publish_java: ${{ steps.run-workflow.outputs.publish_java }}
+      publish_php: ${{ steps.run-workflow.outputs.publish_php }}
+      publish_ruby: ${{ steps.run-workflow.outputs.publish_ruby }}
+      publish_csharp: ${{ steps.run-workflow.outputs.publish_csharp }}
+      python_regenerated: ${{ steps.run-workflow.outputs.python_regenerated }}
+      python_directory: ${{ steps.run-workflow.outputs.python_directory }}
+      typescript_regenerated: ${{ steps.run-workflow.outputs.typescript_regenerated }}
+      typescript_directory: ${{ steps.run-workflow.outputs.typescript_directory }}
+      go_regenerated: ${{ steps.run-workflow.outputs.go_regenerated }}
+      go_directory: ${{ steps.run-workflow.outputs.go_directory }}
+      terraform_regenerated: ${{ steps.run-workflow.outputs.terraform_regenerated }}
+      terraform_directory: ${{ steps.run-workflow.outputs.terraform_directory }}
+      java_regenerated: ${{ steps.run-workflow.outputs.java_regenerated }}
+      java_directory: ${{ steps.run-workflow.outputs.java_directory }}
+      php_regenerated: ${{ steps.run-workflow.outputs.php_regenerated }}
+      php_directory: ${{ steps.run-workflow.outputs.php_directory }}
+      ruby_regenerated: ${{ steps.run-workflow.outputs.ruby_regenerated }}
+      ruby_directory: ${{ steps.run-workflow.outputs.ruby_directory }}
+      csharp_regenerated: ${{ steps.run-workflow.outputs.csharp_regenerated }}
+      csharp_directory: ${{ steps.run-workflow.outputs.csharp_directory }}
+      swift_regenerated: ${{ steps.run-workflow.outputs.swift_regenerated }}
+      swift_directory: ${{ steps.run-workflow.outputs.swift_directory }}
+      unity_regenerated: ${{ steps.run-workflow.outputs.unity_regenerated }}
+      unity_directory: ${{ steps.run-workflow.outputs.unity_directory }}
+      docs_regenerated: ${{ steps.run-workflow.outputs.docs_regenerated }}
+      docs_directory: ${{ steps.run-workflow.outputs.docs_directory }}
+      branch_name: ${{ steps.run-workflow.outputs.branch_name }}
+      resolved_speakeasy_version: ${{ steps.run-workflow.outputs.resolved_speakeasy_version }}
+      use_sonatype_legacy: ${{ steps.run-workflow.outputs.use_sonatype_legacy }}
+      use_pypi_trusted_publishing: ${{ steps.run-workflow.outputs.use_pypi_trusted_publishing }}
+      short_circuit_label_trigger: ${{ steps.check-label.outputs.short_circuit_label_trigger }}
+    steps:
+      - name: Check Pull Request Label
+        if: ${{ github.event_name == 'pull_request' && (github.event.action == 'labeled' || github.event.action == 'unlabeled') }}
+        id: check-label
+        continue-on-error: true
+        run: |
+          label="${{ github.event.label.name }}"
+          tmpfile=$(mktemp)
+          echo "${{ github.event.pull_request.body }}" > "$tmpfile"
+
+          # Check if the label is a valid version bump and ensure the current PR isn't already on that version bump
+          # If either are true we short circuit the rest of the action
+          if [[ "$label" != "patch" && "$label" != "minor" && "$label" != "major" && "$label" != "graduate" ]] || { [[ "${{ github.event.action }}" == "labeled" ]] && grep -Fq "Version Bump Type: [$label]" "$tmpfile"; }; then
+            echo "No version bump label found in PR body. Short-circuiting."
+            echo "short_circuit_label_trigger=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          else
+            echo "short_circuit_label_trigger=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Checkout repository
+        if: ${{ steps.check-label.outputs.short_circuit_label_trigger != 'true' }}
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          # --- Outpost patch (keep when re-vendoring): explicit ref so the env override doesn't redirect checkout ---
+          ref: ${{ github.ref }}
+          fetch-depth: 0
+          token: ${{ secrets.github_access_token }}
+      - name: Checkout sdk-generation-action repository
+        if: ${{ steps.check-label.outputs.short_circuit_label_trigger != 'true' }}
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          repository: speakeasy-api/sdk-generation-action
+          ref: 6cd5ba5c0f635337847068ad8410ca9a8651e175
+          path: _speakeasy
+      - id: run-workflow
+        name: Run Generation Workflow
+        if: ${{ steps.check-label.outputs.short_circuit_label_trigger != 'true' }}
+        uses: ./_speakeasy
+        with:
+          speakeasy_version: ${{ inputs.speakeasy_version }}
+          github_access_token: ${{ secrets.github_access_token }}
+          mode: ${{ inputs.mode }}
+          force: ${{ inputs.force }}
+          signed_commits: ${{ inputs.signed_commits }}
+          speakeasy_api_key: ${{ secrets.speakeasy_api_key }}
+          pr_creation_pat: ${{ secrets.pr_creation_pat }}
+          output_tests: ${{ inputs.output_tests }}
+          speakeasy_server_url: ${{ inputs.speakeasy_server_url }}
+          working_directory: ${{ inputs.working_directory }}
+          openapi_doc_auth_token: ${{ secrets.openapi_doc_auth_token }}
+          target: ${{ inputs.target }}
+          registry_tags: ${{ inputs.registry_tags }}
+          push_code_samples_only: ${{ inputs.push_code_samples }}
+          set_version: ${{ inputs.set_version }}
+          skip_testing: ${{ inputs.skip_testing }}
+          skip_versioning: ${{ inputs.skip_versioning }}
+          skip_compile: ${{ inputs.skip_compile }}
+          feature_branch: ${{ inputs.feature_branch }}
+          cli_environment_variables: ${{ inputs.environment }}
+          pnpm_version: ${{ inputs.pnpm_version }}
+          poetry_version: ${{ inputs.poetry_version }}
+          uv_version: ${{ inputs.uv_version }}
+          github_repository: ${{ inputs.github_repository }}
+          enable_sdk_changelog: ${{ inputs.enable_sdk_changelog }}
+      - uses: ravsamhq/notify-slack-action@be814b201e233b2dc673608aa46e5447c8ab13f2 # v2
+        if: ${{ always() && steps.check-label.outputs.short_circuit_label_trigger != 'true' && env.SLACK_WEBHOOK_URL != '' }}
+        with:
+          status: ${{ job.status }}
+          token: ${{ secrets.github_access_token }}
+          notify_when: "failure"
+          notification_title: "SDK Generation Failed"
+          message_format: "{emoji} *{workflow}* {status_message} in <{repo_url}|{repo}>"
+          footer: "Linked Repo <{repo_url}|{repo}> | <{run_url}|View Run>"
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+      - id: log-result
+        name: Log Generation Output
+        uses: ./_speakeasy
+        if: ${{ steps.check-label.outputs.short_circuit_label_trigger != 'true'}}
+        with:
+          speakeasy_version: ${{ inputs.speakeasy_version }}
+          github_access_token: ${{ secrets.github_access_token }}
+          working_directory: ${{ inputs.working_directory }}
+          action: log-result
+          speakeasy_api_key: ${{ secrets.speakeasy_api_key }}
+          speakeasy_server_url: ${{ inputs.speakeasy_server_url }}
+        env:
+          GH_ACTION_RESULT: ${{ job.status }}
+          RESOLVED_SPEAKEASY_VERSION: ${{ steps.run-workflow.outputs.resolved_speakeasy_version }}
+          GH_ACTION_VERSION: 6cd5ba5c0f635337847068ad8410ca9a8651e175
+          GH_ACTION_STEP: ${{ github.job }}
+  publish-pypi:
+    if: ${{ always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') && needs.run-workflow.outputs.python_regenerated == 'true' && needs.run-workflow.outputs.publish_python == 'true' && inputs.mode != 'pr' }}
+    name: Publish Python SDK
+    runs-on: ${{ ((startsWith(inputs.runs-on, '[') || startsWith(inputs.runs-on, '{') || startsWith(inputs.runs-on, '"')) && fromJSON(inputs.runs-on)) || inputs.runs-on }}
+    needs: [run-workflow]
+    defaults:
+      run:
+        working-directory: ${{ needs.run-workflow.outputs.python_directory }}
+    steps:
+      - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3
+        with:
+          ref: ${{ needs.run-workflow.outputs.commit_hash }}
+      - name: Checkout sdk-generation-action repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          repository: speakeasy-api/sdk-generation-action
+          ref: 6cd5ba5c0f635337847068ad8410ca9a8651e175
+          path: _speakeasy
+      - name: Set up Python
+        uses: actions/setup-python@7f4fc3e22c37d6ff65e88745f38bd3157c663f7c # v4
+        with:
+          python-version: "3.10"
+      - name: Install poetry
+        run: |
+          curl -sSL https://install.python-poetry.org | python3 -
+          poetry --version
+        env:
+          POETRY_VERSION: ${{ inputs.poetry_version }}
+      - name: Install uv
+        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+        with:
+          version: ${{ inputs.uv_version }}
+      - name: Check for publish.sh
+        id: check-publish
+        run: |
+          if [ -f scripts/publish.sh ]; then
+            echo "publish_with_script=true" >> $GITHUB_OUTPUT
+          fi
+      - name: Build package
+        if: ${{ needs.run-workflow.outputs.use_pypi_trusted_publishing == 'true' }}
+        run: |
+          python -m pip install --upgrade pip
+          pip install build
+          python -m build
+      - name: Publish to PyPI (Trusted Publishing)
+        if: ${{ needs.run-workflow.outputs.use_pypi_trusted_publishing == 'true' }}
+        uses: pypa/gh-action-pypi-publish@76f52bc884231f62b9a034ebfe128415bbaabdfc # v1.12.4
+        with:
+          packages-dir: ${{ needs.run-workflow.outputs.python_directory }}/dist/
+      - name: Publish with script (Token)
+        if: ${{ needs.run-workflow.outputs.use_pypi_trusted_publishing != 'true' && steps.check-publish.outputs.publish_with_script == 'true' }}
+        env:
+          PYPI_TOKEN: ${{ secrets.pypi_token }}
+        run: |
+          ./scripts/publish.sh
+      - name: Legacy publish (Token)
+        if: ${{ needs.run-workflow.outputs.use_pypi_trusted_publishing != 'true' && steps.check-publish.outputs.publish_with_script != 'true' }}
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.pypi_token }}
+        run: |
+          python -m pip install --upgrade pip
+          pip install setuptools wheel twine
+          python setup.py sdist bdist_wheel
+          twine upload dist/*
+      - id: publish-event
+        uses: ./_speakeasy
+        if: always()
+        with:
+          github_access_token: ${{ secrets.github_access_token }}
+          action: publish-event
+          speakeasy_api_key: ${{ secrets.speakeasy_api_key }}
+          working_directory: ${{ inputs.working_directory }}
+          speakeasy_server_url: ${{ inputs.speakeasy_server_url }}
+          target_directory: ${{ needs.run-workflow.outputs.python_directory }}
+          registry_name: "pypi"
+        env:
+          GH_ACTION_RESULT: ${{ job.status }}
+          GH_ACTION_VERSION: 6cd5ba5c0f635337847068ad8410ca9a8651e175
+      - uses: ravsamhq/notify-slack-action@be814b201e233b2dc673608aa46e5447c8ab13f2 # v2
+        if: always() && env.SLACK_WEBHOOK_URL != ''
+        with:
+          status: ${{ job.status }}
+          token: ${{ secrets.github_access_token }}
+          notify_when: "failure"
+          notification_title: "Publishing of Python SDK Failed"
+          message_format: "{emoji} *{workflow}* {status_message} in <{repo_url}|{repo}>"
+          footer: "Linked Repo <{repo_url}|{repo}> | <{run_url}|View Run>"
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+      - id: log-result
+        uses: ./_speakeasy
+        if: always()
+        with:
+          speakeasy_version: ${{ inputs.speakeasy_version }}
+          github_access_token: ${{ secrets.github_access_token }}
+          action: log-result
+          speakeasy_api_key: ${{ secrets.speakeasy_api_key }}
+          working_directory: ${{ inputs.working_directory }}
+          speakeasy_server_url: ${{ inputs.speakeasy_server_url }}
+        env:
+          GH_ACTION_RESULT: ${{ job.status }}
+          GH_ACTION_VERSION: 6cd5ba5c0f635337847068ad8410ca9a8651e175
+          GH_ACTION_STEP: ${{ github.job }}
+          TARGET_TYPE: "sdk"
+  publish-npm:
+    if: ${{ always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') && needs.run-workflow.outputs.typescript_regenerated == 'true' && needs.run-workflow.outputs.publish_typescript == 'true' && inputs.mode != 'pr' }}
+    name: Publish Typescript SDK
+    runs-on: ${{ ((startsWith(inputs.runs-on, '[') || startsWith(inputs.runs-on, '{') || startsWith(inputs.runs-on, '"')) && fromJSON(inputs.runs-on)) || inputs.runs-on }}
+    needs: [run-workflow]
+    defaults:
+      run:
+        working-directory: ${{ needs.run-workflow.outputs.typescript_directory }}
+    steps:
+      - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3
+        with:
+          ref: ${{ needs.run-workflow.outputs.commit_hash }}
+      - name: Checkout sdk-generation-action repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          repository: speakeasy-api/sdk-generation-action
+          ref: 6cd5ba5c0f635337847068ad8410ca9a8651e175
+          path: _speakeasy
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "24.x"
+          registry-url: "https://registry.npmjs.org"
+      - name: Install dependencies
+        run: npm install --ignore-scripts
+      - name: Install bun
+        run: npm rebuild bun
+      - name: Publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.npm_token }}
+          NPM_TAG: ${{ inputs.npm_tag }}
+        run: |
+          VERSION=$(npm pkg get version | tr -d '"')
+          echo "Detected version: $VERSION"
+
+          if [[ "$VERSION" == *"-"* ]]; then
+            PRERELEASE=${VERSION#*-}
+            TAG=${PRERELEASE%%.*}
+            echo "Prerelease detected; publishing under dist-tag: $TAG"
+            npm publish --tag "$TAG" --access public
+          elif [[ -n "$NPM_TAG" ]]; then
+            echo "Custom tag provided; publishing under dist-tag: $NPM_TAG"
+            npm publish --tag "$NPM_TAG" --access public
+          else
+            echo "Official release detected; publishing under 'latest'"
+            npm publish --access public
+          fi
+      - id: publish-event
+        uses: ./_speakeasy
+        if: always()
+        with:
+          github_access_token: ${{ secrets.github_access_token }}
+          action: publish-event
+          speakeasy_api_key: ${{ secrets.speakeasy_api_key }}
+          working_directory: ${{ inputs.working_directory }}
+          speakeasy_server_url: ${{ inputs.speakeasy_server_url }}
+          target_directory: ${{ needs.run-workflow.outputs.typescript_directory }}
+          registry_name: "npm"
+        env:
+          GH_ACTION_RESULT: ${{ job.status }}
+          GH_ACTION_VERSION: 6cd5ba5c0f635337847068ad8410ca9a8651e175
+      - uses: ravsamhq/notify-slack-action@be814b201e233b2dc673608aa46e5447c8ab13f2 # v2
+        if: always() && env.SLACK_WEBHOOK_URL != ''
+        with:
+          status: ${{ job.status }}
+          token: ${{ secrets.github_access_token }}
+          notify_when: "failure"
+          notification_title: "Publishing of Typescript SDK Failed"
+          message_format: "{emoji} *{workflow}* {status_message} in <{repo_url}|{repo}>"
+          footer: "Linked Repo <{repo_url}|{repo}> | <{run_url}|View Run>"
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+      - id: log-result
+        uses: ./_speakeasy
+        if: always()
+        with:
+          speakeasy_version: ${{ inputs.speakeasy_version }}
+          github_access_token: ${{ secrets.github_access_token }}
+          action: log-result
+          speakeasy_api_key: ${{ secrets.speakeasy_api_key }}
+          working_directory: ${{ inputs.working_directory }}
+          speakeasy_server_url: ${{ inputs.speakeasy_server_url }}
+        env:
+          GH_ACTION_RESULT: ${{ job.status }}
+          GH_ACTION_VERSION: 6cd5ba5c0f635337847068ad8410ca9a8651e175
+          GH_ACTION_STEP: ${{ github.job }}
+          TARGET_TYPE: "sdk"
+  publish-java:
+    if: ${{ always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') && needs.run-workflow.outputs.java_regenerated == 'true' && needs.run-workflow.outputs.publish_java == 'true' && inputs.mode != 'pr' }}
+    name: Publish Java SDK
+    runs-on: ${{ ((startsWith(inputs.runs-on, '[') || startsWith(inputs.runs-on, '{') || startsWith(inputs.runs-on, '"')) && fromJSON(inputs.runs-on)) || inputs.runs-on }}
+    needs: [run-workflow]
+    defaults:
+      run:
+        working-directory: ${{ needs.run-workflow.outputs.java_directory }}
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          ref: ${{ needs.run-workflow.outputs.commit_hash }}
+      - name: Checkout sdk-generation-action repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          repository: speakeasy-api/sdk-generation-action
+          ref: 6cd5ba5c0f635337847068ad8410ca9a8651e175
+          path: _speakeasy
+      - uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
+        with:
+          distribution: "corretto"
+          java-version: "11"
+      - uses: gradle/actions/setup-gradle@017a9effdb900e5b5b2fddfb590a105619dca3c3 # v4.4.2
+        with:
+          gradle-version: "8.14"
+      - name: Publish to Sonatype (legacy)
+        if: ${{ needs.run-workflow.outputs.use_sonatype_legacy == 'true' }}
+        uses: gradle/gradle-build-action@67421db6bd0bf253fb4bd25b31ebb98943c375e1
+        with:
+          arguments: publish
+        env:
+          MAVEN_USERNAME: ${{ secrets.ossrh_username }}
+          MAVEN_PASSWORD: ${{ secrets.ossrh_password }}
+          ORG_GRADLE_PROJECT_signingKey: ${{ secrets.java_gpg_secret_key }}
+          ORG_GRADLE_PROJECT_signingPassphrase: ${{ secrets.java_gpg_passphrase }}
+      - name: Publish to Sonatype Central
+        if: ${{ needs.run-workflow.outputs.use_sonatype_legacy != 'true' }}
+        run: |-
+          pwd
+          ./gradlew build sonatypeCentralUpload --no-daemon
+        env:
+          SONATYPE_USERNAME: ${{ secrets.ossrh_username }}
+          SONATYPE_PASSWORD: ${{ secrets.ossrh_password }}
+          SONATYPE_SIGNING_KEY: ${{ secrets.java_gpg_secret_key }}
+          SIGNING_KEY_PASSPHRASE: ${{ secrets.java_gpg_passphrase }}
+      - id: publish-event
+        uses: ./_speakeasy
+        if: always()
+        with:
+          github_access_token: ${{ secrets.github_access_token }}
+          action: publish-event
+          speakeasy_api_key: ${{ secrets.speakeasy_api_key }}
+          working_directory: ${{ inputs.working_directory }}
+          speakeasy_server_url: ${{ inputs.speakeasy_server_url }}
+          target_directory: ${{ needs.run-workflow.outputs.java_directory }}
+          registry_name: "sonatype"
+        env:
+          GH_ACTION_RESULT: ${{ job.status }}
+          GH_ACTION_VERSION: 6cd5ba5c0f635337847068ad8410ca9a8651e175
+      - uses: ravsamhq/notify-slack-action@be814b201e233b2dc673608aa46e5447c8ab13f2 # v2
+        if: always() && env.SLACK_WEBHOOK_URL != ''
+        with:
+          status: ${{ job.status }}
+          token: ${{ secrets.github_access_token }}
+          notify_when: "failure"
+          notification_title: "Publishing of Java SDK Failed"
+          message_format: "{emoji} *{workflow}* {status_message} in <{repo_url}|{repo}>"
+          footer: "Linked Repo <{repo_url}|{repo}> | <{run_url}|View Run>"
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+      - id: log-result
+        uses: ./_speakeasy
+        if: always()
+        with:
+          speakeasy_version: ${{ inputs.speakeasy_version }}
+          github_access_token: ${{ secrets.github_access_token }}
+          action: log-result
+          speakeasy_api_key: ${{ secrets.speakeasy_api_key }}
+          working_directory: ${{ inputs.working_directory }}
+          speakeasy_server_url: ${{ inputs.speakeasy_server_url }}
+        env:
+          GH_ACTION_RESULT: ${{ job.status }}
+          GH_ACTION_VERSION: 6cd5ba5c0f635337847068ad8410ca9a8651e175
+          GH_ACTION_STEP: ${{ github.job }}
+          TARGET_TYPE: "sdk"
+  publish-gems:
+    if: ${{ always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') && needs.run-workflow.outputs.ruby_regenerated == 'true' && needs.run-workflow.outputs.publish_ruby == 'true' && inputs.mode != 'pr' }}
+    name: Publish Ruby SDK
+    runs-on: ${{ ((startsWith(inputs.runs-on, '[') || startsWith(inputs.runs-on, '{') || startsWith(inputs.runs-on, '"')) && fromJSON(inputs.runs-on)) || inputs.runs-on }}
+    needs: [run-workflow]
+    defaults:
+      run:
+        working-directory: ${{ needs.run-workflow.outputs.ruby_directory }}
+    steps:
+      - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3
+        with:
+          ref: ${{ needs.run-workflow.outputs.commit_hash }}
+      - name: Checkout sdk-generation-action repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          repository: speakeasy-api/sdk-generation-action
+          ref: 6cd5ba5c0f635337847068ad8410ca9a8651e175
+          path: _speakeasy
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@d8d83c3960843afb664e821fed6be52f37da5267 # v1.231.0
+        with:
+          ruby-version: "3.2"
+      - name: Install dependencies
+        run: gem build && bundle install && rake rubocop
+      - name: Publish
+        env:
+          GEM_HOST_API_KEY: ${{ secrets.rubygems_auth_token }}
+        run: |
+          mkdir -p $HOME/.gem
+          touch $HOME/.gem/credentials
+          chmod 0600 $HOME/.gem/credentials
+          printf -- "---\n:rubygems_api_key: ${GEM_HOST_API_KEY}\n" > $HOME/.gem/credentials
+          gem build *.gemspec
+          gem push *.gem
+      - id: publish-event
+        uses: ./_speakeasy
+        if: always()
+        with:
+          github_access_token: ${{ secrets.github_access_token }}
+          action: publish-event
+          speakeasy_api_key: ${{ secrets.speakeasy_api_key }}
+          working_directory: ${{ inputs.working_directory }}
+          speakeasy_server_url: ${{ inputs.speakeasy_server_url }}
+          target_directory: ${{ needs.run-workflow.outputs.ruby_directory }}
+          registry_name: "gems"
+        env:
+          GH_ACTION_RESULT: ${{ job.status }}
+          GH_ACTION_VERSION: 6cd5ba5c0f635337847068ad8410ca9a8651e175
+      - uses: ravsamhq/notify-slack-action@be814b201e233b2dc673608aa46e5447c8ab13f2 # v2
+        if: always() && env.SLACK_WEBHOOK_URL != ''
+        with:
+          status: ${{ job.status }}
+          token: ${{ secrets.github_access_token }}
+          notify_when: "failure"
+          notification_title: "Publishing of Ruby SDK Failed"
+          message_format: "{emoji} *{workflow}* {status_message} in <{repo_url}|{repo}>"
+          footer: "Linked Repo <{repo_url}|{repo}> | <{run_url}|View Run>"
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+      - id: log-result
+        uses: ./_speakeasy
+        if: always()
+        with:
+          speakeasy_version: ${{ inputs.speakeasy_version }}
+          github_access_token: ${{ secrets.github_access_token }}
+          action: log-result
+          speakeasy_api_key: ${{ secrets.speakeasy_api_key }}
+          working_directory: ${{ inputs.working_directory }}
+          speakeasy_server_url: ${{ inputs.speakeasy_server_url }}
+        env:
+          GH_ACTION_RESULT: ${{ job.status }}
+          GH_ACTION_VERSION: 6cd5ba5c0f635337847068ad8410ca9a8651e175
+          GH_ACTION_STEP: ${{ github.job }}
+          TARGET_TYPE: "sdk"
+  publish-nuget:
+    if: ${{ always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') && needs.run-workflow.outputs.csharp_regenerated == 'true' && needs.run-workflow.outputs.publish_csharp == 'true' && inputs.mode != 'pr' }}
+    name: Publish C# SDK
+    runs-on: ${{ ((startsWith(inputs.runs-on, '[') || startsWith(inputs.runs-on, '{') || startsWith(inputs.runs-on, '"')) && fromJSON(inputs.runs-on)) || inputs.runs-on }}
+    needs: [run-workflow]
+    defaults:
+      run:
+        working-directory: ${{ needs.run-workflow.outputs.csharp_directory }}
+    steps:
+      - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3
+        with:
+          ref: ${{ needs.run-workflow.outputs.commit_hash }}
+      - name: Checkout sdk-generation-action repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          repository: speakeasy-api/sdk-generation-action
+          ref: 6cd5ba5c0f635337847068ad8410ca9a8651e175
+          path: _speakeasy
+      - name: Setup dotnet
+        uses: actions/setup-dotnet@55ec9447dda3d1cf6bd587150f3262f30ee10815 # v3
+        with:
+          dotnet-version: ${{ inputs.dotnet_version }}
+      - name: Publish
+        run: dotnet pack -c Release -o . && dotnet nuget push *.nupkg --api-key ${{ secrets.nuget_api_key }} --source https://api.nuget.org/v3/index.json
+      - id: publish-event
+        uses: ./_speakeasy
+        if: always()
+        with:
+          github_access_token: ${{ secrets.github_access_token }}
+          action: publish-event
+          speakeasy_api_key: ${{ secrets.speakeasy_api_key }}
+          working_directory: ${{ inputs.working_directory }}
+          speakeasy_server_url: ${{ inputs.speakeasy_server_url }}
+          target_directory: ${{ needs.run-workflow.outputs.csharp_directory }}
+          registry_name: "nuget"
+        env:
+          GH_ACTION_RESULT: ${{ job.status }}
+          GH_ACTION_VERSION: 6cd5ba5c0f635337847068ad8410ca9a8651e175
+      - uses: ravsamhq/notify-slack-action@be814b201e233b2dc673608aa46e5447c8ab13f2 # v2
+        if: always() && env.SLACK_WEBHOOK_URL != ''
+        with:
+          status: ${{ job.status }}
+          token: ${{ secrets.github_access_token }}
+          notify_when: "failure"
+          notification_title: "Publishing of C# SDK Failed"
+          message_format: "{emoji} *{workflow}* {status_message} in <{repo_url}|{repo}>"
+          footer: "Linked Repo <{repo_url}|{repo}> | <{run_url}|View Run>"
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+      - id: log-result
+        uses: ./_speakeasy
+        if: always()
+        with:
+          speakeasy_version: ${{ inputs.speakeasy_version }}
+          github_access_token: ${{ secrets.github_access_token }}
+          action: log-result
+          speakeasy_api_key: ${{ secrets.speakeasy_api_key }}
+          working_directory: ${{ inputs.working_directory }}
+          speakeasy_server_url: ${{ inputs.speakeasy_server_url }}
+        env:
+          GH_ACTION_RESULT: ${{ job.status }}
+          GH_ACTION_VERSION: 6cd5ba5c0f635337847068ad8410ca9a8651e175
+          GH_ACTION_STEP: ${{ github.job }}
+          TARGET_TYPE: "sdk"
+  publish-packagist:
+    if: ${{ always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') && needs.run-workflow.outputs.php_regenerated == 'true' && needs.run-workflow.outputs.publish_php == 'true' && inputs.mode != 'pr' }}
+    name: Publish PHP SDK
+    runs-on: ${{ ((startsWith(inputs.runs-on, '[') || startsWith(inputs.runs-on, '{') || startsWith(inputs.runs-on, '"')) && fromJSON(inputs.runs-on)) || inputs.runs-on }}
+    needs: [run-workflow]
+    defaults:
+      run:
+        working-directory: ${{ needs.run-workflow.outputs.php_directory }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ needs.run-workflow.outputs.commit_hash }}
+      - name: Checkout sdk-generation-action repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          repository: speakeasy-api/sdk-generation-action
+          ref: 6cd5ba5c0f635337847068ad8410ca9a8651e175
+          path: _speakeasy
+      - name: Publish
+        uses: speakeasy-api/packagist-update@5e2c88e23c7d21e40c7a02a3b252a749b351eb2f # support-github-creation
+        with:
+          username: ${{ secrets.packagist_username }}
+          api_token: ${{ secrets.packagist_token }}
+          repository_name: ${{ github.repository }}
+          repository_base_url: ${{ github.server_url }}
+      - id: publish-event
+        uses: ./_speakeasy
+        if: always()
+        with:
+          github_access_token: ${{ secrets.github_access_token }}
+          action: publish-event
+          speakeasy_api_key: ${{ secrets.speakeasy_api_key }}
+          working_directory: ${{ inputs.working_directory }}
+          speakeasy_server_url: ${{ inputs.speakeasy_server_url }}
+          target_directory: ${{ needs.run-workflow.outputs.php_directory }}
+          registry_name: "packagist"
+        env:
+          GH_ACTION_RESULT: ${{ job.status }}
+          GH_ACTION_VERSION: 6cd5ba5c0f635337847068ad8410ca9a8651e175
+      - uses: ravsamhq/notify-slack-action@be814b201e233b2dc673608aa46e5447c8ab13f2 # v2
+        if: always() && env.SLACK_WEBHOOK_URL != ''
+        with:
+          status: ${{ job.status }}
+          token: ${{ secrets.github_access_token }}
+          notify_when: "failure"
+          notification_title: "Publishing of PHP SDK Failed"
+          message_format: "{emoji} *{workflow}* {status_message} in <{repo_url}|{repo}>"
+          footer: "Linked Repo <{repo_url}|{repo}> | <{run_url}|View Run>"
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+      - id: log-result
+        uses: ./_speakeasy
+        if: always()
+        with:
+          speakeasy_version: ${{ inputs.speakeasy_version }}
+          github_access_token: ${{ secrets.github_access_token }}
+          action: log-result
+          speakeasy_api_key: ${{ secrets.speakeasy_api_key }}
+          working_directory: ${{ inputs.working_directory }}
+          speakeasy_server_url: ${{ inputs.speakeasy_server_url }}
+        env:
+          GH_ACTION_RESULT: ${{ job.status }}
+          GH_ACTION_VERSION: 6cd5ba5c0f635337847068ad8410ca9a8651e175
+          GH_ACTION_STEP: ${{ github.job }}
+          TARGET_TYPE: "sdk"
