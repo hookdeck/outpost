@@ -68,7 +68,7 @@ All SDK generation (manual per-language and tag-triggered) goes through the same
 
 ### Outpost release and SDK generation
 
-The full release process (creating the tag, what runs on tag push, merging SDK PRs, creating the GitHub Release) is described in the **[Release process](release.md)** guide. When you push a version tag (e.g. `v0.13.2`), the [SDK generate on release tag](../.github/workflows/sdk-generate-on-release.yml) workflow runs and opens **three pull requests** (one for each SDK). Review and merge them in any order; see [Step 3: Review Generated SDK Pull Requests](#step-3-review-generated-sdk-pull-requests) and [Step 4: Test the Generated SDKs](#step-4-test-the-generated-sdks) below for review and testing.
+The full release process (creating the tag, what runs on tag push, merging SDK PRs, creating the GitHub Release) is described in the **[Release process](release.md)** guide. When you push a version tag (e.g. `v0.13.2`), [sdk-generate-on-release-dispatch.yml](../.github/workflows/sdk-generate-on-release-dispatch.yml) dispatches [sdk-generate-on-release.yml](../.github/workflows/sdk-generate-on-release.yml), which opens **three pull requests** (one for each SDK) against `main`. Review and merge them in any order; see [Step 3: Review Generated SDK Pull Requests](#step-3-review-generated-sdk-pull-requests) and [Step 4: Test the Generated SDKs](#step-4-test-the-generated-sdks) below for review and testing.
 
 ## Updating the OpenAPI Specification
 
