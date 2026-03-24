@@ -79,3 +79,13 @@ Based on:
 - [python v0.8.1] sdks/outpost-python
 ### Releases
 - [PyPI v0.8.1] https://pypi.org/project/outpost_sdk/0.8.1 - sdks/outpost-python
+
+## 2026-03-24 15:24:47
+### Changes
+Based on:
+- OpenAPI Doc  
+- Speakeasy CLI 1.759.1 (2.869.10) https://github.com/speakeasy-api/speakeasy
+### Generated
+- [python v0.8.2] sdks/outpost-python
+### Releases
+- [PyPI v0.8.2] https://pypi.org/project/outpost_sdk/0.8.2 - sdks/outpost-python

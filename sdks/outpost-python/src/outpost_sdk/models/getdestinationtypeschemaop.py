@@ -18,6 +18,7 @@ class GetDestinationTypeSchemaType(str, Enum):
     AZURE_SERVICEBUS = "azure_servicebus"
     AWS_S3 = "aws_s3"
     GCP_PUBSUB = "gcp_pubsub"
+    KAFKA = "kafka"
 
 
 class GetDestinationTypeSchemaRequestTypedDict(TypedDict):
