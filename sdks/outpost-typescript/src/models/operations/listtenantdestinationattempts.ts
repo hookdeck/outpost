@@ -41,6 +41,7 @@ export type ListTenantDestinationAttemptsTopic = string | Array<string>;
  * - `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
  * - `event.data`: Include full event with payload data
  * - `response_data`: Include response body and headers
+ * - `destination`: Include the full destination object
  */
 export type ListTenantDestinationAttemptsInclude = string | Array<string>;
 
@@ -127,6 +128,7 @@ export type ListTenantDestinationAttemptsRequest = {
    * - `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
    * - `event.data`: Include full event with payload data
    * - `response_data`: Include response body and headers
+   * - `destination`: Include the full destination object
    */
   include?: string | Array<string> | undefined;
   /**

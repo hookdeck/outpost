@@ -15,6 +15,12 @@ let value: DestinationSchemaField = {
   minlength: 0,
   maxlength: 255,
   pattern: "^[a-zA-Z0-9_]+$",
+  options: [
+    {
+      label: "PLAIN",
+      value: "plain",
+    },
+  ],
 };
 ```
 
@@ -31,3 +37,4 @@ let value: DestinationSchemaField = {
 | `minlength`                                                             | *number*                                                                | :heavy_minus_sign:                                                      | Minimum length for a text input.                                        | 0                                                                       |
 | `maxlength`                                                             | *number*                                                                | :heavy_minus_sign:                                                      | Maximum length for a text input.                                        | 255                                                                     |
 | `pattern`                                                               | *string*                                                                | :heavy_minus_sign:                                                      | Regex pattern for validation (compatible with HTML5 pattern attribute). | ^[a-zA-Z0-9_]+$                                                         |
+| `options`                                                               | [components.Option](../../models/components/option.md)[]                | :heavy_minus_sign:                                                      | Available options for select fields.                                    |                                                                         |

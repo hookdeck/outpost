@@ -9,17 +9,11 @@ import { ClosedEnum } from "../../types/enums.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 import {
-  EventFull,
-  EventFull$inboundSchema,
-  EventFull$Outbound,
-  EventFull$outboundSchema,
-} from "./eventfull.js";
-import {
-  EventSummary,
-  EventSummary$inboundSchema,
-  EventSummary$Outbound,
-  EventSummary$outboundSchema,
-} from "./eventsummary.js";
+  Destination,
+  Destination$inboundSchema,
+  Destination$Outbound,
+  Destination$outboundSchema,
+} from "./destination.js";
 
 /**
  * The attempt status.
@@ -32,6 +26,60 @@ export const Status = {
  * The attempt status.
  */
 export type Status = ClosedEnum<typeof Status>;
+
+/**
+ * Full event object with data (returned when include=event.data).
+ */
+export type EventFull = {
+  id?: string | undefined;
+  /**
+   * The tenant this event belongs to.
+   */
+  tenantId?: string | undefined;
+  /**
+   * The destination this event was delivered to.
+   */
+  destinationId?: string | undefined;
+  topic?: string | undefined;
+  /**
+   * Time the event was received.
+   */
+  time?: Date | undefined;
+  /**
+   * Whether this event can be retried.
+   */
+  eligibleForRetry?: boolean | undefined;
+  metadata?: { [k: string]: string } | null | undefined;
+  /**
+   * The event payload data.
+   */
+  data?: { [k: string]: any } | undefined;
+};
+
+/**
+ * Event object without data (returned when include=event).
+ */
+export type EventSummary = {
+  id?: string | undefined;
+  /**
+   * The tenant this event belongs to.
+   */
+  tenantId?: string | undefined;
+  /**
+   * The destination this event was delivered to.
+   */
+  destinationId?: string | undefined;
+  topic?: string | undefined;
+  /**
+   * Time the event was received.
+   */
+  time?: Date | undefined;
+  /**
+   * Whether this event can be retried.
+   */
+  eligibleForRetry?: boolean | undefined;
+  metadata?: { [k: string]: string } | null | undefined;
+};
 
 /**
  * The associated event object. Only present when include=event or include=event.data.
@@ -65,7 +113,7 @@ export type Attempt = {
   /**
    * Response data from the attempt. Only included when include=response_data.
    */
-  responseData?: { [k: string]: any } | undefined;
+  responseData?: { [k: string]: any } | null | undefined;
   /**
    * The attempt number (1 for first attempt, 2+ for retries).
    */
@@ -85,7 +133,8 @@ export type Attempt = {
   /**
    * The associated event object. Only present when include=event or include=event.data.
    */
-  event?: EventSummary | EventFull | undefined;
+  event?: EventSummary | EventFull | null | undefined;
+  destination?: Destination | undefined;
 };
 
 /** @internal */
@@ -96,11 +145,149 @@ export const Status$outboundSchema: z.ZodNativeEnum<typeof Status> =
   Status$inboundSchema;
 
 /** @internal */
+export const EventFull$inboundSchema: z.ZodType<
+  EventFull,
+  z.ZodTypeDef,
+  unknown
+> = z.object({
+  id: z.string().optional(),
+  tenant_id: z.string().optional(),
+  destination_id: z.string().optional(),
+  topic: z.string().optional(),
+  time: z.string().datetime({ offset: true }).transform(v => new Date(v))
+    .optional(),
+  eligible_for_retry: z.boolean().optional(),
+  metadata: z.nullable(z.record(z.string())).optional(),
+  data: z.record(z.any()).optional(),
+}).transform((v) => {
+  return remap$(v, {
+    "tenant_id": "tenantId",
+    "destination_id": "destinationId",
+    "eligible_for_retry": "eligibleForRetry",
+  });
+});
+/** @internal */
+export type EventFull$Outbound = {
+  id?: string | undefined;
+  tenant_id?: string | undefined;
+  destination_id?: string | undefined;
+  topic?: string | undefined;
+  time?: string | undefined;
+  eligible_for_retry?: boolean | undefined;
+  metadata?: { [k: string]: string } | null | undefined;
+  data?: { [k: string]: any } | undefined;
+};
+
+/** @internal */
+export const EventFull$outboundSchema: z.ZodType<
+  EventFull$Outbound,
+  z.ZodTypeDef,
+  EventFull
+> = z.object({
+  id: z.string().optional(),
+  tenantId: z.string().optional(),
+  destinationId: z.string().optional(),
+  topic: z.string().optional(),
+  time: z.date().transform(v => v.toISOString()).optional(),
+  eligibleForRetry: z.boolean().optional(),
+  metadata: z.nullable(z.record(z.string())).optional(),
+  data: z.record(z.any()).optional(),
+}).transform((v) => {
+  return remap$(v, {
+    tenantId: "tenant_id",
+    destinationId: "destination_id",
+    eligibleForRetry: "eligible_for_retry",
+  });
+});
+
+export function eventFullToJSON(eventFull: EventFull): string {
+  return JSON.stringify(EventFull$outboundSchema.parse(eventFull));
+}
+export function eventFullFromJSON(
+  jsonString: string,
+): SafeParseResult<EventFull, SDKValidationError> {
+  return safeParse(
+    jsonString,
+    (x) => EventFull$inboundSchema.parse(JSON.parse(x)),
+    `Failed to parse 'EventFull' from JSON`,
+  );
+}
+
+/** @internal */
+export const EventSummary$inboundSchema: z.ZodType<
+  EventSummary,
+  z.ZodTypeDef,
+  unknown
+> = z.object({
+  id: z.string().optional(),
+  tenant_id: z.string().optional(),
+  destination_id: z.string().optional(),
+  topic: z.string().optional(),
+  time: z.string().datetime({ offset: true }).transform(v => new Date(v))
+    .optional(),
+  eligible_for_retry: z.boolean().optional(),
+  metadata: z.nullable(z.record(z.string())).optional(),
+}).transform((v) => {
+  return remap$(v, {
+    "tenant_id": "tenantId",
+    "destination_id": "destinationId",
+    "eligible_for_retry": "eligibleForRetry",
+  });
+});
+/** @internal */
+export type EventSummary$Outbound = {
+  id?: string | undefined;
+  tenant_id?: string | undefined;
+  destination_id?: string | undefined;
+  topic?: string | undefined;
+  time?: string | undefined;
+  eligible_for_retry?: boolean | undefined;
+  metadata?: { [k: string]: string } | null | undefined;
+};
+
+/** @internal */
+export const EventSummary$outboundSchema: z.ZodType<
+  EventSummary$Outbound,
+  z.ZodTypeDef,
+  EventSummary
+> = z.object({
+  id: z.string().optional(),
+  tenantId: z.string().optional(),
+  destinationId: z.string().optional(),
+  topic: z.string().optional(),
+  time: z.date().transform(v => v.toISOString()).optional(),
+  eligibleForRetry: z.boolean().optional(),
+  metadata: z.nullable(z.record(z.string())).optional(),
+}).transform((v) => {
+  return remap$(v, {
+    tenantId: "tenant_id",
+    destinationId: "destination_id",
+    eligibleForRetry: "eligible_for_retry",
+  });
+});
+
+export function eventSummaryToJSON(eventSummary: EventSummary): string {
+  return JSON.stringify(EventSummary$outboundSchema.parse(eventSummary));
+}
+export function eventSummaryFromJSON(
+  jsonString: string,
+): SafeParseResult<EventSummary, SDKValidationError> {
+  return safeParse(
+    jsonString,
+    (x) => EventSummary$inboundSchema.parse(JSON.parse(x)),
+    `Failed to parse 'EventSummary' from JSON`,
+  );
+}
+
+/** @internal */
 export const EventUnion$inboundSchema: z.ZodType<
   EventUnion,
   z.ZodTypeDef,
   unknown
-> = z.union([EventSummary$inboundSchema, EventFull$inboundSchema]);
+> = z.union([
+  z.lazy(() => EventSummary$inboundSchema),
+  z.lazy(() => EventFull$inboundSchema),
+]);
 /** @internal */
 export type EventUnion$Outbound = EventSummary$Outbound | EventFull$Outbound;
 
@@ -109,7 +296,10 @@ export const EventUnion$outboundSchema: z.ZodType<
   EventUnion$Outbound,
   z.ZodTypeDef,
   EventUnion
-> = z.union([EventSummary$outboundSchema, EventFull$outboundSchema]);
+> = z.union([
+  z.lazy(() => EventSummary$outboundSchema),
+  z.lazy(() => EventFull$outboundSchema),
+]);
 
 export function eventUnionToJSON(eventUnion: EventUnion): string {
   return JSON.stringify(EventUnion$outboundSchema.parse(eventUnion));
@@ -133,13 +323,18 @@ export const Attempt$inboundSchema: z.ZodType<Attempt, z.ZodTypeDef, unknown> =
     time: z.string().datetime({ offset: true }).transform(v => new Date(v))
       .optional(),
     code: z.string().optional(),
-    response_data: z.record(z.any()).optional(),
+    response_data: z.nullable(z.record(z.any())).optional(),
     attempt_number: z.number().int().optional(),
     manual: z.boolean().optional(),
     event_id: z.string().optional(),
     destination_id: z.string().optional(),
-    event: z.union([EventSummary$inboundSchema, EventFull$inboundSchema])
-      .optional(),
+    event: z.nullable(
+      z.union([
+        z.lazy(() => EventSummary$inboundSchema),
+        z.lazy(() => EventFull$inboundSchema),
+      ]),
+    ).optional(),
+    destination: Destination$inboundSchema.optional(),
   }).transform((v) => {
     return remap$(v, {
       "tenant_id": "tenantId",
@@ -156,12 +351,13 @@ export type Attempt$Outbound = {
   status?: string | undefined;
   time?: string | undefined;
   code?: string | undefined;
-  response_data?: { [k: string]: any } | undefined;
+  response_data?: { [k: string]: any } | null | undefined;
   attempt_number?: number | undefined;
   manual?: boolean | undefined;
   event_id?: string | undefined;
   destination_id?: string | undefined;
-  event?: EventSummary$Outbound | EventFull$Outbound | undefined;
+  event?: EventSummary$Outbound | EventFull$Outbound | null | undefined;
+  destination?: Destination$Outbound | undefined;
 };
 
 /** @internal */
@@ -175,13 +371,18 @@ export const Attempt$outboundSchema: z.ZodType<
   status: Status$outboundSchema.optional(),
   time: z.date().transform(v => v.toISOString()).optional(),
   code: z.string().optional(),
-  responseData: z.record(z.any()).optional(),
+  responseData: z.nullable(z.record(z.any())).optional(),
   attemptNumber: z.number().int().optional(),
   manual: z.boolean().optional(),
   eventId: z.string().optional(),
   destinationId: z.string().optional(),
-  event: z.union([EventSummary$outboundSchema, EventFull$outboundSchema])
-    .optional(),
+  event: z.nullable(
+    z.union([
+      z.lazy(() => EventSummary$outboundSchema),
+      z.lazy(() => EventFull$outboundSchema),
+    ]),
+  ).optional(),
+  destination: Destination$outboundSchema.optional(),
 }).transform((v) => {
   return remap$(v, {
     tenantId: "tenant_id",

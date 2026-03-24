@@ -12,8 +12,14 @@ export const TypeEnum = {
   Text: "text",
   Checkbox: "checkbox",
   KeyValueMap: "key_value_map",
+  Select: "select",
 } as const;
 export type TypeEnum = ClosedEnum<typeof TypeEnum>;
+
+export type Option = {
+  label: string;
+  value: string;
+};
 
 export type DestinationSchemaField = {
   type: TypeEnum;
@@ -40,6 +46,10 @@ export type DestinationSchemaField = {
    * Regex pattern for validation (compatible with HTML5 pattern attribute).
    */
   pattern?: string | undefined;
+  /**
+   * Available options for select fields.
+   */
+  options?: Array<Option> | undefined;
 };
 
 /** @internal */
@@ -48,6 +58,41 @@ export const TypeEnum$inboundSchema: z.ZodNativeEnum<typeof TypeEnum> = z
 /** @internal */
 export const TypeEnum$outboundSchema: z.ZodNativeEnum<typeof TypeEnum> =
   TypeEnum$inboundSchema;
+
+/** @internal */
+export const Option$inboundSchema: z.ZodType<Option, z.ZodTypeDef, unknown> = z
+  .object({
+    label: z.string(),
+    value: z.string(),
+  });
+/** @internal */
+export type Option$Outbound = {
+  label: string;
+  value: string;
+};
+
+/** @internal */
+export const Option$outboundSchema: z.ZodType<
+  Option$Outbound,
+  z.ZodTypeDef,
+  Option
+> = z.object({
+  label: z.string(),
+  value: z.string(),
+});
+
+export function optionToJSON(option: Option): string {
+  return JSON.stringify(Option$outboundSchema.parse(option));
+}
+export function optionFromJSON(
+  jsonString: string,
+): SafeParseResult<Option, SDKValidationError> {
+  return safeParse(
+    jsonString,
+    (x) => Option$inboundSchema.parse(JSON.parse(x)),
+    `Failed to parse 'Option' from JSON`,
+  );
+}
 
 /** @internal */
 export const DestinationSchemaField$inboundSchema: z.ZodType<
@@ -64,6 +109,7 @@ export const DestinationSchemaField$inboundSchema: z.ZodType<
   minlength: z.number().int().optional(),
   maxlength: z.number().int().optional(),
   pattern: z.string().optional(),
+  options: z.array(z.lazy(() => Option$inboundSchema)).optional(),
 });
 /** @internal */
 export type DestinationSchemaField$Outbound = {
@@ -76,6 +122,7 @@ export type DestinationSchemaField$Outbound = {
   minlength?: number | undefined;
   maxlength?: number | undefined;
   pattern?: string | undefined;
+  options?: Array<Option$Outbound> | undefined;
 };
 
 /** @internal */
@@ -93,6 +140,7 @@ export const DestinationSchemaField$outboundSchema: z.ZodType<
   minlength: z.number().int().optional(),
   maxlength: z.number().int().optional(),
   pattern: z.string().optional(),
+  options: z.array(z.lazy(() => Option$outboundSchema)).optional(),
 });
 
 export function destinationSchemaFieldToJSON(

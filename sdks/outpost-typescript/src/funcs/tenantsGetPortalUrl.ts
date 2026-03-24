@@ -107,7 +107,6 @@ async function $do(
       charEncoding: "percent",
     }),
   };
-
   const path = pathToFunc("/tenants/{tenant_id}/portal")(pathParams);
 
   const query = encodeFormQuery({

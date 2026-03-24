@@ -98,8 +98,57 @@
 <body><h2 id="typescript-sdk-changes">Typescript SDK Changes:</h2>
 
 <ul>
-<li><code>outpost.schemas.listDestinationTypes()</code>:  <code>response.[].configFields[].type.enum(keyValueMap)</code> <strong>Added</strong> (Breaking ⚠️)</li>
-<li><code>outpost.schemas.getDestinationType()</code>:  <code>response.configFields[].type.enum(keyValueMap)</code> <strong>Added</strong> (Breaking ⚠️)</li>
+<li><code>outpost.attempts.list()</code>: <code>response.models[]</code> <strong>Changed</strong> (Breaking ⚠️)
+
+<ul>
+<li><code>destination</code> <strong>Added</strong></li>
+<li><code>event</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>responseData</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+</ul></li>
+<li><code>outpost.attempts.get()</code>: <code>response</code> <strong>Changed</strong> (Breaking ⚠️)
+
+<ul>
+<li><code>destination</code> <strong>Added</strong></li>
+<li><code>event</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>responseData</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+</ul></li>
+<li><code>outpost.destinations.listAttempts()</code>: <code>response.models[]</code> <strong>Changed</strong> (Breaking ⚠️)
+
+<ul>
+<li><code>destination</code> <strong>Added</strong></li>
+<li><code>event</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>responseData</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+</ul></li>
+<li><code>outpost.destinations.getAttempt()</code>: <code>response</code> <strong>Changed</strong> (Breaking ⚠️)
+
+<ul>
+<li><code>destination</code> <strong>Added</strong></li>
+<li><code>event</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>responseData</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+</ul></li>
+<li><code>outpost.schemas.listDestinationTypes()</code>: <code>response.[].configFields[]</code> <strong>Changed</strong> (Breaking ⚠️)
+
+<ul>
+<li><code>options</code> <strong>Added</strong></li>
+<li><code>type.enum(select)</code> <strong>Added</strong> (Breaking ⚠️)</li>
+</ul></li>
+<li><code>outpost.schemas.getDestinationType()</code>:
+
+<ul>
+<li><code>request.type</code> <strong>Changed</strong>
+
+<ul>
+<li><code>enum(kafka)</code> <strong>Added</strong></li>
+</ul></li>
+<li><code>response.configFields[]</code> <strong>Changed</strong> (Breaking ⚠️)
+
+<ul>
+<li><code>options</code> <strong>Added</strong></li>
+<li><code>type.enum(select)</code> <strong>Added</strong> (Breaking ⚠️)</li>
+</ul></li>
+</ul></li>
+<li><code>outpost.metrics.getEventMetrics()</code>: <strong>Added</strong></li>
+<li><code>outpost.metrics.getAttemptMetrics()</code>: <strong>Added</strong></li>
 </ul>
 </body>
 </html>

@@ -35,9 +35,24 @@ let value: ListTenantDestinationAttemptsResponse = {
           metadata: {
             "source": "crm",
           },
-          data: {
-            "user_id": "userid",
-            "status": "active",
+        },
+        destination: {
+          id: "des_webhook_123",
+          type: "webhook",
+          topics: [
+            "user.created",
+            "order.shipped",
+          ],
+          disabledAt: null,
+          createdAt: new Date("2024-02-15T10:00:00Z"),
+          updatedAt: new Date("2024-02-15T10:00:00Z"),
+          config: {
+            url: "https://my-service.com/webhook/handler",
+          },
+          credentials: {
+            secret: "whsec_abc123def456",
+            previousSecret: "whsec_prev789xyz012",
+            previousSecretInvalidAt: new Date("2024-02-16T10:00:00Z"),
           },
         },
       },

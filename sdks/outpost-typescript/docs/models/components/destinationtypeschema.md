@@ -23,6 +23,12 @@ let value: DestinationTypeSchema = {
       minlength: 0,
       maxlength: 255,
       pattern: "^[a-zA-Z0-9_]+$",
+      options: [
+        {
+          label: "PLAIN",
+          value: "plain",
+        },
+      ],
     },
   ],
   credentialFields: [
@@ -36,6 +42,12 @@ let value: DestinationTypeSchema = {
       minlength: 0,
       maxlength: 255,
       pattern: "^[a-zA-Z0-9_]+$",
+      options: [
+        {
+          label: "PLAIN",
+          value: "plain",
+        },
+      ],
     },
   ],
 };
