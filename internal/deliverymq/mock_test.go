@@ -195,9 +195,9 @@ func contains(slice []string, s string) bool {
 }
 
 type mockLogPublisher struct {
-	err          error
-	entries      []models.LogEntry
-	eventGetter  *mockEventGetter // if set, feed logged attempts to this getter
+	err         error
+	entries     []models.LogEntry
+	eventGetter *mockEventGetter // if set, feed logged attempts to this getter
 }
 
 func newMockLogPublisher(err error) *mockLogPublisher {
