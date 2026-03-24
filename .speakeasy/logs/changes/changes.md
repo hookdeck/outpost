@@ -1,3 +1,19 @@
-## Typescript SDK Changes:
-* `outpost.schemas.listDestinationTypes()`:  `response.[].configFields[].type.enum(keyValueMap)` **Added** (Breaking ⚠️)
-* `outpost.schemas.getDestinationType()`:  `response.configFields[].type.enum(keyValueMap)` **Added** (Breaking ⚠️)
+## Python SDK Changes:
+* `outpost.attempts.list()`: `response.models[]` **Changed** (Breaking ⚠️)
+    - `destination` **Added**
+    - `event` **Changed** (Breaking ⚠️)
+    - `response_data` **Changed** (Breaking ⚠️)
+* `outpost.attempts.get()`: `response` **Changed** (Breaking ⚠️)
+    - `destination` **Added**
+    - `event` **Changed** (Breaking ⚠️)
+    - `response_data` **Changed** (Breaking ⚠️)
+* `outpost.destinations.list_attempts()`: `response.models[]` **Changed** (Breaking ⚠️)
+    - `destination` **Added**
+    - `event` **Changed** (Breaking ⚠️)
+    - `response_data` **Changed** (Breaking ⚠️)
+* `outpost.destinations.get_attempt()`: `response` **Changed** (Breaking ⚠️)
+    - `destination` **Added**
+    - `event` **Changed** (Breaking ⚠️)
+    - `response_data` **Changed** (Breaking ⚠️)
+* `outpost.metrics.get_event_metrics()`: **Added**
+* `outpost.metrics.get_attempt_metrics()`: **Added**
