@@ -17,6 +17,7 @@ type GetTenantDestinationAttemptRequest struct {
 	// - `event`: Include event summary
 	// - `event.data`: Include full event with payload data
 	// - `response_data`: Include response body and headers
+	// - `destination`: Include the full destination object
 	//
 	Include []string `queryParam:"style=form,explode=true,name=include"`
 }

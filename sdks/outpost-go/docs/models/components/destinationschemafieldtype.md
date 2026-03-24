@@ -18,3 +18,4 @@ value := components.DestinationSchemaFieldTypeText
 | `DestinationSchemaFieldTypeText`        | text                                    |
 | `DestinationSchemaFieldTypeCheckbox`    | checkbox                                |
 | `DestinationSchemaFieldTypeKeyValueMap` | key_value_map                           |
+| `DestinationSchemaFieldTypeSelect`      | select                                  |

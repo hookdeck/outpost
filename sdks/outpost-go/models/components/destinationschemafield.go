@@ -13,6 +13,7 @@ const (
 	DestinationSchemaFieldTypeText        DestinationSchemaFieldType = "text"
 	DestinationSchemaFieldTypeCheckbox    DestinationSchemaFieldType = "checkbox"
 	DestinationSchemaFieldTypeKeyValueMap DestinationSchemaFieldType = "key_value_map"
+	DestinationSchemaFieldTypeSelect      DestinationSchemaFieldType = "select"
 )
 
 func (e DestinationSchemaFieldType) ToPointer() *DestinationSchemaFieldType {
@@ -29,11 +30,32 @@ func (e *DestinationSchemaFieldType) UnmarshalJSON(data []byte) error {
 	case "checkbox":
 		fallthrough
 	case "key_value_map":
+		fallthrough
+	case "select":
 		*e = DestinationSchemaFieldType(v)
 		return nil
 	default:
 		return fmt.Errorf("invalid value for DestinationSchemaFieldType: %v", v)
 	}
+}
+
+type OptionObj struct {
+	Label string `json:"label"`
+	Value string `json:"value"`
+}
+
+func (o *OptionObj) GetLabel() string {
+	if o == nil {
+		return ""
+	}
+	return o.Label
+}
+
+func (o *OptionObj) GetValue() string {
+	if o == nil {
+		return ""
+	}
+	return o.Value
 }
 
 type DestinationSchemaField struct {
@@ -51,6 +73,8 @@ type DestinationSchemaField struct {
 	Maxlength *int64 `json:"maxlength,omitempty"`
 	// Regex pattern for validation (compatible with HTML5 pattern attribute).
 	Pattern *string `json:"pattern,omitempty"`
+	// Available options for select fields.
+	Options []OptionObj `json:"options,omitempty"`
 }
 
 func (d *DestinationSchemaField) GetType() DestinationSchemaFieldType {
@@ -114,4 +138,11 @@ func (d *DestinationSchemaField) GetPattern() *string {
 		return nil
 	}
 	return d.Pattern
+}
+
+func (d *DestinationSchemaField) GetOptions() []OptionObj {
+	if d == nil {
+		return nil
+	}
+	return d.Options
 }
