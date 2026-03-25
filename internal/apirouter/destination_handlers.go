@@ -200,12 +200,7 @@ func (h *DestinationHandlers) Delete(c *gin.Context) {
 		return
 	}
 
-	display, err := h.displayer.Display(destination)
-	if err != nil {
-		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
-		return
-	}
-	c.JSON(http.StatusOK, display)
+	c.JSON(http.StatusOK, gin.H{"success": true})
 }
 
 func (h *DestinationHandlers) Disable(c *gin.Context) {
