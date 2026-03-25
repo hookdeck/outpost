@@ -1,7 +1,7 @@
 # Vendored from speakeasy-api/sdk-generation-action (.github/workflows/workflow-executor.yaml, tag v15).
 # Outpost patch: workflow_call input `pr_base_is_main` and job `env` on `run-workflow` so Speakeasy’s
 # Go code sees GITHUB_REF=refs/heads/main for PR base while actions/checkout still uses the workflow ref (tag).
-# When upgrading Speakeasy, re-copy this file from upstream and re-apply the two marked patches.
+# When upgrading Speakeasy, re-copy this file from upstream and re-apply the three marked patches.
 name: Speakeasy SDK Generation Workflow
 on:
   workflow_call:
@@ -42,7 +42,7 @@ on:
         type: string
       signed_commits:
         required: false
-        description: "This will set commits to be signed and and verified"
+        description: "This will set commits to be signed and verified"
         type: boolean
       speakeasy_server_url:
         required: false
@@ -267,13 +267,12 @@ jobs:
           signed_commits: ${{ inputs.signed_commits }}
           speakeasy_api_key: ${{ secrets.speakeasy_api_key }}
           pr_creation_pat: ${{ secrets.pr_creation_pat }}
-          output_tests: ${{ inputs.output_tests }}
           speakeasy_server_url: ${{ inputs.speakeasy_server_url }}
           working_directory: ${{ inputs.working_directory }}
           openapi_doc_auth_token: ${{ secrets.openapi_doc_auth_token }}
           target: ${{ inputs.target }}
           registry_tags: ${{ inputs.registry_tags }}
-          push_code_samples_only: ${{ inputs.push_code_samples }}
+          push_code_samples_only: ${{ inputs.push_code_samples_only }}
           set_version: ${{ inputs.set_version }}
           skip_testing: ${{ inputs.skip_testing }}
           skip_versioning: ${{ inputs.skip_versioning }}
