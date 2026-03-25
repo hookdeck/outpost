@@ -339,6 +339,10 @@ func TestAPI_Destinations(t *testing.T) {
 
 			require.Equal(t, http.StatusOK, resp.Code)
 
+			var body map[string]any
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &body))
+			assert.Equal(t, true, body["success"])
+
 			// Subsequent GET returns 404
 			req = httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1/destinations/d1", nil)
 			resp = h.do(h.withAPIKey(req))
