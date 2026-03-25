@@ -3,8 +3,14 @@ import { Loading } from "../../../common/Icons";
 import { useCreateDestinationContext } from "../CreateDestination";
 
 export default function TypeStep() {
-  const { stepValues, setStepValues, destinationTypes, hasDestinationTypes, nextPath } =
-    useCreateDestinationContext();
+  const {
+    stepValues,
+    setStepValues,
+    destinationTypes,
+    hasDestinationTypes,
+    nextPath,
+    buildSearchParams,
+  } = useCreateDestinationContext();
   const navigate = useNavigate();
 
   return (
@@ -20,9 +26,10 @@ export default function TypeStep() {
           const formData = new FormData(e.currentTarget);
           const values = Object.fromEntries(formData.entries());
           if (values.type) {
-            setStepValues((prev) => ({ ...prev, ...values }));
+            const type = values.type as string;
+            setStepValues((prev) => ({ ...prev, type }));
             if (nextPath) {
-              navigate(nextPath);
+              navigate(nextPath + buildSearchParams({ type }));
             }
           }
         }}

@@ -8,6 +8,7 @@ import {
   Navigate,
   useLocation,
   useNavigate,
+  useSearchParams,
 } from "react-router-dom";
 import { useState, useMemo, useCallback, useEffect, createContext, useContext } from "react";
 import { DestinationTypeReference } from "../../typings/Destination";
@@ -44,6 +45,7 @@ export type CreateDestinationContextValue = {
   hasDestinationTypes: boolean;
   nextPath: string | null;
   steps: StepDef[];
+  buildSearchParams: (extra?: Record<string, string>) => string;
 };
 
 const CreateDestinationContext =
@@ -70,10 +72,24 @@ export default function CreateDestination() {
 
   const location = useLocation();
   const navigate = useNavigate();
-  const [stepValues, setStepValues] = useState<Record<string, any>>({});
-  const [maxReachedIndex, setMaxReachedIndex] = useState(0);
+  const [searchParams] = useSearchParams();
   const destinationTypes = useDestinationTypes();
   const hasDestinationTypes = Object.keys(destinationTypes).length > 0;
+
+  // Hydrate stepValues from URL search params on mount (supports page refresh)
+  const [stepValues, setStepValues] = useState<Record<string, any>>(() => {
+    const initial: Record<string, any> = {};
+    const topicsParam = searchParams.get("topics");
+    if (topicsParam) {
+      initial.topics = topicsParam.split(",").filter(Boolean);
+    }
+    const typeParam = searchParams.get("type");
+    if (typeParam) {
+      initial.type = typeParam;
+    }
+    return initial;
+  });
+  const [maxReachedIndex, setMaxReachedIndex] = useState(0);
 
   // Derive current step index from URL
   const currentStepIndex = useMemo(() => {
@@ -95,11 +111,28 @@ export default function CreateDestination() {
     return nextStep ? `/new/${nextStep.path}` : null;
   }, [steps, currentStepIndex]);
 
+  // Build search params string from current stepValues, with optional extras
+  const buildSearchParams = useCallback(
+    (extra?: Record<string, string>) => {
+      const params = new URLSearchParams();
+      const topics = extra?.topics ?? stepValues.topics;
+      if (topics) {
+        const topicsStr = Array.isArray(topics) ? topics.join(",") : topics;
+        if (topicsStr) params.set("topics", topicsStr);
+      }
+      const type = extra?.type ?? stepValues.type;
+      if (type) params.set("type", type);
+      const qs = params.toString();
+      return qs ? `?${qs}` : "";
+    },
+    [stepValues],
+  );
+
   const handleSidebarClick = useCallback(
     (index: number) => {
-      navigate(`/new/${steps[index].path}`);
+      navigate(`/new/${steps[index].path}${buildSearchParams()}`);
     },
-    [navigate, steps],
+    [navigate, steps, buildSearchParams],
   );
 
   const contextValue = useMemo(
@@ -110,8 +143,9 @@ export default function CreateDestination() {
       hasDestinationTypes,
       nextPath,
       steps,
+      buildSearchParams,
     }),
-    [stepValues, setStepValues, destinationTypes, hasDestinationTypes, nextPath, steps],
+    [stepValues, setStepValues, destinationTypes, hasDestinationTypes, nextPath, steps, buildSearchParams],
   );
 
   return (

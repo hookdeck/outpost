@@ -5,7 +5,7 @@ import TopicPicker from "../../../common/TopicPicker/TopicPicker";
 import { useCreateDestinationContext } from "../CreateDestination";
 
 export default function TopicsStep() {
-  const { stepValues, setStepValues, nextPath } =
+  const { stepValues, setStepValues, nextPath, buildSearchParams } =
     useCreateDestinationContext();
   const navigate = useNavigate();
 
@@ -35,7 +35,10 @@ export default function TopicsStep() {
         onSubmit={(e) => {
           e.preventDefault();
           if (isValid && nextPath) {
-            navigate(nextPath);
+            navigate(
+              nextPath +
+                buildSearchParams({ topics: selectedTopics.join(",") }),
+            );
           }
         }}
       >

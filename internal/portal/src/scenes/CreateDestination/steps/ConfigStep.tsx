@@ -1,5 +1,5 @@
 import { useContext, useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import Button from "../../../common/Button/Button";
 import DestinationConfigFields from "../../../common/DestinationConfigFields/DestinationConfigFields";
 import FilterField from "../../../common/FilterField/FilterField";
@@ -29,9 +29,12 @@ export default function ConfigStep() {
   } = useCreateDestinationContext();
   const apiClient = useContext(ApiContext);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const sidebar = useSidebar();
 
-  const destinationType = destinationTypes[stepValues.type];
+  // Hydrate type from URL search params if context is empty (page refresh)
+  const type = stepValues.type || searchParams.get("type");
+  const destinationType = destinationTypes[type];
   const [filter, setFilter] = useState<Filter>(stepValues.filter || null);
   const [showFilter, setShowFilter] = useState(!!stepValues.filter);
   const [filterValid, setFilterValid] = useState(true);
@@ -39,12 +42,12 @@ export default function ConfigStep() {
 
   const isFilterEnabled = CONFIGS.ENABLE_DESTINATION_FILTER === "true";
 
-  // Redirect to first step if no type has been selected
+  // Redirect to first step if type is missing from both context and URL
   useEffect(() => {
-    if (hasDestinationTypes && !stepValues.type) {
+    if (hasDestinationTypes && !type) {
       navigate(`/new/${steps[0].path}`, { replace: true });
     }
-  }, [hasDestinationTypes, stepValues.type, navigate, steps]);
+  }, [hasDestinationTypes, type, navigate, steps]);
 
   useEffect(() => {
     setStepValues((prev) => ({ ...prev, filter, filterValid }));
@@ -53,7 +56,14 @@ export default function ConfigStep() {
   const isValid = filterValid;
 
   const createDestination = (formValues: Record<string, any>) => {
-    const values = { ...stepValues, ...formValues };
+    // Merge search params as fallback for values lost from context (e.g. page refresh)
+    const topicsFromUrl = searchParams.get("topics");
+    const values = {
+      ...(topicsFromUrl ? { topics: topicsFromUrl } : {}),
+      type,
+      ...stepValues,
+      ...formValues,
+    };
     setIsCreating(true);
 
     const destination_type = destinationTypes[values.type];
@@ -121,7 +131,7 @@ export default function ConfigStep() {
       });
   };
 
-  if (!destinationType && hasDestinationTypes) {
+  if (!destinationType && hasDestinationTypes && !type) {
     return null; // Redirecting
   }
 
