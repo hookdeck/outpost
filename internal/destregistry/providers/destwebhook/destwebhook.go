@@ -119,11 +119,14 @@ var _ destregistry.Provider = (*WebhookDestination)(nil)
 // Option is a functional option for configuring WebhookDestination
 type Option func(*WebhookDestination)
 
-// WithHeaderPrefix sets a custom prefix for webhook request headers
-func WithHeaderPrefix(prefix string) Option {
+// WithHeaderPrefix sets a custom prefix for webhook request headers.
+// When prefix is nil, the default prefix is used.
+// When prefix is non-nil, its value is used (after trimming whitespace),
+// allowing an empty string to disable the prefix entirely.
+func WithHeaderPrefix(prefix *string) Option {
 	return func(w *WebhookDestination) {
-		if prefix != "" {
-			w.headerPrefix = prefix
+		if prefix != nil {
+			w.headerPrefix = strings.TrimSpace(*prefix)
 		}
 	}
 }

@@ -384,7 +384,7 @@ func TestStandardWebhookPublisher_CustomHeaderPrefix(t *testing.T) {
 	provider, err := destwebhookstandard.New(
 		testutil.Registry.MetadataLoader(),
 		nil,
-		destwebhookstandard.WithHeaderPrefix("x-custom-"),
+		destwebhookstandard.WithHeaderPrefix(new("x-custom-")),
 	)
 	require.NoError(t, err)
 
@@ -431,6 +431,79 @@ func TestStandardWebhookPublisher_CustomHeaderPrefix(t *testing.T) {
 
 	case <-time.After(5 * time.Second):
 		t.Fatal("timeout waiting for message")
+	}
+}
+
+func TestStandardWebhookPublisher_EmptyHeaderPrefix(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		prefix *string
+		want   string // expected prefix on headers
+	}{
+		{
+			name:   "nil prefix uses default",
+			prefix: nil,
+			want:   "webhook-",
+		},
+		{
+			name:   "empty string disables prefix",
+			prefix: new(""),
+			want:   "",
+		},
+		{
+			name:   "whitespace-only disables prefix",
+			prefix: new("  "),
+			want:   "",
+		},
+		{
+			name:   "custom prefix is applied",
+			prefix: new("x-custom-"),
+			want:   "x-custom-",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			opts := []destwebhookstandard.Option{}
+			if tt.prefix != nil {
+				opts = append(opts, destwebhookstandard.WithHeaderPrefix(tt.prefix))
+			}
+
+			provider, err := destwebhookstandard.New(testutil.Registry.MetadataLoader(), nil, opts...)
+			require.NoError(t, err)
+
+			dest := testutil.DestinationFactory.Any(
+				testutil.DestinationFactory.WithType("webhook"),
+				testutil.DestinationFactory.WithConfig(map[string]string{
+					"url": "http://example.com/webhook",
+				}),
+				testutil.DestinationFactory.WithCredentials(map[string]string{
+					"secret": "whsec_MfKQ9r8GKYqrTwjUPD8ILPZIo2LaLaSw",
+				}),
+			)
+
+			publisher, err := provider.CreatePublisher(context.Background(), &dest)
+			require.NoError(t, err)
+
+			event := testutil.EventFactory.Any(
+				testutil.EventFactory.WithID("msg_test123"),
+				testutil.EventFactory.WithTopic("user.created"),
+				testutil.EventFactory.WithDataMap(map[string]interface{}{"key": "value"}),
+			)
+
+			req, err := publisher.(*destwebhookstandard.StandardWebhookPublisher).Format(context.Background(), &event)
+			require.NoError(t, err)
+
+			// Verify headers use the expected prefix
+			assert.Equal(t, "msg_test123", req.Header.Get(tt.want+"id"))
+			assert.NotEmpty(t, req.Header.Get(tt.want+"timestamp"))
+			assert.NotEmpty(t, req.Header.Get(tt.want+"signature"))
+			assert.Equal(t, "user.created", req.Header.Get(tt.want+"topic"))
+		})
 	}
 }
 
