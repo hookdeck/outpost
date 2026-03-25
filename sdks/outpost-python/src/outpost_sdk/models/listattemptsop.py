@@ -75,6 +75,7 @@ r"""Fields to include in the response. Use bracket notation for multiple values 
 - `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
 - `event.data`: Include full event with payload data
 - `response_data`: Include response body and headers
+- `destination`: Include the full destination object
 
 """
 
@@ -84,6 +85,7 @@ r"""Fields to include in the response. Use bracket notation for multiple values 
 - `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
 - `event.data`: Include full event with payload data
 - `response_data`: Include response body and headers
+- `destination`: Include the full destination object
 
 """
 
@@ -135,6 +137,7 @@ class ListAttemptsRequestTypedDict(TypedDict):
     - `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
     - `event.data`: Include full event with payload data
     - `response_data`: Include response body and headers
+    - `destination`: Include the full destination object
 
     """
     order_by: NotRequired[ListAttemptsOrderBy]
@@ -234,6 +237,7 @@ class ListAttemptsRequest(BaseModel):
     - `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
     - `event.data`: Include full event with payload data
     - `response_data`: Include response body and headers
+    - `destination`: Include the full destination object
 
     """
 

@@ -147,6 +147,11 @@ func main() {
 
 * [Check](docs/sdks/health/README.md#check) - Health Check
 
+### [Metrics](docs/sdks/metrics/README.md)
+
+* [GetEventMetrics](docs/sdks/metrics/README.md#geteventmetrics) - Get Event Metrics
+* [GetAttemptMetrics](docs/sdks/metrics/README.md#getattemptmetrics) - Get Attempt Metrics
+
 ### [Publish](docs/sdks/publish/README.md)
 
 * [Event](docs/sdks/publish/README.md#event) - Publish Event
