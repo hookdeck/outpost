@@ -49,6 +49,7 @@ type DestinationWebhookConfig struct {
 	SignatureHeaderTemplate       string `yaml:"signature_header_template" env:"DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE" desc:"Go template for the value of the signature header. Only applies to 'default' mode." required:"N"`
 	SignatureEncoding             string `yaml:"signature_encoding" env:"DESTINATIONS_WEBHOOK_SIGNATURE_ENCODING" desc:"Encoding for the signature (e.g., 'hex', 'base64'). Only applies to 'default' mode." required:"N"`
 	SignatureAlgorithm            string `yaml:"signature_algorithm" env:"DESTINATIONS_WEBHOOK_SIGNATURE_ALGORITHM" desc:"Algorithm used for signing webhook requests (e.g., 'hmac-sha256'). Only applies to 'default' mode." required:"N"`
+	SigningSecretTemplate         string `yaml:"signing_secret_template" env:"DESTINATIONS_WEBHOOK_SIGNING_SECRET_TEMPLATE" desc:"Go template for generating webhook signing secrets. Available variables: {{.RandomHex}} (64-char hex), {{.RandomBase64}} (base64-encoded), {{.RandomAlphanumeric}} (32-char alphanumeric). Defaults to '{{.RandomHex}}'. Only applies to 'default' mode." required:"N"`
 }
 
 // toConfig converts WebhookConfig to the provider config - private since it's only used internally
@@ -69,6 +70,7 @@ func (c *DestinationWebhookConfig) toConfig() *destregistrydefault.DestWebhookCo
 		SignatureHeaderTemplate:       c.SignatureHeaderTemplate,
 		SignatureEncoding:             c.SignatureEncoding,
 		SignatureAlgorithm:            c.SignatureAlgorithm,
+		SigningSecretTemplate:         c.SigningSecretTemplate,
 	}
 }
 
