@@ -1,450 +1,192 @@
 import "./CreateDestination.scss";
 import Button from "../../common/Button/Button";
-import {
-  AddIcon,
-  CloseIcon,
-  DropdownIcon,
-  HelpIcon,
-  Loading,
-} from "../../common/Icons";
+import { CloseIcon } from "../../common/Icons";
 import Badge from "../../common/Badge/Badge";
-import { useNavigate } from "react-router-dom";
-import { useContext, useEffect, useState } from "react";
-import { ApiContext, formatError } from "../../app";
-import { showToast } from "../../common/Toast/Toast";
-import { mutate } from "swr";
-import TopicPicker from "../../common/TopicPicker/TopicPicker";
-import { DestinationTypeReference, Filter } from "../../typings/Destination";
+import {
+  Routes,
+  Route,
+  Navigate,
+  useLocation,
+  useNavigate,
+  useSearchParams,
+} from "react-router-dom";
+import { useState, useMemo, useCallback, useEffect, createContext, useContext } from "react";
+import { DestinationTypeReference } from "../../typings/Destination";
 import { useDestinationTypes } from "../../destination-types";
-import DestinationConfigFields from "../../common/DestinationConfigFields/DestinationConfigFields";
-import FilterField from "../../common/FilterField/FilterField";
-import { FilterSyntaxGuide } from "../../common/FilterSyntaxGuide/FilterSyntaxGuide";
-import { useSidebar } from "../../common/Sidebar/Sidebar";
-import { getFormValues } from "../../utils/formHelper";
 import CONFIGS from "../../config";
+import TopicsStep from "./steps/TopicsStep";
+import TypeStep from "./steps/TypeStep";
+import ConfigStep from "./steps/ConfigStep";
 
-type Step = {
-  title: string;
+type StepDef = {
+  path: string;
   sidebar_shortname: string;
-  description: string;
-  isValid: (values: Record<string, any>) => boolean;
-  FormFields: (props: {
-    defaultValue: Record<string, any>;
-    onChange: (value: Record<string, any>) => void;
-    destinationTypes?: Record<string, DestinationTypeReference>;
-  }) => React.ReactNode;
-  action: string;
-  autoAdvance?: boolean;
 };
 
-const EVENT_TOPICS_STEP: Step = {
-  title: "Select event topics",
+const TOPICS_STEP: StepDef = {
+  path: "topics",
   sidebar_shortname: "Event topics",
-  description: "Select the event topics you want to send to your destination",
-  isValid: (values: Record<string, any>) => {
-    if (values.topics?.length > 0) {
-      return true;
-    }
-    return false;
-  },
-  FormFields: ({
-    defaultValue,
-    onChange,
-  }: {
-    defaultValue: Record<string, any>;
-    onChange: (value: Record<string, any>) => void;
-  }) => {
-    const [selectedTopics, setSelectedTopics] = useState<string[]>(
-      defaultValue.topics
-        ? Array.isArray(defaultValue.topics)
-          ? defaultValue.topics
-          : defaultValue.topics.split(",")
-        : [],
-    );
-
-    useEffect(() => {
-      onChange({ topics: selectedTopics });
-    }, [selectedTopics]);
-
-    return (
-      <>
-        <TopicPicker
-          selectedTopics={selectedTopics}
-          onTopicsChange={setSelectedTopics}
-        />
-        <input
-          readOnly
-          type="text"
-          name="topics"
-          hidden
-          required
-          value={selectedTopics.length > 0 ? selectedTopics.join(",") : ""}
-        />
-      </>
-    );
-  },
-  action: "Next",
 };
 
-const DESTINATION_TYPE_STEP: Step = {
-  title: "Select destination type",
+const TYPE_STEP: StepDef = {
+  path: "type",
   sidebar_shortname: "Destination type",
-  description:
-    "Select the destination type you want to send to your destination",
-  isValid: (values: Record<string, any>) => {
-    if (!values.type) {
-      return false;
-    }
-    return true;
-  },
-  FormFields: ({
-    destinationTypes,
-    defaultValue,
-    onChange,
-  }: {
-    destinationTypes?: Record<string, DestinationTypeReference>;
-    defaultValue: Record<string, any>;
-    onChange?: (value: Record<string, any>) => void;
-  }) => (
-    <div className="destination-types">
-      <div className="destination-types__container">
-        {Object.values(destinationTypes ?? {}).map((destination) => (
-          <label key={destination.type} className="destination-type-option">
-            <input
-              type="radio"
-              name="type"
-              value={destination.type}
-              required
-              className="destination-type-radio"
-              defaultChecked={
-                defaultValue
-                  ? defaultValue.type === destination.type
-                  : undefined
-              }
-            />
-            <div className="destination-type-content">
-              <h3 className="subtitle-l">
-                <span
-                  className="destination-type-content__icon"
-                  dangerouslySetInnerHTML={{ __html: destination.icon }}
-                />{" "}
-                {destination.label}
-              </h3>
-              <p className="body-m muted">{destination.description}</p>
-            </div>
-          </label>
-        ))}
-      </div>
-    </div>
-  ),
-  action: "Next",
-  autoAdvance: true,
 };
 
-const CONFIGURATION_STEP: Step = {
-  title: "Configure destination",
+const CONFIG_STEP: StepDef = {
+  path: "config",
   sidebar_shortname: "Configure destination",
-  description: "Configure the destination you want to send to your destination",
-  isValid: (values: Record<string, any>) => {
-    // Check if filter is valid (filterValid is set by onValidChange callback)
-    if (values.filterValid === false) {
-      return false;
-    }
-    return true;
-  },
-  FormFields: ({
-    defaultValue,
-    destinationTypes,
-    onChange,
-  }: {
-    defaultValue: Record<string, any>;
-    destinationTypes?: Record<string, DestinationTypeReference>;
-    onChange?: (value: Record<string, any>) => void;
-  }) => {
-    const destinationType = destinationTypes?.[defaultValue.type];
-    const [filter, setFilter] = useState<Filter>(defaultValue.filter || null);
-    const [showFilter, setShowFilter] = useState(!!defaultValue.filter);
-    const [filterValid, setFilterValid] = useState(true);
-    const sidebar = useSidebar();
-
-    const isFilterEnabled = CONFIGS.ENABLE_DESTINATION_FILTER === "true";
-
-    useEffect(() => {
-      if (onChange) {
-        onChange({ ...defaultValue, filter, filterValid });
-      }
-    }, [filter, filterValid]);
-
-    return (
-      <>
-        <DestinationConfigFields
-          type={destinationType!}
-          destination={undefined}
-        />
-        {isFilterEnabled && (
-          <div className="filter-section">
-            <div className="filter-section__toggle-container">
-              {showFilter ? (
-                <>
-                  <p className="subtitle-s">Event Filter</p>
-                  <button
-                    type="button"
-                    className="filter-section__toggle"
-                    onClick={() => setShowFilter(!showFilter)}
-                  >
-                    {showFilter ? <CloseIcon /> : <AddIcon />}
-                    <span className="filter-section__label">
-                      {showFilter ? "Remove" : "Add Event Filter"}
-                    </span>
-                  </button>
-                </>
-              ) : (
-                <button
-                  type="button"
-                  className="filter-section__toggle"
-                  onClick={() => setShowFilter(!showFilter)}
-                >
-                  <AddIcon />
-                  <span className="filter-section__label">
-                    {showFilter ? "Remove Event Filter" : "Add Event Filter"}
-                  </span>
-                </button>
-              )}
-            </div>
-            {showFilter && (
-              <div className="filter-section__content">
-                <p className="body-m muted">
-                  Add a filter to only receive events that match specific
-                  criteria. Leave empty to receive all events matching the
-                  selected topics.
-                </p>
-                <Button
-                  type="button"
-                  onClick={() =>
-                    sidebar.toggle("filter-syntax", <FilterSyntaxGuide />)
-                  }
-                  className="filter-section__guide-button"
-                >
-                  <HelpIcon />
-                  Filter Syntax Guide
-                </Button>
-                <FilterField
-                  value={filter}
-                  onChange={setFilter}
-                  onValidChange={setFilterValid}
-                />
-                <input
-                  type="hidden"
-                  name="filter"
-                  value={filter ? JSON.stringify(filter) : ""}
-                />
-              </div>
-            )}
-          </div>
-        )}
-      </>
-    );
-  },
-  action: "Create Destination",
 };
+
+export type CreateDestinationContextValue = {
+  stepValues: Record<string, any>;
+  setStepValues: React.Dispatch<React.SetStateAction<Record<string, any>>>;
+  destinationTypes: Record<string, DestinationTypeReference>;
+  hasDestinationTypes: boolean;
+  nextPath: string | null;
+  steps: StepDef[];
+  buildSearchParams: (extra?: Record<string, string>) => string;
+};
+
+const CreateDestinationContext =
+  createContext<CreateDestinationContextValue | null>(null);
+
+export function useCreateDestinationContext(): CreateDestinationContextValue {
+  const ctx = useContext(CreateDestinationContext);
+  if (!ctx) {
+    throw new Error(
+      "useCreateDestinationContext must be used within CreateDestination",
+    );
+  }
+  return ctx;
+}
 
 export default function CreateDestination() {
-  const apiClient = useContext(ApiContext);
-
   const AVAILABLE_TOPICS = CONFIGS.TOPICS.split(",").filter(Boolean);
-  let steps = [EVENT_TOPICS_STEP, DESTINATION_TYPE_STEP, CONFIGURATION_STEP];
+  const steps = useMemo(() => {
+    if (AVAILABLE_TOPICS.length === 0) {
+      return [TYPE_STEP, CONFIG_STEP];
+    }
+    return [TOPICS_STEP, TYPE_STEP, CONFIG_STEP];
+  }, [AVAILABLE_TOPICS.length]);
 
-  // If there are no topics, skip the first step
-  if (AVAILABLE_TOPICS.length === 0 && steps.length === 3) {
-    steps = [DESTINATION_TYPE_STEP, CONFIGURATION_STEP];
-  }
-
+  const location = useLocation();
   const navigate = useNavigate();
-  const [currentStepIndex, setCurrentStepIndex] = useState(0);
-  const [stepValues, setStepValues] = useState<Record<string, any>>({});
-  const [isCreating, setIsCreating] = useState(false);
+  const [searchParams] = useSearchParams();
   const destinationTypes = useDestinationTypes();
   const hasDestinationTypes = Object.keys(destinationTypes).length > 0;
-  const [isValid, setIsValid] = useState(false);
 
-  const currentStep = steps[currentStepIndex];
-  const nextStep = steps[currentStepIndex + 1] || null;
+  // Hydrate stepValues from URL search params on mount (supports page refresh)
+  const [stepValues, setStepValues] = useState<Record<string, any>>(() => {
+    const initial: Record<string, any> = {};
+    const topicsParam = searchParams.get("topics");
+    if (topicsParam) {
+      initial.topics = topicsParam.split(",").filter(Boolean);
+    }
+    const typeParam = searchParams.get("type");
+    if (typeParam) {
+      initial.type = typeParam;
+    }
+    return initial;
+  });
+  const [maxReachedIndex, setMaxReachedIndex] = useState(0);
 
-  // Validate the current step when it changes or stepValues change
+  // Derive current step index from URL
+  const currentStepIndex = useMemo(() => {
+    const currentPath = location.pathname.split("/new/")[1]?.split("/")[0];
+    const index = steps.findIndex((s) => s.path === currentPath);
+    return index >= 0 ? index : 0;
+  }, [location.pathname, steps]);
+
+  // Update max reached step when navigating forward
   useEffect(() => {
-    if (currentStep.isValid) {
-      setIsValid(currentStep.isValid(stepValues));
-    } else {
-      setIsValid(false);
+    if (currentStepIndex > maxReachedIndex) {
+      setMaxReachedIndex(currentStepIndex);
     }
-  }, [currentStepIndex, stepValues, currentStep]);
+  }, [currentStepIndex, maxReachedIndex]);
 
-  const createDestination = (values: Record<string, any>) => {
-    setIsCreating(true);
+  // Compute next step path for child components
+  const nextPath = useMemo(() => {
+    const nextStep = steps[currentStepIndex + 1];
+    return nextStep ? `/new/${nextStep.path}` : null;
+  }, [steps, currentStepIndex]);
 
-    const destination_type = destinationTypes[values.type];
-
-    let topics: string[];
-    if (typeof values.topics === "string") {
-      topics = values.topics.split(",").filter(Boolean);
-    } else if (typeof values.topics === "undefined") {
-      topics = ["*"];
-    } else if (Array.isArray(values.topics)) {
-      topics = values.topics;
-    } else {
-      // Default to all topics
-      topics = ["*"];
-    }
-
-    // Parse filter from JSON string if provided
-    let filter: Filter = null;
-    if (values.filter) {
-      try {
-        filter =
-          typeof values.filter === "string"
-            ? JSON.parse(values.filter)
-            : values.filter;
-      } catch (e) {
-        // Invalid JSON, ignore filter
+  // Build search params string from current stepValues, with optional extras
+  const buildSearchParams = useCallback(
+    (extra?: Record<string, string>) => {
+      const params = new URLSearchParams();
+      const topics = extra?.topics ?? stepValues.topics;
+      if (topics) {
+        const topicsStr = Array.isArray(topics) ? topics.join(",") : topics;
+        if (topicsStr) params.set("topics", topicsStr);
       }
-    }
+      const type = extra?.type ?? stepValues.type;
+      if (type) params.set("type", type);
+      const qs = params.toString();
+      return qs ? `?${qs}` : "";
+    },
+    [stepValues],
+  );
 
-    apiClient
-      .fetch(`destinations`, {
-        method: "POST",
-        body: JSON.stringify({
-          type: values.type,
-          topics: topics,
-          ...(filter && Object.keys(filter).length > 0 ? { filter } : {}),
-          config: Object.fromEntries(
-            Object.entries(values)
-              .filter(([key]) =>
-                destination_type?.config_fields.some(
-                  (field) => field.key === key,
-                ),
-              )
-              .map(([key, value]) => [key, String(value)]),
-          ),
-          credentials: Object.fromEntries(
-            Object.entries(values).filter(([key]) =>
-              destination_type?.credential_fields.some(
-                (field) => field.key === key,
-              ),
-            ),
-          ),
-        }),
-      })
-      .then((data) => {
-        showToast("success", `Destination created`);
-        mutate(`destinations/${data.id}`, data, false);
-        navigate(`/destinations/${data.id}`);
-      })
-      .catch((error) => {
-        showToast("error", formatError(error));
-      })
-      .finally(() => {
-        setIsCreating(false);
-      });
-  };
+  const handleSidebarClick = useCallback(
+    (index: number) => {
+      navigate(`/new/${steps[index].path}${buildSearchParams()}`);
+    },
+    [navigate, steps, buildSearchParams],
+  );
+
+  const contextValue = useMemo(
+    () => ({
+      stepValues,
+      setStepValues,
+      destinationTypes,
+      hasDestinationTypes,
+      nextPath,
+      steps,
+      buildSearchParams,
+    }),
+    [stepValues, setStepValues, destinationTypes, hasDestinationTypes, nextPath, steps, buildSearchParams],
+  );
 
   return (
-    <div className="create-destination">
-      <div className="create-destination__sidebar">
-        <Button to="/" minimal>
-          <CloseIcon /> Cancel
-        </Button>
-        <div className="create-destination__sidebar__steps">
-          {steps.map((step, index) => (
-            <button
-              key={index}
-              disabled={index > currentStepIndex}
-              onClick={() => setCurrentStepIndex(index)}
-              className={`create-destination__sidebar__steps__step ${
-                currentStepIndex === index ? "active" : ""
-              }`}
-            >
-              <Badge
-                text={`${index + 1}`}
-                primary={currentStepIndex === index}
-              />{" "}
-              {step.sidebar_shortname}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="create-destination__step">
-        <div className="create-destination__step__header">
-          <h1 className="title-xl">{currentStep.title}</h1>
-          <p className="body-m muted">{currentStep.description}</p>
-        </div>
-        <form
-          key={currentStepIndex}
-          onChange={(e) => {
-            const formData = new FormData(e.currentTarget);
-            const values = Object.fromEntries(formData.entries());
-            const allValues = { ...stepValues, ...values };
-
-            if (currentStep.autoAdvance && nextStep && currentStep.isValid?.(allValues)) {
-              setStepValues(allValues);
-              setCurrentStepIndex(currentStepIndex + 1);
-              return;
-            }
-
-            if (currentStep.isValid) {
-              setIsValid(currentStep.isValid(allValues));
-            } else {
-              setIsValid(e.currentTarget.checkValidity());
-            }
-          }}
-          onSubmit={(e) => {
-            e.preventDefault();
-            const form = e.target as HTMLFormElement;
-            const values = getFormValues(form);
-
-            const newValues = { ...stepValues, ...values };
-            if (nextStep) {
-              setStepValues(newValues);
-              setCurrentStepIndex(currentStepIndex + 1);
-            } else {
-              createDestination(newValues);
-            }
-          }}
-        >
-          <div className="create-destination__step__fields">
-            {hasDestinationTypes ? (
-              <currentStep.FormFields
-                defaultValue={stepValues}
-                destinationTypes={destinationTypes}
-                onChange={(values) => {
-                  setStepValues((prev) => ({ ...prev, ...values }));
-                  if (currentStep.isValid) {
-                    setIsValid(
-                      currentStep.isValid({ ...stepValues, ...values }),
-                    );
-                  }
-                }}
-              />
-            ) : (
-              <div>
-                <Loading />
-              </div>
-            )}
-          </div>
-          {!currentStep.autoAdvance && (
-            <div className="create-destination__step__actions">
-              <Button
-                disabled={!isValid}
-                primary
-                type="submit"
-                loading={isCreating}
+    <CreateDestinationContext.Provider value={contextValue}>
+      <div className="create-destination">
+        <div className="create-destination__sidebar">
+          <Button to="/" minimal>
+            <CloseIcon /> Cancel
+          </Button>
+          <div className="create-destination__sidebar__steps">
+            {steps.map((step, index) => (
+              <button
+                key={step.path}
+                disabled={index > maxReachedIndex}
+                onClick={() => handleSidebarClick(index)}
+                className={`create-destination__sidebar__steps__step ${
+                  currentStepIndex === index ? "active" : ""
+                }`}
               >
-                {currentStep.action}
-              </Button>
-            </div>
-          )}
-        </form>
+                <Badge
+                  text={`${index + 1}`}
+                  primary={currentStepIndex === index}
+                />{" "}
+                {step.sidebar_shortname}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="create-destination__step">
+          <Routes>
+            <Route path="topics" element={<TopicsStep />} />
+            <Route path="type" element={<TypeStep />} />
+            <Route path="config" element={<ConfigStep />} />
+            <Route
+              path="*"
+              element={<Navigate to={`/new/${steps[0].path}`} replace />}
+            />
+          </Routes>
+        </div>
       </div>
-    </div>
+    </CreateDestinationContext.Provider>
   );
 }
