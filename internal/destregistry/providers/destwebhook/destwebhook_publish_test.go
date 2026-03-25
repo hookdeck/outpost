@@ -279,13 +279,12 @@ func (s *WebhookPublishSuite) setupExpiredSecretsSuite() {
 
 // Custom header prefix test configuration
 func (s *WebhookPublishSuite) setupCustomHeaderSuite() {
-	const customPrefix = "x-custom-"
-	consumer := NewWebhookConsumer(customPrefix)
+	consumer := NewWebhookConsumer("x-custom-")
 
 	provider, err := destwebhook.New(
 		testutil.Registry.MetadataLoader(),
 		nil,
-		destwebhook.WithHeaderPrefix(customPrefix),
+		destwebhook.WithHeaderPrefix(new("x-custom-")),
 	)
 	require.NoError(s.T(), err)
 
@@ -304,7 +303,7 @@ func (s *WebhookPublishSuite) setupCustomHeaderSuite() {
 		Dest:     &dest,
 		Consumer: consumer,
 		Asserter: &WebhookAsserter{
-			headerPrefix:       customPrefix,
+			headerPrefix:       "x-custom-",
 			expectedSignatures: 1,
 			secrets:            []string{"test-secret"},
 		},
@@ -427,6 +426,79 @@ func TestWebhookPublisher_DisableDefaultHeaders(t *testing.T) {
 			} else {
 				assert.Empty(t, req.Header.Get(tt.expectedHeader))
 			}
+		})
+	}
+}
+
+func TestWebhookPublisher_EmptyHeaderPrefix(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		prefix *string
+		want   string // expected prefix on headers
+	}{
+		{
+			name:   "nil prefix uses default",
+			prefix: nil,
+			want:   "x-outpost-",
+		},
+		{
+			name:   "empty string disables prefix",
+			prefix: new(""),
+			want:   "",
+		},
+		{
+			name:   "whitespace-only disables prefix",
+			prefix: new("  "),
+			want:   "",
+		},
+		{
+			name:   "custom prefix is applied",
+			prefix: new("x-custom-"),
+			want:   "x-custom-",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			opts := []destwebhook.Option{}
+			if tt.prefix != nil {
+				opts = append(opts, destwebhook.WithHeaderPrefix(tt.prefix))
+			}
+
+			provider, err := destwebhook.New(testutil.Registry.MetadataLoader(), nil, opts...)
+			require.NoError(t, err)
+
+			destination := testutil.DestinationFactory.Any(
+				testutil.DestinationFactory.WithType("webhook"),
+				testutil.DestinationFactory.WithConfig(map[string]string{
+					"url": "http://example.com/webhook",
+				}),
+				testutil.DestinationFactory.WithCredentials(map[string]string{
+					"secret": "test-secret",
+				}),
+			)
+
+			publisher, err := provider.CreatePublisher(context.Background(), &destination)
+			require.NoError(t, err)
+
+			event := testutil.EventFactory.Any(
+				testutil.EventFactory.WithID("evt_123"),
+				testutil.EventFactory.WithTopic("user.created"),
+				testutil.EventFactory.WithDataMap(map[string]interface{}{"key": "value"}),
+			)
+
+			req, err := publisher.(*destwebhook.WebhookPublisher).Format(context.Background(), &event)
+			require.NoError(t, err)
+
+			// Verify headers use the expected prefix
+			assert.Equal(t, "evt_123", req.Header.Get(tt.want+"event-id"))
+			assert.NotEmpty(t, req.Header.Get(tt.want+"timestamp"))
+			assert.Equal(t, "user.created", req.Header.Get(tt.want+"topic"))
+			assert.NotEmpty(t, req.Header.Get(tt.want+"signature"))
 		})
 	}
 }

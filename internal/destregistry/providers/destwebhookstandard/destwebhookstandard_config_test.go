@@ -126,7 +126,7 @@ func TestNew(t *testing.T) {
 		provider, err := destwebhookstandard.New(
 			testutil.Registry.MetadataLoader(),
 			nil,
-			destwebhookstandard.WithHeaderPrefix("x-custom-"),
+			destwebhookstandard.WithHeaderPrefix(new("x-custom-")),
 		)
 		require.NoError(t, err)
 		assert.NotNil(t, provider)
@@ -139,7 +139,7 @@ func TestNew(t *testing.T) {
 			nil,
 			destwebhookstandard.WithUserAgent("test-agent"),
 			destwebhookstandard.WithProxyURL("http://proxy.example.com"),
-			destwebhookstandard.WithHeaderPrefix("x-outpost-"),
+			destwebhookstandard.WithHeaderPrefix(new("x-outpost-")),
 		)
 		require.NoError(t, err)
 		assert.NotNil(t, provider)

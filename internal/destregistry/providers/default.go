@@ -17,7 +17,7 @@ import (
 type DestWebhookConfig struct {
 	Mode                          string
 	ProxyURL                      string
-	HeaderPrefix                  string
+	HeaderPrefix                  *string
 	DisableDefaultEventIDHeader   bool
 	DisableDefaultSignatureHeader bool
 	DisableDefaultTimestampHeader bool

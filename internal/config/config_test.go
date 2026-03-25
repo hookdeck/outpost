@@ -359,6 +359,28 @@ destinations:
 			},
 			want: "x-env-",
 		},
+		{
+			name: "whitespace disables prefix via yaml",
+			files: map[string][]byte{
+				"config.yaml": []byte(`
+destinations:
+  webhook:
+    header_prefix: " "
+`),
+			},
+			envVars: map[string]string{
+				"CONFIG": "config.yaml",
+			},
+			want: " ",
+		},
+		{
+			name:  "whitespace disables prefix via env",
+			files: map[string][]byte{},
+			envVars: map[string]string{
+				"DESTINATIONS_WEBHOOK_HEADER_PREFIX": " ",
+			},
+			want: " ",
+		},
 	}
 
 	for _, tt := range tests {
