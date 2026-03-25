@@ -53,6 +53,7 @@ export type ListAttemptsTopic = string | Array<string>;
  * - `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
  * - `event.data`: Include full event with payload data
  * - `response_data`: Include response body and headers
+ * - `destination`: Include the full destination object
  */
 export type ListAttemptsInclude = string | Array<string>;
 
@@ -139,6 +140,7 @@ export type ListAttemptsRequest = {
    * - `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
    * - `event.data`: Include full event with payload data
    * - `response_data`: Include response body and headers
+   * - `destination`: Include the full destination object
    */
   include?: string | Array<string> | undefined;
   /**

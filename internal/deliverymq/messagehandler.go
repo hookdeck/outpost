@@ -195,6 +195,11 @@ func (h *messageHandler) doHandle(ctx context.Context, task models.DeliveryTask,
 			return &PreDeliveryError{err: err}
 		}
 
+		// Record delivery failure for metrics
+		if recorder, ok := span.(interface{ RecordDeliveryResult(bool) }); ok {
+			recorder.RecordDeliveryResult(false)
+		}
+
 		h.logger.Ctx(ctx).Error("failed to publish event",
 			zap.Error(err),
 			zap.String("attempt_id", attempt.ID),
@@ -205,11 +210,27 @@ func (h *messageHandler) doHandle(ctx context.Context, task models.DeliveryTask,
 		attemptErr := &AttemptError{err: err}
 
 		if h.shouldScheduleRetry(task, err) {
+			// scheduleRetry uses RetryID (event_id:destination_id) as the scheduler
+			// task ID. The scheduler has upsert semantics: scheduling with the same ID
+			// atomically replaces the existing entry (both timing and payload). This
+			// means manual retries automatically override any pending automatic retry
+			// without needing an explicit cancel — the new tier's delay takes effect
+			// and the old scheduled retry is gone in a single operation.
 			if retryErr := h.scheduleRetry(ctx, task); retryErr != nil {
 				return h.logDeliveryResult(ctx, &task, destination, attempt, errors.Join(err, retryErr))
 			}
+		} else if task.Manual {
+			// Budget exhausted or not eligible — cancel any lingering scheduled retry.
+			// Unlike the case above, there's no new retry to schedule so we must
+			// explicitly cancel to prevent a stale automatic retry from firing.
+			_ = h.retryScheduler.Cancel(ctx, models.RetryID(task.Event.ID, task.DestinationID))
 		}
 		return h.logDeliveryResult(ctx, &task, destination, attempt, attemptErr)
+	}
+
+	// Record delivery success for metrics
+	if recorder, ok := span.(interface{ RecordDeliveryResult(bool) }); ok {
+		recorder.RecordDeliveryResult(true)
 	}
 
 	// Handle successful delivery
@@ -350,9 +371,6 @@ func (h *messageHandler) handleAlertAttempt(ctx context.Context, task *models.De
 }
 
 func (h *messageHandler) shouldScheduleRetry(task models.DeliveryTask, err error) bool {
-	if task.Manual {
-		return false
-	}
 	if !task.Event.EligibleForRetry {
 		return false
 	}
@@ -360,7 +378,7 @@ func (h *messageHandler) shouldScheduleRetry(task models.DeliveryTask, err error
 	if !errors.As(err, &pubErr) {
 		return false
 	}
-	// Attempt starts at 1 for initial attempt, so use <= to allow retryMaxLimit total attempts
+	// Attempt is 1-indexed: max attempts = 1 (initial) + retryMaxLimit (retries)
 	return task.Attempt <= h.retryMaxLimit
 }
 
@@ -410,11 +428,9 @@ func (h *messageHandler) shouldNackDeliveryError(err error) bool {
 }
 
 func (h *messageHandler) scheduleRetry(ctx context.Context, task models.DeliveryTask) error {
-	// Backoff expects a 0-based index (0 for first retry, 1 for second, etc.).
-	// attempt_number changed from 0-based to 1-based without migrating in-flight
-	// tasks, so clamp to 0 to safely handle any leftover Attempt=0 tasks.
-	backoffIndex := max(task.Attempt-1, 0)
-	backoffDuration := h.retryBackoff.Duration(backoffIndex)
+	// Attempt is 1-indexed; backoff schedule is 0-indexed.
+	// Clamp to 0 to safely handle any leftover Attempt=0 in-flight tasks.
+	backoffDuration := h.retryBackoff.Duration(max(task.Attempt-1, 0))
 
 	retryTask := RetryTaskFromDeliveryTask(task)
 	retryTaskStr, err := retryTask.ToString()

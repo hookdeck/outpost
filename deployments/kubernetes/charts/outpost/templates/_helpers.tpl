@@ -49,7 +49,7 @@ Service environment variables
 {{- range .Values.outpost.env }}
 - name: {{ .name }}
   {{- if .value }}
-  value: {{ .value }}
+  value: {{ .value | quote }}
   {{- else if .valueFrom }}
   valueFrom:
     {{- toYaml .valueFrom | nindent 4 }}

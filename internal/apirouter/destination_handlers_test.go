@@ -8,6 +8,7 @@ import (
 
 	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/hookdeck/outpost/internal/models"
+	"github.com/hookdeck/outpost/internal/tenantstore"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -39,7 +40,7 @@ func TestAPI_Destinations(t *testing.T) {
 			assert.Equal(t, models.Topics{"user.created"}, dest.Topics)
 
 			// Verify in store
-			dests, err := h.tenantStore.ListDestinationByTenant(t.Context(), "t1")
+			dests, err := h.tenantStore.ListDestination(t.Context(), tenantstore.ListDestinationRequest{TenantID: "t1"})
 			require.NoError(t, err)
 			assert.Len(t, dests, 1)
 		})

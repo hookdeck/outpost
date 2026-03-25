@@ -7,6 +7,7 @@ import { Attempts } from "./attempts.js";
 import { Destinations } from "./destinations.js";
 import { Events } from "./events.js";
 import { Health } from "./health.js";
+import { Metrics } from "./metrics.js";
 import { Publish } from "./publish.js";
 import { Schemas } from "./schemas.js";
 import { Tenants } from "./tenants.js";
@@ -51,5 +52,10 @@ export class Outpost extends ClientSDK {
   private _topics?: Topics;
   get topics(): Topics {
     return (this._topics ??= new Topics(this._options));
+  }
+
+  private _metrics?: Metrics;
+  get metrics(): Metrics {
+    return (this._metrics ??= new Metrics(this._options));
   }
 }

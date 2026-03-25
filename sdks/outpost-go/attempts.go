@@ -35,6 +35,7 @@ import (
 // - `include=event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
 // - `include=event.data`: Include full event with payload data
 // - `include=response_data`: Include response body and headers from the attempt
+// - `include=destination`: Include the full destination object with target information
 type Attempts struct {
 	rootSDK          *Outpost
 	sdkConfiguration config.SDKConfiguration

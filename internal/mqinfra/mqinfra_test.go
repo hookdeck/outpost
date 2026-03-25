@@ -182,6 +182,7 @@ func testMQInfra(t *testing.T, mqConfig *Config, dlqConfig *Config) {
 }
 
 func TestIntegrationMQInfra_RabbitMQ(t *testing.T) {
+	testutil.CheckIntegrationTest(t)
 	exchange := idgen.String()
 	queue := idgen.String()
 
@@ -225,6 +226,7 @@ func TestIntegrationMQInfra_RabbitMQ(t *testing.T) {
 }
 
 func TestIntegrationMQInfra_AWSSQS(t *testing.T) {
+	testutil.CheckIntegrationTest(t)
 	q := idgen.String()
 
 	testMQInfra(t,
@@ -274,6 +276,7 @@ func TestIntegrationMQInfra_AWSSQS(t *testing.T) {
 }
 
 func TestIntegrationMQInfra_GCPPubSub(t *testing.T) {
+	testutil.CheckIntegrationTest(t)
 	// Set PUBSUB_EMULATOR_HOST environment variable
 	testinfra.EnsureGCP()
 

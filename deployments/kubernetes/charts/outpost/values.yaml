@@ -13,6 +13,38 @@ outpost:
     delivery: 1 # Default to 1, scale based on queue size
     log: 1 # Default to 1, scale based on log volume
 
+  # ServiceAccount to use for pods
+  serviceAccountName: ""
+
+  # Security contexts
+  podSecurityContext: {}
+  securityContext: {}
+
+  # Container resources (optional)
+  resources: {}
+
+  # Extra labels added to pod templates
+  podLabels: {}
+
+  # Annotations added to pod templates
+  podAnnotations: {}
+
+  # Pod scheduling constraints
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
+
+  # Additional volumes and mounts
+  extraVolumes: []
+  extraVolumeMounts: []
+
+  # Environment variables from Secrets/ConfigMaps
+  envFrom: []
+  # - secretRef:
+  #     name: my-secret
+  # - configMapRef:
+  #     name: my-configmap
+
   service:
     type: ClusterIP
     port: 3333
@@ -23,7 +55,7 @@ outpost:
   config: {}
 
 ingress:
-  enabled: true
+  enabled: false
   className: nginx
   annotations: {}
   hosts:

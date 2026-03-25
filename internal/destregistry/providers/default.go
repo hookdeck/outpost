@@ -8,6 +8,7 @@ import (
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destazureservicebus"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destgcppubsub"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/desthookdeck"
+	"github.com/hookdeck/outpost/internal/destregistry/providers/destkafka"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destrabbitmq"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destwebhook"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destwebhookstandard"
@@ -25,6 +26,7 @@ type DestWebhookConfig struct {
 	SignatureHeaderTemplate       string
 	SignatureEncoding             string
 	SignatureAlgorithm            string
+	SigningSecretTemplate         string
 }
 
 type DestAWSKinesisConfig struct {
@@ -80,6 +82,7 @@ func RegisterDefault(registry destregistry.Registry, opts RegisterDefaultDestina
 				destwebhook.WithSignatureHeaderTemplate(opts.Webhook.SignatureHeaderTemplate),
 				destwebhook.WithSignatureEncoding(opts.Webhook.SignatureEncoding),
 				destwebhook.WithSignatureAlgorithm(opts.Webhook.SignatureAlgorithm),
+				destwebhook.WithSigningSecretTemplate(opts.Webhook.SigningSecretTemplate),
 			)
 		}
 		webhook, err := destwebhook.New(loader, basePublisherOpts, webhookOpts...)
@@ -137,6 +140,12 @@ func RegisterDefault(registry destregistry.Registry, opts RegisterDefaultDestina
 		return err
 	}
 	registry.RegisterProvider("rabbitmq", rabbitmq)
+
+	kafkaDest, err := destkafka.New(loader, basePublisherOpts)
+	if err != nil {
+		return err
+	}
+	registry.RegisterProvider("kafka", kafkaDest)
 
 	return nil
 }

@@ -37,6 +37,165 @@ func (e *Status) UnmarshalJSON(data []byte) error {
 	}
 }
 
+// EventFull - Full event object with data (returned when include=event.data).
+type EventFull struct {
+	ID *string `json:"id,omitempty"`
+	// The tenant this event belongs to.
+	TenantID *string `json:"tenant_id,omitempty"`
+	// The destination this event was delivered to.
+	DestinationID *string `json:"destination_id,omitempty"`
+	Topic         *string `json:"topic,omitempty"`
+	// Time the event was received.
+	Time *time.Time `json:"time,omitempty"`
+	// Whether this event can be retried.
+	EligibleForRetry *bool             `json:"eligible_for_retry,omitempty"`
+	Metadata         map[string]string `json:"metadata,omitempty"`
+	// The event payload data.
+	Data map[string]any `json:"data,omitempty"`
+}
+
+func (e EventFull) MarshalJSON() ([]byte, error) {
+	return utils.MarshalJSON(e, "", false)
+}
+
+func (e *EventFull) UnmarshalJSON(data []byte) error {
+	if err := utils.UnmarshalJSON(data, &e, "", false, nil); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (e *EventFull) GetID() *string {
+	if e == nil {
+		return nil
+	}
+	return e.ID
+}
+
+func (e *EventFull) GetTenantID() *string {
+	if e == nil {
+		return nil
+	}
+	return e.TenantID
+}
+
+func (e *EventFull) GetDestinationID() *string {
+	if e == nil {
+		return nil
+	}
+	return e.DestinationID
+}
+
+func (e *EventFull) GetTopic() *string {
+	if e == nil {
+		return nil
+	}
+	return e.Topic
+}
+
+func (e *EventFull) GetTime() *time.Time {
+	if e == nil {
+		return nil
+	}
+	return e.Time
+}
+
+func (e *EventFull) GetEligibleForRetry() *bool {
+	if e == nil {
+		return nil
+	}
+	return e.EligibleForRetry
+}
+
+func (e *EventFull) GetMetadata() map[string]string {
+	if e == nil {
+		return nil
+	}
+	return e.Metadata
+}
+
+func (e *EventFull) GetData() map[string]any {
+	if e == nil {
+		return nil
+	}
+	return e.Data
+}
+
+// EventSummary - Event object without data (returned when include=event).
+type EventSummary struct {
+	ID *string `json:"id,omitempty"`
+	// The tenant this event belongs to.
+	TenantID *string `json:"tenant_id,omitempty"`
+	// The destination this event was delivered to.
+	DestinationID *string `json:"destination_id,omitempty"`
+	Topic         *string `json:"topic,omitempty"`
+	// Time the event was received.
+	Time *time.Time `json:"time,omitempty"`
+	// Whether this event can be retried.
+	EligibleForRetry *bool             `json:"eligible_for_retry,omitempty"`
+	Metadata         map[string]string `json:"metadata,omitempty"`
+}
+
+func (e EventSummary) MarshalJSON() ([]byte, error) {
+	return utils.MarshalJSON(e, "", false)
+}
+
+func (e *EventSummary) UnmarshalJSON(data []byte) error {
+	if err := utils.UnmarshalJSON(data, &e, "", false, nil); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (e *EventSummary) GetID() *string {
+	if e == nil {
+		return nil
+	}
+	return e.ID
+}
+
+func (e *EventSummary) GetTenantID() *string {
+	if e == nil {
+		return nil
+	}
+	return e.TenantID
+}
+
+func (e *EventSummary) GetDestinationID() *string {
+	if e == nil {
+		return nil
+	}
+	return e.DestinationID
+}
+
+func (e *EventSummary) GetTopic() *string {
+	if e == nil {
+		return nil
+	}
+	return e.Topic
+}
+
+func (e *EventSummary) GetTime() *time.Time {
+	if e == nil {
+		return nil
+	}
+	return e.Time
+}
+
+func (e *EventSummary) GetEligibleForRetry() *bool {
+	if e == nil {
+		return nil
+	}
+	return e.EligibleForRetry
+}
+
+func (e *EventSummary) GetMetadata() map[string]string {
+	if e == nil {
+		return nil
+	}
+	return e.Metadata
+}
+
 type EventUnionType string
 
 const (
@@ -124,7 +283,8 @@ type Attempt struct {
 	// The destination ID this attempt was sent to.
 	DestinationID *string `json:"destination_id,omitempty"`
 	// The associated event object. Only present when include=event or include=event.data.
-	Event *EventUnion `json:"event,omitempty"`
+	Event       *EventUnion  `json:"event,omitempty"`
+	Destination *Destination `json:"destination,omitempty"`
 }
 
 func (a Attempt) MarshalJSON() ([]byte, error) {
@@ -213,4 +373,67 @@ func (a *Attempt) GetEvent() *EventUnion {
 		return nil
 	}
 	return a.Event
+}
+
+func (a *Attempt) GetDestination() *Destination {
+	if a == nil {
+		return nil
+	}
+	return a.Destination
+}
+
+func (a *Attempt) GetDestinationWebhook() *DestinationWebhook {
+	if v := a.GetDestination(); v != nil {
+		return v.DestinationWebhook
+	}
+	return nil
+}
+
+func (a *Attempt) GetDestinationAwsSqs() *DestinationAWSSQS {
+	if v := a.GetDestination(); v != nil {
+		return v.DestinationAWSSQS
+	}
+	return nil
+}
+
+func (a *Attempt) GetDestinationRabbitmq() *DestinationRabbitMQ {
+	if v := a.GetDestination(); v != nil {
+		return v.DestinationRabbitMQ
+	}
+	return nil
+}
+
+func (a *Attempt) GetDestinationHookdeck() *DestinationHookdeck {
+	if v := a.GetDestination(); v != nil {
+		return v.DestinationHookdeck
+	}
+	return nil
+}
+
+func (a *Attempt) GetDestinationAwsKinesis() *DestinationAWSKinesis {
+	if v := a.GetDestination(); v != nil {
+		return v.DestinationAWSKinesis
+	}
+	return nil
+}
+
+func (a *Attempt) GetDestinationAzureServicebus() *DestinationAzureServiceBus {
+	if v := a.GetDestination(); v != nil {
+		return v.DestinationAzureServiceBus
+	}
+	return nil
+}
+
+func (a *Attempt) GetDestinationAwsS3() *DestinationAwss3 {
+	if v := a.GetDestination(); v != nil {
+		return v.DestinationAwss3
+	}
+	return nil
+}
+
+func (a *Attempt) GetDestinationGcpPubsub() *DestinationGCPPubSub {
+	if v := a.GetDestination(); v != nil {
+		return v.DestinationGCPPubSub
+	}
+	return nil
 }

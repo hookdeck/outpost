@@ -4,14 +4,18 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"math/big"
 	"net/http"
 	"regexp"
 	"strings"
+	"text/template"
 	"time"
 
+	"github.com/Masterminds/sprig/v3"
 	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/hookdeck/outpost/internal/destregistry/metadata"
 	"github.com/hookdeck/outpost/internal/models"
@@ -89,6 +93,8 @@ type WebhookDestination struct {
 	disableTopicHeader       bool
 	encoding                 string
 	algorithm                string
+	rawSigningSecretTemplate string
+	signingSecretTemplate    *template.Template
 }
 
 type WebhookDestinationConfig struct {
@@ -184,6 +190,21 @@ func WithSignatureAlgorithm(algorithm string) Option {
 	}
 }
 
+func WithSigningSecretTemplate(templateStr string) Option {
+	return func(w *WebhookDestination) {
+		w.rawSigningSecretTemplate = templateStr
+	}
+}
+
+const defaultSigningSecretTemplate = `{{.RandomHex}}`
+
+// signingSecretTemplateData holds the variables available in signing secret templates.
+type signingSecretTemplateData struct {
+	RandomHex          string
+	RandomBase64       string
+	RandomAlphanumeric string
+}
+
 func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePublisherOption, opts ...Option) (*WebhookDestination, error) {
 	base, err := destregistry.NewBaseProvider(loader, "webhook", basePublisherOpts...)
 	if err != nil {
@@ -198,6 +219,18 @@ func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePu
 	for _, opt := range opts {
 		opt(destination)
 	}
+
+	// Parse signing secret template — fail on invalid syntax
+	templateStr := destination.rawSigningSecretTemplate
+	if templateStr == "" {
+		templateStr = defaultSigningSecretTemplate
+	}
+	tmpl, err := template.New("signing_secret").Funcs(sprig.TxtFuncMap()).Parse(templateStr)
+	if err != nil {
+		return nil, fmt.Errorf("invalid signing secret template %q: %w", templateStr, err)
+	}
+	destination.signingSecretTemplate = tmpl
+
 	return destination, nil
 }
 
@@ -420,7 +453,7 @@ func (d *WebhookDestination) rotateSecret(newDest, origDest *models.Destination)
 	creds["previous_secret"] = origDest.Credentials["secret"]
 
 	// Generate a new secret
-	secret, err := generateSignatureSecret()
+	secret, err := d.generateSignatureSecret()
 	if err != nil {
 		return nil, err
 	}
@@ -521,7 +554,7 @@ func (d *WebhookDestination) ensureInitializedCredentials(creds map[string]strin
 	}
 
 	// Otherwise generate a new secret
-	secret, err := generateSignatureSecret()
+	secret, err := d.generateSignatureSecret()
 	if err != nil {
 		return nil, err
 	}
@@ -672,15 +705,44 @@ func (p *WebhookPublisher) Format(ctx context.Context, event *models.Event) (*ht
 	return req, nil
 }
 
-// generateSignatureSecret creates a cryptographically secure random secret suitable for HMAC signatures.
-// The secret is 32 bytes (256 bits) encoded as a hex string.
-func generateSignatureSecret() (string, error) {
-	// Generate a random 32-byte hex string
+// generateSignatureSecret creates a cryptographically secure random secret using the configured template.
+// The default template produces a 64-character hex string (32 random bytes).
+func (d *WebhookDestination) generateSignatureSecret() (string, error) {
 	randomBytes := make([]byte, 32)
 	if _, err := rand.Read(randomBytes); err != nil {
-		return "", fmt.Errorf("failed to generate random secret: %w", err)
+		return "", fmt.Errorf("failed to generate random bytes: %w", err)
 	}
-	return hex.EncodeToString(randomBytes), nil
+
+	alphanumeric, err := randomAlphanumeric(32)
+	if err != nil {
+		return "", err
+	}
+
+	data := signingSecretTemplateData{
+		RandomHex:          hex.EncodeToString(randomBytes),
+		RandomBase64:       base64.StdEncoding.EncodeToString(randomBytes),
+		RandomAlphanumeric: alphanumeric,
+	}
+
+	var buf bytes.Buffer
+	if err := d.signingSecretTemplate.Execute(&buf, data); err != nil {
+		return "", fmt.Errorf("failed to execute signing secret template: %w", err)
+	}
+	return buf.String(), nil
+}
+
+const alphanumericChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+
+func randomAlphanumeric(n int) (string, error) {
+	result := make([]byte, n)
+	for i := range result {
+		idx, err := rand.Int(rand.Reader, big.NewInt(int64(len(alphanumericChars))))
+		if err != nil {
+			return "", fmt.Errorf("failed to generate random alphanumeric: %w", err)
+		}
+		result[i] = alphanumericChars[idx.Int64()]
+	}
+	return string(result), nil
 }
 
 // GetEncoder returns the appropriate SignatureEncoder for the given encoding

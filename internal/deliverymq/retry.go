@@ -15,10 +15,10 @@ import (
 	"go.uber.org/zap"
 )
 
-// RetryEventGetter is the interface for fetching events from logstore.
-// This is defined separately from EventGetter in messagehandler.go to avoid circular dependencies.
+// RetryEventGetter is the interface for fetching prior attempts from logstore.
+// ListAttempt returns both the attempt and the associated event data.
 type RetryEventGetter interface {
-	RetrieveEvent(ctx context.Context, request logstore.RetrieveEventRequest) (*models.Event, error)
+	ListAttempt(ctx context.Context, request logstore.ListAttemptRequest) (logstore.ListAttemptResponse, error)
 }
 
 // RetrySchedulerOption is a functional option for configuring the retry scheduler.
@@ -72,18 +72,19 @@ func NewRetryScheduler(deliverymq *DeliveryMQ, redisConfig *redis.RedisConfig, d
 			return err
 		}
 
-		// Fetch full event data from logstore
-		event, err := eventGetter.RetrieveEvent(ctx, logstore.RetrieveEventRequest{
-			TenantID: retryTask.TenantID,
-			EventID:  retryTask.EventID,
+		// Fetch prior attempt from logstore (single source of truth for both
+		// event data and attempt number). A retry always has at least one prior
+		// attempt — the one that failed and triggered this retry.
+		attemptResp, err := eventGetter.ListAttempt(ctx, logstore.ListAttemptRequest{
+			TenantIDs:      []string{retryTask.TenantID},
+			EventIDs:       []string{retryTask.EventID},
+			DestinationIDs: []string{retryTask.DestinationID},
+			Limit:          1,
+			SortOrder:      "desc",
 		})
 		if err != nil {
-			// Returning an error leaves the message in the RSMQ queue. After the
-			// visibility timeout expires, the message becomes visible again and will
-			// be reprocessed. This handles both transient DB errors and the race
-			// condition where logmq hasn't flushed the event yet.
 			if logger != nil {
-				logger.Ctx(ctx).Error("failed to fetch event for retry",
+				logger.Ctx(ctx).Error("failed to list attempts for retry",
 					zap.Error(err),
 					zap.String("event_id", retryTask.EventID),
 					zap.String("tenant_id", retryTask.TenantID),
@@ -91,19 +92,20 @@ func NewRetryScheduler(deliverymq *DeliveryMQ, redisConfig *redis.RedisConfig, d
 			}
 			return err
 		}
-		if event == nil {
-			// Event not found - may be race condition with logmq batching delay.
+		if len(attemptResp.Data) == 0 {
+			// No prior attempt found — may be race condition with logmq batching delay.
 			// Return error so scheduler retries later.
 			if logger != nil {
-				logger.Ctx(ctx).Warn("event not found in logstore, will retry",
+				logger.Ctx(ctx).Warn("no prior attempt found in logstore, will retry",
 					zap.String("event_id", retryTask.EventID),
 					zap.String("tenant_id", retryTask.TenantID),
 					zap.String("destination_id", retryTask.DestinationID))
 			}
-			return fmt.Errorf("event not found in logstore")
+			return fmt.Errorf("no prior attempt found in logstore")
 		}
 
-		deliveryTask := retryTask.ToDeliveryTask(*event)
+		record := attemptResp.Data[0]
+		deliveryTask := retryTask.ToDeliveryTask(*record.Event, record.Attempt.AttemptNumber+1)
 		if err := deliverymq.Publish(ctx, deliveryTask); err != nil {
 			return err
 		}
@@ -125,7 +127,6 @@ type RetryTask struct {
 	EventID       string
 	TenantID      string
 	DestinationID string
-	Attempt       int
 	Telemetry     *models.DeliveryTelemetry
 }
 
@@ -141,9 +142,9 @@ func (m *RetryTask) FromString(str string) error {
 	return json.Unmarshal([]byte(str), &m)
 }
 
-func (m *RetryTask) ToDeliveryTask(event models.Event) models.DeliveryTask {
+func (m *RetryTask) ToDeliveryTask(event models.Event, attemptNumber int) models.DeliveryTask {
 	return models.DeliveryTask{
-		Attempt:       m.Attempt,
+		Attempt:       attemptNumber,
 		DestinationID: m.DestinationID,
 		Event:         event,
 		Telemetry:     m.Telemetry,
@@ -155,7 +156,6 @@ func RetryTaskFromDeliveryTask(task models.DeliveryTask) RetryTask {
 		EventID:       task.Event.ID,
 		TenantID:      task.Event.TenantID,
 		DestinationID: task.DestinationID,
-		Attempt:       task.Attempt + 1,
 		Telemetry:     task.Telemetry,
 	}
 }

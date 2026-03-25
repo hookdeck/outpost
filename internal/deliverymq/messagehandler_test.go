@@ -770,9 +770,10 @@ func TestManualDelivery_Success(t *testing.T) {
 
 func TestManualDelivery_PublishError(t *testing.T) {
 	// Test scenario:
-	// - Manual delivery fails with publish error
-	// - Should not schedule retry (manual delivery never retries)
-	// - Should be acked
+	// - A pending automatic retry exists at tier 0 (1s delay)
+	// - Manual delivery (attempt 2) fails with publish error
+	// - The schedule should be atomically overridden to the next tier (attempt 3)
+	// - Result: exactly 1 scheduled retry at the new tier, no explicit cancel needed
 
 	// Setup test data
 	tenant := models.Tenant{ID: idgen.String()}
@@ -782,8 +783,10 @@ func TestManualDelivery_PublishError(t *testing.T) {
 	event := testutil.EventFactory.Any(
 		testutil.EventFactory.WithTenantID(tenant.ID),
 		testutil.EventFactory.WithDestinationID(destination.ID),
-		testutil.EventFactory.WithEligibleForRetry(true), // even with retry enabled
+		testutil.EventFactory.WithEligibleForRetry(true),
 	)
+
+	retryID := models.RetryID(event.ID, destination.ID)
 
 	// Setup mocks
 	destGetter := &mockDestinationGetter{dest: &destination}
@@ -800,6 +803,15 @@ func TestManualDelivery_PublishError(t *testing.T) {
 	logPublisher := newMockLogPublisher(nil)
 	alertMonitor := newMockAlertMonitor()
 
+	// Seed: a pending automatic retry exists (scheduled after attempt 1 failed at tier 0 = 1s)
+	retryScheduler.entries[retryID] = scheduledEntry{task: "old-retry", delay: 1 * time.Second}
+
+	// Backoff schedule: tier N has delay (N+1)s, so we can assert the exact tier
+	// by checking the delay. Attempt 2 uses backoff index 1 → tier 1 → 2s.
+	retryBackoff := &backoff.ScheduledBackoff{
+		Schedule: []time.Duration{1 * time.Second, 2 * time.Second, 3 * time.Second, 4 * time.Second, 5 * time.Second},
+	}
+
 	// Setup message handler
 	handler := deliverymq.NewMessageHandler(
 		testutil.CreateTestLogger(t),
@@ -808,17 +820,18 @@ func TestManualDelivery_PublishError(t *testing.T) {
 		publisher,
 		testutil.NewMockEventTracer(nil),
 		retryScheduler,
-		&backoff.ConstantBackoff{Interval: 1 * time.Second},
-		10,
+		retryBackoff,
+		5,
 		alertMonitor,
 		idempotence.New(testutil.CreateTestRedisClient(t), idempotence.WithSuccessfulTTL(24*time.Hour)),
 	)
 
-	// Create and handle message
+	// Create and handle message — manual retry as attempt 2
 	task := models.DeliveryTask{
 		Event:         event,
 		DestinationID: destination.ID,
-		Manual:        true, // Manual delivery
+		Attempt:       2,
+		Manual:        true,
 	}
 	mockMsg, msg := newDeliveryMockMessage(task)
 
@@ -830,10 +843,91 @@ func TestManualDelivery_PublishError(t *testing.T) {
 	assert.True(t, mockMsg.acked, "message should be acked")
 	assert.False(t, mockMsg.nacked, "message should not be nacked")
 	assert.Equal(t, 1, publisher.current, "should attempt publish once")
-	assert.Empty(t, retryScheduler.schedules, "should not schedule retry for manual delivery")
 	require.Len(t, logPublisher.entries, 1, "should have one delivery")
 	assert.Equal(t, models.AttemptStatusFailed, logPublisher.entries[0].Attempt.Status, "delivery status should be Failed")
 	assertAlertMonitor(t, alertMonitor, false, &destination, publishErr.Data)
+
+	// Assert retry state: the old pending retry (tier 0, 1s) was atomically
+	// replaced with the next tier. Attempt 2 uses backoff index 1 → 2s.
+	require.Len(t, retryScheduler.entries, 1, "should have exactly 1 scheduled retry")
+	entry, ok := retryScheduler.entries[retryID]
+	require.True(t, ok, "scheduled retry should use the same RetryID")
+	assert.NotEqual(t, "old-retry", entry.task, "old retry payload should be replaced")
+	assert.Equal(t, 2*time.Second, entry.delay, "should schedule at tier 1 (2s), not tier 0 (1s)")
+}
+
+func TestManualDelivery_PublishError_BudgetExhausted(t *testing.T) {
+	// Test scenario:
+	// - A pending automatic retry exists (lingering from a previous tier)
+	// - Manual delivery fails with publish error but retry budget is exhausted
+	// - The pending retry should be canceled, no new retry scheduled
+	// - Result: empty retry state
+
+	// Setup test data
+	tenant := models.Tenant{ID: idgen.String()}
+	destination := testutil.DestinationFactory.Any(
+		testutil.DestinationFactory.WithTenantID(tenant.ID),
+	)
+	event := testutil.EventFactory.Any(
+		testutil.EventFactory.WithTenantID(tenant.ID),
+		testutil.EventFactory.WithDestinationID(destination.ID),
+		testutil.EventFactory.WithEligibleForRetry(true),
+	)
+
+	retryID := models.RetryID(event.ID, destination.ID)
+
+	// Setup mocks
+	destGetter := &mockDestinationGetter{dest: &destination}
+	retryScheduler := newMockRetryScheduler()
+	publishErr := &destregistry.ErrDestinationPublishAttempt{
+		Err:      errors.New("webhook returned 429"),
+		Provider: "webhook",
+		Data: map[string]interface{}{
+			"error":   "publish_failed",
+			"message": "webhook returned 429",
+		},
+	}
+	publisher := newMockPublisher([]error{publishErr})
+	logPublisher := newMockLogPublisher(nil)
+	alertMonitor := newMockAlertMonitor()
+
+	// Seed: a pending automatic retry exists (lingering from earlier failure)
+	retryScheduler.entries[retryID] = scheduledEntry{task: "stale-retry", delay: 5 * time.Second}
+
+	// Setup message handler with retryMaxLimit=3 (max attempts = 4)
+	handler := deliverymq.NewMessageHandler(
+		testutil.CreateTestLogger(t),
+		logPublisher,
+		destGetter,
+		publisher,
+		testutil.NewMockEventTracer(nil),
+		retryScheduler,
+		&backoff.ConstantBackoff{Interval: 1 * time.Second},
+		3,
+		alertMonitor,
+		idempotence.New(testutil.CreateTestRedisClient(t), idempotence.WithSuccessfulTTL(24*time.Hour)),
+	)
+
+	// Create and handle message — manual retry as attempt 4 (budget exhausted: 1 + 3 retries)
+	task := models.DeliveryTask{
+		Event:         event,
+		DestinationID: destination.ID,
+		Attempt:       4,
+		Manual:        true,
+	}
+	mockMsg, msg := newDeliveryMockMessage(task)
+
+	// Handle message
+	err := handler.Handle(context.Background(), msg)
+	require.Error(t, err)
+
+	// Assert behavior
+	assert.True(t, mockMsg.acked, "message should be acked")
+	require.Len(t, logPublisher.entries, 1, "should have one delivery")
+	assert.Equal(t, models.AttemptStatusFailed, logPublisher.entries[0].Attempt.Status, "delivery status should be Failed")
+
+	// Assert retry state: pending retry was canceled, nothing new scheduled
+	assert.Empty(t, retryScheduler.entries, "should have no scheduled retries after budget exhaustion")
 }
 
 func TestManualDelivery_CancelError(t *testing.T) {
@@ -1160,7 +1254,7 @@ func TestManualDelivery_DuplicateRetry(t *testing.T) {
 	)
 
 	// Step 1: First manual retry succeeds
-	task1 := models.NewManualDeliveryTask(event, destination.ID)
+	task1 := models.NewManualDeliveryTask(event, destination.ID, 1)
 	mockMsg1, msg1 := newDeliveryMockMessage(task1)
 	err := handler.Handle(context.Background(), msg1)
 	require.NoError(t, err)
@@ -1169,7 +1263,7 @@ func TestManualDelivery_DuplicateRetry(t *testing.T) {
 	require.Len(t, logPublisher.entries, 1, "first manual retry should log delivery")
 
 	// Step 2: Second manual retry for same event+destination should also execute
-	task2 := models.NewManualDeliveryTask(event, destination.ID)
+	task2 := models.NewManualDeliveryTask(event, destination.ID, 2)
 	mockMsg2, msg2 := newDeliveryMockMessage(task2)
 	err = handler.Handle(context.Background(), msg2)
 	require.NoError(t, err)

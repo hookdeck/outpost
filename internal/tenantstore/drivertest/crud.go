@@ -323,7 +323,7 @@ func testCRUD(t *testing.T, newHarness HarnessMaker) {
 		store, err := h.MakeDriver(ctx)
 		require.NoError(t, err)
 
-		destinations, err := store.ListDestinationByTenant(ctx, idgen.String())
+		destinations, err := store.ListDestination(ctx, driver.ListDestinationRequest{TenantID: idgen.String()})
 		require.NoError(t, err)
 		assert.Empty(t, destinations)
 	})
@@ -393,7 +393,7 @@ func testCRUD(t *testing.T, newHarness HarnessMaker) {
 		})
 
 		t.Run("does not return deleted in list", func(t *testing.T) {
-			destinations, err := store.ListDestinationByTenant(ctx, destination.TenantID)
+			destinations, err := store.ListDestination(ctx, driver.ListDestinationRequest{TenantID: destination.TenantID})
 			assert.NoError(t, err)
 			assert.Empty(t, destinations)
 		})
