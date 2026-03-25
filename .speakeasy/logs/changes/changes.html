@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="color-scheme" content="light dark">
-    <title>SDK Changelog - go</title>
+    <title>SDK Changelog - outpost</title>
     <style>
         :root {
             --bg-color: #ffffff;
@@ -75,7 +75,6 @@
         li li code {
             font-size: 0.85em;
         }
-        /* Ensure nested list items always show bullets */
         ul > li {
             list-style: disc;
         }
@@ -85,42 +84,33 @@
         strong {
             font-weight: 600;
         }
-        /* Semantic coloring for change types */
-        strong:contains('Added'), li:has(strong:contains('Added')) strong:first-of-type {
-            color: var(--added-color);
-        }
-        /* Warning emoji styling */
         li {
             list-style-position: outside;
         }
     </style>
 </head>
-<body><h2 id="go-sdk-changes">Go SDK Changes:</h2>
-
+<body>
+<h2 id="go-sdk-changes">Go SDK Changes:</h2>
 <ul>
 <li><code>Outpost.Attempts.List()</code>: <code>response.Models[]</code> <strong>Changed</strong> (Breaking ⚠️)
-
 <ul>
 <li><code>Destination</code> <strong>Added</strong></li>
 <li><code>Event</code> <strong>Changed</strong> (Breaking ⚠️)</li>
 <li><code>ResponseData</code> <strong>Changed</strong> (Breaking ⚠️)</li>
 </ul></li>
 <li><code>Outpost.Attempts.Get()</code>: <code>response</code> <strong>Changed</strong> (Breaking ⚠️)
-
 <ul>
 <li><code>Destination</code> <strong>Added</strong></li>
 <li><code>Event</code> <strong>Changed</strong> (Breaking ⚠️)</li>
 <li><code>ResponseData</code> <strong>Changed</strong> (Breaking ⚠️)</li>
 </ul></li>
 <li><code>Outpost.Destinations.ListAttempts()</code>: <code>response.Models[]</code> <strong>Changed</strong> (Breaking ⚠️)
-
 <ul>
 <li><code>Destination</code> <strong>Added</strong></li>
 <li><code>Event</code> <strong>Changed</strong> (Breaking ⚠️)</li>
 <li><code>ResponseData</code> <strong>Changed</strong> (Breaking ⚠️)</li>
 </ul></li>
 <li><code>Outpost.Destinations.GetAttempt()</code>: <code>response</code> <strong>Changed</strong> (Breaking ⚠️)
-
 <ul>
 <li><code>Destination</code> <strong>Added</strong></li>
 <li><code>Event</code> <strong>Changed</strong> (Breaking ⚠️)</li>
@@ -128,6 +118,66 @@
 </ul></li>
 <li><code>Outpost.Metrics.GetEventMetrics()</code>: <strong>Added</strong></li>
 <li><code>Outpost.Metrics.GetAttemptMetrics()</code>: <strong>Added</strong></li>
+</ul>
+
+<h2 id="typescript-sdk-changes">Typescript SDK Changes:</h2>
+<ul>
+<li><code>outpost.attempts.list()</code>: <code>response.models[]</code> <strong>Changed</strong> (Breaking ⚠️)
+<ul>
+<li><code>destination</code> <strong>Added</strong></li>
+<li><code>event</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>responseData</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+</ul></li>
+<li><code>outpost.attempts.get()</code>: <code>response</code> <strong>Changed</strong> (Breaking ⚠️)
+<ul>
+<li><code>destination</code> <strong>Added</strong></li>
+<li><code>event</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>responseData</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+</ul></li>
+<li><code>outpost.destinations.listAttempts()</code>: <code>response.models[]</code> <strong>Changed</strong> (Breaking ⚠️)
+<ul>
+<li><code>destination</code> <strong>Added</strong></li>
+<li><code>event</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>responseData</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+</ul></li>
+<li><code>outpost.destinations.getAttempt()</code>: <code>response</code> <strong>Changed</strong> (Breaking ⚠️)
+<ul>
+<li><code>destination</code> <strong>Added</strong></li>
+<li><code>event</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>responseData</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+</ul></li>
+<li><code>outpost.metrics.getEventMetrics()</code>: <strong>Added</strong></li>
+<li><code>outpost.metrics.getAttemptMetrics()</code>: <strong>Added</strong></li>
+</ul>
+
+<h2 id="python-sdk-changes">Python SDK Changes:</h2>
+<ul>
+<li><code>outpost.attempts.list()</code>: <code>response.models[]</code> <strong>Changed</strong> (Breaking ⚠️)
+<ul>
+<li><code>destination</code> <strong>Added</strong></li>
+<li><code>event</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>response_data</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+</ul></li>
+<li><code>outpost.attempts.get()</code>: <code>response</code> <strong>Changed</strong> (Breaking ⚠️)
+<ul>
+<li><code>destination</code> <strong>Added</strong></li>
+<li><code>event</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>response_data</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+</ul></li>
+<li><code>outpost.destinations.list_attempts()</code>: <code>response.models[]</code> <strong>Changed</strong> (Breaking ⚠️)
+<ul>
+<li><code>destination</code> <strong>Added</strong></li>
+<li><code>event</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>response_data</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+</ul></li>
+<li><code>outpost.destinations.get_attempt()</code>: <code>response</code> <strong>Changed</strong> (Breaking ⚠️)
+<ul>
+<li><code>destination</code> <strong>Added</strong></li>
+<li><code>event</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>response_data</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+</ul></li>
+<li><code>outpost.metrics.get_event_metrics()</code>: <strong>Added</strong></li>
+<li><code>outpost.metrics.get_attempt_metrics()</code>: <strong>Added</strong></li>
 </ul>
 </body>
 </html>

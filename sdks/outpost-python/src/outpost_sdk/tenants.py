@@ -106,7 +106,7 @@ class Tenants(BaseSDK):
             results = JSONPath("$.models").parse(body)
             if len(results) == 0 or len(results[0]) == 0:
                 return None
-            limit = request.limit if not request.limit is None else 20
+            limit = request.limit if isinstance(request.limit, int) else 20
             if len(results[0]) < limit:
                 return None
 
@@ -246,7 +246,7 @@ class Tenants(BaseSDK):
             results = JSONPath("$.models").parse(body)
             if len(results) == 0 or len(results[0]) == 0:
                 return None
-            limit = request.limit if not request.limit is None else 20
+            limit = request.limit if isinstance(request.limit, int) else 20
             if len(results[0]) < limit:
                 return None
 

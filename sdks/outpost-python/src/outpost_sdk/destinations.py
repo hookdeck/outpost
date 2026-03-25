@@ -1579,7 +1579,7 @@ class Destinations(BaseSDK):
             results = JSONPath("$.models").parse(body)
             if len(results) == 0 or len(results[0]) == 0:
                 return None
-            limit = request.limit if not request.limit is None else 100
+            limit = request.limit if isinstance(request.limit, int) else 100
             if len(results[0]) < limit:
                 return None
 
@@ -1721,7 +1721,7 @@ class Destinations(BaseSDK):
             results = JSONPath("$.models").parse(body)
             if len(results) == 0 or len(results[0]) == 0:
                 return None
-            limit = request.limit if not request.limit is None else 100
+            limit = request.limit if isinstance(request.limit, int) else 100
             if len(results[0]) < limit:
                 return None
 
@@ -1802,6 +1802,7 @@ class Destinations(BaseSDK):
             - `event`: Include event summary
             - `event.data`: Include full event with payload data
             - `response_data`: Include response body and headers
+            - `destination`: Include the full destination object
 
         :param retries: Override the default retry configuration for this method
         :param server_url: Override the default server URL for this method
@@ -1916,6 +1917,7 @@ class Destinations(BaseSDK):
             - `event`: Include event summary
             - `event.data`: Include full event with payload data
             - `response_data`: Include response body and headers
+            - `destination`: Include the full destination object
 
         :param retries: Override the default retry configuration for this method
         :param server_url: Override the default server URL for this method

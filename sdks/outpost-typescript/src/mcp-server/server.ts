@@ -28,6 +28,8 @@ import { tool$destinationsUpdate } from "./tools/destinationsUpdate.js";
 import { tool$eventsGet } from "./tools/eventsGet.js";
 import { tool$eventsList } from "./tools/eventsList.js";
 import { tool$healthCheck } from "./tools/healthCheck.js";
+import { tool$metricsGetAttemptMetrics } from "./tools/metricsGetAttemptMetrics.js";
+import { tool$metricsGetEventMetrics } from "./tools/metricsGetEventMetrics.js";
 import { tool$publishEvent } from "./tools/publishEvent.js";
 import { tool$schemasGetDestinationType } from "./tools/schemasGetDestinationType.js";
 import { tool$schemasListDestinationTypes } from "./tools/schemasListDestinationTypes.js";
@@ -49,7 +51,7 @@ export function createMCPServer(deps: {
 }) {
   const server = new McpServer({
     name: "Outpost",
-    version: "0.9.1",
+    version: "0.9.2",
   });
 
   const client = new OutpostCore({
@@ -104,6 +106,8 @@ export function createMCPServer(deps: {
   tool(tool$schemasListDestinationTypes);
   tool(tool$schemasGetDestinationType);
   tool(tool$topicsList);
+  tool(tool$metricsGetEventMetrics);
+  tool(tool$metricsGetAttemptMetrics);
 
   return server;
 }
