@@ -14,6 +14,7 @@ import (
 	"github.com/hookdeck/outpost/internal/util/testinfra"
 	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/segmentio/kafka-go"
+	"github.com/segmentio/kafka-go/sasl/plain"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -29,9 +30,15 @@ type KafkaConsumer struct {
 }
 
 func NewKafkaConsumer(brokerAddr, topic string) (*KafkaConsumer, error) {
+	mechanism := plain.Mechanism{Username: "admin", Password: "admin-secret"}
+	dialer := &kafka.Dialer{
+		SASLMechanism: mechanism,
+		Timeout:       10 * time.Second,
+	}
 	reader := kafka.NewReader(kafka.ReaderConfig{
 		Brokers:     []string{brokerAddr},
 		Topic:       topic,
+		Dialer:      dialer,
 		StartOffset: kafka.FirstOffset,
 		MaxWait:     500 * time.Millisecond,
 	})
@@ -143,8 +150,8 @@ func (s *KafkaPublishSuite) SetupSuite() {
 			"sasl_mechanism": "plain",
 		}),
 		testutil.DestinationFactory.WithCredentials(map[string]string{
-			"username": "user",
-			"password": "pass",
+			"username": "admin",
+			"password": "admin-secret",
 		}),
 	)
 
@@ -242,7 +249,10 @@ func TestKafkaPublisher_ConnectionErrors(t *testing.T) {
 func ensureKafkaTopic(t *testing.T, brokerAddr, topic string) {
 	t.Helper()
 
-	conn, err := kafka.Dial("tcp", brokerAddr)
+	mechanism := plain.Mechanism{Username: "admin", Password: "admin-secret"}
+	dialer := &kafka.Dialer{SASLMechanism: mechanism, Timeout: 10 * time.Second}
+
+	conn, err := dialer.DialContext(context.Background(), "tcp", brokerAddr)
 	require.NoError(t, err)
 	defer conn.Close()
 
