@@ -9,7 +9,7 @@ This document is the **primary** guide for cutting an Outpost release. It covers
 **Order of operations:**
 
 1. **You:** Create the **GitHub Release** with the version tag (e.g. `v0.13.2`). That is when Outpost is released. (Create the tag from the target branch when drafting the release if it doesn’t exist yet, or push the tag first and select it.)
-2. **Automated:** The tag triggers two workflows — [release.yml](../.github/workflows/release.yml) builds Outpost binaries and Docker images; [sdk-generate-on-release-dispatch.yml](../.github/workflows/sdk-generate-on-release-dispatch.yml) dispatches [sdk-generate-on-release.yml](../.github/workflows/sdk-generate-on-release.yml) (on `main`) so SDK generation runs with the correct PR base, generating the Go, Python, and TypeScript SDKs **sequentially** and opening a PR for each, targeting your default branch (e.g. `main`).
+2. **Automated:** The tag triggers two workflows — [release.yml](../.github/workflows/release.yml) builds Outpost binaries and Docker images; [sdk-generate-on-release-dispatch.yml](../.github/workflows/sdk-generate-on-release-dispatch.yml) dispatches [sdk-generate-on-release.yml](../.github/workflows/sdk-generate-on-release.yml) **at that tag** so the SDKs match the release commit, while PRs still target `main`.
 3. **You:** Merge the three SDK PRs into main.
 4. **Automated:** The SDKs are released when those PRs are merged.
 
@@ -39,7 +39,7 @@ The tag triggers two workflows (they do not depend on each other):
 | Workflow | What it does |
 |----------|----------------|
 | [release.yml](../.github/workflows/release.yml) | Builds Outpost binaries and Docker images (via GoReleaser) and uploads binary assets so they are available for the tag. Pushes Docker images to Docker Hub (e.g. `hookdeck/outpost:{{ tag }}-amd64`). |
-| [sdk-generate-on-release-dispatch.yml](../.github/workflows/sdk-generate-on-release-dispatch.yml) → [sdk-generate-on-release.yml](../.github/workflows/sdk-generate-on-release.yml) | The dispatch workflow starts generation on `main` (so Speakeasy opens PRs against `main`). Auto-generates the Go, Python, and TypeScript SDKs **sequentially** and opens **three pull requests** (one per SDK), targeting your default branch. Sequential runs avoid conflicts on the shared `.speakeasy/workflow.lock` (see [SDKs – SDK generation and lock files](sdks.md#sdk-generation-and-lock-files)). |
+| [sdk-generate-on-release-dispatch.yml](../.github/workflows/sdk-generate-on-release-dispatch.yml) → [sdk-generate-on-release.yml](../.github/workflows/sdk-generate-on-release.yml) | Dispatch runs the Speakeasy workflow **at the release tag** (same tree as the tag). A vendored Speakeasy executor forces PRs against `main`. Generates the Go, Python, and TypeScript SDKs **sequentially** and opens **three pull requests** (one per SDK). Sequential runs avoid conflicts on the shared `.speakeasy/workflow.lock` (see [SDKs – SDK generation and lock files](sdks.md#sdk-generation-and-lock-files)). |
 
 ### 3. Merge the SDK PRs into main
 
@@ -86,4 +86,4 @@ To verify that the SDK release workflows ([sdk-generate-on-release-dispatch.yml]
    **Note:** Pushing a tag also triggers [release.yml](../.github/workflows/release.yml) (Outpost build/release). If you use a test tag, consider using a clearly non-release value (e.g. `v0.0.0-sdk-gen-test`) and skip creating a GitHub Release for it.
 
 2. **Option B — Manual run from Actions**  
-   Go to **Actions → SDK generate on release tag** (the Speakeasy run, not the dispatch workflow), click **Run workflow**, choose the branch (e.g. `main`), optionally set **release_tag** (e.g. `v0.0.0-test`), and run. This does not push a tag; useful for a quick smoke test. Note: the workflow sets all SDKs to `1.0.0` only when **release_tag** is exactly `v1.0.0`; otherwise Speakeasy detection applies.
+   Go to **Actions → SDK generate on release tag**, click **Run workflow**. Under **Use workflow from**, select the **same tag** you enter in **release_tag** (e.g. tag `v0.0.0-sdk-gen-test` and input `v0.0.0-sdk-gen-test`). The first job fails fast if the ref and input disagree. Note: the workflow sets all SDKs to `1.0.0` only when **release_tag** is exactly `v1.0.0`; otherwise Speakeasy detection applies.

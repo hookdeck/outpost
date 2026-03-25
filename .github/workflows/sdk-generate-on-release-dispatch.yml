@@ -1,7 +1,6 @@
-# Tag pushes set GITHUB_REF to refs/tags/..., which makes Speakeasy's sdk-generation-action
-# compute an invalid PR base (see GetTargetBaseBranch in sdk-generation-action). Dispatching
-# the real generation workflow with ref: main fixes github.ref / GITHUB_REF for that run so
-# PRs target main. The tag name is passed as an input for version conditionals.
+# Tag pushes would make Speakeasy use refs/tags/... as the GitHub PR base (invalid). We dispatch
+# sdk-generate-on-release.yml with ref = the tag so checkout matches the release commit; that workflow
+# sets pr_base_is_main on sdk-generate-one so GITHUB_REF is forced to main for Speakeasy only.
 name: SDK generate on release tag — dispatch
 
 on:
@@ -16,7 +15,7 @@ jobs:
       actions: write
       contents: read
     steps:
-      - name: Dispatch SDK generation on main
+      - name: Dispatch SDK generation at release tag
         uses: actions/github-script@v7
         with:
           script: |
@@ -25,7 +24,7 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               workflow_id: 'sdk-generate-on-release.yml',
-              ref: 'main',
+              ref: tag,
               inputs: {
                 release_tag: tag
               }
