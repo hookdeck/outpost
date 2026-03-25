@@ -110,7 +110,6 @@ async function $do(
       charEncoding: "percent",
     }),
   };
-
   const path = pathToFunc("/destination-types/{type}")(pathParams);
 
   const headers = new Headers(compactMap({
