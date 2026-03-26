@@ -178,19 +178,24 @@ for DEPLOY_ID in "${DEPLOYMENT_IDS[@]}"; do
       continue
     fi
 
-    # Copy the hash
+    # Copy the hash field by field
     dry "  COPY $old_key -> $new_key"
     if ! $DRY_RUN; then
-      # DUMP/RESTORE for exact copy
-      dump=$(rcli DUMP "$old_key" 2>/dev/null || echo "")
-      if [[ -n "$dump" ]]; then
-        rcli RESTORE "$new_key" 0 "$dump" > /dev/null 2>&1 || {
-          # Fallback: manual hash copy if DUMP/RESTORE fails
-          fields=$(rcli HGETALL "$old_key" 2>/dev/null)
-          if [[ -n "$fields" ]]; then
-            rcli HSET "$new_key" $fields > /dev/null
-          fi
-        }
+      # Read all field-value pairs and write them to the new key
+      hset_args=()
+      while IFS= read -r field && IFS= read -r value; do
+        hset_args+=("$field" "$value")
+      done < <(rcli HGETALL "$old_key" 2>/dev/null)
+
+      if [[ ${#hset_args[@]} -gt 0 ]]; then
+        rcli HSET "$new_key" "${hset_args[@]}" > /dev/null
+      else
+        warn "  $old_key has no fields, skipping"
+      fi
+
+      # Verify the copy
+      if [[ $(rcli EXISTS "$new_key" 2>/dev/null) != "1" ]]; then
+        warn "  FAILED to copy $old_key -> $new_key"
       fi
     fi
   done
