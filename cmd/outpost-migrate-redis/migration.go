@@ -275,25 +275,36 @@ func (m *Migrator) checkIfFreshInstallation(ctx context.Context) (bool, error) {
 	prefix := m.deploymentPrefix()
 
 	// Check for any "outpost:*" keys (current format)
-	outpostKeys, err := m.client.Keys(ctx, prefix+"outpost:*").Result()
+	// Use SCAN instead of KEYS to avoid blocking Redis on large keyspaces
+	hasKeys, err := m.hasAnyKeys(ctx, prefix+"outpost:*")
 	if err != nil {
 		return false, fmt.Errorf("failed to check outpost keys: %w", err)
 	}
-	if len(outpostKeys) > 0 {
+	if hasKeys {
 		return false, nil // Has current data
 	}
 
 	// Check for any "tenant:*" keys (old format, or deployment-scoped tenant keys)
-	tenantKeys, err := m.client.Keys(ctx, prefix+"tenant:*").Result()
+	hasKeys, err = m.hasAnyKeys(ctx, prefix+"tenant:*")
 	if err != nil {
 		return false, fmt.Errorf("failed to check tenant keys: %w", err)
 	}
-	if len(tenantKeys) > 0 {
+	if hasKeys {
 		return false, nil // Has old data
 	}
 
 	// No keys found - it's a fresh installation
 	return true, nil
+}
+
+// hasAnyKeys uses SCAN to check if at least one key matches the pattern
+// without blocking Redis like KEYS does.
+func (m *Migrator) hasAnyKeys(ctx context.Context, pattern string) (bool, error) {
+	keys, _, err := m.client.Scan(ctx, 0, pattern, 1).Result()
+	if err != nil {
+		return false, err
+	}
+	return len(keys) > 0, nil
 }
 
 // Plan shows what changes would be made without applying them

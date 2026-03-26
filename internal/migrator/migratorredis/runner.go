@@ -84,24 +84,35 @@ func (r *Runner) checkIfFreshInstallation(ctx context.Context) (bool, error) {
 	prefix := deploymentPrefix(r.deploymentID)
 
 	// Check for any "outpost:*" keys (current format)
-	outpostKeys, err := r.client.Keys(ctx, prefix+"outpost:*").Result()
+	// Use SCAN instead of KEYS to avoid blocking Redis on large keyspaces
+	hasKeys, err := hasAnyKeys(ctx, r.client, prefix+"outpost:*")
 	if err != nil {
 		return false, fmt.Errorf("failed to check outpost keys: %w", err)
 	}
-	if len(outpostKeys) > 0 {
+	if hasKeys {
 		return false, nil
 	}
 
 	// Check for any "tenant:*" keys (old format, or deployment-scoped tenant keys)
-	tenantKeys, err := r.client.Keys(ctx, prefix+"tenant:*").Result()
+	hasKeys, err = hasAnyKeys(ctx, r.client, prefix+"tenant:*")
 	if err != nil {
 		return false, fmt.Errorf("failed to check tenant keys: %w", err)
 	}
-	if len(tenantKeys) > 0 {
+	if hasKeys {
 		return false, nil
 	}
 
 	return true, nil
+}
+
+// hasAnyKeys uses SCAN to check if at least one key matches the pattern
+// without blocking Redis like KEYS does.
+func hasAnyKeys(ctx context.Context, client redis.Client, pattern string) (bool, error) {
+	keys, _, err := client.Scan(ctx, 0, pattern, 1).Result()
+	if err != nil {
+		return false, err
+	}
+	return len(keys) > 0, nil
 }
 
 // handleFreshInstallation marks all migrations as applied for new installations
