@@ -1,7 +1,19 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { CopyButton } from "../CopyButton/CopyButton";
 
 import "./JSONViewer.scss";
+
+function collectPaths(value: unknown, path: string, out: Set<string>) {
+  if (value === null || typeof value !== "object") return;
+  const entries = Array.isArray(value)
+    ? value.map((v, i) => [String(i), v] as const)
+    : Object.entries(value);
+  if (entries.length === 0) return;
+  out.add(path);
+  for (const [k, v] of entries) {
+    collectPaths(v, `${path}.${k}`, out);
+  }
+}
 
 interface JSONViewerProps {
   data: unknown;
@@ -9,35 +21,45 @@ interface JSONViewerProps {
 }
 
 const JSONViewer = ({ data, label }: JSONViewerProps) => {
-  const [expandAllKey, setExpandAllKey] = useState(0);
-  const [isExpanded, setIsExpanded] = useState(true);
+  const allPaths = useMemo(() => {
+    const paths = new Set<string>();
+    collectPaths(data, "$", paths);
+    return paths;
+  }, [data]);
 
-  const handleExpandAll = () => {
-    setIsExpanded(true);
-    setExpandAllKey((k) => k + 1);
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set(allPaths));
+
+  const allExpanded = expanded.size >= allPaths.size;
+
+  const handleToggle = () => {
+    setExpanded(allExpanded ? new Set() : new Set(allPaths));
   };
 
-  const handleCollapseAll = () => {
-    setIsExpanded(false);
-    setExpandAllKey((k) => k + 1);
-  };
+  const toggleNode = useCallback((path: string) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(path)) {
+        next.delete(path);
+      } else {
+        next.add(path);
+      }
+      return next;
+    });
+  }, []);
 
   return (
     <div className="json-viewer">
       <div className="json-viewer__header">
         {label && <h3 className="subtitle-m">{label}</h3>}
         <div className="json-viewer__actions">
-          <button
-            className="json-viewer__expand-all mono-xs"
-            onClick={isExpanded ? handleCollapseAll : handleExpandAll}
-          >
-            {isExpanded ? "Collapse all" : "Expand all"}
+          <button className="json-viewer__expand-all mono-xs" onClick={handleToggle}>
+            {allExpanded ? "Collapse all" : "Expand all"}
           </button>
           <CopyButton value={JSON.stringify(data, null, 2)} />
         </div>
       </div>
       <div className="json-viewer__content mono-s">
-        <JSONNode key={expandAllKey} value={data} depth={0} defaultExpanded={isExpanded} />
+        <JSONNode value={data} path="$" expanded={expanded} toggleNode={toggleNode} />
       </div>
     </div>
   );
@@ -45,11 +67,12 @@ const JSONViewer = ({ data, label }: JSONViewerProps) => {
 
 interface JSONNodeProps {
   value: unknown;
-  depth: number;
-  defaultExpanded?: boolean;
+  path: string;
+  expanded: Set<string>;
+  toggleNode: (path: string) => void;
 }
 
-const JSONNode = ({ value, depth, defaultExpanded = false }: JSONNodeProps) => {
+const JSONNode = ({ value, path, expanded, toggleNode }: JSONNodeProps) => {
   if (value === null) {
     return <span className="json-viewer__null">null</span>;
   }
@@ -78,8 +101,9 @@ const JSONNode = ({ value, depth, defaultExpanded = false }: JSONNodeProps) => {
           showKey: false,
         }))}
         count={value.length}
-        depth={depth}
-        defaultExpanded={defaultExpanded}
+        path={path}
+        expanded={expanded}
+        toggleNode={toggleNode}
       />
     );
   }
@@ -91,8 +115,9 @@ const JSONNode = ({ value, depth, defaultExpanded = false }: JSONNodeProps) => {
         kind="object"
         entries={entries.map(([k, v]) => ({ key: k, value: v, showKey: true }))}
         count={entries.length}
-        depth={depth}
-        defaultExpanded={defaultExpanded}
+        path={path}
+        expanded={expanded}
+        toggleNode={toggleNode}
       />
     );
   }
@@ -110,19 +135,21 @@ interface CollapsibleNodeProps {
   kind: "object" | "array";
   entries: CollapsibleEntry[];
   count: number;
-  depth: number;
-  defaultExpanded: boolean;
+  path: string;
+  expanded: Set<string>;
+  toggleNode: (path: string) => void;
 }
 
 const CollapsibleNode = ({
   kind,
   entries,
   count,
-  depth,
-  defaultExpanded,
+  path,
+  expanded,
+  toggleNode,
 }: CollapsibleNodeProps) => {
-  const [expanded, setExpanded] = useState(defaultExpanded);
-  const toggle = useCallback(() => setExpanded((e) => !e), []);
+  const isExpanded = expanded.has(path);
+  const toggle = useCallback(() => toggleNode(path), [toggleNode, path]);
 
   const openBracket = kind === "object" ? "{" : "[";
   const closeBracket = kind === "object" ? "}" : "]";
@@ -136,9 +163,9 @@ const CollapsibleNode = ({
   }
 
   const itemLabel = `${count} ${count === 1 ? "item" : "items"}`;
-  const arrow = expanded ? "\u2191" : "\u2193";
+  const arrow = isExpanded ? "\u2191" : "\u2193";
 
-  if (!expanded) {
+  if (!isExpanded) {
     return (
       <button className="json-viewer__summary" onClick={toggle}>
         <span className="json-viewer__bracket">{openBracket}</span>
@@ -166,7 +193,12 @@ const CollapsibleNode = ({
                 <span className="json-viewer__colon">: </span>
               </>
             )}
-            <JSONNode value={entry.value} depth={depth + 1} defaultExpanded={defaultExpanded} />
+            <JSONNode
+              value={entry.value}
+              path={`${path}.${entry.key}`}
+              expanded={expanded}
+              toggleNode={toggleNode}
+            />
             {i < entries.length - 1 && (
               <span className="json-viewer__comma">,</span>
             )}
