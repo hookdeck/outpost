@@ -17,12 +17,13 @@ type mockEventFactory struct {
 
 func (f *mockEventFactory) Any(opts ...func(*models.Event)) models.Event {
 	event := models.Event{
-		ID:               idgen.Event(),
-		TenantID:         "test-tenant",
-		DestinationID:    "",
-		Topic:            TestTopics[0],
-		EligibleForRetry: true,
-		Time:             time.Now(),
+		ID:                    idgen.Event(),
+		TenantID:              "test-tenant",
+		DestinationID:         "",
+		MatchedDestinationIDs: []string{},
+		Topic:                 TestTopics[0],
+		EligibleForRetry:      true,
+		Time:                  time.Now(),
 		Metadata: map[string]string{
 			"metadatakey": "metadatavalue",
 		},
@@ -56,6 +57,12 @@ func (f *mockEventFactory) WithTenantID(tenantID string) func(*models.Event) {
 func (f *mockEventFactory) WithDestinationID(destinationID string) func(*models.Event) {
 	return func(event *models.Event) {
 		event.DestinationID = destinationID
+	}
+}
+
+func (f *mockEventFactory) WithMatchedDestinationIDs(ids []string) func(*models.Event) {
+	return func(event *models.Event) {
+		event.MatchedDestinationIDs = ids
 	}
 }
 

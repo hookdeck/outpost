@@ -107,6 +107,9 @@ func (h *eventHandler) Handle(ctx context.Context, event *models.Event) (*Handle
 		matchedDestinations = []string{}
 	}
 
+	// Stamp matched destinations onto the event for downstream persistence.
+	event.MatchedDestinationIDs = matchedDestinations
+
 	result := &HandleResult{
 		EventID:        event.ID,
 		Duplicate:      false,

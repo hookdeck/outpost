@@ -51,6 +51,7 @@ func testIsolation(t *testing.T, ctx context.Context, logStore driver.LogStore, 
 		testutil.EventFactory.WithID("tenant1-event"),
 		testutil.EventFactory.WithTenantID(tenant1ID),
 		testutil.EventFactory.WithDestinationID(destinationID),
+		testutil.EventFactory.WithMatchedDestinationIDs([]string{destinationID}),
 		testutil.EventFactory.WithTopic("test.topic"),
 		testutil.EventFactory.WithTime(baseTime.Add(-10*time.Minute)),
 	)
@@ -66,6 +67,7 @@ func testIsolation(t *testing.T, ctx context.Context, logStore driver.LogStore, 
 		testutil.EventFactory.WithID("tenant2-event"),
 		testutil.EventFactory.WithTenantID(tenant2ID),
 		testutil.EventFactory.WithDestinationID(destinationID),
+		testutil.EventFactory.WithMatchedDestinationIDs([]string{destinationID}),
 		testutil.EventFactory.WithTopic("test.topic"),
 		testutil.EventFactory.WithTime(baseTime.Add(-5*time.Minute)),
 	)
@@ -123,11 +125,6 @@ func testIsolation(t *testing.T, ctx context.Context, logStore driver.LogStore, 
 
 	t.Run("CrossTenantQueries", func(t *testing.T) {
 		t.Run("ListEvent returns all tenants when TenantID empty", func(t *testing.T) {
-			// ListEvent with DestinationIDs filter returns unimplemented error.
-			// Events are destination-agnostic; use ListAttempt for destination filtering.
-			// TODO(list-event-destination-filter): Re-enable once we implement proper destination tracking for events.
-			t.Skip("ListEvent with DestinationIDs filter is not implemented")
-
 			response, err := logStore.ListEvent(ctx, driver.ListEventRequest{
 				TenantIDs:      nil,
 				DestinationIDs: []string{destinationID},
@@ -417,32 +414,25 @@ func testEdgeCases(t *testing.T, ctx context.Context, logStore driver.LogStore, 
 	})
 
 	t.Run("ListEvent_DestinationFilter", func(t *testing.T) {
-		// The event.destination_id field is confusing because it represents the
-		// publish input (explicit destination targeting), NOT the destinations
-		// that matched via routing rules.
-		//
 		// This test ensures we have coverage for the case where an event is
-		// published without a destination_id (topic-based routing) and delivered
+		// published without a destination_id (topic-based routing) and matched
 		// to multiple destinations. ListEvent with DestinationIDs filter should
-		// return events that have attempts to those destinations.
-		//
-		// ListEvent with DestinationIDs filter returns unimplemented error.
-		// TODO(list-event-destination-filter): Re-enable once we implement proper destination tracking for events.
-		t.Skip("ListEvent with DestinationIDs filter is not implemented")
+		// return events whose matched_destination_ids contain the requested destination.
 
 		tenantID := idgen.String()
 		destA := idgen.Destination()
 		destB := idgen.Destination()
+		destC := idgen.Destination()
 		baseTime := time.Now().Truncate(time.Second)
 
-		// Event published WITHOUT destination_id (topic-based routing)
+		// Event published WITHOUT destination_id (topic-based routing), matched both dest-A and dest-B
 		event := testutil.EventFactory.AnyPointer(
 			testutil.EventFactory.WithTenantID(tenantID),
 			testutil.EventFactory.WithDestinationID(""), // empty, topic-based routing
+			testutil.EventFactory.WithMatchedDestinationIDs([]string{destA, destB}),
 			testutil.EventFactory.WithTime(baseTime),
 		)
 
-		// Routing matched both dest-A and dest-B
 		attemptA := testutil.AttemptFactory.AnyPointer(
 			testutil.AttemptFactory.WithTenantID(tenantID),
 			testutil.AttemptFactory.WithEventID(event.ID),
@@ -463,24 +453,32 @@ func testEdgeCases(t *testing.T, ctx context.Context, logStore driver.LogStore, 
 		require.NoError(t, err)
 		require.NoError(t, h.FlushWrites(ctx))
 
-		// ListAttempt correctly finds attempts for dest-A
-		attemptRes, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
-			TenantIDs:      []string{tenantID},
-			DestinationIDs: []string{destA},
-			Limit:          10,
-		})
-		require.NoError(t, err)
-		require.Len(t, attemptRes.Data, 1, "ListAttempt should find the attempt to dest-A")
-
+		// Filter by dest-A should find the event
 		eventRes, err := logStore.ListEvent(ctx, driver.ListEventRequest{
 			TenantIDs:      []string{tenantID},
 			DestinationIDs: []string{destA},
 			Limit:          10,
 		})
 		require.NoError(t, err)
+		assert.Len(t, eventRes.Data, 1, "ListEvent should find event matched to dest-A")
 
-		assert.Len(t, eventRes.Data, 1,
-			"ListEvent with DestinationIDs filter should return events that have attempts to that destination")
+		// Filter by dest-B should also find the same event
+		eventRes, err = logStore.ListEvent(ctx, driver.ListEventRequest{
+			TenantIDs:      []string{tenantID},
+			DestinationIDs: []string{destB},
+			Limit:          10,
+		})
+		require.NoError(t, err)
+		assert.Len(t, eventRes.Data, 1, "ListEvent should find event matched to dest-B")
+
+		// Filter by dest-C should find nothing
+		eventRes, err = logStore.ListEvent(ctx, driver.ListEventRequest{
+			TenantIDs:      []string{tenantID},
+			DestinationIDs: []string{destC},
+			Limit:          10,
+		})
+		require.NoError(t, err)
+		assert.Len(t, eventRes.Data, 0, "ListEvent should not find event for unmatched dest-C")
 	})
 }
 

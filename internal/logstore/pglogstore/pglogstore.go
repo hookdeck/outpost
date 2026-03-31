@@ -2,6 +2,7 @@ package pglogstore
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -49,24 +50,6 @@ func parseTimestampMs(s string) (int64, error) {
 }
 
 func (s *logStore) ListEvent(ctx context.Context, req driver.ListEventRequest) (driver.ListEventResponse, error) {
-	// DestinationIDs filter is not supported for ListEvent.
-	//
-	// The current implementation is incorrect because it queries events.destination_id,
-	// which represents the publish input (the destination specified when the event was
-	// originally published), not the destinations that actually matched and received
-	// the event.
-	//
-	// Events are destination-agnostic: a single event can be delivered to multiple
-	// destinations based on routing rules. To filter events by destination, you need
-	// to query via the attempts table, which records actual delivery attempts per
-	// destination.
-	//
-	// For now, users should use ListAttempt with the DestinationIDs filter instead,
-	// which correctly filters by the destinations that received delivery attempts.
-	if len(req.DestinationIDs) > 0 {
-		return driver.ListEventResponse{}, fmt.Errorf("ListEvent with DestinationIDs filter is not implemented: events are destination-agnostic, use ListAttempt instead")
-	}
-
 	sortOrder := req.SortOrder
 	if sortOrder != "asc" && sortOrder != "desc" {
 		sortOrder = "desc"
@@ -136,7 +119,7 @@ func buildEventQuery(req driver.ListEventRequest, q pagination.QueryInput) (stri
 	}
 
 	if len(req.DestinationIDs) > 0 {
-		conditions = append(conditions, fmt.Sprintf("destination_id = ANY($%d)", argNum))
+		conditions = append(conditions, fmt.Sprintf("matched_destination_ids && $%d::text[]", argNum))
 		args = append(args, req.DestinationIDs)
 		argNum++
 	}
@@ -187,7 +170,7 @@ func buildEventQuery(req driver.ListEventRequest, q pagination.QueryInput) (stri
 		SELECT
 			id,
 			tenant_id,
-			destination_id,
+			matched_destination_ids,
 			time,
 			topic,
 			eligible_for_retry,
@@ -228,20 +211,20 @@ func scanEvents(rows pgx.Rows) ([]eventWithPosition, error) {
 	var results []eventWithPosition
 	for rows.Next() {
 		var (
-			id               string
-			tenantID         string
-			destinationID    string
-			eventTime        time.Time
-			topic            string
-			eligibleForRetry bool
-			data             string
-			metadata         map[string]string
+			id                    string
+			tenantID              string
+			matchedDestinationIDs []string
+			eventTime             time.Time
+			topic                 string
+			eligibleForRetry      bool
+			data                  string
+			metadata              map[string]string
 		)
 
 		if err := rows.Scan(
 			&id,
 			&tenantID,
-			&destinationID,
+			&matchedDestinationIDs,
 			&eventTime,
 			&topic,
 			&eligibleForRetry,
@@ -254,16 +237,20 @@ func scanEvents(rows pgx.Rows) ([]eventWithPosition, error) {
 		// Normalize to UTC for consistent behavior across backends.
 		eventTime = eventTime.UTC()
 
+		if matchedDestinationIDs == nil {
+			matchedDestinationIDs = []string{}
+		}
+
 		results = append(results, eventWithPosition{
 			Event: &models.Event{
-				ID:               id,
-				TenantID:         tenantID,
-				DestinationID:    destinationID,
-				Topic:            topic,
-				EligibleForRetry: eligibleForRetry,
-				Time:             eventTime,
-				Data:             []byte(data),
-				Metadata:         metadata,
+				ID:                    id,
+				TenantID:              tenantID,
+				MatchedDestinationIDs: matchedDestinationIDs,
+				Topic:                 topic,
+				EligibleForRetry:      eligibleForRetry,
+				Time:                  eventTime,
+				Data:                  []byte(data),
+				Metadata:              metadata,
 			},
 			eventTime: eventTime,
 		})
@@ -548,7 +535,7 @@ func (s *logStore) RetrieveEvent(ctx context.Context, req driver.RetrieveEventRe
 		SELECT
 			id,
 			tenant_id,
-			destination_id,
+			matched_destination_ids,
 			topic,
 			eligible_for_retry,
 			time,
@@ -565,7 +552,7 @@ func (s *logStore) RetrieveEvent(ctx context.Context, req driver.RetrieveEventRe
 	err := row.Scan(
 		&event.ID,
 		&event.TenantID,
-		&event.DestinationID,
+		&event.MatchedDestinationIDs,
 		&event.Topic,
 		&event.EligibleForRetry,
 		&event.Time,
@@ -581,6 +568,9 @@ func (s *logStore) RetrieveEvent(ctx context.Context, req driver.RetrieveEventRe
 
 	event.Data = []byte(dataStr)
 	event.Time = event.Time.UTC()
+	if event.MatchedDestinationIDs == nil {
+		event.MatchedDestinationIDs = []string{}
+	}
 	return event, nil
 }
 
@@ -717,10 +707,19 @@ func (s *logStore) InsertMany(ctx context.Context, entries []*models.LogEntry) e
 	defer tx.Rollback(ctx)
 
 	// Insert events
+	// Note: matched_destination_ids is passed as jsonb[] (each element is a JSON array)
+	// and cast to text[] per row, because PostgreSQL's unnest flattens 2D text arrays.
 	if len(events) > 0 {
 		_, err = tx.Exec(ctx, `
-			INSERT INTO events (id, tenant_id, destination_id, time, topic, eligible_for_retry, data, metadata)
-			SELECT * FROM unnest($1::text[], $2::text[], $3::text[], $4::timestamptz[], $5::text[], $6::boolean[], $7::text[], $8::jsonb[])
+			INSERT INTO events (id, tenant_id, matched_destination_ids, time, topic, eligible_for_retry, data, metadata)
+			SELECT
+				u.id, u.tenant_id,
+				ARRAY(SELECT jsonb_array_elements_text(u.matched_dest_json)),
+				u.time, u.topic, u.eligible_for_retry, u.data, u.metadata
+			FROM unnest(
+				$1::text[], $2::text[], $3::jsonb[],
+				$4::timestamptz[], $5::text[], $6::boolean[], $7::text[], $8::jsonb[]
+			) AS u(id, tenant_id, matched_dest_json, time, topic, eligible_for_retry, data, metadata)
 			ON CONFLICT (time, id) DO NOTHING
 		`, eventArrays(events)...)
 		if err != nil {
@@ -757,7 +756,7 @@ func (s *logStore) InsertMany(ctx context.Context, entries []*models.LogEntry) e
 func eventArrays(events []*models.Event) []any {
 	ids := make([]string, len(events))
 	tenantIDs := make([]string, len(events))
-	destinationIDs := make([]string, len(events))
+	matchedDestJSON := make([]string, len(events))
 	times := make([]time.Time, len(events))
 	topics := make([]string, len(events))
 	eligibleForRetries := make([]bool, len(events))
@@ -767,7 +766,12 @@ func eventArrays(events []*models.Event) []any {
 	for i, e := range events {
 		ids[i] = e.ID
 		tenantIDs[i] = e.TenantID
-		destinationIDs[i] = e.DestinationID
+		matched := e.MatchedDestinationIDs
+		if matched == nil {
+			matched = []string{}
+		}
+		b, _ := json.Marshal(matched)
+		matchedDestJSON[i] = string(b)
 		times[i] = e.Time
 		topics[i] = e.Topic
 		eligibleForRetries[i] = e.EligibleForRetry
@@ -778,7 +782,7 @@ func eventArrays(events []*models.Event) []any {
 	return []any{
 		ids,
 		tenantIDs,
-		destinationIDs,
+		matchedDestJSON,
 		times,
 		topics,
 		eligibleForRetries,

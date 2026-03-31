@@ -1773,9 +1773,12 @@ components:
           type: string
           description: The tenant this event belongs to.
           example: "tnt_123"
-        destination_id:
-          type: string
-          example: "des_456"
+        matched_destination_ids:
+          type: array
+          items:
+            type: string
+          description: The destination IDs that this event was routed to based on topic and filter matching.
+          example: ["des_456", "des_789"]
         topic:
           type: string
           example: "user.created"
@@ -2497,6 +2500,16 @@ paths:
             When authenticated with a Tenant JWT, this parameter is ignored and the JWT's tenant is used.
             If not provided with API key auth, returns events from all tenants.
 
+        - name: destination_id
+          in: query
+          required: false
+          schema:
+            oneOf:
+              - type: string
+              - type: array
+                items:
+                  type: string
+          description: Filter events by matched destination ID(s). Returns events that were routed to the specified destination(s). Use bracket notation for multiple values (e.g., `destination_id[0]=d1&destination_id[1]=d2`).
         - name: topic
           in: query
           required: false
@@ -2585,12 +2598,14 @@ paths:
                     models:
                       - id: "evt_123"
                         topic: "user.created"
+                        matched_destination_ids: ["des_456"]
                         time: "2024-01-01T00:00:00Z"
                         eligible_for_retry: false
                         metadata: { "source": "crm" }
                         data: { "user_id": "userid", "status": "active" }
                       - id: "evt_789"
                         topic: "order.shipped"
+                        matched_destination_ids: ["des_456", "des_789"]
                         time: "2024-01-02T10:00:00Z"
                         eligible_for_retry: true
                         metadata: { "source": "oms" }
@@ -2635,6 +2650,7 @@ paths:
                   value:
                     id: "evt_123"
                     topic: "user.created"
+                    matched_destination_ids: ["des_456"]
                     time: "2024-01-01T00:00:00Z"
                     eligible_for_retry: false
                     metadata: { "source": "crm" }

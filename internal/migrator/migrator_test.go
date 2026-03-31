@@ -403,15 +403,15 @@ func TestMigrator_DeploymentID_Isolation(t *testing.T) {
 
 	// Insert data into deployment A
 	err = chDB.Exec(ctx, `
-		INSERT INTO deploy_a_events (event_id, tenant_id, destination_id, topic, eligible_for_retry, event_time, metadata, data)
-		VALUES ('evt_a', 'tenant_a', 'dest_a', 'topic_a', false, now(), '{}', '{}')
+		INSERT INTO deploy_a_events (event_id, tenant_id, topic, eligible_for_retry, event_time, metadata, data)
+		VALUES ('evt_a', 'tenant_a', 'topic_a', false, now(), '{}', '{}')
 	`)
 	require.NoError(t, err)
 
 	// Insert data into deployment B
 	err = chDB.Exec(ctx, `
-		INSERT INTO deploy_b_events (event_id, tenant_id, destination_id, topic, eligible_for_retry, event_time, metadata, data)
-		VALUES ('evt_b', 'tenant_b', 'dest_b', 'topic_b', false, now(), '{}', '{}')
+		INSERT INTO deploy_b_events (event_id, tenant_id, topic, eligible_for_retry, event_time, metadata, data)
+		VALUES ('evt_b', 'tenant_b', 'topic_b', false, now(), '{}', '{}')
 	`)
 	require.NoError(t, err)
 
