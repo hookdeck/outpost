@@ -1,84 +1,92 @@
 import * as crypto from "crypto";
 
+/**
+ * Verify Outpost default-mode webhooks (v0.12+ defaults).
+ * Signed content: raw request body. Header value: v0=<hex>[,<hex>...] during secret rotation.
+ * Timestamp for replay checks lives in x-outpost-timestamp, not in the signature header.
+ */
 function verifyWebhookSignature(
-  requestBody: string,
+  rawBody: string,
   signatureHeader: string,
   secret: string
 ): boolean {
-  // Parse the signature header (assumed format: t=<timestamp>,v0=<signature>)
-  const parts = signatureHeader.split(",");
-  const timestampPart = parts.find((part) => part.startsWith("t="));
-  const signaturePart = parts.find((part) => part.startsWith("v0="));
-
-  console.log(`signaturePart: ${signaturePart}`);
-  console.log(`timestampPart: ${timestampPart}`);
-
-  if (!timestampPart || !signaturePart) {
-    return false; // Malformed signature header
+  const trimmed = signatureHeader.trim();
+  if (!trimmed.startsWith("v0=")) {
+    return false;
   }
 
-  const timestamp = timestampPart.split("=")[1];
-  const expectedSignature = signaturePart.split("=")[1];
+  const listed = trimmed.slice("v0=".length).split(",");
+  const expected = crypto
+    .createHmac("sha256", secret)
+    .update(rawBody)
+    .digest("hex");
 
-  // Create the string to sign
-  const data = `${timestamp}.${requestBody}`;
-
-  // Compute the HMAC SHA-256 signature
-  const hmac = crypto.createHmac("sha256", secret);
-  hmac.update(data);
-  const computedSignature = hmac.digest("hex");
-
-  // Compare the computed signature with the expected one
-  console.log(`comparing: \n${computedSignature}\n${expectedSignature}`);
-
-  return crypto.timingSafeEqual(
-    Buffer.from(computedSignature, "utf8"),
-    Buffer.from(expectedSignature, "utf8")
+  return listed.some(
+    (sig) =>
+      sig.length === expected.length &&
+      crypto.timingSafeEqual(
+        Buffer.from(sig, "utf8"),
+        Buffer.from(expected, "utf8")
+      )
   );
 }
 
-// Example usage
-const requestBody = '{"test":"data"}'; // The actual webhook payload
-const signatureHeader =
-  "t=1741797142,v0=ec25087a0b05b76fd057f61af808778b2b0e3b4c9f0dfc80f4cdc5cecdd1f325";
-const secret = "some_secret_value";
-
-const isValid = verifyWebhookSignature(requestBody, signatureHeader, secret);
-console.log(`Signature valid: ${isValid}`);
-
-// Helper function to assert valid signature
-function assertValidSignature(
-  secret: string,
-  rawBody: Uint8Array,
-  signatureHeader: string
-) {
-  // Parse "t={timestamp},v0={signature1,signature2}" format
-  const parts = signatureHeader.split(",", 2); // Split only on first comma
-
-  const timestampStr = parts[0].replace("t=", "");
-  const signatures = parts[1].replace("v0=", "").split(",");
-
-  const timestamp = parseInt(timestampStr, 10);
-  if (isNaN(timestamp)) {
-    throw new Error("timestamp should be a valid integer");
+/**
+ * Legacy format when the operator sets DESTINATIONS_WEBHOOK_SIGNATURE_* to v0.11-style templates.
+ * Header: t=<unix>,v0=<hex>[,<hex>...]  Signed content: "<unix>.<raw body>"
+ */
+function verifyWebhookSignatureLegacy(
+  rawBody: string,
+  signatureHeader: string,
+  secret: string
+): boolean {
+  const comma = signatureHeader.indexOf(",");
+  if (comma === -1) {
+    return false;
+  }
+  const tsPart = signatureHeader.slice(0, comma);
+  const sigPart = signatureHeader.slice(comma + 1);
+  if (!tsPart.startsWith("t=") || !sigPart.startsWith("v0=")) {
+    return false;
   }
 
-  // Reconstruct the signed content
+  const timestamp = tsPart.slice("t=".length);
+  const listed = sigPart.slice("v0=".length).split(",");
   const signedContent = `${timestamp}.${rawBody}`;
+  const expected = crypto
+    .createHmac("sha256", secret)
+    .update(signedContent)
+    .digest("hex");
 
-  // Generate HMAC-SHA256
-  const hmac = crypto.createHmac("sha256", secret);
-  hmac.update(signedContent);
-  const expectedSignature = hmac.digest("hex");
-
-  // Check if any of the signatures match
-  const found = signatures.some((sig) => sig === expectedSignature);
-  return found;
+  return listed.some(
+    (sig) =>
+      sig.length === expected.length &&
+      crypto.timingSafeEqual(
+        Buffer.from(sig, "utf8"),
+        Buffer.from(expected, "utf8")
+      )
+  );
 }
 
-const assertResult = assertValidSignature(
-  secret,
-  Buffer.from(requestBody),
-  signatureHeader
+// --- Default (current) Outpost behavior ---
+const requestBody = '{"test":"data"}';
+const signatureHeader =
+  "v0=5920020651a5934e394f95a7e79a85400ba12318c11f330b9ca30c7f064318d1";
+const secret = "some_secret_value";
+
+const isValidDefault = verifyWebhookSignature(
+  requestBody,
+  signatureHeader,
+  secret
 );
-console.log(`Signature valid: ${assertResult}`);
+console.log(`Default format signature valid: ${isValidDefault}`);
+
+// --- Legacy (optional operator override) ---
+const legacyHeader =
+  "t=1741797142,v0=ec25087a0b05b76fd057f61af808778b2b0e3b4c9f0dfc80f4cdc5cecdd1f325";
+const isValidLegacy = verifyWebhookSignatureLegacy(
+  requestBody,
+  legacyHeader,
+  secret
+);
+console.log(`Legacy format signature valid: ${isValidLegacy}`);
