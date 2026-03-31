@@ -1,7 +1,6 @@
 import db from "./lib/db";
 import outpost from "./lib/outpost";
 
-// Node.js arguments: [0] = node, [1] = script path, [2] = first user argument
 const tenantId = process.argv[2];
 if (!tenantId) {
   console.error("Please provide an tenant ID");
@@ -9,12 +8,12 @@ if (!tenantId) {
 }
 
 const main = async () => {
-  const response = await outpost.registerTenant(tenantId);
+  const tenant = await outpost.tenants.upsert(tenantId);
   console.log(`Tenant ${tenantId} created`);
-  console.log(response);
+  console.log(tenant);
 
-  const portalUrl = await outpost.getPortalURL(tenantId);
-  console.log(`Portal URL for ${tenantId}:`, portalUrl);
+  const portal = await outpost.tenants.getPortalUrl(tenantId);
+  console.log(`Portal URL for ${tenantId}:`, portal.redirectUrl ?? "");
 };
 
 main()
