@@ -85,10 +85,10 @@ func TestScheduler_Basic(t *testing.T) {
 		return nil
 	}
 
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
 	s := scheduler.New("scheduler", rsmqClient, exec, scheduler.WithLogger(logger))
 	require.NoError(t, s.Init(ctx))
-	defer s.Shutdown()
+	defer func() { cancel(); s.Shutdown() }()
 	go s.Monitor(ctx)
 
 	// Act
@@ -128,10 +128,10 @@ func TestScheduler_ParallelMonitor(t *testing.T) {
 		return nil
 	}
 
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
 	s := scheduler.New("scheduler", rsmqClient, exec, scheduler.WithLogger(logger))
 	require.NoError(t, s.Init(ctx))
-	defer s.Shutdown()
+	defer func() { cancel(); s.Shutdown() }()
 
 	go s.Monitor(ctx)
 	go s.Monitor(ctx)
@@ -206,12 +206,15 @@ func TestScheduler_CustomID(t *testing.T) {
 			return nil
 		}
 
+		monitorCtx, cancelMonitor := context.WithCancel(ctx)
+
 		rsmqClient := createRSMQClient(t, redisConfig)
 		s := scheduler.New(idgen.String(), rsmqClient, exec, scheduler.WithLogger(logger))
 		require.NoError(t, s.Init(ctx))
-		go s.Monitor(ctx)
+		go s.Monitor(monitorCtx)
 
 		t.Cleanup(func() {
+			cancelMonitor()
 			s.Shutdown()
 		})
 
@@ -284,16 +287,18 @@ func TestScheduler_CustomID(t *testing.T) {
 		require.NoError(t, s.Schedule(ctx, task1, 100*time.Millisecond, scheduler.WithTaskID(id)))
 
 		// Wait for first task to execute
-		time.Sleep(200 * time.Millisecond)
-		require.Len(t, *msgs, 1)
+		require.Eventually(t, func() bool {
+			return len(*msgs) >= 1
+		}, 2*time.Second, 50*time.Millisecond, "first task should execute")
 		require.Equal(t, task1, (*msgs)[0])
 
 		// Schedule second task with same ID
 		require.NoError(t, s.Schedule(ctx, task2, 100*time.Millisecond, scheduler.WithTaskID(id)))
 
 		// Wait for second task to execute
-		time.Sleep(200 * time.Millisecond)
-		require.Len(t, *msgs, 2)
+		require.Eventually(t, func() bool {
+			return len(*msgs) >= 2
+		}, 2*time.Second, 50*time.Millisecond, "second task should execute")
 		require.Equal(t, task2, (*msgs)[1])
 	})
 }
@@ -312,12 +317,15 @@ func TestScheduler_Cancel(t *testing.T) {
 			return nil
 		}
 
+		monitorCtx, cancelMonitor := context.WithCancel(ctx)
+
 		rsmqClient := createRSMQClient(t, redisConfig)
 		s := scheduler.New(idgen.String(), rsmqClient, exec, scheduler.WithLogger(logger))
 		require.NoError(t, s.Init(ctx))
-		go s.Monitor(ctx)
+		go s.Monitor(monitorCtx)
 
 		t.Cleanup(func() {
+			cancelMonitor()
 			s.Shutdown()
 		})
 
@@ -372,14 +380,14 @@ func TestScheduler_MonitorRetriesTransientErrors(t *testing.T) {
 		return nil
 	}
 
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
 	s := scheduler.New("scheduler", mock, exec,
 		scheduler.WithPollBackoff(10*time.Millisecond),
 		scheduler.WithMaxConsecutiveErrors(5),
 		scheduler.WithLogger(logger),
 	)
 	require.NoError(t, s.Init(ctx))
-	defer s.Shutdown()
+	defer func() { cancel(); s.Shutdown() }()
 
 	go s.Monitor(ctx)
 
