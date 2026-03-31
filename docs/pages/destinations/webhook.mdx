@@ -38,7 +38,7 @@ Content-Type: application/json
 x-outpost-id: evt_123
 x-outpost-topic: orders
 x-outpost-timestamp: 1704067200
-x-outpost-signature: t=1704067200,v0=abc123...
+x-outpost-signature: v0=abc123...
 x-outpost-source: checkout-service
 
 {"order_id": "123", "status": "created"}
@@ -135,22 +135,28 @@ Outpost adds headers using the configured prefix (default `x-outpost-`):
 
 ### Signature
 
-The signature is computed over the timestamp and request body:
+By default the signed payload is the **raw request body** (see `DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE`).
 
 ```
-signature = HMAC-SHA256(secret, "${timestamp}.${body}")
+signature = HMAC-SHA256(secret, body)
 ```
 
-The signature header value follows the format: `t=${timestamp},v0=${signature}`
+The signature header value follows the format: `v0=${signature}`. During secret rotation, Outpost may send several comma-separated digests: `v0=${sig1},${sig2}`. Compare your computed digest to any of the values using a constant-time check.
+
+The event time is in the `x-outpost-timestamp` header (Unix seconds), not embedded in the signature header.
+
+:::note[Upgrading from v0.11]
+The previous defaults signed `${timestamp}.${body}` and used `t=${timestamp},v0=${signature}`. See the [v0.12 upgrade guide](/docs/guides/upgrade-v0.12#webhook-signature-defaults) to align receivers or restore the old templates.
+:::
 
 ### Verifying Signatures
 
 To verify webhook requests:
 
-1. Extract the timestamp and signature from the `x-outpost-signature` header
-2. Compute the expected signature using your secret
-3. Compare signatures using a constant-time comparison
-4. Optionally, reject requests with old timestamps to prevent replay attacks
+1. Read the raw body **before** JSON parsing (the digest is over exact bytes).
+2. Parse `v0=` from the `x-outpost-signature` header; split any comma-separated digests if present.
+3. Compute `HMAC-SHA256(secret, rawBody)` with the configured encoding (default hex) and compare.
+4. Optionally, use `x-outpost-timestamp` and reject stale requests to limit replay attacks.
 
 ### Operator Configuration
 

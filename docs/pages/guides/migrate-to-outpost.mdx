@@ -59,7 +59,7 @@ Webhooks are delivered via HTTP `POST` requests.
 ### Webhook Event HTTP Headers
 
 - `x-outpost-event-id`: A unique identifier for the event within the Outpost installation
-- `x-outpost-signature`: The signature generated using the webhook secret (e.g., `t=<timestamp>,v0=<signature>`).
+- `x-outpost-signature`: HMAC of the raw body (default `v0=<hex>`; operators may customize templates — see [Webhook destination](/docs/destinations/webhook#signature)).
 - `x-outpost-timestamp`: A Unix timestamp representing the time the event was generated
 - `x-outpost-topic`: The topic of the event. For example, `user.created`.
 
@@ -140,7 +140,7 @@ The following diagram shows the Outpost schema. You can connect to the database 
 A migration script may look something like this:
 
 ```ts
-// Outpost API wrapper
+// Outpost TypeScript SDK (see examples/demos/nodejs)
 import outpost from "./outpost";
 
 // Database wrapper
@@ -163,7 +163,7 @@ const migrateOrganizations = async () => {
   const migratedOrgIds: string[] = [];
   const organizations = db.getOrganizations();
   for (const organization of organizations) {
-    await outpost.registerTenant(organization.id);
+    await outpost.tenants.upsert(organization.id);
     migratedOrgIds.push(organization.id);
   }
   return migratedOrgIds;
@@ -172,12 +172,11 @@ const migrateOrganizations = async () => {
 const migrateSubscriptions = async (organizationId: string) => {
   const subscriptions = db.getSubscriptions(organizationId);
   for (const subscription of subscriptions) {
-    await outpost.createDestination({
-      tenant_id: organizationId,
+    await outpost.destinations.create(organizationId, {
       type: "webhook",
-      url: subscription.url,
+      config: { url: subscription.url },
       topics: subscription.topics,
-      secret: subscription.secret,
+      credentials: { secret: subscription.secret },
     });
   }
 };
