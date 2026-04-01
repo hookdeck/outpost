@@ -145,14 +145,28 @@ func (s *logStoreImpl) QueryEventMetrics(ctx context.Context, req driver.Metrics
 		conditions, args = addInFilter(conditions, args, "topic", topics)
 	}
 	if dests, ok := req.Filters["destination_id"]; ok {
-		conditions, args = addInFilter(conditions, args, "destination_id", dests)
+		conditions = append(conditions, "hasAny(matched_destination_ids, ?)")
+		args = append(args, dests)
+	}
+
+	// Determine source — use arrayJoin when destination_id dimension is requested
+	needsUnnest := false
+	for _, dim := range req.Dimensions {
+		if dim == "destination_id" {
+			needsUnnest = true
+			break
+		}
 	}
 
 	// Build SQL — no FINAL needed; uniqExact(event_id) handles dedup from
 	// unmerged ReplacingMergeTree parts.
+	sourceExpr := s.eventsTable
+	if needsUnnest {
+		sourceExpr = fmt.Sprintf("(SELECT *, arrayJoin(matched_destination_ids) AS destination_id FROM %s)", s.eventsTable)
+	}
 	query := fmt.Sprintf("SELECT %s FROM %s WHERE %s",
 		strings.Join(selectExprs, ", "),
-		s.eventsTable,
+		sourceExpr,
 		strings.Join(conditions, " AND "))
 	if len(groupExprs) > 0 {
 		query += " GROUP BY " + strings.Join(groupExprs, ", ")

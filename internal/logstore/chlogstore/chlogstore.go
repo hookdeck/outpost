@@ -50,24 +50,6 @@ type eventWithPosition struct {
 }
 
 func (s *logStoreImpl) ListEvent(ctx context.Context, req driver.ListEventRequest) (driver.ListEventResponse, error) {
-	// DestinationIDs filter is not supported for ListEvent.
-	//
-	// The current implementation is incorrect because it queries events.destination_id,
-	// which represents the publish input (the destination specified when the event was
-	// originally published), not the destinations that actually matched and received
-	// the event.
-	//
-	// Events are destination-agnostic: a single event can be delivered to multiple
-	// destinations based on routing rules. To filter events by destination, you need
-	// to query via the attempts table, which records actual delivery attempts per
-	// destination.
-	//
-	// For now, users should use ListAttempt with the DestinationIDs filter instead,
-	// which correctly filters by the destinations that received delivery attempts.
-	if len(req.DestinationIDs) > 0 {
-		return driver.ListEventResponse{}, fmt.Errorf("ListEvent with DestinationIDs filter is not implemented: events are destination-agnostic, use ListAttempt instead")
-	}
-
 	sortOrder := req.SortOrder
 	if sortOrder != "asc" && sortOrder != "desc" {
 		sortOrder = "desc"
@@ -134,7 +116,7 @@ func buildEventQuery(table string, req driver.ListEventRequest, q pagination.Que
 	}
 
 	if len(req.DestinationIDs) > 0 {
-		conditions = append(conditions, "destination_id IN ?")
+		conditions = append(conditions, "hasAny(matched_destination_ids, ?)")
 		args = append(args, req.DestinationIDs)
 	}
 
@@ -182,7 +164,7 @@ func buildEventQuery(table string, req driver.ListEventRequest, q pagination.Que
 		SELECT
 			event_id,
 			tenant_id,
-			destination_id,
+			matched_destination_ids,
 			topic,
 			eligible_for_retry,
 			event_time,
@@ -201,20 +183,20 @@ func scanEvents(rows clickhouse.Rows) ([]eventWithPosition, error) {
 	var results []eventWithPosition
 	for rows.Next() {
 		var (
-			eventID          string
-			tenantID         string
-			destinationID    string
-			topic            string
-			eligibleForRetry bool
-			eventTime        time.Time
-			metadataStr      string
-			dataStr          string
+			eventID               string
+			tenantID              string
+			matchedDestinationIDs []string
+			topic                 string
+			eligibleForRetry      bool
+			eventTime             time.Time
+			metadataStr           string
+			dataStr               string
 		)
 
 		err := rows.Scan(
 			&eventID,
 			&tenantID,
-			&destinationID,
+			&matchedDestinationIDs,
 			&topic,
 			&eligibleForRetry,
 			&eventTime,
@@ -233,16 +215,20 @@ func scanEvents(rows clickhouse.Rows) ([]eventWithPosition, error) {
 			}
 		}
 
+		if matchedDestinationIDs == nil {
+			matchedDestinationIDs = []string{}
+		}
+
 		results = append(results, eventWithPosition{
 			Event: &models.Event{
-				ID:               eventID,
-				TenantID:         tenantID,
-				DestinationID:    destinationID,
-				Topic:            topic,
-				EligibleForRetry: eligibleForRetry,
-				Time:             eventTime,
-				Data:             json.RawMessage(dataStr),
-				Metadata:         metadata,
+				ID:                    eventID,
+				TenantID:              tenantID,
+				MatchedDestinationIDs: matchedDestinationIDs,
+				Topic:                 topic,
+				EligibleForRetry:      eligibleForRetry,
+				Time:                  eventTime,
+				Data:                  json.RawMessage(dataStr),
+				Metadata:              metadata,
 			},
 			eventTime: eventTime,
 		})
@@ -528,7 +514,7 @@ func (s *logStoreImpl) RetrieveEvent(ctx context.Context, req driver.RetrieveEve
 		SELECT
 			event_id,
 			tenant_id,
-			destination_id,
+			matched_destination_ids,
 			topic,
 			eligible_for_retry,
 			event_time,
@@ -546,7 +532,7 @@ func (s *logStoreImpl) RetrieveEvent(ctx context.Context, req driver.RetrieveEve
 	if err := row.Scan(
 		&event.ID,
 		&event.TenantID,
-		&event.DestinationID,
+		&event.MatchedDestinationIDs,
 		&event.Topic,
 		&event.EligibleForRetry,
 		&event.Time,
@@ -568,6 +554,10 @@ func (s *logStoreImpl) RetrieveEvent(ctx context.Context, req driver.RetrieveEve
 		if err := json.Unmarshal([]byte(dataStr), &event.Data); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal data: %w", err)
 		}
+	}
+
+	if event.MatchedDestinationIDs == nil {
+		event.MatchedDestinationIDs = []string{}
 	}
 
 	return event, nil
@@ -706,7 +696,7 @@ func (s *logStoreImpl) InsertMany(ctx context.Context, entries []*models.LogEntr
 	if len(eventMap) > 0 {
 		eventBatch, err := s.chDB.PrepareBatch(ctx,
 			fmt.Sprintf(`INSERT INTO %s (
-				event_id, tenant_id, destination_id, topic, eligible_for_retry, event_time, metadata, data
+				event_id, tenant_id, matched_destination_ids, topic, eligible_for_retry, event_time, metadata, data
 			)`, s.eventsTable),
 		)
 		if err != nil {
@@ -718,10 +708,14 @@ func (s *logStoreImpl) InsertMany(ctx context.Context, entries []*models.LogEntr
 			if err != nil {
 				return fmt.Errorf("failed to marshal metadata: %w", err)
 			}
+			matched := e.MatchedDestinationIDs
+			if matched == nil {
+				matched = []string{}
+			}
 			if err := eventBatch.Append(
 				e.ID,
 				e.TenantID,
-				e.DestinationID,
+				matched,
 				e.Topic,
 				e.EligibleForRetry,
 				e.Time,

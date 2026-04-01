@@ -98,37 +98,37 @@ type APIAttempt struct {
 
 // APIEventSummary is the event object when expand=event (without data)
 type APIEventSummary struct {
-	ID               string            `json:"id"`
-	TenantID         string            `json:"tenant_id"`
-	DestinationID    string            `json:"destination_id"`
-	Topic            string            `json:"topic"`
-	Time             time.Time         `json:"time"`
-	EligibleForRetry bool              `json:"eligible_for_retry"`
-	Metadata         map[string]string `json:"metadata,omitempty"`
+	ID                    string            `json:"id"`
+	TenantID              string            `json:"tenant_id"`
+	MatchedDestinationIDs []string          `json:"matched_destination_ids,omitempty"`
+	Topic                 string            `json:"topic"`
+	Time                  time.Time         `json:"time"`
+	EligibleForRetry      bool              `json:"eligible_for_retry"`
+	Metadata              map[string]string `json:"metadata,omitempty"`
 }
 
 // APIEventFull is the event object when expand=event.data
 type APIEventFull struct {
-	ID               string            `json:"id"`
-	TenantID         string            `json:"tenant_id"`
-	DestinationID    string            `json:"destination_id"`
-	Topic            string            `json:"topic"`
-	Time             time.Time         `json:"time"`
-	EligibleForRetry bool              `json:"eligible_for_retry"`
-	Metadata         map[string]string `json:"metadata,omitempty"`
-	Data             json.RawMessage   `json:"data,omitempty"`
+	ID                    string            `json:"id"`
+	TenantID              string            `json:"tenant_id"`
+	MatchedDestinationIDs []string          `json:"matched_destination_ids,omitempty"`
+	Topic                 string            `json:"topic"`
+	Time                  time.Time         `json:"time"`
+	EligibleForRetry      bool              `json:"eligible_for_retry"`
+	Metadata              map[string]string `json:"metadata,omitempty"`
+	Data                  json.RawMessage   `json:"data,omitempty"`
 }
 
 // APIEvent is the API response for retrieving a single event
 type APIEvent struct {
-	ID               string            `json:"id"`
-	TenantID         string            `json:"tenant_id"`
-	DestinationID    string            `json:"destination_id"`
-	Topic            string            `json:"topic"`
-	Time             time.Time         `json:"time"`
-	EligibleForRetry bool              `json:"eligible_for_retry"`
-	Metadata         map[string]string `json:"metadata,omitempty"`
-	Data             json.RawMessage   `json:"data,omitempty"`
+	ID                    string            `json:"id"`
+	TenantID              string            `json:"tenant_id"`
+	MatchedDestinationIDs []string          `json:"matched_destination_ids"`
+	Topic                 string            `json:"topic"`
+	Time                  time.Time         `json:"time"`
+	EligibleForRetry      bool              `json:"eligible_for_retry"`
+	Metadata              map[string]string `json:"metadata,omitempty"`
+	Data                  json.RawMessage   `json:"data,omitempty"`
 }
 
 // AttemptPaginatedResult is the paginated response for listing attempts.
@@ -166,24 +166,24 @@ func toAPIAttempt(ar *logstore.AttemptRecord, opts IncludeOptions, destDisplay *
 	if ar.Event != nil {
 		if opts.EventData {
 			api.Event = APIEventFull{
-				ID:               ar.Event.ID,
-				TenantID:         ar.Event.TenantID,
-				DestinationID:    ar.Event.DestinationID,
-				Topic:            ar.Event.Topic,
-				Time:             ar.Event.Time,
-				EligibleForRetry: ar.Event.EligibleForRetry,
-				Metadata:         ar.Event.Metadata,
-				Data:             ar.Event.Data,
+				ID:                    ar.Event.ID,
+				TenantID:              ar.Event.TenantID,
+				MatchedDestinationIDs: ar.Event.MatchedDestinationIDs,
+				Topic:                 ar.Event.Topic,
+				Time:                  ar.Event.Time,
+				EligibleForRetry:      ar.Event.EligibleForRetry,
+				Metadata:              ar.Event.Metadata,
+				Data:                  ar.Event.Data,
 			}
 		} else if opts.Event {
 			api.Event = APIEventSummary{
-				ID:               ar.Event.ID,
-				TenantID:         ar.Event.TenantID,
-				DestinationID:    ar.Event.DestinationID,
-				Topic:            ar.Event.Topic,
-				Time:             ar.Event.Time,
-				EligibleForRetry: ar.Event.EligibleForRetry,
-				Metadata:         ar.Event.Metadata,
+				ID:                    ar.Event.ID,
+				TenantID:              ar.Event.TenantID,
+				MatchedDestinationIDs: ar.Event.MatchedDestinationIDs,
+				Topic:                 ar.Event.Topic,
+				Time:                  ar.Event.Time,
+				EligibleForRetry:      ar.Event.EligibleForRetry,
+				Metadata:              ar.Event.Metadata,
 			}
 		}
 	}
@@ -362,14 +362,14 @@ func (h *LogHandlers) RetrieveEvent(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, APIEvent{
-		ID:               event.ID,
-		TenantID:         event.TenantID,
-		DestinationID:    event.DestinationID,
-		Topic:            event.Topic,
-		Time:             event.Time,
-		EligibleForRetry: event.EligibleForRetry,
-		Metadata:         event.Metadata,
-		Data:             event.Data,
+		ID:                    event.ID,
+		TenantID:              event.TenantID,
+		MatchedDestinationIDs: event.MatchedDestinationIDs,
+		Topic:                 event.Topic,
+		Time:                  event.Time,
+		EligibleForRetry:      event.EligibleForRetry,
+		Metadata:              event.Metadata,
+		Data:                  event.Data,
 	})
 }
 
@@ -473,10 +473,7 @@ func (h *LogHandlers) listEventsInternal(c *gin.Context, tenantIDs []string) {
 
 	limit := parseLimit(c, 100, 1000)
 
-	var destinationIDs []string
-	if destID := c.Query("destination_id"); destID != "" {
-		destinationIDs = []string{destID}
-	}
+	destinationIDs := ParseArrayQueryParam(c, "destination_id")
 
 	req := logstore.ListEventRequest{
 		TenantIDs:      tenantIDs,
@@ -508,14 +505,14 @@ func (h *LogHandlers) listEventsInternal(c *gin.Context, tenantIDs []string) {
 	apiEvents := make([]APIEvent, len(response.Data))
 	for i, e := range response.Data {
 		apiEvents[i] = APIEvent{
-			ID:               e.ID,
-			TenantID:         e.TenantID,
-			DestinationID:    e.DestinationID,
-			Topic:            e.Topic,
-			Time:             e.Time,
-			EligibleForRetry: e.EligibleForRetry,
-			Metadata:         e.Metadata,
-			Data:             e.Data,
+			ID:                    e.ID,
+			TenantID:              e.TenantID,
+			MatchedDestinationIDs: e.MatchedDestinationIDs,
+			Topic:                 e.Topic,
+			Time:                  e.Time,
+			EligibleForRetry:      e.EligibleForRetry,
+			Metadata:              e.Metadata,
+			Data:                  e.Data,
 		}
 	}
 

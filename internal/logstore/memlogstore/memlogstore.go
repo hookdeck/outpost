@@ -38,24 +38,6 @@ func NewLogStore() driver.LogStore {
 }
 
 func (s *memLogStore) ListEvent(ctx context.Context, req driver.ListEventRequest) (driver.ListEventResponse, error) {
-	// DestinationIDs filter is not supported for ListEvent.
-	//
-	// The current implementation is incorrect because it queries events.destination_id,
-	// which represents the publish input (the destination specified when the event was
-	// originally published), not the destinations that actually matched and received
-	// the event.
-	//
-	// Events are destination-agnostic: a single event can be delivered to multiple
-	// destinations based on routing rules. To filter events by destination, you need
-	// to query via the attempts table, which records actual delivery attempts per
-	// destination.
-	//
-	// For now, users should use ListAttempt with the DestinationIDs filter instead,
-	// which correctly filters by the destinations that received delivery attempts.
-	if len(req.DestinationIDs) > 0 {
-		return driver.ListEventResponse{}, fmt.Errorf("ListEvent with DestinationIDs filter is not implemented: events are destination-agnostic, use ListAttempt instead")
-	}
-
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -170,7 +152,7 @@ func (s *memLogStore) matchesEventFilter(event *models.Event, req driver.ListEve
 	if len(req.DestinationIDs) > 0 {
 		found := false
 		for _, destID := range req.DestinationIDs {
-			if event.DestinationID == destID {
+			if slices.Contains(event.MatchedDestinationIDs, destID) {
 				found = true
 				break
 			}
@@ -447,10 +429,16 @@ func copyEvent(e *models.Event) *models.Event {
 	copied := &models.Event{
 		ID:               e.ID,
 		TenantID:         e.TenantID,
-		DestinationID:    e.DestinationID,
 		Topic:            e.Topic,
 		EligibleForRetry: e.EligibleForRetry,
 		Time:             e.Time,
+	}
+
+	if e.MatchedDestinationIDs != nil {
+		copied.MatchedDestinationIDs = make([]string, len(e.MatchedDestinationIDs))
+		copy(copied.MatchedDestinationIDs, e.MatchedDestinationIDs)
+	} else {
+		copied.MatchedDestinationIDs = []string{}
 	}
 
 	if e.Metadata != nil {

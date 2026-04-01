@@ -46,6 +46,7 @@ func testCRUD(t *testing.T, newHarness HarnessMaker) {
 				testutil.EventFactory.WithID("single_evt"),
 				testutil.EventFactory.WithTenantID(tenantID),
 				testutil.EventFactory.WithDestinationID(destID),
+				testutil.EventFactory.WithMatchedDestinationIDs([]string{destID}),
 				testutil.EventFactory.WithTopic(topic),
 				testutil.EventFactory.WithTime(baseTime.Add(-30*time.Minute)),
 			)
@@ -106,6 +107,7 @@ func testCRUD(t *testing.T, newHarness HarnessMaker) {
 					testutil.EventFactory.WithID(fmt.Sprintf("batch_evt_%02d", i)),
 					testutil.EventFactory.WithTenantID(tenantID),
 					testutil.EventFactory.WithDestinationID(destID),
+					testutil.EventFactory.WithMatchedDestinationIDs([]string{destID}),
 					testutil.EventFactory.WithTopic(topic),
 					testutil.EventFactory.WithTime(eventTime),
 				)
@@ -147,26 +149,7 @@ func testCRUD(t *testing.T, newHarness HarnessMaker) {
 	})
 
 	t.Run("list filters", func(t *testing.T) {
-		// ListEvent with DestinationIDs filter returns unimplemented error.
-		// Events are destination-agnostic: the destination_id on events represents
-		// the publish input, not matched destinations. To filter by destination,
-		// use ListAttempt which queries actual delivery attempts.
-		t.Run("ListEvent by destination returns error", func(t *testing.T) {
-			destID := destinationIDs[0]
-			_, err := logStore.ListEvent(ctx, driver.ListEventRequest{
-				TenantIDs:      []string{tenantID},
-				DestinationIDs: []string{destID},
-				Limit:          100,
-				TimeFilter:     driver.TimeFilter{GTE: &startTime},
-			})
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), "not implemented")
-		})
-
 		t.Run("ListEvent by destination", func(t *testing.T) {
-			// TODO(list-event-destination-filter): Re-enable once we implement proper destination tracking for events.
-			t.Skip("ListEvent with DestinationIDs filter is not implemented")
-
 			destID := destinationIDs[0]
 			response, err := logStore.ListEvent(ctx, driver.ListEventRequest{
 				TenantIDs:      []string{tenantID},
@@ -177,14 +160,11 @@ func testCRUD(t *testing.T, newHarness HarnessMaker) {
 			require.NoError(t, err)
 			require.Len(t, response.Data, len(destinationEvents[destID]))
 			for _, event := range response.Data {
-				assert.Equal(t, destID, event.DestinationID)
+				assert.Contains(t, event.MatchedDestinationIDs, destID)
 			}
 		})
 
 		t.Run("ListEvent by multiple destinations", func(t *testing.T) {
-			// TODO(list-event-destination-filter): Re-enable once we implement proper destination tracking for events.
-			t.Skip("ListEvent with DestinationIDs filter is not implemented")
-
 			destIDs := []string{destinationIDs[0], destinationIDs[1]}
 			response, err := logStore.ListEvent(ctx, driver.ListEventRequest{
 				TenantIDs:      []string{tenantID},

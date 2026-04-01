@@ -357,14 +357,17 @@ func TestAPI_Events(t *testing.T) {
 			now := time.Now()
 			e1 := ef.AnyPointer(
 				ef.WithID("e1"), ef.WithTenantID("t1"), ef.WithDestinationID("d1"),
+				ef.WithMatchedDestinationIDs([]string{"d1"}),
 				ef.WithTopic("user.created"), ef.WithTime(now.Add(-2*time.Hour)),
 			)
 			e2 := ef.AnyPointer(
 				ef.WithID("e2"), ef.WithTenantID("t1"), ef.WithDestinationID("d2"),
+				ef.WithMatchedDestinationIDs([]string{"d2"}),
 				ef.WithTopic("user.updated"), ef.WithTime(now),
 			)
 			e3 := ef.AnyPointer(
 				ef.WithID("e3"), ef.WithTenantID("t2"), ef.WithDestinationID("d3"),
+				ef.WithMatchedDestinationIDs([]string{"d3"}),
 				ef.WithTopic("user.created"), ef.WithTime(now),
 			)
 			require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
@@ -374,9 +377,6 @@ func TestAPI_Events(t *testing.T) {
 			}))
 
 			t.Run("destination_id filter", func(t *testing.T) {
-				// TODO(list-event-destination-filter): Re-enable once we implement proper destination tracking for events.
-				t.Skip("ListEvent with DestinationIDs filter is not implemented")
-
 				req := httptest.NewRequest(http.MethodGet, "/api/v1/events?destination_id=d1", nil)
 				resp := h.do(h.withAPIKey(req))
 

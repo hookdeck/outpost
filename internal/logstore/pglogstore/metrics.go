@@ -144,12 +144,26 @@ func (s *logStore) QueryEventMetrics(ctx context.Context, req driver.MetricsRequ
 		conditions = append(conditions, "topic = ANY("+arg(topics)+")")
 	}
 	if dests, ok := req.Filters["destination_id"]; ok {
-		conditions = append(conditions, "destination_id = ANY("+arg(dests)+")")
+		conditions = append(conditions, "matched_destination_ids && "+arg(dests)+"::text[]")
+	}
+
+	// Determine source table — use LATERAL unnest when destination_id dimension is requested
+	sourceTable := "events"
+	needsUnnest := false
+	for _, dim := range req.Dimensions {
+		if dim == "destination_id" {
+			needsUnnest = true
+			break
+		}
 	}
 
 	// Build SQL
+	fromClause := sourceTable
+	if needsUnnest {
+		fromClause = "events, LATERAL unnest(matched_destination_ids) AS destination_id"
+	}
 	query := "SELECT " + strings.Join(selectExprs, ", ") +
-		" FROM events WHERE " + strings.Join(conditions, " AND ")
+		" FROM " + fromClause + " WHERE " + strings.Join(conditions, " AND ")
 	if len(groupExprs) > 0 {
 		query += " GROUP BY " + strings.Join(groupExprs, ", ")
 	}

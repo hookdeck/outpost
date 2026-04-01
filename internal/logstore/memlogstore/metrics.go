@@ -3,6 +3,7 @@ package memlogstore
 import (
 	"context"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/hookdeck/outpost/internal/logstore/bucket"
@@ -46,6 +47,7 @@ func (s *memLogStore) QueryEventMetrics(ctx context.Context, req driver.MetricsR
 			tb := bucket.TruncateTime(event.Time, req.Granularity)
 			key.timeBucket = tb.Format(time.RFC3339)
 		}
+		hasDest := false
 		for _, dim := range req.Dimensions {
 			switch dim {
 			case "tenant_id":
@@ -53,10 +55,18 @@ func (s *memLogStore) QueryEventMetrics(ctx context.Context, req driver.MetricsR
 			case "topic":
 				key.topic = event.Topic
 			case "destination_id":
-				key.destID = event.DestinationID
+				hasDest = true
 			}
 		}
-		groups[key] = append(groups[key], event)
+		if hasDest && len(event.MatchedDestinationIDs) > 0 {
+			for _, destID := range event.MatchedDestinationIDs {
+				k := key
+				k.destID = destID
+				groups[k] = append(groups[k], event)
+			}
+		} else {
+			groups[key] = append(groups[key], event)
+		}
 	}
 
 	// Build response
@@ -319,7 +329,14 @@ func matchesEventMetricsFilter(event *models.Event, req driver.MetricsRequest) b
 		}
 	}
 	if dests, ok := req.Filters["destination_id"]; ok {
-		if !contains(dests, event.DestinationID) {
+		found := false
+		for _, d := range dests {
+			if slices.Contains(event.MatchedDestinationIDs, d) {
+				found = true
+				break
+			}
+		}
+		if !found {
 			return false
 		}
 	}
