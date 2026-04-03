@@ -119,7 +119,7 @@ func (a *StandardWebhookAsserter) AssertMessage(t testsuite.TestingT, msg testsu
 
 	webhookTimestamp := req.Header.Get(prefix + "timestamp")
 	assert.NotEmpty(t, webhookTimestamp, prefix+"timestamp should be present")
-	testsuite.AssertTimestampIsUnixSeconds(t, webhookTimestamp)
+	testsuite.AssertTimestampIsISO8601(t, webhookTimestamp)
 
 	webhookSignature := req.Header.Get(prefix + "signature")
 	assert.NotEmpty(t, webhookSignature, prefix+"signature should be present")

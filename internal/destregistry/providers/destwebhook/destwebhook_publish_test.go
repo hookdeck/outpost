@@ -96,7 +96,7 @@ func (a *WebhookAsserter) AssertMessage(t testsuite.TestingT, msg testsuite.Mess
 	assert.NotEmpty(t, timestampHeader, "timestamp header should be present")
 
 	// Verify timestamp is in Unix seconds (not milliseconds)
-	testsuite.AssertTimestampIsUnixSeconds(t, timestampHeader)
+	testsuite.AssertTimestampIsISO8601(t, timestampHeader)
 
 	assert.Equal(t, event.ID, req.Header.Get(a.headerPrefix+"event-id"), "event-id header should match")
 	assert.Equal(t, event.Topic, req.Header.Get(a.headerPrefix+"topic"), "topic header should match")

@@ -148,7 +148,7 @@ func (a *RabbitMQAsserter) AssertMessage(t testsuite.TestingT, msg testsuite.Mes
 	// Verify system metadata
 	metadata := msg.Metadata
 	assert.NotEmpty(t, metadata["timestamp"], "timestamp should be present")
-	testsuite.AssertTimestampIsUnixSeconds(t, metadata["timestamp"])
+	testsuite.AssertTimestampIsISO8601(t, metadata["timestamp"])
 	assert.Equal(t, event.ID, metadata["event-id"], "event-id should match")
 	assert.Equal(t, event.Topic, metadata["topic"], "topic should match")
 
