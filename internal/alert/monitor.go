@@ -3,7 +3,6 @@ package alert
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/models"
@@ -82,11 +81,9 @@ func WithDeploymentID(deploymentID string) AlertOption {
 
 // DeliveryAttempt represents a single delivery attempt
 type DeliveryAttempt struct {
-	Success          bool
-	DeliveryTask     *models.DeliveryTask
-	Destination      *AlertDestination
-	Timestamp        time.Time
-	DeliveryResponse map[string]interface{}
+	Event       *models.Event
+	Destination *AlertDestination
+	Attempt     *models.Attempt
 }
 
 type alertMonitor struct {
@@ -138,12 +135,12 @@ func NewAlertMonitor(logger *logging.Logger, redisClient redis.Cmdable, opts ...
 }
 
 func (m *alertMonitor) HandleAttempt(ctx context.Context, attempt DeliveryAttempt) error {
-	if attempt.Success {
+	if attempt.Attempt.Status == models.AttemptStatusSuccess {
 		return m.store.ResetConsecutiveFailureCount(ctx, attempt.Destination.TenantID, attempt.Destination.ID)
 	}
 
-	// Get alert state
-	count, err := m.store.IncrementConsecutiveFailureCount(ctx, attempt.Destination.TenantID, attempt.Destination.ID)
+	// Get alert state — attemptID ensures idempotent counting on message replay
+	count, err := m.store.IncrementConsecutiveFailureCount(ctx, attempt.Destination.TenantID, attempt.Destination.ID, attempt.Attempt.ID)
 	if err != nil {
 		return fmt.Errorf("failed to get alert state: %w", err)
 	}
@@ -155,16 +152,16 @@ func (m *alertMonitor) HandleAttempt(ctx context.Context, attempt DeliveryAttemp
 
 	alert := NewConsecutiveFailureAlert(ConsecutiveFailureData{
 		Event: AlertedEvent{
-			ID:       attempt.DeliveryTask.Event.ID,
-			Topic:    attempt.DeliveryTask.Event.Topic,
-			Metadata: attempt.DeliveryTask.Event.Metadata,
-			Data:     attempt.DeliveryTask.Event.Data,
+			ID:       attempt.Event.ID,
+			Topic:    attempt.Event.Topic,
+			Metadata: attempt.Event.Metadata,
+			Data:     attempt.Event.Data,
 		},
 		MaxConsecutiveFailures: m.autoDisableFailureCount,
 		ConsecutiveFailures:    count,
 		WillDisable:            m.disabler != nil && level == 100,
 		Destination:            attempt.Destination,
-		DeliveryResponse:       attempt.DeliveryResponse,
+		DeliveryResponse:       attempt.Attempt.ResponseData,
 	})
 
 	// If we've hit 100% and have a disabler configured, disable the destination
@@ -174,7 +171,8 @@ func (m *alertMonitor) HandleAttempt(ctx context.Context, attempt DeliveryAttemp
 		}
 
 		m.logger.Ctx(ctx).Audit("destination disabled",
-			zap.String("event_id", attempt.DeliveryTask.Event.ID),
+			zap.String("attempt_id", attempt.Attempt.ID),
+			zap.String("event_id", attempt.Event.ID),
 			zap.String("tenant_id", attempt.Destination.TenantID),
 			zap.String("destination_id", attempt.Destination.ID),
 			zap.String("destination_type", attempt.Destination.Type),
@@ -186,7 +184,8 @@ func (m *alertMonitor) HandleAttempt(ctx context.Context, attempt DeliveryAttemp
 		if err := m.notifier.Notify(ctx, alert); err != nil {
 			m.logger.Ctx(ctx).Error("failed to send alert",
 				zap.Error(err),
-				zap.String("event_id", attempt.DeliveryTask.Event.ID),
+				zap.String("attempt_id", attempt.Attempt.ID),
+				zap.String("event_id", attempt.Event.ID),
 				zap.String("tenant_id", attempt.Destination.TenantID),
 				zap.String("destination_id", attempt.Destination.ID),
 				zap.String("destination_type", attempt.Destination.Type),
@@ -195,7 +194,8 @@ func (m *alertMonitor) HandleAttempt(ctx context.Context, attempt DeliveryAttemp
 		}
 
 		m.logger.Ctx(ctx).Audit("alert sent",
-			zap.String("event_id", attempt.DeliveryTask.Event.ID),
+			zap.String("attempt_id", attempt.Attempt.ID),
+			zap.String("event_id", attempt.Event.ID),
 			zap.String("tenant_id", attempt.Destination.TenantID),
 			zap.String("destination_id", attempt.Destination.ID),
 			zap.String("destination_type", attempt.Destination.Type),
