@@ -1,7 +1,6 @@
 package destregistry
 
 import (
-	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -67,14 +66,14 @@ func (p *BasePublisher) StartClose() {
 
 func (p *BasePublisher) MakeMetadata(event *models.Event, timestamp time.Time) map[string]string {
 	systemMetadata := map[string]string{
-		"timestamp": fmt.Sprintf("%d", timestamp.Unix()),
+		"timestamp": timestamp.UTC().Format(time.RFC3339),
 		"event-id":  event.ID,
 		"topic":     event.Topic,
 	}
 
 	// Add millisecond timestamp if enabled
 	if p.includeMillisecondTimestamp {
-		systemMetadata["timestamp-ms"] = fmt.Sprintf("%d", timestamp.UnixMilli())
+		systemMetadata["timestamp-ms"] = timestamp.UTC().Format(time.RFC3339Nano)
 	}
 
 	// Merge with priority: system < deliveryMetadata < event.Metadata
