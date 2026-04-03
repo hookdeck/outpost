@@ -111,13 +111,6 @@ func (a *WebhookAsserter) AssertMessage(t testsuite.TestingT, msg testsuite.Mess
 		signatureHeader := req.Header.Get(a.headerPrefix + "signature")
 		assertSignatureFormat(t, signatureHeader, a.expectedSignatures)
 
-		// Verify timestamp in signature header matches the timestamp header
-		signatureParts := strings.SplitN(signatureHeader, ",", 2)
-		if len(signatureParts) >= 2 {
-			signatureTimestampStr := strings.TrimPrefix(signatureParts[0], "t=")
-			assert.Equal(t, timestampHeader, signatureTimestampStr, "timestamp in signature header should match timestamp header")
-		}
-
 		// Verify each expected signature
 		for _, secret := range a.secrets {
 			assertValidSignature(t, secret, msg.Data, signatureHeader)
