@@ -40,8 +40,9 @@ type TestingT interface {
 func AssertTimestampIsISO8601(t TestingT, timestampStr string, msgAndArgs ...interface{}) {
 	t.Helper()
 
-	_, err := time.Parse(time.RFC3339Nano, timestampStr)
+	parsed, err := time.Parse(time.RFC3339Nano, timestampStr)
 	assert.NoError(t, err, "timestamp should be a valid ISO 8601 / RFC3339 string, got: %s", timestampStr)
+	assert.Equal(t, time.UTC, parsed.Location(), "timestamp should be in UTC, got: %s", timestampStr)
 }
 
 // MessageConsumer is the interface that providers must implement
