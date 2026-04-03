@@ -59,6 +59,18 @@ type AlertDestination struct {
 	DisabledAt *time.Time    `json:"disabled_at" redis:"disabled_at"`
 }
 
+func AlertDestinationFromDestination(d *models.Destination) *AlertDestination {
+	return &AlertDestination{
+		ID:         d.ID,
+		TenantID:   d.TenantID,
+		Type:       d.Type,
+		Topics:     d.Topics,
+		Config:     d.Config,
+		CreatedAt:  d.CreatedAt,
+		DisabledAt: d.DisabledAt,
+	}
+}
+
 // ConsecutiveFailureData represents the data needed for a consecutive failure alert
 type ConsecutiveFailureData struct {
 	Event                  AlertedEvent           `json:"event"`
