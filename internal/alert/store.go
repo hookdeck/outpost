@@ -9,13 +9,13 @@ import (
 )
 
 const (
-	keyPrefixAlert = "alert"                // Base prefix for all alert keys
-	keyFailures    = "consecutive_failures" // Counter for consecutive failures)
+	keyPrefixAlert = "alert" // Base prefix for all alert keys
+	keyFailures    = "cf"    // Set for consecutive failure attempt IDs
 )
 
 // AlertStore manages alert-related data persistence
 type AlertStore interface {
-	IncrementConsecutiveFailureCount(ctx context.Context, tenantID, destinationID string) (int, error)
+	IncrementConsecutiveFailureCount(ctx context.Context, tenantID, destinationID, attemptID string) (int, error)
 	ResetConsecutiveFailureCount(ctx context.Context, tenantID, destinationID string) error
 }
 
@@ -32,14 +32,15 @@ func NewRedisAlertStore(client redis.Cmdable, deploymentID string) AlertStore {
 	}
 }
 
-func (s *redisAlertStore) IncrementConsecutiveFailureCount(ctx context.Context, tenantID, destinationID string) (int, error) {
+func (s *redisAlertStore) IncrementConsecutiveFailureCount(ctx context.Context, tenantID, destinationID, attemptID string) (int, error) {
 	key := s.getFailuresKey(destinationID)
 
-	// Use a transaction to ensure atomicity between INCR and EXPIRE operations.
-	// Since all operations use the same key, they will be routed to the same hash slot
-	// in Redis cluster mode, making transactions safe to use.
+	// Use a transaction to ensure atomicity between SADD, SCARD, and EXPIRE operations.
+	// SADD is idempotent — adding the same attemptID on replay is a no-op,
+	// preventing double-counting when messages are redelivered.
 	pipe := s.client.TxPipeline()
-	incrCmd := pipe.Incr(ctx, key)
+	pipe.SAdd(ctx, key, attemptID)
+	scardCmd := pipe.SCard(ctx, key)
 	pipe.Expire(ctx, key, 24*time.Hour)
 
 	_, err := pipe.Exec(ctx)
@@ -47,10 +48,9 @@ func (s *redisAlertStore) IncrementConsecutiveFailureCount(ctx context.Context, 
 		return 0, fmt.Errorf("failed to execute consecutive failure count transaction: %w", err)
 	}
 
-	// Get the incremented count from the INCR command result
-	count, err := incrCmd.Result()
+	count, err := scardCmd.Result()
 	if err != nil {
-		return 0, fmt.Errorf("failed to get incremented consecutive failure count: %w", err)
+		return 0, fmt.Errorf("failed to get consecutive failure count: %w", err)
 	}
 
 	return int(count), nil
