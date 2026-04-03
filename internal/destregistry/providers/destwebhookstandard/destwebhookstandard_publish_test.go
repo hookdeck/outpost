@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"strconv"
 	"net/http/httptest"
 	"strings"
 	"sync"
@@ -119,7 +120,9 @@ func (a *StandardWebhookAsserter) AssertMessage(t testsuite.TestingT, msg testsu
 
 	webhookTimestamp := req.Header.Get(prefix + "timestamp")
 	assert.NotEmpty(t, webhookTimestamp, prefix+"timestamp should be present")
-	testsuite.AssertTimestampIsISO8601(t, webhookTimestamp)
+	// Standard Webhooks spec requires Unix seconds for the webhook-timestamp header
+	_, err := strconv.ParseInt(webhookTimestamp, 10, 64)
+	assert.NoError(t, err, "webhook-timestamp should be a valid Unix timestamp integer")
 
 	webhookSignature := req.Header.Get(prefix + "signature")
 	assert.NotEmpty(t, webhookSignature, prefix+"signature should be present")
