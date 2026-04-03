@@ -126,16 +126,17 @@ const (
 )
 
 type Attempt struct {
-	ID            string                 `json:"id"`
-	TenantID      string                 `json:"tenant_id"`
-	EventID       string                 `json:"event_id"`
-	DestinationID string                 `json:"destination_id"`
-	AttemptNumber int                    `json:"attempt_number"`
-	Manual        bool                   `json:"manual"`
-	Status        string                 `json:"status"`
-	Time          time.Time              `json:"time"`
-	Code          string                 `json:"code"`
-	ResponseData  map[string]interface{} `json:"response_data"`
+	ID              string                 `json:"id"`
+	TenantID        string                 `json:"tenant_id"`
+	EventID         string                 `json:"event_id"`
+	DestinationID   string                 `json:"destination_id"`
+	DestinationType string                 `json:"destination_type"`
+	AttemptNumber   int                    `json:"attempt_number"`
+	Manual          bool                   `json:"manual"`
+	Status          string                 `json:"status"`
+	Time            time.Time              `json:"time"`
+	Code            string                 `json:"code"`
+	ResponseData    map[string]interface{} `json:"response_data"`
 }
 
 // ============================== Types ==============================

@@ -338,6 +338,12 @@ func buildAttemptQuery(req driver.ListAttemptRequest, q pagination.QueryInput) (
 		argNum++
 	}
 
+	if len(req.DestinationTypes) > 0 {
+		conditions = append(conditions, fmt.Sprintf("destination_type = ANY($%d)", argNum))
+		args = append(args, req.DestinationTypes)
+		argNum++
+	}
+
 	if req.Status != "" {
 		conditions = append(conditions, fmt.Sprintf("status = $%d", argNum))
 		args = append(args, req.Status)
@@ -392,6 +398,7 @@ func buildAttemptQuery(req driver.ListAttemptRequest, q pagination.QueryInput) (
 			event_id,
 			tenant_id,
 			destination_id,
+			destination_type,
 			topic,
 			status,
 			time,
@@ -442,6 +449,7 @@ func scanAttemptRecords(rows pgx.Rows) ([]attemptRecordWithPosition, error) {
 			eventID          string
 			tenantID         string
 			destinationID    string
+			destinationType  string
 			topic            string
 			status           string
 			attemptTime      time.Time
@@ -460,6 +468,7 @@ func scanAttemptRecords(rows pgx.Rows) ([]attemptRecordWithPosition, error) {
 			&eventID,
 			&tenantID,
 			&destinationID,
+			&destinationType,
 			&topic,
 			&status,
 			&attemptTime,
@@ -482,16 +491,17 @@ func scanAttemptRecords(rows pgx.Rows) ([]attemptRecordWithPosition, error) {
 		results = append(results, attemptRecordWithPosition{
 			AttemptRecord: &driver.AttemptRecord{
 				Attempt: &models.Attempt{
-					ID:            id,
-					TenantID:      tenantID,
-					EventID:       eventID,
-					DestinationID: destinationID,
-					AttemptNumber: attemptNumber,
-					Manual:        manual,
-					Status:        status,
-					Time:          attemptTime,
-					Code:          code,
-					ResponseData:  responseData,
+					ID:              id,
+					TenantID:        tenantID,
+					EventID:         eventID,
+					DestinationID:   destinationID,
+					DestinationType: destinationType,
+					AttemptNumber:   attemptNumber,
+					Manual:          manual,
+					Status:          status,
+					Time:            attemptTime,
+					Code:            code,
+					ResponseData:    responseData,
 				},
 				Event: &models.Event{
 					ID:               eventID,
@@ -596,6 +606,7 @@ func (s *logStore) RetrieveAttempt(ctx context.Context, req driver.RetrieveAttem
 			event_id,
 			tenant_id,
 			destination_id,
+			destination_type,
 			topic,
 			status,
 			time,
@@ -618,6 +629,7 @@ func (s *logStore) RetrieveAttempt(ctx context.Context, req driver.RetrieveAttem
 		eventID          string
 		tenantID         string
 		destinationID    string
+		destinationType  string
 		topic            string
 		status           string
 		attemptTime      time.Time
@@ -636,6 +648,7 @@ func (s *logStore) RetrieveAttempt(ctx context.Context, req driver.RetrieveAttem
 		&eventID,
 		&tenantID,
 		&destinationID,
+		&destinationType,
 		&topic,
 		&status,
 		&attemptTime,
@@ -661,16 +674,17 @@ func (s *logStore) RetrieveAttempt(ctx context.Context, req driver.RetrieveAttem
 
 	return &driver.AttemptRecord{
 		Attempt: &models.Attempt{
-			ID:            id,
-			TenantID:      tenantID,
-			EventID:       eventID,
-			DestinationID: destinationID,
-			AttemptNumber: attemptNumber,
-			Manual:        manual,
-			Status:        status,
-			Time:          attemptTime,
-			Code:          code,
-			ResponseData:  responseData,
+			ID:              id,
+			TenantID:        tenantID,
+			EventID:         eventID,
+			DestinationID:   destinationID,
+			DestinationType: destinationType,
+			AttemptNumber:   attemptNumber,
+			Manual:          manual,
+			Status:          status,
+			Time:            attemptTime,
+			Code:            code,
+			ResponseData:    responseData,
 		},
 		Event: &models.Event{
 			ID:               eventID,
@@ -731,14 +745,14 @@ func (s *logStore) InsertMany(ctx context.Context, entries []*models.LogEntry) e
 	if len(entries) > 0 {
 		_, err = tx.Exec(ctx, `
 			INSERT INTO attempts (
-				id, event_id, tenant_id, destination_id, topic, status,
+				id, event_id, tenant_id, destination_id, destination_type, topic, status,
 				time, attempt_number, manual, code, response_data,
 				event_time, eligible_for_retry, event_data, event_metadata
 			)
 			SELECT * FROM unnest(
-				$1::text[], $2::text[], $3::text[], $4::text[], $5::text[], $6::text[],
-				$7::timestamptz[], $8::integer[], $9::boolean[], $10::text[], $11::jsonb[],
-				$12::timestamptz[], $13::boolean[], $14::text[], $15::jsonb[]
+				$1::text[], $2::text[], $3::text[], $4::text[], $5::text[], $6::text[], $7::text[],
+				$8::timestamptz[], $9::integer[], $10::boolean[], $11::text[], $12::jsonb[],
+				$13::timestamptz[], $14::boolean[], $15::text[], $16::jsonb[]
 			)
 			ON CONFLICT (time, id) DO UPDATE SET
 				status = EXCLUDED.status,
@@ -799,6 +813,7 @@ func attemptArrays(entries []*models.LogEntry) []any {
 	eventIDs := make([]string, n)
 	tenantIDs := make([]string, n)
 	destinationIDs := make([]string, n)
+	destinationTypes := make([]string, n)
 	topics := make([]string, n)
 	statuses := make([]string, n)
 	times := make([]time.Time, n)
@@ -819,6 +834,7 @@ func attemptArrays(entries []*models.LogEntry) []any {
 		eventIDs[i] = a.EventID
 		tenantIDs[i] = e.TenantID
 		destinationIDs[i] = a.DestinationID
+		destinationTypes[i] = a.DestinationType
 		topics[i] = e.Topic
 		statuses[i] = a.Status
 		times[i] = a.Time
@@ -837,6 +853,7 @@ func attemptArrays(entries []*models.LogEntry) []any {
 		eventIDs,
 		tenantIDs,
 		destinationIDs,
+		destinationTypes,
 		topics,
 		statuses,
 		times,
