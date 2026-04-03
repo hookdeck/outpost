@@ -105,6 +105,9 @@ type Config struct {
 	// Alert
 	Alert AlertConfig `yaml:"alert"`
 
+	// Operation Events
+	OperationEvents OperationEventsConfig `yaml:"operation_events"`
+
 	// ID Generation
 	IDGen IDGenConfig `yaml:"idgen"`
 
@@ -405,6 +408,10 @@ func (c *ClickHouseConfig) ToConfig() *clickhouse.ClickHouseConfig {
 		Database:   c.Database,
 		TLSEnabled: c.TLSEnabled,
 	}
+}
+
+type OperationEventsConfig struct {
+	Topics []string `yaml:"topics" env:"OPERATION_EVENTS_TOPICS" envSeparator:"," desc:"Comma-separated list of operation event topics to emit. Use '*' for all topics. If empty, operation events are disabled." required:"N"`
 }
 
 type AlertConfig struct {
