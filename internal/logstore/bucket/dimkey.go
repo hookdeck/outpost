@@ -35,6 +35,8 @@ func AttemptDimKey(dp *driver.AttemptMetricsDataPoint, dims []string) DimKey {
 			parts[i] = derefStr(dp.TenantID)
 		case "destination_id":
 			parts[i] = derefStr(dp.DestinationID)
+		case "destination_type":
+			parts[i] = derefStr(dp.DestinationType)
 		case "topic":
 			parts[i] = derefStr(dp.Topic)
 		case "status":
