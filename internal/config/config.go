@@ -11,6 +11,7 @@ import (
 	"github.com/hookdeck/outpost/internal/backoff"
 	"github.com/hookdeck/outpost/internal/clickhouse"
 	"github.com/hookdeck/outpost/internal/migrator"
+	"github.com/hookdeck/outpost/internal/opevents"
 	"github.com/hookdeck/outpost/internal/redis"
 	"github.com/hookdeck/outpost/internal/telemetry"
 	"github.com/hookdeck/outpost/internal/version"
@@ -411,7 +412,70 @@ func (c *ClickHouseConfig) ToConfig() *clickhouse.ClickHouseConfig {
 }
 
 type OperationEventsConfig struct {
-	Topics []string `yaml:"topics" env:"OPERATION_EVENTS_TOPICS" envSeparator:"," desc:"Comma-separated list of operation event topics to emit. Use '*' for all topics. If empty, operation events are disabled." required:"N"`
+	Topics    []string                      `yaml:"topics" env:"OPERATION_EVENTS_TOPICS" envSeparator:"," desc:"Comma-separated list of operation event topics to emit. Use '*' for all topics. If empty, operation events are disabled." required:"N"`
+	HTTP      OperationEventsHTTPConfig     `yaml:"http"`
+	AWSSQS    OperationEventsAWSSQSConfig   `yaml:"aws_sqs"`
+	GCPPubSub OperationEventsGCPConfig      `yaml:"gcp_pubsub"`
+	RabbitMQ  OperationEventsRabbitMQConfig `yaml:"rabbitmq"`
+}
+
+type OperationEventsHTTPConfig struct {
+	URL           string `yaml:"url" env:"OPERATION_EVENTS_HTTP_URL" desc:"URL to POST operation events to." required:"N"`
+	SigningSecret string `yaml:"signing_secret" env:"OPERATION_EVENTS_HTTP_SIGNING_SECRET" desc:"HMAC-SHA256 signing secret for operation event payloads." required:"N"`
+}
+
+type OperationEventsAWSSQSConfig struct {
+	QueueURL        string `yaml:"queue_url" env:"OPERATION_EVENTS_AWS_SQS_QUEUE_URL" desc:"AWS SQS queue URL for operation events." required:"N"`
+	AccessKeyID     string `yaml:"access_key_id" env:"OPERATION_EVENTS_AWS_SQS_ACCESS_KEY_ID" desc:"AWS access key ID for SQS operation events sink." required:"N"`
+	SecretAccessKey string `yaml:"secret_access_key" env:"OPERATION_EVENTS_AWS_SQS_SECRET_ACCESS_KEY" desc:"AWS secret access key for SQS operation events sink." required:"N"`
+	Region          string `yaml:"region" env:"OPERATION_EVENTS_AWS_SQS_REGION" desc:"AWS region for SQS operation events sink." required:"N"`
+	Endpoint        string `yaml:"endpoint" env:"OPERATION_EVENTS_AWS_SQS_ENDPOINT" desc:"Custom AWS SQS endpoint for operation events. Optional, for local development." required:"N"`
+}
+
+type OperationEventsGCPConfig struct {
+	ProjectID   string `yaml:"project_id" env:"OPERATION_EVENTS_GCP_PUBSUB_PROJECT_ID" desc:"GCP project ID for Pub/Sub operation events sink." required:"N"`
+	TopicID     string `yaml:"topic_id" env:"OPERATION_EVENTS_GCP_PUBSUB_TOPIC_ID" desc:"GCP Pub/Sub topic ID for operation events." required:"N"`
+	Credentials string `yaml:"credentials" env:"OPERATION_EVENTS_GCP_PUBSUB_CREDENTIALS" desc:"GCP service account credentials JSON for Pub/Sub operation events sink." required:"N"`
+}
+
+type OperationEventsRabbitMQConfig struct {
+	ServerURL string `yaml:"server_url" env:"OPERATION_EVENTS_RABBITMQ_SERVER_URL" desc:"RabbitMQ server URL for operation events sink." required:"N"`
+	Exchange  string `yaml:"exchange" env:"OPERATION_EVENTS_RABBITMQ_EXCHANGE" desc:"RabbitMQ exchange for operation events." required:"N"`
+}
+
+func (c *OperationEventsConfig) ToConfig() opevents.Config {
+	cfg := opevents.Config{
+		Topics: c.Topics,
+	}
+	if c.HTTP.URL != "" {
+		cfg.HTTP = &opevents.HTTPSinkConfig{
+			URL:           c.HTTP.URL,
+			SigningSecret: c.HTTP.SigningSecret,
+		}
+	}
+	if c.AWSSQS.QueueURL != "" {
+		cfg.AWSSQS = &opevents.AWSSQSSinkConfig{
+			QueueURL:        c.AWSSQS.QueueURL,
+			AccessKeyID:     c.AWSSQS.AccessKeyID,
+			SecretAccessKey: c.AWSSQS.SecretAccessKey,
+			Region:          c.AWSSQS.Region,
+			Endpoint:        c.AWSSQS.Endpoint,
+		}
+	}
+	if c.GCPPubSub.ProjectID != "" {
+		cfg.GCPPubSub = &opevents.GCPPubSubSinkConfig{
+			ProjectID:                 c.GCPPubSub.ProjectID,
+			TopicID:                   c.GCPPubSub.TopicID,
+			ServiceAccountCredentials: c.GCPPubSub.Credentials,
+		}
+	}
+	if c.RabbitMQ.ServerURL != "" {
+		cfg.RabbitMQ = &opevents.RabbitMQSinkConfig{
+			ServerURL: c.RabbitMQ.ServerURL,
+			Exchange:  c.RabbitMQ.Exchange,
+		}
+	}
+	return cfg
 }
 
 type AlertConfig struct {
