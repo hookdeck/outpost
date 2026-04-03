@@ -935,6 +935,49 @@ func TestAPI_Attempts(t *testing.T) {
 			})
 		})
 
+		t.Run("destination_type filter and response", func(t *testing.T) {
+			h := newAPITest(t)
+
+			e1 := ef.AnyPointer(ef.WithID("e1"), ef.WithTenantID("t1"))
+			e2 := ef.AnyPointer(ef.WithID("e2"), ef.WithTenantID("t1"))
+			a1 := attemptForEvent(e1, af.WithID("a1"), af.WithDestinationType("webhook"))
+			a2 := attemptForEvent(e2, af.WithID("a2"), af.WithDestinationType("sqs"))
+			require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
+				{Event: e1, Attempt: a1},
+				{Event: e2, Attempt: a2},
+			}))
+
+			t.Run("filter by destination_type", func(t *testing.T) {
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/attempts?destination_type[0]=webhook", nil)
+				resp := h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusOK, resp.Code)
+
+				var result apirouter.AttemptPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
+				require.Len(t, result.Models, 1)
+				assert.Equal(t, "a1", result.Models[0].ID)
+				assert.Equal(t, "webhook", result.Models[0].DestinationType)
+			})
+
+			t.Run("destination_type present in response", func(t *testing.T) {
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/attempts", nil)
+				resp := h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusOK, resp.Code)
+
+				var result apirouter.AttemptPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
+				require.Len(t, result.Models, 2)
+				types := map[string]bool{}
+				for _, m := range result.Models {
+					types[m.DestinationType] = true
+				}
+				assert.True(t, types["webhook"])
+				assert.True(t, types["sqs"])
+			})
+		})
+
 		t.Run("Validation", func(t *testing.T) {
 			t.Run("invalid dir returns 422", func(t *testing.T) {
 				h := newAPITest(t)

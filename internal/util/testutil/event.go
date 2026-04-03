@@ -175,6 +175,12 @@ func (f *mockAttemptFactory) WithDestinationID(destinationID string) func(*model
 	}
 }
 
+func (f *mockAttemptFactory) WithDestinationType(destinationType string) func(*models.Attempt) {
+	return func(attempt *models.Attempt) {
+		attempt.DestinationType = destinationType
+	}
+}
+
 func (f *mockAttemptFactory) WithStatus(status string) func(*models.Attempt) {
 	return func(attempt *models.Attempt) {
 		attempt.Status = status
