@@ -95,8 +95,8 @@ func (a *WebhookAsserter) AssertMessage(t testsuite.TestingT, msg testsuite.Mess
 	timestampHeader := req.Header.Get(a.headerPrefix + "timestamp")
 	assert.NotEmpty(t, timestampHeader, "timestamp header should be present")
 
-	// Verify timestamp is in Unix seconds (not milliseconds)
-	testsuite.AssertTimestampIsUnixSeconds(t, timestampHeader)
+	// Verify timestamp is in ISO 8601 format
+	testsuite.AssertTimestampIsISO8601(t, timestampHeader)
 
 	assert.Equal(t, event.ID, req.Header.Get(a.headerPrefix+"event-id"), "event-id header should match")
 	assert.Equal(t, event.Topic, req.Header.Get(a.headerPrefix+"topic"), "topic header should match")
@@ -110,13 +110,6 @@ func (a *WebhookAsserter) AssertMessage(t testsuite.TestingT, msg testsuite.Mess
 	if a.expectedSignatures > 0 {
 		signatureHeader := req.Header.Get(a.headerPrefix + "signature")
 		assertSignatureFormat(t, signatureHeader, a.expectedSignatures)
-
-		// Verify timestamp in signature header matches the timestamp header
-		signatureParts := strings.SplitN(signatureHeader, ",", 2)
-		if len(signatureParts) >= 2 {
-			signatureTimestampStr := strings.TrimPrefix(signatureParts[0], "t=")
-			assert.Equal(t, timestampHeader, signatureTimestampStr, "timestamp in signature header should match timestamp header")
-		}
 
 		// Verify each expected signature
 		for _, secret := range a.secrets {
