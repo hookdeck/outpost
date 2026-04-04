@@ -540,8 +540,9 @@ func TestAPI_MetricsAttempts(t *testing.T) {
 			require.Len(t, result.Data, 2)
 			types := map[string]bool{}
 			for _, dp := range result.Data {
-				assert.Contains(t, dp.Dimensions, "destination_type")
-				types[dp.Dimensions["destination_type"].(string)] = true
+				dt, ok := dp.Dimensions["destination_type"].(string)
+				require.True(t, ok, "destination_type dimension should be a string")
+				types[dt] = true
 			}
 			assert.True(t, types["webhook"])
 			assert.True(t, types["sqs"])
