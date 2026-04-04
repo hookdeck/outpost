@@ -18,6 +18,7 @@ import (
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/logmq"
 	"github.com/hookdeck/outpost/internal/logstore"
+	"github.com/hookdeck/outpost/internal/opevents"
 	"github.com/hookdeck/outpost/internal/publishmq"
 	"github.com/hookdeck/outpost/internal/redis"
 	"github.com/hookdeck/outpost/internal/scheduler"
@@ -274,24 +275,6 @@ func (b *ServiceBuilder) BuildDeliveryWorker(baseRouter *gin.Engine) error {
 		return err
 	}
 
-	// Initialize alert monitor
-	var alertNotifier alert.AlertNotifier
-	var destinationDisabler alert.DestinationDisabler
-	if b.cfg.Alert.CallbackURL != "" {
-		alertNotifier = alert.NewHTTPAlertNotifier(b.cfg.Alert.CallbackURL, alert.NotifierWithBearerToken(b.cfg.APIKey))
-	}
-	if b.cfg.Alert.AutoDisableDestination {
-		destinationDisabler = newDestinationDisabler(svc.tenantStore)
-	}
-	alertMonitor := alert.NewAlertMonitor(
-		b.logger,
-		svc.redisClient,
-		alert.WithNotifier(alertNotifier),
-		alert.WithDisabler(destinationDisabler),
-		alert.WithAutoDisableFailureCount(b.cfg.Alert.ConsecutiveFailureCount),
-		alert.WithDeploymentID(b.cfg.DeploymentID),
-	)
-
 	// Initialize delivery idempotence
 	deliveryIdempotence := idempotence.New(svc.redisClient,
 		idempotence.WithTimeout(5*time.Second),
@@ -311,7 +294,6 @@ func (b *ServiceBuilder) BuildDeliveryWorker(baseRouter *gin.Engine) error {
 		svc.retryScheduler,
 		retryBackoff,
 		retryMaxLimit,
-		alertMonitor,
 		deliveryIdempotence,
 	)
 
@@ -342,9 +324,28 @@ func (b *ServiceBuilder) BuildLogWorker(baseRouter *gin.Engine) error {
 	b.services = append(b.services, svc)
 
 	// Initialize common infrastructure
+	if err := svc.initRedis(b.ctx, b.cfg, b.logger); err != nil {
+		return err
+	}
 	if err := svc.initLogStore(b.ctx, b.cfg, b.logger); err != nil {
 		return err
 	}
+
+	// Initialize alert monitor for operation events
+	oeCfg := b.cfg.OperationEvents.ToConfig()
+	sink, err := opevents.NewSink(oeCfg)
+	if err != nil {
+		return fmt.Errorf("failed to create operation events sink: %w", err)
+	}
+	emitter := opevents.NewEmitter(sink, b.cfg.DeploymentID, oeCfg.Topics)
+
+	alertMonitor := alert.NewAlertMonitor(
+		b.logger,
+		svc.redisClient,
+		emitter,
+		alert.WithAutoDisableFailureCount(b.cfg.Alert.ConsecutiveFailureCount),
+		alert.WithDeploymentID(b.cfg.DeploymentID),
+	)
 
 	// Create batcher for batching log writes
 	// Convert seconds to duration, treating 0 as "flush immediately" (1ms minimum)
@@ -361,7 +362,7 @@ func (b *ServiceBuilder) BuildLogWorker(baseRouter *gin.Engine) error {
 	}
 
 	b.logger.Debug("creating log batcher")
-	batchProcessor, err := logmq.NewBatchProcessor(b.ctx, b.logger, svc.logStore, logmq.BatchProcessorConfig{
+	batchProcessor, err := logmq.NewBatchProcessor(b.ctx, b.logger, svc.logStore, alertMonitor, logmq.BatchProcessorConfig{
 		ItemCountThreshold: batcherCfg.ItemCountThreshold,
 		DelayThreshold:     batcherCfg.DelayThreshold,
 	})
@@ -400,30 +401,6 @@ func (b *ServiceBuilder) BuildLogWorker(baseRouter *gin.Engine) error {
 
 	b.logger.Info("log service worker built successfully")
 	return nil
-}
-
-// destinationDisabler implements alert.DestinationDisabler
-type destinationDisabler struct {
-	tenantStore tenantstore.TenantStore
-}
-
-func newDestinationDisabler(tenantStore tenantstore.TenantStore) alert.DestinationDisabler {
-	return &destinationDisabler{
-		tenantStore: tenantStore,
-	}
-}
-
-func (d *destinationDisabler) DisableDestination(ctx context.Context, tenantID, destinationID string) error {
-	destination, err := d.tenantStore.RetrieveDestination(ctx, tenantID, destinationID)
-	if err != nil {
-		return err
-	}
-	if destination == nil {
-		return nil
-	}
-	now := time.Now()
-	destination.DisabledAt = &now
-	return d.tenantStore.UpsertDestination(ctx, *destination)
 }
 
 // Helper methods for serviceInstance to initialize common dependencies

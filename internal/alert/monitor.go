@@ -10,9 +10,13 @@ import (
 	"go.uber.org/zap"
 )
 
-// DestinationDisabler handles disabling destinations
-type DestinationDisabler interface {
-	DisableDestination(ctx context.Context, tenantID, destinationID string) error
+const (
+	topicConsecutiveFailure = "alert.destination.consecutive_failure"
+)
+
+// AlertEmitter is the interface for emitting alert events. Satisfied by opevents.Emitter.
+type AlertEmitter interface {
+	Emit(ctx context.Context, topic string, tenantID string, data any) error
 }
 
 // AlertMonitor is the main interface for handling delivery attempt alerts
@@ -51,20 +55,6 @@ func WithEvaluator(evaluator AlertEvaluator) AlertOption {
 	}
 }
 
-// WithNotifier sets the alert notifier for the monitor
-func WithNotifier(notifier AlertNotifier) AlertOption {
-	return func(m *alertMonitor) {
-		m.notifier = notifier
-	}
-}
-
-// WithDisabler sets the destination disabler for the monitor
-func WithDisabler(disabler DestinationDisabler) AlertOption {
-	return func(m *alertMonitor) {
-		m.disabler = disabler
-	}
-}
-
 // WithLogger sets the logger for the monitor
 func WithLogger(logger *logging.Logger) AlertOption {
 	return func(m *alertMonitor) {
@@ -90,15 +80,11 @@ type alertMonitor struct {
 	logger       *logging.Logger
 	store        AlertStore
 	evaluator    AlertEvaluator
-	notifier     AlertNotifier
-	disabler     DestinationDisabler
+	emitter      AlertEmitter
 	deploymentID string
 
-	// autoDisableFailureCount is the number of consecutive failures before auto-disabling
 	autoDisableFailureCount int
-	// alertThresholds defines the percentage thresholds at which to send alerts
-	// e.g., []int{50, 70, 90, 100} means send alerts at 50%, 70%, 90%, and 100% of AutoDisableFailureCount
-	alertThresholds []int
+	alertThresholds         []int
 }
 
 // noopAlertMonitor is a monitor that does nothing
@@ -108,19 +94,17 @@ func (m *noopAlertMonitor) HandleAttempt(ctx context.Context, attempt DeliveryAt
 	return nil
 }
 
-// NewAlertMonitor creates a new alert monitor with default implementations
-func NewAlertMonitor(logger *logging.Logger, redisClient redis.Cmdable, opts ...AlertOption) AlertMonitor {
+// NewAlertMonitor creates a new alert monitor. Emitter is required — callers
+// that don't need alerts should pass nil AlertMonitor to consumers instead.
+func NewAlertMonitor(logger *logging.Logger, redisClient redis.Cmdable, emitter AlertEmitter, opts ...AlertOption) AlertMonitor {
 	alertMonitor := &alertMonitor{
 		logger:          logger,
+		emitter:         emitter,
 		alertThresholds: []int{50, 70, 90, 100}, // default thresholds
 	}
 
 	for _, opt := range opts {
 		opt(alertMonitor)
-	}
-
-	if alertMonitor.notifier == nil && alertMonitor.disabler == nil {
-		return &noopAlertMonitor{}
 	}
 
 	if alertMonitor.store == nil {
@@ -150,57 +134,30 @@ func (m *alertMonitor) HandleAttempt(ctx context.Context, attempt DeliveryAttemp
 		return nil
 	}
 
-	alert := NewConsecutiveFailureAlert(ConsecutiveFailureData{
-		Event: AlertedEvent{
-			ID:       attempt.Event.ID,
-			Topic:    attempt.Event.Topic,
-			Metadata: attempt.Event.Metadata,
-			Data:     attempt.Event.Data,
+	// Emit consecutive failure alert
+	cfData := ConsecutiveFailureData{
+		TenantID:    attempt.Destination.TenantID,
+		Event:       attempt.Event,
+		Attempt:     attempt.Attempt,
+		Destination: attempt.Destination,
+		ConsecutiveFailures: ConsecutiveFailures{
+			Current:   count,
+			Max:       m.autoDisableFailureCount,
+			Threshold: level,
 		},
-		MaxConsecutiveFailures: m.autoDisableFailureCount,
-		ConsecutiveFailures:    count,
-		WillDisable:            m.disabler != nil && level == 100,
-		Destination:            attempt.Destination,
-		DeliveryResponse:       attempt.Attempt.ResponseData,
-	})
-
-	// If we've hit 100% and have a disabler configured, disable the destination
-	if level == 100 && m.disabler != nil {
-		if err := m.disabler.DisableDestination(ctx, attempt.Destination.TenantID, attempt.Destination.ID); err != nil {
-			return fmt.Errorf("failed to disable destination: %w", err)
-		}
-
-		m.logger.Ctx(ctx).Audit("destination disabled",
-			zap.String("attempt_id", attempt.Attempt.ID),
-			zap.String("event_id", attempt.Event.ID),
-			zap.String("tenant_id", attempt.Destination.TenantID),
-			zap.String("destination_id", attempt.Destination.ID),
-			zap.String("destination_type", attempt.Destination.Type),
-		)
+	}
+	if err := m.emitter.Emit(ctx, topicConsecutiveFailure, attempt.Destination.TenantID, cfData); err != nil {
+		return fmt.Errorf("failed to emit consecutive failure alert: %w", err)
 	}
 
-	// Send alert if notifier is configured
-	if m.notifier != nil {
-		if err := m.notifier.Notify(ctx, alert); err != nil {
-			m.logger.Ctx(ctx).Error("failed to send alert",
-				zap.Error(err),
-				zap.String("attempt_id", attempt.Attempt.ID),
-				zap.String("event_id", attempt.Event.ID),
-				zap.String("tenant_id", attempt.Destination.TenantID),
-				zap.String("destination_id", attempt.Destination.ID),
-				zap.String("destination_type", attempt.Destination.Type),
-			)
-			return fmt.Errorf("failed to send alert: %w", err)
-		}
-
-		m.logger.Ctx(ctx).Audit("alert sent",
-			zap.String("attempt_id", attempt.Attempt.ID),
-			zap.String("event_id", attempt.Event.ID),
-			zap.String("tenant_id", attempt.Destination.TenantID),
-			zap.String("destination_id", attempt.Destination.ID),
-			zap.String("destination_type", attempt.Destination.Type),
-		)
-	}
+	m.logger.Ctx(ctx).Audit("alert sent",
+		zap.String("topic", topicConsecutiveFailure),
+		zap.String("attempt_id", attempt.Attempt.ID),
+		zap.String("event_id", attempt.Event.ID),
+		zap.String("tenant_id", attempt.Destination.TenantID),
+		zap.String("destination_id", attempt.Destination.ID),
+		zap.String("destination_type", attempt.Destination.Type),
+	)
 
 	return nil
 }
