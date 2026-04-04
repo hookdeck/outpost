@@ -3,6 +3,7 @@ package alert
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/models"
@@ -11,12 +12,18 @@ import (
 )
 
 const (
-	topicConsecutiveFailure = "alert.destination.consecutive_failure"
+	topicConsecutiveFailure  = "alert.destination.consecutive_failure"
+	topicDestinationDisabled = "alert.destination.disabled"
 )
 
 // AlertEmitter is the interface for emitting alert events. Satisfied by opevents.Emitter.
 type AlertEmitter interface {
 	Emit(ctx context.Context, topic string, tenantID string, data any) error
+}
+
+// DestinationDisabler handles disabling destinations.
+type DestinationDisabler interface {
+	DisableDestination(ctx context.Context, tenantID, destinationID string) error
 }
 
 // AlertMonitor is the main interface for handling delivery attempt alerts
@@ -55,6 +62,14 @@ func WithEvaluator(evaluator AlertEvaluator) AlertOption {
 	}
 }
 
+// WithDisabler sets the destination disabler for the monitor.
+// When set, destinations are auto-disabled at the 100% failure threshold.
+func WithDisabler(disabler DestinationDisabler) AlertOption {
+	return func(m *alertMonitor) {
+		m.disabler = disabler
+	}
+}
+
 // WithLogger sets the logger for the monitor
 func WithLogger(logger *logging.Logger) AlertOption {
 	return func(m *alertMonitor) {
@@ -81,17 +96,11 @@ type alertMonitor struct {
 	store        AlertStore
 	evaluator    AlertEvaluator
 	emitter      AlertEmitter
+	disabler     DestinationDisabler
 	deploymentID string
 
 	autoDisableFailureCount int
 	alertThresholds         []int
-}
-
-// noopAlertMonitor is a monitor that does nothing
-type noopAlertMonitor struct{}
-
-func (m *noopAlertMonitor) HandleAttempt(ctx context.Context, attempt DeliveryAttempt) error {
-	return nil
 }
 
 // NewAlertMonitor creates a new alert monitor. Emitter is required — callers
@@ -132,6 +141,38 @@ func (m *alertMonitor) HandleAttempt(ctx context.Context, attempt DeliveryAttemp
 	level, shouldAlert := m.evaluator.ShouldAlert(count)
 	if !shouldAlert {
 		return nil
+	}
+
+	// At 100% threshold, disable the destination and emit disabled alert.
+	// Both operations are idempotent on replay: DisableDestination is a no-op
+	// if already disabled, and consumers deduplicate events by ID.
+	if level == 100 && m.disabler != nil {
+		if err := m.disabler.DisableDestination(ctx, attempt.Destination.TenantID, attempt.Destination.ID); err != nil {
+			return fmt.Errorf("failed to disable destination: %w", err)
+		}
+
+		now := time.Now()
+		attempt.Destination.DisabledAt = &now
+
+		m.logger.Ctx(ctx).Audit("destination disabled",
+			zap.String("attempt_id", attempt.Attempt.ID),
+			zap.String("event_id", attempt.Event.ID),
+			zap.String("tenant_id", attempt.Destination.TenantID),
+			zap.String("destination_id", attempt.Destination.ID),
+			zap.String("destination_type", attempt.Destination.Type),
+		)
+
+		disabledData := DestinationDisabledData{
+			TenantID:    attempt.Destination.TenantID,
+			Destination: attempt.Destination,
+			DisabledAt:  now,
+			Reason:      "consecutive_failure",
+			Event:       attempt.Event,
+			Attempt:     attempt.Attempt,
+		}
+		if err := m.emitter.Emit(ctx, topicDestinationDisabled, attempt.Destination.TenantID, disabledData); err != nil {
+			return fmt.Errorf("failed to emit destination disabled alert: %w", err)
+		}
 	}
 
 	// Emit consecutive failure alert

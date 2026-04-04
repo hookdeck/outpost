@@ -37,6 +37,16 @@ type ConsecutiveFailures struct {
 	Threshold int `json:"threshold"`
 }
 
+// DestinationDisabledData is the data payload for alert.destination.disabled events.
+type DestinationDisabledData struct {
+	TenantID    string            `json:"tenant_id"`
+	Destination *AlertDestination `json:"destination"`
+	DisabledAt  time.Time         `json:"disabled_at"`
+	Reason      string            `json:"reason"`
+	Event       *models.Event     `json:"event"`
+	Attempt     *models.Attempt   `json:"attempt"`
+}
+
 // ConsecutiveFailureData is the data payload for alert.destination.consecutive_failure events.
 type ConsecutiveFailureData struct {
 	TenantID            string              `json:"tenant_id"`

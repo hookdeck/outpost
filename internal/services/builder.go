@@ -327,6 +327,9 @@ func (b *ServiceBuilder) BuildLogWorker(baseRouter *gin.Engine) error {
 	if err := svc.initRedis(b.ctx, b.cfg, b.logger); err != nil {
 		return err
 	}
+	if err := svc.initTenantStore(b.ctx, b.cfg, b.logger); err != nil {
+		return err
+	}
 	if err := svc.initLogStore(b.ctx, b.cfg, b.logger); err != nil {
 		return err
 	}
@@ -339,10 +342,15 @@ func (b *ServiceBuilder) BuildLogWorker(baseRouter *gin.Engine) error {
 	}
 	emitter := opevents.NewEmitter(sink, b.cfg.DeploymentID, oeCfg.Topics)
 
+	var disabler alert.DestinationDisabler
+	if b.cfg.Alert.AutoDisableDestination {
+		disabler = newDestinationDisabler(svc.tenantStore)
+	}
 	alertMonitor := alert.NewAlertMonitor(
 		b.logger,
 		svc.redisClient,
 		emitter,
+		alert.WithDisabler(disabler),
 		alert.WithAutoDisableFailureCount(b.cfg.Alert.ConsecutiveFailureCount),
 		alert.WithDeploymentID(b.cfg.DeploymentID),
 	)
@@ -401,6 +409,28 @@ func (b *ServiceBuilder) BuildLogWorker(baseRouter *gin.Engine) error {
 
 	b.logger.Info("log service worker built successfully")
 	return nil
+}
+
+// destinationDisabler implements alert.DestinationDisabler by setting DisabledAt on the destination.
+type destinationDisabler struct {
+	tenantStore tenantstore.TenantStore
+}
+
+func newDestinationDisabler(tenantStore tenantstore.TenantStore) alert.DestinationDisabler {
+	return &destinationDisabler{tenantStore: tenantStore}
+}
+
+func (d *destinationDisabler) DisableDestination(ctx context.Context, tenantID, destinationID string) error {
+	destination, err := d.tenantStore.RetrieveDestination(ctx, tenantID, destinationID)
+	if err != nil {
+		return err
+	}
+	if destination == nil {
+		return nil
+	}
+	now := time.Now()
+	destination.DisabledAt = &now
+	return d.tenantStore.UpsertDestination(ctx, *destination)
 }
 
 // Helper methods for serviceInstance to initialize common dependencies

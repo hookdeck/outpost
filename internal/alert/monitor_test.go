@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
@@ -23,6 +24,15 @@ func (m *mockAlertEmitter) Emit(ctx context.Context, topic string, tenantID stri
 	return args.Error(0)
 }
 
+type mockDestinationDisabler struct {
+	mock.Mock
+}
+
+func (m *mockDestinationDisabler) DisableDestination(ctx context.Context, tenantID, destinationID string) error {
+	args := m.Called(ctx, tenantID, destinationID)
+	return args.Error(0)
+}
+
 func TestAlertMonitor_ConsecutiveFailures_MaxFailures(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -30,11 +40,14 @@ func TestAlertMonitor_ConsecutiveFailures_MaxFailures(t *testing.T) {
 	redisClient := testutil.CreateTestRedisClient(t)
 	emitter := &mockAlertEmitter{}
 	emitter.On("Emit", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	disabler := &mockDestinationDisabler{}
+	disabler.On("DisableDestination", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	monitor := alert.NewAlertMonitor(
 		logger,
 		redisClient,
 		emitter,
+		alert.WithDisabler(disabler),
 		alert.WithAutoDisableFailureCount(20),
 		alert.WithAlertThresholds([]int{50, 66, 90, 100}),
 	)
@@ -56,18 +69,26 @@ func TestAlertMonitor_ConsecutiveFailures_MaxFailures(t *testing.T) {
 		require.NoError(t, monitor.HandleAttempt(ctx, attempt))
 	}
 
-	// Verify consecutive failure alerts emitted at correct thresholds
-	var cfCount int
+	// Verify cf alerts at correct thresholds
+	cfCalls := countEmitCalls(emitter, "alert.destination.consecutive_failure")
+	require.Equal(t, 4, cfCalls, "Should emit 4 cf alerts (50%, 66%, 90%, 100%)")
+
+	// Verify disabled alert emitted once at 100%
+	disabledCalls := countEmitCalls(emitter, "alert.destination.disabled")
+	require.Equal(t, 1, disabledCalls, "Should emit 1 disabled alert at 100%")
+
+	// Verify disabled alert data
 	for _, call := range emitter.Calls {
-		if call.Arguments.Get(1) == "alert.destination.consecutive_failure" {
-			cfCount++
-			data := call.Arguments.Get(3).(alert.ConsecutiveFailureData)
-			require.Contains(t, []int{10, 14, 18, 20}, data.ConsecutiveFailures.Current)
-			require.Equal(t, dest.ID, data.Destination.ID)
-			require.Equal(t, 20, data.ConsecutiveFailures.Max)
+		if call.Arguments.Get(1) == "alert.destination.disabled" {
+			data := call.Arguments.Get(3).(alert.DestinationDisabledData)
+			assert.Equal(t, dest.ID, data.Destination.ID)
+			assert.Equal(t, "consecutive_failure", data.Reason)
+			assert.NotNil(t, data.Destination.DisabledAt)
 		}
 	}
-	require.Equal(t, 4, cfCount, "Should have emitted exactly 4 consecutive failure alerts")
+
+	// Verify destination was disabled exactly once
+	disabler.AssertNumberOfCalls(t, "DisableDestination", 1)
 }
 
 func TestAlertMonitor_ConsecutiveFailures_Reset(t *testing.T) {
@@ -115,7 +136,6 @@ func TestAlertMonitor_ConsecutiveFailures_Reset(t *testing.T) {
 	}
 	require.NoError(t, monitor.HandleAttempt(ctx, successAttempt))
 
-	// Clear calls
 	emitter.Calls = nil
 
 	// Send 14 more failures (new IDs)
@@ -133,7 +153,6 @@ func TestAlertMonitor_ConsecutiveFailures_Reset(t *testing.T) {
 		require.NoError(t, monitor.HandleAttempt(ctx, failedAttempt))
 	}
 
-	// Should get 2 more cf alerts (50% and 66% again)
 	cfCalls = countEmitCalls(emitter, "alert.destination.consecutive_failure")
 	require.Equal(t, 2, cfCalls)
 }
@@ -145,11 +164,14 @@ func TestAlertMonitor_ConsecutiveFailures_AboveThreshold(t *testing.T) {
 	redisClient := testutil.CreateTestRedisClient(t)
 	emitter := &mockAlertEmitter{}
 	emitter.On("Emit", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	disabler := &mockDestinationDisabler{}
+	disabler.On("DisableDestination", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	monitor := alert.NewAlertMonitor(
 		logger,
 		redisClient,
 		emitter,
+		alert.WithDisabler(disabler),
 		alert.WithAutoDisableFailureCount(20),
 		alert.WithAlertThresholds([]int{50, 70, 90, 100}),
 	)
@@ -157,7 +179,6 @@ func TestAlertMonitor_ConsecutiveFailures_AboveThreshold(t *testing.T) {
 	dest := &alert.AlertDestination{ID: "dest_above", TenantID: "tenant_above"}
 	event := &models.Event{Topic: "test.event"}
 
-	// Send 25 consecutive failures (5 more than threshold)
 	for i := 1; i <= 25; i++ {
 		attempt := alert.DeliveryAttempt{
 			Event:       event,
@@ -172,9 +193,57 @@ func TestAlertMonitor_ConsecutiveFailures_AboveThreshold(t *testing.T) {
 		require.NoError(t, monitor.HandleAttempt(ctx, attempt))
 	}
 
-	// 4 alerts at thresholds (10, 14, 18, 20) + 5 for 21-25 = 9 cf alerts
+	// 4 at thresholds + 5 above = 9 cf alerts
 	cfCalls := countEmitCalls(emitter, "alert.destination.consecutive_failure")
 	require.Equal(t, 9, cfCalls)
+
+	// 6 disabled alerts (failures 20-25)
+	disabledCalls := countEmitCalls(emitter, "alert.destination.disabled")
+	require.Equal(t, 6, disabledCalls)
+
+	// 6 disable calls
+	disabler.AssertNumberOfCalls(t, "DisableDestination", 6)
+}
+
+func TestAlertMonitor_NoDisabler(t *testing.T) {
+	// Without a disabler, 100% threshold still emits cf alert but no disable/disabled alert
+	t.Parallel()
+	ctx := context.Background()
+	logger := testutil.CreateTestLogger(t)
+	redisClient := testutil.CreateTestRedisClient(t)
+	emitter := &mockAlertEmitter{}
+	emitter.On("Emit", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+
+	monitor := alert.NewAlertMonitor(
+		logger,
+		redisClient,
+		emitter,
+		alert.WithAutoDisableFailureCount(10),
+		alert.WithAlertThresholds([]int{50, 100}),
+	)
+
+	dest := &alert.AlertDestination{ID: "dest_no_disable", TenantID: "tenant_1"}
+	event := &models.Event{Topic: "test.event"}
+
+	for i := 1; i <= 10; i++ {
+		attempt := alert.DeliveryAttempt{
+			Event:       event,
+			Destination: dest,
+			Attempt: &models.Attempt{
+				ID:     fmt.Sprintf("att_%d", i),
+				Status: "failed",
+				Code:   "500",
+				Time:   time.Now(),
+			},
+		}
+		require.NoError(t, monitor.HandleAttempt(ctx, attempt))
+	}
+
+	cfCalls := countEmitCalls(emitter, "alert.destination.consecutive_failure")
+	require.Equal(t, 2, cfCalls, "Should emit cf at 50% and 100%")
+
+	disabledCalls := countEmitCalls(emitter, "alert.destination.disabled")
+	require.Equal(t, 0, disabledCalls, "No disabled alert without disabler")
 }
 
 func countEmitCalls(emitter *mockAlertEmitter, topic string) int {
