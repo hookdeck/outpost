@@ -9,6 +9,7 @@ import (
 	"os"
 	"time"
 
+	opeventsmock "github.com/hookdeck/outpost/cmd/e2e/opevents"
 	"github.com/hookdeck/outpost/internal/idgen"
 )
 
@@ -403,21 +404,23 @@ func (s *basicSuite) waitForNewDestinationDisabled(tenantID, destID string) {
 	s.Require().FailNowf("timeout", "timed out waiting for destination %s to be disabled", destID)
 }
 
-// waitForAlerts polls until at least count alerts exist for the destination.
-func (s *basicSuite) waitForAlerts(destID string, count int) {
+// waitForOpEvents polls until at least count operation events with the given topic exist.
+func (s *basicSuite) waitForOpEvents(topic string, count int) []opeventsmock.ReceivedEvent {
 	s.T().Helper()
 	timeout := alertPollTimeout
 	deadline := time.Now().Add(timeout)
 	var lastCount int
 
 	for time.Now().Before(deadline) {
-		lastCount = len(s.alertServer.GetAlertsForDestination(destID))
+		events := s.opeventsServer.GetEventsByTopic(topic)
+		lastCount = len(events)
 		if lastCount >= count {
-			return
+			return events
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
-	s.Require().FailNowf("timeout", "timed out waiting for %d alerts for %s (got %d)", count, destID, lastCount)
+	s.Require().FailNowf("timeout", "timed out waiting for %d opevents with topic %s (got %d)", count, topic, lastCount)
+	return nil
 }
 
 // =============================================================================
