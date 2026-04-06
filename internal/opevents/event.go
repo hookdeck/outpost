@@ -9,6 +9,7 @@ import (
 const (
 	TopicAlertConsecutiveFailure   = "alert.destination.consecutive_failure"
 	TopicAlertDestinationDisabled  = "alert.destination.disabled"
+	TopicAlertExhaustedRetries     = "alert.event.exhausted_retries"
 	TopicTenantSubscriptionUpdated = "tenant.subscription.updated"
 )
 

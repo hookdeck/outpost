@@ -195,9 +195,10 @@ func (c *Config) InitDefaults() {
 	}
 
 	c.Alert = AlertConfig{
-		CallbackURL:             "",
-		ConsecutiveFailureCount: 20,
-		AutoDisableDestination:  true,
+		CallbackURL:                   "",
+		ConsecutiveFailureCount:       20,
+		AutoDisableDestination:        true,
+		ExhaustedRetriesWindowSeconds: 3600,
 	}
 
 	c.Telemetry = TelemetryConfig{
@@ -479,9 +480,10 @@ func (c *OperationEventsConfig) ToConfig() opevents.Config {
 }
 
 type AlertConfig struct {
-	CallbackURL             string `yaml:"callback_url" env:"ALERT_CALLBACK_URL" desc:"URL to which Outpost will send a POST request when an alert is triggered (e.g., for destination failures)." required:"N"`
-	ConsecutiveFailureCount int    `yaml:"consecutive_failure_count" env:"ALERT_CONSECUTIVE_FAILURE_COUNT" desc:"Number of consecutive delivery failures for a destination before triggering an alert and potentially disabling it." required:"N"`
-	AutoDisableDestination  bool   `yaml:"auto_disable_destination" env:"ALERT_AUTO_DISABLE_DESTINATION" desc:"If true, automatically disables a destination after 'consecutive_failure_count' is reached." required:"N"`
+	CallbackURL                   string `yaml:"callback_url" env:"ALERT_CALLBACK_URL" desc:"URL to which Outpost will send a POST request when an alert is triggered (e.g., for destination failures)." required:"N"`
+	ConsecutiveFailureCount       int    `yaml:"consecutive_failure_count" env:"ALERT_CONSECUTIVE_FAILURE_COUNT" desc:"Number of consecutive delivery failures for a destination before triggering an alert and potentially disabling it." required:"N"`
+	AutoDisableDestination        bool   `yaml:"auto_disable_destination" env:"ALERT_AUTO_DISABLE_DESTINATION" desc:"If true, automatically disables a destination after 'consecutive_failure_count' is reached." required:"N"`
+	ExhaustedRetriesWindowSeconds int    `yaml:"exhausted_retries_window_seconds" env:"ALERT_EXHAUSTED_RETRIES_WINDOW_SECONDS" desc:"Suppression window in seconds for exhausted_retries alerts. First exhaustion per destination emits an alert; subsequent exhaustions within the window are suppressed." required:"N"`
 }
 
 // ConfigFilePath returns the path of the config file that was used

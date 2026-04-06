@@ -346,11 +346,18 @@ func (b *ServiceBuilder) BuildLogWorker(baseRouter *gin.Engine) error {
 	if b.cfg.Alert.AutoDisableDestination {
 		disabler = newDestinationDisabler(svc.tenantStore)
 	}
+	exhaustedRetriesIdemp := idempotence.New(svc.redisClient,
+		idempotence.WithSuccessfulTTL(time.Duration(b.cfg.Alert.ExhaustedRetriesWindowSeconds)*time.Second),
+		idempotence.WithDeploymentID(b.cfg.DeploymentID),
+	)
+	_, retryMaxLimit := b.cfg.GetRetryBackoff()
 	alertMonitor := alert.NewAlertMonitor(
 		b.logger,
 		svc.redisClient,
 		emitter,
+		retryMaxLimit,
 		alert.WithDisabler(disabler),
+		alert.WithExhaustedRetriesIdempotence(exhaustedRetriesIdemp),
 		alert.WithAutoDisableFailureCount(b.cfg.Alert.ConsecutiveFailureCount),
 		alert.WithDeploymentID(b.cfg.DeploymentID),
 	)
