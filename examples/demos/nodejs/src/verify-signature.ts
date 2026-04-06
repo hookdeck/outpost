@@ -15,7 +15,7 @@ function verifyWebhookSignature(
     return false;
   }
 
-  const listed = trimmed.slice("v0=".length).split(",");
+  const listed = trimmed.slice("v0=".length).split(",").map((s) => s.trim());
   const expected = crypto
     .createHmac("sha256", secret)
     .update(rawBody)
@@ -51,7 +51,7 @@ function verifyWebhookSignatureLegacy(
   }
 
   const timestamp = tsPart.slice("t=".length);
-  const listed = sigPart.slice("v0=".length).split(",");
+  const listed = sigPart.slice("v0=".length).split(",").map((s) => s.trim());
   const signedContent = `${timestamp}.${rawBody}`;
   const expected = crypto
     .createHmac("sha256", secret)
