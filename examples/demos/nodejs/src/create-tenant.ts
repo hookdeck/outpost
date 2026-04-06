@@ -1,4 +1,3 @@
-import db from "./lib/db";
 import outpost from "./lib/outpost";
 
 const tenantId = process.argv[2];

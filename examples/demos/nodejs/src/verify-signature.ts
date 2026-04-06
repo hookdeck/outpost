@@ -21,14 +21,14 @@ function verifyWebhookSignature(
     .update(rawBody)
     .digest("hex");
 
-  return listed.some(
-    (sig) =>
-      sig.length === expected.length &&
-      crypto.timingSafeEqual(
-        Buffer.from(sig, "utf8"),
-        Buffer.from(expected, "utf8")
-      )
-  );
+  const expectedBuf = Buffer.from(expected, "utf8");
+  return listed.some((sig) => {
+    const sigBuf = Buffer.from(sig, "utf8");
+    return (
+      sigBuf.length === expectedBuf.length &&
+      crypto.timingSafeEqual(sigBuf, expectedBuf)
+    );
+  });
 }
 
 /**
@@ -58,14 +58,14 @@ function verifyWebhookSignatureLegacy(
     .update(signedContent)
     .digest("hex");
 
-  return listed.some(
-    (sig) =>
-      sig.length === expected.length &&
-      crypto.timingSafeEqual(
-        Buffer.from(sig, "utf8"),
-        Buffer.from(expected, "utf8")
-      )
-  );
+  const expectedBuf = Buffer.from(expected, "utf8");
+  return listed.some((sig) => {
+    const sigBuf = Buffer.from(sig, "utf8");
+    return (
+      sigBuf.length === expectedBuf.length &&
+      crypto.timingSafeEqual(sigBuf, expectedBuf)
+    );
+  });
 }
 
 // --- Default (current) Outpost behavior ---
