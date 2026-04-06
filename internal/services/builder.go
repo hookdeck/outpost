@@ -191,6 +191,14 @@ func (b *ServiceBuilder) BuildAPIWorkers(baseRouter *gin.Engine) error {
 	)
 	eventHandler := publishmq.NewEventHandler(b.logger, svc.deliveryMQ, svc.tenantStore, svc.eventTracer, b.cfg.Topics, publishIdempotence)
 
+	// Create operation events emitter for subscription updates
+	oeCfg := b.cfg.OperationEvents.ToConfig()
+	oeSink, err := opevents.NewSink(oeCfg)
+	if err != nil {
+		return fmt.Errorf("failed to create operation events sink: %w", err)
+	}
+	subscriptionEmitter := opevents.NewEmitter(oeSink, b.cfg.DeploymentID, oeCfg.Topics)
+
 	apiHandler := apirouter.NewRouter(
 		apirouter.RouterConfig{
 			ServiceName:  b.cfg.OpenTelemetry.GetServiceName(),
@@ -203,12 +211,13 @@ func (b *ServiceBuilder) BuildAPIWorkers(baseRouter *gin.Engine) error {
 			GinMode:      b.cfg.GinMode,
 		},
 		apirouter.RouterDeps{
-			TenantStore:       svc.tenantStore,
-			LogStore:          svc.logStore,
-			Logger:            b.logger,
-			DeliveryPublisher: svc.deliveryMQ,
-			EventHandler:      eventHandler,
-			Telemetry:         b.telemetry,
+			TenantStore:         svc.tenantStore,
+			LogStore:            svc.logStore,
+			Logger:              b.logger,
+			DeliveryPublisher:   svc.deliveryMQ,
+			EventHandler:        eventHandler,
+			Telemetry:           b.telemetry,
+			SubscriptionEmitter: subscriptionEmitter,
 		},
 	)
 

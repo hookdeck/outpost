@@ -46,19 +46,21 @@ var (
 // ---------------------------------------------------------------------------
 
 type apiTest struct {
-	t            *testing.T
-	router       http.Handler
-	tenantStore  tenantstore.TenantStore
-	logStore     logstore.LogStore
-	deliveryPub  *mockDeliveryPublisher
-	eventHandler *mockEventHandler
+	t                   *testing.T
+	router              http.Handler
+	tenantStore         tenantstore.TenantStore
+	logStore            logstore.LogStore
+	deliveryPub         *mockDeliveryPublisher
+	eventHandler        *mockEventHandler
+	subscriptionEmitter *mockSubscriptionEmitter
 }
 
 type apiTestOption func(*apiTestConfig)
 
 type apiTestConfig struct {
-	tenantStore  tenantstore.TenantStore
-	destRegistry destregistry.Registry
+	tenantStore         tenantstore.TenantStore
+	destRegistry        destregistry.Registry
+	subscriptionEmitter apirouter.SubscriptionEmitter
 }
 
 func withTenantStore(ts tenantstore.TenantStore) apiTestOption {
@@ -70,6 +72,12 @@ func withTenantStore(ts tenantstore.TenantStore) apiTestOption {
 func withDestRegistry(r destregistry.Registry) apiTestOption {
 	return func(cfg *apiTestConfig) {
 		cfg.destRegistry = r
+	}
+}
+
+func withSubscriptionEmitter(e apirouter.SubscriptionEmitter) apiTestOption {
+	return func(cfg *apiTestConfig) {
+		cfg.subscriptionEmitter = e
 	}
 }
 
@@ -88,10 +96,16 @@ func newAPITest(t *testing.T, opts ...apiTestOption) *apiTest {
 	ls := logstore.NewMemLogStore()
 	dp := &mockDeliveryPublisher{}
 	eh := &mockEventHandler{}
+	se := &mockSubscriptionEmitter{}
 
 	var registry destregistry.Registry = &stubRegistry{}
 	if cfg.destRegistry != nil {
 		registry = cfg.destRegistry
+	}
+
+	var subEmitter apirouter.SubscriptionEmitter = se
+	if cfg.subscriptionEmitter != nil {
+		subEmitter = cfg.subscriptionEmitter
 	}
 
 	router := apirouter.NewRouter(
@@ -104,22 +118,24 @@ func newAPITest(t *testing.T, opts ...apiTestOption) *apiTest {
 			PortalConfig: portal.PortalConfig{},
 		},
 		apirouter.RouterDeps{
-			TenantStore:       ts,
-			LogStore:          ls,
-			Logger:            logger,
-			DeliveryPublisher: dp,
-			EventHandler:      eh,
-			Telemetry:         &telemetry.NoopTelemetry{},
+			TenantStore:         ts,
+			LogStore:            ls,
+			Logger:              logger,
+			DeliveryPublisher:   dp,
+			EventHandler:        eh,
+			Telemetry:           &telemetry.NoopTelemetry{},
+			SubscriptionEmitter: subEmitter,
 		},
 	)
 
 	return &apiTest{
-		t:            t,
-		router:       router,
-		tenantStore:  ts,
-		logStore:     ls,
-		deliveryPub:  dp,
-		eventHandler: eh,
+		t:                   t,
+		router:              router,
+		tenantStore:         ts,
+		logStore:            ls,
+		deliveryPub:         dp,
+		eventHandler:        eh,
+		subscriptionEmitter: se,
 	}
 }
 
@@ -196,6 +212,22 @@ func (m *mockEventHandler) Handle(_ context.Context, event *models.Event) (*publ
 		return m.result, nil
 	}
 	return &publishmq.HandleResult{EventID: event.ID, DestinationIDs: []string{}}, nil
+}
+
+// mockSubscriptionEmitter records Emit calls.
+type mockSubscriptionEmitter struct {
+	calls []emitCall
+}
+
+type emitCall struct {
+	topic    string
+	tenantID string
+	data     any
+}
+
+func (m *mockSubscriptionEmitter) Emit(_ context.Context, topic string, tenantID string, data any) error {
+	m.calls = append(m.calls, emitCall{topic: topic, tenantID: tenantID, data: data})
+	return nil
 }
 
 // stubRegistry is a minimal destregistry.Registry for test setup.
