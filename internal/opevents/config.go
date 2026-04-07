@@ -20,13 +20,13 @@ type Config struct {
 
 type HTTPSinkConfig struct {
 	URL           string
-	SigningSecret string
+	SigningSecret string `json:"-"`
 }
 
 type AWSSQSSinkConfig struct {
 	QueueURL        string
-	AccessKeyID     string
-	SecretAccessKey string
+	AccessKeyID     string `json:"-"`
+	SecretAccessKey string `json:"-"`
 	Region          string
 	Endpoint        string // optional, for local dev
 }
@@ -34,7 +34,7 @@ type AWSSQSSinkConfig struct {
 type GCPPubSubSinkConfig struct {
 	ProjectID                 string
 	TopicID                   string
-	ServiceAccountCredentials string
+	ServiceAccountCredentials string `json:"-"`
 }
 
 type RabbitMQSinkConfig struct {

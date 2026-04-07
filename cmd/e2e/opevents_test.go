@@ -22,7 +22,7 @@ func (s *basicSuite) TestOpEvents_ConsecutiveFailuresAndDisable() {
 
 	// Verify consecutive_failure alerts received at thresholds
 	cfEvents := s.waitForOpEvents("alert.destination.consecutive_failure", 4)
-	s.Require().GreaterOrEqual(len(cfEvents), 4, "should have at least 4 cf events (50%%, 70%%, 90%%, 100%%)")
+	s.Require().GreaterOrEqual(len(cfEvents), 4, "should have at least 4 cf events (50%, 70%, 90%, 100%)")
 
 	// Verify envelope shape on first event
 	first := cfEvents[0]

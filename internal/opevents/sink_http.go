@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"time"
 )
@@ -62,8 +63,10 @@ func (s *HTTPSink) Send(ctx context.Context, event *OperationEvent) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
-		return fmt.Errorf("opevents: HTTP sink returned status %d", resp.StatusCode)
+		snippet, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+		return fmt.Errorf("opevents: HTTP sink returned status %d: %s", resp.StatusCode, string(snippet))
 	}
 
+	_, _ = io.Copy(io.Discard, resp.Body)
 	return nil
 }

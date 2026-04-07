@@ -96,16 +96,18 @@ func newAPITest(t *testing.T, opts ...apiTestOption) *apiTest {
 	ls := logstore.NewMemLogStore()
 	dp := &mockDeliveryPublisher{}
 	eh := &mockEventHandler{}
-	se := &mockSubscriptionEmitter{}
+	var se *mockSubscriptionEmitter
+	var subEmitter apirouter.SubscriptionEmitter
+	if cfg.subscriptionEmitter != nil {
+		subEmitter = cfg.subscriptionEmitter
+	} else {
+		se = &mockSubscriptionEmitter{}
+		subEmitter = se
+	}
 
 	var registry destregistry.Registry = &stubRegistry{}
 	if cfg.destRegistry != nil {
 		registry = cfg.destRegistry
-	}
-
-	var subEmitter apirouter.SubscriptionEmitter = se
-	if cfg.subscriptionEmitter != nil {
-		subEmitter = cfg.subscriptionEmitter
 	}
 
 	router := apirouter.NewRouter(

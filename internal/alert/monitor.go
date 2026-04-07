@@ -120,6 +120,9 @@ type alertMonitor struct {
 // required — callers that don't need alerts should pass nil AlertMonitor to
 // consumers instead.
 func NewAlertMonitor(logger *logging.Logger, redisClient redis.Cmdable, emitter AlertEmitter, retryMaxLimit int, opts ...AlertOption) AlertMonitor {
+	if emitter == nil {
+		panic("alert: NewAlertMonitor requires a non-nil emitter")
+	}
 	alertMonitor := &alertMonitor{
 		logger:          logger,
 		emitter:         emitter,
@@ -215,7 +218,8 @@ func (m *alertMonitor) HandleAttempt(ctx context.Context, attempt DeliveryAttemp
 
 	// Exhausted retries check (independent of consecutive failure thresholds).
 	// Attempt is 1-indexed: with retryMaxLimit=10, attempt 11 is the final one.
-	if attempt.Event.EligibleForRetry && attempt.Attempt.AttemptNumber > m.retryMaxLimit {
+	// Skip if retryMaxLimit=0 (retries disabled — no exhausted state to report).
+	if m.retryMaxLimit > 0 && attempt.Event.EligibleForRetry && attempt.Attempt.AttemptNumber > m.retryMaxLimit {
 		erData := ExhaustedRetriesData{
 			TenantID:    attempt.Destination.TenantID,
 			Event:       attempt.Event,

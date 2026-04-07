@@ -177,6 +177,8 @@ func (bp *BatchProcessor) processBatch(_ string, msgs []*mqs.Message) {
 				zap.String("attempt_id", entry.Attempt.ID),
 				zap.String("event_id", entry.Event.ID),
 				zap.String("destination_id", entry.Destination.ID))
+			// Nack so the message is redelivered. InsertMany is idempotent
+			// (upsert by attempt ID), so redelivery won't produce duplicate log entries.
 			validMsgs[i].Nack()
 			continue
 		}
