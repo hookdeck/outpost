@@ -1,0 +1,96 @@
+---
+title: "Hookdeck Outpost Quickstart: curl"
+---
+
+[Hookdeck Outpost](https://outpost.hookdeck.com) is Hookdeck’s managed [Outpost](https://github.com/hookdeck/outpost) service: a control plane and delivery layer for event destinations (webhooks, queues, and more) scoped per **tenant**—each tenant is one of your platform’s customers.
+
+This quickstart uses the REST API with `curl`. Topics are assumed to be configured already in the Hookdeck dashboard; use a topic name that exists there when you publish.
+
+## Prerequisites
+
+- A Hookdeck account with an Outpost project
+- An **API key** (Outpost API key) from your project: **Settings → Secrets**
+- **Topics** already configured in the dashboard (for example `user.created`, `order.completed`)
+- API base URL: `https://api.outpost.hookdeck.com/2025-07-01`
+
+## Set up credentials
+
+In the Hookdeck Dashboard, open your Outpost project, go to **Settings → Secrets**, and create or copy an API key. That value is the same Outpost API key you use for the REST API and the SDKs.
+
+Store the API key and base URL in your shell (or in a `.env` file you `source`):
+
+```sh
+export OUTPOST_API_BASE_URL="https://api.outpost.hookdeck.com/2025-07-01"
+export OUTPOST_API_KEY="your_api_key"
+```
+
+Use them in the requests below as `$OUTPOST_API_BASE_URL` and `$OUTPOST_API_KEY`.
+
+## Create a tenant
+
+Each tenant maps to one of your customers. Pick a stable ID from your own system (for example a team or account ID).
+
+```sh
+TENANT_ID="customer_acme_001"
+
+curl --request PUT "$OUTPOST_API_BASE_URL/tenants/$TENANT_ID" \
+  --header "Authorization: Bearer $OUTPOST_API_KEY"
+```
+
+## Create a webhook destination
+
+Subscribe the tenant to one or more topics you configured in the dashboard. Set `config.url` to an HTTPS endpoint you control.
+
+If you do not have your own endpoint yet, open [Hookdeck Console](https://console.hookdeck.com?ref=outpost-docs), create a **Source**, and paste that Source URL as the webhook URL below (or any HTTPS URL you own). Replace `REPLACE_WITH_YOUR_WEBHOOK_URL` accordingly.
+
+Replace `user.created` with a topic that exists in your project if needed.
+
+```sh
+curl --request POST "$OUTPOST_API_BASE_URL/tenants/$TENANT_ID/destinations" \
+  --header "Authorization: Bearer $OUTPOST_API_KEY" \
+  --header "Content-Type: application/json" \
+  --data '{
+    "type": "webhook",
+    "topics": ["user.created"],
+    "config": {
+      "url": "REPLACE_WITH_YOUR_WEBHOOK_URL"
+    }
+  }'
+```
+
+To receive every configured topic on this destination, set `"topics": ["*"]` instead.
+
+## Publish a test event
+
+Use the same tenant ID and a `topic` that matches both your dashboard configuration and the destination’s `topics`.
+
+```sh
+curl --request POST "$OUTPOST_API_BASE_URL/publish" \
+  --header "Authorization: Bearer $OUTPOST_API_KEY" \
+  --header "Content-Type: application/json" \
+  --data '{
+    "tenant_id": "'"$TENANT_ID"'",
+    "topic": "user.created",
+    "eligible_for_retry": true,
+    "metadata": {
+      "source": "quickstart"
+    },
+    "data": {
+      "user_id": "user_123"
+    }
+  }'
+```
+
+A `202` response means the event was accepted for delivery.
+
+## Verify delivery
+
+- In **Hookdeck Console**, inspect the connection or destination you used (for example the Source you created) and confirm the webhook request and payload look correct.
+- In the **Hookdeck Dashboard**, open **your Outpost project** and review **logs** (and any deliveries or event views your project exposes) to confirm the event was processed and delivered.
+
+## Next steps
+
+- [Destination types](/docs/destinations) — webhooks, AWS SQS, RabbitMQ, Hookdeck, and more
+- [Tenant user portal](/docs/features/tenant-user-portal) — optional UI for tenants to manage their own destinations
+- [SDKs](/docs/sdks) — TypeScript, Python, Go, and others
+- [API reference](/docs/api/authentication) — full REST API

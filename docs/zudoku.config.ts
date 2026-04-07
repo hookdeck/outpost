@@ -86,19 +86,60 @@ const config: ZudokuConfig = {
         collapsible: false,
         items: [
           {
-            type: "doc",
-            label: "Docker",
-            id: "quickstarts/docker",
+            type: "category",
+            label: "Hookdeck Outpost",
+            collapsed: false,
+            collapsible: true,
+            items: [
+              {
+                type: "doc",
+                label: "curl",
+                id: "quickstarts/hookdeck-outpost-curl",
+              },
+              {
+                type: "doc",
+                label: "TypeScript",
+                id: "quickstarts/hookdeck-outpost-typescript",
+              },
+              {
+                type: "doc",
+                label: "Python",
+                id: "quickstarts/hookdeck-outpost-python",
+              },
+              {
+                type: "doc",
+                label: "Go",
+                id: "quickstarts/hookdeck-outpost-go",
+              },
+              {
+                type: "doc",
+                label: "Agent prompt",
+                id: "quickstarts/hookdeck-outpost-agent-prompt",
+              },
+            ],
           },
           {
-            type: "doc",
-            label: "Kubernetes",
-            id: "quickstarts/kubernetes",
-          },
-          {
-            type: "doc",
-            label: "Railway",
-            id: "quickstarts/railway",
+            type: "category",
+            label: "Self-Hosted",
+            collapsed: false,
+            collapsible: true,
+            items: [
+              {
+                type: "doc",
+                label: "Docker",
+                id: "quickstarts/docker",
+              },
+              {
+                type: "doc",
+                label: "Kubernetes",
+                id: "quickstarts/kubernetes",
+              },
+              {
+                type: "doc",
+                label: "Railway",
+                id: "quickstarts/railway",
+              },
+            ],
           },
         ],
       },
