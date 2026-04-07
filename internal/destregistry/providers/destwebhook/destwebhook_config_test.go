@@ -85,8 +85,7 @@ func TestGetAlgorithm(t *testing.T) {
 func TestWebhookDestination_CustomHeadersConfig(t *testing.T) {
 	t.Parallel()
 
-	webhookDestination, err := destwebhook.New(testutil.Registry.MetadataLoader(), nil)
-	assert.NoError(t, err)
+	webhookDestination := NewTestProvider(t)
 
 	t.Run("should parse config with valid custom_headers", func(t *testing.T) {
 		t.Parallel()

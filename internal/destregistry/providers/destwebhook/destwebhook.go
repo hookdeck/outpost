@@ -200,8 +200,6 @@ func WithSigningSecretTemplate(templateStr string) Option {
 	}
 }
 
-const defaultSigningSecretTemplate = `whsec_{{.RandomHex}}`
-
 // signingSecretTemplateData holds the variables available in signing secret templates.
 type signingSecretTemplateData struct {
 	RandomHex          string

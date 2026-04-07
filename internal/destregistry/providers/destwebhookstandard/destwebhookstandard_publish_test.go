@@ -387,7 +387,7 @@ func TestStandardWebhookPublisher_CustomHeaderPrefix(t *testing.T) {
 	provider, err := destwebhookstandard.New(
 		testutil.Registry.MetadataLoader(),
 		nil,
-		destwebhookstandard.WithHeaderPrefix(new("x-custom-")),
+		destwebhookstandard.WithHeaderPrefix("x-custom-"),
 	)
 	require.NoError(t, err)
 
@@ -441,29 +441,32 @@ func TestStandardWebhookPublisher_EmptyHeaderPrefix(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name   string
-		prefix *string
-		want   string // expected prefix on headers
+		name      string
+		prefix    string
+		setPrefix bool
+		want      string // expected prefix on headers
 	}{
 		{
-			name:   "nil prefix uses default",
-			prefix: nil,
-			want:   "webhook-",
+			name: "no prefix option uses default",
+			want: "webhook-",
 		},
 		{
-			name:   "empty string disables prefix",
-			prefix: new(""),
-			want:   "",
+			name:      "empty string disables prefix",
+			prefix:    "",
+			setPrefix: true,
+			want:      "",
 		},
 		{
-			name:   "whitespace-only disables prefix",
-			prefix: new("  "),
-			want:   "",
+			name:      "whitespace-only disables prefix",
+			prefix:    "  ",
+			setPrefix: true,
+			want:      "",
 		},
 		{
-			name:   "custom prefix is applied",
-			prefix: new("x-custom-"),
-			want:   "x-custom-",
+			name:      "custom prefix is applied",
+			prefix:    "x-custom-",
+			setPrefix: true,
+			want:      "x-custom-",
 		},
 	}
 
@@ -472,7 +475,7 @@ func TestStandardWebhookPublisher_EmptyHeaderPrefix(t *testing.T) {
 			t.Parallel()
 
 			opts := []destwebhookstandard.Option{}
-			if tt.prefix != nil {
+			if tt.setPrefix {
 				opts = append(opts, destwebhookstandard.WithHeaderPrefix(tt.prefix))
 			}
 

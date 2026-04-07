@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -170,30 +169,13 @@ func verifySignature(secret string, payload []byte, signature string, algorithm 
 		encoding = "hex"
 	}
 
-	// Parse timestamp and signature from header
-	// Header format: t=1234567890,v0=signature1,signature2
-	var timestamp time.Time
-	var signatures []string
-
-	parts := strings.Split(signature, ",")
-	for i, part := range parts {
-		if strings.HasPrefix(part, "t=") {
-			ts, err := strconv.ParseInt(strings.TrimPrefix(part, "t="), 10, 64)
-			if err != nil {
-				return false
-			}
-			timestamp = time.Unix(ts, 0)
-		} else if strings.HasPrefix(part, "v0=") {
-			// First v0 part contains the prefix
-			signatures = append(signatures, strings.TrimPrefix(part, "v0="))
-		} else if i > 0 && strings.HasPrefix(parts[i-1], "v0=") {
-			// Additional signatures after v0= don't have the prefix
-			signatures = append(signatures, part)
-		}
+	// Parse signature from header
+	// Header format: v0=signature1,signature2
+	if !strings.HasPrefix(signature, "v0=") {
+		return false
 	}
-
-	// If we couldn't parse timestamp or no signatures found, verification fails
-	if timestamp.IsZero() || len(signatures) == 0 {
+	signatures := strings.Split(strings.TrimPrefix(signature, "v0="), ",")
+	if len(signatures) == 0 {
 		return false
 	}
 
@@ -208,12 +190,13 @@ func verifySignature(secret string, payload []byte, signature string, algorithm 
 		secrets,
 		destwebhook.WithEncoder(destwebhook.GetEncoder(encoding)),
 		destwebhook.WithAlgorithm(destwebhook.GetAlgorithm(algorithm)),
+		destwebhook.WithSignatureFormatter(destwebhook.NewSignatureFormatter(destwebhook.DefaultSignatureContentTmpl)),
+		destwebhook.WithHeaderFormatter(destwebhook.NewHeaderFormatter(destwebhook.DefaultSignatureHeaderTmpl)),
 	)
 
 	for _, sig := range signatures {
 		if sm.VerifySignature(sig, secret, destwebhook.SignaturePayload{
-			Body:      string(payload),
-			Timestamp: timestamp,
+			Body: string(payload),
 		}) {
 			return true
 		}

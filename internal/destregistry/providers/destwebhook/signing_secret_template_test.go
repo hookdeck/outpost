@@ -18,6 +18,11 @@ func TestNew_InvalidSigningSecretTemplate(t *testing.T) {
 	t.Parallel()
 
 	_, err := destwebhook.New(testutil.Registry.MetadataLoader(), nil,
+		destwebhook.WithHeaderPrefix(destwebhook.DefaultHeaderPrefix),
+		destwebhook.WithSignatureContentTemplate(destwebhook.DefaultSignatureContentTmpl),
+		destwebhook.WithSignatureHeaderTemplate(destwebhook.DefaultSignatureHeaderTmpl),
+		destwebhook.WithSignatureEncoding(destwebhook.DefaultEncoding),
+		destwebhook.WithSignatureAlgorithm(destwebhook.DefaultAlgorithm),
 		destwebhook.WithSigningSecretTemplate(`{{.RandomHex`),
 	)
 	require.Error(t, err)
@@ -31,10 +36,6 @@ func TestNew_ValidSigningSecretTemplate(t *testing.T) {
 		name     string
 		template string
 	}{
-		{
-			name:     "default (empty)",
-			template: "",
-		},
 		{
 			name:     "hex only",
 			template: "{{.RandomHex}}",
@@ -61,6 +62,11 @@ func TestNew_ValidSigningSecretTemplate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			_, err := destwebhook.New(testutil.Registry.MetadataLoader(), nil,
+				destwebhook.WithHeaderPrefix(destwebhook.DefaultHeaderPrefix),
+				destwebhook.WithSignatureContentTemplate(destwebhook.DefaultSignatureContentTmpl),
+				destwebhook.WithSignatureHeaderTemplate(destwebhook.DefaultSignatureHeaderTmpl),
+				destwebhook.WithSignatureEncoding(destwebhook.DefaultEncoding),
+				destwebhook.WithSignatureAlgorithm(destwebhook.DefaultAlgorithm),
 				destwebhook.WithSigningSecretTemplate(tt.template),
 			)
 			assert.NoError(t, err)
@@ -71,8 +77,7 @@ func TestNew_ValidSigningSecretTemplate(t *testing.T) {
 func TestSigningSecretTemplate_DefaultGeneratesPrefixedHex(t *testing.T) {
 	t.Parallel()
 
-	webhookDestination, err := destwebhook.New(testutil.Registry.MetadataLoader(), nil)
-	require.NoError(t, err)
+	webhookDestination := NewTestProvider(t)
 
 	destination := testutil.DestinationFactory.Any(
 		testutil.DestinationFactory.WithType("webhook"),
@@ -81,7 +86,7 @@ func TestSigningSecretTemplate_DefaultGeneratesPrefixedHex(t *testing.T) {
 		}),
 	)
 
-	err = webhookDestination.Preprocess(&destination, nil, &destregistry.PreprocessDestinationOpts{Role: "tenant"})
+	err := webhookDestination.Preprocess(&destination, nil, &destregistry.PreprocessDestinationOpts{Role: "tenant"})
 	require.NoError(t, err)
 
 	secret := destination.Credentials["secret"]
@@ -95,10 +100,9 @@ func TestSigningSecretTemplate_DefaultGeneratesPrefixedHex(t *testing.T) {
 func TestSigningSecretTemplate_WithPrefix(t *testing.T) {
 	t.Parallel()
 
-	webhookDestination, err := destwebhook.New(testutil.Registry.MetadataLoader(), nil,
+	webhookDestination := NewTestProvider(t,
 		destwebhook.WithSigningSecretTemplate("whsec_{{.RandomHex}}"),
 	)
-	require.NoError(t, err)
 
 	destination := testutil.DestinationFactory.Any(
 		testutil.DestinationFactory.WithType("webhook"),
@@ -107,7 +111,7 @@ func TestSigningSecretTemplate_WithPrefix(t *testing.T) {
 		}),
 	)
 
-	err = webhookDestination.Preprocess(&destination, nil, &destregistry.PreprocessDestinationOpts{Role: "tenant"})
+	err := webhookDestination.Preprocess(&destination, nil, &destregistry.PreprocessDestinationOpts{Role: "tenant"})
 	require.NoError(t, err)
 
 	secret := destination.Credentials["secret"]
@@ -121,10 +125,9 @@ func TestSigningSecretTemplate_WithPrefix(t *testing.T) {
 func TestSigningSecretTemplate_Base64(t *testing.T) {
 	t.Parallel()
 
-	webhookDestination, err := destwebhook.New(testutil.Registry.MetadataLoader(), nil,
+	webhookDestination := NewTestProvider(t,
 		destwebhook.WithSigningSecretTemplate("{{.RandomBase64}}"),
 	)
-	require.NoError(t, err)
 
 	destination := testutil.DestinationFactory.Any(
 		testutil.DestinationFactory.WithType("webhook"),
@@ -133,7 +136,7 @@ func TestSigningSecretTemplate_Base64(t *testing.T) {
 		}),
 	)
 
-	err = webhookDestination.Preprocess(&destination, nil, &destregistry.PreprocessDestinationOpts{Role: "tenant"})
+	err := webhookDestination.Preprocess(&destination, nil, &destregistry.PreprocessDestinationOpts{Role: "tenant"})
 	require.NoError(t, err)
 
 	secret := destination.Credentials["secret"]
@@ -144,10 +147,9 @@ func TestSigningSecretTemplate_Base64(t *testing.T) {
 func TestSigningSecretTemplate_Alphanumeric(t *testing.T) {
 	t.Parallel()
 
-	webhookDestination, err := destwebhook.New(testutil.Registry.MetadataLoader(), nil,
+	webhookDestination := NewTestProvider(t,
 		destwebhook.WithSigningSecretTemplate("{{.RandomAlphanumeric}}"),
 	)
-	require.NoError(t, err)
 
 	destination := testutil.DestinationFactory.Any(
 		testutil.DestinationFactory.WithType("webhook"),
@@ -156,7 +158,7 @@ func TestSigningSecretTemplate_Alphanumeric(t *testing.T) {
 		}),
 	)
 
-	err = webhookDestination.Preprocess(&destination, nil, &destregistry.PreprocessDestinationOpts{Role: "tenant"})
+	err := webhookDestination.Preprocess(&destination, nil, &destregistry.PreprocessDestinationOpts{Role: "tenant"})
 	require.NoError(t, err)
 
 	secret := destination.Credentials["secret"]
@@ -167,10 +169,9 @@ func TestSigningSecretTemplate_Alphanumeric(t *testing.T) {
 func TestSigningSecretTemplate_AppliesOnRotation(t *testing.T) {
 	t.Parallel()
 
-	webhookDestination, err := destwebhook.New(testutil.Registry.MetadataLoader(), nil,
+	webhookDestination := NewTestProvider(t,
 		destwebhook.WithSigningSecretTemplate("whsec_{{.RandomHex}}"),
 	)
-	require.NoError(t, err)
 
 	originalDestination := testutil.DestinationFactory.Any(
 		testutil.DestinationFactory.WithType("webhook"),
@@ -192,7 +193,7 @@ func TestSigningSecretTemplate_AppliesOnRotation(t *testing.T) {
 		}),
 	)
 
-	err = webhookDestination.Preprocess(&newDestination, &originalDestination, &destregistry.PreprocessDestinationOpts{Role: "tenant"})
+	err := webhookDestination.Preprocess(&newDestination, &originalDestination, &destregistry.PreprocessDestinationOpts{Role: "tenant"})
 	require.NoError(t, err)
 
 	secret := newDestination.Credentials["secret"]
@@ -203,10 +204,9 @@ func TestSigningSecretTemplate_AppliesOnRotation(t *testing.T) {
 func TestSigningSecretTemplate_UniqueSecrets(t *testing.T) {
 	t.Parallel()
 
-	webhookDestination, err := destwebhook.New(testutil.Registry.MetadataLoader(), nil,
+	webhookDestination := NewTestProvider(t,
 		destwebhook.WithSigningSecretTemplate("prefix_{{.RandomHex}}"),
 	)
-	require.NoError(t, err)
 
 	secrets := make(map[string]bool)
 	for i := 0; i < 10; i++ {
@@ -229,10 +229,9 @@ func TestSigningSecretTemplate_UniqueSecrets(t *testing.T) {
 func TestSigningSecretTemplate_E2ESigningWithTemplatedSecret(t *testing.T) {
 	t.Parallel()
 
-	provider, err := destwebhook.New(testutil.Registry.MetadataLoader(), nil,
+	provider := NewTestProvider(t,
 		destwebhook.WithSigningSecretTemplate("whsec_{{.RandomHex}}"),
 	)
-	require.NoError(t, err)
 
 	// Generate a secret via Preprocess
 	destination := testutil.DestinationFactory.Any(
@@ -241,7 +240,7 @@ func TestSigningSecretTemplate_E2ESigningWithTemplatedSecret(t *testing.T) {
 			"url": "http://example.com/webhook",
 		}),
 	)
-	err = provider.Preprocess(&destination, nil, &destregistry.PreprocessDestinationOpts{Role: "tenant"})
+	err := provider.Preprocess(&destination, nil, &destregistry.PreprocessDestinationOpts{Role: "tenant"})
 	require.NoError(t, err)
 
 	generatedSecret := destination.Credentials["secret"]
@@ -268,10 +267,9 @@ func TestSigningSecretTemplate_E2ESigningWithTemplatedSecret(t *testing.T) {
 func TestSigningSecretTemplate_StaticTemplate(t *testing.T) {
 	t.Parallel()
 
-	provider, err := destwebhook.New(testutil.Registry.MetadataLoader(), nil,
+	provider := NewTestProvider(t,
 		destwebhook.WithSigningSecretTemplate("my-static-secret"),
 	)
-	require.NoError(t, err)
 
 	// Generate two secrets — both should be identical
 	secrets := make([]string, 2)
@@ -294,10 +292,9 @@ func TestSigningSecretTemplate_StaticTemplate(t *testing.T) {
 func TestSigningSecretTemplate_UndefinedVariable(t *testing.T) {
 	t.Parallel()
 
-	provider, err := destwebhook.New(testutil.Registry.MetadataLoader(), nil,
+	provider := NewTestProvider(t,
 		destwebhook.WithSigningSecretTemplate("{{.Foo}}"),
 	)
-	require.NoError(t, err) // Template parses fine — .Foo is syntactically valid
 
 	destination := testutil.DestinationFactory.Any(
 		testutil.DestinationFactory.WithType("webhook"),
@@ -307,6 +304,6 @@ func TestSigningSecretTemplate_UndefinedVariable(t *testing.T) {
 	)
 
 	// Should fail at execution time during Preprocess
-	err = provider.Preprocess(&destination, nil, &destregistry.PreprocessDestinationOpts{Role: "tenant"})
+	err := provider.Preprocess(&destination, nil, &destregistry.PreprocessDestinationOpts{Role: "tenant"})
 	assert.Error(t, err, "template with undefined variable should fail during secret generation")
 }
