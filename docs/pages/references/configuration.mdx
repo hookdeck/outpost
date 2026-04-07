@@ -65,7 +65,7 @@ Global configurations are provided through env variables or a YAML file. ConfigM
 | `DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE` | Go template for constructing the content to be signed for webhook requests. Only applies to 'default' mode. | `{{.Body}}` | No |
 | `DESTINATIONS_WEBHOOK_SIGNATURE_ENCODING` | Encoding for the signature (e.g., 'hex', 'base64'). Only applies to 'default' mode. | `hex` | No |
 | `DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE` | Go template for the value of the signature header. Only applies to 'default' mode. | `v0={{.Signatures \| join ","}}` | No |
-| `DESTINATIONS_WEBHOOK_SIGNING_SECRET_TEMPLATE` | Go template for generating webhook signing secrets. Available variables: \{\{.RandomHex\}\} (64-char hex), \{\{.RandomBase64\}\} (base64-encoded), \{\{.RandomAlphanumeric\}\} (32-char alphanumeric). Defaults to '\{\{.RandomHex\}\}'. Only applies to 'default' mode. | `nil` | No |
+| `DESTINATIONS_WEBHOOK_SIGNING_SECRET_TEMPLATE` | Go template for generating webhook signing secrets. Available variables: \{\{.RandomHex\}\} (64-char hex), \{\{.RandomBase64\}\} (base64-encoded), \{\{.RandomAlphanumeric\}\} (32-char alphanumeric). Defaults to 'whsec_\{\{.RandomHex\}\}'. Only applies to 'default' mode. | `nil` | No |
 | `DISABLE_TELEMETRY` | Global flag to disable all telemetry (anonymous usage statistics to Hookdeck and error reporting to Sentry). If true, overrides 'telemetry.disabled'. | `false` | No |
 | `GCP_PUBSUB_DELIVERY_SUBSCRIPTION` | Name of the GCP Pub/Sub subscription for delivery events. | `outpost-delivery-sub` | No |
 | `GCP_PUBSUB_DELIVERY_TOPIC` | Name of the GCP Pub/Sub topic for delivery events. | `outpost-delivery` | No |
@@ -260,7 +260,7 @@ destinations:
     # Go template for the value of the signature header. Only applies to 'default' mode.
     signature_header_template: "v0={{.Signatures | join \",\"}}"
 
-    # Go template for generating webhook signing secrets. Available variables: {{.RandomHex}} (64-char hex), {{.RandomBase64}} (base64-encoded), {{.RandomAlphanumeric}} (32-char alphanumeric). Defaults to '{{.RandomHex}}'. Only applies to 'default' mode.
+    # Go template for generating webhook signing secrets. Available variables: {{.RandomHex}} (64-char hex), {{.RandomBase64}} (base64-encoded), {{.RandomAlphanumeric}} (32-char alphanumeric). Defaults to 'whsec_{{.RandomHex}}'. Only applies to 'default' mode.
     signing_secret_template: ""
 
 

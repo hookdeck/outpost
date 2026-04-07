@@ -68,7 +68,7 @@ func TestNew_ValidSigningSecretTemplate(t *testing.T) {
 	}
 }
 
-func TestSigningSecretTemplate_DefaultGeneratesHex(t *testing.T) {
+func TestSigningSecretTemplate_DefaultGeneratesPrefixedHex(t *testing.T) {
 	t.Parallel()
 
 	webhookDestination, err := destwebhook.New(testutil.Registry.MetadataLoader(), nil)
@@ -85,9 +85,11 @@ func TestSigningSecretTemplate_DefaultGeneratesHex(t *testing.T) {
 	require.NoError(t, err)
 
 	secret := destination.Credentials["secret"]
-	assert.Len(t, secret, 64)
-	_, err = hex.DecodeString(secret)
-	assert.NoError(t, err, "default template should produce a valid hex string")
+	assert.True(t, strings.HasPrefix(secret, "whsec_"), "secret should have whsec_ prefix")
+	hexPart := strings.TrimPrefix(secret, "whsec_")
+	assert.Len(t, hexPart, 64)
+	_, err = hex.DecodeString(hexPart)
+	assert.NoError(t, err, "hex part should be valid hex")
 }
 
 func TestSigningSecretTemplate_WithPrefix(t *testing.T) {

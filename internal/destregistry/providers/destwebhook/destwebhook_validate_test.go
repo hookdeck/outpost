@@ -3,6 +3,7 @@ package destwebhook_test
 import (
 	"context"
 	"encoding/hex"
+	"strings"
 	"testing"
 	"time"
 
@@ -378,10 +379,13 @@ func TestWebhookDestination_Preprocess(t *testing.T) {
 
 		// Verify that a secret was generated
 		assert.NotEmpty(t, destination.Credentials["secret"])
-		// Verify that the secret is a valid hex string of length 64 (32 bytes)
-		assert.Len(t, destination.Credentials["secret"], 64)
-		_, err = hex.DecodeString(destination.Credentials["secret"])
-		assert.NoError(t, err, "generated secret should be a valid hex string")
+		// Verify that the secret has whsec_ prefix and valid hex of length 64
+		secret := destination.Credentials["secret"]
+		assert.True(t, strings.HasPrefix(secret, "whsec_"), "secret should have whsec_ prefix")
+		hexPart := strings.TrimPrefix(secret, "whsec_")
+		assert.Len(t, hexPart, 64)
+		_, err = hex.DecodeString(hexPart)
+		assert.NoError(t, err, "hex part should be valid hex")
 	})
 
 	t.Run("should preserve existing secret for admin", func(t *testing.T) {
@@ -471,9 +475,12 @@ func TestWebhookDestination_Preprocess(t *testing.T) {
 		// Verify that a new secret was generated
 		assert.NotEqual(t, "current-secret", newDestination.Credentials["secret"])
 		assert.NotEmpty(t, newDestination.Credentials["secret"])
-		assert.Len(t, newDestination.Credentials["secret"], 64)
-		_, err = hex.DecodeString(newDestination.Credentials["secret"])
-		assert.NoError(t, err, "generated secret should be a valid hex string")
+		secret := newDestination.Credentials["secret"]
+		assert.True(t, strings.HasPrefix(secret, "whsec_"), "secret should have whsec_ prefix")
+		hexPart := strings.TrimPrefix(secret, "whsec_")
+		assert.Len(t, hexPart, 64)
+		_, err = hex.DecodeString(hexPart)
+		assert.NoError(t, err, "hex part should be valid hex")
 
 		// Verify that previous_secret_invalid_at was set to ~24h from now
 		invalidAt, err := time.Parse(time.RFC3339, newDestination.Credentials["previous_secret_invalid_at"])
@@ -693,9 +700,12 @@ func TestWebhookDestination_Preprocess(t *testing.T) {
 				// Verify that a new secret was generated
 				assert.NotEqual(t, "current-secret", newDestination.Credentials["secret"])
 				assert.NotEmpty(t, newDestination.Credentials["secret"])
-				assert.Len(t, newDestination.Credentials["secret"], 64)
-				_, err = hex.DecodeString(newDestination.Credentials["secret"])
-				assert.NoError(t, err, "generated secret should be a valid hex string")
+				secret := newDestination.Credentials["secret"]
+				assert.True(t, strings.HasPrefix(secret, "whsec_"), "secret should have whsec_ prefix")
+				hexPart := strings.TrimPrefix(secret, "whsec_")
+				assert.Len(t, hexPart, 64)
+				_, err = hex.DecodeString(hexPart)
+				assert.NoError(t, err, "hex part should be valid hex")
 
 				// Verify that previous_secret_invalid_at was set to ~24h from now
 				invalidAt, err := time.Parse(time.RFC3339, newDestination.Credentials["previous_secret_invalid_at"])

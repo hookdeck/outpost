@@ -104,15 +104,12 @@ func WithProxyURL(proxyURL string) Option {
 	}
 }
 
-// WithHeaderPrefix sets the prefix for metadata headers (defaults to "webhook-").
-// When prefix is nil, the default prefix is used.
-// When prefix is non-nil, its value is used (after trimming whitespace),
-// allowing an empty string to disable the prefix entirely.
-func WithHeaderPrefix(prefix *string) Option {
+// WithHeaderPrefix sets the prefix for metadata headers.
+// The prefix is trimmed of whitespace. An empty string disables the prefix entirely.
+// Config is responsible for providing the appropriate default ("webhook-" for standard mode).
+func WithHeaderPrefix(prefix string) Option {
 	return func(d *StandardWebhookDestination) {
-		if prefix != nil {
-			d.headerPrefix = strings.TrimSpace(*prefix)
-		}
+		d.headerPrefix = strings.TrimSpace(prefix)
 	}
 }
 

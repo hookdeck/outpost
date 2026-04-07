@@ -178,10 +178,12 @@ func (c *Config) InitDefaults() {
 	c.Destinations = DestinationsConfig{
 		MetadataPath: "config/outpost/destinations",
 		Webhook: DestinationWebhookConfig{
+			Mode:                     "default",
 			SignatureContentTemplate: "{{.Body}}",
 			SignatureHeaderTemplate:  "v0={{.Signatures | join \",\"}}",
 			SignatureEncoding:        "hex",
 			SignatureAlgorithm:       "hmac-sha256",
+			SigningSecretTemplate:    "whsec_{{.RandomHex}}",
 		},
 		AWSKinesis: DestinationAWSKinesisConfig{
 			MetadataInPayload: true,

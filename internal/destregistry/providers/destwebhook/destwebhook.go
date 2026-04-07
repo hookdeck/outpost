@@ -22,8 +22,12 @@ import (
 )
 
 const (
-	DefaultEncoding  = "hex"
-	DefaultAlgorithm = "hmac-sha256"
+	DefaultEncoding             = "hex"
+	DefaultAlgorithm            = "hmac-sha256"
+	DefaultHeaderPrefix         = "x-outpost-"
+	DefaultSignatureContentTmpl = "{{.Body}}"
+	DefaultSignatureHeaderTmpl  = "v0={{.Signatures | join \",\"}}"
+	DefaultSigningSecretTmpl    = "whsec_{{.RandomHex}}"
 )
 
 // Reserved headers that cannot be set via custom_headers
@@ -119,15 +123,12 @@ var _ destregistry.Provider = (*WebhookDestination)(nil)
 // Option is a functional option for configuring WebhookDestination
 type Option func(*WebhookDestination)
 
-// WithHeaderPrefix sets a custom prefix for webhook request headers.
-// When prefix is nil, the default prefix is used.
-// When prefix is non-nil, its value is used (after trimming whitespace),
-// allowing an empty string to disable the prefix entirely.
-func WithHeaderPrefix(prefix *string) Option {
+// WithHeaderPrefix sets the prefix for webhook request headers.
+// The prefix is trimmed of whitespace. An empty string disables the prefix entirely.
+// Config is responsible for providing the appropriate default ("x-outpost-" or "webhook-").
+func WithHeaderPrefix(prefix string) Option {
 	return func(w *WebhookDestination) {
-		if prefix != nil {
-			w.headerPrefix = strings.TrimSpace(*prefix)
-		}
+		w.headerPrefix = strings.TrimSpace(prefix)
 	}
 }
 
@@ -199,7 +200,7 @@ func WithSigningSecretTemplate(templateStr string) Option {
 	}
 }
 
-const defaultSigningSecretTemplate = `{{.RandomHex}}`
+const defaultSigningSecretTemplate = `whsec_{{.RandomHex}}`
 
 // signingSecretTemplateData holds the variables available in signing secret templates.
 type signingSecretTemplateData struct {
@@ -215,22 +216,34 @@ func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePu
 	}
 	destination := &WebhookDestination{
 		BaseProvider: base,
-		headerPrefix: "x-outpost-",
-		encoding:     DefaultEncoding,
-		algorithm:    DefaultAlgorithm,
 	}
 	for _, opt := range opts {
 		opt(destination)
 	}
 
-	// Parse signing secret template — fail on invalid syntax
-	templateStr := destination.rawSigningSecretTemplate
-	if templateStr == "" {
-		templateStr = defaultSigningSecretTemplate
+	// Validate all required configuration is provided
+	// Config is responsible for setting defaults - provider requires explicit values
+	// Note: headerPrefix may be empty (after trimming) to disable prefix entirely
+	if destination.encoding == "" {
+		return nil, fmt.Errorf("signature encoding is required")
 	}
-	tmpl, err := template.New("signing_secret").Funcs(sprig.TxtFuncMap()).Parse(templateStr)
+	if destination.algorithm == "" {
+		return nil, fmt.Errorf("signature algorithm is required")
+	}
+	if destination.signatureContentTemplate == "" {
+		return nil, fmt.Errorf("signature content template is required")
+	}
+	if destination.signatureHeaderTemplate == "" {
+		return nil, fmt.Errorf("signature header template is required")
+	}
+	if destination.rawSigningSecretTemplate == "" {
+		return nil, fmt.Errorf("signing secret template is required")
+	}
+
+	// Parse signing secret template — fail on invalid syntax
+	tmpl, err := template.New("signing_secret").Funcs(sprig.TxtFuncMap()).Parse(destination.rawSigningSecretTemplate)
 	if err != nil {
-		return nil, fmt.Errorf("invalid signing secret template %q: %w", templateStr, err)
+		return nil, fmt.Errorf("invalid signing secret template %q: %w", destination.rawSigningSecretTemplate, err)
 	}
 	destination.signingSecretTemplate = tmpl
 
