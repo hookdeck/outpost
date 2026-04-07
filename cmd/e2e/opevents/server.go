@@ -105,7 +105,7 @@ func VerifySignature(event ReceivedEvent, secret string) bool {
 	if secret == "" || event.Signature == "" {
 		return false
 	}
-	sig := strings.TrimPrefix(event.Signature, "sha256=")
+	sig := strings.TrimPrefix(event.Signature, "v0=")
 	mac := hmac.New(sha256.New, []byte(secret))
 	mac.Write(event.Body)
 	expected := hex.EncodeToString(mac.Sum(nil))

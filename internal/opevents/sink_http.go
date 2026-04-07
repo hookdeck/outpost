@@ -53,7 +53,7 @@ func (s *HTTPSink) Send(ctx context.Context, event *OperationEvent) error {
 		mac := hmac.New(sha256.New, []byte(s.signingSecret))
 		mac.Write(body)
 		sig := hex.EncodeToString(mac.Sum(nil))
-		req.Header.Set(signatureHeader, "sha256="+sig)
+		req.Header.Set(signatureHeader, "v0="+sig)
 	}
 
 	resp, err := s.client.Do(req)

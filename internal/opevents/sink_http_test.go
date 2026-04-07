@@ -62,7 +62,7 @@ func TestHTTPSink_Send(t *testing.T) {
 		// Verify HMAC signature
 		mac := hmac.New(sha256.New, []byte(secret))
 		mac.Write(receivedBody)
-		expectedSig := "sha256=" + hex.EncodeToString(mac.Sum(nil))
+		expectedSig := "v0=" + hex.EncodeToString(mac.Sum(nil))
 		assert.Equal(t, expectedSig, receivedSig)
 	})
 
