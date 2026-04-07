@@ -196,8 +196,8 @@ func (c *Config) InitDefaults() {
 
 	c.Alert = AlertConfig{
 		CallbackURL:                   "",
-		ConsecutiveFailureCount:       20,
-		AutoDisableDestination:        true,
+		ConsecutiveFailureCount:       100,
+		AutoDisableDestination:        false,
 		ExhaustedRetriesWindowSeconds: 3600,
 	}
 
