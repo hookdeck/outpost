@@ -8,14 +8,9 @@ import (
 	"github.com/hookdeck/outpost/internal/idempotence"
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/models"
+	"github.com/hookdeck/outpost/internal/opevents"
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
-)
-
-const (
-	topicConsecutiveFailure  = "alert.destination.consecutive_failure"
-	topicDestinationDisabled = "alert.destination.disabled"
-	topicExhaustedRetries    = "alert.event.exhausted_retries"
 )
 
 // AlertEmitter is the interface for emitting alert events. Satisfied by opevents.Emitter.
@@ -185,7 +180,7 @@ func (m *alertMonitor) HandleAttempt(ctx context.Context, attempt DeliveryAttemp
 				Event:       attempt.Event,
 				Attempt:     attempt.Attempt,
 			}
-			if err := m.emitter.Emit(ctx, topicDestinationDisabled, attempt.Destination.TenantID, disabledData); err != nil {
+			if err := m.emitter.Emit(ctx, opevents.TopicAlertDestinationDisabled, attempt.Destination.TenantID, disabledData); err != nil {
 				return fmt.Errorf("failed to emit destination disabled alert: %w", err)
 			}
 		}
@@ -202,12 +197,12 @@ func (m *alertMonitor) HandleAttempt(ctx context.Context, attempt DeliveryAttemp
 				Threshold: level,
 			},
 		}
-		if err := m.emitter.Emit(ctx, topicConsecutiveFailure, attempt.Destination.TenantID, cfData); err != nil {
+		if err := m.emitter.Emit(ctx, opevents.TopicAlertConsecutiveFailure, attempt.Destination.TenantID, cfData); err != nil {
 			return fmt.Errorf("failed to emit consecutive failure alert: %w", err)
 		}
 
 		m.logger.Ctx(ctx).Audit("alert sent",
-			zap.String("topic", topicConsecutiveFailure),
+			zap.String("topic", opevents.TopicAlertConsecutiveFailure),
 			zap.String("attempt_id", attempt.Attempt.ID),
 			zap.String("event_id", attempt.Event.ID),
 			zap.String("tenant_id", attempt.Destination.TenantID),
@@ -228,11 +223,11 @@ func (m *alertMonitor) HandleAttempt(ctx context.Context, attempt DeliveryAttemp
 		}
 
 		emitFn := func(ctx context.Context) error {
-			if err := m.emitter.Emit(ctx, topicExhaustedRetries, attempt.Destination.TenantID, erData); err != nil {
+			if err := m.emitter.Emit(ctx, opevents.TopicAlertExhaustedRetries, attempt.Destination.TenantID, erData); err != nil {
 				return err
 			}
 			m.logger.Ctx(ctx).Audit("alert sent",
-				zap.String("topic", topicExhaustedRetries),
+				zap.String("topic", opevents.TopicAlertExhaustedRetries),
 				zap.String("attempt_id", attempt.Attempt.ID),
 				zap.String("event_id", attempt.Event.ID),
 				zap.String("tenant_id", attempt.Destination.TenantID),

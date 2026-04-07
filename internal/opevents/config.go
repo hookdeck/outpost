@@ -44,6 +44,8 @@ type RabbitMQSinkConfig struct {
 
 // NewSink returns the appropriate Sink based on config.
 // Returns NoopSink if no sink is configured.
+// Returns an error if topics are specified but no sink is configured, as events
+// would be silently dropped.
 func NewSink(cfg Config) (Sink, error) {
 	if cfg.HTTP != nil {
 		return NewHTTPSink(cfg.HTTP.URL, cfg.HTTP.SigningSecret), nil
@@ -56,6 +58,9 @@ func NewSink(cfg Config) (Sink, error) {
 	}
 	if cfg.RabbitMQ != nil {
 		return newMQSinkFromRabbitMQ(cfg.RabbitMQ)
+	}
+	if len(cfg.Topics) > 0 {
+		return nil, fmt.Errorf("opevents: topics are configured (%v) but no sink is set; events would be silently dropped", cfg.Topics)
 	}
 	return &NoopSink{}, nil
 }
