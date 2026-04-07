@@ -120,11 +120,13 @@ func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePu
 	}
 	destination := &StandardWebhookDestination{
 		BaseProvider: base,
-		headerPrefix: "webhook-", // Default to Standard Webhooks spec
 	}
 	for _, opt := range opts {
 		opt(destination)
 	}
+	// headerPrefix may be empty (after trimming) to disable prefix entirely — that's valid.
+	// But the caller must have explicitly set it via WithHeaderPrefix.
+	// Config is responsible for providing the appropriate default ("webhook-").
 	return destination, nil
 }
 

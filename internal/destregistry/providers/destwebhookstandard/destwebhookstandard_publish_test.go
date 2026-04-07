@@ -157,8 +157,7 @@ func (s *StandardWebhookPublishSuite) TearDownSuite() {
 func (s *StandardWebhookPublishSuite) setupBasicSuite() {
 	consumer := NewStandardWebhookConsumer()
 
-	provider, err := destwebhookstandard.New(testutil.Registry.MetadataLoader(), nil)
-	require.NoError(s.T(), err)
+	provider := newTestProvider(s.T())
 
 	dest := testutil.DestinationFactory.Any(
 		testutil.DestinationFactory.WithType("webhook"),
@@ -187,8 +186,7 @@ func (s *StandardWebhookPublishSuite) setupBasicSuite() {
 func (s *StandardWebhookPublishSuite) setupMultipleSecretsSuite() {
 	consumer := NewStandardWebhookConsumer()
 
-	provider, err := destwebhookstandard.New(testutil.Registry.MetadataLoader(), nil)
-	require.NoError(s.T(), err)
+	provider := newTestProvider(s.T())
 
 	now := time.Now()
 	invalidAt := now.Add(24 * time.Hour)
@@ -221,8 +219,7 @@ func (s *StandardWebhookPublishSuite) setupMultipleSecretsSuite() {
 func (s *StandardWebhookPublishSuite) setupExpiredSecretsSuite() {
 	consumer := NewStandardWebhookConsumer()
 
-	provider, err := destwebhookstandard.New(testutil.Registry.MetadataLoader(), nil)
-	require.NoError(s.T(), err)
+	provider := newTestProvider(s.T())
 
 	now := time.Now()
 	invalidAt := now.Add(-1 * time.Hour) // Previous secret is already invalid
@@ -285,8 +282,7 @@ func TestStandardWebhookPublisher_SignatureFormat(t *testing.T) {
 	consumer := NewStandardWebhookConsumer()
 	defer consumer.Close()
 
-	provider, err := destwebhookstandard.New(testutil.Registry.MetadataLoader(), nil)
-	require.NoError(t, err)
+	provider := newTestProvider(t)
 
 	dest := testutil.DestinationFactory.Any(
 		testutil.DestinationFactory.WithType("webhook"),
@@ -336,8 +332,7 @@ func TestStandardWebhookPublisher_MessageIDFormat(t *testing.T) {
 	consumer := NewStandardWebhookConsumer()
 	defer consumer.Close()
 
-	provider, err := destwebhookstandard.New(testutil.Registry.MetadataLoader(), nil)
-	require.NoError(t, err)
+	provider := newTestProvider(t)
 
 	dest := testutil.DestinationFactory.Any(
 		testutil.DestinationFactory.WithType("webhook"),
@@ -447,8 +442,15 @@ func TestStandardWebhookPublisher_EmptyHeaderPrefix(t *testing.T) {
 		want      string // expected prefix on headers
 	}{
 		{
-			name: "no prefix option uses default",
-			want: "webhook-",
+			name:      "no prefix option gives empty",
+			setPrefix: false,
+			want:      "",
+		},
+		{
+			name:      "explicit default prefix",
+			prefix:    "webhook-",
+			setPrefix: true,
+			want:      "webhook-",
 		},
 		{
 			name:      "empty string disables prefix",
@@ -522,8 +524,7 @@ func TestStandardWebhookPublisher_CustomHeaders(t *testing.T) {
 		consumer := NewStandardWebhookConsumer()
 		defer consumer.Close()
 
-		provider, err := destwebhookstandard.New(testutil.Registry.MetadataLoader(), nil)
-		require.NoError(t, err)
+		provider := newTestProvider(t)
 
 		dest := testutil.DestinationFactory.Any(
 			testutil.DestinationFactory.WithType("webhook"),
@@ -563,8 +564,7 @@ func TestStandardWebhookPublisher_CustomHeaders(t *testing.T) {
 		consumer := NewStandardWebhookConsumer()
 		defer consumer.Close()
 
-		provider, err := destwebhookstandard.New(testutil.Registry.MetadataLoader(), nil)
-		require.NoError(t, err)
+		provider := newTestProvider(t)
 
 		dest := testutil.DestinationFactory.Any(
 			testutil.DestinationFactory.WithType("webhook"),
@@ -604,8 +604,7 @@ func TestStandardWebhookPublisher_CustomHeaders(t *testing.T) {
 	t.Run("should accept CreatePublisher when custom_headers is empty object", func(t *testing.T) {
 		t.Parallel()
 
-		provider, err := destwebhookstandard.New(testutil.Registry.MetadataLoader(), nil)
-		require.NoError(t, err)
+		provider := newTestProvider(t)
 
 		dest := testutil.DestinationFactory.Any(
 			testutil.DestinationFactory.WithType("webhook"),
@@ -629,8 +628,7 @@ func TestStandardWebhookPublisher_CustomHeaders(t *testing.T) {
 		consumer := NewStandardWebhookConsumer()
 		defer consumer.Close()
 
-		provider, err := destwebhookstandard.New(testutil.Registry.MetadataLoader(), nil)
-		require.NoError(t, err)
+		provider := newTestProvider(t)
 
 		dest := testutil.DestinationFactory.Any(
 			testutil.DestinationFactory.WithType("webhook"),
@@ -670,8 +668,7 @@ func TestStandardWebhookPublisher_CustomHeaders(t *testing.T) {
 func TestStandardWebhookPublisher_PreservesKeyOrder(t *testing.T) {
 	t.Parallel()
 
-	provider, err := destwebhookstandard.New(testutil.Registry.MetadataLoader(), nil)
-	require.NoError(t, err)
+	provider := newTestProvider(t)
 
 	destination := testutil.DestinationFactory.Any(
 		testutil.DestinationFactory.WithType("webhook"),
