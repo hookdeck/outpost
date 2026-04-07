@@ -243,7 +243,7 @@ func (m *alertMonitor) HandleAttempt(ctx context.Context, attempt DeliveryAttemp
 		}
 
 		if m.exhaustedRetryIdemp != nil {
-			key := "opevents:exhausted:" + attempt.Destination.ID
+			key := "opevents:exhausted:" + attempt.Event.ID + ":" + attempt.Destination.ID
 			if err := m.exhaustedRetryIdemp.Exec(ctx, key, emitFn); err != nil {
 				return fmt.Errorf("failed to emit exhausted retries alert: %w", err)
 			}

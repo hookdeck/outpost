@@ -358,7 +358,7 @@ func TestAlertMonitor_ExhaustedRetries_NotEligible(t *testing.T) {
 }
 
 func TestAlertMonitor_ExhaustedRetries_WindowSuppression(t *testing.T) {
-	// With idempotence, only the first exhaustion per destination emits; subsequent are suppressed
+	// With idempotence, replaying the same exhausted event is suppressed within the window
 	t.Parallel()
 	ctx := context.Background()
 	logger := testutil.CreateTestLogger(t)
@@ -380,19 +380,62 @@ func TestAlertMonitor_ExhaustedRetries_WindowSuppression(t *testing.T) {
 	)
 
 	dest := &alert.AlertDestination{ID: "dest_ws", TenantID: "tenant_ws"}
+	event := &models.Event{ID: "evt_ws_1", Topic: "test.event", EligibleForRetry: true}
+	attempt := alert.DeliveryAttempt{
+		Event:       event,
+		Destination: dest,
+		Attempt: &models.Attempt{
+			ID:            "att_exhaust_1",
+			AttemptNumber: 4,
+			Status:        "failed",
+			Code:          "500",
+			Time:          time.Now(),
+		},
+	}
 
-	// Two different events both exhaust retries for the same destination
+	// Same event+destination replayed twice — second should be suppressed
+	require.NoError(t, monitor.HandleAttempt(ctx, attempt))
+	require.NoError(t, monitor.HandleAttempt(ctx, attempt))
+
+	erCalls := countEmitCalls(emitter, "alert.event.exhausted_retries")
+	require.Equal(t, 1, erCalls, "Replay of the same event+destination should be suppressed by window")
+}
+
+func TestAlertMonitor_ExhaustedRetries_PerEvent(t *testing.T) {
+	// Each distinct event exhausting retries on the same destination should emit its own alert
+	t.Parallel()
+	ctx := context.Background()
+	logger := testutil.CreateTestLogger(t)
+	redisClient := testutil.CreateTestRedisClient(t)
+	emitter := &mockAlertEmitter{}
+	emitter.On("Emit", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+
+	exhaustedIdemp := idempotence.New(redisClient,
+		idempotence.WithSuccessfulTTL(10*time.Second),
+	)
+
+	monitor := alert.NewAlertMonitor(
+		logger,
+		redisClient,
+		emitter,
+		3,
+		alert.WithAutoDisableFailureCount(100),
+		alert.WithExhaustedRetriesIdempotence(exhaustedIdemp),
+	)
+
+	dest := &alert.AlertDestination{ID: "dest_pe", TenantID: "tenant_pe"}
+
+	// Two distinct events both exhaust retries on the same destination
 	for i := 1; i <= 2; i++ {
-		event := &models.Event{
-			ID:               fmt.Sprintf("evt_%d", i),
-			Topic:            "test.event",
-			EligibleForRetry: true,
-		}
 		attempt := alert.DeliveryAttempt{
-			Event:       event,
+			Event: &models.Event{
+				ID:               fmt.Sprintf("evt_pe_%d", i),
+				Topic:            "test.event",
+				EligibleForRetry: true,
+			},
 			Destination: dest,
 			Attempt: &models.Attempt{
-				ID:            fmt.Sprintf("att_exhaust_%d", i),
+				ID:            fmt.Sprintf("att_pe_%d", i),
 				AttemptNumber: 4,
 				Status:        "failed",
 				Code:          "500",
@@ -403,7 +446,7 @@ func TestAlertMonitor_ExhaustedRetries_WindowSuppression(t *testing.T) {
 	}
 
 	erCalls := countEmitCalls(emitter, "alert.event.exhausted_retries")
-	require.Equal(t, 1, erCalls, "Only first exhaustion should emit; second suppressed by window")
+	require.Equal(t, 2, erCalls, "Each distinct event exhausting retries should emit its own alert")
 }
 
 func TestAlertMonitor_ExhaustedRetries_EmitFailureRetryClearsWindow(t *testing.T) {
