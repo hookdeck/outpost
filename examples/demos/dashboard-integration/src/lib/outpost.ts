@@ -69,11 +69,11 @@ export async function getTenantOverview(tenantId: string) {
       : [];
     logger.debug(`Destinations found`, { tenantId, count: destinations.length });
 
-    // Get recent events (SDK v0.13: list returns { models, pagination })
+    // Get recent events (PageIterator<ListEventsResponse>; items live under result.models)
     let recentEvents: any[] = [];
     try {
-      const eventsResponse = await outpost.events.list({ tenantId });
-      const models = eventsResponse?.models ?? [];
+      const eventsPage = await outpost.events.list({ tenantId });
+      const models = eventsPage.result?.models ?? [];
       recentEvents = models.slice(0, 10);
       logger.debug(`Events found`, { tenantId, count: recentEvents.length });
     } catch (error) {

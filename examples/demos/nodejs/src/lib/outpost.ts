@@ -1,6 +1,7 @@
 import * as process from "process";
 
 import * as dotenv from "dotenv";
+import { Outpost } from "@hookdeck/outpost-sdk";
 dotenv.config();
 
 if (!process.env.OUTPOST_API_BASE_URL || !process.env.OUTPOST_API_KEY) {
@@ -8,11 +9,9 @@ if (!process.env.OUTPOST_API_BASE_URL || !process.env.OUTPOST_API_KEY) {
   process.exit(1);
 }
 
-import OutpostClient from "./outpost-client";
-
-const outpost = new OutpostClient(
-  process.env.OUTPOST_API_BASE_URL,
-  process.env.OUTPOST_API_KEY
-);
+const outpost = new Outpost({
+  serverURL: process.env.OUTPOST_API_BASE_URL,
+  apiKey: process.env.OUTPOST_API_KEY,
+});
 
 export default outpost;

@@ -1,8 +1,23 @@
 import outpost from "./lib/outpost";
 
 const main = async () => {
-  const response = await outpost.healthz();
-  console.log(`Health check: ${response ? "OK" : "FAIL"}`);
+  let ok = false;
+  try {
+    await outpost.health.check();
+    ok = true;
+  } catch (err: unknown) {
+    const status =
+      err && typeof err === "object" && "statusCode" in err
+        ? (err as { statusCode: number }).statusCode
+        : undefined;
+    if (status === 404) {
+      console.log("Health endpoint not available (e.g. managed Outpost). Skipping.");
+      ok = true;
+    } else {
+      console.error(err);
+    }
+  }
+  console.log(`Health check: ${ok ? "OK" : "FAIL"}`);
 };
 
 main()

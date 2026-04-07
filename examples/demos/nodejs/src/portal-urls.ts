@@ -5,13 +5,13 @@ const main = async () => {
   const organizations = db.getOrganizations();
 
   for (const org of organizations) {
-    const portalUrl = await outpost.getPortalURL(org.id);
-    console.log(`Portal URL for ${org.id}:`, portalUrl);
+    const portal = await outpost.tenants.getPortalUrl(org.id);
+    console.log(`Portal URL for ${org.id}:`, portal.redirectUrl ?? "");
   }
 
   try {
-    const portalUrl = await outpost.getPortalURL("test-tenant");
-    console.log(`Portal URL for test-tenant:`, portalUrl);
+    const portal = await outpost.tenants.getPortalUrl("test-tenant");
+    console.log(`Portal URL for test-tenant:`, portal.redirectUrl ?? "");
   } catch (error) {
     console.error(`Failed to create portal for test-tenant:`, error);
   }

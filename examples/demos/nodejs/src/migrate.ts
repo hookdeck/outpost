@@ -1,10 +1,7 @@
 import * as process from "process";
 import { askQuestion } from "./lib/utils";
 
-// Outpost API wrapper
 import outpost from "./lib/outpost";
-
-// Database wrapper
 import { default as db } from "./lib/db";
 
 const cleanup = async () => {
@@ -20,12 +17,12 @@ const cleanup = async () => {
 
   const organizations = db.getOrganizations();
   for (const organization of organizations) {
-    const destinations = await outpost.getDestinations(organization.id);
+    const destinations = await outpost.destinations.list(organization.id);
     for (const destination of destinations) {
       console.log(`Deleting destination:`, destination);
-      await outpost.deleteDestination(organization.id, destination.id);
+      await outpost.destinations.delete(organization.id, destination.id);
     }
-    await outpost.deleteTenant(organization.id);
+    await outpost.tenants.delete(organization.id);
   }
 };
 
@@ -46,7 +43,7 @@ const migrateOrganizations = async () => {
   const migratedOrgIds: string[] = [];
   const organizations = db.getOrganizations();
   for (const organization of organizations) {
-    await outpost.registerTenant(organization.id);
+    await outpost.tenants.upsert(organization.id);
     migratedOrgIds.push(organization.id);
   }
   return migratedOrgIds;
@@ -55,12 +52,15 @@ const migrateOrganizations = async () => {
 const migrateSubscriptions = async (organizationId: string) => {
   const subscriptions = db.getSubscriptions(organizationId);
   for (const subscription of subscriptions) {
-    await outpost.createDestination({
-      tenant_id: organizationId,
+    await outpost.destinations.create(organizationId, {
       type: "webhook",
-      url: subscription.url,
+      config: {
+        url: subscription.url,
+      },
       topics: subscription.topics,
-      secret: subscription.secret,
+      credentials: {
+        secret: subscription.secret,
+      },
     });
   }
 };
@@ -76,8 +76,8 @@ const main = async () => {
   for (const organizationId of migratedOrgIds) {
     await migrateSubscriptions(organizationId);
 
-    const portalUrl = await outpost.getPortalURL(organizationId);
-    console.log(`Portal URL for ${organizationId}:`, portalUrl);
+    const portal = await outpost.tenants.getPortalUrl(organizationId);
+    console.log(`Portal URL for ${organizationId}:`, portal.redirectUrl ?? "");
   }
 };
 

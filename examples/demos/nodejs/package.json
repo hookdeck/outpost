@@ -15,7 +15,8 @@
     "verify": "esrun src/verify-signature.ts",
     "portal-urls": "esrun src/portal-urls.ts",
     "create-tenant": "esrun src/create-tenant.ts",
-    "healthz": "esrun src/healthz.ts"
+    "healthz": "esrun src/healthz.ts",
+    "typecheck": "tsc --noEmit"
   },
   "engines": {
     "node": ">=20.6.0"
@@ -29,8 +30,8 @@
   "dependencies": {
     "@aws-sdk/client-sqs": "^3.774.0",
     "@google-cloud/pubsub": "^4.11.0",
+    "@hookdeck/outpost-sdk": "0.9.2",
     "amqplib": "^0.10.3",
-    "axios": "^1.8.2",
     "dotenv": "^16.4.7"
   }
 }
