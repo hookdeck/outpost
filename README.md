@@ -93,158 +93,75 @@ Outpost is backward compatible with your existing payload format, HTTP headers, 
 
 [![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/outpost-starter?referralCode=NRulS_)
 
-Once the deployment is complete, configure your `TOPICS` environment variable to the topics supported for destination subscriptions, publishing, and routing of events. For example, `TOPICS=user.created,user.updated,user.deleted`.
-
-Once deployed, you'll need the public Railway URL of your Outpost instance (referred to as `$OUTPOST_URL` below) and the generated `API_KEY` environment variable value to authenticate requests.
+Once deployed, set the `TOPICS` environment variable to your supported topics (e.g. `TOPICS=user.created,user.updated,user.deleted`). You'll need the public Railway URL of your Outpost instance (`$OUTPOST_URL`) and the generated `API_KEY` to authenticate requests.
 
 ### Deploy locally with Docker
 
-Ensure you have [Docker](https://docs.docker.com/engine/install/) installed.
-
-Clone the Outpost repo:
-
-```sh
+```bash
 git clone https://github.com/hookdeck/outpost.git
-```
-
-Navigate to `outpost/examples/docker-compose/`:
-
-```sh
 cd outpost/examples/docker-compose/
-```
-
-Create a `.env` file from the example:
-
-```sh
 cp .env.example .env
 ```
 
-Update the `$API_KEY` value within the new `.env` file.
+Update the `API_KEY` value in the `.env` file, then start the services:
 
-#### Redis Configuration
-
-Outpost supports both standard Redis and cluster Redis configurations:
-
-**Standard Redis** (default, for local development and single-node Redis):
-```env
-REDIS_HOST="redis"
-REDIS_PORT="6379" 
-REDIS_TLS_ENABLED="false"
-REDIS_CLUSTER_ENABLED="false"
-```
-
-**Redis Cluster** (for Redis Enterprise and managed Redis services):
-```env
-REDIS_HOST="your-redis-cluster.example.com"
-REDIS_PORT="10000"
-REDIS_TLS_ENABLED="true"
-REDIS_CLUSTER_ENABLED="true"
-```
-
-For other cloud Redis services or self-hosted Redis clusters, set `REDIS_CLUSTER_ENABLED="true"` if using Redis clustering.
-
-**Troubleshooting Redis connectivity**: Use the built-in diagnostic tool to test your Redis connection:
-```sh
-go run cmd/redis-debug/main.go your-redis-host 6379 password 0 [tls] [cluster]
-```
-See the [Redis Troubleshooting Guide](https://docs.outpost.hookdeck.com/references/troubleshooting-redis) for detailed guidance.
-
-Start the Outpost dependencies and services:
-
-```sh
+```bash
 docker-compose -f compose.yml -f compose-rabbitmq.yml -f compose-postgres.yml up
 ```
 
-Outpost is running on `localhost:3333`. Use this value as your `$OUTPOST_URL`.
+Outpost is now running on `localhost:3333`.
 
-### Try out Outpost
+See the [Configuration Reference](https://outpost.hookdeck.com/docs/references/configuration) for Redis cluster setup, TLS, and other deployment options.
 
-> [!TIP]  
-> You can use shell variables to store the tenant ID and API key for easier use in the following commands:
->
-> ```sh
-> OUTPOST_URL=http://localhost:3333
-> TENANT_ID=your_org_name
-> API_KEY=your_api_key
-> URL=your_webhook_url
-> ```
+### Try it out
 
+Set your environment variables:
 
-Check the services are running:
-
-```sh
-curl $OUTPOST_URL/api/v1/healthz
+```bash
+export OUTPOST_URL=http://localhost:3333
+export API_KEY=your_api_key
 ```
 
-Wait until you get a 200 response.
+Create a tenant, add a webhook destination, and publish an event:
 
-Create a tenant with the following command, replacing `$TENANT_ID` with a unique identifier such as "your_org_name", and the `$API_KEY` with the value you set in your `.env`:
+```bash
+# Create a tenant
+curl -X PUT "$OUTPOST_URL/api/v1/tenants/acme-corp" \
+  -H "Authorization: Bearer $API_KEY"
 
-
-
-```sh
-curl --location --request PUT "$OUTPOST_URL/api/v1/tenants/$TENANT_ID" \
---header "Authorization: Bearer $API_KEY"
-```
-
-Run a local server exposed via a localtunnel or use a hosted service such as the [Hookdeck Console](https://console.hookdeck.com?ref=github-outpost) to capture webhook events.
-
-Create a webhook destination where events will be delivered to with the following command. Again, replace `$TENANT_ID` and `$API_KEY`. Also, replace `$URL` with the webhook destinations URL:
-
-```sh
-curl --location "$OUTPOST_URL/api/v1/tenants/$TENANT_ID/destinations" \
---header "Content-Type: application/json" \
---header "Authorization: Bearer $API_KEY" \
---data '{
+# Create a webhook destination
+curl "$OUTPOST_URL/api/v1/tenants/acme-corp/destinations" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $API_KEY" \
+  -d '{
     "type": "webhook",
     "topics": ["*"],
-    "config": {
-        "url": "'"$URL"'"
-    }
-}'
-```
+    "config": { "url": "https://your-endpoint.com/webhooks" }
+  }'
 
-Publish an event, remembering to replace `$API_KEY` and `$TENANT_ID`:
-
-```sh
-curl --location "$OUTPOST_URL/api/v1/publish" \
---header "Content-Type: application/json" \
---header "Authorization: Bearer $API_KEY" \
---data '{
-    "tenant_id": "'"$TENANT_ID"'",
+# Publish an event
+curl "$OUTPOST_URL/api/v1/publish" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $API_KEY" \
+  -d '{
+    "tenant_id": "acme-corp",
     "topic": "user.created",
-    "eligible_for_retry": true,
-    "metadata": {
-        "meta": "data"
-    },
-    "data": {
-        "user_id": "userid"
-    }
-}'
+    "data": { "user_id": "123" }
+  }'
 ```
 
-Check the logs on your server or your webhook capture tool for the delivered event.
+Get a portal link for the tenant:
 
-Get an Outpost portal link for the tenant:
-
-```sh
-curl "$OUTPOST_URL/api/v1/tenants/$TENANT_ID/portal" \
---header "Authorization: Bearer $API_KEY"
+```bash
+curl "$OUTPOST_URL/api/v1/tenants/acme-corp/portal" \
+  -H "Authorization: Bearer $API_KEY"
 ```
 
-The response will look something like the following:
+Open the returned `redirect_url` to view the Outpost portal.
 
-```json
-{ "redirect_url": "http://$OUTPOST_URL?token=$TOKEN" }
-```
+![Dashboard homepage](https://github.com/hookdeck/outpost/raw/main/docs/public/images/dashboard-homepage.png)
 
-The `token` value is an API-generated JWT.
-
-Open the `redirect_url` link to view the Outpost portal.
-
-![Dashboard homepage](docs/public/images/dashboard-homepage.png)
-
-Continue to use the [Outpost API](https://outpost.hookdeck.com/docs/api) or the Outpost portal to add and test more destinations.
+SDKs are available for [Go](https://github.com/hookdeck/outpost/blob/main/sdks/outpost-go/README.md), [TypeScript](https://github.com/hookdeck/outpost/blob/main/sdks/outpost-typescript/README.md), and [Python](https://github.com/hookdeck/outpost/blob/main/sdks/outpost-python/README.md). See the [full quickstart guides](https://outpost.hookdeck.com/docs/quickstarts) for step-by-step setup with your stack.
 
 ## Hookdeck Outpost (Managed)
 
