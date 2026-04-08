@@ -11,6 +11,7 @@ This guide covers breaking changes and migration steps when upgrading from v0.15
 | [Webhook signing secret prefix changed](#webhook-signing-secret-prefix-changed) | New webhook destination signing secrets | Set `DESTINATIONS_WEBHOOK_SIGNING_SECRET_TEMPLATE` to preserve previous behavior |
 | [Event `destination_id` replaced with `matched_destination_ids`](#event-destination_id-replaced-with-matched_destination_ids) | Event API responses and queries | Update code that reads `destination_id` from events to use `matched_destination_ids` |
 | [Delivery metadata timestamp format](#delivery-metadata-timestamp-format) | Consumers of delivery metadata `timestamp` field | Update timestamp parsing from Unix seconds to ISO 8601 |
+| [Alert callbacks replaced by operation events](#alert-callbacks-replaced-by-operation-events) | Users of `ALERT_CALLBACK_URL` | Migrate to `OPERATION_EVENTS_*` config |
 
 ## Webhook Signing Secret Prefix Changed
 
@@ -76,13 +77,64 @@ timestamp: 2021-01-01T00:00:00Z
 
 **Action:** Update any code that parses the `timestamp` metadata field to handle ISO 8601 (RFC 3339) format instead of Unix seconds.
 
+## Alert Callbacks Replaced by Operation Events
+
+The `ALERT_CALLBACK_URL` config has been removed. Alert notifications are now handled by the new **operation events** system, which supports multiple sink types and additional event topics.
+
+### Migration
+
+If you were using `ALERT_CALLBACK_URL` to receive alert callbacks via HTTP, migrate to the operation events HTTP sink:
+
+**v0.15:**
+```
+ALERT_CALLBACK_URL=https://example.com/alerts
+```
+
+**v0.16:**
+```
+OPERATION_EVENTS_TOPICS=*
+OPERATION_EVENTS_HTTP_URL=https://example.com/alerts
+OPERATION_EVENTS_HTTP_SIGNING_SECRET=your-secret
+```
+
+The HTTP sink signs payloads with HMAC-SHA256 and sends the signature in the `X-Outpost-Signature` header (format: `v0=<hex>`).
+
+### New sink options
+
+In addition to HTTP, operation events can be sent to:
+
+- **AWS SQS** — `OPERATION_EVENTS_AWS_SQS_QUEUE_URL`, `OPERATION_EVENTS_AWS_SQS_ACCESS_KEY_ID`, `OPERATION_EVENTS_AWS_SQS_SECRET_ACCESS_KEY`, `OPERATION_EVENTS_AWS_SQS_REGION`
+- **GCP Pub/Sub** — `OPERATION_EVENTS_GCP_PUBSUB_PROJECT_ID`, `OPERATION_EVENTS_GCP_PUBSUB_TOPIC_ID`, `OPERATION_EVENTS_GCP_PUBSUB_CREDENTIALS`
+- **RabbitMQ** — `OPERATION_EVENTS_RABBITMQ_SERVER_URL`, `OPERATION_EVENTS_RABBITMQ_EXCHANGE`
+
+### Event topics
+
+Use `OPERATION_EVENTS_TOPICS=*` for all topics, or specify a comma-separated list:
+
+- `alert.destination.consecutive_failure` — emitted at 50%, 70%, 90%, and 100% failure thresholds
+- `alert.destination.disabled` — emitted when a destination is auto-disabled
+- `alert.attempt.exhausted_retries` — emitted when delivery exhausts all retry attempts
+- `tenant.subscription.updated` — emitted on destination create/update/delete/disable/enable
+
+### Alert default changes
+
+The alert thresholds have also changed:
+
+| Setting | v0.15 Default | v0.16 Default |
+| --- | --- | --- |
+| Consecutive failure count | 20 | 100 |
+| Auto-disable destination | `true` | `false` |
+
+If you relied on the previous defaults, set them explicitly:
+
+```
+ALERT_CONSECUTIVE_FAILURE_COUNT=20
+ALERT_AUTO_DISABLE_DESTINATION=true
+```
+
 ## Other Notable Changes
 
 These changes are **not breaking** but may be useful to know about.
-
-### Redis control plane key scoping
-
-Control plane keys in Redis are now scoped by deployment ID. If you run multiple Outpost deployments against the same Redis instance, keys will no longer collide. The old keys (`outpostrc`, `.outpost:migration:lock`) expire naturally within 24 hours.
 
 ### DELETE /destinations response
 
@@ -98,6 +150,8 @@ You can now disable the webhook header prefix by setting it to whitespace (e.g.,
    - [ ] Decide whether to adopt `whsec_` prefixed signing secrets or preserve previous format (set `DESTINATIONS_WEBHOOK_SIGNING_SECRET_TEMPLATE` if preserving)
    - [ ] Update code that reads `event.destination_id` to use `event.matched_destination_ids`
    - [ ] Update any timestamp metadata parsing from Unix seconds to ISO 8601
+   - [ ] If using `ALERT_CALLBACK_URL`, migrate to `OPERATION_EVENTS_*` config
+   - [ ] Review alert default changes (consecutive failure count: 20→100, auto-disable: true→false) and set explicitly if needed
    - [ ] Update SDK dependencies to the latest version
 
 2. **Upgrade:**
