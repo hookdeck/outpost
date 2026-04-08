@@ -214,6 +214,11 @@ const config: ZudokuConfig = {
             label: "Upgrade to v0.14",
             id: "guides/upgrade-v0.14",
           },
+          {
+            type: "doc",
+            label: "Upgrade to v0.16",
+            id: "guides/upgrade-v0.16",
+          },
         ],
       },
       {

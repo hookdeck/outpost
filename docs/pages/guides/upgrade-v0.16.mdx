@@ -1,0 +1,129 @@
+---
+title: "Upgrade to v0.16"
+---
+
+This guide covers breaking changes and migration steps when upgrading from v0.15 to v0.16.
+
+## Breaking Changes Overview
+
+| Change | Impact | Action Required |
+| --- | --- | --- |
+| [Webhook signing defaults changed](#webhook-signing-defaults-changed) | New webhook destinations, signature verification | Set config vars to preserve previous behavior or update verification logic |
+| [Event `destination_id` replaced with `matched_destination_ids`](#event-destination_id-replaced-with-matched_destination_ids) | Event API responses and queries | Update code that reads `destination_id` from events to use `matched_destination_ids` |
+| [Delivery metadata timestamp format](#delivery-metadata-timestamp-format) | Consumers of delivery metadata `timestamp` field | Update timestamp parsing from Unix seconds to ISO 8601 |
+
+## Webhook Signing Defaults Changed
+
+v0.16 changes three webhook signing defaults:
+
+| Setting | v0.15 Default | v0.16 Default |
+| --- | --- | --- |
+| Signing secret format | `{{.RandomHex}}` | `whsec_{{.RandomHex}}` |
+| Signature content template | `{{.Timestamp.Unix}}.{{.Body}}` | `{{.Body}}` |
+| Signature header template | `t={{.Timestamp.Unix}},v0={{.Signatures \| join ","}}` | `v0={{.Signatures \| join ","}}` |
+
+**Existing destinations are unaffected** — their secrets and signature formats remain as they were when created.
+
+New destinations created after upgrading will use the new defaults: secrets prefixed with `whsec_` and a simplified signature header (`v0=<sig>` without the `t=<timestamp>` component).
+
+### Preserving previous behavior
+
+To keep the v0.15 behavior for new destinations, set these config vars before upgrading:
+
+```
+DESTINATIONS_WEBHOOK_SIGNING_SECRET_TEMPLATE={{.RandomHex}}
+DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE={{.Timestamp.Unix}}.{{.Body}}
+DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE=t={{.Timestamp.Unix}},v0={{.Signatures | join ","}}
+```
+
+### Updating verification logic
+
+If you prefer to adopt the new defaults, update your webhook signature verification to:
+
+1. Read the signature from the header directly (format: `v0=<hex>`)
+2. Compute HMAC-SHA256 over the **raw request body** (no timestamp prepended)
+3. Compare the hex digest
+
+The `x-outpost-timestamp` header is still sent but is no longer part of the signed content by default.
+
+## Event `destination_id` Replaced with `matched_destination_ids`
+
+The `destination_id` field has been removed from events and replaced with `matched_destination_ids`, an array of destination IDs that the event was actually routed to.
+
+### API response change
+
+**v0.15:**
+```json
+{
+  "id": "evt_123",
+  "destination_id": "des_456",
+  "topic": "order.created"
+}
+```
+
+**v0.16:**
+```json
+{
+  "id": "evt_123",
+  "matched_destination_ids": ["des_456", "des_789"],
+  "topic": "order.created"
+}
+```
+
+### Filtering
+
+You can now filter events by destination: `GET /events?destination_id=des_456`. This filters using the new `matched_destination_ids` field.
+
+### No data backfill
+
+Existing events created before the upgrade will have an empty `matched_destination_ids` array. Only events published after the upgrade will have this field populated.
+
+**Action:** Update any code that reads `event.destination_id` to use `event.matched_destination_ids`. If you need a single destination ID, use the first element of the array.
+
+## Delivery Metadata Timestamp Format
+
+The `timestamp` field in delivery metadata has changed from Unix seconds to ISO 8601 format.
+
+**v0.15:**
+```
+timestamp: 1609459200
+```
+
+**v0.16:**
+```
+timestamp: 2021-01-01T00:00:00Z
+```
+
+**Action:** Update any code that parses the `timestamp` metadata field to handle ISO 8601 (RFC 3339) format instead of Unix seconds.
+
+## Other Notable Changes
+
+These changes are **not breaking** but may be useful to know about.
+
+### Redis control plane key scoping
+
+Control plane keys in Redis are now scoped by deployment ID. If you run multiple Outpost deployments against the same Redis instance, keys will no longer collide. The old keys (`outpostrc`, `.outpost:migration:lock`) expire naturally within 24 hours.
+
+### DELETE /destinations response
+
+`DELETE /tenants/{tid}/destinations/{did}` now returns `{ "success": true }` instead of the full destination object, matching the behavior of `DELETE /tenants/{tid}`.
+
+### Empty webhook header prefix
+
+You can now disable the webhook header prefix by setting it to whitespace (e.g., `DESTINATIONS_WEBHOOK_HEADER_PREFIX=" "`). This results in headers like `signature` instead of `x-outpost-signature`.
+
+## Upgrade Checklist
+
+1. **Before upgrading:**
+   - [ ] Decide whether to adopt new webhook signing defaults or preserve v0.15 behavior (set config vars if preserving)
+   - [ ] Update any webhook signature verification logic if adopting new defaults
+   - [ ] Update code that reads `event.destination_id` to use `event.matched_destination_ids`
+   - [ ] Update any timestamp metadata parsing from Unix seconds to ISO 8601
+   - [ ] Update SDK dependencies to the latest version
+
+2. **Upgrade:**
+   - [ ] Update Outpost to v0.16 and restart — database migrations run automatically on startup
+
+3. **After upgrading:**
+   - [ ] Verify webhook signature verification works with new or existing destinations
+   - [ ] Verify event queries and filters work with `matched_destination_ids`
