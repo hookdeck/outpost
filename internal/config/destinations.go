@@ -49,27 +49,28 @@ type DestinationWebhookConfig struct {
 	SignatureHeaderTemplate       string `yaml:"signature_header_template" env:"DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE" desc:"Go template for the value of the signature header. Only applies to 'default' mode." required:"N"`
 	SignatureEncoding             string `yaml:"signature_encoding" env:"DESTINATIONS_WEBHOOK_SIGNATURE_ENCODING" desc:"Encoding for the signature (e.g., 'hex', 'base64'). Only applies to 'default' mode." required:"N"`
 	SignatureAlgorithm            string `yaml:"signature_algorithm" env:"DESTINATIONS_WEBHOOK_SIGNATURE_ALGORITHM" desc:"Algorithm used for signing webhook requests (e.g., 'hmac-sha256'). Only applies to 'default' mode." required:"N"`
-	SigningSecretTemplate         string `yaml:"signing_secret_template" env:"DESTINATIONS_WEBHOOK_SIGNING_SECRET_TEMPLATE" desc:"Go template for generating webhook signing secrets. Available variables: {{.RandomHex}} (64-char hex), {{.RandomBase64}} (base64-encoded), {{.RandomAlphanumeric}} (32-char alphanumeric). Defaults to '{{.RandomHex}}'. Only applies to 'default' mode." required:"N"`
+	SigningSecretTemplate         string `yaml:"signing_secret_template" env:"DESTINATIONS_WEBHOOK_SIGNING_SECRET_TEMPLATE" desc:"Go template for generating webhook signing secrets. Available variables: {{.RandomHex}} (64-char hex), {{.RandomBase64}} (base64-encoded), {{.RandomAlphanumeric}} (32-char alphanumeric). Defaults to 'whsec_{{.RandomHex}}'. Only applies to 'default' mode." required:"N"`
 }
 
 // toConfig converts WebhookConfig to the provider config - private since it's only used internally
+// Config guarantees all required values are set via setDefaults()
 func (c *DestinationWebhookConfig) toConfig() *destregistrydefault.DestWebhookConfig {
-	mode := c.Mode
-	if mode == "" {
-		mode = "default"
-	}
-
-	// Convert HeaderPrefix string to *string for the provider:
-	// - empty string (zero value, unset) → nil → provider uses its default prefix
-	// - non-empty string (including whitespace like " ") → &value → provider applies it
-	//   (whitespace is trimmed by the provider, so " " effectively disables the prefix)
-	var headerPrefix *string
-	if c.HeaderPrefix != "" {
-		headerPrefix = &c.HeaderPrefix
+	// HeaderPrefix: config provides mode-specific defaults
+	// - user sets "" → config applies default based on mode ("x-outpost-" or "webhook-")
+	// - user sets " " → whitespace passes through → provider trims to "" (disabled)
+	// - user sets explicit value → passes through as-is
+	headerPrefix := c.HeaderPrefix
+	if headerPrefix == "" {
+		// Apply mode-specific default only when truly empty (not whitespace)
+		if c.Mode == "standard" {
+			headerPrefix = "webhook-"
+		} else {
+			headerPrefix = "x-outpost-"
+		}
 	}
 
 	return &destregistrydefault.DestWebhookConfig{
-		Mode:                          mode,
+		Mode:                          c.Mode,
 		ProxyURL:                      c.ProxyURL,
 		HeaderPrefix:                  headerPrefix,
 		DisableDefaultEventIDHeader:   c.DisableDefaultEventIDHeader,
