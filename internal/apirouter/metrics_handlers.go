@@ -56,8 +56,8 @@ var (
 	eventFilters    = newStringSet("tenant_id", "topic", "destination_id")
 
 	attemptMeasures   = newStringSet("count", "successful_count", "failed_count", "error_rate", "first_attempt_count", "retry_count", "manual_retry_count", "avg_attempt_number", "rate", "successful_rate", "failed_rate")
-	attemptDimensions = newStringSet("tenant_id", "destination_id", "topic", "status", "code", "manual", "attempt_number")
-	attemptFilters    = newStringSet("tenant_id", "destination_id", "topic", "status", "code", "manual", "attempt_number")
+	attemptDimensions = newStringSet("tenant_id", "destination_id", "destination_type", "topic", "status", "code", "manual", "attempt_number")
+	attemptFilters    = newStringSet("tenant_id", "destination_id", "destination_type", "topic", "status", "code", "manual", "attempt_number")
 )
 
 // --- API response types ---
@@ -396,6 +396,8 @@ func attemptDataPointToAPI(dp logstore.AttemptMetricsDataPoint, measures, dimens
 			dims["tenant_id"] = derefString(dp.TenantID)
 		case "destination_id":
 			dims["destination_id"] = derefString(dp.DestinationID)
+		case "destination_type":
+			dims["destination_type"] = derefString(dp.DestinationType)
 		case "topic":
 			dims["topic"] = derefString(dp.Topic)
 		case "status":

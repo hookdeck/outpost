@@ -81,14 +81,15 @@ func parseIncludeOptions(c *gin.Context) IncludeOptions {
 
 // APIAttempt is the API response for an attempt
 type APIAttempt struct {
-	ID            string                 `json:"id"`
-	TenantID      string                 `json:"tenant_id"`
-	Status        string                 `json:"status"`
-	Time          time.Time              `json:"time"`
-	Code          string                 `json:"code,omitempty"`
-	ResponseData  map[string]interface{} `json:"response_data,omitempty"`
-	AttemptNumber int                    `json:"attempt_number"`
-	Manual        bool                   `json:"manual"`
+	ID              string                 `json:"id"`
+	TenantID        string                 `json:"tenant_id"`
+	Status          string                 `json:"status"`
+	Time            time.Time              `json:"time"`
+	Code            string                 `json:"code,omitempty"`
+	ResponseData    map[string]interface{} `json:"response_data,omitempty"`
+	AttemptNumber   int                    `json:"attempt_number"`
+	Manual          bool                   `json:"manual"`
+	DestinationType string                 `json:"destination_type"`
 
 	EventID       string      `json:"event_id"`
 	DestinationID string      `json:"destination_id"`
@@ -148,15 +149,16 @@ type EventPaginatedResult struct {
 // destination field is populated.
 func toAPIAttempt(ar *logstore.AttemptRecord, opts IncludeOptions, destDisplay *destregistry.DestinationDisplay) APIAttempt {
 	api := APIAttempt{
-		ID:            ar.Attempt.ID,
-		TenantID:      ar.Attempt.TenantID,
-		Status:        ar.Attempt.Status,
-		Time:          ar.Attempt.Time,
-		Code:          ar.Attempt.Code,
-		AttemptNumber: ar.Attempt.AttemptNumber,
-		Manual:        ar.Attempt.Manual,
-		EventID:       ar.Attempt.EventID,
-		DestinationID: ar.Attempt.DestinationID,
+		ID:              ar.Attempt.ID,
+		TenantID:        ar.Attempt.TenantID,
+		Status:          ar.Attempt.Status,
+		Time:            ar.Attempt.Time,
+		Code:            ar.Attempt.Code,
+		AttemptNumber:   ar.Attempt.AttemptNumber,
+		Manual:          ar.Attempt.Manual,
+		DestinationType: ar.Attempt.DestinationType,
+		EventID:         ar.Attempt.EventID,
+		DestinationID:   ar.Attempt.DestinationID,
 	}
 
 	if opts.ResponseData {
@@ -261,11 +263,12 @@ func (h *LogHandlers) listAttemptsInternal(c *gin.Context, tenantIDs []string, d
 	}
 
 	req := logstore.ListAttemptRequest{
-		TenantIDs:      tenantIDs,
-		EventIDs:       ParseArrayQueryParam(c, "event_id"),
-		DestinationIDs: destinationIDs,
-		Status:         c.Query("status"),
-		Topics:         ParseArrayQueryParam(c, "topic"),
+		TenantIDs:        tenantIDs,
+		EventIDs:         ParseArrayQueryParam(c, "event_id"),
+		DestinationIDs:   destinationIDs,
+		DestinationTypes: ParseArrayQueryParam(c, "destination_type"),
+		Status:           c.Query("status"),
+		Topics:           ParseArrayQueryParam(c, "topic"),
 		TimeFilter: logstore.TimeFilter{
 			GTE: attemptTimeFilter.GTE,
 			LTE: attemptTimeFilter.LTE,

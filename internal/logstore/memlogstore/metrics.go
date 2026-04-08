@@ -156,6 +156,7 @@ func (s *memLogStore) QueryAttemptMetrics(ctx context.Context, req driver.Metric
 		timeBucket string
 		tenantID   string
 		destID     string
+		destType   string
 		topic      string
 		status     string
 		code       string
@@ -176,6 +177,8 @@ func (s *memLogStore) QueryAttemptMetrics(ctx context.Context, req driver.Metric
 				key.tenantID = ae.event.TenantID
 			case "destination_id":
 				key.destID = ae.attempt.DestinationID
+			case "destination_type":
+				key.destType = ae.attempt.DestinationType
 			case "topic":
 				key.topic = ae.event.Topic
 			case "status":
@@ -214,6 +217,9 @@ func (s *memLogStore) QueryAttemptMetrics(ctx context.Context, req driver.Metric
 			case "destination_id":
 				v := key.destID
 				dp.DestinationID = &v
+			case "destination_type":
+				v := key.destType
+				dp.DestinationType = &v
 			case "topic":
 				v := key.topic
 				dp.Topic = &v
@@ -359,6 +365,11 @@ func matchesAttemptMetricsFilter(a *models.Attempt, event *models.Event, req dri
 	}
 	if dests, ok := req.Filters["destination_id"]; ok {
 		if !contains(dests, a.DestinationID) {
+			return false
+		}
+	}
+	if destTypes, ok := req.Filters["destination_type"]; ok {
+		if !contains(destTypes, a.DestinationType) {
 			return false
 		}
 	}

@@ -286,6 +286,7 @@ func (s *logStoreImpl) QueryAttemptMetrics(ctx context.Context, req driver.Metri
 		sfTimeBucket sf = iota
 		sfTenantID
 		sfDestID
+		sfDestType
 		sfTopic
 		sfStatus
 		sfCode
@@ -321,6 +322,10 @@ func (s *logStoreImpl) QueryAttemptMetrics(ctx context.Context, req driver.Metri
 			selectExprs = append(selectExprs, "destination_id")
 			groupExprs = append(groupExprs, "destination_id")
 			order = append(order, sfDestID)
+		case "destination_type":
+			selectExprs = append(selectExprs, "destination_type")
+			groupExprs = append(groupExprs, "destination_type")
+			order = append(order, sfDestType)
 		case "topic":
 			selectExprs = append(selectExprs, "topic")
 			groupExprs = append(groupExprs, "topic")
@@ -392,6 +397,9 @@ func (s *logStoreImpl) QueryAttemptMetrics(ctx context.Context, req driver.Metri
 	if dests, ok := req.Filters["destination_id"]; ok {
 		conditions, args = addInFilter(conditions, args, "destination_id", dests)
 	}
+	if destTypes, ok := req.Filters["destination_type"]; ok {
+		conditions, args = addInFilter(conditions, args, "destination_type", destTypes)
+	}
 	if topics, ok := req.Filters["topic"]; ok {
 		conditions, args = addInFilter(conditions, args, "topic", topics)
 	}
@@ -430,6 +438,7 @@ func (s *logStoreImpl) QueryAttemptMetrics(ctx context.Context, req driver.Metri
 		tbVal            time.Time
 		tenantIDVal      string
 		destIDVal        string
+		destTypeVal      string
 		topicVal         string
 		statusVal        string
 		codeVal          string
@@ -454,6 +463,8 @@ func (s *logStoreImpl) QueryAttemptMetrics(ctx context.Context, req driver.Metri
 			scanDests[i] = &tenantIDVal
 		case sfDestID:
 			scanDests[i] = &destIDVal
+		case sfDestType:
+			scanDests[i] = &destTypeVal
 		case sfTopic:
 			scanDests[i] = &topicVal
 		case sfStatus:
@@ -501,6 +512,9 @@ func (s *logStoreImpl) QueryAttemptMetrics(ctx context.Context, req driver.Metri
 			case sfDestID:
 				v := destIDVal
 				dp.DestinationID = &v
+			case sfDestType:
+				v := destTypeVal
+				dp.DestinationType = &v
 			case sfTopic:
 				v := topicVal
 				dp.Topic = &v
