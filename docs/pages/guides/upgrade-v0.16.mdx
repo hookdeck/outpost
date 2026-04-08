@@ -11,6 +11,7 @@ This guide covers breaking changes and migration steps when upgrading from v0.15
 | [Webhook signing secret prefix changed](#webhook-signing-secret-prefix-changed) | New webhook destination signing secrets | Set `DESTINATIONS_WEBHOOK_SIGNING_SECRET_TEMPLATE` to preserve previous behavior |
 | [Event `destination_id` replaced with `matched_destination_ids`](#event-destination_id-replaced-with-matched_destination_ids) | Event API responses and queries | Update code that reads `destination_id` from events to use `matched_destination_ids` |
 | [Delivery metadata timestamp format](#delivery-metadata-timestamp-format) | Consumers of delivery metadata `timestamp` field | Update timestamp parsing from Unix seconds to ISO 8601 |
+| [Response data body stored as raw string](#response-data-body-stored-as-raw-string) | Consumers of `response_data.body` | Update code that treats `response_data.body` as a parsed JSON object |
 | [Alert callbacks replaced by operation events](#alert-callbacks-replaced-by-operation-events) | Users of `ALERT_CALLBACK_URL` | Migrate to `OPERATION_EVENTS_*` config |
 
 ## Webhook Signing Secret Prefix Changed
@@ -76,6 +77,39 @@ timestamp: 2021-01-01T00:00:00Z
 ```
 
 **Action:** Update any code that parses the `timestamp` metadata field to handle ISO 8601 (RFC 3339) format instead of Unix seconds.
+
+## Response Data Body Stored as Raw String
+
+The `response_data.body` field in delivery attempts is now always stored as a raw string, regardless of the destination's response content type. Previously, JSON response bodies were parsed into objects.
+
+### API response change
+
+**v0.15** — JSON response body was a parsed object:
+```json
+{
+  "status": 200,
+  "body": {
+    "id": "usr_123",
+    "status": "created"
+  }
+}
+```
+
+**v0.16** — body is the raw response string:
+```json
+{
+  "status": 200,
+  "body": "{\"id\":\"usr_123\",\"status\":\"created\"}"
+}
+```
+
+Non-JSON responses are unchanged (already stored as strings).
+
+### Database migration
+
+The `attempts.response_data` column is migrated from JSONB to TEXT (migration `000009`). This migration runs automatically on startup. Any direct SQL queries that use JSON operators on `response_data` (e.g., `response_data->'body'->>'key'`) will need to be updated.
+
+**Action:** Update any code that reads `response_data.body` as a structured object. If you need the parsed object, parse the string with `JSON.parse()` (or equivalent) on the client side.
 
 ## Alert Callbacks Replaced by Operation Events
 
@@ -150,6 +184,7 @@ You can now disable the webhook header prefix by setting it to whitespace (e.g.,
    - [ ] Decide whether to adopt `whsec_` prefixed signing secrets or preserve previous format (set `DESTINATIONS_WEBHOOK_SIGNING_SECRET_TEMPLATE` if preserving)
    - [ ] Update code that reads `event.destination_id` to use `event.matched_destination_ids`
    - [ ] Update any timestamp metadata parsing from Unix seconds to ISO 8601
+   - [ ] Update code that reads `response_data.body` as a parsed object — it is now a raw string
    - [ ] If using `ALERT_CALLBACK_URL`, migrate to `OPERATION_EVENTS_*` config
    - [ ] Review alert default changes (consecutive failure count: 20→100, auto-disable: true→false) and set explicitly if needed
    - [ ] Update SDK dependencies to the latest version
