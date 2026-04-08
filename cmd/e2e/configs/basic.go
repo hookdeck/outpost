@@ -87,6 +87,8 @@ func Basic(t *testing.T, opts BasicOpts) config.Config {
 	c.LogBatchThresholdSeconds = 0 // Immediate flush (1ms) for faster tests
 	c.LogBatchSize = 100
 	c.DeploymentID = opts.DeploymentID
+	c.Alert.AutoDisableDestination = true
+	c.Alert.ConsecutiveFailureCount = 20
 
 	// Use signature templates with timestamps for mock server compatibility
 	c.Destinations.Webhook.SignatureContentTemplate = "{{.Timestamp.Unix}}.{{.Body}}"

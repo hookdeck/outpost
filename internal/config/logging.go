@@ -34,7 +34,6 @@ func (c *Config) LogConfigurationSummary() []zap.Field {
 		zap.Bool("audit_log", c.AuditLog),
 		zap.String("deployment_id", c.DeploymentID),
 		zap.Strings("topics", c.Topics),
-		zap.String("organization_name", c.OrganizationName),
 		zap.String("http_user_agent", c.HTTPUserAgent),
 
 		// API
