@@ -8,43 +8,23 @@ This guide covers breaking changes and migration steps when upgrading from v0.15
 
 | Change | Impact | Action Required |
 | --- | --- | --- |
-| [Webhook signing defaults changed](#webhook-signing-defaults-changed) | New webhook destinations, signature verification | Set config vars to preserve previous behavior or update verification logic |
+| [Webhook signing secret prefix changed](#webhook-signing-secret-prefix-changed) | New webhook destination signing secrets | Set `DESTINATIONS_WEBHOOK_SIGNING_SECRET_TEMPLATE` to preserve previous behavior |
 | [Event `destination_id` replaced with `matched_destination_ids`](#event-destination_id-replaced-with-matched_destination_ids) | Event API responses and queries | Update code that reads `destination_id` from events to use `matched_destination_ids` |
 | [Delivery metadata timestamp format](#delivery-metadata-timestamp-format) | Consumers of delivery metadata `timestamp` field | Update timestamp parsing from Unix seconds to ISO 8601 |
 
-## Webhook Signing Defaults Changed
+## Webhook Signing Secret Prefix Changed
 
-v0.16 changes three webhook signing defaults:
+The default signing secret template for new webhook destinations changed from `{{.RandomHex}}` to `whsec_{{.RandomHex}}`. New destinations will now have signing secrets prefixed with `whsec_` (e.g., `whsec_a1b2c3...`).
 
-| Setting | v0.15 Default | v0.16 Default |
-| --- | --- | --- |
-| Signing secret format | `{{.RandomHex}}` | `whsec_{{.RandomHex}}` |
-| Signature content template | `{{.Timestamp.Unix}}.{{.Body}}` | `{{.Body}}` |
-| Signature header template | `t={{.Timestamp.Unix}},v0={{.Signatures \| join ","}}` | `v0={{.Signatures \| join ","}}` |
-
-**Existing destinations are unaffected** — their secrets and signature formats remain as they were when created.
-
-New destinations created after upgrading will use the new defaults: secrets prefixed with `whsec_` and a simplified signature header (`v0=<sig>` without the `t=<timestamp>` component).
+Existing destinations keep their current signing secrets — this only affects newly created destinations.
 
 ### Preserving previous behavior
 
-To keep the v0.15 behavior for new destinations, set these config vars before upgrading:
+To keep generating unprefixed secrets, set this config var:
 
 ```
 DESTINATIONS_WEBHOOK_SIGNING_SECRET_TEMPLATE={{.RandomHex}}
-DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE={{.Timestamp.Unix}}.{{.Body}}
-DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE=t={{.Timestamp.Unix}},v0={{.Signatures | join ","}}
 ```
-
-### Updating verification logic
-
-If you prefer to adopt the new defaults, update your webhook signature verification to:
-
-1. Read the signature from the header directly (format: `v0=<hex>`)
-2. Compute HMAC-SHA256 over the **raw request body** (no timestamp prepended)
-3. Compare the hex digest
-
-The `x-outpost-timestamp` header is still sent but is no longer part of the signed content by default.
 
 ## Event `destination_id` Replaced with `matched_destination_ids`
 
@@ -115,8 +95,7 @@ You can now disable the webhook header prefix by setting it to whitespace (e.g.,
 ## Upgrade Checklist
 
 1. **Before upgrading:**
-   - [ ] Decide whether to adopt new webhook signing defaults or preserve v0.15 behavior (set config vars if preserving)
-   - [ ] Update any webhook signature verification logic if adopting new defaults
+   - [ ] Decide whether to adopt `whsec_` prefixed signing secrets or preserve previous format (set `DESTINATIONS_WEBHOOK_SIGNING_SECRET_TEMPLATE` if preserving)
    - [ ] Update code that reads `event.destination_id` to use `event.matched_destination_ids`
    - [ ] Update any timestamp metadata parsing from Unix seconds to ISO 8601
    - [ ] Update SDK dependencies to the latest version
@@ -125,5 +104,4 @@ You can now disable the webhook header prefix by setting it to whitespace (e.g.,
    - [ ] Update Outpost to v0.16 and restart — database migrations run automatically on startup
 
 3. **After upgrading:**
-   - [ ] Verify webhook signature verification works with new or existing destinations
    - [ ] Verify event queries and filters work with `matched_destination_ids`
