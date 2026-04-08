@@ -2008,8 +2008,12 @@ components:
             $ref: "#/components/schemas/DestinationSchemaField"
     DestinationSchemaField:
       type: object
-      required: [type, required]
+      required: [type, required, key]
       properties:
+        key:
+          type: string
+          description: The config key used to store and retrieve the field value. Matches the key in the destination's config or credentials object.
+          example: "url"
         type:
           type: string
           enum: [text, checkbox, key_value_map, select]
