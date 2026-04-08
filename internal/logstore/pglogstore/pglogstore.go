@@ -455,12 +455,12 @@ func scanAttemptRecords(rows pgx.Rows) ([]attemptRecordWithPosition, error) {
 			attemptTime      time.Time
 			attemptNumber    int
 			manual           bool
-			code             string
-			responseData     map[string]any
-			eventTime        time.Time
-			eligibleForRetry bool
-			eventData        string
-			eventMetadata    map[string]string
+			code                string
+			responseDataStr     string
+			eventTime           time.Time
+			eligibleForRetry    bool
+			eventData           string
+			eventMetadata       map[string]string
 		)
 
 		if err := rows.Scan(
@@ -475,13 +475,20 @@ func scanAttemptRecords(rows pgx.Rows) ([]attemptRecordWithPosition, error) {
 			&attemptNumber,
 			&manual,
 			&code,
-			&responseData,
+			&responseDataStr,
 			&eventTime,
 			&eligibleForRetry,
 			&eventData,
 			&eventMetadata,
 		); err != nil {
 			return nil, fmt.Errorf("scan failed: %w", err)
+		}
+
+		var responseData map[string]any
+		if responseDataStr != "" {
+			if err := json.Unmarshal([]byte(responseDataStr), &responseData); err != nil {
+				return nil, fmt.Errorf("failed to unmarshal response_data: %w", err)
+			}
 		}
 
 		// Normalize to UTC for consistent behavior across backends.
@@ -635,12 +642,12 @@ func (s *logStore) RetrieveAttempt(ctx context.Context, req driver.RetrieveAttem
 		attemptTime      time.Time
 		attemptNumber    int
 		manual           bool
-		code             string
-		responseData     map[string]any
-		eventTime        time.Time
-		eligibleForRetry bool
-		eventData        string
-		eventMetadata    map[string]string
+		code              string
+		responseDataStr   string
+		eventTime         time.Time
+		eligibleForRetry  bool
+		eventData         string
+		eventMetadata     map[string]string
 	)
 
 	err := row.Scan(
@@ -655,7 +662,7 @@ func (s *logStore) RetrieveAttempt(ctx context.Context, req driver.RetrieveAttem
 		&attemptNumber,
 		&manual,
 		&code,
-		&responseData,
+		&responseDataStr,
 		&eventTime,
 		&eligibleForRetry,
 		&eventData,
@@ -666,6 +673,13 @@ func (s *logStore) RetrieveAttempt(ctx context.Context, req driver.RetrieveAttem
 	}
 	if err != nil {
 		return nil, fmt.Errorf("scan failed: %w", err)
+	}
+
+	var responseData map[string]any
+	if responseDataStr != "" {
+		if err := json.Unmarshal([]byte(responseDataStr), &responseData); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal response_data: %w", err)
+		}
 	}
 
 	// Normalize to UTC for consistent behavior across backends.
@@ -751,7 +765,7 @@ func (s *logStore) InsertMany(ctx context.Context, entries []*models.LogEntry) e
 			)
 			SELECT * FROM unnest(
 				$1::text[], $2::text[], $3::text[], $4::text[], $5::text[], $6::text[], $7::text[],
-				$8::timestamptz[], $9::integer[], $10::boolean[], $11::text[], $12::jsonb[],
+				$8::timestamptz[], $9::integer[], $10::boolean[], $11::text[], $12::text[],
 				$13::timestamptz[], $14::boolean[], $15::text[], $16::jsonb[]
 			)
 			ON CONFLICT (time, id) DO UPDATE SET
@@ -820,7 +834,7 @@ func attemptArrays(entries []*models.LogEntry) []any {
 	attemptNumbers := make([]int, n)
 	manuals := make([]bool, n)
 	codes := make([]string, n)
-	responseDatas := make([]map[string]any, n)
+	responseDatas := make([]string, n)
 	eventTimes := make([]time.Time, n)
 	eligibleForRetries := make([]bool, n)
 	eventDatas := make([]string, n)
@@ -841,7 +855,8 @@ func attemptArrays(entries []*models.LogEntry) []any {
 		attemptNumbers[i] = a.AttemptNumber
 		manuals[i] = a.Manual
 		codes[i] = a.Code
-		responseDatas[i] = a.ResponseData
+		responseDataJSON, _ := json.Marshal(a.ResponseData)
+		responseDatas[i] = string(responseDataJSON)
 		eventTimes[i] = e.Time
 		eligibleForRetries[i] = e.EligibleForRetry
 		eventDatas[i] = string(e.Data)
