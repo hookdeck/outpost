@@ -1,0 +1,25 @@
+{
+  "name": "outpost-agent-evaluation",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Claude Agent SDK harness for Outpost onboarding scenario evals",
+  "scripts": {
+    "eval": "node --import tsx src/run-agent-eval.ts",
+    "eval:ci": "node --import tsx src/run-agent-eval.ts -- --scenarios 01,02",
+    "eval:tsx-cli": "tsx src/run-agent-eval.ts",
+    "score": "node --import tsx src/score-eval.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.2.92",
+    "dotenv": "^16.4.7"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.4",
+    "typescript": "^5.8.3"
+  }
+}

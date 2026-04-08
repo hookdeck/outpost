@@ -3,7 +3,7 @@ title: "Hookdeck Outpost — agent prompt template"
 description: "Copy-paste template for AI coding agents. Dashboard teams should inject the placeholders server-side or client-side."
 ---
 
-This page is a **reference template** for the Hookdeck Outpost onboarding flow. Replace `{{PLACEHOLDERS}}` with values from the operator’s project (or render them in the dashboard). **Do not** put the API key in the prompt; the operator sets `OUTPOST_API_KEY` separately. API keys are created under the Outpost project: **Settings → Secrets** (the same Outpost API key used by the REST API and SDKs).
+This page is a **reference template** for the Hookdeck Outpost onboarding flow. Replace `{{PLACEHOLDERS}}` with values from the operator’s project (or render them in the dashboard). **Do not** put the API key in the prompt; the operator sets `OUTPOST_API_KEY` separately (for example in a project **`.env`** file loaded by their shell or app—never pasted into chat). API keys are created under the Outpost project: **Settings → Secrets** (the same Outpost API key used by the REST API and SDKs).
 
 ## Template
 
@@ -15,7 +15,7 @@ You are helping integrate Hookdeck Outpost into a platform to deliver events (we
 ### Credentials
 
 - API base URL: {{API_BASE_URL}}
-- API key (Outpost API key from the project **Settings → Secrets**): read from the `OUTPOST_API_KEY` environment variable (never ask the user to paste the key into chat)
+- API key (Outpost API key from the project **Settings → Secrets**): load from the `OUTPOST_API_KEY` environment variable — typically a **`.env`** file in the operator’s project (or another secrets mechanism their tooling loads); never ask the user to paste the key into chat
 
 ### Configured topics
 
@@ -23,7 +23,9 @@ You are helping integrate Hookdeck Outpost into a platform to deliver events (we
 
 ### Test destination
 
-Use this URL to verify event delivery (webhook destination): {{TEST_DESTINATION_URL}}
+Use this **Hookdeck Console Source** URL to verify event delivery (the webhook `config.url`, or `OUTPOST_TEST_WEBHOOK_URL` in the SDK quickstarts). Your dashboard supplies it for this project:
+
+{{TEST_DESTINATION_URL}}
 
 ### Documentation
 
@@ -48,6 +50,8 @@ Ask the user which of the following they want:
 
 For all modes, read the relevant quickstart documentation before writing code.
 
+**Files on disk:** When your environment supports it, **write runnable artifacts into the operator’s project workspace** (real files: scripts, app source, `package.json`, `go.mod`, README) rather than only pasting long code in chat—so they can run, diff, and commit. Keep everything for one task in the same directory. For **minimal example apps** (option 2), scaffold and install dependencies there as you normally would (for example `npm` / `npx`, `go mod`, `pip` or `uv`).
+
 **Concepts:** Each tenant is one of the platform's customers. Destinations are where events are delivered (webhook URLs, queues, etc.). Events are published with a **topic**; only destinations subscribed to that topic receive the event. Topics for this project are listed above and were configured in the Hookdeck dashboard.
 ```
 
@@ -57,12 +61,12 @@ For all modes, read the relevant quickstart documentation before writing code.
 |-------------|---------|--------|
 | `{{API_BASE_URL}}` | `https://api.outpost.hookdeck.com/2025-07-01` | Safe to embed in the prompt |
 | `{{TOPICS_LIST}}` | Bullet list or comma-separated topic names | From dashboard config |
-| `{{TEST_DESTINATION_URL}}` | Unique URL from Hookdeck Console Source, or operator’s test endpoint | May be TBC until `console.hookdeck.com` flow is finalized |
-| `{{DOCS_URL}}` | `https://hookdeck.com/outpost/docs` | Public docs root (no trailing slash) |
+| `{{TEST_DESTINATION_URL}}` | **Required** — HTTPS URL of the Hookdeck Console **Source** created for this onboarding flow (fed in by the dashboard). |
+| `{{DOCS_URL}}` | `https://outpost.hookdeck.com/docs` | Public docs root (no trailing slash). For unpublished docs, automated evals can set **`EVAL_LOCAL_DOCS=1`** so the Documentation section is replaced with repository file paths (see `docs/agent-evaluation/README.md`). |
 | `{{LLMS_FULL_URL}}` | `https://hookdeck.com/outpost/docs/llms-full.txt` | Optional; omit the line if not live yet |
 
 ## Operator checklist (dashboard UI)
 
 - Show **API base URL** and **topics** next to the copyable prompt.
-- Explain that the **API key** is the Outpost API key from **Settings → Secrets**, and show **environment variables**: `OUTPOST_API_KEY` (value with copy button), optional `OUTPOST_API_BASE_URL`, and `OUTPOST_TEST_WEBHOOK_URL` when the quickstart examples need a test webhook URL.
+- Feed **`{{TEST_DESTINATION_URL}}`** from a Hookdeck Console **Source** URL you create for the operator (same value can be shown for `OUTPOST_TEST_WEBHOOK_URL` in env UI). Explain **Settings → Secrets** for `OUTPOST_API_KEY` (recommend a project **`.env`** or env-injection pattern, not pasting into the agent). Optional `OUTPOST_API_BASE_URL`.
 - Keep the **API key out of the prompt text** to reduce exposure via model logs and chat history.

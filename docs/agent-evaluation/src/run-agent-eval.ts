@@ -1,0 +1,527 @@
+/**
+ * Automated Outpost onboarding agent evals via the Claude Agent SDK.
+ *
+ * Requires ANTHROPIC_API_KEY (and EVAL_TEST_DESTINATION_URL). Does not call Outpost.
+ * For a full eval, humans (or a separate verifier) run generated artifacts using OUTPOST_API_KEY — see README.
+ *
+ * @see https://platform.claude.com/docs/en/agent-sdk/overview
+ */
+
+import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+import { parseArgs } from "node:util";
+import dotenv from "dotenv";
+import {
+  query,
+  type Options,
+  type SDKMessage,
+  type SDKSystemMessage,
+} from "@anthropic-ai/claude-agent-sdk";
+import { llmJudgeRun, scenarioMdPathFromRun } from "./llm-judge.js";
+import { scoreRunFile } from "./score-transcript.js";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+/** `docs/agent-evaluation/` */
+const EVAL_ROOT = join(__dirname, "..");
+
+dotenv.config({ path: join(EVAL_ROOT, ".env") });
+/** Outpost repository root */
+const REPO_ROOT = join(EVAL_ROOT, "..", "..");
+const PROMPT_MDX = join(
+  REPO_ROOT,
+  "docs/pages/quickstarts/hookdeck-outpost-agent-prompt.mdx",
+);
+const SCENARIOS_DIR = join(EVAL_ROOT, "scenarios");
+const RUNS_DIR = join(EVAL_ROOT, "results", "runs");
+
+function isInitSystemMessage(m: SDKMessage): m is SDKSystemMessage {
+  return m.type === "system" && m.subtype === "init";
+}
+
+function extractTemplateFromMdx(mdx: string): string {
+  const idx = mdx.indexOf("## Template");
+  if (idx === -1) {
+    throw new Error("Could not find ## Template in hookdeck-outpost-agent-prompt.mdx");
+  }
+  const after = mdx.slice(idx);
+  const fenceStart = after.indexOf("```");
+  if (fenceStart === -1) {
+    throw new Error("No opening code fence after ## Template");
+  }
+  const contentStart = after.indexOf("\n", fenceStart) + 1;
+  const fenceEnd = after.indexOf("```", contentStart);
+  if (fenceEnd === -1) {
+    throw new Error("No closing code fence for ## Template");
+  }
+  return after.slice(contentStart, fenceEnd).trim();
+}
+
+function envFlagTruthy(v: string | undefined): boolean {
+  if (!v) return false;
+  const s = v.trim().toLowerCase();
+  return s === "1" || s === "true" || s === "yes";
+}
+
+/** When docs are not published yet, point the agent at MDX/OpenAPI paths in this repo. */
+function localDocumentationBlock(repoRoot: string, llmsFullUrl: string | undefined): string {
+  const f = (...parts: string[]) => join(repoRoot, ...parts);
+  let block = `### Documentation (local repository — unpublished)
+
+Do **not** rely on live public documentation URLs for this session. Read these files from the Outpost checkout (for example with the **Read** tool). Paths are absolute from the repository root:
+
+- Getting started (curl): \`${f("docs/pages/quickstarts/hookdeck-outpost-curl.mdx")}\`
+- TypeScript quickstart: \`${f("docs/pages/quickstarts/hookdeck-outpost-typescript.mdx")}\`
+- Python quickstart: \`${f("docs/pages/quickstarts/hookdeck-outpost-python.mdx")}\`
+- Go quickstart: \`${f("docs/pages/quickstarts/hookdeck-outpost-go.mdx")}\`
+- API reference (human-oriented pages under): \`${f("docs/pages/references/")}\`
+- OpenAPI spec (machine-readable): \`${f("docs/apis/openapi.yaml")}\`
+- Destination types: \`${f("docs/pages/destinations/")}\`
+- SDKs overview: \`${f("docs/pages/sdks.mdx")}\``;
+  if (llmsFullUrl) {
+    block += `\n- Full docs bundle: ${llmsFullUrl}`;
+  }
+  return block;
+}
+
+function applyPlaceholders(
+  template: string,
+  env: NodeJS.ProcessEnv,
+  repoRoot: string,
+): string {
+  const apiBase =
+    env.EVAL_API_BASE_URL ?? "https://api.outpost.hookdeck.com/2025-07-01";
+  const topics = env.EVAL_TOPICS_LIST ?? "- user.created";
+  const testUrl = env.EVAL_TEST_DESTINATION_URL?.trim();
+  if (!testUrl) {
+    throw new Error(
+      "Set EVAL_TEST_DESTINATION_URL to your Hookdeck Console Source URL (same value the dashboard injects as {{TEST_DESTINATION_URL}})",
+    );
+  }
+  const docsUrl = env.EVAL_DOCS_URL ?? "https://outpost.hookdeck.com/docs";
+  const llms = env.EVAL_LLMS_FULL_URL?.trim() ?? "";
+  const useLocalDocs = envFlagTruthy(env.EVAL_LOCAL_DOCS);
+
+  let base = template;
+  if (useLocalDocs) {
+    const docSection = /^### Documentation\n\n[\s\S]*?(?=\n### What to do\b)/m;
+    if (!docSection.test(base)) {
+      throw new Error(
+        "EVAL_LOCAL_DOCS is set but the prompt template has no ### Documentation section before ### What to do",
+      );
+    }
+    base = base.replace(
+      docSection,
+      localDocumentationBlock(repoRoot, llms || undefined),
+    );
+  }
+
+  let out = base
+    .replaceAll("{{API_BASE_URL}}", apiBase)
+    .replaceAll("{{TOPICS_LIST}}", topics)
+    .replaceAll("{{TEST_DESTINATION_URL}}", testUrl)
+    .replaceAll("{{DOCS_URL}}", docsUrl)
+    .replaceAll("{{LLMS_FULL_URL}}", llms);
+
+  if (!llms) {
+    out = out
+      .split("\n")
+      .filter((line) => !/Full docs bundle/i.test(line))
+      .join("\n");
+  }
+
+  return out;
+}
+
+interface ParsedTurn {
+  readonly num: number;
+  readonly title: string;
+  readonly body: string;
+  readonly optional: boolean;
+}
+
+function parseScenarioTurns(markdown: string): ParsedTurn[] {
+  const lines = markdown.split(/\r?\n/);
+  const turns: ParsedTurn[] = [];
+  let i = 0;
+
+  while (i < lines.length) {
+    const line = lines[i];
+    const m = line.match(/^### Turn (\d+)\s*(.*)$/);
+    if (m) {
+      const num = Number(m[1]);
+      const restOfTitle = m[2] ?? "";
+      const title = `Turn ${m[1]}${restOfTitle ? ` ${restOfTitle}` : ""}`;
+      const optional = /optional/i.test(title);
+      i++;
+      const bodyLines: string[] = [];
+      while (i < lines.length) {
+        const L = lines[i];
+        if (/^### /.test(L)) {
+          break;
+        }
+        if (/^## /.test(L)) {
+          break;
+        }
+        bodyLines.push(L);
+        i++;
+      }
+      turns.push({
+        num,
+        title,
+        body: bodyLines.join("\n").trim(),
+        optional,
+      });
+      continue;
+    }
+    i++;
+  }
+
+  return turns.sort((a, b) => a.num - b.num);
+}
+
+function extractUserMessage(turnBody: string): string {
+  const quoted: string[] = [];
+  for (const line of turnBody.split(/\r?\n/)) {
+    const q = line.match(/^\s*>\s?(.*)$/);
+    if (q) {
+      quoted.push(q[1]);
+    }
+  }
+  const fromBlockquote = quoted.join("\n").trim();
+  if (fromBlockquote) {
+    return fromBlockquote;
+  }
+  return turnBody.replace(/^\s*$/gm, "").trim();
+}
+
+function serializeMessage(message: SDKMessage): unknown {
+  try {
+    return JSON.parse(
+      JSON.stringify(message, (_, v) => (typeof v === "bigint" ? v.toString() : v)),
+    );
+  } catch {
+    return { _nonSerializable: String(message) };
+  }
+}
+
+async function listScenarioFiles(): Promise<string[]> {
+  const names = await readdir(SCENARIOS_DIR);
+  return names
+    .filter((n) => /^\d{2}-.*\.md$/.test(n))
+    .sort();
+}
+
+function idFromFilename(file: string): string {
+  return file.slice(0, 2);
+}
+
+async function runScenarioQuery(
+  prompt: string,
+  options: Options,
+): Promise<{ messages: unknown[]; sessionId?: string }> {
+  const messages: unknown[] = [];
+  let sessionId: string | undefined;
+
+  const q = query({ prompt, options });
+  for await (const message of q) {
+    messages.push(serializeMessage(message));
+    if (isInitSystemMessage(message)) {
+      sessionId = message.session_id;
+    }
+  }
+
+  return { messages, sessionId };
+}
+
+async function runOneScenario(
+  scenarioFile: string,
+  filledTemplate: string,
+  opts: {
+    skipOptional: boolean;
+    baseOptions: Options;
+  },
+): Promise<{
+  scenarioId: string;
+  scenarioFile: string;
+  turns: Array<{ label: string; messageCount: number }>;
+  sessionId?: string;
+  allMessages: unknown[];
+}> {
+  const path = join(SCENARIOS_DIR, scenarioFile);
+  const md = await readFile(path, "utf8");
+  const parsed = parseScenarioTurns(md);
+
+  const userTurns = parsed
+    .filter((t) => t.num >= 1)
+    .filter((t) => !t.optional || !opts.skipOptional)
+    .map((t) => ({
+      label: t.title,
+      text: extractUserMessage(t.body),
+    }))
+    .filter((t) => t.text.length > 0);
+
+  const prompts = [filledTemplate, ...userTurns.map((t) => t.text)];
+
+  const allMessages: unknown[] = [];
+  let sessionId: string | undefined;
+  const turnStats: Array<{ label: string; messageCount: number }> = [];
+
+  for (let i = 0; i < prompts.length; i++) {
+    const label = i === 0 ? "Turn 0 (dashboard prompt)" : userTurns[i - 1]?.label ?? `Turn ${i}`;
+    const before = allMessages.length;
+    const { messages, sessionId: sid } = await runScenarioQuery(prompts[i]!, {
+      ...opts.baseOptions,
+      resume: sessionId,
+    });
+    if (sid) {
+      sessionId = sid;
+    }
+    allMessages.push(...messages);
+    turnStats.push({
+      label,
+      messageCount: allMessages.length - before,
+    });
+  }
+
+  return {
+    scenarioId: idFromFilename(scenarioFile),
+    scenarioFile,
+    turns: turnStats,
+    sessionId,
+    allMessages,
+  };
+}
+
+function defaultEvalTools(env: NodeJS.ProcessEnv): string {
+  if (env.EVAL_TOOLS?.trim()) {
+    return env.EVAL_TOOLS.trim();
+  }
+  // dontAsk + allowedTools: only listed tools are pre-approved; others are denied.
+  // Write/Edit: materialize scripts and apps into the per-run directory (agent cwd).
+  // Bash: npm/npx/go mod/pip/uv for app scenarios (05–07) and installs for 02–04.
+  // WebFetch: omitted when EVAL_LOCAL_DOCS uses repo paths + Read instead.
+  return envFlagTruthy(env.EVAL_LOCAL_DOCS)
+    ? "Read,Glob,Grep,Write,Edit,Bash"
+    : "Read,Glob,Grep,WebFetch,Write,Edit,Bash";
+}
+
+function buildBaseOptions(agentWorkspaceCwd: string): Options {
+  const toolsRaw = defaultEvalTools(process.env);
+  const allowedTools = toolsRaw
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  const mode = (process.env.EVAL_PERMISSION_MODE ?? "dontAsk") as NonNullable<
+    Options["permissionMode"]
+  >;
+
+  const maxTurns = Number(process.env.EVAL_MAX_TURNS ?? "40");
+  const persistSession = process.env.EVAL_PERSIST_SESSION !== "false";
+
+  const o: Options = {
+    cwd: agentWorkspaceCwd,
+    allowedTools,
+    permissionMode: mode,
+    maxTurns: Number.isFinite(maxTurns) ? maxTurns : 40,
+    persistSession,
+    env: {
+      ...process.env,
+      CLAUDE_AGENT_SDK_CLIENT_APP: "outpost-docs-agent-eval/1.0.0",
+    } as Record<string, string | undefined>,
+  };
+
+  if (process.env.EVAL_MODEL?.trim()) {
+    o.model = process.env.EVAL_MODEL.trim();
+  }
+
+  return o;
+}
+
+async function main(): Promise<void> {
+  const { values } = parseArgs({
+    options: {
+      scenario: { type: "string" },
+      scenarios: { type: "string" },
+      all: { type: "boolean", default: false },
+      "skip-optional": { type: "boolean", default: false },
+      "dry-run": { type: "boolean", default: false },
+      "no-score": { type: "boolean", default: false },
+      "no-score-llm": { type: "boolean", default: false },
+      help: { type: "boolean", short: "h", default: false },
+    },
+    allowPositionals: false,
+  });
+
+  if (values.help) {
+    console.log(`
+Outpost agent evaluation (Claude Agent SDK)
+
+Usage:
+  npm run eval -- --scenario 01
+  npm run eval -- --scenarios 01,02,05
+  npm run eval -- --all              # deliberate: every scenario (costly)
+  npm run eval -- --skip-optional
+  npm run eval -- --no-score         # skip heuristic-score.json
+  npm run eval -- --no-score-llm     # skip llm-score.json (no Success-criteria judge)
+  npm run eval -- --no-score --no-score-llm   # transcripts only
+  npm run eval -- --dry-run
+
+You must pass --scenario, --scenarios, or --all so the set of runs is explicit (cost and scope).
+After each scenario: transcript + heuristic-score.json + llm-score.json (judge uses ## Success criteria) unless disabled above.
+Exit 1 if any enabled score fails.
+
+Environment:
+  Values can be set in docs/agent-evaluation/.env (loaded automatically) or exported in the shell.
+  ANTHROPIC_API_KEY     Required
+  EVAL_TEST_DESTINATION_URL   Required — Hookdeck Console Source URL (fed into {{TEST_DESTINATION_URL}})
+  EVAL_API_BASE_URL     Optional (default: managed production URL)
+  EVAL_TOPICS_LIST      Optional
+  EVAL_DOCS_URL         Optional (ignored for doc links when EVAL_LOCAL_DOCS is set)
+  EVAL_LOCAL_DOCS       Set to 1/true/yes to replace Documentation URLs with repo file paths (unpublished docs)
+  EVAL_LLMS_FULL_URL    Optional (omit docs line if unset)
+  EVAL_TOOLS            Optional, comma-separated (default: Read,Glob,Grep[,WebFetch],Write,Edit,Bash — see README)
+  EVAL_MODEL            Optional
+  EVAL_MAX_TURNS        Optional (default: 40)
+  EVAL_PERMISSION_MODE  Optional (default: dontAsk)
+  EVAL_PERSIST_SESSION  Set to "false" to disable session persistence (breaks multi-turn resume)
+
+Outputs under docs/agent-evaluation/results/runs/ (gitignored): each scenario gets
+  results/runs/<stamp>-scenario-NN/transcript.json
+  heuristic-score.json and llm-score.json unless disabled (see above).
+Also set EVAL_NO_SCORE_HEURISTIC=1 or EVAL_NO_SCORE_LLM=1 in .env to skip scoring without flags.
+
+Each run uses results/runs/<stamp>-scenario-NN/ as agent cwd so Write creates files there.
+`);
+    process.exit(0);
+  }
+
+  if (!process.env.ANTHROPIC_API_KEY?.trim()) {
+    console.error("Missing ANTHROPIC_API_KEY");
+    process.exit(1);
+  }
+
+  const mdx = await readFile(PROMPT_MDX, "utf8");
+  const template = extractTemplateFromMdx(mdx);
+  const filledTemplate = applyPlaceholders(template, process.env, REPO_ROOT);
+
+  const allFiles = await listScenarioFiles();
+  let selected: string[];
+
+  if (values.all) {
+    selected = allFiles;
+  } else if (values.scenarios) {
+    const ids = values.scenarios.split(",").map((s) => s.trim());
+    selected = allFiles.filter((f) => ids.includes(idFromFilename(f)));
+    const missing = ids.filter((id) => !selected.some((f) => idFromFilename(f) === id));
+    if (missing.length) {
+      console.error("Unknown scenario id(s):", missing.join(", "));
+      process.exit(1);
+    }
+  } else if (values.scenario) {
+    const id = values.scenario.padStart(2, "0");
+    selected = allFiles.filter((f) => idFromFilename(f) === id);
+    if (selected.length === 0) {
+      console.error("Unknown scenario:", values.scenario);
+      process.exit(1);
+    }
+  } else {
+    console.error(
+      "Choose which scenarios to run (cost is proportional): --scenario <id>, --scenarios id,id, or --all for the full set.",
+    );
+    console.error(`Available: ${allFiles.map((f) => idFromFilename(f)).join(", ")}`);
+    process.exit(1);
+  }
+
+  if (values["dry-run"]) {
+    console.log("Dry run: would execute", selected.join(", "));
+    console.log("Turn 0 length (chars):", filledTemplate.length);
+    process.exit(0);
+  }
+
+  await mkdir(RUNS_DIR, { recursive: true });
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+
+  const wantScore =
+    !values["no-score"] &&
+    !envFlagTruthy(process.env.EVAL_NO_SCORE_HEURISTIC);
+  const wantLlm =
+    !values["no-score-llm"] &&
+    !envFlagTruthy(process.env.EVAL_NO_SCORE_LLM);
+
+  let anyScoreFailure = false;
+
+  console.error(
+    `Running ${selected.length} scenario(s): ${selected.join(", ")} (heuristic=${String(wantScore)}, llm=${String(wantLlm)})`,
+  );
+
+  for (const file of selected) {
+    const scenarioIdEarly = idFromFilename(file);
+    const runDir = join(RUNS_DIR, `${stamp}-scenario-${scenarioIdEarly}`);
+    await mkdir(runDir, { recursive: true });
+
+    const baseOptions = buildBaseOptions(runDir);
+    console.error(`\n>>> Scenario ${file} (workspace ${runDir}) ...`);
+    const result = await runOneScenario(file, filledTemplate, {
+      skipOptional: values["skip-optional"] ?? false,
+      baseOptions,
+    });
+
+    const outPath = join(runDir, "transcript.json");
+    const payload = {
+      meta: {
+        scenarioId: result.scenarioId,
+        scenarioFile: result.scenarioFile,
+        runDirectory: runDir,
+        agentWorkspaceCwd: runDir,
+        repositoryRoot: REPO_ROOT,
+        completedAt: new Date().toISOString(),
+        sessionId: result.sessionId,
+        turns: result.turns,
+      },
+      messages: result.allMessages,
+    };
+
+    await writeFile(outPath, JSON.stringify(payload, null, 2), "utf8");
+    console.error(`Wrote ${outPath}`);
+
+    if (wantScore) {
+      const report = await scoreRunFile(outPath);
+      const scorePath = join(runDir, "heuristic-score.json");
+      await writeFile(scorePath, `${JSON.stringify(report, null, 2)}\n`, "utf8");
+      console.error(`Wrote ${scorePath} (transcript: ${report.transcript.passed}/${report.transcript.total}, overallTranscriptPass=${String(report.overallTranscriptPass)})`);
+      if (report.overallTranscriptPass === false) {
+        anyScoreFailure = true;
+      }
+    }
+
+    if (wantLlm) {
+      const scenarioPath = scenarioMdPathFromRun(EVAL_ROOT, result.scenarioFile);
+      const llmReport = await llmJudgeRun({
+        runPath: outPath,
+        scenarioMdPath: scenarioPath,
+        apiKey: process.env.ANTHROPIC_API_KEY!.trim(),
+      });
+      const llmPath = join(runDir, "llm-score.json");
+      await writeFile(llmPath, `${JSON.stringify(llmReport, null, 2)}\n`, "utf8");
+      console.error(
+        `Wrote ${llmPath} (LLM overall_transcript_pass=${String(llmReport.overall_transcript_pass)})`,
+      );
+      if (!llmReport.overall_transcript_pass) {
+        anyScoreFailure = true;
+      }
+    }
+  }
+
+  if (anyScoreFailure) {
+    process.exit(1);
+  }
+}
+
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});
