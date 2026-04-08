@@ -35,7 +35,10 @@ Use this **Hookdeck Console Source** URL to verify event delivery (the webhook `
 - Go quickstart (Go SDK): {{DOCS_URL}}/quickstarts/hookdeck-outpost-go
 - Full docs bundle (when available on the public site): {{LLMS_FULL_URL}}
 - API reference and OpenAPI (REST JSON shapes and status codes): {{DOCS_URL}}/api
+- **Concepts — how tenants, destinations (subscriptions), topics, and publish fit a SaaS/platform:** {{DOCS_URL}}/concepts
+- **Building your own UI — screen structure and flow** (list destinations, create destination: type → topics → config; tenant scope): {{DOCS_URL}}/guides/building-your-own-ui
 - Destination types: {{DOCS_URL}}/destinations
+- Topics and destination subscriptions (fan-out, `*`): {{DOCS_URL}}/features/topics
 - SDK overview (mostly TypeScript-shaped examples): {{DOCS_URL}}/sdks — use **only** for high-level context; for **TypeScript, Python, or Go** code, follow that language’s **quickstart** for correct method signatures (e.g. Python `publish.event` uses `request={{...}}`, not TypeScript-style spreads as Python kwargs).
 
 ### Language → SDK vs HTTP
@@ -52,7 +55,7 @@ Operators rarely name packages or SDK details. **You** map what they say to the 
 
 Do **not** mix patterns across languages (e.g. do not apply TypeScript `publish.event({ ... })` argument style to Python).
 
-**Option 2 (small app)** — Map framework to the matching official SDK on the **server only**: e.g. **Next.js** → TypeScript SDK + patterns from the TypeScript quickstart and your Next conventions; **FastAPI** → Python SDK; **Go + net/http** → Go SDK. Prefer each language’s **quickstart** for Outpost call shapes.
+**Option 2 (small app)** — Map framework to the matching official SDK on the **server only**: e.g. **Next.js** → TypeScript SDK + patterns from the TypeScript quickstart and your Next conventions; **FastAPI** → Python SDK; **Go + net/http** → Go SDK. Prefer each language’s **quickstart** for Outpost call shapes. **Before** designing pages or forms, read **Concepts** and **Building your own UI** in the Documentation list: the UI should reflect **tenant scope**, **multiple destinations per tenant**, and **destination = topic subscription + delivery target** (not a single anonymous webhook field unless the user explicitly asks for that simplified shape).
 
 **Option 3 (existing app)** — Use the **official SDK for the repo’s language** on the server (or REST/OpenAPI if they insist on no SDK). Read that language’s quickstart for shapes; integrate on **real** domain paths, not throwaway demos.
 
@@ -62,7 +65,7 @@ Guide the conversation, then act:
 
 1. **Try it out** — Minimal path: tenant → webhook destination → publish → print event id (or show success). If they want the **simplest** path, default to **curl** without making them say “curl.” If they name **TypeScript**, **Python**, or **Go**, use **only** that language’s quickstart and implied SDK. Ask only for what the quickstart and runnability still need (env vars, etc.).
 
-2. **Build a minimal example** — Small UI + server; use the **SDK for that stack** (see **Option 2** above) or REST if they choose HTTP-only.
+2. **Build a minimal example** — Small UI + server; use the **SDK for that stack** (see **Option 2** above) or REST if they choose HTTP-only. Follow **Concepts** + **Building your own UI** for the real product model. For a **tiny** demo (e.g. one page), still keep the model visible: **tenant** in scope, **create destination** as **topics + delivery target** (not one undifferentiated “webhook” field that hides topics), and a **separate** control or flow to **publish a test event** so the operator can verify delivery—avoid collapsing tenant setup, destination creation, and publish into a single form unless the user insists. An events or attempts view is optional for the smallest demo but matches the portal pattern when you have room.
 
 3. **Integrate with an existing app** — Clone or open their codebase; add Outpost per **Option 3** above; document env vars and operator steps.
 
@@ -70,7 +73,7 @@ For all modes, read the **single** language-appropriate quickstart (and OpenAPI 
 
 **Files on disk:** When your environment supports it, **write runnable artifacts into the operator’s project workspace** (real files: scripts, app source, `package.json`, `go.mod`, README) rather than only pasting long code in chat—so they can run, diff, and commit. Keep everything for one task in the same directory. For **minimal example apps** (option 2), scaffold and install dependencies there as you normally would (for example `npm` / `npx`, `go mod`, `pip` or `uv`).
 
-**Concepts:** Each tenant is one of the platform's customers. Destinations are where events are delivered (webhook URLs, queues, etc.). Events are published with a **topic**; only destinations subscribed to that topic receive the event. Topics for this project are listed above and were configured in the Hookdeck dashboard.
+**Concepts:** Each **tenant** is one of the platform’s customers. A tenant has **zero or more destinations**; each **destination** is a **subscription**—a destination type (e.g. webhook) plus **which topics** to receive and **where** to deliver (e.g. HTTPS URL). Your **backend** publishes with **`tenant_id`**, **`topic`**, and payload; Outpost fans out to every destination of that tenant that subscribes to that topic. Read **{{DOCS_URL}}/concepts** and **{{DOCS_URL}}/guides/building-your-own-ui** for the full model and recommended screens. Topics for this project are listed above and were configured in the Hookdeck dashboard.
 ```
 
 ## Placeholder reference

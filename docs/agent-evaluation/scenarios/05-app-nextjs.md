@@ -55,4 +55,3 @@ Paste the **## Template** block from `[hookdeck-outpost-agent-prompt.mdx](../pag
 - Calling Outpost directly from browser-side code with embedded key.
 - Only publishing without a UI path to register the destination first.
 - Hard-coding localhost Outpost without user request.
-

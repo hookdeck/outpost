@@ -2,14 +2,31 @@
 title: "Outpost Concepts"
 ---
 
+## How this fits your product
+
+If you run a **SaaS**, **platform**, or **API product** and want each of **your customers** to receive webhooks or other event destinations, Outpost gives you a **multi-tenant** control plane for that.
+
+At a high level, the same mental model as a single-tenant webhook product still applies: something happens in your system (**event**), it belongs to a category (**topic**), and the consumer cares about **where** it should be delivered (**URL**, queue, etc.). Outpost adds one layer: those subscriptions live **per customer** in your product, which maps to a **tenant** in Outpost.
+
+**Typical flow:**
+
+1. **Map your customer to a tenant** — Each organization, team, or account in your app should have a stable **tenant id** in Outpost (often the same id you already use internally). Create or upsert that tenant when the customer is ready to use outbound events (onboarding, first visit to integrations, etc.).
+2. **Each tenant has zero or more destinations** — A **destination** is a concrete subscription: it combines a **destination type** (webhook, SQS, Hookdeck, …), one or more **topics** the customer wants to receive, and **type-specific configuration** (for a webhook, the HTTPS **endpoint URL** and signing secret; for a queue, the queue identifier; and so on). One tenant may have several destinations (e.g. production vs staging endpoints, or different systems).
+3. **Your backend publishes events** — When something happens, your **server** calls the publish API (or SDK) with **`tenant_id`**, **`topic`**, and payload metadata. Outpost does **not** infer the tenant from the browser; publishing uses your **platform** credentials and explicit tenant scope.
+4. **Outpost delivers to matching destinations** — For that tenant, every destination whose **topic subscription** includes the event’s topic gets a delivery attempt. A single publish can fan out to **many** destinations or to **none** if no destination subscribes to that topic.
+
+**What to build in your UI (conceptually):** screens or flows scoped to the **current customer** (tenant): list their **destinations**, **create or edit** a destination (choose type → choose topics → enter URL or other config), and surfaces for **events and delivery attempts** when you want users to inspect what was sent and how delivery behaved. Your UI talks to Outpost **through your backend** (recommended) or via **per-tenant JWT**, never by embedding your platform API key in the browser. See the [Building your own UI](/docs/guides/building-your-own-ui) guide for screen-level structure and API patterns.
+
+For topic subscription behavior (wildcard `*`, multiple topics, fan-out), see [Topics](/docs/features/topics).
+
 ## Models
 
-- **Tenants**: A tenant represents a user/team/organization in your product.
-- **Destination Types**: The type of destination where events will be delivered. For example, webhook, Hookdeck, or AWS SQS.
-- **Destinations**: A destination is a specific instance of a destination type. For example, a webhook destination with a specific URL.
-- **Topics**: A topic is a way to categorize events and is a common concept found in Pub/Sub messaging. For example, a `user.created` event might be categorized under the user topic.
-- **Events**: An event is a piece of data that represents an action that occurred in your system. For example, a user signed up or a payment was processed.
-- **Delivery Attempts**: A delivery attempt represents the result of an attempt to deliver an event to a destination.
+- **Tenants**: A tenant represents a user, team, or organization **in your product**—the customer who owns their own destinations and receives their own deliveries.
+- **Destination types**: The kind of endpoint where events are delivered (webhook, Hookdeck, AWS SQS, …). The set of types is configured on the Outpost deployment.
+- **Destinations**: A **subscription** for one tenant: an instance of a destination type plus **which topics** to receive and **where** to deliver (webhook URL, queue name, Hookdeck token, etc.). A tenant may have **many** destinations.
+- **Topics**: Labels for categories of events (e.g. `user.created`). Your platform configures which topics exist; destinations **subscribe** to one or more topics; publish calls include a **topic** so Outpost knows which subscriptions match.
+- **Events**: A unit of something that happened in your system, published into Outpost with tenant, topic, and payload. Delivery attempts record how each destination received (or failed) that event.
+- **Delivery attempts**: The outcome of trying to deliver one event to one destination (success, failure, retries, response metadata).
 
 ## Architecture
 
@@ -41,9 +58,9 @@ Required for log storage.
 - PostgreSQL
 - ClickHouse
 
-## Tenant Destination Types
+## Supported destination types
 
-Event destination types belonging to Outpost tenants where events are delivered.
+These are the **destination types** your tenants can choose when creating a destination (see **Models** above).
 
 - Webhooks
 - Hookdeck Event Gateway

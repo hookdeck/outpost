@@ -10,20 +10,50 @@ Within this guide, we will use the User Portal as a reference implementation for
 
 In this guide, we will assume you are using React (client-side) to build your own UI, but the same principles can be applied to any other framework.
 
+## UI structure and flow
+
+Outpost’s tenant portal is a good reference for how screens map to the **tenant → destinations → topics → delivery target** model. When you build your own UI, keep the same structure so operators and end users are not forced into a misleading “single global webhook URL” mental model.
+
+**Tenant context**
+
+- Everything below is **scoped to one tenant**—the signed-in customer in your SaaS or the account selected in your platform. That tenant id is what you pass to Outpost when listing or creating destinations and when publishing from your backend.
+- If you use JWT auth against Outpost, the token is issued **for that tenant**; if you proxy through your API, your routes should resolve the current customer to a `tenant_id` and forward it on list/create/publish calls.
+
+**Recommended areas / screens**
+
+| Area | Purpose |
+| ---- | ------- |
+| **Destinations list** | Show all destinations for the current tenant (each row is one subscription: type, human-readable **target** such as webhook URL, subscribed topics). Entry point to edit, disable, or remove. |
+| **Create destination** | Multi-step flow aligned with the API: (1) **choose destination type**, (2) **select topics** (from the topics configured on your Outpost project—often checkboxes or multi-select), (3) **configure** type-specific fields (e.g. webhook URL, credentials). Optional: instructions or remote setup links from the destination type schema. |
+| **Events and delivery attempts** | List recent events for the tenant and inspect **delivery attempts** per event or destination so users can see outcomes, failures, and retries—similar to the portal’s event and log experience. |
+
+For how tenants, destinations, and topics fit together in a multi-tenant product, see [Outpost Concepts](/docs/concepts)—especially **How this fits your product**.
+
 ## Authentication
 
 To perform API calls on behalf of your tenants, you can either generate a JWT token, which can be used client-side to make Outpost API calls, or you can proxy any API requests to the Outpost API through your own API. When proxying through your own API, you can ensure the API call is made for the currently authenticated tenant using the API `tenant_id` parameter.
 
 Proxying through your own API can be useful if you want to limit access to some configuration or functionality of Outpost.
 
+### API base URL (managed and self-hosted)
+
+Examples below use a single variable **`API_URL`** (or **`OUTPOST_API_BASE_URL`** in shell snippets): the **root URL for Outpost’s HTTP API**, with **no trailing slash**. Paths in this guide match the [OpenAPI specification](/docs/api) (`/tenants/...`, `/topics`, `/destination-types`, …).
+
+- **Hookdeck Outpost (managed):** use the base URL from your project (for example `https://api.outpost.hookdeck.com/2025-07-01`). The [managed curl quickstart](/docs/quickstarts/hookdeck-outpost-curl) uses the same pattern.
+- **Self-hosted Outpost:** use your deployment’s public origin **plus** whatever path prefix your install uses (commonly **`/api/v1`**), e.g. `https://outpost.internal.example.com/api/v1`. For local dev, use your actual host and port (see your deployment docs—do not assume a specific port in shared snippets).
+
+Do **not** hardcode `localhost` in product docs or copy-paste snippets meant for operators; always substitute your real base URL. The React snippets assume `API_URL` already includes any `/api/v1` segment so that `${API_URL}/tenants/destinations` resolves correctly for your environment.
+
 ### Generating a JWT Token (Optional)
 
 You can generate a JWT token by using the [Tenant JWT Token API](/docs/api/tenants#get-tenant-jwt-token).
 
 ```bash
-curl --location 'localhost:3333/api/v1/tenants/<TENANT_ID>/token' \
-  --header 'Content-Type: application/json' \
-  --header 'Authorization: Bearer <API_KEY>' \
+export OUTPOST_API_BASE_URL="https://api.outpost.hookdeck.com/2025-07-01"   # or your self-hosted root, e.g. …/api/v1
+TENANT_ID="<TENANT_ID>"
+
+curl --request GET "$OUTPOST_API_BASE_URL/tenants/$TENANT_ID/token" \
+  --header "Authorization: Bearer <ADMIN_API_KEY>"
 ```
 
 ## Fetching Destination Type Schema
@@ -36,14 +66,15 @@ Destinations are listed using the [List Destinations API](/docs/api/destinations
 
 ```tsx
 // React example to fetch and render a list of destinations
+// API_URL = Outpost API root (managed project URL or self-hosted origin + /api/v1)
 
 const [destinations, setDestinations] = useState([]);
 
 const [destination_types, setDestinationTypes] = useState([]);
 
 const fetchDestinations = async () => {
-  // Get the tenant destinations
-  const response = await fetch(`${API_URL}/api/v1/tenants/destinations`, {
+  // Get the tenant destinations (JWT infers tenant — see Authentication API)
+  const response = await fetch(`${API_URL}/tenants/destinations`, {
     headers: {
       Authorization: `Bearer ${token}`,
     },
@@ -54,8 +85,7 @@ const fetchDestinations = async () => {
 };
 
 const fetchDestinationTypes = async () => {
-  // Get the destination types schemas
-  const response = await fetch(`${API_URL}/api/v1/destination-types`, {
+  const response = await fetch(`${API_URL}/destination-types`, {
     headers: {
       Authorization: `Bearer ${token}`,
     },
@@ -120,8 +150,7 @@ The list of available destination types is rendered from the list of destination
 const [destination_types, setDestinationTypes] = useState([]);
 
 const fetchDestinationTypes = async () => {
-  // Get the destination types schemas
-  const response = await fetch(`${API_URL}/api/v1/destination-types`, {
+  const response = await fetch(`${API_URL}/destination-types`, {
     headers: {
       Authorization: `Bearer ${token}`,
     },
@@ -183,7 +212,7 @@ Available topics are returned from the [List Topics API](/docs/api/topics#list-t
 const [topics, setTopics] = useState([]);
 
 const fetchTopics = async () => {
-  const response = await fetch(`${API_URL}/api/v1/topics`, {
+  const response = await fetch(`${API_URL}/topics`, {
     headers: {
       Authorization: `Bearer ${token}`,
     },
@@ -341,7 +370,7 @@ Events are listed using the [List Events API](/docs/api/events#list-events). You
 const [events, setEvents] = useState([]);
 
 const fetchEvents = async () => {
-  const response = await fetch(`${API_URL}/api/v1/tenants/events`, {
+  const response = await fetch(`${API_URL}/tenants/events`, {
     headers: {
       Authorization: `Bearer ${token}`,
     },

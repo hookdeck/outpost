@@ -91,6 +91,9 @@ Do **not** rely on live public documentation URLs for this session. Read these f
 
 Follow **Language → SDK vs HTTP** below for mapping user intent to the **single** right quickstart. Prefer language quickstarts over \`sdks.mdx\` (TS-heavy).
 
+- **Concepts** (tenants, destinations as subscriptions, topics, how this fits a SaaS/platform): \`${f("docs/pages/concepts.mdx")}\`
+- **Building your own UI** (screen structure: list destinations, create flow type → topics → config): \`${f("docs/pages/guides/building-your-own-ui.mdx")}\`
+- **Topics** (destination topic subscriptions, fan-out): \`${f("docs/pages/features/topics.mdx")}\`
 - Getting started (curl / HTTP only): \`${f("docs/pages/quickstarts/hookdeck-outpost-curl.mdx")}\`
 - TypeScript quickstart (TS SDK): \`${f("docs/pages/quickstarts/hookdeck-outpost-typescript.mdx")}\`
 - Python quickstart (Python SDK): \`${f("docs/pages/quickstarts/hookdeck-outpost-python.mdx")}\`
