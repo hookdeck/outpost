@@ -14,7 +14,7 @@
 [![License](https://img.shields.io/badge/License-Apache--2.0-blue)](#license)
 [![Go Report Card](https://goreportcard.com/badge/github.com/hookdeck/outpost)](https://goreportcard.com/report/github.com/hookdeck/outpost)
 [![Issues - Outpost](https://img.shields.io/github/issues/hookdeck/outpost)](https://github.com/hookdeck/outpost/issues)
-![GitHub Release](https://img.shields.io/github/v/release/hookdeck/outpost)
+![GitHub Release](https://img.shields.io/github/v/release/hookdeck/outpost) [![Managed Service](https://img.shields.io/badge/Managed-Hookdeck%20Outpost-6B4FBB)](https://hookdeck.com/outpost)
   
 </div>
 
@@ -25,31 +25,25 @@ SDKs:
 [![TypeScript SDK](https://img.shields.io/npm/v/%40hookdeck%2Foutpost-sdk)](sdks/outpost-typescript/README.md)
 [![Python SDK](https://img.shields.io/pypi/v/outpost-sdk)](sdks/outpost-python/README.md)
 
-
-</div>
-
-<div align="center">
-  <h1>Open Source Outbound Webhooks and Event Destinations Infrastructure</h1>
-</div>
-
-<div align="center">
-
 [Documentation](#documentation)
 ·
 [Report a bug](issues/new?assignees=&labels=bug&projects=&template=bug_report.md&title=%F0%9F%90%9B+Bug+Report%3A+)
 ·
 [Request a feature](issues/new?assignees=&labels=enhancement&projects=&template=feature_request.md&title=%F0%9F%9A%80+Feature%3A+)
 
-<!-- ·
-[Join our Slack](https://hookdeck.com/slack?ref=github-outpost) -->
-
 </div>
 
-Outpost is a self-hosted and open-source infrastructure that enables event producers to add outbound webhooks and [Event Destinations](https://eventdestinations.org?ref=github-outpost) to their platform with support for destination types such as Webhooks, Hookdeck Event Gateway, Amazon EventBridge, AWS SQS, AWS S3, GCP Pub/Sub, RabbitMQ, and Kafka.
+<div align="center">
+  <h1>Outbound Webhooks and Event Destinations Infrastructure</h1>
+</div>
 
-The Outpost runtime has minimal dependencies (Redis or Redis cluster, PostgreSQL, and one of the supported message queues), is 100% backward compatible with your existing webhooks implementation, and is optimized for high-throughput, low-cost operation.
+Production-ready infrastructure for sending webhooks and delivering events from your platform to your customers' systems. Self-host it anywhere, or use [Hookdeck Outpost](https://hookdeck.com/outpost) as a managed service.
 
-Outpost is built and maintained by [Hookdeck](https://hookdeck.com?ref=github-outpost). It's written in Go and distributed as a binary and Docker container under the Apache-2.0 license.
+Add outbound webhooks and [Event Destinations](https://eventdestinations.org) to your platform, with support for Webhooks, Hookdeck Event Gateway, Amazon EventBridge, AWS SQS, AWS S3, GCP Pub/Sub, RabbitMQ, and Kafka. Outpost handles retries, tenant isolation, observability, and provides a portal for your end users.
+
+The runtime has minimal dependencies (Redis/Redis cluster, PostgreSQL, a supported message queue), is 100% backward compatible with your existing webhook implementation, and is optimized for high-throughput, low-cost operation.
+
+Outpost is built and maintained by [Hookdeck](https://hookdeck.com). Written in Go. Distributed as a binary and Docker container. Licensed under Apache-2.0.
 
 ![Outpost architecture](docs/public/images/architecture.png)
 
@@ -57,20 +51,31 @@ Read [Outpost Concepts](https://outpost.hookdeck.com/docs/concepts) to learn mor
 
 ## Features
 
-- **Event topics and topic-based subscriptions**: Supports the common publish and subscription paradigm to ease adoption and integration into existing systems.
-- **Publish events via the API or a queue**: Publish events using the Outpost API or configure Outpost to read events from a publish queue.
-- **At least once delivery guarantee**: Messages are guaranteed to be delivered at least once and never lost.
-- **Event fanout**: A message is sent to a topic is replicated and sent to multiple endpoints. This allows for parallel processing and asynchronous event notifications.
-- **Automatic and manual retries**: Configure retry strategies for event destinations and manually trigger event delivery retries via the API or user portal.
 - **Multi-tenant support**: Create multiple tenants on a single Outpost deployment.
-- **User portal**: Allow customers to view metrics, manage, debug, and observe their event destinations.
-- **Delivery failure alerts**: Manage event delivery failure alerts.
+- **User portal**: Allow customers to view delivery metrics, manage destinations, debug delivery issues, and observe their event destinations.
+- **Delivery failure alerts**: Get notified when destinations are failing so you can act before your customers notice.
+- **Event topics and topic-based subscriptions**: Supports the common publish and subscription paradigm to ease adoption and integration into existing systems.
+- **At least once delivery guarantee**: Messages are guaranteed to be delivered at least once and never lost.
+- **Automatic and manual retries**: Configure retry strategies for event destinations and manually trigger event delivery retries via the API or user portal.
+- **Event fanout**: A message sent to a topic is replicated and delivered to multiple endpoints for parallel processing and asynchronous event notifications.
+- **Publish events via the API or a queue**: Publish events using the Outpost API or configure Outpost to read events from a publish queue.
 - **OpenTelemetry**: OTel standardized traces, metrics, and logs.
-- **Event destination types**: Out of the box support for Webhooks, Hookdeck Event Gateway, Amazon EventBridge, AWS SQS, AWS S3, GCP Pub/Sub, RabbitMQ, and Kafka.
 - **Webhook best practices**: Opt-out webhook best practices, such as headers for idempotency, timestamp and signature, and signature rotation.
-- **SDKs and MCP server**: Go, Python, and TypeScript SDK are available. Outpost also ships with an MCP server. All generated by [Speakeasy](https://speakeasy.com).
+- **SDKs and MCP server**: Go, Python, and TypeScript SDKs are available. Outpost also ships with an MCP server.
+- **Event destination types**: Out of the box support for Webhooks, Hookdeck Event Gateway, Amazon EventBridge, AWS SQS, AWS S3, GCP Pub/Sub, RabbitMQ, and Kafka.
 
 See the [Outpost Features](https://outpost.hookdeck.com/docs/features) for more information.
+
+## Why Outpost
+
+Outpost is a good fit if:
+- You're adding outbound webhooks to your platform for the first time
+- You're replacing a homegrown webhook system that's become a maintenance burden
+- You want to offer your customers more than just HTTP callbacks (queues, brokers, buses)
+- You need multi-tenant isolation with a customer-facing portal out of the box
+- You want full control over your infrastructure and data
+
+Outpost is backward compatible with your existing payload format, HTTP headers, and signatures — you can drop it into what you already have.
 
 ## Documentation
 
@@ -81,8 +86,6 @@ See the [Outpost Features](https://outpost.hookdeck.com/docs/features) for more 
 - [Guides](https://outpost.hookdeck.com/docs/guides)
 - [API Reference](https://outpost.hookdeck.com/docs/api)
 - [Configuration Reference](https://outpost.hookdeck.com/docs/references/configuration)
-
-_The Outpost documentation is built using the [Zudoku documentation framework](https://zuplo.link/outpost)._
 
 ## Quickstart
 
@@ -242,6 +245,14 @@ Open the `redirect_url` link to view the Outpost portal.
 ![Dashboard homepage](docs/public/images/dashboard-homepage.png)
 
 Continue to use the [Outpost API](https://outpost.hookdeck.com/docs/api) or the Outpost portal to add and test more destinations.
+
+## Hookdeck Outpost (Managed)
+
+Don't want to run the infrastructure yourself? [Hookdeck Outpost](https://hookdeck.com/outpost) is a fully managed version that runs the **exact same codebase** — no proprietary fork, no reduced feature set.
+
+The managed service adds serverless scaling, SOC 2 compliance, SSO, RBAC, and usage-based pricing starting at $10 per million events.
+
+[Get started with Hookdeck Outpost →](https://hookdeck.com/outpost)
 
 ## Contributing
 
