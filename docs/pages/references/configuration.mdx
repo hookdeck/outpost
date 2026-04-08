@@ -74,7 +74,7 @@ Global configurations are provided through env variables or a YAML file. ConfigM
 | `GCP_PUBSUB_PROJECT` | GCP Project ID for Pub/Sub. Required if GCP Pub/Sub is the chosen MQ provider. | `nil` | Conditional |
 | `GCP_PUBSUB_SERVICE_ACCOUNT_CREDENTIALS` | JSON string or path to a file containing GCP service account credentials for Pub/Sub. Required if GCP Pub/Sub is the chosen MQ provider and not running in an environment with implicit credentials (e.g., GCE, GKE). | `nil` | Conditional |
 | `GIN_MODE` | Sets the Gin framework mode (e.g., 'debug', 'release', 'test'). See Gin documentation for details. | `release` | No |
-| `HTTP_USER_AGENT` | Custom HTTP User-Agent string for outgoing webhook deliveries. If unset, a default (OrganizationName/Version) is used. | `nil` | No |
+| `HTTP_USER_AGENT` | Custom HTTP User-Agent string for outgoing webhook deliveries. If unset, defaults to `Outpost/{version}`. | `nil` | No |
 | `IDGEN_ATTEMPT_PREFIX` | Prefix for attempt IDs, prepended with underscore (e.g., 'atm_123'). Default: empty (no prefix) | `nil` | No |
 | `IDGEN_DESTINATION_PREFIX` | Prefix for destination IDs, prepended with underscore (e.g., 'dst_123'). Default: empty (no prefix) | `nil` | No |
 | `IDGEN_EVENT_PREFIX` | Prefix for event IDs, prepended with underscore (e.g., 'evt_123'). Default: empty (no prefix) | `nil` | No |
@@ -86,7 +86,6 @@ Global configurations are provided through env variables or a YAML file. ConfigM
 | `MAX_DESTINATIONS_PER_TENANT` | Maximum number of destinations allowed per tenant/organization. | `20` | No |
 | `MAX_RETRY_LIMIT` | Maximum number of retry attempts for a single event delivery before giving up. Ignored if retry_schedule is provided. | `10` | No |
 | `MQS_AUTO_PROVISION` | Whether Outpost should create and manage message queue infrastructure. Set to false if you manage infrastructure externally (e.g., via Terraform). Defaults to true for backward compatibility. | `nil` | No |
-| `ORGANIZATION_NAME` | Name of the organization, used for display purposes and potentially in user agent strings. | `nil` | No |
 | `OTEL_EXPORTER` | Specifies the OTLP exporter to use for this telemetry type (e.g., 'otlp'). Typically used with environment variables like OTEL_EXPORTER_OTLP_TRACES_ENDPOINT. | `nil` | Conditional |
 | `OTEL_PROTOCOL` | Specifies the OTLP protocol ('grpc' or 'http') for this telemetry type. Typically used with environment variables like OTEL_EXPORTER_OTLP_TRACES_PROTOCOL. | `nil` | Conditional |
 | `OTEL_SERVICE_NAME` | The service name reported to OpenTelemetry. If set, OpenTelemetry will be enabled. | `nil` | No |
@@ -271,7 +270,7 @@ disable_telemetry: false
 # Sets the Gin framework mode (e.g., 'debug', 'release', 'test'). See Gin documentation for details.
 gin_mode: "release"
 
-# Custom HTTP User-Agent string for outgoing webhook deliveries. If unset, a default (OrganizationName/Version) is used.
+# Custom HTTP User-Agent string for outgoing webhook deliveries. If unset, defaults to 'Outpost/{version}'.
 http_user_agent: ""
 
 idgen:
@@ -450,9 +449,6 @@ otel:
     protocol: ""
 
 
-
-# Name of the organization, used for display purposes and potentially in user agent strings.
-organization_name: ""
 
 portal:
   # Primary brand color (hex code) for theming the Outpost Portal (e.g., '#6122E7'). Also referred to as Accent Color in some contexts.

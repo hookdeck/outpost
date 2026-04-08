@@ -18,11 +18,7 @@ type DestinationsConfig struct {
 func (c *DestinationsConfig) ToConfig(cfg *Config) destregistrydefault.RegisterDefaultDestinationOptions {
 	userAgent := cfg.HTTPUserAgent
 	if userAgent == "" {
-		if cfg.OrganizationName == "" {
-			userAgent = fmt.Sprintf("Outpost/%s", version.Version())
-		} else {
-			userAgent = fmt.Sprintf("%s/%s", cfg.OrganizationName, version.Version())
-		}
+		userAgent = fmt.Sprintf("Outpost/%s", version.Version())
 	}
 
 	return destregistrydefault.RegisterDefaultDestinationOptions{
