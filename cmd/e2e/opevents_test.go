@@ -84,12 +84,12 @@ func (s *basicSuite) TestOpEvents_ExhaustedRetries() {
 	s.waitForNewMockServerEvents(dest.mockID, 4)
 
 	// Wait for exhausted_retries event
-	erEvents := s.waitForOpEvents("alert.event.exhausted_retries", 1)
+	erEvents := s.waitForOpEvents("alert.attempt.exhausted_retries", 1)
 	s.Require().GreaterOrEqual(len(erEvents), 1)
 
 	// Verify envelope
 	event := erEvents[0]
-	s.Equal("alert.event.exhausted_retries", event.Event.Topic)
+	s.Equal("alert.attempt.exhausted_retries", event.Event.Topic)
 	s.Equal(tenant.ID, event.Event.TenantID)
 	s.True(opeventsmock.VerifySignature(event, "test-opevents-secret"))
 

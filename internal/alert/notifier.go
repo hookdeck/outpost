@@ -56,7 +56,7 @@ type ConsecutiveFailureData struct {
 	ConsecutiveFailures ConsecutiveFailures `json:"consecutive_failures"`
 }
 
-// ExhaustedRetriesData is the data payload for alert.event.exhausted_retries events.
+// ExhaustedRetriesData is the data payload for alert.attempt.exhausted_retries events.
 type ExhaustedRetriesData struct {
 	TenantID    string            `json:"tenant_id"`
 	Event       *models.Event     `json:"event"`

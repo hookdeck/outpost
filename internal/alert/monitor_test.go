@@ -287,7 +287,7 @@ func TestAlertMonitor_ExhaustedRetries(t *testing.T) {
 		require.NoError(t, monitor.HandleAttempt(ctx, attempt))
 	}
 
-	erCalls := countEmitCalls(emitter, "alert.event.exhausted_retries")
+	erCalls := countEmitCalls(emitter, "alert.attempt.exhausted_retries")
 	require.Equal(t, 0, erCalls, "No exhausted_retries within retry budget")
 
 	// Attempt 4: exceeds retryMaxLimit=3, should emit exhausted_retries
@@ -304,12 +304,12 @@ func TestAlertMonitor_ExhaustedRetries(t *testing.T) {
 	}
 	require.NoError(t, monitor.HandleAttempt(ctx, attempt))
 
-	erCalls = countEmitCalls(emitter, "alert.event.exhausted_retries")
+	erCalls = countEmitCalls(emitter, "alert.attempt.exhausted_retries")
 	require.Equal(t, 1, erCalls, "Should emit exhausted_retries when attempt exceeds retry limit")
 
 	// Verify data shape
 	for _, call := range emitter.Calls {
-		if call.Arguments.Get(1) == "alert.event.exhausted_retries" {
+		if call.Arguments.Get(1) == "alert.attempt.exhausted_retries" {
 			data := call.Arguments.Get(3).(alert.ExhaustedRetriesData)
 			assert.Equal(t, dest.ID, data.Destination.ID)
 			assert.Equal(t, dest.TenantID, data.TenantID)
@@ -353,7 +353,7 @@ func TestAlertMonitor_ExhaustedRetries_NotEligible(t *testing.T) {
 	}
 	require.NoError(t, monitor.HandleAttempt(ctx, attempt))
 
-	erCalls := countEmitCalls(emitter, "alert.event.exhausted_retries")
+	erCalls := countEmitCalls(emitter, "alert.attempt.exhausted_retries")
 	require.Equal(t, 0, erCalls, "No exhausted_retries when event not eligible for retry")
 }
 
@@ -397,7 +397,7 @@ func TestAlertMonitor_ExhaustedRetries_WindowSuppression(t *testing.T) {
 	require.NoError(t, monitor.HandleAttempt(ctx, attempt))
 	require.NoError(t, monitor.HandleAttempt(ctx, attempt))
 
-	erCalls := countEmitCalls(emitter, "alert.event.exhausted_retries")
+	erCalls := countEmitCalls(emitter, "alert.attempt.exhausted_retries")
 	require.Equal(t, 1, erCalls, "Replay of the same event+destination should be suppressed by window")
 }
 
@@ -445,7 +445,7 @@ func TestAlertMonitor_ExhaustedRetries_PerEvent(t *testing.T) {
 		require.NoError(t, monitor.HandleAttempt(ctx, attempt))
 	}
 
-	erCalls := countEmitCalls(emitter, "alert.event.exhausted_retries")
+	erCalls := countEmitCalls(emitter, "alert.attempt.exhausted_retries")
 	require.Equal(t, 2, erCalls, "Each distinct event exhausting retries should emit its own alert")
 }
 
@@ -459,8 +459,8 @@ func TestAlertMonitor_ExhaustedRetries_EmitFailureRetryClearsWindow(t *testing.T
 	// CF alerts always succeed
 	emitter.On("Emit", mock.Anything, "alert.destination.consecutive_failure", mock.Anything, mock.Anything).Return(nil)
 	// Exhausted retries: fail first, succeed second
-	emitter.On("Emit", mock.Anything, "alert.event.exhausted_retries", mock.Anything, mock.Anything).Return(fmt.Errorf("emit failed")).Once()
-	emitter.On("Emit", mock.Anything, "alert.event.exhausted_retries", mock.Anything, mock.Anything).Return(nil).Once()
+	emitter.On("Emit", mock.Anything, "alert.attempt.exhausted_retries", mock.Anything, mock.Anything).Return(fmt.Errorf("emit failed")).Once()
+	emitter.On("Emit", mock.Anything, "alert.attempt.exhausted_retries", mock.Anything, mock.Anything).Return(nil).Once()
 
 	exhaustedIdemp := idempotence.New(redisClient,
 		idempotence.WithSuccessfulTTL(10*time.Second),
@@ -500,7 +500,7 @@ func TestAlertMonitor_ExhaustedRetries_EmitFailureRetryClearsWindow(t *testing.T
 
 	// 2 total calls: 1 failed + 1 succeeded. The key point is that the
 	// second call was NOT suppressed — idempotence cleared the key on failure.
-	erCalls := countEmitCalls(emitter, "alert.event.exhausted_retries")
+	erCalls := countEmitCalls(emitter, "alert.attempt.exhausted_retries")
 	require.Equal(t, 2, erCalls, "Should have 2 emit attempts (1 failed + 1 succeeded)")
 }
 
