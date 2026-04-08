@@ -10,15 +10,17 @@
 
 The automated harness in `docs/agent-evaluation/` is in place. **What it does today:**
 
-| Area | Status |
-|------|--------|
-| **Runner** | `src/run-agent-eval.ts` — **## Template** from `hookdeck-outpost-agent-prompt.mdx`, `{{…}}` from env, multi-turn scenarios, **Claude Agent SDK** with **`Read` / `Glob` / `Grep` / `WebFetch` / `Write` / `Edit` / `Bash`**, **`cwd`** = `results/runs/<stamp>-scenario-NN/` |
-| **Artifacts** | `transcript.json`, optional **`heuristic-score.json`** + **`llm-score.json`** (LLM reads each scenario **`## Success criteria`**), agent-written files beside the transcript |
-| **Heuristics** | `score-transcript.ts` — **`scoreScenario01`–`scoreScenario10`** on assistant text + tool corpus (so **Write**/Edit content counts) |
-| **Scenarios** | **01–04:** try-it-out (curl, TS, Python, Go). **05–07:** minimal UIs (Next, FastAPI, Go `net/http`). **08–10:** Option 3 — integrate into pinned repos (Next **`leerob/next-saas-starter`**, FastAPI **`philipokiokio/FastAPI_SAAS_Template`**, Go **`devinterface/startersaas-go-api`**) |
-| **CLI** | **`npm run eval` requires `--scenario`, `--scenarios`, or `--all`** — no accidental full-suite run. Default scoring = **heuristic + LLM judge** unless **`--no-score`** / **`--no-score-llm`** or **`EVAL_NO_SCORE_*`**. **Exit 1** if any enabled score fails |
-| **CI** | **`npm run eval:ci`** = **`--scenarios 01,02`** + heuristic **and** LLM judge. **`scripts/ci-eval.sh`** — requires **`ANTHROPIC_API_KEY`**, **`EVAL_TEST_DESTINATION_URL`** |
-| **Re-score** | `npm run score -- --run <run-dir> [--llm] [--write]` |
+
+| Area           | Status                                                                                                                                                                                                                                                                                    |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Runner**     | `src/run-agent-eval.ts` — **## Template** from `hookdeck-outpost-agent-prompt.mdx`, `{{…}}` from env, multi-turn scenarios, **Claude Agent SDK** with `**Read` / `Glob` / `Grep` / `WebFetch` / `Write` / `Edit` / `Bash`**, `**cwd`** = `results/runs/<stamp>-scenario-NN/`              |
+| **Artifacts**  | `transcript.json`, optional `**heuristic-score.json`** + `**llm-score.json`** (LLM reads each scenario `**## Success criteria**`), agent-written files beside the transcript                                                                                                              |
+| **Heuristics** | `score-transcript.ts` — `**scoreScenario01`–`scoreScenario10`** on assistant text + tool corpus (so **Write**/Edit content counts)                                                                                                                                                        |
+| **Scenarios**  | **01–04:** try-it-out (curl, TS, Python, Go). **05–07:** minimal UIs (Next, FastAPI, Go `net/http`). **08–10:** Option 3 — integrate into pinned repos (Next `**leerob/next-saas-starter`**, FastAPI `**philipokiokio/FastAPI_SAAS_Template`**, Go `**devinterface/startersaas-go-api**`) |
+| **CLI**        | `**npm run eval` requires `--scenario`, `--scenarios`, or `--all`** — no accidental full-suite run. Default scoring = **heuristic + LLM judge** unless `**--no-score`** / `**--no-score-llm`** or `**EVAL_NO_SCORE_***`. **Exit 1** if any enabled score fails                            |
+| **CI**         | `**npm run eval:ci`** = `**--scenarios 01,02`** + heuristic **and** LLM judge. `**scripts/ci-eval.sh`** — requires `**ANTHROPIC_API_KEY`**, `**EVAL_TEST_DESTINATION_URL**`                                                                                                               |
+| **Re-score**   | `npm run score -- --run <run-dir> [--llm] [--write]`                                                                                                                                                                                                                                      |
+
 
 **Operational**
 
@@ -27,7 +29,7 @@ The automated harness in `docs/agent-evaluation/` is in place. **What it does to
 
 ### Recommended run order (test evals → stress prompt)
 
-Run from **`docs/agent-evaluation/`** with **`.env`** set (**`ANTHROPIC_API_KEY`**, **`EVAL_TEST_DESTINATION_URL`**). Use a normal terminal (not a restricted sandbox) for reliable SDK sessions.
+Run from `**docs/agent-evaluation/`** with `**.env`** set (`**ANTHROPIC_API_KEY**`, `**EVAL_TEST_DESTINATION_URL**`). Use a normal terminal (not a restricted sandbox) for reliable SDK sessions.
 
 **Stage A — basics (fast, minimal tooling)**
 
@@ -53,7 +55,7 @@ npm run eval -- --scenarios 08,09,10
 npm run eval -- --all
 ```
 
-After each stage, inspect **`results/runs/<stamp>-scenario-NN/`** (transcript, scores, on-disk artifacts). **Goal:** confirm the **dashboard prompt** + **Success criteria** hold across stacks; **Execution** (live **`OUTPOST_API_KEY`**) remains a separate human step per scenario.
+After each stage, inspect `**results/runs/<stamp>-scenario-NN/**` (transcript, scores, on-disk artifacts). **Goal:** confirm the **dashboard prompt** + **Success criteria** hold across stacks; **Execution** (live `**OUTPOST_API_KEY`**) remains a separate human step per scenario.
 
 ---
 
@@ -63,7 +65,7 @@ After each stage, inspect **`results/runs/<stamp>-scenario-NN/`** (transcript, s
 2. **Default backend: Anthropic** — ✅ Agent SDK.
 3. **Claude Code CLI** — Optional local path only (unchanged).
 4. **OpenAI adapter** — Still optional / not implemented.
-5. **Judging** — ✅ Transcripts on disk; ✅ heuristics; ✅ LLM-as-judge vs **`## Success criteria`**.
+5. **Judging** — ✅ Transcripts on disk; ✅ heuristics; ✅ LLM-as-judge vs `**## Success criteria`**.
 6. **CI shape** — ✅ `eval:ci` + docs; **GitHub Actions workflow** not committed (add `workflow_dispatch` + secrets when ready).
 
 **Avoid as primary design:** brittle hand-rolled JSON in bash, or CLI-only gates that break for contributors and headless runners.
@@ -78,11 +80,11 @@ After each stage, inspect **`results/runs/<stamp>-scenario-NN/`** (transcript, s
 - `quickstarts.mdx` index: managed vs self-hosted links
 - Content aligned with product copy: API key from **Settings → Secrets**, verify via Hookdeck Console + project logs
 - SDK quickstarts: env vars, step-commented scripts
-- **Agent evaluation:** `docs/agent-evaluation/` — scenarios **01–10**, dual scoring, explicit CLI, CI slice, **`SCENARIO-RUN-TRACKER.md`** (per-scenario + execution log), `results/README.md`, `fixtures/`, `SKILL-UPSTREAM-NOTES.md`
+- **Agent evaluation:** `docs/agent-evaluation/` — scenarios **01–10**, dual scoring, explicit CLI, CI slice, `**SCENARIO-RUN-TRACKER.md`** (per-scenario + execution log), `results/README.md`, `fixtures/`, `SKILL-UPSTREAM-NOTES.md`
 
 ## Pending / follow-up
 
-- **Prompt + eval validation (in progress):** Run stages **A → B → C** above (or **`--all`** when deliberate); record pass/fail per scenario; adjust prompt or heuristics if systematic failures appear
+- **Prompt + eval validation (in progress):** Run stages **A → B → C** above (or `**--all`** when deliberate); record pass/fail per scenario; adjust prompt or heuristics if systematic failures appear
 - **hookdeck/agent-skills:** Refresh `skills/outpost/SKILL.md` using `docs/agent-evaluation/SKILL-UPSTREAM-NOTES.md` (managed-first, correct `/tenants/` paths, env naming)
 - **QA:** Run TypeScript, Python, and Go examples against live managed API; confirm production doc links
 - **Test destination URL:** When Console has a stable public URL story, align quickstarts if copy changes
@@ -96,3 +98,4 @@ After each stage, inspect **`results/runs/<stamp>-scenario-NN/`** (transcript, s
 - OpenAPI / managed base URL: `https://api.outpost.hookdeck.com/2025-07-01` (in `docs/apis/openapi.yaml` `servers`)
 - Agent template source: `docs/pages/quickstarts/hookdeck-outpost-agent-prompt.mdx`
 - Eval harness: `docs/agent-evaluation/README.md`
+

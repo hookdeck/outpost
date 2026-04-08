@@ -24,11 +24,11 @@ Paste the **## Template** block from [`hookdeck-outpost-agent-prompt.mdx`](../pa
 
 ### Turn 1 — User
 
-> Option 2 — minimal example with **FastAPI**. Single small app: HTML page with webhook URL field, button to register destination for tenant `demo_tenant`, button to publish one test event. Use `outpost_sdk` only on the server. Keep it to a few files.
+> Option 2 — **FastAPI**, same idea as a tiny demo: simple HTML, register a webhook for a tenant, button to send one test event. Keep the codebase small.
 
 ### Turn 2 — User (optional)
 
-> Document env vars and `uvicorn` command in README.
+> README with env vars and how to run it would help.
 
 ## Success criteria
 

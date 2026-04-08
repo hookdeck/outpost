@@ -8,12 +8,13 @@
  */
 
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
-import { join, dirname } from "node:path";
+import { dirname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import dotenv from "dotenv";
 import {
   query,
+  type HookInput,
   type Options,
   type SDKMessage,
   type SDKSystemMessage,
@@ -68,18 +69,38 @@ function envFlagTruthy(v: string | undefined): boolean {
 /** When docs are not published yet, point the agent at MDX/OpenAPI paths in this repo. */
 function localDocumentationBlock(repoRoot: string, llmsFullUrl: string | undefined): string {
   const f = (...parts: string[]) => join(repoRoot, ...parts);
+  const languageSdkBlock = `### Language → SDK vs HTTP
+
+Map what the user says (they rarely name packages):
+
+- **Simplest / minimal / least setup** and no language named → **curl** quickstart + OpenAPI; one shell script; **no SDK**. Publish success is **HTTP 202**; see curl quickstart for script portability (avoid GNU-only \`head -n -1\`).
+- **TypeScript** or **Node** → TypeScript quickstart + \`@hookdeck/outpost-sdk\` as in that doc.
+- **Python** → Python quickstart + \`outpost_sdk\`; \`publish.event(request={{...}})\` as in that doc — not TS-style kwargs.
+- **Go** → Go quickstart + official Go SDK as in that doc.
+- Explicit **curl** / **HTTP only** / **REST** → curl quickstart + OpenAPI.
+
+**Small app (option 2):** Next.js → TS SDK server-side; FastAPI → Python SDK; Go net/http → Go SDK — use that language’s quickstart for Outpost shapes.
+
+**Existing app (option 3):** Official SDK for the repo’s language (or REST if they refuse SDK).
+
+Do **not** mix TS call shapes into Python.`;
+
   let block = `### Documentation (local repository — unpublished)
 
 Do **not** rely on live public documentation URLs for this session. Read these files from the Outpost checkout (for example with the **Read** tool). Paths are absolute from the repository root:
 
-- Getting started (curl): \`${f("docs/pages/quickstarts/hookdeck-outpost-curl.mdx")}\`
-- TypeScript quickstart: \`${f("docs/pages/quickstarts/hookdeck-outpost-typescript.mdx")}\`
-- Python quickstart: \`${f("docs/pages/quickstarts/hookdeck-outpost-python.mdx")}\`
-- Go quickstart: \`${f("docs/pages/quickstarts/hookdeck-outpost-go.mdx")}\`
+Follow **Language → SDK vs HTTP** below for mapping user intent to the **single** right quickstart. Prefer language quickstarts over \`sdks.mdx\` (TS-heavy).
+
+- Getting started (curl / HTTP only): \`${f("docs/pages/quickstarts/hookdeck-outpost-curl.mdx")}\`
+- TypeScript quickstart (TS SDK): \`${f("docs/pages/quickstarts/hookdeck-outpost-typescript.mdx")}\`
+- Python quickstart (Python SDK): \`${f("docs/pages/quickstarts/hookdeck-outpost-python.mdx")}\`
+- Go quickstart (Go SDK): \`${f("docs/pages/quickstarts/hookdeck-outpost-go.mdx")}\`
 - API reference (human-oriented pages under): \`${f("docs/pages/references/")}\`
 - OpenAPI spec (machine-readable): \`${f("docs/apis/openapi.yaml")}\`
 - Destination types: \`${f("docs/pages/destinations/")}\`
-- SDKs overview: \`${f("docs/pages/sdks.mdx")}\``;
+- SDKs overview (TS-heavy): \`${f("docs/pages/sdks.mdx")}\` — prefer the language quickstart over this for Python/Go/TS code.
+
+${languageSdkBlock}`;
   if (llmsFullUrl) {
     block += `\n- Full docs bundle: ${llmsFullUrl}`;
   }
@@ -295,6 +316,48 @@ async function runOneScenario(
   };
 }
 
+/** True if resolved `filePath` is `runDir` or a path inside it (never outside). */
+function filePathIsInsideRunDir(runDir: string, filePath: string): boolean {
+  const root = resolve(runDir);
+  const target = resolve(filePath);
+  if (target === root) return true;
+  const prefix = root.endsWith(sep) ? root : root + sep;
+  return target.startsWith(prefix);
+}
+
+function toolInputFilePath(toolName: string, toolInput: unknown): string | undefined {
+  if (toolName !== "Write" && toolName !== "Edit" && toolName !== "NotebookEdit") {
+    return undefined;
+  }
+  if (typeof toolInput !== "object" || toolInput === null) return undefined;
+  const input = toolInput as Record<string, unknown>;
+  for (const k of ["file_path", "path", "notebook_path"] as const) {
+    const v = input[k];
+    if (typeof v === "string" && v.length > 0) return v;
+  }
+  return undefined;
+}
+
+/**
+ * PreToolUse hook: deny Write/Edit/NotebookEdit outside the run dir.
+ * `canUseTool` is not reliable under `permissionMode: dontAsk`; hooks receive `permissionDecision` instead.
+ */
+function createRunDirPreToolHook(runDir: string) {
+  return async (input: HookInput) => {
+    if (input.hook_event_name !== "PreToolUse") return {};
+    const candidate = toolInputFilePath(input.tool_name, input.tool_input);
+    if (!candidate) return {};
+    if (filePathIsInsideRunDir(runDir, candidate)) return {};
+    return {
+      hookSpecificOutput: {
+        hookEventName: "PreToolUse" as const,
+        permissionDecision: "deny" as const,
+        permissionDecisionReason: `Outpost agent-eval: ${input.tool_name} must target only the scenario workspace. Use a path under ${runDir} (e.g. outpost-quickstart.sh). Refused: ${resolve(candidate)}`,
+      },
+    };
+  };
+}
+
 function defaultEvalTools(env: NodeJS.ProcessEnv): string {
   if (env.EVAL_TOOLS?.trim()) {
     return env.EVAL_TOOLS.trim();
@@ -319,20 +382,26 @@ function buildBaseOptions(agentWorkspaceCwd: string): Options {
     Options["permissionMode"]
   >;
 
-  const maxTurns = Number(process.env.EVAL_MAX_TURNS ?? "40");
+  const maxTurns = Number(process.env.EVAL_MAX_TURNS ?? "80");
   const persistSession = process.env.EVAL_PERSIST_SESSION !== "false";
 
   const o: Options = {
     cwd: agentWorkspaceCwd,
     allowedTools,
     permissionMode: mode,
-    maxTurns: Number.isFinite(maxTurns) ? maxTurns : 40,
+    maxTurns: Number.isFinite(maxTurns) ? maxTurns : 80,
     persistSession,
     env: {
       ...process.env,
       CLAUDE_AGENT_SDK_CLIENT_APP: "outpost-docs-agent-eval/1.0.0",
     } as Record<string, string | undefined>,
   };
+
+  if (!envFlagTruthy(process.env.EVAL_DISABLE_WORKSPACE_WRITE_GUARD)) {
+    o.hooks = {
+      PreToolUse: [{ hooks: [createRunDirPreToolHook(agentWorkspaceCwd)] }],
+    };
+  }
 
   if (process.env.EVAL_MODEL?.trim()) {
     o.model = process.env.EVAL_MODEL.trim();
@@ -385,9 +454,10 @@ Environment:
   EVAL_LLMS_FULL_URL    Optional (omit docs line if unset)
   EVAL_TOOLS            Optional, comma-separated (default: Read,Glob,Grep[,WebFetch],Write,Edit,Bash — see README)
   EVAL_MODEL            Optional
-  EVAL_MAX_TURNS        Optional (default: 40)
+  EVAL_MAX_TURNS        Optional (default: 80; npm/go mod installs can exceed 40)
   EVAL_PERMISSION_MODE  Optional (default: dontAsk)
   EVAL_PERSIST_SESSION  Set to "false" to disable session persistence (breaks multi-turn resume)
+  EVAL_DISABLE_WORKSPACE_WRITE_GUARD  Set to 1 to allow Write/Edit outside the run dir (not recommended)
 
 Outputs under docs/agent-evaluation/results/runs/ (gitignored): each scenario gets
   results/runs/<stamp>-scenario-NN/transcript.json

@@ -83,6 +83,13 @@ curl --request POST "$OUTPOST_API_BASE_URL/publish" \
 
 A `202` response means the event was accepted for delivery.
 
+## Shell scripts: status codes and portability
+
+If you combine API response bodies with `curl --write-out '\n%{http_code}'`:
+
+- **Publish** success is **HTTP 202** (not only 200/201). Treat **202** as success in conditional checks.
+- **Portability:** GNU `head -n -1` (“all lines but the last”) is **not** available on macOS BSD `head`. Prefer splitting with **`sed '$d'`** (body) and **`tail -n 1`** (status), or another POSIX-friendly approach, so the same script runs on Linux and macOS.
+
 ## Verify delivery
 
 - In **Hookdeck Console**, inspect the connection or destination you used (for example the Source you created) and confirm the webhook request and payload look correct.

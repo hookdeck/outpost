@@ -22,18 +22,13 @@ Paste the **## Template** from [`hookdeck-outpost-agent-prompt.mdx`](../pages/qu
 
 ### Turn 1 — User
 
-> **Option 3 — integrate with an existing app.** Clone **`https://github.com/devinterface/startersaas-go-api`** into this workspace and make it build (`go build` / `go test` ./… as appropriate per the repo).
+> Option 3 — existing Go API. Clone **`https://github.com/devinterface/startersaas-go-api`**, get it building, then add **Hookdeck Outpost** for outbound webhooks.
 >
-> Add **Hookdeck Outpost** for **outbound webhooks** to customers:
->
-> 1. Use the official **Go SDK** (`github.com/hookdeck/outpost/sdks/outpost-go` or current module path from docs).
-> 2. **`OUTPOST_API_KEY`** from environment only.
-> 3. On **one real domain event** in this API (e.g. user registration, subscription, or another existing handler), call **`Publish.Event`** (and **`Tenants` / `Destinations`** as needed) with a **topic** from Turn 0.
-> 4. Document how to register **webhook destinations** per tenant and which env vars to set. Mention the Hookdeck test destination URL from Turn 0 where useful.
+> Use **one real handler** as the publish trigger (signup, billing, etc.). API key from env only. Document how customers register webhook URLs and what to set in env. Use the test destination from the dashboard prompt where it helps.
 
 ### Turn 2 — User (optional)
 
-> Show where **`CreateDestinationCreateWebhook`** fits if we let each customer paste a webhook URL in a settings API.
+> If customers submit a webhook URL in a settings endpoint, where does destination creation live?
 
 ## Success criteria
 

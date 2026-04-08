@@ -21,7 +21,11 @@ Paste the **## Template** block from [`hookdeck-outpost-agent-prompt.mdx`](../pa
 
 ### Turn 1 — User
 
-> Option 1 — try it out. Use **Go** and the official Outpost Go SDK. Environment variables for API key and test webhook URL. Tenant upsert, webhook destination, publish one event, print ids.
+> Option 1. I want to try it in **Go**.
+
+### Turn 2 — User (optional)
+
+> Keep the program small — one `main` or a couple of files is fine.
 
 ## Success criteria
 

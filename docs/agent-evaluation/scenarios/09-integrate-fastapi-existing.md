@@ -22,18 +22,13 @@ Paste the **## Template** from [`hookdeck-outpost-agent-prompt.mdx`](../pages/qu
 
 ### Turn 1 — User
 
-> **Option 3 — integrate with an existing app.** Clone **`https://github.com/philipokiokio/FastAPI_SAAS_Template`** into this workspace, install dependencies per its README (venv + `pip install -r requirements.txt` or `uv` as you prefer).
+> Option 3 — integrate Outpost into a real codebase. Clone **`https://github.com/philipokiokio/FastAPI_SAAS_Template`**, set it up from its README, then add **Hookdeck Outpost** for customer webhooks.
 >
-> Integrate **Hookdeck Outpost** for **outbound webhooks**:
->
-> 1. Use **`outpost_sdk`** only in **server** code (routers, services — never embed the API key in templates or static JS).
-> 2. Hook **`publish.event`** (and tenant/destination setup as needed) to **one real domain event** in this template (e.g. org membership or user lifecycle — pick something that exists in the codebase).
-> 3. Document how operators register **webhook destinations** per tenant/customer and which **topic** you publish on (use topics from Turn 0 when possible).
-> 4. Document **`OUTPOST_API_KEY`** and **`uvicorn`** (or equivalent) run instructions in README.
+> Hook publishing to **one real event** that already exists in the app (orgs, users, whatever fits). Document topics, how tenants register webhook URLs, and env vars. Don’t leak the API key to the client.
 
 ### Turn 2 — User (optional)
 
-> Should **`tenants.upsert`** run at org creation or lazily on first publish?
+> Should we create the Outpost tenant when the org is created, or lazily on first publish?
 
 ## Success criteria
 

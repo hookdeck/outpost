@@ -85,6 +85,8 @@ Two different things get called “permissions”:
 
 2. **Claude Agent SDK `dontAsk` + `allowedTools`** — In `dontAsk` mode, tools **not** listed in `allowedTools` are denied (no prompt). Defaults include **`Write`**, **`Edit`**, and **`Bash`** so app scenarios can scaffold and install dependencies inside the per-run directory. With **`EVAL_LOCAL_DOCS=1`**: **`Read,Glob,Grep,Write,Edit,Bash`**. Otherwise **`Read,Glob,Grep,WebFetch,Write,Edit,Bash`**. Narrow **`EVAL_TOOLS`** only if you need a stricter harness (e.g. transcript-only, no shell).
 
+3. **Run-directory write guard** — a **`PreToolUse`** hook denies **`Write` / `Edit` / `NotebookEdit`** when the target path resolves **outside** the current `results/runs/<stamp>-scenario-NN/` workspace (hooks enforce this under `permissionMode: dontAsk`; `canUseTool` alone does not). Set **`EVAL_DISABLE_WORKSPACE_WRITE_GUARD=1`** only for debugging. **`Bash`** can still redirect output outside the run dir; review transcripts if that matters.
+
 Changing **`EVAL_PERMISSION_MODE`** is usually unnecessary; widening **`EVAL_TOOLS`** (or using local docs) fixes most tool denials.
 
 ### Transcript vs execution (full pass)

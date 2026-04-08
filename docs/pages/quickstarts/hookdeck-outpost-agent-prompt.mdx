@@ -29,26 +29,44 @@ Use this **Hookdeck Console Source** URL to verify event delivery (the webhook `
 
 ### Documentation
 
-- Getting started (curl): {{DOCS_URL}}/quickstarts/hookdeck-outpost-curl
-- TypeScript quickstart: {{DOCS_URL}}/quickstarts/hookdeck-outpost-typescript
-- Python quickstart: {{DOCS_URL}}/quickstarts/hookdeck-outpost-python
-- Go quickstart: {{DOCS_URL}}/quickstarts/hookdeck-outpost-go
+- Getting started (curl / HTTP only, no SDK): {{DOCS_URL}}/quickstarts/hookdeck-outpost-curl
+- TypeScript quickstart (TypeScript SDK): {{DOCS_URL}}/quickstarts/hookdeck-outpost-typescript
+- Python quickstart (Python SDK): {{DOCS_URL}}/quickstarts/hookdeck-outpost-python
+- Go quickstart (Go SDK): {{DOCS_URL}}/quickstarts/hookdeck-outpost-go
 - Full docs bundle (when available on the public site): {{LLMS_FULL_URL}}
-- API reference: {{DOCS_URL}}/api
+- API reference and OpenAPI (REST JSON shapes and status codes): {{DOCS_URL}}/api
 - Destination types: {{DOCS_URL}}/destinations
-- SDK documentation: {{DOCS_URL}}/sdks
+- SDK overview (mostly TypeScript-shaped examples): {{DOCS_URL}}/sdks — use **only** for high-level context; for **TypeScript, Python, or Go** code, follow that language’s **quickstart** for correct method signatures (e.g. Python `publish.event` uses `request={{...}}`, not TypeScript-style spreads as Python kwargs).
+
+### Language → SDK vs HTTP
+
+Operators rarely name packages or SDK details. **You** map what they say to the right doc and dependency:
+
+**“Try it out” — interpret their words**
+
+- **Simplest / fastest / minimal / least setup / “just show me” / no framework** (and they do **not** name TypeScript, Python, or Go) → treat as **curl**: **curl quickstart** + **OpenAPI** for exact JSON. One runnable shell script is ideal. **No SDK.**
+- **TypeScript** or **Node** → **TypeScript quickstart**; use the **official TypeScript SDK** (`@hookdeck/outpost-sdk`) exactly as that quickstart shows. The user does not need to say “SDK.”
+- **Python** → **Python quickstart**; use **`outpost_sdk`** as that quickstart shows (e.g. Python `publish.event` uses `request={{...}}` — **not** TypeScript-style kwargs on the method).
+- **Go** → **Go quickstart**; use the **official Go SDK** as that quickstart shows.
+- They explicitly want **curl**, **HTTP only**, or **REST** without a language SDK → **curl quickstart** + OpenAPI.
+
+Do **not** mix patterns across languages (e.g. do not apply TypeScript `publish.event({ ... })` argument style to Python).
+
+**Option 2 (small app)** — Map framework to the matching official SDK on the **server only**: e.g. **Next.js** → TypeScript SDK + patterns from the TypeScript quickstart and your Next conventions; **FastAPI** → Python SDK; **Go + net/http** → Go SDK. Prefer each language’s **quickstart** for Outpost call shapes.
+
+**Option 3 (existing app)** — Use the **official SDK for the repo’s language** on the server (or REST/OpenAPI if they insist on no SDK). Read that language’s quickstart for shapes; integrate on **real** domain paths, not throwaway demos.
 
 ### What to do
 
-Ask the user which of the following they want:
+Guide the conversation, then act:
 
-1. **Try it out** — Create a minimal script that runs through the full flow: create a tenant, add a webhook destination, publish a test event. Ask which language they prefer (TypeScript, Python, Go, or curl) and follow the matching quickstart doc.
+1. **Try it out** — Minimal path: tenant → webhook destination → publish → print event id (or show success). If they want the **simplest** path, default to **curl** without making them say “curl.” If they name **TypeScript**, **Python**, or **Go**, use **only** that language’s quickstart and implied SDK. Ask only for what the quickstart and runnability still need (env vars, etc.).
 
-2. **Build a minimal example** — Scaffold a small app with a simple UI that demonstrates tenant creation, destination management, and event publishing. Ask which framework they prefer.
+2. **Build a minimal example** — Small UI + server; use the **SDK for that stack** (see **Option 2** above) or REST if they choose HTTP-only.
 
-3. **Integrate with an existing app** — Inspect the codebase for language and framework, then integrate Outpost: add the SDK (or use REST), create tenants when customers onboard, and publish events at the right points in application logic.
+3. **Integrate with an existing app** — Clone or open their codebase; add Outpost per **Option 3** above; document env vars and operator steps.
 
-For all modes, read the relevant quickstart documentation before writing code.
+For all modes, read the **single** language-appropriate quickstart (and OpenAPI when implementing raw HTTP) before writing code.
 
 **Files on disk:** When your environment supports it, **write runnable artifacts into the operator’s project workspace** (real files: scripts, app source, `package.json`, `go.mod`, README) rather than only pasting long code in chat—so they can run, diff, and commit. Keep everything for one task in the same directory. For **minimal example apps** (option 2), scaffold and install dependencies there as you normally would (for example `npm` / `npx`, `go mod`, `pip` or `uv`).
 

@@ -11,7 +11,7 @@ Agent should produce a **minimal shell + curl** flow against the **managed** API
 
 ## Automated eval (Claude Agent SDK)
 
-The harness sets the agent **cwd** to an empty directory under `docs/agent-evaluation/results/runs/<stamp>-scenario-NN/`. Save the shell script there with **Write** (e.g. `outpost-quickstart.sh`), not only as a fenced block in chat, so the run folder is reviewable on disk.
+The harness sets the agent **cwd** to an empty directory under `docs/agent-evaluation/results/runs/<stamp>-scenario-NN/`. **`Write` / `Edit` / `NotebookEdit` paths are enforced** to that directory only (absolute paths elsewhere are denied). Save the script as e.g. **`outpost-quickstart.sh`** in that folder (relative path or a path under the run dir), not under `examples/` or the repo root.
 
 ## Conversation script
 
@@ -21,15 +21,15 @@ Paste the **## Template** block from `[hookdeck-outpost-agent-prompt.mdx](../pag
 
 ### Turn 1 — User
 
-> I only want the basics using **curl** against the managed API. No SDK. Give me a **single shell script** I can save and run (e.g. `bash outpost-quickstart.sh`) that: creates a tenant, adds a webhook destination for my test URL, and publishes one event. Use the topic from the prompt. Use `OUTPOST_API_KEY` from the environment (document that I should `export` it or load `.env`). If you can’t provide a file, paste one script block I can save as `.sh`.
+> I want option 1 — **the simplest thing possible**. I don’t need a framework or SDK; just the smallest path to see tenant → webhook → publish working.
 
-### Turn 2 — User (optional probe)
+### Turn 2 — User (optional)
 
-> Show me how to verify delivery after I run those commands.
+> How do I know the event actually reached my test URL?
 
 ## Success criteria
 
-**Measurement:** Heuristic rubric `scoreScenario01` in [`../src/score-transcript.ts`](../src/score-transcript.ts) (assistant text + tool-written script content). LLM judge: `npm run score -- --run <run-dir> --llm`. Execution row remains manual.
+**Measurement:** Heuristic rubric `scoreScenario01` in `[../src/score-transcript.ts](../src/score-transcript.ts)` (assistant text + tool-written script content). LLM judge: `npm run score -- --run <run-dir> --llm`. Execution row remains manual.
 
 - Uses managed base URL `https://api.outpost.hookdeck.com/2025-07-01` (or explicit `OUTPOST_API_BASE_URL`), **not** `localhost:3333/api/v1`, unless the user asked for self-hosted.
 - Tenant: `PUT .../tenants/{tenant_id}` with `Authorization: Bearer` (or documents equivalent).
@@ -45,4 +45,3 @@ Paste the **## Template** block from `[hookdeck-outpost-agent-prompt.mdx](../pag
 - Wrong path (`PUT /{tenant}` without `/tenants/`).
 - Mixing self-hosted base path with managed host.
 - Skipping topic alignment with dashboard configuration.
-

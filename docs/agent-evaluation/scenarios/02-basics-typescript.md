@@ -21,15 +21,15 @@ Paste the **## Template** block from `[hookdeck-outpost-agent-prompt.mdx](../pag
 
 ### Turn 1 — User
 
-> Option 1 — try it out. Use **TypeScript** only: one script file, use `@hookdeck/outpost-sdk`, read `OUTPOST_API_KEY` and `OUTPOST_TEST_WEBHOOK_URL` from the environment. Create tenant, webhook destination for the topic in the prompt, publish one test event, print the event id.
+> Option 1. Let’s do it in **TypeScript**.
 
 ### Turn 2 — User (optional)
 
-> How do I run it?
+> How do I run it locally?
 
 ## Success criteria
 
-**Measurement:** Heuristic `scoreScenario02` in [`src/score-transcript.ts`](../src/score-transcript.ts); LLM judge maps the bullets below ([`README.md` § Measuring scenarios](../README.md#measuring-scenarios)). Execution row is manual.
+**Measurement:** Heuristic `scoreScenario02` in [`src/score-transcript.ts`](../src/score-transcript.ts); LLM judge maps the bullets below ([README.md § Measuring scenarios](../README.md#measuring-scenarios)). Execution row is manual.
 
 - Depends on `@hookdeck/outpost-sdk`; uses `Outpost` client with `apiKey` from `process.env.OUTPOST_API_KEY`.
 - Calls `tenants.upsert`, `destinations.create` (webhook), `publish.event`.

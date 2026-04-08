@@ -23,18 +23,13 @@ Paste the **## Template** block from [`hookdeck-outpost-agent-prompt.mdx`](../pa
 
 ### Turn 1 — User
 
-> **Option 3 — integrate with an existing app.** Clone **`https://github.com/leerob/next-saas-starter`** into this workspace (subdirectory is fine), install dependencies per its README, and get it in a state where we could run it locally.
+> Option 3 — I’m not starting from scratch. Please clone **`https://github.com/leerob/next-saas-starter`** here, install it, and get it runnable. Then wire in **Hookdeck Outpost** so we can send **outbound webhooks** to our customers.
 >
-> Then integrate **Hookdeck Outpost** for **outbound webhooks** to our customers:
->
-> 1. Use the official **`@hookdeck/outpost-sdk`** on the **server only** (API routes, server actions, or equivalent — never expose `OUTPOST_API_KEY` to the browser).
-> 2. Pick **one meaningful domain event** in this starter (e.g. team or member lifecycle — choose something that actually exists in the code) and **`publish`** an event to Outpost with a **topic** from the Turn 0 prompt (or document the topic constant).
-> 3. Document how an operator registers a **webhook destination** per **tenant/customer** (REST flow or small admin UI is fine). Use the test destination URL from Turn 0 where helpful.
-> 4. Add or update a **README section** listing required env vars (`OUTPOST_API_KEY`, optional base URL, anything else you add).
+> I need this tied to **something real in the app** (not a throwaway demo page), and I need to understand how each customer gets their webhook registered. Put whatever I need to configure in the README (env vars, etc.). Keep secrets on the server only.
 
 ### Turn 2 — User (optional)
 
-> Where should we call **`tenants.upsert`** relative to our own tenant/customer model?
+> When should we create or sync the Outpost **tenant** with our own customer or team model?
 
 ## Success criteria
 

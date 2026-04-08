@@ -26,17 +26,17 @@ Paste the **## Template** block from `[hookdeck-outpost-agent-prompt.mdx](../pag
 
 ### Turn 1 — User
 
-> Option 2 — build a minimal example. I want **Next.js**. Very small UI: field for webhook URL, button to create the webhook destination for tenant `demo_tenant` (or let me edit tenant id in the UI), and a button to send one test event on topic `user.created` (or the first topic from the prompt). Use the Outpost TypeScript SDK on the server only.
+> Option 2 — a **tiny demo app**. Can we use **Next.js**? I want a minimal page: somewhere to put a webhook URL, register it for a customer, and a way to fire one test event.
 
 ### Turn 2 — User (optional)
 
-> Add a short README with env vars and `npm run dev` steps.
+> Can you add a short README — what goes in `.env` and how I start the dev server?
 
 ### Turn 3 — User (stress)
 
-> I do not have a public URL yet — what should I use for the webhook URL field?
+> I don’t have a public webhook URL yet. What should I put in that field?
 
-Expected: agent suggests Hookdeck Console Source URL or similar, aligned with quickstarts.
+*Expected:* agent points to a Hookdeck Console Source URL (or equivalent) consistent with the quickstarts and Turn 0 test destination.
 
 ## Success criteria
 

@@ -200,8 +200,11 @@ function scoreScenario01(corpus: string, assistant: string, meta: RunJson["meta"
   });
 
   const afterPublish = t.split(/\/publish/i).pop() ?? t;
-  const wrongPayload = /"payload"\s*:/.test(afterPublish);
-  const hasData = /"data"\s*:/.test(afterPublish);
+  // Tool corpus JSON-stringifies Write bodies, so bash-escaped keys look like \"data\": not "data":
+  const wrongPayload =
+    /"payload"\s*:/.test(afterPublish) || /\\"payload\\"\s*:/.test(afterPublish);
+  const hasData =
+    /"data"\s*:/.test(afterPublish) || /\\"data\\"\s*:/.test(afterPublish);
   checks.push({
     id: "publish_body_data_not_payload",
     pass: publish && !wrongPayload && hasData,

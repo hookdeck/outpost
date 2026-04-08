@@ -23,11 +23,11 @@ Paste the **## Template** block from `[hookdeck-outpost-agent-prompt.mdx](../pag
 
 ### Turn 1 — User
 
-> Option 2 — minimal example in **Go**. Standard library HTTP server, simple HTML page: register webhook destination for a fixed tenant id, then button to publish one event. Use the official Go SDK for Outpost calls. API key from environment.
+> Option 2 — **Go** with the standard library: small HTTP server, basic HTML, register a webhook and publish one test event.
 
 ### Turn 2 — User (optional)
 
-> Keep everything in `main.go` if reasonable, or split `handlers.go` — your choice, but stay small.
+> One or two files is fine if you can keep it readable.
 
 ## Success criteria
 
