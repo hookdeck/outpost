@@ -73,7 +73,7 @@ function localDocumentationBlock(repoRoot: string, llmsFullUrl: string | undefin
 
 Map what the user says (they rarely name packages):
 
-- **Simplest / minimal / least setup** and no language named → **curl** quickstart + OpenAPI; one shell script; **no SDK**. Publish success is **HTTP 202**; see curl quickstart for script portability (avoid GNU-only \`head -n -1\`).
+- **Simplest / minimal / least setup** and no language named → **curl** quickstart + OpenAPI; one shell script; **no SDK**. Read the **entire** curl quickstart (it covers REST responses and any shell portability notes for scripts).
 - **TypeScript** or **Node** → TypeScript quickstart + \`@hookdeck/outpost-sdk\` as in that doc.
 - **Python** → Python quickstart + \`outpost_sdk\`; \`publish.event(request={{...}})\` as in that doc — not TS-style kwargs.
 - **Go** → Go quickstart + official Go SDK as in that doc.

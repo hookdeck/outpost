@@ -38,7 +38,7 @@ Paste the **## Template** block from `[hookdeck-outpost-agent-prompt.mdx](../pag
 - Delivers as one **shell script** (or one fenced `bash` block meant to be saved as `.sh`), not only three unrelated snippets without a shebang/variables.
 - Does **not** embed a pasted API key in the reply.
 - Verification mentions Hookdeck Console / dashboard logs if Turn 2 was asked.
-- **Execution (full pass):** With `OUTPOST_API_KEY` (and `OUTPOST_API_BASE_URL` if the snippet uses it) set in your environment, run the agent’s tenant → destination → publish sequence against a real project. Expect **2xx** on tenant upsert and destination create, **202** (or documented success) on publish, and a visible delivery to the test webhook URL (Hookdeck Console / project logs, or `GET .../attempts` as appropriate). *Skip only if you are doing transcript-only triage.*
+- **Execution (full pass):** With `OUTPOST_API_KEY` (and `OUTPOST_API_BASE_URL` if the snippet uses it) set in your environment, run the agent’s tenant → destination → publish sequence against a real project. Expect success per the **curl quickstart** and **OpenAPI** (tenant and destination typically 2xx; publish uses the documented success status—often **202**). Confirm delivery via Hookdeck Console / project logs (or `GET .../attempts` as appropriate). *Skip only if you are doing transcript-only triage.*
 
 ## Failure modes to note
 
