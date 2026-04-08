@@ -5,6 +5,7 @@ import useSWR from "swr";
 
 import Badge from "../../common/Badge/Badge";
 import { CopyButton } from "../../common/CopyButton/CopyButton";
+import JSONViewer from "../../common/JSONViewer/JSONViewer";
 import { Loading } from "../../common/Icons";
 import CONFIGS from "../../config";
 import { useDestinationType } from "../../destination-types";
@@ -224,10 +225,10 @@ const Destination = () => {
                     destination.filter &&
                     Object.keys(destination.filter).length > 0 && (
                       <div className="filter-container">
-                        <h2 className="title-l">Event Filter</h2>
-                        <pre className="filter-json mono-s">
-                          {JSON.stringify(destination.filter, null, 2)}
-                        </pre>
+                        <JSONViewer
+                          data={destination.filter}
+                          label="Event Filter"
+                        />
                       </div>
                     )}
                   <DestinationMetrics destination={destination} />

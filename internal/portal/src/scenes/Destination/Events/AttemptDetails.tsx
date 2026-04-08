@@ -6,6 +6,7 @@ import { Attempt, EventFull } from "../../../typings/Event";
 import Badge from "../../../common/Badge/Badge";
 import RetryDeliveryButton from "../../../common/RetryDeliveryButton/RetryDeliveryButton";
 import { CopyButton } from "../../../common/CopyButton/CopyButton";
+import JSONViewer from "../../../common/JSONViewer/JSONViewer";
 
 const AttemptDetails = ({
   navigateAttempt,
@@ -15,7 +16,7 @@ const AttemptDetails = ({
   const { attempt_id: attemptId, destination_id: destinationId } = useParams();
 
   const { data: attempt } = useSWR<Attempt>(
-    `destinations/${destinationId}/attempts/${attemptId}?include=event.data,response_data`,
+    `destinations/${destinationId}/attempts/${attemptId}?include[]=event.data&include[]=response_data`,
   );
 
   if (!attempt) {
@@ -119,28 +120,19 @@ const AttemptDetails = ({
 
           {event?.data && (
             <div className="attempt-data__section">
-              <h3 className="subtitle-m">Data</h3>
-              <pre className="mono-s">
-                {JSON.stringify(event.data, null, 2)}
-              </pre>
+              <JSONViewer data={event.data} label="Data" />
             </div>
           )}
 
           {event?.metadata && Object.keys(event.metadata).length > 0 && (
             <div className="attempt-data__section">
-              <h3 className="subtitle-m">Metadata</h3>
-              <pre className="mono-s">
-                {JSON.stringify(event.metadata, null, 2)}
-              </pre>
+              <JSONViewer data={event.metadata} label="Metadata" />
             </div>
           )}
 
           {attempt.response_data && (
             <div className="attempt-data__section">
-              <h3 className="subtitle-m">Response</h3>
-              <pre className="mono-s">
-                {JSON.stringify(attempt.response_data, null, 2)}
-              </pre>
+              <JSONViewer data={attempt.response_data} label="Response" />
             </div>
           )}
         </div>
