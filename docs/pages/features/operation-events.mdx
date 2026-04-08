@@ -1,0 +1,196 @@
+---
+title: Operation Events
+---
+
+Operation events let you subscribe to lifecycle events from your Outpost deployment — delivery failures, destination disabling, retry exhaustion, and subscription changes. Use them to build alerting, auditing, or automation on top of Outpost.
+
+## Configuration
+
+Enable operation events by specifying which topics to subscribe to and configuring a sink to receive them.
+
+### Topics
+
+Set `OPERATION_EVENTS_TOPICS` to a comma-separated list of topics, or `*` for all topics:
+
+```
+OPERATION_EVENTS_TOPICS=*
+```
+
+Available topics:
+
+| Topic | Trigger |
+| --- | --- |
+| `alert.destination.consecutive_failure` | Consecutive failure count reaches 50%, 70%, 90%, or 100% of `ALERT_CONSECUTIVE_FAILURE_COUNT` |
+| `alert.destination.disabled` | Destination auto-disabled at 100% failure threshold |
+| `alert.attempt.exhausted_retries` | Delivery exhausts all retry attempts (deduplicated per event+destination) |
+| `tenant.subscription.updated` | Destination created, updated, deleted, disabled, or enabled (when topics or destination count changes) |
+
+If `OPERATION_EVENTS_TOPICS` is empty or unset, operation events are disabled. If topics are configured but no sink is set, Outpost will fail to start.
+
+### Sinks
+
+Configure exactly one sink to receive events. Four sink types are supported:
+
+#### HTTP
+
+Sends events as POST requests to a URL, signed with HMAC-SHA256.
+
+```
+OPERATION_EVENTS_HTTP_URL=https://example.com/outpost-events
+OPERATION_EVENTS_HTTP_SIGNING_SECRET=your-secret
+```
+
+The HTTP sink signs each request body and sends the signature in the `X-Outpost-Signature` header:
+
+- **Format:** `v0=<hex>`
+- **Algorithm:** HMAC-SHA256 over the raw JSON body
+
+Verification example:
+
+```python
+import hmac, hashlib
+
+expected = hmac.new(signing_secret.encode(), body, hashlib.sha256).hexdigest()
+assert signature_header == f"v0={expected}"
+```
+
+#### AWS SQS
+
+```
+OPERATION_EVENTS_AWS_SQS_QUEUE_URL=https://sqs.us-east-1.amazonaws.com/123456789/outpost-events
+OPERATION_EVENTS_AWS_SQS_ACCESS_KEY_ID=AKIA...
+OPERATION_EVENTS_AWS_SQS_SECRET_ACCESS_KEY=...
+OPERATION_EVENTS_AWS_SQS_REGION=us-east-1
+OPERATION_EVENTS_AWS_SQS_ENDPOINT=          # optional, for local dev
+```
+
+#### GCP Pub/Sub
+
+```
+OPERATION_EVENTS_GCP_PUBSUB_PROJECT_ID=my-project
+OPERATION_EVENTS_GCP_PUBSUB_TOPIC_ID=outpost-events
+OPERATION_EVENTS_GCP_PUBSUB_CREDENTIALS={"type":"service_account",...}
+```
+
+#### RabbitMQ
+
+```
+OPERATION_EVENTS_RABBITMQ_SERVER_URL=amqp://guest:guest@localhost:5672
+OPERATION_EVENTS_RABBITMQ_EXCHANGE=outpost-events
+```
+
+## Event Envelope
+
+All operation events share a common envelope:
+
+```json
+{
+  "id": "unique-event-id",
+  "topic": "alert.destination.consecutive_failure",
+  "time": "2025-06-01T12:00:00Z",
+  "deployment_id": "my-deployment",
+  "tenant_id": "tenant_123",
+  "data": { ... }
+}
+```
+
+| Field | Description |
+| --- | --- |
+| `id` | Unique event identifier |
+| `topic` | Event topic |
+| `time` | ISO 8601 timestamp |
+| `deployment_id` | Deployment ID (if configured) |
+| `tenant_id` | Tenant associated with the event (if applicable) |
+| `data` | Topic-specific payload (see below) |
+
+## Event Payloads
+
+### `alert.destination.consecutive_failure`
+
+Emitted when a destination's consecutive failure count reaches 50%, 70%, 90%, or 100% of `ALERT_CONSECUTIVE_FAILURE_COUNT`.
+
+```json
+{
+  "tenant_id": "tenant_123",
+  "event": { ... },
+  "attempt": { ... },
+  "destination": {
+    "id": "des_456",
+    "tenant_id": "tenant_123",
+    "type": "webhook",
+    "topics": ["order.created"],
+    "disabled_at": null
+  },
+  "consecutive_failures": {
+    "current": 50,
+    "max": 100,
+    "threshold": 50
+  }
+}
+```
+
+### `alert.destination.disabled`
+
+Emitted when a destination is auto-disabled after reaching 100% of the failure threshold. Only emitted when `ALERT_AUTO_DISABLE_DESTINATION=true`.
+
+```json
+{
+  "tenant_id": "tenant_123",
+  "destination": {
+    "id": "des_456",
+    "tenant_id": "tenant_123",
+    "type": "webhook",
+    "topics": ["order.created"],
+    "disabled_at": "2025-06-01T12:00:00Z"
+  },
+  "disabled_at": "2025-06-01T12:00:00Z",
+  "reason": "consecutive_failure",
+  "event": { ... },
+  "attempt": { ... }
+}
+```
+
+### `alert.attempt.exhausted_retries`
+
+Emitted when a delivery exhausts all retry attempts. Deduplicated per event+destination within a configurable time window (`ALERT_EXHAUSTED_RETRIES_WINDOW_SECONDS`, default: 3600).
+
+```json
+{
+  "tenant_id": "tenant_123",
+  "event": { ... },
+  "attempt": { ... },
+  "destination": {
+    "id": "des_456",
+    "tenant_id": "tenant_123",
+    "type": "webhook",
+    "topics": ["order.created"],
+    "disabled_at": null
+  }
+}
+```
+
+### `tenant.subscription.updated`
+
+Emitted when a destination is created, updated, deleted, disabled, or enabled, and the change affects the tenant's subscribed topics or destination count.
+
+```json
+{
+  "tenant_id": "tenant_123",
+  "topics": ["order.created", "order.updated"],
+  "previous_topics": ["order.created"],
+  "destinations_count": 3,
+  "previous_destinations_count": 2
+}
+```
+
+## Delivery Guarantees
+
+Operation events are delivered with at-least-once semantics. Each emission retries up to 3 times with exponential backoff (100ms, 200ms, 400ms). Consumers should be prepared to handle duplicate events — use the `id` field for deduplication.
+
+## Related Configuration
+
+| Config | Description | Default |
+| --- | --- | --- |
+| `ALERT_CONSECUTIVE_FAILURE_COUNT` | Number of consecutive failures before the 100% threshold | `100` |
+| `ALERT_AUTO_DISABLE_DESTINATION` | Auto-disable destinations at 100% failure threshold | `false` |
+| `ALERT_EXHAUSTED_RETRIES_WINDOW_SECONDS` | Deduplication window for exhausted retry alerts (seconds) | `3600` |
