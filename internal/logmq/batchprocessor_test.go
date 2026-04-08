@@ -7,6 +7,9 @@ import (
 	"testing"
 	"time"
 
+	"errors"
+
+	"github.com/hookdeck/outpost/internal/alert"
 	"github.com/hookdeck/outpost/internal/logmq"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/mqs"
@@ -76,7 +79,7 @@ func TestBatchProcessor_ValidEntry(t *testing.T) {
 	logger := testutil.CreateTestLogger(t)
 	logStore := &mockLogStore{}
 
-	bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, logmq.BatchProcessorConfig{
+	bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, nil, logmq.BatchProcessorConfig{
 		ItemCountThreshold: 1,
 		DelayThreshold:     1 * time.Second,
 	})
@@ -110,7 +113,7 @@ func TestBatchProcessor_InvalidEntry_MissingEvent(t *testing.T) {
 	logger := testutil.CreateTestLogger(t)
 	logStore := &mockLogStore{}
 
-	bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, logmq.BatchProcessorConfig{
+	bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, nil, logmq.BatchProcessorConfig{
 		ItemCountThreshold: 1,
 		DelayThreshold:     1 * time.Second,
 	})
@@ -143,7 +146,7 @@ func TestBatchProcessor_InvalidEntry_MissingAttempt(t *testing.T) {
 	logger := testutil.CreateTestLogger(t)
 	logStore := &mockLogStore{}
 
-	bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, logmq.BatchProcessorConfig{
+	bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, nil, logmq.BatchProcessorConfig{
 		ItemCountThreshold: 1,
 		DelayThreshold:     1 * time.Second,
 	})
@@ -176,7 +179,7 @@ func TestBatchProcessor_InvalidEntry_DoesNotBlockBatch(t *testing.T) {
 	logger := testutil.CreateTestLogger(t)
 	logStore := &mockLogStore{}
 
-	bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, logmq.BatchProcessorConfig{
+	bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, nil, logmq.BatchProcessorConfig{
 		ItemCountThreshold: 3, // Wait for 3 messages before processing
 		DelayThreshold:     1 * time.Second,
 	})
@@ -231,7 +234,7 @@ func TestBatchProcessor_MalformedJSON(t *testing.T) {
 	logger := testutil.CreateTestLogger(t)
 	logStore := &mockLogStore{}
 
-	bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, logmq.BatchProcessorConfig{
+	bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, nil, logmq.BatchProcessorConfig{
 		ItemCountThreshold: 1,
 		DelayThreshold:     1 * time.Second,
 	})
@@ -251,4 +254,125 @@ func TestBatchProcessor_MalformedJSON(t *testing.T) {
 	events, attempts := logStore.getInserted()
 	assert.Empty(t, events)
 	assert.Empty(t, attempts)
+}
+
+// mockAlertMonitor records HandleAttempt calls and returns a configurable error.
+type mockAlertMonitor struct {
+	mu        sync.Mutex
+	calls     []alert.DeliveryAttempt
+	returnErr error
+}
+
+func (m *mockAlertMonitor) HandleAttempt(ctx context.Context, attempt alert.DeliveryAttempt) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.calls = append(m.calls, attempt)
+	return m.returnErr
+}
+
+func (m *mockAlertMonitor) getCalls() []alert.DeliveryAttempt {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return append([]alert.DeliveryAttempt(nil), m.calls...)
+}
+
+func TestBatchProcessor_AlertMonitor_WithDestination(t *testing.T) {
+	ctx := context.Background()
+	logger := testutil.CreateTestLogger(t)
+	logStore := &mockLogStore{}
+	alertMon := &mockAlertMonitor{}
+
+	bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, alertMon, logmq.BatchProcessorConfig{
+		ItemCountThreshold: 1,
+		DelayThreshold:     1 * time.Second,
+	})
+	require.NoError(t, err)
+	defer bp.Shutdown()
+
+	event := testutil.EventFactory.Any()
+	attempt := testutil.AttemptFactory.Any()
+	dest := testutil.DestinationFactory.Any()
+	entry := models.LogEntry{
+		Event:       &event,
+		Attempt:     &attempt,
+		Destination: &dest,
+	}
+
+	mock, msg := newMockMessage(entry)
+	require.NoError(t, bp.Add(ctx, msg))
+
+	time.Sleep(200 * time.Millisecond)
+
+	assert.True(t, mock.acked, "should be acked when alert monitor succeeds")
+	assert.False(t, mock.nacked)
+
+	calls := alertMon.getCalls()
+	require.Len(t, calls, 1, "alert monitor should have been called once")
+	assert.Equal(t, dest.ID, calls[0].Destination.ID)
+}
+
+func TestBatchProcessor_AlertMonitor_NilDestination(t *testing.T) {
+	ctx := context.Background()
+	logger := testutil.CreateTestLogger(t)
+	logStore := &mockLogStore{}
+	alertMon := &mockAlertMonitor{}
+
+	bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, alertMon, logmq.BatchProcessorConfig{
+		ItemCountThreshold: 1,
+		DelayThreshold:     1 * time.Second,
+	})
+	require.NoError(t, err)
+	defer bp.Shutdown()
+
+	event := testutil.EventFactory.Any()
+	attempt := testutil.AttemptFactory.Any()
+	entry := models.LogEntry{
+		Event:       &event,
+		Attempt:     &attempt,
+		Destination: nil, // migration case
+	}
+
+	mock, msg := newMockMessage(entry)
+	require.NoError(t, bp.Add(ctx, msg))
+
+	time.Sleep(200 * time.Millisecond)
+
+	assert.True(t, mock.acked, "should be acked even without destination (migration grace)")
+	assert.False(t, mock.nacked)
+	assert.Empty(t, alertMon.getCalls(), "alert monitor should not be called without destination")
+}
+
+func TestBatchProcessor_AlertMonitor_Error(t *testing.T) {
+	ctx := context.Background()
+	logger := testutil.CreateTestLogger(t)
+	logStore := &mockLogStore{}
+	alertMon := &mockAlertMonitor{returnErr: errors.New("alert failed")}
+
+	bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, alertMon, logmq.BatchProcessorConfig{
+		ItemCountThreshold: 1,
+		DelayThreshold:     1 * time.Second,
+	})
+	require.NoError(t, err)
+	defer bp.Shutdown()
+
+	event := testutil.EventFactory.Any()
+	attempt := testutil.AttemptFactory.Any()
+	dest := testutil.DestinationFactory.Any()
+	entry := models.LogEntry{
+		Event:       &event,
+		Attempt:     &attempt,
+		Destination: &dest,
+	}
+
+	mock, msg := newMockMessage(entry)
+	require.NoError(t, bp.Add(ctx, msg))
+
+	time.Sleep(200 * time.Millisecond)
+
+	assert.False(t, mock.acked, "should not be acked when alert monitor fails")
+	assert.True(t, mock.nacked, "should be nacked when alert monitor fails")
+
+	// Entry was still persisted to logstore
+	events, _ := logStore.getInserted()
+	assert.Len(t, events, 1, "log entry should still be persisted despite alert failure")
 }

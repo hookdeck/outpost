@@ -18,6 +18,7 @@ import (
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/logmq"
 	"github.com/hookdeck/outpost/internal/logstore"
+	"github.com/hookdeck/outpost/internal/opevents"
 	"github.com/hookdeck/outpost/internal/publishmq"
 	"github.com/hookdeck/outpost/internal/redis"
 	"github.com/hookdeck/outpost/internal/scheduler"
@@ -190,6 +191,14 @@ func (b *ServiceBuilder) BuildAPIWorkers(baseRouter *gin.Engine) error {
 	)
 	eventHandler := publishmq.NewEventHandler(b.logger, svc.deliveryMQ, svc.tenantStore, svc.eventTracer, b.cfg.Topics, publishIdempotence)
 
+	// Create operation events emitter for subscription updates
+	oeCfg := b.cfg.OperationEvents.ToConfig()
+	oeSink, err := opevents.NewSink(oeCfg)
+	if err != nil {
+		return fmt.Errorf("failed to create operation events sink: %w", err)
+	}
+	subscriptionEmitter := opevents.NewEmitter(oeSink, b.cfg.DeploymentID, oeCfg.Topics)
+
 	apiHandler := apirouter.NewRouter(
 		apirouter.RouterConfig{
 			ServiceName:  b.cfg.OpenTelemetry.GetServiceName(),
@@ -202,12 +211,13 @@ func (b *ServiceBuilder) BuildAPIWorkers(baseRouter *gin.Engine) error {
 			GinMode:      b.cfg.GinMode,
 		},
 		apirouter.RouterDeps{
-			TenantStore:       svc.tenantStore,
-			LogStore:          svc.logStore,
-			Logger:            b.logger,
-			DeliveryPublisher: svc.deliveryMQ,
-			EventHandler:      eventHandler,
-			Telemetry:         b.telemetry,
+			TenantStore:         svc.tenantStore,
+			LogStore:            svc.logStore,
+			Logger:              b.logger,
+			DeliveryPublisher:   svc.deliveryMQ,
+			EventHandler:        eventHandler,
+			Telemetry:           b.telemetry,
+			SubscriptionEmitter: subscriptionEmitter,
 		},
 	)
 
@@ -274,24 +284,6 @@ func (b *ServiceBuilder) BuildDeliveryWorker(baseRouter *gin.Engine) error {
 		return err
 	}
 
-	// Initialize alert monitor
-	var alertNotifier alert.AlertNotifier
-	var destinationDisabler alert.DestinationDisabler
-	if b.cfg.Alert.CallbackURL != "" {
-		alertNotifier = alert.NewHTTPAlertNotifier(b.cfg.Alert.CallbackURL, alert.NotifierWithBearerToken(b.cfg.APIKey))
-	}
-	if b.cfg.Alert.AutoDisableDestination {
-		destinationDisabler = newDestinationDisabler(svc.tenantStore)
-	}
-	alertMonitor := alert.NewAlertMonitor(
-		b.logger,
-		svc.redisClient,
-		alert.WithNotifier(alertNotifier),
-		alert.WithDisabler(destinationDisabler),
-		alert.WithAutoDisableFailureCount(b.cfg.Alert.ConsecutiveFailureCount),
-		alert.WithDeploymentID(b.cfg.DeploymentID),
-	)
-
 	// Initialize delivery idempotence
 	deliveryIdempotence := idempotence.New(svc.redisClient,
 		idempotence.WithTimeout(5*time.Second),
@@ -311,7 +303,6 @@ func (b *ServiceBuilder) BuildDeliveryWorker(baseRouter *gin.Engine) error {
 		svc.retryScheduler,
 		retryBackoff,
 		retryMaxLimit,
-		alertMonitor,
 		deliveryIdempotence,
 	)
 
@@ -342,9 +333,43 @@ func (b *ServiceBuilder) BuildLogWorker(baseRouter *gin.Engine) error {
 	b.services = append(b.services, svc)
 
 	// Initialize common infrastructure
+	if err := svc.initRedis(b.ctx, b.cfg, b.logger); err != nil {
+		return err
+	}
+	if err := svc.initTenantStore(b.ctx, b.cfg, b.logger); err != nil {
+		return err
+	}
 	if err := svc.initLogStore(b.ctx, b.cfg, b.logger); err != nil {
 		return err
 	}
+
+	// Initialize alert monitor for operation events
+	oeCfg := b.cfg.OperationEvents.ToConfig()
+	sink, err := opevents.NewSink(oeCfg)
+	if err != nil {
+		return fmt.Errorf("failed to create operation events sink: %w", err)
+	}
+	emitter := opevents.NewEmitter(sink, b.cfg.DeploymentID, oeCfg.Topics)
+
+	var disabler alert.DestinationDisabler
+	if b.cfg.Alert.AutoDisableDestination {
+		disabler = newDestinationDisabler(svc.tenantStore)
+	}
+	exhaustedRetriesIdemp := idempotence.New(svc.redisClient,
+		idempotence.WithSuccessfulTTL(time.Duration(b.cfg.Alert.ExhaustedRetriesWindowSeconds)*time.Second),
+		idempotence.WithDeploymentID(b.cfg.DeploymentID),
+	)
+	_, retryMaxLimit := b.cfg.GetRetryBackoff()
+	alertMonitor := alert.NewAlertMonitor(
+		b.logger,
+		svc.redisClient,
+		emitter,
+		retryMaxLimit,
+		alert.WithDisabler(disabler),
+		alert.WithExhaustedRetriesIdempotence(exhaustedRetriesIdemp),
+		alert.WithAutoDisableFailureCount(b.cfg.Alert.ConsecutiveFailureCount),
+		alert.WithDeploymentID(b.cfg.DeploymentID),
+	)
 
 	// Create batcher for batching log writes
 	// Convert seconds to duration, treating 0 as "flush immediately" (1ms minimum)
@@ -361,7 +386,7 @@ func (b *ServiceBuilder) BuildLogWorker(baseRouter *gin.Engine) error {
 	}
 
 	b.logger.Debug("creating log batcher")
-	batchProcessor, err := logmq.NewBatchProcessor(b.ctx, b.logger, svc.logStore, logmq.BatchProcessorConfig{
+	batchProcessor, err := logmq.NewBatchProcessor(b.ctx, b.logger, svc.logStore, alertMonitor, logmq.BatchProcessorConfig{
 		ItemCountThreshold: batcherCfg.ItemCountThreshold,
 		DelayThreshold:     batcherCfg.DelayThreshold,
 	})
@@ -402,15 +427,13 @@ func (b *ServiceBuilder) BuildLogWorker(baseRouter *gin.Engine) error {
 	return nil
 }
 
-// destinationDisabler implements alert.DestinationDisabler
+// destinationDisabler implements alert.DestinationDisabler by setting DisabledAt on the destination.
 type destinationDisabler struct {
 	tenantStore tenantstore.TenantStore
 }
 
 func newDestinationDisabler(tenantStore tenantstore.TenantStore) alert.DestinationDisabler {
-	return &destinationDisabler{
-		tenantStore: tenantStore,
-	}
+	return &destinationDisabler{tenantStore: tenantStore}
 }
 
 func (d *destinationDisabler) DisableDestination(ctx context.Context, tenantID, destinationID string) error {

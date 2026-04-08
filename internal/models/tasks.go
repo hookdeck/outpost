@@ -97,8 +97,9 @@ func NewManualDeliveryTask(event Event, destinationID string, attemptNumber int)
 // to exist for proper data consistency. The logmq consumer validates this
 // requirement and rejects entries missing either field.
 type LogEntry struct {
-	Event   *Event   `json:"event"`
-	Attempt *Attempt `json:"attempt"`
+	Event       *Event       `json:"event"`
+	Attempt     *Attempt     `json:"attempt"`
+	Destination *Destination `json:"destination,omitempty"` // carried for alert evaluation in logmq; ignored by logstore
 }
 
 var _ mqs.IncomingMessage = &LogEntry{}
