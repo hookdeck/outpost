@@ -75,7 +75,7 @@ func (c *regressionHTTPClient) doJSONWithAuth(t *testing.T, method, url string, 
 }
 
 // TestE2E_Regression_AutoDisableWithoutCallbackURL tests issue #596:
-// ALERT_AUTO_DISABLE_DESTINATION=true without ALERT_CALLBACK_URL set.
+// ALERT_AUTO_DISABLE_DESTINATION=true works without any callback configured.
 func TestE2E_Regression_AutoDisableWithoutCallbackURL(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
@@ -90,7 +90,6 @@ func TestE2E_Regression_AutoDisableWithoutCallbackURL(t *testing.T) {
 	cfg := configs.Basic(t, configs.BasicOpts{
 		LogStorage: configs.LogStorageTypePostgres,
 	})
-	cfg.Alert.CallbackURL = ""
 	cfg.Alert.AutoDisableDestination = true
 	cfg.Alert.ConsecutiveFailureCount = 20
 
