@@ -10,9 +10,26 @@ Same as [scenario 8](08-integrate-nextjs-existing.md), but stack is **Python + F
 
 - Python 3.10+; `git` available.
 
+## Eval harness
+
+```eval-harness
+{
+  "preSteps": [
+    {
+      "type": "git_clone",
+      "url": "https://github.com/philipokiokio/FastAPI_SAAS_Template.git",
+      "into": "FastAPI_SAAS_Template",
+      "depth": 1,
+      "urlEnv": "EVAL_FASTAPI_SAAS_BASELINE_URL"
+    }
+  ],
+  "agentCwd": "FastAPI_SAAS_Template"
+}
+```
+
 ## Automated eval (Claude Agent SDK)
 
-**`cwd`** is `results/runs/<stamp>-scenario-09/`. Expect **`git clone`**, **`pip` / `uv`**, then **Write** / **Edit** for Outpost integration.
+The agent starts **inside** the cloned baseline above. Expect **`pip` / `uv`** setup from the template README, then **Write** / **Edit** for Outpost integration.
 
 ## Conversation script
 
@@ -22,7 +39,7 @@ Paste the **## Template** from [`hookdeck-outpost-agent-prompt.mdx`](../pages/qu
 
 ### Turn 1 — User
 
-> Option 3 — integrate Outpost into a real codebase. Clone **`https://github.com/philipokiokio/FastAPI_SAAS_Template`**, set it up from its README, then add **Hookdeck Outpost** for customer webhooks.
+> Option 3 — integrate Outpost into a real codebase. **We’re already in the FastAPI SaaS template in this workspace** — the repository is present here. Set it up from its README, then add **Hookdeck Outpost** for customer webhooks.
 >
 > Hook publishing to **one real event** that already exists in the app (orgs, users, whatever fits). Document topics, how tenants register webhook URLs, and env vars. Don’t leak the API key to the client.
 
@@ -34,7 +51,7 @@ Paste the **## Template** from [`hookdeck-outpost-agent-prompt.mdx`](../pages/qu
 
 **Measurement:** Heuristic `scoreScenario09` in [`src/score-transcript.ts`](../src/score-transcript.ts); LLM judge; execution manual.
 
-- Cloned **FastAPI_SAAS_Template** (or documented alternative) with install steps.
+- **FastAPI_SAAS_Template** (or documented alternative) present via harness **`preSteps`** with install steps in the transcript or tree.
 - **`outpost_sdk`** with **`publish.event`** (and related calls as needed) on a **real** code path.
 - API key from **environment** or secure settings — not hard-coded or exposed to clients.
 - **Topic** and **destination** story documented.
