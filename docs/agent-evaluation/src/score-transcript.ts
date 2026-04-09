@@ -799,13 +799,16 @@ function scoreScenario09(corpus: string, assistant: string): TranscriptScore {
 
   const baseline =
     /philipokiokio\/fastapi_saas_template|fastapi_saas_template|FastAPI_SAAS/i.test(t) ||
+    /fastapi\/full-stack-fastapi-template|full-stack-fastapi-template|full_stack_fastapi_template/i.test(
+      t,
+    ) ||
     (/git\s+clone\b/.test(lower) && /github\.com/.test(t));
   checks.push({
     id: "baseline_or_clone",
     pass: baseline,
     detail: baseline
-      ? "References FastAPI_SAAS_Template baseline or git clone"
-      : "Expected clone/setup of philipokiokio/FastAPI_SAAS_Template (or documented alternative)",
+      ? "References FastAPI baseline (full-stack template or legacy SaaS template) or git clone"
+      : "Expected clone/setup of fastapi/full-stack-fastapi-template (or documented alternative)",
   });
 
   const sdk = /from\s+outpost_sdk\s+import|import\s+outpost_sdk/.test(t);

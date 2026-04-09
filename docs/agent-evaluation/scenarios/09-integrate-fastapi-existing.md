@@ -2,13 +2,17 @@
 
 ## Intent
 
-Same as [scenario 8](08-integrate-nextjs-existing.md), but stack is **Python + FastAPI** with a **multi-tenant / org** style baseline.
+Same as [scenario 8](08-integrate-nextjs-existing.md), but stack is **Python + FastAPI** with a **multi-tenant / team** style baseline that also ships a **real web UI** (so operators can exercise dashboards, not only OpenAPI).
 
-**Baseline application (pin this in evals):** [**philipokiokio/FastAPI_SAAS_Template**](https://github.com/philipokiokio/FastAPI_SAAS_Template) — FastAPI, organizations, permissions, Alembic, MIT-style OSS template commonly used as a starting point. Substitute only if you document another baseline in the scenario and update heuristics.
+**Baseline application (pin this in evals):** [**fastapi/full-stack-fastapi-template**](https://github.com/fastapi/full-stack-fastapi-template) — maintained full-stack app: **FastAPI** backend (SQLModel, **Pydantic v2**), **React + TypeScript + Vite** frontend, PostgreSQL, Docker Compose, JWT auth, MIT license. Substitute only if you document another baseline in the scenario and update heuristics.
+
+**Supersedes:** The previous pin [**philipokiokio/FastAPI_SAAS_Template**](https://github.com/philipokiokio/FastAPI_SAAS_Template) (stale dependencies, API-only, no product UI).
 
 ## Preconditions
 
-- Python 3.10+; `git` available.
+- Python 3.10+; **Node.js 18+** (for the frontend); `git` available.
+- **Docker** (recommended) — template dev flow uses Docker Compose for API, DB, and frontend; see repository `development.md`.
+- Same Turn 0 placeholders as other scenarios (`OUTPOST_API_KEY` **not** in the prompt text; test destination URL from dashboard).
 
 ## Eval harness
 
@@ -17,19 +21,21 @@ Same as [scenario 8](08-integrate-nextjs-existing.md), but stack is **Python + F
   "preSteps": [
     {
       "type": "git_clone",
-      "url": "https://github.com/philipokiokio/FastAPI_SAAS_Template.git",
-      "into": "FastAPI_SAAS_Template",
+      "url": "https://github.com/fastapi/full-stack-fastapi-template.git",
+      "into": "full-stack-fastapi-template",
       "depth": 1,
-      "urlEnv": "EVAL_FASTAPI_SAAS_BASELINE_URL"
+      "urlEnv": "EVAL_FASTAPI_BASELINE_URL"
     }
   ],
-  "agentCwd": "FastAPI_SAAS_Template"
+  "agentCwd": "full-stack-fastapi-template"
 }
 ```
 
+Optional: set **`EVAL_FASTAPI_BASELINE_URL`** to override the clone URL (fork or pinned commit).
+
 ## Automated eval (Claude Agent SDK)
 
-The agent starts **inside** the cloned baseline above. Expect **`pip` / `uv`** setup from the template README, then **Write** / **Edit** for Outpost integration.
+The agent starts **inside** the cloned baseline above. Expect **`docker compose`** and/or **`uv` / `pip`** per **`development.md`** and **`backend/README.md`**, then **Write** / **Edit** for Outpost integration (backend-first; UI hooks optional but encouraged when they clarify the customer webhook story).
 
 ## Conversation script
 
@@ -39,26 +45,31 @@ Paste the **## Template** from [`hookdeck-outpost-agent-prompt.mdx`](../pages/qu
 
 ### Turn 1 — User
 
-> Option 3 — integrate Outpost into a real codebase. **We’re already in the FastAPI SaaS template in this workspace** — the repository is present here. Set it up from its README, then add **Hookdeck Outpost** for customer webhooks.
+> Option 3 — integrate Outpost into a real codebase. **We’re already in the full-stack FastAPI template in this workspace** — the repository is present here. Follow the project’s dev docs to get backend (and frontend if useful) running, then add **Hookdeck Outpost** for customer webhooks.
 >
-> Hook publishing to **one real event** that already exists in the app (orgs, users, whatever fits). Document topics, how tenants register webhook URLs, and env vars. Don’t leak the API key to the client.
+> Hook publishing to **one real event** that already exists in the app (users, items, teams, whatever fits). Document topics, how tenants register webhook URLs, and env vars. Don’t leak the API key to the client.
 
 ### Turn 2 — User (optional)
 
-> Should we create the Outpost tenant when the org is created, or lazily on first publish?
+> When should we create or sync the Outpost **tenant** with our own customer or team model?
 
 ## Success criteria
 
 **Measurement:** Heuristic `scoreScenario09` in [`src/score-transcript.ts`](../src/score-transcript.ts); LLM judge; execution manual.
 
-- **FastAPI_SAAS_Template** (or documented alternative) present via harness **`preSteps`** with install steps in the transcript or tree.
-- **`outpost_sdk`** with **`publish.event`** (and related calls as needed) on a **real** code path.
+- **full-stack-fastapi-template** (or documented alternative) present via harness **`preSteps`** with install steps in the transcript or tree.
+- **`outpost_sdk`** with **`publish.event`** (and related calls as needed) on a **real** code path in the **backend** (server-side only for secrets).
 - API key from **environment** or secure settings — not hard-coded or exposed to clients.
-- **Topic** and **destination** story documented.
-- README updated for env + run.
-- **Execution (full pass):** App starts; trigger path fires publish; Outpost accepts. *Skip for transcript-only.*
+- **Topic** and **destination** story documented (README or inline); if the app has a UI, linking or exposing **safe** controls for webhook URLs is a plus.
+- README (or equivalent) lists **env vars** for Outpost.
+- **Execution (full pass):** Stack runs per template docs; trigger path fires publish; Outpost accepts. *Skip for transcript-only.*
 
 ## Failure modes to note
 
-- Greenfield FastAPI “hello world” instead of the **cloned** template.
+- Greenfield FastAPI “hello world” instead of the **cloned** baseline.
 - Using raw `httpx` to Outpost when the scenario asks for **`outpost_sdk`**.
+- Putting `OUTPOST_API_KEY` in `NEXT_PUBLIC_*` / client bundles.
+
+## Future baselines
+
+Other “existing FastAPI app” pins can follow the same shape: harness pre-clone + Option 3 Turn 1 + success criteria + `scoreScenario09`.

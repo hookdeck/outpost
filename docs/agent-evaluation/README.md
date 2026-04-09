@@ -156,7 +156,7 @@ There is still **no single portable “IDE agent” CLI** for all vendors; the S
 | 06 | `scoreScenario06` | FastAPI, `outpost_sdk`, uvicorn, server env, two flows, README, webhook docs |
 | 07 | `scoreScenario07` | `net/http`, Go SDK + `CreateDestinationCreateWebhook`, HTML UI, two flows, `go run`, README |
 | 08 | `scoreScenario08` | Clone **next-saas-starter** (or git baseline), TS SDK, publish/destinations/tenants, server env key, per-customer webhook story |
-| 09 | `scoreScenario09` | Clone **FastAPI_SAAS_Template** (or git baseline), `outpost_sdk`, integration + domain hook, env key |
+| 09 | `scoreScenario09` | Clone **full-stack-fastapi-template** (or git baseline), `outpost_sdk`, integration + domain hook, env key |
 | 10 | `scoreScenario10` | Clone **startersaas-go-api** (or git baseline), Go Outpost SDK, publish + handler hook, env key |
 
 Export **`SCENARIO_IDS_WITH_HEURISTIC_RUBRIC`** in `score-transcript.ts` lists IDs **01–10** for tooling.
@@ -175,7 +175,7 @@ To record each **`npm run eval -- --scenario …`** run, automated scores, and *
 | 6 | [scenarios/06-app-fastapi.md](scenarios/06-app-fastapi.md) | Small **FastAPI** app with the same UX as scenario 5. |
 | 7 | [scenarios/07-app-go-http.md](scenarios/07-app-go-http.md) | Small **Go** `net/http` app + simple HTML UI (same UX as scenario 5). |
 | 8 | [scenarios/08-integrate-nextjs-existing.md](scenarios/08-integrate-nextjs-existing.md) | **Existing Next.js SaaS** baseline — add outbound webhooks via Outpost ([leerob/next-saas-starter](https://github.com/leerob/next-saas-starter)). |
-| 9 | [scenarios/09-integrate-fastapi-existing.md](scenarios/09-integrate-fastapi-existing.md) | **Existing FastAPI SaaS** baseline — Outpost integration ([philipokiokio/FastAPI_SAAS_Template](https://github.com/philipokiokio/FastAPI_SAAS_Template)). |
+| 9 | [scenarios/09-integrate-fastapi-existing.md](scenarios/09-integrate-fastapi-existing.md) | **Existing FastAPI full-stack** baseline — Outpost integration ([fastapi/full-stack-fastapi-template](https://github.com/fastapi/full-stack-fastapi-template)). |
 | 10 | [scenarios/10-integrate-go-existing.md](scenarios/10-integrate-go-existing.md) | **Existing Go SaaS API** baseline — Outpost integration ([devinterface/startersaas-go-api](https://github.com/devinterface/startersaas-go-api)). |
 
 Scenarios **1–4** align with **“Try it out”**; **5–7** with **“Build a minimal example”**; **8–10** with **“Integrate with an existing app”** using pinned OSS baselines (Java / .NET can be added later the same way).
