@@ -36,7 +36,7 @@ Use this **Hookdeck Console Source** URL to verify event delivery (the webhook `
 - Full docs bundle (when available on the public site): {{LLMS_FULL_URL}}
 - API reference and OpenAPI (REST JSON shapes and status codes): {{DOCS_URL}}/api
 - **Concepts — how tenants, destinations (subscriptions), topics, and publish fit a SaaS/platform:** {{DOCS_URL}}/concepts
-- **Building your own UI — screen structure and flow** (list destinations, create destination: type → topics → config; tenant scope): {{DOCS_URL}}/guides/building-your-own-ui
+- **Building your own UI — screen structure and flow** (list destinations, create destination: type → topics → config; **events list**, delivery **attempts**, **manual retry**; tenant scope): {{DOCS_URL}}/guides/building-your-own-ui
 - Destination types: {{DOCS_URL}}/destinations
 - Topics and destination subscriptions (fan-out, `*`): {{DOCS_URL}}/features/topics
 - SDK overview (mostly TypeScript-shaped examples): {{DOCS_URL}}/sdks — use **only** for high-level context; for **TypeScript, Python, or Go** code, follow that language’s **quickstart** for correct method signatures (e.g. Python `publish.event` uses `request={{...}}`, not TypeScript-style spreads as Python kwargs).
@@ -63,6 +63,8 @@ Do **not** mix patterns across languages (e.g. do not apply TypeScript `publish.
 
 - **Backend:** Keep **`OUTPOST_API_KEY`** and all Outpost SDK usage **server-side only**. Implement **tenant** upsert/sync where it fits your model, **publish** on real domain events, and **authenticated HTTP routes** (BFF / API routes / server actions—whatever matches the stack) that list, create, update, or delete destinations for the **currently signed-in customer’s** tenant. Those handlers call Outpost with the platform credentials; responses return only what the customer should see (e.g. destination ids, URLs, topics—never the platform API key).
 - **Frontend:** Wire **logged-in** pages to **your** backend endpoints (session cookie, JWT, or your existing API client)—**not** to Hookdeck’s API directly and **not** with the Outpost SDK in the browser. Reuse your design system and routing. **Before** building screens, read **Concepts** and **Building your own UI** in the Documentation list: flows should reflect **tenant scope**, **multiple destinations per tenant**, and **destination = topic subscription + delivery target** (avoid a single undifferentiated “webhook” field that hides topics unless the operator asks for that simplification).
+- **Events and retries in the product UI:** Surface an **events** view (filterable by **destination** when useful) so customers can see what was published, plus **delivery attempts** per event (success/failure, response hints). For **failed** attempts, offer **manual retry** (server-side `POST /retry` with `event_id` and `destination_id`) after they fix their endpoint—see **Building your own UI** for how this links to destinations and to automatic retries in Outpost.
+- **Send test events (strongly recommended for full-stack / Option 3):** When you ship customer-facing destination management, also add a **separate** control or screen that **publishes a test event** for the signed-in tenant (server-side `publish` to a selectable topic, same pattern as the test destination URL above). Treat this as **best practice** for SaaS products that offer webhooks: it proves end-to-end delivery without waiting on production traffic and matches what operators expect (similar to “send test webhook” in major platforms). Implement it **by default** for this integration path; the product team can remove or gate it later, but skipping it makes verification much harder.
 - **API-only or headless products:** If there is **no** customer UI, document how tenants manage destinations through **your** documented API (OpenAPI, etc.); still keep the platform key on the server.
 
 ### What to do
@@ -73,9 +75,23 @@ Guide the conversation, then act:
 
 2. **Build a minimal example** — Small UI + server; use the **SDK for that stack** (see **Option 2** above) or REST if they choose HTTP-only. Follow **Concepts** + **Building your own UI** for the real product model. For a **tiny** demo (e.g. one page), still keep the model visible: **tenant** in scope, **create destination** as **topics + delivery target** (not one undifferentiated “webhook” field that hides topics), and a **separate** control or flow to **publish a test event** so the operator can verify delivery—avoid collapsing tenant setup, destination creation, and publish into a single form unless the user insists. An events or attempts view is optional for the smallest demo but matches the portal pattern when you have room.
 
-3. **Integrate with an existing app** — Open their codebase; implement **Option 3**. For repos that ship a **product UI**, integrate **both** server and client: backend Outpost calls plus customer-facing screens (or clear extension points) wired through **your** authenticated API, following **Building your own UI** for structure. Document env vars, tenant mapping, topics, and how to verify delivery (e.g. `{{TEST_DESTINATION_URL}}` or the Hookdeck dashboard).
+3. **Integrate with an existing app** — Open their codebase; implement **Option 3**. For repos that ship a **product UI**, integrate **both** server and client: backend Outpost calls plus customer-facing screens (or clear extension points) wired through **your** authenticated API, following **Building your own UI** for structure—**including test publish**, an **events** list (and attempts / **retry** where appropriate), unless the operator explicitly asks to omit parts. Document env vars, tenant mapping, topics, and how to verify delivery (e.g. `{{TEST_DESTINATION_URL}}` or the Hookdeck dashboard).
 
 For all modes, read the **single** language-appropriate quickstart (and OpenAPI when implementing raw HTTP) before writing code. For **Option 3** with a UI, also read **Building your own UI** before implementing destination-management screens.
+
+### Before you stop (verify)
+
+Apply **only** the items below that fit the task; **skip** any that do not apply (e.g. skip the existing-repo items for a standalone script or curl-only flow).
+
+**Always (when you produced or changed runnable code):**
+
+- [ ] **Ran** the smallest end-to-end check that fits this task (e.g. run the script or shell flow once, exercise one new API path, or smoke the UI/API flow you added) and saw a clear success signal (e.g. event id, HTTP 2xx, or expected output).
+- [ ] **Secrets:** The platform Outpost API key remains **server-side** / **environment** only — not in client bundles, not hard-coded in committed source.
+- [ ] **Repeatable:** Env vars, how to run, and how to verify with the test destination above are stated briefly (README, comments, or chat — match the task size; a one-file script may need only inline or chat notes).
+
+**When editing an existing application repository (Option 3 or equivalent):**
+
+- [ ] **Build integrity:** Generated outputs, route or module registries, and dependency lockfiles are **consistent** with new or edited source so a **clean** install + typecheck or build (or the repo’s documented CI step) would pass.
 
 **Files on disk:** When your environment supports it, **write runnable artifacts into the operator’s project workspace** (real files: scripts, app source, `package.json`, `go.mod`, README) rather than only pasting long code in chat—so they can run, diff, and commit. Keep everything for one task in the same directory. For **minimal example apps** (option 2), scaffold and install dependencies there as you normally would (for example `npm` / `npx`, `go mod`, `pip` or `uv`). For **Option 3** full-stack products, change both **backend and frontend** (or equivalent UI layer) when the repo already includes a customer-facing app—do not stop at OpenAPI-only unless the product is genuinely API-only or the operator asks to skip UI work.
 

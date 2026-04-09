@@ -25,7 +25,7 @@ Outpost’s tenant portal is a good reference for how screens map to the **tenan
 | ---- | ------- |
 | **Destinations list** | Show all destinations for the current tenant (each row is one subscription: type, human-readable **target** such as webhook URL, subscribed topics). Entry point to edit, disable, or remove. |
 | **Create destination** | Multi-step flow aligned with the API: (1) **choose destination type**, (2) **select topics** (from the topics configured on your Outpost project—often checkboxes or multi-select), (3) **configure** type-specific fields (e.g. webhook URL, credentials). Optional: instructions or remote setup links from the destination type schema. |
-| **Events and delivery attempts** | List recent events for the tenant and inspect **delivery attempts** per event or destination so users can see outcomes, failures, and retries—similar to the portal’s event and log experience. |
+| **Events and delivery attempts** | List recent events for the tenant, optionally scoped to one **destination**, and inspect **delivery attempts** (success/failure, response metadata). Support **manual retry** from the UI when an attempt failed—see [Events, attempts, and retries](#events-attempts-and-retries) below. |
 
 For how tenants, destinations, and topics fit together in a multi-tenant product, see [Outpost Concepts](/docs/concepts)—especially **How this fits your product**.
 
@@ -59,6 +59,14 @@ curl --request GET "$OUTPOST_API_BASE_URL/tenants/$TENANT_ID/token" \
 ## Fetching Destination Type Schema
 
 The destination type schema can be fetched using the [Destination Types Schema API](/docs/api/schemas). It can be used to render destination information such as the destination type icon and label. Additionally, the schema includes the destination type configuration fields, which can be used to render the destination configuration UI.
+
+Each entry returned by `GET /destination-types` includes:
+
+- **`type`** — string identifier for the destination kind (for example `webhook`). Use this as the stable key when mapping rows to [list destinations](/docs/api/destinations#list-destinations) results (`destination.type` refers to the same value). It is **not** named `id` in the API.
+- **`label`**, **`description`**, **`icon`** — display metadata; **`icon`** is typically an SVG string (some examples and older code may call this field `svg`—the JSON field is **`icon`**).
+- **`config_fields`** and **`credential_fields`** — arrays of field definitions for the configuration step (snake_case in JSON responses).
+
+Always align your UI types with the [OpenAPI schema](/docs/api) or a live response—do not assume generic names like `id` for the destination type identifier.
 
 ## Listing Configured Destinations
 
@@ -104,21 +112,25 @@ if (!destination_types || !destinations) {
   return <div>Loading...</div>;
 }
 
-const destination_type_map = destination_types.reduce((acc, type) => {
-  acc[type.id] = type;
+// Key by `type` (API identifier), not `id` — see "Fetching Destination Type Schema" above.
+const destination_type_map = destination_types.reduce((acc, dt) => {
+  if (dt.type) acc[dt.type] = dt;
   return acc;
 }, {});
 
 return (
   <ul>
-    {destinations.map((destination) => (
+    {destinations.map((destination) => {
+      const meta = destination_type_map[destination.type];
+      if (!meta) return null;
+      return (
       <li key={destination.id}>
         <span
           dangerouslySetInnerHTML={{
-            __html: destination_type_map[destination.type].svg,
+            __html: meta.icon ?? "",
           }}
         />
-        <h2>{destination_type_map[destination.type].label}</h2>
+        <h2>{meta.label}</h2>
         {destination.target_url ? (
           <a
             href={destination.target_url}
@@ -131,7 +143,8 @@ return (
           <p>{destination.target}</p>
         )}
       </li>
-    ))}
+      );
+    })}
   </ul>
 );
 ```
@@ -179,22 +192,22 @@ return (
   <div>
     <h1>Choose a destination type</h1>
     <form onSubmit={handleSubmit}>
-      {destinations?.map((destination) => (
-        <label key={destination.type}>
+      {destination_types.map((dt) => (
+        <label key={dt.type}>
           <input
             type="radio"
             name="type"
-            value={destination.type}
+            value={dt.type}
             required
             defaultChecked={
-              defaultValue ? defaultValue.type === destination.type : undefined
+              defaultValue ? defaultValue.type === dt.type : undefined
             }
           />
           <p>
-            <span dangerouslySetInnerHTML={{ __html: destination.icon }} />
-            {destination.label}
+            <span dangerouslySetInnerHTML={{ __html: dt.icon ?? "" }} />
+            {dt.label}
           </p>
-          <p>{destination.description}</p>
+          <p>{dt.description}</p>
         </label>
       ))}
     </form>
@@ -240,6 +253,7 @@ return (
           {topic}
         </label>
       ))}
+    </form>
   </div>
 );
 ```
@@ -248,7 +262,7 @@ You can find the source code of the `TopicPicker.tsx` component of the User Port
 
 ### Configuring the Destination
 
-Using the destination type schema for the selected destination type, you can render a form to create and manage destinations configuration. The configuration fields are found in the `configuration_fields` and `credentials_fields` arrays of the destination type schema.
+Using the destination type schema for the selected destination type, you can render a form to create and manage destinations configuration. The configuration fields are found in the **`config_fields`** and **`credential_fields`** arrays of the destination type schema (snake_case in JSON responses).
 
 To render your form, you should render all fields from both arrays. Note that some of the `credentials_fields` will be obfuscated once the destination is created, and in order to edit the input, the value must be cleared first.
 
@@ -293,18 +307,22 @@ const DestinationConfigForm = ({
   }
 
   const type_schema = destination_types.find(
-    (type) => type.id === destination_type
+    (t) => t.type === destination_type
   );
+
+  if (!type_schema) {
+    return <div>Unknown destination type</div>;
+  }
 
   return (
     <>
-      {destination_type_schema.remote_setup_url ? (
+      {type_schema.remote_setup_url ? (
         <a
-          href={destination_type_schema.remote_setup_url}
+          href={type_schema.remote_setup_url}
           target="_blank"
           rel="noopener noreferrer"
         >
-          Setup in {destination_type_schema.label}
+          Setup in {type_schema.label}
         </a>
       ) : (
         <button onClick={showInstructionsModal}>
@@ -314,7 +332,10 @@ const DestinationConfigForm = ({
         </button>
       )}
       <form onSubmit={handleSubmit}>
-        {[...type_schema.config_fields, ...type_schema.credential_fields].map(
+        {[
+          ...(type_schema.config_fields ?? []),
+          ...(type_schema.credential_fields ?? []),
+        ].map(
           (field) => (
             <div key={field.key}>
               <label htmlFor={field.key}>
@@ -352,8 +373,7 @@ const DestinationConfigForm = ({
               )}
               {field.description && <p>{field.description}</p>}
             </div>
-          )
-        )}
+        ))}
       </form>
     </>
   );
@@ -362,45 +382,32 @@ const DestinationConfigForm = ({
 
 You can find the source code of the `DestinationConfigForm.tsx` component of the User Portal here: [DestinationConfigForm.tsx](https://github.com/hookdeck/outpost/blob/main/internal/portal/src/common/DestinationConfigFields/DestinationConfigFields.tsx#L14)
 
-## Listing Events
+## Events, attempts, and retries
 
-Events are listed using the [List Events API](/docs/api/events#list-events). You can use the `topic` parameter to filter the events by topic or the `destination_id` parameter to filter the events by destination.
+This section ties together **how customers see what was delivered** and **how they recover from failures**—without duplicating full UI code (see the [portal](https://github.com/hookdeck/outpost/tree/main/internal/portal) and [OpenAPI](/docs/api) for request/response shapes).
 
-```tsx
-const [events, setEvents] = useState([]);
+### How the pieces fit
 
-const fetchEvents = async () => {
-  const response = await fetch(`${API_URL}/tenants/events`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
-};
+1. **Destinations list** — Each row is a subscription (type, target URL or label, topics). From here, users typically open **“Activity”**, **“Events”**, or **“Logs”** for that destination, or you filter a shared events view by `destination_id`.
+2. **Events** — An event is something your **backend published** (topic + payload). The [List Events API](/docs/api/events#list-events) returns a **paginated** list. Important query dimensions:
+   - **`destination_id`** — only events that were routed to that destination (ideal for a per-destination screen).
+   - **`topic`**, **time ranges**, **pagination** (`limit`, `next` / `prev` cursors) — for broader “recent activity” views.
+   With a **tenant JWT**, results are limited to that tenant; with an **admin API key**, supply **`tenant_id`** (your BFF usually injects it from the signed-in customer).
+3. **Attempts** — Each row is one **delivery try** to a destination (status, HTTP code, timing, optional response payload). Link attempts to events via **`event_id`** and **`destination_id`**.
+   - Tenant-wide: [List attempts](/docs/api/attempts#list-attempts) with `event_id` (and optionally `destination_id`).
+   - Destination-scoped: `GET /tenants/{tenant_id}/destinations/{destination_id}/attempts` — see [OpenAPI / tenant destination attempts](/docs/api) (same filters, including `event_id` when drilling down).
+4. **Automatic vs manual retry** — Outpost [retries failed deliveries automatically](/docs/features/event-delivery) (backoff, limits). **Manual retry** lets a user trigger another delivery after fixing their endpoint—use [Retry event delivery](/docs/api/attempts#retry-attempt) (`POST /retry` with **`event_id`** and **`destination_id`**). The destination must be enabled and subscribed to the event’s topic; disabled destinations cannot be retried.
 
-useEffect(() => {
-  fetchEvents();
-}, []);
+### What to expose in your dashboard UI
 
-if (!events) {
-  return <div>Loading...</div>;
-}
+| User need | API direction |
+| --------- | ------------- |
+| “What fired for my webhook?” | List **events** filtered by **`destination_id`**, then list **attempts** for the chosen **`event_id`** (and destination). |
+| “Why did it fail?” | Show attempt **status**, **code**, and **response** fields (when included); link to your own docs on fixing URLs, auth, or timeouts. |
+| “Send it again” | **Retry** button on failed attempts (or on the event row if you only show one destination) → `POST /retry`. Show **202** / success vs **400** (e.g. destination disabled) from the API. |
 
-return (
-  <div>
-    <h1>Events</h1>
-    <ul>
-      {events.map((event) => (
-        <li key={event.id}>
-          <h2>{event.id}</h2>
-          <p>{event.created_at}</p>
-          <p>{event.payload}</p>
-        </li>
-      ))}
-    </ul>
-  </div>
-);
-```
+### Implementation notes
 
-For each event, you can retrieve all its associated delivery attempts using the [List Event Attempts API](/docs/api/events#list-event-attempts).
-
-You can find the source code of the `Events.tsx` component of the User Portal here: [Events.tsx](https://github.com/hookdeck/outpost/blob/main/internal/portal/src/scenes/Destination/Events/Events.tsx)
+- **Pagination:** Event and attempt list endpoints are cursor-paged; your UI should pass through **`next`** / **`prev`** (or “Load more”) so busy tenants are usable.
+- **Auth:** If the browser never sees the admin key, proxy these endpoints from your backend and attach the platform **Outpost API key** server-side, scoping **`tenant_id`** to the logged-in customer—same pattern as destination CRUD.
+- **Reference UI:** The portal’s destination flow includes event listing for a destination—see [Events.tsx](https://github.com/hookdeck/outpost/blob/main/internal/portal/src/scenes/Destination/Events/Events.tsx) as a reference layout (not a copy-paste requirement).
