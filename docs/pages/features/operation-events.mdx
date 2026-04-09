@@ -185,7 +185,7 @@ Emitted when a destination is created, updated, deleted, disabled, or enabled, a
 
 ## Delivery Guarantees
 
-Operation events are delivered on a best-effort basis with up to 3 retries and exponential backoff (100ms, 200ms, 400ms). Consumers should use the `id` field for deduplication.
+Operation events are delivered on a best-effort basis with up to 3 attempts. Consumers should use the `id` field for deduplication.
 
 ## Related Configuration
 
