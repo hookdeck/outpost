@@ -235,9 +235,9 @@ return (
     <h1>Select topics</h1>
     <form onSubmit={handleSubmit}>
       {topics.map((topic) => (
-        <label key={topic.id}>
-          <input type="checkbox" name="topics" value={topic.id} />
-          {topic.name}
+        <label key={topic}>
+          <input type="checkbox" name="topics" value={topic} />
+          {topic}
         </label>
       ))}
   </div>
