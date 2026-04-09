@@ -19,6 +19,7 @@ import {
   type SDKMessage,
   type SDKSystemMessage,
 } from "@anthropic-ai/claude-agent-sdk";
+import { applyEvalHarness, parseEvalHarness } from "./eval-harness.js";
 import { llmJudgeRun, scenarioMdPathFromRun } from "./llm-judge.js";
 import { scoreRunFile } from "./score-transcript.js";
 
@@ -266,6 +267,8 @@ async function runOneScenario(
   opts: {
     skipOptional: boolean;
     baseOptions: Options;
+    /** When set, avoids a second read of the scenario file (same content as harness parse). */
+    scenarioMarkdown?: string;
   },
 ): Promise<{
   scenarioId: string;
@@ -275,7 +278,7 @@ async function runOneScenario(
   allMessages: unknown[];
 }> {
   const path = join(SCENARIOS_DIR, scenarioFile);
-  const md = await readFile(path, "utf8");
+  const md = opts.scenarioMarkdown ?? (await readFile(path, "utf8"));
   const parsed = parseScenarioTurns(md);
 
   const userTurns = parsed
@@ -345,17 +348,17 @@ function toolInputFilePath(toolName: string, toolInput: unknown): string | undef
  * PreToolUse hook: deny Write/Edit/NotebookEdit outside the run dir.
  * `canUseTool` is not reliable under `permissionMode: dontAsk`; hooks receive `permissionDecision` instead.
  */
-function createRunDirPreToolHook(runDir: string) {
+function createRunDirPreToolHook(allowedRootDir: string) {
   return async (input: HookInput) => {
     if (input.hook_event_name !== "PreToolUse") return {};
     const candidate = toolInputFilePath(input.tool_name, input.tool_input);
     if (!candidate) return {};
-    if (filePathIsInsideRunDir(runDir, candidate)) return {};
+    if (filePathIsInsideRunDir(allowedRootDir, candidate)) return {};
     return {
       hookSpecificOutput: {
         hookEventName: "PreToolUse" as const,
         permissionDecision: "deny" as const,
-        permissionDecisionReason: `Outpost agent-eval: ${input.tool_name} must target only the scenario workspace. Use a path under ${runDir} (e.g. outpost-quickstart.sh). Refused: ${resolve(candidate)}`,
+        permissionDecisionReason: `Outpost agent-eval: ${input.tool_name} must target only the scenario workspace. Use a path under ${allowedRootDir} (e.g. outpost-quickstart.sh). Refused: ${resolve(candidate)}`,
       },
     };
   };
@@ -374,7 +377,11 @@ function defaultEvalTools(env: NodeJS.ProcessEnv): string {
     : "Read,Glob,Grep,WebFetch,Write,Edit,Bash";
 }
 
-function buildBaseOptions(agentWorkspaceCwd: string): Options {
+/**
+ * @param agentWorkspaceCwd — process cwd for the agent (per-run directory, or a subfolder when the scenario defines `agentCwd` in ## Eval harness).
+ * @param writeGuardRoot — PreToolUse hook allows Write/Edit only under this path (usually the per-run directory so the clone stays inside it).
+ */
+function buildBaseOptions(agentWorkspaceCwd: string, writeGuardRoot: string): Options {
   const toolsRaw = defaultEvalTools(process.env);
   const allowedTools = toolsRaw
     .split(",")
@@ -402,7 +409,7 @@ function buildBaseOptions(agentWorkspaceCwd: string): Options {
 
   if (!envFlagTruthy(process.env.EVAL_DISABLE_WORKSPACE_WRITE_GUARD)) {
     o.hooks = {
-      PreToolUse: [{ hooks: [createRunDirPreToolHook(agentWorkspaceCwd)] }],
+      PreToolUse: [{ hooks: [createRunDirPreToolHook(writeGuardRoot)] }],
     };
   }
 
@@ -461,13 +468,14 @@ Environment:
   EVAL_PERMISSION_MODE  Optional (default: dontAsk)
   EVAL_PERSIST_SESSION  Set to "false" to disable session persistence (breaks multi-turn resume)
   EVAL_DISABLE_WORKSPACE_WRITE_GUARD  Set to 1 to allow Write/Edit outside the run dir (not recommended)
+  EVAL_SKIP_HARNESS_PRE_STEPS       Set to 1 to skip ## Eval harness preSteps (git_clone, etc.); see scenario markdown
 
 Outputs under docs/agent-evaluation/results/runs/ (gitignored): each scenario gets
   results/runs/<stamp>-scenario-NN/transcript.json
   heuristic-score.json and llm-score.json unless disabled (see above).
 Also set EVAL_NO_SCORE_HEURISTIC=1 or EVAL_NO_SCORE_LLM=1 in .env to skip scoring without flags.
 
-Each run uses results/runs/<stamp>-scenario-NN/ as agent cwd so Write creates files there.
+Agent cwd is usually the run directory. Scenarios may define ## Eval harness (JSON) to clone a baseline into a subfolder first.
 `);
     process.exit(0);
   }
@@ -536,11 +544,16 @@ Each run uses results/runs/<stamp>-scenario-NN/ as agent cwd so Write creates fi
     const runDir = join(RUNS_DIR, `${stamp}-scenario-${scenarioIdEarly}`);
     await mkdir(runDir, { recursive: true });
 
-    const baseOptions = buildBaseOptions(runDir);
-    console.error(`\n>>> Scenario ${file} (workspace ${runDir}) ...`);
+    const scenarioPath = join(SCENARIOS_DIR, file);
+    const scenarioMd = await readFile(scenarioPath, "utf8");
+    const harnessConfig = parseEvalHarness(scenarioMd);
+    const { agentCwd, writeGuardRoot } = await applyEvalHarness(runDir, harnessConfig);
+    const baseOptions = buildBaseOptions(agentCwd, writeGuardRoot);
+    console.error(`\n>>> Scenario ${file} (run dir ${runDir}, agent cwd ${agentCwd}) ...`);
     const result = await runOneScenario(file, filledTemplate, {
       skipOptional: values["skip-optional"] ?? false,
       baseOptions,
+      scenarioMarkdown: scenarioMd,
     });
 
     const outPath = join(runDir, "transcript.json");
@@ -549,7 +562,11 @@ Each run uses results/runs/<stamp>-scenario-NN/ as agent cwd so Write creates fi
         scenarioId: result.scenarioId,
         scenarioFile: result.scenarioFile,
         runDirectory: runDir,
-        agentWorkspaceCwd: runDir,
+        agentWorkspaceCwd: agentCwd,
+        evalHarness: {
+          preStepCount: harnessConfig.preSteps.length,
+          agentCwd: harnessConfig.agentCwd,
+        },
         repositoryRoot: REPO_ROOT,
         completedAt: new Date().toISOString(),
         sessionId: result.sessionId,

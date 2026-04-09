@@ -71,6 +71,7 @@ cd docs/agent-evaluation && npm ci && npm run eval:ci
 - **`EVAL_TEST_DESTINATION_URL`** — required for Turn 0; same Source URL as `{{TEST_DESTINATION_URL}}`.
 - **`OUTPOST_API_KEY`** — **not** read by the automated runner, but **required if you want a full evaluation**: without it you can only judge the transcript (plausible curl/SDK text). To verify that **generated commands or code actually work**, put the same Outpost API key you use against the managed API in **`docs/agent-evaluation/.env`** (or export it) and run the agent’s output against a real project. The onboarding prompt tells operators to keep that key in **`.env`** and never paste it into chat.
 - **`EVAL_LOCAL_DOCS=1`** — before public docs are live, set this so Turn 0 replaces public doc URLs with **absolute paths to MDX/OpenAPI files in this repo** (so the agent should use **Read** on local files instead of WebFetch to production).
+- **`EVAL_SKIP_HARNESS_PRE_STEPS=1`** — skip **`git_clone`** (and any future **`preSteps`**) declared in a scenario’s **`## Eval harness`** JSON block; useful offline or when the baseline folder is already present.
 
 - **Turn 0** text is built from [`hookdeck-outpost-agent-prompt.mdx`](../pages/quickstarts/hookdeck-outpost-agent-prompt.mdx) (`## Template`) with placeholders filled from environment variables.
 - Transcripts are written to `results/runs/<stamp>-scenario-NN/transcript.json` (gitignored).
