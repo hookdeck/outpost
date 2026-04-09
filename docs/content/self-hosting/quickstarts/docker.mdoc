@@ -1,0 +1,123 @@
+---
+title: "Deploy with Docker"
+description: "Run Outpost locally using Docker Compose with RabbitMQ or AWS SQS via LocalStack."
+---
+
+{% managed_only %}
+This quickstart is for self-hosted Outpost deployments. For managed Outpost, infrastructure is handled by Hookdeck — no deployment is needed.
+
+[Learn more about managed Outpost →](/outpost/pricing)
+{% /managed_only %}
+
+{% oss_only %}
+Run Outpost locally using Docker Compose. This setup includes:
+
+- Outpost services (API, Delivery, and Log)
+- Redis for KV and entity storage
+- PostgreSQL for log storage
+- RabbitMQ **or** AWS SQS via LocalStack for message queuing
+
+## Prerequisites
+
+- [Docker](https://docs.docker.com/engine/install/)
+
+## Setup
+
+1. Clone the Outpost repository:
+
+   ```sh
+   git clone https://github.com/hookdeck/outpost.git
+   ```
+
+2. Navigate to the Docker Compose examples directory:
+
+   ```sh
+   cd outpost/examples/docker-compose/
+   ```
+
+3. Create a `.env` file from the example:
+
+   ```sh
+   cp .env.example .env
+   ```
+
+4. Set a value for `API_KEY` in the `.env` file.
+
+5. Start Outpost with your preferred message queue:
+
+   **With RabbitMQ:**
+
+   ```sh
+   docker-compose -f compose.yml -f compose-rabbitmq.yml -f compose-postgres.yml up
+   ```
+
+   **With SQS via LocalStack:**
+
+   ```sh
+   docker-compose -f compose.yml -f compose-awssqs.yml -f compose-postgres.yml up
+   ```
+
+## Verify Installation
+
+Set shell variables for convenience:
+
+```sh
+OUTPOST_URL=http://localhost:3333
+TENANT_ID=your_org_name
+API_KEY=your_api_key
+URL=https://your-webhook-url.example.com/events
+```
+
+1. Wait for the health check to return `OK`:
+
+   ```sh
+   curl $OUTPOST_URL/api/v1/healthz
+   ```
+
+2. Create a tenant:
+
+   ```sh
+   curl --request PUT "$OUTPOST_URL/api/v1/tenants/$TENANT_ID" \
+   --header "Authorization: Bearer $API_KEY"
+   ```
+
+3. Use a local tunnel or [Hookdeck Console](https://console.hookdeck.com) to capture webhook events, then create a destination:
+
+   ```sh
+   curl "$OUTPOST_URL/api/v1/tenants/$TENANT_ID/destinations" \
+   --header "Content-Type: application/json" \
+   --header "Authorization: Bearer $API_KEY" \
+   --data '{
+     "type": "webhook",
+     "topics": ["*"],
+     "config": { "url": "'"$URL"'" }
+   }'
+   ```
+
+4. Publish an event:
+
+   ```sh
+   curl "$OUTPOST_URL/api/v1/publish" \
+   --header "Content-Type: application/json" \
+   --header "Authorization: Bearer $API_KEY" \
+   --data '{
+     "tenant_id": "'"$TENANT_ID"'",
+     "topic": "user.created",
+     "eligible_for_retry": true,
+     "data": { "user_id": "usr_001" }
+   }'
+   ```
+
+5. Check your webhook endpoint for the delivered event.
+
+6. Get a portal link for the tenant:
+
+   ```sh
+   curl "$OUTPOST_URL/api/v1/tenants/$TENANT_ID/portal" \
+   --header "Authorization: Bearer $API_KEY"
+   ```
+
+   Open the `redirect_url` from the response to view the tenant portal.
+
+Continue using the [API Reference](/outpost/docs/api) or the portal to add and test more destinations.
+{% /oss_only %}

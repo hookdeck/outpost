@@ -1,0 +1,91 @@
+---
+title: "Topics"
+description: "Categorize events with topics and control which destinations receive which events."
+---
+
+Topics (also known as event types) allow you to categorize events and route them to matching destinations. Each destination subscribes to one or more topics, and only receives events published under those topics.
+
+Topics determine:
+- Which topics destinations can subscribe to
+- Valid values for the `topic` field in the [Publish Event](/outpost/docs/api) API
+- Topics displayed in the tenant portal
+
+> Topics are optional and if none are set then the `topic` field should be undefined when publishing events and creating destinations.
+
+## Configuring Available Topics
+
+{% tabs %}
+{% tab title="Managed" %}
+
+Available topics are configured through the Hookdeck dashboard [project settings](https://dashboard.hookdeck.com/settings/project/general) or Config API. Topics determine which values are valid for the `topic` field when publishing events and which topics appear in the tenant portal.
+
+{% /tab %}
+{% tab title="Self-Hosted" %}
+Set the list of available topics using the `TOPICS` environment variable:
+
+```
+TOPICS=user.created,user.updated,user.deleted,order.placed,order.shipped
+```
+
+If `TOPICS` is not set, Outpost defaults to `*`, allowing any topic value.
+{% /tab %}
+{% /tabs %}
+
+## Destination Topic Subscriptions
+
+Each destination subscribes to one or more topics. A destination receives an event only if:
+1. The destination is enabled
+2. The event's topic matches one of the destination's subscribed topics
+3. The event matches the destination's filter (if any)
+
+Subscribe to all topics with the wildcard `"*"`:
+
+```sh
+curl 'https://<OUTPOST_API_URL>/api/v1/tenants/<TENANT_ID>/destinations' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer <API_KEY>' \
+--data '{
+  "type": "webhook",
+  "topics": ["*"],
+  "config": { "url": "https://example.com/webhooks" }
+}'
+```
+
+Subscribe to specific topics:
+
+```sh
+curl 'https://<OUTPOST_API_URL>/api/v1/tenants/<TENANT_ID>/destinations' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer <API_KEY>' \
+--data '{
+  "type": "webhook",
+  "topics": ["order.placed", "order.shipped"],
+  "config": { "url": "https://example.com/order-webhooks" }
+}'
+```
+
+## Event Fanout
+
+A single published event is independently delivered to every destination that matches its topic. Each delivery attempt is tracked separately.
+
+## Tenant topics subscriptions
+
+The tenant object's `topics` array lists all topics currently in use. 
+This is usefull to keeps track of the complete set of topics a tenant is subscribed to across all their destinations. This can be useful to avoid unecessary event publishing.
+
+```sh
+curl 'https://<OUTPOST_API_URL>/api/v1/tenants/<TENANT_ID>' \
+--header 'Authorization: Bearer <API_KEY>'
+```
+
+```json
+{
+  "id": "org_acme",
+  "topics": ["user.created", "order.placed"]
+  [...]
+}
+```
+
+You can also subscribe to the `tenant.subscriptions.updated` [Operator Events](/operator-events) topic to receive event when the tenant subscribed topics changes.
+
+

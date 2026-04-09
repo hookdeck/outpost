@@ -1,0 +1,149 @@
+---
+title: "Bring Your Own Message Queues"
+---
+
+By default, Outpost automatically provisions and manages the message queue infrastructure it requires. However, power users may prefer to manage this infrastructure externally using tools like Terraform, Pulumi, or CloudFormation for compliance, security, or integration with existing systems.
+
+This guide explains how to disable auto-provisioning and manually configure the required message queue infrastructure.
+
+## Disabling Auto-Provisioning
+
+Set the `MQS_AUTO_PROVISION` environment variable to `false`:
+
+```bash
+MQS_AUTO_PROVISION=false
+```
+
+Or in your YAML configuration:
+
+```yaml
+mqs:
+  auto_provision: false
+```
+
+When disabled, Outpost will verify that the required infrastructure exists at startup. If the infrastructure is missing, Outpost will fail to start with an error message indicating that the required message queues do not exist.
+
+## Required Queue Systems
+
+Outpost requires **two separate internal message queue systems**:
+
+1. **Delivery MQ**: Handles event delivery operations
+2. **Log MQ**: Handles logging operations
+
+Each system must be provisioned independently with its own queues, topics, or subscriptions depending on your message queue provider.
+
+:::note
+Outpost also supports an optional **Publish MQ** for ingesting events from external message queues. This is separate from the internal queues discussed here and is not managed by the `MQS_AUTO_PROVISION` setting. See the [publish from message queue guides](/guides) for more information.
+:::
+
+## Message Queue Characteristics
+
+When configuring your message queue infrastructure, consider these characteristics:
+
+### Max Retry/Attempt Count
+
+Configure your queues to retry message delivery a few times for reliability (recommended: ~5 attempts). This handles transient failures like network issues or temporary service unavailability.
+
+Light exponential backoff between retries is preferred but not required.
+
+### Visibility Timeout
+
+The visibility timeout determines how long a message is hidden from other consumers after being read. If processing takes longer than this timeout, the message may be redelivered, causing duplicate processing.
+
+For Delivery MQ, a timeout of around **30 seconds** is recommended. For Log MQ, 30 seconds is also sufficient by default, though you may need to increase it if you configure longer log batching intervals.
+
+### Dead Letter Queue (DLQ)
+
+Configuring a DLQ is a best practice for capturing messages that fail all retry attempts. However, **Outpost does not consume from the DLQ**. It is the operator's responsibility to:
+
+- Monitor the DLQ for failed messages
+- Investigate and address the root cause of failures
+- Decide how to handle failed messages (retry, discard, alert, etc.)
+
+## Provider Reference
+
+The following table shows the resources, default names, and configuration variables for each supported message queue provider.
+
+### RabbitMQ
+
+| Resource | Delivery MQ Default | Log MQ Default | Environment Variable |
+|----------|--------------------|-----------------|-----------------------|
+| Exchange | `outpost` | `outpost` | `RABBITMQ_EXCHANGE` |
+| Queue | `outpost-delivery` | `outpost-log` | `RABBITMQ_DELIVERY_QUEUE` / `RABBITMQ_LOG_QUEUE` |
+| DLQ | `outpost-delivery.dlq` | `outpost-log.dlq` | (auto-derived from queue name) |
+
+**Configuration requirements:**
+- Exchange type: `topic`
+- Queue type: `quorum` (not classic)
+- DLQ routing: Configure `x-dead-letter-exchange` and `x-dead-letter-routing-key` on main queue
+- Bindings: Bind queues to exchange with routing keys matching queue names
+
+### AWS SQS
+
+| Resource | Delivery MQ Default | Log MQ Default | Environment Variable |
+|----------|--------------------|-----------------|-----------------------|
+| Queue | `outpost-delivery` | `outpost-log` | `AWS_SQS_DELIVERY_QUEUE` / `AWS_SQS_LOG_QUEUE` |
+| DLQ | `outpost-delivery-dlq` | `outpost-log-dlq` | (auto-derived from queue name) |
+
+**Configuration requirements:**
+- Configure `RedrivePolicy` on main queue pointing to DLQ
+- Set appropriate `VisibilityTimeout` (SQS default: 30 seconds)
+- Set `maxReceiveCount` in RedrivePolicy for retry limit
+
+### GCP Pub/Sub
+
+| Resource | Delivery MQ Default | Log MQ Default | Environment Variable |
+|----------|--------------------|-----------------|-----------------------|
+| Topic | `outpost-delivery` | `outpost-log` | `GCP_PUBSUB_DELIVERY_TOPIC` / `GCP_PUBSUB_LOG_TOPIC` |
+| Subscription | `outpost-delivery-sub` | `outpost-log-sub` | `GCP_PUBSUB_DELIVERY_SUBSCRIPTION` / `GCP_PUBSUB_LOG_SUBSCRIPTION` |
+| DLQ Topic | `outpost-delivery-dlq` | `outpost-log-dlq` | (auto-derived from topic name) |
+| DLQ Subscription | `outpost-delivery-dlq-sub` | `outpost-log-dlq-sub` | (auto-derived from topic name) |
+
+**Configuration requirements:**
+- Create both topic and subscription pairs
+- Configure `DeadLetterPolicy` on main subscription
+- Set `ackDeadlineSeconds` for visibility timeout (default: 10 seconds)
+- Set `maxDeliveryAttempts` in DeadLetterPolicy
+
+### Azure Service Bus
+
+| Resource | Delivery MQ Default | Log MQ Default | Environment Variable |
+|----------|--------------------|-----------------|-----------------------|
+| Topic | `outpost-delivery` | `outpost-log` | `AZURE_SERVICEBUS_DELIVERY_TOPIC` / `AZURE_SERVICEBUS_LOG_TOPIC` |
+| Subscription | `outpost-delivery-sub` | `outpost-log-sub` | `AZURE_SERVICEBUS_DELIVERY_SUBSCRIPTION` / `AZURE_SERVICEBUS_LOG_SUBSCRIPTION` |
+
+**Configuration requirements:**
+- Create topic and subscription pairs
+- Set `maxDeliveryCount` on subscription for retry limit
+- Configure `lockDuration` for visibility timeout
+- DLQ is built-in: failed messages automatically route to `{subscription}/$DeadLetterQueue`
+
+## Verification
+
+When Outpost starts with `MQS_AUTO_PROVISION=false`, it performs an existence check for the configured infrastructure. If any required component is missing, Outpost will fail to start with an error similar to:
+
+```
+required message queues do not exist. Either create them manually or set MQS_AUTO_PROVISION=true to enable auto-provisioning
+```
+
+Ensure all infrastructure is provisioned before starting Outpost.
+
+## Troubleshooting
+
+### Infrastructure not found error
+
+If you receive an error about missing infrastructure:
+
+1. Verify all required resources exist (main queues/topics and DLQs)
+2. Check that environment variables match your actual resource names
+3. Ensure credentials have read access to verify infrastructure existence
+4. Confirm both Delivery MQ and Log MQ systems are configured
+
+### Messages not being processed
+
+If messages are not being processed after manual provisioning:
+
+1. Verify queue bindings and subscriptions are correctly configured
+2. Check that DLQ routing is properly set up
+3. Ensure visibility timeout is appropriate for your processing time
+4. Monitor your DLQ for messages that have exhausted retry attempts

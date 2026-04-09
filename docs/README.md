@@ -1,32 +1,42 @@
 # Outpost Documentation
 
-Built with [Zudoku](https://zudoku.dev).
+This directory contains the source content for the Outpost docs.
 
-## Architecture Diagram
+The public docs experience is rendered by a private Astro application that loads files from this repository, so this folder is the source of truth for page content and navigation.
 
-Source: https://drive.google.com/drive/folders/1o3ta0iW5XenRb65SPF0Gy9ShrSV4akn6?usp=drive_link
+## How Documentation Is Structured
 
-## Getting Started
+- `content/` contains documentation pages (mostly `.mdoc`, some `.mdx`) and the nav config.
+- `content/nav.json` defines sidebar groups, page order, and visible titles.
+- `apis/openapi.yaml` contains the API specification used by API reference pages.
+- `public/` (when present) stores static assets (images, icons, etc.).
 
-First, run the development server:
+## Authoring Guidelines
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
+The docs should:
+
+- Cover both managed and self-hosted Outpost flows.
+- Stay technically accurate while remaining easy to follow.
+- Link to related pages when useful.
+- Include runnable, realistic examples.
+
+When managed and self-hosted behavior differs, use Markdoc tabs:
+
+```md
+{% tabs %}
+{% tab title="Managed" %}
+Managed-specific content.
+{% /tab %}
+{% tab title="Self-Hosted" %}
+Self-hosted-specific content.
+{% /tab %}
+{% /tabs %}
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Adding or Updating a Page
 
-## Authoring
-
-- `zudoku.config.ts`
-- `pages/docs`: Main Outpost documentation
-
-## Resources
-
-- [Zudoku documentation](https://zudoku.dev/docs)
-- [Zudoku GitHub Discussions](https://github.com/zuplo/zudoku/discussions)
-- [Zudoku Discord](https://discord.zudoku.dev)
+1. Create or edit the page under `content/` (for example `content/features/my-feature.mdoc`).
+2. Add or update frontmatter (`title`, `description`).
+3. Add the page to the appropriate section in `content/nav.json`.
+4. Verify links and examples.
+5. If a page is renamed or removed, ensure redirects are handled in the site renderer repository.

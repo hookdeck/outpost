@@ -1,0 +1,97 @@
+---
+title: "Tenant Portal"
+description: "An embedded self-service portal for your customers to manage destinations and inspect events."
+---
+
+Outpost includes a built-in self-service portal that your customers can use to manage their own destinations, view event history, and retry failed deliveries — without requiring your team to build a custom UI.
+
+## Portal Features
+
+- Create, update, enable, and disable destinations
+- View event history with request and response details
+- Filter events by status and destination
+- Manually retry failed delivery attempts
+
+## Accessing the Portal
+
+The portal is accessed by generating a short-lived JWT via the `GET /api/v1/tenants/:tenant_id/portal` endpoint, which returns a redirect URL:
+
+```sh
+curl 'https://<OUTPOST_API_URL>/api/v1/tenants/<TENANT_ID>/portal' \
+--header 'Authorization: Bearer <API_KEY>'
+```
+
+```json
+{ "redirect_url": "https://<OUTPOST_PORTAL_URL>?token=<JWT>" }
+```
+
+Redirect your user to `redirect_url`. The JWT is stored in their session and used for all portal API calls during the session.
+
+{% tabs %}
+{% tab title="Managed" %}
+Hookdeck-hosted portal and API endpoints are already internet accessible.
+{% /tab %}
+{% tab title="Self-Hosted" %}
+Your Outpost API must be accessible from the public internet for the portal to function.
+{% /tab %}
+{% /tabs %}
+
+## Session Refresh
+
+When a user opens the portal without a valid session (e.g. via a bookmark or shared link), the portal redirects them:
+
+{% tabs %}
+{% tab title="Managed" %}
+If a session is missing or expired, the portal can redirect to a configured Session Refresh URL, or fall back to the configured referer URL.
+
+Configure the Session Refresh URL in [Hookdeck User Portal settings](https://dashboard.hookdeck.com/settings/project/user-portal), and ensure your endpoint:
+
+1. Authenticates the user via your existing session/auth
+2. Determines the tenant ID for that user
+3. Generates a new portal JWT via `GET /api/v1/tenants/:tenant_id/portal`
+4. Redirects to the portal with the new `?token=` parameter
+{% /tab %}
+{% tab title="Self-Hosted" %}
+1. To `PORTAL_REFRESH_URL` if configured, to silently re-authenticate and generate a fresh JWT
+2. Otherwise falls back to `PORTAL_REFERER_URL`
+
+To enable session refresh, set `PORTAL_REFRESH_URL` to an endpoint in your application that:
+
+1. Authenticates the user via your existing session/auth
+2. Determines the tenant ID for that user
+3. Generates a new portal JWT via `GET /api/v1/tenants/:tenant_id/portal`
+4. Redirects to the portal with the new `?token=` parameter
+{% /tab %}
+{% /tabs %}
+
+**Security note:** The refresh endpoint must independently authenticate the user and resolve the tenant ID. Do not rely on query parameters from the portal redirect for authorization decisions.
+
+## Configuration
+
+{% tabs %}
+{% tab title="Managed" %}
+Portal settings are configured via [Hookdeck User Portal settings](https://dashboard.hookdeck.com/settings/project/user-portal). Available options include organization name, logo, branding colors, and session refresh URL.
+{% /tab %}
+{% tab title="Self-Hosted" %}
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PORTAL_REFERER_URL` | — | Required. URL to redirect to when JWT expires (also used as fallback when `PORTAL_REFRESH_URL` is not set) |
+| `PORTAL_REFRESH_URL` | — | URL in your app to silently generate a new JWT |
+| `PORTAL_ORGANIZATION_NAME` | — | Organization name shown in the portal header |
+| `PORTAL_ACCENT_COLOR` | — | Primary brand color (hex code, e.g., `#6122E7`) |
+| `PORTAL_LOGO` | — | URL for the light-mode logo |
+| `PORTAL_LOGO_DARK` | — | URL for the dark-mode logo |
+| `PORTAL_FAVICON_URL` | — | URL for the portal favicon |
+| `PORTAL_FORCE_THEME` | — | Force theme: `light` or `dark` |
+| `PORTAL_DISABLE_OUTPOST_BRANDING` | `false` | Remove the "Powered by Outpost" footer |
+
+The `?theme=light` or `?theme=dark` query parameter can also be passed when redirecting to override the theme for that session.
+
+### Optional Features
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PORTAL_ENABLE_DESTINATION_FILTER` | `false` | Show filter configuration UI per destination |
+| `PORTAL_ENABLE_WEBHOOK_CUSTOM_HEADERS` | `false` | Allow tenants to set custom HTTP headers on webhook destinations |
+{% /tab %}
+{% /tabs %}

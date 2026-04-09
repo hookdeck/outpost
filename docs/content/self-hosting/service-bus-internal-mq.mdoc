@@ -1,0 +1,180 @@
+---
+title: "Configure Azure Service Bus as the Outpost Internal Message Queue"
+---
+
+## Azure Resource Concepts
+
+Azure's resource hierarchy:
+
+- **Tenant**: The top-level organizational boundary representing a company or project
+- **Subscription**: A billing account that contains and manages resources within a tenant
+- **Service Principal**: An identity used for programmatic access, similar to an IAM role in other clouds
+- **Resource Group**: A logical container that groups related Azure resources for easier management
+- **Service Bus Namespace**: A messaging container within Azure Service Bus where you create topics and subscriptions for event routing
+
+This implementation leverages Azure Service Bus topics and subscriptions within a namespace to provide reliable message delivery with Outpost's multi-tenant architecture.
+
+## User Setup Requirements
+
+Outpost requires specific Azure permissions to manage Service Bus resources on your behalf:
+
+**Required Role**:
+
+- Azure Service Bus Data Owner on the Service Bus namespace
+
+**Required Permissions**:
+
+- Create and delete topics and subscriptions
+- Publish messages to topics
+- Consume messages from subscriptions
+
+**Recommended Setup**:
+
+- Optionally create a dedicated resource group to contain Outpost-related resources
+- Create a dedicated Service Bus namespace for Outpost
+- Assign the Service Principal used by Outpost the Azure Service Bus Data Owner role scoped to the namespace
+
+This scoped permission model ensures Outpost can fully manage message routing within its designated namespace while maintaining security boundaries with your other Azure resources.
+
+## Azure Service Bus Setup for Outpost
+
+### Prerequisites
+
+Install [Azure CLI](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli).
+
+The following steps also make use of [`jq`](https://jqlang.org/) for JSON parsing, so ensure it is installed on your system.
+
+Login to Azure:
+
+```bash
+az login
+```
+
+### 1. Create Resource Group
+
+Set variables:
+
+```bash
+RESOURCE_GROUP="outpost-rg"
+LOCATION="eastus"
+```
+
+Create resource group:
+
+```bash
+az group create --name $RESOURCE_GROUP --location $LOCATION
+```
+
+### 2. Create Service Bus Namespace
+
+Generate unique namespace name (must be globally unique)
+
+```bash
+RANDOM_SUFFIX=$(openssl rand -hex 4)
+NAMESPACE_NAME="outpost-servicebus-$RANDOM_SUFFIX"
+```
+
+Create Service Bus namespace:
+
+```bash
+az servicebus namespace create \
+  --resource-group $RESOURCE_GROUP \
+  --name $NAMESPACE_NAME \
+  --location $LOCATION \
+  --sku Standard
+```
+
+### 3. Create Service Principal
+
+```bash
+APP_NAME="outpost-service-principal"
+```
+
+Create service principal and capture output:
+
+```bash
+SP_OUTPUT=$(az ad sp create-for-rbac --name $APP_NAME)
+CLIENT_ID=$(echo $SP_OUTPUT | jq -r '.appId')
+CLIENT_SECRET=$(echo $SP_OUTPUT | jq -r '.password')
+TENANT_ID=$(echo $SP_OUTPUT | jq -r '.tenant')
+```
+
+### 4. Assign Permissions
+
+Get the namespace resource ID:
+
+```bash
+NAMESPACE_ID=$(az servicebus namespace show \
+  --resource-group $RESOURCE_GROUP \
+  --name $NAMESPACE_NAME \
+  --query id -o tsv)
+```
+
+Assign Azure Service Bus Data Owner role:
+
+```bash
+az role assignment create \
+  --assignee $CLIENT_ID \
+  --role "Azure Service Bus Data Owner" \
+  --scope $NAMESPACE_ID
+```
+
+### 5. Configuration Values for Outpost
+
+Get subscription ID:
+
+```bash
+SUBSCRIPTION_ID=$(az account show --query id -o tsv)
+```
+
+Echo all required values:
+
+```bash
+echo "tenant_id: $TENANT_ID"
+echo "client_id: $CLIENT_ID"
+echo "client_secret: $CLIENT_SECRET"
+echo "subscription_id: $SUBSCRIPTION_ID"
+echo "resource_group: $RESOURCE_GROUP"
+echo "namespace: $NAMESPACE_NAME"
+```
+
+### 6. Configure Outpost
+
+In the Outpost configuration, use the values obtained above.
+
+#### Example YAML
+
+```yaml
+mqs:
+  azure_servicebus:
+    client_id: "<CLIENT_ID>"
+    client_secret: "<CLIENT_SECRET>"
+    namespace: "<NAMESPACE_NAME>"
+    resource_group: "<RESOURCE_GROUP>"
+    subscription_id: "<SUBSCRIPTION_ID>"
+    tenant_id: "<TENANT_ID>"
+```
+
+#### Example Environment Variables
+
+```
+AZURE_SERVICEBUS_CLIENT_ID="<CLIENT_ID>"
+AZURE_SERVICEBUS_CLIENT_SECRET="<CLIENT_SECRET>"
+AZURE_SERVICEBUS_NAMESPACE="<NAMESPACE_NAME>"
+AZURE_SERVICEBUS_RESOURCE_GROUP="<RESOURCE_GROUP>"
+AZURE_SERVICEBUS_SUBSCRIPTION_ID="<SUBSCRIPTION_ID>"
+AZURE_SERVICEBUS_TENANT_ID="<TENANT_ID>"
+```
+
+This configuration allows Outpost to connect to your Azure Service Bus namespace and manage topics and subscriptions for internal message queuing.
+
+## Troubleshooting
+
+### failed to declare topic: failed to create topic outpost-delivery
+
+This error can happen due to a race condition of multiple Outpost instances trying to create the same topic concurrently. To resolve this you can either:
+
+1. Run the services one at a time to ensure only one instance is creating the topic.
+2. Run the services again often resolves the issue as the topic may have been created by another instance.
+
+Also see [Avoid concurrent infra provisioning requests](https://github.com/hookdeck/outpost/issues/427).

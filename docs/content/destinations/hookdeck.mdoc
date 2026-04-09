@@ -1,0 +1,64 @@
+---
+title: "Hookdeck Event Gateway"
+description: "Route events through Hookdeck for advanced delivery with retries, transformations, filtering, and observability."
+---
+
+Route events through the [Hookdeck Event Gateway](https://hookdeck.com) for advanced webhook management. This destination lets your tenants use Hookdeck's infrastructure to handle delivery to their endpoints with configurable retries, transformations, and detailed event logs.
+
+## Overview
+
+This destination uses a **managed source** flow. Tenants create a Hookdeck destination by generating a source token in the Hookdeck dashboard and pasting it into Outpost.
+
+### Event Flow
+
+1. Events published to Outpost are forwarded to the Hookdeck Event Gateway
+2. Hookdeck buffers and processes the events
+3. Based on the tenant's Hookdeck connection configuration, events are routed to their endpoints
+4. Hookdeck handles retries, rate limiting, and delivery guarantees
+
+### Features Available to Tenants
+
+- **Event buffering** — Handle traffic spikes without overwhelming endpoints
+- **Automatic retries** — Configurable retry strategies for failed deliveries
+- **Transformations** — Modify event payloads before delivery
+- **Filtering & routing** — Route events to different endpoints based on content
+- **Observability** — Event logs, metrics, and debugging tools
+- **Alerts** — Notifications for delivery issues
+
+## Configuration
+
+### Credentials
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `credentials.token` | string | Yes | Hookdeck source token |
+
+This destination has no `config` fields. Routing and delivery settings are managed in the Hookdeck dashboard by tenants.
+
+### Example
+
+```sh
+curl 'https://<OUTPOST_API_URL>/api/v1/tenants/<TENANT_ID>/destinations' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer <API_KEY>' \
+--data '{
+  "type": "hookdeck",
+  "topics": ["orders"],
+  "credentials": {
+    "token": "<HOOKDECK_SOURCE_TOKEN>"
+  }
+}'
+```
+
+## Portal Setup Flow
+
+In the Outpost tenant portal, users follow this flow:
+
+1. Select **Hookdeck** as the destination type
+2. Open the Hookdeck dashboard via the portal link
+3. Create a managed source in Hookdeck
+4. Copy the source token
+5. Paste the token into the Outpost portal and create the destination
+6. Return to Hookdeck to create connections that route events to their endpoints
+
+See the [Hookdeck documentation](https://hookdeck.com/docs) for details on creating sources and connections.

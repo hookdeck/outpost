@@ -1,0 +1,208 @@
+---
+title: "Destination Filters"
+description: "Route events to destinations selectively based on event content using flexible filter rules."
+---
+
+Destination filters allow tenants to selectively receive only events that match specific criteria. Instead of receiving all events for subscribed topics, a destination can define a filter to route events based on their properties.
+
+## How Filtering Works
+
+When an event is published, Outpost evaluates each destination's filter against the event. A destination receives an event only if:
+
+1. The destination is enabled
+2. The event's topic matches one of the destination's subscribed topics
+3. The event matches the destination's filter (or no filter is defined)
+
+Filters are optional — destinations without filters receive all events matching their topics.
+
+## Event Structure
+
+Filters operate on the five top-level event properties:
+
+| Property | Description |
+|----------|-------------|
+| `id` | The event ID |
+| `topic` | The event topic |
+| `time` | Event timestamp (RFC 3339) |
+| `metadata` | Additional event metadata |
+| `data` | The event payload |
+
+## Exact Match
+
+Match a field value exactly:
+
+```json
+{ "data": { "status": "paid" } }
+```
+
+Multiple conditions are implicitly combined with AND:
+
+```json
+{ "data": { "status": "paid", "currency": "usd" } }
+```
+
+Nested objects are supported:
+
+```json
+{ "data": { "customer": { "tier": "premium" } } }
+```
+
+Arrays match if they contain the specified value:
+
+```json
+{ "data": { "tags": "urgent" } }
+```
+
+This matches events like `{ "tags": ["urgent", "support"] }`.
+
+## Operators
+
+### Comparison
+
+| Operator | Description |
+|----------|-------------|
+| `$eq` | Equals |
+| `$neq` | Not equals |
+| `$gt` | Greater than |
+| `$gte` | Greater than or equal |
+| `$lt` | Less than |
+| `$lte` | Less than or equal |
+
+```json
+{ "data": { "amount": { "$gte": 100, "$lt": 500 } } }
+```
+
+### Membership
+
+| Operator | Description |
+|----------|-------------|
+| `$in` | Value in array, or substring match |
+| `$nin` | Value not in array |
+
+```json
+{ "data": { "status": { "$in": ["pending", "processing"] } } }
+```
+
+### String
+
+| Operator | Description |
+|----------|-------------|
+| `$startsWith` | String starts with value |
+| `$endsWith` | String ends with value |
+
+```json
+{ "data": { "email": { "$endsWith": "@example.com" } } }
+```
+
+### Existence
+
+| Operator | Description |
+|----------|-------------|
+| `$exist` | `true` if field exists, `false` if it doesn't |
+
+```json
+{ "data": { "deleted_at": { "$exist": false } } }
+```
+
+## Logical Operators
+
+### `$or` — Match any condition
+
+```json
+{
+  "$or": [
+    { "data": { "status": "paid" } },
+    { "data": { "status": "shipped" } }
+  ]
+}
+```
+
+### `$and` — Explicit AND
+
+Useful when you need multiple conditions that can't be nested:
+
+```json
+{
+  "$and": [
+    { "data": { "status": "active" } },
+    { "data": { "amount": { "$gte": 100 } } }
+  ]
+}
+```
+
+### `$not` — Negate a condition
+
+```json
+{
+  "data": { "status": { "$not": { "$in": ["cancelled", "refunded"] } } }
+}
+```
+
+## Common Examples
+
+**Filter by metadata:**
+```json
+{ "metadata": { "source": "api" } }
+```
+
+**High-value orders only:**
+```json
+{ "data": { "amount": { "$gte": 1000 } } }
+```
+
+**Filter by time range:**
+```json
+{
+  "time": {
+    "$gte": "2025-01-01T00:00:00Z",
+    "$lt": "2025-02-01T00:00:00Z"
+  }
+}
+```
+
+## Setting a Filter via API
+
+Filters are set in the `filter` field when creating or updating a destination:
+
+```sh
+curl 'https://api.outpost.hookdeck.com/2025-07-01/tenants/<TENANT_ID>/destinations' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer <API_KEY>' \
+--data '{
+  "type": "webhook",
+  "topics": ["orders"],
+  "config": { "url": "https://example.com/webhooks" },
+  "filter": {
+    "data": { "status": { "$in": ["paid", "shipped"] } }
+  }
+}'
+```
+
+To remove a filter, set it to an empty object:
+
+```sh
+curl --request PATCH \
+'https:/https://api.outpost.hookdeck.com/2025-07-01/tenants/<TENANT_ID>/destinations/<DESTINATION_ID>' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer <API_KEY>' \
+--data '{ "filter": {} }'
+```
+
+## Enabling Filters in the Portal
+
+Destination filters are disabled in the tenant portal by default. You can enabled it by:
+
+{% tabs %}
+{% tab title="Managed" %}
+
+Toggle on the "Destination filter" setting in [Hookdeck User Portal settings](https://dashboard.hookdeck.com/settings/project/user-portal), or enable the equivalent value through the Config API.
+
+{% /tab %}
+{% tab title="Self-Hosted" %}
+
+Setting the `PORTAL_ENABLE_DESTINATION_FILTER` configuration to `true`
+
+{% /tab %}
+{% /tabs %}
+
+

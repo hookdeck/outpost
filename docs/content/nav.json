@@ -1,0 +1,88 @@
+[
+  {
+    "label": "Getting Started",
+    "sections": [
+      [
+        { "slug": "overview", "title": "Overview" },
+        { "slug": "quickstart", "title": "Quickstart" },
+        { "slug": "publishing-events", "title": "Publishing Events" },
+        { "slug": "sdks", "title": "SDKs" },
+        { "slug": "mcp-skills", "title": "MCP & Skills" }
+      ]
+    ]
+  },
+  {
+    "label": "Features",
+    "sections": [
+      [
+        { "slug": "features/topics", "title": "Topics" },
+        { "slug": "features/filter", "title": "Destination Filters" },
+        {
+          "slug": "features/event-delivery",
+          "title": "Event Delivery & Retries"
+        },
+        { "slug": "features/tenant-portal", "title": "Tenant Portal" },
+        { "slug": "features/operator-events", "title": "Operator Events" },
+        { "slug": "features/multi-tenancy", "title": "Multi-Tenancy" },
+        { "slug": "features/opentelemetry", "title": "OpenTelemetry" }
+      ]
+    ]
+  },
+  {
+    "label": "Destinations",
+    "sections": [
+      [
+        { "slug": "destinations/webhook", "title": "Webhook" },
+        { "slug": "destinations/hookdeck", "title": "Hookdeck Event Gateway" },
+        { "slug": "destinations/aws-sqs", "title": "AWS SQS" },
+        { "slug": "destinations/aws-kinesis", "title": "AWS Kinesis" },
+        { "slug": "destinations/aws-s3", "title": "AWS S3" },
+        { "slug": "destinations/gcp-pubsub", "title": "GCP Pub/Sub" },
+        {
+          "slug": "destinations/azure-service-bus",
+          "title": "Azure Service Bus"
+        },
+        { "slug": "destinations/rabbitmq", "title": "RabbitMQ" }
+      ]
+    ]
+  },
+  {
+    "label": "Guides",
+    "sections": [
+      [
+        {
+          "slug": "guides/migrate-to-outpost",
+          "title": "Migrate to Outpost"
+        },
+        {
+          "slug": "guides/building-your-own-ui",
+          "title": "Building your own UI"
+        }
+      ]
+    ]
+  },
+  {
+    "label": "Self-Hosting",
+    "sections": [
+      [
+        {
+          "slug": "self-hosting/configuration",
+          "title": "Configuration Reference"
+        },
+        {
+          "slug": "self-hosting/quickstarts/railway",
+          "title": "Deploy on Railway"
+        },
+        {
+          "slug": "self-hosting/quickstarts/docker",
+          "title": "Deploy with Docker"
+        },
+        {
+          "slug": "self-hosting/quickstarts/kubernetes",
+          "title": "Deploy on Kubernetes"
+        },
+        {}
+      ]
+    ]
+  }
+]

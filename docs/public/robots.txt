@@ -1,4 +1,0 @@
-# Stops the direct domain being crawled.
-# Not the one accessed via the Vercel rewrite.
-User-agent: *
-Disallow: /

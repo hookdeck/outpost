@@ -1,0 +1,44 @@
+---
+title: "Multi-Tenancy"
+description: "How Outpost isolates destinations, events, and delivery per tenant in your platform."
+---
+
+Outpost is designed as a multi-tenant system from the ground up. Every resource — destinations, topics, events, and delivery attempts — is scoped to a tenant. A single Outpost deployment serves all your customers without data leakage between tenants.
+
+## Tenant Identifiers
+
+Each tenant is identified by a string ID that you define. Outpost does not generate tenant IDs, enabling you to use your existing customer identifiers (e.g., organization ID, database primary key, or slug).
+
+If your application is single-tenant, use a hardcoded value such as `default`, `production`, or `staging` to support multiple environments on the same deployment.
+
+## Creating or updating a Tenant
+
+The tenants API is upsert only, so you can use it to create or update a tenant.
+
+> Tip: Add a `name` metadata field to the tenant to help you identify it. When using the Admin UI, the tenant name will be used to display the tenant in the UI.
+
+```sh
+curl --request PUT \
+'https://<OUTPOST_API_URL>/api/v1/tenants/<TENANT_ID>' \
+--header 'Authorization: Bearer <API_KEY>'
+```
+
+Replace `<OUTPOST_API_URL>` with your Outpost instance URL and `<API_KEY>` with the value of your `API_KEY` environment variable.
+
+## Deleting a Tenant
+
+Deleting a tenant will delete all destinations associated with the tenant. Events published to a deleted tenant will be discarded.
+
+```sh
+curl --request DELETE \
+'https://<OUTPOST_API_URL>/api/v1/tenants/<TENANT_ID>' \
+--header 'Authorization: Bearer <API_KEY>'
+```
+
+Replace `<OUTPOST_API_URL>` with your Outpost instance URL and `<API_KEY>` with the value of your `API_KEY` environment variable.
+
+## Listing and Managing Tenants
+
+Refer to the [API Reference](/outpost/docs/api) for the full Tenants API, including listing, updating, and deleting tenants.
+
+> Note: When self-hosting, the tenants API requires RediSearch support. If RediSearch is not available by your Redis implementation, the endpoint returns `501 Not Implemented`.

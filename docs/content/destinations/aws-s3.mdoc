@@ -1,0 +1,94 @@
+---
+title: "AWS S3"
+description: "Store events as JSON objects in an Amazon S3 bucket with configurable key templates and storage classes."
+---
+
+Store events as JSON objects in an Amazon S3 bucket.
+
+## Creating an S3 Destination
+
+```sh
+curl 'https://<OUTPOST_API_URL>/api/v1/tenants/<TENANT_ID>/destinations' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer <API_KEY>' \
+--data '{
+  "type": "aws_s3",
+  "topics": ["orders"],
+  "config": {
+    "bucket": "my-events-bucket",
+    "region": "us-east-1"
+  },
+  "credentials": {
+    "key": "<AWS_ACCESS_KEY_ID>",
+    "secret": "<AWS_SECRET_ACCESS_KEY>"
+  }
+}'
+```
+
+## Configuration
+
+### Config
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `config.bucket` | string | Yes | The S3 bucket name |
+| `config.region` | string | Yes | AWS region (e.g., `us-east-1`) |
+| `config.key_template` | string | No | JMESPath expression for the object key |
+| `config.storage_class` | string | No | S3 storage class (default: `STANDARD`) |
+| `config.endpoint` | string | No | Custom endpoint URL (for LocalStack, etc.) |
+
+### Credentials
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `credentials.key` | string | Yes | AWS Access Key ID |
+| `credentials.secret` | string | Yes | AWS Secret Access Key |
+| `credentials.session` | string | No | AWS Session Token (for temporary credentials) |
+
+## Object Format
+
+The S3 object body contains the event's `data` field as JSON. Event metadata (`event-id`, `topic`, `timestamp`, plus any event metadata) is stored in the S3 object's user-defined metadata — not in the body.
+
+### Object Key
+
+By default, objects are stored as `{timestamp}_{event-id}.json`. Customize with a JMESPath expression:
+
+```json
+{
+  "config": {
+    "bucket": "my-events-bucket",
+    "region": "us-east-1",
+    "key_template": "join('/', [data.customer_id, metadata.\"event-id\"])"
+  }
+}
+```
+
+## Storage Classes
+
+Supported storage classes:
+
+| Class | Description |
+|-------|-------------|
+| `STANDARD` | Default — general purpose |
+| `STANDARD_IA` | Infrequent access |
+| `ONEZONE_IA` | Single AZ infrequent access |
+| `INTELLIGENT_TIERING` | Auto-tiered based on access patterns |
+| `GLACIER` | Archival, minutes to hours retrieval |
+| `DEEP_ARCHIVE` | Lowest cost, 12-hour retrieval |
+| `GLACIER_IR` | Archival with instant retrieval |
+| `REDUCED_REDUNDANCY` | Legacy — not recommended |
+
+## IAM Permissions
+
+The IAM user or role requires:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Action": "s3:PutObject",
+    "Resource": "arn:aws:s3:::my-events-bucket/*"
+  }]
+}
+```
