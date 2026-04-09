@@ -93,7 +93,6 @@ func (c *Config) LogConfigurationSummary() []zap.Field {
 		zap.Bool("telemetry_disabled", c.Telemetry.Disabled || c.DisableTelemetry),
 
 		// Alert
-		zap.String("alert_callback_url", maskURL(c.Alert.CallbackURL)),
 		zap.Int("alert_consecutive_failure_count", c.Alert.ConsecutiveFailureCount),
 		zap.Bool("alert_auto_disable_destination", c.Alert.AutoDisableDestination),
 

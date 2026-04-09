@@ -18,7 +18,6 @@ Global configurations are provided through env variables or a YAML file. ConfigM
 |----------|-------------|---------|----------|
 | `AES_ENCRYPTION_SECRET` | A 16, 24, or 32 byte secret key used for AES encryption of sensitive data at rest. | `nil` | Yes |
 | `ALERT_AUTO_DISABLE_DESTINATION` | If true, automatically disables a destination after 'consecutive_failure_count' is reached. | `true` | No |
-| `ALERT_CALLBACK_URL` | URL to which Outpost will send a POST request when an alert is triggered (e.g., for destination failures). | `nil` | No |
 | `ALERT_CONSECUTIVE_FAILURE_COUNT` | Number of consecutive delivery failures for a destination before triggering an alert and potentially disabling it. | `20` | No |
 | `API_JWT_SECRET` | Secret key for signing and verifying JWTs if JWT authentication is used for the API. | `nil` | Yes |
 | `API_KEY` | API key for authenticating requests to the Outpost API. | `nil` | Yes |
@@ -168,9 +167,6 @@ api_port: 3333
 alert:
   # If true, automatically disables a destination after 'consecutive_failure_count' is reached.
   auto_disable_destination: true
-
-  # URL to which Outpost will send a POST request when an alert is triggered (e.g., for destination failures).
-  callback_url: ""
 
   # Number of consecutive delivery failures for a destination before triggering an alert and potentially disabling it.
   consecutive_failure_count: 20
