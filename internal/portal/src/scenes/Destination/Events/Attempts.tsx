@@ -3,7 +3,7 @@ import Badge from "../../../common/Badge/Badge";
 import Button from "../../../common/Button/Button";
 import "./Attempts.scss";
 import Table from "../../../common/Table/Table";
-import { AttemptListResponse, EventSummary } from "../../../typings/Event";
+import type { AttemptListResponse, EventSummary } from "../../../typings/Event";
 import useSWR from "swr";
 import Dropdown from "../../../common/Dropdown/Dropdown";
 import {

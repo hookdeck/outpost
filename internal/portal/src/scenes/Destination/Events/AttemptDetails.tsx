@@ -2,7 +2,7 @@ import { useParams } from "react-router-dom";
 import Button from "../../../common/Button/Button";
 import { CloseIcon } from "../../../common/Icons";
 import useSWR from "swr";
-import { Attempt, EventFull } from "../../../typings/Event";
+import type { Attempt, EventFull } from "../../../typings/Event";
 import Badge from "../../../common/Badge/Badge";
 import RetryDeliveryButton from "../../../common/RetryDeliveryButton/RetryDeliveryButton";
 import { CopyButton } from "../../../common/CopyButton/CopyButton";

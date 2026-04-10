@@ -1,7 +1,7 @@
 import "./MetricsBreakdown.scss";
 
 import { Loading } from "../Icons";
-import { MetricsDataPoint } from "./useMetrics";
+import type { MetricsDataPoint } from "./useMetrics";
 
 const VARIANT_CSS_VARS: Record<string, string> = {
   success: "var(--colors-dataviz-success)",

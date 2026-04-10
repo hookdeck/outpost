@@ -11,7 +11,7 @@ import {
   Loading,
 } from "../../../common/Icons";
 import { useSidebar } from "../../../common/Sidebar/Sidebar";
-import { Filter } from "../../../typings/Destination";
+import type { Filter } from "../../../typings/Destination";
 import { getFormValues } from "../../../utils/formHelper";
 import { ApiContext, formatError } from "../../../app";
 import { showToast } from "../../../common/Toast/Toast";

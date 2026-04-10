@@ -9,7 +9,7 @@ import JSONViewer from "../../common/JSONViewer/JSONViewer";
 import { Loading } from "../../common/Icons";
 import CONFIGS from "../../config";
 import { useDestinationType } from "../../destination-types";
-import {
+import type {
   Destination as DestinationType,
   DestinationTypeReference,
 } from "../../typings/Destination";

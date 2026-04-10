@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { FC, PropsWithChildren } from "react";
+import type { FC, PropsWithChildren } from "react";
 import "./Button.scss";
 import { Loading } from "../Icons";
 
