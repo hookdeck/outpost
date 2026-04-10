@@ -3,13 +3,6 @@ title: "Deploy with Docker"
 description: "Run Outpost locally using Docker Compose with RabbitMQ or AWS SQS via LocalStack."
 ---
 
-{% managed_only %}
-This quickstart is for self-hosted Outpost deployments. For managed Outpost, infrastructure is handled by Hookdeck — no deployment is needed.
-
-[Learn more about managed Outpost →](/outpost/pricing)
-{% /managed_only %}
-
-{% oss_only %}
 Run Outpost locally using Docker Compose. This setup includes:
 
 - Outpost services (API, Delivery, and Log)
@@ -120,4 +113,3 @@ URL=https://your-webhook-url.example.com/events
    Open the `redirect_url` from the response to view the tenant portal.
 
 Continue using the [API Reference](/docs/outpost/api) or the portal to add and test more destinations.
-{% /oss_only %}

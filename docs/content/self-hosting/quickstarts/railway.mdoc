@@ -3,7 +3,6 @@ title: "Deploy on Railway"
 description: "Deploy Outpost to Railway with a one-click deployment template."
 ---
 
-{% oss_only %}
 Deploy Outpost to Railway with a one-click deployment. Railway provides a hosted cloud platform that automatically handles infrastructure provisioning and scaling.
 
 ## Prerequisites
@@ -99,10 +98,3 @@ URL=your_webhook_url
    The response will contain a `redirect_url` with a short-lived JWT token. Open the URL to view the Outpost portal for that tenant.
 
 Continue using the [API Reference](/docs/outpost/api) or the portal to add and test more destinations.
-{% /oss_only %}
-
-{% managed_only %}
-This quickstart is for self-hosted Outpost deployments. For managed Outpost, infrastructure is handled by Hookdeck — no deployment is needed.
-
-[Learn more about managed Outpost →](/outpost/pricing)
-{% /managed_only %}

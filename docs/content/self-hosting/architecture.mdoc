@@ -7,7 +7,6 @@ description: "The architecture of Outpost for self-hosted deployments."
 
 ![Outpost Architecture](../../public/images/architecture.png)
 
-{% oss_only %}
 Outpost consists of three services that can be run as a single process or as separate deployments for independent scaling.
 
 - **API Service** — Captures events and exposes the APIs for configuring tenants and destinations.
@@ -24,8 +23,3 @@ Running Outpost as individual services is optional. You can run it as a single b
 
 **Log Service:**
 - PostgreSQL or ClickHouse
-{% /oss_only %}
-
-{% managed_only %}
-Managed Outpost runs the API, Delivery, and Log services on Hookdeck's infrastructure. You interact with Outpost through the API — no infrastructure management required.
-{% /managed_only %}

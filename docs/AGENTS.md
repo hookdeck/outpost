@@ -27,15 +27,14 @@ Documentation should be:
 
 1. Prefer host-agnostic guidance by default.
 2. When behavior differs, split content with Markdoc tabs.
-3. Do not use legacy `{% managed_only %}` / `{% oss_only %}` tags. Always use tabs.
-4. Put environment variables in **Self-Hosted** sections. Managed sections should describe dashboard/Config API configuration.
-5. If managed and self-hosted share config keys, list the keys explicitly in Managed content (do not say "same variables as self-hosted").
-6. When referencing managed configuration, include the exact dashboard page deep link (not generic "dashboard" wording).
-7. If the correct managed settings URL is unknown, ask for the exact link instead of guessing.
-8. Keep examples realistic and copy/paste friendly.
-9. Link related pages, sections, and API references where relevant.
-10. Add or update `content/nav.json` when adding, moving, or renaming pages.
-11. Preserve frontmatter (`title`, `description`) on all content pages.
+3. Put environment variables in **Self-Hosted** sections. Managed sections should describe dashboard/Config API configuration.
+4. If managed and self-hosted share config keys, list the keys explicitly in Managed content (do not say "same variables as self-hosted").
+5. When referencing managed configuration, include the exact dashboard page deep link (not generic "dashboard" wording).
+6. If the correct managed settings URL is unknown, ask for the exact link instead of guessing.
+7. Keep examples realistic and copy/paste friendly.
+8. Link related pages, sections, and API references where relevant.
+9. Add or update `content/nav.json` when adding, moving, or renaming pages.
+10. Preserve frontmatter (`title`, `description`) on all content pages.
 
 ## Available Template Variables
 

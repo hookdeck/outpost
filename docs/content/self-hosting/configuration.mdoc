@@ -3,32 +3,6 @@ title: "Configuration Reference"
 description: "Configuration options for Outpost — environment variables for self-hosted deployments and dashboard settings for managed Outpost."
 ---
 
-{% managed_only %}
-With managed Outpost, infrastructure configuration (Redis, message queues, databases, concurrency, scaling) is fully managed by Hookdeck. You don't set environment variables.
-
-Configuration that affects your integration — topics, portal branding, webhook behavior, and alert settings — is managed through the Hookdeck dashboard or API.
-
-## Configurable Settings
-
-| Setting | Description |
-|---------|-------------|
-| Topics | Comma-separated list of topics your instance supports |
-| Organization name | Name displayed in the portal and user agent strings |
-| Portal logo (light) | URL for the light-mode logo in the portal |
-| Portal logo (dark) | URL for the dark-mode logo in the portal |
-| Portal favicon | URL for the portal favicon |
-| Portal accent color | Primary brand color (hex code) for portal theming |
-| Portal referer URL | URL users are redirected to when the JWT expires |
-| Portal refresh URL | URL to silently generate a new JWT for session refresh |
-| Alert callback URL | URL to POST to when an alert is triggered |
-| Alert failure threshold | Consecutive failures before triggering an alert |
-| Auto-disable on alert | Whether to auto-disable destinations when threshold is reached |
-| Webhook mode | `default` or `standard` (Standard Webhooks spec) |
-
-For the full list of configurable settings, see the [API Reference](/docs/outpost/api).
-{% /managed_only %}
-
-{% oss_only %}
 Global configuration is provided through environment variables or a YAML config file. When deploying on Kubernetes, use a ConfigMap.
 
 ## Required Variables

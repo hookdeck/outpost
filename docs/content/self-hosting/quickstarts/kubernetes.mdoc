@@ -3,13 +3,6 @@ title: "Deploy on Kubernetes"
 description: "Run Outpost on Kubernetes using Minikube and Helm with RabbitMQ."
 ---
 
-{% managed_only %}
-This quickstart is for self-hosted Outpost deployments. For managed Outpost, infrastructure is handled by Hookdeck — no deployment is needed.
-
-[Learn more about managed Outpost →](/outpost/pricing)
-{% /managed_only %}
-
-{% oss_only %}
 Run Outpost on a local Kubernetes cluster using Minikube and Helm. This setup includes:
 
 - Outpost services (API, Delivery, and Log)
@@ -112,4 +105,3 @@ kubectl delete namespace outpost
 kubectl config set-context --current --namespace=default
 sudo sed -i '' '/outpost.acme.local/d' /etc/hosts
 ```
-{% /oss_only %}
