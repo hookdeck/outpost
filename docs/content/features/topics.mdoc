@@ -41,7 +41,7 @@ Each destination subscribes to one or more topics. A destination receives an eve
 Subscribe to all topics with the wildcard `"*"`:
 
 ```sh
-curl 'https://<OUTPOST_API_URL>/api/v1/tenants/<TENANT_ID>/destinations' \
+curl '{% $OUTPOST_API_BASE_URL %}/tenants/<TENANT_ID>/destinations' \
 --header 'Content-Type: application/json' \
 --header 'Authorization: Bearer <API_KEY>' \
 --data '{
@@ -54,7 +54,7 @@ curl 'https://<OUTPOST_API_URL>/api/v1/tenants/<TENANT_ID>/destinations' \
 Subscribe to specific topics:
 
 ```sh
-curl 'https://<OUTPOST_API_URL>/api/v1/tenants/<TENANT_ID>/destinations' \
+curl '{% $OUTPOST_API_BASE_URL %}/tenants/<TENANT_ID>/destinations' \
 --header 'Content-Type: application/json' \
 --header 'Authorization: Bearer <API_KEY>' \
 --data '{
@@ -74,7 +74,7 @@ The tenant object's `topics` array lists all topics currently in use.
 This is usefull to keeps track of the complete set of topics a tenant is subscribed to across all their destinations. This can be useful to avoid unecessary event publishing.
 
 ```sh
-curl 'https://<OUTPOST_API_URL>/api/v1/tenants/<TENANT_ID>' \
+curl '{% $OUTPOST_API_BASE_URL %}/tenants/<TENANT_ID>' \
 --header 'Authorization: Bearer <API_KEY>'
 ```
 

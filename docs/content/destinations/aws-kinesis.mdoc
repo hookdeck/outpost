@@ -8,7 +8,7 @@ Stream events to an Amazon Kinesis Data Stream.
 ## Creating a Kinesis Destination
 
 ```sh
-curl 'https://<OUTPOST_API_URL>/api/v1/tenants/<TENANT_ID>/destinations' \
+curl '{% $OUTPOST_API_BASE_URL %}/tenants/<TENANT_ID>/destinations' \
 --header 'Content-Type: application/json' \
 --header 'Authorization: Bearer <API_KEY>' \
 --data '{
@@ -63,9 +63,14 @@ By default, each Kinesis record includes both metadata and the event's `data` fi
 }
 ```
 
-{% oss_only %}
+{% tabs %}
+{% tab title="Managed" %}
+Configure `DESTINATIONS_AWS_KINESIS_METADATA_IN_PAYLOAD=false` in the Config API or in [Hookdeck Outpost Destinations settings](https://dashboard.hookdeck.com/settings/project/destinations) to send only the event's `data` field (no metadata wrapper).
+{% /tab %}
+{% tab title="Self-Hosted" %}
 Set `DESTINATIONS_AWS_KINESIS_METADATA_IN_PAYLOAD=false` to send only the event's `data` field (no metadata wrapper).
-{% /oss_only %}
+{% /tab %}
+{% /tabs %}
 
 ## Partition Key
 
@@ -95,11 +100,3 @@ The IAM user or role requires:
   }]
 }
 ```
-
-{% oss_only %}
-## Operator Configuration
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `DESTINATIONS_AWS_KINESIS_METADATA_IN_PAYLOAD` | `true` | Include Outpost metadata in the Kinesis record payload |
-{% /oss_only %}

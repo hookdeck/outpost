@@ -20,6 +20,13 @@ The docs should:
 - Link to related pages when useful.
 - Include runnable, realistic examples.
 
+## Available Template Variables
+
+Use these Markdoc variables for API URLs in documentation examples:
+
+- `OUTPOST_API_ROOT`: API host root (no versioned API path). Use this when an example needs the root domain only.
+- `OUTPOST_API_BASE_URL`: Versioned API base URL. Use this for endpoint examples (for example, `.../tenants/...` or `.../publish`).
+
 When managed and self-hosted behavior differs, use Markdoc tabs:
 
 ```md

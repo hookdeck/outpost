@@ -37,6 +37,13 @@ Documentation should be:
 10. Add or update `content/nav.json` when adding, moving, or renaming pages.
 11. Preserve frontmatter (`title`, `description`) on all content pages.
 
+## Available Template Variables
+
+When writing API examples, use these Markdoc variables:
+
+- `OUTPOST_API_ROOT`: API host root (no versioned API path). Use this when the root domain is needed.
+- `OUTPOST_API_BASE_URL`: Versioned API base URL. Use this for endpoint examples such as tenant or publish routes.
+
 Use this pattern for managed vs self-hosted divergence:
 
 ```md

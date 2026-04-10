@@ -43,7 +43,7 @@ dotenv.config();
 import { Outpost } from "@hookdeck/outpost-sdk";
 
 const ADMIN_API_KEY = process.env.ADMIN_API_KEY;
-const SERVER_URL = process.env.OUTPOST_BASE_URL || "https://api.outpost.hookdeck.com/2025-07-01";
+const SERVER_URL = process.env.OUTPOST_BASE_URL || "{% $OUTPOST_API_BASE_URL %}";
 
 if (!ADMIN_API_KEY) {
   console.error("Please set the ADMIN_API_KEY environment variable.");

@@ -165,7 +165,7 @@ Useful when you need multiple conditions that can't be nested:
 Filters are set in the `filter` field when creating or updating a destination:
 
 ```sh
-curl 'https://api.outpost.hookdeck.com/2025-07-01/tenants/<TENANT_ID>/destinations' \
+curl '{% $OUTPOST_API_BASE_URL %}/tenants/<TENANT_ID>/destinations' \
 --header 'Content-Type: application/json' \
 --header 'Authorization: Bearer <API_KEY>' \
 --data '{
@@ -182,7 +182,7 @@ To remove a filter, set it to an empty object:
 
 ```sh
 curl --request PATCH \
-'https:/https://api.outpost.hookdeck.com/2025-07-01/tenants/<TENANT_ID>/destinations/<DESTINATION_ID>' \
+'{% $OUTPOST_API_BASE_URL %}/tenants/<TENANT_ID>/destinations/<DESTINATION_ID>' \
 --header 'Content-Type: application/json' \
 --header 'Authorization: Bearer <API_KEY>' \
 --data '{ "filter": {} }'

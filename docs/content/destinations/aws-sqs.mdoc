@@ -8,7 +8,7 @@ Send events to an Amazon SQS queue.
 ## Creating an AWS SQS Destination
 
 ```sh
-curl 'https://<OUTPOST_API_URL>/api/v1/tenants/<TENANT_ID>/destinations' \
+curl '{% $OUTPOST_API_BASE_URL %}/tenants/<TENANT_ID>/destinations' \
 --header 'Content-Type: application/json' \
 --header 'Authorization: Bearer <API_KEY>' \
 --data '{

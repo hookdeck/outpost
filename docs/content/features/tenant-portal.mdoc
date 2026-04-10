@@ -17,7 +17,7 @@ Outpost includes a built-in self-service portal that your customers can use to m
 The portal is accessed by generating a short-lived JWT via the `GET /api/v1/tenants/:tenant_id/portal` endpoint, which returns a redirect URL:
 
 ```sh
-curl 'https://<OUTPOST_API_URL>/api/v1/tenants/<TENANT_ID>/portal' \
+curl '{% $OUTPOST_API_BASE_URL %}/tenants/<TENANT_ID>/portal' \
 --header 'Authorization: Bearer <API_KEY>'
 ```
 

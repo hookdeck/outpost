@@ -52,7 +52,7 @@ If you already publish events to a supported message queue, refer to the relevan
 ## Publish API
 
 ```sh
-curl --location 'https://api.outpost.hookdeck.com/2025-07-01/publish' \
+curl --location '{% $OUTPOST_API_BASE_URL %}/publish' \
 --header 'Content-Type: application/json' \
 --header 'Authorization: Bearer <API_KEY>' \
 --data '{

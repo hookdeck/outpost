@@ -11,7 +11,7 @@ Send events via HTTP POST to a URL endpoint. Outpost supports two webhook modes:
 ## Creating a Webhook Destination
 
 ```sh
-curl 'https://<OUTPOST_API_URL>/api/v1/tenants/<TENANT_ID>/destinations' \
+curl '{% $OUTPOST_API_BASE_URL %}/tenants/<TENANT_ID>/destinations' \
 --header 'Content-Type: application/json' \
 --header 'Authorization: Bearer <API_KEY>' \
 --data '{
@@ -77,10 +77,10 @@ The request body contains the event's `data` field as JSON. The `metadata` field
 The signature is computed over the timestamp and request body:
 
 ```
-HMAC-SHA256(secret, "${timestamp}.${body}")
+HMAC-SHA256(secret, "${body}")
 ```
 
-The `x-outpost-signature` header value follows the format: `t=${timestamp},v0=${signature}`
+The `x-outpost-signature` header value follows the format: `v0=${signature}`
 
 To verify:
 1. Extract the timestamp and signature from the header
@@ -98,13 +98,18 @@ base64(HMAC-SHA256(secret, "${webhook-id}.${timestamp}.${body}"))
 
 Use the official [Standard Webhooks SDK](https://github.com/standard-webhooks/standard-webhooks/tree/main/libraries) to verify signatures. Secrets use the `whsec_<base64>` format.
 
-{% oss_only %}
+{% tabs %}
+{% tab title="Managed" %}
+Enable Standard Webhooks mode by setting `DESTINATIONS_WEBHOOK_MODE=standard` in the Config API or in [Hookdeck Destinations settings](https://dashboard.hookdeck.com/settings/project/destinations).
+{% /tab %}
+{% tab title="Self-Hosted" %}
 Enable Standard Webhooks mode:
 
 ```
 DESTINATIONS_WEBHOOK_MODE=standard
 ```
-{% /oss_only %}
+{% /tab %}
+{% /tabs %}
 
 ## Secret Rotation
 
@@ -112,7 +117,7 @@ Rotate a webhook secret without downtime. During the rotation window, both the o
 
 ```sh
 curl --request PATCH \
-'https://<OUTPOST_API_URL>/api/v1/tenants/<TENANT_ID>/destinations/<DESTINATION_ID>' \
+'{% $OUTPOST_API_BASE_URL %}/tenants/<TENANT_ID>/destinations/<DESTINATION_ID>' \
 --header 'Content-Type: application/json' \
 --header 'Authorization: Bearer <API_KEY>' \
 --data '{
@@ -134,7 +139,7 @@ When rotation is triggered:
 Tenants can add custom HTTP headers to webhook requests for authentication or routing:
 
 ```sh
-curl 'https://<OUTPOST_API_URL>/api/v1/tenants/<TENANT_ID>/destinations' \
+curl '{% $OUTPOST_API_BASE_URL %}/tenants/<TENANT_ID>/destinations' \
 --header 'Content-Type: application/json' \
 --header 'Authorization: Bearer <API_KEY>' \
 --data '{
@@ -149,15 +154,26 @@ curl 'https://<OUTPOST_API_URL>/api/v1/tenants/<TENANT_ID>/destinations' \
 
 Header names must start with a letter or digit and may contain letters, digits, underscores, and hyphens. The following headers cannot be overridden: `content-type`, `content-length`, `host`, `connection`, `user-agent`.
 
-{% oss_only %}
+{% tabs %}
+{% tab title="Managed" %}
+Custom webhook headers in the tenant portal are disabled by default. Enable them in [Hookdeck User Portal settings](https://dashboard.hookdeck.com/settings/project/user-portal).
+{% /tab %}
+{% tab title="Self-Hosted" %}
 Custom headers are disabled in the tenant portal by default. Enable with:
 
 ```
 PORTAL_ENABLE_WEBHOOK_CUSTOM_HEADERS=true
 ```
+{% /tab %}
+{% /tabs %}
 
 ## Operator Configuration
 
+{% tabs %}
+{% tab title="Managed" %}
+Configure webhook operator behavior using these keys in the Config API or in [Hookdeck Destinations settings](https://dashboard.hookdeck.com/settings/project/destinations): `DESTINATIONS_WEBHOOK_HEADER_PREFIX`, `DESTINATIONS_WEBHOOK_DISABLE_EVENT_ID_HEADER`, `DESTINATIONS_WEBHOOK_DISABLE_TIMESTAMP_HEADER`, `DESTINATIONS_WEBHOOK_DISABLE_TOPIC_HEADER`, `DESTINATIONS_WEBHOOK_DISABLE_SIGNATURE_HEADER`, `DESTINATIONS_WEBHOOK_MODE`, `DESTINATIONS_WEBHOOK_SIGNATURE_ALGORITHM`, `DESTINATIONS_WEBHOOK_SIGNATURE_ENCODING`, `DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE`, and `DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE`.
+{% /tab %}
+{% tab title="Self-Hosted" %}
 ### Header Settings
 
 | Variable | Default | Description |
@@ -177,4 +193,5 @@ PORTAL_ENABLE_WEBHOOK_CUSTOM_HEADERS=true
 | `DESTINATIONS_WEBHOOK_SIGNATURE_ENCODING` | `hex` | Encoding: `hex` or `base64` |
 | `DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE` | `{{.Body}}` | Template for signed content |
 | `DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE` | `v0={{.Signatures \| join ","}}` | Template for signature header value |
-{% /oss_only %}
+{% /tab %}
+{% /tabs %}

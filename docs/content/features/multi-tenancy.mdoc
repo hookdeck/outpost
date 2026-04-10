@@ -19,7 +19,7 @@ The tenants API is upsert only, so you can use it to create or update a tenant.
 
 ```sh
 curl --request PUT \
-'https://<OUTPOST_API_URL>/api/v1/tenants/<TENANT_ID>' \
+'{% $OUTPOST_API_BASE_URL %}/tenants/<TENANT_ID>' \
 --header 'Authorization: Bearer <API_KEY>'
 ```
 
@@ -31,7 +31,7 @@ Deleting a tenant will delete all destinations associated with the tenant. Event
 
 ```sh
 curl --request DELETE \
-'https://<OUTPOST_API_URL>/api/v1/tenants/<TENANT_ID>' \
+'{% $OUTPOST_API_BASE_URL %}/tenants/<TENANT_ID>' \
 --header 'Authorization: Bearer <API_KEY>'
 ```
 
