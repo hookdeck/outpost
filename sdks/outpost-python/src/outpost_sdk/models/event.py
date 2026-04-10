@@ -10,7 +10,7 @@ from outpost_sdk.types import (
     UNSET_SENTINEL,
 )
 from pydantic import model_serializer
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 from typing_extensions import NotRequired, TypedDict
 
 
@@ -18,7 +18,8 @@ class EventTypedDict(TypedDict):
     id: NotRequired[str]
     tenant_id: NotRequired[str]
     r"""The tenant this event belongs to."""
-    destination_id: NotRequired[str]
+    matched_destination_ids: NotRequired[List[str]]
+    r"""The destination IDs that this event was routed to based on topic and filter matching."""
     topic: NotRequired[str]
     time: NotRequired[datetime]
     r"""Time the event was received/processed."""
@@ -34,7 +35,8 @@ class Event(BaseModel):
     tenant_id: Optional[str] = None
     r"""The tenant this event belongs to."""
 
-    destination_id: Optional[str] = None
+    matched_destination_ids: Optional[List[str]] = None
+    r"""The destination IDs that this event was routed to based on topic and filter matching."""
 
     topic: Optional[str] = None
 
@@ -50,7 +52,15 @@ class Event(BaseModel):
     @model_serializer(mode="wrap")
     def serialize_model(self, handler):
         optional_fields = set(
-            ["id", "tenant_id", "destination_id", "topic", "time", "metadata", "data"]
+            [
+                "id",
+                "tenant_id",
+                "matched_destination_ids",
+                "topic",
+                "time",
+                "metadata",
+                "data",
+            ]
         )
         nullable_fields = set(["metadata"])
         serialized = handler(self)

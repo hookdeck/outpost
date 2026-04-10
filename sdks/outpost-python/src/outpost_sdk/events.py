@@ -29,6 +29,8 @@ class Events(BaseSDK):
         When authenticated with Admin API Key, returns events across all tenants. Use `tenant_id` query parameter to filter by tenant.
 
 
+        If set, this operation will use `api_key` from the global security.
+
         :param request: The request object to send.
         :param retries: Override the default retry configuration for this method
         :param server_url: Override the default server URL for this method
@@ -63,6 +65,7 @@ class Events(BaseSDK):
             http_headers=http_headers,
             security=self.sdk_configuration.security,
             allow_empty_value=None,
+            allowed_fields=["api_key"],
             timeout_ms=timeout_ms,
         )
 
@@ -108,6 +111,7 @@ class Events(BaseSDK):
                 request=models.ListEventsRequest(
                     id=request.id,
                     tenant_id=request.tenant_id,
+                    destination_id=request.destination_id,
                     topic=request.topic,
                     time_gte=request.time_gte,
                     time_lte=request.time_lte,
@@ -120,6 +124,9 @@ class Events(BaseSDK):
                     direction=request.direction,
                 ),
                 retries=retries,
+                server_url=server_url,
+                timeout_ms=timeout_ms,
+                http_headers=http_headers,
             )
 
         response_data: Any = None
@@ -164,6 +171,8 @@ class Events(BaseSDK):
         When authenticated with Admin API Key, returns events across all tenants. Use `tenant_id` query parameter to filter by tenant.
 
 
+        If set, this operation will use `api_key` from the global security.
+
         :param request: The request object to send.
         :param retries: Override the default retry configuration for this method
         :param server_url: Override the default server URL for this method
@@ -198,6 +207,7 @@ class Events(BaseSDK):
             http_headers=http_headers,
             security=self.sdk_configuration.security,
             allow_empty_value=None,
+            allowed_fields=["api_key"],
             timeout_ms=timeout_ms,
         )
 
@@ -243,6 +253,7 @@ class Events(BaseSDK):
                 request=models.ListEventsRequest(
                     id=request.id,
                     tenant_id=request.tenant_id,
+                    destination_id=request.destination_id,
                     topic=request.topic,
                     time_gte=request.time_gte,
                     time_lte=request.time_lte,
@@ -255,6 +266,9 @@ class Events(BaseSDK):
                     direction=request.direction,
                 ),
                 retries=retries,
+                server_url=server_url,
+                timeout_ms=timeout_ms,
+                http_headers=http_headers,
             )
 
         response_data: Any = None

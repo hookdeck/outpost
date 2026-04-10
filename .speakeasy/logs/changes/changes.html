@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="color-scheme" content="light dark">
-    <title>SDK Changelog - go</title>
+    <title>SDK Changelog - python</title>
     <style>
         :root {
             --bg-color: #ffffff;
@@ -95,47 +95,47 @@
         }
     </style>
 </head>
-<body><h2 id="go-sdk-changes">Go SDK Changes:</h2>
+<body><h2 id="python-sdk-changes">Python SDK Changes:</h2>
 
 <ul>
-<li><code>Outpost.Events.List()</code>:
+<li><code>outpost.events.list()</code>:
 
 <ul>
-<li><code>request.Request.DestinationId</code> <strong>Added</strong></li>
-<li><code>response.Models[]</code> <strong>Changed</strong> (Breaking ⚠️)
+<li><code>request.destination_id</code> <strong>Added</strong></li>
+<li><code>response.models[]</code> <strong>Changed</strong> (Breaking ⚠️)
 
 <ul>
-<li><code>DestinationId</code> <strong>Removed</strong> (Breaking ⚠️)</li>
-<li><code>MatchedDestinationIds</code> <strong>Added</strong></li>
+<li><code>destination_id</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>matched_destination_ids</code> <strong>Added</strong></li>
 </ul></li>
 </ul></li>
-<li><code>Outpost.Events.Get()</code>: <code>response</code> <strong>Changed</strong> (Breaking ⚠️)
+<li><code>outpost.events.get()</code>: <code>response</code> <strong>Changed</strong> (Breaking ⚠️)
 
 <ul>
-<li><code>DestinationId</code> <strong>Removed</strong> (Breaking ⚠️)</li>
-<li><code>MatchedDestinationIds</code> <strong>Added</strong></li>
+<li><code>destination_id</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>matched_destination_ids</code> <strong>Added</strong></li>
 </ul></li>
-<li><code>Outpost.Schemas.ListDestinationTypes()</code>: <code>response.[].ConfigFields[]</code> <strong>Changed</strong> (Breaking ⚠️)
+<li><code>outpost.schemas.list_destination_types()</code>: <code>response.[].config_fields[]</code> <strong>Changed</strong> (Breaking ⚠️)
 
 <ul>
-<li><code>Key</code> <strong>Added</strong></li>
-<li><code>Options</code> <strong>Added</strong></li>
-<li><code>Type.Enum(select)</code> <strong>Added</strong> (Breaking ⚠️)</li>
+<li><code>key</code> <strong>Added</strong></li>
+<li><code>options</code> <strong>Added</strong></li>
+<li><code>type.enum(select)</code> <strong>Added</strong> (Breaking ⚠️)</li>
 </ul></li>
-<li><code>Outpost.Schemas.GetDestinationType()</code>:
+<li><code>outpost.schemas.get_destination_type()</code>:
 
 <ul>
-<li><code>request.Type</code> <strong>Changed</strong>
+<li><code>request.type</code> <strong>Changed</strong>
 
 <ul>
-<li><code>Enum(kafka)</code> <strong>Added</strong></li>
+<li><code>enum(kafka)</code> <strong>Added</strong></li>
 </ul></li>
-<li><code>response.ConfigFields[]</code> <strong>Changed</strong> (Breaking ⚠️)
+<li><code>response.config_fields[]</code> <strong>Changed</strong> (Breaking ⚠️)
 
 <ul>
-<li><code>Key</code> <strong>Added</strong></li>
-<li><code>Options</code> <strong>Added</strong></li>
-<li><code>Type.Enum(select)</code> <strong>Added</strong> (Breaking ⚠️)</li>
+<li><code>key</code> <strong>Added</strong></li>
+<li><code>options</code> <strong>Added</strong></li>
+<li><code>type.enum(select)</code> <strong>Added</strong> (Breaking ⚠️)</li>
 </ul></li>
 </ul></li>
 </ul>

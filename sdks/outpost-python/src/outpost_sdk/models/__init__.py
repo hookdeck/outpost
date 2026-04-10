@@ -127,6 +127,8 @@ if TYPE_CHECKING:
         DestinationSchemaField,
         DestinationSchemaFieldType,
         DestinationSchemaFieldTypedDict,
+        Option,
+        OptionTypedDict,
     )
     from .destinationtype import DestinationType
     from .destinationtypeschema import (
@@ -273,8 +275,8 @@ if TYPE_CHECKING:
     )
     from .hookdeckcredentials import HookdeckCredentials, HookdeckCredentialsTypedDict
     from .listattemptsop import (
-        DestinationID,
-        DestinationIDTypedDict,
+        ListAttemptsDestinationID,
+        ListAttemptsDestinationIDTypedDict,
         ListAttemptsDir,
         ListAttemptsEventID,
         ListAttemptsEventIDTypedDict,
@@ -292,6 +294,8 @@ if TYPE_CHECKING:
         ListAttemptsTopicTypedDict,
     )
     from .listeventsop import (
+        ListEventsDestinationID,
+        ListEventsDestinationIDTypedDict,
         ListEventsDir,
         ListEventsID,
         ListEventsIDTypedDict,
@@ -443,8 +447,6 @@ __all__ = [
     "DestinationHookdeck",
     "DestinationHookdeckType",
     "DestinationHookdeckTypedDict",
-    "DestinationID",
-    "DestinationIDTypedDict",
     "DestinationRabbitMQ",
     "DestinationRabbitMQType",
     "DestinationRabbitMQTypedDict",
@@ -563,6 +565,8 @@ __all__ = [
     "HealthCheckStatus2",
     "HookdeckCredentials",
     "HookdeckCredentialsTypedDict",
+    "ListAttemptsDestinationID",
+    "ListAttemptsDestinationIDTypedDict",
     "ListAttemptsDir",
     "ListAttemptsEventID",
     "ListAttemptsEventIDTypedDict",
@@ -578,6 +582,8 @@ __all__ = [
     "ListAttemptsTenantIDTypedDict",
     "ListAttemptsTopic",
     "ListAttemptsTopicTypedDict",
+    "ListEventsDestinationID",
+    "ListEventsDestinationIDTypedDict",
     "ListEventsDir",
     "ListEventsID",
     "ListEventsIDTypedDict",
@@ -622,6 +628,8 @@ __all__ = [
     "MetricsMetadataTypedDict",
     "MetricsResponse",
     "MetricsResponseTypedDict",
+    "Option",
+    "OptionTypedDict",
     "PortalRedirect",
     "PortalRedirectTypedDict",
     "PublishRequest",
@@ -756,6 +764,8 @@ _dynamic_imports: dict[str, str] = {
     "DestinationSchemaField": ".destinationschemafield",
     "DestinationSchemaFieldType": ".destinationschemafield",
     "DestinationSchemaFieldTypedDict": ".destinationschemafield",
+    "Option": ".destinationschemafield",
+    "OptionTypedDict": ".destinationschemafield",
     "DestinationType": ".destinationtype",
     "DestinationTypeSchema": ".destinationtypeschema",
     "DestinationTypeSchemaTypedDict": ".destinationtypeschema",
@@ -863,8 +873,8 @@ _dynamic_imports: dict[str, str] = {
     "WorkersTypedDict": ".healthcheckop",
     "HookdeckCredentials": ".hookdeckcredentials",
     "HookdeckCredentialsTypedDict": ".hookdeckcredentials",
-    "DestinationID": ".listattemptsop",
-    "DestinationIDTypedDict": ".listattemptsop",
+    "ListAttemptsDestinationID": ".listattemptsop",
+    "ListAttemptsDestinationIDTypedDict": ".listattemptsop",
     "ListAttemptsDir": ".listattemptsop",
     "ListAttemptsEventID": ".listattemptsop",
     "ListAttemptsEventIDTypedDict": ".listattemptsop",
@@ -880,6 +890,8 @@ _dynamic_imports: dict[str, str] = {
     "ListAttemptsTenantIDTypedDict": ".listattemptsop",
     "ListAttemptsTopic": ".listattemptsop",
     "ListAttemptsTopicTypedDict": ".listattemptsop",
+    "ListEventsDestinationID": ".listeventsop",
+    "ListEventsDestinationIDTypedDict": ".listeventsop",
     "ListEventsDir": ".listeventsop",
     "ListEventsID": ".listeventsop",
     "ListEventsIDTypedDict": ".listeventsop",

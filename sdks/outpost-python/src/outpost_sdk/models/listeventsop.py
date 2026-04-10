@@ -38,6 +38,18 @@ If not provided with API key auth, returns events from all tenants.
 """
 
 
+ListEventsDestinationIDTypedDict = TypeAliasType(
+    "ListEventsDestinationIDTypedDict", Union[str, List[str]]
+)
+r"""Filter events by matched destination ID(s). Returns events that were routed to the specified destination(s). Use bracket notation for multiple values (e.g., `destination_id[0]=d1&destination_id[1]=d2`)."""
+
+
+ListEventsDestinationID = TypeAliasType(
+    "ListEventsDestinationID", Union[str, List[str]]
+)
+r"""Filter events by matched destination ID(s). Returns events that were routed to the specified destination(s). Use bracket notation for multiple values (e.g., `destination_id[0]=d1&destination_id[1]=d2`)."""
+
+
 ListEventsTopicTypedDict = TypeAliasType(
     "ListEventsTopicTypedDict", Union[str, List[str]]
 )
@@ -70,6 +82,8 @@ class ListEventsRequestTypedDict(TypedDict):
     If not provided with API key auth, returns events from all tenants.
 
     """
+    destination_id: NotRequired[ListEventsDestinationIDTypedDict]
+    r"""Filter events by matched destination ID(s). Returns events that were routed to the specified destination(s). Use bracket notation for multiple values (e.g., `destination_id[0]=d1&destination_id[1]=d2`)."""
     topic: NotRequired[ListEventsTopicTypedDict]
     r"""Filter events by topic(s). Use bracket notation for multiple values (e.g., `topic[0]=user.created&topic[1]=user.updated`)."""
     time_gte: NotRequired[datetime]
@@ -108,6 +122,12 @@ class ListEventsRequest(BaseModel):
     If not provided with API key auth, returns events from all tenants.
 
     """
+
+    destination_id: Annotated[
+        Optional[ListEventsDestinationID],
+        FieldMetadata(query=QueryParamMetadata(style="form", explode=True)),
+    ] = None
+    r"""Filter events by matched destination ID(s). Returns events that were routed to the specified destination(s). Use bracket notation for multiple values (e.g., `destination_id[0]=d1&destination_id[1]=d2`)."""
 
     topic: Annotated[
         Optional[ListEventsTopic],
@@ -182,6 +202,7 @@ class ListEventsRequest(BaseModel):
             [
                 "id",
                 "tenant_id",
+                "destination_id",
                 "topic",
                 "time[gte]",
                 "time[lte]",
