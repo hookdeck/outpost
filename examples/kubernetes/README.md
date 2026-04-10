@@ -1,1 +1,1 @@
-See https://outpost.hookdeck.com/docs/quickstarts/kubernetes
+See https://hookdeck.com/docs/outpost/self-hosting/quickstarts/kubernetes

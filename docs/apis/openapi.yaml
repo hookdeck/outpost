@@ -7,7 +7,7 @@ info:
   contact:
     name: Outpost Support
     email: support@hookdeck.com
-    url: https://outpost.hookdeck.com/docs
+    url: https://hookdeck.com/docs/outpost
 security:
   - AdminApiKey: []
   - TenantJwt: []

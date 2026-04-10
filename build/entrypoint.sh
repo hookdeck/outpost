@@ -23,7 +23,7 @@ if ! /usr/local/bin/outpost migrate init --current --log-format=json; then
     echo "  docker run --rm hookdeck/outpost migrate --help"
     echo ""
     echo "Learn more about Outpost migration workflow at:"
-    echo "  https://outpost.hookdeck.com/docs/guides/migration"
+    echo "  https://hookdeck.com/docs/outpost/self-hosting/guides/migration"
     echo ""
     exit 1
 fi
