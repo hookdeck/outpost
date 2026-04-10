@@ -690,7 +690,7 @@ Environment:
   EVAL_LLMS_FULL_URL    Optional (omit docs line if unset)
   EVAL_TOOLS            Optional, comma-separated (default: Read,Glob,Grep[,WebFetch],Write,Edit,Bash — see README)
   EVAL_MODEL            Optional
-  EVAL_MAX_TURNS        Optional (default: 80; npm/go mod installs can exceed 40)
+  EVAL_MAX_TURNS        Optional (default: 80; npm/go mod installs can exceed 40; lower only for smoke — may not finish 08–10)
   EVAL_PERMISSION_MODE  Optional (default: dontAsk)
   EVAL_PERSIST_SESSION  Set to "false" to disable session persistence (breaks multi-turn resume)
   EVAL_DISABLE_WORKSPACE_WRITE_GUARD  Set to 1 to allow Write/Edit outside the run dir (not recommended)
@@ -798,6 +798,11 @@ Agent cwd is usually the run directory. Scenarios may define ## Eval harness (JS
     const turn0Prompt =
       filledTemplate + buildWorkspaceBoundaryAppendix(runDir, agentCwd, REPO_ROOT, localDocs);
     console.error(`\n>>> Scenario ${file} (run dir ${runDir}, agent cwd ${agentCwd}) ...`);
+    if (scenarioIdEarly === "08" || scenarioIdEarly === "09" || scenarioIdEarly === "10") {
+      console.error(
+        "Note: Scenarios 08–10 clone a full baseline and install deps — often 30–90+ min wall time with sparse console output until transcript.json. Ctrl+C aborts (writes *.eval-aborted.json). See README § Wall time.",
+      );
+    }
 
     const sidecars = harnessSidecarPaths(runDir);
     activeHarnessAbortContext = { path: sidecars.aborted, runDirectory: runDir };

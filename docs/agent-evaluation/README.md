@@ -55,6 +55,17 @@ npm run eval -- --dry-run
 
 The runner loads **`docs/agent-evaluation/.env`** automatically (via `dotenv`). Shell exports still override `.env` if both are set.
 
+### Wall time (scenarios **08–10** and other heavy baselines)
+
+Scenarios that **`git clone`** a full SaaS template and run **`npm` / `pnpm` / `docker compose`** installs are **slow by design**. Expect **roughly 30–90+ minutes** of wall time for a single run of **08**, **09**, or **10** (clone + install + several agent turns). The harness prints little to the terminal until **`transcript.json`** is written at the end, which can look hung.
+
+- **Stop early:** **Ctrl+C** (**SIGINT**) in the terminal running `npm run eval`. The runner writes **`*-scenario-NN.eval-aborted.json`** next to the run folder (see **Harness sidecars** at the top of this file).
+- **Skip re-clone:** If the baseline is already under the run directory, **`EVAL_SKIP_HARNESS_PRE_STEPS=1`** skips **`git_clone`** from the scenario harness (see each scenario’s **`## Eval harness`** block).
+- **Cap agent length (smoke only):** **`EVAL_MAX_TURNS`** (default **80**) limits SDK turns; lowering it may end the run sooner but often **fails** the integration before success criteria are met—use for debugging, not a real pass.
+- **Save judge time only:** **`--no-score-llm`** skips the Success-criteria LLM judge at the end (saves a few minutes; you lose that rubric).
+
+For **fast** automated signal in CI, use **`eval:ci`** (**01** + **02** only)—not **08**.
+
 ### CI (recommended slice)
 
 For **pull-request or main-branch** automation, run **two** scenarios only:
