@@ -2124,11 +2124,114 @@ components:
         metadata:
           $ref: "#/components/schemas/MetricsMetadata"
 
+    ManagedConfigKey:
+      type: string
+      description: Supported managed configuration key.
+      enum:
+        - ALERT_AUTO_DISABLE_DESTINATION
+        - ALERT_CALLBACK_URL
+        - ALERT_CONSECUTIVE_FAILURE_COUNT
+        - DELIVERY_TIMEOUT_SECONDS
+        - DESTINATIONS_AWS_KINESIS_METADATA_IN_PAYLOAD
+        - DESTINATIONS_INCLUDE_MILLISECOND_TIMESTAMP
+        - DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_EVENT_ID_HEADER
+        - DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_SIGNATURE_HEADER
+        - DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_TIMESTAMP_HEADER
+        - DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_TOPIC_HEADER
+        - DESTINATIONS_WEBHOOK_HEADER_PREFIX
+        - DESTINATIONS_WEBHOOK_MODE
+        - DESTINATIONS_WEBHOOK_PROXY_URL
+        - DESTINATIONS_WEBHOOK_SIGNATURE_ALGORITHM
+        - DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE
+        - DESTINATIONS_WEBHOOK_SIGNATURE_ENCODING
+        - DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE
+        - DESTINATIONS_WEBHOOK_SIGNING_SECRET_TEMPLATE
+        - HTTP_USER_AGENT
+        - IDGEN_ATTEMPT_PREFIX
+        - IDGEN_DESTINATION_PREFIX
+        - IDGEN_EVENT_PREFIX
+        - IDGEN_TYPE
+        - MAX_DESTINATIONS_PER_TENANT
+        - ORGANIZATION_NAME
+        - PORTAL_BRAND_COLOR
+        - PORTAL_DISABLE_OUTPOST_BRANDING
+        - PORTAL_FAVICON_URL
+        - PORTAL_FORCE_THEME
+        - PORTAL_LOGO
+        - PORTAL_LOGO_DARK
+        - PORTAL_ORGANIZATION_NAME
+        - PORTAL_REFERER_URL
+        - PORTAL_REFRESH_URL
+        - PORTAL_ENABLE_DESTINATION_FILTER
+        - PORTAL_ENABLE_WEBHOOK_CUSTOM_HEADERS
+        - RETRY_INTERVAL_SECONDS
+        - MAX_RETRY_LIMIT
+        - RETRY_SCHEDULE
+        - OTEL_EXPORTER_OTLP_ENDPOINT
+        - OTEL_EXPORTER_OTLP_HEADERS
+        - OTEL_EXPORTER_OTLP_PROTOCOL
+        - OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
+        - OTEL_EXPORTER_OTLP_METRICS_ENDPOINT
+        - OTEL_EXPORTER_OTLP_LOGS_ENDPOINT
+        - OTEL_SERVICE_NAME
+        - PUBLISH_AWS_SQS_ACCESS_KEY_ID
+        - PUBLISH_AWS_SQS_ENDPOINT
+        - PUBLISH_AWS_SQS_QUEUE
+        - PUBLISH_AWS_SQS_REGION
+        - PUBLISH_AWS_SQS_SECRET_ACCESS_KEY
+        - PUBLISH_AZURE_SERVICEBUS_CONNECTION_STRING
+        - PUBLISH_AZURE_SERVICEBUS_SUBSCRIPTION
+        - PUBLISH_AZURE_SERVICEBUS_TOPIC
+        - PUBLISH_GCP_PUBSUB_PROJECT
+        - PUBLISH_GCP_PUBSUB_SERVICE_ACCOUNT_CREDENTIALS
+        - PUBLISH_GCP_PUBSUB_SUBSCRIPTION
+        - PUBLISH_GCP_PUBSUB_TOPIC
+        - PUBLISH_RABBITMQ_EXCHANGE
+        - PUBLISH_RABBITMQ_QUEUE
+        - PUBLISH_RABBITMQ_SERVER_URL
+        - TOPICS
+
+    ManagedConfigValue:
+      description: Configuration value. The concrete type depends on the selected key.
+      oneOf:
+        - type: string
+        - type: number
+        - type: integer
+        - type: boolean
+        - type: array
+          items: {}
+        - type: object
+          additionalProperties: true
+        - type: "null"
+
+    ManagedConfig:
+      type: object
+      description: |
+        Managed configuration values for Outpost Cloud.
+        This API is available only on the managed version.
+        Self-hosted deployments configure these values using environment variables.
+      propertyNames:
+        $ref: "#/components/schemas/ManagedConfigKey"
+      additionalProperties:
+        $ref: "#/components/schemas/ManagedConfigValue"
+      example:
+        ORGANIZATION_NAME: "Acme"
+        MAX_DESTINATIONS_PER_TENANT: 25
+        DESTINATIONS_WEBHOOK_MODE: "default"
+        PORTAL_DISABLE_OUTPOST_BRANDING: false
+        TOPICS:
+          - "user.created"
+          - "user.updated"
+
 # Security is applied per-operation based on AuthScope
 
 tags:
   - name: Health
     description: API Health Check
+  - name: Configuration
+    description: |
+      Outpost instance-level configuration management for the managed deployment.
+      This is not available in self-hosted deployments.
   - name: Tenants
     description: |
       The API segments resources per `tenant`. A tenant represents a user/team/organization in your product. The provided value determines the tenant's ID, which can be any string representation.
@@ -2289,6 +2392,71 @@ paths:
                     status: healthy
                   retrymq-consumer:
                     status: failed
+  /config:
+    get:
+      tags: [Configuration]
+      summary: Get Managed Configuration
+      description: |
+        Returns managed Outpost configuration values.
+
+        This endpoint is only available for the managed version.
+        In self-hosted deployments, configuration is controlled through environment variables instead.
+      operationId: getManagedConfig
+      responses:
+        "200":
+          description: Managed configuration.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ManagedConfig"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: Endpoint unavailable for this deployment type.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APIErrorResponse"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    put:
+      tags: [Configuration]
+      summary: Update Managed Configuration
+      description: |
+        Updates one or more managed Outpost configuration values.
+
+        This endpoint is only available for the managed version.
+        In self-hosted deployments, configuration is controlled through environment variables instead.
+
+        Only the supported configuration keys are accepted.
+      operationId: updateManagedConfig
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ManagedConfig"
+      responses:
+        "200":
+          description: Updated managed configuration.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ManagedConfig"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: Endpoint unavailable for this deployment type.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APIErrorResponse"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
   # Tenants
   /tenants:
     get:

@@ -27,11 +27,11 @@ curl '{% $OUTPOST_API_BASE_URL %}/tenants/<TENANT_ID>/portal' \
 
 Redirect your user to `redirect_url`. The JWT is stored in their session and used for all portal API calls during the session.
 
-{% tabs %}
-{% tab title="Managed" %}
+{% tabs tabGroup="deployment" %}
+{% tab label="Managed" %}
 Hookdeck-hosted portal and API endpoints are already internet accessible.
 {% /tab %}
-{% tab title="Self-Hosted" %}
+{% tab label="Self-Hosted" %}
 Your Outpost API must be accessible from the public internet for the portal to function.
 {% /tab %}
 {% /tabs %}
@@ -40,8 +40,8 @@ Your Outpost API must be accessible from the public internet for the portal to f
 
 When a user opens the portal without a valid session (e.g. via a bookmark or shared link), the portal redirects them:
 
-{% tabs %}
-{% tab title="Managed" %}
+{% tabs tabGroup="deployment" %}
+{% tab label="Managed" %}
 If a session is missing or expired, the portal can redirect to a configured Session Refresh URL, or fall back to the configured referer URL.
 
 Configure the Session Refresh URL in [Hookdeck User Portal settings](https://dashboard.hookdeck.com/settings/project/user-portal), and ensure your endpoint:
@@ -51,7 +51,7 @@ Configure the Session Refresh URL in [Hookdeck User Portal settings](https://das
 3. Generates a new portal JWT via `GET /api/v1/tenants/:tenant_id/portal`
 4. Redirects to the portal with the new `?token=` parameter
 {% /tab %}
-{% tab title="Self-Hosted" %}
+{% tab label="Self-Hosted" %}
 1. To `PORTAL_REFRESH_URL` if configured, to silently re-authenticate and generate a fresh JWT
 2. Otherwise falls back to `PORTAL_REFERER_URL`
 
@@ -68,11 +68,11 @@ To enable session refresh, set `PORTAL_REFRESH_URL` to an endpoint in your appli
 
 ## Configuration
 
-{% tabs %}
-{% tab title="Managed" %}
+{% tabs tabGroup="deployment" %}
+{% tab label="Managed" %}
 Portal settings are configured via [Hookdeck User Portal settings](https://dashboard.hookdeck.com/settings/project/user-portal). Available options include organization name, logo, branding colors, and session refresh URL.
 {% /tab %}
-{% tab title="Self-Hosted" %}
+{% tab label="Self-Hosted" %}
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `PORTAL_REFERER_URL` | — | Required. URL to redirect to when JWT expires (also used as fallback when `PORTAL_REFRESH_URL` is not set) |

@@ -63,11 +63,11 @@ By default, each Kinesis record includes both metadata and the event's `data` fi
 }
 ```
 
-{% tabs %}
-{% tab title="Managed" %}
+{% tabs tabGroup="deployment" %}
+{% tab label="Managed" %}
 Configure `DESTINATIONS_AWS_KINESIS_METADATA_IN_PAYLOAD=false` in the Config API or in [Hookdeck Outpost Destinations settings](https://dashboard.hookdeck.com/settings/project/destinations) to send only the event's `data` field (no metadata wrapper).
 {% /tab %}
-{% tab title="Self-Hosted" %}
+{% tab label="Self-Hosted" %}
 Set `DESTINATIONS_AWS_KINESIS_METADATA_IN_PAYLOAD=false` to send only the event's `data` field (no metadata wrapper).
 {% /tab %}
 {% /tabs %}

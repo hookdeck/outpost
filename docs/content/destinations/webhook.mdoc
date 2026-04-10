@@ -98,11 +98,11 @@ base64(HMAC-SHA256(secret, "${webhook-id}.${timestamp}.${body}"))
 
 Use the official [Standard Webhooks SDK](https://github.com/standard-webhooks/standard-webhooks/tree/main/libraries) to verify signatures. Secrets use the `whsec_<base64>` format.
 
-{% tabs %}
-{% tab title="Managed" %}
+{% tabs tabGroup="deployment" %}
+{% tab label="Managed" %}
 Enable Standard Webhooks mode by setting `DESTINATIONS_WEBHOOK_MODE=standard` in the Config API or in [Hookdeck Destinations settings](https://dashboard.hookdeck.com/settings/project/destinations).
 {% /tab %}
-{% tab title="Self-Hosted" %}
+{% tab label="Self-Hosted" %}
 Enable Standard Webhooks mode:
 
 ```
@@ -154,11 +154,11 @@ curl '{% $OUTPOST_API_BASE_URL %}/tenants/<TENANT_ID>/destinations' \
 
 Header names must start with a letter or digit and may contain letters, digits, underscores, and hyphens. The following headers cannot be overridden: `content-type`, `content-length`, `host`, `connection`, `user-agent`.
 
-{% tabs %}
-{% tab title="Managed" %}
+{% tabs tabGroup="deployment" %}
+{% tab label="Managed" %}
 Custom webhook headers in the tenant portal are disabled by default. Enable them in [Hookdeck User Portal settings](https://dashboard.hookdeck.com/settings/project/user-portal).
 {% /tab %}
-{% tab title="Self-Hosted" %}
+{% tab label="Self-Hosted" %}
 Custom headers are disabled in the tenant portal by default. Enable with:
 
 ```
@@ -169,11 +169,11 @@ PORTAL_ENABLE_WEBHOOK_CUSTOM_HEADERS=true
 
 ## Operator Configuration
 
-{% tabs %}
-{% tab title="Managed" %}
+{% tabs tabGroup="deployment" %}
+{% tab label="Managed" %}
 Configure webhook operator behavior using these keys in the Config API or in [Hookdeck Destinations settings](https://dashboard.hookdeck.com/settings/project/destinations): `DESTINATIONS_WEBHOOK_HEADER_PREFIX`, `DESTINATIONS_WEBHOOK_DISABLE_EVENT_ID_HEADER`, `DESTINATIONS_WEBHOOK_DISABLE_TIMESTAMP_HEADER`, `DESTINATIONS_WEBHOOK_DISABLE_TOPIC_HEADER`, `DESTINATIONS_WEBHOOK_DISABLE_SIGNATURE_HEADER`, `DESTINATIONS_WEBHOOK_MODE`, `DESTINATIONS_WEBHOOK_SIGNATURE_ALGORITHM`, `DESTINATIONS_WEBHOOK_SIGNATURE_ENCODING`, `DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE`, and `DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE`.
 {% /tab %}
-{% tab title="Self-Hosted" %}
+{% tab label="Self-Hosted" %}
 ### Header Settings
 
 | Variable | Default | Description |

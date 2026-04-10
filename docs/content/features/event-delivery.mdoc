@@ -11,8 +11,8 @@ When a delivery attempt fails — because the destination is unavailable, miscon
 
 By default, retries use an **exponential backoff** algorithm with a base of `2`, or you can define a custom retry schedule.
 
-{% tabs %}
-{% tab title="Managed" %}
+{% tabs tabGroup="deployment" %}
+{% tab label="Managed" %}
 You can configure retry behavior in the [Hookdeck General settings](https://dashboard.hookdeck.com/settings/project/general) or with the Config API using the `MAX_RETRY_LIMIT`, `RETRY_INTERVAL_SECONDS`, and `RETRY_SCHEDULE` variables.
 
 | Variable | Default | Description |
@@ -29,7 +29,7 @@ Example custom retry schedule:
 }
 ```
 {% /tab %}
-{% tab title="Self-Hosted" %}
+{% tab label="Self-Hosted" %}
 Configure retry behavior with environment variables:
 
 | Variable | Default | Description |

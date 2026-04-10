@@ -192,13 +192,13 @@ curl --request PATCH \
 
 Destination filters are disabled in the tenant portal by default. You can enabled it by:
 
-{% tabs %}
-{% tab title="Managed" %}
+{% tabs tabGroup="deployment" %}
+{% tab label="Managed" %}
 
 Toggle on the "Destination filter" setting in [Hookdeck User Portal settings](https://dashboard.hookdeck.com/settings/project/user-portal), or enable the equivalent value through the Config API.
 
 {% /tab %}
-{% tab title="Self-Hosted" %}
+{% tab label="Self-Hosted" %}
 
 Setting the `PORTAL_ENABLE_DESTINATION_FILTER` configuration to `true`
 

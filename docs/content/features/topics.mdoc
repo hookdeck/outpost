@@ -14,13 +14,13 @@ Topics determine:
 
 ## Configuring Available Topics
 
-{% tabs %}
-{% tab title="Managed" %}
+{% tabs tabGroup="deployment" %}
+{% tab label="Managed" %}
 
 Available topics are configured through the Hookdeck dashboard [project settings](https://dashboard.hookdeck.com/settings/project/general) or Config API. Topics determine which values are valid for the `topic` field when publishing events and which topics appear in the tenant portal.
 
 {% /tab %}
-{% tab title="Self-Hosted" %}
+{% tab label="Self-Hosted" %}
 Set the list of available topics using the `TOPICS` environment variable:
 
 ```

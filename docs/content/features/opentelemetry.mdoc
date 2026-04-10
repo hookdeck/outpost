@@ -9,11 +9,11 @@ Outpost exposes key performance metrics via OpenTelemetry. All metrics are expor
 
 You can configure OpenTelemetry Collector to export metrics to your observability platform.
 
-{% tabs %}
-{% tab title="Managed" %}
+{% tabs tabGroup="deployment" %}
+{% tab label="Managed" %}
 Enable open telemetry in the [Hookdeck Monitoring settings](https://dashboard.hookdeck.com/settings/project/monitoring) or with the Config API using the `OTEL_SERVICE_NAME` and `OTEL_EXPORTER_OTLP_ENDPOINT` variables.
 {% /tab %}
-{% tab title="Self-Hosted" %}
+{% tab label="Self-Hosted" %}
 Outpost uses the [OpenTelemetry Go SDK](https://opentelemetry.io/docs/languages/go/) and is configured via the standard `OTEL_*` environment variables documented in the [OTel SDK configuration reference](https://opentelemetry.io/docs/languages/sdk-configuration/general/).
 
 To enable metrics export, set `OTEL_SERVICE_NAME` and configure an exporter endpoint, for example:
