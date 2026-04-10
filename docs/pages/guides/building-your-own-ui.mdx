@@ -4,17 +4,21 @@ title: "Building Your Own UI"
 
 While Outpost offers a Tenant User Portal, you may want to build your own UI so your customers can manage their destinations and view delivery activity.
 
+This page is for **teams shipping that experience**—usually product engineers and anyone designing settings, integrations, or support tooling around webhooks and other destination types. It is framework-agnostic: screens, flows, and how they map to Outpost. If you use an **AI coding assistant** with Hookdeck’s optional [integration prompt](/docs/quickstarts/hookdeck-outpost-agent-prompt), that document carries workflow-specific instructions; this guide stays focused on what your **customers** should see and what your **backend** should enforce.
+
 The portal uses the same Outpost API you can call from your product. Its source is a useful reference ([`internal/portal`](https://github.com/hookdeck/outpost/tree/main/internal/portal), React); you are not required to match its stack.
 
-This guide is framework-agnostic. It describes screens, flows, and how they map to the API. For paths, query parameters, request and response JSON, status codes, and authentication, use the [OpenAPI specification](/docs/api) as the authoritative contract. If anything here disagrees with OpenAPI, trust the spec.
+For paths, query parameters, request and response JSON, status codes, and authentication, use the [OpenAPI specification](/docs/api) as the authoritative contract. If anything here disagrees with OpenAPI, trust the spec.
+
+**Prefer official SDKs on the server** where Hookdeck provides them for your backend language—see the [SDK overview](/docs/sdks) and the **curl**, **TypeScript**, **Python**, or **Go** quickstart in this documentation for runnable examples. The SDKs wrap the same API: less boilerplate, typed clients, and fewer raw HTTP mistakes. Use **OpenAPI** as the contract for **wire JSON** (especially when your browser or BFF returns JSON that should match the HTTP API), for generated clients, or when you integrate from a stack without a first-party SDK.
 
 ### Working from OpenAPI
 
-Each screen should map to named operations in the spec (list destinations, create destination, list events, and so on). Use the published schemas for request bodies and list rows.
+Map each surface in your product to named operations in the spec (list destinations, create destination, list events, and so on). Use the published schemas for request bodies and list rows, and implement those operations with the **official SDK** on your backend when available.
 
-Destination type labels, icons, and dynamic form fields come from `GET /destination-types`—specifically `config_fields` and `credential_fields` (see [Destination type metadata and dynamic config](#destination-type-metadata-and-dynamic-config)). That response is the source for field keys and types, not guesses from older examples.
+Destination type labels, icons, and dynamic form fields come from `GET /destination-types`—specifically `config_fields` and `credential_fields` (see [Destination type metadata and dynamic config](#destination-type-metadata-and-dynamic-config)). That response is the source for field keys and types, not guesses from older examples. Each field object includes a **`key`**: the property name inside the destination’s `config` or `credentials` object (for example `url` for a webhook). This is documented on **`DestinationSchemaField`** in [OpenAPI](/docs/api).
 
-If the browser calls Outpost directly, use the tenant JWT flows documented in OpenAPI. If you proxy through your backend (often called a BFF), your server performs the same operations with your session and injects `tenant_id` where the admin-key flows require it.
+Whether the browser uses a **tenant JWT** or talks only to **your** API, the operations are the ones in OpenAPI; see [Authentication](#authentication) for how credentials and `tenant_id` are applied.
 
 The portal shows full UI code for complex forms; this page avoids long framework-specific snippets so the spec stays the single place for shapes and validation.
 
@@ -71,6 +75,12 @@ You can issue a tenant JWT for client-side calls to Outpost, or proxy requests t
 
 Proxying is useful when you want to restrict which Outpost features are exposed or to keep the admin key off the client entirely.
 
+### Browser, your API, and Outpost (BFF pattern)
+
+In a typical **backend-for-frontend** arrangement, the customer’s browser calls **your** product API only. Your servers call Outpost with the **platform** API key and the correct **`tenant_id`** for the signed-in account. Teams refer to this as a **BFF**, an **Outpost proxy**, or a server-side integration layer—the pattern is the same.
+
+The alternative is for the browser to call Outpost **directly** using a short-lived **tenant JWT** ([Generating a JWT Token](#generating-a-jwt-token-optional) below). Many products prefer a proxy so the admin key never ships to the client and so they can limit which Outpost capabilities the UI may invoke.
+
 ### API base URL (managed and self-hosted)
 
 Use one configurable base URL for Outpost (no trailing slash), for example `API_URL` or `OUTPOST_API_BASE_URL`. Paths in this guide match [OpenAPI](/docs/api) (`/tenants/...`, `/topics`, `/destination-types`, …).
@@ -106,9 +116,21 @@ Each entry typically includes (confirm names and optionality in OpenAPI):
 
 ### Dynamic field shape (for forms)
 
-Field objects are fully described in OpenAPI. Typically each has `key`, `label`, `type` (text vs checkbox), `required`, optional `description`, validation (`minlength`, `maxlength`, `pattern`), `default`, `disabled`, and `sensitive` (password-style; values may be masked after create—clear to edit).
+Field objects are fully described in OpenAPI (`DestinationSchemaField`), including **`key`** (where to place the value in `config` / `credentials` on create/update). Each field has `label`, `type` (text vs checkbox vs select vs key-value map), `required`, optional `description`, validation (`minlength`, `maxlength`, `pattern`), `default`, `disabled`, and `sensitive` (password-style; values may be masked after create—clear to edit). On submit, map each value to the **`key`** Outpost expects inside `config` / `credentials`, regardless of how property names were transformed earlier in your stack—see [Wire JSON, SDK responses, and your UI](#wire-json-sdk-responses-and-your-ui).
 
 **Reference:** [DestinationConfigFields.tsx](https://github.com/hookdeck/outpost/blob/main/internal/portal/src/common/DestinationConfigFields/DestinationConfigFields.tsx) maps schema fields to inputs.
+
+### Wire JSON, SDK responses, and your UI
+
+This section matters whether you use an **official SDK** on the server (recommended when available) or raw HTTP: the **HTTP API** always follows [OpenAPI](/docs/api), while SDKs present language-native types to your backend code.
+
+HTTP responses from Outpost on the wire use JSON property names that match OpenAPI—typically **snake_case** (for example `config_fields`, `credential_fields`, and `remote_setup_url` on `GET /destination-types`).
+
+Official **SDKs** deserialize into language-native structures; names often differ from the wire format (for example TypeScript may expose **camelCase** such as `configFields` and `credentialFields`). Mutations use each SDK’s documented request types, which may not mirror OpenAPI field names literally.
+
+When a **browser** loads destination-type metadata via **your** backend, it receives whatever JSON your server returns. Options include forwarding the **raw** Outpost response body (so the client matches OpenAPI) or translating once on the server and treating that as your product’s contract. In all cases, create and update bodies must still place each value under the schema field’s **`key`** inside `config` and `credentials` as defined in OpenAPI.
+
+**Shape mismatches** between layers often appear as missing dynamic fields or create errors referencing absent `config.*` keys (for example `config.url` for webhooks). Comparing the **actual** JSON your UI receives with the property names your rendering code expects (`config_fields` versus `configFields`, and similar) usually isolates the problem.
 
 ### Remote setup URL
 
@@ -181,12 +203,15 @@ This section connects what your customers see (what was delivered, what failed, 
 
 ## Implementation checklists
 
-These are readiness checks: they do not replace the tables above or OpenAPI. Use them to confirm nothing important was skipped before ship or when reviewing an implementation.
+Use these lists before launch, in design or code review, or when comparing your tenant experience to the patterns above. They do not replace OpenAPI, security review, or testing against your deployment.
+
+For **customer-facing** destination and delivery UI, work through **Planning and contract**, **Destinations experience**, and **Activity, attempts, and retries** at minimum. Skip rows that clearly do not apply (for example, if you only expose destinations through your own API and have no in-app activity screens—document how customers verify delivery instead).
 
 ### Planning and contract
 
 - [ ] Every call is scoped to the correct tenant (`tenant_id` on admin-key routes, or tenant inferred from JWT).
 - [ ] Outpost base URL comes from configuration or environment for dev, staging, and production (not a single hardcoded host in app code).
+- [ ] Server-side Outpost calls use an **official SDK** when Hookdeck ships one for your language; raw HTTP or generated OpenAPI clients are fine when they fit better.
 - [ ] You chose an auth approach (browser JWT, server-side proxy/BFF, or mix) and use the matching OpenAPI operations and headers consistently.
 - [ ] Dynamic destination UI (labels, icons, form fields) is driven by `GET /destination-types`, not copied field lists from examples.
 

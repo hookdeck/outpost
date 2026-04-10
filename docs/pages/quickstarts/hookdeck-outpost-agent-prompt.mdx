@@ -46,6 +46,8 @@ Use this **Hookdeck Console Source** URL to verify event delivery (the webhook `
 - Full docs bundle (when available on the public site): {{LLMS_FULL_URL}}
 - SDK overview: {{DOCS_URL}}/sdks — use **only** for high-level context; for **TypeScript, Python, or Go** code, follow that language’s **quickstart** for correct method signatures (e.g. Python `publish.event` uses `request={{...}}`, not TypeScript-style spreads as Python kwargs).
 
+**SDK vs OpenAPI (BFF / dashboard UI):** **Prefer the official server SDK** when Hookdeck provides one for the repo’s backend language (**{{DOCS_URL}}/sdks**). Keep these invariants: (1) **Wire JSON** matches **OpenAPI** (often **snake_case**). **SDKs** rename fields in language types (e.g. TypeScript **camelCase**). (2) The **browser** should consume the same JSON shape your BFF actually returns—or the server should **normalize** (e.g. forward raw `GET /destination-types`). (3) On create/update, each schema field’s **`key`** maps into `config` / `credentials` per OpenAPI. **Calling** Outpost: use **SDK** types when using the SDK; use **OpenAPI** for raw `fetch` / curl. Detail: **{{DOCS_URL}}/guides/building-your-own-ui#authentication** and **{{DOCS_URL}}/guides/building-your-own-ui#wire-json-sdk-responses-and-your-ui**.
+
 **When you build customer-facing UI or integrate into an existing product (not for quick path only):**
 
 - **Building your own UI — screen structure and flow** (list destinations—**any type**; create: choose **type** → topics → type-specific config; **events** / **attempts** / **manual retry**; tenant scope; default **destination → activity**): {{DOCS_URL}}/guides/building-your-own-ui
@@ -121,7 +123,7 @@ Use the **official SDK for the repo’s backend language** on the **server** (or
 
 If the codebase already has **customer-facing UI** (dashboard, settings, integrations) **or** a client that talks to **your** API, operators usually want customers to **manage destinations** (every **destination type** the project enables; see **{{DOCS_URL}}/destinations** and **`GET /destination-types`** in OpenAPI) **inside the product**:
 
-- **Backend:** **`OUTPOST_API_KEY`** and all Outpost SDK usage **server-side only**. **Tenant** upsert/sync where it fits, **publish** on real domain events, and **authenticated routes** (BFF, server handlers, server actions—whatever matches **their** stack) to list/create/update/delete destinations for the **signed-in customer’s** tenant. Handlers call Outpost with platform credentials; responses expose only what the customer should see (ids, targets, topics—**never** the platform API key).
+- **Backend:** **`OUTPOST_API_KEY`** and all Outpost SDK usage **server-side only**. **Tenant** upsert/sync where it fits, **publish** on real domain events, and **authenticated routes** (backend-for-frontend / BFF, server handlers, server actions—whatever matches **their** stack) to list/create/update/delete destinations for the **signed-in customer’s** tenant. Handlers call Outpost with platform credentials; responses expose only what the customer should see (ids, targets, topics—**never** the platform API key).
 - **Frontend:** **Logged-in** clients call **your** backend (session, JWT, existing API client)—**not** Hookdeck’s API directly; **not** the Outpost SDK in the browser. Reuse their design system and routing. **Before** building screens, read **Concepts** and **Building your own UI**: **tenant scope**, **multiple destinations**, **destination = topics + delivery target** (avoid one undifferentiated “webhook” field unless they want that simplification).
 - **Events and retries:** Surface **events** (filter by **destination** when useful) and **attempts** per event; offer **manual retry** for failed attempts (server-side retry API with `event_id` and `destination_id`) after they fix downstream—see **Building your own UI** (default **destination → activity**).
 - **Test publish (recommended when shipping destination UI):** A **separate** control that **publishes a test event** for the signed-in tenant (server-side `publish` to a configured topic). Complementary to domain publishes; **does not replace** a real domain `publish`.
@@ -151,9 +153,13 @@ Apply **only** the items below that fit the task; **skip** any that do not apply
 - [ ] **Test publish (if you added one):** Kept as a **separate** control from domain logic; does not satisfy the domain-publish item by itself.
 - [ ] **Build integrity:** Generated outputs, route or module registries, and dependency lockfiles are **consistent** with new or edited source so a **clean** install + typecheck or build (or the repo’s documented CI step) would pass.
 
+**When you added or changed customer-facing destination management in an existing full-stack product** (dashboard, settings, or integrations UI—per **Existing application (full-stack products)** above):
+
+- [ ] **Full-stack UI bar:** Walked **Planning and contract**, **Destinations experience**, and **Activity, attempts, and retries** in **{{DOCS_URL}}/guides/building-your-own-ui#implementation-checklists** and confirmed the implementation matches: list rows reach **detail** and **destination-scoped activity** (events → attempts → manual retry as appropriate), **dynamic** create (and edit if you expose it) is driven by **`GET /destination-types`** (including each field’s **`key`** in `config` / `credentials`), and a **separate server-side test publish** control exists when customers can manage destinations. *Skip this item if the product is **API-only** (no customer UI for destinations) or the operator explicitly excluded activity / test UI—then document verification instead (README, Outpost dashboard, or curl to list events/attempts).*
+
 **Files on disk:** When your environment supports it, **write runnable artifacts into the operator’s project workspace** (real files: scripts, app source, `package.json`, `go.mod`, README) rather than only pasting long code in chat—so they can run, diff, and commit. Keep everything for one task in the same directory. For **new minimal application**, scaffold and install dependencies as you normally would (`npm` / `npx`, `go mod`, `pip` or `uv`). For **existing** full-stack products, change both **backend and frontend** (or equivalent UI layer) when the repo already includes customer-facing UI—do not stop at OpenAPI-only unless the product is genuinely API-only or the operator asks to skip UI work.
 
-**Concepts:** Each **tenant** is one of the platform’s customers (an org/account you sell to). A tenant has **zero or more destinations**; each **destination** is a **subscription**—a **destination type** (webhook, queue, Hookdeck, …) plus **which topics** to receive and **where** to deliver (type-specific: URL, queue name, etc.). Your **backend** publishes with **`tenant_id`**, **`topic`**, and payload; Outpost fans out to every destination of that tenant that subscribes to that topic. Topic names should reflect **your product’s events**; **`user.*`** usually means **users inside that tenant’s account**, not your company’s internal operators. Read **{{DOCS_URL}}/concepts** and **{{DOCS_URL}}/guides/building-your-own-ui** for the full model and recommended screens. Topics for this project are listed above and were configured in the Hookdeck dashboard.
+**Concepts:** Read **{{DOCS_URL}}/concepts** for tenants, destinations as subscriptions, topics, and how **publish** fans out. Use **{{DOCS_URL}}/guides/building-your-own-ui** for recommended screens and implementation checklists. **Configured topics** above lists this project’s topic names (dashboard); **`user.*`** naming semantics are explained under **Configured topics** in this prompt.
 ```
 
 ## Placeholder reference
@@ -165,6 +171,16 @@ Apply **only** the items below that fit the task; **skip** any that do not apply
 | `{{TEST_DESTINATION_URL}}` | **Required** — HTTPS URL of the Hookdeck Console **Source** created for this onboarding flow (fed in by the dashboard). |
 | `{{DOCS_URL}}` | `https://outpost.hookdeck.com/docs` | Public docs root (no trailing slash). For unpublished docs, automated evals can set **`EVAL_LOCAL_DOCS=1`** so the Documentation section is replaced with repository file paths (see `docs/agent-evaluation/README.md`). |
 | `{{LLMS_FULL_URL}}` | `https://hookdeck.com/outpost/docs/llms-full.txt` | Optional; omit the line if not live yet |
+
+### Building your own UI — where the detail lives
+
+Product guidance is consolidated in **[Building your own UI](/docs/guides/building-your-own-ui)**:
+
+- **[Implementation checklists](/docs/guides/building-your-own-ui#implementation-checklists)** — ship/review rows for destinations and activity (referenced from **Before you stop (verify)** in the template above; not duplicated here).
+- **[Authentication](/docs/guides/building-your-own-ui#authentication)** — browser vs your API vs Outpost (**BFF** pattern) and JWT option.
+- **[Wire JSON, SDK responses, and your UI](/docs/guides/building-your-own-ui#wire-json-sdk-responses-and-your-ui)** — snake_case wire vs SDK names, `key` in `config` / `credentials`, shape mismatches.
+
+That page is written for **teams integrating Outpost** (engineers, PMs, reviewers). **Agent evaluation** in the Outpost repository (`docs/agent-evaluation/scenarios/`, scenarios **8–10** for existing-app baselines) uses the same implementation checklist when a run includes **customer-facing** destination UI—see each scenario’s success criteria for links.
 
 ## Operator checklist (dashboard UI)
 
