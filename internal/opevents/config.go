@@ -6,7 +6,7 @@ import (
 	"github.com/hookdeck/outpost/internal/mqs"
 )
 
-// Config holds the configuration for the operation events system.
+// Config holds the configuration for the operator events system.
 // yaml/env tags live in internal/config; this is the domain-level struct.
 type Config struct {
 	Topics []string

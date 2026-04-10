@@ -6,5 +6,5 @@ import "context"
 type NoopSink struct{}
 
 func (s *NoopSink) Init(ctx context.Context) error                        { return nil }
-func (s *NoopSink) Send(ctx context.Context, event *OperationEvent) error { return nil }
+func (s *NoopSink) Send(ctx context.Context, event *OperatorEvent) error  { return nil }
 func (s *NoopSink) Close() error                                          { return nil }

@@ -12,7 +12,7 @@ This guide covers breaking changes and migration steps when upgrading from v0.15
 | [Event `destination_id` replaced with `matched_destination_ids`](#event-destination_id-replaced-with-matched_destination_ids) | Event API responses and queries | Update code that reads `destination_id` from events to use `matched_destination_ids` |
 | [Delivery metadata timestamp format](#delivery-metadata-timestamp-format) | Consumers of delivery metadata `timestamp` field | Update timestamp parsing from Unix seconds to ISO 8601 |
 | [Response data body stored as raw string](#response-data-body-stored-as-raw-string) | Consumers of `response_data.body` | Update code that treats `response_data.body` as a parsed JSON object |
-| [Alert callbacks replaced by operation events](#alert-callbacks-replaced-by-operation-events) | Users of `ALERT_CALLBACK_URL` | Migrate to `OPERATION_EVENTS_*` config |
+| [Alert callbacks replaced by operator events](#alert-callbacks-replaced-by-operator-events) | Users of `ALERT_CALLBACK_URL` | Migrate to `OPERATOR_EVENTS_*` config |
 
 ## Webhook Signing Secret Prefix Changed
 
@@ -111,13 +111,13 @@ The `attempts.response_data` column is migrated from JSONB to TEXT (migration `0
 
 **Action:** Update any code that reads `response_data.body` as a structured object. If you need the parsed object, parse the string with `JSON.parse()` (or equivalent) on the client side.
 
-## Alert Callbacks Replaced by Operation Events
+## Alert Callbacks Replaced by Operator Events
 
-The `ALERT_CALLBACK_URL` config has been removed. Alert notifications are now handled by the new **operation events** system, which supports multiple sink types and additional event topics.
+The `ALERT_CALLBACK_URL` config has been removed. Alert notifications are now handled by the new **operator events** system, which supports multiple sink types and additional event topics.
 
 ### Migration
 
-If you were using `ALERT_CALLBACK_URL` to receive alert callbacks via HTTP, migrate to the operation events HTTP sink:
+If you were using `ALERT_CALLBACK_URL` to receive alert callbacks via HTTP, migrate to the operator events HTTP sink:
 
 **v0.15:**
 ```
@@ -126,24 +126,24 @@ ALERT_CALLBACK_URL=https://example.com/alerts
 
 **v0.16:**
 ```
-OPERATION_EVENTS_TOPICS=*
-OPERATION_EVENTS_HTTP_URL=https://example.com/alerts
-OPERATION_EVENTS_HTTP_SIGNING_SECRET=your-secret
+OPERATOR_EVENTS_TOPICS=*
+OPERATOR_EVENTS_HTTP_URL=https://example.com/alerts
+OPERATOR_EVENTS_HTTP_SIGNING_SECRET=your-secret
 ```
 
 The HTTP sink signs payloads with HMAC-SHA256 and sends the signature in the `X-Outpost-Signature` header (format: `v0=<hex>`).
 
 ### New sink options
 
-In addition to HTTP, operation events can be sent to:
+In addition to HTTP, operator events can be sent to:
 
-- **AWS SQS** — `OPERATION_EVENTS_AWS_SQS_QUEUE_URL`, `OPERATION_EVENTS_AWS_SQS_ACCESS_KEY_ID`, `OPERATION_EVENTS_AWS_SQS_SECRET_ACCESS_KEY`, `OPERATION_EVENTS_AWS_SQS_REGION`
-- **GCP Pub/Sub** — `OPERATION_EVENTS_GCP_PUBSUB_PROJECT_ID`, `OPERATION_EVENTS_GCP_PUBSUB_TOPIC_ID`, `OPERATION_EVENTS_GCP_PUBSUB_CREDENTIALS`
-- **RabbitMQ** — `OPERATION_EVENTS_RABBITMQ_SERVER_URL`, `OPERATION_EVENTS_RABBITMQ_EXCHANGE`
+- **AWS SQS** — `OPERATOR_EVENTS_AWS_SQS_QUEUE_URL`, `OPERATOR_EVENTS_AWS_SQS_ACCESS_KEY_ID`, `OPERATOR_EVENTS_AWS_SQS_SECRET_ACCESS_KEY`, `OPERATOR_EVENTS_AWS_SQS_REGION`
+- **GCP Pub/Sub** — `OPERATOR_EVENTS_GCP_PUBSUB_PROJECT_ID`, `OPERATOR_EVENTS_GCP_PUBSUB_TOPIC_ID`, `OPERATOR_EVENTS_GCP_PUBSUB_CREDENTIALS`
+- **RabbitMQ** — `OPERATOR_EVENTS_RABBITMQ_SERVER_URL`, `OPERATOR_EVENTS_RABBITMQ_EXCHANGE`
 
 ### Event topics
 
-Use `OPERATION_EVENTS_TOPICS=*` for all topics, or specify a comma-separated list:
+Use `OPERATOR_EVENTS_TOPICS=*` for all topics, or specify a comma-separated list:
 
 - `alert.destination.consecutive_failure` — emitted at 50%, 70%, 90%, and 100% failure thresholds
 - `alert.destination.disabled` — emitted when a destination is auto-disabled
@@ -185,7 +185,7 @@ You can now disable the webhook header prefix by setting it to whitespace (e.g.,
    - [ ] Update code that reads `event.destination_id` to use `event.matched_destination_ids`
    - [ ] Update any timestamp metadata parsing from Unix seconds to ISO 8601
    - [ ] Update code that reads `response_data.body` as a parsed object — it is now a raw string
-   - [ ] If using `ALERT_CALLBACK_URL`, migrate to `OPERATION_EVENTS_*` config
+   - [ ] If using `ALERT_CALLBACK_URL`, migrate to `OPERATOR_EVENTS_*` config
    - [ ] Review alert default changes (consecutive failure count: 20→100, auto-disable: true→false) and set explicitly if needed
    - [ ] Update SDK dependencies to the latest version
 

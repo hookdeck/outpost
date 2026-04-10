@@ -41,7 +41,7 @@ func TestMQSink_Send(t *testing.T) {
 
 		msg.Ack()
 
-		var got opevents.OperationEvent
+		var got opevents.OperatorEvent
 		require.NoError(t, json.Unmarshal(msg.Body, &got))
 		assert.Equal(t, event.ID, got.ID)
 		assert.Equal(t, event.Topic, got.Topic)

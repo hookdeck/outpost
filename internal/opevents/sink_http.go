@@ -15,7 +15,7 @@ import (
 
 const signatureHeader = "X-Outpost-Signature"
 
-// HTTPSink sends operation events via HTTP POST with optional HMAC-SHA256 signing.
+// HTTPSink sends operator events via HTTP POST with optional HMAC-SHA256 signing.
 type HTTPSink struct {
 	url           string
 	signingSecret string
@@ -36,7 +36,7 @@ func NewHTTPSink(url, signingSecret string) *HTTPSink {
 func (s *HTTPSink) Init(ctx context.Context) error { return nil }
 func (s *HTTPSink) Close() error                   { return nil }
 
-func (s *HTTPSink) Send(ctx context.Context, event *OperationEvent) error {
+func (s *HTTPSink) Send(ctx context.Context, event *OperatorEvent) error {
 	body, err := json.Marshal(event)
 	if err != nil {
 		return fmt.Errorf("opevents: failed to marshal event: %w", err)

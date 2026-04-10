@@ -404,7 +404,7 @@ func (s *basicSuite) waitForNewDestinationDisabled(tenantID, destID string) {
 	s.Require().FailNowf("timeout", "timed out waiting for destination %s to be disabled", destID)
 }
 
-// waitForOpEvents polls until at least count operation events with the given topic exist.
+// waitForOpEvents polls until at least count operator events with the given topic exist.
 func (s *basicSuite) waitForOpEvents(topic string, count int) []opeventsmock.ReceivedEvent {
 	s.T().Helper()
 	timeout := alertPollTimeout

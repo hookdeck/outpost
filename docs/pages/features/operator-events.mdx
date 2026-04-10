@@ -1,19 +1,19 @@
 ---
-title: Operation Events
+title: Operator Events
 ---
 
-Operation events let you subscribe to lifecycle events from your Outpost deployment — delivery failures, destination disabling, retry exhaustion, and subscription changes. Use them to build alerting, auditing, or automation on top of Outpost.
+Operator events let you subscribe to lifecycle events from your Outpost deployment — delivery failures, destination disabling, retry exhaustion, and subscription changes. Use them to build alerting, auditing, or automation on top of Outpost.
 
 ## Configuration
 
-Enable operation events by specifying which topics to subscribe to and configuring a sink to receive them.
+Enable operator events by specifying which topics to subscribe to and configuring a sink to receive them.
 
 ### Topics
 
-Set `OPERATION_EVENTS_TOPICS` to a comma-separated list of topics, or `*` for all topics:
+Set `OPERATOR_EVENTS_TOPICS` to a comma-separated list of topics, or `*` for all topics:
 
 ```
-OPERATION_EVENTS_TOPICS=*
+OPERATOR_EVENTS_TOPICS=*
 ```
 
 Available topics:
@@ -25,7 +25,7 @@ Available topics:
 | `alert.attempt.exhausted_retries` | Delivery exhausts all retry attempts (deduplicated per event+destination) |
 | `tenant.subscription.updated` | Destination created, updated, deleted, disabled, or enabled (when topics or destination count changes) |
 
-If `OPERATION_EVENTS_TOPICS` is empty or unset, operation events are disabled. If topics are configured but no sink is set, Outpost will fail to start.
+If `OPERATOR_EVENTS_TOPICS` is empty or unset, operator events are disabled. If topics are configured but no sink is set, Outpost will fail to start.
 
 ### Sinks
 
@@ -36,8 +36,8 @@ Configure exactly one sink to receive events. Four sink types are supported:
 Sends events as POST requests to a URL, signed with HMAC-SHA256.
 
 ```
-OPERATION_EVENTS_HTTP_URL=https://example.com/outpost-events
-OPERATION_EVENTS_HTTP_SIGNING_SECRET=your-secret
+OPERATOR_EVENTS_HTTP_URL=https://example.com/outpost-events
+OPERATOR_EVENTS_HTTP_SIGNING_SECRET=your-secret
 ```
 
 The HTTP sink signs each request body and sends the signature in the `X-Outpost-Signature` header:
@@ -57,31 +57,31 @@ assert signature_header == f"v0={expected}"
 #### AWS SQS
 
 ```
-OPERATION_EVENTS_AWS_SQS_QUEUE_URL=https://sqs.us-east-1.amazonaws.com/123456789/outpost-events
-OPERATION_EVENTS_AWS_SQS_ACCESS_KEY_ID=AKIA...
-OPERATION_EVENTS_AWS_SQS_SECRET_ACCESS_KEY=...
-OPERATION_EVENTS_AWS_SQS_REGION=us-east-1
-OPERATION_EVENTS_AWS_SQS_ENDPOINT=          # optional, for local dev
+OPERATOR_EVENTS_AWS_SQS_QUEUE_URL=https://sqs.us-east-1.amazonaws.com/123456789/outpost-events
+OPERATOR_EVENTS_AWS_SQS_ACCESS_KEY_ID=AKIA...
+OPERATOR_EVENTS_AWS_SQS_SECRET_ACCESS_KEY=...
+OPERATOR_EVENTS_AWS_SQS_REGION=us-east-1
+OPERATOR_EVENTS_AWS_SQS_ENDPOINT=          # optional, for local dev
 ```
 
 #### GCP Pub/Sub
 
 ```
-OPERATION_EVENTS_GCP_PUBSUB_PROJECT_ID=my-project
-OPERATION_EVENTS_GCP_PUBSUB_TOPIC_ID=outpost-events
-OPERATION_EVENTS_GCP_PUBSUB_CREDENTIALS={"type":"service_account",...}
+OPERATOR_EVENTS_GCP_PUBSUB_PROJECT_ID=my-project
+OPERATOR_EVENTS_GCP_PUBSUB_TOPIC_ID=outpost-events
+OPERATOR_EVENTS_GCP_PUBSUB_CREDENTIALS={"type":"service_account",...}
 ```
 
 #### RabbitMQ
 
 ```
-OPERATION_EVENTS_RABBITMQ_SERVER_URL=amqp://guest:guest@localhost:5672
-OPERATION_EVENTS_RABBITMQ_EXCHANGE=outpost-events
+OPERATOR_EVENTS_RABBITMQ_SERVER_URL=amqp://guest:guest@localhost:5672
+OPERATOR_EVENTS_RABBITMQ_EXCHANGE=outpost-events
 ```
 
 ## Event Envelope
 
-All operation events share a common envelope:
+All operator events share a common envelope:
 
 ```json
 {
@@ -185,7 +185,7 @@ Emitted when a destination is created, updated, deleted, disabled, or enabled, a
 
 ## Delivery Guarantees
 
-Operation events are delivered on a best-effort basis with up to 3 attempts. Consumers should use the `id` field for deduplication.
+Operator events are delivered on a best-effort basis with up to 3 attempts. Consumers should use the `id` field for deduplication.
 
 ## Related Configuration
 

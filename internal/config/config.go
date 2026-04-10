@@ -105,8 +105,8 @@ type Config struct {
 	// Alert
 	Alert AlertConfig `yaml:"alert"`
 
-	// Operation Events
-	OperationEvents OperationEventsConfig `yaml:"operation_events"`
+	// Operator Events
+	OperatorEvents OperatorEventsConfig `yaml:"operator_events"`
 
 	// ID Generation
 	IDGen IDGenConfig `yaml:"idgen"`
@@ -410,39 +410,39 @@ func (c *ClickHouseConfig) ToConfig() *clickhouse.ClickHouseConfig {
 	}
 }
 
-type OperationEventsConfig struct {
-	Topics    []string                      `yaml:"topics" env:"OPERATION_EVENTS_TOPICS" envSeparator:"," desc:"Comma-separated list of operation event topics to emit. Use '*' for all topics. If empty, operation events are disabled." required:"N"`
-	HTTP      OperationEventsHTTPConfig     `yaml:"http"`
-	AWSSQS    OperationEventsAWSSQSConfig   `yaml:"aws_sqs"`
-	GCPPubSub OperationEventsGCPConfig      `yaml:"gcp_pubsub"`
-	RabbitMQ  OperationEventsRabbitMQConfig `yaml:"rabbitmq"`
+type OperatorEventsConfig struct {
+	Topics    []string                     `yaml:"topics" env:"OPERATOR_EVENTS_TOPICS" envSeparator:"," desc:"Comma-separated list of operator event topics to emit. Use '*' for all topics. If empty, operator events are disabled." required:"N"`
+	HTTP      OperatorEventsHTTPConfig     `yaml:"http"`
+	AWSSQS    OperatorEventsAWSSQSConfig   `yaml:"aws_sqs"`
+	GCPPubSub OperatorEventsGCPConfig      `yaml:"gcp_pubsub"`
+	RabbitMQ  OperatorEventsRabbitMQConfig `yaml:"rabbitmq"`
 }
 
-type OperationEventsHTTPConfig struct {
-	URL           string `yaml:"url" env:"OPERATION_EVENTS_HTTP_URL" desc:"URL to POST operation events to." required:"N"`
-	SigningSecret string `yaml:"signing_secret" env:"OPERATION_EVENTS_HTTP_SIGNING_SECRET" desc:"HMAC-SHA256 signing secret for operation event payloads." required:"N"`
+type OperatorEventsHTTPConfig struct {
+	URL           string `yaml:"url" env:"OPERATOR_EVENTS_HTTP_URL" desc:"URL to POST operator events to." required:"N"`
+	SigningSecret string `yaml:"signing_secret" env:"OPERATOR_EVENTS_HTTP_SIGNING_SECRET" desc:"HMAC-SHA256 signing secret for operator event payloads." required:"N"`
 }
 
-type OperationEventsAWSSQSConfig struct {
-	QueueURL        string `yaml:"queue_url" env:"OPERATION_EVENTS_AWS_SQS_QUEUE_URL" desc:"AWS SQS queue URL for operation events." required:"N"`
-	AccessKeyID     string `yaml:"access_key_id" env:"OPERATION_EVENTS_AWS_SQS_ACCESS_KEY_ID" desc:"AWS access key ID for SQS operation events sink." required:"N"`
-	SecretAccessKey string `yaml:"secret_access_key" env:"OPERATION_EVENTS_AWS_SQS_SECRET_ACCESS_KEY" desc:"AWS secret access key for SQS operation events sink." required:"N"`
-	Region          string `yaml:"region" env:"OPERATION_EVENTS_AWS_SQS_REGION" desc:"AWS region for SQS operation events sink." required:"N"`
-	Endpoint        string `yaml:"endpoint" env:"OPERATION_EVENTS_AWS_SQS_ENDPOINT" desc:"Custom AWS SQS endpoint for operation events. Optional, for local development." required:"N"`
+type OperatorEventsAWSSQSConfig struct {
+	QueueURL        string `yaml:"queue_url" env:"OPERATOR_EVENTS_AWS_SQS_QUEUE_URL" desc:"AWS SQS queue URL for operator events." required:"N"`
+	AccessKeyID     string `yaml:"access_key_id" env:"OPERATOR_EVENTS_AWS_SQS_ACCESS_KEY_ID" desc:"AWS access key ID for SQS operator events sink." required:"N"`
+	SecretAccessKey string `yaml:"secret_access_key" env:"OPERATOR_EVENTS_AWS_SQS_SECRET_ACCESS_KEY" desc:"AWS secret access key for SQS operator events sink." required:"N"`
+	Region          string `yaml:"region" env:"OPERATOR_EVENTS_AWS_SQS_REGION" desc:"AWS region for SQS operator events sink." required:"N"`
+	Endpoint        string `yaml:"endpoint" env:"OPERATOR_EVENTS_AWS_SQS_ENDPOINT" desc:"Custom AWS SQS endpoint for operator events. Optional, for local development." required:"N"`
 }
 
-type OperationEventsGCPConfig struct {
-	ProjectID   string `yaml:"project_id" env:"OPERATION_EVENTS_GCP_PUBSUB_PROJECT_ID" desc:"GCP project ID for Pub/Sub operation events sink." required:"N"`
-	TopicID     string `yaml:"topic_id" env:"OPERATION_EVENTS_GCP_PUBSUB_TOPIC_ID" desc:"GCP Pub/Sub topic ID for operation events." required:"N"`
-	Credentials string `yaml:"credentials" env:"OPERATION_EVENTS_GCP_PUBSUB_CREDENTIALS" desc:"GCP service account credentials JSON for Pub/Sub operation events sink." required:"N"`
+type OperatorEventsGCPConfig struct {
+	ProjectID   string `yaml:"project_id" env:"OPERATOR_EVENTS_GCP_PUBSUB_PROJECT_ID" desc:"GCP project ID for Pub/Sub operator events sink." required:"N"`
+	TopicID     string `yaml:"topic_id" env:"OPERATOR_EVENTS_GCP_PUBSUB_TOPIC_ID" desc:"GCP Pub/Sub topic ID for operator events." required:"N"`
+	Credentials string `yaml:"credentials" env:"OPERATOR_EVENTS_GCP_PUBSUB_CREDENTIALS" desc:"GCP service account credentials JSON for Pub/Sub operator events sink." required:"N"`
 }
 
-type OperationEventsRabbitMQConfig struct {
-	ServerURL string `yaml:"server_url" env:"OPERATION_EVENTS_RABBITMQ_SERVER_URL" desc:"RabbitMQ server URL for operation events sink." required:"N"`
-	Exchange  string `yaml:"exchange" env:"OPERATION_EVENTS_RABBITMQ_EXCHANGE" desc:"RabbitMQ exchange for operation events." required:"N"`
+type OperatorEventsRabbitMQConfig struct {
+	ServerURL string `yaml:"server_url" env:"OPERATOR_EVENTS_RABBITMQ_SERVER_URL" desc:"RabbitMQ server URL for operator events sink." required:"N"`
+	Exchange  string `yaml:"exchange" env:"OPERATOR_EVENTS_RABBITMQ_EXCHANGE" desc:"RabbitMQ exchange for operator events." required:"N"`
 }
 
-func (c *OperationEventsConfig) ToConfig() opevents.Config {
+func (c *OperatorEventsConfig) ToConfig() opevents.Config {
 	cfg := opevents.Config{
 		Topics: c.Topics,
 	}

@@ -93,7 +93,7 @@ func (suite *basicSuite) SetupSuite() {
 	gin.SetMode(gin.TestMode)
 	mockServerBaseURL := testinfra.GetMockServer(t)
 
-	// Setup operation events mock server
+	// Setup operator events mock server
 	oeServer := opeventsmock.NewMockServer()
 	require.NoError(t, oeServer.Start())
 	suite.opeventsServer = oeServer
@@ -104,10 +104,10 @@ func (suite *basicSuite) SetupSuite() {
 		DeploymentID: suite.deploymentID,
 	})
 
-	// Configure operation events HTTP sink
-	cfg.OperationEvents.Topics = []string{"*"}
-	cfg.OperationEvents.HTTP.URL = oeServer.GetURL()
-	cfg.OperationEvents.HTTP.SigningSecret = "test-opevents-secret"
+	// Configure operator events HTTP sink
+	cfg.OperatorEvents.Topics = []string{"*"}
+	cfg.OperatorEvents.HTTP.URL = oeServer.GetURL()
+	cfg.OperatorEvents.HTTP.SigningSecret = "test-opevents-secret"
 
 	require.NoError(t, cfg.Validate(config.Flags{}))
 
