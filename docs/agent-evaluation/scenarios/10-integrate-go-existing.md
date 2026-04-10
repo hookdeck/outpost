@@ -35,7 +35,7 @@ The agent starts **inside** the cloned baseline above. Expect **`go mod`** / **`
 
 ### Turn 0
 
-Paste the **## Template** from [`hookdeck-outpost-agent-prompt.mdx`](../pages/quickstarts/hookdeck-outpost-agent-prompt.mdx) with placeholders filled.
+Paste the **## Template** from [`hookdeck-outpost-agent-prompt.mdoc`](../../content/quickstarts/hookdeck-outpost-agent-prompt.mdoc) with placeholders filled.
 
 ### Turn 1 — User
 
@@ -51,7 +51,7 @@ Paste the **## Template** from [`hookdeck-outpost-agent-prompt.mdx`](../pages/qu
 
 **Measurement:** Heuristic `scoreScenario10` in [`src/score-transcript.ts`](../src/score-transcript.ts); LLM judge; execution manual.
 
-**Contract:** This baseline is an **API-first** Go service (no first-party customer dashboard in the pin). It does **not** inherit the full **[Building your own UI](../../pages/guides/building-your-own-ui.mdx)** dashboard checklist wholesale—agents follow **[Existing application](../../pages/quickstarts/hookdeck-outpost-agent-prompt.mdx#existing-application)** (minimum integration depth) plus **API-only** guidance in **Existing application (full-stack products)** (*Document how tenants manage destinations via **your** API*). If a future pin adds a UI, scenarios should be updated to require the **Implementation checklists** linked above.
+**Contract:** This baseline is an **API-first** Go service (no first-party customer dashboard in the pin). It does **not** inherit the full **[Building your own UI](../../content/guides/building-your-own-ui.mdoc)** dashboard checklist wholesale—agents follow **[Existing application](../../content/quickstarts/hookdeck-outpost-agent-prompt.mdoc#existing-application)** (minimum integration depth) plus **API-only** guidance in **Existing application (full-stack products)** (*Document how tenants manage destinations via **your** API*). If a future pin adds a UI, scenarios should be updated to require the **Implementation checklists** linked above.
 
 - **startersaas-go-api** (or documented alternative) present via harness **`preSteps`** with build instructions attempted in the transcript or tree.
 - **Outpost Go SDK** used with **`Publish.Event`** (and related types) on a **real** handler path—not only a test-only route unless wiring-only scope was agreed.

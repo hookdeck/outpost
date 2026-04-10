@@ -17,7 +17,7 @@ The harness sets the agent **cwd** to an empty directory under `docs/agent-evalu
 
 ### Turn 0
 
-Paste the **## Template** block from `[hookdeck-outpost-agent-prompt.mdx](../pages/quickstarts/hookdeck-outpost-agent-prompt.mdx)`, with `{{…}}` filled using your project or `[fixtures/placeholder-values-for-turn0.md](../fixtures/placeholder-values-for-turn0.md)`.
+Paste the **## Template** block from `[hookdeck-outpost-agent-prompt.mdoc](../../content/quickstarts/hookdeck-outpost-agent-prompt.mdoc)`, with `{{…}}` filled using your project or `[fixtures/placeholder-values-for-turn0.md](../fixtures/placeholder-values-for-turn0.md)`.
 
 ### Turn 1 — User
 

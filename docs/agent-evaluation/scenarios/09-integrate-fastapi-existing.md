@@ -41,7 +41,7 @@ The agent starts **inside** the cloned baseline above. Expect **`docker compose`
 
 ### Turn 0
 
-Paste the **## Template** from [`hookdeck-outpost-agent-prompt.mdx`](../pages/quickstarts/hookdeck-outpost-agent-prompt.mdx) with placeholders filled.
+Paste the **## Template** from [`hookdeck-outpost-agent-prompt.mdoc`](../../content/quickstarts/hookdeck-outpost-agent-prompt.mdoc) with placeholders filled.
 
 ### Turn 1 — User
 
@@ -59,7 +59,7 @@ Paste the **## Template** from [`hookdeck-outpost-agent-prompt.mdx`](../pages/qu
 
 **Measurement:** Heuristic `scoreScenario09` in [`src/score-transcript.ts`](../src/score-transcript.ts); LLM judge (reads this section); execution manual.
 
-**Contract:** Same full-stack bar as scenario **8**, pinned to this template. **Canonical checklist:** [Building your own UI — Implementation checklists](../../pages/guides/building-your-own-ui.mdx#implementation-checklists). **Agent self-verify:** [`hookdeck-outpost-agent-prompt.mdx`](../pages/quickstarts/hookdeck-outpost-agent-prompt.mdx) → *Before you stop (verify)* (full-stack UI item). Do not duplicate checklist rows in transcripts—confirm against the guide.
+**Contract:** Same full-stack bar as scenario **8**, pinned to this template. **Canonical checklist:** [Building your own UI — Implementation checklists](../../content/guides/building-your-own-ui.mdoc#implementation-checklists). **Agent self-verify:** [`hookdeck-outpost-agent-prompt.mdoc`](../../content/quickstarts/hookdeck-outpost-agent-prompt.mdoc) → *Before you stop (verify)* (full-stack UI item). Do not duplicate checklist rows in transcripts—confirm against the guide.
 
 - **full-stack-fastapi-template** (or documented alternative) present via harness **`preSteps`** with install steps in the transcript or tree.
 - **`outpost_sdk`** with **`publish.event`** (and related calls as needed) on a **real** code path in the **backend** (server-side only for secrets)—**not** only a synthetic test-publish endpoint unless the scenario was explicitly scoped to wiring-only.

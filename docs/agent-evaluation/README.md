@@ -59,6 +59,7 @@ The runner loads **`docs/agent-evaluation/.env`** automatically (via `dotenv`). 
 
 Scenarios that **`git clone`** a full SaaS template and run **`npm` / `pnpm` / `docker compose`** installs are **slow by design**. Expect **roughly 30–90+ minutes** of wall time for a single run of **08**, **09**, or **10** (clone + install + several agent turns). The harness prints little to the terminal until **`transcript.json`** is written at the end, which can look hung.
 
+- **Progress on stderr:** set **`EVAL_PROGRESS=1`** so the runner prints **periodic lines** (default every **30s** per agent query, plus every **25** SDK messages). You still see activity when the agent is inside a **long Bash** call and the SDK emits **no** new messages for a while. Tune with **`EVAL_PROGRESS_INTERVAL_MS`** (minimum **5000**). Default is off so CI and short runs stay quiet.
 - **Stop early:** **Ctrl+C** (**SIGINT**) in the terminal running `npm run eval`. The runner writes **`*-scenario-NN.eval-aborted.json`** next to the run folder (see **Harness sidecars** at the top of this file).
 - **Skip re-clone:** If the baseline is already under the run directory, **`EVAL_SKIP_HARNESS_PRE_STEPS=1`** skips **`git_clone`** from the scenario harness (see each scenario’s **`## Eval harness`** block).
 - **Cap agent length (smoke only):** **`EVAL_MAX_TURNS`** (default **80**) limits SDK turns; lowering it may end the run sooner but often **fails** the integration before success criteria are met—use for debugging, not a real pass.
@@ -92,7 +93,7 @@ cd docs/agent-evaluation && npm ci && npm run eval:ci
 - **`EVAL_LOCAL_DOCS=1`** — before public docs are live, set this so Turn 0 replaces public doc URLs with **absolute paths to MDX/OpenAPI files in this repo** (so the agent should use **Read** on local files instead of WebFetch to production).
 - **`EVAL_SKIP_HARNESS_PRE_STEPS=1`** — skip **`git_clone`** (and any future **`preSteps`**) declared in a scenario’s **`## Eval harness`** JSON block; useful offline or when the baseline folder is already present.
 
-- **Turn 0** text is built from [`hookdeck-outpost-agent-prompt.mdx`](../pages/quickstarts/hookdeck-outpost-agent-prompt.mdx) (`## Template`) with placeholders filled from environment variables.
+- **Turn 0** text is built from [`hookdeck-outpost-agent-prompt.mdoc`](../content/quickstarts/hookdeck-outpost-agent-prompt.mdoc) (`## Template`) with placeholders filled from environment variables.
 - Transcripts are written to `results/runs/<stamp>-scenario-NN/transcript.json` (gitignored).
 
 See `npm run eval -- --help` for env vars (`EVAL_TOOLS`, `EVAL_MODEL`, etc.).
@@ -136,7 +137,7 @@ These measure **existing-app integration**, not a greenfield demo. When you **ex
 
 The **full prompt template** (the text operators paste as Turn 0) lives in **one** place:
 
-**[`docs/pages/quickstarts/hookdeck-outpost-agent-prompt.mdx`](../pages/quickstarts/hookdeck-outpost-agent-prompt.mdx)** — use the fenced block under **## Template**.
+**[`docs/content/quickstarts/hookdeck-outpost-agent-prompt.mdoc`](../content/quickstarts/hookdeck-outpost-agent-prompt.mdoc)** — use the fenced block under **## Template**.
 
 For eval runs, example placeholder substitutions (non-secret) are in [`fixtures/placeholder-values-for-turn0.md`](fixtures/placeholder-values-for-turn0.md) only. That file intentionally **does not** duplicate the template.
 
@@ -144,7 +145,7 @@ The Hookdeck dashboard should eventually render the **same** template body from 
 
 ## How to run an evaluation (manual)
 
-1. **Turn 0:** Open the [agent prompt MDX](../pages/quickstarts/hookdeck-outpost-agent-prompt.mdx), copy **## Template**, replace `{{…}}` (see [placeholder examples](fixtures/placeholder-values-for-turn0.md)).
+1. **Turn 0:** Open the [agent prompt template](../content/quickstarts/hookdeck-outpost-agent-prompt.mdoc), copy **## Template**, replace `{{…}}` (see [placeholder examples](fixtures/placeholder-values-for-turn0.md)).
 2. **Pick a scenario:** e.g. [`scenarios/01-basics-curl.md`](scenarios/01-basics-curl.md).
 3. **New agent thread:** Paste Turn 0, then follow each **Turn N — User** line from the scenario verbatim (or as specified).
 4. **Judge output:** Use the scenario’s **Success criteria** checkboxes (human decision).
@@ -218,7 +219,7 @@ Scenarios **1–4** align with **“Try it out”**; **5–7** with **“Build a
 
 **Caveats (update the skill in `hookdeck/agent-skills`, not in this repo):**
 
-1. **Managed-first** — The published skill is still **self-hosted heavy** (Docker block first; managed is a short table). For Hookdeck Outpost GA, the skill should foreground [managed quickstarts](../pages/quickstarts/hookdeck-outpost-curl.mdx), `https://api.outpost.hookdeck.com/2025-07-01`, **Settings → Secrets**, and `OUTPOST_API_KEY` / optional `OUTPOST_API_BASE_URL` to match product copy.
+1. **Managed-first** — The published skill is still **self-hosted heavy** (Docker block first; managed is a short table). For Hookdeck Outpost GA, the skill should foreground [managed quickstarts](../content/quickstarts/hookdeck-outpost-curl.mdoc), `https://api.outpost.hookdeck.com/2025-07-01`, **Settings → Secrets**, and `OUTPOST_API_KEY` / optional `OUTPOST_API_BASE_URL` to match product copy.
 2. **REST paths** — Examples must use **`/tenants/{id}`**, not `PUT $BASE_URL/$TENANT_ID` (that path is wrong for the real API).
 3. **Naming** — Align env var naming with docs (`OUTPOST_API_KEY` or documented dashboard name), not ad-hoc `HOOKDECK_API_KEY` unless the dashboard literally uses that string.
 4. **Router vs. deep skills** — Today `outpost` is one monolithic `SKILL.md`. The skill itself mentions **future** destination-specific skills (`outpost-webhooks`, etc.). For scale, consider either **sections** with clear headings or **child skills** (e.g. `outpost-managed-quickstart`, `outpost-self-hosted`) once content grows—without forcing users to install many tiles for the common case.
@@ -227,6 +228,6 @@ Until the skill is updated, agents should still be pointed at the **quickstart M
 
 ## Related docs
 
-- [Agent prompt template (SSoT)](../pages/quickstarts/hookdeck-outpost-agent-prompt.mdx)
+- [Agent prompt template (SSoT)](../content/quickstarts/hookdeck-outpost-agent-prompt.mdoc)
 - [Upstream skill notes](SKILL-UPSTREAM-NOTES.md)
 - [TEMP tracking note](../TEMP-hookdeck-outpost-onboarding-status.md)

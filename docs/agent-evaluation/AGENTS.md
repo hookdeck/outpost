@@ -6,7 +6,7 @@ This file applies to **everything under `docs/agent-evaluation/`** (scenarios, R
 
 | Audience | Content |
 |----------|---------|
-| **The model under test** | Turn 0 = pasted [`hookdeck-outpost-agent-prompt.mdx`](../pages/quickstarts/hookdeck-outpost-agent-prompt.mdx) template only, plus **Turn N — User** blockquotes (verbatim user role-play). |
+| **The model under test** | Turn 0 = pasted [`hookdeck-outpost-agent-prompt.mdoc`](../content/quickstarts/hookdeck-outpost-agent-prompt.mdoc) template only, plus **Turn N — User** blockquotes (verbatim user role-play). |
 | **Humans / harness** | Intent, preconditions, eval harness JSON, Success criteria, Failure modes, `score-transcript.ts`, README. |
 
 **Never** put harness vocabulary into **user** lines. The user is a product engineer, not an eval runner.
@@ -26,7 +26,7 @@ It is fine for **Success criteria**, **Failure modes**, and **Intent** to name `
 
 ## Alignment without parroting
 
-- **Product bar** (domain publish, topic reconciliation, full-stack UI depth) belongs in **Success criteria** and in the **prompt template** in `hookdeck-outpost-agent-prompt.mdx`.
+- **Product bar** (domain publish, topic reconciliation, full-stack UI depth) belongs in **Success criteria** and in the **prompt template** in `hookdeck-outpost-agent-prompt.mdoc`.
 - **User turns** should **request outcomes** (“I need customers to see failed deliveries and retry”) not **cite** where in the template that is spelled out.
 
 If you add a new requirement, update **Success criteria** (and heuristics only when a **durable, low–false-positive** check exists). Do not stuff the verbatim rubric into the user quote.
