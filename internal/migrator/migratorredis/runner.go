@@ -220,7 +220,7 @@ func (r *Runner) runPendingMigrations(ctx context.Context) error {
 	if len(notAutoRunnable) > 0 {
 		r.logger.Warn("some pending migrations require manual intervention",
 			zap.Strings("manual_migrations", notAutoRunnable))
-		return fmt.Errorf("pending migrations require manual run via 'outpost-migrate-redis apply': %v", notAutoRunnable)
+		return fmt.Errorf("pending migrations require manual run via 'outpost migrate apply': %v", notAutoRunnable)
 	}
 
 	// Run each pending migration

@@ -60,8 +60,7 @@ func delegateToBinary(binaryName string, c *cli.Command) error {
 func runWithGo(binaryName string, c *cli.Command) error {
 	// Map binary names to their cmd directories
 	cmdPath := map[string]string{
-		"outpost-server":        "./cmd/outpost-server",
-		"outpost-migrate-redis": "./cmd/outpost-migrate-redis",
+		"outpost-server": "./cmd/outpost-server",
 	}
 
 	path, ok := cmdPath[binaryName]

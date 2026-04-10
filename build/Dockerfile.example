@@ -20,8 +20,7 @@ COPY . .
 
 # Build all binaries
 RUN go build -o ./bin/outpost ./cmd/outpost && \
-    go build -o ./bin/outpost-server ./cmd/outpost-server && \
-    go build -o ./bin/outpost-migrate-redis ./cmd/outpost-migrate-redis
+    go build -o ./bin/outpost-server ./cmd/outpost-server
 
 # Stage 1
 # Get busybox shell for entrypoint script
@@ -37,7 +36,6 @@ COPY --from=busybox /bin/sh /bin/sh
 # Copy all binaries
 COPY --from=0 /app/bin/outpost /usr/local/bin/outpost
 COPY --from=0 /app/bin/outpost-server /usr/local/bin/outpost-server
-COPY --from=0 /app/bin/outpost-migrate-redis /usr/local/bin/outpost-migrate-redis
 
 # Copy entrypoint script
 COPY --from=0 /app/build/entrypoint.sh /usr/local/bin/entrypoint.sh

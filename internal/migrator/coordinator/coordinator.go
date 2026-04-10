@@ -15,9 +15,8 @@ import (
 )
 
 const (
-	// redisLockKey mirrors the key used by migratorredis.Runner and
-	// cmd/outpost-migrate-redis so the coordinator is interoperable
-	// with existing lock state.
+	// redisLockKey mirrors the key used by migratorredis.Runner so the
+	// coordinator is interoperable with existing lock state.
 	redisLockKey = ".outpost:migration_lock"
 	// redisLockTTL matches the existing behaviour: the lock expires
 	// after an hour if the process holding it dies.

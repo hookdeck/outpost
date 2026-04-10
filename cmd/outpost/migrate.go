@@ -15,8 +15,8 @@ import (
 )
 
 // newMigrateCommand builds the `outpost migrate` subcommand tree. It
-// replaces the previous implementation that simply delegated every
-// invocation to the outpost-migrate-redis binary.
+// orchestrates both SQL and Redis migrations through the unified
+// coordinator.
 func newMigrateCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "migrate",

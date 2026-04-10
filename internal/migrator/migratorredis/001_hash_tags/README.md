@@ -74,7 +74,7 @@ This migration is only required for legacy deployments that:
 
 Run the migration planner to check:
 ```bash
-outpost-migrate-redis plan
+outpost migrate plan
 ```
 
 If the output shows `0 tenants to migrate`, your deployment either:
