@@ -2,126 +2,79 @@ package app
 
 import (
 	"context"
-	"strings"
-	"time"
+	"fmt"
 
 	"github.com/hookdeck/outpost/internal/config"
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/migrator"
+	"github.com/hookdeck/outpost/internal/migrator/coordinator"
+	"github.com/hookdeck/outpost/internal/migrator/migrations"
+	"github.com/hookdeck/outpost/internal/redis"
 	"go.uber.org/zap"
 )
 
-// runMigration handles database schema migrations with retry logic for lock conflicts.
+// checkPendingMigrations inspects both the SQL and Redis migration
+// subsystems through a unified coordinator and returns an error if any
+// migrations are pending.
 //
-// MIGRATION LOCK BEHAVIOR:
-// - Database locks are only acquired when migrations need to be performed
-// - When multiple nodes start simultaneously and migrations are pending:
-//  1. One node acquires the lock and performs migrations (ideally < 5 seconds)
-//  2. Other nodes fail with lock errors ("try lock failed", "can't acquire lock")
-//  3. Failed nodes wait 5 seconds and retry
-//  4. On retry, migrations are complete and nodes proceed successfully
-//
-// RETRY STRATEGY:
-// - Max 3 attempts with 5-second delays between retries
-// - 5 seconds is sufficient because most migrations complete quickly
-// - If no migrations are needed (common case), all nodes proceed immediately without lock contention
-func runMigration(ctx context.Context, cfg *config.Config, logger *logging.Logger) error {
-	const (
-		maxRetries = 3
-		retryDelay = 5 * time.Second
+// This replaces the previous behavior where runMigration() and
+// runRedisMigrations() silently applied migrations at startup. The new
+// rule is explicit: operators must run `outpost migrate apply` before
+// starting the server. If the check finds pending migrations, the
+// application refuses to start so a half-migrated deployment cannot
+// accidentally come online.
+func checkPendingMigrations(
+	ctx context.Context,
+	cfg *config.Config,
+	redisClient redis.Client,
+	logger *logging.Logger,
+) error {
+	opts := cfg.ToMigratorOpts()
+
+	var sqlMigrator *migrator.Migrator
+	if opts.PG.URL != "" || opts.CH.Addr != "" {
+		m, err := migrator.New(opts)
+		if err != nil {
+			return fmt.Errorf("create sql migrator for pending check: %w", err)
+		}
+		defer func() {
+			if sourceErr, dbErr := m.Close(ctx); sourceErr != nil || dbErr != nil {
+				logger.Warn("failed to close sql migrator during pending check",
+					zap.NamedError("source_err", sourceErr),
+					zap.NamedError("db_err", dbErr))
+			}
+		}()
+		sqlMigrator = m
+	}
+
+	redisMigrations := migrations.AllRedisMigrationsWithLogging(
+		redisClient, logger, false, cfg.DeploymentID,
 	)
 
-	var lastErr error
+	coord := coordinator.New(coordinator.Config{
+		SQLMigrator:     sqlMigrator,
+		RedisClient:     redisClient,
+		RedisMigrations: redisMigrations,
+		DeploymentID:    cfg.DeploymentID,
+		Logger:          logger,
+	})
 
-	for attempt := 1; attempt <= maxRetries; attempt++ {
-		migrator, err := migrator.New(cfg.ToMigratorOpts())
-		if err != nil {
-			return err
-		}
-
-		version, versionJumped, err := migrator.Up(ctx, -1)
-
-		// Always close the migrator after each attempt
-		sourceErr, dbErr := migrator.Close(ctx)
-		if sourceErr != nil {
-			logger.Error("failed to close migrator source", zap.Error(sourceErr))
-		}
-		if dbErr != nil {
-			logger.Error("failed to close migrator database connection", zap.Error(dbErr))
-		}
-
-		if err == nil {
-			if versionJumped > 0 {
-				logger.Info("migrations applied",
-					zap.Int("version", version),
-					zap.Int("version_applied", versionJumped))
-			} else {
-				logger.Info("no migrations applied", zap.Int("version", version))
-			}
-			return nil
-		}
-
-		// Check if this is a lock-related error
-		// Lock errors can manifest as:
-		// - "can't acquire lock" (database.ErrLocked)
-		// - "try lock failed" (postgres advisory lock failure)
-		// - "pg_advisory_lock" (postgres lock function errors)
-		isLockError := isLockRelatedError(err)
-		lastErr = err
-
-		if !isLockError {
-			// Not a lock error, fail immediately
-			logger.Error("migration failed", zap.Error(err))
-			return err
-		}
-
-		// Lock error - retry if we have attempts remaining
-		if attempt < maxRetries {
-			logger.Warn("migration lock conflict, retrying",
-				zap.Int("attempt", attempt),
-				zap.Int("max_retries", maxRetries),
-				zap.Duration("retry_delay", retryDelay),
-				zap.Error(err))
-
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			case <-time.After(retryDelay):
-			}
-		} else {
-			// Exhausted all retries
-			logger.Error("migration failed after retries",
-				zap.Int("attempts", maxRetries),
-				zap.Error(err))
-		}
+	summary, err := coord.PendingSummary(ctx)
+	if err != nil {
+		return fmt.Errorf("check pending migrations: %w", err)
 	}
 
-	return lastErr
-}
-
-// isLockRelatedError checks if an error is related to database migration lock acquisition.
-// This includes errors from golang-migrate's locking mechanism.
-func isLockRelatedError(err error) bool {
-	if err == nil {
-		return false
+	if !summary.HasPending() {
+		logger.Info("no pending migrations")
+		return nil
 	}
 
-	errMsg := err.Error()
+	logger.Error("pending migrations detected, refusing to start",
+		zap.Int("sql_pending", summary.SQLPending),
+		zap.Int("redis_pending", summary.RedisPending))
 
-	// Check for lock-related error messages from golang-migrate:
-	// 1. "can't acquire lock" - database.ErrLocked from golang-migrate/migrate/v4/database
-	// 2. "try lock failed" - returned by postgres driver when pg_advisory_lock() fails
-	//    See: https://github.com/golang-migrate/migrate/blob/master/database/postgres/postgres.go
-	lockIndicators := []string{
-		"can't acquire lock",
-		"try lock failed",
-	}
-
-	for _, indicator := range lockIndicators {
-		if strings.Contains(errMsg, indicator) {
-			return true
-		}
-	}
-
-	return false
+	return fmt.Errorf(
+		"pending migrations detected (%d SQL, %d Redis) — run 'outpost migrate apply' before starting the server",
+		summary.SQLPending, summary.RedisPending,
+	)
 }
