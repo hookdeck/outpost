@@ -191,11 +191,11 @@ func (b *ServiceBuilder) BuildAPIWorkers(baseRouter *gin.Engine) error {
 	)
 	eventHandler := publishmq.NewEventHandler(b.logger, svc.deliveryMQ, svc.tenantStore, svc.eventTracer, b.cfg.Topics, publishIdempotence)
 
-	// Create operation events emitter for subscription updates
-	oeCfg := b.cfg.OperationEvents.ToConfig()
+	// Create operator events emitter for subscription updates
+	oeCfg := b.cfg.OperatorEvents.ToConfig()
 	oeSink, err := opevents.NewSink(oeCfg)
 	if err != nil {
-		return fmt.Errorf("failed to create operation events sink: %w", err)
+		return fmt.Errorf("failed to create operator events sink: %w", err)
 	}
 	subscriptionEmitter := opevents.NewEmitter(oeSink, b.cfg.DeploymentID, oeCfg.Topics)
 
@@ -343,11 +343,11 @@ func (b *ServiceBuilder) BuildLogWorker(baseRouter *gin.Engine) error {
 		return err
 	}
 
-	// Initialize alert monitor for operation events
-	oeCfg := b.cfg.OperationEvents.ToConfig()
+	// Initialize alert monitor for operator events
+	oeCfg := b.cfg.OperatorEvents.ToConfig()
 	sink, err := opevents.NewSink(oeCfg)
 	if err != nil {
-		return fmt.Errorf("failed to create operation events sink: %w", err)
+		return fmt.Errorf("failed to create operator events sink: %w", err)
 	}
 	emitter := opevents.NewEmitter(sink, b.cfg.DeploymentID, oeCfg.Topics)
 

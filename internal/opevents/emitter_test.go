@@ -15,7 +15,7 @@ import (
 // mockSink records events sent to it and can be configured to fail.
 type mockSink struct {
 	mu     sync.Mutex
-	events []*opevents.OperationEvent
+	events []*opevents.OperatorEvent
 	errs   []error // errors to return in order; nil entries mean success
 	calls  int
 }
@@ -23,7 +23,7 @@ type mockSink struct {
 func (s *mockSink) Init(ctx context.Context) error { return nil }
 func (s *mockSink) Close() error                   { return nil }
 
-func (s *mockSink) Send(ctx context.Context, event *opevents.OperationEvent) error {
+func (s *mockSink) Send(ctx context.Context, event *opevents.OperatorEvent) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -37,10 +37,10 @@ func (s *mockSink) Send(ctx context.Context, event *opevents.OperationEvent) err
 	return nil
 }
 
-func (s *mockSink) sentEvents() []*opevents.OperationEvent {
+func (s *mockSink) sentEvents() []*opevents.OperatorEvent {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return append([]*opevents.OperationEvent(nil), s.events...)
+	return append([]*opevents.OperatorEvent(nil), s.events...)
 }
 
 func TestEmitter_Emit(t *testing.T) {

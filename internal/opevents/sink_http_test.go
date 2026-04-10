@@ -17,8 +17,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func testEvent() *opevents.OperationEvent {
-	return &opevents.OperationEvent{
+func testEvent() *opevents.OperatorEvent {
+	return &opevents.OperatorEvent{
 		ID:       "evt-1",
 		Topic:    opevents.TopicAlertConsecutiveFailure,
 		Time:     time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
@@ -54,7 +54,7 @@ func TestHTTPSink_Send(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify body is valid event JSON
-		var got opevents.OperationEvent
+		var got opevents.OperatorEvent
 		require.NoError(t, json.Unmarshal(receivedBody, &got))
 		assert.Equal(t, event.ID, got.ID)
 		assert.Equal(t, event.Topic, got.Topic)

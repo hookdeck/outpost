@@ -19,7 +19,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// SubscriptionEmitter emits operation events for subscription changes.
+// SubscriptionEmitter emits operator events for subscription changes.
 // Satisfied by opevents.Emitter.
 type SubscriptionEmitter interface {
 	Emit(ctx context.Context, topic string, tenantID string, data any) error

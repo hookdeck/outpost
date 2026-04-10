@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-// Topic constants for operation events.
+// Topic constants for operator events.
 const (
 	TopicAlertConsecutiveFailure   = "alert.destination.consecutive_failure"
 	TopicAlertDestinationDisabled  = "alert.destination.disabled"
@@ -13,8 +13,8 @@ const (
 	TopicTenantSubscriptionUpdated = "tenant.subscription.updated"
 )
 
-// OperationEvent is the envelope for all operation events emitted by Outpost.
-type OperationEvent struct {
+// OperatorEvent is the envelope for all operator events emitted by Outpost.
+type OperatorEvent struct {
 	ID           string          `json:"id"`
 	Topic        string          `json:"topic"`
 	Time         time.Time       `json:"time"`

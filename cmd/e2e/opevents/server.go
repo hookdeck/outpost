@@ -14,15 +14,15 @@ import (
 	"time"
 )
 
-// ReceivedEvent is a single operation event received by the mock server.
+// ReceivedEvent is a single operator event received by the mock server.
 type ReceivedEvent struct {
-	Event     OperationEvent
+	Event     OperatorEvent
 	Signature string // raw X-Outpost-Signature header
 	Body      []byte // raw request body (for signature verification)
 }
 
-// OperationEvent mirrors internal/opevents.OperationEvent for test decoding.
-type OperationEvent struct {
+// OperatorEvent mirrors internal/opevents.OperatorEvent for test decoding.
+type OperatorEvent struct {
 	ID           string          `json:"id"`
 	Topic        string          `json:"topic"`
 	Time         time.Time       `json:"time"`
@@ -31,7 +31,7 @@ type OperationEvent struct {
 	Data         json.RawMessage `json:"data"`
 }
 
-// MockServer captures operation events sent to its HTTP endpoint.
+// MockServer captures operator events sent to its HTTP endpoint.
 type MockServer struct {
 	server *http.Server
 	events []ReceivedEvent
@@ -124,7 +124,7 @@ func (s *MockServer) handleEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var event OperationEvent
+	var event OperatorEvent
 	if err := json.Unmarshal(body, &event); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return

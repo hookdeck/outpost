@@ -114,7 +114,7 @@ const config: ZudokuConfig = {
           { type: "doc", id: "features/filter" },
           { type: "doc", id: "features/publish-events" },
           { type: "doc", id: "features/event-delivery" },
-          { type: "doc", id: "features/operation-events" },
+          { type: "doc", id: "features/operator-events" },
           { type: "doc", id: "features/tenant-user-portal" },
           { type: "doc", id: "features/opentelemetry" },
           { type: "doc", id: "features/logging" },
