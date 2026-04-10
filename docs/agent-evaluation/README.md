@@ -2,6 +2,8 @@
 
 This folder contains **manual** scenario specs (markdown) and an **automated** runner that uses the [Claude Agent SDK](https://platform.claude.com/docs/en/agent-sdk/overview) (`src/run-agent-eval.ts`).
 
+**Authoring standards (user-turn wording, no eval leakage):** [`AGENTS.md`](AGENTS.md) — also enforced via [`.cursor/rules/agent-evaluation-authoring.mdc`](../../.cursor/rules/agent-evaluation-authoring.mdc) when editing here.
+
 ## Where success criteria live
 
 | What | Where |
@@ -19,13 +21,17 @@ Each scenario run uses one directory:
 
 `results/runs/<ISO-stamp>-scenario-NN/`
 
-- **`transcript.json`** — full SDK log  
-- **`heuristic-score.json`** / **`llm-score.json`** — by default (unless disabled above)  
+- **`transcript.json`** — full SDK log (written only **after** the agent finishes all turns — long runs may show little console output until then)
+- **`eval-run-started.json`** — created as soon as a scenario begins (pid, scenario id); if present **without** `transcript.json`, the run was interrupted, is still going, crashed, or was **SIGKILL**’d (no sidecar for SIGKILL)
+- **`eval-failure.json`** — uncaught exception before a transcript was written
+- **`eval-aborted.json`** — **SIGTERM** or **SIGINT** (e.g. stopping the process) before completion
+- **`heuristic-score.json`** / **`llm-score.json`** — by default (unless disabled above)
 - **Agent-written files** — the SDK **`cwd`** is this directory. Defaults include **`Write`**, **`Edit`**, and **`Bash`** for clones, installs, and generated code.
 
-Re-score a finished run without re-invoking the agent:
+Re-score a finished run without re-invoking the agent — uses **today’s** [`src/score-transcript.ts`](src/score-transcript.ts) and **scenario markdown on disk** (so LLM criteria update when you edit **`## Success criteria`**):
 
-- **`npm run score -- --run results/runs/<dir>`** — heuristic (add **`--llm`** for LLM only, **`--write`** to persist sidecars).
+- **`npm run score -- --run results/runs/<dir> --write`** — refresh **`heuristic-score.json`**
+- Add **`--llm`** to also re-run the judge and write **`llm-score.json`** (needs **`ANTHROPIC_API_KEY`**)
 
 Legacy flat files `*-scenario-NN.json` next to `runs/` are still accepted by **`npm run score`** for older runs.
 
@@ -102,9 +108,9 @@ A **full pass** also answers: *did the generated curl / script / app succeed aga
 
 #### Integration scenarios (08–10): depth to verify
 
-These measure **Option 3** (existing app), not a greenfield demo. When you **execute** the artifact:
+These measure **existing-app integration**, not a greenfield demo. When you **execute** the artifact:
 
-- **Topic reconciliation:** Confirm README maps **`publish` topics** to **real domain events** and, when Turn 0 is incomplete, tells the operator to **add topics in Hookdeck**—not to retarget the app to a stale list (unless the scenario was explicitly wiring-only).
+- **Topic reconciliation:** Confirm README maps **`publish` topics** to **real domain events** and, when the **configured topic list from onboarding** is incomplete, tells the operator to **add topics in Hookdeck**—not to retarget the app to a stale list (unless the scenario was explicitly wiring-only).
 - **Domain publish:** Prefer a smoke step that performs a **real product action** (signup, create entity, etc.) and observe an accepted publish—not **only** a “send test event” button.
 - **Heuristic `publish_beyond_test_only`:** [`score-transcript.ts`](src/score-transcript.ts) adds a weak automated check that the transcript corpus suggests publish beyond synthetic test-only paths; it is **not** a substitute for execution or the LLM judge reading **Success criteria**.
 
@@ -164,7 +170,7 @@ There is still **no single portable “IDE agent” CLI** for all vendors; the S
 | 06 | `scoreScenario06` | FastAPI, `outpost_sdk`, uvicorn, server env, two flows, README, webhook docs |
 | 07 | `scoreScenario07` | `net/http`, Go SDK + `CreateDestinationCreateWebhook`, HTML UI, two flows, `go run`, README |
 | 08 | `scoreScenario08` | Clone **next-saas-starter** (or git baseline), TS SDK, publish/destinations/tenants, server env key, per-customer webhook story |
-| 09 | `scoreScenario09` | Clone **full-stack-fastapi-template** (or git baseline), `outpost_sdk`, integration + domain hook, env key |
+| 09 | `scoreScenario09` | Clone **full-stack-fastapi-template** (or git baseline), `outpost_sdk`, integration + domain hook, env key, no client `NEXT_PUBLIC_`/`VITE_` key wiring, `publish_beyond_test_only`, README/env docs signal |
 | 10 | `scoreScenario10` | Clone **startersaas-go-api** (or git baseline), Go Outpost SDK, publish + handler hook, env key |
 
 Export **`SCENARIO_IDS_WITH_HEURISTIC_RUBRIC`** in `score-transcript.ts` lists IDs **01–10** for tooling.

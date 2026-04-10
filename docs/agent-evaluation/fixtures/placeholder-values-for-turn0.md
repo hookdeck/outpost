@@ -12,13 +12,15 @@ For **`npm run eval -- --scenario …`** (or **`--scenarios`** / **`--all`**), t
 
 ## Example substitutions (non-secret)
 
-| Placeholder | Example |
-|-------------|---------|
-| `{{API_BASE_URL}}` | `https://api.outpost.hookdeck.com/2025-07-01` |
-| `{{TOPICS_LIST}}` | `- user.created` |
+
+| Placeholder                | Example                                                                                                                                                             |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `{{API_BASE_URL}}`         | `https://api.outpost.hookdeck.com/2025-07-01`                                                                                                                       |
+| `{{TOPICS_LIST}}`          | `- user.created`                                                                                                                                                    |
 | `{{TEST_DESTINATION_URL}}` | Hookdeck Console **Source** URL the dashboard feeds in (for automated evals, set `EVAL_TEST_DESTINATION_URL` to the same value). Example: `https://hkdk.events/...` |
-| `{{DOCS_URL}}` | `https://outpost.hookdeck.com/docs` (local Zudoku: same paths under `/docs`) |
-| `{{LLMS_FULL_URL}}` | Omit the line in the template if unused, or your public `llms-full.txt` URL |
+| `{{DOCS_URL}}`             | `https://outpost.hookdeck.com/docs` (local Zudoku: same paths under `/docs`)                                                                                        |
+| `{{LLMS_FULL_URL}}`        | Omit the line in the template if unused, or your public `llms-full.txt` URL                                                                                         |
+
 
 ---
 
