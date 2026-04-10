@@ -1,5 +1,6 @@
 import "./Destination.scss";
 
+import type { JSX } from "react";
 import { Link, Route, Routes, useLocation, useParams } from "react-router-dom";
 import useSWR from "swr";
 
