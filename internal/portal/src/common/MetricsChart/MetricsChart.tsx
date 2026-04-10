@@ -188,7 +188,7 @@ const MetricsChart: React.FC<MetricsChartProps> = ({
           <YAxis {...y_axis_props} />
           <Tooltip
             contentStyle={TOOLTIP_STYLE}
-            labelFormatter={(label: string) => label}
+            labelFormatter={(label) => String(label)}
             formatter={
               tooltipFormatter ??
               ((value: any, name: any) => [String(value), String(name)])
@@ -225,7 +225,7 @@ const MetricsChart: React.FC<MetricsChartProps> = ({
         <YAxis {...y_axis_props} />
         <Tooltip
           contentStyle={TOOLTIP_STYLE}
-          labelFormatter={(label: string) => label}
+          labelFormatter={(label) => String(label)}
           formatter={
             tooltipFormatter ??
             ((value: any, name: any) => [String(value), String(name)])
