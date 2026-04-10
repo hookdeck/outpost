@@ -1,133 +1,220 @@
-[
-  {
-    "label": "Getting Started",
-    "sections": [
-      [
-        { "slug": "overview", "title": "Overview" },
-        { "slug": "concepts", "title": "Concepts" },
-        { "slug": "quickstart", "title": "Quickstart" },
-        { "slug": "sdks", "title": "SDKs" },
-        { "slug": "publishing-events", "title": "Publishing Events" }
+{
+  "/outpost/docs": [
+    {
+      "label": "",
+      "sections": [
+        [
+          {
+            "slug": "api",
+            "title": "API Reference",
+            "href": "/outpost/docs/api"
+          }
+        ]
       ]
+    },
+    {
+      "label": "Getting Started",
+      "sections": [
+        [
+          { "slug": "overview", "title": "Overview" },
+          { "slug": "concepts", "title": "Concepts" },
+          {
+            "href": "/outpost/docs/quickstarts/overview",
+            "title": "Quickstart"
+          },
+          { "slug": "sdks", "title": "SDKs" },
+          {
+            "href": "/outpost/docs/self-hosting/architecture",
+            "title": "Self-Hosting"
+          }
+        ]
+      ]
+    },
+    {
+      "label": "Features",
+      "sections": [
+        [
+          { "slug": "features/multi-tenancy", "title": "Multi-Tenancy" },
+          { "slug": "features/topics", "title": "Topics" },
+          { "slug": "features/filter", "title": "Destination Filters" },
+          {
+            "slug": "features/event-delivery",
+            "title": "Event Delivery & Retries"
+          },
+          {
+            "slug": "features/operator-events",
+            "title": "Operator Events & Alerts"
+          },
+          { "slug": "features/tenant-portal", "title": "Tenant Portal" },
+          { "slug": "features/metrics", "title": "Metrics" },
+          { "slug": "features/opentelemetry", "title": "OpenTelemetry" }
+        ]
+      ]
+    },
+    {
+      "label": "Destinations",
+      "sections": [
+        [
+          { "slug": "destinations/webhook", "title": "Webhook" },
+          {
+            "slug": "destinations/hookdeck",
+            "title": "Hookdeck Event Gateway"
+          },
+          { "slug": "destinations/aws-sqs", "title": "AWS SQS" },
+          { "slug": "destinations/aws-kinesis", "title": "AWS Kinesis" },
+          { "slug": "destinations/aws-s3", "title": "AWS S3" },
+          { "slug": "destinations/gcp-pubsub", "title": "GCP Pub/Sub" },
+          {
+            "slug": "destinations/azure-service-bus",
+            "title": "Azure Service Bus"
+          },
+          { "slug": "destinations/rabbitmq", "title": "RabbitMQ" }
+        ]
+      ]
+    },
+    {
+      "label": "Guides",
+      "sections": [
+        [
+          {
+            "slug": "guides/migrate-to-outpost",
+            "title": "Migrate to Outpost"
+          },
+          {
+            "slug": "guides/building-your-own-ui",
+            "title": "Building your own UI"
+          }
+        ]
+      ]
+    },
+    {
+      "label": "Platform (Managed Only)",
+      "sections": [
+        [
+          { "href": "/docs/platform/projects", "title": "Projects" },
+          { "href": "/docs/platform/organizations", "title": "Organizations" }
+        ]
+      ]
+    },
+    {
+      "label": "Publishing",
+      "sections": [
+        [
+          { "slug": "publishing/events", "title": "Publishing Events" },
+          {
+            "slug": "publishing/publish-from-hookdeck-event-gateway",
+            "title": "Publish from Hookdeck Event Gateway"
+          },
+          {
+            "slug": "publishing/publish-from-rabbitmq",
+            "title": "Publish from RabbitMQ"
+          },
+          {
+            "slug": "publishing/publish-from-sqs",
+            "title": "Publish from SQS"
+          },
+          {
+            "slug": "publishing/publish-from-gcp-pubsub",
+            "title": "Publish from GCP Pub/Sub"
+          }
+        ]
+      ]
+    }
+  ],
+  "/outpost/docs/quickstarts": {
+    "title": "Quickstarts",
+    "structure": [
+      {
+        "label": "Quickstarts",
+        "sections": [[{ "slug": "quickstarts/overview", "title": "Overview" }]]
+      }
     ]
   },
-  {
-    "label": "Features",
-    "sections": [
-      [
-        { "slug": "features/multi-tenancy", "title": "Multi-Tenancy" },
-        { "slug": "features/topics", "title": "Topics" },
-        { "slug": "features/filter", "title": "Destination Filters" },
-        {
-          "slug": "features/event-delivery",
-          "title": "Event Delivery & Retries"
-        },
-        {
-          "slug": "features/operator-events",
-          "title": "Operator Events & Alerts"
-        },
-        { "slug": "features/tenant-portal", "title": "Tenant Portal" },
-        { "slug": "features/metrics", "title": "Metrics" },
-        { "slug": "features/opentelemetry", "title": "OpenTelemetry" }
-      ]
-    ]
-  },
-  {
-    "label": "Destinations",
-    "sections": [
-      [
-        { "slug": "destinations/webhook", "title": "Webhook" },
-        { "slug": "destinations/hookdeck", "title": "Hookdeck Event Gateway" },
-        { "slug": "destinations/aws-sqs", "title": "AWS SQS" },
-        { "slug": "destinations/aws-kinesis", "title": "AWS Kinesis" },
-        { "slug": "destinations/aws-s3", "title": "AWS S3" },
-        { "slug": "destinations/gcp-pubsub", "title": "GCP Pub/Sub" },
-        {
-          "slug": "destinations/azure-service-bus",
-          "title": "Azure Service Bus"
-        },
-        { "slug": "destinations/rabbitmq", "title": "RabbitMQ" }
-      ]
-    ]
-  },
-  {
-    "label": "Guides",
-    "sections": [
-      [
-        {
-          "slug": "guides/migrate-to-outpost",
-          "title": "Migrate to Outpost"
-        },
-        {
-          "slug": "guides/building-your-own-ui",
-          "title": "Building your own UI"
-        }
-      ]
-    ]
-  },
-  {
-    "label": "Platform (Managed Only)",
-    "sections": [
-      [
-        { "href": "/docs/platform/projects", "title": "Projects" },
-        { "href": "/docs/platform/organizations", "title": "Organizations" }
-      ]
-    ]
-  },
-  {
-    "label": "Self-Hosting",
-    "sections": [
-      [
-        { "slug": "self-hosting/architecture", "title": "Architecture" },
-        { "slug": "self-hosting/deployment", "title": "Deployment" },
-        {
-          "slug": "self-hosting/configuration",
-          "title": "Configuration Reference"
-        },
-        { "slug": "self-hosting/byo-mqs", "title": "Bring Your Own Message Queues" },
-        {
-          "slug": "self-hosting/service-bus-internal-mq",
-          "title": "Azure Service Bus Internal MQ"
-        },
-        { "slug": "self-hosting/migration", "title": "Schema Migration Guide" },
-        {
-          "slug": "self-hosting/quickstarts/railway",
-          "title": "Deploy on Railway"
-        },
-        {
-          "slug": "self-hosting/quickstarts/docker",
-          "title": "Deploy with Docker"
-        },
-        {
-          "slug": "self-hosting/quickstarts/kubernetes",
-          "title": "Deploy on Kubernetes"
-        },
-        {
-          "slug": "self-hosting/publish-from-rabbitmq",
-          "title": "Publish from RabbitMQ"
-        },
-        { "slug": "self-hosting/publish-from-sqs", "title": "Publish from SQS" },
-        {
-          "slug": "self-hosting/publish-from-gcp-pubsub",
-          "title": "Publish from GCP Pub/Sub"
-        },
-        {
-          "slug": "self-hosting/event-delivery-log",
-          "title": "Event & Delivery Log"
-        },
-        { "slug": "self-hosting/logging", "title": "Logging" },
-        {
-          "slug": "self-hosting/hookdeck-telemetry",
-          "title": "Hookdeck Telemetry"
-        },
-        {
-          "slug": "self-hosting/troubleshooting-redis",
-          "title": "Redis Troubleshooting"
-        },
-        { "slug": "self-hosting/upgrade-v0.12", "title": "Upgrade to v0.12" },
-        { "slug": "self-hosting/upgrade-v0.13", "title": "Upgrade to v0.13" },
-        { "slug": "self-hosting/upgrade-v0.14", "title": "Upgrade to v0.14" }
-      ]
+  "/outpost/docs/self-hosting": {
+    "title": "Self-Hosting",
+    "structure": [
+      {
+        "label": "Overview",
+        "sections": [
+          [
+            {
+              "slug": "self-hosting/architecture",
+              "title": "Architecture"
+            },
+            { "slug": "self-hosting/deployment", "title": "Deployment" },
+            {
+              "slug": "self-hosting/configuration",
+              "title": "Configuration Reference"
+            }
+          ]
+        ]
+      },
+      {
+        "label": "Deployment",
+        "sections": [
+          [
+            {
+              "slug": "self-hosting/quickstarts/railway",
+              "title": "Deploy on Railway"
+            },
+            {
+              "slug": "self-hosting/quickstarts/docker",
+              "title": "Deploy with Docker"
+            },
+            {
+              "slug": "self-hosting/quickstarts/kubernetes",
+              "title": "Deploy on Kubernetes"
+            }
+          ]
+        ]
+      },
+      {
+        "label": "Guides",
+        "sections": [
+          [
+            { "slug": "self-hosting/logging", "title": "Logging" },
+            {
+              "slug": "self-hosting/byo-mqs",
+              "title": "Bring Your Own Message Queues"
+            },
+            {
+              "slug": "self-hosting/service-bus-internal-mq",
+              "title": "Azure Service Bus Internal MQ"
+            },
+            {
+              "slug": "self-hosting/migration",
+              "title": "Schema Migration Guide"
+            },
+            {
+              "slug": "self-hosting/event-delivery-log",
+              "title": "Event & Delivery Log"
+            },
+            {
+              "slug": "self-hosting/troubleshooting-redis",
+              "title": "Redis Troubleshooting"
+            }
+          ]
+        ]
+      },
+      {
+        "label": "Changelog",
+        "sections": [
+          [
+            {
+              "slug": "self-hosting/upgrade-v0.12",
+              "title": "Upgrade to v0.12"
+            },
+            {
+              "slug": "self-hosting/upgrade-v0.13",
+              "title": "Upgrade to v0.13"
+            },
+            {
+              "slug": "self-hosting/upgrade-v0.14",
+              "title": "Upgrade to v0.14"
+            }
+          ]
+        ]
+      }
     ]
   }
-]
+}
