@@ -1,0 +1,158 @@
+---
+title: "Configuration Reference"
+description: "Configuration options for Outpost — environment variables for self-hosted deployments and dashboard settings for managed Outpost."
+---
+
+Global configuration is provided through environment variables or a YAML config file. When deploying on Kubernetes, use a ConfigMap.
+
+## Required Variables
+
+These variables must be set for Outpost to start:
+
+| Variable | Description |
+|----------|-------------|
+| `AES_ENCRYPTION_SECRET` | 16, 24, or 32 byte key for AES encryption of sensitive data |
+| `API_JWT_SECRET` | Secret for signing and verifying JWTs |
+| `API_KEY` | API key for authenticating requests to the Outpost API |
+| `REDIS_HOST` | Hostname of the Redis server (default: `127.0.0.1`) |
+| `REDIS_PORT` | Port of the Redis server (default: `6379`) |
+| `REDIS_DATABASE` | Redis database number (default: `0`) |
+
+## Message Queue
+
+Choose one message queue provider. The selected provider is used for both event delivery and log queues.
+
+**RabbitMQ:**
+
+| Variable | Description |
+|----------|-------------|
+| `RABBITMQ_SERVER_URL` | RabbitMQ connection URL (e.g., `amqp://user:pass@host/vhost`) |
+| `RABBITMQ_EXCHANGE` | Exchange name (default: `outpost`) |
+
+**AWS SQS:**
+
+| Variable | Description |
+|----------|-------------|
+| `AWS_SQS_ACCESS_KEY_ID` | AWS Access Key ID |
+| `AWS_SQS_SECRET_ACCESS_KEY` | AWS Secret Access Key |
+| `AWS_SQS_REGION` | AWS Region |
+
+**GCP Pub/Sub:**
+
+| Variable | Description |
+|----------|-------------|
+| `GCP_PUBSUB_PROJECT` | GCP Project ID |
+| `GCP_PUBSUB_SERVICE_ACCOUNT_CREDENTIALS` | Service account JSON string or file path |
+
+**Azure Service Bus:**
+
+| Variable | Description |
+|----------|-------------|
+| `AZURE_SERVICEBUS_NAMESPACE` | Azure Service Bus namespace |
+| `AZURE_SERVICEBUS_TENANT_ID` | Azure Active Directory tenant ID |
+| `AZURE_SERVICEBUS_CLIENT_ID` | Service principal client ID |
+| `AZURE_SERVICEBUS_CLIENT_SECRET` | Service principal client secret |
+
+## Log Storage
+
+Choose one for event log persistence:
+
+| Variable | Description |
+|----------|-------------|
+| `POSTGRES_URL` | PostgreSQL connection URL |
+| `CLICKHOUSE_ADDR` | ClickHouse address (e.g., `localhost:9000`) |
+
+## Delivery
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DELIVERY_MAX_CONCURRENCY` | `1` | Max concurrent delivery attempts |
+| `DELIVERY_TIMEOUT_SECONDS` | `5` | HTTP request timeout for webhook delivery |
+| `MAX_RETRY_LIMIT` | `10` | Max retry attempts before giving up |
+| `RETRY_INTERVAL_SECONDS` | `30` | Base interval for exponential backoff retries |
+| `RETRY_SCHEDULE` | — | Comma-separated retry delays in seconds (overrides interval/limit) |
+
+## Topics
+
+| Variable | Description |
+|----------|-------------|
+| `TOPICS` | Comma-separated list of topics your instance supports |
+
+## Portal
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PORTAL_REFERER_URL` | — | Required. URL to redirect users to when JWT expires |
+| `PORTAL_REFRESH_URL` | — | URL in your app to silently re-authenticate and generate a new JWT |
+| `PORTAL_ORGANIZATION_NAME` | — | Organization name shown in the portal header |
+| `PORTAL_ACCENT_COLOR` | — | Primary brand color (hex code, e.g., `#6122E7`) |
+| `PORTAL_LOGO` | — | URL for the light-mode portal logo |
+| `PORTAL_LOGO_DARK` | — | URL for the dark-mode portal logo |
+| `PORTAL_FAVICON_URL` | — | URL for the portal favicon |
+| `PORTAL_FORCE_THEME` | — | Force portal theme: `light` or `dark` |
+| `PORTAL_DISABLE_OUTPOST_BRANDING` | `false` | Remove the "Powered by Outpost" footer |
+| `PORTAL_ENABLE_DESTINATION_FILTER` | `false` | Show filter configuration UI per destination |
+| `PORTAL_ENABLE_WEBHOOK_CUSTOM_HEADERS` | `false` | Allow tenants to set custom HTTP headers on webhook destinations |
+
+## Alerts
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `ALERT_CALLBACK_URL` | — | URL to POST to when an alert fires |
+| `ALERT_CONSECUTIVE_FAILURE_COUNT` | `20` | Consecutive failures before alert triggers |
+| `ALERT_AUTO_DISABLE_DESTINATION` | `true` | Auto-disable destination when failure count reaches 100% |
+
+## Webhook Behavior
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DESTINATIONS_WEBHOOK_MODE` | `default` | Set to `standard` for Standard Webhooks compliance |
+| `DESTINATIONS_WEBHOOK_HEADER_PREFIX` | `x-outpost-` | Prefix for all webhook headers |
+| `DESTINATIONS_WEBHOOK_DISABLE_EVENT_ID_HEADER` | `false` | Disable the event ID header |
+| `DESTINATIONS_WEBHOOK_DISABLE_TIMESTAMP_HEADER` | `false` | Disable the timestamp header |
+| `DESTINATIONS_WEBHOOK_DISABLE_TOPIC_HEADER` | `false` | Disable the topic header |
+| `DESTINATIONS_WEBHOOK_DISABLE_SIGNATURE_HEADER` | `false` | Disable the signature header |
+| `DESTINATIONS_WEBHOOK_SIGNATURE_ALGORITHM` | `hmac-sha256` | Signature algorithm |
+| `DESTINATIONS_WEBHOOK_SIGNATURE_ENCODING` | `hex` | Encoding: `hex` or `base64` |
+
+## Observability
+
+| Variable | Description |
+|----------|-------------|
+| `OTEL_SERVICE_NAME` | Enables OpenTelemetry metrics export when set |
+| `LOG_LEVEL` | Log verbosity: `trace`, `debug`, `info`, `warn`, `error` (default: `info`) |
+| `DISABLE_TELEMETRY` | Set to `true` to disable anonymous usage telemetry to Hookdeck |
+
+## YAML Configuration
+
+All environment variables can also be specified in a YAML config file using snake_case keys:
+
+```yaml
+aes_encryption_secret: "your-secret-here"
+api_jwt_secret: "your-jwt-secret"
+api_key: "your-api-key"
+
+topics: "user.created,user.updated,order.placed"
+
+redis:
+  host: "127.0.0.1"
+  port: 6379
+  database: 0
+
+# Choose one message queue:
+rabbitmq:
+  server_url: "amqp://user:pass@localhost/vhost"
+
+delivery:
+  max_concurrency: 5
+  timeout_seconds: 10
+
+portal:
+  referer_url: "https://yourapp.com/settings/webhooks"
+  organization_name: "Acme Corp"
+  accent_color: "#6122E7"
+
+alerts:
+  callback_url: "https://yourapp.com/api/outpost-alerts"
+  consecutive_failure_count: 50
+```

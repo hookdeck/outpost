@@ -515,6 +515,56 @@ func TestAPI_MetricsAttempts(t *testing.T) {
 		}
 	})
 
+	t.Run("destination_type dimension and filter", func(t *testing.T) {
+		h := newAPITest(t)
+
+		attemptTime := baseStart.Add(30 * time.Minute)
+		e1 := ef.AnyPointer(ef.WithTenantID("t1"), ef.WithTime(attemptTime))
+		e2 := ef.AnyPointer(ef.WithTenantID("t1"), ef.WithTime(attemptTime))
+		a1 := attemptForEvent(e1, af.WithDestinationType("webhook"), af.WithTime(attemptTime))
+		a2 := attemptForEvent(e2, af.WithDestinationType("sqs"), af.WithTime(attemptTime))
+		require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
+			{Event: e1, Attempt: a1},
+			{Event: e2, Attempt: a2},
+		}))
+
+		t.Run("as dimension", func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet,
+				"/api/v1/metrics/attempts?"+baseQS+"&measures[0]=count&dimensions[0]=destination_type", nil)
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+
+			var result apirouter.APIMetricsResponse
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
+			require.Len(t, result.Data, 2)
+			types := map[string]bool{}
+			for _, dp := range result.Data {
+				dt, ok := dp.Dimensions["destination_type"].(string)
+				require.True(t, ok, "destination_type dimension should be a string")
+				types[dt] = true
+			}
+			assert.True(t, types["webhook"])
+			assert.True(t, types["sqs"])
+		})
+
+		t.Run("as filter", func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet,
+				"/api/v1/metrics/attempts?"+baseQS+"&measures[0]=count&filters[destination_type][0]=webhook", nil)
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+
+			var result apirouter.APIMetricsResponse
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
+			if len(result.Data) > 0 {
+				count, ok := result.Data[0].Metrics["count"]
+				assert.True(t, ok)
+				assert.Equal(t, float64(1), count)
+			}
+		})
+	})
+
 	t.Run("start equals end returns 400", func(t *testing.T) {
 		h := newAPITest(t)
 		sameTime := time.Now().UTC().Truncate(time.Second)

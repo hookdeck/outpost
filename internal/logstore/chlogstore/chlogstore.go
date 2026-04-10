@@ -337,6 +337,11 @@ func buildAttemptQuery(table string, req driver.ListAttemptRequest, q pagination
 		args = append(args, req.DestinationIDs)
 	}
 
+	if len(req.DestinationTypes) > 0 {
+		conditions = append(conditions, "destination_type IN ?")
+		args = append(args, req.DestinationTypes)
+	}
+
 	if req.Status != "" {
 		conditions = append(conditions, "status = ?")
 		args = append(args, req.Status)
@@ -383,6 +388,7 @@ func buildAttemptQuery(table string, req driver.ListAttemptRequest, q pagination
 			event_id,
 			tenant_id,
 			destination_id,
+			destination_type,
 			topic,
 			eligible_for_retry,
 			event_time,
@@ -411,6 +417,7 @@ func scanAttemptRecords(rows clickhouse.Rows) ([]attemptRecordWithPosition, erro
 			eventID          string
 			tenantID         string
 			destinationID    string
+			destinationType  string
 			topic            string
 			eligibleForRetry bool
 			eventTime        time.Time
@@ -429,6 +436,7 @@ func scanAttemptRecords(rows clickhouse.Rows) ([]attemptRecordWithPosition, erro
 			&eventID,
 			&tenantID,
 			&destinationID,
+			&destinationType,
 			&topic,
 			&eligibleForRetry,
 			&eventTime,
@@ -463,16 +471,17 @@ func scanAttemptRecords(rows clickhouse.Rows) ([]attemptRecordWithPosition, erro
 		results = append(results, attemptRecordWithPosition{
 			AttemptRecord: &driver.AttemptRecord{
 				Attempt: &models.Attempt{
-					ID:            attemptID,
-					TenantID:      tenantID,
-					EventID:       eventID,
-					DestinationID: destinationID,
-					AttemptNumber: int(attemptNumber),
-					Manual:        manual,
-					Status:        status,
-					Time:          attemptTime,
-					Code:          code,
-					ResponseData:  responseData,
+					ID:              attemptID,
+					TenantID:        tenantID,
+					EventID:         eventID,
+					DestinationID:   destinationID,
+					DestinationType: destinationType,
+					AttemptNumber:   int(attemptNumber),
+					Manual:          manual,
+					Status:          status,
+					Time:            attemptTime,
+					Code:            code,
+					ResponseData:    responseData,
 				},
 				Event: &models.Event{
 					ID:               eventID,
@@ -582,6 +591,7 @@ func (s *logStoreImpl) RetrieveAttempt(ctx context.Context, req driver.RetrieveA
 			event_id,
 			tenant_id,
 			destination_id,
+			destination_type,
 			topic,
 			eligible_for_retry,
 			event_time,
@@ -604,6 +614,7 @@ func (s *logStoreImpl) RetrieveAttempt(ctx context.Context, req driver.RetrieveA
 		eventID          string
 		tenantID         string
 		destinationID    string
+		destinationType  string
 		topic            string
 		eligibleForRetry bool
 		eventTime        time.Time
@@ -622,6 +633,7 @@ func (s *logStoreImpl) RetrieveAttempt(ctx context.Context, req driver.RetrieveA
 		&eventID,
 		&tenantID,
 		&destinationID,
+		&destinationType,
 		&topic,
 		&eligibleForRetry,
 		&eventTime,
@@ -658,16 +670,17 @@ func (s *logStoreImpl) RetrieveAttempt(ctx context.Context, req driver.RetrieveA
 
 	return &driver.AttemptRecord{
 		Attempt: &models.Attempt{
-			ID:            attemptID,
-			TenantID:      tenantID,
-			EventID:       eventID,
-			DestinationID: destinationID,
-			AttemptNumber: int(attemptNumber),
-			Manual:        manual,
-			Status:        status,
-			Time:          attemptTime,
-			Code:          code,
-			ResponseData:  responseData,
+			ID:              attemptID,
+			TenantID:        tenantID,
+			EventID:         eventID,
+			DestinationID:   destinationID,
+			DestinationType: destinationType,
+			AttemptNumber:   int(attemptNumber),
+			Manual:          manual,
+			Status:          status,
+			Time:            attemptTime,
+			Code:            code,
+			ResponseData:    responseData,
 		},
 		Event: &models.Event{
 			ID:               eventID,
@@ -734,7 +747,7 @@ func (s *logStoreImpl) InsertMany(ctx context.Context, entries []*models.LogEntr
 	// Insert attempts with their paired event data
 	attemptBatch, err := s.chDB.PrepareBatch(ctx,
 		fmt.Sprintf(`INSERT INTO %s (
-			event_id, tenant_id, destination_id, topic, eligible_for_retry, event_time, metadata, data,
+			event_id, tenant_id, destination_id, destination_type, topic, eligible_for_retry, event_time, metadata, data,
 			attempt_id, status, attempt_time, code, response_data, manual, attempt_number
 		)`, s.attemptsTable),
 	)
@@ -759,6 +772,7 @@ func (s *logStoreImpl) InsertMany(ctx context.Context, entries []*models.LogEntr
 			a.EventID,
 			event.TenantID,
 			a.DestinationID,
+			a.DestinationType,
 			event.Topic,
 			event.EligibleForRetry,
 			event.Time,

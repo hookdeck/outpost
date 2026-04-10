@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/hookdeck/outpost/cmd/e2e/alert"
 	"github.com/hookdeck/outpost/cmd/e2e/configs"
+	opeventsmock "github.com/hookdeck/outpost/cmd/e2e/opevents"
 	"github.com/hookdeck/outpost/internal/app"
 	"github.com/hookdeck/outpost/internal/config"
 	"github.com/hookdeck/outpost/internal/redis"
@@ -82,7 +82,7 @@ type basicSuite struct {
 	redisConfig    *redis.RedisConfig // Optional Redis config override
 	deploymentID   string             // Optional deployment ID
 	hasRediSearch  bool               // Whether the Redis backend supports RediSearch (only RedisStack)
-	alertServer    *alert.AlertMockServer
+	opeventsServer *opeventsmock.MockServer
 	httpClient     *http.Client // Used by doJSON helpers
 }
 
@@ -93,18 +93,21 @@ func (suite *basicSuite) SetupSuite() {
 	gin.SetMode(gin.TestMode)
 	mockServerBaseURL := testinfra.GetMockServer(t)
 
-	// Setup alert mock server
-	alertServer := alert.NewAlertMockServer()
-	require.NoError(t, alertServer.Start())
-	suite.alertServer = alertServer
+	// Setup operation events mock server
+	oeServer := opeventsmock.NewMockServer()
+	require.NoError(t, oeServer.Start())
+	suite.opeventsServer = oeServer
 
-	// Configure alert callback URL
 	cfg := configs.Basic(t, configs.BasicOpts{
 		LogStorage:   suite.logStorageType,
 		RedisConfig:  suite.redisConfig,
 		DeploymentID: suite.deploymentID,
 	})
-	cfg.Alert.CallbackURL = alertServer.GetCallbackURL()
+
+	// Configure operation events HTTP sink
+	cfg.OperationEvents.Topics = []string{"*"}
+	cfg.OperationEvents.HTTP.URL = oeServer.GetURL()
+	cfg.OperationEvents.HTTP.SigningSecret = "test-opevents-secret"
 
 	require.NoError(t, cfg.Validate(config.Flags{}))
 
@@ -113,8 +116,8 @@ func (suite *basicSuite) SetupSuite() {
 		mockServerBaseURL: mockServerBaseURL,
 		mockServerInfra:   testinfra.NewMockServerInfra(mockServerBaseURL),
 		cleanup: func() {
-			if err := alertServer.Stop(); err != nil {
-				t.Logf("failed to stop alert server: %v", err)
+			if err := oeServer.Stop(); err != nil {
+				t.Logf("failed to stop opevents server: %v", err)
 			}
 		},
 	}
@@ -127,7 +130,7 @@ func (suite *basicSuite) SetupSuite() {
 }
 
 func (s *basicSuite) SetupTest() {
-	s.alertServer.Reset()
+	s.opeventsServer.Reset()
 }
 
 func (s *basicSuite) TearDownSuite() {

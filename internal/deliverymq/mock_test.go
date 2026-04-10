@@ -6,13 +6,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hookdeck/outpost/internal/alert"
 	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/logstore"
 	"github.com/hookdeck/outpost/internal/models"
 	mqs "github.com/hookdeck/outpost/internal/mqs"
 	"github.com/hookdeck/outpost/internal/scheduler"
-	"github.com/stretchr/testify/mock"
 )
 
 type mockPublisher struct {
@@ -320,21 +318,3 @@ func (m *mockMessage) Data() []byte {
 }
 
 func (m *mockMessage) SetData([]byte) {}
-
-type mockAlertMonitor struct {
-	mock.Mock
-}
-
-func (m *mockAlertMonitor) HandleAttempt(ctx context.Context, attempt alert.DeliveryAttempt) error {
-	args := m.Called(ctx, attempt)
-	return args.Error(0)
-}
-
-func newMockAlertMonitor() *mockAlertMonitor {
-	monitor := &mockAlertMonitor{}
-	// Set up default expectation to handle any attempt
-	monitor.On("HandleAttempt", mock.Anything, mock.MatchedBy(func(attempt alert.DeliveryAttempt) bool {
-		return true // Accept any attempt
-	})).Return(nil)
-	return monitor
-}

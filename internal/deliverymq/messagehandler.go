@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/hookdeck/outpost/internal/alert"
 	"github.com/hookdeck/outpost/internal/backoff"
 	"github.com/hookdeck/outpost/internal/consumer"
 	"github.com/hookdeck/outpost/internal/destregistry"
@@ -75,7 +74,6 @@ type messageHandler struct {
 	retryMaxLimit  int
 	idempotence    idempotence.Idempotence
 	publisher      Publisher
-	alertMonitor   AlertMonitor
 }
 
 type Publisher interface {
@@ -99,10 +97,6 @@ type DeliveryTracer interface {
 	Deliver(ctx context.Context, task *models.DeliveryTask, destination *models.Destination) (context.Context, trace.Span)
 }
 
-type AlertMonitor interface {
-	HandleAttempt(ctx context.Context, attempt alert.DeliveryAttempt) error
-}
-
 func NewMessageHandler(
 	logger *logging.Logger,
 	logMQ LogPublisher,
@@ -112,7 +106,6 @@ func NewMessageHandler(
 	retryScheduler RetryScheduler,
 	retryBackoff backoff.Backoff,
 	retryMaxLimit int,
-	alertMonitor AlertMonitor,
 	idempotence idempotence.Idempotence,
 ) consumer.MessageHandler {
 	return &messageHandler{
@@ -125,7 +118,6 @@ func NewMessageHandler(
 		retryBackoff:   retryBackoff,
 		retryMaxLimit:  retryMaxLimit,
 		idempotence:    idempotence,
-		alertMonitor:   alertMonitor,
 	}
 }
 
@@ -276,8 +268,9 @@ func (h *messageHandler) logDeliveryResult(ctx context.Context, task *models.Del
 		zap.Bool("manual", task.Manual))
 
 	logEntry := models.LogEntry{
-		Event:   &task.Event,
-		Attempt: attempt,
+		Event:       &task.Event,
+		Attempt:     attempt,
+		Destination: destination,
 	}
 	if logErr := h.logMQ.Publish(ctx, logEntry); logErr != nil {
 		logger.Error("failed to publish attempt log",
@@ -292,8 +285,6 @@ func (h *messageHandler) logDeliveryResult(ctx context.Context, task *models.Del
 		}
 		return &PostDeliveryError{err: logErr}
 	}
-
-	go h.handleAlertAttempt(ctx, destination, &task.Event, attempt)
 
 	// If we have an AttemptError, return it as is
 	var atmErr *AttemptError
@@ -313,32 +304,6 @@ func (h *messageHandler) logDeliveryResult(ctx context.Context, task *models.Del
 	}
 
 	return nil
-}
-
-func (h *messageHandler) handleAlertAttempt(ctx context.Context, destination *models.Destination, event *models.Event, attempt *models.Attempt) {
-	da := alert.DeliveryAttempt{
-		Event:       event,
-		Destination: alert.AlertDestinationFromDestination(destination),
-		Attempt:     attempt,
-	}
-
-	if monitorErr := h.alertMonitor.HandleAttempt(ctx, da); monitorErr != nil {
-		h.logger.Ctx(ctx).Error("failed to handle alert attempt",
-			zap.Error(monitorErr),
-			zap.String("attempt_id", attempt.ID),
-			zap.String("event_id", event.ID),
-			zap.String("tenant_id", destination.TenantID),
-			zap.String("destination_id", destination.ID),
-			zap.String("destination_type", destination.Type))
-		return
-	}
-
-	h.logger.Ctx(ctx).Info("alert attempt handled",
-		zap.String("attempt_id", attempt.ID),
-		zap.String("event_id", event.ID),
-		zap.String("tenant_id", destination.TenantID),
-		zap.String("destination_id", destination.ID),
-		zap.String("destination_type", destination.Type))
 }
 
 func (h *messageHandler) shouldScheduleRetry(task models.DeliveryTask, err error) bool {

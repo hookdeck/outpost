@@ -3,11 +3,11 @@ package destwebhook_test
 import (
 	"context"
 	"encoding/hex"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/hookdeck/outpost/internal/destregistry"
-	"github.com/hookdeck/outpost/internal/destregistry/providers/destwebhook"
 	"github.com/hookdeck/outpost/internal/util/maputil"
 	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
@@ -27,8 +27,7 @@ func TestWebhookDestination_Validate(t *testing.T) {
 		}),
 	)
 
-	webhookDestination, err := destwebhook.New(testutil.Registry.MetadataLoader(), nil)
-	require.NoError(t, err)
+	webhookDestination := NewTestProvider(t)
 
 	t.Run("should validate valid destination", func(t *testing.T) {
 		t.Parallel()
@@ -144,8 +143,7 @@ func TestWebhookDestination_ValidateSecrets(t *testing.T) {
 		}),
 	)
 
-	webhookDestination, err := destwebhook.New(testutil.Registry.MetadataLoader(), nil)
-	require.NoError(t, err)
+	webhookDestination := NewTestProvider(t)
 
 	t.Run("should validate valid destination", func(t *testing.T) {
 		t.Parallel()
@@ -196,8 +194,7 @@ func TestWebhookDestination_ValidateSecrets(t *testing.T) {
 func TestWebhookDestination_ValidateCustomHeaders(t *testing.T) {
 	t.Parallel()
 
-	webhookDestination, err := destwebhook.New(testutil.Registry.MetadataLoader(), nil)
-	require.NoError(t, err)
+	webhookDestination := NewTestProvider(t)
 
 	t.Run("should accept valid header names", func(t *testing.T) {
 		t.Parallel()
@@ -342,8 +339,7 @@ func TestWebhookDestination_ValidateCustomHeaders(t *testing.T) {
 func TestWebhookDestination_ComputeTarget(t *testing.T) {
 	t.Parallel()
 
-	webhookDestination, err := destwebhook.New(testutil.Registry.MetadataLoader(), nil)
-	require.NoError(t, err)
+	webhookDestination := NewTestProvider(t)
 
 	t.Run("should return url as target", func(t *testing.T) {
 		t.Parallel()
@@ -361,8 +357,7 @@ func TestWebhookDestination_ComputeTarget(t *testing.T) {
 func TestWebhookDestination_Preprocess(t *testing.T) {
 	t.Parallel()
 
-	webhookDestination, err := destwebhook.New(testutil.Registry.MetadataLoader(), nil)
-	require.NoError(t, err)
+	webhookDestination := NewTestProvider(t)
 
 	t.Run("should generate default secret if not provided", func(t *testing.T) {
 		t.Parallel()
@@ -378,10 +373,13 @@ func TestWebhookDestination_Preprocess(t *testing.T) {
 
 		// Verify that a secret was generated
 		assert.NotEmpty(t, destination.Credentials["secret"])
-		// Verify that the secret is a valid hex string of length 64 (32 bytes)
-		assert.Len(t, destination.Credentials["secret"], 64)
-		_, err = hex.DecodeString(destination.Credentials["secret"])
-		assert.NoError(t, err, "generated secret should be a valid hex string")
+		// Verify that the secret has whsec_ prefix and valid hex of length 64
+		secret := destination.Credentials["secret"]
+		assert.True(t, strings.HasPrefix(secret, "whsec_"), "secret should have whsec_ prefix")
+		hexPart := strings.TrimPrefix(secret, "whsec_")
+		assert.Len(t, hexPart, 64)
+		_, err = hex.DecodeString(hexPart)
+		assert.NoError(t, err, "hex part should be valid hex")
 	})
 
 	t.Run("should preserve existing secret for admin", func(t *testing.T) {
@@ -471,9 +469,12 @@ func TestWebhookDestination_Preprocess(t *testing.T) {
 		// Verify that a new secret was generated
 		assert.NotEqual(t, "current-secret", newDestination.Credentials["secret"])
 		assert.NotEmpty(t, newDestination.Credentials["secret"])
-		assert.Len(t, newDestination.Credentials["secret"], 64)
-		_, err = hex.DecodeString(newDestination.Credentials["secret"])
-		assert.NoError(t, err, "generated secret should be a valid hex string")
+		secret := newDestination.Credentials["secret"]
+		assert.True(t, strings.HasPrefix(secret, "whsec_"), "secret should have whsec_ prefix")
+		hexPart := strings.TrimPrefix(secret, "whsec_")
+		assert.Len(t, hexPart, 64)
+		_, err = hex.DecodeString(hexPart)
+		assert.NoError(t, err, "hex part should be valid hex")
 
 		// Verify that previous_secret_invalid_at was set to ~24h from now
 		invalidAt, err := time.Parse(time.RFC3339, newDestination.Credentials["previous_secret_invalid_at"])
@@ -693,9 +694,12 @@ func TestWebhookDestination_Preprocess(t *testing.T) {
 				// Verify that a new secret was generated
 				assert.NotEqual(t, "current-secret", newDestination.Credentials["secret"])
 				assert.NotEmpty(t, newDestination.Credentials["secret"])
-				assert.Len(t, newDestination.Credentials["secret"], 64)
-				_, err = hex.DecodeString(newDestination.Credentials["secret"])
-				assert.NoError(t, err, "generated secret should be a valid hex string")
+				secret := newDestination.Credentials["secret"]
+				assert.True(t, strings.HasPrefix(secret, "whsec_"), "secret should have whsec_ prefix")
+				hexPart := strings.TrimPrefix(secret, "whsec_")
+				assert.Len(t, hexPart, 64)
+				_, err = hex.DecodeString(hexPart)
+				assert.NoError(t, err, "hex part should be valid hex")
 
 				// Verify that previous_secret_invalid_at was set to ~24h from now
 				invalidAt, err := time.Parse(time.RFC3339, newDestination.Credentials["previous_secret_invalid_at"])
@@ -808,8 +812,7 @@ func TestWebhookDestination_Preprocess(t *testing.T) {
 func TestWebhookDestination_ObfuscateDestination(t *testing.T) {
 	t.Parallel()
 
-	webhookDestination, err := destwebhook.New(testutil.Registry.MetadataLoader(), nil)
-	require.NoError(t, err)
+	webhookDestination := NewTestProvider(t)
 
 	t.Run("should keep previous_secret when not expired", func(t *testing.T) {
 		t.Parallel()

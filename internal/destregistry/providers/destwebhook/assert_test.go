@@ -4,7 +4,6 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"fmt"
-	"strconv"
 	"strings"
 
 	testsuite "github.com/hookdeck/outpost/internal/destregistry/testing"
@@ -13,40 +12,25 @@ import (
 )
 
 // Helper function to assert signature format
+// Expected format: "v0={sig1,sig2,...}"
 func assertSignatureFormat(t testsuite.TestingT, signatureHeader string, expectedSignatureCount int) {
 	t.Helper()
 
-	parts := strings.SplitN(signatureHeader, ",", 2)
-	require.True(t, len(parts) >= 2, "signature header should have timestamp and signature parts")
-
-	// Verify timestamp format
-	assert.True(t, strings.HasPrefix(parts[0], "t="), "should start with t=")
-	timestampStr := strings.TrimPrefix(parts[0], "t=")
-	_, err := strconv.ParseInt(timestampStr, 10, 64)
-	require.NoError(t, err, "timestamp should be a valid integer")
-
-	// Verify signature format and count
-	assert.True(t, strings.HasPrefix(parts[1], "v0="), "should start with v0=")
-	signatures := strings.Split(strings.TrimPrefix(parts[1], "v0="), ",")
+	require.True(t, strings.HasPrefix(signatureHeader, "v0="), "signature header should start with v0=")
+	signatures := strings.Split(strings.TrimPrefix(signatureHeader, "v0="), ",")
 	assert.Len(t, signatures, expectedSignatureCount, "should have exact number of signatures")
 }
 
 // Helper function to assert valid signature
+// Signed content is the raw body (no timestamp prefix)
 func assertValidSignature(t testsuite.TestingT, secret string, rawBody []byte, signatureHeader string) {
 	t.Helper()
 
-	// Parse "t={timestamp},v0={signature1,signature2}" format
-	parts := strings.SplitN(signatureHeader, ",", 2) // Split only on first comma
-	require.True(t, len(parts) >= 2, "signature header should have timestamp and signature parts")
+	require.True(t, strings.HasPrefix(signatureHeader, "v0="), "signature header should start with v0=")
+	signatures := strings.Split(strings.TrimPrefix(signatureHeader, "v0="), ",")
 
-	timestampStr := strings.TrimPrefix(parts[0], "t=")
-	signatures := strings.Split(strings.TrimPrefix(parts[1], "v0="), ",")
-
-	timestamp, err := strconv.ParseInt(timestampStr, 10, 64)
-	require.NoError(t, err, "timestamp should be a valid integer")
-
-	// Reconstruct the signed content
-	signedContent := fmt.Sprintf("%d.%s", timestamp, rawBody)
+	// Signed content is just the body
+	signedContent := string(rawBody)
 
 	// Generate HMAC-SHA256
 	mac := hmac.New(sha256.New, []byte(secret))

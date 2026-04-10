@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/hookdeck/outpost/internal/alert"
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/mqs"
@@ -21,6 +22,11 @@ type LogStore interface {
 	InsertMany(ctx context.Context, entries []*models.LogEntry) error
 }
 
+// AlertMonitor evaluates delivery attempts for alert conditions.
+type AlertMonitor interface {
+	HandleAttempt(ctx context.Context, attempt alert.DeliveryAttempt) error
+}
+
 // BatchProcessorConfig configures the batch processor.
 type BatchProcessorConfig struct {
 	ItemCountThreshold int
@@ -29,18 +35,20 @@ type BatchProcessorConfig struct {
 
 // BatchProcessor batches log entries and writes them to the log store.
 type BatchProcessor struct {
-	ctx      context.Context
-	logger   *logging.Logger
-	logStore LogStore
-	batcher  *batcher.Batcher[*mqs.Message]
+	ctx          context.Context
+	logger       *logging.Logger
+	logStore     LogStore
+	alertMonitor AlertMonitor
+	batcher      *batcher.Batcher[*mqs.Message]
 }
 
 // NewBatchProcessor creates a new batch processor for log entries.
-func NewBatchProcessor(ctx context.Context, logger *logging.Logger, logStore LogStore, cfg BatchProcessorConfig) (*BatchProcessor, error) {
+func NewBatchProcessor(ctx context.Context, logger *logging.Logger, logStore LogStore, alertMonitor AlertMonitor, cfg BatchProcessorConfig) (*BatchProcessor, error) {
 	bp := &BatchProcessor{
-		ctx:      ctx,
-		logger:   logger,
-		logStore: logStore,
+		ctx:          ctx,
+		logger:       logger,
+		logStore:     logStore,
+		alertMonitor: alertMonitor,
 	}
 
 	b, err := batcher.NewBatcher(batcher.Config[*mqs.Message]{
@@ -138,11 +146,43 @@ func (bp *BatchProcessor) processBatch(_ string, msgs []*mqs.Message) {
 		return
 	}
 
-	logger.Info("batch processed successfully",
+	logger.Info("batch persisted",
 		zap.Int("count", len(validMsgs)),
 		zap.Int64("insert_duration_ms", time.Since(insertStart).Milliseconds()))
 
-	for _, msg := range validMsgs {
-		msg.Ack()
+	// Per-entry alert evaluation after successful persistence
+	for i, entry := range entries {
+		if bp.alertMonitor == nil {
+			validMsgs[i].Ack()
+			continue
+		}
+
+		// Graceful nil: skip alert eval if no destination.
+		// This only happens during the initial migration when older deliverymq
+		// instances haven't been updated to populate LogEntry.Destination yet.
+		// Can be removed after v1.0.
+		if entry.Destination == nil {
+			validMsgs[i].Ack()
+			continue
+		}
+
+		da := alert.DeliveryAttempt{
+			Event:       entry.Event,
+			Destination: alert.AlertDestinationFromDestination(entry.Destination),
+			Attempt:     entry.Attempt,
+		}
+		if err := bp.alertMonitor.HandleAttempt(bp.ctx, da); err != nil {
+			logger.Error("alert evaluation failed",
+				zap.Error(err),
+				zap.String("attempt_id", entry.Attempt.ID),
+				zap.String("event_id", entry.Event.ID),
+				zap.String("destination_id", entry.Destination.ID))
+			// Nack so the message is redelivered. InsertMany is idempotent
+			// (upsert by attempt ID), so redelivery won't produce duplicate log entries.
+			validMsgs[i].Nack()
+			continue
+		}
+
+		validMsgs[i].Ack()
 	}
 }

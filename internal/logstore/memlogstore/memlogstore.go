@@ -392,6 +392,10 @@ func (s *memLogStore) matchesAttemptFilter(a *models.Attempt, event *models.Even
 		}
 	}
 
+	if len(req.DestinationTypes) > 0 && !slices.Contains(req.DestinationTypes, a.DestinationType) {
+		return false
+	}
+
 	if req.Status != "" && a.Status != req.Status {
 		return false
 	}
@@ -460,15 +464,16 @@ func copyAttempt(a *models.Attempt) *models.Attempt {
 		return nil
 	}
 	copied := &models.Attempt{
-		ID:            a.ID,
-		TenantID:      a.TenantID,
-		EventID:       a.EventID,
-		DestinationID: a.DestinationID,
-		AttemptNumber: a.AttemptNumber,
-		Manual:        a.Manual,
-		Status:        a.Status,
-		Time:          a.Time,
-		Code:          a.Code,
+		ID:              a.ID,
+		TenantID:        a.TenantID,
+		EventID:         a.EventID,
+		DestinationID:   a.DestinationID,
+		DestinationType: a.DestinationType,
+		AttemptNumber:   a.AttemptNumber,
+		Manual:          a.Manual,
+		Status:          a.Status,
+		Time:            a.Time,
+		Code:            a.Code,
 	}
 
 	if a.ResponseData != nil {

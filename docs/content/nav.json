@@ -1,0 +1,246 @@
+{
+  "/docs/outpost": [
+    {
+      "label": "",
+      "sections": [
+        [
+          {
+            "slug": "api",
+            "title": "API Reference",
+            "icon": "api-icon",
+            "href": "/docs/outpost/api"
+          }
+        ]
+      ]
+    },
+    {
+      "label": "Getting Started",
+      "sections": [
+        [
+          { "slug": "overview", "title": "Overview" },
+          { "slug": "concepts", "title": "Concepts" },
+          { "slug": "sdks", "title": "SDKs" },
+          {
+            "href": "/docs/outpost/quickstarts/overview",
+            "title": "Quickstarts"
+          },
+          {
+            "href": "/docs/outpost/self-hosting/architecture",
+            "title": "Self-Hosting"
+          }
+        ]
+      ]
+    },
+    {
+      "label": "Features",
+      "sections": [
+        [
+          { "slug": "features/multi-tenancy", "title": "Multi-Tenancy" },
+          { "slug": "features/topics", "title": "Topics" },
+          { "slug": "features/filter", "title": "Destination Filters" },
+          {
+            "slug": "features/event-delivery",
+            "title": "Event Delivery & Retries"
+          },
+          {
+            "slug": "features/operator-events",
+            "title": "Operator Events & Alerts"
+          },
+          { "slug": "features/tenant-user-portal", "title": "Tenant Portal" },
+          { "slug": "features/metrics", "title": "Metrics" },
+          { "slug": "features/opentelemetry", "title": "OpenTelemetry" }
+        ]
+      ]
+    },
+    {
+      "label": "Destinations",
+      "sections": [
+        [
+          { "slug": "destinations/overview", "title": "Overview" },
+          { "slug": "destinations/webhook", "title": "Webhook" },
+          {
+            "slug": "destinations/hookdeck",
+            "title": "Hookdeck Event Gateway"
+          },
+          { "slug": "destinations/aws-sqs", "title": "AWS SQS" },
+          { "slug": "destinations/aws-kinesis", "title": "AWS Kinesis" },
+          { "slug": "destinations/aws-s3", "title": "AWS S3" },
+          { "slug": "destinations/gcp-pubsub", "title": "GCP Pub/Sub" },
+          {
+            "slug": "destinations/azure-service-bus",
+            "title": "Azure Service Bus"
+          },
+          { "slug": "destinations/rabbitmq", "title": "RabbitMQ" }
+        ]
+      ]
+    },
+    {
+      "label": "Guides",
+      "sections": [
+        [
+          {
+            "slug": "guides/migrate-to-outpost",
+            "title": "Migrate to Outpost"
+          },
+          {
+            "slug": "guides/building-your-own-ui",
+            "title": "Building your own UI"
+          }
+        ]
+      ]
+    },
+    {
+      "label": "Platform (Managed Only)",
+      "sections": [
+        [
+          { "href": "/docs/platform/projects", "title": "Projects" },
+          { "href": "/docs/platform/organizations", "title": "Organizations" }
+        ]
+      ]
+    },
+    {
+      "label": "Publishing",
+      "sections": [
+        [
+          { "slug": "publishing/events", "title": "Publishing Events" },
+          {
+            "slug": "publishing/publish-from-hookdeck-event-gateway",
+            "title": "Publish from Hookdeck Event Gateway"
+          },
+          {
+            "slug": "publishing/publish-from-rabbitmq",
+            "title": "Publish from RabbitMQ"
+          },
+          {
+            "slug": "publishing/publish-from-sqs",
+            "title": "Publish from SQS"
+          },
+          {
+            "slug": "publishing/publish-from-gcp-pubsub",
+            "title": "Publish from GCP Pub/Sub"
+          }
+        ]
+      ]
+    }
+  ],
+  "/docs/outpost/quickstarts": {
+    "title": "Quickstarts",
+    "structure": [
+      {
+        "label": "Quickstarts",
+        "sections": [
+          [
+            { "slug": "quickstarts/overview", "title": "Overview" },
+            {
+              "slug": "quickstarts/hookdeck-outpost-curl",
+              "title": "Hookdeck Outpost: curl"
+            },
+            {
+              "slug": "quickstarts/hookdeck-outpost-typescript",
+              "title": "Hookdeck Outpost: TypeScript"
+            },
+            {
+              "slug": "quickstarts/hookdeck-outpost-python",
+              "title": "Hookdeck Outpost: Python"
+            },
+            {
+              "slug": "quickstarts/hookdeck-outpost-go",
+              "title": "Hookdeck Outpost: Go"
+            },
+            {
+              "slug": "quickstarts/hookdeck-outpost-agent-prompt",
+              "title": "Hookdeck Outpost: agent prompt"
+            }
+          ]
+        ]
+      }
+    ]
+  },
+  "/docs/outpost/self-hosting": {
+    "title": "Self-Hosting",
+    "structure": [
+      {
+        "label": "Overview",
+        "sections": [
+          [
+            {
+              "slug": "self-hosting/architecture",
+              "title": "Architecture"
+            },
+            { "slug": "self-hosting/deployment", "title": "Deployment" },
+            {
+              "slug": "self-hosting/configuration",
+              "title": "Configuration Reference"
+            }
+          ]
+        ]
+      },
+      {
+        "label": "Quickstarts",
+        "sections": [
+          [
+            {
+              "slug": "self-hosting/quickstarts/railway",
+              "title": "Deploy on Railway"
+            },
+            {
+              "slug": "self-hosting/quickstarts/docker",
+              "title": "Deploy with Docker"
+            },
+            {
+              "slug": "self-hosting/quickstarts/kubernetes",
+              "title": "Deploy on Kubernetes"
+            }
+          ]
+        ]
+      },
+      {
+        "label": "Guides",
+        "sections": [
+          [
+            { "slug": "self-hosting/guides/logging", "title": "Logging" },
+            {
+              "slug": "self-hosting/guides/byo-mqs",
+              "title": "Bring Your Own Message Queues"
+            },
+            {
+              "slug": "self-hosting/guides/service-bus-internal-mq",
+              "title": "Azure Service Bus Internal MQ"
+            },
+            {
+              "slug": "self-hosting/guides/migration",
+              "title": "Migrations"
+            },
+            {
+              "slug": "self-hosting/guides/event-delivery-log",
+              "title": "Event & Delivery Log"
+            },
+            {
+              "slug": "self-hosting/guides/troubleshooting-redis",
+              "title": "Redis Troubleshooting"
+            }
+          ]
+        ]
+      },
+      {
+        "label": "Changelog",
+        "sections": [
+          [
+            {
+              "slug": "self-hosting/changelog/upgrade-v0.12",
+              "title": "Upgrade to v0.12"
+            },
+            {
+              "slug": "self-hosting/changelog/upgrade-v0.13",
+              "title": "Upgrade to v0.13"
+            },
+            {
+              "slug": "self-hosting/changelog/upgrade-v0.14",
+              "title": "Upgrade to v0.14"
+            }
+          ]
+        ]
+      }
+    ]
+  }
+}

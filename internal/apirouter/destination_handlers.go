@@ -1,8 +1,10 @@
 package apirouter
 
 import (
+	"context"
 	"errors"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -14,22 +16,40 @@ import (
 	"github.com/hookdeck/outpost/internal/telemetry"
 	"github.com/hookdeck/outpost/internal/tenantstore"
 	"github.com/hookdeck/outpost/internal/util/maputil"
+	"go.uber.org/zap"
 )
+
+// SubscriptionEmitter emits operation events for subscription changes.
+// Satisfied by opevents.Emitter.
+type SubscriptionEmitter interface {
+	Emit(ctx context.Context, topic string, tenantID string, data any) error
+}
+
+// TenantSubscriptionUpdatedData is the data payload for tenant.subscription.updated events.
+type TenantSubscriptionUpdatedData struct {
+	TenantID                  string   `json:"tenant_id"`
+	Topics                    []string `json:"topics"`
+	PreviousTopics            []string `json:"previous_topics"`
+	DestinationsCount         int      `json:"destinations_count"`
+	PreviousDestinationsCount int      `json:"previous_destinations_count"`
+}
 
 type DestinationHandlers struct {
 	logger      *logging.Logger
 	telemetry   telemetry.Telemetry
 	tenantStore tenantstore.TenantStore
+	emitter     SubscriptionEmitter
 	topics      []string
 	registry    destregistry.Registry
 	displayer   *destinationDisplayer
 }
 
-func NewDestinationHandlers(logger *logging.Logger, telemetry telemetry.Telemetry, tenantStore tenantstore.TenantStore, topics []string, registry destregistry.Registry, displayer *destinationDisplayer) *DestinationHandlers {
+func NewDestinationHandlers(logger *logging.Logger, telemetry telemetry.Telemetry, tenantStore tenantstore.TenantStore, emitter SubscriptionEmitter, topics []string, registry destregistry.Registry, displayer *destinationDisplayer) *DestinationHandlers {
 	return &DestinationHandlers{
 		logger:      logger,
 		telemetry:   telemetry,
 		tenantStore: tenantStore,
+		emitter:     emitter,
 		topics:      topics,
 		registry:    registry,
 		displayer:   displayer,
@@ -66,6 +86,7 @@ func (h *DestinationHandlers) Create(c *gin.Context) {
 	}
 
 	tenant := mustTenantFromContext(c)
+	prev := h.snapshotTenant(tenant)
 
 	destination := input.ToDestination(tenant.ID)
 	if err := destination.Validate(h.topics); err != nil {
@@ -87,6 +108,7 @@ func (h *DestinationHandlers) Create(c *gin.Context) {
 		return
 	}
 	h.telemetry.DestinationCreated(c.Request.Context(), destination.Type)
+	h.emitSubscriptionUpdateIfChanged(c.Request.Context(), tenant.ID, prev)
 
 	display, err := h.displayer.Display(&destination)
 	if err != nil {
@@ -121,6 +143,7 @@ func (h *DestinationHandlers) Update(c *gin.Context) {
 
 	// Retrieve destination.
 	tenant := mustTenantFromContext(c)
+	prev := h.snapshotTenant(tenant)
 	originalDestination := h.mustRetrieveDestination(c, tenant.ID, c.Param("destination_id"))
 	if originalDestination == nil {
 		return
@@ -180,6 +203,7 @@ func (h *DestinationHandlers) Update(c *gin.Context) {
 		h.handleUpsertDestinationError(c, err)
 		return
 	}
+	h.emitSubscriptionUpdateIfChanged(c.Request.Context(), tenant.ID, prev)
 
 	display, err := h.displayer.Display(&updatedDestination)
 	if err != nil {
@@ -191,6 +215,7 @@ func (h *DestinationHandlers) Update(c *gin.Context) {
 
 func (h *DestinationHandlers) Delete(c *gin.Context) {
 	tenant := mustTenantFromContext(c)
+	prev := h.snapshotTenant(tenant)
 	destination := h.mustRetrieveDestination(c, tenant.ID, c.Param("destination_id"))
 	if destination == nil {
 		return
@@ -199,6 +224,7 @@ func (h *DestinationHandlers) Delete(c *gin.Context) {
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return
 	}
+	h.emitSubscriptionUpdateIfChanged(c.Request.Context(), tenant.ID, prev)
 
 	c.JSON(http.StatusOK, gin.H{"success": true})
 }
@@ -228,6 +254,7 @@ func (h *DestinationHandlers) RetrieveProviderMetadata(c *gin.Context) {
 
 func (h *DestinationHandlers) setDisabilityHandler(c *gin.Context, disabled bool) {
 	tenant := mustTenantFromContext(c)
+	prev := h.snapshotTenant(tenant)
 	destination := h.mustRetrieveDestination(c, tenant.ID, c.Param("destination_id"))
 	if destination == nil {
 		return
@@ -247,6 +274,7 @@ func (h *DestinationHandlers) setDisabilityHandler(c *gin.Context, disabled bool
 			h.handleUpsertDestinationError(c, err)
 			return
 		}
+		h.emitSubscriptionUpdateIfChanged(c.Request.Context(), tenant.ID, prev)
 	}
 
 	display, err := h.displayer.Display(destination)
@@ -335,6 +363,49 @@ type UpdateDestinationRequest struct {
 	Credentials      models.Credentials      `json:"credentials" binding:"-"`
 	DeliveryMetadata models.DeliveryMetadata `json:"delivery_metadata,omitempty" binding:"-"`
 	Metadata         models.Metadata         `json:"metadata,omitempty" binding:"-"`
+}
+
+// tenantSnapshot captures the tenant's derived state before a destination mutation.
+type tenantSnapshot struct {
+	topics            []string
+	destinationsCount int
+}
+
+func (h *DestinationHandlers) snapshotTenant(tenant *models.Tenant) tenantSnapshot {
+	return tenantSnapshot{
+		topics:            tenant.Topics,
+		destinationsCount: tenant.DestinationsCount,
+	}
+}
+
+// emitSubscriptionUpdateIfChanged re-fetches the tenant after a mutation and
+// emits tenant.subscription.updated if topics or destinations_count changed.
+// Best-effort: errors are logged but do not affect the API response.
+func (h *DestinationHandlers) emitSubscriptionUpdateIfChanged(ctx context.Context, tenantID string, prev tenantSnapshot) {
+	if h.emitter == nil {
+		return
+	}
+
+	tenant, err := h.tenantStore.RetrieveTenant(ctx, tenantID)
+	if err != nil {
+		h.logger.Ctx(ctx).Error("failed to retrieve tenant for subscription update", zap.Error(err))
+		return
+	}
+
+	if slices.Equal(tenant.Topics, prev.topics) && tenant.DestinationsCount == prev.destinationsCount {
+		return
+	}
+
+	data := TenantSubscriptionUpdatedData{
+		TenantID:                  tenantID,
+		Topics:                    tenant.Topics,
+		PreviousTopics:            prev.topics,
+		DestinationsCount:         tenant.DestinationsCount,
+		PreviousDestinationsCount: prev.destinationsCount,
+	}
+	if err := h.emitter.Emit(ctx, "tenant.subscription.updated", tenantID, data); err != nil {
+		h.logger.Ctx(ctx).Error("failed to emit subscription update", zap.Error(err))
+	}
 }
 
 func mustRoleFromContext(c *gin.Context) string {

@@ -1,0 +1,197 @@
+---
+title: "Webhook"
+description: "Deliver events via HTTP POST to any URL endpoint, with customizable headers and HMAC signature verification."
+---
+
+Send events via HTTP POST to a URL endpoint. Outpost supports two webhook modes:
+
+- **Default mode** — Customizable headers and signature format
+- **Standard Webhooks mode** — Follows the [Standard Webhooks](https://www.standardwebhooks.com/) specification
+
+## Creating a Webhook Destination
+
+```sh
+curl '{% $OUTPOST_API_BASE_URL %}/tenants/<TENANT_ID>/destinations' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer <API_KEY>' \
+--data '{
+  "type": "webhook",
+  "topics": ["user.created", "user.updated"],
+  "config": {
+    "url": "https://example.com/webhooks"
+  }
+}'
+```
+
+## Configuration
+
+### Config
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `config.url` | string | Yes | The URL to send events to |
+| `config.custom_headers` | string | No | JSON object of custom HTTP headers to include |
+
+### Credentials
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `credentials.secret` | string | No | Signing secret — auto-generated if not provided |
+| `credentials.previous_secret` | string | No | Previous secret during a rotation window |
+| `credentials.previous_secret_invalid_at` | string | No | RFC 3339 timestamp when the previous secret expires |
+
+If `secret` is not provided, one is auto-generated. Tenants can trigger secret rotation but cannot set secrets directly.
+
+## Event Format
+
+When you publish an event:
+
+```json
+{
+  "topic": "user.created",
+  "data": { "user_id": "usr_123", "email": "user@example.com" },
+  "metadata": { "source": "signup-service" }
+}
+```
+
+Outpost sends an HTTP POST request:
+
+```
+POST /webhooks HTTP/1.1
+Content-Type: application/json
+x-outpost-id: evt_abc123
+x-outpost-topic: user.created
+x-outpost-timestamp: 1704067200
+x-outpost-signature: t=1704067200,v0=abc123...
+x-outpost-source: signup-service
+
+{"user_id": "usr_123", "email": "user@example.com"}
+```
+
+The request body contains the event's `data` field as JSON. The `metadata` field is translated to headers using the configured prefix.
+
+## Signatures
+
+### Default Mode
+
+The signature is computed over the timestamp and request body:
+
+```
+HMAC-SHA256(secret, "${body}")
+```
+
+The `x-outpost-signature` header value follows the format: `v0=${signature}`
+
+To verify:
+1. Extract the timestamp and signature from the header
+2. Compute the expected signature using your secret
+3. Compare signatures using a constant-time comparison
+4. Optionally reject requests with old timestamps to prevent replay attacks
+
+### Standard Webhooks Mode
+
+Follows the [Standard Webhooks specification](https://www.standardwebhooks.com/):
+
+```
+base64(HMAC-SHA256(secret, "${webhook-id}.${timestamp}.${body}"))
+```
+
+Use the official [Standard Webhooks SDK](https://github.com/standard-webhooks/standard-webhooks/tree/main/libraries) to verify signatures. Secrets use the `whsec_<base64>` format.
+
+{% tabs tabGroup="deployment" %}
+{% tab label="Managed" %}
+Enable Standard Webhooks mode by setting `DESTINATIONS_WEBHOOK_MODE=standard` in the Config API or in [Hookdeck Destinations settings](https://dashboard.hookdeck.com/settings/project/destinations).
+{% /tab %}
+{% tab label="Self-Hosted" %}
+Enable Standard Webhooks mode:
+
+```
+DESTINATIONS_WEBHOOK_MODE=standard
+```
+{% /tab %}
+{% /tabs %}
+
+## Secret Rotation
+
+Rotate a webhook secret without downtime. During the rotation window, both the old and new secrets produce valid signatures.
+
+```sh
+curl --request PATCH \
+'{% $OUTPOST_API_BASE_URL %}/tenants/<TENANT_ID>/destinations/<DESTINATION_ID>' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer <API_KEY>' \
+--data '{
+  "credentials": {
+    "rotate_secret": "true",
+    "previous_secret_invalid_at": "2025-01-15T00:00:00Z"
+  }
+}'
+```
+
+When rotation is triggered:
+1. The current secret becomes `previous_secret`
+2. A new secret is generated
+3. The previous secret remains valid until `previous_secret_invalid_at` (default: 24 hours)
+4. Both secrets appear in the signature header during the rotation window
+
+## Custom Headers
+
+Tenants can add custom HTTP headers to webhook requests for authentication or routing:
+
+```sh
+curl '{% $OUTPOST_API_BASE_URL %}/tenants/<TENANT_ID>/destinations' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer <API_KEY>' \
+--data '{
+  "type": "webhook",
+  "topics": ["*"],
+  "config": {
+    "url": "https://example.com/webhooks",
+    "custom_headers": "{\"x-api-key\": \"secret123\"}"
+  }
+}'
+```
+
+Header names must start with a letter or digit and may contain letters, digits, underscores, and hyphens. The following headers cannot be overridden: `content-type`, `content-length`, `host`, `connection`, `user-agent`.
+
+{% tabs tabGroup="deployment" %}
+{% tab label="Managed" %}
+Custom webhook headers in the tenant portal are disabled by default. Enable them in [Hookdeck User Portal settings](https://dashboard.hookdeck.com/settings/project/user-portal).
+{% /tab %}
+{% tab label="Self-Hosted" %}
+Custom headers are disabled in the tenant portal by default. Enable with:
+
+```
+PORTAL_ENABLE_WEBHOOK_CUSTOM_HEADERS=true
+```
+{% /tab %}
+{% /tabs %}
+
+## Operator Configuration
+
+{% tabs tabGroup="deployment" %}
+{% tab label="Managed" %}
+Configure webhook operator behavior using these keys in the Config API or in [Hookdeck Destinations settings](https://dashboard.hookdeck.com/settings/project/destinations): `DESTINATIONS_WEBHOOK_HEADER_PREFIX`, `DESTINATIONS_WEBHOOK_DISABLE_EVENT_ID_HEADER`, `DESTINATIONS_WEBHOOK_DISABLE_TIMESTAMP_HEADER`, `DESTINATIONS_WEBHOOK_DISABLE_TOPIC_HEADER`, `DESTINATIONS_WEBHOOK_DISABLE_SIGNATURE_HEADER`, `DESTINATIONS_WEBHOOK_MODE`, `DESTINATIONS_WEBHOOK_SIGNATURE_ALGORITHM`, `DESTINATIONS_WEBHOOK_SIGNATURE_ENCODING`, `DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE`, and `DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE`.
+{% /tab %}
+{% tab label="Self-Hosted" %}
+### Header Settings
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DESTINATIONS_WEBHOOK_HEADER_PREFIX` | `x-outpost-` | Prefix for all webhook headers |
+| `DESTINATIONS_WEBHOOK_DISABLE_EVENT_ID_HEADER` | `false` | Disable the event ID header |
+| `DESTINATIONS_WEBHOOK_DISABLE_TIMESTAMP_HEADER` | `false` | Disable the timestamp header |
+| `DESTINATIONS_WEBHOOK_DISABLE_TOPIC_HEADER` | `false` | Disable the topic header |
+| `DESTINATIONS_WEBHOOK_DISABLE_SIGNATURE_HEADER` | `false` | Disable the signature header |
+
+### Signature Settings
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DESTINATIONS_WEBHOOK_MODE` | `default` | Set to `standard` for Standard Webhooks compliance |
+| `DESTINATIONS_WEBHOOK_SIGNATURE_ALGORITHM` | `hmac-sha256` | Signature algorithm |
+| `DESTINATIONS_WEBHOOK_SIGNATURE_ENCODING` | `hex` | Encoding: `hex` or `base64` |
+| `DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE` | `{{.Body}}` | Template for signed content |
+| `DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE` | `v0={{.Signatures \| join ","}}` | Template for signature header value |
+{% /tab %}
+{% /tabs %}

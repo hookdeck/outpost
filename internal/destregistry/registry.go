@@ -142,9 +142,10 @@ func (r *registry) PublishEvent(ctx context.Context, destination *models.Destina
 	}
 
 	attempt := &models.Attempt{
-		ID:            idgen.Attempt(),
-		DestinationID: destination.ID,
-		EventID:       event.ID,
+		ID:              idgen.Attempt(),
+		DestinationID:   destination.ID,
+		DestinationType: destination.Type,
+		EventID:         event.ID,
 	}
 
 	// Create a new context with timeout

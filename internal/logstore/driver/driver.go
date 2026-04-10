@@ -49,16 +49,17 @@ type ListEventResponse struct {
 }
 
 type ListAttemptRequest struct {
-	Next           string
-	Prev           string
-	Limit          int
-	TimeFilter     TimeFilter // optional - filter attempts by time
-	TenantIDs      []string   // optional - filter by tenant (if empty, returns all tenants)
-	EventIDs       []string   // optional - filter by event ID
-	DestinationIDs []string   // optional
-	Status         string     // optional: "success", "failed"
-	Topics         []string   // optional
-	SortOrder      string     // optional: "asc", "desc" (default: "desc")
+	Next             string
+	Prev             string
+	Limit            int
+	TimeFilter       TimeFilter // optional - filter attempts by time
+	TenantIDs        []string   // optional - filter by tenant (if empty, returns all tenants)
+	EventIDs         []string   // optional - filter by event ID
+	DestinationIDs   []string   // optional
+	DestinationTypes []string   // optional - filter by destination type
+	Status           string     // optional: "success", "failed"
+	Topics           []string   // optional
+	SortOrder        string     // optional: "asc", "desc" (default: "desc")
 }
 
 type ListAttemptResponse struct {

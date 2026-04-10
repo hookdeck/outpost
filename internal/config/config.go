@@ -11,6 +11,7 @@ import (
 	"github.com/hookdeck/outpost/internal/backoff"
 	"github.com/hookdeck/outpost/internal/clickhouse"
 	"github.com/hookdeck/outpost/internal/migrator"
+	"github.com/hookdeck/outpost/internal/opevents"
 	"github.com/hookdeck/outpost/internal/redis"
 	"github.com/hookdeck/outpost/internal/telemetry"
 	"github.com/hookdeck/outpost/internal/version"
@@ -58,8 +59,7 @@ type Config struct {
 	DeploymentID        string   `yaml:"deployment_id" env:"DEPLOYMENT_ID" desc:"Optional deployment identifier for multi-tenancy. Enables multiple deployments to share the same infrastructure while maintaining data isolation." required:"N"`
 	AESEncryptionSecret string   `yaml:"aes_encryption_secret" env:"AES_ENCRYPTION_SECRET" desc:"A 16, 24, or 32 byte secret key used for AES encryption of sensitive data at rest." required:"Y"`
 	Topics              []string `yaml:"topics" env:"TOPICS" envSeparator:"," desc:"Comma-separated list of topics that this Outpost instance should subscribe to for event processing." required:"N"`
-	OrganizationName    string   `yaml:"organization_name" env:"ORGANIZATION_NAME" desc:"Name of the organization, used for display purposes and potentially in user agent strings." required:"N"`
-	HTTPUserAgent       string   `yaml:"http_user_agent" env:"HTTP_USER_AGENT" desc:"Custom HTTP User-Agent string for outgoing webhook deliveries. If unset, a default (OrganizationName/Version) is used." required:"N"`
+	HTTPUserAgent string `yaml:"http_user_agent" env:"HTTP_USER_AGENT" desc:"Custom HTTP User-Agent string for outgoing webhook deliveries. If unset, defaults to 'Outpost/{version}'." required:"N"`
 
 	// Infrastructure
 	Redis       RedisConfig      `yaml:"redis"`
@@ -104,6 +104,9 @@ type Config struct {
 
 	// Alert
 	Alert AlertConfig `yaml:"alert"`
+
+	// Operation Events
+	OperationEvents OperationEventsConfig `yaml:"operation_events"`
 
 	// ID Generation
 	IDGen IDGenConfig `yaml:"idgen"`
@@ -178,10 +181,12 @@ func (c *Config) InitDefaults() {
 	c.Destinations = DestinationsConfig{
 		MetadataPath: "config/outpost/destinations",
 		Webhook: DestinationWebhookConfig{
+			Mode:                     "default",
 			SignatureContentTemplate: "{{.Body}}",
 			SignatureHeaderTemplate:  "v0={{.Signatures | join \",\"}}",
 			SignatureEncoding:        "hex",
 			SignatureAlgorithm:       "hmac-sha256",
+			SigningSecretTemplate:    "whsec_{{.RandomHex}}",
 		},
 		AWSKinesis: DestinationAWSKinesisConfig{
 			MetadataInPayload: true,
@@ -189,9 +194,10 @@ func (c *Config) InitDefaults() {
 	}
 
 	c.Alert = AlertConfig{
-		CallbackURL:             "",
-		ConsecutiveFailureCount: 20,
-		AutoDisableDestination:  true,
+		CallbackURL:                   "",
+		ConsecutiveFailureCount:       100,
+		AutoDisableDestination:        false,
+		ExhaustedRetriesWindowSeconds: 3600,
 	}
 
 	c.Telemetry = TelemetryConfig{
@@ -405,10 +411,78 @@ func (c *ClickHouseConfig) ToConfig() *clickhouse.ClickHouseConfig {
 	}
 }
 
+type OperationEventsConfig struct {
+	Topics    []string                      `yaml:"topics" env:"OPERATION_EVENTS_TOPICS" envSeparator:"," desc:"Comma-separated list of operation event topics to emit. Use '*' for all topics. If empty, operation events are disabled." required:"N"`
+	HTTP      OperationEventsHTTPConfig     `yaml:"http"`
+	AWSSQS    OperationEventsAWSSQSConfig   `yaml:"aws_sqs"`
+	GCPPubSub OperationEventsGCPConfig      `yaml:"gcp_pubsub"`
+	RabbitMQ  OperationEventsRabbitMQConfig `yaml:"rabbitmq"`
+}
+
+type OperationEventsHTTPConfig struct {
+	URL           string `yaml:"url" env:"OPERATION_EVENTS_HTTP_URL" desc:"URL to POST operation events to." required:"N"`
+	SigningSecret string `yaml:"signing_secret" env:"OPERATION_EVENTS_HTTP_SIGNING_SECRET" desc:"HMAC-SHA256 signing secret for operation event payloads." required:"N"`
+}
+
+type OperationEventsAWSSQSConfig struct {
+	QueueURL        string `yaml:"queue_url" env:"OPERATION_EVENTS_AWS_SQS_QUEUE_URL" desc:"AWS SQS queue URL for operation events." required:"N"`
+	AccessKeyID     string `yaml:"access_key_id" env:"OPERATION_EVENTS_AWS_SQS_ACCESS_KEY_ID" desc:"AWS access key ID for SQS operation events sink." required:"N"`
+	SecretAccessKey string `yaml:"secret_access_key" env:"OPERATION_EVENTS_AWS_SQS_SECRET_ACCESS_KEY" desc:"AWS secret access key for SQS operation events sink." required:"N"`
+	Region          string `yaml:"region" env:"OPERATION_EVENTS_AWS_SQS_REGION" desc:"AWS region for SQS operation events sink." required:"N"`
+	Endpoint        string `yaml:"endpoint" env:"OPERATION_EVENTS_AWS_SQS_ENDPOINT" desc:"Custom AWS SQS endpoint for operation events. Optional, for local development." required:"N"`
+}
+
+type OperationEventsGCPConfig struct {
+	ProjectID   string `yaml:"project_id" env:"OPERATION_EVENTS_GCP_PUBSUB_PROJECT_ID" desc:"GCP project ID for Pub/Sub operation events sink." required:"N"`
+	TopicID     string `yaml:"topic_id" env:"OPERATION_EVENTS_GCP_PUBSUB_TOPIC_ID" desc:"GCP Pub/Sub topic ID for operation events." required:"N"`
+	Credentials string `yaml:"credentials" env:"OPERATION_EVENTS_GCP_PUBSUB_CREDENTIALS" desc:"GCP service account credentials JSON for Pub/Sub operation events sink." required:"N"`
+}
+
+type OperationEventsRabbitMQConfig struct {
+	ServerURL string `yaml:"server_url" env:"OPERATION_EVENTS_RABBITMQ_SERVER_URL" desc:"RabbitMQ server URL for operation events sink." required:"N"`
+	Exchange  string `yaml:"exchange" env:"OPERATION_EVENTS_RABBITMQ_EXCHANGE" desc:"RabbitMQ exchange for operation events." required:"N"`
+}
+
+func (c *OperationEventsConfig) ToConfig() opevents.Config {
+	cfg := opevents.Config{
+		Topics: c.Topics,
+	}
+	if c.HTTP.URL != "" {
+		cfg.HTTP = &opevents.HTTPSinkConfig{
+			URL:           c.HTTP.URL,
+			SigningSecret: c.HTTP.SigningSecret,
+		}
+	}
+	if c.AWSSQS.QueueURL != "" {
+		cfg.AWSSQS = &opevents.AWSSQSSinkConfig{
+			QueueURL:        c.AWSSQS.QueueURL,
+			AccessKeyID:     c.AWSSQS.AccessKeyID,
+			SecretAccessKey: c.AWSSQS.SecretAccessKey,
+			Region:          c.AWSSQS.Region,
+			Endpoint:        c.AWSSQS.Endpoint,
+		}
+	}
+	if c.GCPPubSub.ProjectID != "" {
+		cfg.GCPPubSub = &opevents.GCPPubSubSinkConfig{
+			ProjectID:                 c.GCPPubSub.ProjectID,
+			TopicID:                   c.GCPPubSub.TopicID,
+			ServiceAccountCredentials: c.GCPPubSub.Credentials,
+		}
+	}
+	if c.RabbitMQ.ServerURL != "" {
+		cfg.RabbitMQ = &opevents.RabbitMQSinkConfig{
+			ServerURL: c.RabbitMQ.ServerURL,
+			Exchange:  c.RabbitMQ.Exchange,
+		}
+	}
+	return cfg
+}
+
 type AlertConfig struct {
-	CallbackURL             string `yaml:"callback_url" env:"ALERT_CALLBACK_URL" desc:"URL to which Outpost will send a POST request when an alert is triggered (e.g., for destination failures)." required:"N"`
-	ConsecutiveFailureCount int    `yaml:"consecutive_failure_count" env:"ALERT_CONSECUTIVE_FAILURE_COUNT" desc:"Number of consecutive delivery failures for a destination before triggering an alert and potentially disabling it." required:"N"`
-	AutoDisableDestination  bool   `yaml:"auto_disable_destination" env:"ALERT_AUTO_DISABLE_DESTINATION" desc:"If true, automatically disables a destination after 'consecutive_failure_count' is reached." required:"N"`
+	CallbackURL                   string `yaml:"callback_url" env:"ALERT_CALLBACK_URL" desc:"URL to which Outpost will send a POST request when an alert is triggered (e.g., for destination failures)." required:"N"`
+	ConsecutiveFailureCount       int    `yaml:"consecutive_failure_count" env:"ALERT_CONSECUTIVE_FAILURE_COUNT" desc:"Number of consecutive delivery failures for a destination before triggering an alert and potentially disabling it." required:"N"`
+	AutoDisableDestination        bool   `yaml:"auto_disable_destination" env:"ALERT_AUTO_DISABLE_DESTINATION" desc:"If true, automatically disables a destination after 'consecutive_failure_count' is reached." required:"N"`
+	ExhaustedRetriesWindowSeconds int    `yaml:"exhausted_retries_window_seconds" env:"ALERT_EXHAUSTED_RETRIES_WINDOW_SECONDS" desc:"Suppression window in seconds for exhausted_retries alerts. First exhaustion per destination emits an alert; subsequent exhaustions within the window are suppressed." required:"N"`
 }
 
 // ConfigFilePath returns the path of the config file that was used

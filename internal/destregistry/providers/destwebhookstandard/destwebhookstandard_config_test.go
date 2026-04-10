@@ -14,8 +14,7 @@ import (
 func TestStandardWebhookDestination_CustomHeadersConfig(t *testing.T) {
 	t.Parallel()
 
-	provider, err := destwebhookstandard.New(testutil.Registry.MetadataLoader(), nil)
-	require.NoError(t, err)
+	provider := newTestProvider(t)
 
 	t.Run("should parse config with valid custom_headers", func(t *testing.T) {
 		t.Parallel()
@@ -92,7 +91,7 @@ func TestStandardWebhookDestination_CustomHeadersConfig(t *testing.T) {
 func TestNew(t *testing.T) {
 	t.Parallel()
 
-	t.Run("creates provider with defaults", func(t *testing.T) {
+	t.Run("creates provider with no options", func(t *testing.T) {
 		t.Parallel()
 		provider, err := destwebhookstandard.New(testutil.Registry.MetadataLoader(), nil)
 		require.NoError(t, err)
@@ -126,7 +125,7 @@ func TestNew(t *testing.T) {
 		provider, err := destwebhookstandard.New(
 			testutil.Registry.MetadataLoader(),
 			nil,
-			destwebhookstandard.WithHeaderPrefix(new("x-custom-")),
+			destwebhookstandard.WithHeaderPrefix("x-custom-"),
 		)
 		require.NoError(t, err)
 		assert.NotNil(t, provider)
@@ -139,7 +138,7 @@ func TestNew(t *testing.T) {
 			nil,
 			destwebhookstandard.WithUserAgent("test-agent"),
 			destwebhookstandard.WithProxyURL("http://proxy.example.com"),
-			destwebhookstandard.WithHeaderPrefix(new("x-outpost-")),
+			destwebhookstandard.WithHeaderPrefix("x-outpost-"),
 		)
 		require.NoError(t, err)
 		assert.NotNil(t, provider)

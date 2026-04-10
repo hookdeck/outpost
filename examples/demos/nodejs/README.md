@@ -1,5 +1,7 @@
 # Examples for Node.js / TypeScript
 
+Admin API calls use the official [`@hookdeck/outpost-sdk`](https://www.npmjs.com/package/@hookdeck/outpost-sdk). The version is **pinned exactly** in `package.json` so new SDK releases do not change this demo unexpectedly. Bump the pin when you intentionally adopt a newer SDK (run `npm install` and fix any API drift).
+
 Create a `.env`:
 
 ```

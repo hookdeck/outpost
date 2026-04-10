@@ -98,7 +98,7 @@ const withAdminApiKey = async () => {
 
   // List tenants (v0.14+: tenants.list(request) with a single request object)
   const tenantsPage = await outpost.tenants.list({ limit: 5 });
-  console.log("Tenants (first page):", tenantsPage?.models ?? []);
+  console.log("Tenants (first page):", tenantsPage.result?.models ?? []);
 
   // Get portal URL (Admin API Key required)
   try {

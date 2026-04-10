@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/hookdeck/outpost/internal/apirouter"
 	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/tenantstore"
@@ -492,6 +493,111 @@ func TestAPI_Destinations(t *testing.T) {
 		resp := h.do(req)
 
 		require.Equal(t, http.StatusUnauthorized, resp.Code)
+	})
+}
+
+func TestAPI_SubscriptionUpdated(t *testing.T) {
+	t.Run("create destination emits subscription update", func(t *testing.T) {
+		h := newAPITest(t)
+		h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+
+		req := h.jsonReq(http.MethodPost, "/api/v1/tenants/t1/destinations", validDestination())
+		resp := h.do(h.withAPIKey(req))
+
+		require.Equal(t, http.StatusCreated, resp.Code)
+		require.Len(t, h.subscriptionEmitter.calls, 1)
+
+		call := h.subscriptionEmitter.calls[0]
+		assert.Equal(t, "tenant.subscription.updated", call.topic)
+		assert.Equal(t, "t1", call.tenantID)
+
+		data := call.data.(apirouter.TenantSubscriptionUpdatedData)
+		assert.Equal(t, 1, data.DestinationsCount)
+		assert.Equal(t, 0, data.PreviousDestinationsCount)
+	})
+
+	t.Run("delete destination emits subscription update", func(t *testing.T) {
+		h := newAPITest(t)
+		h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+		h.tenantStore.CreateDestination(t.Context(), df.Any(df.WithID("d1"), df.WithTenantID("t1")))
+
+		req := httptest.NewRequest(http.MethodDelete, "/api/v1/tenants/t1/destinations/d1", nil)
+		resp := h.do(h.withAPIKey(req))
+
+		require.Equal(t, http.StatusOK, resp.Code)
+		require.Len(t, h.subscriptionEmitter.calls, 1)
+
+		data := h.subscriptionEmitter.calls[0].data.(apirouter.TenantSubscriptionUpdatedData)
+		assert.Equal(t, 0, data.DestinationsCount)
+		assert.Equal(t, 1, data.PreviousDestinationsCount)
+	})
+
+	t.Run("update destination topics emits subscription update", func(t *testing.T) {
+		h := newAPITest(t)
+		h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+		h.tenantStore.CreateDestination(t.Context(), df.Any(
+			df.WithID("d1"), df.WithTenantID("t1"), df.WithTopics([]string{"user.created"}),
+		))
+
+		req := h.jsonReq(http.MethodPatch, "/api/v1/tenants/t1/destinations/d1", map[string]any{
+			"topics": []string{"user.deleted"},
+		})
+		resp := h.do(h.withAPIKey(req))
+
+		require.Equal(t, http.StatusOK, resp.Code)
+		require.Len(t, h.subscriptionEmitter.calls, 1)
+
+		data := h.subscriptionEmitter.calls[0].data.(apirouter.TenantSubscriptionUpdatedData)
+		assert.Contains(t, data.Topics, "user.deleted")
+		assert.Contains(t, data.PreviousTopics, "user.created")
+	})
+
+	t.Run("update destination topics without changing tenant topics does not emit", func(t *testing.T) {
+		h := newAPITest(t)
+		h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+		// Destination A subscribes to *, so tenant topics are always *
+		h.tenantStore.CreateDestination(t.Context(), df.Any(
+			df.WithID("d1"), df.WithTenantID("t1"), df.WithTopics([]string{"*"}),
+		))
+		h.tenantStore.CreateDestination(t.Context(), df.Any(
+			df.WithID("d2"), df.WithTenantID("t1"), df.WithTopics([]string{"user.created"}),
+		))
+
+		// Update d2's topics — tenant topics still * because d1
+		req := h.jsonReq(http.MethodPatch, "/api/v1/tenants/t1/destinations/d2", map[string]any{
+			"topics": []string{"user.deleted"},
+		})
+		resp := h.do(h.withAPIKey(req))
+
+		require.Equal(t, http.StatusOK, resp.Code)
+		assert.Empty(t, h.subscriptionEmitter.calls, "No emit when tenant-level topics unchanged")
+	})
+
+	t.Run("update destination config without topic change does not emit", func(t *testing.T) {
+		h := newAPITest(t)
+		h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+		h.tenantStore.CreateDestination(t.Context(), df.Any(
+			df.WithID("d1"), df.WithTenantID("t1"),
+			df.WithConfig(map[string]string{"url": "https://old.example.com"}),
+		))
+
+		req := h.jsonReq(http.MethodPatch, "/api/v1/tenants/t1/destinations/d1", map[string]any{
+			"config": map[string]string{"url": "https://new.example.com"},
+		})
+		resp := h.do(h.withAPIKey(req))
+
+		require.Equal(t, http.StatusOK, resp.Code)
+		assert.Empty(t, h.subscriptionEmitter.calls, "No emit when topics/count unchanged")
+	})
+
+	t.Run("nil emitter does not panic", func(t *testing.T) {
+		h := newAPITest(t, withSubscriptionEmitter(nil))
+		h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+
+		req := h.jsonReq(http.MethodPost, "/api/v1/tenants/t1/destinations", validDestination())
+		resp := h.do(h.withAPIKey(req))
+
+		require.Equal(t, http.StatusCreated, resp.Code)
 	})
 }
 

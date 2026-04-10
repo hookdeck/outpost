@@ -1,0 +1,102 @@
+---
+title: "AWS Kinesis"
+description: "Stream events to an Amazon Kinesis Data Stream with configurable partition keys."
+---
+
+Stream events to an Amazon Kinesis Data Stream.
+
+## Creating a Kinesis Destination
+
+```sh
+curl '{% $OUTPOST_API_BASE_URL %}/tenants/<TENANT_ID>/destinations' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer <API_KEY>' \
+--data '{
+  "type": "aws_kinesis",
+  "topics": ["orders"],
+  "config": {
+    "stream_name": "my-stream",
+    "region": "us-east-1"
+  },
+  "credentials": {
+    "key": "<AWS_ACCESS_KEY_ID>",
+    "secret": "<AWS_SECRET_ACCESS_KEY>"
+  }
+}'
+```
+
+## Configuration
+
+### Config
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `config.stream_name` | string | Yes | The Kinesis stream name |
+| `config.region` | string | Yes | AWS region (e.g., `us-east-1`) |
+| `config.endpoint` | string | No | Custom endpoint URL (for LocalStack, etc.) |
+| `config.partition_key_template` | string | No | JMESPath expression for the partition key |
+
+### Credentials
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `credentials.key` | string | Yes | AWS Access Key ID |
+| `credentials.secret` | string | Yes | AWS Secret Access Key |
+| `credentials.session` | string | No | AWS Session Token (for temporary credentials) |
+
+## Record Format
+
+By default, each Kinesis record includes both metadata and the event's `data` field:
+
+```json
+{
+  "metadata": {
+    "event-id": "evt_123",
+    "topic": "orders",
+    "timestamp": "1704067200",
+    "source": "checkout-service"
+  },
+  "data": {
+    "order_id": "123",
+    "status": "created"
+  }
+}
+```
+
+{% tabs tabGroup="deployment" %}
+{% tab label="Managed" %}
+Configure `DESTINATIONS_AWS_KINESIS_METADATA_IN_PAYLOAD=false` in the Config API or in [Hookdeck Outpost Destinations settings](https://dashboard.hookdeck.com/settings/project/destinations) to send only the event's `data` field (no metadata wrapper).
+{% /tab %}
+{% tab label="Self-Hosted" %}
+Set `DESTINATIONS_AWS_KINESIS_METADATA_IN_PAYLOAD=false` to send only the event's `data` field (no metadata wrapper).
+{% /tab %}
+{% /tabs %}
+
+## Partition Key
+
+By default, the event ID is used as the partition key. Customize it with a JMESPath expression:
+
+```json
+{
+  "config": {
+    "stream_name": "my-stream",
+    "region": "us-east-1",
+    "partition_key_template": "data.customer_id"
+  }
+}
+```
+
+## IAM Permissions
+
+The IAM user or role requires:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Action": "kinesis:PutRecord",
+    "Resource": "arn:aws:kinesis:*:*:stream/my-stream"
+  }]
+}
+```

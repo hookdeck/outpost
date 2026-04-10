@@ -9,6 +9,15 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// defaultSignatureManagerOpts provides the standard formatters for tests that
+// don't care about template behavior — they just need a working manager.
+func defaultSignatureManagerOpts() []destwebhook.SignatureManagerOption {
+	return []destwebhook.SignatureManagerOption{
+		destwebhook.WithSignatureFormatter(destwebhook.NewSignatureFormatter(destwebhook.DefaultSignatureContentTmpl)),
+		destwebhook.WithHeaderFormatter(destwebhook.NewHeaderFormatter(destwebhook.DefaultSignatureHeaderTmpl)),
+	}
+}
+
 func TestHmacAlgorithms(t *testing.T) {
 	key := "test-secret"
 	content := `1234567890.{"hello":"world"}`
@@ -56,9 +65,9 @@ func TestSignatureFormatter(t *testing.T) {
 		want     string
 	}{
 		{
-			name:     "default template",
-			template: "",
-			want:     "1234567890.{\"hello\":\"world\"}",
+			name:     "body only (new default)",
+			template: "{{.Body}}",
+			want:     `{"hello":"world"}`,
 		},
 		{
 			name:     "custom template",
@@ -66,18 +75,8 @@ func TestSignatureFormatter(t *testing.T) {
 			want:     "ts=1234567890;content={\"hello\":\"world\"}",
 		},
 		{
-			name:     "invalid template",
-			template: "{{.Invalid}}", // This should fallback to default format
-			want:     "1234567890.{\"hello\":\"world\"}",
-		},
-		{
-			name:     "template matching legacy format",
+			name:     "timestamp dot body (legacy format)",
 			template: "{{.Timestamp.Unix}}.{{.Body}}",
-			want:     "1234567890.{\"hello\":\"world\"}",
-		},
-		{
-			name:     "template with malformed syntax",
-			template: "{{.Timestamp.{{.Body}}", // Missing closing brace
 			want:     "1234567890.{\"hello\":\"world\"}",
 		},
 		{
@@ -101,6 +100,18 @@ func TestSignatureFormatter(t *testing.T) {
 	}
 }
 
+func TestSignatureFormatter_PanicsOnEmpty(t *testing.T) {
+	assert.Panics(t, func() {
+		destwebhook.NewSignatureFormatter("")
+	})
+}
+
+func TestSignatureFormatter_PanicsOnInvalidSyntax(t *testing.T) {
+	assert.Panics(t, func() {
+		destwebhook.NewSignatureFormatter("{{.Timestamp.{{.Body}}")
+	})
+}
+
 func TestHeaderFormatter(t *testing.T) {
 	timestamp := time.Unix(1234567890, 0)
 	signatures := []string{"abc123", "def456"}
@@ -111,9 +122,9 @@ func TestHeaderFormatter(t *testing.T) {
 		want     string
 	}{
 		{
-			name:     "default template",
-			template: "",
-			want:     "t=1234567890,v0=abc123,def456",
+			name:     "v0 only (new default)",
+			template: `v0={{.Signatures | join ","}}`,
+			want:     "v0=abc123,def456",
 		},
 		{
 			name:     "custom template",
@@ -121,18 +132,8 @@ func TestHeaderFormatter(t *testing.T) {
 			want:     "timestamp=1234567890;signatures=abc123,def456",
 		},
 		{
-			name:     "invalid template",
-			template: "{{.Invalid}}", // This should fallback to default format
-			want:     "t=1234567890,v0=abc123,def456",
-		},
-		{
-			name:     "template matching legacy format",
+			name:     "t= prefix (legacy format)",
 			template: `t={{.Timestamp.Unix}},v0={{.Signatures | join ","}}`,
-			want:     "t=1234567890,v0=abc123,def456",
-		},
-		{
-			name:     "template with malformed syntax",
-			template: "t={{.Timestamp},v0={{.Signatures}", // Missing closing brace
 			want:     "t=1234567890,v0=abc123,def456",
 		},
 		{
@@ -154,6 +155,18 @@ func TestHeaderFormatter(t *testing.T) {
 			assert.Equal(t, tt.want, result)
 		})
 	}
+}
+
+func TestHeaderFormatter_PanicsOnEmpty(t *testing.T) {
+	assert.Panics(t, func() {
+		destwebhook.NewHeaderFormatter("")
+	})
+}
+
+func TestHeaderFormatter_PanicsOnInvalidSyntax(t *testing.T) {
+	assert.Panics(t, func() {
+		destwebhook.NewHeaderFormatter("t={{.Timestamp},v0={{.Signatures}")
+	})
 }
 
 func TestSignatureEncoders(t *testing.T) {
@@ -189,7 +202,7 @@ func TestSignatureEncoders(t *testing.T) {
 
 func TestSignatureManager(t *testing.T) {
 	t.Run("no secrets", func(t *testing.T) {
-		manager := destwebhook.NewSignatureManager(nil)
+		manager := destwebhook.NewSignatureManager(nil, defaultSignatureManagerOpts()...)
 		signatures := manager.GenerateSignatures(destwebhook.SignaturePayload{
 			Timestamp: time.Now(),
 			Body:      "test",
@@ -217,7 +230,7 @@ func TestSignatureManager(t *testing.T) {
 			Topic:     "test-topic",
 		}
 
-		manager := destwebhook.NewSignatureManager([]destwebhook.WebhookSecret{oldSecret})
+		manager := destwebhook.NewSignatureManager([]destwebhook.WebhookSecret{oldSecret}, defaultSignatureManagerOpts()...)
 		signatures := manager.GenerateSignatures(payload)
 		assert.Len(t, signatures, 1, "should generate signature for single secret regardless of age")
 
@@ -245,7 +258,7 @@ func TestSignatureManager(t *testing.T) {
 			Topic:     "test-topic",
 		}
 
-		manager := destwebhook.NewSignatureManager(secrets)
+		manager := destwebhook.NewSignatureManager(secrets, defaultSignatureManagerOpts()...)
 		signatures := manager.GenerateSignatures(payload)
 		assert.Len(t, signatures, 1, "should only use latest secret")
 
@@ -273,7 +286,7 @@ func TestSignatureManager(t *testing.T) {
 			{Key: "expired", CreatedAt: now.Add(-25 * time.Hour)},
 		}
 
-		manager := destwebhook.NewSignatureManager(secrets)
+		manager := destwebhook.NewSignatureManager(secrets, defaultSignatureManagerOpts()...)
 		timestamp := time.Unix(1234567890, 0)
 		body := `{"hello":"world"}`
 
@@ -318,8 +331,8 @@ func TestSignatureManager(t *testing.T) {
 			EventID:   "test-id",
 			Topic:     "test-topic",
 		})
-		assert.Contains(t, header, "t=1234567890")
-		assert.Equal(t, 3, strings.Count(header, ","), "should have correct number of commas in header")
+		assert.True(t, strings.HasPrefix(header, "v0="), "header should start with v0=")
+		assert.Equal(t, 2, strings.Count(header, ","), "should have correct number of commas in header")
 	})
 
 	t.Run("custom invalidation time", func(t *testing.T) {
@@ -334,7 +347,7 @@ func TestSignatureManager(t *testing.T) {
 			{Key: "valid_default", CreatedAt: now.Add(-12 * time.Hour)},
 		}
 
-		manager := destwebhook.NewSignatureManager(secrets)
+		manager := destwebhook.NewSignatureManager(secrets, defaultSignatureManagerOpts()...)
 		timestamp := time.Unix(1234567890, 0)
 		body := `{"hello":"world"}`
 		payload := destwebhook.SignaturePayload{
@@ -376,7 +389,7 @@ func TestSignatureManager(t *testing.T) {
 				{Key: "old2", CreatedAt: now.Add(-26 * time.Hour)}, // Past 24h window
 			}
 
-			manager := destwebhook.NewSignatureManager(secrets)
+			manager := destwebhook.NewSignatureManager(secrets, defaultSignatureManagerOpts()...)
 			signatures := manager.GenerateSignatures(destwebhook.SignaturePayload{
 				Timestamp: time.Unix(1234567890, 0),
 				Body:      "test",
@@ -393,7 +406,7 @@ func TestSignatureManager(t *testing.T) {
 				{Key: "old", CreatedAt: now.Add(-25 * time.Hour)},    // Past 24h window
 			}
 
-			manager := destwebhook.NewSignatureManager(secrets)
+			manager := destwebhook.NewSignatureManager(secrets, defaultSignatureManagerOpts()...)
 			signatures := manager.GenerateSignatures(destwebhook.SignaturePayload{
 				Timestamp: time.Unix(1234567890, 0),
 				Body:      "test",

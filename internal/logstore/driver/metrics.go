@@ -102,13 +102,14 @@ type AttemptMetricsDataPoint struct {
 	SuccessfulRate    *float64
 	FailedRate        *float64
 	// Dimensions
-	TenantID      *string
-	DestinationID *string
-	Topic         *string
-	Status        *string
-	Code          *string
-	Manual        *bool
-	AttemptNumber *int
+	TenantID        *string
+	DestinationID   *string
+	DestinationType *string
+	Topic           *string
+	Status          *string
+	Code            *string
+	Manual          *bool
+	AttemptNumber   *int
 }
 
 type AttemptMetricsResponse struct {

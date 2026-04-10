@@ -1,0 +1,163 @@
+---
+title: "Hookdeck Outpost Quickstart: Go"
+---
+
+[Hookdeck Outpost](https://outpost.hookdeck.com) is Hookdeck’s managed [Outpost](https://github.com/hookdeck/outpost) service. Use **tenants** for each customer, **destinations** for delivery targets, and **topics** aligned with your dashboard configuration.
+
+## Prerequisites
+
+- A Hookdeck account with an Outpost project
+- An **API key** (Outpost API key) from your project: **Settings → Secrets**
+- **Topics** already configured in the dashboard
+- [Go](https://go.dev/) 1.22+ recommended
+- API base URL: `https://api.outpost.hookdeck.com/2025-07-01`
+
+## Install the SDK
+
+```sh
+go get github.com/hookdeck/outpost/sdks/outpost-go
+```
+
+## Set up credentials
+
+In the Hookdeck Dashboard, open your Outpost project, go to **Settings → Secrets**, and create or copy an API key. Export it (and optionally the base URL) in your shell:
+
+```sh
+export OUTPOST_API_KEY="your_api_key"
+export OUTPOST_API_BASE_URL="https://api.outpost.hookdeck.com/2025-07-01"
+```
+
+If `OUTPOST_API_BASE_URL` is unset, the SDK uses its default production server URL.
+
+## Set environment variables
+
+Set these in the shell where you run `go run .` (or inject them the way your deployment platform expects).
+
+1. **`OUTPOST_API_KEY`** — **Required.** From **Settings → Secrets**. The program exits if it is missing.
+
+2. **`OUTPOST_API_BASE_URL`** — **Optional.** When set, the client is configured with `WithServerURL`. Otherwise the Go SDK uses its default Hookdeck Outpost production URL.
+
+3. **`OUTPOST_TEST_WEBHOOK_URL`** — **Required for this walkthrough.** Webhook destination URL (HTTPS). Use your own server or a [Hookdeck Console](https://console.hookdeck.com?ref=outpost-docs) **Source** URL for a quick test.
+
+## Create and run the quickstart program
+
+Use `main.go` in a small module (after `go get github.com/hookdeck/outpost/sdks/outpost-go`).
+
+The program (**1)** configures the client with your API key, (**2)** upserts a tenant, (**3)** creates a webhook destination for your topic, (**4)** publishes one event, and (**5)** prints ids.
+
+```go
+package main
+
+import (
+	"context"
+	"fmt"
+	"log"
+	"os"
+
+	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
+	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
+)
+
+func main() {
+	ctx := context.Background()
+
+	//
+	// --- 1. Authenticated client (API key from Settings → Secrets) ---
+	//
+
+	apiKey := os.Getenv("OUTPOST_API_KEY")
+	if apiKey == "" {
+		log.Fatal("Set OUTPOST_API_KEY")
+	}
+
+	opts := []outpostgo.SDKOption{outpostgo.WithSecurity(apiKey)}
+	if base := os.Getenv("OUTPOST_API_BASE_URL"); base != "" {
+		opts = append(opts, outpostgo.WithServerURL(base))
+	}
+
+	s := outpostgo.New(opts...)
+
+	//
+	// --- 2. Tenant id, topic name, and webhook URL (from env) ---
+	//
+	// tenantID = one of your customers in Outpost.
+	// topic    = must match a topic configured in the dashboard.
+	//
+
+	tenantID := "customer_acme_001"
+	topic := "user.created"
+
+	webhookURL := os.Getenv("OUTPOST_TEST_WEBHOOK_URL")
+	if webhookURL == "" {
+		log.Fatal("Set OUTPOST_TEST_WEBHOOK_URL (e.g. a Hookdeck Console Source URL)")
+	}
+
+	//
+	// --- 3. Create or update the tenant ---
+	//
+
+	if _, err := s.Tenants.Upsert(ctx, tenantID, nil); err != nil {
+		log.Fatal(err)
+	}
+
+	//
+	// --- 4. Webhook destination: events on `topic` are POSTed to this URL ---
+	//
+
+	destBody := components.CreateDestinationCreateWebhook(
+		components.DestinationCreateWebhook{
+			Topics: components.CreateTopicsArrayOfStr([]string{topic}),
+			Config: components.WebhookConfig{URL: webhookURL},
+		},
+	)
+
+	createRes, err := s.Destinations.Create(ctx, tenantID, destBody)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	if createRes != nil && createRes.GetDestinationWebhook() != nil {
+		fmt.Println("Destination id:", createRes.GetDestinationWebhook().GetID())
+	}
+
+	//
+	// --- 5. Publish one event ---
+	//
+
+	pubRes, err := s.Publish.Event(ctx, components.PublishRequest{
+		TenantID:         outpostgo.String(tenantID),
+		Topic:            outpostgo.String(topic),
+		EligibleForRetry: outpostgo.Bool(true),
+		Metadata:         map[string]string{"source": "quickstart"},
+		Data:             map[string]any{"user_id": "user_123"},
+	})
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	if pubRes != nil && pubRes.GetPublishResponse() != nil {
+		fmt.Println("Published event id:", pubRes.GetPublishResponse().GetID())
+	}
+}
+```
+
+Run:
+
+```sh
+go run .
+```
+
+For all topics on that destination, use `components.CreateTopicsTopicsEnum(components.TopicsEnumWildcard)` instead of `CreateTopicsArrayOfStr`.
+
+## Verify delivery
+
+- In **Hookdeck Console**, confirm the webhook hit your test URL.
+- In the **Hookdeck Dashboard**, open **your Outpost project** and review **logs** to confirm the event was processed and delivered.
+
+## Next steps
+
+- [Destination types](/docs/outpost/destinations/overview)
+- [Tenant user portal](/docs/outpost/features/tenant-user-portal)
+- [SDKs](/docs/outpost/sdks)
+- [API reference](/docs/outpost/api)

@@ -1,0 +1,25 @@
+---
+title: "Architecture"
+description: "The architecture of Outpost for self-hosted deployments."
+---
+
+## Architecture
+
+![Outpost Architecture](../../public/images/architecture.png)
+
+Outpost consists of three services that can be run as a single process or as separate deployments for independent scaling.
+
+- **API Service** — Captures events and exposes the APIs for configuring tenants and destinations.
+- **Delivery Service** — Delivers events to tenant destinations. Contains adapters for each destination type. Requires a configured message queue (SQS, RabbitMQ, GCP Pub/Sub, or Azure Service Bus).
+- **Log Service** — Enables storing and retrieving events, their status, and delivery responses. Requires PostgreSQL or ClickHouse.
+
+Running Outpost as individual services is optional. You can run it as a single binary if horizontal scaling of individual services isn't needed for your event volume.
+
+### Runtime Requirements
+
+**API Service & Delivery Service:**
+- Redis 6.0+ or wire-compatible alternative (RDB or AOF persistence strongly recommended)
+- One of the supported message queues: Azure Service Bus, AWS SQS, GCP Pub/Sub, or RabbitMQ
+
+**Log Service:**
+- PostgreSQL or ClickHouse

@@ -1,0 +1,186 @@
+---
+title: "Upgrade to v0.14"
+description: "Breaking changes and migration steps for upgrading Outpost from v0.13 to v0.14."
+---
+
+This guide covers breaking changes and migration steps when upgrading from v0.13 to v0.14.
+
+## Breaking Changes Overview
+
+| Change | Impact | Action Required |
+| --- | --- | --- |
+| [PostgreSQL data columns migrated to TEXT](#postgresql-data-columns-migrated-to-text) | Direct queries against Postgres `events` and `attempts` tables | Update any SQL that relies on JSONB operators for `data` / `event_data` columns |
+| [Array query parameters](#array-query-parameters) | API query filters & SDK method signatures | Use bracket notation for array filters; update SDK calls |
+| [Python SDK: request body and method signatures](#python-sdk-request-body-and-method-signatures) | Python SDK methods that send a request body | Change `params=` to `body=`; use new positional + `body=` signature |
+| [List tenants: method rename and request object](#list-tenants-method-rename-and-request-object) | All SDKs — tenants list API | Replace `listTenants(...)` / `ListTenants(...)` with `list(request)`; use a single request object |
+
+## PostgreSQL Data Columns Migrated to TEXT
+
+The `events.data` and `attempts.event_data` columns have been migrated from `JSONB` to `TEXT`. This change preserves the original JSON key ordering of webhook payloads, which JSONB normalizes alphabetically.
+
+**The migration runs automatically when Outpost starts.** No manual migration steps are required.
+
+If you only interact with Outpost through the API or SDKs, **no action is needed** — the API response format is unchanged.
+
+If you have custom SQL queries, dashboards, or tooling that reads directly from the Outpost PostgreSQL database, you will need to update any queries that use JSONB-specific operators on these columns.
+
+## Array Query Parameters
+
+API query parameters now accept arrays using bracket notation. This affects filters like `tenant_id`, `status`, and `topic` on list endpoints.
+
+**Single values continue to work as before.** This is a non-breaking addition for API users who don't use arrays. However, the SDK method signatures have changed to accommodate the new array types.
+
+### API usage
+
+```
+# Single value (unchanged)
+GET /events?tenant_id=tenant_123&topic=user.created
+
+# Array filter (new)
+GET /events?tenant_id[]=tenant_123&tenant_id[]=tenant_456&topic[]=user.created&topic[]=user.updated
+```
+
+### SDK changes
+
+The SDKs have been updated to accept both single values and arrays for filter parameters.
+
+**TypeScript:**
+
+```ts
+// Single value (unchanged)
+const events = await outpost.events.list({
+  tenantId: "tenant_123",
+  topic: "user.created",
+});
+
+// Array filter (new)
+const events = await outpost.events.list({
+  tenantId: ["tenant_123", "tenant_456"],
+  topic: ["user.created", "user.updated"],
+});
+```
+
+**Go:**
+
+Filter parameters that accept single or multiple values are represented as `[]string`. Pass a slice with one or more values:
+
+```go
+// Single value
+res, err := s.Events.List(ctx, operations.ListEventsRequest{
+    TenantID: []string{"tenant_123"},
+    Topic:    []string{"user.created"},
+    Limit:    outpostgo.Int64(50),
+})
+
+// Array filter
+res, err := s.Events.List(ctx, operations.ListEventsRequest{
+    TenantID: []string{"tenant_123", "tenant_456"},
+    Topic:    []string{"user.created", "user.updated"},
+    Limit:    outpostgo.Int64(50),
+})
+```
+
+**Action:** Update SDK dependencies to the latest version. If you pass filter parameters that previously accepted only a single string, verify that your code still works with the updated type signatures.
+
+## Python SDK: request body and method signatures
+
+The Python SDK has two breaking changes for methods that send a request body (`destinations.create`, `destinations.update`, `tenants.upsert`):
+
+1. **Request body parameter renamed:** The keyword argument for the request body is now `body` instead of `params`. You must update every call site.
+2. **Method signature shape:** Methods now take path parameters positionally and the request body as the named argument `body=`, instead of a single request object containing `params`.
+
+**Before (v0.13):**
+
+```py
+# Keyword argument was params=
+sdk.destinations.create(tenant_id="acme", params=models.DestinationCreateWebhook(...))
+sdk.destinations.update(tenant_id="acme", destination_id="des_123", params=models.DestinationUpdate(...))
+```
+
+**After (v0.14):**
+
+```py
+# Use body= and (for create/update) positional path params + body=
+sdk.destinations.create(tenant_id="acme", body=models.DestinationCreateWebhook(...))
+sdk.destinations.update(tenant_id="acme", destination_id="des_123", body=models.DestinationUpdate(...))
+```
+
+**TypeScript and Go:** The request body parameter in the method signature is now named `body` (was `params`). This is a type/signature rename only; call sites that pass the body positionally do not need to change.
+
+## List tenants: method rename and request object
+
+The "list tenants" API is now exposed as `tenants.list` (or `Tenants.List` / `tenants.list`) with a **single request object** in all SDKs, consistent with `events.list` and `attempts.list`. The previous method names and flattened parameters are no longer available.
+
+**Before (v0.13):**
+
+**TypeScript:**
+
+```ts
+const result = await outpost.tenants.listTenants(20, "desc");
+```
+
+**Go:**
+
+```go
+res, err := client.Tenants.ListTenants(ctx, outpostgo.Pointer(int64(20)), operations.ListTenantsDirDesc.ToPointer(), nil, nil)
+```
+
+**Python:**
+
+```py
+res = sdk.tenants.list_tenants(limit=20, direction=models.ListTenantsDir.DESC)
+```
+
+**After (v0.14):**
+
+**TypeScript:**
+
+```ts
+const result = await outpost.tenants.list({ limit: 20, dir: "desc" });
+```
+
+**Go:**
+
+```go
+res, err := client.Tenants.List(ctx, operations.ListTenantsRequest{
+    Limit: outpostgo.Pointer(int64(20)),
+    Dir:   operations.ListTenantsDirDesc.ToPointer(),
+})
+```
+
+**Python:**
+
+```py
+res = sdk.tenants.list(request=models.ListTenantsRequest(limit=20, direction=models.ListTenantsDir.DESC))
+```
+
+**Action:** Replace any call to `listTenants` / `ListTenants` / `list_tenants` with `list` (or `List` in Go) and pass a single request object with `limit`, `dir`, `next`, and `prev` as needed.
+
+## Other Notable Changes
+
+These changes are **not breaking** but may be useful to know about.
+
+### Relaxed destination URL validation
+
+Destination URL validation has been relaxed to allow:
+- URLs with Basic Auth credentials (e.g., `https://user:pass@example.com/webhook`)
+- RabbitMQ server URLs with Docker service names (e.g., `amqp://guest:guest@rabbitmq:5672`)
+
+### Empty `custom_headers` accepted
+
+Empty `custom_headers` on webhook destinations are now treated as absent instead of triggering validation errors. If you previously worked around the v0.13 validation by omitting `custom_headers`, you can now safely pass an empty object again.
+
+## Upgrade Checklist
+
+1. **Before upgrading:**
+   - [ ] Back up your PostgreSQL database
+   - [ ] Audit any direct SQL queries against `events.data` or `attempts.event_data` for JSONB operators
+   - [ ] Update SDK dependencies to the latest version
+   - [ ] **(Python only)** Replace `params=` with `body=` for `destinations.create`, `destinations.update`, and `tenants.upsert`
+   - [ ] Replace `tenants.listTenants` / `Tenants.ListTenants` / `tenants.list_tenants` with `tenants.list` (or `Tenants.List`) and pass a single request object
+
+2. **Upgrade:**
+   - [ ] Update Outpost to v0.14 and restart — the PostgreSQL migration runs automatically on startup
+
+3. **After upgrading:**
+   - [ ] Verify any direct SQL queries against Outpost tables are working as expected

@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/hookdeck/outpost/internal/destregistry"
-	"github.com/hookdeck/outpost/internal/destregistry/providers/destwebhookstandard"
 	"github.com/hookdeck/outpost/internal/util/maputil"
 	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
@@ -27,8 +26,7 @@ func TestStandardWebhookDestination_Validate(t *testing.T) {
 		}),
 	)
 
-	provider, err := destwebhookstandard.New(testutil.Registry.MetadataLoader(), nil)
-	require.NoError(t, err)
+	provider := newTestProvider(t)
 
 	t.Run("should validate valid destination", func(t *testing.T) {
 		t.Parallel()
@@ -218,8 +216,7 @@ func TestStandardWebhookDestination_Validate(t *testing.T) {
 func TestStandardWebhookDestination_ValidateCustomHeaders(t *testing.T) {
 	t.Parallel()
 
-	provider, err := destwebhookstandard.New(testutil.Registry.MetadataLoader(), nil)
-	require.NoError(t, err)
+	provider := newTestProvider(t)
 
 	t.Run("should accept valid header names", func(t *testing.T) {
 		t.Parallel()
@@ -364,8 +361,7 @@ func TestStandardWebhookDestination_ValidateCustomHeaders(t *testing.T) {
 func TestStandardWebhookDestination_ComputeTarget(t *testing.T) {
 	t.Parallel()
 
-	provider, err := destwebhookstandard.New(testutil.Registry.MetadataLoader(), nil)
-	require.NoError(t, err)
+	provider := newTestProvider(t)
 
 	t.Run("should return url as target", func(t *testing.T) {
 		t.Parallel()
@@ -383,8 +379,7 @@ func TestStandardWebhookDestination_ComputeTarget(t *testing.T) {
 func TestStandardWebhookDestination_Preprocess(t *testing.T) {
 	t.Parallel()
 
-	provider, err := destwebhookstandard.New(testutil.Registry.MetadataLoader(), nil)
-	require.NoError(t, err)
+	provider := newTestProvider(t)
 
 	t.Run("should generate default whsec secret if not provided", func(t *testing.T) {
 		t.Parallel()
@@ -665,8 +660,7 @@ func TestStandardWebhookDestination_Preprocess(t *testing.T) {
 func TestStandardWebhookDestination_ObfuscateDestination(t *testing.T) {
 	t.Parallel()
 
-	provider, err := destwebhookstandard.New(testutil.Registry.MetadataLoader(), nil)
-	require.NoError(t, err)
+	provider := newTestProvider(t)
 
 	t.Run("should keep previous_secret when not expired", func(t *testing.T) {
 		t.Parallel()

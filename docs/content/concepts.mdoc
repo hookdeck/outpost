@@ -1,0 +1,114 @@
+---
+title: "Concepts"
+description: "Core concepts and architecture of Outpost: tenants, destinations, topics, events, and delivery attempts."
+---
+
+## How this fits your product
+
+If you run a **SaaS**, **platform**, or **API product** and want each of **your customers** to receive webhooks or other event destinations, Outpost gives you a **multi-tenant** control plane for that.
+
+At a high level, the same mental model as a single-tenant webhook product still applies: something happens in your system (**event**), it belongs to a category (**topic**), and the consumer cares about **where** it should be delivered (**URL**, queue, and so on). Outpost adds one layer: those subscriptions live **per customer** in your product, which maps to a **tenant** in Outpost.
+
+**Typical flow:**
+
+1. **Map your customer to a tenant** — Each organization, team, or account in your app should have a stable **tenant id** in Outpost (often the same id you already use internally). Create or upsert that tenant when the customer is ready to use outbound events (onboarding, first visit to integrations, and so on).
+2. **Each tenant has zero or more destinations** — A **destination** is a concrete subscription: it combines a **destination type** (webhook, SQS, Hookdeck, …), one or more **topics** the customer wants to receive, and **type-specific configuration** (for a webhook, the HTTPS **endpoint URL** and signing secret; for a queue, the queue identifier; and so on). One tenant may have several destinations (for example production vs staging endpoints, or different systems).
+3. **Your backend publishes events** — When something happens, your **server** calls the publish API (or SDK) with **`tenant_id`**, **`topic`**, and payload metadata. Outpost does **not** infer the tenant from the browser; publishing uses your **platform** credentials and explicit tenant scope.
+4. **Outpost delivers to matching destinations** — For that tenant, every destination whose **topic subscription** includes the event’s topic gets a delivery attempt. A single publish can fan out to **many** destinations or to **none** if no destination subscribes to that topic.
+
+**What to build in your UI (conceptually):** screens or flows scoped to the **current customer** (tenant): list their **destinations**, **create or edit** a destination (choose type → choose topics → enter URL or other config), and surfaces for **events and delivery attempts** when you want users to inspect what was sent and how delivery behaved. Your UI talks to Outpost **through your backend** (recommended) or via **per-tenant JWT**, never by embedding your platform API key in the browser. See the [Building your own UI](/docs/outpost/guides/building-your-own-ui) guide for screen-level structure and API patterns.
+
+For topic subscription behavior (wildcard `*`, multiple topics, fan-out), see [Topics](/docs/outpost/features/topics).
+
+## Models
+
+- **Tenants** — A tenant represents a user, team, or organization in your product. All destinations and events are scoped to a tenant.
+- **Destination Types** — The category of destination where events are delivered. Examples: webhook, Hookdeck Event Gateway, AWS SQS.
+- **Destinations** — A configured instance of a destination type. For example, a webhook destination with a specific URL and signing secret.
+- **Topics** — A topic categorizes events, following the common Pub/Sub concept. For example, `user.created` or `payment.succeeded`. Tenants subscribe their destinations to specific topics.
+- **Events** — A piece of data representing an action that occurred in your system.
+- **Delivery Attempts** — The result of one attempt to deliver an event to a destination, including the response received.
+
+## Multi-Tenancy
+
+Outpost is designed as a multi-tenant system from the ground up. Each tenant has isolated destinations, topics, and event delivery. A single Outpost deployment serves all your customers.
+
+Tenants are created and managed via the API. Each tenant is identified by a string ID that maps to an identifier in your own system — for example, your customer's organization ID or database primary key. Outpost does not generate tenant IDs.
+
+If your application is single-tenant, use a hardcoded value such as `default`, `production`, or `staging` to support multiple environments on the same Outpost deployment.
+
+Read more about [multi-tenancy](/docs/outpost/features/multi-tenancy).
+
+## Topics
+
+Topics allow your tenants to subscribe to specific categories of events. When publishing an event, you specify a topic. Only destinations subscribed to that topic (or the wildcard `*`) receive the event.
+
+A list of available topics is configured at the platform level. Tenants then choose which topics each of their destinations subscribes to.
+
+{% tabs tabGroup="deployment" %}
+{% tab label="Managed" %}
+Configure available topics in [Hookdeck General settings](https://dashboard.hookdeck.com/settings/project/general) or through the Config API using `TOPICS`.
+{% /tab %}
+{% tab label="Self-Hosted" %}
+Configure available topics with the `TOPICS` environment variable.
+{% /tab %}
+{% /tabs %}
+
+Read more about [topics](/docs/outpost/features/topics).
+
+## Event Delivery
+
+Outpost operates on an at-least-once delivery guarantee. Events are delivered to all destinations whose topic subscriptions and filters match the event. Each delivery attempt is tracked and, on failure, retried automatically.
+
+{% tabs tabGroup="deployment" %}
+{% tab label="Managed" %}
+Configure retry behavior in [Hookdeck General settings](https://dashboard.hookdeck.com/settings/project/general) or with the Config API using `MAX_RETRY_LIMIT`, `RETRY_INTERVAL_SECONDS`, and `RETRY_SCHEDULE`.
+{% /tab %}
+{% tab label="Self-Hosted" %}
+Configure retry behavior with `MAX_RETRY_LIMIT`, `RETRY_INTERVAL_SECONDS`, and `RETRY_SCHEDULE`.
+{% /tab %}
+{% /tabs %}
+
+Read more about [event delivery and retries](/docs/outpost/features/event-delivery).
+
+## Portal
+
+Outpost includes a built-in self-service portal for your tenants to manage their destinations, view events, and retry failed deliveries. The portal is accessed via a short-lived JWT token generated by the API.
+
+{% tabs tabGroup="deployment" %}
+{% tab label="Managed" %}
+Configure portal behavior in [Hookdeck User Portal settings](https://dashboard.hookdeck.com/settings/project/user-portal).
+{% /tab %}
+{% tab label="Self-Hosted" %}
+Configure portal behavior with `PORTAL_*` environment variables.
+{% /tab %}
+{% /tabs %}
+
+Read more about [the tenant portal](/docs/outpost/features/tenant-portal) for setup and configuration details.
+
+## Event Destinations
+
+Outpost is an implementation of the [Event Destinations](https://eventdestinations.org) specification. Event Destinations are a way to deliver events to a variety of destinations, such as webhooks, queues, and streams improving the reliability, security, scalability of event delivery.
+
+The following destination types are available for your tenants to configure:
+
+- [Webhook](/docs/outpost/destinations/webhook)
+- [Hookdeck Event Gateway](/docs/outpost/destinations/hookdeck)
+- [AWS Kinesis](/docs/outpost/destinations/aws-kinesis)
+- [AWS SQS](/docs/outpost/destinations/aws-sqs)
+- [AWS S3](/docs/outpost/destinations/aws-s3)
+- [Azure Service Bus](/docs/outpost/destinations/azure-service-bus)
+- [GCP Pub/Sub](/docs/outpost/destinations/gcp-pubsub)
+- [RabbitMQ (AMQP)](/docs/outpost/destinations/rabbitmq)
+- [Amazon EventBridge (planned)](https://github.com/hookdeck/outpost/issues/201)
+- [Kafka (planned)](https://github.com/hookdeck/outpost/issues/141)
+
+If there is an event destination type that you would like to see supported, [open a feature request](https://github.com/hookdeck/outpost/issues/new?assignees=&labels=enhancement&projects=&template=feature_request.md&title=%F0%9F%9A%80+Feature%3A+).
+
+For a diagram of how the API, delivery, and log services connect in **self-hosted** deployments, see [Self-hosting architecture](/docs/outpost/self-hosting/architecture).
+
+## Observability
+
+Outpost provides observability metrics via OpenTelemetry and the Metrics API. Those metrics can be used to monitor your Outpost deployment and provide metrics to your end-users such as events failure rates by destination or events per topic.
+
+Read more about [Opentelemetry](/docs/outpost/features/opentelemetry) and [Metrics](/docs/outpost/api/metrics).

@@ -7,25 +7,31 @@ const main = async () => {
   const organizations = db.getOrganizations();
 
   for (const organization of organizations) {
-    const destinations = await outpost.getDestinations(organization.id);
+    const destinations = await outpost.destinations.list(organization.id);
     for (const destination of destinations) {
+      const topics = destination.topics;
+      const topic =
+        Array.isArray(topics) && topics.length > 0
+          ? topics[0]
+          : "test.event";
+      const data = {
+        test: "data",
+        from_organization_id: organization.id,
+        from_destination_id: destination.id,
+        timestamp: new Date().toISOString(),
+      };
       const event = {
-        tenant_id: organization.id,
-        topic: destination.topics[0],
-        eligible_for_retry: true,
-        data: {
-          test: "data",
-          from_organization_id: organization.id,
-          from_destination_id: destination.id,
-          timestamp: new Date().toISOString(),
-        },
+        tenantId: organization.id,
+        topic,
+        eligibleForRetry: true,
+        data,
         metadata: {
           some: "metadata",
         },
       };
       console.log("Publishing event");
       console.log(event);
-      await outpost.publishEvent(event);
+      await outpost.publish.event(event);
     }
   }
 };
