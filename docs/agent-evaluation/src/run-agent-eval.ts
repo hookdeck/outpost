@@ -9,7 +9,7 @@
 
 import { writeFileSync } from "node:fs";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
-import { dirname, join, resolve, sep } from "node:path";
+import { basename, dirname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import dotenv from "dotenv";
@@ -40,20 +40,39 @@ const PROMPT_MDX = join(
 const SCENARIOS_DIR = join(EVAL_ROOT, "scenarios");
 const RUNS_DIR = join(EVAL_ROOT, "results", "runs");
 
-/** Set while a scenario is in progress so SIGTERM/SIGINT can leave a sidecar (not SIGKILL). */
-let activeRunDirForSignal: string | null = null;
+/**
+ * Harness-only status files next to the run folder (not inside `runDir`) so the agent sandbox cannot Read them.
+ * Example: `…/runs/2026-…-scenario-08/transcript.json` vs `…/runs/2026-…-scenario-08.eval-started.json`.
+ */
+function harnessSidecarPaths(runDir: string): {
+  started: string;
+  failure: string;
+  aborted: string;
+} {
+  const stem = basename(runDir);
+  return {
+    started: join(RUNS_DIR, `${stem}.eval-started.json`),
+    failure: join(RUNS_DIR, `${stem}.eval-failure.json`),
+    aborted: join(RUNS_DIR, `${stem}.eval-aborted.json`),
+  };
+}
+
+/** Paths for SIGTERM/SIGINT abort sidecar while a scenario is in progress (not SIGKILL). */
+let activeHarnessAbortContext: { readonly path: string; readonly runDirectory: string } | null = null;
 
 function registerEvalSignalHandlers(): void {
   const recordAbort = (signal: string) => {
-    if (!activeRunDirForSignal) return;
+    const ctx = activeHarnessAbortContext;
+    if (!ctx) return;
     try {
       writeFileSync(
-        join(activeRunDirForSignal, "eval-aborted.json"),
+        ctx.path,
         `${JSON.stringify(
           {
             abortedAt: new Date().toISOString(),
             signal,
             pid: process.pid,
+            runDirectory: ctx.runDirectory,
             note: "Process exited before transcript.json was written; long agent turns often print little to stdout.",
           },
           null,
@@ -367,7 +386,42 @@ function filePathIsInsideRunDir(runDir: string, filePath: string): boolean {
   return target.startsWith(prefix);
 }
 
-function toolInputFilePath(toolName: string, toolInput: unknown): string | undefined {
+function resolveMaybeRelativePath(p: string, agentCwd: string): string {
+  if (p.startsWith(sep) || /^[A-Za-z]:[\\/]/.test(p)) {
+    return resolve(p);
+  }
+  return resolve(agentCwd, p);
+}
+
+/** Read/Glob/Grep may touch the run directory, or (with local docs) only `repoRoot/docs`. */
+function pathAllowedForReadTool(
+  absPath: string,
+  runDir: string,
+  repoRoot: string,
+  localDocs: boolean,
+): boolean {
+  const p = resolve(absPath);
+  if (filePathIsInsideRunDir(runDir, p)) return true;
+  if (localDocs && filePathIsInsideRunDir(join(repoRoot, "docs"), p)) return true;
+  return false;
+}
+
+/**
+ * Bash: block commands that reference the Outpost repo root unless the reference stays under
+ * `runDir` or (local docs) `repoRoot/docs`.
+ */
+function bashCommandAllowed(command: string, runDir: string, repoRoot: string, localDocs: boolean): boolean {
+  const rr = resolve(repoRoot);
+  const rd = resolve(runDir);
+  const docRoot = localDocs ? resolve(join(repoRoot, "docs")) : null;
+  if (!command.includes(rr)) return true;
+  if (command.includes(rd)) return true;
+  if (docRoot && command.includes(docRoot)) return true;
+  if (localDocs && command.includes(join(repoRoot, "docs"))) return true;
+  return false;
+}
+
+function toolInputWritePath(toolName: string, toolInput: unknown): string | undefined {
   if (toolName !== "Write" && toolName !== "Edit" && toolName !== "NotebookEdit") {
     return undefined;
   }
@@ -380,23 +434,140 @@ function toolInputFilePath(toolName: string, toolInput: unknown): string | undef
   return undefined;
 }
 
+function toolInputReadFilePath(toolInput: unknown): string | undefined {
+  if (typeof toolInput !== "object" || toolInput === null) return undefined;
+  const v = (toolInput as Record<string, unknown>).file_path;
+  return typeof v === "string" && v.length > 0 ? v : undefined;
+}
+
+function preToolDeny(reason: string) {
+  return {
+    hookSpecificOutput: {
+      hookEventName: "PreToolUse" as const,
+      permissionDecision: "deny" as const,
+      permissionDecisionReason: reason,
+    },
+  };
+}
+
 /**
- * PreToolUse hook: deny Write/Edit/NotebookEdit outside the run dir.
- * `canUseTool` is not reliable under `permissionMode: dontAsk`; hooks receive `permissionDecision` instead.
+ * Appended to Turn 0 so the model does not treat the Hookdeck Outpost monorepo as the integration target.
  */
-function createRunDirPreToolHook(allowedRootDir: string) {
+function buildWorkspaceBoundaryAppendix(
+  runDir: string,
+  agentCwd: string,
+  repoRoot: string,
+  localDocs: boolean,
+): string {
+  const docsPath = join(repoRoot, "docs");
+  const docBullet = localDocs
+    ? `\n- You **may** use Read/Glob/Grep only under **\`${docsPath}\`** when following the **Documentation (local repository)** paths in this prompt—not elsewhere under **\`${repoRoot}\`** (no \`sdks/\`, \`internal/\`, \`go.mod\` at repo root, etc.).`
+    : `\n- Do **not** read or search the Hookdeck Outpost checkout on disk outside **\`${runDir}\`**; use the documentation URLs already listed above.`;
+
+  return `
+
+### Workspace boundary (automated eval session)
+
+- The **integration target** is **only** under **\`${runDir}\`** (shell cwd: **\`${agentCwd}\`**). Install dependencies, add SDK usage, routes, UI, and env/README notes **there**.
+- Do **not** use Read, Glob, Grep, or Bash to explore **\`${repoRoot}\`** except:${docBullet}
+- Do **not** use the **Agent** tool to spider the monorepo or another tree; implement the integration directly in this workspace.
+`;
+}
+
+/**
+ * PreToolUse hook: Write/Edit only under run dir; Read/Glob/Grep/Bash constrained to run dir (+ docs/ when EVAL_LOCAL_DOCS).
+ * \`EVAL_DISABLE_WORKSPACE_READ_GUARD=1\` — allow Read/Glob/Grep/Bash/Agent outside the sandbox.
+ * \`EVAL_DISABLE_WORKSPACE_WRITE_GUARD=1\` — allow Write/Edit outside the run directory (read sandbox unchanged unless also disabled above).
+ */
+function createRunDirPreToolHook(ctx: {
+  allowedRootDir: string;
+  agentCwd: string;
+  runDir: string;
+  repoRoot: string;
+  localDocs: boolean;
+  readGuardOn: boolean;
+  writeGuardOn: boolean;
+}) {
+  const { allowedRootDir, agentCwd, runDir, repoRoot, localDocs, readGuardOn, writeGuardOn } = ctx;
+
   return async (input: HookInput) => {
     if (input.hook_event_name !== "PreToolUse") return {};
-    const candidate = toolInputFilePath(input.tool_name, input.tool_input);
-    if (!candidate) return {};
-    if (filePathIsInsideRunDir(allowedRootDir, candidate)) return {};
-    return {
-      hookSpecificOutput: {
-        hookEventName: "PreToolUse" as const,
-        permissionDecision: "deny" as const,
-        permissionDecisionReason: `Outpost agent-eval: ${input.tool_name} must target only the scenario workspace. Use a path under ${allowedRootDir} (e.g. outpost-quickstart.sh). Refused: ${resolve(candidate)}`,
-      },
-    };
+
+    if (readGuardOn && input.tool_name === "Agent" && !envFlagTruthy(process.env.EVAL_ALLOW_AGENT_TOOL)) {
+      return preToolDeny(
+        "Outpost agent-eval: the Agent subagent is disabled for fair scoring (set EVAL_ALLOW_AGENT_TOOL=1 to allow).",
+      );
+    }
+
+    if (readGuardOn && input.tool_name === "Read") {
+      const raw = toolInputReadFilePath(input.tool_input);
+      if (raw) {
+        const abs = resolveMaybeRelativePath(raw, agentCwd);
+        if (!pathAllowedForReadTool(abs, runDir, repoRoot, localDocs)) {
+          return preToolDeny(
+            `Outpost agent-eval: Read must stay under the scenario run directory or (with EVAL_LOCAL_DOCS) ${join(repoRoot, "docs")}. Refused: ${abs}`,
+          );
+        }
+      }
+      return {};
+    }
+
+    if (readGuardOn && input.tool_name === "Glob") {
+      const inp = input.tool_input;
+      if (typeof inp === "object" && inp !== null) {
+        const pathRaw = (inp as Record<string, unknown>).path;
+        if (typeof pathRaw === "string" && pathRaw.length > 0) {
+          const abs = resolveMaybeRelativePath(pathRaw, agentCwd);
+          if (!pathAllowedForReadTool(abs, runDir, repoRoot, localDocs)) {
+            return preToolDeny(
+              `Outpost agent-eval: Glob path must stay under the run directory or repo docs/. Refused: ${abs}`,
+            );
+          }
+        }
+      }
+      return {};
+    }
+
+    if (readGuardOn && input.tool_name === "Grep") {
+      const inp = input.tool_input;
+      if (typeof inp === "object" && inp !== null) {
+        const pathRaw = (inp as Record<string, unknown>).path;
+        if (typeof pathRaw === "string" && pathRaw.length > 0) {
+          const abs = resolveMaybeRelativePath(pathRaw, agentCwd);
+          if (!pathAllowedForReadTool(abs, runDir, repoRoot, localDocs)) {
+            return preToolDeny(
+              `Outpost agent-eval: Grep path must stay under the run directory or repo docs/. Refused: ${abs}`,
+            );
+          }
+        }
+      }
+      return {};
+    }
+
+    if (readGuardOn && input.tool_name === "Bash") {
+      const inp = input.tool_input;
+      if (typeof inp === "object" && inp !== null) {
+        const cmd = (inp as Record<string, unknown>).command;
+        if (typeof cmd === "string" && cmd.trim().length > 0) {
+          if (!bashCommandAllowed(cmd, runDir, repoRoot, localDocs)) {
+            return preToolDeny(
+              `Outpost agent-eval: Bash must not traverse the Outpost monorepo outside this run (or docs/ when EVAL_LOCAL_DOCS=1). Refused command prefix: ${cmd.slice(0, 120)}${cmd.length > 120 ? "…" : ""}`,
+            );
+          }
+        }
+      }
+      return {};
+    }
+
+    if (writeGuardOn) {
+      const candidate = toolInputWritePath(input.tool_name, input.tool_input);
+      if (candidate && !filePathIsInsideRunDir(allowedRootDir, candidate)) {
+        return preToolDeny(
+          `Outpost agent-eval: ${input.tool_name} must target only the scenario run directory tree. Use a path under ${allowedRootDir}. Refused: ${resolve(candidate)}`,
+        );
+      }
+    }
+    return {};
   };
 }
 
@@ -413,11 +584,14 @@ function defaultEvalTools(env: NodeJS.ProcessEnv): string {
     : "Read,Glob,Grep,WebFetch,Write,Edit,Bash";
 }
 
-/**
- * @param agentWorkspaceCwd — process cwd for the agent (per-run directory, or a subfolder when the scenario defines `agentCwd` in ## Eval harness).
- * @param writeGuardRoot — PreToolUse hook allows Write/Edit only under this path (usually the per-run directory so the clone stays inside it).
- */
-function buildBaseOptions(agentWorkspaceCwd: string, writeGuardRoot: string): Options {
+function buildBaseOptions(ctx: {
+  agentCwd: string;
+  writeGuardRoot: string;
+  runDir: string;
+  repoRoot: string;
+  localDocs: boolean;
+}): Options {
+  const { agentCwd, writeGuardRoot, runDir, repoRoot, localDocs } = ctx;
   const toolsRaw = defaultEvalTools(process.env);
   const allowedTools = toolsRaw
     .split(",")
@@ -432,7 +606,7 @@ function buildBaseOptions(agentWorkspaceCwd: string, writeGuardRoot: string): Op
   const persistSession = process.env.EVAL_PERSIST_SESSION !== "false";
 
   const o: Options = {
-    cwd: agentWorkspaceCwd,
+    cwd: agentCwd,
     allowedTools,
     permissionMode: mode,
     maxTurns: Number.isFinite(maxTurns) ? maxTurns : 80,
@@ -443,9 +617,25 @@ function buildBaseOptions(agentWorkspaceCwd: string, writeGuardRoot: string): Op
     } as Record<string, string | undefined>,
   };
 
-  if (!envFlagTruthy(process.env.EVAL_DISABLE_WORKSPACE_WRITE_GUARD)) {
+  const readGuardOn = !envFlagTruthy(process.env.EVAL_DISABLE_WORKSPACE_READ_GUARD);
+  const writeGuardOn = !envFlagTruthy(process.env.EVAL_DISABLE_WORKSPACE_WRITE_GUARD);
+  if (readGuardOn || writeGuardOn) {
     o.hooks = {
-      PreToolUse: [{ hooks: [createRunDirPreToolHook(writeGuardRoot)] }],
+      PreToolUse: [
+        {
+          hooks: [
+            createRunDirPreToolHook({
+              allowedRootDir: writeGuardRoot,
+              agentCwd,
+              runDir,
+              repoRoot,
+              localDocs,
+              readGuardOn,
+              writeGuardOn,
+            }),
+          ],
+        },
+      ],
     };
   }
 
@@ -504,6 +694,8 @@ Environment:
   EVAL_PERMISSION_MODE  Optional (default: dontAsk)
   EVAL_PERSIST_SESSION  Set to "false" to disable session persistence (breaks multi-turn resume)
   EVAL_DISABLE_WORKSPACE_WRITE_GUARD  Set to 1 to allow Write/Edit outside the run dir (not recommended)
+  EVAL_DISABLE_WORKSPACE_READ_GUARD   Set to 1 to allow Read/Glob/Grep/Bash/Agent outside the run dir (+ docs/ when local)
+  EVAL_ALLOW_AGENT_TOOL               Set to 1 to allow the Agent subagent (default: denied for fair scoring)
   EVAL_SKIP_HARNESS_PRE_STEPS       Set to 1 to skip ## Eval harness preSteps (git_clone, etc.); see scenario markdown
 
 Outputs under docs/agent-evaluation/results/runs/ (gitignored): each scenario gets
@@ -554,8 +746,17 @@ Agent cwd is usually the run directory. Scenarios may define ## Eval harness (JS
   }
 
   if (values["dry-run"]) {
+    const localDocs = envFlagTruthy(process.env.EVAL_LOCAL_DOCS);
+    const sampleRun = join(RUNS_DIR, "dry-run-example-scenario");
+    const sampleAgent = join(sampleRun, "app-baseline");
+    const boundarySample = buildWorkspaceBoundaryAppendix(sampleRun, sampleAgent, REPO_ROOT, localDocs);
     console.log("Dry run: would execute", selected.join(", "));
-    console.log("Turn 0 length (chars):", filledTemplate.length);
+    console.log(
+      "Turn 0 base template (chars):",
+      filledTemplate.length,
+      "| + workspace boundary (~chars):",
+      boundarySample.length,
+    );
     process.exit(0);
   }
 
@@ -586,19 +787,35 @@ Agent cwd is usually the run directory. Scenarios may define ## Eval harness (JS
     const scenarioMd = await readFile(scenarioPath, "utf8");
     const harnessConfig = parseEvalHarness(scenarioMd);
     const { agentCwd, writeGuardRoot } = await applyEvalHarness(runDir, harnessConfig);
-    const baseOptions = buildBaseOptions(agentCwd, writeGuardRoot);
+    const localDocs = envFlagTruthy(process.env.EVAL_LOCAL_DOCS);
+    const baseOptions = buildBaseOptions({
+      agentCwd,
+      writeGuardRoot,
+      runDir,
+      repoRoot: REPO_ROOT,
+      localDocs,
+    });
+    const turn0Prompt =
+      filledTemplate + buildWorkspaceBoundaryAppendix(runDir, agentCwd, REPO_ROOT, localDocs);
     console.error(`\n>>> Scenario ${file} (run dir ${runDir}, agent cwd ${agentCwd}) ...`);
 
-    activeRunDirForSignal = runDir;
+    const sidecars = harnessSidecarPaths(runDir);
+    activeHarnessAbortContext = { path: sidecars.aborted, runDirectory: runDir };
     await writeFile(
-      join(runDir, "eval-run-started.json"),
+      sidecars.started,
       `${JSON.stringify(
         {
           startedAt: new Date().toISOString(),
           pid: process.pid,
           scenarioFile: file,
           scenarioId: scenarioIdEarly,
-          note: "If you see this without transcript.json, the run may still be in progress, was interrupted (SIGTERM/SIGINT writes eval-aborted.json), crashed, or was SIGKILL’d (no sidecar). The agent phase often logs little until the turn completes.",
+          runDirectory: runDir,
+          harnessSidecars: {
+            started: sidecars.started,
+            failure: sidecars.failure,
+            aborted: sidecars.aborted,
+          },
+          note: "Transcript and score JSON live under runDirectory. Harness *.eval-*.json paths are siblings of the run folder (not inside it) so the agent cannot read eval metadata.",
         },
         null,
         2,
@@ -607,7 +824,7 @@ Agent cwd is usually the run directory. Scenarios may define ## Eval harness (JS
     );
 
     try {
-      const result = await runOneScenario(file, filledTemplate, {
+      const result = await runOneScenario(file, turn0Prompt, {
         skipOptional: values["skip-optional"] ?? false,
         baseOptions,
         scenarioMarkdown: scenarioMd,
@@ -665,14 +882,14 @@ Agent cwd is usually the run directory. Scenarios may define ## Eval harness (JS
       const message = err instanceof Error ? err.message : String(err);
       const stack = err instanceof Error ? err.stack : undefined;
       await writeFile(
-        join(runDir, "eval-failure.json"),
-        `${JSON.stringify({ failedAt: new Date().toISOString(), message, stack }, null, 2)}\n`,
+        sidecars.failure,
+        `${JSON.stringify({ failedAt: new Date().toISOString(), message, stack, runDirectory: runDir }, null, 2)}\n`,
         "utf8",
       );
       console.error(`Eval scenario failed (${file}):`, err);
       throw err;
     } finally {
-      activeRunDirForSignal = null;
+      activeHarnessAbortContext = null;
     }
   }
 
