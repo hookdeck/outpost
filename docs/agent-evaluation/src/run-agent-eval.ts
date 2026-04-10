@@ -7,6 +7,7 @@
  * @see https://platform.claude.com/docs/en/agent-sdk/overview
  */
 
+import { writeFileSync } from "node:fs";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -38,6 +39,41 @@ const PROMPT_MDX = join(
 );
 const SCENARIOS_DIR = join(EVAL_ROOT, "scenarios");
 const RUNS_DIR = join(EVAL_ROOT, "results", "runs");
+
+/** Set while a scenario is in progress so SIGTERM/SIGINT can leave a sidecar (not SIGKILL). */
+let activeRunDirForSignal: string | null = null;
+
+function registerEvalSignalHandlers(): void {
+  const recordAbort = (signal: string) => {
+    if (!activeRunDirForSignal) return;
+    try {
+      writeFileSync(
+        join(activeRunDirForSignal, "eval-aborted.json"),
+        `${JSON.stringify(
+          {
+            abortedAt: new Date().toISOString(),
+            signal,
+            pid: process.pid,
+            note: "Process exited before transcript.json was written; long agent turns often print little to stdout.",
+          },
+          null,
+          2,
+        )}\n`,
+        "utf8",
+      );
+    } catch {
+      // best-effort
+    }
+  };
+  process.once("SIGTERM", () => {
+    recordAbort("SIGTERM");
+    process.exit(143);
+  });
+  process.once("SIGINT", () => {
+    recordAbort("SIGINT");
+    process.exit(130);
+  });
+}
 
 function isInitSystemMessage(m: SDKMessage): m is SDKSystemMessage {
   return m.type === "system" && m.subtype === "init";
@@ -539,6 +575,8 @@ Agent cwd is usually the run directory. Scenarios may define ## Eval harness (JS
     `Running ${selected.length} scenario(s): ${selected.join(", ")} (heuristic=${String(wantScore)}, llm=${String(wantLlm)})`,
   );
 
+  registerEvalSignalHandlers();
+
   for (const file of selected) {
     const scenarioIdEarly = idFromFilename(file);
     const runDir = join(RUNS_DIR, `${stamp}-scenario-${scenarioIdEarly}`);
@@ -550,59 +588,91 @@ Agent cwd is usually the run directory. Scenarios may define ## Eval harness (JS
     const { agentCwd, writeGuardRoot } = await applyEvalHarness(runDir, harnessConfig);
     const baseOptions = buildBaseOptions(agentCwd, writeGuardRoot);
     console.error(`\n>>> Scenario ${file} (run dir ${runDir}, agent cwd ${agentCwd}) ...`);
-    const result = await runOneScenario(file, filledTemplate, {
-      skipOptional: values["skip-optional"] ?? false,
-      baseOptions,
-      scenarioMarkdown: scenarioMd,
-    });
 
-    const outPath = join(runDir, "transcript.json");
-    const payload = {
-      meta: {
-        scenarioId: result.scenarioId,
-        scenarioFile: result.scenarioFile,
-        runDirectory: runDir,
-        agentWorkspaceCwd: agentCwd,
-        evalHarness: {
-          preStepCount: harnessConfig.preSteps.length,
-          agentCwd: harnessConfig.agentCwd,
+    activeRunDirForSignal = runDir;
+    await writeFile(
+      join(runDir, "eval-run-started.json"),
+      `${JSON.stringify(
+        {
+          startedAt: new Date().toISOString(),
+          pid: process.pid,
+          scenarioFile: file,
+          scenarioId: scenarioIdEarly,
+          note: "If you see this without transcript.json, the run may still be in progress, was interrupted (SIGTERM/SIGINT writes eval-aborted.json), crashed, or was SIGKILL’d (no sidecar). The agent phase often logs little until the turn completes.",
         },
-        repositoryRoot: REPO_ROOT,
-        completedAt: new Date().toISOString(),
-        sessionId: result.sessionId,
-        turns: result.turns,
-      },
-      messages: result.allMessages,
-    };
+        null,
+        2,
+      )}\n`,
+      "utf8",
+    );
 
-    await writeFile(outPath, JSON.stringify(payload, null, 2), "utf8");
-    console.error(`Wrote ${outPath}`);
-
-    if (wantScore) {
-      const report = await scoreRunFile(outPath);
-      const scorePath = join(runDir, "heuristic-score.json");
-      await writeFile(scorePath, `${JSON.stringify(report, null, 2)}\n`, "utf8");
-      console.error(`Wrote ${scorePath} (transcript: ${report.transcript.passed}/${report.transcript.total}, overallTranscriptPass=${String(report.overallTranscriptPass)})`);
-      if (report.overallTranscriptPass === false) {
-        anyScoreFailure = true;
-      }
-    }
-
-    if (wantLlm) {
-      const scenarioPath = scenarioMdPathFromRun(EVAL_ROOT, result.scenarioFile);
-      const llmReport = await llmJudgeRun({
-        runPath: outPath,
-        scenarioMdPath: scenarioPath,
-        apiKey: process.env.ANTHROPIC_API_KEY!.trim(),
+    try {
+      const result = await runOneScenario(file, filledTemplate, {
+        skipOptional: values["skip-optional"] ?? false,
+        baseOptions,
+        scenarioMarkdown: scenarioMd,
       });
-      const llmPath = join(runDir, "llm-score.json");
-      await writeFile(llmPath, `${JSON.stringify(llmReport, null, 2)}\n`, "utf8");
-      console.error(
-        `Wrote ${llmPath} (LLM overall_transcript_pass=${String(llmReport.overall_transcript_pass)})`,
-      );
-      if (!llmReport.overall_transcript_pass) {
-        anyScoreFailure = true;
+
+      const outPath = join(runDir, "transcript.json");
+      const payload = {
+        meta: {
+          scenarioId: result.scenarioId,
+          scenarioFile: result.scenarioFile,
+          runDirectory: runDir,
+          agentWorkspaceCwd: agentCwd,
+          evalHarness: {
+            preStepCount: harnessConfig.preSteps.length,
+            agentCwd: harnessConfig.agentCwd,
+          },
+          repositoryRoot: REPO_ROOT,
+          completedAt: new Date().toISOString(),
+          sessionId: result.sessionId,
+          turns: result.turns,
+        },
+        messages: result.allMessages,
+      };
+
+      await writeFile(outPath, JSON.stringify(payload, null, 2), "utf8");
+      console.error(`Wrote ${outPath}`);
+
+      if (wantScore) {
+        const report = await scoreRunFile(outPath);
+        const scorePath = join(runDir, "heuristic-score.json");
+        await writeFile(scorePath, `${JSON.stringify(report, null, 2)}\n`, "utf8");
+        console.error(`Wrote ${scorePath} (transcript: ${report.transcript.passed}/${report.transcript.total}, overallTranscriptPass=${String(report.overallTranscriptPass)})`);
+        if (report.overallTranscriptPass === false) {
+          anyScoreFailure = true;
+        }
       }
+
+      if (wantLlm) {
+        const scenarioPathForJudge = scenarioMdPathFromRun(EVAL_ROOT, result.scenarioFile);
+        const llmReport = await llmJudgeRun({
+          runPath: outPath,
+          scenarioMdPath: scenarioPathForJudge,
+          apiKey: process.env.ANTHROPIC_API_KEY!.trim(),
+        });
+        const llmPath = join(runDir, "llm-score.json");
+        await writeFile(llmPath, `${JSON.stringify(llmReport, null, 2)}\n`, "utf8");
+        console.error(
+          `Wrote ${llmPath} (LLM overall_transcript_pass=${String(llmReport.overall_transcript_pass)})`,
+        );
+        if (!llmReport.overall_transcript_pass) {
+          anyScoreFailure = true;
+        }
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      const stack = err instanceof Error ? err.stack : undefined;
+      await writeFile(
+        join(runDir, "eval-failure.json"),
+        `${JSON.stringify({ failedAt: new Date().toISOString(), message, stack }, null, 2)}\n`,
+        "utf8",
+      );
+      console.error(`Eval scenario failed (${file}):`, err);
+      throw err;
+    } finally {
+      activeRunDirForSignal = null;
     }
   }
 
