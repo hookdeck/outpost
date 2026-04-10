@@ -24,16 +24,7 @@ func main() {
 					return delegateToBinary("outpost-server", c)
 				},
 			},
-			{
-				Name:  "migrate",
-				Usage: "Database migration tools",
-				Action: func(ctx context.Context, c *cli.Command) error {
-					// Pass all arguments directly to the migration tool
-					return delegateToBinary("outpost-migrate-redis", c)
-				},
-				// Don't define flags here - let the sub-binary handle everything
-				SkipFlagParsing: true,
-			},
+			newMigrateCommand(),
 		},
 		Action: func(ctx context.Context, c *cli.Command) error {
 			// Default action - show help
