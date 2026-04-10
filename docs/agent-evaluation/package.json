@@ -6,7 +6,7 @@
   "description": "Claude Agent SDK harness for Outpost onboarding scenario evals",
   "scripts": {
     "eval": "node --import tsx src/run-agent-eval.ts",
-    "eval:ci": "node --import tsx src/run-agent-eval.ts -- --scenarios 01,02",
+    "eval:ci": "node --import tsx src/run-agent-eval.ts --scenarios 01,02",
     "eval:tsx-cli": "tsx src/run-agent-eval.ts",
     "score": "node --import tsx src/score-eval.ts",
     "typecheck": "tsc --noEmit"
