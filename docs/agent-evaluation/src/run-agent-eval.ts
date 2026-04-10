@@ -35,7 +35,7 @@ dotenv.config({ path: join(EVAL_ROOT, ".env") });
 const REPO_ROOT = join(EVAL_ROOT, "..", "..");
 const PROMPT_MDX = join(
   REPO_ROOT,
-  "docs/pages/quickstarts/hookdeck-outpost-agent-prompt.mdx",
+  "docs/content/quickstarts/hookdeck-outpost-agent-prompt.mdoc",
 );
 const SCENARIOS_DIR = join(EVAL_ROOT, "scenarios");
 const RUNS_DIR = join(EVAL_ROOT, "results", "runs");
@@ -101,7 +101,9 @@ function isInitSystemMessage(m: SDKMessage): m is SDKSystemMessage {
 function extractTemplateFromMdx(mdx: string): string {
   const idx = mdx.indexOf("## Template");
   if (idx === -1) {
-    throw new Error("Could not find ## Template in hookdeck-outpost-agent-prompt.mdx");
+    throw new Error(
+      "Could not find ## Template in hookdeck-outpost-agent-prompt.mdoc",
+    );
   }
   const after = mdx.slice(idx);
   const fenceStart = after.indexOf("```");
@@ -120,6 +122,15 @@ function envFlagTruthy(v: string | undefined): boolean {
   if (!v) return false;
   const s = v.trim().toLowerCase();
   return s === "1" || s === "true" || s === "yes";
+}
+
+/** Wall-clock heartbeat while the SDK stream is quiet (e.g. long Bash / blocked subprocess). */
+function evalProgressIntervalMs(): number {
+  const n = Number(process.env.EVAL_PROGRESS_INTERVAL_MS ?? "30000");
+  if (!Number.isFinite(n) || n < 5000) {
+    return 30000;
+  }
+  return n;
 }
 
 /** When docs are not published yet, point the agent at MDX/OpenAPI paths in this repo. */
@@ -145,19 +156,19 @@ Do **not** mix TS call shapes into Python.`;
 
 Do **not** rely on live public documentation URLs for this session. Read these files from the Outpost checkout (for example with the **Read** tool). Paths are absolute from the repository root:
 
-Follow **Language → SDK vs HTTP** below for mapping user intent to the **single** right quickstart. Prefer language quickstarts over \`sdks.mdx\` (TS-heavy).
+Follow **Language → SDK vs HTTP** below for mapping user intent to the **single** right quickstart. Prefer language quickstarts over \`sdks.mdoc\` (TS-heavy).
 
-- **Concepts** (tenants, destinations as subscriptions, topics, how this fits a SaaS/platform): \`${f("docs/pages/concepts.mdx")}\`
-- **Building your own UI** (screen structure: list destinations, create flow type → topics → config): \`${f("docs/pages/guides/building-your-own-ui.mdx")}\`
-- **Topics** (destination topic subscriptions, fan-out): \`${f("docs/pages/features/topics.mdx")}\`
-- Getting started (curl / HTTP only): \`${f("docs/pages/quickstarts/hookdeck-outpost-curl.mdx")}\`
-- TypeScript quickstart (TS SDK): \`${f("docs/pages/quickstarts/hookdeck-outpost-typescript.mdx")}\`
-- Python quickstart (Python SDK): \`${f("docs/pages/quickstarts/hookdeck-outpost-python.mdx")}\`
-- Go quickstart (Go SDK): \`${f("docs/pages/quickstarts/hookdeck-outpost-go.mdx")}\`
-- API reference (human-oriented pages under): \`${f("docs/pages/references/")}\`
+- **Concepts** (tenants, destinations as subscriptions, topics, how this fits a SaaS/platform): \`${f("docs/content/concepts.mdoc")}\`
+- **Building your own UI** (screen structure: list destinations, create flow type → topics → config): \`${f("docs/content/guides/building-your-own-ui.mdoc")}\`
+- **Topics** (destination topic subscriptions, fan-out): \`${f("docs/content/features/topics.mdoc")}\`
+- Getting started (curl / HTTP only): \`${f("docs/content/quickstarts/hookdeck-outpost-curl.mdoc")}\`
+- TypeScript quickstart (TS SDK): \`${f("docs/content/quickstarts/hookdeck-outpost-typescript.mdoc")}\`
+- Python quickstart (Python SDK): \`${f("docs/content/quickstarts/hookdeck-outpost-python.mdoc")}\`
+- Go quickstart (Go SDK): \`${f("docs/content/quickstarts/hookdeck-outpost-go.mdoc")}\`
+- Docs content (browse for feature pages): \`${f("docs/content/")}\`
 - OpenAPI spec (machine-readable): \`${f("docs/apis/openapi.yaml")}\`
-- Destination types: \`${f("docs/pages/destinations/")}\`
-- SDKs overview (TS-heavy): \`${f("docs/pages/sdks.mdx")}\` — prefer the language quickstart over this for Python/Go/TS code.
+- **Destination types** (summary + links): \`${f("docs/content/overview.mdoc")}\` — *Supported destinations*; per-type detail in \`docs/content/destinations/*.mdoc\` (e.g. \`${f("docs/content/destinations/webhook.mdoc")}\`)
+- SDKs overview (TS-heavy): \`${f("docs/content/sdks.mdoc")}\` — prefer the language quickstart over this for Python/Go/TS code.
 
 ${languageSdkBlock}`;
   if (llmsFullUrl) {
@@ -180,7 +191,7 @@ function applyPlaceholders(
       "Set EVAL_TEST_DESTINATION_URL to your Hookdeck Console Source URL (same value the dashboard injects as {{TEST_DESTINATION_URL}})",
     );
   }
-  const docsUrl = env.EVAL_DOCS_URL ?? "https://outpost.hookdeck.com/docs";
+  const docsUrl = env.EVAL_DOCS_URL ?? "https://hookdeck.com/docs/outpost";
   const llms = env.EVAL_LLMS_FULL_URL?.trim() ?? "";
   const useLocalDocs = envFlagTruthy(env.EVAL_LOCAL_DOCS);
 
@@ -301,16 +312,47 @@ function idFromFilename(file: string): string {
 async function runScenarioQuery(
   prompt: string,
   options: Options,
+  progress?: { readonly phaseLabel: string },
 ): Promise<{ messages: unknown[]; sessionId?: string }> {
   const messages: unknown[] = [];
   let sessionId: string | undefined;
+  const progressOn = envFlagTruthy(process.env.EVAL_PROGRESS);
+  const label = progress?.phaseLabel ?? "agent query";
+  let msgCount = 0;
+  let interval: ReturnType<typeof setInterval> | undefined;
 
-  const q = query({ prompt, options });
-  for await (const message of q) {
-    messages.push(serializeMessage(message));
-    if (isInitSystemMessage(message)) {
-      sessionId = message.session_id;
+  if (progressOn && progress) {
+    const maxTurns = options.maxTurns;
+    console.error(
+      `[eval] ${label}: starting (EVAL_PROGRESS=1; heartbeat every ${evalProgressIntervalMs()}ms; maxTurns=${String(maxTurns)})`,
+    );
+    interval = setInterval(() => {
+      console.error(
+        `[eval] ${label}: still running (${msgCount} SDK message(s) so far — subprocess or model may be busy with no new stream events)`,
+      );
+    }, evalProgressIntervalMs());
+  }
+
+  try {
+    const q = query({ prompt, options });
+    for await (const message of q) {
+      msgCount += 1;
+      messages.push(serializeMessage(message));
+      if (isInitSystemMessage(message)) {
+        sessionId = message.session_id;
+      }
+      if (progressOn && progress && msgCount > 0 && msgCount % 25 === 0) {
+        console.error(`[eval] ${label}: ${msgCount} SDK message(s) received`);
+      }
     }
+  } finally {
+    if (interval !== undefined) {
+      clearInterval(interval);
+    }
+  }
+
+  if (progressOn && progress) {
+    console.error(`[eval] ${label}: finished this query (${msgCount} SDK message(s))`);
   }
 
   return { messages, sessionId };
@@ -354,10 +396,14 @@ async function runOneScenario(
   for (let i = 0; i < prompts.length; i++) {
     const label = i === 0 ? "Turn 0 (dashboard prompt)" : userTurns[i - 1]?.label ?? `Turn ${i}`;
     const before = allMessages.length;
-    const { messages, sessionId: sid } = await runScenarioQuery(prompts[i]!, {
-      ...opts.baseOptions,
-      resume: sessionId,
-    });
+    const { messages, sessionId: sid } = await runScenarioQuery(
+      prompts[i]!,
+      {
+        ...opts.baseOptions,
+        resume: sessionId,
+      },
+      { phaseLabel: label },
+    );
     if (sid) {
       sessionId = sid;
     }
@@ -691,6 +737,8 @@ Environment:
   EVAL_TOOLS            Optional, comma-separated (default: Read,Glob,Grep[,WebFetch],Write,Edit,Bash — see README)
   EVAL_MODEL            Optional
   EVAL_MAX_TURNS        Optional (default: 80; npm/go mod installs can exceed 40; lower only for smoke — may not finish 08–10)
+  EVAL_PROGRESS         Set to 1/true/yes — log heartbeats to stderr during each agent query (see EVAL_PROGRESS_INTERVAL_MS)
+  EVAL_PROGRESS_INTERVAL_MS  Optional (default: 30000, min 5000) — wall-clock heartbeat while the SDK stream is quiet
   EVAL_PERMISSION_MODE  Optional (default: dontAsk)
   EVAL_PERSIST_SESSION  Set to "false" to disable session persistence (breaks multi-turn resume)
   EVAL_DISABLE_WORKSPACE_WRITE_GUARD  Set to 1 to allow Write/Edit outside the run dir (not recommended)
@@ -800,7 +848,7 @@ Agent cwd is usually the run directory. Scenarios may define ## Eval harness (JS
     console.error(`\n>>> Scenario ${file} (run dir ${runDir}, agent cwd ${agentCwd}) ...`);
     if (scenarioIdEarly === "08" || scenarioIdEarly === "09" || scenarioIdEarly === "10") {
       console.error(
-        "Note: Scenarios 08–10 clone a full baseline and install deps — often 30–90+ min wall time with sparse console output until transcript.json. Ctrl+C aborts (writes *.eval-aborted.json). See README § Wall time.",
+        "Note: Scenarios 08–10 clone a full baseline and install deps — often 30–90+ min wall time with sparse console output until transcript.json. Ctrl+C aborts (writes *.eval-aborted.json). Set EVAL_PROGRESS=1 for stderr heartbeats. See README § Wall time.",
       );
     }
 

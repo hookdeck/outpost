@@ -169,7 +169,7 @@ Apply **only** the items below that fit the task; **skip** any that do not apply
 | `{{API_BASE_URL}}` | `https://api.outpost.hookdeck.com/2025-07-01` | Safe to embed in the prompt |
 | `{{TOPICS_LIST}}` | Bullet list or comma-separated topic names | From dashboard config — operators should keep this aligned with what the integrated app will **publish** and what destinations subscribe to |
 | `{{TEST_DESTINATION_URL}}` | **Required** — HTTPS URL of the Hookdeck Console **Source** created for this onboarding flow (fed in by the dashboard). |
-| `{{DOCS_URL}}` | `https://outpost.hookdeck.com/docs` | Public docs root (no trailing slash). For unpublished docs, automated evals can set **`EVAL_LOCAL_DOCS=1`** so the Documentation section is replaced with repository file paths (see `docs/agent-evaluation/README.md`). |
+| `{{DOCS_URL}}` | `https://hookdeck.com/docs/outpost` | Production **Outpost** docs base on Hookdeck (no trailing slash). Template paths append the same segments as **`/docs/outpost/…`** on the docs site (see `docs/content/nav.json`). For unpublished docs, evals can set **`EVAL_LOCAL_DOCS=1`** so the Documentation section is replaced with repository file paths (see `docs/agent-evaluation/README.md`). |
 | `{{LLMS_FULL_URL}}` | `https://hookdeck.com/outpost/docs/llms-full.txt` | Optional; omit the line if not live yet |
 
 ### Building your own UI — where the detail lives
