@@ -59,15 +59,16 @@ Paste the **## Template** from [`hookdeck-outpost-agent-prompt.mdx`](../pages/qu
 
 **Measurement:** Heuristic `scoreScenario09` in [`src/score-transcript.ts`](../src/score-transcript.ts); LLM judge (reads this section); execution manual.
 
+**Contract:** Same full-stack bar as scenario **8**, pinned to this template. **Canonical checklist:** [Building your own UI — Implementation checklists](../../pages/guides/building-your-own-ui.mdx#implementation-checklists). **Agent self-verify:** [`hookdeck-outpost-agent-prompt.mdx`](../pages/quickstarts/hookdeck-outpost-agent-prompt.mdx) → *Before you stop (verify)* (full-stack UI item). Do not duplicate checklist rows in transcripts—confirm against the guide.
+
 - **full-stack-fastapi-template** (or documented alternative) present via harness **`preSteps`** with install steps in the transcript or tree.
 - **`outpost_sdk`** with **`publish.event`** (and related calls as needed) on a **real** code path in the **backend** (server-side only for secrets)—**not** only a synthetic test-publish endpoint unless the scenario was explicitly scoped to wiring-only.
-- **Domain + test publish:** At least one **`publish` on a real domain path** (entity create/update, signup, etc.). A **separate** test-publish path or control is **also** expected for this baseline so operators can smoke-test wiring without waiting on production traffic—it **does not** replace the domain publish requirement.
+- **Domain + test publish:** At least one **`publish` on a real domain path** (entity create/update, signup, etc.). A **separate** test-publish path or control is **required** for this baseline—it **does not** replace the domain publish requirement.
 - API key from **environment** or secure backend settings only — not hard-coded, not exposed via **`NEXT_PUBLIC_*`**, **`VITE_*`**, or other client-visible env patterns.
 - **Topic reconciliation:** each **`topic` in code** ties to a real domain event; gaps vs the **configured project topic list** from onboarding are resolved by **adding topics in Hookdeck** (documented), not by retargeting domain logic to a mismatched list unless wiring-only scope was agreed.
-- **Destinations + tenant:** Per-customer (or per-team) **destination** management is **documented** and, where this template ships a dashboard, implemented with **safe** UI or BFF routes (list/create/edit as appropriate). **`tenant_id`** (or equivalent) is consistent between publish and destination APIs.
-- **Delivery visibility (full-stack bar):** Because this baseline includes a **customer-facing UI**, the product should expose **event activity** aligned with [Building your own UI](../../pages/guides/building-your-own-ui.mdx): customers can see **events** (e.g. filterable by destination), **attempts** for a selected event, and **manual retry** for failed deliveries—all via **your** authenticated backend calling Outpost (admin key server-side), not from the browser with the platform key. Omit only if the user explicitly scoped the task to **backend-only** or excluded activity UI.
+- **Destinations + tenant:** Per-customer (or per-team) **destination** management via **authenticated** UI or BFF routes: **list**, **create**, and **drill-down** (detail and **destination-scoped activity**—events, attempts, **manual retry**). **Dynamic** forms from **`GET /destination-types`** with correct **`key`** → `config` / `credentials`. **`tenant_id`** is consistent between publish and destination APIs. Omit drill-down / activity only if Turn 1 scoped **backend-only** or excluded activity UI (document verification instead).
 - **Operator docs:** Root **README**, **backend/README**, **development.md**, or **`.env.example`** (whichever the template uses) lists **Outpost env vars** and how to run and verify.
-- **Execution (full pass):** Stack runs per template docs; trigger a **real domain action** that fires publish; Outpost accepts. Optionally exercise test publish and activity/retry in the UI. *Skip for transcript-only.*
+- **Execution (full pass):** Stack runs per template docs; trigger a **real domain action** that fires publish; Outpost accepts. Exercise **test publish** and **activity / retry** in the UI when in scope. *Skip for transcript-only.*
 
 ## Failure modes to note
 
@@ -76,6 +77,7 @@ Paste the **## Template** from [`hookdeck-outpost-agent-prompt.mdx`](../pages/qu
 - Putting `OUTPOST_API_KEY` in `NEXT_PUBLIC_*`, `VITE_*`, or other client bundles.
 - **Only** test/synthetic publish with no domain hook, or **only** domain publish with no **separate** test-publish control when a dashboard is in scope.
 - **No** events/attempts/retry surfaced for customers when the baseline includes a product UI and the user did not ask to skip that scope.
+- **Flat list** of destinations with no navigation to **detail** or **per-destination activity** (same as scenario 8 failure mode).
 
 ## Future baselines
 

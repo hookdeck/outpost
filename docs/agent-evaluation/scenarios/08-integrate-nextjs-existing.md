@@ -54,17 +54,23 @@ Paste the **## Template** block from [`hookdeck-outpost-agent-prompt.mdx`](../pa
 
 **Measurement:** Heuristic `scoreScenario08` in [`src/score-transcript.ts`](../src/score-transcript.ts); LLM judge maps the bullets below ([`README.md` § Measuring scenarios](../README.md#measuring-scenarios)). Execution row is manual.
 
+**Contract:** The baseline ships a **customer-facing dashboard**. Treat it like **Existing application (full-stack products)** in [`hookdeck-outpost-agent-prompt.mdx`](../pages/quickstarts/hookdeck-outpost-agent-prompt.mdx). The detailed UI bar is **not** repeated here—use **[Building your own UI — Implementation checklists](../../pages/guides/building-your-own-ui.mdx#implementation-checklists)** (*Planning and contract*, *Destinations experience*, *Activity, attempts, and retries*). The agent must self-verify with **Before you stop (verify)** in the same prompt (full-stack UI item).
+
 - Baseline app is the documented **next-saas-starter** (or an explicitly justified fork): harness clone under the run directory plus install / integration steps reflected in the transcript or that tree.
 - **Outpost TypeScript SDK** used **server-side only**; no `NEXT_PUBLIC_*` API key.
 - **Topic reconciliation:** README or inline notes map **each `publish` topic** to a **real domain event**; if the app needs topics not in the **configured project list** from onboarding, instructions say to **add them in Hookdeck** (domain-first—not reshaping product logic to fit a stale default list unless wiring-only scope was agreed).
-- At least one **publish** on a **real domain path** (signup, CRUD, billing, etc.)—**not** only a synthetic “test event” route. A separate test publish for wiring checks is fine but does **not** replace this.
-- **Per-customer webhook** story is explained: destination creation / subscription to topic; **tenant ↔ customer** mapping is consistent for publish and destination APIs.
+- **Domain publish:** At least one **`publish` on a real domain path** (signup, CRUD, billing, etc.)—**not** only a synthetic “test event” route.
+- **Separate test publish:** A **distinct** server-side control (button, action, or route) that publishes a **test** event for the signed-in tenant—**in addition to** domain publish; does **not** satisfy the domain-publish requirement by itself (see prompt).
+- **Full-stack destination + activity UI:** Customers can **drill into** a destination (detail or edit—per product policy), reach **destination-scoped activity** (events / attempts / manual retry for failures) via **your** authenticated routes, and **create** destinations using **dynamic** fields from **`GET /destination-types`** (each field’s **`key`** → `config` / `credentials`). **List rows** link or navigate into that flow—not **only** create + delete with no detail or activity. Omit sub-items only if Turn 1 explicitly scoped **backend-only** or excluded activity UI (then document how operators verify delivery instead).
+- **Per-customer webhook** story: **tenant ↔ customer** mapping is consistent for publish and destination APIs.
 - README (or equivalent) lists **env vars** for Outpost.
-- **Execution (full pass):** With `OUTPOST_API_KEY` set, the app runs; perform a **real in-app action** that triggers the domain publish and confirm Outpost accepts it (2xx/202). Optionally also run a test publish. Smoke from **`results/runs/…-scenario-08/next-saas-starter/`** (not transcript-only triage).
+- **Execution (full pass):** With `OUTPOST_API_KEY` set, the app runs; perform a **real in-app action** that triggers the domain publish and confirm Outpost accepts it (2xx/202). Exercise **test publish** and **activity / retry** in the UI when present. Smoke from **`results/runs/…-scenario-08/next-saas-starter/`** (not transcript-only triage).
 
 ## Failure modes to note
 
 - Pasting a greenfield Next app instead of integrating the **baseline** in the workspace.
+- **List-only** destinations (no drill-down to detail or destination-scoped activity) while the baseline still has a product dashboard—unless the user explicitly scoped backend-only.
+- **No separate test publish** when customers can manage destinations from the UI.
 - Publishing only from a demo or **test-only** route with no domain path.
 - **Topics** in code with no README telling the operator to **add** them in Hookdeck when the onboarding topic list was incomplete (or silently retargeting domain logic to unrelated configured names).
 - Calling Outpost from client components with secrets.

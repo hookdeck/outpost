@@ -2,11 +2,11 @@
 
 The **prompt template itself** lives in one place only:
 
-**[`hookdeck-outpost-agent-prompt.mdx`](../../pages/quickstarts/hookdeck-outpost-agent-prompt.mdx)** (from repo root: `docs/pages/quickstarts/...`) — copy the fenced block under **## Template**, then replace each `{{PLACEHOLDER}}` using the table below.
+`**[hookdeck-outpost-agent-prompt.mdx](../../pages/quickstarts/hookdeck-outpost-agent-prompt.mdx)`** (from repo root: `docs/pages/quickstarts/...`) — copy the fenced block under **## Template**, then replace each `{{PLACEHOLDER}}` using the table below.
 
-Do **not** paste real API keys into chat. Have operators put `OUTPOST_API_KEY` in a project **`.env`** (or another loader), not in the agent transcript. Use a throwaway Hookdeck project when possible.
+Do **not** paste real API keys into chat. Have operators put `OUTPOST_API_KEY` in a project `**.env`** (or another loader), not in the agent transcript. Use a throwaway Hookdeck project when possible.
 
-For **`npm run eval -- --scenario …`** (or **`--scenarios`** / **`--all`**), the runner only needs **`ANTHROPIC_API_KEY`** and **`EVAL_TEST_DESTINATION_URL`**. To score a **full** eval (generated commands/code actually work), you still need **`OUTPOST_API_KEY`** (and usually **`OUTPOST_TEST_WEBHOOK_URL`**) when you **execute** the agent’s output afterward. Optional **`EVAL_LOCAL_DOCS=1`** points Turn 0 at repo paths instead of live `{{DOCS_URL}}` links.
+For `**npm run eval -- --scenario …**` (or `**--scenarios**` / `**--all**`), the runner only needs `**ANTHROPIC_API_KEY**` and `**EVAL_TEST_DESTINATION_URL**`. To score a **full** eval (generated commands/code actually work), you still need `**OUTPOST_API_KEY`** (and usually `**OUTPOST_TEST_WEBHOOK_URL**`) when you **execute** the agent’s output afterward. Optional `**EVAL_LOCAL_DOCS=1`** points Turn 0 at repo paths instead of live `{{DOCS_URL}}` links.
 
 ---
 

@@ -810,6 +810,28 @@ function scoreScenario08(corpus: string, assistant: string): TranscriptScore {
       : "Expected domain publish (not only publish-test / send test) — see scenario Success criteria",
   });
 
+  const fullStackSignals =
+    /(attempt|retry|list\s*attempt|destination[_-]?scoped|\/activity|\/attempts|events?\s*\(|list\s*events|manual\s*retry)/i.test(
+      t,
+    ) && /(outpost|destination|tenant)/i.test(t);
+  checks.push({
+    id: "delivery_activity_signals",
+    pass: fullStackSignals,
+    detail: fullStackSignals
+      ? "Transcript mentions delivery visibility (attempts/events/retry/activity) with Outpost context"
+      : "Scenario 8 expects destination-scoped activity UI — see Building your own UI checklists + success criteria",
+  });
+
+  const testPublishSeparate =
+    /(test\s*publish|publish\s*test|send\s*test\s*event|\/api\/.*test|test.?event)/i.test(t);
+  checks.push({
+    id: "separate_test_publish_signal",
+    pass: testPublishSeparate,
+    detail: testPublishSeparate
+      ? "Separate test publish / test event control mentioned"
+      : "Expected distinct test-publish path or control (see scenario 8 success criteria)",
+  });
+
   checks.push({
     id: "no_key_in_reply",
     pass: !containsLikelyLeakedKey(assistant),
@@ -907,6 +929,18 @@ function scoreScenario09(corpus: string, assistant: string): TranscriptScore {
     detail: readmeOrEnvDocs
       ? "README / development.md / .env.example (or similar) touches OUTPOST_API_KEY"
       : "Expected operator docs listing OUTPOST env vars (see scenario Success criteria)",
+  });
+
+  const fullStackSignals09 =
+    /(attempt|retry|list\s*attempt|destination[_-]?scoped|\/activity|\/attempts|events?\s*\(|list\s*events|manual\s*retry)/i.test(
+      t,
+    ) && /(outpost|destination|tenant)/i.test(t);
+  checks.push({
+    id: "delivery_activity_signals",
+    pass: fullStackSignals09,
+    detail: fullStackSignals09
+      ? "Transcript mentions delivery visibility (attempts/events/retry/activity) with Outpost context"
+      : "Scenario 9 expects full-stack activity UI — see Building your own UI checklists + success criteria",
   });
 
   checks.push({
