@@ -13,6 +13,7 @@ const (
 	DestinationSchemaFieldTypeText        DestinationSchemaFieldType = "text"
 	DestinationSchemaFieldTypeCheckbox    DestinationSchemaFieldType = "checkbox"
 	DestinationSchemaFieldTypeKeyValueMap DestinationSchemaFieldType = "key_value_map"
+	DestinationSchemaFieldTypeSelect      DestinationSchemaFieldType = "select"
 )
 
 func (e DestinationSchemaFieldType) ToPointer() *DestinationSchemaFieldType {
@@ -29,6 +30,8 @@ func (e *DestinationSchemaFieldType) UnmarshalJSON(data []byte) error {
 	case "checkbox":
 		fallthrough
 	case "key_value_map":
+		fallthrough
+	case "select":
 		*e = DestinationSchemaFieldType(v)
 		return nil
 	default:
@@ -36,7 +39,28 @@ func (e *DestinationSchemaFieldType) UnmarshalJSON(data []byte) error {
 	}
 }
 
+type OptionObj struct {
+	Label string `json:"label"`
+	Value string `json:"value"`
+}
+
+func (o *OptionObj) GetLabel() string {
+	if o == nil {
+		return ""
+	}
+	return o.Label
+}
+
+func (o *OptionObj) GetValue() string {
+	if o == nil {
+		return ""
+	}
+	return o.Value
+}
+
 type DestinationSchemaField struct {
+	// The config key used to store and retrieve the field value. Matches the key in the destination's config or credentials object.
+	Key         string                     `json:"key"`
 	Type        DestinationSchemaFieldType `json:"type"`
 	Label       *string                    `json:"label,omitempty"`
 	Description *string                    `json:"description,omitempty"`
@@ -51,6 +75,15 @@ type DestinationSchemaField struct {
 	Maxlength *int64 `json:"maxlength,omitempty"`
 	// Regex pattern for validation (compatible with HTML5 pattern attribute).
 	Pattern *string `json:"pattern,omitempty"`
+	// Available options for select fields.
+	Options []OptionObj `json:"options,omitempty"`
+}
+
+func (d *DestinationSchemaField) GetKey() string {
+	if d == nil {
+		return ""
+	}
+	return d.Key
 }
 
 func (d *DestinationSchemaField) GetType() DestinationSchemaFieldType {
@@ -114,4 +147,11 @@ func (d *DestinationSchemaField) GetPattern() *string {
 		return nil
 	}
 	return d.Pattern
+}
+
+func (d *DestinationSchemaField) GetOptions() []OptionObj {
+	if d == nil {
+		return nil
+	}
+	return d.Options
 }

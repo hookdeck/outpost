@@ -25,3 +25,4 @@ value := operations.TypeWebhook
 | `TypeAzureServicebus` | azure_servicebus      |
 | `TypeAwsS3`           | aws_s3                |
 | `TypeGcpPubsub`       | gcp_pubsub            |
+| `TypeKafka`           | kafka                 |
