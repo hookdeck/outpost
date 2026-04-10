@@ -18,11 +18,11 @@
         [
           { "slug": "overview", "title": "Overview" },
           { "slug": "concepts", "title": "Concepts" },
+          { "slug": "sdks", "title": "SDKs" },
           {
             "href": "/outpost/docs/quickstarts/overview",
-            "title": "Quickstart"
+            "title": "Quickstarts"
           },
-          { "slug": "sdks", "title": "SDKs" },
           {
             "href": "/outpost/docs/self-hosting/architecture",
             "title": "Self-Hosting"
