@@ -48,11 +48,11 @@ RETRY_SCHEDULE=30,60,300,900,3600
 
 ## Manual Retries
 
-Any failed delivery attempt can be manually retried via the [Retry API](/outpost/docs/api#retry-event-delivery), the tenant portal or Admin UI. Manual retries are available for attempts that have exhausted automatic retries or were skipped due to the destination being disabled.
+Any failed delivery attempt can be manually retried via the [Retry API](/docs/outpost/api#retry-event-delivery), the tenant portal or Admin UI. Manual retries are available for attempts that have exhausted automatic retries or were skipped due to the destination being disabled.
 
 ## Disabled Destinations
 
-If a destination is disabled — through the API, tenant portal, or automatically due to a [failure threshold](/outpost/docs/features/operator-events) — events published to that tenant will not be delivered to it. Disabled destinations cannot be retried until re-enabled.
+If a destination is disabled — through the API, tenant portal, or automatically due to a [failure threshold](/docs/outpost/features/operator-events) — events published to that tenant will not be delivered to it. Disabled destinations cannot be retried until re-enabled.
 
 ## Delivery Attempts
 
@@ -62,4 +62,4 @@ Each delivery attempt records:
 - The timestamp and attempt number
 - Whether automatic retries are exhausted
 
-Access delivery attempts via the [API Reference](/outpost/docs/api#attempts) the tenant portal, or Admin UI.
+Access delivery attempts via the [API Reference](/docs/outpost/api#attempts) the tenant portal, or Admin UI.

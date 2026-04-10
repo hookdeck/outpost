@@ -7,7 +7,7 @@
           {
             "slug": "api",
             "title": "API Reference",
-            "href": "/outpost/docs/api"
+            "href": "/docs/outpost/api"
           }
         ]
       ]
@@ -20,11 +20,11 @@
           { "slug": "concepts", "title": "Concepts" },
           { "slug": "sdks", "title": "SDKs" },
           {
-            "href": "/outpost/docs/quickstarts/overview",
+            "href": "/docs/outpost/quickstarts/overview",
             "title": "Quickstarts"
           },
           {
-            "href": "/outpost/docs/self-hosting/architecture",
+            "href": "/docs/outpost/self-hosting/architecture",
             "title": "Self-Hosting"
           }
         ]
@@ -121,7 +121,7 @@
       ]
     }
   ],
-  "/outpost/docs/quickstarts": {
+  "/docs/outpost/quickstarts": {
     "title": "Quickstarts",
     "structure": [
       {
@@ -130,7 +130,7 @@
       }
     ]
   },
-  "/outpost/docs/self-hosting": {
+  "/docs/outpost/self-hosting": {
     "title": "Self-Hosting",
     "structure": [
       {
