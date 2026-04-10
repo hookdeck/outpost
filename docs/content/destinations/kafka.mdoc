@@ -36,7 +36,7 @@ curl '{% $OUTPOST_API_BASE_URL %}/tenants/<TENANT_ID>/destinations' \
 | `config.topic` | string | Yes | The Kafka topic to publish messages to |
 | `config.sasl_mechanism` | string | Yes | SASL mechanism: `plain`, `scram-sha-256`, or `scram-sha-512` |
 | `config.tls` | string | No | Enable TLS: `true` or `false` (default: `true`) |
-| `config.partition_key_template` | string | No | JMESPath expression for the message partition key |
+| `config.partition_key_template` | string | No | JMESPath expression for the message partition key (default: the event ID) |
 
 ### Credentials
 
