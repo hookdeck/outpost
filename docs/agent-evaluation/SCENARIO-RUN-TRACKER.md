@@ -61,7 +61,7 @@ Work applied **after** the agent transcript so the FastAPI + React artifact matc
 Operator feedback from exercising the FastAPI full-stack artifact is **closed** in-repo:
 
 1. **Event activity IA** — [Building your own UI](../pages/guides/building-your-own-ui.mdx) documents **default** destination → activity and **optional** tenant-wide activity with the same list endpoints; no open doc gap.
-2. **Domain topics + real publishes vs test-only** — [Agent prompt](../pages/quickstarts/hookdeck-outpost-agent-prompt.mdx) (topic reconciliation, domain publish, test publish as separate), scenarios **08–10** success criteria + Turn 1 copy, [README](README.md) execution notes, and heuristic **`publish_beyond_test_only`** in [`src/score-transcript.ts`](src/score-transcript.ts) cover what we measure.
+2. **Domain topics + real publishes vs test-only** — [Agent prompt](../pages/quickstarts/hookdeck-outpost-agent-prompt.mdx) (topic reconciliation, domain publish, test publish as separate), scenarios **08–10** success criteria + user-turn scripts, [README](README.md) execution notes, and heuristic **`publish_beyond_test_only`** in [`src/score-transcript.ts`](src/score-transcript.ts) cover what we measure.
 
 The **copied agent template** (the `## Hookdeck Outpost integration` block) intentionally stays **scenario-agnostic**: it does not name eval baselines, harness repos, or scenario IDs—only product-level integration guidance and doc links.
 

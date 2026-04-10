@@ -12,7 +12,7 @@ Same as [scenario 8](08-integrate-nextjs-existing.md), but stack is **Python + F
 
 - Python 3.10+; **Node.js 18+** (for the frontend); `git` available.
 - **Docker** (recommended) — template dev flow uses Docker Compose for API, DB, and frontend; see repository `development.md`.
-- Same Turn 0 placeholders as other scenarios (`OUTPOST_API_KEY` **not** in the prompt text; test destination URL from dashboard).
+- Same **initial onboarding prompt** as other scenarios (`OUTPOST_API_KEY` **not** in the pasted text; test destination URL from dashboard).
 
 ## Eval harness
 
@@ -45,9 +45,11 @@ Paste the **## Template** from [`hookdeck-outpost-agent-prompt.mdx`](../pages/qu
 
 ### Turn 1 — User
 
-> Option 3 — integrate Outpost into a real codebase. **We’re already in the full-stack FastAPI template in this workspace** — the repository is present here. Follow the project’s dev docs to get backend (and frontend if useful) running, then add **Hookdeck Outpost** for customer webhooks.
+> This workspace is our **full-stack FastAPI + React** product (the template we ship). Follow the repo’s dev docs to bring up API, DB, and frontend, then integrate **Hookdeck Outpost** for **per-customer webhooks**.
 >
-> Hook publishing to **one real event** that already exists in the app (users, items, teams, whatever fits). **Topic strings should match that domain**; if Turn 0’s list doesn’t include the right names yet, document what the operator must **add in the Outpost project**—don’t contort the app to arbitrary topics unless this is explicitly a minimal wiring pass. Document topics, how tenants register webhook URLs, and env vars. Don’t leak the API key to the client.
+> I want customers to manage **destinations** from the product (or through our authenticated API), a **separate** way to **fire a test event** that isn’t pretending to be production traffic, and enough **delivery visibility** that they can see **events**, **attempts**, and **retry** when something failed—all **through our backend**, never with the platform API key in the browser.
+>
+> Wire **publish** into **one real workflow** we already have (signups, records, teams—whatever fits this codebase). **Topics** should match that workflow. If Hookdeck doesn’t list a name we need, document what I should add there; don’t reshape the product around random topic strings unless I’ve said this is wiring-only. Document env vars and how **tenant** maps to our customer or team model. Don’t expose the API key to clients.
 
 ### Turn 2 — User (optional)
 
@@ -55,23 +57,26 @@ Paste the **## Template** from [`hookdeck-outpost-agent-prompt.mdx`](../pages/qu
 
 ## Success criteria
 
-**Measurement:** Heuristic `scoreScenario09` in [`src/score-transcript.ts`](../src/score-transcript.ts); LLM judge; execution manual.
+**Measurement:** Heuristic `scoreScenario09` in [`src/score-transcript.ts`](../src/score-transcript.ts); LLM judge (reads this section); execution manual.
 
 - **full-stack-fastapi-template** (or documented alternative) present via harness **`preSteps`** with install steps in the transcript or tree.
 - **`outpost_sdk`** with **`publish.event`** (and related calls as needed) on a **real** code path in the **backend** (server-side only for secrets)—**not** only a synthetic test-publish endpoint unless the scenario was explicitly scoped to wiring-only.
-- API key from **environment** or secure settings — not hard-coded or exposed to clients.
-- **Topic reconciliation:** each **`topic` in code** ties to a real domain event; gaps vs Turn 0 are resolved by **operator adding topics in Hookdeck** (documented), not by retargeting domain logic to a mismatched list unless wiring-only scope was agreed.
-- **Destination** story documented; if the app has a UI, linking or exposing **safe** controls for customer destinations is a plus; **tenant id** usage consistent with publish.
-- README (or equivalent) lists **env vars** for Outpost.
-- **Execution (full pass):** Stack runs per template docs; trigger a **real domain action** that fires publish; Outpost accepts. A test-publish button may be used **additionally** for smoke. *Skip for transcript-only.*
+- **Domain + test publish:** At least one **`publish` on a real domain path** (entity create/update, signup, etc.). A **separate** test-publish path or control is **also** expected for this baseline so operators can smoke-test wiring without waiting on production traffic—it **does not** replace the domain publish requirement.
+- API key from **environment** or secure backend settings only — not hard-coded, not exposed via **`NEXT_PUBLIC_*`**, **`VITE_*`**, or other client-visible env patterns.
+- **Topic reconciliation:** each **`topic` in code** ties to a real domain event; gaps vs the **configured project topic list** from onboarding are resolved by **adding topics in Hookdeck** (documented), not by retargeting domain logic to a mismatched list unless wiring-only scope was agreed.
+- **Destinations + tenant:** Per-customer (or per-team) **destination** management is **documented** and, where this template ships a dashboard, implemented with **safe** UI or BFF routes (list/create/edit as appropriate). **`tenant_id`** (or equivalent) is consistent between publish and destination APIs.
+- **Delivery visibility (full-stack bar):** Because this baseline includes a **customer-facing UI**, the product should expose **event activity** aligned with [Building your own UI](../../pages/guides/building-your-own-ui.mdx): customers can see **events** (e.g. filterable by destination), **attempts** for a selected event, and **manual retry** for failed deliveries—all via **your** authenticated backend calling Outpost (admin key server-side), not from the browser with the platform key. Omit only if the user explicitly scoped the task to **backend-only** or excluded activity UI.
+- **Operator docs:** Root **README**, **backend/README**, **development.md**, or **`.env.example`** (whichever the template uses) lists **Outpost env vars** and how to run and verify.
+- **Execution (full pass):** Stack runs per template docs; trigger a **real domain action** that fires publish; Outpost accepts. Optionally exercise test publish and activity/retry in the UI. *Skip for transcript-only.*
 
 ## Failure modes to note
 
 - Greenfield FastAPI “hello world” instead of the **cloned** baseline.
 - Using raw `httpx` to Outpost when the scenario asks for **`outpost_sdk`**.
-- Putting `OUTPOST_API_KEY` in `NEXT_PUBLIC_*` / client bundles.
-- **Only** test/synthetic publish with no domain hook.
+- Putting `OUTPOST_API_KEY` in `NEXT_PUBLIC_*`, `VITE_*`, or other client bundles.
+- **Only** test/synthetic publish with no domain hook, or **only** domain publish with no **separate** test-publish control when a dashboard is in scope.
+- **No** events/attempts/retry surfaced for customers when the baseline includes a product UI and the user did not ask to skip that scope.
 
 ## Future baselines
 
-Other “existing FastAPI app” pins can follow the same shape: harness pre-clone + Option 3 Turn 1 + success criteria + `scoreScenario09`.
+Other “existing FastAPI app” pins can follow the same shape: harness pre-clone + natural-language integration Turn 1 + success criteria + `scoreScenario09`.

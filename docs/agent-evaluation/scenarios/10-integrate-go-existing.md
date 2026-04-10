@@ -39,9 +39,9 @@ Paste the **## Template** from [`hookdeck-outpost-agent-prompt.mdx`](../pages/qu
 
 ### Turn 1 — User
 
-> Option 3 — existing Go API. **We’re already in the startersaas-go-api tree in this workspace** — the repository is present here. Get it building, then add **Hookdeck Outpost** for outbound webhooks.
+> Existing **Go** API—you’re in this repo with me. Get it building, then add **Hookdeck Outpost** for outbound webhooks.
 >
-> Use **one real handler** as the publish trigger (signup, billing, etc.). **`topic` values should match that domain**; if Turn 0’s list is incomplete, document what to **add in the Outpost project**—don’t bend the handler to wrong topic names just to match the prompt unless this is explicitly minimal wiring. API key from env only. Document how customers register webhook URLs and what to set in env. Use the test destination from the dashboard prompt where it helps.
+> Trigger **publish** from **one real handler** (signup, billing, etc.—not a throwaway test-only route by itself). **`topic` values should match that domain**. If our Hookdeck project’s topic list is missing something, document what to add; don’t point production code at the wrong names just to match a stub list unless I’ve said this is a minimal wiring pass. **`OUTPOST_API_KEY`** from env only. Explain how customers register webhook URLs and what to put in **README** / env. Use the **test receiver URL** from our Hookdeck setup when you want to prove delivery end-to-end.
 
 ### Turn 2 — User (optional)
 

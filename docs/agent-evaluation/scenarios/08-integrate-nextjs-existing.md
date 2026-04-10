@@ -9,7 +9,7 @@ Operators often have a **production-shaped SaaS codebase** (auth, teams, dashboa
 ## Preconditions
 
 - Node 18+; `git` available.
-- Same Turn 0 placeholders as other scenarios (`OUTPOST_API_KEY` **not** in the prompt text; test destination URL from dashboard).
+- Same **initial onboarding prompt** as other scenarios (`OUTPOST_API_KEY` **not** in the pasted text; test destination URL from dashboard).
 
 ## Eval harness
 
@@ -42,9 +42,9 @@ Paste the **## Template** block from [`hookdeck-outpost-agent-prompt.mdx`](../pa
 
 ### Turn 1 — User
 
-> Option 3 — I’m not starting from scratch. **We’re already in the Next.js SaaS app in this workspace** — the baseline repo is checked out here. Install dependencies and get it runnable, then wire in **Hookdeck Outpost** so we can send **outbound webhooks** to our customers.
+> I’m integrating into our existing **Next.js** SaaS app—you’re in this repo with me. Install dependencies, get it running, then add **Hookdeck Outpost** so we can send **outbound webhooks** to our customers.
 >
-> I need this tied to **something real in the app** (not a throwaway demo page), and I need to understand how each customer gets their webhook registered. **Publish topic names should follow the app’s domain**; if Turn 0’s configured list is missing any name you need, document what to **add in the Outpost project**—don’t retarget real features to wrong topics just to match the list unless I explicitly asked for a minimal demo. Put whatever I need to configure in the README (env vars, etc.). Keep secrets on the server only.
+> Tie it to **real product behavior** (not a throwaway demo page). I need a clear story for **how each customer registers their webhook** and which topics they receive. Use **topic names that match our domain**; if Hookdeck doesn’t list a topic we need yet, tell me exactly what to add in the project—don’t point our code at the wrong names just to match a short list unless I’ve said we’re only doing a quick wiring spike. Document env vars and setup in the **README**. Keep the Outpost API key on the **server** only.
 
 ### Turn 2 — User (optional)
 
@@ -56,7 +56,7 @@ Paste the **## Template** block from [`hookdeck-outpost-agent-prompt.mdx`](../pa
 
 - Baseline app is the documented **next-saas-starter** (or an explicitly justified fork): harness clone under the run directory plus install / integration steps reflected in the transcript or that tree.
 - **Outpost TypeScript SDK** used **server-side only**; no `NEXT_PUBLIC_*` API key.
-- **Topic reconciliation:** README or inline notes map **each `publish` topic** to a **real domain event**; if the app needs topics not in Turn 0, instructions say to **add them in Hookdeck** (domain-first—not reshaping product logic to fit a stale default list unless wiring-only scope was agreed).
+- **Topic reconciliation:** README or inline notes map **each `publish` topic** to a **real domain event**; if the app needs topics not in the **configured project list** from onboarding, instructions say to **add them in Hookdeck** (domain-first—not reshaping product logic to fit a stale default list unless wiring-only scope was agreed).
 - At least one **publish** on a **real domain path** (signup, CRUD, billing, etc.)—**not** only a synthetic “test event” route. A separate test publish for wiring checks is fine but does **not** replace this.
 - **Per-customer webhook** story is explained: destination creation / subscription to topic; **tenant ↔ customer** mapping is consistent for publish and destination APIs.
 - README (or equivalent) lists **env vars** for Outpost.
@@ -66,9 +66,9 @@ Paste the **## Template** block from [`hookdeck-outpost-agent-prompt.mdx`](../pa
 
 - Pasting a greenfield Next app instead of integrating the **baseline** in the workspace.
 - Publishing only from a demo or **test-only** route with no domain path.
-- **Topics** in code with no README telling the operator to **add** them in Hookdeck when Turn 0 was incomplete (or silently retargeting domain logic to unrelated Turn 0 names).
+- **Topics** in code with no README telling the operator to **add** them in Hookdeck when the onboarding topic list was incomplete (or silently retargeting domain logic to unrelated configured names).
 - Calling Outpost from client components with secrets.
 
 ## Future baselines
 
-Java / .NET “existing app” scenarios can follow the same shape: harness pre-clones a fixed public baseline into the run workspace + Option 3 Turn 1 (user already “in” the app) + Success criteria + `scoreScenarioNN`.
+Java / .NET “existing app” scenarios can follow the same shape: harness pre-clones a fixed public baseline into the run workspace + a natural-language **integration** Turn 1 + Success criteria + `scoreScenarioNN`.
