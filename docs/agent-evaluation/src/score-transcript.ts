@@ -876,6 +876,19 @@ function scoreScenario09(corpus: string, assistant: string): TranscriptScore {
     detail: env ? "API key from environment / settings" : "Expected OUTPOST_API_KEY from env",
   });
 
+  const clientKeyLeak =
+    /NEXT_PUBLIC_OUTPOST_API_KEY\s*[=:]/.test(t) ||
+    /VITE_OUTPOST_API_KEY\s*[=:]/.test(t) ||
+    /process\.env\.NEXT_PUBLIC_OUTPOST_API_KEY\b/.test(t) ||
+    /import\.meta\.env\.(?:VITE_OUTPOST_API_KEY|NEXT_PUBLIC_OUTPOST_API_KEY)\b/.test(t);
+  checks.push({
+    id: "no_client_bundled_outpost_key",
+    pass: !clientKeyLeak,
+    detail: clientKeyLeak
+      ? "Corpus suggests Outpost API key wired into client-visible env — keep server-side only"
+      : "No client env assignment/access for OUTPOST_API_KEY (NEXT_PUBLIC_/VITE_) in corpus",
+  });
+
   const beyondTest = corpusSuggestsPublishBeyondTestOnly(t);
   checks.push({
     id: "publish_beyond_test_only",
@@ -883,6 +896,17 @@ function scoreScenario09(corpus: string, assistant: string): TranscriptScore {
     detail: beyondTest
       ? "Publish appears beyond a synthetic test-only path (or multiple publish sites)"
       : "Expected domain publish (not only publish-test / send test) — see scenario Success criteria",
+  });
+
+  const readmeOrEnvDocs =
+    /OUTPOST_API_KEY/.test(t) &&
+    /README|development\.md|\.env\.example|backend\/readme/i.test(t);
+  checks.push({
+    id: "readme_or_env_docs",
+    pass: readmeOrEnvDocs,
+    detail: readmeOrEnvDocs
+      ? "README / development.md / .env.example (or similar) touches OUTPOST_API_KEY"
+      : "Expected operator docs listing OUTPOST env vars (see scenario Success criteria)",
   });
 
   checks.push({
