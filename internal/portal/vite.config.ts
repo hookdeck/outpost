@@ -15,7 +15,6 @@ export default defineConfig(({ mode }) => {
         telemetry: false,
         bundleSizeOptimizations: {
           excludeTracing: true,
-          excludePerformanceMonitoring: true,
           excludeReplayCanvas: true,
           excludeReplayShadowDom: true,
           excludeReplayIframe: true,
