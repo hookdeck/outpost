@@ -36,7 +36,7 @@ npm run score -- --run results/runs/<stamp>-scenario-NN --write
 npm run score -- --run results/runs/<stamp>-scenario-NN --llm --write
 ```
 
-**Execution** (curl/SDK against live Outpost with `OUTPOST_API_KEY`) is **not** produced by these JSON files. Treat the **Execution (full pass)** rows in `[../scenarios/](../scenarios/)` as a separate human or CI step unless you add a verifier script.
+**Execution** (curl/SDK against live Outpost with `OUTPOST_API_KEY`) is **not** recorded in these JSON files. Use **`../scripts/execute-ci-artifacts.sh`** after **`eval:ci`**, or the second step in **`.github/workflows/docs-agent-eval-ci.yml`**, and the **Execution (full pass)** rows in `[../scenarios/](../scenarios/)` for human notes.
 
 ---
 

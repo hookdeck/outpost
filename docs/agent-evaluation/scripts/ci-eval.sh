@@ -5,6 +5,7 @@
 # Optional: same vars in docs/agent-evaluation/.env for local runs.
 #
 # Scenarios: 01 = curl quickstart shape; 02 = TypeScript SDK script. See README § CI.
+# After success, run ./scripts/execute-ci-artifacts.sh with OUTPOST_API_KEY + OUTPOST_TEST_WEBHOOK_URL for live Outpost (CI does this automatically).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"

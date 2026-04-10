@@ -1,0 +1,77 @@
+# Runs scenarios 01+02 (curl + TypeScript SDK) with heuristic + LLM judge.
+# Sets EVAL_LOCAL_DOCS=1 so the agent reads repo docs under docs/ (not production WebFetch).
+# Triggers when local docs / OpenAPI / eval harness / TypeScript SDK change; ignores human-only files under results/ and tracker/README/AGENTS.
+# Each run bills Anthropic (agent + judge).
+# Requires repo secrets: ANTHROPIC_API_KEY, EVAL_TEST_DESTINATION_URL, OUTPOST_API_KEY
+# (OUTPOST_TEST_WEBHOOK_URL uses the same URL as EVAL_TEST_DESTINATION_URL in CI.)
+# See docs/agent-evaluation/README.md § CI (recommended slice).
+name: Docs agent eval (CI slice)
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "docs/content/**"
+      - "docs/apis/**"
+      - "docs/agent-evaluation/**"
+      - "docs/README.md"
+      - "docs/AGENTS.md"
+      - "sdks/outpost-typescript/**"
+      - ".github/workflows/docs-agent-eval-ci.yml"
+    paths-ignore:
+      - "docs/agent-evaluation/results/**"
+      - "docs/agent-evaluation/SCENARIO-RUN-TRACKER.md"
+      - "docs/agent-evaluation/README.md"
+      - "docs/agent-evaluation/AGENTS.md"
+  pull_request:
+    paths:
+      - "docs/content/**"
+      - "docs/apis/**"
+      - "docs/agent-evaluation/**"
+      - "docs/README.md"
+      - "docs/AGENTS.md"
+      - "sdks/outpost-typescript/**"
+      - ".github/workflows/docs-agent-eval-ci.yml"
+    paths-ignore:
+      - "docs/agent-evaluation/results/**"
+      - "docs/agent-evaluation/SCENARIO-RUN-TRACKER.md"
+      - "docs/agent-evaluation/README.md"
+      - "docs/agent-evaluation/AGENTS.md"
+
+jobs:
+  eval-ci:
+    # Fork PRs cannot use repository secrets; skip instead of failing a required-looking job.
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: docs/agent-evaluation
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: docs/agent-evaluation/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run eval CI slice (scenarios 01, 02)
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          EVAL_TEST_DESTINATION_URL: ${{ secrets.EVAL_TEST_DESTINATION_URL }}
+          EVAL_LOCAL_DOCS: "1"
+        run: ./scripts/ci-eval.sh
+
+      - name: Execute generated curl + TypeScript artifacts (live Outpost)
+        env:
+          OUTPOST_API_KEY: ${{ secrets.OUTPOST_API_KEY }}
+          OUTPOST_TEST_WEBHOOK_URL: ${{ secrets.EVAL_TEST_DESTINATION_URL }}
+        run: ./scripts/execute-ci-artifacts.sh

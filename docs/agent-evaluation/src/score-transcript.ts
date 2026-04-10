@@ -24,7 +24,7 @@ export interface ScoreReport {
   readonly scenarioId: string;
   readonly scenarioFile: string;
   readonly transcript: TranscriptScore;
-  /** Automated harness does not run Outpost; execution stays manual or a future verifier. */
+  /** Automated harness does not run Outpost; use `scripts/execute-ci-artifacts.sh` or CI for live 01/02 smoke. */
   readonly execution: { readonly status: "not_automated"; readonly note: string };
   /** null when no automated transcript rubric exists for this scenario yet */
   readonly overallTranscriptPass: boolean | null;

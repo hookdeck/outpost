@@ -81,16 +81,17 @@ For **pull-request or main-branch** automation, run **two** scenarios only:
 ```sh
 cd docs/agent-evaluation && npm ci && npm run eval:ci
 # or: ./scripts/ci-eval.sh   # requires ANTHROPIC_API_KEY + EVAL_TEST_DESTINATION_URL in the environment
+# after a successful eval:ci, live Outpost smoke: OUTPOST_API_KEY + OUTPOST_TEST_WEBHOOK_URL ./scripts/execute-ci-artifacts.sh
 ```
 
 `eval:ci` is **`npm run eval -- --scenarios 01,02`**: both **heuristic** checks and the **LLM judge** (grounded in each scenario’s **`## Success criteria`**). Skipping the judge would leave you with regex-only signal, which does not encode the product checklist.
 
-**GitHub Actions:** add repository secrets **`ANTHROPIC_API_KEY`** and **`EVAL_TEST_DESTINATION_URL`**, run from `docs/agent-evaluation` with a normal runner (Claude Agent SDK needs session filesystem access — avoid tight sandboxes; see **Permissions / failures** above). **`OUTPOST_API_KEY`** is still not required for transcript-only CI.
+**GitHub Actions:** add repository secrets **`ANTHROPIC_API_KEY`**, **`EVAL_TEST_DESTINATION_URL`**, and **`OUTPOST_API_KEY`**. Workflow **`.github/workflows/docs-agent-eval-ci.yml`** runs **`./scripts/ci-eval.sh`** with **`EVAL_LOCAL_DOCS=1`** (agent **reads docs from the repo**), then **`./scripts/execute-ci-artifacts.sh`**: picks the **newest** **`*-scenario-01`** / **`*-scenario-02`** pair from **`results/runs/`**, runs the generated **`.sh`** then **`npx tsx`** on the TypeScript artifact (**`npm install`** in the **02** run dir when **`package.json`** exists). **`OUTPOST_TEST_WEBHOOK_URL`** in CI is set from the same secret as **`EVAL_TEST_DESTINATION_URL`**. Triggers on pushes to **`main`** and on **pull requests** when **`docs/content/**`**, **`docs/apis/**`**, **`sdks/outpost-typescript/**`**, root **`docs/README.md`** / **`docs/AGENTS.md`**, or **`docs/agent-evaluation/**`** change, except **`paths-ignore`**: **`results/**`**, **`SCENARIO-RUN-TRACKER.md`**, **`README.md`**, and **`AGENTS.md`** under **`docs/agent-evaluation/`**. Uses **`ubuntu-latest`** (Claude Agent SDK needs normal filesystem access — avoid tight sandboxes; see **Permissions / failures** above). **Fork PRs** skip this job (secrets are not available).
 
 - **`ANTHROPIC_API_KEY`** — required for the agent and for the **LLM judge** (Success criteria) after each scenario you run.
-- **`EVAL_TEST_DESTINATION_URL`** — required for Turn 0; same Source URL as `{{TEST_DESTINATION_URL}}`.
-- **`OUTPOST_API_KEY`** — **not** read by the automated runner, but **required if you want a full evaluation**: without it you can only judge the transcript (plausible curl/SDK text). To verify that **generated commands or code actually work**, put the same Outpost API key you use against the managed API in **`docs/agent-evaluation/.env`** (or export it) and run the agent’s output against a real project. The onboarding prompt tells operators to keep that key in **`.env`** and never paste it into chat.
-- **`EVAL_LOCAL_DOCS=1`** — before public docs are live, set this so Turn 0 replaces public doc URLs with **absolute paths to MDX/OpenAPI files in this repo** (so the agent should use **Read** on local files instead of WebFetch to production).
+- **`EVAL_TEST_DESTINATION_URL`** — required for Turn 0; same Source URL as `{{TEST_DESTINATION_URL}}` (and, in CI, reused as **`OUTPOST_TEST_WEBHOOK_URL`** for execution).
+- **`OUTPOST_API_KEY`** — required for **`execute-ci-artifacts.sh`** and for **GitHub Actions** execution after **`eval:ci`**. For **local** transcript-only runs you can omit it. Put the key in **`docs/agent-evaluation/.env`** (or export); never paste it into chat.
+- **`EVAL_LOCAL_DOCS=1`** — Turn 0 replaces public doc URLs with **absolute paths to MDX/OpenAPI files in this repo** (agent uses **Read** on **`docs/`** instead of **WebFetch** to production). Use locally when validating unpublished docs; **GitHub Actions** sets this for **`docs-agent-eval-ci.yml`**.
 - **`EVAL_SKIP_HARNESS_PRE_STEPS=1`** — skip **`git_clone`** (and any future **`preSteps`**) declared in a scenario’s **`## Eval harness`** JSON block; useful offline or when the baseline folder is already present.
 
 - **Turn 0** text is built from [`hookdeck-outpost-agent-prompt.mdoc`](../content/quickstarts/hookdeck-outpost-agent-prompt.mdoc) (`## Template`) with placeholders filled from environment variables.
@@ -117,7 +118,7 @@ Changing **`EVAL_PERMISSION_MODE`** is usually unnecessary; widening **`EVAL_TOO
 
 ### Transcript vs execution (full pass)
 
-`npm run eval` only captures **what the model produced**; it does **not** call Outpost. Treat that as **transcript review**.
+`npm run eval` only captures **what the model produced**; by itself it does **not** call Outpost (transcript review). **`./scripts/execute-ci-artifacts.sh`** (and the **GitHub Actions** workflow’s second step) runs the **01** shell + **02** TypeScript outputs against **live** Outpost when **`OUTPOST_API_KEY`** and **`OUTPOST_TEST_WEBHOOK_URL`** are set.
 
 A **full pass** also answers: *did the generated curl / script / app succeed against a live Outpost project?* Each scenario’s **Success criteria** ends with **Execution** checkboxes for that step. To run them:
 
