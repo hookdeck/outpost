@@ -24,6 +24,8 @@ class Publish(BaseSDK):
 
         Publishes an event to the specified topic, potentially routed to a specific destination. Requires Admin API Key.
 
+        If set, this operation will use `api_key` from the global security.
+
         :param request: The request object to send.
         :param retries: Override the default retry configuration for this method
         :param server_url: Override the default server URL for this method
@@ -61,6 +63,7 @@ class Publish(BaseSDK):
                 request, False, False, "json", models.PublishRequest
             ),
             allow_empty_value=None,
+            allowed_fields=["api_key"],
             timeout_ms=timeout_ms,
         )
 
@@ -182,6 +185,8 @@ class Publish(BaseSDK):
 
         Publishes an event to the specified topic, potentially routed to a specific destination. Requires Admin API Key.
 
+        If set, this operation will use `api_key` from the global security.
+
         :param request: The request object to send.
         :param retries: Override the default retry configuration for this method
         :param server_url: Override the default server URL for this method
@@ -219,6 +224,7 @@ class Publish(BaseSDK):
                 request, False, False, "json", models.PublishRequest
             ),
             allow_empty_value=None,
+            allowed_fields=["api_key"],
             timeout_ms=timeout_ms,
         )
 

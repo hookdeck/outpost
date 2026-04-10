@@ -35,6 +35,8 @@ class Tenants(BaseSDK):
         When authenticated with a Tenant JWT, returns only the authenticated tenant. Pagination is not used in this case.
 
 
+        If set, this operation will use `api_key` from the global security.
+
         :param request: The request object to send.
         :param retries: Override the default retry configuration for this method
         :param server_url: Override the default server URL for this method
@@ -69,6 +71,7 @@ class Tenants(BaseSDK):
             http_headers=http_headers,
             security=self.sdk_configuration.security,
             allow_empty_value=None,
+            allowed_fields=["api_key"],
             timeout_ms=timeout_ms,
         )
 
@@ -119,6 +122,9 @@ class Tenants(BaseSDK):
                     prev_cursor=request.prev_cursor,
                 ),
                 retries=retries,
+                server_url=server_url,
+                timeout_ms=timeout_ms,
+                http_headers=http_headers,
             )
 
         response_data: Any = None
@@ -175,6 +181,8 @@ class Tenants(BaseSDK):
         When authenticated with a Tenant JWT, returns only the authenticated tenant. Pagination is not used in this case.
 
 
+        If set, this operation will use `api_key` from the global security.
+
         :param request: The request object to send.
         :param retries: Override the default retry configuration for this method
         :param server_url: Override the default server URL for this method
@@ -209,6 +217,7 @@ class Tenants(BaseSDK):
             http_headers=http_headers,
             security=self.sdk_configuration.security,
             allow_empty_value=None,
+            allowed_fields=["api_key"],
             timeout_ms=timeout_ms,
         )
 
@@ -259,6 +268,9 @@ class Tenants(BaseSDK):
                     prev_cursor=request.prev_cursor,
                 ),
                 retries=retries,
+                server_url=server_url,
+                timeout_ms=timeout_ms,
+                http_headers=http_headers,
             )
 
         response_data: Any = None
@@ -910,6 +922,8 @@ class Tenants(BaseSDK):
 
         Returns a redirect URL containing a JWT to authenticate the user with the portal. Requires Admin API Key.
 
+        If set, this operation will use `api_key` from the global security.
+
         :param tenant_id: The ID of the tenant. Required when using AdminApiKey authentication.
         :param theme: Optional theme preference for the portal.
         :param retries: Override the default retry configuration for this method
@@ -946,6 +960,7 @@ class Tenants(BaseSDK):
             http_headers=http_headers,
             security=self.sdk_configuration.security,
             allow_empty_value=None,
+            allowed_fields=["api_key"],
             timeout_ms=timeout_ms,
         )
 
@@ -1009,6 +1024,8 @@ class Tenants(BaseSDK):
 
         Returns a redirect URL containing a JWT to authenticate the user with the portal. Requires Admin API Key.
 
+        If set, this operation will use `api_key` from the global security.
+
         :param tenant_id: The ID of the tenant. Required when using AdminApiKey authentication.
         :param theme: Optional theme preference for the portal.
         :param retries: Override the default retry configuration for this method
@@ -1045,6 +1062,7 @@ class Tenants(BaseSDK):
             http_headers=http_headers,
             security=self.sdk_configuration.security,
             allow_empty_value=None,
+            allowed_fields=["api_key"],
             timeout_ms=timeout_ms,
         )
 
@@ -1107,6 +1125,8 @@ class Tenants(BaseSDK):
 
         Returns a JWT token scoped to the tenant for safe browser API calls. Requires Admin API Key.
 
+        If set, this operation will use `api_key` from the global security.
+
         :param tenant_id: The ID of the tenant. Required when using AdminApiKey authentication.
         :param retries: Override the default retry configuration for this method
         :param server_url: Override the default server URL for this method
@@ -1141,6 +1161,7 @@ class Tenants(BaseSDK):
             http_headers=http_headers,
             security=self.sdk_configuration.security,
             allow_empty_value=None,
+            allowed_fields=["api_key"],
             timeout_ms=timeout_ms,
         )
 
@@ -1203,6 +1224,8 @@ class Tenants(BaseSDK):
 
         Returns a JWT token scoped to the tenant for safe browser API calls. Requires Admin API Key.
 
+        If set, this operation will use `api_key` from the global security.
+
         :param tenant_id: The ID of the tenant. Required when using AdminApiKey authentication.
         :param retries: Override the default retry configuration for this method
         :param server_url: Override the default server URL for this method
@@ -1237,6 +1260,7 @@ class Tenants(BaseSDK):
             http_headers=http_headers,
             security=self.sdk_configuration.security,
             allow_empty_value=None,
+            allowed_fields=["api_key"],
             timeout_ms=timeout_ms,
         )
 
