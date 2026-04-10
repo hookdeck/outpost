@@ -58,7 +58,7 @@ export default function ConfigStep() {
   const createDestination = (formValues: Record<string, any>) => {
     // Merge search params as fallback for values lost from context (e.g. page refresh)
     const topicsFromUrl = searchParams.get("topics");
-    const values = {
+    const values: Record<string, any> = {
       ...(topicsFromUrl ? { topics: topicsFromUrl } : {}),
       type,
       ...stepValues,
