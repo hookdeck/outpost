@@ -69,7 +69,8 @@
             "slug": "destinations/azure-service-bus",
             "title": "Azure Service Bus"
           },
-          { "slug": "destinations/rabbitmq", "title": "RabbitMQ" }
+          { "slug": "destinations/rabbitmq", "title": "RabbitMQ" },
+          { "slug": "destinations/kafka", "title": "Apache Kafka" }
         ]
       ]
     },
