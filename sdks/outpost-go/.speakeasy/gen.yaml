@@ -29,7 +29,7 @@ generation:
     generateNewTests: false
     skipResponseBodyAssertions: false
 go:
-  version: 0.8.2
+  version: 0.9.0
   additionalDependencies: {}
   allowUnknownFieldsInWeakUnions: false
   baseErrorName: OutpostError

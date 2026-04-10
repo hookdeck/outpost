@@ -4,11 +4,76 @@ package operations
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/hookdeck/outpost/sdks/outpost-go/internal/utils"
 	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
 	"time"
 )
+
+type DestinationIDType string
+
+const (
+	DestinationIDTypeStr        DestinationIDType = "str"
+	DestinationIDTypeArrayOfStr DestinationIDType = "arrayOfStr"
+)
+
+// DestinationID - Filter events by matched destination ID(s). Returns events that were routed to the specified destination(s). Use bracket notation for multiple values (e.g., `destination_id[0]=d1&destination_id[1]=d2`).
+type DestinationID struct {
+	Str        *string  `queryParam:"inline" union:"member"`
+	ArrayOfStr []string `queryParam:"inline" union:"member"`
+
+	Type DestinationIDType
+}
+
+func CreateDestinationIDStr(str string) DestinationID {
+	typ := DestinationIDTypeStr
+
+	return DestinationID{
+		Str:  &str,
+		Type: typ,
+	}
+}
+
+func CreateDestinationIDArrayOfStr(arrayOfStr []string) DestinationID {
+	typ := DestinationIDTypeArrayOfStr
+
+	return DestinationID{
+		ArrayOfStr: arrayOfStr,
+		Type:       typ,
+	}
+}
+
+func (u *DestinationID) UnmarshalJSON(data []byte) error {
+
+	var str string = ""
+	if err := utils.UnmarshalJSON(data, &str, "", true, nil); err == nil {
+		u.Str = &str
+		u.Type = DestinationIDTypeStr
+		return nil
+	}
+
+	var arrayOfStr []string = []string{}
+	if err := utils.UnmarshalJSON(data, &arrayOfStr, "", true, nil); err == nil {
+		u.ArrayOfStr = arrayOfStr
+		u.Type = DestinationIDTypeArrayOfStr
+		return nil
+	}
+
+	return fmt.Errorf("could not unmarshal `%s` into any supported union types for DestinationID", string(data))
+}
+
+func (u DestinationID) MarshalJSON() ([]byte, error) {
+	if u.Str != nil {
+		return utils.MarshalJSON(u.Str, "", true)
+	}
+
+	if u.ArrayOfStr != nil {
+		return utils.MarshalJSON(u.ArrayOfStr, "", true)
+	}
+
+	return nil, errors.New("could not marshal union type DestinationID: all fields are null")
+}
 
 // ListEventsOrderBy - Field to sort by.
 type ListEventsOrderBy string
@@ -69,6 +134,8 @@ type ListEventsRequest struct {
 	// If not provided with API key auth, returns events from all tenants.
 	//
 	TenantID []string `queryParam:"style=form,explode=true,name=tenant_id"`
+	// Filter events by matched destination ID(s). Returns events that were routed to the specified destination(s). Use bracket notation for multiple values (e.g., `destination_id[0]=d1&destination_id[1]=d2`).
+	DestinationID *DestinationID `queryParam:"style=form,explode=true,name=destination_id"`
 	// Filter events by topic(s). Use bracket notation for multiple values (e.g., `topic[0]=user.created&topic[1]=user.updated`).
 	Topic []string `queryParam:"style=form,explode=true,name=topic"`
 	// Filter events with time >= value (RFC3339 or YYYY-MM-DD format).
@@ -114,6 +181,13 @@ func (l *ListEventsRequest) GetTenantID() []string {
 		return nil
 	}
 	return l.TenantID
+}
+
+func (l *ListEventsRequest) GetDestinationID() *DestinationID {
+	if l == nil {
+		return nil
+	}
+	return l.DestinationID
 }
 
 func (l *ListEventsRequest) GetTopic() []string {

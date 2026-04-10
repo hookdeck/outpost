@@ -20,6 +20,7 @@ const (
 	TypeAzureServicebus Type = "azure_servicebus"
 	TypeAwsS3           Type = "aws_s3"
 	TypeGcpPubsub       Type = "gcp_pubsub"
+	TypeKafka           Type = "kafka"
 )
 
 func (e Type) ToPointer() *Type {
@@ -46,6 +47,8 @@ func (e *Type) UnmarshalJSON(data []byte) error {
 	case "aws_s3":
 		fallthrough
 	case "gcp_pubsub":
+		fallthrough
+	case "kafka":
 		*e = Type(v)
 		return nil
 	default:

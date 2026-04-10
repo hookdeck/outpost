@@ -10,9 +10,10 @@ import (
 type Event struct {
 	ID *string `json:"id,omitempty"`
 	// The tenant this event belongs to.
-	TenantID      *string `json:"tenant_id,omitempty"`
-	DestinationID *string `json:"destination_id,omitempty"`
-	Topic         *string `json:"topic,omitempty"`
+	TenantID *string `json:"tenant_id,omitempty"`
+	// The destination IDs that this event was routed to based on topic and filter matching.
+	MatchedDestinationIds []string `json:"matched_destination_ids,omitempty"`
+	Topic                 *string  `json:"topic,omitempty"`
 	// Time the event was received/processed.
 	Time *time.Time `json:"time,omitempty"`
 	// Key-value string pairs of metadata associated with the event.
@@ -46,11 +47,11 @@ func (e *Event) GetTenantID() *string {
 	return e.TenantID
 }
 
-func (e *Event) GetDestinationID() *string {
+func (e *Event) GetMatchedDestinationIds() []string {
 	if e == nil {
 		return nil
 	}
-	return e.DestinationID
+	return e.MatchedDestinationIds
 }
 
 func (e *Event) GetTopic() *string {

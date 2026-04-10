@@ -34,6 +34,8 @@ func newPublish(rootSDK *Outpost, sdkConfig config.SDKConfiguration, hooks *hook
 
 // Publish Event
 // Publishes an event to the specified topic, potentially routed to a specific destination. Requires Admin API Key.
+//
+// If set, this operation will use [Security.APIKey] from the global security.
 func (s *Publish) Event(ctx context.Context, request components.PublishRequest, opts ...operations.Option) (*operations.PublishEventResponse, error) {
 	o := operations.Options{}
 	supportedOptions := []string{
@@ -93,7 +95,7 @@ func (s *Publish) Event(ctx context.Context, request components.PublishRequest, 
 		req.Header.Set("Content-Type", reqContentType)
 	}
 
-	if err := utils.PopulateSecurity(ctx, req, s.sdkConfiguration.Security); err != nil {
+	if err := utils.PopulateSecurity(ctx, req, s.sdkConfiguration.Security, "APIKey"); err != nil {
 		return nil, err
 	}
 

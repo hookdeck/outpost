@@ -1,29 +1,29 @@
 lockVersion: 2.0.0
 id: f0627709-5a00-43ac-8678-ca716d6f379c
 management:
-  docChecksum: 303920ca886857183138e55fb698076e
+  docChecksum: 6ae972492ba21a54c9da13cf10d2a53f
   docVersion: 0.0.1
-  speakeasyVersion: 1.759.1
-  generationVersion: 2.869.10
-  releaseVersion: 0.8.2
-  configChecksum: db7c4733c735e162777795a1362696b6
+  speakeasyVersion: 1.761.3
+  generationVersion: 2.879.11
+  releaseVersion: 0.9.0
+  configChecksum: f5d9babac361e3f98ca228d185d33d4c
   repoURL: https://github.com/hookdeck/outpost.git
   repoSubDirectory: sdks/outpost-go
   installationURL: https://github.com/hookdeck/outpost
 persistentEdits:
-  generation_id: fbfea985-c960-40e1-8de6-130648f793d0
-  pristine_commit_hash: 4ef7c636d656405f7f2e360d5d700de112785625
-  pristine_tree_hash: 7e285f492eb44389c6c1662dd3a28f6846af16c5
+  generation_id: 83ffd4d7-f97b-4955-b8d3-27e0f0b10b54
+  pristine_commit_hash: 05d29d57abbc326665965c7191b71c040737bfc2
+  pristine_tree_hash: 773b97f96dfe6dec403bc8eff5cd087c6c70ef85
 features:
   go:
     additionalDependencies: 0.1.0
     additionalProperties: 0.1.2
     constsAndDefaults: 0.1.14
-    core: 3.13.36
+    core: 3.13.40
     defaultEnabledRetries: 0.2.0
     envVarSecurityUsage: 0.3.2
     flattening: 2.81.2
-    globalSecurity: 2.82.13
+    globalSecurity: 2.82.15
     globalSecurityCallbacks: 0.1.0
     globalSecurityFlattening: 0.1.0
     globalServerURLs: 2.83.1
@@ -46,8 +46,8 @@ trackedFiles:
     pristine_git_object: 302b1c4952b4902140fcd2a6b900b887733b3255
   attempts.go:
     id: f21bf72dadf3
-    last_write_checksum: sha1:76951b5b57e890a1bd1540ecfbed4028850917b6
-    pristine_git_object: 82dbebf6b2ab9468d6e4f7c30c896bb3b3b2c949
+    last_write_checksum: sha1:b443ee2e48f8d8d638d76a51037b5ca639f35dbf
+    pristine_git_object: c26d0cba19981262a33affd97bd9c9d87eff64c2
   destinations.go:
     id: c850727f8555
     last_write_checksum: sha1:e9dc75a06c150e1ea29a7135fb98f9a178396c5c
@@ -258,12 +258,12 @@ trackedFiles:
     pristine_git_object: 1a5def774b0efc716abde6898019259201fda495
   docs/models/components/destinationschemafield.md:
     id: 4d759c96e266
-    last_write_checksum: sha1:d37c49fe6aa2ce205a7d06c0c0ac5cf7ddd2d1a5
-    pristine_git_object: eecb304b06eeefe79bfe49006cfc8c9585968e11
+    last_write_checksum: sha1:41f327781181887d2ee90b4e74ae83becd625025
+    pristine_git_object: da80c2124edba417e4d3fad29327c7e2f3d5303b
   docs/models/components/destinationschemafieldtype.md:
     id: a3bc014869f3
-    last_write_checksum: sha1:e7c1316e4b238bd6498e3e3d4ce1819174aa67a7
-    pristine_git_object: 41f7938ecf16f05765851213e9e0aa2774341501
+    last_write_checksum: sha1:b4e7712ecf609f045153e21d78826ca9d3c429c8
+    pristine_git_object: 75ff9dbb6d77a99bd46172ed6fd6359cb700b313
   docs/models/components/destinationtype.md:
     id: 72fecd6c9840
     last_write_checksum: sha1:d2ac64219675c514e60bec282d1b86e25232aa50
@@ -322,8 +322,8 @@ trackedFiles:
     pristine_git_object: 6a8ddbb1a4e13ef6f0c0dbce182c961d934b2542
   docs/models/components/event.md:
     id: 0593e0f6a673
-    last_write_checksum: sha1:ddc636c4318578b1d7deb47b44d860fc1fe42122
-    pristine_git_object: 8fa6165345202e089c3ff7078353b39c0fd50961
+    last_write_checksum: sha1:feea68e32dac327182c4c99ffe70a696ba5477d0
+    pristine_git_object: d08750347aa8ccd27ae0b52fe2f1c3e74fb79b44
   docs/models/components/eventfull.md:
     id: 75e5dcb8f7e4
     last_write_checksum: sha1:2b20ca3b36b0e0d93f2074fec8b2323064d14071
@@ -368,6 +368,10 @@ trackedFiles:
     id: c99709afc575
     last_write_checksum: sha1:c9b2a561cfc884d53dbee7208b0aff55bf4c39d0
     pristine_git_object: b9a2167dd564f2febeb6adb4849e35fb3bf06c24
+  docs/models/components/optionobj.md:
+    id: 070855c0a62c
+    last_write_checksum: sha1:15279bf237e56409df11a018dd5b80eeac2a23b3
+    pristine_git_object: b7286d55f6e64762aa248ef4542ac5efb19f8961
   docs/models/components/portalredirect.md:
     id: bd1e51e1707f
     last_write_checksum: sha1:f14dc9ef3182ec15849c2d2a56cc2db18fe1b8b4
@@ -472,6 +476,10 @@ trackedFiles:
     id: 53843bce2519
     last_write_checksum: sha1:a828d2a069753790c3fae3c31bedec6b93b1cac3
     pristine_git_object: 529cf112c7c2366ca3974ba45ca4e1aa5899e84a
+  docs/models/operations/destinationid.md:
+    id: e575ae5f085b
+    last_write_checksum: sha1:713cb19943eb26a7d521b7016cc3156242c4a545
+    pristine_git_object: 3f17d1affecb7560587716d08995cb01456cbb28
   docs/models/operations/disabletenantdestinationrequest.md:
     id: f1eba2d52881
     last_write_checksum: sha1:95b8f05fa94d4159ffc130d12ef2e6a22b217612
@@ -714,8 +722,8 @@ trackedFiles:
     pristine_git_object: ac165202be68b41d5974ac7aeb762471b2a3c56e
   docs/models/operations/listeventsrequest.md:
     id: 4c63e4d672e2
-    last_write_checksum: sha1:53d433bd6870709869c926a935d8148a222c0bec
-    pristine_git_object: 7e7f483ec537b2797a7b4ce9618dd502d783f94f
+    last_write_checksum: sha1:be44dc75f0489e7ced07e12ae0ef7c8790ead308
+    pristine_git_object: 55c97e4345bd7373d365ee8ac8f797f3e2470ac0
   docs/models/operations/listeventsresponse.md:
     id: 4ce22aaeca78
     last_write_checksum: sha1:8cd1b9a25a99f4258daaa1ccae7513d50d19815c
@@ -782,8 +790,8 @@ trackedFiles:
     pristine_git_object: 1361c526e983a532195e03f17cb4dccbac85257e
   docs/models/operations/type.md:
     id: 8e39682ca85e
-    last_write_checksum: sha1:8d02dcbb0580a39215de6e547ebc3408b3737155
-    pristine_git_object: 45e1e19f9c8286e2f36e9faa0cce668c3b53c58d
+    last_write_checksum: sha1:9cd9f2a4ab61c384a179ca32ddd56efe76fc2728
+    pristine_git_object: 9bb27b28ae7271ea0c01a2ed7a4d8a4fed983dca
   docs/models/operations/updatetenantdestinationrequest.md:
     id: 3806f88d7729
     last_write_checksum: sha1:92ee8f37403f6d57e380b89b07c5b608df3d7d39
@@ -846,8 +854,8 @@ trackedFiles:
     pristine_git_object: 06521340cdc87ea87950c1496d48056b6e723b51
   events.go:
     id: fe26b3f87ab7
-    last_write_checksum: sha1:56dbf3741be413d85a5c6fb028ec14f736b86673
-    pristine_git_object: ca3cf23dd94143c74ad38b4bccd575e11ac3e3c1
+    last_write_checksum: sha1:05e6f94f244693a1c078913f096dc0a2e1fa555a
+    pristine_git_object: 6ac5cf45eadcd72d0409e44430c637ef4d3353d4
   go.mod:
     id: c47645c391ad
     last_write_checksum: sha1:23351a3e9a83d12c4bfe2ddd96c828b326a00a2a
@@ -882,8 +890,8 @@ trackedFiles:
     pristine_git_object: d44fa066f74f2b6b1fbc13bb4c79a2b6b09ac174
   internal/utils/json.go:
     id: ad03e3c502d8
-    last_write_checksum: sha1:b004e1621a75ea29c25ea96665aa2da38a816a49
-    pristine_git_object: 2f3958f68254bc553e0a19baf48b13e47081a3cd
+    last_write_checksum: sha1:804b1db787f8914af263b5c09ea014d4ebc7d06b
+    pristine_git_object: 187b094dcafbe024fb9d8f17b1b4aca68340d5f7
   internal/utils/pathparams.go:
     id: 1f3e0c30fd90
     last_write_checksum: sha1:6f59c72b7d953a2507689b4beb0e4a83d1f6458d
@@ -902,8 +910,8 @@ trackedFiles:
     pristine_git_object: 24278f26419416ef87cc6dc53a025b3be2af43cd
   internal/utils/security.go:
     id: eeb54c55241b
-    last_write_checksum: sha1:573140faaff017cb3bd31e579c6b3949f3d8365b
-    pristine_git_object: 77566aa2c1127569d9de4a1782b58f852d926d0a
+    last_write_checksum: sha1:49fee4e9252239953611e6de36f4682851499ab5
+    pristine_git_object: a2332ee8de013a2121880e4b7be332d3385c6f41
   internal/utils/union.go:
     id: db86c85746b6
     last_write_checksum: sha1:08ba9097091619af0438094533f06c5693f9aeaa
@@ -1066,8 +1074,8 @@ trackedFiles:
     pristine_git_object: 500eadda28a3d255cf02b5bc5fdb9b9000d7dce2
   models/components/destinationschemafield.go:
     id: 54ed09758e6d
-    last_write_checksum: sha1:ecdfc20e9c45982885455f72b826ab99b5d837e1
-    pristine_git_object: 7512b27eef2132204978a222c3485d9c2ce0b5cc
+    last_write_checksum: sha1:4caa5faa2b61082b2f72e8601bf3a4ac332e1884
+    pristine_git_object: 7781d76c1fd4abc5e9e6420d40eb8f6df57aa012
   models/components/destinationtype.go:
     id: fc3677283784
     last_write_checksum: sha1:08c04642323577efc63daf63451fc3642f6758a6
@@ -1118,8 +1126,8 @@ trackedFiles:
     pristine_git_object: c5f5704c75373ca20eb3644d7dd4142069f7c0de
   models/components/event.go:
     id: 3382b9f29930
-    last_write_checksum: sha1:ff5c3780b7e17614eecc25b6a59bbf9ce5469cef
-    pristine_git_object: 8c0b77e890bbb512adf9cc3632448e61749b318b
+    last_write_checksum: sha1:c6c7cf36b7e0536088a7bfe9518b393ae6c426ee
+    pristine_git_object: abc2ad2e896ffb5ae8968431b90eb850f81fe32f
   models/components/eventpaginatedresult.go:
     id: d5bf76e9c0f5
     last_write_checksum: sha1:0aa59e112bc9547471480c6a0fe594042c8717a0
@@ -1250,8 +1258,8 @@ trackedFiles:
     pristine_git_object: 4b4f7ed553b19e9ba37ae6bc4df8aa0f231ad2ad
   models/operations/getdestinationtypeschema.go:
     id: 469bb274efa3
-    last_write_checksum: sha1:4432b390507c74248fbd263cfebc10e51297b05e
-    pristine_git_object: fbe4ce01191594c2edc6c28191711a8deca473e5
+    last_write_checksum: sha1:96aae2a5d2c9603791e9786dafbb3a668e52ace2
+    pristine_git_object: de4e403b0595f2c72eea62b5a34e14a3b95c35e1
   models/operations/getevent.go:
     id: c0f52659220b
     last_write_checksum: sha1:af461521a094389ef681c192b8e7c74f472aece7
@@ -1294,8 +1302,8 @@ trackedFiles:
     pristine_git_object: defe9931af9a8695ac03a6110614eeb7f8c954b7
   models/operations/listevents.go:
     id: 798ff0fb0954
-    last_write_checksum: sha1:a19a39e8f56cbd393b25389101231eff09f6412e
-    pristine_git_object: bc2dcf28c93ddab219eecad93c918e3aa37fc07b
+    last_write_checksum: sha1:3de5da781260fa5ec1854e431e8d3eb245a2b0dc
+    pristine_git_object: 19999e461a2e46d2840daeac887d8a963239cb2a
   models/operations/listtenantdestinationattempts.go:
     id: d8e07f679505
     last_write_checksum: sha1:88cfb02129699c4daa4fdd32fe9765fa4891606b
@@ -1342,12 +1350,12 @@ trackedFiles:
     pristine_git_object: e6e5a01c6e721e879e24a38a1f97e3e27d4686d4
   outpost.go:
     id: 7aebc57e3f81
-    last_write_checksum: sha1:f8e3ae12507986b95358c5b816c1bf5d609c4146
-    pristine_git_object: ba6c4ec49bbfabe9886cc43db843b614df2367ba
+    last_write_checksum: sha1:d1c4a971d2eb01ace3f23e46363c45d7cb7ccb27
+    pristine_git_object: 09c83d6762335fdbfde7e10906b4113c53a6ec8f
   publish.go:
     id: b4cd78c909e0
-    last_write_checksum: sha1:2591f3410b71150c66f40f3c9448e35594e4b6ab
-    pristine_git_object: 174d8803f296716b4510a243b6715c14b1b37460
+    last_write_checksum: sha1:a09d05fb809fc6852181f914c292e3270c107316
+    pristine_git_object: d5fae4b91ffddb9360586d5013745d131dbe84ff
   retry/config.go:
     id: 82d673cb0389
     last_write_checksum: sha1:7f7d96b59a18e95bac847ae09c63bbd911ee8432
@@ -1358,8 +1366,8 @@ trackedFiles:
     pristine_git_object: c3c2c311fc6e8d0bc18bfc18b2604e4f4b37a7db
   tenants.go:
     id: 391d6dd7cdcc
-    last_write_checksum: sha1:c09389c3f1ae77c42c06590a2994fa1b55ff5869
-    pristine_git_object: cffc168de1653826b3e16aa645194a4d92793578
+    last_write_checksum: sha1:b91d3447327e60a345ff997c53cba648c4d6b462
+    pristine_git_object: fe04818a6c4765767732a85b9853b460abd99119
   topics.go:
     id: 75500a830fc2
     last_write_checksum: sha1:bb9f98c89001c12f1b3659c63b9f7f7b17fa9fcd
@@ -1599,7 +1607,7 @@ examples:
           type: "rabbitmq"
       responses:
         "200":
-          application/json: {"type": "webhook", "label": "Webhook", "description": "Send event via an HTTP POST request to a URL", "icon": "<svg />", "instructions": "Enter the URL...", "config_fields": [{"type": "text", "label": "URL", "description": "The URL to send the webhook to.", "required": true, "pattern": "^https?://.*"}], "credential_fields": [{"type": "text", "label": "Secret", "description": "Optional signing secret.", "required": false, "sensitive": true}]}
+          application/json: {"type": "webhook", "label": "Webhook", "description": "Send event via an HTTP POST request to a URL", "icon": "<svg />", "instructions": "Enter the URL...", "config_fields": [{"key": "url", "type": "text", "label": "URL", "description": "The URL to send the webhook to.", "required": true, "pattern": "^https?://.*"}], "credential_fields": [{"key": "url", "type": "text", "label": "Secret", "description": "Optional signing secret.", "required": false, "sensitive": true}]}
   listTenantTopics:
     TopicsListExample:
       parameters:
@@ -1724,7 +1732,7 @@ examples:
           event_id: "<id>"
       responses:
         "200":
-          application/json: {"id": "evt_123", "topic": "user.created", "time": "2024-01-01T00:00:00Z", "metadata": {"source": "crm"}, "data": {"user_id": "userid", "status": "active"}}
+          application/json: {"id": "evt_123", "matched_destination_ids": ["des_456"], "topic": "user.created", "time": "2024-01-01T00:00:00Z", "metadata": {"source": "crm"}, "data": {"user_id": "userid", "status": "active"}}
   adminListAttempts:
     AdminAttemptsListExample:
       parameters:
@@ -1793,7 +1801,7 @@ examples:
     DestinationTypesExample:
       responses:
         "200":
-          application/json: [{"type": "webhook", "label": "Webhook", "description": "Send event via an HTTP POST request to a URL", "icon": "<svg />", "instructions": "Enter the URL...", "config_fields": [{"type": "text", "label": "URL", "description": "The URL to send the webhook to.", "required": true, "pattern": "^https?://.*"}], "credential_fields": [{"type": "text", "label": "Secret", "description": "Optional signing secret.", "required": false, "sensitive": true}]}, {"type": "aws_sqs", "label": "AWS SQS", "description": "Send event to an AWS SQS queue", "icon": "<svg />", "instructions": "Enter Queue URL...", "config_fields": [{"type": "text", "label": "Queue URL", "description": "The URL of the SQS queue.", "required": true}, {"type": "text", "label": "Endpoint", "description": "Optional custom AWS endpoint URL.", "required": false}], "credential_fields": [{"type": "text", "label": "Key", "description": "AWS Access Key ID.", "required": true, "sensitive": true}, {"type": "text", "label": "Secret", "description": "AWS Secret Access Key.", "required": true, "sensitive": true}, {"type": "text", "label": "Session", "description": "Optional AWS Session Token.", "required": false, "sensitive": true}]}]
+          application/json: [{"type": "webhook", "label": "Webhook", "description": "Send event via an HTTP POST request to a URL", "icon": "<svg />", "instructions": "Enter the URL...", "config_fields": [{"key": "url", "type": "text", "label": "URL", "description": "The URL to send the webhook to.", "required": true, "pattern": "^https?://.*"}], "credential_fields": [{"key": "url", "type": "text", "label": "Secret", "description": "Optional signing secret.", "required": false, "sensitive": true}]}, {"type": "kafka", "label": "Apache Kafka", "description": "Send events to Apache Kafka topics for real-time event streaming", "icon": "<svg />", "config_fields": [{"key": "url", "type": "text", "label": "Brokers", "description": "Comma-separated list of Kafka broker addresses.", "required": true}, {"key": "url", "type": "text", "label": "Topic", "description": "The Kafka topic to publish messages to.", "required": true}, {"key": "url", "type": "checkbox", "label": "TLS", "description": "Enable TLS for the connection.", "required": true, "default": "true"}, {"key": "url", "type": "text", "label": "Partition Key Template", "description": "JMESPath template to extract the partition key from the event payload.", "required": false}, {"key": "url", "type": "select", "label": "SASL Mechanism", "description": "SASL authentication mechanism.", "required": true, "options": [{"label": "PLAIN", "value": "plain"}, {"label": "SCRAM-SHA-256", "value": "scram-sha-256"}, {"label": "SCRAM-SHA-512", "value": "scram-sha-512"}]}], "credential_fields": [{"key": "url", "type": "text", "label": "Username", "description": "SASL username for authentication.", "required": true}, {"key": "url", "type": "text", "label": "Password", "description": "SASL password for authentication.", "required": true, "sensitive": true}]}, {"type": "aws_sqs", "label": "AWS SQS", "description": "Send event to an AWS SQS queue", "icon": "<svg />", "instructions": "Enter Queue URL...", "config_fields": [{"key": "url", "type": "text", "label": "Queue URL", "description": "The URL of the SQS queue.", "required": true}, {"key": "url", "type": "text", "label": "Endpoint", "description": "Optional custom AWS endpoint URL.", "required": false}], "credential_fields": [{"key": "url", "type": "text", "label": "Key", "description": "AWS Access Key ID.", "required": true, "sensitive": true}, {"key": "url", "type": "text", "label": "Secret", "description": "AWS Secret Access Key.", "required": true, "sensitive": true}, {"key": "url", "type": "text", "label": "Session", "description": "Optional AWS Session Token.", "required": false, "sensitive": true}]}]
   listEvents:
     AdminEventsListExample:
       parameters:
@@ -1803,7 +1811,7 @@ examples:
           dir: "desc"
       responses:
         "200":
-          application/json: {"models": [{"id": "evt_123", "topic": "user.created", "time": "2024-01-01T00:00:00Z", "metadata": {"source": "crm"}, "data": {"user_id": "userid", "status": "active"}}, {"id": "evt_789", "topic": "order.shipped", "time": "2024-01-02T10:00:00Z", "metadata": {"source": "oms"}, "data": {"order_id": "orderid", "tracking": "1Z..."}}], "pagination": {"order_by": "time", "dir": "desc", "limit": 100, "next": "MTcwNDA2NzIwMA==", "prev": null}}
+          application/json: {"models": [{"id": "evt_123", "matched_destination_ids": ["des_456"], "topic": "user.created", "time": "2024-01-01T00:00:00Z", "metadata": {"source": "crm"}, "data": {"user_id": "userid", "status": "active"}}, {"id": "evt_789", "matched_destination_ids": ["des_456", "des_789"], "topic": "order.shipped", "time": "2024-01-02T10:00:00Z", "metadata": {"source": "oms"}, "data": {"order_id": "orderid", "tracking": "1Z..."}}], "pagination": {"order_by": "time", "dir": "desc", "limit": 100, "next": "MTcwNDA2NzIwMA==", "prev": null}}
   listAttempts:
     AdminAttemptsListExample:
       parameters:
@@ -1883,14 +1891,7 @@ examples:
           application/json: {"data": [{"time_bucket": "2026-03-02T00:00:00Z", "dimensions": {"destination_id": "dest_abc"}, "metrics": {"count": 1423, "successful_count": 1393, "failed_count": 30, "error_rate": 0.0211}}], "metadata": {"granularity": "1d", "query_time_ms": 38, "row_count": 1, "row_limit": 100000, "truncated": false}}
 examplesVersion: 1.0.2
 generatedTests: {}
-releaseNotes: |
-  ## Go SDK Changes:
-  * `Outpost.Attempts.List()`:  `response.Models[]` **Changed** (Breaking ⚠️)
-  * `Outpost.Attempts.Get()`:  `response` **Changed** (Breaking ⚠️)
-  * `Outpost.Destinations.ListAttempts()`:  `response.Models[]` **Changed** (Breaking ⚠️)
-  * `Outpost.Destinations.GetAttempt()`:  `response` **Changed** (Breaking ⚠️)
-  * `Outpost.Metrics.GetEventMetrics()`: **Added**
-  * `Outpost.Metrics.GetAttemptMetrics()`: **Added**
+releaseNotes: "## Go SDK Changes:\n* `Outpost.Events.List()`: \n  *  `request.Request.DestinationId` **Added**\n  *  `response.Models[]` **Changed** (Breaking ⚠️)\n* `Outpost.Events.Get()`:  `response` **Changed** (Breaking ⚠️)\n* `Outpost.Schemas.ListDestinationTypes()`:  `response.[].ConfigFields[]` **Changed** (Breaking ⚠️)\n* `Outpost.Schemas.GetDestinationType()`: \n  *  `request.Type` **Changed**\n  *  `response.ConfigFields[]` **Changed** (Breaking ⚠️)\n"
 generatedFiles:
   - .gitattributes
   - /models/apierrors/badrequesterror.go
