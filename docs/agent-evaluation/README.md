@@ -22,9 +22,11 @@ Each scenario run uses one directory:
 `results/runs/<ISO-stamp>-scenario-NN/`
 
 - **`transcript.json`** — full SDK log (written only **after** the agent finishes all turns — long runs may show little console output until then)
-- **`eval-run-started.json`** — created as soon as a scenario begins (pid, scenario id); if present **without** `transcript.json`, the run was interrupted, is still going, crashed, or was **SIGKILL**’d (no sidecar for SIGKILL)
-- **`eval-failure.json`** — uncaught exception before a transcript was written
-- **`eval-aborted.json`** — **SIGTERM** or **SIGINT** (e.g. stopping the process) before completion
+- **Harness sidecars (siblings of the run folder, not inside it)** — so the agent sandbox cannot read them:
+  - **`<stamp>-scenario-NN.eval-started.json`** — written when the scenario begins (pid, scenario id, paths)
+  - **`<stamp>-scenario-NN.eval-failure.json`** — uncaught exception before `transcript.json`
+  - **`<stamp>-scenario-NN.eval-aborted.json`** — **SIGTERM** / **SIGINT** before completion (not **SIGKILL**)
+  If **`transcript.json`** is missing, check these files next to **`…/runs/<stamp>-scenario-NN/`** (same directory as the run folder, not inside it).
 - **`heuristic-score.json`** / **`llm-score.json`** — by default (unless disabled above)
 - **Agent-written files** — the SDK **`cwd`** is this directory. Defaults include **`Write`**, **`Edit`**, and **`Bash`** for clones, installs, and generated code.
 
@@ -92,7 +94,12 @@ Two different things get called “permissions”:
 
 2. **Claude Agent SDK `dontAsk` + `allowedTools`** — In `dontAsk` mode, tools **not** listed in `allowedTools` are denied (no prompt). Defaults include **`Write`**, **`Edit`**, and **`Bash`** so app scenarios can scaffold and install dependencies inside the per-run directory. With **`EVAL_LOCAL_DOCS=1`**: **`Read,Glob,Grep,Write,Edit,Bash`**. Otherwise **`Read,Glob,Grep,WebFetch,Write,Edit,Bash`**. Narrow **`EVAL_TOOLS`** only if you need a stricter harness (e.g. transcript-only, no shell).
 
-3. **Run-directory write guard** — a **`PreToolUse`** hook denies **`Write` / `Edit` / `NotebookEdit`** when the target path resolves **outside** the current `results/runs/<stamp>-scenario-NN/` workspace (hooks enforce this under `permissionMode: dontAsk`; `canUseTool` alone does not). Set **`EVAL_DISABLE_WORKSPACE_WRITE_GUARD=1`** only for debugging. **`Bash`** can still redirect output outside the run dir; review transcripts if that matters.
+3. **Run-directory sandbox (`PreToolUse`)** — Under `permissionMode: dontAsk`, hooks enforce boundaries (not `canUseTool` alone):
+   - **Write / Edit / NotebookEdit** — target path must resolve under `results/runs/<stamp>-scenario-NN/`. **`EVAL_DISABLE_WORKSPACE_WRITE_GUARD=1`** disables this only (debug).
+   - **Read / Glob / Grep** — must stay under that same run directory, and (when **`EVAL_LOCAL_DOCS=1`**) under **`docs/`** of the Outpost repo for local MDX/OpenAPI only. **`EVAL_DISABLE_WORKSPACE_READ_GUARD=1`** disables read/glob/grep/bash/agent checks (restores pre–workspace-sandbox behavior).
+   - **Bash** — commands must not reference the Outpost **`repositoryRoot`** on disk unless the reference stays inside the run dir or (with local docs) inside **`docs/`**.
+   - **Agent** (subagent) — **denied by default** so runs cannot spider the monorepo for “free” SDK context. **`EVAL_ALLOW_AGENT_TOOL=1`** to opt in.
+   - Turn 0 also appends a short **workspace boundary** block (absolute run-dir paths) so the model treats only the clone as the product under integration.
 
 Changing **`EVAL_PERMISSION_MODE`** is usually unnecessary; widening **`EVAL_TOOLS`** (or using local docs) fixes most tool denials.
 
