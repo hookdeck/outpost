@@ -46,7 +46,7 @@
             "slug": "features/operator-events",
             "title": "Operator Events & Alerts"
           },
-          { "slug": "features/tenant-portal", "title": "Tenant Portal" },
+          { "slug": "features/tenant-user-portal", "title": "Tenant Portal" },
           { "slug": "features/metrics", "title": "Metrics" },
           { "slug": "features/opentelemetry", "title": "OpenTelemetry" }
         ]
@@ -151,7 +151,7 @@
         ]
       },
       {
-        "label": "Deployment",
+        "label": "Quickstarts",
         "sections": [
           [
             {
@@ -173,25 +173,25 @@
         "label": "Guides",
         "sections": [
           [
-            { "slug": "self-hosting/logging", "title": "Logging" },
+            { "slug": "self-hosting/guides/logging", "title": "Logging" },
             {
-              "slug": "self-hosting/byo-mqs",
+              "slug": "self-hosting/guides/byo-mqs",
               "title": "Bring Your Own Message Queues"
             },
             {
-              "slug": "self-hosting/service-bus-internal-mq",
+              "slug": "self-hosting/guides/service-bus-internal-mq",
               "title": "Azure Service Bus Internal MQ"
             },
             {
-              "slug": "self-hosting/migration",
-              "title": "Schema Migration Guide"
+              "slug": "self-hosting/guides/migration",
+              "title": "Migrations"
             },
             {
-              "slug": "self-hosting/event-delivery-log",
+              "slug": "self-hosting/guides/event-delivery-log",
               "title": "Event & Delivery Log"
             },
             {
-              "slug": "self-hosting/troubleshooting-redis",
+              "slug": "self-hosting/guides/troubleshooting-redis",
               "title": "Redis Troubleshooting"
             }
           ]
@@ -202,15 +202,15 @@
         "sections": [
           [
             {
-              "slug": "self-hosting/upgrade-v0.12",
+              "slug": "self-hosting/changelog/upgrade-v0.12",
               "title": "Upgrade to v0.12"
             },
             {
-              "slug": "self-hosting/upgrade-v0.13",
+              "slug": "self-hosting/changelog/upgrade-v0.13",
               "title": "Upgrade to v0.13"
             },
             {
-              "slug": "self-hosting/upgrade-v0.14",
+              "slug": "self-hosting/changelog/upgrade-v0.14",
               "title": "Upgrade to v0.14"
             }
           ]
