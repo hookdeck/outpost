@@ -7,11 +7,11 @@ The type of the destination.
 ```typescript
 import { GetDestinationTypeSchemaType } from "@hookdeck/outpost-sdk/models/operations";
 
-let value: GetDestinationTypeSchemaType = "azure_servicebus";
+let value: GetDestinationTypeSchemaType = "aws_s3";
 ```
 
 ## Values
 
 ```typescript
-"webhook" | "aws_sqs" | "rabbitmq" | "hookdeck" | "aws_kinesis" | "azure_servicebus" | "aws_s3" | "gcp_pubsub"
+"webhook" | "aws_sqs" | "rabbitmq" | "hookdeck" | "aws_kinesis" | "azure_servicebus" | "aws_s3" | "gcp_pubsub" | "kafka"
 ```

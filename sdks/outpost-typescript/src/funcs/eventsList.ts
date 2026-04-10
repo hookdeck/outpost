@@ -40,6 +40,8 @@ import {
  *
  * When authenticated with a Tenant JWT, returns only events belonging to that tenant.
  * When authenticated with Admin API Key, returns events across all tenants. Use `tenant_id` query parameter to filter by tenant.
+ *
+ * If set, this operation will use {@link Security.apiKey} from the global security.
  */
 export function eventsList(
   client: OutpostCore,
@@ -109,6 +111,7 @@ async function $do(
   const path = pathToFunc("/events")();
 
   const query = encodeFormQuery({
+    "destination_id": payload.destination_id,
     "dir": payload.dir,
     "id": payload.id,
     "limit": payload.limit,
@@ -129,7 +132,7 @@ async function $do(
 
   const secConfig = await extractSecurity(client._options.apiKey);
   const securityInput = secConfig == null ? {} : { apiKey: secConfig };
-  const requestSecurity = resolveGlobalSecurity(securityInput);
+  const requestSecurity = resolveGlobalSecurity(securityInput, [0]);
 
   const context = {
     options: client._options,

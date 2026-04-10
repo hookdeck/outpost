@@ -20,6 +20,7 @@ export const GetDestinationTypeSchemaType = {
   AzureServicebus: "azure_servicebus",
   AwsS3: "aws_s3",
   GcpPubsub: "gcp_pubsub",
+  Kafka: "kafka",
 } as const;
 /**
  * The type of the destination.
