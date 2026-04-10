@@ -15,7 +15,7 @@ const (
 	backoffFactor = 2
 )
 
-// Emitter is the interface for emitting operation events.
+// Emitter is the interface for emitting operator events.
 type Emitter interface {
 	Emit(ctx context.Context, topic string, tenantID string, data any) error
 }
@@ -65,7 +65,7 @@ func (e *emitter) Emit(ctx context.Context, topic string, tenantID string, data 
 		return fmt.Errorf("opevents: failed to marshal data: %w", err)
 	}
 
-	event := &OperationEvent{
+	event := &OperatorEvent{
 		ID:           idgen.String(),
 		Topic:        topic,
 		Time:         time.Now(),
@@ -77,7 +77,7 @@ func (e *emitter) Emit(ctx context.Context, topic string, tenantID string, data 
 	return e.sendWithRetry(ctx, event)
 }
 
-func (e *emitter) sendWithRetry(ctx context.Context, event *OperationEvent) error {
+func (e *emitter) sendWithRetry(ctx context.Context, event *OperatorEvent) error {
 	delay := initialDelay
 	var lastErr error
 
@@ -101,7 +101,7 @@ func (e *emitter) sendWithRetry(ctx context.Context, event *OperationEvent) erro
 	return fmt.Errorf("opevents: send failed after %d attempts: %w", maxRetries, lastErr)
 }
 
-// noopEmitter discards all events. Used when operation events are disabled.
+// noopEmitter discards all events. Used when operator events are disabled.
 type noopEmitter struct{}
 
 func (e *noopEmitter) Emit(ctx context.Context, topic string, tenantID string, data any) error {

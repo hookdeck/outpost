@@ -8,7 +8,7 @@ import (
 	"github.com/hookdeck/outpost/internal/mqs"
 )
 
-// MQSink sends operation events to a message queue via mqs.Queue.
+// MQSink sends operator events to a message queue via mqs.Queue.
 type MQSink struct {
 	queue     mqs.Queue
 	cleanupFn func()
@@ -28,7 +28,7 @@ func (s *MQSink) Init(ctx context.Context) error {
 	return nil
 }
 
-func (s *MQSink) Send(ctx context.Context, event *OperationEvent) error {
+func (s *MQSink) Send(ctx context.Context, event *OperatorEvent) error {
 	data, err := json.Marshal(event)
 	if err != nil {
 		return fmt.Errorf("opevents: failed to marshal event: %w", err)
@@ -47,7 +47,7 @@ func (s *MQSink) Close() error {
 	return nil
 }
 
-// eventMessage adapts a serialized OperationEvent to mqs.IncomingMessage.
+// eventMessage adapts a serialized OperatorEvent to mqs.IncomingMessage.
 type eventMessage struct {
 	data []byte
 }
