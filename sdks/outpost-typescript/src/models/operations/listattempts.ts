@@ -27,7 +27,7 @@ export type ListAttemptsEventId = string | Array<string>;
 /**
  * Filter attempts by destination ID(s). Use bracket notation for multiple values (e.g., `destination_id[0]=d1&destination_id[1]=d2`).
  */
-export type DestinationId = string | Array<string>;
+export type ListAttemptsDestinationId = string | Array<string>;
 
 /**
  * Filter attempts by status.
@@ -224,31 +224,35 @@ export function listAttemptsEventIdFromJSON(
 }
 
 /** @internal */
-export const DestinationId$inboundSchema: z.ZodType<
-  DestinationId,
+export const ListAttemptsDestinationId$inboundSchema: z.ZodType<
+  ListAttemptsDestinationId,
   z.ZodTypeDef,
   unknown
 > = z.union([z.string(), z.array(z.string())]);
 /** @internal */
-export type DestinationId$Outbound = string | Array<string>;
+export type ListAttemptsDestinationId$Outbound = string | Array<string>;
 
 /** @internal */
-export const DestinationId$outboundSchema: z.ZodType<
-  DestinationId$Outbound,
+export const ListAttemptsDestinationId$outboundSchema: z.ZodType<
+  ListAttemptsDestinationId$Outbound,
   z.ZodTypeDef,
-  DestinationId
+  ListAttemptsDestinationId
 > = z.union([z.string(), z.array(z.string())]);
 
-export function destinationIdToJSON(destinationId: DestinationId): string {
-  return JSON.stringify(DestinationId$outboundSchema.parse(destinationId));
+export function listAttemptsDestinationIdToJSON(
+  listAttemptsDestinationId: ListAttemptsDestinationId,
+): string {
+  return JSON.stringify(
+    ListAttemptsDestinationId$outboundSchema.parse(listAttemptsDestinationId),
+  );
 }
-export function destinationIdFromJSON(
+export function listAttemptsDestinationIdFromJSON(
   jsonString: string,
-): SafeParseResult<DestinationId, SDKValidationError> {
+): SafeParseResult<ListAttemptsDestinationId, SDKValidationError> {
   return safeParse(
     jsonString,
-    (x) => DestinationId$inboundSchema.parse(JSON.parse(x)),
-    `Failed to parse 'DestinationId' from JSON`,
+    (x) => ListAttemptsDestinationId$inboundSchema.parse(JSON.parse(x)),
+    `Failed to parse 'ListAttemptsDestinationId' from JSON`,
   );
 }
 

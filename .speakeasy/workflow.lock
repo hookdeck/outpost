@@ -2,8 +2,8 @@ speakeasyVersion: 1.761.3
 sources:
     Outpost API:
         sourceNamespace: outpost-api
-        sourceRevisionDigest: sha256:0b2ab603d9f9a43a0c31f79cb13632639b897a982fae7a633eeecf7cf26e6912
-        sourceBlobDigest: sha256:790d6ebac7e044629fe9887d22820a470e0552fe9bac0c23fcb1d03be5849c89
+        sourceRevisionDigest: sha256:dd3a2cc684557c275d2de44e77d9baf3d2505384b3096e40719aeb3608bf131b
+        sourceBlobDigest: sha256:f488aa8c6bc68b706b4a14a763ec25b6f86c66fe7e1806338b8bf6c821acd44f
         tags:
             - latest
             - 0.0.1
@@ -39,10 +39,10 @@ targets:
     outpost-ts:
         source: Outpost API
         sourceNamespace: outpost-api
-        sourceRevisionDigest: sha256:0b2ab603d9f9a43a0c31f79cb13632639b897a982fae7a633eeecf7cf26e6912
-        sourceBlobDigest: sha256:790d6ebac7e044629fe9887d22820a470e0552fe9bac0c23fcb1d03be5849c89
+        sourceRevisionDigest: sha256:dd3a2cc684557c275d2de44e77d9baf3d2505384b3096e40719aeb3608bf131b
+        sourceBlobDigest: sha256:f488aa8c6bc68b706b4a14a763ec25b6f86c66fe7e1806338b8bf6c821acd44f
         codeSamplesNamespace: outpost-api-typescript-code-samples
-        codeSamplesRevisionDigest: sha256:2d1c881332d1b89c0ab46f8698011a441e45833dd77d6bf9196c54ea8ede935b
+        codeSamplesRevisionDigest: sha256:08b1327558aa127250b44178eae33d1df9210157e85c0fbc8d9fae711a4e1b49
 workflow:
     workflowVersion: 1.0.0
     speakeasyVersion: latest

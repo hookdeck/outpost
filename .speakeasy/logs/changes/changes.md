@@ -1,20 +1,20 @@
-## Python SDK Changes:
+## Typescript SDK Changes:
 * `outpost.events.list()`: 
-  *  `request.destination_id` **Added**
+  *  `request.destinationId` **Added**
   * `response.models[]` **Changed** (Breaking ⚠️)
-    - `destination_id` **Removed** (Breaking ⚠️)
-    - `matched_destination_ids` **Added**
+    - `destinationId` **Removed** (Breaking ⚠️)
+    - `matchedDestinationIds` **Added**
 * `outpost.events.get()`: `response` **Changed** (Breaking ⚠️)
-    - `destination_id` **Removed** (Breaking ⚠️)
-    - `matched_destination_ids` **Added**
-* `outpost.schemas.list_destination_types()`: `response.[].config_fields[]` **Changed** (Breaking ⚠️)
+    - `destinationId` **Removed** (Breaking ⚠️)
+    - `matchedDestinationIds` **Added**
+* `outpost.schemas.listDestinationTypes()`: `response.[].configFields[]` **Changed** (Breaking ⚠️)
     - `key` **Added**
     - `options` **Added**
     - `type.enum(select)` **Added** (Breaking ⚠️)
-* `outpost.schemas.get_destination_type()`: 
+* `outpost.schemas.getDestinationType()`: 
   * `request.type` **Changed**
     - `enum(kafka)` **Added**
-  * `response.config_fields[]` **Changed** (Breaking ⚠️)
+  * `response.configFields[]` **Changed** (Breaking ⚠️)
     - `key` **Added**
     - `options` **Added**
     - `type.enum(select)` **Added** (Breaking ⚠️)

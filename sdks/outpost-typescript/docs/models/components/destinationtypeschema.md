@@ -14,6 +14,7 @@ let value: DestinationTypeSchema = {
   remoteSetupUrl: "https://dashboard.hookdeck.com/authorize?provider=acme",
   configFields: [
     {
+      key: "url",
       type: "text",
       label: "URL",
       description: "The URL to send the event to",
@@ -23,10 +24,17 @@ let value: DestinationTypeSchema = {
       minlength: 0,
       maxlength: 255,
       pattern: "^[a-zA-Z0-9_]+$",
+      options: [
+        {
+          label: "PLAIN",
+          value: "plain",
+        },
+      ],
     },
   ],
   credentialFields: [
     {
+      key: "url",
       type: "text",
       label: "URL",
       description: "The URL to send the event to",
@@ -36,6 +44,12 @@ let value: DestinationTypeSchema = {
       minlength: 0,
       maxlength: 255,
       pattern: "^[a-zA-Z0-9_]+$",
+      options: [
+        {
+          label: "PLAIN",
+          value: "plain",
+        },
+      ],
     },
   ],
 };
