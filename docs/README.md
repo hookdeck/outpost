@@ -40,6 +40,99 @@ Self-hosted-specific content.
 {% /tabs %}
 ```
 
+## Available Markdoc Components
+
+The following Markdoc components are available in the docs renderer.
+
+### `button`
+
+- Block tag: `{% button %}...{% /button %}`
+- Attributes:
+  - `text: String`
+  - `href: String`
+  - `target: String`
+  - `type: String`
+  - `width: String`
+
+### `mockbutton`
+
+- Self-closing tag: `{% mockbutton text="..." icon="..." /%}`
+- Attributes:
+  - `text: String`
+  - `icon: String`
+
+### `ref`
+
+- Self-closing tag: `{% ref entity="..." /%}`
+- Attributes:
+  - `entity: String`
+
+### `link`
+
+- Block tag: `{% link %}...{% /link %}`
+- Attributes:
+  - `href: String`
+  - `base: String`
+  - `path: String`
+
+### `linkCard`
+
+- Self-closing tag: `{% linkCard ... /%}`
+- Attributes:
+  - `title: String`
+  - `anchor: String`
+  - `subtitle: String`
+  - `slug: String`
+  - `collection: String`
+
+### `codeBlock`
+
+- Block tag: `{% codeBlock %}...{% /codeBlock %}`
+- Attributes:
+  - `lang: String`
+  - `heading: String`
+  - `maxHeight: Number`
+
+### `copyableCommand`
+
+- Self-closing tag: `{% copyableCommand command="..." /%}`
+- Attributes:
+  - `command: String` (required)
+  - `event: String`
+  - `source: String`
+
+### `wistiaVideo`
+
+- Block tag: `{% wistiaVideo %}...{% /wistiaVideo %}`
+- Attributes:
+  - `videoId: String`
+  - `title: String`
+
+### `video`
+
+- Block tag: `{% video %}...{% /video %}`
+- Attributes:
+  - `url: String`
+  - `title: String`
+
+### `callout`
+
+- Block tag: `{% callout %}...{% /callout %}`
+- Attributes:
+  - `size: String`
+
+### `comparisonTable`
+
+- Block tag: `{% comparisonTable %}...{% /comparisonTable %}`
+- Attributes:
+  - `hookdeck: Number`
+
+### `mermaid`
+
+- Block tag: `{% mermaid %}...{% /mermaid %}`
+- Attributes:
+  - `content: String`
+
 ## Adding or Updating a Page
 
 1. Create or edit the page under `content/` (for example `content/features/my-feature.mdoc`).
