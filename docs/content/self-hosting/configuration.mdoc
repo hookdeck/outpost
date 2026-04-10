@@ -102,6 +102,13 @@ Choose one for event log persistence:
 | `ALERT_CONSECUTIVE_FAILURE_COUNT` | `20` | Consecutive failures before alert triggers |
 | `ALERT_AUTO_DISABLE_DESTINATION` | `true` | Auto-disable destination when failure count reaches 100% |
 
+## Destinations
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `MAX_DESTINATIONS_PER_TENANT` | `20` | Maximum destinations each tenant may create. Set as low as is practical for your product to limit abuse and load; lowering this value later does **not** remove destinations that already exist. |
+| `DESTINATIONS_METADATA_PATH` | — | Optional. Filesystem path to a directory of [custom destination metadata](https://github.com/hookdeck/outpost/tree/main/internal/destregistry/metadata/providers) (per-type `metadata.json` and `instructions.md`). Non-core fields such as `label`, `description`, `icon`, and `instructions` can be customized; `config_fields` and `credential_fields` cannot be overridden. |
+
 ## Webhook Behavior
 
 | Variable | Default | Description |

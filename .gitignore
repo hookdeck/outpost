@@ -8,6 +8,7 @@
 
 # Documentation (local build artifacts; content lives under docs/content/)
 /docs/dist/
+/docs/TEMP-*.md
 /tmp
 
 # Golang test coverage

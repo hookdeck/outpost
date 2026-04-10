@@ -56,7 +56,6 @@
       "label": "Destinations",
       "sections": [
         [
-          { "slug": "destinations/overview", "title": "Overview" },
           { "slug": "destinations/webhook", "title": "Webhook" },
           {
             "slug": "destinations/hookdeck",

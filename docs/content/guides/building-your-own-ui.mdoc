@@ -42,7 +42,7 @@ The tenant portal illustrates how screens map to tenant → destinations → top
 
 ### Default information architecture (multi-destination products)
 
-When a tenant can have many destinations—of any [destination type](/docs/outpost/destinations/overview) your project enables—the primary path is destination → activity: people ask “what was delivered to this subscription?” rather than seeing all traffic in one undifferentiated list. The same API applies for webhooks, queues, and other types; only create/edit forms differ, driven by [destination type metadata and dynamic config](#destination-type-metadata-and-dynamic-config).
+When a tenant can have many destinations—of any [destination type](/docs/outpost/overview#supported-destinations) your project enables—the primary path is destination → activity: people ask “what was delivered to this subscription?” rather than seeing all traffic in one undifferentiated list. The same API applies for webhooks, queues, and other types; only create/edit forms differ, driven by [destination type metadata and dynamic config](#destination-type-metadata-and-dynamic-config).
 
 For list events and list attempts, reuse the same endpoints everywhere: vary query parameters (for example `destination_id`, cursors) rather than inventing parallel client-side contracts. Pagination and auth details are defined in [OpenAPI](/docs/outpost/api); [Events, attempts, and retries](#events-attempts-and-retries) below summarizes how those endpoints support common UI needs.
 
@@ -51,7 +51,7 @@ For list events and list attempts, reuse the same endpoints everywhere: vary que
 | Example route | What it does | Spec |
 | ------------- | ------------ | ---- |
 | `…/destinations` or `…/integrations` | Hub: list destinations; create or drill down | [Listing destinations](#listing-configured-destinations) · [List destinations](/docs/outpost/api/destinations#list-destinations) |
-| `…/destinations/new` (or wizard) | Create destination: choose type ([types](/docs/outpost/destinations/overview); `GET /destination-types` in [OpenAPI](/docs/outpost/api)), then topics and config | [Creating a destination](#creating-a-destination) |
+| `…/destinations/new` (or wizard) | Create destination: choose type ([types](/docs/outpost/overview#supported-destinations); `GET /destination-types` in [OpenAPI](/docs/outpost/api)), then topics and config | [Creating a destination](#creating-a-destination) |
 | `…/destinations/:destinationId` | Detail: edit config, enable/disable, topics | [OpenAPI](/docs/outpost/api) — Destinations |
 | `…/destinations/:destinationId/activity` | Activity for this destination: events, attempts, retry | [Events, attempts, and retries](#events-attempts-and-retries) · [List events](/docs/outpost/api/events#list-events) · [List attempts](/docs/outpost/api/attempts#list-attempts) |
 | `…/activity` (optional) | Tenant-wide activity; optional filter by `destination_id` | Same list-events operation with different query params ([OpenAPI](/docs/outpost/api)) |
