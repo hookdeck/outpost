@@ -47,7 +47,7 @@ Paste the **## Template** from [`hookdeck-outpost-agent-prompt.mdx`](../pages/qu
 
 > Option 3 — integrate Outpost into a real codebase. **We’re already in the full-stack FastAPI template in this workspace** — the repository is present here. Follow the project’s dev docs to get backend (and frontend if useful) running, then add **Hookdeck Outpost** for customer webhooks.
 >
-> Hook publishing to **one real event** that already exists in the app (users, items, teams, whatever fits). Document topics, how tenants register webhook URLs, and env vars. Don’t leak the API key to the client.
+> Hook publishing to **one real event** that already exists in the app (users, items, teams, whatever fits). **Topic strings should match that domain**; if Turn 0’s list doesn’t include the right names yet, document what the operator must **add in the Outpost project**—don’t contort the app to arbitrary topics unless this is explicitly a minimal wiring pass. Document topics, how tenants register webhook URLs, and env vars. Don’t leak the API key to the client.
 
 ### Turn 2 — User (optional)
 
@@ -58,17 +58,19 @@ Paste the **## Template** from [`hookdeck-outpost-agent-prompt.mdx`](../pages/qu
 **Measurement:** Heuristic `scoreScenario09` in [`src/score-transcript.ts`](../src/score-transcript.ts); LLM judge; execution manual.
 
 - **full-stack-fastapi-template** (or documented alternative) present via harness **`preSteps`** with install steps in the transcript or tree.
-- **`outpost_sdk`** with **`publish.event`** (and related calls as needed) on a **real** code path in the **backend** (server-side only for secrets).
+- **`outpost_sdk`** with **`publish.event`** (and related calls as needed) on a **real** code path in the **backend** (server-side only for secrets)—**not** only a synthetic test-publish endpoint unless the scenario was explicitly scoped to wiring-only.
 - API key from **environment** or secure settings — not hard-coded or exposed to clients.
-- **Topic** and **destination** story documented (README or inline); if the app has a UI, linking or exposing **safe** controls for webhook URLs is a plus.
+- **Topic reconciliation:** each **`topic` in code** ties to a real domain event; gaps vs Turn 0 are resolved by **operator adding topics in Hookdeck** (documented), not by retargeting domain logic to a mismatched list unless wiring-only scope was agreed.
+- **Destination** story documented; if the app has a UI, linking or exposing **safe** controls for customer destinations is a plus; **tenant id** usage consistent with publish.
 - README (or equivalent) lists **env vars** for Outpost.
-- **Execution (full pass):** Stack runs per template docs; trigger path fires publish; Outpost accepts. *Skip for transcript-only.*
+- **Execution (full pass):** Stack runs per template docs; trigger a **real domain action** that fires publish; Outpost accepts. A test-publish button may be used **additionally** for smoke. *Skip for transcript-only.*
 
 ## Failure modes to note
 
 - Greenfield FastAPI “hello world” instead of the **cloned** baseline.
 - Using raw `httpx` to Outpost when the scenario asks for **`outpost_sdk`**.
 - Putting `OUTPOST_API_KEY` in `NEXT_PUBLIC_*` / client bundles.
+- **Only** test/synthetic publish with no domain hook.
 
 ## Future baselines
 

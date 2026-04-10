@@ -44,7 +44,7 @@ Paste the **## Template** block from [`hookdeck-outpost-agent-prompt.mdx`](../pa
 
 > Option 3 — I’m not starting from scratch. **We’re already in the Next.js SaaS app in this workspace** — the baseline repo is checked out here. Install dependencies and get it runnable, then wire in **Hookdeck Outpost** so we can send **outbound webhooks** to our customers.
 >
-> I need this tied to **something real in the app** (not a throwaway demo page), and I need to understand how each customer gets their webhook registered. Put whatever I need to configure in the README (env vars, etc.). Keep secrets on the server only.
+> I need this tied to **something real in the app** (not a throwaway demo page), and I need to understand how each customer gets their webhook registered. **Publish topic names should follow the app’s domain**; if Turn 0’s configured list is missing any name you need, document what to **add in the Outpost project**—don’t retarget real features to wrong topics just to match the list unless I explicitly asked for a minimal demo. Put whatever I need to configure in the README (env vars, etc.). Keep secrets on the server only.
 
 ### Turn 2 — User (optional)
 
@@ -56,16 +56,17 @@ Paste the **## Template** block from [`hookdeck-outpost-agent-prompt.mdx`](../pa
 
 - Baseline app is the documented **next-saas-starter** (or an explicitly justified fork): harness clone under the run directory plus install / integration steps reflected in the transcript or that tree.
 - **Outpost TypeScript SDK** used **server-side only**; no `NEXT_PUBLIC_*` API key.
-- At least one **publish** (or equivalent) tied to a **real code path** in the baseline (not dead code).
-- **Topic** aligns with Turn 0 configuration or is clearly named and documented.
-- **Per-customer webhook** story is explained: destination creation / subscription to topic.
+- **Topic reconciliation:** README or inline notes map **each `publish` topic** to a **real domain event**; if the app needs topics not in Turn 0, instructions say to **add them in Hookdeck** (domain-first—not reshaping product logic to fit a stale default list unless wiring-only scope was agreed).
+- At least one **publish** on a **real domain path** (signup, CRUD, billing, etc.)—**not** only a synthetic “test event” route. A separate test publish for wiring checks is fine but does **not** replace this.
+- **Per-customer webhook** story is explained: destination creation / subscription to topic; **tenant ↔ customer** mapping is consistent for publish and destination APIs.
 - README (or equivalent) lists **env vars** for Outpost.
-- **Execution (full pass):** With `OUTPOST_API_KEY` set, the app runs; a manual path triggers the integrated publish and Outpost accepts the request (2xx/202 as appropriate). Run smoke tests from **`results/runs/…-scenario-08/next-saas-starter/`** (not transcript-only triage).
+- **Execution (full pass):** With `OUTPOST_API_KEY` set, the app runs; perform a **real in-app action** that triggers the domain publish and confirm Outpost accepts it (2xx/202). Optionally also run a test publish. Smoke from **`results/runs/…-scenario-08/next-saas-starter/`** (not transcript-only triage).
 
 ## Failure modes to note
 
 - Pasting a greenfield Next app instead of integrating the **baseline** in the workspace.
-- Publishing only from a demo route unrelated to the product model.
+- Publishing only from a demo or **test-only** route with no domain path.
+- **Topics** in code with no README telling the operator to **add** them in Hookdeck when Turn 0 was incomplete (or silently retargeting domain logic to unrelated Turn 0 names).
 - Calling Outpost from client components with secrets.
 
 ## Future baselines

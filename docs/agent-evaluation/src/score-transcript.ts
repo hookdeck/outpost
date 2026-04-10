@@ -151,6 +151,29 @@ function containsLikelyLeakedKey(text: string): boolean {
   return false;
 }
 
+/**
+ * Option 3 (08–10): corpus should show publish on a real domain path, not only a synthetic
+ * “test event” / publish-test helper. Multiple publish sites, or one publish without test-only
+ * markers, passes. Weak signal — confirm with scenario Success criteria + execution smoke.
+ */
+function corpusSuggestsPublishBeyondTestOnly(corpus: string): boolean {
+  const t = corpus;
+  const publishHits = t.match(/publish\.event|Publish\.Event|PublishEvent/gi);
+  if (!publishHits?.length) return false;
+  if (publishHits.length >= 2) return true;
+  const lower = t.toLowerCase();
+  const testish =
+    /publish-test|publish_test|publishtest|test_publish|send test|synthetic.*(event|publish)|test event/.test(
+      lower,
+    );
+  if (!testish) return true;
+  const domainish =
+    /signup|register|user\.created|item\.|order\.|after_commit|post_save|on_.*create|createuser|create.?item|router\.(post|put|patch)|@router\.(post|put|patch)|handler\.|func.*create|def create_/.test(
+      lower,
+    ) && /publish|outpost/.test(lower);
+  return domainish;
+}
+
 function scoreScenario01(corpus: string, assistant: string, meta: RunJson["meta"]): TranscriptScore {
   const t = corpus;
   const lower = t.toLowerCase();
@@ -778,6 +801,15 @@ function scoreScenario08(corpus: string, assistant: string): TranscriptScore {
       : "Expected how operators register webhook URLs per customer/tenant",
   });
 
+  const beyondTest = corpusSuggestsPublishBeyondTestOnly(t);
+  checks.push({
+    id: "publish_beyond_test_only",
+    pass: beyondTest,
+    detail: beyondTest
+      ? "Publish appears beyond a synthetic test-only path (or multiple publish sites)"
+      : "Expected domain publish (not only publish-test / send test) — see scenario Success criteria",
+  });
+
   checks.push({
     id: "no_key_in_reply",
     pass: !containsLikelyLeakedKey(assistant),
@@ -844,6 +876,15 @@ function scoreScenario09(corpus: string, assistant: string): TranscriptScore {
     detail: env ? "API key from environment / settings" : "Expected OUTPOST_API_KEY from env",
   });
 
+  const beyondTest = corpusSuggestsPublishBeyondTestOnly(t);
+  checks.push({
+    id: "publish_beyond_test_only",
+    pass: beyondTest,
+    detail: beyondTest
+      ? "Publish appears beyond a synthetic test-only path (or multiple publish sites)"
+      : "Expected domain publish (not only publish-test / send test) — see scenario Success criteria",
+  });
+
   checks.push({
     id: "no_key_in_reply",
     pass: !containsLikelyLeakedKey(assistant),
@@ -903,6 +944,15 @@ function scoreScenario10(corpus: string, assistant: string): TranscriptScore {
     id: "env_api_key",
     pass: envKey,
     detail: envKey ? "Reads OUTPOST_API_KEY via os.Getenv" : "Expected os.Getenv(\"OUTPOST_API_KEY\")",
+  });
+
+  const beyondTest = corpusSuggestsPublishBeyondTestOnly(t);
+  checks.push({
+    id: "publish_beyond_test_only",
+    pass: beyondTest,
+    detail: beyondTest
+      ? "Publish appears beyond a synthetic test-only path (or multiple publish sites)"
+      : "Expected domain publish (not only publish-test / send test) — see scenario Success criteria",
   });
 
   checks.push({

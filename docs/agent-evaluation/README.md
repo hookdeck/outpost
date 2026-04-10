@@ -8,7 +8,7 @@ This folder contains **manual** scenario specs (markdown) and an **automated** r
 |------|--------|
 | **Human checklist** (full eval, including execution) | Each file under [`scenarios/`](scenarios/) — section **Success criteria** (static + **Execution (full pass)** rows). |
 | **Manual run write-up** | [`results/RUN-RECORDING.template.md`](results/RUN-RECORDING.template.md) — copy to a local file under `results/` (gitignored). |
-| **Automated transcript rubric** (regex heuristics) | [`src/score-transcript.ts`](src/score-transcript.ts) — `scoreScenario01`–`scoreScenario10` (assistant text + tool-written file corpus). |
+| **Automated transcript rubric** (regex heuristics) | [`src/score-transcript.ts`](src/score-transcript.ts) — `scoreScenario01`–`scoreScenario10` (assistant text + tool-written file corpus). Scenarios **08–10** include **`publish_beyond_test_only`** (domain publish signal vs test-only). |
 | **LLM judge** (Anthropic vs **`## Success criteria`** in each scenario) | [`src/llm-judge.ts`](src/llm-judge.ts) — runs after each scenario unless **`--no-score-llm`**; also `npm run score -- --llm`. |
 
 **Deliberate scope:** `npm run eval` **requires** **`--scenario`**, **`--scenarios`**, or **`--all`**. There is no silent “run everything” default — you choose the scenarios and accept the cost. After **each** run: **`transcript.json`**, **`heuristic-score.json`**, and **`llm-score.json`** (judge reads the same **Success criteria** as humans). Exit **1** if any enabled score fails.
@@ -99,6 +99,14 @@ A **full pass** also answers: *did the generated curl / script / app succeed aga
 1. Add **`OUTPOST_API_KEY`** (and **`OUTPOST_TEST_WEBHOOK_URL`** / **`OUTPOST_API_BASE_URL`** when the artifact expects them) to `docs/agent-evaluation/.env` so your shell has them after `dotenv` or when you `source` / copy into the directory where you run the code.
 2. Run the agent’s commands or start its app and complete the flows the scenario describes.
 3. Record pass/fail in your run notes ([`results/RUN-RECORDING.template.md`](results/RUN-RECORDING.template.md)).
+
+#### Integration scenarios (08–10): depth to verify
+
+These measure **Option 3** (existing app), not a greenfield demo. When you **execute** the artifact:
+
+- **Topic reconciliation:** Confirm README maps **`publish` topics** to **real domain events** and, when Turn 0 is incomplete, tells the operator to **add topics in Hookdeck**—not to retarget the app to a stale list (unless the scenario was explicitly wiring-only).
+- **Domain publish:** Prefer a smoke step that performs a **real product action** (signup, create entity, etc.) and observe an accepted publish—not **only** a “send test event” button.
+- **Heuristic `publish_beyond_test_only`:** [`score-transcript.ts`](src/score-transcript.ts) adds a weak automated check that the transcript corpus suggests publish beyond synthetic test-only paths; it is **not** a substitute for execution or the LLM judge reading **Success criteria**.
 
 ## Single source of truth for the dashboard prompt
 
