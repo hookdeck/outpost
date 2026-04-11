@@ -120,6 +120,16 @@ Changing **`EVAL_PERMISSION_MODE`** is usually unnecessary; widening **`EVAL_TOO
 
 `npm run eval` only captures **what the model produced**; by itself it does **not** call Outpost (transcript review). **`./scripts/execute-ci-artifacts.sh`** (and the **GitHub Actions** workflow’s second step) runs the **01** shell + **02** TypeScript outputs against **live** Outpost when **`OUTPOST_API_KEY`** and **`OUTPOST_TEST_WEBHOOK_URL`** are set.
 
+**Local smoke (no agent):** to verify secrets and the managed API the same way CI does—without depending on a fresh eval transcript—run from **`docs/agent-evaluation/`** with **`OUTPOST_API_KEY`** and **`OUTPOST_TEST_WEBHOOK_URL`** set (e.g. **`source .env`**):
+
+```sh
+npm run smoke:execute-ci
+```
+
+That writes a temporary **`*-scenario-01` / `*-scenario-02`** pair under **`results/runs/`** with hand-maintained scripts: shell destination uses **`topics: ["*"]`** so you do not need every topic name pre-created; publish still uses **`OUTPOST_CI_PUBLISH_TOPIC`** (default **`user.created`**, overridable in the environment), which **must exist** in your Outpost project’s topic list. **`execute-ci-artifacts.sh`** was not exercised end-to-end in-repo before CI; use this command after changing execution logic.
+
+**CI `curl: (22) … 404`:** the agent-generated shell script is calling an Outpost URL that returned **404**. Common causes: wrong **`OUTPOST_API_BASE_URL`** in the script (CI now sets the managed URL explicitly), or a **publish/destination topic** that does not exist in the project tied to **`OUTPOST_API_KEY`**. Ensure **`user.created`** is configured in that project, or set **`OUTPOST_CI_PUBLISH_TOPIC`** to a topic you do have. Compare the failing **`curl`** line in the Actions log with the [curl quickstart](../content/quickstarts/hookdeck-outpost-curl.mdoc).
+
 A **full pass** also answers: *did the generated curl / script / app succeed against a live Outpost project?* Each scenario’s **Success criteria** ends with **Execution** checkboxes for that step. To run them:
 
 1. Add **`OUTPOST_API_KEY`** (and **`OUTPOST_TEST_WEBHOOK_URL`** / **`OUTPOST_API_BASE_URL`** when the artifact expects them) to `docs/agent-evaluation/.env` so your shell has them after `dotenv` or when you `source` / copy into the directory where you run the code.

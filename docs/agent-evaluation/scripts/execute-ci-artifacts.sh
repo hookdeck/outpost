@@ -13,10 +13,16 @@ if [[ -z "${OUTPOST_API_KEY:-}" ]]; then
   echo "execute-ci-artifacts: OUTPOST_API_KEY is not set" >&2
   exit 1
 fi
+export OUTPOST_TEST_WEBHOOK_URL="${OUTPOST_TEST_WEBHOOK_URL:-${EVAL_TEST_DESTINATION_URL:-}}"
 if [[ -z "${OUTPOST_TEST_WEBHOOK_URL:-}" ]]; then
-  echo "execute-ci-artifacts: OUTPOST_TEST_WEBHOOK_URL is not set" >&2
+  echo "execute-ci-artifacts: OUTPOST_TEST_WEBHOOK_URL or EVAL_TEST_DESTINATION_URL must be set" >&2
   exit 1
 fi
+
+# Managed API default (agent-generated scripts often expect this in the environment).
+# Use := so empty string from .env is treated like unset (otherwise curl hits /tenants without /2025-07-01 → 404).
+: "${OUTPOST_API_BASE_URL:=https://api.outpost.hookdeck.com/2025-07-01}"
+export OUTPOST_API_BASE_URL
 
 if [[ ! -d "$RUNS" ]]; then
   echo "execute-ci-artifacts: missing $RUNS (run eval:ci first)" >&2
@@ -80,7 +86,10 @@ export OUTPOST_API_KEY OUTPOST_TEST_WEBHOOK_URL
 chmod +x "$sh_path" 2>/dev/null || true
 # Run from the scenario 01 run dir so relative paths in the generated script behave.
 cd "$d01"
-bash "$sh_path"
+bash "$sh_path" || {
+  echo "execute-ci-artifacts: scenario 01 shell failed (curl exit 22 = HTTP error). 404 is often a wrong path or a publish/destination topic that is not configured in your Outpost project. Set OUTPOST_API_BASE_URL if needed; try npm run smoke:execute-ci (uses destination topics [\"*\"])." >&2
+  exit 1
+}
 
 echo "execute-ci-artifacts: scenario 02 dir=$d02"
 ts_path=$(pick_ts "$d02") || {
@@ -94,6 +103,9 @@ if [[ -f package.json ]]; then
 fi
 export OUTPOST_API_KEY OUTPOST_TEST_WEBHOOK_URL
 [[ -n "${OUTPOST_API_BASE_URL:-}" ]] && export OUTPOST_API_BASE_URL
-npx --yes tsx "$ts_path"
+npx --yes tsx "$ts_path" || {
+  echo "execute-ci-artifacts: scenario 02 TypeScript failed. Check OUTPOST_API_KEY, OUTPOST_TEST_WEBHOOK_URL, and that OUTPOST_CI_PUBLISH_TOPIC (default user.created) exists in the project. Try: npm run smoke:execute-ci" >&2
+  exit 1
+}
 
 echo "execute-ci-artifacts: OK (scenario 01 shell + scenario 02 TypeScript)"

@@ -65,4 +65,6 @@ jobs:
         env:
           OUTPOST_API_KEY: ${{ secrets.OUTPOST_API_KEY }}
           OUTPOST_TEST_WEBHOOK_URL: ${{ secrets.EVAL_TEST_DESTINATION_URL }}
+          OUTPOST_API_BASE_URL: https://api.outpost.hookdeck.com/2025-07-01
+          OUTPOST_CI_PUBLISH_TOPIC: user.created
         run: ./scripts/execute-ci-artifacts.sh

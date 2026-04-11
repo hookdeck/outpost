@@ -7,6 +7,7 @@
   "scripts": {
     "eval": "node --import tsx src/run-agent-eval.ts",
     "eval:ci": "node --import tsx src/run-agent-eval.ts --scenarios 01,02",
+    "smoke:execute-ci": "bash scripts/smoke-test-execute-ci-artifacts.sh",
     "eval:tsx-cli": "tsx src/run-agent-eval.ts",
     "score": "node --import tsx src/score-eval.ts",
     "typecheck": "tsc --noEmit"
