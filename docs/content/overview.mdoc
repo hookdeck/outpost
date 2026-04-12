@@ -41,9 +41,9 @@ Outpost delivers events to any of the following destination types:
 - **[Azure Service Bus](/docs/outpost/destinations/azure-service-bus)** — Send to a Service Bus queue or topic
 - **[GCP Pub/Sub](/docs/outpost/destinations/gcp-pubsub)** — Publish to a Pub/Sub topic
 - **[RabbitMQ (AMQP)](/docs/outpost/destinations/rabbitmq)** — Send to a remote RabbitMQ exchange
-- **[Kafka](/docs/outpost/destinations/kafka)** — Send to a remote Kafka topic
+- **[Kafka (planned)](https://github.com/hookdeck/outpost/issues/141)** — Send to a remote Kafka topic
 
-If you'd like to see more destination types added, submit an issue or PR: GITHUB LINK
+If you'd like to see more destination types added, [open an issue or PR](https://github.com/hookdeck/outpost/issues).
 
 ## Get Started
 
@@ -53,12 +53,12 @@ Hookdeck Outpost is available through [Hookdeck](https://hookdeck.com/get-starte
 
 Once your account has been created, follow the documentation or in-product get started guide:
 1. [Concepts](/docs/outpost/concepts) — Understand the core models
-2. [Publishing Events](/docs/outpost/publishing-events) — Publish your first event
+2. [Publishing Events](/docs/outpost/publishing/events) — Publish your first event
 3. [Destinations](/docs/outpost/destinations/webhook) — Configure where events are delivered
-4. [Tenant Portal](/docs/outpost/features/tenant-portal) — Embed the portal in your product
+4. [Tenant Portal](/docs/outpost/features/tenant-user-portal) — Embed the portal in your product
 {% /tab %}
 {% tab label="Self-Hosted" %}
-Follow one of our sel-fhosted quickstart to deploy Outpost:
+Follow one of our self-hosted quickstarts to deploy Outpost:
 
 - [Deploy on Railway](/docs/outpost/self-hosting/quickstarts/railway) — One-click deployment with a Railway template
 - [Deploy with Docker](/docs/outpost/self-hosting/quickstarts/docker) — Docker Compose with RabbitMQ or SQS
@@ -66,7 +66,7 @@ Follow one of our sel-fhosted quickstart to deploy Outpost:
 
 Then explore:
 - [Concepts](/docs/outpost/concepts) — Architecture and core models
-- [Publishing Events](/docs/outpost/publishing-events) — Publish your first event
-- [Configuration Reference](/docs/outpost/references/configuration) — All environment variables
+- [Publishing Events](/docs/outpost/publishing/events) — Publish your first event
+- [Configuration Reference](/docs/outpost/self-hosting/configuration) — All environment variables
 {% /tab %}
 {% /tabs %}

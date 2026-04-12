@@ -1,22 +1,22 @@
 ---
-title: "Quickstart"
-description: "A 0 to guide to implement Outpost in your application to send webhooks and events to your end-users."
+title: "Outpost Quickstarts"
+description: "Hookdeck managed Outpost and self-hosted deployment quickstarts."
 ---
 
-TODO: Add quickstart. Explain the following steps
+## Hookdeck Outpost (managed)
 
-NOTICE: Ask you agent to do the work with prompt
+Use Hookdeck’s hosted Outpost API with your dashboard API key and preconfigured topics:
 
-- Deploy or create a Hookdeck account/project
-- Set your topics (optional)
-- Create your first tenant
-  - Bring your own ID
-  - Tip: Set a metadata `name` to set a display name in the dashboard
-- Create your first destination
-- Publish your first event
+- [curl](/docs/outpost/quickstarts/hookdeck-outpost-curl)
+- [TypeScript](/docs/outpost/quickstarts/hookdeck-outpost-typescript)
+- [Python](/docs/outpost/quickstarts/hookdeck-outpost-python)
+- [Go](/docs/outpost/quickstarts/hookdeck-outpost-go)
+- [Agent prompt template](/docs/outpost/quickstarts/hookdeck-outpost-agent-prompt) (for AI-assisted integration)
 
-- Whats next
-  - Building a UI or exposing the portal to your users
-  - Set your delivery configuration (user-agent, http headers, signature format, etc)
-  - Import your existing tenants and webhooks
-  - Production checklist
+## Self-hosted
+
+Run Outpost in your own infrastructure:
+
+- [Docker with RabbitMQ or AWS SQS via LocalStack](/docs/outpost/self-hosting/quickstarts/docker)
+- [Kubernetes with RabbitMQ](/docs/outpost/self-hosting/quickstarts/kubernetes)
+- [Railway](/docs/outpost/self-hosting/quickstarts/railway)

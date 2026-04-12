@@ -3,376 +3,234 @@ title: "Building Your Own UI"
 description: "Build your own UI for users to manage their destinations and view their events using the Outpost API."
 ---
 
-While Outpost offers a Tenant User Portal, you may want to build your own UI for users to manage their destinations and view their events.
+While Outpost offers a Tenant User Portal, you may want to build your own UI so your customers can manage their destinations and view delivery activity.
 
-The portal is built using the Outpost API with JWT authentication. You can leverage the same API to build your own UI.
+This page is for **teams shipping that experience**—usually product engineers and anyone designing settings, integrations, or support tooling around webhooks and other destination types. It is framework-agnostic: screens, flows, and how they map to Outpost. If you use an **AI coding assistant** with Hookdeck’s optional [integration prompt](/docs/outpost/quickstarts/hookdeck-outpost-agent-prompt), that document carries workflow-specific instructions; this guide stays focused on what your **customers** should see and what your **backend** should enforce.
 
-Within this guide, we will use the User Portal as a reference implementation for a simple UI. You can find the full source code for the User Portal [here](https://github.com/hookdeck/outpost/tree/main/internal/portal).
+The portal uses the same Outpost API you can call from your product. Its source is a useful reference ([`internal/portal`](https://github.com/hookdeck/outpost/tree/main/internal/portal), React); you are not required to match its stack.
 
-In this guide, we will assume you are using React (client-side) to build your own UI, but the same principles can be applied to any other framework.
+For paths, query parameters, request and response JSON, status codes, and authentication, use the [OpenAPI specification](/docs/outpost/api) as the authoritative contract. If anything here disagrees with OpenAPI, trust the spec.
+
+**Prefer official SDKs on the server** where Hookdeck provides them for your backend language—see the [SDK overview](/docs/outpost/sdks) and the **curl**, **TypeScript**, **Python**, or **Go** quickstart in this documentation for runnable examples. The SDKs wrap the same API: less boilerplate, typed clients, and fewer raw HTTP mistakes. Use **OpenAPI** as the contract for **wire JSON** (especially when your browser or BFF returns JSON that should match the HTTP API), for generated clients, or when you integrate from a stack without a first-party SDK.
+
+### Working from OpenAPI
+
+Map each surface in your product to named operations in the spec (list destinations, create destination, list events, and so on). Use the published schemas for request bodies and list rows, and implement those operations with the **official SDK** on your backend when available.
+
+Destination type labels, icons, and dynamic form fields come from `GET /destination-types`—specifically `config_fields` and `credential_fields` (see [Destination type metadata and dynamic config](#destination-type-metadata-and-dynamic-config)). That response is the source for field keys and types, not guesses from older examples. Each field object includes a **`key`**: the property name inside the destination’s `config` or `credentials` object (for example `url` for a webhook). This is documented on **`DestinationSchemaField`** in [OpenAPI](/docs/outpost/api).
+
+Whether the browser uses a **tenant JWT** or talks only to **your** API, the operations are the ones in OpenAPI; see [Authentication](#authentication) for how credentials and `tenant_id` are applied.
+
+The portal shows full UI code for complex forms; this page avoids long framework-specific snippets so the spec stays the single place for shapes and validation.
+
+## UI structure and flow
+
+The tenant portal illustrates how screens map to tenant → destinations → topics → delivery target. Following that shape helps your customers understand subscriptions and targets instead of a single anonymous “webhook URL.”
+
+**Tenant context**
+
+- Everything below applies to one tenant at a time: the signed-in account in your SaaS (your customer). Use that account’s `tenant_id` when listing or creating destinations and when publishing from your backend.
+- With a tenant JWT, the token is scoped to that tenant. If you proxy through your API, resolve the signed-in account to `tenant_id` and forward it on list, create, and publish calls.
+
+**Recommended areas / screens**
+
+| Area | Purpose |
+| ---- | ------- |
+| Destinations list | All destinations for the current tenant (type, human-readable target such as webhook URL, queue name, or Hookdeck label, plus subscribed topics). Entry point to edit, disable, or remove. |
+| Create destination | Multi-step flow: (1) choose destination type, (2) select topics from your Outpost project configuration, (3) fill type-specific config from the type schema. Optional: instructions or remote setup URL from the schema. |
+| Events and delivery attempts | Default pattern: open activity from a destination (events, then attempts, then retry in that context). Optional: a tenant-wide activity view with a destination filter for support or power users. See [Default information architecture](#default-information-architecture-multi-destination-products) and [Events, attempts, and retries](#events-attempts-and-retries). |
+
+### Default information architecture (multi-destination products)
+
+When a tenant can have many destinations—of any [destination type](/docs/outpost/overview#supported-destinations) your project enables—the primary path is destination → activity: people ask “what was delivered to this subscription?” rather than seeing all traffic in one undifferentiated list. The same API applies for webhooks, queues, and other types; only create/edit forms differ, driven by [destination type metadata and dynamic config](#destination-type-metadata-and-dynamic-config).
+
+For list events and list attempts, reuse the same endpoints everywhere: vary query parameters (for example `destination_id`, cursors) rather than inventing parallel client-side contracts. Pagination and auth details are defined in [OpenAPI](/docs/outpost/api); [Events, attempts, and retries](#events-attempts-and-retries) below summarizes how those endpoints support common UI needs.
+
+**Example routes** (rename to fit your product—integrations, event destinations, webhooks, etc.):
+
+| Example route | What it does | Spec |
+| ------------- | ------------ | ---- |
+| `…/destinations` or `…/integrations` | Hub: list destinations; create or drill down | [Listing destinations](#listing-configured-destinations) · [List destinations](/docs/outpost/api/destinations#list-destinations) |
+| `…/destinations/new` (or wizard) | Create destination: choose type ([types](/docs/outpost/overview#supported-destinations); `GET /destination-types` in [OpenAPI](/docs/outpost/api)), then topics and config | [Creating a destination](#creating-a-destination) |
+| `…/destinations/:destinationId` | Detail: edit config, enable/disable, topics | [OpenAPI](/docs/outpost/api) — Destinations |
+| `…/destinations/:destinationId/activity` | Activity for this destination: events, attempts, retry | [Events, attempts, and retries](#events-attempts-and-retries) · [List events](/docs/outpost/api/events#list-events) · [List attempts](/docs/outpost/api/attempts#list-attempts) |
+| `…/activity` (optional) | Tenant-wide activity; optional filter by `destination_id` | Same list-events operation with different query params ([OpenAPI](/docs/outpost/api)) |
+
+For the conceptual model, see [Outpost Concepts](/docs/outpost/concepts), especially “How this fits your product.”
+
+## OpenAPI: core operations for a tenant dashboard
+
+| Goal | OpenAPI entry point | In the UI |
+| ---- | ------------------- | --------- |
+| Types, labels, icons, dynamic form defs | [Destination types / schema](/docs/outpost/api/schemas) — `GET /destination-types` | Type picker; join list rows on `destination.type` (the type id is `type`, not a separate `id` on the type object). |
+| Topics for subscriptions | [Topics](/docs/outpost/api/topics#list-topics) — `GET /topics` | Checkboxes or multi-select on create/update. |
+| List destinations | [List destinations](/docs/outpost/api/destinations#list-destinations) | Main table; show `target` / `target_url` per schema. |
+| Create destination | [Create destination](/docs/outpost/api/destinations#create-destination) | Body: `type`, `topics`, type-specific `config` / credentials per spec. |
+| Get / update / delete | [OpenAPI](/docs/outpost/api) — Destinations | Detail and edit flows. |
+| Tenant JWT (optional browser calls) | [Tenant JWT](/docs/outpost/api/tenants#get-tenant-jwt-token) | Short-lived token; BFF is often simpler if you need to hide capabilities. |
+| Events, attempts, retry | [Events](/docs/outpost/api/events#list-events), [Attempts](/docs/outpost/api/attempts#list-attempts), [Retry](/docs/outpost/api/attempts#retry-attempt) | Activity and recovery; see below. |
 
 ## Authentication
 
-To perform API calls on behalf of your tenants, you can either generate a JWT token, which can be used client-side to make Outpost API calls, or you can proxy any API requests to the Outpost API through your own API. When proxying through your own API, you can ensure the API call is made for the currently authenticated tenant using the API `tenant_id` parameter.
+You can issue a tenant JWT for client-side calls to Outpost, or proxy requests through your own API. With a proxy, attach your platform’s Outpost API key on the server and scope each call to the authenticated tenant (for example via `tenant_id` on admin-key routes).
 
-Proxying through your own API can be useful if you want to limit access to some configuration or functionality of Outpost.
+Proxying is useful when you want to restrict which Outpost features are exposed or to keep the admin key off the client entirely.
+
+### Browser, your API, and Outpost (BFF pattern)
+
+In a typical **backend-for-frontend** arrangement, the customer’s browser calls **your** product API only. Your servers call Outpost with the **platform** API key and the correct **`tenant_id`** for the signed-in account. Teams refer to this as a **BFF**, an **Outpost proxy**, or a server-side integration layer—the pattern is the same.
+
+The alternative is for the browser to call Outpost **directly** using a short-lived **tenant JWT** ([Generating a JWT Token](#generating-a-jwt-token-optional) below). Many products prefer a proxy so the admin key never ships to the client and so they can limit which Outpost capabilities the UI may invoke.
+
+### API base URL (managed and self-hosted)
+
+Use one configurable base URL for Outpost (no trailing slash), for example `API_URL` or `OUTPOST_API_BASE_URL`. Paths in this guide match [OpenAPI](/docs/outpost/api) (`/tenants/...`, `/topics`, `/destination-types`, …).
+
+- **Managed Hookdeck Outpost:** use the base URL from your project (see the [curl quickstart](/docs/outpost/quickstarts/hookdeck-outpost-curl)).
+- **Self-hosted:** use your deployment’s public origin plus any path prefix (often `/api/v1`). Local development should still read host and port from configuration or environment so the same code works in staging and production.
+
+In your product, treat the base URL like any other external service: load it from config or env, not from literals baked into client bundles.
 
 ### Generating a JWT Token (Optional)
 
-You can generate a JWT token by using the [Tenant JWT Token API](/docs/api/tenants#get-tenant-jwt-token).
+See the [Tenant JWT Token API](/docs/outpost/api/tenants#get-tenant-jwt-token).
 
 ```bash
-curl --location 'localhost:3333/api/v1/tenants/<TENANT_ID>/token' \
-  --header 'Content-Type: application/json' \
-  --header 'Authorization: Bearer <API_KEY>' \
+export OUTPOST_API_BASE_URL="https://api.outpost.hookdeck.com/2025-07-01"   # or your self-hosted root, e.g. …/api/v1
+TENANT_ID="<TENANT_ID>"
+
+curl --request GET "$OUTPOST_API_BASE_URL/tenants/$TENANT_ID/token" \
+  --header "Authorization: Bearer <ADMIN_API_KEY>"
 ```
 
-## Fetching Destination Type Schema
+## Destination type metadata and dynamic config
 
-The destination type schema can be fetched using the [Destination Types Schema API](/docs/api/schemas). It can be used to render destination information such as the destination type icon and label. Additionally, the schema includes the destination type configuration fields, which can be used to render the destination configuration UI.
+`GET /destination-types` returns everything needed to render type pickers and config forms. See the [Destination Types Schema API](/docs/outpost/api/schemas).
 
-## Listing Configured Destinations
+Each entry typically includes (confirm names and optionality in OpenAPI):
 
-Destinations are listed using the [List Destinations API](/docs/api/destinations#list-destinations). Destinations can be listed by type and topic. Since each destination type has different configuration, the `target` field can be used to display a recognizable label for the destination, such as the Webhook URL, the SQS queue URL, or Hookdeck Source Name associated with the destination. Each destination type will return a sensible `target` value to display.
+- `type` — Stable identifier (e.g. `webhook`). Matches `destination.type` on list rows; not named `id` on the type object.
+- `label`, `description`, `icon` — Display metadata; `icon` is often an SVG string (some older code used the name `svg`). Sanitize if you render inline HTML.
+- `config_fields`, `credential_fields` — Field definitions for the config step (snake_case in JSON). Include every field from both arrays on create and edit.
+- `instructions` — Markdown for complex setup (for example cloud resources).
+- `remote_setup_url` — Optional external setup flow before or instead of inline fields.
 
-```tsx
-// React example to fetch and render a list of destinations
+### Dynamic field shape (for forms)
 
-const [destinations, setDestinations] = useState([]);
+Field objects are fully described in OpenAPI (`DestinationSchemaField`), including **`key`** (where to place the value in `config` / `credentials` on create/update). Each field has `label`, `type` (text vs checkbox vs select vs key-value map), `required`, optional `description`, validation (`minlength`, `maxlength`, `pattern`), `default`, `disabled`, and `sensitive` (password-style; values may be masked after create—clear to edit). On submit, map each value to the **`key`** Outpost expects inside `config` / `credentials`, regardless of how property names were transformed earlier in your stack—see [Wire JSON, SDK responses, and your UI](#wire-json-sdk-responses-and-your-ui).
 
-const [destination_types, setDestinationTypes] = useState([]);
+**Reference:** [DestinationConfigFields.tsx](https://github.com/hookdeck/outpost/blob/main/internal/portal/src/common/DestinationConfigFields/DestinationConfigFields.tsx) maps schema fields to inputs.
 
-const fetchDestinations = async () => {
-  // Get the tenant destinations
-  const response = await fetch(`${API_URL}/api/v1/tenants/destinations`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
+### Wire JSON, SDK responses, and your UI
 
-  const destinations = await response.json();
-  setDestinations(destinations);
-};
+This section matters whether you use an **official SDK** on the server (recommended when available) or raw HTTP: the **HTTP API** always follows [OpenAPI](/docs/outpost/api), while SDKs present language-native types to your backend code.
 
-const fetchDestinationTypes = async () => {
-  // Get the destination types schemas
-  const response = await fetch(`${API_URL}/api/v1/destination-types`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
+HTTP responses from Outpost on the wire use JSON property names that match OpenAPI—typically **snake_case** (for example `config_fields`, `credential_fields`, and `remote_setup_url` on `GET /destination-types`).
 
-  const destination_types = await response.json();
-  setDestinationTypes(destination_types);
-};
+Official **SDKs** deserialize into language-native structures; names often differ from the wire format (for example TypeScript may expose **camelCase** such as `configFields` and `credentialFields`). Mutations use each SDK’s documented request types, which may not mirror OpenAPI field names literally.
 
-useEffect(() => {
-  fetchDestinations();
-  fetchDestinationTypes();
-}, []);
+When a **browser** loads destination-type metadata via **your** backend, it receives whatever JSON your server returns. Options include forwarding the **raw** Outpost response body (so the client matches OpenAPI) or translating once on the server and treating that as your product’s contract. In all cases, create and update bodies must still place each value under the schema field’s **`key`** inside `config` and `credentials` as defined in OpenAPI.
 
-if (!destination_types || !destinations) {
-  return <div>Loading...</div>;
-}
+**Shape mismatches** between layers often appear as missing dynamic fields or create errors referencing absent `config.*` keys (for example `config.url` for webhooks). Comparing the **actual** JSON your UI receives with the property names your rendering code expects (`config_fields` versus `configFields`, and similar) usually isolates the problem.
 
-const destination_type_map = destination_types.reduce((acc, type) => {
-  acc[type.id] = type;
-  return acc;
-}, {});
+### Remote setup URL
 
-return (
-  <ul>
-    {destinations.map((destination) => (
-      <li key={destination.id}>
-        <span
-          dangerouslySetInnerHTML={{
-            __html: destination_type_map[destination.type].svg,
-          }}
-        />
-        <h2>{destination_type_map[destination.type].label}</h2>
-        {destination.target_url ? (
-          <a
-            href={destination.target_url}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            {destination.target_url}
-          </a>
-        ) : (
-          <p>{destination.target}</p>
-        )}
-      </li>
-    ))}
-  </ul>
-);
-```
+When `remote_setup_url` is present, you can link users through an external setup flow (for example Hookdeck-managed configuration) instead of only inline fields.
 
-You can find the source code of the `DestinationList.tsx` component of the User Portal here: [DestinationList.tsx](https://github.com/hookdeck/outpost/blob/main/internal/portal/src/scenes/DestinationsList/DestinationList.tsx)
+### Instructions
 
-## Creating a Destination
+Render `instructions` as markdown when the destination type needs context beyond simple fields.
 
-To create a destination, the form will require three steps: one to choose the destination type, one to select the topics (optional), and one to configure the destination.
+## Listing configured destinations
 
-### Choosing the Destination Type
+Use the [List Destinations API](/docs/outpost/api/destinations#list-destinations). OpenAPI describes variants for admin API key (tenant in path or query) versus tenant JWT (tenant inferred from the token); choose the operations that match how you authenticate.
 
-The list of available destination types is rendered from the list of destination types fetched from the API.
+- Call list and render `type`, `target`, `target_url` when present, and subscribed topics.
+- Optionally fetch `GET /destination-types` in parallel and map `type` string → schema row for `label` and `icon`.
+- Link each row to destination detail and destination-scoped activity ([Default information architecture](#default-information-architecture-multi-destination-products)).
 
-```tsx
-const [destination_types, setDestinationTypes] = useState([]);
+**Reference:** [DestinationList.tsx](https://github.com/hookdeck/outpost/blob/main/internal/portal/src/scenes/DestinationsList/DestinationList.tsx)
 
-const fetchDestinationTypes = async () => {
-  // Get the destination types schemas
-  const response = await fetch(`${API_URL}/api/v1/destination-types`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
+## Creating a destination
 
-  const destination_types = await response.json();
-  setDestinationTypes(destination_types);
-};
+The product flow is three steps; the API is typically one [create destination](/docs/outpost/api/destinations#create-destination) request once you have `type`, `topics`, and `config` (plus credentials if required). OpenAPI defines the body.
 
-useEffect(() => {
-  fetchDestinationTypes();
-}, []);
+### Step 1 — Choose destination type
 
-const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-  e.preventDefault();
-  const formData = new FormData(e.target as HTMLFormElement);
-  const destination_type = formData.get("type");
-  goToNextStep(destination_type);
-};
+- Data: `GET /destination-types` ([schemas](/docs/outpost/api/schemas)).
+- Show each type’s `label`, `description`, and `icon`; store the chosen `type` string.
 
-if (!destination_types) {
-  return <div>Loading...</div>;
-}
+**Reference:** [CreateDestination.tsx](https://github.com/hookdeck/outpost/blob/main/internal/portal/src/scenes/CreateDestination/CreateDestination.tsx)
 
-return (
-  <div>
-    <h1>Choose a destination type</h1>
-    <form onSubmit={handleSubmit}>
-      {destinations?.map((destination) => (
-        <label key={destination.type}>
-          <input
-            type="radio"
-            name="type"
-            value={destination.type}
-            required
-            defaultChecked={
-              defaultValue ? defaultValue.type === destination.type : undefined
-            }
-          />
-          <p>
-            <span dangerouslySetInnerHTML={{ __html: destination.icon }} />
-            {destination.label}
-          </p>
-          <p>{destination.description}</p>
-        </label>
-      ))}
-    </form>
-  </div>
-);
-```
+### Step 2 — Select topics
 
-You can find the source code of the `CreateDestination.tsx` component of the User Portal here: [CreateDestination.tsx](https://github.com/hookdeck/outpost/blob/main/internal/portal/src/scenes/CreateDestination/CreateDestination.tsx)
+- Data: `GET /topics` ([list topics](/docs/outpost/api/topics#list-topics)).
+- Collect topic strings, or `*` for all topics, as allowed by the create schema.
 
-### Selecting Topics
+**Reference:** [TopicPicker.tsx](https://github.com/hookdeck/outpost/blob/main/internal/portal/src/common/TopicPicker/TopicPicker.tsx)
 
-Available topics are returned from the [List Topics API](/docs/api/topics#list-topics). You can display the list of topics as a list of checkboxes to capture the user input.
+### Step 3 — Configure the destination
 
-```tsx
-const [topics, setTopics] = useState([]);
+- Read `config_fields` and `credential_fields` for the selected type from `GET /destination-types` (or a single-type endpoint if you use one—see OpenAPI).
+- If `remote_setup_url` is set, consider that flow first.
+- Otherwise render fields per [Dynamic field shape](#dynamic-field-shape-for-forms) and submit via [Create destination](/docs/outpost/api/destinations#create-destination).
 
-const fetchTopics = async () => {
-  const response = await fetch(`${API_URL}/api/v1/topics`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
+**Reference:** [DestinationConfigFields.tsx](https://github.com/hookdeck/outpost/blob/main/internal/portal/src/common/DestinationConfigFields/DestinationConfigFields.tsx)
 
-  const topics = await response.json();
-  setTopics(topics);
-};
+## Events, attempts, and retries
 
-useEffect(() => {
-  fetchTopics();
-}, []);
+This section connects what your customers see (what was delivered, what failed, how to retry) to the API. Request and response shapes live in [OpenAPI](/docs/outpost/api); the [portal](https://github.com/hookdeck/outpost/tree/main/internal/portal) shows one full implementation.
 
-if (!topics) {
-  return <div>Loading...</div>;
-}
+### How the pieces fit
 
-return (
-  <div>
-    <h1>Select topics</h1>
-    <form onSubmit={handleSubmit}>
-      {topics.map((topic) => (
-        <label key={topic.id}>
-          <input type="checkbox" name="topics" value={topic.id} />
-          {topic.name}
-        </label>
-      ))}
-  </div>
-);
-```
+1. **Destinations list** — Each row is a subscription. By default, link into destination-scoped activity ([Default information architecture](#default-information-architecture-multi-destination-products)). An optional tenant-wide activity route should still call the same list endpoints with different query parameters, not a separate unofficial API contract.
+2. **Events** — Your backend published each event (topic + payload). [List events](/docs/outpost/api/events#list-events) is paginated. Common filters: `destination_id` for a per-destination screen; `topic`, time ranges, and `limit` / `next` / `prev` for broader views. With a tenant JWT, results are limited to that tenant; with an admin key, supply `tenant_id` (your backend usually injects it for the signed-in account).
+3. **Attempts** — One row per delivery try (status, HTTP code, timing, optional response). Tie attempts to events with `event_id` and `destination_id`. Tenant-wide: [list attempts](/docs/outpost/api/attempts#list-attempts). Destination-scoped routes are under [OpenAPI](/docs/outpost/api) (tenant destination attempts).
+4. **Retry** — Outpost [retries automatically](/docs/outpost/features/event-delivery) with backoff. [Manual retry](/docs/outpost/api/attempts#retry-attempt) is `POST /retry` with `event_id` and `destination_id` after the customer fixes their endpoint. The destination must be enabled and subscribed to the event’s topic.
 
-You can find the source code of the `TopicPicker.tsx` component of the User Portal here: [TopicPicker.tsx](https://github.com/hookdeck/outpost/blob/main/internal/portal/src/common/TopicPicker/TopicPicker.tsx)
+### What to expose in your dashboard UI
 
-### Configuring the Destination
+| User need | API direction |
+| --------- | ------------- |
+| “What was delivered here?” (this destination) | List events with `destination_id`, then list attempts for the chosen `event_id` (and destination as needed)—same idea for webhooks, queues, and other types. |
+| “Why did it fail?” | Surface attempt status, code, and response when present; link to your docs on URLs, auth, or timeouts. |
+| “Send it again” | Retry on failed attempts → `POST /retry`; handle 202 vs errors such as disabled destination. |
 
-Using the destination type schema for the selected destination type, you can render a form to create and manage destinations configuration. The configuration fields are found in the `configuration_fields` and `credentials_fields` arrays of the destination type schema.
+### Implementation notes
 
-To render your form, you should render all fields from both arrays. Note that some of the `credentials_fields` will be obfuscated once the destination is created, and in order to edit the input, the value must be cleared first.
+- Event and attempt lists use cursor pagination; pass through `next` and `prev` (or “load more”) for busy tenants.
+- If the browser never holds the admin key, proxy these calls through your backend with the platform key and the correct `tenant_id`, same as destination CRUD.
+- **Reference:** [Events.tsx](https://github.com/hookdeck/outpost/blob/main/internal/portal/src/scenes/Destination/Events/Events.tsx) for destination-scoped activity layout.
 
-The input field schema is as follows:
+## Implementation checklists
 
-```ts
-type InputField = {
-  type: "text" | "checkbox"; // Only text and checkbox fields are supported
-  required: boolean; // If true, the field will be required
-  description?: string; // Field description, to use as a tooltip
-  sensitive?: boolean; // If true, the field will be obfuscated once the destination is created and should be treated as a password input
-  default?: string; // Default value for the field
-  minlength?: number; // Minimum length for the field
-  maxlength?: number; // Maximum length for the field
-  pattern?: string; // Regex validation pattern, to use with the input's pattern attribute
-};
-```
+Use these lists before launch, in design or code review, or when comparing your tenant experience to the patterns above. They do not replace OpenAPI, security review, or testing against your deployment.
 
-#### Remote Setup URL
+For **customer-facing** destination and delivery UI, work through **Planning and contract**, **Destinations experience**, and **Activity, attempts, and retries** at minimum. Skip rows that clearly do not apply (for example, if you only expose destinations through your own API and have no in-app activity screens—document how customers verify delivery instead).
 
-Some destination type schemas have a `remote_setup_url` property that contains a URL to a page where the destination can be configured. Destinations that support remote URLs have a simplified setup flow that doesn't require instructions. For example, with the Hookdeck destination, the user is taken through a setup flow managed by Hookdeck to configure the destination.
+### Planning and contract
 
-The URL is optional but provides a better user experience than following sometimes lengthy instructions to configure the destination.
+- [ ] Every call is scoped to the correct tenant (`tenant_id` on admin-key routes, or tenant inferred from JWT).
+- [ ] Outpost base URL comes from configuration or environment for dev, staging, and production (not a single hardcoded host in app code).
+- [ ] Server-side Outpost calls use an **official SDK** when Hookdeck ships one for your language; raw HTTP or generated OpenAPI clients are fine when they fit better.
+- [ ] You chose an auth approach (browser JWT, server-side proxy/BFF, or mix) and use the matching OpenAPI operations and headers consistently.
+- [ ] Dynamic destination UI (labels, icons, form fields) is driven by `GET /destination-types`, not copied field lists from examples.
 
-#### Instructions
+### Destinations experience
 
-Each destination type schema has an `instructions` property that contains instructions to configure the destination as a markdown string. These instructions should be displayed to the user to help them configure the destination, as for some destination types, such as AWS, the necessary configuration can be complex and require multiple steps by the user within AWS.
+- [ ] List view shows type, human-readable target, and subscribed topics; each row reaches detail edit and destination-scoped activity.
+- [ ] Create flow covers: pick type → select topics (`GET /topics`) → collect `config` and credentials per the selected type’s `config_fields` and `credential_fields`.
+- [ ] When a type exposes `instructions` or `remote_setup_url`, the UI surfaces them (markdown / external flow) so customers are not blocked on opaque fields.
+- [ ] Detail supports lifecycle your product needs: view, update, delete, enable/disable—per OpenAPI and your product policy.
 
-Example of a destination configuration form:
+### Activity, attempts, and retries
 
-```tsx
-const DestinationConfigForm = ({
-  destination_type,
-}: {
-  destination_type: string;
-}) => {
-  const [destination_types, setDestinationTypes] = useState([]);
-  //... Fetch the destination type schema
+- [ ] Default path is destination → events → attempts; optional tenant-wide activity still uses the same list endpoints with different query parameters.
+- [ ] Cursor pagination is implemented for busy tenants (`next` / `prev` or equivalent “load more”).
+- [ ] Failed deliveries show enough context (status, HTTP code, response when present) for customers to fix their side.
+- [ ] Manual retry is available where appropriate; errors such as disabled destination are handled with a clear message.
 
-  if (!destination_types) {
-    return <div>Loading...</div>;
-  }
+### Content from the API
 
-  const type_schema = destination_types.find(
-    (type) => type.id === destination_type
-  );
-
-  return (
-    <>
-      {destination_type_schema.remote_setup_url ? (
-        <a
-          href={destination_type_schema.remote_setup_url}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Setup in {destination_type_schema.label}
-        </a>
-      ) : (
-        <button onClick={showInstructionsModal}>
-          {" "}
-          // Modal not implemented just for example
-          {showInstructions ? "Hide instructions" : "Show instructions"}
-        </button>
-      )}
-      <form onSubmit={handleSubmit}>
-        {[...type_schema.config_fields, ...type_schema.credential_fields].map(
-          (field) => (
-            <div key={field.key}>
-              <label htmlFor={field.key}>
-                {field.label}
-                {field.required && <span>\*</span>}
-              </label>
-              {field.type === "text" && (
-                <>
-                  <input
-                    type={
-                      "sensitive" in field && field.sensitive
-                        ? "password"
-                        : "text"
-                    }
-                    placeholder={""}
-                    id={field.key}
-                    name={field.key}
-                    defaultValue={field.default}
-                    required={field.required}
-                    minLength={field.minlength}
-                    maxLength={field.maxlength}
-                    pattern={field.pattern}
-                  />
-                </>
-              )}
-              {field.type === "checkbox" && (
-                <input
-                  type="checkbox"
-                  id={field.key}
-                  name={field.key}
-                  defaultChecked={false}
-                  disabled={field.disabled}
-                  required={field.required}
-                />
-              )}
-              {field.description && <p>{field.description}</p>}
-            </div>
-          )
-        )}
-      </form>
-    </>
-  );
-};
-```
-
-You can find the source code of the `DestinationConfigForm.tsx` component of the User Portal here: [DestinationConfigForm.tsx](https://github.com/hookdeck/outpost/blob/main/internal/portal/src/common/DestinationConfigFields/DestinationConfigFields.tsx#L14)
-
-## Listing Events
-
-Events are listed using the [List Events API](/docs/api/events#list-events). You can use the `topic` parameter to filter the events by topic or the `destination_id` parameter to filter the events by destination.
-
-```tsx
-const [events, setEvents] = useState([]);
-
-const fetchEvents = async () => {
-  const response = await fetch(`${API_URL}/api/v1/tenants/events`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
-};
-
-useEffect(() => {
-  fetchEvents();
-}, []);
-
-if (!events) {
-  return <div>Loading...</div>;
-}
-
-return (
-  <div>
-    <h1>Events</h1>
-    <ul>
-      {events.map((event) => (
-        <li key={event.id}>
-          <h2>{event.id}</h2>
-          <p>{event.created_at}</p>
-          <p>{event.payload}</p>
-        </li>
-      ))}
-    </ul>
-  </div>
-);
-```
-
-For each event, you can retrieve all its associated delivery attempts using the [List Event Attempts API](/docs/api/events#list-event-attempts).
-
-You can find the source code of the `Events.tsx` component of the User Portal here: [Events.tsx](https://github.com/hookdeck/outpost/blob/main/internal/portal/src/scenes/Destination/Events/Events.tsx)
+- [ ] Inline icons or `instructions` markdown are rendered safely if they contain HTML or untrusted strings.
+- [ ] Sensitive credential fields respect masking and “clear to edit” behavior described in the spec.

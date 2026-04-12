@@ -3,6 +3,23 @@ title: "Concepts"
 description: "Core concepts and architecture of Outpost: tenants, destinations, topics, events, and delivery attempts."
 ---
 
+## How this fits your product
+
+If you run a **SaaS**, **platform**, or **API product** and want each of **your customers** to receive webhooks or other event destinations, Outpost gives you a **multi-tenant** control plane for that.
+
+At a high level, the same mental model as a single-tenant webhook product still applies: something happens in your system (**event**), it belongs to a category (**topic**), and the consumer cares about **where** it should be delivered (**URL**, queue, and so on). Outpost adds one layer: those subscriptions live **per customer** in your product, which maps to a **tenant** in Outpost.
+
+**Typical flow:**
+
+1. **Map your customer to a tenant** — Each organization, team, or account in your app should have a stable **tenant id** in Outpost (often the same id you already use internally). Create or upsert that tenant when the customer is ready to use outbound events (onboarding, first visit to integrations, and so on).
+2. **Each tenant has zero or more destinations** — A **destination** is a concrete subscription: it combines a **destination type** (webhook, SQS, Hookdeck, …), one or more **topics** the customer wants to receive, and **type-specific configuration** (for a webhook, the HTTPS **endpoint URL** and signing secret; for a queue, the queue identifier; and so on). One tenant may have several destinations (for example production vs staging endpoints, or different systems).
+3. **Your backend publishes events** — When something happens, your **server** calls the publish API (or SDK) with **`tenant_id`**, **`topic`**, and payload metadata. Outpost does **not** infer the tenant from the browser; publishing uses your **platform** credentials and explicit tenant scope.
+4. **Outpost delivers to matching destinations** — For that tenant, every destination whose **topic subscription** includes the event’s topic gets a delivery attempt. A single publish can fan out to **many** destinations or to **none** if no destination subscribes to that topic.
+
+**What to build in your UI (conceptually):** screens or flows scoped to the **current customer** (tenant): list their **destinations**, **create or edit** a destination (choose type → choose topics → enter URL or other config), and surfaces for **events and delivery attempts** when you want users to inspect what was sent and how delivery behaved. Your UI talks to Outpost **through your backend** (recommended) or via **per-tenant JWT**, never by embedding your platform API key in the browser. See the [Building your own UI](/docs/outpost/guides/building-your-own-ui) guide for screen-level structure and API patterns.
+
+For topic subscription behavior (wildcard `*`, multiple topics, fan-out), see [Topics](/docs/outpost/features/topics).
+
 ## Models
 
 - **Tenants** — A tenant represents a user, team, or organization in your product. All destinations and events are scoped to a tenant.
@@ -85,6 +102,12 @@ The following destination types are available for your tenants to configure:
 - [RabbitMQ (AMQP)](/docs/outpost/destinations/rabbitmq)
 - [Kafka](/docs/outpost/destinations/kafka)
 - Amazon EventBridge (planned)
+
+**Hookdeck Outpost** is the same [open-source Outpost](https://github.com/hookdeck/outpost) project, operated on Hookdeck’s infrastructure. We do not maintain a separate hosted fork; what we run tracks the public codebase.
+
+If there is an event destination type you would like to see supported, [open a feature request on GitHub](https://github.com/hookdeck/outpost/issues/new?assignees=&labels=enhancement&projects=&template=feature_request.md&title=%F0%9F%9A%80+Feature%3A+).
+
+For a diagram of how the API, delivery, and log services connect in **self-hosted** deployments, see [Self-hosting architecture](/docs/outpost/self-hosting/architecture).
 
 ## Observability
 

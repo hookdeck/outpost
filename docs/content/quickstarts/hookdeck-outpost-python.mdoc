@@ -1,0 +1,134 @@
+---
+title: "Hookdeck Outpost Quickstart: Python"
+---
+
+[Hookdeck Outpost](https://outpost.hookdeck.com) is Hookdeck’s managed [Outpost](https://github.com/hookdeck/outpost) service. Each **tenant** is one of your customers; **destinations** receive events; **topics** must match what you configured in the dashboard.
+
+## Prerequisites
+
+- A Hookdeck account with an Outpost project
+- An **API key** (Outpost API key) from your project: **Settings → Secrets**
+- **Topics** already configured in the dashboard
+- Python 3.9+ recommended
+- API base URL: `https://api.outpost.hookdeck.com/2025-07-01`
+
+## Install the SDK
+
+```sh
+pip install outpost_sdk
+```
+
+## Set up credentials
+
+In the Hookdeck Dashboard, open your Outpost project, go to **Settings → Secrets**, and create or copy an API key. Export it (and optionally the base URL) in your shell:
+
+```sh
+export OUTPOST_API_KEY="your_api_key"
+export OUTPOST_API_BASE_URL="https://api.outpost.hookdeck.com/2025-07-01"
+```
+
+The SDK defaults to the production API base URL when `server_url` is omitted.
+
+## Set environment variables
+
+Set these in the same shell before you run the script (or load them with your preferred `.env` helper).
+
+1. **`OUTPOST_API_KEY`** — **Required.** From **Settings → Secrets**. Without it the script exits, because every API call must be authenticated.
+
+2. **`OUTPOST_API_BASE_URL`** — **Optional.** Passed through as `server_url` on the client. Omit it to use the SDK default production URL for Hookdeck Outpost.
+
+3. **`OUTPOST_TEST_WEBHOOK_URL`** — **Required for this walkthrough.** Webhook destinations need an HTTPS URL. Use your own endpoint or a [Hookdeck Console](https://console.hookdeck.com?ref=outpost-docs) **Source** URL for a quick, no-server test.
+
+## Create and run the quickstart script
+
+Save as `outpost_quickstart.py`.
+
+The script (**1)** creates an authenticated client, (**2)** upserts a tenant, (**3)** creates a webhook destination subscribed to your topic, (**4)** publishes one test event, and (**5)** prints the event id.
+
+```python
+import os
+
+from outpost_sdk import Outpost
+
+#
+# --- 1. Authenticated client (API key from Settings → Secrets) ---
+#
+
+api_key = os.environ.get("OUTPOST_API_KEY")
+if not api_key:
+    raise SystemExit("Set OUTPOST_API_KEY")
+
+base_url = os.environ.get("OUTPOST_API_BASE_URL")
+client = Outpost(api_key=api_key, server_url=base_url)
+
+#
+# --- 2. Tenant id, topic name, and webhook URL (from env) ---
+#
+# tenant_id = one of your customers in Outpost.
+# topic     = must match a topic configured in the dashboard.
+#
+
+tenant_id = "customer_acme_001"
+topic = "user.created"
+
+webhook_url = os.environ.get("OUTPOST_TEST_WEBHOOK_URL")
+if not webhook_url:
+    raise SystemExit(
+        "Set OUTPOST_TEST_WEBHOOK_URL (e.g. a Hookdeck Console Source URL)"
+    )
+
+#
+# --- 3. Create or update the tenant ---
+#
+
+client.tenants.upsert(tenant_id=tenant_id)
+
+#
+# --- 4. Webhook destination: events on `topic` are POSTed to this URL ---
+#
+
+client.destinations.create(
+    tenant_id=tenant_id,
+    body={
+        "type": "webhook",
+        "topics": [topic],
+        "config": {"url": webhook_url},
+    },
+)
+
+#
+# --- 5. Publish one event ---
+#
+
+published = client.publish.event(
+    request={
+        "tenant_id": tenant_id,
+        "topic": topic,
+        "eligible_for_retry": True,
+        "metadata": {"source": "quickstart"},
+        "data": {"user_id": "user_123"},
+    }
+)
+
+print("Published event id:", published.id)
+```
+
+Run:
+
+```sh
+python outpost_quickstart.py
+```
+
+Use `topics: ["*"]` on the destination to receive all configured topics.
+
+## Verify delivery
+
+- In **Hookdeck Console**, confirm the webhook hit your test URL.
+- In the **Hookdeck Dashboard**, open **your Outpost project** and review **logs** to confirm the event was processed and delivered.
+
+## Next steps
+
+- [Destination types](/docs/outpost/overview#supported-destinations)
+- [Tenant user portal](/docs/outpost/features/tenant-user-portal)
+- [SDKs](/docs/outpost/sdks)
+- [API reference](/docs/outpost/api)

@@ -7,7 +7,7 @@ info:
   contact:
     name: Outpost Support
     email: support@hookdeck.com
-    url: https://outpost.hookdeck.com/docs
+    url: https://hookdeck.com/docs/outpost
 security:
   - AdminApiKey: []
   - TenantJwt: []
@@ -2012,7 +2012,10 @@ components:
       properties:
         key:
           type: string
-          description: The config key used to store and retrieve the field value. Matches the key in the destination's config or credentials object.
+          description: >-
+            Property name for this value inside the destination `config` or `credentials` object
+            on create/update (for example `url` for a webhook endpoint URL). This is the key used
+            to store and retrieve the field value in the destination's config or credentials object.
           example: "url"
         type:
           type: string
@@ -3860,6 +3863,7 @@ paths:
                       instructions: "Enter the URL..."
                       config_fields: [
                           {
+                            key: "url",
                             type: "text",
                             label: "URL",
                             description: "The URL to send the webhook to.",
@@ -3869,6 +3873,7 @@ paths:
                         ]
                       credential_fields: [
                           {
+                            key: "secret",
                             type: "text",
                             label: "Secret",
                             description: "Optional signing secret.",
@@ -3883,30 +3888,35 @@ paths:
                       config_fields:
                         [
                           {
+                            key: "brokers",
                             type: "text",
                             label: "Brokers",
                             description: "Comma-separated list of Kafka broker addresses.",
                             required: true,
                           },
                           {
+                            key: "topic",
                             type: "text",
                             label: "Topic",
                             description: "The Kafka topic to publish messages to.",
                             required: true,
                           },
                           {
+                            key: "tls",
                             type: "checkbox",
                             label: "TLS",
                             description: "Enable TLS for the connection.",
                             default: "true",
                           },
                           {
+                            key: "partition_key_template",
                             type: "text",
                             label: "Partition Key Template",
                             description: "JMESPath template to extract the partition key from the event payload.",
                             required: false,
                           },
                           {
+                            key: "sasl_mechanism",
                             type: "select",
                             label: "SASL Mechanism",
                             description: "SASL authentication mechanism.",
@@ -3921,12 +3931,14 @@ paths:
                       credential_fields:
                         [
                           {
+                            key: "username",
                             type: "text",
                             label: "Username",
                             description: "SASL username for authentication.",
                             required: true,
                           },
                           {
+                            key: "password",
                             type: "text",
                             label: "Password",
                             description: "SASL password for authentication.",
@@ -3942,12 +3954,14 @@ paths:
                       config_fields:
                         [
                           {
+                            key: "queue_url",
                             type: "text",
                             label: "Queue URL",
                             description: "The URL of the SQS queue.",
                             required: true,
                           },
                           {
+                            key: "endpoint",
                             type: "text",
                             label: "Endpoint",
                             description: "Optional custom AWS endpoint URL.",
@@ -3957,6 +3971,7 @@ paths:
                       credential_fields:
                         [
                           {
+                            key: "key",
                             type: "text",
                             label: "Key",
                             description: "AWS Access Key ID.",
@@ -3964,6 +3979,7 @@ paths:
                             sensitive: true,
                           },
                           {
+                            key: "secret",
                             type: "text",
                             label: "Secret",
                             description: "AWS Secret Access Key.",
@@ -3971,6 +3987,7 @@ paths:
                             sensitive: true,
                           },
                           {
+                            key: "session",
                             type: "text",
                             label: "Session",
                             description: "Optional AWS Session Token.",
@@ -4015,6 +4032,7 @@ paths:
                     # remote_setup_url is optional, omitted here
                     config_fields: [
                         {
+                          key: "url",
                           type: "text",
                           label: "URL",
                           description: "The URL to send the webhook to.",
@@ -4024,6 +4042,7 @@ paths:
                       ]
                     credential_fields: [
                         {
+                          key: "secret",
                           type: "text",
                           label: "Secret",
                           description: "Optional signing secret.",

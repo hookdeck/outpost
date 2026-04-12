@@ -128,7 +128,31 @@
     "structure": [
       {
         "label": "Quickstarts",
-        "sections": [[{ "slug": "quickstarts/overview", "title": "Overview" }]]
+        "sections": [
+          [
+            { "slug": "quickstarts/overview", "title": "Overview" },
+            {
+              "slug": "quickstarts/hookdeck-outpost-curl",
+              "title": "Hookdeck Outpost: curl"
+            },
+            {
+              "slug": "quickstarts/hookdeck-outpost-typescript",
+              "title": "Hookdeck Outpost: TypeScript"
+            },
+            {
+              "slug": "quickstarts/hookdeck-outpost-python",
+              "title": "Hookdeck Outpost: Python"
+            },
+            {
+              "slug": "quickstarts/hookdeck-outpost-go",
+              "title": "Hookdeck Outpost: Go"
+            },
+            {
+              "slug": "quickstarts/hookdeck-outpost-agent-prompt",
+              "title": "Hookdeck Outpost: agent prompt"
+            }
+          ]
+        ]
       }
     ]
   },
