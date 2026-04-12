@@ -22,7 +22,7 @@ The harness sets the agent **cwd** to an empty directory under `docs/agent-evalu
 
 ### Turn 0
 
-Paste the **## Template** block from `[hookdeck-outpost-agent-prompt.mdoc](../../content/quickstarts/hookdeck-outpost-agent-prompt.mdoc)`, with `{{…}}` filled using your project or `[fixtures/placeholder-values-for-turn0.md](../fixtures/placeholder-values-for-turn0.md)`.
+Paste the **## Template** block from `[hookdeck-outpost-agent-prompt.mdoc](../../agent-evaluation/hookdeck-outpost-agent-prompt.md)`, with `{{…}}` filled using your project or `[fixtures/placeholder-values-for-turn0.md](../fixtures/placeholder-values-for-turn0.md)`.
 
 ### Turn 1 — User
 
@@ -36,7 +36,7 @@ Paste the **## Template** block from `[hookdeck-outpost-agent-prompt.mdoc](../..
 
 > I don’t have a public webhook URL yet. What should I put in that field?
 
-*Expected:* agent points to a Hookdeck Console Source URL (or equivalent) consistent with the quickstarts and Turn 0 test destination.
+_Expected:_ agent points to a Hookdeck Console Source URL (or equivalent) consistent with the quickstarts and Turn 0 test destination.
 
 ## Success criteria
 
@@ -48,7 +48,7 @@ Paste the **## Template** block from `[hookdeck-outpost-agent-prompt.mdoc](../..
 - Tenant id and topic are configurable or clearly documented constants.
 - Uses managed base URL by default.
 - README lists required env vars.
-- **Execution (full pass):** After `npm install` and `npm run dev` (or documented command), a manual smoke test completes **both** flows: register webhook destination and trigger test publish, without 5xx from your app’s Outpost calls and with Outpost accepting the requests. Requires `OUTPOST_API_KEY` and related env in `.env.local` or as documented. *Skip only for transcript-only triage.*
+- **Execution (full pass):** After `npm install` and `npm run dev` (or documented command), a manual smoke test completes **both** flows: register webhook destination and trigger test publish, without 5xx from your app’s Outpost calls and with Outpost accepting the requests. Requires `OUTPOST_API_KEY` and related env in `.env.local` or as documented. _Skip only for transcript-only triage._
 
 ## Failure modes to note
 

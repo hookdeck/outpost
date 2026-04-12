@@ -17,7 +17,7 @@ The harness sets the agent **cwd** to `docs/agent-evaluation/results/runs/<stamp
 
 ### Turn 0
 
-Paste the **## Template** block from `[hookdeck-outpost-agent-prompt.mdoc](../../content/quickstarts/hookdeck-outpost-agent-prompt.mdoc)`, with `{{…}}` filled using your project or `[fixtures/placeholder-values-for-turn0.md](../fixtures/placeholder-values-for-turn0.md)`.
+Paste the **## Template** block from `[hookdeck-outpost-agent-prompt.mdoc](../../agent-evaluation/hookdeck-outpost-agent-prompt.md)`, with `{{…}}` filled using your project or `[fixtures/placeholder-values-for-turn0.md](../fixtures/placeholder-values-for-turn0.md)`.
 
 ### Turn 1 — User
 
@@ -37,7 +37,7 @@ Paste the **## Template** block from `[hookdeck-outpost-agent-prompt.mdoc](../..
 - Webhook URL from `OUTPOST_TEST_WEBHOOK_URL` (or clearly documented env).
 - No API key in source; fails fast if env missing.
 - Mentions `npx tsx script.ts` or equivalent run instructions.
-- **Execution (full pass):** With `OUTPOST_API_KEY`, `OUTPOST_TEST_WEBHOOK_URL`, and optional `OUTPOST_API_BASE_URL` set, the generated script runs to completion (no uncaught API errors) and prints or logs an event id or other clear success signal. *Skip only for transcript-only triage.*
+- **Execution (full pass):** With `OUTPOST_API_KEY`, `OUTPOST_TEST_WEBHOOK_URL`, and optional `OUTPOST_API_BASE_URL` set, the generated script runs to completion (no uncaught API errors) and prints or logs an event id or other clear success signal. _Skip only for transcript-only triage._
 
 ## Failure modes to note
 

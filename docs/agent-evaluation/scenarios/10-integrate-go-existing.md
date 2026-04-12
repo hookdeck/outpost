@@ -35,7 +35,7 @@ The agent starts **inside** the cloned baseline above. Expect **`go mod`** / **`
 
 ### Turn 0
 
-Paste the **## Template** from [`hookdeck-outpost-agent-prompt.mdoc`](../../content/quickstarts/hookdeck-outpost-agent-prompt.mdoc) with placeholders filled.
+Paste the **## Template** from [`hookdeck-outpost-agent-prompt.mdoc`](../../agent-evaluation/hookdeck-outpost-agent-prompt.md) with placeholders filled.
 
 ### Turn 1 — User
 
@@ -51,15 +51,15 @@ Paste the **## Template** from [`hookdeck-outpost-agent-prompt.mdoc`](../../cont
 
 **Measurement:** Heuristic `scoreScenario10` in [`src/score-transcript.ts`](../src/score-transcript.ts); LLM judge; execution manual.
 
-**Contract:** This baseline is an **API-first** Go service (no first-party customer dashboard in the pin). It does **not** inherit the full **[Building your own UI](../../content/guides/building-your-own-ui.mdoc)** dashboard checklist wholesale—agents follow **[Existing application](../../content/quickstarts/hookdeck-outpost-agent-prompt.mdoc#existing-application)** (minimum integration depth) plus **API-only** guidance in **Existing application (full-stack products)** (*Document how tenants manage destinations via **your** API*). If a future pin adds a UI, scenarios should be updated to require the **Implementation checklists** linked above.
+**Contract:** This baseline is an **API-first** Go service (no first-party customer dashboard in the pin). It does **not** inherit the full **[Building your own UI](../../content/guides/building-your-own-ui.mdoc)** dashboard checklist wholesale—agents follow **[Existing application](../../agent-evaluation/hookdeck-outpost-agent-prompt.md#existing-application)** (minimum integration depth) plus **API-only** guidance in **Existing application (full-stack products)** (_Document how tenants manage destinations via **your** API_). If a future pin adds a UI, scenarios should be updated to require the **Implementation checklists** linked above.
 
 - **startersaas-go-api** (or documented alternative) present via harness **`preSteps`** with build instructions attempted in the transcript or tree.
 - **Outpost Go SDK** used with **`Publish.Event`** (and related types) on a **real** handler path—not only a test-only route unless wiring-only scope was agreed.
 - No API key in source; **`os.Getenv("OUTPOST_API_KEY")`** (or config loader) only.
 - **Topic reconciliation** (domain-first; operator adds missing Hookdeck topics as documented); **tenant** mapping consistent everywhere Outpost is called.
 - **Customer webhook registration:** At least one **concrete** story—**implemented** authenticated route(s) and/or **OpenAPI/README**—for how a customer **creates or updates** a webhook destination (URL + topics) for their tenant. Prefer real **`Destinations.Create`** (or update) calls over prose-only if the Turn 1 story asks where destination creation lives.
-- **Test / verify delivery:** A **separate** mechanism from domain publish: e.g. documented **`curl`** + test receiver URL, a **small admin/test publish** endpoint, or README steps to trigger a test event—so operators can prove end-to-end delivery without relying solely on production traffic. Domain publish remains **required**; test-only wiring does **not** replace it (see prompt *Before you stop*).
-- **Execution (full pass):** Server runs; trigger the **domain** handler; Outpost accepts publish. Optionally exercise documented test publish / destination registration. *Skip for transcript-only.*
+- **Test / verify delivery:** A **separate** mechanism from domain publish: e.g. documented **`curl`** + test receiver URL, a **small admin/test publish** endpoint, or README steps to trigger a test event—so operators can prove end-to-end delivery without relying solely on production traffic. Domain publish remains **required**; test-only wiring does **not** replace it (see prompt _Before you stop_).
+- **Execution (full pass):** Server runs; trigger the **domain** handler; Outpost accepts publish. Optionally exercise documented test publish / destination registration. _Skip for transcript-only._
 
 ## Failure modes to note
 

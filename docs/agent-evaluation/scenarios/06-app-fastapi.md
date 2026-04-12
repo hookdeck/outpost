@@ -20,7 +20,7 @@ The harness sets the agent **cwd** to `docs/agent-evaluation/results/runs/<stamp
 
 ### Turn 0
 
-Paste the **## Template** block from [`hookdeck-outpost-agent-prompt.mdoc`](../../content/quickstarts/hookdeck-outpost-agent-prompt.mdoc), with `{{…}}` filled using your project or [`fixtures/placeholder-values-for-turn0.md`](../fixtures/placeholder-values-for-turn0.md).
+Paste the **## Template** block from [`hookdeck-outpost-agent-prompt.mdoc`](../../agent-evaluation/hookdeck-outpost-agent-prompt.md), with `{{…}}` filled using your project or [`fixtures/placeholder-values-for-turn0.md`](../fixtures/placeholder-values-for-turn0.md).
 
 ### Turn 1 — User
 
@@ -39,7 +39,7 @@ Paste the **## Template** block from [`hookdeck-outpost-agent-prompt.mdoc`](../.
 - [ ] Two user-visible actions: **register webhook** and **publish test event**.
 - [ ] Managed API base URL by default.
 - [ ] README with `OUTPOST_API_KEY`, `OUTPOST_TEST_WEBHOOK_URL` or equivalent.
-- [ ] **Execution (full pass):** App starts (`uvicorn` or as documented); manual smoke test completes **register webhook** and **publish test event** without server errors on Outpost calls. Env vars set including `OUTPOST_API_KEY`. *Skip only for transcript-only triage.*
+- [ ] **Execution (full pass):** App starts (`uvicorn` or as documented); manual smoke test completes **register webhook** and **publish test event** without server errors on Outpost calls. Env vars set including `OUTPOST_API_KEY`. _Skip only for transcript-only triage._
 
 ## Failure modes to note
 

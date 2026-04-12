@@ -17,7 +17,7 @@ The harness sets the agent **cwd** to `docs/agent-evaluation/results/runs/<stamp
 
 ### Turn 0
 
-Paste the **## Template** block from `[hookdeck-outpost-agent-prompt.mdoc](../../content/quickstarts/hookdeck-outpost-agent-prompt.mdoc)`, with `{{…}}` filled using your project or `[fixtures/placeholder-values-for-turn0.md](../fixtures/placeholder-values-for-turn0.md)`.
+Paste the **## Template** block from `[hookdeck-outpost-agent-prompt.mdoc](../../agent-evaluation/hookdeck-outpost-agent-prompt.md)`, with `{{…}}` filled using your project or `[fixtures/placeholder-values-for-turn0.md](../fixtures/placeholder-values-for-turn0.md)`.
 
 ### Turn 1 — User
 
@@ -36,7 +36,7 @@ Paste the **## Template** block from `[hookdeck-outpost-agent-prompt.mdoc](../..
 - `tenants.upsert`, `destinations.create`, `publish.event` as in the **Python quickstart** (including `request=` for publish where the SDK requires it).
 - Topic aligned with prompt; webhook URL from env.
 - No secrets in file.
-- **Execution (full pass):** With `OUTPOST_API_KEY`, `OUTPOST_TEST_WEBHOOK_URL`, and optional base URL env vars set, `python …` (as documented) completes without API errors and prints an event id or clear success. *Skip only for transcript-only triage.*
+- **Execution (full pass):** With `OUTPOST_API_KEY`, `OUTPOST_TEST_WEBHOOK_URL`, and optional base URL env vars set, `python …` (as documented) completes without API errors and prints an event id or clear success. _Skip only for transcript-only triage._
 
 ## Failure modes to note
 

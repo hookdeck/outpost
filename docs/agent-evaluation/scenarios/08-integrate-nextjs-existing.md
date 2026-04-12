@@ -38,7 +38,7 @@ Same as other scenarios, except the agent starts **inside** the cloned tree abov
 
 ### Turn 0
 
-Paste the **## Template** block from [`hookdeck-outpost-agent-prompt.mdoc`](../../content/quickstarts/hookdeck-outpost-agent-prompt.mdoc), with `{{…}}` filled using your project or [`fixtures/placeholder-values-for-turn0.md`](../fixtures/placeholder-values-for-turn0.md).
+Paste the **## Template** block from [`hookdeck-outpost-agent-prompt.mdoc`](../../agent-evaluation/hookdeck-outpost-agent-prompt.md), with `{{…}}` filled using your project or [`fixtures/placeholder-values-for-turn0.md`](../fixtures/placeholder-values-for-turn0.md).
 
 ### Turn 1 — User
 
@@ -54,7 +54,7 @@ Paste the **## Template** block from [`hookdeck-outpost-agent-prompt.mdoc`](../.
 
 **Measurement:** Heuristic `scoreScenario08` in [`src/score-transcript.ts`](../src/score-transcript.ts); LLM judge maps the bullets below ([`README.md` § Measuring scenarios](../README.md#measuring-scenarios)). Execution row is manual.
 
-**Contract:** The baseline ships a **customer-facing dashboard**. Treat it like **Existing application (full-stack products)** in [`hookdeck-outpost-agent-prompt.mdoc`](../../content/quickstarts/hookdeck-outpost-agent-prompt.mdoc). The detailed UI bar is **not** repeated here—use **[Building your own UI — Implementation checklists](../../content/guides/building-your-own-ui.mdoc#implementation-checklists)** (*Planning and contract*, *Destinations experience*, *Activity, attempts, and retries*). The agent must self-verify with **Before you stop (verify)** in the same prompt (full-stack UI item).
+**Contract:** The baseline ships a **customer-facing dashboard**. Treat it like **Existing application (full-stack products)** in [`hookdeck-outpost-agent-prompt.mdoc`](../../agent-evaluation/hookdeck-outpost-agent-prompt.md). The detailed UI bar is **not** repeated here—use **[Building your own UI — Implementation checklists](../../content/guides/building-your-own-ui.mdoc#implementation-checklists)** (_Planning and contract_, _Destinations experience_, _Activity, attempts, and retries_). The agent must self-verify with **Before you stop (verify)** in the same prompt (full-stack UI item).
 
 - Baseline app is the documented **next-saas-starter** (or an explicitly justified fork): harness clone under the run directory plus install / integration steps reflected in the transcript or that tree.
 - **Outpost TypeScript SDK** used **server-side only**; no `NEXT_PUBLIC_*` API key.

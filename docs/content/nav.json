@@ -146,10 +146,6 @@
             {
               "slug": "quickstarts/hookdeck-outpost-go",
               "title": "Hookdeck Outpost: Go"
-            },
-            {
-              "slug": "quickstarts/hookdeck-outpost-agent-prompt",
-              "title": "Hookdeck Outpost: agent prompt"
             }
           ]
         ]

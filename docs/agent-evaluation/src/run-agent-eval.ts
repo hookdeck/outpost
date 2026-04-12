@@ -35,7 +35,7 @@ dotenv.config({ path: join(EVAL_ROOT, ".env") });
 const REPO_ROOT = join(EVAL_ROOT, "..", "..");
 const PROMPT_MDX = join(
   REPO_ROOT,
-  "docs/content/quickstarts/hookdeck-outpost-agent-prompt.mdoc",
+  "docs/agent-evaluation/hookdeck-outpost-agent-prompt.md",
 );
 const SCENARIOS_DIR = join(EVAL_ROOT, "scenarios");
 const RUNS_DIR = join(EVAL_ROOT, "results", "runs");
@@ -58,7 +58,10 @@ function harnessSidecarPaths(runDir: string): {
 }
 
 /** Paths for SIGTERM/SIGINT abort sidecar while a scenario is in progress (not SIGKILL). */
-let activeHarnessAbortContext: { readonly path: string; readonly runDirectory: string } | null = null;
+let activeHarnessAbortContext: {
+  readonly path: string;
+  readonly runDirectory: string;
+} | null = null;
 
 function registerEvalSignalHandlers(): void {
   const recordAbort = (signal: string) => {
@@ -134,7 +137,10 @@ function evalProgressIntervalMs(): number {
 }
 
 /** When docs are not published yet, point the agent at MDX/OpenAPI paths in this repo. */
-function localDocumentationBlock(repoRoot: string, llmsFullUrl: string | undefined): string {
+function localDocumentationBlock(
+  repoRoot: string,
+  llmsFullUrl: string | undefined,
+): string {
   const f = (...parts: string[]) => join(repoRoot, ...parts);
   const languageSdkBlock = `### Language → SDK vs HTTP
 
@@ -291,7 +297,9 @@ function extractUserMessage(turnBody: string): string {
 function serializeMessage(message: SDKMessage): unknown {
   try {
     return JSON.parse(
-      JSON.stringify(message, (_, v) => (typeof v === "bigint" ? v.toString() : v)),
+      JSON.stringify(message, (_, v) =>
+        typeof v === "bigint" ? v.toString() : v,
+      ),
     );
   } catch {
     return { _nonSerializable: String(message) };
@@ -300,9 +308,7 @@ function serializeMessage(message: SDKMessage): unknown {
 
 async function listScenarioFiles(): Promise<string[]> {
   const names = await readdir(SCENARIOS_DIR);
-  return names
-    .filter((n) => /^\d{2}-.*\.md$/.test(n))
-    .sort();
+  return names.filter((n) => /^\d{2}-.*\.md$/.test(n)).sort();
 }
 
 function idFromFilename(file: string): string {
@@ -352,7 +358,9 @@ async function runScenarioQuery(
   }
 
   if (progressOn && progress) {
-    console.error(`[eval] ${label}: finished this query (${msgCount} SDK message(s))`);
+    console.error(
+      `[eval] ${label}: finished this query (${msgCount} SDK message(s))`,
+    );
   }
 
   return { messages, sessionId };
@@ -394,7 +402,10 @@ async function runOneScenario(
   const turnStats: Array<{ label: string; messageCount: number }> = [];
 
   for (let i = 0; i < prompts.length; i++) {
-    const label = i === 0 ? "Turn 0 (dashboard prompt)" : userTurns[i - 1]?.label ?? `Turn ${i}`;
+    const label =
+      i === 0
+        ? "Turn 0 (dashboard prompt)"
+        : (userTurns[i - 1]?.label ?? `Turn ${i}`);
     const before = allMessages.length;
     const { messages, sessionId: sid } = await runScenarioQuery(
       prompts[i]!,
@@ -448,7 +459,8 @@ function pathAllowedForReadTool(
 ): boolean {
   const p = resolve(absPath);
   if (filePathIsInsideRunDir(runDir, p)) return true;
-  if (localDocs && filePathIsInsideRunDir(join(repoRoot, "docs"), p)) return true;
+  if (localDocs && filePathIsInsideRunDir(join(repoRoot, "docs"), p))
+    return true;
   return false;
 }
 
@@ -456,7 +468,12 @@ function pathAllowedForReadTool(
  * Bash: block commands that reference the Outpost repo root unless the reference stays under
  * `runDir` or (local docs) `repoRoot/docs`.
  */
-function bashCommandAllowed(command: string, runDir: string, repoRoot: string, localDocs: boolean): boolean {
+function bashCommandAllowed(
+  command: string,
+  runDir: string,
+  repoRoot: string,
+  localDocs: boolean,
+): boolean {
   const rr = resolve(repoRoot);
   const rd = resolve(runDir);
   const docRoot = localDocs ? resolve(join(repoRoot, "docs")) : null;
@@ -467,8 +484,15 @@ function bashCommandAllowed(command: string, runDir: string, repoRoot: string, l
   return false;
 }
 
-function toolInputWritePath(toolName: string, toolInput: unknown): string | undefined {
-  if (toolName !== "Write" && toolName !== "Edit" && toolName !== "NotebookEdit") {
+function toolInputWritePath(
+  toolName: string,
+  toolInput: unknown,
+): string | undefined {
+  if (
+    toolName !== "Write" &&
+    toolName !== "Edit" &&
+    toolName !== "NotebookEdit"
+  ) {
     return undefined;
   }
   if (typeof toolInput !== "object" || toolInput === null) return undefined;
@@ -534,12 +558,24 @@ function createRunDirPreToolHook(ctx: {
   readGuardOn: boolean;
   writeGuardOn: boolean;
 }) {
-  const { allowedRootDir, agentCwd, runDir, repoRoot, localDocs, readGuardOn, writeGuardOn } = ctx;
+  const {
+    allowedRootDir,
+    agentCwd,
+    runDir,
+    repoRoot,
+    localDocs,
+    readGuardOn,
+    writeGuardOn,
+  } = ctx;
 
   return async (input: HookInput) => {
     if (input.hook_event_name !== "PreToolUse") return {};
 
-    if (readGuardOn && input.tool_name === "Agent" && !envFlagTruthy(process.env.EVAL_ALLOW_AGENT_TOOL)) {
+    if (
+      readGuardOn &&
+      input.tool_name === "Agent" &&
+      !envFlagTruthy(process.env.EVAL_ALLOW_AGENT_TOOL)
+    ) {
       return preToolDeny(
         "Outpost agent-eval: the Agent subagent is disabled for fair scoring (set EVAL_ALLOW_AGENT_TOOL=1 to allow).",
       );
@@ -663,8 +699,12 @@ function buildBaseOptions(ctx: {
     } as Record<string, string | undefined>,
   };
 
-  const readGuardOn = !envFlagTruthy(process.env.EVAL_DISABLE_WORKSPACE_READ_GUARD);
-  const writeGuardOn = !envFlagTruthy(process.env.EVAL_DISABLE_WORKSPACE_WRITE_GUARD);
+  const readGuardOn = !envFlagTruthy(
+    process.env.EVAL_DISABLE_WORKSPACE_READ_GUARD,
+  );
+  const writeGuardOn = !envFlagTruthy(
+    process.env.EVAL_DISABLE_WORKSPACE_WRITE_GUARD,
+  );
   if (readGuardOn || writeGuardOn) {
     o.hooks = {
       PreToolUse: [
@@ -773,7 +813,9 @@ Agent cwd is usually the run directory. Scenarios may define ## Eval harness (JS
   } else if (values.scenarios) {
     const ids = values.scenarios.split(",").map((s) => s.trim());
     selected = allFiles.filter((f) => ids.includes(idFromFilename(f)));
-    const missing = ids.filter((id) => !selected.some((f) => idFromFilename(f) === id));
+    const missing = ids.filter(
+      (id) => !selected.some((f) => idFromFilename(f) === id),
+    );
     if (missing.length) {
       console.error("Unknown scenario id(s):", missing.join(", "));
       process.exit(1);
@@ -789,7 +831,9 @@ Agent cwd is usually the run directory. Scenarios may define ## Eval harness (JS
     console.error(
       "Choose which scenarios to run (cost is proportional): --scenario <id>, --scenarios id,id, or --all for the full set.",
     );
-    console.error(`Available: ${allFiles.map((f) => idFromFilename(f)).join(", ")}`);
+    console.error(
+      `Available: ${allFiles.map((f) => idFromFilename(f)).join(", ")}`,
+    );
     process.exit(1);
   }
 
@@ -797,7 +841,12 @@ Agent cwd is usually the run directory. Scenarios may define ## Eval harness (JS
     const localDocs = envFlagTruthy(process.env.EVAL_LOCAL_DOCS);
     const sampleRun = join(RUNS_DIR, "dry-run-example-scenario");
     const sampleAgent = join(sampleRun, "app-baseline");
-    const boundarySample = buildWorkspaceBoundaryAppendix(sampleRun, sampleAgent, REPO_ROOT, localDocs);
+    const boundarySample = buildWorkspaceBoundaryAppendix(
+      sampleRun,
+      sampleAgent,
+      REPO_ROOT,
+      localDocs,
+    );
     console.log("Dry run: would execute", selected.join(", "));
     console.log(
       "Turn 0 base template (chars):",
@@ -812,11 +861,9 @@ Agent cwd is usually the run directory. Scenarios may define ## Eval harness (JS
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
 
   const wantScore =
-    !values["no-score"] &&
-    !envFlagTruthy(process.env.EVAL_NO_SCORE_HEURISTIC);
+    !values["no-score"] && !envFlagTruthy(process.env.EVAL_NO_SCORE_HEURISTIC);
   const wantLlm =
-    !values["no-score-llm"] &&
-    !envFlagTruthy(process.env.EVAL_NO_SCORE_LLM);
+    !values["no-score-llm"] && !envFlagTruthy(process.env.EVAL_NO_SCORE_LLM);
 
   let anyScoreFailure = false;
 
@@ -834,7 +881,10 @@ Agent cwd is usually the run directory. Scenarios may define ## Eval harness (JS
     const scenarioPath = join(SCENARIOS_DIR, file);
     const scenarioMd = await readFile(scenarioPath, "utf8");
     const harnessConfig = parseEvalHarness(scenarioMd);
-    const { agentCwd, writeGuardRoot } = await applyEvalHarness(runDir, harnessConfig);
+    const { agentCwd, writeGuardRoot } = await applyEvalHarness(
+      runDir,
+      harnessConfig,
+    );
     const localDocs = envFlagTruthy(process.env.EVAL_LOCAL_DOCS);
     const baseOptions = buildBaseOptions({
       agentCwd,
@@ -844,16 +894,26 @@ Agent cwd is usually the run directory. Scenarios may define ## Eval harness (JS
       localDocs,
     });
     const turn0Prompt =
-      filledTemplate + buildWorkspaceBoundaryAppendix(runDir, agentCwd, REPO_ROOT, localDocs);
-    console.error(`\n>>> Scenario ${file} (run dir ${runDir}, agent cwd ${agentCwd}) ...`);
-    if (scenarioIdEarly === "08" || scenarioIdEarly === "09" || scenarioIdEarly === "10") {
+      filledTemplate +
+      buildWorkspaceBoundaryAppendix(runDir, agentCwd, REPO_ROOT, localDocs);
+    console.error(
+      `\n>>> Scenario ${file} (run dir ${runDir}, agent cwd ${agentCwd}) ...`,
+    );
+    if (
+      scenarioIdEarly === "08" ||
+      scenarioIdEarly === "09" ||
+      scenarioIdEarly === "10"
+    ) {
       console.error(
         "Note: Scenarios 08–10 clone a full baseline and install deps — often 30–90+ min wall time with sparse console output until transcript.json. Ctrl+C aborts (writes *.eval-aborted.json). Set EVAL_PROGRESS=1 for stderr heartbeats. See README § Wall time.",
       );
     }
 
     const sidecars = harnessSidecarPaths(runDir);
-    activeHarnessAbortContext = { path: sidecars.aborted, runDirectory: runDir };
+    activeHarnessAbortContext = {
+      path: sidecars.aborted,
+      runDirectory: runDir,
+    };
     await writeFile(
       sidecars.started,
       `${JSON.stringify(
@@ -908,22 +968,35 @@ Agent cwd is usually the run directory. Scenarios may define ## Eval harness (JS
       if (wantScore) {
         const report = await scoreRunFile(outPath);
         const scorePath = join(runDir, "heuristic-score.json");
-        await writeFile(scorePath, `${JSON.stringify(report, null, 2)}\n`, "utf8");
-        console.error(`Wrote ${scorePath} (transcript: ${report.transcript.passed}/${report.transcript.total}, overallTranscriptPass=${String(report.overallTranscriptPass)})`);
+        await writeFile(
+          scorePath,
+          `${JSON.stringify(report, null, 2)}\n`,
+          "utf8",
+        );
+        console.error(
+          `Wrote ${scorePath} (transcript: ${report.transcript.passed}/${report.transcript.total}, overallTranscriptPass=${String(report.overallTranscriptPass)})`,
+        );
         if (report.overallTranscriptPass === false) {
           anyScoreFailure = true;
         }
       }
 
       if (wantLlm) {
-        const scenarioPathForJudge = scenarioMdPathFromRun(EVAL_ROOT, result.scenarioFile);
+        const scenarioPathForJudge = scenarioMdPathFromRun(
+          EVAL_ROOT,
+          result.scenarioFile,
+        );
         const llmReport = await llmJudgeRun({
           runPath: outPath,
           scenarioMdPath: scenarioPathForJudge,
           apiKey: process.env.ANTHROPIC_API_KEY!.trim(),
         });
         const llmPath = join(runDir, "llm-score.json");
-        await writeFile(llmPath, `${JSON.stringify(llmReport, null, 2)}\n`, "utf8");
+        await writeFile(
+          llmPath,
+          `${JSON.stringify(llmReport, null, 2)}\n`,
+          "utf8",
+        );
         console.error(
           `Wrote ${llmPath} (LLM overall_transcript_pass=${String(llmReport.overall_transcript_pass)})`,
         );

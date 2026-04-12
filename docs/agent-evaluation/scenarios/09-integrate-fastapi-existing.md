@@ -41,7 +41,7 @@ The agent starts **inside** the cloned baseline above. Expect **`docker compose`
 
 ### Turn 0
 
-Paste the **## Template** from [`hookdeck-outpost-agent-prompt.mdoc`](../../content/quickstarts/hookdeck-outpost-agent-prompt.mdoc) with placeholders filled.
+Paste the **## Template** from [`hookdeck-outpost-agent-prompt.mdoc`](../../agent-evaluation/hookdeck-outpost-agent-prompt.md) with placeholders filled.
 
 ### Turn 1 — User
 
@@ -59,7 +59,7 @@ Paste the **## Template** from [`hookdeck-outpost-agent-prompt.mdoc`](../../cont
 
 **Measurement:** Heuristic `scoreScenario09` in [`src/score-transcript.ts`](../src/score-transcript.ts); LLM judge (reads this section); execution manual.
 
-**Contract:** Same full-stack bar as scenario **8**, pinned to this template. **Canonical checklist:** [Building your own UI — Implementation checklists](../../content/guides/building-your-own-ui.mdoc#implementation-checklists). **Agent self-verify:** [`hookdeck-outpost-agent-prompt.mdoc`](../../content/quickstarts/hookdeck-outpost-agent-prompt.mdoc) → *Before you stop (verify)* (full-stack UI item). Do not duplicate checklist rows in transcripts—confirm against the guide.
+**Contract:** Same full-stack bar as scenario **8**, pinned to this template. **Canonical checklist:** [Building your own UI — Implementation checklists](../../content/guides/building-your-own-ui.mdoc#implementation-checklists). **Agent self-verify:** [`hookdeck-outpost-agent-prompt.mdoc`](../../agent-evaluation/hookdeck-outpost-agent-prompt.md) → _Before you stop (verify)_ (full-stack UI item). Do not duplicate checklist rows in transcripts—confirm against the guide.
 
 - **full-stack-fastapi-template** (or documented alternative) present via harness **`preSteps`** with install steps in the transcript or tree.
 - **`outpost_sdk`** with **`publish.event`** (and related calls as needed) on a **real** code path in the **backend** (server-side only for secrets)—**not** only a synthetic test-publish endpoint unless the scenario was explicitly scoped to wiring-only.
@@ -68,7 +68,7 @@ Paste the **## Template** from [`hookdeck-outpost-agent-prompt.mdoc`](../../cont
 - **Topic reconciliation:** each **`topic` in code** ties to a real domain event; gaps vs the **configured project topic list** from onboarding are resolved by **adding topics in Hookdeck** (documented), not by retargeting domain logic to a mismatched list unless wiring-only scope was agreed.
 - **Destinations + tenant:** Per-customer (or per-team) **destination** management via **authenticated** UI or BFF routes: **list**, **create**, and **drill-down** (detail and **destination-scoped activity**—events, attempts, **manual retry**). **Dynamic** forms from **`GET /destination-types`** with correct **`key`** → `config` / `credentials`. **`tenant_id`** is consistent between publish and destination APIs. Omit drill-down / activity only if Turn 1 scoped **backend-only** or excluded activity UI (document verification instead).
 - **Operator docs:** Root **README**, **backend/README**, **development.md**, or **`.env.example`** (whichever the template uses) lists **Outpost env vars** and how to run and verify.
-- **Execution (full pass):** Stack runs per template docs; trigger a **real domain action** that fires publish; Outpost accepts. Exercise **test publish** and **activity / retry** in the UI when in scope. *Skip for transcript-only.*
+- **Execution (full pass):** Stack runs per template docs; trigger a **real domain action** that fires publish; Outpost accepts. Exercise **test publish** and **activity / retry** in the UI when in scope. _Skip for transcript-only._
 
 ## Failure modes to note
 

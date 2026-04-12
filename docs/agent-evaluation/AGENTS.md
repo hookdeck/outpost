@@ -4,10 +4,10 @@ This file applies to **everything under `docs/agent-evaluation/`** (scenarios, R
 
 ## Who reads what
 
-| Audience | Content |
-|----------|---------|
-| **The model under test** | Turn 0 = pasted [`hookdeck-outpost-agent-prompt.mdoc`](../content/quickstarts/hookdeck-outpost-agent-prompt.mdoc) template only, plus **Turn N — User** blockquotes (verbatim user role-play). |
-| **Humans / harness** | Intent, preconditions, eval harness JSON, Success criteria, Failure modes, `score-transcript.ts`, README. |
+| Audience                 | Content                                                                                                                                                                                   |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **The model under test** | Turn 0 = pasted [`hookdeck-outpost-agent-prompt.mdoc`](../agent-evaluation/hookdeck-outpost-agent-prompt.md) template only, plus **Turn N — User** blockquotes (verbatim user role-play). |
+| **Humans / harness**     | Intent, preconditions, eval harness JSON, Success criteria, Failure modes, `score-transcript.ts`, README.                                                                                 |
 
 **Never** put harness vocabulary into **user** lines. The user is a product engineer, not an eval runner.
 
@@ -17,7 +17,7 @@ In **`### Turn N — User`** blockquotes, **do not** use:
 
 - **Option 1 / 2 / 3** (those labels exist only inside the dashboard template; a real user says what they want in plain language).
 - **Turn 0**, **Turn 1**, or any **turn** numbering (that is script metadata).
-- Phrases like **“the instructions you already have”**, **“the full-stack section of the prompt”**, **“follow the Hookdeck Outpost template”** as a stand-in for requirements (the model already has Turn 0; state the *product ask*, not a pointer to a doc section).
+- Phrases like **“the instructions you already have”**, **“the full-stack section of the prompt”**, **“follow the Hookdeck Outpost template”** as a stand-in for requirements (the model already has Turn 0; state the _product ask_, not a pointer to a doc section).
 - **“Match the prompt”**, **“dashboard prompt”**, **“eval”**, **“scenario”**, **“success criteria”**, **heuristic names**, **`scoreScenarioNN`**.
 
 **Do** use natural operator language: stack, repo, product behavior, security (key on server), domain topics, README/env, Hookdeck project/topics **as the customer would say them**.

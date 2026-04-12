@@ -17,7 +17,7 @@ The harness sets the agent **cwd** to `docs/agent-evaluation/results/runs/<stamp
 
 ### Turn 0
 
-Paste the **## Template** block from [`hookdeck-outpost-agent-prompt.mdoc`](../../content/quickstarts/hookdeck-outpost-agent-prompt.mdoc), with `{{…}}` filled using your project or [`fixtures/placeholder-values-for-turn0.md`](../fixtures/placeholder-values-for-turn0.md).
+Paste the **## Template** block from [`hookdeck-outpost-agent-prompt.mdoc`](../../agent-evaluation/hookdeck-outpost-agent-prompt.md), with `{{…}}` filled using your project or [`fixtures/placeholder-values-for-turn0.md`](../fixtures/placeholder-values-for-turn0.md).
 
 ### Turn 1 — User
 
@@ -35,7 +35,7 @@ Paste the **## Template** block from [`hookdeck-outpost-agent-prompt.mdoc`](../.
 - [ ] `Tenants.Upsert`, `Destinations.Create` with `CreateDestinationCreateWebhook` (or correct union wrapper), `Publish.Event`.
 - [ ] Topic and tenant id explicit; matches prompt topics.
 - [ ] No API key in source.
-- [ ] **Execution (full pass):** With `OUTPOST_API_KEY`, `OUTPOST_TEST_WEBHOOK_URL`, and optional server URL env vars set, `go run …` succeeds and prints ids or clear success. *Skip only for transcript-only triage.*
+- [ ] **Execution (full pass):** With `OUTPOST_API_KEY`, `OUTPOST_TEST_WEBHOOK_URL`, and optional server URL env vars set, `go run …` succeeds and prints ids or clear success. _Skip only for transcript-only triage._
 
 ## Failure modes to note
 

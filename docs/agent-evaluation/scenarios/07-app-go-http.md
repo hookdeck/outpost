@@ -13,13 +13,13 @@ Same behavior as scenarios 5–6: **small Go program** using `net/http` (no heav
 
 ## Automated eval (Claude Agent SDK)
 
-The harness sets the agent **cwd** to `docs/agent-evaluation/results/runs/<stamp>-scenario-NN/`. Initialize the module and server **there** (`go mod init`, `go get`, etc. via **Bash**; `main.go` / `handlers.go` via **Write** / **Edit`). Reviewers should be able to `go run .` from the run directory after the eval.
+The harness sets the agent **cwd** to `docs/agent-evaluation/results/runs/<stamp>-scenario-NN/`. Initialize the module and server **there** (`go mod init`, `go get`, etc. via **Bash**; `main.go` / `handlers.go` via **Write** / \*\*Edit`). Reviewers should be able to `go run .` from the run directory after the eval.
 
 ## Conversation script
 
 ### Turn 0
 
-Paste the **## Template** block from `[hookdeck-outpost-agent-prompt.mdoc](../../content/quickstarts/hookdeck-outpost-agent-prompt.mdoc)`, with `{{…}}` filled using your project or `[fixtures/placeholder-values-for-turn0.md](../fixtures/placeholder-values-for-turn0.md)`.
+Paste the **## Template** block from `[hookdeck-outpost-agent-prompt.mdoc](../../agent-evaluation/hookdeck-outpost-agent-prompt.md)`, with `{{…}}` filled using your project or `[fixtures/placeholder-values-for-turn0.md](../fixtures/placeholder-values-for-turn0.md)`.
 
 ### Turn 1 — User
 
@@ -38,7 +38,7 @@ Paste the **## Template** block from `[hookdeck-outpost-agent-prompt.mdoc](../..
 - SDK used server-side only; `OUTPOST_API_KEY` from env.
 - Correct `CreateDestinationCreateWebhook` usage.
 - README lists env vars and port.
-- **Execution (full pass):** `go run …` starts the server; manual smoke test completes **create destination** and **publish** through the HTML UI without Outpost API failures. `OUTPOST_API_KEY` (and related env) set. *Skip only for transcript-only triage.*
+- **Execution (full pass):** `go run …` starts the server; manual smoke test completes **create destination** and **publish** through the HTML UI without Outpost API failures. `OUTPOST_API_KEY` (and related env) set. _Skip only for transcript-only triage._
 
 ## Failure modes to note
 
