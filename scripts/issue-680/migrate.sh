@@ -10,8 +10,10 @@
 #   2. For each deployment ID:
 #      a. Copies outpostrc hash → {id}:outpost:installation_id (string key)
 #      b. Copies outpost:migration:{name} hashes → {id}:outpost:migration:{name}
-#      c. Copies outpost:migration:{name}:run:* hashes → {id}:outpost:migration:{name}:run:*
 #   3. Optionally deletes the old shared keys (with --cleanup flag)
+#
+# All writes are batched into a single redis-cli --pipe call for performance.
+# This avoids per-command TLS handshake overhead on remote Redis instances.
 #
 # Usage:
 #   # Dry run (default) - shows what would be done
@@ -65,15 +67,21 @@ rcli() {
   redis-cli "${args[@]}" "$@"
 }
 
+rcli_pipe() {
+  local args=(-h "$REDIS_HOST" -p "$REDIS_PORT" --no-auth-warning --pipe)
+  [[ -n "$REDIS_USER" ]] && args+=(--user "$REDIS_USER")
+  [[ -n "$REDIS_PASS" ]] && args+=(--pass "$REDIS_PASS")
+  [[ "$REDIS_TLS" == "1" ]] && args+=(--tls)
+  redis-cli "${args[@]}"
+}
+
 # --- Helpers ---
 log()  { echo "[INFO]  $*"; }
 warn() { echo "[WARN]  $*" >&2; }
-dry()  { if $DRY_RUN; then echo "[DRY]   $*"; else echo "[EXEC]  $*"; fi; }
 
 # --- Step 1: Discover deployment IDs ---
 log "Discovering deployment IDs..."
 
-# Scan for keys matching *:tenant:* and extract unique prefixes
 DEPLOYMENT_IDS=()
 cursor=0
 while true; do
@@ -82,7 +90,6 @@ while true; do
   keys=$(echo "$result" | tail -n +2)
 
   for key in $keys; do
-    # Extract deployment ID (everything before first ":tenant:")
     id="${key%%:tenant:*}"
     if [[ -n "$id" && "$id" != "$key" ]]; then
       DEPLOYMENT_IDS+=("$id")
@@ -108,7 +115,6 @@ log "Found ${#DEPLOYMENT_IDS[@]} deployment(s): ${DEPLOYMENT_IDS[*]}"
 log ""
 log "Checking shared control plane keys..."
 
-# Check outpostrc
 INSTALLATION_ID=$(rcli HGET outpostrc installation 2>/dev/null || echo "")
 if [[ -n "$INSTALLATION_ID" ]]; then
   log "  outpostrc -> installation = $INSTALLATION_ID"
@@ -116,7 +122,8 @@ else
   log "  outpostrc -> (not found, each deployment will generate its own on startup)"
 fi
 
-# Find all outpost:migration:* keys (excluding run history)
+# Collect migration keys and their hash data
+declare -A MIGRATION_DATA
 MIGRATION_KEYS=()
 cursor=0
 while true; do
@@ -126,6 +133,7 @@ while true; do
 
   for key in $keys; do
     MIGRATION_KEYS+=("$key")
+    MIGRATION_DATA["$key"]=$(rcli HGETALL "$key" 2>/dev/null | tr '\n' ' ')
   done
 
   if [[ "$cursor" == "0" ]]; then
@@ -139,96 +147,76 @@ for key in "${MIGRATION_KEYS[@]}"; do
   log "    $key -> $status"
 done
 
-# Check lock key
 LOCK_EXISTS=$(rcli EXISTS ".outpost:migration:lock" 2>/dev/null || echo "0")
 if [[ "$LOCK_EXISTS" == "1" ]]; then
   warn "  .outpost:migration:lock exists! A migration may be running."
 fi
 
-# --- Step 3: Migrate for each deployment ---
+# --- Step 3: Build pipeline commands ---
 log ""
-log "=== Starting migration ==="
+log "=== Building migration commands ==="
+
+PIPE_FILE=$(mktemp)
+CMD_COUNT=0
 
 for DEPLOY_ID in "${DEPLOYMENT_IDS[@]}"; do
-  log ""
-  log "--- Deployment: $DEPLOY_ID ---"
-
-  # 3a. Installation ID
+  # Installation ID (SET is idempotent)
   if [[ -n "$INSTALLATION_ID" ]]; then
     target_key="${DEPLOY_ID}:outpost:installation_id"
-    existing=$(rcli GET "$target_key" 2>/dev/null || echo "")
-    if [[ -n "$existing" ]]; then
-      log "  $target_key already exists ($existing), skipping"
-    else
-      dry "  SET $target_key $INSTALLATION_ID"
-      if ! $DRY_RUN; then
-        rcli SET "$target_key" "$INSTALLATION_ID" > /dev/null
-      fi
-    fi
+    echo "SET ${target_key} ${INSTALLATION_ID}" >> "$PIPE_FILE"
+    ((CMD_COUNT++))
   fi
 
-  # 3b. Migration status keys
+  # Migration status keys (HSET is idempotent)
   for old_key in "${MIGRATION_KEYS[@]}"; do
-    # Derive the new key: outpost:migration:X -> {id}:outpost:migration:X
     new_key="${DEPLOY_ID}:${old_key}"
-
-    existing=$(rcli EXISTS "$new_key" 2>/dev/null || echo "0")
-    if [[ "$existing" == "1" ]]; then
-      log "  $new_key already exists, skipping"
-      continue
-    fi
-
-    # Copy the hash field by field
-    dry "  COPY $old_key -> $new_key"
-    if ! $DRY_RUN; then
-      # Read all field-value pairs and write them to the new key
-      hset_args=()
-      while IFS= read -r field && IFS= read -r value; do
-        hset_args+=("$field" "$value")
-      done < <(rcli HGETALL "$old_key" 2>/dev/null)
-
-      if [[ ${#hset_args[@]} -gt 0 ]]; then
-        rcli HSET "$new_key" "${hset_args[@]}" > /dev/null
-      else
-        warn "  $old_key has no fields, skipping"
-      fi
-
-      # Verify the copy
-      if [[ $(rcli EXISTS "$new_key" 2>/dev/null) != "1" ]]; then
-        warn "  FAILED to copy $old_key -> $new_key"
-      fi
+    hash_data="${MIGRATION_DATA[$old_key]}"
+    if [[ -n "$hash_data" ]]; then
+      echo "HSET ${new_key} ${hash_data}" >> "$PIPE_FILE"
+      ((CMD_COUNT++))
     fi
   done
 done
 
-# --- Step 4: Cleanup (optional) ---
-if $CLEANUP && ! $DRY_RUN; then
-  log ""
-  log "=== Cleaning up old shared keys ==="
-
+# Cleanup commands
+if $CLEANUP; then
   if [[ -n "$INSTALLATION_ID" ]]; then
-    log "  DEL outpostrc"
-    rcli DEL outpostrc > /dev/null
+    echo "DEL outpostrc" >> "$PIPE_FILE"
+    ((CMD_COUNT++))
   fi
-
   for key in "${MIGRATION_KEYS[@]}"; do
-    log "  DEL $key"
-    rcli DEL "$key" > /dev/null
+    echo "DEL ${key}" >> "$PIPE_FILE"
+    ((CMD_COUNT++))
   done
-
   if [[ "$LOCK_EXISTS" == "1" ]]; then
-    log "  DEL .outpost:migration:lock"
-    rcli DEL ".outpost:migration:lock" > /dev/null
+    echo "DEL .outpost:migration:lock" >> "$PIPE_FILE"
+    ((CMD_COUNT++))
   fi
-elif $CLEANUP && $DRY_RUN; then
-  log ""
-  log "=== Cleanup (dry run) ==="
-  log "  Would delete: outpostrc, .outpost:migration:lock, and ${#MIGRATION_KEYS[@]} migration key(s)"
 fi
 
-log ""
+log "  ${CMD_COUNT} commands for ${#DEPLOYMENT_IDS[@]} deployments"
+
+# --- Step 4: Execute or dry-run ---
 if $DRY_RUN; then
+  log ""
+  log "=== Dry run — commands that would be sent ==="
+  cat "$PIPE_FILE"
+  log ""
   log "Dry run complete. Re-run with --apply to execute."
 else
+  log ""
+  log "=== Executing pipeline ==="
+  rcli_pipe < "$PIPE_FILE"
+  log ""
+
+  # Verify
+  migrated=$(rcli --scan --pattern "*:outpost:installation_id" | wc -l | tr -d ' ')
+  shared_remaining=$(rcli KEYS "outpostrc" 2>/dev/null | wc -l | tr -d ' ')
+  log "Deployments with installation_id: ${migrated}"
+  if $CLEANUP; then
+    log "Shared keys remaining: ${shared_remaining} (should be 0)"
+  fi
   log "Migration complete."
 fi
+
+rm -f "$PIPE_FILE"
