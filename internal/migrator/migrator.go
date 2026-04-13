@@ -7,6 +7,8 @@ import (
 	"io"
 	"io/fs"
 	"net/url"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -25,6 +27,19 @@ var chMigrations embed.FS
 
 type Migrator struct {
 	migrate *migrate.Migrate
+
+	// sourceFS and sourceDir reference the embedded migration files
+	// so introspection helpers (ListMigrations, LatestVersion, PendingCount)
+	// can enumerate available migrations without going through the driver.
+	sourceFS  fs.FS
+	sourceDir string
+}
+
+// MigrationInfo describes a single SQL migration and its applied state.
+type MigrationInfo struct {
+	Version int
+	Name    string
+	Applied bool
 }
 
 func New(opts MigrationOpts) (*Migrator, error) {
@@ -46,8 +61,12 @@ func New(opts MigrationOpts) (*Migrator, error) {
 		return nil, sanitizeConnectionError(err, dbURL)
 	}
 
+	sourceFS, sourceDir := opts.sourceLocation()
+
 	return &Migrator{
-		migrate: m,
+		migrate:   m,
+		sourceFS:  sourceFS,
+		sourceDir: sourceDir,
 	}, nil
 }
 
@@ -134,6 +153,113 @@ func (m *Migrator) Close(ctx context.Context) (error, error) {
 	return m.migrate.Close()
 }
 
+// ListMigrations returns all available SQL migrations in version order,
+// with Applied set based on the migrator's current schema version.
+func (m *Migrator) ListMigrations(ctx context.Context) ([]MigrationInfo, error) {
+	available, err := m.availableMigrations()
+	if err != nil {
+		return nil, err
+	}
+
+	currentVersion, err := m.Version(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	for i := range available {
+		available[i].Applied = available[i].Version <= currentVersion
+	}
+
+	return available, nil
+}
+
+// LatestVersion returns the highest migration version available in the
+// embedded migration files. Returns 0 if there are no migrations.
+func (m *Migrator) LatestVersion() (int, error) {
+	available, err := m.availableMigrations()
+	if err != nil {
+		return 0, err
+	}
+	if len(available) == 0 {
+		return 0, nil
+	}
+	return available[len(available)-1].Version, nil
+}
+
+// PendingCount returns the number of migrations that would be applied by
+// running Up(-1) from the current state.
+func (m *Migrator) PendingCount(ctx context.Context) (int, error) {
+	current, err := m.Version(ctx)
+	if err != nil {
+		return 0, err
+	}
+	latest, err := m.LatestVersion()
+	if err != nil {
+		return 0, err
+	}
+	if latest <= current {
+		return 0, nil
+	}
+	return latest - current, nil
+}
+
+// availableMigrations enumerates migration files from the embedded FS.
+// Files are expected to be named "NNNNNN_name.up.sql" (and corresponding
+// .down.sql). Only .up.sql files are counted. The result is sorted by version.
+func (m *Migrator) availableMigrations() ([]MigrationInfo, error) {
+	if m.sourceFS == nil {
+		return nil, fmt.Errorf("migrator has no source filesystem")
+	}
+
+	entries, err := fs.ReadDir(m.sourceFS, m.sourceDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read migrations dir %q: %w", m.sourceDir, err)
+	}
+
+	result := make([]MigrationInfo, 0, len(entries))
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		info, ok := parseMigrationFilename(entry.Name())
+		if !ok {
+			continue
+		}
+		result = append(result, info)
+	}
+
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].Version < result[j].Version
+	})
+
+	return result, nil
+}
+
+// parseMigrationFilename parses filenames of the form "NNNNNN_name.up.sql".
+// Files that do not match this pattern (including .down.sql files) return
+// ok=false and should be ignored by the caller.
+func parseMigrationFilename(filename string) (MigrationInfo, bool) {
+	if !strings.HasSuffix(filename, ".up.sql") {
+		return MigrationInfo{}, false
+	}
+	trimmed := strings.TrimSuffix(filename, ".up.sql")
+
+	idx := strings.Index(trimmed, "_")
+	if idx <= 0 || idx == len(trimmed)-1 {
+		return MigrationInfo{}, false
+	}
+
+	version, err := strconv.Atoi(trimmed[:idx])
+	if err != nil {
+		return MigrationInfo{}, false
+	}
+
+	return MigrationInfo{
+		Version: version,
+		Name:    trimmed[idx+1:],
+	}, true
+}
+
 type MigrationOptsPG struct {
 	URL string
 }
@@ -187,6 +313,19 @@ func (opts *MigrationOpts) getDriver() (source.Driver, error) {
 	}
 
 	return nil, fmt.Errorf("no migration source available")
+}
+
+// sourceLocation returns the raw embedded filesystem and subdirectory for
+// the configured database type. It is used by introspection helpers that
+// enumerate migration files directly (without driver wrapping).
+func (opts *MigrationOpts) sourceLocation() (fs.FS, string) {
+	if opts.PG.URL != "" {
+		return pgMigrations, "migrations/postgres"
+	}
+	if opts.CH.Addr != "" {
+		return chMigrations, "migrations/clickhouse"
+	}
+	return nil, ""
 }
 
 func (m *Migrator) Force(ctx context.Context, version int) error {
