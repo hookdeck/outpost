@@ -94,6 +94,7 @@ func TestE2E_Regression_AutoDisableWithoutCallbackURL(t *testing.T) {
 	cfg.Alert.ConsecutiveFailureCount = 20
 
 	require.NoError(t, cfg.Validate(config.Flags{}))
+	configs.ApplyMigrations(t, &cfg)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -228,6 +229,7 @@ func TestE2E_ManualRetryScheduleInteraction(t *testing.T) {
 	cfg.LogBatchThresholdSeconds = 0 // Immediate flush so logstore queries work
 
 	require.NoError(t, cfg.Validate(config.Flags{}))
+	configs.ApplyMigrations(t, &cfg)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -412,6 +414,7 @@ func TestE2E_Regression_RetryRaceCondition(t *testing.T) {
 	cfg.RetryVisibilityTimeoutSeconds = 2
 
 	require.NoError(t, cfg.Validate(config.Flags{}))
+	configs.ApplyMigrations(t, &cfg)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
