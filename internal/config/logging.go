@@ -99,6 +99,7 @@ func (c *Config) LogConfigurationSummary() []zap.Field {
 		// ID Generation
 		zap.String("idgen_type", c.IDGen.Type),
 		zap.String("idgen_event_prefix", c.IDGen.EventPrefix),
+		zap.String("idgen_operator_event_prefix", c.IDGen.OperatorEventPrefix),
 
 		// Retention
 		zap.Int("clickhouse_log_retention_ttl_days", c.ClickHouseLogRetentionTTLDays),

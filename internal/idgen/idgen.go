@@ -14,10 +14,11 @@ var (
 func init() {
 	// Initialize with default UUID v4 generator
 	globalGenerator = &IDGenerator{
-		generator:         &uuidv4Generator{},
-		eventPrefix:       "",
-		destinationPrefix: "",
-		attemptPrefix:     "",
+		generator:            &uuidv4Generator{},
+		eventPrefix:          "",
+		destinationPrefix:    "",
+		attemptPrefix:        "",
+		operatorEventPrefix:  "",
 	}
 }
 
@@ -26,10 +27,11 @@ type idGenerator interface {
 }
 
 type IDGenerator struct {
-	generator         idGenerator
-	eventPrefix       string
-	destinationPrefix string
-	attemptPrefix     string
+	generator           idGenerator
+	eventPrefix         string
+	destinationPrefix   string
+	attemptPrefix       string
+	operatorEventPrefix string
 }
 
 func (g *IDGenerator) Event() string {
@@ -42,6 +44,10 @@ func (g *IDGenerator) Destination() string {
 
 func (g *IDGenerator) Attempt() string {
 	return g.generate(g.attemptPrefix)
+}
+
+func (g *IDGenerator) OperatorEvent() string {
+	return g.generate(g.operatorEventPrefix)
 }
 
 func (g *IDGenerator) Installation() string {
@@ -106,10 +112,11 @@ func (g *nanoidGenerator) generate() string {
 }
 
 type IDGenConfig struct {
-	Type              string
-	EventPrefix       string
-	DestinationPrefix string
-	AttemptPrefix     string
+	Type                string
+	EventPrefix         string
+	DestinationPrefix   string
+	AttemptPrefix       string
+	OperatorEventPrefix string
 }
 
 func Configure(cfg IDGenConfig) error {
@@ -119,10 +126,11 @@ func Configure(cfg IDGenConfig) error {
 	}
 
 	globalGenerator = &IDGenerator{
-		generator:         gen,
-		eventPrefix:       cfg.EventPrefix,
-		destinationPrefix: cfg.DestinationPrefix,
-		attemptPrefix:     cfg.AttemptPrefix,
+		generator:           gen,
+		eventPrefix:         cfg.EventPrefix,
+		destinationPrefix:   cfg.DestinationPrefix,
+		attemptPrefix:       cfg.AttemptPrefix,
+		operatorEventPrefix: cfg.OperatorEventPrefix,
 	}
 
 	return nil
@@ -138,6 +146,10 @@ func Destination() string {
 
 func Attempt() string {
 	return globalGenerator.Attempt()
+}
+
+func OperatorEvent() string {
+	return globalGenerator.OperatorEvent()
 }
 
 func Installation() string {

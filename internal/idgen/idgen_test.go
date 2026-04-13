@@ -195,6 +195,85 @@ func TestEvent(t *testing.T) {
 	})
 }
 
+func TestOperatorEvent(t *testing.T) {
+	t.Run("generates UUID v4 by default", func(t *testing.T) {
+		err := Configure(IDGenConfig{
+			Type:                "uuidv4",
+			OperatorEventPrefix: "",
+		})
+		if err != nil {
+			t.Fatalf("Configure() error = %v", err)
+		}
+
+		id := OperatorEvent()
+		if id == "" {
+			t.Error("OperatorEvent() returned empty string")
+		}
+		if _, err := uuid.Parse(id); err != nil {
+			t.Errorf("OperatorEvent() returned invalid UUID: %s", id)
+		}
+	})
+
+	t.Run("uses configured prefix", func(t *testing.T) {
+		err := Configure(IDGenConfig{
+			Type:                "uuidv4",
+			OperatorEventPrefix: "ope_",
+		})
+		if err != nil {
+			t.Fatalf("Configure() error = %v", err)
+		}
+
+		id := OperatorEvent()
+		if !strings.HasPrefix(id, "ope_") {
+			t.Errorf("OperatorEvent() = %v, want prefix 'ope_'", id)
+		}
+		uuidPart := strings.TrimPrefix(id, "ope_")
+		if _, err := uuid.Parse(uuidPart); err != nil {
+			t.Errorf("UUID part is not valid: %s", uuidPart)
+		}
+	})
+
+	t.Run("nanoid with prefix", func(t *testing.T) {
+		err := Configure(IDGenConfig{
+			Type:                "nanoid",
+			OperatorEventPrefix: "ope_",
+		})
+		if err != nil {
+			t.Fatalf("Configure() error = %v", err)
+		}
+
+		id := OperatorEvent()
+		if !strings.HasPrefix(id, "ope_") {
+			t.Errorf("OperatorEvent() = %v, want prefix 'ope_'", id)
+		}
+		nanoidPart := strings.TrimPrefix(id, "ope_")
+		if len(nanoidPart) != 26 {
+			t.Errorf("Nanoid part should be 26 characters, got %d: %s", len(nanoidPart), nanoidPart)
+		}
+	})
+
+	t.Run("independent from event prefix", func(t *testing.T) {
+		err := Configure(IDGenConfig{
+			Type:                "uuidv4",
+			EventPrefix:         "evt_",
+			OperatorEventPrefix: "ope_",
+		})
+		if err != nil {
+			t.Fatalf("Configure() error = %v", err)
+		}
+
+		eventID := Event()
+		operatorEventID := OperatorEvent()
+
+		if !strings.HasPrefix(eventID, "evt_") {
+			t.Errorf("Event() = %v, want prefix 'evt_'", eventID)
+		}
+		if !strings.HasPrefix(operatorEventID, "ope_") {
+			t.Errorf("OperatorEvent() = %v, want prefix 'ope_'", operatorEventID)
+		}
+	})
+}
+
 func BenchmarkEvent_UUIDv4(b *testing.B) {
 	Configure(IDGenConfig{Type: "uuidv4", EventPrefix: ""})
 	b.ResetTimer()

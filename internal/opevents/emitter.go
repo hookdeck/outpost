@@ -66,7 +66,7 @@ func (e *emitter) Emit(ctx context.Context, topic string, tenantID string, data 
 	}
 
 	event := &OperatorEvent{
-		ID:           idgen.String(),
+		ID:           idgen.OperatorEvent(),
 		Topic:        topic,
 		Time:         time.Now(),
 		DeploymentID: e.deploymentID,

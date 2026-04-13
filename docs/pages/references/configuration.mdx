@@ -77,6 +77,7 @@ Global configurations are provided through env variables or a YAML file. ConfigM
 | `IDGEN_ATTEMPT_PREFIX` | Prefix for attempt IDs, prepended with underscore (e.g., 'atm_123'). Default: empty (no prefix) | `nil` | No |
 | `IDGEN_DESTINATION_PREFIX` | Prefix for destination IDs, prepended with underscore (e.g., 'dst_123'). Default: empty (no prefix) | `nil` | No |
 | `IDGEN_EVENT_PREFIX` | Prefix for event IDs, prepended with underscore (e.g., 'evt_123'). Default: empty (no prefix) | `nil` | No |
+| `IDGEN_OPERATOR_EVENT_PREFIX` | Prefix for operator event IDs, prepended with underscore (e.g., 'ope_123'). Default: empty (no prefix) | `nil` | No |
 | `IDGEN_TYPE` | ID generation type for all entities: uuidv4, uuidv7, nanoid. Default: uuidv4 | `uuidv4` | No |
 | `LOG_BATCH_SIZE` | Maximum number of log entries to batch together before writing to storage. | `1000` | No |
 | `LOG_BATCH_THRESHOLD_SECONDS` | Maximum time in seconds to buffer logs before flushing them to storage, if batch size is not reached. | `10` | No |
