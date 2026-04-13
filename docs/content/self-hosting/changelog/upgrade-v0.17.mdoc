@@ -1,0 +1,112 @@
+---
+title: "Upgrade to v0.17"
+description: "Breaking changes and migration steps for upgrading Outpost from v0.16 to v0.17."
+---
+
+This guide covers breaking changes and migration steps when upgrading from v0.16 to v0.17.
+
+## Breaking Changes Overview
+
+| Change | Impact | Action Required |
+| --- | --- | --- |
+| [Migrations no longer auto-apply at startup](#migrations-no-longer-auto-apply-at-startup) | Deployment workflows | Run `outpost migrate apply --yes` before `outpost serve` |
+
+## Migrations No Longer Auto-Apply at Startup
+
+Starting in v0.17, the Outpost server **refuses to start** if there are pending database migrations. Previously, migrations were applied automatically during startup.
+
+To keep Outpost up to date, the recommendation is to run `outpost migrate apply --yes` before starting the server. This applies all pending SQL and Redis migrations. It is safe to run on every startup, including the very first one — on a fresh database it applies the initial schema, and on subsequent starts with no pending migrations it exits immediately.
+
+:::note
+`outpost migrate apply` mutates your database. If you prefer to review changes before applying, use `outpost migrate plan` to see what would run, then `outpost migrate apply` interactively (without `--yes`) for a confirmation prompt.
+:::
+
+### Recommended deployment flow
+
+The simplest approach is to always run migrations before starting the server:
+
+```bash
+outpost migrate apply --yes
+outpost serve
+```
+
+How you integrate this depends on your deployment setup. Below are some common patterns.
+
+### Docker Compose
+
+Use a `migrate` service that runs before the main service:
+
+```yaml
+services:
+  outpost-migrate:
+    image: hookdeck/outpost
+    command: ["migrate", "apply", "--yes"]
+    env_file: .env
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  outpost:
+    image: hookdeck/outpost
+    command: ["serve"]
+    env_file: .env
+    depends_on:
+      outpost-migrate:
+        condition: service_completed_successfully
+```
+
+### Kubernetes
+
+Use an init container on the Outpost deployment:
+
+```yaml
+spec:
+  initContainers:
+    - name: migrate
+      image: hookdeck/outpost
+      command: ["outpost", "migrate", "apply", "--yes"]
+      envFrom:
+        - secretRef:
+            name: outpost-config
+  containers:
+    - name: outpost
+      image: hookdeck/outpost
+      command: ["outpost", "serve"]
+      envFrom:
+        - secretRef:
+            name: outpost-config
+```
+
+Alternatively, run migrations as a separate Kubernetes Job before rolling out the new version.
+
+### CI/CD pipeline
+
+Add a migration step before deploying the new version:
+
+```bash
+# 1. Run migrations against production databases
+docker run --rm --env-file .env \
+  hookdeck/outpost migrate apply --yes
+
+# 2. Deploy the new version
+# (your deploy command here)
+```
+
+### Other approaches
+
+The examples above are recommendations — run migrations however fits your infrastructure. The only requirement is that `outpost migrate apply` completes before `outpost serve` starts. Some teams prefer a wrapper script in their entrypoint, others run it as a pre-deploy hook. Any approach works as long as migrations finish first.
+
+## Upgrade Checklist
+
+1. **Before upgrading:**
+   - [ ] Update your deployment workflow to run `outpost migrate apply --yes` before `outpost serve`
+   - [ ] If you run multiple Outpost replicas, ensure only one instance runs migrations at a time (the migration tool uses distributed locks, but running it from a single place is simpler)
+
+2. **Upgrade:**
+   - [ ] Update Outpost to v0.17
+   - [ ] Run `outpost migrate apply --yes`
+   - [ ] Start Outpost with `outpost serve`
+
+3. **After upgrading:**
+   - [ ] Verify Outpost starts without migration errors
+   - [ ] Optionally run `outpost migrate verify` to confirm migration state
