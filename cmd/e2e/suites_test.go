@@ -111,6 +111,8 @@ func (suite *basicSuite) SetupSuite() {
 
 	require.NoError(t, cfg.Validate(config.Flags{}))
 
+	configs.ApplyMigrations(t, &cfg)
+
 	suite.e2eSuite = e2eSuite{
 		config:            cfg,
 		mockServerBaseURL: mockServerBaseURL,
