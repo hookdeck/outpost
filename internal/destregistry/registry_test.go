@@ -773,6 +773,120 @@ func TestPublishEventCanceled(t *testing.T) {
 	})
 }
 
+func TestPublishEventResolvePublisherError(t *testing.T) {
+	t.Parallel()
+
+	t.Run("should return failed attempt when CreatePublisher returns ErrDestinationPublishAttempt", func(t *testing.T) {
+		t.Parallel()
+
+		registry := destregistry.NewRegistry(&destregistry.Config{}, testutil.CreateTestLogger(t))
+
+		provider := &mockFailingProvider{
+			createErr: destregistry.NewErrDestinationPublishAttempt(
+				errors.New("missing 'type' field in credentials"),
+				"gcp_pubsub",
+				map[string]interface{}{"error": "client_creation_failed", "message": "missing 'type' field in credentials"},
+			),
+		}
+		err := registry.RegisterProvider("gcp_pubsub", provider)
+		require.NoError(t, err)
+
+		destination := &models.Destination{ID: "dest-1", Type: "gcp_pubsub"}
+		event := &models.Event{ID: "evt-1"}
+
+		attempt, err := registry.PublishEvent(context.Background(), destination, event)
+
+		require.Error(t, err)
+		require.NotNil(t, attempt, "should return a failed attempt, not nil")
+		assert.Equal(t, "failed", attempt.Status)
+		assert.Equal(t, "ERR", attempt.Code)
+		assert.Equal(t, "dest-1", attempt.DestinationID)
+		assert.Equal(t, "evt-1", attempt.EventID)
+
+		var pubErr *destregistry.ErrDestinationPublishAttempt
+		require.ErrorAs(t, err, &pubErr)
+		assert.Equal(t, "client_creation_failed", pubErr.Data["error"])
+	})
+
+	t.Run("should return failed attempt when CreatePublisher returns ErrDestinationValidation", func(t *testing.T) {
+		t.Parallel()
+
+		registry := destregistry.NewRegistry(&destregistry.Config{}, testutil.CreateTestLogger(t))
+
+		provider := &mockFailingProvider{
+			createErr: destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{
+				{Field: "credentials.service_account_json", Type: "missing_type"},
+			}),
+		}
+		err := registry.RegisterProvider("gcp_pubsub", provider)
+		require.NoError(t, err)
+
+		destination := &models.Destination{ID: "dest-2", Type: "gcp_pubsub"}
+		event := &models.Event{ID: "evt-2"}
+
+		attempt, err := registry.PublishEvent(context.Background(), destination, event)
+
+		require.Error(t, err)
+		require.NotNil(t, attempt, "should return a failed attempt, not nil")
+		assert.Equal(t, "failed", attempt.Status)
+		assert.Equal(t, "ERR", attempt.Code)
+
+		var pubErr *destregistry.ErrDestinationPublishAttempt
+		require.ErrorAs(t, err, &pubErr)
+		assert.Equal(t, "validation_failed", pubErr.Data["error"])
+	})
+
+	t.Run("should return nil attempt for unknown errors", func(t *testing.T) {
+		t.Parallel()
+
+		registry := destregistry.NewRegistry(&destregistry.Config{}, testutil.CreateTestLogger(t))
+
+		provider := &mockFailingProvider{
+			createErr: errors.New("unexpected system error"),
+		}
+		err := registry.RegisterProvider("gcp_pubsub", provider)
+		require.NoError(t, err)
+
+		destination := &models.Destination{ID: "dest-3", Type: "gcp_pubsub"}
+		event := &models.Event{ID: "evt-3"}
+
+		attempt, err := registry.PublishEvent(context.Background(), destination, event)
+
+		require.Error(t, err)
+		assert.Nil(t, attempt, "should return nil attempt for unknown errors")
+	})
+}
+
+// mockFailingProvider simulates a provider whose CreatePublisher always fails
+type mockFailingProvider struct {
+	createErr error
+	*destregistry.BaseProvider
+}
+
+func (p *mockFailingProvider) Validate(ctx context.Context, dest *models.Destination) error {
+	return nil
+}
+
+func (p *mockFailingProvider) CreatePublisher(ctx context.Context, dest *models.Destination) (destregistry.Publisher, error) {
+	return nil, p.createErr
+}
+
+func (p *mockFailingProvider) ComputeTarget(dest *models.Destination) destregistry.DestinationTarget {
+	return destregistry.DestinationTarget{}
+}
+
+func (p *mockFailingProvider) Metadata() *metadata.ProviderMetadata {
+	return &metadata.ProviderMetadata{Type: "gcp_pubsub"}
+}
+
+func (p *mockFailingProvider) ObfuscateDestination(dest *models.Destination) *models.Destination {
+	return dest
+}
+
+func (p *mockFailingProvider) Preprocess(newDest *models.Destination, origDest *models.Destination, opts *destregistry.PreprocessDestinationOpts) error {
+	return nil
+}
+
 func TestDisplayDestination(t *testing.T) {
 	t.Parallel()
 
