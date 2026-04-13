@@ -3,9 +3,9 @@ import {
   useContext,
   useState,
   useEffect,
-  ReactNode,
   useCallback,
 } from "react";
+import type { ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { CollapseIcon } from "../Icons";
 import Button from "../Button/Button";

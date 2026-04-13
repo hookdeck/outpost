@@ -1,10 +1,10 @@
 import { useState } from "react";
-import MetricsChart, {
-  ChartDataPoint,
-} from "../../common/MetricsChart/MetricsChart";
+import MetricsChart from "../../common/MetricsChart/MetricsChart";
+import type { ChartDataPoint } from "../../common/MetricsChart/MetricsChart";
 import MetricsBreakdown from "../../common/MetricsChart/MetricsBreakdown";
-import { Timeframe, useMetrics } from "../../common/MetricsChart/useMetrics";
-import { Destination } from "../../typings/Destination";
+import { useMetrics } from "../../common/MetricsChart/useMetrics";
+import type { Timeframe } from "../../common/MetricsChart/useMetrics";
+import type { Destination } from "../../typings/Destination";
 
 const TIMEFRAMES: Timeframe[] = ["1h", "24h", "7d", "30d"];
 

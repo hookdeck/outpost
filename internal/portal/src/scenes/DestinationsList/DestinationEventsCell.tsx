@@ -1,5 +1,5 @@
 import Sparkline from "../../common/Sparkline/Sparkline";
-import { MetricsDataPoint } from "../../common/MetricsChart/useMetrics";
+import type { MetricsDataPoint } from "../../common/MetricsChart/useMetrics";
 
 interface DestinationEventsCellProps {
   metricsData?: MetricsDataPoint[];

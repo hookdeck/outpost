@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import {
+import type {
   Destination,
   DestinationTypeReference,
 } from "../../typings/Destination";
