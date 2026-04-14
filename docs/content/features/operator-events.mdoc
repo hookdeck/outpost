@@ -210,7 +210,7 @@ Emitted when destination changes affect tenant-level subscribed topics or destin
 
 ## Delivery Guarantees
 
-`alert.*` topics are delivered with a at-least-once guarantee. For other topics (e.g. `tenant.subscription.updated`), delivery is on a best-effort basis with up to 3 attempts. Consumers should deduplicate using the event `id`.
+`alert.*` topics are delivered with an at-least-once guarantee. For other topics (e.g. `tenant.subscription.updated`), delivery is on a best-effort basis with up to 3 attempts. Consumers should deduplicate using the event `id`.
 
 ## Related Configuration
 

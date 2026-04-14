@@ -11,7 +11,7 @@ Hookdeck offers a managed version of Outpost with all the reliability and scalab
 
 ## Goals
 
-Outpost aims to be a lightweight, high performance solution to deliver webhooks and events to your users. Outpost covers the tablestakes to deliver a deliver at-least-once delivery guarantees and provide a great developer experience modeling itself after API such as Stripe. By design, Outpost doesn't implement support for bells and whistle such as per tenant delivery rates that would lead to complex and expensive architecture. Instead, by using Event Destinations, your users can bring their own capabilities such as control throughput, transforming events, etc.
+Outpost aims to be a lightweight, high-performance solution for delivering webhooks and events to your users. Outpost covers the table stakes to deliver an at-least-once delivery guarantee and provide a great developer experience, modeled after APIs such as Stripe. By design, Outpost doesn't implement support for bells and whistles such as per-tenant delivery rates that would lead to complex and expensive architecture. Instead, by using Event Destinations, your users can bring their own capabilities such as controlling throughput, transforming events, etc.
 
 ## Key Features
 
@@ -19,9 +19,9 @@ Outpost aims to be a lightweight, high performance solution to deliver webhooks 
 - Fanning out events to multiple destinations
 - Event topics and topic-based subscriptions
 - Destination-level filters based on event content
-- Automatic retries with exponential backoff or custom retries schedule
+- Automatic retries with exponential backoff or a custom retry schedule
 - Manual retries via portal or API
-- JWT autenticated API to easily build your own UI or a self-service portal for your users to manage destinations and inspect events
+- JWT authenticated API to easily build your own UI or a self-service portal for your users to manage destinations and inspect events
 - Multi-tenant support with per-tenant isolation
 - Alerts for failing destinations with debouncing
 - Auto-disabling of failed destinations (optional)
@@ -41,7 +41,7 @@ Outpost delivers events to any of the following destination types:
 - **[Azure Service Bus](/docs/outpost/destinations/azure-service-bus)** — Send to a Service Bus queue or topic
 - **[GCP Pub/Sub](/docs/outpost/destinations/gcp-pubsub)** — Publish to a Pub/Sub topic
 - **[RabbitMQ (AMQP)](/docs/outpost/destinations/rabbitmq)** — Send to a remote RabbitMQ exchange
-- **[Kafka (planned)](https://github.com/hookdeck/outpost/issues/141)** — Send to a remote Kafka topic
+- **[Kafka](/docs/outpost/destinations/kafka)** — Send to a remote Kafka topic
 
 If you'd like to see more destination types added, [open an issue or PR](https://github.com/hookdeck/outpost/issues).
 

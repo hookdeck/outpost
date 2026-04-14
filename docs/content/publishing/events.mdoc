@@ -66,9 +66,9 @@ curl --location '{% $OUTPOST_API_BASE_URL %}/publish' \
 }'
 ```
 
-Replace `<OUTPOST_API_URL>` with your Outpost API Key `<API_KEY>`
+Replace `<API_KEY>` with your Outpost API key.
 
-> When self-hosting Outpost, the Outpost API root URL will need to be replaced with your own URL. ie: https://outpost.your-domain.com/api/v1/publish. 
+> When self-hosting Outpost, replace the API root URL with your own deployment URL, e.g., `https://outpost.your-domain.com/api/v1/publish`.
 
 ## Metadata and Headers
 
@@ -94,11 +94,11 @@ When an event is published, Outpost evaluates it against all tenant destinations
 
 Each call to `GET /api/v1/tenants/:tenant_id` returns a `topics` array listing all topics currently in use across that tenant's destinations. You can cache this value in your application and use it to skip the publish call entirely when no destination would match a given topic.
 
-You can also subscribe to the `tenant.subscriptions.updated` [Operator Events](/operator-events) topic to receive event when the tenant subscribed topics changes.
+You can also subscribe to the `tenant.subscriptions.updated` [Operator Events](/operator-events) topic to receive an event when the tenant's subscribed topics change.
 
-While this is optional, it is strongly recommended to perform pre-filtering on topics. This limits the network calls from your application (reducing operation latency) and reduce resources consumption on the Outpost services.
+While this is optional, it is strongly recommended to perform pre-filtering on topics. This limits the network calls from your application (reducing operation latency) and reduces resource consumption on Outpost services.
 
 
 ## Delivery guarantee
 
-Once an event is ingested by Outpost, the delivery to eligible destinations has at-least-once guarantee. However, it is your responsibility to implement at-least-once publishing to the Outpost API or the message queue that Outpost consumes. This implies that your application needs to be able to retry publishing failures if such guarantee is a requirement.
+Once an event is ingested by Outpost, delivery to eligible destinations has an at-least-once guarantee. However, it is your responsibility to implement at-least-once publishing to the Outpost API or the message queue that Outpost consumes. This implies that your application needs to be able to retry publishing failures if such guarantee is a requirement.

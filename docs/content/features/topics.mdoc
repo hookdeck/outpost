@@ -71,7 +71,7 @@ A single published event is independently delivered to every destination that ma
 ## Tenant topics subscriptions
 
 The tenant object's `topics` array lists all topics currently in use. 
-This is usefull to keeps track of the complete set of topics a tenant is subscribed to across all their destinations. This can be useful to avoid unecessary event publishing.
+This is useful for keeping track of the complete set of topics a tenant is subscribed to across all their destinations, and can help you avoid unnecessary event publishing.
 
 ```sh
 curl '{% $OUTPOST_API_BASE_URL %}/tenants/<TENANT_ID>' \
@@ -86,6 +86,6 @@ curl '{% $OUTPOST_API_BASE_URL %}/tenants/<TENANT_ID>' \
 }
 ```
 
-You can also subscribe to the `tenant.subscriptions.updated` [Operator Events](/operator-events) topic to receive event when the tenant subscribed topics changes.
+You can also subscribe to the `tenant.subscriptions.updated` [Operator Events](/operator-events) topic to receive an event when the tenant's subscribed topics change.
 
 

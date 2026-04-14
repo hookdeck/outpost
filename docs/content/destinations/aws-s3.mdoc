@@ -47,7 +47,7 @@ curl '{% $OUTPOST_API_BASE_URL %}/tenants/<TENANT_ID>/destinations' \
 
 ## Object Format
 
-The S3 object body contains the event's `data` field as JSON. Event metadata (`event-id`, `topic`, `timestamp`, plus any event metadata) is stored in the S3 object's user-defined metadata — not in the body.
+The S3 object body contains the event's `data` field as JSON. Event metadata (`event-id`, `topic`, `timestamp`, plus any custom metadata from the published event) is stored in the S3 object's user-defined metadata — not in the body.
 
 ### Object Key
 
