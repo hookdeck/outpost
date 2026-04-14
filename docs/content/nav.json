@@ -90,15 +90,6 @@
       ]
     },
     {
-      "label": "Platform (Managed Only)",
-      "sections": [
-        [
-          { "href": "/docs/platform/projects", "title": "Projects" },
-          { "href": "/docs/platform/organizations", "title": "Organizations" }
-        ]
-      ]
-    },
-    {
       "label": "Publishing",
       "sections": [
         [
@@ -119,6 +110,15 @@
             "slug": "publishing/publish-from-gcp-pubsub",
             "title": "Publish from GCP Pub/Sub"
           }
+        ]
+      ]
+    },
+    {
+      "label": "Platform (Managed Only)",
+      "sections": [
+        [
+          { "href": "/docs/platform/organizations", "title": "Organizations" },
+          { "href": "/docs/platform/outpost-projects", "title": "Projects" }
         ]
       ]
     }
