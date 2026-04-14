@@ -19,7 +19,7 @@ type redisTestClient struct {
 	*r.Client
 }
 
-func (c *redisTestClient) Close() error          { return c.Client.Close() }
+func (c *redisTestClient) Close() error              { return c.Client.Close() }
 func (c *redisTestClient) Pipeline() redis.Pipeliner { return c.Client.Pipeline() }
 
 // fakeMigration is a test-only migratorredis.Migration that records calls.
@@ -92,7 +92,7 @@ func (m *fakeMigration) Verify(ctx context.Context, state *migratorredis.State) 
 	}, nil
 }
 
-func (m *fakeMigration) PlanCleanup(ctx context.Context) (int, error)    { return 0, nil }
+func (m *fakeMigration) PlanCleanup(ctx context.Context) (int, error) { return 0, nil }
 func (m *fakeMigration) Cleanup(ctx context.Context, state *migratorredis.State) error {
 	return nil
 }

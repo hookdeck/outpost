@@ -70,8 +70,8 @@ func newMigrateCommand() *cli.Command {
 				Action: runMigrateVerify,
 			},
 			{
-				Name:   "unlock",
-				Usage:  "Force clear the Redis migration lock (use with caution)",
+				Name:  "unlock",
+				Usage: "Force clear the Redis migration lock (use with caution)",
 				Flags: []cli.Flag{
 					&cli.BoolFlag{
 						Name:    "yes",
