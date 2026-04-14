@@ -14,7 +14,10 @@ export type Event = {
    * The tenant this event belongs to.
    */
   tenantId?: string | undefined;
-  destinationId?: string | undefined;
+  /**
+   * The destination IDs that this event was routed to based on topic and filter matching.
+   */
+  matchedDestinationIds?: Array<string> | undefined;
   topic?: string | undefined;
   /**
    * Time the event was received/processed.
@@ -35,7 +38,7 @@ export const Event$inboundSchema: z.ZodType<Event, z.ZodTypeDef, unknown> = z
   .object({
     id: z.string().optional(),
     tenant_id: z.string().optional(),
-    destination_id: z.string().optional(),
+    matched_destination_ids: z.array(z.string()).optional(),
     topic: z.string().optional(),
     time: z.string().datetime({ offset: true }).transform(v => new Date(v))
       .optional(),
@@ -44,14 +47,14 @@ export const Event$inboundSchema: z.ZodType<Event, z.ZodTypeDef, unknown> = z
   }).transform((v) => {
     return remap$(v, {
       "tenant_id": "tenantId",
-      "destination_id": "destinationId",
+      "matched_destination_ids": "matchedDestinationIds",
     });
   });
 /** @internal */
 export type Event$Outbound = {
   id?: string | undefined;
   tenant_id?: string | undefined;
-  destination_id?: string | undefined;
+  matched_destination_ids?: Array<string> | undefined;
   topic?: string | undefined;
   time?: string | undefined;
   metadata?: { [k: string]: string } | null | undefined;
@@ -66,7 +69,7 @@ export const Event$outboundSchema: z.ZodType<
 > = z.object({
   id: z.string().optional(),
   tenantId: z.string().optional(),
-  destinationId: z.string().optional(),
+  matchedDestinationIds: z.array(z.string()).optional(),
   topic: z.string().optional(),
   time: z.date().transform(v => v.toISOString()).optional(),
   metadata: z.nullable(z.record(z.string())).optional(),
@@ -74,7 +77,7 @@ export const Event$outboundSchema: z.ZodType<
 }).transform((v) => {
   return remap$(v, {
     tenantId: "tenant_id",
-    destinationId: "destination_id",
+    matchedDestinationIds: "matched_destination_ids",
   });
 });
 

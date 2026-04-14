@@ -40,6 +40,8 @@ func newEvents(rootSDK *Outpost, sdkConfig config.SDKConfiguration, hooks *hooks
 //
 // When authenticated with a Tenant JWT, returns only events belonging to that tenant.
 // When authenticated with Admin API Key, returns events across all tenants. Use `tenant_id` query parameter to filter by tenant.
+//
+// If set, this operation will use [Security.APIKey] from the global security.
 func (s *Events) List(ctx context.Context, request operations.ListEventsRequest, opts ...operations.Option) (*operations.ListEventsResponse, error) {
 	o := operations.Options{}
 	supportedOptions := []string{
@@ -96,7 +98,7 @@ func (s *Events) List(ctx context.Context, request operations.ListEventsRequest,
 		return nil, fmt.Errorf("error populating query params: %w", err)
 	}
 
-	if err := utils.PopulateSecurity(ctx, req, s.sdkConfiguration.Security); err != nil {
+	if err := utils.PopulateSecurity(ctx, req, s.sdkConfiguration.Security, "APIKey"); err != nil {
 		return nil, err
 	}
 

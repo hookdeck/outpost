@@ -14,7 +14,6 @@ build:
 	@echo "Building all binaries..."
 	go build -o bin/outpost ./cmd/outpost
 	go build -o bin/outpost-server ./cmd/outpost-server
-	go build -o bin/outpost-migrate-redis ./cmd/outpost-migrate-redis
 	@echo "Binaries built in ./bin/"
 
 build/goreleaser:
@@ -26,18 +25,14 @@ build/outpost:
 build/server:
 	go build -o bin/outpost-server ./cmd/outpost-server
 
-build/migrate-redis:
-	go build -o bin/outpost-migrate-redis ./cmd/outpost-migrate-redis
-
 install:
 	@echo "Installing binaries to GOPATH/bin..."
 	go install ./cmd/outpost
 	go install ./cmd/outpost-server
-	go install ./cmd/outpost-migrate-redis
 	@echo "Installation complete"
 
 clean:
-	rm -f bin/outpost bin/outpost-server bin/outpost-migrate-redis
+	rm -f bin/outpost bin/outpost-server
 
 up:
 	make up/deps
@@ -166,8 +161,8 @@ test/coverage/html:
 docs/generate/config:
 	go run cmd/configdocsgen/main.go
 
-migrate/redis:
-	docker-compose -f build/dev/compose.yml --env-file .env run --rm --entrypoint "" api go run ./cmd/outpost-migrate-redis apply --all --yes
+migrate:
+	docker-compose -f build/dev/compose.yml --env-file .env run --rm --entrypoint "" api go run ./cmd/outpost migrate apply --yes
 
 redis/debug:
 	go run cmd/redis-debug/main.go $(ARGS)

@@ -44,6 +44,8 @@ func newTenants(rootSDK *Outpost, sdkConfig config.SDKConfiguration, hooks *hook
 // If RediSearch is not available, this endpoint returns `501 Not Implemented`.
 //
 // When authenticated with a Tenant JWT, returns only the authenticated tenant. Pagination is not used in this case.
+//
+// If set, this operation will use [Security.APIKey] from the global security.
 func (s *Tenants) List(ctx context.Context, request operations.ListTenantsRequest, opts ...operations.Option) (*operations.ListTenantsResponse, error) {
 	o := operations.Options{}
 	supportedOptions := []string{
@@ -100,7 +102,7 @@ func (s *Tenants) List(ctx context.Context, request operations.ListTenantsReques
 		return nil, fmt.Errorf("error populating query params: %w", err)
 	}
 
-	if err := utils.PopulateSecurity(ctx, req, s.sdkConfiguration.Security); err != nil {
+	if err := utils.PopulateSecurity(ctx, req, s.sdkConfiguration.Security, "APIKey"); err != nil {
 		return nil, err
 	}
 
@@ -1237,6 +1239,8 @@ func (s *Tenants) Delete(ctx context.Context, tenantID string, opts ...operation
 
 // GetPortalURL - Get Portal Redirect URL
 // Returns a redirect URL containing a JWT to authenticate the user with the portal. Requires Admin API Key.
+//
+// If set, this operation will use [Security.APIKey] from the global security.
 func (s *Tenants) GetPortalURL(ctx context.Context, tenantID string, theme *operations.Theme, opts ...operations.Option) (*operations.GetTenantPortalURLResponse, error) {
 	request := operations.GetTenantPortalURLRequest{
 		TenantID: tenantID,
@@ -1298,7 +1302,7 @@ func (s *Tenants) GetPortalURL(ctx context.Context, tenantID string, theme *oper
 		return nil, fmt.Errorf("error populating query params: %w", err)
 	}
 
-	if err := utils.PopulateSecurity(ctx, req, s.sdkConfiguration.Security); err != nil {
+	if err := utils.PopulateSecurity(ctx, req, s.sdkConfiguration.Security, "APIKey"); err != nil {
 		return nil, err
 	}
 
@@ -1515,6 +1519,8 @@ func (s *Tenants) GetPortalURL(ctx context.Context, tenantID string, theme *oper
 
 // GetToken - Get Tenant JWT Token
 // Returns a JWT token scoped to the tenant for safe browser API calls. Requires Admin API Key.
+//
+// If set, this operation will use [Security.APIKey] from the global security.
 func (s *Tenants) GetToken(ctx context.Context, tenantID string, opts ...operations.Option) (*operations.GetTenantTokenResponse, error) {
 	request := operations.GetTenantTokenRequest{
 		TenantID: tenantID,
@@ -1571,7 +1577,7 @@ func (s *Tenants) GetToken(ctx context.Context, tenantID string, opts ...operati
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("User-Agent", s.sdkConfiguration.UserAgent)
 
-	if err := utils.PopulateSecurity(ctx, req, s.sdkConfiguration.Security); err != nil {
+	if err := utils.PopulateSecurity(ctx, req, s.sdkConfiguration.Security, "APIKey"); err != nil {
 		return nil, err
 	}
 

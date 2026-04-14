@@ -16,3 +16,4 @@ value = DestinationSchemaFieldType.TEXT
 | `TEXT`          | text            |
 | `CHECKBOX`      | checkbox        |
 | `KEY_VALUE_MAP` | key_value_map   |
+| `SELECT`        | select          |

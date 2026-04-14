@@ -25,6 +25,11 @@ export type ListEventsId = string | Array<string>;
 export type ListEventsTenantId = string | Array<string>;
 
 /**
+ * Filter events by matched destination ID(s). Returns events that were routed to the specified destination(s). Use bracket notation for multiple values (e.g., `destination_id[0]=d1&destination_id[1]=d2`).
+ */
+export type ListEventsDestinationId = string | Array<string>;
+
+/**
  * Filter events by topic(s). Use bracket notation for multiple values (e.g., `topic[0]=user.created&topic[1]=user.updated`).
  */
 export type ListEventsTopic = string | Array<string>;
@@ -65,6 +70,10 @@ export type ListEventsRequest = {
    * If not provided with API key auth, returns events from all tenants.
    */
   tenantId?: string | Array<string> | undefined;
+  /**
+   * Filter events by matched destination ID(s). Returns events that were routed to the specified destination(s). Use bracket notation for multiple values (e.g., `destination_id[0]=d1&destination_id[1]=d2`).
+   */
+  destinationId?: string | Array<string> | undefined;
   /**
    * Filter events by topic(s). Use bracket notation for multiple values (e.g., `topic[0]=user.created&topic[1]=user.updated`).
    */
@@ -174,6 +183,39 @@ export function listEventsTenantIdFromJSON(
 }
 
 /** @internal */
+export const ListEventsDestinationId$inboundSchema: z.ZodType<
+  ListEventsDestinationId,
+  z.ZodTypeDef,
+  unknown
+> = z.union([z.string(), z.array(z.string())]);
+/** @internal */
+export type ListEventsDestinationId$Outbound = string | Array<string>;
+
+/** @internal */
+export const ListEventsDestinationId$outboundSchema: z.ZodType<
+  ListEventsDestinationId$Outbound,
+  z.ZodTypeDef,
+  ListEventsDestinationId
+> = z.union([z.string(), z.array(z.string())]);
+
+export function listEventsDestinationIdToJSON(
+  listEventsDestinationId: ListEventsDestinationId,
+): string {
+  return JSON.stringify(
+    ListEventsDestinationId$outboundSchema.parse(listEventsDestinationId),
+  );
+}
+export function listEventsDestinationIdFromJSON(
+  jsonString: string,
+): SafeParseResult<ListEventsDestinationId, SDKValidationError> {
+  return safeParse(
+    jsonString,
+    (x) => ListEventsDestinationId$inboundSchema.parse(JSON.parse(x)),
+    `Failed to parse 'ListEventsDestinationId' from JSON`,
+  );
+}
+
+/** @internal */
 export const ListEventsTopic$inboundSchema: z.ZodType<
   ListEventsTopic,
   z.ZodTypeDef,
@@ -230,6 +272,7 @@ export const ListEventsRequest$inboundSchema: z.ZodType<
 > = z.object({
   id: z.union([z.string(), z.array(z.string())]).optional(),
   tenant_id: z.union([z.string(), z.array(z.string())]).optional(),
+  destination_id: z.union([z.string(), z.array(z.string())]).optional(),
   topic: z.union([z.string(), z.array(z.string())]).optional(),
   "time[gte]": z.string().datetime({ offset: true }).transform(v => new Date(v))
     .optional(),
@@ -247,6 +290,7 @@ export const ListEventsRequest$inboundSchema: z.ZodType<
 }).transform((v) => {
   return remap$(v, {
     "tenant_id": "tenantId",
+    "destination_id": "destinationId",
     "time[gte]": "timeGte",
     "time[lte]": "timeLte",
     "time[gt]": "timeGt",
@@ -258,6 +302,7 @@ export const ListEventsRequest$inboundSchema: z.ZodType<
 export type ListEventsRequest$Outbound = {
   id?: string | Array<string> | undefined;
   tenant_id?: string | Array<string> | undefined;
+  destination_id?: string | Array<string> | undefined;
   topic?: string | Array<string> | undefined;
   "time[gte]"?: string | undefined;
   "time[lte]"?: string | undefined;
@@ -278,6 +323,7 @@ export const ListEventsRequest$outboundSchema: z.ZodType<
 > = z.object({
   id: z.union([z.string(), z.array(z.string())]).optional(),
   tenantId: z.union([z.string(), z.array(z.string())]).optional(),
+  destinationId: z.union([z.string(), z.array(z.string())]).optional(),
   topic: z.union([z.string(), z.array(z.string())]).optional(),
   timeGte: z.date().transform(v => v.toISOString()).optional(),
   timeLte: z.date().transform(v => v.toISOString()).optional(),
@@ -291,6 +337,7 @@ export const ListEventsRequest$outboundSchema: z.ZodType<
 }).transform((v) => {
   return remap$(v, {
     tenantId: "tenant_id",
+    destinationId: "destination_id",
     timeGte: "time[gte]",
     timeLte: "time[lte]",
     timeGt: "time[gt]",

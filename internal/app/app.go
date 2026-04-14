@@ -70,11 +70,11 @@ func (a *App) PreRun(ctx context.Context) (err error) {
 		return err
 	}
 
-	if err := a.runMigrations(ctx); err != nil {
+	if err := a.initializeRedis(ctx); err != nil {
 		return err
 	}
 
-	if err := a.initializeRedis(ctx); err != nil {
+	if err := a.checkPendingMigrations(ctx); err != nil {
 		return err
 	}
 
@@ -191,10 +191,6 @@ func (a *App) configureIDGenerators() error {
 	return nil
 }
 
-func (a *App) runMigrations(ctx context.Context) error {
-	return runMigration(ctx, a.config, a.logger)
-}
-
 func (a *App) initializeRedis(ctx context.Context) error {
 	a.logger.Debug("initializing Redis client for infrastructure")
 	redisClient, err := redis.New(ctx, a.config.Redis.ToConfig())
@@ -203,13 +199,16 @@ func (a *App) initializeRedis(ctx context.Context) error {
 		return err
 	}
 	a.redisClient = redisClient
-
-	if err := runRedisMigrations(ctx, redisClient, a.logger, a.config.DeploymentID); err != nil {
-		a.logger.Error("Redis migration failed", zap.Error(err))
-		return err
-	}
-
 	return nil
+}
+
+func (a *App) checkPendingMigrations(ctx context.Context) error {
+	a.logger.Debug("checking for pending migrations")
+	client, ok := a.redisClient.(redis.Client)
+	if !ok {
+		return fmt.Errorf("redis client does not implement full Client interface")
+	}
+	return checkPendingMigrations(ctx, a.config, client, a.logger)
 }
 
 func (a *App) initializeInfrastructure(ctx context.Context) error {

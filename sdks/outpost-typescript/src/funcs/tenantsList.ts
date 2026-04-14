@@ -42,6 +42,8 @@ import {
  * If RediSearch is not available, this endpoint returns `501 Not Implemented`.
  *
  * When authenticated with a Tenant JWT, returns only the authenticated tenant. Pagination is not used in this case.
+ *
+ * If set, this operation will use {@link Security.apiKey} from the global security.
  */
 export function tenantsList(
   client: OutpostCore,
@@ -128,7 +130,7 @@ async function $do(
 
   const secConfig = await extractSecurity(client._options.apiKey);
   const securityInput = secConfig == null ? {} : { apiKey: secConfig };
-  const requestSecurity = resolveGlobalSecurity(securityInput);
+  const requestSecurity = resolveGlobalSecurity(securityInput, [0]);
 
   const context = {
     options: client._options,

@@ -162,12 +162,7 @@ export function App() {
   const tenant = useTenant(token ?? undefined);
 
   return (
-    <BrowserRouter
-      future={{
-        v7_startTransition: true,
-        v7_relativeSplatPath: true,
-      }}
-    >
+    <BrowserRouter>
       <ToastProvider>
         <SidebarProvider>
           <div className="layout">

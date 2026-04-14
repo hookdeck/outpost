@@ -1,4 +1,5 @@
-import React, { useCallback, useContext, useState, MouseEvent } from "react";
+import React, { useCallback, useContext, useState } from "react";
+import type { MouseEvent } from "react";
 import Button from "../Button/Button";
 import { ReplayIcon } from "../Icons";
 import { showToast } from "../Toast/Toast";

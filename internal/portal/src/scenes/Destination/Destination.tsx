@@ -1,5 +1,6 @@
 import "./Destination.scss";
 
+import type { JSX } from "react";
 import { Link, Route, Routes, useLocation, useParams } from "react-router-dom";
 import useSWR from "swr";
 
@@ -9,7 +10,7 @@ import JSONViewer from "../../common/JSONViewer/JSONViewer";
 import { Loading } from "../../common/Icons";
 import CONFIGS from "../../config";
 import { useDestinationType } from "../../destination-types";
-import {
+import type {
   Destination as DestinationType,
   DestinationTypeReference,
 } from "../../typings/Destination";

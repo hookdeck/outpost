@@ -43,11 +43,15 @@ ListAttemptsEventID = TypeAliasType("ListAttemptsEventID", Union[str, List[str]]
 r"""Filter attempts by event ID(s). Use bracket notation for multiple values (e.g., `event_id[0]=e1&event_id[1]=e2`)."""
 
 
-DestinationIDTypedDict = TypeAliasType("DestinationIDTypedDict", Union[str, List[str]])
+ListAttemptsDestinationIDTypedDict = TypeAliasType(
+    "ListAttemptsDestinationIDTypedDict", Union[str, List[str]]
+)
 r"""Filter attempts by destination ID(s). Use bracket notation for multiple values (e.g., `destination_id[0]=d1&destination_id[1]=d2`)."""
 
 
-DestinationID = TypeAliasType("DestinationID", Union[str, List[str]])
+ListAttemptsDestinationID = TypeAliasType(
+    "ListAttemptsDestinationID", Union[str, List[str]]
+)
 r"""Filter attempts by destination ID(s). Use bracket notation for multiple values (e.g., `destination_id[0]=d1&destination_id[1]=d2`)."""
 
 
@@ -112,7 +116,7 @@ class ListAttemptsRequestTypedDict(TypedDict):
     """
     event_id: NotRequired[ListAttemptsEventIDTypedDict]
     r"""Filter attempts by event ID(s). Use bracket notation for multiple values (e.g., `event_id[0]=e1&event_id[1]=e2`)."""
-    destination_id: NotRequired[DestinationIDTypedDict]
+    destination_id: NotRequired[ListAttemptsDestinationIDTypedDict]
     r"""Filter attempts by destination ID(s). Use bracket notation for multiple values (e.g., `destination_id[0]=d1&destination_id[1]=d2`)."""
     status: NotRequired[ListAttemptsStatus]
     r"""Filter attempts by status."""
@@ -164,7 +168,7 @@ class ListAttemptsRequest(BaseModel):
     r"""Filter attempts by event ID(s). Use bracket notation for multiple values (e.g., `event_id[0]=e1&event_id[1]=e2`)."""
 
     destination_id: Annotated[
-        Optional[DestinationID],
+        Optional[ListAttemptsDestinationID],
         FieldMetadata(query=QueryParamMetadata(style="form", explode=True)),
     ] = None
     r"""Filter attempts by destination ID(s). Use bracket notation for multiple values (e.g., `destination_id[0]=d1&destination_id[1]=d2`)."""

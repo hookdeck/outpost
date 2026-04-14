@@ -31,6 +31,8 @@ import { Result } from "../types/fp.js";
  *
  * @remarks
  * Returns a JWT token scoped to the tenant for safe browser API calls. Requires Admin API Key.
+ *
+ * If set, this operation will use {@link Security.apiKey} from the global security.
  */
 export function tenantsGetToken(
   client: OutpostCore,
@@ -111,7 +113,7 @@ async function $do(
 
   const secConfig = await extractSecurity(client._options.apiKey);
   const securityInput = secConfig == null ? {} : { apiKey: secConfig };
-  const requestSecurity = resolveGlobalSecurity(securityInput);
+  const requestSecurity = resolveGlobalSecurity(securityInput, [0]);
 
   const context = {
     options: client._options,

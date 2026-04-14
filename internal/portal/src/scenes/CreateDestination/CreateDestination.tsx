@@ -11,7 +11,7 @@ import {
   useSearchParams,
 } from "react-router-dom";
 import { useState, useMemo, useCallback, useEffect, createContext, useContext } from "react";
-import { DestinationTypeReference } from "../../typings/Destination";
+import type { DestinationTypeReference } from "../../typings/Destination";
 import { useDestinationTypes } from "../../destination-types";
 import CONFIGS from "../../config";
 import TopicsStep from "./steps/TopicsStep";

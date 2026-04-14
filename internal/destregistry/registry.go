@@ -138,6 +138,30 @@ func (r *registry) ValidateDestination(ctx context.Context, destination *models.
 func (r *registry) PublishEvent(ctx context.Context, destination *models.Destination, event *models.Event) (*models.Attempt, error) {
 	publisher, err := r.ResolvePublisher(ctx, destination)
 	if err != nil {
+		// If the provider already signaled a delivery error, create a failed attempt
+		// so it's visible to the customer (instead of silently nacking into DLQ).
+		var pubErr *ErrDestinationPublishAttempt
+		var valErr *ErrDestinationValidation
+		if errors.As(err, &pubErr) || errors.As(err, &valErr) {
+			attempt := &models.Attempt{
+				ID:              idgen.Attempt(),
+				DestinationID:   destination.ID,
+				DestinationType: destination.Type,
+				EventID:         event.ID,
+				Time:            time.Now(),
+				Status:          "failed",
+				Code:            "ERR",
+				ResponseData:    map[string]interface{}{"error": err.Error()},
+			}
+			if pubErr != nil {
+				return attempt, pubErr
+			}
+			return attempt, &ErrDestinationPublishAttempt{
+				Err:      err,
+				Provider: destination.Type,
+				Data:     map[string]interface{}{"error": "validation_failed", "message": err.Error()},
+			}
+		}
 		return nil, err
 	}
 

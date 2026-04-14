@@ -3,7 +3,9 @@ package opevents
 import (
 	"fmt"
 
+	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/mqs"
+	"go.uber.org/zap"
 )
 
 // Config holds the configuration for the operator events system.
@@ -44,9 +46,9 @@ type RabbitMQSinkConfig struct {
 
 // NewSink returns the appropriate Sink based on config.
 // Returns NoopSink if no sink is configured.
-// Returns an error if topics are specified but no sink is configured, as events
-// would be silently dropped.
-func NewSink(cfg Config) (Sink, error) {
+// If topics are specified but no sink is configured, it logs a warning and
+// returns NoopSink (operator events will be dropped).
+func NewSink(cfg Config, logger *logging.Logger) (Sink, error) {
 	if cfg.HTTP != nil {
 		return NewHTTPSink(cfg.HTTP.URL, cfg.HTTP.SigningSecret), nil
 	}
@@ -60,7 +62,8 @@ func NewSink(cfg Config) (Sink, error) {
 		return newMQSinkFromRabbitMQ(cfg.RabbitMQ)
 	}
 	if len(cfg.Topics) > 0 {
-		return nil, fmt.Errorf("opevents: topics are configured (%v) but no sink is set; events would be silently dropped", cfg.Topics)
+		logger.Warn("opevents: topics are configured but no sink is set; operator events will be dropped", zap.Any("topics", cfg.Topics))
+		return &NoopSink{}, nil
 	}
 	return &NoopSink{}, nil
 }

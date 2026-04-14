@@ -1,22 +1,19 @@
-# DestinationId
+# ListAttemptsDestinationID
 
 Filter attempts by destination ID(s). Use bracket notation for multiple values (e.g., `destination_id[0]=d1&destination_id[1]=d2`).
 
 
 ## Supported Types
 
-### `string`
+### `str`
 
-```typescript
-const value: string = "<value>";
+```python
+value: str = /* values here */
 ```
 
-### `string[]`
+### `List[str]`
 
-```typescript
-const value: string[] = [
-  "<value 1>",
-  "<value 2>",
-];
+```python
+value: List[str] = /* values here */
 ```
 

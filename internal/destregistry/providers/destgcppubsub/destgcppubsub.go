@@ -53,7 +53,10 @@ func (d *GCPPubSubDestination) Validate(ctx context.Context, destination *models
 func (d *GCPPubSubDestination) CreatePublisher(ctx context.Context, destination *models.Destination) (destregistry.Publisher, error) {
 	cfg, creds, err := d.resolveMetadata(ctx, destination)
 	if err != nil {
-		return nil, err
+		return nil, destregistry.NewErrDestinationPublishAttempt(err, "gcp_pubsub", map[string]interface{}{
+			"error":   "validation_failed",
+			"message": err.Error(),
+		})
 	}
 
 	// Create Pub/Sub client options
@@ -74,7 +77,10 @@ func (d *GCPPubSubDestination) CreatePublisher(ctx context.Context, destination 
 	// Create the client
 	client, err := pubsub.NewClient(ctx, cfg.ProjectID, opts...)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create Pub/Sub client: %w", err)
+		return nil, destregistry.NewErrDestinationPublishAttempt(err, "gcp_pubsub", map[string]interface{}{
+			"error":   "client_creation_failed",
+			"message": err.Error(),
+		})
 	}
 
 	// Get the topic
@@ -105,6 +111,15 @@ func (d *GCPPubSubDestination) resolveMetadata(ctx context.Context, destination 
 				{
 					Field: "credentials.service_account_json",
 					Type:  "format",
+				},
+			})
+		}
+		// Validate required GCP credential fields
+		if _, ok := jsonCheck["type"]; !ok {
+			return nil, nil, destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{
+				{
+					Field: "credentials.service_account_json",
+					Type:  "missing_type",
 				},
 			})
 		}

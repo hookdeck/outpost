@@ -53,7 +53,7 @@ When the SDK PRs are merged into main, the SDKs are released (published).
 
 ### 5. Outpost binaries (when and where)
 
-- **When are they built?** — As soon as the tag is pushed. [release.yml](../.github/workflows/release.yml) runs and uses **GoReleaser** to build the binaries (e.g. `outpost`, `outpost-server`, `outpost-migrate-redis` for linux/amd64 and arm64), archive them (tar.gz), and build Docker images.
+- **When are they built?** — As soon as the tag is pushed. [release.yml](../.github/workflows/release.yml) runs and uses **GoReleaser** to build the binaries (e.g. `outpost`, `outpost-server` for linux/amd64 and arm64), archive them (tar.gz), and build Docker images.
 - **Where do they go?** — Binary archives are uploaded so they are available for that tag (e.g. as release assets once you create the release for the tag). Docker images are pushed to Docker Hub (e.g. `hookdeck/outpost:{{ tag }}-amd64`).
 
 ---

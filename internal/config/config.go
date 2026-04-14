@@ -59,7 +59,7 @@ type Config struct {
 	DeploymentID        string   `yaml:"deployment_id" env:"DEPLOYMENT_ID" desc:"Optional deployment identifier for multi-tenancy. Enables multiple deployments to share the same infrastructure while maintaining data isolation." required:"N"`
 	AESEncryptionSecret string   `yaml:"aes_encryption_secret" env:"AES_ENCRYPTION_SECRET" desc:"A 16, 24, or 32 byte secret key used for AES encryption of sensitive data at rest." required:"Y"`
 	Topics              []string `yaml:"topics" env:"TOPICS" envSeparator:"," desc:"Comma-separated list of topics that this Outpost instance should subscribe to for event processing." required:"N"`
-	HTTPUserAgent string `yaml:"http_user_agent" env:"HTTP_USER_AGENT" desc:"Custom HTTP User-Agent string for outgoing webhook deliveries. If unset, defaults to 'Outpost/{version}'." required:"N"`
+	HTTPUserAgent       string   `yaml:"http_user_agent" env:"HTTP_USER_AGENT" desc:"Custom HTTP User-Agent string for outgoing webhook deliveries. If unset, defaults to 'Outpost/{version}'." required:"N"`
 
 	// Infrastructure
 	Redis       RedisConfig      `yaml:"redis"`
@@ -478,9 +478,9 @@ func (c *OperatorEventsConfig) ToConfig() opevents.Config {
 }
 
 type AlertConfig struct {
-	ConsecutiveFailureCount       int    `yaml:"consecutive_failure_count" env:"ALERT_CONSECUTIVE_FAILURE_COUNT" desc:"Number of consecutive delivery failures for a destination before triggering an alert and potentially disabling it." required:"N"`
-	AutoDisableDestination        bool   `yaml:"auto_disable_destination" env:"ALERT_AUTO_DISABLE_DESTINATION" desc:"If true, automatically disables a destination after 'consecutive_failure_count' is reached." required:"N"`
-	ExhaustedRetriesWindowSeconds int    `yaml:"exhausted_retries_window_seconds" env:"ALERT_EXHAUSTED_RETRIES_WINDOW_SECONDS" desc:"Suppression window in seconds for exhausted_retries alerts. First exhaustion per destination emits an alert; subsequent exhaustions within the window are suppressed." required:"N"`
+	ConsecutiveFailureCount       int  `yaml:"consecutive_failure_count" env:"ALERT_CONSECUTIVE_FAILURE_COUNT" desc:"Number of consecutive delivery failures for a destination before triggering an alert and potentially disabling it." required:"N"`
+	AutoDisableDestination        bool `yaml:"auto_disable_destination" env:"ALERT_AUTO_DISABLE_DESTINATION" desc:"If true, automatically disables a destination after 'consecutive_failure_count' is reached." required:"N"`
+	ExhaustedRetriesWindowSeconds int  `yaml:"exhausted_retries_window_seconds" env:"ALERT_EXHAUSTED_RETRIES_WINDOW_SECONDS" desc:"Suppression window in seconds for exhausted_retries alerts. First exhaustion per destination emits an alert; subsequent exhaustions within the window are suppressed." required:"N"`
 }
 
 // ConfigFilePath returns the path of the config file that was used

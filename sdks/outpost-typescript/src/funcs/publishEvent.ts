@@ -30,6 +30,8 @@ import { Result } from "../types/fp.js";
  *
  * @remarks
  * Publishes an event to the specified topic, potentially routed to a specific destination. Requires Admin API Key.
+ *
+ * If set, this operation will use {@link Security.apiKey} from the global security.
  */
 export function publishEvent(
   client: OutpostCore,
@@ -107,7 +109,7 @@ async function $do(
 
   const secConfig = await extractSecurity(client._options.apiKey);
   const securityInput = secConfig == null ? {} : { apiKey: secConfig };
-  const requestSecurity = resolveGlobalSecurity(securityInput);
+  const requestSecurity = resolveGlobalSecurity(securityInput, [0]);
 
   const context = {
     options: client._options,
