@@ -455,12 +455,12 @@ func scanAttemptRecords(rows pgx.Rows) ([]attemptRecordWithPosition, error) {
 			attemptTime      time.Time
 			attemptNumber    int
 			manual           bool
-			code                string
-			responseDataStr     string
-			eventTime           time.Time
-			eligibleForRetry    bool
-			eventData           string
-			eventMetadata       map[string]string
+			code             string
+			responseDataStr  string
+			eventTime        time.Time
+			eligibleForRetry bool
+			eventData        string
+			eventMetadata    map[string]string
 		)
 
 		if err := rows.Scan(
@@ -642,12 +642,12 @@ func (s *logStore) RetrieveAttempt(ctx context.Context, req driver.RetrieveAttem
 		attemptTime      time.Time
 		attemptNumber    int
 		manual           bool
-		code              string
-		responseDataStr   string
-		eventTime         time.Time
-		eligibleForRetry  bool
-		eventData         string
-		eventMetadata     map[string]string
+		code             string
+		responseDataStr  string
+		eventTime        time.Time
+		eligibleForRetry bool
+		eventData        string
+		eventMetadata    map[string]string
 	)
 
 	err := row.Scan(

@@ -38,11 +38,11 @@ type Coordinator struct {
 // are expected to own the lifecycle of the SQL migrator and the Redis
 // client and close them when finished.
 type Config struct {
-	SQLMigrator      *migrator.Migrator
-	RedisClient      redis.Client
-	RedisMigrations  []migratorredis.Migration
-	DeploymentID     string
-	Logger           *logging.Logger
+	SQLMigrator     *migrator.Migrator
+	RedisClient     redis.Client
+	RedisMigrations []migratorredis.Migration
+	DeploymentID    string
+	Logger          *logging.Logger
 }
 
 // New constructs a Coordinator. Either SQLMigrator or the Redis fields

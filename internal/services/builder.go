@@ -193,7 +193,7 @@ func (b *ServiceBuilder) BuildAPIWorkers(baseRouter *gin.Engine) error {
 
 	// Create operator events emitter for subscription updates
 	oeCfg := b.cfg.OperatorEvents.ToConfig()
-	oeSink, err := opevents.NewSink(oeCfg)
+	oeSink, err := opevents.NewSink(oeCfg, b.logger)
 	if err != nil {
 		return fmt.Errorf("failed to create operator events sink: %w", err)
 	}
@@ -345,7 +345,7 @@ func (b *ServiceBuilder) BuildLogWorker(baseRouter *gin.Engine) error {
 
 	// Initialize alert monitor for operator events
 	oeCfg := b.cfg.OperatorEvents.ToConfig()
-	sink, err := opevents.NewSink(oeCfg)
+	sink, err := opevents.NewSink(oeCfg, b.logger)
 	if err != nil {
 		return fmt.Errorf("failed to create operator events sink: %w", err)
 	}
