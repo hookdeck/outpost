@@ -231,7 +231,7 @@ v0.12 introduces a new `GET /api/v1/tenants` endpoint for listing all tenants wi
 This endpoint requires Redis with the RediSearch module (e.g., `redis/redis-stack-server`). If RediSearch is not available, the endpoint returns `501 Not Implemented`.
 :::
 
-See the [API Reference](/docs/api/tenants#list-tenants) for details.
+See the [API Reference](/docs/outpost/api/tenants#list-tenants) for details.
 
 ### Migrations Included
 
@@ -243,7 +243,7 @@ See the [API Reference](/docs/api/tenants#list-tenants) for details.
 These migrations require a maintenance window and must be run manually before starting Outpost v0.12.
 
 :::note
-These commands require environment variables for Redis connection (`REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD`, etc.). You can also use `--config` to pass a config file. See the [Schema Migration Guide](/guides/migration#configuration) for details.
+These commands require environment variables for Redis connection (`REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD`, etc.). You can also use `--config` to pass a config file. See the [Schema Migration Guide](/docs/outpost/self-hosting/guides/migration#configuration) for details.
 :::
 
 ```bash
@@ -261,7 +261,7 @@ docker run --rm -e REDIS_HOST=... -e REDIS_PASSWORD=... hookdeck/outpost:v0.12.0
 ```
 
 :::tip[Migration Tool Reference]
-For detailed information on the migration workflow, safety features, and troubleshooting, see the [Schema Migration Guide](/guides/migration).
+For detailed information on the migration workflow, safety features, and troubleshooting, see the [Schema Migration Guide](/docs/outpost/self-hosting/guides/migration).
 :::
 
 ## Upgrade Checklist

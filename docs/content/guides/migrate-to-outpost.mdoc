@@ -60,7 +60,7 @@ Webhooks are delivered via HTTP `POST` requests.
 ### Webhook Event HTTP Headers
 
 - `x-outpost-event-id`: A unique identifier for the event within the Outpost installation
-- `x-outpost-signature`: HMAC of the raw body (default `v0=<hex>`; operators may customize templates — see [Webhook destination](/docs/destinations/webhook#signature)).
+- `x-outpost-signature`: HMAC of the raw body (default `v0=<hex>`; operators may customize templates — see [Webhook destination](/docs/outpost/destinations/webhook#signature)).
 - `x-outpost-timestamp`: A Unix timestamp representing the time the event was generated
 - `x-outpost-topic`: The topic of the event. For example, `user.created`.
 
@@ -134,7 +134,7 @@ The Outpost schema contains two tables related to events:
 
 The following diagram shows the Outpost schema. You can connect to the database instance within your Outpost installation to inspect the schema further.
 
-![Event Destination Request List](../../public/images/outpost-schema.png)
+![Event Destination Request List](/outpost-images/outpost-schema.png)
 
 #### Example Migration Script
 

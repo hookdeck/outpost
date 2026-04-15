@@ -14,9 +14,9 @@ Events can be published in two ways:
 **2. Via a message queue** — Publish events directly to the message queue that Outpost consumes. Higher durability since there's no additional dependency beyond the queue itself.
 
 If you already publish events to a supported message queue, refer to the relevant guide:
-- [Publish from RabbitMQ](/docs/outpost/guides/publish-from-rabbitmq)
-- [Publish from SQS](/docs/outpost/guides/publish-from-sqs)
-- [Publish from GCP Pub/Sub](/docs/outpost/guides/publish-from-gcp-pubsub)
+- [Publish from RabbitMQ](/docs/outpost/publishing/publish-from-rabbitmq)
+- [Publish from SQS](/docs/outpost/publishing/publish-from-sqs)
+- [Publish from GCP Pub/Sub](/docs/outpost/publishing/publish-from-gcp-pubsub)
 
 ## Event Structure
 
@@ -94,7 +94,7 @@ When an event is published, Outpost evaluates it against all tenant destinations
 
 Each call to `GET /api/v1/tenants/:tenant_id` returns a `topics` array listing all topics currently in use across that tenant's destinations. You can cache this value in your application and use it to skip the publish call entirely when no destination would match a given topic.
 
-You can also subscribe to the `tenant.subscriptions.updated` [Operator Events](/operator-events) topic to receive an event when the tenant's subscribed topics change.
+You can also subscribe to the `tenant.subscriptions.updated` [Operator Events](/docs/outpost/features/operator-events) topic to receive an event when the tenant's subscribed topics change.
 
 While this is optional, it is strongly recommended to perform pre-filtering on topics. This limits the network calls from your application (reducing operation latency) and reduces resource consumption on Outpost services.
 
