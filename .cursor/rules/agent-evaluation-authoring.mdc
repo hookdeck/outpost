@@ -1,0 +1,14 @@
+---
+description: Authoring standards for docs/agent-evaluation (no eval leakage in user turns)
+globs: docs/agent-evaluation/**/*
+---
+
+When editing anything under `docs/agent-evaluation/`, read and follow **`docs/agent-evaluation/AGENTS.md`**.
+
+**Quick guardrails for `scenarios/*.md`:**
+
+- **`### Turn N — User`** blockquotes = in-character **product engineer** speech only.
+- **Never** in user lines: `Option 1/2/3`, `Turn 0`, `scenario`, `eval`, `success criteria`, `scoreScenario`, references to “the prompt/instructions you already have” or named template sections.
+- Put rubric detail in **`## Success criteria`** / **Intent** / **Failure modes**, not in the user quote.
+
+Full checklist and rationale: **`docs/agent-evaluation/AGENTS.md`**.

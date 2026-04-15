@@ -1,0 +1,85 @@
+---
+title: "Metrics"
+description: "Query event and delivery attempt metrics to monitor throughput, reliability, and error trends."
+---
+
+Metrics provides a query API to aggregate platform activity over time. It is designed for dashboards and reporting use cases where you want to understand delivery health, track throughput, and identify issues quickly.
+
+Use metrics to answer questions like:
+
+- How many events are being published over time?
+- Which topics generate the most traffic?
+- What is our delivery success rate?
+- Are errors increasing for a specific destination?
+- Which status codes are causing the most failed attempts?
+
+## Metrics Scope
+
+Outpost exposes two metrics datasets:
+
+- **Event metrics**: volume and distribution of published events.
+- **Attempt metrics**: delivery outcomes and retry behavior per destination attempt.
+
+Both datasets support time-window queries and can be grouped by dimensions to power charts and tables in your UI.
+
+## Available Measures
+
+Each dataset supports a specific set of `measures` values.
+
+### Event metrics measures
+
+| Measure | Description |
+|---------|-------------|
+| `count` | Total number of events in the selected bucket/window. |
+| `rate` | Event throughput (events per second) in the selected bucket/window. |
+
+### Attempt metrics measures
+
+| Measure | Description |
+|---------|-------------|
+| `count` | Total number of delivery attempts. |
+| `successful_count` | Number of successful delivery attempts. |
+| `failed_count` | Number of failed delivery attempts. |
+| `error_rate` | Fraction of attempts that failed (`failed_count / count`). |
+| `first_attempt_count` | Number of first attempts (`attempt_number = 1`). |
+| `retry_count` | Number of retry attempts (`attempt_number > 1`). |
+| `manual_retry_count` | Number of manually triggered retry attempts. |
+| `avg_attempt_number` | Average attempt number across matching attempts. |
+| `rate` | Attempt throughput (attempts per second). |
+| `successful_rate` | Successful attempt throughput (successful attempts per second). |
+| `failed_rate` | Failed attempt throughput (failed attempts per second). |
+
+## Available Dimensions and Filters
+
+Dimensions and filters let you break down and narrow metric queries.
+
+### Event metrics
+
+Common grouping/filtering dimensions include:
+
+- `topic`
+- `destination_id`
+- `tenant_id`
+
+This makes it easy to compare traffic by topic, destination, or tenant over a selected period.
+
+### Attempt metrics
+
+Common grouping/filtering dimensions include:
+
+- `destination_id`
+- `topic`
+- `status`
+- `code`
+- `manual`
+- `attempt_number`
+- `tenant_id`
+
+This gives visibility into delivery quality, such as success/failure split, error class distribution, and retry patterns.
+
+## API Reference
+
+This page covers concepts and capabilities. For exact request/response schemas, parameters, and examples, use the API reference:
+
+- [Get Event Metrics](/docs/outpost/api/metrics#get-event-metrics)
+- [Get Attempt Metrics](/docs/outpost/api/metrics#get-attempt-metrics)

@@ -1,0 +1,238 @@
+---
+title: "Schema Migration Guide"
+description: "Plan, apply, verify, and clean up Outpost schema migrations safely in self-hosted environments."
+---
+
+Outpost stores tenant, destination, event, and delivery data using configurable storage backends. You can choose from various options including Redis, Postgres, ClickHouse, and more, depending on your infrastructure and requirements.
+
+When upgrading Outpost, database migrations must be applied explicitly before starting the server — Outpost will refuse to start if any migrations are pending. The `outpost migrate` tool handles both SQL and Redis migrations through a unified interface.
+
+## Migration Tool
+
+The migration tool is delivered as part of the `outpost` CLI. Given that Outpost is primarily distributed as a Docker image, running the migration tool via Docker is the easiest approach. This guide uses Docker for all examples.
+
+Ensure you're using the correct version by specifying the Docker tag:
+
+```bash
+# Use a specific version tag
+docker run --rm hookdeck/outpost --version
+```
+
+## Migration Workflow
+
+The recommended approach is to run `outpost migrate apply --yes` before every `outpost serve`. This is safe to run on every startup — if there are no pending migrations, the command exits immediately. See the [Upgrade to v0.17](/self-hosting/changelog/upgrade-v0.17) guide for more details on this change.
+
+How you integrate this depends on your deployment setup. Below are some common patterns.
+
+**Docker Compose** — use a `migrate` service that runs before the main service:
+
+```yaml
+services:
+  outpost-migrate:
+    image: hookdeck/outpost
+    command: ["migrate", "apply", "--yes"]
+    env_file: .env
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  outpost:
+    image: hookdeck/outpost
+    command: ["serve"]
+    env_file: .env
+    depends_on:
+      outpost-migrate:
+        condition: service_completed_successfully
+```
+
+**Kubernetes** — use an init container on the Outpost deployment:
+
+```yaml
+spec:
+  initContainers:
+    - name: migrate
+      image: hookdeck/outpost
+      command: ["outpost", "migrate", "apply", "--yes"]
+      envFrom:
+        - secretRef:
+            name: outpost-config
+  containers:
+    - name: outpost
+      image: hookdeck/outpost
+      command: ["outpost", "serve"]
+      envFrom:
+        - secretRef:
+            name: outpost-config
+```
+
+**CI/CD pipeline** — add a migration step before deploying the new version:
+
+```bash
+# 1. Run migrations against production databases
+docker run --rm --env-file .env \
+  hookdeck/outpost migrate apply --yes
+
+# 2. Deploy the new version
+# (your deploy command here)
+```
+
+The examples above are recommendations — run migrations however fits your infrastructure. The only requirement is that `outpost migrate apply` completes before `outpost serve` starts. Some teams prefer a wrapper script in their entrypoint, others run it as a pre-deploy hook. Any approach works as long as migrations finish first.
+
+### Manual Migration
+
+For production environments where you want to review changes before applying, use the manual steps below.
+
+### Execute a Migration
+
+#### Step 1: Plan the Migration
+
+Review what changes will be made without applying them:
+
+```bash
+docker run --rm hookdeck/outpost migrate plan
+```
+
+#### Step 2: Apply the Migration
+
+Execute the migration (creates new structures, preserves old ones):
+
+```bash
+docker run --rm -it hookdeck/outpost migrate apply
+```
+
+This applies all pending migrations in order (SQL first, then Redis).
+
+:::info
+The `-it` flags enable interactive mode for confirmation prompts. Add `--yes` to skip confirmations in automated environments.
+:::
+
+#### Step 3: Verify the Migration
+
+After applying the migration, verify that data was migrated correctly:
+
+```bash
+docker run --rm hookdeck/outpost migrate verify
+```
+
+This performs spot-checks on a sample of migrated data to ensure integrity. Additionally, test your application to ensure it works correctly with the migrated data:
+
+- Run your test suite
+- Verify critical workflows
+- Monitor for any errors
+
+
+## Safety Features
+
+### Migration Locks
+
+Migrations use distributed locks to prevent concurrent execution:
+
+- Only one migration can run at a time across all instances
+- Locks expire after 1 hour to prevent deadlocks
+- Force-unlock available if a migration process crashes using:
+
+```bash
+docker run --rm -it hookdeck/outpost migrate unlock --yes
+```
+
+
+## Running in Private Environments
+
+Redis is often deployed in private networks (VPCs, internal subnets) that aren't accessible from your local machine. The migration tool needs direct network access to Redis, so you'll need to run it from within the same network.
+
+### Common Approaches
+
+**Run from an existing host in the network:**
+
+If you have SSH access to a host that can reach Redis (e.g., your application server), you can run the migration there:
+
+```bash
+# SSH into a host with Redis access
+ssh your-server
+
+# Run migration using Docker
+docker run --rm -it \
+  -e REDIS_HOST=redis.internal \
+  -e REDIS_PASSWORD=... \
+  hookdeck/outpost migrate apply --yes
+```
+
+**Kubernetes:**
+
+Run the migration as a one-off pod in the same namespace/cluster:
+
+```bash
+kubectl run outpost-migrate --rm -it --restart=Never \
+  --image=hookdeck/outpost \
+  --env="REDIS_HOST=redis.internal" \
+  --env="REDIS_PASSWORD=..." \
+  -- migrate apply --yes
+```
+
+**Port forwarding:**
+
+If direct access isn't possible, you can forward the Redis port to your local machine:
+
+```bash
+# Example: SSH tunnel
+ssh -L 6379:redis.internal:6379 bastion-host
+
+# Then run migration locally
+docker run --rm -it \
+  -e REDIS_HOST=host.docker.internal \
+  -e REDIS_PORT=6379 \
+  hookdeck/outpost migrate apply --yes
+```
+
+:::tip
+Use the same network configuration that Outpost itself uses to connect to Redis. If Outpost can reach Redis, running the migration tool in the same environment will work.
+:::
+
+## Configuration
+
+The `outpost` CLI tool uses the same configuration as Outpost itself. Configuration can be provided through environment variables, a configuration file (using `--config` flag), or CLI flags (e.g., `--redis-host`, `--redis-password`).
+
+For example, common Redis configurations:
+
+```bash
+# Environment variables
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_PASSWORD=your-password
+REDIS_DATABASE=0
+REDIS_CLUSTER_ENABLED=true
+```
+
+```yaml
+# Configuration file
+redis:
+  host: localhost
+  port: 6379
+  password: your-password
+  cluster_enabled: false
+```
+
+For a complete list of configuration options, see the [Configuration Reference](/references/configuration).
+
+## Troubleshooting
+
+### Migration Locked
+
+If a migration fails and leaves a lock:
+
+```bash
+# View lock status
+docker run --rm hookdeck/outpost migrate status
+
+# Force unlock (ensure no migration is actually running)
+docker run --rm -it hookdeck/outpost migrate unlock --yes
+```
+
+### Failed Migration
+
+If a migration fails during application:
+
+1. Check the error logs for specific issues
+2. The migration can be safely retried (idempotent)
+3. Partial progress is preserved between attempts
+

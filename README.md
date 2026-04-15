@@ -47,7 +47,7 @@ Outpost is built and maintained by [Hookdeck](https://hookdeck.com). Written in 
 
 ![Outpost architecture](docs/public/images/architecture.png)
 
-Read [Outpost Concepts](https://outpost.hookdeck.com/docs/concepts) to learn more about the Outpost architecture and design.
+Read [Outpost Concepts](https://hookdeck.com/docs/outpost/concepts) to learn more about the Outpost architecture and design.
 
 ## Features
 
@@ -64,11 +64,12 @@ Read [Outpost Concepts](https://outpost.hookdeck.com/docs/concepts) to learn mor
 - **SDKs and MCP server**: Go, Python, and TypeScript SDKs are available. Outpost also ships with an MCP server.
 - **Event destination types**: Out of the box support for Webhooks, Hookdeck Event Gateway, Amazon EventBridge, AWS SQS, AWS S3, GCP Pub/Sub, RabbitMQ, and Kafka.
 
-See the [Outpost Features](https://outpost.hookdeck.com/docs/features) for more information.
+See the [Outpost Features](https://hookdeck.com/docs/outpost/features) for more information.
 
 ## Why Outpost
 
 Outpost is a good fit if:
+
 - You're adding outbound webhooks to your platform for the first time
 - You're replacing a homegrown webhook system that's become a maintenance burden
 - You want to offer your customers more than just HTTP callbacks (queues, brokers, buses)
@@ -79,13 +80,13 @@ Outpost is backward compatible with your existing payload format, HTTP headers, 
 
 ## Documentation
 
-- [Overview](https://outpost.hookdeck.com/docs/overview)
-- [Concepts](https://outpost.hookdeck.com/docs/concepts)
-- [Quickstarts](https://outpost.hookdeck.com/docs/quickstarts)
-- [Features](https://outpost.hookdeck.com/docs/features)
-- [Guides](https://outpost.hookdeck.com/docs/guides)
-- [API Reference](https://outpost.hookdeck.com/docs/api)
-- [Configuration Reference](https://outpost.hookdeck.com/docs/references/configuration)
+- [Overview](https://hookdeck.com/docs/outpost/overview)
+- [Concepts](https://hookdeck.com/docs/outpost/concepts)
+- [Quickstarts](https://hookdeck.com/docs/outpost/quickstarts)
+- [Features](https://hookdeck.com/docs/outpost/features)
+- [Guides](https://hookdeck.com/docs/outpost/guides)
+- [API Reference](https://hookdeck.com/docs/outpost/api)
+- [Configuration Reference](https://hookdeck.com/docs/outpost/self-hosting/configuration)
 
 ## Quickstart
 

@@ -1,0 +1,5 @@
+# Ignore local run recordings; keep README + template committed
+*
+!.gitignore
+!README.md
+!RUN-RECORDING.template.md

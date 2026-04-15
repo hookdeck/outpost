@@ -1,0 +1,83 @@
+---
+title: "OpenTelemetry"
+description: "Export Outpost performance metrics via OpenTelemetry to your observability platform."
+---
+
+Outpost exposes key performance metrics via OpenTelemetry. All metrics are exported as [histograms](https://opentelemetry.io/docs/specs/otel/metrics/data-model/#histogram).
+
+## Setup
+
+You can configure OpenTelemetry Collector to export metrics to your observability platform.
+
+{% tabs tabGroup="deployment" %}
+{% tab label="Managed" %}
+Enable OpenTelemetry in the [Hookdeck Monitoring settings](https://dashboard.hookdeck.com/settings/project/monitoring) or with the Config API using the `OTEL_SERVICE_NAME` and `OTEL_EXPORTER_OTLP_ENDPOINT` variables.
+{% /tab %}
+{% tab label="Self-Hosted" %}
+Outpost uses the [OpenTelemetry Go SDK](https://opentelemetry.io/docs/languages/go/) and is configured via the standard `OTEL_*` environment variables documented in the [OTel SDK configuration reference](https://opentelemetry.io/docs/languages/sdk-configuration/general/).
+
+To enable metrics export, set `OTEL_SERVICE_NAME` and configure an exporter endpoint, for example:
+
+```
+OTEL_SERVICE_NAME=outpost
+OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+```
+{% /tab %}
+{% /tabs %}
+
+## Available Metrics
+
+### `delivery_latency`
+
+Latency from event publication to successful delivery at the destination.
+
+| Dimension | Description |
+|-----------|-------------|
+| `type` | Destination type (e.g., `webhook`, `aws_sqs`) |
+
+### `delivered_events`
+
+Number of events successfully delivered.
+
+| Dimension | Description |
+|-----------|-------------|
+| `type` | Destination type |
+| `status` | Delivery status (`success`, `failed`) |
+
+### `published_events`
+
+Number of events published via the Publish API.
+
+| Dimension | Description |
+|-----------|-------------|
+| `topic` | Event topic |
+
+### `eligible_events`
+
+Number of published events that matched at least one destination.
+
+| Dimension | Description |
+|-----------|-------------|
+| `topic` | Event topic |
+
+### `api_response_latency`
+
+API endpoint response latency.
+
+| Dimension | Description |
+|-----------|-------------|
+| `endpoint` | API endpoint name |
+| `method` | HTTP method |
+| `path` | Request path |
+
+### `api_calls`
+
+Number of API calls received.
+
+| Dimension | Description |
+|-----------|-------------|
+| `endpoint` | API endpoint name |
+| `method` | HTTP method |
+| `path` | Request path |
+
+> Note: When self-hosting, CPU, Memory and Disk usage are not exported by Outpost — monitor these via your VM or container runtime provider.

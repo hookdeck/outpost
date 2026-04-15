@@ -1,0 +1,106 @@
+[
+  {
+    "from": "/docs/outpost/quickstarts",
+    "to": "/docs/outpost/quickstarts/overview"
+  },
+  {
+    "from": "/docs/outpost/features/alerts",
+    "to": "/docs/outpost/features/operator-events"
+  },
+  {
+    "from": "/docs/outpost/features/multi-tenancy-support",
+    "to": "/docs/outpost/features/multi-tenancy"
+  },
+  {
+    "from": "/docs/outpost/features/publish-events",
+    "to": "/docs/outpost/publishing/events"
+  },
+  {
+    "from": "/docs/outpost/features",
+    "to": "/docs/outpost/overview"
+  },
+  {
+    "from": "/docs/outpost/destinations",
+    "to": "/docs/outpost/overview#supported-destinations"
+  },
+  {
+    "from": "/docs/outpost/guides",
+    "to": "/docs/outpost/overview"
+  },
+  {
+    "from": "/docs/outpost/references",
+    "to": "/docs/outpost/overview"
+  },
+  {
+    "from": "/docs/outpost/api/authentication",
+    "to": "/docs/outpost/api"
+  },
+  {
+    "from": "/docs/outpost/references/roadmap",
+    "to": "/docs/outpost/overview"
+  },
+  {
+    "from": "/docs/outpost/guides/deployment",
+    "to": "/docs/outpost/self-hosting/deployment"
+  },
+  {
+    "from": "/docs/outpost/references/configuration",
+    "to": "/docs/outpost/self-hosting/configuration"
+  },
+  {
+    "from": "/docs/outpost/quickstarts/docker",
+    "to": "/docs/outpost/self-hosting/quickstarts/docker"
+  },
+  {
+    "from": "/docs/outpost/quickstarts/kubernetes",
+    "to": "/docs/outpost/self-hosting/quickstarts/kubernetes"
+  },
+  {
+    "from": "/docs/outpost/quickstarts/railway",
+    "to": "/docs/outpost/self-hosting/quickstarts/railway"
+  },
+  {
+    "from": "/docs/outpost/guides/upgrade-v0.14",
+    "to": "/docs/outpost/self-hosting/changelog/upgrade-v0.14"
+  },
+  {
+    "from": "/docs/outpost/guides/upgrade-v0.13",
+    "to": "/docs/outpost/self-hosting/changelog/upgrade-v0.13"
+  },
+  {
+    "from": "/docs/outpost/guides/upgrade-v0.12",
+    "to": "/docs/outpost/self-hosting/changelog/upgrade-v0.12"
+  },
+  {
+    "from": "/docs/outpost/features/logging",
+    "to": "/docs/outpost/self-hosting/guides/logging"
+  },
+  {
+    "from": "/docs/outpost/guides/byo-mqs",
+    "to": "/docs/outpost/self-hosting/guides/byo-mqs"
+  },
+  {
+    "from": "/docs/outpost/guides/service-bus-internal-mq",
+    "to": "/docs/outpost/self-hosting/guides/service-bus-internal-mq"
+  },
+  {
+    "from": "/docs/outpost/guides/migration",
+    "to": "/docs/outpost/self-hosting/guides/migration"
+  },
+  {
+    "from": "/docs/outpost/guides/troubleshooting-redis",
+    "to": "/docs/outpost/self-hosting/guides/troubleshooting-redis"
+  },
+  {
+    "from": "/docs/outpost/guides/publish-from-rabbitmq",
+    "to": "/docs/outpost/publishing/publish-from-rabbitmq"
+  },
+  {
+    "from": "/docs/outpost/guides/publish-from-sqs",
+    "to": "/docs/outpost/publishing/publish-from-sqs"
+  },
+  {
+    "from": "/docs/outpost/guides/publish-from-gcp-pubsub",
+    "to": "/docs/outpost/publishing/publish-from-gcp-pubsub"
+  }
+]

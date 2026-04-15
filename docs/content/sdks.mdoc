@@ -1,0 +1,120 @@
+---
+title: SDKs
+description: An overview of the Outpost SDKs for Go, TypeScript, and Python.
+---
+
+Outpost provides Software Development Kits (SDKs) to help you integrate your applications with the Outpost API seamlessly. These SDKs are designed to simplify the process of publishing events and managing your Outpost resources.
+
+The SDKs are generated from the <a href="https://github.com/hookdeck/outpost/blob/main/docs/apis/openapi.yaml" target="_blank">Outpost OpenAPI specification</a> using [Speakeasy](https://speakeasy.com).
+
+## Available SDKs
+
+We currently offer SDKs for the following languages:
+
+- **[TypeScript/JavaScript](https://github.com/hookdeck/outpost/tree/main/sdks/outpost-typescript)**
+- **[Go](https://github.com/hookdeck/outpost/tree/main/sdks/outpost-go)**
+- **[Python](https://github.com/hookdeck/outpost/tree/main/sdks/outpost-python)**
+
+Each SDK provides a convenient way to interact with the Outpost API, including publishing events, managing tenants, and configuring destinations.
+
+## Usage Example (TypeScript)
+
+Here's an example of how you might use the TypeScript SDK to:
+
+1. Create an `Outpost` instance using an Admin API Key.
+2. Create a new tenant.
+3. Create a destination for that tenant.
+4. Publish an event for the created tenant.
+
+You can find the code for this in [`examples/sdk-typescript/index.ts`](https://github.com/hookdeck/outpost/tree/main/examples/sdk-typescript/index.ts).
+
+Begin by installing the TypeScript SDK:
+
+```bash
+npm install @hookdeck/outpost-sdk
+```
+
+Then, create a file named `index.ts` and add the following code:
+
+```typescript
+import { randomUUID } from "crypto";
+import dotenv from "dotenv";
+dotenv.config();
+import { Outpost } from "@hookdeck/outpost-sdk";
+
+const ADMIN_API_KEY = process.env.ADMIN_API_KEY;
+const SERVER_URL = process.env.OUTPOST_BASE_URL || "{% $OUTPOST_API_BASE_URL %}";
+
+if (!ADMIN_API_KEY) {
+  console.error("Please set the ADMIN_API_KEY environment variable.");
+  process.exit(1);
+}
+
+async function manageOutpostResources() {
+  // 1. Create an Outpost instance using the API Key
+  const outpostAdmin = new Outpost({
+    apiKey: ADMIN_API_KEY,
+    serverURL: SERVER_URL,
+  });
+
+  const tenantId = `hookdeck`;
+  const topic = `user.created`;
+  const newDestinationName = `My Test Destination ${randomUUID()}`;
+
+  try {
+    // 2. Create a tenant
+    console.log(`Creating tenant: ${tenantId}`);
+    const tenant = await outpostAdmin.tenants.upsert(tenantId);
+    console.log("Tenant created successfully:", tenant);
+
+    // 3. Create a destination for the tenant
+    console.log(
+      `Creating destination: ${newDestinationName} for tenant ${tenantId}...`,
+    );
+    const destination = await outpostAdmin.destinations.create(tenantId, {
+      type: "webhook",
+      config: {
+        url: "https://example.com/webhook-receiver",
+      },
+      topics: [topic],
+    });
+    console.log("Destination created successfully:", destination);
+
+    // 4. Publish an event for the created tenant
+    const eventPayload = {
+      userId: "user_456",
+      orderId: "order_xyz",
+      timestamp: new Date().toISOString(),
+    };
+
+    console.log(`Publishing event to topic ${topic} for tenant ${tenantId}...`);
+    await outpostAdmin.publish.event({
+      data: eventPayload,
+      tenantId,
+      topic,
+      eligibleForRetry: true,
+    });
+
+    console.log("Event published successfully");
+  } catch (error) {
+    console.error("An error occurred:", error);
+  }
+}
+
+manageOutpostResources();
+```
+
+For detailed instructions, API references, and more advanced usage examples, please refer to the README file within each SDK's directory on GitHub.
+
+## Getting Started
+
+To get started with an SDK:
+
+1.  Navigate to the respective SDK directory on GitHub:
+    - [TypeScript SDK](https://github.com/hookdeck/outpost/tree/main/sdks/outpost-typescript)
+    - [Go SDK](https://github.com/hookdeck/outpost/tree/main/sdks/outpost-go)
+    - [Python SDK](https://github.com/hookdeck/outpost/tree/main/sdks/outpost-python)
+2.  Follow the installation and usage instructions provided in the SDK's `README.md` file and the documenation within the SDK repository.
+3.  Ensure your Outpost instance is running and accessible, and that you have the necessary API keys and configuration.
+
+If you have any questions or encounter issues, please feel free to open an issue on our [GitHub repository](https://github.com/hookdeck/outpost/issues).

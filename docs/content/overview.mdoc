@@ -1,0 +1,72 @@
+---
+title: "Overview"
+description: "Outbound webhooks infrastructure for delivering platform events to webhooks, queues, and streams — available managed or self-hosted."
+---
+
+Outpost is outbound webhooks infrastructure and an open-source implementation of [Event Destinations](https://eventdestinations.org) that enables delivery of your platform events directly to your users' preferred event destinations.
+
+Outpost is open source (Apache-2.0), self-hostable, and written in Go. It's distributed as a binary and Docker container with minimal dependencies.
+
+Hookdeck offers a managed version of Outpost with all the reliability and scalability of Outpost without managing any servers, message queues, or configuration.
+
+## Goals
+
+Outpost aims to be a lightweight, high-performance solution for delivering webhooks and events to your users. Outpost covers the table stakes to deliver an at-least-once delivery guarantee and provide a great developer experience, modeled after APIs such as Stripe. By design, Outpost doesn't implement support for bells and whistles such as per-tenant delivery rates that would lead to complex and expensive architecture. Instead, by using Event Destinations, your users can bring their own capabilities such as controlling throughput, transforming events, etc.
+
+## Key Features
+
+- Event destinations support offering more secure and scalable event delivery over webhooks
+- Fanning out events to multiple destinations
+- Event topics and topic-based subscriptions
+- Destination-level filters based on event content
+- Automatic retries with exponential backoff or a custom retry schedule
+- Manual retries via portal or API
+- JWT authenticated API to easily build your own UI or a self-service portal for your users to manage destinations and inspect events
+- Multi-tenant support with per-tenant isolation
+- Alerts for failing destinations with debouncing
+- Auto-disabling of failed destinations (optional)
+- Webhook signatures and best practices (Standard Webhooks compatible)
+- Webhook secret rotation
+- OpenTelemetry support for metrics
+
+## Supported Destinations
+
+Outpost delivers events to any of the following destination types:
+
+- **[Webhook](/docs/outpost/destinations/webhook)** — HTTP POST to any endpoint
+- **[Hookdeck Event Gateway](/docs/outpost/destinations/hookdeck)** — Advanced delivery with retries, transformations, and observability
+- **[AWS Kinesis](/docs/outpost/destinations/aws-kinesis)** — Stream to a Kinesis Data Stream
+- **[AWS SQS](/docs/outpost/destinations/aws-sqs)** — Queue events in Amazon SQS
+- **[AWS S3](/docs/outpost/destinations/aws-s3)** — Store events as objects in S3
+- **[Azure Service Bus](/docs/outpost/destinations/azure-service-bus)** — Send to a Service Bus queue or topic
+- **[GCP Pub/Sub](/docs/outpost/destinations/gcp-pubsub)** — Publish to a Pub/Sub topic
+- **[RabbitMQ (AMQP)](/docs/outpost/destinations/rabbitmq)** — Send to a remote RabbitMQ exchange
+- **[Kafka](/docs/outpost/destinations/kafka)** — Send to a remote Kafka topic
+
+If you'd like to see more destination types added, [open an issue or PR](https://github.com/hookdeck/outpost/issues).
+
+## Get Started
+
+{% tabs tabGroup="deployment" %}
+{% tab label="Managed" %}
+Hookdeck Outpost is available through [Hookdeck](https://hookdeck.com/get-started).
+
+Once your account has been created, follow the documentation or in-product get started guide:
+1. [Concepts](/docs/outpost/concepts) — Understand the core models
+2. [Publishing Events](/docs/outpost/publishing/events) — Publish your first event
+3. [Destinations](/docs/outpost/destinations/webhook) — Configure where events are delivered
+4. [Tenant Portal](/docs/outpost/features/tenant-user-portal) — Embed the portal in your product
+{% /tab %}
+{% tab label="Self-Hosted" %}
+Follow one of our self-hosted quickstarts to deploy Outpost:
+
+- [Deploy on Railway](/docs/outpost/self-hosting/quickstarts/railway) — One-click deployment with a Railway template
+- [Deploy with Docker](/docs/outpost/self-hosting/quickstarts/docker) — Docker Compose with RabbitMQ or SQS
+- [Deploy on Kubernetes](/docs/outpost/self-hosting/quickstarts/kubernetes) — Minikube setup with Helm
+
+Then explore:
+- [Concepts](/docs/outpost/concepts) — Architecture and core models
+- [Publishing Events](/docs/outpost/publishing/events) — Publish your first event
+- [Configuration Reference](/docs/outpost/self-hosting/configuration) — All environment variables
+{% /tab %}
+{% /tabs %}
