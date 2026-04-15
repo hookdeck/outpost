@@ -2433,7 +2433,7 @@ paths:
                     status: healthy
                   retrymq-consumer:
                     status: failed
-  /config:
+  /configs:
     get:
       tags: [Configuration]
       summary: Get Managed Configuration
