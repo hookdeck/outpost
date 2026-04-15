@@ -5,7 +5,7 @@ description: "Build your own UI for users to manage their destinations and view 
 
 While Outpost offers a Tenant User Portal, you may want to build your own UI so your customers can manage their destinations and view delivery activity.
 
-This page is for **teams building that destination management experience** — usually product engineers and anyone designing settings, integrations, or support tooling around webhooks and other destination types. It is framework-agnostic, covering screens, flows, and how they map to Outpost. If you use an **AI coding assistant** with Hookdeck’s optional [integration prompt](/docs/outpost/quickstarts/hookdeck-outpost-agent-prompt), that document carries workflow-specific instructions; this guide stays focused on what your **customers** should see and what your **backend** should enforce.
+This page is for **teams building that destination management experience** — usually product engineers and anyone designing settings, integrations, or support tooling around webhooks and other destination types. It is framework-agnostic, covering screens, flows, and how they map to Outpost. If you use an **AI coding assistant** you can provide it with workflow-specific instructions; this guide stays focused on what your **customers** should see and what your **backend** should enforce.
 
 The portal uses the same Outpost API you can call from your product. Its source is a useful reference ([`internal/portal`](https://github.com/hookdeck/outpost/tree/main/internal/portal), React); you are not required to match its stack.
 
@@ -62,7 +62,7 @@ For the conceptual model, see [Outpost Concepts](/docs/outpost/concepts), especi
 
 | Goal | OpenAPI entry point | In the UI |
 | ---- | ------------------- | --------- |
-| Types, labels, icons, dynamic form defs | [Destination types / schema](/docs/outpost/api/schemas) — `GET /destination-types` | Type picker; join list rows on `destination.type` (the type id is `type`, not a separate `id` on the type object). |
+| Types, labels, icons, dynamic form defs | [Destination types / schema](/docs/outpost/api#destination-types) — `GET /destination-types` | Type picker; join list rows on `destination.type` (the type id is `type`, not a separate `id` on the type object). |
 | Topics for subscriptions | [Topics](/docs/outpost/api/topics#list-topics) — `GET /topics` | Checkboxes or multi-select on create/update. |
 | List destinations | [List destinations](/docs/outpost/api/destinations#list-destinations) | Main table; show `target` / `target_url` per schema. |
 | Create destination | [Create destination](/docs/outpost/api/destinations#create-destination) | Body: `type`, `topics`, type-specific `config` / credentials per spec. |
@@ -105,7 +105,7 @@ curl --request GET "$OUTPOST_API_BASE_URL/tenants/$TENANT_ID/token" \
 
 ## Destination type metadata and dynamic config
 
-`GET /destination-types` returns everything needed to render type pickers and config forms. See the [Destination Types Schema API](/docs/outpost/api/schemas).
+`GET /destination-types` returns everything needed to render type pickers and config forms. See the [Destination Types Schema API](/docs/outpost/api#destination-types).
 
 Each entry typically includes (confirm names and optionality in OpenAPI):
 
@@ -157,7 +157,7 @@ The product flow is three steps; the API is typically one [create destination](/
 
 ### Step 1 — Choose destination type
 
-- Data: `GET /destination-types` ([schemas](/docs/outpost/api/schemas)).
+- Data: `GET /destination-types` ([schemas](/docs/outpost/api#destination-types)).
 - Show each type’s `label`, `description`, and `icon`; store the chosen `type` string.
 
 **Reference:** [CreateDestination.tsx](https://github.com/hookdeck/outpost/blob/main/internal/portal/src/scenes/CreateDestination/CreateDestination.tsx)

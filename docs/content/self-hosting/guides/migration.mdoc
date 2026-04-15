@@ -20,7 +20,7 @@ docker run --rm hookdeck/outpost --version
 
 ## Migration Workflow
 
-The recommended approach is to run `outpost migrate apply --yes` before every `outpost serve`. This is safe to run on every startup — if there are no pending migrations, the command exits immediately. See the [Upgrade to v0.17](/self-hosting/changelog/upgrade-v0.17) guide for more details on this change.
+The recommended approach is to run `outpost migrate apply --yes` before every `outpost serve`. This is safe to run on every startup — if there are no pending migrations, the command exits immediately. See the [Upgrade to v0.17](/docs/outpost/self-hosting/changelog/upgrade-v0.17) guide for more details on this change.
 
 How you integrate this depends on your deployment setup. Below are some common patterns.
 
@@ -212,7 +212,7 @@ redis:
   cluster_enabled: false
 ```
 
-For a complete list of configuration options, see the [Configuration Reference](/references/configuration).
+For a complete list of configuration options, see the [Configuration Reference](/docs/outpost/self-hosting/configuration).
 
 ## Troubleshooting
 

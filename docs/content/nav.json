@@ -125,6 +125,7 @@
   ],
   "/docs/outpost/quickstarts": {
     "title": "Quickstarts",
+    "icon": "quickstart-icon",
     "structure": [
       {
         "label": "Quickstarts",
@@ -154,6 +155,7 @@
   },
   "/docs/outpost/self-hosting": {
     "title": "Self-Hosting",
+    "icon": "self-hosting-icon",
     "structure": [
       {
         "label": "Overview",
