@@ -75,6 +75,26 @@ pick_ts() {
   return 1
 }
 
+# Agent-generated scripts may `source .env` which can overwrite CI-exported
+# variables with placeholders.  Hide any agent-written .env during execution
+# so the real CI env vars are the ones the child process sees.
+hide_agent_env() {
+  local dir=$1
+  local env_path="$dir/.env"
+  local stash_path="$dir/.env.ci-stash.$$"
+  if [[ -f "$env_path" ]]; then
+    mv "$env_path" "$stash_path"
+    echo "$stash_path"
+  fi
+}
+
+restore_agent_env() {
+  local dir=$1 stash_path="${2:-}"
+  if [[ -n "$stash_path" && -f "$stash_path" ]]; then
+    mv "$stash_path" "$dir/.env"
+  fi
+}
+
 echo "execute-ci-artifacts: scenario 01 dir=$d01"
 sh_path=$(pick_sh "$d01") || {
   echo "execute-ci-artifacts: no .sh script found in $d01" >&2
@@ -86,10 +106,13 @@ export OUTPOST_API_KEY OUTPOST_TEST_WEBHOOK_URL
 chmod +x "$sh_path" 2>/dev/null || true
 # Run from the scenario 01 run dir so relative paths in the generated script behave.
 cd "$d01"
+stash01="$(hide_agent_env "$d01")"
 bash "$sh_path" || {
+  restore_agent_env "$d01" "$stash01"
   echo "execute-ci-artifacts: scenario 01 shell failed (curl exit 22 = HTTP error). 404 is often a wrong path or a publish/destination topic that is not configured in your Outpost project. Set OUTPOST_API_BASE_URL if needed; try npm run smoke:execute-ci (uses destination topics [\"*\"])." >&2
   exit 1
 }
+restore_agent_env "$d01" "$stash01"
 
 echo "execute-ci-artifacts: scenario 02 dir=$d02"
 ts_path=$(pick_ts "$d02") || {
@@ -101,11 +124,14 @@ cd "$d02"
 if [[ -f package.json ]]; then
   npm install --no-audit --no-fund
 fi
+stash02="$(hide_agent_env "$d02")"
 export OUTPOST_API_KEY OUTPOST_TEST_WEBHOOK_URL
 [[ -n "${OUTPOST_API_BASE_URL:-}" ]] && export OUTPOST_API_BASE_URL
 npx --yes tsx "$ts_path" || {
+  restore_agent_env "$d02" "$stash02"
   echo "execute-ci-artifacts: scenario 02 TypeScript failed. Check OUTPOST_API_KEY, OUTPOST_TEST_WEBHOOK_URL, and that OUTPOST_CI_PUBLISH_TOPIC (default user.created) exists in the project. Try: npm run smoke:execute-ci" >&2
   exit 1
 }
+restore_agent_env "$d02" "$stash02"
 
 echo "execute-ci-artifacts: OK (scenario 01 shell + scenario 02 TypeScript)"
