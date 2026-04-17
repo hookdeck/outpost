@@ -47,8 +47,11 @@ func AddRoutes(router *gin.Engine, config PortalConfig) {
 		}
 		proxy := httputil.NewSingleHostReverseProxy(remote)
 		router.NoRoute(func(c *gin.Context) {
-			if strings.HasPrefix(c.Request.URL.Path, "/api") {
-				c.Next()
+			if strings.HasPrefix(c.Request.URL.Path, "/api/") {
+				c.JSON(http.StatusNotFound, gin.H{
+					"status":  http.StatusNotFound,
+					"message": "not found",
+				})
 				return
 			}
 			if c.Request.Method != "GET" {
@@ -60,6 +63,14 @@ func AddRoutes(router *gin.Engine, config PortalConfig) {
 	} else {
 		embeddedBuildFolder := newStaticFileSystem()
 		fallbackFileSystem := newFallbackFileSystem(embeddedBuildFolder)
+		router.NoRoute(func(c *gin.Context) {
+			if strings.HasPrefix(c.Request.URL.Path, "/api/") {
+				c.JSON(http.StatusNotFound, gin.H{
+					"status":  http.StatusNotFound,
+					"message": "not found",
+				})
+			}
+		})
 		router.Use(static.Serve("/", embeddedBuildFolder))
 		router.Use(static.Serve("/", fallbackFileSystem))
 	}
