@@ -2,12 +2,14 @@ package chlogstore
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/hookdeck/outpost/internal/clickhouse"
 	"github.com/hookdeck/outpost/internal/logstore/driver"
 	"github.com/hookdeck/outpost/internal/logstore/drivertest"
+	"github.com/hookdeck/outpost/internal/pagination"
 	"github.com/hookdeck/outpost/internal/migrator"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/util/testinfra"
@@ -260,6 +262,62 @@ func TestEventDedup(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.Len(t, resp.Data, 3, "LIMIT 1 BY deduplicates legacy rows")
+}
+
+// TestFetchAndDedupTruncation verifies that fetchAndDedup never returns more
+// items than the requested limit. When duplicates cause the first batch to
+// yield fewer unique items, the next batch may overshoot the limit without
+// truncation.
+//
+// Setup: 1 event duplicated 2× plus 3 unique events. With limit=2 and DESC:
+//
+//	Batch 1: [A, A]        → dedup → [A]          (1 < 2, loop continues)
+//	Batch 2: [B, C]        → dedup → [A, B, C]    (3 items — exceeds limit)
+func TestFetchAndDedupTruncation(t *testing.T) {
+	testutil.CheckIntegrationTest(t)
+	t.Parallel()
+
+	ctx := context.Background()
+	chDB := setupClickHouseConnection(t)
+	defer chDB.Close()
+
+	tenantID := "dedup-truncation"
+	baseTime := time.Now().Truncate(time.Second)
+
+	insertRawEvent := func(id string, eventTime time.Time) {
+		batch, err := chDB.PrepareBatch(ctx, `INSERT INTO events (event_id, tenant_id, matched_destination_ids, topic, eligible_for_retry, event_time, metadata, data)`)
+		require.NoError(t, err)
+		require.NoError(t, batch.Append(id, tenantID, []string{"dest-1"}, "test.topic", true, eventTime, "{}", `{}`))
+		require.NoError(t, batch.Send())
+	}
+
+	// Two rows for event A (same ID = duplicate in separate parts)
+	insertRawEvent("evt-trunc-a", baseTime)
+	insertRawEvent("evt-trunc-a", baseTime)
+	// Unique events at decreasing times
+	insertRawEvent("evt-trunc-b", baseTime.Add(-1*time.Second))
+	insertRawEvent("evt-trunc-c", baseTime.Add(-2*time.Second))
+	insertRawEvent("evt-trunc-d", baseTime.Add(-3*time.Second))
+
+	startTime := baseTime.Add(-10 * time.Minute)
+	limit := 2
+	result, err := fetchAndDedup(ctx, chDB, pagination.QueryInput{
+		Limit:   limit,
+		Compare: "<",
+		SortDir: "desc",
+	}, func(qi pagination.QueryInput) (string, []any) {
+		return buildEventQuery("events", driver.ListEventRequest{
+			TenantIDs:  []string{tenantID},
+			TimeFilter: driver.TimeFilter{GTE: &startTime},
+		}, qi)
+	}, scanEvents, func(e eventWithPosition) string {
+		return e.Event.ID
+	}, func(e eventWithPosition) string {
+		return fmt.Sprintf("%d::%s", e.eventTime.UnixMilli(), e.Event.ID)
+	})
+	require.NoError(t, err)
+	assert.LessOrEqual(t, len(result), limit,
+		"fetchAndDedup must not return more items than the requested limit")
 }
 
 func setupClickHouseConnectionWithDeploymentID(t *testing.T, deploymentID string) clickhouse.DB {
