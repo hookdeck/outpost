@@ -156,10 +156,9 @@ func buildEventQuery(table string, req driver.ListEventRequest, q pagination.Que
 	orderByClause := fmt.Sprintf("ORDER BY event_time %s, event_id %s",
 		strings.ToUpper(q.SortDir), strings.ToUpper(q.SortDir))
 
-	// Note: We intentionally omit FINAL to avoid forcing ClickHouse to merge all parts
-	// before returning results. The events table uses ReplacingMergeTree, so duplicates
-	// may briefly appear before background merges consolidate them. This is acceptable
-	// for log viewing and maintains O(limit) query performance.
+	// We omit FINAL to avoid forcing ClickHouse to merge all parts at query time.
+	// Instead, LIMIT 1 BY event_id deduplicates in the result stream: after ORDER BY,
+	// it keeps only the first row per event_id, then the outer LIMIT caps the result set.
 	query := fmt.Sprintf(`
 		SELECT
 			event_id,
@@ -173,6 +172,7 @@ func buildEventQuery(table string, req driver.ListEventRequest, q pagination.Que
 		FROM %s
 		WHERE %s
 		%s
+		LIMIT 1 BY event_id
 		LIMIT %d
 	`, table, whereClause, orderByClause, q.Limit)
 
@@ -700,10 +700,14 @@ func (s *logStoreImpl) InsertMany(ctx context.Context, entries []*models.LogEntr
 		return nil
 	}
 
-	// Extract and dedupe events by ID
+	// Extract and dedupe events by ID, skipping retry attempts.
+	// Retries (AttemptNumber > 1) carry identical event data — the event row
+	// already exists from the first attempt's batch.
 	eventMap := make(map[string]*models.Event)
 	for _, entry := range entries {
-		eventMap[entry.Event.ID] = entry.Event
+		if entry.Attempt.AttemptNumber <= 1 {
+			eventMap[entry.Event.ID] = entry.Event
+		}
 	}
 
 	if len(eventMap) > 0 {

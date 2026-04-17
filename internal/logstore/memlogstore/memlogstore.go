@@ -196,8 +196,10 @@ func (s *memLogStore) InsertMany(ctx context.Context, entries []*models.LogEntry
 	defer s.mu.Unlock()
 
 	for _, entry := range entries {
-		// Insert event (dedupe by ID)
-		s.events[entry.Event.ID] = copyEvent(entry.Event)
+		// Insert event (dedupe by ID, skip retries)
+		if entry.Attempt.AttemptNumber <= 1 {
+			s.events[entry.Event.ID] = copyEvent(entry.Event)
+		}
 
 		// Insert attempt (idempotent upsert: match on event_id + attempt_id)
 		a := entry.Attempt
