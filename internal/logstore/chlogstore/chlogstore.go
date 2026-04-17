@@ -111,6 +111,10 @@ type eventWithPosition struct {
 	eventTime time.Time
 }
 
+func (e eventWithPosition) cursorPosition() string {
+	return fmt.Sprintf("%d::%s", e.eventTime.UnixMilli(), e.Event.ID)
+}
+
 func (s *logStoreImpl) ListEvent(ctx context.Context, req driver.ListEventRequest) (driver.ListEventResponse, error) {
 	sortOrder := req.SortOrder
 	if sortOrder != "asc" && sortOrder != "desc" {
@@ -132,14 +136,11 @@ func (s *logStoreImpl) ListEvent(ctx context.Context, req driver.ListEventReques
 				return buildEventQuery(s.eventsTable, req, qi)
 			}, scanEvents, func(e eventWithPosition) string {
 				return e.Event.ID
-			}, func(e eventWithPosition) string {
-				return fmt.Sprintf("%d::%s", e.eventTime.UnixMilli(), e.Event.ID)
-			})
+			}, eventWithPosition.cursorPosition)
 		},
 		Cursor: pagination.Cursor[eventWithPosition]{
 			Encode: func(e eventWithPosition) string {
-				position := fmt.Sprintf("%d::%s", e.eventTime.UnixMilli(), e.Event.ID)
-				return cursor.Encode(cursorResourceEvent, cursorVersion, position)
+				return cursor.Encode(cursorResourceEvent, cursorVersion, e.cursorPosition())
 			},
 			Decode: func(c string) (string, error) {
 				return cursor.Decode(c, cursorResourceEvent, cursorVersion)
@@ -324,6 +325,10 @@ type attemptRecordWithPosition struct {
 	attemptTime time.Time
 }
 
+func (ar attemptRecordWithPosition) cursorPosition() string {
+	return fmt.Sprintf("%d::%s", ar.attemptTime.UnixMilli(), ar.Attempt.ID)
+}
+
 func (s *logStoreImpl) ListAttempt(ctx context.Context, req driver.ListAttemptRequest) (driver.ListAttemptResponse, error) {
 	sortOrder := req.SortOrder
 	if sortOrder != "asc" && sortOrder != "desc" {
@@ -345,14 +350,11 @@ func (s *logStoreImpl) ListAttempt(ctx context.Context, req driver.ListAttemptRe
 				return buildAttemptQuery(s.attemptsTable, req, qi)
 			}, scanAttemptRecords, func(ar attemptRecordWithPosition) string {
 				return ar.Attempt.ID
-			}, func(ar attemptRecordWithPosition) string {
-				return fmt.Sprintf("%d::%s", ar.attemptTime.UnixMilli(), ar.Attempt.ID)
-			})
+			}, attemptRecordWithPosition.cursorPosition)
 		},
 		Cursor: pagination.Cursor[attemptRecordWithPosition]{
 			Encode: func(ar attemptRecordWithPosition) string {
-				position := fmt.Sprintf("%d::%s", ar.attemptTime.UnixMilli(), ar.Attempt.ID)
-				return cursor.Encode(cursorResourceAttempt, cursorVersion, position)
+				return cursor.Encode(cursorResourceAttempt, cursorVersion, ar.cursorPosition())
 			},
 			Decode: func(c string) (string, error) {
 				return cursor.Decode(c, cursorResourceAttempt, cursorVersion)

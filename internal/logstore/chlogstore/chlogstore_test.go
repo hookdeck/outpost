@@ -2,7 +2,6 @@ package chlogstore
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
@@ -139,7 +138,7 @@ func newHarnessWithDeploymentID(ctx context.Context, t *testing.T) (drivertest.H
 // ── Expected ─────────────────────────────────────────────────────────────────
 //   Event rows:   3 (one per unique event, retries skipped by write path)
 //   Attempt rows: 8 (A×4 + B×3 + C×1, all persisted)
-//   ListEvent:    3 unique events (LIMIT 1 BY deduplicates any stragglers)
+//   ListEvent:    3 unique events (client-side dedup hides any stragglers)
 //
 // After injecting legacy duplicates (raw batch inserts simulating pre-fix data):
 //   Event rows:   9 (3 original + 6 injected)
@@ -261,7 +260,7 @@ func TestEventDedup(t *testing.T) {
 		TimeFilter: driver.TimeFilter{GTE: &startTime},
 	})
 	require.NoError(t, err)
-	assert.Len(t, resp.Data, 3, "LIMIT 1 BY deduplicates legacy rows")
+	assert.Len(t, resp.Data, 3, "client-side dedup hides legacy rows")
 }
 
 // TestFetchAndDedupTruncation verifies that fetchAndDedup never returns more
@@ -312,9 +311,7 @@ func TestFetchAndDedupTruncation(t *testing.T) {
 		}, qi)
 	}, scanEvents, func(e eventWithPosition) string {
 		return e.Event.ID
-	}, func(e eventWithPosition) string {
-		return fmt.Sprintf("%d::%s", e.eventTime.UnixMilli(), e.Event.ID)
-	})
+	}, eventWithPosition.cursorPosition)
 	require.NoError(t, err)
 	assert.LessOrEqual(t, len(result), limit,
 		"fetchAndDedup must not return more items than the requested limit")
