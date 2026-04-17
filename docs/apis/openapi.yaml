@@ -2910,6 +2910,16 @@ paths:
                 items:
                   type: string
           description: Filter attempts by destination ID(s). Use bracket notation for multiple values (e.g., `destination_id[0]=d1&destination_id[1]=d2`).
+        - name: destination_type
+          in: query
+          required: false
+          schema:
+            oneOf:
+              - $ref: "#/components/schemas/DestinationType"
+              - type: array
+                items:
+                  $ref: "#/components/schemas/DestinationType"
+          description: Filter attempts by destination type(s). Use bracket notation for multiple values (e.g., `destination_type[0]=webhook&destination_type[1]=aws_sqs`).
         - name: status
           in: query
           required: false
@@ -4260,9 +4270,9 @@ paths:
         `first_attempt_count`, `retry_count`, `manual_retry_count`, `avg_attempt_number`,
         `rate`, `successful_rate`, `failed_rate`
 
-        **Dimensions:** `tenant_id` (admin-only), `destination_id`, `topic`, `status`, `code`, `manual`, `attempt_number`
+        **Dimensions:** `tenant_id` (admin-only), `destination_id`, `destination_type`, `topic`, `status`, `code`, `manual`, `attempt_number`
 
-        **Filters:** `tenant_id` (admin-only), `destination_id`, `topic`, `status`, `code`, `manual`, `attempt_number`
+        **Filters:** `tenant_id` (admin-only), `destination_id`, `destination_type`, `topic`, `status`, `code`, `manual`, `attempt_number`
       operationId: getAttemptMetrics
       parameters:
         - name: time[start]
@@ -4310,11 +4320,11 @@ paths:
           schema:
             oneOf:
               - type: string
-                enum: [tenant_id, destination_id, topic, status, code, manual, attempt_number]
+                enum: [tenant_id, destination_id, destination_type, topic, status, code, manual, attempt_number]
               - type: array
                 items:
                   type: string
-                  enum: [tenant_id, destination_id, topic, status, code, manual, attempt_number]
+                  enum: [tenant_id, destination_id, destination_type, topic, status, code, manual, attempt_number]
           description: Dimensions to group results by. Use bracket notation for multiple values (e.g., `dimensions[0]=status&dimensions[1]=destination_id`).
         - name: filters[destination_id]
           in: query
@@ -4326,6 +4336,16 @@ paths:
                 items:
                   type: string
           description: Filter by destination ID(s). Use bracket notation for multiple values (e.g., `filters[destination_id][0]=d1&filters[destination_id][1]=d2`).
+        - name: filters[destination_type]
+          in: query
+          required: false
+          schema:
+            oneOf:
+              - $ref: "#/components/schemas/DestinationType"
+              - type: array
+                items:
+                  $ref: "#/components/schemas/DestinationType"
+          description: Filter by destination type(s). Use bracket notation for multiple values (e.g., `filters[destination_type][0]=webhook&filters[destination_type][1]=aws_sqs`).
         - name: filters[topic]
           in: query
           required: false
