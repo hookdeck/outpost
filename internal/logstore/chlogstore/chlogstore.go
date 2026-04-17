@@ -43,6 +43,12 @@ func NewLogStore(chDB clickhouse.DB, deploymentID string) driver.LogStore {
 	}
 }
 
+// maxDedupIterations caps the number of fetch rounds in fetchAndDedup.
+// In practice the loop almost never exceeds 1 iteration (duplicates are rare
+// after the write-path fix), but this prevents runaway queries against
+// pathological data with extreme duplication.
+const maxDedupIterations = 10
+
 // fetchAndDedup queries ClickHouse and deduplicates results by a key. If
 // duplicates reduce the result count below the requested limit, it advances
 // the cursor and fetches more rows until the limit is met or data is exhausted.
@@ -61,7 +67,7 @@ func fetchAndDedup[T any](
 	var deduped []T
 	cursorPos := q.CursorPos
 
-	for len(deduped) < q.Limit {
+	for iter := 0; len(deduped) < q.Limit && iter < maxDedupIterations; iter++ {
 		qi := pagination.QueryInput{
 			Limit:     q.Limit,
 			Compare:   q.Compare,
