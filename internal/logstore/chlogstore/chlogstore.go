@@ -96,6 +96,12 @@ func fetchAndDedup[T any](
 		cursorPos = getCursorPos(scanned[len(scanned)-1])
 	}
 
+	// Truncate to the requested limit — the last batch may have added
+	// more unique items than needed to reach the limit.
+	if len(deduped) > q.Limit {
+		deduped = deduped[:q.Limit]
+	}
+
 	return deduped, nil
 }
 
