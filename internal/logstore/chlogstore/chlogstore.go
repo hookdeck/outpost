@@ -383,6 +383,8 @@ func buildAttemptQuery(table string, req driver.ListAttemptRequest, q pagination
 	orderByClause := fmt.Sprintf("ORDER BY attempt_time %s, attempt_id %s",
 		strings.ToUpper(q.SortDir), strings.ToUpper(q.SortDir))
 
+	// LIMIT 1 BY attempt_id deduplicates rows that can appear when a message is
+	// nacked after a successful CH insert and then re-delivered.
 	query := fmt.Sprintf(`
 		SELECT
 			event_id,
@@ -404,6 +406,7 @@ func buildAttemptQuery(table string, req driver.ListAttemptRequest, q pagination
 		FROM %s
 		WHERE %s
 		%s
+		LIMIT 1 BY attempt_id
 		LIMIT %d
 	`, table, whereClause, orderByClause, q.Limit)
 
