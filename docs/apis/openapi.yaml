@@ -2839,6 +2839,13 @@ paths:
         When authenticated with a Tenant JWT, only events belonging to that tenant can be accessed.
         When authenticated with Admin API Key, events from any tenant can be accessed.
       operationId: getEvent
+      parameters:
+        - name: tenant_id
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by tenant ID. Returns 404 if the event does not belong to the specified tenant. Ignored when using Tenant JWT authentication.
       responses:
         "200":
           description: Event details.
@@ -3084,6 +3091,12 @@ paths:
         When authenticated with Admin API Key, attempts from any tenant can be accessed.
       operationId: getAttempt
       parameters:
+        - name: tenant_id
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by tenant ID. Returns 404 if the attempt does not belong to the specified tenant. Ignored when using Tenant JWT authentication.
         - name: include
           in: query
           required: false

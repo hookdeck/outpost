@@ -349,8 +349,10 @@ func (h *LogHandlers) listAttemptsInternal(c *gin.Context, tenantIDs []string, d
 
 // RetrieveEvent handles GET /events/:event_id
 func (h *LogHandlers) RetrieveEvent(c *gin.Context) {
-	// When using JWT auth we need to inject the tenant ID for access control in case the id doesn't belong to the tenant
 	ctxTenantID := tenantIDFromContext(c)
+	if ctxTenantID == "" {
+		ctxTenantID = c.Query("tenant_id")
+	}
 	eventID := c.Param("event_id")
 	event, err := h.logStore.RetrieveEvent(c.Request.Context(), logstore.RetrieveEventRequest{
 		TenantID: ctxTenantID,
@@ -378,8 +380,10 @@ func (h *LogHandlers) RetrieveEvent(c *gin.Context) {
 
 // RetrieveAttempt handles GET /attempts/:attempt_id
 func (h *LogHandlers) RetrieveAttempt(c *gin.Context) {
-	// When using JWT auth we need to inject the tenant ID for access control in case the id doesn't belong to the tenant
 	ctxTenantID := tenantIDFromContext(c)
+	if ctxTenantID == "" {
+		ctxTenantID = c.Query("tenant_id")
+	}
 	attemptID := c.Param("attempt_id")
 
 	attemptRecord, err := h.logStore.RetrieveAttempt(c.Request.Context(), logstore.RetrieveAttemptRequest{
