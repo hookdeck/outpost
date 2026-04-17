@@ -43,6 +43,62 @@ func NewLogStore(chDB clickhouse.DB, deploymentID string) driver.LogStore {
 	}
 }
 
+// fetchAndDedup queries ClickHouse and deduplicates results by a key. If
+// duplicates reduce the result count below the requested limit, it advances
+// the cursor and fetches more rows until the limit is met or data is exhausted.
+// This avoids LIMIT 1 BY / GROUP BY on large result sets while still hiding
+// duplicates from unmerged ReplacingMergeTree parts.
+func fetchAndDedup[T any](
+	ctx context.Context,
+	chDB clickhouse.DB,
+	q pagination.QueryInput,
+	buildQuery func(pagination.QueryInput) (string, []any),
+	scan func(clickhouse.Rows) ([]T, error),
+	getID func(T) string,
+	getCursorPos func(T) string,
+) ([]T, error) {
+	seen := make(map[string]bool)
+	var deduped []T
+	cursorPos := q.CursorPos
+
+	for len(deduped) < q.Limit {
+		qi := pagination.QueryInput{
+			Limit:     q.Limit,
+			Compare:   q.Compare,
+			SortDir:   q.SortDir,
+			CursorPos: cursorPos,
+		}
+		query, args := buildQuery(qi)
+		rows, err := chDB.Query(ctx, query, args...)
+		if err != nil {
+			return nil, fmt.Errorf("query failed: %w", err)
+		}
+		scanned, err := scan(rows)
+		rows.Close()
+		if err != nil {
+			return nil, err
+		}
+
+		for _, item := range scanned {
+			id := getID(item)
+			if !seen[id] {
+				seen[id] = true
+				deduped = append(deduped, item)
+			}
+		}
+
+		// Fewer rows than requested means we've exhausted the data.
+		if len(scanned) < q.Limit {
+			break
+		}
+
+		// Advance cursor past last scanned row for next iteration.
+		cursorPos = getCursorPos(scanned[len(scanned)-1])
+	}
+
+	return deduped, nil
+}
+
 // eventWithPosition wraps an event with its cursor position data.
 type eventWithPosition struct {
 	*models.Event
@@ -66,13 +122,13 @@ func (s *logStoreImpl) ListEvent(ctx context.Context, req driver.ListEventReques
 		Next:  req.Next,
 		Prev:  req.Prev,
 		Fetch: func(ctx context.Context, q pagination.QueryInput) ([]eventWithPosition, error) {
-			query, args := buildEventQuery(s.eventsTable, req, q)
-			rows, err := s.chDB.Query(ctx, query, args...)
-			if err != nil {
-				return nil, fmt.Errorf("query failed: %w", err)
-			}
-			defer rows.Close()
-			return scanEvents(rows)
+			return fetchAndDedup(ctx, s.chDB, q, func(qi pagination.QueryInput) (string, []any) {
+				return buildEventQuery(s.eventsTable, req, qi)
+			}, scanEvents, func(e eventWithPosition) string {
+				return e.Event.ID
+			}, func(e eventWithPosition) string {
+				return fmt.Sprintf("%d::%s", e.eventTime.UnixMilli(), e.Event.ID)
+			})
 		},
 		Cursor: pagination.Cursor[eventWithPosition]{
 			Encode: func(e eventWithPosition) string {
@@ -156,9 +212,6 @@ func buildEventQuery(table string, req driver.ListEventRequest, q pagination.Que
 	orderByClause := fmt.Sprintf("ORDER BY event_time %s, event_id %s",
 		strings.ToUpper(q.SortDir), strings.ToUpper(q.SortDir))
 
-	// We omit FINAL to avoid forcing ClickHouse to merge all parts at query time.
-	// Instead, LIMIT 1 BY event_id deduplicates in the result stream: after ORDER BY,
-	// it keeps only the first row per event_id, then the outer LIMIT caps the result set.
 	query := fmt.Sprintf(`
 		SELECT
 			event_id,
@@ -172,7 +225,6 @@ func buildEventQuery(table string, req driver.ListEventRequest, q pagination.Que
 		FROM %s
 		WHERE %s
 		%s
-		LIMIT 1 BY event_id
 		LIMIT %d
 	`, table, whereClause, orderByClause, q.Limit)
 
@@ -283,13 +335,13 @@ func (s *logStoreImpl) ListAttempt(ctx context.Context, req driver.ListAttemptRe
 		Next:  req.Next,
 		Prev:  req.Prev,
 		Fetch: func(ctx context.Context, q pagination.QueryInput) ([]attemptRecordWithPosition, error) {
-			query, args := buildAttemptQuery(s.attemptsTable, req, q)
-			rows, err := s.chDB.Query(ctx, query, args...)
-			if err != nil {
-				return nil, fmt.Errorf("query failed: %w", err)
-			}
-			defer rows.Close()
-			return scanAttemptRecords(rows)
+			return fetchAndDedup(ctx, s.chDB, q, func(qi pagination.QueryInput) (string, []any) {
+				return buildAttemptQuery(s.attemptsTable, req, qi)
+			}, scanAttemptRecords, func(ar attemptRecordWithPosition) string {
+				return ar.Attempt.ID
+			}, func(ar attemptRecordWithPosition) string {
+				return fmt.Sprintf("%d::%s", ar.attemptTime.UnixMilli(), ar.Attempt.ID)
+			})
 		},
 		Cursor: pagination.Cursor[attemptRecordWithPosition]{
 			Encode: func(ar attemptRecordWithPosition) string {
@@ -383,8 +435,6 @@ func buildAttemptQuery(table string, req driver.ListAttemptRequest, q pagination
 	orderByClause := fmt.Sprintf("ORDER BY attempt_time %s, attempt_id %s",
 		strings.ToUpper(q.SortDir), strings.ToUpper(q.SortDir))
 
-	// LIMIT 1 BY attempt_id deduplicates rows that can appear when a message is
-	// nacked after a successful CH insert and then re-delivered.
 	query := fmt.Sprintf(`
 		SELECT
 			event_id,
@@ -406,7 +456,6 @@ func buildAttemptQuery(table string, req driver.ListAttemptRequest, q pagination
 		FROM %s
 		WHERE %s
 		%s
-		LIMIT 1 BY attempt_id
 		LIMIT %d
 	`, table, whereClause, orderByClause, q.Limit)
 
