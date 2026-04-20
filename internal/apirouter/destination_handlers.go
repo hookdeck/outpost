@@ -109,6 +109,11 @@ func (h *DestinationHandlers) Create(c *gin.Context) {
 	}
 	h.telemetry.DestinationCreated(c.Request.Context(), destination.Type)
 	h.emitSubscriptionUpdateIfChanged(c.Request.Context(), tenant.ID, prev)
+	h.logger.Ctx(c.Request.Context()).Audit("destination created",
+		zap.String("tenant_id", tenant.ID),
+		zap.String("destination_id", destination.ID),
+		zap.String("destination_type", destination.Type),
+	)
 
 	display, err := h.displayer.Display(&destination)
 	if err != nil {
@@ -204,6 +209,11 @@ func (h *DestinationHandlers) Update(c *gin.Context) {
 		return
 	}
 	h.emitSubscriptionUpdateIfChanged(c.Request.Context(), tenant.ID, prev)
+	h.logger.Ctx(c.Request.Context()).Audit("destination updated",
+		zap.String("tenant_id", tenant.ID),
+		zap.String("destination_id", updatedDestination.ID),
+		zap.String("destination_type", updatedDestination.Type),
+	)
 
 	display, err := h.displayer.Display(&updatedDestination)
 	if err != nil {
@@ -225,6 +235,11 @@ func (h *DestinationHandlers) Delete(c *gin.Context) {
 		return
 	}
 	h.emitSubscriptionUpdateIfChanged(c.Request.Context(), tenant.ID, prev)
+	h.logger.Ctx(c.Request.Context()).Audit("destination deleted",
+		zap.String("tenant_id", tenant.ID),
+		zap.String("destination_id", destination.ID),
+		zap.String("destination_type", destination.Type),
+	)
 
 	c.JSON(http.StatusOK, gin.H{"success": true})
 }
@@ -275,6 +290,15 @@ func (h *DestinationHandlers) setDisabilityHandler(c *gin.Context, disabled bool
 			return
 		}
 		h.emitSubscriptionUpdateIfChanged(c.Request.Context(), tenant.ID, prev)
+		action := "destination enabled"
+		if disabled {
+			action = "destination disabled"
+		}
+		h.logger.Ctx(c.Request.Context()).Audit(action,
+			zap.String("tenant_id", tenant.ID),
+			zap.String("destination_id", destination.ID),
+			zap.String("destination_type", destination.Type),
+		)
 	}
 
 	display, err := h.displayer.Display(destination)

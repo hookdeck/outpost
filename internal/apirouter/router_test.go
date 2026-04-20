@@ -61,6 +61,7 @@ type apiTestConfig struct {
 	tenantStore         tenantstore.TenantStore
 	destRegistry        destregistry.Registry
 	subscriptionEmitter apirouter.SubscriptionEmitter
+	logger              *logging.Logger
 }
 
 func withTenantStore(ts tenantstore.TenantStore) apiTestOption {
@@ -81,6 +82,12 @@ func withSubscriptionEmitter(e apirouter.SubscriptionEmitter) apiTestOption {
 	}
 }
 
+func withLogger(l *logging.Logger) apiTestOption {
+	return func(cfg *apiTestConfig) {
+		cfg.logger = l
+	}
+}
+
 func newAPITest(t *testing.T, opts ...apiTestOption) *apiTest {
 	t.Helper()
 
@@ -91,7 +98,10 @@ func newAPITest(t *testing.T, opts ...apiTestOption) *apiTest {
 		o(&cfg)
 	}
 
-	logger := &logging.Logger{Logger: otelzap.New(zap.NewNop())}
+	logger := cfg.logger
+	if logger == nil {
+		logger = &logging.Logger{Logger: otelzap.New(zap.NewNop())}
+	}
 	ts := cfg.tenantStore
 	ls := logstore.NewMemLogStore()
 	dp := &mockDeliveryPublisher{}
