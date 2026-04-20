@@ -8,6 +8,7 @@ import (
 
 	"github.com/hookdeck/outpost/loadtest-app/internal/api"
 	"github.com/hookdeck/outpost/loadtest-app/internal/config"
+	"github.com/hookdeck/outpost/loadtest-app/internal/dashboard"
 )
 
 type Server struct {
@@ -31,20 +32,8 @@ func New(cfg *config.Config) *Server {
 	})
 	mux.HandleFunc("POST /webhook/{group}/{tenant}/{dest}", app.MockServer.Handler().ServeHTTP)
 
-	// Dashboard placeholder
-	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/html")
-		fmt.Fprintf(w, `<!DOCTYPE html>
-<html>
-<head><title>Outpost Load Test</title></head>
-<body>
-<h1>Outpost Load Test</h1>
-<p>Outpost: %s</p>
-<p>Mock URL: %s</p>
-<p>Status: running</p>
-</body>
-</html>`, cfg.OutpostURL, cfg.MockURL)
-	})
+	// Dashboard
+	mux.Handle("GET /", dashboard.Handler())
 
 	s := &Server{
 		cfg: cfg,

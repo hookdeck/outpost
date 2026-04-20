@@ -292,6 +292,11 @@ func (a *App) handleResetAll(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleMetrics(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Query().Get("stream") == "true" {
+		a.HandleMetricsSSE(w, r)
+		return
+	}
+
 	groups := a.Store.List()
 	result := make(map[string]any)
 	for _, g := range groups {

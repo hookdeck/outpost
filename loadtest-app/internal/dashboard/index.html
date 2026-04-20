@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Outpost Load Test</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="header">
+  <div>
+    <h1>Outpost Load Test</h1>
+    <div class="header-info">
+      <span id="outpost-url"></span>
+      <span id="mock-url"></span>
+    </div>
+  </div>
+  <div class="global-controls">
+    <button class="primary" onclick="api('POST', '/api/start')">Start All</button>
+    <button onclick="api('POST', '/api/stop')">Stop All</button>
+    <button onclick="api('POST', '/api/reset')">Reset All</button>
+  </div>
+</div>
+
+<div id="create-form">
+  <h2>Create Group</h2>
+  <div class="form-row">
+    <label>Name<input id="f-name" value="test"></label>
+    <label>Prefix<input id="f-prefix" value="lt-test"></label>
+    <label>Tenants<input id="f-tenants" type="number" value="1" min="1"></label>
+    <label>Dests/Tenant<input id="f-dests" type="number" value="1" min="1"></label>
+    <label>Topics<input id="f-topics" value="test.event"></label>
+  </div>
+  <div class="form-row">
+    <label>Rate/Tenant<input id="f-rate" type="number" value="50" min="1"></label>
+    <label>Payload Bytes<input id="f-payload" type="number" value="512" min="64"></label>
+    <label>Mock Latency (ms)<input id="f-latency" type="number" value="100"></label>
+    <label>Mock Jitter (ms)<input id="f-jitter" type="number" value="20"></label>
+    <label>Error Rate<input id="f-error" type="number" value="0" step="0.01" min="0" max="1"></label>
+  </div>
+  <div class="form-row">
+    <button class="primary" onclick="createGroup()">Create</button>
+  </div>
+</div>
+
+<div id="groups" class="groups"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
