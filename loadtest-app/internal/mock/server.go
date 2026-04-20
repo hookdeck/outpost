@@ -41,6 +41,12 @@ func NewServer(callback DeliveryCallback) *Server {
 	}
 }
 
+func (s *Server) SetCallback(cb DeliveryCallback) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.callback = cb
+}
+
 func (s *Server) RegisterRoute(group, tenantIdx, destIdx string, profile *Profile) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
