@@ -164,7 +164,7 @@ for DEPLOY_ID in "${DEPLOYMENT_IDS[@]}"; do
   if [[ -n "$INSTALLATION_ID" ]]; then
     target_key="${DEPLOY_ID}:outpost:installation_id"
     echo "SET ${target_key} ${INSTALLATION_ID}" >> "$PIPE_FILE"
-    ((CMD_COUNT++))
+    ((++CMD_COUNT))
   fi
 
   # Migration status keys (HSET is idempotent)
@@ -173,7 +173,7 @@ for DEPLOY_ID in "${DEPLOYMENT_IDS[@]}"; do
     hash_data="${MIGRATION_DATA[$old_key]}"
     if [[ -n "$hash_data" ]]; then
       echo "HSET ${new_key} ${hash_data}" >> "$PIPE_FILE"
-      ((CMD_COUNT++))
+      ((++CMD_COUNT))
     fi
   done
 done
@@ -182,15 +182,15 @@ done
 if $CLEANUP; then
   if [[ -n "$INSTALLATION_ID" ]]; then
     echo "DEL outpostrc" >> "$PIPE_FILE"
-    ((CMD_COUNT++))
+    ((++CMD_COUNT))
   fi
   for key in "${MIGRATION_KEYS[@]}"; do
     echo "DEL ${key}" >> "$PIPE_FILE"
-    ((CMD_COUNT++))
+    ((++CMD_COUNT))
   done
   if [[ "$LOCK_EXISTS" == "1" ]]; then
     echo "DEL .outpost:migration:lock" >> "$PIPE_FILE"
-    ((CMD_COUNT++))
+    ((++CMD_COUNT))
   fi
 fi
 
