@@ -162,13 +162,13 @@ describe('Events (PR #491)', () => {
       const sdk: Outpost = client.getSDK();
       const tid = client.getTenantId();
       // SDK accepts string | string[] for tenantId and topic; verify array form is accepted
-      const response = await sdk.events.list({
+      const page = await sdk.events.list({
         tenantId: [tid],
         topic: [TEST_TOPICS[0]],
         limit: 5,
       });
-      expect(response).to.not.be.undefined;
-      expect(response?.models).to.be.an('array');
+      expect(page).to.not.be.undefined;
+      expect(page.result.models).to.be.an('array');
     });
 
     it('should list events by tenant', async function () {
@@ -188,10 +188,10 @@ describe('Events (PR #491)', () => {
 
       const events = await pollForEvents(
         async () => {
-          const response = await sdk.events.list({
+          const page = await sdk.events.list({
             tenantId: client.getTenantId(),
           });
-          return response?.models || [];
+          return page.result.models || [];
         },
         30000,
         5000
@@ -206,10 +206,10 @@ describe('Events (PR #491)', () => {
 
       const sdk: Outpost = client.getSDK();
 
-      const response = await sdk.events.list({
+      const page = await sdk.events.list({
         tenantId: client.getTenantId(),
       });
-      const events = response?.models || [];
+      const events = page.result.models || [];
 
       if (events.length === 0) {
         console.warn('No events found - skipping single event test');
@@ -248,12 +248,12 @@ describe('Events (PR #491)', () => {
 
       const attempts = await pollForAttempts(
         async () => {
-          const response = await sdk.destinations.listAttempts({
+          const page = await sdk.destinations.listAttempts({
             tenantId: client.getTenantId(),
             destinationId: destinationId,
             eventId,
           });
-          return response?.models ?? [];
+          return page.result.models ?? [];
         },
         45000,
         5000

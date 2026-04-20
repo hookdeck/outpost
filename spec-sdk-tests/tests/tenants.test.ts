@@ -16,11 +16,11 @@ describe('Tenants - List with request object', () => {
     const client = createSdkClient();
     const sdk = client.getSDK();
 
-    const result = await sdk.tenants.list({ limit: 5 });
+    const page = await sdk.tenants.list({ limit: 5 });
 
-    expect(result).to.not.be.undefined;
-    expect(result?.models).to.be.an('array');
-    (result?.models ?? []).forEach((t: { id?: string }, i: number) => {
+    expect(page).to.not.be.undefined;
+    expect(page.result.models).to.be.an('array');
+    (page.result.models ?? []).forEach((t: { id?: string }, i: number) => {
       expect(t, `tenant[${i}]`).to.be.an('object');
       if (t.id != null) expect(t.id, `tenant[${i}].id`).to.be.a('string');
     });
