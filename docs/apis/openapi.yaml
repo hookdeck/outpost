@@ -1987,15 +1987,26 @@ components:
           type: string
           description: Markdown instructions.
           example: "Some *markdown*"
-        remote_setup_url:
-          type: string
-          format: url
+        setup_link:
+          type: object
           # Property is optional, not nullable
           description: >-
-            Some destinations may have Oauth flow or other managed-setup flow that can be triggered with a link. If a `remote_setup_url` is set then the user should be prompted to follow the link to configure the destination.
+            Some destinations may have an OAuth flow or other managed-setup flow that can be triggered with a link. If a `setup_link` is set then the user should be prompted to follow the link to configure the destination.
 
             See the [building your own UI guide](https://outpost.hookdeck.com/guides/building-your-own-ui.mdx) for recommended UI patterns and wireframes for implementation in your own app.
-          example: "https://dashboard.hookdeck.com/authorize?provider=acme"
+          properties:
+            href:
+              type: string
+              format: url
+              description: The URL to direct the user to for setup.
+              example: "https://dashboard.hookdeck.com/connect"
+            cta:
+              type: string
+              description: The call-to-action button text to display to the user.
+              example: "Generate Hookdeck Token"
+          required:
+            - href
+            - cta
         config_fields:
           type: array
           description: Config fields are non-secret values that can be stored and displayed to the user in plain text.
@@ -4078,7 +4089,7 @@ paths:
                     description: "Send event via an HTTP POST request to a URL"
                     icon: "<svg />"
                     instructions: "Enter the URL..."
-                    # remote_setup_url is optional, omitted here
+                    # setup_link is optional, omitted here
                     config_fields: [
                         {
                           key: "url",
