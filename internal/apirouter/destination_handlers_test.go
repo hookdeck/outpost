@@ -312,6 +312,191 @@ func TestAPI_Destinations(t *testing.T) {
 			require.Equal(t, http.StatusUnprocessableEntity, resp.Code)
 		})
 
+		t.Run("filter is replaced not merged", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+			h.tenantStore.CreateDestination(t.Context(), df.Any(
+				df.WithID("d1"), df.WithTenantID("t1"),
+				df.WithFilter(models.Filter{"body": map[string]any{"user_id": "usr_123"}}),
+			))
+
+			req := h.jsonReq(http.MethodPatch, "/api/v1/tenants/t1/destinations/d1", map[string]any{
+				"filter": map[string]any{"body": map[string]any{"status": "active"}},
+			})
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+
+			var dest destregistry.DestinationDisplay
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &dest))
+			assert.Nil(t, dest.Filter["body"].(map[string]any)["user_id"], "old filter key should not be present")
+			assert.Equal(t, "active", dest.Filter["body"].(map[string]any)["status"])
+		})
+
+		t.Run("filter cleared with empty object", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+			h.tenantStore.CreateDestination(t.Context(), df.Any(
+				df.WithID("d1"), df.WithTenantID("t1"),
+				df.WithFilter(models.Filter{"body": map[string]any{"user_id": "usr_123"}}),
+			))
+
+			req := h.jsonReq(http.MethodPatch, "/api/v1/tenants/t1/destinations/d1", map[string]any{
+				"filter": map[string]any{},
+			})
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+
+			var dest destregistry.DestinationDisplay
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &dest))
+			assert.True(t, dest.Filter == nil || len(dest.Filter) == 0, "filter should be cleared")
+		})
+
+		t.Run("filter unchanged when omitted", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+			h.tenantStore.CreateDestination(t.Context(), df.Any(
+				df.WithID("d1"), df.WithTenantID("t1"),
+				df.WithFilter(models.Filter{"body": map[string]any{"user_id": "usr_123"}}),
+			))
+
+			req := h.jsonReq(http.MethodPatch, "/api/v1/tenants/t1/destinations/d1", map[string]any{
+				"topics": []string{"user.created"},
+			})
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+
+			var dest destregistry.DestinationDisplay
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &dest))
+			assert.Equal(t, "usr_123", dest.Filter["body"].(map[string]any)["user_id"])
+		})
+
+		t.Run("metadata is replaced not merged", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+			h.tenantStore.CreateDestination(t.Context(), df.Any(
+				df.WithID("d1"), df.WithTenantID("t1"),
+				df.WithMetadata(map[string]string{"env": "production", "team": "platform", "region": "us-east-1"}),
+			))
+
+			req := h.jsonReq(http.MethodPatch, "/api/v1/tenants/t1/destinations/d1", map[string]any{
+				"metadata": map[string]string{"env": "production", "team": "platform"},
+			})
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+
+			var dest destregistry.DestinationDisplay
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &dest))
+			assert.Equal(t, models.Metadata{"env": "production", "team": "platform"}, dest.Metadata)
+			_, hasRegion := dest.Metadata["region"]
+			assert.False(t, hasRegion, "region key should have been removed")
+		})
+
+		t.Run("metadata cleared with empty object", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+			h.tenantStore.CreateDestination(t.Context(), df.Any(
+				df.WithID("d1"), df.WithTenantID("t1"),
+				df.WithMetadata(map[string]string{"env": "production"}),
+			))
+
+			req := h.jsonReq(http.MethodPatch, "/api/v1/tenants/t1/destinations/d1", map[string]any{
+				"metadata": map[string]string{},
+			})
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+
+			var dest destregistry.DestinationDisplay
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &dest))
+			assert.True(t, dest.Metadata == nil || len(dest.Metadata) == 0, "metadata should be cleared")
+		})
+
+		t.Run("metadata unchanged when omitted", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+			h.tenantStore.CreateDestination(t.Context(), df.Any(
+				df.WithID("d1"), df.WithTenantID("t1"),
+				df.WithMetadata(map[string]string{"env": "production"}),
+			))
+
+			req := h.jsonReq(http.MethodPatch, "/api/v1/tenants/t1/destinations/d1", map[string]any{
+				"topics": []string{"user.created"},
+			})
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+
+			var dest destregistry.DestinationDisplay
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &dest))
+			assert.Equal(t, models.Metadata{"env": "production"}, dest.Metadata)
+		})
+
+		t.Run("delivery_metadata is replaced not merged", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+			h.tenantStore.CreateDestination(t.Context(), df.Any(
+				df.WithID("d1"), df.WithTenantID("t1"),
+				df.WithDeliveryMetadata(map[string]string{"source": "outpost", "version": "1.0"}),
+			))
+
+			req := h.jsonReq(http.MethodPatch, "/api/v1/tenants/t1/destinations/d1", map[string]any{
+				"delivery_metadata": map[string]string{"source": "outpost"},
+			})
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+
+			var dest destregistry.DestinationDisplay
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &dest))
+			assert.Equal(t, models.DeliveryMetadata{"source": "outpost"}, dest.DeliveryMetadata)
+			_, hasVersion := dest.DeliveryMetadata["version"]
+			assert.False(t, hasVersion, "version key should have been removed")
+		})
+
+		t.Run("delivery_metadata cleared with empty object", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+			h.tenantStore.CreateDestination(t.Context(), df.Any(
+				df.WithID("d1"), df.WithTenantID("t1"),
+				df.WithDeliveryMetadata(map[string]string{"source": "outpost"}),
+			))
+
+			req := h.jsonReq(http.MethodPatch, "/api/v1/tenants/t1/destinations/d1", map[string]any{
+				"delivery_metadata": map[string]string{},
+			})
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+
+			var dest destregistry.DestinationDisplay
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &dest))
+			assert.True(t, dest.DeliveryMetadata == nil || len(dest.DeliveryMetadata) == 0, "delivery_metadata should be cleared")
+		})
+
+		t.Run("delivery_metadata unchanged when omitted", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+			h.tenantStore.CreateDestination(t.Context(), df.Any(
+				df.WithID("d1"), df.WithTenantID("t1"),
+				df.WithDeliveryMetadata(map[string]string{"source": "outpost"}),
+			))
+
+			req := h.jsonReq(http.MethodPatch, "/api/v1/tenants/t1/destinations/d1", map[string]any{
+				"topics": []string{"user.created"},
+			})
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+
+			var dest destregistry.DestinationDisplay
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &dest))
+			assert.Equal(t, models.DeliveryMetadata{"source": "outpost"}, dest.DeliveryMetadata)
+		})
+
 		t.Run("sending same type is allowed", func(t *testing.T) {
 			h := newAPITest(t)
 			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))

@@ -176,10 +176,10 @@ func (h *DestinationHandlers) Update(c *gin.Context) {
 		updatedDestination.Filter = input.Filter
 	}
 	if input.DeliveryMetadata != nil {
-		updatedDestination.DeliveryMetadata = maputil.MergeStringMaps(originalDestination.DeliveryMetadata, input.DeliveryMetadata)
+		updatedDestination.DeliveryMetadata = input.DeliveryMetadata
 	}
 	if input.Metadata != nil {
-		updatedDestination.Metadata = maputil.MergeStringMaps(originalDestination.Metadata, input.Metadata)
+		updatedDestination.Metadata = input.Metadata
 	}
 
 	// Always preprocess before updating
