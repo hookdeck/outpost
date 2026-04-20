@@ -127,7 +127,7 @@ func (a *App) handleDeleteGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if g.State == group.StateProvisioned || g.State == group.StateStopped {
+	if g.State == group.StateProvisioned || g.State == group.StateStopped || g.State == group.StateError {
 		_ = a.Provisioner.Teardown(r.Context(), g)
 	}
 
