@@ -17,9 +17,10 @@ type Config struct {
 }
 
 type PublishConfig struct {
-	RatePerTenant int    `json:"rate_per_tenant"`
-	Pattern       string `json:"pattern"` // constant, ramp, burst, sine
-	PayloadBytes  int    `json:"payload_bytes"`
+	RatePerTenant int            `json:"rate_per_tenant"`
+	Pattern       string         `json:"pattern"` // constant, ramp, burst, sine
+	PatternParams map[string]any `json:"pattern_params,omitempty"`
+	PayloadBytes  int            `json:"payload_bytes"`
 }
 
 type MockProfileConfig struct {

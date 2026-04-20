@@ -54,12 +54,16 @@ func (p *Publisher) Start(g *group.Group) error {
 	gp.rate.Store(int64(totalRate))
 	p.running[g.Config.Name] = gp
 
+	// Start pattern controller
+	pattern := newPattern(g.Config.Publish.Pattern, g.Config.Publish.PatternParams)
+	go pattern.Start(ctx, &gp.rate, int64(totalRate))
+
 	for w := 0; w < workerCount; w++ {
 		gp.wg.Add(1)
 		go p.publishLoop(ctx, g, gp, w)
 	}
 
-	slog.Info("publisher started", "group", g.Config.Name, "rate", totalRate, "workers", workerCount)
+	slog.Info("publisher started", "group", g.Config.Name, "rate", totalRate, "workers", workerCount, "pattern", g.Config.Publish.Pattern)
 	return nil
 }
 
