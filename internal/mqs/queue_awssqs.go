@@ -13,7 +13,13 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"gocloud.dev/pubsub"
 	"gocloud.dev/pubsub/awssnssqs"
+	"gocloud.dev/pubsub/batcher"
 )
+
+// sqsMaxBatchBytes is the maximum total payload size for an SQS SendMessageBatch
+// request. SQS rejects batches exceeding 256 KB per message and 1 MB per batch.
+// Setting this on the gocloud batcher prevents oversized batches from being sent.
+const sqsMaxBatchBytes = 1_048_576 // 1 MB
 
 type AWSSQSConfig struct {
 	Endpoint                  string // optional - dev-focused
@@ -56,7 +62,11 @@ func (q *AWSQueue) Init(ctx context.Context) (func(), error) {
 	if err != nil {
 		return nil, err
 	}
-	q.topic = awssnssqs.OpenSQSTopicV2(ctx, q.sqsClient, q.sqsQueueURL, nil)
+	q.topic = awssnssqs.OpenSQSTopicV2(ctx, q.sqsClient, q.sqsQueueURL, &awssnssqs.TopicOptions{
+		BatcherOptions: batcher.Options{
+			MaxBatchByteSize: sqsMaxBatchBytes,
+		},
+	})
 	return func() {
 		q.topic.Shutdown(ctx)
 	}, nil
