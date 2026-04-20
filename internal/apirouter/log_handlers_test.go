@@ -602,6 +602,38 @@ func TestAPI_Events(t *testing.T) {
 
 			require.Equal(t, http.StatusNotFound, resp.Code)
 		})
+
+		t.Run("api key with tenant_id query param filters event", func(t *testing.T) {
+			h := newAPITest(t)
+
+			e := ef.AnyPointer(ef.WithID("e1"), ef.WithTenantID("t1"))
+			require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
+				{Event: e, Attempt: attemptForEvent(e)},
+			}))
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/events/e1?tenant_id=t1", nil)
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+
+			var event apirouter.APIEvent
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &event))
+			assert.Equal(t, "e1", event.ID)
+		})
+
+		t.Run("api key with wrong tenant_id query param returns 404", func(t *testing.T) {
+			h := newAPITest(t)
+
+			e := ef.AnyPointer(ef.WithID("e1"), ef.WithTenantID("t1"))
+			require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
+				{Event: e, Attempt: attemptForEvent(e)},
+			}))
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/events/e1?tenant_id=t2", nil)
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusNotFound, resp.Code)
+		})
 	})
 
 	t.Run("no auth returns 401", func(t *testing.T) {
@@ -1114,6 +1146,40 @@ func TestAPI_Attempts(t *testing.T) {
 
 			req := httptest.NewRequest(http.MethodGet, "/api/v1/attempts/a1?tenant_id[0]=t2", nil)
 			resp := h.do(h.withJWT(req, "t1"))
+
+			require.Equal(t, http.StatusNotFound, resp.Code)
+		})
+
+		t.Run("api key with tenant_id query param filters attempt", func(t *testing.T) {
+			h := newAPITest(t)
+
+			e := ef.AnyPointer(ef.WithTenantID("t1"))
+			a := attemptForEvent(e, af.WithID("a1"))
+			require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
+				{Event: e, Attempt: a},
+			}))
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/attempts/a1?tenant_id=t1", nil)
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+
+			var attempt apirouter.APIAttempt
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &attempt))
+			assert.Equal(t, "a1", attempt.ID)
+		})
+
+		t.Run("api key with wrong tenant_id query param returns 404", func(t *testing.T) {
+			h := newAPITest(t)
+
+			e := ef.AnyPointer(ef.WithTenantID("t1"))
+			a := attemptForEvent(e, af.WithID("a1"))
+			require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
+				{Event: e, Attempt: a},
+			}))
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/attempts/a1?tenant_id=t2", nil)
+			resp := h.do(h.withAPIKey(req))
 
 			require.Equal(t, http.StatusNotFound, resp.Code)
 		})
