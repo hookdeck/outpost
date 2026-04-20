@@ -49,6 +49,12 @@ health:
 smoke:
 	./build/dev/smoke.sh
 
+up/loadtest:
+	docker-compose -f build/dev/loadtest/compose.yml up -d --build
+
+down/loadtest:
+	docker-compose -f build/dev/loadtest/compose.yml down
+
 # Run portal natively (vite hot reload). Portal is also available as a
 # containerized service via `make up` — use this target only when you want
 # the faster native dev loop.

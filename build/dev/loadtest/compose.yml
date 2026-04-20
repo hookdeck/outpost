@@ -1,0 +1,30 @@
+name: "outpost"
+
+services:
+  loadtest:
+    image: outpost-loadtest
+    build:
+      context: ../../../loadtest-app
+      dockerfile: ../build/dev/loadtest/Dockerfile
+    volumes:
+      - ../../../loadtest-app:/app
+      - go_mod_cache:/go/pkg
+      - go_build_cache:/root/.cache/go-build
+    ports:
+      - "9090:9090"
+    environment:
+      - PORT=9090
+      - OUTPOST_URL=http://api:3333
+      - OUTPOST_API_KEY=${OUTPOST_API_KEY:-test}
+      - MOCK_URL=http://loadtest:9090
+
+volumes:
+  go_mod_cache:
+    driver: local
+  go_build_cache:
+    driver: local
+
+networks:
+  default:
+    name: outpost
+    external: true
