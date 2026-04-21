@@ -2458,7 +2458,7 @@ paths:
       tags: [Configuration]
       summary: Update Managed Configuration
       description: |
-        Updates one or more managed Outpost configuration values. Null values clear the configuration and reverts to Outpost default behavior..
+        Updates one or more managed Outpost configuration values. Null values clear the configuration and reverts to Outpost default behavior.
 
         This endpoint is only available for the managed version.
         In self-hosted deployments, configuration is controlled through environment variables instead.
