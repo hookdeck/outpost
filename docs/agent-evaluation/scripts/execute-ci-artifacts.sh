@@ -4,6 +4,10 @@
 #
 # Required env: OUTPOST_API_KEY, OUTPOST_TEST_WEBHOOK_URL (often same URL as EVAL_TEST_DESTINATION_URL)
 # Optional: OUTPOST_API_BASE_URL (managed default if unset)
+# Optional: OUTPOST_CI_CLEANUP_TENANT — tenant id to DELETE before and after this script (EXIT trap).
+#   CI sets this so repeated runs do not accumulate destinations on a shared eval tenant; pair with
+#   workflow concurrency so two jobs never delete the same tenant mid-flight.
+# Optional: OUTPOST_SKIP_MANAGED_TOPICS_VERIFY=1 — skip GET /configs topic allowlist check.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -23,6 +27,92 @@ fi
 # Use := so empty string from .env is treated like unset (otherwise curl hits /tenants without /2025-07-01 → 404).
 : "${OUTPOST_API_BASE_URL:=https://api.outpost.hookdeck.com/2025-07-01}"
 export OUTPOST_API_BASE_URL
+
+# Managed-only: if GET /configs succeeds, TOPICS must be empty (any topic), include "*", or list
+# OUTPOST_CI_PUBLISH_TOPIC (default user.created). Non-200 skips (e.g. self-hosted has no /configs).
+verify_managed_topics_allow_ci_publish() {
+  if [[ -n "${OUTPOST_SKIP_MANAGED_TOPICS_VERIFY:-}" ]]; then
+    echo "execute-ci-artifacts: skipping managed TOPICS verify (OUTPOST_SKIP_MANAGED_TOPICS_VERIFY set)" >&2
+    return 0
+  fi
+  local topic="${OUTPOST_CI_PUBLISH_TOPIC:-user.created}"
+  local base="${OUTPOST_API_BASE_URL%/}"
+  local tmp code
+  tmp="$(mktemp)"
+  code="$(
+    curl -sS -o "$tmp" -w "%{http_code}" -H "Authorization: Bearer $OUTPOST_API_KEY" \
+      "$base/configs" || echo "000"
+  )"
+  if [[ "$code" != "200" ]]; then
+    echo "execute-ci-artifacts: skip managed TOPICS verify (GET /configs HTTP $code)" >&2
+    rm -f "$tmp"
+    return 0
+  fi
+  export _EXEC_CI_TOPICS_JSON="$tmp"
+  export _EXEC_CI_PUBLISH_TOPIC="$topic"
+  if ! python3 <<'PY'
+import json
+import os
+import sys
+
+path = os.environ["_EXEC_CI_TOPICS_JSON"]
+need = os.environ["_EXEC_CI_PUBLISH_TOPIC"]
+with open(path, encoding="utf-8") as f:
+    data = json.load(f)
+raw = (data.get("TOPICS") or "").strip()
+if not raw:
+    print(
+        "execute-ci-artifacts: managed TOPICS empty — publish topic unrestricted for this check",
+        file=sys.stderr,
+    )
+    sys.exit(0)
+parts = [p.strip() for p in raw.split(",") if p.strip()]
+if "*" in parts:
+    print("execute-ci-artifacts: managed TOPICS includes '*'", file=sys.stderr)
+    sys.exit(0)
+if need in parts:
+    print(f"execute-ci-artifacts: managed TOPICS includes {need!r}", file=sys.stderr)
+    sys.exit(0)
+print(
+    f"execute-ci-artifacts: managed TOPICS={parts!r} does not include publish topic {need!r} (or '*'). "
+    "Set topics in project settings, PUT /configs, or set OUTPOST_SKIP_MANAGED_TOPICS_VERIFY=1.",
+    file=sys.stderr,
+)
+sys.exit(1)
+PY
+  then
+    unset _EXEC_CI_TOPICS_JSON _EXEC_CI_PUBLISH_TOPIC
+    rm -f "$tmp"
+    return 1
+  fi
+  unset _EXEC_CI_TOPICS_JSON _EXEC_CI_PUBLISH_TOPIC
+  rm -f "$tmp"
+}
+
+verify_managed_topics_allow_ci_publish
+
+# Delete shared CI tenant (200) or no-op (404). Does not fail the script on 200/404.
+outpost_ci_delete_cleanup_tenant() {
+  local tid=${OUTPOST_CI_CLEANUP_TENANT:-}
+  [[ -n "$tid" ]] || return 0
+  local base="${OUTPOST_API_BASE_URL%/}"
+  local code
+  code="$(
+    curl -sS -o /dev/null -w "%{http_code}" -X DELETE \
+      "$base/tenants/$tid" \
+      -H "Authorization: Bearer $OUTPOST_API_KEY" || echo "000"
+  )"
+  if [[ "$code" == "200" || "$code" == "404" ]]; then
+    echo "execute-ci-artifacts: tenant cleanup $tid (DELETE HTTP $code)" >&2
+  else
+    echo "execute-ci-artifacts: warning DELETE tenant $tid returned HTTP $code (expected 200 or 404)" >&2
+  fi
+}
+
+if [[ -n "${OUTPOST_CI_CLEANUP_TENANT:-}" ]]; then
+  outpost_ci_delete_cleanup_tenant
+  trap outpost_ci_delete_cleanup_tenant EXIT
+fi
 
 if [[ ! -d "$RUNS" ]]; then
   echo "execute-ci-artifacts: missing $RUNS (run eval:ci first)" >&2
