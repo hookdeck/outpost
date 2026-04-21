@@ -177,7 +177,7 @@ Follow **Language → SDK vs HTTP** below for mapping user intent to the **singl
 - SDKs overview (TS-heavy): \`${f("docs/content/sdks.mdoc")}\` — prefer the language quickstart over this for Python/Go/TS code.
 
 ${languageSdkBlock}`;
-  block += `\n- Documentation index (\`llms.txt\`): ${llmsFullUrl}`;
+  block += `\n- Optional live documentation index (\`llms.txt\`): ${llmsFullUrl} — use this only when the current eval allows live public docs; otherwise rely on the local repository files listed above.`;
   return block;
 }
 
@@ -196,7 +196,11 @@ function applyPlaceholders(
     );
   }
   const docsUrl = env.EVAL_DOCS_URL ?? "https://hookdeck.com/docs/outpost";
-  const defaultLlmsFullUrl = `${docsUrl}/llms.txt`;
+  const normalizedDocsUrl = docsUrl.replace(/\/+$/, "");
+  const defaultLlmsFullUrl = new URL(
+    "llms.txt",
+    `${normalizedDocsUrl}/`,
+  ).toString();
   const llms = env.EVAL_LLMS_FULL_URL?.trim() || defaultLlmsFullUrl;
   const useLocalDocs = envFlagTruthy(env.EVAL_LOCAL_DOCS);
 
@@ -761,7 +765,7 @@ Environment:
   EVAL_TEST_DESTINATION_URL   Required — Hookdeck Console Source URL (fed into {{TEST_DESTINATION_URL}})
   EVAL_API_BASE_URL     Optional (default: managed production URL)
   EVAL_TOPICS_LIST      Optional
-  EVAL_DOCS_URL         Optional (ignored for doc links when EVAL_LOCAL_DOCS is set)
+  EVAL_DOCS_URL         Optional (ignored for Documentation links when EVAL_LOCAL_DOCS is set; still used to derive the default EVAL_LLMS_FULL_URL unless that is set)
   EVAL_LOCAL_DOCS       Set to 1/true/yes to replace Documentation URLs with repo file paths (unpublished docs)
   EVAL_LLMS_FULL_URL    Optional — full URL for Outpost llms.txt (default: EVAL_DOCS_URL + /llms.txt, else https://hookdeck.com/docs/outpost/llms.txt)
   EVAL_TOOLS            Optional, comma-separated (default: Read,Glob,Grep[,WebFetch],Write,Edit,Bash — see README)
