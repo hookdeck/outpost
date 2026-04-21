@@ -113,7 +113,7 @@ Each entry typically includes (confirm names and optionality in OpenAPI):
 - `label`, `description`, `icon` — Display metadata; `icon` is often an SVG string (some older code used the name `svg`). Sanitize if you render inline HTML.
 - `config_fields`, `credential_fields` — Field definitions for the config step (snake_case in JSON). Include every field from both arrays on create and edit.
 - `instructions` — Markdown for complex setup (for example cloud resources).
-- `remote_setup_url` — Optional external setup flow before or instead of inline fields.
+- `setup_link` — Optional object (`href` + `cta`) for an external setup flow before or instead of inline fields.
 
 ### Dynamic field shape (for forms)
 
@@ -125,7 +125,7 @@ Field objects are fully described in OpenAPI (`DestinationSchemaField`), includi
 
 This section matters whether you use an **official SDK** on the server (recommended when available) or raw HTTP: the **HTTP API** always follows [OpenAPI](/docs/outpost/api), while SDKs present language-native types to your backend code.
 
-HTTP responses from Outpost on the wire use JSON property names that match OpenAPI—typically **snake_case** (for example `config_fields`, `credential_fields`, and `remote_setup_url` on `GET /destination-types`).
+HTTP responses from Outpost on the wire use JSON property names that match OpenAPI—typically **snake_case** (for example `config_fields`, `credential_fields`, and `setup_link` on `GET /destination-types`).
 
 Official **SDKs** deserialize into language-native structures; names often differ from the wire format (for example TypeScript may expose **camelCase** such as `configFields` and `credentialFields`). Mutations use each SDK’s documented request types, which may not mirror OpenAPI field names literally.
 
@@ -133,9 +133,9 @@ When a **browser** loads destination-type metadata via **your** backend, it rece
 
 **Shape mismatches** between layers often appear as missing dynamic fields or create errors referencing absent `config.*` keys (for example `config.url` for webhooks). Comparing the **actual** JSON your UI receives with the property names your rendering code expects (`config_fields` versus `configFields`, and similar) usually isolates the problem.
 
-### Remote setup URL
+### Setup link
 
-When `remote_setup_url` is present, you can link users through an external setup flow (for example Hookdeck-managed configuration) instead of only inline fields.
+When `setup_link` is present, you can link users through an external setup flow (for example Hookdeck-managed configuration) instead of only inline fields. The object contains `href` (the URL) and `cta` (button text to display).
 
 ### Instructions
 
@@ -172,7 +172,7 @@ The product flow is three steps; the API is typically one [create destination](/
 ### Step 3 — Configure the destination
 
 - Read `config_fields` and `credential_fields` for the selected type from `GET /destination-types` (or a single-type endpoint if you use one—see OpenAPI).
-- If `remote_setup_url` is set, consider that flow first.
+- If `setup_link` is set, consider that flow first.
 - Otherwise render fields per [Dynamic field shape](#dynamic-field-shape-for-forms) and submit via [Create destination](/docs/outpost/api/destinations#create-destination).
 
 **Reference:** [DestinationConfigFields.tsx](https://github.com/hookdeck/outpost/blob/main/internal/portal/src/common/DestinationConfigFields/DestinationConfigFields.tsx)
@@ -220,7 +220,7 @@ For **customer-facing** destination and delivery UI, work through **Planning and
 
 - [ ] List view shows type, human-readable target, and subscribed topics; each row reaches detail edit and destination-scoped activity.
 - [ ] Create flow covers: pick type → select topics (`GET /topics`) → collect `config` and credentials per the selected type’s `config_fields` and `credential_fields`.
-- [ ] When a type exposes `instructions` or `remote_setup_url`, the UI surfaces them (markdown / external flow) so customers are not blocked on opaque fields.
+- [ ] When a type exposes `instructions` or `setup_link`, the UI surfaces them (markdown / external flow) so customers are not blocked on opaque fields.
 - [ ] Detail supports lifecycle your product needs: view, update, delete, enable/disable—per OpenAPI and your product policy.
 
 ### Activity, attempts, and retries

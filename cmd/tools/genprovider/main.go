@@ -19,7 +19,10 @@ type UIMetadata struct {
 	Label          string `json:"label"`
 	Description    string `json:"description"`
 	Icon           string `json:"icon"`
-	RemoteSetupURL string `json:"remote_setup_url,omitempty"`
+	SetupLink *struct {
+		Href string `json:"href"`
+		Cta  string `json:"cta"`
+	} `json:"setup_link,omitempty"`
 }
 
 type FieldSchema struct {
