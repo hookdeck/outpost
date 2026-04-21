@@ -4,6 +4,7 @@ package components
 
 import (
 	"github.com/hookdeck/outpost/sdks/outpost-go/internal/utils"
+	"github.com/hookdeck/outpost/sdks/outpost-go/optionalnullable"
 )
 
 type DestinationUpdateHookdeck struct {
@@ -12,15 +13,15 @@ type DestinationUpdateHookdeck struct {
 	// Optional JSON schema filter for event matching. Events must match this filter to be delivered to this destination.
 	// Supports operators: $eq, $neq, $gt, $gte, $lt, $lte, $in, $nin, $startsWith, $endsWith, $exist, $or, $and, $not.
 	// If null or empty, all events matching the topic filter will be delivered.
-	// To remove an existing filter when updating a destination, set filter to an empty object `{}`.
+	// Uses full-replacement semantics on update: send a new object to replace, null or `{}` to clear, omit for no change.
 	//
-	Filter      map[string]any       `json:"filter,omitempty"`
-	Config      any                  `json:"config,omitempty"`
-	Credentials *HookdeckCredentials `json:"credentials,omitempty"`
-	// Static key-value pairs merged into event metadata on every attempt.
-	DeliveryMetadata map[string]string `json:"delivery_metadata,omitempty"`
-	// Arbitrary contextual information stored with the destination.
-	Metadata map[string]string `json:"metadata,omitempty"`
+	Filter      optionalnullable.OptionalNullable[map[string]any] `json:"filter,omitempty"`
+	Config      any                                               `json:"config,omitempty"`
+	Credentials *HookdeckCredentials                              `json:"credentials,omitempty"`
+	// Static key-value pairs merged into event metadata on every attempt. Uses JSON merge-patch semantics (RFC 7396): send keys to add/update, null values to delete keys, null for entire field to clear all. Omit or send {} for no change.
+	DeliveryMetadata optionalnullable.OptionalNullable[map[string]*string] `json:"delivery_metadata,omitempty"`
+	// Arbitrary contextual information stored with the destination. Uses JSON merge-patch semantics (RFC 7396): send keys to add/update, null values to delete keys, null for entire field to clear all. Omit or send {} for no change.
+	Metadata optionalnullable.OptionalNullable[map[string]*string] `json:"metadata,omitempty"`
 }
 
 func (d DestinationUpdateHookdeck) MarshalJSON() ([]byte, error) {
@@ -41,7 +42,7 @@ func (d *DestinationUpdateHookdeck) GetTopics() *Topics {
 	return d.Topics
 }
 
-func (d *DestinationUpdateHookdeck) GetFilter() map[string]any {
+func (d *DestinationUpdateHookdeck) GetFilter() optionalnullable.OptionalNullable[map[string]any] {
 	if d == nil {
 		return nil
 	}
@@ -62,14 +63,14 @@ func (d *DestinationUpdateHookdeck) GetCredentials() *HookdeckCredentials {
 	return d.Credentials
 }
 
-func (d *DestinationUpdateHookdeck) GetDeliveryMetadata() map[string]string {
+func (d *DestinationUpdateHookdeck) GetDeliveryMetadata() optionalnullable.OptionalNullable[map[string]*string] {
 	if d == nil {
 		return nil
 	}
 	return d.DeliveryMetadata
 }
 
-func (d *DestinationUpdateHookdeck) GetMetadata() map[string]string {
+func (d *DestinationUpdateHookdeck) GetMetadata() optionalnullable.OptionalNullable[map[string]*string] {
 	if d == nil {
 		return nil
 	}

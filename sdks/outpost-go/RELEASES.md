@@ -139,3 +139,13 @@ Based on:
 - [go v0.9.0] sdks/outpost-go
 ### Releases
 - [Go v0.9.0] https://github.com/hookdeck/outpost/releases/tag/sdks/outpost-go/v0.9.0 - sdks/outpost-go
+
+## 2026-04-21 19:39:14
+### Changes
+Based on:
+- OpenAPI Doc  
+- Speakeasy CLI 1.761.9 (2.881.4) https://github.com/speakeasy-api/speakeasy
+### Generated
+- [go v0.10.0] sdks/outpost-go
+### Releases
+- [Go v0.10.0] https://github.com/hookdeck/outpost/releases/tag/sdks/outpost-go/v0.10.0 - sdks/outpost-go

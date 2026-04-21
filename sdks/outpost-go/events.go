@@ -182,7 +182,7 @@ func (s *Events) List(ctx context.Context, request operations.ListEventsRequest,
 
 			_, err = s.hooks.AfterError(hooks.AfterErrorContext{HookContext: hookCtx}, nil, err)
 			return nil, err
-		} else if utils.MatchStatusCodes([]string{"401", "4XX", "500", "5XX"}, httpRes.StatusCode) {
+		} else if utils.MatchStatusCodes([]string{"4XX", "5XX"}, httpRes.StatusCode) {
 			_httpRes, err := s.hooks.AfterError(hooks.AfterErrorContext{HookContext: hookCtx}, httpRes, nil)
 			if err != nil {
 				return nil, err
@@ -363,9 +363,10 @@ func (s *Events) List(ctx context.Context, request operations.ListEventsRequest,
 //
 // When authenticated with a Tenant JWT, only events belonging to that tenant can be accessed.
 // When authenticated with Admin API Key, events from any tenant can be accessed.
-func (s *Events) Get(ctx context.Context, eventID string, opts ...operations.Option) (*operations.GetEventResponse, error) {
+func (s *Events) Get(ctx context.Context, eventID string, tenantID *string, opts ...operations.Option) (*operations.GetEventResponse, error) {
 	request := operations.GetEventRequest{
-		EventID: eventID,
+		EventID:  eventID,
+		TenantID: tenantID,
 	}
 
 	o := operations.Options{}
@@ -418,6 +419,10 @@ func (s *Events) Get(ctx context.Context, eventID string, opts ...operations.Opt
 	}
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("User-Agent", s.sdkConfiguration.UserAgent)
+
+	if err := utils.PopulateQueryParams(ctx, req, request, nil, nil); err != nil {
+		return nil, fmt.Errorf("error populating query params: %w", err)
+	}
 
 	if err := utils.PopulateSecurity(ctx, req, s.sdkConfiguration.Security); err != nil {
 		return nil, err
@@ -503,7 +508,7 @@ func (s *Events) Get(ctx context.Context, eventID string, opts ...operations.Opt
 
 			_, err = s.hooks.AfterError(hooks.AfterErrorContext{HookContext: hookCtx}, nil, err)
 			return nil, err
-		} else if utils.MatchStatusCodes([]string{"401", "404", "4XX", "500", "5XX"}, httpRes.StatusCode) {
+		} else if utils.MatchStatusCodes([]string{"4XX", "5XX"}, httpRes.StatusCode) {
 			_httpRes, err := s.hooks.AfterError(hooks.AfterErrorContext{HookContext: hookCtx}, httpRes, nil)
 			if err != nil {
 				return nil, err

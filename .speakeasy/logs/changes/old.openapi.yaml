@@ -1691,9 +1691,12 @@ components:
           type: string
           description: The tenant this event belongs to.
           example: "tnt_123"
-        destination_id:
-          type: string
-          example: "des_456"
+        matched_destination_ids:
+          type: array
+          items:
+            type: string
+          description: The destination IDs that this event was routed to based on topic and filter matching.
+          example: ["des_456", "des_789"]
         topic:
           type: string
           example: "user.created"
@@ -1921,11 +1924,15 @@ components:
             $ref: "#/components/schemas/DestinationSchemaField"
     DestinationSchemaField:
       type: object
-      required: [type, required]
+      required: [type, required, key]
       properties:
+        key:
+          type: string
+          description: The config key used to store and retrieve the field value. Matches the key in the destination's config or credentials object.
+          example: "url"
         type:
           type: string
-          enum: [text, checkbox, key_value_map]
+          enum: [text, checkbox, key_value_map, select]
           example: "text"
         label:
           type: string
@@ -1956,6 +1963,19 @@ components:
           type: string
           description: Regex pattern for validation (compatible with HTML5 pattern attribute).
           example: "^[a-zA-Z0-9_]+$"
+        options:
+          type: array
+          description: Available options for select fields.
+          items:
+            type: object
+            required: [label, value]
+            properties:
+              label:
+                type: string
+                example: "PLAIN"
+              value:
+                type: string
+                example: "plain"
     MetricsDataPoint:
       type: object
       properties:
@@ -2242,11 +2262,9 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: Filter tenants by ID(s). Use bracket notation for multiple values (e.g., `id[0]=t1&id[1]=t2` or `id[]=t1&id[]=t2`).
         - name: limit
           in: query
@@ -2431,26 +2449,22 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: Filter events by ID(s). Use bracket notation for multiple values (e.g., `id[0]=abc&id[1]=def`).
         - name: tenant_id
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: |
             Filter events by tenant ID(s). Use bracket notation for multiple values (e.g., `tenant_id[0]=t1&tenant_id[1]=t2`).
             When authenticated with a Tenant JWT, this parameter is ignored and the JWT's tenant is used.
             If not provided with API key auth, returns events from all tenants.
-        - name: topic
+        - name: destination_id
           in: query
           required: false
           schema:
@@ -2459,6 +2473,14 @@ paths:
               - type: array
                 items:
                   type: string
+          description: Filter events by matched destination ID(s). Returns events that were routed to the specified destination(s). Use bracket notation for multiple values (e.g., `destination_id[0]=d1&destination_id[1]=d2`).
+        - name: topic
+          in: query
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
           description: Filter events by topic(s). Use bracket notation for multiple values (e.g., `topic[0]=user.created&topic[1]=user.updated`).
         - name: time[gte]
           in: query
@@ -2538,12 +2560,14 @@ paths:
                     models:
                       - id: "evt_123"
                         topic: "user.created"
+                        matched_destination_ids: ["des_456"]
                         time: "2024-01-01T00:00:00Z"
                         eligible_for_retry: false
                         metadata: {"source": "crm"}
                         data: {"user_id": "userid", "status": "active"}
                       - id: "evt_789"
                         topic: "order.shipped"
+                        matched_destination_ids: ["des_456", "des_789"]
                         time: "2024-01-02T10:00:00Z"
                         eligible_for_retry: true
                         metadata: {"source": "oms"}
@@ -2602,6 +2626,7 @@ paths:
                   value:
                     id: "evt_123"
                     topic: "user.created"
+                    matched_destination_ids: ["des_456"]
                     time: "2024-01-01T00:00:00Z"
                     eligible_for_retry: false
                     metadata: {"source": "crm"}
@@ -2628,11 +2653,9 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: |
             Filter attempts by tenant ID(s). Use bracket notation for multiple values (e.g., `tenant_id[0]=t1&tenant_id[1]=t2`).
             When authenticated with a Tenant JWT, this parameter is ignored and the JWT's tenant is used.
@@ -2641,21 +2664,17 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: Filter attempts by event ID(s). Use bracket notation for multiple values (e.g., `event_id[0]=e1&event_id[1]=e2`).
         - name: destination_id
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: Filter attempts by destination ID(s). Use bracket notation for multiple values (e.g., `destination_id[0]=d1&destination_id[1]=d2`).
         - name: status
           in: query
@@ -2668,11 +2687,9 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: Filter attempts by event topic(s). Use bracket notation for multiple values (e.g., `topic[0]=user.created&topic[1]=user.updated`).
         - name: time[gte]
           in: query
@@ -2727,11 +2744,9 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: |
             Fields to include in the response. Use bracket notation for multiple values (e.g., `include[0]=event&include[1]=response_data`).
             - `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
@@ -2849,11 +2864,9 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: |
             Fields to include in the response. Use bracket notation for multiple values (e.g., `include[0]=event&include[1]=response_data`).
             - `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
@@ -3003,21 +3016,17 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - $ref: "#/components/schemas/DestinationType"
-              - type: array
-                items:
-                  $ref: "#/components/schemas/DestinationType"
+            type: array
+            items:
+              $ref: "#/components/schemas/DestinationType"
           description: Filter destinations by type(s). Use bracket notation for multiple values (e.g., `type[0]=webhook&type[1]=aws_sqs`).
         - name: topics
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: Filter destinations by supported topic(s). Use bracket notation for multiple values (e.g., `topics[0]=user.created&topics[1]=user.deleted`).
       responses:
         "200":
@@ -3351,11 +3360,9 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: Filter attempts by event ID(s). Use bracket notation for multiple values (e.g., `event_id[0]=e1&event_id[1]=e2`).
         - name: status
           in: query
@@ -3368,11 +3375,9 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: Filter attempts by event topic(s). Use bracket notation for multiple values (e.g., `topic[0]=user.created&topic[1]=user.updated`).
         - name: time[gte]
           in: query
@@ -3427,11 +3432,9 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: |
             Fields to include in the response. Use bracket notation for multiple values (e.g., `include[0]=event&include[1]=response_data`).
             - `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
@@ -3534,11 +3537,9 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: |
             Fields to include in the response. Use bracket notation for multiple values (e.g., `include[0]=event&include[1]=response_data`).
             - `event`: Include event summary
@@ -3706,6 +3707,12 @@ paths:
                           required: true}]
                       credential_fields: [{type: "text", label: "Secret", description: "Optional signing secret.", required: false, sensitive: true, # Added sensitive
 }]
+                    - type: "kafka"
+                      label: "Apache Kafka"
+                      description: "Send events to Apache Kafka topics for real-time event streaming"
+                      icon: "<svg />"
+                      config_fields: [{type: "text", label: "Brokers", description: "Comma-separated list of Kafka broker addresses.", required: true}, {type: "text", label: "Topic", description: "The Kafka topic to publish messages to.", required: true}, {type: "checkbox", label: "TLS", description: "Enable TLS for the connection.", default: "true"}, {type: "text", label: "Partition Key Template", description: "JMESPath template to extract the partition key from the event payload.", required: false}, {type: "select", label: "SASL Mechanism", description: "SASL authentication mechanism.", required: true, options: [{label: "PLAIN", value: "plain"}, {label: "SCRAM-SHA-256", value: "scram-sha-256"}, {label: "SCRAM-SHA-512", value: "scram-sha-512"}]}]
+                      credential_fields: [{type: "text", label: "Username", description: "SASL username for authentication.", required: true}, {type: "text", label: "Password", description: "SASL password for authentication.", required: true, sensitive: true}]
                     - type: "aws_sqs"
                       label: "AWS SQS"
                       description: "Send event to an AWS SQS queue"
@@ -3767,7 +3774,7 @@ paths:
         required: true
         schema:
           type: string
-          enum: [webhook, aws_sqs, rabbitmq, hookdeck, aws_kinesis, azure_servicebus, aws_s3, gcp_pubsub]
+          enum: [webhook, aws_sqs, rabbitmq, hookdeck, aws_kinesis, azure_servicebus, aws_s3, gcp_pubsub, kafka]
         description: The type of the destination.
     get:
       tags: [Schemas]

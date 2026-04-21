@@ -9,6 +9,8 @@ import (
 type GetEventRequest struct {
 	// The ID of the event.
 	EventID string `pathParam:"style=simple,explode=false,name=event_id"`
+	// Filter by tenant ID. Returns 404 if the event does not belong to the specified tenant. Ignored when using Tenant JWT authentication.
+	TenantID *string `queryParam:"style=form,explode=true,name=tenant_id"`
 }
 
 func (g *GetEventRequest) GetEventID() string {
@@ -16,6 +18,13 @@ func (g *GetEventRequest) GetEventID() string {
 		return ""
 	}
 	return g.EventID
+}
+
+func (g *GetEventRequest) GetTenantID() *string {
+	if g == nil {
+		return nil
+	}
+	return g.TenantID
 }
 
 type GetEventResponse struct {

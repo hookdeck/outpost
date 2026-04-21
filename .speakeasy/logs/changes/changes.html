@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="color-scheme" content="light dark">
-    <title>SDK Changelog - typescript</title>
+    <title>SDK Changelog - go</title>
     <style>
         :root {
             --bg-color: #ffffff;
@@ -95,49 +95,39 @@
         }
     </style>
 </head>
-<body><h2 id="typescript-sdk-changes">Typescript SDK Changes:</h2>
+<body><h2 id="go-sdk-changes">Go SDK Changes:</h2>
 
 <ul>
-<li><code>outpost.events.list()</code>:
+<li><code>Outpost.Schemas.ListDestinationTypes()</code>: <code>response.[]</code> <strong>Changed</strong> (Breaking ⚠️)
 
 <ul>
-<li><code>request.destinationId</code> <strong>Added</strong></li>
-<li><code>response.models[]</code> <strong>Changed</strong> (Breaking ⚠️)
-
-<ul>
-<li><code>destinationId</code> <strong>Removed</strong> (Breaking ⚠️)</li>
-<li><code>matchedDestinationIds</code> <strong>Added</strong></li>
+<li><code>RemoteSetupUrl</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>SetupLink</code> <strong>Added</strong></li>
 </ul></li>
-</ul></li>
-<li><code>outpost.events.get()</code>: <code>response</code> <strong>Changed</strong> (Breaking ⚠️)
+<li><code>Outpost.Schemas.GetDestinationType()</code>: <code>response</code> <strong>Changed</strong> (Breaking ⚠️)
 
 <ul>
-<li><code>destinationId</code> <strong>Removed</strong> (Breaking ⚠️)</li>
-<li><code>matchedDestinationIds</code> <strong>Added</strong></li>
+<li><code>RemoteSetupUrl</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>SetupLink</code> <strong>Added</strong></li>
 </ul></li>
-<li><code>outpost.schemas.listDestinationTypes()</code>: <code>response.[].configFields[]</code> <strong>Changed</strong> (Breaking ⚠️)
+<li><code>Outpost.Metrics.GetAttemptMetrics()</code>: <code>request.Request</code> <strong>Changed</strong> (Breaking ⚠️)
 
 <ul>
-<li><code>key</code> <strong>Added</strong></li>
-<li><code>options</code> <strong>Added</strong></li>
-<li><code>type.enum(select)</code> <strong>Added</strong> (Breaking ⚠️)</li>
+<li><code>Dimensions.union(&quot;tenant_id&quot;,&quot;destination_id&quot; and 5 more)</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>Dimensions.union(&quot;tenant_id&quot;,&quot;destination_id&quot; and 6 more)</code> <strong>Added</strong></li>
+<li><code>Dimensions.union(Array&lt;&quot;tenant_id&quot;,&quot;destination_id&quot; and 5 more&gt;)</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>Dimensions.union(Array&lt;&quot;tenant_id&quot;,&quot;destination_id&quot; and 6 more&gt;)</code> <strong>Added</strong></li>
+<li><code>Filters[destinationType]</code> <strong>Added</strong></li>
 </ul></li>
-<li><code>outpost.schemas.getDestinationType()</code>:
+<li><code>Outpost.Configuration.GetManagedConfig()</code>: <strong>Added</strong></li>
+<li><code>Outpost.Configuration.UpdateManagedConfig()</code>: <strong>Added</strong></li>
+<li><code>Outpost.Events.Get()</code>:  <code>request.TenantId</code> <strong>Added</strong></li>
+<li><code>Outpost.Attempts.List()</code>:
 
 <ul>
-<li><code>request.type</code> <strong>Changed</strong>
-
-<ul>
-<li><code>enum(kafka)</code> <strong>Added</strong></li>
+<li><code>request.Request.DestinationType</code> <strong>Added</strong></li>
 </ul></li>
-<li><code>response.configFields[]</code> <strong>Changed</strong> (Breaking ⚠️)
-
-<ul>
-<li><code>key</code> <strong>Added</strong></li>
-<li><code>options</code> <strong>Added</strong></li>
-<li><code>type.enum(select)</code> <strong>Added</strong> (Breaking ⚠️)</li>
-</ul></li>
-</ul></li>
+<li><code>Outpost.Attempts.Get()</code>:  <code>request.TenantId</code> <strong>Added</strong></li>
 </ul>
 </body>
 </html>

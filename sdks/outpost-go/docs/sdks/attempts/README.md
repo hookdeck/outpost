@@ -43,6 +43,7 @@ package main
 import(
 	"context"
 	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
+	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
 	"github.com/hookdeck/outpost/sdks/outpost-go/models/operations"
 	"log"
 )
@@ -54,7 +55,11 @@ func main() {
         outpostgo.WithSecurity("<YOUR_BEARER_TOKEN_HERE>"),
     )
 
-    res, err := s.Attempts.List(ctx, operations.ListAttemptsRequest{})
+    res, err := s.Attempts.List(ctx, operations.ListAttemptsRequest{
+        DestinationType: outpostgo.Pointer(operations.CreateDestinationTypeDestinationType(
+            components.DestinationTypeWebhook,
+        )),
+    })
     if err != nil {
         log.Fatal(err)
     }
@@ -84,6 +89,7 @@ package main
 import(
 	"context"
 	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
+	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
 	"github.com/hookdeck/outpost/sdks/outpost-go/models/operations"
 	"log"
 )
@@ -95,7 +101,11 @@ func main() {
         outpostgo.WithSecurity("<YOUR_BEARER_TOKEN_HERE>"),
     )
 
-    res, err := s.Attempts.List(ctx, operations.ListAttemptsRequest{})
+    res, err := s.Attempts.List(ctx, operations.ListAttemptsRequest{
+        DestinationType: outpostgo.Pointer(operations.CreateDestinationTypeDestinationType(
+            components.DestinationTypeWebhook,
+        )),
+    })
     if err != nil {
         log.Fatal(err)
     }
@@ -165,7 +175,7 @@ func main() {
         outpostgo.WithSecurity("<YOUR_BEARER_TOKEN_HERE>"),
     )
 
-    res, err := s.Attempts.Get(ctx, "<id>", nil)
+    res, err := s.Attempts.Get(ctx, "<id>", nil, nil)
     if err != nil {
         log.Fatal(err)
     }
@@ -200,7 +210,7 @@ func main() {
         outpostgo.WithSecurity("<YOUR_BEARER_TOKEN_HERE>"),
     )
 
-    res, err := s.Attempts.Get(ctx, "<id>", nil)
+    res, err := s.Attempts.Get(ctx, "<id>", nil, nil)
     if err != nil {
         log.Fatal(err)
     }
@@ -222,6 +232,7 @@ func main() {
 | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `ctx`                                                                                                                                                                                                                                                                                                                                                                             | [context.Context](https://pkg.go.dev/context#Context)                                                                                                                                                                                                                                                                                                                             | :heavy_check_mark:                                                                                                                                                                                                                                                                                                                                                                | The context to use for the request.                                                                                                                                                                                                                                                                                                                                               |
 | `attemptID`                                                                                                                                                                                                                                                                                                                                                                       | `string`                                                                                                                                                                                                                                                                                                                                                                          | :heavy_check_mark:                                                                                                                                                                                                                                                                                                                                                                | The ID of the attempt.                                                                                                                                                                                                                                                                                                                                                            |
+| `tenantID`                                                                                                                                                                                                                                                                                                                                                                        | `*string`                                                                                                                                                                                                                                                                                                                                                                         | :heavy_minus_sign:                                                                                                                                                                                                                                                                                                                                                                | Filter by tenant ID. Returns 404 if the attempt does not belong to the specified tenant. Ignored when using Tenant JWT authentication.                                                                                                                                                                                                                                            |
 | `include`                                                                                                                                                                                                                                                                                                                                                                         | []`string`                                                                                                                                                                                                                                                                                                                                                                        | :heavy_minus_sign:                                                                                                                                                                                                                                                                                                                                                                | Fields to include in the response. Use bracket notation for multiple values (e.g., `include[0]=event&include[1]=response_data`).<br/>- `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)<br/>- `event.data`: Include full event with payload data<br/>- `response_data`: Include response body and headers<br/>- `destination`: Include the full destination object<br/> |
 | `opts`                                                                                                                                                                                                                                                                                                                                                                            | [][operations.Option](../../models/operations/option.md)                                                                                                                                                                                                                                                                                                                          | :heavy_minus_sign:                                                                                                                                                                                                                                                                                                                                                                | The options for this request.                                                                                                                                                                                                                                                                                                                                                     |
 

@@ -5,6 +5,7 @@ package components
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/hookdeck/outpost/sdks/outpost-go/optionalnullable"
 )
 
 // Dir - Sort direction.
@@ -43,9 +44,9 @@ type SeekPagination struct {
 	// Page size limit.
 	Limit *int64 `json:"limit,omitempty"`
 	// Cursor for the next page of results. Null if no more results.
-	Next *string `json:"next,omitempty"`
+	Next optionalnullable.OptionalNullable[string] `json:"next,omitempty"`
 	// Cursor for the previous page of results. Null if on first page.
-	Prev *string `json:"prev,omitempty"`
+	Prev optionalnullable.OptionalNullable[string] `json:"prev,omitempty"`
 }
 
 func (s *SeekPagination) GetOrderBy() *string {
@@ -69,14 +70,14 @@ func (s *SeekPagination) GetLimit() *int64 {
 	return s.Limit
 }
 
-func (s *SeekPagination) GetNext() *string {
+func (s *SeekPagination) GetNext() optionalnullable.OptionalNullable[string] {
 	if s == nil {
 		return nil
 	}
 	return s.Next
 }
 
-func (s *SeekPagination) GetPrev() *string {
+func (s *SeekPagination) GetPrev() optionalnullable.OptionalNullable[string] {
 	if s == nil {
 		return nil
 	}

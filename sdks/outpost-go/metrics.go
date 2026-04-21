@@ -181,7 +181,7 @@ func (s *Metrics) GetEventMetrics(ctx context.Context, request operations.GetEve
 
 			_, err = s.hooks.AfterError(hooks.AfterErrorContext{HookContext: hookCtx}, nil, err)
 			return nil, err
-		} else if utils.MatchStatusCodes([]string{"400", "401", "403", "4XX", "500", "5XX"}, httpRes.StatusCode) {
+		} else if utils.MatchStatusCodes([]string{"4XX", "5XX"}, httpRes.StatusCode) {
 			_httpRes, err := s.hooks.AfterError(hooks.AfterErrorContext{HookContext: hookCtx}, httpRes, nil)
 			if err != nil {
 				return nil, err
@@ -341,9 +341,9 @@ func (s *Metrics) GetEventMetrics(ctx context.Context, request operations.GetEve
 // `first_attempt_count`, `retry_count`, `manual_retry_count`, `avg_attempt_number`,
 // `rate`, `successful_rate`, `failed_rate`
 //
-// **Dimensions:** `tenant_id` (admin-only), `destination_id`, `topic`, `status`, `code`, `manual`, `attempt_number`
+// **Dimensions:** `tenant_id` (admin-only), `destination_id`, `destination_type`, `topic`, `status`, `code`, `manual`, `attempt_number`
 //
-// **Filters:** `tenant_id` (admin-only), `destination_id`, `topic`, `status`, `code`, `manual`, `attempt_number`
+// **Filters:** `tenant_id` (admin-only), `destination_id`, `destination_type`, `topic`, `status`, `code`, `manual`, `attempt_number`
 func (s *Metrics) GetAttemptMetrics(ctx context.Context, request operations.GetAttemptMetricsRequest, opts ...operations.Option) (*operations.GetAttemptMetricsResponse, error) {
 	o := operations.Options{}
 	supportedOptions := []string{
@@ -484,7 +484,7 @@ func (s *Metrics) GetAttemptMetrics(ctx context.Context, request operations.GetA
 
 			_, err = s.hooks.AfterError(hooks.AfterErrorContext{HookContext: hookCtx}, nil, err)
 			return nil, err
-		} else if utils.MatchStatusCodes([]string{"400", "401", "403", "4XX", "500", "5XX"}, httpRes.StatusCode) {
+		} else if utils.MatchStatusCodes([]string{"4XX", "5XX"}, httpRes.StatusCode) {
 			_httpRes, err := s.hooks.AfterError(hooks.AfterErrorContext{HookContext: hookCtx}, httpRes, nil)
 			if err != nil {
 				return nil, err

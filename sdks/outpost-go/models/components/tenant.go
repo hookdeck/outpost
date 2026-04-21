@@ -4,6 +4,7 @@ package components
 
 import (
 	"github.com/hookdeck/outpost/sdks/outpost-go/internal/utils"
+	"github.com/hookdeck/outpost/sdks/outpost-go/optionalnullable"
 	"time"
 )
 
@@ -15,7 +16,7 @@ type Tenant struct {
 	// List of subscribed topics across all destinations for this tenant.
 	Topics []string `json:"topics,omitempty"`
 	// Arbitrary key-value pairs for storing contextual information about the tenant.
-	Metadata map[string]string `json:"metadata,omitempty"`
+	Metadata optionalnullable.OptionalNullable[map[string]string] `json:"metadata,omitempty"`
 	// ISO Date when the tenant was created.
 	CreatedAt *time.Time `json:"created_at,omitempty"`
 	// ISO Date when the tenant was last updated.
@@ -54,7 +55,7 @@ func (t *Tenant) GetTopics() []string {
 	return t.Topics
 }
 
-func (t *Tenant) GetMetadata() map[string]string {
+func (t *Tenant) GetMetadata() optionalnullable.OptionalNullable[map[string]string] {
 	if t == nil {
 		return nil
 	}
