@@ -8,33 +8,28 @@ from outpost_sdk.utils.unmarshal_json_response import unmarshal_json_response
 from typing import Any, Mapping, Optional, Union, cast
 
 
-class Metrics(BaseSDK):
-    r"""Aggregated metrics for events and delivery attempts. Supports time bucketing, dimensional grouping, and filtering."""
+class Configuration(BaseSDK):
+    r"""Outpost instance-level configuration management for the managed deployment.
+    This is not available in self-hosted deployments.
 
-    def get_event_metrics(
+    """
+
+    def get_managed_config(
         self,
         *,
-        request: Union[
-            models.GetEventMetricsRequest, models.GetEventMetricsRequestTypedDict
-        ],
         retries: OptionalNullable[utils.RetryConfig] = UNSET,
         server_url: Optional[str] = None,
         timeout_ms: Optional[int] = None,
         http_headers: Optional[Mapping[str, str]] = None,
-    ) -> models.MetricsResponse:
-        r"""Get Event Metrics
+    ) -> models.ManagedConfig:
+        r"""Get Managed Configuration
 
-        Returns aggregated event publish metrics. Supports time bucketing via granularity,
-        dimensional grouping, and filtering.
+        Returns managed Outpost configuration values.
 
-        **Measures:** `count`, `rate`
-
-        **Dimensions:** `tenant_id` (admin-only), `topic`, `destination_id`
-
-        **Filters:** `tenant_id` (admin-only), `topic`, `destination_id`
+        This endpoint is only available for the managed version.
+        In self-hosted deployments, configuration is controlled through environment variables instead.
 
 
-        :param request: The request object to send.
         :param retries: Override the default retry configuration for this method
         :param server_url: Override the default server URL for this method
         :param timeout_ms: Override the default request timeout configuration for this method in milliseconds
@@ -49,17 +44,12 @@ class Metrics(BaseSDK):
             base_url = server_url
         else:
             base_url = self._get_url(base_url, url_variables)
-
-        if not isinstance(request, BaseModel):
-            request = utils.unmarshal(request, models.GetEventMetricsRequest)
-        request = cast(models.GetEventMetricsRequest, request)
-
         req = self._build_request(
             method="GET",
-            path="/metrics/events",
+            path="/config",
             base_url=base_url,
             url_variables=url_variables,
-            request=request,
+            request=None,
             request_body_required=False,
             request_has_path_params=False,
             request_has_query_params=True,
@@ -83,7 +73,7 @@ class Metrics(BaseSDK):
             hook_ctx=HookContext(
                 config=self.sdk_configuration,
                 base_url=base_url or "",
-                operation_id="getEventMetrics",
+                operation_id="getManagedConfig",
                 oauth2_scopes=None,
                 security_source=self.sdk_configuration.security,
             ),
@@ -94,22 +84,12 @@ class Metrics(BaseSDK):
 
         response_data: Any = None
         if utils.match_response(http_res, "200", "application/json"):
-            return unmarshal_json_response(models.MetricsResponse, http_res)
-        if utils.match_response(http_res, "400", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.BadRequestErrorData, http_res
-            )
-            raise errors.BadRequestError(response_data, http_res)
+            return unmarshal_json_response(models.ManagedConfig, http_res)
         if utils.match_response(http_res, "401", "application/json"):
             response_data = unmarshal_json_response(
                 errors.UnauthorizedErrorData, http_res
             )
             raise errors.UnauthorizedError(response_data, http_res)
-        if utils.match_response(http_res, "403", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.APIErrorResponseData, http_res
-            )
-            raise errors.APIErrorResponse(response_data, http_res)
         if utils.match_response(http_res, "500", "application/json"):
             response_data = unmarshal_json_response(
                 errors.InternalServerErrorData, http_res
@@ -124,30 +104,22 @@ class Metrics(BaseSDK):
 
         raise errors.APIError("Unexpected response received", http_res)
 
-    async def get_event_metrics_async(
+    async def get_managed_config_async(
         self,
         *,
-        request: Union[
-            models.GetEventMetricsRequest, models.GetEventMetricsRequestTypedDict
-        ],
         retries: OptionalNullable[utils.RetryConfig] = UNSET,
         server_url: Optional[str] = None,
         timeout_ms: Optional[int] = None,
         http_headers: Optional[Mapping[str, str]] = None,
-    ) -> models.MetricsResponse:
-        r"""Get Event Metrics
+    ) -> models.ManagedConfig:
+        r"""Get Managed Configuration
 
-        Returns aggregated event publish metrics. Supports time bucketing via granularity,
-        dimensional grouping, and filtering.
+        Returns managed Outpost configuration values.
 
-        **Measures:** `count`, `rate`
-
-        **Dimensions:** `tenant_id` (admin-only), `topic`, `destination_id`
-
-        **Filters:** `tenant_id` (admin-only), `topic`, `destination_id`
+        This endpoint is only available for the managed version.
+        In self-hosted deployments, configuration is controlled through environment variables instead.
 
 
-        :param request: The request object to send.
         :param retries: Override the default retry configuration for this method
         :param server_url: Override the default server URL for this method
         :param timeout_ms: Override the default request timeout configuration for this method in milliseconds
@@ -162,17 +134,12 @@ class Metrics(BaseSDK):
             base_url = server_url
         else:
             base_url = self._get_url(base_url, url_variables)
-
-        if not isinstance(request, BaseModel):
-            request = utils.unmarshal(request, models.GetEventMetricsRequest)
-        request = cast(models.GetEventMetricsRequest, request)
-
         req = self._build_request_async(
             method="GET",
-            path="/metrics/events",
+            path="/config",
             base_url=base_url,
             url_variables=url_variables,
-            request=request,
+            request=None,
             request_body_required=False,
             request_has_path_params=False,
             request_has_query_params=True,
@@ -196,7 +163,7 @@ class Metrics(BaseSDK):
             hook_ctx=HookContext(
                 config=self.sdk_configuration,
                 base_url=base_url or "",
-                operation_id="getEventMetrics",
+                operation_id="getManagedConfig",
                 oauth2_scopes=None,
                 security_source=self.sdk_configuration.security,
             ),
@@ -207,22 +174,12 @@ class Metrics(BaseSDK):
 
         response_data: Any = None
         if utils.match_response(http_res, "200", "application/json"):
-            return unmarshal_json_response(models.MetricsResponse, http_res)
-        if utils.match_response(http_res, "400", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.BadRequestErrorData, http_res
-            )
-            raise errors.BadRequestError(response_data, http_res)
+            return unmarshal_json_response(models.ManagedConfig, http_res)
         if utils.match_response(http_res, "401", "application/json"):
             response_data = unmarshal_json_response(
                 errors.UnauthorizedErrorData, http_res
             )
             raise errors.UnauthorizedError(response_data, http_res)
-        if utils.match_response(http_res, "403", "application/json"):
-            response_data = unmarshal_json_response(
-                errors.APIErrorResponseData, http_res
-            )
-            raise errors.APIErrorResponse(response_data, http_res)
         if utils.match_response(http_res, "500", "application/json"):
             response_data = unmarshal_json_response(
                 errors.InternalServerErrorData, http_res
@@ -237,29 +194,23 @@ class Metrics(BaseSDK):
 
         raise errors.APIError("Unexpected response received", http_res)
 
-    def get_attempt_metrics(
+    def update_managed_config(
         self,
         *,
-        request: Union[
-            models.GetAttemptMetricsRequest, models.GetAttemptMetricsRequestTypedDict
-        ],
+        request: Union[models.ManagedConfig, models.ManagedConfigTypedDict],
         retries: OptionalNullable[utils.RetryConfig] = UNSET,
         server_url: Optional[str] = None,
         timeout_ms: Optional[int] = None,
         http_headers: Optional[Mapping[str, str]] = None,
-    ) -> models.MetricsResponse:
-        r"""Get Attempt Metrics
+    ) -> models.ManagedConfig:
+        r"""Update Managed Configuration
 
-        Returns aggregated delivery attempt metrics. Supports time bucketing via granularity,
-        dimensional grouping, and filtering.
+        Updates one or more managed Outpost configuration values. Null values clear the configuration and reverts to Outpost default behavior.
 
-        **Measures:** `count`, `successful_count`, `failed_count`, `error_rate`,
-        `first_attempt_count`, `retry_count`, `manual_retry_count`, `avg_attempt_number`,
-        `rate`, `successful_rate`, `failed_rate`
+        This endpoint is only available for the managed version.
+        In self-hosted deployments, configuration is controlled through environment variables instead.
 
-        **Dimensions:** `tenant_id` (admin-only), `destination_id`, `destination_type`, `topic`, `status`, `code`, `manual`, `attempt_number`
-
-        **Filters:** `tenant_id` (admin-only), `destination_id`, `destination_type`, `topic`, `status`, `code`, `manual`, `attempt_number`
+        Only the supported configuration keys are accepted.
 
 
         :param request: The request object to send.
@@ -279,22 +230,25 @@ class Metrics(BaseSDK):
             base_url = self._get_url(base_url, url_variables)
 
         if not isinstance(request, BaseModel):
-            request = utils.unmarshal(request, models.GetAttemptMetricsRequest)
-        request = cast(models.GetAttemptMetricsRequest, request)
+            request = utils.unmarshal(request, models.ManagedConfig)
+        request = cast(models.ManagedConfig, request)
 
         req = self._build_request(
-            method="GET",
-            path="/metrics/attempts",
+            method="PATCH",
+            path="/config",
             base_url=base_url,
             url_variables=url_variables,
             request=request,
-            request_body_required=False,
+            request_body_required=True,
             request_has_path_params=False,
             request_has_query_params=True,
             user_agent_header="user-agent",
             accept_header_value="application/json",
             http_headers=http_headers,
             security=self.sdk_configuration.security,
+            get_serialized_body=lambda: utils.serialize_request_body(
+                request, False, False, "json", models.ManagedConfig
+            ),
             allow_empty_value=None,
             timeout_ms=timeout_ms,
         )
@@ -311,7 +265,7 @@ class Metrics(BaseSDK):
             hook_ctx=HookContext(
                 config=self.sdk_configuration,
                 base_url=base_url or "",
-                operation_id="getAttemptMetrics",
+                operation_id="updateManagedConfig",
                 oauth2_scopes=None,
                 security_source=self.sdk_configuration.security,
             ),
@@ -322,7 +276,7 @@ class Metrics(BaseSDK):
 
         response_data: Any = None
         if utils.match_response(http_res, "200", "application/json"):
-            return unmarshal_json_response(models.MetricsResponse, http_res)
+            return unmarshal_json_response(models.ManagedConfig, http_res)
         if utils.match_response(http_res, "400", "application/json"):
             response_data = unmarshal_json_response(
                 errors.BadRequestErrorData, http_res
@@ -333,7 +287,7 @@ class Metrics(BaseSDK):
                 errors.UnauthorizedErrorData, http_res
             )
             raise errors.UnauthorizedError(response_data, http_res)
-        if utils.match_response(http_res, "403", "application/json"):
+        if utils.match_response(http_res, "422", "application/json"):
             response_data = unmarshal_json_response(
                 errors.APIErrorResponseData, http_res
             )
@@ -352,29 +306,23 @@ class Metrics(BaseSDK):
 
         raise errors.APIError("Unexpected response received", http_res)
 
-    async def get_attempt_metrics_async(
+    async def update_managed_config_async(
         self,
         *,
-        request: Union[
-            models.GetAttemptMetricsRequest, models.GetAttemptMetricsRequestTypedDict
-        ],
+        request: Union[models.ManagedConfig, models.ManagedConfigTypedDict],
         retries: OptionalNullable[utils.RetryConfig] = UNSET,
         server_url: Optional[str] = None,
         timeout_ms: Optional[int] = None,
         http_headers: Optional[Mapping[str, str]] = None,
-    ) -> models.MetricsResponse:
-        r"""Get Attempt Metrics
+    ) -> models.ManagedConfig:
+        r"""Update Managed Configuration
 
-        Returns aggregated delivery attempt metrics. Supports time bucketing via granularity,
-        dimensional grouping, and filtering.
+        Updates one or more managed Outpost configuration values. Null values clear the configuration and reverts to Outpost default behavior.
 
-        **Measures:** `count`, `successful_count`, `failed_count`, `error_rate`,
-        `first_attempt_count`, `retry_count`, `manual_retry_count`, `avg_attempt_number`,
-        `rate`, `successful_rate`, `failed_rate`
+        This endpoint is only available for the managed version.
+        In self-hosted deployments, configuration is controlled through environment variables instead.
 
-        **Dimensions:** `tenant_id` (admin-only), `destination_id`, `destination_type`, `topic`, `status`, `code`, `manual`, `attempt_number`
-
-        **Filters:** `tenant_id` (admin-only), `destination_id`, `destination_type`, `topic`, `status`, `code`, `manual`, `attempt_number`
+        Only the supported configuration keys are accepted.
 
 
         :param request: The request object to send.
@@ -394,22 +342,25 @@ class Metrics(BaseSDK):
             base_url = self._get_url(base_url, url_variables)
 
         if not isinstance(request, BaseModel):
-            request = utils.unmarshal(request, models.GetAttemptMetricsRequest)
-        request = cast(models.GetAttemptMetricsRequest, request)
+            request = utils.unmarshal(request, models.ManagedConfig)
+        request = cast(models.ManagedConfig, request)
 
         req = self._build_request_async(
-            method="GET",
-            path="/metrics/attempts",
+            method="PATCH",
+            path="/config",
             base_url=base_url,
             url_variables=url_variables,
             request=request,
-            request_body_required=False,
+            request_body_required=True,
             request_has_path_params=False,
             request_has_query_params=True,
             user_agent_header="user-agent",
             accept_header_value="application/json",
             http_headers=http_headers,
             security=self.sdk_configuration.security,
+            get_serialized_body=lambda: utils.serialize_request_body(
+                request, False, False, "json", models.ManagedConfig
+            ),
             allow_empty_value=None,
             timeout_ms=timeout_ms,
         )
@@ -426,7 +377,7 @@ class Metrics(BaseSDK):
             hook_ctx=HookContext(
                 config=self.sdk_configuration,
                 base_url=base_url or "",
-                operation_id="getAttemptMetrics",
+                operation_id="updateManagedConfig",
                 oauth2_scopes=None,
                 security_source=self.sdk_configuration.security,
             ),
@@ -437,7 +388,7 @@ class Metrics(BaseSDK):
 
         response_data: Any = None
         if utils.match_response(http_res, "200", "application/json"):
-            return unmarshal_json_response(models.MetricsResponse, http_res)
+            return unmarshal_json_response(models.ManagedConfig, http_res)
         if utils.match_response(http_res, "400", "application/json"):
             response_data = unmarshal_json_response(
                 errors.BadRequestErrorData, http_res
@@ -448,7 +399,7 @@ class Metrics(BaseSDK):
                 errors.UnauthorizedErrorData, http_res
             )
             raise errors.UnauthorizedError(response_data, http_res)
-        if utils.match_response(http_res, "403", "application/json"):
+        if utils.match_response(http_res, "422", "application/json"):
             response_data = unmarshal_json_response(
                 errors.APIErrorResponseData, http_res
             )

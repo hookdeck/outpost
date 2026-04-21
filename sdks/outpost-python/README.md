@@ -193,6 +193,11 @@ with Outpost(
 * [get](docs/sdks/attempts/README.md#get) - Get Attempt
 * [retry](docs/sdks/attempts/README.md#retry) - Retry Event Delivery
 
+### [Configuration](docs/sdks/configuration/README.md)
+
+* [get_managed_config](docs/sdks/configuration/README.md#get_managed_config) - Get Managed Configuration
+* [update_managed_config](docs/sdks/configuration/README.md#update_managed_config) - Update Managed Configuration
+
 ### [Destinations](docs/sdks/destinations/README.md)
 
 * [list](docs/sdks/destinations/README.md#list) - List Destinations
@@ -369,12 +374,12 @@ with Outpost() as outpost:
 
 
 **Inherit from [`OutpostError`](./src/outpost_sdk/errors/outposterror.py)**:
-* [`NotFoundError`](./src/outpost_sdk/errors/notfounderror.py): Status codes relating to the resource/entity they are requesting not being found or endpoints/routes not existing. Applicable to 21 of 27 methods.*
-* [`BadRequestError`](./src/outpost_sdk/errors/badrequesterror.py): A collection of codes that generally means the end user got something wrong in making the request. Applicable to 8 of 27 methods.*
-* [`APIErrorResponse`](./src/outpost_sdk/errors/apierrorresponse.py): Standard error response format. Applicable to 5 of 27 methods.*
-* [`TimeoutErrorT`](./src/outpost_sdk/errors/timeouterrort.py): Timeouts occurred with the request. Applicable to 5 of 27 methods.*
-* [`RateLimitedError`](./src/outpost_sdk/errors/ratelimitederror.py): Status codes relating to the client being rate limited by the server. Status code `429`. Applicable to 5 of 27 methods.*
-* [`NotImplementedErrorT`](./src/outpost_sdk/errors/notimplementederrort.py): List Tenants feature is not available. Requires Redis with RediSearch module. Status code `501`. Applicable to 1 of 27 methods.*
+* [`NotFoundError`](./src/outpost_sdk/errors/notfounderror.py): Status codes relating to the resource/entity they are requesting not being found or endpoints/routes not existing. Applicable to 21 of 29 methods.*
+* [`BadRequestError`](./src/outpost_sdk/errors/badrequesterror.py): A collection of codes that generally means the end user got something wrong in making the request. Applicable to 9 of 29 methods.*
+* [`APIErrorResponse`](./src/outpost_sdk/errors/apierrorresponse.py): Standard error response format. Applicable to 6 of 29 methods.*
+* [`TimeoutErrorT`](./src/outpost_sdk/errors/timeouterrort.py): Timeouts occurred with the request. Applicable to 5 of 29 methods.*
+* [`RateLimitedError`](./src/outpost_sdk/errors/ratelimitederror.py): Status codes relating to the client being rate limited by the server. Status code `429`. Applicable to 5 of 29 methods.*
+* [`NotImplementedErrorT`](./src/outpost_sdk/errors/notimplementederrort.py): List Tenants feature is not available. Requires Redis with RediSearch module. Status code `501`. Applicable to 1 of 29 methods.*
 * [`ResponseValidationError`](./src/outpost_sdk/errors/responsevalidationerror.py): Type mismatch between the response data and the expected Pydantic model. Provides access to the Pydantic validation error via the `cause` attribute.
 
 </details>

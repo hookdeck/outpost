@@ -1,19 +1,19 @@
-## Go SDK Changes:
-* `Outpost.Schemas.ListDestinationTypes()`: `response.[]` **Changed** (Breaking ⚠️)
-    - `RemoteSetupUrl` **Removed** (Breaking ⚠️)
-    - `SetupLink` **Added**
-* `Outpost.Schemas.GetDestinationType()`: `response` **Changed** (Breaking ⚠️)
-    - `RemoteSetupUrl` **Removed** (Breaking ⚠️)
-    - `SetupLink` **Added**
-* `Outpost.Metrics.GetAttemptMetrics()`: `request.Request` **Changed** (Breaking ⚠️)
-    - `Dimensions.union("tenant_id","destination_id" and 5 more)` **Removed** (Breaking ⚠️)
-    - `Dimensions.union("tenant_id","destination_id" and 6 more)` **Added**
-    - `Dimensions.union(Array<"tenant_id","destination_id" and 5 more>)` **Removed** (Breaking ⚠️)
-    - `Dimensions.union(Array<"tenant_id","destination_id" and 6 more>)` **Added**
-    - `Filters[destinationType]` **Added**
-* `Outpost.Configuration.GetManagedConfig()`: **Added**
-* `Outpost.Configuration.UpdateManagedConfig()`: **Added**
-* `Outpost.Events.Get()`:  `request.TenantId` **Added**
-* `Outpost.Attempts.List()`: 
-  *  `request.Request.DestinationType` **Added**
-* `Outpost.Attempts.Get()`:  `request.TenantId` **Added**
+## Python SDK Changes:
+* `outpost.schemas.list_destination_types()`: `response.[]` **Changed** (Breaking ⚠️)
+    - `remote_setup_url` **Removed** (Breaking ⚠️)
+    - `setup_link` **Added**
+* `outpost.schemas.get_destination_type()`: `response` **Changed** (Breaking ⚠️)
+    - `remote_setup_url` **Removed** (Breaking ⚠️)
+    - `setup_link` **Added**
+* `outpost.metrics.get_attempt_metrics()`: `request` **Changed** (Breaking ⚠️)
+    - `dimensions.union("tenant_id","destination_id" and 5 more)` **Removed** (Breaking ⚠️)
+    - `dimensions.union("tenant_id","destination_id" and 6 more)` **Added**
+    - `dimensions.union(Array<"tenant_id","destination_id" and 5 more>)` **Removed** (Breaking ⚠️)
+    - `dimensions.union(Array<"tenant_id","destination_id" and 6 more>)` **Added**
+    - `filters[destination_type]` **Added**
+* `outpost.configuration.get_managed_config()`: **Added**
+* `outpost.configuration.update_managed_config()`: **Added**
+* `outpost.events.get()`:  `request.tenant_id` **Added**
+* `outpost.attempts.list()`: 
+  *  `request.destination_type` **Added**
+* `outpost.attempts.get()`:  `request.tenant_id` **Added**

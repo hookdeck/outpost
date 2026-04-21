@@ -23,15 +23,15 @@ class DestinationUpdateHookdeckTypedDict(TypedDict):
     r"""Optional JSON schema filter for event matching. Events must match this filter to be delivered to this destination.
     Supports operators: $eq, $neq, $gt, $gte, $lt, $lte, $in, $nin, $startsWith, $endsWith, $exist, $or, $and, $not.
     If null or empty, all events matching the topic filter will be delivered.
-    To remove an existing filter when updating a destination, set filter to an empty object `{}`.
+    Uses full-replacement semantics on update: send a new object to replace, null or `{}` to clear, omit for no change.
 
     """
     config: NotRequired[Any]
     credentials: NotRequired[HookdeckCredentialsTypedDict]
-    delivery_metadata: NotRequired[Nullable[Dict[str, str]]]
-    r"""Static key-value pairs merged into event metadata on every attempt."""
-    metadata: NotRequired[Nullable[Dict[str, str]]]
-    r"""Arbitrary contextual information stored with the destination."""
+    delivery_metadata: NotRequired[Nullable[Dict[str, Nullable[str]]]]
+    r"""Static key-value pairs merged into event metadata on every attempt. Uses JSON merge-patch semantics (RFC 7396): send keys to add/update, null values to delete keys, null for entire field to clear all. Omit or send {} for no change."""
+    metadata: NotRequired[Nullable[Dict[str, Nullable[str]]]]
+    r"""Arbitrary contextual information stored with the destination. Uses JSON merge-patch semantics (RFC 7396): send keys to add/update, null values to delete keys, null for entire field to clear all. Omit or send {} for no change."""
 
 
 class DestinationUpdateHookdeck(BaseModel):
@@ -44,7 +44,7 @@ class DestinationUpdateHookdeck(BaseModel):
     r"""Optional JSON schema filter for event matching. Events must match this filter to be delivered to this destination.
     Supports operators: $eq, $neq, $gt, $gte, $lt, $lte, $in, $nin, $startsWith, $endsWith, $exist, $or, $and, $not.
     If null or empty, all events matching the topic filter will be delivered.
-    To remove an existing filter when updating a destination, set filter to an empty object `{}`.
+    Uses full-replacement semantics on update: send a new object to replace, null or `{}` to clear, omit for no change.
 
     """
 
@@ -52,11 +52,11 @@ class DestinationUpdateHookdeck(BaseModel):
 
     credentials: Optional[HookdeckCredentials] = None
 
-    delivery_metadata: OptionalNullable[Dict[str, str]] = UNSET
-    r"""Static key-value pairs merged into event metadata on every attempt."""
+    delivery_metadata: OptionalNullable[Dict[str, Nullable[str]]] = UNSET
+    r"""Static key-value pairs merged into event metadata on every attempt. Uses JSON merge-patch semantics (RFC 7396): send keys to add/update, null values to delete keys, null for entire field to clear all. Omit or send {} for no change."""
 
-    metadata: OptionalNullable[Dict[str, str]] = UNSET
-    r"""Arbitrary contextual information stored with the destination."""
+    metadata: OptionalNullable[Dict[str, Nullable[str]]] = UNSET
+    r"""Arbitrary contextual information stored with the destination. Uses JSON merge-patch semantics (RFC 7396): send keys to add/update, null values to delete keys, null for entire field to clear all. Omit or send {} for no change."""
 
     @model_serializer(mode="wrap")
     def serialize_model(self, handler):

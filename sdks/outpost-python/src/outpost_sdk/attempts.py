@@ -103,7 +103,7 @@ class Attempts(BaseSDK):
                 security_source=self.sdk_configuration.security,
             ),
             request=req,
-            error_status_codes=["401", "4XX", "500", "5XX"],
+            is_error_status_code=lambda c: utils.match_status_codes(["4XX", "5XX"], c),
             retry_config=retry_config,
         )
 
@@ -129,6 +129,7 @@ class Attempts(BaseSDK):
                     tenant_id=request.tenant_id,
                     event_id=request.event_id,
                     destination_id=request.destination_id,
+                    destination_type=request.destination_type,
                     status=request.status,
                     topic=request.topic,
                     time_gte=request.time_gte,
@@ -247,7 +248,7 @@ class Attempts(BaseSDK):
                 security_source=self.sdk_configuration.security,
             ),
             request=req,
-            error_status_codes=["401", "4XX", "500", "5XX"],
+            is_error_status_code=lambda c: utils.match_status_codes(["4XX", "5XX"], c),
             retry_config=retry_config,
         )
 
@@ -273,6 +274,7 @@ class Attempts(BaseSDK):
                     tenant_id=request.tenant_id,
                     event_id=request.event_id,
                     destination_id=request.destination_id,
+                    destination_type=request.destination_type,
                     status=request.status,
                     topic=request.topic,
                     time_gte=request.time_gte,
@@ -321,6 +323,7 @@ class Attempts(BaseSDK):
         self,
         *,
         attempt_id: str,
+        tenant_id: Optional[str] = None,
         include: Optional[
             Union[models.GetAttemptInclude, models.GetAttemptIncludeTypedDict]
         ] = None,
@@ -338,6 +341,7 @@ class Attempts(BaseSDK):
 
 
         :param attempt_id: The ID of the attempt.
+        :param tenant_id: Filter by tenant ID. Returns 404 if the attempt does not belong to the specified tenant. Ignored when using Tenant JWT authentication.
         :param include: Fields to include in the response. Use bracket notation for multiple values (e.g., `include[0]=event&include[1]=response_data`).
             - `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
             - `event.data`: Include full event with payload data
@@ -361,6 +365,7 @@ class Attempts(BaseSDK):
 
         request = models.GetAttemptRequest(
             attempt_id=attempt_id,
+            tenant_id=tenant_id,
             include=include,
         )
 
@@ -398,7 +403,7 @@ class Attempts(BaseSDK):
                 security_source=self.sdk_configuration.security,
             ),
             request=req,
-            error_status_codes=["401", "404", "4XX", "500", "5XX"],
+            is_error_status_code=lambda c: utils.match_status_codes(["4XX", "5XX"], c),
             retry_config=retry_config,
         )
 
@@ -431,6 +436,7 @@ class Attempts(BaseSDK):
         self,
         *,
         attempt_id: str,
+        tenant_id: Optional[str] = None,
         include: Optional[
             Union[models.GetAttemptInclude, models.GetAttemptIncludeTypedDict]
         ] = None,
@@ -448,6 +454,7 @@ class Attempts(BaseSDK):
 
 
         :param attempt_id: The ID of the attempt.
+        :param tenant_id: Filter by tenant ID. Returns 404 if the attempt does not belong to the specified tenant. Ignored when using Tenant JWT authentication.
         :param include: Fields to include in the response. Use bracket notation for multiple values (e.g., `include[0]=event&include[1]=response_data`).
             - `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
             - `event.data`: Include full event with payload data
@@ -471,6 +478,7 @@ class Attempts(BaseSDK):
 
         request = models.GetAttemptRequest(
             attempt_id=attempt_id,
+            tenant_id=tenant_id,
             include=include,
         )
 
@@ -508,7 +516,7 @@ class Attempts(BaseSDK):
                 security_source=self.sdk_configuration.security,
             ),
             request=req,
-            error_status_codes=["401", "404", "4XX", "500", "5XX"],
+            is_error_status_code=lambda c: utils.match_status_codes(["4XX", "5XX"], c),
             retry_config=retry_config,
         )
 
@@ -611,7 +619,7 @@ class Attempts(BaseSDK):
                 security_source=self.sdk_configuration.security,
             ),
             request=req,
-            error_status_codes=["400", "401", "404", "4XX", "500", "5XX"],
+            is_error_status_code=lambda c: utils.match_status_codes(["4XX", "5XX"], c),
             retry_config=retry_config,
         )
 
@@ -714,7 +722,7 @@ class Attempts(BaseSDK):
                 security_source=self.sdk_configuration.security,
             ),
             request=req,
-            error_status_codes=["400", "401", "404", "4XX", "500", "5XX"],
+            is_error_status_code=lambda c: utils.match_status_codes(["4XX", "5XX"], c),
             retry_config=retry_config,
         )
 
