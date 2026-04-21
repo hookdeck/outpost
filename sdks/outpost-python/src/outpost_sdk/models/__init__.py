@@ -134,6 +134,8 @@ if TYPE_CHECKING:
     from .destinationtypeschema import (
         DestinationTypeSchema,
         DestinationTypeSchemaTypedDict,
+        SetupLink,
+        SetupLinkTypedDict,
     )
     from .destinationupdate import DestinationUpdate, DestinationUpdateTypedDict
     from .destinationupdateawskinesis import (
@@ -196,6 +198,8 @@ if TYPE_CHECKING:
         FiltersAttemptNumberTypedDict,
         FiltersCode,
         FiltersCodeTypedDict,
+        FiltersDestinationType,
+        FiltersDestinationTypeTypedDict,
         FiltersManual,
         FiltersStatus,
         FiltersStatusEnum1,
@@ -277,6 +281,8 @@ if TYPE_CHECKING:
     from .listattemptsop import (
         ListAttemptsDestinationID,
         ListAttemptsDestinationIDTypedDict,
+        ListAttemptsDestinationType,
+        ListAttemptsDestinationTypeTypedDict,
         ListAttemptsDir,
         ListAttemptsEventID,
         ListAttemptsEventIDTypedDict,
@@ -341,6 +347,7 @@ if TYPE_CHECKING:
         ListTenantsResponse,
         ListTenantsResponseTypedDict,
     )
+    from .managedconfig import ManagedConfig, ManagedConfigTypedDict
     from .metricsdatapoint import MetricsDataPoint, MetricsDataPointTypedDict
     from .metricsmetadata import MetricsMetadata, MetricsMetadataTypedDict
     from .metricsresponse import MetricsResponse, MetricsResponseTypedDict
@@ -497,6 +504,8 @@ __all__ = [
     "FiltersAttemptNumberTypedDict",
     "FiltersCode",
     "FiltersCodeTypedDict",
+    "FiltersDestinationType",
+    "FiltersDestinationTypeTypedDict",
     "FiltersManual",
     "FiltersStatus",
     "FiltersStatusEnum1",
@@ -567,6 +576,8 @@ __all__ = [
     "HookdeckCredentialsTypedDict",
     "ListAttemptsDestinationID",
     "ListAttemptsDestinationIDTypedDict",
+    "ListAttemptsDestinationType",
+    "ListAttemptsDestinationTypeTypedDict",
     "ListAttemptsDir",
     "ListAttemptsEventID",
     "ListAttemptsEventIDTypedDict",
@@ -622,6 +633,8 @@ __all__ = [
     "ListTenantsRequestTypedDict",
     "ListTenantsResponse",
     "ListTenantsResponseTypedDict",
+    "ManagedConfig",
+    "ManagedConfigTypedDict",
     "MetricsDataPoint",
     "MetricsDataPointTypedDict",
     "MetricsMetadata",
@@ -646,6 +659,8 @@ __all__ = [
     "SecurityTypedDict",
     "SeekPagination",
     "SeekPaginationTypedDict",
+    "SetupLink",
+    "SetupLinkTypedDict",
     "Status",
     "SuccessResponse",
     "SuccessResponseTypedDict",
@@ -769,6 +784,8 @@ _dynamic_imports: dict[str, str] = {
     "DestinationType": ".destinationtype",
     "DestinationTypeSchema": ".destinationtypeschema",
     "DestinationTypeSchemaTypedDict": ".destinationtypeschema",
+    "SetupLink": ".destinationtypeschema",
+    "SetupLinkTypedDict": ".destinationtypeschema",
     "DestinationUpdate": ".destinationupdate",
     "DestinationUpdateTypedDict": ".destinationupdate",
     "DestinationUpdateAWSKinesis": ".destinationupdateawskinesis",
@@ -806,6 +823,8 @@ _dynamic_imports: dict[str, str] = {
     "FiltersAttemptNumberTypedDict": ".getattemptmetricsop",
     "FiltersCode": ".getattemptmetricsop",
     "FiltersCodeTypedDict": ".getattemptmetricsop",
+    "FiltersDestinationType": ".getattemptmetricsop",
+    "FiltersDestinationTypeTypedDict": ".getattemptmetricsop",
     "FiltersManual": ".getattemptmetricsop",
     "FiltersStatus": ".getattemptmetricsop",
     "FiltersStatusEnum1": ".getattemptmetricsop",
@@ -875,6 +894,8 @@ _dynamic_imports: dict[str, str] = {
     "HookdeckCredentialsTypedDict": ".hookdeckcredentials",
     "ListAttemptsDestinationID": ".listattemptsop",
     "ListAttemptsDestinationIDTypedDict": ".listattemptsop",
+    "ListAttemptsDestinationType": ".listattemptsop",
+    "ListAttemptsDestinationTypeTypedDict": ".listattemptsop",
     "ListAttemptsDir": ".listattemptsop",
     "ListAttemptsEventID": ".listattemptsop",
     "ListAttemptsEventIDTypedDict": ".listattemptsop",
@@ -930,6 +951,8 @@ _dynamic_imports: dict[str, str] = {
     "ListTenantsRequestTypedDict": ".listtenantsop",
     "ListTenantsResponse": ".listtenantsop",
     "ListTenantsResponseTypedDict": ".listtenantsop",
+    "ManagedConfig": ".managedconfig",
+    "ManagedConfigTypedDict": ".managedconfig",
     "MetricsDataPoint": ".metricsdatapoint",
     "MetricsDataPointTypedDict": ".metricsdatapoint",
     "MetricsMetadata": ".metricsmetadata",

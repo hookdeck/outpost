@@ -44,7 +44,7 @@ class DestinationWebhookTypedDict(TypedDict):
     r"""Optional JSON schema filter for event matching. Events must match this filter to be delivered to this destination.
     Supports operators: $eq, $neq, $gt, $gte, $lt, $lte, $in, $nin, $startsWith, $endsWith, $exist, $or, $and, $not.
     If null or empty, all events matching the topic filter will be delivered.
-    To remove an existing filter when updating a destination, set filter to an empty object `{}`.
+    Uses full-replacement semantics on update: send a new object to replace, null or `{}` to clear, omit for no change.
 
     """
     delivery_metadata: NotRequired[Nullable[Dict[str, str]]]
@@ -86,7 +86,7 @@ class DestinationWebhook(BaseModel):
     r"""Optional JSON schema filter for event matching. Events must match this filter to be delivered to this destination.
     Supports operators: $eq, $neq, $gt, $gte, $lt, $lte, $in, $nin, $startsWith, $endsWith, $exist, $or, $and, $not.
     If null or empty, all events matching the topic filter will be delivered.
-    To remove an existing filter when updating a destination, set filter to an empty object `{}`.
+    Uses full-replacement semantics on update: send a new object to replace, null or `{}` to clear, omit for no change.
 
     """
 

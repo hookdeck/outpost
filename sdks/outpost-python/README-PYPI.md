@@ -193,6 +193,11 @@ with Outpost(
 * [get](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/attempts/README.md#get) - Get Attempt
 * [retry](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/attempts/README.md#retry) - Retry Event Delivery
 
+### [Configuration](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/configuration/README.md)
+
+* [get_managed_config](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/configuration/README.md#get_managed_config) - Get Managed Configuration
+* [update_managed_config](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/configuration/README.md#update_managed_config) - Update Managed Configuration
+
 ### [Destinations](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/destinations/README.md)
 
 * [list](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/destinations/README.md#list) - List Destinations
@@ -369,12 +374,12 @@ with Outpost() as outpost:
 
 
 **Inherit from [`OutpostError`](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/./src/outpost_sdk/errors/outposterror.py)**:
-* [`NotFoundError`](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/./src/outpost_sdk/errors/notfounderror.py): Status codes relating to the resource/entity they are requesting not being found or endpoints/routes not existing. Applicable to 21 of 27 methods.*
-* [`BadRequestError`](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/./src/outpost_sdk/errors/badrequesterror.py): A collection of codes that generally means the end user got something wrong in making the request. Applicable to 8 of 27 methods.*
-* [`APIErrorResponse`](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/./src/outpost_sdk/errors/apierrorresponse.py): Standard error response format. Applicable to 5 of 27 methods.*
-* [`TimeoutErrorT`](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/./src/outpost_sdk/errors/timeouterrort.py): Timeouts occurred with the request. Applicable to 5 of 27 methods.*
-* [`RateLimitedError`](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/./src/outpost_sdk/errors/ratelimitederror.py): Status codes relating to the client being rate limited by the server. Status code `429`. Applicable to 5 of 27 methods.*
-* [`NotImplementedErrorT`](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/./src/outpost_sdk/errors/notimplementederrort.py): List Tenants feature is not available. Requires Redis with RediSearch module. Status code `501`. Applicable to 1 of 27 methods.*
+* [`NotFoundError`](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/./src/outpost_sdk/errors/notfounderror.py): Status codes relating to the resource/entity they are requesting not being found or endpoints/routes not existing. Applicable to 21 of 29 methods.*
+* [`BadRequestError`](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/./src/outpost_sdk/errors/badrequesterror.py): A collection of codes that generally means the end user got something wrong in making the request. Applicable to 9 of 29 methods.*
+* [`APIErrorResponse`](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/./src/outpost_sdk/errors/apierrorresponse.py): Standard error response format. Applicable to 6 of 29 methods.*
+* [`TimeoutErrorT`](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/./src/outpost_sdk/errors/timeouterrort.py): Timeouts occurred with the request. Applicable to 5 of 29 methods.*
+* [`RateLimitedError`](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/./src/outpost_sdk/errors/ratelimitederror.py): Status codes relating to the client being rate limited by the server. Status code `429`. Applicable to 5 of 29 methods.*
+* [`NotImplementedErrorT`](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/./src/outpost_sdk/errors/notimplementederrort.py): List Tenants feature is not available. Requires Redis with RediSearch module. Status code `501`. Applicable to 1 of 29 methods.*
 * [`ResponseValidationError`](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/./src/outpost_sdk/errors/responsevalidationerror.py): Type mismatch between the response data and the expected Pydantic model. Provides access to the Pydantic validation error via the `cause` attribute.
 
 </details>
