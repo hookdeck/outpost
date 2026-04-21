@@ -47,12 +47,12 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: "20"
+          node-version: "24"
           cache: npm
           cache-dependency-path: docs/agent-evaluation/package-lock.json
 
@@ -79,7 +79,7 @@ jobs:
       # Transcripts, heuristic + LLM scores, generated scripts — present after eval; execute step may add logs in-place.
       - name: Upload agent eval outputs (debug)
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: docs-agent-eval-runs-${{ github.run_id }}-${{ github.run_attempt }}
           path: docs/agent-evaluation/results/runs
