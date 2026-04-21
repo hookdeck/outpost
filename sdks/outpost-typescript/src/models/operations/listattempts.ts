@@ -30,6 +30,13 @@ export type ListAttemptsEventId = string | Array<string>;
 export type ListAttemptsDestinationId = string | Array<string>;
 
 /**
+ * Filter attempts by destination type(s). Use bracket notation for multiple values (e.g., `destination_type[0]=webhook&destination_type[1]=aws_sqs`).
+ */
+export type DestinationType =
+  | components.DestinationType
+  | Array<components.DestinationType>;
+
+/**
  * Filter attempts by status.
  */
 export const ListAttemptsStatus = {
@@ -97,6 +104,13 @@ export type ListAttemptsRequest = {
    * Filter attempts by destination ID(s). Use bracket notation for multiple values (e.g., `destination_id[0]=d1&destination_id[1]=d2`).
    */
   destinationId?: string | Array<string> | undefined;
+  /**
+   * Filter attempts by destination type(s). Use bracket notation for multiple values (e.g., `destination_type[0]=webhook&destination_type[1]=aws_sqs`).
+   */
+  destinationType?:
+    | components.DestinationType
+    | Array<components.DestinationType>
+    | undefined;
   /**
    * Filter attempts by status.
    */
@@ -257,6 +271,43 @@ export function listAttemptsDestinationIdFromJSON(
 }
 
 /** @internal */
+export const DestinationType$inboundSchema: z.ZodType<
+  DestinationType,
+  z.ZodTypeDef,
+  unknown
+> = z.union([
+  components.DestinationType$inboundSchema,
+  z.array(components.DestinationType$inboundSchema),
+]);
+/** @internal */
+export type DestinationType$Outbound = string | Array<string>;
+
+/** @internal */
+export const DestinationType$outboundSchema: z.ZodType<
+  DestinationType$Outbound,
+  z.ZodTypeDef,
+  DestinationType
+> = z.union([
+  components.DestinationType$outboundSchema,
+  z.array(components.DestinationType$outboundSchema),
+]);
+
+export function destinationTypeToJSON(
+  destinationType: DestinationType,
+): string {
+  return JSON.stringify(DestinationType$outboundSchema.parse(destinationType));
+}
+export function destinationTypeFromJSON(
+  jsonString: string,
+): SafeParseResult<DestinationType, SDKValidationError> {
+  return safeParse(
+    jsonString,
+    (x) => DestinationType$inboundSchema.parse(JSON.parse(x)),
+    `Failed to parse 'DestinationType' from JSON`,
+  );
+}
+
+/** @internal */
 export const ListAttemptsStatus$inboundSchema: z.ZodNativeEnum<
   typeof ListAttemptsStatus
 > = z.nativeEnum(ListAttemptsStatus);
@@ -358,6 +409,10 @@ export const ListAttemptsRequest$inboundSchema: z.ZodType<
   tenant_id: z.union([z.string(), z.array(z.string())]).optional(),
   event_id: z.union([z.string(), z.array(z.string())]).optional(),
   destination_id: z.union([z.string(), z.array(z.string())]).optional(),
+  destination_type: z.union([
+    components.DestinationType$inboundSchema,
+    z.array(components.DestinationType$inboundSchema),
+  ]).optional(),
   status: ListAttemptsStatus$inboundSchema.optional(),
   topic: z.union([z.string(), z.array(z.string())]).optional(),
   "time[gte]": z.string().datetime({ offset: true }).transform(v => new Date(v))
@@ -379,6 +434,7 @@ export const ListAttemptsRequest$inboundSchema: z.ZodType<
     "tenant_id": "tenantId",
     "event_id": "eventId",
     "destination_id": "destinationId",
+    "destination_type": "destinationType",
     "time[gte]": "timeGte",
     "time[lte]": "timeLte",
     "time[gt]": "timeGt",
@@ -391,6 +447,7 @@ export type ListAttemptsRequest$Outbound = {
   tenant_id?: string | Array<string> | undefined;
   event_id?: string | Array<string> | undefined;
   destination_id?: string | Array<string> | undefined;
+  destination_type?: string | Array<string> | undefined;
   status?: string | undefined;
   topic?: string | Array<string> | undefined;
   "time[gte]"?: string | undefined;
@@ -414,6 +471,10 @@ export const ListAttemptsRequest$outboundSchema: z.ZodType<
   tenantId: z.union([z.string(), z.array(z.string())]).optional(),
   eventId: z.union([z.string(), z.array(z.string())]).optional(),
   destinationId: z.union([z.string(), z.array(z.string())]).optional(),
+  destinationType: z.union([
+    components.DestinationType$outboundSchema,
+    z.array(components.DestinationType$outboundSchema),
+  ]).optional(),
   status: ListAttemptsStatus$outboundSchema.optional(),
   topic: z.union([z.string(), z.array(z.string())]).optional(),
   timeGte: z.date().transform(v => v.toISOString()).optional(),
@@ -431,6 +492,7 @@ export const ListAttemptsRequest$outboundSchema: z.ZodType<
     tenantId: "tenant_id",
     eventId: "event_id",
     destinationId: "destination_id",
+    destinationType: "destination_type",
     timeGte: "time[gte]",
     timeLte: "time[lte]",
     timeGt: "time[gt]",

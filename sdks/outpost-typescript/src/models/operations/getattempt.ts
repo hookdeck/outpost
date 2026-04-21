@@ -25,6 +25,10 @@ export type GetAttemptRequest = {
    */
   attemptId: string;
   /**
+   * Filter by tenant ID. Returns 404 if the attempt does not belong to the specified tenant. Ignored when using Tenant JWT authentication.
+   */
+  tenantId?: string | undefined;
+  /**
    * Fields to include in the response. Use bracket notation for multiple values (e.g., `include[0]=event&include[1]=response_data`).
    *
    * @remarks
@@ -76,15 +80,18 @@ export const GetAttemptRequest$inboundSchema: z.ZodType<
   unknown
 > = z.object({
   attempt_id: z.string(),
+  tenant_id: z.string().optional(),
   include: z.union([z.string(), z.array(z.string())]).optional(),
 }).transform((v) => {
   return remap$(v, {
     "attempt_id": "attemptId",
+    "tenant_id": "tenantId",
   });
 });
 /** @internal */
 export type GetAttemptRequest$Outbound = {
   attempt_id: string;
+  tenant_id?: string | undefined;
   include?: string | Array<string> | undefined;
 };
 
@@ -95,10 +102,12 @@ export const GetAttemptRequest$outboundSchema: z.ZodType<
   GetAttemptRequest
 > = z.object({
   attemptId: z.string(),
+  tenantId: z.string().optional(),
   include: z.union([z.string(), z.array(z.string())]).optional(),
 }).transform((v) => {
   return remap$(v, {
     attemptId: "attempt_id",
+    tenantId: "tenant_id",
   });
 });
 

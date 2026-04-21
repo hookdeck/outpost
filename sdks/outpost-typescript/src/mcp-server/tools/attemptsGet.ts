@@ -9,6 +9,7 @@ import { formatResult, ToolDefinition } from "../tools.js";
 
 const args = {
   attemptId: z.string(),
+  tenantId: z.string().optional(),
   include: operations.GetAttemptInclude$inboundSchema.optional(),
 };
 
@@ -26,6 +27,7 @@ When authenticated with Admin API Key, attempts from any tenant can be accessed.
     const [result, apiCall] = await attemptsGet(
       client,
       args.attemptId,
+      args.tenantId,
       args.include,
       { fetchOptions: { signal: ctx.signal } },
     ).$inspect();
