@@ -29,7 +29,7 @@ generation:
     generateNewTests: false
     skipResponseBodyAssertions: false
 go:
-  version: 0.9.0
+  version: 0.9.1
   additionalDependencies: {}
   allowUnknownFieldsInWeakUnions: false
   baseErrorName: OutpostError
@@ -56,7 +56,7 @@ go:
   methodArguments: require-security-and-request
   modulePath: ""
   multipartArrayFormat: legacy
-  nullableOptionalWrapper: false
+  nullableOptionalWrapper: true
   outputModelSuffix: output
   packageName: github.com/hookdeck/outpost/sdks/outpost-go
   respectRequiredFields: false

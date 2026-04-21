@@ -182,7 +182,7 @@ components:
         Optional JSON schema filter for event matching. Events must match this filter to be delivered to this destination.
         Supports operators: $eq, $neq, $gt, $gte, $lt, $lte, $in, $nin, $startsWith, $endsWith, $exist, $or, $and, $not.
         If null or empty, all events matching the topic filter will be delivered.
-        To remove an existing filter when updating a destination, set filter to an empty object `{}`.
+        Uses full-replacement semantics on update: send a new object to replace, null or `{}` to clear, omit for no change.
       example:
         data:
           amount:
@@ -1481,16 +1481,28 @@ components:
         delivery_metadata:
           type: object
           additionalProperties:
-            type: string
+            oneOf:
+              - type: string
+              - type: "null"
           nullable: true
-          description: Static key-value pairs merged into event metadata on every attempt.
+          description: >-
+            Static key-value pairs merged into event metadata on every attempt.
+            Uses JSON merge-patch semantics (RFC 7396): send keys to add/update,
+            null values to delete keys, null for entire field to clear all.
+            Omit or send {} for no change.
           example: { "app-id": "my-app", "region": "us-east-1" }
         metadata:
           type: object
           additionalProperties:
-            type: string
+            oneOf:
+              - type: string
+              - type: "null"
           nullable: true
-          description: Arbitrary contextual information stored with the destination.
+          description: >-
+            Arbitrary contextual information stored with the destination.
+            Uses JSON merge-patch semantics (RFC 7396): send keys to add/update,
+            null values to delete keys, null for entire field to clear all.
+            Omit or send {} for no change.
           example: { "internal-id": "123", "team": "platform" }
     DestinationUpdateAWSSQS:
       type: object
@@ -1507,16 +1519,28 @@ components:
         delivery_metadata:
           type: object
           additionalProperties:
-            type: string
+            oneOf:
+              - type: string
+              - type: "null"
           nullable: true
-          description: Static key-value pairs merged into event metadata on every attempt.
+          description: >-
+            Static key-value pairs merged into event metadata on every attempt.
+            Uses JSON merge-patch semantics (RFC 7396): send keys to add/update,
+            null values to delete keys, null for entire field to clear all.
+            Omit or send {} for no change.
           example: { "app-id": "my-app", "region": "us-east-1" }
         metadata:
           type: object
           additionalProperties:
-            type: string
+            oneOf:
+              - type: string
+              - type: "null"
           nullable: true
-          description: Arbitrary contextual information stored with the destination.
+          description: >-
+            Arbitrary contextual information stored with the destination.
+            Uses JSON merge-patch semantics (RFC 7396): send keys to add/update,
+            null values to delete keys, null for entire field to clear all.
+            Omit or send {} for no change.
           example: { "internal-id": "123", "team": "platform" }
     DestinationUpdateRabbitMQ:
       type: object
@@ -1533,16 +1557,28 @@ components:
         delivery_metadata:
           type: object
           additionalProperties:
-            type: string
+            oneOf:
+              - type: string
+              - type: "null"
           nullable: true
-          description: Static key-value pairs merged into event metadata on every attempt.
+          description: >-
+            Static key-value pairs merged into event metadata on every attempt.
+            Uses JSON merge-patch semantics (RFC 7396): send keys to add/update,
+            null values to delete keys, null for entire field to clear all.
+            Omit or send {} for no change.
           example: { "app-id": "my-app", "region": "us-east-1" }
         metadata:
           type: object
           additionalProperties:
-            type: string
+            oneOf:
+              - type: string
+              - type: "null"
           nullable: true
-          description: Arbitrary contextual information stored with the destination.
+          description: >-
+            Arbitrary contextual information stored with the destination.
+            Uses JSON merge-patch semantics (RFC 7396): send keys to add/update,
+            null values to delete keys, null for entire field to clear all.
+            Omit or send {} for no change.
           example: { "internal-id": "123", "team": "platform" }
     DestinationUpdateHookdeck:
       type: object
@@ -1558,16 +1594,28 @@ components:
         delivery_metadata:
           type: object
           additionalProperties:
-            type: string
+            oneOf:
+              - type: string
+              - type: "null"
           nullable: true
-          description: Static key-value pairs merged into event metadata on every attempt.
+          description: >-
+            Static key-value pairs merged into event metadata on every attempt.
+            Uses JSON merge-patch semantics (RFC 7396): send keys to add/update,
+            null values to delete keys, null for entire field to clear all.
+            Omit or send {} for no change.
           example: { "app-id": "my-app", "region": "us-east-1" }
         metadata:
           type: object
           additionalProperties:
-            type: string
+            oneOf:
+              - type: string
+              - type: "null"
           nullable: true
-          description: Arbitrary contextual information stored with the destination.
+          description: >-
+            Arbitrary contextual information stored with the destination.
+            Uses JSON merge-patch semantics (RFC 7396): send keys to add/update,
+            null values to delete keys, null for entire field to clear all.
+            Omit or send {} for no change.
           example: { "internal-id": "123", "team": "platform" }
     DestinationUpdateAWSKinesis:
       type: object
@@ -1584,16 +1632,28 @@ components:
         delivery_metadata:
           type: object
           additionalProperties:
-            type: string
+            oneOf:
+              - type: string
+              - type: "null"
           nullable: true
-          description: Static key-value pairs merged into event metadata on every attempt.
+          description: >-
+            Static key-value pairs merged into event metadata on every attempt.
+            Uses JSON merge-patch semantics (RFC 7396): send keys to add/update,
+            null values to delete keys, null for entire field to clear all.
+            Omit or send {} for no change.
           example: { "app-id": "my-app", "region": "us-east-1" }
         metadata:
           type: object
           additionalProperties:
-            type: string
+            oneOf:
+              - type: string
+              - type: "null"
           nullable: true
-          description: Arbitrary contextual information stored with the destination.
+          description: >-
+            Arbitrary contextual information stored with the destination.
+            Uses JSON merge-patch semantics (RFC 7396): send keys to add/update,
+            null values to delete keys, null for entire field to clear all.
+            Omit or send {} for no change.
           example: { "internal-id": "123", "team": "platform" }
     DestinationUpdateAzureServiceBus:
       type: object
@@ -1610,16 +1670,28 @@ components:
         delivery_metadata:
           type: object
           additionalProperties:
-            type: string
+            oneOf:
+              - type: string
+              - type: "null"
           nullable: true
-          description: Static key-value pairs merged into event metadata on every attempt.
+          description: >-
+            Static key-value pairs merged into event metadata on every attempt.
+            Uses JSON merge-patch semantics (RFC 7396): send keys to add/update,
+            null values to delete keys, null for entire field to clear all.
+            Omit or send {} for no change.
           example: { "app-id": "my-app", "region": "us-east-1" }
         metadata:
           type: object
           additionalProperties:
-            type: string
+            oneOf:
+              - type: string
+              - type: "null"
           nullable: true
-          description: Arbitrary contextual information stored with the destination.
+          description: >-
+            Arbitrary contextual information stored with the destination.
+            Uses JSON merge-patch semantics (RFC 7396): send keys to add/update,
+            null values to delete keys, null for entire field to clear all.
+            Omit or send {} for no change.
           example: { "internal-id": "123", "team": "platform" }
 
     DestinationUpdateAWSS3:
@@ -1637,16 +1709,28 @@ components:
         delivery_metadata:
           type: object
           additionalProperties:
-            type: string
+            oneOf:
+              - type: string
+              - type: "null"
           nullable: true
-          description: Static key-value pairs merged into event metadata on every attempt.
+          description: >-
+            Static key-value pairs merged into event metadata on every attempt.
+            Uses JSON merge-patch semantics (RFC 7396): send keys to add/update,
+            null values to delete keys, null for entire field to clear all.
+            Omit or send {} for no change.
           example: { "app-id": "my-app", "region": "us-east-1" }
         metadata:
           type: object
           additionalProperties:
-            type: string
+            oneOf:
+              - type: string
+              - type: "null"
           nullable: true
-          description: Arbitrary contextual information stored with the destination.
+          description: >-
+            Arbitrary contextual information stored with the destination.
+            Uses JSON merge-patch semantics (RFC 7396): send keys to add/update,
+            null values to delete keys, null for entire field to clear all.
+            Omit or send {} for no change.
           example: { "internal-id": "123", "team": "platform" }
     DestinationUpdateGCPPubSub:
       type: object
@@ -1663,16 +1747,28 @@ components:
         delivery_metadata:
           type: object
           additionalProperties:
-            type: string
+            oneOf:
+              - type: string
+              - type: "null"
           nullable: true
-          description: Static key-value pairs merged into event metadata on every attempt.
+          description: >-
+            Static key-value pairs merged into event metadata on every attempt.
+            Uses JSON merge-patch semantics (RFC 7396): send keys to add/update,
+            null values to delete keys, null for entire field to clear all.
+            Omit or send {} for no change.
           example: { "app-id": "my-app", "region": "us-east-1" }
         metadata:
           type: object
           additionalProperties:
-            type: string
+            oneOf:
+              - type: string
+              - type: "null"
           nullable: true
-          description: Arbitrary contextual information stored with the destination.
+          description: >-
+            Arbitrary contextual information stored with the destination.
+            Uses JSON merge-patch semantics (RFC 7396): send keys to add/update,
+            null values to delete keys, null for entire field to clear all.
+            Omit or send {} for no change.
           example: { "internal-id": "123", "team": "platform" }
 
     # Polymorphic Destination Update Schema (for Request Bodies)
