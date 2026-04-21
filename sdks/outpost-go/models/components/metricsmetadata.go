@@ -2,9 +2,13 @@
 
 package components
 
+import (
+	"github.com/hookdeck/outpost/sdks/outpost-go/optionalnullable"
+)
+
 type MetricsMetadata struct {
 	// The granularity used for time bucketing, or null if none was specified.
-	Granularity *string `json:"granularity,omitempty"`
+	Granularity optionalnullable.OptionalNullable[string] `json:"granularity,omitempty"`
 	// Query execution time in milliseconds.
 	QueryTimeMs *int64 `json:"query_time_ms,omitempty"`
 	// Number of data points returned.
@@ -15,7 +19,7 @@ type MetricsMetadata struct {
 	Truncated *bool `json:"truncated,omitempty"`
 }
 
-func (m *MetricsMetadata) GetGranularity() *string {
+func (m *MetricsMetadata) GetGranularity() optionalnullable.OptionalNullable[string] {
 	if m == nil {
 		return nil
 	}

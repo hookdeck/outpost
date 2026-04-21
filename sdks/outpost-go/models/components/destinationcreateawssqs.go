@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/hookdeck/outpost/sdks/outpost-go/internal/utils"
+	"github.com/hookdeck/outpost/sdks/outpost-go/optionalnullable"
 )
 
 // DestinationCreateAWSSQSType - Type of the destination. Must be 'aws_sqs'.
@@ -42,15 +43,15 @@ type DestinationCreateAWSSQS struct {
 	// Optional JSON schema filter for event matching. Events must match this filter to be delivered to this destination.
 	// Supports operators: $eq, $neq, $gt, $gte, $lt, $lte, $in, $nin, $startsWith, $endsWith, $exist, $or, $and, $not.
 	// If null or empty, all events matching the topic filter will be delivered.
-	// To remove an existing filter when updating a destination, set filter to an empty object `{}`.
+	// Uses full-replacement semantics on update: send a new object to replace, null or `{}` to clear, omit for no change.
 	//
-	Filter      map[string]any    `json:"filter,omitempty"`
-	Config      AWSSQSConfig      `json:"config"`
-	Credentials AWSSQSCredentials `json:"credentials"`
+	Filter      optionalnullable.OptionalNullable[map[string]any] `json:"filter,omitempty"`
+	Config      AWSSQSConfig                                      `json:"config"`
+	Credentials AWSSQSCredentials                                 `json:"credentials"`
 	// Static key-value pairs merged into event metadata on every attempt.
-	DeliveryMetadata map[string]string `json:"delivery_metadata,omitempty"`
+	DeliveryMetadata optionalnullable.OptionalNullable[map[string]string] `json:"delivery_metadata,omitempty"`
 	// Arbitrary contextual information stored with the destination.
-	Metadata map[string]string `json:"metadata,omitempty"`
+	Metadata optionalnullable.OptionalNullable[map[string]string] `json:"metadata,omitempty"`
 }
 
 func (d DestinationCreateAWSSQS) MarshalJSON() ([]byte, error) {
@@ -85,7 +86,7 @@ func (d *DestinationCreateAWSSQS) GetTopics() Topics {
 	return d.Topics
 }
 
-func (d *DestinationCreateAWSSQS) GetFilter() map[string]any {
+func (d *DestinationCreateAWSSQS) GetFilter() optionalnullable.OptionalNullable[map[string]any] {
 	if d == nil {
 		return nil
 	}
@@ -106,14 +107,14 @@ func (d *DestinationCreateAWSSQS) GetCredentials() AWSSQSCredentials {
 	return d.Credentials
 }
 
-func (d *DestinationCreateAWSSQS) GetDeliveryMetadata() map[string]string {
+func (d *DestinationCreateAWSSQS) GetDeliveryMetadata() optionalnullable.OptionalNullable[map[string]string] {
 	if d == nil {
 		return nil
 	}
 	return d.DeliveryMetadata
 }
 
-func (d *DestinationCreateAWSSQS) GetMetadata() map[string]string {
+func (d *DestinationCreateAWSSQS) GetMetadata() optionalnullable.OptionalNullable[map[string]string] {
 	if d == nil {
 		return nil
 	}

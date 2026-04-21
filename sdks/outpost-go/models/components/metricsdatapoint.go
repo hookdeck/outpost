@@ -4,12 +4,13 @@ package components
 
 import (
 	"github.com/hookdeck/outpost/sdks/outpost-go/internal/utils"
+	"github.com/hookdeck/outpost/sdks/outpost-go/optionalnullable"
 	"time"
 )
 
 type MetricsDataPoint struct {
 	// Start of the time bucket. Null when no granularity is specified.
-	TimeBucket *time.Time `json:"time_bucket,omitempty"`
+	TimeBucket optionalnullable.OptionalNullable[time.Time] `json:"time_bucket,omitempty"`
 	// Dimension values for this data point. Empty object when no dimensions are requested.
 	Dimensions map[string]string `json:"dimensions,omitempty"`
 	// Requested measure values for this data point.
@@ -27,7 +28,7 @@ func (m *MetricsDataPoint) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (m *MetricsDataPoint) GetTimeBucket() *time.Time {
+func (m *MetricsDataPoint) GetTimeBucket() optionalnullable.OptionalNullable[time.Time] {
 	if m == nil {
 		return nil
 	}
