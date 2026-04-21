@@ -1,4 +1,3 @@
-//go:generate go run ../../cmd/configdocsgen/main.go -input-dir . -output-file ../../docs/pages/references/configuration.mdx
 package config
 
 import (
