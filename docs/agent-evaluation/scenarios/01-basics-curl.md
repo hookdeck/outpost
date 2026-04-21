@@ -17,7 +17,16 @@ The harness sets the agent **cwd** to an empty directory under `docs/agent-evalu
 
 ### Turn 0
 
-Paste the **## Template** block from `[hookdeck-outpost-agent-prompt.mdoc](../../agent-evaluation/hookdeck-outpost-agent-prompt.md)`, with `{{…}}` filled using your project or `[fixtures/placeholder-values-for-turn0.md](../fixtures/placeholder-values-for-turn0.md)`.
+1. Paste the **## Template** block from [`hookdeck-outpost-agent-prompt.md`](../hookdeck-outpost-agent-prompt.md), with `{{…}}` filled using your project or [`fixtures/placeholder-values-for-turn0.md`](../fixtures/placeholder-values-for-turn0.md) (same shared Turn 0 as other scenarios).
+2. **Immediately after**, paste everything between `<!-- eval:turn0-appendix-start -->` and `<!-- eval:turn0-appendix-end -->` below (POSIX / `curl` only — no API or product semantics). **Automated** runs: the harness extracts that block and appends it after the template.
+
+<!-- eval:turn0-appendix-start -->
+When you emit **shell** that invokes **`curl`** (including small wrapper functions), **quoting is your responsibility** — it is orthogonal to HTTP paths and JSON bodies (those follow the documentation already in your context).
+
+- After parsing fixed leading arguments (e.g. method and URL), pass the remainder into `curl` with **`"$@"`** or another form that keeps **one shell word per `--data` payload**. **Never** expand a variable that holds multiple curl arguments **unquoted** on the `curl` line: the shell **word-splits** JSON and `curl` can treat fragments as extra URLs (symptoms such as “bad hostname”, “port number”, or “bad range in URL” with no meaningful HTTP status from the server).
+- For **multi-line JSON** bodies, prefer a **quoted heredoc** into `curl --data-binary @-`, **`jq -n`**, or a **single-quoted** `-d` string when it stays readable — pick the smallest pattern that is obviously safe when rerun non-interactively.
+- When values come from the **environment** (URLs, secrets, tokens), keep those expansions **inside** quoted JSON strings or otherwise **shell-quoted** so characters such as `&`, `?`, or spaces cannot break the command line.
+<!-- eval:turn0-appendix-end -->
 
 ### Turn 1 — User
 

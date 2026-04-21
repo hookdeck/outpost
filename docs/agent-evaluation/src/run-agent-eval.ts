@@ -40,6 +40,28 @@ const PROMPT_MDX = join(
 const SCENARIOS_DIR = join(EVAL_ROOT, "scenarios");
 const RUNS_DIR = join(EVAL_ROOT, "results", "runs");
 
+/** Extract scenario-01 Turn 0 shell appendix from `01-basics-curl.md` (delimited block). */
+const TURN0_APPENDIX_IN_SCENARIO = /<!--\s*eval:turn0-appendix-start\s*-->\s*([\s\S]*?)\s*<!--\s*eval:turn0-appendix-end\s*-->/;
+
+function turn0AppendixFromScenarioMarkdown(
+  scenarioFile: string,
+  scenarioMarkdown: string,
+): string {
+  if (idFromFilename(scenarioFile) !== "01") return "";
+  const m = scenarioMarkdown.match(TURN0_APPENDIX_IN_SCENARIO);
+  if (!m) {
+    throw new Error(
+      `Scenario ${scenarioFile} must include <!-- eval:turn0-appendix-start --> ... <!-- eval:turn0-appendix-end --> (shell/curl Turn 0 supplement).`,
+    );
+  }
+  const body = m[1]!.trim();
+  return (
+    "\n\n## Scenario 01 appendix (shell / curl — code quality only)\n\n" +
+    body +
+    "\n"
+  );
+}
+
 /**
  * Harness-only status files next to the run folder (not inside `runDir`) so the agent sandbox cannot Read them.
  * Example: `…/runs/2026-…-scenario-08/transcript.json` vs `…/runs/2026-…-scenario-08.eval-started.json`.
@@ -841,12 +863,23 @@ Agent cwd is usually the run directory. Scenarios may define ## Eval harness (JS
       REPO_ROOT,
       localDocs,
     );
+    let scenario01AppendixChars = 0;
+    const file01 = selected.find((f) => idFromFilename(f) === "01");
+    if (file01) {
+      const md01 = await readFile(join(SCENARIOS_DIR, file01), "utf8");
+      scenario01AppendixChars = turn0AppendixFromScenarioMarkdown(
+        file01,
+        md01,
+      ).length;
+    }
     console.log("Dry run: would execute", selected.join(", "));
     console.log(
       "Turn 0 base template (chars):",
       filledTemplate.length,
       "| + workspace boundary (~chars):",
       boundarySample.length,
+      "| + scenario 01 shell appendix (~chars):",
+      scenario01AppendixChars,
     );
     process.exit(0);
   }
@@ -889,6 +922,7 @@ Agent cwd is usually the run directory. Scenarios may define ## Eval harness (JS
     });
     const turn0Prompt =
       filledTemplate +
+      turn0AppendixFromScenarioMarkdown(file, scenarioMd) +
       buildWorkspaceBoundaryAppendix(runDir, agentCwd, REPO_ROOT, localDocs);
     console.error(
       `\n>>> Scenario ${file} (run dir ${runDir}, agent cwd ${agentCwd}) ...`,
