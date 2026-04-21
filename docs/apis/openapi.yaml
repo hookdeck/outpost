@@ -2444,7 +2444,7 @@ paths:
                     status: healthy
                   retrymq-consumer:
                     status: failed
-  /configs:
+  /config:
     get:
       tags: [Configuration]
       summary: Get Managed Configuration
@@ -2465,11 +2465,11 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "500":
           $ref: "#/components/responses/InternalServerError"
-    put:
+    patch:
       tags: [Configuration]
       summary: Update Managed Configuration
       description: |
-        Updates one or more managed Outpost configuration values.
+        Updates one or more managed Outpost configuration values. Null values clear the configuration and reverts to Outpost default behavior.
 
         This endpoint is only available for the managed version.
         In self-hosted deployments, configuration is controlled through environment variables instead.
