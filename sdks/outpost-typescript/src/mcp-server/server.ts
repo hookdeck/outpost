@@ -16,6 +16,8 @@ import { createRegisterTool } from "./tools.js";
 import { tool$attemptsGet } from "./tools/attemptsGet.js";
 import { tool$attemptsList } from "./tools/attemptsList.js";
 import { tool$attemptsRetry } from "./tools/attemptsRetry.js";
+import { tool$configurationGetManagedConfig } from "./tools/configurationGetManagedConfig.js";
+import { tool$configurationUpdateManagedConfig } from "./tools/configurationUpdateManagedConfig.js";
 import { tool$destinationsCreate } from "./tools/destinationsCreate.js";
 import { tool$destinationsDelete } from "./tools/destinationsDelete.js";
 import { tool$destinationsDisable } from "./tools/destinationsDisable.js";
@@ -51,7 +53,7 @@ export function createMCPServer(deps: {
 }) {
   const server = new McpServer({
     name: "Outpost",
-    version: "0.10.0",
+    version: "0.10.1",
   });
 
   const client = new OutpostCore({
@@ -82,6 +84,8 @@ export function createMCPServer(deps: {
   void register; // suppress unused warnings
 
   tool(tool$healthCheck);
+  tool(tool$configurationGetManagedConfig);
+  tool(tool$configurationUpdateManagedConfig);
   tool(tool$tenantsList);
   tool(tool$tenantsUpsert);
   tool(tool$tenantsGet);

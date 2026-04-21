@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="color-scheme" content="light dark">
-    <title>SDK Changelog - python</title>
+    <title>SDK Changelog - typescript</title>
     <style>
         :root {
             --bg-color: #ffffff;
@@ -95,39 +95,39 @@
         }
     </style>
 </head>
-<body><h2 id="python-sdk-changes">Python SDK Changes:</h2>
+<body><h2 id="typescript-sdk-changes">Typescript SDK Changes:</h2>
 
 <ul>
-<li><code>outpost.schemas.list_destination_types()</code>: <code>response.[]</code> <strong>Changed</strong> (Breaking ⚠️)
+<li><code>outpost.schemas.listDestinationTypes()</code>: <code>response.[]</code> <strong>Changed</strong> (Breaking ⚠️)
 
 <ul>
-<li><code>remote_setup_url</code> <strong>Removed</strong> (Breaking ⚠️)</li>
-<li><code>setup_link</code> <strong>Added</strong></li>
+<li><code>remoteSetupUrl</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>setupLink</code> <strong>Added</strong></li>
 </ul></li>
-<li><code>outpost.schemas.get_destination_type()</code>: <code>response</code> <strong>Changed</strong> (Breaking ⚠️)
+<li><code>outpost.schemas.getDestinationType()</code>: <code>response</code> <strong>Changed</strong> (Breaking ⚠️)
 
 <ul>
-<li><code>remote_setup_url</code> <strong>Removed</strong> (Breaking ⚠️)</li>
-<li><code>setup_link</code> <strong>Added</strong></li>
+<li><code>remoteSetupUrl</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>setupLink</code> <strong>Added</strong></li>
 </ul></li>
-<li><code>outpost.metrics.get_attempt_metrics()</code>: <code>request</code> <strong>Changed</strong> (Breaking ⚠️)
+<li><code>outpost.metrics.getAttemptMetrics()</code>: <code>request</code> <strong>Changed</strong> (Breaking ⚠️)
 
 <ul>
 <li><code>dimensions.union(&quot;tenant_id&quot;,&quot;destination_id&quot; and 5 more)</code> <strong>Removed</strong> (Breaking ⚠️)</li>
 <li><code>dimensions.union(&quot;tenant_id&quot;,&quot;destination_id&quot; and 6 more)</code> <strong>Added</strong></li>
 <li><code>dimensions.union(Array&lt;&quot;tenant_id&quot;,&quot;destination_id&quot; and 5 more&gt;)</code> <strong>Removed</strong> (Breaking ⚠️)</li>
 <li><code>dimensions.union(Array&lt;&quot;tenant_id&quot;,&quot;destination_id&quot; and 6 more&gt;)</code> <strong>Added</strong></li>
-<li><code>filters[destination_type]</code> <strong>Added</strong></li>
+<li><code>filters[destinationType]</code> <strong>Added</strong></li>
 </ul></li>
-<li><code>outpost.configuration.get_managed_config()</code>: <strong>Added</strong></li>
-<li><code>outpost.configuration.update_managed_config()</code>: <strong>Added</strong></li>
-<li><code>outpost.events.get()</code>:  <code>request.tenant_id</code> <strong>Added</strong></li>
+<li><code>outpost.configuration.getManagedConfig()</code>: <strong>Added</strong></li>
+<li><code>outpost.configuration.updateManagedConfig()</code>: <strong>Added</strong></li>
+<li><code>outpost.events.get()</code>:  <code>request.tenantId</code> <strong>Added</strong></li>
 <li><code>outpost.attempts.list()</code>:
 
 <ul>
-<li><code>request.destination_type</code> <strong>Added</strong></li>
+<li><code>request.destinationType</code> <strong>Added</strong></li>
 </ul></li>
-<li><code>outpost.attempts.get()</code>:  <code>request.tenant_id</code> <strong>Added</strong></li>
+<li><code>outpost.attempts.get()</code>:  <code>request.tenantId</code> <strong>Added</strong></li>
 </ul>
 </body>
 </html>

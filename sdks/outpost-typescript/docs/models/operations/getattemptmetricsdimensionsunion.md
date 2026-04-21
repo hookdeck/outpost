@@ -15,7 +15,7 @@ const value: operations.GetAttemptMetricsDimensionsEnum1 = "destination_id";
 
 ```typescript
 const value: operations.GetAttemptMetricsDimensionsEnum2[] = [
-  "destination_id",
+  "destination_type",
 ];
 ```
 

@@ -223,6 +223,11 @@ run();
 * [get](docs/sdks/attempts/README.md#get) - Get Attempt
 * [retry](docs/sdks/attempts/README.md#retry) - Retry Event Delivery
 
+### [Configuration](docs/sdks/configuration/README.md)
+
+* [getManagedConfig](docs/sdks/configuration/README.md#getmanagedconfig) - Get Managed Configuration
+* [updateManagedConfig](docs/sdks/configuration/README.md#updatemanagedconfig) - Update Managed Configuration
+
 ### [Destinations](docs/sdks/destinations/README.md)
 
 * [list](docs/sdks/destinations/README.md#list) - List Destinations
@@ -292,6 +297,8 @@ To read more about standalone functions, check [FUNCTIONS.md](./FUNCTIONS.md).
 - [`attemptsGet`](docs/sdks/attempts/README.md#get) - Get Attempt
 - [`attemptsList`](docs/sdks/attempts/README.md#list) - List Attempts
 - [`attemptsRetry`](docs/sdks/attempts/README.md#retry) - Retry Event Delivery
+- [`configurationGetManagedConfig`](docs/sdks/configuration/README.md#getmanagedconfig) - Get Managed Configuration
+- [`configurationUpdateManagedConfig`](docs/sdks/configuration/README.md#updatemanagedconfig) - Update Managed Configuration
 - [`destinationsCreate`](docs/sdks/destinations/README.md#create) - Create Destination
 - [`destinationsDelete`](docs/sdks/destinations/README.md#delete) - Delete Destination
 - [`destinationsDisable`](docs/sdks/destinations/README.md#disable) - Disable Destination
@@ -478,12 +485,12 @@ run();
 
 
 **Inherit from [`OutpostError`](./src/models/errors/outposterror.ts)**:
-* [`NotFoundError`](./src/models/errors/notfounderror.ts): Status codes relating to the resource/entity they are requesting not being found or endpoints/routes not existing. Applicable to 21 of 27 methods.*
-* [`BadRequestError`](./src/models/errors/badrequesterror.ts): A collection of codes that generally means the end user got something wrong in making the request. Applicable to 8 of 27 methods.*
-* [`APIErrorResponse`](./src/models/errors/apierrorresponse.ts): Standard error response format. Applicable to 5 of 27 methods.*
-* [`TimeoutError`](./src/models/errors/timeouterror.ts): Timeouts occurred with the request. Applicable to 5 of 27 methods.*
-* [`RateLimitedError`](./src/models/errors/ratelimitederror.ts): Status codes relating to the client being rate limited by the server. Status code `429`. Applicable to 5 of 27 methods.*
-* [`NotImplementedError`](./src/models/errors/notimplementederror.ts): List Tenants feature is not available. Requires Redis with RediSearch module. Status code `501`. Applicable to 1 of 27 methods.*
+* [`NotFoundError`](./src/models/errors/notfounderror.ts): Status codes relating to the resource/entity they are requesting not being found or endpoints/routes not existing. Applicable to 21 of 29 methods.*
+* [`BadRequestError`](./src/models/errors/badrequesterror.ts): A collection of codes that generally means the end user got something wrong in making the request. Applicable to 9 of 29 methods.*
+* [`APIErrorResponse`](./src/models/errors/apierrorresponse.ts): Standard error response format. Applicable to 6 of 29 methods.*
+* [`TimeoutError`](./src/models/errors/timeouterror.ts): Timeouts occurred with the request. Applicable to 5 of 29 methods.*
+* [`RateLimitedError`](./src/models/errors/ratelimitederror.ts): Status codes relating to the client being rate limited by the server. Status code `429`. Applicable to 5 of 29 methods.*
+* [`NotImplementedError`](./src/models/errors/notimplementederror.ts): List Tenants feature is not available. Requires Redis with RediSearch module. Status code `501`. Applicable to 1 of 29 methods.*
 * [`ResponseValidationError`](./src/models/errors/responsevalidationerror.ts): Type mismatch between the data returned from the server and the structure expected by the SDK. See `error.rawValue` for the raw value and `error.pretty()` for a nicely formatted multi-line string.
 
 </details>

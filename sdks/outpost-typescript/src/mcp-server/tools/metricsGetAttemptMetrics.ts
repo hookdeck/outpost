@@ -21,9 +21,9 @@ dimensional grouping, and filtering.
 \`first_attempt_count\`, \`retry_count\`, \`manual_retry_count\`, \`avg_attempt_number\`,
 \`rate\`, \`successful_rate\`, \`failed_rate\`
 
-**Dimensions:** \`tenant_id\` (admin-only), \`destination_id\`, \`topic\`, \`status\`, \`code\`, \`manual\`, \`attempt_number\`
+**Dimensions:** \`tenant_id\` (admin-only), \`destination_id\`, \`destination_type\`, \`topic\`, \`status\`, \`code\`, \`manual\`, \`attempt_number\`
 
-**Filters:** \`tenant_id\` (admin-only), \`destination_id\`, \`topic\`, \`status\`, \`code\`, \`manual\`, \`attempt_number\`
+**Filters:** \`tenant_id\` (admin-only), \`destination_id\`, \`destination_type\`, \`topic\`, \`status\`, \`code\`, \`manual\`, \`attempt_number\`
 `,
   args,
   tool: async (client, args, ctx) => {

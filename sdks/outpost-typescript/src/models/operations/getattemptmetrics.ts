@@ -7,6 +7,7 @@ import { remap as remap$ } from "../../lib/primitives.js";
 import { safeParse } from "../../lib/schemas.js";
 import { ClosedEnum } from "../../types/enums.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
+import * as components from "../components/index.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 
 export const GetAttemptMetricsMeasuresEnum2 = {
@@ -53,6 +54,7 @@ export type GetAttemptMetricsMeasuresUnion =
 export const GetAttemptMetricsDimensionsEnum2 = {
   TenantId: "tenant_id",
   DestinationId: "destination_id",
+  DestinationType: "destination_type",
   Topic: "topic",
   Status: "status",
   Code: "code",
@@ -66,6 +68,7 @@ export type GetAttemptMetricsDimensionsEnum2 = ClosedEnum<
 export const GetAttemptMetricsDimensionsEnum1 = {
   TenantId: "tenant_id",
   DestinationId: "destination_id",
+  DestinationType: "destination_type",
   Topic: "topic",
   Status: "status",
   Code: "code",
@@ -87,6 +90,13 @@ export type GetAttemptMetricsDimensionsUnion =
  * Filter by destination ID(s). Use bracket notation for multiple values (e.g., `filters[destination_id][0]=d1&filters[destination_id][1]=d2`).
  */
 export type GetAttemptMetricsFiltersDestinationId = string | Array<string>;
+
+/**
+ * Filter by destination type(s). Use bracket notation for multiple values (e.g., `filters[destination_type][0]=webhook&filters[destination_type][1]=aws_sqs`).
+ */
+export type FiltersDestinationType =
+  | components.DestinationType
+  | Array<components.DestinationType>;
 
 /**
  * Filter by topic name(s). Use bracket notation for multiple values (e.g., `filters[topic][0]=user.created&filters[topic][1]=user.updated`).
@@ -171,6 +181,13 @@ export type GetAttemptMetricsRequest = {
    * Filter by destination ID(s). Use bracket notation for multiple values (e.g., `filters[destination_id][0]=d1&filters[destination_id][1]=d2`).
    */
   filtersDestinationId?: string | Array<string> | undefined;
+  /**
+   * Filter by destination type(s). Use bracket notation for multiple values (e.g., `filters[destination_type][0]=webhook&filters[destination_type][1]=aws_sqs`).
+   */
+  filtersDestinationType?:
+    | components.DestinationType
+    | Array<components.DestinationType>
+    | undefined;
   /**
    * Filter by topic name(s). Use bracket notation for multiple values (e.g., `filters[topic][0]=user.created&filters[topic][1]=user.updated`).
    */
@@ -350,6 +367,45 @@ export function getAttemptMetricsFiltersDestinationIdFromJSON(
     (x) =>
       GetAttemptMetricsFiltersDestinationId$inboundSchema.parse(JSON.parse(x)),
     `Failed to parse 'GetAttemptMetricsFiltersDestinationId' from JSON`,
+  );
+}
+
+/** @internal */
+export const FiltersDestinationType$inboundSchema: z.ZodType<
+  FiltersDestinationType,
+  z.ZodTypeDef,
+  unknown
+> = z.union([
+  components.DestinationType$inboundSchema,
+  z.array(components.DestinationType$inboundSchema),
+]);
+/** @internal */
+export type FiltersDestinationType$Outbound = string | Array<string>;
+
+/** @internal */
+export const FiltersDestinationType$outboundSchema: z.ZodType<
+  FiltersDestinationType$Outbound,
+  z.ZodTypeDef,
+  FiltersDestinationType
+> = z.union([
+  components.DestinationType$outboundSchema,
+  z.array(components.DestinationType$outboundSchema),
+]);
+
+export function filtersDestinationTypeToJSON(
+  filtersDestinationType: FiltersDestinationType,
+): string {
+  return JSON.stringify(
+    FiltersDestinationType$outboundSchema.parse(filtersDestinationType),
+  );
+}
+export function filtersDestinationTypeFromJSON(
+  jsonString: string,
+): SafeParseResult<FiltersDestinationType, SDKValidationError> {
+  return safeParse(
+    jsonString,
+    (x) => FiltersDestinationType$inboundSchema.parse(JSON.parse(x)),
+    `Failed to parse 'FiltersDestinationType' from JSON`,
   );
 }
 
@@ -570,6 +626,10 @@ export const GetAttemptMetricsRequest$inboundSchema: z.ZodType<
   ]).optional(),
   "filters[destination_id]": z.union([z.string(), z.array(z.string())])
     .optional(),
+  "filters[destination_type]": z.union([
+    components.DestinationType$inboundSchema,
+    z.array(components.DestinationType$inboundSchema),
+  ]).optional(),
   "filters[topic]": z.union([z.string(), z.array(z.string())]).optional(),
   "filters[status]": z.union([
     FiltersStatusEnum1$inboundSchema,
@@ -585,6 +645,7 @@ export const GetAttemptMetricsRequest$inboundSchema: z.ZodType<
     "time[start]": "timeStart",
     "time[end]": "timeEnd",
     "filters[destination_id]": "filtersDestinationId",
+    "filters[destination_type]": "filtersDestinationType",
     "filters[topic]": "filtersTopic",
     "filters[status]": "filtersStatus",
     "filters[code]": "filtersCode",
@@ -601,6 +662,7 @@ export type GetAttemptMetricsRequest$Outbound = {
   measures: string | Array<string>;
   dimensions?: string | Array<string> | undefined;
   "filters[destination_id]"?: string | Array<string> | undefined;
+  "filters[destination_type]"?: string | Array<string> | undefined;
   "filters[topic]"?: string | Array<string> | undefined;
   "filters[status]"?: string | Array<string> | undefined;
   "filters[code]"?: string | Array<string> | undefined;
@@ -627,6 +689,10 @@ export const GetAttemptMetricsRequest$outboundSchema: z.ZodType<
     z.array(GetAttemptMetricsDimensionsEnum2$outboundSchema),
   ]).optional(),
   filtersDestinationId: z.union([z.string(), z.array(z.string())]).optional(),
+  filtersDestinationType: z.union([
+    components.DestinationType$outboundSchema,
+    z.array(components.DestinationType$outboundSchema),
+  ]).optional(),
   filtersTopic: z.union([z.string(), z.array(z.string())]).optional(),
   filtersStatus: z.union([
     FiltersStatusEnum1$outboundSchema,
@@ -641,6 +707,7 @@ export const GetAttemptMetricsRequest$outboundSchema: z.ZodType<
     timeStart: "time[start]",
     timeEnd: "time[end]",
     filtersDestinationId: "filters[destination_id]",
+    filtersDestinationType: "filters[destination_type]",
     filtersTopic: "filters[topic]",
     filtersStatus: "filters[status]",
     filtersCode: "filters[code]",

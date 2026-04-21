@@ -8,6 +8,7 @@ import { formatResult, ToolDefinition } from "../tools.js";
 
 const args = {
   eventId: z.string(),
+  tenantId: z.string().optional(),
 };
 
 export const tool$eventsGet: ToolDefinition<typeof args> = {
@@ -24,6 +25,7 @@ When authenticated with Admin API Key, events from any tenant can be accessed.
     const [result, apiCall] = await eventsGet(
       client,
       args.eventId,
+      args.tenantId,
       { fetchOptions: { signal: ctx.signal } },
     ).$inspect();
 
