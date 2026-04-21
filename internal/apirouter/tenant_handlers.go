@@ -11,6 +11,7 @@ import (
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/telemetry"
 	"github.com/hookdeck/outpost/internal/tenantstore"
+	"go.uber.org/zap"
 )
 
 type TenantHandlers struct {
@@ -67,6 +68,9 @@ func (h *TenantHandlers) Upsert(c *gin.Context) {
 			AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 			return
 		}
+		h.logger.Ctx(c.Request.Context()).Audit("tenant updated",
+			zap.String("tenant_id", tenantID),
+		)
 		c.JSON(http.StatusOK, existingTenant)
 		return
 	}
@@ -85,6 +89,9 @@ func (h *TenantHandlers) Upsert(c *gin.Context) {
 		return
 	}
 	h.telemetry.TenantCreated(c.Request.Context())
+	h.logger.Ctx(c.Request.Context()).Audit("tenant created",
+		zap.String("tenant_id", tenantID),
+	)
 	c.JSON(http.StatusCreated, tenant)
 }
 
@@ -185,6 +192,9 @@ func (h *TenantHandlers) Delete(c *gin.Context) {
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return
 	}
+	h.logger.Ctx(c.Request.Context()).Audit("tenant deleted",
+		zap.String("tenant_id", tenant.ID),
+	)
 	c.JSON(http.StatusOK, gin.H{"success": true})
 }
 
