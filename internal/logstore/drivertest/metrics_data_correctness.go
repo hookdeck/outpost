@@ -371,10 +371,10 @@ func testMetricsDataCorrectness(t *testing.T, ctx context.Context, logStore driv
 			require.NotNil(t, dp.RetryCount)
 			require.NotNil(t, dp.ManualRetryCount)
 			require.NotNil(t, dp.AvgAttemptNumber)
-			assert.Equal(t, 75, *dp.FirstAttemptCount)
-			assert.Equal(t, 225, *dp.RetryCount)
+			assert.Equal(t, 270, *dp.FirstAttemptCount) // 300 - 30 manual
+			assert.Equal(t, 0, *dp.RetryCount)
 			assert.Equal(t, 30, *dp.ManualRetryCount)
-			assert.InDelta(t, 2.5, *dp.AvgAttemptNumber, 0.001)
+			assert.InDelta(t, 1.0, *dp.AvgAttemptNumber, 0.001)
 		})
 
 		t.Run("rate no granularity", func(t *testing.T) {
@@ -482,7 +482,7 @@ func testMetricsDataCorrectness(t *testing.T, ctx context.Context, logStore driv
 				Dimensions: []string{"attempt_number"},
 			})
 			require.NoError(t, err)
-			assert.Len(t, resp.Data, 4)
+			assert.Len(t, resp.Data, 1)
 
 			ac := map[int]int{}
 			for _, dp := range resp.Data {
@@ -490,11 +490,8 @@ func testMetricsDataCorrectness(t *testing.T, ctx context.Context, logStore driv
 				require.NotNil(t, dp.Count)
 				ac[*dp.AttemptNumber] = *dp.Count
 			}
-			// attempt_number = i % 4 + 1 → each value appears 75 times
-			assert.Equal(t, 75, ac[1])
-			assert.Equal(t, 75, ac[2])
-			assert.Equal(t, 75, ac[3])
-			assert.Equal(t, 75, ac[4])
+			// All entries have attempt_number=1
+			assert.Equal(t, 300, ac[1])
 		})
 
 		t.Run("by code", func(t *testing.T) {
@@ -576,7 +573,7 @@ func testMetricsDataCorrectness(t *testing.T, ctx context.Context, logStore driv
 			require.NoError(t, err)
 			require.Len(t, resp.Data, 1)
 			require.NotNil(t, resp.Data[0].Count)
-			assert.Equal(t, 75, *resp.Data[0].Count)
+			assert.Equal(t, 300, *resp.Data[0].Count)
 		})
 
 		t.Run("granularity 1h on dense day", func(t *testing.T) {

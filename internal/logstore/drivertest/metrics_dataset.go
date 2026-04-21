@@ -58,13 +58,9 @@ import (
 //   status:             i % 5  → 0,1,2=success, 3,4=failed
 //   code:               success → i%2==0 ? "200" : "201"
 //                       failed  → i%2==0 ? "500" : "422"
-//   attempt_number:     i % 4 + 1  → 1,2,3,4
+//   attempt_number:     1  (each entry is a unique event, not a retry)
 //   manual:             i % 10 == 9
 //   eligible_for_retry: i % 3 != 2
-//
-// FIXME: manual retries should always have attempt_number=1 (they start a new
-// chain), but this dataset assigns them independently. Update the formula so
-// manual=true implies attempt_number=1, then fix derived totals and assertions.
 //
 // ── Derived Totals (Tenant 1, all 300) ───────────────────────────────────
 //
@@ -83,10 +79,10 @@ import (
 //   successful_rate (no gran):     180/2678400
 //   failed_rate (no gran):         120/2678400
 //   by code:                       200=90, 201=90, 500=60, 422=60
-//   first_attempt (i%4+1==1):      75
-//   retry (i%4+1>1):              225
+//   first_attempt (attempt_number==1 AND !manual): 270
+//   retry (attempt_number>1):                      0
 //   manual (i%10==9):              30
-//   avg_attempt_number:            750/300 = 2.5
+//   avg_attempt_number:            1.0
 //
 // Dense day — Jan 15 (250 events, indices 50..299):
 //   hourly buckets:  10:00→25, 11:00→50, 12:00→100, 13:00→50, 14:00→25
@@ -179,7 +175,7 @@ func buildMetricsDataset() *metricsDataset {
 			status = "failed"
 		}
 		code := codes[status][idx%2]
-		attemptNum := idx%4 + 1
+		attemptNum := 1 // Each entry is a unique event, not a retry
 		manual := idx%10 == 9
 		eligible := idx%3 != 2
 

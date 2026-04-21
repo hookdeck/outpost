@@ -43,10 +43,82 @@ func NewLogStore(chDB clickhouse.DB, deploymentID string) driver.LogStore {
 	}
 }
 
+// maxDedupIterations caps the number of fetch rounds in fetchAndDedup.
+// In practice the loop almost never exceeds 1 iteration (duplicates are rare
+// after the write-path fix), but this prevents runaway queries against
+// pathological data with extreme duplication.
+const maxDedupIterations = 10
+
+// fetchAndDedup queries ClickHouse and deduplicates results by a key. If
+// duplicates reduce the result count below the requested limit, it advances
+// the cursor and fetches more rows until the limit is met or data is exhausted.
+// This avoids LIMIT 1 BY / GROUP BY on large result sets while still hiding
+// duplicates from unmerged ReplacingMergeTree parts.
+func fetchAndDedup[T any](
+	ctx context.Context,
+	chDB clickhouse.DB,
+	q pagination.QueryInput,
+	buildQuery func(pagination.QueryInput) (string, []any),
+	scan func(clickhouse.Rows) ([]T, error),
+	getID func(T) string,
+	getCursorPos func(T) string,
+) ([]T, error) {
+	seen := make(map[string]bool)
+	var deduped []T
+	cursorPos := q.CursorPos
+
+	for iter := 0; len(deduped) < q.Limit && iter < maxDedupIterations; iter++ {
+		qi := pagination.QueryInput{
+			Limit:     q.Limit,
+			Compare:   q.Compare,
+			SortDir:   q.SortDir,
+			CursorPos: cursorPos,
+		}
+		query, args := buildQuery(qi)
+		rows, err := chDB.Query(ctx, query, args...)
+		if err != nil {
+			return nil, fmt.Errorf("query failed: %w", err)
+		}
+		scanned, err := scan(rows)
+		rows.Close()
+		if err != nil {
+			return nil, err
+		}
+
+		for _, item := range scanned {
+			id := getID(item)
+			if !seen[id] {
+				seen[id] = true
+				deduped = append(deduped, item)
+			}
+		}
+
+		// Fewer rows than requested means we've exhausted the data.
+		if len(scanned) < q.Limit {
+			break
+		}
+
+		// Advance cursor past last scanned row for next iteration.
+		cursorPos = getCursorPos(scanned[len(scanned)-1])
+	}
+
+	// Truncate to the requested limit — the last batch may have added
+	// more unique items than needed to reach the limit.
+	if len(deduped) > q.Limit {
+		deduped = deduped[:q.Limit]
+	}
+
+	return deduped, nil
+}
+
 // eventWithPosition wraps an event with its cursor position data.
 type eventWithPosition struct {
 	*models.Event
 	eventTime time.Time
+}
+
+func (e eventWithPosition) cursorPosition() string {
+	return fmt.Sprintf("%d::%s", e.eventTime.UnixMilli(), e.Event.ID)
 }
 
 func (s *logStoreImpl) ListEvent(ctx context.Context, req driver.ListEventRequest) (driver.ListEventResponse, error) {
@@ -66,18 +138,15 @@ func (s *logStoreImpl) ListEvent(ctx context.Context, req driver.ListEventReques
 		Next:  req.Next,
 		Prev:  req.Prev,
 		Fetch: func(ctx context.Context, q pagination.QueryInput) ([]eventWithPosition, error) {
-			query, args := buildEventQuery(s.eventsTable, req, q)
-			rows, err := s.chDB.Query(ctx, query, args...)
-			if err != nil {
-				return nil, fmt.Errorf("query failed: %w", err)
-			}
-			defer rows.Close()
-			return scanEvents(rows)
+			return fetchAndDedup(ctx, s.chDB, q, func(qi pagination.QueryInput) (string, []any) {
+				return buildEventQuery(s.eventsTable, req, qi)
+			}, scanEvents, func(e eventWithPosition) string {
+				return e.Event.ID
+			}, eventWithPosition.cursorPosition)
 		},
 		Cursor: pagination.Cursor[eventWithPosition]{
 			Encode: func(e eventWithPosition) string {
-				position := fmt.Sprintf("%d::%s", e.eventTime.UnixMilli(), e.Event.ID)
-				return cursor.Encode(cursorResourceEvent, cursorVersion, position)
+				return cursor.Encode(cursorResourceEvent, cursorVersion, e.cursorPosition())
 			},
 			Decode: func(c string) (string, error) {
 				return cursor.Decode(c, cursorResourceEvent, cursorVersion)
@@ -156,10 +225,6 @@ func buildEventQuery(table string, req driver.ListEventRequest, q pagination.Que
 	orderByClause := fmt.Sprintf("ORDER BY event_time %s, event_id %s",
 		strings.ToUpper(q.SortDir), strings.ToUpper(q.SortDir))
 
-	// Note: We intentionally omit FINAL to avoid forcing ClickHouse to merge all parts
-	// before returning results. The events table uses ReplacingMergeTree, so duplicates
-	// may briefly appear before background merges consolidate them. This is acceptable
-	// for log viewing and maintains O(limit) query performance.
 	query := fmt.Sprintf(`
 		SELECT
 			event_id,
@@ -266,6 +331,10 @@ type attemptRecordWithPosition struct {
 	attemptTime time.Time
 }
 
+func (ar attemptRecordWithPosition) cursorPosition() string {
+	return fmt.Sprintf("%d::%s", ar.attemptTime.UnixMilli(), ar.Attempt.ID)
+}
+
 func (s *logStoreImpl) ListAttempt(ctx context.Context, req driver.ListAttemptRequest) (driver.ListAttemptResponse, error) {
 	sortOrder := req.SortOrder
 	if sortOrder != "asc" && sortOrder != "desc" {
@@ -283,18 +352,15 @@ func (s *logStoreImpl) ListAttempt(ctx context.Context, req driver.ListAttemptRe
 		Next:  req.Next,
 		Prev:  req.Prev,
 		Fetch: func(ctx context.Context, q pagination.QueryInput) ([]attemptRecordWithPosition, error) {
-			query, args := buildAttemptQuery(s.attemptsTable, req, q)
-			rows, err := s.chDB.Query(ctx, query, args...)
-			if err != nil {
-				return nil, fmt.Errorf("query failed: %w", err)
-			}
-			defer rows.Close()
-			return scanAttemptRecords(rows)
+			return fetchAndDedup(ctx, s.chDB, q, func(qi pagination.QueryInput) (string, []any) {
+				return buildAttemptQuery(s.attemptsTable, req, qi)
+			}, scanAttemptRecords, func(ar attemptRecordWithPosition) string {
+				return ar.Attempt.ID
+			}, attemptRecordWithPosition.cursorPosition)
 		},
 		Cursor: pagination.Cursor[attemptRecordWithPosition]{
 			Encode: func(ar attemptRecordWithPosition) string {
-				position := fmt.Sprintf("%d::%s", ar.attemptTime.UnixMilli(), ar.Attempt.ID)
-				return cursor.Encode(cursorResourceAttempt, cursorVersion, position)
+				return cursor.Encode(cursorResourceAttempt, cursorVersion, ar.cursorPosition())
 			},
 			Decode: func(c string) (string, error) {
 				return cursor.Decode(c, cursorResourceAttempt, cursorVersion)
@@ -700,10 +766,14 @@ func (s *logStoreImpl) InsertMany(ctx context.Context, entries []*models.LogEntr
 		return nil
 	}
 
-	// Extract and dedupe events by ID
+	// Extract and dedupe events by ID, skipping retry attempts.
+	// Retries (AttemptNumber > 1) carry identical event data — the event row
+	// already exists from the first attempt's batch.
 	eventMap := make(map[string]*models.Event)
 	for _, entry := range entries {
-		eventMap[entry.Event.ID] = entry.Event
+		if entry.Attempt.AttemptNumber <= 1 {
+			eventMap[entry.Event.ID] = entry.Event
+		}
 	}
 
 	if len(eventMap) > 0 {

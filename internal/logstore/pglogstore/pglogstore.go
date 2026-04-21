@@ -718,10 +718,14 @@ func (s *logStore) InsertMany(ctx context.Context, entries []*models.LogEntry) e
 		return nil
 	}
 
-	// Extract and dedupe events by ID
+	// Extract and dedupe events by ID, skipping retry attempts.
+	// Retries (AttemptNumber > 1) carry identical event data — the event row
+	// already exists from the first attempt's batch.
 	eventMap := make(map[string]*models.Event)
 	for _, entry := range entries {
-		eventMap[entry.Event.ID] = entry.Event
+		if entry.Attempt.AttemptNumber <= 1 {
+			eventMap[entry.Event.ID] = entry.Event
+		}
 	}
 	events := make([]*models.Event, 0, len(eventMap))
 	for _, e := range eventMap {
