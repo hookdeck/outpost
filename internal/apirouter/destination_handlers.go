@@ -2,7 +2,9 @@ package apirouter
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"slices"
 	"strings"
@@ -164,22 +166,61 @@ func (h *DestinationHandlers) Update(c *gin.Context) {
 		AbortWithValidationError(c, errors.New("type cannot be updated"))
 		return
 	}
-	if input.Config != nil {
-		shouldRevalidate = true
-		updatedDestination.Config = maputil.MergeStringMaps(originalDestination.Config, input.Config)
+
+	// Config (merge-patch)
+	configResult, configChanged, err := applyMergePatchStringMap(originalDestination.Config, input.Config)
+	if err != nil {
+		AbortWithValidationError(c, fmt.Errorf("invalid config: %w", err))
+		return
 	}
-	if input.Credentials != nil {
+	if configChanged {
 		shouldRevalidate = true
-		updatedDestination.Credentials = maputil.MergeStringMaps(originalDestination.Credentials, input.Credentials)
+		updatedDestination.Config = configResult
 	}
+
+	// Credentials (merge-patch)
+	credsResult, credsChanged, err := applyMergePatchStringMap(originalDestination.Credentials, input.Credentials)
+	if err != nil {
+		AbortWithValidationError(c, fmt.Errorf("invalid credentials: %w", err))
+		return
+	}
+	if credsChanged {
+		shouldRevalidate = true
+		updatedDestination.Credentials = credsResult
+	}
+
+	// Filter (full replacement)
 	if input.Filter != nil {
-		updatedDestination.Filter = input.Filter
+		if isJSONNull(input.Filter) {
+			updatedDestination.Filter = nil
+		} else {
+			var filter models.Filter
+			if err := json.Unmarshal(input.Filter, &filter); err != nil {
+				AbortWithValidationError(c, fmt.Errorf("invalid filter: %w", err))
+				return
+			}
+			updatedDestination.Filter = filter
+		}
 	}
-	if input.DeliveryMetadata != nil {
-		updatedDestination.DeliveryMetadata = maputil.MergeStringMaps(originalDestination.DeliveryMetadata, input.DeliveryMetadata)
+
+	// DeliveryMetadata (merge-patch)
+	dmResult, dmChanged, err := applyMergePatchStringMap(originalDestination.DeliveryMetadata, input.DeliveryMetadata)
+	if err != nil {
+		AbortWithValidationError(c, fmt.Errorf("invalid delivery_metadata: %w", err))
+		return
 	}
-	if input.Metadata != nil {
-		updatedDestination.Metadata = maputil.MergeStringMaps(originalDestination.Metadata, input.Metadata)
+	if dmChanged {
+		updatedDestination.DeliveryMetadata = dmResult
+	}
+
+	// Metadata (merge-patch)
+	metaResult, metaChanged, err := applyMergePatchStringMap(originalDestination.Metadata, input.Metadata)
+	if err != nil {
+		AbortWithValidationError(c, fmt.Errorf("invalid metadata: %w", err))
+		return
+	}
+	if metaChanged {
+		updatedDestination.Metadata = metaResult
 	}
 
 	// Always preprocess before updating
@@ -356,13 +397,41 @@ func (r *CreateDestinationRequest) ToDestination(tenantID string) models.Destina
 }
 
 type UpdateDestinationRequest struct {
-	Type             string                  `json:"type" binding:"-"`
-	Topics           models.Topics           `json:"topics" binding:"-"`
-	Filter           models.Filter           `json:"filter,omitempty" binding:"-"`
-	Config           models.Config           `json:"config" binding:"-"`
-	Credentials      models.Credentials      `json:"credentials" binding:"-"`
-	DeliveryMetadata models.DeliveryMetadata `json:"delivery_metadata,omitempty" binding:"-"`
-	Metadata         models.Metadata         `json:"metadata,omitempty" binding:"-"`
+	Type             string          `json:"type" binding:"-"`
+	Topics           models.Topics   `json:"topics" binding:"-"`
+	Filter           json.RawMessage `json:"filter" binding:"-"`
+	Config           json.RawMessage `json:"config" binding:"-"`
+	Credentials      json.RawMessage `json:"credentials" binding:"-"`
+	DeliveryMetadata json.RawMessage `json:"delivery_metadata" binding:"-"`
+	Metadata         json.RawMessage `json:"metadata" binding:"-"`
+}
+
+// isJSONNull checks if raw JSON bytes represent a JSON null literal.
+func isJSONNull(raw json.RawMessage) bool {
+	return len(raw) == 4 && string(raw) == "null"
+}
+
+// applyMergePatchStringMap applies RFC 7396 merge-patch semantics for a map[string]string field.
+// Returns (result, changed, error):
+//   - raw is nil (field omitted): returns original unchanged
+//   - raw is "null": returns nil (clear field)
+//   - raw is "{}": returns original unchanged (empty merge = no-op)
+//   - raw is an object: merge-patch into original
+func applyMergePatchStringMap(original map[string]string, raw json.RawMessage) (map[string]string, bool, error) {
+	if raw == nil {
+		return original, false, nil
+	}
+	if isJSONNull(raw) {
+		return nil, true, nil
+	}
+	var patch map[string]any
+	if err := json.Unmarshal(raw, &patch); err != nil {
+		return nil, false, err
+	}
+	if len(patch) == 0 {
+		return original, false, nil
+	}
+	return maputil.MergePatchStringMap(original, patch), true, nil
 }
 
 // tenantSnapshot captures the tenant's derived state before a destination mutation.

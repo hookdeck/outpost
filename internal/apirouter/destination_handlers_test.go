@@ -327,6 +327,479 @@ func TestAPI_Destinations(t *testing.T) {
 
 			require.Equal(t, http.StatusOK, resp.Code)
 		})
+
+		// ── Merge-patch semantics (RFC 7396) for map fields ──
+
+		t.Run("metadata merge adds key preserving existing", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+			h.tenantStore.CreateDestination(t.Context(), df.Any(
+				df.WithID("d1"), df.WithTenantID("t1"),
+				df.WithMetadata(map[string]string{"env": "prod"}),
+			))
+
+			req := h.jsonReq(http.MethodPatch, "/api/v1/tenants/t1/destinations/d1", map[string]any{
+				"metadata": map[string]any{"team": "platform"},
+			})
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+			var dest destregistry.DestinationDisplay
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &dest))
+			assert.Equal(t, models.Metadata{"env": "prod", "team": "platform"}, dest.Metadata)
+		})
+
+		t.Run("metadata merge updates existing key", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+			h.tenantStore.CreateDestination(t.Context(), df.Any(
+				df.WithID("d1"), df.WithTenantID("t1"),
+				df.WithMetadata(map[string]string{"env": "prod"}),
+			))
+
+			req := h.jsonReq(http.MethodPatch, "/api/v1/tenants/t1/destinations/d1", map[string]any{
+				"metadata": map[string]any{"env": "staging"},
+			})
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+			var dest destregistry.DestinationDisplay
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &dest))
+			assert.Equal(t, models.Metadata{"env": "staging"}, dest.Metadata)
+		})
+
+		t.Run("metadata delete key via null", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+			h.tenantStore.CreateDestination(t.Context(), df.Any(
+				df.WithID("d1"), df.WithTenantID("t1"),
+				df.WithMetadata(map[string]string{"env": "prod", "region": "us-east-1"}),
+			))
+
+			req := h.jsonReq(http.MethodPatch, "/api/v1/tenants/t1/destinations/d1", map[string]any{
+				"metadata": map[string]any{"region": nil},
+			})
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+			var dest destregistry.DestinationDisplay
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &dest))
+			assert.Equal(t, models.Metadata{"env": "prod"}, dest.Metadata)
+		})
+
+		t.Run("metadata clear entire field via null", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+			h.tenantStore.CreateDestination(t.Context(), df.Any(
+				df.WithID("d1"), df.WithTenantID("t1"),
+				df.WithMetadata(map[string]string{"env": "prod"}),
+			))
+
+			req := h.jsonReq(http.MethodPatch, "/api/v1/tenants/t1/destinations/d1", map[string]any{
+				"metadata": nil,
+			})
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+			var dest destregistry.DestinationDisplay
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &dest))
+			assert.True(t, dest.Metadata == nil || len(dest.Metadata) == 0)
+		})
+
+		t.Run("metadata empty object is no-op", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+			h.tenantStore.CreateDestination(t.Context(), df.Any(
+				df.WithID("d1"), df.WithTenantID("t1"),
+				df.WithMetadata(map[string]string{"env": "prod"}),
+			))
+
+			req := h.jsonReq(http.MethodPatch, "/api/v1/tenants/t1/destinations/d1", map[string]any{
+				"metadata": map[string]any{},
+			})
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+			var dest destregistry.DestinationDisplay
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &dest))
+			assert.Equal(t, models.Metadata{"env": "prod"}, dest.Metadata)
+		})
+
+		t.Run("metadata unchanged when omitted", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+			h.tenantStore.CreateDestination(t.Context(), df.Any(
+				df.WithID("d1"), df.WithTenantID("t1"),
+				df.WithMetadata(map[string]string{"env": "prod"}),
+			))
+
+			req := h.jsonReq(http.MethodPatch, "/api/v1/tenants/t1/destinations/d1", map[string]any{
+				"topics": []string{"user.created"},
+			})
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+			var dest destregistry.DestinationDisplay
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &dest))
+			assert.Equal(t, models.Metadata{"env": "prod"}, dest.Metadata)
+		})
+
+		t.Run("metadata mixed add update delete", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+			h.tenantStore.CreateDestination(t.Context(), df.Any(
+				df.WithID("d1"), df.WithTenantID("t1"),
+				df.WithMetadata(map[string]string{"keep": "v", "remove": "v", "update": "old"}),
+			))
+
+			req := h.jsonReq(http.MethodPatch, "/api/v1/tenants/t1/destinations/d1", map[string]any{
+				"metadata": map[string]any{"remove": nil, "update": "new", "add": "v"},
+			})
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+			var dest destregistry.DestinationDisplay
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &dest))
+			assert.Equal(t, models.Metadata{"keep": "v", "update": "new", "add": "v"}, dest.Metadata)
+		})
+
+		// ── delivery_metadata merge-patch ──
+
+		t.Run("delivery_metadata merge adds key preserving existing", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+			h.tenantStore.CreateDestination(t.Context(), df.Any(
+				df.WithID("d1"), df.WithTenantID("t1"),
+				df.WithDeliveryMetadata(map[string]string{"source": "outpost"}),
+			))
+
+			req := h.jsonReq(http.MethodPatch, "/api/v1/tenants/t1/destinations/d1", map[string]any{
+				"delivery_metadata": map[string]any{"version": "1.0"},
+			})
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+			var dest destregistry.DestinationDisplay
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &dest))
+			assert.Equal(t, models.DeliveryMetadata{"source": "outpost", "version": "1.0"}, dest.DeliveryMetadata)
+		})
+
+		t.Run("delivery_metadata delete key via null", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+			h.tenantStore.CreateDestination(t.Context(), df.Any(
+				df.WithID("d1"), df.WithTenantID("t1"),
+				df.WithDeliveryMetadata(map[string]string{"source": "outpost", "version": "1.0"}),
+			))
+
+			req := h.jsonReq(http.MethodPatch, "/api/v1/tenants/t1/destinations/d1", map[string]any{
+				"delivery_metadata": map[string]any{"version": nil},
+			})
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+			var dest destregistry.DestinationDisplay
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &dest))
+			assert.Equal(t, models.DeliveryMetadata{"source": "outpost"}, dest.DeliveryMetadata)
+		})
+
+		t.Run("delivery_metadata clear via null", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+			h.tenantStore.CreateDestination(t.Context(), df.Any(
+				df.WithID("d1"), df.WithTenantID("t1"),
+				df.WithDeliveryMetadata(map[string]string{"source": "outpost"}),
+			))
+
+			req := h.jsonReq(http.MethodPatch, "/api/v1/tenants/t1/destinations/d1", map[string]any{
+				"delivery_metadata": nil,
+			})
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+			var dest destregistry.DestinationDisplay
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &dest))
+			assert.True(t, dest.DeliveryMetadata == nil || len(dest.DeliveryMetadata) == 0)
+		})
+
+		t.Run("delivery_metadata empty object is no-op", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+			h.tenantStore.CreateDestination(t.Context(), df.Any(
+				df.WithID("d1"), df.WithTenantID("t1"),
+				df.WithDeliveryMetadata(map[string]string{"source": "outpost"}),
+			))
+
+			req := h.jsonReq(http.MethodPatch, "/api/v1/tenants/t1/destinations/d1", map[string]any{
+				"delivery_metadata": map[string]any{},
+			})
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+			var dest destregistry.DestinationDisplay
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &dest))
+			assert.Equal(t, models.DeliveryMetadata{"source": "outpost"}, dest.DeliveryMetadata)
+		})
+
+		t.Run("delivery_metadata unchanged when omitted", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+			h.tenantStore.CreateDestination(t.Context(), df.Any(
+				df.WithID("d1"), df.WithTenantID("t1"),
+				df.WithDeliveryMetadata(map[string]string{"source": "outpost"}),
+			))
+
+			req := h.jsonReq(http.MethodPatch, "/api/v1/tenants/t1/destinations/d1", map[string]any{
+				"topics": []string{"user.created"},
+			})
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+			var dest destregistry.DestinationDisplay
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &dest))
+			assert.Equal(t, models.DeliveryMetadata{"source": "outpost"}, dest.DeliveryMetadata)
+		})
+
+		// ── config merge-patch ──
+
+		t.Run("config merge adds key preserving existing", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+			h.tenantStore.CreateDestination(t.Context(), df.Any(
+				df.WithID("d1"), df.WithTenantID("t1"),
+				df.WithConfig(map[string]string{"url": "https://example.com/hook"}),
+			))
+
+			req := h.jsonReq(http.MethodPatch, "/api/v1/tenants/t1/destinations/d1", map[string]any{
+				"config": map[string]any{"custom_header": "X-Custom"},
+			})
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+			var dest destregistry.DestinationDisplay
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &dest))
+			assert.Equal(t, "https://example.com/hook", dest.Config["url"])
+			assert.Equal(t, "X-Custom", dest.Config["custom_header"])
+		})
+
+		t.Run("config delete key via null", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+			h.tenantStore.CreateDestination(t.Context(), df.Any(
+				df.WithID("d1"), df.WithTenantID("t1"),
+				df.WithConfig(map[string]string{"url": "https://example.com/hook", "extra": "val"}),
+			))
+
+			req := h.jsonReq(http.MethodPatch, "/api/v1/tenants/t1/destinations/d1", map[string]any{
+				"config": map[string]any{"extra": nil},
+			})
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+			var dest destregistry.DestinationDisplay
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &dest))
+			assert.Equal(t, "https://example.com/hook", dest.Config["url"])
+			_, hasExtra := dest.Config["extra"]
+			assert.False(t, hasExtra, "extra key should be removed")
+		})
+
+		t.Run("config clear via null", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+			h.tenantStore.CreateDestination(t.Context(), df.Any(
+				df.WithID("d1"), df.WithTenantID("t1"),
+				df.WithConfig(map[string]string{"url": "https://example.com/hook"}),
+			))
+
+			req := h.jsonReq(http.MethodPatch, "/api/v1/tenants/t1/destinations/d1", map[string]any{
+				"config": nil,
+			})
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+			var dest destregistry.DestinationDisplay
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &dest))
+			assert.True(t, dest.Config == nil || len(dest.Config) == 0)
+		})
+
+		t.Run("config empty object is no-op", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+			h.tenantStore.CreateDestination(t.Context(), df.Any(
+				df.WithID("d1"), df.WithTenantID("t1"),
+				df.WithConfig(map[string]string{"url": "https://example.com/hook"}),
+			))
+
+			req := h.jsonReq(http.MethodPatch, "/api/v1/tenants/t1/destinations/d1", map[string]any{
+				"config": map[string]any{},
+			})
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+			var dest destregistry.DestinationDisplay
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &dest))
+			assert.Equal(t, "https://example.com/hook", dest.Config["url"])
+		})
+
+		t.Run("config unchanged when omitted", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+			h.tenantStore.CreateDestination(t.Context(), df.Any(
+				df.WithID("d1"), df.WithTenantID("t1"),
+				df.WithConfig(map[string]string{"url": "https://example.com/hook"}),
+			))
+
+			req := h.jsonReq(http.MethodPatch, "/api/v1/tenants/t1/destinations/d1", map[string]any{
+				"topics": []string{"user.created"},
+			})
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+			var dest destregistry.DestinationDisplay
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &dest))
+			assert.Equal(t, "https://example.com/hook", dest.Config["url"])
+		})
+
+		// ── credentials merge-patch ──
+
+		t.Run("credentials merge adds key preserving existing", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+			h.tenantStore.CreateDestination(t.Context(), df.Any(
+				df.WithID("d1"), df.WithTenantID("t1"),
+				df.WithCredentials(map[string]string{"secret": "s1"}),
+			))
+
+			req := h.jsonReq(http.MethodPatch, "/api/v1/tenants/t1/destinations/d1", map[string]any{
+				"credentials": map[string]any{"previous_secret": "s0"},
+			})
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+			var dest destregistry.DestinationDisplay
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &dest))
+			assert.Equal(t, "s1", dest.Credentials["secret"])
+			assert.Equal(t, "s0", dest.Credentials["previous_secret"])
+		})
+
+		t.Run("credentials delete key via null", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+			h.tenantStore.CreateDestination(t.Context(), df.Any(
+				df.WithID("d1"), df.WithTenantID("t1"),
+				df.WithCredentials(map[string]string{"secret": "s1", "previous_secret": "s0"}),
+			))
+
+			req := h.jsonReq(http.MethodPatch, "/api/v1/tenants/t1/destinations/d1", map[string]any{
+				"credentials": map[string]any{"previous_secret": nil},
+			})
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+			var dest destregistry.DestinationDisplay
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &dest))
+			assert.Equal(t, "s1", dest.Credentials["secret"])
+			_, hasPrev := dest.Credentials["previous_secret"]
+			assert.False(t, hasPrev, "previous_secret should be removed")
+		})
+
+		t.Run("credentials clear via null", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+			h.tenantStore.CreateDestination(t.Context(), df.Any(
+				df.WithID("d1"), df.WithTenantID("t1"),
+				df.WithCredentials(map[string]string{"secret": "s1"}),
+			))
+
+			req := h.jsonReq(http.MethodPatch, "/api/v1/tenants/t1/destinations/d1", map[string]any{
+				"credentials": nil,
+			})
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+			var dest destregistry.DestinationDisplay
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &dest))
+			assert.True(t, dest.Credentials == nil || len(dest.Credentials) == 0)
+		})
+
+		// ── filter replacement semantics ──
+
+		t.Run("filter replaced not merged", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+			h.tenantStore.CreateDestination(t.Context(), df.Any(
+				df.WithID("d1"), df.WithTenantID("t1"),
+				df.WithFilter(models.Filter{"body": map[string]any{"user_id": "usr_123"}}),
+			))
+
+			req := h.jsonReq(http.MethodPatch, "/api/v1/tenants/t1/destinations/d1", map[string]any{
+				"filter": map[string]any{"body": map[string]any{"status": "active"}},
+			})
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+			var dest destregistry.DestinationDisplay
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &dest))
+			assert.Nil(t, dest.Filter["body"].(map[string]any)["user_id"], "old key should not be present")
+			assert.Equal(t, "active", dest.Filter["body"].(map[string]any)["status"])
+		})
+
+		t.Run("filter cleared with empty object", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+			h.tenantStore.CreateDestination(t.Context(), df.Any(
+				df.WithID("d1"), df.WithTenantID("t1"),
+				df.WithFilter(models.Filter{"body": map[string]any{"user_id": "usr_123"}}),
+			))
+
+			req := h.jsonReq(http.MethodPatch, "/api/v1/tenants/t1/destinations/d1", map[string]any{
+				"filter": map[string]any{},
+			})
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+			var dest destregistry.DestinationDisplay
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &dest))
+			assert.True(t, dest.Filter == nil || len(dest.Filter) == 0, "filter should be cleared")
+		})
+
+		t.Run("filter cleared with null", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+			h.tenantStore.CreateDestination(t.Context(), df.Any(
+				df.WithID("d1"), df.WithTenantID("t1"),
+				df.WithFilter(models.Filter{"body": map[string]any{"user_id": "usr_123"}}),
+			))
+
+			req := h.jsonReq(http.MethodPatch, "/api/v1/tenants/t1/destinations/d1", map[string]any{
+				"filter": nil,
+			})
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+			var dest destregistry.DestinationDisplay
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &dest))
+			assert.True(t, dest.Filter == nil || len(dest.Filter) == 0, "filter should be cleared")
+		})
+
+		t.Run("filter unchanged when omitted", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+			h.tenantStore.CreateDestination(t.Context(), df.Any(
+				df.WithID("d1"), df.WithTenantID("t1"),
+				df.WithFilter(models.Filter{"body": map[string]any{"user_id": "usr_123"}}),
+			))
+
+			req := h.jsonReq(http.MethodPatch, "/api/v1/tenants/t1/destinations/d1", map[string]any{
+				"topics": []string{"user.created"},
+			})
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+			var dest destregistry.DestinationDisplay
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &dest))
+			assert.Equal(t, "usr_123", dest.Filter["body"].(map[string]any)["user_id"])
+		})
 	})
 
 	t.Run("Delete", func(t *testing.T) {
