@@ -4,6 +4,7 @@
 
 import { OutpostCore } from "../core.js";
 import { encodeFormQuery, encodeSimple } from "../lib/encodings.js";
+import { matchStatusCode } from "../lib/http.js";
 import * as M from "../lib/matchers.js";
 import { compactMap } from "../lib/primitives.js";
 import { safeParse } from "../lib/schemas.js";
@@ -38,6 +39,7 @@ import { Result } from "../types/fp.js";
 export function attemptsGet(
   client: OutpostCore,
   attemptId: string,
+  tenantId?: string | undefined,
   include?: operations.GetAttemptInclude | undefined,
   options?: RequestOptions,
 ): APIPromise<
@@ -59,6 +61,7 @@ export function attemptsGet(
   return new APIPromise($do(
     client,
     attemptId,
+    tenantId,
     include,
     options,
   ));
@@ -67,6 +70,7 @@ export function attemptsGet(
 async function $do(
   client: OutpostCore,
   attemptId: string,
+  tenantId?: string | undefined,
   include?: operations.GetAttemptInclude | undefined,
   options?: RequestOptions,
 ): Promise<
@@ -90,6 +94,7 @@ async function $do(
 > {
   const input: operations.GetAttemptRequest = {
     attemptId: attemptId,
+    tenantId: tenantId,
     include: include,
   };
 
@@ -114,6 +119,7 @@ async function $do(
 
   const query = encodeFormQuery({
     "include": payload.include,
+    "tenant_id": payload.tenant_id,
   });
 
   const headers = new Headers(compactMap({
@@ -157,7 +163,8 @@ async function $do(
 
   const doResult = await client._do(req, {
     context,
-    errorCodes: ["401", "404", "4XX", "500", "5XX"],
+    isErrorStatusCode: (statusCode: number) =>
+      matchStatusCode({ status: statusCode } as Response, ["4XX", "5XX"]),
     retryConfig: context.retryConfig,
     retryCodes: context.retryCodes,
   });

@@ -4,6 +4,7 @@
 
 import { OutpostCore } from "../core.js";
 import { encodeFormQuery } from "../lib/encodings.js";
+import { matchStatusCode } from "../lib/http.js";
 import * as M from "../lib/matchers.js";
 import { compactMap } from "../lib/primitives.js";
 import { safeParse } from "../lib/schemas.js";
@@ -37,9 +38,9 @@ import { Result } from "../types/fp.js";
  * `first_attempt_count`, `retry_count`, `manual_retry_count`, `avg_attempt_number`,
  * `rate`, `successful_rate`, `failed_rate`
  *
- * **Dimensions:** `tenant_id` (admin-only), `destination_id`, `topic`, `status`, `code`, `manual`, `attempt_number`
+ * **Dimensions:** `tenant_id` (admin-only), `destination_id`, `destination_type`, `topic`, `status`, `code`, `manual`, `attempt_number`
  *
- * **Filters:** `tenant_id` (admin-only), `destination_id`, `topic`, `status`, `code`, `manual`, `attempt_number`
+ * **Filters:** `tenant_id` (admin-only), `destination_id`, `destination_type`, `topic`, `status`, `code`, `manual`, `attempt_number`
  */
 export function metricsGetAttemptMetrics(
   client: OutpostCore,
@@ -111,6 +112,7 @@ async function $do(
     "filters[attempt_number]": payload["filters[attempt_number]"],
     "filters[code]": payload["filters[code]"],
     "filters[destination_id]": payload["filters[destination_id]"],
+    "filters[destination_type]": payload["filters[destination_type]"],
     "filters[manual]": payload["filters[manual]"],
     "filters[status]": payload["filters[status]"],
     "filters[tenant_id]": payload["filters[tenant_id]"],
@@ -162,7 +164,8 @@ async function $do(
 
   const doResult = await client._do(req, {
     context,
-    errorCodes: ["400", "401", "403", "4XX", "500", "5XX"],
+    isErrorStatusCode: (statusCode: number) =>
+      matchStatusCode({ status: statusCode } as Response, ["4XX", "5XX"]),
     retryConfig: context.retryConfig,
     retryCodes: context.retryCodes,
   });

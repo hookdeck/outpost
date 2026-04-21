@@ -37,19 +37,19 @@ export type DestinationUpdateAWSSQS = {
    * @remarks
    * Supports operators: $eq, $neq, $gt, $gte, $lt, $lte, $in, $nin, $startsWith, $endsWith, $exist, $or, $and, $not.
    * If null or empty, all events matching the topic filter will be delivered.
-   * To remove an existing filter when updating a destination, set filter to an empty object `{}`.
+   * Uses full-replacement semantics on update: send a new object to replace, null or `{}` to clear, omit for no change.
    */
   filter?: { [k: string]: any } | null | undefined;
   config?: AWSSQSConfig | undefined;
   credentials?: AWSSQSCredentials | undefined;
   /**
-   * Static key-value pairs merged into event metadata on every attempt.
+   * Static key-value pairs merged into event metadata on every attempt. Uses JSON merge-patch semantics (RFC 7396): send keys to add/update, null values to delete keys, null for entire field to clear all. Omit or send {} for no change.
    */
-  deliveryMetadata?: { [k: string]: string } | null | undefined;
+  deliveryMetadata?: { [k: string]: string | null } | null | undefined;
   /**
-   * Arbitrary contextual information stored with the destination.
+   * Arbitrary contextual information stored with the destination. Uses JSON merge-patch semantics (RFC 7396): send keys to add/update, null values to delete keys, null for entire field to clear all. Omit or send {} for no change.
    */
-  metadata?: { [k: string]: string } | null | undefined;
+  metadata?: { [k: string]: string | null } | null | undefined;
 };
 
 /** @internal */
@@ -62,8 +62,8 @@ export const DestinationUpdateAWSSQS$inboundSchema: z.ZodType<
   filter: z.nullable(z.record(z.any())).optional(),
   config: AWSSQSConfig$inboundSchema.optional(),
   credentials: AWSSQSCredentials$inboundSchema.optional(),
-  delivery_metadata: z.nullable(z.record(z.string())).optional(),
-  metadata: z.nullable(z.record(z.string())).optional(),
+  delivery_metadata: z.nullable(z.record(z.nullable(z.string()))).optional(),
+  metadata: z.nullable(z.record(z.nullable(z.string()))).optional(),
 }).transform((v) => {
   return remap$(v, {
     "delivery_metadata": "deliveryMetadata",
@@ -75,8 +75,8 @@ export type DestinationUpdateAWSSQS$Outbound = {
   filter?: { [k: string]: any } | null | undefined;
   config?: AWSSQSConfig$Outbound | undefined;
   credentials?: AWSSQSCredentials$Outbound | undefined;
-  delivery_metadata?: { [k: string]: string } | null | undefined;
-  metadata?: { [k: string]: string } | null | undefined;
+  delivery_metadata?: { [k: string]: string | null } | null | undefined;
+  metadata?: { [k: string]: string | null } | null | undefined;
 };
 
 /** @internal */
@@ -89,8 +89,8 @@ export const DestinationUpdateAWSSQS$outboundSchema: z.ZodType<
   filter: z.nullable(z.record(z.any())).optional(),
   config: AWSSQSConfig$outboundSchema.optional(),
   credentials: AWSSQSCredentials$outboundSchema.optional(),
-  deliveryMetadata: z.nullable(z.record(z.string())).optional(),
-  metadata: z.nullable(z.record(z.string())).optional(),
+  deliveryMetadata: z.nullable(z.record(z.nullable(z.string()))).optional(),
+  metadata: z.nullable(z.record(z.nullable(z.string()))).optional(),
 }).transform((v) => {
   return remap$(v, {
     deliveryMetadata: "delivery_metadata",

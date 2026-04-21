@@ -11,5 +11,5 @@ let value: GetAttemptMetricsDimensionsEnum2 = "attempt_number";
 ## Values
 
 ```typescript
-"tenant_id" | "destination_id" | "topic" | "status" | "code" | "manual" | "attempt_number"
+"tenant_id" | "destination_id" | "destination_type" | "topic" | "status" | "code" | "manual" | "attempt_number"
 ```

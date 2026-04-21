@@ -42,11 +42,13 @@ export class Events extends ClientSDK {
    */
   async get(
     eventId: string,
+    tenantId?: string | undefined,
     options?: RequestOptions,
   ): Promise<components.Event> {
     return unwrapAsync(eventsGet(
       this,
       eventId,
+      tenantId,
       options,
     ));
   }
