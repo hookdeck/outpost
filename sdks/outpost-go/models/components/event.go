@@ -4,6 +4,7 @@ package components
 
 import (
 	"github.com/hookdeck/outpost/sdks/outpost-go/internal/utils"
+	"github.com/hookdeck/outpost/sdks/outpost-go/optionalnullable"
 	"time"
 )
 
@@ -17,7 +18,7 @@ type Event struct {
 	// Time the event was received/processed.
 	Time *time.Time `json:"time,omitempty"`
 	// Key-value string pairs of metadata associated with the event.
-	Metadata map[string]string `json:"metadata,omitempty"`
+	Metadata optionalnullable.OptionalNullable[map[string]string] `json:"metadata,omitempty"`
 	// Freeform JSON data of the event.
 	Data map[string]any `json:"data,omitempty"`
 }
@@ -68,7 +69,7 @@ func (e *Event) GetTime() *time.Time {
 	return e.Time
 }
 
-func (e *Event) GetMetadata() map[string]string {
+func (e *Event) GetMetadata() optionalnullable.OptionalNullable[map[string]string] {
 	if e == nil {
 		return nil
 	}

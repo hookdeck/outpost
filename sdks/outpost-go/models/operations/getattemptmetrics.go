@@ -184,13 +184,14 @@ func (u GetAttemptMetricsMeasuresUnion) MarshalJSON() ([]byte, error) {
 type GetAttemptMetricsDimensionsEnum2 string
 
 const (
-	GetAttemptMetricsDimensionsEnum2TenantID      GetAttemptMetricsDimensionsEnum2 = "tenant_id"
-	GetAttemptMetricsDimensionsEnum2DestinationID GetAttemptMetricsDimensionsEnum2 = "destination_id"
-	GetAttemptMetricsDimensionsEnum2Topic         GetAttemptMetricsDimensionsEnum2 = "topic"
-	GetAttemptMetricsDimensionsEnum2Status        GetAttemptMetricsDimensionsEnum2 = "status"
-	GetAttemptMetricsDimensionsEnum2Code          GetAttemptMetricsDimensionsEnum2 = "code"
-	GetAttemptMetricsDimensionsEnum2Manual        GetAttemptMetricsDimensionsEnum2 = "manual"
-	GetAttemptMetricsDimensionsEnum2AttemptNumber GetAttemptMetricsDimensionsEnum2 = "attempt_number"
+	GetAttemptMetricsDimensionsEnum2TenantID        GetAttemptMetricsDimensionsEnum2 = "tenant_id"
+	GetAttemptMetricsDimensionsEnum2DestinationID   GetAttemptMetricsDimensionsEnum2 = "destination_id"
+	GetAttemptMetricsDimensionsEnum2DestinationType GetAttemptMetricsDimensionsEnum2 = "destination_type"
+	GetAttemptMetricsDimensionsEnum2Topic           GetAttemptMetricsDimensionsEnum2 = "topic"
+	GetAttemptMetricsDimensionsEnum2Status          GetAttemptMetricsDimensionsEnum2 = "status"
+	GetAttemptMetricsDimensionsEnum2Code            GetAttemptMetricsDimensionsEnum2 = "code"
+	GetAttemptMetricsDimensionsEnum2Manual          GetAttemptMetricsDimensionsEnum2 = "manual"
+	GetAttemptMetricsDimensionsEnum2AttemptNumber   GetAttemptMetricsDimensionsEnum2 = "attempt_number"
 )
 
 func (e GetAttemptMetricsDimensionsEnum2) ToPointer() *GetAttemptMetricsDimensionsEnum2 {
@@ -205,6 +206,8 @@ func (e *GetAttemptMetricsDimensionsEnum2) UnmarshalJSON(data []byte) error {
 	case "tenant_id":
 		fallthrough
 	case "destination_id":
+		fallthrough
+	case "destination_type":
 		fallthrough
 	case "topic":
 		fallthrough
@@ -225,13 +228,14 @@ func (e *GetAttemptMetricsDimensionsEnum2) UnmarshalJSON(data []byte) error {
 type GetAttemptMetricsDimensionsEnum1 string
 
 const (
-	GetAttemptMetricsDimensionsEnum1TenantID      GetAttemptMetricsDimensionsEnum1 = "tenant_id"
-	GetAttemptMetricsDimensionsEnum1DestinationID GetAttemptMetricsDimensionsEnum1 = "destination_id"
-	GetAttemptMetricsDimensionsEnum1Topic         GetAttemptMetricsDimensionsEnum1 = "topic"
-	GetAttemptMetricsDimensionsEnum1Status        GetAttemptMetricsDimensionsEnum1 = "status"
-	GetAttemptMetricsDimensionsEnum1Code          GetAttemptMetricsDimensionsEnum1 = "code"
-	GetAttemptMetricsDimensionsEnum1Manual        GetAttemptMetricsDimensionsEnum1 = "manual"
-	GetAttemptMetricsDimensionsEnum1AttemptNumber GetAttemptMetricsDimensionsEnum1 = "attempt_number"
+	GetAttemptMetricsDimensionsEnum1TenantID        GetAttemptMetricsDimensionsEnum1 = "tenant_id"
+	GetAttemptMetricsDimensionsEnum1DestinationID   GetAttemptMetricsDimensionsEnum1 = "destination_id"
+	GetAttemptMetricsDimensionsEnum1DestinationType GetAttemptMetricsDimensionsEnum1 = "destination_type"
+	GetAttemptMetricsDimensionsEnum1Topic           GetAttemptMetricsDimensionsEnum1 = "topic"
+	GetAttemptMetricsDimensionsEnum1Status          GetAttemptMetricsDimensionsEnum1 = "status"
+	GetAttemptMetricsDimensionsEnum1Code            GetAttemptMetricsDimensionsEnum1 = "code"
+	GetAttemptMetricsDimensionsEnum1Manual          GetAttemptMetricsDimensionsEnum1 = "manual"
+	GetAttemptMetricsDimensionsEnum1AttemptNumber   GetAttemptMetricsDimensionsEnum1 = "attempt_number"
 )
 
 func (e GetAttemptMetricsDimensionsEnum1) ToPointer() *GetAttemptMetricsDimensionsEnum1 {
@@ -246,6 +250,8 @@ func (e *GetAttemptMetricsDimensionsEnum1) UnmarshalJSON(data []byte) error {
 	case "tenant_id":
 		fallthrough
 	case "destination_id":
+		fallthrough
+	case "destination_type":
 		fallthrough
 	case "topic":
 		fallthrough
@@ -389,6 +395,70 @@ func (u GetAttemptMetricsFiltersDestinationID) MarshalJSON() ([]byte, error) {
 	}
 
 	return nil, errors.New("could not marshal union type GetAttemptMetricsFiltersDestinationID: all fields are null")
+}
+
+type FiltersDestinationTypeType string
+
+const (
+	FiltersDestinationTypeTypeDestinationType        FiltersDestinationTypeType = "DestinationType"
+	FiltersDestinationTypeTypeArrayOfDestinationType FiltersDestinationTypeType = "arrayOfDestinationType"
+)
+
+// FiltersDestinationType - Filter by destination type(s). Use bracket notation for multiple values (e.g., `filters[destination_type][0]=webhook&filters[destination_type][1]=aws_sqs`).
+type FiltersDestinationType struct {
+	DestinationType        *components.DestinationType  `queryParam:"inline" union:"member"`
+	ArrayOfDestinationType []components.DestinationType `queryParam:"inline" union:"member"`
+
+	Type FiltersDestinationTypeType
+}
+
+func CreateFiltersDestinationTypeDestinationType(destinationType components.DestinationType) FiltersDestinationType {
+	typ := FiltersDestinationTypeTypeDestinationType
+
+	return FiltersDestinationType{
+		DestinationType: &destinationType,
+		Type:            typ,
+	}
+}
+
+func CreateFiltersDestinationTypeArrayOfDestinationType(arrayOfDestinationType []components.DestinationType) FiltersDestinationType {
+	typ := FiltersDestinationTypeTypeArrayOfDestinationType
+
+	return FiltersDestinationType{
+		ArrayOfDestinationType: arrayOfDestinationType,
+		Type:                   typ,
+	}
+}
+
+func (u *FiltersDestinationType) UnmarshalJSON(data []byte) error {
+
+	var destinationType components.DestinationType = components.DestinationType("")
+	if err := utils.UnmarshalJSON(data, &destinationType, "", true, nil); err == nil {
+		u.DestinationType = &destinationType
+		u.Type = FiltersDestinationTypeTypeDestinationType
+		return nil
+	}
+
+	var arrayOfDestinationType []components.DestinationType = []components.DestinationType{}
+	if err := utils.UnmarshalJSON(data, &arrayOfDestinationType, "", true, nil); err == nil {
+		u.ArrayOfDestinationType = arrayOfDestinationType
+		u.Type = FiltersDestinationTypeTypeArrayOfDestinationType
+		return nil
+	}
+
+	return fmt.Errorf("could not unmarshal `%s` into any supported union types for FiltersDestinationType", string(data))
+}
+
+func (u FiltersDestinationType) MarshalJSON() ([]byte, error) {
+	if u.DestinationType != nil {
+		return utils.MarshalJSON(u.DestinationType, "", true)
+	}
+
+	if u.ArrayOfDestinationType != nil {
+		return utils.MarshalJSON(u.ArrayOfDestinationType, "", true)
+	}
+
+	return nil, errors.New("could not marshal union type FiltersDestinationType: all fields are null")
 }
 
 type GetAttemptMetricsFiltersTopicType string
@@ -806,6 +876,8 @@ type GetAttemptMetricsRequest struct {
 	Dimensions *GetAttemptMetricsDimensionsUnion `queryParam:"style=form,explode=true,name=dimensions"`
 	// Filter by destination ID(s). Use bracket notation for multiple values (e.g., `filters[destination_id][0]=d1&filters[destination_id][1]=d2`).
 	FiltersDestinationID *GetAttemptMetricsFiltersDestinationID `queryParam:"style=form,explode=true,name=filters[destination_id]"`
+	// Filter by destination type(s). Use bracket notation for multiple values (e.g., `filters[destination_type][0]=webhook&filters[destination_type][1]=aws_sqs`).
+	FiltersDestinationType *FiltersDestinationType `queryParam:"style=form,explode=true,name=filters[destination_type]"`
 	// Filter by topic name(s). Use bracket notation for multiple values (e.g., `filters[topic][0]=user.created&filters[topic][1]=user.updated`).
 	FiltersTopic *GetAttemptMetricsFiltersTopic `queryParam:"style=form,explode=true,name=filters[topic]"`
 	// Filter by attempt status(es). Use bracket notation for multiple values (e.g., `filters[status][0]=success&filters[status][1]=failed`).
@@ -871,6 +943,13 @@ func (g *GetAttemptMetricsRequest) GetFiltersDestinationID() *GetAttemptMetricsF
 		return nil
 	}
 	return g.FiltersDestinationID
+}
+
+func (g *GetAttemptMetricsRequest) GetFiltersDestinationType() *FiltersDestinationType {
+	if g == nil {
+		return nil
+	}
+	return g.FiltersDestinationType
 }
 
 func (g *GetAttemptMetricsRequest) GetFiltersTopic() *GetAttemptMetricsFiltersTopic {

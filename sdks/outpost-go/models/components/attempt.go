@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/hookdeck/outpost/sdks/outpost-go/internal/utils"
+	"github.com/hookdeck/outpost/sdks/outpost-go/optionalnullable"
 	"time"
 )
 
@@ -48,8 +49,8 @@ type EventFull struct {
 	// Time the event was received.
 	Time *time.Time `json:"time,omitempty"`
 	// Whether this event can be retried.
-	EligibleForRetry *bool             `json:"eligible_for_retry,omitempty"`
-	Metadata         map[string]string `json:"metadata,omitempty"`
+	EligibleForRetry *bool                                                `json:"eligible_for_retry,omitempty"`
+	Metadata         optionalnullable.OptionalNullable[map[string]string] `json:"metadata,omitempty"`
 	// The event payload data.
 	Data map[string]any `json:"data,omitempty"`
 }
@@ -107,7 +108,7 @@ func (e *EventFull) GetEligibleForRetry() *bool {
 	return e.EligibleForRetry
 }
 
-func (e *EventFull) GetMetadata() map[string]string {
+func (e *EventFull) GetMetadata() optionalnullable.OptionalNullable[map[string]string] {
 	if e == nil {
 		return nil
 	}
@@ -132,8 +133,8 @@ type EventSummary struct {
 	// Time the event was received.
 	Time *time.Time `json:"time,omitempty"`
 	// Whether this event can be retried.
-	EligibleForRetry *bool             `json:"eligible_for_retry,omitempty"`
-	Metadata         map[string]string `json:"metadata,omitempty"`
+	EligibleForRetry *bool                                                `json:"eligible_for_retry,omitempty"`
+	Metadata         optionalnullable.OptionalNullable[map[string]string] `json:"metadata,omitempty"`
 }
 
 func (e EventSummary) MarshalJSON() ([]byte, error) {
@@ -189,7 +190,7 @@ func (e *EventSummary) GetEligibleForRetry() *bool {
 	return e.EligibleForRetry
 }
 
-func (e *EventSummary) GetMetadata() map[string]string {
+func (e *EventSummary) GetMetadata() optionalnullable.OptionalNullable[map[string]string] {
 	if e == nil {
 		return nil
 	}
@@ -273,7 +274,7 @@ type Attempt struct {
 	// Response status code or error code.
 	Code *string `json:"code,omitempty"`
 	// Response data from the attempt. Only included when include=response_data.
-	ResponseData map[string]any `json:"response_data,omitempty"`
+	ResponseData optionalnullable.OptionalNullable[map[string]any] `json:"response_data,omitempty"`
 	// The attempt number (1 for first attempt, 2+ for retries).
 	AttemptNumber *int64 `json:"attempt_number,omitempty"`
 	// Whether this attempt was manually triggered (e.g., a retry initiated by a user).
@@ -283,8 +284,8 @@ type Attempt struct {
 	// The destination ID this attempt was sent to.
 	DestinationID *string `json:"destination_id,omitempty"`
 	// The associated event object. Only present when include=event or include=event.data.
-	Event       *EventUnion  `json:"event,omitempty"`
-	Destination *Destination `json:"destination,omitempty"`
+	Event       optionalnullable.OptionalNullable[EventUnion] `json:"event,omitempty"`
+	Destination *Destination                                  `json:"destination,omitempty"`
 }
 
 func (a Attempt) MarshalJSON() ([]byte, error) {
@@ -333,7 +334,7 @@ func (a *Attempt) GetCode() *string {
 	return a.Code
 }
 
-func (a *Attempt) GetResponseData() map[string]any {
+func (a *Attempt) GetResponseData() optionalnullable.OptionalNullable[map[string]any] {
 	if a == nil {
 		return nil
 	}
@@ -368,7 +369,7 @@ func (a *Attempt) GetDestinationID() *string {
 	return a.DestinationID
 }
 
-func (a *Attempt) GetEvent() *EventUnion {
+func (a *Attempt) GetEvent() optionalnullable.OptionalNullable[EventUnion] {
 	if a == nil {
 		return nil
 	}

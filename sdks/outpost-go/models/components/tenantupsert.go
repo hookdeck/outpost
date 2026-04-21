@@ -2,12 +2,16 @@
 
 package components
 
+import (
+	"github.com/hookdeck/outpost/sdks/outpost-go/optionalnullable"
+)
+
 type TenantUpsert struct {
 	// Optional metadata to store with the tenant.
-	Metadata map[string]string `json:"metadata,omitempty"`
+	Metadata optionalnullable.OptionalNullable[map[string]string] `json:"metadata,omitempty"`
 }
 
-func (t *TenantUpsert) GetMetadata() map[string]string {
+func (t *TenantUpsert) GetMetadata() optionalnullable.OptionalNullable[map[string]string] {
 	if t == nil {
 		return nil
 	}
