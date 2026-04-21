@@ -43,7 +43,7 @@ Use this **Hookdeck Console Source** URL to verify event delivery (the webhook `
 - Go quickstart (Go SDK): {{DOCS_URL}}/quickstarts/hookdeck-outpost-go
 - API reference and OpenAPI (REST JSON shapes and status codes): {{DOCS_URL}}/api
 - **Concepts — how tenants, destinations (subscriptions), topics, and publish fit a SaaS/platform:** {{DOCS_URL}}/concepts
-- Full docs bundle (when available on the public site): {{LLMS_FULL_URL}}
+- **Documentation index** (`llms.txt`): plain-text map of Outpost doc pages as `.md` URLs. Fetch this URL when you need the full tree or many pages in one pass: {{LLMS_FULL_URL}}
 - SDK overview: {{DOCS_URL}}/sdks — use **only** for high-level context; for **TypeScript, Python, or Go** code, follow that language’s **quickstart** for correct method signatures (e.g. Python `publish.event` uses `request={{...}}`, not TypeScript-style spreads as Python kwargs).
 
 **SDK vs OpenAPI (BFF / dashboard UI):** **Prefer the official server SDK** when Hookdeck provides one for the repo’s backend language (**{{DOCS_URL}}/sdks**). Keep these invariants: (1) **Wire JSON** matches **OpenAPI** (often **snake_case**). **SDKs** rename fields in language types (e.g. TypeScript **camelCase**). (2) The **browser** should consume the same JSON shape your BFF actually returns—or the server should **normalize** (e.g. forward raw `GET /destination-types`). (3) On create/update, each schema field’s **`key`** maps into `config` / `credentials` per OpenAPI. **Calling** Outpost: use **SDK** types when using the SDK; use **OpenAPI** for raw `fetch` / curl. Detail: **{{DOCS_URL}}/guides/building-your-own-ui#authentication** and **{{DOCS_URL}}/guides/building-your-own-ui#wire-json-sdk-responses-and-your-ui**.
@@ -170,7 +170,7 @@ Apply **only** the items below that fit the task; **skip** any that do not apply
 | `{{TOPICS_LIST}}` | Bullet list or comma-separated topic names | From dashboard config — operators should keep this aligned with what the integrated app will **publish** and what destinations subscribe to |
 | `{{TEST_DESTINATION_URL}}` | **Required** — HTTPS URL of the Hookdeck Console **Source** created for this onboarding flow (fed in by the dashboard). |
 | `{{DOCS_URL}}` | `https://hookdeck.com/docs/outpost` | Production **Outpost** docs base on Hookdeck (no trailing slash). Template paths append the same segments as **`/docs/outpost/…`** on the docs site (see `docs/content/nav.json`). For unpublished docs, evals can set **`EVAL_LOCAL_DOCS=1`** so the Documentation section is replaced with repository file paths (see `docs/agent-evaluation/README.md`). |
-| `{{LLMS_FULL_URL}}` | `https://hookdeck.com/outpost/docs/llms-full.txt` | Optional; omit the line if not live yet |
+| `{{LLMS_FULL_URL}}` | `https://hookdeck.com/docs/outpost/llms.txt` | Served as **`GET /docs/outpost/llms.txt`** on Hookdeck: a **plain-text** index (not HTML) of Outpost documentation — intro line, then entries with title, short description, and **`.md`** URL per page, following the same nav roots and section order as **`/docs/outpost`** in the browser, plus an **API Reference** block with links into **`/docs/outpost/api`** and `api.md` anchors. Operators normally set this to production; use another origin only if you mirror the same route. |
 
 ### Building your own UI — where the detail lives
 

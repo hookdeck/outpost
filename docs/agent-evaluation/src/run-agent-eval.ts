@@ -139,7 +139,7 @@ function evalProgressIntervalMs(): number {
 /** When docs are not published yet, point the agent at MDX/OpenAPI paths in this repo. */
 function localDocumentationBlock(
   repoRoot: string,
-  llmsFullUrl: string | undefined,
+  llmsFullUrl: string,
 ): string {
   const f = (...parts: string[]) => join(repoRoot, ...parts);
   const languageSdkBlock = `### Language → SDK vs HTTP
@@ -177,9 +177,7 @@ Follow **Language → SDK vs HTTP** below for mapping user intent to the **singl
 - SDKs overview (TS-heavy): \`${f("docs/content/sdks.mdoc")}\` — prefer the language quickstart over this for Python/Go/TS code.
 
 ${languageSdkBlock}`;
-  if (llmsFullUrl) {
-    block += `\n- Full docs bundle: ${llmsFullUrl}`;
-  }
+  block += `\n- Optional live documentation index (\`llms.txt\`): ${llmsFullUrl} — use this only when the current eval allows live public docs; otherwise rely on the local repository files listed above.`;
   return block;
 }
 
@@ -198,7 +196,12 @@ function applyPlaceholders(
     );
   }
   const docsUrl = env.EVAL_DOCS_URL ?? "https://hookdeck.com/docs/outpost";
-  const llms = env.EVAL_LLMS_FULL_URL?.trim() ?? "";
+  const normalizedDocsUrl = docsUrl.replace(/\/+$/, "");
+  const defaultLlmsFullUrl = new URL(
+    "llms.txt",
+    `${normalizedDocsUrl}/`,
+  ).toString();
+  const llms = env.EVAL_LLMS_FULL_URL?.trim() || defaultLlmsFullUrl;
   const useLocalDocs = envFlagTruthy(env.EVAL_LOCAL_DOCS);
 
   let base = template;
@@ -211,25 +214,16 @@ function applyPlaceholders(
     }
     base = base.replace(
       docSection,
-      localDocumentationBlock(repoRoot, llms || undefined),
+      localDocumentationBlock(repoRoot, llms),
     );
   }
 
-  let out = base
+  return base
     .replaceAll("{{API_BASE_URL}}", apiBase)
     .replaceAll("{{TOPICS_LIST}}", topics)
     .replaceAll("{{TEST_DESTINATION_URL}}", testUrl)
     .replaceAll("{{DOCS_URL}}", docsUrl)
     .replaceAll("{{LLMS_FULL_URL}}", llms);
-
-  if (!llms) {
-    out = out
-      .split("\n")
-      .filter((line) => !/Full docs bundle/i.test(line))
-      .join("\n");
-  }
-
-  return out;
 }
 
 interface ParsedTurn {
@@ -771,9 +765,9 @@ Environment:
   EVAL_TEST_DESTINATION_URL   Required — Hookdeck Console Source URL (fed into {{TEST_DESTINATION_URL}})
   EVAL_API_BASE_URL     Optional (default: managed production URL)
   EVAL_TOPICS_LIST      Optional
-  EVAL_DOCS_URL         Optional (ignored for doc links when EVAL_LOCAL_DOCS is set)
+  EVAL_DOCS_URL         Optional (ignored for Documentation links when EVAL_LOCAL_DOCS is set; still used to derive the default EVAL_LLMS_FULL_URL unless that is set)
   EVAL_LOCAL_DOCS       Set to 1/true/yes to replace Documentation URLs with repo file paths (unpublished docs)
-  EVAL_LLMS_FULL_URL    Optional (omit docs line if unset)
+  EVAL_LLMS_FULL_URL    Optional — full URL for Outpost llms.txt (default: EVAL_DOCS_URL + /llms.txt, else https://hookdeck.com/docs/outpost/llms.txt)
   EVAL_TOOLS            Optional, comma-separated (default: Read,Glob,Grep[,WebFetch],Write,Edit,Bash — see README)
   EVAL_MODEL            Optional
   EVAL_MAX_TURNS        Optional (default: 80; npm/go mod installs can exceed 40; lower only for smoke — may not finish 08–10)

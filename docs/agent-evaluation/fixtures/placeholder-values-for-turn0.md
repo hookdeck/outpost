@@ -18,7 +18,7 @@ For `**npm run eval -- --scenario …**` (or `**--scenarios**` / `**--all**`), t
 | `{{TOPICS_LIST}}`          | `- user.created`                                                                                                                                                    |
 | `{{TEST_DESTINATION_URL}}` | Hookdeck Console **Source** URL the dashboard feeds in (for automated evals, set `EVAL_TEST_DESTINATION_URL` to the same value). Example: `https://hkdk.events/...` |
 | `{{DOCS_URL}}`             | `https://hookdeck.com/docs/outpost` (same path segments as `/docs/outpost/…` on hookdeck.com; see `docs/content/nav.json`)                                          |
-| `{{LLMS_FULL_URL}}`        | Omit the line in the template if unused, or your public `llms-full.txt` URL                                                                                         |
+| `{{LLMS_FULL_URL}}`        | `https://hookdeck.com/docs/outpost/llms.txt` — Outpost **`llms.txt`** (plain-text index of **`.md`** doc URLs, sidebar-aligned)                                                                                         |
 
 ---
 
