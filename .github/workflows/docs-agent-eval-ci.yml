@@ -75,3 +75,13 @@ jobs:
           # Agent eval 01/02 fixtures use this tenant; delete before+after so destination caps do not break CI.
           OUTPOST_CI_CLEANUP_TENANT: customer_acme_001
         run: ./scripts/execute-ci-artifacts.sh
+
+      # Transcripts, heuristic + LLM scores, generated scripts — present after eval; execute step may add logs in-place.
+      - name: Upload agent eval outputs (debug)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: docs-agent-eval-runs-${{ github.run_id }}-${{ github.run_attempt }}
+          path: docs/agent-evaluation/results/runs
+          if-no-files-found: warn
+          retention-days: 14
