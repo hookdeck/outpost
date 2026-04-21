@@ -16,6 +16,7 @@ import weakref
 
 if TYPE_CHECKING:
     from outpost_sdk.attempts import Attempts
+    from outpost_sdk.configuration import Configuration
     from outpost_sdk.destinations import Destinations
     from outpost_sdk.events import Events
     from outpost_sdk.health import Health
@@ -31,6 +32,11 @@ class Outpost(BaseSDK):
 
     health: "Health"
     r"""API Health Check"""
+    configuration: "Configuration"
+    r"""Outpost instance-level configuration management for the managed deployment.
+    This is not available in self-hosted deployments.
+
+    """
     tenants: "Tenants"
     r"""The API segments resources per `tenant`. A tenant represents a user/team/organization in your product. The provided value determines the tenant's ID, which can be any string representation.
 
@@ -96,6 +102,7 @@ class Outpost(BaseSDK):
     """
     _sub_sdk_map = {
         "health": ("outpost_sdk.health", "Health"),
+        "configuration": ("outpost_sdk.configuration", "Configuration"),
         "tenants": ("outpost_sdk.tenants", "Tenants"),
         "events": ("outpost_sdk.events", "Events"),
         "attempts": ("outpost_sdk.attempts", "Attempts"),
