@@ -29,8 +29,8 @@ The tenant portal illustrates how screens map to tenant → destinations → top
 
 **Tenant context**
 
-- Everything below applies to one tenant at a time: the signed-in account in your SaaS (your customer). Use that account’s `tenant_id` when listing or creating destinations and when publishing from your backend.
-- With a tenant JWT, the token is scoped to that tenant. If you proxy through your API, resolve the signed-in account to `tenant_id` and forward it on list, create, and publish calls.
+- Everything below applies to one **Outpost tenant** at a time: the **customer account in your SaaS** your UI is scoped to (often an **organization** or workspace—use the same stable ID you use for that customer in your database). Use that account's `tenant_id` when listing or creating destinations and when publishing from your backend.
+- With a tenant JWT, the token is scoped to that tenant. If you proxy through your API, resolve the signed-in customer (for example the current org) to `tenant_id` and forward it on list, create, and publish calls.
 
 **Recommended areas / screens**
 

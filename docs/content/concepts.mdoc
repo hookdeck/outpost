@@ -11,7 +11,7 @@ At a high level, the same mental model as a single-tenant webhook product still 
 
 **Typical flow:**
 
-1. **Map your customer to a tenant** — Each organization, team, or account in your app should have a stable **tenant id** in Outpost (often the same id you already use internally). Create or upsert that tenant when the customer is ready to use outbound events (onboarding, first visit to integrations, and so on).
+1. **Map your customer to a tenant** — In B2B SaaS this is usually an **organization** (or workspace / team): one Outpost **tenant** per account you sell to, with that org’s users managing destinations on its behalf. In B2C or simple apps it may be a single end user. Use a stable **tenant id** (often the same ID you already store—org ID, account ID, and so on). Create or upsert that tenant when the customer is ready to use outbound events (onboarding, first visit to integrations, and so on).
 2. **Each tenant has zero or more destinations** — A **destination** is a concrete subscription: it combines a **destination type** (webhook, SQS, Hookdeck, …), one or more **topics** the customer wants to receive, and **type-specific configuration** (for a webhook, the HTTPS **endpoint URL** and signing secret; for a queue, the queue identifier; and so on). One tenant may have several destinations (for example production vs staging endpoints, or different systems).
 3. **Your backend publishes events** — When something happens, your **server** calls the publish API (or SDK) with **`tenant_id`**, **`topic`**, and payload metadata. Outpost does **not** infer the tenant from the browser; publishing uses your **platform** credentials and explicit tenant scope.
 4. **Outpost delivers to matching destinations** — For that tenant, every destination whose **topic subscription** includes the event’s topic gets a delivery attempt. A single publish can fan out to **many** destinations or to **none** if no destination subscribes to that topic.
@@ -22,7 +22,7 @@ For topic subscription behavior (wildcard `*`, multiple topics, fan-out), see [T
 
 ## Models
 
-- **Tenants** — A tenant represents a user, team, or organization in your product. All destinations and events are scoped to a tenant.
+- **Tenants** — A tenant is always an entity **in your product** that owns destinations and events. Most often it is an **organization** (or workspace / team): one tenant per customer company, with that org’s users managing its destinations. It can also be a single user in smaller products. It is **not** a Hookdeck login or an arbitrary end user unrelated to your account model—pick ids that match how you already identify the customer in your system.
 - **Destination Types** — The category of destination where events are delivered. Examples: webhook, Hookdeck Event Gateway, AWS SQS.
 - **Destinations** — A configured instance of a destination type. For example, a webhook destination with a specific URL and signing secret.
 - **Topics** — A topic categorizes events, following the common Pub/Sub concept. For example, `user.created` or `payment.succeeded`. Tenants subscribe their destinations to specific topics.
@@ -33,7 +33,7 @@ For topic subscription behavior (wildcard `*`, multiple topics, fan-out), see [T
 
 Outpost is designed as a multi-tenant system from the ground up. Each tenant has isolated destinations, topics, and event delivery. A single Outpost deployment serves all your customers.
 
-Tenants are created and managed via the API. Each tenant is identified by a string ID that maps to an identifier in your own system — for example, your customer's organization ID or database primary key. Outpost does not generate tenant IDs.
+Tenants are created and managed via the API. Each tenant is identified by a string ID that maps to an identifier in your own system—for example your customer’s **organization id**, workspace id, or account primary key. Outpost does not generate tenant IDs.
 
 If your application is single-tenant, use a hardcoded value such as `default`, `production`, or `staging` to support multiple environments on the same Outpost deployment.
 
