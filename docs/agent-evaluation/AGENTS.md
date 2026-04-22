@@ -6,7 +6,7 @@ This file applies to **everything under `docs/agent-evaluation/`** (scenarios, R
 
 | Audience                 | Content                                                                                                                                                                                   |
 | ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **The model under test** | Turn 0 = pasted [`hookdeck-outpost-agent-prompt.mdoc`](../agent-evaluation/hookdeck-outpost-agent-prompt.md) template only, plus **Turn N — User** blockquotes (verbatim user role-play). |
+| **The model under test** | Turn 0 = pasted [`hookdeck-outpost-agent-prompt.md`](hookdeck-outpost-agent-prompt.md) **## Template** (placeholders filled), **plus** for **scenario 01 only** the harness appends the `<!-- eval:turn0-appendix-start -->` … `<!-- eval:turn0-appendix-end -->` block from [`scenarios/01-basics-curl.md`](scenarios/01-basics-curl.md) after the template (shell/`curl` hygiene — not Outpost API semantics); then **Turn N — User** blockquotes (verbatim user role-play). |
 | **Humans / harness**     | Intent, preconditions, eval harness JSON, Success criteria, Failure modes, `score-transcript.ts`, README.                                                                                 |
 
 **Never** put harness vocabulary into **user** lines. The user is a product engineer, not an eval runner.

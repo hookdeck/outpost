@@ -96,7 +96,7 @@ The workflow uses **`concurrency: { group: outpost-docs-agent-eval-live-outpost,
 - **`EVAL_LOCAL_DOCS=1`** — Turn 0 replaces public doc URLs with **absolute paths to MDX/OpenAPI files in this repo** (agent uses **Read** on **`docs/`** instead of **WebFetch** to production). Use locally when validating unpublished docs; **GitHub Actions** sets this for **`docs-agent-eval-ci.yml`**.
 - **`EVAL_SKIP_HARNESS_PRE_STEPS=1`** — skip **`git_clone`** (and any future **`preSteps`**) declared in a scenario’s **`## Eval harness`** JSON block; useful offline or when the baseline folder is already present.
 
-- **Turn 0** text is built from [`hookdeck-outpost-agent-prompt.mdoc`](../agent-evaluation/hookdeck-outpost-agent-prompt.md) (`## Template`) with placeholders filled from environment variables.
+- **Turn 0** text is built from [`hookdeck-outpost-agent-prompt.md`](hookdeck-outpost-agent-prompt.md) (`## Template`) with placeholders filled from environment variables. **Scenario 01 (curl)** only: the runner **appends** the delimited block `<!-- eval:turn0-appendix-start -->` … `<!-- eval:turn0-appendix-end -->` from [`scenarios/01-basics-curl.md`](scenarios/01-basics-curl.md) after that template (POSIX / `curl` hygiene — not Outpost API teaching); see that file § Turn 0 for manual parity.
 - Transcripts are written to `results/runs/<stamp>-scenario-NN/transcript.json` (gitignored).
 
 See `npm run eval -- --help` for env vars (`EVAL_TOOLS`, `EVAL_MODEL`, etc.).
