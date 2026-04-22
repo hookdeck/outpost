@@ -5,15 +5,15 @@ management:
   docVersion: 0.0.1
   speakeasyVersion: 1.761.9
   generationVersion: 2.881.4
-  releaseVersion: 0.10.0
-  configChecksum: 17e987cf65f28252c38ea58b31d498b1
+  releaseVersion: 1.0.0
+  configChecksum: 1c4d3893aace5d5dd2f9a3d12490b8c8
   repoURL: https://github.com/hookdeck/outpost.git
   repoSubDirectory: sdks/outpost-go
   installationURL: https://github.com/hookdeck/outpost
 persistentEdits:
-  generation_id: 513f0da3-8aca-4649-96ee-ec6fc7e1a369
-  pristine_commit_hash: 1990b46647b61662ad6897051306ba94052bee10
-  pristine_tree_hash: b2dd4a03e38e105511e063ab928e083773a8f90e
+  generation_id: e35c8d87-c5bd-4dc2-8e31-2c34f6b712e1
+  pristine_commit_hash: d3a1f45a6d113ac21278c199728cd0e63485a3c4
+  pristine_tree_hash: 64b0ad3c04e6b6c7e943c0e8724ef5087ca6c7ed
 features:
   go:
     additionalDependencies: 0.1.0
@@ -1394,8 +1394,8 @@ trackedFiles:
     pristine_git_object: e6e5a01c6e721e879e24a38a1f97e3e27d4686d4
   outpost.go:
     id: 7aebc57e3f81
-    last_write_checksum: sha1:270f9e1f48650d28f838558da95c6f31dc20707d
-    pristine_git_object: 31d3d17be8e00eddec5787e828bed20d99e80f12
+    last_write_checksum: sha1:3836215d03c60ed984128d815d664e7c3b7e66f3
+    pristine_git_object: 349952222d97d8a389ef101af15c23ffc7e3a87d
   publish.go:
     id: b4cd78c909e0
     last_write_checksum: sha1:758eca50bffb96710ee42b6bfb596ee346ce228f
@@ -1963,7 +1963,6 @@ examples:
           application/json: {}
 examplesVersion: 1.0.2
 generatedTests: {}
-releaseNotes: "## Go SDK Changes:\n* `Outpost.Schemas.ListDestinationTypes()`:  `response.[]` **Changed** (Breaking ⚠️)\n* `Outpost.Schemas.GetDestinationType()`:  `response` **Changed** (Breaking ⚠️)\n* `Outpost.Metrics.GetAttemptMetrics()`:  `request.Request` **Changed** (Breaking ⚠️)\n* `Outpost.Configuration.GetManagedConfig()`: **Added**\n* `Outpost.Configuration.UpdateManagedConfig()`: **Added**\n* `Outpost.Events.Get()`:  `request.TenantId` **Added**\n* `Outpost.Attempts.List()`: \n  *  `request.Request.DestinationType` **Added**\n* `Outpost.Attempts.Get()`:  `request.TenantId` **Added**\n"
 generatedFiles:
   - .gitattributes
   - /models/apierrors/badrequesterror.go
