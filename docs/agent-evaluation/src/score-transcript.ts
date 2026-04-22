@@ -222,22 +222,34 @@ function scoreScenario01(corpus: string, assistant: string, meta: RunJson["meta"
     detail: publish ? "POST …/publish present" : "Expected POST publish",
   });
 
-  const afterPublish = t.split(/\/publish/i).pop() ?? t;
-  // Tool corpus JSON-stringifies Write bodies, so bash-escaped keys look like \"data\": not "data":
-  const wrongPayload =
-    /"payload"\s*:/.test(afterPublish) || /\\"payload\\"\s*:/.test(afterPublish);
+  // Do not inspect only text after the *final* /publish: late-turn assistant summaries
+  // often repeat "POST /publish" in markdown tables without the JSON body, while the real
+  // curl/jq payload appears earlier (e.g. in Write(run.sh)). Scan a bounded window after any
+  // /publish. Accept JSON "data":, tool-escaped \"data\":, or jq object literals: data: {
+  const publishBodyWindow = 12_000;
+  const wrongPayload = new RegExp(
+    `/publish[\\s\\S]{0,${publishBodyWindow}}?(?:"payload"|\\\\"payload\\\\")\\s*:`,
+    "i",
+  ).test(t);
   const hasData =
-    /"data"\s*:/.test(afterPublish) || /\\"data\\"\s*:/.test(afterPublish);
+    new RegExp(
+      `/publish[\\s\\S]{0,${publishBodyWindow}}?(?:"data"|\\\\"data\\\\")\\s*:`,
+      "i",
+    ).test(t) ||
+    new RegExp(
+      `/publish[\\s\\S]{0,${publishBodyWindow}}?\\bdata\\s*:\\s*\\{`,
+      "i",
+    ).test(t);
   checks.push({
     id: "publish_body_data_not_payload",
     pass: publish && !wrongPayload && hasData,
     detail: !publish
       ? "N/A (no publish block)"
       : wrongPayload
-        ? 'Found "payload" after /publish — Outpost expects "data"'
+        ? 'Found "payload" near /publish — Outpost expects "data"'
         : hasData
-          ? 'Publish section uses "data"'
-          : 'Missing "data" in publish JSON (check manually)',
+          ? "Publish body uses top-level data (JSON, escaped JSON, or jq data: { … })"
+          : 'Missing "data" near /publish in transcript (check manually)',
   });
 
   checks.push({
