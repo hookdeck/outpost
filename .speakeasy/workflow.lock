@@ -35,7 +35,7 @@ targets:
         sourceRevisionDigest: sha256:65ad5a1796747fe3b3f45ebecc718cfd51341914f635da4e0c7f8059601a370c
         sourceBlobDigest: sha256:400a8781f1c50913783adac07ac490c1053a604e0de28a45a939b7116b846cc0
         codeSamplesNamespace: outpost-api-python-code-samples
-        codeSamplesRevisionDigest: sha256:c9a732a567d53cd305b692a828281ce05f4198ee17ac2cd7b9ad4bf891277c0e
+        codeSamplesRevisionDigest: sha256:8c18e3ce8350d66e70aa801b2643850eb51d578929075eb9dd36c64965148cb6
     outpost-ts:
         source: Outpost API
         sourceNamespace: outpost-api
