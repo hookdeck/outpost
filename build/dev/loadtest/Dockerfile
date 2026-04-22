@@ -1,4 +1,4 @@
-FROM golang:1.23-alpine
+FROM golang:1.26-alpine
 RUN go install github.com/air-verse/air@v1.61.1
 WORKDIR /app
 COPY loadtest-app/ .

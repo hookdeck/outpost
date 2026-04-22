@@ -46,12 +46,20 @@ func NewApp(cfg *config.Config) *App {
 		}
 	})
 
-	// Wire tracker missing callback → group metrics
-	tracker.SetCallbacks(nil, func(eventID, groupName string) {
-		if g, err := app.Store.Get(groupName); err == nil {
-			g.Metrics.RecordMissing()
-		}
-	})
+	// Wire tracker callbacks → group metrics
+	tracker.SetCallbacks(
+		nil,
+		func(eventID, groupName string) {
+			if g, err := app.Store.Get(groupName); err == nil {
+				g.Metrics.RecordMissing()
+			}
+		},
+		func(eventID, groupName string) {
+			if g, err := app.Store.Get(groupName); err == nil {
+				g.Metrics.RecordRecovered()
+			}
+		},
+	)
 
 	return app
 }

@@ -68,6 +68,18 @@ func (h *Histogram) Percentile(p float64) int64 {
 	return h.values[idx]
 }
 
+func (h *Histogram) Max() int64 {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if len(h.values) == 0 {
+		return 0
+	}
+	if h.count > maxHistogramValues {
+		h.sort()
+	}
+	return h.values[len(h.values)-1]
+}
+
 func (h *Histogram) Reset() {
 	h.mu.Lock()
 	defer h.mu.Unlock()

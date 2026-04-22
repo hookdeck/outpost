@@ -33,21 +33,22 @@ async function createGroup() {
 function renderCard(g) {
   const m = g.metrics || {};
   return `
-    <div class="card">
+    <div class="card" data-group="${g.name}">
       <div class="card-header">
         <span class="card-name">${g.name}</span>
         <span class="card-state state-${g.state}">${g.state}</span>
       </div>
+      <div class="card-config">${g.config.tenant_count} tenants · ${g.config.destinations_per_tenant} dests/tenant · ${g.config.publish.payload_bytes}B payload · ${g.config.topics.join(', ')}</div>
       <div class="metrics">
-        <div class="metric"><div class="metric-value">${fmt(m.publish_rate_per_sec)}</div><div class="metric-label">pub/s</div></div>
-        <div class="metric"><div class="metric-value">${fmt(m.delivery_rate_per_sec)}</div><div class="metric-label">del/s</div></div>
-        <div class="metric"><div class="metric-value">${m.in_flight || 0}</div><div class="metric-label">in-flight</div></div>
-        <div class="metric"><div class="metric-value">${m.e2e_latency_p50_ms || 0}</div><div class="metric-label">p50 ms</div></div>
-        <div class="metric"><div class="metric-value">${m.e2e_latency_p95_ms || 0}</div><div class="metric-label">p95 ms</div></div>
-        <div class="metric"><div class="metric-value">${m.missing_total || 0}</div><div class="metric-label">missing</div></div>
-        <div class="metric"><div class="metric-value">${m.publish_total || 0}</div><div class="metric-label">pub total</div></div>
-        <div class="metric"><div class="metric-value">${m.delivery_total || 0}</div><div class="metric-label">del total</div></div>
-        <div class="metric"><div class="metric-value">${m.publish_errors || 0}</div><div class="metric-label">errors</div></div>
+        <div class="metric"><div class="metric-value" data-m="pub_rate">${fmt(m.publish_rate_per_sec)}</div><div class="metric-label">pub/s</div></div>
+        <div class="metric"><div class="metric-value" data-m="del_rate">${fmt(m.delivery_rate_per_sec)}</div><div class="metric-label">del/s</div></div>
+        <div class="metric"><div class="metric-value" data-m="in_flight">${m.in_flight || 0}</div><div class="metric-label">in-flight</div></div>
+        <div class="metric has-tooltip" title="E2E Latency\np50: ${m.e2e_latency_p50_ms||0}ms\np90: ${m.e2e_latency_p90_ms||0}ms\np95: ${m.e2e_latency_p95_ms||0}ms\np99: ${m.e2e_latency_p99_ms||0}ms\nmax: ${m.e2e_latency_max_ms||0}ms\n\nPublish Latency\np50: ${m.publish_latency_p50_ms||0}ms\np90: ${m.publish_latency_p90_ms||0}ms\np95: ${m.publish_latency_p95_ms||0}ms\np99: ${m.publish_latency_p99_ms||0}ms\nmax: ${m.publish_latency_max_ms||0}ms"><div class="metric-value" data-m="p50">${m.e2e_latency_p50_ms || 0}</div><div class="metric-label">p50 ms</div></div>
+        <div class="metric has-tooltip" title="E2E Latency\np50: ${m.e2e_latency_p50_ms||0}ms\np90: ${m.e2e_latency_p90_ms||0}ms\np95: ${m.e2e_latency_p95_ms||0}ms\np99: ${m.e2e_latency_p99_ms||0}ms\nmax: ${m.e2e_latency_max_ms||0}ms"><div class="metric-value" data-m="p95">${m.e2e_latency_p95_ms || 0}</div><div class="metric-label">p95 ms</div></div>
+        <div class="metric"><div class="metric-value" data-m="missing">${m.missing_total || 0}</div><div class="metric-label">missing</div></div>
+        <div class="metric"><div class="metric-value" data-m="pub_total">${m.publish_total || 0}</div><div class="metric-label">pub total</div></div>
+        <div class="metric"><div class="metric-value" data-m="del_total">${m.delivery_total || 0}</div><div class="metric-label">del total</div></div>
+        <div class="metric"><div class="metric-value" data-m="errors">${m.publish_errors || 0}</div><div class="metric-label">errors</div></div>
       </div>
       <div class="controls">
         <button onclick="api('POST','/api/groups/${g.name}/provision')">Provision</button>
@@ -58,26 +59,70 @@ function renderCard(g) {
         <button class="danger" onclick="api('DELETE','/api/groups/${g.name}').then(refresh)">Delete</button>
       </div>
       <div class="controls" style="margin-top:8px">
-        <div class="slider-group">
-          <label>Rate/tenant: <span id="rate-${g.name}">${g.config.publish.rate_per_tenant}</span></label>
-          <input type="range" min="1" max="5000" value="${g.config.publish.rate_per_tenant}"
-            oninput="document.getElementById('rate-${g.name}').textContent=this.value"
-            onchange="api('PATCH','/api/groups/${g.name}',{rate_per_tenant:parseInt(this.value)})">
+        <div class="input-group">
+          <label>Rate/tenant</label>
+          <input type="number" id="rate-${g.name}" value="${g.config.publish.rate_per_tenant}" min="1">
         </div>
-        <div class="slider-group">
-          <label>Latency ms: <span id="lat-${g.name}">${g.config.mock_profile.latency_ms}</span></label>
-          <input type="range" min="0" max="5000" value="${g.config.mock_profile.latency_ms}"
-            oninput="document.getElementById('lat-${g.name}').textContent=this.value"
-            onchange="api('PATCH','/api/groups/${g.name}',{latency_ms:parseInt(this.value)})">
+        <div class="input-group">
+          <label>Latency ms</label>
+          <input type="number" id="lat-${g.name}" value="${g.config.mock_profile.latency_ms}" min="0">
         </div>
-        <div class="slider-group">
-          <label>Error rate: <span id="err-${g.name}">${g.config.mock_profile.error_rate}</span></label>
-          <input type="range" min="0" max="100" value="${g.config.mock_profile.error_rate * 100}"
-            oninput="document.getElementById('err-${g.name}').textContent=(this.value/100).toFixed(2)"
-            onchange="api('PATCH','/api/groups/${g.name}',{error_rate:parseInt(this.value)/100})">
+        <div class="input-group">
+          <label>Error rate</label>
+          <input type="number" id="err-${g.name}" value="${g.config.mock_profile.error_rate}" min="0" max="1" step="0.01">
+        </div>
+        <div class="input-group" style="justify-content:flex-end">
+          <label>&nbsp;</label>
+          <button onclick="applySettings('${g.name}')">Apply</button>
         </div>
       </div>
     </div>`;
+}
+
+function updateCard(g) {
+  const card = document.querySelector(`.card[data-group="${g.name}"]`);
+  if (!card) return false;
+
+  const m = g.metrics || {};
+  const sets = {
+    pub_rate: fmt(m.publish_rate_per_sec),
+    del_rate: fmt(m.delivery_rate_per_sec),
+    in_flight: m.in_flight || 0,
+    p50: m.e2e_latency_p50_ms || 0,
+    p95: m.e2e_latency_p95_ms || 0,
+    missing: m.missing_total || 0,
+    pub_total: m.publish_total || 0,
+    del_total: m.delivery_total || 0,
+    errors: m.publish_errors || 0,
+  };
+  for (const [key, val] of Object.entries(sets)) {
+    const el = card.querySelector(`[data-m="${key}"]`);
+    if (el) el.textContent = val;
+  }
+
+  // Update tooltips
+  const tooltip = `E2E Latency\np50: ${m.e2e_latency_p50_ms||0}ms\np90: ${m.e2e_latency_p90_ms||0}ms\np95: ${m.e2e_latency_p95_ms||0}ms\np99: ${m.e2e_latency_p99_ms||0}ms\nmax: ${m.e2e_latency_max_ms||0}ms\n\nPublish Latency\np50: ${m.publish_latency_p50_ms||0}ms\np90: ${m.publish_latency_p90_ms||0}ms\np95: ${m.publish_latency_p95_ms||0}ms\np99: ${m.publish_latency_p99_ms||0}ms\nmax: ${m.publish_latency_max_ms||0}ms`;
+  card.querySelectorAll('.has-tooltip').forEach(el => el.title = tooltip);
+
+  // Update state badge
+  const badge = card.querySelector('.card-state');
+  if (badge) {
+    badge.textContent = g.state;
+    badge.className = 'card-state state-' + g.state;
+  }
+
+  return true;
+}
+
+async function applySettings(name) {
+  const rate = parseInt(document.getElementById('rate-' + name).value);
+  const latency = parseInt(document.getElementById('lat-' + name).value);
+  const errorRate = parseFloat(document.getElementById('err-' + name).value);
+  await api('PATCH', '/api/groups/' + name, {
+    rate_per_tenant: rate,
+    latency_ms: latency,
+    error_rate: errorRate,
+  });
 }
 
 function fmt(n) {
@@ -87,7 +132,25 @@ function fmt(n) {
 
 async function refresh() {
   const groups = await api('GET', '/api/groups');
-  document.getElementById('groups').innerHTML = groups.map(renderCard).join('');
+  const container = document.getElementById('groups');
+
+  // Track which groups exist for add/remove detection
+  const currentNames = new Set(Array.from(container.querySelectorAll('.card')).map(c => c.dataset.group));
+  const newNames = new Set(groups.map(g => g.name));
+
+  // Remove deleted groups
+  for (const name of currentNames) {
+    if (!newNames.has(name)) {
+      container.querySelector(`.card[data-group="${name}"]`).remove();
+    }
+  }
+
+  // Update existing or add new
+  for (const g of groups) {
+    if (!updateCard(g)) {
+      container.insertAdjacentHTML('beforeend', renderCard(g));
+    }
+  }
 }
 
 // Load status

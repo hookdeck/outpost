@@ -17,6 +17,8 @@ h1 { font-size: 20px; margin-bottom: 8px; }
 .state-stopping { background: #431407; color: #fb923c; }
 .state-stopped { background: #1c1917; color: #a8a29e; }
 .state-error { background: #450a0a; color: #f87171; }
+.card-config { font-size: 12px; color: #71717a; margin-bottom: 12px; }
+.has-tooltip { cursor: help; }
 .metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; }
 .metric { text-align: center; }
 .metric-value { font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; }
@@ -26,6 +28,9 @@ h1 { font-size: 20px; margin-bottom: 8px; }
 .slider-group label { font-size: 11px; color: #71717a; }
 .slider-group input[type=range] { width: 100%; }
 .slider-value { font-size: 11px; color: #a1a1aa; text-align: right; }
+.input-group { display: flex; flex-direction: column; gap: 4px; }
+.input-group label { font-size: 11px; color: #71717a; }
+.input-group input[type=number] { padding: 4px 8px; border-radius: 4px; border: 1px solid #3f3f46; background: #27272a; color: #e4e4e7; font-size: 12px; width: 90px; }
 button { padding: 6px 12px; border-radius: 4px; border: 1px solid #3f3f46; background: #27272a; color: #e4e4e7; cursor: pointer; font-size: 12px; }
 button:hover { background: #3f3f46; }
 button.primary { background: #16a34a; border-color: #16a34a; }

@@ -58,6 +58,10 @@ func (g *GroupMetrics) RecordMissing() {
 	g.missingTotal.Add(1)
 }
 
+func (g *GroupMetrics) RecordRecovered() {
+	g.missingTotal.Add(-1)
+}
+
 func (g *GroupMetrics) Reset() {
 	g.publishTotal.Store(0)
 	g.publishErrors.Store(0)
@@ -81,10 +85,14 @@ func (g *GroupMetrics) Snapshot() GroupSnapshot {
 		PublishRatePerSec: g.publishRate.Rate(now),
 		DeliveryRatePerSec: g.deliveryRate.Rate(now),
 		PublishLatencyP50: g.publishLatency.Percentile(50),
+		PublishLatencyP90: g.publishLatency.Percentile(90),
 		PublishLatencyP95: g.publishLatency.Percentile(95),
 		PublishLatencyP99: g.publishLatency.Percentile(99),
+		PublishLatencyMax: g.publishLatency.Max(),
 		E2ELatencyP50:    g.e2eLatency.Percentile(50),
+		E2ELatencyP90:    g.e2eLatency.Percentile(90),
 		E2ELatencyP95:    g.e2eLatency.Percentile(95),
+		E2ELatencyMax:    g.e2eLatency.Max(),
 		E2ELatencyP99:    g.e2eLatency.Percentile(99),
 	}
 }

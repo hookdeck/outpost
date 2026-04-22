@@ -43,3 +43,4 @@ skills-lock.json
 *.local.*
 bin/
 .envrc
+loadtest-app/test-results/

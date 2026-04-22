@@ -10,11 +10,15 @@ type GroupSnapshot struct {
 	PublishRatePerSec  float64 `json:"publish_rate_per_sec"`
 	DeliveryRatePerSec float64 `json:"delivery_rate_per_sec"`
 	PublishLatencyP50  int64   `json:"publish_latency_p50_ms"`
+	PublishLatencyP90  int64   `json:"publish_latency_p90_ms"`
 	PublishLatencyP95  int64   `json:"publish_latency_p95_ms"`
 	PublishLatencyP99  int64   `json:"publish_latency_p99_ms"`
+	PublishLatencyMax  int64   `json:"publish_latency_max_ms"`
 	E2ELatencyP50      int64   `json:"e2e_latency_p50_ms"`
+	E2ELatencyP90      int64   `json:"e2e_latency_p90_ms"`
 	E2ELatencyP95      int64   `json:"e2e_latency_p95_ms"`
 	E2ELatencyP99      int64   `json:"e2e_latency_p99_ms"`
+	E2ELatencyMax      int64   `json:"e2e_latency_max_ms"`
 	InFlight           int     `json:"in_flight"`
 }
 
