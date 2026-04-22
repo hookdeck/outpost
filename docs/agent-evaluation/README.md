@@ -127,7 +127,7 @@ This folder contains **manual** scenario specs (markdown) and an **automated** r
 
 **Deliberate scope:** `npm run eval` **requires** **`--scenario`**, **`--scenarios`**, or **`--all`**. There is no silent "run everything" default — you choose the scenarios and accept the cost. After **each** run: **`transcript.json`**, **`heuristic-score.json`**, and **`llm-score.json`** (judge reads the same **Success criteria** as humans). Exit **1** if any enabled score fails.
 
-Opt out of scoring: **`--no-score`** (heuristic only), **`--no-score-llm`** (drops the Success-criteria judge), or **`.env`**: **`EVAL_NO_SCORE_HEURISTIC=1`**, **`EVAL_NO_SCORE_LLM=1`**. Transcript-only: **`npm run eval -- --no-score --no-score-llm`**.
+Opt out of scoring: **`--no-score`** (skips heuristic scoring), **`--no-score-llm`** (drops the Success-criteria judge), or **`.env`**: **`EVAL_NO_SCORE_HEURISTIC=1`**, **`EVAL_NO_SCORE_LLM=1`**. Transcript-only: **`npm run eval -- --no-score --no-score-llm`**.
 
 Each scenario run uses one directory:
 
