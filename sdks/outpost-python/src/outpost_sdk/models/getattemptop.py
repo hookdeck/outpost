@@ -33,6 +33,8 @@ r"""Fields to include in the response. Use bracket notation for multiple values 
 class GetAttemptRequestTypedDict(TypedDict):
     attempt_id: str
     r"""The ID of the attempt."""
+    tenant_id: NotRequired[str]
+    r"""Filter by tenant ID. Returns 404 if the attempt does not belong to the specified tenant. Ignored when using Tenant JWT authentication."""
     include: NotRequired[GetAttemptIncludeTypedDict]
     r"""Fields to include in the response. Use bracket notation for multiple values (e.g., `include[0]=event&include[1]=response_data`).
     - `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
@@ -49,6 +51,12 @@ class GetAttemptRequest(BaseModel):
     ]
     r"""The ID of the attempt."""
 
+    tenant_id: Annotated[
+        Optional[str],
+        FieldMetadata(query=QueryParamMetadata(style="form", explode=True)),
+    ] = None
+    r"""Filter by tenant ID. Returns 404 if the attempt does not belong to the specified tenant. Ignored when using Tenant JWT authentication."""
+
     include: Annotated[
         Optional[GetAttemptInclude],
         FieldMetadata(query=QueryParamMetadata(style="form", explode=True)),
@@ -63,7 +71,7 @@ class GetAttemptRequest(BaseModel):
 
     @model_serializer(mode="wrap")
     def serialize_model(self, handler):
-        optional_fields = set(["include"])
+        optional_fields = set(["tenant_id", "include"])
         serialized = handler(self)
         m = {}
 

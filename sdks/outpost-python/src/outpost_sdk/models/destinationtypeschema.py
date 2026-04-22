@@ -11,6 +11,29 @@ from typing import List, Optional
 from typing_extensions import NotRequired, TypedDict
 
 
+class SetupLinkTypedDict(TypedDict):
+    r"""Some destinations may have an OAuth flow or other managed-setup flow that can be triggered with a link. If a `setup_link` is set then the user should be prompted to follow the link to configure the destination.
+    See the [building your own UI guide](https://outpost.hookdeck.com/guides/building-your-own-ui.mdx) for recommended UI patterns and wireframes for implementation in your own app.
+    """
+
+    href: str
+    r"""The URL to direct the user to for setup."""
+    cta: str
+    r"""The call-to-action button text to display to the user."""
+
+
+class SetupLink(BaseModel):
+    r"""Some destinations may have an OAuth flow or other managed-setup flow that can be triggered with a link. If a `setup_link` is set then the user should be prompted to follow the link to configure the destination.
+    See the [building your own UI guide](https://outpost.hookdeck.com/guides/building-your-own-ui.mdx) for recommended UI patterns and wireframes for implementation in your own app.
+    """
+
+    href: str
+    r"""The URL to direct the user to for setup."""
+
+    cta: str
+    r"""The call-to-action button text to display to the user."""
+
+
 class DestinationTypeSchemaTypedDict(TypedDict):
     type: NotRequired[str]
     label: NotRequired[str]
@@ -19,8 +42,8 @@ class DestinationTypeSchemaTypedDict(TypedDict):
     r"""SVG icon string."""
     instructions: NotRequired[str]
     r"""Markdown instructions."""
-    remote_setup_url: NotRequired[str]
-    r"""Some destinations may have Oauth flow or other managed-setup flow that can be triggered with a link. If a `remote_setup_url` is set then the user should be prompted to follow the link to configure the destination.
+    setup_link: NotRequired[SetupLinkTypedDict]
+    r"""Some destinations may have an OAuth flow or other managed-setup flow that can be triggered with a link. If a `setup_link` is set then the user should be prompted to follow the link to configure the destination.
     See the [building your own UI guide](https://outpost.hookdeck.com/guides/building-your-own-ui.mdx) for recommended UI patterns and wireframes for implementation in your own app.
     """
     config_fields: NotRequired[List[DestinationSchemaFieldTypedDict]]
@@ -42,8 +65,8 @@ class DestinationTypeSchema(BaseModel):
     instructions: Optional[str] = None
     r"""Markdown instructions."""
 
-    remote_setup_url: Optional[str] = None
-    r"""Some destinations may have Oauth flow or other managed-setup flow that can be triggered with a link. If a `remote_setup_url` is set then the user should be prompted to follow the link to configure the destination.
+    setup_link: Optional[SetupLink] = None
+    r"""Some destinations may have an OAuth flow or other managed-setup flow that can be triggered with a link. If a `setup_link` is set then the user should be prompted to follow the link to configure the destination.
     See the [building your own UI guide](https://outpost.hookdeck.com/guides/building-your-own-ui.mdx) for recommended UI patterns and wireframes for implementation in your own app.
     """
 
@@ -62,7 +85,7 @@ class DestinationTypeSchema(BaseModel):
                 "description",
                 "icon",
                 "instructions",
-                "remote_setup_url",
+                "setup_link",
                 "config_fields",
                 "credential_fields",
             ]

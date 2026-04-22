@@ -14,6 +14,23 @@ import {
   DestinationSchemaField$outboundSchema,
 } from "./destinationschemafield.js";
 
+/**
+ * Some destinations may have an OAuth flow or other managed-setup flow that can be triggered with a link. If a `setup_link` is set then the user should be prompted to follow the link to configure the destination.
+ *
+ * @remarks
+ * See the [building your own UI guide](https://outpost.hookdeck.com/guides/building-your-own-ui.mdx) for recommended UI patterns and wireframes for implementation in your own app.
+ */
+export type SetupLink = {
+  /**
+   * The URL to direct the user to for setup.
+   */
+  href: string;
+  /**
+   * The call-to-action button text to display to the user.
+   */
+  cta: string;
+};
+
 export type DestinationTypeSchema = {
   type?: string | undefined;
   label?: string | undefined;
@@ -27,12 +44,12 @@ export type DestinationTypeSchema = {
    */
   instructions?: string | undefined;
   /**
-   * Some destinations may have Oauth flow or other managed-setup flow that can be triggered with a link. If a `remote_setup_url` is set then the user should be prompted to follow the link to configure the destination.
+   * Some destinations may have an OAuth flow or other managed-setup flow that can be triggered with a link. If a `setup_link` is set then the user should be prompted to follow the link to configure the destination.
    *
    * @remarks
    * See the [building your own UI guide](https://outpost.hookdeck.com/guides/building-your-own-ui.mdx) for recommended UI patterns and wireframes for implementation in your own app.
    */
-  remoteSetupUrl?: string | undefined;
+  setupLink?: SetupLink | undefined;
   /**
    * Config fields are non-secret values that can be stored and displayed to the user in plain text.
    */
@@ -42,6 +59,44 @@ export type DestinationTypeSchema = {
    */
   credentialFields?: Array<DestinationSchemaField> | undefined;
 };
+
+/** @internal */
+export const SetupLink$inboundSchema: z.ZodType<
+  SetupLink,
+  z.ZodTypeDef,
+  unknown
+> = z.object({
+  href: z.string(),
+  cta: z.string(),
+});
+/** @internal */
+export type SetupLink$Outbound = {
+  href: string;
+  cta: string;
+};
+
+/** @internal */
+export const SetupLink$outboundSchema: z.ZodType<
+  SetupLink$Outbound,
+  z.ZodTypeDef,
+  SetupLink
+> = z.object({
+  href: z.string(),
+  cta: z.string(),
+});
+
+export function setupLinkToJSON(setupLink: SetupLink): string {
+  return JSON.stringify(SetupLink$outboundSchema.parse(setupLink));
+}
+export function setupLinkFromJSON(
+  jsonString: string,
+): SafeParseResult<SetupLink, SDKValidationError> {
+  return safeParse(
+    jsonString,
+    (x) => SetupLink$inboundSchema.parse(JSON.parse(x)),
+    `Failed to parse 'SetupLink' from JSON`,
+  );
+}
 
 /** @internal */
 export const DestinationTypeSchema$inboundSchema: z.ZodType<
@@ -54,12 +109,12 @@ export const DestinationTypeSchema$inboundSchema: z.ZodType<
   description: z.string().optional(),
   icon: z.string().optional(),
   instructions: z.string().optional(),
-  remote_setup_url: z.string().optional(),
+  setup_link: z.lazy(() => SetupLink$inboundSchema).optional(),
   config_fields: z.array(DestinationSchemaField$inboundSchema).optional(),
   credential_fields: z.array(DestinationSchemaField$inboundSchema).optional(),
 }).transform((v) => {
   return remap$(v, {
-    "remote_setup_url": "remoteSetupUrl",
+    "setup_link": "setupLink",
     "config_fields": "configFields",
     "credential_fields": "credentialFields",
   });
@@ -71,7 +126,7 @@ export type DestinationTypeSchema$Outbound = {
   description?: string | undefined;
   icon?: string | undefined;
   instructions?: string | undefined;
-  remote_setup_url?: string | undefined;
+  setup_link?: SetupLink$Outbound | undefined;
   config_fields?: Array<DestinationSchemaField$Outbound> | undefined;
   credential_fields?: Array<DestinationSchemaField$Outbound> | undefined;
 };
@@ -87,12 +142,12 @@ export const DestinationTypeSchema$outboundSchema: z.ZodType<
   description: z.string().optional(),
   icon: z.string().optional(),
   instructions: z.string().optional(),
-  remoteSetupUrl: z.string().optional(),
+  setupLink: z.lazy(() => SetupLink$outboundSchema).optional(),
   configFields: z.array(DestinationSchemaField$outboundSchema).optional(),
   credentialFields: z.array(DestinationSchemaField$outboundSchema).optional(),
 }).transform((v) => {
   return remap$(v, {
-    remoteSetupUrl: "remote_setup_url",
+    setupLink: "setup_link",
     configFields: "config_fields",
     credentialFields: "credential_fields",
   });

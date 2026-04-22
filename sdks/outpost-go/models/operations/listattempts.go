@@ -4,11 +4,76 @@ package operations
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/hookdeck/outpost/sdks/outpost-go/internal/utils"
 	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
 	"time"
 )
+
+type DestinationTypeType string
+
+const (
+	DestinationTypeTypeDestinationType        DestinationTypeType = "DestinationType"
+	DestinationTypeTypeArrayOfDestinationType DestinationTypeType = "arrayOfDestinationType"
+)
+
+// DestinationType - Filter attempts by destination type(s). Use bracket notation for multiple values (e.g., `destination_type[0]=webhook&destination_type[1]=aws_sqs`).
+type DestinationType struct {
+	DestinationType        *components.DestinationType  `queryParam:"inline" union:"member"`
+	ArrayOfDestinationType []components.DestinationType `queryParam:"inline" union:"member"`
+
+	Type DestinationTypeType
+}
+
+func CreateDestinationTypeDestinationType(destinationType components.DestinationType) DestinationType {
+	typ := DestinationTypeTypeDestinationType
+
+	return DestinationType{
+		DestinationType: &destinationType,
+		Type:            typ,
+	}
+}
+
+func CreateDestinationTypeArrayOfDestinationType(arrayOfDestinationType []components.DestinationType) DestinationType {
+	typ := DestinationTypeTypeArrayOfDestinationType
+
+	return DestinationType{
+		ArrayOfDestinationType: arrayOfDestinationType,
+		Type:                   typ,
+	}
+}
+
+func (u *DestinationType) UnmarshalJSON(data []byte) error {
+
+	var destinationType components.DestinationType = components.DestinationType("")
+	if err := utils.UnmarshalJSON(data, &destinationType, "", true, nil); err == nil {
+		u.DestinationType = &destinationType
+		u.Type = DestinationTypeTypeDestinationType
+		return nil
+	}
+
+	var arrayOfDestinationType []components.DestinationType = []components.DestinationType{}
+	if err := utils.UnmarshalJSON(data, &arrayOfDestinationType, "", true, nil); err == nil {
+		u.ArrayOfDestinationType = arrayOfDestinationType
+		u.Type = DestinationTypeTypeArrayOfDestinationType
+		return nil
+	}
+
+	return fmt.Errorf("could not unmarshal `%s` into any supported union types for DestinationType", string(data))
+}
+
+func (u DestinationType) MarshalJSON() ([]byte, error) {
+	if u.DestinationType != nil {
+		return utils.MarshalJSON(u.DestinationType, "", true)
+	}
+
+	if u.ArrayOfDestinationType != nil {
+		return utils.MarshalJSON(u.ArrayOfDestinationType, "", true)
+	}
+
+	return nil, errors.New("could not marshal union type DestinationType: all fields are null")
+}
 
 // ListAttemptsStatus - Filter attempts by status.
 type ListAttemptsStatus string
@@ -98,6 +163,8 @@ type ListAttemptsRequest struct {
 	EventID []string `queryParam:"style=form,explode=true,name=event_id"`
 	// Filter attempts by destination ID(s). Use bracket notation for multiple values (e.g., `destination_id[0]=d1&destination_id[1]=d2`).
 	DestinationID []string `queryParam:"style=form,explode=true,name=destination_id"`
+	// Filter attempts by destination type(s). Use bracket notation for multiple values (e.g., `destination_type[0]=webhook&destination_type[1]=aws_sqs`).
+	DestinationType *DestinationType `queryParam:"style=form,explode=true,name=destination_type"`
 	// Filter attempts by status.
 	Status *ListAttemptsStatus `queryParam:"style=form,explode=true,name=status"`
 	// Filter attempts by event topic(s). Use bracket notation for multiple values (e.g., `topic[0]=user.created&topic[1]=user.updated`).
@@ -159,6 +226,13 @@ func (l *ListAttemptsRequest) GetDestinationID() []string {
 		return nil
 	}
 	return l.DestinationID
+}
+
+func (l *ListAttemptsRequest) GetDestinationType() *DestinationType {
+	if l == nil {
+		return nil
+	}
+	return l.DestinationType
 }
 
 func (l *ListAttemptsRequest) GetStatus() *ListAttemptsStatus {

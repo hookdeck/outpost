@@ -126,6 +126,11 @@ func main() {
 * [Get](docs/sdks/attempts/README.md#get) - Get Attempt
 * [Retry](docs/sdks/attempts/README.md#retry) - Retry Event Delivery
 
+### [Configuration](docs/sdks/configuration/README.md)
+
+* [GetManagedConfig](docs/sdks/configuration/README.md#getmanagedconfig) - Get Managed Configuration
+* [UpdateManagedConfig](docs/sdks/configuration/README.md#updatemanagedconfig) - Update Managed Configuration
+
 ### [Destinations](docs/sdks/destinations/README.md)
 
 * [List](docs/sdks/destinations/README.md#list) - List Destinations

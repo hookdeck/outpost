@@ -3,7 +3,8 @@
  */
 
 import { OutpostCore } from "../core.js";
-import { encodeSimple } from "../lib/encodings.js";
+import { encodeFormQuery, encodeSimple } from "../lib/encodings.js";
+import { matchStatusCode } from "../lib/http.js";
 import * as M from "../lib/matchers.js";
 import { compactMap } from "../lib/primitives.js";
 import { safeParse } from "../lib/schemas.js";
@@ -38,6 +39,7 @@ import { Result } from "../types/fp.js";
 export function eventsGet(
   client: OutpostCore,
   eventId: string,
+  tenantId?: string | undefined,
   options?: RequestOptions,
 ): APIPromise<
   Result<
@@ -58,6 +60,7 @@ export function eventsGet(
   return new APIPromise($do(
     client,
     eventId,
+    tenantId,
     options,
   ));
 }
@@ -65,6 +68,7 @@ export function eventsGet(
 async function $do(
   client: OutpostCore,
   eventId: string,
+  tenantId?: string | undefined,
   options?: RequestOptions,
 ): Promise<
   [
@@ -87,6 +91,7 @@ async function $do(
 > {
   const input: operations.GetEventRequest = {
     eventId: eventId,
+    tenantId: tenantId,
   };
 
   const parsed = safeParse(
@@ -107,6 +112,10 @@ async function $do(
     }),
   };
   const path = pathToFunc("/events/{event_id}")(pathParams);
+
+  const query = encodeFormQuery({
+    "tenant_id": payload.tenant_id,
+  });
 
   const headers = new Headers(compactMap({
     Accept: "application/json",
@@ -137,6 +146,7 @@ async function $do(
     baseURL: options?.serverURL,
     path: path,
     headers: headers,
+    query: query,
     body: body,
     userAgent: client._options.userAgent,
     timeoutMs: options?.timeoutMs || client._options.timeoutMs || -1,
@@ -148,7 +158,8 @@ async function $do(
 
   const doResult = await client._do(req, {
     context,
-    errorCodes: ["401", "404", "4XX", "500", "5XX"],
+    isErrorStatusCode: (statusCode: number) =>
+      matchStatusCode({ status: statusCode } as Response, ["4XX", "5XX"]),
     retryConfig: context.retryConfig,
     retryCodes: context.retryCodes,
   });

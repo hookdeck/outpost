@@ -197,7 +197,7 @@ func (s *Attempts) List(ctx context.Context, request operations.ListAttemptsRequ
 
 			_, err = s.hooks.AfterError(hooks.AfterErrorContext{HookContext: hookCtx}, nil, err)
 			return nil, err
-		} else if utils.MatchStatusCodes([]string{"401", "4XX", "500", "5XX"}, httpRes.StatusCode) {
+		} else if utils.MatchStatusCodes([]string{"4XX", "5XX"}, httpRes.StatusCode) {
 			_httpRes, err := s.hooks.AfterError(hooks.AfterErrorContext{HookContext: hookCtx}, httpRes, nil)
 			if err != nil {
 				return nil, err
@@ -378,9 +378,10 @@ func (s *Attempts) List(ctx context.Context, request operations.ListAttemptsRequ
 //
 // When authenticated with a Tenant JWT, only attempts belonging to that tenant can be accessed.
 // When authenticated with Admin API Key, attempts from any tenant can be accessed.
-func (s *Attempts) Get(ctx context.Context, attemptID string, include []string, opts ...operations.Option) (*operations.GetAttemptResponse, error) {
+func (s *Attempts) Get(ctx context.Context, attemptID string, tenantID *string, include []string, opts ...operations.Option) (*operations.GetAttemptResponse, error) {
 	request := operations.GetAttemptRequest{
 		AttemptID: attemptID,
+		TenantID:  tenantID,
 		Include:   include,
 	}
 
@@ -523,7 +524,7 @@ func (s *Attempts) Get(ctx context.Context, attemptID string, include []string, 
 
 			_, err = s.hooks.AfterError(hooks.AfterErrorContext{HookContext: hookCtx}, nil, err)
 			return nil, err
-		} else if utils.MatchStatusCodes([]string{"401", "404", "4XX", "500", "5XX"}, httpRes.StatusCode) {
+		} else if utils.MatchStatusCodes([]string{"4XX", "5XX"}, httpRes.StatusCode) {
 			_httpRes, err := s.hooks.AfterError(hooks.AfterErrorContext{HookContext: hookCtx}, httpRes, nil)
 			if err != nil {
 				return nil, err
@@ -802,7 +803,7 @@ func (s *Attempts) Retry(ctx context.Context, request components.RetryRequest, o
 
 			_, err = s.hooks.AfterError(hooks.AfterErrorContext{HookContext: hookCtx}, nil, err)
 			return nil, err
-		} else if utils.MatchStatusCodes([]string{"400", "401", "404", "4XX", "500", "5XX"}, httpRes.StatusCode) {
+		} else if utils.MatchStatusCodes([]string{"4XX", "5XX"}, httpRes.StatusCode) {
 			_httpRes, err := s.hooks.AfterError(hooks.AfterErrorContext{HookContext: hookCtx}, httpRes, nil)
 			if err != nil {
 				return nil, err

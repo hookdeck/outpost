@@ -4,6 +4,7 @@
 
 import { ClientSDK } from "../lib/sdks.js";
 import { Attempts } from "./attempts.js";
+import { Configuration } from "./configuration.js";
 import { Destinations } from "./destinations.js";
 import { Events } from "./events.js";
 import { Health } from "./health.js";
@@ -17,6 +18,11 @@ export class Outpost extends ClientSDK {
   private _health?: Health;
   get health(): Health {
     return (this._health ??= new Health(this._options));
+  }
+
+  private _configuration?: Configuration;
+  get configuration(): Configuration {
+    return (this._configuration ??= new Configuration(this._options));
   }
 
   private _tenants?: Tenants;

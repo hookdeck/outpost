@@ -47,6 +47,7 @@ export * from "./eventpaginatedresult.js";
 export * from "./gcppubsubconfig.js";
 export * from "./gcppubsubcredentials.js";
 export * from "./hookdeckcredentials.js";
+export * from "./managedconfig.js";
 export * from "./metricsdatapoint.js";
 export * from "./metricsmetadata.js";
 export * from "./metricsresponse.js";

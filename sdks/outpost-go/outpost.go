@@ -2,7 +2,7 @@
 
 package outpostgo
 
-// Generated from OpenAPI doc version 0.0.1 and generator version 2.879.11
+// Generated from OpenAPI doc version 0.0.1 and generator version 2.881.4
 
 import (
 	"context"
@@ -55,6 +55,10 @@ type Outpost struct {
 	SDKVersion string
 	// API Health Check
 	Health *Health
+	// Outpost instance-level configuration management for the managed deployment.
+	// This is not available in self-hosted deployments.
+	//
+	Configuration *Configuration
 	// The API segments resources per `tenant`. A tenant represents a user/team/organization in your product. The provided value determines the tenant's ID, which can be any string representation.
 	//
 	// If your system is not multi-tenant, create a single tenant with a hard-code tenant ID upon initialization. If your system has a single tenant but multiple environments, create a tenant per environment, like `live` and `test`.
@@ -190,9 +194,9 @@ func WithTimeout(timeout time.Duration) SDKOption {
 // New creates a new instance of the SDK with the provided options
 func New(opts ...SDKOption) *Outpost {
 	sdk := &Outpost{
-		SDKVersion: "0.9.0",
+		SDKVersion: "0.10.0",
 		sdkConfiguration: config.SDKConfiguration{
-			UserAgent:  "speakeasy-sdk/go 0.9.0 2.879.11 0.0.1 github.com/hookdeck/outpost/sdks/outpost-go",
+			UserAgent:  "speakeasy-sdk/go 0.10.0 2.881.4 0.0.1 github.com/hookdeck/outpost/sdks/outpost-go",
 			ServerList: ServerList,
 		},
 		hooks: hooks.New(),
@@ -214,6 +218,7 @@ func New(opts ...SDKOption) *Outpost {
 	}
 
 	sdk.Health = newHealth(sdk, sdk.sdkConfiguration, sdk.hooks)
+	sdk.Configuration = newConfiguration(sdk, sdk.sdkConfiguration, sdk.hooks)
 	sdk.Tenants = newTenants(sdk, sdk.sdkConfiguration, sdk.hooks)
 	sdk.Events = newEvents(sdk, sdk.sdkConfiguration, sdk.hooks)
 	sdk.Attempts = newAttempts(sdk, sdk.sdkConfiguration, sdk.hooks)

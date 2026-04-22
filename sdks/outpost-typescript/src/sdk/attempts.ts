@@ -45,12 +45,14 @@ export class Attempts extends ClientSDK {
    */
   async get(
     attemptId: string,
+    tenantId?: string | undefined,
     include?: operations.GetAttemptInclude | undefined,
     options?: RequestOptions,
   ): Promise<components.Attempt> {
     return unwrapAsync(attemptsGet(
       this,
       attemptId,
+      tenantId,
       include,
       options,
     ));

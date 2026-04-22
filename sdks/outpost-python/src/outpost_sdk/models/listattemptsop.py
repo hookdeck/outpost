@@ -5,6 +5,7 @@ from .attemptpaginatedresult import (
     AttemptPaginatedResult,
     AttemptPaginatedResultTypedDict,
 )
+from .destinationtype import DestinationType
 from datetime import datetime
 from enum import Enum
 from outpost_sdk.types import BaseModel, UNSET_SENTINEL
@@ -53,6 +54,19 @@ ListAttemptsDestinationID = TypeAliasType(
     "ListAttemptsDestinationID", Union[str, List[str]]
 )
 r"""Filter attempts by destination ID(s). Use bracket notation for multiple values (e.g., `destination_id[0]=d1&destination_id[1]=d2`)."""
+
+
+ListAttemptsDestinationTypeTypedDict = TypeAliasType(
+    "ListAttemptsDestinationTypeTypedDict",
+    Union[DestinationType, List[DestinationType]],
+)
+r"""Filter attempts by destination type(s). Use bracket notation for multiple values (e.g., `destination_type[0]=webhook&destination_type[1]=aws_sqs`)."""
+
+
+ListAttemptsDestinationType = TypeAliasType(
+    "ListAttemptsDestinationType", Union[DestinationType, List[DestinationType]]
+)
+r"""Filter attempts by destination type(s). Use bracket notation for multiple values (e.g., `destination_type[0]=webhook&destination_type[1]=aws_sqs`)."""
 
 
 class ListAttemptsStatus(str, Enum):
@@ -118,6 +132,8 @@ class ListAttemptsRequestTypedDict(TypedDict):
     r"""Filter attempts by event ID(s). Use bracket notation for multiple values (e.g., `event_id[0]=e1&event_id[1]=e2`)."""
     destination_id: NotRequired[ListAttemptsDestinationIDTypedDict]
     r"""Filter attempts by destination ID(s). Use bracket notation for multiple values (e.g., `destination_id[0]=d1&destination_id[1]=d2`)."""
+    destination_type: NotRequired[ListAttemptsDestinationTypeTypedDict]
+    r"""Filter attempts by destination type(s). Use bracket notation for multiple values (e.g., `destination_type[0]=webhook&destination_type[1]=aws_sqs`)."""
     status: NotRequired[ListAttemptsStatus]
     r"""Filter attempts by status."""
     topic: NotRequired[ListAttemptsTopicTypedDict]
@@ -172,6 +188,12 @@ class ListAttemptsRequest(BaseModel):
         FieldMetadata(query=QueryParamMetadata(style="form", explode=True)),
     ] = None
     r"""Filter attempts by destination ID(s). Use bracket notation for multiple values (e.g., `destination_id[0]=d1&destination_id[1]=d2`)."""
+
+    destination_type: Annotated[
+        Optional[ListAttemptsDestinationType],
+        FieldMetadata(query=QueryParamMetadata(style="form", explode=True)),
+    ] = None
+    r"""Filter attempts by destination type(s). Use bracket notation for multiple values (e.g., `destination_type[0]=webhook&destination_type[1]=aws_sqs`)."""
 
     status: Annotated[
         Optional[ListAttemptsStatus],
@@ -265,6 +287,7 @@ class ListAttemptsRequest(BaseModel):
                 "tenant_id",
                 "event_id",
                 "destination_id",
+                "destination_type",
                 "status",
                 "topic",
                 "time[gte]",

@@ -45,7 +45,7 @@ export type DestinationAwss3 = {
    * @remarks
    * Supports operators: $eq, $neq, $gt, $gte, $lt, $lte, $in, $nin, $startsWith, $endsWith, $exist, $or, $and, $not.
    * If null or empty, all events matching the topic filter will be delivered.
-   * To remove an existing filter when updating a destination, set filter to an empty object `{}`.
+   * Uses full-replacement semantics on update: send a new object to replace, null or `{}` to clear, omit for no change.
    */
   filter?: { [k: string]: any } | null | undefined;
   /**

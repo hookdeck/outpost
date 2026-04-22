@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/hookdeck/outpost/sdks/outpost-go/internal/utils"
+	"github.com/hookdeck/outpost/sdks/outpost-go/optionalnullable"
 )
 
 // DestinationCreateWebhookType - Type of the destination. Must be 'webhook'.
@@ -42,15 +43,15 @@ type DestinationCreateWebhook struct {
 	// Optional JSON schema filter for event matching. Events must match this filter to be delivered to this destination.
 	// Supports operators: $eq, $neq, $gt, $gte, $lt, $lte, $in, $nin, $startsWith, $endsWith, $exist, $or, $and, $not.
 	// If null or empty, all events matching the topic filter will be delivered.
-	// To remove an existing filter when updating a destination, set filter to an empty object `{}`.
+	// Uses full-replacement semantics on update: send a new object to replace, null or `{}` to clear, omit for no change.
 	//
-	Filter      map[string]any      `json:"filter,omitempty"`
-	Config      WebhookConfig       `json:"config"`
-	Credentials *WebhookCredentials `json:"credentials,omitempty"`
+	Filter      optionalnullable.OptionalNullable[map[string]any] `json:"filter,omitempty"`
+	Config      WebhookConfig                                     `json:"config"`
+	Credentials *WebhookCredentials                               `json:"credentials,omitempty"`
 	// Static key-value pairs merged into event metadata on every attempt.
-	DeliveryMetadata map[string]string `json:"delivery_metadata,omitempty"`
+	DeliveryMetadata optionalnullable.OptionalNullable[map[string]string] `json:"delivery_metadata,omitempty"`
 	// Arbitrary contextual information stored with the destination.
-	Metadata map[string]string `json:"metadata,omitempty"`
+	Metadata optionalnullable.OptionalNullable[map[string]string] `json:"metadata,omitempty"`
 }
 
 func (d DestinationCreateWebhook) MarshalJSON() ([]byte, error) {
@@ -85,7 +86,7 @@ func (d *DestinationCreateWebhook) GetTopics() Topics {
 	return d.Topics
 }
 
-func (d *DestinationCreateWebhook) GetFilter() map[string]any {
+func (d *DestinationCreateWebhook) GetFilter() optionalnullable.OptionalNullable[map[string]any] {
 	if d == nil {
 		return nil
 	}
@@ -106,14 +107,14 @@ func (d *DestinationCreateWebhook) GetCredentials() *WebhookCredentials {
 	return d.Credentials
 }
 
-func (d *DestinationCreateWebhook) GetDeliveryMetadata() map[string]string {
+func (d *DestinationCreateWebhook) GetDeliveryMetadata() optionalnullable.OptionalNullable[map[string]string] {
 	if d == nil {
 		return nil
 	}
 	return d.DeliveryMetadata
 }
 
-func (d *DestinationCreateWebhook) GetMetadata() map[string]string {
+func (d *DestinationCreateWebhook) GetMetadata() optionalnullable.OptionalNullable[map[string]string] {
 	if d == nil {
 		return nil
 	}

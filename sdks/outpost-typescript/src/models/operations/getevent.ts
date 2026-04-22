@@ -13,6 +13,10 @@ export type GetEventRequest = {
    * The ID of the event.
    */
   eventId: string;
+  /**
+   * Filter by tenant ID. Returns 404 if the event does not belong to the specified tenant. Ignored when using Tenant JWT authentication.
+   */
+  tenantId?: string | undefined;
 };
 
 /** @internal */
@@ -22,14 +26,17 @@ export const GetEventRequest$inboundSchema: z.ZodType<
   unknown
 > = z.object({
   event_id: z.string(),
+  tenant_id: z.string().optional(),
 }).transform((v) => {
   return remap$(v, {
     "event_id": "eventId",
+    "tenant_id": "tenantId",
   });
 });
 /** @internal */
 export type GetEventRequest$Outbound = {
   event_id: string;
+  tenant_id?: string | undefined;
 };
 
 /** @internal */
@@ -39,9 +46,11 @@ export const GetEventRequest$outboundSchema: z.ZodType<
   GetEventRequest
 > = z.object({
   eventId: z.string(),
+  tenantId: z.string().optional(),
 }).transform((v) => {
   return remap$(v, {
     eventId: "event_id",
+    tenantId: "tenant_id",
   });
 });
 

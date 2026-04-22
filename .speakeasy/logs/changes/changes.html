@@ -98,46 +98,36 @@
 <body><h2 id="typescript-sdk-changes">Typescript SDK Changes:</h2>
 
 <ul>
-<li><code>outpost.events.list()</code>:
+<li><code>outpost.schemas.listDestinationTypes()</code>: <code>response.[]</code> <strong>Changed</strong> (Breaking ⚠️)
 
 <ul>
-<li><code>request.destinationId</code> <strong>Added</strong></li>
-<li><code>response.models[]</code> <strong>Changed</strong> (Breaking ⚠️)
+<li><code>remoteSetupUrl</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>setupLink</code> <strong>Added</strong></li>
+</ul></li>
+<li><code>outpost.schemas.getDestinationType()</code>: <code>response</code> <strong>Changed</strong> (Breaking ⚠️)
 
 <ul>
-<li><code>destinationId</code> <strong>Removed</strong> (Breaking ⚠️)</li>
-<li><code>matchedDestinationIds</code> <strong>Added</strong></li>
+<li><code>remoteSetupUrl</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>setupLink</code> <strong>Added</strong></li>
 </ul></li>
-</ul></li>
-<li><code>outpost.events.get()</code>: <code>response</code> <strong>Changed</strong> (Breaking ⚠️)
+<li><code>outpost.metrics.getAttemptMetrics()</code>: <code>request</code> <strong>Changed</strong> (Breaking ⚠️)
 
 <ul>
-<li><code>destinationId</code> <strong>Removed</strong> (Breaking ⚠️)</li>
-<li><code>matchedDestinationIds</code> <strong>Added</strong></li>
+<li><code>dimensions.union(&quot;tenant_id&quot;,&quot;destination_id&quot; and 5 more)</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>dimensions.union(&quot;tenant_id&quot;,&quot;destination_id&quot; and 6 more)</code> <strong>Added</strong></li>
+<li><code>dimensions.union(Array&lt;&quot;tenant_id&quot;,&quot;destination_id&quot; and 5 more&gt;)</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>dimensions.union(Array&lt;&quot;tenant_id&quot;,&quot;destination_id&quot; and 6 more&gt;)</code> <strong>Added</strong></li>
+<li><code>filters[destinationType]</code> <strong>Added</strong></li>
 </ul></li>
-<li><code>outpost.schemas.listDestinationTypes()</code>: <code>response.[].configFields[]</code> <strong>Changed</strong> (Breaking ⚠️)
+<li><code>outpost.configuration.getManagedConfig()</code>: <strong>Added</strong></li>
+<li><code>outpost.configuration.updateManagedConfig()</code>: <strong>Added</strong></li>
+<li><code>outpost.events.get()</code>:  <code>request.tenantId</code> <strong>Added</strong></li>
+<li><code>outpost.attempts.list()</code>:
 
 <ul>
-<li><code>key</code> <strong>Added</strong></li>
-<li><code>options</code> <strong>Added</strong></li>
-<li><code>type.enum(select)</code> <strong>Added</strong> (Breaking ⚠️)</li>
+<li><code>request.destinationType</code> <strong>Added</strong></li>
 </ul></li>
-<li><code>outpost.schemas.getDestinationType()</code>:
-
-<ul>
-<li><code>request.type</code> <strong>Changed</strong>
-
-<ul>
-<li><code>enum(kafka)</code> <strong>Added</strong></li>
-</ul></li>
-<li><code>response.configFields[]</code> <strong>Changed</strong> (Breaking ⚠️)
-
-<ul>
-<li><code>key</code> <strong>Added</strong></li>
-<li><code>options</code> <strong>Added</strong></li>
-<li><code>type.enum(select)</code> <strong>Added</strong> (Breaking ⚠️)</li>
-</ul></li>
-</ul></li>
+<li><code>outpost.attempts.get()</code>:  <code>request.tenantId</code> <strong>Added</strong></li>
 </ul>
 </body>
 </html>

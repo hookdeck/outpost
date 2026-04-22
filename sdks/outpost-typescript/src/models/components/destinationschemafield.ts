@@ -23,7 +23,7 @@ export type Option = {
 
 export type DestinationSchemaField = {
   /**
-   * The config key used to store and retrieve the field value. Matches the key in the destination's config or credentials object.
+   * Property name for this value inside the destination `config` or `credentials` object on create/update (for example `url` for a webhook endpoint URL). This is the key used to store and retrieve the field value in the destination's config or credentials object.
    */
   key: string;
   type: TypeEnum;

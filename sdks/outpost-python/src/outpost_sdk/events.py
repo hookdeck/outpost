@@ -86,7 +86,7 @@ class Events(BaseSDK):
                 security_source=self.sdk_configuration.security,
             ),
             request=req,
-            error_status_codes=["401", "4XX", "500", "5XX"],
+            is_error_status_code=lambda c: utils.match_status_codes(["4XX", "5XX"], c),
             retry_config=retry_config,
         )
 
@@ -228,7 +228,7 @@ class Events(BaseSDK):
                 security_source=self.sdk_configuration.security,
             ),
             request=req,
-            error_status_codes=["401", "4XX", "500", "5XX"],
+            is_error_status_code=lambda c: utils.match_status_codes(["4XX", "5XX"], c),
             retry_config=retry_config,
         )
 
@@ -300,6 +300,7 @@ class Events(BaseSDK):
         self,
         *,
         event_id: str,
+        tenant_id: Optional[str] = None,
         retries: OptionalNullable[utils.RetryConfig] = UNSET,
         server_url: Optional[str] = None,
         timeout_ms: Optional[int] = None,
@@ -314,6 +315,7 @@ class Events(BaseSDK):
 
 
         :param event_id: The ID of the event.
+        :param tenant_id: Filter by tenant ID. Returns 404 if the event does not belong to the specified tenant. Ignored when using Tenant JWT authentication.
         :param retries: Override the default retry configuration for this method
         :param server_url: Override the default server URL for this method
         :param timeout_ms: Override the default request timeout configuration for this method in milliseconds
@@ -331,6 +333,7 @@ class Events(BaseSDK):
 
         request = models.GetEventRequest(
             event_id=event_id,
+            tenant_id=tenant_id,
         )
 
         req = self._build_request(
@@ -367,7 +370,7 @@ class Events(BaseSDK):
                 security_source=self.sdk_configuration.security,
             ),
             request=req,
-            error_status_codes=["401", "404", "4XX", "500", "5XX"],
+            is_error_status_code=lambda c: utils.match_status_codes(["4XX", "5XX"], c),
             retry_config=retry_config,
         )
 
@@ -400,6 +403,7 @@ class Events(BaseSDK):
         self,
         *,
         event_id: str,
+        tenant_id: Optional[str] = None,
         retries: OptionalNullable[utils.RetryConfig] = UNSET,
         server_url: Optional[str] = None,
         timeout_ms: Optional[int] = None,
@@ -414,6 +418,7 @@ class Events(BaseSDK):
 
 
         :param event_id: The ID of the event.
+        :param tenant_id: Filter by tenant ID. Returns 404 if the event does not belong to the specified tenant. Ignored when using Tenant JWT authentication.
         :param retries: Override the default retry configuration for this method
         :param server_url: Override the default server URL for this method
         :param timeout_ms: Override the default request timeout configuration for this method in milliseconds
@@ -431,6 +436,7 @@ class Events(BaseSDK):
 
         request = models.GetEventRequest(
             event_id=event_id,
+            tenant_id=tenant_id,
         )
 
         req = self._build_request_async(
@@ -467,7 +473,7 @@ class Events(BaseSDK):
                 security_source=self.sdk_configuration.security,
             ),
             request=req,
-            error_status_codes=["401", "404", "4XX", "500", "5XX"],
+            is_error_status_code=lambda c: utils.match_status_codes(["4XX", "5XX"], c),
             retry_config=retry_config,
         )
 

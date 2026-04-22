@@ -9,6 +9,8 @@ import (
 type GetAttemptRequest struct {
 	// The ID of the attempt.
 	AttemptID string `pathParam:"style=simple,explode=false,name=attempt_id"`
+	// Filter by tenant ID. Returns 404 if the attempt does not belong to the specified tenant. Ignored when using Tenant JWT authentication.
+	TenantID *string `queryParam:"style=form,explode=true,name=tenant_id"`
 	// Fields to include in the response. Use bracket notation for multiple values (e.g., `include[0]=event&include[1]=response_data`).
 	// - `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
 	// - `event.data`: Include full event with payload data
@@ -23,6 +25,13 @@ func (g *GetAttemptRequest) GetAttemptID() string {
 		return ""
 	}
 	return g.AttemptID
+}
+
+func (g *GetAttemptRequest) GetTenantID() *string {
+	if g == nil {
+		return nil
+	}
+	return g.TenantID
 }
 
 func (g *GetAttemptRequest) GetInclude() []string {

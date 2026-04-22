@@ -2,6 +2,29 @@
 
 package components
 
+// SetupLink - Some destinations may have an OAuth flow or other managed-setup flow that can be triggered with a link. If a `setup_link` is set then the user should be prompted to follow the link to configure the destination.
+// See the [building your own UI guide](https://outpost.hookdeck.com/guides/building-your-own-ui.mdx) for recommended UI patterns and wireframes for implementation in your own app.
+type SetupLink struct {
+	// The URL to direct the user to for setup.
+	Href string `json:"href"`
+	// The call-to-action button text to display to the user.
+	Cta string `json:"cta"`
+}
+
+func (s *SetupLink) GetHref() string {
+	if s == nil {
+		return ""
+	}
+	return s.Href
+}
+
+func (s *SetupLink) GetCta() string {
+	if s == nil {
+		return ""
+	}
+	return s.Cta
+}
+
 type DestinationTypeSchema struct {
 	Type        *string `json:"type,omitempty"`
 	Label       *string `json:"label,omitempty"`
@@ -10,9 +33,9 @@ type DestinationTypeSchema struct {
 	Icon *string `json:"icon,omitempty"`
 	// Markdown instructions.
 	Instructions *string `json:"instructions,omitempty"`
-	// Some destinations may have Oauth flow or other managed-setup flow that can be triggered with a link. If a `remote_setup_url` is set then the user should be prompted to follow the link to configure the destination.
+	// Some destinations may have an OAuth flow or other managed-setup flow that can be triggered with a link. If a `setup_link` is set then the user should be prompted to follow the link to configure the destination.
 	// See the [building your own UI guide](https://outpost.hookdeck.com/guides/building-your-own-ui.mdx) for recommended UI patterns and wireframes for implementation in your own app.
-	RemoteSetupURL *string `json:"remote_setup_url,omitempty"`
+	SetupLink *SetupLink `json:"setup_link,omitempty"`
 	// Config fields are non-secret values that can be stored and displayed to the user in plain text.
 	ConfigFields []DestinationSchemaField `json:"config_fields,omitempty"`
 	// Credential fields are secret values that will be AES encrypted and obfuscated to the user. Some credentials may not be obfuscated; the destination type dictates the obfuscation logic.
@@ -54,11 +77,11 @@ func (d *DestinationTypeSchema) GetInstructions() *string {
 	return d.Instructions
 }
 
-func (d *DestinationTypeSchema) GetRemoteSetupURL() *string {
+func (d *DestinationTypeSchema) GetSetupLink() *SetupLink {
 	if d == nil {
 		return nil
 	}
-	return d.RemoteSetupURL
+	return d.SetupLink
 }
 
 func (d *DestinationTypeSchema) GetConfigFields() []DestinationSchemaField {

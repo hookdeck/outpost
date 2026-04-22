@@ -7,6 +7,7 @@ from outpost_sdk._hooks import (
     AfterErrorContext,
     AfterSuccessContext,
     BeforeRequestContext,
+    HookContext,
 )
 from outpost_sdk.utils import (
     RetryConfig,
@@ -237,10 +238,10 @@ class BaseSDK:
 
     def do_request(
         self,
-        hook_ctx,
-        request,
-        error_status_codes,
-        stream=False,
+        hook_ctx: HookContext,
+        request: httpx.Request,
+        is_error_status_code: Callable[[int], bool],
+        stream: bool = False,
         retry_config: Optional[Tuple[RetryConfig, List[str]]] = None,
     ) -> httpx.Response:
         client = self.sdk_configuration.client
@@ -284,19 +285,6 @@ class BaseSDK:
                 "<streaming response>" if stream else http_res.text,
             )
 
-            if utils.match_status_codes(error_status_codes, http_res.status_code):
-                result, err = hooks.after_error(
-                    AfterErrorContext(hook_ctx), http_res, None
-                )
-                if err is not None:
-                    logger.debug("Request Exception", exc_info=True)
-                    raise err
-                if result is not None:
-                    http_res = result
-                else:
-                    logger.debug("Raising unexpected SDK error")
-                    raise errors.APIError("Unexpected error occurred", http_res)
-
             return http_res
 
         if retry_config is not None:
@@ -304,17 +292,27 @@ class BaseSDK:
         else:
             http_res = do()
 
-        if not utils.match_status_codes(error_status_codes, http_res.status_code):
+        if is_error_status_code(http_res.status_code):
+            result, err = hooks.after_error(AfterErrorContext(hook_ctx), http_res, None)
+            if err is not None:
+                logger.debug("Request Exception", exc_info=True)
+                raise err
+            if result is not None:
+                http_res = result
+            else:
+                logger.debug("Raising unexpected SDK error")
+                raise errors.APIError("Unexpected error occurred", http_res)
+        else:
             http_res = hooks.after_success(AfterSuccessContext(hook_ctx), http_res)
 
         return http_res
 
     async def do_request_async(
         self,
-        hook_ctx,
-        request,
-        error_status_codes,
-        stream=False,
+        hook_ctx: HookContext,
+        request: httpx.Request,
+        is_error_status_code: Callable[[int], bool],
+        stream: bool = False,
         retry_config: Optional[Tuple[RetryConfig, List[str]]] = None,
     ) -> httpx.Response:
         client = self.sdk_configuration.async_client
@@ -364,20 +362,6 @@ class BaseSDK:
                 "<streaming response>" if stream else http_res.text,
             )
 
-            if utils.match_status_codes(error_status_codes, http_res.status_code):
-                result, err = await run_sync_in_thread(
-                    hooks.after_error, AfterErrorContext(hook_ctx), http_res, None
-                )
-
-                if err is not None:
-                    logger.debug("Request Exception", exc_info=True)
-                    raise err
-                if result is not None:
-                    http_res = result
-                else:
-                    logger.debug("Raising unexpected SDK error")
-                    raise errors.APIError("Unexpected error occurred", http_res)
-
             return http_res
 
         if retry_config is not None:
@@ -387,7 +371,20 @@ class BaseSDK:
         else:
             http_res = await do()
 
-        if not utils.match_status_codes(error_status_codes, http_res.status_code):
+        if is_error_status_code(http_res.status_code):
+            result, err = await run_sync_in_thread(
+                hooks.after_error, AfterErrorContext(hook_ctx), http_res, None
+            )
+
+            if err is not None:
+                logger.debug("Request Exception", exc_info=True)
+                raise err
+            if result is not None:
+                http_res = result
+            else:
+                logger.debug("Raising unexpected SDK error")
+                raise errors.APIError("Unexpected error occurred", http_res)
+        else:
             http_res = await run_sync_in_thread(
                 hooks.after_success, AfterSuccessContext(hook_ctx), http_res
             )
