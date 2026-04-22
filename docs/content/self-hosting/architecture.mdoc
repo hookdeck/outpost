@@ -3,8 +3,6 @@ title: "Architecture"
 description: "The architecture of Outpost for self-hosted deployments."
 ---
 
-## Architecture
-
 ![Outpost Architecture](/outpost-images/architecture.png)
 
 Outpost consists of three services that can be run as a single process or as separate deployments for independent scaling.
@@ -15,7 +13,7 @@ Outpost consists of three services that can be run as a single process or as sep
 
 Running Outpost as individual services is optional. You can run it as a single binary if horizontal scaling of individual services isn't needed for your event volume.
 
-### Runtime Requirements
+## Runtime Requirements
 
 **API Service & Delivery Service:**
 - Redis 6.0+ or wire-compatible alternative (RDB or AOF persistence strongly recommended)
