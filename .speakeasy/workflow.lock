@@ -42,7 +42,7 @@ targets:
         sourceRevisionDigest: sha256:1fd0772c85caf7379f8761097fe3db6c0a0d58df3c661470a98c07797fca9da1
         sourceBlobDigest: sha256:317e2733950756da19254890a55e3bc0c1cb14e1b5b26452328c98ef7faa7e5b
         codeSamplesNamespace: outpost-api-typescript-code-samples
-        codeSamplesRevisionDigest: sha256:5f720f3fc3be8c0dda4df825393237fbd7aae6335137315c6ac9634382e2b22b
+        codeSamplesRevisionDigest: sha256:023dd5f20c019d51f5d9d24f9c1f5b73dc2eb93cd93ff2974bc953f2a8646728
 workflow:
     workflowVersion: 1.0.0
     speakeasyVersion: latest

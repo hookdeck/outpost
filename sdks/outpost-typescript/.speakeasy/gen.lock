@@ -5,16 +5,16 @@ management:
   docVersion: 0.0.1
   speakeasyVersion: 1.761.9
   generationVersion: 2.881.4
-  releaseVersion: 0.10.1
-  configChecksum: 63a734891fa25d7196ba196f5e916faf
+  releaseVersion: 1.0.0
+  configChecksum: e3a3f38b404037b54e2b9b2aaec72d04
   repoURL: https://github.com/hookdeck/outpost.git
   repoSubDirectory: sdks/outpost-typescript
   installationURL: https://github.com/hookdeck/outpost
   published: true
 persistentEdits:
-  generation_id: 2e7a4037-0bed-4c52-b59c-1e31aa0be0be
-  pristine_commit_hash: c73a7ab509fe985ce27321cf0ab97acae553d31e
-  pristine_tree_hash: 346d186fd69b15221159ee5679b45c11330e5aeb
+  generation_id: ae288bc9-ee2b-466d-a2ea-8b274bfe608a
+  pristine_commit_hash: ab16b3346cec4774d5fc28c7b955e655dc45b30f
+  pristine_tree_hash: 5e4acb567ff4565ce7924fef7cf9babeee61d1d4
 features:
   typescript:
     additionalDependencies: 0.1.0
@@ -804,12 +804,12 @@ trackedFiles:
     pristine_git_object: 2ecc914dee96b672e4c966d02b66b72ad7d45435
   jsr.json:
     id: 7f6ab7767282
-    last_write_checksum: sha1:3e46baa589b31e199afc48f2cb04df5781c4000a
-    pristine_git_object: 43953e32087701425a16d611b3fd155f6f0d9117
+    last_write_checksum: sha1:81ec28debcf0555dea84ccfd5c0889684c110b67
+    pristine_git_object: eeb5979e0b4c312bb54feeeca9bc35f7fa0e7883
   package.json:
     id: 7030d0b2f71b
-    last_write_checksum: sha1:fef66ab92a825c3883919f373571fd7102b5001a
-    pristine_git_object: 3cdec70affb5f585ce6b2e84a965c3106f7e1f21
+    last_write_checksum: sha1:8a1861550c3b4070632d58a8a5da494f39248440
+    pristine_git_object: a8f24ae325b7801b77d6aab8e6dd81f002712654
   src/core.ts:
     id: f431fdbcd144
     last_write_checksum: sha1:c858d8ea76a86c428e26943bf348319ba0a3c865
@@ -952,8 +952,8 @@ trackedFiles:
     pristine_git_object: 0aebd8b0a4867e35cb3348fc52921c3c0b4725b7
   src/lib/config.ts:
     id: 320761608fb3
-    last_write_checksum: sha1:3bf474b10fbb47ef1eb49171ac69cd4400334a82
-    pristine_git_object: e4cb084b845fa29487e0460834b81e0c25533dc2
+    last_write_checksum: sha1:120355d40910f06d9af8865fd51da03a4ec6e964
+    pristine_git_object: ae366f718e5775b023f0f0249055a18bffb8b197
   src/lib/dlv.ts:
     id: b1988214835a
     last_write_checksum: sha1:1dd3e3fbb4550c4bf31f5ef997faff355d6f3250
@@ -1032,8 +1032,8 @@ trackedFiles:
     pristine_git_object: 0955a573c2ce989d63c737410ab8cc28706d9f74
   src/mcp-server/mcp-server.ts:
     id: aabbc4ab07c1
-    last_write_checksum: sha1:59ba0ef6b526c5f5107942f93e16ac318ad227cd
-    pristine_git_object: 17944829487ccbc32262ff204f17fd5f24dd7472
+    last_write_checksum: sha1:c9a95dbb6f64024b79d867da8da789d84ebd88ff
+    pristine_git_object: 7007bf5f60acfa6a6dee4f7f4259f74dab037d48
   src/mcp-server/prompts.ts:
     id: 26f3d73cbf31
     last_write_checksum: sha1:3472c8babea2d3b44d3a61e42fbba471fbd936b7
@@ -1048,8 +1048,8 @@ trackedFiles:
     pristine_git_object: c25696d4c4f70e081fa5d87ad6891874c509a577
   src/mcp-server/server.ts:
     id: 2784dd48e82a
-    last_write_checksum: sha1:fb51d952f3d4d1d0e2b91ba8f2f6e2308f70f6d3
-    pristine_git_object: f5a39bb50bdd78d8e4066f953581b6ffef723e96
+    last_write_checksum: sha1:4db944fd59402d31358617a3ebe803d6ab90c8b2
+    pristine_git_object: 51233aed2ded15c7cc7fb2db2cc806cae7d9d3e8
   src/mcp-server/shared.ts:
     id: 074e80d4be1e
     last_write_checksum: sha1:d89576cea2bef3856b7fc3e65b868875528be042
@@ -2217,7 +2217,6 @@ examples:
           application/json: {}
 examplesVersion: 1.0.2
 generatedTests: {}
-releaseNotes: "## Typescript SDK Changes:\n* `outpost.schemas.listDestinationTypes()`:  `response.[]` **Changed** (Breaking ⚠️)\n* `outpost.schemas.getDestinationType()`:  `response` **Changed** (Breaking ⚠️)\n* `outpost.metrics.getAttemptMetrics()`:  `request` **Changed** (Breaking ⚠️)\n* `outpost.configuration.getManagedConfig()`: **Added**\n* `outpost.configuration.updateManagedConfig()`: **Added**\n* `outpost.events.get()`:  `request.tenantId` **Added**\n* `outpost.attempts.list()`: \n  *  `request.destinationType` **Added**\n* `outpost.attempts.get()`:  `request.tenantId` **Added**\n"
 generatedFiles:
   - .gitattributes
   - .npmignore
