@@ -1,6 +1,6 @@
 {
   "name": "@hookdeck/outpost-sdk",
-  "version": "0.10.1",
+  "version": "1.0.0",
   "author": "Speakeasy",
   "type": "module",
   "bin": {
