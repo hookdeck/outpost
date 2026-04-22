@@ -5,16 +5,16 @@ management:
   docVersion: 0.0.1
   speakeasyVersion: 1.761.9
   generationVersion: 2.881.4
-  releaseVersion: 0.9.1
-  configChecksum: f4215d3751bb3932698069b253bd8503
+  releaseVersion: 1.0.0
+  configChecksum: 42478300d0f1a821ba55730f73a8b132
   repoURL: https://github.com/hookdeck/outpost.git
   repoSubDirectory: sdks/outpost-python
   installationURL: https://github.com/hookdeck/outpost.git#subdirectory=sdks/outpost-python
   published: true
 persistentEdits:
-  generation_id: 9f0ea887-1aa3-4342-a47f-827d81e29512
-  pristine_commit_hash: 3ba20f1568ee3ffa7ef6f8e29fa8042b56de3e27
-  pristine_tree_hash: 80e15e7a590ceda6be844c5d197cc09811a02348
+  generation_id: a133c608-0437-4067-9809-454a30927716
+  pristine_commit_hash: bda79b021abc53b36d4c0d7390282838ccbebca4
+  pristine_tree_hash: 8a593e89503bec6cecb000ec8b9f8cc9f4db4445
 features:
   python:
     additionalDependencies: 1.0.0
@@ -851,8 +851,8 @@ trackedFiles:
     pristine_git_object: cb9c15d314c1930557401074329ed7a737147919
   pyproject.toml:
     id: 5d07e7d72637
-    last_write_checksum: sha1:6310494303b8db080d2fa938f4274f0db667f518
-    pristine_git_object: daf870cf48ee6ccf3afdd53f6c6caa1bda77481f
+    last_write_checksum: sha1:4c3ade6baa26e8ab3ef29323dddc16ae4fe90e55
+    pristine_git_object: 242f7a0f37b80d520a6bade18c5854871e4d5206
   scripts/prepare_readme.py:
     id: e0c5957a6035
     last_write_checksum: sha1:eb460f85c06b287fee629d997b2df75c92fa1cab
@@ -879,8 +879,8 @@ trackedFiles:
     pristine_git_object: b1777a2eacece4434c53b2e136158f0c1360707d
   src/outpost_sdk/_version.py:
     id: 22be68f35ad0
-    last_write_checksum: sha1:59ac6f98fadfbcb4cb5d59908cb2a636fadf9a2a
-    pristine_git_object: 1ae2aaf042e36d8c29a13bd9a48f81c53a57e671
+    last_write_checksum: sha1:9e617b8ba3fe77932111c0719077696b2c407faa
+    pristine_git_object: 6f7549751d9777813693ab8804221881cad6912a
   src/outpost_sdk/attempts.py:
     id: 304ea4e0bbf1
     last_write_checksum: sha1:d0619cdc78200c5d3de0ea087ab9db61c9d5d0a7
@@ -1964,7 +1964,6 @@ examples:
           application/json: {}
 examplesVersion: 1.0.2
 generatedTests: {}
-releaseNotes: "## Python SDK Changes:\n* `outpost.schemas.list_destination_types()`:  `response.[]` **Changed** (Breaking ⚠️)\n* `outpost.schemas.get_destination_type()`:  `response` **Changed** (Breaking ⚠️)\n* `outpost.metrics.get_attempt_metrics()`:  `request` **Changed** (Breaking ⚠️)\n* `outpost.configuration.get_managed_config()`: **Added**\n* `outpost.configuration.update_managed_config()`: **Added**\n* `outpost.events.get()`:  `request.tenant_id` **Added**\n* `outpost.attempts.list()`: \n  *  `request.destination_type` **Added**\n* `outpost.attempts.get()`:  `request.tenant_id` **Added**\n"
 generatedFiles:
   - .gitattributes
   - .vscode/settings.json
