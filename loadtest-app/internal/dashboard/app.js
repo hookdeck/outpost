@@ -43,12 +43,28 @@ function renderCard(g) {
         <div class="metric"><div class="metric-value" data-m="pub_rate">${fmt(m.publish_rate_per_sec)}</div><div class="metric-label">pub/s</div></div>
         <div class="metric"><div class="metric-value" data-m="del_rate">${fmt(m.delivery_rate_per_sec)}</div><div class="metric-label">del/s</div></div>
         <div class="metric"><div class="metric-value" data-m="in_flight">${m.in_flight || 0}</div><div class="metric-label">in-flight</div></div>
-        <div class="metric has-tooltip" title="E2E Latency\np50: ${m.e2e_latency_p50_ms||0}ms\np90: ${m.e2e_latency_p90_ms||0}ms\np95: ${m.e2e_latency_p95_ms||0}ms\np99: ${m.e2e_latency_p99_ms||0}ms\nmax: ${m.e2e_latency_max_ms||0}ms\n\nPublish Latency\np50: ${m.publish_latency_p50_ms||0}ms\np90: ${m.publish_latency_p90_ms||0}ms\np95: ${m.publish_latency_p95_ms||0}ms\np99: ${m.publish_latency_p99_ms||0}ms\nmax: ${m.publish_latency_max_ms||0}ms"><div class="metric-value" data-m="p50">${m.e2e_latency_p50_ms || 0}</div><div class="metric-label">p50 ms</div></div>
-        <div class="metric has-tooltip" title="E2E Latency\np50: ${m.e2e_latency_p50_ms||0}ms\np90: ${m.e2e_latency_p90_ms||0}ms\np95: ${m.e2e_latency_p95_ms||0}ms\np99: ${m.e2e_latency_p99_ms||0}ms\nmax: ${m.e2e_latency_max_ms||0}ms"><div class="metric-value" data-m="p95">${m.e2e_latency_p95_ms || 0}</div><div class="metric-label">p95 ms</div></div>
         <div class="metric"><div class="metric-value" data-m="missing">${m.missing_total || 0}</div><div class="metric-label">missing</div></div>
         <div class="metric"><div class="metric-value" data-m="pub_total">${m.publish_total || 0}</div><div class="metric-label">pub total</div></div>
         <div class="metric"><div class="metric-value" data-m="del_total">${m.delivery_total || 0}</div><div class="metric-label">del total</div></div>
         <div class="metric"><div class="metric-value" data-m="errors">${m.publish_errors || 0}</div><div class="metric-label">errors</div></div>
+      </div>
+      <div class="latency-section">
+        <div class="latency-header">E2E Latency (ms)</div>
+        <div class="latency-grid">
+          <div class="latency-cell"><span class="latency-label">p50</span><span class="latency-val" data-m="e2e_p50">${m.e2e_latency_p50_ms||0}</span></div>
+          <div class="latency-cell"><span class="latency-label">p90</span><span class="latency-val" data-m="e2e_p90">${m.e2e_latency_p90_ms||0}</span></div>
+          <div class="latency-cell"><span class="latency-label">p95</span><span class="latency-val" data-m="e2e_p95">${m.e2e_latency_p95_ms||0}</span></div>
+          <div class="latency-cell"><span class="latency-label">p99</span><span class="latency-val" data-m="e2e_p99">${m.e2e_latency_p99_ms||0}</span></div>
+          <div class="latency-cell"><span class="latency-label">max</span><span class="latency-val" data-m="e2e_max">${m.e2e_latency_max_ms||0}</span></div>
+        </div>
+        <div class="latency-header">Publish Latency (ms)</div>
+        <div class="latency-grid">
+          <div class="latency-cell"><span class="latency-label">p50</span><span class="latency-val" data-m="pub_p50">${m.publish_latency_p50_ms||0}</span></div>
+          <div class="latency-cell"><span class="latency-label">p90</span><span class="latency-val" data-m="pub_p90">${m.publish_latency_p90_ms||0}</span></div>
+          <div class="latency-cell"><span class="latency-label">p95</span><span class="latency-val" data-m="pub_p95">${m.publish_latency_p95_ms||0}</span></div>
+          <div class="latency-cell"><span class="latency-label">p99</span><span class="latency-val" data-m="pub_p99">${m.publish_latency_p99_ms||0}</span></div>
+          <div class="latency-cell"><span class="latency-label">max</span><span class="latency-val" data-m="pub_max">${m.publish_latency_max_ms||0}</span></div>
+        </div>
       </div>
       <div class="controls">
         <button onclick="api('POST','/api/groups/${g.name}/provision')">Provision</button>
@@ -88,21 +104,25 @@ function updateCard(g) {
     pub_rate: fmt(m.publish_rate_per_sec),
     del_rate: fmt(m.delivery_rate_per_sec),
     in_flight: m.in_flight || 0,
-    p50: m.e2e_latency_p50_ms || 0,
-    p95: m.e2e_latency_p95_ms || 0,
     missing: m.missing_total || 0,
     pub_total: m.publish_total || 0,
     del_total: m.delivery_total || 0,
     errors: m.publish_errors || 0,
+    e2e_p50: m.e2e_latency_p50_ms || 0,
+    e2e_p90: m.e2e_latency_p90_ms || 0,
+    e2e_p95: m.e2e_latency_p95_ms || 0,
+    e2e_p99: m.e2e_latency_p99_ms || 0,
+    e2e_max: m.e2e_latency_max_ms || 0,
+    pub_p50: m.publish_latency_p50_ms || 0,
+    pub_p90: m.publish_latency_p90_ms || 0,
+    pub_p95: m.publish_latency_p95_ms || 0,
+    pub_p99: m.publish_latency_p99_ms || 0,
+    pub_max: m.publish_latency_max_ms || 0,
   };
   for (const [key, val] of Object.entries(sets)) {
     const el = card.querySelector(`[data-m="${key}"]`);
     if (el) el.textContent = val;
   }
-
-  // Update tooltips
-  const tooltip = `E2E Latency\np50: ${m.e2e_latency_p50_ms||0}ms\np90: ${m.e2e_latency_p90_ms||0}ms\np95: ${m.e2e_latency_p95_ms||0}ms\np99: ${m.e2e_latency_p99_ms||0}ms\nmax: ${m.e2e_latency_max_ms||0}ms\n\nPublish Latency\np50: ${m.publish_latency_p50_ms||0}ms\np90: ${m.publish_latency_p90_ms||0}ms\np95: ${m.publish_latency_p95_ms||0}ms\np99: ${m.publish_latency_p99_ms||0}ms\nmax: ${m.publish_latency_max_ms||0}ms`;
-  card.querySelectorAll('.has-tooltip').forEach(el => el.title = tooltip);
 
   // Update state badge
   const badge = card.querySelector('.card-state');
