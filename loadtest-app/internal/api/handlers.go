@@ -57,7 +57,7 @@ func (a *App) handleListGroups(w http.ResponseWriter, r *http.Request) {
 	groups := a.Store.List()
 	resp := make([]map[string]any, 0, len(groups))
 	for _, g := range groups {
-		resp = append(resp, groupSummary(g))
+		resp = append(resp, groupResponse(g))
 	}
 	writeJSON(w, http.StatusOK, resp)
 }

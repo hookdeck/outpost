@@ -50,7 +50,9 @@ func (s *Server) SetCallback(cb DeliveryCallback) {
 func (s *Server) RegisterRoute(group, tenantIdx, destIdx string, profile *Profile) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.routes[routeKey{group, tenantIdx, destIdx}] = &route{profile: profile}
+	key := routeKey{group, tenantIdx, destIdx}
+	s.routes[key] = &route{profile: profile}
+	slog.Info("mock route registered", "group", group, "tenant", tenantIdx, "dest", destIdx, "total_routes", len(s.routes))
 }
 
 func (s *Server) UnregisterRoute(group, tenantIdx, destIdx string) {
@@ -107,6 +109,7 @@ func (s *Server) handleWebhook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Fire callback after responding
+	slog.Debug("webhook received", "group", group, "tenant", tenant, "dest", dest, "event_id", eventID, "route_found", ok)
 	if s.callback != nil && eventID != "" {
 		s.callback(DeliveryRecord{
 			EventID:     eventID,
