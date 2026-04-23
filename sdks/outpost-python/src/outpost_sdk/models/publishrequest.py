@@ -12,7 +12,7 @@ class PublishRequestTypedDict(TypedDict):
     data: Dict[str, Any]
     r"""Any JSON payload for the event data."""
     id: NotRequired[str]
-    r"""Optional. A unique identifier for the event. If not provided, a UUID will be generated."""
+    r"""Optional. A unique identifier for the event. If not provided, a UUID will be generated. A stable id enables publish idempotency (see `duplicate` in the response) and is the value receivers should use to deduplicate webhook deliveries — by default sent as the `X-Outpost-Event-Id` header (prefix configurable)."""
     tenant_id: NotRequired[str]
     r"""The ID of the tenant to publish for."""
     destination_id: NotRequired[str]
@@ -32,7 +32,7 @@ class PublishRequest(BaseModel):
     r"""Any JSON payload for the event data."""
 
     id: Optional[str] = None
-    r"""Optional. A unique identifier for the event. If not provided, a UUID will be generated."""
+    r"""Optional. A unique identifier for the event. If not provided, a UUID will be generated. A stable id enables publish idempotency (see `duplicate` in the response) and is the value receivers should use to deduplicate webhook deliveries — by default sent as the `X-Outpost-Event-Id` header (prefix configurable)."""
 
     tenant_id: Optional[str] = None
     r"""The ID of the tenant to publish for."""
