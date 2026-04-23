@@ -37,7 +37,13 @@ jobs:
             echo "::error::Missing secret VERCEL_WEBSITE_DEPLOY_HOOK_SOURCE_API_KEY"
             exit 1
           fi
-          curl -sS -f -X POST "${HOOKDECK_SOURCE_URL}" \
+          curl -sS -f \
+            --connect-timeout 10 \
+            --max-time 30 \
+            --retry 3 \
+            --retry-delay 2 \
+            --retry-all-errors \
+            -X POST "${HOOKDECK_SOURCE_URL}" \
             -H "x-api-key: ${HOOKDECK_SOURCE_API_KEY}" \
             -H "Content-Type: application/json" \
             -d '{}'
