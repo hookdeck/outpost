@@ -103,12 +103,12 @@ func testMQ(t *testing.T, makeConfig func() mqs.QueueConfig) {
 		defer cleanup()
 		subscription, err := queue.Subscribe(context.Background())
 		require.Nil(t, err)
+		defer subscription.Shutdown(context.Background())
 		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 		defer cancel()
 		msg, err := subscription.Receive(ctx)
 		assert.Nil(t, msg)
 		assert.Equal(t, err, context.DeadlineExceeded)
-		defer cleanup()
 	})
 
 	t.Run("should publish and receive message", func(t *testing.T) {

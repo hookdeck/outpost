@@ -2,6 +2,7 @@ package config
 
 import (
 	"context"
+	"time"
 
 	"github.com/hookdeck/outpost/internal/mqinfra"
 	"github.com/hookdeck/outpost/internal/mqs"
@@ -42,6 +43,7 @@ func (c *RabbitMQConfig) ToQueueConfig(ctx context.Context, queueType string) (*
 			Exchange:  c.Exchange,
 			Queue:     c.getQueueName(queueType),
 		},
+		VisibilityTimeout: 60 * time.Second,
 	}, nil
 }
 

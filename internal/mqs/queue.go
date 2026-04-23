@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"time"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
@@ -17,6 +18,8 @@ type QueueConfig struct {
 	GCPPubSub       *GCPPubSubConfig
 	RabbitMQ        *RabbitMQConfig
 	InMemory        *InMemoryConfig // mainly for testing purposes
+
+	VisibilityTimeout time.Duration
 }
 
 type InMemoryConfig struct {
@@ -88,7 +91,7 @@ func NewQueue(config *QueueConfig) Queue {
 	} else if config.AzureServiceBus != nil {
 		return NewAzureServiceBusQueue(config.AzureServiceBus)
 	} else if config.GCPPubSub != nil {
-		return NewGCPPubSubQueue(config.GCPPubSub)
+		return NewGCPPubSubQueue(config.GCPPubSub, config.VisibilityTimeout)
 	} else if config.RabbitMQ != nil {
 		return NewRabbitMQQueue(config.RabbitMQ)
 	} else {

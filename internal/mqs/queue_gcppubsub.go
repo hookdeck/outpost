@@ -23,22 +23,24 @@ type GCPPubSubConfig struct {
 }
 
 type GCPPubSubQueue struct {
-	once       *sync.Once
-	base       *wrappedBaseQueue
-	config     *GCPPubSubConfig
-	topic      *pubsub.Topic
-	cleanupFns []func()
+	once              *sync.Once
+	base              *wrappedBaseQueue
+	config            *GCPPubSubConfig
+	visibilityTimeout time.Duration
+	topic             *pubsub.Topic
+	cleanupFns        []func()
 }
 
 var _ Queue = &GCPPubSubQueue{}
 
-func NewGCPPubSubQueue(config *GCPPubSubConfig) *GCPPubSubQueue {
+func NewGCPPubSubQueue(config *GCPPubSubConfig, visibilityTimeout time.Duration) *GCPPubSubQueue {
 	var once sync.Once
 	return &GCPPubSubQueue{
-		config:     config,
-		once:       &once,
-		base:       newWrappedBaseQueue(),
-		cleanupFns: []func(){},
+		config:            config,
+		visibilityTimeout: visibilityTimeout,
+		once:              &once,
+		base:              newWrappedBaseQueue(),
+		cleanupFns:        []func(){},
 	}
 }
 
@@ -152,6 +154,14 @@ func (q *GCPPubSubQueue) Subscribe(ctx context.Context, opts ...SubscribeOption)
 	// logic and do not want the SDK silently extending message leases — if a
 	// handler exceeds the ack deadline, the message should be redelivered.
 	sub.ReceiveSettings.MaxExtension = -1 * time.Second
+	// The native SDK sends a "receipt modack" (ModifyAckDeadline) when it first
+	// receives a message, using its internal ack-latency p99 as the deadline
+	// (minimum 10s). This overrides the subscription's ackDeadlineSeconds on the
+	// server side. Without MinExtensionPeriod, a subscription configured with a
+	// 60s ack deadline effectively becomes 10s, causing premature redelivery for
+	// any handler that takes >10s. Setting MinExtensionPeriod to match the
+	// subscription's visibility timeout prevents this override.
+	sub.ReceiveSettings.MinExtensionPeriod = q.visibilityTimeout
 
 	msgChan := make(chan *Message, concurrency)
 	subCtx, cancel := context.WithCancel(ctx)
