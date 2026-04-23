@@ -2175,11 +2175,9 @@ components:
       type: object
       properties:
         time_bucket:
-          type:
-            - string
-            - "null"
+          type: string
           format: date-time
-          description: Start of the time bucket. Null when no granularity is specified.
+          description: Start of the time bucket. Absent when no granularity is specified.
           example: "2026-03-02T14:00:00Z"
         dimensions:
           type: object
@@ -2201,10 +2199,8 @@ components:
       type: object
       properties:
         granularity:
-          type:
-            - string
-            - "null"
-          description: The granularity used for time bucketing, or null if none was specified.
+          type: string
+          description: The granularity used for time bucketing. Absent when none was specified.
           example: "1h"
         query_time_ms:
           type: integer
