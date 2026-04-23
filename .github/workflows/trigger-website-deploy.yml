@@ -1,8 +1,9 @@
 # Triggers a Hookdeck source that forwards to the Vercel website deploy hook
 # when Outpost docs consumed by hookdeck/website change on main.
 #
-# Required repository secret (Settings → Secrets and variables → Actions):
-#   VERCEL_WEBSITE_DEPLOY_HOOK_SOURCE_API_KEY — value for the Hookdeck source x-api-key header
+# Required repository configuration (Settings → Secrets and variables → Actions):
+#   Variable: HOOKDECK_WEBSITE_DEPLOY_SOURCE_URL — Hookdeck inbound source URL (not a secret)
+#   Secret:   VERCEL_WEBSITE_DEPLOY_HOOK_SOURCE_API_KEY — Hookdeck source x-api-key header
 #
 # Assumes branch protection on main requires PR checks before merge; this job
 # does not wait for post-merge workflows. To gate on a specific workflow finishing,
@@ -25,9 +26,13 @@ jobs:
     steps:
       - name: POST Hookdeck source
         env:
-          HOOKDECK_SOURCE_URL: https://hkdk.events/a1bst55qm05dyx
+          HOOKDECK_SOURCE_URL: ${{ vars.HOOKDECK_WEBSITE_DEPLOY_SOURCE_URL }}
           HOOKDECK_SOURCE_API_KEY: ${{ secrets.VERCEL_WEBSITE_DEPLOY_HOOK_SOURCE_API_KEY }}
         run: |
+          if [ -z "${HOOKDECK_SOURCE_URL}" ]; then
+            echo "::error::Missing repository variable HOOKDECK_WEBSITE_DEPLOY_SOURCE_URL"
+            exit 1
+          fi
           if [ -z "${HOOKDECK_SOURCE_API_KEY}" ]; then
             echo "::error::Missing secret VERCEL_WEBSITE_DEPLOY_HOOK_SOURCE_API_KEY"
             exit 1
