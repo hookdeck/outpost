@@ -34,8 +34,7 @@ func New(cfg *config.Config) *Server {
 	mux.HandleFunc("POST /webhook/{group}/{tenant}/{dest}", app.MockServer.Handler().ServeHTTP)
 
 	// Mock HTTP (httpbin-style)
-	mockHandler := mockhttp.Handler()
-	mux.Handle("/mock/", mockHandler)
+	mockhttp.Register(mux)
 
 	// Dashboard
 	mux.Handle("GET /", dashboard.Handler())

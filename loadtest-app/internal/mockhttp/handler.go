@@ -26,17 +26,20 @@ import (
 //	?status=503    — override response status code
 //	?error_rate=0.3 — return 500 with given probability
 //	?body=hello    — override response body
-func Handler() http.Handler {
-	mux := http.NewServeMux()
-
-	mux.HandleFunc("/mock/delay/{ms}", handleDelay)
-	mux.HandleFunc("/mock/status/{code}/{ms}", handleStatusDelay)
-	mux.HandleFunc("/mock/status/{code}", handleStatus)
-	mux.HandleFunc("/mock/error", handleError)
-	mux.HandleFunc("/mock/echo", handleEcho)
-	mux.HandleFunc("/mock/", handleCatchAll)
-
-	return mux
+// Register adds mock HTTP routes to the given mux.
+func Register(mux *http.ServeMux) {
+	mux.HandleFunc("GET /mock/delay/{ms}", handleDelay)
+	mux.HandleFunc("POST /mock/delay/{ms}", handleDelay)
+	mux.HandleFunc("GET /mock/status/{code}/{ms}", handleStatusDelay)
+	mux.HandleFunc("POST /mock/status/{code}/{ms}", handleStatusDelay)
+	mux.HandleFunc("GET /mock/status/{code}", handleStatus)
+	mux.HandleFunc("POST /mock/status/{code}", handleStatus)
+	mux.HandleFunc("GET /mock/error", handleError)
+	mux.HandleFunc("POST /mock/error", handleError)
+	mux.HandleFunc("GET /mock/echo", handleEcho)
+	mux.HandleFunc("POST /mock/echo", handleEcho)
+	mux.HandleFunc("GET /mock/", handleCatchAll)
+	mux.HandleFunc("POST /mock/", handleCatchAll)
 }
 
 func handleDelay(w http.ResponseWriter, r *http.Request) {
