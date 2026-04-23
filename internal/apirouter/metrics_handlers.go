@@ -63,7 +63,7 @@ var (
 // --- API response types ---
 
 type APIMetricsDataPoint struct {
-	TimeBucket *time.Time     `json:"time_bucket"`
+	TimeBucket *time.Time     `json:"time_bucket,omitempty"`
 	Dimensions map[string]any `json:"dimensions"`
 	Metrics    map[string]any `json:"metrics"`
 }
@@ -74,7 +74,7 @@ type APIMetricsResponse struct {
 }
 
 type APIMetricsMetadata struct {
-	Granularity *string `json:"granularity"`
+	Granularity *string `json:"granularity,omitempty"`
 	QueryTimeMs int64   `json:"query_time_ms"`
 	RowCount    int     `json:"row_count"`
 	RowLimit    int     `json:"row_limit"`
