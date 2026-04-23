@@ -68,11 +68,8 @@ func (p *Publisher) Start(g *group.Group) error {
 		limiter := rate.NewLimiter(rate.Limit(perTenantRate), max(perTenantRate, 1))
 		gp.limiters[i] = limiter
 
-		// Workers per tenant: rate/5, min 2
-		workerCount := perTenantRate / 5
-		if workerCount < 2 {
-			workerCount = 2
-		}
+		// Workers per tenant: match rate 1:1 to handle high-latency targets (cloud APIs)
+		workerCount := max(perTenantRate, 2)
 
 		jobs := make(chan publishJob, workerCount*2)
 
@@ -100,7 +97,7 @@ func (p *Publisher) Start(g *group.Group) error {
 		"group", g.Config.Name,
 		"rate_per_tenant", perTenantRate,
 		"tenants", g.Config.TenantCount,
-		"workers_per_tenant", max(perTenantRate/5, 2),
+		"workers_per_tenant", max(perTenantRate, 2),
 		"total_rate", totalRate,
 		"pattern", g.Config.Publish.Pattern,
 	)
