@@ -1790,7 +1790,7 @@ components:
       properties:
         id:
           type: string
-          description: Optional. A unique identifier for the event. If not provided, a UUID will be generated.
+          description: Optional. A unique identifier for the event. If not provided, a UUID will be generated. A stable id enables publish idempotency (see `duplicate` in the response) and is the value receivers should use to deduplicate webhook deliveries — by default sent as the `X-Outpost-Event-Id` header (prefix configurable).
           example: "evt_custom_123"
         tenant_id:
           type: string

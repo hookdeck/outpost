@@ -38,6 +38,8 @@ curl --request PUT "$OUTPOST_API_BASE_URL/tenants/$TENANT_ID" \
   --header "Authorization: Bearer $OUTPOST_API_KEY"
 ```
 
+A successful tenant upsert returns **HTTP 200** if that tenant id already existed, or **HTTP 201** if Outpost created it. In shell scripts, treat **200 and 201** as success (do not require exactly `200`—automation that deletes the tenant first will usually see **201**).
+
 ## Create a webhook destination
 
 Subscribe the tenant to one or more topics you configured in the dashboard. Set `config.url` to an HTTPS endpoint you control.
@@ -58,6 +60,8 @@ curl --request POST "$OUTPOST_API_BASE_URL/tenants/$TENANT_ID/destinations" \
     }
   }'
 ```
+
+On success, expect **HTTP 2xx** (often **201** the first time this destination is created for the tenant).
 
 To receive every configured topic on this destination, set `"topics": ["*"]` instead.
 
@@ -86,9 +90,18 @@ A `202` response means the event was accepted for delivery.
 
 ## Shell scripts: status codes and portability
 
-If you combine API response bodies with `curl --write-out '\n%{http_code}'`:
+When a script must **fail on unexpected HTTP status**, capture the code with `curl -o … -w '%{http_code}'` (response body to a file or `/dev/null`). Example for **tenant upsert**—accept **200** or **201** only:
 
-- **Publish** success is **HTTP 202** (not only 200/201). Treat **202** as success in conditional checks.
+```sh
+code="$(curl -sS -o /dev/null -w "%{http_code}" --request PUT "$OUTPOST_API_BASE_URL/tenants/$TENANT_ID" \
+  --header "Authorization: Bearer $OUTPOST_API_KEY")"
+case "$code" in
+  200|201) ;;
+  *) echo "tenant upsert failed: HTTP $code" >&2; exit 1 ;;
+esac
+```
+
+- **Publish** success is **HTTP 202** (not 200/201). Treat **202** as success in conditional checks.
 - **Portability:** GNU `head -n -1` (“all lines but the last”) is **not** available on macOS BSD `head`. Prefer splitting with **`sed '$d'`** (body) and **`tail -n 1`** (status), or another POSIX-friendly approach, so the same script runs on Linux and macOS.
 
 ## Verify delivery

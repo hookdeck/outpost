@@ -3,7 +3,7 @@ title: "Event Delivery & Retries"
 description: "How Outpost delivers events, tracks attempts, and retries on failure."
 ---
 
-Outpost tracks each event, its status, and all delivery attempts. Delivery operates on an **at-least-once guarantee** — events may occasionally be re-delivered. Consumers should use the unique event ID to deduplicate when needed.
+Outpost tracks each event, its status, and all delivery attempts. Delivery operates on an **at-least-once guarantee** — events may occasionally be re-delivered. Consumers should deduplicate using the **event id** (the same value as publish `id` when you set one). For how that appears on webhook requests — headers, prefix, Standard Webhooks — see [Event ID header and idempotency](/docs/outpost/destinations/webhook#event-id-header-and-idempotency).
 
 ## Automatic Retries
 
