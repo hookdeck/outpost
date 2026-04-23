@@ -8,7 +8,7 @@ import (
 )
 
 type PublishRequest struct {
-	// Optional. A unique identifier for the event. If not provided, a UUID will be generated.
+	// Optional. A unique identifier for the event. If not provided, a UUID will be generated. A stable id enables publish idempotency (see `duplicate` in the response) and is the value receivers should use to deduplicate webhook deliveries — by default sent as the `X-Outpost-Event-Id` header (prefix configurable).
 	ID *string `json:"id,omitempty"`
 	// The ID of the tenant to publish for.
 	TenantID *string `json:"tenant_id,omitempty"`

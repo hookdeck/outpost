@@ -1,19 +1,19 @@
 lockVersion: 2.0.0
 id: f0627709-5a00-43ac-8678-ca716d6f379c
 management:
-  docChecksum: ed82643b631a02869472ec6bb9340b5c
+  docChecksum: db4f8c3c9e40b968e508703eef00032c
   docVersion: 0.0.1
   speakeasyVersion: 1.761.9
   generationVersion: 2.881.4
-  releaseVersion: 1.0.0
-  configChecksum: 1c4d3893aace5d5dd2f9a3d12490b8c8
+  releaseVersion: 1.0.1
+  configChecksum: 7efe367b080f7bc7c70a1ded3b4e6c32
   repoURL: https://github.com/hookdeck/outpost.git
   repoSubDirectory: sdks/outpost-go
   installationURL: https://github.com/hookdeck/outpost
 persistentEdits:
-  generation_id: e35c8d87-c5bd-4dc2-8e31-2c34f6b712e1
-  pristine_commit_hash: d3a1f45a6d113ac21278c199728cd0e63485a3c4
-  pristine_tree_hash: 64b0ad3c04e6b6c7e943c0e8724ef5087ca6c7ed
+  generation_id: 31e9c5e0-69af-44c5-aac5-8869c22480f3
+  pristine_commit_hash: 45c40ba0a4edfae8af7816953863bbcebebf6b4e
+  pristine_tree_hash: c65127d8d7db58b461bf729f092a17294d254256
 features:
   go:
     additionalDependencies: 0.1.0
@@ -366,12 +366,12 @@ trackedFiles:
     pristine_git_object: 6acd2997d7a2a2d78ebb0677c81af2bc4c950d08
   docs/models/components/metricsdatapoint.md:
     id: dfbc8ed48932
-    last_write_checksum: sha1:15b241abf36d83028147948691f6c5c10c0c0fca
-    pristine_git_object: 4020a341b8aacec578157bf1a983abf265eff902
+    last_write_checksum: sha1:10e6085c6aa487c68ef15b853671fe15a530f311
+    pristine_git_object: 70aa5691020945846d914d332bf6e1ff6d1800a6
   docs/models/components/metricsmetadata.md:
     id: 09b0bc8b1617
-    last_write_checksum: sha1:478169b864cb55ed421b2c9df4862729fd5a3f7f
-    pristine_git_object: 448b4af994ae1dd0c652d68bfb5b677c477c0b3e
+    last_write_checksum: sha1:b331ffc989a7ccbb2d0aed5e4d34b99e4027c559
+    pristine_git_object: c32c90dfc6351f503b6470032a50454e1ddd9a9b
   docs/models/components/metricsresponse.md:
     id: c99709afc575
     last_write_checksum: sha1:c9b2a561cfc884d53dbee7208b0aff55bf4c39d0
@@ -386,8 +386,8 @@ trackedFiles:
     pristine_git_object: a88ea6f6917e70127f4d9a753f8b5115c5bb8915
   docs/models/components/publishrequest.md:
     id: 2a23e49f8f3f
-    last_write_checksum: sha1:3082cd7198d80de2652ea3e994dad97a49fbe114
-    pristine_git_object: d2529ac9c3ed5849a0791781b93a898674f4b55a
+    last_write_checksum: sha1:4a8af89d74282725574e7bc509197b180a47ac62
+    pristine_git_object: dcdb7e4876db6a682f3181ce320ad942d2cc02d9
   docs/models/components/publishresponse.md:
     id: e31e05fdaf9a
     last_write_checksum: sha1:5075f693a2e371ae1e397bd3cd2832fdc7b822ff
@@ -1186,12 +1186,12 @@ trackedFiles:
     pristine_git_object: 4d9ea686f48fccd294b3722d07f4586e4dd854e2
   models/components/metricsdatapoint.go:
     id: 7a1d3a5a8a04
-    last_write_checksum: sha1:73c85be571927b3a1b31cc3da48a48c22b4cf258
-    pristine_git_object: 1bb8eaddd4bd5ed206836efb2413b289900a825c
+    last_write_checksum: sha1:135b2e19a5a1053675cc62e1b718d985e8fb733e
+    pristine_git_object: 85cbdffcbecde9e4ef9b23eaffb51e906794f9cd
   models/components/metricsmetadata.go:
     id: d6585509ad49
-    last_write_checksum: sha1:137f1e62d844cdd5e276018b05f2685791bd1455
-    pristine_git_object: 76cc3eb8c2142db73a023e010f9f377e43275cbc
+    last_write_checksum: sha1:0388bf62568321f94ed7d0dca36d1a93fc904a13
+    pristine_git_object: 5e34ee179e5dc6b95e05d8a413f600e1728346bf
   models/components/metricsresponse.go:
     id: 3e26d776c914
     last_write_checksum: sha1:7042d03bacd00472079ff66646552df9cc591b19
@@ -1202,8 +1202,8 @@ trackedFiles:
     pristine_git_object: bcbeac221b2de4d793efcf85fd773efdb27e947d
   models/components/publishrequest.go:
     id: 90a166ff55f9
-    last_write_checksum: sha1:575238aedfeb126a02faf6ec60ec890ad64b6549
-    pristine_git_object: 678975a193d53f4fbc988416530a68075475ff33
+    last_write_checksum: sha1:3260f02cd53f72c99c97d00bfa7052a5503bc781
+    pristine_git_object: 16da93811348de8244daac5b176048c460b16dac
   models/components/publishresponse.go:
     id: 6089f3b51ea6
     last_write_checksum: sha1:15edab35d8a75ee6290cf3204d2a4fdb1d37c27d
@@ -1394,8 +1394,8 @@ trackedFiles:
     pristine_git_object: e6e5a01c6e721e879e24a38a1f97e3e27d4686d4
   outpost.go:
     id: 7aebc57e3f81
-    last_write_checksum: sha1:3836215d03c60ed984128d815d664e7c3b7e66f3
-    pristine_git_object: 349952222d97d8a389ef101af15c23ffc7e3a87d
+    last_write_checksum: sha1:134998fba6a1fccabdd9f9537e13982e0687203a
+    pristine_git_object: 59bedc462677e43273531c0c9722f717437d54ec
   publish.go:
     id: b4cd78c909e0
     last_write_checksum: sha1:758eca50bffb96710ee42b6bfb596ee346ce228f
@@ -1963,6 +1963,10 @@ examples:
           application/json: {}
 examplesVersion: 1.0.2
 generatedTests: {}
+releaseNotes: |
+  ## Go SDK Changes:
+  * `Outpost.Metrics.GetEventMetrics()`:  `response` **Changed** (Breaking ⚠️)
+  * `Outpost.Metrics.GetAttemptMetrics()`:  `response` **Changed** (Breaking ⚠️)
 generatedFiles:
   - .gitattributes
   - /models/apierrors/badrequesterror.go
