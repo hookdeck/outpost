@@ -40,7 +40,7 @@ func NewClient(baseURL, apiKey string) *Client {
 }
 
 func (c *Client) CreateTenant(ctx context.Context, tenantID string) error {
-	req, err := c.newRequest(ctx, http.MethodPut, fmt.Sprintf("/api/v1/tenants/%s", tenantID), nil)
+	req, err := c.newRequest(ctx, http.MethodPut, fmt.Sprintf("/tenants/%s", tenantID), nil)
 	if err != nil {
 		return err
 	}
@@ -59,7 +59,7 @@ func (c *Client) CreateTenant(ctx context.Context, tenantID string) error {
 }
 
 func (c *Client) DeleteTenant(ctx context.Context, tenantID string) error {
-	req, err := c.newRequest(ctx, http.MethodDelete, fmt.Sprintf("/api/v1/tenants/%s", tenantID), nil)
+	req, err := c.newRequest(ctx, http.MethodDelete, fmt.Sprintf("/tenants/%s", tenantID), nil)
 	if err != nil {
 		return err
 	}
@@ -96,7 +96,7 @@ func (c *Client) CreateDestination(ctx context.Context, tenantID string, topics 
 		},
 	}
 
-	req, err := c.newRequest(ctx, http.MethodPost, fmt.Sprintf("/api/v1/tenants/%s/destinations", tenantID), body)
+	req, err := c.newRequest(ctx, http.MethodPost, fmt.Sprintf("/tenants/%s/destinations", tenantID), body)
 	if err != nil {
 		return "", err
 	}
@@ -140,7 +140,8 @@ func (c *Client) Publish(ctx context.Context, tenantID, eventID, topic string, d
 		Data:     json.RawMessage(data),
 	}
 
-	req, err := c.newRequest(ctx, http.MethodPost, "/api/v1/publish", body)
+	req, err := c.newRequest(ctx, http.MethodPost, "/publish", body)
+
 	if err != nil {
 		return PublishResult{}, err
 	}

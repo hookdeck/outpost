@@ -14,7 +14,7 @@ services:
       - "9090:9090"
     environment:
       - PORT=9090
-      - OUTPOST_URL=http://api:3333
+      - OUTPOST_URL=http://api:3333/api/v1
       - OUTPOST_API_KEY=${OUTPOST_API_KEY:-apikey}
       - MOCK_URL=http://loadtest:9090
 
