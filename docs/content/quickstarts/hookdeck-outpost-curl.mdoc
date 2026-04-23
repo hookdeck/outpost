@@ -38,7 +38,7 @@ curl --request PUT "$OUTPOST_API_BASE_URL/tenants/$TENANT_ID" \
   --header "Authorization: Bearer $OUTPOST_API_KEY"
 ```
 
-A successful tenant upsert returns **HTTP 200** if that tenant id already existed, or **HTTP 201** if Outpost created it. In shell scripts, treat **200 and 201** as success (do not require exactly `200`—automation that deletes the tenant first will usually see **201**).
+On success, the response status is **200** if this tenant ID already existed, or **201** if Outpost just created it.
 
 ## Create a webhook destination
 
@@ -61,7 +61,7 @@ curl --request POST "$OUTPOST_API_BASE_URL/tenants/$TENANT_ID/destinations" \
   }'
 ```
 
-On success, expect **HTTP 2xx** (often **201** the first time this destination is created for the tenant).
+On success, expect **HTTP 2xx** (often **201** when this destination is created for the tenant).
 
 To receive every configured topic on this destination, set `"topics": ["*"]` instead.
 
@@ -86,23 +86,15 @@ curl --request POST "$OUTPOST_API_BASE_URL/publish" \
   }'
 ```
 
-A `202` response means the event was accepted for delivery.
+On success, the response status is **202** — the event was accepted for delivery.
 
-## Shell scripts: status codes and portability
+## HTTP status codes (quick reference)
 
-When a script must **fail on unexpected HTTP status**, capture the code with `curl -o … -w '%{http_code}'` (response body to a file or `/dev/null`). Example for **tenant upsert**—accept **200** or **201** only:
-
-```sh
-code="$(curl -sS -o /dev/null -w "%{http_code}" --request PUT "$OUTPOST_API_BASE_URL/tenants/$TENANT_ID" \
-  --header "Authorization: Bearer $OUTPOST_API_KEY")"
-case "$code" in
-  200|201) ;;
-  *) echo "tenant upsert failed: HTTP $code" >&2; exit 1 ;;
-esac
-```
-
-- **Publish** success is **HTTP 202** (not 200/201). Treat **202** as success in conditional checks.
-- **Portability:** GNU `head -n -1` (“all lines but the last”) is **not** available on macOS BSD `head`. Prefer splitting with **`sed '$d'`** (body) and **`tail -n 1`** (status), or another POSIX-friendly approach, so the same script runs on Linux and macOS.
+| Step | Request | Success status |
+|------|---------|----------------|
+| Create tenant | `PUT …/tenants/{ID}` | **200** or **201** |
+| Create destination | `POST …/tenants/{ID}/destinations` | **2xx** |
+| Publish | `POST …/publish` | **202** |
 
 ## Verify delivery
 
