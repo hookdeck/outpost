@@ -7,7 +7,7 @@ info:
   contact:
     name: Outpost Support
     email: support@hookdeck.com
-    url: https://outpost.hookdeck.com/docs
+    url: https://hookdeck.com/docs/outpost
 servers:
   - url: https://api.outpost.hookdeck.com/2025-07-01
     description: Outpost API (production)
@@ -175,7 +175,7 @@ components:
         Optional JSON schema filter for event matching. Events must match this filter to be delivered to this destination.
         Supports operators: $eq, $neq, $gt, $gte, $lt, $lte, $in, $nin, $startsWith, $endsWith, $exist, $or, $and, $not.
         If null or empty, all events matching the topic filter will be delivered.
-        To remove an existing filter when updating a destination, set filter to an empty object `{}`.
+        Uses full-replacement semantics on update: send a new object to replace, null or `{}` to clear, omit for no change.
       example:
         data:
           amount:
@@ -1401,16 +1401,22 @@ components:
         delivery_metadata:
           type: object
           additionalProperties:
-            type: string
+            oneOf:
+              - type: string
+              - type: "null"
           nullable: true
-          description: Static key-value pairs merged into event metadata on every attempt.
+          description: >-
+            Static key-value pairs merged into event metadata on every attempt. Uses JSON merge-patch semantics (RFC 7396): send keys to add/update, null values to delete keys, null for entire field to clear all. Omit or send {} for no change.
           example: {"app-id": "my-app", "region": "us-east-1"}
         metadata:
           type: object
           additionalProperties:
-            type: string
+            oneOf:
+              - type: string
+              - type: "null"
           nullable: true
-          description: Arbitrary contextual information stored with the destination.
+          description: >-
+            Arbitrary contextual information stored with the destination. Uses JSON merge-patch semantics (RFC 7396): send keys to add/update, null values to delete keys, null for entire field to clear all. Omit or send {} for no change.
           example: {"internal-id": "123", "team": "platform"}
     DestinationUpdateAWSSQS:
       type: object
@@ -1427,16 +1433,22 @@ components:
         delivery_metadata:
           type: object
           additionalProperties:
-            type: string
+            oneOf:
+              - type: string
+              - type: "null"
           nullable: true
-          description: Static key-value pairs merged into event metadata on every attempt.
+          description: >-
+            Static key-value pairs merged into event metadata on every attempt. Uses JSON merge-patch semantics (RFC 7396): send keys to add/update, null values to delete keys, null for entire field to clear all. Omit or send {} for no change.
           example: {"app-id": "my-app", "region": "us-east-1"}
         metadata:
           type: object
           additionalProperties:
-            type: string
+            oneOf:
+              - type: string
+              - type: "null"
           nullable: true
-          description: Arbitrary contextual information stored with the destination.
+          description: >-
+            Arbitrary contextual information stored with the destination. Uses JSON merge-patch semantics (RFC 7396): send keys to add/update, null values to delete keys, null for entire field to clear all. Omit or send {} for no change.
           example: {"internal-id": "123", "team": "platform"}
     DestinationUpdateRabbitMQ:
       type: object
@@ -1453,16 +1465,22 @@ components:
         delivery_metadata:
           type: object
           additionalProperties:
-            type: string
+            oneOf:
+              - type: string
+              - type: "null"
           nullable: true
-          description: Static key-value pairs merged into event metadata on every attempt.
+          description: >-
+            Static key-value pairs merged into event metadata on every attempt. Uses JSON merge-patch semantics (RFC 7396): send keys to add/update, null values to delete keys, null for entire field to clear all. Omit or send {} for no change.
           example: {"app-id": "my-app", "region": "us-east-1"}
         metadata:
           type: object
           additionalProperties:
-            type: string
+            oneOf:
+              - type: string
+              - type: "null"
           nullable: true
-          description: Arbitrary contextual information stored with the destination.
+          description: >-
+            Arbitrary contextual information stored with the destination. Uses JSON merge-patch semantics (RFC 7396): send keys to add/update, null values to delete keys, null for entire field to clear all. Omit or send {} for no change.
           example: {"internal-id": "123", "team": "platform"}
     DestinationUpdateHookdeck:
       type: object
@@ -1478,16 +1496,22 @@ components:
         delivery_metadata:
           type: object
           additionalProperties:
-            type: string
+            oneOf:
+              - type: string
+              - type: "null"
           nullable: true
-          description: Static key-value pairs merged into event metadata on every attempt.
+          description: >-
+            Static key-value pairs merged into event metadata on every attempt. Uses JSON merge-patch semantics (RFC 7396): send keys to add/update, null values to delete keys, null for entire field to clear all. Omit or send {} for no change.
           example: {"app-id": "my-app", "region": "us-east-1"}
         metadata:
           type: object
           additionalProperties:
-            type: string
+            oneOf:
+              - type: string
+              - type: "null"
           nullable: true
-          description: Arbitrary contextual information stored with the destination.
+          description: >-
+            Arbitrary contextual information stored with the destination. Uses JSON merge-patch semantics (RFC 7396): send keys to add/update, null values to delete keys, null for entire field to clear all. Omit or send {} for no change.
           example: {"internal-id": "123", "team": "platform"}
     DestinationUpdateAWSKinesis:
       type: object
@@ -1504,16 +1528,22 @@ components:
         delivery_metadata:
           type: object
           additionalProperties:
-            type: string
+            oneOf:
+              - type: string
+              - type: "null"
           nullable: true
-          description: Static key-value pairs merged into event metadata on every attempt.
+          description: >-
+            Static key-value pairs merged into event metadata on every attempt. Uses JSON merge-patch semantics (RFC 7396): send keys to add/update, null values to delete keys, null for entire field to clear all. Omit or send {} for no change.
           example: {"app-id": "my-app", "region": "us-east-1"}
         metadata:
           type: object
           additionalProperties:
-            type: string
+            oneOf:
+              - type: string
+              - type: "null"
           nullable: true
-          description: Arbitrary contextual information stored with the destination.
+          description: >-
+            Arbitrary contextual information stored with the destination. Uses JSON merge-patch semantics (RFC 7396): send keys to add/update, null values to delete keys, null for entire field to clear all. Omit or send {} for no change.
           example: {"internal-id": "123", "team": "platform"}
     DestinationUpdateAzureServiceBus:
       type: object
@@ -1530,16 +1560,22 @@ components:
         delivery_metadata:
           type: object
           additionalProperties:
-            type: string
+            oneOf:
+              - type: string
+              - type: "null"
           nullable: true
-          description: Static key-value pairs merged into event metadata on every attempt.
+          description: >-
+            Static key-value pairs merged into event metadata on every attempt. Uses JSON merge-patch semantics (RFC 7396): send keys to add/update, null values to delete keys, null for entire field to clear all. Omit or send {} for no change.
           example: {"app-id": "my-app", "region": "us-east-1"}
         metadata:
           type: object
           additionalProperties:
-            type: string
+            oneOf:
+              - type: string
+              - type: "null"
           nullable: true
-          description: Arbitrary contextual information stored with the destination.
+          description: >-
+            Arbitrary contextual information stored with the destination. Uses JSON merge-patch semantics (RFC 7396): send keys to add/update, null values to delete keys, null for entire field to clear all. Omit or send {} for no change.
           example: {"internal-id": "123", "team": "platform"}
     DestinationUpdateAWSS3:
       type: object
@@ -1556,16 +1592,22 @@ components:
         delivery_metadata:
           type: object
           additionalProperties:
-            type: string
+            oneOf:
+              - type: string
+              - type: "null"
           nullable: true
-          description: Static key-value pairs merged into event metadata on every attempt.
+          description: >-
+            Static key-value pairs merged into event metadata on every attempt. Uses JSON merge-patch semantics (RFC 7396): send keys to add/update, null values to delete keys, null for entire field to clear all. Omit or send {} for no change.
           example: {"app-id": "my-app", "region": "us-east-1"}
         metadata:
           type: object
           additionalProperties:
-            type: string
+            oneOf:
+              - type: string
+              - type: "null"
           nullable: true
-          description: Arbitrary contextual information stored with the destination.
+          description: >-
+            Arbitrary contextual information stored with the destination. Uses JSON merge-patch semantics (RFC 7396): send keys to add/update, null values to delete keys, null for entire field to clear all. Omit or send {} for no change.
           example: {"internal-id": "123", "team": "platform"}
     DestinationUpdateGCPPubSub:
       type: object
@@ -1582,16 +1624,22 @@ components:
         delivery_metadata:
           type: object
           additionalProperties:
-            type: string
+            oneOf:
+              - type: string
+              - type: "null"
           nullable: true
-          description: Static key-value pairs merged into event metadata on every attempt.
+          description: >-
+            Static key-value pairs merged into event metadata on every attempt. Uses JSON merge-patch semantics (RFC 7396): send keys to add/update, null values to delete keys, null for entire field to clear all. Omit or send {} for no change.
           example: {"app-id": "my-app", "region": "us-east-1"}
         metadata:
           type: object
           additionalProperties:
-            type: string
+            oneOf:
+              - type: string
+              - type: "null"
           nullable: true
-          description: Arbitrary contextual information stored with the destination.
+          description: >-
+            Arbitrary contextual information stored with the destination. Uses JSON merge-patch semantics (RFC 7396): send keys to add/update, null values to delete keys, null for entire field to clear all. Omit or send {} for no change.
           example: {"internal-id": "123", "team": "platform"}
     # Polymorphic Destination Update Schema (for Request Bodies)
     DestinationUpdate:
@@ -1903,15 +1951,26 @@ components:
           type: string
           description: Markdown instructions.
           example: "Some *markdown*"
-        remote_setup_url:
-          type: string
-          format: url
+        setup_link:
+          type: object
           # Property is optional, not nullable
           description: >-
-            Some destinations may have Oauth flow or other managed-setup flow that can be triggered with a link. If a `remote_setup_url` is set then the user should be prompted to follow the link to configure the destination.
+            Some destinations may have an OAuth flow or other managed-setup flow that can be triggered with a link. If a `setup_link` is set then the user should be prompted to follow the link to configure the destination.
 
             See the [building your own UI guide](https://outpost.hookdeck.com/guides/building-your-own-ui.mdx) for recommended UI patterns and wireframes for implementation in your own app.
-          example: "https://dashboard.hookdeck.com/authorize?provider=acme"
+          properties:
+            href:
+              type: string
+              format: url
+              description: The URL to direct the user to for setup.
+              example: "https://dashboard.hookdeck.com/connect"
+            cta:
+              type: string
+              description: The call-to-action button text to display to the user.
+              example: "Generate Hookdeck Token"
+          required:
+            - href
+            - cta
         config_fields:
           type: array
           description: Config fields are non-secret values that can be stored and displayed to the user in plain text.
@@ -1928,7 +1987,8 @@ components:
       properties:
         key:
           type: string
-          description: The config key used to store and retrieve the field value. Matches the key in the destination's config or credentials object.
+          description: >-
+            Property name for this value inside the destination `config` or `credentials` object on create/update (for example `url` for a webhook endpoint URL). This is the key used to store and retrieve the field value in the destination's config or credentials object.
           example: "url"
         type:
           type: string
@@ -2036,6 +2096,141 @@ components:
           description: Array of aggregated data points.
         metadata:
           $ref: "#/components/schemas/MetricsMetadata"
+    ManagedConfig:
+      type: object
+      description: |
+        Managed configuration values for Outpost Cloud.
+        This API is available only on the managed version.
+        Self-hosted deployments configure these values using environment variables.
+      properties:
+        ALERT_AUTO_DISABLE_DESTINATION:
+          type: string
+        ALERT_CALLBACK_URL:
+          type: string
+        ALERT_CONSECUTIVE_FAILURE_COUNT:
+          type: string
+        DELIVERY_TIMEOUT_SECONDS:
+          type: string
+        DESTINATIONS_AWS_KINESIS_METADATA_IN_PAYLOAD:
+          type: string
+        DESTINATIONS_INCLUDE_MILLISECOND_TIMESTAMP:
+          type: string
+        DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_EVENT_ID_HEADER:
+          type: string
+        DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_SIGNATURE_HEADER:
+          type: string
+        DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_TIMESTAMP_HEADER:
+          type: string
+        DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_TOPIC_HEADER:
+          type: string
+        DESTINATIONS_WEBHOOK_HEADER_PREFIX:
+          type: string
+        DESTINATIONS_WEBHOOK_MODE:
+          type: string
+        DESTINATIONS_WEBHOOK_PROXY_URL:
+          type: string
+        DESTINATIONS_WEBHOOK_SIGNATURE_ALGORITHM:
+          type: string
+        DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE:
+          type: string
+        DESTINATIONS_WEBHOOK_SIGNATURE_ENCODING:
+          type: string
+        DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE:
+          type: string
+        DESTINATIONS_WEBHOOK_SIGNING_SECRET_TEMPLATE:
+          type: string
+        HTTP_USER_AGENT:
+          type: string
+        IDGEN_ATTEMPT_PREFIX:
+          type: string
+        IDGEN_DESTINATION_PREFIX:
+          type: string
+        IDGEN_EVENT_PREFIX:
+          type: string
+        IDGEN_TYPE:
+          type: string
+        MAX_DESTINATIONS_PER_TENANT:
+          type: string
+        ORGANIZATION_NAME:
+          type: string
+        PORTAL_BRAND_COLOR:
+          type: string
+        PORTAL_DISABLE_OUTPOST_BRANDING:
+          type: string
+        PORTAL_FAVICON_URL:
+          type: string
+        PORTAL_FORCE_THEME:
+          type: string
+        PORTAL_LOGO:
+          type: string
+        PORTAL_LOGO_DARK:
+          type: string
+        PORTAL_ORGANIZATION_NAME:
+          type: string
+        PORTAL_REFERER_URL:
+          type: string
+        PORTAL_REFRESH_URL:
+          type: string
+        PORTAL_ENABLE_DESTINATION_FILTER:
+          type: string
+        PORTAL_ENABLE_WEBHOOK_CUSTOM_HEADERS:
+          type: string
+        RETRY_INTERVAL_SECONDS:
+          type: string
+        MAX_RETRY_LIMIT:
+          type: string
+        RETRY_SCHEDULE:
+          type: string
+        OTEL_EXPORTER_OTLP_ENDPOINT:
+          type: string
+        OTEL_EXPORTER_OTLP_HEADERS:
+          type: string
+        OTEL_EXPORTER_OTLP_PROTOCOL:
+          type: string
+        OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:
+          type: string
+        OTEL_EXPORTER_OTLP_METRICS_ENDPOINT:
+          type: string
+        OTEL_EXPORTER_OTLP_LOGS_ENDPOINT:
+          type: string
+        OTEL_SERVICE_NAME:
+          type: string
+        PUBLISH_AWS_SQS_ACCESS_KEY_ID:
+          type: string
+        PUBLISH_AWS_SQS_ENDPOINT:
+          type: string
+        PUBLISH_AWS_SQS_QUEUE:
+          type: string
+        PUBLISH_AWS_SQS_REGION:
+          type: string
+        PUBLISH_AWS_SQS_SECRET_ACCESS_KEY:
+          type: string
+        PUBLISH_AZURE_SERVICEBUS_CONNECTION_STRING:
+          type: string
+        PUBLISH_AZURE_SERVICEBUS_SUBSCRIPTION:
+          type: string
+        PUBLISH_AZURE_SERVICEBUS_TOPIC:
+          type: string
+        PUBLISH_GCP_PUBSUB_PROJECT:
+          type: string
+        PUBLISH_GCP_PUBSUB_SERVICE_ACCOUNT_CREDENTIALS:
+          type: string
+        PUBLISH_GCP_PUBSUB_SUBSCRIPTION:
+          type: string
+        PUBLISH_GCP_PUBSUB_TOPIC:
+          type: string
+        PUBLISH_RABBITMQ_EXCHANGE:
+          type: string
+        PUBLISH_RABBITMQ_QUEUE:
+          type: string
+        PUBLISH_RABBITMQ_SERVER_URL:
+          type: string
+        TOPICS:
+          type: string
+      additionalProperties: false
+      example:
+        TOPICS: "user.created,user.updated"
+        DESTINATIONS_WEBHOOK_MODE: "default"
     BadRequest:
       type: object
       properties:
@@ -2076,6 +2271,10 @@ components:
 tags:
   - name: Health
     description: API Health Check
+  - name: Configuration
+    description: |
+      Outpost instance-level configuration management for the managed deployment.
+      This is not available in self-hosted deployments.
   - name: Tenants
     description: |
       The API segments resources per `tenant`. A tenant represents a user/team/organization in your product. The provided value determines the tenant's ID, which can be any string representation.
@@ -2244,6 +2443,59 @@ paths:
         '504':
           $ref: '#/components/responses/Timeout'
       x-speakeasy-name-override: check
+  /config:
+    get:
+      tags: [Configuration]
+      summary: Get Managed Configuration
+      description: |
+        Returns managed Outpost configuration values.
+
+        This endpoint is only available for the managed version.
+        In self-hosted deployments, configuration is controlled through environment variables instead.
+      operationId: getManagedConfig
+      responses:
+        "200":
+          description: Managed configuration.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ManagedConfig"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    patch:
+      tags: [Configuration]
+      summary: Update Managed Configuration
+      description: |
+        Updates one or more managed Outpost configuration values. Null values clear the configuration and reverts to Outpost default behavior.
+
+        This endpoint is only available for the managed version.
+        In self-hosted deployments, configuration is controlled through environment variables instead.
+
+        Only the supported configuration keys are accepted.
+      operationId: updateManagedConfig
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ManagedConfig"
+      responses:
+        "200":
+          description: Updated managed configuration.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ManagedConfig"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
   # Tenants
   /tenants:
     get:
@@ -2262,11 +2514,9 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: Filter tenants by ID(s). Use bracket notation for multiple values (e.g., `id[0]=t1&id[1]=t2` or `id[]=t1&id[]=t2`).
         - name: limit
           in: query
@@ -2451,21 +2701,17 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: Filter events by ID(s). Use bracket notation for multiple values (e.g., `id[0]=abc&id[1]=def`).
         - name: tenant_id
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: |
             Filter events by tenant ID(s). Use bracket notation for multiple values (e.g., `tenant_id[0]=t1&tenant_id[1]=t2`).
             When authenticated with a Tenant JWT, this parameter is ignored and the JWT's tenant is used.
@@ -2484,11 +2730,9 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: Filter events by topic(s). Use bracket notation for multiple values (e.g., `topic[0]=user.created&topic[1]=user.updated`).
         - name: time[gte]
           in: query
@@ -2622,6 +2866,13 @@ paths:
         When authenticated with a Tenant JWT, only events belonging to that tenant can be accessed.
         When authenticated with Admin API Key, events from any tenant can be accessed.
       operationId: getEvent
+      parameters:
+        - name: tenant_id
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by tenant ID. Returns 404 if the event does not belong to the specified tenant. Ignored when using Tenant JWT authentication.
       responses:
         "200":
           description: Event details.
@@ -2661,11 +2912,9 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: |
             Filter attempts by tenant ID(s). Use bracket notation for multiple values (e.g., `tenant_id[0]=t1&tenant_id[1]=t2`).
             When authenticated with a Tenant JWT, this parameter is ignored and the JWT's tenant is used.
@@ -2674,22 +2923,28 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: Filter attempts by event ID(s). Use bracket notation for multiple values (e.g., `event_id[0]=e1&event_id[1]=e2`).
         - name: destination_id
           in: query
           required: false
           schema:
+            type: array
+            items:
+              type: string
+          description: Filter attempts by destination ID(s). Use bracket notation for multiple values (e.g., `destination_id[0]=d1&destination_id[1]=d2`).
+        - name: destination_type
+          in: query
+          required: false
+          schema:
             oneOf:
-              - type: string
+              - $ref: "#/components/schemas/DestinationType"
               - type: array
                 items:
-                  type: string
-          description: Filter attempts by destination ID(s). Use bracket notation for multiple values (e.g., `destination_id[0]=d1&destination_id[1]=d2`).
+                  $ref: "#/components/schemas/DestinationType"
+          description: Filter attempts by destination type(s). Use bracket notation for multiple values (e.g., `destination_type[0]=webhook&destination_type[1]=aws_sqs`).
         - name: status
           in: query
           required: false
@@ -2701,11 +2956,9 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: Filter attempts by event topic(s). Use bracket notation for multiple values (e.g., `topic[0]=user.created&topic[1]=user.updated`).
         - name: time[gte]
           in: query
@@ -2760,11 +3013,9 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: |
             Fields to include in the response. Use bracket notation for multiple values (e.g., `include[0]=event&include[1]=response_data`).
             - `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
@@ -2878,15 +3129,19 @@ paths:
         When authenticated with Admin API Key, attempts from any tenant can be accessed.
       operationId: getAttempt
       parameters:
+        - name: tenant_id
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by tenant ID. Returns 404 if the attempt does not belong to the specified tenant. Ignored when using Tenant JWT authentication.
         - name: include
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: |
             Fields to include in the response. Use bracket notation for multiple values (e.g., `include[0]=event&include[1]=response_data`).
             - `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
@@ -3036,21 +3291,17 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - $ref: "#/components/schemas/DestinationType"
-              - type: array
-                items:
-                  $ref: "#/components/schemas/DestinationType"
+            type: array
+            items:
+              $ref: "#/components/schemas/DestinationType"
           description: Filter destinations by type(s). Use bracket notation for multiple values (e.g., `type[0]=webhook&type[1]=aws_sqs`).
         - name: topics
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: Filter destinations by supported topic(s). Use bracket notation for multiple values (e.g., `topics[0]=user.created&topics[1]=user.deleted`).
       responses:
         "200":
@@ -3384,11 +3635,9 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: Filter attempts by event ID(s). Use bracket notation for multiple values (e.g., `event_id[0]=e1&event_id[1]=e2`).
         - name: status
           in: query
@@ -3401,11 +3650,9 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: Filter attempts by event topic(s). Use bracket notation for multiple values (e.g., `topic[0]=user.created&topic[1]=user.updated`).
         - name: time[gte]
           in: query
@@ -3460,11 +3707,9 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: |
             Fields to include in the response. Use bracket notation for multiple values (e.g., `include[0]=event&include[1]=response_data`).
             - `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
@@ -3567,11 +3812,9 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: |
             Fields to include in the response. Use bracket notation for multiple values (e.g., `include[0]=event&include[1]=response_data`).
             - `event`: Include event summary
@@ -3735,23 +3978,23 @@ paths:
                       description: "Send event via an HTTP POST request to a URL"
                       icon: "<svg />"
                       instructions: "Enter the URL..."
-                      config_fields: [{type: "text", label: "URL", description: "The URL to send the webhook to.", pattern: "^https?://.*", # Example pattern
+                      config_fields: [{key: "url", type: "text", label: "URL", description: "The URL to send the webhook to.", pattern: "^https?://.*", # Example pattern
                           required: true}]
-                      credential_fields: [{type: "text", label: "Secret", description: "Optional signing secret.", required: false, sensitive: true, # Added sensitive
+                      credential_fields: [{key: "secret", type: "text", label: "Secret", description: "Optional signing secret.", required: false, sensitive: true, # Added sensitive
 }]
                     - type: "kafka"
                       label: "Apache Kafka"
                       description: "Send events to Apache Kafka topics for real-time event streaming"
                       icon: "<svg />"
-                      config_fields: [{type: "text", label: "Brokers", description: "Comma-separated list of Kafka broker addresses.", required: true}, {type: "text", label: "Topic", description: "The Kafka topic to publish messages to.", required: true}, {type: "checkbox", label: "TLS", description: "Enable TLS for the connection.", default: "true"}, {type: "text", label: "Partition Key Template", description: "JMESPath template to extract the partition key from the event payload.", required: false}, {type: "select", label: "SASL Mechanism", description: "SASL authentication mechanism.", required: true, options: [{label: "PLAIN", value: "plain"}, {label: "SCRAM-SHA-256", value: "scram-sha-256"}, {label: "SCRAM-SHA-512", value: "scram-sha-512"}]}]
-                      credential_fields: [{type: "text", label: "Username", description: "SASL username for authentication.", required: true}, {type: "text", label: "Password", description: "SASL password for authentication.", required: true, sensitive: true}]
+                      config_fields: [{key: "brokers", type: "text", label: "Brokers", description: "Comma-separated list of Kafka broker addresses.", required: true}, {key: "topic", type: "text", label: "Topic", description: "The Kafka topic to publish messages to.", required: true}, {key: "tls", type: "checkbox", label: "TLS", description: "Enable TLS for the connection.", default: "true"}, {key: "partition_key_template", type: "text", label: "Partition Key Template", description: "JMESPath template to extract the partition key from the event payload.", required: false}, {key: "sasl_mechanism", type: "select", label: "SASL Mechanism", description: "SASL authentication mechanism.", required: true, options: [{label: "PLAIN", value: "plain"}, {label: "SCRAM-SHA-256", value: "scram-sha-256"}, {label: "SCRAM-SHA-512", value: "scram-sha-512"}]}]
+                      credential_fields: [{key: "username", type: "text", label: "Username", description: "SASL username for authentication.", required: true}, {key: "password", type: "text", label: "Password", description: "SASL password for authentication.", required: true, sensitive: true}]
                     - type: "aws_sqs"
                       label: "AWS SQS"
                       description: "Send event to an AWS SQS queue"
                       icon: "<svg />"
                       instructions: "Enter Queue URL..."
-                      config_fields: [{type: "text", label: "Queue URL", description: "The URL of the SQS queue.", required: true}, {type: "text", label: "Endpoint", description: "Optional custom AWS endpoint URL.", required: false}]
-                      credential_fields: [{type: "text", label: "Key", description: "AWS Access Key ID.", required: true, sensitive: true}, {type: "text", label: "Secret", description: "AWS Secret Access Key.", required: true, sensitive: true}, {type: "text", label: "Session", description: "Optional AWS Session Token.", required: false, sensitive: true}]
+                      config_fields: [{key: "queue_url", type: "text", label: "Queue URL", description: "The URL of the SQS queue.", required: true}, {key: "endpoint", type: "text", label: "Endpoint", description: "Optional custom AWS endpoint URL.", required: false}]
+                      credential_fields: [{key: "key", type: "text", label: "Key", description: "AWS Access Key ID.", required: true, sensitive: true}, {key: "secret", type: "text", label: "Secret", description: "AWS Secret Access Key.", required: true, sensitive: true}, {key: "session", type: "text", label: "Session", description: "Optional AWS Session Token.", required: false, sensitive: true}]
         "401":
           $ref: "#/components/responses/Unauthorized"
         "500":
@@ -3828,10 +4071,10 @@ paths:
                     description: "Send event via an HTTP POST request to a URL"
                     icon: "<svg />"
                     instructions: "Enter the URL..."
-                    # remote_setup_url is optional, omitted here
-                    config_fields: [{type: "text", label: "URL", description: "The URL to send the webhook to.", pattern: "^https?://.*", # Example pattern
+                    # setup_link is optional, omitted here
+                    config_fields: [{key: "url", type: "text", label: "URL", description: "The URL to send the webhook to.", pattern: "^https?://.*", # Example pattern
                         required: true}]
-                    credential_fields: [{type: "text", label: "Secret", description: "Optional signing secret.", required: false, sensitive: true, # Added sensitive
+                    credential_fields: [{key: "secret", type: "text", label: "Secret", description: "Optional signing secret.", required: false, sensitive: true, # Added sensitive
 }]
         "401":
           $ref: "#/components/responses/Unauthorized"
@@ -4092,9 +4335,9 @@ paths:
         `first_attempt_count`, `retry_count`, `manual_retry_count`, `avg_attempt_number`,
         `rate`, `successful_rate`, `failed_rate`
 
-        **Dimensions:** `tenant_id` (admin-only), `destination_id`, `topic`, `status`, `code`, `manual`, `attempt_number`
+        **Dimensions:** `tenant_id` (admin-only), `destination_id`, `destination_type`, `topic`, `status`, `code`, `manual`, `attempt_number`
 
-        **Filters:** `tenant_id` (admin-only), `destination_id`, `topic`, `status`, `code`, `manual`, `attempt_number`
+        **Filters:** `tenant_id` (admin-only), `destination_id`, `destination_type`, `topic`, `status`, `code`, `manual`, `attempt_number`
       operationId: getAttemptMetrics
       parameters:
         - name: time[start]
@@ -4142,11 +4385,11 @@ paths:
           schema:
             oneOf:
               - type: string
-                enum: [tenant_id, destination_id, topic, status, code, manual, attempt_number]
+                enum: [tenant_id, destination_id, destination_type, topic, status, code, manual, attempt_number]
               - type: array
                 items:
                   type: string
-                  enum: [tenant_id, destination_id, topic, status, code, manual, attempt_number]
+                  enum: [tenant_id, destination_id, destination_type, topic, status, code, manual, attempt_number]
           description: Dimensions to group results by. Use bracket notation for multiple values (e.g., `dimensions[0]=status&dimensions[1]=destination_id`).
         - name: filters[destination_id]
           in: query
@@ -4158,6 +4401,16 @@ paths:
                 items:
                   type: string
           description: Filter by destination ID(s). Use bracket notation for multiple values (e.g., `filters[destination_id][0]=d1&filters[destination_id][1]=d2`).
+        - name: filters[destination_type]
+          in: query
+          required: false
+          schema:
+            oneOf:
+              - $ref: "#/components/schemas/DestinationType"
+              - type: array
+                items:
+                  $ref: "#/components/schemas/DestinationType"
+          description: Filter by destination type(s). Use bracket notation for multiple values (e.g., `filters[destination_type][0]=webhook&filters[destination_type][1]=aws_sqs`).
         - name: filters[topic]
           in: query
           required: false

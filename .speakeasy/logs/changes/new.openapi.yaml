@@ -1660,7 +1660,7 @@ components:
       properties:
         id:
           type: string
-          description: Optional. A unique identifier for the event. If not provided, a UUID will be generated.
+          description: Optional. A unique identifier for the event. If not provided, a UUID will be generated. A stable id enables publish idempotency (see `duplicate` in the response) and is the value receivers should use to deduplicate webhook deliveries — by default sent as the `X-Outpost-Event-Id` header (prefix configurable).
           example: "evt_custom_123"
         tenant_id:
           type: string
@@ -2040,11 +2040,9 @@ components:
       type: object
       properties:
         time_bucket:
-          type:
-            - string
-            - "null"
+          type: string
           format: date-time
-          description: Start of the time bucket. Null when no granularity is specified.
+          description: Start of the time bucket. Absent when no granularity is specified.
           example: "2026-03-02T14:00:00Z"
         dimensions:
           type: object
@@ -2065,10 +2063,8 @@ components:
       type: object
       properties:
         granularity:
-          type:
-            - string
-            - "null"
-          description: The granularity used for time bucketing, or null if none was specified.
+          type: string
+          description: The granularity used for time bucketing. Absent when none was specified.
           example: "1h"
         query_time_ms:
           type: integer
@@ -2551,11 +2547,9 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: Filter tenants by ID(s). Use bracket notation for multiple values (e.g., `id[0]=t1&id[1]=t2` or `id[]=t1&id[]=t2`).
         - name: limit
           in: query
@@ -2740,21 +2734,17 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: Filter events by ID(s). Use bracket notation for multiple values (e.g., `id[0]=abc&id[1]=def`).
         - name: tenant_id
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: |
             Filter events by tenant ID(s). Use bracket notation for multiple values (e.g., `tenant_id[0]=t1&tenant_id[1]=t2`).
             When authenticated with a Tenant JWT, this parameter is ignored and the JWT's tenant is used.
@@ -2773,11 +2763,9 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: Filter events by topic(s). Use bracket notation for multiple values (e.g., `topic[0]=user.created&topic[1]=user.updated`).
         - name: time[gte]
           in: query
@@ -2957,11 +2945,9 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: |
             Filter attempts by tenant ID(s). Use bracket notation for multiple values (e.g., `tenant_id[0]=t1&tenant_id[1]=t2`).
             When authenticated with a Tenant JWT, this parameter is ignored and the JWT's tenant is used.
@@ -2970,21 +2956,17 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: Filter attempts by event ID(s). Use bracket notation for multiple values (e.g., `event_id[0]=e1&event_id[1]=e2`).
         - name: destination_id
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: Filter attempts by destination ID(s). Use bracket notation for multiple values (e.g., `destination_id[0]=d1&destination_id[1]=d2`).
         - name: destination_type
           in: query
@@ -3007,11 +2989,9 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: Filter attempts by event topic(s). Use bracket notation for multiple values (e.g., `topic[0]=user.created&topic[1]=user.updated`).
         - name: time[gte]
           in: query
@@ -3066,11 +3046,9 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: |
             Fields to include in the response. Use bracket notation for multiple values (e.g., `include[0]=event&include[1]=response_data`).
             - `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
@@ -3194,11 +3172,9 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: |
             Fields to include in the response. Use bracket notation for multiple values (e.g., `include[0]=event&include[1]=response_data`).
             - `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
@@ -3348,21 +3324,17 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - $ref: "#/components/schemas/DestinationType"
-              - type: array
-                items:
-                  $ref: "#/components/schemas/DestinationType"
+            type: array
+            items:
+              $ref: "#/components/schemas/DestinationType"
           description: Filter destinations by type(s). Use bracket notation for multiple values (e.g., `type[0]=webhook&type[1]=aws_sqs`).
         - name: topics
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: Filter destinations by supported topic(s). Use bracket notation for multiple values (e.g., `topics[0]=user.created&topics[1]=user.deleted`).
       responses:
         "200":
@@ -3696,11 +3668,9 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: Filter attempts by event ID(s). Use bracket notation for multiple values (e.g., `event_id[0]=e1&event_id[1]=e2`).
         - name: status
           in: query
@@ -3713,11 +3683,9 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: Filter attempts by event topic(s). Use bracket notation for multiple values (e.g., `topic[0]=user.created&topic[1]=user.updated`).
         - name: time[gte]
           in: query
@@ -3772,11 +3740,9 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: |
             Fields to include in the response. Use bracket notation for multiple values (e.g., `include[0]=event&include[1]=response_data`).
             - `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
@@ -3879,11 +3845,9 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: |
             Fields to include in the response. Use bracket notation for multiple values (e.g., `include[0]=event&include[1]=response_data`).
             - `event`: Include event summary
