@@ -114,7 +114,7 @@ Choose one for event log persistence:
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `DESTINATIONS_WEBHOOK_MODE` | `default` | Set to `standard` for Standard Webhooks compliance |
-| `DESTINATIONS_WEBHOOK_HEADER_PREFIX` | `x-outpost-` | Prefix for metadata-derived webhook headers (event id, topic, timestamp, signature) |
+| `DESTINATIONS_WEBHOOK_HEADER_PREFIX` | `x-outpost-` / `webhook-` | Prefix for system webhook headers (event id, topic, timestamp, signature). Unless overridden, defaults to **`x-outpost-`** when `DESTINATIONS_WEBHOOK_MODE` is `default` and **`webhook-`** when `standard`. |
 | `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_EVENT_ID_HEADER` | `false` | Disable the event ID header |
 | `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_TIMESTAMP_HEADER` | `false` | Disable the timestamp header |
 | `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_TOPIC_HEADER` | `false` | Disable the topic header |
