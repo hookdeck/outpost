@@ -9,6 +9,7 @@ import (
 	"github.com/hookdeck/outpost/loadtest-app/internal/api"
 	"github.com/hookdeck/outpost/loadtest-app/internal/config"
 	"github.com/hookdeck/outpost/loadtest-app/internal/dashboard"
+	"github.com/hookdeck/outpost/loadtest-app/internal/mockhttp"
 )
 
 type Server struct {
@@ -31,6 +32,10 @@ func New(cfg *config.Config) *Server {
 		w.Write([]byte("OK"))
 	})
 	mux.HandleFunc("POST /webhook/{group}/{tenant}/{dest}", app.MockServer.Handler().ServeHTTP)
+
+	// Mock HTTP (httpbin-style)
+	mockHandler := mockhttp.Handler()
+	mux.Handle("/mock/", mockHandler)
 
 	// Dashboard
 	mux.Handle("GET /", dashboard.Handler())
