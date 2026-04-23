@@ -10,9 +10,9 @@ import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 
 export type MetricsMetadata = {
   /**
-   * The granularity used for time bucketing, or null if none was specified.
+   * The granularity used for time bucketing. Absent when none was specified.
    */
-  granularity?: string | null | undefined;
+  granularity?: string | undefined;
   /**
    * Query execution time in milliseconds.
    */
@@ -37,7 +37,7 @@ export const MetricsMetadata$inboundSchema: z.ZodType<
   z.ZodTypeDef,
   unknown
 > = z.object({
-  granularity: z.nullable(z.string()).optional(),
+  granularity: z.string().optional(),
   query_time_ms: z.number().int().optional(),
   row_count: z.number().int().optional(),
   row_limit: z.number().int().optional(),
@@ -51,7 +51,7 @@ export const MetricsMetadata$inboundSchema: z.ZodType<
 });
 /** @internal */
 export type MetricsMetadata$Outbound = {
-  granularity?: string | null | undefined;
+  granularity?: string | undefined;
   query_time_ms?: number | undefined;
   row_count?: number | undefined;
   row_limit?: number | undefined;
@@ -64,7 +64,7 @@ export const MetricsMetadata$outboundSchema: z.ZodType<
   z.ZodTypeDef,
   MetricsMetadata
 > = z.object({
-  granularity: z.nullable(z.string()).optional(),
+  granularity: z.string().optional(),
   queryTimeMs: z.number().int().optional(),
   rowCount: z.number().int().optional(),
   rowLimit: z.number().int().optional(),

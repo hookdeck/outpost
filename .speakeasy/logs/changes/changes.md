@@ -1,7 +1,7 @@
-## Go SDK Changes:
-* `Outpost.Metrics.GetEventMetrics()`: `response` **Changed** (Breaking ⚠️)
-    - `Data[].TimeBucket` **Changed** (Breaking ⚠️)
-    - `Metadata.Granularity` **Changed** (Breaking ⚠️)
-* `Outpost.Metrics.GetAttemptMetrics()`: `response` **Changed** (Breaking ⚠️)
-    - `Data[].TimeBucket` **Changed** (Breaking ⚠️)
-    - `Metadata.Granularity` **Changed** (Breaking ⚠️)
+## Typescript SDK Changes:
+* `outpost.metrics.getEventMetrics()`: `response` **Changed** (Breaking ⚠️)
+    - `data[].timeBucket` **Changed** (Breaking ⚠️)
+    - `metadata.granularity` **Changed** (Breaking ⚠️)
+* `outpost.metrics.getAttemptMetrics()`: `response` **Changed** (Breaking ⚠️)
+    - `data[].timeBucket` **Changed** (Breaking ⚠️)
+    - `metadata.granularity` **Changed** (Breaking ⚠️)

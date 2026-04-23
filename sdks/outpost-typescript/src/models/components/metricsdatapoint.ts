@@ -10,9 +10,9 @@ import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 
 export type MetricsDataPoint = {
   /**
-   * Start of the time bucket. Null when no granularity is specified.
+   * Start of the time bucket. Absent when no granularity is specified.
    */
-  timeBucket?: Date | null | undefined;
+  timeBucket?: Date | undefined;
   /**
    * Dimension values for this data point. Empty object when no dimensions are requested.
    */
@@ -29,9 +29,8 @@ export const MetricsDataPoint$inboundSchema: z.ZodType<
   z.ZodTypeDef,
   unknown
 > = z.object({
-  time_bucket: z.nullable(
-    z.string().datetime({ offset: true }).transform(v => new Date(v)),
-  ).optional(),
+  time_bucket: z.string().datetime({ offset: true }).transform(v => new Date(v))
+    .optional(),
   dimensions: z.record(z.string()).optional(),
   metrics: z.record(z.any()).optional(),
 }).transform((v) => {
@@ -41,7 +40,7 @@ export const MetricsDataPoint$inboundSchema: z.ZodType<
 });
 /** @internal */
 export type MetricsDataPoint$Outbound = {
-  time_bucket?: string | null | undefined;
+  time_bucket?: string | undefined;
   dimensions?: { [k: string]: string } | undefined;
   metrics?: { [k: string]: any } | undefined;
 };
@@ -52,7 +51,7 @@ export const MetricsDataPoint$outboundSchema: z.ZodType<
   z.ZodTypeDef,
   MetricsDataPoint
 > = z.object({
-  timeBucket: z.nullable(z.date().transform(v => v.toISOString())).optional(),
+  timeBucket: z.date().transform(v => v.toISOString()).optional(),
   dimensions: z.record(z.string()).optional(),
   metrics: z.record(z.any()).optional(),
 }).transform((v) => {
