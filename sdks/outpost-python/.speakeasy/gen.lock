@@ -1,20 +1,20 @@
 lockVersion: 2.0.0
 id: da774284-22d9-4b6c-bb26-1c3fc9f2c7ee
 management:
-  docChecksum: 09457556efeee01379aa11b36562592e
+  docChecksum: 2239ad01d964ecf831ece67acb702b16
   docVersion: 0.0.1
   speakeasyVersion: 1.761.9
   generationVersion: 2.881.4
-  releaseVersion: 1.0.0
-  configChecksum: 42478300d0f1a821ba55730f73a8b132
+  releaseVersion: 1.0.1
+  configChecksum: 765521d09d5051e39033de2fa854acd9
   repoURL: https://github.com/hookdeck/outpost.git
   repoSubDirectory: sdks/outpost-python
   installationURL: https://github.com/hookdeck/outpost.git#subdirectory=sdks/outpost-python
   published: true
 persistentEdits:
-  generation_id: a133c608-0437-4067-9809-454a30927716
-  pristine_commit_hash: bda79b021abc53b36d4c0d7390282838ccbebca4
-  pristine_tree_hash: 8a593e89503bec6cecb000ec8b9f8cc9f4db4445
+  generation_id: 4a5c0c2d-8f65-4b6e-8f9f-20c4a4fac03d
+  pristine_commit_hash: e0cc5bfe82828f4051c83e61806e0d7d47dc3af5
+  pristine_tree_hash: 7218a6d44edf380d3acbf0b0a2c49b0b43f81a27
 features:
   python:
     additionalDependencies: 1.0.0
@@ -675,12 +675,12 @@ trackedFiles:
     pristine_git_object: 2260881c2ab73757397cb8740cc76ce0b62145a6
   docs/models/metricsdatapoint.md:
     id: 7ab5449287c3
-    last_write_checksum: sha1:95a28ddc95e44fcd9b26f96fac41ce615d251b9c
-    pristine_git_object: 18716712395e329c0b4aba7d0049d28f24fa31b1
+    last_write_checksum: sha1:ed280c92a54e7b8a0d55cb99261bfb689bbc47a1
+    pristine_git_object: 4943b2e07e5a39dc0c53acd8d440d8fb1036c0d5
   docs/models/metricsmetadata.md:
     id: e2e327f505e4
-    last_write_checksum: sha1:e0c579bf1b55cce348e8923d05fb7283bdbc6d7f
-    pristine_git_object: df771d36b8fcb32fbd3fd39349c5f76e8ec37b0b
+    last_write_checksum: sha1:beabd2d2497cf521236b091961b267fb35ffd5f4
+    pristine_git_object: 3bf3f853f949e3d0641da5e6409b22f1aed7f7ce
   docs/models/metricsresponse.md:
     id: da5c44e3eee0
     last_write_checksum: sha1:0188f7016936bf9e8c1b3b8a8448c6cae8843a18
@@ -695,8 +695,8 @@ trackedFiles:
     pristine_git_object: 12bee4660a7ac3da793e4fdab5796da80956524a
   docs/models/publishrequest.md:
     id: c7ab0be725e8
-    last_write_checksum: sha1:4c7a2c010ffbce7923604e551135a72205927e75
-    pristine_git_object: 1d7c57aedf4a89351314f71a26790e38566b0f26
+    last_write_checksum: sha1:bf03c63de3dbfb0fe7eb576b6b722e446fabdb9f
+    pristine_git_object: 21a722e84d89e38ca23238597076d20b79e3d47a
   docs/models/publishresponse.md:
     id: c623a9381358
     last_write_checksum: sha1:dd5081652c5f62b55acc3fd0018aaf08747f2f12
@@ -851,8 +851,8 @@ trackedFiles:
     pristine_git_object: cb9c15d314c1930557401074329ed7a737147919
   pyproject.toml:
     id: 5d07e7d72637
-    last_write_checksum: sha1:4c3ade6baa26e8ab3ef29323dddc16ae4fe90e55
-    pristine_git_object: 242f7a0f37b80d520a6bade18c5854871e4d5206
+    last_write_checksum: sha1:e0ab874fc520680fb923c81f1da18981c4031d55
+    pristine_git_object: 49bf6c71cd656c285b3925b0d205b1f647e1b85e
   scripts/prepare_readme.py:
     id: e0c5957a6035
     last_write_checksum: sha1:eb460f85c06b287fee629d997b2df75c92fa1cab
@@ -879,8 +879,8 @@ trackedFiles:
     pristine_git_object: b1777a2eacece4434c53b2e136158f0c1360707d
   src/outpost_sdk/_version.py:
     id: 22be68f35ad0
-    last_write_checksum: sha1:9e617b8ba3fe77932111c0719077696b2c407faa
-    pristine_git_object: 6f7549751d9777813693ab8804221881cad6912a
+    last_write_checksum: sha1:df652b4d2fcf96f54f3c98df57a94cc2cecef346
+    pristine_git_object: 4e0876aaaa53aa1b15401632916c4c1f8d94ac94
   src/outpost_sdk/attempts.py:
     id: 304ea4e0bbf1
     last_write_checksum: sha1:d0619cdc78200c5d3de0ea087ab9db61c9d5d0a7
@@ -1239,12 +1239,12 @@ trackedFiles:
     pristine_git_object: cc6b2742f2e6a1b4b4db331eb55e6ed4f6272595
   src/outpost_sdk/models/metricsdatapoint.py:
     id: 402c8bbf628c
-    last_write_checksum: sha1:20e5cff10f451034d6564339a0fc2e1737b6f4dd
-    pristine_git_object: 9ae956368b6adb9bcbe4442d25887cc9af92bf42
+    last_write_checksum: sha1:6f9c42b80858d89c0d0c4f5e06c4e5d23567f6ce
+    pristine_git_object: 409809fb457179f3cbd770d326c07050bfb81126
   src/outpost_sdk/models/metricsmetadata.py:
     id: 7a5ac79945d1
-    last_write_checksum: sha1:8b7d61ded7a41ed613cc66cdf0c58488e595a3dc
-    pristine_git_object: 05c040cdbc743fa1084c2c266ff7bef6ff6fd5a6
+    last_write_checksum: sha1:bd23de595ffbe63d5a3f562baf9de62dcd87fc72
+    pristine_git_object: d66f54f58238fa6c0cb2177dc1d16d222d4a47ce
   src/outpost_sdk/models/metricsresponse.py:
     id: 258f057e789b
     last_write_checksum: sha1:d125cb56a64b55562853649da3137a4f72da9e53
@@ -1255,8 +1255,8 @@ trackedFiles:
     pristine_git_object: 7618ceb8793735dd3fd86df979648c0d438bad04
   src/outpost_sdk/models/publishrequest.py:
     id: baf66d2d3cc8
-    last_write_checksum: sha1:e4dd16faf706750c5d1c3122dc8c837311a76c35
-    pristine_git_object: 7b7793f3b4c3db79a1369b9fa49e5d4aae06e883
+    last_write_checksum: sha1:fe110e0064392f351bab06ddb7d6b520f25ab7f2
+    pristine_git_object: bbfd9a06259d7682a5687cd44eb2211f3e09a5ac
   src/outpost_sdk/models/publishresponse.py:
     id: 9654d8ee9d84
     last_write_checksum: sha1:1d5a02ed9adc3ebdaba18add62c2c68f83283b06
@@ -1964,6 +1964,10 @@ examples:
           application/json: {}
 examplesVersion: 1.0.2
 generatedTests: {}
+releaseNotes: |
+  ## Python SDK Changes:
+  * `outpost.metrics.get_event_metrics()`:  `response` **Changed** (Breaking ⚠️)
+  * `outpost.metrics.get_attempt_metrics()`:  `response` **Changed** (Breaking ⚠️)
 generatedFiles:
   - .gitattributes
   - .vscode/settings.json

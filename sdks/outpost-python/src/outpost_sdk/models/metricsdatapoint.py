@@ -2,21 +2,15 @@
 
 from __future__ import annotations
 from datetime import datetime
-from outpost_sdk.types import (
-    BaseModel,
-    Nullable,
-    OptionalNullable,
-    UNSET,
-    UNSET_SENTINEL,
-)
+from outpost_sdk.types import BaseModel, UNSET_SENTINEL
 from pydantic import model_serializer
 from typing import Any, Dict, Optional
 from typing_extensions import NotRequired, TypedDict
 
 
 class MetricsDataPointTypedDict(TypedDict):
-    time_bucket: NotRequired[Nullable[datetime]]
-    r"""Start of the time bucket. Null when no granularity is specified."""
+    time_bucket: NotRequired[datetime]
+    r"""Start of the time bucket. Absent when no granularity is specified."""
     dimensions: NotRequired[Dict[str, str]]
     r"""Dimension values for this data point. Empty object when no dimensions are requested."""
     metrics: NotRequired[Dict[str, Any]]
@@ -24,8 +18,8 @@ class MetricsDataPointTypedDict(TypedDict):
 
 
 class MetricsDataPoint(BaseModel):
-    time_bucket: OptionalNullable[datetime] = UNSET
-    r"""Start of the time bucket. Null when no granularity is specified."""
+    time_bucket: Optional[datetime] = None
+    r"""Start of the time bucket. Absent when no granularity is specified."""
 
     dimensions: Optional[Dict[str, str]] = None
     r"""Dimension values for this data point. Empty object when no dimensions are requested."""
@@ -36,24 +30,15 @@ class MetricsDataPoint(BaseModel):
     @model_serializer(mode="wrap")
     def serialize_model(self, handler):
         optional_fields = set(["time_bucket", "dimensions", "metrics"])
-        nullable_fields = set(["time_bucket"])
         serialized = handler(self)
         m = {}
 
         for n, f in type(self).model_fields.items():
             k = f.alias or n
             val = serialized.get(k, serialized.get(n))
-            is_nullable_and_explicitly_set = (
-                k in nullable_fields
-                and (self.__pydantic_fields_set__.intersection({n}))  # pylint: disable=no-member
-            )
 
             if val != UNSET_SENTINEL:
-                if (
-                    val is not None
-                    or k not in optional_fields
-                    or is_nullable_and_explicitly_set
-                ):
+                if val is not None or k not in optional_fields:
                     m[k] = val
 
         return m
