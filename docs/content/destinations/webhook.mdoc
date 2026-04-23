@@ -59,7 +59,7 @@ Outpost sends an HTTP POST request:
 ```
 POST /webhooks HTTP/1.1
 Content-Type: application/json
-x-outpost-id: evt_abc123
+x-outpost-event-id: evt_abc123
 x-outpost-topic: user.created
 x-outpost-timestamp: 1704067200
 x-outpost-signature: t=1704067200,v0=abc123...
@@ -69,6 +69,14 @@ x-outpost-source: signup-service
 ```
 
 The request body contains the event's `data` field as JSON. The `metadata` field is translated to headers using the configured prefix.
+
+### Event ID header and idempotency
+
+Webhook delivery is **at-least-once** (see [Event delivery & retries](/docs/outpost/features/event-delivery)). Your handler should deduplicate using the **event id** — the same stable `id` you set when [publishing](/docs/outpost/publishing/events) (Outpost may redeliver on retries).
+
+In **default** mode, that id is sent as the system **`event-id`** metadata field. The HTTP header name is **`{header_prefix}{metadata-key}`** with **no extra separator** — the prefix and key are concatenated as-is. So the default prefix `x-outpost-` plus `event-id` yields **`X-Outpost-Event-Id`**; a prefix without a trailing separator (for example `x-acme`) would produce `x-acme` + `event-id` → **`X-Acmevent-Id`**. Include a trailing hyphen in the prefix when you want a conventional shape like **`X-Acme-Event-Id`**. Change the prefix with **`DESTINATIONS_WEBHOOK_HEADER_PREFIX`**, or omit this header with **`DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_EVENT_ID_HEADER`**.
+
+In **Standard Webhooks** mode, the same value is sent as the **`webhook-id`** header (default prefix `webhook-`, so typically **`Webhook-Id`**) per the [Standard Webhooks](https://www.standardwebhooks.com/) specification.
 
 ## Signatures
 
@@ -171,18 +179,18 @@ PORTAL_ENABLE_WEBHOOK_CUSTOM_HEADERS=true
 
 {% tabs tabGroup="deployment" %}
 {% tab label="Managed" %}
-Configure webhook operator behavior using these keys in the Config API or in [Hookdeck Destinations settings](https://dashboard.hookdeck.com/settings/project/destinations): `DESTINATIONS_WEBHOOK_HEADER_PREFIX`, `DESTINATIONS_WEBHOOK_DISABLE_EVENT_ID_HEADER`, `DESTINATIONS_WEBHOOK_DISABLE_TIMESTAMP_HEADER`, `DESTINATIONS_WEBHOOK_DISABLE_TOPIC_HEADER`, `DESTINATIONS_WEBHOOK_DISABLE_SIGNATURE_HEADER`, `DESTINATIONS_WEBHOOK_MODE`, `DESTINATIONS_WEBHOOK_SIGNATURE_ALGORITHM`, `DESTINATIONS_WEBHOOK_SIGNATURE_ENCODING`, `DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE`, and `DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE`.
+Configure webhook operator behavior using these keys in the Config API or in [Hookdeck Destinations settings](https://dashboard.hookdeck.com/settings/project/destinations): `DESTINATIONS_WEBHOOK_HEADER_PREFIX`, `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_EVENT_ID_HEADER`, `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_TIMESTAMP_HEADER`, `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_TOPIC_HEADER`, `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_SIGNATURE_HEADER`, `DESTINATIONS_WEBHOOK_MODE`, `DESTINATIONS_WEBHOOK_SIGNATURE_ALGORITHM`, `DESTINATIONS_WEBHOOK_SIGNATURE_ENCODING`, `DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE`, and `DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE`.
 {% /tab %}
 {% tab label="Self-Hosted" %}
 ### Header Settings
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `DESTINATIONS_WEBHOOK_HEADER_PREFIX` | `x-outpost-` | Prefix for all webhook headers |
-| `DESTINATIONS_WEBHOOK_DISABLE_EVENT_ID_HEADER` | `false` | Disable the event ID header |
-| `DESTINATIONS_WEBHOOK_DISABLE_TIMESTAMP_HEADER` | `false` | Disable the timestamp header |
-| `DESTINATIONS_WEBHOOK_DISABLE_TOPIC_HEADER` | `false` | Disable the topic header |
-| `DESTINATIONS_WEBHOOK_DISABLE_SIGNATURE_HEADER` | `false` | Disable the signature header |
+| `DESTINATIONS_WEBHOOK_HEADER_PREFIX` | `x-outpost-` | Prefix for metadata-derived webhook headers (event id, topic, timestamp, signature) |
+| `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_EVENT_ID_HEADER` | `false` | Disable the event ID header |
+| `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_TIMESTAMP_HEADER` | `false` | Disable the timestamp header |
+| `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_TOPIC_HEADER` | `false` | Disable the topic header |
+| `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_SIGNATURE_HEADER` | `false` | Disable the signature header |
 
 ### Signature Settings
 

@@ -59,7 +59,7 @@ Webhooks are delivered via HTTP `POST` requests.
 
 ### Webhook Event HTTP Headers
 
-- `x-outpost-event-id`: A unique identifier for the event within the Outpost installation
+- `x-outpost-event-id`: The event id (same as publish `id` when you provide one). Use it as the **deduplication / idempotency key** for at-least-once delivery; the `x-outpost-` prefix is [configurable](/docs/outpost/destinations/webhook#operator-configuration).
 - `x-outpost-signature`: HMAC of the raw body (default `v0=<hex>`; operators may customize templates — see [Webhook destination](/docs/outpost/destinations/webhook#signature)).
 - `x-outpost-timestamp`: A Unix timestamp representing the time the event was generated
 - `x-outpost-topic`: The topic of the event. For example, `user.created`.
