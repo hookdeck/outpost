@@ -30,7 +30,7 @@
   "dependencies": {
     "@aws-sdk/client-sqs": "^3.774.0",
     "@google-cloud/pubsub": "^4.11.0",
-    "@hookdeck/outpost-sdk": "0.9.2",
+    "@hookdeck/outpost-sdk": "^1.0.1",
     "amqplib": "^0.10.3",
     "dotenv": "^16.4.7"
   }
