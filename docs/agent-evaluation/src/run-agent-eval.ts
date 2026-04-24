@@ -1035,10 +1035,17 @@ Agent cwd is usually the run directory. Scenarios may define ## Eval harness (JS
         }
       }
 
-      const trajectoryPath = await writeTrajectoryHtmlForTranscript(outPath, {
-        evalRoot: EVAL_ROOT,
-      });
-      console.error(`Wrote ${trajectoryPath}`);
+      try {
+        const trajectoryPath = await writeTrajectoryHtmlForTranscript(outPath, {
+          evalRoot: EVAL_ROOT,
+        });
+        console.error(`Wrote ${trajectoryPath}`);
+      } catch (vizErr) {
+        console.warn(
+          `Warning: trajectory.html not generated for ${file}:`,
+          vizErr,
+        );
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       const stack = err instanceof Error ? err.stack : undefined;

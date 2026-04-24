@@ -7,8 +7,8 @@
  */
 
 import { readFile, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { dirname, join, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
 import {
   evalRootFromHere,
@@ -24,7 +24,6 @@ import {
   type TrajectoryPayload,
 } from "./transcript-trajectory.js";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
 const EVAL_ROOT = evalRootFromHere(import.meta.url);
 
 function escapeHtml(s: string): string {
@@ -359,7 +358,7 @@ function buildHtml(payload: {
   clearSel.addEventListener("click", function () {
     if (selected) selected.classList.remove("selected");
     selected = null;
-    history.replaceState(null, "", " ");
+    history.replaceState(null, "", location.pathname + location.search);
   });
   window.addEventListener("hashchange", applyHash);
   render();
@@ -480,7 +479,14 @@ Default output: <run-dir>/trajectory.html next to transcript.json.
   console.error(`Wrote ${outPath}`);
 }
 
-main().catch((e) => {
-  console.error(e);
-  process.exit(1);
-});
+/** Only run CLI when this file is the process entrypoint (not when imported from run-agent-eval). */
+const trajectoryCliEntry =
+  typeof process.argv[1] === "string" &&
+  import.meta.url === pathToFileURL(resolve(process.argv[1])).href;
+
+if (trajectoryCliEntry) {
+  main().catch((e) => {
+    console.error(e);
+    process.exit(1);
+  });
+}
