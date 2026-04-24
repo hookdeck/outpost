@@ -21,6 +21,7 @@ import {
   type SDKSystemMessage,
 } from "@anthropic-ai/claude-agent-sdk";
 import { applyEvalHarness, parseEvalHarness } from "./eval-harness.js";
+import { writeTrajectoryHtmlForTranscript } from "./generate-trajectory-html.js";
 import { llmJudgeRun, scenarioMdPathFromRun } from "./llm-judge.js";
 import { scoreRunFile } from "./score-transcript.js";
 
@@ -778,7 +779,7 @@ Usage:
   npm run eval -- --dry-run
 
 You must pass --scenario, --scenarios, or --all so the set of runs is explicit (cost and scope).
-After each scenario: transcript + heuristic-score.json + llm-score.json (judge uses ## Success criteria) unless disabled above.
+After each scenario: transcript + heuristic-score.json + llm-score.json (judge uses ## Success criteria) unless disabled above, then trajectory.html (tool-step timeline; same as npm run viz:trajectory).
 Exit 1 if any enabled score fails.
 
 Environment:
@@ -804,7 +805,8 @@ Environment:
 
 Outputs under docs/agent-evaluation/results/runs/ (gitignored): each scenario gets
   results/runs/<stamp>-scenario-NN/transcript.json
-  heuristic-score.json and llm-score.json unless disabled (see above).
+  heuristic-score.json and llm-score.json unless disabled (see above)
+  trajectory.html after scoring (regenerate anytime with npm run viz:trajectory).
 Also set EVAL_NO_SCORE_HEURISTIC=1 or EVAL_NO_SCORE_LLM=1 in .env to skip scoring without flags.
 
 Agent cwd is usually the run directory. Scenarios may define ## Eval harness (JSON) to clone a baseline into a subfolder first.
@@ -1032,6 +1034,11 @@ Agent cwd is usually the run directory. Scenarios may define ## Eval harness (JS
           anyScoreFailure = true;
         }
       }
+
+      const trajectoryPath = await writeTrajectoryHtmlForTranscript(outPath, {
+        evalRoot: EVAL_ROOT,
+      });
+      console.error(`Wrote ${trajectoryPath}`);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       const stack = err instanceof Error ? err.stack : undefined;

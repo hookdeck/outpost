@@ -147,6 +147,24 @@ Re-score a finished run without re-invoking the agent — uses **today's** [`src
 - **`npm run score -- --run results/runs/<dir> --write`** — refresh **`heuristic-score.json`**
 - Add **`--llm`** to also re-run the judge and write **`llm-score.json`** (needs **`ANTHROPIC_API_KEY`**)
 
+### Trajectory visualization (HTML)
+
+Each successful **`npm run eval`** run also writes **`trajectory.html`** next to **`transcript.json`** after scoring (same output as the command below). **`npm run viz:trajectory`** is still useful to **regenerate** the file after editing the transcript or score sidecars by hand.
+
+The page is a **self-contained** timeline of tool steps (Read / WebFetch / Write / Bash / search tools), turn boundaries, optional heuristic/LLM score pills, and optional **reference “green path”** labels when [`scenarios/reference-trajectories/<scenarioId>.json`](scenarios/reference-trajectories/01.json) exists.
+
+```sh
+npm run viz:trajectory -- --run results/runs/<stamp>-scenario-01
+# or pass transcript.json explicitly
+npm run viz:trajectory -- --run results/runs/<stamp>-scenario-01/transcript.json --out /tmp/trajectory.html
+```
+
+By default the HTML is written beside **`transcript.json`** (or **`--out`** on the viz CLI). Open the file in a browser: click a row to highlight it and set **`#s=<step>`** in the URL for a quick bookmark. The page can **filter by tool kind**, **narrow Read rows to documentation vs code paths** (by extension), and **require doc heuristics** (reference, OpenAPI, quickstart, published URL, etc.) so you can focus on documentation-looking steps.
+
+**Privacy:** transcripts and tool results may contain secrets; the generator applies light redaction to previews, but **treat HTML output as sensitive** and do not commit real run artifacts.
+
+**Regression check:** `npm run test:trajectory` — asserts step extraction and turn indexing against a tiny fixture.
+
 Legacy flat files `*-scenario-NN.json` next to `runs/` are still accepted by **`npm run score`** for older runs.
 
 **Execution** (live Outpost) is still not auto-verified; the LLM is instructed to set `execution_in_transcript.pass` to **null** unless the transcript itself reports HTTP results.

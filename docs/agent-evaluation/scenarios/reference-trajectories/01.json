@@ -1,0 +1,46 @@
+{
+  "scenarioId": "01",
+  "milestones": [
+    {
+      "id": "curl_quickstart",
+      "anyOf": [
+        {
+          "kind": "fetch",
+          "targetContains": "hookdeck-outpost-curl"
+        },
+        {
+          "kind": "read",
+          "targetContains": "hookdeck-outpost-curl"
+        }
+      ]
+    },
+    {
+      "id": "write_shell",
+      "match": {
+        "kind": "write",
+        "targetEndsWith": ".sh"
+      }
+    },
+    {
+      "id": "bash_tenant",
+      "match": {
+        "kind": "bash",
+        "detailContains": "/tenants"
+      }
+    },
+    {
+      "id": "bash_destinations",
+      "match": {
+        "kind": "bash",
+        "detailContains": "/destinations"
+      }
+    },
+    {
+      "id": "bash_publish",
+      "match": {
+        "kind": "bash",
+        "detailContains": "/publish"
+      }
+    }
+  ]
+}
