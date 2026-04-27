@@ -112,7 +112,9 @@ Output ONLY valid JSON (no markdown fences, no commentary outside JSON) matching
   ],
   "summary": "2-4 sentences overall"
 }
-Map each major bullet/checkbox line from Success criteria to one criteria[] entry (merge tiny sub-bullets if needed).`;
+Map each major bullet/checkbox line from Success criteria to one criteria[] entry (merge tiny sub-bullets if needed).
+
+Eval-harness / transcript environment: The assistant may run Bash (e.g. npx tsx, shell quickstarts) inside an automated eval where live secrets such as OUTPOST_API_KEY are often NOT injected, even when a later CI step verifies artifacts with real keys. If the transcript shows the assistant attempted that smoke run and it failed ONLY because required env vars or secrets were missing or empty (clear message: explicit throw, documented "set OUTPOST_API_KEY", 401/403 from missing auth, tool_result text stating unset variable, etc.)—and the written artifacts otherwise match the scenario (SDK usage, endpoints, fail-fast checks, README)—then treat Success-criteria rows about "execution", "runs to completion", or "live API" as PASS for that reason. Keep execution_in_transcript.pass = null (you still did not run code yourself). Set overall_transcript_pass to true when every criteria[] entry passes under these rules; do not fail the whole judgment solely because the eval transcript lacked keys. Do NOT use this exception when the script was never run, the error is vague, or failure likely reflects bugs, syntax errors, wrong API usage, or misconfiguration unrelated to missing env in the sandbox.`;
 
 export async function llmJudgeRun(options: {
   readonly runPath: string;
@@ -146,7 +148,7 @@ ${transcript}
 
 ---
 
-Judge the transcript against the Success criteria. Remember: execution (running curl against a live API) is NOT evidenced here unless the transcript explicitly describes successful HTTP results; normally set execution_in_transcript.pass to null.`;
+Judge the transcript against the Success criteria. Remember: execution (running curl or scripts against a live API) is NOT evidenced by you unless the transcript shows successful HTTP/tool outcomes; normally set execution_in_transcript.pass to null. If the transcript shows a run attempt failed only because OUTPOST_API_KEY or other required env was missing in the eval sandbox, apply the harness exception in your system instructions for execution-style criteria—do not mark overall_transcript_pass false for that alone.`;
 
   const res = await fetch(ANTHROPIC_MESSAGES_URL, {
     method: "POST",

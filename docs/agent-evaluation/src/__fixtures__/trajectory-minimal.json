@@ -1,0 +1,102 @@
+{
+  "meta": {
+    "scenarioId": "99",
+    "scenarioFile": "99-fixture.md",
+    "turns": [
+      { "label": "Turn 0 (dashboard prompt)", "messageCount": 5 },
+      { "label": "Turn 1 — User", "messageCount": 2 }
+    ]
+  },
+  "messages": [
+    {
+      "type": "system",
+      "subtype": "init",
+      "model": "claude-test",
+      "session_id": "sess-fixture"
+    },
+    {
+      "type": "assistant",
+      "message": {
+        "role": "assistant",
+        "content": [
+          {
+            "type": "tool_use",
+            "id": "tool_read_1",
+            "name": "Read",
+            "input": { "file_path": "/repo/docs/content/quickstarts/hookdeck-outpost-curl.mdoc" }
+          }
+        ]
+      }
+    },
+    {
+      "type": "user",
+      "message": {
+        "role": "user",
+        "content": [
+          {
+            "type": "tool_result",
+            "tool_use_id": "tool_read_1",
+            "content": "doc body here",
+            "is_error": false
+          }
+        ]
+      }
+    },
+    {
+      "type": "assistant",
+      "message": {
+        "role": "assistant",
+        "content": [
+          {
+            "type": "tool_use",
+            "id": "tool_bash_1",
+            "name": "Bash",
+            "input": { "command": "curl -sf https://api.outpost.hookdeck.com/2025-07-01/tenants/x || true" }
+          }
+        ]
+      }
+    },
+    {
+      "type": "user",
+      "message": {
+        "role": "user",
+        "content": [
+          {
+            "type": "tool_result",
+            "tool_use_id": "tool_bash_1",
+            "content": "curl: (22) The requested URL returned error: 404",
+            "is_error": true
+          }
+        ]
+      }
+    },
+    {
+      "type": "assistant",
+      "message": {
+        "role": "assistant",
+        "content": [
+          {
+            "type": "tool_use",
+            "id": "tool_write_1",
+            "name": "Write",
+            "input": { "file_path": "/tmp/run-dir/run.sh", "content": "#!/bin/sh\necho ok\n" }
+          }
+        ]
+      }
+    },
+    {
+      "type": "user",
+      "message": {
+        "role": "user",
+        "content": [
+          {
+            "type": "tool_result",
+            "tool_use_id": "tool_write_1",
+            "content": "wrote file",
+            "is_error": false
+          }
+        ]
+      }
+    }
+  ]
+}
