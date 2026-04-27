@@ -80,6 +80,8 @@ Outpost is backward compatible with your existing payload format, HTTP headers, 
 
 ## Documentation
 
+In-repo Markdown for [hookdeck.com/docs/outpost](https://hookdeck.com/docs/outpost) lives under **`docs/content/`** (and images under **`docs/public/images/`**). Pushes to **`main`** that touch those paths run a [GitHub Action](https://github.com/hookdeck/outpost/blob/main/.github/workflows/trigger-website-deploy.yml) that notifies Hookdeck to trigger a Vercel redeploy of the marketing site.
+
 - [Overview](https://hookdeck.com/docs/outpost/overview)
 - [Concepts](https://hookdeck.com/docs/outpost/concepts)
 - [Quickstarts](https://hookdeck.com/docs/outpost/quickstarts)
