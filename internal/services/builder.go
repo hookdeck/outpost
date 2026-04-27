@@ -418,7 +418,7 @@ func (b *ServiceBuilder) BuildLogWorker(baseRouter *gin.Engine) error {
 		"logmq-consumer",
 		logMQ.Subscribe,
 		handler,
-		b.cfg.DeliveryMaxConcurrency,
+		b.cfg.LogMaxConcurrency,
 		b.logger,
 	)
 	b.supervisor.Register(logWorker)
