@@ -88,8 +88,33 @@ function isRecord(x: unknown): x is Record<string, unknown> {
 
 function redactSecrets(text: string, maxLen: number): string {
   let s = text;
-  s = s.replace(/Bearer\s+sk-ant-api[^\s"'`]+/gi, "Bearer [REDACTED]");
-  s = s.replace(/Bearer\s+[A-Za-z0-9_-]{40,}/g, "Bearer [REDACTED]");
+  // Auth headers and bearer tokens
+  s = s.replace(
+    /\bAuthorization:\s*Bearer\s+\S+/gi,
+    "Authorization: Bearer [REDACTED]",
+  );
+  s = s.replace(
+    /\bAuthorization:\s*Basic\s+[A-Za-z0-9+/=]+/gi,
+    "Authorization: Basic [REDACTED]",
+  );
+  s = s.replace(/Bearer\s+sk-ant-api[^\s"'`<>]+/gi, "Bearer [REDACTED]");
+  s = s.replace(/Bearer\s+sk-proj-[^\s"'`<>]+/gi, "Bearer [REDACTED]");
+  s = s.replace(/Bearer\s+[A-Za-z0-9._~-]{20,}/g, "Bearer [REDACTED]");
+  // Common API header names (line or JSON-adjacent)
+  s = s.replace(/\bx-api-key\s*:\s*[^\s\n]+/gi, "x-api-key: [REDACTED]");
+  s = s.replace(/\bapi-key\s*:\s*[^\s\n]+/gi, "api-key: [REDACTED]");
+  s = s.replace(/\bx-auth-token\s*:\s*[^\s\n]+/gi, "x-auth-token: [REDACTED]");
+  s = s.replace(/\baccess-token\s*:\s*[^\s\n]+/gi, "access-token: [REDACTED]");
+  // URL query params
+  s = s.replace(
+    /([?&](?:api[_-]?key|access[_-]?token|token|client[_-]?secret|secret)=)([^&#\s"'`<>]+)/gi,
+    "$1[REDACTED]",
+  );
+  // Env / dotenv style: OUTPOST_API_KEY=..., HOOKDECK_*=..., etc.
+  s = s.replace(
+    /\b([A-Z][A-Z0-9_]*(?:KEY|TOKEN|SECRET|PASSWORD))=([^\s\n"'`#]+)/g,
+    "$1=[REDACTED]",
+  );
   if (s.length > maxLen) s = `${s.slice(0, maxLen)}…`;
   return s;
 }
@@ -225,6 +250,44 @@ const SDK_HINT_PATTERNS: ReadonlyArray<{ id: string; re: RegExp }> = [
   { id: "go_CreateDestinationCreateWebhook", re: /\bCreateDestinationCreateWebhook\b/i },
 ];
 
+const SDK_HINT_CORPUS_SLICE = 6000;
+
+/** Bounded string for SDK hint regexes — avoids full JSON.stringify on large Write bodies. */
+function corpusForSdkHints(toolName: string, input: unknown): string {
+  if (!isRecord(input)) return "";
+  const keys =
+    toolName === "Bash"
+      ? (["command"] as const)
+      : ([
+            "command",
+            "file_path",
+            "path",
+            "notebook_path",
+            "old_string",
+            "new_string",
+            "content",
+          ] as const);
+  const parts: string[] = [];
+  for (const k of keys) {
+    const v = input[k];
+    if (typeof v !== "string" || v.length === 0) continue;
+    parts.push(
+      v.length > SDK_HINT_CORPUS_SLICE
+        ? `${v.slice(0, SDK_HINT_CORPUS_SLICE)}…`
+        : v,
+    );
+  }
+  if (parts.length > 0) return parts.join("\n");
+  try {
+    const j = JSON.stringify(input);
+    return j.length > SDK_HINT_CORPUS_SLICE
+      ? `${j.slice(0, SDK_HINT_CORPUS_SLICE)}…`
+      : j;
+  } catch {
+    return "";
+  }
+}
+
 function extractSdkHints(toolName: string, input: unknown): string[] {
   if (
     toolName !== "Bash" &&
@@ -234,12 +297,7 @@ function extractSdkHints(toolName: string, input: unknown): string[] {
   ) {
     return [];
   }
-  let corpus = "";
-  try {
-    corpus = JSON.stringify(input);
-  } catch {
-    corpus = "";
-  }
+  const corpus = corpusForSdkHints(toolName, input);
   const hints: string[] = [];
   for (const { id, re } of SDK_HINT_PATTERNS) {
     if (re.test(corpus)) hints.push(id);
@@ -311,21 +369,26 @@ function classifyStep(
   } catch {
     json = "";
   }
+  const clipped = json.length > 4000 ? `${json.slice(0, 4000)}…` : json;
   return {
     kind: "other",
     target: "",
-    detail: redactSecrets(json, 300),
+    detail: redactSecrets(clipped, 300),
     tags,
   };
 }
 
-function findToolResult(
-  messages: unknown[],
-  afterMessageIndex: number,
-  toolUseId: string,
-): { isError: boolean; preview: string } | null {
-  for (let i = afterMessageIndex + 1; i < messages.length; i++) {
-    const m = messages[i];
+interface ToolResultRecord {
+  readonly messageIndex: number;
+  readonly isError: boolean;
+  readonly preview: string;
+}
+
+/** One pass over messages: tool_use_id → results in ascending message order (for binary search). */
+function buildToolResultIndex(messages: unknown[]): Map<string, ToolResultRecord[]> {
+  const map = new Map<string, ToolResultRecord[]>();
+  for (let messageIndex = 0; messageIndex < messages.length; messageIndex++) {
+    const m = messages[messageIndex];
     if (!isRecord(m) || m.type !== "user") continue;
     const inner = m.message;
     if (!isRecord(inner)) continue;
@@ -333,14 +396,38 @@ function findToolResult(
     if (!Array.isArray(content)) continue;
     for (const block of content) {
       if (!isRecord(block) || block.type !== "tool_result") continue;
-      if (String(block.tool_use_id ?? "") !== toolUseId) continue;
-      return {
+      const id = String(block.tool_use_id ?? "");
+      if (!id) continue;
+      const rec: ToolResultRecord = {
+        messageIndex,
         isError: Boolean(block.is_error),
         preview: summarizeToolResultContent(block.content),
       };
+      const list = map.get(id);
+      if (list) list.push(rec);
+      else map.set(id, [rec]);
     }
   }
-  return null;
+  return map;
+}
+
+function findToolResultFromIndex(
+  index: Map<string, ToolResultRecord[]>,
+  afterMessageIndex: number,
+  toolUseId: string,
+): { isError: boolean; preview: string } | null {
+  const list = index.get(toolUseId);
+  if (!list?.length) return null;
+  let lo = 0;
+  let hi = list.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (list[mid]!.messageIndex <= afterMessageIndex) lo = mid + 1;
+    else hi = mid;
+  }
+  if (lo >= list.length) return null;
+  const r = list[lo]!;
+  return { isError: r.isError, preview: r.preview };
 }
 
 function initModelFromMessages(messages: unknown[]): string | undefined {
@@ -366,6 +453,7 @@ export function extractRunTrajectory(
   },
 ): TrajectoryPayload {
   const messages = raw.messages ?? [];
+  const toolResultIndex = buildToolResultIndex(messages);
   const boundaries = buildTurnBoundaries(raw.meta);
   const meta: RunMetaSummary = {
     scenarioId: raw.meta?.scenarioId,
@@ -394,7 +482,11 @@ export function extractRunTrajectory(
       const input = block.input;
       const { kind, target, detail, tags } = classifyStep(toolName, input);
       const sdkHints = extractSdkHints(toolName, input);
-      const res = findToolResult(messages, messageIndex, toolUseId);
+      const res = findToolResultFromIndex(
+        toolResultIndex,
+        messageIndex,
+        toolUseId,
+      );
       const mergedTags = [...tags];
       if (
         kind === "read" &&
