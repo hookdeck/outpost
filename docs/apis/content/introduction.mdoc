@@ -2,4 +2,9 @@
 
 The Outpost REST API is a JSON API for managing tenants, destinations, and publishing events to your webhook infrastructure.
 
-All API endpoints require authentication. The base URL for the managed API is `https://api.outpost.hookdeck.com/2025-07-01`. For self-hosted deployments, your base URL is determined by your deployment configuration.
+Outpost API versions are included in the base URL. Managed deployments use calendar versioning (i.e. `/2025-07-01`), while OSS/self-hosted deployments use `/v1` as the API prefix.
+
+**Managed URL:** `https://api.outpost.hookdeck.com/2025-07-01`
+
+**Self-hosted URL:** `https://outpost.your-domain.com/api/v1`
+
