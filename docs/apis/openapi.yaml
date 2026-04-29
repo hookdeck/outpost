@@ -77,6 +77,28 @@ components:
           schema:
             $ref: "#/components/schemas/APIErrorResponse"
   schemas:
+    # Shared Query Schemas
+    Operator:
+      type: object
+      description: Comparison operators for filtering by date-time values (RFC3339 or YYYY-MM-DD format).
+      properties:
+        gte:
+          type: string
+          format: date-time
+          description: Filter with value >= the specified date-time.
+        lte:
+          type: string
+          format: date-time
+          description: Filter with value <= the specified date-time.
+        gt:
+          type: string
+          format: date-time
+          description: Filter with value > the specified date-time.
+        lt:
+          type: string
+          format: date-time
+          description: Filter with value < the specified date-time.
+
     # Base Schemas
     Tenant:
       type: object
@@ -3076,34 +3098,14 @@ paths:
                 items:
                   type: string
           description: Filter events by topic(s). Use bracket notation for multiple values (e.g., `topic[0]=user.created&topic[1]=user.updated`).
-        - name: time[gte]
+        - name: time
           in: query
           required: false
+          style: deepObject
+          explode: true
           schema:
-            type: string
-            format: date-time
-          description: Filter events with time >= value (RFC3339 or YYYY-MM-DD format).
-        - name: time[lte]
-          in: query
-          required: false
-          schema:
-            type: string
-            format: date-time
-          description: Filter events with time <= value (RFC3339 or YYYY-MM-DD format).
-        - name: time[gt]
-          in: query
-          required: false
-          schema:
-            type: string
-            format: date-time
-          description: Filter events with time > value (RFC3339 or YYYY-MM-DD format).
-        - name: time[lt]
-          in: query
-          required: false
-          schema:
-            type: string
-            format: date-time
-          description: Filter events with time < value (RFC3339 or YYYY-MM-DD format).
+            $ref: "#/components/schemas/Operator"
+          description: Filter events by time range using comparison operators.
         - name: limit
           in: query
           required: false
@@ -3300,34 +3302,14 @@ paths:
                 items:
                   type: string
           description: Filter attempts by event topic(s). Use bracket notation for multiple values (e.g., `topic[0]=user.created&topic[1]=user.updated`).
-        - name: time[gte]
+        - name: time
           in: query
           required: false
+          style: deepObject
+          explode: true
           schema:
-            type: string
-            format: date-time
-          description: Filter attempts by event time >= value (RFC3339 or YYYY-MM-DD format).
-        - name: time[lte]
-          in: query
-          required: false
-          schema:
-            type: string
-            format: date-time
-          description: Filter attempts by event time <= value (RFC3339 or YYYY-MM-DD format).
-        - name: time[gt]
-          in: query
-          required: false
-          schema:
-            type: string
-            format: date-time
-          description: Filter attempts by event time > value (RFC3339 or YYYY-MM-DD format).
-        - name: time[lt]
-          in: query
-          required: false
-          schema:
-            type: string
-            format: date-time
-          description: Filter attempts by event time < value (RFC3339 or YYYY-MM-DD format).
+            $ref: "#/components/schemas/Operator"
+          description: Filter attempts by event time range using comparison operators.
         - name: limit
           in: query
           required: false
@@ -4007,34 +3989,14 @@ paths:
                 items:
                   type: string
           description: Filter attempts by event topic(s). Use bracket notation for multiple values (e.g., `topic[0]=user.created&topic[1]=user.updated`).
-        - name: time[gte]
+        - name: time
           in: query
           required: false
+          style: deepObject
+          explode: true
           schema:
-            type: string
-            format: date-time
-          description: Filter attempts by event time >= value (RFC3339 or YYYY-MM-DD format).
-        - name: time[lte]
-          in: query
-          required: false
-          schema:
-            type: string
-            format: date-time
-          description: Filter attempts by event time <= value (RFC3339 or YYYY-MM-DD format).
-        - name: time[gt]
-          in: query
-          required: false
-          schema:
-            type: string
-            format: date-time
-          description: Filter attempts by event time > value (RFC3339 or YYYY-MM-DD format).
-        - name: time[lt]
-          in: query
-          required: false
-          schema:
-            type: string
-            format: date-time
-          description: Filter attempts by event time < value (RFC3339 or YYYY-MM-DD format).
+            $ref: "#/components/schemas/Operator"
+          description: Filter attempts by event time range using comparison operators.
         - name: limit
           in: query
           required: false
@@ -4542,22 +4504,28 @@ paths:
         **Filters:** `tenant_id` (admin-only), `topic`, `destination_id`
       operationId: getEventMetrics
       parameters:
-        - name: time[start]
+        - name: time
           in: query
           required: true
+          style: deepObject
+          explode: true
           schema:
-            type: string
-            format: date-time
-          description: Start of the time range (inclusive). ISO 8601 timestamp.
-          example: "2026-03-02T00:00:00Z"
-        - name: time[end]
-          in: query
-          required: true
-          schema:
-            type: string
-            format: date-time
-          description: End of the time range (exclusive). ISO 8601 timestamp.
-          example: "2026-03-03T00:00:00Z"
+            type: object
+            required:
+              - start
+              - end
+            properties:
+              start:
+                type: string
+                format: date-time
+                description: Start of the time range (inclusive). ISO 8601 timestamp.
+                example: "2026-03-02T00:00:00Z"
+              end:
+                type: string
+                format: date-time
+                description: End of the time range (exclusive). ISO 8601 timestamp.
+                example: "2026-03-03T00:00:00Z"
+          description: Time range for the metrics query.
         - name: granularity
           in: query
           required: false
@@ -4680,22 +4648,28 @@ paths:
         **Filters:** `tenant_id` (admin-only), `destination_id`, `destination_type`, `topic`, `status`, `code`, `manual`, `attempt_number`
       operationId: getAttemptMetrics
       parameters:
-        - name: time[start]
+        - name: time
           in: query
           required: true
+          style: deepObject
+          explode: true
           schema:
-            type: string
-            format: date-time
-          description: Start of the time range (inclusive). ISO 8601 timestamp.
-          example: "2026-03-02T00:00:00Z"
-        - name: time[end]
-          in: query
-          required: true
-          schema:
-            type: string
-            format: date-time
-          description: End of the time range (exclusive). ISO 8601 timestamp.
-          example: "2026-03-03T00:00:00Z"
+            type: object
+            required:
+              - start
+              - end
+            properties:
+              start:
+                type: string
+                format: date-time
+                description: Start of the time range (inclusive). ISO 8601 timestamp.
+                example: "2026-03-02T00:00:00Z"
+              end:
+                type: string
+                format: date-time
+                description: End of the time range (exclusive). ISO 8601 timestamp.
+                example: "2026-03-03T00:00:00Z"
+          description: Time range for the metrics query.
         - name: granularity
           in: query
           required: false
