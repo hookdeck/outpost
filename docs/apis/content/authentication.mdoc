@@ -1,0 +1,29 @@
+<section>
+<div>
+
+## Authentication
+
+The Outpost API supports two authentication methods depending on the operation:
+
+| Method | Description |
+|--------|-------------|
+| **Admin API Key** | Bearer token for all admin operations. Set via the `API_KEY` environment variable (self-hosted) or the Hookdeck dashboard (managed). |
+| **Tenant JWT** | Per-tenant JWT token valid for 24 hours. Used for tenant-scoped operations and portal access. Generated via the [Get Tenant JWT Token](#get-tenant-jwt-token) endpoint. |
+
+Include your credentials as a Bearer token in every request.
+
+</div>
+<aside>
+
+```bash
+# Admin API Key
+curl https://api.outpost.hookdeck.com/2025-07-01/tenants \
+  -H "Authorization: Bearer $API_KEY"
+
+# Tenant JWT
+curl https://api.outpost.hookdeck.com/2025-07-01/tenants/t1/destinations \
+  -H "Authorization: Bearer $TENANT_JWT"
+```
+
+</aside>
+</section>

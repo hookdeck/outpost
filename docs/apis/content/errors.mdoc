@@ -1,0 +1,38 @@
+<section>
+<div>
+
+## Errors
+
+Outpost returns JSON error responses with a consistent shape across API endpoints. The `status` field matches the HTTP status code, `message` describes the error, and `data` is included when additional details are available.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `status` | Integer | HTTP status code for the response. |
+| `message` | String | Human-readable error message. |
+| `data` | Array or object | Optional details about the error. Validation errors use an array of messages. |
+
+Common error responses include:
+
+| Status | Description |
+|--------|-------------|
+| `400` | Malformed JSON or invalid request parameters. |
+| `401` | Missing or invalid authentication credentials. |
+| `404` | Requested resource not found. |
+| `422` | Request body fails validation. |
+| `500` | Unexpected server error. |
+
+</div>
+<aside>
+
+```json
+{
+  "status": 422,
+  "message": "validation error",
+  "data": [
+    "url is required"
+  ]
+}
+```
+
+</aside>
+</section>

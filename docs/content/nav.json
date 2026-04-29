@@ -169,6 +169,10 @@
             {
               "slug": "self-hosting/configuration",
               "title": "Configuration Reference"
+            },
+            {
+              "title": "Github Repository",
+              "href": "https://github.com/hookdeck/outpost"
             }
           ]
         ]
