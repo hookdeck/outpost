@@ -1320,7 +1320,7 @@ components:
       properties:
         id:
           type: string
-          description: Optional user-provided ID. A ID will be generated if empty.
+          description: Optional user-provided ID. An ID will be generated if empty.
           example: "user-provided-id"
         type:
           type: string
@@ -1356,7 +1356,7 @@ components:
       properties:
         id:
           type: string
-          description: Optional user-provided ID. A ID will be generated if empty.
+          description: Optional user-provided ID. An ID will be generated if empty.
           example: "user-provided-id"
         type:
           type: string
@@ -1391,7 +1391,7 @@ components:
       properties:
         id:
           type: string
-          description: Optional user-provided ID. A ID will be generated if empty.
+          description: Optional user-provided ID. An ID will be generated if empty.
           example: "user-provided-id"
         type:
           type: string
@@ -1426,7 +1426,7 @@ components:
       properties:
         id:
           type: string
-          description: Optional user-provided ID. A ID will be generated if empty.
+          description: Optional user-provided ID. An ID will be generated if empty.
           example: "user-provided-id"
         type:
           type: string
@@ -1460,7 +1460,7 @@ components:
       properties:
         id:
           type: string
-          description: Optional user-provided ID. A ID will be generated if empty.
+          description: Optional user-provided ID. An ID will be generated if empty.
           example: "user-provided-id"
         type:
           type: string
@@ -1496,7 +1496,7 @@ components:
       properties:
         id:
           type: string
-          description: Optional user-provided ID. A ID will be generated if empty.
+          description: Optional user-provided ID. An ID will be generated if empty.
           example: "user-provided-id"
         type:
           type: string
@@ -1532,7 +1532,7 @@ components:
       properties:
         id:
           type: string
-          description: Optional user-provided ID. A ID will be generated if empty.
+          description: Optional user-provided ID. An ID will be generated if empty.
           example: "user-provided-id"
         type:
           type: string
@@ -1567,7 +1567,7 @@ components:
       properties:
         id:
           type: string
-          description: Optional user-provided ID. A ID will be generated if empty.
+          description: Optional user-provided ID. An ID will be generated if empty.
           example: "user-provided-id"
         type:
           type: string
@@ -1602,7 +1602,7 @@ components:
       properties:
         id:
           type: string
-          description: Optional user-provided ID. A ID will be generated if empty.
+          description: Optional user-provided ID. An ID will be generated if empty.
           example: "user-provided-id"
         type:
           type: string
