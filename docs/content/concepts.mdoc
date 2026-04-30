@@ -3,8 +3,6 @@ title: "Concepts"
 description: "Core concepts and architecture of Outpost: tenants, destinations, topics, events, and delivery attempts."
 ---
 
-## How this fits your product
-
 If you run a **SaaS**, **platform**, or **API product** and want each of **your customers** to receive webhooks or other event destinations, Outpost gives you a **multi-tenant** control plane for that.
 
 At a high level, the same mental model as a single-tenant webhook product still applies: something happens in your system (**event**), it belongs to a category (**topic**), and the consumer cares about **where** it should be delivered (**URL**, queue, and so on). Outpost adds one layer: those subscriptions live **per customer** in your product, which maps to a **tenant** in Outpost.
@@ -16,9 +14,7 @@ At a high level, the same mental model as a single-tenant webhook product still 
 3. **Your backend publishes events** — When something happens, your **server** calls the publish API (or SDK) with **`tenant_id`**, **`topic`**, and payload metadata. Outpost does **not** infer the tenant from the browser; publishing uses your **platform** credentials and explicit tenant scope.
 4. **Outpost delivers to matching destinations** — For that tenant, every destination whose **topic subscription** includes the event’s topic gets a delivery attempt. A single publish can fan out to **many** destinations or to **none** if no destination subscribes to that topic.
 
-**What to build in your UI (conceptually):** screens or flows scoped to the **current customer** (tenant): list their **destinations**, **create or edit** a destination (choose type → choose topics → enter URL or other config), and surfaces for **events and delivery attempts** when you want users to inspect what was sent and how delivery behaved. Your UI talks to Outpost **through your backend** (recommended) or via **per-tenant JWT**, never by embedding your platform API key in the browser. See the [Building your own UI](/docs/outpost/guides/building-your-own-ui) guide for screen-level structure and API patterns.
-
-For topic subscription behavior (wildcard `*`, multiple topics, fan-out), see [Topics](/docs/outpost/features/topics).
+See the [Building your own UI](/docs/outpost/guides/building-your-own-ui) guide for screen-level structure, API patterns and authentication options.
 
 ## Models
 
