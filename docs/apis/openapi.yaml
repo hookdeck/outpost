@@ -1320,7 +1320,7 @@ components:
       properties:
         id:
           type: string
-          description: Optional user-provided ID. A UUID will be generated if empty.
+          description: Optional user-provided ID. A ID will be generated if empty.
           example: "user-provided-id"
         type:
           type: string
@@ -1356,7 +1356,7 @@ components:
       properties:
         id:
           type: string
-          description: Optional user-provided ID. A UUID will be generated if empty.
+          description: Optional user-provided ID. A ID will be generated if empty.
           example: "user-provided-id"
         type:
           type: string
@@ -1391,7 +1391,7 @@ components:
       properties:
         id:
           type: string
-          description: Optional user-provided ID. A UUID will be generated if empty.
+          description: Optional user-provided ID. A ID will be generated if empty.
           example: "user-provided-id"
         type:
           type: string
@@ -1426,7 +1426,7 @@ components:
       properties:
         id:
           type: string
-          description: Optional user-provided ID. A UUID will be generated if empty.
+          description: Optional user-provided ID. A ID will be generated if empty.
           example: "user-provided-id"
         type:
           type: string
@@ -1460,7 +1460,7 @@ components:
       properties:
         id:
           type: string
-          description: Optional user-provided ID. A UUID will be generated if empty.
+          description: Optional user-provided ID. A ID will be generated if empty.
           example: "user-provided-id"
         type:
           type: string
@@ -1496,7 +1496,7 @@ components:
       properties:
         id:
           type: string
-          description: Optional user-provided ID. A UUID will be generated if empty.
+          description: Optional user-provided ID. A ID will be generated if empty.
           example: "user-provided-id"
         type:
           type: string
@@ -1532,7 +1532,7 @@ components:
       properties:
         id:
           type: string
-          description: Optional user-provided ID. A UUID will be generated if empty.
+          description: Optional user-provided ID. A ID will be generated if empty.
           example: "user-provided-id"
         type:
           type: string
@@ -1567,7 +1567,7 @@ components:
       properties:
         id:
           type: string
-          description: Optional user-provided ID. A UUID will be generated if empty.
+          description: Optional user-provided ID. A ID will be generated if empty.
           example: "user-provided-id"
         type:
           type: string
@@ -1602,7 +1602,7 @@ components:
       properties:
         id:
           type: string
-          description: Optional user-provided ID. A UUID will be generated if empty.
+          description: Optional user-provided ID. A ID will be generated if empty.
           example: "user-provided-id"
         type:
           type: string
@@ -2045,7 +2045,7 @@ components:
       properties:
         id:
           type: string
-          description: Optional. A unique identifier for the event. If not provided, a UUID will be generated.
+          description: Optional. A unique identifier for the event. If not provided, a ID will be generated.
           example: "evt_custom_123"
         tenant_id:
           type: string
@@ -2087,7 +2087,7 @@ components:
       properties:
         id:
           type: string
-          description: The ID of the event that was accepted for publishing. This will be the ID provided in the request's `id` field if present, otherwise it's a server-generated UUID.
+          description: The ID of the event that was accepted for publishing. This will be the ID provided in the request's `id` field if present, otherwise it's a server-generated ID.
           example: "evt_abc123xyz789"
         duplicate:
           type: boolean
