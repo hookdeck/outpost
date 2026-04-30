@@ -15,7 +15,7 @@ If your application is single-tenant, use a hardcoded value such as `default`, `
 
 The tenants API is upsert only, so you can use it to create or update a tenant.
 
-> Tip: Add a `name` metadata field to the tenant to help you identify it. When using the Admin UI, the tenant name will be used to display the tenant in the UI.
+>Add a `name` metadata field to the tenant to help you identify it. When using the Admin UI, the tenant name will be used to display the tenant in the UI.
 
 ```sh
 curl --request PUT \
@@ -41,4 +41,4 @@ Replace `<OUTPOST_API_URL>` with your Outpost instance URL and `<API_KEY>` with 
 
 Refer to the [API Reference](/docs/outpost/api) for the full Tenants API, including listing, updating, and deleting tenants.
 
-> Note: When self-hosting, the tenants API requires RediSearch support. If RediSearch is not available by your Redis implementation, the endpoint returns `501 Not Implemented`.
+> When self-hosting, the tenants API requires RediSearch support. If RediSearch is not available by your Redis implementation, the endpoint returns `501 Not Implemented`.
