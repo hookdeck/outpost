@@ -54,19 +54,34 @@ package main
 import (
 	"context"
 	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
+	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
 	"log"
 )
 
 func main() {
 	ctx := context.Background()
 
-	s := outpostgo.New()
+	s := outpostgo.New(
+		outpostgo.WithSecurity("<YOUR_BEARER_TOKEN_HERE>"),
+	)
 
-	res, err := s.Health.Check(ctx)
+	res, err := s.Publish(ctx, components.PublishRequest{
+		ID:               outpostgo.Pointer("evt_abc123xyz789"),
+		TenantID:         outpostgo.Pointer("tenant_123"),
+		Topic:            outpostgo.Pointer("user.created"),
+		EligibleForRetry: outpostgo.Pointer(true),
+		Metadata: map[string]string{
+			"source": "crm",
+		},
+		Data: map[string]any{
+			"user_id": "userid",
+			"status":  "active",
+		},
+	})
 	if err != nil {
 		log.Fatal(err)
 	}
-	if res.Object != nil {
+	if res.PublishResponse != nil {
 		// handle response
 	}
 }
@@ -92,6 +107,7 @@ package main
 import (
 	"context"
 	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
+	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
 	"log"
 )
 
@@ -102,11 +118,23 @@ func main() {
 		outpostgo.WithSecurity("<YOUR_BEARER_TOKEN_HERE>"),
 	)
 
-	res, err := s.Health.Check(ctx)
+	res, err := s.Publish(ctx, components.PublishRequest{
+		ID:               outpostgo.Pointer("evt_abc123xyz789"),
+		TenantID:         outpostgo.Pointer("tenant_123"),
+		Topic:            outpostgo.Pointer("user.created"),
+		EligibleForRetry: outpostgo.Pointer(true),
+		Metadata: map[string]string{
+			"source": "crm",
+		},
+		Data: map[string]any{
+			"user_id": "userid",
+			"status":  "active",
+		},
+	})
 	if err != nil {
 		log.Fatal(err)
 	}
-	if res.Object != nil {
+	if res.PublishResponse != nil {
 		// handle response
 	}
 }
@@ -119,6 +147,11 @@ func main() {
 
 <details open>
 <summary>Available methods</summary>
+
+### [Outpost SDK](docs/sdks/outpost/README.md)
+
+* [Publish](docs/sdks/outpost/README.md#publish) - Publish Event
+* [Retry](docs/sdks/outpost/README.md#retry) - Retry Event Delivery
 
 ### [Attempts](docs/sdks/attempts/README.md)
 
@@ -155,14 +188,6 @@ func main() {
 
 * [GetEventMetrics](docs/sdks/metrics/README.md#geteventmetrics) - Get Event Metrics
 * [GetAttemptMetrics](docs/sdks/metrics/README.md#getattemptmetrics) - Get Attempt Metrics
-
-### [Publish](docs/sdks/publish/README.md)
-
-* [Event](docs/sdks/publish/README.md#event) - Publish Event
-
-### [Retry](docs/sdks/retry/README.md)
-
-* [Retry](docs/sdks/retry/README.md#retry) - Retry Event Delivery
 
 ### [Schemas](docs/sdks/schemas/README.md)
 
@@ -246,6 +271,7 @@ package main
 import (
 	"context"
 	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
+	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
 	"github.com/hookdeck/outpost/sdks/outpost-go/retry"
 	"log"
 	"models/operations"
@@ -254,9 +280,23 @@ import (
 func main() {
 	ctx := context.Background()
 
-	s := outpostgo.New()
+	s := outpostgo.New(
+		outpostgo.WithSecurity("<YOUR_BEARER_TOKEN_HERE>"),
+	)
 
-	res, err := s.Health.Check(ctx, operations.WithRetries(
+	res, err := s.Publish(ctx, components.PublishRequest{
+		ID:               outpostgo.Pointer("evt_abc123xyz789"),
+		TenantID:         outpostgo.Pointer("tenant_123"),
+		Topic:            outpostgo.Pointer("user.created"),
+		EligibleForRetry: outpostgo.Pointer(true),
+		Metadata: map[string]string{
+			"source": "crm",
+		},
+		Data: map[string]any{
+			"user_id": "userid",
+			"status":  "active",
+		},
+	}, operations.WithRetries(
 		retry.Config{
 			Strategy: "backoff",
 			Backoff: &retry.BackoffStrategy{
@@ -270,7 +310,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	if res.Object != nil {
+	if res.PublishResponse != nil {
 		// handle response
 	}
 }
@@ -284,6 +324,7 @@ package main
 import (
 	"context"
 	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
+	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
 	"github.com/hookdeck/outpost/sdks/outpost-go/retry"
 	"log"
 )
@@ -303,13 +344,26 @@ func main() {
 				},
 				RetryConnectionErrors: false,
 			}),
+		outpostgo.WithSecurity("<YOUR_BEARER_TOKEN_HERE>"),
 	)
 
-	res, err := s.Health.Check(ctx)
+	res, err := s.Publish(ctx, components.PublishRequest{
+		ID:               outpostgo.Pointer("evt_abc123xyz789"),
+		TenantID:         outpostgo.Pointer("tenant_123"),
+		Topic:            outpostgo.Pointer("user.created"),
+		EligibleForRetry: outpostgo.Pointer(true),
+		Metadata: map[string]string{
+			"source": "crm",
+		},
+		Data: map[string]any{
+			"user_id": "userid",
+			"status":  "active",
+		},
+	})
 	if err != nil {
 		log.Fatal(err)
 	}
-	if res.Object != nil {
+	if res.PublishResponse != nil {
 		// handle response
 	}
 }
@@ -324,7 +378,7 @@ Handling errors in this SDK should largely match your expectations. All operatio
 
 By Default, an API error will return `apierrors.APIError`. When custom error responses are specified for an operation, the SDK may also return their associated error. You can refer to respective *Errors* tables in SDK docs for more details on possible error types for each operation.
 
-For example, the `Check` function may return the following errors:
+For example, the `Publish` function may return the following errors:
 
 | Error Type                    | Status Code                  | Content Type     |
 | ----------------------------- | ---------------------------- | ---------------- |
@@ -332,7 +386,7 @@ For example, the `Check` function may return the following errors:
 | apierrors.UnauthorizedError   | 401, 403, 407                | application/json |
 | apierrors.TimeoutError        | 408                          | application/json |
 | apierrors.RateLimitedError    | 429                          | application/json |
-| apierrors.BadRequestError     | 400, 413, 414, 415, 422, 431 | application/json |
+| apierrors.BadRequestError     | 413, 414, 415, 422, 431      | application/json |
 | apierrors.TimeoutError        | 504                          | application/json |
 | apierrors.NotFoundError       | 501, 505                     | application/json |
 | apierrors.InternalServerError | 500, 502, 503, 506, 507, 508 | application/json |
@@ -350,15 +404,30 @@ import (
 	"errors"
 	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
 	"github.com/hookdeck/outpost/sdks/outpost-go/models/apierrors"
+	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
 	"log"
 )
 
 func main() {
 	ctx := context.Background()
 
-	s := outpostgo.New()
+	s := outpostgo.New(
+		outpostgo.WithSecurity("<YOUR_BEARER_TOKEN_HERE>"),
+	)
 
-	res, err := s.Health.Check(ctx)
+	res, err := s.Publish(ctx, components.PublishRequest{
+		ID:               outpostgo.Pointer("evt_abc123xyz789"),
+		TenantID:         outpostgo.Pointer("tenant_123"),
+		Topic:            outpostgo.Pointer("user.created"),
+		EligibleForRetry: outpostgo.Pointer(true),
+		Metadata: map[string]string{
+			"source": "crm",
+		},
+		Data: map[string]any{
+			"user_id": "userid",
+			"status":  "active",
+		},
+	})
 	if err != nil {
 
 		var e *apierrors.NotFoundError
@@ -452,6 +521,7 @@ package main
 import (
 	"context"
 	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
+	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
 	"log"
 )
 
@@ -460,13 +530,26 @@ func main() {
 
 	s := outpostgo.New(
 		outpostgo.WithServerIndex(0),
+		outpostgo.WithSecurity("<YOUR_BEARER_TOKEN_HERE>"),
 	)
 
-	res, err := s.Health.Check(ctx)
+	res, err := s.Publish(ctx, components.PublishRequest{
+		ID:               outpostgo.Pointer("evt_abc123xyz789"),
+		TenantID:         outpostgo.Pointer("tenant_123"),
+		Topic:            outpostgo.Pointer("user.created"),
+		EligibleForRetry: outpostgo.Pointer(true),
+		Metadata: map[string]string{
+			"source": "crm",
+		},
+		Data: map[string]any{
+			"user_id": "userid",
+			"status":  "active",
+		},
+	})
 	if err != nil {
 		log.Fatal(err)
 	}
-	if res.Object != nil {
+	if res.PublishResponse != nil {
 		// handle response
 	}
 }
@@ -482,6 +565,7 @@ package main
 import (
 	"context"
 	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
+	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
 	"log"
 )
 
@@ -490,13 +574,26 @@ func main() {
 
 	s := outpostgo.New(
 		outpostgo.WithServerURL("http://localhost:3333/api/v1"),
+		outpostgo.WithSecurity("<YOUR_BEARER_TOKEN_HERE>"),
 	)
 
-	res, err := s.Health.Check(ctx)
+	res, err := s.Publish(ctx, components.PublishRequest{
+		ID:               outpostgo.Pointer("evt_abc123xyz789"),
+		TenantID:         outpostgo.Pointer("tenant_123"),
+		Topic:            outpostgo.Pointer("user.created"),
+		EligibleForRetry: outpostgo.Pointer(true),
+		Metadata: map[string]string{
+			"source": "crm",
+		},
+		Data: map[string]any{
+			"user_id": "userid",
+			"status":  "active",
+		},
+	})
 	if err != nil {
 		log.Fatal(err)
 	}
-	if res.Object != nil {
+	if res.PublishResponse != nil {
 		// handle response
 	}
 }

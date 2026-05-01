@@ -71,6 +71,27 @@ components:
           schema:
             $ref: '#/components/schemas/Timeout'
   schemas:
+    # Shared Query Schemas
+    Operator:
+      type: object
+      description: Comparison operators for filtering by date-time values (RFC3339 or YYYY-MM-DD format).
+      properties:
+        gte:
+          type: string
+          format: date-time
+          description: Filter with value >= the specified date-time.
+        lte:
+          type: string
+          format: date-time
+          description: Filter with value <= the specified date-time.
+        gt:
+          type: string
+          format: date-time
+          description: Filter with value > the specified date-time.
+        lt:
+          type: string
+          format: date-time
+          description: Filter with value < the specified date-time.
     # Base Schemas
     Tenant:
       type: object
@@ -95,6 +116,7 @@ components:
             type: string
           nullable: true
           description: Arbitrary key-value pairs for storing contextual information about the tenant.
+          example: {"name": "Acme Inc."}
         created_at:
           type: string
           format: date-time
@@ -113,7 +135,7 @@ components:
           additionalProperties:
             type: string
           nullable: true
-          description: Optional metadata to store with the tenant.
+          description: Optional key/value metadata to store with the tenant.
     TenantPaginatedResult:
       type: object
       description: Paginated list of tenants.
@@ -443,9 +465,49 @@ components:
           type: string
           description: Service account key JSON. The entire JSON key file content as a string.
           example: '{"type":"service_account","project_id":"my-project","private_key_id":"key123","private_key":"-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n","client_email":"my-service@my-project.iam.gserviceaccount.com"}'
+    KafkaConfig:
+      type: object
+      required: [brokers, topic, sasl_mechanism]
+      properties:
+        brokers:
+          type: string
+          description: Comma-separated list of Kafka broker addresses.
+          example: "broker1.example.com:9092,broker2.example.com:9092"
+        topic:
+          type: string
+          description: The Kafka topic to publish messages to.
+          example: "events"
+        sasl_mechanism:
+          type: string
+          enum: [plain, scram-sha-256, scram-sha-512]
+          description: SASL authentication mechanism.
+          example: "scram-sha-256"
+        tls:
+          type: string
+          enum: ["true", "false"]
+          description: Whether to enable TLS for the connection.
+          default: "true"
+          example: "true"
+        partition_key_template:
+          type: string
+          description: Optional JMESPath template to extract the partition key from the event payload. Defaults to the event ID.
+          example: "data.customer_id"
+    KafkaCredentials:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+          description: SASL username for authentication.
+          example: "outpost"
+        password:
+          type: string
+          description: SASL password for authentication.
+          example: "secure_password_123"
     # Type-Specific Destination Schemas (for Responses)
     DestinationWebhook:
       type: object
+      x-docs-type: "Webhook"
       # Properties duplicated from DestinationBase
       required: [id, type, topics, config, credentials, created_at, updated_at, disabled_at]
       properties:
@@ -523,6 +585,7 @@ components:
           previous_secret_invalid_at: "2024-02-16T10:00:00Z"
     DestinationAWSSQS:
       type: object
+      x-docs-type: "AWS SQS"
       # Properties duplicated from DestinationBase
       required: [id, type, topics, config, credentials, created_at, updated_at, disabled_at]
       properties:
@@ -600,6 +663,7 @@ components:
           secret: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
     DestinationRabbitMQ:
       type: object
+      x-docs-type: "RabbitMQ"
       # Properties duplicated from DestinationBase
       required: [id, type, topics, config, credentials, created_at, updated_at, disabled_at]
       properties:
@@ -678,6 +742,7 @@ components:
           password: "secure_password_123"
     DestinationHookdeck:
       type: object
+      x-docs-type: "Hookdeck Event Gateway"
       # Properties duplicated from DestinationBase
       required: [id, type, topics, credentials, created_at, disabled_at] # No config
       properties:
@@ -751,6 +816,7 @@ components:
           token: "hd_token_..."
     DestinationAWSKinesis:
       type: object
+      x-docs-type: "AWS Kinesis"
       # Properties duplicated from DestinationBase
       required: [id, type, topics, config, credentials, created_at, updated_at, disabled_at]
       properties:
@@ -828,6 +894,7 @@ components:
           secret: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
     DestinationAzureServiceBus:
       type: object
+      x-docs-type: "Azure Service Bus"
       required: [id, type, topics, config, credentials, created_at, disabled_at]
       properties:
         id:
@@ -902,6 +969,7 @@ components:
           connection_string: "Endpoint=sb://namespace.servicebus.windows.net/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=abc123"
     DestinationAWSS3:
       type: object
+      x-docs-type: "AWS S3"
       # Properties duplicated from DestinationBase
       required: [id, type, topics, config, credentials, created_at, updated_at, disabled_at]
       properties:
@@ -979,6 +1047,7 @@ components:
           secret: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
     DestinationGCPPubSub:
       type: object
+      x-docs-type: "GCP PubSub"
       # Properties duplicated from DestinationBase
       required: [id, type, topics, config, credentials, created_at, updated_at, disabled_at]
       properties:
@@ -1053,17 +1122,98 @@ components:
           topic: "events-topic"
         credentials:
           service_account_json: '{"type":"service_account","project_id":"my-project-123",...}'
+    DestinationKafka:
+      type: object
+      x-docs-type: "Apache Kafka"
+      # Properties duplicated from DestinationBase
+      required: [id, type, topics, config, credentials, created_at, updated_at, disabled_at]
+      properties:
+        id:
+          type: string
+          description: Control plane generated ID or user provided ID for the destination.
+          example: "des_12345"
+        type:
+          type: string
+          description: Type of the destination.
+          enum: [kafka]
+          example: "kafka"
+        topics:
+          $ref: "#/components/schemas/Topics"
+        filter:
+          $ref: "#/components/schemas/Filter"
+        disabled_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: ISO Date when the destination was disabled, or null if enabled.
+          example: null
+        created_at:
+          type: string
+          format: date-time
+          description: ISO Date when the destination was created.
+          example: "2024-01-01T00:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: ISO Date when the destination was last updated.
+          example: "2024-01-01T00:00:00Z"
+        config:
+          $ref: "#/components/schemas/KafkaConfig"
+        credentials:
+          $ref: "#/components/schemas/KafkaCredentials"
+        delivery_metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Static key-value pairs merged into event metadata on every attempt.
+          example: {"app-id": "my-app", "region": "us-east-1"}
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Arbitrary contextual information stored with the destination.
+          example: {"internal-id": "123", "team": "platform"}
+        target:
+          type: string
+          description: A human-readable representation of the destination target (broker and topic). Read-only.
+          readOnly: true
+          example: "broker1.example.com:9092 / events"
+        target_url:
+          type: string
+          format: url
+          nullable: true
+          description: A URL link to the destination target. Read-only.
+          readOnly: true
+          example: null
+      example:
+        id: "des_kafka_123"
+        type: "kafka"
+        topics: ["order.created", "order.updated"]
+        disabled_at: null
+        created_at: "2024-03-10T14:30:00Z"
+        updated_at: "2024-03-10T14:30:00Z"
+        config:
+          brokers: "broker1.example.com:9092,broker2.example.com:9092"
+          topic: "events"
+          sasl_mechanism: "scram-sha-256"
+          tls: "true"
+        credentials:
+          username: "outpost"
+          password: "secure_password_123"
     # Polymorphic Destination Schema (for Responses)
     Destination:
       oneOf:
         - $ref: "#/components/schemas/DestinationWebhook"
-        - $ref: "#/components/schemas/DestinationAWSSQS"
-        - $ref: "#/components/schemas/DestinationRabbitMQ"
         - $ref: "#/components/schemas/DestinationHookdeck"
+        - $ref: "#/components/schemas/DestinationAWSSQS"
         - $ref: "#/components/schemas/DestinationAWSKinesis"
-        - $ref: "#/components/schemas/DestinationAzureServiceBus"
         - $ref: "#/components/schemas/DestinationAWSS3"
+        - $ref: "#/components/schemas/DestinationRabbitMQ"
+        - $ref: "#/components/schemas/DestinationAzureServiceBus"
         - $ref: "#/components/schemas/DestinationGCPPubSub"
+        - $ref: "#/components/schemas/DestinationKafka"
       discriminator:
         propertyName: type
         mapping:
@@ -1075,13 +1225,15 @@ components:
           azure_servicebus: "#/components/schemas/DestinationAzureServiceBus"
           aws_s3: "#/components/schemas/DestinationAWSS3"
           gcp_pubsub: "#/components/schemas/DestinationGCPPubSub"
+          kafka: "#/components/schemas/DestinationKafka"
     DestinationCreateWebhook:
       type: object
+      x-docs-type: "Webhook"
       required: [type, topics, config]
       properties:
         id:
           type: string
-          description: Optional user-provided ID. A UUID will be generated if empty.
+          description: Optional user-provided ID. An ID will be generated if empty.
           example: "user-provided-id"
         type:
           type: string
@@ -1112,11 +1264,12 @@ components:
           example: {"internal-id": "123", "team": "platform"}
     DestinationCreateAWSSQS:
       type: object
+      x-docs-type: "AWS SQS"
       required: [type, topics, config, credentials]
       properties:
         id:
           type: string
-          description: Optional user-provided ID. A UUID will be generated if empty.
+          description: Optional user-provided ID. An ID will be generated if empty.
           example: "user-provided-id"
         type:
           type: string
@@ -1146,11 +1299,12 @@ components:
           example: {"internal-id": "123", "team": "platform"}
     DestinationCreateRabbitMQ:
       type: object
+      x-docs-type: "RabbitMQ"
       required: [type, topics, config, credentials]
       properties:
         id:
           type: string
-          description: Optional user-provided ID. A UUID will be generated if empty.
+          description: Optional user-provided ID. An ID will be generated if empty.
           example: "user-provided-id"
         type:
           type: string
@@ -1180,11 +1334,12 @@ components:
           example: {"internal-id": "123", "team": "platform"}
     DestinationCreateHookdeck:
       type: object
+      x-docs-type: "Hookdeck Event Gateway"
       required: [type, topics, credentials] # No config
       properties:
         id:
           type: string
-          description: Optional user-provided ID. A UUID will be generated if empty.
+          description: Optional user-provided ID. An ID will be generated if empty.
           example: "user-provided-id"
         type:
           type: string
@@ -1213,11 +1368,12 @@ components:
           example: {"internal-id": "123", "team": "platform"}
     DestinationCreateAWSKinesis:
       type: object
+      x-docs-type: "AWS Kinesis"
       required: [type, topics, config, credentials]
       properties:
         id:
           type: string
-          description: Optional user-provided ID. A UUID will be generated if empty.
+          description: Optional user-provided ID. An ID will be generated if empty.
           example: "user-provided-id"
         type:
           type: string
@@ -1247,11 +1403,12 @@ components:
           example: {"internal-id": "123", "team": "platform"}
     DestinationCreateAzureServiceBus:
       type: object
+      x-docs-type: "Azure Service Bus"
       required: [type, topics, config, credentials]
       properties:
         id:
           type: string
-          description: Optional user-provided ID. A UUID will be generated if empty.
+          description: Optional user-provided ID. An ID will be generated if empty.
           example: "user-provided-id"
         type:
           type: string
@@ -1281,11 +1438,12 @@ components:
           example: {"internal-id": "123", "team": "platform"}
     DestinationCreateAWSS3:
       type: object
+      x-docs-type: "AWS S3"
       required: [type, topics, config, credentials]
       properties:
         id:
           type: string
-          description: Optional user-provided ID. A UUID will be generated if empty.
+          description: Optional user-provided ID. An ID will be generated if empty.
           example: "user-provided-id"
         type:
           type: string
@@ -1315,11 +1473,12 @@ components:
           example: {"internal-id": "123", "team": "platform"}
     DestinationCreateGCPPubSub:
       type: object
+      x-docs-type: "GCP PubSub"
       required: [type, topics, config, credentials]
       properties:
         id:
           type: string
-          description: Optional user-provided ID. A UUID will be generated if empty.
+          description: Optional user-provided ID. An ID will be generated if empty.
           example: "user-provided-id"
         type:
           type: string
@@ -1347,17 +1506,53 @@ components:
           nullable: true
           description: Arbitrary contextual information stored with the destination.
           example: {"internal-id": "123", "team": "platform"}
+    DestinationCreateKafka:
+      type: object
+      x-docs-type: "Apache Kafka"
+      required: [type, topics, config, credentials]
+      properties:
+        id:
+          type: string
+          description: Optional user-provided ID. An ID will be generated if empty.
+          example: "user-provided-id"
+        type:
+          type: string
+          description: Type of the destination. Must be 'kafka'.
+          enum: [kafka]
+        topics:
+          $ref: "#/components/schemas/Topics"
+        filter:
+          $ref: "#/components/schemas/Filter"
+        config:
+          $ref: "#/components/schemas/KafkaConfig"
+        credentials:
+          $ref: "#/components/schemas/KafkaCredentials"
+        delivery_metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Static key-value pairs merged into event metadata on every attempt.
+          example: {"app-id": "my-app", "region": "us-east-1"}
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Arbitrary contextual information stored with the destination.
+          example: {"internal-id": "123", "team": "platform"}
     # Polymorphic Destination Creation Schema (for Request Bodies)
     DestinationCreate:
       oneOf:
         - $ref: "#/components/schemas/DestinationCreateWebhook"
-        - $ref: "#/components/schemas/DestinationCreateAWSSQS"
-        - $ref: "#/components/schemas/DestinationCreateRabbitMQ"
         - $ref: "#/components/schemas/DestinationCreateHookdeck"
+        - $ref: "#/components/schemas/DestinationCreateAWSSQS"
         - $ref: "#/components/schemas/DestinationCreateAWSKinesis"
-        - $ref: "#/components/schemas/DestinationCreateAzureServiceBus"
         - $ref: "#/components/schemas/DestinationCreateAWSS3"
+        - $ref: "#/components/schemas/DestinationCreateAzureServiceBus"
+        - $ref: "#/components/schemas/DestinationCreateRabbitMQ"
         - $ref: "#/components/schemas/DestinationCreateGCPPubSub"
+        - $ref: "#/components/schemas/DestinationCreateKafka"
       discriminator:
         propertyName: type
         mapping:
@@ -1369,6 +1564,7 @@ components:
           azure_servicebus: "#/components/schemas/DestinationCreateAzureServiceBus"
           aws_s3: "#/components/schemas/DestinationCreateAWSS3"
           gcp_pubsub: "#/components/schemas/DestinationCreateGCPPubSub"
+          kafka: "#/components/schemas/DestinationCreateKafka"
     # Type-Specific Destination Update Schemas (for Request Bodies)
     WebhookCredentialsUpdate:
       type: object
@@ -1388,6 +1584,7 @@ components:
           description: Set to true to rotate the secret. The current secret becomes the previous_secret, and a new secret is generated. `previous_secret_invalid_at` defaults to 24h if not provided.
     DestinationUpdateWebhook:
       type: object
+      x-docs-type: "Webhook"
       # Properties duplicated from DestinationUpdateBase
       properties:
         topics:
@@ -1420,6 +1617,7 @@ components:
           example: {"internal-id": "123", "team": "platform"}
     DestinationUpdateAWSSQS:
       type: object
+      x-docs-type: "AWS SQS"
       # Properties duplicated from DestinationUpdateBase
       properties:
         topics:
@@ -1452,6 +1650,7 @@ components:
           example: {"internal-id": "123", "team": "platform"}
     DestinationUpdateRabbitMQ:
       type: object
+      x-docs-type: "RabbitMQ"
       # Properties duplicated from DestinationUpdateBase
       properties:
         topics:
@@ -1484,6 +1683,7 @@ components:
           example: {"internal-id": "123", "team": "platform"}
     DestinationUpdateHookdeck:
       type: object
+      x-docs-type: "Hookdeck Event Gateway"
       # Properties duplicated from DestinationUpdateBase
       properties:
         topics:
@@ -1515,6 +1715,7 @@ components:
           example: {"internal-id": "123", "team": "platform"}
     DestinationUpdateAWSKinesis:
       type: object
+      x-docs-type: "AWS Kinesis"
       # Properties duplicated from DestinationUpdateBase
       properties:
         topics:
@@ -1547,6 +1748,7 @@ components:
           example: {"internal-id": "123", "team": "platform"}
     DestinationUpdateAzureServiceBus:
       type: object
+      x-docs-type: "Azure Service Bus"
       # Properties duplicated from DestinationUpdateBase
       properties:
         topics:
@@ -1579,6 +1781,7 @@ components:
           example: {"internal-id": "123", "team": "platform"}
     DestinationUpdateAWSS3:
       type: object
+      x-docs-type: "AWS S3"
       # Properties duplicated from DestinationUpdateBase
       properties:
         topics:
@@ -1611,6 +1814,7 @@ components:
           example: {"internal-id": "123", "team": "platform"}
     DestinationUpdateGCPPubSub:
       type: object
+      x-docs-type: "GCP PubSub"
       # Properties duplicated from DestinationUpdateBase
       properties:
         topics:
@@ -1641,17 +1845,51 @@ components:
           description: >-
             Arbitrary contextual information stored with the destination. Uses JSON merge-patch semantics (RFC 7396): send keys to add/update, null values to delete keys, null for entire field to clear all. Omit or send {} for no change.
           example: {"internal-id": "123", "team": "platform"}
+    DestinationUpdateKafka:
+      type: object
+      x-docs-type: "Apache Kafka"
+      # Properties duplicated from DestinationUpdateBase
+      properties:
+        topics:
+          $ref: "#/components/schemas/Topics"
+        filter:
+          $ref: "#/components/schemas/Filter"
+        config:
+          $ref: "#/components/schemas/KafkaConfig" # brokers/topic/sasl_mechanism required here, but PATCH means optional
+        credentials:
+          $ref: "#/components/schemas/KafkaCredentials" # username/password required here, but PATCH means optional
+        delivery_metadata:
+          type: object
+          additionalProperties:
+            oneOf:
+              - type: string
+              - type: "null"
+          nullable: true
+          description: >-
+            Static key-value pairs merged into event metadata on every attempt. Uses JSON merge-patch semantics (RFC 7396): send keys to add/update, null values to delete keys, null for entire field to clear all. Omit or send {} for no change.
+          example: {"app-id": "my-app", "region": "us-east-1"}
+        metadata:
+          type: object
+          additionalProperties:
+            oneOf:
+              - type: string
+              - type: "null"
+          nullable: true
+          description: >-
+            Arbitrary contextual information stored with the destination. Uses JSON merge-patch semantics (RFC 7396): send keys to add/update, null values to delete keys, null for entire field to clear all. Omit or send {} for no change.
+          example: {"internal-id": "123", "team": "platform"}
     # Polymorphic Destination Update Schema (for Request Bodies)
     DestinationUpdate:
       oneOf:
         - $ref: "#/components/schemas/DestinationUpdateWebhook"
-        - $ref: "#/components/schemas/DestinationUpdateAWSSQS"
-        - $ref: "#/components/schemas/DestinationUpdateRabbitMQ"
         - $ref: "#/components/schemas/DestinationUpdateHookdeck"
+        - $ref: "#/components/schemas/DestinationUpdateAWSSQS"
         - $ref: "#/components/schemas/DestinationUpdateAWSKinesis"
-        - $ref: "#/components/schemas/DestinationUpdateAzureServiceBus"
         - $ref: "#/components/schemas/DestinationUpdateAWSS3"
+        - $ref: "#/components/schemas/DestinationUpdateAzureServiceBus"
         - $ref: "#/components/schemas/DestinationUpdateGCPPubSub"
+        - $ref: "#/components/schemas/DestinationUpdateRabbitMQ"
+        - $ref: "#/components/schemas/DestinationUpdateKafka"
     # Event Schemas
     PublishRequest:
       type: object
@@ -1660,7 +1898,7 @@ components:
       properties:
         id:
           type: string
-          description: Optional. A unique identifier for the event. If not provided, a UUID will be generated. A stable id enables publish idempotency (see `duplicate` in the response) and is the value receivers should use to deduplicate webhook deliveries — by default sent as the `X-Outpost-Event-Id` header (prefix configurable).
+          description: Optional. A unique identifier for the event. If not provided, a ID will be generated.
           example: "evt_custom_123"
         tenant_id:
           type: string
@@ -1702,7 +1940,7 @@ components:
       properties:
         id:
           type: string
-          description: The ID of the event that was accepted for publishing. This will be the ID provided in the request's `id` field if present, otherwise it's a server-generated UUID.
+          description: The ID of the event that was accepted for publishing. This will be the ID provided in the request's `id` field if present, otherwise it's a server-generated ID.
           example: "evt_abc123xyz789"
         duplicate:
           type: boolean
@@ -1899,24 +2137,24 @@ components:
       type: object
       description: Paginated list of attempts.
       properties:
+        pagination:
+          $ref: "#/components/schemas/SeekPagination"
         models:
           type: array
           items:
             $ref: "#/components/schemas/Attempt"
           description: Array of attempt objects.
-        pagination:
-          $ref: "#/components/schemas/SeekPagination"
     EventPaginatedResult:
       type: object
       description: Paginated list of events.
       properties:
+        pagination:
+          $ref: "#/components/schemas/SeekPagination"
         models:
           type: array
           items:
             $ref: "#/components/schemas/Event"
           description: Array of event objects.
-        pagination:
-          $ref: "#/components/schemas/SeekPagination"
     # Destination Type Schema (for Metadata endpoint)
     DestinationType:
       type: string
@@ -2266,11 +2504,11 @@ components:
 # Security is applied per-operation based on AuthScope
 tags:
   - name: Health
-    description: API Health Check
+    description: |
+      This endpoint is only available for **self-hosted** Outpost deployments. Managed Outpost health is monitored by Hookdeck.
   - name: Configuration
     description: |
-      Outpost instance-level configuration management for the managed deployment.
-      This is not available in self-hosted deployments.
+      The Configuration API is available for **managed Outpost** deployments only. It allows you to read and update instance-level settings — the same settings available as environment variables in self-hosted deployments.
   - name: Tenants
     description: |
       The API segments resources per `tenant`. A tenant represents a user/team/organization in your product. The provided value determines the tenant's ID, which can be any string representation.
@@ -2280,45 +2518,22 @@ tags:
     description: |
       Destinations are the endpoints where events are sent. Each destination is associated with a tenant and can be configured to receive specific event topics.
 
-      ```json
-      {
-        "id": "des_12345", // Control plane generated ID or user provided ID
-        "type": "webhooks", // Type of the destination
-        "topics": ["user.created", "user.updated"], // Topics of events this destination is eligible for
-        "config": {
-          // Destination type specific configuration. Schema of depends on type
-          "url": "https://example.com/webhooks/user"
-        },
-        "credentials": {
-          // Destination type specific credentials. AES encrypted. Schema depends on type
-          "secret": "some***********"
-        },
-        "disabled_at": null, // null or ISO date if disabled
-        "created_at": "2024-01-01T00:00:00Z" // Date the destination was created
-      }
-      ```
-
       The `topics` array can contain either a list of topics or a wildcard `*` implying that all topics are supported. If you do not wish to implement topics for your application, you set all destination topics to `*`.
 
       By default all destination `credentials` are obfuscated and the values cannot be read. This does not apply to the `webhook` type destination secret and each destination can expose their own obfuscation logic.
   - name: Publish
-    description: Operations for publishing events.
+    description: Use the Publish endpoint to send events into Outpost. Events are matched against all destinations whose topic subscriptions and filters match the event. Requires Admin API Key.
+  - name: Retry
+    description: Triggers a retry for delivering an event to a destination. The event must exist and the destination must be enabled and match the event's topic.
   - name: Schemas
-    description: Operations for retrieving destination type schemas.
+    description: |
+      Destination types describe the available event delivery targets and their configuration schemas. Use these endpoints to render UI forms and list available destination types with their configuration schemas.
   - name: Topics
-    description: Operations for retrieving available event topics.
+    description: |
+      Returns the list of topics configured for this Outpost deployment. Tenants subscribe their destinations to topics from this list. Topics are defined via your configuration file and not a specific Create Topic API.
   - name: Attempts
     description: |
       Attempts represent individual delivery attempts of events to destinations. The attempts API provides an attempt-centric view of event processing.
-
-      Each attempt contains:
-      - `id`: Unique attempt identifier
-      - `status`: success or failed
-      - `time`: Timestamp of the attempt
-      - `code`: HTTP status code or error code
-      - `attempt`: Attempt number (1 for first attempt, 2+ for retries)
-      - `event`: Associated event (ID or included object)
-      - `destination`: Destination ID
 
       Use the `include` query parameter to include related data:
       - `include=event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
@@ -2326,7 +2541,8 @@ tags:
       - `include=response_data`: Include response body and headers from the attempt
       - `include=destination`: Include the full destination object with target information
   - name: Events
-    description: Operations related to event history.
+    description: |
+      An event represents a payload published to Outpost. Events are matched against all destinations whose topic subscriptions match the event topic, then delivered.
   - name: Metrics
     description: |
       Aggregated metrics for events and delivery attempts. Supports time bucketing, dimensional grouping, and filtering.
@@ -2338,15 +2554,9 @@ paths:
       description: |
         Health check endpoint that reports the status of all workers.
 
+        > This endpoint is only available for **self-hosted** Outpost deployments. Managed Outpost health is monitored by Hookdeck.
+
         Returns HTTP 200 when all workers are healthy, or HTTP 503 if any worker has failed.
-
-        The response includes:
-        - `status`: Overall health status ("healthy" or "failed")
-        - `timestamp`: When this health check was performed (ISO 8601 format)
-        - `workers`: Map of worker names to their individual health status
-
-        Each worker reports:
-        - `status`: Worker health ("healthy" or "failed")
 
         Note: Error details are not exposed for security reasons. Check application logs for detailed error information.
       operationId: healthCheck
@@ -2456,6 +2666,9 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ManagedConfig"
+              example:
+                TOPICS: "user.created,user.updated"
+                DESTINATIONS_WEBHOOK_MODE: "default"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "500":
@@ -2477,6 +2690,9 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/ManagedConfig"
+            example:
+              TOPICS: "user.created,user.updated"
+              DESTINATIONS_WEBHOOK_MODE: "default"
       responses:
         "200":
           description: Updated managed configuration.
@@ -2484,6 +2700,9 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ManagedConfig"
+              example:
+                TOPICS: "user.created,user.updated"
+                DESTINATIONS_WEBHOOK_MODE: "default"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -2500,21 +2719,19 @@ paths:
       description: |
         List all tenants with cursor-based pagination.
 
-        **Requirements:** This endpoint requires Redis with RediSearch module (e.g., `redis/redis-stack-server`).
+        > When self-hosting this endpoint requires Redis with RediSearch module (e.g., `redis/redis-stack-server`).
         If RediSearch is not available, this endpoint returns `501 Not Implemented`.
 
-        When authenticated with a Tenant JWT, returns only the authenticated tenant. Pagination is not used in this case.
+        When authenticated with a Tenant JWT, returns only the authenticated tenant.
       operationId: listTenants
       parameters:
         - name: id
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: Filter tenants by ID(s). Use bracket notation for multiple values (e.g., `id[0]=t1&id[1]=t2` or `id[]=t1&id[]=t2`).
         - name: limit
           in: query
@@ -2553,6 +2770,13 @@ paths:
               schema:
                 $ref: "#/components/schemas/TenantPaginatedResult"
               example:
+                pagination:
+                  order_by: "created_at"
+                  dir: "desc"
+                  limit: 20
+                  next: "MTcwNDA2NzIwMA=="
+                  prev: null
+                count: 2
                 models:
                   - id: "tenant_123"
                     metadata:
@@ -2563,13 +2787,6 @@ paths:
                     metadata: null
                     created_at: "2024-01-14T09:00:00Z"
                     updated_at: "2024-01-14T09:00:00Z"
-                pagination:
-                  order_by: "created_at"
-                  dir: "desc"
-                  limit: 20
-                  next: "MTcwNDA2NzIwMA=="
-                  prev: null
-                count: 42
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -2622,6 +2839,9 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/TenantUpsert"
+            example:
+              metadata:
+                name: "Acme Inc."
       responses:
         "200":
           description: Tenant updated details.
@@ -2629,12 +2849,28 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Tenant"
+              example:
+                id: "tenant_123"
+                destinations_count: 5
+                topics: ["user.created", "user.deleted"]
+                metadata:
+                  name: "Acme Inc."
+                created_at: "2024-01-01T00:00:00Z"
+                updated_at: "2024-01-15T10:30:00Z"
         "201":
           description: Tenant created details.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Tenant"
+              example:
+                id: "tenant_123"
+                destinations_count: 0
+                topics: []
+                metadata:
+                  name: "Acme Inc."
+                created_at: "2024-01-15T10:30:00Z"
+                updated_at: "2024-01-15T10:30:00Z"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "422":
@@ -2654,6 +2890,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Tenant"
+              example:
+                id: "tenant_123"
+                destinations_count: 5
+                topics: ["user.created", "user.deleted"]
+                metadata:
+                  name: "Acme Inc."
+                created_at: "2024-01-01T00:00:00Z"
+                updated_at: "2024-01-15T10:30:00Z"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
@@ -2699,21 +2943,17 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: Filter events by ID(s). Use bracket notation for multiple values (e.g., `id[0]=abc&id[1]=def`).
         - name: tenant_id
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: |
             Filter events by tenant ID(s). Use bracket notation for multiple values (e.g., `tenant_id[0]=t1&tenant_id[1]=t2`).
             When authenticated with a Tenant JWT, this parameter is ignored and the JWT's tenant is used.
@@ -2732,40 +2972,18 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: Filter events by topic(s). Use bracket notation for multiple values (e.g., `topic[0]=user.created&topic[1]=user.updated`).
-        - name: time[gte]
+        - name: time
           in: query
           required: false
+          style: deepObject
+          explode: true
           schema:
-            type: string
-            format: date-time
-          description: Filter events with time >= value (RFC3339 or YYYY-MM-DD format).
-        - name: time[lte]
-          in: query
-          required: false
-          schema:
-            type: string
-            format: date-time
-          description: Filter events with time <= value (RFC3339 or YYYY-MM-DD format).
-        - name: time[gt]
-          in: query
-          required: false
-          schema:
-            type: string
-            format: date-time
-          description: Filter events with time > value (RFC3339 or YYYY-MM-DD format).
-        - name: time[lt]
-          in: query
-          required: false
-          schema:
-            type: string
-            format: date-time
-          description: Filter events with time < value (RFC3339 or YYYY-MM-DD format).
+            $ref: "#/components/schemas/Operator"
+          description: Filter events by time range using comparison operators.
         - name: limit
           in: query
           required: false
@@ -2813,6 +3031,12 @@ paths:
               examples:
                 AdminEventsListExample:
                   value:
+                    pagination:
+                      order_by: "time"
+                      dir: "desc"
+                      limit: 100
+                      next: "MTcwNDA2NzIwMA=="
+                      prev: null
                     models:
                       - id: "evt_123"
                         topic: "user.created"
@@ -2828,12 +3052,6 @@ paths:
                         eligible_for_retry: true
                         metadata: {"source": "oms"}
                         data: {"order_id": "orderid", "tracking": "1Z..."}
-                    pagination:
-                      order_by: "time"
-                      dir: "desc"
-                      limit: 100
-                      next: "MTcwNDA2NzIwMA=="
-                      prev: null
         "401":
           $ref: "#/components/responses/Unauthorized"
         "500":
@@ -2916,11 +3134,9 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: |
             Filter attempts by tenant ID(s). Use bracket notation for multiple values (e.g., `tenant_id[0]=t1&tenant_id[1]=t2`).
             When authenticated with a Tenant JWT, this parameter is ignored and the JWT's tenant is used.
@@ -2929,21 +3145,17 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: Filter attempts by event ID(s). Use bracket notation for multiple values (e.g., `event_id[0]=e1&event_id[1]=e2`).
         - name: destination_id
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: Filter attempts by destination ID(s). Use bracket notation for multiple values (e.g., `destination_id[0]=d1&destination_id[1]=d2`).
         - name: destination_type
           in: query
@@ -2966,40 +3178,18 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: Filter attempts by event topic(s). Use bracket notation for multiple values (e.g., `topic[0]=user.created&topic[1]=user.updated`).
-        - name: time[gte]
+        - name: time
           in: query
           required: false
+          style: deepObject
+          explode: true
           schema:
-            type: string
-            format: date-time
-          description: Filter attempts by event time >= value (RFC3339 or YYYY-MM-DD format).
-        - name: time[lte]
-          in: query
-          required: false
-          schema:
-            type: string
-            format: date-time
-          description: Filter attempts by event time <= value (RFC3339 or YYYY-MM-DD format).
-        - name: time[gt]
-          in: query
-          required: false
-          schema:
-            type: string
-            format: date-time
-          description: Filter attempts by event time > value (RFC3339 or YYYY-MM-DD format).
-        - name: time[lt]
-          in: query
-          required: false
-          schema:
-            type: string
-            format: date-time
-          description: Filter attempts by event time < value (RFC3339 or YYYY-MM-DD format).
+            $ref: "#/components/schemas/Operator"
+          description: Filter attempts by event time range using comparison operators.
         - name: limit
           in: query
           required: false
@@ -3025,11 +3215,9 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: |
             Fields to include in the response. Use bracket notation for multiple values (e.g., `include[0]=event&include[1]=response_data`).
             - `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
@@ -3062,6 +3250,12 @@ paths:
               examples:
                 AdminAttemptsListExample:
                   value:
+                    pagination:
+                      order_by: "time"
+                      dir: "desc"
+                      limit: 100
+                      next: "MTcwNDA2NzIwMA=="
+                      prev: null
                     models:
                       - id: "atm_123"
                         status: "success"
@@ -3077,15 +3271,15 @@ paths:
                         attempt_number: 2
                         event_id: "evt_789"
                         destination_id: "des_789"
+                AdminAttemptsWithIncludeExample:
+                  summary: Response with include=event
+                  value:
                     pagination:
                       order_by: "time"
                       dir: "desc"
                       limit: 100
-                      next: "MTcwNDA2NzIwMA=="
+                      next: null
                       prev: null
-                AdminAttemptsWithIncludeExample:
-                  summary: Response with include=event
-                  value:
                     models:
                       - id: "del_123"
                         status: "success"
@@ -3100,12 +3294,6 @@ paths:
                           time: "2024-01-01T00:00:00Z"
                           eligible_for_retry: false
                           metadata: {"source": "crm"}
-                    pagination:
-                      order_by: "time"
-                      dir: "desc"
-                      limit: 100
-                      next: null
-                      prev: null
         "401":
           $ref: "#/components/responses/Unauthorized"
         "500":
@@ -3153,11 +3341,9 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: |
             Fields to include in the response. Use bracket notation for multiple values (e.g., `include[0]=event&include[1]=response_data`).
             - `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
@@ -3307,21 +3493,17 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - $ref: "#/components/schemas/DestinationType"
-              - type: array
-                items:
-                  $ref: "#/components/schemas/DestinationType"
+            type: array
+            items:
+              $ref: "#/components/schemas/DestinationType"
           description: Filter destinations by type(s). Use bracket notation for multiple values (e.g., `type[0]=webhook&type[1]=aws_sqs`).
         - name: topics
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: Filter destinations by supported topic(s). Use bracket notation for multiple values (e.g., `topics[0]=user.created&topics[1]=user.deleted`).
       responses:
         "200":
@@ -3389,6 +3571,14 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/DestinationCreate"
+            examples:
+              WebhookCreateExample:
+                summary: Create a webhook destination
+                value:
+                  type: "webhook"
+                  topics: ["user.created", "order.shipped"]
+                  config:
+                    url: "https://my-service.com/webhook/handler"
       responses:
         "201":
           description: Destination created successfully.
@@ -3398,6 +3588,7 @@ paths:
                 $ref: "#/components/schemas/Destination"
               examples:
                 WebhookCreatedExample: # Example for one type, others similar
+                  summary: Webhook destination created
                   value:
                     id: "des_webhook_123"
                     type: "webhook"
@@ -3478,6 +3669,13 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/DestinationUpdate"
+            examples:
+              WebhookUpdateExample:
+                summary: Update a webhook destination's topics and URL
+                value:
+                  topics: ["user.created"]
+                  config:
+                    url: "https://my-service.com/webhook/new-handler"
       responses:
         "200":
           description: Destination updated successfully or OAuth redirect needed.
@@ -3488,7 +3686,7 @@ paths:
                   - $ref: "#/components/schemas/Destination"
               examples:
                 DestinationUpdatedExample:
-                  summary: Example of successful update returning destination details
+                  summary: Webhook destination updated
                   value:
                     id: "des_webhook_123"
                     type: "webhook"
@@ -3497,7 +3695,7 @@ paths:
                     created_at: "2024-02-15T10:00:00Z"
                     updated_at: "2024-02-15T10:00:00Z"
                     config:
-                      url: "https://my-service.com/webhook/new-handler" # Updated URL
+                      url: "https://my-service.com/webhook/new-handler"
                     credentials:
                       secret: "whsec_abc123def456"
                       previous_secret: "whsec_prev789xyz012"
@@ -3655,11 +3853,9 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: Filter attempts by event ID(s). Use bracket notation for multiple values (e.g., `event_id[0]=e1&event_id[1]=e2`).
         - name: status
           in: query
@@ -3672,40 +3868,18 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: Filter attempts by event topic(s). Use bracket notation for multiple values (e.g., `topic[0]=user.created&topic[1]=user.updated`).
-        - name: time[gte]
+        - name: time
           in: query
           required: false
+          style: deepObject
+          explode: true
           schema:
-            type: string
-            format: date-time
-          description: Filter attempts by event time >= value (RFC3339 or YYYY-MM-DD format).
-        - name: time[lte]
-          in: query
-          required: false
-          schema:
-            type: string
-            format: date-time
-          description: Filter attempts by event time <= value (RFC3339 or YYYY-MM-DD format).
-        - name: time[gt]
-          in: query
-          required: false
-          schema:
-            type: string
-            format: date-time
-          description: Filter attempts by event time > value (RFC3339 or YYYY-MM-DD format).
-        - name: time[lt]
-          in: query
-          required: false
-          schema:
-            type: string
-            format: date-time
-          description: Filter attempts by event time < value (RFC3339 or YYYY-MM-DD format).
+            $ref: "#/components/schemas/Operator"
+          description: Filter attempts by event time range using comparison operators.
         - name: limit
           in: query
           required: false
@@ -3731,11 +3905,9 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: |
             Fields to include in the response. Use bracket notation for multiple values (e.g., `include[0]=event&include[1]=response_data`).
             - `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
@@ -3768,6 +3940,12 @@ paths:
               examples:
                 DestinationAttemptsListExample:
                   value:
+                    pagination:
+                      order_by: "time"
+                      dir: "desc"
+                      limit: 100
+                      next: "MTcwNDA2NzIwMA=="
+                      prev: null
                     models:
                       - id: "atm_123"
                         status: "success"
@@ -3783,12 +3961,6 @@ paths:
                         attempt_number: 2
                         event_id: "evt_789"
                         destination_id: "des_456"
-                    pagination:
-                      order_by: "time"
-                      dir: "desc"
-                      limit: 100
-                      next: "MTcwNDA2NzIwMA=="
-                      prev: null
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
@@ -3838,11 +4010,9 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: |
             Fields to include in the response. Use bracket notation for multiple values (e.g., `include[0]=event&include[1]=response_data`).
             - `event`: Include event summary
@@ -3886,6 +4056,16 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/PublishRequest"
+            example:
+              id: "evt_abc123xyz789"
+              tenant_id: "tenant_123"
+              topic: "user.created"
+              eligible_for_retry: true
+              metadata:
+                source: "crm"
+              data:
+                user_id: "userid"
+                status: "active"
       responses:
         "202":
           description: Event accepted for publishing. Returns the event ID.
@@ -3893,6 +4073,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PublishResponse"
+              example:
+                id: "evt_abc123xyz789"
+                duplicate: false
+                destination_ids: ["des_webhook_123"]
         "401":
           $ref: "#/components/responses/Unauthorized"
         "409":
@@ -3946,7 +4130,7 @@ paths:
   # Retry
   /retry:
     post:
-      tags: [Attempts]
+      tags: [Retry]
       summary: Retry Event Delivery
       description: |
         Triggers a retry for delivering an event to a destination. The event must exist and the destination must be enabled and match the event's topic.
@@ -3960,6 +4144,9 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/RetryRequest"
+            example:
+              event_id: "evt_abc123xyz789"
+              destination_id: "des_webhook_123"
       responses:
         "202":
           description: Retry accepted for processing.
@@ -4231,22 +4418,28 @@ paths:
         **Filters:** `tenant_id` (admin-only), `topic`, `destination_id`
       operationId: getEventMetrics
       parameters:
-        - name: time[start]
+        - name: time
           in: query
           required: true
+          style: deepObject
+          explode: true
           schema:
-            type: string
-            format: date-time
-          description: Start of the time range (inclusive). ISO 8601 timestamp.
-          example: "2026-03-02T00:00:00Z"
-        - name: time[end]
-          in: query
-          required: true
-          schema:
-            type: string
-            format: date-time
-          description: End of the time range (exclusive). ISO 8601 timestamp.
-          example: "2026-03-03T00:00:00Z"
+            type: object
+            required:
+              - start
+              - end
+            properties:
+              start:
+                type: string
+                format: date-time
+                description: Start of the time range (inclusive). ISO 8601 timestamp.
+                example: "2026-03-02T00:00:00Z"
+              end:
+                type: string
+                format: date-time
+                description: End of the time range (exclusive). ISO 8601 timestamp.
+                example: "2026-03-03T00:00:00Z"
+          description: Time range for the metrics query.
         - name: granularity
           in: query
           required: false
@@ -4368,22 +4561,28 @@ paths:
         **Filters:** `tenant_id` (admin-only), `destination_id`, `destination_type`, `topic`, `status`, `code`, `manual`, `attempt_number`
       operationId: getAttemptMetrics
       parameters:
-        - name: time[start]
+        - name: time
           in: query
           required: true
+          style: deepObject
+          explode: true
           schema:
-            type: string
-            format: date-time
-          description: Start of the time range (inclusive). ISO 8601 timestamp.
-          example: "2026-03-02T00:00:00Z"
-        - name: time[end]
-          in: query
-          required: true
-          schema:
-            type: string
-            format: date-time
-          description: End of the time range (exclusive). ISO 8601 timestamp.
-          example: "2026-03-03T00:00:00Z"
+            type: object
+            required:
+              - start
+              - end
+            properties:
+              start:
+                type: string
+                format: date-time
+                description: Start of the time range (inclusive). ISO 8601 timestamp.
+                example: "2026-03-02T00:00:00Z"
+              end:
+                type: string
+                format: date-time
+                description: End of the time range (exclusive). ISO 8601 timestamp.
+                example: "2026-03-03T00:00:00Z"
+          description: Time range for the metrics query.
         - name: granularity
           in: query
           required: false
