@@ -123,9 +123,23 @@ Generally, the SDK will work well with most IDEs out of the box. However, when u
 from outpost_sdk import Outpost
 
 
-with Outpost() as outpost:
+with Outpost(
+    api_key="<YOUR_BEARER_TOKEN_HERE>",
+) as outpost:
 
-    res = outpost.health.check()
+    res = outpost.publish(request={
+        "id": "evt_abc123xyz789",
+        "tenant_id": "tenant_123",
+        "topic": "user.created",
+        "eligible_for_retry": True,
+        "metadata": {
+            "source": "crm",
+        },
+        "data": {
+            "user_id": "userid",
+            "status": "active",
+        },
+    })
 
     # Handle response
     print(res)
@@ -142,9 +156,23 @@ from outpost_sdk import Outpost
 
 async def main():
 
-    async with Outpost() as outpost:
+    async with Outpost(
+        api_key="<YOUR_BEARER_TOKEN_HERE>",
+    ) as outpost:
 
-        res = await outpost.health.check_async()
+        res = await outpost.publish_async(request={
+            "id": "evt_abc123xyz789",
+            "tenant_id": "tenant_123",
+            "topic": "user.created",
+            "eligible_for_retry": True,
+            "metadata": {
+                "source": "crm",
+            },
+            "data": {
+                "user_id": "userid",
+                "status": "active",
+            },
+        })
 
         # Handle response
         print(res)
@@ -173,7 +201,19 @@ with Outpost(
     api_key="<YOUR_BEARER_TOKEN_HERE>",
 ) as outpost:
 
-    res = outpost.health.check()
+    res = outpost.publish(request={
+        "id": "evt_abc123xyz789",
+        "tenant_id": "tenant_123",
+        "topic": "user.created",
+        "eligible_for_retry": True,
+        "metadata": {
+            "source": "crm",
+        },
+        "data": {
+            "user_id": "userid",
+            "status": "active",
+        },
+    })
 
     # Handle response
     print(res)
@@ -186,6 +226,11 @@ with Outpost(
 
 <details open>
 <summary>Available methods</summary>
+
+### [Outpost SDK](docs/sdks/outpost/README.md)
+
+* [publish](docs/sdks/outpost/README.md#publish) - Publish Event
+* [retry](docs/sdks/outpost/README.md#retry) - Retry Event Delivery
 
 ### [Attempts](docs/sdks/attempts/README.md)
 
@@ -222,14 +267,6 @@ with Outpost(
 
 * [get_event_metrics](docs/sdks/metrics/README.md#get_event_metrics) - Get Event Metrics
 * [get_attempt_metrics](docs/sdks/metrics/README.md#get_attempt_metrics) - Get Attempt Metrics
-
-### [Publish](docs/sdks/publish/README.md)
-
-* [event](docs/sdks/publish/README.md#event) - Publish Event
-
-### [Retry](docs/sdks/retry/README.md)
-
-* [retry](docs/sdks/retry/README.md#retry) - Retry Event Delivery
 
 ### [Schemas](docs/sdks/schemas/README.md)
 
@@ -289,9 +326,23 @@ from outpost_sdk import Outpost
 from outpost_sdk.utils import BackoffStrategy, RetryConfig
 
 
-with Outpost() as outpost:
+with Outpost(
+    api_key="<YOUR_BEARER_TOKEN_HERE>",
+) as outpost:
 
-    res = outpost.health.check(,
+    res = outpost.publish(request={
+        "id": "evt_abc123xyz789",
+        "tenant_id": "tenant_123",
+        "topic": "user.created",
+        "eligible_for_retry": True,
+        "metadata": {
+            "source": "crm",
+        },
+        "data": {
+            "user_id": "userid",
+            "status": "active",
+        },
+    },
         RetryConfig("backoff", BackoffStrategy(1, 50, 1.1, 100), False))
 
     # Handle response
@@ -307,9 +358,22 @@ from outpost_sdk.utils import BackoffStrategy, RetryConfig
 
 with Outpost(
     retry_config=RetryConfig("backoff", BackoffStrategy(1, 50, 1.1, 100), False),
+    api_key="<YOUR_BEARER_TOKEN_HERE>",
 ) as outpost:
 
-    res = outpost.health.check()
+    res = outpost.publish(request={
+        "id": "evt_abc123xyz789",
+        "tenant_id": "tenant_123",
+        "topic": "user.created",
+        "eligible_for_retry": True,
+        "metadata": {
+            "source": "crm",
+        },
+        "data": {
+            "user_id": "userid",
+            "status": "active",
+        },
+    })
 
     # Handle response
     print(res)
@@ -336,11 +400,25 @@ with Outpost(
 from outpost_sdk import Outpost, errors
 
 
-with Outpost() as outpost:
+with Outpost(
+    api_key="<YOUR_BEARER_TOKEN_HERE>",
+) as outpost:
     res = None
     try:
 
-        res = outpost.health.check()
+        res = outpost.publish(request={
+            "id": "evt_abc123xyz789",
+            "tenant_id": "tenant_123",
+            "topic": "user.created",
+            "eligible_for_retry": True,
+            "metadata": {
+                "source": "crm",
+            },
+            "data": {
+                "user_id": "userid",
+                "status": "active",
+            },
+        })
 
         # Handle response
         print(res)
@@ -410,9 +488,22 @@ from outpost_sdk import Outpost
 
 with Outpost(
     server_idx=0,
+    api_key="<YOUR_BEARER_TOKEN_HERE>",
 ) as outpost:
 
-    res = outpost.health.check()
+    res = outpost.publish(request={
+        "id": "evt_abc123xyz789",
+        "tenant_id": "tenant_123",
+        "topic": "user.created",
+        "eligible_for_retry": True,
+        "metadata": {
+            "source": "crm",
+        },
+        "data": {
+            "user_id": "userid",
+            "status": "active",
+        },
+    })
 
     # Handle response
     print(res)
@@ -428,9 +519,22 @@ from outpost_sdk import Outpost
 
 with Outpost(
     server_url="http://localhost:3333/api/v1",
+    api_key="<YOUR_BEARER_TOKEN_HERE>",
 ) as outpost:
 
-    res = outpost.health.check()
+    res = outpost.publish(request={
+        "id": "evt_abc123xyz789",
+        "tenant_id": "tenant_123",
+        "topic": "user.created",
+        "eligible_for_retry": True,
+        "metadata": {
+            "source": "crm",
+        },
+        "data": {
+            "user_id": "userid",
+            "status": "active",
+        },
+    })
 
     # Handle response
     print(res)
@@ -530,14 +634,18 @@ The `Outpost` class implements the context manager protocol and registers a fina
 from outpost_sdk import Outpost
 def main():
 
-    with Outpost() as outpost:
+    with Outpost(
+        api_key="<YOUR_BEARER_TOKEN_HERE>",
+    ) as outpost:
         # Rest of application here...
 
 
 # Or when using async:
 async def amain():
 
-    async with Outpost() as outpost:
+    async with Outpost(
+        api_key="<YOUR_BEARER_TOKEN_HERE>",
+    ) as outpost:
         # Rest of application here...
 ```
 <!-- End Resource Management [resource-management] -->

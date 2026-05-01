@@ -4,9 +4,23 @@
 from outpost_sdk import Outpost
 
 
-with Outpost() as outpost:
+with Outpost(
+    api_key="<YOUR_BEARER_TOKEN_HERE>",
+) as outpost:
 
-    res = outpost.health.check()
+    res = outpost.publish(request={
+        "id": "evt_abc123xyz789",
+        "tenant_id": "tenant_123",
+        "topic": "user.created",
+        "eligible_for_retry": True,
+        "metadata": {
+            "source": "crm",
+        },
+        "data": {
+            "user_id": "userid",
+            "status": "active",
+        },
+    })
 
     # Handle response
     print(res)
@@ -23,9 +37,23 @@ from outpost_sdk import Outpost
 
 async def main():
 
-    async with Outpost() as outpost:
+    async with Outpost(
+        api_key="<YOUR_BEARER_TOKEN_HERE>",
+    ) as outpost:
 
-        res = await outpost.health.check_async()
+        res = await outpost.publish_async(request={
+            "id": "evt_abc123xyz789",
+            "tenant_id": "tenant_123",
+            "topic": "user.created",
+            "eligible_for_retry": True,
+            "metadata": {
+                "source": "crm",
+            },
+            "data": {
+                "user_id": "userid",
+                "status": "active",
+            },
+        })
 
         # Handle response
         print(res)

@@ -1,5 +1,5 @@
-## Go SDK Changes:
-* `Outpost.Publish()`: **Added**
-* `Outpost.Retry()`: **Added**
-* `Outpost.Publish.Event()`: **Removed** (Breaking ⚠️)
-* `Outpost.Retry.Retry()`: **Removed** (Breaking ⚠️)
+## Python SDK Changes:
+* `outpost.publish()`: **Added**
+* `outpost.retry()`: **Added**
+* `outpost.publish.event()`: **Removed** (Breaking ⚠️)
+* `outpost.retry.retry()`: **Removed** (Breaking ⚠️)
