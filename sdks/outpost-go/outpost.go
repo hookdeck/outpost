@@ -2,7 +2,7 @@
 
 package outpostgo
 
-// Generated from OpenAPI doc version 0.0.1 and generator version 2.881.4
+// Generated from OpenAPI doc version 0.0.1 and generator version 2.881.16
 
 import (
 	"context"
@@ -53,10 +53,10 @@ func Pointer[T any](v T) *T { return &v }
 // Outpost API: The Outpost API is a REST-based JSON API for managing tenants, destinations, and publishing events.
 type Outpost struct {
 	SDKVersion string
-	// API Health Check
+	// This endpoint is only available for **self-hosted** Outpost deployments. Managed Outpost health is monitored by Hookdeck.
+	//
 	Health *Health
-	// Outpost instance-level configuration management for the managed deployment.
-	// This is not available in self-hosted deployments.
+	// The Configuration API is available for **managed Outpost** deployments only. It allows you to read and update instance-level settings — the same settings available as environment variables in self-hosted deployments.
 	//
 	Configuration *Configuration
 	// The API segments resources per `tenant`. A tenant represents a user/team/organization in your product. The provided value determines the tenant's ID, which can be any string representation.
@@ -64,18 +64,10 @@ type Outpost struct {
 	// If your system is not multi-tenant, create a single tenant with a hard-code tenant ID upon initialization. If your system has a single tenant but multiple environments, create a tenant per environment, like `live` and `test`.
 	//
 	Tenants *Tenants
-	// Operations related to event history.
+	// An event represents a payload published to Outpost. Events are matched against all destinations whose topic subscriptions match the event topic, then delivered.
+	//
 	Events *Events
 	// Attempts represent individual delivery attempts of events to destinations. The attempts API provides an attempt-centric view of event processing.
-	//
-	// Each attempt contains:
-	// - `id`: Unique attempt identifier
-	// - `status`: success or failed
-	// - `time`: Timestamp of the attempt
-	// - `code`: HTTP status code or error code
-	// - `attempt`: Attempt number (1 for first attempt, 2+ for retries)
-	// - `event`: Associated event (ID or included object)
-	// - `destination`: Destination ID
 	//
 	// Use the `include` query parameter to include related data:
 	// - `include=event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
@@ -86,34 +78,20 @@ type Outpost struct {
 	Attempts *Attempts
 	// Destinations are the endpoints where events are sent. Each destination is associated with a tenant and can be configured to receive specific event topics.
 	//
-	// ```json
-	// {
-	//   "id": "des_12345", // Control plane generated ID or user provided ID
-	//   "type": "webhooks", // Type of the destination
-	//   "topics": ["user.created", "user.updated"], // Topics of events this destination is eligible for
-	//   "config": {
-	//     // Destination type specific configuration. Schema of depends on type
-	//     "url": "https://example.com/webhooks/user"
-	//   },
-	//   "credentials": {
-	//     // Destination type specific credentials. AES encrypted. Schema depends on type
-	//     "secret": "some***********"
-	//   },
-	//   "disabled_at": null, // null or ISO date if disabled
-	//   "created_at": "2024-01-01T00:00:00Z" // Date the destination was created
-	// }
-	// ```
-	//
 	// The `topics` array can contain either a list of topics or a wildcard `*` implying that all topics are supported. If you do not wish to implement topics for your application, you set all destination topics to `*`.
 	//
 	// By default all destination `credentials` are obfuscated and the values cannot be read. This does not apply to the `webhook` type destination secret and each destination can expose their own obfuscation logic.
 	//
 	Destinations *Destinations
-	// Operations for publishing events.
+	// Use the Publish endpoint to send events into Outpost. Events are matched against all destinations whose topic subscriptions and filters match the event. Requires Admin API Key.
 	Publish *Publish
-	// Operations for retrieving destination type schemas.
+	// Triggers a retry for delivering an event to a destination. The event must exist and the destination must be enabled and match the event's topic.
+	Retry *Retry
+	// Destination types describe the available event delivery targets and their configuration schemas. Use these endpoints to render UI forms and list available destination types with their configuration schemas.
+	//
 	Schemas *Schemas
-	// Operations for retrieving available event topics.
+	// Returns the list of topics configured for this Outpost deployment. Tenants subscribe their destinations to topics from this list. Topics are defined via your configuration file and not a specific Create Topic API.
+	//
 	Topics *Topics
 	// Aggregated metrics for events and delivery attempts. Supports time bucketing, dimensional grouping, and filtering.
 	//
@@ -194,9 +172,9 @@ func WithTimeout(timeout time.Duration) SDKOption {
 // New creates a new instance of the SDK with the provided options
 func New(opts ...SDKOption) *Outpost {
 	sdk := &Outpost{
-		SDKVersion: "1.0.1",
+		SDKVersion: "1.1.0",
 		sdkConfiguration: config.SDKConfiguration{
-			UserAgent:  "speakeasy-sdk/go 1.0.1 2.881.4 0.0.1 github.com/hookdeck/outpost/sdks/outpost-go",
+			UserAgent:  "speakeasy-sdk/go 1.1.0 2.881.16 0.0.1 github.com/hookdeck/outpost/sdks/outpost-go",
 			ServerList: ServerList,
 		},
 		hooks: hooks.New(),
@@ -224,6 +202,7 @@ func New(opts ...SDKOption) *Outpost {
 	sdk.Attempts = newAttempts(sdk, sdk.sdkConfiguration, sdk.hooks)
 	sdk.Destinations = newDestinations(sdk, sdk.sdkConfiguration, sdk.hooks)
 	sdk.Publish = newPublish(sdk, sdk.sdkConfiguration, sdk.hooks)
+	sdk.Retry = newRetry(sdk, sdk.sdkConfiguration, sdk.hooks)
 	sdk.Schemas = newSchemas(sdk, sdk.sdkConfiguration, sdk.hooks)
 	sdk.Topics = newTopics(sdk, sdk.sdkConfiguration, sdk.hooks)
 	sdk.Metrics = newMetrics(sdk, sdk.sdkConfiguration, sdk.hooks)

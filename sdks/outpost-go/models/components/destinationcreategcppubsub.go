@@ -34,7 +34,7 @@ func (e *DestinationCreateGCPPubSubType) UnmarshalJSON(data []byte) error {
 }
 
 type DestinationCreateGCPPubSub struct {
-	// Optional user-provided ID. A UUID will be generated if empty.
+	// Optional user-provided ID. An ID will be generated if empty.
 	ID *string `json:"id,omitempty"`
 	// Type of the destination. Must be 'gcp_pubsub'.
 	Type DestinationCreateGCPPubSubType `json:"type"`

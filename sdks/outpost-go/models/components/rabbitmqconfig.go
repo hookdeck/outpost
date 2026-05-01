@@ -8,18 +8,18 @@ import (
 	"github.com/hookdeck/outpost/sdks/outpost-go/internal/utils"
 )
 
-// TLS - Whether to use TLS connection (amqps). Defaults to "false".
-type TLS string
+// RabbitMQConfigTLS - Whether to use TLS connection (amqps). Defaults to "false".
+type RabbitMQConfigTLS string
 
 const (
-	TLSTrue  TLS = "true"
-	TLSFalse TLS = "false"
+	RabbitMQConfigTLSTrue  RabbitMQConfigTLS = "true"
+	RabbitMQConfigTLSFalse RabbitMQConfigTLS = "false"
 )
 
-func (e TLS) ToPointer() *TLS {
+func (e RabbitMQConfigTLS) ToPointer() *RabbitMQConfigTLS {
 	return &e
 }
-func (e *TLS) UnmarshalJSON(data []byte) error {
+func (e *RabbitMQConfigTLS) UnmarshalJSON(data []byte) error {
 	var v string
 	if err := json.Unmarshal(data, &v); err != nil {
 		return err
@@ -28,10 +28,10 @@ func (e *TLS) UnmarshalJSON(data []byte) error {
 	case "true":
 		fallthrough
 	case "false":
-		*e = TLS(v)
+		*e = RabbitMQConfigTLS(v)
 		return nil
 	default:
-		return fmt.Errorf("invalid value for TLS: %v", v)
+		return fmt.Errorf("invalid value for RabbitMQConfigTLS: %v", v)
 	}
 }
 
@@ -41,7 +41,7 @@ type RabbitMQConfig struct {
 	// The exchange to publish messages to.
 	Exchange string `json:"exchange"`
 	// Whether to use TLS connection (amqps). Defaults to "false".
-	TLS *TLS `json:"tls,omitempty"`
+	TLS *RabbitMQConfigTLS `json:"tls,omitempty"`
 }
 
 func (r RabbitMQConfig) MarshalJSON() ([]byte, error) {
@@ -69,7 +69,7 @@ func (r *RabbitMQConfig) GetExchange() string {
 	return r.Exchange
 }
 
-func (r *RabbitMQConfig) GetTLS() *TLS {
+func (r *RabbitMQConfig) GetTLS() *RabbitMQConfigTLS {
 	if r == nil {
 		return nil
 	}

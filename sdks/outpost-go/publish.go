@@ -17,7 +17,7 @@ import (
 	"net/url"
 )
 
-// Publish - Operations for publishing events.
+// Publish - Use the Publish endpoint to send events into Outpost. Events are matched against all destinations whose topic subscriptions and filters match the event. Requires Admin API Key.
 type Publish struct {
 	rootSDK          *Outpost
 	sdkConfiguration config.SDKConfiguration

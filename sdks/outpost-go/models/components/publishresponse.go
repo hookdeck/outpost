@@ -3,7 +3,7 @@
 package components
 
 type PublishResponse struct {
-	// The ID of the event that was accepted for publishing. This will be the ID provided in the request's `id` field if present, otherwise it's a server-generated UUID.
+	// The ID of the event that was accepted for publishing. This will be the ID provided in the request's `id` field if present, otherwise it's a server-generated ID.
 	ID string `json:"id"`
 	// Whether this event was already processed (idempotency hit). If true, the event was not queued again.
 	Duplicate bool `json:"duplicate"`

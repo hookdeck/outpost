@@ -438,3 +438,10 @@ func (a *Attempt) GetDestinationGcpPubsub() *DestinationGCPPubSub {
 	}
 	return nil
 }
+
+func (a *Attempt) GetDestinationKafka() *DestinationKafka {
+	if v := a.GetDestination(); v != nil {
+		return v.DestinationKafka
+	}
+	return nil
+}

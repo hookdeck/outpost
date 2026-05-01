@@ -20,17 +20,19 @@ const (
 	DestinationUnionTypeAzureServicebus DestinationUnionType = "azure_servicebus"
 	DestinationUnionTypeAwsS3           DestinationUnionType = "aws_s3"
 	DestinationUnionTypeGcpPubsub       DestinationUnionType = "gcp_pubsub"
+	DestinationUnionTypeKafka           DestinationUnionType = "kafka"
 )
 
 type Destination struct {
 	DestinationWebhook         *DestinationWebhook         `queryParam:"inline" union:"member"`
-	DestinationAWSSQS          *DestinationAWSSQS          `queryParam:"inline" union:"member"`
-	DestinationRabbitMQ        *DestinationRabbitMQ        `queryParam:"inline" union:"member"`
 	DestinationHookdeck        *DestinationHookdeck        `queryParam:"inline" union:"member"`
+	DestinationAWSSQS          *DestinationAWSSQS          `queryParam:"inline" union:"member"`
 	DestinationAWSKinesis      *DestinationAWSKinesis      `queryParam:"inline" union:"member"`
-	DestinationAzureServiceBus *DestinationAzureServiceBus `queryParam:"inline" union:"member"`
 	DestinationAwss3           *DestinationAwss3           `queryParam:"inline" union:"member"`
+	DestinationRabbitMQ        *DestinationRabbitMQ        `queryParam:"inline" union:"member"`
+	DestinationAzureServiceBus *DestinationAzureServiceBus `queryParam:"inline" union:"member"`
 	DestinationGCPPubSub       *DestinationGCPPubSub       `queryParam:"inline" union:"member"`
+	DestinationKafka           *DestinationKafka           `queryParam:"inline" union:"member"`
 
 	Type DestinationUnionType
 }
@@ -131,6 +133,18 @@ func CreateDestinationGcpPubsub(gcpPubsub DestinationGCPPubSub) Destination {
 	}
 }
 
+func CreateDestinationKafka(kafka DestinationKafka) Destination {
+	typ := DestinationUnionTypeKafka
+
+	typStr := DestinationKafkaType(typ)
+	kafka.Type = typStr
+
+	return Destination{
+		DestinationKafka: &kafka,
+		Type:             typ,
+	}
+}
+
 func (u *Destination) UnmarshalJSON(data []byte) error {
 
 	type discriminator struct {
@@ -215,6 +229,15 @@ func (u *Destination) UnmarshalJSON(data []byte) error {
 		u.DestinationGCPPubSub = destinationGCPPubSub
 		u.Type = DestinationUnionTypeGcpPubsub
 		return nil
+	case "kafka":
+		destinationKafka := new(DestinationKafka)
+		if err := utils.UnmarshalJSON(data, &destinationKafka, "", true, nil); err != nil {
+			return fmt.Errorf("could not unmarshal `%s` into expected (Type == kafka) type DestinationKafka within Destination: %w", string(data), err)
+		}
+
+		u.DestinationKafka = destinationKafka
+		u.Type = DestinationUnionTypeKafka
+		return nil
 	}
 
 	return fmt.Errorf("could not unmarshal `%s` into any supported union types for Destination", string(data))
@@ -225,32 +248,36 @@ func (u Destination) MarshalJSON() ([]byte, error) {
 		return utils.MarshalJSON(u.DestinationWebhook, "", true)
 	}
 
-	if u.DestinationAWSSQS != nil {
-		return utils.MarshalJSON(u.DestinationAWSSQS, "", true)
-	}
-
-	if u.DestinationRabbitMQ != nil {
-		return utils.MarshalJSON(u.DestinationRabbitMQ, "", true)
-	}
-
 	if u.DestinationHookdeck != nil {
 		return utils.MarshalJSON(u.DestinationHookdeck, "", true)
+	}
+
+	if u.DestinationAWSSQS != nil {
+		return utils.MarshalJSON(u.DestinationAWSSQS, "", true)
 	}
 
 	if u.DestinationAWSKinesis != nil {
 		return utils.MarshalJSON(u.DestinationAWSKinesis, "", true)
 	}
 
-	if u.DestinationAzureServiceBus != nil {
-		return utils.MarshalJSON(u.DestinationAzureServiceBus, "", true)
-	}
-
 	if u.DestinationAwss3 != nil {
 		return utils.MarshalJSON(u.DestinationAwss3, "", true)
 	}
 
+	if u.DestinationRabbitMQ != nil {
+		return utils.MarshalJSON(u.DestinationRabbitMQ, "", true)
+	}
+
+	if u.DestinationAzureServiceBus != nil {
+		return utils.MarshalJSON(u.DestinationAzureServiceBus, "", true)
+	}
+
 	if u.DestinationGCPPubSub != nil {
 		return utils.MarshalJSON(u.DestinationGCPPubSub, "", true)
+	}
+
+	if u.DestinationKafka != nil {
+		return utils.MarshalJSON(u.DestinationKafka, "", true)
 	}
 
 	return nil, errors.New("could not marshal union type Destination: all fields are null")

@@ -2,7 +2,7 @@
 
 ## Overview
 
-Operations for publishing events.
+Use the Publish endpoint to send events into Outpost. Events are matched against all destinations whose topic subscriptions and filters match the event. Requires Admin API Key.
 
 ### Available Operations
 
@@ -21,7 +21,6 @@ package main
 import(
 	"context"
 	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
-	"github.com/hookdeck/outpost/sdks/outpost-go/types"
 	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
 	"log"
 )
@@ -34,11 +33,10 @@ func main() {
     )
 
     res, err := s.Publish.Event(ctx, components.PublishRequest{
-        ID: outpostgo.Pointer("evt_custom_123"),
-        TenantID: outpostgo.Pointer("<TENANT_ID>"),
-        DestinationID: outpostgo.Pointer("<DESTINATION_ID>"),
-        Topic: outpostgo.Pointer("topic.name"),
-        Time: types.MustNewTimeFromString("2024-01-15T10:30:00Z"),
+        ID: outpostgo.Pointer("evt_abc123xyz789"),
+        TenantID: outpostgo.Pointer("tenant_123"),
+        Topic: outpostgo.Pointer("user.created"),
+        EligibleForRetry: outpostgo.Pointer(true),
         Metadata: map[string]string{
             "source": "crm",
         },

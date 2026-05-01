@@ -4,24 +4,6 @@
 
 Destinations are the endpoints where events are sent. Each destination is associated with a tenant and can be configured to receive specific event topics.
 
-```json
-{
-  "id": "des_12345", // Control plane generated ID or user provided ID
-  "type": "webhooks", // Type of the destination
-  "topics": ["user.created", "user.updated"], // Topics of events this destination is eligible for
-  "config": {
-    // Destination type specific configuration. Schema of depends on type
-    "url": "https://example.com/webhooks/user"
-  },
-  "credentials": {
-    // Destination type specific credentials. AES encrypted. Schema depends on type
-    "secret": "some***********"
-  },
-  "disabled_at": null, // null or ISO date if disabled
-  "created_at": "2024-01-01T00:00:00Z" // Date the destination was created
-}
-```
-
 The `topics` array can contain either a list of topics or a wildcard `*` implying that all topics are supported. If you do not wish to implement topics for your application, you set all destination topics to `*`.
 
 By default all destination `credentials` are obfuscated and the values cannot be read. This does not apply to the `webhook` type destination secret and each destination can expose their own obfuscation logic.
@@ -102,7 +84,69 @@ func main() {
 
 Creates a new destination for the tenant. The request body structure depends on the `type`.
 
-### Example Usage
+### Example Usage: WebhookCreateExample
+
+<!-- UsageSnippet language="go" operationID="createTenantDestination" method="post" path="/tenants/{tenant_id}/destinations" example="WebhookCreateExample" -->
+```go
+package main
+
+import(
+	"context"
+	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
+	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
+	"log"
+)
+
+func main() {
+    ctx := context.Background()
+
+    s := outpostgo.New(
+        outpostgo.WithSecurity("<YOUR_BEARER_TOKEN_HERE>"),
+    )
+
+    res, err := s.Destinations.Create(ctx, "<id>", components.CreateDestinationCreateWebhook(
+        components.DestinationCreateWebhook{
+            Type: components.DestinationCreateWebhookTypeWebhook,
+            Topics: components.CreateTopicsArrayOfStr(
+                []string{
+                    "user.created",
+                    "order.shipped",
+                },
+            ),
+            Config: components.WebhookConfig{
+                URL: "https://my-service.com/webhook/handler",
+            },
+        },
+    ))
+    if err != nil {
+        log.Fatal(err)
+    }
+    if res.Destination != nil {
+        switch res.Destination.Type {
+            case components.DestinationUnionTypeWebhook:
+                // res.Destination.DestinationWebhook is populated
+            case components.DestinationUnionTypeAwsSqs:
+                // res.Destination.DestinationAWSSQS is populated
+            case components.DestinationUnionTypeRabbitmq:
+                // res.Destination.DestinationRabbitMQ is populated
+            case components.DestinationUnionTypeHookdeck:
+                // res.Destination.DestinationHookdeck is populated
+            case components.DestinationUnionTypeAwsKinesis:
+                // res.Destination.DestinationAWSKinesis is populated
+            case components.DestinationUnionTypeAzureServicebus:
+                // res.Destination.DestinationAzureServiceBus is populated
+            case components.DestinationUnionTypeAwsS3:
+                // res.Destination.DestinationAwss3 is populated
+            case components.DestinationUnionTypeGcpPubsub:
+                // res.Destination.DestinationGCPPubSub is populated
+            case components.DestinationUnionTypeKafka:
+                // res.Destination.DestinationKafka is populated
+        }
+
+    }
+}
+```
+### Example Usage: WebhookCreatedExample
 
 <!-- UsageSnippet language="go" operationID="createTenantDestination" method="post" path="/tenants/{tenant_id}/destinations" example="WebhookCreatedExample" -->
 ```go
@@ -132,7 +176,7 @@ func main() {
             Config: components.RabbitMQConfig{
                 ServerURL: "localhost:5672",
                 Exchange: "my-exchange",
-                TLS: components.TLSFalse.ToPointer(),
+                TLS: components.RabbitMQConfigTLSFalse.ToPointer(),
             },
             Credentials: components.RabbitMQCredentials{
                 Username: "guest",
@@ -161,6 +205,8 @@ func main() {
                 // res.Destination.DestinationAwss3 is populated
             case components.DestinationUnionTypeGcpPubsub:
                 // res.Destination.DestinationGCPPubSub is populated
+            case components.DestinationUnionTypeKafka:
+                // res.Destination.DestinationKafka is populated
         }
 
     }
@@ -236,6 +282,8 @@ func main() {
                 // res.Destination.DestinationAwss3 is populated
             case components.DestinationUnionTypeGcpPubsub:
                 // res.Destination.DestinationGCPPubSub is populated
+            case components.DestinationUnionTypeKafka:
+                // res.Destination.DestinationKafka is populated
         }
 
     }
@@ -268,7 +316,7 @@ func main() {
 
 Updates the configuration of an existing destination. The request body structure depends on the destination's `type`. Type itself cannot be updated. May return an OAuth redirect URL for certain types.
 
-### Example Usage
+### Example Usage: DestinationUpdatedExample
 
 <!-- UsageSnippet language="go" operationID="updateTenantDestination" method="patch" path="/tenants/{tenant_id}/destinations/{destination_id}" example="DestinationUpdatedExample" -->
 ```go
@@ -297,11 +345,56 @@ func main() {
             Config: &components.RabbitMQConfig{
                 ServerURL: "localhost:5672",
                 Exchange: "my-exchange",
-                TLS: components.TLSFalse.ToPointer(),
+                TLS: components.RabbitMQConfigTLSFalse.ToPointer(),
             },
             Credentials: &components.RabbitMQCredentials{
                 Username: "guest",
                 Password: "guest",
+            },
+        },
+    ))
+    if err != nil {
+        log.Fatal(err)
+    }
+    if res.OneOf != nil {
+        switch res.OneOf.Type {
+            case operations.UpdateTenantDestinationResponseBodyTypeDestination:
+                // res.OneOf.Destination is populated
+        }
+
+    }
+}
+```
+### Example Usage: WebhookUpdateExample
+
+<!-- UsageSnippet language="go" operationID="updateTenantDestination" method="patch" path="/tenants/{tenant_id}/destinations/{destination_id}" example="WebhookUpdateExample" -->
+```go
+package main
+
+import(
+	"context"
+	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
+	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
+	"log"
+	"github.com/hookdeck/outpost/sdks/outpost-go/models/operations"
+)
+
+func main() {
+    ctx := context.Background()
+
+    s := outpostgo.New(
+        outpostgo.WithSecurity("<YOUR_BEARER_TOKEN_HERE>"),
+    )
+
+    res, err := s.Destinations.Update(ctx, "<id>", "<id>", components.CreateDestinationUpdateDestinationUpdateWebhook(
+        components.DestinationUpdateWebhook{
+            Topics: outpostgo.Pointer(components.CreateTopicsArrayOfStr(
+                []string{
+                    "user.created",
+                },
+            )),
+            Config: &components.WebhookConfig{
+                URL: "https://my-service.com/webhook/new-handler",
             },
         },
     ))
@@ -443,6 +536,8 @@ func main() {
                 // res.Destination.DestinationAwss3 is populated
             case components.DestinationUnionTypeGcpPubsub:
                 // res.Destination.DestinationGCPPubSub is populated
+            case components.DestinationUnionTypeKafka:
+                // res.Destination.DestinationKafka is populated
         }
 
     }
@@ -517,6 +612,8 @@ func main() {
                 // res.Destination.DestinationAwss3 is populated
             case components.DestinationUnionTypeGcpPubsub:
                 // res.Destination.DestinationGCPPubSub is populated
+            case components.DestinationUnionTypeKafka:
+                // res.Destination.DestinationKafka is populated
         }
 
     }

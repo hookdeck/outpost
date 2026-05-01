@@ -40,10 +40,10 @@ func newTenants(rootSDK *Outpost, sdkConfig config.SDKConfiguration, hooks *hook
 // List Tenants
 // List all tenants with cursor-based pagination.
 //
-// **Requirements:** This endpoint requires Redis with RediSearch module (e.g., `redis/redis-stack-server`).
+// > When self-hosting this endpoint requires Redis with RediSearch module (e.g., `redis/redis-stack-server`).
 // If RediSearch is not available, this endpoint returns `501 Not Implemented`.
 //
-// When authenticated with a Tenant JWT, returns only the authenticated tenant. Pagination is not used in this case.
+// When authenticated with a Tenant JWT, returns only the authenticated tenant.
 //
 // If set, this operation will use [Security.APIKey] from the global security.
 func (s *Tenants) List(ctx context.Context, request operations.ListTenantsRequest, opts ...operations.Option) (*operations.ListTenantsResponse, error) {

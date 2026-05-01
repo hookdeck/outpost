@@ -34,7 +34,7 @@ func (e *DestinationCreateRabbitMQType) UnmarshalJSON(data []byte) error {
 }
 
 type DestinationCreateRabbitMQ struct {
-	// Optional user-provided ID. A UUID will be generated if empty.
+	// Optional user-provided ID. An ID will be generated if empty.
 	ID *string `json:"id,omitempty"`
 	// Type of the destination. Must be 'rabbitmq'.
 	Type DestinationCreateRabbitMQType `json:"type"`

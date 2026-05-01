@@ -51,6 +51,12 @@ destinationCreate := components.CreateDestinationCreateAwsS3(components.Destinat
 destinationCreate := components.CreateDestinationCreateGcpPubsub(components.DestinationCreateGCPPubSub{/* values here */})
 ```
 
+### DestinationCreateKafka
+
+```go
+destinationCreate := components.CreateDestinationCreateKafka(components.DestinationCreateKafka{/* values here */})
+```
+
 ## Union Discrimination
 
 Use the `Type` field to determine which variant is active, then access the corresponding field:
@@ -73,5 +79,7 @@ switch destinationCreate.Type {
 		// destinationCreate.DestinationCreateAwss3 is populated
 	case components.DestinationCreateTypeGcpPubsub:
 		// destinationCreate.DestinationCreateGCPPubSub is populated
+	case components.DestinationCreateTypeKafka:
+		// destinationCreate.DestinationCreateKafka is populated
 }
 ```

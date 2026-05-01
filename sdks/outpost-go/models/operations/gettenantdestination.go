@@ -102,3 +102,10 @@ func (g *GetTenantDestinationResponse) GetDestinationGcpPubsub() *components.Des
 	}
 	return nil
 }
+
+func (g *GetTenantDestinationResponse) GetDestinationKafka() *components.DestinationKafka {
+	if v := g.GetDestination(); v != nil {
+		return v.DestinationKafka
+	}
+	return nil
+}

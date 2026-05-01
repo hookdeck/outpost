@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"github.com/hookdeck/outpost/sdks/outpost-go/internal/utils"
 	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
-	"time"
 )
 
 // ListTenantDestinationAttemptsStatus - Filter attempts by status.
@@ -99,14 +98,8 @@ type ListTenantDestinationAttemptsRequest struct {
 	Status *ListTenantDestinationAttemptsStatus `queryParam:"style=form,explode=true,name=status"`
 	// Filter attempts by event topic(s). Use bracket notation for multiple values (e.g., `topic[0]=user.created&topic[1]=user.updated`).
 	Topic []string `queryParam:"style=form,explode=true,name=topic"`
-	// Filter attempts by event time >= value (RFC3339 or YYYY-MM-DD format).
-	TimeGte *time.Time `queryParam:"style=form,explode=true,name=time[gte]"`
-	// Filter attempts by event time <= value (RFC3339 or YYYY-MM-DD format).
-	TimeLte *time.Time `queryParam:"style=form,explode=true,name=time[lte]"`
-	// Filter attempts by event time > value (RFC3339 or YYYY-MM-DD format).
-	TimeGt *time.Time `queryParam:"style=form,explode=true,name=time[gt]"`
-	// Filter attempts by event time < value (RFC3339 or YYYY-MM-DD format).
-	TimeLt *time.Time `queryParam:"style=form,explode=true,name=time[lt]"`
+	// Filter attempts by event time range using comparison operators.
+	Time *components.Operator `queryParam:"style=deepObject,explode=true,name=time"`
 	// Number of items per page (default 100, max 1000).
 	Limit *int64 `default:"100" queryParam:"style=form,explode=true,name=limit"`
 	// Cursor for next page of results.
@@ -172,32 +165,11 @@ func (l *ListTenantDestinationAttemptsRequest) GetTopic() []string {
 	return l.Topic
 }
 
-func (l *ListTenantDestinationAttemptsRequest) GetTimeGte() *time.Time {
+func (l *ListTenantDestinationAttemptsRequest) GetTime() *components.Operator {
 	if l == nil {
 		return nil
 	}
-	return l.TimeGte
-}
-
-func (l *ListTenantDestinationAttemptsRequest) GetTimeLte() *time.Time {
-	if l == nil {
-		return nil
-	}
-	return l.TimeLte
-}
-
-func (l *ListTenantDestinationAttemptsRequest) GetTimeGt() *time.Time {
-	if l == nil {
-		return nil
-	}
-	return l.TimeGt
-}
-
-func (l *ListTenantDestinationAttemptsRequest) GetTimeLt() *time.Time {
-	if l == nil {
-		return nil
-	}
-	return l.TimeLt
+	return l.Time
 }
 
 func (l *ListTenantDestinationAttemptsRequest) GetLimit() *int64 {
