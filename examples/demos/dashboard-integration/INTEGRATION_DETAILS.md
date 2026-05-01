@@ -943,7 +943,7 @@ export async function POST(request: NextRequest) {
       };
 
       // Publish event using Outpost SDK
-      const result = await outpostClient.publish.event({
+      const result = await outpostClient.publish({
         tenantId,
         topic,
         data: eventPayload,

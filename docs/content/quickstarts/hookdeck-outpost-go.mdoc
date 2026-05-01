@@ -125,7 +125,7 @@ func main() {
 	// --- 5. Publish one event ---
 	//
 
-	pubRes, err := s.Publish.Event(ctx, components.PublishRequest{
+	pubRes, err := s.Publish(ctx, components.PublishRequest{
 		TenantID:         outpostgo.String(tenantID),
 		Topic:            outpostgo.String(topic),
 		EligibleForRetry: outpostgo.Bool(true),

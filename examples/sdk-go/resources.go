@@ -81,7 +81,7 @@ func manageOutpostResources(adminAPIKey string, apiServerURL string) {
 		Data:             eventPayload,
 		EligibleForRetry: outpostgo.Bool(true),
 	}
-	publishRes, err := outpostAdmin.Publish.Event(ctx, publishRequest)
+	publishRes, err := outpostAdmin.Publish(ctx, publishRequest)
 	if err != nil {
 		log.Fatalf("Failed to publish event: %v\n", err)
 	}

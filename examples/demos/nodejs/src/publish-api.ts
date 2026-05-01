@@ -31,7 +31,7 @@ const main = async () => {
       };
       console.log("Publishing event");
       console.log(event);
-      await outpost.publish.event(event);
+      await outpost.publish(event);
     }
   }
 };

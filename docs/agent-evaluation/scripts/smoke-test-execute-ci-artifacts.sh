@@ -109,7 +109,7 @@ await outpost.destinations.create(tenantId, {
   topics: ["*"],
   config: { url: webhookUrl },
 });
-const published = await outpost.publish.event({
+const published = await outpost.publish({
   tenantId,
   topic,
   eligibleForRetry: true,

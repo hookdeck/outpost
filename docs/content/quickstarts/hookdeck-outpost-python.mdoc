@@ -101,7 +101,7 @@ client.destinations.create(
 # --- 5. Publish one event ---
 #
 
-published = client.publish.event(
+published = client.publish(
     request={
         "tenant_id": tenant_id,
         "topic": topic,

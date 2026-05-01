@@ -176,7 +176,7 @@ describe('Events (PR #491)', () => {
 
       const sdk: Outpost = client.getSDK();
 
-      await sdk.publish.event({
+      await sdk.publish({
         tenantId: client.getTenantId(),
         topic: TEST_TOPICS[0],
         data: {
@@ -235,7 +235,7 @@ describe('Events (PR #491)', () => {
 
       const sdk: Outpost = client.getSDK();
 
-      const publishResponse = await sdk.publish.event({
+      const publishResponse = await sdk.publish({
         tenantId: client.getTenantId(),
         topic: TEST_TOPICS[0],
         data: {

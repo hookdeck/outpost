@@ -46,7 +46,7 @@ async function main() {
   };
 
   try {
-    const response = await client.publish.event({
+    const response = await client.publish({
       topic: topic,
       data: payload,
       tenantId: tenantId,
