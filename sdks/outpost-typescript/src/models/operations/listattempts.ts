@@ -120,21 +120,9 @@ export type ListAttemptsRequest = {
    */
   topic?: string | Array<string> | undefined;
   /**
-   * Filter attempts by event time >= value (RFC3339 or YYYY-MM-DD format).
+   * Filter attempts by event time range using comparison operators.
    */
-  timeGte?: Date | undefined;
-  /**
-   * Filter attempts by event time <= value (RFC3339 or YYYY-MM-DD format).
-   */
-  timeLte?: Date | undefined;
-  /**
-   * Filter attempts by event time > value (RFC3339 or YYYY-MM-DD format).
-   */
-  timeGt?: Date | undefined;
-  /**
-   * Filter attempts by event time < value (RFC3339 or YYYY-MM-DD format).
-   */
-  timeLt?: Date | undefined;
+  time?: components.Operator | undefined;
   /**
    * Number of items per page (default 100, max 1000).
    */
@@ -415,14 +403,7 @@ export const ListAttemptsRequest$inboundSchema: z.ZodType<
   ]).optional(),
   status: ListAttemptsStatus$inboundSchema.optional(),
   topic: z.union([z.string(), z.array(z.string())]).optional(),
-  "time[gte]": z.string().datetime({ offset: true }).transform(v => new Date(v))
-    .optional(),
-  "time[lte]": z.string().datetime({ offset: true }).transform(v => new Date(v))
-    .optional(),
-  "time[gt]": z.string().datetime({ offset: true }).transform(v => new Date(v))
-    .optional(),
-  "time[lt]": z.string().datetime({ offset: true }).transform(v => new Date(v))
-    .optional(),
+  time: components.Operator$inboundSchema.optional(),
   limit: z.number().int().default(100),
   next: z.string().optional(),
   prev: z.string().optional(),
@@ -435,10 +416,6 @@ export const ListAttemptsRequest$inboundSchema: z.ZodType<
     "event_id": "eventId",
     "destination_id": "destinationId",
     "destination_type": "destinationType",
-    "time[gte]": "timeGte",
-    "time[lte]": "timeLte",
-    "time[gt]": "timeGt",
-    "time[lt]": "timeLt",
     "order_by": "orderBy",
   });
 });
@@ -450,10 +427,7 @@ export type ListAttemptsRequest$Outbound = {
   destination_type?: string | Array<string> | undefined;
   status?: string | undefined;
   topic?: string | Array<string> | undefined;
-  "time[gte]"?: string | undefined;
-  "time[lte]"?: string | undefined;
-  "time[gt]"?: string | undefined;
-  "time[lt]"?: string | undefined;
+  time?: components.Operator$Outbound | undefined;
   limit: number;
   next?: string | undefined;
   prev?: string | undefined;
@@ -477,10 +451,7 @@ export const ListAttemptsRequest$outboundSchema: z.ZodType<
   ]).optional(),
   status: ListAttemptsStatus$outboundSchema.optional(),
   topic: z.union([z.string(), z.array(z.string())]).optional(),
-  timeGte: z.date().transform(v => v.toISOString()).optional(),
-  timeLte: z.date().transform(v => v.toISOString()).optional(),
-  timeGt: z.date().transform(v => v.toISOString()).optional(),
-  timeLt: z.date().transform(v => v.toISOString()).optional(),
+  time: components.Operator$outboundSchema.optional(),
   limit: z.number().int().default(100),
   next: z.string().optional(),
   prev: z.string().optional(),
@@ -493,10 +464,6 @@ export const ListAttemptsRequest$outboundSchema: z.ZodType<
     eventId: "event_id",
     destinationId: "destination_id",
     destinationType: "destination_type",
-    timeGte: "time[gte]",
-    timeLte: "time[lte]",
-    timeGt: "time[gt]",
-    timeLt: "time[lt]",
     orderBy: "order_by",
   });
 });

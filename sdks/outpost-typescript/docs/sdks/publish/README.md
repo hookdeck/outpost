@@ -2,7 +2,7 @@
 
 ## Overview
 
-Operations for publishing events.
+Use the Publish endpoint to send events into Outpost. Events are matched against all destinations whose topic subscriptions and filters match the event. Requires Admin API Key.
 
 ### Available Operations
 
@@ -24,11 +24,10 @@ const outpost = new Outpost({
 
 async function run() {
   const result = await outpost.publish.event({
-    id: "evt_custom_123",
-    tenantId: "<TENANT_ID>",
-    destinationId: "<DESTINATION_ID>",
-    topic: "topic.name",
-    time: new Date("2024-01-15T10:30:00Z"),
+    id: "evt_abc123xyz789",
+    tenantId: "tenant_123",
+    topic: "user.created",
+    eligibleForRetry: true,
     metadata: {
       "source": "crm",
     },
@@ -60,11 +59,10 @@ const outpost = new OutpostCore({
 
 async function run() {
   const res = await publishEvent(outpost, {
-    id: "evt_custom_123",
-    tenantId: "<TENANT_ID>",
-    destinationId: "<DESTINATION_ID>",
-    topic: "topic.name",
-    time: new Date("2024-01-15T10:30:00Z"),
+    id: "evt_abc123xyz789",
+    tenantId: "tenant_123",
+    topic: "user.created",
+    eligibleForRetry: true,
     metadata: {
       "source": "crm",
     },

@@ -2,8 +2,7 @@
 
 ## Overview
 
-Outpost instance-level configuration management for the managed deployment.
-This is not available in self-hosted deployments.
+The Configuration API is available for **managed Outpost** deployments only. It allows you to read and update instance-level settings — the same settings available as environment variables in self-hosted deployments.
 
 
 ### Available Operations

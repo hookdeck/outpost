@@ -35,7 +35,7 @@ import { Result } from "../types/fp.js";
  * When authenticated with a Tenant JWT, only events belonging to that tenant can be retried.
  * When authenticated with Admin API Key, events from any tenant can be retried.
  */
-export function attemptsRetry(
+export function retryRetry(
   client: OutpostCore,
   request: components.RetryRequest,
   options?: RequestOptions,

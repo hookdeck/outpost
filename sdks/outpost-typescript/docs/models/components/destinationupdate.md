@@ -34,6 +34,35 @@ const value: components.DestinationUpdateWebhook = {
 };
 ```
 
+### `components.DestinationUpdateHookdeck`
+
+```typescript
+const value: components.DestinationUpdateHookdeck = {
+  topics: "*",
+  filter: {
+    "data": {
+      "amount": {
+        "$gte": 100,
+      },
+      "customer": {
+        "tier": "premium",
+      },
+    },
+  },
+  credentials: {
+    token: "hd_token_...",
+  },
+  deliveryMetadata: {
+    "app-id": "my-app",
+    "region": "us-east-1",
+  },
+  metadata: {
+    "internal-id": "123",
+    "team": "platform",
+  },
+};
+```
+
 ### `components.DestinationUpdateAWSSQS`
 
 ```typescript
@@ -57,70 +86,6 @@ const value: components.DestinationUpdateAWSSQS = {
     key: "AKIAIOSFODNN7EXAMPLE",
     secret: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
     session: "AQoDYXdzEPT//////////wEXAMPLE...",
-  },
-  deliveryMetadata: {
-    "app-id": "my-app",
-    "region": "us-east-1",
-  },
-  metadata: {
-    "internal-id": "123",
-    "team": "platform",
-  },
-};
-```
-
-### `components.DestinationUpdateRabbitMQ`
-
-```typescript
-const value: components.DestinationUpdateRabbitMQ = {
-  topics: "*",
-  filter: {
-    "data": {
-      "amount": {
-        "$gte": 100,
-      },
-      "customer": {
-        "tier": "premium",
-      },
-    },
-  },
-  config: {
-    serverUrl: "localhost:5672",
-    exchange: "my-exchange",
-    tls: "false",
-  },
-  credentials: {
-    username: "guest",
-    password: "guest",
-  },
-  deliveryMetadata: {
-    "app-id": "my-app",
-    "region": "us-east-1",
-  },
-  metadata: {
-    "internal-id": "123",
-    "team": "platform",
-  },
-};
-```
-
-### `components.DestinationUpdateHookdeck`
-
-```typescript
-const value: components.DestinationUpdateHookdeck = {
-  topics: "*",
-  filter: {
-    "data": {
-      "amount": {
-        "$gte": 100,
-      },
-      "customer": {
-        "tier": "premium",
-      },
-    },
-  },
-  credentials: {
-    token: "hd_token_...",
   },
   deliveryMetadata: {
     "app-id": "my-app",
@@ -158,39 +123,6 @@ const value: components.DestinationUpdateAWSKinesis = {
     key: "AKIAIOSFODNN7EXAMPLE",
     secret: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
     session: "AQoDYXdzEPT//////////wEXAMPLE...",
-  },
-  deliveryMetadata: {
-    "app-id": "my-app",
-    "region": "us-east-1",
-  },
-  metadata: {
-    "internal-id": "123",
-    "team": "platform",
-  },
-};
-```
-
-### `components.DestinationUpdateAzureServiceBus`
-
-```typescript
-const value: components.DestinationUpdateAzureServiceBus = {
-  topics: "*",
-  filter: {
-    "data": {
-      "amount": {
-        "$gte": 100,
-      },
-      "customer": {
-        "tier": "premium",
-      },
-    },
-  },
-  config: {
-    name: "my-queue-or-topic",
-  },
-  credentials: {
-    connectionString:
-      "Endpoint=sb://namespace.servicebus.windows.net/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=abc123",
   },
   deliveryMetadata: {
     "app-id": "my-app",
@@ -241,6 +173,39 @@ const value: components.DestinationUpdateAwss3 = {
 };
 ```
 
+### `components.DestinationUpdateAzureServiceBus`
+
+```typescript
+const value: components.DestinationUpdateAzureServiceBus = {
+  topics: "*",
+  filter: {
+    "data": {
+      "amount": {
+        "$gte": 100,
+      },
+      "customer": {
+        "tier": "premium",
+      },
+    },
+  },
+  config: {
+    name: "my-queue-or-topic",
+  },
+  credentials: {
+    connectionString:
+      "Endpoint=sb://namespace.servicebus.windows.net/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=abc123",
+  },
+  deliveryMetadata: {
+    "app-id": "my-app",
+    "region": "us-east-1",
+  },
+  metadata: {
+    "internal-id": "123",
+    "team": "platform",
+  },
+};
+```
+
 ### `components.DestinationUpdateGCPPubSub`
 
 ```typescript
@@ -264,6 +229,77 @@ const value: components.DestinationUpdateGCPPubSub = {
   credentials: {
     serviceAccountJson:
       "{\"type\":\"service_account\",\"project_id\":\"my-project\",\"private_key_id\":\"key123\",\"private_key\":\"-----BEGIN PRIVATE KEY-----\\n...\\n-----END PRIVATE KEY-----\\n\",\"client_email\":\"my-service@my-project.iam.gserviceaccount.com\"}",
+  },
+  deliveryMetadata: {
+    "app-id": "my-app",
+    "region": "us-east-1",
+  },
+  metadata: {
+    "internal-id": "123",
+    "team": "platform",
+  },
+};
+```
+
+### `components.DestinationUpdateRabbitMQ`
+
+```typescript
+const value: components.DestinationUpdateRabbitMQ = {
+  topics: "*",
+  filter: {
+    "data": {
+      "amount": {
+        "$gte": 100,
+      },
+      "customer": {
+        "tier": "premium",
+      },
+    },
+  },
+  config: {
+    serverUrl: "localhost:5672",
+    exchange: "my-exchange",
+    tls: "false",
+  },
+  credentials: {
+    username: "guest",
+    password: "guest",
+  },
+  deliveryMetadata: {
+    "app-id": "my-app",
+    "region": "us-east-1",
+  },
+  metadata: {
+    "internal-id": "123",
+    "team": "platform",
+  },
+};
+```
+
+### `components.DestinationUpdateKafka`
+
+```typescript
+const value: components.DestinationUpdateKafka = {
+  topics: "*",
+  filter: {
+    "data": {
+      "amount": {
+        "$gte": 100,
+      },
+      "customer": {
+        "tier": "premium",
+      },
+    },
+  },
+  config: {
+    brokers: "broker1.example.com:9092,broker2.example.com:9092",
+    topic: "events",
+    saslMechanism: "scram-sha-256",
+    partitionKeyTemplate: "data.customer_id",
+  },
+  credentials: {
+    username: "outpost",
+    password: "secure_password_123",
   },
   deliveryMetadata: {
     "app-id": "my-app",

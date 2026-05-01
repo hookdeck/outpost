@@ -43,6 +43,12 @@ import {
   DestinationHookdeck$outboundSchema,
 } from "./destinationhookdeck.js";
 import {
+  DestinationKafka,
+  DestinationKafka$inboundSchema,
+  DestinationKafka$Outbound,
+  DestinationKafka$outboundSchema,
+} from "./destinationkafka.js";
+import {
   DestinationRabbitMQ,
   DestinationRabbitMQ$inboundSchema,
   DestinationRabbitMQ$Outbound,
@@ -63,7 +69,8 @@ export type Destination =
   | DestinationAWSKinesis
   | DestinationAzureServiceBus
   | DestinationAwss3
-  | DestinationGCPPubSub;
+  | DestinationGCPPubSub
+  | DestinationKafka;
 
 /** @internal */
 export const Destination$inboundSchema: z.ZodType<
@@ -79,6 +86,7 @@ export const Destination$inboundSchema: z.ZodType<
   DestinationAzureServiceBus$inboundSchema,
   DestinationAwss3$inboundSchema,
   DestinationGCPPubSub$inboundSchema,
+  DestinationKafka$inboundSchema,
 ]);
 /** @internal */
 export type Destination$Outbound =
@@ -89,7 +97,8 @@ export type Destination$Outbound =
   | DestinationAWSKinesis$Outbound
   | DestinationAzureServiceBus$Outbound
   | DestinationAwss3$Outbound
-  | DestinationGCPPubSub$Outbound;
+  | DestinationGCPPubSub$Outbound
+  | DestinationKafka$Outbound;
 
 /** @internal */
 export const Destination$outboundSchema: z.ZodType<
@@ -105,6 +114,7 @@ export const Destination$outboundSchema: z.ZodType<
   DestinationAzureServiceBus$outboundSchema,
   DestinationAwss3$outboundSchema,
   DestinationGCPPubSub$outboundSchema,
+  DestinationKafka$outboundSchema,
 ]);
 
 export function destinationToJSON(destination: Destination): string {

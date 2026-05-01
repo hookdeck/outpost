@@ -7,6 +7,13 @@ import { ListEventsResponse } from "@hookdeck/outpost-sdk/models/operations";
 
 let value: ListEventsResponse = {
   result: {
+    pagination: {
+      orderBy: "created_at",
+      dir: "desc",
+      limit: 100,
+      next: "MTcwNDA2NzIwMA==",
+      prev: null,
+    },
     models: [
       {
         id: "evt_123",
@@ -26,13 +33,6 @@ let value: ListEventsResponse = {
         },
       },
     ],
-    pagination: {
-      orderBy: "created_at",
-      dir: "desc",
-      limit: 100,
-      next: "MTcwNDA2NzIwMA==",
-      prev: null,
-    },
   },
 };
 ```

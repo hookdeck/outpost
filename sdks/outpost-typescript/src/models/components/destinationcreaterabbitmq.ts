@@ -28,7 +28,7 @@ import {
 
 export type DestinationCreateRabbitMQ = {
   /**
-   * Optional user-provided ID. A UUID will be generated if empty.
+   * Optional user-provided ID. An ID will be generated if empty.
    */
   id?: string | undefined;
   /**

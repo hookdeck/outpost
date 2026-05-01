@@ -7,6 +7,13 @@ import { ListTenantDestinationAttemptsResponse } from "@hookdeck/outpost-sdk/mod
 
 let value: ListTenantDestinationAttemptsResponse = {
   result: {
+    pagination: {
+      orderBy: "created_at",
+      dir: "desc",
+      limit: 100,
+      next: "MTcwNDA2NzIwMA==",
+      prev: null,
+    },
     models: [
       {
         id: "atm_123",
@@ -57,13 +64,6 @@ let value: ListTenantDestinationAttemptsResponse = {
         },
       },
     ],
-    pagination: {
-      orderBy: "created_at",
-      dir: "desc",
-      limit: 100,
-      next: "MTcwNDA2NzIwMA==",
-      prev: null,
-    },
   },
 };
 ```

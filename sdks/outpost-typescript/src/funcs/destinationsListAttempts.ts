@@ -4,7 +4,12 @@
 
 import { OutpostCore } from "../core.js";
 import { dlv } from "../lib/dlv.js";
-import { encodeFormQuery, encodeSimple } from "../lib/encodings.js";
+import {
+  encodeDeepObjectQuery,
+  encodeFormQuery,
+  encodeSimple,
+  queryJoin,
+} from "../lib/encodings.js";
 import { matchStatusCode } from "../lib/http.js";
 import * as M from "../lib/matchers.js";
 import { compactMap } from "../lib/primitives.js";
@@ -123,21 +128,22 @@ async function $do(
     "/tenants/{tenant_id}/destinations/{destination_id}/attempts",
   )(pathParams);
 
-  const query = encodeFormQuery({
-    "dir": payload.dir,
-    "event_id": payload.event_id,
-    "include": payload.include,
-    "limit": payload.limit,
-    "next": payload.next,
-    "order_by": payload.order_by,
-    "prev": payload.prev,
-    "status": payload.status,
-    "time[gt]": payload["time[gt]"],
-    "time[gte]": payload["time[gte]"],
-    "time[lt]": payload["time[lt]"],
-    "time[lte]": payload["time[lte]"],
-    "topic": payload.topic,
-  });
+  const query = queryJoin(
+    encodeDeepObjectQuery({
+      "time": payload.time,
+    }),
+    encodeFormQuery({
+      "dir": payload.dir,
+      "event_id": payload.event_id,
+      "include": payload.include,
+      "limit": payload.limit,
+      "next": payload.next,
+      "order_by": payload.order_by,
+      "prev": payload.prev,
+      "status": payload.status,
+      "topic": payload.topic,
+    }),
+  );
 
   const headers = new Headers(compactMap({
     Accept: "application/json",

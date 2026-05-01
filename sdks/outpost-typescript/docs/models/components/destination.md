@@ -186,3 +186,28 @@ const value: components.DestinationGCPPubSub = {
 };
 ```
 
+### `components.DestinationKafka`
+
+```typescript
+const value: components.DestinationKafka = {
+  id: "des_kafka_123",
+  type: "kafka",
+  topics: [
+    "order.created",
+    "order.updated",
+  ],
+  disabledAt: null,
+  createdAt: new Date("2024-03-10T14:30:00Z"),
+  updatedAt: new Date("2024-03-10T14:30:00Z"),
+  config: {
+    brokers: "broker1.example.com:9092,broker2.example.com:9092",
+    topic: "events",
+    saslMechanism: "scram-sha-256",
+  },
+  credentials: {
+    username: "outpost",
+    password: "secure_password_123",
+  },
+};
+```
+

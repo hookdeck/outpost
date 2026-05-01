@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="color-scheme" content="light dark">
-    <title>SDK Changelog - python</title>
+    <title>SDK Changelog - typescript</title>
     <style>
         :root {
             --bg-color: #ffffff;
@@ -95,7 +95,7 @@
         }
     </style>
 </head>
-<body><h2 id="python-sdk-changes">Python SDK Changes:</h2>
+<body><h2 id="typescript-sdk-changes">Typescript SDK Changes:</h2>
 
 <ul>
 <li><code>outpost.destinations.create()</code>:
@@ -130,7 +130,7 @@
 </ul></li>
 <li><code>outpost.attempts.get()</code>:  <code>response.destination.union(kafka)</code> <strong>Added</strong> (Breaking ⚠️)</li>
 <li><code>outpost.destinations.list()</code>:  <code>response.[].union(kafka)</code> <strong>Added</strong> (Breaking ⚠️)</li>
-<li><code>outpost.metrics.get_attempt_metrics()</code>: <code>request</code> <strong>Changed</strong> (Breaking ⚠️)
+<li><code>outpost.metrics.getAttemptMetrics()</code>: <code>request</code> <strong>Changed</strong> (Breaking ⚠️)
 
 <ul>
 <li><code>time[end]</code> <strong>Removed</strong> (Breaking ⚠️)</li>
@@ -143,7 +143,7 @@
 <li><code>request.body.union(DestinationUpdateKafka)</code> <strong>Added</strong></li>
 <li><code>response.union(Destination).union(kafka)</code> <strong>Added</strong> (Breaking ⚠️)</li>
 </ul></li>
-<li><code>outpost.metrics.get_event_metrics()</code>: <code>request</code> <strong>Changed</strong> (Breaking ⚠️)
+<li><code>outpost.metrics.getEventMetrics()</code>: <code>request</code> <strong>Changed</strong> (Breaking ⚠️)
 
 <ul>
 <li><code>time[end]</code> <strong>Removed</strong> (Breaking ⚠️)</li>
@@ -152,7 +152,7 @@
 </ul></li>
 <li><code>outpost.destinations.enable()</code>:  <code>response.union(kafka)</code> <strong>Added</strong> (Breaking ⚠️)</li>
 <li><code>outpost.destinations.get()</code>:  <code>response.union(kafka)</code> <strong>Added</strong> (Breaking ⚠️)</li>
-<li><code>outpost.destinations.list_attempts()</code>:
+<li><code>outpost.destinations.listAttempts()</code>:
 
 <ul>
 <li><code>request</code> <strong>Changed</strong> (Breaking ⚠️)
@@ -166,7 +166,7 @@
 </ul></li>
 <li><code>response.models[].destination.union(kafka)</code> <strong>Added</strong> (Breaking ⚠️)</li>
 </ul></li>
-<li><code>outpost.destinations.get_attempt()</code>:  <code>response.destination.union(kafka)</code> <strong>Added</strong> (Breaking ⚠️)</li>
+<li><code>outpost.destinations.getAttempt()</code>:  <code>response.destination.union(kafka)</code> <strong>Added</strong> (Breaking ⚠️)</li>
 <li><code>outpost.retry.retry()</code>: <strong>Added</strong></li>
 <li><code>outpost.attempts.retry()</code>: <strong>Removed</strong> (Breaking ⚠️)</li>
 </ul>

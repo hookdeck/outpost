@@ -8,6 +8,13 @@ Paginated list of events.
 import { EventPaginatedResult } from "@hookdeck/outpost-sdk/models/components";
 
 let value: EventPaginatedResult = {
+  pagination: {
+    orderBy: "created_at",
+    dir: "desc",
+    limit: 100,
+    next: "MTcwNDA2NzIwMA==",
+    prev: null,
+  },
   models: [
     {
       id: "evt_123",
@@ -27,13 +34,6 @@ let value: EventPaginatedResult = {
       },
     },
   ],
-  pagination: {
-    orderBy: "created_at",
-    dir: "desc",
-    limit: 100,
-    next: "MTcwNDA2NzIwMA==",
-    prev: null,
-  },
 };
 ```
 
@@ -41,5 +41,5 @@ let value: EventPaginatedResult = {
 
 | Field                                                                  | Type                                                                   | Required                                                               | Description                                                            |
 | ---------------------------------------------------------------------- | ---------------------------------------------------------------------- | ---------------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| `models`                                                               | [components.Event](../../models/components/event.md)[]                 | :heavy_minus_sign:                                                     | Array of event objects.                                                |
 | `pagination`                                                           | [components.SeekPagination](../../models/components/seekpagination.md) | :heavy_minus_sign:                                                     | Cursor-based pagination metadata for list responses.                   |
+| `models`                                                               | [components.Event](../../models/components/event.md)[]                 | :heavy_minus_sign:                                                     | Array of event objects.                                                |

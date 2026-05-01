@@ -9,7 +9,7 @@ import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 
 export type TenantUpsert = {
   /**
-   * Optional metadata to store with the tenant.
+   * Optional key/value metadata to store with the tenant.
    */
   metadata?: { [k: string]: string } | null | undefined;
 };

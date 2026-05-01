@@ -9,6 +9,20 @@ import { ClosedEnum } from "../../types/enums.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 
+/**
+ * Time range for the metrics query.
+ */
+export type GetEventMetricsTime = {
+  /**
+   * Start of the time range (inclusive). ISO 8601 timestamp.
+   */
+  start: Date;
+  /**
+   * End of the time range (exclusive). ISO 8601 timestamp.
+   */
+  end: Date;
+};
+
 export const GetEventMetricsMeasuresEnum2 = {
   Count: "count",
   Rate: "rate",
@@ -74,13 +88,9 @@ export type GetEventMetricsFiltersTenantId = string | Array<string>;
 
 export type GetEventMetricsRequest = {
   /**
-   * Start of the time range (inclusive). ISO 8601 timestamp.
+   * Time range for the metrics query.
    */
-  timeStart: Date;
-  /**
-   * End of the time range (exclusive). ISO 8601 timestamp.
-   */
-  timeEnd: Date;
+  time: GetEventMetricsTime;
   /**
    * Time bucketing granularity. Pattern: `<number><unit>`.
    *
@@ -113,6 +123,48 @@ export type GetEventMetricsRequest = {
    */
   filtersTenantId?: string | Array<string> | undefined;
 };
+
+/** @internal */
+export const GetEventMetricsTime$inboundSchema: z.ZodType<
+  GetEventMetricsTime,
+  z.ZodTypeDef,
+  unknown
+> = z.object({
+  start: z.string().datetime({ offset: true }).transform(v => new Date(v)),
+  end: z.string().datetime({ offset: true }).transform(v => new Date(v)),
+});
+/** @internal */
+export type GetEventMetricsTime$Outbound = {
+  start: string;
+  end: string;
+};
+
+/** @internal */
+export const GetEventMetricsTime$outboundSchema: z.ZodType<
+  GetEventMetricsTime$Outbound,
+  z.ZodTypeDef,
+  GetEventMetricsTime
+> = z.object({
+  start: z.date().transform(v => v.toISOString()),
+  end: z.date().transform(v => v.toISOString()),
+});
+
+export function getEventMetricsTimeToJSON(
+  getEventMetricsTime: GetEventMetricsTime,
+): string {
+  return JSON.stringify(
+    GetEventMetricsTime$outboundSchema.parse(getEventMetricsTime),
+  );
+}
+export function getEventMetricsTimeFromJSON(
+  jsonString: string,
+): SafeParseResult<GetEventMetricsTime, SDKValidationError> {
+  return safeParse(
+    jsonString,
+    (x) => GetEventMetricsTime$inboundSchema.parse(JSON.parse(x)),
+    `Failed to parse 'GetEventMetricsTime' from JSON`,
+  );
+}
 
 /** @internal */
 export const GetEventMetricsMeasuresEnum2$inboundSchema: z.ZodNativeEnum<
@@ -346,12 +398,7 @@ export const GetEventMetricsRequest$inboundSchema: z.ZodType<
   z.ZodTypeDef,
   unknown
 > = z.object({
-  "time[start]": z.string().datetime({ offset: true }).transform(v =>
-    new Date(v)
-  ),
-  "time[end]": z.string().datetime({ offset: true }).transform(v =>
-    new Date(v)
-  ),
+  time: z.lazy(() => GetEventMetricsTime$inboundSchema),
   granularity: z.string().optional(),
   measures: z.union([
     GetEventMetricsMeasuresEnum1$inboundSchema,
@@ -367,8 +414,6 @@ export const GetEventMetricsRequest$inboundSchema: z.ZodType<
   "filters[tenant_id]": z.union([z.string(), z.array(z.string())]).optional(),
 }).transform((v) => {
   return remap$(v, {
-    "time[start]": "timeStart",
-    "time[end]": "timeEnd",
     "filters[topic]": "filtersTopic",
     "filters[destination_id]": "filtersDestinationId",
     "filters[tenant_id]": "filtersTenantId",
@@ -376,8 +421,7 @@ export const GetEventMetricsRequest$inboundSchema: z.ZodType<
 });
 /** @internal */
 export type GetEventMetricsRequest$Outbound = {
-  "time[start]": string;
-  "time[end]": string;
+  time: GetEventMetricsTime$Outbound;
   granularity?: string | undefined;
   measures: string | Array<string>;
   dimensions?: string | Array<string> | undefined;
@@ -392,8 +436,7 @@ export const GetEventMetricsRequest$outboundSchema: z.ZodType<
   z.ZodTypeDef,
   GetEventMetricsRequest
 > = z.object({
-  timeStart: z.date().transform(v => v.toISOString()),
-  timeEnd: z.date().transform(v => v.toISOString()),
+  time: z.lazy(() => GetEventMetricsTime$outboundSchema),
   granularity: z.string().optional(),
   measures: z.union([
     GetEventMetricsMeasuresEnum1$outboundSchema,
@@ -408,8 +451,6 @@ export const GetEventMetricsRequest$outboundSchema: z.ZodType<
   filtersTenantId: z.union([z.string(), z.array(z.string())]).optional(),
 }).transform((v) => {
   return remap$(v, {
-    timeStart: "time[start]",
-    timeEnd: "time[end]",
     filtersTopic: "filters[topic]",
     filtersDestinationId: "filters[destination_id]",
     filtersTenantId: "filters[tenant_id]",

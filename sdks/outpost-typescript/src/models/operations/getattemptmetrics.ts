@@ -10,6 +10,20 @@ import { Result as SafeParseResult } from "../../types/fp.js";
 import * as components from "../components/index.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 
+/**
+ * Time range for the metrics query.
+ */
+export type GetAttemptMetricsTime = {
+  /**
+   * Start of the time range (inclusive). ISO 8601 timestamp.
+   */
+  start: Date;
+  /**
+   * End of the time range (exclusive). ISO 8601 timestamp.
+   */
+  end: Date;
+};
+
 export const GetAttemptMetricsMeasuresEnum2 = {
   Count: "count",
   SuccessfulCount: "successful_count",
@@ -149,13 +163,9 @@ export type GetAttemptMetricsFiltersTenantId = string | Array<string>;
 
 export type GetAttemptMetricsRequest = {
   /**
-   * Start of the time range (inclusive). ISO 8601 timestamp.
+   * Time range for the metrics query.
    */
-  timeStart: Date;
-  /**
-   * End of the time range (exclusive). ISO 8601 timestamp.
-   */
-  timeEnd: Date;
+  time: GetAttemptMetricsTime;
   /**
    * Time bucketing granularity. Pattern: `<number><unit>`.
    *
@@ -213,6 +223,48 @@ export type GetAttemptMetricsRequest = {
    */
   filtersTenantId?: string | Array<string> | undefined;
 };
+
+/** @internal */
+export const GetAttemptMetricsTime$inboundSchema: z.ZodType<
+  GetAttemptMetricsTime,
+  z.ZodTypeDef,
+  unknown
+> = z.object({
+  start: z.string().datetime({ offset: true }).transform(v => new Date(v)),
+  end: z.string().datetime({ offset: true }).transform(v => new Date(v)),
+});
+/** @internal */
+export type GetAttemptMetricsTime$Outbound = {
+  start: string;
+  end: string;
+};
+
+/** @internal */
+export const GetAttemptMetricsTime$outboundSchema: z.ZodType<
+  GetAttemptMetricsTime$Outbound,
+  z.ZodTypeDef,
+  GetAttemptMetricsTime
+> = z.object({
+  start: z.date().transform(v => v.toISOString()),
+  end: z.date().transform(v => v.toISOString()),
+});
+
+export function getAttemptMetricsTimeToJSON(
+  getAttemptMetricsTime: GetAttemptMetricsTime,
+): string {
+  return JSON.stringify(
+    GetAttemptMetricsTime$outboundSchema.parse(getAttemptMetricsTime),
+  );
+}
+export function getAttemptMetricsTimeFromJSON(
+  jsonString: string,
+): SafeParseResult<GetAttemptMetricsTime, SDKValidationError> {
+  return safeParse(
+    jsonString,
+    (x) => GetAttemptMetricsTime$inboundSchema.parse(JSON.parse(x)),
+    `Failed to parse 'GetAttemptMetricsTime' from JSON`,
+  );
+}
 
 /** @internal */
 export const GetAttemptMetricsMeasuresEnum2$inboundSchema: z.ZodNativeEnum<
@@ -609,12 +661,7 @@ export const GetAttemptMetricsRequest$inboundSchema: z.ZodType<
   z.ZodTypeDef,
   unknown
 > = z.object({
-  "time[start]": z.string().datetime({ offset: true }).transform(v =>
-    new Date(v)
-  ),
-  "time[end]": z.string().datetime({ offset: true }).transform(v =>
-    new Date(v)
-  ),
+  time: z.lazy(() => GetAttemptMetricsTime$inboundSchema),
   granularity: z.string().optional(),
   measures: z.union([
     GetAttemptMetricsMeasuresEnum1$inboundSchema,
@@ -642,8 +689,6 @@ export const GetAttemptMetricsRequest$inboundSchema: z.ZodType<
   "filters[tenant_id]": z.union([z.string(), z.array(z.string())]).optional(),
 }).transform((v) => {
   return remap$(v, {
-    "time[start]": "timeStart",
-    "time[end]": "timeEnd",
     "filters[destination_id]": "filtersDestinationId",
     "filters[destination_type]": "filtersDestinationType",
     "filters[topic]": "filtersTopic",
@@ -656,8 +701,7 @@ export const GetAttemptMetricsRequest$inboundSchema: z.ZodType<
 });
 /** @internal */
 export type GetAttemptMetricsRequest$Outbound = {
-  "time[start]": string;
-  "time[end]": string;
+  time: GetAttemptMetricsTime$Outbound;
   granularity?: string | undefined;
   measures: string | Array<string>;
   dimensions?: string | Array<string> | undefined;
@@ -677,8 +721,7 @@ export const GetAttemptMetricsRequest$outboundSchema: z.ZodType<
   z.ZodTypeDef,
   GetAttemptMetricsRequest
 > = z.object({
-  timeStart: z.date().transform(v => v.toISOString()),
-  timeEnd: z.date().transform(v => v.toISOString()),
+  time: z.lazy(() => GetAttemptMetricsTime$outboundSchema),
   granularity: z.string().optional(),
   measures: z.union([
     GetAttemptMetricsMeasuresEnum1$outboundSchema,
@@ -704,8 +747,6 @@ export const GetAttemptMetricsRequest$outboundSchema: z.ZodType<
   filtersTenantId: z.union([z.string(), z.array(z.string())]).optional(),
 }).transform((v) => {
   return remap$(v, {
-    timeStart: "time[start]",
-    timeEnd: "time[end]",
     filtersDestinationId: "filters[destination_id]",
     filtersDestinationType: "filters[destination_type]",
     filtersTopic: "filters[topic]",

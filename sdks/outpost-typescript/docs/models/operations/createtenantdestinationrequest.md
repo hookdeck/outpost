@@ -8,19 +8,16 @@ import { CreateTenantDestinationRequest } from "@hookdeck/outpost-sdk/models/ope
 let value: CreateTenantDestinationRequest = {
   tenantId: "<id>",
   body: {
-    type: "aws_s3",
+    type: "gcp_pubsub",
     topics: "*",
     config: {
-      bucket: "my-bucket",
-      region: "us-east-1",
-      keyTemplate:
-        "join('/', [time.year, time.month, time.day, metadata.\"event-id\", '.json'])",
-      storageClass: "STANDARD",
+      projectId: "my-project-123",
+      topic: "events-topic",
+      endpoint: "pubsub.googleapis.com:443",
     },
     credentials: {
-      key: "AKIAIOSFODNN7EXAMPLE",
-      secret: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
-      session: "AQoDYXdzEPT//////////wEXAMPLE...",
+      serviceAccountJson:
+        "{\"type\":\"service_account\",\"project_id\":\"my-project\",\"private_key_id\":\"key123\",\"private_key\":\"-----BEGIN PRIVATE KEY-----\\n...\\n-----END PRIVATE KEY-----\\n\",\"client_email\":\"my-service@my-project.iam.gserviceaccount.com\"}",
     },
   },
 };

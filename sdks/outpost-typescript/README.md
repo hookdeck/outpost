@@ -221,7 +221,6 @@ run();
 
 * [list](docs/sdks/attempts/README.md#list) - List Attempts
 * [get](docs/sdks/attempts/README.md#get) - Get Attempt
-* [retry](docs/sdks/attempts/README.md#retry) - Retry Event Delivery
 
 ### [Configuration](docs/sdks/configuration/README.md)
 
@@ -257,6 +256,10 @@ run();
 ### [Publish](docs/sdks/publish/README.md)
 
 * [event](docs/sdks/publish/README.md#event) - Publish Event
+
+### [Retry](docs/sdks/retry/README.md)
+
+* [retry](docs/sdks/retry/README.md#retry) - Retry Event Delivery
 
 ### [Schemas](docs/sdks/schemas/README.md)
 
@@ -296,7 +299,6 @@ To read more about standalone functions, check [FUNCTIONS.md](./FUNCTIONS.md).
 
 - [`attemptsGet`](docs/sdks/attempts/README.md#get) - Get Attempt
 - [`attemptsList`](docs/sdks/attempts/README.md#list) - List Attempts
-- [`attemptsRetry`](docs/sdks/attempts/README.md#retry) - Retry Event Delivery
 - [`configurationGetManagedConfig`](docs/sdks/configuration/README.md#getmanagedconfig) - Get Managed Configuration
 - [`configurationUpdateManagedConfig`](docs/sdks/configuration/README.md#updatemanagedconfig) - Update Managed Configuration
 - [`destinationsCreate`](docs/sdks/destinations/README.md#create) - Create Destination
@@ -314,6 +316,7 @@ To read more about standalone functions, check [FUNCTIONS.md](./FUNCTIONS.md).
 - [`metricsGetAttemptMetrics`](docs/sdks/metrics/README.md#getattemptmetrics) - Get Attempt Metrics
 - [`metricsGetEventMetrics`](docs/sdks/metrics/README.md#geteventmetrics) - Get Event Metrics
 - [`publishEvent`](docs/sdks/publish/README.md#event) - Publish Event
+- [`retryRetry`](docs/sdks/retry/README.md#retry) - Retry Event Delivery
 - [`schemasGetDestinationType`](docs/sdks/schemas/README.md#getdestinationtype) - Get Destination Type Schema
 - [`schemasListDestinationTypes`](docs/sdks/schemas/README.md#listdestinationtypes) - List Destination Type Schemas
 - [`tenantsDelete`](docs/sdks/tenants/README.md#delete) - Delete Tenant

@@ -24,13 +24,13 @@ import {
  */
 export type EventPaginatedResult = {
   /**
-   * Array of event objects.
-   */
-  models?: Array<Event> | undefined;
-  /**
    * Cursor-based pagination metadata for list responses.
    */
   pagination?: SeekPagination | undefined;
+  /**
+   * Array of event objects.
+   */
+  models?: Array<Event> | undefined;
 };
 
 /** @internal */
@@ -39,13 +39,13 @@ export const EventPaginatedResult$inboundSchema: z.ZodType<
   z.ZodTypeDef,
   unknown
 > = z.object({
-  models: z.array(Event$inboundSchema).optional(),
   pagination: SeekPagination$inboundSchema.optional(),
+  models: z.array(Event$inboundSchema).optional(),
 });
 /** @internal */
 export type EventPaginatedResult$Outbound = {
-  models?: Array<Event$Outbound> | undefined;
   pagination?: SeekPagination$Outbound | undefined;
+  models?: Array<Event$Outbound> | undefined;
 };
 
 /** @internal */
@@ -54,8 +54,8 @@ export const EventPaginatedResult$outboundSchema: z.ZodType<
   z.ZodTypeDef,
   EventPaginatedResult
 > = z.object({
-  models: z.array(Event$outboundSchema).optional(),
   pagination: SeekPagination$outboundSchema.optional(),
+  models: z.array(Event$outboundSchema).optional(),
 });
 
 export function eventPaginatedResultToJSON(

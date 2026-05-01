@@ -8,6 +8,13 @@ Paginated list of attempts.
 import { AttemptPaginatedResult } from "@hookdeck/outpost-sdk/models/components";
 
 let value: AttemptPaginatedResult = {
+  pagination: {
+    orderBy: "created_at",
+    dir: "desc",
+    limit: 100,
+    next: "MTcwNDA2NzIwMA==",
+    prev: null,
+  },
   models: [
     {
       id: "atm_123",
@@ -58,13 +65,6 @@ let value: AttemptPaginatedResult = {
       },
     },
   ],
-  pagination: {
-    orderBy: "created_at",
-    dir: "desc",
-    limit: 100,
-    next: "MTcwNDA2NzIwMA==",
-    prev: null,
-  },
 };
 ```
 
@@ -72,5 +72,5 @@ let value: AttemptPaginatedResult = {
 
 | Field                                                                  | Type                                                                   | Required                                                               | Description                                                            |
 | ---------------------------------------------------------------------- | ---------------------------------------------------------------------- | ---------------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| `models`                                                               | [components.Attempt](../../models/components/attempt.md)[]             | :heavy_minus_sign:                                                     | Array of attempt objects.                                              |
 | `pagination`                                                           | [components.SeekPagination](../../models/components/seekpagination.md) | :heavy_minus_sign:                                                     | Cursor-based pagination metadata for list responses.                   |
+| `models`                                                               | [components.Attempt](../../models/components/attempt.md)[]             | :heavy_minus_sign:                                                     | Array of attempt objects.                                              |

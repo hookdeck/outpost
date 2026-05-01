@@ -10,7 +10,7 @@ import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 
 export type PublishRequest = {
   /**
-   * Optional. A unique identifier for the event. If not provided, a UUID will be generated. A stable id enables publish idempotency (see `duplicate` in the response) and is the value receivers should use to deduplicate webhook deliveries — by default sent as the `X-Outpost-Event-Id` header (prefix configurable).
+   * Optional. A unique identifier for the event. If not provided, a ID will be generated.
    */
   id?: string | undefined;
   /**

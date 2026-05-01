@@ -1,13 +1,13 @@
-# Tls
+# RabbitMQConfigTls
 
 Whether to use TLS connection (amqps). Defaults to "false".
 
 ## Example Usage
 
 ```typescript
-import { Tls } from "@hookdeck/outpost-sdk/models/components";
+import { RabbitMQConfigTls } from "@hookdeck/outpost-sdk/models/components";
 
-let value: Tls = "false";
+let value: RabbitMQConfigTls = "false";
 ```
 
 ## Values

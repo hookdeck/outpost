@@ -43,6 +43,12 @@ import {
   DestinationUpdateHookdeck$outboundSchema,
 } from "./destinationupdatehookdeck.js";
 import {
+  DestinationUpdateKafka,
+  DestinationUpdateKafka$inboundSchema,
+  DestinationUpdateKafka$Outbound,
+  DestinationUpdateKafka$outboundSchema,
+} from "./destinationupdatekafka.js";
+import {
   DestinationUpdateRabbitMQ,
   DestinationUpdateRabbitMQ$inboundSchema,
   DestinationUpdateRabbitMQ$Outbound,
@@ -57,13 +63,14 @@ import {
 
 export type DestinationUpdate =
   | DestinationUpdateWebhook
-  | DestinationUpdateAWSSQS
-  | DestinationUpdateRabbitMQ
   | DestinationUpdateHookdeck
+  | DestinationUpdateAWSSQS
   | DestinationUpdateAWSKinesis
-  | DestinationUpdateAzureServiceBus
   | DestinationUpdateAwss3
-  | DestinationUpdateGCPPubSub;
+  | DestinationUpdateAzureServiceBus
+  | DestinationUpdateGCPPubSub
+  | DestinationUpdateRabbitMQ
+  | DestinationUpdateKafka;
 
 /** @internal */
 export const DestinationUpdate$inboundSchema: z.ZodType<
@@ -72,24 +79,26 @@ export const DestinationUpdate$inboundSchema: z.ZodType<
   unknown
 > = z.union([
   DestinationUpdateWebhook$inboundSchema,
-  DestinationUpdateAWSSQS$inboundSchema,
-  DestinationUpdateRabbitMQ$inboundSchema,
   DestinationUpdateHookdeck$inboundSchema,
+  DestinationUpdateAWSSQS$inboundSchema,
   DestinationUpdateAWSKinesis$inboundSchema,
-  DestinationUpdateAzureServiceBus$inboundSchema,
   DestinationUpdateAwss3$inboundSchema,
+  DestinationUpdateAzureServiceBus$inboundSchema,
   DestinationUpdateGCPPubSub$inboundSchema,
+  DestinationUpdateRabbitMQ$inboundSchema,
+  DestinationUpdateKafka$inboundSchema,
 ]);
 /** @internal */
 export type DestinationUpdate$Outbound =
   | DestinationUpdateWebhook$Outbound
-  | DestinationUpdateAWSSQS$Outbound
-  | DestinationUpdateRabbitMQ$Outbound
   | DestinationUpdateHookdeck$Outbound
+  | DestinationUpdateAWSSQS$Outbound
   | DestinationUpdateAWSKinesis$Outbound
-  | DestinationUpdateAzureServiceBus$Outbound
   | DestinationUpdateAwss3$Outbound
-  | DestinationUpdateGCPPubSub$Outbound;
+  | DestinationUpdateAzureServiceBus$Outbound
+  | DestinationUpdateGCPPubSub$Outbound
+  | DestinationUpdateRabbitMQ$Outbound
+  | DestinationUpdateKafka$Outbound;
 
 /** @internal */
 export const DestinationUpdate$outboundSchema: z.ZodType<
@@ -98,13 +107,14 @@ export const DestinationUpdate$outboundSchema: z.ZodType<
   DestinationUpdate
 > = z.union([
   DestinationUpdateWebhook$outboundSchema,
-  DestinationUpdateAWSSQS$outboundSchema,
-  DestinationUpdateRabbitMQ$outboundSchema,
   DestinationUpdateHookdeck$outboundSchema,
+  DestinationUpdateAWSSQS$outboundSchema,
   DestinationUpdateAWSKinesis$outboundSchema,
-  DestinationUpdateAzureServiceBus$outboundSchema,
   DestinationUpdateAwss3$outboundSchema,
+  DestinationUpdateAzureServiceBus$outboundSchema,
   DestinationUpdateGCPPubSub$outboundSchema,
+  DestinationUpdateRabbitMQ$outboundSchema,
+  DestinationUpdateKafka$outboundSchema,
 ]);
 
 export function destinationUpdateToJSON(
