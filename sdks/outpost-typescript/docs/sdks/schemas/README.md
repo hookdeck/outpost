@@ -2,7 +2,8 @@
 
 ## Overview
 
-Operations for retrieving destination type schemas.
+Destination types describe the available event delivery targets and their configuration schemas. Use these endpoints to render UI forms and list available destination types with their configuration schemas.
+
 
 ### Available Operations
 

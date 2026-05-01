@@ -79,21 +79,9 @@ export type ListEventsRequest = {
    */
   topic?: string | Array<string> | undefined;
   /**
-   * Filter events with time >= value (RFC3339 or YYYY-MM-DD format).
+   * Filter events by time range using comparison operators.
    */
-  timeGte?: Date | undefined;
-  /**
-   * Filter events with time <= value (RFC3339 or YYYY-MM-DD format).
-   */
-  timeLte?: Date | undefined;
-  /**
-   * Filter events with time > value (RFC3339 or YYYY-MM-DD format).
-   */
-  timeGt?: Date | undefined;
-  /**
-   * Filter events with time < value (RFC3339 or YYYY-MM-DD format).
-   */
-  timeLt?: Date | undefined;
+  time?: components.Operator | undefined;
   /**
    * Number of items per page (default 100, max 1000).
    */
@@ -274,14 +262,7 @@ export const ListEventsRequest$inboundSchema: z.ZodType<
   tenant_id: z.union([z.string(), z.array(z.string())]).optional(),
   destination_id: z.union([z.string(), z.array(z.string())]).optional(),
   topic: z.union([z.string(), z.array(z.string())]).optional(),
-  "time[gte]": z.string().datetime({ offset: true }).transform(v => new Date(v))
-    .optional(),
-  "time[lte]": z.string().datetime({ offset: true }).transform(v => new Date(v))
-    .optional(),
-  "time[gt]": z.string().datetime({ offset: true }).transform(v => new Date(v))
-    .optional(),
-  "time[lt]": z.string().datetime({ offset: true }).transform(v => new Date(v))
-    .optional(),
+  time: components.Operator$inboundSchema.optional(),
   limit: z.number().int().default(100),
   next: z.string().optional(),
   prev: z.string().optional(),
@@ -291,10 +272,6 @@ export const ListEventsRequest$inboundSchema: z.ZodType<
   return remap$(v, {
     "tenant_id": "tenantId",
     "destination_id": "destinationId",
-    "time[gte]": "timeGte",
-    "time[lte]": "timeLte",
-    "time[gt]": "timeGt",
-    "time[lt]": "timeLt",
     "order_by": "orderBy",
   });
 });
@@ -304,10 +281,7 @@ export type ListEventsRequest$Outbound = {
   tenant_id?: string | Array<string> | undefined;
   destination_id?: string | Array<string> | undefined;
   topic?: string | Array<string> | undefined;
-  "time[gte]"?: string | undefined;
-  "time[lte]"?: string | undefined;
-  "time[gt]"?: string | undefined;
-  "time[lt]"?: string | undefined;
+  time?: components.Operator$Outbound | undefined;
   limit: number;
   next?: string | undefined;
   prev?: string | undefined;
@@ -325,10 +299,7 @@ export const ListEventsRequest$outboundSchema: z.ZodType<
   tenantId: z.union([z.string(), z.array(z.string())]).optional(),
   destinationId: z.union([z.string(), z.array(z.string())]).optional(),
   topic: z.union([z.string(), z.array(z.string())]).optional(),
-  timeGte: z.date().transform(v => v.toISOString()).optional(),
-  timeLte: z.date().transform(v => v.toISOString()).optional(),
-  timeGt: z.date().transform(v => v.toISOString()).optional(),
-  timeLt: z.date().transform(v => v.toISOString()).optional(),
+  time: components.Operator$outboundSchema.optional(),
   limit: z.number().int().default(100),
   next: z.string().optional(),
   prev: z.string().optional(),
@@ -338,10 +309,6 @@ export const ListEventsRequest$outboundSchema: z.ZodType<
   return remap$(v, {
     tenantId: "tenant_id",
     destinationId: "destination_id",
-    timeGte: "time[gte]",
-    timeLte: "time[lte]",
-    timeGt: "time[gt]",
-    timeLt: "time[lt]",
     orderBy: "order_by",
   });
 });

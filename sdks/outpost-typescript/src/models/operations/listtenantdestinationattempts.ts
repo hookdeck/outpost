@@ -94,21 +94,9 @@ export type ListTenantDestinationAttemptsRequest = {
    */
   topic?: string | Array<string> | undefined;
   /**
-   * Filter attempts by event time >= value (RFC3339 or YYYY-MM-DD format).
+   * Filter attempts by event time range using comparison operators.
    */
-  timeGte?: Date | undefined;
-  /**
-   * Filter attempts by event time <= value (RFC3339 or YYYY-MM-DD format).
-   */
-  timeLte?: Date | undefined;
-  /**
-   * Filter attempts by event time > value (RFC3339 or YYYY-MM-DD format).
-   */
-  timeGt?: Date | undefined;
-  /**
-   * Filter attempts by event time < value (RFC3339 or YYYY-MM-DD format).
-   */
-  timeLt?: Date | undefined;
+  time?: components.Operator | undefined;
   /**
    * Number of items per page (default 100, max 1000).
    */
@@ -298,14 +286,7 @@ export const ListTenantDestinationAttemptsRequest$inboundSchema: z.ZodType<
   event_id: z.union([z.string(), z.array(z.string())]).optional(),
   status: ListTenantDestinationAttemptsStatus$inboundSchema.optional(),
   topic: z.union([z.string(), z.array(z.string())]).optional(),
-  "time[gte]": z.string().datetime({ offset: true }).transform(v => new Date(v))
-    .optional(),
-  "time[lte]": z.string().datetime({ offset: true }).transform(v => new Date(v))
-    .optional(),
-  "time[gt]": z.string().datetime({ offset: true }).transform(v => new Date(v))
-    .optional(),
-  "time[lt]": z.string().datetime({ offset: true }).transform(v => new Date(v))
-    .optional(),
+  time: components.Operator$inboundSchema.optional(),
   limit: z.number().int().default(100),
   next: z.string().optional(),
   prev: z.string().optional(),
@@ -317,10 +298,6 @@ export const ListTenantDestinationAttemptsRequest$inboundSchema: z.ZodType<
     "tenant_id": "tenantId",
     "destination_id": "destinationId",
     "event_id": "eventId",
-    "time[gte]": "timeGte",
-    "time[lte]": "timeLte",
-    "time[gt]": "timeGt",
-    "time[lt]": "timeLt",
     "order_by": "orderBy",
   });
 });
@@ -331,10 +308,7 @@ export type ListTenantDestinationAttemptsRequest$Outbound = {
   event_id?: string | Array<string> | undefined;
   status?: string | undefined;
   topic?: string | Array<string> | undefined;
-  "time[gte]"?: string | undefined;
-  "time[lte]"?: string | undefined;
-  "time[gt]"?: string | undefined;
-  "time[lt]"?: string | undefined;
+  time?: components.Operator$Outbound | undefined;
   limit: number;
   next?: string | undefined;
   prev?: string | undefined;
@@ -354,10 +328,7 @@ export const ListTenantDestinationAttemptsRequest$outboundSchema: z.ZodType<
   eventId: z.union([z.string(), z.array(z.string())]).optional(),
   status: ListTenantDestinationAttemptsStatus$outboundSchema.optional(),
   topic: z.union([z.string(), z.array(z.string())]).optional(),
-  timeGte: z.date().transform(v => v.toISOString()).optional(),
-  timeLte: z.date().transform(v => v.toISOString()).optional(),
-  timeGt: z.date().transform(v => v.toISOString()).optional(),
-  timeLt: z.date().transform(v => v.toISOString()).optional(),
+  time: components.Operator$outboundSchema.optional(),
   limit: z.number().int().default(100),
   next: z.string().optional(),
   prev: z.string().optional(),
@@ -369,10 +340,6 @@ export const ListTenantDestinationAttemptsRequest$outboundSchema: z.ZodType<
     tenantId: "tenant_id",
     destinationId: "destination_id",
     eventId: "event_id",
-    timeGte: "time[gte]",
-    timeLte: "time[lte]",
-    timeGt: "time[gt]",
-    timeLt: "time[lt]",
     orderBy: "order_by",
   });
 });

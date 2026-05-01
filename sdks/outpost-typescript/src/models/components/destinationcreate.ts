@@ -43,6 +43,12 @@ import {
   DestinationCreateHookdeck$outboundSchema,
 } from "./destinationcreatehookdeck.js";
 import {
+  DestinationCreateKafka,
+  DestinationCreateKafka$inboundSchema,
+  DestinationCreateKafka$Outbound,
+  DestinationCreateKafka$outboundSchema,
+} from "./destinationcreatekafka.js";
+import {
   DestinationCreateRabbitMQ,
   DestinationCreateRabbitMQ$inboundSchema,
   DestinationCreateRabbitMQ$Outbound,
@@ -63,7 +69,8 @@ export type DestinationCreate =
   | DestinationCreateAWSKinesis
   | DestinationCreateAzureServiceBus
   | DestinationCreateAwss3
-  | DestinationCreateGCPPubSub;
+  | DestinationCreateGCPPubSub
+  | DestinationCreateKafka;
 
 /** @internal */
 export const DestinationCreate$inboundSchema: z.ZodType<
@@ -79,6 +86,7 @@ export const DestinationCreate$inboundSchema: z.ZodType<
   DestinationCreateAzureServiceBus$inboundSchema,
   DestinationCreateAwss3$inboundSchema,
   DestinationCreateGCPPubSub$inboundSchema,
+  DestinationCreateKafka$inboundSchema,
 ]);
 /** @internal */
 export type DestinationCreate$Outbound =
@@ -89,7 +97,8 @@ export type DestinationCreate$Outbound =
   | DestinationCreateAWSKinesis$Outbound
   | DestinationCreateAzureServiceBus$Outbound
   | DestinationCreateAwss3$Outbound
-  | DestinationCreateGCPPubSub$Outbound;
+  | DestinationCreateGCPPubSub$Outbound
+  | DestinationCreateKafka$Outbound;
 
 /** @internal */
 export const DestinationCreate$outboundSchema: z.ZodType<
@@ -105,6 +114,7 @@ export const DestinationCreate$outboundSchema: z.ZodType<
   DestinationCreateAzureServiceBus$outboundSchema,
   DestinationCreateAwss3$outboundSchema,
   DestinationCreateGCPPubSub$outboundSchema,
+  DestinationCreateKafka$outboundSchema,
 ]);
 
 export function destinationCreateToJSON(

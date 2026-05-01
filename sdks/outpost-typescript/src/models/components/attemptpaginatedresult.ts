@@ -24,13 +24,13 @@ import {
  */
 export type AttemptPaginatedResult = {
   /**
-   * Array of attempt objects.
-   */
-  models?: Array<Attempt> | undefined;
-  /**
    * Cursor-based pagination metadata for list responses.
    */
   pagination?: SeekPagination | undefined;
+  /**
+   * Array of attempt objects.
+   */
+  models?: Array<Attempt> | undefined;
 };
 
 /** @internal */
@@ -39,13 +39,13 @@ export const AttemptPaginatedResult$inboundSchema: z.ZodType<
   z.ZodTypeDef,
   unknown
 > = z.object({
-  models: z.array(Attempt$inboundSchema).optional(),
   pagination: SeekPagination$inboundSchema.optional(),
+  models: z.array(Attempt$inboundSchema).optional(),
 });
 /** @internal */
 export type AttemptPaginatedResult$Outbound = {
-  models?: Array<Attempt$Outbound> | undefined;
   pagination?: SeekPagination$Outbound | undefined;
+  models?: Array<Attempt$Outbound> | undefined;
 };
 
 /** @internal */
@@ -54,8 +54,8 @@ export const AttemptPaginatedResult$outboundSchema: z.ZodType<
   z.ZodTypeDef,
   AttemptPaginatedResult
 > = z.object({
-  models: z.array(Attempt$outboundSchema).optional(),
   pagination: SeekPagination$outboundSchema.optional(),
+  models: z.array(Attempt$outboundSchema).optional(),
 });
 
 export function attemptPaginatedResultToJSON(

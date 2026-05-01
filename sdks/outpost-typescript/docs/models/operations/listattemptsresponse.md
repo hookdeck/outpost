@@ -7,6 +7,13 @@ import { ListAttemptsResponse } from "@hookdeck/outpost-sdk/models/operations";
 
 let value: ListAttemptsResponse = {
   result: {
+    pagination: {
+      orderBy: "created_at",
+      dir: "desc",
+      limit: 100,
+      next: "MTcwNDA2NzIwMA==",
+      prev: null,
+    },
     models: [
       {
         id: "atm_123",
@@ -57,13 +64,6 @@ let value: ListAttemptsResponse = {
         },
       },
     ],
-    pagination: {
-      orderBy: "created_at",
-      dir: "desc",
-      limit: 100,
-      next: "MTcwNDA2NzIwMA==",
-      prev: null,
-    },
   },
 };
 ```

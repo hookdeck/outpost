@@ -20,8 +20,16 @@ let value: UpdateTenantDestinationRequest = {
         },
       },
     },
+    config: {
+      streamName: "my-data-stream",
+      region: "us-east-1",
+      endpoint: "https://kinesis.us-east-1.amazonaws.com",
+      partitionKeyTemplate: "data.\"user_id\"",
+    },
     credentials: {
-      token: "hd_token_...",
+      key: "AKIAIOSFODNN7EXAMPLE",
+      secret: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+      session: "AQoDYXdzEPT//////////wEXAMPLE...",
     },
     deliveryMetadata: {
       "app-id": "my-app",

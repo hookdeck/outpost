@@ -21,10 +21,10 @@ export class Tenants extends ClientSDK {
    * @remarks
    * List all tenants with cursor-based pagination.
    *
-   * **Requirements:** This endpoint requires Redis with RediSearch module (e.g., `redis/redis-stack-server`).
+   * > When self-hosting this endpoint requires Redis with RediSearch module (e.g., `redis/redis-stack-server`).
    * If RediSearch is not available, this endpoint returns `501 Not Implemented`.
    *
-   * When authenticated with a Tenant JWT, returns only the authenticated tenant. Pagination is not used in this case.
+   * When authenticated with a Tenant JWT, returns only the authenticated tenant.
    */
   async list(
     request: operations.ListTenantsRequest,

@@ -15,7 +15,6 @@ import { MCPScope } from "./scopes.js";
 import { createRegisterTool } from "./tools.js";
 import { tool$attemptsGet } from "./tools/attemptsGet.js";
 import { tool$attemptsList } from "./tools/attemptsList.js";
-import { tool$attemptsRetry } from "./tools/attemptsRetry.js";
 import { tool$configurationGetManagedConfig } from "./tools/configurationGetManagedConfig.js";
 import { tool$configurationUpdateManagedConfig } from "./tools/configurationUpdateManagedConfig.js";
 import { tool$destinationsCreate } from "./tools/destinationsCreate.js";
@@ -33,6 +32,7 @@ import { tool$healthCheck } from "./tools/healthCheck.js";
 import { tool$metricsGetAttemptMetrics } from "./tools/metricsGetAttemptMetrics.js";
 import { tool$metricsGetEventMetrics } from "./tools/metricsGetEventMetrics.js";
 import { tool$publishEvent } from "./tools/publishEvent.js";
+import { tool$retryRetry } from "./tools/retryRetry.js";
 import { tool$schemasGetDestinationType } from "./tools/schemasGetDestinationType.js";
 import { tool$schemasListDestinationTypes } from "./tools/schemasListDestinationTypes.js";
 import { tool$tenantsDelete } from "./tools/tenantsDelete.js";
@@ -53,7 +53,7 @@ export function createMCPServer(deps: {
 }) {
   const server = new McpServer({
     name: "Outpost",
-    version: "1.0.1",
+    version: "1.1.0",
   });
 
   const client = new OutpostCore({
@@ -96,7 +96,6 @@ export function createMCPServer(deps: {
   tool(tool$eventsGet);
   tool(tool$attemptsList);
   tool(tool$attemptsGet);
-  tool(tool$attemptsRetry);
   tool(tool$destinationsList);
   tool(tool$destinationsCreate);
   tool(tool$destinationsGet);
@@ -107,6 +106,7 @@ export function createMCPServer(deps: {
   tool(tool$destinationsListAttempts);
   tool(tool$destinationsGetAttempt);
   tool(tool$publishEvent);
+  tool(tool$retryRetry);
   tool(tool$schemasListDestinationTypes);
   tool(tool$schemasGetDestinationType);
   tool(tool$topicsList);

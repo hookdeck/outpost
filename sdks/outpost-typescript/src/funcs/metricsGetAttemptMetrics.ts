@@ -3,7 +3,11 @@
  */
 
 import { OutpostCore } from "../core.js";
-import { encodeFormQuery } from "../lib/encodings.js";
+import {
+  encodeDeepObjectQuery,
+  encodeFormQuery,
+  queryJoin,
+} from "../lib/encodings.js";
 import { matchStatusCode } from "../lib/http.js";
 import * as M from "../lib/matchers.js";
 import { compactMap } from "../lib/primitives.js";
@@ -107,21 +111,24 @@ async function $do(
 
   const path = pathToFunc("/metrics/attempts")();
 
-  const query = encodeFormQuery({
-    "dimensions": payload.dimensions,
-    "filters[attempt_number]": payload["filters[attempt_number]"],
-    "filters[code]": payload["filters[code]"],
-    "filters[destination_id]": payload["filters[destination_id]"],
-    "filters[destination_type]": payload["filters[destination_type]"],
-    "filters[manual]": payload["filters[manual]"],
-    "filters[status]": payload["filters[status]"],
-    "filters[tenant_id]": payload["filters[tenant_id]"],
-    "filters[topic]": payload["filters[topic]"],
-    "granularity": payload.granularity,
-    "measures": payload.measures,
-    "time[end]": payload["time[end]"],
-    "time[start]": payload["time[start]"],
-  });
+  const query = queryJoin(
+    encodeDeepObjectQuery({
+      "time": payload.time,
+    }),
+    encodeFormQuery({
+      "dimensions": payload.dimensions,
+      "filters[attempt_number]": payload["filters[attempt_number]"],
+      "filters[code]": payload["filters[code]"],
+      "filters[destination_id]": payload["filters[destination_id]"],
+      "filters[destination_type]": payload["filters[destination_type]"],
+      "filters[manual]": payload["filters[manual]"],
+      "filters[status]": payload["filters[status]"],
+      "filters[tenant_id]": payload["filters[tenant_id]"],
+      "filters[topic]": payload["filters[topic]"],
+      "granularity": payload.granularity,
+      "measures": payload.measures,
+    }),
+  );
 
   const headers = new Headers(compactMap({
     Accept: "application/json",

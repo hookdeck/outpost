@@ -4,7 +4,6 @@
 
 import { attemptsGet } from "../funcs/attemptsGet.js";
 import { attemptsList } from "../funcs/attemptsList.js";
-import { attemptsRetry } from "../funcs/attemptsRetry.js";
 import { ClientSDK, RequestOptions } from "../lib/sdks.js";
 import * as components from "../models/components/index.js";
 import * as operations from "../models/operations/index.js";
@@ -54,26 +53,6 @@ export class Attempts extends ClientSDK {
       attemptId,
       tenantId,
       include,
-      options,
-    ));
-  }
-
-  /**
-   * Retry Event Delivery
-   *
-   * @remarks
-   * Triggers a retry for delivering an event to a destination. The event must exist and the destination must be enabled and match the event's topic.
-   *
-   * When authenticated with a Tenant JWT, only events belonging to that tenant can be retried.
-   * When authenticated with Admin API Key, events from any tenant can be retried.
-   */
-  async retry(
-    request: components.RetryRequest,
-    options?: RequestOptions,
-  ): Promise<components.SuccessResponse> {
-    return unwrapAsync(attemptsRetry(
-      this,
-      request,
       options,
     ));
   }

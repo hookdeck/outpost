@@ -10,6 +10,7 @@ import { Events } from "./events.js";
 import { Health } from "./health.js";
 import { Metrics } from "./metrics.js";
 import { Publish } from "./publish.js";
+import { Retry } from "./retry.js";
 import { Schemas } from "./schemas.js";
 import { Tenants } from "./tenants.js";
 import { Topics } from "./topics.js";
@@ -48,6 +49,11 @@ export class Outpost extends ClientSDK {
   private _publish?: Publish;
   get publish(): Publish {
     return (this._publish ??= new Publish(this._options));
+  }
+
+  private _retry?: Retry;
+  get retry(): Retry {
+    return (this._retry ??= new Retry(this._options));
   }
 
   private _schemas?: Schemas;

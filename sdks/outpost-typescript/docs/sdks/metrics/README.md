@@ -34,8 +34,10 @@ const outpost = new Outpost({
 
 async function run() {
   const result = await outpost.metrics.getEventMetrics({
-    timeStart: new Date("2026-03-02T00:00:00Z"),
-    timeEnd: new Date("2026-03-03T00:00:00Z"),
+    time: {
+      start: new Date("2026-03-02T00:00:00Z"),
+      end: new Date("2026-03-03T00:00:00Z"),
+    },
     granularity: "1h",
     measures: [
       "count",
@@ -64,8 +66,10 @@ const outpost = new OutpostCore({
 
 async function run() {
   const res = await metricsGetEventMetrics(outpost, {
-    timeStart: new Date("2026-03-02T00:00:00Z"),
-    timeEnd: new Date("2026-03-03T00:00:00Z"),
+    time: {
+      start: new Date("2026-03-02T00:00:00Z"),
+      end: new Date("2026-03-03T00:00:00Z"),
+    },
     granularity: "1h",
     measures: [
       "count",
@@ -131,8 +135,10 @@ const outpost = new Outpost({
 
 async function run() {
   const result = await outpost.metrics.getAttemptMetrics({
-    timeStart: new Date("2026-03-02T00:00:00Z"),
-    timeEnd: new Date("2026-03-03T00:00:00Z"),
+    time: {
+      start: new Date("2026-03-02T00:00:00Z"),
+      end: new Date("2026-03-03T00:00:00Z"),
+    },
     granularity: "1h",
     measures: [
       "count",
@@ -163,8 +169,10 @@ const outpost = new OutpostCore({
 
 async function run() {
   const res = await metricsGetAttemptMetrics(outpost, {
-    timeStart: new Date("2026-03-02T00:00:00Z"),
-    timeEnd: new Date("2026-03-03T00:00:00Z"),
+    time: {
+      start: new Date("2026-03-02T00:00:00Z"),
+      end: new Date("2026-03-03T00:00:00Z"),
+    },
     granularity: "1h",
     measures: [
       "count",
