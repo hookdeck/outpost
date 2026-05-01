@@ -4,15 +4,6 @@
 
 Attempts represent individual delivery attempts of events to destinations. The attempts API provides an attempt-centric view of event processing.
 
-Each attempt contains:
-- `id`: Unique attempt identifier
-- `status`: success or failed
-- `time`: Timestamp of the attempt
-- `code`: HTTP status code or error code
-- `attempt`: Attempt number (1 for first attempt, 2+ for retries)
-- `event`: Associated event (ID or included object)
-- `destination`: Destination ID
-
 Use the `include` query parameter to include related data:
 - `include=event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
 - `include=event.data`: Include full event with payload data
@@ -24,7 +15,6 @@ Use the `include` query parameter to include related data:
 
 * [list](#list) - List Attempts
 * [get](#get) - Get Attempt
-* [retry](#retry) - Retry Event Delivery
 
 ## list
 
@@ -151,55 +141,6 @@ with Outpost(
 ### Response
 
 **[models.Attempt](../../models/attempt.md)**
-
-### Errors
-
-| Error Type                 | Status Code                | Content Type               |
-| -------------------------- | -------------------------- | -------------------------- |
-| errors.UnauthorizedError   | 401                        | application/json           |
-| errors.NotFoundError       | 404                        | application/json           |
-| errors.InternalServerError | 500                        | application/json           |
-| errors.APIError            | 4XX, 5XX                   | \*/\*                      |
-
-## retry
-
-Triggers a retry for delivering an event to a destination. The event must exist and the destination must be enabled and match the event's topic.
-
-When authenticated with a Tenant JWT, only events belonging to that tenant can be retried.
-When authenticated with Admin API Key, events from any tenant can be retried.
-
-
-### Example Usage
-
-<!-- UsageSnippet language="python" operationID="retryEvent" method="post" path="/retry" example="RetryAccepted" -->
-```python
-from outpost_sdk import Outpost
-
-
-with Outpost(
-    api_key="<YOUR_BEARER_TOKEN_HERE>",
-) as outpost:
-
-    res = outpost.attempts.retry(request={
-        "event_id": "evt_123",
-        "destination_id": "des_456",
-    })
-
-    # Handle response
-    print(res)
-
-```
-
-### Parameters
-
-| Parameter                                                           | Type                                                                | Required                                                            | Description                                                         |
-| ------------------------------------------------------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| `request`                                                           | [models.RetryRequest](../../models/retryrequest.md)                 | :heavy_check_mark:                                                  | The request object to use for the request.                          |
-| `retries`                                                           | [Optional[utils.RetryConfig]](../../models/utils/retryconfig.md)    | :heavy_minus_sign:                                                  | Configuration to override the default retry behavior of the client. |
-
-### Response
-
-**[models.SuccessResponse](../../models/successresponse.md)**
 
 ### Errors
 

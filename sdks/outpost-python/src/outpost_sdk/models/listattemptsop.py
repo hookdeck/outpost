@@ -6,7 +6,7 @@ from .attemptpaginatedresult import (
     AttemptPaginatedResultTypedDict,
 )
 from .destinationtype import DestinationType
-from datetime import datetime
+from .operator import Operator, OperatorTypedDict
 from enum import Enum
 from outpost_sdk.types import BaseModel, UNSET_SENTINEL
 from outpost_sdk.utils import FieldMetadata, QueryParamMetadata
@@ -138,14 +138,8 @@ class ListAttemptsRequestTypedDict(TypedDict):
     r"""Filter attempts by status."""
     topic: NotRequired[ListAttemptsTopicTypedDict]
     r"""Filter attempts by event topic(s). Use bracket notation for multiple values (e.g., `topic[0]=user.created&topic[1]=user.updated`)."""
-    time_gte: NotRequired[datetime]
-    r"""Filter attempts by event time >= value (RFC3339 or YYYY-MM-DD format)."""
-    time_lte: NotRequired[datetime]
-    r"""Filter attempts by event time <= value (RFC3339 or YYYY-MM-DD format)."""
-    time_gt: NotRequired[datetime]
-    r"""Filter attempts by event time > value (RFC3339 or YYYY-MM-DD format)."""
-    time_lt: NotRequired[datetime]
-    r"""Filter attempts by event time < value (RFC3339 or YYYY-MM-DD format)."""
+    time: NotRequired[OperatorTypedDict]
+    r"""Filter attempts by event time range using comparison operators."""
     limit: NotRequired[int]
     r"""Number of items per page (default 100, max 1000)."""
     next_cursor: NotRequired[str]
@@ -207,33 +201,11 @@ class ListAttemptsRequest(BaseModel):
     ] = None
     r"""Filter attempts by event topic(s). Use bracket notation for multiple values (e.g., `topic[0]=user.created&topic[1]=user.updated`)."""
 
-    time_gte: Annotated[
-        Optional[datetime],
-        pydantic.Field(alias="time[gte]"),
-        FieldMetadata(query=QueryParamMetadata(style="form", explode=True)),
+    time: Annotated[
+        Optional[Operator],
+        FieldMetadata(query=QueryParamMetadata(style="deepObject", explode=True)),
     ] = None
-    r"""Filter attempts by event time >= value (RFC3339 or YYYY-MM-DD format)."""
-
-    time_lte: Annotated[
-        Optional[datetime],
-        pydantic.Field(alias="time[lte]"),
-        FieldMetadata(query=QueryParamMetadata(style="form", explode=True)),
-    ] = None
-    r"""Filter attempts by event time <= value (RFC3339 or YYYY-MM-DD format)."""
-
-    time_gt: Annotated[
-        Optional[datetime],
-        pydantic.Field(alias="time[gt]"),
-        FieldMetadata(query=QueryParamMetadata(style="form", explode=True)),
-    ] = None
-    r"""Filter attempts by event time > value (RFC3339 or YYYY-MM-DD format)."""
-
-    time_lt: Annotated[
-        Optional[datetime],
-        pydantic.Field(alias="time[lt]"),
-        FieldMetadata(query=QueryParamMetadata(style="form", explode=True)),
-    ] = None
-    r"""Filter attempts by event time < value (RFC3339 or YYYY-MM-DD format)."""
+    r"""Filter attempts by event time range using comparison operators."""
 
     limit: Annotated[
         Optional[int],
@@ -290,10 +262,7 @@ class ListAttemptsRequest(BaseModel):
                 "destination_type",
                 "status",
                 "topic",
-                "time[gte]",
-                "time[lte]",
-                "time[gt]",
-                "time[lt]",
+                "time",
                 "limit",
                 "next_cursor",
                 "prev_cursor",

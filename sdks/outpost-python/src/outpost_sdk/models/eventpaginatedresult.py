@@ -12,24 +12,24 @@ from typing_extensions import NotRequired, TypedDict
 class EventPaginatedResultTypedDict(TypedDict):
     r"""Paginated list of events."""
 
-    models: NotRequired[List[EventTypedDict]]
-    r"""Array of event objects."""
     pagination: NotRequired[SeekPaginationTypedDict]
     r"""Cursor-based pagination metadata for list responses."""
+    models: NotRequired[List[EventTypedDict]]
+    r"""Array of event objects."""
 
 
 class EventPaginatedResult(BaseModel):
     r"""Paginated list of events."""
 
-    models: Optional[List[Event]] = None
-    r"""Array of event objects."""
-
     pagination: Optional[SeekPagination] = None
     r"""Cursor-based pagination metadata for list responses."""
 
+    models: Optional[List[Event]] = None
+    r"""Array of event objects."""
+
     @model_serializer(mode="wrap")
     def serialize_model(self, handler):
-        optional_fields = set(["models", "pagination"])
+        optional_fields = set(["pagination", "models"])
         serialized = handler(self)
         m = {}
 

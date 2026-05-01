@@ -2,7 +2,8 @@
 
 ## Overview
 
-Operations related to event history.
+An event represents a payload published to Outpost. Events are matched against all destinations whose topic subscriptions match the event topic, then delivered.
+
 
 ### Available Operations
 

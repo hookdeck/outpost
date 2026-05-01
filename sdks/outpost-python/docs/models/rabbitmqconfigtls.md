@@ -1,13 +1,13 @@
-# TLS
+# RabbitMQConfigTLS
 
 Whether to use TLS connection (amqps). Defaults to "false".
 
 ## Example Usage
 
 ```python
-from outpost_sdk.models import TLS
+from outpost_sdk.models import RabbitMQConfigTLS
 
-value = TLS.TRUE
+value = RabbitMQConfigTLS.TRUE
 ```
 
 

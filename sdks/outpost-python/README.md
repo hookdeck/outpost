@@ -191,7 +191,6 @@ with Outpost(
 
 * [list](docs/sdks/attempts/README.md#list) - List Attempts
 * [get](docs/sdks/attempts/README.md#get) - Get Attempt
-* [retry](docs/sdks/attempts/README.md#retry) - Retry Event Delivery
 
 ### [Configuration](docs/sdks/configuration/README.md)
 
@@ -227,6 +226,10 @@ with Outpost(
 ### [Publish](docs/sdks/publish/README.md)
 
 * [event](docs/sdks/publish/README.md#event) - Publish Event
+
+### [Retry](docs/sdks/retry/README.md)
+
+* [retry](docs/sdks/retry/README.md#retry) - Retry Event Delivery
 
 ### [Schemas](docs/sdks/schemas/README.md)
 

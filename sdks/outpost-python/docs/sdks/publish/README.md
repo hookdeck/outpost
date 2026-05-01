@@ -2,7 +2,7 @@
 
 ## Overview
 
-Operations for publishing events.
+Use the Publish endpoint to send events into Outpost. Events are matched against all destinations whose topic subscriptions and filters match the event. Requires Admin API Key.
 
 ### Available Operations
 
@@ -17,7 +17,6 @@ Publishes an event to the specified topic, potentially routed to a specific dest
 <!-- UsageSnippet language="python" operationID="publishEvent" method="post" path="/publish" -->
 ```python
 from outpost_sdk import Outpost
-from outpost_sdk.utils import parse_datetime
 
 
 with Outpost(
@@ -25,11 +24,10 @@ with Outpost(
 ) as outpost:
 
     res = outpost.publish.event(request={
-        "id": "evt_custom_123",
-        "tenant_id": "<TENANT_ID>",
-        "destination_id": "<DESTINATION_ID>",
-        "topic": "topic.name",
-        "time": parse_datetime("2024-01-15T10:30:00Z"),
+        "id": "evt_abc123xyz789",
+        "tenant_id": "tenant_123",
+        "topic": "user.created",
+        "eligible_for_retry": True,
         "metadata": {
             "source": "crm",
         },

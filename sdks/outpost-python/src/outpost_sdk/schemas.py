@@ -9,7 +9,7 @@ from typing import Any, List, Mapping, Optional
 
 
 class Schemas(BaseSDK):
-    r"""Operations for retrieving destination type schemas."""
+    r"""Destination types describe the available event delivery targets and their configuration schemas. Use these endpoints to render UI forms and list available destination types with their configuration schemas."""
 
     def list_destination_types(
         self,

@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="color-scheme" content="light dark">
-    <title>SDK Changelog - go</title>
+    <title>SDK Changelog - python</title>
     <style>
         :root {
             --bg-color: #ffffff;
@@ -95,80 +95,80 @@
         }
     </style>
 </head>
-<body><h2 id="go-sdk-changes">Go SDK Changes:</h2>
+<body><h2 id="python-sdk-changes">Python SDK Changes:</h2>
 
 <ul>
-<li><code>Outpost.Destinations.Create()</code>:
+<li><code>outpost.destinations.create()</code>:
 
 <ul>
-<li><code>request.Body.union(kafka)</code> <strong>Added</strong></li>
+<li><code>request.body.union(kafka)</code> <strong>Added</strong></li>
 <li><code>response.union(kafka)</code> <strong>Added</strong> (Breaking ⚠️)</li>
 </ul></li>
-<li><code>Outpost.Destinations.Disable()</code>:  <code>response.union(kafka)</code> <strong>Added</strong> (Breaking ⚠️)</li>
-<li><code>Outpost.Events.List()</code>: <code>request.Request</code> <strong>Changed</strong> (Breaking ⚠️)
+<li><code>outpost.destinations.disable()</code>:  <code>response.union(kafka)</code> <strong>Added</strong> (Breaking ⚠️)</li>
+<li><code>outpost.events.list()</code>: <code>request</code> <strong>Changed</strong> (Breaking ⚠️)
 
 <ul>
-<li><code>Time[gt]</code> <strong>Removed</strong> (Breaking ⚠️)</li>
-<li><code>Time[gte]</code> <strong>Removed</strong> (Breaking ⚠️)</li>
-<li><code>Time[lt]</code> <strong>Removed</strong> (Breaking ⚠️)</li>
-<li><code>Time[lte]</code> <strong>Removed</strong> (Breaking ⚠️)</li>
-<li><code>Time</code> <strong>Added</strong></li>
+<li><code>time[gt]</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>time[gte]</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>time[lt]</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>time[lte]</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>time</code> <strong>Added</strong></li>
 </ul></li>
-<li><code>Outpost.Attempts.List()</code>:
+<li><code>outpost.attempts.list()</code>:
 
 <ul>
-<li><code>request.Request</code> <strong>Changed</strong> (Breaking ⚠️)
+<li><code>request</code> <strong>Changed</strong> (Breaking ⚠️)
 
 <ul>
-<li><code>Time[gt]</code> <strong>Removed</strong> (Breaking ⚠️)</li>
-<li><code>Time[gte]</code> <strong>Removed</strong> (Breaking ⚠️)</li>
-<li><code>Time[lt]</code> <strong>Removed</strong> (Breaking ⚠️)</li>
-<li><code>Time[lte]</code> <strong>Removed</strong> (Breaking ⚠️)</li>
-<li><code>Time</code> <strong>Added</strong></li>
+<li><code>time[gt]</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>time[gte]</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>time[lt]</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>time[lte]</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>time</code> <strong>Added</strong></li>
 </ul></li>
-<li><code>response.Models[].Destination.union(kafka)</code> <strong>Added</strong> (Breaking ⚠️)</li>
+<li><code>response.models[].destination.union(kafka)</code> <strong>Added</strong> (Breaking ⚠️)</li>
 </ul></li>
-<li><code>Outpost.Attempts.Get()</code>:  <code>response.Destination.union(kafka)</code> <strong>Added</strong> (Breaking ⚠️)</li>
-<li><code>Outpost.Destinations.List()</code>:  <code>response.[].union(kafka)</code> <strong>Added</strong> (Breaking ⚠️)</li>
-<li><code>Outpost.Metrics.GetAttemptMetrics()</code>: <code>request.Request</code> <strong>Changed</strong> (Breaking ⚠️)
+<li><code>outpost.attempts.get()</code>:  <code>response.destination.union(kafka)</code> <strong>Added</strong> (Breaking ⚠️)</li>
+<li><code>outpost.destinations.list()</code>:  <code>response.[].union(kafka)</code> <strong>Added</strong> (Breaking ⚠️)</li>
+<li><code>outpost.metrics.get_attempt_metrics()</code>: <code>request</code> <strong>Changed</strong> (Breaking ⚠️)
 
 <ul>
-<li><code>Time[end]</code> <strong>Removed</strong> (Breaking ⚠️)</li>
-<li><code>Time[start]</code> <strong>Removed</strong> (Breaking ⚠️)</li>
-<li><code>Time</code> <strong>Added</strong> (Breaking ⚠️)</li>
+<li><code>time[end]</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>time[start]</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>time</code> <strong>Added</strong> (Breaking ⚠️)</li>
 </ul></li>
-<li><code>Outpost.Destinations.Update()</code>:
+<li><code>outpost.destinations.update()</code>:
 
 <ul>
-<li><code>request.Body.union(DestinationUpdateKafka)</code> <strong>Added</strong></li>
+<li><code>request.body.union(DestinationUpdateKafka)</code> <strong>Added</strong></li>
 <li><code>response.union(Destination).union(kafka)</code> <strong>Added</strong> (Breaking ⚠️)</li>
 </ul></li>
-<li><code>Outpost.Metrics.GetEventMetrics()</code>: <code>request.Request</code> <strong>Changed</strong> (Breaking ⚠️)
+<li><code>outpost.metrics.get_event_metrics()</code>: <code>request</code> <strong>Changed</strong> (Breaking ⚠️)
 
 <ul>
-<li><code>Time[end]</code> <strong>Removed</strong> (Breaking ⚠️)</li>
-<li><code>Time[start]</code> <strong>Removed</strong> (Breaking ⚠️)</li>
-<li><code>Time</code> <strong>Added</strong> (Breaking ⚠️)</li>
+<li><code>time[end]</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>time[start]</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>time</code> <strong>Added</strong> (Breaking ⚠️)</li>
 </ul></li>
-<li><code>Outpost.Destinations.Enable()</code>:  <code>response.union(kafka)</code> <strong>Added</strong> (Breaking ⚠️)</li>
-<li><code>Outpost.Destinations.Get()</code>:  <code>response.union(kafka)</code> <strong>Added</strong> (Breaking ⚠️)</li>
-<li><code>Outpost.Destinations.ListAttempts()</code>:
+<li><code>outpost.destinations.enable()</code>:  <code>response.union(kafka)</code> <strong>Added</strong> (Breaking ⚠️)</li>
+<li><code>outpost.destinations.get()</code>:  <code>response.union(kafka)</code> <strong>Added</strong> (Breaking ⚠️)</li>
+<li><code>outpost.destinations.list_attempts()</code>:
 
 <ul>
-<li><code>request.Request</code> <strong>Changed</strong> (Breaking ⚠️)
+<li><code>request</code> <strong>Changed</strong> (Breaking ⚠️)
 
 <ul>
-<li><code>Time[gt]</code> <strong>Removed</strong> (Breaking ⚠️)</li>
-<li><code>Time[gte]</code> <strong>Removed</strong> (Breaking ⚠️)</li>
-<li><code>Time[lt]</code> <strong>Removed</strong> (Breaking ⚠️)</li>
-<li><code>Time[lte]</code> <strong>Removed</strong> (Breaking ⚠️)</li>
-<li><code>Time</code> <strong>Added</strong></li>
+<li><code>time[gt]</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>time[gte]</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>time[lt]</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>time[lte]</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>time</code> <strong>Added</strong></li>
 </ul></li>
-<li><code>response.Models[].Destination.union(kafka)</code> <strong>Added</strong> (Breaking ⚠️)</li>
+<li><code>response.models[].destination.union(kafka)</code> <strong>Added</strong> (Breaking ⚠️)</li>
 </ul></li>
-<li><code>Outpost.Destinations.GetAttempt()</code>:  <code>response.Destination.union(kafka)</code> <strong>Added</strong> (Breaking ⚠️)</li>
-<li><code>Outpost.Retry.Retry()</code>: <strong>Added</strong></li>
-<li><code>Outpost.Attempts.Retry()</code>: <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>outpost.destinations.get_attempt()</code>:  <code>response.destination.union(kafka)</code> <strong>Added</strong> (Breaking ⚠️)</li>
+<li><code>outpost.retry.retry()</code>: <strong>Added</strong></li>
+<li><code>outpost.attempts.retry()</code>: <strong>Removed</strong> (Breaking ⚠️)</li>
 </ul>
 </body>
 </html>

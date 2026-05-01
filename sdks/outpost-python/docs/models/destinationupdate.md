@@ -9,22 +9,16 @@
 value: models.DestinationUpdateWebhook = /* values here */
 ```
 
-### `models.DestinationUpdateAWSSQS`
-
-```python
-value: models.DestinationUpdateAWSSQS = /* values here */
-```
-
-### `models.DestinationUpdateRabbitMQ`
-
-```python
-value: models.DestinationUpdateRabbitMQ = /* values here */
-```
-
 ### `models.DestinationUpdateHookdeck`
 
 ```python
 value: models.DestinationUpdateHookdeck = /* values here */
+```
+
+### `models.DestinationUpdateAWSSQS`
+
+```python
+value: models.DestinationUpdateAWSSQS = /* values here */
 ```
 
 ### `models.DestinationUpdateAWSKinesis`
@@ -33,21 +27,33 @@ value: models.DestinationUpdateHookdeck = /* values here */
 value: models.DestinationUpdateAWSKinesis = /* values here */
 ```
 
-### `models.DestinationUpdateAzureServiceBus`
-
-```python
-value: models.DestinationUpdateAzureServiceBus = /* values here */
-```
-
 ### `models.DestinationUpdateAwss3`
 
 ```python
 value: models.DestinationUpdateAwss3 = /* values here */
 ```
 
+### `models.DestinationUpdateAzureServiceBus`
+
+```python
+value: models.DestinationUpdateAzureServiceBus = /* values here */
+```
+
 ### `models.DestinationUpdateGCPPubSub`
 
 ```python
 value: models.DestinationUpdateGCPPubSub = /* values here */
+```
+
+### `models.DestinationUpdateRabbitMQ`
+
+```python
+value: models.DestinationUpdateRabbitMQ = /* values here */
+```
+
+### `models.DestinationUpdateKafka`
+
+```python
+value: models.DestinationUpdateKafka = /* values here */
 ```
 

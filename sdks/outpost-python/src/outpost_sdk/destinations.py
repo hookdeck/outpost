@@ -12,24 +12,6 @@ from typing import Any, Dict, List, Mapping, Optional, Union, cast
 class Destinations(BaseSDK):
     r"""Destinations are the endpoints where events are sent. Each destination is associated with a tenant and can be configured to receive specific event topics.
 
-    ```json
-    {
-    \"id\": \"des_12345\", // Control plane generated ID or user provided ID
-    \"type\": \"webhooks\", // Type of the destination
-    \"topics\": [\"user.created\", \"user.updated\"], // Topics of events this destination is eligible for
-    \"config\": {
-    // Destination type specific configuration. Schema of depends on type
-    \"url\": \"https://example.com/webhooks/user\"
-    },
-    \"credentials\": {
-    // Destination type specific credentials. AES encrypted. Schema depends on type
-    \"secret\": \"some***********\"
-    },
-    \"disabled_at\": null, // null or ISO date if disabled
-    \"created_at\": \"2024-01-01T00:00:00Z\" // Date the destination was created
-    }
-    ```
-
     The `topics` array can contain either a list of topics or a wildcard `*` implying that all topics are supported. If you do not wish to implement topics for your application, you set all destination topics to `*`.
 
     By default all destination `credentials` are obfuscated and the values cannot be read. This does not apply to the `webhook` type destination secret and each destination can expose their own obfuscation logic.
@@ -1579,8 +1561,8 @@ class Destinations(BaseSDK):
             results = JSONPath("$.models").parse(body)
             if len(results) == 0 or len(results[0]) == 0:
                 return None
-            limit = request.limit if isinstance(request.limit, int) else 100
-            if len(results[0]) < limit:
+            limit_ = request.limit if isinstance(request.limit, int) else 100
+            if len(results[0]) < limit_:
                 return None
 
             return self.list_attempts(
@@ -1590,10 +1572,7 @@ class Destinations(BaseSDK):
                     event_id=request.event_id,
                     status=request.status,
                     topic=request.topic,
-                    time_gte=request.time_gte,
-                    time_lte=request.time_lte,
-                    time_gt=request.time_gt,
-                    time_lt=request.time_lt,
+                    time=request.time,
                     limit=request.limit,
                     next_cursor=request.next_cursor,
                     prev_cursor=request.prev_cursor,
@@ -1724,8 +1703,8 @@ class Destinations(BaseSDK):
             results = JSONPath("$.models").parse(body)
             if len(results) == 0 or len(results[0]) == 0:
                 return None
-            limit = request.limit if isinstance(request.limit, int) else 100
-            if len(results[0]) < limit:
+            limit_ = request.limit if isinstance(request.limit, int) else 100
+            if len(results[0]) < limit_:
                 return None
 
             return self.list_attempts(
@@ -1735,10 +1714,7 @@ class Destinations(BaseSDK):
                     event_id=request.event_id,
                     status=request.status,
                     topic=request.topic,
-                    time_gte=request.time_gte,
-                    time_lte=request.time_lte,
-                    time_gt=request.time_gt,
-                    time_lt=request.time_lt,
+                    time=request.time,
                     limit=request.limit,
                     next_cursor=request.next_cursor,
                     prev_cursor=request.prev_cursor,

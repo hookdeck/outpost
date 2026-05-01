@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Mapping, Optional, Union, cast
 
 
 class Events(BaseSDK):
-    r"""Operations related to event history."""
+    r"""An event represents a payload published to Outpost. Events are matched against all destinations whose topic subscriptions match the event topic, then delivered."""
 
     def list(
         self,
@@ -103,8 +103,8 @@ class Events(BaseSDK):
             results = JSONPath("$.models").parse(body)
             if len(results) == 0 or len(results[0]) == 0:
                 return None
-            limit = request.limit if isinstance(request.limit, int) else 100
-            if len(results[0]) < limit:
+            limit_ = request.limit if isinstance(request.limit, int) else 100
+            if len(results[0]) < limit_:
                 return None
 
             return self.list(
@@ -113,10 +113,7 @@ class Events(BaseSDK):
                     tenant_id=request.tenant_id,
                     destination_id=request.destination_id,
                     topic=request.topic,
-                    time_gte=request.time_gte,
-                    time_lte=request.time_lte,
-                    time_gt=request.time_gt,
-                    time_lt=request.time_lt,
+                    time=request.time,
                     limit=request.limit,
                     next_cursor=request.next_cursor,
                     prev_cursor=request.prev_cursor,
@@ -245,8 +242,8 @@ class Events(BaseSDK):
             results = JSONPath("$.models").parse(body)
             if len(results) == 0 or len(results[0]) == 0:
                 return None
-            limit = request.limit if isinstance(request.limit, int) else 100
-            if len(results[0]) < limit:
+            limit_ = request.limit if isinstance(request.limit, int) else 100
+            if len(results[0]) < limit_:
                 return None
 
             return self.list(
@@ -255,10 +252,7 @@ class Events(BaseSDK):
                     tenant_id=request.tenant_id,
                     destination_id=request.destination_id,
                     topic=request.topic,
-                    time_gte=request.time_gte,
-                    time_lte=request.time_lte,
-                    time_gt=request.time_gt,
-                    time_lt=request.time_lt,
+                    time=request.time,
                     limit=request.limit,
                     next_cursor=request.next_cursor,
                     prev_cursor=request.prev_cursor,

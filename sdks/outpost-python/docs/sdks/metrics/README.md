@@ -35,8 +35,10 @@ with Outpost(
 ) as outpost:
 
     res = outpost.metrics.get_event_metrics(request={
-        "time_start": parse_datetime("2026-03-02T00:00:00Z"),
-        "time_end": parse_datetime("2026-03-03T00:00:00Z"),
+        "time": {
+            "start": parse_datetime("2026-03-02T00:00:00Z"),
+            "end": parse_datetime("2026-03-03T00:00:00Z"),
+        },
         "granularity": "1h",
         "measures": [
             models.GetEventMetricsMeasuresEnum2.COUNT,
@@ -96,8 +98,10 @@ with Outpost(
 ) as outpost:
 
     res = outpost.metrics.get_attempt_metrics(request={
-        "time_start": parse_datetime("2026-03-02T00:00:00Z"),
-        "time_end": parse_datetime("2026-03-03T00:00:00Z"),
+        "time": {
+            "start": parse_datetime("2026-03-02T00:00:00Z"),
+            "end": parse_datetime("2026-03-03T00:00:00Z"),
+        },
         "granularity": "1h",
         "measures": [
             models.GetAttemptMetricsMeasuresEnum2.COUNT,
