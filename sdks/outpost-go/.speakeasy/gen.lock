@@ -1,19 +1,19 @@
 lockVersion: 2.0.0
 id: f0627709-5a00-43ac-8678-ca716d6f379c
 management:
-  docChecksum: 88d132e5a9f3a59b0d69dfc356cff826
+  docChecksum: 08dffbff624e58e156ce8af8063d1fc0
   docVersion: 0.0.1
   speakeasyVersion: 1.761.10
   generationVersion: 2.881.16
-  releaseVersion: 1.1.0
-  configChecksum: 8ff08bbcff6e6ac000f7c87aabd4b3f0
+  releaseVersion: 1.2.0
+  configChecksum: a164b90c8d5de746ec645718e2da64bc
   repoURL: https://github.com/hookdeck/outpost.git
   repoSubDirectory: sdks/outpost-go
   installationURL: https://github.com/hookdeck/outpost
 persistentEdits:
-  generation_id: 8524ec9e-e3e3-4992-b3ee-4d923c097473
-  pristine_commit_hash: c39055c31ff36f5b33936ec7f124a2fb76144581
-  pristine_tree_hash: e44d49f88933bca53392f4b810880dafe2b82fd8
+  generation_id: 45c053a0-b24a-494a-abbd-47693a547860
+  pristine_commit_hash: 611ab17be4d0f1fd50a2d26a9ce2a6e41aa94849
+  pristine_tree_hash: c5d69971d55b7216ef3d42809098273cea7e1840
 features:
   go:
     additionalDependencies: 0.1.0
@@ -27,6 +27,7 @@ features:
     globalSecurityCallbacks: 0.1.0
     globalSecurityFlattening: 0.1.0
     globalServerURLs: 2.83.1
+    groups: 2.81.3
     intellisenseMarkdownSupport: 0.1.0
     nameOverrides: 2.81.4
     nullables: 0.2.1
@@ -42,8 +43,8 @@ trackedFiles:
     pristine_git_object: e6a994416d0f527912d2d272e2583458f4fc9bcb
   USAGE.md:
     id: 3aed33ce6e6f
-    last_write_checksum: sha1:b1f4fd1c06315a25e49c82958dbdaae7e0415fd1
-    pristine_git_object: 302b1c4952b4902140fcd2a6b900b887733b3255
+    last_write_checksum: sha1:75acc38403ba7132929b569badc8ef3d889464c1
+    pristine_git_object: 11e83e8fe93b1d800a77442a237ee175f0974898
   attempts.go:
     id: f21bf72dadf3
     last_write_checksum: sha1:72bcbd65b797fbce1f77300703b05974ae8117b0
@@ -916,14 +917,10 @@ trackedFiles:
     id: a8545d964e21
     last_write_checksum: sha1:f900c8f086e95bac77904cbb4fb06c3fa87aaa5a
     pristine_git_object: 8affd3c29daba3f78810eb63597518d8e76e2bda
-  docs/sdks/publish/README.md:
-    id: 370ef5537c93
-    last_write_checksum: sha1:9f1f455e4c4ebd30615188fe8d0185cefc8928c5
-    pristine_git_object: 86c6683247b121a3c8a5e7a2cea64374b22a6561
-  docs/sdks/retry/README.md:
-    id: e8a22d588af3
-    last_write_checksum: sha1:0eb2350e1cd54d7b4d79ad3f9e5687170afb2eb2
-    pristine_git_object: 90af18c4f5ff92dbbfc3e37048704d4cefacddfa
+  docs/sdks/outpost/README.md:
+    id: f9b868668835
+    last_write_checksum: sha1:ac17e2449e507035258aca017b7f44802d476f1c
+    pristine_git_object: 8d5d7755825c17d200586bbd959e584c841a1fe9
   docs/sdks/schemas/README.md:
     id: 26a0abac640e
     last_write_checksum: sha1:f67032c95f46e10f56e2a775d0984697459ea6ff
@@ -1470,16 +1467,8 @@ trackedFiles:
     pristine_git_object: e6e5a01c6e721e879e24a38a1f97e3e27d4686d4
   outpost.go:
     id: 7aebc57e3f81
-    last_write_checksum: sha1:c6c1b2a6aaed4dbe30d0de29ca5dbed99119f6db
-    pristine_git_object: a38144599428e1be0d972463642874d7cbda17bd
-  publish.go:
-    id: b4cd78c909e0
-    last_write_checksum: sha1:c7d0d997d0f6aea6d0db606b0b909a1887391f91
-    pristine_git_object: c9de8fc2896d0615467bba5a7abe6cee868607d3
-  retry.go:
-    id: ece4b563b597
-    last_write_checksum: sha1:729d4ea42ec6282e4603a635d0dc424ba009935d
-    pristine_git_object: 10be1bd4753d483119e3f48be821a45afcee0778
+    last_write_checksum: sha1:e6fab77ce524637c37fd3e94e85efc361e8740a8
+    pristine_git_object: 4b07b7f831852f5be10b34a33e79be29443754aa
   retry/config.go:
     id: 82d673cb0389
     last_write_checksum: sha1:7f7d96b59a18e95bac847ae09c63bbd911ee8432
@@ -2094,7 +2083,12 @@ examples:
           application/json: {}
 examplesVersion: 1.0.2
 generatedTests: {}
-releaseNotes: "## Go SDK Changes:\n* `Outpost.Destinations.Create()`: \n  *  `request.Body.union(kafka)` **Added**\n  *  `response.union(kafka)` **Added** (Breaking ⚠️)\n* `Outpost.Destinations.Disable()`:  `response.union(kafka)` **Added** (Breaking ⚠️)\n* `Outpost.Events.List()`:  `request.Request` **Changed** (Breaking ⚠️)\n* `Outpost.Attempts.List()`: \n  *  `request.Request` **Changed** (Breaking ⚠️)\n  *  `response.Models[].Destination.union(kafka)` **Added** (Breaking ⚠️)\n* `Outpost.Attempts.Get()`:  `response.Destination.union(kafka)` **Added** (Breaking ⚠️)\n* `Outpost.Destinations.List()`:  `response.[].union(kafka)` **Added** (Breaking ⚠️)\n* `Outpost.Metrics.GetAttemptMetrics()`:  `request.Request` **Changed** (Breaking ⚠️)\n* `Outpost.Destinations.Update()`: \n  *  `request.Body.union(DestinationUpdateKafka)` **Added**\n  *  `response.union(Destination).union(kafka)` **Added** (Breaking ⚠️)\n* `Outpost.Metrics.GetEventMetrics()`:  `request.Request` **Changed** (Breaking ⚠️)\n* `Outpost.Destinations.Enable()`:  `response.union(kafka)` **Added** (Breaking ⚠️)\n* `Outpost.Destinations.Get()`:  `response.union(kafka)` **Added** (Breaking ⚠️)\n* `Outpost.Destinations.ListAttempts()`: \n  *  `request.Request` **Changed** (Breaking ⚠️)\n  *  `response.Models[].Destination.union(kafka)` **Added** (Breaking ⚠️)\n* `Outpost.Destinations.GetAttempt()`:  `response.Destination.union(kafka)` **Added** (Breaking ⚠️)\n* `Outpost.Retry.Retry()`: **Added**\n* `Outpost.Attempts.Retry()`: **Removed** (Breaking ⚠️)\n"
+releaseNotes: |
+  ## Go SDK Changes:
+  * `Outpost.Publish()`: **Added**
+  * `Outpost.Retry()`: **Added**
+  * `Outpost.Publish.Event()`: **Removed** (Breaking ⚠️)
+  * `Outpost.Retry.Retry()`: **Removed** (Breaking ⚠️)
 generatedFiles:
   - .gitattributes
   - /models/apierrors/badrequesterror.go
