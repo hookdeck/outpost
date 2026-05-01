@@ -25,6 +25,10 @@ from .destinationupdatehookdeck import (
     DestinationUpdateHookdeck,
     DestinationUpdateHookdeckTypedDict,
 )
+from .destinationupdatekafka import (
+    DestinationUpdateKafka,
+    DestinationUpdateKafkaTypedDict,
+)
 from .destinationupdaterabbitmq import (
     DestinationUpdateRabbitMQ,
     DestinationUpdateRabbitMQTypedDict,
@@ -41,13 +45,14 @@ DestinationUpdateTypedDict = TypeAliasType(
     "DestinationUpdateTypedDict",
     Union[
         DestinationUpdateWebhookTypedDict,
-        DestinationUpdateAWSSQSTypedDict,
-        DestinationUpdateRabbitMQTypedDict,
         DestinationUpdateHookdeckTypedDict,
+        DestinationUpdateAWSSQSTypedDict,
         DestinationUpdateAWSKinesisTypedDict,
-        DestinationUpdateAzureServiceBusTypedDict,
         DestinationUpdateAwss3TypedDict,
+        DestinationUpdateAzureServiceBusTypedDict,
         DestinationUpdateGCPPubSubTypedDict,
+        DestinationUpdateRabbitMQTypedDict,
+        DestinationUpdateKafkaTypedDict,
     ],
 )
 
@@ -56,12 +61,13 @@ DestinationUpdate = TypeAliasType(
     "DestinationUpdate",
     Union[
         DestinationUpdateWebhook,
-        DestinationUpdateAWSSQS,
-        DestinationUpdateRabbitMQ,
         DestinationUpdateHookdeck,
+        DestinationUpdateAWSSQS,
         DestinationUpdateAWSKinesis,
-        DestinationUpdateAzureServiceBus,
         DestinationUpdateAwss3,
+        DestinationUpdateAzureServiceBus,
         DestinationUpdateGCPPubSub,
+        DestinationUpdateRabbitMQ,
+        DestinationUpdateKafka,
     ],
 )

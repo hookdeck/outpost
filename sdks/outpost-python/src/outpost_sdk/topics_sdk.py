@@ -9,7 +9,7 @@ from typing import Any, List, Mapping, Optional
 
 
 class TopicsSDK(BaseSDK):
-    r"""Operations for retrieving available event topics."""
+    r"""Returns the list of topics configured for this Outpost deployment. Tenants subscribe their destinations to topics from this list. Topics are defined via your configuration file and not a specific Create Topic API."""
 
     def list(
         self,

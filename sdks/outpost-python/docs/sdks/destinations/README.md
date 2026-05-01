@@ -4,24 +4,6 @@
 
 Destinations are the endpoints where events are sent. Each destination is associated with a tenant and can be configured to receive specific event topics.
 
-```json
-{
-  "id": "des_12345", // Control plane generated ID or user provided ID
-  "type": "webhooks", // Type of the destination
-  "topics": ["user.created", "user.updated"], // Topics of events this destination is eligible for
-  "config": {
-    // Destination type specific configuration. Schema of depends on type
-    "url": "https://example.com/webhooks/user"
-  },
-  "credentials": {
-    // Destination type specific credentials. AES encrypted. Schema depends on type
-    "secret": "some***********"
-  },
-  "disabled_at": null, // null or ISO date if disabled
-  "created_at": "2024-01-01T00:00:00Z" // Date the destination was created
-}
-```
-
 The `topics` array can contain either a list of topics or a wildcard `*` implying that all topics are supported. If you do not wish to implement topics for your application, you set all destination topics to `*`.
 
 By default all destination `credentials` are obfuscated and the values cannot be read. This does not apply to the `webhook` type destination secret and each destination can expose their own obfuscation logic.
@@ -87,7 +69,33 @@ with Outpost(
 
 Creates a new destination for the tenant. The request body structure depends on the `type`.
 
-### Example Usage
+### Example Usage: WebhookCreateExample
+
+<!-- UsageSnippet language="python" operationID="createTenantDestination" method="post" path="/tenants/{tenant_id}/destinations" example="WebhookCreateExample" -->
+```python
+from outpost_sdk import Outpost, models
+
+
+with Outpost(
+    api_key="<YOUR_BEARER_TOKEN_HERE>",
+) as outpost:
+
+    res = outpost.destinations.create(tenant_id="<id>", body={
+        "type": models.DestinationCreateWebhookType.WEBHOOK,
+        "topics": [
+            "user.created",
+            "order.shipped",
+        ],
+        "config": {
+            "url": "https://my-service.com/webhook/handler",
+        },
+    })
+
+    # Handle response
+    print(res)
+
+```
+### Example Usage: WebhookCreatedExample
 
 <!-- UsageSnippet language="python" operationID="createTenantDestination" method="post" path="/tenants/{tenant_id}/destinations" example="WebhookCreatedExample" -->
 ```python
@@ -105,7 +113,7 @@ with Outpost(
         "config": {
             "server_url": "localhost:5672",
             "exchange": "my-exchange",
-            "tls": models.TLS.FALSE,
+            "tls": models.RabbitMQConfigTLS.FALSE,
         },
         "credentials": {
             "username": "guest",
@@ -187,7 +195,7 @@ with Outpost(
 
 Updates the configuration of an existing destination. The request body structure depends on the destination's `type`. Type itself cannot be updated. May return an OAuth redirect URL for certain types.
 
-### Example Usage
+### Example Usage: DestinationUpdatedExample
 
 <!-- UsageSnippet language="python" operationID="updateTenantDestination" method="patch" path="/tenants/{tenant_id}/destinations/{destination_id}" example="DestinationUpdatedExample" -->
 ```python
@@ -203,11 +211,35 @@ with Outpost(
         "config": {
             "server_url": "localhost:5672",
             "exchange": "my-exchange",
-            "tls": models.TLS.FALSE,
+            "tls": models.RabbitMQConfigTLS.FALSE,
         },
         "credentials": {
             "username": "guest",
             "password": "guest",
+        },
+    })
+
+    # Handle response
+    print(res)
+
+```
+### Example Usage: WebhookUpdateExample
+
+<!-- UsageSnippet language="python" operationID="updateTenantDestination" method="patch" path="/tenants/{tenant_id}/destinations/{destination_id}" example="WebhookUpdateExample" -->
+```python
+from outpost_sdk import Outpost
+
+
+with Outpost(
+    api_key="<YOUR_BEARER_TOKEN_HERE>",
+) as outpost:
+
+    res = outpost.destinations.update(tenant_id="<id>", destination_id="<id>", body={
+        "topics": [
+            "user.created",
+        ],
+        "config": {
+            "url": "https://my-service.com/webhook/new-handler",
         },
     })
 

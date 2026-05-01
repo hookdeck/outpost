@@ -29,10 +29,10 @@ class Tenants(BaseSDK):
 
         List all tenants with cursor-based pagination.
 
-        **Requirements:** This endpoint requires Redis with RediSearch module (e.g., `redis/redis-stack-server`).
+        > When self-hosting this endpoint requires Redis with RediSearch module (e.g., `redis/redis-stack-server`).
         If RediSearch is not available, this endpoint returns `501 Not Implemented`.
 
-        When authenticated with a Tenant JWT, returns only the authenticated tenant. Pagination is not used in this case.
+        When authenticated with a Tenant JWT, returns only the authenticated tenant.
 
 
         If set, this operation will use `api_key` from the global security.
@@ -109,8 +109,8 @@ class Tenants(BaseSDK):
             results = JSONPath("$.models").parse(body)
             if len(results) == 0 or len(results[0]) == 0:
                 return None
-            limit = request.limit if isinstance(request.limit, int) else 20
-            if len(results[0]) < limit:
+            limit_ = request.limit if isinstance(request.limit, int) else 20
+            if len(results[0]) < limit_:
                 return None
 
             return self.list(
@@ -175,10 +175,10 @@ class Tenants(BaseSDK):
 
         List all tenants with cursor-based pagination.
 
-        **Requirements:** This endpoint requires Redis with RediSearch module (e.g., `redis/redis-stack-server`).
+        > When self-hosting this endpoint requires Redis with RediSearch module (e.g., `redis/redis-stack-server`).
         If RediSearch is not available, this endpoint returns `501 Not Implemented`.
 
-        When authenticated with a Tenant JWT, returns only the authenticated tenant. Pagination is not used in this case.
+        When authenticated with a Tenant JWT, returns only the authenticated tenant.
 
 
         If set, this operation will use `api_key` from the global security.
@@ -255,8 +255,8 @@ class Tenants(BaseSDK):
             results = JSONPath("$.models").parse(body)
             if len(results) == 0 or len(results[0]) == 0:
                 return None
-            limit = request.limit if isinstance(request.limit, int) else 20
-            if len(results[0]) < limit:
+            limit_ = request.limit if isinstance(request.limit, int) else 20
+            if len(results[0]) < limit_:
                 return None
 
             return self.list(

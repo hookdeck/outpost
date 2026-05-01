@@ -9,7 +9,7 @@ from typing import Any, Mapping, Optional, Union, cast
 
 
 class Publish(BaseSDK):
-    r"""Operations for publishing events."""
+    r"""Use the Publish endpoint to send events into Outpost. Events are matched against all destinations whose topic subscriptions and filters match the event. Requires Admin API Key."""
 
     def event(
         self,

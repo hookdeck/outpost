@@ -191,7 +191,6 @@ with Outpost(
 
 * [list](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/attempts/README.md#list) - List Attempts
 * [get](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/attempts/README.md#get) - Get Attempt
-* [retry](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/attempts/README.md#retry) - Retry Event Delivery
 
 ### [Configuration](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/configuration/README.md)
 
@@ -227,6 +226,10 @@ with Outpost(
 ### [Publish](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/publish/README.md)
 
 * [event](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/publish/README.md#event) - Publish Event
+
+### [Retry](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/retry/README.md)
+
+* [retry](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/retry/README.md#retry) - Retry Event Delivery
 
 ### [Schemas](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/schemas/README.md)
 

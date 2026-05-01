@@ -98,6 +98,11 @@ if TYPE_CHECKING:
         DestinationCreateHookdeckType,
         DestinationCreateHookdeckTypedDict,
     )
+    from .destinationcreatekafka import (
+        DestinationCreateKafka,
+        DestinationCreateKafkaType,
+        DestinationCreateKafkaTypedDict,
+    )
     from .destinationcreaterabbitmq import (
         DestinationCreateRabbitMQ,
         DestinationCreateRabbitMQType,
@@ -117,6 +122,11 @@ if TYPE_CHECKING:
         DestinationHookdeck,
         DestinationHookdeckType,
         DestinationHookdeckTypedDict,
+    )
+    from .destinationkafka import (
+        DestinationKafka,
+        DestinationKafkaType,
+        DestinationKafkaTypedDict,
     )
     from .destinationrabbitmq import (
         DestinationRabbitMQ,
@@ -161,6 +171,10 @@ if TYPE_CHECKING:
     from .destinationupdatehookdeck import (
         DestinationUpdateHookdeck,
         DestinationUpdateHookdeckTypedDict,
+    )
+    from .destinationupdatekafka import (
+        DestinationUpdateKafka,
+        DestinationUpdateKafkaTypedDict,
     )
     from .destinationupdaterabbitmq import (
         DestinationUpdateRabbitMQ,
@@ -221,6 +235,8 @@ if TYPE_CHECKING:
         GetAttemptMetricsMeasuresUnionTypedDict,
         GetAttemptMetricsRequest,
         GetAttemptMetricsRequestTypedDict,
+        GetAttemptMetricsTime,
+        GetAttemptMetricsTimeTypedDict,
     )
     from .getattemptop import (
         GetAttemptInclude,
@@ -250,6 +266,8 @@ if TYPE_CHECKING:
         GetEventMetricsMeasuresUnionTypedDict,
         GetEventMetricsRequest,
         GetEventMetricsRequestTypedDict,
+        GetEventMetricsTime,
+        GetEventMetricsTimeTypedDict,
     )
     from .geteventop import GetEventRequest, GetEventRequestTypedDict
     from .gettenantdestinationattemptop import (
@@ -278,6 +296,13 @@ if TYPE_CHECKING:
         WorkersTypedDict,
     )
     from .hookdeckcredentials import HookdeckCredentials, HookdeckCredentialsTypedDict
+    from .kafkaconfig import (
+        KafkaConfig,
+        KafkaConfigTLS,
+        KafkaConfigTypedDict,
+        SaslMechanism,
+    )
+    from .kafkacredentials import KafkaCredentials, KafkaCredentialsTypedDict
     from .listattemptsop import (
         ListAttemptsDestinationID,
         ListAttemptsDestinationIDTypedDict,
@@ -351,10 +376,15 @@ if TYPE_CHECKING:
     from .metricsdatapoint import MetricsDataPoint, MetricsDataPointTypedDict
     from .metricsmetadata import MetricsMetadata, MetricsMetadataTypedDict
     from .metricsresponse import MetricsResponse, MetricsResponseTypedDict
+    from .operator import Operator, OperatorTypedDict
     from .portalredirect import PortalRedirect, PortalRedirectTypedDict
     from .publishrequest import PublishRequest, PublishRequestTypedDict
     from .publishresponse import PublishResponse, PublishResponseTypedDict
-    from .rabbitmqconfig import RabbitMQConfig, RabbitMQConfigTypedDict, TLS
+    from .rabbitmqconfig import (
+        RabbitMQConfig,
+        RabbitMQConfigTLS,
+        RabbitMQConfigTypedDict,
+    )
     from .rabbitmqcredentials import RabbitMQCredentials, RabbitMQCredentialsTypedDict
     from .retryrequest import RetryRequest, RetryRequestTypedDict
     from .security import Security, SecurityTypedDict
@@ -441,6 +471,9 @@ __all__ = [
     "DestinationCreateHookdeck",
     "DestinationCreateHookdeckType",
     "DestinationCreateHookdeckTypedDict",
+    "DestinationCreateKafka",
+    "DestinationCreateKafkaType",
+    "DestinationCreateKafkaTypedDict",
     "DestinationCreateRabbitMQ",
     "DestinationCreateRabbitMQType",
     "DestinationCreateRabbitMQTypedDict",
@@ -454,6 +487,9 @@ __all__ = [
     "DestinationHookdeck",
     "DestinationHookdeckType",
     "DestinationHookdeckTypedDict",
+    "DestinationKafka",
+    "DestinationKafkaType",
+    "DestinationKafkaTypedDict",
     "DestinationRabbitMQ",
     "DestinationRabbitMQType",
     "DestinationRabbitMQTypedDict",
@@ -477,6 +513,8 @@ __all__ = [
     "DestinationUpdateGCPPubSubTypedDict",
     "DestinationUpdateHookdeck",
     "DestinationUpdateHookdeckTypedDict",
+    "DestinationUpdateKafka",
+    "DestinationUpdateKafkaTypedDict",
     "DestinationUpdateRabbitMQ",
     "DestinationUpdateRabbitMQTypedDict",
     "DestinationUpdateTypedDict",
@@ -533,6 +571,8 @@ __all__ = [
     "GetAttemptMetricsMeasuresUnionTypedDict",
     "GetAttemptMetricsRequest",
     "GetAttemptMetricsRequestTypedDict",
+    "GetAttemptMetricsTime",
+    "GetAttemptMetricsTimeTypedDict",
     "GetAttemptRequest",
     "GetAttemptRequestTypedDict",
     "GetDestinationTypeSchemaRequest",
@@ -554,6 +594,8 @@ __all__ = [
     "GetEventMetricsMeasuresUnionTypedDict",
     "GetEventMetricsRequest",
     "GetEventMetricsRequestTypedDict",
+    "GetEventMetricsTime",
+    "GetEventMetricsTimeTypedDict",
     "GetEventRequest",
     "GetEventRequestTypedDict",
     "GetTenantDestinationAttemptInclude",
@@ -574,6 +616,11 @@ __all__ = [
     "HealthCheckStatus2",
     "HookdeckCredentials",
     "HookdeckCredentialsTypedDict",
+    "KafkaConfig",
+    "KafkaConfigTLS",
+    "KafkaConfigTypedDict",
+    "KafkaCredentials",
+    "KafkaCredentialsTypedDict",
     "ListAttemptsDestinationID",
     "ListAttemptsDestinationIDTypedDict",
     "ListAttemptsDestinationType",
@@ -641,6 +688,8 @@ __all__ = [
     "MetricsMetadataTypedDict",
     "MetricsResponse",
     "MetricsResponseTypedDict",
+    "Operator",
+    "OperatorTypedDict",
     "Option",
     "OptionTypedDict",
     "PortalRedirect",
@@ -650,11 +699,13 @@ __all__ = [
     "PublishResponse",
     "PublishResponseTypedDict",
     "RabbitMQConfig",
+    "RabbitMQConfigTLS",
     "RabbitMQConfigTypedDict",
     "RabbitMQCredentials",
     "RabbitMQCredentialsTypedDict",
     "RetryRequest",
     "RetryRequestTypedDict",
+    "SaslMechanism",
     "Security",
     "SecurityTypedDict",
     "SeekPagination",
@@ -664,7 +715,6 @@ __all__ = [
     "Status",
     "SuccessResponse",
     "SuccessResponseTypedDict",
-    "TLS",
     "Tenant",
     "TenantPaginatedResult",
     "TenantPaginatedResultTypedDict",
@@ -761,6 +811,9 @@ _dynamic_imports: dict[str, str] = {
     "DestinationCreateHookdeck": ".destinationcreatehookdeck",
     "DestinationCreateHookdeckType": ".destinationcreatehookdeck",
     "DestinationCreateHookdeckTypedDict": ".destinationcreatehookdeck",
+    "DestinationCreateKafka": ".destinationcreatekafka",
+    "DestinationCreateKafkaType": ".destinationcreatekafka",
+    "DestinationCreateKafkaTypedDict": ".destinationcreatekafka",
     "DestinationCreateRabbitMQ": ".destinationcreaterabbitmq",
     "DestinationCreateRabbitMQType": ".destinationcreaterabbitmq",
     "DestinationCreateRabbitMQTypedDict": ".destinationcreaterabbitmq",
@@ -773,6 +826,9 @@ _dynamic_imports: dict[str, str] = {
     "DestinationHookdeck": ".destinationhookdeck",
     "DestinationHookdeckType": ".destinationhookdeck",
     "DestinationHookdeckTypedDict": ".destinationhookdeck",
+    "DestinationKafka": ".destinationkafka",
+    "DestinationKafkaType": ".destinationkafka",
+    "DestinationKafkaTypedDict": ".destinationkafka",
     "DestinationRabbitMQ": ".destinationrabbitmq",
     "DestinationRabbitMQType": ".destinationrabbitmq",
     "DestinationRabbitMQTypedDict": ".destinationrabbitmq",
@@ -800,6 +856,8 @@ _dynamic_imports: dict[str, str] = {
     "DestinationUpdateGCPPubSubTypedDict": ".destinationupdategcppubsub",
     "DestinationUpdateHookdeck": ".destinationupdatehookdeck",
     "DestinationUpdateHookdeckTypedDict": ".destinationupdatehookdeck",
+    "DestinationUpdateKafka": ".destinationupdatekafka",
+    "DestinationUpdateKafkaTypedDict": ".destinationupdatekafka",
     "DestinationUpdateRabbitMQ": ".destinationupdaterabbitmq",
     "DestinationUpdateRabbitMQTypedDict": ".destinationupdaterabbitmq",
     "DestinationUpdateWebhook": ".destinationupdatewebhook",
@@ -846,6 +904,8 @@ _dynamic_imports: dict[str, str] = {
     "GetAttemptMetricsMeasuresUnionTypedDict": ".getattemptmetricsop",
     "GetAttemptMetricsRequest": ".getattemptmetricsop",
     "GetAttemptMetricsRequestTypedDict": ".getattemptmetricsop",
+    "GetAttemptMetricsTime": ".getattemptmetricsop",
+    "GetAttemptMetricsTimeTypedDict": ".getattemptmetricsop",
     "GetAttemptInclude": ".getattemptop",
     "GetAttemptIncludeTypedDict": ".getattemptop",
     "GetAttemptRequest": ".getattemptop",
@@ -869,6 +929,8 @@ _dynamic_imports: dict[str, str] = {
     "GetEventMetricsMeasuresUnionTypedDict": ".geteventmetricsop",
     "GetEventMetricsRequest": ".geteventmetricsop",
     "GetEventMetricsRequestTypedDict": ".geteventmetricsop",
+    "GetEventMetricsTime": ".geteventmetricsop",
+    "GetEventMetricsTimeTypedDict": ".geteventmetricsop",
     "GetEventRequest": ".geteventop",
     "GetEventRequestTypedDict": ".geteventop",
     "GetTenantDestinationAttemptInclude": ".gettenantdestinationattemptop",
@@ -892,6 +954,12 @@ _dynamic_imports: dict[str, str] = {
     "WorkersTypedDict": ".healthcheckop",
     "HookdeckCredentials": ".hookdeckcredentials",
     "HookdeckCredentialsTypedDict": ".hookdeckcredentials",
+    "KafkaConfig": ".kafkaconfig",
+    "KafkaConfigTLS": ".kafkaconfig",
+    "KafkaConfigTypedDict": ".kafkaconfig",
+    "SaslMechanism": ".kafkaconfig",
+    "KafkaCredentials": ".kafkacredentials",
+    "KafkaCredentialsTypedDict": ".kafkacredentials",
     "ListAttemptsDestinationID": ".listattemptsop",
     "ListAttemptsDestinationIDTypedDict": ".listattemptsop",
     "ListAttemptsDestinationType": ".listattemptsop",
@@ -959,6 +1027,8 @@ _dynamic_imports: dict[str, str] = {
     "MetricsMetadataTypedDict": ".metricsmetadata",
     "MetricsResponse": ".metricsresponse",
     "MetricsResponseTypedDict": ".metricsresponse",
+    "Operator": ".operator",
+    "OperatorTypedDict": ".operator",
     "PortalRedirect": ".portalredirect",
     "PortalRedirectTypedDict": ".portalredirect",
     "PublishRequest": ".publishrequest",
@@ -966,8 +1036,8 @@ _dynamic_imports: dict[str, str] = {
     "PublishResponse": ".publishresponse",
     "PublishResponseTypedDict": ".publishresponse",
     "RabbitMQConfig": ".rabbitmqconfig",
+    "RabbitMQConfigTLS": ".rabbitmqconfig",
     "RabbitMQConfigTypedDict": ".rabbitmqconfig",
-    "TLS": ".rabbitmqconfig",
     "RabbitMQCredentials": ".rabbitmqcredentials",
     "RabbitMQCredentialsTypedDict": ".rabbitmqcredentials",
     "RetryRequest": ".retryrequest",

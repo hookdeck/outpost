@@ -25,6 +25,10 @@ from .destinationcreatehookdeck import (
     DestinationCreateHookdeck,
     DestinationCreateHookdeckTypedDict,
 )
+from .destinationcreatekafka import (
+    DestinationCreateKafka,
+    DestinationCreateKafkaTypedDict,
+)
 from .destinationcreaterabbitmq import (
     DestinationCreateRabbitMQ,
     DestinationCreateRabbitMQTypedDict,
@@ -43,13 +47,14 @@ DestinationCreateTypedDict = TypeAliasType(
     "DestinationCreateTypedDict",
     Union[
         DestinationCreateWebhookTypedDict,
-        DestinationCreateAWSSQSTypedDict,
-        DestinationCreateRabbitMQTypedDict,
         DestinationCreateHookdeckTypedDict,
+        DestinationCreateAWSSQSTypedDict,
         DestinationCreateAWSKinesisTypedDict,
-        DestinationCreateAzureServiceBusTypedDict,
         DestinationCreateAwss3TypedDict,
+        DestinationCreateAzureServiceBusTypedDict,
+        DestinationCreateRabbitMQTypedDict,
         DestinationCreateGCPPubSubTypedDict,
+        DestinationCreateKafkaTypedDict,
     ],
 )
 
@@ -64,6 +69,7 @@ DestinationCreate = Annotated[
         Annotated[DestinationCreateAzureServiceBus, Tag("azure_servicebus")],
         Annotated[DestinationCreateAwss3, Tag("aws_s3")],
         Annotated[DestinationCreateGCPPubSub, Tag("gcp_pubsub")],
+        Annotated[DestinationCreateKafka, Tag("kafka")],
     ],
     Discriminator(lambda m: get_discriminator(m, "type", "type")),
 ]

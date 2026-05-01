@@ -8,7 +8,7 @@ from typing_extensions import TypedDict
 
 class PublishResponseTypedDict(TypedDict):
     id: str
-    r"""The ID of the event that was accepted for publishing. This will be the ID provided in the request's `id` field if present, otherwise it's a server-generated UUID."""
+    r"""The ID of the event that was accepted for publishing. This will be the ID provided in the request's `id` field if present, otherwise it's a server-generated ID."""
     duplicate: bool
     r"""Whether this event was already processed (idempotency hit). If true, the event was not queued again."""
     destination_ids: List[str]
@@ -17,7 +17,7 @@ class PublishResponseTypedDict(TypedDict):
 
 class PublishResponse(BaseModel):
     id: str
-    r"""The ID of the event that was accepted for publishing. This will be the ID provided in the request's `id` field if present, otherwise it's a server-generated UUID."""
+    r"""The ID of the event that was accepted for publishing. This will be the ID provided in the request's `id` field if present, otherwise it's a server-generated ID."""
 
     duplicate: bool
     r"""Whether this event was already processed (idempotency hit). If true, the event was not queued again."""

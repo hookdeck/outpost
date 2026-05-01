@@ -1,45 +1,45 @@
-## Go SDK Changes:
-* `Outpost.Destinations.Create()`: 
-  *  `request.Body.union(kafka)` **Added**
+## Python SDK Changes:
+* `outpost.destinations.create()`: 
+  *  `request.body.union(kafka)` **Added**
   *  `response.union(kafka)` **Added** (Breaking ⚠️)
-* `Outpost.Destinations.Disable()`:  `response.union(kafka)` **Added** (Breaking ⚠️)
-* `Outpost.Events.List()`: `request.Request` **Changed** (Breaking ⚠️)
-    - `Time[gt]` **Removed** (Breaking ⚠️)
-    - `Time[gte]` **Removed** (Breaking ⚠️)
-    - `Time[lt]` **Removed** (Breaking ⚠️)
-    - `Time[lte]` **Removed** (Breaking ⚠️)
-    - `Time` **Added**
-* `Outpost.Attempts.List()`: 
-  * `request.Request` **Changed** (Breaking ⚠️)
-    - `Time[gt]` **Removed** (Breaking ⚠️)
-    - `Time[gte]` **Removed** (Breaking ⚠️)
-    - `Time[lt]` **Removed** (Breaking ⚠️)
-    - `Time[lte]` **Removed** (Breaking ⚠️)
-    - `Time` **Added**
-  *  `response.Models[].Destination.union(kafka)` **Added** (Breaking ⚠️)
-* `Outpost.Attempts.Get()`:  `response.Destination.union(kafka)` **Added** (Breaking ⚠️)
-* `Outpost.Destinations.List()`:  `response.[].union(kafka)` **Added** (Breaking ⚠️)
-* `Outpost.Metrics.GetAttemptMetrics()`: `request.Request` **Changed** (Breaking ⚠️)
-    - `Time[end]` **Removed** (Breaking ⚠️)
-    - `Time[start]` **Removed** (Breaking ⚠️)
-    - `Time` **Added** (Breaking ⚠️)
-* `Outpost.Destinations.Update()`: 
-  *  `request.Body.union(DestinationUpdateKafka)` **Added**
+* `outpost.destinations.disable()`:  `response.union(kafka)` **Added** (Breaking ⚠️)
+* `outpost.events.list()`: `request` **Changed** (Breaking ⚠️)
+    - `time[gt]` **Removed** (Breaking ⚠️)
+    - `time[gte]` **Removed** (Breaking ⚠️)
+    - `time[lt]` **Removed** (Breaking ⚠️)
+    - `time[lte]` **Removed** (Breaking ⚠️)
+    - `time` **Added**
+* `outpost.attempts.list()`: 
+  * `request` **Changed** (Breaking ⚠️)
+    - `time[gt]` **Removed** (Breaking ⚠️)
+    - `time[gte]` **Removed** (Breaking ⚠️)
+    - `time[lt]` **Removed** (Breaking ⚠️)
+    - `time[lte]` **Removed** (Breaking ⚠️)
+    - `time` **Added**
+  *  `response.models[].destination.union(kafka)` **Added** (Breaking ⚠️)
+* `outpost.attempts.get()`:  `response.destination.union(kafka)` **Added** (Breaking ⚠️)
+* `outpost.destinations.list()`:  `response.[].union(kafka)` **Added** (Breaking ⚠️)
+* `outpost.metrics.get_attempt_metrics()`: `request` **Changed** (Breaking ⚠️)
+    - `time[end]` **Removed** (Breaking ⚠️)
+    - `time[start]` **Removed** (Breaking ⚠️)
+    - `time` **Added** (Breaking ⚠️)
+* `outpost.destinations.update()`: 
+  *  `request.body.union(DestinationUpdateKafka)` **Added**
   *  `response.union(Destination).union(kafka)` **Added** (Breaking ⚠️)
-* `Outpost.Metrics.GetEventMetrics()`: `request.Request` **Changed** (Breaking ⚠️)
-    - `Time[end]` **Removed** (Breaking ⚠️)
-    - `Time[start]` **Removed** (Breaking ⚠️)
-    - `Time` **Added** (Breaking ⚠️)
-* `Outpost.Destinations.Enable()`:  `response.union(kafka)` **Added** (Breaking ⚠️)
-* `Outpost.Destinations.Get()`:  `response.union(kafka)` **Added** (Breaking ⚠️)
-* `Outpost.Destinations.ListAttempts()`: 
-  * `request.Request` **Changed** (Breaking ⚠️)
-    - `Time[gt]` **Removed** (Breaking ⚠️)
-    - `Time[gte]` **Removed** (Breaking ⚠️)
-    - `Time[lt]` **Removed** (Breaking ⚠️)
-    - `Time[lte]` **Removed** (Breaking ⚠️)
-    - `Time` **Added**
-  *  `response.Models[].Destination.union(kafka)` **Added** (Breaking ⚠️)
-* `Outpost.Destinations.GetAttempt()`:  `response.Destination.union(kafka)` **Added** (Breaking ⚠️)
-* `Outpost.Retry.Retry()`: **Added**
-* `Outpost.Attempts.Retry()`: **Removed** (Breaking ⚠️)
+* `outpost.metrics.get_event_metrics()`: `request` **Changed** (Breaking ⚠️)
+    - `time[end]` **Removed** (Breaking ⚠️)
+    - `time[start]` **Removed** (Breaking ⚠️)
+    - `time` **Added** (Breaking ⚠️)
+* `outpost.destinations.enable()`:  `response.union(kafka)` **Added** (Breaking ⚠️)
+* `outpost.destinations.get()`:  `response.union(kafka)` **Added** (Breaking ⚠️)
+* `outpost.destinations.list_attempts()`: 
+  * `request` **Changed** (Breaking ⚠️)
+    - `time[gt]` **Removed** (Breaking ⚠️)
+    - `time[gte]` **Removed** (Breaking ⚠️)
+    - `time[lt]` **Removed** (Breaking ⚠️)
+    - `time[lte]` **Removed** (Breaking ⚠️)
+    - `time` **Added**
+  *  `response.models[].destination.union(kafka)` **Added** (Breaking ⚠️)
+* `outpost.destinations.get_attempt()`:  `response.destination.union(kafka)` **Added** (Breaking ⚠️)
+* `outpost.retry.retry()`: **Added**
+* `outpost.attempts.retry()`: **Removed** (Breaking ⚠️)

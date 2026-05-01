@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 from .eventpaginatedresult import EventPaginatedResult, EventPaginatedResultTypedDict
-from datetime import datetime
+from .operator import Operator, OperatorTypedDict
 from enum import Enum
 from outpost_sdk.types import BaseModel, UNSET_SENTINEL
 from outpost_sdk.utils import FieldMetadata, QueryParamMetadata
@@ -86,14 +86,8 @@ class ListEventsRequestTypedDict(TypedDict):
     r"""Filter events by matched destination ID(s). Returns events that were routed to the specified destination(s). Use bracket notation for multiple values (e.g., `destination_id[0]=d1&destination_id[1]=d2`)."""
     topic: NotRequired[ListEventsTopicTypedDict]
     r"""Filter events by topic(s). Use bracket notation for multiple values (e.g., `topic[0]=user.created&topic[1]=user.updated`)."""
-    time_gte: NotRequired[datetime]
-    r"""Filter events with time >= value (RFC3339 or YYYY-MM-DD format)."""
-    time_lte: NotRequired[datetime]
-    r"""Filter events with time <= value (RFC3339 or YYYY-MM-DD format)."""
-    time_gt: NotRequired[datetime]
-    r"""Filter events with time > value (RFC3339 or YYYY-MM-DD format)."""
-    time_lt: NotRequired[datetime]
-    r"""Filter events with time < value (RFC3339 or YYYY-MM-DD format)."""
+    time: NotRequired[OperatorTypedDict]
+    r"""Filter events by time range using comparison operators."""
     limit: NotRequired[int]
     r"""Number of items per page (default 100, max 1000)."""
     next_cursor: NotRequired[str]
@@ -135,33 +129,11 @@ class ListEventsRequest(BaseModel):
     ] = None
     r"""Filter events by topic(s). Use bracket notation for multiple values (e.g., `topic[0]=user.created&topic[1]=user.updated`)."""
 
-    time_gte: Annotated[
-        Optional[datetime],
-        pydantic.Field(alias="time[gte]"),
-        FieldMetadata(query=QueryParamMetadata(style="form", explode=True)),
+    time: Annotated[
+        Optional[Operator],
+        FieldMetadata(query=QueryParamMetadata(style="deepObject", explode=True)),
     ] = None
-    r"""Filter events with time >= value (RFC3339 or YYYY-MM-DD format)."""
-
-    time_lte: Annotated[
-        Optional[datetime],
-        pydantic.Field(alias="time[lte]"),
-        FieldMetadata(query=QueryParamMetadata(style="form", explode=True)),
-    ] = None
-    r"""Filter events with time <= value (RFC3339 or YYYY-MM-DD format)."""
-
-    time_gt: Annotated[
-        Optional[datetime],
-        pydantic.Field(alias="time[gt]"),
-        FieldMetadata(query=QueryParamMetadata(style="form", explode=True)),
-    ] = None
-    r"""Filter events with time > value (RFC3339 or YYYY-MM-DD format)."""
-
-    time_lt: Annotated[
-        Optional[datetime],
-        pydantic.Field(alias="time[lt]"),
-        FieldMetadata(query=QueryParamMetadata(style="form", explode=True)),
-    ] = None
-    r"""Filter events with time < value (RFC3339 or YYYY-MM-DD format)."""
+    r"""Filter events by time range using comparison operators."""
 
     limit: Annotated[
         Optional[int],
@@ -204,10 +176,7 @@ class ListEventsRequest(BaseModel):
                 "tenant_id",
                 "destination_id",
                 "topic",
-                "time[gte]",
-                "time[lte]",
-                "time[gt]",
-                "time[lt]",
+                "time",
                 "limit",
                 "next_cursor",
                 "prev_cursor",

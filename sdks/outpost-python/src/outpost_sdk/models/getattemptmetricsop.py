@@ -12,6 +12,25 @@ from typing import List, Optional, Union
 from typing_extensions import Annotated, NotRequired, TypeAliasType, TypedDict
 
 
+class GetAttemptMetricsTimeTypedDict(TypedDict):
+    r"""Time range for the metrics query."""
+
+    start: datetime
+    r"""Start of the time range (inclusive). ISO 8601 timestamp."""
+    end: datetime
+    r"""End of the time range (exclusive). ISO 8601 timestamp."""
+
+
+class GetAttemptMetricsTime(BaseModel):
+    r"""Time range for the metrics query."""
+
+    start: Annotated[datetime, FieldMetadata(query=True)]
+    r"""Start of the time range (inclusive). ISO 8601 timestamp."""
+
+    end: Annotated[datetime, FieldMetadata(query=True)]
+    r"""End of the time range (exclusive). ISO 8601 timestamp."""
+
+
 class GetAttemptMetricsMeasuresEnum2(str, Enum):
     COUNT = "count"
     SUCCESSFUL_COUNT = "successful_count"
@@ -186,10 +205,8 @@ r"""Filter by tenant ID(s). Admin-only — rejected with 403 for JWT callers. Us
 
 
 class GetAttemptMetricsRequestTypedDict(TypedDict):
-    time_start: datetime
-    r"""Start of the time range (inclusive). ISO 8601 timestamp."""
-    time_end: datetime
-    r"""End of the time range (exclusive). ISO 8601 timestamp."""
+    time: GetAttemptMetricsTimeTypedDict
+    r"""Time range for the metrics query."""
     measures: GetAttemptMetricsMeasuresUnionTypedDict
     r"""Measures to compute. At least one required. Rate measures (`rate`, `successful_rate`, `failed_rate`) are throughput in events/second. Use bracket notation for multiple values (e.g., `measures[0]=count&measures[1]=error_rate`)."""
     granularity: NotRequired[str]
@@ -219,19 +236,11 @@ class GetAttemptMetricsRequestTypedDict(TypedDict):
 
 
 class GetAttemptMetricsRequest(BaseModel):
-    time_start: Annotated[
-        datetime,
-        pydantic.Field(alias="time[start]"),
-        FieldMetadata(query=QueryParamMetadata(style="form", explode=True)),
+    time: Annotated[
+        GetAttemptMetricsTime,
+        FieldMetadata(query=QueryParamMetadata(style="deepObject", explode=True)),
     ]
-    r"""Start of the time range (inclusive). ISO 8601 timestamp."""
-
-    time_end: Annotated[
-        datetime,
-        pydantic.Field(alias="time[end]"),
-        FieldMetadata(query=QueryParamMetadata(style="form", explode=True)),
-    ]
-    r"""End of the time range (exclusive). ISO 8601 timestamp."""
+    r"""Time range for the metrics query."""
 
     measures: Annotated[
         GetAttemptMetricsMeasuresUnion,

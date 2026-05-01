@@ -51,3 +51,9 @@ value: models.DestinationAwss3 = /* values here */
 value: models.DestinationGCPPubSub = /* values here */
 ```
 
+### `models.DestinationKafka`
+
+```python
+value: models.DestinationKafka = /* values here */
+```
+

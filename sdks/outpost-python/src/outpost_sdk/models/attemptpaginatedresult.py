@@ -12,24 +12,24 @@ from typing_extensions import NotRequired, TypedDict
 class AttemptPaginatedResultTypedDict(TypedDict):
     r"""Paginated list of attempts."""
 
-    models: NotRequired[List[AttemptTypedDict]]
-    r"""Array of attempt objects."""
     pagination: NotRequired[SeekPaginationTypedDict]
     r"""Cursor-based pagination metadata for list responses."""
+    models: NotRequired[List[AttemptTypedDict]]
+    r"""Array of attempt objects."""
 
 
 class AttemptPaginatedResult(BaseModel):
     r"""Paginated list of attempts."""
 
-    models: Optional[List[Attempt]] = None
-    r"""Array of attempt objects."""
-
     pagination: Optional[SeekPagination] = None
     r"""Cursor-based pagination metadata for list responses."""
 
+    models: Optional[List[Attempt]] = None
+    r"""Array of attempt objects."""
+
     @model_serializer(mode="wrap")
     def serialize_model(self, handler):
-        optional_fields = set(["models", "pagination"])
+        optional_fields = set(["pagination", "models"])
         serialized = handler(self)
         m = {}
 

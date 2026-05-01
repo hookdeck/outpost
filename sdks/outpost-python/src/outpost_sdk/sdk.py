@@ -22,6 +22,7 @@ if TYPE_CHECKING:
     from outpost_sdk.health import Health
     from outpost_sdk.metrics import Metrics
     from outpost_sdk.publish import Publish
+    from outpost_sdk.retry import Retry
     from outpost_sdk.schemas import Schemas
     from outpost_sdk.tenants import Tenants
     from outpost_sdk.topics_sdk import TopicsSDK
@@ -31,10 +32,11 @@ class Outpost(BaseSDK):
     r"""Outpost API: The Outpost API is a REST-based JSON API for managing tenants, destinations, and publishing events."""
 
     health: "Health"
-    r"""API Health Check"""
+    r"""This endpoint is only available for **self-hosted** Outpost deployments. Managed Outpost health is monitored by Hookdeck.
+
+    """
     configuration: "Configuration"
-    r"""Outpost instance-level configuration management for the managed deployment.
-    This is not available in self-hosted deployments.
+    r"""The Configuration API is available for **managed Outpost** deployments only. It allows you to read and update instance-level settings — the same settings available as environment variables in self-hosted deployments.
 
     """
     tenants: "Tenants"
@@ -44,18 +46,11 @@ class Outpost(BaseSDK):
 
     """
     events: "Events"
-    r"""Operations related to event history."""
+    r"""An event represents a payload published to Outpost. Events are matched against all destinations whose topic subscriptions match the event topic, then delivered.
+
+    """
     attempts: "Attempts"
     r"""Attempts represent individual delivery attempts of events to destinations. The attempts API provides an attempt-centric view of event processing.
-
-    Each attempt contains:
-    - `id`: Unique attempt identifier
-    - `status`: success or failed
-    - `time`: Timestamp of the attempt
-    - `code`: HTTP status code or error code
-    - `attempt`: Attempt number (1 for first attempt, 2+ for retries)
-    - `event`: Associated event (ID or included object)
-    - `destination`: Destination ID
 
     Use the `include` query parameter to include related data:
     - `include=event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
@@ -67,35 +62,23 @@ class Outpost(BaseSDK):
     destinations: "Destinations"
     r"""Destinations are the endpoints where events are sent. Each destination is associated with a tenant and can be configured to receive specific event topics.
 
-    ```json
-    {
-    \"id\": \"des_12345\", // Control plane generated ID or user provided ID
-    \"type\": \"webhooks\", // Type of the destination
-    \"topics\": [\"user.created\", \"user.updated\"], // Topics of events this destination is eligible for
-    \"config\": {
-    // Destination type specific configuration. Schema of depends on type
-    \"url\": \"https://example.com/webhooks/user\" 
-    },
-    \"credentials\": {
-    // Destination type specific credentials. AES encrypted. Schema depends on type
-    \"secret\": \"some***********\" 
-    },
-    \"disabled_at\": null, // null or ISO date if disabled
-    \"created_at\": \"2024-01-01T00:00:00Z\" // Date the destination was created
-    }
-    ```
-
     The `topics` array can contain either a list of topics or a wildcard `*` implying that all topics are supported. If you do not wish to implement topics for your application, you set all destination topics to `*`.
 
     By default all destination `credentials` are obfuscated and the values cannot be read. This does not apply to the `webhook` type destination secret and each destination can expose their own obfuscation logic.
 
     """
     publish: "Publish"
-    r"""Operations for publishing events."""
+    r"""Use the Publish endpoint to send events into Outpost. Events are matched against all destinations whose topic subscriptions and filters match the event. Requires Admin API Key."""
+    retry: "Retry"
+    r"""Triggers a retry for delivering an event to a destination. The event must exist and the destination must be enabled and match the event's topic."""
     schemas: "Schemas"
-    r"""Operations for retrieving destination type schemas."""
+    r"""Destination types describe the available event delivery targets and their configuration schemas. Use these endpoints to render UI forms and list available destination types with their configuration schemas.
+
+    """
     topics: "TopicsSDK"
-    r"""Operations for retrieving available event topics."""
+    r"""Returns the list of topics configured for this Outpost deployment. Tenants subscribe their destinations to topics from this list. Topics are defined via your configuration file and not a specific Create Topic API.
+
+    """
     metrics: "Metrics"
     r"""Aggregated metrics for events and delivery attempts. Supports time bucketing, dimensional grouping, and filtering.
 
@@ -108,6 +91,7 @@ class Outpost(BaseSDK):
         "attempts": ("outpost_sdk.attempts", "Attempts"),
         "destinations": ("outpost_sdk.destinations", "Destinations"),
         "publish": ("outpost_sdk.publish", "Publish"),
+        "retry": ("outpost_sdk.retry", "Retry"),
         "schemas": ("outpost_sdk.schemas", "Schemas"),
         "topics": ("outpost_sdk.topics_sdk", "TopicsSDK"),
         "metrics": ("outpost_sdk.metrics", "Metrics"),

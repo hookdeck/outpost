@@ -32,7 +32,7 @@ class DestinationCreateAWSKinesisTypedDict(TypedDict):
     config: AWSKinesisConfigTypedDict
     credentials: AWSKinesisCredentialsTypedDict
     id: NotRequired[str]
-    r"""Optional user-provided ID. A UUID will be generated if empty."""
+    r"""Optional user-provided ID. An ID will be generated if empty."""
     filter_: NotRequired[Nullable[Dict[str, Any]]]
     r"""Optional JSON schema filter for event matching. Events must match this filter to be delivered to this destination.
     Supports operators: $eq, $neq, $gt, $gte, $lt, $lte, $in, $nin, $startsWith, $endsWith, $exist, $or, $and, $not.
@@ -58,7 +58,7 @@ class DestinationCreateAWSKinesis(BaseModel):
     credentials: AWSKinesisCredentials
 
     id: Optional[str] = None
-    r"""Optional user-provided ID. A UUID will be generated if empty."""
+    r"""Optional user-provided ID. An ID will be generated if empty."""
 
     filter_: Annotated[
         OptionalNullable[Dict[str, Any]], pydantic.Field(alias="filter")
