@@ -168,10 +168,24 @@ For supported JavaScript runtimes, please consult [RUNTIMES.md](RUNTIMES.md).
 ```typescript
 import { Outpost } from "@hookdeck/outpost-sdk";
 
-const outpost = new Outpost();
+const outpost = new Outpost({
+  apiKey: "<YOUR_BEARER_TOKEN_HERE>",
+});
 
 async function run() {
-  const result = await outpost.health.check();
+  const result = await outpost.publish({
+    id: "evt_abc123xyz789",
+    tenantId: "tenant_123",
+    topic: "user.created",
+    eligibleForRetry: true,
+    metadata: {
+      "source": "crm",
+    },
+    data: {
+      "user_id": "userid",
+      "status": "active",
+    },
+  });
 
   console.log(result);
 }
@@ -201,7 +215,19 @@ const outpost = new Outpost({
 });
 
 async function run() {
-  const result = await outpost.health.check();
+  const result = await outpost.publish({
+    id: "evt_abc123xyz789",
+    tenantId: "tenant_123",
+    topic: "user.created",
+    eligibleForRetry: true,
+    metadata: {
+      "source": "crm",
+    },
+    data: {
+      "user_id": "userid",
+      "status": "active",
+    },
+  });
 
   console.log(result);
 }
@@ -216,6 +242,11 @@ run();
 
 <details open>
 <summary>Available methods</summary>
+
+### [Outpost SDK](docs/sdks/outpost/README.md)
+
+* [publish](docs/sdks/outpost/README.md#publish) - Publish Event
+* [retry](docs/sdks/outpost/README.md#retry) - Retry Event Delivery
 
 ### [Attempts](docs/sdks/attempts/README.md)
 
@@ -252,14 +283,6 @@ run();
 
 * [getEventMetrics](docs/sdks/metrics/README.md#geteventmetrics) - Get Event Metrics
 * [getAttemptMetrics](docs/sdks/metrics/README.md#getattemptmetrics) - Get Attempt Metrics
-
-### [Publish](docs/sdks/publish/README.md)
-
-* [event](docs/sdks/publish/README.md#event) - Publish Event
-
-### [Retry](docs/sdks/retry/README.md)
-
-* [retry](docs/sdks/retry/README.md#retry) - Retry Event Delivery
 
 ### [Schemas](docs/sdks/schemas/README.md)
 
@@ -315,8 +338,8 @@ To read more about standalone functions, check [FUNCTIONS.md](./FUNCTIONS.md).
 - [`healthCheck`](docs/sdks/health/README.md#check) - Health Check
 - [`metricsGetAttemptMetrics`](docs/sdks/metrics/README.md#getattemptmetrics) - Get Attempt Metrics
 - [`metricsGetEventMetrics`](docs/sdks/metrics/README.md#geteventmetrics) - Get Event Metrics
-- [`publishEvent`](docs/sdks/publish/README.md#event) - Publish Event
-- [`retryRetry`](docs/sdks/retry/README.md#retry) - Retry Event Delivery
+- [`publish`](docs/sdks/outpost/README.md#publish) - Publish Event
+- [`retry`](docs/sdks/outpost/README.md#retry) - Retry Event Delivery
 - [`schemasGetDestinationType`](docs/sdks/schemas/README.md#getdestinationtype) - Get Destination Type Schema
 - [`schemasListDestinationTypes`](docs/sdks/schemas/README.md#listdestinationtypes) - List Destination Type Schemas
 - [`tenantsDelete`](docs/sdks/tenants/README.md#delete) - Delete Tenant
@@ -371,10 +394,24 @@ To change the default retry strategy for a single API call, simply provide a ret
 ```typescript
 import { Outpost } from "@hookdeck/outpost-sdk";
 
-const outpost = new Outpost();
+const outpost = new Outpost({
+  apiKey: "<YOUR_BEARER_TOKEN_HERE>",
+});
 
 async function run() {
-  const result = await outpost.health.check({
+  const result = await outpost.publish({
+    id: "evt_abc123xyz789",
+    tenantId: "tenant_123",
+    topic: "user.created",
+    eligibleForRetry: true,
+    metadata: {
+      "source": "crm",
+    },
+    data: {
+      "user_id": "userid",
+      "status": "active",
+    },
+  }, {
     retries: {
       strategy: "backoff",
       backoff: {
@@ -409,10 +446,23 @@ const outpost = new Outpost({
     },
     retryConnectionErrors: false,
   },
+  apiKey: "<YOUR_BEARER_TOKEN_HERE>",
 });
 
 async function run() {
-  const result = await outpost.health.check();
+  const result = await outpost.publish({
+    id: "evt_abc123xyz789",
+    tenantId: "tenant_123",
+    topic: "user.created",
+    eligibleForRetry: true,
+    metadata: {
+      "source": "crm",
+    },
+    data: {
+      "user_id": "userid",
+      "status": "active",
+    },
+  });
 
   console.log(result);
 }
@@ -441,11 +491,25 @@ run();
 import { Outpost } from "@hookdeck/outpost-sdk";
 import * as errors from "@hookdeck/outpost-sdk/models/errors";
 
-const outpost = new Outpost();
+const outpost = new Outpost({
+  apiKey: "<YOUR_BEARER_TOKEN_HERE>",
+});
 
 async function run() {
   try {
-    const result = await outpost.health.check();
+    const result = await outpost.publish({
+      id: "evt_abc123xyz789",
+      tenantId: "tenant_123",
+      topic: "user.created",
+      eligibleForRetry: true,
+      metadata: {
+        "source": "crm",
+      },
+      data: {
+        "user_id": "userid",
+        "status": "active",
+      },
+    });
 
     console.log(result);
   } catch (error) {
@@ -520,10 +584,23 @@ import { Outpost } from "@hookdeck/outpost-sdk";
 
 const outpost = new Outpost({
   serverIdx: 0,
+  apiKey: "<YOUR_BEARER_TOKEN_HERE>",
 });
 
 async function run() {
-  const result = await outpost.health.check();
+  const result = await outpost.publish({
+    id: "evt_abc123xyz789",
+    tenantId: "tenant_123",
+    topic: "user.created",
+    eligibleForRetry: true,
+    metadata: {
+      "source": "crm",
+    },
+    data: {
+      "user_id": "userid",
+      "status": "active",
+    },
+  });
 
   console.log(result);
 }
@@ -540,10 +617,23 @@ import { Outpost } from "@hookdeck/outpost-sdk";
 
 const outpost = new Outpost({
   serverURL: "http://localhost:3333/api/v1",
+  apiKey: "<YOUR_BEARER_TOKEN_HERE>",
 });
 
 async function run() {
-  const result = await outpost.health.check();
+  const result = await outpost.publish({
+    id: "evt_abc123xyz789",
+    tenantId: "tenant_123",
+    topic: "user.created",
+    eligibleForRetry: true,
+    metadata: {
+      "source": "crm",
+    },
+    data: {
+      "user_id": "userid",
+      "status": "active",
+    },
+  });
 
   console.log(result);
 }

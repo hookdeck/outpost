@@ -149,3 +149,13 @@ Based on:
 - [typescript v1.1.0] sdks/outpost-typescript
 ### Releases
 - [NPM v1.1.0] https://www.npmjs.com/package/@hookdeck/outpost-sdk/v/1.1.0 - sdks/outpost-typescript
+
+## 2026-05-01 17:49:21
+### Changes
+Based on:
+- OpenAPI Doc  
+- Speakeasy CLI 1.761.10 (2.881.16) https://github.com/speakeasy-api/speakeasy
+### Generated
+- [typescript v1.2.0] sdks/outpost-typescript
+### Releases
+- [NPM v1.2.0] https://www.npmjs.com/package/@hookdeck/outpost-sdk/v/1.2.0 - sdks/outpost-typescript

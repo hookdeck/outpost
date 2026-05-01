@@ -2,7 +2,7 @@
 
 {
   "name": "@hookdeck/outpost-sdk",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "exports": {
     ".": "./src/index.ts",    
     "./models/errors": "./src/models/errors/index.ts",    

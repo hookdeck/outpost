@@ -27,23 +27,25 @@ import { APICall, APIPromise } from "../types/async.js";
 import { Result } from "../types/fp.js";
 
 /**
- * Retry Event Delivery
+ * Publish Event
  *
  * @remarks
- * Triggers a retry for delivering an event to a destination. The event must exist and the destination must be enabled and match the event's topic.
+ * Publishes an event to the specified topic, potentially routed to a specific destination. Requires Admin API Key.
  *
- * When authenticated with a Tenant JWT, only events belonging to that tenant can be retried.
- * When authenticated with Admin API Key, events from any tenant can be retried.
+ * If set, this operation will use {@link Security.apiKey} from the global security.
  */
-export function retryRetry(
+export function publish(
   client: OutpostCore,
-  request: components.RetryRequest,
+  request: components.PublishRequest,
   options?: RequestOptions,
 ): APIPromise<
   Result<
-    components.SuccessResponse,
-    | errors.UnauthorizedError
+    components.PublishResponse,
     | errors.NotFoundError
+    | errors.UnauthorizedError
+    | errors.TimeoutError
+    | errors.RateLimitedError
+    | errors.BadRequestError
     | errors.InternalServerError
     | OutpostError
     | ResponseValidationError
@@ -64,14 +66,17 @@ export function retryRetry(
 
 async function $do(
   client: OutpostCore,
-  request: components.RetryRequest,
+  request: components.PublishRequest,
   options?: RequestOptions,
 ): Promise<
   [
     Result<
-      components.SuccessResponse,
-      | errors.UnauthorizedError
+      components.PublishResponse,
       | errors.NotFoundError
+      | errors.UnauthorizedError
+      | errors.TimeoutError
+      | errors.RateLimitedError
+      | errors.BadRequestError
       | errors.InternalServerError
       | OutpostError
       | ResponseValidationError
@@ -87,7 +92,7 @@ async function $do(
 > {
   const parsed = safeParse(
     request,
-    (value) => components.RetryRequest$outboundSchema.parse(value),
+    (value) => components.PublishRequest$outboundSchema.parse(value),
     "Input validation failed",
   );
   if (!parsed.ok) {
@@ -96,7 +101,7 @@ async function $do(
   const payload = parsed.value;
   const body = encodeJSON("body", payload, { explode: true });
 
-  const path = pathToFunc("/retry")();
+  const path = pathToFunc("/publish")();
 
   const headers = new Headers(compactMap({
     "Content-Type": "application/json",
@@ -105,12 +110,12 @@ async function $do(
 
   const secConfig = await extractSecurity(client._options.apiKey);
   const securityInput = secConfig == null ? {} : { apiKey: secConfig };
-  const requestSecurity = resolveGlobalSecurity(securityInput);
+  const requestSecurity = resolveGlobalSecurity(securityInput, [0]);
 
   const context = {
     options: client._options,
     baseURL: options?.serverURL ?? client._baseURL ?? "",
-    operationID: "retryEvent",
+    operationID: "publishEvent",
     oAuth2Scopes: null,
 
     resolvedSecurity: requestSecurity,
@@ -154,9 +159,12 @@ async function $do(
   };
 
   const [result] = await M.match<
-    components.SuccessResponse,
-    | errors.UnauthorizedError
+    components.PublishResponse,
     | errors.NotFoundError
+    | errors.UnauthorizedError
+    | errors.TimeoutError
+    | errors.RateLimitedError
+    | errors.BadRequestError
     | errors.InternalServerError
     | OutpostError
     | ResponseValidationError
@@ -167,11 +175,21 @@ async function $do(
     | UnexpectedClientError
     | SDKValidationError
   >(
-    M.json(202, components.SuccessResponse$inboundSchema),
-    M.jsonErr(401, errors.UnauthorizedError$inboundSchema),
+    M.json(202, components.PublishResponse$inboundSchema),
     M.jsonErr(404, errors.NotFoundError$inboundSchema),
-    M.jsonErr(500, errors.InternalServerError$inboundSchema),
-    M.fail([400, "4XX"]),
+    M.jsonErr([401, 403, 407], errors.UnauthorizedError$inboundSchema),
+    M.jsonErr(408, errors.TimeoutError$inboundSchema),
+    M.jsonErr(429, errors.RateLimitedError$inboundSchema),
+    M.jsonErr([413, 414, 415, 422, 431], errors.BadRequestError$inboundSchema),
+    M.jsonErr(504, errors.TimeoutError$inboundSchema),
+    M.jsonErr([501, 505], errors.NotFoundError$inboundSchema),
+    M.jsonErr(
+      [500, 502, 503, 506, 507, 508],
+      errors.InternalServerError$inboundSchema,
+    ),
+    M.jsonErr(510, errors.BadRequestError$inboundSchema),
+    M.jsonErr(511, errors.UnauthorizedError$inboundSchema),
+    M.fail([409, "4XX"]),
     M.fail("5XX"),
   )(response, req, { extraFields: responseFields });
   if (!result.ok) {

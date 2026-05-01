@@ -1,20 +1,20 @@
 lockVersion: 2.0.0
 id: edb58086-83b9-45a3-9095-52bf57a11009
 management:
-  docChecksum: d48a2eda1fd8c8716ab133773c583421
+  docChecksum: 999d7e943bb9e6840e0467a83ee82df5
   docVersion: 0.0.1
   speakeasyVersion: 1.761.10
   generationVersion: 2.881.16
-  releaseVersion: 1.1.0
-  configChecksum: 9951feba9559aa9bd3aad62e18364753
+  releaseVersion: 1.2.0
+  configChecksum: 5f1d321a922009b1e697bb1848faf3f5
   repoURL: https://github.com/hookdeck/outpost.git
   repoSubDirectory: sdks/outpost-typescript
   installationURL: https://github.com/hookdeck/outpost
   published: true
 persistentEdits:
-  generation_id: 91e73adf-50de-4d04-b4a3-96e0f6fe8682
-  pristine_commit_hash: d7161eb468583562e6549fcec810751f8f5560fa
-  pristine_tree_hash: e64c5d2b9ae7cc390c20b0b6c7718339f7157d64
+  generation_id: 1de8bd8d-d1f1-4357-93c9-41b6d909dca2
+  pristine_commit_hash: 6eb3380f71edd6fa6129b8f0f8a035f25599745c
+  pristine_tree_hash: 93f04f280bce056e2f84c1269b92437d48a76519
 features:
   typescript:
     additionalDependencies: 0.1.0
@@ -29,6 +29,7 @@ features:
     globalSecurityCallbacks: 0.1.0
     globalSecurityFlattening: 0.1.1
     globalServerURLs: 2.83.1
+    groups: 2.81.3
     mcpServer: 0.9.4
     nameOverrides: 2.81.4
     nullables: 0.1.1
@@ -48,16 +49,16 @@ trackedFiles:
     pristine_git_object: 670ac0a62d7e568c9d44a14f5deafb8442a255d8
   FUNCTIONS.md:
     id: 21b9df02aaeb
-    last_write_checksum: sha1:efba48de11f7910e393262c2f4cdbbe87abe193a
-    pristine_git_object: 9fe66a8afaa2ad639b170005ebcf7ced3c949f1c
+    last_write_checksum: sha1:09f1926c5fa35c8b2b7dc818f39aca9b9a232a17
+    pristine_git_object: c487f4fef1be0483ed7138f9d4c5c90f5435eeed
   RUNTIMES.md:
     id: 620c490847b6
     last_write_checksum: sha1:e45b854f02c357cbcfdb8c3663000e8339e16505
     pristine_git_object: 27731c3b5ace66bedc454ed5acbe15075aacd3dc
   USAGE.md:
     id: 3aed33ce6e6f
-    last_write_checksum: sha1:e9ba7f1ebd6984413e5a3432427dfb34f15443ea
-    pristine_git_object: bf60b7a6231ebd79917883179aa30cdf6fc3d044
+    last_write_checksum: sha1:89a375aec330f02883fde300048ece49e99b5635
+    pristine_git_object: e4fcef288f587bcf7c5f8797a7319b2adb04fd46
   docs/lib/utils/retryconfig.md:
     id: 0ce9707cb848
     last_write_checksum: sha1:bc4454e196fcd219f5a78da690375a884f5ed07b
@@ -806,14 +807,10 @@ trackedFiles:
     id: a8545d964e21
     last_write_checksum: sha1:6da3e9f8e453d300ac701373b424e6dd976f2d8b
     pristine_git_object: 7534492532f1b1ee9a007a29117e667d32c16089
-  docs/sdks/publish/README.md:
-    id: 370ef5537c93
-    last_write_checksum: sha1:287ba0c062de003808b07910614e4ec3a7b42efd
-    pristine_git_object: 66ba7552d0bc1aed36677b91de23749ac11dd3ed
-  docs/sdks/retry/README.md:
-    id: e8a22d588af3
-    last_write_checksum: sha1:4c50bf254ac9ba655cf380b2f7361e0857a9c6c2
-    pristine_git_object: 0f7bc2b422abe6f4be1da9e9e9916ad070f7d663
+  docs/sdks/outpost/README.md:
+    id: f9b868668835
+    last_write_checksum: sha1:221bdd0552dc258796e0dc93c7284984bdaf13b0
+    pristine_git_object: 5e7bf43836ef2a06ff464cc93fa52c7266f14334
   docs/sdks/schemas/README.md:
     id: 26a0abac640e
     last_write_checksum: sha1:520115d60edb43f5c09dab3febab263073e80bca
@@ -838,22 +835,22 @@ trackedFiles:
     id: 9d0f69d6e677
     last_write_checksum: sha1:95a239da2429aa173d798e39131bb5af6ac25c38
     pristine_git_object: df623421b3477e6c2c9f567370fde450aa1ac034
-  examples/healthCheck.example.ts:
-    id: "150274416467"
-    last_write_checksum: sha1:c7bd06bbfd613d7d67ff77c377261e10bb6132f1
-    pristine_git_object: 25523ca34170cd7b78c7ec7aa633963bcd40ed30
   examples/package.json:
     id: c1d7b0ec8e7e
     last_write_checksum: sha1:72d1b5cf93b3fd2b369aa9e4194657f288513eab
     pristine_git_object: 2ecc914dee96b672e4c966d02b66b72ad7d45435
+  examples/publish.example.ts:
+    id: 765de315c03b
+    last_write_checksum: sha1:9b67e92afe423463bc026474eaf9f235d87d88e3
+    pristine_git_object: c9a9042272cbc4b2cf7ae93f82d4ea8a7d25bba2
   jsr.json:
     id: 7f6ab7767282
-    last_write_checksum: sha1:65e519b8c3f2a2aac2e44692d18ca394ac1b29dd
-    pristine_git_object: ef14cce3bc12c7ff998c4db0d5089b88aaa6a4fd
+    last_write_checksum: sha1:957175e5efa1b8db32a50b9c2d3038143e834e92
+    pristine_git_object: dd158c187501dbdc8c91243768a533df2565e016
   package.json:
     id: 7030d0b2f71b
-    last_write_checksum: sha1:984b9d9f232b722df5178242090ba93b723039f8
-    pristine_git_object: cb13c6bac2400464f91dce7513588befcfde8d21
+    last_write_checksum: sha1:c071f8e74d3af8b2722b53af496dda0455f73d04
+    pristine_git_object: 5f8de59edac1a08fbcdd3c01a07c2ba9c7a472d8
   src/core.ts:
     id: f431fdbcd144
     last_write_checksum: sha1:c858d8ea76a86c428e26943bf348319ba0a3c865
@@ -930,14 +927,14 @@ trackedFiles:
     id: c35ea4d8a7df
     last_write_checksum: sha1:f45a1519e06a25e8d5f25bd6ecafbc0afeb8eb66
     pristine_git_object: 42ea90d5afbc016532d5888855248a92144ac52f
-  src/funcs/publishEvent.ts:
-    id: b266c6833466
-    last_write_checksum: sha1:e6192879b8649bdc89607b24f4a6bac2d7b75b71
-    pristine_git_object: fbfe867991d0ba278736b7971d678d4012f051b2
-  src/funcs/retryRetry.ts:
-    id: 456a7d6aca50
-    last_write_checksum: sha1:bee63ee887431714ff50acbccb7353a7d78a5a06
-    pristine_git_object: 1650f3e09d2636090dc19c3e3c0fc94bc6d1a2ba
+  src/funcs/publish.ts:
+    id: 2ce86922a77f
+    last_write_checksum: sha1:dfe87fd3582f5934453b6f25b652cf9600e0cffa
+    pristine_git_object: 9b7d2b4c652c84402863a3756e757997ec8d2071
+  src/funcs/retry.ts:
+    id: 545d3d964343
+    last_write_checksum: sha1:80b4204ca527178ea233c965689bc5d111ac0c08
+    pristine_git_object: ce78775121b0fd84ca95a3e07a9c7a46086ef52d
   src/funcs/schemasGetDestinationType.ts:
     id: d0ef9e8a0fda
     last_write_checksum: sha1:abc237ae4c72f96936e8b2aaa79992716f91e546
@@ -996,8 +993,8 @@ trackedFiles:
     pristine_git_object: 0aebd8b0a4867e35cb3348fc52921c3c0b4725b7
   src/lib/config.ts:
     id: 320761608fb3
-    last_write_checksum: sha1:9391ec5f14ed2c7ef392de2be03bf35ac922d5d1
-    pristine_git_object: 4440a937a6d51748356750acf52df5cfc39ff4ba
+    last_write_checksum: sha1:3d496cf4060da4c1196865980e99ece3dbe272fc
+    pristine_git_object: d7966a0355b3aff748c3cda22165f5fb3b88147e
   src/lib/dlv.ts:
     id: b1988214835a
     last_write_checksum: sha1:1dd3e3fbb4550c4bf31f5ef997faff355d6f3250
@@ -1076,8 +1073,8 @@ trackedFiles:
     pristine_git_object: 0955a573c2ce989d63c737410ab8cc28706d9f74
   src/mcp-server/mcp-server.ts:
     id: aabbc4ab07c1
-    last_write_checksum: sha1:90e1e2e876fc534db8195b4236095470bc5b4e28
-    pristine_git_object: bb175473b859cb4744463e1759390b78286b835f
+    last_write_checksum: sha1:eacf98e04cf80408425b06979bf1421bc18ef474
+    pristine_git_object: 6b064ed39f80bd0b10699e8ec261abf8050ea376
   src/mcp-server/prompts.ts:
     id: 26f3d73cbf31
     last_write_checksum: sha1:3472c8babea2d3b44d3a61e42fbba471fbd936b7
@@ -1092,8 +1089,8 @@ trackedFiles:
     pristine_git_object: c25696d4c4f70e081fa5d87ad6891874c509a577
   src/mcp-server/server.ts:
     id: 2784dd48e82a
-    last_write_checksum: sha1:b9f712bad2be6f90dcd7079cd9978f3a1dc6a77f
-    pristine_git_object: 09de6e62c30337a01776194a0f9ebfeee5224daa
+    last_write_checksum: sha1:e356475ad4089c3f47c455af61be70e1ca48f44d
+    pristine_git_object: fcc79bfc53877818ce0530bca33ab8702a140e8d
   src/mcp-server/shared.ts:
     id: 074e80d4be1e
     last_write_checksum: sha1:d89576cea2bef3856b7fc3e65b868875528be042
@@ -1174,14 +1171,14 @@ trackedFiles:
     id: 6e20dd2dcf8e
     last_write_checksum: sha1:25d67affdeb0c7e3ddc0618468ec462b24f6e0c1
     pristine_git_object: 55ca65bbed764276c7e3b6189b49989b39a1fe09
-  src/mcp-server/tools/publishEvent.ts:
-    id: cf8b2710f350
-    last_write_checksum: sha1:365fd053a867d98abf6792f72a34b8cf9425323e
-    pristine_git_object: 4e04f727eb8dfeaa5f7da129b4d91b9a1e62e4d6
-  src/mcp-server/tools/retryRetry.ts:
-    id: 9c21d3070a0d
-    last_write_checksum: sha1:864200f6c72cee789071b10a343896030c80d3b2
-    pristine_git_object: 99c854f20341a21b8133f1b99ec166f4667e0226
+  src/mcp-server/tools/publish.ts:
+    id: cd3e6aa9f863
+    last_write_checksum: sha1:cbf5a6f8f7b3734061ce9134bcddf79504778984
+    pristine_git_object: ec76d7e2b8ce1145414156bd03cd9d37319b8d00
+  src/mcp-server/tools/retry.ts:
+    id: a7569910fd7c
+    last_write_checksum: sha1:e2df01a271cba79aed92dff3b46e886c3d8a4167
+    pristine_git_object: 1e82263bb01f543e6df725bdc6dc600bc434e46f
   src/mcp-server/tools/schemasGetDestinationType.ts:
     id: f353a3d8a465
     last_write_checksum: sha1:c0c6def445efb0445ebcce900100ecf2e5d70c1b
@@ -1690,22 +1687,14 @@ trackedFiles:
     id: f82082e1b05c
     last_write_checksum: sha1:8b2d03950ab50c7f4a65ab7f5e448b39c68e91c2
     pristine_git_object: 90c477cb381a7de04b1cf1e37b750bdfe89d25f1
-  src/sdk/publish.ts:
-    id: 5fd3cbd12735
-    last_write_checksum: sha1:74b49c7efb18da2f551825bda2288523327e1f44
-    pristine_git_object: 66056816ad8c72ab43d286b026a8e1f9523fd77f
-  src/sdk/retry.ts:
-    id: f36833d27c4a
-    last_write_checksum: sha1:798233f72618f903ba294d5dfc1711493e987785
-    pristine_git_object: 7733ea966de8fb430683d72638ce6ceecd30499b
   src/sdk/schemas.ts:
     id: bf5cb229a409
     last_write_checksum: sha1:c6dca980b5b55f2bd16bc4ea393fa1e79a3bbbdc
     pristine_git_object: bb7f952e534f65d06552abe7849acb572d3ef287
   src/sdk/sdk.ts:
     id: 784571af2f69
-    last_write_checksum: sha1:98c70030c674b68502b76fae78168e423b6c389d
-    pristine_git_object: 4bf5b3e9441bf37e4112d5870fce6dff141bce9b
+    last_write_checksum: sha1:b594c1653a5ffb21926638ec68e2ac3fd2332f00
+    pristine_git_object: f5f17e502ed89811bf07ce165a99c6d1ee1faf0f
   src/sdk/tenants.ts:
     id: 7f3b22c334f5
     last_write_checksum: sha1:b9db17506785b0f7d425339b32eb836bf0aed4bd
@@ -2340,7 +2329,12 @@ examples:
           application/json: {}
 examplesVersion: 1.0.2
 generatedTests: {}
-releaseNotes: "## Typescript SDK Changes:\n* `outpost.destinations.create()`: \n  *  `request.body.union(kafka)` **Added**\n  *  `response.union(kafka)` **Added** (Breaking ⚠️)\n* `outpost.destinations.disable()`:  `response.union(kafka)` **Added** (Breaking ⚠️)\n* `outpost.events.list()`:  `request` **Changed** (Breaking ⚠️)\n* `outpost.attempts.list()`: \n  *  `request` **Changed** (Breaking ⚠️)\n  *  `response.models[].destination.union(kafka)` **Added** (Breaking ⚠️)\n* `outpost.attempts.get()`:  `response.destination.union(kafka)` **Added** (Breaking ⚠️)\n* `outpost.destinations.list()`:  `response.[].union(kafka)` **Added** (Breaking ⚠️)\n* `outpost.metrics.getAttemptMetrics()`:  `request` **Changed** (Breaking ⚠️)\n* `outpost.destinations.update()`: \n  *  `request.body.union(DestinationUpdateKafka)` **Added**\n  *  `response.union(Destination).union(kafka)` **Added** (Breaking ⚠️)\n* `outpost.metrics.getEventMetrics()`:  `request` **Changed** (Breaking ⚠️)\n* `outpost.destinations.enable()`:  `response.union(kafka)` **Added** (Breaking ⚠️)\n* `outpost.destinations.get()`:  `response.union(kafka)` **Added** (Breaking ⚠️)\n* `outpost.destinations.listAttempts()`: \n  *  `request` **Changed** (Breaking ⚠️)\n  *  `response.models[].destination.union(kafka)` **Added** (Breaking ⚠️)\n* `outpost.destinations.getAttempt()`:  `response.destination.union(kafka)` **Added** (Breaking ⚠️)\n* `outpost.retry.retry()`: **Added**\n* `outpost.attempts.retry()`: **Removed** (Breaking ⚠️)\n"
+releaseNotes: |
+  ## Typescript SDK Changes:
+  * `outpost.publish()`: **Added**
+  * `outpost.retry()`: **Added**
+  * `outpost.publish.event()`: **Removed** (Breaking ⚠️)
+  * `outpost.retry.retry()`: **Removed** (Breaking ⚠️)
 generatedFiles:
   - .gitattributes
   - .npmignore
