@@ -31,8 +31,8 @@ import { tool$eventsList } from "./tools/eventsList.js";
 import { tool$healthCheck } from "./tools/healthCheck.js";
 import { tool$metricsGetAttemptMetrics } from "./tools/metricsGetAttemptMetrics.js";
 import { tool$metricsGetEventMetrics } from "./tools/metricsGetEventMetrics.js";
-import { tool$publishEvent } from "./tools/publishEvent.js";
-import { tool$retryRetry } from "./tools/retryRetry.js";
+import { tool$publish } from "./tools/publish.js";
+import { tool$retry } from "./tools/retry.js";
 import { tool$schemasGetDestinationType } from "./tools/schemasGetDestinationType.js";
 import { tool$schemasListDestinationTypes } from "./tools/schemasListDestinationTypes.js";
 import { tool$tenantsDelete } from "./tools/tenantsDelete.js";
@@ -53,7 +53,7 @@ export function createMCPServer(deps: {
 }) {
   const server = new McpServer({
     name: "Outpost",
-    version: "1.1.0",
+    version: "1.2.0",
   });
 
   const client = new OutpostCore({
@@ -83,6 +83,8 @@ export function createMCPServer(deps: {
   const register = { tool, resource, resourceTemplate, prompt };
   void register; // suppress unused warnings
 
+  tool(tool$publish);
+  tool(tool$retry);
   tool(tool$healthCheck);
   tool(tool$configurationGetManagedConfig);
   tool(tool$configurationUpdateManagedConfig);
@@ -105,8 +107,6 @@ export function createMCPServer(deps: {
   tool(tool$destinationsDisable);
   tool(tool$destinationsListAttempts);
   tool(tool$destinationsGetAttempt);
-  tool(tool$publishEvent);
-  tool(tool$retryRetry);
   tool(tool$schemasListDestinationTypes);
   tool(tool$schemasGetDestinationType);
   tool(tool$topicsList);

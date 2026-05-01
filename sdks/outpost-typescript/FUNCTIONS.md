@@ -20,19 +20,33 @@ specific category of applications.
 
 ```typescript
 import { OutpostCore } from "@hookdeck/outpost-sdk/core.js";
-import { healthCheck } from "@hookdeck/outpost-sdk/funcs/healthCheck.js";
+import { publish } from "@hookdeck/outpost-sdk/funcs/publish.js";
 
 // Use `OutpostCore` for best tree-shaking performance.
 // You can create one instance of it to use across an application.
-const outpost = new OutpostCore();
+const outpost = new OutpostCore({
+  apiKey: "<YOUR_BEARER_TOKEN_HERE>",
+});
 
 async function run() {
-  const res = await healthCheck(outpost);
+  const res = await publish(outpost, {
+    id: "evt_abc123xyz789",
+    tenantId: "tenant_123",
+    topic: "user.created",
+    eligibleForRetry: true,
+    metadata: {
+      "source": "crm",
+    },
+    data: {
+      "user_id": "userid",
+      "status": "active",
+    },
+  });
   if (res.ok) {
     const { value: result } = res;
     console.log(result);
   } else {
-    console.log("healthCheck failed:", res.error);
+    console.log("publish failed:", res.error);
   }
 }
 
