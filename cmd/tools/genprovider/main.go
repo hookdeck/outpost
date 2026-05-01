@@ -16,10 +16,10 @@ type CoreMetadata struct {
 }
 
 type UIMetadata struct {
-	Label          string `json:"label"`
-	Description    string `json:"description"`
-	Icon           string `json:"icon"`
-	SetupLink *struct {
+	Label       string `json:"label"`
+	Description string `json:"description"`
+	Icon        string `json:"icon"`
+	SetupLink   *struct {
 		Href string `json:"href"`
 		Cta  string `json:"cta"`
 	} `json:"setup_link,omitempty"`
