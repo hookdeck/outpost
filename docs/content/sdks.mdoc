@@ -88,7 +88,7 @@ async function manageOutpostResources() {
     };
 
     console.log(`Publishing event to topic ${topic} for tenant ${tenantId}...`);
-    await outpostAdmin.publish.event({
+    await outpostAdmin.publish({
       data: eventPayload,
       tenantId,
       topic,

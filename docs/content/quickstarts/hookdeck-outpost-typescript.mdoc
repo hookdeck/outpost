@@ -104,7 +104,7 @@ await outpost.destinations.create(tenantId, {
 // --- 5. Publish one event (delivered to destinations subscribed to `topic`) ---
 //
 
-const published = await outpost.publish.event({
+const published = await outpost.publish({
   tenantId,
   topic,
   eligibleForRetry: true,

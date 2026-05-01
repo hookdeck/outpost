@@ -8,9 +8,9 @@ import (
 	"github.com/hookdeck/outpost/internal/clickhouse"
 	"github.com/hookdeck/outpost/internal/logstore/driver"
 	"github.com/hookdeck/outpost/internal/logstore/drivertest"
-	"github.com/hookdeck/outpost/internal/pagination"
 	"github.com/hookdeck/outpost/internal/migrator"
 	"github.com/hookdeck/outpost/internal/models"
+	"github.com/hookdeck/outpost/internal/pagination"
 	"github.com/hookdeck/outpost/internal/util/testinfra"
 	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
@@ -124,25 +124,30 @@ func newHarnessWithDeploymentID(ctx context.Context, t *testing.T) (drivertest.H
 // ── Dataset ──────────────────────────────────────────────────────────────────
 //
 // Event A ("order.created"): Fanout to 3 destinations in one batch.
-//   Batch 1:  dest-a #1 success, dest-b #1 failed, dest-c #1 success
-//   Batch 2:  dest-b #2 success  (retry)
+//
+//	Batch 1:  dest-a #1 success, dest-b #1 failed, dest-c #1 success
+//	Batch 2:  dest-b #2 success  (retry)
 //
 // Event B ("user.signup"): Single destination, fails twice then succeeds.
-//   Batch 3:  dest-a #1 failed
-//   Batch 4:  dest-a #2 failed   (retry)
-//   Batch 5:  dest-a #3 success  (retry)
+//
+//	Batch 3:  dest-a #1 failed
+//	Batch 4:  dest-a #2 failed   (retry)
+//	Batch 5:  dest-a #3 success  (retry)
 //
 // Event C ("payment.received"): Single destination, succeeds first try.
-//   Batch 6:  dest-b #1 success
+//
+//	Batch 6:  dest-b #1 success
 //
 // ── Expected ─────────────────────────────────────────────────────────────────
-//   Event rows:   3 (one per unique event, retries skipped by write path)
-//   Attempt rows: 8 (A×4 + B×3 + C×1, all persisted)
-//   ListEvent:    3 unique events (client-side dedup hides any stragglers)
+//
+//	Event rows:   3 (one per unique event, retries skipped by write path)
+//	Attempt rows: 8 (A×4 + B×3 + C×1, all persisted)
+//	ListEvent:    3 unique events (client-side dedup hides any stragglers)
 //
 // After injecting legacy duplicates (raw batch inserts simulating pre-fix data):
-//   Event rows:   9 (3 original + 6 injected)
-//   ListEvent:    still 3 (read-path dedup)
+//
+//	Event rows:   9 (3 original + 6 injected)
+//	ListEvent:    still 3 (read-path dedup)
 func TestEventDedup(t *testing.T) {
 	testutil.CheckIntegrationTest(t)
 	t.Parallel()
@@ -159,19 +164,19 @@ func TestEventDedup(t *testing.T) {
 	eventA := &models.Event{
 		ID: "evt-a", TenantID: tenantID,
 		MatchedDestinationIDs: []string{"dest-a", "dest-b", "dest-c"},
-		Topic: "order.created", EligibleForRetry: true,
+		Topic:                 "order.created", EligibleForRetry: true,
 		Time: baseTime, Data: []byte(`{"order_id":"100"}`),
 	}
 	eventB := &models.Event{
 		ID: "evt-b", TenantID: tenantID,
 		MatchedDestinationIDs: []string{"dest-a"},
-		Topic: "user.signup", EligibleForRetry: true,
+		Topic:                 "user.signup", EligibleForRetry: true,
 		Time: baseTime.Add(-1 * time.Minute), Data: []byte(`{"user_id":"42"}`),
 	}
 	eventC := &models.Event{
 		ID: "evt-c", TenantID: tenantID,
 		MatchedDestinationIDs: []string{"dest-b"},
-		Topic: "payment.received", EligibleForRetry: false,
+		Topic:                 "payment.received", EligibleForRetry: false,
 		Time: baseTime.Add(-2 * time.Minute), Data: []byte(`{"amount":99}`),
 	}
 

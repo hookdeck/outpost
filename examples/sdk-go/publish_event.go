@@ -75,7 +75,7 @@ func runPublishEventExample() {
 		TenantID: &tenantID,
 	}
 
-	res, err := client.Publish.Event(context.Background(), request)
+	res, err := client.Publish(context.Background(), request)
 	if err != nil {
 		log.Fatalf("Error publishing event: %v", err)
 	}

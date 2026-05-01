@@ -83,7 +83,7 @@ const withAdminApiKey = async () => {
   console.log(
     `Publishing event to topic ${topic} for tenant ${tenantId}...`
   );
-  await outpost.publish.event({
+  await outpost.publish({
     data: eventPayload,
     tenantId,
     topic: "user.created",

@@ -46,7 +46,7 @@ def run():
         ],
     }
 
-    res = client.publish.event(
+    res = client.publish(
         topic=topic,
         data=payload,
         tenant_id=tenant_id,
