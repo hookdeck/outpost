@@ -56,9 +56,10 @@ actions:
   - target: $["paths"]["/retry"]["post"]
     update:
       x-speakeasy-name-override: retry
+      x-speakeasy-group: ""
     x-speakeasy-metadata:
-      after: sdk.attempts.retry()
-      before: sdk.Attempts.retryEvent()
+      after: sdk.retry()
+      before: sdk.Retry.retryEvent()
       created_at: 1745611620645
       reviewed_at: 1745611624395
       type: method-name
@@ -181,9 +182,10 @@ actions:
       type: method-name
   - target: $["paths"]["/publish"]["post"]
     update:
-      x-speakeasy-name-override: event
+      x-speakeasy-name-override: publish
+      x-speakeasy-group: ""
     x-speakeasy-metadata:
-      after: sdk.publish.event()
+      after: sdk.publish()
       before: sdk.Publish.publishEvent()
       created_at: 1745611620645
       reviewed_at: 1745611624395
