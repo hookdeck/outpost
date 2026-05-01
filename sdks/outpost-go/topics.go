@@ -17,7 +17,7 @@ import (
 	"net/url"
 )
 
-// Topics - Operations for retrieving available event topics.
+// Topics - Returns the list of topics configured for this Outpost deployment. Tenants subscribe their destinations to topics from this list. Topics are defined via your configuration file and not a specific Create Topic API.
 type Topics struct {
 	rootSDK          *Outpost
 	sdkConfiguration config.SDKConfiguration

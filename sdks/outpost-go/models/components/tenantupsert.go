@@ -7,7 +7,7 @@ import (
 )
 
 type TenantUpsert struct {
-	// Optional metadata to store with the tenant.
+	// Optional key/value metadata to store with the tenant.
 	Metadata optionalnullable.OptionalNullable[map[string]string] `json:"metadata,omitempty"`
 }
 

@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"github.com/hookdeck/outpost/sdks/outpost-go/internal/utils"
 	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
-	"time"
 )
 
 type DestinationIDType string
@@ -138,14 +137,8 @@ type ListEventsRequest struct {
 	DestinationID *DestinationID `queryParam:"style=form,explode=true,name=destination_id"`
 	// Filter events by topic(s). Use bracket notation for multiple values (e.g., `topic[0]=user.created&topic[1]=user.updated`).
 	Topic []string `queryParam:"style=form,explode=true,name=topic"`
-	// Filter events with time >= value (RFC3339 or YYYY-MM-DD format).
-	TimeGte *time.Time `queryParam:"style=form,explode=true,name=time[gte]"`
-	// Filter events with time <= value (RFC3339 or YYYY-MM-DD format).
-	TimeLte *time.Time `queryParam:"style=form,explode=true,name=time[lte]"`
-	// Filter events with time > value (RFC3339 or YYYY-MM-DD format).
-	TimeGt *time.Time `queryParam:"style=form,explode=true,name=time[gt]"`
-	// Filter events with time < value (RFC3339 or YYYY-MM-DD format).
-	TimeLt *time.Time `queryParam:"style=form,explode=true,name=time[lt]"`
+	// Filter events by time range using comparison operators.
+	Time *components.Operator `queryParam:"style=deepObject,explode=true,name=time"`
 	// Number of items per page (default 100, max 1000).
 	Limit *int64 `default:"100" queryParam:"style=form,explode=true,name=limit"`
 	// Cursor for next page of results.
@@ -197,32 +190,11 @@ func (l *ListEventsRequest) GetTopic() []string {
 	return l.Topic
 }
 
-func (l *ListEventsRequest) GetTimeGte() *time.Time {
+func (l *ListEventsRequest) GetTime() *components.Operator {
 	if l == nil {
 		return nil
 	}
-	return l.TimeGte
-}
-
-func (l *ListEventsRequest) GetTimeLte() *time.Time {
-	if l == nil {
-		return nil
-	}
-	return l.TimeLte
-}
-
-func (l *ListEventsRequest) GetTimeGt() *time.Time {
-	if l == nil {
-		return nil
-	}
-	return l.TimeGt
-}
-
-func (l *ListEventsRequest) GetTimeLt() *time.Time {
-	if l == nil {
-		return nil
-	}
-	return l.TimeLt
+	return l.Time
 }
 
 func (l *ListEventsRequest) GetLimit() *int64 {

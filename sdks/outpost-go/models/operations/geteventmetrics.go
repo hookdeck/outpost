@@ -11,6 +11,39 @@ import (
 	"time"
 )
 
+// GetEventMetricsTime - Time range for the metrics query.
+type GetEventMetricsTime struct {
+	// Start of the time range (inclusive). ISO 8601 timestamp.
+	Start time.Time `queryParam:"name=start"`
+	// End of the time range (exclusive). ISO 8601 timestamp.
+	End time.Time `queryParam:"name=end"`
+}
+
+func (g GetEventMetricsTime) MarshalJSON() ([]byte, error) {
+	return utils.MarshalJSON(g, "", false)
+}
+
+func (g *GetEventMetricsTime) UnmarshalJSON(data []byte) error {
+	if err := utils.UnmarshalJSON(data, &g, "", false, nil); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (g *GetEventMetricsTime) GetStart() time.Time {
+	if g == nil {
+		return time.Time{}
+	}
+	return g.Start
+}
+
+func (g *GetEventMetricsTime) GetEnd() time.Time {
+	if g == nil {
+		return time.Time{}
+	}
+	return g.End
+}
+
 type GetEventMetricsMeasuresEnum2 string
 
 const (
@@ -442,10 +475,8 @@ func (u GetEventMetricsFiltersTenantID) MarshalJSON() ([]byte, error) {
 }
 
 type GetEventMetricsRequest struct {
-	// Start of the time range (inclusive). ISO 8601 timestamp.
-	TimeStart time.Time `queryParam:"style=form,explode=true,name=time[start]"`
-	// End of the time range (exclusive). ISO 8601 timestamp.
-	TimeEnd time.Time `queryParam:"style=form,explode=true,name=time[end]"`
+	// Time range for the metrics query.
+	Time GetEventMetricsTime `queryParam:"style=deepObject,explode=true,name=time"`
 	// Time bucketing granularity. Pattern: `<number><unit>`.
 	// Units: `s` (1-60), `m` (1-60), `h` (1-24), `d` (1-31), `w` (1-4), `M` (1-12).
 	// When omitted, returns a single aggregate row per dimension combination.
@@ -463,29 +494,11 @@ type GetEventMetricsRequest struct {
 	FiltersTenantID *GetEventMetricsFiltersTenantID `queryParam:"style=form,explode=true,name=filters[tenant_id]"`
 }
 
-func (g GetEventMetricsRequest) MarshalJSON() ([]byte, error) {
-	return utils.MarshalJSON(g, "", false)
-}
-
-func (g *GetEventMetricsRequest) UnmarshalJSON(data []byte) error {
-	if err := utils.UnmarshalJSON(data, &g, "", false, nil); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (g *GetEventMetricsRequest) GetTimeStart() time.Time {
+func (g *GetEventMetricsRequest) GetTime() GetEventMetricsTime {
 	if g == nil {
-		return time.Time{}
+		return GetEventMetricsTime{}
 	}
-	return g.TimeStart
-}
-
-func (g *GetEventMetricsRequest) GetTimeEnd() time.Time {
-	if g == nil {
-		return time.Time{}
-	}
-	return g.TimeEnd
+	return g.Time
 }
 
 func (g *GetEventMetricsRequest) GetGranularity() *string {

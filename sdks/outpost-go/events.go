@@ -20,7 +20,7 @@ import (
 	"strings"
 )
 
-// Events - Operations related to event history.
+// Events - An event represents a payload published to Outpost. Events are matched against all destinations whose topic subscriptions match the event topic, then delivered.
 type Events struct {
 	rootSDK          *Outpost
 	sdkConfiguration config.SDKConfiguration

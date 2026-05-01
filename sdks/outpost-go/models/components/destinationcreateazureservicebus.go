@@ -34,7 +34,7 @@ func (e *DestinationCreateAzureServiceBusType) UnmarshalJSON(data []byte) error 
 }
 
 type DestinationCreateAzureServiceBus struct {
-	// Optional user-provided ID. A UUID will be generated if empty.
+	// Optional user-provided ID. An ID will be generated if empty.
 	ID *string `json:"id,omitempty"`
 	// Type of the destination. Must be 'azure_servicebus'.
 	Type DestinationCreateAzureServiceBusType `json:"type"`

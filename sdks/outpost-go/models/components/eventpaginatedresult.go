@@ -4,17 +4,10 @@ package components
 
 // EventPaginatedResult - Paginated list of events.
 type EventPaginatedResult struct {
-	// Array of event objects.
-	Models []Event `json:"models,omitempty"`
 	// Cursor-based pagination metadata for list responses.
 	Pagination *SeekPagination `json:"pagination,omitempty"`
-}
-
-func (e *EventPaginatedResult) GetModels() []Event {
-	if e == nil {
-		return nil
-	}
-	return e.Models
+	// Array of event objects.
+	Models []Event `json:"models,omitempty"`
 }
 
 func (e *EventPaginatedResult) GetPagination() *SeekPagination {
@@ -22,4 +15,11 @@ func (e *EventPaginatedResult) GetPagination() *SeekPagination {
 		return nil
 	}
 	return e.Pagination
+}
+
+func (e *EventPaginatedResult) GetModels() []Event {
+	if e == nil {
+		return nil
+	}
+	return e.Models
 }

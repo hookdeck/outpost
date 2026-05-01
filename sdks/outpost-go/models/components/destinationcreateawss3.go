@@ -34,7 +34,7 @@ func (e *DestinationCreateAwss3Type) UnmarshalJSON(data []byte) error {
 }
 
 type DestinationCreateAwss3 struct {
-	// Optional user-provided ID. A UUID will be generated if empty.
+	// Optional user-provided ID. An ID will be generated if empty.
 	ID *string `json:"id,omitempty"`
 	// Type of the destination. Must be 'aws_s3'.
 	Type DestinationCreateAwss3Type `json:"type"`

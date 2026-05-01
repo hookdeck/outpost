@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="color-scheme" content="light dark">
-    <title>SDK Changelog - python</title>
+    <title>SDK Changelog - go</title>
     <style>
         :root {
             --bg-color: #ffffff;
@@ -95,21 +95,80 @@
         }
     </style>
 </head>
-<body><h2 id="python-sdk-changes">Python SDK Changes:</h2>
+<body><h2 id="go-sdk-changes">Go SDK Changes:</h2>
 
 <ul>
-<li><code>outpost.metrics.get_event_metrics()</code>: <code>response</code> <strong>Changed</strong> (Breaking ⚠️)
+<li><code>Outpost.Destinations.Create()</code>:
 
 <ul>
-<li><code>data[].time_bucket</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>metadata.granularity</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>request.Body.union(kafka)</code> <strong>Added</strong></li>
+<li><code>response.union(kafka)</code> <strong>Added</strong> (Breaking ⚠️)</li>
 </ul></li>
-<li><code>outpost.metrics.get_attempt_metrics()</code>: <code>response</code> <strong>Changed</strong> (Breaking ⚠️)
+<li><code>Outpost.Destinations.Disable()</code>:  <code>response.union(kafka)</code> <strong>Added</strong> (Breaking ⚠️)</li>
+<li><code>Outpost.Events.List()</code>: <code>request.Request</code> <strong>Changed</strong> (Breaking ⚠️)
 
 <ul>
-<li><code>data[].time_bucket</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>metadata.granularity</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>Time[gt]</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>Time[gte]</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>Time[lt]</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>Time[lte]</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>Time</code> <strong>Added</strong></li>
 </ul></li>
+<li><code>Outpost.Attempts.List()</code>:
+
+<ul>
+<li><code>request.Request</code> <strong>Changed</strong> (Breaking ⚠️)
+
+<ul>
+<li><code>Time[gt]</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>Time[gte]</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>Time[lt]</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>Time[lte]</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>Time</code> <strong>Added</strong></li>
+</ul></li>
+<li><code>response.Models[].Destination.union(kafka)</code> <strong>Added</strong> (Breaking ⚠️)</li>
+</ul></li>
+<li><code>Outpost.Attempts.Get()</code>:  <code>response.Destination.union(kafka)</code> <strong>Added</strong> (Breaking ⚠️)</li>
+<li><code>Outpost.Destinations.List()</code>:  <code>response.[].union(kafka)</code> <strong>Added</strong> (Breaking ⚠️)</li>
+<li><code>Outpost.Metrics.GetAttemptMetrics()</code>: <code>request.Request</code> <strong>Changed</strong> (Breaking ⚠️)
+
+<ul>
+<li><code>Time[end]</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>Time[start]</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>Time</code> <strong>Added</strong> (Breaking ⚠️)</li>
+</ul></li>
+<li><code>Outpost.Destinations.Update()</code>:
+
+<ul>
+<li><code>request.Body.union(DestinationUpdateKafka)</code> <strong>Added</strong></li>
+<li><code>response.union(Destination).union(kafka)</code> <strong>Added</strong> (Breaking ⚠️)</li>
+</ul></li>
+<li><code>Outpost.Metrics.GetEventMetrics()</code>: <code>request.Request</code> <strong>Changed</strong> (Breaking ⚠️)
+
+<ul>
+<li><code>Time[end]</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>Time[start]</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>Time</code> <strong>Added</strong> (Breaking ⚠️)</li>
+</ul></li>
+<li><code>Outpost.Destinations.Enable()</code>:  <code>response.union(kafka)</code> <strong>Added</strong> (Breaking ⚠️)</li>
+<li><code>Outpost.Destinations.Get()</code>:  <code>response.union(kafka)</code> <strong>Added</strong> (Breaking ⚠️)</li>
+<li><code>Outpost.Destinations.ListAttempts()</code>:
+
+<ul>
+<li><code>request.Request</code> <strong>Changed</strong> (Breaking ⚠️)
+
+<ul>
+<li><code>Time[gt]</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>Time[gte]</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>Time[lt]</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>Time[lte]</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>Time</code> <strong>Added</strong></li>
+</ul></li>
+<li><code>response.Models[].Destination.union(kafka)</code> <strong>Added</strong> (Breaking ⚠️)</li>
+</ul></li>
+<li><code>Outpost.Destinations.GetAttempt()</code>:  <code>response.Destination.union(kafka)</code> <strong>Added</strong> (Breaking ⚠️)</li>
+<li><code>Outpost.Retry.Retry()</code>: <strong>Added</strong></li>
+<li><code>Outpost.Attempts.Retry()</code>: <strong>Removed</strong> (Breaking ⚠️)</li>
 </ul>
 </body>
 </html>

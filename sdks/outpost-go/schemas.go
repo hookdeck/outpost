@@ -17,7 +17,7 @@ import (
 	"net/url"
 )
 
-// Schemas - Operations for retrieving destination type schemas.
+// Schemas - Destination types describe the available event delivery targets and their configuration schemas. Use these endpoints to render UI forms and list available destination types with their configuration schemas.
 type Schemas struct {
 	rootSDK          *Outpost
 	sdkConfiguration config.SDKConfiguration

@@ -51,6 +51,12 @@ destination := components.CreateDestinationAwsS3(components.DestinationAwss3{/* 
 destination := components.CreateDestinationGcpPubsub(components.DestinationGCPPubSub{/* values here */})
 ```
 
+### DestinationKafka
+
+```go
+destination := components.CreateDestinationKafka(components.DestinationKafka{/* values here */})
+```
+
 ## Union Discrimination
 
 Use the `Type` field to determine which variant is active, then access the corresponding field:
@@ -73,5 +79,7 @@ switch destination.Type {
 		// destination.DestinationAwss3 is populated
 	case components.DestinationUnionTypeGcpPubsub:
 		// destination.DestinationGCPPubSub is populated
+	case components.DestinationUnionTypeKafka:
+		// destination.DestinationKafka is populated
 }
 ```

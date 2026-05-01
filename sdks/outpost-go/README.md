@@ -124,7 +124,6 @@ func main() {
 
 * [List](docs/sdks/attempts/README.md#list) - List Attempts
 * [Get](docs/sdks/attempts/README.md#get) - Get Attempt
-* [Retry](docs/sdks/attempts/README.md#retry) - Retry Event Delivery
 
 ### [Configuration](docs/sdks/configuration/README.md)
 
@@ -160,6 +159,10 @@ func main() {
 ### [Publish](docs/sdks/publish/README.md)
 
 * [Event](docs/sdks/publish/README.md#event) - Publish Event
+
+### [Retry](docs/sdks/retry/README.md)
+
+* [Retry](docs/sdks/retry/README.md#retry) - Retry Event Delivery
 
 ### [Schemas](docs/sdks/schemas/README.md)
 

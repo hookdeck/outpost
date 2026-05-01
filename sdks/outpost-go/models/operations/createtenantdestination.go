@@ -58,6 +58,10 @@ func (c *CreateTenantDestinationRequest) GetBodyGcpPubsub() *components.Destinat
 	return c.GetBody().DestinationCreateGCPPubSub
 }
 
+func (c *CreateTenantDestinationRequest) GetBodyKafka() *components.DestinationCreateKafka {
+	return c.GetBody().DestinationCreateKafka
+}
+
 type CreateTenantDestinationResponse struct {
 	HTTPMeta components.HTTPMetadata `json:"-"`
 	// Destination created successfully.
@@ -130,6 +134,13 @@ func (c *CreateTenantDestinationResponse) GetDestinationAwsS3() *components.Dest
 func (c *CreateTenantDestinationResponse) GetDestinationGcpPubsub() *components.DestinationGCPPubSub {
 	if v := c.GetDestination(); v != nil {
 		return v.DestinationGCPPubSub
+	}
+	return nil
+}
+
+func (c *CreateTenantDestinationResponse) GetDestinationKafka() *components.DestinationKafka {
+	if v := c.GetDestination(); v != nil {
+		return v.DestinationKafka
 	}
 	return nil
 }

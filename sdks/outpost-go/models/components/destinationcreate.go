@@ -20,17 +20,19 @@ const (
 	DestinationCreateTypeAzureServicebus DestinationCreateType = "azure_servicebus"
 	DestinationCreateTypeAwsS3           DestinationCreateType = "aws_s3"
 	DestinationCreateTypeGcpPubsub       DestinationCreateType = "gcp_pubsub"
+	DestinationCreateTypeKafka           DestinationCreateType = "kafka"
 )
 
 type DestinationCreate struct {
 	DestinationCreateWebhook         *DestinationCreateWebhook         `queryParam:"inline" union:"member"`
-	DestinationCreateAWSSQS          *DestinationCreateAWSSQS          `queryParam:"inline" union:"member"`
-	DestinationCreateRabbitMQ        *DestinationCreateRabbitMQ        `queryParam:"inline" union:"member"`
 	DestinationCreateHookdeck        *DestinationCreateHookdeck        `queryParam:"inline" union:"member"`
+	DestinationCreateAWSSQS          *DestinationCreateAWSSQS          `queryParam:"inline" union:"member"`
 	DestinationCreateAWSKinesis      *DestinationCreateAWSKinesis      `queryParam:"inline" union:"member"`
-	DestinationCreateAzureServiceBus *DestinationCreateAzureServiceBus `queryParam:"inline" union:"member"`
 	DestinationCreateAwss3           *DestinationCreateAwss3           `queryParam:"inline" union:"member"`
+	DestinationCreateAzureServiceBus *DestinationCreateAzureServiceBus `queryParam:"inline" union:"member"`
+	DestinationCreateRabbitMQ        *DestinationCreateRabbitMQ        `queryParam:"inline" union:"member"`
 	DestinationCreateGCPPubSub       *DestinationCreateGCPPubSub       `queryParam:"inline" union:"member"`
+	DestinationCreateKafka           *DestinationCreateKafka           `queryParam:"inline" union:"member"`
 
 	Type DestinationCreateType
 }
@@ -131,6 +133,18 @@ func CreateDestinationCreateGcpPubsub(gcpPubsub DestinationCreateGCPPubSub) Dest
 	}
 }
 
+func CreateDestinationCreateKafka(kafka DestinationCreateKafka) DestinationCreate {
+	typ := DestinationCreateTypeKafka
+
+	typStr := DestinationCreateKafkaType(typ)
+	kafka.Type = typStr
+
+	return DestinationCreate{
+		DestinationCreateKafka: &kafka,
+		Type:                   typ,
+	}
+}
+
 func (u *DestinationCreate) UnmarshalJSON(data []byte) error {
 
 	type discriminator struct {
@@ -215,6 +229,15 @@ func (u *DestinationCreate) UnmarshalJSON(data []byte) error {
 		u.DestinationCreateGCPPubSub = destinationCreateGCPPubSub
 		u.Type = DestinationCreateTypeGcpPubsub
 		return nil
+	case "kafka":
+		destinationCreateKafka := new(DestinationCreateKafka)
+		if err := utils.UnmarshalJSON(data, &destinationCreateKafka, "", true, nil); err != nil {
+			return fmt.Errorf("could not unmarshal `%s` into expected (Type == kafka) type DestinationCreateKafka within DestinationCreate: %w", string(data), err)
+		}
+
+		u.DestinationCreateKafka = destinationCreateKafka
+		u.Type = DestinationCreateTypeKafka
+		return nil
 	}
 
 	return fmt.Errorf("could not unmarshal `%s` into any supported union types for DestinationCreate", string(data))
@@ -225,32 +248,36 @@ func (u DestinationCreate) MarshalJSON() ([]byte, error) {
 		return utils.MarshalJSON(u.DestinationCreateWebhook, "", true)
 	}
 
-	if u.DestinationCreateAWSSQS != nil {
-		return utils.MarshalJSON(u.DestinationCreateAWSSQS, "", true)
-	}
-
-	if u.DestinationCreateRabbitMQ != nil {
-		return utils.MarshalJSON(u.DestinationCreateRabbitMQ, "", true)
-	}
-
 	if u.DestinationCreateHookdeck != nil {
 		return utils.MarshalJSON(u.DestinationCreateHookdeck, "", true)
+	}
+
+	if u.DestinationCreateAWSSQS != nil {
+		return utils.MarshalJSON(u.DestinationCreateAWSSQS, "", true)
 	}
 
 	if u.DestinationCreateAWSKinesis != nil {
 		return utils.MarshalJSON(u.DestinationCreateAWSKinesis, "", true)
 	}
 
-	if u.DestinationCreateAzureServiceBus != nil {
-		return utils.MarshalJSON(u.DestinationCreateAzureServiceBus, "", true)
-	}
-
 	if u.DestinationCreateAwss3 != nil {
 		return utils.MarshalJSON(u.DestinationCreateAwss3, "", true)
 	}
 
+	if u.DestinationCreateAzureServiceBus != nil {
+		return utils.MarshalJSON(u.DestinationCreateAzureServiceBus, "", true)
+	}
+
+	if u.DestinationCreateRabbitMQ != nil {
+		return utils.MarshalJSON(u.DestinationCreateRabbitMQ, "", true)
+	}
+
 	if u.DestinationCreateGCPPubSub != nil {
 		return utils.MarshalJSON(u.DestinationCreateGCPPubSub, "", true)
+	}
+
+	if u.DestinationCreateKafka != nil {
+		return utils.MarshalJSON(u.DestinationCreateKafka, "", true)
 	}
 
 	return nil, errors.New("could not marshal union type DestinationCreate: all fields are null")

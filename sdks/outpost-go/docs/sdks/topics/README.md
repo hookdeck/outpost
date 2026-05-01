@@ -2,7 +2,8 @@
 
 ## Overview
 
-Operations for retrieving available event topics.
+Returns the list of topics configured for this Outpost deployment. Tenants subscribe their destinations to topics from this list. Topics are defined via your configuration file and not a specific Create Topic API.
+
 
 ### Available Operations
 

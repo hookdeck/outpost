@@ -4,17 +4,10 @@ package components
 
 // AttemptPaginatedResult - Paginated list of attempts.
 type AttemptPaginatedResult struct {
-	// Array of attempt objects.
-	Models []Attempt `json:"models,omitempty"`
 	// Cursor-based pagination metadata for list responses.
 	Pagination *SeekPagination `json:"pagination,omitempty"`
-}
-
-func (a *AttemptPaginatedResult) GetModels() []Attempt {
-	if a == nil {
-		return nil
-	}
-	return a.Models
+	// Array of attempt objects.
+	Models []Attempt `json:"models,omitempty"`
 }
 
 func (a *AttemptPaginatedResult) GetPagination() *SeekPagination {
@@ -22,4 +15,11 @@ func (a *AttemptPaginatedResult) GetPagination() *SeekPagination {
 		return nil
 	}
 	return a.Pagination
+}
+
+func (a *AttemptPaginatedResult) GetModels() []Attempt {
+	if a == nil {
+		return nil
+	}
+	return a.Models
 }

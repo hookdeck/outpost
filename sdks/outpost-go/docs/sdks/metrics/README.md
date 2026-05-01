@@ -44,8 +44,10 @@ func main() {
     )
 
     res, err := s.Metrics.GetEventMetrics(ctx, operations.GetEventMetricsRequest{
-        TimeStart: types.MustTimeFromString("2026-03-02T00:00:00Z"),
-        TimeEnd: types.MustTimeFromString("2026-03-03T00:00:00Z"),
+        Time: operations.GetEventMetricsTime{
+            Start: types.MustTimeFromString("2026-03-02T00:00:00Z"),
+            End: types.MustTimeFromString("2026-03-03T00:00:00Z"),
+        },
         Granularity: outpostgo.Pointer("1h"),
         Measures: operations.CreateGetEventMetricsMeasuresUnionArrayOfGetEventMetricsMeasuresEnum2(
             []operations.GetEventMetricsMeasuresEnum2{
@@ -121,8 +123,10 @@ func main() {
     )
 
     res, err := s.Metrics.GetAttemptMetrics(ctx, operations.GetAttemptMetricsRequest{
-        TimeStart: types.MustTimeFromString("2026-03-02T00:00:00Z"),
-        TimeEnd: types.MustTimeFromString("2026-03-03T00:00:00Z"),
+        Time: operations.GetAttemptMetricsTime{
+            Start: types.MustTimeFromString("2026-03-02T00:00:00Z"),
+            End: types.MustTimeFromString("2026-03-03T00:00:00Z"),
+        },
         Granularity: outpostgo.Pointer("1h"),
         Measures: operations.CreateGetAttemptMetricsMeasuresUnionArrayOfGetAttemptMetricsMeasuresEnum2(
             []operations.GetAttemptMetricsMeasuresEnum2{
