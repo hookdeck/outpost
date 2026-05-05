@@ -1355,8 +1355,8 @@ components:
           nullable: true
           description: >-
             Optional override for the creation timestamp. Intended for importing
-            destinations from another system. Defaults to the current time when
-            omitted.
+            destinations from another system. Must not be in the future.
+            Defaults to the current time when omitted.
           example: "2024-02-15T10:00:00Z"
         updated_at:
           type: string
@@ -1364,7 +1364,8 @@ components:
           nullable: true
           description: >-
             Optional override for the last-updated timestamp. Intended for
-            importing destinations. Defaults to created_at when omitted.
+            importing destinations. Must not be in the future. Defaults to
+            created_at when omitted.
           example: "2024-02-15T10:00:00Z"
         disabled_at:
           type: string
@@ -1415,8 +1416,8 @@ components:
           nullable: true
           description: >-
             Optional override for the creation timestamp. Intended for importing
-            destinations from another system. Defaults to the current time when
-            omitted.
+            destinations from another system. Must not be in the future.
+            Defaults to the current time when omitted.
           example: "2024-02-15T10:00:00Z"
         updated_at:
           type: string
@@ -1424,7 +1425,8 @@ components:
           nullable: true
           description: >-
             Optional override for the last-updated timestamp. Intended for
-            importing destinations. Defaults to created_at when omitted.
+            importing destinations. Must not be in the future. Defaults to
+            created_at when omitted.
           example: "2024-02-15T10:00:00Z"
         disabled_at:
           type: string
@@ -1475,8 +1477,8 @@ components:
           nullable: true
           description: >-
             Optional override for the creation timestamp. Intended for importing
-            destinations from another system. Defaults to the current time when
-            omitted.
+            destinations from another system. Must not be in the future.
+            Defaults to the current time when omitted.
           example: "2024-02-15T10:00:00Z"
         updated_at:
           type: string
@@ -1484,7 +1486,8 @@ components:
           nullable: true
           description: >-
             Optional override for the last-updated timestamp. Intended for
-            importing destinations. Defaults to created_at when omitted.
+            importing destinations. Must not be in the future. Defaults to
+            created_at when omitted.
           example: "2024-02-15T10:00:00Z"
         disabled_at:
           type: string
@@ -1534,8 +1537,8 @@ components:
           nullable: true
           description: >-
             Optional override for the creation timestamp. Intended for importing
-            destinations from another system. Defaults to the current time when
-            omitted.
+            destinations from another system. Must not be in the future.
+            Defaults to the current time when omitted.
           example: "2024-02-15T10:00:00Z"
         updated_at:
           type: string
@@ -1543,7 +1546,8 @@ components:
           nullable: true
           description: >-
             Optional override for the last-updated timestamp. Intended for
-            importing destinations. Defaults to created_at when omitted.
+            importing destinations. Must not be in the future. Defaults to
+            created_at when omitted.
           example: "2024-02-15T10:00:00Z"
         disabled_at:
           type: string
@@ -1594,8 +1598,8 @@ components:
           nullable: true
           description: >-
             Optional override for the creation timestamp. Intended for importing
-            destinations from another system. Defaults to the current time when
-            omitted.
+            destinations from another system. Must not be in the future.
+            Defaults to the current time when omitted.
           example: "2024-02-15T10:00:00Z"
         updated_at:
           type: string
@@ -1603,7 +1607,8 @@ components:
           nullable: true
           description: >-
             Optional override for the last-updated timestamp. Intended for
-            importing destinations. Defaults to created_at when omitted.
+            importing destinations. Must not be in the future. Defaults to
+            created_at when omitted.
           example: "2024-02-15T10:00:00Z"
         disabled_at:
           type: string
@@ -1655,8 +1660,8 @@ components:
           nullable: true
           description: >-
             Optional override for the creation timestamp. Intended for importing
-            destinations from another system. Defaults to the current time when
-            omitted.
+            destinations from another system. Must not be in the future.
+            Defaults to the current time when omitted.
           example: "2024-02-15T10:00:00Z"
         updated_at:
           type: string
@@ -1664,7 +1669,8 @@ components:
           nullable: true
           description: >-
             Optional override for the last-updated timestamp. Intended for
-            importing destinations. Defaults to created_at when omitted.
+            importing destinations. Must not be in the future. Defaults to
+            created_at when omitted.
           example: "2024-02-15T10:00:00Z"
         disabled_at:
           type: string
@@ -1716,8 +1722,8 @@ components:
           nullable: true
           description: >-
             Optional override for the creation timestamp. Intended for importing
-            destinations from another system. Defaults to the current time when
-            omitted.
+            destinations from another system. Must not be in the future.
+            Defaults to the current time when omitted.
           example: "2024-02-15T10:00:00Z"
         updated_at:
           type: string
@@ -1725,7 +1731,8 @@ components:
           nullable: true
           description: >-
             Optional override for the last-updated timestamp. Intended for
-            importing destinations. Defaults to created_at when omitted.
+            importing destinations. Must not be in the future. Defaults to
+            created_at when omitted.
           example: "2024-02-15T10:00:00Z"
         disabled_at:
           type: string
@@ -1776,8 +1783,8 @@ components:
           nullable: true
           description: >-
             Optional override for the creation timestamp. Intended for importing
-            destinations from another system. Defaults to the current time when
-            omitted.
+            destinations from another system. Must not be in the future.
+            Defaults to the current time when omitted.
           example: "2024-02-15T10:00:00Z"
         updated_at:
           type: string
@@ -1785,7 +1792,8 @@ components:
           nullable: true
           description: >-
             Optional override for the last-updated timestamp. Intended for
-            importing destinations. Defaults to created_at when omitted.
+            importing destinations. Must not be in the future. Defaults to
+            created_at when omitted.
           example: "2024-02-15T10:00:00Z"
         disabled_at:
           type: string
@@ -1836,8 +1844,8 @@ components:
           nullable: true
           description: >-
             Optional override for the creation timestamp. Intended for importing
-            destinations from another system. Defaults to the current time when
-            omitted.
+            destinations from another system. Must not be in the future.
+            Defaults to the current time when omitted.
           example: "2024-02-15T10:00:00Z"
         updated_at:
           type: string
@@ -1845,7 +1853,8 @@ components:
           nullable: true
           description: >-
             Optional override for the last-updated timestamp. Intended for
-            importing destinations. Defaults to created_at when omitted.
+            importing destinations. Must not be in the future. Defaults to
+            created_at when omitted.
           example: "2024-02-15T10:00:00Z"
         disabled_at:
           type: string

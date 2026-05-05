@@ -86,7 +86,16 @@ func (h *DestinationHandlers) Create(c *gin.Context) {
 		AbortWithValidationError(c, err)
 		return
 	}
-	if input.DisabledAt != nil && input.DisabledAt.After(time.Now()) {
+	now := time.Now()
+	if input.CreatedAt != nil && input.CreatedAt.After(now) {
+		AbortWithValidationError(c, errors.New("created_at cannot be in the future"))
+		return
+	}
+	if input.UpdatedAt != nil && input.UpdatedAt.After(now) {
+		AbortWithValidationError(c, errors.New("updated_at cannot be in the future"))
+		return
+	}
+	if input.DisabledAt != nil && input.DisabledAt.After(now) {
 		AbortWithValidationError(c, errors.New("disabled_at cannot be in the future"))
 		return
 	}

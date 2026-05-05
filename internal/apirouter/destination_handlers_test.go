@@ -151,6 +151,30 @@ func TestAPI_Destinations(t *testing.T) {
 				assert.True(t, dest.UpdatedAt.Equal(createdAt))
 			})
 
+			t.Run("created_at in future returns 422", func(t *testing.T) {
+				h := newAPITest(t)
+				h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+
+				payload := validDestination()
+				payload["created_at"] = time.Now().Add(time.Hour).UTC().Format(time.RFC3339)
+
+				req := h.jsonReq(http.MethodPost, "/api/v1/tenants/t1/destinations", payload)
+				resp := h.do(h.withAPIKey(req))
+				require.Equal(t, http.StatusUnprocessableEntity, resp.Code)
+			})
+
+			t.Run("updated_at in future returns 422", func(t *testing.T) {
+				h := newAPITest(t)
+				h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+
+				payload := validDestination()
+				payload["updated_at"] = time.Now().Add(time.Hour).UTC().Format(time.RFC3339)
+
+				req := h.jsonReq(http.MethodPost, "/api/v1/tenants/t1/destinations", payload)
+				resp := h.do(h.withAPIKey(req))
+				require.Equal(t, http.StatusUnprocessableEntity, resp.Code)
+			})
+
 			t.Run("disabled_at in future returns 422", func(t *testing.T) {
 				h := newAPITest(t)
 				h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
