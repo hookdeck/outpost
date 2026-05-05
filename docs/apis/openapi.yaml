@@ -1355,17 +1355,16 @@ components:
           nullable: true
           description: >-
             Optional override for the creation timestamp. Intended for importing
-            destinations from another system. Must not be in the future. Defaults
-            to the current time when omitted.
+            destinations from another system. Defaults to the current time when
+            omitted.
           example: "2024-02-15T10:00:00Z"
         updated_at:
           type: string
           format: date-time
           nullable: true
           description: >-
-            Optional override for the last-updated timestamp. Intended for importing
-            destinations. Must be >= created_at and <= now. Defaults to created_at
-            when omitted.
+            Optional override for the last-updated timestamp. Intended for
+            importing destinations. Defaults to created_at when omitted.
           example: "2024-02-15T10:00:00Z"
         disabled_at:
           type: string
@@ -1373,8 +1372,7 @@ components:
           nullable: true
           description: >-
             If set, the destination is created in a disabled state with this
-            timestamp. Must be >= created_at and <= now. Defaults to null
-            (enabled).
+            timestamp. Defaults to null (enabled).
           example: null
     DestinationCreateAWSSQS:
       type: object
@@ -1417,17 +1415,16 @@ components:
           nullable: true
           description: >-
             Optional override for the creation timestamp. Intended for importing
-            destinations from another system. Must not be in the future. Defaults
-            to the current time when omitted.
+            destinations from another system. Defaults to the current time when
+            omitted.
           example: "2024-02-15T10:00:00Z"
         updated_at:
           type: string
           format: date-time
           nullable: true
           description: >-
-            Optional override for the last-updated timestamp. Intended for importing
-            destinations. Must be >= created_at and <= now. Defaults to created_at
-            when omitted.
+            Optional override for the last-updated timestamp. Intended for
+            importing destinations. Defaults to created_at when omitted.
           example: "2024-02-15T10:00:00Z"
         disabled_at:
           type: string
@@ -1435,8 +1432,7 @@ components:
           nullable: true
           description: >-
             If set, the destination is created in a disabled state with this
-            timestamp. Must be >= created_at and <= now. Defaults to null
-            (enabled).
+            timestamp. Defaults to null (enabled).
           example: null
     DestinationCreateRabbitMQ:
       type: object
@@ -1479,17 +1475,16 @@ components:
           nullable: true
           description: >-
             Optional override for the creation timestamp. Intended for importing
-            destinations from another system. Must not be in the future. Defaults
-            to the current time when omitted.
+            destinations from another system. Defaults to the current time when
+            omitted.
           example: "2024-02-15T10:00:00Z"
         updated_at:
           type: string
           format: date-time
           nullable: true
           description: >-
-            Optional override for the last-updated timestamp. Intended for importing
-            destinations. Must be >= created_at and <= now. Defaults to created_at
-            when omitted.
+            Optional override for the last-updated timestamp. Intended for
+            importing destinations. Defaults to created_at when omitted.
           example: "2024-02-15T10:00:00Z"
         disabled_at:
           type: string
@@ -1497,8 +1492,7 @@ components:
           nullable: true
           description: >-
             If set, the destination is created in a disabled state with this
-            timestamp. Must be >= created_at and <= now. Defaults to null
-            (enabled).
+            timestamp. Defaults to null (enabled).
           example: null
     DestinationCreateHookdeck:
       type: object
@@ -1540,17 +1534,16 @@ components:
           nullable: true
           description: >-
             Optional override for the creation timestamp. Intended for importing
-            destinations from another system. Must not be in the future. Defaults
-            to the current time when omitted.
+            destinations from another system. Defaults to the current time when
+            omitted.
           example: "2024-02-15T10:00:00Z"
         updated_at:
           type: string
           format: date-time
           nullable: true
           description: >-
-            Optional override for the last-updated timestamp. Intended for importing
-            destinations. Must be >= created_at and <= now. Defaults to created_at
-            when omitted.
+            Optional override for the last-updated timestamp. Intended for
+            importing destinations. Defaults to created_at when omitted.
           example: "2024-02-15T10:00:00Z"
         disabled_at:
           type: string
@@ -1558,8 +1551,7 @@ components:
           nullable: true
           description: >-
             If set, the destination is created in a disabled state with this
-            timestamp. Must be >= created_at and <= now. Defaults to null
-            (enabled).
+            timestamp. Defaults to null (enabled).
           example: null
     DestinationCreateAWSKinesis:
       type: object
@@ -1602,17 +1594,16 @@ components:
           nullable: true
           description: >-
             Optional override for the creation timestamp. Intended for importing
-            destinations from another system. Must not be in the future. Defaults
-            to the current time when omitted.
+            destinations from another system. Defaults to the current time when
+            omitted.
           example: "2024-02-15T10:00:00Z"
         updated_at:
           type: string
           format: date-time
           nullable: true
           description: >-
-            Optional override for the last-updated timestamp. Intended for importing
-            destinations. Must be >= created_at and <= now. Defaults to created_at
-            when omitted.
+            Optional override for the last-updated timestamp. Intended for
+            importing destinations. Defaults to created_at when omitted.
           example: "2024-02-15T10:00:00Z"
         disabled_at:
           type: string
@@ -1620,8 +1611,7 @@ components:
           nullable: true
           description: >-
             If set, the destination is created in a disabled state with this
-            timestamp. Must be >= created_at and <= now. Defaults to null
-            (enabled).
+            timestamp. Defaults to null (enabled).
           example: null
 
     DestinationCreateAzureServiceBus:
@@ -1665,17 +1655,16 @@ components:
           nullable: true
           description: >-
             Optional override for the creation timestamp. Intended for importing
-            destinations from another system. Must not be in the future. Defaults
-            to the current time when omitted.
+            destinations from another system. Defaults to the current time when
+            omitted.
           example: "2024-02-15T10:00:00Z"
         updated_at:
           type: string
           format: date-time
           nullable: true
           description: >-
-            Optional override for the last-updated timestamp. Intended for importing
-            destinations. Must be >= created_at and <= now. Defaults to created_at
-            when omitted.
+            Optional override for the last-updated timestamp. Intended for
+            importing destinations. Defaults to created_at when omitted.
           example: "2024-02-15T10:00:00Z"
         disabled_at:
           type: string
@@ -1683,8 +1672,7 @@ components:
           nullable: true
           description: >-
             If set, the destination is created in a disabled state with this
-            timestamp. Must be >= created_at and <= now. Defaults to null
-            (enabled).
+            timestamp. Defaults to null (enabled).
           example: null
 
     DestinationCreateAWSS3:
@@ -1728,17 +1716,16 @@ components:
           nullable: true
           description: >-
             Optional override for the creation timestamp. Intended for importing
-            destinations from another system. Must not be in the future. Defaults
-            to the current time when omitted.
+            destinations from another system. Defaults to the current time when
+            omitted.
           example: "2024-02-15T10:00:00Z"
         updated_at:
           type: string
           format: date-time
           nullable: true
           description: >-
-            Optional override for the last-updated timestamp. Intended for importing
-            destinations. Must be >= created_at and <= now. Defaults to created_at
-            when omitted.
+            Optional override for the last-updated timestamp. Intended for
+            importing destinations. Defaults to created_at when omitted.
           example: "2024-02-15T10:00:00Z"
         disabled_at:
           type: string
@@ -1746,8 +1733,7 @@ components:
           nullable: true
           description: >-
             If set, the destination is created in a disabled state with this
-            timestamp. Must be >= created_at and <= now. Defaults to null
-            (enabled).
+            timestamp. Defaults to null (enabled).
           example: null
     DestinationCreateGCPPubSub:
       type: object
@@ -1790,17 +1776,16 @@ components:
           nullable: true
           description: >-
             Optional override for the creation timestamp. Intended for importing
-            destinations from another system. Must not be in the future. Defaults
-            to the current time when omitted.
+            destinations from another system. Defaults to the current time when
+            omitted.
           example: "2024-02-15T10:00:00Z"
         updated_at:
           type: string
           format: date-time
           nullable: true
           description: >-
-            Optional override for the last-updated timestamp. Intended for importing
-            destinations. Must be >= created_at and <= now. Defaults to created_at
-            when omitted.
+            Optional override for the last-updated timestamp. Intended for
+            importing destinations. Defaults to created_at when omitted.
           example: "2024-02-15T10:00:00Z"
         disabled_at:
           type: string
@@ -1808,8 +1793,7 @@ components:
           nullable: true
           description: >-
             If set, the destination is created in a disabled state with this
-            timestamp. Must be >= created_at and <= now. Defaults to null
-            (enabled).
+            timestamp. Defaults to null (enabled).
           example: null
     DestinationCreateKafka:
       type: object
@@ -1852,17 +1836,16 @@ components:
           nullable: true
           description: >-
             Optional override for the creation timestamp. Intended for importing
-            destinations from another system. Must not be in the future. Defaults
-            to the current time when omitted.
+            destinations from another system. Defaults to the current time when
+            omitted.
           example: "2024-02-15T10:00:00Z"
         updated_at:
           type: string
           format: date-time
           nullable: true
           description: >-
-            Optional override for the last-updated timestamp. Intended for importing
-            destinations. Must be >= created_at and <= now. Defaults to created_at
-            when omitted.
+            Optional override for the last-updated timestamp. Intended for
+            importing destinations. Defaults to created_at when omitted.
           example: "2024-02-15T10:00:00Z"
         disabled_at:
           type: string
@@ -1870,8 +1853,7 @@ components:
           nullable: true
           description: >-
             If set, the destination is created in a disabled state with this
-            timestamp. Must be >= created_at and <= now. Defaults to null
-            (enabled).
+            timestamp. Defaults to null (enabled).
           example: null
 
     # Polymorphic Destination Creation Schema (for Request Bodies)
@@ -1960,9 +1942,8 @@ components:
           format: date-time
           nullable: true
           description: >-
-            Update the disabled state of the destination. Send a timestamp
-            (must be >= created_at and <= now) to disable, null to enable,
-            or omit to leave unchanged.
+            Update the disabled state of the destination. Send a timestamp to
+            disable, null to enable, or omit to leave unchanged.
           example: null
     DestinationUpdateAWSSQS:
       type: object
@@ -2008,9 +1989,8 @@ components:
           format: date-time
           nullable: true
           description: >-
-            Update the disabled state of the destination. Send a timestamp
-            (must be >= created_at and <= now) to disable, null to enable,
-            or omit to leave unchanged.
+            Update the disabled state of the destination. Send a timestamp to
+            disable, null to enable, or omit to leave unchanged.
           example: null
     DestinationUpdateRabbitMQ:
       type: object
@@ -2056,9 +2036,8 @@ components:
           format: date-time
           nullable: true
           description: >-
-            Update the disabled state of the destination. Send a timestamp
-            (must be >= created_at and <= now) to disable, null to enable,
-            or omit to leave unchanged.
+            Update the disabled state of the destination. Send a timestamp to
+            disable, null to enable, or omit to leave unchanged.
           example: null
     DestinationUpdateHookdeck:
       type: object
@@ -2103,9 +2082,8 @@ components:
           format: date-time
           nullable: true
           description: >-
-            Update the disabled state of the destination. Send a timestamp
-            (must be >= created_at and <= now) to disable, null to enable,
-            or omit to leave unchanged.
+            Update the disabled state of the destination. Send a timestamp to
+            disable, null to enable, or omit to leave unchanged.
           example: null
     DestinationUpdateAWSKinesis:
       type: object
@@ -2151,9 +2129,8 @@ components:
           format: date-time
           nullable: true
           description: >-
-            Update the disabled state of the destination. Send a timestamp
-            (must be >= created_at and <= now) to disable, null to enable,
-            or omit to leave unchanged.
+            Update the disabled state of the destination. Send a timestamp to
+            disable, null to enable, or omit to leave unchanged.
           example: null
     DestinationUpdateAzureServiceBus:
       type: object
@@ -2199,9 +2176,8 @@ components:
           format: date-time
           nullable: true
           description: >-
-            Update the disabled state of the destination. Send a timestamp
-            (must be >= created_at and <= now) to disable, null to enable,
-            or omit to leave unchanged.
+            Update the disabled state of the destination. Send a timestamp to
+            disable, null to enable, or omit to leave unchanged.
           example: null
 
     DestinationUpdateAWSS3:
@@ -2248,9 +2224,8 @@ components:
           format: date-time
           nullable: true
           description: >-
-            Update the disabled state of the destination. Send a timestamp
-            (must be >= created_at and <= now) to disable, null to enable,
-            or omit to leave unchanged.
+            Update the disabled state of the destination. Send a timestamp to
+            disable, null to enable, or omit to leave unchanged.
           example: null
     DestinationUpdateGCPPubSub:
       type: object
@@ -2296,9 +2271,8 @@ components:
           format: date-time
           nullable: true
           description: >-
-            Update the disabled state of the destination. Send a timestamp
-            (must be >= created_at and <= now) to disable, null to enable,
-            or omit to leave unchanged.
+            Update the disabled state of the destination. Send a timestamp to
+            disable, null to enable, or omit to leave unchanged.
           example: null
     DestinationUpdateKafka:
       type: object
@@ -2344,9 +2318,8 @@ components:
           format: date-time
           nullable: true
           description: >-
-            Update the disabled state of the destination. Send a timestamp
-            (must be >= created_at and <= now) to disable, null to enable,
-            or omit to leave unchanged.
+            Update the disabled state of the destination. Send a timestamp to
+            disable, null to enable, or omit to leave unchanged.
           example: null
 
     # Polymorphic Destination Update Schema (for Request Bodies)

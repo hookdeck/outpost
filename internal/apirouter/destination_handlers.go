@@ -86,10 +86,6 @@ func (h *DestinationHandlers) Create(c *gin.Context) {
 		AbortWithValidationError(c, err)
 		return
 	}
-	if err := input.Validate(time.Now()); err != nil {
-		AbortWithValidationError(c, err)
-		return
-	}
 
 	tenant := mustTenantFromContext(c)
 	prev := h.snapshotTenant(tenant)
@@ -235,9 +231,8 @@ func (h *DestinationHandlers) Update(c *gin.Context) {
 	// DisabledAt
 	//   omitted: leave alone
 	//   null:    enable (clear)
-	//   <ts>:    disable at that time (must be <= now and >= created_at)
+	//   <ts>:    disable at that time
 	disabilityChanged := false
-	now := time.Now()
 	if input.DisabledAt != nil {
 		if isJSONNull(input.DisabledAt) {
 			if updatedDestination.DisabledAt != nil {
@@ -248,14 +243,6 @@ func (h *DestinationHandlers) Update(c *gin.Context) {
 			var ts time.Time
 			if err := json.Unmarshal(input.DisabledAt, &ts); err != nil {
 				AbortWithValidationError(c, fmt.Errorf("invalid disabled_at: %w", err))
-				return
-			}
-			if ts.After(now) {
-				AbortWithValidationError(c, errors.New("disabled_at cannot be in the future"))
-				return
-			}
-			if ts.Before(originalDestination.CreatedAt) {
-				AbortWithValidationError(c, errors.New("disabled_at cannot be before created_at"))
 				return
 			}
 			if updatedDestination.DisabledAt == nil || !updatedDestination.DisabledAt.Equal(ts) {
@@ -443,48 +430,6 @@ type CreateDestinationRequest struct {
 	DisabledAt       *time.Time              `json:"disabled_at,omitempty" binding:"-"`
 }
 
-// Validate checks request-level invariants that don't fit on the model
-// (cross-field timestamp ordering for the import use case).
-//
-// When created_at is omitted but disabled_at is provided, created_at is
-// implicitly defaulted to disabled_at (see ToDestination); validation
-// applies the same default so a lone disabled_at in the past is accepted.
-func (r *CreateDestinationRequest) Validate(now time.Time) error {
-	createdAt := r.effectiveCreatedAt(now)
-	if createdAt.After(now) {
-		return errors.New("created_at cannot be in the future")
-	}
-	if r.UpdatedAt != nil {
-		if r.UpdatedAt.After(now) {
-			return errors.New("updated_at cannot be in the future")
-		}
-		if r.UpdatedAt.Before(createdAt) {
-			return errors.New("updated_at cannot be before created_at")
-		}
-	}
-	if r.DisabledAt != nil {
-		if r.DisabledAt.After(now) {
-			return errors.New("disabled_at cannot be in the future")
-		}
-		if r.DisabledAt.Before(createdAt) {
-			return errors.New("disabled_at cannot be before created_at")
-		}
-	}
-	return nil
-}
-
-// effectiveCreatedAt resolves the created_at to apply: explicit value, else
-// disabled_at (so importers can send disabled_at alone), else now.
-func (r *CreateDestinationRequest) effectiveCreatedAt(now time.Time) time.Time {
-	if r.CreatedAt != nil {
-		return *r.CreatedAt
-	}
-	if r.DisabledAt != nil {
-		return *r.DisabledAt
-	}
-	return now
-}
-
 func (r *CreateDestinationRequest) ToDestination(tenantID string) models.Destination {
 	if r.ID == "" {
 		r.ID = idgen.Destination()
@@ -497,7 +442,10 @@ func (r *CreateDestinationRequest) ToDestination(tenantID string) models.Destina
 	}
 
 	now := time.Now()
-	createdAt := r.effectiveCreatedAt(now)
+	createdAt := now
+	if r.CreatedAt != nil {
+		createdAt = *r.CreatedAt
+	}
 	updatedAt := createdAt
 	if r.UpdatedAt != nil {
 		updatedAt = *r.UpdatedAt
