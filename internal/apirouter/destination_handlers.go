@@ -86,6 +86,13 @@ func (h *DestinationHandlers) Create(c *gin.Context) {
 		AbortWithValidationError(c, err)
 		return
 	}
+	if mustRoleFromContext(c) != RoleAdmin && (input.CreatedAt != nil || input.UpdatedAt != nil) {
+		AbortWithError(c, http.StatusForbidden, ErrorResponse{
+			Code:    http.StatusForbidden,
+			Message: "created_at and updated_at can only be set with API key authentication",
+		})
+		return
+	}
 	now := time.Now()
 	if input.CreatedAt != nil && input.CreatedAt.After(now) {
 		AbortWithValidationError(c, errors.New("created_at cannot be in the future"))

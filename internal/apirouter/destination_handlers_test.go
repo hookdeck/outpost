@@ -186,6 +186,48 @@ func TestAPI_Destinations(t *testing.T) {
 				resp := h.do(h.withAPIKey(req))
 				require.Equal(t, http.StatusUnprocessableEntity, resp.Code)
 			})
+
+			t.Run("jwt cannot set created_at returns 403", func(t *testing.T) {
+				h := newAPITest(t)
+				h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+
+				payload := validDestination()
+				payload["created_at"] = time.Now().Add(-1 * time.Hour).UTC().Format(time.RFC3339)
+
+				req := h.jsonReq(http.MethodPost, "/api/v1/tenants/t1/destinations", payload)
+				resp := h.do(h.withJWT(req, "t1"))
+				require.Equal(t, http.StatusForbidden, resp.Code)
+			})
+
+			t.Run("jwt cannot set updated_at returns 403", func(t *testing.T) {
+				h := newAPITest(t)
+				h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+
+				payload := validDestination()
+				payload["updated_at"] = time.Now().Add(-1 * time.Hour).UTC().Format(time.RFC3339)
+
+				req := h.jsonReq(http.MethodPost, "/api/v1/tenants/t1/destinations", payload)
+				resp := h.do(h.withJWT(req, "t1"))
+				require.Equal(t, http.StatusForbidden, resp.Code)
+			})
+
+			t.Run("jwt can set disabled_at", func(t *testing.T) {
+				h := newAPITest(t)
+				h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+
+				disabledAt := time.Now().Add(-1 * time.Hour).UTC().Truncate(time.Second)
+				payload := validDestination()
+				payload["disabled_at"] = disabledAt.Format(time.RFC3339)
+
+				req := h.jsonReq(http.MethodPost, "/api/v1/tenants/t1/destinations", payload)
+				resp := h.do(h.withJWT(req, "t1"))
+				require.Equal(t, http.StatusCreated, resp.Code)
+
+				var dest destregistry.DestinationDisplay
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &dest))
+				require.NotNil(t, dest.DisabledAt)
+				assert.True(t, dest.DisabledAt.Equal(disabledAt))
+			})
 		})
 	})
 
