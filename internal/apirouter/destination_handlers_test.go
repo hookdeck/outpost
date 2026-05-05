@@ -187,7 +187,7 @@ func TestAPI_Destinations(t *testing.T) {
 				require.Equal(t, http.StatusUnprocessableEntity, resp.Code)
 			})
 
-			t.Run("jwt cannot set created_at returns 403", func(t *testing.T) {
+			t.Run("jwt cannot set created_at returns 403 and persists nothing", func(t *testing.T) {
 				h := newAPITest(t)
 				h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
 
@@ -197,6 +197,10 @@ func TestAPI_Destinations(t *testing.T) {
 				req := h.jsonReq(http.MethodPost, "/api/v1/tenants/t1/destinations", payload)
 				resp := h.do(h.withJWT(req, "t1"))
 				require.Equal(t, http.StatusForbidden, resp.Code)
+
+				dests, err := h.tenantStore.ListDestination(t.Context(), tenantstore.ListDestinationRequest{TenantID: "t1"})
+				require.NoError(t, err)
+				assert.Empty(t, dests, "destination must not be created when request is forbidden")
 			})
 
 			t.Run("jwt cannot set updated_at returns 403", func(t *testing.T) {
@@ -209,6 +213,28 @@ func TestAPI_Destinations(t *testing.T) {
 				req := h.jsonReq(http.MethodPost, "/api/v1/tenants/t1/destinations", payload)
 				resp := h.do(h.withJWT(req, "t1"))
 				require.Equal(t, http.StatusForbidden, resp.Code)
+			})
+
+			t.Run("jwt cannot set both created_at and updated_at returns 403", func(t *testing.T) {
+				h := newAPITest(t)
+				h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+
+				payload := validDestination()
+				payload["created_at"] = time.Now().Add(-2 * time.Hour).UTC().Format(time.RFC3339)
+				payload["updated_at"] = time.Now().Add(-1 * time.Hour).UTC().Format(time.RFC3339)
+
+				req := h.jsonReq(http.MethodPost, "/api/v1/tenants/t1/destinations", payload)
+				resp := h.do(h.withJWT(req, "t1"))
+				require.Equal(t, http.StatusForbidden, resp.Code)
+			})
+
+			t.Run("jwt can create destination without import timestamps", func(t *testing.T) {
+				h := newAPITest(t)
+				h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+
+				req := h.jsonReq(http.MethodPost, "/api/v1/tenants/t1/destinations", validDestination())
+				resp := h.do(h.withJWT(req, "t1"))
+				require.Equal(t, http.StatusCreated, resp.Code)
 			})
 
 			t.Run("jwt can set disabled_at", func(t *testing.T) {
