@@ -445,13 +445,14 @@ type CreateDestinationRequest struct {
 
 // Validate checks request-level invariants that don't fit on the model
 // (cross-field timestamp ordering for the import use case).
+//
+// When created_at is omitted but disabled_at is provided, created_at is
+// implicitly defaulted to disabled_at (see ToDestination); validation
+// applies the same default so a lone disabled_at in the past is accepted.
 func (r *CreateDestinationRequest) Validate(now time.Time) error {
-	createdAt := now
-	if r.CreatedAt != nil {
-		createdAt = *r.CreatedAt
-		if createdAt.After(now) {
-			return errors.New("created_at cannot be in the future")
-		}
+	createdAt := r.effectiveCreatedAt(now)
+	if createdAt.After(now) {
+		return errors.New("created_at cannot be in the future")
 	}
 	if r.UpdatedAt != nil {
 		if r.UpdatedAt.After(now) {
@@ -472,6 +473,18 @@ func (r *CreateDestinationRequest) Validate(now time.Time) error {
 	return nil
 }
 
+// effectiveCreatedAt resolves the created_at to apply: explicit value, else
+// disabled_at (so importers can send disabled_at alone), else now.
+func (r *CreateDestinationRequest) effectiveCreatedAt(now time.Time) time.Time {
+	if r.CreatedAt != nil {
+		return *r.CreatedAt
+	}
+	if r.DisabledAt != nil {
+		return *r.DisabledAt
+	}
+	return now
+}
+
 func (r *CreateDestinationRequest) ToDestination(tenantID string) models.Destination {
 	if r.ID == "" {
 		r.ID = idgen.Destination()
@@ -484,10 +497,7 @@ func (r *CreateDestinationRequest) ToDestination(tenantID string) models.Destina
 	}
 
 	now := time.Now()
-	createdAt := now
-	if r.CreatedAt != nil {
-		createdAt = *r.CreatedAt
-	}
+	createdAt := r.effectiveCreatedAt(now)
 	updatedAt := createdAt
 	if r.UpdatedAt != nil {
 		updatedAt = *r.UpdatedAt

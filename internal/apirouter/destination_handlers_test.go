@@ -95,6 +95,26 @@ func TestAPI_Destinations(t *testing.T) {
 		})
 
 		t.Run("import timestamps", func(t *testing.T) {
+			t.Run("disabled_at alone defaults created_at to disabled_at", func(t *testing.T) {
+				h := newAPITest(t)
+				h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+
+				disabledAt := time.Now().Add(-24 * time.Hour).UTC().Truncate(time.Second)
+				payload := validDestination()
+				payload["disabled_at"] = disabledAt.Format(time.RFC3339)
+
+				req := h.jsonReq(http.MethodPost, "/api/v1/tenants/t1/destinations", payload)
+				resp := h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusCreated, resp.Code)
+				var dest destregistry.DestinationDisplay
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &dest))
+				require.NotNil(t, dest.DisabledAt)
+				assert.True(t, dest.DisabledAt.Equal(disabledAt))
+				assert.True(t, dest.CreatedAt.Equal(disabledAt), "created_at defaults to disabled_at when only disabled_at is provided")
+				assert.True(t, dest.UpdatedAt.Equal(disabledAt))
+			})
+
 			t.Run("disabled_at preserved on create with explicit created_at", func(t *testing.T) {
 				h := newAPITest(t)
 				h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
