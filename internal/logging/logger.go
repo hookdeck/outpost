@@ -74,7 +74,7 @@ func makeLogger(logLevel string) (*otelzap.Logger, error) {
 	if err != nil {
 		hostname = "unknown"
 	}
-	zapLogger = zapLogger.With(zap.String("node", hostname))
+	zapLogger = zapLogger.With(zap.String("host.name", hostname))
 
 	return otelzap.New(zapLogger,
 		otelzap.WithMinLevel(level),
