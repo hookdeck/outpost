@@ -150,6 +150,18 @@ func TestAPI_Destinations(t *testing.T) {
 				assert.True(t, dest.CreatedAt.Equal(createdAt))
 				assert.True(t, dest.UpdatedAt.Equal(createdAt))
 			})
+
+			t.Run("disabled_at in future returns 422", func(t *testing.T) {
+				h := newAPITest(t)
+				h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+
+				payload := validDestination()
+				payload["disabled_at"] = time.Now().Add(time.Hour).UTC().Format(time.RFC3339)
+
+				req := h.jsonReq(http.MethodPost, "/api/v1/tenants/t1/destinations", payload)
+				resp := h.do(h.withAPIKey(req))
+				require.Equal(t, http.StatusUnprocessableEntity, resp.Code)
+			})
 		})
 	})
 
@@ -917,6 +929,18 @@ func TestAPI_Destinations(t *testing.T) {
 				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &dest))
 				require.NotNil(t, dest.DisabledAt)
 				assert.True(t, dest.DisabledAt.Equal(ts))
+			})
+
+			t.Run("future timestamp returns 422", func(t *testing.T) {
+				h := newAPITest(t)
+				h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+				h.tenantStore.CreateDestination(t.Context(), df.Any(df.WithID("d1"), df.WithTenantID("t1")))
+
+				req := h.jsonReq(http.MethodPatch, "/api/v1/tenants/t1/destinations/d1", map[string]any{
+					"disabled_at": time.Now().Add(time.Hour).UTC().Format(time.RFC3339),
+				})
+				resp := h.do(h.withAPIKey(req))
+				require.Equal(t, http.StatusUnprocessableEntity, resp.Code)
 			})
 
 			t.Run("malformed timestamp returns 422", func(t *testing.T) {

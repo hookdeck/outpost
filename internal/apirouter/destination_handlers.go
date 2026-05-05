@@ -86,6 +86,10 @@ func (h *DestinationHandlers) Create(c *gin.Context) {
 		AbortWithValidationError(c, err)
 		return
 	}
+	if input.DisabledAt != nil && input.DisabledAt.After(time.Now()) {
+		AbortWithValidationError(c, errors.New("disabled_at cannot be in the future"))
+		return
+	}
 
 	tenant := mustTenantFromContext(c)
 	prev := h.snapshotTenant(tenant)
@@ -243,6 +247,10 @@ func (h *DestinationHandlers) Update(c *gin.Context) {
 			var ts time.Time
 			if err := json.Unmarshal(input.DisabledAt, &ts); err != nil {
 				AbortWithValidationError(c, fmt.Errorf("invalid disabled_at: %w", err))
+				return
+			}
+			if ts.After(time.Now()) {
+				AbortWithValidationError(c, errors.New("disabled_at cannot be in the future"))
 				return
 			}
 			if updatedDestination.DisabledAt == nil || !updatedDestination.DisabledAt.Equal(ts) {
