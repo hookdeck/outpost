@@ -86,6 +86,10 @@ func (h *DestinationHandlers) Create(c *gin.Context) {
 		AbortWithValidationError(c, err)
 		return
 	}
+	if err := input.Validate(time.Now()); err != nil {
+		AbortWithValidationError(c, err)
+		return
+	}
 
 	tenant := mustTenantFromContext(c)
 	prev := h.snapshotTenant(tenant)
@@ -228,6 +232,39 @@ func (h *DestinationHandlers) Update(c *gin.Context) {
 		updatedDestination.Metadata = metaResult
 	}
 
+	// DisabledAt
+	//   omitted: leave alone
+	//   null:    enable (clear)
+	//   <ts>:    disable at that time (must be <= now and >= created_at)
+	disabilityChanged := false
+	now := time.Now()
+	if input.DisabledAt != nil {
+		if isJSONNull(input.DisabledAt) {
+			if updatedDestination.DisabledAt != nil {
+				updatedDestination.DisabledAt = nil
+				disabilityChanged = true
+			}
+		} else {
+			var ts time.Time
+			if err := json.Unmarshal(input.DisabledAt, &ts); err != nil {
+				AbortWithValidationError(c, fmt.Errorf("invalid disabled_at: %w", err))
+				return
+			}
+			if ts.After(now) {
+				AbortWithValidationError(c, errors.New("disabled_at cannot be in the future"))
+				return
+			}
+			if ts.Before(originalDestination.CreatedAt) {
+				AbortWithValidationError(c, errors.New("disabled_at cannot be before created_at"))
+				return
+			}
+			if updatedDestination.DisabledAt == nil || !updatedDestination.DisabledAt.Equal(ts) {
+				updatedDestination.DisabledAt = &ts
+				disabilityChanged = true
+			}
+		}
+	}
+
 	// Always preprocess before updating
 	if err := h.registry.PreprocessDestination(&updatedDestination, originalDestination, &destregistry.PreprocessDestinationOpts{
 		Role: mustRoleFromContext(c),
@@ -255,6 +292,17 @@ func (h *DestinationHandlers) Update(c *gin.Context) {
 		zap.String("destination_id", updatedDestination.ID),
 		zap.String("destination_type", updatedDestination.Type),
 	)
+	if disabilityChanged {
+		action := "destination enabled"
+		if updatedDestination.DisabledAt != nil {
+			action = "destination disabled"
+		}
+		h.logger.Ctx(c.Request.Context()).Audit(action,
+			zap.String("tenant_id", tenant.ID),
+			zap.String("destination_id", updatedDestination.ID),
+			zap.String("destination_type", updatedDestination.Type),
+		)
+	}
 
 	display, err := h.displayer.Display(&updatedDestination)
 	if err != nil {
@@ -390,6 +438,38 @@ type CreateDestinationRequest struct {
 	Credentials      models.Credentials      `json:"credentials" binding:"-"`
 	DeliveryMetadata models.DeliveryMetadata `json:"delivery_metadata,omitempty" binding:"-"`
 	Metadata         models.Metadata         `json:"metadata,omitempty" binding:"-"`
+	CreatedAt        *time.Time              `json:"created_at,omitempty" binding:"-"`
+	UpdatedAt        *time.Time              `json:"updated_at,omitempty" binding:"-"`
+	DisabledAt       *time.Time              `json:"disabled_at,omitempty" binding:"-"`
+}
+
+// Validate checks request-level invariants that don't fit on the model
+// (cross-field timestamp ordering for the import use case).
+func (r *CreateDestinationRequest) Validate(now time.Time) error {
+	createdAt := now
+	if r.CreatedAt != nil {
+		createdAt = *r.CreatedAt
+		if createdAt.After(now) {
+			return errors.New("created_at cannot be in the future")
+		}
+	}
+	if r.UpdatedAt != nil {
+		if r.UpdatedAt.After(now) {
+			return errors.New("updated_at cannot be in the future")
+		}
+		if r.UpdatedAt.Before(createdAt) {
+			return errors.New("updated_at cannot be before created_at")
+		}
+	}
+	if r.DisabledAt != nil {
+		if r.DisabledAt.After(now) {
+			return errors.New("disabled_at cannot be in the future")
+		}
+		if r.DisabledAt.Before(createdAt) {
+			return errors.New("disabled_at cannot be before created_at")
+		}
+	}
+	return nil
 }
 
 func (r *CreateDestinationRequest) ToDestination(tenantID string) models.Destination {
@@ -404,6 +484,14 @@ func (r *CreateDestinationRequest) ToDestination(tenantID string) models.Destina
 	}
 
 	now := time.Now()
+	createdAt := now
+	if r.CreatedAt != nil {
+		createdAt = *r.CreatedAt
+	}
+	updatedAt := createdAt
+	if r.UpdatedAt != nil {
+		updatedAt = *r.UpdatedAt
+	}
 	return models.Destination{
 		ID:               r.ID,
 		Type:             r.Type,
@@ -413,9 +501,9 @@ func (r *CreateDestinationRequest) ToDestination(tenantID string) models.Destina
 		Credentials:      r.Credentials,
 		DeliveryMetadata: r.DeliveryMetadata,
 		Metadata:         r.Metadata,
-		CreatedAt:        now,
-		UpdatedAt:        now,
-		DisabledAt:       nil,
+		CreatedAt:        createdAt,
+		UpdatedAt:        updatedAt,
+		DisabledAt:       r.DisabledAt,
 		TenantID:         tenantID,
 	}
 }
@@ -428,6 +516,7 @@ type UpdateDestinationRequest struct {
 	Credentials      json.RawMessage `json:"credentials" binding:"-"`
 	DeliveryMetadata json.RawMessage `json:"delivery_metadata" binding:"-"`
 	Metadata         json.RawMessage `json:"metadata" binding:"-"`
+	DisabledAt       json.RawMessage `json:"disabled_at" binding:"-"`
 }
 
 // isJSONNull checks if raw JSON bytes represent a JSON null literal.
