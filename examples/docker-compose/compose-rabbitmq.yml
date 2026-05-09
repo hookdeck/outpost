@@ -12,6 +12,12 @@ services:
       timeout: 1s
       retries: 30
 
+  outpost-migrate:
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      - "RABBITMQ_SERVER_URL=amqp://guest:guest@rabbitmq:5672"
   api:
     depends_on:
       rabbitmq:

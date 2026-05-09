@@ -15,6 +15,12 @@ services:
       timeout: 1s
       retries: 30
 
+  outpost-migrate:
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      - POSTGRES_URL=postgres://outpost:outpost@postgres:5432/outpost?sslmode=disable
   api:
     depends_on:
       postgres:
