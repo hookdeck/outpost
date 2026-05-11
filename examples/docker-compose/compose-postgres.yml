@@ -15,7 +15,7 @@ services:
       timeout: 1s
       retries: 30
 
-  outpost-migrate:
+  migrate:
     depends_on:
       postgres:
         condition: service_healthy

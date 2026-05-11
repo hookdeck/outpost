@@ -12,7 +12,7 @@ services:
       timeout: 1s
       retries: 30
 
-  outpost-migrate:
+  migrate:
     depends_on:
       rabbitmq:
         condition: service_healthy
