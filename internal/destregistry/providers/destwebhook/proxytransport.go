@@ -1,4 +1,4 @@
-package destregistry
+package destwebhook
 
 import (
 	"context"
@@ -10,6 +10,15 @@ import (
 	"net/url"
 	"strings"
 )
+
+// WrapTransport is the destregistry.HTTPClientConfig.WrapTransport hook for
+// webhook destinations. It installs OnProxyConnectResponse on the underlying
+// transport and wraps it in proxyTransport so request- and response-time
+// proxy failures get translated into ErrProxyInfra / ErrProxyDestination.
+func WrapTransport(transport *http.Transport, proxyURL *url.URL) http.RoundTripper {
+	transport.OnProxyConnectResponse = onProxyConnectResponse
+	return newProxyTransport(transport, proxyURL)
+}
 
 // ErrProxyInfra signals that a webhook delivery failed at the proxy layer
 // (proxy auth misconfiguration, proxy unreachable, etc.). The delivery result

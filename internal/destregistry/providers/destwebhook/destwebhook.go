@@ -343,8 +343,9 @@ func (d *WebhookDestination) CreatePublisher(ctx context.Context, destination *m
 	}
 
 	httpClient, err := destregistry.NewHTTPClient(destregistry.HTTPClientConfig{
-		UserAgent: &d.userAgent,
-		ProxyURL:  proxyURL,
+		UserAgent:     &d.userAgent,
+		ProxyURL:      proxyURL,
+		WrapTransport: WrapTransport,
 	})
 	if err != nil {
 		return nil, err

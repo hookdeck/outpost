@@ -11,6 +11,13 @@ type HTTPClientConfig struct {
 	Timeout   *time.Duration
 	UserAgent *string
 	ProxyURL  *string
+	// WrapTransport, if set, is invoked after a proxy URL has been installed
+	// on the *http.Transport. Callers can use it to attach proxy-specific
+	// concerns (e.g. OnProxyConnectResponse callbacks, response classifiers)
+	// without bleeding those concerns into destregistry itself. Receives the
+	// underlying transport plus the parsed proxy URL; returns the
+	// RoundTripper to use thereafter.
+	WrapTransport func(*http.Transport, *url.URL) http.RoundTripper
 }
 
 // NewHTTPClient builds an *http.Client from config. Free function — no
@@ -36,8 +43,9 @@ func NewHTTPClient(config HTTPClientConfig) (*http.Client, error) {
 			return nil, fmt.Errorf("invalid proxy URL: %w", err)
 		}
 		transport.Proxy = http.ProxyURL(proxyURLParsed)
-		transport.OnProxyConnectResponse = onProxyConnectResponse
-		rt = newProxyTransport(rt, proxyURLParsed)
+		if config.WrapTransport != nil {
+			rt = config.WrapTransport(transport, proxyURLParsed)
+		}
 	}
 
 	if config.UserAgent != nil {

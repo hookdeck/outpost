@@ -36,7 +36,7 @@ func ExecuteHTTPRequest(ctx context.Context, client *http.Client, req *http.Requ
 	if err != nil {
 		// Proxy infrastructure error: nack via nil Delivery so the customer's
 		// retry budget is not charged for our infra outage.
-		var infraErr *destregistry.ErrProxyInfra
+		var infraErr *ErrProxyInfra
 		if errors.As(err, &infraErr) {
 			return &HTTPRequestResult{
 				Delivery: nil,
@@ -51,7 +51,7 @@ func ExecuteHTTPRequest(ctx context.Context, client *http.Client, req *http.Requ
 		// Proxy-attributed destination error: use the explicit Code instead of
 		// substring-matching the underlying error.
 		var code string
-		var destErr *destregistry.ErrProxyDestination
+		var destErr *ErrProxyDestination
 		if errors.As(err, &destErr) {
 			code = destErr.Code
 		} else {

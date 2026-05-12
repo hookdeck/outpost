@@ -1,4 +1,4 @@
-package destregistry
+package destwebhook
 
 import (
 	"io"
