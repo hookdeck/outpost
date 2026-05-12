@@ -26,9 +26,30 @@ By default Outpost makes no assumption about the proxy implementation. Proxy-ori
 
 Setting `DESTINATIONS_WEBHOOK_PROXY_TYPE=envoy` tells Outpost to treat the proxy as an [Envoy](https://www.envoyproxy.io/) forward proxy and enables three additional behaviors:
 
-- **Infrastructure error detection** — failures originating in the proxy layer (`CONNECT` 407, upstream connect failure, Envoy-synthesized 5xx responses) are identified via the `x-envoy-response-flags` header and Go's `proxyconnect` error path, and distinguished from real destination failures.
-- **Transparent redelivery** — proxy infra errors are nacked back to the queue rather than recorded as failed delivery attempts. The destination's retry budget is preserved; brief proxy outages are invisible to destinations and to the events log.
-- **Header sanitization** — `x-envoy-*` and `server: envoy` headers are stripped from responses before they reach the delivery record. The destination's response remains otherwise unmodified.
+- **Attribution** — failures originating in the proxy layer are distinguished from failures originating at the destination. Detection uses the `x-envoy-response-flags` header and Go's `proxyconnect` error path.
+- **Selective transparent redelivery** — proxy *infrastructure* errors are nacked back to the queue rather than recorded as failed delivery attempts. Destination errors (including failures that Envoy merely *reports*) are recorded normally and burn the destination's retry budget as today.
+- **Header and body sanitization** — `x-envoy-*` and `server: envoy` headers are stripped from responses, and Envoy-synthesized response bodies are replaced with a normalized message that does not expose Envoy. Real upstream responses pass through unchanged.
+
+### Error attribution and behavior
+
+The discriminator between infra and destination is narrow on purpose: nacking on a destination error would cause infinite redelivery loops for genuinely broken destinations. Only failures that are unambiguously the proxy's fault are nacked.
+
+| Scenario | Outpost sees | Attribution | Behavior |
+|---|---|---|---|
+| Proxy authentication failure | `proxyconnect` error containing `407` | Infra | **Nack** — operator misconfiguration of proxy credentials |
+| Proxy unreachable (LB / Envoy down) | Dial error to the proxy's host/IP | Infra | **Nack** — proxy infrastructure outage |
+| `CONNECT` succeeds, destination returns real 4xx/5xx (HTTPS) | Normal HTTP response | Destination | Record attempt with the actual status code |
+| `CONNECT` succeeds, destination TLS handshake fails (HTTPS) | TLS error from Go client | Destination | Record attempt (`tls_error`) |
+| `CONNECT` succeeds, destination times out | I/O timeout from Go client | Destination | Record attempt (`timeout`) |
+| Envoy cannot connect to destination (HTTPS, `CONNECT` returns 5xx) | `proxyconnect` error with 5xx status | Destination | Record attempt (`connection_refused` / `network_error`) |
+| Envoy cannot resolve destination DNS (HTTPS) | `proxyconnect` error with 5xx | Destination | Record attempt (`dns_error`) |
+| Envoy synthesizes 5xx response (plain-HTTP destination); flag `UF` / `UC` | `x-envoy-response-flags: UF` | Destination | Record attempt (`connection_refused`) |
+| Envoy synthesizes 5xx response; flag `UT` | `x-envoy-response-flags: UT` | Destination | Record attempt (`timeout`) |
+| Envoy synthesizes 5xx response; flag `DC` | `x-envoy-response-flags: DC` | Destination | Record attempt (`dns_error`) |
+| Real upstream response passed through (plain-HTTP) | `x-envoy-response-flags: -` or empty | Destination | Record as today |
+| Envoy itself overloaded or misbehaving (rare) | Unrecognized synthesized response | Destination (conservative) | Record attempt (`network_error`) — never nack on speculation |
+
+**Key principle:** when Envoy reports a failure that originated at the destination (DNS, connect refused, upstream timeout), the customer still sees it as a destination failure — Outpost simply rewrites the message so the response data is destination-attributed, not Envoy-attributed. Nacking is reserved for cases where the proxy itself is the proximate cause.
 
 ### Required Envoy configuration
 
@@ -112,7 +133,7 @@ For production, also add proxy authentication and front Envoy with a load balanc
 
 ## Queue retry behavior with Envoy mode
 
-When Envoy mode nacks an infra error, the underlying message queue redelivers the event. Configure the delivery queue with enough redelivery runway to survive short proxy outages without messages prematurely landing in dead-letter:
+When Envoy mode nacks a proxy infrastructure error, the underlying message queue redelivers the event. Because nacks only fire for true infra failures (proxy auth or proxy unreachable), the redelivery rate is bounded by the proxy outage duration, not by destination behavior. Even so, configure the delivery queue with enough redelivery runway to survive short proxy outages without messages prematurely landing in dead-letter:
 
 - **GCP Pub/Sub** — set `retryPolicy: {minimumBackoff: 5s, maximumBackoff: 600s}` and `maxDeliveryAttempts: 10` on the delivery subscription (~30 min runway before DLQ).
 - **RabbitMQ / SQS / Kafka** — equivalent backoff and max-redelivery settings on the delivery queue.
