@@ -1,8 +1,13 @@
 package destregistry
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"net"
+	"net/http"
+	"net/url"
+	"strings"
 )
 
 // ErrProxyInfra signals that a webhook delivery failed at the proxy layer
@@ -83,4 +88,124 @@ func MapEnvoyResponseFlag(flag string) string {
 	default:
 		return "network_error"
 	}
+}
+
+// proxyTransport wraps an http.RoundTripper to translate proxy-originated
+// failures into ErrProxyInfra / ErrProxyDestination so the delivery pipeline
+// can attribute them correctly.
+//
+// CONNECT-time errors are handled by installing onProxyConnectResponse on the
+// underlying http.Transport: that callback sees the proxy's actual response
+// (status + headers) before Go discards it, so we can build the right
+// sentinel directly. Dial-to-proxy failures are detected here from the
+// wrapped *net.OpError whose Op == "proxyconnect" (still set by Go stdlib).
+type proxyTransport struct {
+	base     http.RoundTripper
+	proxyURL *url.URL
+}
+
+func newProxyTransport(base http.RoundTripper, proxyURL *url.URL) *proxyTransport {
+	return &proxyTransport{base: base, proxyURL: proxyURL}
+}
+
+func (t *proxyTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	resp, err := t.base.RoundTrip(req)
+	if err != nil {
+		if mapped := t.classifyTransportError(err, req); mapped != nil {
+			return nil, mapped
+		}
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (t *proxyTransport) classifyTransportError(err error, req *http.Request) error {
+	// CONNECT-time errors arrive pre-typed via onProxyConnectResponse — pass
+	// through unchanged.
+	var infraErr *ErrProxyInfra
+	if errors.As(err, &infraErr) {
+		return nil
+	}
+	var destErr *ErrProxyDestination
+	if errors.As(err, &destErr) {
+		return nil
+	}
+
+	destHost := ""
+	if req != nil && req.URL != nil {
+		destHost = req.URL.Host
+	}
+
+	// Dial-to-proxy failure: Go wraps these in &net.OpError{Op: "proxyconnect"}
+	// even in current versions. The wrap is the most reliable signal that the
+	// proxy itself is unreachable (vs. an arbitrary network error en route to
+	// the destination, which would be a destination problem).
+	if strings.Contains(err.Error(), "proxyconnect") {
+		return &ErrProxyInfra{Underlying: err, DestHost: destHost}
+	}
+
+	return nil
+}
+
+// onProxyConnectResponse is installed on the underlying http.Transport and
+// fires for every CONNECT response from the proxy. Non-200 responses are
+// translated into the appropriate sentinel here, where the full response
+// (status code + headers, including x-envoy-response-flags) is still
+// available.
+func onProxyConnectResponse(ctx context.Context, proxyURL *url.URL, connectReq *http.Request, resp *http.Response) error {
+	if resp.StatusCode == http.StatusOK {
+		return nil
+	}
+
+	// CONNECT requests set the target as Request.Host (and URL.Opaque), not
+	// URL.Host. See net/http transport.go: connectReq is built with
+	// URL: &url.URL{Opaque: targetAddr}, Host: targetAddr.
+	destHost := ""
+	if connectReq != nil {
+		switch {
+		case connectReq.Host != "":
+			destHost = connectReq.Host
+		case connectReq.URL != nil:
+			destHost = connectReq.URL.Host
+		}
+	}
+	if h, _, err := net.SplitHostPort(destHost); err == nil {
+		destHost = h
+	}
+
+	switch resp.StatusCode {
+	case http.StatusProxyAuthRequired,
+		http.StatusUnauthorized,
+		http.StatusForbidden:
+		// Auth-related failures are operator misconfiguration of proxy
+		// credentials — proxy infrastructure problem, not destination.
+		return &ErrProxyInfra{
+			Underlying: fmt.Errorf("proxy returned %s", resp.Status),
+			DestHost:   destHost,
+		}
+	}
+
+	// Other non-200 statuses indicate the proxy could not establish the tunnel
+	// to the destination. Attribute to destination; refine the code from the
+	// Envoy response flag when present.
+	code := "connection_refused"
+	if flag := envoyResponseFlag(resp.Header); flag != "" {
+		code = MapEnvoyResponseFlag(flag)
+	}
+
+	return &ErrProxyDestination{
+		Underlying: fmt.Errorf("proxy returned %s", resp.Status),
+		Code:       code,
+		DestHost:   destHost,
+	}
+}
+
+// envoyResponseFlag returns the meaningful value of the x-envoy-response-flags
+// header, or "" if the header is absent / placeholder "-" / empty.
+func envoyResponseFlag(h http.Header) string {
+	v := strings.TrimSpace(h.Get("x-envoy-response-flags"))
+	if v == "" || v == "-" {
+		return ""
+	}
+	return v
 }

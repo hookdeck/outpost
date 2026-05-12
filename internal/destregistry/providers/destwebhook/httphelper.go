@@ -2,6 +2,7 @@ package destwebhook
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -21,15 +22,44 @@ type HTTPRequestResult struct {
 }
 
 // ExecuteHTTPRequest executes an HTTP request and classifies the result.
-// All errors return a Delivery object with a classified error code.
+//
+// Most errors return a Delivery object with a classified error code so the
+// caller can record a failed attempt.
+//
+// Proxy *infrastructure* errors (ErrProxyInfra) return Delivery: nil so the
+// caller signals the queue to nack the message instead of recording a
+// customer-visible attempt. See registry.go for the nil-attempt handling.
+//
 // See: https://github.com/hookdeck/outpost/issues/571
 func ExecuteHTTPRequest(ctx context.Context, client *http.Client, req *http.Request, provider string) *HTTPRequestResult {
 	resp, err := client.Do(req)
 	if err != nil {
+		// Proxy infrastructure error: nack via nil Delivery so the customer's
+		// retry budget is not charged for our infra outage.
+		var infraErr *destregistry.ErrProxyInfra
+		if errors.As(err, &infraErr) {
+			return &HTTPRequestResult{
+				Delivery: nil,
+				Error: destregistry.NewErrDestinationPublishAttempt(err, provider, map[string]interface{}{
+					"error":   "proxy_infrastructure",
+					"message": infraErr.Error(),
+				}),
+				Response: nil,
+			}
+		}
+
+		// Proxy-attributed destination error: use the explicit Code instead of
+		// substring-matching the underlying error.
+		code := ClassifyNetworkError(err)
+		var destErr *destregistry.ErrProxyDestination
+		if errors.As(err, &destErr) {
+			code = destErr.Code
+		}
+
 		return &HTTPRequestResult{
 			Delivery: &destregistry.Delivery{
 				Status: "failed",
-				Code:   ClassifyNetworkError(err),
+				Code:   code,
 			},
 			Error: destregistry.NewErrDestinationPublishAttempt(err, provider, map[string]interface{}{
 				"error":   "request_failed",

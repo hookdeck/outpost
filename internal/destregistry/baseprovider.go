@@ -213,31 +213,32 @@ func (p *BaseProvider) MakeHTTPClient(config HTTPClientConfig) (*http.Client, er
 		client.Timeout = *config.Timeout
 	}
 
-	// Configure transport with proxy and/or user agent if needed
-	if config.ProxyURL != nil || config.UserAgent != nil {
-		// Start with default transport settings
-		transport := http.DefaultTransport.(*http.Transport).Clone()
+	if config.ProxyURL == nil && config.UserAgent == nil {
+		return client, nil
+	}
 
-		// Configure proxy if provided
-		if config.ProxyURL != nil && *config.ProxyURL != "" {
-			proxyURLParsed, err := url.Parse(*config.ProxyURL)
-			if err != nil {
-				return nil, fmt.Errorf("invalid proxy URL: %w", err)
-			}
-			transport.Proxy = http.ProxyURL(proxyURLParsed)
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+
+	var rt http.RoundTripper = transport
+
+	if config.ProxyURL != nil && *config.ProxyURL != "" {
+		proxyURLParsed, err := url.Parse(*config.ProxyURL)
+		if err != nil {
+			return nil, fmt.Errorf("invalid proxy URL: %w", err)
 		}
+		transport.Proxy = http.ProxyURL(proxyURLParsed)
+		transport.OnProxyConnectResponse = onProxyConnectResponse
+		rt = newProxyTransport(rt, proxyURLParsed)
+	}
 
-		// Wrap transport with user agent if needed
-		if config.UserAgent != nil {
-			client.Transport = &userAgentTransport{
-				userAgent: *config.UserAgent,
-				transport: transport,
-			}
-		} else {
-			client.Transport = transport
+	if config.UserAgent != nil {
+		rt = &userAgentTransport{
+			userAgent: *config.UserAgent,
+			transport: rt,
 		}
 	}
 
+	client.Transport = rt
 	return client, nil
 }
 
