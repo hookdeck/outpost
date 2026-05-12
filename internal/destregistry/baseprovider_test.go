@@ -14,9 +14,6 @@ import (
 func TestMakeHTTPClient_UserAgent(t *testing.T) {
 	t.Parallel()
 
-	provider, err := newMockProvider()
-	require.NoError(t, err)
-
 	t.Run("sets user agent on requests", func(t *testing.T) {
 		t.Parallel()
 
@@ -30,7 +27,7 @@ func TestMakeHTTPClient_UserAgent(t *testing.T) {
 
 		// Create client with user agent
 		userAgent := "TestAgent/1.0"
-		client, err := provider.MakeHTTPClient(destregistry.HTTPClientConfig{
+		client, err := destregistry.NewHTTPClient(destregistry.HTTPClientConfig{
 			UserAgent: &userAgent,
 		})
 		require.NoError(t, err)
@@ -49,7 +46,7 @@ func TestMakeHTTPClient_UserAgent(t *testing.T) {
 		t.Parallel()
 
 		emptyUserAgent := ""
-		client, err := provider.MakeHTTPClient(destregistry.HTTPClientConfig{
+		client, err := destregistry.NewHTTPClient(destregistry.HTTPClientConfig{
 			UserAgent: &emptyUserAgent,
 		})
 		require.NoError(t, err)
@@ -62,9 +59,6 @@ func TestMakeHTTPClient_UserAgent(t *testing.T) {
 
 func TestMakeHTTPClient_Proxy(t *testing.T) {
 	t.Parallel()
-
-	provider, err := newMockProvider()
-	require.NoError(t, err)
 
 	t.Run("routes requests through proxy", func(t *testing.T) {
 		t.Parallel()
@@ -90,7 +84,7 @@ func TestMakeHTTPClient_Proxy(t *testing.T) {
 		defer targetServer.Close()
 
 		// Create client with proxy configured
-		client, err := provider.MakeHTTPClient(destregistry.HTTPClientConfig{
+		client, err := destregistry.NewHTTPClient(destregistry.HTTPClientConfig{
 			ProxyURL: &proxyServer.URL,
 		})
 		require.NoError(t, err)
@@ -109,7 +103,7 @@ func TestMakeHTTPClient_Proxy(t *testing.T) {
 		t.Parallel()
 
 		invalidProxy := "://invalid-url"
-		_, err := provider.MakeHTTPClient(destregistry.HTTPClientConfig{
+		_, err := destregistry.NewHTTPClient(destregistry.HTTPClientConfig{
 			ProxyURL: &invalidProxy,
 		})
 
