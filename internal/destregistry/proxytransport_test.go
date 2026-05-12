@@ -2,6 +2,7 @@ package destregistry_test
 
 import (
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -187,6 +188,141 @@ func TestProxyTransport_ErrProxyInfra_DoesNotLeakProxyDetails(t *testing.T) {
 		"ErrProxyInfra.Error() must not leak proxy address")
 	assert.Contains(t, infraErr.Error(), "example.invalid",
 		"ErrProxyInfra.Error() should reference the destination host")
+}
+
+// newEnvoySynthesizedProxy returns a forwarding proxy that, instead of
+// forwarding, responds with an Envoy-synthesized 5xx and the configured
+// response flag.
+func newEnvoySynthesizedProxy(t *testing.T, status int, flag string) *httptest.Server {
+	t.Helper()
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("server", "envoy")
+		w.Header().Set("x-envoy-response-flags", flag)
+		w.WriteHeader(status)
+		_, _ = w.Write([]byte("upstream connect error or disconnect/reset before headers"))
+	}))
+}
+
+func TestProxyTransport_EnvoySynthesizedResponse_UF_ReturnsConnectionRefused(t *testing.T) {
+	t.Parallel()
+
+	proxy := newEnvoySynthesizedProxy(t, http.StatusBadGateway, "UF")
+	defer proxy.Close()
+
+	client := makeProxiedClient(t, proxy.URL)
+	_, err := client.Get("http://example.invalid/hook")
+	require.Error(t, err)
+
+	var destErr *destregistry.ErrProxyDestination
+	require.True(t, errors.As(err, &destErr),
+		"expected ErrProxyDestination for envoy UF flag, got: %v", err)
+	assert.Equal(t, "connection_refused", destErr.Code)
+	assert.Equal(t, "example.invalid", destErr.DestHost)
+}
+
+func TestProxyTransport_EnvoySynthesizedResponse_UT_ReturnsTimeout(t *testing.T) {
+	t.Parallel()
+
+	proxy := newEnvoySynthesizedProxy(t, http.StatusGatewayTimeout, "UT")
+	defer proxy.Close()
+
+	client := makeProxiedClient(t, proxy.URL)
+	_, err := client.Get("http://example.invalid/hook")
+	require.Error(t, err)
+
+	var destErr *destregistry.ErrProxyDestination
+	require.True(t, errors.As(err, &destErr))
+	assert.Equal(t, "timeout", destErr.Code)
+}
+
+func TestProxyTransport_EnvoySynthesizedResponse_DC_ReturnsDNSError(t *testing.T) {
+	t.Parallel()
+
+	proxy := newEnvoySynthesizedProxy(t, http.StatusServiceUnavailable, "DC")
+	defer proxy.Close()
+
+	client := makeProxiedClient(t, proxy.URL)
+	_, err := client.Get("http://example.invalid/hook")
+	require.Error(t, err)
+
+	var destErr *destregistry.ErrProxyDestination
+	require.True(t, errors.As(err, &destErr))
+	assert.Equal(t, "dns_error", destErr.Code)
+}
+
+func TestProxyTransport_EnvoyPlaceholderFlag_PassesResponseThrough(t *testing.T) {
+	t.Parallel()
+
+	// "-" is the placeholder Envoy emits when no flag fired (pass-through
+	// success path). Must not be treated as synthesized.
+	proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("x-envoy-response-flags", "-")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("real upstream body"))
+	}))
+	defer proxy.Close()
+
+	client := makeProxiedClient(t, proxy.URL)
+	resp, err := client.Get("http://example.invalid/hook")
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Equal(t, "real upstream body", string(body))
+	// Header stripped on success.
+	assert.Empty(t, resp.Header.Get("x-envoy-response-flags"))
+}
+
+func TestProxyTransport_StripsEnvoyHeaders_OnSuccess(t *testing.T) {
+	t.Parallel()
+
+	proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("server", "envoy")
+		w.Header().Set("x-envoy-upstream-service-time", "12")
+		w.Header().Set("x-envoy-attempt-count", "1")
+		w.Header().Set("x-real-header", "kept")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("ok"))
+	}))
+	defer proxy.Close()
+
+	client := makeProxiedClient(t, proxy.URL)
+	resp, err := client.Get("http://example.invalid/hook")
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	assert.Empty(t, resp.Header.Get("server"))
+	assert.Empty(t, resp.Header.Get("x-envoy-upstream-service-time"))
+	assert.Empty(t, resp.Header.Get("x-envoy-attempt-count"))
+	assert.Equal(t, "kept", resp.Header.Get("x-real-header"))
+}
+
+func TestProxyTransport_EnvoyConnectFlag_RefinesInfraErrorCode(t *testing.T) {
+	t.Parallel()
+
+	// Envoy CONNECT failure with a response-flag header. The
+	// OnProxyConnectResponse callback sees the headers and refines the
+	// destination error code from the flag instead of the generic default.
+	proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodConnect {
+			w.Header().Set("x-envoy-response-flags", "DC")
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer proxy.Close()
+
+	client := makeProxiedClient(t, proxy.URL)
+	_, err := client.Get("https://example.invalid/")
+	require.Error(t, err)
+
+	var destErr *destregistry.ErrProxyDestination
+	require.True(t, errors.As(err, &destErr),
+		"expected ErrProxyDestination, got: %v", err)
+	assert.Equal(t, "dns_error", destErr.Code,
+		"envoy response-flag DC should refine generic connection_refused to dns_error")
 }
 
 func TestMapEnvoyResponseFlag(t *testing.T) {

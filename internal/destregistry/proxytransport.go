@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -116,7 +117,51 @@ func (t *proxyTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 		}
 		return nil, err
 	}
+
+	// Envoy-synthesized response on the plain-HTTP forwarding path: the
+	// response carries an x-envoy-response-flags header with a non-empty,
+	// non-placeholder value. Convert to a destination-attributed error;
+	// the envoy-synthesized body never reaches the delivery record.
+	if flag := envoyResponseFlag(resp.Header); flag != "" {
+		_, _ = io.Copy(io.Discard, resp.Body)
+		_ = resp.Body.Close()
+		return nil, &ErrProxyDestination{
+			Underlying: fmt.Errorf("proxy synthesized response (flag %s, status %d)", flag, resp.StatusCode),
+			Code:       MapEnvoyResponseFlag(flag),
+			DestHost:   destHostFromRequest(req),
+		}
+	}
+
+	// Real upstream response served via the proxy: strip proxy fingerprints
+	// so they aren't persisted in the delivery record or shown to the
+	// customer.
+	sanitizeEnvoyHeaders(resp.Header)
 	return resp, nil
+}
+
+func destHostFromRequest(req *http.Request) string {
+	if req == nil || req.URL == nil {
+		return ""
+	}
+	host := req.URL.Host
+	if h, _, err := net.SplitHostPort(host); err == nil {
+		host = h
+	}
+	return host
+}
+
+// sanitizeEnvoyHeaders removes Envoy-fingerprinting headers from a response so
+// the destination's identity in the delivery record is not contaminated with
+// proxy details. Safe no-op when no envoy headers are present.
+func sanitizeEnvoyHeaders(h http.Header) {
+	for k := range h {
+		if strings.HasPrefix(strings.ToLower(k), "x-envoy-") {
+			h.Del(k)
+		}
+	}
+	if strings.EqualFold(h.Get("Server"), "envoy") {
+		h.Del("Server")
+	}
 }
 
 func (t *proxyTransport) classifyTransportError(err error, req *http.Request) error {
