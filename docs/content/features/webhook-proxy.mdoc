@@ -133,9 +133,9 @@ For production, also add proxy authentication and front Envoy with a load balanc
 
 ## Queue retry behavior with Envoy mode
 
-When Envoy mode nacks a proxy infrastructure error, the underlying message queue redelivers the event. Because nacks only fire for true infra failures (proxy auth or proxy unreachable), the redelivery rate is bounded by the proxy outage duration, not by destination behavior. Even so, configure the delivery queue with enough redelivery runway to survive short proxy outages without messages prematurely landing in dead-letter:
+When Envoy mode nacks a proxy infrastructure error, the underlying message queue redelivers the event. Because nacks only fire for true infra failures (proxy auth or proxy unreachable), the redelivery rate is bounded by the proxy outage duration, not by destination behavior. Even so, configure the delivery queue so that the **maximum time a single message can be retried before being sent to the dead-letter queue** is long enough to survive realistic proxy outages:
 
-- **GCP Pub/Sub** — set `retryPolicy: {minimumBackoff: 5s, maximumBackoff: 600s}` and `maxDeliveryAttempts: 10` on the delivery subscription (~30 min runway before DLQ).
+- **GCP Pub/Sub** — set `retryPolicy: {minimumBackoff: 5s, maximumBackoff: 600s}` and `maxDeliveryAttempts: 10` on the delivery subscription. With exponential backoff between attempts, a nacked message is retried for approximately 30 minutes before it lands in the dead-letter topic.
 - **RabbitMQ / SQS / Kafka** — equivalent backoff and max-redelivery settings on the delivery queue.
 
-Without sufficient runway, brief proxy outages will push messages to dead-letter prematurely and require manual replay.
+If the proxy outage lasts longer than this redelivery window, affected messages will land in the dead-letter destination and require manual replay.
