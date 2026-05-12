@@ -196,4 +196,3 @@ func validateField(field metadata.FieldSchema, value string, path string) *Valid
 func (p *BaseProvider) Preprocess(newDestination *models.Destination, originalDestination *models.Destination, opts *PreprocessDestinationOpts) error {
 	return nil
 }
-
