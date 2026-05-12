@@ -64,14 +64,17 @@ Support for other forward proxies (Squid, HAProxy, nginx, ...) can be added the 
 
 ### Required Envoy configuration
 
-For Outpost to reliably distinguish Envoy-synthesized responses from real upstream responses, Envoy must emit its response flags as a response header. Add to the HTTP connection manager:
+For Outpost to reliably distinguish Envoy-synthesized responses from real upstream responses, Envoy must emit its response flags as a response header. Add to the route configuration (Envoy rejects this field on the HTTP connection manager — it belongs on `RouteConfiguration`):
 
 ```yaml
-response_headers_to_add:
-  - header:
-      key: "x-envoy-response-flags"
-      value: "%RESPONSE_FLAGS%"
-    append_action: OVERWRITE_IF_EXISTS_OR_ADD
+route_config:
+  response_headers_to_add:
+    - header:
+        key: "x-envoy-response-flags"
+        value: "%RESPONSE_FLAGS%"
+      append_action: OVERWRITE_IF_EXISTS_OR_ADD
+  virtual_hosts:
+    # ...
 ```
 
 `OVERWRITE_IF_EXISTS_OR_ADD` is important — it prevents a misbehaving destination from spoofing the header to confuse Outpost's classification.
@@ -97,11 +100,6 @@ static_resources:
                 "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
                 stat_prefix: forward_proxy
                 codec_type: AUTO
-                response_headers_to_add:
-                  - header:
-                      key: "x-envoy-response-flags"
-                      value: "%RESPONSE_FLAGS%"
-                    append_action: OVERWRITE_IF_EXISTS_OR_ADD
                 http_filters:
                   - name: envoy.filters.http.dynamic_forward_proxy
                     typed_config:
@@ -115,6 +113,11 @@ static_resources:
                 upgrade_configs:
                   - upgrade_type: CONNECT
                 route_config:
+                  response_headers_to_add:
+                    - header:
+                        key: "x-envoy-response-flags"
+                        value: "%RESPONSE_FLAGS%"
+                      append_action: OVERWRITE_IF_EXISTS_OR_ADD
                   virtual_hosts:
                     - name: proxy
                       domains: ["*"]
