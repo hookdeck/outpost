@@ -95,11 +95,31 @@ func MapEnvoyResponseFlag(flag string) string {
 // failures into ErrProxyInfra / ErrProxyDestination so the delivery pipeline
 // can attribute them correctly.
 //
-// CONNECT-time errors are handled by installing onProxyConnectResponse on the
-// underlying http.Transport: that callback sees the proxy's actual response
-// (status + headers) before Go discards it, so we can build the right
-// sentinel directly. Dial-to-proxy failures are detected here from the
-// wrapped *net.OpError whose Op == "proxyconnect" (still set by Go stdlib).
+// There are two distinct surfaces where the forward proxy can affect the
+// transaction, and the wrapper handles them in two different places:
+//
+//  1. CONNECT-time (HTTPS path) — Go's transport sends a CONNECT request to
+//     the proxy. Whatever the proxy responds with is visible to Outpost via
+//     onProxyConnectResponse, installed on the underlying http.Transport.
+//     This is where proxy auth (407/401/403), proxy-can't-reach-upstream
+//     (5xx with Envoy response flags), and similar are classified.
+//
+//     Once CONNECT succeeds, a raw TCP tunnel is open. TLS runs end-to-end
+//     between Outpost and the destination; the forward proxy is byte-blind
+//     to everything that follows. The response we read from base.RoundTrip
+//     therefore came entirely from the destination side and is not inspected
+//     or sanitized by this wrapper — see the scheme check in RoundTrip.
+//
+//  2. Plain-HTTP forwarding path — the proxy reads the request, makes the
+//     upstream call, and writes the response back to Outpost. The proxy is
+//     in the byte path on the return, so we can detect Envoy-synthesized
+//     responses (via x-envoy-response-flags) and strip x-envoy-* / server
+//     fingerprints.
+//
+// Dial-to-proxy failures (TCP to the proxy itself fails) are detected here
+// from the wrapped *net.OpError whose Op == "proxyconnect" (still emitted by
+// Go's stdlib; see proxytransport_pin_test.go for the snapshot guarding the
+// wording).
 type proxyTransport struct {
 	base     http.RoundTripper
 	proxyURL *url.URL
@@ -118,10 +138,27 @@ func (t *proxyTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 		return nil, err
 	}
 
-	// Envoy-synthesized response on the plain-HTTP forwarding path: the
-	// response carries an x-envoy-response-flags header with a non-empty,
-	// non-placeholder value. Convert to a destination-attributed error;
-	// the envoy-synthesized body never reaches the delivery record.
+	// HTTPS response: bytes came through an established CONNECT tunnel, end-
+	// to-end TLS between Outpost and the destination. The forward proxy
+	// physically cannot have read, modified, or synthesized any of these
+	// bytes. Any x-envoy-* / server: envoy headers we see belong to the
+	// destination (often itself behind Envoy at its edge), not to us.
+	// Treating them as ours would destroy destination observability and
+	// misattribute genuine destination failures as proxy-reported. Proxy-
+	// originated HTTPS failures all happen at CONNECT time and are handled
+	// in onProxyConnectResponse before we ever reach this branch.
+	if req != nil && req.URL != nil && req.URL.Scheme == "https" {
+		return resp, nil
+	}
+
+	// Plain-HTTP forwarding path: the forward proxy was in the byte path on
+	// the return and may have synthesized this response itself.
+
+	// Envoy-synthesized response: x-envoy-response-flags carries a non-empty,
+	// non-placeholder value (the placeholder "-" means "no flag fired",
+	// i.e. a real upstream response was passed through). Convert to a
+	// destination-attributed error so the synthesized body never reaches the
+	// delivery record.
 	if flag := envoyResponseFlag(resp.Header); flag != "" {
 		_, _ = io.Copy(io.Discard, resp.Body)
 		_ = resp.Body.Close()
@@ -132,9 +169,12 @@ func (t *proxyTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 		}
 	}
 
-	// Real upstream response served via the proxy: strip proxy fingerprints
-	// so they aren't persisted in the delivery record or shown to the
-	// customer.
+	// Real upstream response forwarded by the proxy: strip proxy fingerprints
+	// so they aren't persisted in the delivery record. Note: if the
+	// destination itself sits behind its own Envoy, this can over-strip the
+	// destination's x-envoy-* observability headers on the plain-HTTP path.
+	// HTTPS destinations are unaffected because of the byte-transparency
+	// branch above.
 	sanitizeEnvoyHeaders(resp.Header)
 	return resp, nil
 }

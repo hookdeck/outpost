@@ -40,7 +40,9 @@ Outpost distinguishes **proxy infrastructure failures** from **destination failu
 
 **Key principle:** when the proxy reports a failure that originated at the destination (DNS, connect refused, upstream timeout), the customer still sees it as a destination failure. Outpost rewrites the message so the response data is destination-attributed, not proxy-attributed. Nacking is reserved for cases where the proxy itself is the proximate cause.
 
-Response-body and response-header sanitization is best-effort and depends on the proxy implementation being recognized. For an arbitrary forward proxy, Outpost can rewrite error messages but cannot reliably strip proxy-identifying response content. Sanitization is currently complete only for Envoy — see [Envoy support](#envoy-support).
+**HTTPS responses are byte-transparent.** Once the `CONNECT` tunnel opens, TLS runs end-to-end between Outpost and the destination; the forward proxy can no longer read or modify response bytes. Outpost therefore does not inspect or sanitize HTTPS response payloads — they are recorded as the destination sent them. Proxy-originated HTTPS failures (auth, unreachable, can't connect upstream) all happen at `CONNECT` time and are handled before the tunnel exists.
+
+Response-body and response-header sanitization on the plain-HTTP forwarding path is best-effort and depends on the proxy implementation being recognized. For an arbitrary forward proxy, Outpost can rewrite error messages but cannot reliably strip proxy-identifying response content. Sanitization is currently complete only for Envoy — see [Envoy support](#envoy-support).
 
 ## Envoy support
 
@@ -48,19 +50,28 @@ When the proxy is [Envoy](https://www.envoyproxy.io/), Outpost picks up Envoy-sp
 
 ### Additional behaviors
 
+Envoy-specific handling fires on two surfaces: the `CONNECT` response (HTTPS, where the proxy's response is visible to Outpost before the tunnel opens), and proxied plain-HTTP responses (where the proxy is in the byte path on the way back). Responses that arrived through an established `CONNECT` tunnel are not inspected — see the byte-transparency note above.
+
 | Scenario | Signal | Attribution | Behavior |
 |---|---|---|---|
 | Envoy `CONNECT` failure with response-flag header | `x-envoy-response-flags` on the `CONNECT` response | Destination | Record attempt with code refined from the flag (e.g. `DC` → `dns_error`, `UT` → `timeout`) instead of the generic `connection_refused` |
 | Envoy synthesizes 5xx response (plain-HTTP path) | `x-envoy-response-flags: UF` / `UC` / etc. on the response | Destination | Record attempt with code mapped from the flag; response body is dropped |
 | Real upstream response passed through (plain-HTTP) | `x-envoy-response-flags: -` or empty | Destination | Record as today |
-| Successful response from destination, served via Envoy | `x-envoy-*` and `server: envoy` headers present | Destination | Record; headers stripped before storage |
+| Successful plain-HTTP response served via Envoy | `x-envoy-*` and `server: envoy` headers present | Destination | Record; headers stripped before storage |
+| HTTPS response (any status, any headers, post-`CONNECT`) | — | Destination | Pass-through unchanged — bytes never touched the forward proxy |
 
-Two Envoy-specific behaviors are layered on top:
+Two Envoy-specific behaviors are layered on top, both scoped to surfaces where the forward proxy actually contributed to the bytes:
 
-- **Response-flag mapping** — `x-envoy-response-flags`, when present and non-empty, refines the destination error code (e.g. `UF` → `connection_refused`, `DC` → `dns_error`, `UT` → `timeout`).
-- **Header and body sanitization** — `x-envoy-*` and `server: envoy` headers are stripped from responses; Envoy-synthesized response bodies are replaced with a normalized message that does not leak Envoy.
+- **Response-flag mapping** — `x-envoy-response-flags`, when present and non-empty, refines the destination error code (e.g. `UF` → `connection_refused`, `DC` → `dns_error`, `UT` → `timeout`). Applies to `CONNECT` responses and plain-HTTP responses, not to bytes returned through an HTTPS tunnel.
+- **Header and body sanitization** — `x-envoy-*` and `server: envoy` headers are stripped from plain-HTTP responses; Envoy-synthesized plain-HTTP response bodies are replaced with a normalized message that does not leak Envoy. HTTPS responses are not sanitized.
 
 Support for other forward proxies (Squid, HAProxy, nginx, ...) can be added the same way — by detecting proxy-specific response signals and mapping them to destination error codes. None are currently implemented.
+
+#### Limitation: plain-HTTP destinations that are themselves behind Envoy
+
+If a destination is reached over plain HTTP and the destination itself sits behind its own Envoy edge, the destination's `x-envoy-*` headers (e.g. `x-envoy-upstream-service-time`, `server: envoy`) pass through the forward proxy and Outpost strips them. The destination's `x-envoy-response-flags` is overwritten by the forward Envoy's value, so attribution is still correct — the customer never sees a destination failure misattributed to the proxy — but some destination-side observability headers are lost on this code path.
+
+This does not affect HTTPS destinations: HTTPS responses are byte-transparent (see above), so any `x-envoy-*` headers from the destination's Envoy reach Outpost untouched.
 
 ### Required Envoy configuration
 
