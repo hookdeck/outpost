@@ -61,7 +61,9 @@ func IsProxyInfraError(err error) bool {
 }
 
 // MapEnvoyResponseFlag returns the destination error code corresponding to an
-// Envoy response flag. Unknown or empty flags map to "network_error".
+// Envoy response flag. The handled set is the common subset for forward-proxy
+// upstream failures; anything outside it (including less common flags like
+// UR, URX, OM, RLSE, etc.) falls through to "network_error".
 //
 // Envoy response flag reference:
 // https://www.envoyproxy.io/docs/envoy/latest/configuration/observability/access_log/usage#config-access-log-format-response-flags
@@ -147,7 +149,7 @@ func (t *proxyTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	// misattribute genuine destination failures as proxy-reported. Proxy-
 	// originated HTTPS failures all happen at CONNECT time and are handled
 	// in onProxyConnectResponse before we ever reach this branch.
-	if req != nil && req.URL != nil && req.URL.Scheme == "https" {
+	if req.URL.Scheme == "https" {
 		return resp, nil
 	}
 
@@ -195,7 +197,8 @@ func destHostFromRequest(req *http.Request) string {
 // proxy details. Safe no-op when no envoy headers are present.
 func sanitizeEnvoyHeaders(h http.Header) {
 	for k := range h {
-		if strings.HasPrefix(strings.ToLower(k), "x-envoy-") {
+		// http.Header keys are canonicalized, so the prefix is fixed-case.
+		if strings.HasPrefix(k, "X-Envoy-") {
 			h.Del(k)
 		}
 	}
@@ -224,7 +227,9 @@ func (t *proxyTransport) classifyTransportError(err error, req *http.Request) er
 	// Dial-to-proxy failure: Go wraps these in &net.OpError{Op: "proxyconnect"}
 	// even in current versions. The wrap is the most reliable signal that the
 	// proxy itself is unreachable (vs. an arbitrary network error en route to
-	// the destination, which would be a destination problem).
+	// the destination, which would be a destination problem). The wording is
+	// pinned by TestProxyTransport_PinProxyconnectWording in
+	// proxytransport_pin_test.go — update both together if it ever changes.
 	if strings.Contains(err.Error(), "proxyconnect") {
 		return &ErrProxyInfra{Underlying: err, DestHost: destHost}
 	}

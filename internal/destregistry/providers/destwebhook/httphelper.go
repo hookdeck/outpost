@@ -50,10 +50,12 @@ func ExecuteHTTPRequest(ctx context.Context, client *http.Client, req *http.Requ
 
 		// Proxy-attributed destination error: use the explicit Code instead of
 		// substring-matching the underlying error.
-		code := ClassifyNetworkError(err)
+		var code string
 		var destErr *destregistry.ErrProxyDestination
 		if errors.As(err, &destErr) {
 			code = destErr.Code
+		} else {
+			code = ClassifyNetworkError(err)
 		}
 
 		return &HTTPRequestResult{

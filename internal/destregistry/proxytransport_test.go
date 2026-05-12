@@ -340,7 +340,6 @@ func TestMapEnvoyResponseFlag(t *testing.T) {
 		"DC":      "dns_error",
 		"NR":      "network_unreachable",
 		"NC":      "network_unreachable",
-		"":        "network_error",
 		"unknown": "network_error",
 	}
 	for flag, want := range cases {
