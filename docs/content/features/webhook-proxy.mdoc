@@ -158,9 +158,8 @@ The example above is a minimal listener. Whether you need proxy authentication a
 
 ## Queue retry behavior
 
-When a proxy infrastructure error is nacked, the underlying message queue redelivers the event. Because nacks only fire for true infra failures (proxy auth or proxy unreachable), the redelivery rate is bounded by the proxy outage duration, not by destination behavior. Even so, configure the delivery queue so that the **maximum time a single message can be retried before being sent to the dead-letter queue** is long enough to survive realistic proxy outages:
+When a proxy infrastructure error is nacked, the underlying message queue redelivers the event. Because nacks only fire for true infra failures (proxy auth or proxy unreachable), the redelivery rate is bounded by the proxy outage duration, not by destination behavior.
 
-- **GCP Pub/Sub** — set `retryPolicy: {minimumBackoff: 5s, maximumBackoff: 600s}` and `maxDeliveryAttempts: 10` on the delivery subscription. With exponential backoff between attempts, a nacked message is retried for approximately 30 minutes before it lands in the dead-letter topic.
-- **RabbitMQ / SQS / Kafka** — equivalent backoff and max-redelivery settings on the delivery queue.
+Outpost's default GCP Pub/Sub provisioning (`internal/mqinfra/gcppubsub.go`) uses `retryPolicy: {minimumBackoff: 10s, maximumBackoff: 120s}` with `maxDeliveryAttempts: 6` (default `RetryLimit` + 1). That gives roughly **5 minutes of redelivery runway** before a nacked message lands in the dead-letter topic. A proxy outage shorter than this window is transparent to the destination; longer outages require manual replay from the DLQ.
 
-If the proxy outage lasts longer than this redelivery window, affected messages will land in the dead-letter destination and require manual replay.
+If you expect longer proxy outages, raise `MinRetryBackoff` / `MaxRetryBackoff` (config) and `RetryLimit` (policy) so the redelivery window covers your worst-case outage duration. RabbitMQ / SQS / Kafka have equivalent knobs on their delivery queues.
