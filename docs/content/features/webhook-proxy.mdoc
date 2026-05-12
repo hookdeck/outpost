@@ -27,16 +27,16 @@ Outpost distinguishes **proxy infrastructure failures** from **destination failu
 
 ### General behavior
 
-| Scenario | Outpost sees | Attribution | Behavior |
-|---|---|---|---|
-| Proxy authentication failure | `proxyconnect` error containing `407` | Infra | **Nack** — operator misconfiguration of proxy credentials |
-| Proxy unreachable (LB / proxy down) | Dial error to the proxy's host/IP | Infra | **Nack** — proxy infrastructure outage |
-| `CONNECT` succeeds, destination returns real 4xx/5xx (HTTPS) | Normal HTTP response | Destination | Record attempt with the actual status code |
-| `CONNECT` succeeds, destination TLS handshake fails (HTTPS) | TLS error from Go client | Destination | Record attempt (`tls_error`) |
-| `CONNECT` succeeds, destination times out | I/O timeout from Go client | Destination | Record attempt (`timeout`) |
-| Proxy cannot connect to destination (HTTPS, `CONNECT` returns 5xx) | `proxyconnect` error with 5xx status | Destination | Record attempt (`connection_refused` / `network_error`) |
-| Real upstream response passed through (plain-HTTP) | Response without proxy-synthesized markers | Destination | Record as today |
-| Proxy itself overloaded or misbehaving (rare) | Unrecognized synthesized response | Destination (conservative) | Record attempt (`network_error`) — never nack on speculation |
+| Scenario | Attribution | Behavior |
+|---|---|---|
+| Proxy returns 407 / 401 / 403 on `CONNECT` | Infra | **Nack** — operator misconfiguration of proxy credentials |
+| Proxy unreachable (TCP dial to proxy fails) | Infra | **Nack** — proxy infrastructure outage |
+| `CONNECT` succeeds, destination returns real 4xx/5xx (HTTPS) | Destination | Record attempt with the actual status code |
+| `CONNECT` succeeds, destination TLS handshake fails (HTTPS) | Destination | Record attempt (`tls_error`) |
+| `CONNECT` succeeds, destination times out | Destination | Record attempt (`timeout`) |
+| Proxy returns other 5xx on `CONNECT` (cannot reach destination) | Destination | Record attempt (`connection_refused`) |
+| Real upstream response passed through (plain-HTTP) | Destination | Record as today |
+| Proxy itself overloaded or misbehaving (rare) | Destination (conservative) | Record attempt (`network_error`) — never nack on speculation |
 
 **Key principle:** when the proxy reports a failure that originated at the destination (DNS, connect refused, upstream timeout), the customer still sees it as a destination failure. Outpost rewrites the message so the response data is destination-attributed, not proxy-attributed. Nacking is reserved for cases where the proxy itself is the proximate cause.
 
@@ -48,12 +48,10 @@ When the proxy is [Envoy](https://www.envoyproxy.io/), Outpost picks up Envoy-sp
 
 ### Additional behaviors
 
-| Scenario | Outpost sees | Attribution | Behavior |
+| Scenario | Signal | Attribution | Behavior |
 |---|---|---|---|
-| Envoy cannot resolve destination DNS (HTTPS) | `proxyconnect` error + (where available) `DC` flag | Destination | Record attempt (`dns_error`) — refined from generic `connection_refused` |
-| Envoy synthesizes 5xx response (plain-HTTP destination); flag `UF` / `UC` | `x-envoy-response-flags: UF` | Destination | Record attempt (`connection_refused`) |
-| Envoy synthesizes 5xx response; flag `UT` | `x-envoy-response-flags: UT` | Destination | Record attempt (`timeout`) |
-| Envoy synthesizes 5xx response; flag `DC` | `x-envoy-response-flags: DC` | Destination | Record attempt (`dns_error`) |
+| Envoy `CONNECT` failure with response-flag header | `x-envoy-response-flags` on the `CONNECT` response | Destination | Record attempt with code refined from the flag (e.g. `DC` → `dns_error`, `UT` → `timeout`) instead of the generic `connection_refused` |
+| Envoy synthesizes 5xx response (plain-HTTP path) | `x-envoy-response-flags: UF` / `UC` / etc. on the response | Destination | Record attempt with code mapped from the flag; response body is dropped |
 | Real upstream response passed through (plain-HTTP) | `x-envoy-response-flags: -` or empty | Destination | Record as today |
 | Successful response from destination, served via Envoy | `x-envoy-*` and `server: envoy` headers present | Destination | Record; headers stripped before storage |
 
