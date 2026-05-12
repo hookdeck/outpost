@@ -142,14 +142,7 @@ static_resources:
             dns_lookup_family: V4_ONLY
 ```
 
-### Production deployment notes
-
-Whether you need proxy authentication and TLS depends on your network topology:
-
-- **Outpost and the proxy share a private network (VPC, internal mesh, etc.)** — neither authentication nor TLS to the proxy is strictly required. The proxy is unreachable from the public internet, and intra-VPC traffic is already isolated.
-- **The proxy is reachable over the public internet** (for example, you run Outpost outside the proxy's network, or the proxy sits behind a public load balancer) — both authentication and TLS are strongly recommended. Anyone who can reach the proxy can otherwise use it as an open relay against your destinations. Configure proxy `Proxy-Authorization` enforcement on Envoy and terminate TLS at a load balancer in front of Envoy.
-
-Both setups are compatible with the error-handling behavior documented above.
+The example above is a minimal listener. Whether you need proxy authentication and TLS depends on your network topology: if Outpost and the proxy share a private network, neither is strictly required; if the proxy is reachable over the public internet, both are strongly recommended to prevent the proxy being used as an open relay.
 
 ## Queue retry behavior
 
