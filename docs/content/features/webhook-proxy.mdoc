@@ -23,9 +23,9 @@ When `DESTINATIONS_WEBHOOK_PROXY_URL` is set, Outpost installs an HTTP proxy on 
 
 Putting a forward proxy in the delivery path introduces a new failure surface that should not be charged to the destination. A proxy-auth misconfiguration or a proxy outage isn't the destination's fault, and recording it as a failed delivery attempt burns retry budget on a problem the destination cannot resolve.
 
-Outpost distinguishes **proxy infrastructure failures** from **destination failures** (including destination failures that the proxy merely *reports* on the destination's behalf) and applies the right behavior to each.
+Outpost distinguishes **proxy infrastructure failures** from **destination failures** (including destination failures that the proxy merely *reports* on the destination's behalf) and applies the right behavior to each. The base behavior below applies to any forward proxy; Envoy-specific signals are picked up automatically when present (see [Envoy support](#envoy-support)).
 
-### Attribution and behavior
+### General behavior
 
 | Scenario | Outpost sees | Attribution | Behavior |
 |---|---|---|---|
@@ -35,23 +35,32 @@ Outpost distinguishes **proxy infrastructure failures** from **destination failu
 | `CONNECT` succeeds, destination TLS handshake fails (HTTPS) | TLS error from Go client | Destination | Record attempt (`tls_error`) |
 | `CONNECT` succeeds, destination times out | I/O timeout from Go client | Destination | Record attempt (`timeout`) |
 | Proxy cannot connect to destination (HTTPS, `CONNECT` returns 5xx) | `proxyconnect` error with 5xx status | Destination | Record attempt (`connection_refused` / `network_error`) |
-| Proxy cannot resolve destination DNS (HTTPS, `CONNECT` returns 5xx) | `proxyconnect` error with 5xx | Destination | Record attempt (`dns_error`) |
-| Proxy synthesizes 5xx response (plain-HTTP destination); Envoy flag `UF` / `UC` | `x-envoy-response-flags: UF` | Destination | Record attempt (`connection_refused`) |
-| Proxy synthesizes 5xx response; Envoy flag `UT` | `x-envoy-response-flags: UT` | Destination | Record attempt (`timeout`) |
-| Proxy synthesizes 5xx response; Envoy flag `DC` | `x-envoy-response-flags: DC` | Destination | Record attempt (`dns_error`) |
-| Real upstream response passed through (plain-HTTP) | `x-envoy-response-flags: -` or empty (or no envoy header at all) | Destination | Record as today |
+| Real upstream response passed through (plain-HTTP) | Response without proxy-synthesized markers | Destination | Record as today |
 | Proxy itself overloaded or misbehaving (rare) | Unrecognized synthesized response | Destination (conservative) | Record attempt (`network_error`) — never nack on speculation |
 
 **Key principle:** when the proxy reports a failure that originated at the destination (DNS, connect refused, upstream timeout), the customer still sees it as a destination failure. Outpost rewrites the message so the response data is destination-attributed, not proxy-attributed. Nacking is reserved for cases where the proxy itself is the proximate cause.
 
-### Envoy-specific signals
+## Envoy support
 
-When the proxy is [Envoy](https://www.envoyproxy.io/), Outpost detects Envoy-specific signals automatically — no configuration toggle required:
+When the proxy is [Envoy](https://www.envoyproxy.io/), Outpost picks up Envoy-specific signals automatically — no configuration toggle required. These are additive on top of the general behavior above.
 
-- **Response-flag mapping** — the `x-envoy-response-flags` header, when present and non-empty, is used to map proxy-synthesized responses to a specific destination error code (e.g. `UF` → `connection_refused`, `DC` → `dns_error`, `UT` → `timeout`).
-- **Header sanitization** — `x-envoy-*` and `server: envoy` headers are stripped from responses; envoy-synthesized response bodies are replaced with a normalized message that does not leak Envoy.
+### Additional behaviors
 
-The `proxyconnect`-based nack detection (for proxy auth / unreachable) is generic and works for any forward proxy.
+| Scenario | Outpost sees | Attribution | Behavior |
+|---|---|---|---|
+| Envoy cannot resolve destination DNS (HTTPS) | `proxyconnect` error + (where available) `DC` flag | Destination | Record attempt (`dns_error`) — refined from generic `connection_refused` |
+| Envoy synthesizes 5xx response (plain-HTTP destination); flag `UF` / `UC` | `x-envoy-response-flags: UF` | Destination | Record attempt (`connection_refused`) |
+| Envoy synthesizes 5xx response; flag `UT` | `x-envoy-response-flags: UT` | Destination | Record attempt (`timeout`) |
+| Envoy synthesizes 5xx response; flag `DC` | `x-envoy-response-flags: DC` | Destination | Record attempt (`dns_error`) |
+| Real upstream response passed through (plain-HTTP) | `x-envoy-response-flags: -` or empty | Destination | Record as today |
+| Successful response from destination, served via Envoy | `x-envoy-*` and `server: envoy` headers present | Destination | Record; headers stripped before storage |
+
+Two Envoy-specific behaviors are layered on top:
+
+- **Response-flag mapping** — `x-envoy-response-flags`, when present and non-empty, refines the destination error code (e.g. `UF` → `connection_refused`, `DC` → `dns_error`, `UT` → `timeout`).
+- **Header and body sanitization** — `x-envoy-*` and `server: envoy` headers are stripped from responses; Envoy-synthesized response bodies are replaced with a normalized message that does not leak Envoy.
+
+Support for other forward proxies (Squid, HAProxy, nginx, ...) can be added the same way — by detecting proxy-specific response signals and mapping them to destination error codes. None are currently implemented.
 
 ### Required Envoy configuration
 
