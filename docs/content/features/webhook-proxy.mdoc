@@ -40,6 +40,8 @@ Outpost distinguishes **proxy infrastructure failures** from **destination failu
 
 **Key principle:** when the proxy reports a failure that originated at the destination (DNS, connect refused, upstream timeout), the customer still sees it as a destination failure. Outpost rewrites the message so the response data is destination-attributed, not proxy-attributed. Nacking is reserved for cases where the proxy itself is the proximate cause.
 
+Response-body and response-header sanitization is best-effort and depends on the proxy implementation being recognized. For an arbitrary forward proxy, Outpost can rewrite error messages but cannot reliably strip proxy-identifying response content. Sanitization is currently complete only for Envoy — see [Envoy support](#envoy-support).
+
 ## Envoy support
 
 When the proxy is [Envoy](https://www.envoyproxy.io/), Outpost picks up Envoy-specific signals automatically — no configuration toggle required. These are additive on top of the general behavior above.
@@ -140,7 +142,14 @@ static_resources:
             dns_lookup_family: V4_ONLY
 ```
 
-For production, also add proxy authentication and front Envoy with a load balancer that terminates TLS at the public edge. Those concerns are out of scope here.
+### Production deployment notes
+
+Whether you need proxy authentication and TLS depends on your network topology:
+
+- **Outpost and the proxy share a private network (VPC, internal mesh, etc.)** — neither authentication nor TLS to the proxy is strictly required. The proxy is unreachable from the public internet, and intra-VPC traffic is already isolated.
+- **The proxy is reachable over the public internet** (for example, you run Outpost outside the proxy's network, or the proxy sits behind a public load balancer) — both authentication and TLS are strongly recommended. Anyone who can reach the proxy can otherwise use it as an open relay against your destinations. Configure proxy `Proxy-Authorization` enforcement on Envoy and terminate TLS at a load balancer in front of Envoy.
+
+Both setups are compatible with the error-handling behavior documented above.
 
 ## Queue retry behavior
 
