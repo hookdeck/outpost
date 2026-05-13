@@ -331,19 +331,20 @@ components:
       properties:
         account_id:
           type: string
-          description: Cloudflare Account ID
-          example: "abc123def456789"
+          description: Cloudflare Account ID (32-character hex string).
+          example: "023e105f4ecef8ad9ca31a8372d0c353"
         queue_id:
           type: string
-          description: Cloudflare Queue ID
-          example: "my-queue"
+          description: Cloudflare Queue ID (32-character hex string, not the queue name).
+          example: "9d7d4cf8a3a14d9aaeb50c3e74e2f4b1"
     CloudflareQueuesCredentials:
       type: object
       required: [api_token]
       properties:
         api_token:
           type: string
-          description: Cloudflare API Token with queues:write permission
+          description: Cloudflare API Token with the `queues:write` permission scoped to the target account.
+          example: "v1.0-1234567890abcdef..."
     RabbitMQConfig:
       type: object
       required: [server_url, exchange]
@@ -1373,14 +1374,14 @@ components:
           type: string
           description: A human-readable representation of the destination target (Cloudflare Queue ID). Read-only.
           readOnly: true
-          example: "my-queue"
+          example: "9d7d4cf8a3a14d9aaeb50c3e74e2f4b1"
         target_url:
           type: string
           format: url
           nullable: true
-          description: A URL link to the destination target (Cloudflare Dashboard link to the queue). Read-only.
+          description: A URL link to the Cloudflare dashboard queues list for the account. Read-only.
           readOnly: true
-          example: "https://dash.cloudflare.com/abc123def456789/queues/my-queue"
+          example: "https://dash.cloudflare.com/023e105f4ecef8ad9ca31a8372d0c353/workers/queues"
       example:
         id: "des_cf_queues_123"
         type: "cloudflare_queues"
@@ -1389,10 +1390,10 @@ components:
         created_at: "2024-03-10T14:30:00Z"
         updated_at: "2024-03-10T14:30:00Z"
         config:
-          account_id: "abc123def456789"
-          queue_id: "my-queue"
+          account_id: "023e105f4ecef8ad9ca31a8372d0c353"
+          queue_id: "9d7d4cf8a3a14d9aaeb50c3e74e2f4b1"
         credentials:
-          api_token: "cf_token_..."
+          api_token: "v1.0-1234567890abcdef..."
 
     # Polymorphic Destination Schema (for Responses)
     Destination:

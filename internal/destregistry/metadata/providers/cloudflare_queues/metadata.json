@@ -5,14 +5,14 @@
       "key": "account_id",
       "type": "text",
       "label": "Account ID",
-      "description": "Your Cloudflare Account ID",
+      "description": "Your Cloudflare Account ID (32-character hex string, found in the Cloudflare dashboard).",
       "required": true
     },
     {
       "key": "queue_id",
       "type": "text",
       "label": "Queue ID",
-      "description": "The ID of your Cloudflare Queue",
+      "description": "The ID of your Cloudflare Queue (32-character hex string, not the queue name).",
       "required": true
     }
   ],

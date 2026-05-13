@@ -98,12 +98,19 @@ When configuring your Cloudflare Queues destination, you'll need:
 
 ## Message Format
 
-When events are sent to Cloudflare Queues, each message contains:
+Each event is published as a single Cloudflare Queue message with the following request body:
 
-- **body**: The event payload as a JSON object
-- **contentType**: Set to `application/json`
+```json
+{
+  "body": {
+    "data": <event.Data>,
+    "metadata": <merged metadata>
+  },
+  "content_type": "json"
+}
+```
 
-Messages are sent using the [Cloudflare Queues REST API](https://developers.cloudflare.com/api/operations/queue-send-messages).
+`content_type: "json"` tells Cloudflare to deliver the body as a parsed object to consumer Workers. Messages are sent via [`POST /accounts/{account_id}/queues/{queue_id}/messages`](https://developers.cloudflare.com/api/resources/queues/subresources/messages/methods/push/).
 
 ## Testing the Integration
 
@@ -170,7 +177,7 @@ Cloudflare Queues has rate limits. If you encounter rate limiting:
 ## Additional Resources
 
 - [Cloudflare Queues Documentation](https://developers.cloudflare.com/queues/)
-- [Queues REST API Reference](https://developers.cloudflare.com/api/operations/queue-send-messages)
+- [Queues REST API Reference](https://developers.cloudflare.com/api/resources/queues/subresources/messages/methods/push/)
 - [Cloudflare API Tokens](https://developers.cloudflare.com/fundamentals/api/get-started/create-token/)
 - [Wrangler CLI Documentation](https://developers.cloudflare.com/workers/wrangler/)
 - [Queues Pricing](https://developers.cloudflare.com/queues/platform/pricing/)
