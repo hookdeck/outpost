@@ -191,12 +191,15 @@ func TestProxyTransport_ErrProxyInfra_DoesNotLeakProxyDetails(t *testing.T) {
 
 // newEnvoySynthesizedProxy returns a forwarding proxy that, instead of
 // forwarding, responds with an Envoy-synthesized 5xx and the configured
-// response flag.
-func newEnvoySynthesizedProxy(t *testing.T, status int, flag string) *httptest.Server {
+// response flag (plus optional response-code-details).
+func newEnvoySynthesizedProxy(t *testing.T, status int, flag, details string) *httptest.Server {
 	t.Helper()
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("server", "envoy")
 		w.Header().Set("x-envoy-response-flags", flag)
+		if details != "" {
+			w.Header().Set("x-envoy-response-code-details", details)
+		}
 		w.WriteHeader(status)
 		_, _ = w.Write([]byte("upstream connect error or disconnect/reset before headers"))
 	}))
@@ -205,7 +208,7 @@ func newEnvoySynthesizedProxy(t *testing.T, status int, flag string) *httptest.S
 func TestProxyTransport_EnvoySynthesizedResponse_UF_ReturnsConnectionRefused(t *testing.T) {
 	t.Parallel()
 
-	proxy := newEnvoySynthesizedProxy(t, http.StatusBadGateway, "UF")
+	proxy := newEnvoySynthesizedProxy(t, http.StatusBadGateway, "UF", "")
 	defer proxy.Close()
 
 	client := makeProxiedClient(t, proxy.URL)
@@ -222,7 +225,7 @@ func TestProxyTransport_EnvoySynthesizedResponse_UF_ReturnsConnectionRefused(t *
 func TestProxyTransport_EnvoySynthesizedResponse_UT_ReturnsTimeout(t *testing.T) {
 	t.Parallel()
 
-	proxy := newEnvoySynthesizedProxy(t, http.StatusGatewayTimeout, "UT")
+	proxy := newEnvoySynthesizedProxy(t, http.StatusGatewayTimeout, "UT", "")
 	defer proxy.Close()
 
 	client := makeProxiedClient(t, proxy.URL)
@@ -237,7 +240,7 @@ func TestProxyTransport_EnvoySynthesizedResponse_UT_ReturnsTimeout(t *testing.T)
 func TestProxyTransport_EnvoySynthesizedResponse_DF_ReturnsDNSError(t *testing.T) {
 	t.Parallel()
 
-	proxy := newEnvoySynthesizedProxy(t, http.StatusServiceUnavailable, "DF")
+	proxy := newEnvoySynthesizedProxy(t, http.StatusServiceUnavailable, "DF", "dns_resolution_failure")
 	defer proxy.Close()
 
 	client := makeProxiedClient(t, proxy.URL)
@@ -247,6 +250,27 @@ func TestProxyTransport_EnvoySynthesizedResponse_DF_ReturnsDNSError(t *testing.T
 	var destErr *destwebhook.ErrProxyDestination
 	require.True(t, errors.As(err, &destErr))
 	assert.Equal(t, "dns_error", destErr.Code)
+	assert.Equal(t, "DF", destErr.Flag, "Flag captured for operator diagnostics")
+	assert.Equal(t, "dns_resolution_failure", destErr.Details, "Details captured for operator diagnostics")
+}
+
+func TestProxyTransport_EnvoySynthesizedResponse_UC_ReturnsConnectionReset(t *testing.T) {
+	t.Parallel()
+
+	// UC = upstream connection termination (established then dropped) — must
+	// classify as connection_reset, distinct from UF/connection_refused.
+	proxy := newEnvoySynthesizedProxy(t, http.StatusBadGateway, "UC", "upstream_reset_after_response_started{connection_termination}")
+	defer proxy.Close()
+
+	client := makeProxiedClient(t, proxy.URL)
+	_, err := client.Get("http://example.invalid/hook")
+	require.Error(t, err)
+
+	var destErr *destwebhook.ErrProxyDestination
+	require.True(t, errors.As(err, &destErr))
+	assert.Equal(t, "connection_reset", destErr.Code)
+	assert.Equal(t, "UC", destErr.Flag)
+	assert.Equal(t, "upstream_reset_after_response_started{connection_termination}", destErr.Details)
 }
 
 func TestProxyTransport_EnvoyPlaceholderFlag_PassesResponseThrough(t *testing.T) {
@@ -330,15 +354,19 @@ func TestMapEnvoyResponseFlag(t *testing.T) {
 	cases := map[string]string{
 		"UF":      "connection_refused",
 		"UH":      "connection_refused",
-		"UC":      "connection_refused",
 		"LH":      "connection_refused",
-		"LR":      "connection_refused",
+		"UC":      "connection_reset",
+		"UR":      "connection_reset",
+		"LR":      "connection_reset",
 		"UT":      "timeout",
 		"SI":      "timeout",
 		"DT":      "timeout",
+		"UMSDR":   "timeout",
 		"DF":      "dns_error",
 		"NR":      "network_unreachable",
 		"NC":      "network_unreachable",
+		"UPE":     "protocol_error",
+		"DPE":     "protocol_error",
 		"unknown": "network_error",
 	}
 	for flag, want := range cases {

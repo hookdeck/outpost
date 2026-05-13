@@ -58,15 +58,29 @@ func ExecuteHTTPRequest(ctx context.Context, client *http.Client, req *http.Requ
 			code = ClassifyNetworkError(err)
 		}
 
+		data := map[string]interface{}{
+			"error":   "request_failed",
+			"message": err.Error(),
+		}
+		// Attach raw Envoy diagnostics (flag + response-code-details) to the
+		// publish-attempt error so operators can grep them in logs. These are
+		// NOT placed in the delivery's ResponseData, keeping the customer-
+		// visible attempt free of proxy details.
+		if destErr != nil {
+			if destErr.Flag != "" {
+				data["proxy_flag"] = destErr.Flag
+			}
+			if destErr.Details != "" {
+				data["proxy_details"] = destErr.Details
+			}
+		}
+
 		return &HTTPRequestResult{
 			Delivery: &destregistry.Delivery{
 				Status: "failed",
 				Code:   code,
 			},
-			Error: destregistry.NewErrDestinationPublishAttempt(err, provider, map[string]interface{}{
-				"error":   "request_failed",
-				"message": err.Error(),
-			}),
+			Error:    destregistry.NewErrDestinationPublishAttempt(err, provider, data),
 			Response: nil,
 		}
 	}

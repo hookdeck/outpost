@@ -37,6 +37,10 @@ static_resources:
                         key: "x-envoy-response-flags"
                         value: "%RESPONSE_FLAGS%"
                       append_action: OVERWRITE_IF_EXISTS_OR_ADD
+                    - header:
+                        key: "x-envoy-response-code-details"
+                        value: "%RESPONSE_CODE_DETAILS%"
+                      append_action: OVERWRITE_IF_EXISTS_OR_ADD
                   virtual_hosts:
                     - name: proxy
                       domains: ["*"]

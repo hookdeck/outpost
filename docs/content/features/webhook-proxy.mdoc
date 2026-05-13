@@ -62,7 +62,22 @@ Envoy-specific handling fires on two surfaces: the `CONNECT` response (HTTPS, wh
 
 Two Envoy-specific behaviors are layered on top, both scoped to surfaces where the forward proxy actually contributed to the bytes:
 
-- **Response-flag mapping** — `x-envoy-response-flags`, when present and non-empty, refines the destination error code (e.g. `UF` → `connection_refused`, `DF` → `dns_error`, `UT` → `timeout`). Applies to `CONNECT` responses and plain-HTTP responses, not to bytes returned through an HTTPS tunnel.
+- **Response-flag mapping** — `x-envoy-response-flags`, when present and non-empty, refines the destination error code. Mapping aligns with Outpost's non-proxy error vocabulary (`ClassifyNetworkError`), so customers see the same codes whether or not a proxy is in path:
+
+  | Envoy flag | Outpost code | Meaning |
+  |---|---|---|
+  | `UF`, `UH`, `LH` | `connection_refused` | TCP dial failed / no healthy upstream / failed health check |
+  | `UC`, `UR`, `LR` | `connection_reset` | Established connection dropped / remote or local reset |
+  | `UT`, `SI`, `DT`, `UMSDR` | `timeout` | Upstream / stream-idle / duration / max-stream timeout |
+  | `DF` | `dns_error` | DNS resolution failure (`dynamic_forward_proxy`) |
+  | `NR`, `NC` | `network_unreachable` | No route / no cluster |
+  | `UPE`, `DPE` | `protocol_error` | Upstream / downstream protocol error |
+  | (any other flag) | `network_error` | Unmapped — operator-visible signal to expand the table |
+
+  Applies to `CONNECT` responses and plain-HTTP responses, not to bytes returned through an HTTPS tunnel.
+
+- **Operator diagnostics** — when a flag fires, the raw `x-envoy-response-flags` value and `x-envoy-response-code-details` (the `stage{reason}` string, e.g. `upstream_reset_before_response_started{connection_timeout}`) are attached to the publish-attempt error payload as `proxy_flag` / `proxy_details`. These are logged operator-side and never written to the customer-visible attempt `response_data`, which mirrors a normal network failure (no status, no body). To enable this, the Envoy ref config emits the details header alongside the flag header.
+
 - **Header and body sanitization** — `x-envoy-*` and `server: envoy` headers are stripped from plain-HTTP responses; Envoy-synthesized plain-HTTP response bodies are replaced with a normalized message that does not leak Envoy. HTTPS responses are not sanitized.
 
 Support for other forward proxies (Squid, HAProxy, nginx, ...) can be added the same way — by detecting proxy-specific response signals and mapping them to destination error codes. None are currently implemented.
@@ -75,7 +90,7 @@ This does not affect HTTPS destinations: HTTPS responses are byte-transparent (s
 
 ### Required Envoy configuration
 
-For Outpost to reliably distinguish Envoy-synthesized responses from real upstream responses, Envoy must emit its response flags as a response header. Add to the route configuration (Envoy rejects this field on the HTTP connection manager — it belongs on `RouteConfiguration`):
+For Outpost to reliably distinguish Envoy-synthesized responses from real upstream responses, Envoy must emit its response flags as a response header. The response-code-details header is optional but recommended — without it, Outpost still classifies via the flag, but operators lose the precise stage/reason in logs. Add to the route configuration (Envoy rejects these fields on the HTTP connection manager — they belong on `RouteConfiguration`):
 
 ```yaml
 route_config:
@@ -84,11 +99,15 @@ route_config:
         key: "x-envoy-response-flags"
         value: "%RESPONSE_FLAGS%"
       append_action: OVERWRITE_IF_EXISTS_OR_ADD
+    - header:
+        key: "x-envoy-response-code-details"
+        value: "%RESPONSE_CODE_DETAILS%"
+      append_action: OVERWRITE_IF_EXISTS_OR_ADD
   virtual_hosts:
     # ...
 ```
 
-`OVERWRITE_IF_EXISTS_OR_ADD` is important — it prevents a misbehaving destination from spoofing the header to confuse Outpost's classification.
+`OVERWRITE_IF_EXISTS_OR_ADD` is important — it prevents a misbehaving destination from spoofing either header to confuse Outpost's classification or pollute operator diagnostics.
 
 ### Minimal reference Envoy
 
@@ -128,6 +147,10 @@ static_resources:
                     - header:
                         key: "x-envoy-response-flags"
                         value: "%RESPONSE_FLAGS%"
+                      append_action: OVERWRITE_IF_EXISTS_OR_ADD
+                    - header:
+                        key: "x-envoy-response-code-details"
+                        value: "%RESPONSE_CODE_DETAILS%"
                       append_action: OVERWRITE_IF_EXISTS_OR_ADD
                   virtual_hosts:
                     - name: proxy

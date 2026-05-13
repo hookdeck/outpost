@@ -46,10 +46,18 @@ func (e *ErrProxyInfra) Unwrap() error {
 // failed attempt using Code as the classification, with response data
 // rewritten so the customer sees a destination-attributed failure rather than
 // proxy-attributed details.
+//
+// Flag and Details capture the raw Envoy diagnostic strings when present.
+// They are operator-side metadata: callers attach them to error logs / the
+// publish-attempt error payload so operators can grep the precise Envoy
+// reason ("upstream_reset_before_response_started{connection_timeout}", etc.)
+// without ever exposing them to the customer-visible attempt record.
 type ErrProxyDestination struct {
 	Underlying error
 	Code       string
 	DestHost   string
+	Flag       string
+	Details    string
 }
 
 func (e *ErrProxyDestination) Error() string {
@@ -70,24 +78,31 @@ func IsProxyInfraError(err error) bool {
 }
 
 // MapEnvoyResponseFlag returns the destination error code corresponding to an
-// Envoy response flag. The handled set is the common subset for forward-proxy
-// upstream failures; anything outside it (including less common flags like
-// UR, URX, OM, RLSE, etc.) falls through to "network_error".
+// Envoy response flag. The output vocabulary matches ClassifyNetworkError
+// (httphelper.go) so customers see the same codes whether or not a proxy is
+// in path. Unhandled flags fall through to "network_error" — operators should
+// watch for that code paired with a non-empty flag in the attempt error
+// payload as a signal that the mapping needs expansion.
 //
 // Envoy response flag reference:
 // https://www.envoyproxy.io/docs/envoy/latest/configuration/observability/access_log/usage#config-access-log-format-response-flags
 func MapEnvoyResponseFlag(flag string) string {
 	switch flag {
-	case "UF", "UH", "UC", "LH", "LR":
-		// UF: upstream connection failure
+	case "UF", "UH", "LH":
+		// UF: upstream connection failure (TCP dial failed)
 		// UH: no healthy upstream
-		// UC: upstream connection termination
-		// LH/LR: local health-check failures
+		// LH: failed local health check
 		return "connection_refused"
-	case "UT", "SI", "DT":
-		// UT: upstream request timeout (where supported)
+	case "UC", "UR", "LR":
+		// UC: upstream connection termination (established then dropped)
+		// UR: upstream remote reset
+		// LR: local reset
+		return "connection_reset"
+	case "UT", "SI", "DT", "UMSDR":
+		// UT: upstream request timeout
 		// SI: stream idle timeout
-		// DT: downstream global timeout
+		// DT: downstream global duration timeout
+		// UMSDR: upstream max stream duration reached
 		return "timeout"
 	case "DF":
 		// DF: DNS resolution failure (emitted by dynamic_forward_proxy when
@@ -98,6 +113,10 @@ func MapEnvoyResponseFlag(flag string) string {
 		// NR: no route configured
 		// NC: upstream cluster not found
 		return "network_unreachable"
+	case "UPE", "DPE":
+		// UPE: upstream protocol error
+		// DPE: downstream protocol error
+		return "protocol_error"
 	default:
 		return "network_error"
 	}
@@ -172,12 +191,15 @@ func (t *proxyTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	// destination-attributed error so the synthesized body never reaches the
 	// delivery record.
 	if flag := envoyResponseFlag(resp.Header); flag != "" {
+		details := envoyResponseDetails(resp.Header)
 		_, _ = io.Copy(io.Discard, resp.Body)
 		_ = resp.Body.Close()
 		return nil, &ErrProxyDestination{
-			Underlying: fmt.Errorf("proxy synthesized response (flag %s, status %d)", flag, resp.StatusCode),
+			Underlying: synthesizedErr(flag, details, resp.StatusCode),
 			Code:       MapEnvoyResponseFlag(flag),
 			DestHost:   destHostFromRequest(req),
+			Flag:       flag,
+			Details:    details,
 		}
 	}
 
@@ -289,7 +311,9 @@ func onProxyConnectResponse(ctx context.Context, proxyURL *url.URL, connectReq *
 	// to the destination. Attribute to destination; refine the code from the
 	// Envoy response flag when present.
 	code := "connection_refused"
-	if flag := envoyResponseFlag(resp.Header); flag != "" {
+	flag := envoyResponseFlag(resp.Header)
+	details := envoyResponseDetails(resp.Header)
+	if flag != "" {
 		code = MapEnvoyResponseFlag(flag)
 	}
 
@@ -297,6 +321,8 @@ func onProxyConnectResponse(ctx context.Context, proxyURL *url.URL, connectReq *
 		Underlying: fmt.Errorf("proxy returned %s", resp.Status),
 		Code:       code,
 		DestHost:   destHost,
+		Flag:       flag,
+		Details:    details,
 	}
 }
 
@@ -308,4 +334,27 @@ func envoyResponseFlag(h http.Header) string {
 		return ""
 	}
 	return v
+}
+
+// envoyResponseDetails returns the meaningful value of the
+// x-envoy-response-code-details header (stage{reason} form when both are
+// present, stage-only otherwise), or "" if the header is absent / empty /
+// placeholder "-". Captured for operator-side diagnostics; never inspected
+// for classification.
+func envoyResponseDetails(h http.Header) string {
+	v := strings.TrimSpace(h.Get("x-envoy-response-code-details"))
+	if v == "" || v == "-" {
+		return ""
+	}
+	return v
+}
+
+// synthesizedErr builds the underlying error wrapped inside ErrProxyDestination
+// for an Envoy-synthesized plain-HTTP response. Details are included when
+// present so the operator-side log line carries the Envoy reason string.
+func synthesizedErr(flag, details string, status int) error {
+	if details != "" {
+		return fmt.Errorf("proxy synthesized response (flag %s, details %s, status %d)", flag, details, status)
+	}
+	return fmt.Errorf("proxy synthesized response (flag %s, status %d)", flag, status)
 }
