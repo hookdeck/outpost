@@ -4,6 +4,7 @@ from __future__ import annotations
 from .rabbitmqconfig import RabbitMQConfig, RabbitMQConfigTypedDict
 from .rabbitmqcredentials import RabbitMQCredentials, RabbitMQCredentialsTypedDict
 from .topics_union import TopicsUnion, TopicsUnionTypedDict
+from datetime import datetime
 from enum import Enum
 from outpost_sdk.types import (
     BaseModel,
@@ -44,6 +45,12 @@ class DestinationCreateRabbitMQTypedDict(TypedDict):
     r"""Static key-value pairs merged into event metadata on every attempt."""
     metadata: NotRequired[Nullable[Dict[str, str]]]
     r"""Arbitrary contextual information stored with the destination."""
+    created_at: NotRequired[Nullable[datetime]]
+    r"""Optional override for the creation timestamp. Intended for importing destinations from another system. Must not be in the future. **Admin (API key) auth only — sending this with JWT auth returns 403.** Defaults to the current time when omitted."""
+    updated_at: NotRequired[Nullable[datetime]]
+    r"""Optional override for the last-updated timestamp. Intended for importing destinations. Must not be in the future. **Admin (API key) auth only — sending this with JWT auth returns 403.** Defaults to created_at when omitted."""
+    disabled_at: NotRequired[Nullable[datetime]]
+    r"""If set, the destination is created in a disabled state with this timestamp. Must not be in the future. Defaults to null (enabled)."""
 
 
 class DestinationCreateRabbitMQ(BaseModel):
@@ -76,10 +83,38 @@ class DestinationCreateRabbitMQ(BaseModel):
     metadata: OptionalNullable[Dict[str, str]] = UNSET
     r"""Arbitrary contextual information stored with the destination."""
 
+    created_at: OptionalNullable[datetime] = UNSET
+    r"""Optional override for the creation timestamp. Intended for importing destinations from another system. Must not be in the future. **Admin (API key) auth only — sending this with JWT auth returns 403.** Defaults to the current time when omitted."""
+
+    updated_at: OptionalNullable[datetime] = UNSET
+    r"""Optional override for the last-updated timestamp. Intended for importing destinations. Must not be in the future. **Admin (API key) auth only — sending this with JWT auth returns 403.** Defaults to created_at when omitted."""
+
+    disabled_at: OptionalNullable[datetime] = UNSET
+    r"""If set, the destination is created in a disabled state with this timestamp. Must not be in the future. Defaults to null (enabled)."""
+
     @model_serializer(mode="wrap")
     def serialize_model(self, handler):
-        optional_fields = set(["id", "filter", "delivery_metadata", "metadata"])
-        nullable_fields = set(["filter", "delivery_metadata", "metadata"])
+        optional_fields = set(
+            [
+                "id",
+                "filter",
+                "delivery_metadata",
+                "metadata",
+                "created_at",
+                "updated_at",
+                "disabled_at",
+            ]
+        )
+        nullable_fields = set(
+            [
+                "filter",
+                "delivery_metadata",
+                "metadata",
+                "created_at",
+                "updated_at",
+                "disabled_at",
+            ]
+        )
         serialized = handler(self)
         m = {}
 

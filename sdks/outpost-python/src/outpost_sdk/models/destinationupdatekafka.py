@@ -4,6 +4,7 @@ from __future__ import annotations
 from .kafkaconfig import KafkaConfig, KafkaConfigTypedDict
 from .kafkacredentials import KafkaCredentials, KafkaCredentialsTypedDict
 from .topics_union import TopicsUnion, TopicsUnionTypedDict
+from datetime import datetime
 from outpost_sdk.types import (
     BaseModel,
     Nullable,
@@ -33,6 +34,8 @@ class DestinationUpdateKafkaTypedDict(TypedDict):
     r"""Static key-value pairs merged into event metadata on every attempt. Uses JSON merge-patch semantics (RFC 7396): send keys to add/update, null values to delete keys, null for entire field to clear all. Omit or send {} for no change."""
     metadata: NotRequired[Nullable[Dict[str, Nullable[str]]]]
     r"""Arbitrary contextual information stored with the destination. Uses JSON merge-patch semantics (RFC 7396): send keys to add/update, null values to delete keys, null for entire field to clear all. Omit or send {} for no change."""
+    disabled_at: NotRequired[Nullable[datetime]]
+    r"""Update the disabled state of the destination. Send a timestamp (must not be in the future) to disable, null to enable, or omit to leave unchanged."""
 
 
 class DestinationUpdateKafka(BaseModel):
@@ -59,6 +62,9 @@ class DestinationUpdateKafka(BaseModel):
     metadata: OptionalNullable[Dict[str, Nullable[str]]] = UNSET
     r"""Arbitrary contextual information stored with the destination. Uses JSON merge-patch semantics (RFC 7396): send keys to add/update, null values to delete keys, null for entire field to clear all. Omit or send {} for no change."""
 
+    disabled_at: OptionalNullable[datetime] = UNSET
+    r"""Update the disabled state of the destination. Send a timestamp (must not be in the future) to disable, null to enable, or omit to leave unchanged."""
+
     @model_serializer(mode="wrap")
     def serialize_model(self, handler):
         optional_fields = set(
@@ -69,9 +75,12 @@ class DestinationUpdateKafka(BaseModel):
                 "credentials",
                 "delivery_metadata",
                 "metadata",
+                "disabled_at",
             ]
         )
-        nullable_fields = set(["filter", "delivery_metadata", "metadata"])
+        nullable_fields = set(
+            ["filter", "delivery_metadata", "metadata", "disabled_at"]
+        )
         serialized = handler(self)
         m = {}
 
