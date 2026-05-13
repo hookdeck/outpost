@@ -55,6 +55,14 @@ func (t *InFlightTracker) RecordPublish(eventID, groupName string, expectedDeliv
 	}
 }
 
+// RemoveInFlight drops an in-flight entry without firing onMissing.
+// Used when a publish fails after we pre-recorded the event.
+func (t *InFlightTracker) RemoveInFlight(eventID string) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	delete(t.entries, eventID)
+}
+
 func (t *InFlightTracker) RecordDelivery(eventID, groupName string, receivedAt time.Time) (time.Duration, bool) {
 	t.mu.Lock()
 	defer t.mu.Unlock()

@@ -198,35 +198,38 @@ func (p *Publisher) publishWorker(ctx context.Context, g *group.Group, wg *sync.
 			if !ok {
 				return
 			}
+			// Pre-record so a fast delivery callback can find this event even if
+			// publish HTTP latency exceeds outpost queue→deliver latency.
+			p.tracker.RecordPublish(job.eventID, g.Config.Name, g.Config.DestinationsPerTenant, job.sentAt)
+			g.EventLog.Add(eventlog.Record{
+				EventID:     job.eventID,
+				GroupName:   g.Config.Name,
+				TenantID:    job.tenantID,
+				Topic:       job.topic,
+				Status:      eventlog.StatusPublished,
+				PublishedAt: job.sentAt,
+			})
+
 			result, err := p.client.Publish(ctx, job.tenantID, job.eventID, job.topic, job.payload)
 			if err != nil {
 				if ctx.Err() != nil {
 					return
 				}
+				// Roll back the pre-record: drop from tracker (no late "missing" sweep),
+				// flip eventlog to error so users see it.
+				p.tracker.RemoveInFlight(job.eventID)
 				g.Metrics.RecordPublishError()
-				g.EventLog.Add(eventlog.Record{
-					EventID:     job.eventID,
-					GroupName:   g.Config.Name,
-					TenantID:    job.tenantID,
-					Topic:       job.topic,
-					Status:      eventlog.StatusError,
-					PublishedAt: job.sentAt,
-					Error:       err.Error(),
-					StatusCode:  result.StatusCode,
+				g.EventLog.Update(job.eventID, func(r *eventlog.Record) {
+					r.Status = eventlog.StatusError
+					r.Error = err.Error()
+					r.StatusCode = result.StatusCode
 				})
 				slog.Debug("publish error", "group", g.Config.Name, "tenant", job.tenantID, "error", err)
 				continue
 			}
-			p.tracker.RecordPublish(job.eventID, g.Config.Name, g.Config.DestinationsPerTenant, job.sentAt)
 			g.Metrics.RecordPublish(result.Latency)
-			g.EventLog.Add(eventlog.Record{
-				EventID:        job.eventID,
-				GroupName:      g.Config.Name,
-				TenantID:       job.tenantID,
-				Topic:          job.topic,
-				Status:         eventlog.StatusPublished,
-				PublishedAt:    job.sentAt,
-				PublishLatency: result.Latency.Milliseconds(),
+			g.EventLog.Update(job.eventID, func(r *eventlog.Record) {
+				r.PublishLatency = result.Latency.Milliseconds()
 			})
 		case <-ctx.Done():
 			return
