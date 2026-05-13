@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="color-scheme" content="light dark">
-    <title>SDK Changelog - go</title>
+    <title>SDK Changelog - python</title>
     <style>
         :root {
             --bg-color: #ffffff;
@@ -95,52 +95,52 @@
         }
     </style>
 </head>
-<body><h2 id="go-sdk-changes">Go SDK Changes:</h2>
+<body><h2 id="python-sdk-changes">Python SDK Changes:</h2>
 
 <ul>
-<li><code>Outpost.Destinations.Create()</code>: <code>request.Body</code> <strong>Changed</strong>
+<li><code>outpost.destinations.create()</code>: <code>request.body</code> <strong>Changed</strong>
 
 <ul>
-<li><code>union(aws_kinesis).CreatedAt</code> <strong>Added</strong></li>
-<li><code>union(aws_kinesis).DisabledAt</code> <strong>Added</strong></li>
-<li><code>union(aws_kinesis).UpdatedAt</code> <strong>Added</strong></li>
-<li><code>union(aws_s3).CreatedAt</code> <strong>Added</strong></li>
-<li><code>union(aws_s3).DisabledAt</code> <strong>Added</strong></li>
-<li><code>union(aws_s3).UpdatedAt</code> <strong>Added</strong></li>
-<li><code>union(aws_sqs).CreatedAt</code> <strong>Added</strong></li>
-<li><code>union(aws_sqs).DisabledAt</code> <strong>Added</strong></li>
-<li><code>union(aws_sqs).UpdatedAt</code> <strong>Added</strong></li>
-<li><code>union(azure_servicebus).CreatedAt</code> <strong>Added</strong></li>
-<li><code>union(azure_servicebus).DisabledAt</code> <strong>Added</strong></li>
-<li><code>union(azure_servicebus).UpdatedAt</code> <strong>Added</strong></li>
-<li><code>union(gcp_pubsub).CreatedAt</code> <strong>Added</strong></li>
-<li><code>union(gcp_pubsub).DisabledAt</code> <strong>Added</strong></li>
-<li><code>union(gcp_pubsub).UpdatedAt</code> <strong>Added</strong></li>
-<li><code>union(hookdeck).CreatedAt</code> <strong>Added</strong></li>
-<li><code>union(hookdeck).DisabledAt</code> <strong>Added</strong></li>
-<li><code>union(hookdeck).UpdatedAt</code> <strong>Added</strong></li>
-<li><code>union(kafka).CreatedAt</code> <strong>Added</strong></li>
-<li><code>union(kafka).DisabledAt</code> <strong>Added</strong></li>
-<li><code>union(kafka).UpdatedAt</code> <strong>Added</strong></li>
-<li><code>union(rabbitmq).CreatedAt</code> <strong>Added</strong></li>
-<li><code>union(rabbitmq).DisabledAt</code> <strong>Added</strong></li>
-<li><code>union(rabbitmq).UpdatedAt</code> <strong>Added</strong></li>
-<li><code>union(webhook).CreatedAt</code> <strong>Added</strong></li>
-<li><code>union(webhook).DisabledAt</code> <strong>Added</strong></li>
-<li><code>union(webhook).UpdatedAt</code> <strong>Added</strong></li>
+<li><code>union(aws_kinesis).created_at</code> <strong>Added</strong></li>
+<li><code>union(aws_kinesis).disabled_at</code> <strong>Added</strong></li>
+<li><code>union(aws_kinesis).updated_at</code> <strong>Added</strong></li>
+<li><code>union(aws_s3).created_at</code> <strong>Added</strong></li>
+<li><code>union(aws_s3).disabled_at</code> <strong>Added</strong></li>
+<li><code>union(aws_s3).updated_at</code> <strong>Added</strong></li>
+<li><code>union(aws_sqs).created_at</code> <strong>Added</strong></li>
+<li><code>union(aws_sqs).disabled_at</code> <strong>Added</strong></li>
+<li><code>union(aws_sqs).updated_at</code> <strong>Added</strong></li>
+<li><code>union(azure_servicebus).created_at</code> <strong>Added</strong></li>
+<li><code>union(azure_servicebus).disabled_at</code> <strong>Added</strong></li>
+<li><code>union(azure_servicebus).updated_at</code> <strong>Added</strong></li>
+<li><code>union(gcp_pubsub).created_at</code> <strong>Added</strong></li>
+<li><code>union(gcp_pubsub).disabled_at</code> <strong>Added</strong></li>
+<li><code>union(gcp_pubsub).updated_at</code> <strong>Added</strong></li>
+<li><code>union(hookdeck).created_at</code> <strong>Added</strong></li>
+<li><code>union(hookdeck).disabled_at</code> <strong>Added</strong></li>
+<li><code>union(hookdeck).updated_at</code> <strong>Added</strong></li>
+<li><code>union(kafka).created_at</code> <strong>Added</strong></li>
+<li><code>union(kafka).disabled_at</code> <strong>Added</strong></li>
+<li><code>union(kafka).updated_at</code> <strong>Added</strong></li>
+<li><code>union(rabbitmq).created_at</code> <strong>Added</strong></li>
+<li><code>union(rabbitmq).disabled_at</code> <strong>Added</strong></li>
+<li><code>union(rabbitmq).updated_at</code> <strong>Added</strong></li>
+<li><code>union(webhook).created_at</code> <strong>Added</strong></li>
+<li><code>union(webhook).disabled_at</code> <strong>Added</strong></li>
+<li><code>union(webhook).updated_at</code> <strong>Added</strong></li>
 </ul></li>
-<li><code>Outpost.Destinations.Update()</code>: <code>request.Body</code> <strong>Changed</strong>
+<li><code>outpost.destinations.update()</code>: <code>request.body</code> <strong>Changed</strong>
 
 <ul>
-<li><code>union(DestinationUpdateAWSKinesis).DisabledAt</code> <strong>Added</strong></li>
-<li><code>union(DestinationUpdateAWSS3).DisabledAt</code> <strong>Added</strong></li>
-<li><code>union(DestinationUpdateAWSSQS).DisabledAt</code> <strong>Added</strong></li>
-<li><code>union(DestinationUpdateAzureServiceBus).DisabledAt</code> <strong>Added</strong></li>
-<li><code>union(DestinationUpdateGCPPubSub).DisabledAt</code> <strong>Added</strong></li>
-<li><code>union(DestinationUpdateHookdeck).DisabledAt</code> <strong>Added</strong></li>
-<li><code>union(DestinationUpdateKafka).DisabledAt</code> <strong>Added</strong></li>
-<li><code>union(DestinationUpdateRabbitMQ).DisabledAt</code> <strong>Added</strong></li>
-<li><code>union(DestinationUpdateWebhook).DisabledAt</code> <strong>Added</strong></li>
+<li><code>union(DestinationUpdateAWSKinesis).disabled_at</code> <strong>Added</strong></li>
+<li><code>union(DestinationUpdateAWSS3).disabled_at</code> <strong>Added</strong></li>
+<li><code>union(DestinationUpdateAWSSQS).disabled_at</code> <strong>Added</strong></li>
+<li><code>union(DestinationUpdateAzureServiceBus).disabled_at</code> <strong>Added</strong></li>
+<li><code>union(DestinationUpdateGCPPubSub).disabled_at</code> <strong>Added</strong></li>
+<li><code>union(DestinationUpdateHookdeck).disabled_at</code> <strong>Added</strong></li>
+<li><code>union(DestinationUpdateKafka).disabled_at</code> <strong>Added</strong></li>
+<li><code>union(DestinationUpdateRabbitMQ).disabled_at</code> <strong>Added</strong></li>
+<li><code>union(DestinationUpdateWebhook).disabled_at</code> <strong>Added</strong></li>
 </ul></li>
 </ul>
 </body>
