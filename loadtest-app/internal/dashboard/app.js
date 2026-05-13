@@ -179,6 +179,81 @@ api('GET', '/api/status').then(s => {
   document.getElementById('mock-url').textContent = 'Mock: ' + s.mock_url;
 });
 
+// --- Events ---
+
+let eventsFilter = 'all';
+let eventsCurrentPage = 1;
+let eventsAutoRefresh = true;
+let eventsRefreshTimer = null;
+
+function setEventFilter(filter) {
+  eventsFilter = filter;
+  eventsCurrentPage = 1;
+  document.querySelectorAll('.filter-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.filter === filter);
+  });
+  refreshEvents();
+}
+
+function eventsPage(delta) {
+  eventsCurrentPage = Math.max(1, eventsCurrentPage + delta);
+  refreshEvents();
+}
+
+function toggleEventsRefresh() {
+  eventsAutoRefresh = document.getElementById('events-auto-refresh').checked;
+  if (eventsAutoRefresh) {
+    startEventsRefresh();
+  } else if (eventsRefreshTimer) {
+    clearInterval(eventsRefreshTimer);
+    eventsRefreshTimer = null;
+  }
+}
+
+function startEventsRefresh() {
+  if (eventsRefreshTimer) clearInterval(eventsRefreshTimer);
+  eventsRefreshTimer = setInterval(refreshEvents, 2000);
+}
+
+async function refreshEvents() {
+  let url = `/api/events?page=${eventsCurrentPage}&limit=50`;
+  if (eventsFilter !== 'all') {
+    url += `&status=${eventsFilter}`;
+  }
+  const data = await api('GET', url);
+  renderEvents(data);
+}
+
+function renderEvents(data) {
+  const body = document.getElementById('events-body');
+  const rows = (data.events || []).map(e => {
+    const pubTime = e.published_at ? new Date(e.published_at).toLocaleTimeString() : '';
+    const delTime = e.delivered_at ? new Date(e.delivered_at).toLocaleTimeString() : '';
+    const pubLat = e.publish_latency_ms ? e.publish_latency_ms + 'ms' : '';
+    const e2eLat = e.e2e_latency_ms ? e.e2e_latency_ms + 'ms' : '';
+    const errText = e.error || '';
+    const sc = e.status_code && e.status_code > 0 ? ` (${e.status_code})` : '';
+    return `<tr>
+      <td><span class="status-badge status-${e.status}">${e.status}</span></td>
+      <td class="event-id" title="${e.event_id}">${e.event_id}</td>
+      <td>${e.group_name}</td>
+      <td>${e.tenant_id}</td>
+      <td>${pubTime}</td>
+      <td>${pubLat}</td>
+      <td>${e2eLat}</td>
+      <td class="error-cell" title="${errText}${sc}">${errText}${sc}</td>
+    </tr>`;
+  });
+  body.innerHTML = rows.join('');
+
+  document.getElementById('events-page-info').textContent = `Page ${data.page}`;
+  document.getElementById('events-total').textContent = `${data.total} total`;
+  document.getElementById('events-prev').disabled = data.page <= 1;
+  document.getElementById('events-next').disabled = !data.has_more;
+}
+
 // Poll every 1s
 setInterval(refresh, 1000);
 refresh();
+refreshEvents();
+if (eventsAutoRefresh) startEventsRefresh();

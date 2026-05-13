@@ -6,6 +6,9 @@ import (
 	"log/slog"
 	"net/http"
 
+	"strconv"
+
+	"github.com/hookdeck/outpost/loadtest-app/internal/eventlog"
 	"github.com/hookdeck/outpost/loadtest-app/internal/group"
 )
 
@@ -23,6 +26,9 @@ func (a *App) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/groups/{name}/stop", a.handleStop)
 	mux.HandleFunc("POST /api/groups/{name}/reset", a.handleReset)
 	mux.HandleFunc("POST /api/groups/{name}/teardown", a.handleTeardown)
+
+	// Events
+	mux.HandleFunc("GET /api/events", a.handleListEvents)
 
 	// Global
 	mux.HandleFunc("POST /api/start", a.handleStartAll)
@@ -319,6 +325,37 @@ func (a *App) handleStatus(w http.ResponseWriter, r *http.Request) {
 		"mock_url":    a.Config.MockURL,
 		"groups":      groupStates,
 	})
+}
+
+func (a *App) handleListEvents(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+
+	params := eventlog.QueryParams{}
+
+	if statuses, ok := q["status"]; ok {
+		for _, s := range statuses {
+			params.Statuses = append(params.Statuses, eventlog.Status(s))
+		}
+	}
+	if g := q.Get("group"); g != "" {
+		params.Group = g
+	}
+	if p := q.Get("page"); p != "" {
+		if v, err := strconv.Atoi(p); err == nil {
+			params.Page = v
+		}
+	}
+	if l := q.Get("limit"); l != "" {
+		if v, err := strconv.Atoi(l); err == nil {
+			params.Limit = v
+		}
+	}
+	if q.Get("sort") == "oldest" {
+		params.Oldest = true
+	}
+
+	result := a.EventLog.Query(params)
+	writeJSON(w, http.StatusOK, result)
 }
 
 // Helpers

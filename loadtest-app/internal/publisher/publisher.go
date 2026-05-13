@@ -10,14 +10,16 @@ import (
 
 	"golang.org/x/time/rate"
 
+	"github.com/hookdeck/outpost/loadtest-app/internal/eventlog"
 	"github.com/hookdeck/outpost/loadtest-app/internal/group"
 	"github.com/hookdeck/outpost/loadtest-app/internal/metrics"
 	"github.com/hookdeck/outpost/loadtest-app/internal/outpost"
 )
 
 type Publisher struct {
-	client  *outpost.Client
-	tracker *metrics.InFlightTracker
+	client   *outpost.Client
+	tracker  *metrics.InFlightTracker
+	eventLog *eventlog.Log
 
 	mu      sync.Mutex
 	running map[string]*groupPublisher
@@ -38,11 +40,12 @@ type publishJob struct {
 	sentAt   time.Time
 }
 
-func New(client *outpost.Client, tracker *metrics.InFlightTracker) *Publisher {
+func New(client *outpost.Client, tracker *metrics.InFlightTracker, el *eventlog.Log) *Publisher {
 	return &Publisher{
-		client:  client,
-		tracker: tracker,
-		running: make(map[string]*groupPublisher),
+		client:   client,
+		tracker:  tracker,
+		eventLog: el,
+		running:  make(map[string]*groupPublisher),
 	}
 }
 
@@ -179,8 +182,6 @@ func (p *Publisher) tenantManager(ctx context.Context, g *group.Group, gp *group
 		payload := generatePayload(eventID, tenantID, g.Config.Publish.PayloadBytes)
 		sentAt := time.Now()
 
-		p.tracker.RecordPublish(eventID, g.Config.Name, g.Config.DestinationsPerTenant, sentAt)
-
 		select {
 		case jobs <- publishJob{eventID: eventID, tenantID: tenantID, topic: topic, payload: payload, sentAt: sentAt}:
 		case <-ctx.Done():
@@ -205,10 +206,30 @@ func (p *Publisher) publishWorker(ctx context.Context, g *group.Group, wg *sync.
 					return
 				}
 				g.Metrics.RecordPublishError()
+				p.eventLog.Add(eventlog.Record{
+					EventID:     job.eventID,
+					GroupName:   g.Config.Name,
+					TenantID:    job.tenantID,
+					Topic:       job.topic,
+					Status:      eventlog.StatusError,
+					PublishedAt: job.sentAt,
+					Error:       err.Error(),
+					StatusCode:  result.StatusCode,
+				})
 				slog.Debug("publish error", "group", g.Config.Name, "tenant", job.tenantID, "error", err)
 				continue
 			}
+			p.tracker.RecordPublish(job.eventID, g.Config.Name, g.Config.DestinationsPerTenant, job.sentAt)
 			g.Metrics.RecordPublish(result.Latency)
+			p.eventLog.Add(eventlog.Record{
+				EventID:        job.eventID,
+				GroupName:      g.Config.Name,
+				TenantID:       job.tenantID,
+				Topic:          job.topic,
+				Status:         eventlog.StatusPublished,
+				PublishedAt:    job.sentAt,
+				PublishLatency: result.Latency.Milliseconds(),
+			})
 		case <-ctx.Done():
 			return
 		}
