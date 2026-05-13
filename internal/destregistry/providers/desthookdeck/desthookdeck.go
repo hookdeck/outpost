@@ -150,7 +150,7 @@ func (p *HookdeckProvider) CreatePublisher(ctx context.Context, destination *mod
 		client = p.httpClient
 	} else {
 		var err error
-		client, err = p.BaseProvider.MakeHTTPClient(destregistry.HTTPClientConfig{
+		client, err = destregistry.NewHTTPClient(destregistry.HTTPClientConfig{
 			UserAgent: &p.userAgent,
 		})
 		if err != nil {

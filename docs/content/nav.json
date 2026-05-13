@@ -48,7 +48,8 @@
           },
           { "slug": "features/tenant-user-portal", "title": "Tenant Portal" },
           { "slug": "features/metrics", "title": "Metrics" },
-          { "slug": "features/opentelemetry", "title": "OpenTelemetry" }
+          { "slug": "features/opentelemetry", "title": "OpenTelemetry" },
+          { "slug": "features/webhook-proxy", "title": "Webhook Forward Proxy" }
         ]
       ]
     },

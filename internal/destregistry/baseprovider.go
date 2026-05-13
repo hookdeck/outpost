@@ -3,12 +3,9 @@ package destregistry
 import (
 	"context"
 	"fmt"
-	"net/http"
-	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/hookdeck/outpost/internal/destregistry/metadata"
 	"github.com/hookdeck/outpost/internal/models"
@@ -198,56 +195,4 @@ func validateField(field metadata.FieldSchema, value string, path string) *Valid
 // Preprocess is a noop by default
 func (p *BaseProvider) Preprocess(newDestination *models.Destination, originalDestination *models.Destination, opts *PreprocessDestinationOpts) error {
 	return nil
-}
-
-type HTTPClientConfig struct {
-	Timeout   *time.Duration
-	UserAgent *string
-	ProxyURL  *string
-}
-
-func (p *BaseProvider) MakeHTTPClient(config HTTPClientConfig) (*http.Client, error) {
-	client := &http.Client{}
-
-	if config.Timeout != nil {
-		client.Timeout = *config.Timeout
-	}
-
-	// Configure transport with proxy and/or user agent if needed
-	if config.ProxyURL != nil || config.UserAgent != nil {
-		// Start with default transport settings
-		transport := http.DefaultTransport.(*http.Transport).Clone()
-
-		// Configure proxy if provided
-		if config.ProxyURL != nil && *config.ProxyURL != "" {
-			proxyURLParsed, err := url.Parse(*config.ProxyURL)
-			if err != nil {
-				return nil, fmt.Errorf("invalid proxy URL: %w", err)
-			}
-			transport.Proxy = http.ProxyURL(proxyURLParsed)
-		}
-
-		// Wrap transport with user agent if needed
-		if config.UserAgent != nil {
-			client.Transport = &userAgentTransport{
-				userAgent: *config.UserAgent,
-				transport: transport,
-			}
-		} else {
-			client.Transport = transport
-		}
-	}
-
-	return client, nil
-}
-
-// userAgentTransport wraps an http.RoundTripper to inject a User-Agent header
-type userAgentTransport struct {
-	userAgent string
-	transport http.RoundTripper
-}
-
-func (t *userAgentTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	req.Header.Set("User-Agent", t.userAgent)
-	return t.transport.RoundTrip(req)
 }
