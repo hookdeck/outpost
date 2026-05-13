@@ -23,6 +23,18 @@ const (
 // CloudflareQueuesDestination implements the destregistry.Provider interface for Cloudflare Queues.
 type CloudflareQueuesDestination struct {
 	*destregistry.BaseProvider
+	baseURL string
+}
+
+// Option configures a CloudflareQueuesDestination.
+type Option func(*CloudflareQueuesDestination)
+
+// WithBaseURL overrides the Cloudflare API base URL. Intended for tests
+// pointing at an httptest.Server; production code should never set this.
+func WithBaseURL(url string) Option {
+	return func(d *CloudflareQueuesDestination) {
+		d.baseURL = url
+	}
 }
 
 // CloudflareQueuesConfig holds the configuration for a Cloudflare Queues destination.
@@ -39,15 +51,20 @@ type CloudflareQueuesCredentials struct {
 var _ destregistry.Provider = (*CloudflareQueuesDestination)(nil)
 
 // New creates a new CloudflareQueuesDestination provider.
-func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePublisherOption) (*CloudflareQueuesDestination, error) {
+func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePublisherOption, opts ...Option) (*CloudflareQueuesDestination, error) {
 	base, err := destregistry.NewBaseProvider(loader, providerType, basePublisherOpts...)
 	if err != nil {
 		return nil, err
 	}
 
-	return &CloudflareQueuesDestination{
+	d := &CloudflareQueuesDestination{
 		BaseProvider: base,
-	}, nil
+		baseURL:      cloudflareAPIBaseURL,
+	}
+	for _, opt := range opts {
+		opt(d)
+	}
+	return d, nil
 }
 
 // Validate validates the destination configuration.
@@ -74,6 +91,7 @@ func (d *CloudflareQueuesDestination) CreatePublisher(ctx context.Context, desti
 	return &CloudflareQueuesPublisher{
 		BasePublisher: d.BaseProvider.NewPublisher(destregistry.WithDeliveryMetadata(destination.DeliveryMetadata)),
 		httpClient:    httpClient,
+		baseURL:       d.baseURL,
 		accountID:     cfg.AccountID,
 		queueID:       cfg.QueueID,
 		apiToken:      creds.APIToken,
@@ -105,18 +123,21 @@ func (d *CloudflareQueuesDestination) resolveMetadata(ctx context.Context, desti
 		}, nil
 }
 
-// makeCloudflareQueuesDashboardURL constructs the Cloudflare dashboard URL for a queue.
+// makeCloudflareQueuesDashboardURL returns the Cloudflare dashboard queues list
+// for the account. CF's per-queue dashboard URL uses the queue *name* (not the
+// ID we have in config), so we link to the list page rather than risk a 404.
 func makeCloudflareQueuesDashboardURL(accountID, queueID string) string {
 	if accountID == "" || queueID == "" {
 		return ""
 	}
-	return fmt.Sprintf("https://dash.cloudflare.com/%s/queues/%s", accountID, queueID)
+	return fmt.Sprintf("https://dash.cloudflare.com/%s/workers/queues", accountID)
 }
 
 // CloudflareQueuesPublisher handles publishing events to Cloudflare Queues.
 type CloudflareQueuesPublisher struct {
 	*destregistry.BasePublisher
 	httpClient *http.Client
+	baseURL    string
 	accountID  string
 	queueID    string
 	apiToken   string
@@ -126,11 +147,6 @@ type CloudflareQueuesPublisher struct {
 func (p *CloudflareQueuesPublisher) Close() error {
 	p.BasePublisher.StartClose()
 	return nil
-}
-
-// SetHTTPClient allows setting a custom HTTP client, primarily for testing purposes.
-func (p *CloudflareQueuesPublisher) SetHTTPClient(client *http.Client) {
-	p.httpClient = client
 }
 
 // cloudflareMessageRequest is the body for POST /accounts/{id}/queues/{id}/messages
@@ -189,7 +205,7 @@ func (p *CloudflareQueuesPublisher) Format(ctx context.Context, event *models.Ev
 		return nil, fmt.Errorf("failed to marshal request payload: %w", err)
 	}
 
-	url := fmt.Sprintf("%s/accounts/%s/queues/%s/messages", cloudflareAPIBaseURL, p.accountID, p.queueID)
+	url := fmt.Sprintf("%s/accounts/%s/queues/%s/messages", p.baseURL, p.accountID, p.queueID)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer(payloadBytes))
 	if err != nil {

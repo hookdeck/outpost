@@ -99,7 +99,7 @@ func TestCloudflareQueuesDestination_ComputeTarget(t *testing.T) {
 		)
 		target := cloudflareQueuesDestination.ComputeTarget(&destination)
 		assert.Equal(t, "my-queue-456", target.Target)
-		assert.Equal(t, "https://dash.cloudflare.com/my-account-123/queues/my-queue-456", target.TargetURL)
+		assert.Equal(t, "https://dash.cloudflare.com/my-account-123/workers/queues", target.TargetURL)
 	})
 
 	t.Run("should return empty target URL when account_id is missing", func(t *testing.T) {

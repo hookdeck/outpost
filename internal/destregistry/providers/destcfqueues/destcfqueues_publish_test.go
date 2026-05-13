@@ -56,7 +56,11 @@ func TestCloudflareAPIResponse_DecodesDocumentedShape(t *testing.T) {
 
 func newPublisher(t *testing.T, serverURL string) *destcfqueues.CloudflareQueuesPublisher {
 	t.Helper()
-	provider, err := destcfqueues.New(testutil.Registry.MetadataLoader(), nil)
+	var opts []destcfqueues.Option
+	if serverURL != "" {
+		opts = append(opts, destcfqueues.WithBaseURL(serverURL))
+	}
+	provider, err := destcfqueues.New(testutil.Registry.MetadataLoader(), nil, opts...)
 	require.NoError(t, err)
 	destination := testutil.DestinationFactory.Any(
 		testutil.DestinationFactory.WithType("cloudflare_queues"),
@@ -70,11 +74,7 @@ func newPublisher(t *testing.T, serverURL string) *destcfqueues.CloudflareQueues
 	)
 	publisher, err := provider.CreatePublisher(context.Background(), &destination)
 	require.NoError(t, err)
-	cfPublisher := publisher.(*destcfqueues.CloudflareQueuesPublisher)
-	if serverURL != "" {
-		cfPublisher.SetHTTPClient(&http.Client{Transport: &testTransport{serverURL: serverURL}})
-	}
-	return cfPublisher
+	return publisher.(*destcfqueues.CloudflareQueuesPublisher)
 }
 
 func TestCloudflareQueuesPublisher_Format(t *testing.T) {
@@ -263,17 +263,3 @@ func TestCloudflareQueuesPublisher_Publish_APIError(t *testing.T) {
 	}
 }
 
-// testTransport redirects requests to the test server while preserving the path.
-type testTransport struct {
-	serverURL string
-}
-
-func (t *testTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	newURL := t.serverURL + req.URL.Path
-	newReq, err := http.NewRequestWithContext(req.Context(), req.Method, newURL, req.Body)
-	if err != nil {
-		return nil, err
-	}
-	newReq.Header = req.Header
-	return http.DefaultTransport.RoundTrip(newReq)
-}
