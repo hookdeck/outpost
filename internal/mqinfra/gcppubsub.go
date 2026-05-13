@@ -12,6 +12,11 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+const (
+	defaultMinRetryBackoffSeconds = 10
+	defaultMaxRetryBackoffSeconds = 120
+)
+
 type infraGCPPubSub struct {
 	cfg *MQInfraConfig
 }
@@ -21,20 +26,17 @@ func (infra *infraGCPPubSub) Exist(ctx context.Context) (bool, error) {
 		return false, errors.New("failed assertion: cfg.GCPPubSub != nil") // IMPOSSIBLE
 	}
 
-	// Create client options
 	var opts []option.ClientOption
 	if infra.cfg.GCPPubSub.ServiceAccountCredentials != "" {
 		opts = append(opts, option.WithCredentialsJSON([]byte(infra.cfg.GCPPubSub.ServiceAccountCredentials)))
 	}
 
-	// Create client
 	client, err := pubsub.NewClient(ctx, infra.cfg.GCPPubSub.ProjectID, opts...)
 	if err != nil {
 		return false, fmt.Errorf("failed to create pubsub client: %w", err)
 	}
 	defer client.Close()
 
-	// Check if main topic exists
 	topicID := infra.cfg.GCPPubSub.TopicID
 	topic := client.Topic(topicID)
 	topicExists, err := topic.Exists(ctx)
@@ -45,7 +47,6 @@ func (infra *infraGCPPubSub) Exist(ctx context.Context) (bool, error) {
 		return false, nil
 	}
 
-	// Check if DLQ topic exists
 	dlqTopicID := topicID + "-dlq"
 	dlqTopic := client.Topic(dlqTopicID)
 	dlqTopicExists, err := dlqTopic.Exists(ctx)
@@ -56,7 +57,6 @@ func (infra *infraGCPPubSub) Exist(ctx context.Context) (bool, error) {
 		return false, nil
 	}
 
-	// Check if DLQ subscription exists
 	dlqSubID := dlqTopicID + "-sub"
 	dlqSub := client.Subscription(dlqSubID)
 	dlqSubExists, err := dlqSub.Exists(ctx)
@@ -67,7 +67,6 @@ func (infra *infraGCPPubSub) Exist(ctx context.Context) (bool, error) {
 		return false, nil
 	}
 
-	// Check if main subscription exists
 	subID := infra.cfg.GCPPubSub.SubscriptionID
 	sub := client.Subscription(subID)
 	subExists, err := sub.Exists(ctx)
@@ -86,20 +85,17 @@ func (infra *infraGCPPubSub) Declare(ctx context.Context) error {
 		return errors.New("failed assertion: cfg.GCPPubSub != nil") // IMPOSSIBLE
 	}
 
-	// Create client options
 	var opts []option.ClientOption
 	if infra.cfg.GCPPubSub.ServiceAccountCredentials != "" {
 		opts = append(opts, option.WithCredentialsJSON([]byte(infra.cfg.GCPPubSub.ServiceAccountCredentials)))
 	}
 
-	// Create client
 	client, err := pubsub.NewClient(ctx, infra.cfg.GCPPubSub.ProjectID, opts...)
 	if err != nil {
 		return fmt.Errorf("failed to create pubsub client: %w", err)
 	}
 	defer client.Close()
 
-	// Create topic (if not exists)
 	topicID := infra.cfg.GCPPubSub.TopicID
 	topic := client.Topic(topicID)
 	topicExists, err := topic.Exists(ctx)
@@ -119,7 +115,6 @@ func (infra *infraGCPPubSub) Declare(ctx context.Context) error {
 		}
 	}
 
-	// Create DLQ topic (if not exists)
 	dlqTopicID := topicID + "-dlq"
 	dlqTopic := client.Topic(dlqTopicID)
 	dlqTopicExists, err := dlqTopic.Exists(ctx)
@@ -139,7 +134,6 @@ func (infra *infraGCPPubSub) Declare(ctx context.Context) error {
 		}
 	}
 
-	// Create DLQ subscription (if not exists)
 	dlqSubID := dlqTopicID + "-sub"
 	dlqSub := client.Subscription(dlqSubID)
 	dlqSubExists, err := dlqSub.Exists(ctx)
@@ -169,7 +163,7 @@ func (infra *infraGCPPubSub) Declare(ctx context.Context) error {
 	}
 
 	// Set visibility timeout (acknowledgement deadline)
-	ackDeadline := 10 // default 10 seconds
+	ackDeadline := 60 // default 60 seconds
 	if infra.cfg.Policy.VisibilityTimeout > 0 {
 		ackDeadline = infra.cfg.Policy.VisibilityTimeout
 	}
@@ -193,6 +187,10 @@ func (infra *infraGCPPubSub) Declare(ctx context.Context) error {
 				DeadLetterTopic:     dlqTopic.String(),
 				MaxDeliveryAttempts: maxDeliveryAttempts,
 			},
+			RetryPolicy: &pubsub.RetryPolicy{
+				MinimumBackoff: getRetryBackoff(infra.cfg.GCPPubSub.MinRetryBackoff, defaultMinRetryBackoffSeconds),
+				MaximumBackoff: getRetryBackoff(infra.cfg.GCPPubSub.MaxRetryBackoff, defaultMaxRetryBackoffSeconds),
+			},
 		}
 		_, err = client.CreateSubscription(ctx, subID, subConfig)
 		if err != nil {
@@ -212,20 +210,17 @@ func (infra *infraGCPPubSub) TearDown(ctx context.Context) error {
 		return errors.New("failed assertion: cfg.GCPPubSub != nil") // IMPOSSIBLE
 	}
 
-	// Create client options
 	var opts []option.ClientOption
 	if infra.cfg.GCPPubSub.ServiceAccountCredentials != "" {
 		opts = append(opts, option.WithCredentialsJSON([]byte(infra.cfg.GCPPubSub.ServiceAccountCredentials)))
 	}
 
-	// Create client
 	client, err := pubsub.NewClient(ctx, infra.cfg.GCPPubSub.ProjectID, opts...)
 	if err != nil {
 		return fmt.Errorf("failed to create pubsub client: %w", err)
 	}
 	defer client.Close()
 
-	// Delete main subscription
 	subID := infra.cfg.GCPPubSub.SubscriptionID
 	sub := client.Subscription(subID)
 	subExists, err := sub.Exists(ctx)
@@ -238,7 +233,6 @@ func (infra *infraGCPPubSub) TearDown(ctx context.Context) error {
 		}
 	}
 
-	// Delete DLQ subscription
 	dlqTopicID := infra.cfg.GCPPubSub.TopicID + "-dlq"
 	dlqSubID := dlqTopicID + "-sub"
 	dlqSub := client.Subscription(dlqSubID)
@@ -252,7 +246,6 @@ func (infra *infraGCPPubSub) TearDown(ctx context.Context) error {
 		}
 	}
 
-	// Delete main topic
 	topicID := infra.cfg.GCPPubSub.TopicID
 	topic := client.Topic(topicID)
 	topicExists, err := topic.Exists(ctx)
@@ -265,7 +258,6 @@ func (infra *infraGCPPubSub) TearDown(ctx context.Context) error {
 		}
 	}
 
-	// Delete DLQ topic
 	dlqTopic := client.Topic(dlqTopicID)
 	dlqTopicExists, err := dlqTopic.Exists(ctx)
 	if err != nil {
@@ -283,6 +275,14 @@ func (infra *infraGCPPubSub) TearDown(ctx context.Context) error {
 // getDuration converts seconds to time.Duration
 func getDuration(seconds int) time.Duration {
 	return time.Duration(seconds) * time.Second
+}
+
+// getRetryBackoff returns the configured backoff or a default value
+func getRetryBackoff(configured int, defaultSeconds int) time.Duration {
+	if configured > 0 {
+		return time.Duration(configured) * time.Second
+	}
+	return time.Duration(defaultSeconds) * time.Second
 }
 
 // Helper function to check if error is an "already exists" error

@@ -8,7 +8,7 @@ from typing import Optional
 from typing_extensions import NotRequired, TypedDict
 
 
-class TLS(str, Enum):
+class RabbitMQConfigTLS(str, Enum):
     r"""Whether to use TLS connection (amqps). Defaults to \"false\"."""
 
     TRUE = "true"
@@ -20,7 +20,7 @@ class RabbitMQConfigTypedDict(TypedDict):
     r"""RabbitMQ server address (host:port)."""
     exchange: str
     r"""The exchange to publish messages to."""
-    tls: NotRequired[TLS]
+    tls: NotRequired[RabbitMQConfigTLS]
     r"""Whether to use TLS connection (amqps). Defaults to \"false\"."""
 
 
@@ -31,7 +31,7 @@ class RabbitMQConfig(BaseModel):
     exchange: str
     r"""The exchange to publish messages to."""
 
-    tls: Optional[TLS] = None
+    tls: Optional[RabbitMQConfigTLS] = None
     r"""Whether to use TLS connection (amqps). Defaults to \"false\"."""
 
     @model_serializer(mode="wrap")
@@ -42,7 +42,7 @@ class RabbitMQConfig(BaseModel):
 
         for n, f in type(self).model_fields.items():
             k = f.alias or n
-            val = serialized.get(k)
+            val = serialized.get(k, serialized.get(n))
 
             if val != UNSET_SENTINEL:
                 if val is not None or k not in optional_fields:

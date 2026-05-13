@@ -15,24 +15,59 @@ spec:
       labels:
         app: outpost-api
         {{- include "outpost.labels" . | nindent 8 }}
+        {{- with .Values.outpost.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.outpost.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
     spec:
+      {{- with .Values.outpost.serviceAccountName }}
+      serviceAccountName: {{ . }}
+      {{- end }}
       {{- with .Values.outpost.imagePullSecrets }}
       imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.outpost.podSecurityContext }}
+      securityContext:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       containers:
         - name: {{ include "outpost.name" . }}-api
           image: {{ .Values.outpost.image.repository }}:{{ .Values.outpost.image.tag }}
           imagePullPolicy: {{ .Values.outpost.image.pullPolicy }}
+          {{- with .Values.outpost.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.outpost.resources.api }}
           resources:
-            {{- toYaml .Values.outpost.resources.api | nindent 12 }}
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           ports:
           - name: http
             containerPort: 3333
             protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /api/v1/healthz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /api/v1/healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
           volumeMounts:
           - name: config
             mountPath: /config/outpost
+          {{- with .Values.outpost.extraVolumeMounts }}
+            {{- toYaml . | nindent 10 }}
+          {{- end }}
           env:
             - name: SERVICE
               value: api
@@ -45,10 +80,29 @@ spec:
                 fieldRef:
                   fieldPath: spec.nodeName
             {{- include "outpost.env" . | nindent 12 }}
+          {{- with .Values.outpost.envFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- with .Values.outpost.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.outpost.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.outpost.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       volumes:
         - name: config
           configMap:
             name: "{{ include "outpost.fullname" . }}"
+        {{- with .Values.outpost.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -67,28 +121,86 @@ spec:
       labels:
         app: outpost-delivery
         {{- include "outpost.labels" . | nindent 8 }}
+        {{- with .Values.outpost.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.outpost.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
     spec:
+      {{- with .Values.outpost.serviceAccountName }}
+      serviceAccountName: {{ . }}
+      {{- end }}
       {{- with .Values.outpost.imagePullSecrets }}
       imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.outpost.podSecurityContext }}
+      securityContext:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       containers:
         - name: {{ include "outpost.name" . }}-delivery
           image: {{ .Values.outpost.image.repository }}:{{ .Values.outpost.image.tag }}
           imagePullPolicy: {{ .Values.outpost.image.pullPolicy }}
+          {{- with .Values.outpost.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.outpost.resources.delivery }}
           resources:
-            {{- toYaml .Values.outpost.resources.delivery | nindent 12 }}
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          ports:
+          - name: http
+            containerPort: 3333
+            protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /api/v1/healthz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /api/v1/healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
           volumeMounts:
           - name: config
             mountPath: /config/outpost
+          {{- with .Values.outpost.extraVolumeMounts }}
+            {{- toYaml . | nindent 10 }}
+          {{- end }}
           env:
             - name: SERVICE
               value: delivery
             {{- include "outpost.env" . | nindent 12 }}
+          {{- with .Values.outpost.envFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- with .Values.outpost.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.outpost.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.outpost.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       volumes:
         - name: config
           configMap:
             name: "{{ include "outpost.fullname" . }}"
+        {{- with .Values.outpost.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -107,25 +219,83 @@ spec:
       labels:
         app: outpost-log
         {{- include "outpost.labels" . | nindent 8 }}
+        {{- with .Values.outpost.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.outpost.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
     spec:
+      {{- with .Values.outpost.serviceAccountName }}
+      serviceAccountName: {{ . }}
+      {{- end }}
       {{- with .Values.outpost.imagePullSecrets }}
       imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.outpost.podSecurityContext }}
+      securityContext:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       containers:
         - name: {{ include "outpost.name" . }}-log
           image: {{ .Values.outpost.image.repository }}:{{ .Values.outpost.image.tag }}
           imagePullPolicy: {{ .Values.outpost.image.pullPolicy }}
+          {{- with .Values.outpost.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.outpost.resources.log }}
           resources:
-            {{- toYaml .Values.outpost.resources.log | nindent 12 }}
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          ports:
+          - name: http
+            containerPort: 3333
+            protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /api/v1/healthz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /api/v1/healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
           volumeMounts:
           - name: config
             mountPath: /config/outpost
+          {{- with .Values.outpost.extraVolumeMounts }}
+            {{- toYaml . | nindent 10 }}
+          {{- end }}
           env:
             - name: SERVICE
               value: log
             {{- include "outpost.env" . | nindent 12 }}
+          {{- with .Values.outpost.envFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- with .Values.outpost.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.outpost.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.outpost.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       volumes:
         - name: config
           configMap:
             name: "{{ include "outpost.fullname" . }}"
+        {{- with .Values.outpost.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}

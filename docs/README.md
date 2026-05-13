@@ -1,32 +1,142 @@
 # Outpost Documentation
 
-Built with [Zudoku](https://zudoku.dev).
+This directory contains the source content for the Outpost docs.
 
-## Architecture Diagram
+The public docs experience is rendered by a private Astro application that loads files from this repository, so this folder is the source of truth for page content and navigation.
 
-Source: https://drive.google.com/drive/folders/1o3ta0iW5XenRb65SPF0Gy9ShrSV4akn6?usp=drive_link
+## How Documentation Is Structured
 
-## Getting Started
+- `content/` contains documentation pages (mostly `.mdoc`, some `.mdx`) and the nav config.
+- `content/nav.json` defines sidebar groups, page order, and visible titles.
+- `apis/openapi.yaml` contains the API specification used by API reference pages.
+- `public/` (when present) stores static assets (images, icons, etc.).
 
-First, run the development server:
+## Authoring Guidelines
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
+The docs should:
+
+- Cover both managed and self-hosted Outpost flows.
+- Stay technically accurate while remaining easy to follow.
+- Link to related pages when useful.
+- Include runnable, realistic examples.
+
+## Available Template Variables
+
+Use these Markdoc variables for API URLs in documentation examples:
+
+- `OUTPOST_API_ROOT`: API host root (no versioned API path). Use this when an example needs the root domain only.
+- `OUTPOST_API_BASE_URL`: Versioned API base URL. Use this for endpoint examples (for example, `.../tenants/...` or `.../publish`).
+
+When managed and self-hosted behavior differs, use Markdoc tabs:
+
+```md
+{% tabs %}
+{% tab title="Managed" %}
+Managed-specific content.
+{% /tab %}
+{% tab title="Self-Hosted" %}
+Self-hosted-specific content.
+{% /tab %}
+{% /tabs %}
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Available Markdoc Components
 
-## Authoring
+The following Markdoc components are available in the docs renderer.
 
-- `zudoku.config.ts`
-- `pages/docs`: Main Outpost documentation
+### `button`
 
-## Resources
+- Block tag: `{% button %}...{% /button %}`
+- Attributes:
+  - `text: String`
+  - `href: String`
+  - `target: String`
+  - `type: String`
+  - `width: String`
 
-- [Zudoku documentation](https://zudoku.dev/docs)
-- [Zudoku GitHub Discussions](https://github.com/zuplo/zudoku/discussions)
-- [Zudoku Discord](https://discord.zudoku.dev)
+### `mockbutton`
+
+- Self-closing tag: `{% mockbutton text="..." icon="..." /%}`
+- Attributes:
+  - `text: String`
+  - `icon: String`
+
+### `ref`
+
+- Self-closing tag: `{% ref entity="..." /%}`
+- Attributes:
+  - `entity: String`
+
+### `link`
+
+- Block tag: `{% link %}...{% /link %}`
+- Attributes:
+  - `href: String`
+  - `base: String`
+  - `path: String`
+
+### `linkCard`
+
+- Self-closing tag: `{% linkCard ... /%}`
+- Attributes:
+  - `title: String`
+  - `anchor: String`
+  - `subtitle: String`
+  - `slug: String`
+  - `collection: String`
+
+### `codeBlock`
+
+- Block tag: `{% codeBlock %}...{% /codeBlock %}`
+- Attributes:
+  - `lang: String`
+  - `heading: String`
+  - `maxHeight: Number`
+
+### `copyableCommand`
+
+- Self-closing tag: `{% copyableCommand command="..." /%}`
+- Attributes:
+  - `command: String` (required)
+  - `event: String`
+  - `source: String`
+
+### `wistiaVideo`
+
+- Block tag: `{% wistiaVideo %}...{% /wistiaVideo %}`
+- Attributes:
+  - `videoId: String`
+  - `title: String`
+
+### `video`
+
+- Block tag: `{% video %}...{% /video %}`
+- Attributes:
+  - `url: String`
+  - `title: String`
+
+### `callout`
+
+- Block tag: `{% callout %}...{% /callout %}`
+- Attributes:
+  - `size: String`
+
+### `comparisonTable`
+
+- Block tag: `{% comparisonTable %}...{% /comparisonTable %}`
+- Attributes:
+  - `hookdeck: Number`
+
+### `mermaid`
+
+- Block tag: `{% mermaid %}...{% /mermaid %}`
+- Attributes:
+  - `content: String`
+
+## Adding or Updating a Page
+
+1. Create or edit the page under `content/` (for example `content/features/my-feature.mdoc`).
+2. Add or update frontmatter (`title`, `description`).
+3. Add the page to the appropriate section in `content/nav.json`.
+4. Verify links and examples.
+5. If a page is renamed or removed, ensure redirects are handled in the site renderer repository.

@@ -3,23 +3,16 @@
  */
 
 import { topicsList } from "../../funcs/topicsList.js";
-import * as operations from "../../models/operations/index.js";
 import { formatResult, ToolDefinition } from "../tools.js";
 
-const args = {
-  request: operations.ListTenantTopicsRequest$inboundSchema,
-};
-
-export const tool$topicsList: ToolDefinition<typeof args> = {
+export const tool$topicsList: ToolDefinition = {
   name: "topics-list",
-  description: `List Available Topics (for Tenant)
+  description: `List Available Topics
 
-Returns a list of available event topics configured in the Outpost instance. Requires Admin API Key or Tenant JWT.`,
-  args,
-  tool: async (client, args, ctx) => {
+Returns a list of available event topics configured in the Outpost instance.`,
+  tool: async (client, ctx) => {
     const [result, apiCall] = await topicsList(
       client,
-      args.request,
       { fetchOptions: { signal: ctx.signal } },
     ).$inspect();
 

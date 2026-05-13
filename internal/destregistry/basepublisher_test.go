@@ -26,7 +26,7 @@ func TestMakeMetadata_WithoutDeliveryMetadata(t *testing.T) {
 	metadata := publisher.MakeMetadata(&event, timestamp)
 
 	// System metadata should be present
-	assert.Equal(t, "1609459200", metadata["timestamp"])
+	assert.Equal(t, "2021-01-01T00:00:00Z", metadata["timestamp"])
 	assert.Equal(t, "evt_123", metadata["event-id"])
 	assert.Equal(t, "user.created", metadata["topic"])
 
@@ -60,7 +60,7 @@ func TestMakeMetadata_WithDeliveryMetadata(t *testing.T) {
 	metadata := publisher.MakeMetadata(&event, timestamp)
 
 	// System metadata should be present
-	assert.Equal(t, "1609459200", metadata["timestamp"])
+	assert.Equal(t, "2021-01-01T00:00:00Z", metadata["timestamp"])
 	assert.Equal(t, "evt_123", metadata["event-id"])
 	assert.Equal(t, "user.created", metadata["topic"])
 
@@ -138,9 +138,9 @@ func TestMakeMetadata_WithMillisecondTimestamp(t *testing.T) {
 
 	metadata := publisher.MakeMetadata(&event, timestamp)
 
-	// Should include both timestamp and timestamp-ms
-	assert.Equal(t, "1609459200", metadata["timestamp"])
-	assert.Equal(t, "1609459200123", metadata["timestamp-ms"])
+	// Should include both ISO timestamps
+	assert.Equal(t, "2021-01-01T00:00:00Z", metadata["timestamp"])
+	assert.Equal(t, "2021-01-01T00:00:00.123456789Z", metadata["timestamp-ms"])
 }
 
 func TestMakeMetadata_WithMillisecondTimestampAndDeliveryMetadata(t *testing.T) {
@@ -150,7 +150,7 @@ func TestMakeMetadata_WithMillisecondTimestampAndDeliveryMetadata(t *testing.T) 
 	publisher := destregistry.NewBasePublisher(
 		destregistry.WithMillisecondTimestamp(true),
 		destregistry.WithDeliveryMetadata(map[string]string{
-			"timestamp-ms": "999999999999", // Override the millisecond timestamp
+			"timestamp-ms": "custom-override",
 		}),
 	)
 	event := testutil.EventFactory.Any(
@@ -162,7 +162,7 @@ func TestMakeMetadata_WithMillisecondTimestampAndDeliveryMetadata(t *testing.T) 
 	metadata := publisher.MakeMetadata(&event, timestamp)
 
 	// Delivery metadata should override system timestamp-ms
-	assert.Equal(t, "999999999999", metadata["timestamp-ms"])
+	assert.Equal(t, "custom-override", metadata["timestamp-ms"])
 }
 
 func TestMakeMetadata_EmptyDeliveryMetadata(t *testing.T) {
@@ -182,7 +182,7 @@ func TestMakeMetadata_EmptyDeliveryMetadata(t *testing.T) {
 	metadata := publisher.MakeMetadata(&event, timestamp)
 
 	// Should only have system metadata
-	assert.Equal(t, "1609459200", metadata["timestamp"])
+	assert.Equal(t, "2021-01-01T00:00:00Z", metadata["timestamp"])
 	assert.Equal(t, "evt_123", metadata["event-id"])
 	assert.Equal(t, "user.created", metadata["topic"])
 	assert.Len(t, metadata, 3)
@@ -207,7 +207,7 @@ func TestMakeMetadata_NilEventMetadata(t *testing.T) {
 	metadata := publisher.MakeMetadata(&event, timestamp)
 
 	// System metadata
-	assert.Equal(t, "1609459200", metadata["timestamp"])
+	assert.Equal(t, "2021-01-01T00:00:00Z", metadata["timestamp"])
 	assert.Equal(t, "evt_123", metadata["event-id"])
 	assert.Equal(t, "user.created", metadata["topic"])
 

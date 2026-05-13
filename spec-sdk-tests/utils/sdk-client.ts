@@ -44,9 +44,7 @@ export class SdkClient {
 
     this.sdk = new Outpost({
       serverURL: baseURL,
-      security: {
-        adminApiKey: config.apiKey || process.env.API_KEY || '',
-      },
+      apiKey: config.apiKey || process.env.API_KEY || '',
       timeoutMs: config.timeout || 10000,
     });
   }
@@ -55,39 +53,30 @@ export class SdkClient {
    * Create or update a tenant (idempotent)
    */
   async upsertTenant(data?: { id?: string; name?: string }): Promise<Tenant> {
-    // Note: The upsert endpoint only takes tenantId, no body
-    return await this.sdk.tenants.upsert({
-      tenantId: data?.id || this.tenantId,
-    });
+    const tenantId = data?.id || this.tenantId;
+    const params = data?.name ? { metadata: { name: data.name } } : undefined;
+    return await this.sdk.tenants.upsert(tenantId, params);
   }
 
   /**
    * Delete a tenant
    */
   async deleteTenant(tenantId?: string): Promise<void> {
-    await this.sdk.tenants.delete({
-      tenantId: tenantId || this.tenantId,
-    });
+    await this.sdk.tenants.delete(tenantId || this.tenantId);
   }
 
   /**
    * Create a new destination
    */
   async createDestination(data: DestinationCreate): Promise<Destination> {
-    return await this.sdk.destinations.create({
-      tenantId: this.tenantId,
-      params: data,
-    });
+    return await this.sdk.destinations.create(this.tenantId, data);
   }
 
   /**
    * Get a destination by ID
    */
   async getDestination(destinationId: string, tenantId?: string): Promise<Destination> {
-    return await this.sdk.destinations.get({
-      tenantId: tenantId || this.tenantId,
-      destinationId,
-    });
+    return await this.sdk.destinations.get(tenantId || this.tenantId, destinationId);
   }
 
   /**
@@ -96,10 +85,7 @@ export class SdkClient {
   async listDestinations(params?: {
     type?: DestinationType | DestinationType[];
   }): Promise<Destination[]> {
-    return await this.sdk.destinations.list({
-      tenantId: this.tenantId,
-      type: params?.type,
-    });
+    return await this.sdk.destinations.list(this.tenantId, params?.type);
   }
 
   /**
@@ -110,22 +96,14 @@ export class SdkClient {
     data: DestinationUpdate,
     tenantId?: string
   ): Promise<Destination> {
-    // The update endpoint returns a Destination directly
-    return await this.sdk.destinations.update({
-      tenantId: tenantId || this.tenantId,
-      destinationId,
-      params: data,
-    });
+    return await this.sdk.destinations.update(tenantId || this.tenantId, destinationId, data);
   }
 
   /**
    * Delete a destination
    */
   async deleteDestination(destinationId: string, tenantId?: string): Promise<void> {
-    await this.sdk.destinations.delete({
-      tenantId: tenantId || this.tenantId,
-      destinationId,
-    });
+    await this.sdk.destinations.delete(tenantId || this.tenantId, destinationId);
   }
 
   /**

@@ -4,16 +4,31 @@ from __future__ import annotations
 from enum import Enum
 from outpost_sdk.types import BaseModel, UNSET_SENTINEL
 from pydantic import model_serializer
-from typing import Optional
+from typing import List, Optional
 from typing_extensions import NotRequired, TypedDict
 
 
 class DestinationSchemaFieldType(str, Enum):
     TEXT = "text"
     CHECKBOX = "checkbox"
+    KEY_VALUE_MAP = "key_value_map"
+    SELECT = "select"
+
+
+class OptionTypedDict(TypedDict):
+    label: str
+    value: str
+
+
+class Option(BaseModel):
+    label: str
+
+    value: str
 
 
 class DestinationSchemaFieldTypedDict(TypedDict):
+    key: str
+    r"""Property name for this value inside the destination `config` or `credentials` object on create/update (for example `url` for a webhook endpoint URL). This is the key used to store and retrieve the field value in the destination's config or credentials object."""
     type: DestinationSchemaFieldType
     required: bool
     label: NotRequired[str]
@@ -28,9 +43,14 @@ class DestinationSchemaFieldTypedDict(TypedDict):
     r"""Maximum length for a text input."""
     pattern: NotRequired[str]
     r"""Regex pattern for validation (compatible with HTML5 pattern attribute)."""
+    options: NotRequired[List[OptionTypedDict]]
+    r"""Available options for select fields."""
 
 
 class DestinationSchemaField(BaseModel):
+    key: str
+    r"""Property name for this value inside the destination `config` or `credentials` object on create/update (for example `url` for a webhook endpoint URL). This is the key used to store and retrieve the field value in the destination's config or credentials object."""
+
     type: DestinationSchemaFieldType
 
     required: bool
@@ -54,6 +74,9 @@ class DestinationSchemaField(BaseModel):
     pattern: Optional[str] = None
     r"""Regex pattern for validation (compatible with HTML5 pattern attribute)."""
 
+    options: Optional[List[Option]] = None
+    r"""Available options for select fields."""
+
     @model_serializer(mode="wrap")
     def serialize_model(self, handler):
         optional_fields = set(
@@ -65,6 +88,7 @@ class DestinationSchemaField(BaseModel):
                 "minlength",
                 "maxlength",
                 "pattern",
+                "options",
             ]
         )
         serialized = handler(self)
@@ -72,7 +96,7 @@ class DestinationSchemaField(BaseModel):
 
         for n, f in type(self).model_fields.items():
             k = f.alias or n
-            val = serialized.get(k)
+            val = serialized.get(k, serialized.get(n))
 
             if val != UNSET_SENTINEL:
                 if val is not None or k not in optional_fields:

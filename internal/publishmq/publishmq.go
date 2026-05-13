@@ -35,6 +35,6 @@ func New(opts ...func(opts *PublishMQOption)) *PublishMQ {
 	}
 }
 
-func (q *PublishMQ) Subscribe(ctx context.Context) (mqs.Subscription, error) {
-	return q.queue.Subscribe(ctx)
+func (q *PublishMQ) Subscribe(ctx context.Context, opts ...mqs.SubscribeOption) (mqs.Subscription, error) {
+	return q.queue.Subscribe(ctx, opts...)
 }

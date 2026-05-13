@@ -5,4 +5,4 @@
 
 | Field              | Type               | Required           | Description        | Example            |
 | ------------------ | ------------------ | ------------------ | ------------------ | ------------------ |
-| `Success`          | **bool*            | :heavy_minus_sign: | N/A                | true               |
+| `Success`          | `*bool`            | :heavy_minus_sign: | N/A                | true               |

@@ -121,7 +121,7 @@ func setupTestRunner(t *testing.T) (*Runner, *miniredis.Miniredis, func()) {
 	logger, err := logging.NewLogger(logging.WithLogLevel("error"))
 	require.NoError(t, err)
 
-	runner := NewRunner(testClient, logger)
+	runner := NewRunner(testClient, logger, "")
 
 	cleanup := func() {
 		client.Close()
@@ -411,6 +411,38 @@ func TestRunner_Run_IsApplicable(t *testing.T) {
 
 		reason := mr.HGet("outpost:migration:001_test", "reason")
 		assert.Equal(t, "Not needed - using DEPLOYMENT_ID", reason)
+	})
+
+	t.Run("uses deployment-scoped keys when deploymentID is set", func(t *testing.T) {
+		mr := miniredis.RunT(t)
+		client := r.NewClient(&r.Options{Addr: mr.Addr()})
+		testClient := &redisTestClient{Client: client}
+		defer client.Close()
+
+		logger, err := logging.NewLogger(logging.WithLogLevel("error"))
+		require.NoError(t, err)
+
+		runner := NewRunner(testClient, logger, "dp_001")
+		ctx := context.Background()
+
+		// Simulate existing data with deployment prefix
+		mr.Set("dp_001:outpost:tenant:test123:tenant", "data")
+
+		mig := newMockMigration("001_test", 1, true)
+		mig.applicable = false
+		mig.notApplicableReason = "Not needed"
+		runner.RegisterMigration(mig)
+
+		err = runner.Run(ctx)
+		require.NoError(t, err)
+
+		// Key should be prefixed with deployment ID
+		status := mr.HGet("dp_001:outpost:migration:001_test", "status")
+		assert.Equal(t, "not_applicable", status)
+
+		// Non-prefixed key should NOT exist
+		unprefixedStatus := mr.HGet("outpost:migration:001_test", "status")
+		assert.Empty(t, unprefixedStatus)
 	})
 
 	t.Run("skips non-applicable and runs applicable migrations", func(t *testing.T) {

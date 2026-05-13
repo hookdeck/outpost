@@ -3,20 +3,12 @@
 package components
 
 type Security struct {
-	AdminAPIKey *string `security:"scheme,type=http,subtype=bearer,name=Authorization"`
-	TenantJwt   *string `security:"scheme,type=http,subtype=bearer,name=Authorization"`
+	APIKey *string `security:"scheme,type=http,subtype=bearer,name=Authorization"`
 }
 
-func (s *Security) GetAdminAPIKey() *string {
+func (s *Security) GetAPIKey() *string {
 	if s == nil {
 		return nil
 	}
-	return s.AdminAPIKey
-}
-
-func (s *Security) GetTenantJwt() *string {
-	if s == nil {
-		return nil
-	}
-	return s.TenantJwt
+	return s.APIKey
 }

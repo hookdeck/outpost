@@ -24,16 +24,7 @@ func main() {
 					return delegateToBinary("outpost-server", c)
 				},
 			},
-			{
-				Name:  "migrate",
-				Usage: "Database migration tools",
-				Action: func(ctx context.Context, c *cli.Command) error {
-					// Pass all arguments directly to the migration tool
-					return delegateToBinary("outpost-migrate-redis", c)
-				},
-				// Don't define flags here - let the sub-binary handle everything
-				SkipFlagParsing: true,
-			},
+			newMigrateCommand(),
 		},
 		Action: func(ctx context.Context, c *cli.Command) error {
 			// Default action - show help
@@ -69,8 +60,7 @@ func delegateToBinary(binaryName string, c *cli.Command) error {
 func runWithGo(binaryName string, c *cli.Command) error {
 	// Map binary names to their cmd directories
 	cmdPath := map[string]string{
-		"outpost-server":        "./cmd/outpost-server",
-		"outpost-migrate-redis": "./cmd/outpost-migrate-redis",
+		"outpost-server": "./cmd/outpost-server",
 	}
 
 	path, ok := cmdPath[binaryName]

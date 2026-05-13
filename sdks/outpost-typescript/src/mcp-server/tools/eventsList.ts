@@ -7,14 +7,18 @@ import * as operations from "../../models/operations/index.js";
 import { formatResult, ToolDefinition } from "../tools.js";
 
 const args = {
-  request: operations.ListTenantEventsRequest$inboundSchema,
+  request: operations.ListEventsRequest$inboundSchema,
 };
 
 export const tool$eventsList: ToolDefinition<typeof args> = {
   name: "events-list",
   description: `List Events
 
-Retrieves a list of events for the tenant, supporting cursor navigation (details TBD) and filtering.`,
+Retrieves a list of events.
+
+When authenticated with a Tenant JWT, returns only events belonging to that tenant.
+When authenticated with Admin API Key, returns events across all tenants. Use \`tenant_id\` query parameter to filter by tenant.
+`,
   args,
   tool: async (client, args, ctx) => {
     const [result, apiCall] = await eventsList(
@@ -30,7 +34,7 @@ Retrieves a list of events for the tenant, supporting cursor navigation (details
       };
     }
 
-    const value = result.value;
+    const value = result.value.result;
 
     return formatResult(value, apiCall);
   },

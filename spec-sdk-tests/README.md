@@ -16,7 +16,7 @@ Because the SDK's models and methods are a direct representation of the OpenAPI 
 
 ## Quick Start
 
-The recommended way to run the tests is using the provided script, which ensures the API is healthy before executing the test suite.
+The recommended way to run the tests is using the provided script, which validates configuration and optionally checks API health before running the test suite.
 
 ```bash
 # 1. Ensure all prerequisites are met (see below)
@@ -32,6 +32,8 @@ npm install
 # 5. Run the test script
 ./scripts/run-tests.sh
 ```
+
+**What `run-tests.sh` does:** Loads `.env` from this directory, requires `API_KEY` to be set, then optionally checks that the Outpost API is reachable at `API_BASE_URL` (default `http://localhost:3333`) via `GET /healthz`. For managed Outpost (e.g. api.outpost.hookdeck.com) where `/healthz` is not available, set `SKIP_HEALTH_CHECK=true` in `.env` to skip the health check. Finally it runs `npm test` and reports pass/fail.
 
 ## Prerequisites
 
@@ -73,6 +75,8 @@ The server should now be running and accessible at `http://localhost:3333`.
 
 If you are running tests against a remote Outpost server, you must configure the `API_BASE_URL` in the test suite's `.env` file to point to your server's address.
 
+**Managed Outpost (e.g. api.outpost.hookdeck.com):** The `/healthz` endpoint is not available on managed Outpost. Set `SKIP_HEALTH_CHECK=true` in your `.env` so the run script skips the health check and proceeds to run tests.
+
 ## Test Suite Configuration
 
 The test suite requires its own `.env` file, located within this directory (`spec-sdk-tests`).
@@ -90,13 +94,14 @@ cp .env.example .env
 The following variables are **mandatory** and must be set in your `.env` file:
 
 - `API_KEY`: The API key for authenticating with the Outpost API. **This key must match the API key configured on the target Outpost instance.**
-- `TEST_TOPICS`: A comma-separated list of topics that already exist on your Outpost instance (e.g., `user.created,user.updated`). The tests will fail if these topics do not exist.
+- `TEST_TOPICS`: A comma-separated list of topics that already exist on your Outpost instance (e.g., `user.created,user.updated,order.created,heartbeat`). The tests will fail if these topics do not exist.
 
 Optional variables:
 
 - `API_BASE_URL`: The base URL of the Outpost API (default: `http://localhost:3333/api/v1`). **Set this if you are targeting a remote instance.**
 - `TENANT_ID`: The tenant ID to use for the tests (default: `default`).
 - `DEBUG_API_REQUESTS`: Set to `true` to enable detailed request logging (default: `false`).
+- `TEST_DELAY_MS`: Delay in milliseconds before each test (default: `0`). Set to e.g. `50` to reduce 429 (Too Many Requests) when running against rate-limited APIs.
 
 ## SDK Regeneration
 
@@ -131,6 +136,7 @@ The following scripts are available to run, lint, and format the tests:
 | `npm run format`          | Formats all TypeScript files using Prettier.                   |
 | `npm run format:check`    | Checks for formatting issues without modifying files.          |
 | `npm run type-check`      | Runs TypeScript type-checking without compiling.               |
+| `npm run test:failures`   | Runs only the tests that were previously failing (Events + Topics). |
 
 ## Test Structure
 

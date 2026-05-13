@@ -1,0 +1,66 @@
+admin:
+  address:
+    socket_address: { address: 0.0.0.0, port_value: 9901 }
+
+static_resources:
+  listeners:
+    - name: forward_proxy
+      address:
+        socket_address: { address: 0.0.0.0, port_value: 10000 }
+      filter_chains:
+        - filters:
+            - name: envoy.filters.network.http_connection_manager
+              typed_config:
+                "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+                stat_prefix: forward_proxy
+                codec_type: AUTO
+                access_log:
+                  - name: envoy.access_loggers.stdout
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.access_loggers.stream.v3.StdoutAccessLog
+                http_filters:
+                  - name: envoy.filters.http.dynamic_forward_proxy
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.dynamic_forward_proxy.v3.FilterConfig
+                      dns_cache_config:
+                        name: dfp_cache
+                        dns_lookup_family: V4_ONLY
+                  - name: envoy.filters.http.router
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+                upgrade_configs:
+                  - upgrade_type: CONNECT
+                route_config:
+                  name: proxy_route
+                  response_headers_to_add:
+                    - header:
+                        key: "x-envoy-response-flags"
+                        value: "%RESPONSE_FLAGS%"
+                      append_action: OVERWRITE_IF_EXISTS_OR_ADD
+                    - header:
+                        key: "x-envoy-response-code-details"
+                        value: "%RESPONSE_CODE_DETAILS%"
+                      append_action: OVERWRITE_IF_EXISTS_OR_ADD
+                  virtual_hosts:
+                    - name: proxy
+                      domains: ["*"]
+                      routes:
+                        - match: { connect_matcher: {} }
+                          route:
+                            cluster: dfp_cluster
+                            upgrade_configs:
+                              - upgrade_type: CONNECT
+                                connect_config: {}
+                        - match: { prefix: "/" }
+                          route: { cluster: dfp_cluster }
+
+  clusters:
+    - name: dfp_cluster
+      lb_policy: CLUSTER_PROVIDED
+      cluster_type:
+        name: envoy.clusters.dynamic_forward_proxy
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.clusters.dynamic_forward_proxy.v3.ClusterConfig
+          dns_cache_config:
+            name: dfp_cache
+            dns_lookup_family: V4_ONLY

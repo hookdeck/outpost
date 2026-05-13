@@ -3,19 +3,24 @@
  */
 
 import * as z from "zod/v3";
+import { remap as remap$ } from "../../lib/primitives.js";
 import { safeParse } from "../../lib/schemas.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 
 export type PublishResponse = {
   /**
-   * The ID of the event that was accepted for publishing. This will be the ID provided in the request's `id` field if present, otherwise it's a server-generated UUID.
+   * The ID of the event that was accepted for publishing. This will be the ID provided in the request's `id` field if present, otherwise it's a server-generated ID.
    */
   id: string;
   /**
    * Whether this event was already processed (idempotency hit). If true, the event was not queued again.
    */
   duplicate: boolean;
+  /**
+   * The IDs of destinations that matched this event. Empty array if no destinations matched.
+   */
+  destinationIds: Array<string>;
 };
 
 /** @internal */
@@ -26,11 +31,17 @@ export const PublishResponse$inboundSchema: z.ZodType<
 > = z.object({
   id: z.string(),
   duplicate: z.boolean(),
+  destination_ids: z.array(z.string()),
+}).transform((v) => {
+  return remap$(v, {
+    "destination_ids": "destinationIds",
+  });
 });
 /** @internal */
 export type PublishResponse$Outbound = {
   id: string;
   duplicate: boolean;
+  destination_ids: Array<string>;
 };
 
 /** @internal */
@@ -41,6 +52,11 @@ export const PublishResponse$outboundSchema: z.ZodType<
 > = z.object({
   id: z.string(),
   duplicate: z.boolean(),
+  destinationIds: z.array(z.string()),
+}).transform((v) => {
+  return remap$(v, {
+    destinationIds: "destination_ids",
+  });
 });
 
 export function publishResponseToJSON(

@@ -1,27 +1,18 @@
 name: "outpost-test"
 
 services:
-  mock:
+  test-mock:
     image: outpost-mock
     build:
       context: ../../
       dockerfile: ./build/test/Dockerfile.mock
     ports:
       - 35555:5555
-  redis:
-    image: redis/redis-stack-server:latest
-    ports:
-      - 36379:6379
-  dragonfly:
-    image: docker.dragonflydb.io/dragonflydb/dragonfly
-    command: ["--proactor_threads=1", "--maxmemory=256mb"]
-    ports:
-      - 37379:6379
-  clickhouse:
+  test-clickhouse:
     image: clickhouse/clickhouse-server:24-alpine
     ports:
       - 39000:9000
-  postgres:
+  test-postgres:
     image: postgres:16-alpine
     environment:
       - POSTGRES_USER=outpost
@@ -29,19 +20,33 @@ services:
       - POSTGRES_DB=default
     ports:
       - 35432:5432
-  rabbitmq:
+  test-rabbitmq:
     image: rabbitmq:3-management
     ports:
       - 35672:5672
       - 45672:15672
-  aws:
+  test-aws:
     image: localstack/localstack:latest
     environment:
       - SERVICES=s3,sns,sts,sqs,kinesis
     ports:
       - 34566:4566
       - 34571:4571
-  gcp:
+  test-kafka:
+    image: confluentinc/confluent-local:7.4.0
+    environment:
+      KAFKA_ADVERTISED_LISTENERS: SASL_PLAINTEXT://test-kafka:29092,SASL_PLAINTEXT_HOST://localhost:39092
+      KAFKA_LISTENERS: SASL_PLAINTEXT://0.0.0.0:29092,CONTROLLER://localhost:29093,SASL_PLAINTEXT_HOST://0.0.0.0:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: SASL_PLAINTEXT:SASL_PLAINTEXT,SASL_PLAINTEXT_HOST:SASL_PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: SASL_PLAINTEXT
+      KAFKA_SASL_MECHANISM_INTER_BROKER_PROTOCOL: PLAIN
+      KAFKA_SASL_ENABLED_MECHANISMS: PLAIN
+      KAFKA_OPTS: "-Djava.security.auth.login.config=/etc/kafka/jaas.conf"
+    volumes:
+      - ./kafka_jaas.conf:/etc/kafka/jaas.conf:ro
+    ports:
+      - 39092:9092
+  test-gcp:
     image: gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators
     command:
       [
@@ -55,3 +60,8 @@ services:
       ]
     ports:
       - "38085:8085"
+
+networks:
+  default:
+    name: outpost
+    external: true

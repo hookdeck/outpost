@@ -38,6 +38,9 @@ const value: components.DestinationCreateWebhook = {
     "internal-id": "123",
     "team": "platform",
   },
+  createdAt: new Date("2024-02-15T10:00:00Z"),
+  updatedAt: new Date("2024-02-15T10:00:00Z"),
+  disabledAt: null,
 };
 ```
 
@@ -75,6 +78,9 @@ const value: components.DestinationCreateAWSSQS = {
     "internal-id": "123",
     "team": "platform",
   },
+  createdAt: new Date("2024-02-15T10:00:00Z"),
+  updatedAt: new Date("2024-02-15T10:00:00Z"),
+  disabledAt: null,
 };
 ```
 
@@ -112,6 +118,9 @@ const value: components.DestinationCreateRabbitMQ = {
     "internal-id": "123",
     "team": "platform",
   },
+  createdAt: new Date("2024-02-15T10:00:00Z"),
+  updatedAt: new Date("2024-02-15T10:00:00Z"),
+  disabledAt: null,
 };
 ```
 
@@ -143,6 +152,9 @@ const value: components.DestinationCreateHookdeck = {
     "internal-id": "123",
     "team": "platform",
   },
+  createdAt: new Date("2024-02-15T10:00:00Z"),
+  updatedAt: new Date("2024-02-15T10:00:00Z"),
+  disabledAt: null,
 };
 ```
 
@@ -182,6 +194,9 @@ const value: components.DestinationCreateAWSKinesis = {
     "internal-id": "123",
     "team": "platform",
   },
+  createdAt: new Date("2024-02-15T10:00:00Z"),
+  updatedAt: new Date("2024-02-15T10:00:00Z"),
+  disabledAt: null,
 };
 ```
 
@@ -217,6 +232,9 @@ const value: components.DestinationCreateAzureServiceBus = {
     "internal-id": "123",
     "team": "platform",
   },
+  createdAt: new Date("2024-02-15T10:00:00Z"),
+  updatedAt: new Date("2024-02-15T10:00:00Z"),
+  disabledAt: null,
 };
 ```
 
@@ -257,6 +275,9 @@ const value: components.DestinationCreateAwss3 = {
     "internal-id": "123",
     "team": "platform",
   },
+  createdAt: new Date("2024-02-15T10:00:00Z"),
+  updatedAt: new Date("2024-02-15T10:00:00Z"),
+  disabledAt: null,
 };
 ```
 
@@ -294,6 +315,50 @@ const value: components.DestinationCreateGCPPubSub = {
     "internal-id": "123",
     "team": "platform",
   },
+  createdAt: new Date("2024-02-15T10:00:00Z"),
+  updatedAt: new Date("2024-02-15T10:00:00Z"),
+  disabledAt: null,
+};
+```
+
+### `components.DestinationCreateKafka`
+
+```typescript
+const value: components.DestinationCreateKafka = {
+  id: "user-provided-id",
+  type: "kafka",
+  topics: "*",
+  filter: {
+    "data": {
+      "amount": {
+        "$gte": 100,
+      },
+      "customer": {
+        "tier": "premium",
+      },
+    },
+  },
+  config: {
+    brokers: "broker1.example.com:9092,broker2.example.com:9092",
+    topic: "events",
+    saslMechanism: "scram-sha-256",
+    partitionKeyTemplate: "data.customer_id",
+  },
+  credentials: {
+    username: "outpost",
+    password: "secure_password_123",
+  },
+  deliveryMetadata: {
+    "app-id": "my-app",
+    "region": "us-east-1",
+  },
+  metadata: {
+    "internal-id": "123",
+    "team": "platform",
+  },
+  createdAt: new Date("2024-02-15T10:00:00Z"),
+  updatedAt: new Date("2024-02-15T10:00:00Z"),
+  disabledAt: null,
 };
 ```
 

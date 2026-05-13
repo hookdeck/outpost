@@ -23,7 +23,6 @@ type DestinationMockServer struct {
 
 func (s *DestinationMockServer) Run(ctx context.Context) error {
 	go func() {
-		// service connections
 		if err := s.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			s.logger.Fatal("listen: %s\n", zap.Error(err))
 		}
@@ -56,8 +55,8 @@ func (s *DestinationMockServer) Run(ctx context.Context) error {
 
 func New(config DestinationMockServerConfig) DestinationMockServer {
 	logger, _ := zap.NewDevelopment()
-	entityStore := NewEntityStore()
-	router := NewRouter(entityStore)
+	store := NewMockStore()
+	router := NewRouter(store)
 
 	return DestinationMockServer{
 		logger: logger,

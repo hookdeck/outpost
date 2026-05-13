@@ -12,14 +12,14 @@ import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 /**
  * Whether to use TLS connection (amqps). Defaults to "false".
  */
-export const Tls = {
+export const RabbitMQConfigTls = {
   True: "true",
   False: "false",
 } as const;
 /**
  * Whether to use TLS connection (amqps). Defaults to "false".
  */
-export type Tls = ClosedEnum<typeof Tls>;
+export type RabbitMQConfigTls = ClosedEnum<typeof RabbitMQConfigTls>;
 
 export type RabbitMQConfig = {
   /**
@@ -33,14 +33,17 @@ export type RabbitMQConfig = {
   /**
    * Whether to use TLS connection (amqps). Defaults to "false".
    */
-  tls?: Tls | undefined;
+  tls?: RabbitMQConfigTls | undefined;
 };
 
 /** @internal */
-export const Tls$inboundSchema: z.ZodNativeEnum<typeof Tls> = z.nativeEnum(Tls);
+export const RabbitMQConfigTls$inboundSchema: z.ZodNativeEnum<
+  typeof RabbitMQConfigTls
+> = z.nativeEnum(RabbitMQConfigTls);
 /** @internal */
-export const Tls$outboundSchema: z.ZodNativeEnum<typeof Tls> =
-  Tls$inboundSchema;
+export const RabbitMQConfigTls$outboundSchema: z.ZodNativeEnum<
+  typeof RabbitMQConfigTls
+> = RabbitMQConfigTls$inboundSchema;
 
 /** @internal */
 export const RabbitMQConfig$inboundSchema: z.ZodType<
@@ -50,7 +53,7 @@ export const RabbitMQConfig$inboundSchema: z.ZodType<
 > = z.object({
   server_url: z.string(),
   exchange: z.string(),
-  tls: Tls$inboundSchema.optional(),
+  tls: RabbitMQConfigTls$inboundSchema.optional(),
 }).transform((v) => {
   return remap$(v, {
     "server_url": "serverUrl",
@@ -71,7 +74,7 @@ export const RabbitMQConfig$outboundSchema: z.ZodType<
 > = z.object({
   serverUrl: z.string(),
   exchange: z.string(),
-  tls: Tls$outboundSchema.optional(),
+  tls: RabbitMQConfigTls$outboundSchema.optional(),
 }).transform((v) => {
   return remap$(v, {
     serverUrl: "server_url",

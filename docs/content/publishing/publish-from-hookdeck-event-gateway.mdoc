@@ -1,0 +1,18 @@
+---
+title: "Publish from Hookdeck Event Gateway"
+description: "Configure Outpost to ingest published events from Hookdeck Event Gateway."
+---
+
+This guide provides information on using Hookdeck Event Gateway to publish events to Outpost.
+
+## Setup the Outpost API as a Destination
+
+To publish to Outpost via the Event Gateway, you can set your HTTP destination to point to the Outpost Publish API endpoint ({% $OUTPOST_API_BASE_URL %}/publish).
+
+Enable Bearer Authentication with your Outpost API key.
+
+## Payload shape & transformation
+
+The payload shape must match the expected shape of the [Publish API endpoint](/docs/outpost/publishing/events).
+
+You can use a [transformation](/docs/transformations) to modify the payload shape before it is published to Outpost.

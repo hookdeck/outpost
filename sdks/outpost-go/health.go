@@ -17,7 +17,7 @@ import (
 	"net/url"
 )
 
-// API Health Check
+// Health - This endpoint is only available for **self-hosted** Outpost deployments. Managed Outpost health is monitored by Hookdeck.
 type Health struct {
 	rootSDK          *Outpost
 	sdkConfiguration config.SDKConfiguration
@@ -35,15 +35,9 @@ func newHealth(rootSDK *Outpost, sdkConfig config.SDKConfiguration, hooks *hooks
 // Health Check
 // Health check endpoint that reports the status of all workers.
 //
+// > This endpoint is only available for **self-hosted** Outpost deployments. Managed Outpost health is monitored by Hookdeck.
+//
 // Returns HTTP 200 when all workers are healthy, or HTTP 503 if any worker has failed.
-//
-// The response includes:
-// - `status`: Overall health status ("healthy" or "failed")
-// - `timestamp`: When this health check was performed (ISO 8601 format)
-// - `workers`: Map of worker names to their individual health status
-//
-// Each worker reports:
-// - `status`: Worker health ("healthy" or "failed")
 //
 // Note: Error details are not exposed for security reasons. Check application logs for detailed error information.
 func (s *Health) Check(ctx context.Context, opts ...operations.Option) (*operations.HealthCheckResponse, error) {
@@ -178,7 +172,7 @@ func (s *Health) Check(ctx context.Context, opts ...operations.Option) (*operati
 
 			_, err = s.hooks.AfterError(hooks.AfterErrorContext{HookContext: hookCtx}, nil, err)
 			return nil, err
-		} else if utils.MatchStatusCodes([]string{"400", "401", "403", "404", "407", "408", "413", "414", "415", "422", "429", "431", "4XX", "500", "501", "502", "503", "504", "505", "506", "507", "508", "510", "511", "5XX"}, httpRes.StatusCode) {
+		} else if utils.MatchStatusCodes([]string{"4XX", "5XX"}, httpRes.StatusCode) {
 			_httpRes, err := s.hooks.AfterError(hooks.AfterErrorContext{HookContext: hookCtx}, httpRes, nil)
 			if err != nil {
 				return nil, err

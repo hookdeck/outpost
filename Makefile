@@ -1,4 +1,4 @@
-TEST?=./...
+TEST?=./internal/...
 RUN?=
 
 # Build targets
@@ -14,7 +14,6 @@ build:
 	@echo "Building all binaries..."
 	go build -o bin/outpost ./cmd/outpost
 	go build -o bin/outpost-server ./cmd/outpost-server
-	go build -o bin/outpost-migrate-redis ./cmd/outpost-migrate-redis
 	@echo "Binaries built in ./bin/"
 
 build/goreleaser:
@@ -26,18 +25,14 @@ build/outpost:
 build/server:
 	go build -o bin/outpost-server ./cmd/outpost-server
 
-build/migrate-redis:
-	go build -o bin/outpost-migrate-redis ./cmd/outpost-migrate-redis
-
 install:
 	@echo "Installing binaries to GOPATH/bin..."
 	go install ./cmd/outpost
 	go install ./cmd/outpost-server
-	go install ./cmd/outpost-migrate-redis
 	@echo "Installation complete"
 
 clean:
-	rm -f bin/outpost bin/outpost-server bin/outpost-migrate-redis
+	rm -f bin/outpost bin/outpost-server
 
 up:
 	make up/deps
@@ -58,6 +53,9 @@ up/deps:
 
 down/deps:
 	COMPOSE_PROFILES=$$(./build/dev/deps/profiles.sh --all) docker-compose -f build/dev/deps/compose.yml -f build/dev/deps/compose-gui.yml down
+
+nuke/deps:
+	COMPOSE_PROFILES=$$(docker compose -f build/dev/deps/compose.yml -f build/dev/deps/compose-gui.yml config --profiles | paste -sd, -) docker compose -f build/dev/deps/compose.yml -f build/dev/deps/compose-gui.yml down --volumes --remove-orphans
 
 up/mqs:
 	docker-compose -f build/dev/mqs/compose.yml up -d
@@ -163,6 +161,9 @@ test/coverage/html:
 docs/generate/config:
 	go run cmd/configdocsgen/main.go
 
+migrate:
+	docker-compose -f build/dev/compose.yml --env-file .env run --rm --entrypoint "" api go run ./cmd/outpost migrate apply --yes
+
 redis/debug:
 	go run cmd/redis-debug/main.go $(ARGS)
 
@@ -171,3 +172,22 @@ network:
 
 logs:
 	docker logs $$(docker ps -f name=outpost-${SERVICE} --format "{{.ID}}") -f $(ARGS)
+
+# Build Docker image for current branch with a version tag (e.g. make docker/build TAG=v0.13.3-beta).
+# Produces hookdeck/outpost:<TAG>-amd64 and hookdeck/outpost:<TAG>-arm64.
+# Use docker/push to push to Docker Hub: DOCKER_USER=<your-username> make docker/push TAG=v0.13.3-beta
+docker/build:
+	@if [ -z "$(TAG)" ]; then echo "Usage: make docker/build TAG=v0.13.3-beta"; exit 1; fi
+	GORELEASER_CURRENT_TAG=$(TAG) goreleaser release -f ./build/.goreleaser.yaml --snapshot --clean
+
+# Tag and push image to Docker Hub under DOCKER_USER (e.g. make docker/push DOCKER_USER=alexbouchard TAG=v0.13.3-beta).
+# Requires: docker login first.
+docker/push:
+	@if [ -z "$(DOCKER_USER)" ] || [ -z "$(TAG)" ]; then echo "Usage: make docker/push DOCKER_USER=<your-dockerhub-username> TAG=v0.13.3-beta"; exit 1; fi
+	docker tag hookdeck/outpost:$(TAG)-amd64 $(DOCKER_USER)/outpost:$(TAG)-amd64
+	docker tag hookdeck/outpost:$(TAG)-arm64 $(DOCKER_USER)/outpost:$(TAG)-arm64
+	docker push $(DOCKER_USER)/outpost:$(TAG)-amd64
+	docker push $(DOCKER_USER)/outpost:$(TAG)-arm64
+	docker manifest create $(DOCKER_USER)/outpost:$(TAG) --amend $(DOCKER_USER)/outpost:$(TAG)-amd64 --amend $(DOCKER_USER)/outpost:$(TAG)-arm64
+	docker manifest push $(DOCKER_USER)/outpost:$(TAG)
+	@echo "Pushed $(DOCKER_USER)/outpost:$(TAG) (amd64, arm64, and multi-arch manifest)"

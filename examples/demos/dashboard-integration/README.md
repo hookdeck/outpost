@@ -49,7 +49,7 @@ A Next.js application demonstrating how to integrate Outpost with an API platfor
    TOPICS=user.created,user.updated,order.completed,payment.processed,subscription.created
    ```
 
-   For a full list of Outpost configuration options, see [Outpost Configuration](https://outpost.hookdeck.com/docs/references/configuration)
+   For a full list of Outpost configuration options, see [Outpost Configuration](https://hookdeck.com/docs/outpost/self-hosting/configuration)
 
 4. **Start the complete stack** (PostgreSQL, Redis, RabbitMQ, and Outpost):
 

@@ -16,18 +16,23 @@ import (
 type TimeFilter = driver.TimeFilter
 type ListEventRequest = driver.ListEventRequest
 type ListEventResponse = driver.ListEventResponse
-type ListDeliveryEventRequest = driver.ListDeliveryEventRequest
-type ListDeliveryEventResponse = driver.ListDeliveryEventResponse
+type ListAttemptRequest = driver.ListAttemptRequest
+type ListAttemptResponse = driver.ListAttemptResponse
 type RetrieveEventRequest = driver.RetrieveEventRequest
-type RetrieveDeliveryEventRequest = driver.RetrieveDeliveryEventRequest
+type RetrieveAttemptRequest = driver.RetrieveAttemptRequest
+type AttemptRecord = driver.AttemptRecord
+type LogEntry = models.LogEntry
 
-type LogStore interface {
-	ListEvent(context.Context, ListEventRequest) (ListEventResponse, error)
-	ListDeliveryEvent(context.Context, ListDeliveryEventRequest) (ListDeliveryEventResponse, error)
-	RetrieveEvent(ctx context.Context, request RetrieveEventRequest) (*models.Event, error)
-	RetrieveDeliveryEvent(ctx context.Context, request RetrieveDeliveryEventRequest) (*models.DeliveryEvent, error)
-	InsertManyDeliveryEvent(context.Context, []*models.DeliveryEvent) error
-}
+type MetricsRequest = driver.MetricsRequest
+type MetricsMetadata = driver.MetricsMetadata
+type TimeRange = driver.TimeRange
+type Granularity = driver.Granularity
+type EventMetricsDataPoint = driver.EventMetricsDataPoint
+type EventMetricsResponse = driver.EventMetricsResponse
+type AttemptMetricsDataPoint = driver.AttemptMetricsDataPoint
+type AttemptMetricsResponse = driver.AttemptMetricsResponse
+
+type LogStore = driver.LogStore
 
 type DriverOpts struct {
 	CH           clickhouse.DB

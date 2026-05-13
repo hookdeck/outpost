@@ -15,7 +15,7 @@ import (
 // It handles subscription at runtime and consistent error handling for graceful shutdowns.
 type ConsumerWorker struct {
 	name        string
-	subscribe   func(ctx context.Context) (mqs.Subscription, error)
+	subscribe   func(ctx context.Context, opts ...mqs.SubscribeOption) (mqs.Subscription, error)
 	handler     consumer.MessageHandler
 	concurrency int
 	logger      *logging.Logger
@@ -24,7 +24,7 @@ type ConsumerWorker struct {
 // NewConsumerWorker creates a new generic consumer worker.
 func NewConsumerWorker(
 	name string,
-	subscribe func(ctx context.Context) (mqs.Subscription, error),
+	subscribe func(ctx context.Context, opts ...mqs.SubscribeOption) (mqs.Subscription, error),
 	handler consumer.MessageHandler,
 	concurrency int,
 	logger *logging.Logger,
@@ -48,7 +48,7 @@ func (w *ConsumerWorker) Run(ctx context.Context) error {
 	logger := w.logger.Ctx(ctx)
 	logger.Info("consumer worker starting", zap.String("name", w.name))
 
-	subscription, err := w.subscribe(ctx)
+	subscription, err := w.subscribe(ctx, mqs.WithConcurrency(w.concurrency))
 	if err != nil {
 		logger.Error("error subscribing", zap.String("name", w.name), zap.Error(err))
 		return err

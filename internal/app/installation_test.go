@@ -21,28 +21,28 @@ func TestGetInstallationAtomic(t *testing.T) {
 	require.NoError(t, err)
 
 	// Clear any existing installation ID
-	redisClient.Del(ctx, outpostrcKey)
+	redisClient.Del(ctx, installationKey(""))
 
 	config := telemetry.TelemetryConfig{Disabled: false}
 
 	// Test 1: First call should create installation ID
-	id1, err := getInstallation(ctx, redisClient, config)
+	id1, err := getInstallation(ctx, redisClient, config, "")
 	require.NoError(t, err)
 	assert.NotEmpty(t, id1)
 
 	// Test 2: Second call should return the same ID (atomic consistency)
-	id2, err := getInstallation(ctx, redisClient, config)
+	id2, err := getInstallation(ctx, redisClient, config, "")
 	require.NoError(t, err)
 	assert.Equal(t, id1, id2, "Installation ID should be consistent across calls")
 
 	// Test 3: Verify the ID is actually stored in Redis
-	storedID, err := redisClient.HGet(ctx, outpostrcKey, installationKey).Result()
+	storedID, err := redisClient.Get(ctx, installationKey("")).Result()
 	require.NoError(t, err)
 	assert.Equal(t, id1, storedID, "Stored ID should match returned ID")
 
 	// Test 4: Test with telemetry disabled
 	disabledConfig := telemetry.TelemetryConfig{Disabled: true}
-	id3, err := getInstallation(ctx, redisClient, disabledConfig)
+	id3, err := getInstallation(ctx, redisClient, disabledConfig, "")
 	require.NoError(t, err)
 	assert.Empty(t, id3, "Should return empty string when telemetry is disabled")
 }
@@ -55,7 +55,7 @@ func TestGetInstallationConcurrency(t *testing.T) {
 	require.NoError(t, err)
 
 	// Clear any existing installation ID
-	redisClient.Del(ctx, outpostrcKey)
+	redisClient.Del(ctx, installationKey(""))
 
 	config := telemetry.TelemetryConfig{Disabled: false}
 
@@ -66,7 +66,7 @@ func TestGetInstallationConcurrency(t *testing.T) {
 
 	for i := 0; i < numGoroutines; i++ {
 		go func() {
-			id, err := getInstallation(ctx, redisClient, config)
+			id, err := getInstallation(ctx, redisClient, config, "")
 			if err != nil {
 				errorChan <- err
 				return
@@ -94,7 +94,41 @@ func TestGetInstallationConcurrency(t *testing.T) {
 	}
 
 	// Verify only one ID was created in Redis
-	storedID, err := redisClient.HGet(ctx, outpostrcKey, installationKey).Result()
+	storedID, err := redisClient.Get(ctx, installationKey("")).Result()
 	require.NoError(t, err)
 	assert.Equal(t, expectedID, storedID)
+}
+
+func TestGetInstallationWithDeploymentID(t *testing.T) {
+	ctx := context.Background()
+	redisConfig := testutil.CreateTestRedisConfig(t)
+	redisClient, err := redis.New(ctx, redisConfig)
+	require.NoError(t, err)
+
+	config := telemetry.TelemetryConfig{Disabled: false}
+
+	// Clear keys
+	redisClient.Del(ctx, installationKey("dp_001"))
+	redisClient.Del(ctx, installationKey("dp_002"))
+
+	// Create installation IDs for two deployments
+	id1, err := getInstallation(ctx, redisClient, config, "dp_001")
+	require.NoError(t, err)
+	assert.NotEmpty(t, id1)
+
+	id2, err := getInstallation(ctx, redisClient, config, "dp_002")
+	require.NoError(t, err)
+	assert.NotEmpty(t, id2)
+
+	// They should be different (independent deployments)
+	assert.NotEqual(t, id1, id2, "Different deployments should have different installation IDs")
+
+	// Verify keys are scoped
+	storedID1, err := redisClient.Get(ctx, "dp_001:outpost:installation_id").Result()
+	require.NoError(t, err)
+	assert.Equal(t, id1, storedID1)
+
+	storedID2, err := redisClient.Get(ctx, "dp_002:outpost:installation_id").Result()
+	require.NoError(t, err)
+	assert.Equal(t, id2, storedID2)
 }

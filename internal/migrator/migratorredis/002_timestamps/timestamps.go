@@ -68,7 +68,7 @@ func (m *TimestampsMigration) AutoRunnable() bool {
 	// and pagination. This migration should be run manually during a maintenance window
 	// to ensure all records are converted before the RediSearch index is created/used.
 	//
-	// Run with: outpost-migrate-redis apply 002_timestamps
+	// Run with: outpost migrate apply
 	return false
 }
 

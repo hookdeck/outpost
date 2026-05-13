@@ -11,6 +11,7 @@ import (
 	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/publishmq"
+	"github.com/hookdeck/outpost/internal/tenantstore"
 	"github.com/hookdeck/outpost/internal/util/testinfra"
 	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/require"
@@ -26,7 +27,7 @@ func TestIntegrationPublishMQEventHandler_Concurrency(t *testing.T) {
 	ctx := context.Background()
 	logger := testutil.CreateTestLogger(t)
 	redisClient := testutil.CreateTestRedisClient(t)
-	entityStore := models.NewEntityStore(redisClient, models.WithAvailableTopics(testutil.TestTopics))
+	tenantStore := tenantstore.New(tenantstore.Config{RedisClient: redisClient, AvailableTopics: testutil.TestTopics})
 	mqConfig := testinfra.NewMQAWSConfig(t, nil)
 	deliveryMQ := deliverymq.New(deliverymq.WithQueue(&mqConfig))
 	cleanup, err := deliveryMQ.Init(ctx)
@@ -34,7 +35,7 @@ func TestIntegrationPublishMQEventHandler_Concurrency(t *testing.T) {
 	defer cleanup()
 	eventHandler := publishmq.NewEventHandler(logger,
 		deliveryMQ,
-		entityStore,
+		tenantStore,
 		mockEventTracer,
 		testutil.TestTopics,
 		idempotence.New(testutil.CreateTestRedisClient(t), idempotence.WithSuccessfulTTL(24*time.Hour)),
@@ -44,10 +45,10 @@ func TestIntegrationPublishMQEventHandler_Concurrency(t *testing.T) {
 		ID:        idgen.String(),
 		CreatedAt: time.Now(),
 	}
-	entityStore.UpsertTenant(ctx, tenant)
+	tenantStore.UpsertTenant(ctx, tenant)
 	destFactory := testutil.DestinationFactory
 	for i := 0; i < 5; i++ {
-		entityStore.UpsertDestination(ctx, destFactory.Any(destFactory.WithTenantID(tenant.ID)))
+		tenantStore.UpsertDestination(ctx, destFactory.Any(destFactory.WithTenantID(tenant.ID)))
 	}
 
 	_, err = eventHandler.Handle(ctx, testutil.EventFactory.AnyPointer(
@@ -84,7 +85,7 @@ func TestEventHandler_WildcardTopic(t *testing.T) {
 	ctx := context.Background()
 	logger := testutil.CreateTestLogger(t)
 	redisClient := testutil.CreateTestRedisClient(t)
-	entityStore := models.NewEntityStore(redisClient, models.WithAvailableTopics(testutil.TestTopics))
+	tenantStore := tenantstore.New(tenantstore.Config{RedisClient: redisClient, AvailableTopics: testutil.TestTopics})
 	mqConfig := testinfra.NewMQAWSConfig(t, nil)
 	deliveryMQ := deliverymq.New(deliverymq.WithQueue(&mqConfig))
 	cleanup, err := deliveryMQ.Init(ctx)
@@ -97,7 +98,7 @@ func TestEventHandler_WildcardTopic(t *testing.T) {
 
 	eventHandler := publishmq.NewEventHandler(logger,
 		deliveryMQ,
-		entityStore,
+		tenantStore,
 		mockEventTracer,
 		testutil.TestTopics,
 		idempotence.New(testutil.CreateTestRedisClient(t), idempotence.WithSuccessfulTTL(24*time.Hour)),
@@ -107,7 +108,7 @@ func TestEventHandler_WildcardTopic(t *testing.T) {
 		ID:        idgen.String(),
 		CreatedAt: time.Now(),
 	}
-	entityStore.UpsertTenant(ctx, tenant)
+	tenantStore.UpsertTenant(ctx, tenant)
 
 	// Create destinations with different topics
 	destFactory := testutil.DestinationFactory
@@ -126,7 +127,7 @@ func TestEventHandler_WildcardTopic(t *testing.T) {
 		),
 	}
 	for _, dest := range destinations {
-		err := entityStore.UpsertDestination(ctx, dest)
+		err := tenantStore.UpsertDestination(ctx, dest)
 		require.NoError(t, err)
 	}
 
@@ -137,7 +138,7 @@ func TestEventHandler_WildcardTopic(t *testing.T) {
 	)
 	now := time.Now()
 	disabledDest.DisabledAt = &now
-	err = entityStore.UpsertDestination(ctx, disabledDest)
+	err = tenantStore.UpsertDestination(ctx, disabledDest)
 	require.NoError(t, err)
 
 	// Test publishing with wildcard topic
@@ -176,22 +177,22 @@ func TestEventHandler_WildcardTopic(t *testing.T) {
 		msg, err := subscription.Receive(receiveCtx)
 		require.NoError(t, err)
 
-		var deliveryEvent models.DeliveryEvent
-		err = deliveryEvent.FromMessage(msg)
+		var task models.DeliveryTask
+		err = task.FromMessage(msg)
 		require.NoError(t, err)
 
 		// Verify this is a destination we expect
-		_, exists := destinationIDs[deliveryEvent.DestinationID]
-		require.True(t, exists, "delivery to unexpected destination: %s", deliveryEvent.DestinationID)
-		destinationIDs[deliveryEvent.DestinationID] = true
+		_, exists := destinationIDs[task.DestinationID]
+		require.True(t, exists, "delivery to unexpected destination: %s", task.DestinationID)
+		destinationIDs[task.DestinationID] = true
 
 		// Verify this is not the disabled destination
-		require.NotEqual(t, disabledDest.ID, deliveryEvent.DestinationID, "disabled destination should not receive events")
+		require.NotEqual(t, disabledDest.ID, task.DestinationID, "disabled destination should not receive events")
 
 		// Verify event data is correct
-		require.Equal(t, event.ID, deliveryEvent.Event.ID)
-		require.Equal(t, event.Topic, deliveryEvent.Event.Topic)
-		require.Equal(t, event.TenantID, deliveryEvent.Event.TenantID)
+		require.Equal(t, event.ID, task.Event.ID)
+		require.Equal(t, event.Topic, task.Event.Topic)
+		require.Equal(t, event.TenantID, task.Event.TenantID)
 
 		// Acknowledge the message
 		msg.Ack()
@@ -216,7 +217,7 @@ func TestEventHandler_HandleResult(t *testing.T) {
 	ctx := context.Background()
 	logger := testutil.CreateTestLogger(t)
 	redisClient := testutil.CreateTestRedisClient(t)
-	entityStore := models.NewEntityStore(redisClient, models.WithAvailableTopics(testutil.TestTopics))
+	tenantStore := tenantstore.New(tenantstore.Config{RedisClient: redisClient, AvailableTopics: testutil.TestTopics})
 	mqConfig := testinfra.NewMQAWSConfig(t, nil)
 	deliveryMQ := deliverymq.New(deliverymq.WithQueue(&mqConfig))
 	cleanup, err := deliveryMQ.Init(ctx)
@@ -226,7 +227,7 @@ func TestEventHandler_HandleResult(t *testing.T) {
 	eventHandler := publishmq.NewEventHandler(
 		logger,
 		deliveryMQ,
-		entityStore,
+		tenantStore,
 		testutil.NewMockEventTracer(tracetest.NewInMemoryExporter()),
 		testutil.TestTopics,
 		idempotence.New(testutil.CreateTestRedisClient(t), idempotence.WithSuccessfulTTL(24*time.Hour)),
@@ -236,13 +237,13 @@ func TestEventHandler_HandleResult(t *testing.T) {
 		ID:        idgen.String(),
 		CreatedAt: time.Now(),
 	}
-	require.NoError(t, entityStore.UpsertTenant(ctx, tenant))
+	require.NoError(t, tenantStore.UpsertTenant(ctx, tenant))
 
 	t.Run("normal publish with matches", func(t *testing.T) {
 		// Create 3 destinations
 		destFactory := testutil.DestinationFactory
 		for i := 0; i < 3; i++ {
-			require.NoError(t, entityStore.UpsertDestination(ctx, destFactory.Any(
+			require.NoError(t, tenantStore.UpsertDestination(ctx, destFactory.Any(
 				destFactory.WithTenantID(tenant.ID),
 				destFactory.WithTopics([]string{"user.created"}),
 			)))
@@ -258,6 +259,7 @@ func TestEventHandler_HandleResult(t *testing.T) {
 		require.NotNil(t, result)
 		require.Equal(t, event.ID, result.EventID)
 		require.False(t, result.Duplicate)
+		require.Len(t, result.DestinationIDs, 3)
 	})
 
 	t.Run("no destinations matched", func(t *testing.T) {
@@ -271,6 +273,7 @@ func TestEventHandler_HandleResult(t *testing.T) {
 		require.NotNil(t, result)
 		require.Equal(t, event.ID, result.EventID)
 		require.False(t, result.Duplicate)
+		require.Empty(t, result.DestinationIDs)
 	})
 
 	t.Run("duplicate event - idempotency", func(t *testing.T) {
@@ -279,7 +282,7 @@ func TestEventHandler_HandleResult(t *testing.T) {
 			testutil.DestinationFactory.WithTenantID(tenant.ID),
 			testutil.DestinationFactory.WithTopics([]string{"user.deleted"}),
 		)
-		require.NoError(t, entityStore.UpsertDestination(ctx, dest))
+		require.NoError(t, tenantStore.UpsertDestination(ctx, dest))
 
 		event := testutil.EventFactory.AnyPointer(
 			testutil.EventFactory.WithTenantID(tenant.ID),
@@ -290,11 +293,13 @@ func TestEventHandler_HandleResult(t *testing.T) {
 		result1, err := eventHandler.Handle(ctx, event)
 		require.NoError(t, err)
 		require.False(t, result1.Duplicate)
+		require.Len(t, result1.DestinationIDs, 1)
 
 		// Duplicate request
 		result2, err := eventHandler.Handle(ctx, event)
 		require.NoError(t, err)
 		require.True(t, result2.Duplicate) // Duplicate due to idempotency
+		require.Len(t, result2.DestinationIDs, 1)
 	})
 
 	t.Run("with destination_id - queued", func(t *testing.T) {
@@ -302,7 +307,7 @@ func TestEventHandler_HandleResult(t *testing.T) {
 			testutil.DestinationFactory.WithTenantID(tenant.ID),
 			testutil.DestinationFactory.WithTopics([]string{"user.updated"}),
 		)
-		require.NoError(t, entityStore.UpsertDestination(ctx, dest))
+		require.NoError(t, tenantStore.UpsertDestination(ctx, dest))
 
 		event := testutil.EventFactory.AnyPointer(
 			testutil.EventFactory.WithTenantID(tenant.ID),
@@ -313,6 +318,7 @@ func TestEventHandler_HandleResult(t *testing.T) {
 		result, err := eventHandler.Handle(ctx, event)
 		require.NoError(t, err)
 		require.False(t, result.Duplicate)
+		require.Equal(t, []string{dest.ID}, result.DestinationIDs)
 	})
 
 	t.Run("with destination_id - duplicate event", func(t *testing.T) {
@@ -320,7 +326,7 @@ func TestEventHandler_HandleResult(t *testing.T) {
 			testutil.DestinationFactory.WithTenantID(tenant.ID),
 			testutil.DestinationFactory.WithTopics([]string{"user.created"}),
 		)
-		require.NoError(t, entityStore.UpsertDestination(ctx, dest))
+		require.NoError(t, tenantStore.UpsertDestination(ctx, dest))
 
 		event := testutil.EventFactory.AnyPointer(
 			testutil.EventFactory.WithTenantID(tenant.ID),
@@ -346,7 +352,7 @@ func TestEventHandler_HandleResult(t *testing.T) {
 		)
 		now := time.Now()
 		dest.DisabledAt = &now
-		require.NoError(t, entityStore.UpsertDestination(ctx, dest))
+		require.NoError(t, tenantStore.UpsertDestination(ctx, dest))
 
 		event := testutil.EventFactory.AnyPointer(
 			testutil.EventFactory.WithTenantID(tenant.ID),
@@ -357,6 +363,7 @@ func TestEventHandler_HandleResult(t *testing.T) {
 		result, err := eventHandler.Handle(ctx, event)
 		require.NoError(t, err)
 		require.False(t, result.Duplicate)
+		require.Empty(t, result.DestinationIDs)
 	})
 
 	t.Run("with destination_id - not found", func(t *testing.T) {
@@ -369,6 +376,7 @@ func TestEventHandler_HandleResult(t *testing.T) {
 		result, err := eventHandler.Handle(ctx, event)
 		require.NoError(t, err)
 		require.False(t, result.Duplicate)
+		require.Empty(t, result.DestinationIDs)
 	})
 
 	t.Run("with destination_id - topic mismatch", func(t *testing.T) {
@@ -376,7 +384,7 @@ func TestEventHandler_HandleResult(t *testing.T) {
 			testutil.DestinationFactory.WithTenantID(tenant.ID),
 			testutil.DestinationFactory.WithTopics([]string{"order.created"}),
 		)
-		require.NoError(t, entityStore.UpsertDestination(ctx, dest))
+		require.NoError(t, tenantStore.UpsertDestination(ctx, dest))
 
 		event := testutil.EventFactory.AnyPointer(
 			testutil.EventFactory.WithTenantID(tenant.ID),
@@ -387,6 +395,7 @@ func TestEventHandler_HandleResult(t *testing.T) {
 		result, err := eventHandler.Handle(ctx, event)
 		require.NoError(t, err)
 		require.False(t, result.Duplicate)
+		require.Empty(t, result.DestinationIDs)
 	})
 }
 
@@ -396,7 +405,7 @@ func TestEventHandler_Filter(t *testing.T) {
 	ctx := context.Background()
 	logger := testutil.CreateTestLogger(t)
 	redisClient := testutil.CreateTestRedisClient(t)
-	entityStore := models.NewEntityStore(redisClient, models.WithAvailableTopics(testutil.TestTopics))
+	tenantStore := tenantstore.New(tenantstore.Config{RedisClient: redisClient, AvailableTopics: testutil.TestTopics})
 	mqConfig := testinfra.NewMQAWSConfig(t, nil)
 	deliveryMQ := deliverymq.New(deliverymq.WithQueue(&mqConfig))
 	cleanup, err := deliveryMQ.Init(ctx)
@@ -410,7 +419,7 @@ func TestEventHandler_Filter(t *testing.T) {
 	eventHandler := publishmq.NewEventHandler(
 		logger,
 		deliveryMQ,
-		entityStore,
+		tenantStore,
 		testutil.NewMockEventTracer(tracetest.NewInMemoryExporter()),
 		testutil.TestTopics,
 		idempotence.New(testutil.CreateTestRedisClient(t), idempotence.WithSuccessfulTTL(24*time.Hour)),
@@ -420,7 +429,7 @@ func TestEventHandler_Filter(t *testing.T) {
 		ID:        idgen.String(),
 		CreatedAt: time.Now(),
 	}
-	require.NoError(t, entityStore.UpsertTenant(ctx, tenant))
+	require.NoError(t, tenantStore.UpsertTenant(ctx, tenant))
 
 	t.Run("topic-based matching with filter - event matches", func(t *testing.T) {
 		// Create destination with filter
@@ -433,13 +442,13 @@ func TestEventHandler_Filter(t *testing.T) {
 				},
 			}),
 		)
-		require.NoError(t, entityStore.UpsertDestination(ctx, dest))
+		require.NoError(t, tenantStore.UpsertDestination(ctx, dest))
 
 		// Event that matches the filter
 		event := testutil.EventFactory.AnyPointer(
 			testutil.EventFactory.WithTenantID(tenant.ID),
 			testutil.EventFactory.WithTopic("user.created"),
-			testutil.EventFactory.WithData(map[string]interface{}{"amount": float64(150)}),
+			testutil.EventFactory.WithDataMap(map[string]interface{}{"amount": float64(150)}),
 		)
 
 		result, err := eventHandler.Handle(ctx, event)
@@ -454,9 +463,9 @@ func TestEventHandler_Filter(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, msg)
 
-		var deliveryEvent models.DeliveryEvent
-		require.NoError(t, deliveryEvent.FromMessage(msg))
-		require.Equal(t, dest.ID, deliveryEvent.DestinationID)
+		var task models.DeliveryTask
+		require.NoError(t, task.FromMessage(msg))
+		require.Equal(t, dest.ID, task.DestinationID)
 		msg.Ack()
 	})
 
@@ -471,13 +480,13 @@ func TestEventHandler_Filter(t *testing.T) {
 				},
 			}),
 		)
-		require.NoError(t, entityStore.UpsertDestination(ctx, dest))
+		require.NoError(t, tenantStore.UpsertDestination(ctx, dest))
 
 		// Event that does NOT match the filter (amount < 100)
 		event := testutil.EventFactory.AnyPointer(
 			testutil.EventFactory.WithTenantID(tenant.ID),
 			testutil.EventFactory.WithTopic("user.updated"),
-			testutil.EventFactory.WithData(map[string]interface{}{"amount": float64(50)}),
+			testutil.EventFactory.WithDataMap(map[string]interface{}{"amount": float64(50)}),
 		)
 
 		result, err := eventHandler.Handle(ctx, event)
@@ -502,13 +511,13 @@ func TestEventHandler_Filter(t *testing.T) {
 				},
 			}),
 		)
-		require.NoError(t, entityStore.UpsertDestination(ctx, dest))
+		require.NoError(t, tenantStore.UpsertDestination(ctx, dest))
 
 		event := testutil.EventFactory.AnyPointer(
 			testutil.EventFactory.WithTenantID(tenant.ID),
 			testutil.EventFactory.WithDestinationID(dest.ID),
 			testutil.EventFactory.WithTopic("user.deleted"),
-			testutil.EventFactory.WithData(map[string]interface{}{"status": "cancelled"}),
+			testutil.EventFactory.WithDataMap(map[string]interface{}{"status": "cancelled"}),
 		)
 
 		result, err := eventHandler.Handle(ctx, event)
@@ -522,9 +531,9 @@ func TestEventHandler_Filter(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, msg)
 
-		var deliveryEvent models.DeliveryEvent
-		require.NoError(t, deliveryEvent.FromMessage(msg))
-		require.Equal(t, dest.ID, deliveryEvent.DestinationID)
+		var task models.DeliveryTask
+		require.NoError(t, task.FromMessage(msg))
+		require.Equal(t, dest.ID, task.DestinationID)
 		msg.Ack()
 	})
 
@@ -538,14 +547,14 @@ func TestEventHandler_Filter(t *testing.T) {
 				},
 			}),
 		)
-		require.NoError(t, entityStore.UpsertDestination(ctx, dest))
+		require.NoError(t, tenantStore.UpsertDestination(ctx, dest))
 
 		// Event with different currency - should NOT match
 		event := testutil.EventFactory.AnyPointer(
 			testutil.EventFactory.WithTenantID(tenant.ID),
 			testutil.EventFactory.WithDestinationID(dest.ID),
 			testutil.EventFactory.WithTopic("user.created"),
-			testutil.EventFactory.WithData(map[string]interface{}{"currency": "EUR"}),
+			testutil.EventFactory.WithDataMap(map[string]interface{}{"currency": "EUR"}),
 		)
 
 		result, err := eventHandler.Handle(ctx, event)
@@ -567,12 +576,12 @@ func TestEventHandler_Filter(t *testing.T) {
 			testutil.DestinationFactory.WithTopics([]string{"user.updated"}),
 			// No filter
 		)
-		require.NoError(t, entityStore.UpsertDestination(ctx, dest))
+		require.NoError(t, tenantStore.UpsertDestination(ctx, dest))
 
 		event := testutil.EventFactory.AnyPointer(
 			testutil.EventFactory.WithTenantID(tenant.ID),
 			testutil.EventFactory.WithTopic("user.updated"),
-			testutil.EventFactory.WithData(map[string]interface{}{"anything": "goes"}),
+			testutil.EventFactory.WithDataMap(map[string]interface{}{"anything": "goes"}),
 		)
 
 		result, err := eventHandler.Handle(ctx, event)
@@ -586,9 +595,9 @@ func TestEventHandler_Filter(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, msg)
 
-		var deliveryEvent models.DeliveryEvent
-		require.NoError(t, deliveryEvent.FromMessage(msg))
-		require.Equal(t, dest.ID, deliveryEvent.DestinationID)
+		var task models.DeliveryTask
+		require.NoError(t, task.FromMessage(msg))
+		require.Equal(t, dest.ID, task.DestinationID)
 		msg.Ack()
 	})
 }

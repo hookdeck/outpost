@@ -161,6 +161,85 @@ func TestConsumer_ConcurrentHandler(t *testing.T) {
 	test.run(t)
 }
 
+func TestConsumer_RetryTransientReceiveError(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Create a subscription that fails twice then succeeds.
+	errorCount := 0
+	messagesDelivered := 0
+	sub := &fakeSubscription{
+		receive: func(ctx context.Context) (*mqs.Message, error) {
+			if errorCount < 2 {
+				errorCount++
+				return nil, assert.AnError
+			}
+			if messagesDelivered >= 1 {
+				// Block until context is cancelled (no more messages).
+				<-ctx.Done()
+				return nil, ctx.Err()
+			}
+			messagesDelivered++
+			return &mqs.Message{Body: []byte("ok")}, nil
+		},
+	}
+
+	handled := make(chan string, 1)
+	handler := &handlerImpl{
+		handle: func(ctx context.Context, msg *mqs.Message) error {
+			handled <- string(msg.Body)
+			return nil
+		},
+	}
+
+	csm := consumer.New(sub, handler,
+		consumer.WithConcurrency(1),
+		consumer.WithMaxConsecutiveErrors(5),
+		consumer.WithInitialBackoff(10*time.Millisecond),
+		consumer.WithMaxBackoff(50*time.Millisecond),
+	)
+
+	go csm.Run(ctx)
+
+	select {
+	case body := <-handled:
+		assert.Equal(t, "ok", body)
+		assert.Equal(t, 2, errorCount, "should have retried through 2 transient errors")
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for message to be handled")
+	}
+}
+
+func TestConsumer_ExhaustsRetriesOnPersistentError(t *testing.T) {
+	t.Parallel()
+
+	sub := &fakeSubscription{
+		receive: func(ctx context.Context) (*mqs.Message, error) {
+			return nil, assert.AnError
+		},
+	}
+
+	handler := &handlerImpl{
+		handle: func(ctx context.Context, msg *mqs.Message) error {
+			t.Fatal("handler should not be called")
+			return nil
+		},
+	}
+
+	csm := consumer.New(sub, handler,
+		consumer.WithConcurrency(1),
+		consumer.WithMaxConsecutiveErrors(3),
+		consumer.WithInitialBackoff(10*time.Millisecond),
+		consumer.WithMaxBackoff(50*time.Millisecond),
+	)
+
+	err := csm.Run(context.Background())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "max consecutive receive errors reached (3)")
+}
+
 // ==================================== Mock ====================================
 
 type Message struct {
@@ -175,6 +254,18 @@ func (m *Message) ToMessage() (*mqs.Message, error) {
 
 func (m *Message) FromMessage(msg *mqs.Message) error {
 	m.ID = string(msg.Body)
+	return nil
+}
+
+type fakeSubscription struct {
+	receive func(context.Context) (*mqs.Message, error)
+}
+
+func (f *fakeSubscription) Receive(ctx context.Context) (*mqs.Message, error) {
+	return f.receive(ctx)
+}
+
+func (f *fakeSubscription) Shutdown(ctx context.Context) error {
 	return nil
 }
 

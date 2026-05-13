@@ -22,19 +22,25 @@ type SetupLink struct {
 	Cta  string `json:"cta"`
 }
 
+type FieldOption struct {
+	Label string `json:"label"`
+	Value string `json:"value"`
+}
+
 type FieldSchema struct {
-	Type        string  `json:"type"`
-	Label       string  `json:"label"`
-	Description string  `json:"description"`
-	Key         string  `json:"key"`
-	Required    bool    `json:"required"`
-	Default     *string `json:"default,omitempty"`
-	Disabled    bool    `json:"disabled,omitempty"`
-	Sensitive   bool    `json:"sensitive,omitempty"` // Whether the field value should be obfuscated in API responses
-	Min         *int    `json:"min,omitempty"`       // Minimum value for numeric fields
-	Max         *int    `json:"max,omitempty"`       // Maximum value for numeric fields
-	Step        *int    `json:"step,omitempty"`      // Step value for numeric fields
-	MinLength   *int    `json:"minlength,omitempty"` // Minimum length for text fields
-	MaxLength   *int    `json:"maxlength,omitempty"` // Maximum length for text fields
-	Pattern     *string `json:"pattern,omitempty"`   // Regular expression pattern for text fields
+	Type        string        `json:"type"`
+	Label       string        `json:"label"`
+	Description string        `json:"description"`
+	Key         string        `json:"key"`
+	Required    bool          `json:"required"`
+	Default     *string       `json:"default,omitempty"`
+	Disabled    bool          `json:"disabled,omitempty"`
+	Sensitive   bool          `json:"sensitive,omitempty"` // Whether the field value should be obfuscated in API responses
+	Min         *int          `json:"min,omitempty"`       // Minimum value for numeric fields
+	Max         *int          `json:"max,omitempty"`       // Maximum value for numeric fields
+	Step        *int          `json:"step,omitempty"`      // Step value for numeric fields
+	MinLength   *int          `json:"minlength,omitempty"` // Minimum length for text fields
+	MaxLength   *int          `json:"maxlength,omitempty"` // Maximum length for text fields
+	Pattern     *string       `json:"pattern,omitempty"`   // Regular expression pattern for text fields
+	Options     []FieldOption `json:"options,omitempty"`   // Options for select fields
 }

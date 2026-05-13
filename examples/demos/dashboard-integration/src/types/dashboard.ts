@@ -6,7 +6,6 @@ export interface DashboardOverview {
   recentEvents: Event[];
   stats: {
     totalDestinations: number;
-    totalEvents: number;
   };
 }
 

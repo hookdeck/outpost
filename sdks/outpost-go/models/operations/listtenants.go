@@ -9,18 +9,18 @@ import (
 	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
 )
 
-// Order - Sort order by `created_at` timestamp.
-type Order string
+// ListTenantsDir - Sort direction.
+type ListTenantsDir string
 
 const (
-	OrderAsc  Order = "asc"
-	OrderDesc Order = "desc"
+	ListTenantsDirAsc  ListTenantsDir = "asc"
+	ListTenantsDirDesc ListTenantsDir = "desc"
 )
 
-func (e Order) ToPointer() *Order {
+func (e ListTenantsDir) ToPointer() *ListTenantsDir {
 	return &e
 }
-func (e *Order) UnmarshalJSON(data []byte) error {
+func (e *ListTenantsDir) UnmarshalJSON(data []byte) error {
 	var v string
 	if err := json.Unmarshal(data, &v); err != nil {
 		return err
@@ -29,18 +29,20 @@ func (e *Order) UnmarshalJSON(data []byte) error {
 	case "asc":
 		fallthrough
 	case "desc":
-		*e = Order(v)
+		*e = ListTenantsDir(v)
 		return nil
 	default:
-		return fmt.Errorf("invalid value for Order: %v", v)
+		return fmt.Errorf("invalid value for ListTenantsDir: %v", v)
 	}
 }
 
 type ListTenantsRequest struct {
+	// Filter tenants by ID(s). Use bracket notation for multiple values (e.g., `id[0]=t1&id[1]=t2` or `id[]=t1&id[]=t2`).
+	ID []string `queryParam:"style=form,explode=true,name=id"`
 	// Number of tenants to return per page (1-100, default 20).
 	Limit *int64 `default:"20" queryParam:"style=form,explode=true,name=limit"`
-	// Sort order by `created_at` timestamp.
-	Order *Order `default:"desc" queryParam:"style=form,explode=true,name=order"`
+	// Sort direction.
+	Dir *ListTenantsDir `default:"desc" queryParam:"style=form,explode=true,name=dir"`
 	// Cursor for the next page of results. Mutually exclusive with `prev`.
 	Next *string `queryParam:"style=form,explode=true,name=next"`
 	// Cursor for the previous page of results. Mutually exclusive with `next`.
@@ -58,6 +60,13 @@ func (l *ListTenantsRequest) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+func (l *ListTenantsRequest) GetID() []string {
+	if l == nil {
+		return nil
+	}
+	return l.ID
+}
+
 func (l *ListTenantsRequest) GetLimit() *int64 {
 	if l == nil {
 		return nil
@@ -65,11 +74,11 @@ func (l *ListTenantsRequest) GetLimit() *int64 {
 	return l.Limit
 }
 
-func (l *ListTenantsRequest) GetOrder() *Order {
+func (l *ListTenantsRequest) GetDir() *ListTenantsDir {
 	if l == nil {
 		return nil
 	}
-	return l.Order
+	return l.Dir
 }
 
 func (l *ListTenantsRequest) GetNext() *string {
@@ -89,7 +98,9 @@ func (l *ListTenantsRequest) GetPrev() *string {
 type ListTenantsResponse struct {
 	HTTPMeta components.HTTPMetadata `json:"-"`
 	// List of tenants.
-	TenantListResponse *components.TenantListResponse
+	TenantPaginatedResult *components.TenantPaginatedResult
+
+	Next func() (*ListTenantsResponse, error)
 }
 
 func (l *ListTenantsResponse) GetHTTPMeta() components.HTTPMetadata {
@@ -99,9 +110,9 @@ func (l *ListTenantsResponse) GetHTTPMeta() components.HTTPMetadata {
 	return l.HTTPMeta
 }
 
-func (l *ListTenantsResponse) GetTenantListResponse() *components.TenantListResponse {
+func (l *ListTenantsResponse) GetTenantPaginatedResult() *components.TenantPaginatedResult {
 	if l == nil {
 		return nil
 	}
-	return l.TenantListResponse
+	return l.TenantPaginatedResult
 }

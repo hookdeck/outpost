@@ -462,7 +462,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "sum(irate(outpost_delivered_events_total{status=\"ok\"}[5m]))",
+          "expr": "sum(irate(outpost_delivered_events_total{status=\"success\"}[5m]))",
           "instant": false,
           "legendFormat": "success/sec",
           "range": true,
@@ -568,7 +568,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "100 * (sum by (type) (rate(outpost_delivered_events_total{status=\"ok\"}[5m])) / clamp_min(sum by (type) (rate(outpost_delivered_events_total[5m])), 0.0001))",
+          "expr": "100 * (sum by (type) (rate(outpost_delivered_events_total{status=\"success\"}[5m])) / clamp_min(sum by (type) (rate(outpost_delivered_events_total[5m])), 0.0001))",
           "instant": false,
           "legendFormat": "success rate",
           "range": true,

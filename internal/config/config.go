@@ -1,4 +1,3 @@
-//go:generate go run ../../cmd/configdocsgen/main.go -input-dir . -output-file ../../docs/pages/references/configuration.mdx
 package config
 
 import (
@@ -11,6 +10,7 @@ import (
 	"github.com/hookdeck/outpost/internal/backoff"
 	"github.com/hookdeck/outpost/internal/clickhouse"
 	"github.com/hookdeck/outpost/internal/migrator"
+	"github.com/hookdeck/outpost/internal/opevents"
 	"github.com/hookdeck/outpost/internal/redis"
 	"github.com/hookdeck/outpost/internal/telemetry"
 	"github.com/hookdeck/outpost/internal/version"
@@ -58,8 +58,7 @@ type Config struct {
 	DeploymentID        string   `yaml:"deployment_id" env:"DEPLOYMENT_ID" desc:"Optional deployment identifier for multi-tenancy. Enables multiple deployments to share the same infrastructure while maintaining data isolation." required:"N"`
 	AESEncryptionSecret string   `yaml:"aes_encryption_secret" env:"AES_ENCRYPTION_SECRET" desc:"A 16, 24, or 32 byte secret key used for AES encryption of sensitive data at rest." required:"Y"`
 	Topics              []string `yaml:"topics" env:"TOPICS" envSeparator:"," desc:"Comma-separated list of topics that this Outpost instance should subscribe to for event processing." required:"N"`
-	OrganizationName    string   `yaml:"organization_name" env:"ORGANIZATION_NAME" desc:"Name of the organization, used for display purposes and potentially in user agent strings." required:"N"`
-	HTTPUserAgent       string   `yaml:"http_user_agent" env:"HTTP_USER_AGENT" desc:"Custom HTTP User-Agent string for outgoing webhook deliveries. If unset, a default (OrganizationName/Version) is used." required:"N"`
+	HTTPUserAgent       string   `yaml:"http_user_agent" env:"HTTP_USER_AGENT" desc:"Custom HTTP User-Agent string for outgoing webhook deliveries. If unset, defaults to 'Outpost/{version}'." required:"N"`
 
 	// Infrastructure
 	Redis       RedisConfig      `yaml:"redis"`
@@ -76,10 +75,11 @@ type Config struct {
 	LogMaxConcurrency      int `yaml:"log_max_concurrency" env:"LOG_MAX_CONCURRENCY" desc:"Maximum number of log writing operations to process concurrently." required:"N"`
 
 	// Delivery Retry
-	RetrySchedule        []int `yaml:"retry_schedule" env:"RETRY_SCHEDULE" envSeparator:"," desc:"Comma-separated list of retry delays in seconds. If provided, overrides retry_interval_seconds and retry_max_limit. Schedule length defines the max number of retries. Example: '5,60,600,3600,7200' for 5 retries at 5s, 1m, 10m, 1h, 2h." required:"N"`
-	RetryIntervalSeconds int   `yaml:"retry_interval_seconds" env:"RETRY_INTERVAL_SECONDS" desc:"Interval in seconds for exponential backoff retry strategy (base 2). Ignored if retry_schedule is provided." required:"N"`
-	RetryMaxLimit        int   `yaml:"retry_max_limit" env:"MAX_RETRY_LIMIT" desc:"Maximum number of retry attempts for a single event delivery before giving up. Ignored if retry_schedule is provided." required:"N"`
-	RetryPollBackoffMs   int   `yaml:"retry_poll_backoff_ms" env:"RETRY_POLL_BACKOFF_MS" desc:"Backoff time in milliseconds when the retry monitor finds no messages to process. When a retry message is found, the monitor immediately polls for the next message without delay. Lower values provide faster retry processing but increase Redis load. For serverless Redis providers (Upstash, ElastiCache Serverless), consider increasing to 5000-10000ms to reduce costs. Default: 100" required:"N"`
+	RetrySchedule                 []int `yaml:"retry_schedule" env:"RETRY_SCHEDULE" envSeparator:"," desc:"Comma-separated list of retry delays in seconds. If provided, overrides retry_interval_seconds and retry_max_limit. Schedule length defines the max number of retries. Example: '5,60,600,3600,7200' for 5 retries at 5s, 1m, 10m, 1h, 2h." required:"N"`
+	RetryIntervalSeconds          int   `yaml:"retry_interval_seconds" env:"RETRY_INTERVAL_SECONDS" desc:"Interval in seconds for exponential backoff retry strategy (base 2). Ignored if retry_schedule is provided." required:"N"`
+	RetryMaxLimit                 int   `yaml:"retry_max_limit" env:"MAX_RETRY_LIMIT" desc:"Maximum number of retry attempts for a single event delivery before giving up. Ignored if retry_schedule is provided." required:"N"`
+	RetryPollBackoffMs            int   `yaml:"retry_poll_backoff_ms" env:"RETRY_POLL_BACKOFF_MS" desc:"Backoff time in milliseconds when the retry monitor finds no messages to process. When a retry message is found, the monitor immediately polls for the next message without delay. Lower values provide faster retry processing but increase Redis load. For serverless Redis providers (Upstash, ElastiCache Serverless), consider increasing to 5000-10000ms to reduce costs. Default: 100" required:"N"`
+	RetryVisibilityTimeoutSeconds int   `yaml:"retry_visibility_timeout_seconds" env:"RETRY_VISIBILITY_TIMEOUT_SECONDS" desc:"Time in seconds a retry message is hidden after being received before becoming visible again for reprocessing. This applies when event data is temporarily unavailable (e.g., race condition with log persistence). Default: 30" required:"N"`
 
 	// Event Delivery
 	MaxDestinationsPerTenant int `yaml:"max_destinations_per_tenant" env:"MAX_DESTINATIONS_PER_TENANT" desc:"Maximum number of destinations allowed per tenant/organization." required:"N"`
@@ -88,9 +88,6 @@ type Config struct {
 	// Idempotency
 	PublishIdempotencyKeyTTL  int `yaml:"publish_idempotency_key_ttl" env:"PUBLISH_IDEMPOTENCY_KEY_TTL" desc:"Time-to-live in seconds for publish queue idempotency keys. Controls how long processed events are remembered to prevent duplicate processing. Default: 3600 (1 hour)." required:"N"`
 	DeliveryIdempotencyKeyTTL int `yaml:"delivery_idempotency_key_ttl" env:"DELIVERY_IDEMPOTENCY_KEY_TTL" desc:"Time-to-live in seconds for delivery queue idempotency keys. Controls how long processed deliveries are remembered to prevent duplicate delivery attempts. Default: 3600 (1 hour)." required:"N"`
-
-	// Destination Registry
-	DestinationMetadataPath string `yaml:"destination_metadata_path" env:"DESTINATION_METADATA_PATH" desc:"Path to the directory containing custom destination type definitions. Overrides 'destinations.metadata_path' if set." required:"N"`
 
 	// Log batcher configuration
 	LogBatchThresholdSeconds int `yaml:"log_batch_threshold_seconds" env:"LOG_BATCH_THRESHOLD_SECONDS" desc:"Maximum time in seconds to buffer logs before flushing them to storage, if batch size is not reached." required:"N"`
@@ -107,8 +104,14 @@ type Config struct {
 	// Alert
 	Alert AlertConfig `yaml:"alert"`
 
+	// Operator Events
+	OperatorEvents OperatorEventsConfig `yaml:"operator_events"`
+
 	// ID Generation
 	IDGen IDGenConfig `yaml:"idgen"`
+
+	// Retention
+	ClickHouseLogRetentionTTLDays int `yaml:"clickhouse_log_retention_ttl_days" env:"CLICKHOUSE_LOG_RETENTION_TTL_DAYS" desc:"Days to retain logs in ClickHouse. 0 = unlimited." required:"N"`
 }
 
 var (
@@ -165,6 +168,7 @@ func (c *Config) InitDefaults() {
 	c.RetryIntervalSeconds = 30
 	c.RetryMaxLimit = 10
 	c.RetryPollBackoffMs = 100
+	c.RetryVisibilityTimeoutSeconds = 30
 	c.MaxDestinationsPerTenant = 20
 	c.DeliveryTimeoutSeconds = 5
 	c.PublishIdempotencyKeyTTL = 3600  // 1 hour
@@ -176,11 +180,12 @@ func (c *Config) InitDefaults() {
 	c.Destinations = DestinationsConfig{
 		MetadataPath: "config/outpost/destinations",
 		Webhook: DestinationWebhookConfig{
-			HeaderPrefix:             "x-outpost-",
+			Mode:                     "default",
 			SignatureContentTemplate: "{{.Body}}",
 			SignatureHeaderTemplate:  "v0={{.Signatures | join \",\"}}",
 			SignatureEncoding:        "hex",
 			SignatureAlgorithm:       "hmac-sha256",
+			SigningSecretTemplate:    "whsec_{{.RandomHex}}",
 		},
 		AWSKinesis: DestinationAWSKinesisConfig{
 			MetadataInPayload: true,
@@ -188,9 +193,9 @@ func (c *Config) InitDefaults() {
 	}
 
 	c.Alert = AlertConfig{
-		CallbackURL:             "",
-		ConsecutiveFailureCount: 20,
-		AutoDisableDestination:  true,
+		ConsecutiveFailureCount:       100,
+		AutoDisableDestination:        false,
+		ExhaustedRetriesWindowSeconds: 3600,
 	}
 
 	c.Telemetry = TelemetryConfig{
@@ -205,6 +210,8 @@ func (c *Config) InitDefaults() {
 		Type:        "uuidv4",
 		EventPrefix: "",
 	}
+
+	c.ClickHouseLogRetentionTTLDays = 0 // Unlimited by default
 }
 
 func (c *Config) parseConfigFile(flagPath string, osInterface OSInterface) error {
@@ -360,6 +367,7 @@ func ParseWithOS(flags Flags, osInterface OSInterface) (*Config, error) {
 type RedisConfig struct {
 	Host                   string `yaml:"host" env:"REDIS_HOST" desc:"Hostname or IP address of the Redis server." required:"Y"`
 	Port                   int    `yaml:"port" env:"REDIS_PORT" desc:"Port number for the Redis server." required:"Y"`
+	Username               string `yaml:"username" env:"REDIS_USERNAME" desc:"Username for Redis ACL authentication." required:"N"`
 	Password               string `yaml:"password" env:"REDIS_PASSWORD" desc:"Password for Redis authentication, if required by the server." required:"Y"`
 	Database               int    `yaml:"database" env:"REDIS_DATABASE" desc:"Redis database number to select after connecting (ignored in cluster mode)." required:"Y"`
 	TLSEnabled             bool   `yaml:"tls_enabled" env:"REDIS_TLS_ENABLED" desc:"Enable TLS encryption for Redis connection." required:"N"`
@@ -371,6 +379,7 @@ func (c *RedisConfig) ToConfig() *redis.RedisConfig {
 	return &redis.RedisConfig{
 		Host:                   c.Host,
 		Port:                   c.Port,
+		Username:               c.Username,
 		Password:               c.Password,
 		Database:               c.Database,
 		TLSEnabled:             c.TLSEnabled,
@@ -380,10 +389,11 @@ func (c *RedisConfig) ToConfig() *redis.RedisConfig {
 }
 
 type ClickHouseConfig struct {
-	Addr     string `yaml:"addr" env:"CLICKHOUSE_ADDR" desc:"Address (host:port) of the ClickHouse server. Example: 'localhost:9000'." required:"N"`
-	Username string `yaml:"username" env:"CLICKHOUSE_USERNAME" desc:"Username for ClickHouse authentication." required:"N"`
-	Password string `yaml:"password" env:"CLICKHOUSE_PASSWORD" desc:"Password for ClickHouse authentication." required:"N"`
-	Database string `yaml:"database" env:"CLICKHOUSE_DATABASE" desc:"Database name in ClickHouse to use." required:"N"`
+	Addr       string `yaml:"addr" env:"CLICKHOUSE_ADDR" desc:"Address (host:port) of the ClickHouse server. Example: 'localhost:9000' or 'host.clickhouse.cloud:9440' for ClickHouse Cloud." required:"N"`
+	Username   string `yaml:"username" env:"CLICKHOUSE_USERNAME" desc:"Username for ClickHouse authentication." required:"N"`
+	Password   string `yaml:"password" env:"CLICKHOUSE_PASSWORD" desc:"Password for ClickHouse authentication." required:"N"`
+	Database   string `yaml:"database" env:"CLICKHOUSE_DATABASE" desc:"Database name in ClickHouse to use." required:"N"`
+	TLSEnabled bool   `yaml:"tls_enabled" env:"CLICKHOUSE_TLS_ENABLED" desc:"Enable TLS for ClickHouse connection." required:"N"`
 }
 
 func (c *ClickHouseConfig) ToConfig() *clickhouse.ClickHouseConfig {
@@ -391,17 +401,85 @@ func (c *ClickHouseConfig) ToConfig() *clickhouse.ClickHouseConfig {
 		return nil
 	}
 	return &clickhouse.ClickHouseConfig{
-		Addr:     c.Addr,
-		Username: c.Username,
-		Password: c.Password,
-		Database: c.Database,
+		Addr:       c.Addr,
+		Username:   c.Username,
+		Password:   c.Password,
+		Database:   c.Database,
+		TLSEnabled: c.TLSEnabled,
 	}
 }
 
+type OperatorEventsConfig struct {
+	Topics    []string                     `yaml:"topics" env:"OPERATOR_EVENTS_TOPICS" envSeparator:"," desc:"Comma-separated list of operator event topics to emit. Use '*' for all topics. If empty, operator events are disabled." required:"N"`
+	HTTP      OperatorEventsHTTPConfig     `yaml:"http"`
+	AWSSQS    OperatorEventsAWSSQSConfig   `yaml:"aws_sqs"`
+	GCPPubSub OperatorEventsGCPConfig      `yaml:"gcp_pubsub"`
+	RabbitMQ  OperatorEventsRabbitMQConfig `yaml:"rabbitmq"`
+}
+
+type OperatorEventsHTTPConfig struct {
+	URL           string `yaml:"url" env:"OPERATOR_EVENTS_HTTP_URL" desc:"URL to POST operator events to." required:"N"`
+	SigningSecret string `yaml:"signing_secret" env:"OPERATOR_EVENTS_HTTP_SIGNING_SECRET" desc:"HMAC-SHA256 signing secret for operator event payloads." required:"N"`
+}
+
+type OperatorEventsAWSSQSConfig struct {
+	QueueURL        string `yaml:"queue_url" env:"OPERATOR_EVENTS_AWS_SQS_QUEUE_URL" desc:"AWS SQS queue URL for operator events." required:"N"`
+	AccessKeyID     string `yaml:"access_key_id" env:"OPERATOR_EVENTS_AWS_SQS_ACCESS_KEY_ID" desc:"AWS access key ID for SQS operator events sink." required:"N"`
+	SecretAccessKey string `yaml:"secret_access_key" env:"OPERATOR_EVENTS_AWS_SQS_SECRET_ACCESS_KEY" desc:"AWS secret access key for SQS operator events sink." required:"N"`
+	Region          string `yaml:"region" env:"OPERATOR_EVENTS_AWS_SQS_REGION" desc:"AWS region for SQS operator events sink." required:"N"`
+	Endpoint        string `yaml:"endpoint" env:"OPERATOR_EVENTS_AWS_SQS_ENDPOINT" desc:"Custom AWS SQS endpoint for operator events. Optional, for local development." required:"N"`
+}
+
+type OperatorEventsGCPConfig struct {
+	ProjectID   string `yaml:"project_id" env:"OPERATOR_EVENTS_GCP_PUBSUB_PROJECT_ID" desc:"GCP project ID for Pub/Sub operator events sink." required:"N"`
+	TopicID     string `yaml:"topic_id" env:"OPERATOR_EVENTS_GCP_PUBSUB_TOPIC_ID" desc:"GCP Pub/Sub topic ID for operator events." required:"N"`
+	Credentials string `yaml:"credentials" env:"OPERATOR_EVENTS_GCP_PUBSUB_CREDENTIALS" desc:"GCP service account credentials JSON for Pub/Sub operator events sink." required:"N"`
+}
+
+type OperatorEventsRabbitMQConfig struct {
+	ServerURL string `yaml:"server_url" env:"OPERATOR_EVENTS_RABBITMQ_SERVER_URL" desc:"RabbitMQ server URL for operator events sink." required:"N"`
+	Exchange  string `yaml:"exchange" env:"OPERATOR_EVENTS_RABBITMQ_EXCHANGE" desc:"RabbitMQ exchange for operator events." required:"N"`
+}
+
+func (c *OperatorEventsConfig) ToConfig() opevents.Config {
+	cfg := opevents.Config{
+		Topics: c.Topics,
+	}
+	if c.HTTP.URL != "" {
+		cfg.HTTP = &opevents.HTTPSinkConfig{
+			URL:           c.HTTP.URL,
+			SigningSecret: c.HTTP.SigningSecret,
+		}
+	}
+	if c.AWSSQS.QueueURL != "" {
+		cfg.AWSSQS = &opevents.AWSSQSSinkConfig{
+			QueueURL:        c.AWSSQS.QueueURL,
+			AccessKeyID:     c.AWSSQS.AccessKeyID,
+			SecretAccessKey: c.AWSSQS.SecretAccessKey,
+			Region:          c.AWSSQS.Region,
+			Endpoint:        c.AWSSQS.Endpoint,
+		}
+	}
+	if c.GCPPubSub.ProjectID != "" {
+		cfg.GCPPubSub = &opevents.GCPPubSubSinkConfig{
+			ProjectID:                 c.GCPPubSub.ProjectID,
+			TopicID:                   c.GCPPubSub.TopicID,
+			ServiceAccountCredentials: c.GCPPubSub.Credentials,
+		}
+	}
+	if c.RabbitMQ.ServerURL != "" {
+		cfg.RabbitMQ = &opevents.RabbitMQSinkConfig{
+			ServerURL: c.RabbitMQ.ServerURL,
+			Exchange:  c.RabbitMQ.Exchange,
+		}
+	}
+	return cfg
+}
+
 type AlertConfig struct {
-	CallbackURL             string `yaml:"callback_url" env:"ALERT_CALLBACK_URL" desc:"URL to which Outpost will send a POST request when an alert is triggered (e.g., for destination failures)." required:"N"`
-	ConsecutiveFailureCount int    `yaml:"consecutive_failure_count" env:"ALERT_CONSECUTIVE_FAILURE_COUNT" desc:"Number of consecutive delivery failures for a destination before triggering an alert and potentially disabling it." required:"N"`
-	AutoDisableDestination  bool   `yaml:"auto_disable_destination" env:"ALERT_AUTO_DISABLE_DESTINATION" desc:"If true, automatically disables a destination after 'consecutive_failure_count' is reached." required:"N"`
+	ConsecutiveFailureCount       int  `yaml:"consecutive_failure_count" env:"ALERT_CONSECUTIVE_FAILURE_COUNT" desc:"Number of consecutive delivery failures for a destination before triggering an alert and potentially disabling it." required:"N"`
+	AutoDisableDestination        bool `yaml:"auto_disable_destination" env:"ALERT_AUTO_DISABLE_DESTINATION" desc:"If true, automatically disables a destination after 'consecutive_failure_count' is reached." required:"N"`
+	ExhaustedRetriesWindowSeconds int  `yaml:"exhausted_retries_window_seconds" env:"ALERT_EXHAUSTED_RETRIES_WINDOW_SECONDS" desc:"Suppression window in seconds for exhausted_retries alerts. First exhaustion per destination emits an alert; subsequent exhaustions within the window are suppressed." required:"N"`
 }
 
 // ConfigFilePath returns the path of the config file that was used
@@ -447,7 +525,7 @@ func (c *TelemetryConfig) ToTelemetryConfig() telemetry.TelemetryConfig {
 func (c *Config) ToTelemetryApplicationInfo() telemetry.ApplicationInfo {
 	portalEnabled := c.APIKey != "" && c.APIJWTSecret != ""
 
-	entityStore := "redis"
+	tenantStore := "redis"
 	logStore := ""
 	if c.ClickHouse.Addr != "" {
 		logStore = "clickhouse"
@@ -460,7 +538,7 @@ func (c *Config) ToTelemetryApplicationInfo() telemetry.ApplicationInfo {
 		Version:       version.Version(),
 		MQ:            c.MQs.GetInfraType(),
 		PortalEnabled: portalEnabled,
-		EntityStore:   entityStore,
+		TenantStore:   tenantStore,
 		LogStore:      logStore,
 	}
 }
@@ -478,6 +556,7 @@ func (c *Config) ToMigratorOpts() migrator.MigrationOpts {
 			Password:     c.ClickHouse.Password,
 			Database:     c.ClickHouse.Database,
 			DeploymentID: c.DeploymentID,
+			TLSEnabled:   c.ClickHouse.TLSEnabled,
 		},
 	}
 }

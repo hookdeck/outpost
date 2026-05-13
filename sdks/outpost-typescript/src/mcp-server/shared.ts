@@ -16,12 +16,12 @@ export async function consumeStream(
   stream: ReadableStream<Uint8Array>,
 ): Promise<Uint8Array> {
   const reader = stream.getReader();
-  const chunks: Uint8Array[] = [];
+  const chunks: ArrayBuffer[] = [];
 
   try {
     while (true) {
       const { done, value } = await reader.read();
-      if (value != null) chunks.push(value);
+      if (value != null) chunks.push(new Uint8Array(value).buffer);
       if (done) break;
     }
   } finally {

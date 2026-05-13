@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/hookdeck/outpost/sdks/outpost-go/internal/utils"
+	"github.com/hookdeck/outpost/sdks/outpost-go/optionalnullable"
+	"time"
 )
 
 // DestinationCreateAWSSQSType - Type of the destination. Must be 'aws_sqs'.
@@ -33,7 +35,7 @@ func (e *DestinationCreateAWSSQSType) UnmarshalJSON(data []byte) error {
 }
 
 type DestinationCreateAWSSQS struct {
-	// Optional user-provided ID. A UUID will be generated if empty.
+	// Optional user-provided ID. An ID will be generated if empty.
 	ID *string `json:"id,omitempty"`
 	// Type of the destination. Must be 'aws_sqs'.
 	Type DestinationCreateAWSSQSType `json:"type"`
@@ -42,15 +44,21 @@ type DestinationCreateAWSSQS struct {
 	// Optional JSON schema filter for event matching. Events must match this filter to be delivered to this destination.
 	// Supports operators: $eq, $neq, $gt, $gte, $lt, $lte, $in, $nin, $startsWith, $endsWith, $exist, $or, $and, $not.
 	// If null or empty, all events matching the topic filter will be delivered.
-	// To remove an existing filter when updating a destination, set filter to an empty object `{}`.
+	// Uses full-replacement semantics on update: send a new object to replace, null or `{}` to clear, omit for no change.
 	//
-	Filter      map[string]any    `json:"filter,omitempty"`
-	Config      AWSSQSConfig      `json:"config"`
-	Credentials AWSSQSCredentials `json:"credentials"`
-	// Static key-value pairs merged into event metadata on every delivery.
-	DeliveryMetadata map[string]string `json:"delivery_metadata,omitempty"`
+	Filter      optionalnullable.OptionalNullable[map[string]any] `json:"filter,omitempty"`
+	Config      AWSSQSConfig                                      `json:"config"`
+	Credentials AWSSQSCredentials                                 `json:"credentials"`
+	// Static key-value pairs merged into event metadata on every attempt.
+	DeliveryMetadata optionalnullable.OptionalNullable[map[string]string] `json:"delivery_metadata,omitempty"`
 	// Arbitrary contextual information stored with the destination.
-	Metadata map[string]string `json:"metadata,omitempty"`
+	Metadata optionalnullable.OptionalNullable[map[string]string] `json:"metadata,omitempty"`
+	// Optional override for the creation timestamp. Intended for importing destinations from another system. Must not be in the future. **Admin (API key) auth only — sending this with JWT auth returns 403.** Defaults to the current time when omitted.
+	CreatedAt optionalnullable.OptionalNullable[time.Time] `json:"created_at,omitempty"`
+	// Optional override for the last-updated timestamp. Intended for importing destinations. Must not be in the future. **Admin (API key) auth only — sending this with JWT auth returns 403.** Defaults to created_at when omitted.
+	UpdatedAt optionalnullable.OptionalNullable[time.Time] `json:"updated_at,omitempty"`
+	// If set, the destination is created in a disabled state with this timestamp. Must not be in the future. Defaults to null (enabled).
+	DisabledAt optionalnullable.OptionalNullable[time.Time] `json:"disabled_at,omitempty"`
 }
 
 func (d DestinationCreateAWSSQS) MarshalJSON() ([]byte, error) {
@@ -85,7 +93,7 @@ func (d *DestinationCreateAWSSQS) GetTopics() Topics {
 	return d.Topics
 }
 
-func (d *DestinationCreateAWSSQS) GetFilter() map[string]any {
+func (d *DestinationCreateAWSSQS) GetFilter() optionalnullable.OptionalNullable[map[string]any] {
 	if d == nil {
 		return nil
 	}
@@ -106,16 +114,37 @@ func (d *DestinationCreateAWSSQS) GetCredentials() AWSSQSCredentials {
 	return d.Credentials
 }
 
-func (d *DestinationCreateAWSSQS) GetDeliveryMetadata() map[string]string {
+func (d *DestinationCreateAWSSQS) GetDeliveryMetadata() optionalnullable.OptionalNullable[map[string]string] {
 	if d == nil {
 		return nil
 	}
 	return d.DeliveryMetadata
 }
 
-func (d *DestinationCreateAWSSQS) GetMetadata() map[string]string {
+func (d *DestinationCreateAWSSQS) GetMetadata() optionalnullable.OptionalNullable[map[string]string] {
 	if d == nil {
 		return nil
 	}
 	return d.Metadata
+}
+
+func (d *DestinationCreateAWSSQS) GetCreatedAt() optionalnullable.OptionalNullable[time.Time] {
+	if d == nil {
+		return nil
+	}
+	return d.CreatedAt
+}
+
+func (d *DestinationCreateAWSSQS) GetUpdatedAt() optionalnullable.OptionalNullable[time.Time] {
+	if d == nil {
+		return nil
+	}
+	return d.UpdatedAt
+}
+
+func (d *DestinationCreateAWSSQS) GetDisabledAt() optionalnullable.OptionalNullable[time.Time] {
+	if d == nil {
+		return nil
+	}
+	return d.DisabledAt
 }

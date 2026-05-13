@@ -8,63 +8,12 @@ import { safeParse } from "../../lib/schemas.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 
-export type GetTenantTokenGlobals = {
-  tenantId?: string | undefined;
-};
-
 export type GetTenantTokenRequest = {
   /**
    * The ID of the tenant. Required when using AdminApiKey authentication.
    */
-  tenantId?: string | undefined;
+  tenantId: string;
 };
-
-/** @internal */
-export const GetTenantTokenGlobals$inboundSchema: z.ZodType<
-  GetTenantTokenGlobals,
-  z.ZodTypeDef,
-  unknown
-> = z.object({
-  tenant_id: z.string().optional(),
-}).transform((v) => {
-  return remap$(v, {
-    "tenant_id": "tenantId",
-  });
-});
-/** @internal */
-export type GetTenantTokenGlobals$Outbound = {
-  tenant_id?: string | undefined;
-};
-
-/** @internal */
-export const GetTenantTokenGlobals$outboundSchema: z.ZodType<
-  GetTenantTokenGlobals$Outbound,
-  z.ZodTypeDef,
-  GetTenantTokenGlobals
-> = z.object({
-  tenantId: z.string().optional(),
-}).transform((v) => {
-  return remap$(v, {
-    tenantId: "tenant_id",
-  });
-});
-
-export function getTenantTokenGlobalsToJSON(
-  getTenantTokenGlobals: GetTenantTokenGlobals,
-): string {
-  return JSON.stringify(
-    GetTenantTokenGlobals$outboundSchema.parse(getTenantTokenGlobals),
-  );
-}
-export function getTenantTokenGlobalsFromJSON(
-  jsonString: string,
-): SafeParseResult<GetTenantTokenGlobals, SDKValidationError> {
-  return safeParse(
-    jsonString,
-    (x) => GetTenantTokenGlobals$inboundSchema.parse(JSON.parse(x)),
-    `Failed to parse 'GetTenantTokenGlobals' from JSON`,
-  );
-}
 
 /** @internal */
 export const GetTenantTokenRequest$inboundSchema: z.ZodType<
@@ -72,7 +21,7 @@ export const GetTenantTokenRequest$inboundSchema: z.ZodType<
   z.ZodTypeDef,
   unknown
 > = z.object({
-  tenant_id: z.string().optional(),
+  tenant_id: z.string(),
 }).transform((v) => {
   return remap$(v, {
     "tenant_id": "tenantId",
@@ -80,7 +29,7 @@ export const GetTenantTokenRequest$inboundSchema: z.ZodType<
 });
 /** @internal */
 export type GetTenantTokenRequest$Outbound = {
-  tenant_id?: string | undefined;
+  tenant_id: string;
 };
 
 /** @internal */
@@ -89,7 +38,7 @@ export const GetTenantTokenRequest$outboundSchema: z.ZodType<
   z.ZodTypeDef,
   GetTenantTokenRequest
 > = z.object({
-  tenantId: z.string().optional(),
+  tenantId: z.string(),
 }).transform((v) => {
   return remap$(v, {
     tenantId: "tenant_id",

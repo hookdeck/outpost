@@ -61,7 +61,7 @@ func (e *ErrorResponse) Parse(err error) {
 		return
 	}
 	if isInvalidJSON(err) {
-		e.Code = http.StatusBadRequest
+		e.Code = http.StatusUnprocessableEntity
 		e.Message = "invalid JSON"
 		e.Err = err
 		return
@@ -115,6 +115,8 @@ func formatValidationError(field, tag, param string) string {
 		return fmt.Sprintf("%s must be less than %s", field, param)
 	case "lte":
 		return fmt.Sprintf("%s must be less than or equal to %s", field, param)
+	case "forbidden":
+		return fmt.Sprintf("%s is forbidden", field)
 	default:
 		if param != "" {
 			return fmt.Sprintf("%s failed %s=%s validation", field, tag, param)

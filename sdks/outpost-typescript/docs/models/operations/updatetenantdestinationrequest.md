@@ -6,8 +6,9 @@
 import { UpdateTenantDestinationRequest } from "@hookdeck/outpost-sdk/models/operations";
 
 let value: UpdateTenantDestinationRequest = {
+  tenantId: "<id>",
   destinationId: "<id>",
-  params: {
+  body: {
     topics: "*",
     filter: {
       "data": {
@@ -19,8 +20,16 @@ let value: UpdateTenantDestinationRequest = {
         },
       },
     },
+    config: {
+      streamName: "my-data-stream",
+      region: "us-east-1",
+      endpoint: "https://kinesis.us-east-1.amazonaws.com",
+      partitionKeyTemplate: "data.\"user_id\"",
+    },
     credentials: {
-      token: "hd_token_...",
+      key: "AKIAIOSFODNN7EXAMPLE",
+      secret: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+      session: "AQoDYXdzEPT//////////wEXAMPLE...",
     },
     deliveryMetadata: {
       "app-id": "my-app",
@@ -30,6 +39,7 @@ let value: UpdateTenantDestinationRequest = {
       "internal-id": "123",
       "team": "platform",
     },
+    disabledAt: null,
   },
 };
 ```
@@ -38,6 +48,6 @@ let value: UpdateTenantDestinationRequest = {
 
 | Field                                                                 | Type                                                                  | Required                                                              | Description                                                           |
 | --------------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| `tenantId`                                                            | *string*                                                              | :heavy_minus_sign:                                                    | The ID of the tenant. Required when using AdminApiKey authentication. |
+| `tenantId`                                                            | *string*                                                              | :heavy_check_mark:                                                    | The ID of the tenant. Required when using AdminApiKey authentication. |
 | `destinationId`                                                       | *string*                                                              | :heavy_check_mark:                                                    | The ID of the destination.                                            |
-| `params`                                                              | *components.DestinationUpdate*                                        | :heavy_check_mark:                                                    | N/A                                                                   |
+| `body`                                                                | *components.DestinationUpdate*                                        | :heavy_check_mark:                                                    | N/A                                                                   |

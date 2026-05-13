@@ -51,3 +51,9 @@ value: models.DestinationCreateAwss3 = /* values here */
 value: models.DestinationCreateGCPPubSub = /* values here */
 ```
 
+### `models.DestinationCreateKafka`
+
+```python
+value: models.DestinationCreateKafka = /* values here */
+```
+

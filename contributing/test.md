@@ -134,7 +134,7 @@ Integration and e2e tests require external services like ClickHouse, LocalStack,
 
 ### Why persistent infrastructure?
 
-Lightweight services like Redis start quickly, but heavier dependencies like LocalStack (AWS) or GCP emulators can take 15-30 seconds to initialize. With persistent infrastructure, you pay this cost once and get fast iteration from then on.
+Redis and Dragonfly always use testcontainers (one container per test) since they start quickly. Heavier dependencies like LocalStack (AWS) or GCP emulators can take 15-30 seconds to initialize. With persistent infrastructure, you pay this cost once and get fast iteration from then on.
 
 To run the test infrastructure:
 

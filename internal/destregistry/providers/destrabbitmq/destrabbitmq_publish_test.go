@@ -148,7 +148,7 @@ func (a *RabbitMQAsserter) AssertMessage(t testsuite.TestingT, msg testsuite.Mes
 	// Verify system metadata
 	metadata := msg.Metadata
 	assert.NotEmpty(t, metadata["timestamp"], "timestamp should be present")
-	testsuite.AssertTimestampIsUnixSeconds(t, metadata["timestamp"])
+	testsuite.AssertTimestampIsISO8601(t, metadata["timestamp"])
 	assert.Equal(t, event.ID, metadata["event-id"], "event-id should match")
 	assert.Equal(t, event.Topic, metadata["topic"], "topic should match")
 
@@ -280,7 +280,7 @@ func TestRabbitMQPublisher_ConnectionErrors(t *testing.T) {
 			defer publisher.Close()
 
 			event := testutil.EventFactory.Any(
-				testutil.EventFactory.WithData(map[string]interface{}{"key": "value"}),
+				testutil.EventFactory.WithDataMap(map[string]interface{}{"key": "value"}),
 			)
 
 			// Attempt to publish to unreachable endpoint

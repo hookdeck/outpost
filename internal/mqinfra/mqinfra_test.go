@@ -135,7 +135,7 @@ func testMQInfra(t *testing.T, mqConfig *Config, dlqConfig *Config) {
 
 		msgCount := 0
 		expectedCount := retryLimit + 1
-		timeout := time.After(30 * time.Second) // Safety timeout
+		timeout := time.After(10 * time.Second) // Safety timeout
 	loop:
 		for msgCount < expectedCount {
 			select {
@@ -169,7 +169,7 @@ func testMQInfra(t *testing.T, mqConfig *Config, dlqConfig *Config) {
 			}
 		}()
 		var dlmsg *testutil.MockMsg
-		dlTimeout := time.After(30 * time.Second) // Safety timeout
+		dlTimeout := time.After(10 * time.Second) // Safety timeout
 		select {
 		case dlmsg = <-dlmsgchan:
 			// Got the DLQ message
@@ -182,6 +182,7 @@ func testMQInfra(t *testing.T, mqConfig *Config, dlqConfig *Config) {
 }
 
 func TestIntegrationMQInfra_RabbitMQ(t *testing.T) {
+	testutil.CheckIntegrationTest(t)
 	exchange := idgen.String()
 	queue := idgen.String()
 
@@ -225,6 +226,7 @@ func TestIntegrationMQInfra_RabbitMQ(t *testing.T) {
 }
 
 func TestIntegrationMQInfra_AWSSQS(t *testing.T) {
+	testutil.CheckIntegrationTest(t)
 	q := idgen.String()
 
 	testMQInfra(t,
@@ -274,6 +276,7 @@ func TestIntegrationMQInfra_AWSSQS(t *testing.T) {
 }
 
 func TestIntegrationMQInfra_GCPPubSub(t *testing.T) {
+	testutil.CheckIntegrationTest(t)
 	// Set PUBSUB_EMULATOR_HOST environment variable
 	testinfra.EnsureGCP()
 
@@ -288,6 +291,8 @@ func TestIntegrationMQInfra_GCPPubSub(t *testing.T) {
 					TopicID:                   topicID,
 					SubscriptionID:            subscriptionID,
 					ServiceAccountCredentials: "",
+					MinRetryBackoff:           1,
+					MaxRetryBackoff:           1,
 				},
 				Policy: mqinfra.Policy{
 					RetryLimit:        retryLimit,

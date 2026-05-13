@@ -1,0 +1,9 @@
+# UpdateManagedConfigResponse
+
+
+## Fields
+
+| Field                                                                             | Type                                                                              | Required                                                                          | Description                                                                       | Example                                                                           |
+| --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `HTTPMeta`                                                                        | [components.HTTPMetadata](../../models/components/httpmetadata.md)                | :heavy_check_mark:                                                                | N/A                                                                               |                                                                                   |
+| `ManagedConfig`                                                                   | [*components.ManagedConfig](../../models/components/managedconfig.md)             | :heavy_minus_sign:                                                                | Updated managed configuration.                                                    | {<br/>"TOPICS": "user.created,user.updated",<br/>"DESTINATIONS_WEBHOOK_MODE": "default"<br/>} |

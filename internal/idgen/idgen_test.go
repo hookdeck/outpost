@@ -115,7 +115,7 @@ func TestEvent_Generate(t *testing.T) {
 		{
 			name:   "uuidv4 with prefix",
 			idType: "uuidv4",
-			prefix: "evt",
+			prefix: "evt_",
 			validate: func(t *testing.T, id string) {
 				if !strings.HasPrefix(id, "evt_") {
 					t.Errorf("ID should have prefix 'evt_', got: %s", id)
@@ -182,7 +182,7 @@ func TestEvent(t *testing.T) {
 	t.Run("uses configured type and prefix", func(t *testing.T) {
 		err := Configure(IDGenConfig{
 			Type:        "uuidv4",
-			EventPrefix: "evt",
+			EventPrefix: "evt_",
 		})
 		if err != nil {
 			t.Fatalf("Configure() error = %v", err)

@@ -6,27 +6,16 @@ import (
 	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
 )
 
-type DisableTenantDestinationGlobals struct {
-	TenantID *string `pathParam:"style=simple,explode=false,name=tenant_id"`
-}
-
-func (d *DisableTenantDestinationGlobals) GetTenantID() *string {
-	if d == nil {
-		return nil
-	}
-	return d.TenantID
-}
-
 type DisableTenantDestinationRequest struct {
 	// The ID of the tenant. Required when using AdminApiKey authentication.
-	TenantID *string `pathParam:"style=simple,explode=false,name=tenant_id"`
+	TenantID string `pathParam:"style=simple,explode=false,name=tenant_id"`
 	// The ID of the destination.
 	DestinationID string `pathParam:"style=simple,explode=false,name=destination_id"`
 }
 
-func (d *DisableTenantDestinationRequest) GetTenantID() *string {
+func (d *DisableTenantDestinationRequest) GetTenantID() string {
 	if d == nil {
-		return nil
+		return ""
 	}
 	return d.TenantID
 }
@@ -110,6 +99,13 @@ func (d *DisableTenantDestinationResponse) GetDestinationAwsS3() *components.Des
 func (d *DisableTenantDestinationResponse) GetDestinationGcpPubsub() *components.DestinationGCPPubSub {
 	if v := d.GetDestination(); v != nil {
 		return v.DestinationGCPPubSub
+	}
+	return nil
+}
+
+func (d *DisableTenantDestinationResponse) GetDestinationKafka() *components.DestinationKafka {
+	if v := d.GetDestination(); v != nil {
+		return v.DestinationKafka
 	}
 	return nil
 }

@@ -14,20 +14,22 @@ generation:
     securityFeb2025: true
     sharedErrorComponentsApr2025: false
     sharedNestedComponentsJan2026: false
+    nameOverrideFeb2026: false
   auth:
     oAuth2ClientCredentialsEnabled: true
     oAuth2PasswordEnabled: true
     hoistGlobalSecurity: true
   schemas:
     allOfMergeStrategy: shallowMerge
-  requestBodyFieldName: params
+  requestBodyFieldName: body
+  versioningStrategy: automatic
   persistentEdits: {}
   tests:
     generateTests: true
     generateNewTests: false
     skipResponseBodyAssertions: false
 typescript:
-  version: 0.6.0
+  version: 1.3.0
   acceptHeaderEnum: true
   additionalDependencies:
     dependencies: {}
@@ -46,6 +48,7 @@ typescript:
   enableReactQuery: false
   enumFormat: union
   exportZodModelNamespace: false
+  fixEnumNameSanitization: false
   flatAdditionalProperties: false
   flattenGlobalSecurity: true
   flatteningOrder: parameters-first
@@ -65,7 +68,8 @@ typescript:
   inputModelSuffix: input
   jsonpath: rfc9535
   laxMode: strict
-  maxMethodParams: 0
+  legacyFileNaming: true
+  maxMethodParams: 4
   methodArguments: require-security-and-request
   modelPropertyCasing: camel
   moduleFormat: dual
@@ -80,4 +84,6 @@ typescript:
   unionStrategy: left-to-right
   usageSDKInitImports: []
   useIndexModules: true
+  useOxlint: false
+  useTsgo: false
   zodVersion: v3

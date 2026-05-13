@@ -2,38 +2,38 @@
 
 ## Overview
 
-Operations related to event history and deliveries.
+An event represents a payload published to Outpost. Events are matched against all destinations whose topic subscriptions match the event topic, then delivered.
+
 
 ### Available Operations
 
 * [list](#list) - List Events
 * [get](#get) - Get Event
-* [listDeliveries](#listdeliveries) - List Event Delivery Attempts
-* [listByDestination](#listbydestination) - List Events by Destination
-* [getByDestination](#getbydestination) - Get Event by Destination
-* [retry](#retry) - Retry Event Delivery
 
 ## list
 
-Retrieves a list of events for the tenant, supporting cursor navigation (details TBD) and filtering.
+Retrieves a list of events.
+
+When authenticated with a Tenant JWT, returns only events belonging to that tenant.
+When authenticated with Admin API Key, returns events across all tenants. Use `tenant_id` query parameter to filter by tenant.
+
 
 ### Example Usage
 
-<!-- UsageSnippet language="typescript" operationID="listTenantEvents" method="get" path="/tenants/{tenant_id}/events" -->
+<!-- UsageSnippet language="typescript" operationID="listEvents" method="get" path="/events" example="AdminEventsListExample" -->
 ```typescript
 import { Outpost } from "@hookdeck/outpost-sdk";
 
 const outpost = new Outpost({
-  tenantId: "<id>",
-  security: {
-    adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
-  },
+  apiKey: "<YOUR_BEARER_TOKEN_HERE>",
 });
 
 async function run() {
   const result = await outpost.events.list({});
 
-  console.log(result);
+  for await (const page of result) {
+    console.log(page);
+  }
 }
 
 run();
@@ -50,17 +50,16 @@ import { eventsList } from "@hookdeck/outpost-sdk/funcs/eventsList.js";
 // Use `OutpostCore` for best tree-shaking performance.
 // You can create one instance of it to use across an application.
 const outpost = new OutpostCore({
-  tenantId: "<id>",
-  security: {
-    adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
-  },
+  apiKey: "<YOUR_BEARER_TOKEN_HERE>",
 });
 
 async function run() {
   const res = await eventsList(outpost, {});
   if (res.ok) {
     const { value: result } = res;
-    console.log(result);
+    for await (const page of result) {
+    console.log(page);
+  }
   } else {
     console.log("eventsList failed:", res.error);
   }
@@ -73,42 +72,43 @@ run();
 
 | Parameter                                                                                                                                                                      | Type                                                                                                                                                                           | Required                                                                                                                                                                       | Description                                                                                                                                                                    |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `request`                                                                                                                                                                      | [operations.ListTenantEventsRequest](../../models/operations/listtenanteventsrequest.md)                                                                                       | :heavy_check_mark:                                                                                                                                                             | The request object to use for the request.                                                                                                                                     |
+| `request`                                                                                                                                                                      | [operations.ListEventsRequest](../../models/operations/listeventsrequest.md)                                                                                                   | :heavy_check_mark:                                                                                                                                                             | The request object to use for the request.                                                                                                                                     |
 | `options`                                                                                                                                                                      | RequestOptions                                                                                                                                                                 | :heavy_minus_sign:                                                                                                                                                             | Used to set various options for making HTTP requests.                                                                                                                          |
 | `options.fetchOptions`                                                                                                                                                         | [RequestInit](https://developer.mozilla.org/en-US/docs/Web/API/Request/Request#options)                                                                                        | :heavy_minus_sign:                                                                                                                                                             | Options that are passed to the underlying HTTP request. This can be used to inject extra headers for examples. All `Request` options, except `method` and `body`, are allowed. |
 | `options.retries`                                                                                                                                                              | [RetryConfig](../../lib/utils/retryconfig.md)                                                                                                                                  | :heavy_minus_sign:                                                                                                                                                             | Enables retrying HTTP requests under certain failure conditions.                                                                                                               |
 
 ### Response
 
-**Promise\<[operations.ListTenantEventsResponse](../../models/operations/listtenanteventsresponse.md)\>**
+**Promise\<[operations.ListEventsResponse](../../models/operations/listeventsresponse.md)\>**
 
 ### Errors
 
-| Error Type      | Status Code     | Content Type    |
-| --------------- | --------------- | --------------- |
-| errors.APIError | 4XX, 5XX        | \*/\*           |
+| Error Type                 | Status Code                | Content Type               |
+| -------------------------- | -------------------------- | -------------------------- |
+| errors.UnauthorizedError   | 401                        | application/json           |
+| errors.InternalServerError | 500                        | application/json           |
+| errors.APIError            | 4XX, 5XX                   | \*/\*                      |
 
 ## get
 
 Retrieves details for a specific event.
 
+When authenticated with a Tenant JWT, only events belonging to that tenant can be accessed.
+When authenticated with Admin API Key, events from any tenant can be accessed.
+
+
 ### Example Usage
 
-<!-- UsageSnippet language="typescript" operationID="getTenantEvent" method="get" path="/tenants/{tenant_id}/events/{event_id}" -->
+<!-- UsageSnippet language="typescript" operationID="getEvent" method="get" path="/events/{event_id}" example="EventExample" -->
 ```typescript
 import { Outpost } from "@hookdeck/outpost-sdk";
 
 const outpost = new Outpost({
-  tenantId: "<id>",
-  security: {
-    adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
-  },
+  apiKey: "<YOUR_BEARER_TOKEN_HERE>",
 });
 
 async function run() {
-  const result = await outpost.events.get({
-    eventId: "<id>",
-  });
+  const result = await outpost.events.get("<id>");
 
   console.log(result);
 }
@@ -127,16 +127,11 @@ import { eventsGet } from "@hookdeck/outpost-sdk/funcs/eventsGet.js";
 // Use `OutpostCore` for best tree-shaking performance.
 // You can create one instance of it to use across an application.
 const outpost = new OutpostCore({
-  tenantId: "<id>",
-  security: {
-    adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
-  },
+  apiKey: "<YOUR_BEARER_TOKEN_HERE>",
 });
 
 async function run() {
-  const res = await eventsGet(outpost, {
-    eventId: "<id>",
-  });
+  const res = await eventsGet(outpost, "<id>");
   if (res.ok) {
     const { value: result } = res;
     console.log(result);
@@ -152,7 +147,8 @@ run();
 
 | Parameter                                                                                                                                                                      | Type                                                                                                                                                                           | Required                                                                                                                                                                       | Description                                                                                                                                                                    |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `request`                                                                                                                                                                      | [operations.GetTenantEventRequest](../../models/operations/gettenanteventrequest.md)                                                                                           | :heavy_check_mark:                                                                                                                                                             | The request object to use for the request.                                                                                                                                     |
+| `eventId`                                                                                                                                                                      | *string*                                                                                                                                                                       | :heavy_check_mark:                                                                                                                                                             | The ID of the event.                                                                                                                                                           |
+| `tenantId`                                                                                                                                                                     | *string*                                                                                                                                                                       | :heavy_minus_sign:                                                                                                                                                             | Filter by tenant ID. Returns 404 if the event does not belong to the specified tenant. Ignored when using Tenant JWT authentication.                                           |
 | `options`                                                                                                                                                                      | RequestOptions                                                                                                                                                                 | :heavy_minus_sign:                                                                                                                                                             | Used to set various options for making HTTP requests.                                                                                                                          |
 | `options.fetchOptions`                                                                                                                                                         | [RequestInit](https://developer.mozilla.org/en-US/docs/Web/API/Request/Request#options)                                                                                        | :heavy_minus_sign:                                                                                                                                                             | Options that are passed to the underlying HTTP request. This can be used to inject extra headers for examples. All `Request` options, except `method` and `body`, are allowed. |
 | `options.retries`                                                                                                                                                              | [RetryConfig](../../lib/utils/retryconfig.md)                                                                                                                                  | :heavy_minus_sign:                                                                                                                                                             | Enables retrying HTTP requests under certain failure conditions.                                                                                                               |
@@ -163,326 +159,9 @@ run();
 
 ### Errors
 
-| Error Type      | Status Code     | Content Type    |
-| --------------- | --------------- | --------------- |
-| errors.APIError | 4XX, 5XX        | \*/\*           |
-
-## listDeliveries
-
-Retrieves a list of delivery attempts for a specific event, including response details.
-
-### Example Usage
-
-<!-- UsageSnippet language="typescript" operationID="listTenantEventDeliveries" method="get" path="/tenants/{tenant_id}/events/{event_id}/deliveries" -->
-```typescript
-import { Outpost } from "@hookdeck/outpost-sdk";
-
-const outpost = new Outpost({
-  tenantId: "<id>",
-  security: {
-    adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
-  },
-});
-
-async function run() {
-  const result = await outpost.events.listDeliveries({
-    eventId: "<id>",
-  });
-
-  console.log(result);
-}
-
-run();
-```
-
-### Standalone function
-
-The standalone function version of this method:
-
-```typescript
-import { OutpostCore } from "@hookdeck/outpost-sdk/core.js";
-import { eventsListDeliveries } from "@hookdeck/outpost-sdk/funcs/eventsListDeliveries.js";
-
-// Use `OutpostCore` for best tree-shaking performance.
-// You can create one instance of it to use across an application.
-const outpost = new OutpostCore({
-  tenantId: "<id>",
-  security: {
-    adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
-  },
-});
-
-async function run() {
-  const res = await eventsListDeliveries(outpost, {
-    eventId: "<id>",
-  });
-  if (res.ok) {
-    const { value: result } = res;
-    console.log(result);
-  } else {
-    console.log("eventsListDeliveries failed:", res.error);
-  }
-}
-
-run();
-```
-
-### Parameters
-
-| Parameter                                                                                                                                                                      | Type                                                                                                                                                                           | Required                                                                                                                                                                       | Description                                                                                                                                                                    |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `request`                                                                                                                                                                      | [operations.ListTenantEventDeliveriesRequest](../../models/operations/listtenanteventdeliveriesrequest.md)                                                                     | :heavy_check_mark:                                                                                                                                                             | The request object to use for the request.                                                                                                                                     |
-| `options`                                                                                                                                                                      | RequestOptions                                                                                                                                                                 | :heavy_minus_sign:                                                                                                                                                             | Used to set various options for making HTTP requests.                                                                                                                          |
-| `options.fetchOptions`                                                                                                                                                         | [RequestInit](https://developer.mozilla.org/en-US/docs/Web/API/Request/Request#options)                                                                                        | :heavy_minus_sign:                                                                                                                                                             | Options that are passed to the underlying HTTP request. This can be used to inject extra headers for examples. All `Request` options, except `method` and `body`, are allowed. |
-| `options.retries`                                                                                                                                                              | [RetryConfig](../../lib/utils/retryconfig.md)                                                                                                                                  | :heavy_minus_sign:                                                                                                                                                             | Enables retrying HTTP requests under certain failure conditions.                                                                                                               |
-
-### Response
-
-**Promise\<[components.DeliveryAttempt[]](../../models/.md)\>**
-
-### Errors
-
-| Error Type      | Status Code     | Content Type    |
-| --------------- | --------------- | --------------- |
-| errors.APIError | 4XX, 5XX        | \*/\*           |
-
-## listByDestination
-
-Retrieves events associated with a specific destination for the tenant.
-
-### Example Usage
-
-<!-- UsageSnippet language="typescript" operationID="listTenantEventsByDestination" method="get" path="/tenants/{tenant_id}/destinations/{destination_id}/events" -->
-```typescript
-import { Outpost } from "@hookdeck/outpost-sdk";
-
-const outpost = new Outpost({
-  tenantId: "<id>",
-  security: {
-    adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
-  },
-});
-
-async function run() {
-  const result = await outpost.events.listByDestination({
-    destinationId: "<id>",
-  });
-
-  console.log(result);
-}
-
-run();
-```
-
-### Standalone function
-
-The standalone function version of this method:
-
-```typescript
-import { OutpostCore } from "@hookdeck/outpost-sdk/core.js";
-import { eventsListByDestination } from "@hookdeck/outpost-sdk/funcs/eventsListByDestination.js";
-
-// Use `OutpostCore` for best tree-shaking performance.
-// You can create one instance of it to use across an application.
-const outpost = new OutpostCore({
-  tenantId: "<id>",
-  security: {
-    adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
-  },
-});
-
-async function run() {
-  const res = await eventsListByDestination(outpost, {
-    destinationId: "<id>",
-  });
-  if (res.ok) {
-    const { value: result } = res;
-    console.log(result);
-  } else {
-    console.log("eventsListByDestination failed:", res.error);
-  }
-}
-
-run();
-```
-
-### Parameters
-
-| Parameter                                                                                                                                                                      | Type                                                                                                                                                                           | Required                                                                                                                                                                       | Description                                                                                                                                                                    |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `request`                                                                                                                                                                      | [operations.ListTenantEventsByDestinationRequest](../../models/operations/listtenanteventsbydestinationrequest.md)                                                             | :heavy_check_mark:                                                                                                                                                             | The request object to use for the request.                                                                                                                                     |
-| `options`                                                                                                                                                                      | RequestOptions                                                                                                                                                                 | :heavy_minus_sign:                                                                                                                                                             | Used to set various options for making HTTP requests.                                                                                                                          |
-| `options.fetchOptions`                                                                                                                                                         | [RequestInit](https://developer.mozilla.org/en-US/docs/Web/API/Request/Request#options)                                                                                        | :heavy_minus_sign:                                                                                                                                                             | Options that are passed to the underlying HTTP request. This can be used to inject extra headers for examples. All `Request` options, except `method` and `body`, are allowed. |
-| `options.retries`                                                                                                                                                              | [RetryConfig](../../lib/utils/retryconfig.md)                                                                                                                                  | :heavy_minus_sign:                                                                                                                                                             | Enables retrying HTTP requests under certain failure conditions.                                                                                                               |
-
-### Response
-
-**Promise\<[operations.ListTenantEventsByDestinationResponse](../../models/operations/listtenanteventsbydestinationresponse.md)\>**
-
-### Errors
-
-| Error Type      | Status Code     | Content Type    |
-| --------------- | --------------- | --------------- |
-| errors.APIError | 4XX, 5XX        | \*/\*           |
-
-## getByDestination
-
-Retrieves a specific event associated with a specific destination for the tenant.
-
-### Example Usage
-
-<!-- UsageSnippet language="typescript" operationID="getTenantEventByDestination" method="get" path="/tenants/{tenant_id}/destinations/{destination_id}/events/{event_id}" -->
-```typescript
-import { Outpost } from "@hookdeck/outpost-sdk";
-
-const outpost = new Outpost({
-  tenantId: "<id>",
-  security: {
-    adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
-  },
-});
-
-async function run() {
-  const result = await outpost.events.getByDestination({
-    destinationId: "<id>",
-    eventId: "<id>",
-  });
-
-  console.log(result);
-}
-
-run();
-```
-
-### Standalone function
-
-The standalone function version of this method:
-
-```typescript
-import { OutpostCore } from "@hookdeck/outpost-sdk/core.js";
-import { eventsGetByDestination } from "@hookdeck/outpost-sdk/funcs/eventsGetByDestination.js";
-
-// Use `OutpostCore` for best tree-shaking performance.
-// You can create one instance of it to use across an application.
-const outpost = new OutpostCore({
-  tenantId: "<id>",
-  security: {
-    adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
-  },
-});
-
-async function run() {
-  const res = await eventsGetByDestination(outpost, {
-    destinationId: "<id>",
-    eventId: "<id>",
-  });
-  if (res.ok) {
-    const { value: result } = res;
-    console.log(result);
-  } else {
-    console.log("eventsGetByDestination failed:", res.error);
-  }
-}
-
-run();
-```
-
-### Parameters
-
-| Parameter                                                                                                                                                                      | Type                                                                                                                                                                           | Required                                                                                                                                                                       | Description                                                                                                                                                                    |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `request`                                                                                                                                                                      | [operations.GetTenantEventByDestinationRequest](../../models/operations/gettenanteventbydestinationrequest.md)                                                                 | :heavy_check_mark:                                                                                                                                                             | The request object to use for the request.                                                                                                                                     |
-| `options`                                                                                                                                                                      | RequestOptions                                                                                                                                                                 | :heavy_minus_sign:                                                                                                                                                             | Used to set various options for making HTTP requests.                                                                                                                          |
-| `options.fetchOptions`                                                                                                                                                         | [RequestInit](https://developer.mozilla.org/en-US/docs/Web/API/Request/Request#options)                                                                                        | :heavy_minus_sign:                                                                                                                                                             | Options that are passed to the underlying HTTP request. This can be used to inject extra headers for examples. All `Request` options, except `method` and `body`, are allowed. |
-| `options.retries`                                                                                                                                                              | [RetryConfig](../../lib/utils/retryconfig.md)                                                                                                                                  | :heavy_minus_sign:                                                                                                                                                             | Enables retrying HTTP requests under certain failure conditions.                                                                                                               |
-
-### Response
-
-**Promise\<[components.Event](../../models/components/event.md)\>**
-
-### Errors
-
-| Error Type      | Status Code     | Content Type    |
-| --------------- | --------------- | --------------- |
-| errors.APIError | 4XX, 5XX        | \*/\*           |
-
-## retry
-
-Triggers a retry for a failed event delivery.
-
-### Example Usage
-
-<!-- UsageSnippet language="typescript" operationID="retryTenantEvent" method="post" path="/tenants/{tenant_id}/destinations/{destination_id}/events/{event_id}/retry" -->
-```typescript
-import { Outpost } from "@hookdeck/outpost-sdk";
-
-const outpost = new Outpost({
-  tenantId: "<id>",
-  security: {
-    adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
-  },
-});
-
-async function run() {
-  await outpost.events.retry({
-    destinationId: "<id>",
-    eventId: "<id>",
-  });
-
-
-}
-
-run();
-```
-
-### Standalone function
-
-The standalone function version of this method:
-
-```typescript
-import { OutpostCore } from "@hookdeck/outpost-sdk/core.js";
-import { eventsRetry } from "@hookdeck/outpost-sdk/funcs/eventsRetry.js";
-
-// Use `OutpostCore` for best tree-shaking performance.
-// You can create one instance of it to use across an application.
-const outpost = new OutpostCore({
-  tenantId: "<id>",
-  security: {
-    adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
-  },
-});
-
-async function run() {
-  const res = await eventsRetry(outpost, {
-    destinationId: "<id>",
-    eventId: "<id>",
-  });
-  if (res.ok) {
-    const { value: result } = res;
-    
-  } else {
-    console.log("eventsRetry failed:", res.error);
-  }
-}
-
-run();
-```
-
-### Parameters
-
-| Parameter                                                                                                                                                                      | Type                                                                                                                                                                           | Required                                                                                                                                                                       | Description                                                                                                                                                                    |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `request`                                                                                                                                                                      | [operations.RetryTenantEventRequest](../../models/operations/retrytenanteventrequest.md)                                                                                       | :heavy_check_mark:                                                                                                                                                             | The request object to use for the request.                                                                                                                                     |
-| `options`                                                                                                                                                                      | RequestOptions                                                                                                                                                                 | :heavy_minus_sign:                                                                                                                                                             | Used to set various options for making HTTP requests.                                                                                                                          |
-| `options.fetchOptions`                                                                                                                                                         | [RequestInit](https://developer.mozilla.org/en-US/docs/Web/API/Request/Request#options)                                                                                        | :heavy_minus_sign:                                                                                                                                                             | Options that are passed to the underlying HTTP request. This can be used to inject extra headers for examples. All `Request` options, except `method` and `body`, are allowed. |
-| `options.retries`                                                                                                                                                              | [RetryConfig](../../lib/utils/retryconfig.md)                                                                                                                                  | :heavy_minus_sign:                                                                                                                                                             | Enables retrying HTTP requests under certain failure conditions.                                                                                                               |
-
-### Response
-
-**Promise\<void\>**
-
-### Errors
-
-| Error Type      | Status Code     | Content Type    |
-| --------------- | --------------- | --------------- |
-| errors.APIError | 4XX, 5XX        | \*/\*           |
+| Error Type                 | Status Code                | Content Type               |
+| -------------------------- | -------------------------- | -------------------------- |
+| errors.UnauthorizedError   | 401                        | application/json           |
+| errors.NotFoundError       | 404                        | application/json           |
+| errors.InternalServerError | 500                        | application/json           |
+| errors.APIError            | 4XX, 5XX                   | \*/\*                      |

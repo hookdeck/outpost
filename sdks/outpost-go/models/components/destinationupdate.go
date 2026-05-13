@@ -12,24 +12,26 @@ type DestinationUpdateType string
 
 const (
 	DestinationUpdateTypeDestinationUpdateWebhook         DestinationUpdateType = "DestinationUpdateWebhook"
-	DestinationUpdateTypeDestinationUpdateAWSSQS          DestinationUpdateType = "DestinationUpdateAWSSQS"
-	DestinationUpdateTypeDestinationUpdateRabbitMQ        DestinationUpdateType = "DestinationUpdateRabbitMQ"
 	DestinationUpdateTypeDestinationUpdateHookdeck        DestinationUpdateType = "DestinationUpdateHookdeck"
+	DestinationUpdateTypeDestinationUpdateAWSSQS          DestinationUpdateType = "DestinationUpdateAWSSQS"
 	DestinationUpdateTypeDestinationUpdateAWSKinesis      DestinationUpdateType = "DestinationUpdateAWSKinesis"
-	DestinationUpdateTypeDestinationUpdateAzureServiceBus DestinationUpdateType = "DestinationUpdateAzureServiceBus"
 	DestinationUpdateTypeDestinationUpdateAwss3           DestinationUpdateType = "DestinationUpdateAWSS3"
+	DestinationUpdateTypeDestinationUpdateAzureServiceBus DestinationUpdateType = "DestinationUpdateAzureServiceBus"
 	DestinationUpdateTypeDestinationUpdateGCPPubSub       DestinationUpdateType = "DestinationUpdateGCPPubSub"
+	DestinationUpdateTypeDestinationUpdateRabbitMQ        DestinationUpdateType = "DestinationUpdateRabbitMQ"
+	DestinationUpdateTypeDestinationUpdateKafka           DestinationUpdateType = "DestinationUpdateKafka"
 )
 
 type DestinationUpdate struct {
 	DestinationUpdateWebhook         *DestinationUpdateWebhook         `queryParam:"inline" union:"member"`
-	DestinationUpdateAWSSQS          *DestinationUpdateAWSSQS          `queryParam:"inline" union:"member"`
-	DestinationUpdateRabbitMQ        *DestinationUpdateRabbitMQ        `queryParam:"inline" union:"member"`
 	DestinationUpdateHookdeck        *DestinationUpdateHookdeck        `queryParam:"inline" union:"member"`
+	DestinationUpdateAWSSQS          *DestinationUpdateAWSSQS          `queryParam:"inline" union:"member"`
 	DestinationUpdateAWSKinesis      *DestinationUpdateAWSKinesis      `queryParam:"inline" union:"member"`
-	DestinationUpdateAzureServiceBus *DestinationUpdateAzureServiceBus `queryParam:"inline" union:"member"`
 	DestinationUpdateAwss3           *DestinationUpdateAwss3           `queryParam:"inline" union:"member"`
+	DestinationUpdateAzureServiceBus *DestinationUpdateAzureServiceBus `queryParam:"inline" union:"member"`
 	DestinationUpdateGCPPubSub       *DestinationUpdateGCPPubSub       `queryParam:"inline" union:"member"`
+	DestinationUpdateRabbitMQ        *DestinationUpdateRabbitMQ        `queryParam:"inline" union:"member"`
+	DestinationUpdateKafka           *DestinationUpdateKafka           `queryParam:"inline" union:"member"`
 
 	Type DestinationUpdateType
 }
@@ -43,30 +45,21 @@ func CreateDestinationUpdateDestinationUpdateWebhook(destinationUpdateWebhook De
 	}
 }
 
-func CreateDestinationUpdateDestinationUpdateAWSSQS(destinationUpdateAWSSQS DestinationUpdateAWSSQS) DestinationUpdate {
-	typ := DestinationUpdateTypeDestinationUpdateAWSSQS
-
-	return DestinationUpdate{
-		DestinationUpdateAWSSQS: &destinationUpdateAWSSQS,
-		Type:                    typ,
-	}
-}
-
-func CreateDestinationUpdateDestinationUpdateRabbitMQ(destinationUpdateRabbitMQ DestinationUpdateRabbitMQ) DestinationUpdate {
-	typ := DestinationUpdateTypeDestinationUpdateRabbitMQ
-
-	return DestinationUpdate{
-		DestinationUpdateRabbitMQ: &destinationUpdateRabbitMQ,
-		Type:                      typ,
-	}
-}
-
 func CreateDestinationUpdateDestinationUpdateHookdeck(destinationUpdateHookdeck DestinationUpdateHookdeck) DestinationUpdate {
 	typ := DestinationUpdateTypeDestinationUpdateHookdeck
 
 	return DestinationUpdate{
 		DestinationUpdateHookdeck: &destinationUpdateHookdeck,
 		Type:                      typ,
+	}
+}
+
+func CreateDestinationUpdateDestinationUpdateAWSSQS(destinationUpdateAWSSQS DestinationUpdateAWSSQS) DestinationUpdate {
+	typ := DestinationUpdateTypeDestinationUpdateAWSSQS
+
+	return DestinationUpdate{
+		DestinationUpdateAWSSQS: &destinationUpdateAWSSQS,
+		Type:                    typ,
 	}
 }
 
@@ -79,21 +72,21 @@ func CreateDestinationUpdateDestinationUpdateAWSKinesis(destinationUpdateAWSKine
 	}
 }
 
-func CreateDestinationUpdateDestinationUpdateAzureServiceBus(destinationUpdateAzureServiceBus DestinationUpdateAzureServiceBus) DestinationUpdate {
-	typ := DestinationUpdateTypeDestinationUpdateAzureServiceBus
-
-	return DestinationUpdate{
-		DestinationUpdateAzureServiceBus: &destinationUpdateAzureServiceBus,
-		Type:                             typ,
-	}
-}
-
 func CreateDestinationUpdateDestinationUpdateAwss3(destinationUpdateAwss3 DestinationUpdateAwss3) DestinationUpdate {
 	typ := DestinationUpdateTypeDestinationUpdateAwss3
 
 	return DestinationUpdate{
 		DestinationUpdateAwss3: &destinationUpdateAwss3,
 		Type:                   typ,
+	}
+}
+
+func CreateDestinationUpdateDestinationUpdateAzureServiceBus(destinationUpdateAzureServiceBus DestinationUpdateAzureServiceBus) DestinationUpdate {
+	typ := DestinationUpdateTypeDestinationUpdateAzureServiceBus
+
+	return DestinationUpdate{
+		DestinationUpdateAzureServiceBus: &destinationUpdateAzureServiceBus,
+		Type:                             typ,
 	}
 }
 
@@ -106,26 +99,30 @@ func CreateDestinationUpdateDestinationUpdateGCPPubSub(destinationUpdateGCPPubSu
 	}
 }
 
+func CreateDestinationUpdateDestinationUpdateRabbitMQ(destinationUpdateRabbitMQ DestinationUpdateRabbitMQ) DestinationUpdate {
+	typ := DestinationUpdateTypeDestinationUpdateRabbitMQ
+
+	return DestinationUpdate{
+		DestinationUpdateRabbitMQ: &destinationUpdateRabbitMQ,
+		Type:                      typ,
+	}
+}
+
+func CreateDestinationUpdateDestinationUpdateKafka(destinationUpdateKafka DestinationUpdateKafka) DestinationUpdate {
+	typ := DestinationUpdateTypeDestinationUpdateKafka
+
+	return DestinationUpdate{
+		DestinationUpdateKafka: &destinationUpdateKafka,
+		Type:                   typ,
+	}
+}
+
 func (u *DestinationUpdate) UnmarshalJSON(data []byte) error {
 
 	var destinationUpdateWebhook DestinationUpdateWebhook = DestinationUpdateWebhook{}
 	if err := utils.UnmarshalJSON(data, &destinationUpdateWebhook, "", true, nil); err == nil {
 		u.DestinationUpdateWebhook = &destinationUpdateWebhook
 		u.Type = DestinationUpdateTypeDestinationUpdateWebhook
-		return nil
-	}
-
-	var destinationUpdateAWSSQS DestinationUpdateAWSSQS = DestinationUpdateAWSSQS{}
-	if err := utils.UnmarshalJSON(data, &destinationUpdateAWSSQS, "", true, nil); err == nil {
-		u.DestinationUpdateAWSSQS = &destinationUpdateAWSSQS
-		u.Type = DestinationUpdateTypeDestinationUpdateAWSSQS
-		return nil
-	}
-
-	var destinationUpdateRabbitMQ DestinationUpdateRabbitMQ = DestinationUpdateRabbitMQ{}
-	if err := utils.UnmarshalJSON(data, &destinationUpdateRabbitMQ, "", true, nil); err == nil {
-		u.DestinationUpdateRabbitMQ = &destinationUpdateRabbitMQ
-		u.Type = DestinationUpdateTypeDestinationUpdateRabbitMQ
 		return nil
 	}
 
@@ -136,17 +133,17 @@ func (u *DestinationUpdate) UnmarshalJSON(data []byte) error {
 		return nil
 	}
 
+	var destinationUpdateAWSSQS DestinationUpdateAWSSQS = DestinationUpdateAWSSQS{}
+	if err := utils.UnmarshalJSON(data, &destinationUpdateAWSSQS, "", true, nil); err == nil {
+		u.DestinationUpdateAWSSQS = &destinationUpdateAWSSQS
+		u.Type = DestinationUpdateTypeDestinationUpdateAWSSQS
+		return nil
+	}
+
 	var destinationUpdateAWSKinesis DestinationUpdateAWSKinesis = DestinationUpdateAWSKinesis{}
 	if err := utils.UnmarshalJSON(data, &destinationUpdateAWSKinesis, "", true, nil); err == nil {
 		u.DestinationUpdateAWSKinesis = &destinationUpdateAWSKinesis
 		u.Type = DestinationUpdateTypeDestinationUpdateAWSKinesis
-		return nil
-	}
-
-	var destinationUpdateAzureServiceBus DestinationUpdateAzureServiceBus = DestinationUpdateAzureServiceBus{}
-	if err := utils.UnmarshalJSON(data, &destinationUpdateAzureServiceBus, "", true, nil); err == nil {
-		u.DestinationUpdateAzureServiceBus = &destinationUpdateAzureServiceBus
-		u.Type = DestinationUpdateTypeDestinationUpdateAzureServiceBus
 		return nil
 	}
 
@@ -157,10 +154,31 @@ func (u *DestinationUpdate) UnmarshalJSON(data []byte) error {
 		return nil
 	}
 
+	var destinationUpdateAzureServiceBus DestinationUpdateAzureServiceBus = DestinationUpdateAzureServiceBus{}
+	if err := utils.UnmarshalJSON(data, &destinationUpdateAzureServiceBus, "", true, nil); err == nil {
+		u.DestinationUpdateAzureServiceBus = &destinationUpdateAzureServiceBus
+		u.Type = DestinationUpdateTypeDestinationUpdateAzureServiceBus
+		return nil
+	}
+
 	var destinationUpdateGCPPubSub DestinationUpdateGCPPubSub = DestinationUpdateGCPPubSub{}
 	if err := utils.UnmarshalJSON(data, &destinationUpdateGCPPubSub, "", true, nil); err == nil {
 		u.DestinationUpdateGCPPubSub = &destinationUpdateGCPPubSub
 		u.Type = DestinationUpdateTypeDestinationUpdateGCPPubSub
+		return nil
+	}
+
+	var destinationUpdateRabbitMQ DestinationUpdateRabbitMQ = DestinationUpdateRabbitMQ{}
+	if err := utils.UnmarshalJSON(data, &destinationUpdateRabbitMQ, "", true, nil); err == nil {
+		u.DestinationUpdateRabbitMQ = &destinationUpdateRabbitMQ
+		u.Type = DestinationUpdateTypeDestinationUpdateRabbitMQ
+		return nil
+	}
+
+	var destinationUpdateKafka DestinationUpdateKafka = DestinationUpdateKafka{}
+	if err := utils.UnmarshalJSON(data, &destinationUpdateKafka, "", true, nil); err == nil {
+		u.DestinationUpdateKafka = &destinationUpdateKafka
+		u.Type = DestinationUpdateTypeDestinationUpdateKafka
 		return nil
 	}
 
@@ -172,32 +190,36 @@ func (u DestinationUpdate) MarshalJSON() ([]byte, error) {
 		return utils.MarshalJSON(u.DestinationUpdateWebhook, "", true)
 	}
 
-	if u.DestinationUpdateAWSSQS != nil {
-		return utils.MarshalJSON(u.DestinationUpdateAWSSQS, "", true)
-	}
-
-	if u.DestinationUpdateRabbitMQ != nil {
-		return utils.MarshalJSON(u.DestinationUpdateRabbitMQ, "", true)
-	}
-
 	if u.DestinationUpdateHookdeck != nil {
 		return utils.MarshalJSON(u.DestinationUpdateHookdeck, "", true)
+	}
+
+	if u.DestinationUpdateAWSSQS != nil {
+		return utils.MarshalJSON(u.DestinationUpdateAWSSQS, "", true)
 	}
 
 	if u.DestinationUpdateAWSKinesis != nil {
 		return utils.MarshalJSON(u.DestinationUpdateAWSKinesis, "", true)
 	}
 
-	if u.DestinationUpdateAzureServiceBus != nil {
-		return utils.MarshalJSON(u.DestinationUpdateAzureServiceBus, "", true)
-	}
-
 	if u.DestinationUpdateAwss3 != nil {
 		return utils.MarshalJSON(u.DestinationUpdateAwss3, "", true)
 	}
 
+	if u.DestinationUpdateAzureServiceBus != nil {
+		return utils.MarshalJSON(u.DestinationUpdateAzureServiceBus, "", true)
+	}
+
 	if u.DestinationUpdateGCPPubSub != nil {
 		return utils.MarshalJSON(u.DestinationUpdateGCPPubSub, "", true)
+	}
+
+	if u.DestinationUpdateRabbitMQ != nil {
+		return utils.MarshalJSON(u.DestinationUpdateRabbitMQ, "", true)
+	}
+
+	if u.DestinationUpdateKafka != nil {
+		return utils.MarshalJSON(u.DestinationUpdateKafka, "", true)
 	}
 
 	return nil, errors.New("could not marshal union type DestinationUpdate: all fields are null")

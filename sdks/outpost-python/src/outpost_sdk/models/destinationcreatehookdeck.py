@@ -3,6 +3,7 @@
 from __future__ import annotations
 from .hookdeckcredentials import HookdeckCredentials, HookdeckCredentialsTypedDict
 from .topics_union import TopicsUnion, TopicsUnionTypedDict
+from datetime import datetime
 from enum import Enum
 from outpost_sdk.types import (
     BaseModel,
@@ -30,19 +31,25 @@ class DestinationCreateHookdeckTypedDict(TypedDict):
     r"""\"*\" or an array of enabled topics."""
     credentials: HookdeckCredentialsTypedDict
     id: NotRequired[str]
-    r"""Optional user-provided ID. A UUID will be generated if empty."""
+    r"""Optional user-provided ID. An ID will be generated if empty."""
     filter_: NotRequired[Nullable[Dict[str, Any]]]
     r"""Optional JSON schema filter for event matching. Events must match this filter to be delivered to this destination.
     Supports operators: $eq, $neq, $gt, $gte, $lt, $lte, $in, $nin, $startsWith, $endsWith, $exist, $or, $and, $not.
     If null or empty, all events matching the topic filter will be delivered.
-    To remove an existing filter when updating a destination, set filter to an empty object `{}`.
+    Uses full-replacement semantics on update: send a new object to replace, null or `{}` to clear, omit for no change.
 
     """
     config: NotRequired[Any]
     delivery_metadata: NotRequired[Nullable[Dict[str, str]]]
-    r"""Static key-value pairs merged into event metadata on every delivery."""
+    r"""Static key-value pairs merged into event metadata on every attempt."""
     metadata: NotRequired[Nullable[Dict[str, str]]]
     r"""Arbitrary contextual information stored with the destination."""
+    created_at: NotRequired[Nullable[datetime]]
+    r"""Optional override for the creation timestamp. Intended for importing destinations from another system. Must not be in the future. **Admin (API key) auth only — sending this with JWT auth returns 403.** Defaults to the current time when omitted."""
+    updated_at: NotRequired[Nullable[datetime]]
+    r"""Optional override for the last-updated timestamp. Intended for importing destinations. Must not be in the future. **Admin (API key) auth only — sending this with JWT auth returns 403.** Defaults to created_at when omitted."""
+    disabled_at: NotRequired[Nullable[datetime]]
+    r"""If set, the destination is created in a disabled state with this timestamp. Must not be in the future. Defaults to null (enabled)."""
 
 
 class DestinationCreateHookdeck(BaseModel):
@@ -55,7 +62,7 @@ class DestinationCreateHookdeck(BaseModel):
     credentials: HookdeckCredentials
 
     id: Optional[str] = None
-    r"""Optional user-provided ID. A UUID will be generated if empty."""
+    r"""Optional user-provided ID. An ID will be generated if empty."""
 
     filter_: Annotated[
         OptionalNullable[Dict[str, Any]], pydantic.Field(alias="filter")
@@ -63,30 +70,57 @@ class DestinationCreateHookdeck(BaseModel):
     r"""Optional JSON schema filter for event matching. Events must match this filter to be delivered to this destination.
     Supports operators: $eq, $neq, $gt, $gte, $lt, $lte, $in, $nin, $startsWith, $endsWith, $exist, $or, $and, $not.
     If null or empty, all events matching the topic filter will be delivered.
-    To remove an existing filter when updating a destination, set filter to an empty object `{}`.
+    Uses full-replacement semantics on update: send a new object to replace, null or `{}` to clear, omit for no change.
 
     """
 
     config: Optional[Any] = None
 
     delivery_metadata: OptionalNullable[Dict[str, str]] = UNSET
-    r"""Static key-value pairs merged into event metadata on every delivery."""
+    r"""Static key-value pairs merged into event metadata on every attempt."""
 
     metadata: OptionalNullable[Dict[str, str]] = UNSET
     r"""Arbitrary contextual information stored with the destination."""
 
+    created_at: OptionalNullable[datetime] = UNSET
+    r"""Optional override for the creation timestamp. Intended for importing destinations from another system. Must not be in the future. **Admin (API key) auth only — sending this with JWT auth returns 403.** Defaults to the current time when omitted."""
+
+    updated_at: OptionalNullable[datetime] = UNSET
+    r"""Optional override for the last-updated timestamp. Intended for importing destinations. Must not be in the future. **Admin (API key) auth only — sending this with JWT auth returns 403.** Defaults to created_at when omitted."""
+
+    disabled_at: OptionalNullable[datetime] = UNSET
+    r"""If set, the destination is created in a disabled state with this timestamp. Must not be in the future. Defaults to null (enabled)."""
+
     @model_serializer(mode="wrap")
     def serialize_model(self, handler):
         optional_fields = set(
-            ["id", "filter", "config", "delivery_metadata", "metadata"]
+            [
+                "id",
+                "filter",
+                "config",
+                "delivery_metadata",
+                "metadata",
+                "created_at",
+                "updated_at",
+                "disabled_at",
+            ]
         )
-        nullable_fields = set(["filter", "delivery_metadata", "metadata"])
+        nullable_fields = set(
+            [
+                "filter",
+                "delivery_metadata",
+                "metadata",
+                "created_at",
+                "updated_at",
+                "disabled_at",
+            ]
+        )
         serialized = handler(self)
         m = {}
 
         for n, f in type(self).model_fields.items():
             k = f.alias or n
-            val = serialized.get(k)
+            val = serialized.get(k, serialized.get(n))
             is_nullable_and_explicitly_set = (
                 k in nullable_fields
                 and (self.__pydantic_fields_set__.intersection({n}))  # pylint: disable=no-member
@@ -101,3 +135,9 @@ class DestinationCreateHookdeck(BaseModel):
                     m[k] = val
 
         return m
+
+
+try:
+    DestinationCreateHookdeck.model_rebuild()
+except NameError:
+    pass

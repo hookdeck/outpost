@@ -23,7 +23,7 @@ Outpost API: The Outpost API is a REST-based JSON API for managing tenants, dest
   * [SDK Example Usage](#sdk-example-usage)
   * [Authentication](#authentication)
   * [Available Resources and Operations](#available-resources-and-operations)
-  * [Global Parameters](#global-parameters)
+  * [Pagination](#pagination)
   * [Retries](#retries)
   * [Error Handling](#error-handling)
   * [Server Selection](#server-selection)
@@ -54,19 +54,34 @@ package main
 import (
 	"context"
 	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
+	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
 	"log"
 )
 
 func main() {
 	ctx := context.Background()
 
-	s := outpostgo.New()
+	s := outpostgo.New(
+		outpostgo.WithSecurity("<YOUR_BEARER_TOKEN_HERE>"),
+	)
 
-	res, err := s.Health.Check(ctx)
+	res, err := s.Publish(ctx, components.PublishRequest{
+		ID:               outpostgo.Pointer("evt_abc123xyz789"),
+		TenantID:         outpostgo.Pointer("tenant_123"),
+		Topic:            outpostgo.Pointer("user.created"),
+		EligibleForRetry: outpostgo.Pointer(true),
+		Metadata: map[string]string{
+			"source": "crm",
+		},
+		Data: map[string]any{
+			"user_id": "userid",
+			"status":  "active",
+		},
+	})
 	if err != nil {
 		log.Fatal(err)
 	}
-	if res.Object != nil {
+	if res.PublishResponse != nil {
 		// handle response
 	}
 }
@@ -79,14 +94,13 @@ func main() {
 
 ### Per-Client Security Schemes
 
-This SDK supports the following security schemes globally:
+This SDK supports the following security scheme globally:
 
-| Name          | Type | Scheme      |
-| ------------- | ---- | ----------- |
-| `AdminAPIKey` | http | HTTP Bearer |
-| `TenantJwt`   | http | HTTP Bearer |
+| Name     | Type | Scheme      |
+| -------- | ---- | ----------- |
+| `APIKey` | http | HTTP Bearer |
 
-You can set the security parameters through the `WithSecurity` option when initializing the SDK client instance. The selected scheme will be used by default to authenticate with the API for all operations that support it. For example:
+You can configure it using the `WithSecurity` option when initializing the SDK client instance. For example:
 ```go
 package main
 
@@ -101,16 +115,26 @@ func main() {
 	ctx := context.Background()
 
 	s := outpostgo.New(
-		outpostgo.WithSecurity(components.Security{
-			AdminAPIKey: outpostgo.Pointer("<YOUR_BEARER_TOKEN_HERE>"),
-		}),
+		outpostgo.WithSecurity("<YOUR_BEARER_TOKEN_HERE>"),
 	)
 
-	res, err := s.Health.Check(ctx)
+	res, err := s.Publish(ctx, components.PublishRequest{
+		ID:               outpostgo.Pointer("evt_abc123xyz789"),
+		TenantID:         outpostgo.Pointer("tenant_123"),
+		Topic:            outpostgo.Pointer("user.created"),
+		EligibleForRetry: outpostgo.Pointer(true),
+		Metadata: map[string]string{
+			"source": "crm",
+		},
+		Data: map[string]any{
+			"user_id": "userid",
+			"status":  "active",
+		},
+	})
 	if err != nil {
 		log.Fatal(err)
 	}
-	if res.Object != nil {
+	if res.PublishResponse != nil {
 		// handle response
 	}
 }
@@ -124,6 +148,21 @@ func main() {
 <details open>
 <summary>Available methods</summary>
 
+### [Outpost SDK](docs/sdks/outpost/README.md)
+
+* [Publish](docs/sdks/outpost/README.md#publish) - Publish Event
+* [Retry](docs/sdks/outpost/README.md#retry) - Retry Event Delivery
+
+### [Attempts](docs/sdks/attempts/README.md)
+
+* [List](docs/sdks/attempts/README.md#list) - List Attempts
+* [Get](docs/sdks/attempts/README.md#get) - Get Attempt
+
+### [Configuration](docs/sdks/configuration/README.md)
+
+* [GetManagedConfig](docs/sdks/configuration/README.md#getmanagedconfig) - Get Managed Configuration
+* [UpdateManagedConfig](docs/sdks/configuration/README.md#updatemanagedconfig) - Update Managed Configuration
+
 ### [Destinations](docs/sdks/destinations/README.md)
 
 * [List](docs/sdks/destinations/README.md#list) - List Destinations
@@ -133,34 +172,31 @@ func main() {
 * [Delete](docs/sdks/destinations/README.md#delete) - Delete Destination
 * [Enable](docs/sdks/destinations/README.md#enable) - Enable Destination
 * [Disable](docs/sdks/destinations/README.md#disable) - Disable Destination
+* [ListAttempts](docs/sdks/destinations/README.md#listattempts) - List Destination Attempts
+* [GetAttempt](docs/sdks/destinations/README.md#getattempt) - Get Destination Attempt
 
 ### [Events](docs/sdks/events/README.md)
 
 * [List](docs/sdks/events/README.md#list) - List Events
 * [Get](docs/sdks/events/README.md#get) - Get Event
-* [ListDeliveries](docs/sdks/events/README.md#listdeliveries) - List Event Delivery Attempts
-* [ListByDestination](docs/sdks/events/README.md#listbydestination) - List Events by Destination
-* [GetByDestination](docs/sdks/events/README.md#getbydestination) - Get Event by Destination
-* [Retry](docs/sdks/events/README.md#retry) - Retry Event Delivery
 
 ### [Health](docs/sdks/health/README.md)
 
 * [Check](docs/sdks/health/README.md#check) - Health Check
 
-### [Publish](docs/sdks/publish/README.md)
+### [Metrics](docs/sdks/metrics/README.md)
 
-* [Event](docs/sdks/publish/README.md#event) - Publish Event
+* [GetEventMetrics](docs/sdks/metrics/README.md#geteventmetrics) - Get Event Metrics
+* [GetAttemptMetrics](docs/sdks/metrics/README.md#getattemptmetrics) - Get Attempt Metrics
 
 ### [Schemas](docs/sdks/schemas/README.md)
 
-* [ListTenantDestinationTypes](docs/sdks/schemas/README.md#listtenantdestinationtypes) - List Destination Type Schemas (for Tenant)
-* [Get](docs/sdks/schemas/README.md#get) - Get Destination Type Schema (for Tenant)
-* [ListDestinationTypesJwt](docs/sdks/schemas/README.md#listdestinationtypesjwt) - List Destination Type Schemas (JWT Auth)
-* [GetDestinationTypeJwt](docs/sdks/schemas/README.md#getdestinationtypejwt) - Get Destination Type Schema
+* [ListDestinationTypes](docs/sdks/schemas/README.md#listdestinationtypes) - List Destination Type Schemas
+* [GetDestinationType](docs/sdks/schemas/README.md#getdestinationtype) - Get Destination Type Schema
 
 ### [Tenants](docs/sdks/tenants/README.md)
 
-* [ListTenants](docs/sdks/tenants/README.md#listtenants) - List Tenants
+* [List](docs/sdks/tenants/README.md#list) - List Tenants
 * [Upsert](docs/sdks/tenants/README.md#upsert) - Create or Update Tenant
 * [Get](docs/sdks/tenants/README.md#get) - Get Tenant
 * [Delete](docs/sdks/tenants/README.md#delete) - Delete Tenant
@@ -169,37 +205,26 @@ func main() {
 
 ### [Topics](docs/sdks/topics/README.md)
 
-* [List](docs/sdks/topics/README.md#list) - List Available Topics (for Tenant)
-* [ListJwt](docs/sdks/topics/README.md#listjwt) - List Available Topics)
+* [List](docs/sdks/topics/README.md#list) - List Available Topics
 
 </details>
 <!-- End Available Resources and Operations [operations] -->
 
-<!-- Start Global Parameters [global-parameters] -->
-## Global Parameters
+<!-- Start Pagination [pagination] -->
+## Pagination
 
-A parameter is configured globally. This parameter may be set on the SDK client instance itself during initialization. When configured as an option during SDK initialization, This global value will be used as the default on the operations that use it. When such operations are called, there is a place in each to override the global value, if needed.
+Some of the endpoints in this SDK support pagination. To use pagination, you make your SDK calls as usual, but the
+returned response object will have a `Next` method that can be called to pull down the next group of results. If the
+return value of `Next` is `nil`, then there are no more pages to be fetched.
 
-For example, you can set `tenant_id` to `"<id>"` at SDK initialization and then you do not have to pass the same value on calls to operations like `Upsert`. But if you want to do so you may, which will locally override the global setting. See the example code below for a demonstration.
-
-
-### Available Globals
-
-The following global parameter is available.
-
-| Name     | Type   | Description             |
-| -------- | ------ | ----------------------- |
-| TenantID | string | The TenantID parameter. |
-
-### Example
-
+Here's an example of one such pagination call:
 ```go
 package main
 
 import (
 	"context"
 	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
-	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
+	"github.com/hookdeck/outpost/sdks/outpost-go/models/operations"
 	"log"
 )
 
@@ -207,23 +232,32 @@ func main() {
 	ctx := context.Background()
 
 	s := outpostgo.New(
-		outpostgo.WithTenantID("<id>"),
-		outpostgo.WithSecurity(components.Security{
-			AdminAPIKey: outpostgo.Pointer("<YOUR_BEARER_TOKEN_HERE>"),
-		}),
+		outpostgo.WithSecurity("<YOUR_BEARER_TOKEN_HERE>"),
 	)
 
-	res, err := s.Tenants.Upsert(ctx, nil)
+	res, err := s.Tenants.List(ctx, operations.ListTenantsRequest{})
 	if err != nil {
 		log.Fatal(err)
 	}
-	if res.Tenant != nil {
-		// handle response
+	if res.TenantPaginatedResult != nil {
+		for {
+			// handle items
+
+			res, err = res.Next()
+
+			if err != nil {
+				// handle error
+			}
+
+			if res == nil {
+				break
+			}
+		}
 	}
 }
 
 ```
-<!-- End Global Parameters [global-parameters] -->
+<!-- End Pagination [pagination] -->
 
 <!-- Start Retries [retries] -->
 ## Retries
@@ -237,6 +271,7 @@ package main
 import (
 	"context"
 	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
+	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
 	"github.com/hookdeck/outpost/sdks/outpost-go/retry"
 	"log"
 	"models/operations"
@@ -245,9 +280,23 @@ import (
 func main() {
 	ctx := context.Background()
 
-	s := outpostgo.New()
+	s := outpostgo.New(
+		outpostgo.WithSecurity("<YOUR_BEARER_TOKEN_HERE>"),
+	)
 
-	res, err := s.Health.Check(ctx, operations.WithRetries(
+	res, err := s.Publish(ctx, components.PublishRequest{
+		ID:               outpostgo.Pointer("evt_abc123xyz789"),
+		TenantID:         outpostgo.Pointer("tenant_123"),
+		Topic:            outpostgo.Pointer("user.created"),
+		EligibleForRetry: outpostgo.Pointer(true),
+		Metadata: map[string]string{
+			"source": "crm",
+		},
+		Data: map[string]any{
+			"user_id": "userid",
+			"status":  "active",
+		},
+	}, operations.WithRetries(
 		retry.Config{
 			Strategy: "backoff",
 			Backoff: &retry.BackoffStrategy{
@@ -261,7 +310,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	if res.Object != nil {
+	if res.PublishResponse != nil {
 		// handle response
 	}
 }
@@ -275,6 +324,7 @@ package main
 import (
 	"context"
 	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
+	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
 	"github.com/hookdeck/outpost/sdks/outpost-go/retry"
 	"log"
 )
@@ -294,13 +344,26 @@ func main() {
 				},
 				RetryConnectionErrors: false,
 			}),
+		outpostgo.WithSecurity("<YOUR_BEARER_TOKEN_HERE>"),
 	)
 
-	res, err := s.Health.Check(ctx)
+	res, err := s.Publish(ctx, components.PublishRequest{
+		ID:               outpostgo.Pointer("evt_abc123xyz789"),
+		TenantID:         outpostgo.Pointer("tenant_123"),
+		Topic:            outpostgo.Pointer("user.created"),
+		EligibleForRetry: outpostgo.Pointer(true),
+		Metadata: map[string]string{
+			"source": "crm",
+		},
+		Data: map[string]any{
+			"user_id": "userid",
+			"status":  "active",
+		},
+	})
 	if err != nil {
 		log.Fatal(err)
 	}
-	if res.Object != nil {
+	if res.PublishResponse != nil {
 		// handle response
 	}
 }
@@ -315,7 +378,7 @@ Handling errors in this SDK should largely match your expectations. All operatio
 
 By Default, an API error will return `apierrors.APIError`. When custom error responses are specified for an operation, the SDK may also return their associated error. You can refer to respective *Errors* tables in SDK docs for more details on possible error types for each operation.
 
-For example, the `Check` function may return the following errors:
+For example, the `Publish` function may return the following errors:
 
 | Error Type                    | Status Code                  | Content Type     |
 | ----------------------------- | ---------------------------- | ---------------- |
@@ -323,7 +386,7 @@ For example, the `Check` function may return the following errors:
 | apierrors.UnauthorizedError   | 401, 403, 407                | application/json |
 | apierrors.TimeoutError        | 408                          | application/json |
 | apierrors.RateLimitedError    | 429                          | application/json |
-| apierrors.BadRequestError     | 400, 413, 414, 415, 422, 431 | application/json |
+| apierrors.BadRequestError     | 413, 414, 415, 422, 431      | application/json |
 | apierrors.TimeoutError        | 504                          | application/json |
 | apierrors.NotFoundError       | 501, 505                     | application/json |
 | apierrors.InternalServerError | 500, 502, 503, 506, 507, 508 | application/json |
@@ -341,15 +404,30 @@ import (
 	"errors"
 	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
 	"github.com/hookdeck/outpost/sdks/outpost-go/models/apierrors"
+	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
 	"log"
 )
 
 func main() {
 	ctx := context.Background()
 
-	s := outpostgo.New()
+	s := outpostgo.New(
+		outpostgo.WithSecurity("<YOUR_BEARER_TOKEN_HERE>"),
+	)
 
-	res, err := s.Health.Check(ctx)
+	res, err := s.Publish(ctx, components.PublishRequest{
+		ID:               outpostgo.Pointer("evt_abc123xyz789"),
+		TenantID:         outpostgo.Pointer("tenant_123"),
+		Topic:            outpostgo.Pointer("user.created"),
+		EligibleForRetry: outpostgo.Pointer(true),
+		Metadata: map[string]string{
+			"source": "crm",
+		},
+		Data: map[string]any{
+			"user_id": "userid",
+			"status":  "active",
+		},
+	})
 	if err != nil {
 
 		var e *apierrors.NotFoundError
@@ -426,15 +504,68 @@ func main() {
 <!-- Start Server Selection [server] -->
 ## Server Selection
 
-### Override Server URL Per-Client
+### Select Server by Index
 
-The default server can be overridden globally using the `WithServerURL(serverURL string)` option when initializing the SDK client instance. For example:
+You can override the default server globally using the `WithServerIndex(serverIndex int)` option when initializing the SDK client instance. The selected server will then be used as the default on the operations that use it. This table lists the indexes associated with the available servers:
+
+| #   | Server                                        | Description                        |
+| --- | --------------------------------------------- | ---------------------------------- |
+| 0   | `https://api.outpost.hookdeck.com/2025-07-01` | Outpost API (production)           |
+| 1   | `http://localhost:3333/api/v1`                | Local development server base path |
+
+#### Example
+
 ```go
 package main
 
 import (
 	"context"
 	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
+	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
+	"log"
+)
+
+func main() {
+	ctx := context.Background()
+
+	s := outpostgo.New(
+		outpostgo.WithServerIndex(0),
+		outpostgo.WithSecurity("<YOUR_BEARER_TOKEN_HERE>"),
+	)
+
+	res, err := s.Publish(ctx, components.PublishRequest{
+		ID:               outpostgo.Pointer("evt_abc123xyz789"),
+		TenantID:         outpostgo.Pointer("tenant_123"),
+		Topic:            outpostgo.Pointer("user.created"),
+		EligibleForRetry: outpostgo.Pointer(true),
+		Metadata: map[string]string{
+			"source": "crm",
+		},
+		Data: map[string]any{
+			"user_id": "userid",
+			"status":  "active",
+		},
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+	if res.PublishResponse != nil {
+		// handle response
+	}
+}
+
+```
+
+### Override Server URL Per-Client
+
+The default server can also be overridden globally using the `WithServerURL(serverURL string)` option when initializing the SDK client instance. For example:
+```go
+package main
+
+import (
+	"context"
+	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
+	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
 	"log"
 )
 
@@ -443,13 +574,26 @@ func main() {
 
 	s := outpostgo.New(
 		outpostgo.WithServerURL("http://localhost:3333/api/v1"),
+		outpostgo.WithSecurity("<YOUR_BEARER_TOKEN_HERE>"),
 	)
 
-	res, err := s.Health.Check(ctx)
+	res, err := s.Publish(ctx, components.PublishRequest{
+		ID:               outpostgo.Pointer("evt_abc123xyz789"),
+		TenantID:         outpostgo.Pointer("tenant_123"),
+		Topic:            outpostgo.Pointer("user.created"),
+		EligibleForRetry: outpostgo.Pointer(true),
+		Metadata: map[string]string{
+			"source": "crm",
+		},
+		Data: map[string]any{
+			"user_id": "userid",
+			"status":  "active",
+		},
+	})
 	if err != nil {
 		log.Fatal(err)
 	}
-	if res.Object != nil {
+	if res.PublishResponse != nil {
 		// handle response
 	}
 }

@@ -3,10 +3,12 @@
 package components
 
 type PublishResponse struct {
-	// The ID of the event that was accepted for publishing. This will be the ID provided in the request's `id` field if present, otherwise it's a server-generated UUID.
+	// The ID of the event that was accepted for publishing. This will be the ID provided in the request's `id` field if present, otherwise it's a server-generated ID.
 	ID string `json:"id"`
 	// Whether this event was already processed (idempotency hit). If true, the event was not queued again.
 	Duplicate bool `json:"duplicate"`
+	// The IDs of destinations that matched this event. Empty array if no destinations matched.
+	DestinationIds []string `json:"destination_ids"`
 }
 
 func (p *PublishResponse) GetID() string {
@@ -21,4 +23,11 @@ func (p *PublishResponse) GetDuplicate() bool {
 		return false
 	}
 	return p.Duplicate
+}
+
+func (p *PublishResponse) GetDestinationIds() []string {
+	if p == nil {
+		return []string{}
+	}
+	return p.DestinationIds
 }

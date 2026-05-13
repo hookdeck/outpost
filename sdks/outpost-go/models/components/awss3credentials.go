@@ -46,3 +46,6 @@ func (a *Awss3Credentials) GetSession() *string {
 	}
 	return a.Session
 }
+
+// #region class-body-awss3credentials
+// #endregion class-body-awss3credentials

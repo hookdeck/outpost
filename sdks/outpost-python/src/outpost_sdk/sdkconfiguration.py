@@ -10,13 +10,14 @@ from .httpclient import AsyncHttpClient, HttpClient
 from .utils import Logger, RetryConfig, remove_suffix
 from dataclasses import dataclass
 from outpost_sdk import models
-from outpost_sdk.models import internal
 from outpost_sdk.types import OptionalNullable, UNSET
 from pydantic import Field
 from typing import Callable, Dict, Optional, Tuple, Union
 
 
 SERVERS = [
+    "https://api.outpost.hookdeck.com/2025-07-01",
+    # Outpost API (production)
     "http://localhost:3333/api/v1",
     # Local development server base path
 ]
@@ -30,7 +31,6 @@ class SDKConfiguration:
     async_client: Union[AsyncHttpClient, None]
     async_client_supplied: bool
     debug_logger: Logger
-    globals: internal.Globals
     security: Optional[Union[models.Security, Callable[[], models.Security]]] = None
     server_url: Optional[str] = ""
     server_idx: Optional[int] = 0

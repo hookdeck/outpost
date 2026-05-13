@@ -1,0 +1,36 @@
+<section>
+<div>
+
+## Rate Limits
+
+The Outpost API applies rate limits per API key to ensure system stability. The default rate limit is 240 requests per minute. If you need a higher rate limit, [contact us](/contact) to increase it.
+
+> Rate limits are only applicable with managed deployments. Self-hosted deployments do not have rate limits and the operator is responsible for managing the service capacity.
+
+When a rate limit is exceeded, the API returns a `429 Too Many Requests` response. Retry the request after the interval indicated in the `Retry-After` header.
+
+| Header                  | Description                                                |
+| ----------------------- | ---------------------------------------------------------- |
+| `X-RateLimit-Limit`     | Maximum requests allowed in the current window             |
+| `X-RateLimit-Remaining` | Requests remaining in the current window                   |
+| `X-RateLimit-Reset`     | Unix timestamp when the current window resets              |
+| `Retry-After`           | Seconds to wait before retrying (present on 429 responses) |
+
+
+</div>
+<aside>
+
+```text
+HTTP/1.1 429 Too Many Requests
+Retry-After: 1
+X-RateLimit-Limit: 1000
+X-RateLimit-Remaining: 0
+X-RateLimit-Reset: 1704067260
+
+{
+  "error": "rate limit exceeded"
+}
+```
+
+</aside>
+</section>

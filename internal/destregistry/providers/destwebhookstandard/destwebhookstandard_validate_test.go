@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/hookdeck/outpost/internal/destregistry"
-	"github.com/hookdeck/outpost/internal/destregistry/providers/destwebhookstandard"
 	"github.com/hookdeck/outpost/internal/util/maputil"
 	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
@@ -27,8 +26,7 @@ func TestStandardWebhookDestination_Validate(t *testing.T) {
 		}),
 	)
 
-	provider, err := destwebhookstandard.New(testutil.Registry.MetadataLoader(), nil)
-	require.NoError(t, err)
+	provider := newTestProvider(t)
 
 	t.Run("should validate valid destination", func(t *testing.T) {
 		t.Parallel()
@@ -71,6 +69,63 @@ func TestStandardWebhookDestination_Validate(t *testing.T) {
 		assert.ErrorAs(t, err, &validationErr)
 		assert.Equal(t, "config.url", validationErr.Errors[0].Field)
 		assert.Equal(t, "pattern", validationErr.Errors[0].Type)
+	})
+
+	t.Run("should accept valid URLs", func(t *testing.T) {
+		t.Parallel()
+		validURLs := []string{
+			// Standard URLs
+			"https://example.com",
+			"http://example.com",
+			"https://example.com/path",
+			"https://example.com:8080/path",
+			"https://example.com/path?query=value",
+			"https://example.com/path#fragment",
+			"https://sub.example.com/path",
+			"http://localhost:3000/webhook",
+			// Basic Auth URLs
+			"https://user:pass@example.com",
+			"https://user:pass@example.com/path",
+			"https://user:pass@example.com:8080/path",
+			"https://token@example.com/webhook",
+			"https://sam:123444@example.com/api/message",
+			// Percent-encoded URLs (Azure Logic Apps, etc.)
+			"https://example.com/path?param=%2Fencoded%2Fslash",
+			"https://example.com/path%2Fwith%2Fencoded",
+			"https://logic.azure.com/workflows/abc123/triggers/manual?api-version=2016&sp=%2Ftriggers%2Fmanual%2Frun",
+			// IP addresses
+			"http://192.168.1.1:8080/webhook",
+			"http://127.0.0.1/webhook",
+		}
+		for _, url := range validURLs {
+			t.Run(url, func(t *testing.T) {
+				t.Parallel()
+				dest := validDestination
+				dest.Config = map[string]string{"url": url}
+				assert.NoError(t, provider.Validate(context.Background(), &dest))
+			})
+		}
+	})
+
+	t.Run("should reject invalid URLs", func(t *testing.T) {
+		t.Parallel()
+		invalidURLs := []string{
+			"not-a-url",
+			"ftp://example.com",
+			"://missing-scheme.com",
+			"https://",
+			"",
+			"example.com",
+		}
+		for _, url := range invalidURLs {
+			t.Run(url, func(t *testing.T) {
+				t.Parallel()
+				dest := validDestination
+				dest.Config = map[string]string{"url": url}
+				err := provider.Validate(context.Background(), &dest)
+				assert.Error(t, err)
+			})
+		}
 	})
 
 	t.Run("should validate secret without whsec prefix", func(t *testing.T) {
@@ -161,8 +216,7 @@ func TestStandardWebhookDestination_Validate(t *testing.T) {
 func TestStandardWebhookDestination_ValidateCustomHeaders(t *testing.T) {
 	t.Parallel()
 
-	provider, err := destwebhookstandard.New(testutil.Registry.MetadataLoader(), nil)
-	require.NoError(t, err)
+	provider := newTestProvider(t)
 
 	t.Run("should accept valid header names", func(t *testing.T) {
 		t.Parallel()
@@ -307,8 +361,7 @@ func TestStandardWebhookDestination_ValidateCustomHeaders(t *testing.T) {
 func TestStandardWebhookDestination_ComputeTarget(t *testing.T) {
 	t.Parallel()
 
-	provider, err := destwebhookstandard.New(testutil.Registry.MetadataLoader(), nil)
-	require.NoError(t, err)
+	provider := newTestProvider(t)
 
 	t.Run("should return url as target", func(t *testing.T) {
 		t.Parallel()
@@ -326,8 +379,7 @@ func TestStandardWebhookDestination_ComputeTarget(t *testing.T) {
 func TestStandardWebhookDestination_Preprocess(t *testing.T) {
 	t.Parallel()
 
-	provider, err := destwebhookstandard.New(testutil.Registry.MetadataLoader(), nil)
-	require.NoError(t, err)
+	provider := newTestProvider(t)
 
 	t.Run("should generate default whsec secret if not provided", func(t *testing.T) {
 		t.Parallel()
@@ -602,5 +654,71 @@ func TestStandardWebhookDestination_Preprocess(t *testing.T) {
 		assert.Equal(t, "whsec_Q3VycmVudFNlY3JldFN0cmluZw==", newDestination.Credentials["secret"])
 		assert.Equal(t, "whsec_T2xkU2VjcmV0U3RyaW5nMTIz", newDestination.Credentials["previous_secret"])
 		assert.NotEmpty(t, newDestination.Credentials["previous_secret_invalid_at"])
+	})
+}
+
+func TestStandardWebhookDestination_ObfuscateDestination(t *testing.T) {
+	t.Parallel()
+
+	provider := newTestProvider(t)
+
+	t.Run("should keep previous_secret when not expired", func(t *testing.T) {
+		t.Parallel()
+		destination := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithType("webhook"),
+			testutil.DestinationFactory.WithConfig(map[string]string{
+				"url": "https://example.com",
+			}),
+			testutil.DestinationFactory.WithCredentials(map[string]string{
+				"secret":                     "whsec_Q3VycmVudFNlY3JldFN0cmluZw==",
+				"previous_secret":            "whsec_T2xkU2VjcmV0U3RyaW5nMTIz",
+				"previous_secret_invalid_at": time.Now().Add(24 * time.Hour).Format(time.RFC3339),
+			}),
+		)
+
+		result := provider.ObfuscateDestination(&destination)
+		assert.Equal(t, "whsec_Q3VycmVudFNlY3JldFN0cmluZw==", result.Credentials["secret"])
+		assert.Equal(t, "whsec_T2xkU2VjcmV0U3RyaW5nMTIz", result.Credentials["previous_secret"])
+		assert.NotEmpty(t, result.Credentials["previous_secret_invalid_at"])
+	})
+
+	t.Run("should strip previous_secret when expired", func(t *testing.T) {
+		t.Parallel()
+		destination := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithType("webhook"),
+			testutil.DestinationFactory.WithConfig(map[string]string{
+				"url": "https://example.com",
+			}),
+			testutil.DestinationFactory.WithCredentials(map[string]string{
+				"secret":                     "whsec_Q3VycmVudFNlY3JldFN0cmluZw==",
+				"previous_secret":            "whsec_T2xkU2VjcmV0U3RyaW5nMTIz",
+				"previous_secret_invalid_at": time.Now().Add(-1 * time.Hour).Format(time.RFC3339),
+			}),
+		)
+
+		result := provider.ObfuscateDestination(&destination)
+		assert.Equal(t, "whsec_Q3VycmVudFNlY3JldFN0cmluZw==", result.Credentials["secret"])
+		assert.Empty(t, result.Credentials["previous_secret"],
+			"previous_secret should be stripped when expired")
+		assert.Empty(t, result.Credentials["previous_secret_invalid_at"],
+			"previous_secret_invalid_at should be stripped when expired")
+	})
+
+	t.Run("should handle destination without previous_secret", func(t *testing.T) {
+		t.Parallel()
+		destination := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithType("webhook"),
+			testutil.DestinationFactory.WithConfig(map[string]string{
+				"url": "https://example.com",
+			}),
+			testutil.DestinationFactory.WithCredentials(map[string]string{
+				"secret": "whsec_Q3VycmVudFNlY3JldFN0cmluZw==",
+			}),
+		)
+
+		result := provider.ObfuscateDestination(&destination)
+		assert.Equal(t, "whsec_Q3VycmVudFNlY3JldFN0cmluZw==", result.Credentials["secret"])
+		assert.Empty(t, result.Credentials["previous_secret"])
+		assert.Empty(t, result.Credentials["previous_secret_invalid_at"])
 	})
 }

@@ -1,6 +1,6 @@
 module github.com/hookdeck/outpost
 
-go 1.23.0
+go 1.26.0
 
 require (
 	cloud.google.com/go/pubsub v1.41.0
@@ -29,7 +29,6 @@ require (
 	github.com/go-redis/redis v6.15.9+incompatible
 	github.com/golang-jwt/jwt/v5 v5.2.1
 	github.com/golang-migrate/migrate/v4 v4.18.2
-	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
 	github.com/hookdeck/outpost/sdks/outpost-go v0.4.0
 	github.com/jackc/pgx/v5 v5.7.6
@@ -41,7 +40,7 @@ require (
 	github.com/rabbitmq/amqp091-go v1.10.0
 	github.com/redis/go-redis/extra/redisotel/v9 v9.5.3
 	github.com/redis/go-redis/v9 v9.6.1
-	github.com/santhosh-tekuri/jsonschema/v6 v6.0.1
+	github.com/segmentio/kafka-go v0.4.50
 	github.com/spf13/viper v1.19.0
 	github.com/standard-webhooks/standard-webhooks/libraries v0.0.0-20250711233419-a173a6c0125c
 	github.com/stretchr/testify v1.10.0
@@ -51,7 +50,6 @@ require (
 	github.com/testcontainers/testcontainers-go/modules/localstack v0.36.0
 	github.com/testcontainers/testcontainers-go/modules/postgres v0.36.0
 	github.com/testcontainers/testcontainers-go/modules/rabbitmq v0.36.0
-	github.com/testcontainers/testcontainers-go/modules/redis v0.36.0
 	github.com/uptrace/opentelemetry-go-extra/otelzap v0.3.1
 	github.com/urfave/cli/v3 v3.4.1
 	go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin v0.53.0
@@ -208,6 +206,9 @@ require (
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/ugorji/go/codec v1.2.12 // indirect
 	github.com/uptrace/opentelemetry-go-extra/otelutil v0.3.1 // indirect
+	github.com/xdg-go/pbkdf2 v1.0.0 // indirect
+	github.com/xdg-go/scram v1.1.2 // indirect
+	github.com/xdg-go/stringprep v1.0.4 // indirect
 	github.com/yuin/gopher-lua v1.1.1 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	go.opencensus.io v0.24.0 // indirect
@@ -222,7 +223,7 @@ require (
 	golang.org/x/crypto v0.37.0 // indirect
 	golang.org/x/exp v0.0.0-20231006140011-7918f672742d // indirect
 	golang.org/x/mod v0.21.0 // indirect
-	golang.org/x/net v0.36.0 // indirect
+	golang.org/x/net v0.38.0 // indirect
 	golang.org/x/sys v0.32.0 // indirect
 	golang.org/x/text v0.24.0 // indirect
 	golang.org/x/time v0.6.0 // indirect

@@ -65,6 +65,7 @@ func createClusterClient(ctx context.Context, config *RedisConfig) (Client, erro
 	// Start with single node - cluster client will auto-discover other nodes
 	options := &r.ClusterOptions{
 		Addrs:    []string{fmt.Sprintf("%s:%d", config.Host, config.Port)},
+		Username: config.Username,
 		Password: config.Password,
 		// Note: Database is ignored in cluster mode
 	}
@@ -92,7 +93,6 @@ func createClusterClient(ctx context.Context, config *RedisConfig) (Client, erro
 
 	clusterClient := r.NewClusterClient(options)
 
-	// Test connectivity
 	if err := clusterClient.Ping(ctx).Err(); err != nil {
 		return nil, fmt.Errorf("cluster client ping failed: %w", err)
 	}
@@ -103,6 +103,7 @@ func createClusterClient(ctx context.Context, config *RedisConfig) (Client, erro
 func createRegularClient(ctx context.Context, config *RedisConfig) (Client, error) {
 	options := &r.Options{
 		Addr:     fmt.Sprintf("%s:%d", config.Host, config.Port),
+		Username: config.Username,
 		Password: config.Password,
 		DB:       config.Database,
 	}
@@ -116,7 +117,6 @@ func createRegularClient(ctx context.Context, config *RedisConfig) (Client, erro
 
 	regularClient := r.NewClient(options)
 
-	// Test connectivity
 	if err := regularClient.Ping(ctx).Err(); err != nil {
 		return nil, fmt.Errorf("regular client ping failed: %w", err)
 	}

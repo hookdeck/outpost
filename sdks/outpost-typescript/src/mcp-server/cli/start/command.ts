@@ -35,26 +35,9 @@ export const startCommand = buildCommand({
           return z.string().parse(value);
         },
       },
-      "admin-api-key": {
+      "api-key": {
         kind: "parsed",
-        brief: "Sets the adminApiKey auth field for the API",
-        optional: true,
-        parse: (value) => {
-          return z.string().parse(value);
-        },
-      },
-      "tenant-jwt": {
-        kind: "parsed",
-        brief: "Sets the tenantJwt auth field for the API",
-        optional: true,
-        parse: (value) => {
-          return z.string().parse(value);
-        },
-      },
-      "tenant-id": {
-        kind: "parsed",
-        brief:
-          "Allows setting the tenantId parameter for all supported operations",
+        brief: "Sets the apiKey auth field for the API",
         optional: true,
         parse: (value) => {
           return z.string().parse(value);

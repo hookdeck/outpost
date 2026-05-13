@@ -104,12 +104,12 @@ func WithProxyURL(proxyURL string) Option {
 	}
 }
 
-// WithHeaderPrefix sets the prefix for metadata headers (defaults to "webhook-")
+// WithHeaderPrefix sets the prefix for metadata headers.
+// The prefix is trimmed of whitespace. An empty string disables the prefix entirely.
+// Config is responsible for providing the appropriate default ("webhook-" for standard mode).
 func WithHeaderPrefix(prefix string) Option {
 	return func(d *StandardWebhookDestination) {
-		if prefix != "" {
-			d.headerPrefix = prefix
-		}
+		d.headerPrefix = strings.TrimSpace(prefix)
 	}
 }
 
@@ -120,11 +120,13 @@ func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePu
 	}
 	destination := &StandardWebhookDestination{
 		BaseProvider: base,
-		headerPrefix: "webhook-", // Default to Standard Webhooks spec
 	}
 	for _, opt := range opts {
 		opt(destination)
 	}
+	// headerPrefix may be empty (after trimming) to disable prefix entirely — that's valid.
+	// But the caller must have explicitly set it via WithHeaderPrefix.
+	// Config is responsible for providing the appropriate default ("webhook-").
 	return destination, nil
 }
 
@@ -145,11 +147,24 @@ func (d *StandardWebhookDestination) ObfuscateDestination(destination *models.De
 		result.Config[key] = value
 	}
 
-	// Copy credentials as is
+	// Check if previous_secret has expired
+	skipPreviousSecret := false
+	if invalidAtStr := destination.Credentials["previous_secret_invalid_at"]; invalidAtStr != "" {
+		if invalidAt, err := time.Parse(time.RFC3339, invalidAtStr); err == nil {
+			if time.Now().After(invalidAt) {
+				skipPreviousSecret = true
+			}
+		}
+	}
+
+	// Copy credentials, omitting expired previous_secret fields
 	// NOTE: Secrets are intentionally not obfuscated for now because:
 	// 1. They're needed for secret rotation logic
 	// 2. They're less security-critical than other provider credentials
 	for key, value := range destination.Credentials {
+		if skipPreviousSecret && (key == "previous_secret" || key == "previous_secret_invalid_at") {
+			continue
+		}
 		result.Credentials[key] = value
 	}
 
@@ -214,9 +229,10 @@ func (d *StandardWebhookDestination) CreatePublisher(ctx context.Context, destin
 		proxyURL = &d.proxyURL
 	}
 
-	httpClient, err := d.BaseProvider.MakeHTTPClient(destregistry.HTTPClientConfig{
-		UserAgent: &d.userAgent,
-		ProxyURL:  proxyURL,
+	httpClient, err := destregistry.NewHTTPClient(destregistry.HTTPClientConfig{
+		UserAgent:     &d.userAgent,
+		ProxyURL:      proxyURL,
+		WrapTransport: destwebhook.WrapTransport,
 	})
 	if err != nil {
 		return nil, err
@@ -250,7 +266,9 @@ func (d *StandardWebhookDestination) resolveConfig(ctx context.Context, destinat
 				Type:  "invalid",
 			}})
 		}
-		if err := destwebhook.ValidateCustomHeaders(config.CustomHeaders); err != nil {
+		if len(config.CustomHeaders) == 0 {
+			config.CustomHeaders = nil
+		} else if err := destwebhook.ValidateCustomHeaders(config.CustomHeaders); err != nil {
 			return nil, nil, err
 		}
 	}
@@ -545,10 +563,7 @@ func (p *StandardWebhookPublisher) Publish(ctx context.Context, event *models.Ev
 // Format creates an HTTP request formatted according to Standard Webhooks specification
 func (p *StandardWebhookPublisher) Format(ctx context.Context, event *models.Event) (*http.Request, error) {
 	now := time.Now()
-	rawBody, err := json.Marshal(event.Data)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal event data: %w", err)
-	}
+	rawBody := []byte(event.Data)
 
 	req, err := http.NewRequestWithContext(ctx, "POST", p.url, bytes.NewBuffer(rawBody))
 	if err != nil {

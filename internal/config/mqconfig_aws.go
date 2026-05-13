@@ -3,6 +3,7 @@ package config
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/hookdeck/outpost/internal/mqinfra"
 	"github.com/hookdeck/outpost/internal/mqs"
@@ -51,6 +52,7 @@ func (c *AWSSQSConfig) ToQueueConfig(ctx context.Context, queueType string) (*mq
 			ServiceAccountCredentials: c.getCredentials(),
 			Topic:                     c.getQueueName(queueType),
 		},
+		VisibilityTimeout: 60 * time.Second,
 	}, nil
 }
 

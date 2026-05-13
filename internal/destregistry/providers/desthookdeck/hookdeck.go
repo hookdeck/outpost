@@ -109,11 +109,7 @@ func CreateRequest(token *HookdeckToken, event *models.Event, metadata map[strin
 	// Create the Hookdeck URL with the token ID
 	hookdeckURL := fmt.Sprintf("https://hkdk.events/%s", token.ID)
 
-	// Marshal the event data to JSON
-	payloadBytes, err := json.Marshal(event.Data)
-	if err != nil {
-		return nil, ErrJSONMarshalFailed
-	}
+	payloadBytes := []byte(event.Data)
 
 	// Create HMAC signature using the signing key
 	h := hmac.New(sha256.New, []byte(token.SigningKey))

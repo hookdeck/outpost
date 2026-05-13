@@ -1,0 +1,70 @@
+# Generate all three SDKs (Go, Python, TypeScript) after a version tag is created.
+# Runs sequentially to avoid conflicts on the shared .speakeasy/workflow.lock.
+# Uses the reusable sdk-generate-one.yml so logic lives in one place.
+# See contributing/release.md and contributing/sdks.md for the release process and lock file details.
+#
+# Started via workflow_dispatch only. Tag pushes are handled by sdk-generate-on-release-dispatch.yml,
+# which dispatches with ref = tag so the tree matches the release. pr_base_is_main rewires GITHUB_REF
+# for Speakeasy so PRs still target main.
+name: SDK generate on release tag
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Release tag (e.g. v0.15.0). Must match the workflow ref (run from this tag)."
+        required: true
+        type: string
+
+jobs:
+  ensure-release-ref-is-tag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require workflow checkout to match release_tag
+        run: |
+          tag="${{ github.event.inputs.release_tag }}"
+          expected="refs/tags/${tag}"
+          actual="${{ github.ref }}"
+          if [ "$actual" != "$expected" ]; then
+            echo "::error::Run this workflow from tag ${tag} (ref must be ${expected}). In the UI, choose that tag under \"Use workflow from\". Got: ${actual}"
+            exit 1
+          fi
+
+  generate-go:
+    needs: ensure-release-ref-is-tag
+    uses: ./.github/workflows/sdk-generate-one.yml
+    with:
+      target: outpost-go
+      force: true
+      pr_base_is_main: true
+      # SDK version override only when Outpost is released as v1.0.0
+      set_version: ${{ github.event.inputs.release_tag == 'v1.0.0' && '1.0.0' || '' }}
+    secrets:
+      github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      speakeasy_api_key: ${{ secrets.SPEAKEASY_API_KEY }}
+
+  generate-python:
+    needs: generate-go
+    uses: ./.github/workflows/sdk-generate-one.yml
+    with:
+      target: outpost-python
+      force: true
+      pr_base_is_main: true
+      set_version: ${{ github.event.inputs.release_tag == 'v1.0.0' && '1.0.0' || '' }}
+    secrets:
+      github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      speakeasy_api_key: ${{ secrets.SPEAKEASY_API_KEY }}
+      pypi_token: ${{ secrets.PYPI_TOKEN }}
+
+  generate-ts:
+    needs: generate-python
+    uses: ./.github/workflows/sdk-generate-one.yml
+    with:
+      target: outpost-ts
+      force: true
+      pr_base_is_main: true
+      set_version: ${{ github.event.inputs.release_tag == 'v1.0.0' && '1.0.0' || '' }}
+    secrets:
+      github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      speakeasy_api_key: ${{ secrets.SPEAKEASY_API_KEY }}
+      npm_token: ${{ secrets.NPM_TOKEN }}

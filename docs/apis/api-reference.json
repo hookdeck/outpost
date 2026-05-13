@@ -1,0 +1,44 @@
+[
+  {
+    "label": "Introduction",
+    "sections": [
+      { "type": "content", "slug": "introduction" },
+      { "type": "content", "slug": "authentication" },
+      { "type": "content", "slug": "errors" },
+      { "type": "content", "slug": "rate-limit" },
+      { "type": "content", "slug": "openapi" },
+      { "type": "content", "slug": "sdks" }
+    ]
+  },
+  {
+    "label": "Configure",
+    "sections": [
+      { "type": "tag", "tag": "Tenants", "schema": "Tenant" },
+      { "type": "tag", "tag": "Destinations", "schema": "Destination" },
+      { "type": "tag", "tag": "Configuration" }
+    ]
+  },
+  {
+    "label": "Publishing",
+    "sections": [
+      { "type": "tag", "tag": "Publish" },
+      { "type": "tag", "tag": "Retry" }
+    ]
+  },
+  {
+    "label": "Inspect",
+    "sections": [
+      { "type": "tag", "tag": "Events", "schema": "Event" },
+      { "type": "tag", "tag": "Attempts", "schema": "Attempt" },
+      { "type": "tag", "tag": "Metrics" }
+    ]
+  },
+  {
+    "label": "Resources",
+    "sections": [
+      { "type": "tag", "tag": "Schemas", "label": "Destination Types", "schema": "DestinationTypeSchema" },
+      { "type": "tag", "tag": "Topics" },
+      { "type": "tag", "tag": "Health" }
+    ]
+  }
+]

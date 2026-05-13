@@ -71,7 +71,7 @@ func TestDefaultValues(t *testing.T) {
 	assert.Equal(t, "config/outpost/destinations", cfg.Destinations.MetadataPath)
 	assert.Equal(t, 10, cfg.LogBatchThresholdSeconds)
 	assert.Equal(t, 1000, cfg.LogBatchSize)
-	assert.Equal(t, "x-outpost-", cfg.Destinations.Webhook.HeaderPrefix)
+	assert.Equal(t, "", cfg.Destinations.Webhook.HeaderPrefix)
 }
 
 func TestYAMLConfig(t *testing.T) {
@@ -328,7 +328,7 @@ func TestDestinationConfig(t *testing.T) {
 			name:    "default header prefix",
 			files:   map[string][]byte{},
 			envVars: map[string]string{},
-			want:    "x-outpost-",
+			want:    "",
 		},
 		{
 			name: "yaml config header prefix",
@@ -358,6 +358,28 @@ destinations:
 				"DESTINATIONS_WEBHOOK_HEADER_PREFIX": "x-env-",
 			},
 			want: "x-env-",
+		},
+		{
+			name: "whitespace disables prefix via yaml",
+			files: map[string][]byte{
+				"config.yaml": []byte(`
+destinations:
+  webhook:
+    header_prefix: " "
+`),
+			},
+			envVars: map[string]string{
+				"CONFIG": "config.yaml",
+			},
+			want: " ",
+		},
+		{
+			name:  "whitespace disables prefix via env",
+			files: map[string][]byte{},
+			envVars: map[string]string{
+				"DESTINATIONS_WEBHOOK_HEADER_PREFIX": " ",
+			},
+			want: " ",
 		},
 	}
 

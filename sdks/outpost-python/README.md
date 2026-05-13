@@ -24,7 +24,6 @@ Outpost API: The Outpost API is a REST-based JSON API for managing tenants, dest
   * [SDK Example Usage](#sdk-example-usage)
   * [Authentication](#authentication)
   * [Available Resources and Operations](#available-resources-and-operations)
-  * [Global Parameters](#global-parameters)
   * [Pagination](#pagination)
   * [Retries](#retries)
   * [Error Handling](#error-handling)
@@ -85,7 +84,7 @@ It's also possible to write a standalone Python script without needing to set up
 ```python
 #!/usr/bin/env -S uv run --script
 # /// script
-# requires-python = ">=3.9"
+# requires-python = ">=3.10"
 # dependencies = [
 #     "outpost_sdk",
 # ]
@@ -124,9 +123,23 @@ Generally, the SDK will work well with most IDEs out of the box. However, when u
 from outpost_sdk import Outpost
 
 
-with Outpost() as outpost:
+with Outpost(
+    api_key="<YOUR_BEARER_TOKEN_HERE>",
+) as outpost:
 
-    res = outpost.health.check()
+    res = outpost.publish(request={
+        "id": "evt_abc123xyz789",
+        "tenant_id": "tenant_123",
+        "topic": "user.created",
+        "eligible_for_retry": True,
+        "metadata": {
+            "source": "crm",
+        },
+        "data": {
+            "user_id": "userid",
+            "status": "active",
+        },
+    })
 
     # Handle response
     print(res)
@@ -143,9 +156,23 @@ from outpost_sdk import Outpost
 
 async def main():
 
-    async with Outpost() as outpost:
+    async with Outpost(
+        api_key="<YOUR_BEARER_TOKEN_HERE>",
+    ) as outpost:
 
-        res = await outpost.health.check_async()
+        res = await outpost.publish_async(request={
+            "id": "evt_abc123xyz789",
+            "tenant_id": "tenant_123",
+            "topic": "user.created",
+            "eligible_for_retry": True,
+            "metadata": {
+                "source": "crm",
+            },
+            "data": {
+                "user_id": "userid",
+                "status": "active",
+            },
+        })
 
         # Handle response
         print(res)
@@ -159,25 +186,34 @@ asyncio.run(main())
 
 ### Per-Client Security Schemes
 
-This SDK supports the following security schemes globally:
+This SDK supports the following security scheme globally:
 
-| Name            | Type | Scheme      |
-| --------------- | ---- | ----------- |
-| `admin_api_key` | http | HTTP Bearer |
-| `tenant_jwt`    | http | HTTP Bearer |
+| Name      | Type | Scheme      |
+| --------- | ---- | ----------- |
+| `api_key` | http | HTTP Bearer |
 
-You can set the security parameters through the `security` optional parameter when initializing the SDK client instance. The selected scheme will be used by default to authenticate with the API for all operations that support it. For example:
+To authenticate with the API the `api_key` parameter must be set when initializing the SDK client instance. For example:
 ```python
-from outpost_sdk import Outpost, models
+from outpost_sdk import Outpost
 
 
 with Outpost(
-    security=models.Security(
-        admin_api_key="<YOUR_BEARER_TOKEN_HERE>",
-    ),
+    api_key="<YOUR_BEARER_TOKEN_HERE>",
 ) as outpost:
 
-    res = outpost.health.check()
+    res = outpost.publish(request={
+        "id": "evt_abc123xyz789",
+        "tenant_id": "tenant_123",
+        "topic": "user.created",
+        "eligible_for_retry": True,
+        "metadata": {
+            "source": "crm",
+        },
+        "data": {
+            "user_id": "userid",
+            "status": "active",
+        },
+    })
 
     # Handle response
     print(res)
@@ -191,6 +227,21 @@ with Outpost(
 <details open>
 <summary>Available methods</summary>
 
+### [Outpost SDK](docs/sdks/outpost/README.md)
+
+* [publish](docs/sdks/outpost/README.md#publish) - Publish Event
+* [retry](docs/sdks/outpost/README.md#retry) - Retry Event Delivery
+
+### [Attempts](docs/sdks/attempts/README.md)
+
+* [list](docs/sdks/attempts/README.md#list) - List Attempts
+* [get](docs/sdks/attempts/README.md#get) - Get Attempt
+
+### [Configuration](docs/sdks/configuration/README.md)
+
+* [get_managed_config](docs/sdks/configuration/README.md#get_managed_config) - Get Managed Configuration
+* [update_managed_config](docs/sdks/configuration/README.md#update_managed_config) - Update Managed Configuration
+
 ### [Destinations](docs/sdks/destinations/README.md)
 
 * [list](docs/sdks/destinations/README.md#list) - List Destinations
@@ -200,34 +251,31 @@ with Outpost(
 * [delete](docs/sdks/destinations/README.md#delete) - Delete Destination
 * [enable](docs/sdks/destinations/README.md#enable) - Enable Destination
 * [disable](docs/sdks/destinations/README.md#disable) - Disable Destination
+* [list_attempts](docs/sdks/destinations/README.md#list_attempts) - List Destination Attempts
+* [get_attempt](docs/sdks/destinations/README.md#get_attempt) - Get Destination Attempt
 
 ### [Events](docs/sdks/events/README.md)
 
 * [list](docs/sdks/events/README.md#list) - List Events
 * [get](docs/sdks/events/README.md#get) - Get Event
-* [list_deliveries](docs/sdks/events/README.md#list_deliveries) - List Event Delivery Attempts
-* [list_by_destination](docs/sdks/events/README.md#list_by_destination) - List Events by Destination
-* [get_by_destination](docs/sdks/events/README.md#get_by_destination) - Get Event by Destination
-* [retry](docs/sdks/events/README.md#retry) - Retry Event Delivery
 
 ### [Health](docs/sdks/health/README.md)
 
 * [check](docs/sdks/health/README.md#check) - Health Check
 
-### [Publish](docs/sdks/publish/README.md)
+### [Metrics](docs/sdks/metrics/README.md)
 
-* [event](docs/sdks/publish/README.md#event) - Publish Event
+* [get_event_metrics](docs/sdks/metrics/README.md#get_event_metrics) - Get Event Metrics
+* [get_attempt_metrics](docs/sdks/metrics/README.md#get_attempt_metrics) - Get Attempt Metrics
 
 ### [Schemas](docs/sdks/schemas/README.md)
 
-* [list_tenant_destination_types](docs/sdks/schemas/README.md#list_tenant_destination_types) - List Destination Type Schemas (for Tenant)
-* [get](docs/sdks/schemas/README.md#get) - Get Destination Type Schema (for Tenant)
-* [list_destination_types_jwt](docs/sdks/schemas/README.md#list_destination_types_jwt) - List Destination Type Schemas (JWT Auth)
-* [get_destination_type_jwt](docs/sdks/schemas/README.md#get_destination_type_jwt) - Get Destination Type Schema
+* [list_destination_types](docs/sdks/schemas/README.md#list_destination_types) - List Destination Type Schemas
+* [get_destination_type](docs/sdks/schemas/README.md#get_destination_type) - Get Destination Type Schema
 
 ### [Tenants](docs/sdks/tenants/README.md)
 
-* [list_tenants](docs/sdks/tenants/README.md#list_tenants) - List Tenants
+* [list](docs/sdks/tenants/README.md#list) - List Tenants
 * [upsert](docs/sdks/tenants/README.md#upsert) - Create or Update Tenant
 * [get](docs/sdks/tenants/README.md#get) - Get Tenant
 * [delete](docs/sdks/tenants/README.md#delete) - Delete Tenant
@@ -236,48 +284,10 @@ with Outpost(
 
 ### [Topics](docs/sdks/topicssdk/README.md)
 
-* [list](docs/sdks/topicssdk/README.md#list) - List Available Topics (for Tenant)
-* [list_jwt](docs/sdks/topicssdk/README.md#list_jwt) - List Available Topics)
+* [list](docs/sdks/topicssdk/README.md#list) - List Available Topics
 
 </details>
 <!-- End Available Resources and Operations [operations] -->
-
-<!-- Start Global Parameters [global-parameters] -->
-## Global Parameters
-
-A parameter is configured globally. This parameter may be set on the SDK client instance itself during initialization. When configured as an option during SDK initialization, This global value will be used as the default on the operations that use it. When such operations are called, there is a place in each to override the global value, if needed.
-
-For example, you can set `tenant_id` to `"<id>"` at SDK initialization and then you do not have to pass the same value on calls to operations like `upsert`. But if you want to do so you may, which will locally override the global setting. See the example code below for a demonstration.
-
-
-### Available Globals
-
-The following global parameter is available.
-
-| Name      | Type | Description              |
-| --------- | ---- | ------------------------ |
-| tenant_id | str  | The tenant_id parameter. |
-
-### Example
-
-```python
-from outpost_sdk import Outpost, models
-
-
-with Outpost(
-    tenant_id="<id>",
-    security=models.Security(
-        admin_api_key="<YOUR_BEARER_TOKEN_HERE>",
-    ),
-) as outpost:
-
-    res = outpost.tenants.upsert()
-
-    # Handle response
-    print(res)
-
-```
-<!-- End Global Parameters [global-parameters] -->
 
 <!-- Start Pagination [pagination] -->
 ## Pagination
@@ -288,17 +298,14 @@ return value of `Next` is `None`, then there are no more pages to be fetched.
 
 Here's an example of one such pagination call:
 ```python
-from outpost_sdk import Outpost, models
+from outpost_sdk import Outpost
 
 
 with Outpost(
-    tenant_id="<id>",
-    security=models.Security(
-        admin_api_key="<YOUR_BEARER_TOKEN_HERE>",
-    ),
+    api_key="<YOUR_BEARER_TOKEN_HERE>",
 ) as outpost:
 
-    res = outpost.events.list(limit=100)
+    res = outpost.tenants.list(request={})
 
     while res is not None:
         # Handle items
@@ -319,9 +326,23 @@ from outpost_sdk import Outpost
 from outpost_sdk.utils import BackoffStrategy, RetryConfig
 
 
-with Outpost() as outpost:
+with Outpost(
+    api_key="<YOUR_BEARER_TOKEN_HERE>",
+) as outpost:
 
-    res = outpost.health.check(,
+    res = outpost.publish(request={
+        "id": "evt_abc123xyz789",
+        "tenant_id": "tenant_123",
+        "topic": "user.created",
+        "eligible_for_retry": True,
+        "metadata": {
+            "source": "crm",
+        },
+        "data": {
+            "user_id": "userid",
+            "status": "active",
+        },
+    },
         RetryConfig("backoff", BackoffStrategy(1, 50, 1.1, 100), False))
 
     # Handle response
@@ -337,9 +358,22 @@ from outpost_sdk.utils import BackoffStrategy, RetryConfig
 
 with Outpost(
     retry_config=RetryConfig("backoff", BackoffStrategy(1, 50, 1.1, 100), False),
+    api_key="<YOUR_BEARER_TOKEN_HERE>",
 ) as outpost:
 
-    res = outpost.health.check()
+    res = outpost.publish(request={
+        "id": "evt_abc123xyz789",
+        "tenant_id": "tenant_123",
+        "topic": "user.created",
+        "eligible_for_retry": True,
+        "metadata": {
+            "source": "crm",
+        },
+        "data": {
+            "user_id": "userid",
+            "status": "active",
+        },
+    })
 
     # Handle response
     print(res)
@@ -366,11 +400,25 @@ with Outpost(
 from outpost_sdk import Outpost, errors
 
 
-with Outpost() as outpost:
+with Outpost(
+    api_key="<YOUR_BEARER_TOKEN_HERE>",
+) as outpost:
     res = None
     try:
 
-        res = outpost.health.check()
+        res = outpost.publish(request={
+            "id": "evt_abc123xyz789",
+            "tenant_id": "tenant_123",
+            "topic": "user.created",
+            "eligible_for_retry": True,
+            "metadata": {
+                "source": "crm",
+            },
+            "data": {
+                "user_id": "userid",
+                "status": "active",
+            },
+        })
 
         # Handle response
         print(res)
@@ -391,10 +439,12 @@ with Outpost() as outpost:
 ```
 
 ### Error Classes
-**Primary error:**
+**Primary errors:**
 * [`OutpostError`](./src/outpost_sdk/errors/outposterror.py): The base class for HTTP error responses.
+  * [`UnauthorizedError`](./src/outpost_sdk/errors/unauthorizederror.py): A collection of codes that generally means the client was not authenticated correctly for the request they want to make.
+  * [`InternalServerError`](./src/outpost_sdk/errors/internalservererror.py): A collection of status codes that generally mean the server failed in an unexpected way.
 
-<details><summary>Less common errors (13)</summary>
+<details><summary>Less common errors (11)</summary>
 
 <br />
 
@@ -405,14 +455,12 @@ with Outpost() as outpost:
 
 
 **Inherit from [`OutpostError`](./src/outpost_sdk/errors/outposterror.py)**:
-* [`BadRequestError`](./src/outpost_sdk/errors/badrequesterror.py): A collection of codes that generally means the end user got something wrong in making the request. Applicable to 5 of 27 methods.*
-* [`UnauthorizedError`](./src/outpost_sdk/errors/unauthorizederror.py): A collection of codes that generally means the client was not authenticated correctly for the request they want to make. Applicable to 5 of 27 methods.*
-* [`NotFoundError`](./src/outpost_sdk/errors/notfounderror.py): Status codes relating to the resource/entity they are requesting not being found or endpoints/routes not existing. Applicable to 5 of 27 methods.*
-* [`TimeoutErrorT`](./src/outpost_sdk/errors/timeouterrort.py): Timeouts occurred with the request. Applicable to 5 of 27 methods.*
-* [`RateLimitedError`](./src/outpost_sdk/errors/ratelimitederror.py): Status codes relating to the client being rate limited by the server. Status code `429`. Applicable to 5 of 27 methods.*
-* [`InternalServerError`](./src/outpost_sdk/errors/internalservererror.py): A collection of status codes that generally mean the server failed in an unexpected way. Applicable to 5 of 27 methods.*
-* [`ListTenantsBadRequestError`](./src/outpost_sdk/errors/listtenantsbadrequesterror.py): Invalid request parameters (e.g., invalid cursor, both next and prev provided). Status code `400`. Applicable to 1 of 27 methods.*
-* [`NotImplementedErrorT`](./src/outpost_sdk/errors/notimplementederrort.py): List Tenants feature is not available. Requires Redis with RediSearch module. Status code `501`. Applicable to 1 of 27 methods.*
+* [`NotFoundError`](./src/outpost_sdk/errors/notfounderror.py): Status codes relating to the resource/entity they are requesting not being found or endpoints/routes not existing. Applicable to 21 of 29 methods.*
+* [`BadRequestError`](./src/outpost_sdk/errors/badrequesterror.py): A collection of codes that generally means the end user got something wrong in making the request. Applicable to 9 of 29 methods.*
+* [`APIErrorResponse`](./src/outpost_sdk/errors/apierrorresponse.py): Standard error response format. Applicable to 6 of 29 methods.*
+* [`TimeoutErrorT`](./src/outpost_sdk/errors/timeouterrort.py): Timeouts occurred with the request. Applicable to 5 of 29 methods.*
+* [`RateLimitedError`](./src/outpost_sdk/errors/ratelimitederror.py): Status codes relating to the client being rate limited by the server. Status code `429`. Applicable to 5 of 29 methods.*
+* [`NotImplementedErrorT`](./src/outpost_sdk/errors/notimplementederrort.py): List Tenants feature is not available. Requires Redis with RediSearch module. Status code `501`. Applicable to 1 of 29 methods.*
 * [`ResponseValidationError`](./src/outpost_sdk/errors/responsevalidationerror.py): Type mismatch between the response data and the expected Pydantic model. Provides access to the Pydantic validation error via the `cause` attribute.
 
 </details>
@@ -423,18 +471,70 @@ with Outpost() as outpost:
 <!-- Start Server Selection [server] -->
 ## Server Selection
 
+### Select Server by Index
+
+You can override the default server globally by passing a server index to the `server_idx: int` optional parameter when initializing the SDK client instance. The selected server will then be used as the default on the operations that use it. This table lists the indexes associated with the available servers:
+
+| #   | Server                                        | Description                        |
+| --- | --------------------------------------------- | ---------------------------------- |
+| 0   | `https://api.outpost.hookdeck.com/2025-07-01` | Outpost API (production)           |
+| 1   | `http://localhost:3333/api/v1`                | Local development server base path |
+
+#### Example
+
+```python
+from outpost_sdk import Outpost
+
+
+with Outpost(
+    server_idx=0,
+    api_key="<YOUR_BEARER_TOKEN_HERE>",
+) as outpost:
+
+    res = outpost.publish(request={
+        "id": "evt_abc123xyz789",
+        "tenant_id": "tenant_123",
+        "topic": "user.created",
+        "eligible_for_retry": True,
+        "metadata": {
+            "source": "crm",
+        },
+        "data": {
+            "user_id": "userid",
+            "status": "active",
+        },
+    })
+
+    # Handle response
+    print(res)
+
+```
+
 ### Override Server URL Per-Client
 
-The default server can be overridden globally by passing a URL to the `server_url: str` optional parameter when initializing the SDK client instance. For example:
+The default server can also be overridden globally by passing a URL to the `server_url: str` optional parameter when initializing the SDK client instance. For example:
 ```python
 from outpost_sdk import Outpost
 
 
 with Outpost(
     server_url="http://localhost:3333/api/v1",
+    api_key="<YOUR_BEARER_TOKEN_HERE>",
 ) as outpost:
 
-    res = outpost.health.check()
+    res = outpost.publish(request={
+        "id": "evt_abc123xyz789",
+        "tenant_id": "tenant_123",
+        "topic": "user.created",
+        "eligible_for_retry": True,
+        "metadata": {
+            "source": "crm",
+        },
+        "data": {
+            "user_id": "userid",
+            "status": "active",
+        },
+    })
 
     # Handle response
     print(res)
@@ -534,14 +634,18 @@ The `Outpost` class implements the context manager protocol and registers a fina
 from outpost_sdk import Outpost
 def main():
 
-    with Outpost() as outpost:
+    with Outpost(
+        api_key="<YOUR_BEARER_TOKEN_HERE>",
+    ) as outpost:
         # Rest of application here...
 
 
 # Or when using async:
 async def amain():
 
-    async with Outpost() as outpost:
+    async with Outpost(
+        api_key="<YOUR_BEARER_TOKEN_HERE>",
+    ) as outpost:
         # Rest of application here...
 ```
 <!-- End Resource Management [resource-management] -->

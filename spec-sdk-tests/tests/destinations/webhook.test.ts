@@ -63,14 +63,21 @@ describe('Webhook Destinations - Contract Tests (SDK-based validation)', () => {
       expect(destination.config.url).to.equal(destinationData.config.url);
     });
 
-    it('should create a webhook destination with array of topics', async () => {
+    it('should create a webhook destination with array of topics', async function () {
+      const sdk = client.getSDK();
+      const instanceTopics = await sdk.topics.list();
+      if (instanceTopics.length < 2) {
+        this.skip();
+        return;
+      }
+      const topicsToUse = instanceTopics.slice(0, 2);
       const destinationData = createWebhookDestination({
-        topics: TEST_TOPICS,
+        topics: topicsToUse,
       });
       const destination = await client.createDestination(destinationData);
 
-      expect(destination.topics).to.have.lengthOf(TEST_TOPICS.length);
-      TEST_TOPICS.forEach((topic) => {
+      expect(destination.topics).to.have.lengthOf(topicsToUse.length);
+      topicsToUse.forEach((topic: string) => {
         expect(destination.topics).to.include(topic);
       });
 

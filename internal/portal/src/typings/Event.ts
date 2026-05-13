@@ -1,6 +1,8 @@
 // Event is stateless - represents the original event without delivery status
 interface Event {
   id: string;
+  tenant_id: string;
+  destination_id: string;
   topic: string;
   time: string;
   eligible_for_retry: boolean;
@@ -11,6 +13,8 @@ interface Event {
 // EventSummary is the event object when expand=event (without data)
 interface EventSummary {
   id: string;
+  tenant_id: string;
+  destination_id: string;
   topic: string;
   time: string;
   eligible_for_retry: boolean;
@@ -22,36 +26,46 @@ interface EventFull extends EventSummary {
   data?: Record<string, unknown>;
 }
 
-// Delivery represents a delivery attempt for an event to a destination
-interface Delivery {
+// Attempt represents a delivery attempt for an event to a destination
+interface Attempt {
   id: string;
+  tenant_id: string;
+  event_id: string;
+  destination_id: string;
   status: "success" | "failed";
-  delivered_at: string;
+  time: string;
   code?: string;
   response_data?: Record<string, unknown>;
-  attempt: number;
-  // Expandable fields - string (ID) or object depending on expand param
-  event: string | EventSummary | EventFull;
-  destination: string;
+  attempt_number: number;
+  manual: boolean;
+  // Expandable field - only present when using include=event
+  event?: EventSummary | EventFull;
 }
 
-interface DeliveryListResponse {
-  data: Delivery[];
-  next?: string;
-  prev?: string;
+interface SeekPagination {
+  order_by: string;
+  dir: "asc" | "desc";
+  limit: number;
+  next: string | null;
+  prev: string | null;
+}
+
+interface AttemptListResponse {
+  models: Attempt[];
+  pagination: SeekPagination;
 }
 
 interface EventListResponse {
-  data: Event[];
-  next?: string;
-  prev?: string;
+  models: Event[];
+  pagination: SeekPagination;
 }
 
 export type {
   Event,
   EventSummary,
   EventFull,
-  Delivery,
-  DeliveryListResponse,
+  Attempt,
+  SeekPagination,
+  AttemptListResponse,
   EventListResponse,
 };

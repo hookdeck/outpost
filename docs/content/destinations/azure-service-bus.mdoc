@@ -1,0 +1,80 @@
+---
+title: "Azure Service Bus"
+description: "Send events to an Azure Service Bus queue or topic with metadata as application properties."
+---
+
+Send events to an Azure Service Bus queue or topic.
+
+## Creating an Azure Service Bus Destination
+
+```sh
+curl '{% $OUTPOST_API_BASE_URL %}/tenants/<TENANT_ID>/destinations' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer <API_KEY>' \
+--data '{
+  "type": "azure_servicebus",
+  "topics": ["orders"],
+  "config": {
+    "name": "my-queue"
+  },
+  "credentials": {
+    "connection_string": "Endpoint=sb://my-namespace.servicebus.windows.net/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=<KEY>"
+  }
+}'
+```
+
+## Configuration
+
+### Config
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `config.name` | string | Yes | The Service Bus queue or topic name |
+
+### Credentials
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `credentials.connection_string` | string | Yes | Azure Service Bus connection string |
+
+## Message Format
+
+Events are sent as Service Bus messages:
+
+- **Body**: The event's `data` field as JSON
+- **Application Properties**: System metadata (`event-id`, `topic`, `timestamp`) plus any event metadata from the published event
+
+### Example
+
+Publishing this event:
+
+```json
+{
+  "topic": "orders",
+  "data": { "order_id": "123", "status": "created" },
+  "metadata": { "source": "checkout-service" }
+}
+```
+
+Results in a Service Bus message with:
+
+**Body:**
+```json
+{"order_id": "123", "status": "created"}
+```
+
+**Application Properties:**
+
+| Property | Value |
+|----------|-------|
+| `event-id` | `evt_123` |
+| `topic` | `orders` |
+| `timestamp` | `1704067200` |
+| `source` | `checkout-service` |
+
+## Getting a Connection String
+
+1. Navigate to your Service Bus namespace in the Azure Portal
+2. Go to **Shared access policies**
+3. Select or create a policy with **Send** permission
+4. Copy the **Primary Connection String**

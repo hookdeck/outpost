@@ -15,5 +15,6 @@ func AbortWithError(c *gin.Context, code int, err error) {
 func AbortWithValidationError(c *gin.Context, err error) {
 	errorResponse := ErrorResponse{}
 	errorResponse.Parse(err)
+	errorResponse.Code = http.StatusUnprocessableEntity
 	AbortWithError(c, http.StatusUnprocessableEntity, errorResponse)
 }

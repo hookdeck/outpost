@@ -17,9 +17,7 @@ interface StartCommandFlags {
   readonly transport: "stdio" | "sse";
   readonly port: number;
   readonly tool?: string[];
-  readonly "admin-api-key"?: string | undefined;
-  readonly "tenant-jwt"?: string | undefined;
-  readonly "tenant-id"?: SDKOptions["tenantId"] | undefined;
+  readonly "api-key"?: string | undefined;
   readonly "server-url"?: string;
   readonly "server-index"?: SDKOptions["serverIdx"];
   readonly "log-level": ConsoleLoggerLevel;
@@ -49,11 +47,8 @@ async function startStdio(flags: StartCommandFlags) {
   const server = createMCPServer({
     logger,
     allowedTools: flags.tool,
-    security: {
-      adminApiKey: flags["admin-api-key"] ?? "",
-      tenantJwt: flags["tenant-jwt"] ?? "",
-    },
-    tenantId: flags["tenant-id"],
+    apiKey: flags["api-key"] ?? "",
+
     serverURL: flags["server-url"],
     serverIdx: flags["server-index"],
   });
@@ -73,11 +68,8 @@ async function startSSE(flags: StartCommandFlags) {
   const mcpServer = createMCPServer({
     logger,
     allowedTools: flags.tool,
-    security: {
-      adminApiKey: flags["admin-api-key"] ?? "",
-      tenantJwt: flags["tenant-jwt"] ?? "",
-    },
-    tenantId: flags["tenant-id"],
+    apiKey: flags["api-key"] ?? "",
+
     serverURL: flags["server-url"],
     serverIdx: flags["server-index"],
   });

@@ -1,6 +1,8 @@
 package apirouter
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"time"
@@ -13,14 +15,18 @@ import (
 	"github.com/hookdeck/outpost/internal/publishmq"
 )
 
+type eventHandler interface {
+	Handle(ctx context.Context, event *models.Event) (*publishmq.HandleResult, error)
+}
+
 type PublishHandlers struct {
 	logger       *logging.Logger
-	eventHandler publishmq.EventHandler
+	eventHandler eventHandler
 }
 
 func NewPublishHandlers(
 	logger *logging.Logger,
-	eventHandler publishmq.EventHandler,
+	eventHandler eventHandler,
 ) *PublishHandlers {
 	return &PublishHandlers{
 		logger:       logger,
@@ -34,6 +40,17 @@ func (h *PublishHandlers) Ingest(c *gin.Context) {
 		AbortWithValidationError(c, err)
 		return
 	}
+	// json.RawMessage is []byte, so binding:"required" only checks non-nil.
+	// We must reject null, invalid JSON, and non-object types (strings,
+	// numbers, arrays) since the system expects data to be a JSON object.
+	if !json.Valid(publishedEvent.Data) || publishedEvent.Data[0] != '{' {
+		AbortWithValidationError(c, ErrorResponse{
+			Code:    http.StatusUnprocessableEntity,
+			Message: "validation error",
+			Data:    []string{"data must be a valid JSON object"},
+		})
+		return
+	}
 	event := publishedEvent.toEvent()
 	result, err := h.eventHandler.Handle(c.Request.Context(), &event)
 	if err != nil {
@@ -44,18 +61,14 @@ func (h *PublishHandlers) Ingest(c *gin.Context) {
 				Code:    http.StatusUnprocessableEntity,
 				Message: "validation error",
 				Err:     err,
-				Data: map[string]string{
-					"topic": "required",
-				},
+				Data:    []string{"topic is required"},
 			})
 		} else if errors.Is(err, publishmq.ErrInvalidTopic) {
 			AbortWithValidationError(c, ErrorResponse{
 				Code:    http.StatusUnprocessableEntity,
 				Message: "validation error",
 				Err:     err,
-				Data: map[string]string{
-					"topic": "invalid",
-				},
+				Data:    []string{"topic is invalid"},
 			})
 		} else {
 			AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
@@ -66,14 +79,14 @@ func (h *PublishHandlers) Ingest(c *gin.Context) {
 }
 
 type PublishedEvent struct {
-	ID               string                 `json:"id"`
-	TenantID         string                 `json:"tenant_id" binding:"required"`
-	DestinationID    string                 `json:"destination_id"`
-	Topic            string                 `json:"topic"`
-	EligibleForRetry *bool                  `json:"eligible_for_retry"`
-	Time             time.Time              `json:"time"`
-	Metadata         map[string]string      `json:"metadata"`
-	Data             map[string]interface{} `json:"data"`
+	ID               string            `json:"id"`
+	TenantID         string            `json:"tenant_id" binding:"required"`
+	DestinationID    string            `json:"destination_id"`
+	Topic            string            `json:"topic"`
+	EligibleForRetry *bool             `json:"eligible_for_retry"`
+	Time             time.Time         `json:"time"`
+	Metadata         map[string]string `json:"metadata"`
+	Data             json.RawMessage   `json:"data" binding:"required"`
 }
 
 func (p *PublishedEvent) toEvent() models.Event {

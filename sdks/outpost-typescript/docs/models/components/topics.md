@@ -15,7 +15,8 @@ const value: components.TopicsEnum = "*";
 
 ```typescript
 const value: string[] = [
-  "*",
+  "<value 1>",
+  "<value 2>",
 ];
 ```
 

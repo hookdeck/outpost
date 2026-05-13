@@ -1,0 +1,144 @@
+overlay: 1.0.0
+x-speakeasy-jsonpath: rfc9535
+info:
+  title: Go Array Query Params
+  version: 0.0.1
+  x-speakeasy-metadata:
+    type: go-array-params
+    description: "Replace oneOf [string, array] query params with plain arrays for cleaner Go SDK types"
+extends: ../../docs/apis/openapi.yaml
+actions:
+  # GET /tenants: id
+  - target: $["paths"]["/tenants"]["get"]["parameters"][?@.name == 'id']["schema"]["oneOf"]
+    remove: true
+  - target: $["paths"]["/tenants"]["get"]["parameters"][?@.name == 'id']["schema"]
+    update:
+      type: array
+      items:
+        type: string
+
+  # GET /events: id, tenant_id, topic
+  - target: $["paths"]["/events"]["get"]["parameters"][?@.name == 'id']["schema"]["oneOf"]
+    remove: true
+  - target: $["paths"]["/events"]["get"]["parameters"][?@.name == 'id']["schema"]
+    update:
+      type: array
+      items:
+        type: string
+
+  - target: $["paths"]["/events"]["get"]["parameters"][?@.name == 'tenant_id']["schema"]["oneOf"]
+    remove: true
+  - target: $["paths"]["/events"]["get"]["parameters"][?@.name == 'tenant_id']["schema"]
+    update:
+      type: array
+      items:
+        type: string
+
+  - target: $["paths"]["/events"]["get"]["parameters"][?@.name == 'topic']["schema"]["oneOf"]
+    remove: true
+  - target: $["paths"]["/events"]["get"]["parameters"][?@.name == 'topic']["schema"]
+    update:
+      type: array
+      items:
+        type: string
+
+  # GET /attempts: tenant_id, event_id, destination_id, topic, include
+  - target: $["paths"]["/attempts"]["get"]["parameters"][?@.name == 'tenant_id']["schema"]["oneOf"]
+    remove: true
+  - target: $["paths"]["/attempts"]["get"]["parameters"][?@.name == 'tenant_id']["schema"]
+    update:
+      type: array
+      items:
+        type: string
+
+  - target: $["paths"]["/attempts"]["get"]["parameters"][?@.name == 'event_id']["schema"]["oneOf"]
+    remove: true
+  - target: $["paths"]["/attempts"]["get"]["parameters"][?@.name == 'event_id']["schema"]
+    update:
+      type: array
+      items:
+        type: string
+
+  - target: $["paths"]["/attempts"]["get"]["parameters"][?@.name == 'destination_id']["schema"]["oneOf"]
+    remove: true
+  - target: $["paths"]["/attempts"]["get"]["parameters"][?@.name == 'destination_id']["schema"]
+    update:
+      type: array
+      items:
+        type: string
+
+  - target: $["paths"]["/attempts"]["get"]["parameters"][?@.name == 'topic']["schema"]["oneOf"]
+    remove: true
+  - target: $["paths"]["/attempts"]["get"]["parameters"][?@.name == 'topic']["schema"]
+    update:
+      type: array
+      items:
+        type: string
+
+  - target: $["paths"]["/attempts"]["get"]["parameters"][?@.name == 'include']["schema"]["oneOf"]
+    remove: true
+  - target: $["paths"]["/attempts"]["get"]["parameters"][?@.name == 'include']["schema"]
+    update:
+      type: array
+      items:
+        type: string
+
+  # GET /attempts/{attempt_id}: include
+  - target: $["paths"]["/attempts/{attempt_id}"]["get"]["parameters"][?@.name == 'include']["schema"]["oneOf"]
+    remove: true
+  - target: $["paths"]["/attempts/{attempt_id}"]["get"]["parameters"][?@.name == 'include']["schema"]
+    update:
+      type: array
+      items:
+        type: string
+
+  # GET /tenants/{tenant_id}/destinations: type (DestinationType), topics
+  - target: $["paths"]["/tenants/{tenant_id}/destinations"]["get"]["parameters"][?@.name == 'type']["schema"]["oneOf"]
+    remove: true
+  - target: $["paths"]["/tenants/{tenant_id}/destinations"]["get"]["parameters"][?@.name == 'type']["schema"]
+    update:
+      type: array
+      items:
+        $ref: "#/components/schemas/DestinationType"
+
+  - target: $["paths"]["/tenants/{tenant_id}/destinations"]["get"]["parameters"][?@.name == 'topics']["schema"]["oneOf"]
+    remove: true
+  - target: $["paths"]["/tenants/{tenant_id}/destinations"]["get"]["parameters"][?@.name == 'topics']["schema"]
+    update:
+      type: array
+      items:
+        type: string
+
+  # GET /tenants/{tenant_id}/destinations/{destination_id}/attempts: event_id, topic, include
+  - target: $["paths"]["/tenants/{tenant_id}/destinations/{destination_id}/attempts"]["get"]["parameters"][?@.name == 'event_id']["schema"]["oneOf"]
+    remove: true
+  - target: $["paths"]["/tenants/{tenant_id}/destinations/{destination_id}/attempts"]["get"]["parameters"][?@.name == 'event_id']["schema"]
+    update:
+      type: array
+      items:
+        type: string
+
+  - target: $["paths"]["/tenants/{tenant_id}/destinations/{destination_id}/attempts"]["get"]["parameters"][?@.name == 'topic']["schema"]["oneOf"]
+    remove: true
+  - target: $["paths"]["/tenants/{tenant_id}/destinations/{destination_id}/attempts"]["get"]["parameters"][?@.name == 'topic']["schema"]
+    update:
+      type: array
+      items:
+        type: string
+
+  - target: $["paths"]["/tenants/{tenant_id}/destinations/{destination_id}/attempts"]["get"]["parameters"][?@.name == 'include']["schema"]["oneOf"]
+    remove: true
+  - target: $["paths"]["/tenants/{tenant_id}/destinations/{destination_id}/attempts"]["get"]["parameters"][?@.name == 'include']["schema"]
+    update:
+      type: array
+      items:
+        type: string
+
+  # GET /tenants/{tenant_id}/destinations/{destination_id}/attempts/{attempt_id}: include
+  - target: $["paths"]["/tenants/{tenant_id}/destinations/{destination_id}/attempts/{attempt_id}"]["get"]["parameters"][?@.name == 'include']["schema"]["oneOf"]
+    remove: true
+  - target: $["paths"]["/tenants/{tenant_id}/destinations/{destination_id}/attempts/{attempt_id}"]["get"]["parameters"][?@.name == 'include']["schema"]
+    update:
+      type: array
+      items:
+        type: string

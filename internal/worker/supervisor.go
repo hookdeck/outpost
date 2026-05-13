@@ -7,23 +7,16 @@ import (
 	"sync"
 	"time"
 
+	"github.com/hookdeck/outpost/internal/logging"
 	"go.uber.org/zap"
 )
-
-// Logger is a minimal logging interface for structured logging with zap.
-type Logger interface {
-	Info(msg string, fields ...zap.Field)
-	Error(msg string, fields ...zap.Field)
-	Debug(msg string, fields ...zap.Field)
-	Warn(msg string, fields ...zap.Field)
-}
 
 // WorkerSupervisor manages and supervises multiple workers.
 // It tracks their health and handles graceful shutdown.
 type WorkerSupervisor struct {
 	workers         map[string]Worker
 	health          *HealthTracker
-	logger          Logger
+	logger          *logging.Logger
 	shutdownTimeout time.Duration // 0 means no timeout
 }
 
@@ -40,7 +33,7 @@ func WithShutdownTimeout(timeout time.Duration) SupervisorOption {
 }
 
 // NewWorkerSupervisor creates a new WorkerSupervisor.
-func NewWorkerSupervisor(logger Logger, opts ...SupervisorOption) *WorkerSupervisor {
+func NewWorkerSupervisor(logger *logging.Logger, opts ...SupervisorOption) *WorkerSupervisor {
 	r := &WorkerSupervisor{
 		workers:         make(map[string]Worker),
 		health:          NewHealthTracker(),

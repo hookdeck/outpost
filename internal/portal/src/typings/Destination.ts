@@ -1,5 +1,5 @@
 interface ConfigField {
-  type: "text" | "checkbox" | "key_value_map";
+  type: "text" | "checkbox" | "key_value_map" | "select";
   label: string;
   description: string;
   key: string;
@@ -12,6 +12,7 @@ interface ConfigField {
   minlength?: number;
   maxlength?: number;
   pattern?: string;
+  options?: Array<{ label: string; value: string }>;
   key_placeholder?: string;
   value_placeholder?: string;
 }

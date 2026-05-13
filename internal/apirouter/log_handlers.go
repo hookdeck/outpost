@@ -1,47 +1,39 @@
 package apirouter
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/hookdeck/outpost/internal/cursor"
+	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/logstore"
-	"github.com/hookdeck/outpost/internal/models"
+	"github.com/hookdeck/outpost/internal/tenantstore"
 )
 
 type LogHandlers struct {
-	logger   *logging.Logger
-	logStore logstore.LogStore
+	logger      *logging.Logger
+	logStore    logstore.LogStore
+	tenantStore tenantstore.TenantStore
+	displayer   *destinationDisplayer
 }
 
 func NewLogHandlers(
 	logger *logging.Logger,
 	logStore logstore.LogStore,
+	tenantStore tenantstore.TenantStore,
+	displayer *destinationDisplayer,
 ) *LogHandlers {
 	return &LogHandlers{
-		logger:   logger,
-		logStore: logStore,
+		logger:      logger,
+		logStore:    logStore,
+		tenantStore: tenantStore,
+		displayer:   displayer,
 	}
-}
-
-// parseQueryArray parses a query parameter that can be specified as repeated params
-// (e.g., ?topic=a&topic=b) or comma-separated (e.g., ?topic=a,b) or both.
-func parseQueryArray(c *gin.Context, key string) []string {
-	var result []string
-	for _, v := range c.QueryArray(key) {
-		for _, part := range strings.Split(v, ",") {
-			part = strings.TrimSpace(part)
-			if part != "" {
-				result = append(result, part)
-			}
-		}
-	}
-	return result
 }
 
 // parseLimit parses the limit query parameter with a default and maximum value.
@@ -63,23 +55,23 @@ func parseLimit(c *gin.Context, defaultLimit, maxLimit int) int {
 type IncludeOptions struct {
 	Event        bool
 	EventData    bool
-	Destination  bool
 	ResponseData bool
+	Destination  bool
 }
 
 func parseIncludeOptions(c *gin.Context) IncludeOptions {
 	opts := IncludeOptions{}
-	for _, e := range parseQueryArray(c, "include") {
+	for _, e := range ParseArrayQueryParam(c, "include") {
 		switch e {
 		case "event":
 			opts.Event = true
 		case "event.data":
 			opts.Event = true
 			opts.EventData = true
-		case "destination":
-			opts.Destination = true
 		case "response_data":
 			opts.ResponseData = true
+		case "destination":
+			opts.Destination = true
 		}
 	}
 	return opts
@@ -87,53 +79,62 @@ func parseIncludeOptions(c *gin.Context) IncludeOptions {
 
 // API Response types
 
-// APIDelivery is the API response for a delivery
-type APIDelivery struct {
-	ID           string                 `json:"id"`
-	Status       string                 `json:"status"`
-	DeliveredAt  time.Time              `json:"delivered_at"`
-	Code         string                 `json:"code,omitempty"`
-	ResponseData map[string]interface{} `json:"response_data,omitempty"`
-	Attempt      int                    `json:"attempt"`
-	Manual       bool                   `json:"manual"`
+// APIAttempt is the API response for an attempt
+type APIAttempt struct {
+	ID              string                 `json:"id"`
+	TenantID        string                 `json:"tenant_id"`
+	Status          string                 `json:"status"`
+	Time            time.Time              `json:"time"`
+	Code            string                 `json:"code,omitempty"`
+	ResponseData    map[string]interface{} `json:"response_data,omitempty"`
+	AttemptNumber   int                    `json:"attempt_number"`
+	Manual          bool                   `json:"manual"`
+	DestinationType string                 `json:"destination_type"`
 
-	// Expandable fields - string (ID) or object depending on expand
-	Event       interface{} `json:"event"`
-	Destination string      `json:"destination"`
+	EventID       string      `json:"event_id"`
+	DestinationID string      `json:"destination_id"`
+	Event         interface{} `json:"event,omitempty"`
+	Destination   interface{} `json:"destination,omitempty"`
 }
 
 // APIEventSummary is the event object when expand=event (without data)
 type APIEventSummary struct {
-	ID               string            `json:"id"`
-	Topic            string            `json:"topic"`
-	Time             time.Time         `json:"time"`
-	EligibleForRetry bool              `json:"eligible_for_retry"`
-	Metadata         map[string]string `json:"metadata,omitempty"`
+	ID                    string            `json:"id"`
+	TenantID              string            `json:"tenant_id"`
+	MatchedDestinationIDs []string          `json:"matched_destination_ids,omitempty"`
+	Topic                 string            `json:"topic"`
+	Time                  time.Time         `json:"time"`
+	EligibleForRetry      bool              `json:"eligible_for_retry"`
+	Metadata              map[string]string `json:"metadata,omitempty"`
 }
 
 // APIEventFull is the event object when expand=event.data
 type APIEventFull struct {
-	ID               string                 `json:"id"`
-	Topic            string                 `json:"topic"`
-	Time             time.Time              `json:"time"`
-	EligibleForRetry bool                   `json:"eligible_for_retry"`
-	Metadata         map[string]string      `json:"metadata,omitempty"`
-	Data             map[string]interface{} `json:"data,omitempty"`
+	ID                    string            `json:"id"`
+	TenantID              string            `json:"tenant_id"`
+	MatchedDestinationIDs []string          `json:"matched_destination_ids,omitempty"`
+	Topic                 string            `json:"topic"`
+	Time                  time.Time         `json:"time"`
+	EligibleForRetry      bool              `json:"eligible_for_retry"`
+	Metadata              map[string]string `json:"metadata,omitempty"`
+	Data                  json.RawMessage   `json:"data,omitempty"`
 }
 
 // APIEvent is the API response for retrieving a single event
 type APIEvent struct {
-	ID               string                 `json:"id"`
-	Topic            string                 `json:"topic"`
-	Time             time.Time              `json:"time"`
-	EligibleForRetry bool                   `json:"eligible_for_retry"`
-	Metadata         map[string]string      `json:"metadata,omitempty"`
-	Data             map[string]interface{} `json:"data,omitempty"`
+	ID                    string            `json:"id"`
+	TenantID              string            `json:"tenant_id"`
+	MatchedDestinationIDs []string          `json:"matched_destination_ids"`
+	Topic                 string            `json:"topic"`
+	Time                  time.Time         `json:"time"`
+	EligibleForRetry      bool              `json:"eligible_for_retry"`
+	Metadata              map[string]string `json:"metadata,omitempty"`
+	Data                  json.RawMessage   `json:"data,omitempty"`
 }
 
-// DeliveryPaginatedResult is the paginated response for listing deliveries.
-type DeliveryPaginatedResult struct {
-	Models     []APIDelivery  `json:"models"`
+// AttemptPaginatedResult is the paginated response for listing attempts.
+type AttemptPaginatedResult struct {
+	Models     []APIAttempt   `json:"models"`
 	Pagination SeekPagination `json:"pagination"`
 }
 
@@ -143,64 +144,79 @@ type EventPaginatedResult struct {
 	Pagination SeekPagination `json:"pagination"`
 }
 
-// toAPIDelivery converts a DeliveryEvent to APIDelivery with expand options
-func toAPIDelivery(de *models.DeliveryEvent, opts IncludeOptions) APIDelivery {
-	api := APIDelivery{
-		Attempt:     de.Attempt,
-		Manual:      de.Manual,
-		Destination: de.DestinationID,
+// toAPIAttempt converts an AttemptRecord to APIAttempt with expand options.
+// destDisplay is optional; when non-nil and opts.Destination is true, the
+// destination field is populated.
+func toAPIAttempt(ar *logstore.AttemptRecord, opts IncludeOptions, destDisplay *destregistry.DestinationDisplay) APIAttempt {
+	api := APIAttempt{
+		ID:              ar.Attempt.ID,
+		TenantID:        ar.Attempt.TenantID,
+		Status:          ar.Attempt.Status,
+		Time:            ar.Attempt.Time,
+		Code:            ar.Attempt.Code,
+		AttemptNumber:   ar.Attempt.AttemptNumber,
+		Manual:          ar.Attempt.Manual,
+		DestinationType: ar.Attempt.DestinationType,
+		EventID:         ar.Attempt.EventID,
+		DestinationID:   ar.Attempt.DestinationID,
 	}
 
-	if de.Delivery != nil {
-		api.ID = de.Delivery.ID
-		api.Status = de.Delivery.Status
-		api.DeliveredAt = de.Delivery.Time
-		api.Code = de.Delivery.Code
-		if opts.ResponseData {
-			api.ResponseData = de.Delivery.ResponseData
+	if opts.ResponseData {
+		api.ResponseData = ar.Attempt.ResponseData
+	}
+
+	if ar.Event != nil {
+		if opts.EventData {
+			api.Event = APIEventFull{
+				ID:                    ar.Event.ID,
+				TenantID:              ar.Event.TenantID,
+				MatchedDestinationIDs: ar.Event.MatchedDestinationIDs,
+				Topic:                 ar.Event.Topic,
+				Time:                  ar.Event.Time,
+				EligibleForRetry:      ar.Event.EligibleForRetry,
+				Metadata:              ar.Event.Metadata,
+				Data:                  ar.Event.Data,
+			}
+		} else if opts.Event {
+			api.Event = APIEventSummary{
+				ID:                    ar.Event.ID,
+				TenantID:              ar.Event.TenantID,
+				MatchedDestinationIDs: ar.Event.MatchedDestinationIDs,
+				Topic:                 ar.Event.Topic,
+				Time:                  ar.Event.Time,
+				EligibleForRetry:      ar.Event.EligibleForRetry,
+				Metadata:              ar.Event.Metadata,
+			}
 		}
 	}
 
-	if opts.EventData {
-		api.Event = APIEventFull{
-			ID:               de.Event.ID,
-			Topic:            de.Event.Topic,
-			Time:             de.Event.Time,
-			EligibleForRetry: de.Event.EligibleForRetry,
-			Metadata:         de.Event.Metadata,
-			Data:             de.Event.Data,
-		}
-	} else if opts.Event {
-		api.Event = APIEventSummary{
-			ID:               de.Event.ID,
-			Topic:            de.Event.Topic,
-			Time:             de.Event.Time,
-			EligibleForRetry: de.Event.EligibleForRetry,
-			Metadata:         de.Event.Metadata,
-		}
-	} else {
-		api.Event = de.Event.ID
+	if opts.Destination && destDisplay != nil {
+		api.Destination = destDisplay
 	}
-
-	// TODO: Handle destination expansion
-	// This would require injecting EntityStore into LogHandlers and batch-fetching
-	// destinations by ID. Consider if this is needed - clients can fetch destination
-	// details separately via GET /destinations/:id if needed.
 
 	return api
 }
 
-// ListDeliveries handles GET /:tenantID/deliveries
-// Query params: event_id, destination_id, status, topic[], start, end, limit, next, prev, expand[], sort_order
-func (h *LogHandlers) ListDeliveries(c *gin.Context) {
-	tenant := mustTenantFromContext(c)
-	if tenant == nil {
+// ListAttempts handles GET /attempts
+// Query params: tenant_id[], event_id[], destination_id[], status, topic[], time[gte], time[lte], time[gt], time[lt], limit, next, prev, include, order_by, dir
+func (h *LogHandlers) ListAttempts(c *gin.Context) {
+	// Authz: JWT users can only query their own tenant's attempts
+	tenantIDs, ok := resolveTenantIDsFilter(c)
+	if !ok {
 		return
 	}
-	h.listDeliveriesInternal(c, tenant.ID)
+	h.listAttemptsInternal(c, tenantIDs, "")
 }
 
-func (h *LogHandlers) listDeliveriesInternal(c *gin.Context, tenantID string) {
+// ListDestinationAttempts handles GET /:tenant_id/destinations/:destination_id/attempts
+// Same as ListAttempts but scoped to a specific destination via URL param.
+func (h *LogHandlers) ListDestinationAttempts(c *gin.Context) {
+	tenant := mustTenantFromContext(c)
+	destinationID := c.Param("destination_id")
+	h.listAttemptsInternal(c, []string{tenant.ID}, destinationID)
+}
+
+func (h *LogHandlers) listAttemptsInternal(c *gin.Context, tenantIDs []string, destinationID string) {
 	// Parse and validate cursors (next/prev are mutually exclusive)
 	cursors, errResp := ParseCursors(c)
 	if errResp != nil {
@@ -231,7 +247,7 @@ func (h *LogHandlers) listDeliveriesInternal(c *gin.Context, tenantID string) {
 	_ = orderBy
 
 	// Parse time date filters
-	deliveryTimeFilter, errResp := ParseDateFilter(c, "time")
+	attemptTimeFilter, errResp := ParseDateFilter(c, "time")
 	if errResp != nil {
 		AbortWithError(c, errResp.Code, *errResp)
 		return
@@ -240,21 +256,24 @@ func (h *LogHandlers) listDeliveriesInternal(c *gin.Context, tenantID string) {
 	limit := parseLimit(c, 100, 1000)
 
 	var destinationIDs []string
-	if destID := c.Query("destination_id"); destID != "" {
-		destinationIDs = []string{destID}
+	if destinationID != "" {
+		destinationIDs = []string{destinationID}
+	} else {
+		destinationIDs = ParseArrayQueryParam(c, "destination_id")
 	}
 
-	req := logstore.ListDeliveryEventRequest{
-		TenantID:       tenantID,
-		EventID:        c.Query("event_id"),
-		DestinationIDs: destinationIDs,
-		Status:         c.Query("status"),
-		Topics:         parseQueryArray(c, "topic"),
+	req := logstore.ListAttemptRequest{
+		TenantIDs:        tenantIDs,
+		EventIDs:         ParseArrayQueryParam(c, "event_id"),
+		DestinationIDs:   destinationIDs,
+		DestinationTypes: ParseArrayQueryParam(c, "destination_type"),
+		Status:           c.Query("status"),
+		Topics:           ParseArrayQueryParam(c, "topic"),
 		TimeFilter: logstore.TimeFilter{
-			GTE: deliveryTimeFilter.GTE,
-			LTE: deliveryTimeFilter.LTE,
-			GT:  deliveryTimeFilter.GT,
-			LT:  deliveryTimeFilter.LT,
+			GTE: attemptTimeFilter.GTE,
+			LTE: attemptTimeFilter.LTE,
+			GT:  attemptTimeFilter.GT,
+			LT:  attemptTimeFilter.LT,
 		},
 		Limit:     limit,
 		Next:      cursors.Next,
@@ -262,7 +281,7 @@ func (h *LogHandlers) listDeliveriesInternal(c *gin.Context, tenantID string) {
 		SortOrder: dir,
 	}
 
-	response, err := h.logStore.ListDeliveryEvent(c.Request.Context(), req)
+	response, err := h.logStore.ListAttempt(c.Request.Context(), req)
 	if err != nil {
 		if errors.Is(err, cursor.ErrInvalidCursor) || errors.Is(err, cursor.ErrVersionMismatch) {
 			AbortWithError(c, http.StatusBadRequest, NewErrBadRequest(err))
@@ -274,13 +293,50 @@ func (h *LogHandlers) listDeliveriesInternal(c *gin.Context, tenantID string) {
 
 	includeOpts := parseIncludeOptions(c)
 
-	apiDeliveries := make([]APIDelivery, len(response.Data))
-	for i, de := range response.Data {
-		apiDeliveries[i] = toAPIDelivery(de, includeOpts)
+	// Batch-fetch destinations when include=destination is requested.
+	destDisplayMap := map[string]*destregistry.DestinationDisplay{}
+	if includeOpts.Destination {
+		// Group destination IDs by tenant.
+		byTenant := map[string]map[string]struct{}{}
+		for _, ar := range response.Data {
+			tid := ar.Attempt.TenantID
+			if byTenant[tid] == nil {
+				byTenant[tid] = map[string]struct{}{}
+			}
+			byTenant[tid][ar.Attempt.DestinationID] = struct{}{}
+		}
+
+		for tid, idSet := range byTenant {
+			ids := make([]string, 0, len(idSet))
+			for id := range idSet {
+				ids = append(ids, id)
+			}
+			dests, err := h.tenantStore.ListDestination(c.Request.Context(), tenantstore.ListDestinationRequest{
+				TenantID: tid,
+				IDs:      ids,
+			})
+			if err != nil {
+				AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
+				return
+			}
+			for i := range dests {
+				display, err := h.displayer.Display(&dests[i])
+				if err != nil {
+					AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
+					return
+				}
+				destDisplayMap[tid+"\x00"+dests[i].ID] = display
+			}
+		}
 	}
 
-	c.JSON(http.StatusOK, DeliveryPaginatedResult{
-		Models: apiDeliveries,
+	apiAttempts := make([]APIAttempt, len(response.Data))
+	for i, ar := range response.Data {
+		apiAttempts[i] = toAPIAttempt(ar, includeOpts, destDisplayMap[ar.Attempt.TenantID+"\x00"+ar.Attempt.DestinationID])
+	}
+
+	c.JSON(http.StatusOK, AttemptPaginatedResult{
+		Models: apiAttempts,
 		Pagination: SeekPagination{
 			OrderBy: orderBy,
 			Dir:     dir,
@@ -291,15 +347,15 @@ func (h *LogHandlers) listDeliveriesInternal(c *gin.Context, tenantID string) {
 	})
 }
 
-// RetrieveEvent handles GET /:tenantID/events/:eventID
+// RetrieveEvent handles GET /events/:event_id
 func (h *LogHandlers) RetrieveEvent(c *gin.Context) {
-	tenant := mustTenantFromContext(c)
-	if tenant == nil {
-		return
+	ctxTenantID := tenantIDFromContext(c)
+	if ctxTenantID == "" {
+		ctxTenantID = c.Query("tenant_id")
 	}
-	eventID := c.Param("eventID")
+	eventID := c.Param("event_id")
 	event, err := h.logStore.RetrieveEvent(c.Request.Context(), logstore.RetrieveEventRequest{
-		TenantID: tenant.ID,
+		TenantID: ctxTenantID,
 		EventID:  eventID,
 	})
 	if err != nil {
@@ -311,64 +367,81 @@ func (h *LogHandlers) RetrieveEvent(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, APIEvent{
-		ID:               event.ID,
-		Topic:            event.Topic,
-		Time:             event.Time,
-		EligibleForRetry: event.EligibleForRetry,
-		Metadata:         event.Metadata,
-		Data:             event.Data,
+		ID:                    event.ID,
+		TenantID:              event.TenantID,
+		MatchedDestinationIDs: event.MatchedDestinationIDs,
+		Topic:                 event.Topic,
+		Time:                  event.Time,
+		EligibleForRetry:      event.EligibleForRetry,
+		Metadata:              event.Metadata,
+		Data:                  event.Data,
 	})
 }
 
-// RetrieveDelivery handles GET /:tenantID/deliveries/:deliveryID
-func (h *LogHandlers) RetrieveDelivery(c *gin.Context) {
-	tenant := mustTenantFromContext(c)
-	if tenant == nil {
-		return
+// RetrieveAttempt handles GET /attempts/:attempt_id
+func (h *LogHandlers) RetrieveAttempt(c *gin.Context) {
+	ctxTenantID := tenantIDFromContext(c)
+	if ctxTenantID == "" {
+		ctxTenantID = c.Query("tenant_id")
 	}
-	deliveryID := c.Param("deliveryID")
+	attemptID := c.Param("attempt_id")
 
-	deliveryEvent, err := h.logStore.RetrieveDeliveryEvent(c.Request.Context(), logstore.RetrieveDeliveryEventRequest{
-		TenantID:   tenant.ID,
-		DeliveryID: deliveryID,
+	attemptRecord, err := h.logStore.RetrieveAttempt(c.Request.Context(), logstore.RetrieveAttemptRequest{
+		TenantID:  ctxTenantID,
+		AttemptID: attemptID,
 	})
 	if err != nil {
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return
 	}
-	if deliveryEvent == nil {
-		AbortWithError(c, http.StatusNotFound, NewErrNotFound("delivery"))
+	if attemptRecord == nil {
+		AbortWithError(c, http.StatusNotFound, NewErrNotFound("attempt"))
 		return
+	}
+
+	// Authz: when accessed via a destination-scoped route, verify the attempt
+	// belongs to the destination in the path.
+	if destinationID := c.Param("destination_id"); destinationID != "" {
+		if attemptRecord.Attempt.DestinationID != destinationID {
+			AbortWithError(c, http.StatusNotFound, NewErrNotFound("attempt"))
+			return
+		}
 	}
 
 	includeOpts := parseIncludeOptions(c)
 
-	c.JSON(http.StatusOK, toAPIDelivery(deliveryEvent, includeOpts))
+	var destDisplay *destregistry.DestinationDisplay
+	if includeOpts.Destination {
+		dest, err := h.tenantStore.RetrieveDestination(c.Request.Context(), attemptRecord.Attempt.TenantID, attemptRecord.Attempt.DestinationID)
+		if err != nil && !errors.Is(err, tenantstore.ErrDestinationDeleted) && !errors.Is(err, tenantstore.ErrDestinationNotFound) {
+			AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
+			return
+		}
+		if err == nil && dest != nil {
+			display, err := h.displayer.Display(dest)
+			if err != nil {
+				AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
+				return
+			}
+			destDisplay = display
+		}
+	}
+
+	c.JSON(http.StatusOK, toAPIAttempt(attemptRecord, includeOpts, destDisplay))
 }
 
-// AdminListEvents handles GET /events (admin-only, cross-tenant)
-// Query params: tenant_id (optional), destination_id, topic[], start, end, limit, next, prev, sort_order
-func (h *LogHandlers) AdminListEvents(c *gin.Context) {
-	h.listEventsInternal(c, c.Query("tenant_id"))
-}
-
-// AdminListDeliveries handles GET /deliveries (admin-only, cross-tenant)
-// Query params: tenant_id (optional), event_id, destination_id, status, topic[], start, end, limit, next, prev, expand[], sort_order
-func (h *LogHandlers) AdminListDeliveries(c *gin.Context) {
-	h.listDeliveriesInternal(c, c.Query("tenant_id"))
-}
-
-// ListEvents handles GET /:tenantID/events
-// Query params: destination_id, topic[], start, end, limit, next, prev, sort_order
+// ListEvents handles GET /events
+// Query params: tenant_id[], id[], destination_id, topic[], time[gte], time[lte], time[gt], time[lt], limit, next, prev, order_by, dir
 func (h *LogHandlers) ListEvents(c *gin.Context) {
-	tenant := mustTenantFromContext(c)
-	if tenant == nil {
+	// Authz: JWT users can only query their own tenant's events
+	tenantIDs, ok := resolveTenantIDsFilter(c)
+	if !ok {
 		return
 	}
-	h.listEventsInternal(c, tenant.ID)
+	h.listEventsInternal(c, tenantIDs)
 }
 
-func (h *LogHandlers) listEventsInternal(c *gin.Context, tenantID string) {
+func (h *LogHandlers) listEventsInternal(c *gin.Context, tenantIDs []string) {
 	// Parse and validate cursors (next/prev are mutually exclusive)
 	cursors, errResp := ParseCursors(c)
 	if errResp != nil {
@@ -407,15 +480,13 @@ func (h *LogHandlers) listEventsInternal(c *gin.Context, tenantID string) {
 
 	limit := parseLimit(c, 100, 1000)
 
-	var destinationIDs []string
-	if destID := c.Query("destination_id"); destID != "" {
-		destinationIDs = []string{destID}
-	}
+	destinationIDs := ParseArrayQueryParam(c, "destination_id")
 
 	req := logstore.ListEventRequest{
-		TenantID:       tenantID,
+		TenantIDs:      tenantIDs,
+		EventIDs:       ParseArrayQueryParam(c, "id"),
 		DestinationIDs: destinationIDs,
-		Topics:         parseQueryArray(c, "topic"),
+		Topics:         ParseArrayQueryParam(c, "topic"),
 		TimeFilter: logstore.TimeFilter{
 			GTE: eventTimeFilter.GTE,
 			LTE: eventTimeFilter.LTE,
@@ -441,12 +512,14 @@ func (h *LogHandlers) listEventsInternal(c *gin.Context, tenantID string) {
 	apiEvents := make([]APIEvent, len(response.Data))
 	for i, e := range response.Data {
 		apiEvents[i] = APIEvent{
-			ID:               e.ID,
-			Topic:            e.Topic,
-			Time:             e.Time,
-			EligibleForRetry: e.EligibleForRetry,
-			Metadata:         e.Metadata,
-			Data:             e.Data,
+			ID:                    e.ID,
+			TenantID:              e.TenantID,
+			MatchedDestinationIDs: e.MatchedDestinationIDs,
+			Topic:                 e.Topic,
+			Time:                  e.Time,
+			EligibleForRetry:      e.EligibleForRetry,
+			Metadata:              e.Metadata,
+			Data:                  e.Data,
 		}
 	}
 

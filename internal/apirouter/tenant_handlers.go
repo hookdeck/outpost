@@ -10,34 +10,36 @@ import (
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/telemetry"
+	"github.com/hookdeck/outpost/internal/tenantstore"
+	"go.uber.org/zap"
 )
 
 type TenantHandlers struct {
-	logger      *logging.Logger
-	telemetry   telemetry.Telemetry
-	jwtSecret   string
-	entityStore models.EntityStore
+	logger       *logging.Logger
+	telemetry    telemetry.Telemetry
+	jwtSecret    string
+	deploymentID string
+	tenantStore  tenantstore.TenantStore
 }
 
 func NewTenantHandlers(
 	logger *logging.Logger,
 	telemetry telemetry.Telemetry,
 	jwtSecret string,
-	entityStore models.EntityStore,
+	deploymentID string,
+	tenantStore tenantstore.TenantStore,
 ) *TenantHandlers {
 	return &TenantHandlers{
-		logger:      logger,
-		telemetry:   telemetry,
-		jwtSecret:   jwtSecret,
-		entityStore: entityStore,
+		logger:       logger,
+		telemetry:    telemetry,
+		jwtSecret:    jwtSecret,
+		deploymentID: deploymentID,
+		tenantStore:  tenantStore,
 	}
 }
 
 func (h *TenantHandlers) Upsert(c *gin.Context) {
-	tenantID := mustTenantIDFromContext(c)
-	if tenantID == "" {
-		return
-	}
+	tenantID := c.Param("tenant_id")
 
 	// Parse request body for metadata
 	var input struct {
@@ -52,8 +54,8 @@ func (h *TenantHandlers) Upsert(c *gin.Context) {
 	}
 
 	// Check existing tenant.
-	existingTenant, err := h.entityStore.RetrieveTenant(c.Request.Context(), tenantID)
-	if err != nil && err != models.ErrTenantDeleted {
+	existingTenant, err := h.tenantStore.RetrieveTenant(c.Request.Context(), tenantID)
+	if err != nil && err != tenantstore.ErrTenantDeleted {
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return
 	}
@@ -62,10 +64,13 @@ func (h *TenantHandlers) Upsert(c *gin.Context) {
 	if existingTenant != nil {
 		existingTenant.Metadata = input.Metadata
 		existingTenant.UpdatedAt = time.Now()
-		if err := h.entityStore.UpsertTenant(c.Request.Context(), *existingTenant); err != nil {
+		if err := h.tenantStore.UpsertTenant(c.Request.Context(), *existingTenant); err != nil {
 			AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 			return
 		}
+		h.logger.Ctx(c.Request.Context()).Audit("tenant updated",
+			zap.String("tenant_id", tenantID),
+		)
 		c.JSON(http.StatusOK, existingTenant)
 		return
 	}
@@ -79,23 +84,32 @@ func (h *TenantHandlers) Upsert(c *gin.Context) {
 		CreatedAt: now,
 		UpdatedAt: now,
 	}
-	if err := h.entityStore.UpsertTenant(c.Request.Context(), *tenant); err != nil {
+	if err := h.tenantStore.UpsertTenant(c.Request.Context(), *tenant); err != nil {
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return
 	}
 	h.telemetry.TenantCreated(c.Request.Context())
+	h.logger.Ctx(c.Request.Context()).Audit("tenant created",
+		zap.String("tenant_id", tenantID),
+	)
 	c.JSON(http.StatusCreated, tenant)
 }
 
 func (h *TenantHandlers) Retrieve(c *gin.Context) {
 	tenant := mustTenantFromContext(c)
-	if tenant == nil {
-		return
-	}
 	c.JSON(http.StatusOK, tenant)
 }
 
 func (h *TenantHandlers) List(c *gin.Context) {
+	// Authz: JWT users can only see their own tenant
+	if tenant := tenantFromContext(c); tenant != nil {
+		c.JSON(http.StatusOK, tenantstore.TenantPaginatedResult{
+			Models: []models.Tenant{*tenant},
+			Count:  1,
+		})
+		return
+	}
+
 	// Parse and validate cursors (next/prev are mutually exclusive)
 	cursors, errResp := ParseCursors(c)
 	if errResp != nil {
@@ -110,10 +124,15 @@ func (h *TenantHandlers) List(c *gin.Context) {
 		return
 	}
 
-	req := models.ListTenantRequest{
+	req := tenantstore.ListTenantRequest{
 		Next: cursors.Next,
 		Prev: cursors.Prev,
 		Dir:  dir,
+	}
+
+	// Parse id filter: id[0]=x&id[1]=y or id[]=x&id[]=y
+	if ids := ParseArrayQueryParam(c, "id"); len(ids) > 0 {
+		req.ID = ids
 	}
 
 	// Parse limit if provided
@@ -123,29 +142,34 @@ func (h *TenantHandlers) List(c *gin.Context) {
 			AbortWithError(c, http.StatusBadRequest, NewErrBadRequest(errors.New("invalid limit: must be an integer")))
 			return
 		}
+		if limit < 1 || limit > 100 {
+			AbortWithError(c, http.StatusBadRequest, NewErrBadRequest(errors.New("invalid limit: must be between 1 and 100")))
+			return
+		}
 		req.Limit = limit
 	}
 
 	// Call entity store
-	resp, err := h.entityStore.ListTenant(c.Request.Context(), req)
+	resp, err := h.tenantStore.ListTenant(c.Request.Context(), req)
 	if err != nil {
 		// Map errors to HTTP status codes
-		if errors.Is(err, models.ErrListTenantNotSupported) {
+		if errors.Is(err, tenantstore.ErrListTenantNotSupported) {
 			AbortWithError(c, http.StatusNotImplemented, ErrorResponse{
+				Err:     err,
 				Code:    http.StatusNotImplemented,
 				Message: err.Error(),
 			})
 			return
 		}
-		if errors.Is(err, models.ErrConflictingCursors) {
+		if errors.Is(err, tenantstore.ErrConflictingCursors) {
 			AbortWithError(c, http.StatusBadRequest, NewErrBadRequest(err))
 			return
 		}
-		if errors.Is(err, models.ErrInvalidCursor) {
+		if errors.Is(err, tenantstore.ErrInvalidCursor) {
 			AbortWithError(c, http.StatusBadRequest, NewErrBadRequest(err))
 			return
 		}
-		if errors.Is(err, models.ErrInvalidOrder) {
+		if errors.Is(err, tenantstore.ErrInvalidOrder) {
 			AbortWithError(c, http.StatusBadRequest, NewErrBadRequest(err))
 			return
 		}
@@ -157,29 +181,29 @@ func (h *TenantHandlers) List(c *gin.Context) {
 }
 
 func (h *TenantHandlers) Delete(c *gin.Context) {
-	tenantID := mustTenantIDFromContext(c)
-	if tenantID == "" {
-		return
-	}
+	tenant := mustTenantFromContext(c)
 
-	err := h.entityStore.DeleteTenant(c.Request.Context(), tenantID)
+	err := h.tenantStore.DeleteTenant(c.Request.Context(), tenant.ID)
 	if err != nil {
-		if err == models.ErrTenantNotFound {
+		if err == tenantstore.ErrTenantNotFound {
 			c.Status(http.StatusNotFound)
 			return
 		}
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return
 	}
+	h.logger.Ctx(c.Request.Context()).Audit("tenant deleted",
+		zap.String("tenant_id", tenant.ID),
+	)
 	c.JSON(http.StatusOK, gin.H{"success": true})
 }
 
 func (h *TenantHandlers) RetrieveToken(c *gin.Context) {
 	tenant := mustTenantFromContext(c)
-	if tenant == nil {
-		return
-	}
-	jwtToken, err := JWT.New(h.jwtSecret, tenant.ID)
+	jwtToken, err := JWT.New(h.jwtSecret, JWTClaims{
+		TenantID:     tenant.ID,
+		DeploymentID: h.deploymentID,
+	})
 	if err != nil {
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return
@@ -189,10 +213,10 @@ func (h *TenantHandlers) RetrieveToken(c *gin.Context) {
 
 func (h *TenantHandlers) RetrievePortal(c *gin.Context) {
 	tenant := mustTenantFromContext(c)
-	if tenant == nil {
-		return
-	}
-	jwtToken, err := JWT.New(h.jwtSecret, tenant.ID)
+	jwtToken, err := JWT.New(h.jwtSecret, JWTClaims{
+		TenantID:     tenant.ID,
+		DeploymentID: h.deploymentID,
+	})
 	if err != nil {
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return

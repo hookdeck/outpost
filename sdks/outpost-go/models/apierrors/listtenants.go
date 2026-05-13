@@ -19,16 +19,3 @@ func (e *NotImplementedError) Error() string {
 	data, _ := json.Marshal(e)
 	return string(data)
 }
-
-// ListTenantsBadRequestError - Invalid request parameters (e.g., invalid cursor, both next and prev provided).
-type ListTenantsBadRequestError struct {
-	Error_   *string                 `json:"error,omitempty"`
-	HTTPMeta components.HTTPMetadata `json:"-"`
-}
-
-var _ error = &ListTenantsBadRequestError{}
-
-func (e *ListTenantsBadRequestError) Error() string {
-	data, _ := json.Marshal(e)
-	return string(data)
-}

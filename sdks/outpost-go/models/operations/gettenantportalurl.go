@@ -8,17 +8,6 @@ import (
 	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
 )
 
-type GetTenantPortalURLGlobals struct {
-	TenantID *string `pathParam:"style=simple,explode=false,name=tenant_id"`
-}
-
-func (g *GetTenantPortalURLGlobals) GetTenantID() *string {
-	if g == nil {
-		return nil
-	}
-	return g.TenantID
-}
-
 // Theme - Optional theme preference for the portal.
 type Theme string
 
@@ -48,14 +37,14 @@ func (e *Theme) UnmarshalJSON(data []byte) error {
 
 type GetTenantPortalURLRequest struct {
 	// The ID of the tenant. Required when using AdminApiKey authentication.
-	TenantID *string `pathParam:"style=simple,explode=false,name=tenant_id"`
+	TenantID string `pathParam:"style=simple,explode=false,name=tenant_id"`
 	// Optional theme preference for the portal.
 	Theme *Theme `queryParam:"style=form,explode=true,name=theme"`
 }
 
-func (g *GetTenantPortalURLRequest) GetTenantID() *string {
+func (g *GetTenantPortalURLRequest) GetTenantID() string {
 	if g == nil {
-		return nil
+		return ""
 	}
 	return g.TenantID
 }

@@ -3,14 +3,12 @@
  */
 
 import * as z from "zod/v3";
-import { remap as remap$ } from "../../lib/primitives.js";
 import { safeParse } from "../../lib/schemas.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 
 export type Security = {
-  adminApiKey?: string | undefined;
-  tenantJwt?: string | undefined;
+  apiKey?: string | undefined;
 };
 
 /** @internal */
@@ -19,18 +17,11 @@ export const Security$inboundSchema: z.ZodType<
   z.ZodTypeDef,
   unknown
 > = z.object({
-  AdminApiKey: z.string().optional(),
-  TenantJwt: z.string().optional(),
-}).transform((v) => {
-  return remap$(v, {
-    "AdminApiKey": "adminApiKey",
-    "TenantJwt": "tenantJwt",
-  });
+  apiKey: z.string().optional(),
 });
 /** @internal */
 export type Security$Outbound = {
-  AdminApiKey?: string | undefined;
-  TenantJwt?: string | undefined;
+  apiKey?: string | undefined;
 };
 
 /** @internal */
@@ -39,13 +30,7 @@ export const Security$outboundSchema: z.ZodType<
   z.ZodTypeDef,
   Security
 > = z.object({
-  adminApiKey: z.string().optional(),
-  tenantJwt: z.string().optional(),
-}).transform((v) => {
-  return remap$(v, {
-    adminApiKey: "AdminApiKey",
-    tenantJwt: "TenantJwt",
-  });
+  apiKey: z.string().optional(),
 });
 
 export function securityToJSON(security: Security): string {

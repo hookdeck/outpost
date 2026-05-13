@@ -15,7 +15,42 @@ import CreateDestination from "./scenes/CreateDestination/CreateDestination";
 
 type ApiClient = {
   fetch: (path: string, init?: RequestInit) => Promise<any>;
+  fetchRoot: (path: string, init?: RequestInit) => Promise<any>;
 };
+
+// API error response from the server
+export class ApiError extends Error {
+  status: number;
+  data?: string[];
+
+  constructor(message: string, status: number, data?: string[]) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.data = data;
+  }
+
+  // Format error for display - includes validation details if present
+  toDisplayString(): string {
+    if (this.data && this.data.length > 0) {
+      return this.data
+        .map((d) => d.charAt(0).toUpperCase() + d.slice(1))
+        .join(". ");
+    }
+    return this.message.charAt(0).toUpperCase() + this.message.slice(1);
+  }
+}
+
+// Helper to format any error for display
+export function formatError(error: unknown): string {
+  if (error instanceof ApiError) {
+    return error.toDisplayString();
+  }
+  if (error instanceof Error) {
+    return error.message.charAt(0).toUpperCase() + error.message.slice(1);
+  }
+  return String(error);
+}
 
 export const ApiContext = createContext<ApiClient>({} as ApiClient);
 
@@ -62,28 +97,42 @@ function AuthenticatedApp({
   tenant: TenantResponse;
   token: string;
 }) {
+  const handleResponse = async (res: Response) => {
+    if (!res.ok) {
+      let error: ApiError;
+      try {
+        const data = await res.json();
+        error = new ApiError(
+          data.message || res.statusText,
+          data.status || res.status,
+          Array.isArray(data.data) ? data.data : undefined,
+        );
+      } catch (e) {
+        error = new ApiError(res.statusText, res.status);
+      }
+      throw error;
+    }
+    return res.json();
+  };
+
+  const makeHeaders = (init?: RequestInit) => ({
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${token}`,
+    ...init?.headers,
+  });
+
   const apiClient: ApiClient = {
     fetch: (path: string, init?: RequestInit) => {
       return fetch(`/api/v1/tenants/${tenant.id}/${path}`, {
         ...init,
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-          ...init?.headers,
-        },
-      }).then(async (res) => {
-        if (!res.ok) {
-          let error;
-          try {
-            const data = await res.json();
-            error = new Error(data.message);
-          } catch (e) {
-            error = new Error(res.statusText);
-          }
-          throw error;
-        }
-        return res.json();
-      });
+        headers: makeHeaders(init),
+      }).then(handleResponse);
+    },
+    fetchRoot: (path: string, init?: RequestInit) => {
+      return fetch(`/api/v1/${path}`, {
+        ...init,
+        headers: makeHeaders(init),
+      }).then(handleResponse);
     },
   };
 
@@ -113,12 +162,7 @@ export function App() {
   const tenant = useTenant(token ?? undefined);
 
   return (
-    <BrowserRouter
-      future={{
-        v7_startTransition: true,
-        v7_relativeSplatPath: true,
-      }}
-    >
+    <BrowserRouter>
       <ToastProvider>
         <SidebarProvider>
           <div className="layout">
@@ -126,7 +170,7 @@ export function App() {
               {tenant && token ? (
                 <AuthenticatedApp tenant={tenant} token={token} />
               ) : (
-                <div>
+                <div className="layout__loading">
                   <Loading />
                 </div>
               )}
@@ -150,6 +194,10 @@ export function App() {
   );
 }
 
+function getRedirectURL() {
+  return CONFIGS.REFRESH_URL || CONFIGS.REFERER_URL;
+}
+
 function useToken() {
   const [token, setToken] = useState(sessionStorage.getItem("token"));
 
@@ -167,7 +215,7 @@ function useToken() {
   }, []);
 
   if (!token) {
-    window.location.replace(CONFIGS.REFERER_URL);
+    window.location.replace(getRedirectURL());
     return;
   }
 
@@ -192,7 +240,7 @@ function useTenant(token?: string): TenantResponse | undefined {
         headers: { Authorization: `Bearer ${token}` },
       }).then((res) => {
         if (!res.ok) {
-          window.location.replace(CONFIGS.REFERER_URL);
+          window.location.replace(getRedirectURL());
           throw new Error("Failed to fetch tenant");
         }
         return res.json();

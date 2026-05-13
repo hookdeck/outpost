@@ -9,7 +9,7 @@ from typing import Any, Mapping, Optional
 
 
 class Health(BaseSDK):
-    r"""API Health Check"""
+    r"""This endpoint is only available for **self-hosted** Outpost deployments. Managed Outpost health is monitored by Hookdeck."""
 
     def check(
         self,
@@ -23,15 +23,9 @@ class Health(BaseSDK):
 
         Health check endpoint that reports the status of all workers.
 
+        > This endpoint is only available for **self-hosted** Outpost deployments. Managed Outpost health is monitored by Hookdeck.
+
         Returns HTTP 200 when all workers are healthy, or HTTP 503 if any worker has failed.
-
-        The response includes:
-        - `status`: Overall health status (\"healthy\" or \"failed\")
-        - `timestamp`: When this health check was performed (ISO 8601 format)
-        - `workers`: Map of worker names to their individual health status
-
-        Each worker reports:
-        - `status`: Worker health (\"healthy\" or \"failed\")
 
         Note: Error details are not exposed for security reasons. Check application logs for detailed error information.
 
@@ -83,33 +77,7 @@ class Health(BaseSDK):
                 security_source=None,
             ),
             request=req,
-            error_status_codes=[
-                "400",
-                "401",
-                "403",
-                "404",
-                "407",
-                "408",
-                "413",
-                "414",
-                "415",
-                "422",
-                "429",
-                "431",
-                "4XX",
-                "500",
-                "501",
-                "502",
-                "503",
-                "504",
-                "505",
-                "506",
-                "507",
-                "508",
-                "510",
-                "511",
-                "5XX",
-            ],
+            is_error_status_code=lambda c: utils.match_status_codes(["4XX", "5XX"], c),
             retry_config=retry_config,
         )
 
@@ -183,15 +151,9 @@ class Health(BaseSDK):
 
         Health check endpoint that reports the status of all workers.
 
+        > This endpoint is only available for **self-hosted** Outpost deployments. Managed Outpost health is monitored by Hookdeck.
+
         Returns HTTP 200 when all workers are healthy, or HTTP 503 if any worker has failed.
-
-        The response includes:
-        - `status`: Overall health status (\"healthy\" or \"failed\")
-        - `timestamp`: When this health check was performed (ISO 8601 format)
-        - `workers`: Map of worker names to their individual health status
-
-        Each worker reports:
-        - `status`: Worker health (\"healthy\" or \"failed\")
 
         Note: Error details are not exposed for security reasons. Check application logs for detailed error information.
 
@@ -243,33 +205,7 @@ class Health(BaseSDK):
                 security_source=None,
             ),
             request=req,
-            error_status_codes=[
-                "400",
-                "401",
-                "403",
-                "404",
-                "407",
-                "408",
-                "413",
-                "414",
-                "415",
-                "422",
-                "429",
-                "431",
-                "4XX",
-                "500",
-                "501",
-                "502",
-                "503",
-                "504",
-                "505",
-                "506",
-                "507",
-                "508",
-                "510",
-                "511",
-                "5XX",
-            ],
+            is_error_status_code=lambda c: utils.match_status_codes(["4XX", "5XX"], c),
             retry_config=retry_config,
         )
 

@@ -20,3 +20,7 @@ These examples demonstrate basic usage of the official Outpost SDKs for interact
 *   **[demos/](./demos/)**: Contains various other demonstration applications or specific feature examples. (Explore this directory for more specific use cases).
 
 Each subdirectory contains its own `README.md` with specific setup and execution instructions.
+
+### Troubleshooting: auth example returns 401
+
+If the auth example (admin key → get tenant token → list destinations with that token) fails with **401 Unauthorized** on the list call, the server is rejecting the tenant JWT. That operation is allowed when the JWT’s tenant matches the path; 401 means the server could not verify the JWT (e.g. `API_JWT_SECRET` not set or inconsistent on the deployment). See **[sdks/schemas/README.md](../sdks/schemas/README.md)** (section “Troubleshooting: auth example returns 401”) for the exact cause and how to fix it. To confirm the examples work end-to-end, run against a local Outpost with `API_JWT_SECRET` set.

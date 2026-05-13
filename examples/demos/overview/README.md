@@ -11,7 +11,7 @@ URL=your_webhook_url
 You'd do this whenever a new organization signups up.
 
 ```sh
-curl --location --request PUT "localhost:3333/api/v1/tenants/$TENANT_ID" \
+curl --location --request PUT "http://localhost:3333/api/v1/tenants/$TENANT_ID" \
 --header "Authorization: Bearer $API_KEY"
 ```
 
@@ -20,7 +20,7 @@ curl --location --request PUT "localhost:3333/api/v1/tenants/$TENANT_ID" \
 When someone within an org wants to subscribe to an event, create a Destination:
 
 ```sh
-curl --location "localhost:3333/api/v1/tenants/$TENANT_ID/destinations" \
+curl --location "http://localhost:3333/api/v1/tenants/$TENANT_ID/destinations" \
 --header "Content-Type: application/json" \
 --header "Authorization: Bearer $API_KEY" \
 --data '{
@@ -52,7 +52,7 @@ Outpost supports two ways of publishing:
 Publish via the API:
 
 ```sh
-curl --location "localhost:3333/api/v1/publish" \
+curl --location "http://localhost:3333/api/v1/publish" \
 --header "Content-Type: application/json" \
 --header "Authorization: Bearer $API_KEY" \
 --data '{
@@ -72,12 +72,10 @@ Check the webhook was delivered and ingested.
 
 ## Open the Outpost Portal
 
-Outpost comes with a pre-built portal that supports event destination management, event inspection, and metrics.
-
-Event Inspection will be available next week (mid-March). Metric will be part of the BETA release.
+Outpost includes a portal for event destination management, logs, and metrics (features depend on your Outpost version and configuration).
 
 ```sh
-curl "localhost:3333/api/v1/tenants/$TENANT_ID/portal" \
+curl "http://localhost:3333/api/v1/tenants/$TENANT_ID/portal" \
 --header "Authorization: Bearer $API_KEY"
 ```
 

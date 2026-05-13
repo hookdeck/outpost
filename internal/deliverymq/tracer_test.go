@@ -8,7 +8,7 @@ and metrics functionality. These are recommendations and can be adapted based on
 
 Potential Test Scenarios:
 1. Successful Delivery
-   - Verify eventTracer.Deliver() is called with correct DeliveryEvent
+   - Verify eventTracer.Deliver() is called with correct DeliveryTask
    - Verify span is created and ended properly
    - Verify metrics are recorded:
      * Delivery latency

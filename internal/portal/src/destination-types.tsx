@@ -1,11 +1,18 @@
+import { useContext } from "react";
 import useSWR from "swr";
-import { DestinationTypeReference } from "./typings/Destination";
+import type { DestinationTypeReference } from "./typings/Destination";
+import { ApiContext } from "./app";
 
 export function useDestinationTypes(): Record<
   string,
   DestinationTypeReference
 > {
-  const { data } = useSWR<DestinationTypeReference[]>("destination-types");
+  const apiClient = useContext(ApiContext);
+  const { data } = useSWR<DestinationTypeReference[]>(
+    "destination-types",
+    (path: string) => apiClient.fetchRoot(path),
+    { revalidateIfStale: false },
+  );
   if (!data) {
     return {};
   }

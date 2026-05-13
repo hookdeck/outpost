@@ -25,7 +25,7 @@ Outpost API: The Outpost API is a REST-based JSON API for managing tenants, dest
   * [Authentication](#authentication)
   * [Available Resources and Operations](#available-resources-and-operations)
   * [Standalone functions](#standalone-functions)
-  * [Global Parameters](#global-parameters)
+  * [Pagination](#pagination)
   * [Retries](#retries)
   * [Error Handling](#error-handling)
   * [Server Selection](#server-selection)
@@ -91,9 +91,7 @@ Add the following server definition to your `claude_desktop_config.json` file:
         "-y", "--package", "@hookdeck/outpost-sdk",
         "--",
         "mcp", "start",
-        "--admin-api-key", "...",
-        "--tenant-jwt", "...",
-        "--tenant-id", "..."
+        "--api-key", "..."
       ]
     }
   }
@@ -116,9 +114,7 @@ Create a `.cursor/mcp.json` file in your project root with the following content
         "-y", "--package", "@hookdeck/outpost-sdk",
         "--",
         "mcp", "start",
-        "--admin-api-key", "...",
-        "--tenant-jwt", "...",
-        "--tenant-id", "..."
+        "--api-key", "..."
       ]
     }
   }
@@ -172,10 +168,24 @@ For supported JavaScript runtimes, please consult [RUNTIMES.md](RUNTIMES.md).
 ```typescript
 import { Outpost } from "@hookdeck/outpost-sdk";
 
-const outpost = new Outpost();
+const outpost = new Outpost({
+  apiKey: "<YOUR_BEARER_TOKEN_HERE>",
+});
 
 async function run() {
-  const result = await outpost.health.check();
+  const result = await outpost.publish({
+    id: "evt_abc123xyz789",
+    tenantId: "tenant_123",
+    topic: "user.created",
+    eligibleForRetry: true,
+    metadata: {
+      "source": "crm",
+    },
+    data: {
+      "user_id": "userid",
+      "status": "active",
+    },
+  });
 
   console.log(result);
 }
@@ -190,25 +200,34 @@ run();
 
 ### Per-Client Security Schemes
 
-This SDK supports the following security schemes globally:
+This SDK supports the following security scheme globally:
 
-| Name          | Type | Scheme      |
-| ------------- | ---- | ----------- |
-| `adminApiKey` | http | HTTP Bearer |
-| `tenantJwt`   | http | HTTP Bearer |
+| Name     | Type | Scheme      |
+| -------- | ---- | ----------- |
+| `apiKey` | http | HTTP Bearer |
 
-You can set the security parameters through the `security` optional parameter when initializing the SDK client instance. The selected scheme will be used by default to authenticate with the API for all operations that support it. For example:
+To authenticate with the API the `apiKey` parameter must be set when initializing the SDK client instance. For example:
 ```typescript
 import { Outpost } from "@hookdeck/outpost-sdk";
 
 const outpost = new Outpost({
-  security: {
-    adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
-  },
+  apiKey: "<YOUR_BEARER_TOKEN_HERE>",
 });
 
 async function run() {
-  const result = await outpost.health.check();
+  const result = await outpost.publish({
+    id: "evt_abc123xyz789",
+    tenantId: "tenant_123",
+    topic: "user.created",
+    eligibleForRetry: true,
+    metadata: {
+      "source": "crm",
+    },
+    data: {
+      "user_id": "userid",
+      "status": "active",
+    },
+  });
 
   console.log(result);
 }
@@ -224,6 +243,21 @@ run();
 <details open>
 <summary>Available methods</summary>
 
+### [Outpost SDK](docs/sdks/outpost/README.md)
+
+* [publish](docs/sdks/outpost/README.md#publish) - Publish Event
+* [retry](docs/sdks/outpost/README.md#retry) - Retry Event Delivery
+
+### [Attempts](docs/sdks/attempts/README.md)
+
+* [list](docs/sdks/attempts/README.md#list) - List Attempts
+* [get](docs/sdks/attempts/README.md#get) - Get Attempt
+
+### [Configuration](docs/sdks/configuration/README.md)
+
+* [getManagedConfig](docs/sdks/configuration/README.md#getmanagedconfig) - Get Managed Configuration
+* [updateManagedConfig](docs/sdks/configuration/README.md#updatemanagedconfig) - Update Managed Configuration
+
 ### [Destinations](docs/sdks/destinations/README.md)
 
 * [list](docs/sdks/destinations/README.md#list) - List Destinations
@@ -233,34 +267,31 @@ run();
 * [delete](docs/sdks/destinations/README.md#delete) - Delete Destination
 * [enable](docs/sdks/destinations/README.md#enable) - Enable Destination
 * [disable](docs/sdks/destinations/README.md#disable) - Disable Destination
+* [listAttempts](docs/sdks/destinations/README.md#listattempts) - List Destination Attempts
+* [getAttempt](docs/sdks/destinations/README.md#getattempt) - Get Destination Attempt
 
 ### [Events](docs/sdks/events/README.md)
 
 * [list](docs/sdks/events/README.md#list) - List Events
 * [get](docs/sdks/events/README.md#get) - Get Event
-* [listDeliveries](docs/sdks/events/README.md#listdeliveries) - List Event Delivery Attempts
-* [listByDestination](docs/sdks/events/README.md#listbydestination) - List Events by Destination
-* [getByDestination](docs/sdks/events/README.md#getbydestination) - Get Event by Destination
-* [retry](docs/sdks/events/README.md#retry) - Retry Event Delivery
 
 ### [Health](docs/sdks/health/README.md)
 
 * [check](docs/sdks/health/README.md#check) - Health Check
 
-### [Publish](docs/sdks/publish/README.md)
+### [Metrics](docs/sdks/metrics/README.md)
 
-* [event](docs/sdks/publish/README.md#event) - Publish Event
+* [getEventMetrics](docs/sdks/metrics/README.md#geteventmetrics) - Get Event Metrics
+* [getAttemptMetrics](docs/sdks/metrics/README.md#getattemptmetrics) - Get Attempt Metrics
 
 ### [Schemas](docs/sdks/schemas/README.md)
 
-* [listTenantDestinationTypes](docs/sdks/schemas/README.md#listtenantdestinationtypes) - List Destination Type Schemas (for Tenant)
-* [get](docs/sdks/schemas/README.md#get) - Get Destination Type Schema (for Tenant)
-* [listDestinationTypesJwt](docs/sdks/schemas/README.md#listdestinationtypesjwt) - List Destination Type Schemas (JWT Auth)
-* [getDestinationTypeJwt](docs/sdks/schemas/README.md#getdestinationtypejwt) - Get Destination Type Schema
+* [listDestinationTypes](docs/sdks/schemas/README.md#listdestinationtypes) - List Destination Type Schemas
+* [getDestinationType](docs/sdks/schemas/README.md#getdestinationtype) - Get Destination Type Schema
 
 ### [Tenants](docs/sdks/tenants/README.md)
 
-* [listTenants](docs/sdks/tenants/README.md#listtenants) - List Tenants
+* [list](docs/sdks/tenants/README.md#list) - List Tenants
 * [upsert](docs/sdks/tenants/README.md#upsert) - Create or Update Tenant
 * [get](docs/sdks/tenants/README.md#get) - Get Tenant
 * [delete](docs/sdks/tenants/README.md#delete) - Delete Tenant
@@ -269,8 +300,7 @@ run();
 
 ### [Topics](docs/sdks/topics/README.md)
 
-* [list](docs/sdks/topics/README.md#list) - List Available Topics (for Tenant)
-* [listJwt](docs/sdks/topics/README.md#listjwt) - List Available Topics)
+* [list](docs/sdks/topics/README.md#list) - List Available Topics
 
 </details>
 <!-- End Available Resources and Operations [operations] -->
@@ -290,75 +320,70 @@ To read more about standalone functions, check [FUNCTIONS.md](./FUNCTIONS.md).
 
 <summary>Available standalone functions</summary>
 
+- [`attemptsGet`](docs/sdks/attempts/README.md#get) - Get Attempt
+- [`attemptsList`](docs/sdks/attempts/README.md#list) - List Attempts
+- [`configurationGetManagedConfig`](docs/sdks/configuration/README.md#getmanagedconfig) - Get Managed Configuration
+- [`configurationUpdateManagedConfig`](docs/sdks/configuration/README.md#updatemanagedconfig) - Update Managed Configuration
 - [`destinationsCreate`](docs/sdks/destinations/README.md#create) - Create Destination
 - [`destinationsDelete`](docs/sdks/destinations/README.md#delete) - Delete Destination
 - [`destinationsDisable`](docs/sdks/destinations/README.md#disable) - Disable Destination
 - [`destinationsEnable`](docs/sdks/destinations/README.md#enable) - Enable Destination
 - [`destinationsGet`](docs/sdks/destinations/README.md#get) - Get Destination
+- [`destinationsGetAttempt`](docs/sdks/destinations/README.md#getattempt) - Get Destination Attempt
 - [`destinationsList`](docs/sdks/destinations/README.md#list) - List Destinations
+- [`destinationsListAttempts`](docs/sdks/destinations/README.md#listattempts) - List Destination Attempts
 - [`destinationsUpdate`](docs/sdks/destinations/README.md#update) - Update Destination
 - [`eventsGet`](docs/sdks/events/README.md#get) - Get Event
-- [`eventsGetByDestination`](docs/sdks/events/README.md#getbydestination) - Get Event by Destination
 - [`eventsList`](docs/sdks/events/README.md#list) - List Events
-- [`eventsListByDestination`](docs/sdks/events/README.md#listbydestination) - List Events by Destination
-- [`eventsListDeliveries`](docs/sdks/events/README.md#listdeliveries) - List Event Delivery Attempts
-- [`eventsRetry`](docs/sdks/events/README.md#retry) - Retry Event Delivery
 - [`healthCheck`](docs/sdks/health/README.md#check) - Health Check
-- [`publishEvent`](docs/sdks/publish/README.md#event) - Publish Event
-- [`schemasGet`](docs/sdks/schemas/README.md#get) - Get Destination Type Schema (for Tenant)
-- [`schemasGetDestinationTypeJwt`](docs/sdks/schemas/README.md#getdestinationtypejwt) - Get Destination Type Schema
-- [`schemasListDestinationTypesJwt`](docs/sdks/schemas/README.md#listdestinationtypesjwt) - List Destination Type Schemas (JWT Auth)
-- [`schemasListTenantDestinationTypes`](docs/sdks/schemas/README.md#listtenantdestinationtypes) - List Destination Type Schemas (for Tenant)
+- [`metricsGetAttemptMetrics`](docs/sdks/metrics/README.md#getattemptmetrics) - Get Attempt Metrics
+- [`metricsGetEventMetrics`](docs/sdks/metrics/README.md#geteventmetrics) - Get Event Metrics
+- [`publish`](docs/sdks/outpost/README.md#publish) - Publish Event
+- [`retry`](docs/sdks/outpost/README.md#retry) - Retry Event Delivery
+- [`schemasGetDestinationType`](docs/sdks/schemas/README.md#getdestinationtype) - Get Destination Type Schema
+- [`schemasListDestinationTypes`](docs/sdks/schemas/README.md#listdestinationtypes) - List Destination Type Schemas
 - [`tenantsDelete`](docs/sdks/tenants/README.md#delete) - Delete Tenant
 - [`tenantsGet`](docs/sdks/tenants/README.md#get) - Get Tenant
 - [`tenantsGetPortalUrl`](docs/sdks/tenants/README.md#getportalurl) - Get Portal Redirect URL
 - [`tenantsGetToken`](docs/sdks/tenants/README.md#gettoken) - Get Tenant JWT Token
-- [`tenantsListTenants`](docs/sdks/tenants/README.md#listtenants) - List Tenants
+- [`tenantsList`](docs/sdks/tenants/README.md#list) - List Tenants
 - [`tenantsUpsert`](docs/sdks/tenants/README.md#upsert) - Create or Update Tenant
-- [`topicsList`](docs/sdks/topics/README.md#list) - List Available Topics (for Tenant)
-- [`topicsListJwt`](docs/sdks/topics/README.md#listjwt) - List Available Topics)
+- [`topicsList`](docs/sdks/topics/README.md#list) - List Available Topics
 
 </details>
 <!-- End Standalone functions [standalone-funcs] -->
 
-<!-- Start Global Parameters [global-parameters] -->
-## Global Parameters
+<!-- Start Pagination [pagination] -->
+## Pagination
 
-A parameter is configured globally. This parameter may be set on the SDK client instance itself during initialization. When configured as an option during SDK initialization, This global value will be used as the default on the operations that use it. When such operations are called, there is a place in each to override the global value, if needed.
+Some of the endpoints in this SDK support pagination. To use pagination, you
+make your SDK calls as usual, but the returned response object will also be an
+async iterable that can be consumed using the [`for await...of`][for-await-of]
+syntax.
 
-For example, you can set `tenant_id` to `"<id>"` at SDK initialization and then you do not have to pass the same value on calls to operations like `upsert`. But if you want to do so you may, which will locally override the global setting. See the example code below for a demonstration.
+[for-await-of]: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/for-await...of
 
-
-### Available Globals
-
-The following global parameter is available.
-
-| Name     | Type   | Description             |
-| -------- | ------ | ----------------------- |
-| tenantId | string | The tenantId parameter. |
-
-### Example
+Here's an example of one such pagination call:
 
 ```typescript
 import { Outpost } from "@hookdeck/outpost-sdk";
 
 const outpost = new Outpost({
-  tenantId: "<id>",
-  security: {
-    adminApiKey: "<YOUR_BEARER_TOKEN_HERE>",
-  },
+  apiKey: "<YOUR_BEARER_TOKEN_HERE>",
 });
 
 async function run() {
-  const result = await outpost.tenants.upsert({});
+  const result = await outpost.tenants.list({});
 
-  console.log(result);
+  for await (const page of result) {
+    console.log(page);
+  }
 }
 
 run();
 
 ```
-<!-- End Global Parameters [global-parameters] -->
+<!-- End Pagination [pagination] -->
 
 <!-- Start Retries [retries] -->
 ## Retries
@@ -369,10 +394,24 @@ To change the default retry strategy for a single API call, simply provide a ret
 ```typescript
 import { Outpost } from "@hookdeck/outpost-sdk";
 
-const outpost = new Outpost();
+const outpost = new Outpost({
+  apiKey: "<YOUR_BEARER_TOKEN_HERE>",
+});
 
 async function run() {
-  const result = await outpost.health.check({
+  const result = await outpost.publish({
+    id: "evt_abc123xyz789",
+    tenantId: "tenant_123",
+    topic: "user.created",
+    eligibleForRetry: true,
+    metadata: {
+      "source": "crm",
+    },
+    data: {
+      "user_id": "userid",
+      "status": "active",
+    },
+  }, {
     retries: {
       strategy: "backoff",
       backoff: {
@@ -407,10 +446,23 @@ const outpost = new Outpost({
     },
     retryConnectionErrors: false,
   },
+  apiKey: "<YOUR_BEARER_TOKEN_HERE>",
 });
 
 async function run() {
-  const result = await outpost.health.check();
+  const result = await outpost.publish({
+    id: "evt_abc123xyz789",
+    tenantId: "tenant_123",
+    topic: "user.created",
+    eligibleForRetry: true,
+    metadata: {
+      "source": "crm",
+    },
+    data: {
+      "user_id": "userid",
+      "status": "active",
+    },
+  });
 
   console.log(result);
 }
@@ -439,11 +491,25 @@ run();
 import { Outpost } from "@hookdeck/outpost-sdk";
 import * as errors from "@hookdeck/outpost-sdk/models/errors";
 
-const outpost = new Outpost();
+const outpost = new Outpost({
+  apiKey: "<YOUR_BEARER_TOKEN_HERE>",
+});
 
 async function run() {
   try {
-    const result = await outpost.health.check();
+    const result = await outpost.publish({
+      id: "evt_abc123xyz789",
+      tenantId: "tenant_123",
+      topic: "user.created",
+      eligibleForRetry: true,
+      metadata: {
+        "source": "crm",
+      },
+      data: {
+        "user_id": "userid",
+        "status": "active",
+      },
+    });
 
     console.log(result);
   } catch (error) {
@@ -468,10 +534,12 @@ run();
 ```
 
 ### Error Classes
-**Primary error:**
+**Primary errors:**
 * [`OutpostError`](./src/models/errors/outposterror.ts): The base class for HTTP error responses.
+  * [`UnauthorizedError`](./src/models/errors/unauthorizederror.ts): A collection of codes that generally means the client was not authenticated correctly for the request they want to make.
+  * [`InternalServerError`](./src/models/errors/internalservererror.ts): A collection of status codes that generally mean the server failed in an unexpected way.
 
-<details><summary>Less common errors (14)</summary>
+<details><summary>Less common errors (12)</summary>
 
 <br />
 
@@ -484,14 +552,12 @@ run();
 
 
 **Inherit from [`OutpostError`](./src/models/errors/outposterror.ts)**:
-* [`BadRequestError`](./src/models/errors/badrequesterror.ts): A collection of codes that generally means the end user got something wrong in making the request. Applicable to 5 of 27 methods.*
-* [`UnauthorizedError`](./src/models/errors/unauthorizederror.ts): A collection of codes that generally means the client was not authenticated correctly for the request they want to make. Applicable to 5 of 27 methods.*
-* [`NotFoundError`](./src/models/errors/notfounderror.ts): Status codes relating to the resource/entity they are requesting not being found or endpoints/routes not existing. Applicable to 5 of 27 methods.*
-* [`TimeoutError`](./src/models/errors/timeouterror.ts): Timeouts occurred with the request. Applicable to 5 of 27 methods.*
-* [`RateLimitedError`](./src/models/errors/ratelimitederror.ts): Status codes relating to the client being rate limited by the server. Status code `429`. Applicable to 5 of 27 methods.*
-* [`InternalServerError`](./src/models/errors/internalservererror.ts): A collection of status codes that generally mean the server failed in an unexpected way. Applicable to 5 of 27 methods.*
-* [`ListTenantsBadRequestError`](./src/models/errors/listtenantsbadrequesterror.ts): Invalid request parameters (e.g., invalid cursor, both next and prev provided). Status code `400`. Applicable to 1 of 27 methods.*
-* [`NotImplementedError`](./src/models/errors/notimplementederror.ts): List Tenants feature is not available. Requires Redis with RediSearch module. Status code `501`. Applicable to 1 of 27 methods.*
+* [`NotFoundError`](./src/models/errors/notfounderror.ts): Status codes relating to the resource/entity they are requesting not being found or endpoints/routes not existing. Applicable to 21 of 29 methods.*
+* [`BadRequestError`](./src/models/errors/badrequesterror.ts): A collection of codes that generally means the end user got something wrong in making the request. Applicable to 9 of 29 methods.*
+* [`APIErrorResponse`](./src/models/errors/apierrorresponse.ts): Standard error response format. Applicable to 6 of 29 methods.*
+* [`TimeoutError`](./src/models/errors/timeouterror.ts): Timeouts occurred with the request. Applicable to 5 of 29 methods.*
+* [`RateLimitedError`](./src/models/errors/ratelimitederror.ts): Status codes relating to the client being rate limited by the server. Status code `429`. Applicable to 5 of 29 methods.*
+* [`NotImplementedError`](./src/models/errors/notimplementederror.ts): List Tenants feature is not available. Requires Redis with RediSearch module. Status code `501`. Applicable to 1 of 29 methods.*
 * [`ResponseValidationError`](./src/models/errors/responsevalidationerror.ts): Type mismatch between the data returned from the server and the structure expected by the SDK. See `error.rawValue` for the raw value and `error.pretty()` for a nicely formatted multi-line string.
 
 </details>
@@ -502,18 +568,72 @@ run();
 <!-- Start Server Selection [server] -->
 ## Server Selection
 
+### Select Server by Index
+
+You can override the default server globally by passing a server index to the `serverIdx: number` optional parameter when initializing the SDK client instance. The selected server will then be used as the default on the operations that use it. This table lists the indexes associated with the available servers:
+
+| #   | Server                                        | Description                        |
+| --- | --------------------------------------------- | ---------------------------------- |
+| 0   | `https://api.outpost.hookdeck.com/2025-07-01` | Outpost API (production)           |
+| 1   | `http://localhost:3333/api/v1`                | Local development server base path |
+
+#### Example
+
+```typescript
+import { Outpost } from "@hookdeck/outpost-sdk";
+
+const outpost = new Outpost({
+  serverIdx: 0,
+  apiKey: "<YOUR_BEARER_TOKEN_HERE>",
+});
+
+async function run() {
+  const result = await outpost.publish({
+    id: "evt_abc123xyz789",
+    tenantId: "tenant_123",
+    topic: "user.created",
+    eligibleForRetry: true,
+    metadata: {
+      "source": "crm",
+    },
+    data: {
+      "user_id": "userid",
+      "status": "active",
+    },
+  });
+
+  console.log(result);
+}
+
+run();
+
+```
+
 ### Override Server URL Per-Client
 
-The default server can be overridden globally by passing a URL to the `serverURL: string` optional parameter when initializing the SDK client instance. For example:
+The default server can also be overridden globally by passing a URL to the `serverURL: string` optional parameter when initializing the SDK client instance. For example:
 ```typescript
 import { Outpost } from "@hookdeck/outpost-sdk";
 
 const outpost = new Outpost({
   serverURL: "http://localhost:3333/api/v1",
+  apiKey: "<YOUR_BEARER_TOKEN_HERE>",
 });
 
 async function run() {
-  const result = await outpost.health.check();
+  const result = await outpost.publish({
+    id: "evt_abc123xyz789",
+    tenantId: "tenant_123",
+    topic: "user.created",
+    eligibleForRetry: true,
+    metadata: {
+      "source": "crm",
+    },
+    data: {
+      "user_id": "userid",
+      "status": "active",
+    },
+  });
 
   console.log(result);
 }
@@ -536,19 +656,23 @@ The `HTTPClient` constructor takes an optional `fetcher` argument that can be
 used to integrate a third-party HTTP client or when writing tests to mock out
 the HTTP client and feed in fixtures.
 
-The following example shows how to use the `"beforeRequest"` hook to to add a
-custom header and a timeout to requests and how to use the `"requestError"` hook
-to log errors:
+The following example shows how to:
+- route requests through a proxy server using [undici](https://www.npmjs.com/package/undici)'s ProxyAgent
+- use the `"beforeRequest"` hook to add a custom header and a timeout to requests
+- use the `"requestError"` hook to log errors
 
 ```typescript
 import { Outpost } from "@hookdeck/outpost-sdk";
+import { ProxyAgent } from "undici";
 import { HTTPClient } from "@hookdeck/outpost-sdk/lib/http";
 
+const dispatcher = new ProxyAgent("http://proxy.example.com:8080");
+
 const httpClient = new HTTPClient({
-  // fetcher takes a function that has the same signature as native `fetch`.
-  fetcher: (request) => {
-    return fetch(request);
-  }
+  // 'fetcher' takes a function that has the same signature as native 'fetch'.
+  fetcher: (input, init) =>
+    // 'dispatcher' is specific to undici and not part of the standard Fetch API.
+    fetch(input, { ...init, dispatcher } as RequestInit),
 });
 
 httpClient.addHook("beforeRequest", (request) => {

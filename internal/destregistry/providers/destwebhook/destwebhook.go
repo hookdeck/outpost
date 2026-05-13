@@ -4,22 +4,30 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"math/big"
 	"net/http"
 	"regexp"
 	"strings"
+	"text/template"
 	"time"
 
+	"github.com/Masterminds/sprig/v3"
 	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/hookdeck/outpost/internal/destregistry/metadata"
 	"github.com/hookdeck/outpost/internal/models"
 )
 
 const (
-	DefaultEncoding  = "hex"
-	DefaultAlgorithm = "hmac-sha256"
+	DefaultEncoding             = "hex"
+	DefaultAlgorithm            = "hmac-sha256"
+	DefaultHeaderPrefix         = "x-outpost-"
+	DefaultSignatureContentTmpl = "{{.Body}}"
+	DefaultSignatureHeaderTmpl  = "v0={{.Signatures | join \",\"}}"
+	DefaultSigningSecretTmpl    = "whsec_{{.RandomHex}}"
 )
 
 // Reserved headers that cannot be set via custom_headers
@@ -89,6 +97,8 @@ type WebhookDestination struct {
 	disableTopicHeader       bool
 	encoding                 string
 	algorithm                string
+	rawSigningSecretTemplate string
+	signingSecretTemplate    *template.Template
 }
 
 type WebhookDestinationConfig struct {
@@ -113,10 +123,12 @@ var _ destregistry.Provider = (*WebhookDestination)(nil)
 // Option is a functional option for configuring WebhookDestination
 type Option func(*WebhookDestination)
 
-// WithHeaderPrefix sets a custom prefix for webhook request headers
+// WithHeaderPrefix sets the prefix for webhook request headers.
+// The prefix is trimmed of whitespace. An empty string disables the prefix entirely.
+// Config is responsible for providing the appropriate default ("x-outpost-" or "webhook-").
 func WithHeaderPrefix(prefix string) Option {
 	return func(w *WebhookDestination) {
-		w.headerPrefix = prefix
+		w.headerPrefix = strings.TrimSpace(prefix)
 	}
 }
 
@@ -182,6 +194,19 @@ func WithSignatureAlgorithm(algorithm string) Option {
 	}
 }
 
+func WithSigningSecretTemplate(templateStr string) Option {
+	return func(w *WebhookDestination) {
+		w.rawSigningSecretTemplate = templateStr
+	}
+}
+
+// signingSecretTemplateData holds the variables available in signing secret templates.
+type signingSecretTemplateData struct {
+	RandomHex          string
+	RandomBase64       string
+	RandomAlphanumeric string
+}
+
 func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePublisherOption, opts ...Option) (*WebhookDestination, error) {
 	base, err := destregistry.NewBaseProvider(loader, "webhook", basePublisherOpts...)
 	if err != nil {
@@ -189,13 +214,37 @@ func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePu
 	}
 	destination := &WebhookDestination{
 		BaseProvider: base,
-		headerPrefix: "x-outpost-",
-		encoding:     DefaultEncoding,
-		algorithm:    DefaultAlgorithm,
 	}
 	for _, opt := range opts {
 		opt(destination)
 	}
+
+	// Validate all required configuration is provided
+	// Config is responsible for setting defaults - provider requires explicit values
+	// Note: headerPrefix may be empty (after trimming) to disable prefix entirely
+	if destination.encoding == "" {
+		return nil, fmt.Errorf("signature encoding is required")
+	}
+	if destination.algorithm == "" {
+		return nil, fmt.Errorf("signature algorithm is required")
+	}
+	if destination.signatureContentTemplate == "" {
+		return nil, fmt.Errorf("signature content template is required")
+	}
+	if destination.signatureHeaderTemplate == "" {
+		return nil, fmt.Errorf("signature header template is required")
+	}
+	if destination.rawSigningSecretTemplate == "" {
+		return nil, fmt.Errorf("signing secret template is required")
+	}
+
+	// Parse signing secret template — fail on invalid syntax
+	tmpl, err := template.New("signing_secret").Funcs(sprig.TxtFuncMap()).Parse(destination.rawSigningSecretTemplate)
+	if err != nil {
+		return nil, fmt.Errorf("invalid signing secret template %q: %w", destination.rawSigningSecretTemplate, err)
+	}
+	destination.signingSecretTemplate = tmpl
+
 	return destination, nil
 }
 
@@ -217,12 +266,25 @@ func (d *WebhookDestination) ObfuscateDestination(destination *models.Destinatio
 		result.Config[key] = value
 	}
 
-	// Copy credentials as is
+	// Check if previous_secret has expired
+	skipPreviousSecret := false
+	if invalidAtStr := destination.Credentials["previous_secret_invalid_at"]; invalidAtStr != "" {
+		if invalidAt, err := time.Parse(time.RFC3339, invalidAtStr); err == nil {
+			if time.Now().After(invalidAt) {
+				skipPreviousSecret = true
+			}
+		}
+	}
+
+	// Copy credentials, omitting expired previous_secret fields
 	// NOTE: Webhook secrets are intentionally not obfuscated for now because:
 	// 1. They're needed for secret rotation logic
 	// 2. They're less security-critical than other provider credentials (e.g. AWS keys)
 	// TODO: Implement proper secret obfuscation later if needed
 	for key, value := range destination.Credentials {
+		if skipPreviousSecret && (key == "previous_secret" || key == "previous_secret_invalid_at") {
+			continue
+		}
 		result.Credentials[key] = value
 	}
 
@@ -280,9 +342,10 @@ func (d *WebhookDestination) CreatePublisher(ctx context.Context, destination *m
 		proxyURL = &d.proxyURL
 	}
 
-	httpClient, err := d.BaseProvider.MakeHTTPClient(destregistry.HTTPClientConfig{
-		UserAgent: &d.userAgent,
-		ProxyURL:  proxyURL,
+	httpClient, err := destregistry.NewHTTPClient(destregistry.HTTPClientConfig{
+		UserAgent:     &d.userAgent,
+		ProxyURL:      proxyURL,
+		WrapTransport: WrapTransport,
 	})
 	if err != nil {
 		return nil, err
@@ -320,7 +383,9 @@ func (d *WebhookDestination) resolveConfig(ctx context.Context, destination *mod
 				Type:  "invalid",
 			}})
 		}
-		if err := ValidateCustomHeaders(config.CustomHeaders); err != nil {
+		if len(config.CustomHeaders) == 0 {
+			config.CustomHeaders = nil
+		} else if err := ValidateCustomHeaders(config.CustomHeaders); err != nil {
 			return nil, nil, err
 		}
 	}
@@ -403,7 +468,7 @@ func (d *WebhookDestination) rotateSecret(newDest, origDest *models.Destination)
 	creds["previous_secret"] = origDest.Credentials["secret"]
 
 	// Generate a new secret
-	secret, err := generateSignatureSecret()
+	secret, err := d.generateSignatureSecret()
 	if err != nil {
 		return nil, err
 	}
@@ -504,7 +569,7 @@ func (d *WebhookDestination) ensureInitializedCredentials(creds map[string]strin
 	}
 
 	// Otherwise generate a new secret
-	secret, err := generateSignatureSecret()
+	secret, err := d.generateSignatureSecret()
 	if err != nil {
 		return nil, err
 	}
@@ -601,10 +666,7 @@ func (p *WebhookPublisher) Publish(ctx context.Context, event *models.Event) (*d
 // Format is a helper function to format the event data into an HTTP request.
 func (p *WebhookPublisher) Format(ctx context.Context, event *models.Event) (*http.Request, error) {
 	now := time.Now()
-	rawBody, err := json.Marshal(event.Data)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal event data: %w", err)
-	}
+	rawBody := []byte(event.Data)
 
 	req, err := http.NewRequestWithContext(ctx, "POST", p.url, bytes.NewBuffer(rawBody))
 	if err != nil {
@@ -658,15 +720,44 @@ func (p *WebhookPublisher) Format(ctx context.Context, event *models.Event) (*ht
 	return req, nil
 }
 
-// generateSignatureSecret creates a cryptographically secure random secret suitable for HMAC signatures.
-// The secret is 32 bytes (256 bits) encoded as a hex string.
-func generateSignatureSecret() (string, error) {
-	// Generate a random 32-byte hex string
+// generateSignatureSecret creates a cryptographically secure random secret using the configured template.
+// The default template produces a 64-character hex string (32 random bytes).
+func (d *WebhookDestination) generateSignatureSecret() (string, error) {
 	randomBytes := make([]byte, 32)
 	if _, err := rand.Read(randomBytes); err != nil {
-		return "", fmt.Errorf("failed to generate random secret: %w", err)
+		return "", fmt.Errorf("failed to generate random bytes: %w", err)
 	}
-	return hex.EncodeToString(randomBytes), nil
+
+	alphanumeric, err := randomAlphanumeric(32)
+	if err != nil {
+		return "", err
+	}
+
+	data := signingSecretTemplateData{
+		RandomHex:          hex.EncodeToString(randomBytes),
+		RandomBase64:       base64.StdEncoding.EncodeToString(randomBytes),
+		RandomAlphanumeric: alphanumeric,
+	}
+
+	var buf bytes.Buffer
+	if err := d.signingSecretTemplate.Execute(&buf, data); err != nil {
+		return "", fmt.Errorf("failed to execute signing secret template: %w", err)
+	}
+	return buf.String(), nil
+}
+
+const alphanumericChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+
+func randomAlphanumeric(n int) (string, error) {
+	result := make([]byte, n)
+	for i := range result {
+		idx, err := rand.Int(rand.Reader, big.NewInt(int64(len(alphanumericChars))))
+		if err != nil {
+			return "", fmt.Errorf("failed to generate random alphanumeric: %w", err)
+		}
+		result[i] = alphanumericChars[idx.Int64()]
+	}
+	return string(result), nil
 }
 
 // GetEncoder returns the appropriate SignatureEncoder for the given encoding

@@ -11,6 +11,7 @@ import (
 	"github.com/hookdeck/outpost/internal/config"
 	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/infra"
+	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/redis"
 	"github.com/hookdeck/outpost/internal/util/testinfra"
 	"github.com/hookdeck/outpost/internal/util/testutil"
@@ -86,6 +87,8 @@ func Basic(t *testing.T, opts BasicOpts) config.Config {
 	c.LogBatchThresholdSeconds = 0 // Immediate flush (1ms) for faster tests
 	c.LogBatchSize = 100
 	c.DeploymentID = opts.DeploymentID
+	c.Alert.AutoDisableDestination = true
+	c.Alert.ConsecutiveFailureCount = 20
 
 	// Use signature templates with timestamps for mock server compatibility
 	c.Destinations.Webhook.SignatureContentTemplate = "{{.Timestamp.Unix}}.{{.Body}}"
@@ -97,10 +100,14 @@ func Basic(t *testing.T, opts BasicOpts) config.Config {
 		if err != nil {
 			log.Println("Failed to create redis client:", err)
 		}
+		logger, err := logging.NewLogger(logging.WithLogLevel("warn"))
+		if err != nil {
+			log.Println("Failed to create logger:", err)
+		}
 		outpostInfra := infra.NewInfra(infra.Config{
 			DeliveryMQ: c.MQs.ToInfraConfig("deliverymq"),
 			LogMQ:      c.MQs.ToInfraConfig("logmq"),
-		}, redisClient)
+		}, redisClient, logger, c.MQs.GetInfraType())
 		if err := outpostInfra.Teardown(context.Background()); err != nil {
 			log.Println("Teardown failed:", err)
 		}

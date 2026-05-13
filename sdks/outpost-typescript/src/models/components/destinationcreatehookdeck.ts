@@ -22,7 +22,7 @@ import {
 
 export type DestinationCreateHookdeck = {
   /**
-   * Optional user-provided ID. A UUID will be generated if empty.
+   * Optional user-provided ID. An ID will be generated if empty.
    */
   id?: string | undefined;
   /**
@@ -39,19 +39,31 @@ export type DestinationCreateHookdeck = {
    * @remarks
    * Supports operators: $eq, $neq, $gt, $gte, $lt, $lte, $in, $nin, $startsWith, $endsWith, $exist, $or, $and, $not.
    * If null or empty, all events matching the topic filter will be delivered.
-   * To remove an existing filter when updating a destination, set filter to an empty object `{}`.
+   * Uses full-replacement semantics on update: send a new object to replace, null or `{}` to clear, omit for no change.
    */
   filter?: { [k: string]: any } | null | undefined;
   config?: any | undefined;
   credentials: HookdeckCredentials;
   /**
-   * Static key-value pairs merged into event metadata on every delivery.
+   * Static key-value pairs merged into event metadata on every attempt.
    */
   deliveryMetadata?: { [k: string]: string } | null | undefined;
   /**
    * Arbitrary contextual information stored with the destination.
    */
   metadata?: { [k: string]: string } | null | undefined;
+  /**
+   * Optional override for the creation timestamp. Intended for importing destinations from another system. Must not be in the future. **Admin (API key) auth only — sending this with JWT auth returns 403.** Defaults to the current time when omitted.
+   */
+  createdAt?: Date | null | undefined;
+  /**
+   * Optional override for the last-updated timestamp. Intended for importing destinations. Must not be in the future. **Admin (API key) auth only — sending this with JWT auth returns 403.** Defaults to created_at when omitted.
+   */
+  updatedAt?: Date | null | undefined;
+  /**
+   * If set, the destination is created in a disabled state with this timestamp. Must not be in the future. Defaults to null (enabled).
+   */
+  disabledAt?: Date | null | undefined;
 };
 
 /** @internal */
@@ -68,9 +80,21 @@ export const DestinationCreateHookdeck$inboundSchema: z.ZodType<
   credentials: HookdeckCredentials$inboundSchema,
   delivery_metadata: z.nullable(z.record(z.string())).optional(),
   metadata: z.nullable(z.record(z.string())).optional(),
+  created_at: z.nullable(
+    z.string().datetime({ offset: true }).transform(v => new Date(v)),
+  ).optional(),
+  updated_at: z.nullable(
+    z.string().datetime({ offset: true }).transform(v => new Date(v)),
+  ).optional(),
+  disabled_at: z.nullable(
+    z.string().datetime({ offset: true }).transform(v => new Date(v)),
+  ).optional(),
 }).transform((v) => {
   return remap$(v, {
     "delivery_metadata": "deliveryMetadata",
+    "created_at": "createdAt",
+    "updated_at": "updatedAt",
+    "disabled_at": "disabledAt",
   });
 });
 /** @internal */
@@ -83,6 +107,9 @@ export type DestinationCreateHookdeck$Outbound = {
   credentials: HookdeckCredentials$Outbound;
   delivery_metadata?: { [k: string]: string } | null | undefined;
   metadata?: { [k: string]: string } | null | undefined;
+  created_at?: string | null | undefined;
+  updated_at?: string | null | undefined;
+  disabled_at?: string | null | undefined;
 };
 
 /** @internal */
@@ -99,9 +126,15 @@ export const DestinationCreateHookdeck$outboundSchema: z.ZodType<
   credentials: HookdeckCredentials$outboundSchema,
   deliveryMetadata: z.nullable(z.record(z.string())).optional(),
   metadata: z.nullable(z.record(z.string())).optional(),
+  createdAt: z.nullable(z.date().transform(v => v.toISOString())).optional(),
+  updatedAt: z.nullable(z.date().transform(v => v.toISOString())).optional(),
+  disabledAt: z.nullable(z.date().transform(v => v.toISOString())).optional(),
 }).transform((v) => {
   return remap$(v, {
     deliveryMetadata: "delivery_metadata",
+    createdAt: "created_at",
+    updatedAt: "updated_at",
+    disabledAt: "disabled_at",
   });
 });
 

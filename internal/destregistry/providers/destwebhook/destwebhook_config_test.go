@@ -85,8 +85,7 @@ func TestGetAlgorithm(t *testing.T) {
 func TestWebhookDestination_CustomHeadersConfig(t *testing.T) {
 	t.Parallel()
 
-	webhookDestination, err := destwebhook.New(testutil.Registry.MetadataLoader(), nil)
-	assert.NoError(t, err)
+	webhookDestination := NewTestProvider(t)
 
 	t.Run("should parse config with valid custom_headers", func(t *testing.T) {
 		t.Parallel()
@@ -105,7 +104,7 @@ func TestWebhookDestination_CustomHeadersConfig(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
-	t.Run("should parse config with empty custom_headers", func(t *testing.T) {
+	t.Run("should accept empty custom_headers object", func(t *testing.T) {
 		t.Parallel()
 		destination := testutil.DestinationFactory.Any(
 			testutil.DestinationFactory.WithType("webhook"),
@@ -168,15 +167,27 @@ func TestWebhookDestination_SignatureOptions(t *testing.T) {
 		wantAlgorithm string
 	}{
 		{
-			name:          "default values",
-			opts:          []destwebhook.Option{},
+			name: "default values",
+			opts: []destwebhook.Option{
+				destwebhook.WithHeaderPrefix("x-outpost-"),
+				destwebhook.WithSignatureContentTemplate("{{.Body}}"),
+				destwebhook.WithSignatureHeaderTemplate("v0={{.Signatures | join \",\"}}"),
+				destwebhook.WithSignatureEncoding(destwebhook.DefaultEncoding),
+				destwebhook.WithSignatureAlgorithm(destwebhook.DefaultAlgorithm),
+				destwebhook.WithSigningSecretTemplate("whsec_{{.RandomHex}}"),
+			},
 			wantEncoding:  destwebhook.DefaultEncoding,
 			wantAlgorithm: destwebhook.DefaultAlgorithm,
 		},
 		{
 			name: "custom encoding",
 			opts: []destwebhook.Option{
+				destwebhook.WithHeaderPrefix("x-outpost-"),
+				destwebhook.WithSignatureContentTemplate("{{.Body}}"),
+				destwebhook.WithSignatureHeaderTemplate("v0={{.Signatures | join \",\"}}"),
 				destwebhook.WithSignatureEncoding("base64"),
+				destwebhook.WithSignatureAlgorithm(destwebhook.DefaultAlgorithm),
+				destwebhook.WithSigningSecretTemplate("whsec_{{.RandomHex}}"),
 			},
 			wantEncoding:  "base64",
 			wantAlgorithm: destwebhook.DefaultAlgorithm,
@@ -184,7 +195,12 @@ func TestWebhookDestination_SignatureOptions(t *testing.T) {
 		{
 			name: "custom algorithm",
 			opts: []destwebhook.Option{
+				destwebhook.WithHeaderPrefix("x-outpost-"),
+				destwebhook.WithSignatureContentTemplate("{{.Body}}"),
+				destwebhook.WithSignatureHeaderTemplate("v0={{.Signatures | join \",\"}}"),
+				destwebhook.WithSignatureEncoding(destwebhook.DefaultEncoding),
 				destwebhook.WithSignatureAlgorithm("hmac-sha1"),
+				destwebhook.WithSigningSecretTemplate("whsec_{{.RandomHex}}"),
 			},
 			wantEncoding:  destwebhook.DefaultEncoding,
 			wantAlgorithm: "hmac-sha1",
@@ -192,8 +208,12 @@ func TestWebhookDestination_SignatureOptions(t *testing.T) {
 		{
 			name: "custom encoding and algorithm",
 			opts: []destwebhook.Option{
+				destwebhook.WithHeaderPrefix("x-outpost-"),
+				destwebhook.WithSignatureContentTemplate("{{.Body}}"),
+				destwebhook.WithSignatureHeaderTemplate("v0={{.Signatures | join \",\"}}"),
 				destwebhook.WithSignatureEncoding("base64"),
 				destwebhook.WithSignatureAlgorithm("hmac-sha1"),
+				destwebhook.WithSigningSecretTemplate("whsec_{{.RandomHex}}"),
 			},
 			wantEncoding:  "base64",
 			wantAlgorithm: "hmac-sha1",

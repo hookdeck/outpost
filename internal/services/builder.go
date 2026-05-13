@@ -18,14 +18,13 @@ import (
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/logmq"
 	"github.com/hookdeck/outpost/internal/logstore"
-	"github.com/hookdeck/outpost/internal/models"
-	"github.com/hookdeck/outpost/internal/mqs"
+	"github.com/hookdeck/outpost/internal/opevents"
 	"github.com/hookdeck/outpost/internal/publishmq"
 	"github.com/hookdeck/outpost/internal/redis"
 	"github.com/hookdeck/outpost/internal/scheduler"
 	"github.com/hookdeck/outpost/internal/telemetry"
+	"github.com/hookdeck/outpost/internal/tenantstore"
 	"github.com/hookdeck/outpost/internal/worker"
-	"github.com/mikestefanello/batcher"
 	"go.uber.org/zap"
 )
 
@@ -49,7 +48,7 @@ type serviceInstance struct {
 	// Common infrastructure
 	redisClient    redis.Client
 	logStore       logstore.LogStore
-	entityStore    models.EntityStore
+	tenantStore    tenantstore.TenantStore
 	destRegistry   destregistry.Registry
 	eventTracer    eventtracer.EventTracer
 	deliveryMQ     *deliverymq.DeliveryMQ
@@ -152,7 +151,6 @@ func (b *ServiceBuilder) Cleanup(ctx context.Context) {
 func (b *ServiceBuilder) BuildAPIWorkers(baseRouter *gin.Engine) error {
 	b.logger.Debug("building API service workers")
 
-	// Create a new service instance for API
 	svc := &serviceInstance{
 		name:         "api",
 		cleanupFuncs: []func(context.Context, *logging.LoggerWithCtx){},
@@ -175,7 +173,7 @@ func (b *ServiceBuilder) BuildAPIWorkers(baseRouter *gin.Engine) error {
 	if err := svc.initEventTracer(b.cfg, b.logger); err != nil {
 		return err
 	}
-	if err := svc.initEntityStore(b.ctx, b.cfg, b.logger); err != nil {
+	if err := svc.initTenantStore(b.ctx, b.cfg, b.logger); err != nil {
 		return err
 	}
 
@@ -189,27 +187,38 @@ func (b *ServiceBuilder) BuildAPIWorkers(baseRouter *gin.Engine) error {
 	publishIdempotence := idempotence.New(svc.redisClient,
 		idempotence.WithTimeout(5*time.Second),
 		idempotence.WithSuccessfulTTL(time.Duration(b.cfg.PublishIdempotencyKeyTTL)*time.Second),
+		idempotence.WithDeploymentID(b.cfg.DeploymentID),
 	)
-	eventHandler := publishmq.NewEventHandler(b.logger, svc.deliveryMQ, svc.entityStore, svc.eventTracer, b.cfg.Topics, publishIdempotence)
+	eventHandler := publishmq.NewEventHandler(b.logger, svc.deliveryMQ, svc.tenantStore, svc.eventTracer, b.cfg.Topics, publishIdempotence)
 
-	// Create API router as separate handler
+	// Create operator events emitter for subscription updates
+	oeCfg := b.cfg.OperatorEvents.ToConfig()
+	oeSink, err := opevents.NewSink(oeCfg, b.logger)
+	if err != nil {
+		return fmt.Errorf("failed to create operator events sink: %w", err)
+	}
+	subscriptionEmitter := opevents.NewEmitter(oeSink, b.cfg.DeploymentID, oeCfg.Topics)
+
 	apiHandler := apirouter.NewRouter(
 		apirouter.RouterConfig{
 			ServiceName:  b.cfg.OpenTelemetry.GetServiceName(),
 			APIKey:       b.cfg.APIKey,
 			JWTSecret:    b.cfg.APIJWTSecret,
+			DeploymentID: b.cfg.DeploymentID,
 			Topics:       b.cfg.Topics,
 			Registry:     svc.destRegistry,
 			PortalConfig: b.cfg.GetPortalConfig(),
 			GinMode:      b.cfg.GinMode,
 		},
-		b.logger,
-		svc.redisClient,
-		svc.deliveryMQ,
-		svc.entityStore,
-		svc.logStore,
-		eventHandler,
-		b.telemetry,
+		apirouter.RouterDeps{
+			TenantStore:         svc.tenantStore,
+			LogStore:            svc.logStore,
+			Logger:              b.logger,
+			DeliveryPublisher:   svc.deliveryMQ,
+			EventHandler:        eventHandler,
+			Telemetry:           b.telemetry,
+			SubscriptionEmitter: subscriptionEmitter,
+		},
 	)
 
 	// Mount API handler onto base router (everything except /healthz goes to apiHandler)
@@ -243,7 +252,6 @@ func (b *ServiceBuilder) BuildAPIWorkers(baseRouter *gin.Engine) error {
 func (b *ServiceBuilder) BuildDeliveryWorker(baseRouter *gin.Engine) error {
 	b.logger.Debug("building delivery service worker")
 
-	// Create a new service instance for Delivery
 	svc := &serviceInstance{
 		name:         "delivery",
 		cleanupFuncs: []func(context.Context, *logging.LoggerWithCtx){},
@@ -266,7 +274,7 @@ func (b *ServiceBuilder) BuildDeliveryWorker(baseRouter *gin.Engine) error {
 	if err := svc.initEventTracer(b.cfg, b.logger); err != nil {
 		return err
 	}
-	if err := svc.initEntityStore(b.ctx, b.cfg, b.logger); err != nil {
+	if err := svc.initTenantStore(b.ctx, b.cfg, b.logger); err != nil {
 		return err
 	}
 	if err := svc.initLogStore(b.ctx, b.cfg, b.logger); err != nil {
@@ -276,49 +284,28 @@ func (b *ServiceBuilder) BuildDeliveryWorker(baseRouter *gin.Engine) error {
 		return err
 	}
 
-	// Initialize alert monitor
-	var alertNotifier alert.AlertNotifier
-	var destinationDisabler alert.DestinationDisabler
-	if b.cfg.Alert.CallbackURL != "" {
-		alertNotifier = alert.NewHTTPAlertNotifier(b.cfg.Alert.CallbackURL, alert.NotifierWithBearerToken(b.cfg.APIKey))
-	}
-	if b.cfg.Alert.AutoDisableDestination {
-		destinationDisabler = newDestinationDisabler(svc.entityStore)
-	}
-	alertMonitor := alert.NewAlertMonitor(
-		b.logger,
-		svc.redisClient,
-		alert.WithNotifier(alertNotifier),
-		alert.WithDisabler(destinationDisabler),
-		alert.WithAutoDisableFailureCount(b.cfg.Alert.ConsecutiveFailureCount),
-		alert.WithDeploymentID(b.cfg.DeploymentID),
-	)
-
 	// Initialize delivery idempotence
 	deliveryIdempotence := idempotence.New(svc.redisClient,
 		idempotence.WithTimeout(5*time.Second),
 		idempotence.WithSuccessfulTTL(time.Duration(b.cfg.DeliveryIdempotencyKeyTTL)*time.Second),
+		idempotence.WithDeploymentID(b.cfg.DeploymentID),
 	)
 
-	// Get retry configuration
 	retryBackoff, retryMaxLimit := b.cfg.GetRetryBackoff()
 
 	// Create delivery handler
 	handler := deliverymq.NewMessageHandler(
 		b.logger,
 		svc.logMQ,
-		svc.entityStore,
-		svc.logStore,
+		svc.tenantStore,
 		svc.destRegistry,
 		svc.eventTracer,
 		svc.retryScheduler,
 		retryBackoff,
 		retryMaxLimit,
-		alertMonitor,
 		deliveryIdempotence,
 	)
 
-	// Store reference to the base router
 	svc.router = baseRouter
 
 	// Create DeliveryMQ worker
@@ -339,7 +326,6 @@ func (b *ServiceBuilder) BuildDeliveryWorker(baseRouter *gin.Engine) error {
 func (b *ServiceBuilder) BuildLogWorker(baseRouter *gin.Engine) error {
 	b.logger.Debug("building log service worker")
 
-	// Create a new service instance for Log
 	svc := &serviceInstance{
 		name:         "log",
 		cleanupFuncs: []func(context.Context, *logging.LoggerWithCtx){},
@@ -347,9 +333,43 @@ func (b *ServiceBuilder) BuildLogWorker(baseRouter *gin.Engine) error {
 	b.services = append(b.services, svc)
 
 	// Initialize common infrastructure
+	if err := svc.initRedis(b.ctx, b.cfg, b.logger); err != nil {
+		return err
+	}
+	if err := svc.initTenantStore(b.ctx, b.cfg, b.logger); err != nil {
+		return err
+	}
 	if err := svc.initLogStore(b.ctx, b.cfg, b.logger); err != nil {
 		return err
 	}
+
+	// Initialize alert monitor for operator events
+	oeCfg := b.cfg.OperatorEvents.ToConfig()
+	sink, err := opevents.NewSink(oeCfg, b.logger)
+	if err != nil {
+		return fmt.Errorf("failed to create operator events sink: %w", err)
+	}
+	emitter := opevents.NewEmitter(sink, b.cfg.DeploymentID, oeCfg.Topics)
+
+	var disabler alert.DestinationDisabler
+	if b.cfg.Alert.AutoDisableDestination {
+		disabler = newDestinationDisabler(svc.tenantStore)
+	}
+	exhaustedRetriesIdemp := idempotence.New(svc.redisClient,
+		idempotence.WithSuccessfulTTL(time.Duration(b.cfg.Alert.ExhaustedRetriesWindowSeconds)*time.Second),
+		idempotence.WithDeploymentID(b.cfg.DeploymentID),
+	)
+	_, retryMaxLimit := b.cfg.GetRetryBackoff()
+	alertMonitor := alert.NewAlertMonitor(
+		b.logger,
+		svc.redisClient,
+		emitter,
+		retryMaxLimit,
+		alert.WithDisabler(disabler),
+		alert.WithExhaustedRetriesIdempotence(exhaustedRetriesIdemp),
+		alert.WithAutoDisableFailureCount(b.cfg.Alert.ConsecutiveFailureCount),
+		alert.WithDeploymentID(b.cfg.DeploymentID),
+	)
 
 	// Create batcher for batching log writes
 	// Convert seconds to duration, treating 0 as "flush immediately" (1ms minimum)
@@ -366,17 +386,20 @@ func (b *ServiceBuilder) BuildLogWorker(baseRouter *gin.Engine) error {
 	}
 
 	b.logger.Debug("creating log batcher")
-	batcher, err := b.makeBatcher(svc.logStore, batcherCfg.ItemCountThreshold, batcherCfg.DelayThreshold)
+	batchProcessor, err := logmq.NewBatchProcessor(b.ctx, b.logger, svc.logStore, alertMonitor, logmq.BatchProcessorConfig{
+		ItemCountThreshold: batcherCfg.ItemCountThreshold,
+		DelayThreshold:     batcherCfg.DelayThreshold,
+	})
 	if err != nil {
 		b.logger.Error("failed to create batcher", zap.Error(err))
 		return err
 	}
 	svc.cleanupFuncs = append(svc.cleanupFuncs, func(ctx context.Context, logger *logging.LoggerWithCtx) {
-		batcher.Shutdown()
+		batchProcessor.Shutdown()
 	})
 
 	// Create log handler with batcher
-	handler := logmq.NewMessageHandler(b.logger, &handlerBatcherImpl{batcher: batcher})
+	handler := logmq.NewMessageHandler(b.logger, batchProcessor)
 
 	// Initialize LogMQ
 	b.logger.Debug("configuring log message queue")
@@ -388,7 +411,6 @@ func (b *ServiceBuilder) BuildLogWorker(baseRouter *gin.Engine) error {
 
 	logMQ := logmq.New(logmq.WithQueue(logQueueConfig))
 
-	// Store reference to the base router
 	svc.router = baseRouter
 
 	// Create LogMQ worker
@@ -396,7 +418,7 @@ func (b *ServiceBuilder) BuildLogWorker(baseRouter *gin.Engine) error {
 		"logmq-consumer",
 		logMQ.Subscribe,
 		handler,
-		b.cfg.DeliveryMaxConcurrency,
+		b.cfg.LogMaxConcurrency,
 		b.logger,
 	)
 	b.supervisor.Register(logWorker)
@@ -405,19 +427,17 @@ func (b *ServiceBuilder) BuildLogWorker(baseRouter *gin.Engine) error {
 	return nil
 }
 
-// destinationDisabler implements alert.DestinationDisabler
+// destinationDisabler implements alert.DestinationDisabler by setting DisabledAt on the destination.
 type destinationDisabler struct {
-	entityStore models.EntityStore
+	tenantStore tenantstore.TenantStore
 }
 
-func newDestinationDisabler(entityStore models.EntityStore) alert.DestinationDisabler {
-	return &destinationDisabler{
-		entityStore: entityStore,
-	}
+func newDestinationDisabler(tenantStore tenantstore.TenantStore) alert.DestinationDisabler {
+	return &destinationDisabler{tenantStore: tenantStore}
 }
 
 func (d *destinationDisabler) DisableDestination(ctx context.Context, tenantID, destinationID string) error {
-	destination, err := d.entityStore.RetrieveDestination(ctx, tenantID, destinationID)
+	destination, err := d.tenantStore.RetrieveDestination(ctx, tenantID, destinationID)
 	if err != nil {
 		return err
 	}
@@ -426,69 +446,7 @@ func (d *destinationDisabler) DisableDestination(ctx context.Context, tenantID, 
 	}
 	now := time.Now()
 	destination.DisabledAt = &now
-	return d.entityStore.UpsertDestination(ctx, *destination)
-}
-
-// makeBatcher creates a batcher for batching log writes
-func (b *ServiceBuilder) makeBatcher(logStore logstore.LogStore, itemCountThreshold int, delayThreshold time.Duration) (*batcher.Batcher[*mqs.Message], error) {
-	batchr, err := batcher.NewBatcher(batcher.Config[*mqs.Message]{
-		GroupCountThreshold: 2,
-		ItemCountThreshold:  itemCountThreshold,
-		DelayThreshold:      delayThreshold,
-		NumGoroutines:       1,
-		Processor: func(_ string, msgs []*mqs.Message) {
-			logger := b.logger.Ctx(b.ctx)
-			logger.Info("processing batch", zap.Int("message_count", len(msgs)))
-
-			nackAll := func() {
-				for _, msg := range msgs {
-					msg.Nack()
-				}
-			}
-
-			deliveryEvents := make([]*models.DeliveryEvent, 0, len(msgs))
-			for _, msg := range msgs {
-				deliveryEvent := models.DeliveryEvent{}
-				if err := deliveryEvent.FromMessage(msg); err != nil {
-					logger.Error("failed to parse delivery event",
-						zap.Error(err),
-						zap.String("message_id", msg.LoggableID))
-					nackAll()
-					return
-				}
-				deliveryEvents = append(deliveryEvents, &deliveryEvent)
-			}
-
-			if err := logStore.InsertManyDeliveryEvent(b.ctx, deliveryEvents); err != nil {
-				logger.Error("failed to insert delivery events",
-					zap.Error(err),
-					zap.Int("count", len(deliveryEvents)))
-				nackAll()
-				return
-			}
-
-			logger.Info("batch processed successfully", zap.Int("count", len(msgs)))
-
-			for _, msg := range msgs {
-				msg.Ack()
-			}
-		},
-	})
-	if err != nil {
-		b.logger.Ctx(b.ctx).Error("failed to create batcher", zap.Error(err))
-		return nil, err
-	}
-	return batchr, nil
-}
-
-// handlerBatcherImpl implements the batcher interface expected by logmq.MessageHandler
-type handlerBatcherImpl struct {
-	batcher *batcher.Batcher[*mqs.Message]
-}
-
-func (hb *handlerBatcherImpl) Add(ctx context.Context, msg *mqs.Message) error {
-	hb.batcher.Add("", msg)
-	return nil
+	return d.tenantStore.UpsertDestination(ctx, *destination)
 }
 
 // Helper methods for serviceInstance to initialize common dependencies
@@ -529,19 +487,20 @@ func (s *serviceInstance) initLogStore(ctx context.Context, cfg *config.Config, 
 	return nil
 }
 
-func (s *serviceInstance) initEntityStore(ctx context.Context, cfg *config.Config, logger *logging.Logger) error {
+func (s *serviceInstance) initTenantStore(ctx context.Context, cfg *config.Config, logger *logging.Logger) error {
 	if s.redisClient == nil {
-		return fmt.Errorf("redis client must be initialized before entity store")
+		return fmt.Errorf("redis client must be initialized before tenant store")
 	}
-	logger.Debug("creating entity store", zap.String("service", s.name))
-	s.entityStore = models.NewEntityStore(s.redisClient,
-		models.WithCipher(models.NewAESCipher(cfg.AESEncryptionSecret)),
-		models.WithAvailableTopics(cfg.Topics),
-		models.WithMaxDestinationsPerTenant(cfg.MaxDestinationsPerTenant),
-		models.WithDeploymentID(cfg.DeploymentID),
-	)
-	if err := s.entityStore.Init(ctx); err != nil {
-		return fmt.Errorf("failed to initialize entity store: %w", err)
+	logger.Debug("creating tenant store", zap.String("service", s.name))
+	s.tenantStore = tenantstore.New(tenantstore.Config{
+		RedisClient:              s.redisClient,
+		Secret:                   cfg.AESEncryptionSecret,
+		AvailableTopics:          cfg.Topics,
+		MaxDestinationsPerTenant: cfg.MaxDestinationsPerTenant,
+		DeploymentID:             cfg.DeploymentID,
+	})
+	if err := s.tenantStore.Init(ctx); err != nil {
+		return fmt.Errorf("failed to initialize tenant store: %w", err)
 	}
 	return nil
 }
@@ -614,9 +573,16 @@ func (s *serviceInstance) initRetryScheduler(ctx context.Context, cfg *config.Co
 	if s.deliveryMQ == nil {
 		return fmt.Errorf("delivery MQ must be initialized before retry scheduler")
 	}
+	if s.logStore == nil {
+		return fmt.Errorf("log store must be initialized before retry scheduler")
+	}
 	logger.Debug("creating delivery MQ retry scheduler", zap.String("service", s.name))
 	pollBackoff := time.Duration(cfg.RetryPollBackoffMs) * time.Millisecond
-	retryScheduler, err := deliverymq.NewRetryScheduler(s.deliveryMQ, cfg.Redis.ToConfig(), cfg.DeploymentID, pollBackoff, logger)
+	var retrySchedulerOpts []deliverymq.RetrySchedulerOption
+	if cfg.RetryVisibilityTimeoutSeconds > 0 {
+		retrySchedulerOpts = append(retrySchedulerOpts, deliverymq.WithRetryVisibilityTimeout(uint(cfg.RetryVisibilityTimeoutSeconds)))
+	}
+	retryScheduler, err := deliverymq.NewRetryScheduler(s.deliveryMQ, cfg.Redis.ToConfig(), cfg.DeploymentID, pollBackoff, logger, s.logStore, retrySchedulerOpts...)
 	if err != nil {
 		logger.Error("failed to create delivery MQ retry scheduler", zap.String("service", s.name), zap.Error(err))
 		return err

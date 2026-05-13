@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -19,33 +18,34 @@ type Event struct {
 	Success  bool                   `json:"success"`
 	Verified bool                   `json:"verified"`
 	Payload  map[string]interface{} `json:"payload"`
+	RawBody  string                 `json:"raw_body"`
 }
 
-type EntityStore interface {
+type MockStore interface {
 	ListDestination(ctx context.Context) ([]models.Destination, error)
 	RetrieveDestination(ctx context.Context, id string) (*models.Destination, error)
 	UpsertDestination(ctx context.Context, destination models.Destination) error
 	DeleteDestination(ctx context.Context, id string) error
 
-	ReceiveEvent(ctx context.Context, destinationID string, payload map[string]interface{}, metadata map[string]string) (*Event, error)
+	ReceiveEvent(ctx context.Context, destinationID string, rawBody []byte, metadata map[string]string) (*Event, error)
 	ListEvent(ctx context.Context, destinationID string) ([]Event, error)
 	ClearEvents(ctx context.Context, destinationID string) error
 }
 
-type entityStore struct {
+type mockStore struct {
 	mu           sync.RWMutex
 	destinations map[string]models.Destination
 	events       map[string][]Event
 }
 
-func NewEntityStore() EntityStore {
-	return &entityStore{
+func NewMockStore() MockStore {
+	return &mockStore{
 		destinations: make(map[string]models.Destination),
 		events:       make(map[string][]Event),
 	}
 }
 
-func (s *entityStore) ListDestination(ctx context.Context) ([]models.Destination, error) {
+func (s *mockStore) ListDestination(ctx context.Context) ([]models.Destination, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	destinationList := make([]models.Destination, len(s.destinations))
@@ -57,7 +57,7 @@ func (s *entityStore) ListDestination(ctx context.Context) ([]models.Destination
 	return destinationList, nil
 }
 
-func (s *entityStore) RetrieveDestination(ctx context.Context, id string) (*models.Destination, error) {
+func (s *mockStore) RetrieveDestination(ctx context.Context, id string) (*models.Destination, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	destination, ok := s.destinations[id]
@@ -67,14 +67,14 @@ func (s *entityStore) RetrieveDestination(ctx context.Context, id string) (*mode
 	return &destination, nil
 }
 
-func (s *entityStore) UpsertDestination(ctx context.Context, destination models.Destination) error {
+func (s *mockStore) UpsertDestination(ctx context.Context, destination models.Destination) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.destinations[destination.ID] = destination
 	return nil
 }
 
-func (s *entityStore) DeleteDestination(ctx context.Context, id string) error {
+func (s *mockStore) DeleteDestination(ctx context.Context, id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if _, ok := s.destinations[id]; !ok {
@@ -85,7 +85,7 @@ func (s *entityStore) DeleteDestination(ctx context.Context, id string) error {
 	return nil
 }
 
-func (s *entityStore) ReceiveEvent(ctx context.Context, destinationID string, payload map[string]interface{}, metadata map[string]string) (*Event, error) {
+func (s *mockStore) ReceiveEvent(ctx context.Context, destinationID string, rawBody []byte, metadata map[string]string) (*Event, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	destination, ok := s.destinations[destinationID]
@@ -97,10 +97,10 @@ func (s *entityStore) ReceiveEvent(ctx context.Context, destinationID string, pa
 		s.events[destinationID] = make([]Event, 0)
 	}
 
-	// Convert payload to JSON for signature verification
-	payloadBytes, err := json.Marshal(payload)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal payload: %w", err)
+	// Unmarshal raw body into map for Payload field
+	var payload map[string]interface{}
+	if err := json.Unmarshal(rawBody, &payload); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal payload: %w", err)
 	}
 
 	// Initialize event
@@ -108,6 +108,7 @@ func (s *entityStore) ReceiveEvent(ctx context.Context, destinationID string, pa
 		Success:  true,
 		Verified: false,
 		Payload:  payload,
+		RawBody:  string(rawBody),
 	}
 
 	// Check if should_err is set
@@ -121,7 +122,7 @@ func (s *entityStore) ReceiveEvent(ctx context.Context, destinationID string, pa
 		if secret := destination.Credentials["secret"]; secret != "" {
 			event.Verified = verifySignature(
 				secret,
-				payloadBytes,
+				rawBody,
 				signature,
 				destination.Config["signature_algorithm"],
 				destination.Config["signature_encoding"],
@@ -137,7 +138,7 @@ func (s *entityStore) ReceiveEvent(ctx context.Context, destinationID string, pa
 						if time.Now().Before(invalidAt) {
 							event.Verified = verifySignature(
 								prevSecret,
-								payloadBytes,
+								rawBody,
 								signature,
 								destination.Config["signature_algorithm"],
 								destination.Config["signature_encoding"],
@@ -168,34 +169,16 @@ func verifySignature(secret string, payload []byte, signature string, algorithm 
 		encoding = "hex"
 	}
 
-	// Parse timestamp and signature from header
-	// Header format: t=1234567890,v0=signature1,signature2
-	var timestamp time.Time
-	var signatures []string
-
-	parts := strings.Split(signature, ",")
-	for i, part := range parts {
-		if strings.HasPrefix(part, "t=") {
-			ts, err := strconv.ParseInt(strings.TrimPrefix(part, "t="), 10, 64)
-			if err != nil {
-				return false
-			}
-			timestamp = time.Unix(ts, 0)
-		} else if strings.HasPrefix(part, "v0=") {
-			// First v0 part contains the prefix
-			signatures = append(signatures, strings.TrimPrefix(part, "v0="))
-		} else if i > 0 && strings.HasPrefix(parts[i-1], "v0=") {
-			// Additional signatures after v0= don't have the prefix
-			signatures = append(signatures, part)
-		}
+	// Parse signature from header
+	// Header format: v0=signature1,signature2
+	if !strings.HasPrefix(signature, "v0=") {
+		return false
 	}
-
-	// If we couldn't parse timestamp or no signatures found, verification fails
-	if timestamp.IsZero() || len(signatures) == 0 {
+	signatures := strings.Split(strings.TrimPrefix(signature, "v0="), ",")
+	if len(signatures) == 0 {
 		return false
 	}
 
-	// Create a new signature manager with the secret
 	secrets := []destwebhook.WebhookSecret{
 		{
 			Key:       secret,
@@ -207,13 +190,13 @@ func verifySignature(secret string, payload []byte, signature string, algorithm 
 		secrets,
 		destwebhook.WithEncoder(destwebhook.GetEncoder(encoding)),
 		destwebhook.WithAlgorithm(destwebhook.GetAlgorithm(algorithm)),
+		destwebhook.WithSignatureFormatter(destwebhook.NewSignatureFormatter(destwebhook.DefaultSignatureContentTmpl)),
+		destwebhook.WithHeaderFormatter(destwebhook.NewHeaderFormatter(destwebhook.DefaultSignatureHeaderTmpl)),
 	)
 
-	// Try each signature
 	for _, sig := range signatures {
 		if sm.VerifySignature(sig, secret, destwebhook.SignaturePayload{
-			Body:      string(payload),
-			Timestamp: timestamp,
+			Body: string(payload),
 		}) {
 			return true
 		}
@@ -222,7 +205,7 @@ func verifySignature(secret string, payload []byte, signature string, algorithm 
 	return false
 }
 
-func (s *entityStore) ListEvent(ctx context.Context, destinationID string) ([]Event, error) {
+func (s *mockStore) ListEvent(ctx context.Context, destinationID string) ([]Event, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	events, ok := s.events[destinationID]
@@ -232,7 +215,7 @@ func (s *entityStore) ListEvent(ctx context.Context, destinationID string) ([]Ev
 	return events, nil
 }
 
-func (s *entityStore) ClearEvents(ctx context.Context, destinationID string) error {
+func (s *mockStore) ClearEvents(ctx context.Context, destinationID string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if _, ok := s.destinations[destinationID]; !ok {

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 from datetime import datetime
-from enum import Enum
 from outpost_sdk.types import (
     BaseModel,
     Nullable,
@@ -11,26 +10,21 @@ from outpost_sdk.types import (
     UNSET_SENTINEL,
 )
 from pydantic import model_serializer
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 from typing_extensions import NotRequired, TypedDict
-
-
-class EventStatus(str, Enum):
-    SUCCESS = "success"
-    FAILED = "failed"
 
 
 class EventTypedDict(TypedDict):
     id: NotRequired[str]
-    destination_id: NotRequired[str]
+    tenant_id: NotRequired[str]
+    r"""The tenant this event belongs to."""
+    matched_destination_ids: NotRequired[List[str]]
+    r"""The destination IDs that this event was routed to based on topic and filter matching."""
     topic: NotRequired[str]
     time: NotRequired[datetime]
     r"""Time the event was received/processed."""
-    successful_at: NotRequired[Nullable[datetime]]
-    r"""Time the event was successfully delivered."""
     metadata: NotRequired[Nullable[Dict[str, str]]]
     r"""Key-value string pairs of metadata associated with the event."""
-    status: NotRequired[EventStatus]
     data: NotRequired[Dict[str, Any]]
     r"""Freeform JSON data of the event."""
 
@@ -38,20 +32,19 @@ class EventTypedDict(TypedDict):
 class Event(BaseModel):
     id: Optional[str] = None
 
-    destination_id: Optional[str] = None
+    tenant_id: Optional[str] = None
+    r"""The tenant this event belongs to."""
+
+    matched_destination_ids: Optional[List[str]] = None
+    r"""The destination IDs that this event was routed to based on topic and filter matching."""
 
     topic: Optional[str] = None
 
     time: Optional[datetime] = None
     r"""Time the event was received/processed."""
 
-    successful_at: OptionalNullable[datetime] = UNSET
-    r"""Time the event was successfully delivered."""
-
     metadata: OptionalNullable[Dict[str, str]] = UNSET
     r"""Key-value string pairs of metadata associated with the event."""
-
-    status: Optional[EventStatus] = None
 
     data: Optional[Dict[str, Any]] = None
     r"""Freeform JSON data of the event."""
@@ -61,22 +54,21 @@ class Event(BaseModel):
         optional_fields = set(
             [
                 "id",
-                "destination_id",
+                "tenant_id",
+                "matched_destination_ids",
                 "topic",
                 "time",
-                "successful_at",
                 "metadata",
-                "status",
                 "data",
             ]
         )
-        nullable_fields = set(["successful_at", "metadata"])
+        nullable_fields = set(["metadata"])
         serialized = handler(self)
         m = {}
 
         for n, f in type(self).model_fields.items():
             k = f.alias or n
-            val = serialized.get(k)
+            val = serialized.get(k, serialized.get(n))
             is_nullable_and_explicitly_set = (
                 k in nullable_fields
                 and (self.__pydantic_fields_set__.intersection({n}))  # pylint: disable=no-member

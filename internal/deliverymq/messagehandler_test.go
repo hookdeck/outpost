@@ -6,16 +6,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hookdeck/outpost/internal/alert"
 	"github.com/hookdeck/outpost/internal/backoff"
 	"github.com/hookdeck/outpost/internal/deliverymq"
 	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/hookdeck/outpost/internal/idempotence"
 	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/models"
+	"github.com/hookdeck/outpost/internal/tenantstore"
 	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
@@ -25,7 +24,6 @@ func TestMessageHandler_DestinationGetterError(t *testing.T) {
 	// - Destination lookup fails with error (system error in destination getter)
 	// - Should be nacked (let system retry)
 	// - Should NOT use retry scheduler
-	// - Should NOT call alert monitor (no destination)
 
 	// Setup test data
 	tenant := models.Tenant{ID: idgen.String()}
@@ -40,33 +38,27 @@ func TestMessageHandler_DestinationGetterError(t *testing.T) {
 
 	// Setup mocks
 	destGetter := &mockDestinationGetter{err: errors.New("destination lookup failed")}
-	eventGetter := newMockEventGetter()
-	eventGetter.registerEvent(&event)
 	retryScheduler := newMockRetryScheduler()
-	alertMonitor := newMockAlertMonitor()
 
 	// Setup message handler
 	handler := deliverymq.NewMessageHandler(
 		testutil.CreateTestLogger(t),
 		newMockLogPublisher(nil),
 		destGetter,
-		eventGetter,
 		newMockPublisher(nil), // won't be called due to early error
 		testutil.NewMockEventTracer(nil),
 		retryScheduler,
 		&backoff.ConstantBackoff{Interval: 1 * time.Second},
 		10,
-		alertMonitor,
 		idempotence.New(testutil.CreateTestRedisClient(t), idempotence.WithSuccessfulTTL(24*time.Hour)),
 	)
 
 	// Create and handle message
-	deliveryEvent := models.DeliveryEvent{
-		ID:            idgen.DeliveryEvent(),
+	task := models.DeliveryTask{
 		Event:         event,
 		DestinationID: destination.ID,
 	}
-	mockMsg, msg := newDeliveryMockMessage(deliveryEvent)
+	mockMsg, msg := newDeliveryMockMessage(task)
 
 	// Handle message
 	err := handler.Handle(context.Background(), msg)
@@ -79,7 +71,6 @@ func TestMessageHandler_DestinationGetterError(t *testing.T) {
 	assert.True(t, mockMsg.nacked, "message should be nacked on system error")
 	assert.False(t, mockMsg.acked, "message should not be acked on system error")
 	assert.Empty(t, retryScheduler.schedules, "no retry should be scheduled for system error")
-	alertMonitor.AssertNotCalled(t, "HandleAttempt", mock.Anything, mock.Anything)
 }
 
 func TestMessageHandler_DestinationNotFound(t *testing.T) {
@@ -102,34 +93,28 @@ func TestMessageHandler_DestinationNotFound(t *testing.T) {
 
 	// Setup mocks
 	destGetter := &mockDestinationGetter{dest: nil, err: nil} // destination not found
-	eventGetter := newMockEventGetter()
-	eventGetter.registerEvent(&event)
 	retryScheduler := newMockRetryScheduler()
 	logPublisher := newMockLogPublisher(nil)
-	alertMonitor := newMockAlertMonitor()
 
 	// Setup message handler
 	handler := deliverymq.NewMessageHandler(
 		testutil.CreateTestLogger(t),
 		logPublisher,
 		destGetter,
-		eventGetter,
 		newMockPublisher(nil), // won't be called
 		testutil.NewMockEventTracer(nil),
 		retryScheduler,
 		&backoff.ConstantBackoff{Interval: 1 * time.Second},
 		10,
-		alertMonitor,
 		idempotence.New(testutil.CreateTestRedisClient(t), idempotence.WithSuccessfulTTL(24*time.Hour)),
 	)
 
 	// Create and handle message
-	deliveryEvent := models.DeliveryEvent{
-		ID:            idgen.DeliveryEvent(),
+	task := models.DeliveryTask{
 		Event:         event,
 		DestinationID: destination.ID,
 	}
-	mockMsg, msg := newDeliveryMockMessage(deliveryEvent)
+	mockMsg, msg := newDeliveryMockMessage(task)
 
 	// Handle message
 	err := handler.Handle(context.Background(), msg)
@@ -139,8 +124,7 @@ func TestMessageHandler_DestinationNotFound(t *testing.T) {
 	assert.True(t, mockMsg.nacked, "message should be nacked when destination not found")
 	assert.False(t, mockMsg.acked, "message should not be acked when destination not found")
 	assert.Empty(t, retryScheduler.schedules, "no retry should be scheduled")
-	assert.Empty(t, logPublisher.deliveries, "should not log delivery for pre-delivery error")
-	alertMonitor.AssertNotCalled(t, "HandleAttempt", mock.Anything, mock.Anything)
+	assert.Empty(t, logPublisher.entries, "should not log delivery for pre-delivery error")
 }
 
 func TestMessageHandler_DestinationDeleted(t *testing.T) {
@@ -161,35 +145,29 @@ func TestMessageHandler_DestinationDeleted(t *testing.T) {
 	)
 
 	// Setup mocks
-	destGetter := &mockDestinationGetter{err: models.ErrDestinationDeleted}
-	eventGetter := newMockEventGetter()
-	eventGetter.registerEvent(&event)
+	destGetter := &mockDestinationGetter{err: tenantstore.ErrDestinationDeleted}
 	retryScheduler := newMockRetryScheduler()
 	logPublisher := newMockLogPublisher(nil)
-	alertMonitor := newMockAlertMonitor()
 
 	// Setup message handler
 	handler := deliverymq.NewMessageHandler(
 		testutil.CreateTestLogger(t),
 		logPublisher,
 		destGetter,
-		eventGetter,
 		newMockPublisher(nil), // won't be called
 		testutil.NewMockEventTracer(nil),
 		retryScheduler,
 		&backoff.ConstantBackoff{Interval: 1 * time.Second},
 		10,
-		alertMonitor,
 		idempotence.New(testutil.CreateTestRedisClient(t), idempotence.WithSuccessfulTTL(24*time.Hour)),
 	)
 
 	// Create and handle message
-	deliveryEvent := models.DeliveryEvent{
-		ID:            idgen.DeliveryEvent(),
+	task := models.DeliveryTask{
 		Event:         event,
 		DestinationID: destination.ID,
 	}
-	mockMsg, msg := newDeliveryMockMessage(deliveryEvent)
+	mockMsg, msg := newDeliveryMockMessage(task)
 
 	// Handle message
 	err := handler.Handle(context.Background(), msg)
@@ -199,8 +177,7 @@ func TestMessageHandler_DestinationDeleted(t *testing.T) {
 	assert.False(t, mockMsg.nacked, "message should not be nacked when destination is deleted")
 	assert.True(t, mockMsg.acked, "message should be acked when destination is deleted")
 	assert.Empty(t, retryScheduler.schedules, "no retry should be scheduled")
-	assert.Empty(t, logPublisher.deliveries, "should not log delivery for pre-delivery error")
-	alertMonitor.AssertNotCalled(t, "HandleAttempt", mock.Anything, mock.Anything)
+	assert.Empty(t, logPublisher.entries, "should not log delivery for pre-delivery error")
 }
 
 func TestMessageHandler_PublishError_EligibleForRetry(t *testing.T) {
@@ -223,8 +200,6 @@ func TestMessageHandler_PublishError_EligibleForRetry(t *testing.T) {
 
 	// Setup mocks
 	destGetter := &mockDestinationGetter{dest: &destination}
-	eventGetter := newMockEventGetter()
-	eventGetter.registerEvent(&event)
 	retryScheduler := newMockRetryScheduler()
 	publishErr := &destregistry.ErrDestinationPublishAttempt{
 		Err:      errors.New("webhook returned 429"),
@@ -236,30 +211,26 @@ func TestMessageHandler_PublishError_EligibleForRetry(t *testing.T) {
 	}
 	publisher := newMockPublisher([]error{publishErr})
 	logPublisher := newMockLogPublisher(nil)
-	alertMonitor := newMockAlertMonitor()
 
 	// Setup message handler
 	handler := deliverymq.NewMessageHandler(
 		testutil.CreateTestLogger(t),
 		logPublisher,
 		destGetter,
-		eventGetter,
 		publisher,
 		testutil.NewMockEventTracer(nil),
 		retryScheduler,
 		&backoff.ConstantBackoff{Interval: 1 * time.Second},
 		10,
-		alertMonitor,
 		idempotence.New(testutil.CreateTestRedisClient(t), idempotence.WithSuccessfulTTL(24*time.Hour)),
 	)
 
 	// Create and handle message
-	deliveryEvent := models.DeliveryEvent{
-		ID:            idgen.DeliveryEvent(),
+	task := models.DeliveryTask{
 		Event:         event,
 		DestinationID: destination.ID,
 	}
-	mockMsg, msg := newDeliveryMockMessage(deliveryEvent)
+	mockMsg, msg := newDeliveryMockMessage(task)
 
 	// Handle message
 	err := handler.Handle(context.Background(), msg)
@@ -269,11 +240,10 @@ func TestMessageHandler_PublishError_EligibleForRetry(t *testing.T) {
 	assert.False(t, mockMsg.nacked, "message should not be nacked when scheduling retry")
 	assert.True(t, mockMsg.acked, "message should be acked when scheduling retry")
 	assert.Len(t, retryScheduler.schedules, 1, "retry should be scheduled")
-	assert.Equal(t, deliveryEvent.GetRetryID(), retryScheduler.taskIDs[0],
+	assert.Equal(t, models.RetryID(task.Event.ID, task.DestinationID), retryScheduler.taskIDs[0],
 		"should use GetRetryID for task ID")
-	require.Len(t, logPublisher.deliveries, 1, "should have one delivery")
-	assert.Equal(t, models.DeliveryStatusFailed, logPublisher.deliveries[0].Delivery.Status, "delivery status should be Failed")
-	assertAlertMonitor(t, alertMonitor, false, &destination, publishErr.Data)
+	require.Len(t, logPublisher.entries, 1, "should have one delivery")
+	assert.Equal(t, models.AttemptStatusFailed, logPublisher.entries[0].Attempt.Status, "delivery status should be Failed")
 }
 
 func TestMessageHandler_PublishError_NotEligible(t *testing.T) {
@@ -296,8 +266,6 @@ func TestMessageHandler_PublishError_NotEligible(t *testing.T) {
 
 	// Setup mocks
 	destGetter := &mockDestinationGetter{dest: &destination}
-	eventGetter := newMockEventGetter()
-	eventGetter.registerEvent(&event)
 	retryScheduler := newMockRetryScheduler()
 	publishErr := &destregistry.ErrDestinationPublishAttempt{
 		Err:      errors.New("webhook returned 400"),
@@ -309,30 +277,26 @@ func TestMessageHandler_PublishError_NotEligible(t *testing.T) {
 	}
 	publisher := newMockPublisher([]error{publishErr})
 	logPublisher := newMockLogPublisher(nil)
-	alertMonitor := newMockAlertMonitor()
 
 	// Setup message handler
 	handler := deliverymq.NewMessageHandler(
 		testutil.CreateTestLogger(t),
 		logPublisher,
 		destGetter,
-		eventGetter,
 		publisher,
 		testutil.NewMockEventTracer(nil),
 		retryScheduler,
 		&backoff.ConstantBackoff{Interval: 1 * time.Second},
 		10,
-		alertMonitor,
 		idempotence.New(testutil.CreateTestRedisClient(t), idempotence.WithSuccessfulTTL(24*time.Hour)),
 	)
 
 	// Create and handle message
-	deliveryEvent := models.DeliveryEvent{
-		ID:            idgen.DeliveryEvent(),
+	task := models.DeliveryTask{
 		Event:         event,
 		DestinationID: destination.ID,
 	}
-	mockMsg, msg := newDeliveryMockMessage(deliveryEvent)
+	mockMsg, msg := newDeliveryMockMessage(task)
 
 	// Handle message
 	err := handler.Handle(context.Background(), msg)
@@ -343,81 +307,14 @@ func TestMessageHandler_PublishError_NotEligible(t *testing.T) {
 	assert.True(t, mockMsg.acked, "message should be acked for ineligible retry")
 	assert.Empty(t, retryScheduler.schedules, "no retry should be scheduled")
 	assert.Equal(t, 1, publisher.current, "should only attempt once")
-	require.Len(t, logPublisher.deliveries, 1, "should have one delivery")
-	assert.Equal(t, models.DeliveryStatusFailed, logPublisher.deliveries[0].Delivery.Status, "delivery status should be Failed")
-	assertAlertMonitor(t, alertMonitor, false, &destination, publishErr.Data)
-}
-
-func TestMessageHandler_EventGetterError(t *testing.T) {
-	// Test scenario:
-	// - Event getter fails to retrieve event during retry
-	// - Should be treated as system error
-	// - Should nack for retry
-
-	// Setup test data
-	tenant := models.Tenant{ID: idgen.String()}
-	destination := testutil.DestinationFactory.Any(
-		testutil.DestinationFactory.WithType("webhook"),
-		testutil.DestinationFactory.WithTenantID(tenant.ID),
-	)
-	event := testutil.EventFactory.Any(
-		testutil.EventFactory.WithTenantID(tenant.ID),
-		testutil.EventFactory.WithDestinationID(destination.ID),
-	)
-
-	// Setup mocks
-	destGetter := &mockDestinationGetter{dest: &destination}
-	eventGetter := newMockEventGetter()
-	eventGetter.err = errors.New("failed to get event")
-	retryScheduler := newMockRetryScheduler()
-	publisher := newMockPublisher([]error{nil})
-	logPublisher := newMockLogPublisher(nil)
-	alertMonitor := newMockAlertMonitor()
-
-	// Setup message handler
-	handler := deliverymq.NewMessageHandler(
-		testutil.CreateTestLogger(t),
-		logPublisher,
-		destGetter,
-		eventGetter,
-		publisher,
-		testutil.NewMockEventTracer(nil),
-		retryScheduler,
-		&backoff.ConstantBackoff{Interval: 1 * time.Second},
-		10,
-		alertMonitor,
-		idempotence.New(testutil.CreateTestRedisClient(t), idempotence.WithSuccessfulTTL(24*time.Hour)),
-	)
-
-	// Create and handle message simulating a retry
-	deliveryEvent := models.DeliveryEvent{
-		ID:            idgen.DeliveryEvent(),
-		Attempt:       2, // Retry attempt
-		DestinationID: destination.ID,
-		Event: models.Event{
-			ID:       event.ID,
-			TenantID: event.TenantID,
-			// Minimal event data as it would be in a retry
-		},
-	}
-	mockMsg, msg := newDeliveryMockMessage(deliveryEvent)
-
-	// Handle message
-	err := handler.Handle(context.Background(), msg)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to get event")
-
-	// Assert behavior
-	assert.True(t, mockMsg.nacked, "message should be nacked on event getter error")
-	assert.False(t, mockMsg.acked, "message should not be acked on event getter error")
-	assert.Empty(t, retryScheduler.schedules, "no retry should be scheduled for system error")
-	assert.Equal(t, 0, publisher.current, "publish should not be attempted")
+	require.Len(t, logPublisher.entries, 1, "should have one delivery")
+	assert.Equal(t, models.AttemptStatusFailed, logPublisher.entries[0].Attempt.Status, "delivery status should be Failed")
 }
 
 func TestMessageHandler_RetryFlow(t *testing.T) {
 	// Test scenario:
 	// - Message is a retry attempt (Attempt > 1)
-	// - Event getter successfully retrieves full event data
+	// - DeliveryTask contains full event data (populated by retry scheduler from logstore)
 	// - Message is processed normally
 
 	// Setup test data
@@ -433,8 +330,6 @@ func TestMessageHandler_RetryFlow(t *testing.T) {
 
 	// Setup mocks
 	destGetter := &mockDestinationGetter{dest: &destination}
-	eventGetter := newMockEventGetter()
-	eventGetter.registerEvent(&event)
 	retryScheduler := newMockRetryScheduler()
 	publisher := newMockPublisher([]error{nil}) // Successful publish
 	logPublisher := newMockLogPublisher(nil)
@@ -444,28 +339,22 @@ func TestMessageHandler_RetryFlow(t *testing.T) {
 		testutil.CreateTestLogger(t),
 		logPublisher,
 		destGetter,
-		eventGetter,
 		publisher,
 		testutil.NewMockEventTracer(nil),
 		retryScheduler,
 		&backoff.ConstantBackoff{Interval: 1 * time.Second},
 		10,
-		newMockAlertMonitor(),
 		idempotence.New(testutil.CreateTestRedisClient(t), idempotence.WithSuccessfulTTL(24*time.Hour)),
 	)
 
 	// Create and handle message simulating a retry
-	deliveryEvent := models.DeliveryEvent{
-		ID:            idgen.DeliveryEvent(),
+	// Full event data is now populated by retry scheduler before publishing to deliverymq
+	task := models.DeliveryTask{
 		Attempt:       2, // Retry attempt
 		DestinationID: destination.ID,
-		Event: models.Event{
-			ID:       event.ID,
-			TenantID: event.TenantID,
-			// Minimal event data as it would be in a retry
-		},
+		Event:         event, // Full event data (populated by retry scheduler)
 	}
-	mockMsg, msg := newDeliveryMockMessage(deliveryEvent)
+	mockMsg, msg := newDeliveryMockMessage(task)
 
 	// Handle message
 	err := handler.Handle(context.Background(), msg)
@@ -476,9 +365,8 @@ func TestMessageHandler_RetryFlow(t *testing.T) {
 	assert.False(t, mockMsg.nacked, "message should not be nacked on successful retry")
 	assert.Empty(t, retryScheduler.schedules, "no retry should be scheduled")
 	assert.Equal(t, 1, publisher.current, "publish should succeed once")
-	assert.Equal(t, event.ID, eventGetter.lastRetrievedID, "event getter should be called with correct ID")
-	require.Len(t, logPublisher.deliveries, 1, "should have one delivery")
-	assert.Equal(t, models.DeliveryStatusSuccess, logPublisher.deliveries[0].Delivery.Status, "delivery status should be OK")
+	require.Len(t, logPublisher.entries, 1, "should have one delivery")
+	assert.Equal(t, models.AttemptStatusSuccess, logPublisher.entries[0].Attempt.Status, "delivery status should be OK")
 }
 
 func TestMessageHandler_Idempotency(t *testing.T) {
@@ -500,8 +388,6 @@ func TestMessageHandler_Idempotency(t *testing.T) {
 
 	// Setup mocks
 	destGetter := &mockDestinationGetter{dest: &destination}
-	eventGetter := newMockEventGetter()
-	eventGetter.registerEvent(&event)
 	retryScheduler := newMockRetryScheduler()
 	publisher := newMockPublisher([]error{nil})
 	logPublisher := newMockLogPublisher(nil)
@@ -512,34 +398,30 @@ func TestMessageHandler_Idempotency(t *testing.T) {
 		testutil.CreateTestLogger(t),
 		logPublisher,
 		destGetter,
-		eventGetter,
 		publisher,
 		testutil.NewMockEventTracer(nil),
 		retryScheduler,
 		&backoff.ConstantBackoff{Interval: 1 * time.Second},
 		10,
-		newMockAlertMonitor(),
 		idempotence.New(redis, idempotence.WithSuccessfulTTL(24*time.Hour)),
 	)
 
-	// Create message with fixed ID for idempotency check
-	messageID := idgen.DeliveryEvent()
-	deliveryEvent := models.DeliveryEvent{
-		ID:            messageID,
+	// Create message for idempotency check
+	task := models.DeliveryTask{
 		Event:         event,
 		DestinationID: destination.ID,
 	}
 
 	// First attempt
-	mockMsg1, msg1 := newDeliveryMockMessage(deliveryEvent)
+	mockMsg1, msg1 := newDeliveryMockMessage(task)
 	err := handler.Handle(context.Background(), msg1)
 	require.NoError(t, err)
 	assert.True(t, mockMsg1.acked, "first attempt should be acked")
 	assert.False(t, mockMsg1.nacked, "first attempt should not be nacked")
 	assert.Equal(t, 1, publisher.current, "first attempt should publish")
 
-	// Second attempt with same message ID
-	mockMsg2, msg2 := newDeliveryMockMessage(deliveryEvent)
+	// Second attempt with same task
+	mockMsg2, msg2 := newDeliveryMockMessage(task)
 	err = handler.Handle(context.Background(), msg2)
 	require.NoError(t, err)
 	assert.True(t, mockMsg2.acked, "duplicate should be acked")
@@ -549,7 +431,7 @@ func TestMessageHandler_Idempotency(t *testing.T) {
 
 func TestMessageHandler_IdempotencyWithSystemError(t *testing.T) {
 	// Test scenario:
-	// - First attempt fails with system error (event getter error)
+	// - First attempt fails with system error (destination getter error)
 	// - Second attempt with same message ID succeeds after error is cleared
 	// - Should demonstrate that system errors don't affect idempotency
 
@@ -564,11 +446,10 @@ func TestMessageHandler_IdempotencyWithSystemError(t *testing.T) {
 		testutil.EventFactory.WithDestinationID(destination.ID),
 	)
 
-	// Setup mocks
-	destGetter := &mockDestinationGetter{dest: &destination}
-	eventGetter := newMockEventGetter()
-	eventGetter.registerEvent(&event)
-	eventGetter.err = errors.New("failed to get event") // Will fail first attempt
+	// Setup mocks - destGetter will fail first, then succeed
+	destGetter := newMockMultiDestinationGetter()
+	destGetter.registerDestination(&destination)
+	destGetter.err = errors.New("failed to get destination") // Will fail first attempt
 	retryScheduler := newMockRetryScheduler()
 	publisher := newMockPublisher([]error{nil})
 	logPublisher := newMockLogPublisher(nil)
@@ -579,47 +460,40 @@ func TestMessageHandler_IdempotencyWithSystemError(t *testing.T) {
 		testutil.CreateTestLogger(t),
 		logPublisher,
 		destGetter,
-		eventGetter,
 		publisher,
 		testutil.NewMockEventTracer(nil),
 		retryScheduler,
 		&backoff.ConstantBackoff{Interval: 1 * time.Second},
 		10,
-		newMockAlertMonitor(),
 		idempotence.New(redis, idempotence.WithSuccessfulTTL(24*time.Hour)),
 	)
 
-	// Create retry message
-	deliveryEvent := models.DeliveryEvent{
-		ID:            idgen.DeliveryEvent(),
+	// Create retry message with full event data (populated by retry scheduler)
+	task := models.DeliveryTask{
 		Attempt:       2,
 		DestinationID: destination.ID,
-		Event: models.Event{
-			ID:       event.ID,
-			TenantID: event.TenantID,
-		},
+		Event:         event,
 	}
 
 	// First attempt - should fail with system error
-	mockMsg1, msg1 := newDeliveryMockMessage(deliveryEvent)
+	mockMsg1, msg1 := newDeliveryMockMessage(task)
 	err := handler.Handle(context.Background(), msg1)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to get event")
+	assert.Contains(t, err.Error(), "failed to get destination")
 	assert.True(t, mockMsg1.nacked, "first attempt should be nacked")
 	assert.False(t, mockMsg1.acked, "first attempt should not be acked")
 	assert.Equal(t, 0, publisher.current, "publish should not be attempted")
 
 	// Clear the error for second attempt
-	eventGetter.clearError()
+	destGetter.err = nil
 
-	// Second attempt with same message ID - should succeed
-	mockMsg2, msg2 := newDeliveryMockMessage(deliveryEvent)
+	// Second attempt with same task - should succeed
+	mockMsg2, msg2 := newDeliveryMockMessage(task)
 	err = handler.Handle(context.Background(), msg2)
 	require.NoError(t, err)
 	assert.True(t, mockMsg2.acked, "second attempt should be acked")
 	assert.False(t, mockMsg2.nacked, "second attempt should not be nacked")
 	assert.Equal(t, 1, publisher.current, "publish should succeed once")
-	assert.Equal(t, event.ID, eventGetter.lastRetrievedID, "event getter should be called with correct ID")
 }
 
 func TestMessageHandler_DestinationDisabled(t *testing.T) {
@@ -643,35 +517,29 @@ func TestMessageHandler_DestinationDisabled(t *testing.T) {
 
 	// Setup mocks
 	destGetter := &mockDestinationGetter{dest: &destination}
-	eventGetter := newMockEventGetter()
-	eventGetter.registerEvent(&event)
 	retryScheduler := newMockRetryScheduler()
 	publisher := newMockPublisher([]error{nil}) // won't be called
 	logPublisher := newMockLogPublisher(nil)
-	alertMonitor := newMockAlertMonitor()
 
 	// Setup message handler
 	handler := deliverymq.NewMessageHandler(
 		testutil.CreateTestLogger(t),
 		logPublisher,
 		destGetter,
-		eventGetter,
 		publisher,
 		testutil.NewMockEventTracer(nil),
 		retryScheduler,
 		&backoff.ConstantBackoff{Interval: 1 * time.Second},
 		10,
-		alertMonitor,
 		idempotence.New(testutil.CreateTestRedisClient(t), idempotence.WithSuccessfulTTL(24*time.Hour)),
 	)
 
 	// Create and handle message
-	deliveryEvent := models.DeliveryEvent{
-		ID:            idgen.DeliveryEvent(),
+	task := models.DeliveryTask{
 		Event:         event,
 		DestinationID: destination.ID,
 	}
-	mockMsg, msg := newDeliveryMockMessage(deliveryEvent)
+	mockMsg, msg := newDeliveryMockMessage(task)
 
 	// Handle message
 	err := handler.Handle(context.Background(), msg)
@@ -683,8 +551,7 @@ func TestMessageHandler_DestinationDisabled(t *testing.T) {
 	assert.Equal(t, 0, publisher.current, "should not attempt to publish to disabled destination")
 	assert.Empty(t, retryScheduler.schedules, "should not schedule retry")
 	assert.Empty(t, retryScheduler.canceled, "should not attempt to cancel retries")
-	assert.Empty(t, logPublisher.deliveries, "should not log delivery for pre-delivery error")
-	alertMonitor.AssertNotCalled(t, "HandleAttempt", mock.Anything, mock.Anything)
+	assert.Empty(t, logPublisher.entries, "should not log delivery for pre-delivery error")
 }
 
 func TestMessageHandler_LogPublisherError(t *testing.T) {
@@ -706,8 +573,6 @@ func TestMessageHandler_LogPublisherError(t *testing.T) {
 
 	// Setup mocks
 	destGetter := &mockDestinationGetter{dest: &destination}
-	eventGetter := newMockEventGetter()
-	eventGetter.registerEvent(&event)
 	retryScheduler := newMockRetryScheduler()
 	publisher := newMockPublisher([]error{nil}) // publish succeeds
 	logPublisher := newMockLogPublisher(errors.New("log publish failed"))
@@ -717,23 +582,20 @@ func TestMessageHandler_LogPublisherError(t *testing.T) {
 		testutil.CreateTestLogger(t),
 		logPublisher,
 		destGetter,
-		eventGetter,
 		publisher,
 		testutil.NewMockEventTracer(nil),
 		retryScheduler,
 		&backoff.ConstantBackoff{Interval: 1 * time.Second},
 		10,
-		newMockAlertMonitor(),
 		idempotence.New(testutil.CreateTestRedisClient(t), idempotence.WithSuccessfulTTL(24*time.Hour)),
 	)
 
 	// Create and handle message
-	deliveryEvent := models.DeliveryEvent{
-		ID:            idgen.DeliveryEvent(),
+	task := models.DeliveryTask{
 		Event:         event,
 		DestinationID: destination.ID,
 	}
-	mockMsg, msg := newDeliveryMockMessage(deliveryEvent)
+	mockMsg, msg := newDeliveryMockMessage(task)
 
 	// Handle message
 	err := handler.Handle(context.Background(), msg)
@@ -767,8 +629,6 @@ func TestMessageHandler_PublishAndLogError(t *testing.T) {
 
 	// Setup mocks
 	destGetter := &mockDestinationGetter{dest: &destination}
-	eventGetter := newMockEventGetter()
-	eventGetter.registerEvent(&event)
 	retryScheduler := newMockRetryScheduler()
 	publisher := newMockPublisher([]error{errors.New("publish failed")})
 	logPublisher := newMockLogPublisher(errors.New("log publish failed"))
@@ -778,23 +638,20 @@ func TestMessageHandler_PublishAndLogError(t *testing.T) {
 		testutil.CreateTestLogger(t),
 		logPublisher,
 		destGetter,
-		eventGetter,
 		publisher,
 		testutil.NewMockEventTracer(nil),
 		retryScheduler,
 		&backoff.ConstantBackoff{Interval: 1 * time.Second},
 		10,
-		newMockAlertMonitor(),
 		idempotence.New(testutil.CreateTestRedisClient(t), idempotence.WithSuccessfulTTL(24*time.Hour)),
 	)
 
 	// Create and handle message
-	deliveryEvent := models.DeliveryEvent{
-		ID:            idgen.DeliveryEvent(),
+	task := models.DeliveryTask{
 		Event:         event,
 		DestinationID: destination.ID,
 	}
-	mockMsg, msg := newDeliveryMockMessage(deliveryEvent)
+	mockMsg, msg := newDeliveryMockMessage(task)
 
 	// Handle message
 	err := handler.Handle(context.Background(), msg)
@@ -828,8 +685,6 @@ func TestManualDelivery_Success(t *testing.T) {
 
 	// Setup mocks
 	destGetter := &mockDestinationGetter{dest: &destination}
-	eventGetter := newMockEventGetter()
-	eventGetter.registerEvent(&event)
 	retryScheduler := newMockRetryScheduler()
 	publishErr := &destregistry.ErrDestinationPublishAttempt{
 		Err:      errors.New("webhook returned 500"),
@@ -838,44 +693,39 @@ func TestManualDelivery_Success(t *testing.T) {
 	}
 	publisher := newMockPublisher([]error{publishErr, nil}) // first fails, second succeeds
 	logPublisher := newMockLogPublisher(nil)
-	alertMonitor := newMockAlertMonitor()
 
 	// Setup message handler
 	handler := deliverymq.NewMessageHandler(
 		testutil.CreateTestLogger(t),
 		logPublisher,
 		destGetter,
-		eventGetter,
 		publisher,
 		testutil.NewMockEventTracer(nil),
 		retryScheduler,
 		&backoff.ConstantBackoff{Interval: 1 * time.Second},
 		10,
-		alertMonitor,
 		idempotence.New(testutil.CreateTestRedisClient(t), idempotence.WithSuccessfulTTL(24*time.Hour)),
 	)
 
 	// Step 1: Automatic delivery fails and schedules retry
-	autoDeliveryEvent := models.DeliveryEvent{
-		ID:            idgen.DeliveryEvent(),
+	autoTask := models.DeliveryTask{
 		Event:         event,
 		DestinationID: destination.ID,
 		Manual:        false,
 	}
-	_, autoMsg := newDeliveryMockMessage(autoDeliveryEvent)
+	_, autoMsg := newDeliveryMockMessage(autoTask)
 	_ = handler.Handle(context.Background(), autoMsg)
 
 	require.Len(t, retryScheduler.taskIDs, 1, "should schedule one retry")
 	scheduledRetryID := retryScheduler.taskIDs[0]
 
 	// Step 2: Manual retry succeeds and cancels pending retry
-	manualDeliveryEvent := models.DeliveryEvent{
-		ID:            idgen.DeliveryEvent(), // New delivery event ID
-		Event:         event,                 // Same event
-		DestinationID: destination.ID,        // Same destination
+	manualTask := models.DeliveryTask{
+		Event:         event,          // Same event
+		DestinationID: destination.ID, // Same destination
 		Manual:        true,
 	}
-	mockMsg, manualMsg := newDeliveryMockMessage(manualDeliveryEvent)
+	mockMsg, manualMsg := newDeliveryMockMessage(manualTask)
 	err := handler.Handle(context.Background(), manualMsg)
 	require.NoError(t, err)
 
@@ -892,9 +742,10 @@ func TestManualDelivery_Success(t *testing.T) {
 
 func TestManualDelivery_PublishError(t *testing.T) {
 	// Test scenario:
-	// - Manual delivery fails with publish error
-	// - Should not schedule retry (manual delivery never retries)
-	// - Should be acked
+	// - A pending automatic retry exists at tier 0 (1s delay)
+	// - Manual delivery (attempt 2) fails with publish error
+	// - The schedule should be atomically overridden to the next tier (attempt 3)
+	// - Result: exactly 1 scheduled retry at the new tier, no explicit cancel needed
 
 	// Setup test data
 	tenant := models.Tenant{ID: idgen.String()}
@@ -904,13 +755,13 @@ func TestManualDelivery_PublishError(t *testing.T) {
 	event := testutil.EventFactory.Any(
 		testutil.EventFactory.WithTenantID(tenant.ID),
 		testutil.EventFactory.WithDestinationID(destination.ID),
-		testutil.EventFactory.WithEligibleForRetry(true), // even with retry enabled
+		testutil.EventFactory.WithEligibleForRetry(true),
 	)
+
+	retryID := models.RetryID(event.ID, destination.ID)
 
 	// Setup mocks
 	destGetter := &mockDestinationGetter{dest: &destination}
-	eventGetter := newMockEventGetter()
-	eventGetter.registerEvent(&event)
 	retryScheduler := newMockRetryScheduler()
 	publishErr := &destregistry.ErrDestinationPublishAttempt{
 		Err:      errors.New("webhook returned 429"),
@@ -922,31 +773,37 @@ func TestManualDelivery_PublishError(t *testing.T) {
 	}
 	publisher := newMockPublisher([]error{publishErr})
 	logPublisher := newMockLogPublisher(nil)
-	alertMonitor := newMockAlertMonitor()
+
+	// Seed: a pending automatic retry exists (scheduled after attempt 1 failed at tier 0 = 1s)
+	retryScheduler.entries[retryID] = scheduledEntry{task: "old-retry", delay: 1 * time.Second}
+
+	// Backoff schedule: tier N has delay (N+1)s, so we can assert the exact tier
+	// by checking the delay. Attempt 2 uses backoff index 1 → tier 1 → 2s.
+	retryBackoff := &backoff.ScheduledBackoff{
+		Schedule: []time.Duration{1 * time.Second, 2 * time.Second, 3 * time.Second, 4 * time.Second, 5 * time.Second},
+	}
 
 	// Setup message handler
 	handler := deliverymq.NewMessageHandler(
 		testutil.CreateTestLogger(t),
 		logPublisher,
 		destGetter,
-		eventGetter,
 		publisher,
 		testutil.NewMockEventTracer(nil),
 		retryScheduler,
-		&backoff.ConstantBackoff{Interval: 1 * time.Second},
-		10,
-		alertMonitor,
+		retryBackoff,
+		5,
 		idempotence.New(testutil.CreateTestRedisClient(t), idempotence.WithSuccessfulTTL(24*time.Hour)),
 	)
 
-	// Create and handle message
-	deliveryEvent := models.DeliveryEvent{
-		ID:            idgen.DeliveryEvent(),
+	// Create and handle message — manual retry as attempt 2
+	task := models.DeliveryTask{
 		Event:         event,
 		DestinationID: destination.ID,
-		Manual:        true, // Manual delivery
+		Attempt:       2,
+		Manual:        true,
 	}
-	mockMsg, msg := newDeliveryMockMessage(deliveryEvent)
+	mockMsg, msg := newDeliveryMockMessage(task)
 
 	// Handle message
 	err := handler.Handle(context.Background(), msg)
@@ -956,10 +813,88 @@ func TestManualDelivery_PublishError(t *testing.T) {
 	assert.True(t, mockMsg.acked, "message should be acked")
 	assert.False(t, mockMsg.nacked, "message should not be nacked")
 	assert.Equal(t, 1, publisher.current, "should attempt publish once")
-	assert.Empty(t, retryScheduler.schedules, "should not schedule retry for manual delivery")
-	require.Len(t, logPublisher.deliveries, 1, "should have one delivery")
-	assert.Equal(t, models.DeliveryStatusFailed, logPublisher.deliveries[0].Delivery.Status, "delivery status should be Failed")
-	assertAlertMonitor(t, alertMonitor, false, &destination, publishErr.Data)
+	require.Len(t, logPublisher.entries, 1, "should have one delivery")
+	assert.Equal(t, models.AttemptStatusFailed, logPublisher.entries[0].Attempt.Status, "delivery status should be Failed")
+
+	// Assert retry state: the old pending retry (tier 0, 1s) was atomically
+	// replaced with the next tier. Attempt 2 uses backoff index 1 → 2s.
+	require.Len(t, retryScheduler.entries, 1, "should have exactly 1 scheduled retry")
+	entry, ok := retryScheduler.entries[retryID]
+	require.True(t, ok, "scheduled retry should use the same RetryID")
+	assert.NotEqual(t, "old-retry", entry.task, "old retry payload should be replaced")
+	assert.Equal(t, 2*time.Second, entry.delay, "should schedule at tier 1 (2s), not tier 0 (1s)")
+}
+
+func TestManualDelivery_PublishError_BudgetExhausted(t *testing.T) {
+	// Test scenario:
+	// - A pending automatic retry exists (lingering from a previous tier)
+	// - Manual delivery fails with publish error but retry budget is exhausted
+	// - The pending retry should be canceled, no new retry scheduled
+	// - Result: empty retry state
+
+	// Setup test data
+	tenant := models.Tenant{ID: idgen.String()}
+	destination := testutil.DestinationFactory.Any(
+		testutil.DestinationFactory.WithTenantID(tenant.ID),
+	)
+	event := testutil.EventFactory.Any(
+		testutil.EventFactory.WithTenantID(tenant.ID),
+		testutil.EventFactory.WithDestinationID(destination.ID),
+		testutil.EventFactory.WithEligibleForRetry(true),
+	)
+
+	retryID := models.RetryID(event.ID, destination.ID)
+
+	// Setup mocks
+	destGetter := &mockDestinationGetter{dest: &destination}
+	retryScheduler := newMockRetryScheduler()
+	publishErr := &destregistry.ErrDestinationPublishAttempt{
+		Err:      errors.New("webhook returned 429"),
+		Provider: "webhook",
+		Data: map[string]interface{}{
+			"error":   "publish_failed",
+			"message": "webhook returned 429",
+		},
+	}
+	publisher := newMockPublisher([]error{publishErr})
+	logPublisher := newMockLogPublisher(nil)
+
+	// Seed: a pending automatic retry exists (lingering from earlier failure)
+	retryScheduler.entries[retryID] = scheduledEntry{task: "stale-retry", delay: 5 * time.Second}
+
+	// Setup message handler with retryMaxLimit=3 (max attempts = 4)
+	handler := deliverymq.NewMessageHandler(
+		testutil.CreateTestLogger(t),
+		logPublisher,
+		destGetter,
+		publisher,
+		testutil.NewMockEventTracer(nil),
+		retryScheduler,
+		&backoff.ConstantBackoff{Interval: 1 * time.Second},
+		3,
+		idempotence.New(testutil.CreateTestRedisClient(t), idempotence.WithSuccessfulTTL(24*time.Hour)),
+	)
+
+	// Create and handle message — manual retry as attempt 4 (budget exhausted: 1 + 3 retries)
+	task := models.DeliveryTask{
+		Event:         event,
+		DestinationID: destination.ID,
+		Attempt:       4,
+		Manual:        true,
+	}
+	mockMsg, msg := newDeliveryMockMessage(task)
+
+	// Handle message
+	err := handler.Handle(context.Background(), msg)
+	require.Error(t, err)
+
+	// Assert behavior
+	assert.True(t, mockMsg.acked, "message should be acked")
+	require.Len(t, logPublisher.entries, 1, "should have one delivery")
+	assert.Equal(t, models.AttemptStatusFailed, logPublisher.entries[0].Attempt.Status, "delivery status should be Failed")
+
+	// Assert retry state: pending retry was canceled, nothing new scheduled
+	assert.Empty(t, retryScheduler.entries, "should have no scheduled retries after budget exhaustion")
 }
 
 func TestManualDelivery_CancelError(t *testing.T) {
@@ -981,37 +916,31 @@ func TestManualDelivery_CancelError(t *testing.T) {
 
 	// Setup mocks
 	destGetter := &mockDestinationGetter{dest: &destination}
-	eventGetter := newMockEventGetter()
-	eventGetter.registerEvent(&event)
 	retryScheduler := newMockRetryScheduler()
 	retryScheduler.cancelResp = []error{errors.New("failed to cancel retry")}
 	publisher := newMockPublisher([]error{nil}) // successful publish
 	logPublisher := newMockLogPublisher(nil)
-	alertMonitor := newMockAlertMonitor()
 
 	// Setup message handler
 	handler := deliverymq.NewMessageHandler(
 		testutil.CreateTestLogger(t),
 		logPublisher,
 		destGetter,
-		eventGetter,
 		publisher,
 		testutil.NewMockEventTracer(nil),
 		retryScheduler,
 		&backoff.ConstantBackoff{Interval: 1 * time.Second},
 		10,
-		alertMonitor,
 		idempotence.New(testutil.CreateTestRedisClient(t), idempotence.WithSuccessfulTTL(24*time.Hour)),
 	)
 
 	// Create and handle message
-	deliveryEvent := models.DeliveryEvent{
-		ID:            idgen.DeliveryEvent(),
+	task := models.DeliveryTask{
 		Event:         event,
 		DestinationID: destination.ID,
 		Manual:        true, // Manual delivery
 	}
-	mockMsg, msg := newDeliveryMockMessage(deliveryEvent)
+	mockMsg, msg := newDeliveryMockMessage(task)
 
 	// Handle message
 	err := handler.Handle(context.Background(), msg)
@@ -1023,10 +952,9 @@ func TestManualDelivery_CancelError(t *testing.T) {
 	assert.False(t, mockMsg.acked, "message should not be acked on retry cancel error")
 	assert.Equal(t, 1, publisher.current, "should publish once")
 	assert.Len(t, retryScheduler.canceled, 1, "should attempt to cancel retry")
-	assert.Equal(t, deliveryEvent.GetRetryID(), retryScheduler.canceled[0], "should cancel with correct retry ID")
-	require.Len(t, logPublisher.deliveries, 1, "should have one delivery")
-	assert.Equal(t, models.DeliveryStatusSuccess, logPublisher.deliveries[0].Delivery.Status, "delivery status should be OK despite cancel error")
-	assertAlertMonitor(t, alertMonitor, true, &destination, nil)
+	assert.Equal(t, models.RetryID(task.Event.ID, task.DestinationID), retryScheduler.canceled[0], "should cancel with correct retry ID")
+	require.Len(t, logPublisher.entries, 1, "should have one delivery")
+	assert.Equal(t, models.AttemptStatusSuccess, logPublisher.entries[0].Attempt.Status, "delivery status should be OK despite cancel error")
 }
 
 func TestManualDelivery_DestinationDisabled(t *testing.T) {
@@ -1049,36 +977,30 @@ func TestManualDelivery_DestinationDisabled(t *testing.T) {
 
 	// Setup mocks
 	destGetter := &mockDestinationGetter{dest: &destination}
-	eventGetter := newMockEventGetter()
-	eventGetter.registerEvent(&event)
 	retryScheduler := newMockRetryScheduler()
 	publisher := newMockPublisher([]error{nil}) // won't be called
 	logPublisher := newMockLogPublisher(nil)
-	alertMonitor := newMockAlertMonitor()
 
 	// Setup message handler
 	handler := deliverymq.NewMessageHandler(
 		testutil.CreateTestLogger(t),
 		logPublisher,
 		destGetter,
-		eventGetter,
 		publisher,
 		testutil.NewMockEventTracer(nil),
 		retryScheduler,
 		&backoff.ConstantBackoff{Interval: 1 * time.Second},
 		10,
-		alertMonitor,
 		idempotence.New(testutil.CreateTestRedisClient(t), idempotence.WithSuccessfulTTL(24*time.Hour)),
 	)
 
 	// Create and handle message
-	deliveryEvent := models.DeliveryEvent{
-		ID:            idgen.DeliveryEvent(),
+	task := models.DeliveryTask{
 		Event:         event,
 		DestinationID: destination.ID,
 		Manual:        true, // Manual delivery
 	}
-	mockMsg, msg := newDeliveryMockMessage(deliveryEvent)
+	mockMsg, msg := newDeliveryMockMessage(task)
 
 	// Handle message
 	err := handler.Handle(context.Background(), msg)
@@ -1090,14 +1012,12 @@ func TestManualDelivery_DestinationDisabled(t *testing.T) {
 	assert.Equal(t, 0, publisher.current, "should not attempt to publish to disabled destination")
 	assert.Empty(t, retryScheduler.schedules, "should not schedule retry")
 	assert.Empty(t, retryScheduler.canceled, "should not attempt to cancel retries")
-	assert.Empty(t, logPublisher.deliveries, "should not log delivery for pre-delivery error")
-	alertMonitor.AssertNotCalled(t, "HandleAttempt", mock.Anything, mock.Anything)
+	assert.Empty(t, logPublisher.entries, "should not log delivery for pre-delivery error")
 }
 
 func TestMessageHandler_PublishSuccess(t *testing.T) {
 	// Test scenario:
 	// - Publish succeeds
-	// - Should call alert monitor with successful attempt
 
 	// Setup test data
 	tenant := models.Tenant{ID: idgen.String()}
@@ -1112,44 +1032,29 @@ func TestMessageHandler_PublishSuccess(t *testing.T) {
 
 	// Setup mocks
 	destGetter := &mockDestinationGetter{dest: &destination}
-	eventGetter := newMockEventGetter()
-	eventGetter.registerEvent(&event)
 	retryScheduler := newMockRetryScheduler()
 	publisher := newMockPublisher([]error{nil}) // Successful publish
 	logPublisher := newMockLogPublisher(nil)
-	alertMonitor := newMockAlertMonitor()
-	alertMonitor.ExpectedCalls = nil // Clear default expectations
-
-	// Setup alert monitor expectations
-	alertMonitor.On("HandleAttempt", mock.Anything, mock.MatchedBy(func(attempt alert.DeliveryAttempt) bool {
-		return attempt.Success && // Should be a successful attempt
-			attempt.Destination.ID == destination.ID && // Should have correct destination
-			attempt.DeliveryEvent != nil && // Should have delivery event
-			attempt.DeliveryResponse == nil // No error data for success
-	})).Return(nil)
 
 	// Setup message handler
 	handler := deliverymq.NewMessageHandler(
 		testutil.CreateTestLogger(t),
 		logPublisher,
 		destGetter,
-		eventGetter,
 		publisher,
 		testutil.NewMockEventTracer(nil),
 		retryScheduler,
 		&backoff.ConstantBackoff{Interval: 1 * time.Second},
 		10,
-		alertMonitor,
 		idempotence.New(testutil.CreateTestRedisClient(t), idempotence.WithSuccessfulTTL(24*time.Hour)),
 	)
 
 	// Create and handle message
-	deliveryEvent := models.DeliveryEvent{
-		ID:            idgen.DeliveryEvent(),
+	task := models.DeliveryTask{
 		Event:         event,
 		DestinationID: destination.ID,
 	}
-	mockMsg, msg := newDeliveryMockMessage(deliveryEvent)
+	mockMsg, msg := newDeliveryMockMessage(task)
 
 	// Handle message
 	err := handler.Handle(context.Background(), msg)
@@ -1158,19 +1063,20 @@ func TestMessageHandler_PublishSuccess(t *testing.T) {
 	// Assert behavior
 	assert.True(t, mockMsg.acked, "message should be acked on success")
 	assert.False(t, mockMsg.nacked, "message should not be nacked on success")
-	assertAlertMonitor(t, alertMonitor, true, &destination, nil)
 }
 
-func TestMessageHandler_AlertMonitorError(t *testing.T) {
+func TestManualDelivery_DuplicateRetry(t *testing.T) {
 	// Test scenario:
-	// - Publish succeeds
-	// - Alert monitor fails
-	// - Should still succeed overall (alert errors don't affect main flow)
+	// - First manual retry for event+destination succeeds
+	// - Second manual retry for same event+destination is requested
+	// - Second retry should also execute (not be blocked by idempotency)
+	//
+	// Manual retries are explicit user actions and should always execute,
+	// even if a previous manual retry for the same event+destination already succeeded.
 
 	// Setup test data
 	tenant := models.Tenant{ID: idgen.String()}
 	destination := testutil.DestinationFactory.Any(
-		testutil.DestinationFactory.WithType("webhook"),
 		testutil.DestinationFactory.WithTenantID(tenant.ID),
 	)
 	event := testutil.EventFactory.Any(
@@ -1180,84 +1086,41 @@ func TestMessageHandler_AlertMonitorError(t *testing.T) {
 
 	// Setup mocks
 	destGetter := &mockDestinationGetter{dest: &destination}
-	eventGetter := newMockEventGetter()
-	eventGetter.registerEvent(&event)
 	retryScheduler := newMockRetryScheduler()
-	publisher := newMockPublisher([]error{nil}) // Successful publish
+	publisher := newMockPublisher([]error{nil, nil}) // Both succeed
 	logPublisher := newMockLogPublisher(nil)
-	alertMonitor := newMockAlertMonitor()
-	alertMonitor.On("HandleAttempt", mock.Anything, mock.Anything).Return(errors.New("alert monitor failed"))
 
-	// Setup message handler
+	// Setup message handler with Redis for idempotency
+	redis := testutil.CreateTestRedisClient(t)
 	handler := deliverymq.NewMessageHandler(
 		testutil.CreateTestLogger(t),
 		logPublisher,
 		destGetter,
-		eventGetter,
 		publisher,
 		testutil.NewMockEventTracer(nil),
 		retryScheduler,
 		&backoff.ConstantBackoff{Interval: 1 * time.Second},
 		10,
-		alertMonitor,
-		idempotence.New(testutil.CreateTestRedisClient(t), idempotence.WithSuccessfulTTL(24*time.Hour)),
+		idempotence.New(redis, idempotence.WithSuccessfulTTL(24*time.Hour)),
 	)
 
-	// Create and handle message
-	deliveryEvent := models.DeliveryEvent{
-		ID:            idgen.DeliveryEvent(),
-		Event:         event,
-		DestinationID: destination.ID,
-	}
-	mockMsg, msg := newDeliveryMockMessage(deliveryEvent)
-
-	// Handle message
-	err := handler.Handle(context.Background(), msg)
+	// Step 1: First manual retry succeeds
+	task1 := models.NewManualDeliveryTask(event, destination.ID, 1)
+	mockMsg1, msg1 := newDeliveryMockMessage(task1)
+	err := handler.Handle(context.Background(), msg1)
 	require.NoError(t, err)
+	assert.True(t, mockMsg1.acked, "first manual retry should be acked")
+	assert.Equal(t, 1, publisher.current, "first manual retry should publish")
+	require.Len(t, logPublisher.entries, 1, "first manual retry should log delivery")
 
-	// Assert behavior
-	assert.True(t, mockMsg.acked, "message should be acked despite alert monitor error")
-	assert.False(t, mockMsg.nacked, "message should not be nacked despite alert monitor error")
-	assert.Equal(t, 1, publisher.current, "should publish once")
-	require.Len(t, logPublisher.deliveries, 1, "should have one delivery")
-	assert.Equal(t, models.DeliveryStatusSuccess, logPublisher.deliveries[0].Delivery.Status, "delivery status should be OK")
-
-	// Verify alert monitor was called but error was ignored
-	// Wait for the HandleAttempt call to be made
-	require.Eventually(t, func() bool {
-		for _, call := range alertMonitor.Calls {
-			if call.Method == "HandleAttempt" {
-				return true
-			}
-		}
-		return false
-	}, 200*time.Millisecond, 10*time.Millisecond, "timed out waiting for HandleAttempt call on alertMonitor")
-	alertMonitor.AssertCalled(t, "HandleAttempt", mock.Anything, mock.Anything)
-}
-
-// Helper function to assert alert monitor calls
-func assertAlertMonitor(t *testing.T, m *mockAlertMonitor, success bool, destination *models.Destination, expectedData map[string]interface{}) {
-	t.Helper()
-
-	// Wait for the alert monitor to be called
-	require.Eventually(t, func() bool {
-		return len(m.Calls) > 0
-	}, 200*time.Millisecond, 10*time.Millisecond, "timed out waiting for alert monitor to be called")
-
-	calls := m.Calls // m.Calls is now guaranteed to be non-empty
-
-	lastCall := calls[len(calls)-1]
-	attempt := lastCall.Arguments[1].(alert.DeliveryAttempt)
-
-	assert.Equal(t, success, attempt.Success, "alert attempt success should match")
-	assert.Equal(t, destination.ID, attempt.Destination.ID, "alert attempt destination should match")
-	assert.NotNil(t, attempt.DeliveryEvent, "alert attempt should have delivery event")
-
-	if expectedData != nil {
-		assert.Equal(t, expectedData, attempt.DeliveryResponse, "alert attempt data should match")
-	} else {
-		assert.Nil(t, attempt.DeliveryResponse, "alert attempt should not have data")
-	}
+	// Step 2: Second manual retry for same event+destination should also execute
+	task2 := models.NewManualDeliveryTask(event, destination.ID, 2)
+	mockMsg2, msg2 := newDeliveryMockMessage(task2)
+	err = handler.Handle(context.Background(), msg2)
+	require.NoError(t, err)
+	assert.True(t, mockMsg2.acked, "second manual retry should be acked")
+	assert.Equal(t, 2, publisher.current, "second manual retry should also publish")
+	require.Len(t, logPublisher.entries, 2, "second manual retry should also log delivery")
 }
 
 func TestMessageHandler_RetryID_MultipleDestinations(t *testing.T) {
@@ -1289,8 +1152,6 @@ func TestMessageHandler_RetryID_MultipleDestinations(t *testing.T) {
 	destGetter := newMockMultiDestinationGetter()
 	destGetter.registerDestination(&destination1)
 	destGetter.registerDestination(&destination2)
-	eventGetter := newMockEventGetter()
-	eventGetter.registerEvent(&event)
 	retryScheduler := newMockRetryScheduler()
 	publishErr := &destregistry.ErrDestinationPublishAttempt{
 		Err:      errors.New("webhook returned 500"),
@@ -1299,38 +1160,33 @@ func TestMessageHandler_RetryID_MultipleDestinations(t *testing.T) {
 	}
 	publisher := newMockPublisher([]error{publishErr, publishErr}) // Both fail
 	logPublisher := newMockLogPublisher(nil)
-	alertMonitor := newMockAlertMonitor()
 
 	// Setup message handler
 	handler := deliverymq.NewMessageHandler(
 		testutil.CreateTestLogger(t),
 		logPublisher,
 		destGetter,
-		eventGetter,
 		publisher,
 		testutil.NewMockEventTracer(nil),
 		retryScheduler,
 		&backoff.ConstantBackoff{Interval: 1 * time.Second},
 		10,
-		alertMonitor,
 		idempotence.New(testutil.CreateTestRedisClient(t), idempotence.WithSuccessfulTTL(24*time.Hour)),
 	)
 
-	// Create delivery events for SAME event to DIFFERENT destinations
-	deliveryEvent1 := models.DeliveryEvent{
-		ID:            idgen.DeliveryEvent(),
+	// Create delivery tasks for SAME event to DIFFERENT destinations
+	task1 := models.DeliveryTask{
 		Event:         event,
 		DestinationID: destination1.ID,
 	}
-	deliveryEvent2 := models.DeliveryEvent{
-		ID:            idgen.DeliveryEvent(),
+	task2 := models.DeliveryTask{
 		Event:         event,
 		DestinationID: destination2.ID,
 	}
 
 	// Handle both messages
-	_, msg1 := newDeliveryMockMessage(deliveryEvent1)
-	_, msg2 := newDeliveryMockMessage(deliveryEvent2)
+	_, msg1 := newDeliveryMockMessage(task1)
+	_, msg2 := newDeliveryMockMessage(task2)
 
 	_ = handler.Handle(context.Background(), msg1)
 	_ = handler.Handle(context.Background(), msg2)

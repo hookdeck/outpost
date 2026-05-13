@@ -7,19 +7,21 @@ from .utils.logger import Logger, get_default_logger
 from .utils.retries import RetryConfig
 import httpx
 import importlib
-from outpost_sdk import models, utils
-from outpost_sdk._hooks import SDKHooks
-from outpost_sdk.models import internal
-from outpost_sdk.types import OptionalNullable, UNSET
+from outpost_sdk import errors, models, utils
+from outpost_sdk._hooks import HookContext, SDKHooks
+from outpost_sdk.types import BaseModel, OptionalNullable, UNSET
+from outpost_sdk.utils.unmarshal_json_response import unmarshal_json_response
 import sys
-from typing import Callable, Dict, Optional, TYPE_CHECKING, Union, cast
+from typing import Any, Callable, Dict, Mapping, Optional, TYPE_CHECKING, Union, cast
 import weakref
 
 if TYPE_CHECKING:
+    from outpost_sdk.attempts import Attempts
+    from outpost_sdk.configuration import Configuration
     from outpost_sdk.destinations import Destinations
     from outpost_sdk.events import Events
     from outpost_sdk.health import Health
-    from outpost_sdk.publish import Publish
+    from outpost_sdk.metrics import Metrics
     from outpost_sdk.schemas import Schemas
     from outpost_sdk.tenants import Tenants
     from outpost_sdk.topics_sdk import TopicsSDK
@@ -29,66 +31,71 @@ class Outpost(BaseSDK):
     r"""Outpost API: The Outpost API is a REST-based JSON API for managing tenants, destinations, and publishing events."""
 
     health: "Health"
-    r"""API Health Check"""
+    r"""This endpoint is only available for **self-hosted** Outpost deployments. Managed Outpost health is monitored by Hookdeck.
+
+    """
+    configuration: "Configuration"
+    r"""The Configuration API is available for **managed Outpost** deployments only. It allows you to read and update instance-level settings — the same settings available as environment variables in self-hosted deployments.
+
+    """
     tenants: "Tenants"
     r"""The API segments resources per `tenant`. A tenant represents a user/team/organization in your product. The provided value determines the tenant's ID, which can be any string representation.
 
     If your system is not multi-tenant, create a single tenant with a hard-code tenant ID upon initialization. If your system has a single tenant but multiple environments, create a tenant per environment, like `live` and `test`.
 
     """
+    events: "Events"
+    r"""An event represents a payload published to Outpost. Events are matched against all destinations whose topic subscriptions match the event topic, then delivered.
+
+    """
+    attempts: "Attempts"
+    r"""Attempts represent individual delivery attempts of events to destinations. The attempts API provides an attempt-centric view of event processing.
+
+    Use the `include` query parameter to include related data:
+    - `include=event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
+    - `include=event.data`: Include full event with payload data
+    - `include=response_data`: Include response body and headers from the attempt
+    - `include=destination`: Include the full destination object with target information
+
+    """
     destinations: "Destinations"
     r"""Destinations are the endpoints where events are sent. Each destination is associated with a tenant and can be configured to receive specific event topics.
-
-    ```json
-    {
-    \"id\": \"des_12345\", // Control plane generated ID or user provided ID
-    \"type\": \"webhooks\", // Type of the destination
-    \"topics\": [\"user.created\", \"user.updated\"], // Topics of events this destination is eligible for
-    \"config\": {
-    // Destination type specific configuration. Schema of depends on type
-    \"url\": \"https://example.com/webhooks/user\" 
-    },
-    \"credentials\": {
-    // Destination type specific credentials. AES encrypted. Schema depends on type
-    \"secret\": \"some***********\" 
-    },
-    \"disabled_at\": null, // null or ISO date if disabled
-    \"created_at\": \"2024-01-01T00:00:00Z\" // Date the destination was created
-    }
-    ```
 
     The `topics` array can contain either a list of topics or a wildcard `*` implying that all topics are supported. If you do not wish to implement topics for your application, you set all destination topics to `*`.
 
     By default all destination `credentials` are obfuscated and the values cannot be read. This does not apply to the `webhook` type destination secret and each destination can expose their own obfuscation logic.
 
     """
-    publish: "Publish"
-    r"""Operations for publishing events."""
     schemas: "Schemas"
-    r"""Operations for retrieving destination type schemas."""
+    r"""Destination types describe the available event delivery targets and their configuration schemas. Use these endpoints to render UI forms and list available destination types with their configuration schemas.
+
+    """
     topics: "TopicsSDK"
-    r"""Operations for retrieving available event topics."""
-    events: "Events"
-    r"""Operations related to event history and deliveries."""
+    r"""Returns the list of topics configured for this Outpost deployment. Tenants subscribe their destinations to topics from this list. Topics are defined via your configuration file and not a specific Create Topic API.
+
+    """
+    metrics: "Metrics"
+    r"""Aggregated metrics for events and delivery attempts. Supports time bucketing, dimensional grouping, and filtering.
+
+    """
     _sub_sdk_map = {
         "health": ("outpost_sdk.health", "Health"),
+        "configuration": ("outpost_sdk.configuration", "Configuration"),
         "tenants": ("outpost_sdk.tenants", "Tenants"),
+        "events": ("outpost_sdk.events", "Events"),
+        "attempts": ("outpost_sdk.attempts", "Attempts"),
         "destinations": ("outpost_sdk.destinations", "Destinations"),
-        "publish": ("outpost_sdk.publish", "Publish"),
         "schemas": ("outpost_sdk.schemas", "Schemas"),
         "topics": ("outpost_sdk.topics_sdk", "TopicsSDK"),
-        "events": ("outpost_sdk.events", "Events"),
+        "metrics": ("outpost_sdk.metrics", "Metrics"),
     }
 
     def __init__(
         self,
-        security: Optional[
-            Union[models.Security, Callable[[], models.Security]]
-        ] = None,
-        tenant_id: Optional[str] = None,
+        api_key: Optional[Union[Optional[str], Callable[[], Optional[str]]]] = None,
         server_idx: Optional[int] = None,
-        server_url: Optional[str] = None,
         url_params: Optional[Dict[str, str]] = None,
+        server_url: Optional[str] = None,
         client: Optional[HttpClient] = None,
         async_client: Optional[AsyncHttpClient] = None,
         retry_config: OptionalNullable[RetryConfig] = UNSET,
@@ -97,8 +104,7 @@ class Outpost(BaseSDK):
     ) -> None:
         r"""Instantiates the SDK configuring it with the provided parameters.
 
-        :param security: The security details required for authentication
-        :param tenant_id: Configures the tenant_id parameter for all supported operations
+        :param api_key: The api_key required for authentication
         :param server_idx: The index of the server to use for all methods
         :param server_url: The server URL to use for all methods
         :param url_params: Parameters to optionally template the server URL with
@@ -128,13 +134,16 @@ class Outpost(BaseSDK):
             type(async_client), AsyncHttpClient
         ), "The provided async_client must implement the AsyncHttpClient protocol."
 
+        security: Any = None
+        if callable(api_key):
+            # pylint: disable=unnecessary-lambda-assignment
+            security = lambda: models.Security(api_key=api_key())
+        else:
+            security = models.Security(api_key=api_key)
+
         if server_url is not None:
             if url_params is not None:
                 server_url = utils.template_url(server_url, url_params)
-
-        _globals = internal.Globals(
-            tenant_id=utils.get_global_from_env(tenant_id, "TENANT_ID", str),
-        )
 
         BaseSDK.__init__(
             self,
@@ -143,7 +152,6 @@ class Outpost(BaseSDK):
                 client_supplied=client_supplied,
                 async_client=async_client,
                 async_client_supplied=async_client_supplied,
-                globals=_globals,
                 security=security,
                 server_url=server_url,
                 server_idx=server_idx,
@@ -235,3 +243,479 @@ class Outpost(BaseSDK):
         ):
             await self.sdk_configuration.async_client.aclose()
         self.sdk_configuration.async_client = None
+
+    def publish(
+        self,
+        *,
+        request: Union[models.PublishRequest, models.PublishRequestTypedDict],
+        retries: OptionalNullable[utils.RetryConfig] = UNSET,
+        server_url: Optional[str] = None,
+        timeout_ms: Optional[int] = None,
+        http_headers: Optional[Mapping[str, str]] = None,
+    ) -> models.PublishResponse:
+        r"""Publish Event
+
+        Publishes an event to the specified topic, potentially routed to a specific destination. Requires Admin API Key.
+
+        If set, this operation will use `api_key` from the global security.
+
+        :param request: The request object to send.
+        :param retries: Override the default retry configuration for this method
+        :param server_url: Override the default server URL for this method
+        :param timeout_ms: Override the default request timeout configuration for this method in milliseconds
+        :param http_headers: Additional headers to set or replace on requests.
+        """
+        base_url = None
+        url_variables = None
+        if timeout_ms is None:
+            timeout_ms = self.sdk_configuration.timeout_ms
+
+        if server_url is not None:
+            base_url = server_url
+        else:
+            base_url = self._get_url(base_url, url_variables)
+
+        if not isinstance(request, BaseModel):
+            request = utils.unmarshal(request, models.PublishRequest)
+        request = cast(models.PublishRequest, request)
+
+        req = self._build_request(
+            method="POST",
+            path="/publish",
+            base_url=base_url,
+            url_variables=url_variables,
+            request=request,
+            request_body_required=True,
+            request_has_path_params=False,
+            request_has_query_params=True,
+            user_agent_header="user-agent",
+            accept_header_value="application/json",
+            http_headers=http_headers,
+            security=self.sdk_configuration.security,
+            get_serialized_body=lambda: utils.serialize_request_body(
+                request, False, False, "json", models.PublishRequest
+            ),
+            allow_empty_value=None,
+            allowed_fields=["api_key"],
+            timeout_ms=timeout_ms,
+        )
+
+        if retries == UNSET:
+            if self.sdk_configuration.retry_config is not UNSET:
+                retries = self.sdk_configuration.retry_config
+
+        retry_config = None
+        if isinstance(retries, utils.RetryConfig):
+            retry_config = (retries, ["429", "500", "502", "503", "504"])
+
+        http_res = self.do_request(
+            hook_ctx=HookContext(
+                config=self.sdk_configuration,
+                base_url=base_url or "",
+                operation_id="publishEvent",
+                oauth2_scopes=None,
+                security_source=self.sdk_configuration.security,
+            ),
+            request=req,
+            is_error_status_code=lambda c: utils.match_status_codes(["4XX", "5XX"], c),
+            retry_config=retry_config,
+        )
+
+        response_data: Any = None
+        if utils.match_response(http_res, "202", "application/json"):
+            return unmarshal_json_response(models.PublishResponse, http_res)
+        if utils.match_response(http_res, "404", "application/json"):
+            response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
+            raise errors.NotFoundError(response_data, http_res)
+        if utils.match_response(http_res, ["401", "403", "407"], "application/json"):
+            response_data = unmarshal_json_response(
+                errors.UnauthorizedErrorData, http_res
+            )
+            raise errors.UnauthorizedError(response_data, http_res)
+        if utils.match_response(http_res, "408", "application/json"):
+            response_data = unmarshal_json_response(errors.TimeoutErrorTData, http_res)
+            raise errors.TimeoutErrorT(response_data, http_res)
+        if utils.match_response(http_res, "429", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.RateLimitedErrorData, http_res
+            )
+            raise errors.RateLimitedError(response_data, http_res)
+        if utils.match_response(
+            http_res, ["413", "414", "415", "422", "431"], "application/json"
+        ):
+            response_data = unmarshal_json_response(
+                errors.BadRequestErrorData, http_res
+            )
+            raise errors.BadRequestError(response_data, http_res)
+        if utils.match_response(http_res, "504", "application/json"):
+            response_data = unmarshal_json_response(errors.TimeoutErrorTData, http_res)
+            raise errors.TimeoutErrorT(response_data, http_res)
+        if utils.match_response(http_res, ["501", "505"], "application/json"):
+            response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
+            raise errors.NotFoundError(response_data, http_res)
+        if utils.match_response(
+            http_res, ["500", "502", "503", "506", "507", "508"], "application/json"
+        ):
+            response_data = unmarshal_json_response(
+                errors.InternalServerErrorData, http_res
+            )
+            raise errors.InternalServerError(response_data, http_res)
+        if utils.match_response(http_res, "510", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.BadRequestErrorData, http_res
+            )
+            raise errors.BadRequestError(response_data, http_res)
+        if utils.match_response(http_res, "511", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.UnauthorizedErrorData, http_res
+            )
+            raise errors.UnauthorizedError(response_data, http_res)
+        if utils.match_response(http_res, ["409", "4XX"], "*"):
+            http_res_text = utils.stream_to_text(http_res)
+            raise errors.APIError("API error occurred", http_res, http_res_text)
+        if utils.match_response(http_res, "5XX", "*"):
+            http_res_text = utils.stream_to_text(http_res)
+            raise errors.APIError("API error occurred", http_res, http_res_text)
+
+        raise errors.APIError("Unexpected response received", http_res)
+
+    async def publish_async(
+        self,
+        *,
+        request: Union[models.PublishRequest, models.PublishRequestTypedDict],
+        retries: OptionalNullable[utils.RetryConfig] = UNSET,
+        server_url: Optional[str] = None,
+        timeout_ms: Optional[int] = None,
+        http_headers: Optional[Mapping[str, str]] = None,
+    ) -> models.PublishResponse:
+        r"""Publish Event
+
+        Publishes an event to the specified topic, potentially routed to a specific destination. Requires Admin API Key.
+
+        If set, this operation will use `api_key` from the global security.
+
+        :param request: The request object to send.
+        :param retries: Override the default retry configuration for this method
+        :param server_url: Override the default server URL for this method
+        :param timeout_ms: Override the default request timeout configuration for this method in milliseconds
+        :param http_headers: Additional headers to set or replace on requests.
+        """
+        base_url = None
+        url_variables = None
+        if timeout_ms is None:
+            timeout_ms = self.sdk_configuration.timeout_ms
+
+        if server_url is not None:
+            base_url = server_url
+        else:
+            base_url = self._get_url(base_url, url_variables)
+
+        if not isinstance(request, BaseModel):
+            request = utils.unmarshal(request, models.PublishRequest)
+        request = cast(models.PublishRequest, request)
+
+        req = self._build_request_async(
+            method="POST",
+            path="/publish",
+            base_url=base_url,
+            url_variables=url_variables,
+            request=request,
+            request_body_required=True,
+            request_has_path_params=False,
+            request_has_query_params=True,
+            user_agent_header="user-agent",
+            accept_header_value="application/json",
+            http_headers=http_headers,
+            security=self.sdk_configuration.security,
+            get_serialized_body=lambda: utils.serialize_request_body(
+                request, False, False, "json", models.PublishRequest
+            ),
+            allow_empty_value=None,
+            allowed_fields=["api_key"],
+            timeout_ms=timeout_ms,
+        )
+
+        if retries == UNSET:
+            if self.sdk_configuration.retry_config is not UNSET:
+                retries = self.sdk_configuration.retry_config
+
+        retry_config = None
+        if isinstance(retries, utils.RetryConfig):
+            retry_config = (retries, ["429", "500", "502", "503", "504"])
+
+        http_res = await self.do_request_async(
+            hook_ctx=HookContext(
+                config=self.sdk_configuration,
+                base_url=base_url or "",
+                operation_id="publishEvent",
+                oauth2_scopes=None,
+                security_source=self.sdk_configuration.security,
+            ),
+            request=req,
+            is_error_status_code=lambda c: utils.match_status_codes(["4XX", "5XX"], c),
+            retry_config=retry_config,
+        )
+
+        response_data: Any = None
+        if utils.match_response(http_res, "202", "application/json"):
+            return unmarshal_json_response(models.PublishResponse, http_res)
+        if utils.match_response(http_res, "404", "application/json"):
+            response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
+            raise errors.NotFoundError(response_data, http_res)
+        if utils.match_response(http_res, ["401", "403", "407"], "application/json"):
+            response_data = unmarshal_json_response(
+                errors.UnauthorizedErrorData, http_res
+            )
+            raise errors.UnauthorizedError(response_data, http_res)
+        if utils.match_response(http_res, "408", "application/json"):
+            response_data = unmarshal_json_response(errors.TimeoutErrorTData, http_res)
+            raise errors.TimeoutErrorT(response_data, http_res)
+        if utils.match_response(http_res, "429", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.RateLimitedErrorData, http_res
+            )
+            raise errors.RateLimitedError(response_data, http_res)
+        if utils.match_response(
+            http_res, ["413", "414", "415", "422", "431"], "application/json"
+        ):
+            response_data = unmarshal_json_response(
+                errors.BadRequestErrorData, http_res
+            )
+            raise errors.BadRequestError(response_data, http_res)
+        if utils.match_response(http_res, "504", "application/json"):
+            response_data = unmarshal_json_response(errors.TimeoutErrorTData, http_res)
+            raise errors.TimeoutErrorT(response_data, http_res)
+        if utils.match_response(http_res, ["501", "505"], "application/json"):
+            response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
+            raise errors.NotFoundError(response_data, http_res)
+        if utils.match_response(
+            http_res, ["500", "502", "503", "506", "507", "508"], "application/json"
+        ):
+            response_data = unmarshal_json_response(
+                errors.InternalServerErrorData, http_res
+            )
+            raise errors.InternalServerError(response_data, http_res)
+        if utils.match_response(http_res, "510", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.BadRequestErrorData, http_res
+            )
+            raise errors.BadRequestError(response_data, http_res)
+        if utils.match_response(http_res, "511", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.UnauthorizedErrorData, http_res
+            )
+            raise errors.UnauthorizedError(response_data, http_res)
+        if utils.match_response(http_res, ["409", "4XX"], "*"):
+            http_res_text = await utils.stream_to_text_async(http_res)
+            raise errors.APIError("API error occurred", http_res, http_res_text)
+        if utils.match_response(http_res, "5XX", "*"):
+            http_res_text = await utils.stream_to_text_async(http_res)
+            raise errors.APIError("API error occurred", http_res, http_res_text)
+
+        raise errors.APIError("Unexpected response received", http_res)
+
+    def retry(
+        self,
+        *,
+        request: Union[models.RetryRequest, models.RetryRequestTypedDict],
+        retries: OptionalNullable[utils.RetryConfig] = UNSET,
+        server_url: Optional[str] = None,
+        timeout_ms: Optional[int] = None,
+        http_headers: Optional[Mapping[str, str]] = None,
+    ) -> models.SuccessResponse:
+        r"""Retry Event Delivery
+
+        Triggers a retry for delivering an event to a destination. The event must exist and the destination must be enabled and match the event's topic.
+
+        When authenticated with a Tenant JWT, only events belonging to that tenant can be retried.
+        When authenticated with Admin API Key, events from any tenant can be retried.
+
+
+        :param request: The request object to send.
+        :param retries: Override the default retry configuration for this method
+        :param server_url: Override the default server URL for this method
+        :param timeout_ms: Override the default request timeout configuration for this method in milliseconds
+        :param http_headers: Additional headers to set or replace on requests.
+        """
+        base_url = None
+        url_variables = None
+        if timeout_ms is None:
+            timeout_ms = self.sdk_configuration.timeout_ms
+
+        if server_url is not None:
+            base_url = server_url
+        else:
+            base_url = self._get_url(base_url, url_variables)
+
+        if not isinstance(request, BaseModel):
+            request = utils.unmarshal(request, models.RetryRequest)
+        request = cast(models.RetryRequest, request)
+
+        req = self._build_request(
+            method="POST",
+            path="/retry",
+            base_url=base_url,
+            url_variables=url_variables,
+            request=request,
+            request_body_required=True,
+            request_has_path_params=False,
+            request_has_query_params=True,
+            user_agent_header="user-agent",
+            accept_header_value="application/json",
+            http_headers=http_headers,
+            security=self.sdk_configuration.security,
+            get_serialized_body=lambda: utils.serialize_request_body(
+                request, False, False, "json", models.RetryRequest
+            ),
+            allow_empty_value=None,
+            timeout_ms=timeout_ms,
+        )
+
+        if retries == UNSET:
+            if self.sdk_configuration.retry_config is not UNSET:
+                retries = self.sdk_configuration.retry_config
+
+        retry_config = None
+        if isinstance(retries, utils.RetryConfig):
+            retry_config = (retries, ["429", "500", "502", "503", "504"])
+
+        http_res = self.do_request(
+            hook_ctx=HookContext(
+                config=self.sdk_configuration,
+                base_url=base_url or "",
+                operation_id="retryEvent",
+                oauth2_scopes=None,
+                security_source=self.sdk_configuration.security,
+            ),
+            request=req,
+            is_error_status_code=lambda c: utils.match_status_codes(["4XX", "5XX"], c),
+            retry_config=retry_config,
+        )
+
+        response_data: Any = None
+        if utils.match_response(http_res, "202", "application/json"):
+            return unmarshal_json_response(models.SuccessResponse, http_res)
+        if utils.match_response(http_res, "401", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.UnauthorizedErrorData, http_res
+            )
+            raise errors.UnauthorizedError(response_data, http_res)
+        if utils.match_response(http_res, "404", "application/json"):
+            response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
+            raise errors.NotFoundError(response_data, http_res)
+        if utils.match_response(http_res, "500", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.InternalServerErrorData, http_res
+            )
+            raise errors.InternalServerError(response_data, http_res)
+        if utils.match_response(http_res, ["400", "4XX"], "*"):
+            http_res_text = utils.stream_to_text(http_res)
+            raise errors.APIError("API error occurred", http_res, http_res_text)
+        if utils.match_response(http_res, "5XX", "*"):
+            http_res_text = utils.stream_to_text(http_res)
+            raise errors.APIError("API error occurred", http_res, http_res_text)
+
+        raise errors.APIError("Unexpected response received", http_res)
+
+    async def retry_async(
+        self,
+        *,
+        request: Union[models.RetryRequest, models.RetryRequestTypedDict],
+        retries: OptionalNullable[utils.RetryConfig] = UNSET,
+        server_url: Optional[str] = None,
+        timeout_ms: Optional[int] = None,
+        http_headers: Optional[Mapping[str, str]] = None,
+    ) -> models.SuccessResponse:
+        r"""Retry Event Delivery
+
+        Triggers a retry for delivering an event to a destination. The event must exist and the destination must be enabled and match the event's topic.
+
+        When authenticated with a Tenant JWT, only events belonging to that tenant can be retried.
+        When authenticated with Admin API Key, events from any tenant can be retried.
+
+
+        :param request: The request object to send.
+        :param retries: Override the default retry configuration for this method
+        :param server_url: Override the default server URL for this method
+        :param timeout_ms: Override the default request timeout configuration for this method in milliseconds
+        :param http_headers: Additional headers to set or replace on requests.
+        """
+        base_url = None
+        url_variables = None
+        if timeout_ms is None:
+            timeout_ms = self.sdk_configuration.timeout_ms
+
+        if server_url is not None:
+            base_url = server_url
+        else:
+            base_url = self._get_url(base_url, url_variables)
+
+        if not isinstance(request, BaseModel):
+            request = utils.unmarshal(request, models.RetryRequest)
+        request = cast(models.RetryRequest, request)
+
+        req = self._build_request_async(
+            method="POST",
+            path="/retry",
+            base_url=base_url,
+            url_variables=url_variables,
+            request=request,
+            request_body_required=True,
+            request_has_path_params=False,
+            request_has_query_params=True,
+            user_agent_header="user-agent",
+            accept_header_value="application/json",
+            http_headers=http_headers,
+            security=self.sdk_configuration.security,
+            get_serialized_body=lambda: utils.serialize_request_body(
+                request, False, False, "json", models.RetryRequest
+            ),
+            allow_empty_value=None,
+            timeout_ms=timeout_ms,
+        )
+
+        if retries == UNSET:
+            if self.sdk_configuration.retry_config is not UNSET:
+                retries = self.sdk_configuration.retry_config
+
+        retry_config = None
+        if isinstance(retries, utils.RetryConfig):
+            retry_config = (retries, ["429", "500", "502", "503", "504"])
+
+        http_res = await self.do_request_async(
+            hook_ctx=HookContext(
+                config=self.sdk_configuration,
+                base_url=base_url or "",
+                operation_id="retryEvent",
+                oauth2_scopes=None,
+                security_source=self.sdk_configuration.security,
+            ),
+            request=req,
+            is_error_status_code=lambda c: utils.match_status_codes(["4XX", "5XX"], c),
+            retry_config=retry_config,
+        )
+
+        response_data: Any = None
+        if utils.match_response(http_res, "202", "application/json"):
+            return unmarshal_json_response(models.SuccessResponse, http_res)
+        if utils.match_response(http_res, "401", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.UnauthorizedErrorData, http_res
+            )
+            raise errors.UnauthorizedError(response_data, http_res)
+        if utils.match_response(http_res, "404", "application/json"):
+            response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
+            raise errors.NotFoundError(response_data, http_res)
+        if utils.match_response(http_res, "500", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.InternalServerErrorData, http_res
+            )
+            raise errors.InternalServerError(response_data, http_res)
+        if utils.match_response(http_res, ["400", "4XX"], "*"):
+            http_res_text = await utils.stream_to_text_async(http_res)
+            raise errors.APIError("API error occurred", http_res, http_res_text)
+        if utils.match_response(http_res, "5XX", "*"):
+            http_res_text = await utils.stream_to_text_async(http_res)
+            raise errors.APIError("API error occurred", http_res, http_res_text)
+
+        raise errors.APIError("Unexpected response received", http_res)

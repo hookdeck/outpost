@@ -9,66 +9,13 @@ import { Result as SafeParseResult } from "../../types/fp.js";
 import * as components from "../components/index.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 
-export type CreateTenantDestinationGlobals = {
-  tenantId?: string | undefined;
-};
-
 export type CreateTenantDestinationRequest = {
   /**
    * The ID of the tenant. Required when using AdminApiKey authentication.
    */
-  tenantId?: string | undefined;
-  params: components.DestinationCreate;
+  tenantId: string;
+  body: components.DestinationCreate;
 };
-
-/** @internal */
-export const CreateTenantDestinationGlobals$inboundSchema: z.ZodType<
-  CreateTenantDestinationGlobals,
-  z.ZodTypeDef,
-  unknown
-> = z.object({
-  tenant_id: z.string().optional(),
-}).transform((v) => {
-  return remap$(v, {
-    "tenant_id": "tenantId",
-  });
-});
-/** @internal */
-export type CreateTenantDestinationGlobals$Outbound = {
-  tenant_id?: string | undefined;
-};
-
-/** @internal */
-export const CreateTenantDestinationGlobals$outboundSchema: z.ZodType<
-  CreateTenantDestinationGlobals$Outbound,
-  z.ZodTypeDef,
-  CreateTenantDestinationGlobals
-> = z.object({
-  tenantId: z.string().optional(),
-}).transform((v) => {
-  return remap$(v, {
-    tenantId: "tenant_id",
-  });
-});
-
-export function createTenantDestinationGlobalsToJSON(
-  createTenantDestinationGlobals: CreateTenantDestinationGlobals,
-): string {
-  return JSON.stringify(
-    CreateTenantDestinationGlobals$outboundSchema.parse(
-      createTenantDestinationGlobals,
-    ),
-  );
-}
-export function createTenantDestinationGlobalsFromJSON(
-  jsonString: string,
-): SafeParseResult<CreateTenantDestinationGlobals, SDKValidationError> {
-  return safeParse(
-    jsonString,
-    (x) => CreateTenantDestinationGlobals$inboundSchema.parse(JSON.parse(x)),
-    `Failed to parse 'CreateTenantDestinationGlobals' from JSON`,
-  );
-}
 
 /** @internal */
 export const CreateTenantDestinationRequest$inboundSchema: z.ZodType<
@@ -76,8 +23,8 @@ export const CreateTenantDestinationRequest$inboundSchema: z.ZodType<
   z.ZodTypeDef,
   unknown
 > = z.object({
-  tenant_id: z.string().optional(),
-  params: components.DestinationCreate$inboundSchema,
+  tenant_id: z.string(),
+  body: components.DestinationCreate$inboundSchema,
 }).transform((v) => {
   return remap$(v, {
     "tenant_id": "tenantId",
@@ -85,8 +32,8 @@ export const CreateTenantDestinationRequest$inboundSchema: z.ZodType<
 });
 /** @internal */
 export type CreateTenantDestinationRequest$Outbound = {
-  tenant_id?: string | undefined;
-  params: components.DestinationCreate$Outbound;
+  tenant_id: string;
+  body: components.DestinationCreate$Outbound;
 };
 
 /** @internal */
@@ -95,8 +42,8 @@ export const CreateTenantDestinationRequest$outboundSchema: z.ZodType<
   z.ZodTypeDef,
   CreateTenantDestinationRequest
 > = z.object({
-  tenantId: z.string().optional(),
-  params: components.DestinationCreate$outboundSchema,
+  tenantId: z.string(),
+  body: components.DestinationCreate$outboundSchema,
 }).transform((v) => {
   return remap$(v, {
     tenantId: "tenant_id",

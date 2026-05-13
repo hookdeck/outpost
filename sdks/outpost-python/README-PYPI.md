@@ -1,0 +1,683 @@
+# Outpost Python SDK
+
+Developer-friendly & type-safe Python SDK specifically catered to leverage the Outpost API.
+
+<div align="left">
+    <a href="https://www.speakeasy.com/?utm_source=outpost-github&utm_campaign=python"><img src="https://custom-icon-badges.demolab.com/badge/-Built%20By%20Speakeasy-212015?style=for-the-badge&logoColor=FBE331&logo=speakeasy&labelColor=545454" /></a>
+    <a href="https://opensource.org/licenses/MIT">
+        <img src="https://img.shields.io/badge/License-MIT-blue.svg" style="width: 100px; height: 28px;" />
+    </a>
+</div>
+
+<!-- Start Summary [summary] -->
+## Summary
+
+Outpost API: The Outpost API is a REST-based JSON API for managing tenants, destinations, and publishing events.
+<!-- End Summary [summary] -->
+
+<!-- Start Table of Contents [toc] -->
+## Table of Contents
+<!-- $toc-max-depth=2 -->
+* [Outpost Python SDK](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/#outpost-python-sdk)
+  * [SDK Installation](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/#sdk-installation)
+  * [IDE Support](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/#ide-support)
+  * [SDK Example Usage](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/#sdk-example-usage)
+  * [Authentication](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/#authentication)
+  * [Available Resources and Operations](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/#available-resources-and-operations)
+  * [Pagination](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/#pagination)
+  * [Retries](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/#retries)
+  * [Error Handling](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/#error-handling)
+  * [Server Selection](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/#server-selection)
+  * [Custom HTTP Client](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/#custom-http-client)
+  * [Resource Management](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/#resource-management)
+  * [Debugging](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/#debugging)
+* [Development](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/#development)
+  * [Maturity](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/#maturity)
+  * [Contributions](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/#contributions)
+
+<!-- End Table of Contents [toc] -->
+
+<!-- Start SDK Installation [installation] -->
+## SDK Installation
+
+> [!NOTE]
+> **Python version upgrade policy**
+>
+> Once a Python version reaches its [official end of life date](https://devguide.python.org/versions/), a 3-month grace period is provided for users to upgrade. Following this grace period, the minimum python version supported in the SDK will be updated.
+
+The SDK can be installed with *uv*, *pip*, or *poetry* package managers.
+
+### uv
+
+*uv* is a fast Python package installer and resolver, designed as a drop-in replacement for pip and pip-tools. It's recommended for its speed and modern Python tooling capabilities.
+
+```bash
+uv add outpost_sdk
+```
+
+### PIP
+
+*PIP* is the default package installer for Python, enabling easy installation and management of packages from PyPI via the command line.
+
+```bash
+pip install outpost_sdk
+```
+
+### Poetry
+
+*Poetry* is a modern tool that simplifies dependency management and package publishing by using a single `pyproject.toml` file to handle project metadata and dependencies.
+
+```bash
+poetry add outpost_sdk
+```
+
+### Shell and script usage with `uv`
+
+You can use this SDK in a Python shell with [uv](https://docs.astral.sh/uv/) and the `uvx` command that comes with it like so:
+
+```shell
+uvx --from outpost_sdk python
+```
+
+It's also possible to write a standalone Python script without needing to set up a whole project like so:
+
+```python
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.10"
+# dependencies = [
+#     "outpost_sdk",
+# ]
+# ///
+
+from outpost_sdk import Outpost
+
+sdk = Outpost(
+  # SDK arguments
+)
+
+# Rest of script here...
+```
+
+Once that is saved to a file, you can run it with `uv run script.py` where
+`script.py` can be replaced with the actual file name.
+<!-- End SDK Installation [installation] -->
+
+<!-- Start IDE Support [idesupport] -->
+## IDE Support
+
+### PyCharm
+
+Generally, the SDK will work well with most IDEs out of the box. However, when using PyCharm, you can enjoy much better integration with Pydantic by installing an additional plugin.
+
+- [PyCharm Pydantic Plugin](https://docs.pydantic.dev/latest/integrations/pycharm/)
+<!-- End IDE Support [idesupport] -->
+
+<!-- Start SDK Example Usage [usage] -->
+## SDK Example Usage
+
+### Example
+
+```python
+# Synchronous Example
+from outpost_sdk import Outpost
+
+
+with Outpost(
+    api_key="<YOUR_BEARER_TOKEN_HERE>",
+) as outpost:
+
+    res = outpost.publish(request={
+        "id": "evt_abc123xyz789",
+        "tenant_id": "tenant_123",
+        "topic": "user.created",
+        "eligible_for_retry": True,
+        "metadata": {
+            "source": "crm",
+        },
+        "data": {
+            "user_id": "userid",
+            "status": "active",
+        },
+    })
+
+    # Handle response
+    print(res)
+```
+
+</br>
+
+The same SDK client can also be used to make asynchronous requests by importing asyncio.
+
+```python
+# Asynchronous Example
+import asyncio
+from outpost_sdk import Outpost
+
+async def main():
+
+    async with Outpost(
+        api_key="<YOUR_BEARER_TOKEN_HERE>",
+    ) as outpost:
+
+        res = await outpost.publish_async(request={
+            "id": "evt_abc123xyz789",
+            "tenant_id": "tenant_123",
+            "topic": "user.created",
+            "eligible_for_retry": True,
+            "metadata": {
+                "source": "crm",
+            },
+            "data": {
+                "user_id": "userid",
+                "status": "active",
+            },
+        })
+
+        # Handle response
+        print(res)
+
+asyncio.run(main())
+```
+<!-- End SDK Example Usage [usage] -->
+
+<!-- Start Authentication [security] -->
+## Authentication
+
+### Per-Client Security Schemes
+
+This SDK supports the following security scheme globally:
+
+| Name      | Type | Scheme      |
+| --------- | ---- | ----------- |
+| `api_key` | http | HTTP Bearer |
+
+To authenticate with the API the `api_key` parameter must be set when initializing the SDK client instance. For example:
+```python
+from outpost_sdk import Outpost
+
+
+with Outpost(
+    api_key="<YOUR_BEARER_TOKEN_HERE>",
+) as outpost:
+
+    res = outpost.publish(request={
+        "id": "evt_abc123xyz789",
+        "tenant_id": "tenant_123",
+        "topic": "user.created",
+        "eligible_for_retry": True,
+        "metadata": {
+            "source": "crm",
+        },
+        "data": {
+            "user_id": "userid",
+            "status": "active",
+        },
+    })
+
+    # Handle response
+    print(res)
+
+```
+<!-- End Authentication [security] -->
+
+<!-- Start Available Resources and Operations [operations] -->
+## Available Resources and Operations
+
+<details open>
+<summary>Available methods</summary>
+
+### [Outpost SDK](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/outpost/README.md)
+
+* [publish](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/outpost/README.md#publish) - Publish Event
+* [retry](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/outpost/README.md#retry) - Retry Event Delivery
+
+### [Attempts](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/attempts/README.md)
+
+* [list](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/attempts/README.md#list) - List Attempts
+* [get](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/attempts/README.md#get) - Get Attempt
+
+### [Configuration](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/configuration/README.md)
+
+* [get_managed_config](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/configuration/README.md#get_managed_config) - Get Managed Configuration
+* [update_managed_config](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/configuration/README.md#update_managed_config) - Update Managed Configuration
+
+### [Destinations](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/destinations/README.md)
+
+* [list](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/destinations/README.md#list) - List Destinations
+* [create](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/destinations/README.md#create) - Create Destination
+* [get](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/destinations/README.md#get) - Get Destination
+* [update](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/destinations/README.md#update) - Update Destination
+* [delete](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/destinations/README.md#delete) - Delete Destination
+* [enable](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/destinations/README.md#enable) - Enable Destination
+* [disable](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/destinations/README.md#disable) - Disable Destination
+* [list_attempts](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/destinations/README.md#list_attempts) - List Destination Attempts
+* [get_attempt](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/destinations/README.md#get_attempt) - Get Destination Attempt
+
+### [Events](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/events/README.md)
+
+* [list](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/events/README.md#list) - List Events
+* [get](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/events/README.md#get) - Get Event
+
+### [Health](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/health/README.md)
+
+* [check](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/health/README.md#check) - Health Check
+
+### [Metrics](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/metrics/README.md)
+
+* [get_event_metrics](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/metrics/README.md#get_event_metrics) - Get Event Metrics
+* [get_attempt_metrics](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/metrics/README.md#get_attempt_metrics) - Get Attempt Metrics
+
+### [Schemas](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/schemas/README.md)
+
+* [list_destination_types](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/schemas/README.md#list_destination_types) - List Destination Type Schemas
+* [get_destination_type](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/schemas/README.md#get_destination_type) - Get Destination Type Schema
+
+### [Tenants](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/tenants/README.md)
+
+* [list](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/tenants/README.md#list) - List Tenants
+* [upsert](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/tenants/README.md#upsert) - Create or Update Tenant
+* [get](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/tenants/README.md#get) - Get Tenant
+* [delete](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/tenants/README.md#delete) - Delete Tenant
+* [get_portal_url](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/tenants/README.md#get_portal_url) - Get Portal Redirect URL
+* [get_token](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/tenants/README.md#get_token) - Get Tenant JWT Token
+
+### [Topics](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/topicssdk/README.md)
+
+* [list](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/topicssdk/README.md#list) - List Available Topics
+
+</details>
+<!-- End Available Resources and Operations [operations] -->
+
+<!-- Start Pagination [pagination] -->
+## Pagination
+
+Some of the endpoints in this SDK support pagination. To use pagination, you make your SDK calls as usual, but the
+returned response object will have a `Next` method that can be called to pull down the next group of results. If the
+return value of `Next` is `None`, then there are no more pages to be fetched.
+
+Here's an example of one such pagination call:
+```python
+from outpost_sdk import Outpost
+
+
+with Outpost(
+    api_key="<YOUR_BEARER_TOKEN_HERE>",
+) as outpost:
+
+    res = outpost.tenants.list(request={})
+
+    while res is not None:
+        # Handle items
+
+        res = res.next()
+
+```
+<!-- End Pagination [pagination] -->
+
+<!-- Start Retries [retries] -->
+## Retries
+
+Some of the endpoints in this SDK support retries. If you use the SDK without any configuration, it will fall back to the default retry strategy provided by the API. However, the default retry strategy can be overridden on a per-operation basis, or across the entire SDK.
+
+To change the default retry strategy for a single API call, simply provide a `RetryConfig` object to the call:
+```python
+from outpost_sdk import Outpost
+from outpost_sdk.utils import BackoffStrategy, RetryConfig
+
+
+with Outpost(
+    api_key="<YOUR_BEARER_TOKEN_HERE>",
+) as outpost:
+
+    res = outpost.publish(request={
+        "id": "evt_abc123xyz789",
+        "tenant_id": "tenant_123",
+        "topic": "user.created",
+        "eligible_for_retry": True,
+        "metadata": {
+            "source": "crm",
+        },
+        "data": {
+            "user_id": "userid",
+            "status": "active",
+        },
+    },
+        RetryConfig("backoff", BackoffStrategy(1, 50, 1.1, 100), False))
+
+    # Handle response
+    print(res)
+
+```
+
+If you'd like to override the default retry strategy for all operations that support retries, you can use the `retry_config` optional parameter when initializing the SDK:
+```python
+from outpost_sdk import Outpost
+from outpost_sdk.utils import BackoffStrategy, RetryConfig
+
+
+with Outpost(
+    retry_config=RetryConfig("backoff", BackoffStrategy(1, 50, 1.1, 100), False),
+    api_key="<YOUR_BEARER_TOKEN_HERE>",
+) as outpost:
+
+    res = outpost.publish(request={
+        "id": "evt_abc123xyz789",
+        "tenant_id": "tenant_123",
+        "topic": "user.created",
+        "eligible_for_retry": True,
+        "metadata": {
+            "source": "crm",
+        },
+        "data": {
+            "user_id": "userid",
+            "status": "active",
+        },
+    })
+
+    # Handle response
+    print(res)
+
+```
+<!-- End Retries [retries] -->
+
+<!-- Start Error Handling [errors] -->
+## Error Handling
+
+[`OutpostError`](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/./src/outpost_sdk/errors/outposterror.py) is the base class for all HTTP error responses. It has the following properties:
+
+| Property           | Type             | Description                                                                             |
+| ------------------ | ---------------- | --------------------------------------------------------------------------------------- |
+| `err.message`      | `str`            | Error message                                                                           |
+| `err.status_code`  | `int`            | HTTP response status code eg `404`                                                      |
+| `err.headers`      | `httpx.Headers`  | HTTP response headers                                                                   |
+| `err.body`         | `str`            | HTTP body. Can be empty string if no body is returned.                                  |
+| `err.raw_response` | `httpx.Response` | Raw HTTP response                                                                       |
+| `err.data`         |                  | Optional. Some errors may contain structured data. [See Error Classes](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/#error-classes). |
+
+### Example
+```python
+from outpost_sdk import Outpost, errors
+
+
+with Outpost(
+    api_key="<YOUR_BEARER_TOKEN_HERE>",
+) as outpost:
+    res = None
+    try:
+
+        res = outpost.publish(request={
+            "id": "evt_abc123xyz789",
+            "tenant_id": "tenant_123",
+            "topic": "user.created",
+            "eligible_for_retry": True,
+            "metadata": {
+                "source": "crm",
+            },
+            "data": {
+                "user_id": "userid",
+                "status": "active",
+            },
+        })
+
+        # Handle response
+        print(res)
+
+
+    except errors.OutpostError as e:
+        # The base class for HTTP error responses
+        print(e.message)
+        print(e.status_code)
+        print(e.body)
+        print(e.headers)
+        print(e.raw_response)
+
+        # Depending on the method different errors may be thrown
+        if isinstance(e, errors.NotFoundError):
+            print(e.data.message)  # Optional[str]
+            print(e.data.additional_properties)  # Optional[Dict[str, Any]]
+```
+
+### Error Classes
+**Primary errors:**
+* [`OutpostError`](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/./src/outpost_sdk/errors/outposterror.py): The base class for HTTP error responses.
+  * [`UnauthorizedError`](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/./src/outpost_sdk/errors/unauthorizederror.py): A collection of codes that generally means the client was not authenticated correctly for the request they want to make.
+  * [`InternalServerError`](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/./src/outpost_sdk/errors/internalservererror.py): A collection of status codes that generally mean the server failed in an unexpected way.
+
+<details><summary>Less common errors (11)</summary>
+
+<br />
+
+**Network errors:**
+* [`httpx.RequestError`](https://www.python-httpx.org/exceptions/#httpx.RequestError): Base class for request errors.
+    * [`httpx.ConnectError`](https://www.python-httpx.org/exceptions/#httpx.ConnectError): HTTP client was unable to make a request to a server.
+    * [`httpx.TimeoutException`](https://www.python-httpx.org/exceptions/#httpx.TimeoutException): HTTP request timed out.
+
+
+**Inherit from [`OutpostError`](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/./src/outpost_sdk/errors/outposterror.py)**:
+* [`NotFoundError`](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/./src/outpost_sdk/errors/notfounderror.py): Status codes relating to the resource/entity they are requesting not being found or endpoints/routes not existing. Applicable to 21 of 29 methods.*
+* [`BadRequestError`](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/./src/outpost_sdk/errors/badrequesterror.py): A collection of codes that generally means the end user got something wrong in making the request. Applicable to 9 of 29 methods.*
+* [`APIErrorResponse`](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/./src/outpost_sdk/errors/apierrorresponse.py): Standard error response format. Applicable to 6 of 29 methods.*
+* [`TimeoutErrorT`](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/./src/outpost_sdk/errors/timeouterrort.py): Timeouts occurred with the request. Applicable to 5 of 29 methods.*
+* [`RateLimitedError`](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/./src/outpost_sdk/errors/ratelimitederror.py): Status codes relating to the client being rate limited by the server. Status code `429`. Applicable to 5 of 29 methods.*
+* [`NotImplementedErrorT`](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/./src/outpost_sdk/errors/notimplementederrort.py): List Tenants feature is not available. Requires Redis with RediSearch module. Status code `501`. Applicable to 1 of 29 methods.*
+* [`ResponseValidationError`](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/./src/outpost_sdk/errors/responsevalidationerror.py): Type mismatch between the response data and the expected Pydantic model. Provides access to the Pydantic validation error via the `cause` attribute.
+
+</details>
+
+\* Check [the method documentation](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/#available-resources-and-operations) to see if the error is applicable.
+<!-- End Error Handling [errors] -->
+
+<!-- Start Server Selection [server] -->
+## Server Selection
+
+### Select Server by Index
+
+You can override the default server globally by passing a server index to the `server_idx: int` optional parameter when initializing the SDK client instance. The selected server will then be used as the default on the operations that use it. This table lists the indexes associated with the available servers:
+
+| #   | Server                                        | Description                        |
+| --- | --------------------------------------------- | ---------------------------------- |
+| 0   | `https://api.outpost.hookdeck.com/2025-07-01` | Outpost API (production)           |
+| 1   | `http://localhost:3333/api/v1`                | Local development server base path |
+
+#### Example
+
+```python
+from outpost_sdk import Outpost
+
+
+with Outpost(
+    server_idx=0,
+    api_key="<YOUR_BEARER_TOKEN_HERE>",
+) as outpost:
+
+    res = outpost.publish(request={
+        "id": "evt_abc123xyz789",
+        "tenant_id": "tenant_123",
+        "topic": "user.created",
+        "eligible_for_retry": True,
+        "metadata": {
+            "source": "crm",
+        },
+        "data": {
+            "user_id": "userid",
+            "status": "active",
+        },
+    })
+
+    # Handle response
+    print(res)
+
+```
+
+### Override Server URL Per-Client
+
+The default server can also be overridden globally by passing a URL to the `server_url: str` optional parameter when initializing the SDK client instance. For example:
+```python
+from outpost_sdk import Outpost
+
+
+with Outpost(
+    server_url="http://localhost:3333/api/v1",
+    api_key="<YOUR_BEARER_TOKEN_HERE>",
+) as outpost:
+
+    res = outpost.publish(request={
+        "id": "evt_abc123xyz789",
+        "tenant_id": "tenant_123",
+        "topic": "user.created",
+        "eligible_for_retry": True,
+        "metadata": {
+            "source": "crm",
+        },
+        "data": {
+            "user_id": "userid",
+            "status": "active",
+        },
+    })
+
+    # Handle response
+    print(res)
+
+```
+<!-- End Server Selection [server] -->
+
+<!-- Start Custom HTTP Client [http-client] -->
+## Custom HTTP Client
+
+The Python SDK makes API calls using the [httpx](https://www.python-httpx.org/) HTTP library.  In order to provide a convenient way to configure timeouts, cookies, proxies, custom headers, and other low-level configuration, you can initialize the SDK client with your own HTTP client instance.
+Depending on whether you are using the sync or async version of the SDK, you can pass an instance of `HttpClient` or `AsyncHttpClient` respectively, which are Protocol's ensuring that the client has the necessary methods to make API calls.
+This allows you to wrap the client with your own custom logic, such as adding custom headers, logging, or error handling, or you can just pass an instance of `httpx.Client` or `httpx.AsyncClient` directly.
+
+For example, you could specify a header for every request that this sdk makes as follows:
+```python
+from outpost_sdk import Outpost
+import httpx
+
+http_client = httpx.Client(headers={"x-custom-header": "someValue"})
+s = Outpost(client=http_client)
+```
+
+or you could wrap the client with your own custom logic:
+```python
+from outpost_sdk import Outpost
+from outpost_sdk.httpclient import AsyncHttpClient
+import httpx
+
+class CustomClient(AsyncHttpClient):
+    client: AsyncHttpClient
+
+    def __init__(self, client: AsyncHttpClient):
+        self.client = client
+
+    async def send(
+        self,
+        request: httpx.Request,
+        *,
+        stream: bool = False,
+        auth: Union[
+            httpx._types.AuthTypes, httpx._client.UseClientDefault, None
+        ] = httpx.USE_CLIENT_DEFAULT,
+        follow_redirects: Union[
+            bool, httpx._client.UseClientDefault
+        ] = httpx.USE_CLIENT_DEFAULT,
+    ) -> httpx.Response:
+        request.headers["Client-Level-Header"] = "added by client"
+
+        return await self.client.send(
+            request, stream=stream, auth=auth, follow_redirects=follow_redirects
+        )
+
+    def build_request(
+        self,
+        method: str,
+        url: httpx._types.URLTypes,
+        *,
+        content: Optional[httpx._types.RequestContent] = None,
+        data: Optional[httpx._types.RequestData] = None,
+        files: Optional[httpx._types.RequestFiles] = None,
+        json: Optional[Any] = None,
+        params: Optional[httpx._types.QueryParamTypes] = None,
+        headers: Optional[httpx._types.HeaderTypes] = None,
+        cookies: Optional[httpx._types.CookieTypes] = None,
+        timeout: Union[
+            httpx._types.TimeoutTypes, httpx._client.UseClientDefault
+        ] = httpx.USE_CLIENT_DEFAULT,
+        extensions: Optional[httpx._types.RequestExtensions] = None,
+    ) -> httpx.Request:
+        return self.client.build_request(
+            method,
+            url,
+            content=content,
+            data=data,
+            files=files,
+            json=json,
+            params=params,
+            headers=headers,
+            cookies=cookies,
+            timeout=timeout,
+            extensions=extensions,
+        )
+
+s = Outpost(async_client=CustomClient(httpx.AsyncClient()))
+```
+<!-- End Custom HTTP Client [http-client] -->
+
+<!-- Start Resource Management [resource-management] -->
+## Resource Management
+
+The `Outpost` class implements the context manager protocol and registers a finalizer function to close the underlying sync and async HTTPX clients it uses under the hood. This will close HTTP connections, release memory and free up other resources held by the SDK. In short-lived Python programs and notebooks that make a few SDK method calls, resource management may not be a concern. However, in longer-lived programs, it is beneficial to create a single SDK instance via a [context manager][context-manager] and reuse it across the application.
+
+[context-manager]: https://docs.python.org/3/reference/datamodel.html#context-managers
+
+```python
+from outpost_sdk import Outpost
+def main():
+
+    with Outpost(
+        api_key="<YOUR_BEARER_TOKEN_HERE>",
+    ) as outpost:
+        # Rest of application here...
+
+
+# Or when using async:
+async def amain():
+
+    async with Outpost(
+        api_key="<YOUR_BEARER_TOKEN_HERE>",
+    ) as outpost:
+        # Rest of application here...
+```
+<!-- End Resource Management [resource-management] -->
+
+<!-- Start Debugging [debug] -->
+## Debugging
+
+You can setup your SDK to emit debug logs for SDK requests and responses.
+
+You can pass your own logger class directly into your SDK.
+```python
+from outpost_sdk import Outpost
+import logging
+
+logging.basicConfig(level=logging.DEBUG)
+s = Outpost(debug_logger=logging.getLogger("outpost_sdk"))
+```
+<!-- End Debugging [debug] -->
+
+<!-- Placeholder for Future Speakeasy SDK Sections -->
+
+# Development
+
+## Maturity
+
+This SDK is in beta, and there may be breaking changes between versions without a major version update. Therefore, we recommend pinning usage
+to a specific package version. This way, you can install the same version each time without breaking changes unless you are intentionally
+looking for the latest version.
+
+## Contributions
+
+While we value open-source contributions to this SDK, this library is generated programmatically. Any manual changes added to internal files will be overwritten on the next generation. 
+We look forward to hearing your feedback. Feel free to open a PR or an issue with a proof of concept and we'll do our best to include it in a future release. 
+
+### SDK Created by [Speakeasy](https://www.speakeasy.com/?utm_source=openapi&utm_campaign=python)

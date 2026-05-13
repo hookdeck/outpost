@@ -1,0 +1,370 @@
+package destkafka_test
+
+import (
+	"context"
+	"fmt"
+	"maps"
+	"testing"
+
+	"github.com/hookdeck/outpost/internal/destregistry"
+	"github.com/hookdeck/outpost/internal/destregistry/providers/destkafka"
+	"github.com/hookdeck/outpost/internal/util/testutil"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestKafkaDestination_Validate(t *testing.T) {
+	t.Parallel()
+
+	validDestination := testutil.DestinationFactory.Any(
+		testutil.DestinationFactory.WithType("kafka"),
+		testutil.DestinationFactory.WithConfig(map[string]string{
+			"brokers":        "localhost:9092",
+			"topic":          "test-topic",
+			"sasl_mechanism": "plain",
+		}),
+		testutil.DestinationFactory.WithCredentials(map[string]string{
+			"username": "user",
+			"password": "pass",
+		}),
+	)
+
+	kafkaDestination, err := destkafka.New(testutil.Registry.MetadataLoader(), nil)
+	require.NoError(t, err)
+
+	t.Run("should validate valid destination", func(t *testing.T) {
+		t.Parallel()
+		assert.NoError(t, kafkaDestination.Validate(context.Background(), &validDestination))
+	})
+
+	t.Run("should validate invalid type", func(t *testing.T) {
+		t.Parallel()
+		dest := validDestination
+		dest.Config = maps.Clone(validDestination.Config)
+		dest.Credentials = maps.Clone(validDestination.Credentials)
+		dest.Type = "invalid"
+		err := kafkaDestination.Validate(context.Background(), &dest)
+		var validationErr *destregistry.ErrDestinationValidation
+		assert.ErrorAs(t, err, &validationErr)
+		assert.Equal(t, "type", validationErr.Errors[0].Field)
+		assert.Equal(t, "invalid_type", validationErr.Errors[0].Type)
+	})
+
+	t.Run("should validate missing brokers", func(t *testing.T) {
+		t.Parallel()
+		dest := validDestination
+		dest.Config = map[string]string{
+			"topic":          "test-topic",
+			"sasl_mechanism": "plain",
+		}
+		dest.Credentials = maps.Clone(validDestination.Credentials)
+		err := kafkaDestination.Validate(context.Background(), &dest)
+		var validationErr *destregistry.ErrDestinationValidation
+		assert.ErrorAs(t, err, &validationErr)
+		assert.Equal(t, "config.brokers", validationErr.Errors[0].Field)
+		assert.Equal(t, "required", validationErr.Errors[0].Type)
+	})
+
+	t.Run("should validate missing topic", func(t *testing.T) {
+		t.Parallel()
+		dest := validDestination
+		dest.Config = map[string]string{
+			"brokers":        "localhost:9092",
+			"sasl_mechanism": "plain",
+		}
+		dest.Credentials = maps.Clone(validDestination.Credentials)
+		err := kafkaDestination.Validate(context.Background(), &dest)
+		var validationErr *destregistry.ErrDestinationValidation
+		assert.ErrorAs(t, err, &validationErr)
+		assert.Equal(t, "config.topic", validationErr.Errors[0].Field)
+		assert.Equal(t, "required", validationErr.Errors[0].Type)
+	})
+
+	t.Run("should validate sasl_mechanism values", func(t *testing.T) {
+		t.Parallel()
+		testCases := []struct {
+			name        string
+			mechanism   string
+			shouldError bool
+		}{
+			{name: "valid plain", mechanism: "plain", shouldError: false},
+			{name: "valid scram-sha-256", mechanism: "scram-sha-256", shouldError: false},
+			{name: "valid scram-sha-512", mechanism: "scram-sha-512", shouldError: false},
+			{name: "invalid mechanism", mechanism: "oauth", shouldError: true},
+			{name: "empty is invalid (auth required)", mechanism: "", shouldError: true},
+		}
+
+		for _, tc := range testCases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				dest := validDestination
+				dest.Config = maps.Clone(validDestination.Config)
+				dest.Credentials = map[string]string{"username": "user", "password": "pass"}
+				dest.Config["sasl_mechanism"] = tc.mechanism
+				err := kafkaDestination.Validate(context.Background(), &dest)
+				if tc.shouldError {
+					var validationErr *destregistry.ErrDestinationValidation
+					if !assert.ErrorAs(t, err, &validationErr) {
+						return
+					}
+					assert.Equal(t, "config.sasl_mechanism", validationErr.Errors[0].Field)
+				} else {
+					assert.NoError(t, err)
+				}
+			})
+		}
+	})
+
+	t.Run("should validate tls config values", func(t *testing.T) {
+		t.Parallel()
+		testCases := []struct {
+			name        string
+			tlsValue    string
+			shouldError bool
+		}{
+			{name: "valid true", tlsValue: "true", shouldError: false},
+			{name: "valid on", tlsValue: "on", shouldError: false},
+			{name: "valid false", tlsValue: "false", shouldError: false},
+			{name: "invalid value", tlsValue: "yes", shouldError: true},
+			{name: "empty value is valid (not configured)", tlsValue: "", shouldError: false},
+			{name: "case sensitive True", tlsValue: "True", shouldError: true},
+		}
+
+		for _, tc := range testCases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				dest := validDestination
+				dest.Config = maps.Clone(validDestination.Config)
+				dest.Credentials = maps.Clone(validDestination.Credentials)
+				dest.Config["tls"] = tc.tlsValue
+				err := kafkaDestination.Validate(context.Background(), &dest)
+				if tc.shouldError {
+					var validationErr *destregistry.ErrDestinationValidation
+					if !assert.ErrorAs(t, err, &validationErr) {
+						return
+					}
+					assert.Equal(t, "config.tls", validationErr.Errors[0].Field)
+					assert.Equal(t, "invalid", validationErr.Errors[0].Type)
+				} else {
+					assert.NoError(t, err)
+				}
+			})
+		}
+	})
+
+	t.Run("should require credentials", func(t *testing.T) {
+		t.Parallel()
+		testCases := []struct {
+			name          string
+			username      string
+			password      string
+			shouldError   bool
+			expectedField string
+		}{
+			{name: "with credentials", username: "user", password: "pass", shouldError: false},
+			{name: "without username", username: "", password: "pass", shouldError: true, expectedField: "credentials.username"},
+			{name: "without password", username: "user", password: "", shouldError: true, expectedField: "credentials.password"},
+			{name: "without both", username: "", password: "", shouldError: true, expectedField: "credentials.username"},
+		}
+
+		for _, tc := range testCases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				dest := validDestination
+				dest.Config = maps.Clone(validDestination.Config)
+				dest.Credentials = map[string]string{
+					"username": tc.username,
+					"password": tc.password,
+				}
+				err := kafkaDestination.Validate(context.Background(), &dest)
+				if tc.shouldError {
+					var validationErr *destregistry.ErrDestinationValidation
+					if !assert.ErrorAs(t, err, &validationErr) {
+						return
+					}
+					assert.Equal(t, tc.expectedField, validationErr.Errors[0].Field)
+					assert.Equal(t, "required", validationErr.Errors[0].Type)
+				} else {
+					assert.NoError(t, err)
+				}
+			})
+		}
+	})
+
+	t.Run("should allow tls to be omitted", func(t *testing.T) {
+		t.Parallel()
+		dest := validDestination
+		dest.Config = maps.Clone(validDestination.Config)
+		dest.Credentials = maps.Clone(validDestination.Credentials)
+		delete(dest.Config, "tls")
+		assert.NoError(t, kafkaDestination.Validate(context.Background(), &dest))
+	})
+}
+
+func TestKafkaDestination_ComputeTarget(t *testing.T) {
+	t.Parallel()
+
+	kafkaDestination, err := destkafka.New(testutil.Registry.MetadataLoader(), nil)
+	require.NoError(t, err)
+
+	t.Run("should return 'broker / topic' for single broker", func(t *testing.T) {
+		t.Parallel()
+		dest := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithType("kafka"),
+			testutil.DestinationFactory.WithConfig(map[string]string{
+				"brokers": "broker1:9092",
+				"topic":   "my-topic",
+			}),
+		)
+		target := kafkaDestination.ComputeTarget(&dest)
+		assert.Equal(t, "broker1:9092 / my-topic", target.Target)
+		assert.Empty(t, target.TargetURL)
+	})
+
+	t.Run("should return first broker for multiple brokers", func(t *testing.T) {
+		t.Parallel()
+		dest := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithType("kafka"),
+			testutil.DestinationFactory.WithConfig(map[string]string{
+				"brokers": "broker1:9092,broker2:9092,broker3:9092",
+				"topic":   "my-topic",
+			}),
+		)
+		target := kafkaDestination.ComputeTarget(&dest)
+		assert.Equal(t, "broker1:9092 / my-topic", target.Target)
+	})
+}
+
+func TestKafkaDestination_CreatePublisher_SASL(t *testing.T) {
+	t.Parallel()
+
+	kafkaDestination, err := destkafka.New(testutil.Registry.MetadataLoader(), nil)
+	require.NoError(t, err)
+
+	testCases := []struct {
+		name      string
+		mechanism string
+	}{
+		{name: "plain", mechanism: "plain"},
+		{name: "scram-sha-256", mechanism: "scram-sha-256"},
+		{name: "scram-sha-512", mechanism: "scram-sha-512"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			dest := testutil.DestinationFactory.Any(
+				testutil.DestinationFactory.WithType("kafka"),
+				testutil.DestinationFactory.WithConfig(map[string]string{
+					"brokers":        "localhost:9092",
+					"topic":          "test-topic",
+					"sasl_mechanism": tc.mechanism,
+				}),
+				testutil.DestinationFactory.WithCredentials(map[string]string{
+					"username": "testuser",
+					"password": "testpass",
+				}),
+			)
+			publisher, err := kafkaDestination.CreatePublisher(context.Background(), &dest)
+			require.NoError(t, err)
+			assert.NotNil(t, publisher)
+			publisher.Close()
+		})
+	}
+}
+
+func TestClassifyKafkaError(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		err      error
+		expected string
+	}{
+		{name: "nil error", err: nil, expected: "unknown"},
+		{name: "SASL error", err: fmt.Errorf("SASL handshake failed"), expected: "auth_failed"},
+		{name: "authentication error", err: fmt.Errorf("authentication failed"), expected: "auth_failed"},
+		{name: "connection refused", err: fmt.Errorf("dial tcp: connection refused"), expected: "connection_refused"},
+		{name: "dns error", err: fmt.Errorf("no such host"), expected: "dns_error"},
+		{name: "unknown topic", err: fmt.Errorf("Unknown Topic Or Partition"), expected: "topic_not_found"},
+		{name: "message too large", err: fmt.Errorf("MESSAGE_TOO_LARGE"), expected: "message_too_large"},
+		{name: "timeout", err: fmt.Errorf("i/o timeout"), expected: "timeout"},
+		{name: "context deadline", err: fmt.Errorf("context deadline exceeded"), expected: "timeout"},
+		{name: "tls error", err: fmt.Errorf("tls: handshake failure"), expected: "tls_error"},
+		{name: "x509 error", err: fmt.Errorf("x509: certificate signed by unknown authority"), expected: "tls_error"},
+		{name: "generic error", err: fmt.Errorf("something went wrong"), expected: "kafka_error"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.expected, destkafka.ClassifyKafkaError(tt.err))
+		})
+	}
+}
+
+func TestKafkaDestination_Preprocess(t *testing.T) {
+	t.Parallel()
+
+	kafkaDestination, err := destkafka.New(testutil.Registry.MetadataLoader(), nil)
+	require.NoError(t, err)
+
+	t.Run("should normalize tls 'on' to 'true'", func(t *testing.T) {
+		t.Parallel()
+		dest := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithType("kafka"),
+			testutil.DestinationFactory.WithConfig(map[string]string{
+				"brokers":        "broker1:9092",
+				"topic":          "my-topic",
+				"tls":            "on",
+				"sasl_mechanism": "plain",
+			}),
+			testutil.DestinationFactory.WithCredentials(map[string]string{
+				"username": "user",
+				"password": "pass",
+			}),
+		)
+		err := kafkaDestination.Preprocess(&dest, nil, nil)
+		require.NoError(t, err)
+		assert.Equal(t, "true", dest.Config["tls"])
+	})
+
+	t.Run("should normalize empty tls to 'false'", func(t *testing.T) {
+		t.Parallel()
+		dest := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithType("kafka"),
+			testutil.DestinationFactory.WithConfig(map[string]string{
+				"brokers":        "broker1:9092",
+				"topic":          "my-topic",
+				"tls":            "",
+				"sasl_mechanism": "plain",
+			}),
+			testutil.DestinationFactory.WithCredentials(map[string]string{
+				"username": "user",
+				"password": "pass",
+			}),
+		)
+		err := kafkaDestination.Preprocess(&dest, nil, nil)
+		require.NoError(t, err)
+		assert.Equal(t, "false", dest.Config["tls"])
+	})
+
+	t.Run("should trim whitespace from brokers", func(t *testing.T) {
+		t.Parallel()
+		dest := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithType("kafka"),
+			testutil.DestinationFactory.WithConfig(map[string]string{
+				"brokers":        " broker1:9092 , broker2:9092 ",
+				"topic":          "my-topic",
+				"sasl_mechanism": "plain",
+			}),
+			testutil.DestinationFactory.WithCredentials(map[string]string{
+				"username": "user",
+				"password": "pass",
+			}),
+		)
+		err := kafkaDestination.Preprocess(&dest, nil, nil)
+		require.NoError(t, err)
+		assert.Equal(t, "broker1:9092,broker2:9092", dest.Config["brokers"])
+	})
+}

@@ -86,8 +86,7 @@ export async function POST(request: NextRequest) {
       };
 
       // Publish the event using the Outpost SDK
-      // Based on the SDK examples, use publish.event method
-      const result = await outpostClient.publish.event({
+      const result = await outpostClient.publish({
         tenantId,
         topic,
         data: eventPayload,

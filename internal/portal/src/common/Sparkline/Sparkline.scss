@@ -1,0 +1,31 @@
+.sparkline {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 16px;
+
+  &__bar {
+    width: 6px;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+  }
+
+  &__segment {
+    width: 100%;
+    border-radius: 1px;
+
+    &--success {
+      background: var(--colors-dataviz-success);
+    }
+
+    &--error {
+      background: var(--colors-dataviz-error);
+    }
+
+    &--empty {
+      height: 2px;
+      background: var(--colors-outline-neutral);
+    }
+  }
+}

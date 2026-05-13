@@ -7,5 +7,5 @@ Status codes relating to the resource/entity they are requesting not being found
 
 | Field                  | Type                   | Required               | Description            |
 | ---------------------- | ---------------------- | ---------------------- | ---------------------- |
-| `Message`              | **string*              | :heavy_minus_sign:     | N/A                    |
-| `AdditionalProperties` | map[string]*any*       | :heavy_minus_sign:     | N/A                    |
+| `Message`              | `*string`              | :heavy_minus_sign:     | N/A                    |
+| `AdditionalProperties` | map[string]`any`       | :heavy_minus_sign:     | N/A                    |

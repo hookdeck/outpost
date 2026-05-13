@@ -3,39 +3,20 @@
  */
 
 import { topicsList } from "../funcs/topicsList.js";
-import { topicsListJwt } from "../funcs/topicsListJwt.js";
 import { ClientSDK, RequestOptions } from "../lib/sdks.js";
-import * as operations from "../models/operations/index.js";
 import { unwrapAsync } from "../types/fp.js";
 
 export class Topics extends ClientSDK {
   /**
-   * List Available Topics (for Tenant)
-   *
-   * @remarks
-   * Returns a list of available event topics configured in the Outpost instance. Requires Admin API Key or Tenant JWT.
-   */
-  async list(
-    request: operations.ListTenantTopicsRequest,
-    options?: RequestOptions,
-  ): Promise<Array<string>> {
-    return unwrapAsync(topicsList(
-      this,
-      request,
-      options,
-    ));
-  }
-
-  /**
-   * List Available Topics)
+   * List Available Topics
    *
    * @remarks
    * Returns a list of available event topics configured in the Outpost instance.
    */
-  async listJwt(
+  async list(
     options?: RequestOptions,
   ): Promise<Array<string>> {
-    return unwrapAsync(topicsListJwt(
+    return unwrapAsync(topicsList(
       this,
       options,
     ));

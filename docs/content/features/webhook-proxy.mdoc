@@ -1,0 +1,188 @@
+---
+title: "Webhook Forward Proxy"
+description: "Route outgoing webhook deliveries through an HTTP forward proxy for static-IP egress or network isolation."
+---
+
+Outpost can route outgoing webhook traffic through an HTTP forward proxy. Common reasons:
+
+- **Static-IP egress** — destinations that allowlist a specific source IP
+- **Network isolation** — keep delivery workers off the public internet
+- **Centralized egress policy** — single chokepoint for outbound traffic
+
+Proxy support is operator-configured and applies to every webhook destination served by the deployment.
+
+## Configuration
+
+| Env var | Description |
+|---------|-------------|
+| `DESTINATIONS_WEBHOOK_PROXY_URL` | Proxy URL, e.g. `http://user:pass@proxy.example.com:8080`. Supports basic auth. |
+
+When `DESTINATIONS_WEBHOOK_PROXY_URL` is set, Outpost installs an HTTP proxy on the webhook publisher's transport. HTTPS destinations use the standard `CONNECT` tunneling flow; HTTP destinations are forwarded request-by-request.
+
+## Error handling
+
+Putting a forward proxy in the delivery path introduces a new failure surface that should not be charged to the destination. A proxy-auth misconfiguration or a proxy outage isn't the destination's fault, and recording it as a failed delivery attempt burns retry budget on a problem the destination cannot resolve.
+
+Outpost distinguishes **proxy infrastructure failures** from **destination failures** (including destination failures that the proxy merely *reports* on the destination's behalf) and applies the right behavior to each. The base behavior below applies to any forward proxy; Envoy-specific signals are picked up automatically when present (see [Envoy support](#envoy-support)).
+
+### General behavior
+
+| Scenario | Attribution | Behavior |
+|---|---|---|
+| Proxy returns 407 / 401 / 403 on `CONNECT` | Infra | **Nack** — operator misconfiguration of proxy credentials |
+| Proxy unreachable (TCP dial to proxy fails) | Infra | **Nack** — proxy infrastructure outage |
+| `CONNECT` succeeds, destination returns real 4xx/5xx (HTTPS) | Destination | Record attempt with the actual status code |
+| `CONNECT` succeeds, destination TLS handshake fails (HTTPS) | Destination | Record attempt (`tls_error`) |
+| `CONNECT` succeeds, destination times out | Destination | Record attempt (`timeout`) |
+| Proxy returns other 5xx on `CONNECT` (cannot reach destination) | Destination | Record attempt (`connection_refused`) |
+| Real upstream response passed through (plain-HTTP) | Destination | Record as today |
+| Proxy itself overloaded or misbehaving (rare) | Destination (conservative) | Record attempt (`network_error`) — never nack on speculation |
+
+**Key principle:** when the proxy reports a failure that originated at the destination (DNS, connect refused, upstream timeout), the customer still sees it as a destination failure. Outpost rewrites the message so the response data is destination-attributed, not proxy-attributed. Nacking is reserved for cases where the proxy itself is the proximate cause.
+
+**HTTPS responses are byte-transparent.** Once the `CONNECT` tunnel opens, TLS runs end-to-end between Outpost and the destination; the forward proxy can no longer read or modify response bytes. Outpost therefore does not inspect or sanitize HTTPS response payloads — they are recorded as the destination sent them. Proxy-originated HTTPS failures (auth, unreachable, can't connect upstream) all happen at `CONNECT` time and are handled before the tunnel exists.
+
+Response-body and response-header sanitization on the plain-HTTP forwarding path is best-effort and depends on the proxy implementation being recognized. For an arbitrary forward proxy, Outpost can rewrite error messages but cannot reliably strip proxy-identifying response content. Sanitization is currently complete only for Envoy — see [Envoy support](#envoy-support).
+
+## Envoy support
+
+When the proxy is [Envoy](https://www.envoyproxy.io/), Outpost picks up Envoy-specific signals automatically — no configuration toggle required. These are additive on top of the general behavior above.
+
+### Additional behaviors
+
+Envoy-specific handling fires on two surfaces: the `CONNECT` response (HTTPS, where the proxy's response is visible to Outpost before the tunnel opens), and proxied plain-HTTP responses (where the proxy is in the byte path on the way back). Responses that arrived through an established `CONNECT` tunnel are not inspected — see the byte-transparency note above.
+
+| Scenario | Signal | Attribution | Behavior |
+|---|---|---|---|
+| Envoy `CONNECT` failure with response-flag header | `x-envoy-response-flags` on the `CONNECT` response | Destination | Record attempt with code refined from the flag (e.g. `DF` → `dns_error`, `UT` → `timeout`) instead of the generic `connection_refused` |
+| Envoy synthesizes 5xx response (plain-HTTP path) | `x-envoy-response-flags: UF` / `UC` / etc. on the response | Destination | Record attempt with code mapped from the flag; response body is dropped |
+| Real upstream response passed through (plain-HTTP) | `x-envoy-response-flags: -` or empty | Destination | Record as today |
+| Successful plain-HTTP response served via Envoy | `x-envoy-*` and `server: envoy` headers present | Destination | Record; headers stripped before storage |
+| HTTPS response (any status, any headers, post-`CONNECT`) | — | Destination | Pass-through unchanged — bytes never touched the forward proxy |
+
+Two Envoy-specific behaviors are layered on top, both scoped to surfaces where the forward proxy actually contributed to the bytes:
+
+- **Response-flag mapping** — `x-envoy-response-flags`, when present and non-empty, refines the destination error code. Mapping aligns with Outpost's non-proxy error vocabulary (`ClassifyNetworkError`), so customers see the same codes whether or not a proxy is in path:
+
+  | Envoy flag | Outpost code | Meaning |
+  |---|---|---|
+  | `UF`, `UH`, `LH` | `connection_refused` | TCP dial failed / no healthy upstream / failed health check |
+  | `UC`, `UR`, `LR` | `connection_reset` | Established connection dropped / remote or local reset |
+  | `UT`, `SI`, `DT`, `UMSDR` | `timeout` | Upstream / stream-idle / duration / max-stream timeout |
+  | `DF` | `dns_error` | DNS resolution failure (`dynamic_forward_proxy`) |
+  | `NR`, `NC` | `network_unreachable` | No route / no cluster |
+  | `UPE`, `DPE` | `protocol_error` | Upstream / downstream protocol error |
+  | (any other flag) | `network_error` | Unmapped — operator-visible signal to expand the table |
+
+  Applies to `CONNECT` responses and plain-HTTP responses, not to bytes returned through an HTTPS tunnel.
+
+- **Operator diagnostics** — when a flag fires, the raw `x-envoy-response-flags` value and `x-envoy-response-code-details` (the `stage{reason}` string, e.g. `upstream_reset_before_response_started{connection_timeout}`) are written into a generic proxy-diagnostics map on the error as `envoy_flag` / `envoy_details`. These surface in the underlying error message and on the publish-attempt error payload, visible in `consumer handler error` logs — but never written to the customer-visible attempt `response_data`, which mirrors a normal network failure (no status, no body). The map is intentionally untyped so other proxies (Squid, HAProxy) can populate their own keys without colliding. To enable this, the Envoy ref config emits the details header alongside the flag header.
+
+- **Header and body sanitization** — `x-envoy-*` and `server: envoy` headers are stripped from plain-HTTP responses; Envoy-synthesized plain-HTTP response bodies are replaced with a normalized message that does not leak Envoy. HTTPS responses are not sanitized.
+
+Support for other forward proxies (Squid, HAProxy, nginx, ...) can be added the same way — by detecting proxy-specific response signals and mapping them to destination error codes. None are currently implemented.
+
+#### Limitation: plain-HTTP destinations that are themselves behind Envoy
+
+If a destination is reached over plain HTTP and the destination itself sits behind its own Envoy edge, the destination's `x-envoy-*` headers (e.g. `x-envoy-upstream-service-time`, `server: envoy`) pass through the forward proxy and Outpost strips them. The destination's `x-envoy-response-flags` is overwritten by the forward Envoy's value, so attribution is still correct — the customer never sees a destination failure misattributed to the proxy — but some destination-side observability headers are lost on this code path.
+
+This does not affect HTTPS destinations: HTTPS responses are byte-transparent (see above), so any `x-envoy-*` headers from the destination's Envoy reach Outpost untouched.
+
+### Required Envoy configuration
+
+For Outpost to reliably distinguish Envoy-synthesized responses from real upstream responses, Envoy must emit its response flags as a response header. The response-code-details header is optional but recommended — without it, Outpost still classifies via the flag, but operators lose the precise stage/reason in logs. Add to the route configuration (Envoy rejects these fields on the HTTP connection manager — they belong on `RouteConfiguration`):
+
+```yaml
+route_config:
+  response_headers_to_add:
+    - header:
+        key: "x-envoy-response-flags"
+        value: "%RESPONSE_FLAGS%"
+      append_action: OVERWRITE_IF_EXISTS_OR_ADD
+    - header:
+        key: "x-envoy-response-code-details"
+        value: "%RESPONSE_CODE_DETAILS%"
+      append_action: OVERWRITE_IF_EXISTS_OR_ADD
+  virtual_hosts:
+    # ...
+```
+
+`OVERWRITE_IF_EXISTS_OR_ADD` is important — it prevents a misbehaving destination from spoofing either header to confuse Outpost's classification or pollute operator diagnostics.
+
+### Minimal reference Envoy
+
+A minimal forward-proxy Envoy listener with response-flag reporting enabled:
+
+```yaml
+admin:
+  address:
+    socket_address: { address: 127.0.0.1, port_value: 9901 }
+
+static_resources:
+  listeners:
+    - name: forward_proxy
+      address:
+        socket_address: { address: 0.0.0.0, port_value: 10000 }
+      filter_chains:
+        - filters:
+            - name: envoy.filters.network.http_connection_manager
+              typed_config:
+                "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+                stat_prefix: forward_proxy
+                codec_type: AUTO
+                http_filters:
+                  - name: envoy.filters.http.dynamic_forward_proxy
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.dynamic_forward_proxy.v3.FilterConfig
+                      dns_cache_config:
+                        name: dfp_cache
+                        dns_lookup_family: V4_ONLY
+                  - name: envoy.filters.http.router
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+                upgrade_configs:
+                  - upgrade_type: CONNECT
+                route_config:
+                  response_headers_to_add:
+                    - header:
+                        key: "x-envoy-response-flags"
+                        value: "%RESPONSE_FLAGS%"
+                      append_action: OVERWRITE_IF_EXISTS_OR_ADD
+                    - header:
+                        key: "x-envoy-response-code-details"
+                        value: "%RESPONSE_CODE_DETAILS%"
+                      append_action: OVERWRITE_IF_EXISTS_OR_ADD
+                  virtual_hosts:
+                    - name: proxy
+                      domains: ["*"]
+                      routes:
+                        - match: { connect_matcher: {} }
+                          route:
+                            cluster: dfp_cluster
+                            upgrade_configs:
+                              - upgrade_type: CONNECT
+                                connect_config: {}
+                        - match: { prefix: "/" }
+                          route: { cluster: dfp_cluster }
+
+  clusters:
+    - name: dfp_cluster
+      lb_policy: CLUSTER_PROVIDED
+      cluster_type:
+        name: envoy.clusters.dynamic_forward_proxy
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.clusters.dynamic_forward_proxy.v3.ClusterConfig
+          dns_cache_config:
+            name: dfp_cache
+            dns_lookup_family: V4_ONLY
+```
+
+The example above is a minimal listener. Whether you need proxy authentication and TLS depends on your network topology: if Outpost and the proxy share a private network, neither is strictly required; if the proxy is reachable over the public internet, both are strongly recommended to prevent the proxy being used as an open relay.
+
+## Queue retry behavior
+
+When a proxy infrastructure error is nacked, the underlying message queue redelivers the event. Because nacks only fire for true infra failures (proxy auth or proxy unreachable), the redelivery rate is bounded by the proxy outage duration, not by destination behavior.
+
+Outpost's default GCP Pub/Sub provisioning (`internal/mqinfra/gcppubsub.go`) uses `retryPolicy: {minimumBackoff: 10s, maximumBackoff: 120s}` with `maxDeliveryAttempts: 6` (default `RetryLimit` + 1). That gives roughly **5 minutes of redelivery runway** before a nacked message lands in the dead-letter topic. A proxy outage shorter than this window is transparent to the destination; longer outages require manual replay from the DLQ.
+
+If you expect longer proxy outages, raise `MinRetryBackoff` / `MaxRetryBackoff` (config) and `RetryLimit` (policy) so the redelivery window covers your worst-case outage duration. RabbitMQ / SQS / Kafka have equivalent knobs on their delivery queues.

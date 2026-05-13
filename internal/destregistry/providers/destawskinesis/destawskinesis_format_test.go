@@ -28,9 +28,7 @@ func TestFormatWithPartitionKey(t *testing.T) {
 			event: models.Event{
 				ID:    "event-123",
 				Topic: "test-topic",
-				Data: map[string]interface{}{
-					"message": "Hello World",
-				},
+				Data:  json.RawMessage(`{"message":"Hello World"}`),
 			},
 			metadataInPayload:    false,
 			expectedPartitionKey: "event-123",
@@ -42,9 +40,7 @@ func TestFormatWithPartitionKey(t *testing.T) {
 			event: models.Event{
 				ID:    "event-123",
 				Topic: "test-topic",
-				Data: map[string]interface{}{
-					"message": "Hello World",
-				},
+				Data:  json.RawMessage(`{"message":"Hello World"}`),
 			},
 			metadataInPayload:    true,
 			expectedPartitionKey: "test-topic",
@@ -56,10 +52,7 @@ func TestFormatWithPartitionKey(t *testing.T) {
 			event: models.Event{
 				ID:    "event-123",
 				Topic: "test-topic",
-				Data: map[string]interface{}{
-					"message": "Hello World",
-					"user_id": "user-456",
-				},
+				Data:  json.RawMessage(`{"message":"Hello World","user_id":"user-456"}`),
 			},
 			metadataInPayload:    true,
 			expectedPartitionKey: "user-456",
@@ -71,9 +64,7 @@ func TestFormatWithPartitionKey(t *testing.T) {
 			event: models.Event{
 				ID:    "event-123",
 				Topic: "test-topic",
-				Data: map[string]interface{}{
-					"message": "Hello World",
-				},
+				Data:  json.RawMessage(`{"message":"Hello World"}`),
 			},
 			metadataInPayload:    true,
 			expectedPartitionKey: "test-topic-event-123",
@@ -85,10 +76,7 @@ func TestFormatWithPartitionKey(t *testing.T) {
 			event: models.Event{
 				ID:    "event-123",
 				Topic: "test-topic",
-				Data: map[string]interface{}{
-					"message": "Hello World",
-					"user_id": "user-456",
-				},
+				Data:  json.RawMessage(`{"message":"Hello World","user_id":"user-456"}`),
 			},
 			metadataInPayload:    true,
 			expectedPartitionKey: "user-456:Hello World",
@@ -100,9 +88,7 @@ func TestFormatWithPartitionKey(t *testing.T) {
 			event: models.Event{
 				ID:    "event-123",
 				Topic: "test-topic",
-				Data: map[string]interface{}{
-					"message": "Hello World",
-				},
+				Data:  json.RawMessage(`{"message":"Hello World"}`),
 			},
 			metadataInPayload:    true,
 			expectedPartitionKey: "event-123", // Fallback to event ID
@@ -114,9 +100,7 @@ func TestFormatWithPartitionKey(t *testing.T) {
 			event: models.Event{
 				ID:    "event-123",
 				Topic: "test-topic",
-				Data: map[string]interface{}{
-					"message": "Hello World",
-				},
+				Data:  json.RawMessage(`{"message":"Hello World"}`),
 			},
 			metadataInPayload:    true,
 			expectedPartitionKey: "event-123", // Fallback to event ID
@@ -131,9 +115,7 @@ func TestFormatWithPartitionKey(t *testing.T) {
 				Metadata: map[string]string{
 					"custom_field": "custom_value",
 				},
-				Data: map[string]interface{}{
-					"message": "Hello World",
-				},
+				Data: json.RawMessage(`{"message":"Hello World"}`),
 			},
 			metadataInPayload:    true,
 			expectedPartitionKey: "test-topic",
@@ -145,13 +127,7 @@ func TestFormatWithPartitionKey(t *testing.T) {
 			event: models.Event{
 				ID:    "event-123",
 				Topic: "test-topic",
-				Data: map[string]interface{}{
-					"message": "Hello World",
-					"user": map[string]interface{}{
-						"id":   "user-456",
-						"name": "Test User",
-					},
-				},
+				Data:  json.RawMessage(`{"message":"Hello World","user":{"id":"user-456","name":"Test User"}}`),
 			},
 			metadataInPayload:    true,
 			expectedPartitionKey: "user-456",
@@ -163,10 +139,7 @@ func TestFormatWithPartitionKey(t *testing.T) {
 			event: models.Event{
 				ID:    "event-123",
 				Topic: "test-topic",
-				Data: map[string]interface{}{
-					"message": "Hello World",
-					"count":   123,
-				},
+				Data:  json.RawMessage(`{"message":"Hello World","count":123}`),
 			},
 			metadataInPayload:    true,
 			expectedPartitionKey: "123",
@@ -178,10 +151,7 @@ func TestFormatWithPartitionKey(t *testing.T) {
 			event: models.Event{
 				ID:    "event-123",
 				Topic: "test-topic",
-				Data: map[string]interface{}{
-					"message": "Hello World",
-					"active":  true,
-				},
+				Data:  json.RawMessage(`{"message":"Hello World","active":true}`),
 			},
 			metadataInPayload:    true,
 			expectedPartitionKey: "true",
@@ -193,10 +163,7 @@ func TestFormatWithPartitionKey(t *testing.T) {
 			event: models.Event{
 				ID:    "event-123",
 				Topic: "test-topic",
-				Data: map[string]interface{}{
-					"message": "Hello World",
-					"count":   42,
-				},
+				Data:  json.RawMessage(`{"message":"Hello World","count":42}`),
 			},
 			metadataInPayload:    true,
 			expectedPartitionKey: "test-topic-42",
@@ -241,9 +208,7 @@ func TestMetadataInPayload(t *testing.T) {
 			"custom_field":  "custom_value",
 			"another_field": "42",
 		},
-		Data: map[string]interface{}{
-			"message": "Hello World",
-		},
+		Data: json.RawMessage(`{"message":"Hello World"}`),
 	}
 
 	t.Run("With metadata in payload", func(t *testing.T) {
@@ -276,13 +241,10 @@ func TestMetadataInPayload(t *testing.T) {
 		assert.Equal(t, "42", metadata["another_field"])
 
 		// Check data using JSONEq
-		dataJSON, err := json.Marshal(testEvent.Data)
-		require.NoError(t, err)
-
 		actualDataJSON, err := json.Marshal(actual["data"])
 		require.NoError(t, err)
 
-		assert.JSONEq(t, string(dataJSON), string(actualDataJSON))
+		assert.JSONEq(t, string(testEvent.Data), string(actualDataJSON))
 	})
 
 	t.Run("Without metadata in payload", func(t *testing.T) {
@@ -306,12 +268,9 @@ func TestMetadataInPayload(t *testing.T) {
 		assert.NotContains(t, actualData, "metadata")
 
 		// The payload should be the event data directly
-		dataJSON, err := json.Marshal(testEvent.Data)
-		require.NoError(t, err)
-
 		resultJSON, err := json.Marshal(actualData)
 		require.NoError(t, err)
 
-		assert.JSONEq(t, string(dataJSON), string(resultJSON))
+		assert.JSONEq(t, string(testEvent.Data), string(resultJSON))
 	})
 }

@@ -2,6 +2,7 @@ package migrator
 
 import (
 	"context"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -140,7 +141,8 @@ func TestMigrator_CredentialExposure_Integration(t *testing.T) {
 			} else if tt.opts.CH.Addr != "" {
 				assert.Contains(t, dbURL, "clickhouse://",
 					"Expected ClickHouse URL")
-				assert.Contains(t, dbURL, tt.opts.CH.Password,
+				// Password is URL-encoded in the query string
+				assert.Contains(t, dbURL, url.QueryEscape(tt.opts.CH.Password),
 					"Test setup: password should be in the database URL")
 			}
 
@@ -195,7 +197,7 @@ func TestMigrator_DatabaseURLGeneration(t *testing.T) {
 					Database: "outpost",
 				},
 			},
-			expectedURL: "clickhouse://admin:secret123@localhost:9000/outpost?x-multi-statement=true",
+			expectedURL: "clickhouse://localhost:9000/outpost?username=admin&password=secret123&x-multi-statement=true&x-migrations-table-engine=MergeTree",
 			hasPassword: true,
 		},
 		{
@@ -340,9 +342,9 @@ func TestMigrator_DeploymentID_TableNaming(t *testing.T) {
 	assert.Equal(t, uint64(1), count, "testdeploy_events table should exist")
 
 	err = chDB.QueryRow(ctx, "SELECT count() FROM system.tables WHERE database = ? AND name = ?",
-		chConfig.Database, "testdeploy_deliveries").Scan(&count)
+		chConfig.Database, "testdeploy_attempts").Scan(&count)
 	require.NoError(t, err)
-	assert.Equal(t, uint64(1), count, "testdeploy_deliveries table should exist")
+	assert.Equal(t, uint64(1), count, "testdeploy_attempts table should exist")
 }
 
 // TestMigrator_DeploymentID_Isolation tests that multiple deployments are isolated.
@@ -388,8 +390,8 @@ func TestMigrator_DeploymentID_Isolation(t *testing.T) {
 	defer chDB.Close()
 
 	tables := []string{
-		"deploy_a_events", "deploy_a_deliveries",
-		"deploy_b_events", "deploy_b_deliveries",
+		"deploy_a_events", "deploy_a_attempts",
+		"deploy_b_events", "deploy_b_attempts",
 	}
 	for _, table := range tables {
 		var count uint64
@@ -401,15 +403,15 @@ func TestMigrator_DeploymentID_Isolation(t *testing.T) {
 
 	// Insert data into deployment A
 	err = chDB.Exec(ctx, `
-		INSERT INTO deploy_a_events (event_id, tenant_id, destination_id, topic, eligible_for_retry, event_time, metadata, data)
-		VALUES ('evt_a', 'tenant_a', 'dest_a', 'topic_a', false, now(), '{}', '{}')
+		INSERT INTO deploy_a_events (event_id, tenant_id, topic, eligible_for_retry, event_time, metadata, data)
+		VALUES ('evt_a', 'tenant_a', 'topic_a', false, now(), '{}', '{}')
 	`)
 	require.NoError(t, err)
 
 	// Insert data into deployment B
 	err = chDB.Exec(ctx, `
-		INSERT INTO deploy_b_events (event_id, tenant_id, destination_id, topic, eligible_for_retry, event_time, metadata, data)
-		VALUES ('evt_b', 'tenant_b', 'dest_b', 'topic_b', false, now(), '{}', '{}')
+		INSERT INTO deploy_b_events (event_id, tenant_id, topic, eligible_for_retry, event_time, metadata, data)
+		VALUES ('evt_b', 'tenant_b', 'topic_b', false, now(), '{}', '{}')
 	`)
 	require.NoError(t, err)
 
@@ -464,9 +466,9 @@ func TestMigrator_NoDeploymentID_DefaultTables(t *testing.T) {
 	assert.Equal(t, uint64(1), count, "events table should exist")
 
 	err = chDB.QueryRow(ctx, "SELECT count() FROM system.tables WHERE database = ? AND name = ?",
-		chConfig.Database, "deliveries").Scan(&count)
+		chConfig.Database, "attempts").Scan(&count)
 	require.NoError(t, err)
-	assert.Equal(t, uint64(1), count, "deliveries table should exist")
+	assert.Equal(t, uint64(1), count, "attempts table should exist")
 }
 
 func setupClickHouseConfig(t *testing.T) clickhouse.ClickHouseConfig {

@@ -27,24 +27,3 @@ class NotImplementedErrorT(OutpostError):
         message = body or raw_response.text
         super().__init__(message, raw_response, body)
         object.__setattr__(self, "data", data)
-
-
-class ListTenantsBadRequestErrorData(BaseModel):
-    error: Optional[str] = None
-
-
-@dataclass(unsafe_hash=True)
-class ListTenantsBadRequestError(OutpostError):
-    r"""Invalid request parameters (e.g., invalid cursor, both next and prev provided)."""
-
-    data: ListTenantsBadRequestErrorData = field(hash=False)
-
-    def __init__(
-        self,
-        data: ListTenantsBadRequestErrorData,
-        raw_response: httpx.Response,
-        body: Optional[str] = None,
-    ):
-        message = body or raw_response.text
-        super().__init__(message, raw_response, body)
-        object.__setattr__(self, "data", data)

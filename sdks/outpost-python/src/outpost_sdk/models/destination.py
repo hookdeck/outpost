@@ -10,6 +10,7 @@ from .destinationazureservicebus import (
 )
 from .destinationgcppubsub import DestinationGCPPubSub, DestinationGCPPubSubTypedDict
 from .destinationhookdeck import DestinationHookdeck, DestinationHookdeckTypedDict
+from .destinationkafka import DestinationKafka, DestinationKafkaTypedDict
 from .destinationrabbitmq import DestinationRabbitMQ, DestinationRabbitMQTypedDict
 from .destinationwebhook import DestinationWebhook, DestinationWebhookTypedDict
 from outpost_sdk.utils import get_discriminator
@@ -22,13 +23,14 @@ DestinationTypedDict = TypeAliasType(
     "DestinationTypedDict",
     Union[
         DestinationWebhookTypedDict,
-        DestinationAWSSQSTypedDict,
-        DestinationRabbitMQTypedDict,
         DestinationHookdeckTypedDict,
+        DestinationAWSSQSTypedDict,
         DestinationAWSKinesisTypedDict,
-        DestinationAzureServiceBusTypedDict,
         DestinationAwss3TypedDict,
+        DestinationRabbitMQTypedDict,
+        DestinationAzureServiceBusTypedDict,
         DestinationGCPPubSubTypedDict,
+        DestinationKafkaTypedDict,
     ],
 )
 
@@ -43,6 +45,7 @@ Destination = Annotated[
         Annotated[DestinationAzureServiceBus, Tag("azure_servicebus")],
         Annotated[DestinationAwss3, Tag("aws_s3")],
         Annotated[DestinationGCPPubSub, Tag("gcp_pubsub")],
+        Annotated[DestinationKafka, Tag("kafka")],
     ],
     Discriminator(lambda m: get_discriminator(m, "type", "type")),
 ]

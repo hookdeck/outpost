@@ -12,6 +12,15 @@ services:
       timeout: 1s
       retries: 30
 
+  migrate:
+    depends_on:
+      aws:
+        condition: service_healthy
+    environment:
+      - AWS_SQS_ENDPOINT=http://aws:4566
+      - AWS_SQS_REGION=us-east-1
+      - AWS_SQS_ACCESS_KEY_ID=test
+      - AWS_SQS_SECRET_ACCESS_KEY=test
   api:
     depends_on:
       aws:

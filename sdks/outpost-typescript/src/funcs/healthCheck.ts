@@ -3,6 +3,7 @@
  */
 
 import { OutpostCore } from "../core.js";
+import { matchStatusCode } from "../lib/http.js";
 import * as M from "../lib/matchers.js";
 import { compactMap } from "../lib/primitives.js";
 import { RequestOptions } from "../lib/sdks.js";
@@ -28,15 +29,9 @@ import { Result } from "../types/fp.js";
  * @remarks
  * Health check endpoint that reports the status of all workers.
  *
+ * > This endpoint is only available for **self-hosted** Outpost deployments. Managed Outpost health is monitored by Hookdeck.
+ *
  * Returns HTTP 200 when all workers are healthy, or HTTP 503 if any worker has failed.
- *
- * The response includes:
- * - `status`: Overall health status ("healthy" or "failed")
- * - `timestamp`: When this health check was performed (ISO 8601 format)
- * - `workers`: Map of worker names to their individual health status
- *
- * Each worker reports:
- * - `status`: Worker health ("healthy" or "failed")
  *
  * Note: Error details are not exposed for security reasons. Check application logs for detailed error information.
  */
@@ -129,33 +124,8 @@ async function $do(
 
   const doResult = await client._do(req, {
     context,
-    errorCodes: [
-      "400",
-      "401",
-      "403",
-      "404",
-      "407",
-      "408",
-      "413",
-      "414",
-      "415",
-      "422",
-      "429",
-      "431",
-      "4XX",
-      "500",
-      "501",
-      "502",
-      "503",
-      "504",
-      "505",
-      "506",
-      "507",
-      "508",
-      "510",
-      "511",
-      "5XX",
-    ],
+    isErrorStatusCode: (statusCode: number) =>
+      matchStatusCode({ status: statusCode } as Response, ["4XX", "5XX"]),
     retryConfig: context.retryConfig,
     retryCodes: context.retryCodes,
   });

@@ -9,19 +9,15 @@ import { Result as SafeParseResult } from "../../types/fp.js";
 import * as components from "../components/index.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 
-export type ListTenantDestinationsGlobals = {
-  tenantId?: string | undefined;
-};
-
 /**
- * Filter destinations by type(s).
+ * Filter destinations by type(s). Use bracket notation for multiple values (e.g., `type[0]=webhook&type[1]=aws_sqs`).
  */
 export type ListTenantDestinationsType =
   | components.DestinationType
   | Array<components.DestinationType>;
 
 /**
- * Filter destinations by supported topic(s).
+ * Filter destinations by supported topic(s). Use bracket notation for multiple values (e.g., `topics[0]=user.created&topics[1]=user.deleted`).
  */
 export type Topics = string | Array<string>;
 
@@ -29,68 +25,19 @@ export type ListTenantDestinationsRequest = {
   /**
    * The ID of the tenant. Required when using AdminApiKey authentication.
    */
-  tenantId?: string | undefined;
+  tenantId: string;
   /**
-   * Filter destinations by type(s).
+   * Filter destinations by type(s). Use bracket notation for multiple values (e.g., `type[0]=webhook&type[1]=aws_sqs`).
    */
   type?:
     | components.DestinationType
     | Array<components.DestinationType>
     | undefined;
   /**
-   * Filter destinations by supported topic(s).
+   * Filter destinations by supported topic(s). Use bracket notation for multiple values (e.g., `topics[0]=user.created&topics[1]=user.deleted`).
    */
   topics?: string | Array<string> | undefined;
 };
-
-/** @internal */
-export const ListTenantDestinationsGlobals$inboundSchema: z.ZodType<
-  ListTenantDestinationsGlobals,
-  z.ZodTypeDef,
-  unknown
-> = z.object({
-  tenant_id: z.string().optional(),
-}).transform((v) => {
-  return remap$(v, {
-    "tenant_id": "tenantId",
-  });
-});
-/** @internal */
-export type ListTenantDestinationsGlobals$Outbound = {
-  tenant_id?: string | undefined;
-};
-
-/** @internal */
-export const ListTenantDestinationsGlobals$outboundSchema: z.ZodType<
-  ListTenantDestinationsGlobals$Outbound,
-  z.ZodTypeDef,
-  ListTenantDestinationsGlobals
-> = z.object({
-  tenantId: z.string().optional(),
-}).transform((v) => {
-  return remap$(v, {
-    tenantId: "tenant_id",
-  });
-});
-
-export function listTenantDestinationsGlobalsToJSON(
-  listTenantDestinationsGlobals: ListTenantDestinationsGlobals,
-): string {
-  return JSON.stringify(
-    ListTenantDestinationsGlobals$outboundSchema.parse(
-      listTenantDestinationsGlobals,
-    ),
-  );
-}
-export function listTenantDestinationsGlobalsFromJSON(
-  jsonString: string,
-): SafeParseResult<ListTenantDestinationsGlobals, SDKValidationError> {
-  return safeParse(
-    jsonString,
-    (x) => ListTenantDestinationsGlobals$inboundSchema.parse(JSON.parse(x)),
-    `Failed to parse 'ListTenantDestinationsGlobals' from JSON`,
-  );
-}
 
 /** @internal */
 export const ListTenantDestinationsType$inboundSchema: z.ZodType<
@@ -163,7 +110,7 @@ export const ListTenantDestinationsRequest$inboundSchema: z.ZodType<
   z.ZodTypeDef,
   unknown
 > = z.object({
-  tenant_id: z.string().optional(),
+  tenant_id: z.string(),
   type: z.union([
     components.DestinationType$inboundSchema,
     z.array(components.DestinationType$inboundSchema),
@@ -176,7 +123,7 @@ export const ListTenantDestinationsRequest$inboundSchema: z.ZodType<
 });
 /** @internal */
 export type ListTenantDestinationsRequest$Outbound = {
-  tenant_id?: string | undefined;
+  tenant_id: string;
   type?: string | Array<string> | undefined;
   topics?: string | Array<string> | undefined;
 };
@@ -187,7 +134,7 @@ export const ListTenantDestinationsRequest$outboundSchema: z.ZodType<
   z.ZodTypeDef,
   ListTenantDestinationsRequest
 > = z.object({
-  tenantId: z.string().optional(),
+  tenantId: z.string(),
   type: z.union([
     components.DestinationType$outboundSchema,
     z.array(components.DestinationType$outboundSchema),

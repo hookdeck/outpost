@@ -2,6 +2,7 @@ package logging
 
 import (
 	"context"
+	"os"
 
 	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 	"go.uber.org/zap"
@@ -69,6 +70,11 @@ func makeLogger(logLevel string) (*otelzap.Logger, error) {
 	if err != nil {
 		return nil, err
 	}
+	hostname, err := os.Hostname()
+	if err != nil {
+		hostname = "unknown"
+	}
+	zapLogger = zapLogger.With(zap.String("host.name", hostname))
 
 	return otelzap.New(zapLogger,
 		otelzap.WithMinLevel(level),

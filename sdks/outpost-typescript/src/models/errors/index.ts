@@ -3,6 +3,7 @@
  */
 
 export * from "./apierror.js";
+export * from "./apierrorresponse.js";
 export * from "./badrequesterror.js";
 export * from "./httpclienterrors.js";
 export * from "./internalservererror.js";

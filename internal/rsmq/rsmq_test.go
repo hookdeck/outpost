@@ -15,6 +15,7 @@ import (
 // RSMQSuite runs RSMQ tests against different backends.
 type RSMQSuite struct {
 	suite.Suite
+	cfg    *redis.RedisConfig
 	client RedisClient
 	rsmq   *RedisSMQ
 }
@@ -30,10 +31,21 @@ func TestRedisRSMQSuite(t *testing.T) {
 
 func TestDragonflyRSMQSuite(t *testing.T) { suite.Run(t, new(DragonflyRSMQSuite)) }
 
-func (s *RedisRSMQSuite) SetupTest() {
+func (s *RedisRSMQSuite) SetupSuite() {
 	testinfra.Start(s.T())
-	cfg := testinfra.NewRedisConfig(s.T())
-	client, err := redis.New(context.Background(), cfg)
+	s.cfg = testinfra.NewRedisConfig(s.T())
+}
+
+func (s *RedisRSMQSuite) SetupTest() {
+	// Flush the container's DB 0 before each test method for a clean state.
+	flushClient, err := redis.New(context.Background(), s.cfg)
+	if err != nil {
+		s.T().Fatalf("failed to create redis client for flush: %v", err)
+	}
+	flushClient.FlushDB(context.Background())
+	flushClient.Close()
+
+	client, err := redis.New(context.Background(), s.cfg)
 	if err != nil {
 		s.T().Fatalf("failed to create redis client: %v", err)
 	}
@@ -42,10 +54,21 @@ func (s *RedisRSMQSuite) SetupTest() {
 	s.rsmq = NewRedisSMQ(s.client, "test")
 }
 
-func (s *DragonflyRSMQSuite) SetupTest() {
+func (s *DragonflyRSMQSuite) SetupSuite() {
 	testinfra.Start(s.T())
-	cfg := testinfra.NewDragonflyConfig(s.T())
-	client, err := redis.New(context.Background(), cfg)
+	s.cfg = testinfra.NewDragonflyConfig(s.T())
+}
+
+func (s *DragonflyRSMQSuite) SetupTest() {
+	// Flush the container's DB 0 before each test method for a clean state.
+	flushClient, err := redis.New(context.Background(), s.cfg)
+	if err != nil {
+		s.T().Fatalf("failed to create redis client for flush: %v", err)
+	}
+	flushClient.FlushDB(context.Background())
+	flushClient.Close()
+
+	client, err := redis.New(context.Background(), s.cfg)
 	if err != nil {
 		s.T().Fatalf("failed to create redis client: %v", err)
 	}

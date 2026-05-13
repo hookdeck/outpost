@@ -1,0 +1,70 @@
+// Package driver defines the TenantStore interface and associated types.
+package driver
+
+import (
+	"context"
+	"errors"
+
+	"github.com/hookdeck/outpost/internal/models"
+)
+
+// TenantStore is the interface for tenant and destination storage.
+type TenantStore interface {
+	Init(ctx context.Context) error
+	RetrieveTenant(ctx context.Context, tenantID string) (*models.Tenant, error)
+	UpsertTenant(ctx context.Context, tenant models.Tenant) error
+	DeleteTenant(ctx context.Context, tenantID string) error
+	ListTenant(ctx context.Context, req ListTenantRequest) (*TenantPaginatedResult, error)
+	ListDestination(ctx context.Context, req ListDestinationRequest) ([]models.Destination, error)
+	RetrieveDestination(ctx context.Context, tenantID, destinationID string) (*models.Destination, error)
+	CreateDestination(ctx context.Context, destination models.Destination) error
+	UpsertDestination(ctx context.Context, destination models.Destination) error
+	DeleteDestination(ctx context.Context, tenantID, destinationID string) error
+	MatchEvent(ctx context.Context, event models.Event) ([]string, error)
+}
+
+var (
+	ErrTenantNotFound                  = errors.New("tenant does not exist")
+	ErrTenantDeleted                   = errors.New("tenant has been deleted")
+	ErrDuplicateDestination            = errors.New("destination already exists")
+	ErrDestinationNotFound             = errors.New("destination does not exist")
+	ErrDestinationDeleted              = errors.New("destination has been deleted")
+	ErrMaxDestinationsPerTenantReached = errors.New("maximum number of destinations per tenant reached")
+	ErrListTenantNotSupported          = errors.New("list tenant feature is not enabled")
+	ErrInvalidCursor                   = errors.New("invalid cursor")
+	ErrInvalidOrder                    = errors.New("invalid order: must be 'asc' or 'desc'")
+	ErrConflictingCursors              = errors.New("cannot specify both next and prev cursors")
+)
+
+// ListTenantRequest contains parameters for listing tenants.
+type ListTenantRequest struct {
+	Limit int      // Number of results per page (default: 20)
+	Next  string   // Cursor for next page
+	Prev  string   // Cursor for previous page
+	Dir   string   // Sort direction: "asc" or "desc" (default: "desc")
+	ID    []string // If non-empty, only tenants with these IDs are returned
+}
+
+// SeekPagination represents cursor-based pagination metadata for list responses.
+type SeekPagination struct {
+	OrderBy string  `json:"order_by"`
+	Dir     string  `json:"dir"`
+	Limit   int     `json:"limit"`
+	Next    *string `json:"next"`
+	Prev    *string `json:"prev"`
+}
+
+// TenantPaginatedResult contains the paginated list of tenants.
+type TenantPaginatedResult struct {
+	Models     []models.Tenant `json:"models"`
+	Pagination SeekPagination  `json:"pagination"`
+	Count      int             `json:"count"`
+}
+
+// ListDestinationRequest contains parameters for listing destinations.
+type ListDestinationRequest struct {
+	TenantID string   // required — destinations are always tenant-scoped
+	IDs      []string // optional — filter to these destination IDs only
+	Type     []string // optional — OR semantics (matches any)
+	Topics   []string // optional — AND semantics ("*" = wildcard-only)
+}

@@ -14,27 +14,33 @@ generation:
     securityFeb2025: true
     sharedErrorComponentsApr2025: false
     sharedNestedComponentsJan2026: false
+    nameOverrideFeb2026: false
   auth:
     oAuth2ClientCredentialsEnabled: true
     oAuth2PasswordEnabled: true
     hoistGlobalSecurity: true
   schemas:
     allOfMergeStrategy: shallowMerge
-  requestBodyFieldName: params
+  requestBodyFieldName: body
+  versioningStrategy: automatic
   persistentEdits: {}
   tests:
     generateTests: true
     generateNewTests: false
     skipResponseBodyAssertions: false
 go:
-  version: 0.5.1
+  version: 1.3.0
   additionalDependencies: {}
   allowUnknownFieldsInWeakUnions: false
   baseErrorName: OutpostError
   clientServerStatusCodesAsErrors: true
   defaultErrorName: APIError
+  enableCustomCodeRegions: false
+  enableSkipDeserialization: false
   flattenGlobalSecurity: true
+  flatteningOrder: parameters-first
   forwardCompatibleEnumsByDefault: false
+  forwardCompatibleUnionsByDefault: "false"
   imports:
     option: openapi
     paths:
@@ -50,10 +56,11 @@ go:
   methodArguments: require-security-and-request
   modulePath: ""
   multipartArrayFormat: legacy
-  nullableOptionalWrapper: false
+  nullableOptionalWrapper: true
   outputModelSuffix: output
   packageName: github.com/hookdeck/outpost/sdks/outpost-go
   respectRequiredFields: false
+  respectTitlesForPrimitiveUnionMembers: false
   responseFormat: envelope-http
   sdkPackageName: ""
   unionStrategy: left-to-right

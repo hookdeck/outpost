@@ -12,8 +12,8 @@ import (
 type mockEventTracerImpl struct {
 	tracer        trace.Tracer
 	receive       func(context.Context, *models.Event) (context.Context, trace.Span)
-	startDelivery func(context.Context, *models.DeliveryEvent) (context.Context, trace.Span)
-	deliver       func(context.Context, *models.DeliveryEvent, *models.Destination) (context.Context, trace.Span)
+	startDelivery func(context.Context, *models.DeliveryTask) (context.Context, trace.Span)
+	deliver       func(context.Context, *models.DeliveryTask, *models.Destination) (context.Context, trace.Span)
 }
 
 var _ eventtracer.EventTracer = (*mockEventTracerImpl)(nil)
@@ -22,12 +22,12 @@ func (m *mockEventTracerImpl) Receive(ctx context.Context, event *models.Event) 
 	return m.receive(ctx, event)
 }
 
-func (m *mockEventTracerImpl) StartDelivery(ctx context.Context, deliveryEvent *models.DeliveryEvent) (context.Context, trace.Span) {
-	return m.startDelivery(ctx, deliveryEvent)
+func (m *mockEventTracerImpl) StartDelivery(ctx context.Context, task *models.DeliveryTask) (context.Context, trace.Span) {
+	return m.startDelivery(ctx, task)
 }
 
-func (m *mockEventTracerImpl) Deliver(ctx context.Context, deliveryEvent *models.DeliveryEvent, destination *models.Destination) (context.Context, trace.Span) {
-	return m.deliver(ctx, deliveryEvent, destination)
+func (m *mockEventTracerImpl) Deliver(ctx context.Context, task *models.DeliveryTask, destination *models.Destination) (context.Context, trace.Span) {
+	return m.deliver(ctx, task, destination)
 }
 
 func NewMockEventTracer(exporter traceSDK.SpanExporter) *mockEventTracerImpl {
@@ -39,10 +39,10 @@ func NewMockEventTracer(exporter traceSDK.SpanExporter) *mockEventTracerImpl {
 	mockEventTracer.receive = func(ctx context.Context, event *models.Event) (context.Context, trace.Span) {
 		return mockEventTracer.tracer.Start(ctx, "Receive")
 	}
-	mockEventTracer.startDelivery = func(ctx context.Context, deliveryEvent *models.DeliveryEvent) (context.Context, trace.Span) {
+	mockEventTracer.startDelivery = func(ctx context.Context, task *models.DeliveryTask) (context.Context, trace.Span) {
 		return mockEventTracer.tracer.Start(ctx, "StartDelivery")
 	}
-	mockEventTracer.deliver = func(ctx context.Context, deliveryEvent *models.DeliveryEvent, destination *models.Destination) (context.Context, trace.Span) {
+	mockEventTracer.deliver = func(ctx context.Context, task *models.DeliveryTask, destination *models.Destination) (context.Context, trace.Span) {
 		return mockEventTracer.tracer.Start(ctx, "Deliver")
 	}
 

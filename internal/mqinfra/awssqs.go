@@ -30,7 +30,6 @@ func (infra *infraAWSSQS) Exist(ctx context.Context) (bool, error) {
 		return false, err
 	}
 
-	// Check if main queue exists
 	_, err = awsutil.RetrieveQueueURL(ctx, sqsClient, infra.cfg.AWSSQS.Topic)
 	if err != nil {
 		var apiErr smithy.APIError
@@ -45,7 +44,6 @@ func (infra *infraAWSSQS) Exist(ctx context.Context) (bool, error) {
 		return false, err
 	}
 
-	// Check if DLQ exists
 	dlqName := infra.cfg.AWSSQS.Topic + "-dlq"
 	_, err = awsutil.RetrieveQueueURL(ctx, sqsClient, dlqName)
 	if err != nil {

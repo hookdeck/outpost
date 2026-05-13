@@ -14,10 +14,14 @@ func main() {
 	}
 
 	adminAPIKey := os.Getenv("ADMIN_API_KEY")
-	serverURL := os.Getenv("SERVER_URL")
-	if serverURL == "" {
-		serverURL = "http://localhost:3333"
-		log.Printf("SERVER_URL not set, defaulting to %s", serverURL)
+	apiServerURL := os.Getenv("API_BASE_URL")
+	if apiServerURL == "" {
+		serverURL := os.Getenv("SERVER_URL")
+		if serverURL == "" {
+			serverURL = "http://localhost:3333"
+			log.Printf("SERVER_URL not set, defaulting to %s", serverURL)
+		}
+		apiServerURL = serverURL + "/api/v1"
 	}
 
 	if adminAPIKey == "" {
@@ -38,7 +42,7 @@ func main() {
 			log.Fatal("ADMIN_API_KEY environment variable must be set to run the 'manage' example.")
 		}
 		log.Println("--- Running Manage Outpost Resources Example ---")
-		manageOutpostResources(adminAPIKey, serverURL)
+		manageOutpostResources(adminAPIKey, apiServerURL)
 	case "auth":
 		log.Println("--- Running Auth Example ---")
 		runAuthExample()

@@ -37,19 +37,23 @@ export type DestinationUpdateRabbitMQ = {
    * @remarks
    * Supports operators: $eq, $neq, $gt, $gte, $lt, $lte, $in, $nin, $startsWith, $endsWith, $exist, $or, $and, $not.
    * If null or empty, all events matching the topic filter will be delivered.
-   * To remove an existing filter when updating a destination, set filter to an empty object `{}`.
+   * Uses full-replacement semantics on update: send a new object to replace, null or `{}` to clear, omit for no change.
    */
   filter?: { [k: string]: any } | null | undefined;
   config?: RabbitMQConfig | undefined;
   credentials?: RabbitMQCredentials | undefined;
   /**
-   * Static key-value pairs merged into event metadata on every delivery.
+   * Static key-value pairs merged into event metadata on every attempt. Uses JSON merge-patch semantics (RFC 7396): send keys to add/update, null values to delete keys, null for entire field to clear all. Omit or send {} for no change.
    */
-  deliveryMetadata?: { [k: string]: string } | null | undefined;
+  deliveryMetadata?: { [k: string]: string | null } | null | undefined;
   /**
-   * Arbitrary contextual information stored with the destination.
+   * Arbitrary contextual information stored with the destination. Uses JSON merge-patch semantics (RFC 7396): send keys to add/update, null values to delete keys, null for entire field to clear all. Omit or send {} for no change.
    */
-  metadata?: { [k: string]: string } | null | undefined;
+  metadata?: { [k: string]: string | null } | null | undefined;
+  /**
+   * Update the disabled state of the destination. Send a timestamp (must not be in the future) to disable, null to enable, or omit to leave unchanged.
+   */
+  disabledAt?: Date | null | undefined;
 };
 
 /** @internal */
@@ -62,11 +66,15 @@ export const DestinationUpdateRabbitMQ$inboundSchema: z.ZodType<
   filter: z.nullable(z.record(z.any())).optional(),
   config: RabbitMQConfig$inboundSchema.optional(),
   credentials: RabbitMQCredentials$inboundSchema.optional(),
-  delivery_metadata: z.nullable(z.record(z.string())).optional(),
-  metadata: z.nullable(z.record(z.string())).optional(),
+  delivery_metadata: z.nullable(z.record(z.nullable(z.string()))).optional(),
+  metadata: z.nullable(z.record(z.nullable(z.string()))).optional(),
+  disabled_at: z.nullable(
+    z.string().datetime({ offset: true }).transform(v => new Date(v)),
+  ).optional(),
 }).transform((v) => {
   return remap$(v, {
     "delivery_metadata": "deliveryMetadata",
+    "disabled_at": "disabledAt",
   });
 });
 /** @internal */
@@ -75,8 +83,9 @@ export type DestinationUpdateRabbitMQ$Outbound = {
   filter?: { [k: string]: any } | null | undefined;
   config?: RabbitMQConfig$Outbound | undefined;
   credentials?: RabbitMQCredentials$Outbound | undefined;
-  delivery_metadata?: { [k: string]: string } | null | undefined;
-  metadata?: { [k: string]: string } | null | undefined;
+  delivery_metadata?: { [k: string]: string | null } | null | undefined;
+  metadata?: { [k: string]: string | null } | null | undefined;
+  disabled_at?: string | null | undefined;
 };
 
 /** @internal */
@@ -89,11 +98,13 @@ export const DestinationUpdateRabbitMQ$outboundSchema: z.ZodType<
   filter: z.nullable(z.record(z.any())).optional(),
   config: RabbitMQConfig$outboundSchema.optional(),
   credentials: RabbitMQCredentials$outboundSchema.optional(),
-  deliveryMetadata: z.nullable(z.record(z.string())).optional(),
-  metadata: z.nullable(z.record(z.string())).optional(),
+  deliveryMetadata: z.nullable(z.record(z.nullable(z.string()))).optional(),
+  metadata: z.nullable(z.record(z.nullable(z.string()))).optional(),
+  disabledAt: z.nullable(z.date().transform(v => v.toISOString())).optional(),
 }).transform((v) => {
   return remap$(v, {
     deliveryMetadata: "delivery_metadata",
+    disabledAt: "disabled_at",
   });
 });
 

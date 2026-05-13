@@ -8,15 +8,11 @@ import { safeParse } from "../../lib/schemas.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 
-export type GetTenantDestinationGlobals = {
-  tenantId?: string | undefined;
-};
-
 export type GetTenantDestinationRequest = {
   /**
    * The ID of the tenant. Required when using AdminApiKey authentication.
    */
-  tenantId?: string | undefined;
+  tenantId: string;
   /**
    * The ID of the destination.
    */
@@ -24,61 +20,12 @@ export type GetTenantDestinationRequest = {
 };
 
 /** @internal */
-export const GetTenantDestinationGlobals$inboundSchema: z.ZodType<
-  GetTenantDestinationGlobals,
-  z.ZodTypeDef,
-  unknown
-> = z.object({
-  tenant_id: z.string().optional(),
-}).transform((v) => {
-  return remap$(v, {
-    "tenant_id": "tenantId",
-  });
-});
-/** @internal */
-export type GetTenantDestinationGlobals$Outbound = {
-  tenant_id?: string | undefined;
-};
-
-/** @internal */
-export const GetTenantDestinationGlobals$outboundSchema: z.ZodType<
-  GetTenantDestinationGlobals$Outbound,
-  z.ZodTypeDef,
-  GetTenantDestinationGlobals
-> = z.object({
-  tenantId: z.string().optional(),
-}).transform((v) => {
-  return remap$(v, {
-    tenantId: "tenant_id",
-  });
-});
-
-export function getTenantDestinationGlobalsToJSON(
-  getTenantDestinationGlobals: GetTenantDestinationGlobals,
-): string {
-  return JSON.stringify(
-    GetTenantDestinationGlobals$outboundSchema.parse(
-      getTenantDestinationGlobals,
-    ),
-  );
-}
-export function getTenantDestinationGlobalsFromJSON(
-  jsonString: string,
-): SafeParseResult<GetTenantDestinationGlobals, SDKValidationError> {
-  return safeParse(
-    jsonString,
-    (x) => GetTenantDestinationGlobals$inboundSchema.parse(JSON.parse(x)),
-    `Failed to parse 'GetTenantDestinationGlobals' from JSON`,
-  );
-}
-
-/** @internal */
 export const GetTenantDestinationRequest$inboundSchema: z.ZodType<
   GetTenantDestinationRequest,
   z.ZodTypeDef,
   unknown
 > = z.object({
-  tenant_id: z.string().optional(),
+  tenant_id: z.string(),
   destination_id: z.string(),
 }).transform((v) => {
   return remap$(v, {
@@ -88,7 +35,7 @@ export const GetTenantDestinationRequest$inboundSchema: z.ZodType<
 });
 /** @internal */
 export type GetTenantDestinationRequest$Outbound = {
-  tenant_id?: string | undefined;
+  tenant_id: string;
   destination_id: string;
 };
 
@@ -98,7 +45,7 @@ export const GetTenantDestinationRequest$outboundSchema: z.ZodType<
   z.ZodTypeDef,
   GetTenantDestinationRequest
 > = z.object({
-  tenantId: z.string().optional(),
+  tenantId: z.string(),
   destinationId: z.string(),
 }).transform((v) => {
   return remap$(v, {

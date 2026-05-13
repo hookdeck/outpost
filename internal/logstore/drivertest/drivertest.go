@@ -39,4 +39,7 @@ func RunConformanceTests(t *testing.T, newHarness HarnessMaker) {
 	t.Run("Misc", func(t *testing.T) {
 		testMisc(t, newHarness)
 	})
+	t.Run("Metrics", func(t *testing.T) {
+		testMetrics(t, newHarness)
+	})
 }

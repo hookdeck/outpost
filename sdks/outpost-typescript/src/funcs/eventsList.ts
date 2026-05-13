@@ -3,7 +3,13 @@
  */
 
 import { OutpostCore } from "../core.js";
-import { encodeFormQuery, encodeSimple } from "../lib/encodings.js";
+import { dlv } from "../lib/dlv.js";
+import {
+  encodeDeepObjectQuery,
+  encodeFormQuery,
+  queryJoin,
+} from "../lib/encodings.js";
+import { matchStatusCode } from "../lib/http.js";
 import * as M from "../lib/matchers.js";
 import { compactMap } from "../lib/primitives.js";
 import { safeParse } from "../lib/schemas.js";
@@ -17,34 +23,51 @@ import {
   RequestTimeoutError,
   UnexpectedClientError,
 } from "../models/errors/httpclienterrors.js";
+import * as errors from "../models/errors/index.js";
 import { OutpostError } from "../models/errors/outposterror.js";
 import { ResponseValidationError } from "../models/errors/responsevalidationerror.js";
 import { SDKValidationError } from "../models/errors/sdkvalidationerror.js";
 import * as operations from "../models/operations/index.js";
 import { APICall, APIPromise } from "../types/async.js";
 import { Result } from "../types/fp.js";
+import {
+  createPageIterator,
+  haltIterator,
+  PageIterator,
+  Paginator,
+} from "../types/operations.js";
 
 /**
  * List Events
  *
  * @remarks
- * Retrieves a list of events for the tenant, supporting cursor navigation (details TBD) and filtering.
+ * Retrieves a list of events.
+ *
+ * When authenticated with a Tenant JWT, returns only events belonging to that tenant.
+ * When authenticated with Admin API Key, returns events across all tenants. Use `tenant_id` query parameter to filter by tenant.
+ *
+ * If set, this operation will use {@link Security.apiKey} from the global security.
  */
 export function eventsList(
   client: OutpostCore,
-  request: operations.ListTenantEventsRequest,
+  request: operations.ListEventsRequest,
   options?: RequestOptions,
 ): APIPromise<
-  Result<
-    operations.ListTenantEventsResponse,
-    | OutpostError
-    | ResponseValidationError
-    | ConnectionError
-    | RequestAbortedError
-    | RequestTimeoutError
-    | InvalidRequestError
-    | UnexpectedClientError
-    | SDKValidationError
+  PageIterator<
+    Result<
+      operations.ListEventsResponse,
+      | errors.UnauthorizedError
+      | errors.InternalServerError
+      | OutpostError
+      | ResponseValidationError
+      | ConnectionError
+      | RequestAbortedError
+      | RequestTimeoutError
+      | InvalidRequestError
+      | UnexpectedClientError
+      | SDKValidationError
+    >,
+    { cursor: string }
   >
 > {
   return new APIPromise($do(
@@ -56,71 +79,76 @@ export function eventsList(
 
 async function $do(
   client: OutpostCore,
-  request: operations.ListTenantEventsRequest,
+  request: operations.ListEventsRequest,
   options?: RequestOptions,
 ): Promise<
   [
-    Result<
-      operations.ListTenantEventsResponse,
-      | OutpostError
-      | ResponseValidationError
-      | ConnectionError
-      | RequestAbortedError
-      | RequestTimeoutError
-      | InvalidRequestError
-      | UnexpectedClientError
-      | SDKValidationError
+    PageIterator<
+      Result<
+        operations.ListEventsResponse,
+        | errors.UnauthorizedError
+        | errors.InternalServerError
+        | OutpostError
+        | ResponseValidationError
+        | ConnectionError
+        | RequestAbortedError
+        | RequestTimeoutError
+        | InvalidRequestError
+        | UnexpectedClientError
+        | SDKValidationError
+      >,
+      { cursor: string }
     >,
     APICall,
   ]
 > {
   const parsed = safeParse(
     request,
-    (value) => operations.ListTenantEventsRequest$outboundSchema.parse(value),
+    (value) => operations.ListEventsRequest$outboundSchema.parse(value),
     "Input validation failed",
   );
   if (!parsed.ok) {
-    return [parsed, { status: "invalid" }];
+    return [haltIterator(parsed), { status: "invalid" }];
   }
   const payload = parsed.value;
   const body = null;
 
-  const pathParams = {
-    tenant_id: encodeSimple(
-      "tenant_id",
-      payload.tenant_id ?? client._options.tenantId,
-      { explode: false, charEncoding: "percent" },
-    ),
-  };
+  const path = pathToFunc("/events")();
 
-  const path = pathToFunc("/tenants/{tenant_id}/events")(pathParams);
-
-  const query = encodeFormQuery({
-    "destination_id": payload.destination_id,
-    "end": payload.end,
-    "limit": payload.limit,
-    "next": payload.next,
-    "prev": payload.prev,
-    "start": payload.start,
-    "status": payload.status,
-  });
+  const query = queryJoin(
+    encodeDeepObjectQuery({
+      "time": payload.time,
+    }),
+    encodeFormQuery({
+      "destination_id": payload.destination_id,
+      "dir": payload.dir,
+      "id": payload.id,
+      "limit": payload.limit,
+      "next": payload.next,
+      "order_by": payload.order_by,
+      "prev": payload.prev,
+      "tenant_id": payload.tenant_id,
+      "topic": payload.topic,
+    }),
+  );
 
   const headers = new Headers(compactMap({
     Accept: "application/json",
   }));
 
-  const securityInput = await extractSecurity(client._options.security);
-  const requestSecurity = resolveGlobalSecurity(securityInput);
+  const secConfig = await extractSecurity(client._options.apiKey);
+  const securityInput = secConfig == null ? {} : { apiKey: secConfig };
+  const requestSecurity = resolveGlobalSecurity(securityInput, [0]);
 
   const context = {
     options: client._options,
     baseURL: options?.serverURL ?? client._baseURL ?? "",
-    operationID: "listTenantEvents",
+    operationID: "listEvents",
     oAuth2Scopes: null,
 
     resolvedSecurity: requestSecurity,
 
-    securitySource: client._options.security,
+    securitySource: client._options.apiKey,
     retryConfig: options?.retries
       || client._options.retryConfig
       || { strategy: "none" },
@@ -139,23 +167,30 @@ async function $do(
     timeoutMs: options?.timeoutMs || client._options.timeoutMs || -1,
   }, options);
   if (!requestRes.ok) {
-    return [requestRes, { status: "invalid" }];
+    return [haltIterator(requestRes), { status: "invalid" }];
   }
   const req = requestRes.value;
 
   const doResult = await client._do(req, {
     context,
-    errorCodes: ["404", "4XX", "5XX"],
+    isErrorStatusCode: (statusCode: number) =>
+      matchStatusCode({ status: statusCode } as Response, ["4XX", "5XX"]),
     retryConfig: context.retryConfig,
     retryCodes: context.retryCodes,
   });
   if (!doResult.ok) {
-    return [doResult, { status: "request-error", request: req }];
+    return [haltIterator(doResult), { status: "request-error", request: req }];
   }
   const response = doResult.value;
 
-  const [result] = await M.match<
-    operations.ListTenantEventsResponse,
+  const responseFields = {
+    HttpMeta: { Response: response, Request: req },
+  };
+
+  const [result, raw] = await M.match<
+    operations.ListEventsResponse,
+    | errors.UnauthorizedError
+    | errors.InternalServerError
     | OutpostError
     | ResponseValidationError
     | ConnectionError
@@ -165,13 +200,73 @@ async function $do(
     | UnexpectedClientError
     | SDKValidationError
   >(
-    M.json(200, operations.ListTenantEventsResponse$inboundSchema),
-    M.fail([404, "4XX"]),
+    M.json(200, operations.ListEventsResponse$inboundSchema, { key: "Result" }),
+    M.jsonErr(401, errors.UnauthorizedError$inboundSchema),
+    M.jsonErr(500, errors.InternalServerError$inboundSchema),
+    M.fail("4XX"),
     M.fail("5XX"),
-  )(response, req);
+  )(response, req, { extraFields: responseFields });
   if (!result.ok) {
-    return [result, { status: "complete", request: req, response }];
+    return [haltIterator(result), {
+      status: "complete",
+      request: req,
+      response,
+    }];
   }
 
-  return [result, { status: "complete", request: req, response }];
+  const nextFunc = (
+    responseData: unknown,
+  ): {
+    next: Paginator<
+      Result<
+        operations.ListEventsResponse,
+        | errors.UnauthorizedError
+        | errors.InternalServerError
+        | OutpostError
+        | ResponseValidationError
+        | ConnectionError
+        | RequestAbortedError
+        | RequestTimeoutError
+        | InvalidRequestError
+        | UnexpectedClientError
+        | SDKValidationError
+      >
+    >;
+    "~next"?: { cursor: string };
+  } => {
+    const nextCursor = dlv(responseData, "pagination.next");
+    if (typeof nextCursor !== "string") {
+      return { next: () => null };
+    }
+    if (nextCursor.trim() === "") {
+      return { next: () => null };
+    }
+    const results = dlv(responseData, "models");
+    if (!Array.isArray(results) || !results.length) {
+      return { next: () => null };
+    }
+    const limit = request?.limit ?? 100;
+    if (results.length < limit) {
+      return { next: () => null };
+    }
+
+    const nextVal = () =>
+      eventsList(
+        client,
+        {
+          ...request,
+          next: nextCursor,
+        },
+        options,
+      );
+
+    return { next: nextVal, "~next": { cursor: nextCursor } };
+  };
+
+  const page = { ...result, ...nextFunc(raw) };
+  return [{ ...page, ...createPageIterator(page, (v) => !v.ok) }, {
+    status: "complete",
+    request: req,
+    response,
+  }];
 }

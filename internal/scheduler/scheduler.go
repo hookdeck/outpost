@@ -2,9 +2,12 @@ package scheduler
 
 import (
 	"context"
+	"fmt"
 	"time"
 
+	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/rsmq"
+	"go.uber.org/zap"
 )
 
 type ScheduleOption func(*ScheduleOptions)
@@ -28,15 +31,18 @@ type Scheduler interface {
 }
 
 type schedulerImpl struct {
-	rsmqClient *rsmq.RedisSMQ
+	rsmqClient rsmq.Client
 	config     *config
 	name       string
 	exec       func(context.Context, string) error
 }
 
 type config struct {
-	visibilityTimeout uint
-	pollBackoff       time.Duration
+	visibilityTimeout    uint
+	pollBackoff          time.Duration
+	maxConsecutiveErrors int
+	maxErrorBackoff      time.Duration
+	logger               *logging.Logger
 }
 
 func WithVisibilityTimeout(vt uint) func(*config) {
@@ -51,10 +57,44 @@ func WithPollBackoff(backoff time.Duration) func(*config) {
 	}
 }
 
-func New(name string, rsmqClient *rsmq.RedisSMQ, exec func(context.Context, string) error, opts ...func(*config)) Scheduler {
+func WithMaxConsecutiveErrors(n int) func(*config) {
+	return func(c *config) {
+		c.maxConsecutiveErrors = n
+	}
+}
+
+func WithLogger(logger *logging.Logger) func(*config) {
+	return func(c *config) {
+		c.logger = logger
+	}
+}
+
+func New(name string, rsmqClient rsmq.Client, exec func(context.Context, string) error, opts ...func(*config)) Scheduler {
+	// Error retry schedule (with 100ms pollBackoff used by retrymq):
+	//
+	//   Error  Backoff    Cumulative
+	//   1      100ms      0.1s
+	//   2      200ms      0.3s
+	//   3      400ms      0.7s       ← 3 retries within ~1s
+	//   4      800ms      1.5s
+	//   5      1.6s       3.1s
+	//   6      3.2s       6.3s
+	//   7      6.4s       12.7s
+	//   8      12.8s      25.5s
+	//   9      15s (cap)  40.5s
+	//   10     15s (cap)  55.5s      ← worker dies (~1 min total)
+	//
+	// Backoff formula: pollBackoff * 2^(attempt-1), capped at maxErrorBackoff.
+	// After maxConsecutiveErrors the worker dies permanently (supervisor does
+	// not restart it), so these values must tolerate transient infra outages
+	// (e.g. managed Redis/Dragonfly restarts) without killing the worker.
+	// ~1 min is sufficient for managed Redis/Dragonfly to recover from
+	// routine restarts or brief network blips.
 	config := &config{
-		visibilityTimeout: rsmq.UnsetVt,
-		pollBackoff:       100 * time.Millisecond,
+		visibilityTimeout:    rsmq.UnsetVt,
+		pollBackoff:          200 * time.Millisecond,
+		maxConsecutiveErrors: 10,
+		maxErrorBackoff:      15 * time.Second,
 	}
 	for _, opt := range opts {
 		opt(config)
@@ -98,6 +138,7 @@ func (s *schedulerImpl) Schedule(ctx context.Context, task string, delay time.Du
 }
 
 func (s *schedulerImpl) Monitor(ctx context.Context) error {
+	consecutiveErrors := 0
 	for {
 		select {
 		case <-ctx.Done():
@@ -105,8 +146,23 @@ func (s *schedulerImpl) Monitor(ctx context.Context) error {
 		default:
 			msg, err := s.rsmqClient.ReceiveMessage(s.name, rsmq.UnsetVt)
 			if err != nil {
-				return err
+				consecutiveErrors++
+				if consecutiveErrors >= s.config.maxConsecutiveErrors {
+					return fmt.Errorf("max consecutive errors reached: %w", err)
+				}
+				backoff := min(s.config.pollBackoff*time.Duration(1<<(consecutiveErrors-1)), s.config.maxErrorBackoff)
+				s.config.logger.Ctx(ctx).Warn("scheduler receive error, retrying",
+					zap.Error(err),
+					zap.Int("attempt", consecutiveErrors),
+					zap.Duration("backoff", backoff))
+				select {
+				case <-ctx.Done():
+					return nil
+				case <-time.After(backoff):
+				}
+				continue
 			}
+			consecutiveErrors = 0
 			if msg == nil {
 				time.Sleep(s.config.pollBackoff)
 				continue

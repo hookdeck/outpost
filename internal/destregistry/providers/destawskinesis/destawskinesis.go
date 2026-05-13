@@ -14,8 +14,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/kinesis"
 	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/hookdeck/outpost/internal/destregistry/metadata"
+	"github.com/hookdeck/outpost/internal/destregistry/partitionkey"
 	"github.com/hookdeck/outpost/internal/models"
-	"github.com/jmespath/go-jmespath"
 )
 
 // Configuration types
@@ -182,81 +182,59 @@ func (p *AWSKinesisPublisher) Close() error {
 	return nil
 }
 
-// evaluatePartitionKey extracts the partition key from the event using the JMESPath template
-func (p *AWSKinesisPublisher) evaluatePartitionKey(payload map[string]interface{}, eventID string) (string, error) {
-	// If no template is specified or empty, use event ID
-	if p.partitionKeyTemplate == "" {
-		return eventID, nil
-	}
-
-	// Evaluate the JMESPath template
-	result, err := jmespath.Search(p.partitionKeyTemplate, payload)
-	if err != nil {
-		return "", fmt.Errorf("error evaluating partition key template: %w", err)
-	}
-
-	// Handle nil result - fall back to event ID
-	if result == nil {
-		return eventID, nil
-	}
-
-	// Convert the result to string based on its type
-	switch v := result.(type) {
-	case string:
-		if v == "" {
-			return eventID, nil // Fall back to event ID if empty string
-		}
-		return v, nil
-	case float64:
-		return fmt.Sprintf("%g", v), nil
-	case int:
-		return fmt.Sprintf("%d", v), nil
-	case bool:
-		return fmt.Sprintf("%t", v), nil
-	default:
-		return fmt.Sprintf("%v", v), nil
-	}
-}
-
 // Format prepares the event for sending to Kinesis
 func (p *AWSKinesisPublisher) Format(ctx context.Context, event *models.Event) (*kinesis.PutRecordInput, error) {
 	var payload map[string]interface{}
 	var data []byte
 	var err error
 
-	// Convert data to a map[string]interface{} for JMESPath
-	dataMap := make(map[string]interface{})
-	for k, v := range event.Data {
-		dataMap[k] = v
-	}
-
 	if p.metadataInPayload {
 		// Prepare metadata
 		metadata := p.BasePublisher.MakeMetadata(event, time.Now())
-		// Convert metadata to a map[string]interface{} for JMESPath
 		metadataMap := make(map[string]interface{})
 		for k, v := range metadata {
 			metadataMap[k] = v
 		}
 
-		// Create payload with metadata and data
+		// Use json.RawMessage to preserve original key order in data
+		envelope := map[string]interface{}{
+			"metadata": metadataMap,
+			"data":     json.RawMessage(event.Data),
+		}
+
+		data, err = json.Marshal(envelope)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal payload: %w", err)
+		}
+
+		// Build parsed payload for partition key JMESPath evaluation
+		dataMap, err := event.ParsedData()
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse event data: %w", err)
+		}
+		if dataMap == nil {
+			dataMap = make(map[string]interface{})
+		}
 		payload = map[string]interface{}{
 			"metadata": metadataMap,
 			"data":     dataMap,
 		}
 	} else {
-		// Use only the event data as the payload
-		payload = dataMap
-	}
+		// Use raw bytes directly to preserve key order
+		data = []byte(event.Data)
 
-	// Serialize payload to JSON
-	data, err = json.Marshal(payload)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal payload: %w", err)
+		// Still need parsed data for partition key JMESPath evaluation
+		payload, err = event.ParsedData()
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse event data: %w", err)
+		}
+		if payload == nil {
+			payload = make(map[string]interface{})
+		}
 	}
 
 	// Get partition key from template or use event ID as default
-	partitionKey, err := p.evaluatePartitionKey(payload, event.ID)
+	partitionKey, err := partitionkey.Evaluate(p.partitionKeyTemplate, payload, event.ID)
 	if err != nil {
 		// If template evaluation fails, log the error and fall back to event ID
 		partitionKey = event.ID

@@ -2,7 +2,6 @@ package destrabbitmq
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -151,10 +150,7 @@ func (p *RabbitMQPublisher) Publish(ctx context.Context, event *models.Event) (*
 			})
 	}
 
-	dataBytes, err := json.Marshal(event.Data)
-	if err != nil {
-		return nil, err
-	}
+	dataBytes := []byte(event.Data)
 
 	headers := make(amqp091.Table)
 	metadata := p.BasePublisher.MakeMetadata(event, time.Now())

@@ -3,7 +3,8 @@
  */
 
 import { OutpostCore } from "../core.js";
-import { encodeSimple } from "../lib/encodings.js";
+import { encodeFormQuery, encodeSimple } from "../lib/encodings.js";
+import { matchStatusCode } from "../lib/http.js";
 import * as M from "../lib/matchers.js";
 import { compactMap } from "../lib/primitives.js";
 import { safeParse } from "../lib/schemas.js";
@@ -18,6 +19,7 @@ import {
   RequestTimeoutError,
   UnexpectedClientError,
 } from "../models/errors/httpclienterrors.js";
+import * as errors from "../models/errors/index.js";
 import { OutpostError } from "../models/errors/outposterror.js";
 import { ResponseValidationError } from "../models/errors/responsevalidationerror.js";
 import { SDKValidationError } from "../models/errors/sdkvalidationerror.js";
@@ -30,14 +32,21 @@ import { Result } from "../types/fp.js";
  *
  * @remarks
  * Retrieves details for a specific event.
+ *
+ * When authenticated with a Tenant JWT, only events belonging to that tenant can be accessed.
+ * When authenticated with Admin API Key, events from any tenant can be accessed.
  */
 export function eventsGet(
   client: OutpostCore,
-  request: operations.GetTenantEventRequest,
+  eventId: string,
+  tenantId?: string | undefined,
   options?: RequestOptions,
 ): APIPromise<
   Result<
     components.Event,
+    | errors.UnauthorizedError
+    | errors.NotFoundError
+    | errors.InternalServerError
     | OutpostError
     | ResponseValidationError
     | ConnectionError
@@ -50,19 +59,24 @@ export function eventsGet(
 > {
   return new APIPromise($do(
     client,
-    request,
+    eventId,
+    tenantId,
     options,
   ));
 }
 
 async function $do(
   client: OutpostCore,
-  request: operations.GetTenantEventRequest,
+  eventId: string,
+  tenantId?: string | undefined,
   options?: RequestOptions,
 ): Promise<
   [
     Result<
       components.Event,
+      | errors.UnauthorizedError
+      | errors.NotFoundError
+      | errors.InternalServerError
       | OutpostError
       | ResponseValidationError
       | ConnectionError
@@ -75,9 +89,14 @@ async function $do(
     APICall,
   ]
 > {
+  const input: operations.GetEventRequest = {
+    eventId: eventId,
+    tenantId: tenantId,
+  };
+
   const parsed = safeParse(
-    request,
-    (value) => operations.GetTenantEventRequest$outboundSchema.parse(value),
+    input,
+    (value) => operations.GetEventRequest$outboundSchema.parse(value),
     "Input validation failed",
   );
   if (!parsed.ok) {
@@ -91,31 +110,30 @@ async function $do(
       explode: false,
       charEncoding: "percent",
     }),
-    tenant_id: encodeSimple(
-      "tenant_id",
-      payload.tenant_id ?? client._options.tenantId,
-      { explode: false, charEncoding: "percent" },
-    ),
   };
+  const path = pathToFunc("/events/{event_id}")(pathParams);
 
-  const path = pathToFunc("/tenants/{tenant_id}/events/{event_id}")(pathParams);
+  const query = encodeFormQuery({
+    "tenant_id": payload.tenant_id,
+  });
 
   const headers = new Headers(compactMap({
     Accept: "application/json",
   }));
 
-  const securityInput = await extractSecurity(client._options.security);
+  const secConfig = await extractSecurity(client._options.apiKey);
+  const securityInput = secConfig == null ? {} : { apiKey: secConfig };
   const requestSecurity = resolveGlobalSecurity(securityInput);
 
   const context = {
     options: client._options,
     baseURL: options?.serverURL ?? client._baseURL ?? "",
-    operationID: "getTenantEvent",
+    operationID: "getEvent",
     oAuth2Scopes: null,
 
     resolvedSecurity: requestSecurity,
 
-    securitySource: client._options.security,
+    securitySource: client._options.apiKey,
     retryConfig: options?.retries
       || client._options.retryConfig
       || { strategy: "none" },
@@ -128,6 +146,7 @@ async function $do(
     baseURL: options?.serverURL,
     path: path,
     headers: headers,
+    query: query,
     body: body,
     userAgent: client._options.userAgent,
     timeoutMs: options?.timeoutMs || client._options.timeoutMs || -1,
@@ -139,7 +158,8 @@ async function $do(
 
   const doResult = await client._do(req, {
     context,
-    errorCodes: ["404", "4XX", "5XX"],
+    isErrorStatusCode: (statusCode: number) =>
+      matchStatusCode({ status: statusCode } as Response, ["4XX", "5XX"]),
     retryConfig: context.retryConfig,
     retryCodes: context.retryCodes,
   });
@@ -148,8 +168,15 @@ async function $do(
   }
   const response = doResult.value;
 
+  const responseFields = {
+    HttpMeta: { Response: response, Request: req },
+  };
+
   const [result] = await M.match<
     components.Event,
+    | errors.UnauthorizedError
+    | errors.NotFoundError
+    | errors.InternalServerError
     | OutpostError
     | ResponseValidationError
     | ConnectionError
@@ -160,9 +187,12 @@ async function $do(
     | SDKValidationError
   >(
     M.json(200, components.Event$inboundSchema),
-    M.fail([404, "4XX"]),
+    M.jsonErr(401, errors.UnauthorizedError$inboundSchema),
+    M.jsonErr(404, errors.NotFoundError$inboundSchema),
+    M.jsonErr(500, errors.InternalServerError$inboundSchema),
+    M.fail("4XX"),
     M.fail("5XX"),
-  )(response, req);
+  )(response, req, { extraFields: responseFields });
   if (!result.ok) {
     return [result, { status: "complete", request: req, response }];
   }

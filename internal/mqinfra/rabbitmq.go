@@ -29,7 +29,6 @@ func (infra *infraRabbitMQ) Exist(ctx context.Context) (bool, error) {
 
 	dlq := infra.cfg.RabbitMQ.Queue + ".dlq"
 
-	// Check if exchange exists using passive declare
 	if err := ch.ExchangeDeclarePassive(
 		infra.cfg.RabbitMQ.Exchange, // name
 		"topic",                     // type
@@ -46,7 +45,6 @@ func (infra *infraRabbitMQ) Exist(ctx context.Context) (bool, error) {
 		return false, err
 	}
 
-	// Check if main queue exists using passive declare
 	if _, err := ch.QueueDeclarePassive(
 		infra.cfg.RabbitMQ.Queue, // name
 		true,                     // durable
@@ -62,7 +60,6 @@ func (infra *infraRabbitMQ) Exist(ctx context.Context) (bool, error) {
 		return false, err
 	}
 
-	// Check if DLQ exists using passive declare
 	if _, err := ch.QueueDeclarePassive(
 		dlq,   // name
 		true,  // durable
@@ -99,7 +96,6 @@ func (infra *infraRabbitMQ) Declare(ctx context.Context) error {
 
 	dlq := infra.cfg.RabbitMQ.Queue + ".dlq"
 
-	// Declare target exchange & queue
 	if err := ch.ExchangeDeclare(
 		infra.cfg.RabbitMQ.Exchange, // name
 		"topic",                     // type
@@ -136,7 +132,6 @@ func (infra *infraRabbitMQ) Declare(ctx context.Context) error {
 		return err
 	}
 
-	// Declare dead-letter queue
 	if _, err := ch.QueueDeclare(
 		dlq,   // name
 		true,  // durable

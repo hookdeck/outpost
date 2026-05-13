@@ -2,6 +2,7 @@ package config
 
 import (
 	"context"
+	"time"
 
 	"github.com/hookdeck/outpost/internal/mqinfra"
 	"github.com/hookdeck/outpost/internal/mqs"
@@ -57,6 +58,7 @@ func (c *GCPPubSubConfig) ToQueueConfig(ctx context.Context, queueType string) (
 			TopicID:                   c.getTopicByQueueType(queueType),
 			SubscriptionID:            c.getSubscriptionByQueueType(queueType),
 		},
+		VisibilityTimeout: 60 * time.Second,
 	}, nil
 }
 

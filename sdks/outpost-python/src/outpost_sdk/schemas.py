@@ -9,355 +9,9 @@ from typing import Any, List, Mapping, Optional
 
 
 class Schemas(BaseSDK):
-    r"""Operations for retrieving destination type schemas."""
+    r"""Destination types describe the available event delivery targets and their configuration schemas. Use these endpoints to render UI forms and list available destination types with their configuration schemas."""
 
-    def list_tenant_destination_types(
-        self,
-        *,
-        tenant_id: Optional[str] = None,
-        retries: OptionalNullable[utils.RetryConfig] = UNSET,
-        server_url: Optional[str] = None,
-        timeout_ms: Optional[int] = None,
-        http_headers: Optional[Mapping[str, str]] = None,
-    ) -> List[models.DestinationTypeSchema]:
-        r"""List Destination Type Schemas (for Tenant)
-
-        Returns a list of JSON-based input schemas for each available destination type. Requires Admin API Key or Tenant JWT.
-
-        :param tenant_id: The ID of the tenant. Required when using AdminApiKey authentication.
-        :param retries: Override the default retry configuration for this method
-        :param server_url: Override the default server URL for this method
-        :param timeout_ms: Override the default request timeout configuration for this method in milliseconds
-        :param http_headers: Additional headers to set or replace on requests.
-        """
-        base_url = None
-        url_variables = None
-        if timeout_ms is None:
-            timeout_ms = self.sdk_configuration.timeout_ms
-
-        if server_url is not None:
-            base_url = server_url
-        else:
-            base_url = self._get_url(base_url, url_variables)
-
-        request = models.ListTenantDestinationTypeSchemasRequest(
-            tenant_id=tenant_id,
-        )
-
-        req = self._build_request(
-            method="GET",
-            path="/tenants/{tenant_id}/destination-types",
-            base_url=base_url,
-            url_variables=url_variables,
-            request=request,
-            request_body_required=False,
-            request_has_path_params=True,
-            request_has_query_params=True,
-            user_agent_header="user-agent",
-            accept_header_value="application/json",
-            http_headers=http_headers,
-            _globals=models.ListTenantDestinationTypeSchemasGlobals(
-                tenant_id=self.sdk_configuration.globals.tenant_id,
-            ),
-            security=self.sdk_configuration.security,
-            allow_empty_value=None,
-            timeout_ms=timeout_ms,
-        )
-
-        if retries == UNSET:
-            if self.sdk_configuration.retry_config is not UNSET:
-                retries = self.sdk_configuration.retry_config
-
-        retry_config = None
-        if isinstance(retries, utils.RetryConfig):
-            retry_config = (retries, ["429", "500", "502", "503", "504"])
-
-        http_res = self.do_request(
-            hook_ctx=HookContext(
-                config=self.sdk_configuration,
-                base_url=base_url or "",
-                operation_id="listTenantDestinationTypeSchemas",
-                oauth2_scopes=None,
-                security_source=self.sdk_configuration.security,
-            ),
-            request=req,
-            error_status_codes=["404", "4XX", "5XX"],
-            retry_config=retry_config,
-        )
-
-        if utils.match_response(http_res, "200", "application/json"):
-            return unmarshal_json_response(List[models.DestinationTypeSchema], http_res)
-        if utils.match_response(http_res, ["404", "4XX"], "*"):
-            http_res_text = utils.stream_to_text(http_res)
-            raise errors.APIError("API error occurred", http_res, http_res_text)
-        if utils.match_response(http_res, "5XX", "*"):
-            http_res_text = utils.stream_to_text(http_res)
-            raise errors.APIError("API error occurred", http_res, http_res_text)
-
-        raise errors.APIError("Unexpected response received", http_res)
-
-    async def list_tenant_destination_types_async(
-        self,
-        *,
-        tenant_id: Optional[str] = None,
-        retries: OptionalNullable[utils.RetryConfig] = UNSET,
-        server_url: Optional[str] = None,
-        timeout_ms: Optional[int] = None,
-        http_headers: Optional[Mapping[str, str]] = None,
-    ) -> List[models.DestinationTypeSchema]:
-        r"""List Destination Type Schemas (for Tenant)
-
-        Returns a list of JSON-based input schemas for each available destination type. Requires Admin API Key or Tenant JWT.
-
-        :param tenant_id: The ID of the tenant. Required when using AdminApiKey authentication.
-        :param retries: Override the default retry configuration for this method
-        :param server_url: Override the default server URL for this method
-        :param timeout_ms: Override the default request timeout configuration for this method in milliseconds
-        :param http_headers: Additional headers to set or replace on requests.
-        """
-        base_url = None
-        url_variables = None
-        if timeout_ms is None:
-            timeout_ms = self.sdk_configuration.timeout_ms
-
-        if server_url is not None:
-            base_url = server_url
-        else:
-            base_url = self._get_url(base_url, url_variables)
-
-        request = models.ListTenantDestinationTypeSchemasRequest(
-            tenant_id=tenant_id,
-        )
-
-        req = self._build_request_async(
-            method="GET",
-            path="/tenants/{tenant_id}/destination-types",
-            base_url=base_url,
-            url_variables=url_variables,
-            request=request,
-            request_body_required=False,
-            request_has_path_params=True,
-            request_has_query_params=True,
-            user_agent_header="user-agent",
-            accept_header_value="application/json",
-            http_headers=http_headers,
-            _globals=models.ListTenantDestinationTypeSchemasGlobals(
-                tenant_id=self.sdk_configuration.globals.tenant_id,
-            ),
-            security=self.sdk_configuration.security,
-            allow_empty_value=None,
-            timeout_ms=timeout_ms,
-        )
-
-        if retries == UNSET:
-            if self.sdk_configuration.retry_config is not UNSET:
-                retries = self.sdk_configuration.retry_config
-
-        retry_config = None
-        if isinstance(retries, utils.RetryConfig):
-            retry_config = (retries, ["429", "500", "502", "503", "504"])
-
-        http_res = await self.do_request_async(
-            hook_ctx=HookContext(
-                config=self.sdk_configuration,
-                base_url=base_url or "",
-                operation_id="listTenantDestinationTypeSchemas",
-                oauth2_scopes=None,
-                security_source=self.sdk_configuration.security,
-            ),
-            request=req,
-            error_status_codes=["404", "4XX", "5XX"],
-            retry_config=retry_config,
-        )
-
-        if utils.match_response(http_res, "200", "application/json"):
-            return unmarshal_json_response(List[models.DestinationTypeSchema], http_res)
-        if utils.match_response(http_res, ["404", "4XX"], "*"):
-            http_res_text = await utils.stream_to_text_async(http_res)
-            raise errors.APIError("API error occurred", http_res, http_res_text)
-        if utils.match_response(http_res, "5XX", "*"):
-            http_res_text = await utils.stream_to_text_async(http_res)
-            raise errors.APIError("API error occurred", http_res, http_res_text)
-
-        raise errors.APIError("Unexpected response received", http_res)
-
-    def get(
-        self,
-        *,
-        type_: models.GetTenantDestinationTypeSchemaType,
-        tenant_id: Optional[str] = None,
-        retries: OptionalNullable[utils.RetryConfig] = UNSET,
-        server_url: Optional[str] = None,
-        timeout_ms: Optional[int] = None,
-        http_headers: Optional[Mapping[str, str]] = None,
-    ) -> models.DestinationTypeSchema:
-        r"""Get Destination Type Schema (for Tenant)
-
-        Returns the input schema for a specific destination type. Requires Admin API Key or Tenant JWT.
-
-        :param type: The type of the destination.
-        :param tenant_id: The ID of the tenant. Required when using AdminApiKey authentication.
-        :param retries: Override the default retry configuration for this method
-        :param server_url: Override the default server URL for this method
-        :param timeout_ms: Override the default request timeout configuration for this method in milliseconds
-        :param http_headers: Additional headers to set or replace on requests.
-        """
-        base_url = None
-        url_variables = None
-        if timeout_ms is None:
-            timeout_ms = self.sdk_configuration.timeout_ms
-
-        if server_url is not None:
-            base_url = server_url
-        else:
-            base_url = self._get_url(base_url, url_variables)
-
-        request = models.GetTenantDestinationTypeSchemaRequest(
-            tenant_id=tenant_id,
-            type=type_,
-        )
-
-        req = self._build_request(
-            method="GET",
-            path="/tenants/{tenant_id}/destination-types/{type}",
-            base_url=base_url,
-            url_variables=url_variables,
-            request=request,
-            request_body_required=False,
-            request_has_path_params=True,
-            request_has_query_params=True,
-            user_agent_header="user-agent",
-            accept_header_value="application/json",
-            http_headers=http_headers,
-            _globals=models.GetTenantDestinationTypeSchemaGlobals(
-                tenant_id=self.sdk_configuration.globals.tenant_id,
-            ),
-            security=self.sdk_configuration.security,
-            allow_empty_value=None,
-            timeout_ms=timeout_ms,
-        )
-
-        if retries == UNSET:
-            if self.sdk_configuration.retry_config is not UNSET:
-                retries = self.sdk_configuration.retry_config
-
-        retry_config = None
-        if isinstance(retries, utils.RetryConfig):
-            retry_config = (retries, ["429", "500", "502", "503", "504"])
-
-        http_res = self.do_request(
-            hook_ctx=HookContext(
-                config=self.sdk_configuration,
-                base_url=base_url or "",
-                operation_id="getTenantDestinationTypeSchema",
-                oauth2_scopes=None,
-                security_source=self.sdk_configuration.security,
-            ),
-            request=req,
-            error_status_codes=["404", "4XX", "5XX"],
-            retry_config=retry_config,
-        )
-
-        if utils.match_response(http_res, "200", "application/json"):
-            return unmarshal_json_response(models.DestinationTypeSchema, http_res)
-        if utils.match_response(http_res, ["404", "4XX"], "*"):
-            http_res_text = utils.stream_to_text(http_res)
-            raise errors.APIError("API error occurred", http_res, http_res_text)
-        if utils.match_response(http_res, "5XX", "*"):
-            http_res_text = utils.stream_to_text(http_res)
-            raise errors.APIError("API error occurred", http_res, http_res_text)
-
-        raise errors.APIError("Unexpected response received", http_res)
-
-    async def get_async(
-        self,
-        *,
-        type_: models.GetTenantDestinationTypeSchemaType,
-        tenant_id: Optional[str] = None,
-        retries: OptionalNullable[utils.RetryConfig] = UNSET,
-        server_url: Optional[str] = None,
-        timeout_ms: Optional[int] = None,
-        http_headers: Optional[Mapping[str, str]] = None,
-    ) -> models.DestinationTypeSchema:
-        r"""Get Destination Type Schema (for Tenant)
-
-        Returns the input schema for a specific destination type. Requires Admin API Key or Tenant JWT.
-
-        :param type: The type of the destination.
-        :param tenant_id: The ID of the tenant. Required when using AdminApiKey authentication.
-        :param retries: Override the default retry configuration for this method
-        :param server_url: Override the default server URL for this method
-        :param timeout_ms: Override the default request timeout configuration for this method in milliseconds
-        :param http_headers: Additional headers to set or replace on requests.
-        """
-        base_url = None
-        url_variables = None
-        if timeout_ms is None:
-            timeout_ms = self.sdk_configuration.timeout_ms
-
-        if server_url is not None:
-            base_url = server_url
-        else:
-            base_url = self._get_url(base_url, url_variables)
-
-        request = models.GetTenantDestinationTypeSchemaRequest(
-            tenant_id=tenant_id,
-            type=type_,
-        )
-
-        req = self._build_request_async(
-            method="GET",
-            path="/tenants/{tenant_id}/destination-types/{type}",
-            base_url=base_url,
-            url_variables=url_variables,
-            request=request,
-            request_body_required=False,
-            request_has_path_params=True,
-            request_has_query_params=True,
-            user_agent_header="user-agent",
-            accept_header_value="application/json",
-            http_headers=http_headers,
-            _globals=models.GetTenantDestinationTypeSchemaGlobals(
-                tenant_id=self.sdk_configuration.globals.tenant_id,
-            ),
-            security=self.sdk_configuration.security,
-            allow_empty_value=None,
-            timeout_ms=timeout_ms,
-        )
-
-        if retries == UNSET:
-            if self.sdk_configuration.retry_config is not UNSET:
-                retries = self.sdk_configuration.retry_config
-
-        retry_config = None
-        if isinstance(retries, utils.RetryConfig):
-            retry_config = (retries, ["429", "500", "502", "503", "504"])
-
-        http_res = await self.do_request_async(
-            hook_ctx=HookContext(
-                config=self.sdk_configuration,
-                base_url=base_url or "",
-                operation_id="getTenantDestinationTypeSchema",
-                oauth2_scopes=None,
-                security_source=self.sdk_configuration.security,
-            ),
-            request=req,
-            error_status_codes=["404", "4XX", "5XX"],
-            retry_config=retry_config,
-        )
-
-        if utils.match_response(http_res, "200", "application/json"):
-            return unmarshal_json_response(models.DestinationTypeSchema, http_res)
-        if utils.match_response(http_res, ["404", "4XX"], "*"):
-            http_res_text = await utils.stream_to_text_async(http_res)
-            raise errors.APIError("API error occurred", http_res, http_res_text)
-        if utils.match_response(http_res, "5XX", "*"):
-            http_res_text = await utils.stream_to_text_async(http_res)
-            raise errors.APIError("API error occurred", http_res, http_res_text)
-
-        raise errors.APIError("Unexpected response received", http_res)
-
-    def list_destination_types_jwt(
+    def list_destination_types(
         self,
         *,
         retries: OptionalNullable[utils.RetryConfig] = UNSET,
@@ -365,9 +19,9 @@ class Schemas(BaseSDK):
         timeout_ms: Optional[int] = None,
         http_headers: Optional[Mapping[str, str]] = None,
     ) -> List[models.DestinationTypeSchema]:
-        r"""List Destination Type Schemas (JWT Auth)
+        r"""List Destination Type Schemas
 
-        Returns a list of JSON-based input schemas for each available destination type (infers tenant from JWT).
+        Returns a list of JSON-based input schemas for each available destination type.
 
         :param retries: Override the default retry configuration for this method
         :param server_url: Override the default server URL for this method
@@ -412,38 +66,12 @@ class Schemas(BaseSDK):
             hook_ctx=HookContext(
                 config=self.sdk_configuration,
                 base_url=base_url or "",
-                operation_id="listDestinationTypeSchemasJwt",
+                operation_id="listDestinationTypeSchemas",
                 oauth2_scopes=None,
                 security_source=self.sdk_configuration.security,
             ),
             request=req,
-            error_status_codes=[
-                "400",
-                "401",
-                "403",
-                "404",
-                "407",
-                "408",
-                "413",
-                "414",
-                "415",
-                "422",
-                "429",
-                "431",
-                "4XX",
-                "500",
-                "501",
-                "502",
-                "503",
-                "504",
-                "505",
-                "506",
-                "507",
-                "508",
-                "510",
-                "511",
-                "5XX",
-            ],
+            is_error_status_code=lambda c: utils.match_status_codes(["4XX", "5XX"], c),
             retry_config=retry_config,
         )
 
@@ -453,7 +81,7 @@ class Schemas(BaseSDK):
         if utils.match_response(http_res, "404", "application/json"):
             response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
             raise errors.NotFoundError(response_data, http_res)
-        if utils.match_response(http_res, ["403", "407"], "application/json"):
+        if utils.match_response(http_res, ["401", "403", "407"], "application/json"):
             response_data = unmarshal_json_response(
                 errors.UnauthorizedErrorData, http_res
             )
@@ -496,7 +124,7 @@ class Schemas(BaseSDK):
                 errors.UnauthorizedErrorData, http_res
             )
             raise errors.UnauthorizedError(response_data, http_res)
-        if utils.match_response(http_res, ["401", "4XX"], "*"):
+        if utils.match_response(http_res, "4XX", "*"):
             http_res_text = utils.stream_to_text(http_res)
             raise errors.APIError("API error occurred", http_res, http_res_text)
         if utils.match_response(http_res, "5XX", "*"):
@@ -505,7 +133,7 @@ class Schemas(BaseSDK):
 
         raise errors.APIError("Unexpected response received", http_res)
 
-    async def list_destination_types_jwt_async(
+    async def list_destination_types_async(
         self,
         *,
         retries: OptionalNullable[utils.RetryConfig] = UNSET,
@@ -513,9 +141,9 @@ class Schemas(BaseSDK):
         timeout_ms: Optional[int] = None,
         http_headers: Optional[Mapping[str, str]] = None,
     ) -> List[models.DestinationTypeSchema]:
-        r"""List Destination Type Schemas (JWT Auth)
+        r"""List Destination Type Schemas
 
-        Returns a list of JSON-based input schemas for each available destination type (infers tenant from JWT).
+        Returns a list of JSON-based input schemas for each available destination type.
 
         :param retries: Override the default retry configuration for this method
         :param server_url: Override the default server URL for this method
@@ -560,38 +188,12 @@ class Schemas(BaseSDK):
             hook_ctx=HookContext(
                 config=self.sdk_configuration,
                 base_url=base_url or "",
-                operation_id="listDestinationTypeSchemasJwt",
+                operation_id="listDestinationTypeSchemas",
                 oauth2_scopes=None,
                 security_source=self.sdk_configuration.security,
             ),
             request=req,
-            error_status_codes=[
-                "400",
-                "401",
-                "403",
-                "404",
-                "407",
-                "408",
-                "413",
-                "414",
-                "415",
-                "422",
-                "429",
-                "431",
-                "4XX",
-                "500",
-                "501",
-                "502",
-                "503",
-                "504",
-                "505",
-                "506",
-                "507",
-                "508",
-                "510",
-                "511",
-                "5XX",
-            ],
+            is_error_status_code=lambda c: utils.match_status_codes(["4XX", "5XX"], c),
             retry_config=retry_config,
         )
 
@@ -601,7 +203,7 @@ class Schemas(BaseSDK):
         if utils.match_response(http_res, "404", "application/json"):
             response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
             raise errors.NotFoundError(response_data, http_res)
-        if utils.match_response(http_res, ["403", "407"], "application/json"):
+        if utils.match_response(http_res, ["401", "403", "407"], "application/json"):
             response_data = unmarshal_json_response(
                 errors.UnauthorizedErrorData, http_res
             )
@@ -644,7 +246,7 @@ class Schemas(BaseSDK):
                 errors.UnauthorizedErrorData, http_res
             )
             raise errors.UnauthorizedError(response_data, http_res)
-        if utils.match_response(http_res, ["401", "4XX"], "*"):
+        if utils.match_response(http_res, "4XX", "*"):
             http_res_text = await utils.stream_to_text_async(http_res)
             raise errors.APIError("API error occurred", http_res, http_res_text)
         if utils.match_response(http_res, "5XX", "*"):
@@ -653,7 +255,7 @@ class Schemas(BaseSDK):
 
         raise errors.APIError("Unexpected response received", http_res)
 
-    def get_destination_type_jwt(
+    def get_destination_type(
         self,
         *,
         type_: models.GetDestinationTypeSchemaType,
@@ -720,40 +322,17 @@ class Schemas(BaseSDK):
                 security_source=self.sdk_configuration.security,
             ),
             request=req,
-            error_status_codes=[
-                "400",
-                "401",
-                "403",
-                "404",
-                "407",
-                "408",
-                "413",
-                "414",
-                "415",
-                "422",
-                "429",
-                "431",
-                "4XX",
-                "500",
-                "501",
-                "502",
-                "503",
-                "504",
-                "505",
-                "506",
-                "507",
-                "508",
-                "510",
-                "511",
-                "5XX",
-            ],
+            is_error_status_code=lambda c: utils.match_status_codes(["4XX", "5XX"], c),
             retry_config=retry_config,
         )
 
         response_data: Any = None
         if utils.match_response(http_res, "200", "application/json"):
             return unmarshal_json_response(models.DestinationTypeSchema, http_res)
-        if utils.match_response(http_res, ["403", "407"], "application/json"):
+        if utils.match_response(http_res, "404", "application/json"):
+            response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
+            raise errors.NotFoundError(response_data, http_res)
+        if utils.match_response(http_res, ["401", "403", "407"], "application/json"):
             response_data = unmarshal_json_response(
                 errors.UnauthorizedErrorData, http_res
             )
@@ -796,7 +375,7 @@ class Schemas(BaseSDK):
                 errors.UnauthorizedErrorData, http_res
             )
             raise errors.UnauthorizedError(response_data, http_res)
-        if utils.match_response(http_res, ["401", "404", "4XX"], "*"):
+        if utils.match_response(http_res, "4XX", "*"):
             http_res_text = utils.stream_to_text(http_res)
             raise errors.APIError("API error occurred", http_res, http_res_text)
         if utils.match_response(http_res, "5XX", "*"):
@@ -805,7 +384,7 @@ class Schemas(BaseSDK):
 
         raise errors.APIError("Unexpected response received", http_res)
 
-    async def get_destination_type_jwt_async(
+    async def get_destination_type_async(
         self,
         *,
         type_: models.GetDestinationTypeSchemaType,
@@ -872,40 +451,17 @@ class Schemas(BaseSDK):
                 security_source=self.sdk_configuration.security,
             ),
             request=req,
-            error_status_codes=[
-                "400",
-                "401",
-                "403",
-                "404",
-                "407",
-                "408",
-                "413",
-                "414",
-                "415",
-                "422",
-                "429",
-                "431",
-                "4XX",
-                "500",
-                "501",
-                "502",
-                "503",
-                "504",
-                "505",
-                "506",
-                "507",
-                "508",
-                "510",
-                "511",
-                "5XX",
-            ],
+            is_error_status_code=lambda c: utils.match_status_codes(["4XX", "5XX"], c),
             retry_config=retry_config,
         )
 
         response_data: Any = None
         if utils.match_response(http_res, "200", "application/json"):
             return unmarshal_json_response(models.DestinationTypeSchema, http_res)
-        if utils.match_response(http_res, ["403", "407"], "application/json"):
+        if utils.match_response(http_res, "404", "application/json"):
+            response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
+            raise errors.NotFoundError(response_data, http_res)
+        if utils.match_response(http_res, ["401", "403", "407"], "application/json"):
             response_data = unmarshal_json_response(
                 errors.UnauthorizedErrorData, http_res
             )
@@ -948,7 +504,7 @@ class Schemas(BaseSDK):
                 errors.UnauthorizedErrorData, http_res
             )
             raise errors.UnauthorizedError(response_data, http_res)
-        if utils.match_response(http_res, ["401", "404", "4XX"], "*"):
+        if utils.match_response(http_res, "4XX", "*"):
             http_res_text = await utils.stream_to_text_async(http_res)
             raise errors.APIError("API error occurred", http_res, http_res_text)
         if utils.match_response(http_res, "5XX", "*"):

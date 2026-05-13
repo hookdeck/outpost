@@ -124,10 +124,8 @@ func (a *HookdeckAsserter) AssertMessage(t testsuite.TestingT, msg testsuite.Mes
 	require.NoError(t, err)
 
 	// Compare body data with event data
-	eventDataJSON, err := json.Marshal(event.Data)
-	require.NoError(t, err)
 	var eventData map[string]interface{}
-	err = json.Unmarshal(eventDataJSON, &eventData)
+	err = json.Unmarshal(event.Data, &eventData)
 	require.NoError(t, err)
 
 	for k, v := range eventData {
@@ -284,7 +282,7 @@ func TestHookdeckProvider_WithClientOption(t *testing.T) {
 	event := testutil.EventFactory.Any(
 		testutil.EventFactory.WithID("event123"),
 		testutil.EventFactory.WithTopic("order.created"),
-		testutil.EventFactory.WithData(map[string]interface{}{
+		testutil.EventFactory.WithDataMap(map[string]interface{}{
 			"order_id": "test123",
 		}),
 	)
@@ -323,7 +321,7 @@ func TestHookdeckPublisher_DirectClientOption(t *testing.T) {
 	event := testutil.EventFactory.Any(
 		testutil.EventFactory.WithID("event123"),
 		testutil.EventFactory.WithTopic("order.created"),
-		testutil.EventFactory.WithData(map[string]interface{}{
+		testutil.EventFactory.WithDataMap(map[string]interface{}{
 			"order_id": "test123",
 		}),
 	)

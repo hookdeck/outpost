@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -37,37 +36,13 @@ type TestingT interface {
 	Helper()
 }
 
-// AssertTimestampIsUnixSeconds verifies that a timestamp string is in Unix seconds format (not milliseconds).
-// It checks if the timestamp is within a reasonable range for Unix seconds (between year 2000 and 2100).
-func AssertTimestampIsUnixSeconds(t TestingT, timestampStr string, msgAndArgs ...interface{}) {
+// AssertTimestampIsISO8601 verifies that a timestamp string is a valid ISO 8601 / RFC3339 timestamp.
+func AssertTimestampIsISO8601(t TestingT, timestampStr string, msgAndArgs ...interface{}) {
 	t.Helper()
 
-	timestampInt, err := strconv.ParseInt(timestampStr, 10, 64)
-	assert.NoError(t, err, "timestamp should be a valid integer")
-
-	// Check if timestamp is in a reasonable range for Unix seconds
-	// Year 2000: ~946,684,800
-	// Year 2100: ~4,102,444,800
-	// Current time in seconds: ~1,700,000,000 (2023-2024)
-	// Current time in millis:  ~1,700,000,000,000
-
-	minUnixSeconds := int64(946684800)  // Jan 1, 2000
-	maxUnixSeconds := int64(4102444800) // Jan 1, 2100
-
-	if timestampInt < minUnixSeconds || timestampInt > maxUnixSeconds {
-		// Likely milliseconds - check if dividing by 1000 gives a reasonable timestamp
-		possibleSeconds := timestampInt / 1000
-		if possibleSeconds >= minUnixSeconds && possibleSeconds <= maxUnixSeconds {
-			assert.Fail(t, "timestamp appears to be in milliseconds, expected Unix seconds",
-				"timestamp %d is likely in milliseconds (would be %s if converted to seconds), expected Unix seconds (around %s)",
-				timestampInt,
-				time.Unix(possibleSeconds, 0).Format(time.RFC3339),
-				time.Now().Format(time.RFC3339))
-		} else {
-			assert.Fail(t, "timestamp is out of reasonable range",
-				"timestamp %d is not within reasonable Unix seconds range (year 2000-2100)", timestampInt)
-		}
-	}
+	parsed, err := time.Parse(time.RFC3339Nano, timestampStr)
+	assert.NoError(t, err, "timestamp should be a valid ISO 8601 / RFC3339 string, got: %s", timestampStr)
+	assert.Equal(t, time.UTC, parsed.Location(), "timestamp should be in UTC, got: %s", timestampStr)
 }
 
 // MessageConsumer is the interface that providers must implement
@@ -133,17 +108,8 @@ func (s *PublisherSuite) TearDownTest() {
 
 // verifyMessage performs base message verification and calls provider-specific assertions
 func (s *PublisherSuite) verifyMessage(msg Message, event models.Event) {
-	// Base verification of data and metadata
-	var body map[string]interface{}
-	err := json.Unmarshal(msg.Data, &body)
-	s.Require().NoError(err, "failed to unmarshal message data")
-
-	// Compare data by converting both to JSON first to handle type differences
-	eventDataJSON, err := json.Marshal(event.Data)
-	s.Require().NoError(err, "failed to marshal event data")
-	msgDataJSON, err := json.Marshal(body)
-	s.Require().NoError(err, "failed to marshal message data")
-	s.Require().JSONEq(string(eventDataJSON), string(msgDataJSON), "message data mismatch")
+	// Base verification of data
+	s.Require().JSONEq(string(event.Data), string(msg.Data), "message data mismatch")
 
 	// Verify that system metadata is present (these should always be included)
 	s.Require().NotEmpty(msg.Metadata["timestamp"], "system metadata 'timestamp' should be present")
@@ -168,7 +134,7 @@ func (s *PublisherSuite) verifyMessage(msg Message, event models.Event) {
 
 func (s *PublisherSuite) TestBasicPublish() {
 	event := testutil.EventFactory.Any(
-		testutil.EventFactory.WithData(map[string]interface{}{
+		testutil.EventFactory.WithDataMap(map[string]interface{}{
 			"test_key": "test_value",
 		}),
 		testutil.EventFactory.WithMetadata(map[string]string{
@@ -202,7 +168,7 @@ func (s *PublisherSuite) TestPublishWithDeliveryMetadata() {
 	defer pub.Close()
 
 	event := testutil.EventFactory.Any(
-		testutil.EventFactory.WithData(map[string]interface{}{
+		testutil.EventFactory.WithDataMap(map[string]interface{}{
 			"test_key": "test_value",
 		}),
 		testutil.EventFactory.WithMetadata(map[string]string{
@@ -233,7 +199,7 @@ func (s *PublisherSuite) TestConcurrentPublish() {
 	events := make([]models.Event, numMessages)
 	for i := 0; i < numMessages; i++ {
 		events[i] = testutil.EventFactory.Any(
-			testutil.EventFactory.WithData(map[string]interface{}{
+			testutil.EventFactory.WithDataMap(map[string]interface{}{
 				"message_id": i,
 			}),
 		)
@@ -318,7 +284,7 @@ func (s *PublisherSuite) TestClosePublisherDuringConcurrentPublish() {
 			case <-ticker.C:
 				totalAttempts.Add(1)
 				event := testutil.EventFactory.Any(
-					testutil.EventFactory.WithData(map[string]interface{}{
+					testutil.EventFactory.WithDataMap(map[string]interface{}{
 						"message_id": messageID,
 					}),
 				)

@@ -69,34 +69,6 @@ builds:
     goarch:
       - arm64
 
-  # Migration binary
-  - id: outpost-migrate-redis
-    ldflags:
-      - -s -w
-      - -X github.com/hookdeck/outpost/internal/version.version={{.Version}}
-      - -X github.com/hookdeck/outpost/internal/version.commit={{.FullCommit}}
-    binary: outpost-migrate-redis
-    env:
-      - CGO_ENABLED=0
-    main: ./cmd/outpost-migrate-redis
-    goos:
-      - linux
-    goarch:
-      - amd64
-  - id: outpost-migrate-redis-arm64
-    ldflags:
-      - -s -w
-      - -X github.com/hookdeck/outpost/internal/version.version={{.Version}}
-      - -X github.com/hookdeck/outpost/internal/version.commit={{.FullCommit}}
-    binary: outpost-migrate-redis
-    env:
-      - CGO_ENABLED=0
-    main: ./cmd/outpost-migrate-redis
-    goos:
-      - linux
-    goarch:
-      - arm64
-
 archives:
   - format: tar.gz
     # this name template makes the OS and Arch compatible with the results of `uname`.
@@ -126,7 +98,6 @@ dockers:
     ids:
       - outpost
       - outpost-server
-      - outpost-migrate-redis
     extra_files:
       - build/entrypoint.sh
     image_templates:
@@ -147,7 +118,6 @@ dockers:
     ids:
       - outpost-arm64
       - outpost-server-arm64
-      - outpost-migrate-redis-arm64
     extra_files:
       - build/entrypoint.sh
     image_templates:

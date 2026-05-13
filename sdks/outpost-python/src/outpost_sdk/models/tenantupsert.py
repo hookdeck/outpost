@@ -15,12 +15,12 @@ from typing_extensions import NotRequired, TypedDict
 
 class TenantUpsertTypedDict(TypedDict):
     metadata: NotRequired[Nullable[Dict[str, str]]]
-    r"""Optional metadata to store with the tenant."""
+    r"""Optional key/value metadata to store with the tenant."""
 
 
 class TenantUpsert(BaseModel):
     metadata: OptionalNullable[Dict[str, str]] = UNSET
-    r"""Optional metadata to store with the tenant."""
+    r"""Optional key/value metadata to store with the tenant."""
 
     @model_serializer(mode="wrap")
     def serialize_model(self, handler):
@@ -31,7 +31,7 @@ class TenantUpsert(BaseModel):
 
         for n, f in type(self).model_fields.items():
             k = f.alias or n
-            val = serialized.get(k)
+            val = serialized.get(k, serialized.get(n))
             is_nullable_and_explicitly_set = (
                 k in nullable_fields
                 and (self.__pydantic_fields_set__.intersection({n}))  # pylint: disable=no-member

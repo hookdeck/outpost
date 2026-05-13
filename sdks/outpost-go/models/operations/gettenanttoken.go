@@ -6,25 +6,14 @@ import (
 	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
 )
 
-type GetTenantTokenGlobals struct {
-	TenantID *string `pathParam:"style=simple,explode=false,name=tenant_id"`
-}
-
-func (g *GetTenantTokenGlobals) GetTenantID() *string {
-	if g == nil {
-		return nil
-	}
-	return g.TenantID
-}
-
 type GetTenantTokenRequest struct {
 	// The ID of the tenant. Required when using AdminApiKey authentication.
-	TenantID *string `pathParam:"style=simple,explode=false,name=tenant_id"`
+	TenantID string `pathParam:"style=simple,explode=false,name=tenant_id"`
 }
 
-func (g *GetTenantTokenRequest) GetTenantID() *string {
+func (g *GetTenantTokenRequest) GetTenantID() string {
 	if g == nil {
-		return nil
+		return ""
 	}
 	return g.TenantID
 }

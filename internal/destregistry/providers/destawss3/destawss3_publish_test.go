@@ -2,7 +2,6 @@ package destawss3_test
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"testing"
@@ -133,14 +132,12 @@ type S3Asserter struct{}
 
 func (a *S3Asserter) AssertMessage(t testsuite.TestingT, msg testsuite.Message, event models.Event) {
 	// 1. Assert event data matches using JSON comparison (handles int/float64 conversion)
-	expectedJSON, err := json.Marshal(event.Data)
-	assert.NoError(t, err, "should be able to marshal expected data")
-	assert.JSONEq(t, string(expectedJSON), string(msg.Data), "event data should match")
+	assert.JSONEq(t, string(event.Data), string(msg.Data), "event data should match")
 
 	// 2. Assert system metadata is present
 	metadata := msg.Metadata
 	assert.NotEmpty(t, metadata["timestamp"], "timestamp should be present")
-	testsuite.AssertTimestampIsUnixSeconds(t, metadata["timestamp"])
+	testsuite.AssertTimestampIsISO8601(t, metadata["timestamp"])
 	assert.Equal(t, event.ID, metadata["event-id"], "event-id should match")
 	assert.Equal(t, event.Topic, metadata["topic"], "topic should match")
 

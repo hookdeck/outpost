@@ -2,6 +2,7 @@ package config
 
 import (
 	"context"
+	"time"
 
 	"github.com/hookdeck/outpost/internal/mqinfra"
 	"github.com/hookdeck/outpost/internal/mqs"
@@ -96,6 +97,7 @@ func (c *AzureServiceBusConfig) ToQueueConfig(ctx context.Context, queueType str
 				Topic:            topic,
 				Subscription:     subscription,
 			},
+			VisibilityTimeout: 60 * time.Second,
 		}, nil
 	}
 
@@ -110,6 +112,7 @@ func (c *AzureServiceBusConfig) ToQueueConfig(ctx context.Context, queueType str
 			ResourceGroup:  c.ResourceGroup,
 			Namespace:      c.Namespace,
 		},
+		VisibilityTimeout: 60 * time.Second,
 	}, nil
 }
 

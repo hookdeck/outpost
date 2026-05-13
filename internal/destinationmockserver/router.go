@@ -1,6 +1,7 @@
 package destinationmockserver
 
 import (
+	"io"
 	"log"
 	"net/http"
 	"strings"
@@ -9,11 +10,11 @@ import (
 	"github.com/hookdeck/outpost/internal/models"
 )
 
-func NewRouter(entityStore EntityStore) http.Handler {
+func NewRouter(store MockStore) http.Handler {
 	r := gin.Default()
 
 	handlers := Handlers{
-		entityStore: entityStore,
+		store: store,
 	}
 
 	r.GET("/healthz", func(c *gin.Context) {
@@ -33,11 +34,11 @@ func NewRouter(entityStore EntityStore) http.Handler {
 }
 
 type Handlers struct {
-	entityStore EntityStore
+	store MockStore
 }
 
 func (h *Handlers) ListDestination(c *gin.Context) {
-	if destinations, err := h.entityStore.ListDestination(c.Request.Context()); err != nil {
+	if destinations, err := h.store.ListDestination(c.Request.Context()); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
 		return
 	} else {
@@ -51,7 +52,7 @@ func (h *Handlers) UpsertDestination(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
 		return
 	}
-	if err := h.entityStore.UpsertDestination(c.Request.Context(), input); err != nil {
+	if err := h.store.UpsertDestination(c.Request.Context(), input); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
 		return
 	}
@@ -59,7 +60,7 @@ func (h *Handlers) UpsertDestination(c *gin.Context) {
 }
 
 func (h *Handlers) DeleteDestination(c *gin.Context) {
-	if err := h.entityStore.DeleteDestination(c.Request.Context(), c.Param("destinationID")); err != nil {
+	if err := h.store.DeleteDestination(c.Request.Context(), c.Param("destinationID")); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
 		return
 	}
@@ -68,7 +69,7 @@ func (h *Handlers) DeleteDestination(c *gin.Context) {
 
 func (h *Handlers) ReceiveWebhookEvent(c *gin.Context) {
 	destinationID := c.Param("destinationID")
-	destination, err := h.entityStore.RetrieveDestination(c.Request.Context(), destinationID)
+	destination, err := h.store.RetrieveDestination(c.Request.Context(), destinationID)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
 		return
@@ -78,8 +79,8 @@ func (h *Handlers) ReceiveWebhookEvent(c *gin.Context) {
 		return
 	}
 
-	var input map[string]interface{}
-	if err := c.ShouldBindJSON(&input); err != nil {
+	rawBody, err := io.ReadAll(c.Request.Body)
+	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
 		return
 	}
@@ -94,7 +95,7 @@ func (h *Handlers) ReceiveWebhookEvent(c *gin.Context) {
 	}
 	log.Println("metadata", metadata)
 
-	if event, err := h.entityStore.ReceiveEvent(c.Request.Context(), destinationID, input, metadata); err != nil {
+	if event, err := h.store.ReceiveEvent(c.Request.Context(), destinationID, rawBody, metadata); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
 		return
 	} else {
@@ -108,7 +109,7 @@ func (h *Handlers) ReceiveWebhookEvent(c *gin.Context) {
 
 func (h *Handlers) ListEvent(c *gin.Context) {
 	destinationID := c.Param("destinationID")
-	destination, err := h.entityStore.RetrieveDestination(c.Request.Context(), destinationID)
+	destination, err := h.store.RetrieveDestination(c.Request.Context(), destinationID)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
 		return
@@ -117,7 +118,7 @@ func (h *Handlers) ListEvent(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"message": "destination not found"})
 		return
 	}
-	if events, err := h.entityStore.ListEvent(c.Request.Context(), destinationID); err != nil {
+	if events, err := h.store.ListEvent(c.Request.Context(), destinationID); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
 		return
 	} else {
@@ -127,7 +128,7 @@ func (h *Handlers) ListEvent(c *gin.Context) {
 
 func (h *Handlers) ClearEvents(c *gin.Context) {
 	destinationID := c.Param("destinationID")
-	destination, err := h.entityStore.RetrieveDestination(c.Request.Context(), destinationID)
+	destination, err := h.store.RetrieveDestination(c.Request.Context(), destinationID)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
 		return
@@ -136,7 +137,7 @@ func (h *Handlers) ClearEvents(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"message": "destination not found"})
 		return
 	}
-	if err := h.entityStore.ClearEvents(c.Request.Context(), destinationID); err != nil {
+	if err := h.store.ClearEvents(c.Request.Context(), destinationID); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
 		return
 	}

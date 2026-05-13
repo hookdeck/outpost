@@ -3,6 +3,8 @@
 
 log_level: debug
 
+deployment_id: "deployment_1"
+
 # Infrastructure
 redis:
   host: "redis"
@@ -66,19 +68,27 @@ topics:
 
 portal:
   proxy_url: "http://portal:3334"
+  force_theme: "dark"
+  enable_webhook_custom_headers: true
 
 # ID Generation
 idgen:
   type: "nanoid"
-  event_prefix: "evt"
-  destination_prefix: "des"
-  delivery_prefix: "dlv"
-  delivery_event_prefix: "dev"
+  attempt_prefix: "atm_"
+  destination_prefix: "des_"
+  event_prefix: "evt_"
+  delivery_prefix: "del_"
+  delivery_event_prefix: "dev_"
 
 # Concurrency
 publish_max_concurrency: 1
 delivery_max_concurrency: 100
 log_max_concurrency: 1
+
+# Destinations
+destinations:
+  webhook:
+    signing_secret_template: "whsec_{{.RandomHex}}"
 
 # Telemetry (disabled for local dev)
 telemetry:

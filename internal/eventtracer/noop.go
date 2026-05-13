@@ -24,12 +24,12 @@ func (t *noopEventTracer) Receive(ctx context.Context, _ *models.Event) (context
 	return ctx, span
 }
 
-func (t *noopEventTracer) StartDelivery(ctx context.Context, deliveryEvent *models.DeliveryEvent) (context.Context, trace.Span) {
+func (t *noopEventTracer) StartDelivery(ctx context.Context, task *models.DeliveryTask) (context.Context, trace.Span) {
 	_, span := t.tracer.Start(ctx, "EventTracer.StartDelivery")
 	return ctx, span
 }
 
-func (t *noopEventTracer) Deliver(ctx context.Context, deliveryEvent *models.DeliveryEvent, destination *models.Destination) (context.Context, trace.Span) {
+func (t *noopEventTracer) Deliver(ctx context.Context, task *models.DeliveryTask, destination *models.Destination) (context.Context, trace.Span) {
 	_, span := t.tracer.Start(ctx, "EventTracer.Deliver")
 	return ctx, span
 }

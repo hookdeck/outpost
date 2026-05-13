@@ -4,7 +4,9 @@ dotenv.config();
 import { Outpost } from "@hookdeck/outpost-sdk";
 
 const ADMIN_API_KEY = process.env.ADMIN_API_KEY;
-const SERVER_URL = process.env.OUTPOST_URL || "http://localhost:3333";
+const apiServerURL =
+  process.env.API_BASE_URL ||
+  `${process.env.SERVER_URL || "http://localhost:3333"}/api/v1`;
 
 if (!ADMIN_API_KEY) {
   console.error("Please set the ADMIN_API_KEY environment variable.");
@@ -12,10 +14,10 @@ if (!ADMIN_API_KEY) {
 }
 
 async function manageOutpostResources() {
-  // 1. Create an Outpost instance using the AdminAPIKey
+  // 1. Create an Outpost instance using the Admin API Key
   const outpostAdmin = new Outpost({
-    security: { adminApiKey: ADMIN_API_KEY },
-    serverURL: `${SERVER_URL}/api/v1`,
+    apiKey: ADMIN_API_KEY,
+    serverURL: apiServerURL,
   });
 
   const tenantId = `hookdeck`;
@@ -25,24 +27,19 @@ async function manageOutpostResources() {
   try {
     // 2. Create a tenant
     console.log(`Creating tenant: ${tenantId}`);
-    const tenant = await outpostAdmin.tenants.upsert({
-      tenantId,
-    });
+    const tenant = await outpostAdmin.tenants.upsert(tenantId);
     console.log("Tenant created successfully:", tenant);
 
     // 3. Create a destination for the tenant
     console.log(
       `Creating destination: ${newDestinationName} for tenant ${tenantId}...`
     );
-    const destination = await outpostAdmin.destinations.create({
-      tenantId,
-      params: {
-        type: "webhook",
-        config: {
-          url: "https://example.com/webhook-receiver",
-        },
-        topics: [topic],
+    const destination = await outpostAdmin.destinations.create(tenantId, {
+      type: "webhook",
+      config: {
+        url: "https://example.com/webhook-receiver",
       },
+      topics: [topic],
     });
     console.log("Destination created successfully:", destination);
 
@@ -54,7 +51,7 @@ async function manageOutpostResources() {
     };
 
     console.log(`Publishing event to topic ${topic} for tenant ${tenantId}...`);
-    await outpostAdmin.publish.event({
+    await outpostAdmin.publish({
       data: eventPayload,
       tenantId,
       topic,

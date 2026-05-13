@@ -368,7 +368,7 @@ For most users, `azure-deploy.sh` offers a balance of automation, reliability, a
 
 If you are not using the `dependencies.sh` and `local-deploy.sh` scripts to provision your infrastructure, you will need to create the `.env.outpost` and `.env.runtime` files manually.
 
-See the [Configure Azure Service Bus as the Outpost Internal Message Queue](https://outpost.hookdeck.com/docs/guides/service-bus-internal-mq) guide for more details on the environment variables required for Outpost and how to create the values.
+See the [Configure Azure Service Bus as the Outpost Internal Message Queue](https://hookdeck.com/docs/outpost/self-hosting/guides/service-bus-internal-mq) guide for more details on the environment variables required for Outpost and how to create the values.
 
 ### `.env.outpost`
 

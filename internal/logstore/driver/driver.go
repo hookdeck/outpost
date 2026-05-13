@@ -16,12 +16,18 @@ type TimeFilter struct {
 	LT  *time.Time // Less than (<)
 }
 
-type LogStore interface {
+type Records interface {
 	ListEvent(context.Context, ListEventRequest) (ListEventResponse, error)
-	ListDeliveryEvent(context.Context, ListDeliveryEventRequest) (ListDeliveryEventResponse, error)
+	ListAttempt(context.Context, ListAttemptRequest) (ListAttemptResponse, error)
 	RetrieveEvent(ctx context.Context, request RetrieveEventRequest) (*models.Event, error)
-	RetrieveDeliveryEvent(ctx context.Context, request RetrieveDeliveryEventRequest) (*models.DeliveryEvent, error)
-	InsertManyDeliveryEvent(context.Context, []*models.DeliveryEvent) error
+	RetrieveAttempt(ctx context.Context, request RetrieveAttemptRequest) (*AttemptRecord, error)
+	InsertMany(context.Context, []*models.LogEntry) error
+}
+
+// LogStore is the combined interface that all driver implementations must satisfy.
+type LogStore interface {
+	Records
+	Metrics
 }
 
 type ListEventRequest struct {
@@ -29,7 +35,8 @@ type ListEventRequest struct {
 	Prev           string
 	Limit          int
 	TimeFilter     TimeFilter // optional - filter events by time
-	TenantID       string     // optional - filter by tenant (if empty, returns all tenants)
+	TenantIDs      []string   // optional - filter by tenant (if empty, returns all tenants)
+	EventIDs       []string   // optional - filter by event ID
 	DestinationIDs []string   // optional
 	Topics         []string   // optional
 	SortOrder      string     // optional: "asc", "desc" (default: "desc")
@@ -41,32 +48,38 @@ type ListEventResponse struct {
 	Prev string
 }
 
-type ListDeliveryEventRequest struct {
-	Next           string
-	Prev           string
-	Limit          int
-	TimeFilter     TimeFilter // optional - filter deliveries by time
-	TenantID       string     // optional - filter by tenant (if empty, returns all tenants)
-	EventID        string     // optional - filter for specific event
-	DestinationIDs []string   // optional
-	Status         string     // optional: "success", "failed"
-	Topics         []string   // optional
-	SortOrder      string     // optional: "asc", "desc" (default: "desc")
+type ListAttemptRequest struct {
+	Next             string
+	Prev             string
+	Limit            int
+	TimeFilter       TimeFilter // optional - filter attempts by time
+	TenantIDs        []string   // optional - filter by tenant (if empty, returns all tenants)
+	EventIDs         []string   // optional - filter by event ID
+	DestinationIDs   []string   // optional
+	DestinationTypes []string   // optional - filter by destination type
+	Status           string     // optional: "success", "failed"
+	Topics           []string   // optional
+	SortOrder        string     // optional: "asc", "desc" (default: "desc")
 }
 
-type ListDeliveryEventResponse struct {
-	Data []*models.DeliveryEvent
+type ListAttemptResponse struct {
+	Data []*AttemptRecord
 	Next string
 	Prev string
 }
 
 type RetrieveEventRequest struct {
-	TenantID      string // optional - filter by tenant (if empty, searches all tenants)
-	EventID       string // required
-	DestinationID string // optional - if provided, scopes to that destination
+	TenantID string // optional - filter by tenant (if empty, searches all tenants)
+	EventID  string // required
 }
 
-type RetrieveDeliveryEventRequest struct {
-	TenantID   string // optional - filter by tenant (if empty, searches all tenants)
-	DeliveryID string // required
+type RetrieveAttemptRequest struct {
+	TenantID  string // optional - filter by tenant (if empty, searches all tenants)
+	AttemptID string // required
+}
+
+// AttemptRecord represents an attempt query result with optional Event population.
+type AttemptRecord struct {
+	Attempt *models.Attempt
+	Event   *models.Event // optionally populated for query results
 }

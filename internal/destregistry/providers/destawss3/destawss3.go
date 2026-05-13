@@ -5,7 +5,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -202,9 +201,12 @@ func parseTimeFields(t time.Time) map[string]interface{} {
 
 func (p *AWSS3Publisher) makeKey(event *models.Event, metadata map[string]string) (string, error) {
 	// Convert event data to map[string]interface{}
-	dataMap := make(map[string]interface{})
-	for k, v := range event.Data {
-		dataMap[k] = v
+	dataMap, err := event.ParsedData()
+	if err != nil {
+		return "", fmt.Errorf("failed to parse event data: %w", err)
+	}
+	if dataMap == nil {
+		dataMap = make(map[string]interface{})
 	}
 
 	// Convert metadata to map[string]interface{} for JMESPath
@@ -262,10 +264,7 @@ func (p *AWSS3Publisher) getChecksums(payload []byte) (string, error) {
 }
 
 func (p *AWSS3Publisher) Format(_ context.Context, event *models.Event) (*s3.PutObjectInput, error) {
-	data, err := json.Marshal(event.Data)
-	if err != nil {
-		return nil, err
-	}
+	data := []byte(event.Data)
 
 	// Get merged metadata (system + event metadata)
 	metadata := p.BasePublisher.MakeMetadata(event, time.Now())

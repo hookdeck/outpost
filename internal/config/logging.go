@@ -3,6 +3,7 @@ package config
 import (
 	"strings"
 
+	"github.com/hookdeck/outpost/internal/version"
 	"go.uber.org/zap"
 )
 
@@ -22,6 +23,7 @@ func (c *Config) LogConfigurationSummary() []zap.Field {
 	fields := []zap.Field{
 		// General
 		zap.String("service", c.Service),
+		zap.String("version", version.Version()),
 		zap.String("config_file_path", func() string {
 			if c.configPath != "" {
 				return c.configPath
@@ -32,7 +34,6 @@ func (c *Config) LogConfigurationSummary() []zap.Field {
 		zap.Bool("audit_log", c.AuditLog),
 		zap.String("deployment_id", c.DeploymentID),
 		zap.Strings("topics", c.Topics),
-		zap.String("organization_name", c.OrganizationName),
 		zap.String("http_user_agent", c.HTTPUserAgent),
 
 		// API
@@ -55,6 +56,13 @@ func (c *Config) LogConfigurationSummary() []zap.Field {
 		// PostgreSQL
 		zap.Bool("postgres_configured", c.PostgresURL != ""),
 		zap.String("postgres_host", maskPostgresURLHost(c.PostgresURL)),
+
+		// ClickHouse
+		zap.Bool("clickhouse_configured", c.ClickHouse.Addr != ""),
+		zap.String("clickhouse_addr", c.ClickHouse.Addr),
+		zap.String("clickhouse_database", c.ClickHouse.Database),
+		zap.Bool("clickhouse_password_configured", c.ClickHouse.Password != ""),
+		zap.Bool("clickhouse_tls_enabled", c.ClickHouse.TLSEnabled),
 
 		// Message Queue
 		zap.String("mq_type", c.MQs.GetInfraType()),
@@ -85,13 +93,15 @@ func (c *Config) LogConfigurationSummary() []zap.Field {
 		zap.Bool("telemetry_disabled", c.Telemetry.Disabled || c.DisableTelemetry),
 
 		// Alert
-		zap.String("alert_callback_url", maskURL(c.Alert.CallbackURL)),
 		zap.Int("alert_consecutive_failure_count", c.Alert.ConsecutiveFailureCount),
 		zap.Bool("alert_auto_disable_destination", c.Alert.AutoDisableDestination),
 
 		// ID Generation
 		zap.String("idgen_type", c.IDGen.Type),
 		zap.String("idgen_event_prefix", c.IDGen.EventPrefix),
+
+		// Retention
+		zap.Int("clickhouse_log_retention_ttl_days", c.ClickHouseLogRetentionTTLDays),
 	}
 
 	// Add MQ-specific fields based on type

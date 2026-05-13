@@ -93,10 +93,10 @@ func RandomString(length int) string {
 }
 
 func RandomPortNumber() int {
-	return 3500 + mathrand.Intn(100)
+	return 10000 + mathrand.Intn(50000)
 }
 
-// Create a random port number between 3500 and 3600
+// RandomPort returns a random port string in the range :10000–:59999.
 func RandomPort() string {
 	return ":" + strconv.Itoa(RandomPortNumber())
 }

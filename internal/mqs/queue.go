@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"time"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
@@ -17,6 +18,8 @@ type QueueConfig struct {
 	GCPPubSub       *GCPPubSubConfig
 	RabbitMQ        *RabbitMQConfig
 	InMemory        *InMemoryConfig // mainly for testing purposes
+
+	VisibilityTimeout time.Duration
 }
 
 type InMemoryConfig struct {
@@ -26,12 +29,41 @@ type InMemoryConfig struct {
 type Queue interface {
 	Init(ctx context.Context) (func(), error)
 	Publish(ctx context.Context, msg IncomingMessage) error
-	Subscribe(ctx context.Context) (Subscription, error)
+	Subscribe(ctx context.Context, opts ...SubscribeOption) (Subscription, error)
 }
 
 type Subscription interface {
 	Receive(ctx context.Context) (*Message, error)
 	Shutdown(ctx context.Context) error
+}
+
+// ConcurrentSubscription indicates a subscription that manages its own concurrency
+// internally (e.g. via SDK flow control). When true, the consumer should skip its
+// own semaphore-based concurrency limiting.
+type ConcurrentSubscription interface {
+	SupportsConcurrency() bool
+}
+
+// SubscribeOption configures subscription behavior.
+type SubscribeOption func(*SubscribeOptions)
+
+// SubscribeOptions holds options for Subscribe.
+type SubscribeOptions struct {
+	Concurrency int
+}
+
+// WithConcurrency sets the max in-flight messages for the subscription.
+func WithConcurrency(n int) SubscribeOption {
+	return func(o *SubscribeOptions) { o.Concurrency = n }
+}
+
+// ApplySubscribeOptions applies all options and returns the result.
+func ApplySubscribeOptions(opts []SubscribeOption) SubscribeOptions {
+	var o SubscribeOptions
+	for _, opt := range opts {
+		opt(&o)
+	}
+	return o
 }
 
 type QueueMessage interface {
@@ -59,7 +91,7 @@ func NewQueue(config *QueueConfig) Queue {
 	} else if config.AzureServiceBus != nil {
 		return NewAzureServiceBusQueue(config.AzureServiceBus)
 	} else if config.GCPPubSub != nil {
-		return NewGCPPubSubQueue(config.GCPPubSub)
+		return NewGCPPubSubQueue(config.GCPPubSub, config.VisibilityTimeout)
 	} else if config.RabbitMQ != nil {
 		return NewRabbitMQQueue(config.RabbitMQ)
 	} else {
@@ -81,7 +113,7 @@ func (q *UnimplementedQueue) Publish(ctx context.Context, msg IncomingMessage) e
 	return errors.New("unimplemented")
 }
 
-func (q *UnimplementedQueue) Subscribe(ctx context.Context) (Subscription, error) {
+func (q *UnimplementedQueue) Subscribe(ctx context.Context, opts ...SubscribeOption) (Subscription, error) {
 	return nil, errors.New("unimplemented")
 }
 
@@ -108,7 +140,7 @@ func (q *InMemoryQueue) Publish(ctx context.Context, incomingMessage IncomingMes
 	return q.base.Publish(ctx, q.topic, incomingMessage, nil)
 }
 
-func (q *InMemoryQueue) Subscribe(ctx context.Context) (Subscription, error) {
+func (q *InMemoryQueue) Subscribe(ctx context.Context, opts ...SubscribeOption) (Subscription, error) {
 	subscription, err := pubsub.OpenSubscription(ctx, q.topicName)
 	if err != nil {
 		return nil, err

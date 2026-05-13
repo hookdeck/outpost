@@ -141,6 +141,17 @@ type QueueMessage struct {
 	Sent    time.Time
 }
 
+// Client is the subset of *RedisSMQ methods used by consumers (e.g., scheduler)
+type Client interface {
+	CreateQueue(qname string, vt uint, delay uint, maxsize int) error
+	ReceiveMessage(qname string, vt uint) (*QueueMessage, error)
+	SendMessage(qname string, message string, delay uint, opts ...SendMessageOption) (string, error)
+	DeleteMessage(qname string, id string) error
+	Quit() error
+}
+
+var _ Client = (*RedisSMQ)(nil)
+
 // NewRedisSMQ creates and returns new rsmq client
 func NewRedisSMQ(client RedisClient, ns string, logger ...*logging.Logger) *RedisSMQ {
 	if client == nil {
@@ -556,7 +567,18 @@ func (rsmq *RedisSMQ) PopMessage(qname string) (*QueueMessage, error) {
 }
 
 func (rsmq *RedisSMQ) createQueueMessage(cmd *redis.Cmd) (*QueueMessage, error) {
+	// Check for command error first
+	if err := cmd.Err(); err != nil {
+		return nil, fmt.Errorf("rsmq command failed: %w", err)
+	}
+
 	val := cmd.Val()
+
+	// Handle nil response - some Redis-compatible databases (e.g., Dragonfly)
+	// may return nil instead of empty array when no message is available
+	if val == nil {
+		return nil, nil
+	}
 
 	// Try different type assertions for cluster vs regular client compatibility
 	var vals []any

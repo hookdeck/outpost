@@ -9,48 +9,20 @@ from typing import Optional
 from typing_extensions import Annotated, NotRequired, TypedDict
 
 
-class UpsertTenantGlobalsTypedDict(TypedDict):
-    tenant_id: NotRequired[str]
-
-
-class UpsertTenantGlobals(BaseModel):
-    tenant_id: Annotated[
-        Optional[str],
-        FieldMetadata(path=PathParamMetadata(style="simple", explode=False)),
-    ] = None
-
-    @model_serializer(mode="wrap")
-    def serialize_model(self, handler):
-        optional_fields = set(["tenant_id"])
-        serialized = handler(self)
-        m = {}
-
-        for n, f in type(self).model_fields.items():
-            k = f.alias or n
-            val = serialized.get(k)
-
-            if val != UNSET_SENTINEL:
-                if val is not None or k not in optional_fields:
-                    m[k] = val
-
-        return m
-
-
 class UpsertTenantRequestTypedDict(TypedDict):
-    tenant_id: NotRequired[str]
+    tenant_id: str
     r"""The ID of the tenant. Required when using AdminApiKey authentication."""
-    params: NotRequired[TenantUpsertTypedDict]
+    body: NotRequired[TenantUpsertTypedDict]
     r"""Optional tenant metadata"""
 
 
 class UpsertTenantRequest(BaseModel):
     tenant_id: Annotated[
-        Optional[str],
-        FieldMetadata(path=PathParamMetadata(style="simple", explode=False)),
-    ] = None
+        str, FieldMetadata(path=PathParamMetadata(style="simple", explode=False))
+    ]
     r"""The ID of the tenant. Required when using AdminApiKey authentication."""
 
-    params: Annotated[
+    body: Annotated[
         Optional[TenantUpsert],
         FieldMetadata(request=RequestMetadata(media_type="application/json")),
     ] = None
@@ -58,13 +30,13 @@ class UpsertTenantRequest(BaseModel):
 
     @model_serializer(mode="wrap")
     def serialize_model(self, handler):
-        optional_fields = set(["tenant_id", "params"])
+        optional_fields = set(["body"])
         serialized = handler(self)
         m = {}
 
         for n, f in type(self).model_fields.items():
             k = f.alias or n
-            val = serialized.get(k)
+            val = serialized.get(k, serialized.get(n))
 
             if val != UNSET_SENTINEL:
                 if val is not None or k not in optional_fields:

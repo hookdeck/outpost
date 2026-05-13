@@ -3,49 +3,22 @@
 package components
 
 import (
-	"encoding/json"
-	"fmt"
 	"github.com/hookdeck/outpost/sdks/outpost-go/internal/utils"
+	"github.com/hookdeck/outpost/sdks/outpost-go/optionalnullable"
 	"time"
 )
 
-type EventStatus string
-
-const (
-	EventStatusSuccess EventStatus = "success"
-	EventStatusFailed  EventStatus = "failed"
-)
-
-func (e EventStatus) ToPointer() *EventStatus {
-	return &e
-}
-func (e *EventStatus) UnmarshalJSON(data []byte) error {
-	var v string
-	if err := json.Unmarshal(data, &v); err != nil {
-		return err
-	}
-	switch v {
-	case "success":
-		fallthrough
-	case "failed":
-		*e = EventStatus(v)
-		return nil
-	default:
-		return fmt.Errorf("invalid value for EventStatus: %v", v)
-	}
-}
-
 type Event struct {
-	ID            *string `json:"id,omitempty"`
-	DestinationID *string `json:"destination_id,omitempty"`
-	Topic         *string `json:"topic,omitempty"`
+	ID *string `json:"id,omitempty"`
+	// The tenant this event belongs to.
+	TenantID *string `json:"tenant_id,omitempty"`
+	// The destination IDs that this event was routed to based on topic and filter matching.
+	MatchedDestinationIds []string `json:"matched_destination_ids,omitempty"`
+	Topic                 *string  `json:"topic,omitempty"`
 	// Time the event was received/processed.
 	Time *time.Time `json:"time,omitempty"`
-	// Time the event was successfully delivered.
-	SuccessfulAt *time.Time `json:"successful_at,omitempty"`
 	// Key-value string pairs of metadata associated with the event.
-	Metadata map[string]string `json:"metadata,omitempty"`
-	Status   *EventStatus      `json:"status,omitempty"`
+	Metadata optionalnullable.OptionalNullable[map[string]string] `json:"metadata,omitempty"`
 	// Freeform JSON data of the event.
 	Data map[string]any `json:"data,omitempty"`
 }
@@ -68,11 +41,18 @@ func (e *Event) GetID() *string {
 	return e.ID
 }
 
-func (e *Event) GetDestinationID() *string {
+func (e *Event) GetTenantID() *string {
 	if e == nil {
 		return nil
 	}
-	return e.DestinationID
+	return e.TenantID
+}
+
+func (e *Event) GetMatchedDestinationIds() []string {
+	if e == nil {
+		return nil
+	}
+	return e.MatchedDestinationIds
 }
 
 func (e *Event) GetTopic() *string {
@@ -89,25 +69,11 @@ func (e *Event) GetTime() *time.Time {
 	return e.Time
 }
 
-func (e *Event) GetSuccessfulAt() *time.Time {
-	if e == nil {
-		return nil
-	}
-	return e.SuccessfulAt
-}
-
-func (e *Event) GetMetadata() map[string]string {
+func (e *Event) GetMetadata() optionalnullable.OptionalNullable[map[string]string] {
 	if e == nil {
 		return nil
 	}
 	return e.Metadata
-}
-
-func (e *Event) GetStatus() *EventStatus {
-	if e == nil {
-		return nil
-	}
-	return e.Status
 }
 
 func (e *Event) GetData() map[string]any {

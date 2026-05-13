@@ -1,6 +1,6 @@
 import "./DestinationList.scss";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import useSWR from "swr";
 
 import Badge from "../../common/Badge/Badge";
@@ -8,17 +8,33 @@ import Button from "../../common/Button/Button";
 import { Checkbox } from "../../common/Checkbox/Checkbox";
 import Dropdown from "../../common/Dropdown/Dropdown";
 import { AddIcon, FilterIcon, Loading } from "../../common/Icons";
+import { useBatchedMetrics } from "../../common/MetricsChart/useMetrics";
 import SearchInput from "../../common/SearchInput/SearchInput";
 import Table from "../../common/Table/Table";
 import Tooltip from "../../common/Tooltip/Tooltip";
 import CONFIGS from "../../config";
 import { useDestinationTypes } from "../../destination-types";
-import { Destination } from "../../typings/Destination";
+import type { Destination } from "../../typings/Destination";
 import getLogo from "../../utils/logo";
+import DestinationEventsCell from "./DestinationEventsCell";
 
 const DestinationList: React.FC = () => {
   const { data: destinations } = useSWR<Destination[]>("destinations");
   const destination_types = useDestinationTypes();
+
+  const destinationIds = useMemo(
+    () => destinations?.map((d) => d.id) ?? [],
+    [destinations],
+  );
+  const { data: batchedMetrics, isLoading: metricsLoading } =
+    useBatchedMetrics({
+      measures: ["successful_count", "failed_count"],
+      destinationIds,
+      timeframe: "24h",
+      granularity: "4h",
+      filters: {},
+    });
+
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedStatus, setSelectedStatus] = useState<Record<string, boolean>>(
     {},
@@ -30,9 +46,7 @@ const DestinationList: React.FC = () => {
     { header: "Target" },
     CONFIGS.TOPICS ? { header: "Topics", width: 120 } : null,
     { header: "Status", width: 120 },
-    // TODO: Uncomment when metrics are implemented
-    // { header: "Success Rate", width: 120 },
-    // { header: "Events (24h)", width: 120 },
+    { header: "Event Deliveries 24h", width: 170 },
   ].filter((column) => column !== null);
 
   const filtered_destinations =
@@ -123,9 +137,10 @@ const DestinationList: React.FC = () => {
         ) : (
           <Badge text="Active" success />
         ),
-        // TODO: Uncomment when metrics are implemented
-        // <span className="muted-variant">99.5% [TODO]</span>,
-        // <span className="muted-variant">100 [TODO]</span>,
+        <DestinationEventsCell
+          metricsData={batchedMetrics?.[destination.id]}
+          isLoading={metricsLoading}
+        />,
       ].filter((entry) => entry !== null),
       link: `/destinations/${destination.id}`,
     })) || [];

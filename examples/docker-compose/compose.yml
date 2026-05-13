@@ -1,9 +1,20 @@
 name: outpost-example
 services:
-  api:
-    image: hookdeck/outpost:v0.12.0
+  migrate:
+    image: hookdeck/outpost:v1.0.3
+    command: migrate apply --yes
     env_file: .env
     depends_on:
+      redis:
+        condition: service_started
+    restart: "no"
+
+  api:
+    image: hookdeck/outpost:v1.0.3
+    env_file: .env
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
       redis:
         condition: service_started
     volumes:
@@ -14,9 +25,11 @@ services:
       - 3333:3333
 
   delivery:
-    image: hookdeck/outpost:v0.12.0
+    image: hookdeck/outpost:v1.0.3
     env_file: .env
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       redis:
         condition: service_started
     volumes:
@@ -25,9 +38,11 @@ services:
       SERVICE: delivery
 
   log:
-    image: hookdeck/outpost:v0.12.0
+    image: hookdeck/outpost:v1.0.3
     env_file: .env
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       redis:
         condition: service_started
     volumes:

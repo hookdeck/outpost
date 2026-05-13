@@ -1,32 +1,33 @@
 import "./Destination.scss";
 
+import type { JSX } from "react";
 import { Link, Route, Routes, useLocation, useParams } from "react-router-dom";
 import useSWR from "swr";
 
 import Badge from "../../common/Badge/Badge";
 import { CopyButton } from "../../common/CopyButton/CopyButton";
+import JSONViewer from "../../common/JSONViewer/JSONViewer";
 import { Loading } from "../../common/Icons";
 import CONFIGS from "../../config";
 import { useDestinationType } from "../../destination-types";
-import {
+import type {
   Destination as DestinationType,
   DestinationTypeReference,
 } from "../../typings/Destination";
 import getLogo from "../../utils/logo";
+import DestinationMetrics from "./DestinationMetrics";
 import DestinationSettings from "./DestinationSettings/DestinationSettings";
-import { DeliveryRoutes } from "./Events/Deliveries";
+import { AttemptRoutes } from "./Events/Attempts";
 
-// Define the tab interface
 interface Tab {
   label: string;
   path: string;
 }
 
-// Define available tabs
 const tabs: Tab[] = [
   { label: "Overview", path: "" },
   { label: "Settings", path: "/settings" },
-  { label: "Deliveries", path: "/deliveries" },
+  { label: "Event Deliveries", path: "/deliveries" },
 ];
 
 const Destination = () => {
@@ -134,7 +135,7 @@ const Destination = () => {
             />
             <Route
               path="/deliveries/*"
-              element={<DeliveryRoutes destination={destination} />}
+              element={<AttemptRoutes destination={destination} />}
             />
             <Route
               path="/"
@@ -225,25 +226,13 @@ const Destination = () => {
                     destination.filter &&
                     Object.keys(destination.filter).length > 0 && (
                       <div className="filter-container">
-                        <h2 className="title-l">Event Filter</h2>
-                        <pre className="filter-json mono-s">
-                          {JSON.stringify(destination.filter, null, 2)}
-                        </pre>
+                        <JSONViewer
+                          data={destination.filter}
+                          label="Event Filter"
+                        />
                       </div>
                     )}
-                  {/* 
-                  TODO: Uncomment when metrics are implemented
-                  <div className="metrics-container">
-                    <h2 className="title-l">Metrics</h2>
-                    <div className="metrics-container__metrics">
-                      <div className="metrics-container__metric">
-                        <div>[TODO]</div>
-                      </div>
-                      <div className="metrics-container__metric">
-                        <div>[TODO]</div>
-                      </div>
-                    </div>
-                  </div> */}
+                  <DestinationMetrics destination={destination} />
                 </>
               }
             />

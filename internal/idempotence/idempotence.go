@@ -24,14 +24,16 @@ type Idempotence interface {
 }
 
 type IdempotenceImpl struct {
-	redisClient redis.Cmdable
-	options     IdempotenceImplOptions
-	tracer      trace.Tracer
+	redisClient  redis.Cmdable
+	deploymentID string
+	options      IdempotenceImplOptions
+	tracer       trace.Tracer
 }
 
 type IdempotenceImplOptions struct {
 	Timeout       time.Duration
 	SuccessfulTTL time.Duration
+	DeploymentID  string
 }
 
 func WithTimeout(timeout time.Duration) func(opts *IdempotenceImplOptions) {
@@ -46,6 +48,12 @@ func WithSuccessfulTTL(successfulTTL time.Duration) func(opts *IdempotenceImplOp
 	}
 }
 
+func WithDeploymentID(deploymentID string) func(opts *IdempotenceImplOptions) {
+	return func(opts *IdempotenceImplOptions) {
+		opts.DeploymentID = deploymentID
+	}
+}
+
 func New(redisClient redis.Cmdable, opts ...func(opts *IdempotenceImplOptions)) Idempotence {
 	options := &IdempotenceImplOptions{
 		Timeout:       DefaultTimeout,
@@ -57,21 +65,34 @@ func New(redisClient redis.Cmdable, opts ...func(opts *IdempotenceImplOptions)) 
 	}
 
 	return &IdempotenceImpl{
-		redisClient: redisClient,
-		options:     *options,
-		tracer:      otel.GetTracerProvider().Tracer("github.com/hookdeck/outpost/internal/idempotence"),
+		redisClient:  redisClient,
+		deploymentID: options.DeploymentID,
+		options:      *options,
+		tracer:       otel.GetTracerProvider().Tracer("github.com/hookdeck/outpost/internal/idempotence"),
 	}
 }
 
 var _ Idempotence = (*IdempotenceImpl)(nil)
 
+func (i *IdempotenceImpl) deploymentPrefix() string {
+	if i.deploymentID == "" {
+		return ""
+	}
+	return i.deploymentID + ":"
+}
+
+func (i *IdempotenceImpl) prefixKey(key string) string {
+	return i.deploymentPrefix() + key
+}
+
 func (i *IdempotenceImpl) Exec(ctx context.Context, key string, exec func(context.Context) error) error {
-	isIdempotent, err := i.checkIdempotency(ctx, key)
+	prefixedKey := i.prefixKey(key)
+	isIdempotent, err := i.checkIdempotency(ctx, prefixedKey)
 	if err != nil {
 		return err
 	}
 	if !isIdempotent {
-		processingStatus, err := i.getIdempotencyStatus(ctx, key)
+		processingStatus, err := i.getIdempotencyStatus(ctx, prefixedKey)
 		if err != nil {
 			// TODO: Question:
 			// What if err == redis.Nil here? It happens
@@ -87,7 +108,7 @@ func (i *IdempotenceImpl) Exec(ctx context.Context, key string, exec func(contex
 		}
 		if processingStatus == StatusProcessing {
 			time.Sleep(i.options.Timeout)
-			status, err := i.getIdempotencyStatus(ctx, key)
+			status, err := i.getIdempotencyStatus(ctx, prefixedKey)
 			if err != nil {
 				if err == redis.Nil {
 					// The previous consumer has err-ed and removed the processing key. We should also err
@@ -107,7 +128,7 @@ func (i *IdempotenceImpl) Exec(ctx context.Context, key string, exec func(contex
 	execCtx, span := i.tracer.Start(ctx, "Idempotence.Exec")
 	err = exec(execCtx)
 	if err != nil {
-		clearErr := i.clearIdempotency(ctx, key)
+		clearErr := i.clearIdempotency(ctx, prefixedKey)
 		if clearErr != nil {
 			finalErr := errors.Join(err, clearErr)
 			span.RecordError(finalErr)
@@ -121,7 +142,7 @@ func (i *IdempotenceImpl) Exec(ctx context.Context, key string, exec func(contex
 		span.End()
 	}
 
-	err = i.markProcessedIdempotency(ctx, key)
+	err = i.markProcessedIdempotency(ctx, prefixedKey)
 	if err != nil {
 		// TODO: Question: how to properly handle this error?
 		return err

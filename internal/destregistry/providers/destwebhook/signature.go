@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"hash"
 	"sort"
-	"strings"
 	"text/template"
 	"time"
 
@@ -68,28 +67,25 @@ type SignatureFormatterImpl struct {
 
 func NewSignatureFormatter(templateStr string) *SignatureFormatterImpl {
 	if templateStr == "" {
-		templateStr = `{{.Timestamp.Unix}}.{{.Body}}`
+		panic("signature content template is required — config must provide an explicit value")
 	}
 
 	tmpl := template.New("signature").Funcs(sprig.TxtFuncMap())
 
-	// Parse template, fallback to default if fails
 	parsed, err := tmpl.Parse(templateStr)
 	if err != nil {
-		parsed, _ = tmpl.Parse(`{{.Timestamp.Unix}}.{{.Body}}`)
+		panic(fmt.Sprintf("invalid signature content template %q: %v", templateStr, err))
 	}
 
 	return &SignatureFormatterImpl{template: parsed}
 }
 
-func (f *SignatureFormatterImpl) fallback(content SignaturePayload) string {
-	return fmt.Sprintf("%d.%s", content.Timestamp.Unix(), content.Body)
-}
-
 func (f *SignatureFormatterImpl) Format(content SignaturePayload) string {
 	var buf bytes.Buffer
 	if err := f.template.Execute(&buf, content); err != nil {
-		return f.fallback(content)
+		// Template was validated at construction time, so execution errors
+		// indicate a bug (e.g., nil field). Panic to surface it immediately.
+		panic(fmt.Sprintf("signature content template execution failed: %v", err))
 	}
 	return buf.String()
 }
@@ -100,28 +96,23 @@ type HeaderFormatterImpl struct {
 
 func NewHeaderFormatter(templateStr string) *HeaderFormatterImpl {
 	if templateStr == "" {
-		templateStr = `t={{.Timestamp.Unix}},v0={{.Signatures | join ","}}`
+		panic("signature header template is required — config must provide an explicit value")
 	}
 
 	tmpl := template.New("header").Funcs(sprig.TxtFuncMap())
 
-	// Parse template, fallback to default if fails
 	parsed, err := tmpl.Parse(templateStr)
 	if err != nil {
-		parsed, _ = tmpl.Parse(`t={{.Timestamp.Unix}},v0={{.Signatures | join ","}}`)
+		panic(fmt.Sprintf("invalid signature header template %q: %v", templateStr, err))
 	}
 
 	return &HeaderFormatterImpl{template: parsed}
 }
 
-func (f *HeaderFormatterImpl) fallback(content HeaderPayload) string {
-	return fmt.Sprintf("t=%d,v0=%s", content.Timestamp.Unix(), strings.Join(content.Signatures, ","))
-}
-
 func (f *HeaderFormatterImpl) Format(content HeaderPayload) string {
 	var buf bytes.Buffer
 	if err := f.template.Execute(&buf, content); err != nil {
-		return f.fallback(content)
+		panic(fmt.Sprintf("signature header template execution failed: %v", err))
 	}
 	return buf.String()
 }
@@ -203,15 +194,21 @@ func WithHeaderFormatter(formatter HeaderFormatter) SignatureManagerOption {
 
 func NewSignatureManager(secrets []WebhookSecret, opts ...SignatureManagerOption) *SignatureManager {
 	sm := &SignatureManager{
-		secrets:         secrets,
-		algorithm:       NewHmacSHA256(),
-		sigFormatter:    NewSignatureFormatter(""),
-		headerFormatter: NewHeaderFormatter(""),
-		encoder:         HexEncoder{},
+		secrets:   secrets,
+		algorithm: NewHmacSHA256(),
+		encoder:   HexEncoder{},
 	}
 
 	for _, opt := range opts {
 		opt(sm)
+	}
+
+	// Formatters must be provided explicitly — no hidden defaults
+	if sm.sigFormatter == nil {
+		panic("signature content formatter is required — use WithSignatureFormatter()")
+	}
+	if sm.headerFormatter == nil {
+		panic("signature header formatter is required — use WithHeaderFormatter()")
 	}
 
 	return sm

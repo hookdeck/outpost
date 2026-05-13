@@ -1,11 +1,13 @@
-import React, { useCallback, useContext, useState, MouseEvent } from "react";
+import React, { useCallback, useContext, useState } from "react";
+import type { MouseEvent } from "react";
 import Button from "../Button/Button";
 import { ReplayIcon } from "../Icons";
 import { showToast } from "../Toast/Toast";
-import { ApiContext } from "../../app";
+import { ApiContext, formatError } from "../../app";
 
 interface RetryDeliveryButtonProps {
-  deliveryId: string;
+  eventId: string;
+  destinationId: string;
   disabled: boolean;
   loading: boolean;
   completed: (success: boolean) => void;
@@ -14,7 +16,8 @@ interface RetryDeliveryButtonProps {
 }
 
 const RetryDeliveryButton: React.FC<RetryDeliveryButtonProps> = ({
-  deliveryId,
+  eventId,
+  destinationId,
   disabled,
   loading,
   completed,
@@ -29,23 +32,23 @@ const RetryDeliveryButton: React.FC<RetryDeliveryButtonProps> = ({
       e.stopPropagation();
       setRetrying(true);
       try {
-        await apiClient.fetch(`deliveries/${deliveryId}/retry`, {
+        await apiClient.fetchRoot("retry", {
           method: "POST",
+          body: JSON.stringify({
+            event_id: eventId,
+            destination_id: destinationId,
+          }),
         });
         showToast("success", "Retry successful.");
         completed(true);
-      } catch (error: any) {
-        showToast(
-          "error",
-          "Retry failed. " +
-            `${error.message.charAt(0).toUpperCase() + error.message.slice(1)}`,
-        );
+      } catch (error: unknown) {
+        showToast("error", "Retry failed. " + formatError(error));
         completed(false);
       }
 
       setRetrying(false);
     },
-    [apiClient, deliveryId, completed],
+    [apiClient, eventId, destinationId, completed],
   );
 
   return (

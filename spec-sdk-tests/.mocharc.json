@@ -1,5 +1,5 @@
 {
-  "require": ["ts-node/register"],
+  "require": ["ts-node/register", "./test-setup.ts"],
   "extensions": ["ts"],
   "spec": ["tests/**/*.test.ts"],
   "timeout": 10000,

@@ -3,15 +3,18 @@ package app
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
+	"github.com/hookdeck/outpost/internal/clickhouse"
 	"github.com/hookdeck/outpost/internal/config"
 	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/infra"
 	"github.com/hookdeck/outpost/internal/logging"
+	"github.com/hookdeck/outpost/internal/logretention"
 	"github.com/hookdeck/outpost/internal/otel"
 	"github.com/hookdeck/outpost/internal/redis"
 	"github.com/hookdeck/outpost/internal/services"
@@ -49,7 +52,7 @@ func (a *App) Run(ctx context.Context) error {
 }
 
 // PreRun initializes all dependencies before starting the application
-func (a *App) PreRun(ctx context.Context) error {
+func (a *App) PreRun(ctx context.Context) (err error) {
 	if err := a.setupLogger(); err != nil {
 		return err
 	}
@@ -57,6 +60,7 @@ func (a *App) PreRun(ctx context.Context) error {
 	defer func() {
 		if r := recover(); r != nil {
 			a.logger.Error("panic during PreRun", zap.Any("panic", r))
+			err = fmt.Errorf("panic during PreRun: %v", r)
 		}
 	}()
 
@@ -66,11 +70,15 @@ func (a *App) PreRun(ctx context.Context) error {
 		return err
 	}
 
-	if err := a.runMigrations(ctx); err != nil {
+	if err := a.initializeRedis(ctx); err != nil {
 		return err
 	}
 
-	if err := a.initializeRedis(ctx); err != nil {
+	if err := a.checkPendingMigrations(ctx); err != nil {
+		return err
+	}
+
+	if err := a.applyLogRetentionTTL(ctx); err != nil {
 		return err
 	}
 
@@ -119,21 +127,17 @@ func (a *App) PostRun(ctx context.Context) {
 }
 
 func (a *App) run(ctx context.Context) error {
-	// Set up cancellation context
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	// Handle sigterm and await termChan signal
 	termChan := make(chan os.Signal, 1)
 	signal.Notify(termChan, syscall.SIGINT, syscall.SIGTERM)
 
-	// Run workers in goroutine
 	errChan := make(chan error, 1)
 	go func() {
 		errChan <- a.supervisor.Run(ctx)
 	}()
 
-	// Wait for either termination signal or worker failure
 	var exitErr error
 	select {
 	case <-termChan:
@@ -173,24 +177,18 @@ func (a *App) configureIDGenerators() error {
 		zap.String("type", a.config.IDGen.Type),
 		zap.String("event_prefix", a.config.IDGen.EventPrefix),
 		zap.String("destination_prefix", a.config.IDGen.DestinationPrefix),
-		zap.String("delivery_prefix", a.config.IDGen.DeliveryPrefix),
-		zap.String("delivery_event_prefix", a.config.IDGen.DeliveryEventPrefix))
+		zap.String("attempt_prefix", a.config.IDGen.AttemptPrefix))
 
 	if err := idgen.Configure(idgen.IDGenConfig{
-		Type:                a.config.IDGen.Type,
-		EventPrefix:         a.config.IDGen.EventPrefix,
-		DestinationPrefix:   a.config.IDGen.DestinationPrefix,
-		DeliveryPrefix:      a.config.IDGen.DeliveryPrefix,
-		DeliveryEventPrefix: a.config.IDGen.DeliveryEventPrefix,
+		Type:              a.config.IDGen.Type,
+		EventPrefix:       a.config.IDGen.EventPrefix,
+		DestinationPrefix: a.config.IDGen.DestinationPrefix,
+		AttemptPrefix:     a.config.IDGen.AttemptPrefix,
 	}); err != nil {
 		a.logger.Error("failed to configure ID generators", zap.Error(err))
 		return err
 	}
 	return nil
-}
-
-func (a *App) runMigrations(ctx context.Context) error {
-	return runMigration(ctx, a.config, a.logger)
 }
 
 func (a *App) initializeRedis(ctx context.Context) error {
@@ -201,14 +199,16 @@ func (a *App) initializeRedis(ctx context.Context) error {
 		return err
 	}
 	a.redisClient = redisClient
-
-	// Run Redis schema migrations
-	if err := runRedisMigrations(ctx, redisClient, a.logger, a.config.DeploymentID); err != nil {
-		a.logger.Error("Redis migration failed", zap.Error(err))
-		return err
-	}
-
 	return nil
+}
+
+func (a *App) checkPendingMigrations(ctx context.Context) error {
+	a.logger.Debug("checking for pending migrations")
+	client, ok := a.redisClient.(redis.Client)
+	if !ok {
+		return fmt.Errorf("redis client does not implement full Client interface")
+	}
+	return checkPendingMigrations(ctx, a.config, client, a.logger)
 }
 
 func (a *App) initializeInfrastructure(ctx context.Context) error {
@@ -217,7 +217,7 @@ func (a *App) initializeInfrastructure(ctx context.Context) error {
 		DeliveryMQ:    a.config.MQs.ToInfraConfig("deliverymq"),
 		LogMQ:         a.config.MQs.ToInfraConfig("logmq"),
 		AutoProvision: a.config.MQs.AutoProvision,
-	}, a.redisClient); err != nil {
+	}, a.redisClient, a.logger, a.config.MQs.GetInfraType()); err != nil {
 		a.logger.Error("infrastructure initialization failed", zap.Error(err))
 		return err
 	}
@@ -225,7 +225,7 @@ func (a *App) initializeInfrastructure(ctx context.Context) error {
 }
 
 func (a *App) initializeTelemetry(ctx context.Context) error {
-	installationID, err := getInstallation(ctx, a.redisClient, a.config.Telemetry.ToTelemetryConfig())
+	installationID, err := getInstallation(ctx, a.redisClient, a.config.Telemetry.ToTelemetryConfig(), a.config.DeploymentID)
 	if err != nil {
 		return err
 	}
@@ -261,4 +261,22 @@ func (a *App) buildServices(ctx context.Context) error {
 	a.builder = builder
 	a.supervisor = supervisor
 	return nil
+}
+
+func (a *App) applyLogRetentionTTL(ctx context.Context) error {
+	// Skip if ClickHouse not configured
+	if a.config.ClickHouse.Addr == "" {
+		return nil
+	}
+
+	a.logger.Debug("applying log retention TTL")
+
+	chConn, err := clickhouse.New(a.config.ClickHouse.ToConfig())
+	if err != nil {
+		a.logger.Error("failed to connect to ClickHouse for TTL management", zap.Error(err))
+		return err
+	}
+	defer chConn.Close()
+
+	return logretention.Apply(ctx, a.redisClient, chConn, a.config.DeploymentID, a.config.ClickHouseLogRetentionTTLDays, a.logger)
 }

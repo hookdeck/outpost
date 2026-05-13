@@ -104,7 +104,6 @@ func (t *telemetryImpl) sendBatch(batch []telemetryEvent) {
 	jobs := make(chan telemetryEvent, len(batch))
 	var wg sync.WaitGroup
 
-	// Start workers
 	for i := 0; i < maxWorkers; i++ {
 		wg.Add(1)
 		go func() {
@@ -138,13 +137,11 @@ func (t *telemetryImpl) sendBatch(batch []telemetryEvent) {
 		}()
 	}
 
-	// Send jobs to workers
 	for _, event := range batch {
 		jobs <- event
 	}
 	close(jobs)
 
-	// Wait for all workers
 	wg.Wait()
 }
 
@@ -215,7 +212,7 @@ func (t *telemetryImpl) makeEvent(eventType string, data map[string]interface{})
 type ApplicationInfo struct {
 	Version       string
 	MQ            string
-	EntityStore   string
+	TenantStore   string
 	LogStore      string
 	PortalEnabled bool
 }
@@ -224,7 +221,7 @@ func (a *ApplicationInfo) ToData() map[string]interface{} {
 	return map[string]interface{}{
 		"version":        a.Version,
 		"mq":             a.MQ,
-		"entity_store":   a.EntityStore,
+		"tenant_store":   a.TenantStore,
 		"log_store":      a.LogStore,
 		"portal_enabled": a.PortalEnabled,
 	}

@@ -3,32 +3,43 @@
  */
 
 import * as z from "zod/v3";
+import { remap as remap$ } from "../../lib/primitives.js";
 import { safeParse } from "../../lib/schemas.js";
 import { ClosedEnum } from "../../types/enums.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
+import * as components from "../components/index.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 
 /**
- * Sort order by `created_at` timestamp.
+ * Filter tenants by ID(s). Use bracket notation for multiple values (e.g., `id[0]=t1&id[1]=t2` or `id[]=t1&id[]=t2`).
  */
-export const Order = {
+export type ListTenantsId = string | Array<string>;
+
+/**
+ * Sort direction.
+ */
+export const ListTenantsDir = {
   Asc: "asc",
   Desc: "desc",
 } as const;
 /**
- * Sort order by `created_at` timestamp.
+ * Sort direction.
  */
-export type Order = ClosedEnum<typeof Order>;
+export type ListTenantsDir = ClosedEnum<typeof ListTenantsDir>;
 
 export type ListTenantsRequest = {
+  /**
+   * Filter tenants by ID(s). Use bracket notation for multiple values (e.g., `id[0]=t1&id[1]=t2` or `id[]=t1&id[]=t2`).
+   */
+  id?: string | Array<string> | undefined;
   /**
    * Number of tenants to return per page (1-100, default 20).
    */
   limit?: number | undefined;
   /**
-   * Sort order by `created_at` timestamp.
+   * Sort direction.
    */
-  order?: Order | undefined;
+  dir?: ListTenantsDir | undefined;
   /**
    * Cursor for the next page of results. Mutually exclusive with `prev`.
    */
@@ -39,13 +50,47 @@ export type ListTenantsRequest = {
   prev?: string | undefined;
 };
 
+export type ListTenantsResponse = {
+  result: components.TenantPaginatedResult;
+};
+
 /** @internal */
-export const Order$inboundSchema: z.ZodNativeEnum<typeof Order> = z.nativeEnum(
-  Order,
-);
+export const ListTenantsId$inboundSchema: z.ZodType<
+  ListTenantsId,
+  z.ZodTypeDef,
+  unknown
+> = z.union([z.string(), z.array(z.string())]);
 /** @internal */
-export const Order$outboundSchema: z.ZodNativeEnum<typeof Order> =
-  Order$inboundSchema;
+export type ListTenantsId$Outbound = string | Array<string>;
+
+/** @internal */
+export const ListTenantsId$outboundSchema: z.ZodType<
+  ListTenantsId$Outbound,
+  z.ZodTypeDef,
+  ListTenantsId
+> = z.union([z.string(), z.array(z.string())]);
+
+export function listTenantsIdToJSON(listTenantsId: ListTenantsId): string {
+  return JSON.stringify(ListTenantsId$outboundSchema.parse(listTenantsId));
+}
+export function listTenantsIdFromJSON(
+  jsonString: string,
+): SafeParseResult<ListTenantsId, SDKValidationError> {
+  return safeParse(
+    jsonString,
+    (x) => ListTenantsId$inboundSchema.parse(JSON.parse(x)),
+    `Failed to parse 'ListTenantsId' from JSON`,
+  );
+}
+
+/** @internal */
+export const ListTenantsDir$inboundSchema: z.ZodNativeEnum<
+  typeof ListTenantsDir
+> = z.nativeEnum(ListTenantsDir);
+/** @internal */
+export const ListTenantsDir$outboundSchema: z.ZodNativeEnum<
+  typeof ListTenantsDir
+> = ListTenantsDir$inboundSchema;
 
 /** @internal */
 export const ListTenantsRequest$inboundSchema: z.ZodType<
@@ -53,15 +98,17 @@ export const ListTenantsRequest$inboundSchema: z.ZodType<
   z.ZodTypeDef,
   unknown
 > = z.object({
+  id: z.union([z.string(), z.array(z.string())]).optional(),
   limit: z.number().int().default(20),
-  order: Order$inboundSchema.default("desc"),
+  dir: ListTenantsDir$inboundSchema.default("desc"),
   next: z.string().optional(),
   prev: z.string().optional(),
 });
 /** @internal */
 export type ListTenantsRequest$Outbound = {
+  id?: string | Array<string> | undefined;
   limit: number;
-  order: string;
+  dir: string;
   next?: string | undefined;
   prev?: string | undefined;
 };
@@ -72,8 +119,9 @@ export const ListTenantsRequest$outboundSchema: z.ZodType<
   z.ZodTypeDef,
   ListTenantsRequest
 > = z.object({
+  id: z.union([z.string(), z.array(z.string())]).optional(),
   limit: z.number().int().default(20),
-  order: Order$outboundSchema.default("desc"),
+  dir: ListTenantsDir$outboundSchema.default("desc"),
   next: z.string().optional(),
   prev: z.string().optional(),
 });
@@ -92,5 +140,52 @@ export function listTenantsRequestFromJSON(
     jsonString,
     (x) => ListTenantsRequest$inboundSchema.parse(JSON.parse(x)),
     `Failed to parse 'ListTenantsRequest' from JSON`,
+  );
+}
+
+/** @internal */
+export const ListTenantsResponse$inboundSchema: z.ZodType<
+  ListTenantsResponse,
+  z.ZodTypeDef,
+  unknown
+> = z.object({
+  Result: components.TenantPaginatedResult$inboundSchema,
+}).transform((v) => {
+  return remap$(v, {
+    "Result": "result",
+  });
+});
+/** @internal */
+export type ListTenantsResponse$Outbound = {
+  Result: components.TenantPaginatedResult$Outbound;
+};
+
+/** @internal */
+export const ListTenantsResponse$outboundSchema: z.ZodType<
+  ListTenantsResponse$Outbound,
+  z.ZodTypeDef,
+  ListTenantsResponse
+> = z.object({
+  result: components.TenantPaginatedResult$outboundSchema,
+}).transform((v) => {
+  return remap$(v, {
+    result: "Result",
+  });
+});
+
+export function listTenantsResponseToJSON(
+  listTenantsResponse: ListTenantsResponse,
+): string {
+  return JSON.stringify(
+    ListTenantsResponse$outboundSchema.parse(listTenantsResponse),
+  );
+}
+export function listTenantsResponseFromJSON(
+  jsonString: string,
+): SafeParseResult<ListTenantsResponse, SDKValidationError> {
+  return safeParse(
+    jsonString,
+    (x) => ListTenantsResponse$inboundSchema.parse(JSON.parse(x)),
+    `Failed to parse 'ListTenantsResponse' from JSON`,
   );
 }

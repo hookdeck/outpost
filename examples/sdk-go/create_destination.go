@@ -22,19 +22,21 @@ func runCreateDestinationExample() {
 		tenantID = "hookdeck"
 	}
 
-	serverURL := os.Getenv("OUTPOST_URL")
-	if serverURL == "" {
-		serverURL = "http://localhost:3333"
+	apiServerURL := os.Getenv("API_BASE_URL")
+	if apiServerURL == "" {
+		serverURL := os.Getenv("SERVER_URL")
+		if serverURL == "" {
+			serverURL = "http://localhost:3333"
+		}
+		apiServerURL = fmt.Sprintf("%s/api/v1", serverURL)
 	}
 
 	client := outpostgo.New(
-		outpostgo.WithSecurity(components.Security{
-			AdminAPIKey: &adminAPIKey,
-		}),
-		outpostgo.WithServerURL(fmt.Sprintf("%s/api/v1", serverURL)),
+		outpostgo.WithSecurity(adminAPIKey),
+		outpostgo.WithServerURL(apiServerURL),
 	)
 
-	_, err := client.Tenants.Upsert(context.Background(), &tenantID)
+	_, err := client.Tenants.Upsert(context.Background(), tenantID, nil)
 
 	if err != nil {
 		log.Fatalf("Error upserting tenant: %v", err)
@@ -111,7 +113,7 @@ az servicebus queue authorization-rule keys list \
 		},
 	)
 
-	createRes, err := client.Destinations.Create(context.Background(), destination, &tenantID)
+	createRes, err := client.Destinations.Create(context.Background(), tenantID, destination)
 	if err != nil {
 		log.Fatalf("Error creating destination: %v", err)
 	}

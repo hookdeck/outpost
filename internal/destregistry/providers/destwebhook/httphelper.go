@@ -2,7 +2,7 @@ package destwebhook
 
 import (
 	"context"
-	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -22,20 +22,63 @@ type HTTPRequestResult struct {
 }
 
 // ExecuteHTTPRequest executes an HTTP request and classifies the result.
-// All errors return a Delivery object with a classified error code.
+//
+// Most errors return a Delivery object with a classified error code so the
+// caller can record a failed attempt.
+//
+// Proxy *infrastructure* errors (ErrProxyInfra) return Delivery: nil so the
+// caller signals the queue to nack the message instead of recording a
+// customer-visible attempt. See registry.go for the nil-attempt handling.
+//
 // See: https://github.com/hookdeck/outpost/issues/571
 func ExecuteHTTPRequest(ctx context.Context, client *http.Client, req *http.Request, provider string) *HTTPRequestResult {
 	resp, err := client.Do(req)
 	if err != nil {
+		// Proxy infrastructure error: nack via nil Delivery so the customer's
+		// retry budget is not charged for our infra outage.
+		var infraErr *ErrProxyInfra
+		if errors.As(err, &infraErr) {
+			return &HTTPRequestResult{
+				Delivery: nil,
+				Error: destregistry.NewErrDestinationPublishAttempt(err, provider, map[string]interface{}{
+					"error":   "proxy_infrastructure",
+					"message": infraErr.Error(),
+				}),
+				Response: nil,
+			}
+		}
+
+		// Proxy-attributed destination error: use the explicit Code instead of
+		// substring-matching the underlying error.
+		var code string
+		var destErr *ErrProxyDestination
+		if errors.As(err, &destErr) {
+			code = destErr.Code
+		} else {
+			code = ClassifyNetworkError(err)
+		}
+
+		data := map[string]interface{}{
+			"error":   "request_failed",
+			"message": err.Error(),
+		}
+		// Attach raw proxy diagnostics (e.g. Envoy flag + response-code-details)
+		// to the publish-attempt error so operators can grep them in logs.
+		// Keys are owned by whichever proxy populated them. Not placed in the
+		// delivery's ResponseData — customer-visible attempt stays free of
+		// proxy details.
+		if destErr != nil {
+			for k, v := range destErr.Diagnostics {
+				data[k] = v
+			}
+		}
+
 		return &HTTPRequestResult{
 			Delivery: &destregistry.Delivery{
 				Status: "failed",
-				Code:   ClassifyNetworkError(err),
+				Code:   code,
 			},
-			Error: destregistry.NewErrDestinationPublishAttempt(err, provider, map[string]interface{}{
-				"error":   "request_failed",
-				"message": err.Error(),
-			}),
+			Error:    destregistry.NewErrDestinationPublishAttempt(err, provider, data),
 			Response: nil,
 		}
 	}
@@ -51,15 +94,8 @@ func ExecuteHTTPRequest(ctx context.Context, client *http.Client, req *http.Requ
 		// Extract body for error details
 		var bodyStr string
 		if delivery.Response != nil {
-			if body, ok := delivery.Response["body"]; ok {
-				switch v := body.(type) {
-				case string:
-					bodyStr = v
-				case map[string]interface{}:
-					if jsonBytes, err := json.Marshal(v); err == nil {
-						bodyStr = string(jsonBytes)
-					}
-				}
+			if body, ok := delivery.Response["body"].(string); ok {
+				bodyStr = body
 			}
 		}
 
@@ -131,27 +167,12 @@ func ClassifyNetworkError(err error) string {
 	}
 }
 
-// ParseHTTPResponse reads and parses the HTTP response body into the delivery.
+// ParseHTTPResponse reads the HTTP response body into the delivery as a raw string.
+// The body is stored verbatim regardless of content type to preserve data integrity.
 func ParseHTTPResponse(delivery *destregistry.Delivery, resp *http.Response) {
 	bodyBytes, _ := io.ReadAll(resp.Body)
-
-	if strings.Contains(resp.Header.Get("Content-Type"), "application/json") {
-		var response map[string]interface{}
-		if err := json.Unmarshal(bodyBytes, &response); err != nil {
-			delivery.Response = map[string]interface{}{
-				"status": resp.StatusCode,
-				"body":   string(bodyBytes),
-			}
-			return
-		}
-		delivery.Response = map[string]interface{}{
-			"status": resp.StatusCode,
-			"body":   response,
-		}
-	} else {
-		delivery.Response = map[string]interface{}{
-			"status": resp.StatusCode,
-			"body":   string(bodyBytes),
-		}
+	delivery.Response = map[string]interface{}{
+		"status": resp.StatusCode,
+		"body":   string(bodyBytes),
 	}
 }

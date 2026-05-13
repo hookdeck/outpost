@@ -195,7 +195,7 @@ run_api_tests() {
     echo "   -> ✅ Tenant created."
 
     echo "   (Checking configured topics...)"
-    topics_response=$(curl -s -w "\n%{http_code}" -X GET "$base_url/api/v1/tenants/$TENANT_ID/topics" \
+    topics_response=$(curl -s -w "\n%{http_code}" -X GET "$base_url/api/v1/topics" \
     -H "Authorization: Bearer $API_KEY")
     
     topics_http_code=$(echo "$topics_response" | tail -n1)

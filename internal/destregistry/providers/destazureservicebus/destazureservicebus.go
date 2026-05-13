@@ -2,7 +2,6 @@ package destazureservicebus
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -126,10 +125,7 @@ func (p *AzureServiceBusPublisher) ensureSender() (*azservicebus.Sender, error) 
 }
 
 func (p *AzureServiceBusPublisher) Format(ctx context.Context, event *models.Event) (*azservicebus.Message, error) {
-	dataBytes, err := json.Marshal(event.Data)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal event data: %w", err)
-	}
+	dataBytes := []byte(event.Data)
 
 	messageMetadata := map[string]any{}
 	metadata := p.BasePublisher.MakeMetadata(event, time.Now())

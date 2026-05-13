@@ -1,5 +1,5 @@
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
-import { FC, PropsWithChildren } from "react";
+import type { FC, PropsWithChildren } from "react";
 import Button from "../Button/Button";
 import "./Dropdown.scss";
 import Badge from "../Badge/Badge";

@@ -40,14 +40,14 @@ class DestinationHookdeckTypedDict(TypedDict):
     r"""Optional JSON schema filter for event matching. Events must match this filter to be delivered to this destination.
     Supports operators: $eq, $neq, $gt, $gte, $lt, $lte, $in, $nin, $startsWith, $endsWith, $exist, $or, $and, $not.
     If null or empty, all events matching the topic filter will be delivered.
-    To remove an existing filter when updating a destination, set filter to an empty object `{}`.
+    Uses full-replacement semantics on update: send a new object to replace, null or `{}` to clear, omit for no change.
 
     """
     updated_at: NotRequired[datetime]
     r"""ISO Date when the destination was last updated."""
     config: NotRequired[Any]
     delivery_metadata: NotRequired[Nullable[Dict[str, str]]]
-    r"""Static key-value pairs merged into event metadata on every delivery."""
+    r"""Static key-value pairs merged into event metadata on every attempt."""
     metadata: NotRequired[Nullable[Dict[str, str]]]
     r"""Arbitrary contextual information stored with the destination."""
     target: NotRequired[str]
@@ -80,7 +80,7 @@ class DestinationHookdeck(BaseModel):
     r"""Optional JSON schema filter for event matching. Events must match this filter to be delivered to this destination.
     Supports operators: $eq, $neq, $gt, $gte, $lt, $lte, $in, $nin, $startsWith, $endsWith, $exist, $or, $and, $not.
     If null or empty, all events matching the topic filter will be delivered.
-    To remove an existing filter when updating a destination, set filter to an empty object `{}`.
+    Uses full-replacement semantics on update: send a new object to replace, null or `{}` to clear, omit for no change.
 
     """
 
@@ -90,7 +90,7 @@ class DestinationHookdeck(BaseModel):
     config: Optional[Any] = None
 
     delivery_metadata: OptionalNullable[Dict[str, str]] = UNSET
-    r"""Static key-value pairs merged into event metadata on every delivery."""
+    r"""Static key-value pairs merged into event metadata on every attempt."""
 
     metadata: OptionalNullable[Dict[str, str]] = UNSET
     r"""Arbitrary contextual information stored with the destination."""
@@ -122,7 +122,7 @@ class DestinationHookdeck(BaseModel):
 
         for n, f in type(self).model_fields.items():
             k = f.alias or n
-            val = serialized.get(k)
+            val = serialized.get(k, serialized.get(n))
             is_nullable_and_explicitly_set = (
                 k in nullable_fields
                 and (self.__pydantic_fields_set__.intersection({n}))  # pylint: disable=no-member
@@ -137,3 +137,9 @@ class DestinationHookdeck(BaseModel):
                     m[k] = val
 
         return m
+
+
+try:
+    DestinationHookdeck.model_rebuild()
+except NameError:
+    pass

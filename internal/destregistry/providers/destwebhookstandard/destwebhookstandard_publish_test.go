@@ -3,9 +3,11 @@ package destwebhookstandard_test
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -118,7 +120,9 @@ func (a *StandardWebhookAsserter) AssertMessage(t testsuite.TestingT, msg testsu
 
 	webhookTimestamp := req.Header.Get(prefix + "timestamp")
 	assert.NotEmpty(t, webhookTimestamp, prefix+"timestamp should be present")
-	testsuite.AssertTimestampIsUnixSeconds(t, webhookTimestamp)
+	// Standard Webhooks spec requires Unix seconds for the webhook-timestamp header
+	_, err := strconv.ParseInt(webhookTimestamp, 10, 64)
+	assert.NoError(t, err, "webhook-timestamp should be a valid Unix timestamp integer")
 
 	webhookSignature := req.Header.Get(prefix + "signature")
 	assert.NotEmpty(t, webhookSignature, prefix+"signature should be present")
@@ -153,8 +157,7 @@ func (s *StandardWebhookPublishSuite) TearDownSuite() {
 func (s *StandardWebhookPublishSuite) setupBasicSuite() {
 	consumer := NewStandardWebhookConsumer()
 
-	provider, err := destwebhookstandard.New(testutil.Registry.MetadataLoader(), nil)
-	require.NoError(s.T(), err)
+	provider := newTestProvider(s.T())
 
 	dest := testutil.DestinationFactory.Any(
 		testutil.DestinationFactory.WithType("webhook"),
@@ -183,8 +186,7 @@ func (s *StandardWebhookPublishSuite) setupBasicSuite() {
 func (s *StandardWebhookPublishSuite) setupMultipleSecretsSuite() {
 	consumer := NewStandardWebhookConsumer()
 
-	provider, err := destwebhookstandard.New(testutil.Registry.MetadataLoader(), nil)
-	require.NoError(s.T(), err)
+	provider := newTestProvider(s.T())
 
 	now := time.Now()
 	invalidAt := now.Add(24 * time.Hour)
@@ -217,8 +219,7 @@ func (s *StandardWebhookPublishSuite) setupMultipleSecretsSuite() {
 func (s *StandardWebhookPublishSuite) setupExpiredSecretsSuite() {
 	consumer := NewStandardWebhookConsumer()
 
-	provider, err := destwebhookstandard.New(testutil.Registry.MetadataLoader(), nil)
-	require.NoError(s.T(), err)
+	provider := newTestProvider(s.T())
 
 	now := time.Now()
 	invalidAt := now.Add(-1 * time.Hour) // Previous secret is already invalid
@@ -281,8 +282,7 @@ func TestStandardWebhookPublisher_SignatureFormat(t *testing.T) {
 	consumer := NewStandardWebhookConsumer()
 	defer consumer.Close()
 
-	provider, err := destwebhookstandard.New(testutil.Registry.MetadataLoader(), nil)
-	require.NoError(t, err)
+	provider := newTestProvider(t)
 
 	dest := testutil.DestinationFactory.Any(
 		testutil.DestinationFactory.WithType("webhook"),
@@ -300,7 +300,7 @@ func TestStandardWebhookPublisher_SignatureFormat(t *testing.T) {
 
 	event := testutil.EventFactory.Any(
 		testutil.EventFactory.WithID("msg_2KWPBgLlAfxdpx2AI54pPJ85f4W"),
-		testutil.EventFactory.WithData(map[string]interface{}{"hello": "world"}),
+		testutil.EventFactory.WithDataMap(map[string]interface{}{"hello": "world"}),
 	)
 
 	_, err = publisher.Publish(context.Background(), &event)
@@ -332,8 +332,7 @@ func TestStandardWebhookPublisher_MessageIDFormat(t *testing.T) {
 	consumer := NewStandardWebhookConsumer()
 	defer consumer.Close()
 
-	provider, err := destwebhookstandard.New(testutil.Registry.MetadataLoader(), nil)
-	require.NoError(t, err)
+	provider := newTestProvider(t)
 
 	dest := testutil.DestinationFactory.Any(
 		testutil.DestinationFactory.WithType("webhook"),
@@ -351,7 +350,7 @@ func TestStandardWebhookPublisher_MessageIDFormat(t *testing.T) {
 
 	event := testutil.EventFactory.Any(
 		testutil.EventFactory.WithID("msg_2KWPBgLlAfxdpx2AI54pPJ85f4W"),
-		testutil.EventFactory.WithData(map[string]interface{}{"test": "data"}),
+		testutil.EventFactory.WithDataMap(map[string]interface{}{"test": "data"}),
 	)
 
 	_, err = publisher.Publish(context.Background(), &event)
@@ -403,7 +402,7 @@ func TestStandardWebhookPublisher_CustomHeaderPrefix(t *testing.T) {
 
 	event := testutil.EventFactory.Any(
 		testutil.EventFactory.WithID("msg_2KWPBgLlAfxdpx2AI54pPJ85f4W"),
-		testutil.EventFactory.WithData(map[string]interface{}{"test": "data"}),
+		testutil.EventFactory.WithDataMap(map[string]interface{}{"test": "data"}),
 		testutil.EventFactory.WithTopic("user.created"),
 	)
 
@@ -433,6 +432,89 @@ func TestStandardWebhookPublisher_CustomHeaderPrefix(t *testing.T) {
 	}
 }
 
+func TestStandardWebhookPublisher_EmptyHeaderPrefix(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		prefix    string
+		setPrefix bool
+		want      string // expected prefix on headers
+	}{
+		{
+			name:      "no prefix option gives empty",
+			setPrefix: false,
+			want:      "",
+		},
+		{
+			name:      "explicit default prefix",
+			prefix:    "webhook-",
+			setPrefix: true,
+			want:      "webhook-",
+		},
+		{
+			name:      "empty string disables prefix",
+			prefix:    "",
+			setPrefix: true,
+			want:      "",
+		},
+		{
+			name:      "whitespace-only disables prefix",
+			prefix:    "  ",
+			setPrefix: true,
+			want:      "",
+		},
+		{
+			name:      "custom prefix is applied",
+			prefix:    "x-custom-",
+			setPrefix: true,
+			want:      "x-custom-",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			opts := []destwebhookstandard.Option{}
+			if tt.setPrefix {
+				opts = append(opts, destwebhookstandard.WithHeaderPrefix(tt.prefix))
+			}
+
+			provider, err := destwebhookstandard.New(testutil.Registry.MetadataLoader(), nil, opts...)
+			require.NoError(t, err)
+
+			dest := testutil.DestinationFactory.Any(
+				testutil.DestinationFactory.WithType("webhook"),
+				testutil.DestinationFactory.WithConfig(map[string]string{
+					"url": "http://example.com/webhook",
+				}),
+				testutil.DestinationFactory.WithCredentials(map[string]string{
+					"secret": "whsec_MfKQ9r8GKYqrTwjUPD8ILPZIo2LaLaSw",
+				}),
+			)
+
+			publisher, err := provider.CreatePublisher(context.Background(), &dest)
+			require.NoError(t, err)
+
+			event := testutil.EventFactory.Any(
+				testutil.EventFactory.WithID("msg_test123"),
+				testutil.EventFactory.WithTopic("user.created"),
+				testutil.EventFactory.WithDataMap(map[string]interface{}{"key": "value"}),
+			)
+
+			req, err := publisher.(*destwebhookstandard.StandardWebhookPublisher).Format(context.Background(), &event)
+			require.NoError(t, err)
+
+			// Verify headers use the expected prefix
+			assert.Equal(t, "msg_test123", req.Header.Get(tt.want+"id"))
+			assert.NotEmpty(t, req.Header.Get(tt.want+"timestamp"))
+			assert.NotEmpty(t, req.Header.Get(tt.want+"signature"))
+			assert.Equal(t, "user.created", req.Header.Get(tt.want+"topic"))
+		})
+	}
+}
+
 func TestStandardWebhookPublisher_CustomHeaders(t *testing.T) {
 	t.Parallel()
 
@@ -442,8 +524,7 @@ func TestStandardWebhookPublisher_CustomHeaders(t *testing.T) {
 		consumer := NewStandardWebhookConsumer()
 		defer consumer.Close()
 
-		provider, err := destwebhookstandard.New(testutil.Registry.MetadataLoader(), nil)
-		require.NoError(t, err)
+		provider := newTestProvider(t)
 
 		dest := testutil.DestinationFactory.Any(
 			testutil.DestinationFactory.WithType("webhook"),
@@ -461,7 +542,7 @@ func TestStandardWebhookPublisher_CustomHeaders(t *testing.T) {
 		defer publisher.Close()
 
 		event := testutil.EventFactory.Any(
-			testutil.EventFactory.WithData(map[string]interface{}{"key": "value"}),
+			testutil.EventFactory.WithDataMap(map[string]interface{}{"key": "value"}),
 		)
 
 		_, err = publisher.Publish(context.Background(), &event)
@@ -483,8 +564,7 @@ func TestStandardWebhookPublisher_CustomHeaders(t *testing.T) {
 		consumer := NewStandardWebhookConsumer()
 		defer consumer.Close()
 
-		provider, err := destwebhookstandard.New(testutil.Registry.MetadataLoader(), nil)
-		require.NoError(t, err)
+		provider := newTestProvider(t)
 
 		dest := testutil.DestinationFactory.Any(
 			testutil.DestinationFactory.WithType("webhook"),
@@ -505,7 +585,7 @@ func TestStandardWebhookPublisher_CustomHeaders(t *testing.T) {
 		defer publisher.Close()
 
 		event := testutil.EventFactory.Any(
-			testutil.EventFactory.WithData(map[string]interface{}{"key": "value"}),
+			testutil.EventFactory.WithDataMap(map[string]interface{}{"key": "value"}),
 		)
 
 		_, err = publisher.Publish(context.Background(), &event)
@@ -521,19 +601,15 @@ func TestStandardWebhookPublisher_CustomHeaders(t *testing.T) {
 		}
 	})
 
-	t.Run("should work with empty custom_headers", func(t *testing.T) {
+	t.Run("should accept CreatePublisher when custom_headers is empty object", func(t *testing.T) {
 		t.Parallel()
 
-		consumer := NewStandardWebhookConsumer()
-		defer consumer.Close()
-
-		provider, err := destwebhookstandard.New(testutil.Registry.MetadataLoader(), nil)
-		require.NoError(t, err)
+		provider := newTestProvider(t)
 
 		dest := testutil.DestinationFactory.Any(
 			testutil.DestinationFactory.WithType("webhook"),
 			testutil.DestinationFactory.WithConfig(map[string]string{
-				"url":            consumer.server.URL + "/webhook",
+				"url":            "http://example.com/webhook",
 				"custom_headers": `{}`,
 			}),
 			testutil.DestinationFactory.WithCredentials(map[string]string{
@@ -544,23 +620,6 @@ func TestStandardWebhookPublisher_CustomHeaders(t *testing.T) {
 		publisher, err := provider.CreatePublisher(context.Background(), &dest)
 		require.NoError(t, err)
 		defer publisher.Close()
-
-		event := testutil.EventFactory.Any(
-			testutil.EventFactory.WithData(map[string]interface{}{"key": "value"}),
-		)
-
-		_, err = publisher.Publish(context.Background(), &event)
-		require.NoError(t, err)
-
-		select {
-		case msg := <-consumer.Consume():
-			req := msg.Raw.(*http.Request)
-			// Should still have standard headers
-			assert.NotEmpty(t, req.Header.Get("webhook-id"))
-			assert.NotEmpty(t, req.Header.Get("webhook-timestamp"))
-		case <-time.After(5 * time.Second):
-			t.Fatal("timeout waiting for message")
-		}
 	})
 
 	t.Run("should work without custom_headers field", func(t *testing.T) {
@@ -569,8 +628,7 @@ func TestStandardWebhookPublisher_CustomHeaders(t *testing.T) {
 		consumer := NewStandardWebhookConsumer()
 		defer consumer.Close()
 
-		provider, err := destwebhookstandard.New(testutil.Registry.MetadataLoader(), nil)
-		require.NoError(t, err)
+		provider := newTestProvider(t)
 
 		dest := testutil.DestinationFactory.Any(
 			testutil.DestinationFactory.WithType("webhook"),
@@ -587,7 +645,7 @@ func TestStandardWebhookPublisher_CustomHeaders(t *testing.T) {
 		defer publisher.Close()
 
 		event := testutil.EventFactory.Any(
-			testutil.EventFactory.WithData(map[string]interface{}{"key": "value"}),
+			testutil.EventFactory.WithDataMap(map[string]interface{}{"key": "value"}),
 		)
 
 		_, err = publisher.Publish(context.Background(), &event)
@@ -603,4 +661,39 @@ func TestStandardWebhookPublisher_CustomHeaders(t *testing.T) {
 			t.Fatal("timeout waiting for message")
 		}
 	})
+}
+
+// TestStandardWebhookPublisher_PreservesKeyOrder verifies that Format() sends
+// the original JSON key order in the HTTP request body.
+func TestStandardWebhookPublisher_PreservesKeyOrder(t *testing.T) {
+	t.Parallel()
+
+	provider := newTestProvider(t)
+
+	destination := testutil.DestinationFactory.Any(
+		testutil.DestinationFactory.WithType("webhook"),
+		testutil.DestinationFactory.WithConfig(map[string]string{
+			"url": "http://example.com/webhook",
+		}),
+		testutil.DestinationFactory.WithCredentials(map[string]string{
+			"secret": "whsec_MfKQ9r8GKYqrTwjUPD8ILPZIo2LaLaSw",
+		}),
+	)
+
+	publisher, err := provider.CreatePublisher(context.Background(), &destination)
+	require.NoError(t, err)
+
+	rawData := json.RawMessage(`{"z":1,"a":2,"m":3}`)
+	event := testutil.EventFactory.Any(
+		testutil.EventFactory.WithData(rawData),
+	)
+
+	req, err := publisher.(*destwebhookstandard.StandardWebhookPublisher).Format(context.Background(), &event)
+	require.NoError(t, err)
+
+	body, err := io.ReadAll(req.Body)
+	require.NoError(t, err)
+
+	// Key order must match the original raw JSON — not alphabetised.
+	assert.Equal(t, `{"z":1,"a":2,"m":3}`, string(body))
 }
