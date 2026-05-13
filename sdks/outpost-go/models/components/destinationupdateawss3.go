@@ -5,6 +5,7 @@ package components
 import (
 	"github.com/hookdeck/outpost/sdks/outpost-go/internal/utils"
 	"github.com/hookdeck/outpost/sdks/outpost-go/optionalnullable"
+	"time"
 )
 
 type DestinationUpdateAwss3 struct {
@@ -22,6 +23,8 @@ type DestinationUpdateAwss3 struct {
 	DeliveryMetadata optionalnullable.OptionalNullable[map[string]*string] `json:"delivery_metadata,omitempty"`
 	// Arbitrary contextual information stored with the destination. Uses JSON merge-patch semantics (RFC 7396): send keys to add/update, null values to delete keys, null for entire field to clear all. Omit or send {} for no change.
 	Metadata optionalnullable.OptionalNullable[map[string]*string] `json:"metadata,omitempty"`
+	// Update the disabled state of the destination. Send a timestamp (must not be in the future) to disable, null to enable, or omit to leave unchanged.
+	DisabledAt optionalnullable.OptionalNullable[time.Time] `json:"disabled_at,omitempty"`
 }
 
 func (d DestinationUpdateAwss3) MarshalJSON() ([]byte, error) {
@@ -75,6 +78,13 @@ func (d *DestinationUpdateAwss3) GetMetadata() optionalnullable.OptionalNullable
 		return nil
 	}
 	return d.Metadata
+}
+
+func (d *DestinationUpdateAwss3) GetDisabledAt() optionalnullable.OptionalNullable[time.Time] {
+	if d == nil {
+		return nil
+	}
+	return d.DisabledAt
 }
 
 // #region class-body-destinationupdateawss3

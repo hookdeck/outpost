@@ -1,5 +1,39 @@
-## Typescript SDK Changes:
-* `outpost.publish()`: **Added**
-* `outpost.retry()`: **Added**
-* `outpost.publish.event()`: **Removed** (Breaking ⚠️)
-* `outpost.retry.retry()`: **Removed** (Breaking ⚠️)
+## Go SDK Changes:
+* `Outpost.Destinations.Create()`: `request.Body` **Changed**
+    - `union(aws_kinesis).CreatedAt` **Added**
+    - `union(aws_kinesis).DisabledAt` **Added**
+    - `union(aws_kinesis).UpdatedAt` **Added**
+    - `union(aws_s3).CreatedAt` **Added**
+    - `union(aws_s3).DisabledAt` **Added**
+    - `union(aws_s3).UpdatedAt` **Added**
+    - `union(aws_sqs).CreatedAt` **Added**
+    - `union(aws_sqs).DisabledAt` **Added**
+    - `union(aws_sqs).UpdatedAt` **Added**
+    - `union(azure_servicebus).CreatedAt` **Added**
+    - `union(azure_servicebus).DisabledAt` **Added**
+    - `union(azure_servicebus).UpdatedAt` **Added**
+    - `union(gcp_pubsub).CreatedAt` **Added**
+    - `union(gcp_pubsub).DisabledAt` **Added**
+    - `union(gcp_pubsub).UpdatedAt` **Added**
+    - `union(hookdeck).CreatedAt` **Added**
+    - `union(hookdeck).DisabledAt` **Added**
+    - `union(hookdeck).UpdatedAt` **Added**
+    - `union(kafka).CreatedAt` **Added**
+    - `union(kafka).DisabledAt` **Added**
+    - `union(kafka).UpdatedAt` **Added**
+    - `union(rabbitmq).CreatedAt` **Added**
+    - `union(rabbitmq).DisabledAt` **Added**
+    - `union(rabbitmq).UpdatedAt` **Added**
+    - `union(webhook).CreatedAt` **Added**
+    - `union(webhook).DisabledAt` **Added**
+    - `union(webhook).UpdatedAt` **Added**
+* `Outpost.Destinations.Update()`: `request.Body` **Changed**
+    - `union(DestinationUpdateAWSKinesis).DisabledAt` **Added**
+    - `union(DestinationUpdateAWSS3).DisabledAt` **Added**
+    - `union(DestinationUpdateAWSSQS).DisabledAt` **Added**
+    - `union(DestinationUpdateAzureServiceBus).DisabledAt` **Added**
+    - `union(DestinationUpdateGCPPubSub).DisabledAt` **Added**
+    - `union(DestinationUpdateHookdeck).DisabledAt` **Added**
+    - `union(DestinationUpdateKafka).DisabledAt` **Added**
+    - `union(DestinationUpdateRabbitMQ).DisabledAt` **Added**
+    - `union(DestinationUpdateWebhook).DisabledAt` **Added**
