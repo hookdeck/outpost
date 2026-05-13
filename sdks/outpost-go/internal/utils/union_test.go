@@ -585,3 +585,73 @@ func TestPickBestUnionCandidate_AnyFieldType(t *testing.T) {
 	require.NotNil(t, result)
 	assert.IsType(t, B{}, result.Type)
 }
+
+func TestPickBestUnionCandidate_NonPointerUnionVariants(t *testing.T) {
+	type Inner struct {
+		Foo string `json:"foo"`
+	}
+	type SliceUnion struct {
+		AsObject *Inner   `union:"member"`
+		AsList   []string `union:"member"`
+	}
+	type MapUnion struct {
+		AsObject *Inner            `union:"member"`
+		AsMap    map[string]string `union:"member"`
+	}
+	type AnyUnion struct {
+		AsObject *Inner `union:"member"`
+		AsAny    any    `union:"member"`
+	}
+
+	cases := []struct {
+		name       string
+		payload    string
+		candidates []UnionCandidate
+		wantType   string
+	}{
+		{
+			name:    "slice variant wins for array payload",
+			payload: `["a", "b"]`,
+			candidates: []UnionCandidate{
+				{Type: "object", Value: SliceUnion{AsObject: &Inner{}}},
+				{Type: "list", Value: SliceUnion{AsList: []string{"a", "b"}}},
+			},
+			wantType: "list",
+		},
+		{
+			name:    "map variant wins for object payload with no matching struct fields",
+			payload: `{"k1": "v1", "k2": "v2"}`,
+			candidates: []UnionCandidate{
+				{Type: "object", Value: MapUnion{AsObject: &Inner{}}},
+				{Type: "map", Value: MapUnion{AsMap: map[string]string{"k1": "v1", "k2": "v2"}}},
+			},
+			wantType: "map",
+		},
+		{
+			name:    "any variant wins as catch-all when struct can't fit a scalar",
+			payload: `"scalar"`,
+			candidates: []UnionCandidate{
+				{Type: "object", Value: AnyUnion{AsObject: &Inner{}}},
+				{Type: "any", Value: AnyUnion{AsAny: "scalar"}},
+			},
+			wantType: "any",
+		},
+		{
+			name:    "structured variant beats any on a matching object payload",
+			payload: `{"foo": "x"}`,
+			candidates: []UnionCandidate{
+				{Type: "object", Value: AnyUnion{AsObject: &Inner{Foo: "x"}}},
+				{Type: "any", Value: AnyUnion{AsAny: map[string]any{"foo": "x"}}},
+			},
+			wantType: "object",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := PickBestUnionCandidate(tc.candidates, []byte(tc.payload))
+			require.NotNil(t, result)
+			assert.Equal(t, tc.wantType, result.Type)
+		})
+	}
+}

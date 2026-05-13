@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/hookdeck/outpost/sdks/outpost-go/internal/utils"
 	"github.com/hookdeck/outpost/sdks/outpost-go/optionalnullable"
+	"time"
 )
 
 // DestinationCreateGCPPubSubType - Type of the destination. Must be 'gcp_pubsub'.
@@ -52,6 +53,12 @@ type DestinationCreateGCPPubSub struct {
 	DeliveryMetadata optionalnullable.OptionalNullable[map[string]string] `json:"delivery_metadata,omitempty"`
 	// Arbitrary contextual information stored with the destination.
 	Metadata optionalnullable.OptionalNullable[map[string]string] `json:"metadata,omitempty"`
+	// Optional override for the creation timestamp. Intended for importing destinations from another system. Must not be in the future. **Admin (API key) auth only — sending this with JWT auth returns 403.** Defaults to the current time when omitted.
+	CreatedAt optionalnullable.OptionalNullable[time.Time] `json:"created_at,omitempty"`
+	// Optional override for the last-updated timestamp. Intended for importing destinations. Must not be in the future. **Admin (API key) auth only — sending this with JWT auth returns 403.** Defaults to created_at when omitted.
+	UpdatedAt optionalnullable.OptionalNullable[time.Time] `json:"updated_at,omitempty"`
+	// If set, the destination is created in a disabled state with this timestamp. Must not be in the future. Defaults to null (enabled).
+	DisabledAt optionalnullable.OptionalNullable[time.Time] `json:"disabled_at,omitempty"`
 }
 
 func (d DestinationCreateGCPPubSub) MarshalJSON() ([]byte, error) {
@@ -119,4 +126,25 @@ func (d *DestinationCreateGCPPubSub) GetMetadata() optionalnullable.OptionalNull
 		return nil
 	}
 	return d.Metadata
+}
+
+func (d *DestinationCreateGCPPubSub) GetCreatedAt() optionalnullable.OptionalNullable[time.Time] {
+	if d == nil {
+		return nil
+	}
+	return d.CreatedAt
+}
+
+func (d *DestinationCreateGCPPubSub) GetUpdatedAt() optionalnullable.OptionalNullable[time.Time] {
+	if d == nil {
+		return nil
+	}
+	return d.UpdatedAt
+}
+
+func (d *DestinationCreateGCPPubSub) GetDisabledAt() optionalnullable.OptionalNullable[time.Time] {
+	if d == nil {
+		return nil
+	}
+	return d.DisabledAt
 }

@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="color-scheme" content="light dark">
-    <title>SDK Changelog - typescript</title>
+    <title>SDK Changelog - go</title>
     <style>
         :root {
             --bg-color: #ffffff;
@@ -95,13 +95,53 @@
         }
     </style>
 </head>
-<body><h2 id="typescript-sdk-changes">Typescript SDK Changes:</h2>
+<body><h2 id="go-sdk-changes">Go SDK Changes:</h2>
 
 <ul>
-<li><code>outpost.publish()</code>: <strong>Added</strong></li>
-<li><code>outpost.retry()</code>: <strong>Added</strong></li>
-<li><code>outpost.publish.event()</code>: <strong>Removed</strong> (Breaking ⚠️)</li>
-<li><code>outpost.retry.retry()</code>: <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>Outpost.Destinations.Create()</code>: <code>request.Body</code> <strong>Changed</strong>
+
+<ul>
+<li><code>union(aws_kinesis).CreatedAt</code> <strong>Added</strong></li>
+<li><code>union(aws_kinesis).DisabledAt</code> <strong>Added</strong></li>
+<li><code>union(aws_kinesis).UpdatedAt</code> <strong>Added</strong></li>
+<li><code>union(aws_s3).CreatedAt</code> <strong>Added</strong></li>
+<li><code>union(aws_s3).DisabledAt</code> <strong>Added</strong></li>
+<li><code>union(aws_s3).UpdatedAt</code> <strong>Added</strong></li>
+<li><code>union(aws_sqs).CreatedAt</code> <strong>Added</strong></li>
+<li><code>union(aws_sqs).DisabledAt</code> <strong>Added</strong></li>
+<li><code>union(aws_sqs).UpdatedAt</code> <strong>Added</strong></li>
+<li><code>union(azure_servicebus).CreatedAt</code> <strong>Added</strong></li>
+<li><code>union(azure_servicebus).DisabledAt</code> <strong>Added</strong></li>
+<li><code>union(azure_servicebus).UpdatedAt</code> <strong>Added</strong></li>
+<li><code>union(gcp_pubsub).CreatedAt</code> <strong>Added</strong></li>
+<li><code>union(gcp_pubsub).DisabledAt</code> <strong>Added</strong></li>
+<li><code>union(gcp_pubsub).UpdatedAt</code> <strong>Added</strong></li>
+<li><code>union(hookdeck).CreatedAt</code> <strong>Added</strong></li>
+<li><code>union(hookdeck).DisabledAt</code> <strong>Added</strong></li>
+<li><code>union(hookdeck).UpdatedAt</code> <strong>Added</strong></li>
+<li><code>union(kafka).CreatedAt</code> <strong>Added</strong></li>
+<li><code>union(kafka).DisabledAt</code> <strong>Added</strong></li>
+<li><code>union(kafka).UpdatedAt</code> <strong>Added</strong></li>
+<li><code>union(rabbitmq).CreatedAt</code> <strong>Added</strong></li>
+<li><code>union(rabbitmq).DisabledAt</code> <strong>Added</strong></li>
+<li><code>union(rabbitmq).UpdatedAt</code> <strong>Added</strong></li>
+<li><code>union(webhook).CreatedAt</code> <strong>Added</strong></li>
+<li><code>union(webhook).DisabledAt</code> <strong>Added</strong></li>
+<li><code>union(webhook).UpdatedAt</code> <strong>Added</strong></li>
+</ul></li>
+<li><code>Outpost.Destinations.Update()</code>: <code>request.Body</code> <strong>Changed</strong>
+
+<ul>
+<li><code>union(DestinationUpdateAWSKinesis).DisabledAt</code> <strong>Added</strong></li>
+<li><code>union(DestinationUpdateAWSS3).DisabledAt</code> <strong>Added</strong></li>
+<li><code>union(DestinationUpdateAWSSQS).DisabledAt</code> <strong>Added</strong></li>
+<li><code>union(DestinationUpdateAzureServiceBus).DisabledAt</code> <strong>Added</strong></li>
+<li><code>union(DestinationUpdateGCPPubSub).DisabledAt</code> <strong>Added</strong></li>
+<li><code>union(DestinationUpdateHookdeck).DisabledAt</code> <strong>Added</strong></li>
+<li><code>union(DestinationUpdateKafka).DisabledAt</code> <strong>Added</strong></li>
+<li><code>union(DestinationUpdateRabbitMQ).DisabledAt</code> <strong>Added</strong></li>
+<li><code>union(DestinationUpdateWebhook).DisabledAt</code> <strong>Added</strong></li>
+</ul></li>
 </ul>
 </body>
 </html>
