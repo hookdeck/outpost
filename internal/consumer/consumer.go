@@ -12,10 +12,30 @@ import (
 	"go.uber.org/zap"
 )
 
+// Error retry schedule (with 200ms initial backoff):
+//
+//	Error  Backoff    Cumulative
+//	1      200ms      0.2s
+//	2      400ms      0.6s
+//	3      800ms      1.4s       ← 3 retries within ~1.5s
+//	4      1.6s       3.0s
+//	5      3.2s       6.2s
+//	6      6.4s       12.6s
+//	7      12.8s      25.4s
+//	8      15s (cap)  40.4s
+//	9      15s (cap)  55.4s
+//	10     15s (cap)  70.4s      ← worker dies (~1 min total)
+//
+// Backoff formula: initialBackoff * 2^(attempt-1), capped at maxBackoff.
+// After maxConsecutiveErrors the worker dies permanently (supervisor does
+// not restart it), so these values must tolerate transient infra outages
+// (e.g. brief MQ broker restarts, GCP OAuth/DNS blips) without killing the
+// worker. ~1 min is sufficient for managed broker recovery from routine
+// restarts or short network blips.
 const (
-	defaultMaxConsecutiveErrors = 5
+	defaultMaxConsecutiveErrors = 10
 	defaultInitialBackoff       = 200 * time.Millisecond
-	defaultMaxBackoff           = 5 * time.Second
+	defaultMaxBackoff           = 15 * time.Second
 )
 
 type Consumer interface {
