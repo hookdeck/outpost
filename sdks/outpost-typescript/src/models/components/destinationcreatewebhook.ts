@@ -58,6 +58,18 @@ export type DestinationCreateWebhook = {
    * Arbitrary contextual information stored with the destination.
    */
   metadata?: { [k: string]: string } | null | undefined;
+  /**
+   * Optional override for the creation timestamp. Intended for importing destinations from another system. Must not be in the future. **Admin (API key) auth only — sending this with JWT auth returns 403.** Defaults to the current time when omitted.
+   */
+  createdAt?: Date | null | undefined;
+  /**
+   * Optional override for the last-updated timestamp. Intended for importing destinations. Must not be in the future. **Admin (API key) auth only — sending this with JWT auth returns 403.** Defaults to created_at when omitted.
+   */
+  updatedAt?: Date | null | undefined;
+  /**
+   * If set, the destination is created in a disabled state with this timestamp. Must not be in the future. Defaults to null (enabled).
+   */
+  disabledAt?: Date | null | undefined;
 };
 
 /** @internal */
@@ -74,9 +86,21 @@ export const DestinationCreateWebhook$inboundSchema: z.ZodType<
   credentials: WebhookCredentials$inboundSchema.optional(),
   delivery_metadata: z.nullable(z.record(z.string())).optional(),
   metadata: z.nullable(z.record(z.string())).optional(),
+  created_at: z.nullable(
+    z.string().datetime({ offset: true }).transform(v => new Date(v)),
+  ).optional(),
+  updated_at: z.nullable(
+    z.string().datetime({ offset: true }).transform(v => new Date(v)),
+  ).optional(),
+  disabled_at: z.nullable(
+    z.string().datetime({ offset: true }).transform(v => new Date(v)),
+  ).optional(),
 }).transform((v) => {
   return remap$(v, {
     "delivery_metadata": "deliveryMetadata",
+    "created_at": "createdAt",
+    "updated_at": "updatedAt",
+    "disabled_at": "disabledAt",
   });
 });
 /** @internal */
@@ -89,6 +113,9 @@ export type DestinationCreateWebhook$Outbound = {
   credentials?: WebhookCredentials$Outbound | undefined;
   delivery_metadata?: { [k: string]: string } | null | undefined;
   metadata?: { [k: string]: string } | null | undefined;
+  created_at?: string | null | undefined;
+  updated_at?: string | null | undefined;
+  disabled_at?: string | null | undefined;
 };
 
 /** @internal */
@@ -105,9 +132,15 @@ export const DestinationCreateWebhook$outboundSchema: z.ZodType<
   credentials: WebhookCredentials$outboundSchema.optional(),
   deliveryMetadata: z.nullable(z.record(z.string())).optional(),
   metadata: z.nullable(z.record(z.string())).optional(),
+  createdAt: z.nullable(z.date().transform(v => v.toISOString())).optional(),
+  updatedAt: z.nullable(z.date().transform(v => v.toISOString())).optional(),
+  disabledAt: z.nullable(z.date().transform(v => v.toISOString())).optional(),
 }).transform((v) => {
   return remap$(v, {
     deliveryMetadata: "delivery_metadata",
+    createdAt: "created_at",
+    updatedAt: "updated_at",
+    disabledAt: "disabled_at",
   });
 });
 

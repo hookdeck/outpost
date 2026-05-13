@@ -39,6 +39,7 @@ let value: UpdateTenantDestinationRequest = {
       "internal-id": "123",
       "team": "platform",
     },
+    disabledAt: null,
   },
 };
 ```

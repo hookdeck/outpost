@@ -50,6 +50,10 @@ export type DestinationUpdateAzureServiceBus = {
    * Arbitrary contextual information stored with the destination. Uses JSON merge-patch semantics (RFC 7396): send keys to add/update, null values to delete keys, null for entire field to clear all. Omit or send {} for no change.
    */
   metadata?: { [k: string]: string | null } | null | undefined;
+  /**
+   * Update the disabled state of the destination. Send a timestamp (must not be in the future) to disable, null to enable, or omit to leave unchanged.
+   */
+  disabledAt?: Date | null | undefined;
 };
 
 /** @internal */
@@ -64,9 +68,13 @@ export const DestinationUpdateAzureServiceBus$inboundSchema: z.ZodType<
   credentials: AzureServiceBusCredentials$inboundSchema.optional(),
   delivery_metadata: z.nullable(z.record(z.nullable(z.string()))).optional(),
   metadata: z.nullable(z.record(z.nullable(z.string()))).optional(),
+  disabled_at: z.nullable(
+    z.string().datetime({ offset: true }).transform(v => new Date(v)),
+  ).optional(),
 }).transform((v) => {
   return remap$(v, {
     "delivery_metadata": "deliveryMetadata",
+    "disabled_at": "disabledAt",
   });
 });
 /** @internal */
@@ -77,6 +85,7 @@ export type DestinationUpdateAzureServiceBus$Outbound = {
   credentials?: AzureServiceBusCredentials$Outbound | undefined;
   delivery_metadata?: { [k: string]: string | null } | null | undefined;
   metadata?: { [k: string]: string | null } | null | undefined;
+  disabled_at?: string | null | undefined;
 };
 
 /** @internal */
@@ -91,9 +100,11 @@ export const DestinationUpdateAzureServiceBus$outboundSchema: z.ZodType<
   credentials: AzureServiceBusCredentials$outboundSchema.optional(),
   deliveryMetadata: z.nullable(z.record(z.nullable(z.string()))).optional(),
   metadata: z.nullable(z.record(z.nullable(z.string()))).optional(),
+  disabledAt: z.nullable(z.date().transform(v => v.toISOString())).optional(),
 }).transform((v) => {
   return remap$(v, {
     deliveryMetadata: "delivery_metadata",
+    disabledAt: "disabled_at",
   });
 });
 
