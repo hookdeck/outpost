@@ -89,9 +89,10 @@ func MapEnvoyResponseFlag(flag string) string {
 		// SI: stream idle timeout
 		// DT: downstream global timeout
 		return "timeout"
-	case "DC":
-		// DC: downstream connection termination — surface as DNS-style failure
-		// where the dynamic_forward_proxy filter cannot resolve upstream.
+	case "DF":
+		// DF: DNS resolution failure (emitted by dynamic_forward_proxy when
+		// the upstream host cannot be resolved). Verified empirically against
+		// the reference Envoy config in build/dev/envoy/envoy.yaml.
 		return "dns_error"
 	case "NR", "NC":
 		// NR: no route configured

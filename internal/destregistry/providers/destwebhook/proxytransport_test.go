@@ -234,10 +234,10 @@ func TestProxyTransport_EnvoySynthesizedResponse_UT_ReturnsTimeout(t *testing.T)
 	assert.Equal(t, "timeout", destErr.Code)
 }
 
-func TestProxyTransport_EnvoySynthesizedResponse_DC_ReturnsDNSError(t *testing.T) {
+func TestProxyTransport_EnvoySynthesizedResponse_DF_ReturnsDNSError(t *testing.T) {
 	t.Parallel()
 
-	proxy := newEnvoySynthesizedProxy(t, http.StatusServiceUnavailable, "DC")
+	proxy := newEnvoySynthesizedProxy(t, http.StatusServiceUnavailable, "DF")
 	defer proxy.Close()
 
 	client := makeProxiedClient(t, proxy.URL)
@@ -305,7 +305,7 @@ func TestProxyTransport_EnvoyConnectFlag_RefinesInfraErrorCode(t *testing.T) {
 	// destination error code from the flag instead of the generic default.
 	proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodConnect {
-			w.Header().Set("x-envoy-response-flags", "DC")
+			w.Header().Set("x-envoy-response-flags", "DF")
 			w.WriteHeader(http.StatusServiceUnavailable)
 			return
 		}
@@ -321,7 +321,7 @@ func TestProxyTransport_EnvoyConnectFlag_RefinesInfraErrorCode(t *testing.T) {
 	require.True(t, errors.As(err, &destErr),
 		"expected ErrProxyDestination, got: %v", err)
 	assert.Equal(t, "dns_error", destErr.Code,
-		"envoy response-flag DC should refine generic connection_refused to dns_error")
+		"envoy response-flag DF should refine generic connection_refused to dns_error")
 }
 
 func TestMapEnvoyResponseFlag(t *testing.T) {
@@ -336,7 +336,7 @@ func TestMapEnvoyResponseFlag(t *testing.T) {
 		"UT":      "timeout",
 		"SI":      "timeout",
 		"DT":      "timeout",
-		"DC":      "dns_error",
+		"DF":      "dns_error",
 		"NR":      "network_unreachable",
 		"NC":      "network_unreachable",
 		"unknown": "network_error",

@@ -54,7 +54,7 @@ Envoy-specific handling fires on two surfaces: the `CONNECT` response (HTTPS, wh
 
 | Scenario | Signal | Attribution | Behavior |
 |---|---|---|---|
-| Envoy `CONNECT` failure with response-flag header | `x-envoy-response-flags` on the `CONNECT` response | Destination | Record attempt with code refined from the flag (e.g. `DC` → `dns_error`, `UT` → `timeout`) instead of the generic `connection_refused` |
+| Envoy `CONNECT` failure with response-flag header | `x-envoy-response-flags` on the `CONNECT` response | Destination | Record attempt with code refined from the flag (e.g. `DF` → `dns_error`, `UT` → `timeout`) instead of the generic `connection_refused` |
 | Envoy synthesizes 5xx response (plain-HTTP path) | `x-envoy-response-flags: UF` / `UC` / etc. on the response | Destination | Record attempt with code mapped from the flag; response body is dropped |
 | Real upstream response passed through (plain-HTTP) | `x-envoy-response-flags: -` or empty | Destination | Record as today |
 | Successful plain-HTTP response served via Envoy | `x-envoy-*` and `server: envoy` headers present | Destination | Record; headers stripped before storage |
@@ -62,7 +62,7 @@ Envoy-specific handling fires on two surfaces: the `CONNECT` response (HTTPS, wh
 
 Two Envoy-specific behaviors are layered on top, both scoped to surfaces where the forward proxy actually contributed to the bytes:
 
-- **Response-flag mapping** — `x-envoy-response-flags`, when present and non-empty, refines the destination error code (e.g. `UF` → `connection_refused`, `DC` → `dns_error`, `UT` → `timeout`). Applies to `CONNECT` responses and plain-HTTP responses, not to bytes returned through an HTTPS tunnel.
+- **Response-flag mapping** — `x-envoy-response-flags`, when present and non-empty, refines the destination error code (e.g. `UF` → `connection_refused`, `DF` → `dns_error`, `UT` → `timeout`). Applies to `CONNECT` responses and plain-HTTP responses, not to bytes returned through an HTTPS tunnel.
 - **Header and body sanitization** — `x-envoy-*` and `server: envoy` headers are stripped from plain-HTTP responses; Envoy-synthesized plain-HTTP response bodies are replaced with a normalized message that does not leak Envoy. HTTPS responses are not sanitized.
 
 Support for other forward proxies (Squid, HAProxy, nginx, ...) can be added the same way — by detecting proxy-specific response signals and mapping them to destination error codes. None are currently implemented.
