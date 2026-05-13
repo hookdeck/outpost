@@ -152,6 +152,7 @@ function fmt(n) {
 
 async function refresh() {
   const groups = await api('GET', '/api/groups');
+  updateGroupPicker(groups);
   const container = document.getElementById('groups');
 
   // Track which groups exist for add/remove detection
@@ -185,6 +186,8 @@ let eventsFilter = 'all';
 let eventsCurrentPage = 1;
 let eventsAutoRefresh = true;
 let eventsRefreshTimer = null;
+let eventsGroup = null;
+let knownGroups = [];
 
 function setEventFilter(filter) {
   eventsFilter = filter;
@@ -192,6 +195,12 @@ function setEventFilter(filter) {
   document.querySelectorAll('.filter-btn').forEach(b => {
     b.classList.toggle('active', b.dataset.filter === filter);
   });
+  refreshEvents();
+}
+
+function setEventGroup(name) {
+  eventsGroup = name || null;
+  eventsCurrentPage = 1;
   refreshEvents();
 }
 
@@ -215,13 +224,42 @@ function startEventsRefresh() {
   eventsRefreshTimer = setInterval(refreshEvents, 2000);
 }
 
+function updateGroupPicker(groups) {
+  const sel = document.getElementById('events-group');
+  const names = groups.map(g => g.name);
+  if (JSON.stringify(names) === JSON.stringify(knownGroups)) return;
+  knownGroups = names;
+  sel.innerHTML = names.length === 0
+    ? '<option value="">(no groups)</option>'
+    : names.map(n => `<option value="${n}">${n}</option>`).join('');
+  if (!eventsGroup && names.length > 0) {
+    eventsGroup = names[0];
+    sel.value = eventsGroup;
+  } else if (eventsGroup && names.includes(eventsGroup)) {
+    sel.value = eventsGroup;
+  } else if (names.length > 0) {
+    eventsGroup = names[0];
+    sel.value = eventsGroup;
+  } else {
+    eventsGroup = null;
+  }
+}
+
 async function refreshEvents() {
-  let url = `/api/events?page=${eventsCurrentPage}&limit=50`;
+  if (!eventsGroup) {
+    renderEvents({events: [], total: 0, page: 1, has_more: false, counts: {}});
+    return;
+  }
+  let url = `/api/groups/${encodeURIComponent(eventsGroup)}/events?page=${eventsCurrentPage}&limit=50`;
   if (eventsFilter !== 'all') {
     url += `&status=${eventsFilter}`;
   }
-  const data = await api('GET', url);
-  renderEvents(data);
+  try {
+    const data = await api('GET', url);
+    renderEvents(data);
+  } catch (e) {
+    renderEvents({events: [], total: 0, page: 1, has_more: false, counts: {}});
+  }
 }
 
 function renderEvents(data) {

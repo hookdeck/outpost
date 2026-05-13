@@ -49,12 +49,16 @@
   <div class="events-header">
     <h2>Events</h2>
     <div class="events-controls">
+      <label class="group-picker">
+        Group: <select id="events-group" onchange="setEventGroup(this.value)"></select>
+      </label>
       <div class="filter-buttons">
         <button class="filter-btn active" data-filter="all" onclick="setEventFilter('all')">All</button>
         <button class="filter-btn" data-filter="error" onclick="setEventFilter('error')">Errors</button>
         <button class="filter-btn" data-filter="missing" onclick="setEventFilter('missing')">Missing</button>
         <button class="filter-btn" data-filter="delivered" onclick="setEventFilter('delivered')">Delivered</button>
         <button class="filter-btn" data-filter="published" onclick="setEventFilter('published')">Published</button>
+        <button class="filter-btn" data-filter="recovered" onclick="setEventFilter('recovered')">Recovered</button>
       </div>
       <label class="auto-refresh-toggle">
         <input type="checkbox" id="events-auto-refresh" checked onchange="toggleEventsRefresh()"> Auto-refresh

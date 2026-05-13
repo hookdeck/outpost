@@ -1,6 +1,7 @@
 package group
 
 import (
+	"github.com/hookdeck/outpost/loadtest-app/internal/eventlog"
 	"github.com/hookdeck/outpost/loadtest-app/internal/metrics"
 	"github.com/hookdeck/outpost/loadtest-app/internal/mock"
 )
@@ -40,6 +41,7 @@ type Group struct {
 	ProvisionedTenants []ProvisionedTenant
 	Metrics            *metrics.GroupMetrics
 	MockProfile        *mock.Profile
+	EventLog           *eventlog.Log
 	Error              string
 }
 
@@ -62,6 +64,7 @@ func New(cfg Config) *Group {
 		State:       StateCreated,
 		Metrics:     metrics.NewGroupMetrics(),
 		MockProfile: mock.NewProfile(cfg.MockProfile.LatencyMs, cfg.MockProfile.JitterMs, cfg.MockProfile.ErrorRate),
+		EventLog:    eventlog.NewDefault(),
 	}
 }
 

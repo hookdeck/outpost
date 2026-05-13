@@ -17,9 +17,8 @@ import (
 )
 
 type Publisher struct {
-	client   *outpost.Client
-	tracker  *metrics.InFlightTracker
-	eventLog *eventlog.Log
+	client  *outpost.Client
+	tracker *metrics.InFlightTracker
 
 	mu      sync.Mutex
 	running map[string]*groupPublisher
@@ -40,12 +39,11 @@ type publishJob struct {
 	sentAt   time.Time
 }
 
-func New(client *outpost.Client, tracker *metrics.InFlightTracker, el *eventlog.Log) *Publisher {
+func New(client *outpost.Client, tracker *metrics.InFlightTracker) *Publisher {
 	return &Publisher{
-		client:   client,
-		tracker:  tracker,
-		eventLog: el,
-		running:  make(map[string]*groupPublisher),
+		client:  client,
+		tracker: tracker,
+		running: make(map[string]*groupPublisher),
 	}
 }
 
@@ -206,7 +204,7 @@ func (p *Publisher) publishWorker(ctx context.Context, g *group.Group, wg *sync.
 					return
 				}
 				g.Metrics.RecordPublishError()
-				p.eventLog.Add(eventlog.Record{
+				g.EventLog.Add(eventlog.Record{
 					EventID:     job.eventID,
 					GroupName:   g.Config.Name,
 					TenantID:    job.tenantID,
@@ -221,7 +219,7 @@ func (p *Publisher) publishWorker(ctx context.Context, g *group.Group, wg *sync.
 			}
 			p.tracker.RecordPublish(job.eventID, g.Config.Name, g.Config.DestinationsPerTenant, job.sentAt)
 			g.Metrics.RecordPublish(result.Latency)
-			p.eventLog.Add(eventlog.Record{
+			g.EventLog.Add(eventlog.Record{
 				EventID:        job.eventID,
 				GroupName:      g.Config.Name,
 				TenantID:       job.tenantID,

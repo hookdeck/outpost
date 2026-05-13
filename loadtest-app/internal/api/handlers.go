@@ -27,8 +27,8 @@ func (a *App) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/groups/{name}/reset", a.handleReset)
 	mux.HandleFunc("POST /api/groups/{name}/teardown", a.handleTeardown)
 
-	// Events
-	mux.HandleFunc("GET /api/events", a.handleListEvents)
+	// Events (per-group)
+	mux.HandleFunc("GET /api/groups/{name}/events", a.handleListEvents)
 
 	// Global
 	mux.HandleFunc("POST /api/start", a.handleStartAll)
@@ -227,6 +227,7 @@ func (a *App) handleReset(w http.ResponseWriter, r *http.Request) {
 	}
 
 	g.Metrics.Reset()
+	g.EventLog.Reset()
 	g.Transition(group.StateProvisioned)
 	writeJSON(w, http.StatusOK, map[string]string{"status": "reset"})
 }
@@ -328,17 +329,20 @@ func (a *App) handleStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleListEvents(w http.ResponseWriter, r *http.Request) {
-	q := r.URL.Query()
+	name := r.PathValue("name")
+	g, err := a.Store.Get(name)
+	if err != nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+		return
+	}
 
+	q := r.URL.Query()
 	params := eventlog.QueryParams{}
 
 	if statuses, ok := q["status"]; ok {
 		for _, s := range statuses {
 			params.Statuses = append(params.Statuses, eventlog.Status(s))
 		}
-	}
-	if g := q.Get("group"); g != "" {
-		params.Group = g
 	}
 	if p := q.Get("page"); p != "" {
 		if v, err := strconv.Atoi(p); err == nil {
@@ -354,8 +358,16 @@ func (a *App) handleListEvents(w http.ResponseWriter, r *http.Request) {
 		params.Oldest = true
 	}
 
-	result := a.EventLog.Query(params)
-	writeJSON(w, http.StatusOK, result)
+	result := g.EventLog.Query(params)
+	counts := g.EventLog.Counts()
+	writeJSON(w, http.StatusOK, map[string]any{
+		"events":   result.Events,
+		"total":    result.Total,
+		"page":     result.Page,
+		"limit":    result.Limit,
+		"has_more": result.HasMore,
+		"counts":   counts,
+	})
 }
 
 // Helpers

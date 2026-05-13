@@ -20,17 +20,15 @@ type App struct {
 	Publisher   *publisher.Publisher
 	Tracker     *metrics.InFlightTracker
 	MockServer  *mock.Server
-	EventLog    *eventlog.Log
 }
 
 func NewApp(cfg *config.Config) *App {
 	client := outpost.NewClient(cfg.OutpostURL, cfg.APIKey)
 	tracker := metrics.NewInFlightTracker(30 * time.Second)
-	el := eventlog.New(10000)
 
 	mockServer := mock.NewServer(nil) // callback set below
 	provisioner := group.NewProvisioner(client, mockServer, cfg.MockURL)
-	pub := publisher.New(client, tracker, el)
+	pub := publisher.New(client, tracker)
 
 	app := &App{
 		Config:      cfg,
@@ -39,19 +37,25 @@ func NewApp(cfg *config.Config) *App {
 		Publisher:   pub,
 		Tracker:     tracker,
 		MockServer:  mockServer,
-		EventLog:    el,
 	}
 
 	// Wire mock delivery callback → tracker + group metrics + eventlog
 	mockServer.SetCallback(func(d mock.DeliveryRecord) {
 		e2eLatency, _ := tracker.RecordDelivery(d.EventID, d.GroupName, d.ReceivedAt)
-		if g, err := app.Store.Get(d.GroupName); err == nil {
-			g.Metrics.RecordDelivery(e2eLatency)
+		g, err := app.Store.Get(d.GroupName)
+		if err != nil {
+			return
 		}
-		el.Update(d.EventID, func(r *eventlog.Record) {
+		g.Metrics.RecordDelivery(e2eLatency)
+		g.EventLog.Update(d.EventID, func(r *eventlog.Record) {
 			r.Status = eventlog.StatusDelivered
 			r.DeliveredAt = &d.ReceivedAt
-			r.E2ELatency = e2eLatency.Milliseconds()
+			// Compute e2e from record timestamps to avoid race with tracker.RecordPublish
+			if !r.PublishedAt.IsZero() {
+				r.E2ELatency = d.ReceivedAt.Sub(r.PublishedAt).Milliseconds()
+			} else {
+				r.E2ELatency = e2eLatency.Milliseconds()
+			}
 		})
 	})
 
@@ -59,18 +63,22 @@ func NewApp(cfg *config.Config) *App {
 	tracker.SetCallbacks(
 		nil,
 		func(eventID, groupName string) {
-			if g, err := app.Store.Get(groupName); err == nil {
-				g.Metrics.RecordMissing()
+			g, err := app.Store.Get(groupName)
+			if err != nil {
+				return
 			}
-			el.Update(eventID, func(r *eventlog.Record) {
+			g.Metrics.RecordMissing()
+			g.EventLog.Update(eventID, func(r *eventlog.Record) {
 				r.Status = eventlog.StatusMissing
 			})
 		},
 		func(eventID, groupName string) {
-			if g, err := app.Store.Get(groupName); err == nil {
-				g.Metrics.RecordRecovered()
+			g, err := app.Store.Get(groupName)
+			if err != nil {
+				return
 			}
-			el.Update(eventID, func(r *eventlog.Record) {
+			g.Metrics.RecordRecovered()
+			g.EventLog.Update(eventID, func(r *eventlog.Record) {
 				r.Status = eventlog.StatusRecovered
 			})
 		},

@@ -1,7 +1,7 @@
 package eventlog
 
 import (
-	"slices"
+	"sort"
 	"sync"
 	"time"
 )
@@ -16,23 +16,29 @@ const (
 	StatusRecovered Status = "recovered"
 )
 
+var allStatuses = []Status{StatusPublished, StatusDelivered, StatusMissing, StatusError, StatusRecovered}
+
+const (
+	DefaultPerStatusCapacity = 100_000
+	DefaultTTL               = time.Hour
+)
+
 type Record struct {
-	EventID        string        `json:"event_id"`
-	GroupName      string        `json:"group_name"`
-	TenantID       string        `json:"tenant_id"`
-	Topic          string        `json:"topic"`
-	Status         Status        `json:"status"`
-	PublishedAt    time.Time     `json:"published_at"`
-	PublishLatency int64         `json:"publish_latency_ms,omitempty"`
-	DeliveredAt    *time.Time    `json:"delivered_at,omitempty"`
-	E2ELatency     int64         `json:"e2e_latency_ms,omitempty"`
-	Error          string        `json:"error,omitempty"`
-	StatusCode     int           `json:"status_code,omitempty"`
+	EventID        string     `json:"event_id"`
+	GroupName      string     `json:"group_name"`
+	TenantID       string     `json:"tenant_id"`
+	Topic          string     `json:"topic"`
+	Status         Status     `json:"status"`
+	PublishedAt    time.Time  `json:"published_at"`
+	PublishLatency int64      `json:"publish_latency_ms,omitempty"`
+	DeliveredAt    *time.Time `json:"delivered_at,omitempty"`
+	E2ELatency     int64      `json:"e2e_latency_ms,omitempty"`
+	Error          string     `json:"error,omitempty"`
+	StatusCode     int        `json:"status_code,omitempty"`
 }
 
 type QueryParams struct {
 	Statuses []Status
-	Group    string
 	Page     int
 	Limit    int
 	Oldest   bool // false = newest first (default)
@@ -46,44 +52,87 @@ type QueryResult struct {
 	HasMore bool     `json:"has_more"`
 }
 
-// Log is a bounded, in-memory event log with O(1) updates by eventID.
-type Log struct {
-	mu      sync.RWMutex
-	records []Record       // ring buffer
-	index   map[string]int // eventID → position in records
-	head    int            // next write position
-	size    int            // current number of records
-	cap     int            // max capacity
+// bucket is a fixed-capacity ring buffer of records.
+// Tombstoned slots have EventID == "".
+type bucket struct {
+	records []Record
+	head    int // next write position
+	size    int // count of live + tombstoned slots filled (i.e. valid window length)
 }
 
-func New(capacity int) *Log {
+func newBucket(cap int) *bucket {
+	return &bucket{records: make([]Record, cap)}
+}
+
+// position records where an eventID lives.
+type position struct {
+	status Status
+	idx    int
+}
+
+// Log holds per-status ring buffers with TTL-based and capacity-based eviction.
+type Log struct {
+	mu      sync.RWMutex
+	buckets map[Status]*bucket
+	index   map[string]position
+	cap     int
+	ttl     time.Duration
+	now     func() time.Time // overridable for tests
+}
+
+func New(perStatusCap int, ttl time.Duration) *Log {
+	if perStatusCap <= 0 {
+		perStatusCap = DefaultPerStatusCapacity
+	}
+	if ttl <= 0 {
+		ttl = DefaultTTL
+	}
+	buckets := make(map[Status]*bucket, len(allStatuses))
+	for _, s := range allStatuses {
+		buckets[s] = newBucket(perStatusCap)
+	}
 	return &Log{
-		records: make([]Record, capacity),
-		index:   make(map[string]int, capacity),
-		cap:     capacity,
+		buckets: buckets,
+		index:   make(map[string]position),
+		cap:     perStatusCap,
+		ttl:     ttl,
+		now:     time.Now,
 	}
 }
 
-// Add inserts a new record. If the buffer is full, the oldest record is evicted.
+func NewDefault() *Log { return New(DefaultPerStatusCapacity, DefaultTTL) }
+
+// Add inserts a new record. If the buffer for the status is full, the oldest slot is overwritten.
 func (l *Log) Add(r Record) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	l.insert(r)
+}
 
-	// Evict old entry from index if overwriting
-	if l.size == l.cap {
-		old := l.records[l.head]
-		delete(l.index, old.EventID)
+// must hold l.mu.
+func (l *Log) insert(r Record) {
+	b := l.buckets[r.Status]
+	if b == nil {
+		return
 	}
-
-	l.records[l.head] = r
-	l.index[r.EventID] = l.head
-	l.head = (l.head + 1) % l.cap
-	if l.size < l.cap {
-		l.size++
+	// Evict whatever currently lives at head
+	if b.size == l.cap {
+		old := b.records[b.head]
+		if old.EventID != "" {
+			delete(l.index, old.EventID)
+		}
+	}
+	b.records[b.head] = r
+	l.index[r.EventID] = position{status: r.Status, idx: b.head}
+	b.head = (b.head + 1) % l.cap
+	if b.size < l.cap {
+		b.size++
 	}
 }
 
-// Update modifies an existing record by eventID. Returns false if not found.
+// Update modifies an existing record by eventID. If the mutator changes Status, the record
+// is tombstoned in the old bucket and re-inserted into the new bucket.
+// Returns false if eventID is not present.
 func (l *Log) Update(eventID string, fn func(*Record)) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -92,11 +141,28 @@ func (l *Log) Update(eventID string, fn func(*Record)) bool {
 	if !ok {
 		return false
 	}
-	fn(&l.records[pos])
+	b := l.buckets[pos.status]
+	cur := b.records[pos.idx]
+	if cur.EventID != eventID {
+		// stale index entry; defensive
+		delete(l.index, eventID)
+		return false
+	}
+	fn(&cur)
+	if cur.Status == pos.status {
+		b.records[pos.idx] = cur
+		return true
+	}
+	// Status changed — tombstone old slot and reinsert into new bucket
+	b.records[pos.idx] = Record{}
+	delete(l.index, eventID)
+	l.insert(cur)
 	return true
 }
 
-// Query returns a paginated, filtered view of the log.
+// Query returns a paginated, filtered view across the requested status buckets.
+// Records are returned newest-first by PublishedAt unless Oldest is true.
+// Records older than TTL are filtered out.
 func (l *Log) Query(p QueryParams) QueryResult {
 	if p.Limit <= 0 {
 		p.Limit = 50
@@ -108,62 +174,85 @@ func (l *Log) Query(p QueryParams) QueryResult {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 
-	// Collect matching records in insertion order (oldest first)
+	statuses := p.Statuses
+	if len(statuses) == 0 {
+		statuses = allStatuses
+	}
+
+	cutoff := l.now().Add(-l.ttl)
 	var matched []Record
-	for i := 0; i < l.size; i++ {
-		idx := (l.head - l.size + i + l.cap) % l.cap
-		r := l.records[idx]
-		if l.matchesFilter(r, p) {
+	for _, s := range statuses {
+		b := l.buckets[s]
+		if b == nil {
+			continue
+		}
+		for i := 0; i < b.size; i++ {
+			idx := (b.head - b.size + i + l.cap) % l.cap
+			r := b.records[idx]
+			if r.EventID == "" {
+				continue
+			}
+			if r.PublishedAt.Before(cutoff) {
+				continue
+			}
 			matched = append(matched, r)
 		}
 	}
 
+	if p.Oldest {
+		sort.Slice(matched, func(i, j int) bool { return matched[i].PublishedAt.Before(matched[j].PublishedAt) })
+	} else {
+		sort.Slice(matched, func(i, j int) bool { return matched[i].PublishedAt.After(matched[j].PublishedAt) })
+	}
+
 	total := len(matched)
-
-	// Reverse for newest-first (default)
-	if !p.Oldest {
-		for i, j := 0, len(matched)-1; i < j; i, j = i+1, j-1 {
-			matched[i], matched[j] = matched[j], matched[i]
-		}
-	}
-
-	// Paginate
 	start := (p.Page - 1) * p.Limit
-	if start >= len(matched) {
-		return QueryResult{
-			Events:  []Record{},
-			Total:   total,
-			Page:    p.Page,
-			Limit:   p.Limit,
-			HasMore: false,
-		}
+	if start >= total {
+		return QueryResult{Events: []Record{}, Total: total, Page: p.Page, Limit: p.Limit, HasMore: false}
 	}
-	end := min(start+p.Limit, len(matched))
+	end := min(start+p.Limit, total)
 
 	return QueryResult{
 		Events:  matched[start:end],
 		Total:   total,
 		Page:    p.Page,
 		Limit:   p.Limit,
-		HasMore: end < len(matched),
+		HasMore: end < total,
 	}
 }
 
-func (l *Log) matchesFilter(r Record, p QueryParams) bool {
-	if len(p.Statuses) > 0 && !slices.Contains(p.Statuses, r.Status) {
-		return false
+// Counts returns the live record count per status.
+func (l *Log) Counts() map[Status]int {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+	out := make(map[Status]int, len(allStatuses))
+	cutoff := l.now().Add(-l.ttl)
+	for s, b := range l.buckets {
+		c := 0
+		for i := 0; i < b.size; i++ {
+			idx := (b.head - b.size + i + l.cap) % l.cap
+			r := b.records[idx]
+			if r.EventID == "" || r.PublishedAt.Before(cutoff) {
+				continue
+			}
+			c++
+		}
+		out[s] = c
 	}
-	if p.Group != "" && r.GroupName != p.Group {
-		return false
-	}
-	return true
+	return out
 }
 
-// Reset clears the log.
+// Reset clears every bucket.
 func (l *Log) Reset() {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	l.index = make(map[string]int, l.cap)
-	l.head = 0
-	l.size = 0
+	l.index = make(map[string]position)
+	for _, b := range l.buckets {
+		for i := range b.records {
+			b.records[i] = Record{}
+		}
+		b.head = 0
+		b.size = 0
+	}
 }
+
