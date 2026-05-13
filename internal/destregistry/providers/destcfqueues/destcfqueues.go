@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/hookdeck/outpost/internal/destregistry"
@@ -65,7 +66,7 @@ func (d *CloudflareQueuesDestination) CreatePublisher(ctx context.Context, desti
 		return nil, err
 	}
 
-	httpClient, err := d.BaseProvider.MakeHTTPClient(destregistry.HTTPClientConfig{})
+	httpClient, err := destregistry.NewHTTPClient(destregistry.HTTPClientConfig{})
 	if err != nil {
 		return nil, err
 	}
@@ -132,52 +133,55 @@ func (p *CloudflareQueuesPublisher) SetHTTPClient(client *http.Client) {
 	p.httpClient = client
 }
 
-// cloudflareMessage represents a single message in the Cloudflare Queues API request.
-type cloudflareMessage struct {
-	Body interface{} `json:"body"`
-}
-
-// cloudflareMessagesRequest represents the request body for the Cloudflare Queues API.
-type cloudflareMessagesRequest struct {
-	Messages []cloudflareMessage `json:"messages"`
+// cloudflareMessageRequest is the body for POST /accounts/{id}/queues/{id}/messages
+// (single-message push). See https://developers.cloudflare.com/api/resources/queues/subresources/messages/methods/push/
+type cloudflareMessageRequest struct {
+	Body        messageBody `json:"body"`
+	ContentType string      `json:"content_type"`
 }
 
 // cloudflareAPIResponse represents the response from the Cloudflare API.
 type cloudflareAPIResponse struct {
-	Success  bool                     `json:"success"`
-	Errors   []cloudflareAPIError     `json:"errors"`
-	Messages []string                 `json:"messages"`
-	Result   []map[string]interface{} `json:"result"`
+	Success  bool                 `json:"success"`
+	Errors   []cloudflareAPIError `json:"errors"`
+	Messages []string             `json:"messages"`
+	Result   *cloudflareResult    `json:"result"`
+}
+
+type cloudflareResult struct {
+	Metadata struct {
+		Metrics struct {
+			BacklogBytes             int64 `json:"backlog_bytes"`
+			BacklogCount             int64 `json:"backlog_count"`
+			OldestMessageTimestampMs int64 `json:"oldest_message_timestamp_ms"`
+		} `json:"metrics"`
+	} `json:"metadata"`
 }
 
 // cloudflareAPIError represents an error from the Cloudflare API.
 type cloudflareAPIError struct {
-	Code    int    `json:"code"`
-	Message string `json:"message"`
+	Code             int    `json:"code"`
+	Message          string `json:"message"`
+	DocumentationURL string `json:"documentation_url,omitempty"`
+	Source           *struct {
+		Pointer string `json:"pointer"`
+	} `json:"source,omitempty"`
 }
 
-// messageBody represents the body structure sent to Cloudflare Queues.
+// messageBody is the wrapper Outpost places inside the Cloudflare message body.
 type messageBody struct {
-	Data     interface{}       `json:"data"`
+	Data     json.RawMessage   `json:"data"`
 	Metadata map[string]string `json:"metadata"`
 }
 
-// Format builds the HTTP request for publishing to Cloudflare Queues.
+// Format builds the HTTP request for publishing a single message to a Cloudflare Queue.
 func (p *CloudflareQueuesPublisher) Format(ctx context.Context, event *models.Event) (*http.Request, error) {
-	now := time.Now()
-	metadata := p.BasePublisher.MakeMetadata(event, now)
-
-	// Build the message body with data and metadata
-	body := messageBody{
-		Data:     event.Data,
-		Metadata: metadata,
-	}
-
-	// Build the request payload
-	reqPayload := cloudflareMessagesRequest{
-		Messages: []cloudflareMessage{
-			{Body: body},
+	reqPayload := cloudflareMessageRequest{
+		Body: messageBody{
+			Data:     event.Data,
+			Metadata: p.BasePublisher.MakeMetadata(event, time.Now()),
 		},
+		ContentType: "json",
 	}
 
 	payloadBytes, err := json.Marshal(reqPayload)
@@ -185,7 +189,6 @@ func (p *CloudflareQueuesPublisher) Format(ctx context.Context, event *models.Ev
 		return nil, fmt.Errorf("failed to marshal request payload: %w", err)
 	}
 
-	// Build the API URL
 	url := fmt.Sprintf("%s/accounts/%s/queues/%s/messages", cloudflareAPIBaseURL, p.accountID, p.queueID)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer(payloadBytes))
@@ -194,7 +197,7 @@ func (p *CloudflareQueuesPublisher) Format(ctx context.Context, event *models.Ev
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", p.apiToken))
+	req.Header.Set("Authorization", "Bearer "+p.apiToken)
 
 	return req, nil
 }
@@ -238,49 +241,56 @@ func (p *CloudflareQueuesPublisher) Publish(ctx context.Context, event *models.E
 		})
 	}
 
-	var apiResponse cloudflareAPIResponse
-	if err := json.Unmarshal(bodyBytes, &apiResponse); err != nil {
-		// If we can't parse the response, check status code
-		if resp.StatusCode >= 400 {
-			return &destregistry.Delivery{
-				Status: "failed",
-				Code:   fmt.Sprintf("%d", resp.StatusCode),
-				Response: map[string]interface{}{
-					"status": resp.StatusCode,
-					"body":   string(bodyBytes),
-				},
-			}, destregistry.NewErrDestinationPublishAttempt(
-				fmt.Errorf("request failed with status %d", resp.StatusCode),
-				providerType,
-				map[string]interface{}{
-					"status": resp.StatusCode,
-					"body":   string(bodyBytes),
-				})
+	statusCode := strconv.Itoa(resp.StatusCode)
+
+	// Any non-2xx is a failure regardless of body parseability.
+	if resp.StatusCode >= 400 {
+		var apiResponse cloudflareAPIResponse
+		errorMsg := fmt.Sprintf("request failed with status %d", resp.StatusCode)
+		response := map[string]interface{}{
+			"status": resp.StatusCode,
+			"body":   string(bodyBytes),
 		}
+		if json.Unmarshal(bodyBytes, &apiResponse) == nil && len(apiResponse.Errors) > 0 {
+			errorMsg = apiResponse.Errors[0].Message
+			response["errors"] = apiResponse.Errors
+		}
+		return &destregistry.Delivery{
+				Status:   "failed",
+				Code:     statusCode,
+				Response: response,
+			}, destregistry.NewErrDestinationPublishAttempt(
+				fmt.Errorf("cloudflare API error: %s", errorMsg),
+				providerType,
+				response,
+			)
 	}
 
-	// Check for API-level errors
-	if !apiResponse.Success || len(apiResponse.Errors) > 0 {
-		errorMsg := "unknown error"
-		if len(apiResponse.Errors) > 0 {
-			errorMsg = apiResponse.Errors[0].Message
-		}
-
-		return &destregistry.Delivery{
-			Status: "failed",
-			Code:   fmt.Sprintf("%d", resp.StatusCode),
-			Response: map[string]interface{}{
+	// 2xx. Try to parse — if the body is unparseable but status is OK,
+	// trust the status. CF returns valid JSON on success; only weird
+	// proxies would land us here.
+	var apiResponse cloudflareAPIResponse
+	if err := json.Unmarshal(bodyBytes, &apiResponse); err == nil {
+		if !apiResponse.Success {
+			errorMsg := "cloudflare API reported success=false"
+			if len(apiResponse.Errors) > 0 {
+				errorMsg = apiResponse.Errors[0].Message
+			}
+			response := map[string]interface{}{
 				"status":  resp.StatusCode,
 				"success": apiResponse.Success,
 				"errors":  apiResponse.Errors,
-			},
-		}, destregistry.NewErrDestinationPublishAttempt(
-			fmt.Errorf("cloudflare API error: %s", errorMsg),
-			providerType,
-			map[string]interface{}{
-				"status": resp.StatusCode,
-				"errors": apiResponse.Errors,
-			})
+			}
+			return &destregistry.Delivery{
+					Status:   "failed",
+					Code:     statusCode,
+					Response: response,
+				}, destregistry.NewErrDestinationPublishAttempt(
+					fmt.Errorf("cloudflare API error: %s", errorMsg),
+					providerType,
+					response,
+				)
+		}
 	}
 
 	return &destregistry.Delivery{
@@ -288,7 +298,6 @@ func (p *CloudflareQueuesPublisher) Publish(ctx context.Context, event *models.E
 		Code:   "OK",
 		Response: map[string]interface{}{
 			"status": resp.StatusCode,
-			"result": apiResponse.Result,
 		},
 	}, nil
 }
