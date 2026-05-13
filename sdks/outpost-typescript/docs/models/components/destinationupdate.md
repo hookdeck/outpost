@@ -31,6 +31,7 @@ const value: components.DestinationUpdateWebhook = {
     "internal-id": "123",
     "team": "platform",
   },
+  disabledAt: null,
 };
 ```
 
@@ -60,6 +61,7 @@ const value: components.DestinationUpdateHookdeck = {
     "internal-id": "123",
     "team": "platform",
   },
+  disabledAt: null,
 };
 ```
 
@@ -95,6 +97,7 @@ const value: components.DestinationUpdateAWSSQS = {
     "internal-id": "123",
     "team": "platform",
   },
+  disabledAt: null,
 };
 ```
 
@@ -132,6 +135,7 @@ const value: components.DestinationUpdateAWSKinesis = {
     "internal-id": "123",
     "team": "platform",
   },
+  disabledAt: null,
 };
 ```
 
@@ -170,6 +174,7 @@ const value: components.DestinationUpdateAwss3 = {
     "internal-id": "123",
     "team": "platform",
   },
+  disabledAt: null,
 };
 ```
 
@@ -203,6 +208,7 @@ const value: components.DestinationUpdateAzureServiceBus = {
     "internal-id": "123",
     "team": "platform",
   },
+  disabledAt: null,
 };
 ```
 
@@ -238,6 +244,7 @@ const value: components.DestinationUpdateGCPPubSub = {
     "internal-id": "123",
     "team": "platform",
   },
+  disabledAt: null,
 };
 ```
 
@@ -273,6 +280,7 @@ const value: components.DestinationUpdateRabbitMQ = {
     "internal-id": "123",
     "team": "platform",
   },
+  disabledAt: null,
 };
 ```
 
@@ -309,6 +317,7 @@ const value: components.DestinationUpdateKafka = {
     "internal-id": "123",
     "team": "platform",
   },
+  disabledAt: null,
 };
 ```
 

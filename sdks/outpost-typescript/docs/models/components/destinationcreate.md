@@ -38,6 +38,9 @@ const value: components.DestinationCreateWebhook = {
     "internal-id": "123",
     "team": "platform",
   },
+  createdAt: new Date("2024-02-15T10:00:00Z"),
+  updatedAt: new Date("2024-02-15T10:00:00Z"),
+  disabledAt: null,
 };
 ```
 
@@ -75,6 +78,9 @@ const value: components.DestinationCreateAWSSQS = {
     "internal-id": "123",
     "team": "platform",
   },
+  createdAt: new Date("2024-02-15T10:00:00Z"),
+  updatedAt: new Date("2024-02-15T10:00:00Z"),
+  disabledAt: null,
 };
 ```
 
@@ -112,6 +118,9 @@ const value: components.DestinationCreateRabbitMQ = {
     "internal-id": "123",
     "team": "platform",
   },
+  createdAt: new Date("2024-02-15T10:00:00Z"),
+  updatedAt: new Date("2024-02-15T10:00:00Z"),
+  disabledAt: null,
 };
 ```
 
@@ -143,6 +152,9 @@ const value: components.DestinationCreateHookdeck = {
     "internal-id": "123",
     "team": "platform",
   },
+  createdAt: new Date("2024-02-15T10:00:00Z"),
+  updatedAt: new Date("2024-02-15T10:00:00Z"),
+  disabledAt: null,
 };
 ```
 
@@ -182,6 +194,9 @@ const value: components.DestinationCreateAWSKinesis = {
     "internal-id": "123",
     "team": "platform",
   },
+  createdAt: new Date("2024-02-15T10:00:00Z"),
+  updatedAt: new Date("2024-02-15T10:00:00Z"),
+  disabledAt: null,
 };
 ```
 
@@ -217,6 +232,9 @@ const value: components.DestinationCreateAzureServiceBus = {
     "internal-id": "123",
     "team": "platform",
   },
+  createdAt: new Date("2024-02-15T10:00:00Z"),
+  updatedAt: new Date("2024-02-15T10:00:00Z"),
+  disabledAt: null,
 };
 ```
 
@@ -257,6 +275,9 @@ const value: components.DestinationCreateAwss3 = {
     "internal-id": "123",
     "team": "platform",
   },
+  createdAt: new Date("2024-02-15T10:00:00Z"),
+  updatedAt: new Date("2024-02-15T10:00:00Z"),
+  disabledAt: null,
 };
 ```
 
@@ -294,6 +315,9 @@ const value: components.DestinationCreateGCPPubSub = {
     "internal-id": "123",
     "team": "platform",
   },
+  createdAt: new Date("2024-02-15T10:00:00Z"),
+  updatedAt: new Date("2024-02-15T10:00:00Z"),
+  disabledAt: null,
 };
 ```
 
@@ -332,6 +356,9 @@ const value: components.DestinationCreateKafka = {
     "internal-id": "123",
     "team": "platform",
   },
+  createdAt: new Date("2024-02-15T10:00:00Z"),
+  updatedAt: new Date("2024-02-15T10:00:00Z"),
+  disabledAt: null,
 };
 ```
 
