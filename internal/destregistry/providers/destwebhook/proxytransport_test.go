@@ -250,8 +250,8 @@ func TestProxyTransport_EnvoySynthesizedResponse_DF_ReturnsDNSError(t *testing.T
 	var destErr *destwebhook.ErrProxyDestination
 	require.True(t, errors.As(err, &destErr))
 	assert.Equal(t, "dns_error", destErr.Code)
-	assert.Equal(t, "DF", destErr.Flag, "Flag captured for operator diagnostics")
-	assert.Equal(t, "dns_resolution_failure", destErr.Details, "Details captured for operator diagnostics")
+	assert.Equal(t, "DF", destErr.Diagnostics["envoy_flag"], "envoy_flag captured for operator diagnostics")
+	assert.Equal(t, "dns_resolution_failure", destErr.Diagnostics["envoy_details"], "envoy_details captured for operator diagnostics")
 }
 
 func TestProxyTransport_EnvoySynthesizedResponse_UC_ReturnsConnectionReset(t *testing.T) {
@@ -269,8 +269,8 @@ func TestProxyTransport_EnvoySynthesizedResponse_UC_ReturnsConnectionReset(t *te
 	var destErr *destwebhook.ErrProxyDestination
 	require.True(t, errors.As(err, &destErr))
 	assert.Equal(t, "connection_reset", destErr.Code)
-	assert.Equal(t, "UC", destErr.Flag)
-	assert.Equal(t, "upstream_reset_after_response_started{connection_termination}", destErr.Details)
+	assert.Equal(t, "UC", destErr.Diagnostics["envoy_flag"])
+	assert.Equal(t, "upstream_reset_after_response_started{connection_termination}", destErr.Diagnostics["envoy_details"])
 }
 
 func TestProxyTransport_EnvoyPlaceholderFlag_PassesResponseThrough(t *testing.T) {

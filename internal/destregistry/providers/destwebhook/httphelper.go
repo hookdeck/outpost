@@ -62,16 +62,14 @@ func ExecuteHTTPRequest(ctx context.Context, client *http.Client, req *http.Requ
 			"error":   "request_failed",
 			"message": err.Error(),
 		}
-		// Attach raw Envoy diagnostics (flag + response-code-details) to the
-		// publish-attempt error so operators can grep them in logs. These are
-		// NOT placed in the delivery's ResponseData, keeping the customer-
-		// visible attempt free of proxy details.
+		// Attach raw proxy diagnostics (e.g. Envoy flag + response-code-details)
+		// to the publish-attempt error so operators can grep them in logs.
+		// Keys are owned by whichever proxy populated them. Not placed in the
+		// delivery's ResponseData — customer-visible attempt stays free of
+		// proxy details.
 		if destErr != nil {
-			if destErr.Flag != "" {
-				data["proxy_flag"] = destErr.Flag
-			}
-			if destErr.Details != "" {
-				data["proxy_details"] = destErr.Details
+			for k, v := range destErr.Diagnostics {
+				data[k] = v
 			}
 		}
 

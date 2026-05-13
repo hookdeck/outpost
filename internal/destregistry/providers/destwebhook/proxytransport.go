@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"sort"
 	"strings"
 )
 
@@ -47,24 +48,39 @@ func (e *ErrProxyInfra) Unwrap() error {
 // rewritten so the customer sees a destination-attributed failure rather than
 // proxy-attributed details.
 //
-// Flag and Details capture the raw Envoy diagnostic strings when present.
-// They are operator-side metadata: callers attach them to error logs / the
-// publish-attempt error payload so operators can grep the precise Envoy
-// reason ("upstream_reset_before_response_started{connection_timeout}", etc.)
-// without ever exposing them to the customer-visible attempt record.
+// Diagnostics is a free-form key/value map of proxy-specific signals the
+// classification path picked up (e.g. for Envoy, "envoy_flag" and
+// "envoy_details"). It is operator-side metadata only: surfaced in error
+// logs and on the publish-attempt error payload, never written to the
+// customer-visible attempt record. Whichever proxy emitted the data owns
+// the key naming so heterogeneous proxies can coexist without colliding.
 type ErrProxyDestination struct {
-	Underlying error
-	Code       string
-	DestHost   string
-	Flag       string
-	Details    string
+	Underlying  error
+	Code        string
+	DestHost    string
+	Diagnostics map[string]string
 }
 
 func (e *ErrProxyDestination) Error() string {
-	if e.DestHost == "" {
-		return e.Code
+	msg := e.Code
+	if e.DestHost != "" {
+		msg = fmt.Sprintf("%s connecting to %s", e.Code, e.DestHost)
 	}
-	return fmt.Sprintf("%s connecting to %s", e.Code, e.DestHost)
+	// Append proxy diagnostics so they surface in zap.Error(err) logs at the
+	// consumer boundary. Customer-visible attempt code is still just e.Code.
+	if len(e.Diagnostics) == 0 {
+		return msg
+	}
+	keys := make([]string, 0, len(e.Diagnostics))
+	for k := range e.Diagnostics {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	parts := make([]string, 0, len(keys))
+	for _, k := range keys {
+		parts = append(parts, fmt.Sprintf("%s=%s", k, e.Diagnostics[k]))
+	}
+	return fmt.Sprintf("%s (%s)", msg, strings.Join(parts, ", "))
 }
 
 func (e *ErrProxyDestination) Unwrap() error {
@@ -195,11 +211,10 @@ func (t *proxyTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 		_, _ = io.Copy(io.Discard, resp.Body)
 		_ = resp.Body.Close()
 		return nil, &ErrProxyDestination{
-			Underlying: synthesizedErr(flag, details, resp.StatusCode),
-			Code:       MapEnvoyResponseFlag(flag),
-			DestHost:   destHostFromRequest(req),
-			Flag:       flag,
-			Details:    details,
+			Underlying:  synthesizedErr(flag, details, resp.StatusCode),
+			Code:        MapEnvoyResponseFlag(flag),
+			DestHost:    destHostFromRequest(req),
+			Diagnostics: envoyDiagnostics(flag, details),
 		}
 	}
 
@@ -318,11 +333,10 @@ func onProxyConnectResponse(ctx context.Context, proxyURL *url.URL, connectReq *
 	}
 
 	return &ErrProxyDestination{
-		Underlying: fmt.Errorf("proxy returned %s", resp.Status),
-		Code:       code,
-		DestHost:   destHost,
-		Flag:       flag,
-		Details:    details,
+		Underlying:  fmt.Errorf("proxy returned %s", resp.Status),
+		Code:        code,
+		DestHost:    destHost,
+		Diagnostics: envoyDiagnostics(flag, details),
 	}
 }
 
@@ -347,6 +361,23 @@ func envoyResponseDetails(h http.Header) string {
 		return ""
 	}
 	return v
+}
+
+// envoyDiagnostics returns the diagnostics map for an Envoy-attributed
+// destination error. Returns nil when both inputs are empty so the caller
+// gets a properly-zero Diagnostics field (len-0 nil map).
+func envoyDiagnostics(flag, details string) map[string]string {
+	if flag == "" && details == "" {
+		return nil
+	}
+	d := make(map[string]string, 2)
+	if flag != "" {
+		d["envoy_flag"] = flag
+	}
+	if details != "" {
+		d["envoy_details"] = details
+	}
+	return d
 }
 
 // synthesizedErr builds the underlying error wrapped inside ErrProxyDestination
