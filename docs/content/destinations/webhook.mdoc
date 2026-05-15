@@ -175,6 +175,19 @@ PORTAL_ENABLE_WEBHOOK_CUSTOM_HEADERS=true
 {% /tab %}
 {% /tabs %}
 
+## Forward Proxy
+
+Webhook deliveries can be routed through an HTTP forward proxy — useful for static-IP egress, network isolation, or centralized egress policy.
+
+{% tabs tabGroup="deployment" %}
+{% tab label="Managed" %}
+Configure the proxy URL in [Hookdeck Destinations settings](https://dashboard.hookdeck.com/settings/project/destinations), or via the [Config API](/docs/outpost/api#configuration) using `DESTINATIONS_WEBHOOK_PROXY_URL`.
+{% /tab %}
+{% tab label="Self-Hosted" %}
+Set `DESTINATIONS_WEBHOOK_PROXY_URL` to your proxy URL (basic auth supported). See [Webhook Forward Proxy](/docs/outpost/self-hosting/guides/webhook-proxy) for failure attribution, Envoy support, and a reference Envoy config.
+{% /tab %}
+{% /tabs %}
+
 ## Operator Configuration
 
 {% tabs tabGroup="deployment" %}
