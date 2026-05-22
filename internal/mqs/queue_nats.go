@@ -171,12 +171,14 @@ func (q *NATSQueue) addAccount(ctx context.Context, acc NATSAccountConfig) error
 	}
 	q.mu.Unlock()
 
-	nc, err := nats.Connect(
-		q.servers,
-		nats.UserCredentials(acc.CredentialsFile),
+	opts := []nats.Option{
 		nats.Name(fmt.Sprintf("outpost:%s", acc.Name)),
 		nats.MaxReconnects(-1),
-	)
+	}
+	if acc.CredentialsFile != "" {
+		opts = append(opts, nats.UserCredentials(acc.CredentialsFile))
+	}
+	nc, err := nats.Connect(q.servers, opts...)
 	if err != nil {
 		return fmt.Errorf("nats: account %q: connect: %w", acc.Name, err)
 	}
@@ -468,15 +470,14 @@ func (a NATSAccountConfig) validate() error {
 	if a.Name == "" {
 		return errors.New("name is required")
 	}
-	if a.CredentialsFile == "" {
-		return errors.New("credentials_file is required")
-	}
 	if a.Stream == "" {
 		return errors.New("stream is required")
 	}
 	if a.Consumer == "" {
 		return errors.New("consumer is required")
 	}
+	// credentials_file is optional: a NATS deployment may use no-auth,
+	// nkey-via-server-config, or token-via-URL.
 	return nil
 }
 

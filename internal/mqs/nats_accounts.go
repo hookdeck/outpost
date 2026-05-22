@@ -74,7 +74,13 @@ func loadAccountMeta(metaPath, accountDir, dirName string) (NATSAccountConfig, e
 
 	creds := meta.CredentialsFile
 	if creds == "" {
-		creds = filepath.Join(accountDir, "user.creds")
+		// Convention: <accountDir>/user.creds when present. If absent the
+		// account runs with no credentials (valid for trusted-network or
+		// token-via-URL setups).
+		candidate := filepath.Join(accountDir, "user.creds")
+		if _, err := os.Stat(candidate); err == nil {
+			creds = candidate
+		}
 	} else if !filepath.IsAbs(creds) {
 		creds = filepath.Join(accountDir, creds)
 	}
