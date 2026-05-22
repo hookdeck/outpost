@@ -33,11 +33,26 @@ type PublishRabbitMQConfig struct {
 	Queue     string `yaml:"queue" env:"PUBLISH_RABBITMQ_QUEUE" desc:"Name of the RabbitMQ queue for publishing events. Required if RabbitMQ is the chosen publish MQ provider." required:"C"`
 }
 
+type PublishNATSAccountConfig struct {
+	Name            string `yaml:"name" desc:"Account label used for logging and metrics. Must be unique within the publish source." required:"C"`
+	CredentialsFile string `yaml:"credentials_file" desc:"Path to the NATS .creds file (JWT + NKey seed) for this account." required:"C"`
+	Stream          string `yaml:"stream" desc:"JetStream stream name to consume from. Must be pre-created on the NATS side." required:"C"`
+	Consumer        string `yaml:"consumer" desc:"Durable JetStream consumer name. Must be pre-created on the NATS side." required:"C"`
+	TenantID        string `yaml:"tenant_id" desc:"Outpost tenant_id to stamp on every event from this account. Recommended for one-account-per-tenant setups; overrides any tenant_id in the payload." required:"N"`
+}
+
+type PublishNATSConfig struct {
+	Servers     []string                   `yaml:"servers" env:"PUBLISH_NATS_SERVERS" envSeparator:"," desc:"NATS cluster URLs for the publish source (comma-separated, e.g. 'nats://a:4222,nats://b:4222'). Required if NATS is the chosen publish MQ provider." required:"C"`
+	AccountsDir string                     `yaml:"accounts_dir" env:"PUBLISH_NATS_ACCOUNTS_DIR" desc:"Directory containing per-tenant NATS account subdirectories (each with a meta.yaml plus credentials file). Watched for runtime changes. Combined with 'accounts' if both are set." required:"N"`
+	Accounts    []PublishNATSAccountConfig `yaml:"accounts" desc:"Static list of NATS accounts to consume from. Alternative or supplement to accounts_dir." required:"N"`
+}
+
 type PublishMQConfig struct {
 	AWSSQS          PublishAWSSQSConfig          `yaml:"aws_sqs" desc:"Configuration for using AWS SQS as the publish message queue. Only one publish MQ provider should be configured." required:"N"`
 	AzureServiceBus PublishAzureServiceBusConfig `yaml:"azure_servicebus" desc:"Configuration for using Azure Service Bus as the publish message queue. Only one publish MQ provider should be configured." required:"N"`
 	GCPPubSub       PublishGCPPubSubConfig       `yaml:"gcp_pubsub" desc:"Configuration for using GCP Pub/Sub as the publish message queue. Only one publish MQ provider should be configured." required:"N"`
 	RabbitMQ        PublishRabbitMQConfig        `yaml:"rabbitmq" desc:"Configuration for using RabbitMQ as the publish message queue. Only one publish MQ provider should be configured." required:"N"`
+	NATS            PublishNATSConfig            `yaml:"nats" desc:"Configuration for using NATS JetStream as the publish message queue. Only one publish MQ provider should be configured." required:"N"`
 }
 
 func (c PublishMQConfig) GetInfraType() string {
@@ -52,6 +67,9 @@ func (c PublishMQConfig) GetInfraType() string {
 	}
 	if hasPublishRabbitMQConfig(c.RabbitMQ) {
 		return "rabbitmq"
+	}
+	if hasPublishNATSConfig(c.NATS) {
+		return "nats"
 	}
 	return ""
 }
@@ -94,6 +112,24 @@ func (c *PublishMQConfig) GetQueueConfig() *mqs.QueueConfig {
 				Queue:     c.RabbitMQ.Queue,
 			},
 		}
+	case "nats":
+		accounts := make([]mqs.NATSAccountConfig, 0, len(c.NATS.Accounts))
+		for _, a := range c.NATS.Accounts {
+			accounts = append(accounts, mqs.NATSAccountConfig{
+				Name:            a.Name,
+				CredentialsFile: a.CredentialsFile,
+				Stream:          a.Stream,
+				Consumer:        a.Consumer,
+				TenantID:        a.TenantID,
+			})
+		}
+		return &mqs.QueueConfig{
+			NATS: &mqs.NATSConfig{
+				Servers:     c.NATS.Servers,
+				AccountsDir: c.NATS.AccountsDir,
+				Accounts:    accounts,
+			},
+		}
 	default:
 		return nil
 	}
@@ -114,4 +150,11 @@ func hasPublishGCPPubSubConfig(config PublishGCPPubSubConfig) bool {
 
 func hasPublishRabbitMQConfig(config PublishRabbitMQConfig) bool {
 	return config.ServerURL != ""
+}
+
+func hasPublishNATSConfig(config PublishNATSConfig) bool {
+	if len(config.Servers) == 0 {
+		return false
+	}
+	return config.AccountsDir != "" || len(config.Accounts) > 0
 }
