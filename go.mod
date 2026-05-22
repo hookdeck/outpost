@@ -21,6 +21,7 @@ require (
 	github.com/aws/smithy-go v1.22.4
 	github.com/brianvoe/gofakeit/v6 v6.28.0
 	github.com/caarlos0/env/v9 v9.0.0
+	github.com/fsnotify/fsnotify v1.7.0
 	github.com/getsentry/sentry-go v0.31.1
 	github.com/getsentry/sentry-go/gin v0.31.1
 	github.com/gin-contrib/static v1.1.2
@@ -132,7 +133,6 @@ require (
 	github.com/ebitengine/purego v0.8.2 // indirect
 	github.com/ericlagergren/decimal v0.0.0-20221120152707-495c53812d05 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
-	github.com/fsnotify/fsnotify v1.7.0 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.4 // indirect
 	github.com/gin-contrib/sse v0.1.0 // indirect
 	github.com/go-faster/city v1.0.1 // indirect

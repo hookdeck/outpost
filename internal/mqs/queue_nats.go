@@ -23,19 +23,26 @@ import (
 // One queue instance can consume from multiple NATS Accounts in parallel.
 // Each account holds its own credentials and is dialled on its own NATS
 // connection. With one Account per tenant, set Account.TenantID to make
-// Outpost stamp the correct tenant on every event regardless of payload —
-// see Variant 1 in the design notes.
+// Outpost stamp the correct tenant on every event regardless of payload.
 type NATSConfig struct {
 	// Servers is the NATS cluster URL list (e.g. ["nats://a:4222","nats://b:4222"]).
 	Servers []string
 
-	// Accounts lists the NATS Accounts this queue should consume from.
+	// Accounts is the static list of accounts the queue should consume from.
+	// Combined with AccountsDir if both are set.
 	Accounts []NATSAccountConfig
+
+	// AccountsDir, when set, makes the queue watch a directory for tenant
+	// subdirectories. Each subdirectory contains a meta.yaml describing the
+	// account plus a .creds file. Accounts are added and removed at runtime
+	// as directories appear and disappear, without restarting Outpost.
+	AccountsDir string
 }
 
 // NATSAccountConfig is a single NATS Account that Outpost consumes from.
 type NATSAccountConfig struct {
-	// Name is a short label used for logging and metrics.
+	// Name is a short label used for logging, metrics, and account identity
+	// inside the queue. Must be unique within a NATSConfig.
 	Name string
 
 	// CredentialsFile points at a NATS .creds file (JWT + NKey seed).
@@ -56,7 +63,13 @@ type NATSAccountConfig struct {
 // NATSQueue is a publish-mq driver backed by NATS JetStream.
 type NATSQueue struct {
 	config *NATSConfig
-	conns  []*natsConn
+
+	mu    sync.Mutex
+	conns map[string]*natsConn // by account name
+	sub   *natsSubscription    // active subscription, nil before Subscribe
+
+	servers string
+	watcher *natsAccountsWatcher
 }
 
 type natsConn struct {
@@ -70,12 +83,16 @@ var _ Queue = (*NATSQueue)(nil)
 // NewNATSQueue constructs (but does not connect) a NATS JetStream queue.
 // Call Init to open the connections.
 func NewNATSQueue(config *NATSConfig) *NATSQueue {
-	return &NATSQueue{config: config}
+	return &NATSQueue{
+		config: config,
+		conns:  make(map[string]*natsConn),
+	}
 }
 
 // Init validates the configuration, opens one NATS connection per account,
-// and verifies each stream + consumer exists. The returned cleanup function
-// drains and closes every connection.
+// verifies each stream + consumer exists, and (if AccountsDir is set) starts
+// a filesystem watcher that adds and removes accounts at runtime. The
+// returned cleanup function drains every connection and stops the watcher.
 func (q *NATSQueue) Init(ctx context.Context) (func(), error) {
 	if q.config == nil {
 		return nil, errors.New("nats: nil config")
@@ -83,72 +100,201 @@ func (q *NATSQueue) Init(ctx context.Context) (func(), error) {
 	if len(q.config.Servers) == 0 {
 		return nil, errors.New("nats: no servers configured")
 	}
-	if len(q.config.Accounts) == 0 {
+
+	q.servers = strings.Join(q.config.Servers, ",")
+
+	accounts := append([]NATSAccountConfig(nil), q.config.Accounts...)
+	if q.config.AccountsDir != "" {
+		dirAccounts, err := loadAccountsFromDir(q.config.AccountsDir)
+		if err != nil {
+			return nil, fmt.Errorf("nats: %w", err)
+		}
+		accounts = append(accounts, dirAccounts...)
+	}
+	if len(accounts) == 0 {
 		return nil, errors.New("nats: no accounts configured")
 	}
 
-	servers := strings.Join(q.config.Servers, ",")
-	for _, acc := range q.config.Accounts {
-		if err := acc.validate(); err != nil {
+	for _, acc := range accounts {
+		if err := q.addAccount(ctx, acc); err != nil {
 			q.closeAll()
-			return nil, fmt.Errorf("nats: account %q: %w", acc.Name, err)
+			return nil, err
 		}
+	}
 
-		nc, err := nats.Connect(
-			servers,
-			nats.UserCredentials(acc.CredentialsFile),
-			nats.Name(fmt.Sprintf("outpost:%s", acc.Name)),
-			nats.MaxReconnects(-1),
-		)
+	if q.config.AccountsDir != "" {
+		w, err := newNATSAccountsWatcher(q.config.AccountsDir, q.reconcileFromDir)
 		if err != nil {
 			q.closeAll()
-			return nil, fmt.Errorf("nats: account %q: connect: %w", acc.Name, err)
+			return nil, fmt.Errorf("nats: watch accounts_dir: %w", err)
 		}
-
-		js, err := jetstream.New(nc)
-		if err != nil {
-			nc.Close()
-			q.closeAll()
-			return nil, fmt.Errorf("nats: account %q: jetstream: %w", acc.Name, err)
-		}
-
-		if _, err := js.Stream(ctx, acc.Stream); err != nil {
-			nc.Close()
-			q.closeAll()
-			return nil, fmt.Errorf("nats: account %q: stream %q: %w", acc.Name, acc.Stream, err)
-		}
-		if _, err := js.Consumer(ctx, acc.Stream, acc.Consumer); err != nil {
-			nc.Close()
-			q.closeAll()
-			return nil, fmt.Errorf("nats: account %q: consumer %q: %w", acc.Name, acc.Consumer, err)
-		}
-
-		q.conns = append(q.conns, &natsConn{account: acc, nc: nc, js: js})
+		q.watcher = w
+		w.start()
 	}
 
 	return func() { q.closeAll() }, nil
 }
 
 func (q *NATSQueue) closeAll() {
-	for _, c := range q.conns {
+	if q.watcher != nil {
+		q.watcher.stop()
+		q.watcher = nil
+	}
+
+	q.mu.Lock()
+	if q.sub != nil {
+		q.sub.stopAll()
+	}
+	conns := q.conns
+	q.conns = make(map[string]*natsConn)
+	q.mu.Unlock()
+
+	for _, c := range conns {
 		if c.nc != nil {
 			_ = c.nc.Drain()
 		}
 	}
-	q.conns = nil
 }
 
-// Publish is intentionally not implemented. JetStream is a publish-mq source
-// only; events enter Outpost from publishers outside Outpost.
+// addAccount connects to NATS for a single account, verifies stream and
+// consumer, registers the connection, and (if a subscription is active)
+// starts a pump for it. Caller must not hold q.mu.
+func (q *NATSQueue) addAccount(ctx context.Context, acc NATSAccountConfig) error {
+	if err := acc.validate(); err != nil {
+		return fmt.Errorf("nats: account %q: %w", acc.Name, err)
+	}
+
+	q.mu.Lock()
+	if _, exists := q.conns[acc.Name]; exists {
+		q.mu.Unlock()
+		return nil
+	}
+	q.mu.Unlock()
+
+	nc, err := nats.Connect(
+		q.servers,
+		nats.UserCredentials(acc.CredentialsFile),
+		nats.Name(fmt.Sprintf("outpost:%s", acc.Name)),
+		nats.MaxReconnects(-1),
+	)
+	if err != nil {
+		return fmt.Errorf("nats: account %q: connect: %w", acc.Name, err)
+	}
+
+	js, err := jetstream.New(nc)
+	if err != nil {
+		nc.Close()
+		return fmt.Errorf("nats: account %q: jetstream: %w", acc.Name, err)
+	}
+
+	if _, err := js.Stream(ctx, acc.Stream); err != nil {
+		nc.Close()
+		return fmt.Errorf("nats: account %q: stream %q: %w", acc.Name, acc.Stream, err)
+	}
+	if _, err := js.Consumer(ctx, acc.Stream, acc.Consumer); err != nil {
+		nc.Close()
+		return fmt.Errorf("nats: account %q: consumer %q: %w", acc.Name, acc.Consumer, err)
+	}
+
+	conn := &natsConn{account: acc, nc: nc, js: js}
+
+	q.mu.Lock()
+	q.conns[acc.Name] = conn
+	sub := q.sub
+	q.mu.Unlock()
+
+	if sub != nil {
+		if err := sub.startPump(ctx, conn); err != nil {
+			q.removeAccount(acc.Name)
+			return err
+		}
+	}
+	return nil
+}
+
+// removeAccount stops the pump (if any) and drains the connection for the
+// named account. No-op if the account is not currently registered.
+func (q *NATSQueue) removeAccount(name string) {
+	q.mu.Lock()
+	conn, ok := q.conns[name]
+	if !ok {
+		q.mu.Unlock()
+		return
+	}
+	delete(q.conns, name)
+	sub := q.sub
+	q.mu.Unlock()
+
+	if sub != nil {
+		sub.stopPump(name)
+	}
+	if conn.nc != nil {
+		_ = conn.nc.Drain()
+	}
+}
+
+// reconcileFromDir is invoked by the watcher on every directory change.
+// It diffs the current set of dir-derived accounts against q.conns and
+// adds/removes as needed. Static accounts (from q.config.Accounts) are
+// preserved.
+func (q *NATSQueue) reconcileFromDir() {
+	desired, err := loadAccountsFromDir(q.config.AccountsDir)
+	if err != nil {
+		return
+	}
+
+	staticNames := make(map[string]struct{}, len(q.config.Accounts))
+	for _, a := range q.config.Accounts {
+		staticNames[a.Name] = struct{}{}
+	}
+
+	desiredSet := make(map[string]NATSAccountConfig, len(desired))
+	for _, a := range desired {
+		desiredSet[a.Name] = a
+	}
+
+	q.mu.Lock()
+	current := make(map[string]NATSAccountConfig, len(q.conns))
+	for name, c := range q.conns {
+		current[name] = c.account
+	}
+	q.mu.Unlock()
+
+	for name := range current {
+		if _, isStatic := staticNames[name]; isStatic {
+			continue
+		}
+		if _, stillThere := desiredSet[name]; !stillThere {
+			q.removeAccount(name)
+		}
+	}
+
+	for _, acc := range desired {
+		if _, alreadyHave := current[acc.Name]; alreadyHave {
+			continue
+		}
+		_ = q.addAccount(context.Background(), acc)
+	}
+}
+
+// Publish is intentionally not implemented. JetStream is a publish-mq
+// source only; events enter Outpost from publishers outside Outpost.
 func (q *NATSQueue) Publish(ctx context.Context, msg IncomingMessage) error {
 	return errors.New("nats: publish is not supported by the JetStream publish-mq driver")
 }
 
-// Subscribe opens a pull-based JetStream consumer per configured account
-// and fans messages into a single multiplexed Subscription.
+// Subscribe opens a pull-based JetStream consumer per registered account
+// and fans messages into a single multiplexed Subscription. Accounts added
+// later (via the directory watcher) automatically get a pump started too.
 func (q *NATSQueue) Subscribe(ctx context.Context, opts ...SubscribeOption) (Subscription, error) {
+	q.mu.Lock()
 	if len(q.conns) == 0 {
+		q.mu.Unlock()
 		return nil, errors.New("nats: queue not initialized")
+	}
+	if q.sub != nil {
+		q.mu.Unlock()
+		return nil, errors.New("nats: already subscribed")
 	}
 
 	options := ApplySubscribeOptions(opts)
@@ -158,25 +304,24 @@ func (q *NATSQueue) Subscribe(ctx context.Context, opts ...SubscribeOption) (Sub
 	}
 
 	sub := &natsSubscription{
-		msgs: make(chan *Message),
-		done: make(chan struct{}),
+		msgs:       make(chan *Message),
+		done:       make(chan struct{}),
+		iters:      make(map[string]jetstream.MessagesContext),
+		perAccount: perAccount,
 	}
+	q.sub = sub
 
+	conns := make([]*natsConn, 0, len(q.conns))
 	for _, c := range q.conns {
-		consumer, err := c.js.Consumer(ctx, c.account.Stream, c.account.Consumer)
-		if err != nil {
-			_ = sub.Shutdown(context.Background())
-			return nil, fmt.Errorf("nats: account %q: open consumer: %w", c.account.Name, err)
-		}
+		conns = append(conns, c)
+	}
+	q.mu.Unlock()
 
-		iter, err := consumer.Messages(jetstream.PullMaxMessages(perAccount))
-		if err != nil {
+	for _, c := range conns {
+		if err := sub.startPump(ctx, c); err != nil {
 			_ = sub.Shutdown(context.Background())
-			return nil, fmt.Errorf("nats: account %q: messages: %w", c.account.Name, err)
+			return nil, err
 		}
-
-		sub.wg.Add(1)
-		go sub.pump(c.account, iter)
 	}
 
 	return sub, nil
@@ -192,6 +337,11 @@ type natsSubscription struct {
 	msgs chan *Message
 	done chan struct{}
 	wg   sync.WaitGroup
+
+	perAccount int
+
+	itersMu sync.Mutex
+	iters   map[string]jetstream.MessagesContext // by account name
 }
 
 var (
@@ -211,19 +361,64 @@ func (s *natsSubscription) Receive(ctx context.Context) (*Message, error) {
 }
 
 func (s *natsSubscription) Shutdown(_ context.Context) error {
+	s.stopAll()
+	return nil
+}
+
+func (s *natsSubscription) stopAll() {
 	select {
 	case <-s.done:
-		return nil
+		return
 	default:
-		close(s.done)
 	}
+	close(s.done)
+
+	s.itersMu.Lock()
+	for _, iter := range s.iters {
+		iter.Stop()
+	}
+	s.iters = make(map[string]jetstream.MessagesContext)
+	s.itersMu.Unlock()
+
 	s.wg.Wait()
+}
+
+func (s *natsSubscription) startPump(ctx context.Context, conn *natsConn) error {
+	consumer, err := conn.js.Consumer(ctx, conn.account.Stream, conn.account.Consumer)
+	if err != nil {
+		return fmt.Errorf("nats: account %q: open consumer: %w", conn.account.Name, err)
+	}
+	iter, err := consumer.Messages(jetstream.PullMaxMessages(s.perAccount))
+	if err != nil {
+		return fmt.Errorf("nats: account %q: messages: %w", conn.account.Name, err)
+	}
+
+	s.itersMu.Lock()
+	if existing, ok := s.iters[conn.account.Name]; ok {
+		existing.Stop()
+	}
+	s.iters[conn.account.Name] = iter
+	s.itersMu.Unlock()
+
+	s.wg.Add(1)
+	go s.pump(conn.account, iter)
 	return nil
+}
+
+func (s *natsSubscription) stopPump(name string) {
+	s.itersMu.Lock()
+	iter, ok := s.iters[name]
+	if ok {
+		delete(s.iters, name)
+	}
+	s.itersMu.Unlock()
+	if ok {
+		iter.Stop()
+	}
 }
 
 func (s *natsSubscription) pump(account NATSAccountConfig, iter jetstream.MessagesContext) {
 	defer s.wg.Done()
-	defer iter.Stop()
 
 	for {
 		select {
@@ -234,11 +429,9 @@ func (s *natsSubscription) pump(account NATSAccountConfig, iter jetstream.Messag
 
 		jmsg, err := iter.Next()
 		if err != nil {
-			// Stop() / context cancellation propagate as iterator-closed errors.
 			if errors.Is(err, jetstream.ErrMsgIteratorClosed) {
 				return
 			}
-			// Transient (e.g. missed heartbeat). Loop and re-fetch.
 			continue
 		}
 
@@ -272,6 +465,9 @@ func (m *natsQueueMessage) Ack()  { _ = m.msg.Ack() }
 func (m *natsQueueMessage) Nack() { _ = m.msg.Nak() }
 
 func (a NATSAccountConfig) validate() error {
+	if a.Name == "" {
+		return errors.New("name is required")
+	}
 	if a.CredentialsFile == "" {
 		return errors.New("credentials_file is required")
 	}
