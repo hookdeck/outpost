@@ -5,12 +5,19 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 )
+
+// pumpBackoff is the cooldown between iter.Next() returns and the next
+// fetch when the previous call returned a transient error. Prevents
+// busy-spinning when the upstream consumer is briefly unhealthy.
+const pumpBackoff = 250 * time.Millisecond
 
 // NATSConfig configures a NATS JetStream publish source.
 //
@@ -275,7 +282,12 @@ func (q *NATSQueue) reconcileFromDir() {
 		if _, alreadyHave := current[acc.Name]; alreadyHave {
 			continue
 		}
-		_ = q.addAccount(context.Background(), acc)
+		if err := q.addAccount(context.Background(), acc); err != nil {
+			// Surface the failure so operators can spot bad creds, missing
+			// streams, or unreachable servers. The next FS event re-triggers
+			// reconcile, so a transient failure self-heals.
+			log.Printf("nats: reconcile add account %q failed: %v", acc.Name, err)
+		}
 	}
 }
 
@@ -432,6 +444,15 @@ func (s *natsSubscription) pump(account NATSAccountConfig, iter jetstream.Messag
 		jmsg, err := iter.Next()
 		if err != nil {
 			if errors.Is(err, jetstream.ErrMsgIteratorClosed) {
+				return
+			}
+			// Transient error (connection blip, server restart, consumer
+			// leader change). Back off briefly so we don't peg CPU and
+			// give the cluster room to recover, but stay responsive to
+			// shutdown.
+			select {
+			case <-time.After(pumpBackoff):
+			case <-s.done:
 				return
 			}
 			continue

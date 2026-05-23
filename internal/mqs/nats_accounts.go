@@ -1,6 +1,7 @@
 package mqs
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -46,7 +47,12 @@ func loadAccountsFromDir(dir string) ([]NATSAccountConfig, error) {
 		accountDir := filepath.Join(dir, e.Name())
 		metaPath := filepath.Join(accountDir, "meta.yaml")
 		if _, err := os.Stat(metaPath); err != nil {
-			continue
+			if errors.Is(err, os.ErrNotExist) {
+				// Subdirectory without meta.yaml: still being provisioned
+				// or simply not an outpost account. Silently skip.
+				continue
+			}
+			return nil, fmt.Errorf("stat meta for account %q: %w", e.Name(), err)
 		}
 		acc, err := loadAccountMeta(metaPath, accountDir, e.Name())
 		if err != nil {
@@ -145,21 +151,33 @@ func (w *natsAccountsWatcher) start() {
 func (w *natsAccountsWatcher) run() {
 	defer w.w.Close()
 
-	var (
-		timer    *time.Timer
-		timerC   <-chan time.Time
-		armTimer = func() {
-			if timer != nil {
-				timer.Stop()
+	// Single reusable timer for debouncing FS events. Initialise stopped
+	// so timer.C blocks until the first event arms it.
+	timer := time.NewTimer(debounceWindow)
+	if !timer.Stop() {
+		<-timer.C
+	}
+	armed := false
+
+	arm := func() {
+		if armed {
+			if !timer.Stop() {
+				select {
+				case <-timer.C:
+				default:
+				}
 			}
-			timer = time.NewTimer(debounceWindow)
-			timerC = timer.C
 		}
-	)
+		timer.Reset(debounceWindow)
+		armed = true
+	}
 
 	for {
 		select {
 		case <-w.stopCh:
+			if armed {
+				timer.Stop()
+			}
 			return
 		case ev, ok := <-w.w.Events:
 			if !ok {
@@ -172,14 +190,13 @@ func (w *natsAccountsWatcher) run() {
 					_ = w.w.Add(ev.Name)
 				}
 			}
-			if ev.Op&fsnotify.Remove != 0 || ev.Op&fsnotify.Rename != 0 {
-				// fsnotify cleans up its own watch on remove; nothing to do.
-			}
-			armTimer()
+			// On Remove/Rename fsnotify cleans up its own watch — nothing
+			// to do here. The next reconcile will catch the diff.
+			arm()
 		case <-w.w.Errors:
 			// Errors are non-fatal; the next event will retry.
-		case <-timerC:
-			timerC = nil
+		case <-timer.C:
+			armed = false
 			w.onChange()
 		}
 	}

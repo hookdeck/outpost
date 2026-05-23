@@ -2,6 +2,7 @@ package testutil
 
 import (
 	"context"
+	"errors"
 	"strings"
 
 	"github.com/hookdeck/outpost/internal/mqs"
@@ -64,7 +65,7 @@ func TeardownTestNATSInfrastructure(ctx context.Context, cfg *mqs.NATSConfig) er
 	for _, acc := range cfg.Accounts {
 		if err := js.DeleteStream(ctx, acc.Stream); err != nil {
 			// Best-effort teardown; ignore "not found" so re-runs don't fail.
-			if !strings.Contains(err.Error(), "stream not found") {
+			if !errors.Is(err, jetstream.ErrStreamNotFound) {
 				return err
 			}
 		}

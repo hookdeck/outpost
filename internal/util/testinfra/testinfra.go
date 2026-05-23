@@ -69,7 +69,7 @@ func initConfig() {
 			mockServerURL = "http://" + mockServerURL
 		}
 		natsURL := v.GetString("TEST_NATS_URL")
-		if natsURL != "" && !strings.Contains(natsURL, "nats://") {
+		if natsURL != "" && !strings.HasPrefix(natsURL, "nats://") && !strings.HasPrefix(natsURL, "tls://") {
 			natsURL = "nats://" + natsURL
 		}
 		cfg = &Config{

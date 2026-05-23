@@ -48,13 +48,17 @@ var natsOnce sync.Once
 
 // EnsureNATS returns a NATS URL, starting a test container on first call
 // unless TEST_NATS_URL is set in the test environment.
+//
+// The check for an existing NATSURL is performed *inside* sync.Once.Do so
+// concurrent callers from t.Parallel() tests don't race against the
+// container-start path (which writes cfg.NATSURL).
 func EnsureNATS() string {
 	cfg := ReadConfig()
-	if cfg.NATSURL == "" {
-		natsOnce.Do(func() {
+	natsOnce.Do(func() {
+		if cfg.NATSURL == "" {
 			startNATSTestContainer(cfg)
-		})
-	}
+		}
+	})
 	return cfg.NATSURL
 }
 
