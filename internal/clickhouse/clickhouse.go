@@ -32,6 +32,9 @@ func New(config *ClickHouseConfig) (DB, error) {
 		},
 		DialTimeout: 10 * time.Second,
 		ReadTimeout: 30 * time.Second,
+		Compression: &clickhouse.Compression{
+			Method: clickhouse.CompressionLZ4,
+		},
 
 		// Debug: true,
 		// Debugf: func(format string, v ...any) {
