@@ -478,7 +478,7 @@ func matchDestFilter(filter *destinationFilter, dest models.Destination) bool {
 				return false
 			}
 			for _, topic := range filter.Topics {
-				if !slices.Contains(dest.Topics, topic) {
+				if !dest.Topics.MatchTopic(topic) {
 					return false
 				}
 			}
