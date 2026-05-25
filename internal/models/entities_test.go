@@ -31,6 +31,26 @@ func TestDestinationTopics_Validate(t *testing.T) {
 			validated:       true,
 		},
 		{
+			topics:          []string{"user.*"},
+			availableTopics: testutil.TestTopics,
+			validated:       true,
+		},
+		{
+			topics:          []string{"order.*"},
+			availableTopics: testutil.TestTopics,
+			validated:       false,
+		},
+		{
+			topics:          []string{"user.created", "order.*"},
+			availableTopics: testutil.TestTopics,
+			validated:       false,
+		},
+		{
+			topics:          []string{"order.*"},
+			availableTopics: []string{"order.created", "user.created"},
+			validated:       true,
+		},
+		{
 			topics:          []string{"*"},
 			availableTopics: testutil.TestTopics,
 			validated:       true,
@@ -218,6 +238,54 @@ func TestTopics_MatchTopic(t *testing.T) {
 			eventTopic: "user.created",
 			expected:   true,
 		},
+		{
+			name:       "prefix wildcard matches topic family",
+			topics:     []string{"user.*"},
+			eventTopic: "user.created",
+			expected:   true,
+		},
+		{
+			name:       "prefix wildcard matches nested topic family",
+			topics:     []string{"user.*"},
+			eventTopic: "user.profile.updated",
+			expected:   true,
+		},
+		{
+			name:       "suffix wildcard matches topic family",
+			topics:     []string{"*.created"},
+			eventTopic: "order.created",
+			expected:   true,
+		},
+		{
+			name:       "middle wildcard matches topic family",
+			topics:     []string{"order.*.completed"},
+			eventTopic: "order.payment.completed",
+			expected:   true,
+		},
+		{
+			name:       "wildcard can match empty run of characters",
+			topics:     []string{"user.*.created"},
+			eventTopic: "user..created",
+			expected:   true,
+		},
+		{
+			name:       "prefix wildcard does not match different prefix",
+			topics:     []string{"user.*"},
+			eventTopic: "order.created",
+			expected:   false,
+		},
+		{
+			name:       "suffix wildcard does not match different suffix",
+			topics:     []string{"*.created"},
+			eventTopic: "user.deleted",
+			expected:   false,
+		},
+		{
+			name:       "middle wildcard requires suffix",
+			topics:     []string{"order.*.completed"},
+			eventTopic: "order.payment.failed",
+			expected:   false,
+		},
 		// No match
 		{
 			name:       "no topic match",
@@ -254,6 +322,49 @@ func TestTopics_MatchTopic(t *testing.T) {
 			assert.Equal(t, tc.expected, tc.topics.MatchTopic(tc.eventTopic))
 		})
 	}
+}
+
+func BenchmarkTopics_MatchTopic(b *testing.B) {
+	topicsExact := models.Topics{
+		"user.created",
+		"user.deleted",
+		"user.updated",
+		"order.created",
+		"order.deleted",
+		"order.updated",
+	}
+	topicsPattern := models.Topics{
+		"user.*",
+		"*.deleted",
+		"order.*.completed",
+		"invoice.created",
+		"invoice.deleted",
+		"invoice.updated",
+	}
+
+	b.Run("exact match", func(b *testing.B) {
+		for range b.N {
+			_ = topicsExact.MatchTopic("order.updated")
+		}
+	})
+
+	b.Run("exact miss", func(b *testing.B) {
+		for range b.N {
+			_ = topicsExact.MatchTopic("payment.created")
+		}
+	})
+
+	b.Run("pattern match", func(b *testing.B) {
+		for range b.N {
+			_ = topicsPattern.MatchTopic("order.payment.completed")
+		}
+	})
+
+	b.Run("pattern miss", func(b *testing.B) {
+		for range b.N {
+			_ = topicsPattern.MatchTopic("order.payment.failed")
+		}
+	})
 }
 
 func TestFilter_MarshalBinary(t *testing.T) {

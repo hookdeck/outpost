@@ -133,6 +133,75 @@ func testMatch(t *testing.T, newHarness HarnessMaker) {
 		})
 	})
 
+	t.Run("MatchByWildcardTopic", func(t *testing.T) {
+		ctx := context.Background()
+		h, err := newHarness(ctx, t)
+		require.NoError(t, err)
+		t.Cleanup(h.Close)
+
+		store, err := h.MakeDriver(ctx)
+		require.NoError(t, err)
+
+		tenant := models.Tenant{ID: idgen.String()}
+		require.NoError(t, store.UpsertTenant(ctx, tenant))
+
+		destUserFamily := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithID("dest_user_family"),
+			testutil.DestinationFactory.WithTenantID(tenant.ID),
+			testutil.DestinationFactory.WithTopics([]string{"user.*"}),
+		)
+		destCreatedFamily := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithID("dest_created_family"),
+			testutil.DestinationFactory.WithTenantID(tenant.ID),
+			testutil.DestinationFactory.WithTopics([]string{"*.created"}),
+		)
+		destOrderCompletedFamily := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithID("dest_order_completed_family"),
+			testutil.DestinationFactory.WithTenantID(tenant.ID),
+			testutil.DestinationFactory.WithTopics([]string{"order.*.completed"}),
+		)
+		destExact := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithID("dest_exact"),
+			testutil.DestinationFactory.WithTenantID(tenant.ID),
+			testutil.DestinationFactory.WithTopics([]string{"user.created"}),
+		)
+
+		require.NoError(t, store.CreateDestination(ctx, destUserFamily))
+		require.NoError(t, store.CreateDestination(ctx, destCreatedFamily))
+		require.NoError(t, store.CreateDestination(ctx, destOrderCompletedFamily))
+		require.NoError(t, store.CreateDestination(ctx, destExact))
+
+		t.Run("matches prefix and suffix wildcard subscriptions", func(t *testing.T) {
+			event := testutil.EventFactory.Any(
+				testutil.EventFactory.WithTenantID(tenant.ID),
+				testutil.EventFactory.WithTopic("user.created"),
+			)
+			matched, err := store.MatchEvent(ctx, event)
+			require.NoError(t, err)
+			assert.ElementsMatch(t, []string{"dest_user_family", "dest_created_family", "dest_exact"}, matched)
+		})
+
+		t.Run("matches separator agnostic middle wildcard subscription", func(t *testing.T) {
+			event := testutil.EventFactory.Any(
+				testutil.EventFactory.WithTenantID(tenant.ID),
+				testutil.EventFactory.WithTopic("order.payment.completed"),
+			)
+			matched, err := store.MatchEvent(ctx, event)
+			require.NoError(t, err)
+			assert.ElementsMatch(t, []string{"dest_order_completed_family"}, matched)
+		})
+
+		t.Run("does not overmatch unrelated topic", func(t *testing.T) {
+			event := testutil.EventFactory.Any(
+				testutil.EventFactory.WithTenantID(tenant.ID),
+				testutil.EventFactory.WithTopic("order.payment.failed"),
+			)
+			matched, err := store.MatchEvent(ctx, event)
+			require.NoError(t, err)
+			assert.Empty(t, matched)
+		})
+	})
+
 	t.Run("MatchEventWithFilter", func(t *testing.T) {
 		ctx := context.Background()
 		h, err := newHarness(ctx, t)

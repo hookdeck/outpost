@@ -64,6 +64,10 @@ curl '{% $OUTPOST_API_BASE_URL %}/tenants/<TENANT_ID>/destinations' \
 }'
 ```
 
+Destination topics can also use `*` inside a topic string as a wildcard that matches any run of characters. For example, `user.*` matches `user.created` and `user.profile.updated`, `*.created` matches `user.created` and `order.created`, and `order.*.completed` matches `order.payment.completed`.
+
+When available topics are configured, wildcard patterns must match at least one available topic.
+
 ## Event Fanout
 
 A single published event is independently delivered to every destination that matches its topic. Each delivery attempt is tracked separately.

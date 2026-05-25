@@ -194,7 +194,7 @@ components:
         - type: array
           items:
             type: string
-      description: '"*" or an array of enabled topics.'
+      description: '"*" or an array of enabled topics. Topic strings can include "*" as a wildcard matching any run of characters. When available topics are configured, wildcard patterns must match at least one available topic.'
       example: "*"
 
     Filter:
