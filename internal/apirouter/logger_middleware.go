@@ -41,6 +41,8 @@ func LoggerMiddlewareWithSanitizer(logger *logging.Logger, sanitizer *RequestBod
 
 		c.Next()
 
+		status := c.Writer.Status()
+
 		fields := []zap.Field{}
 		fields = append(fields, basicFields(c)...)
 		fields = append(fields, pathFields(c)...)
@@ -48,19 +50,21 @@ func LoggerMiddlewareWithSanitizer(logger *logging.Logger, sanitizer *RequestBod
 		fields = append(fields, errorFields(c)...)
 
 		// Add sanitized request body for 5xx errors
-		if c.Writer.Status() >= 500 && bufferedBody != nil {
+		if status >= 500 && bufferedBody != nil {
 			requestBodyFields = getRequestBodyFields(bufferedBody, sanitizer)
 			fields = append(fields, requestBodyFields...)
 		}
 
-		if c.Writer.Status() >= 500 {
+		switch {
+		case status >= 500:
 			logger.Error("request completed", fields...)
-
 			if hub := sentrygin.GetHubFromContext(c); hub != nil {
 				hub.CaptureException(getErrorWithStackTrace(c.Errors.Last().Err))
 			}
-		} else {
+		case status >= 400:
 			logger.Info("request completed", fields...)
+		default:
+			logger.Debug("request completed", fields...)
 		}
 	}
 }
