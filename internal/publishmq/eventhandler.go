@@ -118,7 +118,7 @@ func (h *eventHandler) Handle(ctx context.Context, event *models.Event) (*Handle
 
 	// Early return if no destinations matched
 	if len(matchedDestinations) == 0 {
-		logger.Info("no matching destinations",
+		logger.Debug("no matching destinations",
 			zap.String("event_id", event.ID),
 			zap.String("tenant_id", event.TenantID))
 		return result, nil

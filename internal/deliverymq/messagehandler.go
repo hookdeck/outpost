@@ -128,7 +128,7 @@ func (h *messageHandler) Handle(ctx context.Context, msg *mqs.Message) error {
 		return h.handleError(msg, &PreDeliveryError{err: err})
 	}
 
-	h.logger.Ctx(ctx).Info("processing delivery task",
+	h.logger.Ctx(ctx).Debug("processing delivery task",
 		zap.String("event_id", task.Event.ID),
 		zap.String("tenant_id", task.Event.TenantID),
 		zap.String("destination_id", task.DestinationID),
@@ -146,7 +146,7 @@ func (h *messageHandler) Handle(ctx context.Context, msg *mqs.Message) error {
 		return h.doHandle(ctx, task, destination)
 	})
 	if err == nil && !executed {
-		h.logger.Ctx(ctx).Info("delivery task skipped (idempotent)",
+		h.logger.Ctx(ctx).Debug("delivery task skipped (idempotent)",
 			zap.String("event_id", task.Event.ID),
 			zap.String("tenant_id", task.Event.TenantID),
 			zap.String("destination_id", task.DestinationID),
@@ -410,7 +410,7 @@ func (h *messageHandler) ensurePublishableDestination(ctx context.Context, task 
 		}
 
 		if errors.Is(err, tenantstore.ErrDestinationDeleted) {
-			logger.Info("destination deleted", fields...)
+			logger.Debug("destination deleted", fields...)
 		} else {
 			// Unexpected errors like DB connection issues
 			logger.Error("failed to retrieve destination", fields...)
@@ -418,14 +418,14 @@ func (h *messageHandler) ensurePublishableDestination(ctx context.Context, task 
 		return nil, err
 	}
 	if destination == nil {
-		h.logger.Ctx(ctx).Info("destination not found",
+		h.logger.Ctx(ctx).Debug("destination not found",
 			zap.String("event_id", task.Event.ID),
 			zap.String("tenant_id", task.Event.TenantID),
 			zap.String("destination_id", task.DestinationID))
 		return nil, tenantstore.ErrDestinationNotFound
 	}
 	if destination.DisabledAt != nil {
-		h.logger.Ctx(ctx).Info("skipping disabled destination",
+		h.logger.Ctx(ctx).Debug("skipping disabled destination",
 			zap.String("event_id", task.Event.ID),
 			zap.String("tenant_id", task.Event.TenantID),
 			zap.String("destination_id", destination.ID),

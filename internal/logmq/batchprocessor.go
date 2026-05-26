@@ -80,7 +80,7 @@ func (bp *BatchProcessor) Shutdown() {
 // processBatch processes a batch of messages.
 func (bp *BatchProcessor) processBatch(_ string, msgs []*mqs.Message) {
 	logger := bp.logger.Ctx(bp.ctx)
-	logger.Info("processing batch", zap.Int("message_count", len(msgs)))
+	logger.Debug("processing batch", zap.Int("message_count", len(msgs)))
 
 	entries := make([]*models.LogEntry, 0, len(msgs))
 	validMsgs := make([]*mqs.Message, 0, len(msgs))
@@ -116,7 +116,7 @@ func (bp *BatchProcessor) processBatch(_ string, msgs []*mqs.Message) {
 			continue
 		}
 
-		logger.Info("added to batch",
+		logger.Debug("added to batch",
 			zap.String("message_id", msg.LoggableID),
 			zap.String("event_id", entry.Event.ID),
 			zap.String("attempt_id", entry.Attempt.ID),

@@ -30,7 +30,7 @@ func NewMessageHandler(logger *logging.Logger, batchAdder BatchAdder) consumer.M
 
 func (h *messageHandler) Handle(ctx context.Context, msg *mqs.Message) error {
 	logger := h.logger.Ctx(ctx)
-	logger.Info("logmq handler",
+	logger.Debug("logmq handler",
 		zap.String("message_id", msg.LoggableID))
 	h.batchAdder.Add(ctx, msg)
 	return nil
