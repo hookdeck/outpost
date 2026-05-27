@@ -7,12 +7,23 @@
   flex-direction: row;
   padding-top: calc(var(--base-grid-multiplier) * 18);
 
+  @media (max-width: 1024px) {
+    grid-template-columns: 1fr;
+    gap: var(--spacing-8);
+    padding-top: var(--spacing-8);
+  }
+
   &__sidebar {
     display: flex;
     flex-direction: column;
     position: sticky;
     top: calc(var(--base-grid-multiplier) * 18);
     align-self: start;
+
+    @media (max-width: 1024px) {
+      position: static;
+      top: auto;
+    }
 
     &__steps {
       margin-top: var(--spacing-8);
@@ -71,6 +82,12 @@
         margin-bottom: 0;
         ~ p {
           margin-top: 0;
+        }
+
+        @media (max-width: 640px) {
+          margin-top: var(--spacing-4);
+          font-size: var(--font-size-2xl);
+          line-height: var(--line-height-2xl);
         }
       }
     }

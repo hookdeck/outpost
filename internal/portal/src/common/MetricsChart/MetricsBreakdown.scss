@@ -46,6 +46,11 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+
+    @media (max-width: 640px) {
+      min-width: 72px;
+      max-width: 72px;
+    }
   }
 
   &__bar-container {

@@ -78,12 +78,15 @@ const SidebarPortal = ({
   }
 
   return createPortal(
-    <div id="sidebar">
-      <Button minimal onClick={onClose} className="close-button">
-        <CollapseIcon />
-      </Button>
-      {state.content}
-    </div>,
+    <>
+      <div id="sidebar-backdrop" onClick={onClose} aria-hidden="true" />
+      <div id="sidebar">
+        <Button minimal onClick={onClose} className="close-button">
+          <CollapseIcon />
+        </Button>
+        {state.content}
+      </div>
+    </>,
     document.body,
   );
 };

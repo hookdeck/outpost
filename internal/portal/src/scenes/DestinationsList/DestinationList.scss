@@ -17,9 +17,17 @@
   &__actions {
     display: flex;
     gap: var(--spacing-2);
+    flex-wrap: wrap;
 
     *:last-child {
       margin-left: auto;
+    }
+
+    @media (max-width: 640px) {
+      *:last-child {
+        margin-left: 0;
+        width: 100%;
+      }
     }
   }
 
@@ -37,6 +45,11 @@
   border: 1px dashed var(--colors-outline-neutral);
   border-radius: var(--radius-m);
   padding: var(--spacing-14);
+
+  @media (max-width: 640px) {
+    padding: var(--spacing-8) var(--spacing-4);
+    text-align: center;
+  }
 }
 
 .dropdown-item {

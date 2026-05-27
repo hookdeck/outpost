@@ -6,6 +6,23 @@
   border: 1px solid var(--colors-outline-neutral);
   background-color: var(--colors-background);
 
+  @media (max-width: 1024px) {
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+
+    .table__header,
+    .table__body,
+    .table__body-row,
+    .table__footer {
+      min-width: var(--table-min-width, max-content);
+    }
+
+    .table__body {
+      overflow-x: visible;
+    }
+  }
+
   &__header {
     display: grid;
     background-color: var(--colors-background-neutral-2);
