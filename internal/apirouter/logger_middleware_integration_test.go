@@ -18,7 +18,6 @@ import (
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest/observer"
 )
@@ -99,7 +98,7 @@ func setupTestEnvironment(t *testing.T) (*gin.Engine, *observer.ObservedLogs, de
 
 	// Create observed logger to capture logs
 	core, logs := observer.New(zap.InfoLevel)
-	testLogger := &logging.Logger{Logger: otelzap.New(zap.New(core))}
+	testLogger := logging.NewTestLogger(zap.New(core))
 
 	// Create mock metadata with sensitive fields
 	metadataLoader := &mockMetadataLoader{

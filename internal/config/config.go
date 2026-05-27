@@ -44,7 +44,6 @@ type Config struct {
 
 	Service       string              `yaml:"service" env:"SERVICE" desc:"Specifies the service type to run. Valid values: 'api', 'log', 'delivery', or empty/all for singular mode (runs all services)." required:"N"`
 	LogLevel      string              `yaml:"log_level" env:"LOG_LEVEL" desc:"Defines the verbosity of application logs. Common values: 'trace', 'debug', 'info', 'warn', 'error'." required:"N"`
-	AuditLog      bool                `yaml:"audit_log" env:"AUDIT_LOG" desc:"Enables or disables audit logging for significant events." required:"N"`
 	OpenTelemetry OpenTelemetryConfig `yaml:"otel"`
 	Telemetry     TelemetryConfig     `yaml:"telemetry"`
 
@@ -128,7 +127,6 @@ var (
 func (c *Config) InitDefaults() {
 	c.APIPort = 3333
 	c.LogLevel = "info"
-	c.AuditLog = true
 	c.OpenTelemetry = OpenTelemetryConfig{}
 	c.GinMode = "release"
 	c.Redis = RedisConfig{

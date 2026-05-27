@@ -163,7 +163,6 @@ func (a *App) run(ctx context.Context) error {
 func (a *App) setupLogger() error {
 	logger, err := logging.NewLogger(
 		logging.WithLogLevel(a.config.LogLevel),
-		logging.WithAuditLog(a.config.AuditLog),
 	)
 	if err != nil {
 		return err

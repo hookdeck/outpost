@@ -21,7 +21,6 @@ import (
 	"github.com/hookdeck/outpost/internal/telemetry"
 	"github.com/hookdeck/outpost/internal/tenantstore"
 	"github.com/hookdeck/outpost/internal/util/testutil"
-	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 	"go.uber.org/zap"
 )
 
@@ -100,7 +99,7 @@ func newAPITest(t *testing.T, opts ...apiTestOption) *apiTest {
 
 	logger := cfg.logger
 	if logger == nil {
-		logger = &logging.Logger{Logger: otelzap.New(zap.NewNop())}
+		logger = logging.NewTestLogger(zap.NewNop())
 	}
 	ts := cfg.tenantStore
 	ls := logstore.NewMemLogStore()

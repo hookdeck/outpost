@@ -31,7 +31,6 @@ func (c *Config) LogConfigurationSummary() []zap.Field {
 			return "none (using defaults and environment variables)"
 		}()),
 		zap.String("log_level", c.LogLevel),
-		zap.Bool("audit_log", c.AuditLog),
 		zap.String("deployment_id", c.DeploymentID),
 		zap.Strings("topics", c.Topics),
 		zap.String("http_user_agent", c.HTTPUserAgent),
