@@ -26,14 +26,15 @@ const DestinationList: React.FC = () => {
     () => destinations?.map((d) => d.id) ?? [],
     [destinations],
   );
-  const { data: batchedMetrics, isLoading: metricsLoading } =
-    useBatchedMetrics({
+  const { data: batchedMetrics, isLoading: metricsLoading } = useBatchedMetrics(
+    {
       measures: ["successful_count", "failed_count"],
       destinationIds,
       timeframe: "24h",
       granularity: "4h",
       filters: {},
-    });
+    },
+  );
 
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedStatus, setSelectedStatus] = useState<Record<string, boolean>>(
@@ -83,67 +84,69 @@ const DestinationList: React.FC = () => {
         })
       : [];
 
-  const table_rows =
-    filtered_destinations?.map((destination) => ({
-      id: destination.id,
-      entries: [
-        <>
-          <div
-            style={{ minWidth: "16px", width: "16px", display: "flex" }}
-            dangerouslySetInnerHTML={{
-              __html: destination_types[destination.type].icon as string,
-            }}
-          />
-          <span className="subtitle-m">
-            {destination_types[destination.type].label}
-          </span>
-        </>,
-        <span className="muted-variant">{destination.target}</span>,
-        CONFIGS.TOPICS ? (
-          <Tooltip
-            content={
-              <div className="destination-list__topics-tooltip">
-                {(destination.topics.length > 0 && destination.topics[0] === "*"
-                  ? CONFIGS.TOPICS.split(",")
-                  : destination.topics
-                )
-                  .slice(0, 9)
-                  .map((topic) => (
-                    <Badge key={topic} text={topic.trim()} />
-                  ))}
-                {(destination.topics[0] === "*"
-                  ? CONFIGS.TOPICS.split(",").length
-                  : destination.topics.length) > 9 && (
-                  <span className="subtitle-s muted">
-                    +{" "}
-                    {(destination.topics[0] === "*"
-                      ? CONFIGS.TOPICS.split(",").length
-                      : destination.topics.length) - 9}{" "}
-                    more
-                  </span>
-                )}
-              </div>
-            }
-          >
-            <span className="muted-variant">
-              {destination.topics.length > 0 && destination.topics[0] === "*"
-                ? "All"
-                : destination.topics.length}
+  const table_rows = destination_types
+    ? filtered_destinations?.map((destination) => ({
+        id: destination.id,
+        entries: [
+          <>
+            <div
+              style={{ minWidth: "16px", width: "16px", display: "flex" }}
+              dangerouslySetInnerHTML={{
+                __html: destination_types[destination.type].icon as string,
+              }}
+            />
+            <span className="subtitle-m">
+              {destination_types[destination.type].label}
             </span>
-          </Tooltip>
-        ) : null,
-        destination.disabled_at ? (
-          <Badge text="Disabled" />
-        ) : (
-          <Badge text="Active" success />
-        ),
-        <DestinationEventsCell
-          metricsData={batchedMetrics?.[destination.id]}
-          isLoading={metricsLoading}
-        />,
-      ].filter((entry) => entry !== null),
-      link: `/destinations/${destination.id}`,
-    })) || [];
+          </>,
+          <span className="muted-variant">{destination.target}</span>,
+          CONFIGS.TOPICS ? (
+            <Tooltip
+              content={
+                <div className="destination-list__topics-tooltip">
+                  {(destination.topics.length > 0 &&
+                  destination.topics[0] === "*"
+                    ? CONFIGS.TOPICS.split(",")
+                    : destination.topics
+                  )
+                    .slice(0, 9)
+                    .map((topic) => (
+                      <Badge key={topic} text={topic.trim()} />
+                    ))}
+                  {(destination.topics[0] === "*"
+                    ? CONFIGS.TOPICS.split(",").length
+                    : destination.topics.length) > 9 && (
+                    <span className="subtitle-s muted">
+                      +{" "}
+                      {(destination.topics[0] === "*"
+                        ? CONFIGS.TOPICS.split(",").length
+                        : destination.topics.length) - 9}{" "}
+                      more
+                    </span>
+                  )}
+                </div>
+              }
+            >
+              <span className="muted-variant">
+                {destination.topics.length > 0 && destination.topics[0] === "*"
+                  ? "All"
+                  : destination.topics.length}
+              </span>
+            </Tooltip>
+          ) : null,
+          destination.disabled_at ? (
+            <Badge text="Disabled" />
+          ) : (
+            <Badge text="Active" success />
+          ),
+          <DestinationEventsCell
+            metricsData={batchedMetrics?.[destination.id]}
+            isLoading={metricsLoading}
+          />,
+        ].filter((entry) => entry !== null),
+        link: `/destinations/${destination.id}`,
+      })) || []
+    : [];
 
   const logo = getLogo();
 

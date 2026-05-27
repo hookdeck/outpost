@@ -4,12 +4,7 @@ import Button from "../../../common/Button/Button";
 import DestinationConfigFields from "../../../common/DestinationConfigFields/DestinationConfigFields";
 import FilterField from "../../../common/FilterField/FilterField";
 import { FilterSyntaxGuide } from "../../../common/FilterSyntaxGuide/FilterSyntaxGuide";
-import {
-  AddIcon,
-  CloseIcon,
-  HelpIcon,
-  Loading,
-} from "../../../common/Icons";
+import { AddIcon, CloseIcon, HelpIcon, Loading } from "../../../common/Icons";
 import { useSidebar } from "../../../common/Sidebar/Sidebar";
 import type { Filter } from "../../../typings/Destination";
 import { getFormValues } from "../../../utils/formHelper";
@@ -196,10 +191,7 @@ export default function ConfigStep() {
                       <Button
                         type="button"
                         onClick={() =>
-                          sidebar.toggle(
-                            "filter-syntax",
-                            <FilterSyntaxGuide />,
-                          )
+                          sidebar.toggle("filter-syntax", <FilterSyntaxGuide />)
                         }
                         className="filter-section__guide-button"
                       >
