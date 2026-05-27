@@ -4,10 +4,6 @@ $BASE_GRID_MULTIPLIER: 4px !default;
 $RADIUS_S: 4px !default;
 $RADIUS_M: 6px !default;
 
-// Responsive breakpoints
-$BREAKPOINT_MOBILE: 640px !default;
-$BREAKPOINT_TABLET: 1024px !default;
-
 // Background Colors
 
 /// Neutral
@@ -362,7 +358,7 @@ body {
 
 // Prevent iOS Safari from zooming the viewport when focusing inputs:
 // browsers only zoom inputs whose computed font-size is < 16px.
-@media (max-width: $BREAKPOINT_MOBILE) {
+@media (max-width: 640px) {
   input,
   textarea,
   select {
