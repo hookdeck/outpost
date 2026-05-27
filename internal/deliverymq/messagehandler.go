@@ -172,6 +172,17 @@ func (h *messageHandler) handleError(msg *mqs.Message, err error) error {
 			return nil
 		}
 	}
+	// Attempt errors from a destination's publish call (webhook 5xx, timeout,
+	// refused, etc.) are expected operational outcomes. Ack semantics are
+	// already decided above; the failure is captured in the audit log, the
+	// ClickHouse log entry, and the scheduled retry. Suppress propagation so
+	// the consumer doesn't log them as unexpected handler errors.
+	if atmErr, ok := err.(*AttemptError); ok {
+		var pubErr *destregistry.ErrDestinationPublishAttempt
+		if errors.As(atmErr.err, &pubErr) {
+			return nil
+		}
+	}
 	return err
 }
 
@@ -192,13 +203,6 @@ func (h *messageHandler) doHandle(ctx context.Context, task models.DeliveryTask,
 			recorder.RecordDeliveryResult(false)
 		}
 
-		h.logger.Ctx(ctx).Error("failed to publish event",
-			zap.Error(err),
-			zap.String("attempt_id", attempt.ID),
-			zap.String("event_id", task.Event.ID),
-			zap.String("tenant_id", task.Event.TenantID),
-			zap.String("destination_id", destination.ID),
-			zap.String("destination_type", destination.Type))
 		attemptErr := &AttemptError{err: err}
 
 		if h.shouldScheduleRetry(task, err) {
@@ -257,7 +261,7 @@ func (h *messageHandler) logDeliveryResult(ctx context.Context, task *models.Del
 	attempt.AttemptNumber = task.Attempt
 	attempt.Manual = task.Manual
 
-	logger.Audit("event delivered",
+	logger.Audit("delivery attempt completed",
 		zap.String("attempt_id", attempt.ID),
 		zap.String("event_id", task.Event.ID),
 		zap.String("tenant_id", task.Event.TenantID),
