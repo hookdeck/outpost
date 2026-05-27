@@ -186,10 +186,7 @@ export function useBatchedMetrics({
       }
     }
 
-    params.set(
-      "granularity",
-      granularityOverride ?? getGranularity(timeframe),
-    );
+    params.set("granularity", granularityOverride ?? getGranularity(timeframe));
 
     return `metrics/attempts?${params.toString()}`;
   }, [idsKey, measuresKey, filtersKey, granularityOverride, timeframe]);

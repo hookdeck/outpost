@@ -30,7 +30,11 @@ const Sparkline: React.FC<SparklineProps> = ({ data }) => {
         const successPct = 100 - failPct;
 
         return (
-          <div key={i} className="sparkline__bar" style={{ height: `${height}%` }}>
+          <div
+            key={i}
+            className="sparkline__bar"
+            style={{ height: `${height}%` }}
+          >
             {d.failed > 0 && (
               <div
                 className="sparkline__segment sparkline__segment--error"
