@@ -114,7 +114,7 @@ func (h *eventHandler) Handle(ctx context.Context, event *models.Event) (*Handle
 		if enqueueFailed {
 			fields = append(fields, zap.Bool("enqueue_failed", true))
 		}
-		logger.Audit("event.received", fields...)
+		logger.Info("event.received", fields...)
 	}()
 
 	var err error

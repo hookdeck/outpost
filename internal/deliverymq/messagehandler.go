@@ -310,7 +310,7 @@ func (h *messageHandler) logDeliveryResult(ctx context.Context, task *models.Del
 	if retry.cancelFailed {
 		fields = append(fields, zap.Bool("retry_cancel_failed", true))
 	}
-	logger.Audit("delivery.attempted", fields...)
+	logger.Info("delivery.attempted", fields...)
 
 	logEntry := models.LogEntry{
 		Event:       &task.Event,
