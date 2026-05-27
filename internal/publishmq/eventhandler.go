@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"sync"
+	"time"
 
 	"github.com/hookdeck/outpost/internal/deliverymq"
 	"github.com/hookdeck/outpost/internal/emetrics"
@@ -66,8 +68,6 @@ func NewEventHandler(
 var _ EventHandler = (*eventHandler)(nil)
 
 func (h *eventHandler) Handle(ctx context.Context, event *models.Event) (*HandleResult, error) {
-	logger := h.logger.Ctx(ctx)
-
 	if len(h.topics) > 0 && event.Topic == "" {
 		return nil, ErrRequiredTopic
 	}
@@ -75,25 +75,54 @@ func (h *eventHandler) Handle(ctx context.Context, event *models.Event) (*Handle
 		return nil, ErrInvalidTopic
 	}
 
-	logger.Audit("processing event",
-		zap.String("event_id", event.ID),
-		zap.String("tenant_id", event.TenantID),
-		zap.String("destination_id", event.DestinationID),
-		zap.String("topic", event.Topic))
+	logger := h.logger.Ctx(ctx)
+	receivedAt := time.Now()
 
-	var matchedDestinations []string
+	// Wide event state: populated by the rest of Handle and emitted as a single
+	// audit at the end. Replaces the separate "processing event" and per-
+	// destination "delivery task enqueued" audits.
+	var enqueuedMu sync.Mutex
+	var enqueued []string
+	var matched []string
+	var duplicate bool
+	var enqueueFailed bool
+
+	defer func() {
+		enqueuedMu.Lock()
+		enqueuedCopy := append([]string{}, enqueued...)
+		enqueuedMu.Unlock()
+
+		fields := []zap.Field{
+			zap.String("event_id", event.ID),
+			zap.String("tenant_id", event.TenantID),
+			zap.String("topic", event.Topic),
+			zap.Int("matched_destination_count", len(matched)),
+			zap.Strings("matched_destination_ids", matched),
+			zap.Int("enqueued_destination_count", len(enqueuedCopy)),
+			zap.Strings("enqueued_destination_ids", enqueuedCopy),
+			zap.Bool("duplicate", duplicate),
+			zap.Time("received_at", receivedAt),
+			zap.Int64("duration_ms", time.Since(receivedAt).Milliseconds()),
+		}
+		if event.DestinationID != "" {
+			fields = append(fields, zap.String("destination_id", event.DestinationID))
+		}
+		if enqueueFailed {
+			fields = append(fields, zap.Bool("enqueue_failed", true))
+		}
+		logger.Audit("event.received", fields...)
+	}()
+
 	var err error
 
 	// Branch: specific destination vs topic-based matching
 	if event.DestinationID != "" {
-		// Specific destination path
-		matchedDestinations, err = h.matchSpecificDestination(ctx, event)
+		matched, err = h.matchSpecificDestination(ctx, event)
 		if err != nil {
 			return nil, err
 		}
 	} else {
-		// Topic-based matching path
-		matchedDestinations, err = h.tenantStore.MatchEvent(ctx, *event)
+		matched, err = h.tenantStore.MatchEvent(ctx, *event)
 		if err != nil {
 			logger.Error("failed to match event destinations",
 				zap.Error(err),
@@ -103,24 +132,20 @@ func (h *eventHandler) Handle(ctx context.Context, event *models.Event) (*Handle
 		}
 	}
 
-	if matchedDestinations == nil {
-		matchedDestinations = []string{}
+	if matched == nil {
+		matched = []string{}
 	}
 
 	// Stamp matched destinations onto the event for downstream persistence.
-	event.MatchedDestinationIDs = matchedDestinations
+	event.MatchedDestinationIDs = matched
 
 	result := &HandleResult{
 		EventID:        event.ID,
 		Duplicate:      false,
-		DestinationIDs: matchedDestinations,
+		DestinationIDs: matched,
 	}
 
-	// Early return if no destinations matched
-	if len(matchedDestinations) == 0 {
-		logger.Debug("no matching destinations",
-			zap.String("event_id", event.ID),
-			zap.String("tenant_id", event.TenantID))
+	if len(matched) == 0 {
 		return result, nil
 	}
 
@@ -128,22 +153,23 @@ func (h *eventHandler) Handle(ctx context.Context, event *models.Event) (*Handle
 	executed := false
 	err = h.idempotence.Exec(ctx, idempotencyKeyFromEvent(event), func(ctx context.Context) error {
 		executed = true
-		return h.doPublish(ctx, event, matchedDestinations)
+		return h.doPublish(ctx, event, matched, &enqueuedMu, &enqueued)
 	})
 
 	if err != nil {
+		enqueueFailed = true
 		return nil, err
 	}
 
-	// Set duplicate flag if not executed (idempotency hit)
 	if !executed {
+		duplicate = true
 		result.Duplicate = true
 	}
 
 	return result, nil
 }
 
-func (h *eventHandler) doPublish(ctx context.Context, event *models.Event, matchedDestinations []string) error {
+func (h *eventHandler) doPublish(ctx context.Context, event *models.Event, matchedDestinations []string, enqueuedMu *sync.Mutex, enqueued *[]string) error {
 	_, span := h.eventTracer.Receive(ctx, event)
 	defer span.End()
 
@@ -152,7 +178,13 @@ func (h *eventHandler) doPublish(ctx context.Context, event *models.Event, match
 	var g errgroup.Group
 	for _, destID := range matchedDestinations {
 		g.Go(func() error {
-			return h.enqueueDeliveryTask(ctx, models.NewDeliveryTask(*event, destID))
+			if err := h.enqueueDeliveryTask(ctx, models.NewDeliveryTask(*event, destID)); err != nil {
+				return err
+			}
+			enqueuedMu.Lock()
+			*enqueued = append(*enqueued, destID)
+			enqueuedMu.Unlock()
+			return nil
 		})
 	}
 	if err := g.Wait(); err != nil {
@@ -188,6 +220,7 @@ func (h *eventHandler) matchSpecificDestination(ctx context.Context, event *mode
 
 func (h *eventHandler) enqueueDeliveryTask(ctx context.Context, task models.DeliveryTask) error {
 	_, deliverySpan := h.eventTracer.StartDelivery(ctx, &task)
+	defer deliverySpan.End()
 	if err := h.deliveryMQ.Publish(ctx, task); err != nil {
 		h.logger.Ctx(ctx).Error("failed to enqueue delivery task",
 			zap.Error(err),
@@ -195,15 +228,8 @@ func (h *eventHandler) enqueueDeliveryTask(ctx context.Context, task models.Deli
 			zap.String("tenant_id", task.Event.TenantID),
 			zap.String("destination_id", task.DestinationID))
 		deliverySpan.RecordError(err)
-		deliverySpan.End()
 		return err
 	}
-
-	h.logger.Ctx(ctx).Audit("delivery task enqueued",
-		zap.String("event_id", task.Event.ID),
-		zap.String("tenant_id", task.Event.TenantID),
-		zap.String("destination_id", task.DestinationID))
-	deliverySpan.End()
 	return nil
 }
 
