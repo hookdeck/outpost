@@ -190,7 +190,9 @@ func (h *messageHandler) doHandle(ctx context.Context, task models.DeliveryTask,
 	_, span := h.eventTracer.Deliver(ctx, &task, destination)
 	defer span.End()
 
+	attemptStart := time.Now()
 	attempt, err := h.publisher.PublishEvent(ctx, destination, &task.Event)
+	attemptDuration := time.Since(attemptStart)
 	if err != nil {
 		// If attempt is nil, it means no attempt was made.
 		// This is an unexpected error and considered a pre-delivery error.
@@ -213,7 +215,7 @@ func (h *messageHandler) doHandle(ctx context.Context, task models.DeliveryTask,
 			// without needing an explicit cancel — the new tier's delay takes effect
 			// and the old scheduled retry is gone in a single operation.
 			if retryErr := h.scheduleRetry(ctx, task); retryErr != nil {
-				return h.logDeliveryResult(ctx, &task, destination, attempt, errors.Join(err, retryErr))
+				return h.logDeliveryResult(ctx, &task, destination, attempt, attemptDuration, errors.Join(err, retryErr))
 			}
 		} else if task.Manual {
 			// Budget exhausted or not eligible — cancel any lingering scheduled retry.
@@ -221,7 +223,7 @@ func (h *messageHandler) doHandle(ctx context.Context, task models.DeliveryTask,
 			// explicitly cancel to prevent a stale automatic retry from firing.
 			_ = h.retryScheduler.Cancel(ctx, models.RetryID(task.Event.ID, task.DestinationID))
 		}
-		return h.logDeliveryResult(ctx, &task, destination, attempt, attemptErr)
+		return h.logDeliveryResult(ctx, &task, destination, attempt, attemptDuration, attemptErr)
 	}
 
 	// Record delivery success for metrics
@@ -241,7 +243,7 @@ func (h *messageHandler) doHandle(ctx context.Context, task models.DeliveryTask,
 				zap.String("destination_id", destination.ID),
 				zap.String("destination_type", destination.Type),
 				zap.String("retry_id", models.RetryID(task.Event.ID, task.DestinationID)))
-			return h.logDeliveryResult(ctx, &task, destination, attempt, err)
+			return h.logDeliveryResult(ctx, &task, destination, attempt, attemptDuration, err)
 		}
 		logger.Audit("scheduled retry canceled",
 			zap.String("attempt_id", attempt.ID),
@@ -251,10 +253,10 @@ func (h *messageHandler) doHandle(ctx context.Context, task models.DeliveryTask,
 			zap.String("destination_type", destination.Type),
 			zap.String("retry_id", models.RetryID(task.Event.ID, task.DestinationID)))
 	}
-	return h.logDeliveryResult(ctx, &task, destination, attempt, nil)
+	return h.logDeliveryResult(ctx, &task, destination, attempt, attemptDuration, nil)
 }
 
-func (h *messageHandler) logDeliveryResult(ctx context.Context, task *models.DeliveryTask, destination *models.Destination, attempt *models.Attempt, err error) error {
+func (h *messageHandler) logDeliveryResult(ctx context.Context, task *models.DeliveryTask, destination *models.Destination, attempt *models.Attempt, attemptDuration time.Duration, err error) error {
 	logger := h.logger.Ctx(ctx)
 
 	attempt.TenantID = task.Event.TenantID
@@ -269,7 +271,8 @@ func (h *messageHandler) logDeliveryResult(ctx context.Context, task *models.Del
 		zap.String("destination_type", destination.Type),
 		zap.String("attempt_status", attempt.Status),
 		zap.Int("attempt", task.Attempt),
-		zap.Bool("manual", task.Manual))
+		zap.Bool("manual", task.Manual),
+		zap.Int64("attempt_duration_ms", attemptDuration.Milliseconds()))
 
 	logEntry := models.LogEntry{
 		Event:       &task.Event,
