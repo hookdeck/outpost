@@ -86,6 +86,7 @@ func (h *eventHandler) Handle(ctx context.Context, event *models.Event) (*Handle
 	var matched []string
 	var duplicate bool
 	var enqueueFailed bool
+	var matchFailed bool
 
 	defer func() {
 		enqueuedMu.Lock()
@@ -101,11 +102,14 @@ func (h *eventHandler) Handle(ctx context.Context, event *models.Event) (*Handle
 			zap.Int("enqueued_destination_count", len(enqueuedCopy)),
 			zap.Strings("enqueued_destination_ids", enqueuedCopy),
 			zap.Bool("duplicate", duplicate),
-			zap.Time("received_at", receivedAt),
+			zap.Time("event_received_at", receivedAt),
 			zap.Int64("duration_ms", time.Since(receivedAt).Milliseconds()),
 		}
 		if event.DestinationID != "" {
 			fields = append(fields, zap.String("destination_id", event.DestinationID))
+		}
+		if matchFailed {
+			fields = append(fields, zap.Bool("match_failed", true))
 		}
 		if enqueueFailed {
 			fields = append(fields, zap.Bool("enqueue_failed", true))
@@ -124,6 +128,7 @@ func (h *eventHandler) Handle(ctx context.Context, event *models.Event) (*Handle
 	} else {
 		matched, err = h.tenantStore.MatchEvent(ctx, *event)
 		if err != nil {
+			matchFailed = true
 			logger.Error("failed to match event destinations",
 				zap.Error(err),
 				zap.String("event_id", event.ID),
