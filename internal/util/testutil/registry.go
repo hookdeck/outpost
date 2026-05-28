@@ -4,15 +4,14 @@ import (
 	"github.com/hookdeck/outpost/internal/destregistry"
 	destregistrydefault "github.com/hookdeck/outpost/internal/destregistry/providers"
 	"github.com/hookdeck/outpost/internal/logging"
-	"github.com/uptrace/opentelemetry-go-extra/otelzap"
+	"go.uber.org/zap"
 )
 
 var Registry destregistry.Registry
 
 func init() {
-	otelLogger := otelzap.L()
 	Registry = destregistry.NewRegistry(&destregistry.Config{
 		DestinationMetadataPath: "",
-	}, &logging.Logger{Logger: otelLogger})
+	}, logging.NewTestLogger(zap.NewNop()))
 	destregistrydefault.RegisterDefault(Registry, destregistrydefault.RegisterDefaultDestinationOptions{})
 }

@@ -234,7 +234,7 @@ func TestMessageHandler_PublishError_EligibleForRetry(t *testing.T) {
 
 	// Handle message
 	err := handler.Handle(context.Background(), msg)
-	require.Error(t, err)
+	require.NoError(t, err)
 
 	// Assert behavior
 	assert.False(t, mockMsg.nacked, "message should not be nacked when scheduling retry")
@@ -300,7 +300,7 @@ func TestMessageHandler_PublishError_NotEligible(t *testing.T) {
 
 	// Handle message
 	err := handler.Handle(context.Background(), msg)
-	require.Error(t, err)
+	require.NoError(t, err)
 
 	// Assert behavior
 	assert.False(t, mockMsg.nacked, "message should not be nacked for ineligible retry")
@@ -807,7 +807,7 @@ func TestManualDelivery_PublishError(t *testing.T) {
 
 	// Handle message
 	err := handler.Handle(context.Background(), msg)
-	require.Error(t, err)
+	require.NoError(t, err)
 
 	// Assert behavior
 	assert.True(t, mockMsg.acked, "message should be acked")
@@ -886,7 +886,7 @@ func TestManualDelivery_PublishError_BudgetExhausted(t *testing.T) {
 
 	// Handle message
 	err := handler.Handle(context.Background(), msg)
-	require.Error(t, err)
+	require.NoError(t, err)
 
 	// Assert behavior
 	assert.True(t, mockMsg.acked, "message should be acked")

@@ -128,7 +128,7 @@ func (h *messageHandler) Handle(ctx context.Context, msg *mqs.Message) error {
 		return h.handleError(msg, &PreDeliveryError{err: err})
 	}
 
-	h.logger.Ctx(ctx).Info("processing delivery task",
+	h.logger.Ctx(ctx).Debug("processing delivery task",
 		zap.String("event_id", task.Event.ID),
 		zap.String("tenant_id", task.Event.TenantID),
 		zap.String("destination_id", task.DestinationID),
@@ -146,7 +146,7 @@ func (h *messageHandler) Handle(ctx context.Context, msg *mqs.Message) error {
 		return h.doHandle(ctx, task, destination)
 	})
 	if err == nil && !executed {
-		h.logger.Ctx(ctx).Info("delivery task skipped (idempotent)",
+		h.logger.Ctx(ctx).Debug("delivery task skipped (idempotent)",
 			zap.String("event_id", task.Event.ID),
 			zap.String("tenant_id", task.Event.TenantID),
 			zap.String("destination_id", task.DestinationID),
@@ -172,14 +172,40 @@ func (h *messageHandler) handleError(msg *mqs.Message, err error) error {
 			return nil
 		}
 	}
+	// Attempt errors from a destination's publish call (webhook 5xx, timeout,
+	// refused, etc.) are expected operational outcomes. Ack semantics are
+	// already decided above; the failure is captured in the audit log, the
+	// ClickHouse log entry, and the scheduled retry. Suppress propagation so
+	// the consumer doesn't log them as unexpected handler errors.
+	if atmErr, ok := err.(*AttemptError); ok {
+		var pubErr *destregistry.ErrDestinationPublishAttempt
+		if errors.As(atmErr.err, &pubErr) {
+			return nil
+		}
+	}
 	return err
+}
+
+// retryOutcome captures the retry-scheduling decisions made during a delivery
+// attempt so they can be folded into the single delivery.attempted audit event.
+type retryOutcome struct {
+	scheduled      bool
+	backoff        time.Duration
+	scheduleFailed bool
+	canceled       bool
+	cancelFailed   bool
 }
 
 func (h *messageHandler) doHandle(ctx context.Context, task models.DeliveryTask, destination *models.Destination) error {
 	_, span := h.eventTracer.Deliver(ctx, &task, destination)
 	defer span.End()
 
+	attemptStart := time.Now()
 	attempt, err := h.publisher.PublishEvent(ctx, destination, &task.Event)
+	attemptDuration := time.Since(attemptStart)
+
+	var retry retryOutcome
+
 	if err != nil {
 		// If attempt is nil, it means no attempt was made.
 		// This is an unexpected error and considered a pre-delivery error.
@@ -192,13 +218,6 @@ func (h *messageHandler) doHandle(ctx context.Context, task models.DeliveryTask,
 			recorder.RecordDeliveryResult(false)
 		}
 
-		h.logger.Ctx(ctx).Error("failed to publish event",
-			zap.Error(err),
-			zap.String("attempt_id", attempt.ID),
-			zap.String("event_id", task.Event.ID),
-			zap.String("tenant_id", task.Event.TenantID),
-			zap.String("destination_id", destination.ID),
-			zap.String("destination_type", destination.Type))
 		attemptErr := &AttemptError{err: err}
 
 		if h.shouldScheduleRetry(task, err) {
@@ -208,16 +227,24 @@ func (h *messageHandler) doHandle(ctx context.Context, task models.DeliveryTask,
 			// means manual retries automatically override any pending automatic retry
 			// without needing an explicit cancel — the new tier's delay takes effect
 			// and the old scheduled retry is gone in a single operation.
-			if retryErr := h.scheduleRetry(ctx, task); retryErr != nil {
-				return h.logDeliveryResult(ctx, &task, destination, attempt, errors.Join(err, retryErr))
+			backoff, retryErr := h.scheduleRetry(ctx, task)
+			retry.backoff = backoff
+			if retryErr != nil {
+				retry.scheduleFailed = true
+				return h.logDeliveryResult(ctx, &task, destination, attempt, attemptStart, attemptDuration, retry, errors.Join(err, retryErr))
 			}
+			retry.scheduled = true
 		} else if task.Manual {
 			// Budget exhausted or not eligible — cancel any lingering scheduled retry.
 			// Unlike the case above, there's no new retry to schedule so we must
 			// explicitly cancel to prevent a stale automatic retry from firing.
-			_ = h.retryScheduler.Cancel(ctx, models.RetryID(task.Event.ID, task.DestinationID))
+			if cancelErr := h.retryScheduler.Cancel(ctx, models.RetryID(task.Event.ID, task.DestinationID)); cancelErr == nil {
+				retry.canceled = true
+			} else {
+				retry.cancelFailed = true
+			}
 		}
-		return h.logDeliveryResult(ctx, &task, destination, attempt, attemptErr)
+		return h.logDeliveryResult(ctx, &task, destination, attempt, attemptStart, attemptDuration, retry, attemptErr)
 	}
 
 	// Record delivery success for metrics
@@ -227,45 +254,63 @@ func (h *messageHandler) doHandle(ctx context.Context, task models.DeliveryTask,
 
 	// Handle successful delivery
 	if task.Manual {
-		logger := h.logger.Ctx(ctx)
-		if err := h.retryScheduler.Cancel(ctx, models.RetryID(task.Event.ID, task.DestinationID)); err != nil {
+		if cancelErr := h.retryScheduler.Cancel(ctx, models.RetryID(task.Event.ID, task.DestinationID)); cancelErr != nil {
+			retry.cancelFailed = true
 			h.logger.Ctx(ctx).Error("failed to cancel scheduled retry",
-				zap.Error(err),
+				zap.Error(cancelErr),
 				zap.String("attempt_id", attempt.ID),
 				zap.String("event_id", task.Event.ID),
 				zap.String("tenant_id", task.Event.TenantID),
 				zap.String("destination_id", destination.ID),
 				zap.String("destination_type", destination.Type),
 				zap.String("retry_id", models.RetryID(task.Event.ID, task.DestinationID)))
-			return h.logDeliveryResult(ctx, &task, destination, attempt, err)
+			return h.logDeliveryResult(ctx, &task, destination, attempt, attemptStart, attemptDuration, retry, cancelErr)
 		}
-		logger.Audit("scheduled retry canceled",
-			zap.String("attempt_id", attempt.ID),
-			zap.String("event_id", task.Event.ID),
-			zap.String("tenant_id", task.Event.TenantID),
-			zap.String("destination_id", destination.ID),
-			zap.String("destination_type", destination.Type),
-			zap.String("retry_id", models.RetryID(task.Event.ID, task.DestinationID)))
+		retry.canceled = true
 	}
-	return h.logDeliveryResult(ctx, &task, destination, attempt, nil)
+	return h.logDeliveryResult(ctx, &task, destination, attempt, attemptStart, attemptDuration, retry, nil)
 }
 
-func (h *messageHandler) logDeliveryResult(ctx context.Context, task *models.DeliveryTask, destination *models.Destination, attempt *models.Attempt, err error) error {
+func (h *messageHandler) logDeliveryResult(ctx context.Context, task *models.DeliveryTask, destination *models.Destination, attempt *models.Attempt, attemptStart time.Time, attemptDuration time.Duration, retry retryOutcome, err error) error {
 	logger := h.logger.Ctx(ctx)
 
 	attempt.TenantID = task.Event.TenantID
 	attempt.AttemptNumber = task.Attempt
 	attempt.Manual = task.Manual
 
-	logger.Audit("event delivered",
+	// Wide event: one audit per delivery attempt carrying the full outcome
+	// (attempt result, timing, retry decision). Replaces the separate
+	// "retry scheduled" and "scheduled retry canceled" audits so consumers
+	// don't have to join across lines to reconstruct what happened.
+	fields := []zap.Field{
 		zap.String("attempt_id", attempt.ID),
 		zap.String("event_id", task.Event.ID),
 		zap.String("tenant_id", task.Event.TenantID),
+		zap.String("topic", task.Event.Topic),
 		zap.String("destination_id", destination.ID),
 		zap.String("destination_type", destination.Type),
 		zap.String("attempt_status", attempt.Status),
-		zap.Int("attempt", task.Attempt),
-		zap.Bool("manual", task.Manual))
+		zap.String("attempt_code", attempt.Code),
+		zap.Int("attempt_number", task.Attempt),
+		zap.Int("attempt_max", h.retryMaxLimit+1),
+		zap.Bool("manual", task.Manual),
+		zap.Bool("eligible_for_retry", task.Event.EligibleForRetry),
+		zap.Time("attempt_started_at", attemptStart),
+		zap.Int64("attempt_duration_ms", attemptDuration.Milliseconds()),
+		zap.String("retry_id", models.RetryID(task.Event.ID, task.DestinationID)),
+		zap.Bool("retry_scheduled", retry.scheduled),
+		zap.Bool("retry_canceled", retry.canceled),
+	}
+	if retry.scheduled {
+		fields = append(fields, zap.Int64("retry_backoff_ms", retry.backoff.Milliseconds()))
+	}
+	if retry.scheduleFailed {
+		fields = append(fields, zap.Bool("retry_schedule_failed", true))
+	}
+	if retry.cancelFailed {
+		fields = append(fields, zap.Bool("retry_cancel_failed", true))
+	}
+	logger.Info("delivery.attempted", fields...)
 
 	logEntry := models.LogEntry{
 		Event:       &task.Event,
@@ -363,7 +408,7 @@ func (h *messageHandler) shouldNackDeliveryError(err error) bool {
 	return true // Nack other delivery errors
 }
 
-func (h *messageHandler) scheduleRetry(ctx context.Context, task models.DeliveryTask) error {
+func (h *messageHandler) scheduleRetry(ctx context.Context, task models.DeliveryTask) (time.Duration, error) {
 	// Attempt is 1-indexed; backoff schedule is 0-indexed.
 	// Clamp to 0 to safely handle any leftover Attempt=0 in-flight tasks.
 	backoffDuration := h.retryBackoff.Duration(max(task.Attempt-1, 0))
@@ -371,7 +416,7 @@ func (h *messageHandler) scheduleRetry(ctx context.Context, task models.Delivery
 	retryTask := RetryTaskFromDeliveryTask(task)
 	retryTaskStr, err := retryTask.ToString()
 	if err != nil {
-		return err
+		return backoffDuration, err
 	}
 
 	if err := h.retryScheduler.Schedule(ctx, retryTaskStr, backoffDuration, scheduler.WithTaskID(models.RetryID(task.Event.ID, task.DestinationID))); err != nil {
@@ -382,17 +427,10 @@ func (h *messageHandler) scheduleRetry(ctx context.Context, task models.Delivery
 			zap.String("destination_id", task.DestinationID),
 			zap.Int("attempt", task.Attempt),
 			zap.Duration("backoff", backoffDuration))
-		return err
+		return backoffDuration, err
 	}
 
-	h.logger.Ctx(ctx).Audit("retry scheduled",
-		zap.String("event_id", task.Event.ID),
-		zap.String("tenant_id", task.Event.TenantID),
-		zap.String("destination_id", task.DestinationID),
-		zap.Int("attempt", task.Attempt),
-		zap.Duration("backoff", backoffDuration))
-
-	return nil
+	return backoffDuration, nil
 }
 
 // ensurePublishableDestination ensures that the destination exists and is in a publishable state.
@@ -410,7 +448,7 @@ func (h *messageHandler) ensurePublishableDestination(ctx context.Context, task 
 		}
 
 		if errors.Is(err, tenantstore.ErrDestinationDeleted) {
-			logger.Info("destination deleted", fields...)
+			logger.Debug("destination deleted", fields...)
 		} else {
 			// Unexpected errors like DB connection issues
 			logger.Error("failed to retrieve destination", fields...)
@@ -418,14 +456,14 @@ func (h *messageHandler) ensurePublishableDestination(ctx context.Context, task 
 		return nil, err
 	}
 	if destination == nil {
-		h.logger.Ctx(ctx).Info("destination not found",
+		h.logger.Ctx(ctx).Debug("destination not found",
 			zap.String("event_id", task.Event.ID),
 			zap.String("tenant_id", task.Event.TenantID),
 			zap.String("destination_id", task.DestinationID))
 		return nil, tenantstore.ErrDestinationNotFound
 	}
 	if destination.DisabledAt != nil {
-		h.logger.Ctx(ctx).Info("skipping disabled destination",
+		h.logger.Ctx(ctx).Debug("skipping disabled destination",
 			zap.String("event_id", task.Event.ID),
 			zap.String("tenant_id", task.Event.TenantID),
 			zap.String("destination_id", destination.ID),
