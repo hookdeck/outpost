@@ -2535,8 +2535,8 @@ components:
         event:
           nullable: true
           oneOf:
-            - $ref: "#/components/schemas/EventSummary"
             - $ref: "#/components/schemas/EventFull"
+            - $ref: "#/components/schemas/EventSummary"
           description: The associated event object. Only present when include=event or include=event.data.
         destination:
           nullable: true
