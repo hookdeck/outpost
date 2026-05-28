@@ -65,7 +65,8 @@ jobs:
           --health-retries 10
 
     env:
-      OUTPOST_BIN: /tmp/outpost
+      OUTPOST_CLI: /tmp/outpost
+      OUTPOST_SERVER: /tmp/outpost-server
       # Test-only secrets. Don't reuse anywhere.
       OUTPOST_API_KEY: ci-test-api-key
       OUTPOST_TEST_TENANT: ci-test-tenant
@@ -86,8 +87,10 @@ jobs:
         with:
           node-version: "20"
 
-      - name: Build outpost binary
-        run: go build -o "$OUTPOST_BIN" ./cmd/outpost
+      - name: Build outpost binaries
+        run: |
+          go build -o "$OUTPOST_CLI" ./cmd/outpost
+          go build -o "$OUTPOST_SERVER" ./cmd/outpost-server
 
       - name: Write outpost config
         run: |
@@ -127,23 +130,14 @@ jobs:
         env:
           CONFIG: /tmp/.outpost.yaml
         run: |
-          "$OUTPOST_BIN" migrate apply --yes
+          "$OUTPOST_CLI" migrate apply --yes
 
-      - name: Start outpost API
+      - name: Start outpost (singular mode — api + log + delivery)
         env:
           CONFIG: /tmp/.outpost.yaml
-          SERVICE: api
         run: |
-          "$OUTPOST_BIN" > /tmp/outpost-api.log 2>&1 &
-          echo $! > /tmp/outpost-api.pid
-
-      - name: Start outpost delivery worker
-        env:
-          CONFIG: /tmp/.outpost.yaml
-          SERVICE: delivery
-        run: |
-          "$OUTPOST_BIN" > /tmp/outpost-delivery.log 2>&1 &
-          echo $! > /tmp/outpost-delivery.pid
+          "$OUTPOST_SERVER" > /tmp/outpost.log 2>&1 &
+          echo $! > /tmp/outpost.pid
 
       - name: Wait for /healthz
         run: |
@@ -155,10 +149,8 @@ jobs:
             sleep 1
           done
           echo "::error::Outpost API did not become healthy within 60s"
-          echo "--- api log ---"
-          cat /tmp/outpost-api.log || true
-          echo "--- delivery log ---"
-          cat /tmp/outpost-delivery.log || true
+          echo "--- outpost log ---"
+          cat /tmp/outpost.log || true
           exit 1
 
       - name: Build TypeScript SDK
@@ -184,16 +176,13 @@ jobs:
         working-directory: spec-sdk-tests
         run: npm test
 
-      - name: Dump server logs on failure
+      - name: Dump server log on failure
         if: failure()
         run: |
-          echo "--- api log ---"
-          cat /tmp/outpost-api.log || true
-          echo "--- delivery log ---"
-          cat /tmp/outpost-delivery.log || true
+          echo "--- outpost log ---"
+          cat /tmp/outpost.log || true
 
       - name: Stop outpost
         if: always()
         run: |
-          kill "$(cat /tmp/outpost-api.pid)" 2>/dev/null || true
-          kill "$(cat /tmp/outpost-delivery.pid)" 2>/dev/null || true
+          kill "$(cat /tmp/outpost.pid)" 2>/dev/null || true
