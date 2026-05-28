@@ -19,8 +19,8 @@ describe('Tenants - List with request object', () => {
     const result = await sdk.tenants.list({ limit: 5 });
 
     expect(result).to.not.be.undefined;
-    expect(result?.result?.models).to.be.an('array');
-    (result?.result?.models ?? []).forEach((t: { id?: string }, i: number) => {
+    expect(result?.models).to.be.an('array');
+    (result?.models ?? []).forEach((t: { id?: string }, i: number) => {
       expect(t, `tenant[${i}]`).to.be.an('object');
       if (t.id != null) expect(t.id, `tenant[${i}].id`).to.be.a('string');
     });
