@@ -24,9 +24,11 @@
     }
 
     @media (max-width: 640px) {
+      .search_input_container {
+        width: 100%;
+      }
       *:last-child {
         margin-left: 0;
-        width: 100%;
       }
     }
   }
