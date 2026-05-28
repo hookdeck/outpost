@@ -1,0 +1,83 @@
+---
+title: "Cloudflare Queues"
+description: "Publish events to a Cloudflare Queue via the Cloudflare HTTP API."
+---
+
+Send events to a [Cloudflare Queue](https://developers.cloudflare.com/queues/) using the Cloudflare HTTP API.
+
+## Creating a Cloudflare Queues Destination
+
+```sh
+curl '{% $OUTPOST_API_BASE_URL %}/tenants/<TENANT_ID>/destinations' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer <API_KEY>' \
+--data '{
+  "type": "cloudflare_queues",
+  "topics": ["orders"],
+  "config": {
+    "account_id": "<CLOUDFLARE_ACCOUNT_ID>",
+    "queue_id": "<QUEUE_ID>"
+  },
+  "credentials": {
+    "api_token": "<CLOUDFLARE_API_TOKEN>"
+  }
+}'
+```
+
+## Configuration
+
+### Config
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `config.account_id` | string | Yes | Cloudflare Account ID |
+| `config.queue_id` | string | Yes | Cloudflare Queue ID |
+
+### Credentials
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `credentials.api_token` | string | Yes | Cloudflare API Token with `queues:write` permission |
+
+## Message Format
+
+Each event is published as a single Cloudflare Queue message with `content_type: "json"`. The message body has this shape:
+
+```json
+{
+  "data": <event.Data>,
+  "metadata": <merged_metadata>
+}
+```
+
+`metadata` contains system metadata (`event-id`, `topic`, `timestamp`) merged with any custom event metadata.
+
+### Example Message
+
+Publishing this event:
+
+```json
+{
+  "topic": "orders",
+  "data": { "order_id": "123", "status": "created" },
+  "metadata": { "source": "checkout-service" }
+}
+```
+
+Results in this Cloudflare Queue message body:
+
+```json
+{
+  "data": { "order_id": "123", "status": "created" },
+  "metadata": {
+    "event-id": "evt_123",
+    "topic": "orders",
+    "timestamp": "2024-01-01T00:00:00Z",
+    "source": "checkout-service"
+  }
+}
+```
+
+## Required Permissions
+
+The Cloudflare API Token must have the `Workers > Queues > Edit` permission (the `queues:write` scope), scoped to the account that owns the target queue.
