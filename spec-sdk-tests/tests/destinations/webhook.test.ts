@@ -180,7 +180,7 @@ describe('Webhook Destinations - Contract Tests (SDK-based validation)', () => {
       try {
         await client.deleteDestination(destinationId);
       } catch (error) {
-        console.warn('Failed to cleanup destination:', error);
+        console.warn('Failed to cleanup destination:', error instanceof Error ? error.message : String(error));
       }
     });
 
@@ -253,12 +253,13 @@ describe('Webhook Destinations - Contract Tests (SDK-based validation)', () => {
       try {
         await client.deleteDestination(destinationId);
       } catch (error) {
-        console.warn('Failed to cleanup destination:', error);
+        console.warn('Failed to cleanup destination:', error instanceof Error ? error.message : String(error));
       }
     });
 
     it('should update destination topics', async () => {
       const updated = await client.updateDestination(destinationId, {
+        type: 'webhook',
         topics: ['user.created', 'user.updated'],
       });
 
@@ -270,6 +271,7 @@ describe('Webhook Destinations - Contract Tests (SDK-based validation)', () => {
 
     it('should update destination config', async () => {
       const updated = await client.updateDestination(destinationId, {
+        type: 'webhook',
         config: {
           url: 'https://updated.example.com/webhook',
         },
@@ -286,6 +288,7 @@ describe('Webhook Destinations - Contract Tests (SDK-based validation)', () => {
       let errorThrown = false;
       try {
         await client.updateDestination('non-existent-id-12345', {
+          type: 'webhook',
           topics: ['test'],
         });
       } catch (error: any) {

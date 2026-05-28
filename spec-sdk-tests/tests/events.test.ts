@@ -168,7 +168,7 @@ describe('Events (PR #491)', () => {
         limit: 5,
       });
       expect(response).to.not.be.undefined;
-      expect(response?.models).to.be.an('array');
+      expect(response?.result?.models).to.be.an('array');
     });
 
     it('should list events by tenant', async function () {
@@ -191,7 +191,7 @@ describe('Events (PR #491)', () => {
           const response = await sdk.events.list({
             tenantId: client.getTenantId(),
           });
-          return response?.models || [];
+          return response?.result?.models || [];
         },
         30000,
         5000
@@ -209,7 +209,7 @@ describe('Events (PR #491)', () => {
       const response = await sdk.events.list({
         tenantId: client.getTenantId(),
       });
-      const events = response?.models || [];
+      const events = response?.result?.models || [];
 
       if (events.length === 0) {
         console.warn('No events found - skipping single event test');
@@ -253,7 +253,7 @@ describe('Events (PR #491)', () => {
             destinationId: destinationId,
             eventId,
           });
-          return response?.models ?? [];
+          return response?.result?.models ?? [];
         },
         45000,
         5000
