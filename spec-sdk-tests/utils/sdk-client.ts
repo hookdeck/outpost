@@ -46,6 +46,16 @@ export class SdkClient {
       serverURL: baseURL,
       apiKey: config.apiKey || process.env.API_KEY || '',
       timeoutMs: config.timeout || 10000,
+      retryConfig: {
+        strategy: 'backoff',
+        backoff: {
+          initialInterval: 250,
+          maxInterval: 4000,
+          exponent: 2,
+          maxElapsedTime: 20000,
+        },
+        retryConnectionErrors: true,
+      },
     });
   }
 

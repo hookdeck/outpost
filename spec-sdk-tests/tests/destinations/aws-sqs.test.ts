@@ -213,7 +213,7 @@ describe('AWS SQS Destinations - Contract Tests (SDK-based validation)', () => {
       try {
         await client.deleteDestination(destinationId);
       } catch (error) {
-        console.warn('Failed to cleanup destination:', error);
+        console.warn('Failed to cleanup destination:', error instanceof Error ? error.message : String(error));
       }
     });
 
@@ -286,12 +286,13 @@ describe('AWS SQS Destinations - Contract Tests (SDK-based validation)', () => {
       try {
         await client.deleteDestination(destinationId);
       } catch (error) {
-        console.warn('Failed to cleanup destination:', error);
+        console.warn('Failed to cleanup destination:', error instanceof Error ? error.message : String(error));
       }
     });
 
     it('should update destination topics', async () => {
       const updated = await client.updateDestination(destinationId, {
+        type: 'aws_sqs',
         topics: ['user.created', 'user.updated'],
       });
 
@@ -303,6 +304,7 @@ describe('AWS SQS Destinations - Contract Tests (SDK-based validation)', () => {
 
     it('should update destination config', async () => {
       const updated = await client.updateDestination(destinationId, {
+        type: 'aws_sqs',
         config: {
           queueUrl: 'https://sqs.us-west-2.amazonaws.com/123456789012/updated-queue',
         },
@@ -319,6 +321,7 @@ describe('AWS SQS Destinations - Contract Tests (SDK-based validation)', () => {
 
     it('should update destination credentials', async () => {
       const updated = await client.updateDestination(destinationId, {
+        type: 'aws_sqs',
         credentials: {
           key: 'AKIAIOSFODNN7UPDATED',
           secret: 'updatedSecretKey',
@@ -332,6 +335,7 @@ describe('AWS SQS Destinations - Contract Tests (SDK-based validation)', () => {
       let errorThrown = false;
       try {
         await client.updateDestination('non-existent-id-12345', {
+          type: 'aws_sqs',
           topics: ['test'],
         });
       } catch (error: any) {
