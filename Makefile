@@ -43,6 +43,12 @@ down:
 nuke:
 	./build/dev/dev.sh down --volumes
 
+health:
+	./build/dev/health.sh
+
+smoke:
+	./build/dev/smoke.sh
+
 # Run portal natively (vite hot reload). Portal is also available as a
 # containerized service via `make up` — use this target only when you want
 # the faster native dev loop.
