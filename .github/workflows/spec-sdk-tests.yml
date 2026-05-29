@@ -1,9 +1,28 @@
 # Runs the spec-sdk-tests contract suite against a freshly-built local Outpost.
-# Catches OpenAPI ↔ SDK ↔ server drift (which is what motivated this workflow —
-# see issue #921 for context and the bugs that surfaced without it).
 #
-# Triggers: workflow_dispatch, weekly cron (drift safety net), and PRs touching
-# spec / SDK / handler / wiring paths.
+# WHAT THIS WORKFLOW VALIDATES
+#   "Does this PR's server code implement what this PR's spec says?"
+#   Regenerates the TS SDK from this PR's `docs/apis/openapi.yaml`, builds
+#   `outpost-server` from this PR's source, and runs the spec-sdk-tests
+#   contract suite against them. Catches drift introduced by the PR.
+#
+# WHAT IT DOES NOT VALIDATE
+#   - Drift between managed/deployed Outpost and the spec (deploy drift).
+#   - Compatibility of older SDK releases against the current server.
+#   - Post-deploy smoke against managed.
+#   These are separate concerns — managed-vs-spec asks a different question
+#   from PR-vs-itself, and conflating them creates "merge through red"
+#   pressure on every breaking spec change. They belong in separate
+#   workflows (see issue #921 for the design discussion).
+#
+# WHY THIS SHAPE
+#   - Local server + regen'd SDK gives fast, deterministic PR feedback and
+#     doesn't pollute managed with test resources or hit its rate limits.
+#   - Triggering only on paths that can plausibly change request/response
+#     shape keeps CI cheap.
+#
+# Triggers: workflow_dispatch, weekly cron (drift safety net within this
+# workflow's scope), and PRs touching spec / SDK / handler / wiring paths.
 name: Spec SDK tests
 
 on:
