@@ -65,6 +65,6 @@ jobs:
       pr_base_is_main: true
       set_version: ${{ github.event.inputs.release_tag == 'v1.0.0' && '1.0.0' || '' }}
     secrets:
-      github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      github_access_token: ${{ secrets.SDK_REGEN_GITHUB_PAT }}
       speakeasy_api_key: ${{ secrets.SPEAKEASY_API_KEY }}
       npm_token: ${{ secrets.NPM_TOKEN }}
