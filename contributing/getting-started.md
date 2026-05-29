@@ -17,10 +17,10 @@ The API is now available at `http://localhost:3333`.
 
 **Default setup includes:**
 - Redis (cache and state)
-- PostgreSQL (log store)
+- ClickHouse (log store)
 - RabbitMQ (message queue)
 
-See [Configuration](#configuration) to customize with ClickHouse, AWS SQS, GCP PubSub, Azure ServiceBus, and more.
+See [Configuration](#configuration) to customize with PostgreSQL, AWS SQS, GCP PubSub, Azure ServiceBus, and more.
 
 ## Day-to-Day Development
 
@@ -74,13 +74,13 @@ The `.env` file controls which services `make up` starts. Add or remove `LOCAL_D
 # LOCAL_DEV_DRAGONFLY=1
 
 # Log store
-LOCAL_DEV_POSTGRES=1
+LOCAL_DEV_CLICKHOUSE=1
 
 # Message queue
 LOCAL_DEV_RABBITMQ=1
 
 # Optional: Additional services
-# LOCAL_DEV_CLICKHOUSE=1
+# LOCAL_DEV_POSTGRES=1
 # LOCAL_DEV_LOCALSTACK=1
 # LOCAL_DEV_GCP=1
 
