@@ -46,6 +46,12 @@
     display: flex;
     gap: var(--spacing-3);
     margin-top: var(--spacing-4);
+    flex-wrap: wrap;
+
+    @media (max-width: 640px) {
+      flex-direction: column;
+      align-items: stretch;
+    }
   }
 
   &__actions {

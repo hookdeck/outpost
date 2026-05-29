@@ -37,8 +37,21 @@ const Table: React.FC<TableProps> = ({
     .map((column) => (column.width ? `${column.width}px` : "1fr"))
     .join(" ");
 
+  const fallbackFlexColumnWidth = 160;
+  const tableMinWidth = columns.reduce(
+    (sum, column) => sum + (column.width ?? fallbackFlexColumnWidth),
+    0,
+  );
+
   return (
-    <div className="table">
+    <div
+      className="table"
+      style={
+        {
+          "--table-min-width": `${tableMinWidth}px`,
+        } as React.CSSProperties
+      }
+    >
       <div
         className="table__header"
         style={{

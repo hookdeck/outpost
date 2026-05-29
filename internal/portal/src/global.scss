@@ -352,6 +352,18 @@ body {
   margin: 0;
   background: var(--colors-background);
   font-size: 1rem;
+  overflow-x: hidden;
+  -webkit-text-size-adjust: 100%;
+}
+
+// Prevent iOS Safari from zooming the viewport when focusing inputs:
+// browsers only zoom inputs whose computed font-size is < 16px.
+@media (max-width: 640px) {
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
 }
 
 @mixin generate-spacing-variables {

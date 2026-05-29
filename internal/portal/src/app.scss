@@ -8,6 +8,16 @@
   padding-left: calc(var(--base-grid-multiplier) * 24);
   padding-right: calc(var(--base-grid-multiplier) * 24);
 
+  @media (max-width: 1024px) {
+    padding-left: var(--spacing-6);
+    padding-right: var(--spacing-6);
+  }
+
+  @media (max-width: 640px) {
+    padding-left: var(--spacing-4);
+    padding-right: var(--spacing-4);
+  }
+
   &__loading {
     display: flex;
     justify-content: center;
@@ -22,6 +32,11 @@
     gap: var(--spacing-2);
     margin-top: calc(var(--base-grid-multiplier) * 20);
     margin-bottom: calc(var(--base-grid-multiplier) * 12);
+
+    @media (max-width: 640px) {
+      margin-top: var(--spacing-6);
+      margin-bottom: var(--spacing-6);
+    }
 
     a {
       color: var(--colors-foreground-neutral-3);
@@ -46,6 +61,9 @@
     display: flex;
     gap: var(--spacing-2);
     color: var(--colors-foreground-neutral-3);
+    flex-wrap: wrap;
+    align-items: center;
+    width: 100%;
 
     span,
     a {
@@ -65,6 +83,12 @@
   bottom: var(--spacing-3);
   left: var(--spacing-4);
   color: var(--colors-foreground-neutral-2);
+
+  @media (max-width: 640px) {
+    position: static;
+    text-align: center;
+    padding: var(--spacing-4);
+  }
 
   a {
     color: var(--colors-foreground-neutral-2);
