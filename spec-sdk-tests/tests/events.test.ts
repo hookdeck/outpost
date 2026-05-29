@@ -265,5 +265,39 @@ describe('Events (PR #491)', () => {
       expect(attempt.status).to.equal('success', 'Delivery to mock.hookdeck.com should succeed');
       console.log(`Event ${eventId} generated attempt; status: ${attempt.status}`);
     });
+
+    it('listAttempts with include=event.data should expose event.data on the parsed attempt', async function () {
+      this.timeout(60000);
+
+      const sdk: Outpost = client.getSDK();
+
+      const payload = { marker: `include-event-data-${Date.now()}` };
+      const publishResponse = await sdk.publish({
+        tenantId: client.getTenantId(),
+        topic: TEST_TOPICS[0],
+        data: payload,
+      });
+      const eventId = publishResponse.id;
+
+      const attempts = await pollForAttempts(
+        async () => {
+          const response = await sdk.destinations.listAttempts({
+            tenantId: client.getTenantId(),
+            destinationId: destinationId,
+            eventId,
+            include: ['event.data', 'response_data'],
+          });
+          return response?.models ?? [];
+        },
+        45000,
+        5000
+      );
+
+      expect(attempts.length).to.be.at.least(1, 'Expected at least one attempt');
+      const attempt = attempts[0];
+      expect(attempt.responseData, 'response_data should be populated when include=response_data').to.exist;
+      expect(attempt.event, 'event should be populated when include=event.data').to.exist;
+      expect((attempt.event as { data?: unknown }).data, 'event.data should be populated when include=event.data').to.deep.equal(payload);
+    });
   });
 });
