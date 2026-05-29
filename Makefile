@@ -44,7 +44,7 @@ nuke:
 	./build/dev/dev.sh down --volumes
 
 health:
-	./build/dev/health.sh
+	@WAIT="$(WAIT)" ./build/dev/health.sh
 
 smoke:
 	./build/dev/smoke.sh

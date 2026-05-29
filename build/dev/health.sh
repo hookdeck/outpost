@@ -1,66 +1,93 @@
 #!/usr/bin/env bash
-# Quick reachability check for the running dev stack. Walks LOCAL_DEV_* flags
+# Reachability check for the running dev stack. Walks LOCAL_DEV_* flags
 # the same way dev.sh does and probes only the services that should be up.
 # Exits non-zero if any probe fails.
+#
+# WAIT=N polls for up to N seconds before declaring failure (useful right
+# after `make up` while containers are still warming).
 set -uo pipefail
 
 if [ -f .env ]; then
   set -a; . ./.env; set +a
 fi
 
-fail=0
-pass() { printf "  \033[32m✓\033[0m %s\n" "$1"; }
-miss() { printf "  \033[31m✗\033[0m %s — %s\n" "$1" "$2"; fail=1; }
+WAIT="${WAIT:-0}"
 
 probe_http() {
   local name=$1 url=$2 extra=${3:-}
   # shellcheck disable=SC2086
   if curl -fsS --max-time 3 $extra "$url" >/dev/null 2>&1; then
-    pass "$name ($url)"
+    printf "  \033[32m✓\033[0m %s (%s)\n" "$name" "$url"
   else
-    miss "$name" "no response from $url"
+    printf "  \033[31m✗\033[0m %s — no response from %s\n" "$name" "$url"
+    return 1
   fi
 }
 
 probe_exec() {
   local name=$1 container=$2; shift 2
   if docker exec "$container" "$@" >/dev/null 2>&1; then
-    pass "$name"
+    printf "  \033[32m✓\033[0m %s\n" "$name"
   else
-    miss "$name" "$container probe failed: $*"
+    printf "  \033[31m✗\033[0m %s — %s probe failed: %s\n" "$name" "$container" "$*"
+    return 1
   fi
 }
 
-echo "Core"
-probe_http "api"    "http://localhost:3333/api/v1/healthz"
-probe_http "portal" "http://localhost:3333/"
+run_probes() {
+  local fail=0
 
-# Cache: redis is default; dragonfly aliases as redis on the network and uses
-# the same container name pattern. Probe whichever is running.
-echo "Deps"
-if [ "${LOCAL_DEV_DRAGONFLY:-}" = "1" ]; then
-  probe_exec "dragonfly" outpost-dragonfly-1 redis-cli -a password PING
-else
-  probe_exec "redis" outpost-redis-1 redis-cli -a password PING
-fi
-[ "${LOCAL_DEV_POSTGRES:-}" = "1" ]   && probe_exec "postgres" outpost-postgres-1 pg_isready -U outpost
-[ "${LOCAL_DEV_CLICKHOUSE:-}" = "1" ] && probe_http "clickhouse" "http://localhost:28123/ping"
-[ "${LOCAL_DEV_RABBITMQ:-}" = "1" ]   && probe_http "rabbitmq" "http://localhost:25673/api/healthchecks/node" "-u guest:guest"
-[ "${LOCAL_DEV_LOCALSTACK:-}" = "1" ] && probe_http "localstack" "http://localhost:24566/_localstack/health"
-[ "${LOCAL_DEV_GCP:-}" = "1" ]        && probe_exec "gcp pubsub" outpost-gcp-1 sh -c 'wget -qO- http://localhost:8085 || true' \
-                                     && pass "gcp pubsub (port reachable)" || true
+  echo "Core"
+  probe_http "api"    "http://localhost:3333/api/v1/healthz" || fail=1
+  probe_http "portal" "http://localhost:3333/" || fail=1
 
-# Add-on stacks
-addons=0
-[ "${LOCAL_DEV_ENVOY:-}" = "1" ]   && { [ $addons -eq 0 ] && echo "Add-ons"; addons=1; probe_http "envoy"   "http://localhost:9901/ready"; }
-[ "${LOCAL_DEV_GRAFANA:-}" = "1" ] && { [ $addons -eq 0 ] && echo "Add-ons"; addons=1; probe_http "grafana" "http://localhost:3000/api/health"; }
-[ "${LOCAL_DEV_UPTRACE:-}" = "1" ] && { [ $addons -eq 0 ] && echo "Add-ons"; addons=1; probe_http "uptrace" "http://localhost:14318"; }
-[ "${LOCAL_DEV_AZURE:-}" = "1" ]   && { [ $addons -eq 0 ] && echo "Add-ons"; addons=1; probe_exec "azuresb" outpost-azuresb-1 sh -c 'true'; }
+  echo "Deps"
+  if [ "${LOCAL_DEV_DRAGONFLY:-}" = "1" ]; then
+    probe_exec "dragonfly" outpost-dragonfly-1 redis-cli -a password PING || fail=1
+  else
+    probe_exec "redis" outpost-redis-1 redis-cli -a password PING || fail=1
+  fi
+  [ "${LOCAL_DEV_POSTGRES:-}" = "1" ]   && { probe_exec "postgres" outpost-postgres-1 pg_isready -U outpost || fail=1; }
+  [ "${LOCAL_DEV_CLICKHOUSE:-}" = "1" ] && { probe_http "clickhouse" "http://localhost:28123/ping" || fail=1; }
+  [ "${LOCAL_DEV_RABBITMQ:-}" = "1" ]   && { probe_http "rabbitmq" "http://localhost:25673/api/healthchecks/node" "-u guest:guest" || fail=1; }
+  [ "${LOCAL_DEV_LOCALSTACK:-}" = "1" ] && { probe_http "localstack" "http://localhost:24566/_localstack/health" || fail=1; }
+  [ "${LOCAL_DEV_GCP:-}" = "1" ]        && { probe_exec "gcp pubsub" outpost-gcp-1 sh -c 'curl -sS http://localhost:8085 >/dev/null' || fail=1; }
 
-if [ $fail -ne 0 ]; then
+  local addons=0
+  show_addons() { [ $addons -eq 0 ] && echo "Add-ons"; addons=1; }
+  [ "${LOCAL_DEV_ENVOY:-}" = "1" ]   && { show_addons; probe_http "envoy"   "http://localhost:9901/ready" || fail=1; }
+  [ "${LOCAL_DEV_GRAFANA:-}" = "1" ] && { show_addons; probe_http "grafana" "http://localhost:3000/api/health" || fail=1; }
+  [ "${LOCAL_DEV_UPTRACE:-}" = "1" ] && { show_addons; probe_http "uptrace" "http://localhost:14318" || fail=1; }
+  [ "${LOCAL_DEV_AZURE:-}" = "1" ]   && { show_addons; probe_exec "azuresb" outpost-azuresb-1 sh -c 'true' || fail=1; }
+
+  return $fail
+}
+
+deadline=$(( $(date +%s) + WAIT ))
+attempt=0
+while :; do
+  attempt=$(( attempt + 1 ))
+  output=$(run_probes)
+  status=$?
+  if [ $status -eq 0 ] || [ "$(date +%s)" -ge "$deadline" ]; then
+    break
+  fi
+  sleep 1
+done
+
+echo "$output"
+if [ $status -ne 0 ]; then
   echo
-  echo "One or more probes failed. Run 'make up' or check 'docker ps' for the underlying state."
+  if [ "$WAIT" -gt 0 ]; then
+    echo "One or more probes failed after ${WAIT}s of polling. Check 'docker ps' for the underlying state."
+  else
+    echo "One or more probes failed. Try 'make health WAIT=10' if the stack just came up, or check 'docker ps'."
+  fi
   exit 1
 fi
 echo
-echo "Stack healthy."
+if [ $attempt -gt 1 ]; then
+  echo "Stack healthy (after ${attempt} attempts)."
+else
+  echo "Stack healthy."
+fi

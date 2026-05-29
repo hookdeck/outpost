@@ -33,6 +33,21 @@ make nuke    # stop + remove volumes (wipe state)
 `make up` is declarative — it reads `.env` and reconciles the running stack
 to match. Edit `.env`, re-run `make up`, and only the diff is applied.
 
+### Verifying the stack
+
+```sh
+make health              # quick reachability check per enabled service
+make health WAIT=30      # poll for up to 30s (handy right after make up)
+make smoke               # end-to-end pipeline test (tenant → publish → log)
+```
+
+`make health` walks the same `LOCAL_DEV_*` flags as `make up` and probes
+only services that should be running. `make smoke` provisions a tenant +
+webhook destination, publishes one event to `https://mock.hookdeck.com`,
+and polls until the delivery attempt lands in the log store, then cleans
+up — exercising api, redis, mq, delivery worker, egress, log worker, and
+log store in one shot.
+
 ## Running Tests
 
 ```sh
