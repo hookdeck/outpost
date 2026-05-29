@@ -1262,6 +1262,27 @@ components:
           nullable: true
           description: Arbitrary contextual information stored with the destination.
           example: {"internal-id": "123", "team": "platform"}
+        created_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            Optional override for the creation timestamp. Intended for importing destinations from another system. Must not be in the future. **Admin (API key) auth only — sending this with JWT auth returns 403.** Defaults to the current time when omitted.
+          example: "2024-02-15T10:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            Optional override for the last-updated timestamp. Intended for importing destinations. Must not be in the future. **Admin (API key) auth only — sending this with JWT auth returns 403.** Defaults to created_at when omitted.
+          example: "2024-02-15T10:00:00Z"
+        disabled_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            If set, the destination is created in a disabled state with this timestamp. Must not be in the future. Defaults to null (enabled).
+          example: null
     DestinationCreateAWSSQS:
       type: object
       x-docs-type: "AWS SQS"
@@ -1297,6 +1318,27 @@ components:
           nullable: true
           description: Arbitrary contextual information stored with the destination.
           example: {"internal-id": "123", "team": "platform"}
+        created_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            Optional override for the creation timestamp. Intended for importing destinations from another system. Must not be in the future. **Admin (API key) auth only — sending this with JWT auth returns 403.** Defaults to the current time when omitted.
+          example: "2024-02-15T10:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            Optional override for the last-updated timestamp. Intended for importing destinations. Must not be in the future. **Admin (API key) auth only — sending this with JWT auth returns 403.** Defaults to created_at when omitted.
+          example: "2024-02-15T10:00:00Z"
+        disabled_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            If set, the destination is created in a disabled state with this timestamp. Must not be in the future. Defaults to null (enabled).
+          example: null
     DestinationCreateRabbitMQ:
       type: object
       x-docs-type: "RabbitMQ"
@@ -1332,6 +1374,27 @@ components:
           nullable: true
           description: Arbitrary contextual information stored with the destination.
           example: {"internal-id": "123", "team": "platform"}
+        created_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            Optional override for the creation timestamp. Intended for importing destinations from another system. Must not be in the future. **Admin (API key) auth only — sending this with JWT auth returns 403.** Defaults to the current time when omitted.
+          example: "2024-02-15T10:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            Optional override for the last-updated timestamp. Intended for importing destinations. Must not be in the future. **Admin (API key) auth only — sending this with JWT auth returns 403.** Defaults to created_at when omitted.
+          example: "2024-02-15T10:00:00Z"
+        disabled_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            If set, the destination is created in a disabled state with this timestamp. Must not be in the future. Defaults to null (enabled).
+          example: null
     DestinationCreateHookdeck:
       type: object
       x-docs-type: "Hookdeck Event Gateway"
@@ -1366,6 +1429,27 @@ components:
           nullable: true
           description: Arbitrary contextual information stored with the destination.
           example: {"internal-id": "123", "team": "platform"}
+        created_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            Optional override for the creation timestamp. Intended for importing destinations from another system. Must not be in the future. **Admin (API key) auth only — sending this with JWT auth returns 403.** Defaults to the current time when omitted.
+          example: "2024-02-15T10:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            Optional override for the last-updated timestamp. Intended for importing destinations. Must not be in the future. **Admin (API key) auth only — sending this with JWT auth returns 403.** Defaults to created_at when omitted.
+          example: "2024-02-15T10:00:00Z"
+        disabled_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            If set, the destination is created in a disabled state with this timestamp. Must not be in the future. Defaults to null (enabled).
+          example: null
     DestinationCreateAWSKinesis:
       type: object
       x-docs-type: "AWS Kinesis"
@@ -1401,6 +1485,27 @@ components:
           nullable: true
           description: Arbitrary contextual information stored with the destination.
           example: {"internal-id": "123", "team": "platform"}
+        created_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            Optional override for the creation timestamp. Intended for importing destinations from another system. Must not be in the future. **Admin (API key) auth only — sending this with JWT auth returns 403.** Defaults to the current time when omitted.
+          example: "2024-02-15T10:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            Optional override for the last-updated timestamp. Intended for importing destinations. Must not be in the future. **Admin (API key) auth only — sending this with JWT auth returns 403.** Defaults to created_at when omitted.
+          example: "2024-02-15T10:00:00Z"
+        disabled_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            If set, the destination is created in a disabled state with this timestamp. Must not be in the future. Defaults to null (enabled).
+          example: null
     DestinationCreateAzureServiceBus:
       type: object
       x-docs-type: "Azure Service Bus"
@@ -1436,6 +1541,27 @@ components:
           nullable: true
           description: Arbitrary contextual information stored with the destination.
           example: {"internal-id": "123", "team": "platform"}
+        created_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            Optional override for the creation timestamp. Intended for importing destinations from another system. Must not be in the future. **Admin (API key) auth only — sending this with JWT auth returns 403.** Defaults to the current time when omitted.
+          example: "2024-02-15T10:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            Optional override for the last-updated timestamp. Intended for importing destinations. Must not be in the future. **Admin (API key) auth only — sending this with JWT auth returns 403.** Defaults to created_at when omitted.
+          example: "2024-02-15T10:00:00Z"
+        disabled_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            If set, the destination is created in a disabled state with this timestamp. Must not be in the future. Defaults to null (enabled).
+          example: null
     DestinationCreateAWSS3:
       type: object
       x-docs-type: "AWS S3"
@@ -1471,6 +1597,27 @@ components:
           nullable: true
           description: Arbitrary contextual information stored with the destination.
           example: {"internal-id": "123", "team": "platform"}
+        created_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            Optional override for the creation timestamp. Intended for importing destinations from another system. Must not be in the future. **Admin (API key) auth only — sending this with JWT auth returns 403.** Defaults to the current time when omitted.
+          example: "2024-02-15T10:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            Optional override for the last-updated timestamp. Intended for importing destinations. Must not be in the future. **Admin (API key) auth only — sending this with JWT auth returns 403.** Defaults to created_at when omitted.
+          example: "2024-02-15T10:00:00Z"
+        disabled_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            If set, the destination is created in a disabled state with this timestamp. Must not be in the future. Defaults to null (enabled).
+          example: null
     DestinationCreateGCPPubSub:
       type: object
       x-docs-type: "GCP PubSub"
@@ -1506,6 +1653,27 @@ components:
           nullable: true
           description: Arbitrary contextual information stored with the destination.
           example: {"internal-id": "123", "team": "platform"}
+        created_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            Optional override for the creation timestamp. Intended for importing destinations from another system. Must not be in the future. **Admin (API key) auth only — sending this with JWT auth returns 403.** Defaults to the current time when omitted.
+          example: "2024-02-15T10:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            Optional override for the last-updated timestamp. Intended for importing destinations. Must not be in the future. **Admin (API key) auth only — sending this with JWT auth returns 403.** Defaults to created_at when omitted.
+          example: "2024-02-15T10:00:00Z"
+        disabled_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            If set, the destination is created in a disabled state with this timestamp. Must not be in the future. Defaults to null (enabled).
+          example: null
     DestinationCreateKafka:
       type: object
       x-docs-type: "Apache Kafka"
@@ -1541,6 +1709,27 @@ components:
           nullable: true
           description: Arbitrary contextual information stored with the destination.
           example: {"internal-id": "123", "team": "platform"}
+        created_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            Optional override for the creation timestamp. Intended for importing destinations from another system. Must not be in the future. **Admin (API key) auth only — sending this with JWT auth returns 403.** Defaults to the current time when omitted.
+          example: "2024-02-15T10:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            Optional override for the last-updated timestamp. Intended for importing destinations. Must not be in the future. **Admin (API key) auth only — sending this with JWT auth returns 403.** Defaults to created_at when omitted.
+          example: "2024-02-15T10:00:00Z"
+        disabled_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            If set, the destination is created in a disabled state with this timestamp. Must not be in the future. Defaults to null (enabled).
+          example: null
     # Polymorphic Destination Creation Schema (for Request Bodies)
     DestinationCreate:
       oneOf:
@@ -1615,6 +1804,13 @@ components:
           description: >-
             Arbitrary contextual information stored with the destination. Uses JSON merge-patch semantics (RFC 7396): send keys to add/update, null values to delete keys, null for entire field to clear all. Omit or send {} for no change.
           example: {"internal-id": "123", "team": "platform"}
+        disabled_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            Update the disabled state of the destination. Send a timestamp (must not be in the future) to disable, null to enable, or omit to leave unchanged.
+          example: null
     DestinationUpdateAWSSQS:
       type: object
       x-docs-type: "AWS SQS"
@@ -1648,6 +1844,13 @@ components:
           description: >-
             Arbitrary contextual information stored with the destination. Uses JSON merge-patch semantics (RFC 7396): send keys to add/update, null values to delete keys, null for entire field to clear all. Omit or send {} for no change.
           example: {"internal-id": "123", "team": "platform"}
+        disabled_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            Update the disabled state of the destination. Send a timestamp (must not be in the future) to disable, null to enable, or omit to leave unchanged.
+          example: null
     DestinationUpdateRabbitMQ:
       type: object
       x-docs-type: "RabbitMQ"
@@ -1681,6 +1884,13 @@ components:
           description: >-
             Arbitrary contextual information stored with the destination. Uses JSON merge-patch semantics (RFC 7396): send keys to add/update, null values to delete keys, null for entire field to clear all. Omit or send {} for no change.
           example: {"internal-id": "123", "team": "platform"}
+        disabled_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            Update the disabled state of the destination. Send a timestamp (must not be in the future) to disable, null to enable, or omit to leave unchanged.
+          example: null
     DestinationUpdateHookdeck:
       type: object
       x-docs-type: "Hookdeck Event Gateway"
@@ -1713,6 +1923,13 @@ components:
           description: >-
             Arbitrary contextual information stored with the destination. Uses JSON merge-patch semantics (RFC 7396): send keys to add/update, null values to delete keys, null for entire field to clear all. Omit or send {} for no change.
           example: {"internal-id": "123", "team": "platform"}
+        disabled_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            Update the disabled state of the destination. Send a timestamp (must not be in the future) to disable, null to enable, or omit to leave unchanged.
+          example: null
     DestinationUpdateAWSKinesis:
       type: object
       x-docs-type: "AWS Kinesis"
@@ -1746,6 +1963,13 @@ components:
           description: >-
             Arbitrary contextual information stored with the destination. Uses JSON merge-patch semantics (RFC 7396): send keys to add/update, null values to delete keys, null for entire field to clear all. Omit or send {} for no change.
           example: {"internal-id": "123", "team": "platform"}
+        disabled_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            Update the disabled state of the destination. Send a timestamp (must not be in the future) to disable, null to enable, or omit to leave unchanged.
+          example: null
     DestinationUpdateAzureServiceBus:
       type: object
       x-docs-type: "Azure Service Bus"
@@ -1779,6 +2003,13 @@ components:
           description: >-
             Arbitrary contextual information stored with the destination. Uses JSON merge-patch semantics (RFC 7396): send keys to add/update, null values to delete keys, null for entire field to clear all. Omit or send {} for no change.
           example: {"internal-id": "123", "team": "platform"}
+        disabled_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            Update the disabled state of the destination. Send a timestamp (must not be in the future) to disable, null to enable, or omit to leave unchanged.
+          example: null
     DestinationUpdateAWSS3:
       type: object
       x-docs-type: "AWS S3"
@@ -1812,6 +2043,13 @@ components:
           description: >-
             Arbitrary contextual information stored with the destination. Uses JSON merge-patch semantics (RFC 7396): send keys to add/update, null values to delete keys, null for entire field to clear all. Omit or send {} for no change.
           example: {"internal-id": "123", "team": "platform"}
+        disabled_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            Update the disabled state of the destination. Send a timestamp (must not be in the future) to disable, null to enable, or omit to leave unchanged.
+          example: null
     DestinationUpdateGCPPubSub:
       type: object
       x-docs-type: "GCP PubSub"
@@ -1845,6 +2083,13 @@ components:
           description: >-
             Arbitrary contextual information stored with the destination. Uses JSON merge-patch semantics (RFC 7396): send keys to add/update, null values to delete keys, null for entire field to clear all. Omit or send {} for no change.
           example: {"internal-id": "123", "team": "platform"}
+        disabled_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            Update the disabled state of the destination. Send a timestamp (must not be in the future) to disable, null to enable, or omit to leave unchanged.
+          example: null
     DestinationUpdateKafka:
       type: object
       x-docs-type: "Apache Kafka"
@@ -1878,6 +2123,13 @@ components:
           description: >-
             Arbitrary contextual information stored with the destination. Uses JSON merge-patch semantics (RFC 7396): send keys to add/update, null values to delete keys, null for entire field to clear all. Omit or send {} for no change.
           example: {"internal-id": "123", "team": "platform"}
+        disabled_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            Update the disabled state of the destination. Send a timestamp (must not be in the future) to disable, null to enable, or omit to leave unchanged.
+          example: null
     # Polymorphic Destination Update Schema (for Request Bodies)
     DestinationUpdate:
       oneOf:

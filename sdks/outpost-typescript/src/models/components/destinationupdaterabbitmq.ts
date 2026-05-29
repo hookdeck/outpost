@@ -8,17 +8,17 @@ import { safeParse } from "../../lib/schemas.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 import {
-  RabbitMQConfig,
-  RabbitMQConfig$inboundSchema,
-  RabbitMQConfig$Outbound,
-  RabbitMQConfig$outboundSchema,
-} from "./rabbitmqconfig.js";
+  RabbitMQConfigUpdate,
+  RabbitMQConfigUpdate$inboundSchema,
+  RabbitMQConfigUpdate$Outbound,
+  RabbitMQConfigUpdate$outboundSchema,
+} from "./rabbitmqconfigupdate.js";
 import {
-  RabbitMQCredentials,
-  RabbitMQCredentials$inboundSchema,
-  RabbitMQCredentials$Outbound,
-  RabbitMQCredentials$outboundSchema,
-} from "./rabbitmqcredentials.js";
+  RabbitMQCredentialsUpdate,
+  RabbitMQCredentialsUpdate$inboundSchema,
+  RabbitMQCredentialsUpdate$Outbound,
+  RabbitMQCredentialsUpdate$outboundSchema,
+} from "./rabbitmqcredentialsupdate.js";
 import {
   Topics,
   Topics$inboundSchema,
@@ -27,6 +27,10 @@ import {
 } from "./topics.js";
 
 export type DestinationUpdateRabbitMQ = {
+  /**
+   * Destination type discriminator. Must equal the existing destination's type — type itself cannot be changed via PATCH.
+   */
+  type: "rabbitmq";
   /**
    * "*" or an array of enabled topics.
    */
@@ -40,8 +44,14 @@ export type DestinationUpdateRabbitMQ = {
    * Uses full-replacement semantics on update: send a new object to replace, null or `{}` to clear, omit for no change.
    */
   filter?: { [k: string]: any } | null | undefined;
-  config?: RabbitMQConfig | undefined;
-  credentials?: RabbitMQCredentials | undefined;
+  /**
+   * Partial RabbitMQ config for PATCH updates (RFC 7396 merge-patch).
+   */
+  config?: RabbitMQConfigUpdate | undefined;
+  /**
+   * Partial RabbitMQ credentials for PATCH updates (RFC 7396 merge-patch).
+   */
+  credentials?: RabbitMQCredentialsUpdate | undefined;
   /**
    * Static key-value pairs merged into event metadata on every attempt. Uses JSON merge-patch semantics (RFC 7396): send keys to add/update, null values to delete keys, null for entire field to clear all. Omit or send {} for no change.
    */
@@ -62,10 +72,11 @@ export const DestinationUpdateRabbitMQ$inboundSchema: z.ZodType<
   z.ZodTypeDef,
   unknown
 > = z.object({
+  type: z.literal("rabbitmq"),
   topics: Topics$inboundSchema.optional(),
   filter: z.nullable(z.record(z.any())).optional(),
-  config: RabbitMQConfig$inboundSchema.optional(),
-  credentials: RabbitMQCredentials$inboundSchema.optional(),
+  config: RabbitMQConfigUpdate$inboundSchema.optional(),
+  credentials: RabbitMQCredentialsUpdate$inboundSchema.optional(),
   delivery_metadata: z.nullable(z.record(z.nullable(z.string()))).optional(),
   metadata: z.nullable(z.record(z.nullable(z.string()))).optional(),
   disabled_at: z.nullable(
@@ -79,10 +90,11 @@ export const DestinationUpdateRabbitMQ$inboundSchema: z.ZodType<
 });
 /** @internal */
 export type DestinationUpdateRabbitMQ$Outbound = {
+  type: "rabbitmq";
   topics?: Topics$Outbound | undefined;
   filter?: { [k: string]: any } | null | undefined;
-  config?: RabbitMQConfig$Outbound | undefined;
-  credentials?: RabbitMQCredentials$Outbound | undefined;
+  config?: RabbitMQConfigUpdate$Outbound | undefined;
+  credentials?: RabbitMQCredentialsUpdate$Outbound | undefined;
   delivery_metadata?: { [k: string]: string | null } | null | undefined;
   metadata?: { [k: string]: string | null } | null | undefined;
   disabled_at?: string | null | undefined;
@@ -94,10 +106,11 @@ export const DestinationUpdateRabbitMQ$outboundSchema: z.ZodType<
   z.ZodTypeDef,
   DestinationUpdateRabbitMQ
 > = z.object({
+  type: z.literal("rabbitmq"),
   topics: Topics$outboundSchema.optional(),
   filter: z.nullable(z.record(z.any())).optional(),
-  config: RabbitMQConfig$outboundSchema.optional(),
-  credentials: RabbitMQCredentials$outboundSchema.optional(),
+  config: RabbitMQConfigUpdate$outboundSchema.optional(),
+  credentials: RabbitMQCredentialsUpdate$outboundSchema.optional(),
   deliveryMetadata: z.nullable(z.record(z.nullable(z.string()))).optional(),
   metadata: z.nullable(z.record(z.nullable(z.string()))).optional(),
   disabledAt: z.nullable(z.date().transform(v => v.toISOString())).optional(),

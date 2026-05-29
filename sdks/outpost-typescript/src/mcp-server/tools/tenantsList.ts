@@ -36,7 +36,7 @@ When authenticated with a Tenant JWT, returns only the authenticated tenant.
       };
     }
 
-    const value = result.value.result;
+    const value = result.value;
 
     return formatResult(value, apiCall);
   },

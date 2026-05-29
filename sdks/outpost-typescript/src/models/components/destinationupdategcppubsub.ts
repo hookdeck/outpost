@@ -8,17 +8,17 @@ import { safeParse } from "../../lib/schemas.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 import {
-  GCPPubSubConfig,
-  GCPPubSubConfig$inboundSchema,
-  GCPPubSubConfig$Outbound,
-  GCPPubSubConfig$outboundSchema,
-} from "./gcppubsubconfig.js";
+  GCPPubSubConfigUpdate,
+  GCPPubSubConfigUpdate$inboundSchema,
+  GCPPubSubConfigUpdate$Outbound,
+  GCPPubSubConfigUpdate$outboundSchema,
+} from "./gcppubsubconfigupdate.js";
 import {
-  GCPPubSubCredentials,
-  GCPPubSubCredentials$inboundSchema,
-  GCPPubSubCredentials$Outbound,
-  GCPPubSubCredentials$outboundSchema,
-} from "./gcppubsubcredentials.js";
+  GCPPubSubCredentialsUpdate,
+  GCPPubSubCredentialsUpdate$inboundSchema,
+  GCPPubSubCredentialsUpdate$Outbound,
+  GCPPubSubCredentialsUpdate$outboundSchema,
+} from "./gcppubsubcredentialsupdate.js";
 import {
   Topics,
   Topics$inboundSchema,
@@ -27,6 +27,10 @@ import {
 } from "./topics.js";
 
 export type DestinationUpdateGCPPubSub = {
+  /**
+   * Destination type discriminator. Must equal the existing destination's type — type itself cannot be changed via PATCH.
+   */
+  type: "gcp_pubsub";
   /**
    * "*" or an array of enabled topics.
    */
@@ -40,8 +44,14 @@ export type DestinationUpdateGCPPubSub = {
    * Uses full-replacement semantics on update: send a new object to replace, null or `{}` to clear, omit for no change.
    */
   filter?: { [k: string]: any } | null | undefined;
-  config?: GCPPubSubConfig | undefined;
-  credentials?: GCPPubSubCredentials | undefined;
+  /**
+   * Partial GCP Pub/Sub config for PATCH updates (RFC 7396 merge-patch).
+   */
+  config?: GCPPubSubConfigUpdate | undefined;
+  /**
+   * Partial GCP Pub/Sub credentials for PATCH updates (RFC 7396 merge-patch).
+   */
+  credentials?: GCPPubSubCredentialsUpdate | undefined;
   /**
    * Static key-value pairs merged into event metadata on every attempt. Uses JSON merge-patch semantics (RFC 7396): send keys to add/update, null values to delete keys, null for entire field to clear all. Omit or send {} for no change.
    */
@@ -62,10 +72,11 @@ export const DestinationUpdateGCPPubSub$inboundSchema: z.ZodType<
   z.ZodTypeDef,
   unknown
 > = z.object({
+  type: z.literal("gcp_pubsub"),
   topics: Topics$inboundSchema.optional(),
   filter: z.nullable(z.record(z.any())).optional(),
-  config: GCPPubSubConfig$inboundSchema.optional(),
-  credentials: GCPPubSubCredentials$inboundSchema.optional(),
+  config: GCPPubSubConfigUpdate$inboundSchema.optional(),
+  credentials: GCPPubSubCredentialsUpdate$inboundSchema.optional(),
   delivery_metadata: z.nullable(z.record(z.nullable(z.string()))).optional(),
   metadata: z.nullable(z.record(z.nullable(z.string()))).optional(),
   disabled_at: z.nullable(
@@ -79,10 +90,11 @@ export const DestinationUpdateGCPPubSub$inboundSchema: z.ZodType<
 });
 /** @internal */
 export type DestinationUpdateGCPPubSub$Outbound = {
+  type: "gcp_pubsub";
   topics?: Topics$Outbound | undefined;
   filter?: { [k: string]: any } | null | undefined;
-  config?: GCPPubSubConfig$Outbound | undefined;
-  credentials?: GCPPubSubCredentials$Outbound | undefined;
+  config?: GCPPubSubConfigUpdate$Outbound | undefined;
+  credentials?: GCPPubSubCredentialsUpdate$Outbound | undefined;
   delivery_metadata?: { [k: string]: string | null } | null | undefined;
   metadata?: { [k: string]: string | null } | null | undefined;
   disabled_at?: string | null | undefined;
@@ -94,10 +106,11 @@ export const DestinationUpdateGCPPubSub$outboundSchema: z.ZodType<
   z.ZodTypeDef,
   DestinationUpdateGCPPubSub
 > = z.object({
+  type: z.literal("gcp_pubsub"),
   topics: Topics$outboundSchema.optional(),
   filter: z.nullable(z.record(z.any())).optional(),
-  config: GCPPubSubConfig$outboundSchema.optional(),
-  credentials: GCPPubSubCredentials$outboundSchema.optional(),
+  config: GCPPubSubConfigUpdate$outboundSchema.optional(),
+  credentials: GCPPubSubCredentialsUpdate$outboundSchema.optional(),
   deliveryMetadata: z.nullable(z.record(z.nullable(z.string()))).optional(),
   metadata: z.nullable(z.record(z.nullable(z.string()))).optional(),
   disabledAt: z.nullable(z.date().transform(v => v.toISOString())).optional(),

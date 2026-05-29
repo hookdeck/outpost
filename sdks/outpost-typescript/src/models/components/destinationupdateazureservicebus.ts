@@ -8,17 +8,17 @@ import { safeParse } from "../../lib/schemas.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 import {
-  AzureServiceBusConfig,
-  AzureServiceBusConfig$inboundSchema,
-  AzureServiceBusConfig$Outbound,
-  AzureServiceBusConfig$outboundSchema,
-} from "./azureservicebusconfig.js";
+  AzureServiceBusConfigUpdate,
+  AzureServiceBusConfigUpdate$inboundSchema,
+  AzureServiceBusConfigUpdate$Outbound,
+  AzureServiceBusConfigUpdate$outboundSchema,
+} from "./azureservicebusconfigupdate.js";
 import {
-  AzureServiceBusCredentials,
-  AzureServiceBusCredentials$inboundSchema,
-  AzureServiceBusCredentials$Outbound,
-  AzureServiceBusCredentials$outboundSchema,
-} from "./azureservicebuscredentials.js";
+  AzureServiceBusCredentialsUpdate,
+  AzureServiceBusCredentialsUpdate$inboundSchema,
+  AzureServiceBusCredentialsUpdate$Outbound,
+  AzureServiceBusCredentialsUpdate$outboundSchema,
+} from "./azureservicebuscredentialsupdate.js";
 import {
   Topics,
   Topics$inboundSchema,
@@ -27,6 +27,10 @@ import {
 } from "./topics.js";
 
 export type DestinationUpdateAzureServiceBus = {
+  /**
+   * Destination type discriminator. Must equal the existing destination's type — type itself cannot be changed via PATCH.
+   */
+  type: "azure_servicebus";
   /**
    * "*" or an array of enabled topics.
    */
@@ -40,8 +44,14 @@ export type DestinationUpdateAzureServiceBus = {
    * Uses full-replacement semantics on update: send a new object to replace, null or `{}` to clear, omit for no change.
    */
   filter?: { [k: string]: any } | null | undefined;
-  config?: AzureServiceBusConfig | undefined;
-  credentials?: AzureServiceBusCredentials | undefined;
+  /**
+   * Partial Azure Service Bus config for PATCH updates (RFC 7396 merge-patch).
+   */
+  config?: AzureServiceBusConfigUpdate | undefined;
+  /**
+   * Partial Azure Service Bus credentials for PATCH updates (RFC 7396 merge-patch).
+   */
+  credentials?: AzureServiceBusCredentialsUpdate | undefined;
   /**
    * Static key-value pairs merged into event metadata on every attempt. Uses JSON merge-patch semantics (RFC 7396): send keys to add/update, null values to delete keys, null for entire field to clear all. Omit or send {} for no change.
    */
@@ -62,10 +72,11 @@ export const DestinationUpdateAzureServiceBus$inboundSchema: z.ZodType<
   z.ZodTypeDef,
   unknown
 > = z.object({
+  type: z.literal("azure_servicebus"),
   topics: Topics$inboundSchema.optional(),
   filter: z.nullable(z.record(z.any())).optional(),
-  config: AzureServiceBusConfig$inboundSchema.optional(),
-  credentials: AzureServiceBusCredentials$inboundSchema.optional(),
+  config: AzureServiceBusConfigUpdate$inboundSchema.optional(),
+  credentials: AzureServiceBusCredentialsUpdate$inboundSchema.optional(),
   delivery_metadata: z.nullable(z.record(z.nullable(z.string()))).optional(),
   metadata: z.nullable(z.record(z.nullable(z.string()))).optional(),
   disabled_at: z.nullable(
@@ -79,10 +90,11 @@ export const DestinationUpdateAzureServiceBus$inboundSchema: z.ZodType<
 });
 /** @internal */
 export type DestinationUpdateAzureServiceBus$Outbound = {
+  type: "azure_servicebus";
   topics?: Topics$Outbound | undefined;
   filter?: { [k: string]: any } | null | undefined;
-  config?: AzureServiceBusConfig$Outbound | undefined;
-  credentials?: AzureServiceBusCredentials$Outbound | undefined;
+  config?: AzureServiceBusConfigUpdate$Outbound | undefined;
+  credentials?: AzureServiceBusCredentialsUpdate$Outbound | undefined;
   delivery_metadata?: { [k: string]: string | null } | null | undefined;
   metadata?: { [k: string]: string | null } | null | undefined;
   disabled_at?: string | null | undefined;
@@ -94,10 +106,11 @@ export const DestinationUpdateAzureServiceBus$outboundSchema: z.ZodType<
   z.ZodTypeDef,
   DestinationUpdateAzureServiceBus
 > = z.object({
+  type: z.literal("azure_servicebus"),
   topics: Topics$outboundSchema.optional(),
   filter: z.nullable(z.record(z.any())).optional(),
-  config: AzureServiceBusConfig$outboundSchema.optional(),
-  credentials: AzureServiceBusCredentials$outboundSchema.optional(),
+  config: AzureServiceBusConfigUpdate$outboundSchema.optional(),
+  credentials: AzureServiceBusCredentialsUpdate$outboundSchema.optional(),
   deliveryMetadata: z.nullable(z.record(z.nullable(z.string()))).optional(),
   metadata: z.nullable(z.record(z.nullable(z.string()))).optional(),
   disabledAt: z.nullable(z.date().transform(v => v.toISOString())).optional(),

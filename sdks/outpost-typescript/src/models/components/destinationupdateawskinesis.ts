@@ -8,17 +8,17 @@ import { safeParse } from "../../lib/schemas.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 import {
-  AWSKinesisConfig,
-  AWSKinesisConfig$inboundSchema,
-  AWSKinesisConfig$Outbound,
-  AWSKinesisConfig$outboundSchema,
-} from "./awskinesisconfig.js";
+  AWSKinesisConfigUpdate,
+  AWSKinesisConfigUpdate$inboundSchema,
+  AWSKinesisConfigUpdate$Outbound,
+  AWSKinesisConfigUpdate$outboundSchema,
+} from "./awskinesisconfigupdate.js";
 import {
-  AWSKinesisCredentials,
-  AWSKinesisCredentials$inboundSchema,
-  AWSKinesisCredentials$Outbound,
-  AWSKinesisCredentials$outboundSchema,
-} from "./awskinesiscredentials.js";
+  AWSKinesisCredentialsUpdate,
+  AWSKinesisCredentialsUpdate$inboundSchema,
+  AWSKinesisCredentialsUpdate$Outbound,
+  AWSKinesisCredentialsUpdate$outboundSchema,
+} from "./awskinesiscredentialsupdate.js";
 import {
   Topics,
   Topics$inboundSchema,
@@ -27,6 +27,10 @@ import {
 } from "./topics.js";
 
 export type DestinationUpdateAWSKinesis = {
+  /**
+   * Destination type discriminator. Must equal the existing destination's type — type itself cannot be changed via PATCH.
+   */
+  type: "aws_kinesis";
   /**
    * "*" or an array of enabled topics.
    */
@@ -40,8 +44,14 @@ export type DestinationUpdateAWSKinesis = {
    * Uses full-replacement semantics on update: send a new object to replace, null or `{}` to clear, omit for no change.
    */
   filter?: { [k: string]: any } | null | undefined;
-  config?: AWSKinesisConfig | undefined;
-  credentials?: AWSKinesisCredentials | undefined;
+  /**
+   * Partial AWS Kinesis config for PATCH updates (RFC 7396 merge-patch).
+   */
+  config?: AWSKinesisConfigUpdate | undefined;
+  /**
+   * Partial AWS Kinesis credentials for PATCH updates (RFC 7396 merge-patch).
+   */
+  credentials?: AWSKinesisCredentialsUpdate | undefined;
   /**
    * Static key-value pairs merged into event metadata on every attempt. Uses JSON merge-patch semantics (RFC 7396): send keys to add/update, null values to delete keys, null for entire field to clear all. Omit or send {} for no change.
    */
@@ -62,10 +72,11 @@ export const DestinationUpdateAWSKinesis$inboundSchema: z.ZodType<
   z.ZodTypeDef,
   unknown
 > = z.object({
+  type: z.literal("aws_kinesis"),
   topics: Topics$inboundSchema.optional(),
   filter: z.nullable(z.record(z.any())).optional(),
-  config: AWSKinesisConfig$inboundSchema.optional(),
-  credentials: AWSKinesisCredentials$inboundSchema.optional(),
+  config: AWSKinesisConfigUpdate$inboundSchema.optional(),
+  credentials: AWSKinesisCredentialsUpdate$inboundSchema.optional(),
   delivery_metadata: z.nullable(z.record(z.nullable(z.string()))).optional(),
   metadata: z.nullable(z.record(z.nullable(z.string()))).optional(),
   disabled_at: z.nullable(
@@ -79,10 +90,11 @@ export const DestinationUpdateAWSKinesis$inboundSchema: z.ZodType<
 });
 /** @internal */
 export type DestinationUpdateAWSKinesis$Outbound = {
+  type: "aws_kinesis";
   topics?: Topics$Outbound | undefined;
   filter?: { [k: string]: any } | null | undefined;
-  config?: AWSKinesisConfig$Outbound | undefined;
-  credentials?: AWSKinesisCredentials$Outbound | undefined;
+  config?: AWSKinesisConfigUpdate$Outbound | undefined;
+  credentials?: AWSKinesisCredentialsUpdate$Outbound | undefined;
   delivery_metadata?: { [k: string]: string | null } | null | undefined;
   metadata?: { [k: string]: string | null } | null | undefined;
   disabled_at?: string | null | undefined;
@@ -94,10 +106,11 @@ export const DestinationUpdateAWSKinesis$outboundSchema: z.ZodType<
   z.ZodTypeDef,
   DestinationUpdateAWSKinesis
 > = z.object({
+  type: z.literal("aws_kinesis"),
   topics: Topics$outboundSchema.optional(),
   filter: z.nullable(z.record(z.any())).optional(),
-  config: AWSKinesisConfig$outboundSchema.optional(),
-  credentials: AWSKinesisCredentials$outboundSchema.optional(),
+  config: AWSKinesisConfigUpdate$outboundSchema.optional(),
+  credentials: AWSKinesisCredentialsUpdate$outboundSchema.optional(),
   deliveryMetadata: z.nullable(z.record(z.nullable(z.string()))).optional(),
   metadata: z.nullable(z.record(z.nullable(z.string()))).optional(),
   disabledAt: z.nullable(z.date().transform(v => v.toISOString())).optional(),

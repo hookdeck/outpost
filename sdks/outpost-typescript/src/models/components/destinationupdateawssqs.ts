@@ -8,17 +8,17 @@ import { safeParse } from "../../lib/schemas.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 import {
-  AWSSQSConfig,
-  AWSSQSConfig$inboundSchema,
-  AWSSQSConfig$Outbound,
-  AWSSQSConfig$outboundSchema,
-} from "./awssqsconfig.js";
+  AWSSQSConfigUpdate,
+  AWSSQSConfigUpdate$inboundSchema,
+  AWSSQSConfigUpdate$Outbound,
+  AWSSQSConfigUpdate$outboundSchema,
+} from "./awssqsconfigupdate.js";
 import {
-  AWSSQSCredentials,
-  AWSSQSCredentials$inboundSchema,
-  AWSSQSCredentials$Outbound,
-  AWSSQSCredentials$outboundSchema,
-} from "./awssqscredentials.js";
+  AWSSQSCredentialsUpdate,
+  AWSSQSCredentialsUpdate$inboundSchema,
+  AWSSQSCredentialsUpdate$Outbound,
+  AWSSQSCredentialsUpdate$outboundSchema,
+} from "./awssqscredentialsupdate.js";
 import {
   Topics,
   Topics$inboundSchema,
@@ -27,6 +27,10 @@ import {
 } from "./topics.js";
 
 export type DestinationUpdateAWSSQS = {
+  /**
+   * Destination type discriminator. Must equal the existing destination's type — type itself cannot be changed via PATCH.
+   */
+  type: "aws_sqs";
   /**
    * "*" or an array of enabled topics.
    */
@@ -40,8 +44,14 @@ export type DestinationUpdateAWSSQS = {
    * Uses full-replacement semantics on update: send a new object to replace, null or `{}` to clear, omit for no change.
    */
   filter?: { [k: string]: any } | null | undefined;
-  config?: AWSSQSConfig | undefined;
-  credentials?: AWSSQSCredentials | undefined;
+  /**
+   * Partial AWS SQS config for PATCH updates (RFC 7396 merge-patch).
+   */
+  config?: AWSSQSConfigUpdate | undefined;
+  /**
+   * Partial AWS SQS credentials for PATCH updates (RFC 7396 merge-patch).
+   */
+  credentials?: AWSSQSCredentialsUpdate | undefined;
   /**
    * Static key-value pairs merged into event metadata on every attempt. Uses JSON merge-patch semantics (RFC 7396): send keys to add/update, null values to delete keys, null for entire field to clear all. Omit or send {} for no change.
    */
@@ -62,10 +72,11 @@ export const DestinationUpdateAWSSQS$inboundSchema: z.ZodType<
   z.ZodTypeDef,
   unknown
 > = z.object({
+  type: z.literal("aws_sqs"),
   topics: Topics$inboundSchema.optional(),
   filter: z.nullable(z.record(z.any())).optional(),
-  config: AWSSQSConfig$inboundSchema.optional(),
-  credentials: AWSSQSCredentials$inboundSchema.optional(),
+  config: AWSSQSConfigUpdate$inboundSchema.optional(),
+  credentials: AWSSQSCredentialsUpdate$inboundSchema.optional(),
   delivery_metadata: z.nullable(z.record(z.nullable(z.string()))).optional(),
   metadata: z.nullable(z.record(z.nullable(z.string()))).optional(),
   disabled_at: z.nullable(
@@ -79,10 +90,11 @@ export const DestinationUpdateAWSSQS$inboundSchema: z.ZodType<
 });
 /** @internal */
 export type DestinationUpdateAWSSQS$Outbound = {
+  type: "aws_sqs";
   topics?: Topics$Outbound | undefined;
   filter?: { [k: string]: any } | null | undefined;
-  config?: AWSSQSConfig$Outbound | undefined;
-  credentials?: AWSSQSCredentials$Outbound | undefined;
+  config?: AWSSQSConfigUpdate$Outbound | undefined;
+  credentials?: AWSSQSCredentialsUpdate$Outbound | undefined;
   delivery_metadata?: { [k: string]: string | null } | null | undefined;
   metadata?: { [k: string]: string | null } | null | undefined;
   disabled_at?: string | null | undefined;
@@ -94,10 +106,11 @@ export const DestinationUpdateAWSSQS$outboundSchema: z.ZodType<
   z.ZodTypeDef,
   DestinationUpdateAWSSQS
 > = z.object({
+  type: z.literal("aws_sqs"),
   topics: Topics$outboundSchema.optional(),
   filter: z.nullable(z.record(z.any())).optional(),
-  config: AWSSQSConfig$outboundSchema.optional(),
-  credentials: AWSSQSCredentials$outboundSchema.optional(),
+  config: AWSSQSConfigUpdate$outboundSchema.optional(),
+  credentials: AWSSQSCredentialsUpdate$outboundSchema.optional(),
   deliveryMetadata: z.nullable(z.record(z.nullable(z.string()))).optional(),
   metadata: z.nullable(z.record(z.nullable(z.string()))).optional(),
   disabledAt: z.nullable(z.date().transform(v => v.toISOString())).optional(),
