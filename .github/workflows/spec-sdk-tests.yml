@@ -1,0 +1,219 @@
+# Runs the spec-sdk-tests contract suite against a freshly-built local Outpost.
+#
+# WHAT THIS WORKFLOW VALIDATES
+#   "Does this PR's server code implement what this PR's spec says?"
+#   Regenerates the TS SDK from this PR's `docs/apis/openapi.yaml`, builds
+#   `outpost-server` from this PR's source, and runs the spec-sdk-tests
+#   contract suite against them. Catches drift introduced by the PR.
+#
+# WHAT IT DOES NOT VALIDATE
+#   - Drift between managed/deployed Outpost and the spec (deploy drift).
+#   - Compatibility of older SDK releases against the current server.
+#   - Post-deploy smoke against managed.
+#   These are separate concerns — managed-vs-spec asks a different question
+#   from PR-vs-itself, and conflating them creates "merge through red"
+#   pressure on every breaking spec change. They belong in separate
+#   workflows (see issue #921 for the design discussion).
+#
+# WHY THIS SHAPE
+#   - Local server + regen'd SDK gives fast, deterministic PR feedback and
+#     doesn't pollute managed with test resources or hit its rate limits.
+#   - Triggering only on paths that can plausibly change request/response
+#     shape keeps CI cheap.
+#
+
+# Triggers: workflow_dispatch and PRs touching spec / SDK / handler / wiring
+# paths. No cron — between PRs, `main`'s state hasn't changed, so a scheduled
+# run would re-test what we last tested. The "deploy drift" question that a
+# cron would help with is out of scope for this workflow anyway (see above).
+name: Spec SDK tests
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "docs/apis/openapi.yaml"
+      - "sdks/outpost-typescript/**"
+      - "spec-sdk-tests/**"
+      - ".speakeasy/**"
+      - "sdks/schemas/**"
+      - "internal/apirouter/**"
+      - "internal/destregistry/**"
+      - "internal/models/**"
+      - "cmd/outpost/**"
+      - "cmd/outpost-server/**"
+      - ".github/workflows/spec-sdk-tests.yml"
+
+jobs:
+  spec-sdk-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: outpost
+          POSTGRES_PASSWORD: outpost
+          POSTGRES_DB: outpost
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U outpost"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+      redis:
+        # redis-stack-server bundles RediSearch, which `tenants.list` needs
+        # (vanilla redis returns 501 "list tenant feature is not enabled").
+        image: redis/redis-stack-server:latest
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+      rabbitmq:
+        image: rabbitmq:3-management
+        ports:
+          - 5672:5672
+        options: >-
+          --health-cmd "rabbitmq-diagnostics -q ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      OUTPOST_CLI: /tmp/outpost
+      OUTPOST_SERVER: /tmp/outpost-server
+      # Test-only secrets. Don't reuse anywhere.
+      OUTPOST_API_KEY: ci-test-api-key
+      OUTPOST_TEST_TENANT: ci-test-tenant
+      # spec-sdk-tests/.env expects these
+      TEST_TOPICS: "user.created,user.updated,order.created,heartbeat"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "20"
+
+      - name: Build outpost binaries
+        run: |
+          go build -o "$OUTPOST_CLI" ./cmd/outpost
+          go build -o "$OUTPOST_SERVER" ./cmd/outpost-server
+
+      - name: Write outpost config
+        run: |
+          cat > /tmp/.outpost.yaml <<EOF
+          log_level: info
+          deployment_id: "ci-test"
+
+          redis:
+            host: "localhost"
+            port: 6379
+
+          mqs:
+            rabbitmq:
+              server_url: "amqp://guest:guest@localhost:5672"
+
+          postgres: "postgres://outpost:outpost@localhost:5432/outpost?sslmode=disable"
+
+          api_key: "${OUTPOST_API_KEY}"
+          api_jwt_secret: "ci-jwt-secret"
+          aes_encryption_secret: "ci-encryption-secret-32-chars-min"
+
+          topics:
+            - user.created
+            - user.updated
+            - order.created
+            - heartbeat
+
+          idgen:
+            type: "nanoid"
+            attempt_prefix: "atm_"
+            destination_prefix: "des_"
+            event_prefix: "evt_"
+            delivery_prefix: "del_"
+          EOF
+
+      - name: Run migrations
+        env:
+          CONFIG: /tmp/.outpost.yaml
+        run: |
+          "$OUTPOST_CLI" migrate apply --yes
+
+      - name: Start outpost (singular mode — api + log + delivery)
+        env:
+          CONFIG: /tmp/.outpost.yaml
+        run: |
+          "$OUTPOST_SERVER" > /tmp/outpost.log 2>&1 &
+          echo $! > /tmp/outpost.pid
+
+      - name: Wait for /healthz
+        run: |
+          for i in {1..60}; do
+            if curl -sf http://localhost:3333/healthz >/dev/null; then
+              echo "Outpost API is healthy after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "::error::Outpost API did not become healthy within 60s"
+          echo "--- outpost log ---"
+          cat /tmp/outpost.log || true
+          exit 1
+
+      # Without this regen, we'd be testing whatever SDK src/ is checked
+      # into the branch — which can lag the spec arbitrarily. The whole
+      # point of this workflow is to validate spec ↔ SDK ↔ server agree,
+      # so we regen the SDK from this PR's spec before running tests.
+      - name: Install Speakeasy CLI
+        run: curl -fsSL https://go.speakeasy.com/cli-install.sh | sh
+
+      - name: Regenerate + build TypeScript SDK from this PR's spec
+        env:
+          SPEAKEASY_API_KEY: ${{ secrets.SPEAKEASY_API_KEY }}
+        # Same script developers run locally — keeps CI and local in sync.
+        run: ./spec-sdk-tests/scripts/regenerate-sdk.sh TS
+
+      - name: Install spec-sdk-tests dependencies
+        working-directory: spec-sdk-tests
+        # spec-sdk-tests/.gitignore excludes package-lock.json, so `npm ci`
+        # doesn't work — use `npm install` instead.
+        run: npm install
+
+      - name: Configure spec-sdk-tests .env
+        run: |
+          cat > spec-sdk-tests/.env <<EOF
+          API_BASE_URL=http://localhost:3333/api/v1
+          API_KEY=${OUTPOST_API_KEY}
+          TENANT_ID=${OUTPOST_TEST_TENANT}
+          TEST_TOPICS=${TEST_TOPICS}
+          EOF
+
+      - name: Run spec-sdk-tests
+        working-directory: spec-sdk-tests
+        run: npm test
+
+      - name: Dump server log on failure
+        if: failure()
+        run: |
+          echo "--- outpost log ---"
+          cat /tmp/outpost.log || true
+
+      - name: Stop outpost
+        if: always()
+        run: |
+          kill "$(cat /tmp/outpost.pid)" 2>/dev/null || true
