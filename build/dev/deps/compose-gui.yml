@@ -1,4 +1,4 @@
-name: "outpost-deps"
+name: "outpost"
 
 services:
   # ============================== GUI Tools ==============================
@@ -40,8 +40,3 @@ services:
 volumes:
   pgadmin:
     driver: local
-
-networks:
-  default:
-    name: outpost
-    external: true

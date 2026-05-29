@@ -1,4 +1,4 @@
-name: "outpost-deps"
+name: "outpost"
 
 services:
   # ============================== Redis ==============================
@@ -126,8 +126,3 @@ volumes:
     driver: local
   gcp-kube:
     driver: local
-
-networks:
-  default:
-    name: outpost
-    external: true

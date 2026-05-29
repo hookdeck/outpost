@@ -1,4 +1,4 @@
-name: "outpost-grafana"
+name: "outpost"
 
 services:
   otel-collector:
@@ -36,8 +36,3 @@ services:
 
 volumes:
   grafana-data:
-
-networks:
-  default:
-    name: outpost
-    external: true

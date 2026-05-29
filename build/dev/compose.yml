@@ -42,12 +42,6 @@ services:
     environment:
       SERVICE: log
 
-  envoy:
-    image: envoyproxy/envoy:v1.31-latest
-    volumes:
-      - ./envoy/envoy.yaml:/etc/envoy/envoy.yaml:ro
-    command: ["envoy", "-c", "/etc/envoy/envoy.yaml", "--log-level", "info"]
-
   portal:
     build:
       context: ../../
@@ -67,8 +61,3 @@ volumes:
     driver: local
   go_build_cache:
     driver: local
-
-networks:
-  default:
-    name: outpost
-    external: true
