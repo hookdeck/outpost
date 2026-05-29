@@ -1,0 +1,207 @@
+# Runs spec-sdk-tests with the SDK from this PR against the latest released
+# Outpost. Scenario 2 in the design discussion (see #921, #926).
+#
+# WHAT THIS WORKFLOW VALIDATES
+#   "Will the SDK in this PR work against the latest released Outpost?"
+#   For Speakeasy bot regen PRs that bump the TS SDK after an Outpost
+#   release, this confirms the newly-regen'd SDK doesn't break against the
+#   server version customers are already running.
+#
+# WHAT IT DOES NOT VALIDATE
+#   - That this PR's spec matches this PR's server. That's the separate
+#     spec-sdk-tests.yml workflow (#925) — different question entirely.
+#   - Compatibility against older releases, prereleases, or main.
+#
+# WHY THIS SHAPE
+#   Release order is: Outpost is tagged → sdk-generate-on-release fires →
+#   bot opens an SDK PR. By the time the bot PR exists, the released server
+#   exists too; testing the new SDK against that server answers the only
+#   question that matters before publishing the SDK to npm.
+#
+# Triggers: workflow_dispatch and PRs touching sdks/outpost-typescript/**
+# (where the Speakeasy bot regen PRs land).
+name: Spec SDK tests vs released Outpost
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "sdks/outpost-typescript/**"
+      - "spec-sdk-tests/**"
+      - ".github/workflows/spec-sdk-tests-vs-release.yml"
+
+jobs:
+  spec-sdk-tests-vs-release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: outpost
+          POSTGRES_PASSWORD: outpost
+          POSTGRES_DB: outpost
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U outpost"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+      redis:
+        # redis-stack-server bundles RediSearch; tenants.list needs it.
+        image: redis/redis-stack-server:latest
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+      rabbitmq:
+        image: rabbitmq:3-management
+        ports:
+          - 5672:5672
+        options: >-
+          --health-cmd "rabbitmq-diagnostics -q ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      OUTPOST_API_KEY: ci-test-api-key
+      OUTPOST_TEST_TENANT: ci-test-tenant
+      TEST_TOPICS: "user.created,user.updated,order.created,heartbeat"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "20"
+
+      - name: Resolve latest Outpost release tag
+        id: outpost-tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        # The repo uses namespaced tags (sdks/outpost-typescript/v1.3.0 etc.)
+        # for SDK releases, so `gh release view` returns the wrong thing.
+        # Filter on the bare vX.Y.Z pattern, skip prereleases, take the first.
+        run: |
+          tag=$(gh api repos/${{ github.repository }}/releases \
+            --jq '[.[] | select(.tag_name | test("^v[0-9]+\\.[0-9]+\\.[0-9]+$")) | select(.prerelease == false)][0].tag_name')
+          if [ -z "$tag" ] || [ "$tag" = "null" ]; then
+            echo "::error::Could not resolve latest Outpost release tag"
+            exit 1
+          fi
+          echo "tag=$tag" >> $GITHUB_OUTPUT
+          echo "Latest released Outpost: $tag"
+
+      - name: Pull Outpost image
+        run: docker pull hookdeck/outpost:${{ steps.outpost-tag.outputs.tag }}
+
+      - name: Write outpost config
+        run: |
+          mkdir -p /tmp/outpost-config
+          cat > /tmp/outpost-config/.outpost.yaml <<EOF
+          log_level: info
+          deployment_id: "ci-test"
+
+          redis:
+            host: "localhost"
+            port: 6379
+
+          mqs:
+            rabbitmq:
+              server_url: "amqp://guest:guest@localhost:5672"
+
+          postgres: "postgres://outpost:outpost@localhost:5432/outpost?sslmode=disable"
+
+          api_key: "${OUTPOST_API_KEY}"
+          api_jwt_secret: "ci-jwt-secret"
+          aes_encryption_secret: "ci-encryption-secret-32-chars-min"
+
+          topics:
+            - user.created
+            - user.updated
+            - order.created
+            - heartbeat
+
+          idgen:
+            type: "nanoid"
+            attempt_prefix: "atm_"
+            destination_prefix: "des_"
+            event_prefix: "evt_"
+            delivery_prefix: "del_"
+          EOF
+
+      - name: Run migrations
+        run: |
+          docker run --rm --network host \
+            -v /tmp/outpost-config/.outpost.yaml:/config/.outpost.yaml \
+            -e CONFIG=/config/.outpost.yaml \
+            hookdeck/outpost:${{ steps.outpost-tag.outputs.tag }} \
+            migrate apply --yes
+
+      - name: Start outpost (singular mode)
+        # --network host so the container reaches the service containers on
+        # localhost:5432 / :6379 / :5672 (forwarded into the runner network).
+        run: |
+          docker run -d --network host \
+            -v /tmp/outpost-config/.outpost.yaml:/config/.outpost.yaml \
+            -e CONFIG=/config/.outpost.yaml \
+            --name outpost \
+            hookdeck/outpost:${{ steps.outpost-tag.outputs.tag }} \
+            serve
+
+      - name: Wait for /healthz
+        run: |
+          for i in {1..60}; do
+            if curl -sf http://localhost:3333/healthz >/dev/null; then
+              echo "Outpost API is healthy after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "::error::Outpost API did not become healthy within 60s"
+          docker logs outpost || true
+          exit 1
+
+      - name: Build TypeScript SDK from this PR
+        working-directory: sdks/outpost-typescript
+        # No regen — the SDK *is* what the PR is. We're testing whatever
+        # the bot generated (or whatever a human committed) as-is.
+        run: |
+          npm ci
+          npm run build
+
+      - name: Install spec-sdk-tests dependencies
+        working-directory: spec-sdk-tests
+        # spec-sdk-tests/.gitignore excludes package-lock.json.
+        run: npm install
+
+      - name: Configure spec-sdk-tests .env
+        run: |
+          cat > spec-sdk-tests/.env <<EOF
+          API_BASE_URL=http://localhost:3333/api/v1
+          API_KEY=${OUTPOST_API_KEY}
+          TENANT_ID=${OUTPOST_TEST_TENANT}
+          TEST_TOPICS=${TEST_TOPICS}
+          EOF
+
+      - name: Run spec-sdk-tests
+        working-directory: spec-sdk-tests
+        run: npm test
+
+      - name: Dump outpost logs on failure
+        if: failure()
+        run: docker logs outpost || true
+
+      - name: Stop outpost
+        if: always()
+        run: docker rm -f outpost || true
