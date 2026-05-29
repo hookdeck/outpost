@@ -63,13 +63,13 @@ import {
 
 export type DestinationUpdate =
   | DestinationUpdateWebhook
-  | DestinationUpdateHookdeck
   | DestinationUpdateAWSSQS
-  | DestinationUpdateAWSKinesis
-  | DestinationUpdateAwss3
-  | DestinationUpdateAzureServiceBus
-  | DestinationUpdateGCPPubSub
   | DestinationUpdateRabbitMQ
+  | DestinationUpdateHookdeck
+  | DestinationUpdateAWSKinesis
+  | DestinationUpdateAzureServiceBus
+  | DestinationUpdateAwss3
+  | DestinationUpdateGCPPubSub
   | DestinationUpdateKafka;
 
 /** @internal */
@@ -79,25 +79,25 @@ export const DestinationUpdate$inboundSchema: z.ZodType<
   unknown
 > = z.union([
   DestinationUpdateWebhook$inboundSchema,
-  DestinationUpdateHookdeck$inboundSchema,
   DestinationUpdateAWSSQS$inboundSchema,
-  DestinationUpdateAWSKinesis$inboundSchema,
-  DestinationUpdateAwss3$inboundSchema,
-  DestinationUpdateAzureServiceBus$inboundSchema,
-  DestinationUpdateGCPPubSub$inboundSchema,
   DestinationUpdateRabbitMQ$inboundSchema,
+  DestinationUpdateHookdeck$inboundSchema,
+  DestinationUpdateAWSKinesis$inboundSchema,
+  DestinationUpdateAzureServiceBus$inboundSchema,
+  DestinationUpdateAwss3$inboundSchema,
+  DestinationUpdateGCPPubSub$inboundSchema,
   DestinationUpdateKafka$inboundSchema,
 ]);
 /** @internal */
 export type DestinationUpdate$Outbound =
   | DestinationUpdateWebhook$Outbound
-  | DestinationUpdateHookdeck$Outbound
   | DestinationUpdateAWSSQS$Outbound
-  | DestinationUpdateAWSKinesis$Outbound
-  | DestinationUpdateAwss3$Outbound
-  | DestinationUpdateAzureServiceBus$Outbound
-  | DestinationUpdateGCPPubSub$Outbound
   | DestinationUpdateRabbitMQ$Outbound
+  | DestinationUpdateHookdeck$Outbound
+  | DestinationUpdateAWSKinesis$Outbound
+  | DestinationUpdateAzureServiceBus$Outbound
+  | DestinationUpdateAwss3$Outbound
+  | DestinationUpdateGCPPubSub$Outbound
   | DestinationUpdateKafka$Outbound;
 
 /** @internal */
@@ -107,13 +107,13 @@ export const DestinationUpdate$outboundSchema: z.ZodType<
   DestinationUpdate
 > = z.union([
   DestinationUpdateWebhook$outboundSchema,
-  DestinationUpdateHookdeck$outboundSchema,
   DestinationUpdateAWSSQS$outboundSchema,
-  DestinationUpdateAWSKinesis$outboundSchema,
-  DestinationUpdateAwss3$outboundSchema,
-  DestinationUpdateAzureServiceBus$outboundSchema,
-  DestinationUpdateGCPPubSub$outboundSchema,
   DestinationUpdateRabbitMQ$outboundSchema,
+  DestinationUpdateHookdeck$outboundSchema,
+  DestinationUpdateAWSKinesis$outboundSchema,
+  DestinationUpdateAzureServiceBus$outboundSchema,
+  DestinationUpdateAwss3$outboundSchema,
+  DestinationUpdateGCPPubSub$outboundSchema,
   DestinationUpdateKafka$outboundSchema,
 ]);
 

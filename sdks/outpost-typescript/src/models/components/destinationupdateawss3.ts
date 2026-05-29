@@ -8,17 +8,17 @@ import { safeParse } from "../../lib/schemas.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 import {
-  Awss3Config,
-  Awss3Config$inboundSchema,
-  Awss3Config$Outbound,
-  Awss3Config$outboundSchema,
-} from "./awss3config.js";
+  Awss3ConfigUpdate,
+  Awss3ConfigUpdate$inboundSchema,
+  Awss3ConfigUpdate$Outbound,
+  Awss3ConfigUpdate$outboundSchema,
+} from "./awss3configupdate.js";
 import {
-  Awss3Credentials,
-  Awss3Credentials$inboundSchema,
-  Awss3Credentials$Outbound,
-  Awss3Credentials$outboundSchema,
-} from "./awss3credentials.js";
+  Awss3CredentialsUpdate,
+  Awss3CredentialsUpdate$inboundSchema,
+  Awss3CredentialsUpdate$Outbound,
+  Awss3CredentialsUpdate$outboundSchema,
+} from "./awss3credentialsupdate.js";
 import {
   Topics,
   Topics$inboundSchema,
@@ -27,6 +27,10 @@ import {
 } from "./topics.js";
 
 export type DestinationUpdateAwss3 = {
+  /**
+   * Destination type discriminator. Must equal the existing destination's type — type itself cannot be changed via PATCH.
+   */
+  type: "aws_s3";
   /**
    * "*" or an array of enabled topics.
    */
@@ -40,8 +44,14 @@ export type DestinationUpdateAwss3 = {
    * Uses full-replacement semantics on update: send a new object to replace, null or `{}` to clear, omit for no change.
    */
   filter?: { [k: string]: any } | null | undefined;
-  config?: Awss3Config | undefined;
-  credentials?: Awss3Credentials | undefined;
+  /**
+   * Partial AWS S3 config for PATCH updates (RFC 7396 merge-patch).
+   */
+  config?: Awss3ConfigUpdate | undefined;
+  /**
+   * Partial AWS S3 credentials for PATCH updates (RFC 7396 merge-patch).
+   */
+  credentials?: Awss3CredentialsUpdate | undefined;
   /**
    * Static key-value pairs merged into event metadata on every attempt. Uses JSON merge-patch semantics (RFC 7396): send keys to add/update, null values to delete keys, null for entire field to clear all. Omit or send {} for no change.
    */
@@ -62,10 +72,11 @@ export const DestinationUpdateAwss3$inboundSchema: z.ZodType<
   z.ZodTypeDef,
   unknown
 > = z.object({
+  type: z.literal("aws_s3"),
   topics: Topics$inboundSchema.optional(),
   filter: z.nullable(z.record(z.any())).optional(),
-  config: Awss3Config$inboundSchema.optional(),
-  credentials: Awss3Credentials$inboundSchema.optional(),
+  config: Awss3ConfigUpdate$inboundSchema.optional(),
+  credentials: Awss3CredentialsUpdate$inboundSchema.optional(),
   delivery_metadata: z.nullable(z.record(z.nullable(z.string()))).optional(),
   metadata: z.nullable(z.record(z.nullable(z.string()))).optional(),
   disabled_at: z.nullable(
@@ -79,10 +90,11 @@ export const DestinationUpdateAwss3$inboundSchema: z.ZodType<
 });
 /** @internal */
 export type DestinationUpdateAwss3$Outbound = {
+  type: "aws_s3";
   topics?: Topics$Outbound | undefined;
   filter?: { [k: string]: any } | null | undefined;
-  config?: Awss3Config$Outbound | undefined;
-  credentials?: Awss3Credentials$Outbound | undefined;
+  config?: Awss3ConfigUpdate$Outbound | undefined;
+  credentials?: Awss3CredentialsUpdate$Outbound | undefined;
   delivery_metadata?: { [k: string]: string | null } | null | undefined;
   metadata?: { [k: string]: string | null } | null | undefined;
   disabled_at?: string | null | undefined;
@@ -94,10 +106,11 @@ export const DestinationUpdateAwss3$outboundSchema: z.ZodType<
   z.ZodTypeDef,
   DestinationUpdateAwss3
 > = z.object({
+  type: z.literal("aws_s3"),
   topics: Topics$outboundSchema.optional(),
   filter: z.nullable(z.record(z.any())).optional(),
-  config: Awss3Config$outboundSchema.optional(),
-  credentials: Awss3Credentials$outboundSchema.optional(),
+  config: Awss3ConfigUpdate$outboundSchema.optional(),
+  credentials: Awss3CredentialsUpdate$outboundSchema.optional(),
   deliveryMetadata: z.nullable(z.record(z.nullable(z.string()))).optional(),
   metadata: z.nullable(z.record(z.nullable(z.string()))).optional(),
   disabledAt: z.nullable(z.date().transform(v => v.toISOString())).optional(),

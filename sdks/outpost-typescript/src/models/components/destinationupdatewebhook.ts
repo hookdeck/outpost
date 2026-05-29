@@ -14,11 +14,11 @@ import {
   Topics$outboundSchema,
 } from "./topics.js";
 import {
-  WebhookConfig,
-  WebhookConfig$inboundSchema,
-  WebhookConfig$Outbound,
-  WebhookConfig$outboundSchema,
-} from "./webhookconfig.js";
+  WebhookConfigUpdate,
+  WebhookConfigUpdate$inboundSchema,
+  WebhookConfigUpdate$Outbound,
+  WebhookConfigUpdate$outboundSchema,
+} from "./webhookconfigupdate.js";
 import {
   WebhookCredentialsUpdate,
   WebhookCredentialsUpdate$inboundSchema,
@@ -27,6 +27,10 @@ import {
 } from "./webhookcredentialsupdate.js";
 
 export type DestinationUpdateWebhook = {
+  /**
+   * Destination type discriminator. Must equal the existing destination's type — type itself cannot be changed via PATCH.
+   */
+  type: "webhook";
   /**
    * "*" or an array of enabled topics.
    */
@@ -40,7 +44,13 @@ export type DestinationUpdateWebhook = {
    * Uses full-replacement semantics on update: send a new object to replace, null or `{}` to clear, omit for no change.
    */
   filter?: { [k: string]: any } | null | undefined;
-  config?: WebhookConfig | undefined;
+  /**
+   * Partial Webhook config for PATCH updates (RFC 7396 merge-patch).
+   */
+  config?: WebhookConfigUpdate | undefined;
+  /**
+   * Partial Webhook credentials for PATCH updates (RFC 7396 merge-patch).
+   */
   credentials?: WebhookCredentialsUpdate | undefined;
   /**
    * Static key-value pairs merged into event metadata on every attempt. Uses JSON merge-patch semantics (RFC 7396): send keys to add/update, null values to delete keys, null for entire field to clear all. Omit or send {} for no change.
@@ -62,9 +72,10 @@ export const DestinationUpdateWebhook$inboundSchema: z.ZodType<
   z.ZodTypeDef,
   unknown
 > = z.object({
+  type: z.literal("webhook"),
   topics: Topics$inboundSchema.optional(),
   filter: z.nullable(z.record(z.any())).optional(),
-  config: WebhookConfig$inboundSchema.optional(),
+  config: WebhookConfigUpdate$inboundSchema.optional(),
   credentials: WebhookCredentialsUpdate$inboundSchema.optional(),
   delivery_metadata: z.nullable(z.record(z.nullable(z.string()))).optional(),
   metadata: z.nullable(z.record(z.nullable(z.string()))).optional(),
@@ -79,9 +90,10 @@ export const DestinationUpdateWebhook$inboundSchema: z.ZodType<
 });
 /** @internal */
 export type DestinationUpdateWebhook$Outbound = {
+  type: "webhook";
   topics?: Topics$Outbound | undefined;
   filter?: { [k: string]: any } | null | undefined;
-  config?: WebhookConfig$Outbound | undefined;
+  config?: WebhookConfigUpdate$Outbound | undefined;
   credentials?: WebhookCredentialsUpdate$Outbound | undefined;
   delivery_metadata?: { [k: string]: string | null } | null | undefined;
   metadata?: { [k: string]: string | null } | null | undefined;
@@ -94,9 +106,10 @@ export const DestinationUpdateWebhook$outboundSchema: z.ZodType<
   z.ZodTypeDef,
   DestinationUpdateWebhook
 > = z.object({
+  type: z.literal("webhook"),
   topics: Topics$outboundSchema.optional(),
   filter: z.nullable(z.record(z.any())).optional(),
-  config: WebhookConfig$outboundSchema.optional(),
+  config: WebhookConfigUpdate$outboundSchema.optional(),
   credentials: WebhookCredentialsUpdate$outboundSchema.optional(),
   deliveryMetadata: z.nullable(z.record(z.nullable(z.string()))).optional(),
   metadata: z.nullable(z.record(z.nullable(z.string()))).optional(),

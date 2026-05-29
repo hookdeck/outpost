@@ -34,7 +34,7 @@ When authenticated with Admin API Key, returns events across all tenants. Use \`
       };
     }
 
-    const value = result.value.result;
+    const value = result.value;
 
     return formatResult(value, apiCall);
   },

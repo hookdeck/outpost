@@ -30,7 +30,7 @@ Retrieves a paginated list of attempts scoped to a specific destination.`,
       };
     }
 
-    const value = result.value.result;
+    const value = result.value;
 
     return formatResult(value, apiCall);
   },

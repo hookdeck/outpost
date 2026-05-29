@@ -39,9 +39,7 @@ async function run() {
     destinationType: "webhook",
   });
 
-  for await (const page of result) {
-    console.log(page);
-  }
+  console.log(result);
 }
 
 run();
@@ -67,9 +65,7 @@ async function run() {
   });
   if (res.ok) {
     const { value: result } = res;
-    for await (const page of result) {
-    console.log(page);
-  }
+    console.log(result);
   } else {
     console.log("attemptsList failed:", res.error);
   }
@@ -92,9 +88,7 @@ async function run() {
     destinationType: "webhook",
   });
 
-  for await (const page of result) {
-    console.log(page);
-  }
+  console.log(result);
 }
 
 run();
@@ -120,9 +114,7 @@ async function run() {
   });
   if (res.ok) {
     const { value: result } = res;
-    for await (const page of result) {
-    console.log(page);
-  }
+    console.log(result);
   } else {
     console.log("attemptsList failed:", res.error);
   }
@@ -142,7 +134,7 @@ run();
 
 ### Response
 
-**Promise\<[operations.ListAttemptsResponse](../../models/operations/listattemptsresponse.md)\>**
+**Promise\<[components.AttemptPaginatedResult](../../models/components/attemptpaginatedresult.md)\>**
 
 ### Errors
 

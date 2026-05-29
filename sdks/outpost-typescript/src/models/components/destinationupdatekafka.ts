@@ -8,17 +8,17 @@ import { safeParse } from "../../lib/schemas.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 import {
-  KafkaConfig,
-  KafkaConfig$inboundSchema,
-  KafkaConfig$Outbound,
-  KafkaConfig$outboundSchema,
-} from "./kafkaconfig.js";
+  KafkaConfigUpdate,
+  KafkaConfigUpdate$inboundSchema,
+  KafkaConfigUpdate$Outbound,
+  KafkaConfigUpdate$outboundSchema,
+} from "./kafkaconfigupdate.js";
 import {
-  KafkaCredentials,
-  KafkaCredentials$inboundSchema,
-  KafkaCredentials$Outbound,
-  KafkaCredentials$outboundSchema,
-} from "./kafkacredentials.js";
+  KafkaCredentialsUpdate,
+  KafkaCredentialsUpdate$inboundSchema,
+  KafkaCredentialsUpdate$Outbound,
+  KafkaCredentialsUpdate$outboundSchema,
+} from "./kafkacredentialsupdate.js";
 import {
   Topics,
   Topics$inboundSchema,
@@ -27,6 +27,10 @@ import {
 } from "./topics.js";
 
 export type DestinationUpdateKafka = {
+  /**
+   * Destination type discriminator. Must equal the existing destination's type — type itself cannot be changed via PATCH.
+   */
+  type: "kafka";
   /**
    * "*" or an array of enabled topics.
    */
@@ -40,8 +44,14 @@ export type DestinationUpdateKafka = {
    * Uses full-replacement semantics on update: send a new object to replace, null or `{}` to clear, omit for no change.
    */
   filter?: { [k: string]: any } | null | undefined;
-  config?: KafkaConfig | undefined;
-  credentials?: KafkaCredentials | undefined;
+  /**
+   * Partial Kafka config for PATCH updates (RFC 7396 merge-patch).
+   */
+  config?: KafkaConfigUpdate | undefined;
+  /**
+   * Partial Kafka credentials for PATCH updates (RFC 7396 merge-patch).
+   */
+  credentials?: KafkaCredentialsUpdate | undefined;
   /**
    * Static key-value pairs merged into event metadata on every attempt. Uses JSON merge-patch semantics (RFC 7396): send keys to add/update, null values to delete keys, null for entire field to clear all. Omit or send {} for no change.
    */
@@ -62,10 +72,11 @@ export const DestinationUpdateKafka$inboundSchema: z.ZodType<
   z.ZodTypeDef,
   unknown
 > = z.object({
+  type: z.literal("kafka"),
   topics: Topics$inboundSchema.optional(),
   filter: z.nullable(z.record(z.any())).optional(),
-  config: KafkaConfig$inboundSchema.optional(),
-  credentials: KafkaCredentials$inboundSchema.optional(),
+  config: KafkaConfigUpdate$inboundSchema.optional(),
+  credentials: KafkaCredentialsUpdate$inboundSchema.optional(),
   delivery_metadata: z.nullable(z.record(z.nullable(z.string()))).optional(),
   metadata: z.nullable(z.record(z.nullable(z.string()))).optional(),
   disabled_at: z.nullable(
@@ -79,10 +90,11 @@ export const DestinationUpdateKafka$inboundSchema: z.ZodType<
 });
 /** @internal */
 export type DestinationUpdateKafka$Outbound = {
+  type: "kafka";
   topics?: Topics$Outbound | undefined;
   filter?: { [k: string]: any } | null | undefined;
-  config?: KafkaConfig$Outbound | undefined;
-  credentials?: KafkaCredentials$Outbound | undefined;
+  config?: KafkaConfigUpdate$Outbound | undefined;
+  credentials?: KafkaCredentialsUpdate$Outbound | undefined;
   delivery_metadata?: { [k: string]: string | null } | null | undefined;
   metadata?: { [k: string]: string | null } | null | undefined;
   disabled_at?: string | null | undefined;
@@ -94,10 +106,11 @@ export const DestinationUpdateKafka$outboundSchema: z.ZodType<
   z.ZodTypeDef,
   DestinationUpdateKafka
 > = z.object({
+  type: z.literal("kafka"),
   topics: Topics$outboundSchema.optional(),
   filter: z.nullable(z.record(z.any())).optional(),
-  config: KafkaConfig$outboundSchema.optional(),
-  credentials: KafkaCredentials$outboundSchema.optional(),
+  config: KafkaConfigUpdate$outboundSchema.optional(),
+  credentials: KafkaCredentialsUpdate$outboundSchema.optional(),
   deliveryMetadata: z.nullable(z.record(z.nullable(z.string()))).optional(),
   metadata: z.nullable(z.record(z.nullable(z.string()))).optional(),
   disabledAt: z.nullable(z.date().transform(v => v.toISOString())).optional(),
