@@ -37,15 +37,17 @@ from .destinationupdatewebhook import (
     DestinationUpdateWebhook,
     DestinationUpdateWebhookTypedDict,
 )
+from outpost_sdk.utils import get_discriminator
+from pydantic import Discriminator, Tag
 from typing import Union
-from typing_extensions import TypeAliasType
+from typing_extensions import Annotated, TypeAliasType
 
 
 DestinationUpdateTypedDict = TypeAliasType(
     "DestinationUpdateTypedDict",
     Union[
-        DestinationUpdateWebhookTypedDict,
         DestinationUpdateHookdeckTypedDict,
+        DestinationUpdateWebhookTypedDict,
         DestinationUpdateAWSSQSTypedDict,
         DestinationUpdateAWSKinesisTypedDict,
         DestinationUpdateAwss3TypedDict,
@@ -57,17 +59,17 @@ DestinationUpdateTypedDict = TypeAliasType(
 )
 
 
-DestinationUpdate = TypeAliasType(
-    "DestinationUpdate",
+DestinationUpdate = Annotated[
     Union[
-        DestinationUpdateWebhook,
-        DestinationUpdateHookdeck,
-        DestinationUpdateAWSSQS,
-        DestinationUpdateAWSKinesis,
-        DestinationUpdateAwss3,
-        DestinationUpdateAzureServiceBus,
-        DestinationUpdateGCPPubSub,
-        DestinationUpdateRabbitMQ,
-        DestinationUpdateKafka,
+        Annotated[DestinationUpdateWebhook, Tag("webhook")],
+        Annotated[DestinationUpdateAWSSQS, Tag("aws_sqs")],
+        Annotated[DestinationUpdateRabbitMQ, Tag("rabbitmq")],
+        Annotated[DestinationUpdateHookdeck, Tag("hookdeck")],
+        Annotated[DestinationUpdateAWSKinesis, Tag("aws_kinesis")],
+        Annotated[DestinationUpdateAzureServiceBus, Tag("azure_servicebus")],
+        Annotated[DestinationUpdateAwss3, Tag("aws_s3")],
+        Annotated[DestinationUpdateGCPPubSub, Tag("gcp_pubsub")],
+        Annotated[DestinationUpdateKafka, Tag("kafka")],
     ],
-)
+    Discriminator(lambda m: get_discriminator(m, "type", "type")),
+]

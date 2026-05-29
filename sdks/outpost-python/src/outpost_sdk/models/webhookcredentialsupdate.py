@@ -9,6 +9,8 @@ from typing_extensions import NotRequired, TypedDict
 
 
 class WebhookCredentialsUpdateTypedDict(TypedDict):
+    r"""Partial Webhook credentials for PATCH updates (RFC 7396 merge-patch)."""
+
     secret: NotRequired[str]
     r"""New secret (only allowed for admin)."""
     previous_secret: NotRequired[str]
@@ -20,6 +22,8 @@ class WebhookCredentialsUpdateTypedDict(TypedDict):
 
 
 class WebhookCredentialsUpdate(BaseModel):
+    r"""Partial Webhook credentials for PATCH updates (RFC 7396 merge-patch)."""
+
     secret: Optional[str] = None
     r"""New secret (only allowed for admin)."""
 

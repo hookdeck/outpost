@@ -8,7 +8,7 @@ from typing import Optional
 from typing_extensions import NotRequired, TypedDict
 
 
-class SaslMechanism(str, Enum):
+class KafkaConfigSaslMechanism(str, Enum):
     r"""SASL authentication mechanism."""
 
     PLAIN = "plain"
@@ -28,7 +28,7 @@ class KafkaConfigTypedDict(TypedDict):
     r"""Comma-separated list of Kafka broker addresses."""
     topic: str
     r"""The Kafka topic to publish messages to."""
-    sasl_mechanism: SaslMechanism
+    sasl_mechanism: KafkaConfigSaslMechanism
     r"""SASL authentication mechanism."""
     tls: NotRequired[KafkaConfigTLS]
     r"""Whether to enable TLS for the connection."""
@@ -43,7 +43,7 @@ class KafkaConfig(BaseModel):
     topic: str
     r"""The Kafka topic to publish messages to."""
 
-    sasl_mechanism: SaslMechanism
+    sasl_mechanism: KafkaConfigSaslMechanism
     r"""SASL authentication mechanism."""
 
     tls: Optional[KafkaConfigTLS] = KafkaConfigTLS.TRUE

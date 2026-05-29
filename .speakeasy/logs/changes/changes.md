@@ -1,39 +1,20 @@
-## Typescript SDK Changes:
-* `outpost.destinations.create()`: `request.body` **Changed**
-    - `union(aws_kinesis).createdAt` **Added**
-    - `union(aws_kinesis).disabledAt` **Added**
-    - `union(aws_kinesis).updatedAt` **Added**
-    - `union(aws_s3).createdAt` **Added**
-    - `union(aws_s3).disabledAt` **Added**
-    - `union(aws_s3).updatedAt` **Added**
-    - `union(aws_sqs).createdAt` **Added**
-    - `union(aws_sqs).disabledAt` **Added**
-    - `union(aws_sqs).updatedAt` **Added**
-    - `union(azure_servicebus).createdAt` **Added**
-    - `union(azure_servicebus).disabledAt` **Added**
-    - `union(azure_servicebus).updatedAt` **Added**
-    - `union(gcp_pubsub).createdAt` **Added**
-    - `union(gcp_pubsub).disabledAt` **Added**
-    - `union(gcp_pubsub).updatedAt` **Added**
-    - `union(hookdeck).createdAt` **Added**
-    - `union(hookdeck).disabledAt` **Added**
-    - `union(hookdeck).updatedAt` **Added**
-    - `union(kafka).createdAt` **Added**
-    - `union(kafka).disabledAt` **Added**
-    - `union(kafka).updatedAt` **Added**
-    - `union(rabbitmq).createdAt` **Added**
-    - `union(rabbitmq).disabledAt` **Added**
-    - `union(rabbitmq).updatedAt` **Added**
-    - `union(webhook).createdAt` **Added**
-    - `union(webhook).disabledAt` **Added**
-    - `union(webhook).updatedAt` **Added**
-* `outpost.destinations.update()`: `request.body` **Changed**
-    - `union(DestinationUpdateAWSKinesis).disabledAt` **Added**
-    - `union(DestinationUpdateAWSS3).disabledAt` **Added**
-    - `union(DestinationUpdateAWSSQS).disabledAt` **Added**
-    - `union(DestinationUpdateAzureServiceBus).disabledAt` **Added**
-    - `union(DestinationUpdateGCPPubSub).disabledAt` **Added**
-    - `union(DestinationUpdateHookdeck).disabledAt` **Added**
-    - `union(DestinationUpdateKafka).disabledAt` **Added**
-    - `union(DestinationUpdateRabbitMQ).disabledAt` **Added**
-    - `union(DestinationUpdateWebhook).disabledAt` **Added**
+## Python SDK Changes:
+* `outpost.destinations.update()`: `request.body` **Changed** (Breaking ⚠️)
+    - `union(DestinationUpdateAWSKinesis)` **Removed** (Breaking ⚠️)
+    - `union(DestinationUpdateAWSS3)` **Removed** (Breaking ⚠️)
+    - `union(DestinationUpdateAWSSQS)` **Removed** (Breaking ⚠️)
+    - `union(DestinationUpdateAzureServiceBus)` **Removed** (Breaking ⚠️)
+    - `union(DestinationUpdateGCPPubSub)` **Removed** (Breaking ⚠️)
+    - `union(DestinationUpdateHookdeck)` **Removed** (Breaking ⚠️)
+    - `union(DestinationUpdateKafka)` **Removed** (Breaking ⚠️)
+    - `union(DestinationUpdateRabbitMQ)` **Removed** (Breaking ⚠️)
+    - `union(DestinationUpdateWebhook)` **Removed** (Breaking ⚠️)
+    - `union(aws_kinesis)` **Added**
+    - `union(aws_s3)` **Added**
+    - `union(aws_sqs)` **Added**
+    - `union(azure_servicebus)` **Added**
+    - `union(gcp_pubsub)` **Added**
+    - `union(hookdeck)` **Added**
+    - `union(kafka)` **Added**
+    - `union(rabbitmq)` **Added**
+    - `union(webhook)` **Added**

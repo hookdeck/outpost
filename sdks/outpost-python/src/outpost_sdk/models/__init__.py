@@ -21,21 +21,47 @@ if TYPE_CHECKING:
         AttemptPaginatedResultTypedDict,
     )
     from .awskinesisconfig import AWSKinesisConfig, AWSKinesisConfigTypedDict
+    from .awskinesisconfigupdate import (
+        AWSKinesisConfigUpdate,
+        AWSKinesisConfigUpdateTypedDict,
+    )
     from .awskinesiscredentials import (
         AWSKinesisCredentials,
         AWSKinesisCredentialsTypedDict,
     )
+    from .awskinesiscredentialsupdate import (
+        AWSKinesisCredentialsUpdate,
+        AWSKinesisCredentialsUpdateTypedDict,
+    )
     from .awss3config import Awss3Config, Awss3ConfigTypedDict
+    from .awss3configupdate import Awss3ConfigUpdate, Awss3ConfigUpdateTypedDict
     from .awss3credentials import Awss3Credentials, Awss3CredentialsTypedDict
+    from .awss3credentialsupdate import (
+        Awss3CredentialsUpdate,
+        Awss3CredentialsUpdateTypedDict,
+    )
     from .awssqsconfig import AWSSQSConfig, AWSSQSConfigTypedDict
+    from .awssqsconfigupdate import AWSSQSConfigUpdate, AWSSQSConfigUpdateTypedDict
     from .awssqscredentials import AWSSQSCredentials, AWSSQSCredentialsTypedDict
+    from .awssqscredentialsupdate import (
+        AWSSQSCredentialsUpdate,
+        AWSSQSCredentialsUpdateTypedDict,
+    )
     from .azureservicebusconfig import (
         AzureServiceBusConfig,
         AzureServiceBusConfigTypedDict,
     )
+    from .azureservicebusconfigupdate import (
+        AzureServiceBusConfigUpdate,
+        AzureServiceBusConfigUpdateTypedDict,
+    )
     from .azureservicebuscredentials import (
         AzureServiceBusCredentials,
         AzureServiceBusCredentialsTypedDict,
+    )
+    from .azureservicebuscredentialsupdate import (
+        AzureServiceBusCredentialsUpdate,
+        AzureServiceBusCredentialsUpdateTypedDict,
     )
     from .createtenantdestinationop import (
         CreateTenantDestinationRequest,
@@ -150,38 +176,47 @@ if TYPE_CHECKING:
     from .destinationupdate import DestinationUpdate, DestinationUpdateTypedDict
     from .destinationupdateawskinesis import (
         DestinationUpdateAWSKinesis,
+        DestinationUpdateAWSKinesisType,
         DestinationUpdateAWSKinesisTypedDict,
     )
     from .destinationupdateawss3 import (
         DestinationUpdateAwss3,
+        DestinationUpdateAwss3Type,
         DestinationUpdateAwss3TypedDict,
     )
     from .destinationupdateawssqs import (
         DestinationUpdateAWSSQS,
+        DestinationUpdateAWSSQSType,
         DestinationUpdateAWSSQSTypedDict,
     )
     from .destinationupdateazureservicebus import (
         DestinationUpdateAzureServiceBus,
+        DestinationUpdateAzureServiceBusType,
         DestinationUpdateAzureServiceBusTypedDict,
     )
     from .destinationupdategcppubsub import (
         DestinationUpdateGCPPubSub,
+        DestinationUpdateGCPPubSubType,
         DestinationUpdateGCPPubSubTypedDict,
     )
     from .destinationupdatehookdeck import (
         DestinationUpdateHookdeck,
+        DestinationUpdateHookdeckType,
         DestinationUpdateHookdeckTypedDict,
     )
     from .destinationupdatekafka import (
         DestinationUpdateKafka,
+        DestinationUpdateKafkaType,
         DestinationUpdateKafkaTypedDict,
     )
     from .destinationupdaterabbitmq import (
         DestinationUpdateRabbitMQ,
+        DestinationUpdateRabbitMQType,
         DestinationUpdateRabbitMQTypedDict,
     )
     from .destinationupdatewebhook import (
         DestinationUpdateWebhook,
+        DestinationUpdateWebhookType,
         DestinationUpdateWebhookTypedDict,
     )
     from .destinationwebhook import (
@@ -203,9 +238,17 @@ if TYPE_CHECKING:
         EventPaginatedResultTypedDict,
     )
     from .gcppubsubconfig import GCPPubSubConfig, GCPPubSubConfigTypedDict
+    from .gcppubsubconfigupdate import (
+        GCPPubSubConfigUpdate,
+        GCPPubSubConfigUpdateTypedDict,
+    )
     from .gcppubsubcredentials import (
         GCPPubSubCredentials,
         GCPPubSubCredentialsTypedDict,
+    )
+    from .gcppubsubcredentialsupdate import (
+        GCPPubSubCredentialsUpdate,
+        GCPPubSubCredentialsUpdateTypedDict,
     )
     from .getattemptmetricsop import (
         FiltersAttemptNumber,
@@ -296,13 +339,27 @@ if TYPE_CHECKING:
         WorkersTypedDict,
     )
     from .hookdeckcredentials import HookdeckCredentials, HookdeckCredentialsTypedDict
+    from .hookdeckcredentialsupdate import (
+        HookdeckCredentialsUpdate,
+        HookdeckCredentialsUpdateTypedDict,
+    )
     from .kafkaconfig import (
         KafkaConfig,
+        KafkaConfigSaslMechanism,
         KafkaConfigTLS,
         KafkaConfigTypedDict,
-        SaslMechanism,
+    )
+    from .kafkaconfigupdate import (
+        KafkaConfigUpdate,
+        KafkaConfigUpdateSaslMechanism,
+        KafkaConfigUpdateTLS,
+        KafkaConfigUpdateTypedDict,
     )
     from .kafkacredentials import KafkaCredentials, KafkaCredentialsTypedDict
+    from .kafkacredentialsupdate import (
+        KafkaCredentialsUpdate,
+        KafkaCredentialsUpdateTypedDict,
+    )
     from .listattemptsop import (
         ListAttemptsDestinationID,
         ListAttemptsDestinationIDTypedDict,
@@ -316,8 +373,6 @@ if TYPE_CHECKING:
         ListAttemptsOrderBy,
         ListAttemptsRequest,
         ListAttemptsRequestTypedDict,
-        ListAttemptsResponse,
-        ListAttemptsResponseTypedDict,
         ListAttemptsStatus,
         ListAttemptsTenantID,
         ListAttemptsTenantIDTypedDict,
@@ -333,8 +388,6 @@ if TYPE_CHECKING:
         ListEventsOrderBy,
         ListEventsRequest,
         ListEventsRequestTypedDict,
-        ListEventsResponse,
-        ListEventsResponseTypedDict,
         ListEventsTenantID,
         ListEventsTenantIDTypedDict,
         ListEventsTopic,
@@ -349,8 +402,6 @@ if TYPE_CHECKING:
         ListTenantDestinationAttemptsOrderBy,
         ListTenantDestinationAttemptsRequest,
         ListTenantDestinationAttemptsRequestTypedDict,
-        ListTenantDestinationAttemptsResponse,
-        ListTenantDestinationAttemptsResponseTypedDict,
         ListTenantDestinationAttemptsStatus,
         ListTenantDestinationAttemptsTopic,
         ListTenantDestinationAttemptsTopicTypedDict,
@@ -369,8 +420,6 @@ if TYPE_CHECKING:
         ListTenantsIDTypedDict,
         ListTenantsRequest,
         ListTenantsRequestTypedDict,
-        ListTenantsResponse,
-        ListTenantsResponseTypedDict,
     )
     from .managedconfig import ManagedConfig, ManagedConfigTypedDict
     from .metricsdatapoint import MetricsDataPoint, MetricsDataPointTypedDict
@@ -385,7 +434,16 @@ if TYPE_CHECKING:
         RabbitMQConfigTLS,
         RabbitMQConfigTypedDict,
     )
+    from .rabbitmqconfigupdate import (
+        RabbitMQConfigUpdate,
+        RabbitMQConfigUpdateTLS,
+        RabbitMQConfigUpdateTypedDict,
+    )
     from .rabbitmqcredentials import RabbitMQCredentials, RabbitMQCredentialsTypedDict
+    from .rabbitmqcredentialsupdate import (
+        RabbitMQCredentialsUpdate,
+        RabbitMQCredentialsUpdateTypedDict,
+    )
     from .retryrequest import RetryRequest, RetryRequestTypedDict
     from .security import Security, SecurityTypedDict
     from .seekpagination import Dir, SeekPagination, SeekPaginationTypedDict
@@ -406,6 +464,7 @@ if TYPE_CHECKING:
     )
     from .upserttenantop import UpsertTenantRequest, UpsertTenantRequestTypedDict
     from .webhookconfig import WebhookConfig, WebhookConfigTypedDict
+    from .webhookconfigupdate import WebhookConfigUpdate, WebhookConfigUpdateTypedDict
     from .webhookcredentials import WebhookCredentials, WebhookCredentialsTypedDict
     from .webhookcredentialsupdate import (
         WebhookCredentialsUpdate,
@@ -415,24 +474,40 @@ if TYPE_CHECKING:
 __all__ = [
     "AWSKinesisConfig",
     "AWSKinesisConfigTypedDict",
+    "AWSKinesisConfigUpdate",
+    "AWSKinesisConfigUpdateTypedDict",
     "AWSKinesisCredentials",
     "AWSKinesisCredentialsTypedDict",
+    "AWSKinesisCredentialsUpdate",
+    "AWSKinesisCredentialsUpdateTypedDict",
     "AWSSQSConfig",
     "AWSSQSConfigTypedDict",
+    "AWSSQSConfigUpdate",
+    "AWSSQSConfigUpdateTypedDict",
     "AWSSQSCredentials",
     "AWSSQSCredentialsTypedDict",
+    "AWSSQSCredentialsUpdate",
+    "AWSSQSCredentialsUpdateTypedDict",
     "Attempt",
     "AttemptPaginatedResult",
     "AttemptPaginatedResultTypedDict",
     "AttemptTypedDict",
     "Awss3Config",
     "Awss3ConfigTypedDict",
+    "Awss3ConfigUpdate",
+    "Awss3ConfigUpdateTypedDict",
     "Awss3Credentials",
     "Awss3CredentialsTypedDict",
+    "Awss3CredentialsUpdate",
+    "Awss3CredentialsUpdateTypedDict",
     "AzureServiceBusConfig",
     "AzureServiceBusConfigTypedDict",
+    "AzureServiceBusConfigUpdate",
+    "AzureServiceBusConfigUpdateTypedDict",
     "AzureServiceBusCredentials",
     "AzureServiceBusCredentialsTypedDict",
+    "AzureServiceBusCredentialsUpdate",
+    "AzureServiceBusCredentialsUpdateTypedDict",
     "CreateTenantDestinationRequest",
     "CreateTenantDestinationRequestTypedDict",
     "DeleteTenantDestinationRequest",
@@ -502,23 +577,32 @@ __all__ = [
     "DestinationTypedDict",
     "DestinationUpdate",
     "DestinationUpdateAWSKinesis",
+    "DestinationUpdateAWSKinesisType",
     "DestinationUpdateAWSKinesisTypedDict",
     "DestinationUpdateAWSSQS",
+    "DestinationUpdateAWSSQSType",
     "DestinationUpdateAWSSQSTypedDict",
     "DestinationUpdateAwss3",
+    "DestinationUpdateAwss3Type",
     "DestinationUpdateAwss3TypedDict",
     "DestinationUpdateAzureServiceBus",
+    "DestinationUpdateAzureServiceBusType",
     "DestinationUpdateAzureServiceBusTypedDict",
     "DestinationUpdateGCPPubSub",
+    "DestinationUpdateGCPPubSubType",
     "DestinationUpdateGCPPubSubTypedDict",
     "DestinationUpdateHookdeck",
+    "DestinationUpdateHookdeckType",
     "DestinationUpdateHookdeckTypedDict",
     "DestinationUpdateKafka",
+    "DestinationUpdateKafkaType",
     "DestinationUpdateKafkaTypedDict",
     "DestinationUpdateRabbitMQ",
+    "DestinationUpdateRabbitMQType",
     "DestinationUpdateRabbitMQTypedDict",
     "DestinationUpdateTypedDict",
     "DestinationUpdateWebhook",
+    "DestinationUpdateWebhookType",
     "DestinationUpdateWebhookTypedDict",
     "DestinationWebhook",
     "DestinationWebhookType",
@@ -551,8 +635,12 @@ __all__ = [
     "FiltersStatusTypedDict",
     "GCPPubSubConfig",
     "GCPPubSubConfigTypedDict",
+    "GCPPubSubConfigUpdate",
+    "GCPPubSubConfigUpdateTypedDict",
     "GCPPubSubCredentials",
     "GCPPubSubCredentialsTypedDict",
+    "GCPPubSubCredentialsUpdate",
+    "GCPPubSubCredentialsUpdateTypedDict",
     "GetAttemptInclude",
     "GetAttemptIncludeTypedDict",
     "GetAttemptMetricsDimensionsEnum1",
@@ -616,11 +704,20 @@ __all__ = [
     "HealthCheckStatus2",
     "HookdeckCredentials",
     "HookdeckCredentialsTypedDict",
+    "HookdeckCredentialsUpdate",
+    "HookdeckCredentialsUpdateTypedDict",
     "KafkaConfig",
+    "KafkaConfigSaslMechanism",
     "KafkaConfigTLS",
     "KafkaConfigTypedDict",
+    "KafkaConfigUpdate",
+    "KafkaConfigUpdateSaslMechanism",
+    "KafkaConfigUpdateTLS",
+    "KafkaConfigUpdateTypedDict",
     "KafkaCredentials",
     "KafkaCredentialsTypedDict",
+    "KafkaCredentialsUpdate",
+    "KafkaCredentialsUpdateTypedDict",
     "ListAttemptsDestinationID",
     "ListAttemptsDestinationIDTypedDict",
     "ListAttemptsDestinationType",
@@ -633,8 +730,6 @@ __all__ = [
     "ListAttemptsOrderBy",
     "ListAttemptsRequest",
     "ListAttemptsRequestTypedDict",
-    "ListAttemptsResponse",
-    "ListAttemptsResponseTypedDict",
     "ListAttemptsStatus",
     "ListAttemptsTenantID",
     "ListAttemptsTenantIDTypedDict",
@@ -648,8 +743,6 @@ __all__ = [
     "ListEventsOrderBy",
     "ListEventsRequest",
     "ListEventsRequestTypedDict",
-    "ListEventsResponse",
-    "ListEventsResponseTypedDict",
     "ListEventsTenantID",
     "ListEventsTenantIDTypedDict",
     "ListEventsTopic",
@@ -662,8 +755,6 @@ __all__ = [
     "ListTenantDestinationAttemptsOrderBy",
     "ListTenantDestinationAttemptsRequest",
     "ListTenantDestinationAttemptsRequestTypedDict",
-    "ListTenantDestinationAttemptsResponse",
-    "ListTenantDestinationAttemptsResponseTypedDict",
     "ListTenantDestinationAttemptsStatus",
     "ListTenantDestinationAttemptsTopic",
     "ListTenantDestinationAttemptsTopicTypedDict",
@@ -678,8 +769,6 @@ __all__ = [
     "ListTenantsIDTypedDict",
     "ListTenantsRequest",
     "ListTenantsRequestTypedDict",
-    "ListTenantsResponse",
-    "ListTenantsResponseTypedDict",
     "ManagedConfig",
     "ManagedConfigTypedDict",
     "MetricsDataPoint",
@@ -701,11 +790,15 @@ __all__ = [
     "RabbitMQConfig",
     "RabbitMQConfigTLS",
     "RabbitMQConfigTypedDict",
+    "RabbitMQConfigUpdate",
+    "RabbitMQConfigUpdateTLS",
+    "RabbitMQConfigUpdateTypedDict",
     "RabbitMQCredentials",
     "RabbitMQCredentialsTypedDict",
+    "RabbitMQCredentialsUpdate",
+    "RabbitMQCredentialsUpdateTypedDict",
     "RetryRequest",
     "RetryRequestTypedDict",
-    "SaslMechanism",
     "Security",
     "SecurityTypedDict",
     "SeekPagination",
@@ -735,6 +828,8 @@ __all__ = [
     "UpsertTenantRequestTypedDict",
     "WebhookConfig",
     "WebhookConfigTypedDict",
+    "WebhookConfigUpdate",
+    "WebhookConfigUpdateTypedDict",
     "WebhookCredentials",
     "WebhookCredentialsTypedDict",
     "WebhookCredentialsUpdate",
@@ -757,20 +852,36 @@ _dynamic_imports: dict[str, str] = {
     "AttemptPaginatedResultTypedDict": ".attemptpaginatedresult",
     "AWSKinesisConfig": ".awskinesisconfig",
     "AWSKinesisConfigTypedDict": ".awskinesisconfig",
+    "AWSKinesisConfigUpdate": ".awskinesisconfigupdate",
+    "AWSKinesisConfigUpdateTypedDict": ".awskinesisconfigupdate",
     "AWSKinesisCredentials": ".awskinesiscredentials",
     "AWSKinesisCredentialsTypedDict": ".awskinesiscredentials",
+    "AWSKinesisCredentialsUpdate": ".awskinesiscredentialsupdate",
+    "AWSKinesisCredentialsUpdateTypedDict": ".awskinesiscredentialsupdate",
     "Awss3Config": ".awss3config",
     "Awss3ConfigTypedDict": ".awss3config",
+    "Awss3ConfigUpdate": ".awss3configupdate",
+    "Awss3ConfigUpdateTypedDict": ".awss3configupdate",
     "Awss3Credentials": ".awss3credentials",
     "Awss3CredentialsTypedDict": ".awss3credentials",
+    "Awss3CredentialsUpdate": ".awss3credentialsupdate",
+    "Awss3CredentialsUpdateTypedDict": ".awss3credentialsupdate",
     "AWSSQSConfig": ".awssqsconfig",
     "AWSSQSConfigTypedDict": ".awssqsconfig",
+    "AWSSQSConfigUpdate": ".awssqsconfigupdate",
+    "AWSSQSConfigUpdateTypedDict": ".awssqsconfigupdate",
     "AWSSQSCredentials": ".awssqscredentials",
     "AWSSQSCredentialsTypedDict": ".awssqscredentials",
+    "AWSSQSCredentialsUpdate": ".awssqscredentialsupdate",
+    "AWSSQSCredentialsUpdateTypedDict": ".awssqscredentialsupdate",
     "AzureServiceBusConfig": ".azureservicebusconfig",
     "AzureServiceBusConfigTypedDict": ".azureservicebusconfig",
+    "AzureServiceBusConfigUpdate": ".azureservicebusconfigupdate",
+    "AzureServiceBusConfigUpdateTypedDict": ".azureservicebusconfigupdate",
     "AzureServiceBusCredentials": ".azureservicebuscredentials",
     "AzureServiceBusCredentialsTypedDict": ".azureservicebuscredentials",
+    "AzureServiceBusCredentialsUpdate": ".azureservicebuscredentialsupdate",
+    "AzureServiceBusCredentialsUpdateTypedDict": ".azureservicebuscredentialsupdate",
     "CreateTenantDestinationRequest": ".createtenantdestinationop",
     "CreateTenantDestinationRequestTypedDict": ".createtenantdestinationop",
     "DeleteTenantDestinationRequest": ".deletetenantdestinationop",
@@ -845,22 +956,31 @@ _dynamic_imports: dict[str, str] = {
     "DestinationUpdate": ".destinationupdate",
     "DestinationUpdateTypedDict": ".destinationupdate",
     "DestinationUpdateAWSKinesis": ".destinationupdateawskinesis",
+    "DestinationUpdateAWSKinesisType": ".destinationupdateawskinesis",
     "DestinationUpdateAWSKinesisTypedDict": ".destinationupdateawskinesis",
     "DestinationUpdateAwss3": ".destinationupdateawss3",
+    "DestinationUpdateAwss3Type": ".destinationupdateawss3",
     "DestinationUpdateAwss3TypedDict": ".destinationupdateawss3",
     "DestinationUpdateAWSSQS": ".destinationupdateawssqs",
+    "DestinationUpdateAWSSQSType": ".destinationupdateawssqs",
     "DestinationUpdateAWSSQSTypedDict": ".destinationupdateawssqs",
     "DestinationUpdateAzureServiceBus": ".destinationupdateazureservicebus",
+    "DestinationUpdateAzureServiceBusType": ".destinationupdateazureservicebus",
     "DestinationUpdateAzureServiceBusTypedDict": ".destinationupdateazureservicebus",
     "DestinationUpdateGCPPubSub": ".destinationupdategcppubsub",
+    "DestinationUpdateGCPPubSubType": ".destinationupdategcppubsub",
     "DestinationUpdateGCPPubSubTypedDict": ".destinationupdategcppubsub",
     "DestinationUpdateHookdeck": ".destinationupdatehookdeck",
+    "DestinationUpdateHookdeckType": ".destinationupdatehookdeck",
     "DestinationUpdateHookdeckTypedDict": ".destinationupdatehookdeck",
     "DestinationUpdateKafka": ".destinationupdatekafka",
+    "DestinationUpdateKafkaType": ".destinationupdatekafka",
     "DestinationUpdateKafkaTypedDict": ".destinationupdatekafka",
     "DestinationUpdateRabbitMQ": ".destinationupdaterabbitmq",
+    "DestinationUpdateRabbitMQType": ".destinationupdaterabbitmq",
     "DestinationUpdateRabbitMQTypedDict": ".destinationupdaterabbitmq",
     "DestinationUpdateWebhook": ".destinationupdatewebhook",
+    "DestinationUpdateWebhookType": ".destinationupdatewebhook",
     "DestinationUpdateWebhookTypedDict": ".destinationupdatewebhook",
     "DestinationWebhook": ".destinationwebhook",
     "DestinationWebhookType": ".destinationwebhook",
@@ -875,8 +995,12 @@ _dynamic_imports: dict[str, str] = {
     "EventPaginatedResultTypedDict": ".eventpaginatedresult",
     "GCPPubSubConfig": ".gcppubsubconfig",
     "GCPPubSubConfigTypedDict": ".gcppubsubconfig",
+    "GCPPubSubConfigUpdate": ".gcppubsubconfigupdate",
+    "GCPPubSubConfigUpdateTypedDict": ".gcppubsubconfigupdate",
     "GCPPubSubCredentials": ".gcppubsubcredentials",
     "GCPPubSubCredentialsTypedDict": ".gcppubsubcredentials",
+    "GCPPubSubCredentialsUpdate": ".gcppubsubcredentialsupdate",
+    "GCPPubSubCredentialsUpdateTypedDict": ".gcppubsubcredentialsupdate",
     "FiltersAttemptNumber": ".getattemptmetricsop",
     "FiltersAttemptNumberTypedDict": ".getattemptmetricsop",
     "FiltersCode": ".getattemptmetricsop",
@@ -954,12 +1078,20 @@ _dynamic_imports: dict[str, str] = {
     "WorkersTypedDict": ".healthcheckop",
     "HookdeckCredentials": ".hookdeckcredentials",
     "HookdeckCredentialsTypedDict": ".hookdeckcredentials",
+    "HookdeckCredentialsUpdate": ".hookdeckcredentialsupdate",
+    "HookdeckCredentialsUpdateTypedDict": ".hookdeckcredentialsupdate",
     "KafkaConfig": ".kafkaconfig",
+    "KafkaConfigSaslMechanism": ".kafkaconfig",
     "KafkaConfigTLS": ".kafkaconfig",
     "KafkaConfigTypedDict": ".kafkaconfig",
-    "SaslMechanism": ".kafkaconfig",
+    "KafkaConfigUpdate": ".kafkaconfigupdate",
+    "KafkaConfigUpdateSaslMechanism": ".kafkaconfigupdate",
+    "KafkaConfigUpdateTLS": ".kafkaconfigupdate",
+    "KafkaConfigUpdateTypedDict": ".kafkaconfigupdate",
     "KafkaCredentials": ".kafkacredentials",
     "KafkaCredentialsTypedDict": ".kafkacredentials",
+    "KafkaCredentialsUpdate": ".kafkacredentialsupdate",
+    "KafkaCredentialsUpdateTypedDict": ".kafkacredentialsupdate",
     "ListAttemptsDestinationID": ".listattemptsop",
     "ListAttemptsDestinationIDTypedDict": ".listattemptsop",
     "ListAttemptsDestinationType": ".listattemptsop",
@@ -972,8 +1104,6 @@ _dynamic_imports: dict[str, str] = {
     "ListAttemptsOrderBy": ".listattemptsop",
     "ListAttemptsRequest": ".listattemptsop",
     "ListAttemptsRequestTypedDict": ".listattemptsop",
-    "ListAttemptsResponse": ".listattemptsop",
-    "ListAttemptsResponseTypedDict": ".listattemptsop",
     "ListAttemptsStatus": ".listattemptsop",
     "ListAttemptsTenantID": ".listattemptsop",
     "ListAttemptsTenantIDTypedDict": ".listattemptsop",
@@ -987,8 +1117,6 @@ _dynamic_imports: dict[str, str] = {
     "ListEventsOrderBy": ".listeventsop",
     "ListEventsRequest": ".listeventsop",
     "ListEventsRequestTypedDict": ".listeventsop",
-    "ListEventsResponse": ".listeventsop",
-    "ListEventsResponseTypedDict": ".listeventsop",
     "ListEventsTenantID": ".listeventsop",
     "ListEventsTenantIDTypedDict": ".listeventsop",
     "ListEventsTopic": ".listeventsop",
@@ -1001,8 +1129,6 @@ _dynamic_imports: dict[str, str] = {
     "ListTenantDestinationAttemptsOrderBy": ".listtenantdestinationattemptsop",
     "ListTenantDestinationAttemptsRequest": ".listtenantdestinationattemptsop",
     "ListTenantDestinationAttemptsRequestTypedDict": ".listtenantdestinationattemptsop",
-    "ListTenantDestinationAttemptsResponse": ".listtenantdestinationattemptsop",
-    "ListTenantDestinationAttemptsResponseTypedDict": ".listtenantdestinationattemptsop",
     "ListTenantDestinationAttemptsStatus": ".listtenantdestinationattemptsop",
     "ListTenantDestinationAttemptsTopic": ".listtenantdestinationattemptsop",
     "ListTenantDestinationAttemptsTopicTypedDict": ".listtenantdestinationattemptsop",
@@ -1017,8 +1143,6 @@ _dynamic_imports: dict[str, str] = {
     "ListTenantsIDTypedDict": ".listtenantsop",
     "ListTenantsRequest": ".listtenantsop",
     "ListTenantsRequestTypedDict": ".listtenantsop",
-    "ListTenantsResponse": ".listtenantsop",
-    "ListTenantsResponseTypedDict": ".listtenantsop",
     "ManagedConfig": ".managedconfig",
     "ManagedConfigTypedDict": ".managedconfig",
     "MetricsDataPoint": ".metricsdatapoint",
@@ -1038,8 +1162,13 @@ _dynamic_imports: dict[str, str] = {
     "RabbitMQConfig": ".rabbitmqconfig",
     "RabbitMQConfigTLS": ".rabbitmqconfig",
     "RabbitMQConfigTypedDict": ".rabbitmqconfig",
+    "RabbitMQConfigUpdate": ".rabbitmqconfigupdate",
+    "RabbitMQConfigUpdateTLS": ".rabbitmqconfigupdate",
+    "RabbitMQConfigUpdateTypedDict": ".rabbitmqconfigupdate",
     "RabbitMQCredentials": ".rabbitmqcredentials",
     "RabbitMQCredentialsTypedDict": ".rabbitmqcredentials",
+    "RabbitMQCredentialsUpdate": ".rabbitmqcredentialsupdate",
+    "RabbitMQCredentialsUpdateTypedDict": ".rabbitmqcredentialsupdate",
     "RetryRequest": ".retryrequest",
     "RetryRequestTypedDict": ".retryrequest",
     "Security": ".security",
@@ -1068,6 +1197,8 @@ _dynamic_imports: dict[str, str] = {
     "UpsertTenantRequestTypedDict": ".upserttenantop",
     "WebhookConfig": ".webhookconfig",
     "WebhookConfigTypedDict": ".webhookconfig",
+    "WebhookConfigUpdate": ".webhookconfigupdate",
+    "WebhookConfigUpdateTypedDict": ".webhookconfigupdate",
     "WebhookCredentials": ".webhookcredentials",
     "WebhookCredentialsTypedDict": ".webhookcredentials",
     "WebhookCredentialsUpdate": ".webhookcredentialsupdate",
