@@ -161,7 +161,9 @@ jobs:
 
       - name: Install spec-sdk-tests dependencies
         working-directory: spec-sdk-tests
-        run: npm ci
+        # spec-sdk-tests/.gitignore excludes package-lock.json, so `npm ci`
+        # doesn't work — use `npm install` instead.
+        run: npm install
 
       - name: Configure spec-sdk-tests .env
         run: |
