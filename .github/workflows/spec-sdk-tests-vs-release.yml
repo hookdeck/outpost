@@ -121,7 +121,12 @@ jobs:
         # `gh release view` returns the wrong thing.
         run: |
           if [ -n "$OVERRIDE" ]; then
-            tag="v${OVERRIDE#v}"
+            ver="${OVERRIDE#v}"
+            if ! [[ "$ver" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "::error::outpost_version must be a strict X.Y.Z version (got: '$OVERRIDE')"
+              exit 1
+            fi
+            tag="v${ver}"
             echo "Using outpost_version override: $tag"
           else
             tag=$(gh api repos/${{ github.repository }}/releases \
@@ -220,6 +225,10 @@ jobs:
           SDK_VERSION_INPUT: ${{ inputs.sdk_version }}
         run: |
           ver="${SDK_VERSION_INPUT#v}"
+          if ! [[ "$ver" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::sdk_version must be a strict X.Y.Z version (got: '$SDK_VERSION_INPUT')"
+            exit 1
+          fi
           full_tag="sdks/outpost-typescript/v${ver}"
           echo "Pinning SDK + tests to $full_tag"
           git fetch --depth=1 origin "refs/tags/$full_tag:refs/tags/$full_tag"
