@@ -21,15 +21,15 @@
 #   - Triggering only on paths that can plausibly change request/response
 #     shape keeps CI cheap.
 #
-# Triggers: workflow_dispatch, weekly cron (drift safety net within this
-# workflow's scope), and PRs touching spec / SDK / handler / wiring paths.
+
+# Triggers: workflow_dispatch and PRs touching spec / SDK / handler / wiring
+# paths. No cron — between PRs, `main`'s state hasn't changed, so a scheduled
+# run would re-test what we last tested. The "deploy drift" question that a
+# cron would help with is out of scope for this workflow anyway (see above).
 name: Spec SDK tests
 
 on:
   workflow_dispatch:
-  schedule:
-    # Weekly drift safety net — Mondays 06:00 UTC.
-    - cron: "0 6 * * 1"
   pull_request:
     paths:
       - "docs/apis/openapi.yaml"
