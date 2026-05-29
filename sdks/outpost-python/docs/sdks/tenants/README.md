@@ -39,10 +39,8 @@ with Outpost(
 
     res = outpost.tenants.list(request={})
 
-    while res is not None:
-        # Handle items
-
-        res = res.next()
+    # Handle response
+    print(res)
 
 ```
 
@@ -55,7 +53,7 @@ with Outpost(
 
 ### Response
 
-**[models.ListTenantsResponse](../../models/listtenantsresponse.md)**
+**[models.TenantPaginatedResult](../../models/tenantpaginatedresult.md)**
 
 ### Errors
 

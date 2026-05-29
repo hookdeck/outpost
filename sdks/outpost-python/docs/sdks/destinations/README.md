@@ -207,16 +207,7 @@ with Outpost(
 ) as outpost:
 
     res = outpost.destinations.update(tenant_id="<id>", destination_id="<id>", body={
-        "topics": models.TopicsEnum.WILDCARD_,
-        "config": {
-            "server_url": "localhost:5672",
-            "exchange": "my-exchange",
-            "tls": models.RabbitMQConfigTLS.FALSE,
-        },
-        "credentials": {
-            "username": "guest",
-            "password": "guest",
-        },
+        "type": models.DestinationUpdateKafkaType.KAFKA,
     })
 
     # Handle response
@@ -227,7 +218,7 @@ with Outpost(
 
 <!-- UsageSnippet language="python" operationID="updateTenantDestination" method="patch" path="/tenants/{tenant_id}/destinations/{destination_id}" example="WebhookUpdateExample" -->
 ```python
-from outpost_sdk import Outpost
+from outpost_sdk import Outpost, models
 
 
 with Outpost(
@@ -235,12 +226,7 @@ with Outpost(
 ) as outpost:
 
     res = outpost.destinations.update(tenant_id="<id>", destination_id="<id>", body={
-        "topics": [
-            "user.created",
-        ],
-        "config": {
-            "url": "https://my-service.com/webhook/new-handler",
-        },
+        "type": models.DestinationUpdateHookdeckType.HOOKDECK,
     })
 
     # Handle response
@@ -420,10 +406,8 @@ with Outpost(
         "destination_id": "<id>",
     })
 
-    while res is not None:
-        # Handle items
-
-        res = res.next()
+    # Handle response
+    print(res)
 
 ```
 
@@ -436,7 +420,7 @@ with Outpost(
 
 ### Response
 
-**[models.ListTenantDestinationAttemptsResponse](../../models/listtenantdestinationattemptsresponse.md)**
+**[models.AttemptPaginatedResult](../../models/attemptpaginatedresult.md)**
 
 ### Errors
 

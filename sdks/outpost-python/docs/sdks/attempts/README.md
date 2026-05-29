@@ -39,10 +39,8 @@ with Outpost(
         "destination_type": models.DestinationType.WEBHOOK,
     })
 
-    while res is not None:
-        # Handle items
-
-        res = res.next()
+    # Handle response
+    print(res)
 
 ```
 ### Example Usage: AdminAttemptsWithIncludeExample
@@ -60,10 +58,8 @@ with Outpost(
         "destination_type": models.DestinationType.WEBHOOK,
     })
 
-    while res is not None:
-        # Handle items
-
-        res = res.next()
+    # Handle response
+    print(res)
 
 ```
 
@@ -76,7 +72,7 @@ with Outpost(
 
 ### Response
 
-**[models.ListAttemptsResponse](../../models/listattemptsresponse.md)**
+**[models.AttemptPaginatedResult](../../models/attemptpaginatedresult.md)**
 
 ### Errors
 

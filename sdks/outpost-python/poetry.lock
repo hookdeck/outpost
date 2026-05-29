@@ -197,21 +197,6 @@ files = [
 colors = ["colorama (>=0.4.6)"]
 
 [[package]]
-name = "jsonpath-python"
-version = "1.1.4"
-description = "A lightweight and powerful JSONPath implementation for Python"
-optional = false
-python-versions = ">=3.8"
-groups = ["main"]
-files = [
-    {file = "jsonpath_python-1.1.4-py3-none-any.whl", hash = "sha256:8700cb8610c44da6e5e9bff50232779c44bf7dc5bc62662d49319ee746898442"},
-    {file = "jsonpath_python-1.1.4.tar.gz", hash = "sha256:bb3e13854e4807c078a1503ae2d87c211b8bff4d9b40b6455ed583b3b50a7fdd"},
-]
-
-[package.extras]
-dev = ["poethepoet", "pytest (>=8.0)", "pytest-benchmark[histogram] (>=4.0)", "pytest-cov (>=5.0)", "ruff (>=0.3)"]
-
-[[package]]
 name = "mccabe"
 version = "0.7.0"
 description = "McCabe checker, plugin for flake8"
@@ -625,4 +610,4 @@ typing-extensions = ">=4.12.0"
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10"
-content-hash = "50e1444fed63445d3c2242eb37bd78fb77a3a5c2858fd4bd122567c56364b0f7"
+content-hash = "f6a8355b7012376d6650030a1b23aaf67653ed8ccc9eae2880ccb8d9a23e3d6b"
