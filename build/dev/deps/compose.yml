@@ -10,7 +10,7 @@ services:
     ports:
       - "26379:6379"
     environment:
-      - REDIS_ARGS=--requirepass password
+      - REDIS_ARGS=--requirepass password --appendonly yes
     volumes:
       - redis:/data
 
