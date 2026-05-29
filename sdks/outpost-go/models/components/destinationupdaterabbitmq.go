@@ -3,12 +3,40 @@
 package components
 
 import (
+	"encoding/json"
+	"fmt"
 	"github.com/hookdeck/outpost/sdks/outpost-go/internal/utils"
 	"github.com/hookdeck/outpost/sdks/outpost-go/optionalnullable"
 	"time"
 )
 
+// DestinationUpdateRabbitMQType - Destination type discriminator. Must equal the existing destination's type — type itself cannot be changed via PATCH.
+type DestinationUpdateRabbitMQType string
+
+const (
+	DestinationUpdateRabbitMQTypeRabbitmq DestinationUpdateRabbitMQType = "rabbitmq"
+)
+
+func (e DestinationUpdateRabbitMQType) ToPointer() *DestinationUpdateRabbitMQType {
+	return &e
+}
+func (e *DestinationUpdateRabbitMQType) UnmarshalJSON(data []byte) error {
+	var v string
+	if err := json.Unmarshal(data, &v); err != nil {
+		return err
+	}
+	switch v {
+	case "rabbitmq":
+		*e = DestinationUpdateRabbitMQType(v)
+		return nil
+	default:
+		return fmt.Errorf("invalid value for DestinationUpdateRabbitMQType: %v", v)
+	}
+}
+
 type DestinationUpdateRabbitMQ struct {
+	// Destination type discriminator. Must equal the existing destination's type — type itself cannot be changed via PATCH.
+	Type DestinationUpdateRabbitMQType `json:"type"`
 	// "*" or an array of enabled topics.
 	Topics *Topics `json:"topics,omitempty"`
 	// Optional JSON schema filter for event matching. Events must match this filter to be delivered to this destination.
@@ -16,9 +44,11 @@ type DestinationUpdateRabbitMQ struct {
 	// If null or empty, all events matching the topic filter will be delivered.
 	// Uses full-replacement semantics on update: send a new object to replace, null or `{}` to clear, omit for no change.
 	//
-	Filter      optionalnullable.OptionalNullable[map[string]any] `json:"filter,omitempty"`
-	Config      *RabbitMQConfig                                   `json:"config,omitempty"`
-	Credentials *RabbitMQCredentials                              `json:"credentials,omitempty"`
+	Filter optionalnullable.OptionalNullable[map[string]any] `json:"filter,omitempty"`
+	// Partial RabbitMQ config for PATCH updates (RFC 7396 merge-patch).
+	Config *RabbitMQConfigUpdate `json:"config,omitempty"`
+	// Partial RabbitMQ credentials for PATCH updates (RFC 7396 merge-patch).
+	Credentials *RabbitMQCredentialsUpdate `json:"credentials,omitempty"`
 	// Static key-value pairs merged into event metadata on every attempt. Uses JSON merge-patch semantics (RFC 7396): send keys to add/update, null values to delete keys, null for entire field to clear all. Omit or send {} for no change.
 	DeliveryMetadata optionalnullable.OptionalNullable[map[string]*string] `json:"delivery_metadata,omitempty"`
 	// Arbitrary contextual information stored with the destination. Uses JSON merge-patch semantics (RFC 7396): send keys to add/update, null values to delete keys, null for entire field to clear all. Omit or send {} for no change.
@@ -32,10 +62,17 @@ func (d DestinationUpdateRabbitMQ) MarshalJSON() ([]byte, error) {
 }
 
 func (d *DestinationUpdateRabbitMQ) UnmarshalJSON(data []byte) error {
-	if err := utils.UnmarshalJSON(data, &d, "", false, nil); err != nil {
+	if err := utils.UnmarshalJSON(data, &d, "", false, []string{"type"}); err != nil {
 		return err
 	}
 	return nil
+}
+
+func (d *DestinationUpdateRabbitMQ) GetType() DestinationUpdateRabbitMQType {
+	if d == nil {
+		return DestinationUpdateRabbitMQType("")
+	}
+	return d.Type
 }
 
 func (d *DestinationUpdateRabbitMQ) GetTopics() *Topics {
@@ -52,14 +89,14 @@ func (d *DestinationUpdateRabbitMQ) GetFilter() optionalnullable.OptionalNullabl
 	return d.Filter
 }
 
-func (d *DestinationUpdateRabbitMQ) GetConfig() *RabbitMQConfig {
+func (d *DestinationUpdateRabbitMQ) GetConfig() *RabbitMQConfigUpdate {
 	if d == nil {
 		return nil
 	}
 	return d.Config
 }
 
-func (d *DestinationUpdateRabbitMQ) GetCredentials() *RabbitMQCredentials {
+func (d *DestinationUpdateRabbitMQ) GetCredentials() *RabbitMQCredentialsUpdate {
 	if d == nil {
 		return nil
 	}

@@ -3,12 +3,40 @@
 package components
 
 import (
+	"encoding/json"
+	"fmt"
 	"github.com/hookdeck/outpost/sdks/outpost-go/internal/utils"
 	"github.com/hookdeck/outpost/sdks/outpost-go/optionalnullable"
 	"time"
 )
 
+// DestinationUpdateAWSSQSType - Destination type discriminator. Must equal the existing destination's type — type itself cannot be changed via PATCH.
+type DestinationUpdateAWSSQSType string
+
+const (
+	DestinationUpdateAWSSQSTypeAwsSqs DestinationUpdateAWSSQSType = "aws_sqs"
+)
+
+func (e DestinationUpdateAWSSQSType) ToPointer() *DestinationUpdateAWSSQSType {
+	return &e
+}
+func (e *DestinationUpdateAWSSQSType) UnmarshalJSON(data []byte) error {
+	var v string
+	if err := json.Unmarshal(data, &v); err != nil {
+		return err
+	}
+	switch v {
+	case "aws_sqs":
+		*e = DestinationUpdateAWSSQSType(v)
+		return nil
+	default:
+		return fmt.Errorf("invalid value for DestinationUpdateAWSSQSType: %v", v)
+	}
+}
+
 type DestinationUpdateAWSSQS struct {
+	// Destination type discriminator. Must equal the existing destination's type — type itself cannot be changed via PATCH.
+	Type DestinationUpdateAWSSQSType `json:"type"`
 	// "*" or an array of enabled topics.
 	Topics *Topics `json:"topics,omitempty"`
 	// Optional JSON schema filter for event matching. Events must match this filter to be delivered to this destination.
@@ -16,9 +44,11 @@ type DestinationUpdateAWSSQS struct {
 	// If null or empty, all events matching the topic filter will be delivered.
 	// Uses full-replacement semantics on update: send a new object to replace, null or `{}` to clear, omit for no change.
 	//
-	Filter      optionalnullable.OptionalNullable[map[string]any] `json:"filter,omitempty"`
-	Config      *AWSSQSConfig                                     `json:"config,omitempty"`
-	Credentials *AWSSQSCredentials                                `json:"credentials,omitempty"`
+	Filter optionalnullable.OptionalNullable[map[string]any] `json:"filter,omitempty"`
+	// Partial AWS SQS config for PATCH updates (RFC 7396 merge-patch).
+	Config *AWSSQSConfigUpdate `json:"config,omitempty"`
+	// Partial AWS SQS credentials for PATCH updates (RFC 7396 merge-patch).
+	Credentials *AWSSQSCredentialsUpdate `json:"credentials,omitempty"`
 	// Static key-value pairs merged into event metadata on every attempt. Uses JSON merge-patch semantics (RFC 7396): send keys to add/update, null values to delete keys, null for entire field to clear all. Omit or send {} for no change.
 	DeliveryMetadata optionalnullable.OptionalNullable[map[string]*string] `json:"delivery_metadata,omitempty"`
 	// Arbitrary contextual information stored with the destination. Uses JSON merge-patch semantics (RFC 7396): send keys to add/update, null values to delete keys, null for entire field to clear all. Omit or send {} for no change.
@@ -32,10 +62,17 @@ func (d DestinationUpdateAWSSQS) MarshalJSON() ([]byte, error) {
 }
 
 func (d *DestinationUpdateAWSSQS) UnmarshalJSON(data []byte) error {
-	if err := utils.UnmarshalJSON(data, &d, "", false, nil); err != nil {
+	if err := utils.UnmarshalJSON(data, &d, "", false, []string{"type"}); err != nil {
 		return err
 	}
 	return nil
+}
+
+func (d *DestinationUpdateAWSSQS) GetType() DestinationUpdateAWSSQSType {
+	if d == nil {
+		return DestinationUpdateAWSSQSType("")
+	}
+	return d.Type
 }
 
 func (d *DestinationUpdateAWSSQS) GetTopics() *Topics {
@@ -52,14 +89,14 @@ func (d *DestinationUpdateAWSSQS) GetFilter() optionalnullable.OptionalNullable[
 	return d.Filter
 }
 
-func (d *DestinationUpdateAWSSQS) GetConfig() *AWSSQSConfig {
+func (d *DestinationUpdateAWSSQS) GetConfig() *AWSSQSConfigUpdate {
 	if d == nil {
 		return nil
 	}
 	return d.Config
 }
 
-func (d *DestinationUpdateAWSSQS) GetCredentials() *AWSSQSCredentials {
+func (d *DestinationUpdateAWSSQS) GetCredentials() *AWSSQSCredentialsUpdate {
 	if d == nil {
 		return nil
 	}

@@ -38,6 +38,81 @@ func (e *Status) UnmarshalJSON(data []byte) error {
 	}
 }
 
+// EventSummary - Event object without data (returned when include=event).
+type EventSummary struct {
+	ID *string `json:"id,omitempty"`
+	// The tenant this event belongs to.
+	TenantID *string `json:"tenant_id,omitempty"`
+	// The destination this event was delivered to.
+	DestinationID *string `json:"destination_id,omitempty"`
+	Topic         *string `json:"topic,omitempty"`
+	// Time the event was received.
+	Time *time.Time `json:"time,omitempty"`
+	// Whether this event can be retried.
+	EligibleForRetry *bool                                                `json:"eligible_for_retry,omitempty"`
+	Metadata         optionalnullable.OptionalNullable[map[string]string] `json:"metadata,omitempty"`
+}
+
+func (e EventSummary) MarshalJSON() ([]byte, error) {
+	return utils.MarshalJSON(e, "", false)
+}
+
+func (e *EventSummary) UnmarshalJSON(data []byte) error {
+	if err := utils.UnmarshalJSON(data, &e, "", false, nil); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (e *EventSummary) GetID() *string {
+	if e == nil {
+		return nil
+	}
+	return e.ID
+}
+
+func (e *EventSummary) GetTenantID() *string {
+	if e == nil {
+		return nil
+	}
+	return e.TenantID
+}
+
+func (e *EventSummary) GetDestinationID() *string {
+	if e == nil {
+		return nil
+	}
+	return e.DestinationID
+}
+
+func (e *EventSummary) GetTopic() *string {
+	if e == nil {
+		return nil
+	}
+	return e.Topic
+}
+
+func (e *EventSummary) GetTime() *time.Time {
+	if e == nil {
+		return nil
+	}
+	return e.Time
+}
+
+func (e *EventSummary) GetEligibleForRetry() *bool {
+	if e == nil {
+		return nil
+	}
+	return e.EligibleForRetry
+}
+
+func (e *EventSummary) GetMetadata() optionalnullable.OptionalNullable[map[string]string] {
+	if e == nil {
+		return nil
+	}
+	return e.Metadata
+}
+
 // EventFull - Full event object with data (returned when include=event.data).
 type EventFull struct {
 	ID *string `json:"id,omitempty"`
@@ -122,103 +197,19 @@ func (e *EventFull) GetData() map[string]any {
 	return e.Data
 }
 
-// EventSummary - Event object without data (returned when include=event).
-type EventSummary struct {
-	ID *string `json:"id,omitempty"`
-	// The tenant this event belongs to.
-	TenantID *string `json:"tenant_id,omitempty"`
-	// The destination this event was delivered to.
-	DestinationID *string `json:"destination_id,omitempty"`
-	Topic         *string `json:"topic,omitempty"`
-	// Time the event was received.
-	Time *time.Time `json:"time,omitempty"`
-	// Whether this event can be retried.
-	EligibleForRetry *bool                                                `json:"eligible_for_retry,omitempty"`
-	Metadata         optionalnullable.OptionalNullable[map[string]string] `json:"metadata,omitempty"`
-}
-
-func (e EventSummary) MarshalJSON() ([]byte, error) {
-	return utils.MarshalJSON(e, "", false)
-}
-
-func (e *EventSummary) UnmarshalJSON(data []byte) error {
-	if err := utils.UnmarshalJSON(data, &e, "", false, nil); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (e *EventSummary) GetID() *string {
-	if e == nil {
-		return nil
-	}
-	return e.ID
-}
-
-func (e *EventSummary) GetTenantID() *string {
-	if e == nil {
-		return nil
-	}
-	return e.TenantID
-}
-
-func (e *EventSummary) GetDestinationID() *string {
-	if e == nil {
-		return nil
-	}
-	return e.DestinationID
-}
-
-func (e *EventSummary) GetTopic() *string {
-	if e == nil {
-		return nil
-	}
-	return e.Topic
-}
-
-func (e *EventSummary) GetTime() *time.Time {
-	if e == nil {
-		return nil
-	}
-	return e.Time
-}
-
-func (e *EventSummary) GetEligibleForRetry() *bool {
-	if e == nil {
-		return nil
-	}
-	return e.EligibleForRetry
-}
-
-func (e *EventSummary) GetMetadata() optionalnullable.OptionalNullable[map[string]string] {
-	if e == nil {
-		return nil
-	}
-	return e.Metadata
-}
-
 type EventUnionType string
 
 const (
-	EventUnionTypeEventSummary EventUnionType = "EventSummary"
 	EventUnionTypeEventFull    EventUnionType = "EventFull"
+	EventUnionTypeEventSummary EventUnionType = "EventSummary"
 )
 
 // EventUnion - The associated event object. Only present when include=event or include=event.data.
 type EventUnion struct {
-	EventSummary *EventSummary `queryParam:"inline" union:"member"`
 	EventFull    *EventFull    `queryParam:"inline" union:"member"`
+	EventSummary *EventSummary `queryParam:"inline" union:"member"`
 
 	Type EventUnionType
-}
-
-func CreateEventUnionEventSummary(eventSummary EventSummary) EventUnion {
-	typ := EventUnionTypeEventSummary
-
-	return EventUnion{
-		EventSummary: &eventSummary,
-		Type:         typ,
-	}
 }
 
 func CreateEventUnionEventFull(eventFull EventFull) EventUnion {
@@ -230,14 +221,16 @@ func CreateEventUnionEventFull(eventFull EventFull) EventUnion {
 	}
 }
 
-func (u *EventUnion) UnmarshalJSON(data []byte) error {
+func CreateEventUnionEventSummary(eventSummary EventSummary) EventUnion {
+	typ := EventUnionTypeEventSummary
 
-	var eventSummary EventSummary = EventSummary{}
-	if err := utils.UnmarshalJSON(data, &eventSummary, "", true, nil); err == nil {
-		u.EventSummary = &eventSummary
-		u.Type = EventUnionTypeEventSummary
-		return nil
+	return EventUnion{
+		EventSummary: &eventSummary,
+		Type:         typ,
 	}
+}
+
+func (u *EventUnion) UnmarshalJSON(data []byte) error {
 
 	var eventFull EventFull = EventFull{}
 	if err := utils.UnmarshalJSON(data, &eventFull, "", true, nil); err == nil {
@@ -246,16 +239,23 @@ func (u *EventUnion) UnmarshalJSON(data []byte) error {
 		return nil
 	}
 
+	var eventSummary EventSummary = EventSummary{}
+	if err := utils.UnmarshalJSON(data, &eventSummary, "", true, nil); err == nil {
+		u.EventSummary = &eventSummary
+		u.Type = EventUnionTypeEventSummary
+		return nil
+	}
+
 	return fmt.Errorf("could not unmarshal `%s` into any supported union types for EventUnion", string(data))
 }
 
 func (u EventUnion) MarshalJSON() ([]byte, error) {
-	if u.EventSummary != nil {
-		return utils.MarshalJSON(u.EventSummary, "", true)
-	}
-
 	if u.EventFull != nil {
 		return utils.MarshalJSON(u.EventFull, "", true)
+	}
+
+	if u.EventSummary != nil {
+		return utils.MarshalJSON(u.EventSummary, "", true)
 	}
 
 	return nil, errors.New("could not marshal union type EventUnion: all fields are null")

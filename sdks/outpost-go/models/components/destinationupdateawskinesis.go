@@ -3,12 +3,40 @@
 package components
 
 import (
+	"encoding/json"
+	"fmt"
 	"github.com/hookdeck/outpost/sdks/outpost-go/internal/utils"
 	"github.com/hookdeck/outpost/sdks/outpost-go/optionalnullable"
 	"time"
 )
 
+// DestinationUpdateAWSKinesisType - Destination type discriminator. Must equal the existing destination's type — type itself cannot be changed via PATCH.
+type DestinationUpdateAWSKinesisType string
+
+const (
+	DestinationUpdateAWSKinesisTypeAwsKinesis DestinationUpdateAWSKinesisType = "aws_kinesis"
+)
+
+func (e DestinationUpdateAWSKinesisType) ToPointer() *DestinationUpdateAWSKinesisType {
+	return &e
+}
+func (e *DestinationUpdateAWSKinesisType) UnmarshalJSON(data []byte) error {
+	var v string
+	if err := json.Unmarshal(data, &v); err != nil {
+		return err
+	}
+	switch v {
+	case "aws_kinesis":
+		*e = DestinationUpdateAWSKinesisType(v)
+		return nil
+	default:
+		return fmt.Errorf("invalid value for DestinationUpdateAWSKinesisType: %v", v)
+	}
+}
+
 type DestinationUpdateAWSKinesis struct {
+	// Destination type discriminator. Must equal the existing destination's type — type itself cannot be changed via PATCH.
+	Type DestinationUpdateAWSKinesisType `json:"type"`
 	// "*" or an array of enabled topics.
 	Topics *Topics `json:"topics,omitempty"`
 	// Optional JSON schema filter for event matching. Events must match this filter to be delivered to this destination.
@@ -16,9 +44,11 @@ type DestinationUpdateAWSKinesis struct {
 	// If null or empty, all events matching the topic filter will be delivered.
 	// Uses full-replacement semantics on update: send a new object to replace, null or `{}` to clear, omit for no change.
 	//
-	Filter      optionalnullable.OptionalNullable[map[string]any] `json:"filter,omitempty"`
-	Config      *AWSKinesisConfig                                 `json:"config,omitempty"`
-	Credentials *AWSKinesisCredentials                            `json:"credentials,omitempty"`
+	Filter optionalnullable.OptionalNullable[map[string]any] `json:"filter,omitempty"`
+	// Partial AWS Kinesis config for PATCH updates (RFC 7396 merge-patch).
+	Config *AWSKinesisConfigUpdate `json:"config,omitempty"`
+	// Partial AWS Kinesis credentials for PATCH updates (RFC 7396 merge-patch).
+	Credentials *AWSKinesisCredentialsUpdate `json:"credentials,omitempty"`
 	// Static key-value pairs merged into event metadata on every attempt. Uses JSON merge-patch semantics (RFC 7396): send keys to add/update, null values to delete keys, null for entire field to clear all. Omit or send {} for no change.
 	DeliveryMetadata optionalnullable.OptionalNullable[map[string]*string] `json:"delivery_metadata,omitempty"`
 	// Arbitrary contextual information stored with the destination. Uses JSON merge-patch semantics (RFC 7396): send keys to add/update, null values to delete keys, null for entire field to clear all. Omit or send {} for no change.
@@ -32,10 +62,17 @@ func (d DestinationUpdateAWSKinesis) MarshalJSON() ([]byte, error) {
 }
 
 func (d *DestinationUpdateAWSKinesis) UnmarshalJSON(data []byte) error {
-	if err := utils.UnmarshalJSON(data, &d, "", false, nil); err != nil {
+	if err := utils.UnmarshalJSON(data, &d, "", false, []string{"type"}); err != nil {
 		return err
 	}
 	return nil
+}
+
+func (d *DestinationUpdateAWSKinesis) GetType() DestinationUpdateAWSKinesisType {
+	if d == nil {
+		return DestinationUpdateAWSKinesisType("")
+	}
+	return d.Type
 }
 
 func (d *DestinationUpdateAWSKinesis) GetTopics() *Topics {
@@ -52,14 +89,14 @@ func (d *DestinationUpdateAWSKinesis) GetFilter() optionalnullable.OptionalNulla
 	return d.Filter
 }
 
-func (d *DestinationUpdateAWSKinesis) GetConfig() *AWSKinesisConfig {
+func (d *DestinationUpdateAWSKinesis) GetConfig() *AWSKinesisConfigUpdate {
 	if d == nil {
 		return nil
 	}
 	return d.Config
 }
 
-func (d *DestinationUpdateAWSKinesis) GetCredentials() *AWSKinesisCredentials {
+func (d *DestinationUpdateAWSKinesis) GetCredentials() *AWSKinesisCredentialsUpdate {
 	if d == nil {
 		return nil
 	}

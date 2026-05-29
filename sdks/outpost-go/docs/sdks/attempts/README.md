@@ -54,19 +54,7 @@ func main() {
         log.Fatal(err)
     }
     if res.AttemptPaginatedResult != nil {
-        for {
-            // handle items
-
-            res, err = res.Next()
-
-            if err != nil {
-                // handle error
-            }
-
-            if res == nil {
-                break
-            }
-        }
+        // handle response
     }
 }
 ```
@@ -100,19 +88,7 @@ func main() {
         log.Fatal(err)
     }
     if res.AttemptPaginatedResult != nil {
-        for {
-            // handle items
-
-            res, err = res.Next()
-
-            if err != nil {
-                // handle error
-            }
-
-            if res == nil {
-                break
-            }
-        }
+        // handle response
     }
 }
 ```
@@ -171,10 +147,10 @@ func main() {
     }
     if res.Attempt != nil {
         switch res.Attempt.Event.Type {
-            case components.EventUnionTypeEventSummary:
-                // res.Attempt.Event.EventSummary is populated
             case components.EventUnionTypeEventFull:
                 // res.Attempt.Event.EventFull is populated
+            case components.EventUnionTypeEventSummary:
+                // res.Attempt.Event.EventSummary is populated
         }
 
     }
@@ -206,10 +182,10 @@ func main() {
     }
     if res.Attempt != nil {
         switch res.Attempt.Event.Type {
-            case components.EventUnionTypeEventSummary:
-                // res.Attempt.Event.EventSummary is populated
             case components.EventUnionTypeEventFull:
                 // res.Attempt.Event.EventFull is populated
+            case components.EventUnionTypeEventSummary:
+                // res.Attempt.Event.EventSummary is populated
         }
 
     }

@@ -8,19 +8,19 @@ import (
 	"github.com/hookdeck/outpost/sdks/outpost-go/internal/utils"
 )
 
-// SaslMechanism - SASL authentication mechanism.
-type SaslMechanism string
+// KafkaConfigSaslMechanism - SASL authentication mechanism.
+type KafkaConfigSaslMechanism string
 
 const (
-	SaslMechanismPlain       SaslMechanism = "plain"
-	SaslMechanismScramSha256 SaslMechanism = "scram-sha-256"
-	SaslMechanismScramSha512 SaslMechanism = "scram-sha-512"
+	KafkaConfigSaslMechanismPlain       KafkaConfigSaslMechanism = "plain"
+	KafkaConfigSaslMechanismScramSha256 KafkaConfigSaslMechanism = "scram-sha-256"
+	KafkaConfigSaslMechanismScramSha512 KafkaConfigSaslMechanism = "scram-sha-512"
 )
 
-func (e SaslMechanism) ToPointer() *SaslMechanism {
+func (e KafkaConfigSaslMechanism) ToPointer() *KafkaConfigSaslMechanism {
 	return &e
 }
-func (e *SaslMechanism) UnmarshalJSON(data []byte) error {
+func (e *KafkaConfigSaslMechanism) UnmarshalJSON(data []byte) error {
 	var v string
 	if err := json.Unmarshal(data, &v); err != nil {
 		return err
@@ -31,10 +31,10 @@ func (e *SaslMechanism) UnmarshalJSON(data []byte) error {
 	case "scram-sha-256":
 		fallthrough
 	case "scram-sha-512":
-		*e = SaslMechanism(v)
+		*e = KafkaConfigSaslMechanism(v)
 		return nil
 	default:
-		return fmt.Errorf("invalid value for SaslMechanism: %v", v)
+		return fmt.Errorf("invalid value for KafkaConfigSaslMechanism: %v", v)
 	}
 }
 
@@ -71,7 +71,7 @@ type KafkaConfig struct {
 	// The Kafka topic to publish messages to.
 	Topic string `json:"topic"`
 	// SASL authentication mechanism.
-	SaslMechanism SaslMechanism `json:"sasl_mechanism"`
+	SaslMechanism KafkaConfigSaslMechanism `json:"sasl_mechanism"`
 	// Whether to enable TLS for the connection.
 	TLS *KafkaConfigTLS `default:"true" json:"tls"`
 	// Optional JMESPath template to extract the partition key from the event payload. Defaults to the event ID.
@@ -103,9 +103,9 @@ func (k *KafkaConfig) GetTopic() string {
 	return k.Topic
 }
 
-func (k *KafkaConfig) GetSaslMechanism() SaslMechanism {
+func (k *KafkaConfig) GetSaslMechanism() KafkaConfigSaslMechanism {
 	if k == nil {
-		return SaslMechanism("")
+		return KafkaConfigSaslMechanism("")
 	}
 	return k.SaslMechanism
 }

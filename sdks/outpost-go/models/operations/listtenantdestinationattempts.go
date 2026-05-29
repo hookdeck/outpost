@@ -218,8 +218,6 @@ type ListTenantDestinationAttemptsResponse struct {
 	HTTPMeta components.HTTPMetadata `json:"-"`
 	// A paginated list of attempts for the destination.
 	AttemptPaginatedResult *components.AttemptPaginatedResult
-
-	Next func() (*ListTenantDestinationAttemptsResponse, error)
 }
 
 func (l *ListTenantDestinationAttemptsResponse) GetHTTPMeta() components.HTTPMetadata {

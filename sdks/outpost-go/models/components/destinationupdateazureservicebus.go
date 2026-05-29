@@ -3,12 +3,40 @@
 package components
 
 import (
+	"encoding/json"
+	"fmt"
 	"github.com/hookdeck/outpost/sdks/outpost-go/internal/utils"
 	"github.com/hookdeck/outpost/sdks/outpost-go/optionalnullable"
 	"time"
 )
 
+// DestinationUpdateAzureServiceBusType - Destination type discriminator. Must equal the existing destination's type — type itself cannot be changed via PATCH.
+type DestinationUpdateAzureServiceBusType string
+
+const (
+	DestinationUpdateAzureServiceBusTypeAzureServicebus DestinationUpdateAzureServiceBusType = "azure_servicebus"
+)
+
+func (e DestinationUpdateAzureServiceBusType) ToPointer() *DestinationUpdateAzureServiceBusType {
+	return &e
+}
+func (e *DestinationUpdateAzureServiceBusType) UnmarshalJSON(data []byte) error {
+	var v string
+	if err := json.Unmarshal(data, &v); err != nil {
+		return err
+	}
+	switch v {
+	case "azure_servicebus":
+		*e = DestinationUpdateAzureServiceBusType(v)
+		return nil
+	default:
+		return fmt.Errorf("invalid value for DestinationUpdateAzureServiceBusType: %v", v)
+	}
+}
+
 type DestinationUpdateAzureServiceBus struct {
+	// Destination type discriminator. Must equal the existing destination's type — type itself cannot be changed via PATCH.
+	Type DestinationUpdateAzureServiceBusType `json:"type"`
 	// "*" or an array of enabled topics.
 	Topics *Topics `json:"topics,omitempty"`
 	// Optional JSON schema filter for event matching. Events must match this filter to be delivered to this destination.
@@ -16,9 +44,11 @@ type DestinationUpdateAzureServiceBus struct {
 	// If null or empty, all events matching the topic filter will be delivered.
 	// Uses full-replacement semantics on update: send a new object to replace, null or `{}` to clear, omit for no change.
 	//
-	Filter      optionalnullable.OptionalNullable[map[string]any] `json:"filter,omitempty"`
-	Config      *AzureServiceBusConfig                            `json:"config,omitempty"`
-	Credentials *AzureServiceBusCredentials                       `json:"credentials,omitempty"`
+	Filter optionalnullable.OptionalNullable[map[string]any] `json:"filter,omitempty"`
+	// Partial Azure Service Bus config for PATCH updates (RFC 7396 merge-patch).
+	Config *AzureServiceBusConfigUpdate `json:"config,omitempty"`
+	// Partial Azure Service Bus credentials for PATCH updates (RFC 7396 merge-patch).
+	Credentials *AzureServiceBusCredentialsUpdate `json:"credentials,omitempty"`
 	// Static key-value pairs merged into event metadata on every attempt. Uses JSON merge-patch semantics (RFC 7396): send keys to add/update, null values to delete keys, null for entire field to clear all. Omit or send {} for no change.
 	DeliveryMetadata optionalnullable.OptionalNullable[map[string]*string] `json:"delivery_metadata,omitempty"`
 	// Arbitrary contextual information stored with the destination. Uses JSON merge-patch semantics (RFC 7396): send keys to add/update, null values to delete keys, null for entire field to clear all. Omit or send {} for no change.
@@ -32,10 +62,17 @@ func (d DestinationUpdateAzureServiceBus) MarshalJSON() ([]byte, error) {
 }
 
 func (d *DestinationUpdateAzureServiceBus) UnmarshalJSON(data []byte) error {
-	if err := utils.UnmarshalJSON(data, &d, "", false, nil); err != nil {
+	if err := utils.UnmarshalJSON(data, &d, "", false, []string{"type"}); err != nil {
 		return err
 	}
 	return nil
+}
+
+func (d *DestinationUpdateAzureServiceBus) GetType() DestinationUpdateAzureServiceBusType {
+	if d == nil {
+		return DestinationUpdateAzureServiceBusType("")
+	}
+	return d.Type
 }
 
 func (d *DestinationUpdateAzureServiceBus) GetTopics() *Topics {
@@ -52,14 +89,14 @@ func (d *DestinationUpdateAzureServiceBus) GetFilter() optionalnullable.Optional
 	return d.Filter
 }
 
-func (d *DestinationUpdateAzureServiceBus) GetConfig() *AzureServiceBusConfig {
+func (d *DestinationUpdateAzureServiceBus) GetConfig() *AzureServiceBusConfigUpdate {
 	if d == nil {
 		return nil
 	}
 	return d.Config
 }
 
-func (d *DestinationUpdateAzureServiceBus) GetCredentials() *AzureServiceBusCredentials {
+func (d *DestinationUpdateAzureServiceBus) GetCredentials() *AzureServiceBusCredentialsUpdate {
 	if d == nil {
 		return nil
 	}

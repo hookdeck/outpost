@@ -295,8 +295,6 @@ type ListAttemptsResponse struct {
 	HTTPMeta components.HTTPMetadata `json:"-"`
 	// A paginated list of attempts.
 	AttemptPaginatedResult *components.AttemptPaginatedResult
-
-	Next func() (*ListAttemptsResponse, error)
 }
 
 func (l *ListAttemptsResponse) GetHTTPMeta() components.HTTPMetadata {

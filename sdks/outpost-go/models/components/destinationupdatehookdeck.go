@@ -3,12 +3,40 @@
 package components
 
 import (
+	"encoding/json"
+	"fmt"
 	"github.com/hookdeck/outpost/sdks/outpost-go/internal/utils"
 	"github.com/hookdeck/outpost/sdks/outpost-go/optionalnullable"
 	"time"
 )
 
+// DestinationUpdateHookdeckType - Destination type discriminator. Must equal the existing destination's type — type itself cannot be changed via PATCH.
+type DestinationUpdateHookdeckType string
+
+const (
+	DestinationUpdateHookdeckTypeHookdeck DestinationUpdateHookdeckType = "hookdeck"
+)
+
+func (e DestinationUpdateHookdeckType) ToPointer() *DestinationUpdateHookdeckType {
+	return &e
+}
+func (e *DestinationUpdateHookdeckType) UnmarshalJSON(data []byte) error {
+	var v string
+	if err := json.Unmarshal(data, &v); err != nil {
+		return err
+	}
+	switch v {
+	case "hookdeck":
+		*e = DestinationUpdateHookdeckType(v)
+		return nil
+	default:
+		return fmt.Errorf("invalid value for DestinationUpdateHookdeckType: %v", v)
+	}
+}
+
 type DestinationUpdateHookdeck struct {
+	// Destination type discriminator. Must equal the existing destination's type — type itself cannot be changed via PATCH.
+	Type DestinationUpdateHookdeckType `json:"type"`
 	// "*" or an array of enabled topics.
 	Topics *Topics `json:"topics,omitempty"`
 	// Optional JSON schema filter for event matching. Events must match this filter to be delivered to this destination.
@@ -16,9 +44,9 @@ type DestinationUpdateHookdeck struct {
 	// If null or empty, all events matching the topic filter will be delivered.
 	// Uses full-replacement semantics on update: send a new object to replace, null or `{}` to clear, omit for no change.
 	//
-	Filter      optionalnullable.OptionalNullable[map[string]any] `json:"filter,omitempty"`
-	Config      any                                               `json:"config,omitempty"`
-	Credentials *HookdeckCredentials                              `json:"credentials,omitempty"`
+	Filter optionalnullable.OptionalNullable[map[string]any] `json:"filter,omitempty"`
+	// Partial Hookdeck credentials for PATCH updates (RFC 7396 merge-patch).
+	Credentials *HookdeckCredentialsUpdate `json:"credentials,omitempty"`
 	// Static key-value pairs merged into event metadata on every attempt. Uses JSON merge-patch semantics (RFC 7396): send keys to add/update, null values to delete keys, null for entire field to clear all. Omit or send {} for no change.
 	DeliveryMetadata optionalnullable.OptionalNullable[map[string]*string] `json:"delivery_metadata,omitempty"`
 	// Arbitrary contextual information stored with the destination. Uses JSON merge-patch semantics (RFC 7396): send keys to add/update, null values to delete keys, null for entire field to clear all. Omit or send {} for no change.
@@ -32,10 +60,17 @@ func (d DestinationUpdateHookdeck) MarshalJSON() ([]byte, error) {
 }
 
 func (d *DestinationUpdateHookdeck) UnmarshalJSON(data []byte) error {
-	if err := utils.UnmarshalJSON(data, &d, "", false, nil); err != nil {
+	if err := utils.UnmarshalJSON(data, &d, "", false, []string{"type"}); err != nil {
 		return err
 	}
 	return nil
+}
+
+func (d *DestinationUpdateHookdeck) GetType() DestinationUpdateHookdeckType {
+	if d == nil {
+		return DestinationUpdateHookdeckType("")
+	}
+	return d.Type
 }
 
 func (d *DestinationUpdateHookdeck) GetTopics() *Topics {
@@ -52,14 +87,7 @@ func (d *DestinationUpdateHookdeck) GetFilter() optionalnullable.OptionalNullabl
 	return d.Filter
 }
 
-func (d *DestinationUpdateHookdeck) GetConfig() any {
-	if d == nil {
-		return nil
-	}
-	return d.Config
-}
-
-func (d *DestinationUpdateHookdeck) GetCredentials() *HookdeckCredentials {
+func (d *DestinationUpdateHookdeck) GetCredentials() *HookdeckCredentialsUpdate {
 	if d == nil {
 		return nil
 	}

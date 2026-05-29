@@ -1,0 +1,20 @@
+# DestinationUpdateAWSSQSType
+
+Destination type discriminator. Must equal the existing destination's type — type itself cannot be changed via PATCH.
+
+## Example Usage
+
+```go
+import (
+	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
+)
+
+value := components.DestinationUpdateAWSSQSTypeAwsSqs
+```
+
+
+## Values
+
+| Name                                | Value                               |
+| ----------------------------------- | ----------------------------------- |
+| `DestinationUpdateAWSSQSTypeAwsSqs` | aws_sqs                             |

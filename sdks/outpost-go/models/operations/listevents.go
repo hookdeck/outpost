@@ -236,8 +236,6 @@ type ListEventsResponse struct {
 	HTTPMeta components.HTTPMetadata `json:"-"`
 	// A paginated list of events.
 	EventPaginatedResult *components.EventPaginatedResult
-
-	Next func() (*ListEventsResponse, error)
 }
 
 func (l *ListEventsResponse) GetHTTPMeta() components.HTTPMetadata {
