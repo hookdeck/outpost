@@ -62,7 +62,7 @@ func LoggerMiddlewareWithSanitizer(logger *logging.Logger, sanitizer *RequestBod
 				hub.CaptureException(getErrorWithStackTrace(c.Errors.Last().Err))
 			}
 		case status >= 400:
-			logger.Info("request completed", fields...)
+			logger.Warn("request completed", fields...)
 		default:
 			logger.Debug("request completed", fields...)
 		}
