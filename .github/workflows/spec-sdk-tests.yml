@@ -153,11 +153,18 @@ jobs:
           cat /tmp/outpost.log || true
           exit 1
 
-      - name: Build TypeScript SDK
-        working-directory: sdks/outpost-typescript
-        run: |
-          npm ci
-          npm run build
+      # Without this regen, we'd be testing whatever SDK src/ is checked
+      # into the branch — which can lag the spec arbitrarily. The whole
+      # point of this workflow is to validate spec ↔ SDK ↔ server agree,
+      # so we regen the SDK from this PR's spec before running tests.
+      - name: Install Speakeasy CLI
+        run: curl -fsSL https://go.speakeasy.com/cli-install.sh | sh
+
+      - name: Regenerate + build TypeScript SDK from this PR's spec
+        env:
+          SPEAKEASY_API_KEY: ${{ secrets.SPEAKEASY_API_KEY }}
+        # Same script developers run locally — keeps CI and local in sync.
+        run: ./spec-sdk-tests/scripts/regenerate-sdk.sh TS
 
       - name: Install spec-sdk-tests dependencies
         working-directory: spec-sdk-tests
