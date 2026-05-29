@@ -12,6 +12,21 @@ x-deps-depends-on: &deps_depends_on
   gcp:        { condition: service_healthy, required: false }
 
 services:
+  migrate:
+    image: outpost
+    build:
+      context: ../../
+      dockerfile: ./build/dev/Dockerfile
+    entrypoint: ""
+    command: ["go", "run", "./cmd/outpost", "migrate", "apply", "--yes"]
+    volumes:
+      - ../../:/app
+      - go_mod_cache:/go/pkg
+      - go_build_cache:/root/.cache/go-build
+    env_file: ../../.env
+    depends_on: *deps_depends_on
+    restart: "no"
+
   api:
     image: outpost
     build:
@@ -26,7 +41,9 @@ services:
     env_file: ../../.env
     environment:
       SERVICE: api
-    depends_on: *deps_depends_on
+    depends_on:
+      <<: *deps_depends_on
+      migrate: { condition: service_completed_successfully }
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:3333/api/v1/healthz"]
       interval: 2s
