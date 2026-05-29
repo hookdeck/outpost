@@ -13,6 +13,11 @@ services:
       - REDIS_ARGS=--requirepass password --appendonly yes
     volumes:
       - redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "password", "--no-auth-warning", "PING"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
 
   dragonfly:
     profiles: ["dragonfly"]
@@ -29,6 +34,11 @@ services:
       default:
         aliases:
           - redis
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "password", "--no-auth-warning", "PING"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
 
   # ============================== Log Store ==============================
   # LOCAL_DEV_CLICKHOUSE=1, LOCAL_DEV_POSTGRES=1 (can enable both)
@@ -67,6 +77,11 @@ services:
       - 25432:5432
     volumes:
       - postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U outpost -d outpost"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
 
   # ============================== MQs ==============================
   # LOCAL_DEV_RABBITMQ=1, LOCAL_DEV_LOCALSTACK=1, LOCAL_DEV_GCP=1
@@ -78,6 +93,11 @@ services:
       - 25673:15672  # Management UI
     volumes:
       - rabbitmq:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "check_port_connectivity"]
+      interval: 5s
+      timeout: 10s
+      retries: 20
 
   localstack:
     profiles: ["localstack"]
@@ -89,6 +109,11 @@ services:
       - 24571:4571
     volumes:
       - localstack:/var/lib/localstack
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:4566/_localstack/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
 
   gcp:
     profiles: ["gcp"]
@@ -108,6 +133,11 @@ services:
     volumes:
       - gcp-config:/root/.config
       - gcp-kube:/root/.kube
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sS http://localhost:8085 >/dev/null"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
 
 volumes:
   redis:

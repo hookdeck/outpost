@@ -1,5 +1,16 @@
 name: "outpost"
 
+# Wait for whichever deps are active in the current profile set; required:false
+# means a dep that isn't in any active profile is skipped rather than erroring.
+x-deps-depends-on: &deps_depends_on
+  redis:      { condition: service_healthy, required: false }
+  dragonfly:  { condition: service_healthy, required: false }
+  postgres:   { condition: service_healthy, required: false }
+  clickhouse: { condition: service_healthy, required: false }
+  rabbitmq:   { condition: service_healthy, required: false }
+  localstack: { condition: service_healthy, required: false }
+  gcp:        { condition: service_healthy, required: false }
+
 services:
   api:
     image: outpost
@@ -15,6 +26,12 @@ services:
     env_file: ../../.env
     environment:
       SERVICE: api
+    depends_on: *deps_depends_on
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3333/api/v1/healthz"]
+      interval: 2s
+      timeout: 2s
+      retries: 60
 
   delivery:
     image: outpost
@@ -22,12 +39,12 @@ services:
       - ../..:/app
       - go_mod_cache:/go/pkg
       - go_build_cache:/root/.cache/go-build
-    depends_on:
-      api:
-        condition: service_started
     env_file: ../../.env
     environment:
       SERVICE: delivery
+    depends_on:
+      <<: *deps_depends_on
+      api: { condition: service_healthy }
 
   log:
     image: outpost
@@ -35,12 +52,12 @@ services:
       - ../..:/app
       - go_mod_cache:/go/pkg
       - go_build_cache:/root/.cache/go-build
-    depends_on:
-      api:
-        condition: service_started
     env_file: ../../.env
     environment:
       SERVICE: log
+    depends_on:
+      <<: *deps_depends_on
+      api: { condition: service_healthy }
 
   portal:
     build:
