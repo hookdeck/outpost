@@ -1,7 +1,7 @@
 name: outpost-example
 services:
   migrate:
-    image: hookdeck/outpost:v1.0.3
+    image: hookdeck/outpost:v1.0.4
     command: migrate apply --yes
     env_file: .env
     depends_on:
@@ -10,7 +10,7 @@ services:
     restart: "no"
 
   api:
-    image: hookdeck/outpost:v1.0.3
+    image: hookdeck/outpost:v1.0.4
     env_file: .env
     depends_on:
       migrate:
@@ -25,7 +25,7 @@ services:
       - 3333:3333
 
   delivery:
-    image: hookdeck/outpost:v1.0.3
+    image: hookdeck/outpost:v1.0.4
     env_file: .env
     depends_on:
       migrate:
@@ -38,7 +38,7 @@ services:
       SERVICE: delivery
 
   log:
-    image: hookdeck/outpost:v1.0.3
+    image: hookdeck/outpost:v1.0.4
     env_file: .env
     depends_on:
       migrate:
