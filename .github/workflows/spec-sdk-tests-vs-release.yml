@@ -104,7 +104,10 @@ jobs:
         id: outpost-tag
         env:
           GH_TOKEN: ${{ github.token }}
-          OVERRIDE: ${{ inputs.outpost_version }}
+          # inputs.* is only populated on workflow_dispatch; short-circuit on
+          # other events so OVERRIDE stays empty and the resolver falls
+          # through to the latest-release path.
+          OVERRIDE: ${{ github.event_name == 'workflow_dispatch' && inputs.outpost_version || '' }}
         # On workflow_dispatch with outpost_version set, use that value
         # (normalize to a leading "v"). Otherwise resolve the latest
         # non-prerelease bare vX.Y.Z release — the repo uses namespaced tags
@@ -196,7 +199,9 @@ jobs:
           exit 1
 
       - name: Override SDK with sdk_version (workflow_dispatch only)
-        if: inputs.sdk_version != ''
+        # Guard event_name first so the inputs.* reference is short-circuited
+        # away on pull_request runs (where inputs.* isn't populated).
+        if: github.event_name == 'workflow_dispatch' && inputs.sdk_version != ''
         # Replace the working tree's sdks/outpost-typescript with the contents
         # at the SDK release tag. SDK tags are namespaced as
         # sdks/outpost-typescript/v<x>. Accept either "1.3.0" or "v1.3.0" by
