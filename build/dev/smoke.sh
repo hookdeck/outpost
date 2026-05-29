@@ -7,7 +7,7 @@
 # api, redis, mq, delivery worker, egress, log worker, log store.
 set -uo pipefail
 
-API="${OUTPOST_API:-http://localhost:3333/api/v1}"
+API="${OUTPOST_URL:-http://localhost:3333/api/v1}"
 KEY="${OUTPOST_API_KEY:-apikey}"
 WEBHOOK="${OUTPOST_SMOKE_WEBHOOK:-https://mock.hookdeck.com}"
 TOPIC="${OUTPOST_SMOKE_TOPIC:-user.created}"
