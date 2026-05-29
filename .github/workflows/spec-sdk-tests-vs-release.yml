@@ -40,10 +40,14 @@ on:
         required: false
         type: string
   pull_request:
+    # Deliberately not self-triggering on changes to this workflow file.
+    # The bot regen PRs (where this workflow is meant to fire) always
+    # touch sdks/outpost-typescript/**, so the gate still catches them.
+    # For local iteration on the workflow itself, use `gh workflow run
+    # --ref <branch>` instead.
     paths:
       - "sdks/outpost-typescript/**"
       - "spec-sdk-tests/**"
-      - ".github/workflows/spec-sdk-tests-vs-release.yml"
 
 jobs:
   spec-sdk-tests-vs-release:
