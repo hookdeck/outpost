@@ -1,0 +1,256 @@
+# Runs spec-sdk-tests with the SDK from this PR against the latest released
+# Outpost. Scenario 2 in the design discussion (see #921, #926).
+#
+# WHAT THIS WORKFLOW VALIDATES
+#   "Will the SDK in this PR work against the latest released Outpost?"
+#   For Speakeasy bot regen PRs that bump the TS SDK after an Outpost
+#   release, this confirms the newly-regen'd SDK doesn't break against the
+#   server version customers are already running.
+#
+# WHAT IT DOES NOT VALIDATE
+#   - That this PR's spec matches this PR's server. That's the separate
+#     spec-sdk-tests.yml workflow (#925) — different question entirely.
+#   - Compatibility against older releases, prereleases, or main.
+#
+# WHY THIS SHAPE
+#   Release order is: Outpost is tagged → sdk-generate-on-release fires →
+#   bot opens an SDK PR. By the time the bot PR exists, the released server
+#   exists too; testing the new SDK against that server answers the only
+#   question that matters before publishing the SDK to npm.
+#
+# Triggers: workflow_dispatch and PRs touching sdks/outpost-typescript/**
+# (where the Speakeasy bot regen PRs land).
+#
+# workflow_dispatch inputs (UI overrides, ignored on PR runs):
+#   sdk_version     — pin SDK to a specific TS release (e.g. "1.3.0" or "v1.3.0").
+#                     Empty = use the dispatch branch's current SDK contents.
+#   outpost_version — pin Outpost server to a specific release (e.g. "1.0.3" or "v1.0.3").
+#                     Empty = latest non-prerelease Outpost release.
+name: Spec SDK tests vs released Outpost
+
+on:
+  workflow_dispatch:
+    inputs:
+      sdk_version:
+        description: 'TS SDK version to test (e.g. "1.3.0" or "v1.3.0"). Empty = use this branch''s SDK contents.'
+        required: false
+        type: string
+      outpost_version:
+        description: 'Outpost release to test against (e.g. "1.0.3" or "v1.0.3"). Empty = latest non-prerelease release.'
+        required: false
+        type: string
+  pull_request:
+    # Deliberately not self-triggering on changes to this workflow file.
+    # The bot regen PRs (where this workflow is meant to fire) always
+    # touch sdks/outpost-typescript/**, so the gate still catches them.
+    # For local iteration on the workflow itself, use `gh workflow run
+    # --ref <branch>` instead.
+    paths:
+      - "sdks/outpost-typescript/**"
+      - "spec-sdk-tests/**"
+
+jobs:
+  spec-sdk-tests-vs-release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: outpost
+          POSTGRES_PASSWORD: outpost
+          POSTGRES_DB: outpost
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U outpost"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+      redis:
+        # redis-stack-server bundles RediSearch; tenants.list needs it.
+        image: redis/redis-stack-server:latest
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+      rabbitmq:
+        image: rabbitmq:3-management
+        ports:
+          - 5672:5672
+        options: >-
+          --health-cmd "rabbitmq-diagnostics -q ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      OUTPOST_API_KEY: ci-test-api-key
+      OUTPOST_TEST_TENANT: ci-test-tenant
+      TEST_TOPICS: "user.created,user.updated,order.created,heartbeat"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "20"
+
+      - name: Resolve Outpost release tag
+        id: outpost-tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          # inputs.* is only populated on workflow_dispatch; short-circuit on
+          # other events so OVERRIDE stays empty and the resolver falls
+          # through to the latest-release path.
+          OVERRIDE: ${{ github.event_name == 'workflow_dispatch' && inputs.outpost_version || '' }}
+        # On workflow_dispatch with outpost_version set, use that value
+        # (normalize to a leading "v"). Otherwise resolve the latest
+        # non-prerelease bare vX.Y.Z release — the repo uses namespaced tags
+        # (sdks/outpost-typescript/v1.3.0 etc.) for SDK releases, so
+        # `gh release view` returns the wrong thing.
+        run: |
+          if [ -n "$OVERRIDE" ]; then
+            tag="v${OVERRIDE#v}"
+            echo "Using outpost_version override: $tag"
+          else
+            tag=$(gh api repos/${{ github.repository }}/releases \
+              --jq '[.[] | select(.tag_name | test("^v[0-9]+\\.[0-9]+\\.[0-9]+$")) | select(.prerelease == false)][0].tag_name')
+            echo "Latest released Outpost: $tag"
+          fi
+          if [ -z "$tag" ] || [ "$tag" = "null" ]; then
+            echo "::error::Could not resolve Outpost release tag"
+            exit 1
+          fi
+          echo "tag=$tag" >> $GITHUB_OUTPUT
+
+      - name: Pull Outpost image
+        run: docker pull hookdeck/outpost:${{ steps.outpost-tag.outputs.tag }}
+
+      - name: Write outpost config
+        run: |
+          mkdir -p /tmp/outpost-config
+          cat > /tmp/outpost-config/.outpost.yaml <<EOF
+          log_level: info
+          deployment_id: "ci-test"
+
+          redis:
+            host: "localhost"
+            port: 6379
+
+          mqs:
+            rabbitmq:
+              server_url: "amqp://guest:guest@localhost:5672"
+
+          postgres: "postgres://outpost:outpost@localhost:5432/outpost?sslmode=disable"
+
+          api_key: "${OUTPOST_API_KEY}"
+          api_jwt_secret: "ci-jwt-secret"
+          aes_encryption_secret: "ci-encryption-secret-32-chars-min"
+
+          topics:
+            - user.created
+            - user.updated
+            - order.created
+            - heartbeat
+
+          idgen:
+            type: "nanoid"
+            attempt_prefix: "atm_"
+            destination_prefix: "des_"
+            event_prefix: "evt_"
+            delivery_prefix: "del_"
+          EOF
+
+      - name: Run migrations
+        run: |
+          docker run --rm --network host \
+            -v /tmp/outpost-config/.outpost.yaml:/config/.outpost.yaml \
+            -e CONFIG=/config/.outpost.yaml \
+            hookdeck/outpost:${{ steps.outpost-tag.outputs.tag }} \
+            migrate apply --yes
+
+      - name: Start outpost (singular mode)
+        # --network host so the container reaches the service containers on
+        # localhost:5432 / :6379 / :5672 (forwarded into the runner network).
+        run: |
+          docker run -d --network host \
+            -v /tmp/outpost-config/.outpost.yaml:/config/.outpost.yaml \
+            -e CONFIG=/config/.outpost.yaml \
+            --name outpost \
+            hookdeck/outpost:${{ steps.outpost-tag.outputs.tag }} \
+            serve
+
+      - name: Wait for /healthz
+        run: |
+          for i in {1..60}; do
+            if curl -sf http://localhost:3333/healthz >/dev/null; then
+              echo "Outpost API is healthy after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "::error::Outpost API did not become healthy within 60s"
+          docker logs outpost || true
+          exit 1
+
+      - name: Override SDK with sdk_version (workflow_dispatch only)
+        # Guard event_name first so the inputs.* reference is short-circuited
+        # away on pull_request runs (where inputs.* isn't populated).
+        if: github.event_name == 'workflow_dispatch' && inputs.sdk_version != ''
+        # Replace the working tree's sdks/outpost-typescript with the contents
+        # at the SDK release tag. SDK tags are namespaced as
+        # sdks/outpost-typescript/v<x>. Accept either "1.3.0" or "v1.3.0" by
+        # stripping any leading "v" and re-adding it.
+        env:
+          SDK_VERSION_INPUT: ${{ inputs.sdk_version }}
+        run: |
+          ver="${SDK_VERSION_INPUT#v}"
+          full_tag="sdks/outpost-typescript/v${ver}"
+          echo "Pinning SDK to $full_tag"
+          git fetch --depth=1 origin "refs/tags/$full_tag:refs/tags/$full_tag"
+          rm -rf sdks/outpost-typescript
+          git checkout "$full_tag" -- sdks/outpost-typescript
+
+      - name: Build TypeScript SDK
+        working-directory: sdks/outpost-typescript
+        # No regen — the SDK *is* what the PR (or the sdk_version override) is.
+        # We're testing whatever the bot generated, the human committed, or the
+        # specific release tag — as-is.
+        run: |
+          npm ci
+          npm run build
+
+      - name: Install spec-sdk-tests dependencies
+        working-directory: spec-sdk-tests
+        # spec-sdk-tests/.gitignore excludes package-lock.json.
+        run: npm install
+
+      - name: Configure spec-sdk-tests .env
+        run: |
+          cat > spec-sdk-tests/.env <<EOF
+          API_BASE_URL=http://localhost:3333/api/v1
+          API_KEY=${OUTPOST_API_KEY}
+          TENANT_ID=${OUTPOST_TEST_TENANT}
+          TEST_TOPICS=${TEST_TOPICS}
+          EOF
+
+      - name: Run spec-sdk-tests
+        working-directory: spec-sdk-tests
+        run: npm test
+
+      - name: Dump outpost logs on failure
+        if: failure()
+        run: docker logs outpost || true
+
+      - name: Stop outpost
+        if: always()
+        run: docker rm -f outpost || true
