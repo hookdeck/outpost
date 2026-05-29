@@ -1,5 +1,7 @@
 # WebhookCredentialsUpdate
 
+Partial Webhook credentials for PATCH updates (RFC 7396 merge-patch).
+
 
 ## Fields
 

@@ -13,10 +13,7 @@ import (
 	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
 	"github.com/hookdeck/outpost/sdks/outpost-go/models/operations"
 	"github.com/hookdeck/outpost/sdks/outpost-go/retry"
-	"github.com/spyzhov/ajson"
 	"net/http"
-	"strconv"
-	"strings"
 )
 
 // Destinations are the endpoints where events are sent. Each destination is associated with a tenant and can be configured to receive specific event topics.
@@ -2180,72 +2177,6 @@ func (s *Destinations) ListAttempts(ctx context.Context, request operations.List
 			Request:  req,
 			Response: httpRes,
 		},
-	}
-	res.Next = func() (*operations.ListTenantDestinationAttemptsResponse, error) {
-		rawBody, err := utils.ConsumeRawBody(httpRes)
-		if err != nil {
-			return nil, err
-		}
-
-		b, err := ajson.Unmarshal(rawBody)
-		if err != nil {
-			return nil, err
-		}
-		nC, err := ajson.Eval(b, "$.pagination.next")
-		if err != nil {
-			return nil, err
-		}
-		var nCVal string
-
-		if nC.IsNumeric() {
-			numVal, err := nC.GetNumeric()
-			if err != nil {
-				return nil, err
-			}
-			// GetNumeric returns as float64 so convert to the appropriate type.
-			nCVal = strconv.FormatFloat(numVal, 'f', 0, 64)
-		} else {
-			val, err := nC.Value()
-			if err != nil {
-				return nil, err
-			}
-			if val == nil {
-				return nil, nil
-			}
-			nCVal = val.(string)
-			if strings.TrimSpace(nCVal) == "" {
-				return nil, nil
-			}
-		}
-		r, err := ajson.Eval(b, "$.models")
-		if err != nil {
-			return nil, err
-		}
-		if !r.IsArray() {
-			return nil, nil
-		}
-		arr, err := r.GetArray()
-		if err != nil {
-			return nil, err
-		}
-		if len(arr) == 0 {
-			return nil, nil
-		}
-
-		l := 0
-		if request.Limit != nil {
-			l = int(*request.Limit)
-		}
-		if len(arr) < l {
-			return nil, nil
-		}
-		request.Next = &nCVal
-
-		return s.ListAttempts(
-			ctx,
-			request,
-			opts...,
-		)
 	}
 
 	switch {

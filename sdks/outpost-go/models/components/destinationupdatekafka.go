@@ -3,12 +3,40 @@
 package components
 
 import (
+	"encoding/json"
+	"fmt"
 	"github.com/hookdeck/outpost/sdks/outpost-go/internal/utils"
 	"github.com/hookdeck/outpost/sdks/outpost-go/optionalnullable"
 	"time"
 )
 
+// DestinationUpdateKafkaType - Destination type discriminator. Must equal the existing destination's type — type itself cannot be changed via PATCH.
+type DestinationUpdateKafkaType string
+
+const (
+	DestinationUpdateKafkaTypeKafka DestinationUpdateKafkaType = "kafka"
+)
+
+func (e DestinationUpdateKafkaType) ToPointer() *DestinationUpdateKafkaType {
+	return &e
+}
+func (e *DestinationUpdateKafkaType) UnmarshalJSON(data []byte) error {
+	var v string
+	if err := json.Unmarshal(data, &v); err != nil {
+		return err
+	}
+	switch v {
+	case "kafka":
+		*e = DestinationUpdateKafkaType(v)
+		return nil
+	default:
+		return fmt.Errorf("invalid value for DestinationUpdateKafkaType: %v", v)
+	}
+}
+
 type DestinationUpdateKafka struct {
+	// Destination type discriminator. Must equal the existing destination's type — type itself cannot be changed via PATCH.
+	Type DestinationUpdateKafkaType `json:"type"`
 	// "*" or an array of enabled topics.
 	Topics *Topics `json:"topics,omitempty"`
 	// Optional JSON schema filter for event matching. Events must match this filter to be delivered to this destination.
@@ -16,9 +44,11 @@ type DestinationUpdateKafka struct {
 	// If null or empty, all events matching the topic filter will be delivered.
 	// Uses full-replacement semantics on update: send a new object to replace, null or `{}` to clear, omit for no change.
 	//
-	Filter      optionalnullable.OptionalNullable[map[string]any] `json:"filter,omitempty"`
-	Config      *KafkaConfig                                      `json:"config,omitempty"`
-	Credentials *KafkaCredentials                                 `json:"credentials,omitempty"`
+	Filter optionalnullable.OptionalNullable[map[string]any] `json:"filter,omitempty"`
+	// Partial Kafka config for PATCH updates (RFC 7396 merge-patch).
+	Config *KafkaConfigUpdate `json:"config,omitempty"`
+	// Partial Kafka credentials for PATCH updates (RFC 7396 merge-patch).
+	Credentials *KafkaCredentialsUpdate `json:"credentials,omitempty"`
 	// Static key-value pairs merged into event metadata on every attempt. Uses JSON merge-patch semantics (RFC 7396): send keys to add/update, null values to delete keys, null for entire field to clear all. Omit or send {} for no change.
 	DeliveryMetadata optionalnullable.OptionalNullable[map[string]*string] `json:"delivery_metadata,omitempty"`
 	// Arbitrary contextual information stored with the destination. Uses JSON merge-patch semantics (RFC 7396): send keys to add/update, null values to delete keys, null for entire field to clear all. Omit or send {} for no change.
@@ -32,10 +62,17 @@ func (d DestinationUpdateKafka) MarshalJSON() ([]byte, error) {
 }
 
 func (d *DestinationUpdateKafka) UnmarshalJSON(data []byte) error {
-	if err := utils.UnmarshalJSON(data, &d, "", false, nil); err != nil {
+	if err := utils.UnmarshalJSON(data, &d, "", false, []string{"type"}); err != nil {
 		return err
 	}
 	return nil
+}
+
+func (d *DestinationUpdateKafka) GetType() DestinationUpdateKafkaType {
+	if d == nil {
+		return DestinationUpdateKafkaType("")
+	}
+	return d.Type
 }
 
 func (d *DestinationUpdateKafka) GetTopics() *Topics {
@@ -52,14 +89,14 @@ func (d *DestinationUpdateKafka) GetFilter() optionalnullable.OptionalNullable[m
 	return d.Filter
 }
 
-func (d *DestinationUpdateKafka) GetConfig() *KafkaConfig {
+func (d *DestinationUpdateKafka) GetConfig() *KafkaConfigUpdate {
 	if d == nil {
 		return nil
 	}
 	return d.Config
 }
 
-func (d *DestinationUpdateKafka) GetCredentials() *KafkaCredentials {
+func (d *DestinationUpdateKafka) GetCredentials() *KafkaCredentialsUpdate {
 	if d == nil {
 		return nil
 	}

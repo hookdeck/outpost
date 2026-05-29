@@ -337,20 +337,9 @@ func main() {
         outpostgo.WithSecurity("<YOUR_BEARER_TOKEN_HERE>"),
     )
 
-    res, err := s.Destinations.Update(ctx, "<id>", "<id>", components.CreateDestinationUpdateDestinationUpdateRabbitMQ(
-        components.DestinationUpdateRabbitMQ{
-            Topics: outpostgo.Pointer(components.CreateTopicsTopicsEnum(
-                components.TopicsEnumWildcard,
-            )),
-            Config: &components.RabbitMQConfig{
-                ServerURL: "localhost:5672",
-                Exchange: "my-exchange",
-                TLS: components.RabbitMQConfigTLSFalse.ToPointer(),
-            },
-            Credentials: &components.RabbitMQCredentials{
-                Username: "guest",
-                Password: "guest",
-            },
+    res, err := s.Destinations.Update(ctx, "<id>", "<id>", components.CreateDestinationUpdateKafka(
+        components.DestinationUpdateKafka{
+            Type: components.DestinationUpdateKafkaTypeKafka,
         },
     ))
     if err != nil {
@@ -386,16 +375,9 @@ func main() {
         outpostgo.WithSecurity("<YOUR_BEARER_TOKEN_HERE>"),
     )
 
-    res, err := s.Destinations.Update(ctx, "<id>", "<id>", components.CreateDestinationUpdateDestinationUpdateWebhook(
-        components.DestinationUpdateWebhook{
-            Topics: outpostgo.Pointer(components.CreateTopicsArrayOfStr(
-                []string{
-                    "user.created",
-                },
-            )),
-            Config: &components.WebhookConfig{
-                URL: "https://my-service.com/webhook/new-handler",
-            },
+    res, err := s.Destinations.Update(ctx, "<id>", "<id>", components.CreateDestinationUpdateHookdeck(
+        components.DestinationUpdateHookdeck{
+            Type: components.DestinationUpdateHookdeckTypeHookdeck,
         },
     ))
     if err != nil {
@@ -674,19 +656,7 @@ func main() {
         log.Fatal(err)
     }
     if res.AttemptPaginatedResult != nil {
-        for {
-            // handle items
-
-            res, err = res.Next()
-
-            if err != nil {
-                // handle error
-            }
-
-            if res == nil {
-                break
-            }
-        }
+        // handle response
     }
 }
 ```
@@ -742,10 +712,10 @@ func main() {
     }
     if res.Attempt != nil {
         switch res.Attempt.Event.Type {
-            case components.EventUnionTypeEventSummary:
-                // res.Attempt.Event.EventSummary is populated
             case components.EventUnionTypeEventFull:
                 // res.Attempt.Event.EventFull is populated
+            case components.EventUnionTypeEventSummary:
+                // res.Attempt.Event.EventSummary is populated
         }
 
     }

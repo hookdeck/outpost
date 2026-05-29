@@ -3,12 +3,40 @@
 package components
 
 import (
+	"encoding/json"
+	"fmt"
 	"github.com/hookdeck/outpost/sdks/outpost-go/internal/utils"
 	"github.com/hookdeck/outpost/sdks/outpost-go/optionalnullable"
 	"time"
 )
 
+// DestinationUpdateGCPPubSubType - Destination type discriminator. Must equal the existing destination's type — type itself cannot be changed via PATCH.
+type DestinationUpdateGCPPubSubType string
+
+const (
+	DestinationUpdateGCPPubSubTypeGcpPubsub DestinationUpdateGCPPubSubType = "gcp_pubsub"
+)
+
+func (e DestinationUpdateGCPPubSubType) ToPointer() *DestinationUpdateGCPPubSubType {
+	return &e
+}
+func (e *DestinationUpdateGCPPubSubType) UnmarshalJSON(data []byte) error {
+	var v string
+	if err := json.Unmarshal(data, &v); err != nil {
+		return err
+	}
+	switch v {
+	case "gcp_pubsub":
+		*e = DestinationUpdateGCPPubSubType(v)
+		return nil
+	default:
+		return fmt.Errorf("invalid value for DestinationUpdateGCPPubSubType: %v", v)
+	}
+}
+
 type DestinationUpdateGCPPubSub struct {
+	// Destination type discriminator. Must equal the existing destination's type — type itself cannot be changed via PATCH.
+	Type DestinationUpdateGCPPubSubType `json:"type"`
 	// "*" or an array of enabled topics.
 	Topics *Topics `json:"topics,omitempty"`
 	// Optional JSON schema filter for event matching. Events must match this filter to be delivered to this destination.
@@ -16,9 +44,11 @@ type DestinationUpdateGCPPubSub struct {
 	// If null or empty, all events matching the topic filter will be delivered.
 	// Uses full-replacement semantics on update: send a new object to replace, null or `{}` to clear, omit for no change.
 	//
-	Filter      optionalnullable.OptionalNullable[map[string]any] `json:"filter,omitempty"`
-	Config      *GCPPubSubConfig                                  `json:"config,omitempty"`
-	Credentials *GCPPubSubCredentials                             `json:"credentials,omitempty"`
+	Filter optionalnullable.OptionalNullable[map[string]any] `json:"filter,omitempty"`
+	// Partial GCP Pub/Sub config for PATCH updates (RFC 7396 merge-patch).
+	Config *GCPPubSubConfigUpdate `json:"config,omitempty"`
+	// Partial GCP Pub/Sub credentials for PATCH updates (RFC 7396 merge-patch).
+	Credentials *GCPPubSubCredentialsUpdate `json:"credentials,omitempty"`
 	// Static key-value pairs merged into event metadata on every attempt. Uses JSON merge-patch semantics (RFC 7396): send keys to add/update, null values to delete keys, null for entire field to clear all. Omit or send {} for no change.
 	DeliveryMetadata optionalnullable.OptionalNullable[map[string]*string] `json:"delivery_metadata,omitempty"`
 	// Arbitrary contextual information stored with the destination. Uses JSON merge-patch semantics (RFC 7396): send keys to add/update, null values to delete keys, null for entire field to clear all. Omit or send {} for no change.
@@ -32,10 +62,17 @@ func (d DestinationUpdateGCPPubSub) MarshalJSON() ([]byte, error) {
 }
 
 func (d *DestinationUpdateGCPPubSub) UnmarshalJSON(data []byte) error {
-	if err := utils.UnmarshalJSON(data, &d, "", false, nil); err != nil {
+	if err := utils.UnmarshalJSON(data, &d, "", false, []string{"type"}); err != nil {
 		return err
 	}
 	return nil
+}
+
+func (d *DestinationUpdateGCPPubSub) GetType() DestinationUpdateGCPPubSubType {
+	if d == nil {
+		return DestinationUpdateGCPPubSubType("")
+	}
+	return d.Type
 }
 
 func (d *DestinationUpdateGCPPubSub) GetTopics() *Topics {
@@ -52,14 +89,14 @@ func (d *DestinationUpdateGCPPubSub) GetFilter() optionalnullable.OptionalNullab
 	return d.Filter
 }
 
-func (d *DestinationUpdateGCPPubSub) GetConfig() *GCPPubSubConfig {
+func (d *DestinationUpdateGCPPubSub) GetConfig() *GCPPubSubConfigUpdate {
 	if d == nil {
 		return nil
 	}
 	return d.Config
 }
 
-func (d *DestinationUpdateGCPPubSub) GetCredentials() *GCPPubSubCredentials {
+func (d *DestinationUpdateGCPPubSub) GetCredentials() *GCPPubSubCredentialsUpdate {
 	if d == nil {
 		return nil
 	}

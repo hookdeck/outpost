@@ -9,8 +9,8 @@ sources:
             - 0.0.1
     Outpost API (Go):
         sourceNamespace: outpost-api
-        sourceRevisionDigest: sha256:3dcedd941c02dca57d321a9ff9549ad3e4c06f4b05fce54b1db4518ae1525926
-        sourceBlobDigest: sha256:26aa19602e299ca2b312093a0ae81958402522a9d8a1f900742904197648c5ed
+        sourceRevisionDigest: sha256:fa0463ed9fac6e1ea1d4d27ca3c8fd28f250c107549edc96fc3130dce2fa2591
+        sourceBlobDigest: sha256:66aab8b551893e83f5702de4ab4d57f24cdc1a68c4a17efa0e51b0d4249aa83b
         tags:
             - latest
             - 0.0.1
@@ -25,10 +25,10 @@ targets:
     outpost-go:
         source: Outpost API (Go)
         sourceNamespace: outpost-api
-        sourceRevisionDigest: sha256:3dcedd941c02dca57d321a9ff9549ad3e4c06f4b05fce54b1db4518ae1525926
-        sourceBlobDigest: sha256:26aa19602e299ca2b312093a0ae81958402522a9d8a1f900742904197648c5ed
+        sourceRevisionDigest: sha256:fa0463ed9fac6e1ea1d4d27ca3c8fd28f250c107549edc96fc3130dce2fa2591
+        sourceBlobDigest: sha256:66aab8b551893e83f5702de4ab4d57f24cdc1a68c4a17efa0e51b0d4249aa83b
         codeSamplesNamespace: outpost-api-go-code-samples
-        codeSamplesRevisionDigest: sha256:0244d7a112aba384de02c70dfbb3db6c48c858e36f29dba6006d1281ebc8d7bf
+        codeSamplesRevisionDigest: sha256:57c198724b8e924a4d7b2aa692412b0ce003c66999d46bd45ab6f8e129218c2d
     outpost-python:
         source: Outpost API (Python)
         sourceNamespace: outpost-api
@@ -54,7 +54,6 @@ workflow:
                 - location: ./sdks/schemas/speakeasy-modifications-overlay.yaml
                 - location: ./sdks/schemas/security-collapse-overlay.yaml
                 - location: ./sdks/schemas/error-types.yaml
-                - location: ./sdks/schemas/pagination-config-overlay.yaml
             registry:
                 location: registry.speakeasyapi.dev/hookdeck-dev/outpost/outpost-api
         Outpost API (Go):
@@ -64,7 +63,6 @@ workflow:
                 - location: ./sdks/schemas/speakeasy-modifications-overlay.yaml
                 - location: ./sdks/schemas/security-collapse-overlay.yaml
                 - location: ./sdks/schemas/error-types.yaml
-                - location: ./sdks/schemas/pagination-config-overlay.yaml
                 - location: ./sdks/schemas/go-array-params-overlay.yaml
             registry:
                 location: registry.speakeasyapi.dev/hookdeck-dev/outpost/outpost-api
@@ -75,7 +73,6 @@ workflow:
                 - location: ./sdks/schemas/speakeasy-modifications-overlay.yaml
                 - location: ./sdks/schemas/security-collapse-overlay.yaml
                 - location: ./sdks/schemas/error-types.yaml
-                - location: ./sdks/schemas/pagination-config-overlay.yaml
                 - location: ./sdks/schemas/python-pagination-fixes-overlay.yaml
             registry:
                 location: registry.speakeasyapi.dev/hookdeck-dev/outpost/outpost-api
