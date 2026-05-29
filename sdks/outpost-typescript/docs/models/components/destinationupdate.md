@@ -7,6 +7,7 @@
 
 ```typescript
 const value: components.DestinationUpdateWebhook = {
+  type: "webhook",
   topics: "*",
   filter: {
     "data": {
@@ -35,40 +36,11 @@ const value: components.DestinationUpdateWebhook = {
 };
 ```
 
-### `components.DestinationUpdateHookdeck`
-
-```typescript
-const value: components.DestinationUpdateHookdeck = {
-  topics: "*",
-  filter: {
-    "data": {
-      "amount": {
-        "$gte": 100,
-      },
-      "customer": {
-        "tier": "premium",
-      },
-    },
-  },
-  credentials: {
-    token: "hd_token_...",
-  },
-  deliveryMetadata: {
-    "app-id": "my-app",
-    "region": "us-east-1",
-  },
-  metadata: {
-    "internal-id": "123",
-    "team": "platform",
-  },
-  disabledAt: null,
-};
-```
-
 ### `components.DestinationUpdateAWSSQS`
 
 ```typescript
 const value: components.DestinationUpdateAWSSQS = {
+  type: "aws_sqs",
   topics: "*",
   filter: {
     "data": {
@@ -83,158 +55,6 @@ const value: components.DestinationUpdateAWSSQS = {
   config: {
     endpoint: "https://sqs.us-east-1.amazonaws.com",
     queueUrl: "https://sqs.us-east-1.amazonaws.com/123456789012/my-queue",
-  },
-  credentials: {
-    key: "AKIAIOSFODNN7EXAMPLE",
-    secret: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
-    session: "AQoDYXdzEPT//////////wEXAMPLE...",
-  },
-  deliveryMetadata: {
-    "app-id": "my-app",
-    "region": "us-east-1",
-  },
-  metadata: {
-    "internal-id": "123",
-    "team": "platform",
-  },
-  disabledAt: null,
-};
-```
-
-### `components.DestinationUpdateAWSKinesis`
-
-```typescript
-const value: components.DestinationUpdateAWSKinesis = {
-  topics: "*",
-  filter: {
-    "data": {
-      "amount": {
-        "$gte": 100,
-      },
-      "customer": {
-        "tier": "premium",
-      },
-    },
-  },
-  config: {
-    streamName: "my-data-stream",
-    region: "us-east-1",
-    endpoint: "https://kinesis.us-east-1.amazonaws.com",
-    partitionKeyTemplate: "data.\"user_id\"",
-  },
-  credentials: {
-    key: "AKIAIOSFODNN7EXAMPLE",
-    secret: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
-    session: "AQoDYXdzEPT//////////wEXAMPLE...",
-  },
-  deliveryMetadata: {
-    "app-id": "my-app",
-    "region": "us-east-1",
-  },
-  metadata: {
-    "internal-id": "123",
-    "team": "platform",
-  },
-  disabledAt: null,
-};
-```
-
-### `components.DestinationUpdateAwss3`
-
-```typescript
-const value: components.DestinationUpdateAwss3 = {
-  topics: "*",
-  filter: {
-    "data": {
-      "amount": {
-        "$gte": 100,
-      },
-      "customer": {
-        "tier": "premium",
-      },
-    },
-  },
-  config: {
-    bucket: "my-bucket",
-    region: "us-east-1",
-    keyTemplate:
-      "join('/', [time.year, time.month, time.day, metadata.\"event-id\", '.json'])",
-    storageClass: "STANDARD",
-  },
-  credentials: {
-    key: "AKIAIOSFODNN7EXAMPLE",
-    secret: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
-    session: "AQoDYXdzEPT//////////wEXAMPLE...",
-  },
-  deliveryMetadata: {
-    "app-id": "my-app",
-    "region": "us-east-1",
-  },
-  metadata: {
-    "internal-id": "123",
-    "team": "platform",
-  },
-  disabledAt: null,
-};
-```
-
-### `components.DestinationUpdateAzureServiceBus`
-
-```typescript
-const value: components.DestinationUpdateAzureServiceBus = {
-  topics: "*",
-  filter: {
-    "data": {
-      "amount": {
-        "$gte": 100,
-      },
-      "customer": {
-        "tier": "premium",
-      },
-    },
-  },
-  config: {
-    name: "my-queue-or-topic",
-  },
-  credentials: {
-    connectionString:
-      "Endpoint=sb://namespace.servicebus.windows.net/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=abc123",
-  },
-  deliveryMetadata: {
-    "app-id": "my-app",
-    "region": "us-east-1",
-  },
-  metadata: {
-    "internal-id": "123",
-    "team": "platform",
-  },
-  disabledAt: null,
-};
-```
-
-### `components.DestinationUpdateGCPPubSub`
-
-```typescript
-const value: components.DestinationUpdateGCPPubSub = {
-  topics: "*",
-  filter: {
-    "data": {
-      "amount": {
-        "$gte": 100,
-      },
-      "customer": {
-        "tier": "premium",
-      },
-    },
-  },
-  config: {
-    projectId: "my-project-123",
-    topic: "events-topic",
-    endpoint: "pubsub.googleapis.com:443",
-  },
-  credentials: {
-    serviceAccountJson:
-      "{\"type\":\"service_account\",\"project_id\":\"my-project\",\"private_key_id\":\"key123\",\"private_key\":\"-----BEGIN PRIVATE KEY-----\\n...\\n-----END PRIVATE KEY-----\\n\",\"client_email\":\"my-service@my-project.iam.gserviceaccount.com\"}",
   },
   deliveryMetadata: {
     "app-id": "my-app",
@@ -252,6 +72,7 @@ const value: components.DestinationUpdateGCPPubSub = {
 
 ```typescript
 const value: components.DestinationUpdateRabbitMQ = {
+  type: "rabbitmq",
   topics: "*",
   filter: {
     "data": {
@@ -263,14 +84,145 @@ const value: components.DestinationUpdateRabbitMQ = {
       },
     },
   },
-  config: {
-    serverUrl: "localhost:5672",
-    exchange: "my-exchange",
-    tls: "false",
+  deliveryMetadata: {
+    "app-id": "my-app",
+    "region": "us-east-1",
   },
-  credentials: {
-    username: "guest",
-    password: "guest",
+  metadata: {
+    "internal-id": "123",
+    "team": "platform",
+  },
+  disabledAt: null,
+};
+```
+
+### `components.DestinationUpdateHookdeck`
+
+```typescript
+const value: components.DestinationUpdateHookdeck = {
+  type: "hookdeck",
+  topics: "*",
+  filter: {
+    "data": {
+      "amount": {
+        "$gte": 100,
+      },
+      "customer": {
+        "tier": "premium",
+      },
+    },
+  },
+  deliveryMetadata: {
+    "app-id": "my-app",
+    "region": "us-east-1",
+  },
+  metadata: {
+    "internal-id": "123",
+    "team": "platform",
+  },
+  disabledAt: null,
+};
+```
+
+### `components.DestinationUpdateAWSKinesis`
+
+```typescript
+const value: components.DestinationUpdateAWSKinesis = {
+  type: "aws_kinesis",
+  topics: "*",
+  filter: {
+    "data": {
+      "amount": {
+        "$gte": 100,
+      },
+      "customer": {
+        "tier": "premium",
+      },
+    },
+  },
+  deliveryMetadata: {
+    "app-id": "my-app",
+    "region": "us-east-1",
+  },
+  metadata: {
+    "internal-id": "123",
+    "team": "platform",
+  },
+  disabledAt: null,
+};
+```
+
+### `components.DestinationUpdateAzureServiceBus`
+
+```typescript
+const value: components.DestinationUpdateAzureServiceBus = {
+  type: "azure_servicebus",
+  topics: "*",
+  filter: {
+    "data": {
+      "amount": {
+        "$gte": 100,
+      },
+      "customer": {
+        "tier": "premium",
+      },
+    },
+  },
+  deliveryMetadata: {
+    "app-id": "my-app",
+    "region": "us-east-1",
+  },
+  metadata: {
+    "internal-id": "123",
+    "team": "platform",
+  },
+  disabledAt: null,
+};
+```
+
+### `components.DestinationUpdateAwss3`
+
+```typescript
+const value: components.DestinationUpdateAwss3 = {
+  type: "aws_s3",
+  topics: "*",
+  filter: {
+    "data": {
+      "amount": {
+        "$gte": 100,
+      },
+      "customer": {
+        "tier": "premium",
+      },
+    },
+  },
+  deliveryMetadata: {
+    "app-id": "my-app",
+    "region": "us-east-1",
+  },
+  metadata: {
+    "internal-id": "123",
+    "team": "platform",
+  },
+  disabledAt: null,
+};
+```
+
+### `components.DestinationUpdateGCPPubSub`
+
+```typescript
+const value: components.DestinationUpdateGCPPubSub = {
+  type: "gcp_pubsub",
+  topics: "*",
+  filter: {
+    "data": {
+      "amount": {
+        "$gte": 100,
+      },
+      "customer": {
+        "tier": "premium",
+      },
+    },
   },
   deliveryMetadata: {
     "app-id": "my-app",
@@ -288,6 +240,7 @@ const value: components.DestinationUpdateRabbitMQ = {
 
 ```typescript
 const value: components.DestinationUpdateKafka = {
+  type: "kafka",
   topics: "*",
   filter: {
     "data": {
@@ -298,16 +251,6 @@ const value: components.DestinationUpdateKafka = {
         "tier": "premium",
       },
     },
-  },
-  config: {
-    brokers: "broker1.example.com:9092,broker2.example.com:9092",
-    topic: "events",
-    saslMechanism: "scram-sha-256",
-    partitionKeyTemplate: "data.customer_id",
-  },
-  credentials: {
-    username: "outpost",
-    password: "secure_password_123",
   },
   deliveryMetadata: {
     "app-id": "my-app",

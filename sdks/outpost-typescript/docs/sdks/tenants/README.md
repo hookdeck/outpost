@@ -39,9 +39,7 @@ const outpost = new Outpost({
 async function run() {
   const result = await outpost.tenants.list({});
 
-  for await (const page of result) {
-    console.log(page);
-  }
+  console.log(result);
 }
 
 run();
@@ -65,9 +63,7 @@ async function run() {
   const res = await tenantsList(outpost, {});
   if (res.ok) {
     const { value: result } = res;
-    for await (const page of result) {
-    console.log(page);
-  }
+    console.log(result);
   } else {
     console.log("tenantsList failed:", res.error);
   }
@@ -87,7 +83,7 @@ run();
 
 ### Response
 
-**Promise\<[operations.ListTenantsResponse](../../models/operations/listtenantsresponse.md)\>**
+**Promise\<[components.TenantPaginatedResult](../../models/components/tenantpaginatedresult.md)\>**
 
 ### Errors
 

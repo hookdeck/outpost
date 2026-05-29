@@ -34,10 +34,6 @@ let value: Attempt = {
     metadata: {
       "source": "crm",
     },
-    data: {
-      "user_id": "userid",
-      "status": "active",
-    },
   },
   destination: {
     id: "des_webhook_123",

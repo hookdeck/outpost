@@ -104,10 +104,6 @@ export type ListEventsRequest = {
   dir?: ListEventsDir | undefined;
 };
 
-export type ListEventsResponse = {
-  result: components.EventPaginatedResult;
-};
-
 /** @internal */
 export const ListEventsId$inboundSchema: z.ZodType<
   ListEventsId,
@@ -327,52 +323,5 @@ export function listEventsRequestFromJSON(
     jsonString,
     (x) => ListEventsRequest$inboundSchema.parse(JSON.parse(x)),
     `Failed to parse 'ListEventsRequest' from JSON`,
-  );
-}
-
-/** @internal */
-export const ListEventsResponse$inboundSchema: z.ZodType<
-  ListEventsResponse,
-  z.ZodTypeDef,
-  unknown
-> = z.object({
-  Result: components.EventPaginatedResult$inboundSchema,
-}).transform((v) => {
-  return remap$(v, {
-    "Result": "result",
-  });
-});
-/** @internal */
-export type ListEventsResponse$Outbound = {
-  Result: components.EventPaginatedResult$Outbound;
-};
-
-/** @internal */
-export const ListEventsResponse$outboundSchema: z.ZodType<
-  ListEventsResponse$Outbound,
-  z.ZodTypeDef,
-  ListEventsResponse
-> = z.object({
-  result: components.EventPaginatedResult$outboundSchema,
-}).transform((v) => {
-  return remap$(v, {
-    result: "Result",
-  });
-});
-
-export function listEventsResponseToJSON(
-  listEventsResponse: ListEventsResponse,
-): string {
-  return JSON.stringify(
-    ListEventsResponse$outboundSchema.parse(listEventsResponse),
-  );
-}
-export function listEventsResponseFromJSON(
-  jsonString: string,
-): SafeParseResult<ListEventsResponse, SDKValidationError> {
-  return safeParse(
-    jsonString,
-    (x) => ListEventsResponse$inboundSchema.parse(JSON.parse(x)),
-    `Failed to parse 'ListEventsResponse' from JSON`,
   );
 }

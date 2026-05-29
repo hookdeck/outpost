@@ -347,16 +347,7 @@ const outpost = new Outpost({
 
 async function run() {
   const result = await outpost.destinations.update("<id>", "<id>", {
-    topics: "*",
-    config: {
-      serverUrl: "localhost:5672",
-      exchange: "my-exchange",
-      tls: "false",
-    },
-    credentials: {
-      username: "guest",
-      password: "guest",
-    },
+    type: "kafka",
   });
 
   console.log(result);
@@ -381,16 +372,7 @@ const outpost = new OutpostCore({
 
 async function run() {
   const res = await destinationsUpdate(outpost, "<id>", "<id>", {
-    topics: "*",
-    config: {
-      serverUrl: "localhost:5672",
-      exchange: "my-exchange",
-      tls: "false",
-    },
-    credentials: {
-      username: "guest",
-      password: "guest",
-    },
+    type: "kafka",
   });
   if (res.ok) {
     const { value: result } = res;
@@ -414,12 +396,7 @@ const outpost = new Outpost({
 
 async function run() {
   const result = await outpost.destinations.update("<id>", "<id>", {
-    topics: [
-      "user.created",
-    ],
-    config: {
-      url: "https://my-service.com/webhook/new-handler",
-    },
+    type: "hookdeck",
   });
 
   console.log(result);
@@ -444,12 +421,7 @@ const outpost = new OutpostCore({
 
 async function run() {
   const res = await destinationsUpdate(outpost, "<id>", "<id>", {
-    topics: [
-      "user.created",
-    ],
-    config: {
-      url: "https://my-service.com/webhook/new-handler",
-    },
+    type: "hookdeck",
   });
   if (res.ok) {
     const { value: result } = res;
@@ -726,9 +698,7 @@ async function run() {
     destinationId: "<id>",
   });
 
-  for await (const page of result) {
-    console.log(page);
-  }
+  console.log(result);
 }
 
 run();
@@ -755,9 +725,7 @@ async function run() {
   });
   if (res.ok) {
     const { value: result } = res;
-    for await (const page of result) {
-    console.log(page);
-  }
+    console.log(result);
   } else {
     console.log("destinationsListAttempts failed:", res.error);
   }
@@ -777,7 +745,7 @@ run();
 
 ### Response
 
-**Promise\<[operations.ListTenantDestinationAttemptsResponse](../../models/operations/listtenantdestinationattemptsresponse.md)\>**
+**Promise\<[components.AttemptPaginatedResult](../../models/components/attemptpaginatedresult.md)\>**
 
 ### Errors
 

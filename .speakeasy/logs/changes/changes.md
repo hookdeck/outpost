@@ -1,4 +1,4 @@
-## Python SDK Changes:
+## Typescript SDK Changes:
 * `outpost.destinations.update()`: `request.body` **Changed** (Breaking ⚠️)
     - `union(DestinationUpdateAWSKinesis)` **Removed** (Breaking ⚠️)
     - `union(DestinationUpdateAWSS3)` **Removed** (Breaking ⚠️)

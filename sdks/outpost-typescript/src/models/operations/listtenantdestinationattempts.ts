@@ -129,10 +129,6 @@ export type ListTenantDestinationAttemptsRequest = {
   dir?: ListTenantDestinationAttemptsDir | undefined;
 };
 
-export type ListTenantDestinationAttemptsResponse = {
-  result: components.AttemptPaginatedResult;
-};
-
 /** @internal */
 export const ListTenantDestinationAttemptsEventId$inboundSchema: z.ZodType<
   ListTenantDestinationAttemptsEventId,
@@ -361,55 +357,5 @@ export function listTenantDestinationAttemptsRequestFromJSON(
     (x) =>
       ListTenantDestinationAttemptsRequest$inboundSchema.parse(JSON.parse(x)),
     `Failed to parse 'ListTenantDestinationAttemptsRequest' from JSON`,
-  );
-}
-
-/** @internal */
-export const ListTenantDestinationAttemptsResponse$inboundSchema: z.ZodType<
-  ListTenantDestinationAttemptsResponse,
-  z.ZodTypeDef,
-  unknown
-> = z.object({
-  Result: components.AttemptPaginatedResult$inboundSchema,
-}).transform((v) => {
-  return remap$(v, {
-    "Result": "result",
-  });
-});
-/** @internal */
-export type ListTenantDestinationAttemptsResponse$Outbound = {
-  Result: components.AttemptPaginatedResult$Outbound;
-};
-
-/** @internal */
-export const ListTenantDestinationAttemptsResponse$outboundSchema: z.ZodType<
-  ListTenantDestinationAttemptsResponse$Outbound,
-  z.ZodTypeDef,
-  ListTenantDestinationAttemptsResponse
-> = z.object({
-  result: components.AttemptPaginatedResult$outboundSchema,
-}).transform((v) => {
-  return remap$(v, {
-    result: "Result",
-  });
-});
-
-export function listTenantDestinationAttemptsResponseToJSON(
-  listTenantDestinationAttemptsResponse: ListTenantDestinationAttemptsResponse,
-): string {
-  return JSON.stringify(
-    ListTenantDestinationAttemptsResponse$outboundSchema.parse(
-      listTenantDestinationAttemptsResponse,
-    ),
-  );
-}
-export function listTenantDestinationAttemptsResponseFromJSON(
-  jsonString: string,
-): SafeParseResult<ListTenantDestinationAttemptsResponse, SDKValidationError> {
-  return safeParse(
-    jsonString,
-    (x) =>
-      ListTenantDestinationAttemptsResponse$inboundSchema.parse(JSON.parse(x)),
-    `Failed to parse 'ListTenantDestinationAttemptsResponse' from JSON`,
   );
 }

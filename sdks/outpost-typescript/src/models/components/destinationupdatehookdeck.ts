@@ -8,11 +8,11 @@ import { safeParse } from "../../lib/schemas.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 import {
-  HookdeckCredentials,
-  HookdeckCredentials$inboundSchema,
-  HookdeckCredentials$Outbound,
-  HookdeckCredentials$outboundSchema,
-} from "./hookdeckcredentials.js";
+  HookdeckCredentialsUpdate,
+  HookdeckCredentialsUpdate$inboundSchema,
+  HookdeckCredentialsUpdate$Outbound,
+  HookdeckCredentialsUpdate$outboundSchema,
+} from "./hookdeckcredentialsupdate.js";
 import {
   Topics,
   Topics$inboundSchema,
@@ -21,6 +21,10 @@ import {
 } from "./topics.js";
 
 export type DestinationUpdateHookdeck = {
+  /**
+   * Destination type discriminator. Must equal the existing destination's type — type itself cannot be changed via PATCH.
+   */
+  type: "hookdeck";
   /**
    * "*" or an array of enabled topics.
    */
@@ -34,8 +38,10 @@ export type DestinationUpdateHookdeck = {
    * Uses full-replacement semantics on update: send a new object to replace, null or `{}` to clear, omit for no change.
    */
   filter?: { [k: string]: any } | null | undefined;
-  config?: any | undefined;
-  credentials?: HookdeckCredentials | undefined;
+  /**
+   * Partial Hookdeck credentials for PATCH updates (RFC 7396 merge-patch).
+   */
+  credentials?: HookdeckCredentialsUpdate | undefined;
   /**
    * Static key-value pairs merged into event metadata on every attempt. Uses JSON merge-patch semantics (RFC 7396): send keys to add/update, null values to delete keys, null for entire field to clear all. Omit or send {} for no change.
    */
@@ -56,10 +62,10 @@ export const DestinationUpdateHookdeck$inboundSchema: z.ZodType<
   z.ZodTypeDef,
   unknown
 > = z.object({
+  type: z.literal("hookdeck"),
   topics: Topics$inboundSchema.optional(),
   filter: z.nullable(z.record(z.any())).optional(),
-  config: z.any().optional(),
-  credentials: HookdeckCredentials$inboundSchema.optional(),
+  credentials: HookdeckCredentialsUpdate$inboundSchema.optional(),
   delivery_metadata: z.nullable(z.record(z.nullable(z.string()))).optional(),
   metadata: z.nullable(z.record(z.nullable(z.string()))).optional(),
   disabled_at: z.nullable(
@@ -73,10 +79,10 @@ export const DestinationUpdateHookdeck$inboundSchema: z.ZodType<
 });
 /** @internal */
 export type DestinationUpdateHookdeck$Outbound = {
+  type: "hookdeck";
   topics?: Topics$Outbound | undefined;
   filter?: { [k: string]: any } | null | undefined;
-  config?: any | undefined;
-  credentials?: HookdeckCredentials$Outbound | undefined;
+  credentials?: HookdeckCredentialsUpdate$Outbound | undefined;
   delivery_metadata?: { [k: string]: string | null } | null | undefined;
   metadata?: { [k: string]: string | null } | null | undefined;
   disabled_at?: string | null | undefined;
@@ -88,10 +94,10 @@ export const DestinationUpdateHookdeck$outboundSchema: z.ZodType<
   z.ZodTypeDef,
   DestinationUpdateHookdeck
 > = z.object({
+  type: z.literal("hookdeck"),
   topics: Topics$outboundSchema.optional(),
   filter: z.nullable(z.record(z.any())).optional(),
-  config: z.any().optional(),
-  credentials: HookdeckCredentials$outboundSchema.optional(),
+  credentials: HookdeckCredentialsUpdate$outboundSchema.optional(),
   deliveryMetadata: z.nullable(z.record(z.nullable(z.string()))).optional(),
   metadata: z.nullable(z.record(z.nullable(z.string()))).optional(),
   disabledAt: z.nullable(z.date().transform(v => v.toISOString())).optional(),
