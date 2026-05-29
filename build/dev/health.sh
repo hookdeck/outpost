@@ -3,15 +3,14 @@
 # the same way dev.sh does and probes only the services that should be up.
 # Exits non-zero if any probe fails.
 #
-# WAIT=N polls for up to N seconds before declaring failure (useful right
-# after `make up` while containers are still warming).
+# Polls for up to WAIT seconds (default 5) before declaring failure.
 set -uo pipefail
 
 if [ -f .env ]; then
   set -a; . ./.env; set +a
 fi
 
-WAIT="${WAIT:-0}"
+WAIT="${WAIT:-5}"
 URL="${OUTPOST_URL:-http://localhost:3333/api/v1}"
 KEY="${OUTPOST_API_KEY:-apikey}"
 
@@ -65,10 +64,6 @@ done
 
 echo "$output"
 if [ $status -ne 0 ]; then
-  if [ "$WAIT" -gt 0 ]; then
-    echo "Not healthy after ${WAIT}s." >&2
-  else
-    echo "Not healthy. Try 'make health WAIT=10' if the stack just came up." >&2
-  fi
+  echo "Not healthy after ${WAIT}s." >&2
   exit 1
 fi

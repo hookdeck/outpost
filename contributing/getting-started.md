@@ -36,8 +36,8 @@ to match. Edit `.env`, re-run `make up`, and only the diff is applied.
 ### Verifying the stack
 
 ```sh
-make health              # quick reachability check per enabled service
-make health WAIT=30      # poll for up to 30s (handy right after make up)
+make health              # reachability check, polls up to 5s by default
+make health WAIT=30      # override poll window (handy right after make up)
 make smoke               # end-to-end pipeline test (tenant → publish → log)
 ```
 
