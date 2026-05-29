@@ -41,6 +41,7 @@ on:
       - "internal/destregistry/**"
       - "internal/models/**"
       - "cmd/outpost/**"
+      - "cmd/outpost-server/**"
       - ".github/workflows/spec-sdk-tests.yml"
 
 jobs:
