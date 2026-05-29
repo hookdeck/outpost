@@ -87,13 +87,16 @@ event_id=$(echo "$pub_resp" | jq -r '.id // empty')
 ok "event ingested${event_id:+ (id=$event_id)}"
 
 # 4. Poll attempts until at least one successful delivery is logged.
-step "polling attempts (up to ${TIMEOUT_S}s) — exercises mq → delivery → log → store"
-deadline=$(( $(date +%s) + TIMEOUT_S ))
+step "polling attempts every 1s (up to ${TIMEOUT_S}s) — exercises mq → delivery → log → store"
+poll_start=$(date +%s)
+deadline=$(( poll_start + TIMEOUT_S ))
 attempt_status=""
 while [ "$(date +%s)" -lt "$deadline" ]; do
+  elapsed=$(( $(date +%s) - poll_start ))
   attempts=$(req GET "/attempts?limit=20" 2>/dev/null || echo '{}')
   attempt_status=$(echo "$attempts" | jq -r --arg eid "$event_id" \
     '.models[] | select(.event_id == $eid) | .status' 2>/dev/null | head -1)
+  printf "     +%-2ss  %s\n" "$elapsed" "${attempt_status:-pending}"
   if [ -n "$attempt_status" ]; then
     case "$attempt_status" in
       success|delivered) break ;;
