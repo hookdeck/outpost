@@ -1,4 +1,4 @@
-name: "outpost-azure"
+name: "outpost"
 
 services:
   azuresb:
@@ -21,8 +21,3 @@ services:
     environment:
       ACCEPT_EULA: "Y"
       MSSQL_SA_PASSWORD: "Password!"
-
-networks:
-  default:
-    name: outpost
-    external: true

@@ -35,54 +35,25 @@ clean:
 	rm -f bin/outpost bin/outpost-server
 
 up:
-	make up/deps
-	make up/outpost
+	./build/dev/dev.sh up
 
 down:
-	make down/outpost
-	make down/deps
+	./build/dev/dev.sh down
 
-up/outpost:
-	docker-compose -f build/dev/compose.yml --env-file .env up -d
+nuke:
+	./build/dev/dev.sh down --volumes
 
-down/outpost:
-	docker-compose -f build/dev/compose.yml --env-file .env down
+health:
+	@WAIT="$(WAIT)" ./build/dev/health.sh
 
-up/deps:
-	COMPOSE_PROFILES=$$(./build/dev/deps/profiles.sh) docker-compose --env-file .env -f build/dev/deps/compose.yml -f build/dev/deps/compose-gui.yml up -d
+smoke:
+	./build/dev/smoke.sh
 
-down/deps:
-	COMPOSE_PROFILES=$$(./build/dev/deps/profiles.sh --all) docker-compose -f build/dev/deps/compose.yml -f build/dev/deps/compose-gui.yml down
-
-nuke/deps:
-	COMPOSE_PROFILES=$$(docker compose -f build/dev/deps/compose.yml -f build/dev/deps/compose-gui.yml config --profiles | paste -sd, -) docker compose -f build/dev/deps/compose.yml -f build/dev/deps/compose-gui.yml down --volumes --remove-orphans
-
-up/mqs:
-	docker-compose -f build/dev/mqs/compose.yml up -d
-
-down/mqs:
-	docker-compose -f build/dev/mqs/compose.yml down
-
-up/grafana:
-	docker-compose -f build/dev/grafana/compose.yml up -d
-
-down/grafana:
-	docker-compose -f build/dev/grafana/compose.yml down
-
-up/uptrace:
-	docker-compose -f build/dev/uptrace/compose.yml up -d
-
-down/uptrace:
-	docker-compose -f build/dev/uptrace/compose.yml down
-
+# Run portal natively (vite hot reload). Portal is also available as a
+# containerized service via `make up` — use this target only when you want
+# the faster native dev loop.
 up/portal:
 	cd internal/portal && npm install && npm run dev
-
-up/azure:
-	docker-compose -f build/dev/azure/compose.yml up -d
-
-down/azure:
-	docker-compose -f build/dev/azure/compose.yml down --volumes
 
 up/test:
 	docker-compose -f build/test/compose.yml up -d
@@ -166,9 +137,6 @@ migrate:
 
 redis/debug:
 	go run cmd/redis-debug/main.go $(ARGS)
-
-network:
-	docker network create outpost
 
 logs:
 	docker logs $$(docker ps -f name=outpost-${SERVICE} --format "{{.ID}}") -f $(ARGS)

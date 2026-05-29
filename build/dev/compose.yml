@@ -1,6 +1,32 @@
 name: "outpost"
 
+# Wait for whichever deps are active in the current profile set; required:false
+# means a dep that isn't in any active profile is skipped rather than erroring.
+x-deps-depends-on: &deps_depends_on
+  redis:      { condition: service_healthy, required: false }
+  dragonfly:  { condition: service_healthy, required: false }
+  postgres:   { condition: service_healthy, required: false }
+  clickhouse: { condition: service_healthy, required: false }
+  rabbitmq:   { condition: service_healthy, required: false }
+  localstack: { condition: service_healthy, required: false }
+  gcp:        { condition: service_healthy, required: false }
+
 services:
+  migrate:
+    image: outpost
+    build:
+      context: ../../
+      dockerfile: ./build/dev/Dockerfile
+    entrypoint: ""
+    command: ["go", "run", "./cmd/outpost", "migrate", "apply", "--yes"]
+    volumes:
+      - ../../:/app
+      - go_mod_cache:/go/pkg
+      - go_build_cache:/root/.cache/go-build
+    env_file: ../../.env
+    depends_on: *deps_depends_on
+    restart: "no"
+
   api:
     image: outpost
     build:
@@ -15,6 +41,14 @@ services:
     env_file: ../../.env
     environment:
       SERVICE: api
+    depends_on:
+      <<: *deps_depends_on
+      migrate: { condition: service_completed_successfully }
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3333/api/v1/healthz"]
+      interval: 2s
+      timeout: 2s
+      retries: 60
 
   delivery:
     image: outpost
@@ -22,12 +56,12 @@ services:
       - ../..:/app
       - go_mod_cache:/go/pkg
       - go_build_cache:/root/.cache/go-build
-    depends_on:
-      api:
-        condition: service_started
     env_file: ../../.env
     environment:
       SERVICE: delivery
+    depends_on:
+      <<: *deps_depends_on
+      api: { condition: service_healthy }
 
   log:
     image: outpost
@@ -35,18 +69,12 @@ services:
       - ../..:/app
       - go_mod_cache:/go/pkg
       - go_build_cache:/root/.cache/go-build
-    depends_on:
-      api:
-        condition: service_started
     env_file: ../../.env
     environment:
       SERVICE: log
-
-  envoy:
-    image: envoyproxy/envoy:v1.31-latest
-    volumes:
-      - ./envoy/envoy.yaml:/etc/envoy/envoy.yaml:ro
-    command: ["envoy", "-c", "/etc/envoy/envoy.yaml", "--log-level", "info"]
+    depends_on:
+      <<: *deps_depends_on
+      api: { condition: service_healthy }
 
   portal:
     build:
@@ -67,8 +95,3 @@ volumes:
     driver: local
   go_build_cache:
     driver: local
-
-networks:
-  default:
-    name: outpost
-    external: true

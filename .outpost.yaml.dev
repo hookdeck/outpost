@@ -49,12 +49,12 @@ mqs:
 #     subscription: "outpost-publish-sub"
 
 # Log Store (uncomment one)
-postgres: "postgres://outpost:outpost@postgres:5432/outpost?sslmode=disable"
-# clickhouse:
-#   addr: "clickhouse:9000"
-#   username: "outpost"
-#   password: "outpost"
-#   database: "outpost"
+# postgres: "postgres://outpost:outpost@postgres:5432/outpost?sslmode=disable"
+clickhouse:
+  addr: "clickhouse:9000"
+  username: "outpost"
+  password: "outpost"
+  database: "outpost"
 
 # Application
 api_key: "apikey"
@@ -84,6 +84,9 @@ idgen:
 publish_max_concurrency: 1
 delivery_max_concurrency: 100
 log_max_concurrency: 1
+
+# Tight threshold for local dev
+log_batch_threshold_seconds: 1
 
 # Destinations
 destinations:

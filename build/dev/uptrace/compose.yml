@@ -1,4 +1,4 @@
-name: "outpost-uptrace"
+name: "outpost"
 services:
   otel-collector:
     image: otel/opentelemetry-collector-contrib:latest
@@ -64,8 +64,3 @@ services:
 volumes:
   ch_data2:
   pg_data3:
-
-networks:
-  default:
-    name: outpost
-    external: true
