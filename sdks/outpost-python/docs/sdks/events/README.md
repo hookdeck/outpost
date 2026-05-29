@@ -31,10 +31,8 @@ with Outpost(
 
     res = outpost.events.list(request={})
 
-    while res is not None:
-        # Handle items
-
-        res = res.next()
+    # Handle response
+    print(res)
 
 ```
 
@@ -47,7 +45,7 @@ with Outpost(
 
 ### Response
 
-**[models.ListEventsResponse](../../models/listeventsresponse.md)**
+**[models.EventPaginatedResult](../../models/eventpaginatedresult.md)**
 
 ### Errors
 

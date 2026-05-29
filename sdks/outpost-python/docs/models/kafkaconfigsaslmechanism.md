@@ -1,13 +1,13 @@
-# SaslMechanism
+# KafkaConfigSaslMechanism
 
 SASL authentication mechanism.
 
 ## Example Usage
 
 ```python
-from outpost_sdk.models import SaslMechanism
+from outpost_sdk.models import KafkaConfigSaslMechanism
 
-value = SaslMechanism.PLAIN
+value = KafkaConfigSaslMechanism.PLAIN
 ```
 
 

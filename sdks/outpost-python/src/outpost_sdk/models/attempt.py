@@ -23,6 +23,79 @@ class Status(str, Enum):
     FAILED = "failed"
 
 
+class EventSummaryTypedDict(TypedDict):
+    r"""Event object without data (returned when include=event)."""
+
+    id: NotRequired[str]
+    tenant_id: NotRequired[str]
+    r"""The tenant this event belongs to."""
+    destination_id: NotRequired[str]
+    r"""The destination this event was delivered to."""
+    topic: NotRequired[str]
+    time: NotRequired[datetime]
+    r"""Time the event was received."""
+    eligible_for_retry: NotRequired[bool]
+    r"""Whether this event can be retried."""
+    metadata: NotRequired[Nullable[Dict[str, str]]]
+
+
+class EventSummary(BaseModel):
+    r"""Event object without data (returned when include=event)."""
+
+    id: Optional[str] = None
+
+    tenant_id: Optional[str] = None
+    r"""The tenant this event belongs to."""
+
+    destination_id: Optional[str] = None
+    r"""The destination this event was delivered to."""
+
+    topic: Optional[str] = None
+
+    time: Optional[datetime] = None
+    r"""Time the event was received."""
+
+    eligible_for_retry: Optional[bool] = None
+    r"""Whether this event can be retried."""
+
+    metadata: OptionalNullable[Dict[str, str]] = UNSET
+
+    @model_serializer(mode="wrap")
+    def serialize_model(self, handler):
+        optional_fields = set(
+            [
+                "id",
+                "tenant_id",
+                "destination_id",
+                "topic",
+                "time",
+                "eligible_for_retry",
+                "metadata",
+            ]
+        )
+        nullable_fields = set(["metadata"])
+        serialized = handler(self)
+        m = {}
+
+        for n, f in type(self).model_fields.items():
+            k = f.alias or n
+            val = serialized.get(k, serialized.get(n))
+            is_nullable_and_explicitly_set = (
+                k in nullable_fields
+                and (self.__pydantic_fields_set__.intersection({n}))  # pylint: disable=no-member
+            )
+
+            if val != UNSET_SENTINEL:
+                if (
+                    val is not None
+                    or k not in optional_fields
+                    or is_nullable_and_explicitly_set
+                ):
+                    m[k] = val
+
+        return m
+
+
 class EventFullTypedDict(TypedDict):
     r"""Full event object with data (returned when include=event.data)."""
 
@@ -77,79 +150,6 @@ class EventFull(BaseModel):
                 "eligible_for_retry",
                 "metadata",
                 "data",
-            ]
-        )
-        nullable_fields = set(["metadata"])
-        serialized = handler(self)
-        m = {}
-
-        for n, f in type(self).model_fields.items():
-            k = f.alias or n
-            val = serialized.get(k, serialized.get(n))
-            is_nullable_and_explicitly_set = (
-                k in nullable_fields
-                and (self.__pydantic_fields_set__.intersection({n}))  # pylint: disable=no-member
-            )
-
-            if val != UNSET_SENTINEL:
-                if (
-                    val is not None
-                    or k not in optional_fields
-                    or is_nullable_and_explicitly_set
-                ):
-                    m[k] = val
-
-        return m
-
-
-class EventSummaryTypedDict(TypedDict):
-    r"""Event object without data (returned when include=event)."""
-
-    id: NotRequired[str]
-    tenant_id: NotRequired[str]
-    r"""The tenant this event belongs to."""
-    destination_id: NotRequired[str]
-    r"""The destination this event was delivered to."""
-    topic: NotRequired[str]
-    time: NotRequired[datetime]
-    r"""Time the event was received."""
-    eligible_for_retry: NotRequired[bool]
-    r"""Whether this event can be retried."""
-    metadata: NotRequired[Nullable[Dict[str, str]]]
-
-
-class EventSummary(BaseModel):
-    r"""Event object without data (returned when include=event)."""
-
-    id: Optional[str] = None
-
-    tenant_id: Optional[str] = None
-    r"""The tenant this event belongs to."""
-
-    destination_id: Optional[str] = None
-    r"""The destination this event was delivered to."""
-
-    topic: Optional[str] = None
-
-    time: Optional[datetime] = None
-    r"""Time the event was received."""
-
-    eligible_for_retry: Optional[bool] = None
-    r"""Whether this event can be retried."""
-
-    metadata: OptionalNullable[Dict[str, str]] = UNSET
-
-    @model_serializer(mode="wrap")
-    def serialize_model(self, handler):
-        optional_fields = set(
-            [
-                "id",
-                "tenant_id",
-                "destination_id",
-                "topic",
-                "time",
-                "eligible_for_retry",
-                "metadata",
             ]
         )
         nullable_fields = set(["metadata"])

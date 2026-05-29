@@ -1,5 +1,5 @@
-## Go SDK Changes:
-* `Outpost.Destinations.Update()`: `request.Body` **Changed** (Breaking ⚠️)
+## Python SDK Changes:
+* `outpost.destinations.update()`: `request.body` **Changed** (Breaking ⚠️)
     - `union(DestinationUpdateAWSKinesis)` **Removed** (Breaking ⚠️)
     - `union(DestinationUpdateAWSS3)` **Removed** (Breaking ⚠️)
     - `union(DestinationUpdateAWSSQS)` **Removed** (Breaking ⚠️)

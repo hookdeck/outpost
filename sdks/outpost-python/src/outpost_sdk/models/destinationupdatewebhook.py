@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 from .topics_union import TopicsUnion, TopicsUnionTypedDict
-from .webhookconfig import WebhookConfig, WebhookConfigTypedDict
+from .webhookconfigupdate import WebhookConfigUpdate, WebhookConfigUpdateTypedDict
 from .webhookcredentialsupdate import (
     WebhookCredentialsUpdate,
     WebhookCredentialsUpdateTypedDict,
 )
 from datetime import datetime
+from enum import Enum
 from outpost_sdk.types import (
     BaseModel,
     Nullable,
@@ -21,7 +22,15 @@ from typing import Any, Dict, Optional
 from typing_extensions import Annotated, NotRequired, TypedDict
 
 
+class DestinationUpdateWebhookType(str, Enum):
+    r"""Destination type discriminator. Must equal the existing destination's type — type itself cannot be changed via PATCH."""
+
+    WEBHOOK = "webhook"
+
+
 class DestinationUpdateWebhookTypedDict(TypedDict):
+    type: DestinationUpdateWebhookType
+    r"""Destination type discriminator. Must equal the existing destination's type — type itself cannot be changed via PATCH."""
     topics: NotRequired[TopicsUnionTypedDict]
     r"""\"*\" or an array of enabled topics."""
     filter_: NotRequired[Nullable[Dict[str, Any]]]
@@ -31,8 +40,10 @@ class DestinationUpdateWebhookTypedDict(TypedDict):
     Uses full-replacement semantics on update: send a new object to replace, null or `{}` to clear, omit for no change.
 
     """
-    config: NotRequired[WebhookConfigTypedDict]
+    config: NotRequired[WebhookConfigUpdateTypedDict]
+    r"""Partial Webhook config for PATCH updates (RFC 7396 merge-patch)."""
     credentials: NotRequired[WebhookCredentialsUpdateTypedDict]
+    r"""Partial Webhook credentials for PATCH updates (RFC 7396 merge-patch)."""
     delivery_metadata: NotRequired[Nullable[Dict[str, Nullable[str]]]]
     r"""Static key-value pairs merged into event metadata on every attempt. Uses JSON merge-patch semantics (RFC 7396): send keys to add/update, null values to delete keys, null for entire field to clear all. Omit or send {} for no change."""
     metadata: NotRequired[Nullable[Dict[str, Nullable[str]]]]
@@ -42,6 +53,9 @@ class DestinationUpdateWebhookTypedDict(TypedDict):
 
 
 class DestinationUpdateWebhook(BaseModel):
+    type: DestinationUpdateWebhookType
+    r"""Destination type discriminator. Must equal the existing destination's type — type itself cannot be changed via PATCH."""
+
     topics: Optional[TopicsUnion] = None
     r"""\"*\" or an array of enabled topics."""
 
@@ -55,9 +69,11 @@ class DestinationUpdateWebhook(BaseModel):
 
     """
 
-    config: Optional[WebhookConfig] = None
+    config: Optional[WebhookConfigUpdate] = None
+    r"""Partial Webhook config for PATCH updates (RFC 7396 merge-patch)."""
 
     credentials: Optional[WebhookCredentialsUpdate] = None
+    r"""Partial Webhook credentials for PATCH updates (RFC 7396 merge-patch)."""
 
     delivery_metadata: OptionalNullable[Dict[str, Nullable[str]]] = UNSET
     r"""Static key-value pairs merged into event metadata on every attempt. Uses JSON merge-patch semantics (RFC 7396): send keys to add/update, null values to delete keys, null for entire field to clear all. Omit or send {} for no change."""
