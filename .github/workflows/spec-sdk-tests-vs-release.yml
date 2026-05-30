@@ -23,7 +23,9 @@
 #
 # workflow_dispatch inputs (UI overrides, ignored on PR runs):
 #   sdk_version     — pin SDK to a specific TS release (e.g. "1.3.0" or "v1.3.0").
-#                     Empty = use the dispatch branch's current SDK contents.
+#                     When set, ALSO pins spec-sdk-tests/ to the same release
+#                     point so tests + SDK shape stay aligned. Empty = use the
+#                     dispatch branch's current SDK + test contents.
 #   outpost_version — pin Outpost server to a specific release (e.g. "1.0.3" or "v1.0.3").
 #                     Empty = latest non-prerelease Outpost release.
 name: Spec SDK tests vs released Outpost
@@ -32,7 +34,7 @@ on:
   workflow_dispatch:
     inputs:
       sdk_version:
-        description: 'TS SDK version to test (e.g. "1.3.0" or "v1.3.0"). Empty = use this branch''s SDK contents.'
+        description: 'TS SDK version to test (e.g. "1.3.0" or "v1.3.0"). When set, also pins spec-sdk-tests/ to the same release point. Empty = use this branch''s SDK + test contents.'
         required: false
         type: string
       outpost_version:
@@ -119,7 +121,12 @@ jobs:
         # `gh release view` returns the wrong thing.
         run: |
           if [ -n "$OVERRIDE" ]; then
-            tag="v${OVERRIDE#v}"
+            ver="${OVERRIDE#v}"
+            if ! [[ "$ver" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "::error::outpost_version must be a strict X.Y.Z version (got: '$OVERRIDE')"
+              exit 1
+            fi
+            tag="v${ver}"
             echo "Using outpost_version override: $tag"
           else
             tag=$(gh api repos/${{ github.repository }}/releases \
@@ -202,23 +209,33 @@ jobs:
           docker logs outpost || true
           exit 1
 
-      - name: Override SDK with sdk_version (workflow_dispatch only)
+      - name: Override SDK + tests with sdk_version (workflow_dispatch only)
         # Guard event_name first so the inputs.* reference is short-circuited
         # away on pull_request runs (where inputs.* isn't populated).
         if: github.event_name == 'workflow_dispatch' && inputs.sdk_version != ''
-        # Replace the working tree's sdks/outpost-typescript with the contents
-        # at the SDK release tag. SDK tags are namespaced as
-        # sdks/outpost-typescript/v<x>. Accept either "1.3.0" or "v1.3.0" by
-        # stripping any leading "v" and re-adding it.
+        # Replace BOTH sdks/outpost-typescript/ AND spec-sdk-tests/ with the
+        # contents at the SDK release tag. The SDK tag is namespaced
+        # (sdks/outpost-typescript/v<x>) but points at a full repo commit,
+        # so checking out that tag for spec-sdk-tests/ gives us the tests as
+        # they were at SDK release time — guaranteed aligned with the pinned
+        # SDK shape. Without this, main's newer tests would reference SDK
+        # fields the pinned SDK doesn't have, causing TS compile errors.
+        # Accept either "1.3.0" or "v1.3.0" by stripping any leading "v".
         env:
           SDK_VERSION_INPUT: ${{ inputs.sdk_version }}
         run: |
           ver="${SDK_VERSION_INPUT#v}"
+          if ! [[ "$ver" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::sdk_version must be a strict X.Y.Z version (got: '$SDK_VERSION_INPUT')"
+            exit 1
+          fi
           full_tag="sdks/outpost-typescript/v${ver}"
-          echo "Pinning SDK to $full_tag"
+          echo "Pinning SDK + tests to $full_tag"
           git fetch --depth=1 origin "refs/tags/$full_tag:refs/tags/$full_tag"
           rm -rf sdks/outpost-typescript
           git checkout "$full_tag" -- sdks/outpost-typescript
+          rm -rf spec-sdk-tests
+          git checkout "$full_tag" -- spec-sdk-tests
 
       - name: Build TypeScript SDK
         working-directory: sdks/outpost-typescript
