@@ -319,6 +319,22 @@ func testListDestination(t *testing.T, newHarness HarnessMaker) {
 		})
 		require.NoError(t, err)
 		require.Len(t, destinations, 3)
+
+		for _, topics := range [][]string{{"user.*"}, {"*.created"}, {"user.deleted*"}} {
+			require.NoError(t, store.UpsertDestination(ctx, testutil.DestinationFactory.Any(
+				testutil.DestinationFactory.WithTenantID(data.tenant.ID),
+				testutil.DestinationFactory.WithTopics(topics),
+			)))
+		}
+
+		// The filter topic is treated as a concrete published topic. Destinations
+		// subscribed with wildcard patterns are included when they would receive it.
+		destinations, err = store.ListDestination(ctx, driver.ListDestinationRequest{
+			TenantID: data.tenant.ID,
+			Topics:   []string{"user.created"},
+		})
+		require.NoError(t, err)
+		require.Len(t, destinations, 5)
 	})
 }
 

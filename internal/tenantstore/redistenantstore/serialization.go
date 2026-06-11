@@ -368,14 +368,7 @@ func matchDestinationFilter(filter *destinationFilter, summary destinationSummar
 				return false
 			}
 			for _, topic := range filter.Topics {
-				found := false
-				for _, st := range summary.Topics {
-					if st == topic {
-						found = true
-						break
-					}
-				}
-				if !found {
+				if !summary.Topics.MatchTopic(topic) {
 					return false
 				}
 			}

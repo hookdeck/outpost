@@ -94,6 +94,37 @@ func TestAPI_Destinations(t *testing.T) {
 			require.Equal(t, http.StatusUnprocessableEntity, resp.Code)
 		})
 
+		t.Run("wildcard topic pattern matching configured topic is accepted", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+
+			req := h.jsonReq(http.MethodPost, "/api/v1/tenants/t1/destinations", map[string]any{
+				"type":   "webhook",
+				"topics": []string{"user.*"},
+				"config": map[string]string{"url": "https://example.com/hook"},
+			})
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusCreated, resp.Code)
+			var dest destregistry.DestinationDisplay
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &dest))
+			assert.Equal(t, models.Topics{"user.*"}, dest.Topics)
+		})
+
+		t.Run("wildcard topic pattern not matching configured topic returns 422", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+
+			req := h.jsonReq(http.MethodPost, "/api/v1/tenants/t1/destinations", map[string]any{
+				"type":   "webhook",
+				"topics": []string{"order.*"},
+				"config": map[string]string{"url": "https://example.com/hook"},
+			})
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusUnprocessableEntity, resp.Code)
+		})
+
 		t.Run("import timestamps", func(t *testing.T) {
 			t.Run("disabled_at preserved on create", func(t *testing.T) {
 				h := newAPITest(t)
