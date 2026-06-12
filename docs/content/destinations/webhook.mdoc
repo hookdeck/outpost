@@ -82,7 +82,7 @@ In **Standard Webhooks** mode, the same value is sent as the **`webhook-id`** he
 
 ### Default Mode
 
-The signature is computed over the timestamp and request body:
+The signature is computed over the request body:
 
 ```
 HMAC-SHA256(secret, "${body}")
@@ -90,11 +90,74 @@ HMAC-SHA256(secret, "${body}")
 
 The `x-outpost-signature` header value follows the format: `v0=${signature}`
 
+If the destination has an unexpired `previous_secret` during secret rotation, Outpost includes one signature for each valid secret in the same header. The current secret's signature is first, followed by the previous secret's signature:
+`v0=<signature-from-current-secret>,<signature-from-previous-secret>`
+
 To verify:
-1. Extract the timestamp and signature from the header
-2. Compute the expected signature using your secret
-3. Compare signatures using a constant-time comparison
-4. Optionally reject requests with old timestamps to prevent replay attacks
+1. Extract the signature header
+2. Split the `v0=` value on commas
+3. Compute the expected signature using each active secret you accept
+4. Accept the request if any signature matches using a constant-time comparison
+5. Optionally reject requests with old timestamps to prevent replay attacks
+
+#### Custom signature templates
+
+In default mode, operators can customize both the signed content and the signature header value:
+
+- `DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE` controls the string passed to HMAC.
+- `DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE` controls the value written to the signature header.
+
+These use the same configuration key names in both deployment models, but they are applied differently: Managed Outpost stores them through the Config API or Hookdeck dashboard, while self-hosted Outpost reads them from environment variables or YAML configuration.
+
+Templates use Go template syntax with helper functions such as `join`. The signature content template can use:
+
+| Field | Description |
+|-------|-------------|
+| `.EventID` | Event id used for the delivery |
+| `.Topic` | Event topic |
+| `.Timestamp` | Delivery timestamp |
+| `.Body` | Raw request body |
+
+The signature header template can use the same metadata plus `.Signatures`, which is the list of generated signatures for all valid secrets. During secret rotation, `.Signatures` contains the current secret's signature first and the previous secret's signature second.
+
+For example, to include a Unix timestamp in the signed content and header:
+
+{% tabs tabGroup="deployment" %}
+{% tab label="Managed" %}
+Set the values in the [Config API](/docs/outpost/api#configuration) or in [Hookdeck Destinations settings](https://dashboard.hookdeck.com/settings/project/destinations). For the Config API, send the configuration keys in the JSON body:
+
+```json
+{
+  "DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE": "{{.Timestamp.Unix}}.{{.Body}}",
+  "DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE": "t={{.Timestamp.Unix}},v0={{.Signatures | join \",\"}}"
+}
+```
+{% /tab %}
+{% tab label="Self-Hosted" %}
+Set the values as environment variables:
+
+```sh
+DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE="{{.Timestamp.Unix}}.{{.Body}}"
+DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE="t={{.Timestamp.Unix}},v0={{.Signatures | join \",\"}}"
+```
+
+You can also set `signature_content_template` and `signature_header_template` in YAML under `destinations.webhook`.
+{% /tab %}
+{% /tabs %}
+
+With one secret, the header looks like:
+
+```
+x-outpost-signature: t=1717249416,v0=<signature-from-current-secret>
+```
+
+During rotation, the same template preserves both signatures:
+
+```
+x-outpost-signature: t=1717249416,v0=<signature-from-current-secret>,<signature-from-previous-secret>
+```
+
+If you customize `DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE`, keep `.Signatures` in the output so receivers can verify requests during secret rotation.
 
 ### Standard Webhooks Mode
 
@@ -105,6 +168,12 @@ base64(HMAC-SHA256(secret, "${webhook-id}.${timestamp}.${body}"))
 ```
 
 Use the official [Standard Webhooks SDK](https://github.com/standard-webhooks/standard-webhooks/tree/main/libraries) to verify signatures. Secrets use the `whsec_<base64>` format.
+
+During secret rotation, Outpost includes one Standard Webhooks signature entry per valid secret in the `webhook-signature` header. The current secret's signature is first, followed by the previous secret's signature:
+
+```
+webhook-signature: v1,<signature-from-current-secret> v1,<signature-from-previous-secret>
+```
 
 {% tabs tabGroup="deployment" %}
 {% tab label="Managed" %}
@@ -140,7 +209,17 @@ When rotation is triggered:
 1. The current secret becomes `previous_secret`
 2. A new secret is generated
 3. The previous secret remains valid until `previous_secret_invalid_at` (default: 24 hours)
-4. Both secrets appear in the signature header during the rotation window
+4. During the rotation window, the signature header contains signatures generated with both valid secrets
+5. After `previous_secret_invalid_at`, the previous secret is no longer included and the signature header returns to a single signature
+
+Signature header format depends on the webhook mode. With the default header prefix:
+
+| Mode | Header | During rotation |
+|------|--------|-----------------|
+| Default | `x-outpost-signature` | `v0=<signature-from-current-secret>,<signature-from-previous-secret>` |
+| Standard Webhooks | `webhook-signature` | `v1,<signature-from-current-secret> v1,<signature-from-previous-secret>` |
+
+Receivers should treat rotation as an allow-list period: verify the request against the current secret and the previous secret, and accept the request if any signature in the header matches one of those secrets. Outpost signs with the current secret first.
 
 ## Custom Headers
 
@@ -199,7 +278,7 @@ Configure webhook operator behavior using these keys in the Config API or in [Ho
 | `DESTINATIONS_WEBHOOK_MODE` | `default` | Set to `standard` for Standard Webhooks compliance |
 | `DESTINATIONS_WEBHOOK_SIGNATURE_ALGORITHM` | `hmac-sha256` | Signature algorithm |
 | `DESTINATIONS_WEBHOOK_SIGNATURE_ENCODING` | `hex` | Encoding: `hex` or `base64` |
-| `DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE` | `{{.Body}}` | Template for signed content |
-| `DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE` | `v0={{.Signatures \| join ","}}` | Template for signature header value |
+| `DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE` | `{{.Body}}` | Template for signed content in default mode |
+| `DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE` | `v0={{.Signatures \| join ","}}` | Template for signature header value in default mode |
 {% /tab %}
 {% /tabs %}
