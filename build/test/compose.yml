@@ -26,7 +26,7 @@ services:
       - 35672:5672
       - 45672:15672
   test-aws:
-    image: localstack/localstack:latest
+    image: localstack/localstack:3
     environment:
       - SERVICES=s3,sns,sts,sqs,kinesis
     ports:
@@ -60,8 +60,3 @@ services:
       ]
     ports:
       - "38085:8085"
-
-networks:
-  default:
-    name: outpost
-    external: true
