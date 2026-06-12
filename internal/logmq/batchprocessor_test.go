@@ -229,6 +229,60 @@ func TestBatchProcessor_InvalidEntry_DoesNotBlockBatch(t *testing.T) {
 	assert.Len(t, attempts, 2, "only 2 valid attempts should be inserted")
 }
 
+func TestBatchProcessor_DuplicateMessages(t *testing.T) {
+	ctx := context.Background()
+	logger := testutil.CreateTestLogger(t)
+	logStore := &mockLogStore{}
+	alertMon := &mockAlertMonitor{}
+
+	bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, alertMon, logmq.BatchProcessorConfig{
+		ItemCountThreshold: 3, // Wait for 3 messages before processing
+		DelayThreshold:     1 * time.Second,
+	})
+	require.NoError(t, err)
+	defer bp.Shutdown()
+
+	// Two byte-identical copies of the same entry (redelivery / re-publish)
+	event := testutil.EventFactory.Any()
+	attempt := testutil.AttemptFactory.Any()
+	dest := testutil.DestinationFactory.Any()
+	entry := models.LogEntry{Event: &event, Attempt: &attempt, Destination: &dest}
+	mock1, msg1 := newMockMessage(entry)
+	mock2, msg2 := newMockMessage(entry)
+
+	// One distinct entry
+	otherEvent := testutil.EventFactory.Any()
+	otherAttempt := testutil.AttemptFactory.Any()
+	otherDest := testutil.DestinationFactory.Any()
+	otherEntry := models.LogEntry{Event: &otherEvent, Attempt: &otherAttempt, Destination: &otherDest}
+	mock3, msg3 := newMockMessage(otherEntry)
+
+	require.NoError(t, bp.Add(ctx, msg1))
+	require.NoError(t, bp.Add(ctx, msg2))
+	require.NoError(t, bp.Add(ctx, msg3))
+
+	// Wait for batch to process
+	time.Sleep(200 * time.Millisecond)
+
+	// All copies acked, none nacked
+	assert.True(t, mock1.acked, "kept copy should be acked")
+	assert.False(t, mock1.nacked)
+	assert.True(t, mock2.acked, "duplicate copy should be acked")
+	assert.False(t, mock2.nacked)
+	assert.True(t, mock3.acked, "distinct message should be acked")
+	assert.False(t, mock3.nacked)
+
+	// Duplicate inserted once
+	_, attempts := logStore.getInserted()
+	require.Len(t, attempts, 2, "duplicate should be inserted once")
+	attemptIDs := []string{attempts[0].ID, attempts[1].ID}
+	assert.ElementsMatch(t, []string{attempt.ID, otherAttempt.ID}, attemptIDs)
+
+	// Alert eval once per unique attempt
+	calls := alertMon.getCalls()
+	require.Len(t, calls, 2, "alert eval should run once per unique attempt")
+}
+
 func TestBatchProcessor_MalformedJSON(t *testing.T) {
 	ctx := context.Background()
 	logger := testutil.CreateTestLogger(t)
