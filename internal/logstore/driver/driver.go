@@ -83,3 +83,24 @@ type AttemptRecord struct {
 	Attempt *models.Attempt
 	Event   *models.Event // optionally populated for query results
 }
+
+// DedupeEntriesByAttemptID collapses intra-batch duplicates (same Attempt.ID)
+// to a single entry. Duplicates arise from MQ redelivery and producer
+// re-publish, so they can carry different MQ message IDs; copies are
+// byte-identical, so the last occurrence wins at the first occurrence's
+// position. InsertMany implementations must tolerate intra-batch duplicates
+// regardless of caller — e.g. PostgreSQL rejects the same conflict key twice
+// in one INSERT ... ON CONFLICT DO UPDATE statement (SQLSTATE 21000).
+func DedupeEntriesByAttemptID(entries []*models.LogEntry) []*models.LogEntry {
+	deduped := make([]*models.LogEntry, 0, len(entries))
+	index := make(map[string]int, len(entries))
+	for _, entry := range entries {
+		if i, ok := index[entry.Attempt.ID]; ok {
+			deduped[i] = entry
+			continue
+		}
+		index[entry.Attempt.ID] = len(deduped)
+		deduped = append(deduped, entry)
+	}
+	return deduped
+}

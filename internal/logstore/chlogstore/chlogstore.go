@@ -766,6 +766,11 @@ func (s *logStoreImpl) InsertMany(ctx context.Context, entries []*models.LogEntr
 		return nil
 	}
 
+	// Collapse intra-batch duplicates. ReplacingMergeTree would eventually
+	// merge them away, but redundant rows cost merge overhead and surface as
+	// transient duplicate reads until compaction runs.
+	entries = driver.DedupeEntriesByAttemptID(entries)
+
 	// Extract and dedupe events by ID, skipping retry attempts.
 	// Retries (AttemptNumber > 1) carry identical event data — the event row
 	// already exists from the first attempt's batch.

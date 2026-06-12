@@ -504,6 +504,93 @@ func TestAlertMonitor_ExhaustedRetries_EmitFailureRetryClearsWindow(t *testing.T
 	require.Equal(t, 2, erCalls, "Should have 2 emit attempts (1 failed + 1 succeeded)")
 }
 
+func TestAlertMonitor_ReplayedAttempt_SkipsEvaluation(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	logger := testutil.CreateTestLogger(t)
+	redisClient := testutil.CreateTestRedisClient(t)
+	emitter := &mockAlertEmitter{}
+	emitter.On("Emit", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+
+	monitor := alert.NewAlertMonitor(
+		logger,
+		redisClient,
+		emitter,
+		10,
+		alert.WithAutoDisableFailureCount(2),
+		alert.WithAlertThresholds([]int{50, 100}),
+	)
+
+	dest := &alert.AlertDestination{ID: "dest_replay", TenantID: "tenant_replay"}
+	event := &models.Event{Topic: "test.event"}
+	attempt := alert.DeliveryAttempt{
+		Event:       event,
+		Destination: dest,
+		Attempt: &models.Attempt{
+			ID:     "att_replay_1",
+			Status: "failed",
+			Code:   "500",
+			Time:   time.Now(),
+		},
+	}
+
+	// First delivery: count=1 → 50% threshold → emits
+	require.NoError(t, monitor.HandleAttempt(ctx, attempt))
+	require.Equal(t, 1, countEmitCalls(emitter, "alert.destination.consecutive_failure"))
+
+	// Replay (MQ redelivery / producer re-publish): fully evaluated → skipped
+	require.NoError(t, monitor.HandleAttempt(ctx, attempt))
+	assert.Equal(t, 1, countEmitCalls(emitter, "alert.destination.consecutive_failure"),
+		"replayed attempt should not re-emit the alert")
+}
+
+func TestAlertMonitor_ReplayedAttempt_PartialFailureRetries(t *testing.T) {
+	// When evaluation fails after the attempt was counted (e.g. emit error),
+	// the message is nacked and redelivered — the replay must re-run the
+	// evaluation, not skip it, or alerts would be silently dropped.
+	t.Parallel()
+	ctx := context.Background()
+	logger := testutil.CreateTestLogger(t)
+	redisClient := testutil.CreateTestRedisClient(t)
+	emitter := &mockAlertEmitter{}
+	emitter.On("Emit", mock.Anything, "alert.destination.consecutive_failure", mock.Anything, mock.Anything).Return(fmt.Errorf("emit failed")).Once()
+	emitter.On("Emit", mock.Anything, "alert.destination.consecutive_failure", mock.Anything, mock.Anything).Return(nil)
+
+	monitor := alert.NewAlertMonitor(
+		logger,
+		redisClient,
+		emitter,
+		10,
+		alert.WithAutoDisableFailureCount(2),
+		alert.WithAlertThresholds([]int{50, 100}),
+	)
+
+	dest := &alert.AlertDestination{ID: "dest_partial", TenantID: "tenant_partial"}
+	event := &models.Event{Topic: "test.event"}
+	attempt := alert.DeliveryAttempt{
+		Event:       event,
+		Destination: dest,
+		Attempt: &models.Attempt{
+			ID:     "att_partial_1",
+			Status: "failed",
+			Code:   "500",
+			Time:   time.Now(),
+		},
+	}
+
+	// First delivery: counted, but emit fails → error (entry would be nacked)
+	require.Error(t, monitor.HandleAttempt(ctx, attempt))
+
+	// Replay: not marked evaluated → re-runs and emits successfully
+	require.NoError(t, monitor.HandleAttempt(ctx, attempt))
+	assert.Equal(t, 2, countEmitCalls(emitter, "alert.destination.consecutive_failure"),
+		"replay after partial failure should re-run evaluation")
+
+	// Second replay: now fully evaluated → skipped
+	require.NoError(t, monitor.HandleAttempt(ctx, attempt))
+	assert.Equal(t, 2, countEmitCalls(emitter, "alert.destination.consecutive_failure"))
+}
+
 func countEmitCalls(emitter *mockAlertEmitter, topic string) int {
 	count := 0
 	for _, call := range emitter.Calls {
