@@ -344,7 +344,7 @@ func (d *StandardWebhookDestination) resolveConfig(ctx context.Context, destinat
 }
 
 // rotateSecret handles secret rotation and returns clean credentials
-func (d *StandardWebhookDestination) rotateSecret(newDest, origDest *models.Destination) (map[string]string, error) {
+func (d *StandardWebhookDestination) rotateSecret(origDest *models.Destination, opts *destregistry.PreprocessDestinationOpts) (map[string]string, error) {
 	if origDest == nil {
 		return nil, destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{
 			{
@@ -375,9 +375,11 @@ func (d *StandardWebhookDestination) rotateSecret(newDest, origDest *models.Dest
 	}
 	creds["secret"] = secret
 
-	// Keep custom invalidation time if provided, otherwise set default
-	if newDest.Credentials["previous_secret_invalid_at"] != "" {
-		creds["previous_secret_invalid_at"] = newDest.Credentials["previous_secret_invalid_at"]
+	// Keep custom invalidation time if provided, otherwise set default.
+	// The merged credentials can't tell us whether the caller sent the
+	// field — the raw request credentials can.
+	if invalidAt := opts.Request.Credentials["previous_secret_invalid_at"]; invalidAt != "" {
+		creds["previous_secret_invalid_at"] = invalidAt
 	} else {
 		creds["previous_secret_invalid_at"] = time.Now().Add(24 * time.Hour).Format(time.RFC3339)
 	}
@@ -508,7 +510,7 @@ func (d *StandardWebhookDestination) Preprocess(newDestination *models.Destinati
 	var cleanCredentials map[string]string
 	var err error
 	if isTruthy(newDestination.Credentials["rotate_secret"]) {
-		cleanCredentials, err = d.rotateSecret(newDestination, originalDestination)
+		cleanCredentials, err = d.rotateSecret(originalDestination, opts)
 	} else {
 		cleanCredentials, err = d.updateSecret(newDestination, originalDestination, opts)
 		// For new destinations, ensure credentials are initialized if needed
