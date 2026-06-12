@@ -1008,6 +1008,11 @@ Agent cwd is usually the run directory. Scenarios may define ## Eval harness (JS
         );
         if (report.overallTranscriptPass === false) {
           anyScoreFailure = true;
+          for (const c of report.transcript.checks) {
+            if (!c.pass) {
+              console.error(`  [FAIL] ${c.id}: ${c.detail}`);
+            }
+          }
         }
       }
 
@@ -1032,6 +1037,11 @@ Agent cwd is usually the run directory. Scenarios may define ## Eval harness (JS
         );
         if (!llmReport.overall_transcript_pass) {
           anyScoreFailure = true;
+          for (const c of llmReport.criteria) {
+            if (!c.pass) {
+              console.error(`  [FAIL] ${c.criterion}: ${c.evidence}`);
+            }
+          }
         }
       }
 

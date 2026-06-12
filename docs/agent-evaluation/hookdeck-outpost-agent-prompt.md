@@ -95,7 +95,7 @@ Use judgment; when two paths seem possible, prefer **Quick path** unless they cl
 - **Go** → **Go quickstart** + official Go SDK as that doc shows.
 - **curl**, **HTTP only**, or **REST** without a language SDK → **curl quickstart** + OpenAPI.
 
-Do **not** mix argument styles across languages (e.g. do not apply TypeScript `publish.event({ ... })` shapes to Python).
+Do **not** mix argument styles across languages (e.g. do not apply TypeScript `outpost.publish({ ... })` shapes to Python).
 
 ### Quick path — how to deliver
 

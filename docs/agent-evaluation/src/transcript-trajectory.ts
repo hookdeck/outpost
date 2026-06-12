@@ -241,7 +241,7 @@ function toolInputWritePath(
 }
 
 const SDK_HINT_PATTERNS: ReadonlyArray<{ id: string; re: RegExp }> = [
-  { id: "ts_publish.event", re: /\bpublish\.event\b/i },
+  { id: "ts_publish", re: /\.publish\s*\(/ },
   { id: "ts_tenants.upsert", re: /\btenants\.upsert\b/i },
   { id: "ts_destinations.create", re: /\bdestinations\.create\b/i },
   { id: "py_publish", re: /\bpublish\.event\b/i },
