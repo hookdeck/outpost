@@ -121,6 +121,10 @@ func (h *DestinationHandlers) Create(c *gin.Context) {
 	}
 	if err := h.registry.PreprocessDestination(&destination, nil, &destregistry.PreprocessDestinationOpts{
 		Role: mustRoleFromContext(c),
+		Request: destregistry.PreprocessRequest{
+			Config:      destination.Config,
+			Credentials: destination.Credentials,
+		},
 	}); err != nil {
 		AbortWithValidationError(c, err)
 		return
@@ -193,7 +197,7 @@ func (h *DestinationHandlers) Update(c *gin.Context) {
 	}
 
 	// Config (merge-patch)
-	configResult, configChanged, err := applyMergePatchStringMap(originalDestination.Config, input.Config)
+	configResult, configRequest, configChanged, err := applyMergePatchStringMap(originalDestination.Config, input.Config)
 	if err != nil {
 		AbortWithValidationError(c, fmt.Errorf("invalid config: %w", err))
 		return
@@ -204,7 +208,7 @@ func (h *DestinationHandlers) Update(c *gin.Context) {
 	}
 
 	// Credentials (merge-patch)
-	credsResult, credsChanged, err := applyMergePatchStringMap(originalDestination.Credentials, input.Credentials)
+	credsResult, credsRequest, credsChanged, err := applyMergePatchStringMap(originalDestination.Credentials, input.Credentials)
 	if err != nil {
 		AbortWithValidationError(c, fmt.Errorf("invalid credentials: %w", err))
 		return
@@ -229,7 +233,7 @@ func (h *DestinationHandlers) Update(c *gin.Context) {
 	}
 
 	// DeliveryMetadata (merge-patch)
-	dmResult, dmChanged, err := applyMergePatchStringMap(originalDestination.DeliveryMetadata, input.DeliveryMetadata)
+	dmResult, _, dmChanged, err := applyMergePatchStringMap(originalDestination.DeliveryMetadata, input.DeliveryMetadata)
 	if err != nil {
 		AbortWithValidationError(c, fmt.Errorf("invalid delivery_metadata: %w", err))
 		return
@@ -239,7 +243,7 @@ func (h *DestinationHandlers) Update(c *gin.Context) {
 	}
 
 	// Metadata (merge-patch)
-	metaResult, metaChanged, err := applyMergePatchStringMap(originalDestination.Metadata, input.Metadata)
+	metaResult, _, metaChanged, err := applyMergePatchStringMap(originalDestination.Metadata, input.Metadata)
 	if err != nil {
 		AbortWithValidationError(c, fmt.Errorf("invalid metadata: %w", err))
 		return
@@ -279,6 +283,10 @@ func (h *DestinationHandlers) Update(c *gin.Context) {
 	// Always preprocess before updating
 	if err := h.registry.PreprocessDestination(&updatedDestination, originalDestination, &destregistry.PreprocessDestinationOpts{
 		Role: mustRoleFromContext(c),
+		Request: destregistry.PreprocessRequest{
+			Config:      configRequest,
+			Credentials: credsRequest,
+		},
 	}); err != nil {
 		AbortWithValidationError(c, err)
 		return
@@ -507,26 +515,28 @@ func isJSONNull(raw json.RawMessage) bool {
 }
 
 // applyMergePatchStringMap applies RFC 7396 merge-patch semantics for a map[string]string field.
-// Returns (result, changed, error):
+// Returns (result, request, changed, error), where request is the patch as
+// sent by the caller (string-coerced, nulls dropped):
 //   - raw is nil (field omitted): returns original unchanged
 //   - raw is "null": returns nil (clear field)
 //   - raw is "{}": returns original unchanged (empty merge = no-op)
 //   - raw is an object: merge-patch into original
-func applyMergePatchStringMap(original map[string]string, raw json.RawMessage) (map[string]string, bool, error) {
+func applyMergePatchStringMap(original map[string]string, raw json.RawMessage) (map[string]string, map[string]string, bool, error) {
 	if raw == nil {
-		return original, false, nil
+		return original, nil, false, nil
 	}
 	if isJSONNull(raw) {
-		return nil, true, nil
+		return nil, nil, true, nil
 	}
 	var patch map[string]any
 	if err := json.Unmarshal(raw, &patch); err != nil {
-		return nil, false, err
+		return nil, nil, false, err
 	}
 	if len(patch) == 0 {
-		return original, false, nil
+		return original, nil, false, nil
 	}
-	return maputil.MergePatchStringMap(original, patch), true, nil
+	request := maputil.MergePatchStringMap(nil, patch)
+	return maputil.MergePatchStringMap(original, patch), request, true, nil
 }
 
 // tenantSnapshot captures the tenant's derived state before a destination mutation.

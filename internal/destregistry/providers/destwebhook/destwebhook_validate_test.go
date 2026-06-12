@@ -606,15 +606,63 @@ func TestWebhookDestination_Preprocess(t *testing.T) {
 			}),
 		)
 
-		// Merge both config and credentials to simulate handler behavior
+		// Merge both config and credentials to simulate handler behavior,
+		// passing the raw request credentials via opts as the handler does
+		requestCredentials := newDestination.Credentials
 		newDestination.Config = maputil.MergeStringMaps(originalDestination.Config, newDestination.Config)
 		newDestination.Credentials = maputil.MergeStringMaps(originalDestination.Credentials, newDestination.Credentials)
 
-		err := webhookDestination.Preprocess(&newDestination, &originalDestination, &destregistry.PreprocessDestinationOpts{})
+		err := webhookDestination.Preprocess(&newDestination, &originalDestination, &destregistry.PreprocessDestinationOpts{
+			Request: destregistry.PreprocessRequest{Credentials: requestCredentials},
+		})
 		require.NoError(t, err)
 
 		// Verify that the custom invalidation time was preserved
 		assert.Equal(t, customInvalidAt, newDestination.Credentials["previous_secret_invalid_at"])
+	})
+
+	t.Run("should apply 24h default on rotation when request omits invalid_at", func(t *testing.T) {
+		t.Parallel()
+		storedInvalidAt := time.Now().Add(1 * time.Hour).Format(time.RFC3339)
+		originalDestination := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithType("webhook"),
+			testutil.DestinationFactory.WithConfig(map[string]string{
+				"url": "https://example.com",
+			}),
+			testutil.DestinationFactory.WithCredentials(map[string]string{
+				"secret":                     "current-secret",
+				"previous_secret":            "older-secret",
+				"previous_secret_invalid_at": storedInvalidAt,
+			}),
+		)
+
+		newDestination := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithType("webhook"),
+			testutil.DestinationFactory.WithConfig(map[string]string{
+				"url": "https://example.com",
+			}),
+			testutil.DestinationFactory.WithCredentials(map[string]string{
+				"rotate_secret": "true",
+			}),
+		)
+
+		// Merge both config and credentials to simulate handler behavior:
+		// the stored previous_secret_invalid_at is merged into newDestination
+		// even though the caller's request didn't contain it.
+		requestCredentials := newDestination.Credentials
+		newDestination.Config = maputil.MergeStringMaps(originalDestination.Config, newDestination.Config)
+		newDestination.Credentials = maputil.MergeStringMaps(originalDestination.Credentials, newDestination.Credentials)
+
+		err := webhookDestination.Preprocess(&newDestination, &originalDestination, &destregistry.PreprocessDestinationOpts{
+			Request: destregistry.PreprocessRequest{Credentials: requestCredentials},
+		})
+		require.NoError(t, err)
+
+		// The merged-in stored value must not be carried forward; the
+		// default window applies.
+		invalidAt, err := time.Parse(time.RFC3339, newDestination.Credentials["previous_secret_invalid_at"])
+		require.NoError(t, err)
+		assert.WithinDuration(t, time.Now().Add(24*time.Hour), invalidAt, 5*time.Second)
 	})
 
 	t.Run("should set default previous_secret_invalid_at when previous_secret is provided", func(t *testing.T) {
