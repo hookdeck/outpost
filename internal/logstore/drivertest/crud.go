@@ -146,6 +146,72 @@ func testCRUD(t *testing.T, newHarness HarnessMaker) {
 			err := logStore.InsertMany(ctx, []*models.LogEntry{})
 			require.NoError(t, err)
 		})
+
+		t.Run("duplicate entries in batch", func(t *testing.T) {
+			// Duplicates arise from MQ redelivery and producer re-publish;
+			// InsertMany must tolerate intra-batch duplicates (same Attempt.ID)
+			// without error and persist a single attempt row.
+			// Isolated tenant so shared filter counts above stay intact.
+			dupTenantID := idgen.String()
+			destID := idgen.Destination()
+
+			event := testutil.EventFactory.AnyPointer(
+				testutil.EventFactory.WithID("dup_evt"),
+				testutil.EventFactory.WithTenantID(dupTenantID),
+				testutil.EventFactory.WithDestinationID(destID),
+				testutil.EventFactory.WithMatchedDestinationIDs([]string{destID}),
+				testutil.EventFactory.WithTime(baseTime.Add(-10*time.Minute)),
+			)
+			delivery := testutil.AttemptFactory.AnyPointer(
+				testutil.AttemptFactory.WithID("dup_del"),
+				testutil.AttemptFactory.WithTenantID(dupTenantID),
+				testutil.AttemptFactory.WithEventID(event.ID),
+				testutil.AttemptFactory.WithDestinationID(destID),
+				testutil.AttemptFactory.WithStatus("failed"),
+				testutil.AttemptFactory.WithTime(baseTime.Add(-10*time.Minute)),
+			)
+			otherEvent := testutil.EventFactory.AnyPointer(
+				testutil.EventFactory.WithID("dup_evt_other"),
+				testutil.EventFactory.WithTenantID(dupTenantID),
+				testutil.EventFactory.WithDestinationID(destID),
+				testutil.EventFactory.WithMatchedDestinationIDs([]string{destID}),
+				testutil.EventFactory.WithTime(baseTime.Add(-9*time.Minute)),
+			)
+			otherDelivery := testutil.AttemptFactory.AnyPointer(
+				testutil.AttemptFactory.WithID("dup_del_other"),
+				testutil.AttemptFactory.WithTenantID(dupTenantID),
+				testutil.AttemptFactory.WithEventID(otherEvent.ID),
+				testutil.AttemptFactory.WithDestinationID(destID),
+				testutil.AttemptFactory.WithStatus("success"),
+				testutil.AttemptFactory.WithTime(baseTime.Add(-9*time.Minute)),
+			)
+
+			err := logStore.InsertMany(ctx, []*models.LogEntry{
+				{Event: event, Attempt: delivery},
+				{Event: otherEvent, Attempt: otherDelivery},
+				{Event: event, Attempt: delivery}, // duplicate copy
+			})
+			require.NoError(t, err)
+			require.NoError(t, h.FlushWrites(ctx))
+
+			response, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
+				TenantIDs:  []string{dupTenantID},
+				Limit:      10,
+				TimeFilter: driver.TimeFilter{GTE: &startTime},
+			})
+			require.NoError(t, err)
+			require.Len(t, response.Data, 2, "duplicate entry should persist a single attempt row")
+
+			dupResponse, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
+				TenantIDs:  []string{dupTenantID},
+				EventIDs:   []string{event.ID},
+				Limit:      10,
+				TimeFilter: driver.TimeFilter{GTE: &startTime},
+			})
+			require.NoError(t, err)
+			require.Len(t, dupResponse.Data, 1)
+			assert.Equal(t, delivery.ID, dupResponse.Data[0].Attempt.ID)
+		})
 	})
 
 	t.Run("list filters", func(t *testing.T) {

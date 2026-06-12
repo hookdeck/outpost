@@ -718,6 +718,11 @@ func (s *logStore) InsertMany(ctx context.Context, entries []*models.LogEntry) e
 		return nil
 	}
 
+	// Collapse intra-batch duplicates: the attempts INSERT below uses
+	// ON CONFLICT DO UPDATE, which Postgres rejects when the same (time, id)
+	// appears twice in one statement (SQLSTATE 21000).
+	entries = driver.DedupeEntriesByAttemptID(entries)
+
 	// Extract and dedupe events by ID, skipping retry attempts.
 	// Retries (AttemptNumber > 1) carry identical event data — the event row
 	// already exists from the first attempt's batch.
