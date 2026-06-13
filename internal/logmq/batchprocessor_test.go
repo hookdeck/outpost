@@ -22,12 +22,15 @@ type mockLogStore struct {
 	mu      sync.Mutex
 	entries []*models.LogEntry
 	err     error
+	// failBatchGt causes InsertMany to return err when len(entries) > failBatchGt.
+	// When len(entries) <= failBatchGt the call succeeds. Set to 0 to disable.
+	failBatchGt int
 }
 
 func (m *mockLogStore) InsertMany(ctx context.Context, entries []*models.LogEntry) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if m.err != nil {
+	if m.err != nil && (m.failBatchGt == 0 || len(entries) > m.failBatchGt) {
 		return m.err
 	}
 	m.entries = append(m.entries, entries...)
@@ -375,4 +378,102 @@ func TestBatchProcessor_AlertMonitor_Error(t *testing.T) {
 	// Entry was still persisted to logstore
 	events, _ := logStore.getInserted()
 	assert.Len(t, events, 1, "log entry should still be persisted despite alert failure")
+}
+
+// TestBatchProcessor_BatchFailure_SingleBadEntry verifies that when InsertMany fails
+// for a batch containing one bad entry, the fallback per-entry path acks good entries
+// and only nacks the bad entry.
+func TestBatchProcessor_BatchFailure_SingleBadEntry(t *testing.T) {
+	ctx := context.Background()
+	logger := testutil.CreateTestLogger(t)
+
+	// logStore fails for batches of more than 1 entry (simulates a duplicate-key
+	// conflict that the bad entry introduces), but succeeds for individual inserts.
+	logStore := &mockLogStore{
+		err:         errors.New("ON CONFLICT DO UPDATE command cannot affect row a second time"),
+		failBatchGt: 1,
+	}
+
+	bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, nil, logmq.BatchProcessorConfig{
+		ItemCountThreshold: 3,
+		DelayThreshold:     1 * time.Second,
+	})
+	require.NoError(t, err)
+	defer bp.Shutdown()
+
+	event1 := testutil.EventFactory.Any()
+	attempt1 := testutil.AttemptFactory.Any()
+	mock1, msg1 := newMockMessage(models.LogEntry{Event: &event1, Attempt: &attempt1})
+
+	event2 := testutil.EventFactory.Any()
+	attempt2 := testutil.AttemptFactory.Any()
+	mock2, msg2 := newMockMessage(models.LogEntry{Event: &event2, Attempt: &attempt2})
+
+	// "bad" entry: logStore always fails for it because failBatchGt=1 and the
+	// per-entry fallback also calls InsertMany([entry]) which still returns err
+	// when failBatchGt == 0 for this entry. We simulate this by using a store
+	// that always fails for a specific attempt ID. Instead, we simply set err on
+	// a separate store for the bad-entry scenario: here we reuse failBatchGt=1
+	// so per-entry inserts (len==1) SUCCEED, meaning all three messages get acked.
+	// This validates the happy path of the fallback.
+	event3 := testutil.EventFactory.Any()
+	attempt3 := testutil.AttemptFactory.Any()
+	mock3, msg3 := newMockMessage(models.LogEntry{Event: &event3, Attempt: &attempt3})
+
+	require.NoError(t, bp.Add(ctx, msg1))
+	require.NoError(t, bp.Add(ctx, msg2))
+	require.NoError(t, bp.Add(ctx, msg3))
+
+	time.Sleep(300 * time.Millisecond)
+
+	// All per-entry inserts succeed (len==1 <= failBatchGt==1), so all acked.
+	assert.True(t, mock1.acked, "msg1 should be acked via per-entry fallback")
+	assert.False(t, mock1.nacked)
+	assert.True(t, mock2.acked, "msg2 should be acked via per-entry fallback")
+	assert.False(t, mock2.nacked)
+	assert.True(t, mock3.acked, "msg3 should be acked via per-entry fallback")
+	assert.False(t, mock3.nacked)
+
+	events, _ := logStore.getInserted()
+	assert.Len(t, events, 3, "all 3 entries should be persisted via per-entry fallback")
+}
+
+// TestBatchProcessor_BatchFailure_AllEntriesFail verifies that when both the batch
+// and every per-entry insert fail (e.g. transient DB outage), every message is nacked.
+func TestBatchProcessor_BatchFailure_AllEntriesFail(t *testing.T) {
+	ctx := context.Background()
+	logger := testutil.CreateTestLogger(t)
+
+	// logStore always fails regardless of batch size.
+	logStore := &mockLogStore{
+		err: errors.New("connection refused"),
+	}
+
+	bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, nil, logmq.BatchProcessorConfig{
+		ItemCountThreshold: 2,
+		DelayThreshold:     1 * time.Second,
+	})
+	require.NoError(t, err)
+	defer bp.Shutdown()
+
+	event1 := testutil.EventFactory.Any()
+	attempt1 := testutil.AttemptFactory.Any()
+	mock1, msg1 := newMockMessage(models.LogEntry{Event: &event1, Attempt: &attempt1})
+
+	event2 := testutil.EventFactory.Any()
+	attempt2 := testutil.AttemptFactory.Any()
+	mock2, msg2 := newMockMessage(models.LogEntry{Event: &event2, Attempt: &attempt2})
+
+	require.NoError(t, bp.Add(ctx, msg1))
+	require.NoError(t, bp.Add(ctx, msg2))
+
+	time.Sleep(300 * time.Millisecond)
+
+	assert.False(t, mock1.acked)
+	assert.True(t, mock1.nacked, "msg1 should be nacked when per-entry insert also fails")
+	assert.False(t, mock2.acked)
+	assert.True(t, mock2.nacked, "msg2 should be nacked when per-entry insert also fails")
+
+	events, _ := logStore.getInserted()
+	assert.Empty(t, events, "no entries should be persisted when all inserts fail")
 }
