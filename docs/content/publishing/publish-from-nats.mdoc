@@ -1,0 +1,117 @@
+---
+title: "Publish from NATS JetStream"
+description: "Configure Outpost to ingest published events from one or more NATS JetStream streams, with per-tenant NATS Account isolation."
+---
+
+This guide describes how to publish events into Outpost from NATS JetStream. The NATS source is **publish-mq only** — Outpost reads events from one or more pre-provisioned JetStream consumers, and never creates or modifies streams itself.
+
+A common architecture is one NATS Account per Outpost tenant: each tenant publishes into their own account (isolated subjects, isolated JetStream quota, separate credentials), and Outpost holds one connection per account.
+
+## Message Structure
+
+Events published to the JetStream subject should match the [Publish API endpoint](/docs/outpost/publishing/events) payload:
+
+```json
+{
+  "tenant_id": "<TENANT_ID>",
+  "destination_id": "<DESTINATION_ID>", // Optional. Provide a way of routing events to a specific destination
+  "topic": "topic.name", // Topic defined in TOPICS environment variable
+  "eligible_for_retry": true | false, // Should event delivery be retried? Default is true.
+  "metadata": Payload, // can be any JSON payload,
+  "data": Payload // can be any JSON payload
+}
+```
+
+When an account has `tenant_id` configured (recommended), Outpost overrides the payload's `tenant_id` with the configured value. This guarantees that a publisher with credentials for Account A can only ever produce events for the tenant mapped to A.
+
+## Prerequisites
+
+- A NATS server (2.10+) with JetStream enabled.
+- One JetStream **stream** per account, holding the events Outpost should consume.
+- One durable JetStream **consumer** per stream, with `AckPolicy: explicit`.
+
+Outpost does **not** create streams or consumers — the operator is expected to provision these alongside the account itself. A typical provisioning flow is:
+
+1. Mint the NATS Account JWT (e.g. using `nsc` or the `github.com/nats-io/jwt/v2` Go library).
+2. Push the JWT to the NATS resolver via `$SYS.REQ.ACCOUNT.<id>.CLAIMS.UPDATE`.
+3. Mint a User JWT and write the resulting `.creds` file.
+4. Create the JetStream stream + durable consumer in that account.
+5. Drop the `.creds` plus a `meta.yaml` into Outpost's `accounts_dir` (or restart Outpost with an updated static `accounts` list).
+
+## Configuration
+
+### Environment Variables
+
+```
+PUBLISH_NATS_SERVERS="nats://nats:4222"
+PUBLISH_NATS_ACCOUNTS_DIR="/etc/outpost/nats-accounts"
+```
+
+`PUBLISH_NATS_SERVERS` accepts a comma-separated list of URLs to support NATS clusters.
+
+### YAML
+
+```yaml
+publishmq:
+  nats:
+    servers:
+      - nats://nats:4222
+    accounts_dir: /etc/outpost/nats-accounts
+    # Optional inline accounts (combined with accounts_dir if both are set):
+    accounts:
+      - name: static-tenant
+        credentials_file: /etc/outpost/static.creds
+        stream: events
+        consumer: outpost
+        tenant_id: static-tenant
+```
+
+### Accounts Directory Layout
+
+When `accounts_dir` is set, Outpost watches it for tenant subdirectories and reconciles its connections at runtime — new accounts are added without restart, removed accounts have their connections drained.
+
+```
+/etc/outpost/nats-accounts/
+├── acme/
+│   ├── user.creds      # NATS .creds (JWT + NKey seed)
+│   └── meta.yaml
+└── globex/
+    ├── user.creds
+    └── meta.yaml
+```
+
+Each `meta.yaml`:
+
+```yaml
+name: acme               # optional; defaults to the directory name
+credentials_file: ""     # optional; defaults to <dir>/user.creds when present
+stream: events           # required
+consumer: outpost        # required (durable consumer name)
+tenant_id: acme          # optional; when set, stamped on every event
+```
+
+`credentials_file` may also be an absolute path or a path relative to the account directory — useful when you mount credentials read-only from a different source than the metadata.
+
+## Multi-Tenancy via NATS Accounts
+
+The recommended pattern is **one NATS Account per Outpost tenant**:
+
+- Each tenant publishes with credentials for their own account.
+- Subjects, JetStream quota, and credentials are isolated by the NATS server.
+- Outpost holds one connection per account. The pull-loops run in parallel and feed into a single delivery pipeline.
+- Setting `tenant_id` on each account guarantees Outpost stamps the correct tenant on every event, regardless of payload content. A publisher cannot spoof events for a different tenant.
+
+For dynamic tenant provisioning, run NATS in operator/JWT-resolver mode and update the resolver via `$SYS.REQ.ACCOUNT.…CLAIMS.UPDATE` — no NATS-server restart required.
+
+## Operational Notes
+
+- **At-least-once delivery**: messages are Ack'd only after Outpost has successfully ingested them. On failure (or restart) the consumer's `AckWait` triggers a redelivery.
+- **Retry limit / DLQ**: configure `MaxDeliver` and a republish target on your JetStream consumer per your retention policy. Outpost does not own DLQ semantics.
+- **Credential rotation**: replace the `.creds` file and re-create or rename the account directory to force Outpost to reconnect. Hot-reloading a single file without re-creating the directory is not currently supported.
+- **No publish from Outpost**: this source is read-only. Outpost will not produce messages back into the JetStream stream.
+
+### Troubleshooting
+
+- [Ask a question](https://github.com/hookdeck/outpost/discussions/new?category=q-a)
+- [Report a bug](https://github.com/hookdeck/outpost/issues/new?assignees=&labels=bug&projects=&template=bug_report.md&title=%F0%9F%90%9B+Bug+Report%3A+)
+- [Request a feature](https://github.com/hookdeck/outpost/issues/new?assignees=&labels=enhancement&projects=&template=feature_request.md&title=%F0%9F%9A%80+Feature%3A+)

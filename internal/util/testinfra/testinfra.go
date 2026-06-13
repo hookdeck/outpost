@@ -27,6 +27,7 @@ type Config struct {
 	LocalStackURL     string
 	RabbitMQURL       string
 	KafkaURL          string
+	NATSURL           string
 	MockServerURL     string
 	GCPURL            string
 	AzureSBConnString string
@@ -67,6 +68,10 @@ func initConfig() {
 		if !strings.Contains(mockServerURL, "http://") {
 			mockServerURL = "http://" + mockServerURL
 		}
+		natsURL := v.GetString("TEST_NATS_URL")
+		if natsURL != "" && !strings.HasPrefix(natsURL, "nats://") && !strings.HasPrefix(natsURL, "tls://") {
+			natsURL = "nats://" + natsURL
+		}
 		cfg = &Config{
 			TestInfra:         v.GetBool("TESTINFRA"),
 			TestAzure:         v.GetBool("TESTAZURE"),
@@ -77,6 +82,7 @@ func initConfig() {
 			AzureSBConnString: v.GetString("TEST_AZURE_SB_CONNSTRING"),
 			RabbitMQURL:       rabbitmqURL,
 			KafkaURL:          v.GetString("TEST_KAFKA_URL"),
+			NATSURL:           natsURL,
 			MockServerURL:     mockServerURL,
 		}
 		return
@@ -92,6 +98,7 @@ func initConfig() {
 		AzureSBConnString: "",
 		RabbitMQURL:       "",
 		KafkaURL:          "",
+		NATSURL:           "",
 		MockServerURL:     "",
 	}
 }

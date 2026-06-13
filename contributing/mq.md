@@ -29,6 +29,7 @@ This document will focus on the first two types of integrations. The third type,
 publishmq only:
 
 - [ ] Kafka
+- [x] NATS JetStream
 
 ## Configuration
 
@@ -116,3 +117,29 @@ RabbitMQ's concept of visibility timeout is called [acknowledgement timeout](htt
 **Retry Behavior**:
 
 **When a message is nacked, it is retried immediately.** After reaching the retry limit, the message will be sent to the DLX (dead-lettered exchange) and it then routed to the DLQ.
+
+### NATS JetStream (publishmq only)
+
+**Scope**: NATS JetStream is supported as a publish-mq only. Outpost reads events from one or more pre-provisioned JetStream consumers. It is **not** used as an internal MQ.
+
+**Configuration** (per account):
+
+- Servers (required, NATS cluster URLs)
+- Credentials file (optional, NATS `.creds` JWT + NKey seed)
+- Stream name (required)
+- Durable consumer name (required)
+- Tenant ID (optional; when set, Outpost stamps it on every event from this account)
+
+**Multi-Tenancy**: the driver supports multiple NATS Accounts on one queue instance. Each account is dialled on its own connection with its own credentials, and the recommended pattern is one Account per Outpost tenant. Accounts can be provided either as a static list or via a watched directory (see `docs/content/publishing/publish-from-nats.mdoc`).
+
+**Infrastructure**:
+
+Outpost does **not** create the JetStream stream or consumer. The operator is expected to provision them — typically alongside the NATS Account itself — and to provide them to Outpost via the credentials file plus `meta.yaml`. Outpost verifies that both stream and consumer exist on startup and fails loudly if either is missing.
+
+**Visibility Timeout**:
+
+NATS JetStream's equivalent is the consumer's `AckWait`. Configure it on the consumer; Outpost does not override it.
+
+**Retry Behavior**:
+
+When a message is nacked or AckWait elapses without ack, JetStream redelivers up to the consumer's `MaxDeliver`. DLQ semantics are operator-owned; the JetStream consumer can be configured to republish max-delivery-exceeded messages to a dedicated DLQ stream via the consumer's `republish` policy or by observing `$JS.EVENT.ADVISORY.CONSUMER.MAX_DELIVERIES.>` advisories.
