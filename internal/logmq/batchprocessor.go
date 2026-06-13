@@ -136,12 +136,12 @@ func (bp *BatchProcessor) processBatch(_ string, msgs []*mqs.Message) {
 
 	insertStart := time.Now()
 	if err := bp.logStore.InsertMany(insertCtx, entries); err != nil {
-		logger.Error("failed to insert log entries",
+		logger.Error("failed to insert log entries, falling back to per-entry inserts",
 			zap.Error(err),
 			zap.Int("entry_count", len(entries)),
 			zap.Int64("insert_duration_ms", time.Since(insertStart).Milliseconds()))
-		for _, msg := range validMsgs {
-			msg.Nack()
+		for i, entry := range entries {
+			bp.processEntry(entry, validMsgs[i])
 		}
 		return
 	}
@@ -152,37 +152,65 @@ func (bp *BatchProcessor) processBatch(_ string, msgs []*mqs.Message) {
 
 	// Per-entry alert evaluation after successful persistence
 	for i, entry := range entries {
-		if bp.alertMonitor == nil {
-			validMsgs[i].Ack()
-			continue
-		}
-
-		// Graceful nil: skip alert eval if no destination.
-		// This only happens during the initial migration when older deliverymq
-		// instances haven't been updated to populate LogEntry.Destination yet.
-		// Can be removed after v1.0.
-		if entry.Destination == nil {
-			validMsgs[i].Ack()
-			continue
-		}
-
-		da := alert.DeliveryAttempt{
-			Event:       entry.Event,
-			Destination: alert.AlertDestinationFromDestination(entry.Destination),
-			Attempt:     entry.Attempt,
-		}
-		if err := bp.alertMonitor.HandleAttempt(bp.ctx, da); err != nil {
-			logger.Error("alert evaluation failed",
-				zap.Error(err),
-				zap.String("attempt_id", entry.Attempt.ID),
-				zap.String("event_id", entry.Event.ID),
-				zap.String("destination_id", entry.Destination.ID))
-			// Nack so the message is redelivered. InsertMany is idempotent
-			// (upsert by attempt ID), so redelivery won't produce duplicate log entries.
-			validMsgs[i].Nack()
-			continue
-		}
-
-		validMsgs[i].Ack()
+		bp.evalAlert(entry, validMsgs[i])
 	}
+}
+
+// processEntry inserts a single log entry and evaluates alerts for it.
+// It is used as a per-entry fallback when the batch InsertMany fails, so that
+// one bad entry cannot poison an entire batch of messages.
+func (bp *BatchProcessor) processEntry(entry *models.LogEntry, msg *mqs.Message) {
+	logger := bp.logger.Ctx(bp.ctx)
+
+	entryCtx, cancel := context.WithTimeout(bp.ctx, 5*time.Second)
+	defer cancel()
+
+	if err := bp.logStore.InsertMany(entryCtx, []*models.LogEntry{entry}); err != nil {
+		logger.Error("per-entry insert failed",
+			zap.Error(err),
+			zap.String("attempt_id", entry.Attempt.ID),
+			zap.String("event_id", entry.Event.ID))
+		msg.Nack()
+		return
+	}
+
+	bp.evalAlert(entry, msg)
+}
+
+// evalAlert runs alert evaluation for a single persisted entry and acks/nacks msg.
+func (bp *BatchProcessor) evalAlert(entry *models.LogEntry, msg *mqs.Message) {
+	logger := bp.logger.Ctx(bp.ctx)
+
+	if bp.alertMonitor == nil {
+		msg.Ack()
+		return
+	}
+
+	// Graceful nil: skip alert eval if no destination.
+	// This only happens during the initial migration when older deliverymq
+	// instances haven't been updated to populate LogEntry.Destination yet.
+	// Can be removed after v1.0.
+	if entry.Destination == nil {
+		msg.Ack()
+		return
+	}
+
+	da := alert.DeliveryAttempt{
+		Event:       entry.Event,
+		Destination: alert.AlertDestinationFromDestination(entry.Destination),
+		Attempt:     entry.Attempt,
+	}
+	if err := bp.alertMonitor.HandleAttempt(bp.ctx, da); err != nil {
+		logger.Error("alert evaluation failed",
+			zap.Error(err),
+			zap.String("attempt_id", entry.Attempt.ID),
+			zap.String("event_id", entry.Event.ID),
+			zap.String("destination_id", entry.Destination.ID))
+		// Nack so the message is redelivered. InsertMany is idempotent
+		// (upsert by attempt ID), so redelivery won't produce duplicate log entries.
+		msg.Nack()
+		return
+	}
+
+	msg.Ack()
 }
