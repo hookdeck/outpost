@@ -198,6 +198,42 @@ func TestAWSS3Publisher_Format_NilResult(t *testing.T) {
 	assert.Contains(t, err.Error(), "nil result")
 }
 
+// TestAWSS3Publisher_Publish_FormatError reproduces the production incident where a
+// key_template references a field absent from the event (here metadata.operationId on
+// an event with no such metadata). The key cannot be built, so Format fails. Publish
+// must surface this as a failed delivery + ErrDestinationPublishAttempt (so the registry
+// records an attempt and acks) rather than a nil delivery (which nacks into the DLQ).
+func TestAWSS3Publisher_Publish_FormatError(t *testing.T) {
+	event := models.Event{
+		ID:   "event-123",
+		Time: time.Now(),
+		Data: json.RawMessage(`{}`),
+	}
+
+	// Mirrors the incident template: join over a missing metadata field yields nil,
+	// which join rejects. Reaches Publish's Format step before any S3 client call,
+	// so a nil client is safe here.
+	template := `join('/', ['prefix', metadata.operationId])`
+	publisher := destawss3.NewAWSS3Publisher(
+		destregistry.NewBasePublisher(),
+		nil,
+		"my-bucket",
+		template,
+		"STANDARD",
+	)
+
+	delivery, err := publisher.Publish(context.Background(), &event)
+
+	require.NotNil(t, delivery, "format failure must yield a non-nil delivery so the message is acked, not DLQ'd")
+	assert.Equal(t, "failed", delivery.Status)
+	assert.Equal(t, "ERR", delivery.Code)
+
+	var pubErr *destregistry.ErrDestinationPublishAttempt
+	require.ErrorAs(t, err, &pubErr)
+	assert.Equal(t, "aws_s3", pubErr.Provider)
+	assert.Equal(t, "format_failed", pubErr.Data["error"])
+}
+
 func TestAWSS3Publisher_Format_EmptyResult(t *testing.T) {
 	event := models.Event{
 		ID:   "event-123",

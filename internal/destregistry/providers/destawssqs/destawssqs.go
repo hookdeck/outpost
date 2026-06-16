@@ -163,7 +163,7 @@ func (p *AWSSQSPublisher) Publish(ctx context.Context, event *models.Event) (*de
 
 	msg, err := p.Format(ctx, event)
 	if err != nil {
-		return nil, err
+		return destregistry.NewFormatErrorDelivery("aws_sqs", "", err)
 	}
 
 	if _, err = p.client.SendMessage(ctx, msg); err != nil {
