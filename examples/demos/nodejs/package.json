@@ -7,15 +7,15 @@
   "type": "module",
   "main": "src/migrate.ts",
   "scripts": {
-    "migrate": "esrun src/migrate.ts",
-    "publish-api": "esrun src/publish-api.ts",
-    "publish-rabbitmq": "esrun src/publish-rabbitmq.ts",
-    "publish-sqs": "esrun src/publish-sqs.ts",
-    "publish-gcp-pubsub": "esrun src/publish-gcp-pubsub.ts",
-    "verify": "esrun src/verify-signature.ts",
-    "portal-urls": "esrun src/portal-urls.ts",
-    "create-tenant": "esrun src/create-tenant.ts",
-    "healthz": "esrun src/healthz.ts",
+    "migrate": "tsx src/migrate.ts",
+    "publish-api": "tsx src/publish-api.ts",
+    "publish-rabbitmq": "tsx src/publish-rabbitmq.ts",
+    "publish-sqs": "tsx src/publish-sqs.ts",
+    "publish-gcp-pubsub": "tsx src/publish-gcp-pubsub.ts",
+    "verify": "tsx src/verify-signature.ts",
+    "portal-urls": "tsx src/portal-urls.ts",
+    "create-tenant": "tsx src/create-tenant.ts",
+    "healthz": "tsx src/healthz.ts",
     "typecheck": "tsc --noEmit"
   },
   "engines": {
@@ -24,12 +24,12 @@
   "devDependencies": {
     "@types/amqplib": "^0.10.7",
     "@types/node": "^22.13.10",
-    "esrun": "^3.2.26",
+    "tsx": "^4.22.4",
     "typescript": "^5.0.0"
   },
   "dependencies": {
     "@aws-sdk/client-sqs": "^3.774.0",
-    "@google-cloud/pubsub": "^4.11.0",
+    "@google-cloud/pubsub": "^5.3.1",
     "@hookdeck/outpost-sdk": "^1.0.1",
     "amqplib": "^0.10.3",
     "dotenv": "^16.4.7"
