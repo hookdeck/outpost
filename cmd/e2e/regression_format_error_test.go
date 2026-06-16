@@ -20,25 +20,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestE2E_Regression_FormatErrorIsDeliveredAttempt is a standalone regression test
-// for the production incident where an aws_s3 destination's key_template could not be
-// evaluated for a given event (the template referenced metadata.operationId, which the
-// event lacked). Before the fix, the per-event formatting failure returned a nil
-// delivery, which the pipeline treated as a system error: it was nacked, never logged
-// as an attempt, retried blindly by the message queue, and ultimately dead-lettered —
-// paging us instead of surfacing as a normal delivery failure.
+// TestE2E_Regression_FormatErrorIsDeliveredAttempt verifies that a per-event
+// formatting failure is handled as a normal failed delivery, not a system error
+// that gets nacked and dead-lettered.
 //
-// aws_s3 is the only destination type that can force this: its key_template is JMESPath
-// validated for syntax only at creation, so a template that is valid at creation can
-// still fail at delivery for an event missing a referenced field. (Kafka/Kinesis use the
-// same per-event template mechanism but swallow eval errors and fall back to event.ID;
-// the other providers have no per-event formatting step that can fail.)
+// We use aws_s3 because its key_template is only syntax-validated at creation, so a
+// valid template can still fail at delivery for an event missing a referenced field.
 //
-// This test asserts the FIXED behavior, end to end:
-//  1. nothing is ever written to S3 (the failure is pre-delivery)
-//  2. each attempt is RECORDED as a failed delivery carrying the format error
-//  3. it retries on the normal schedule and EXHAUSTS its budget, then stops —
-//     it is never requeued/dead-lettered (which would log zero attempts and loop)
+// Asserts, end to end:
+//  1. nothing is written to S3 (the failure is pre-delivery)
+//  2. each attempt is recorded as a failed delivery
+//  3. it retries on the normal schedule and exhausts, rather than being dead-lettered
 func TestE2E_Regression_FormatErrorIsDeliveredAttempt(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
