@@ -146,11 +146,25 @@ func (m *alertMonitor) HandleAttempt(ctx context.Context, attempt DeliveryAttemp
 	}
 
 	// Consecutive failure tracking
-	count, err := m.store.IncrementConsecutiveFailureCount(ctx, attempt.Destination.TenantID, attempt.Destination.ID, attempt.Attempt.ID)
+	res, err := m.store.IncrementConsecutiveFailureCount(ctx, attempt.Destination.TenantID, attempt.Destination.ID, attempt.Attempt.ID)
 	if err != nil {
 		return fmt.Errorf("failed to get alert state: %w", err)
 	}
 
+	// Replayed attempt (MQ redelivery, producer re-publish) that already
+	// completed a full evaluation — skip re-emitting alerts. Attempts that
+	// were counted but never marked evaluated (eval failed mid-way and the
+	// message was nacked) fall through and re-run as recovery.
+	if !res.NewlyCounted && res.AlreadyEvaluated {
+		m.logger.Ctx(ctx).Debug("skipping replayed attempt: already evaluated",
+			zap.String("attempt_id", attempt.Attempt.ID),
+			zap.String("tenant_id", attempt.Destination.TenantID),
+			zap.String("destination_id", attempt.Destination.ID),
+		)
+		return nil
+	}
+
+	count := res.Count
 	level, shouldAlert := m.evaluator.ShouldAlert(count)
 	if shouldAlert {
 		// At 100% threshold, disable the destination and emit disabled alert.
@@ -247,6 +261,18 @@ func (m *alertMonitor) HandleAttempt(ctx context.Context, attempt DeliveryAttemp
 				return fmt.Errorf("failed to emit exhausted retries alert: %w", err)
 			}
 		}
+	}
+
+	// Mark the attempt fully evaluated so replays skip re-emitting alerts.
+	// Non-fatal: on failure the attempt simply re-evaluates on replay, which
+	// matches the previous behavior (emit/disable are idempotent-by-design).
+	if err := m.store.MarkAttemptEvaluated(ctx, attempt.Destination.TenantID, attempt.Destination.ID, attempt.Attempt.ID); err != nil {
+		m.logger.Ctx(ctx).Warn("failed to mark attempt evaluated",
+			zap.Error(err),
+			zap.String("attempt_id", attempt.Attempt.ID),
+			zap.String("tenant_id", attempt.Destination.TenantID),
+			zap.String("destination_id", attempt.Destination.ID),
+		)
 	}
 
 	return nil

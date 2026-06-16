@@ -84,6 +84,7 @@ func (bp *BatchProcessor) processBatch(_ string, msgs []*mqs.Message) {
 
 	entries := make([]*models.LogEntry, 0, len(msgs))
 	validMsgs := make([]*mqs.Message, 0, len(msgs))
+	seenAttempts := make(map[string]struct{}, len(msgs))
 
 	for _, msg := range msgs {
 		entry := &models.LogEntry{}
@@ -115,6 +116,22 @@ func (bp *BatchProcessor) processBatch(_ string, msgs []*mqs.Message) {
 			msg.Nack()
 			continue
 		}
+
+		// Dedup duplicate copies of the same attempt within the batch
+		// (at-least-once redelivery, producer re-publish — possibly under
+		// different MQ message IDs). Copies are byte-identical, so the
+		// duplicate is acked immediately; the at-least-once guarantee rides
+		// on the kept copy, which stays un-acked until persisted.
+		if _, ok := seenAttempts[entry.Attempt.ID]; ok {
+			logger.Debug("duplicate log entry in batch",
+				zap.String("message_id", msg.LoggableID),
+				zap.String("attempt_id", entry.Attempt.ID),
+				zap.String("event_id", entry.Event.ID),
+				zap.String("tenant_id", entry.Event.TenantID))
+			msg.Ack()
+			continue
+		}
+		seenAttempts[entry.Attempt.ID] = struct{}{}
 
 		logger.Debug("added to batch",
 			zap.String("message_id", msg.LoggableID),
