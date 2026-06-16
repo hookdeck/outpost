@@ -555,7 +555,7 @@ func (p *StandardWebhookPublisher) Publish(ctx context.Context, event *models.Ev
 
 	httpReq, err := p.Format(ctx, event)
 	if err != nil {
-		return nil, err
+		return destregistry.NewFormatError("webhook_standard", "", err)
 	}
 
 	result := destwebhook.ExecuteHTTPRequest(ctx, p.httpClient, httpReq, "webhook_standard")

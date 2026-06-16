@@ -222,12 +222,7 @@ func (p *KafkaPublisher) Publish(ctx context.Context, event *models.Event) (*des
 	// Build parsed payload for partition key JMESPath evaluation
 	dataMap, err := event.ParsedData()
 	if err != nil {
-		return nil, destregistry.NewErrDestinationPublishAttempt(
-			err, "kafka", map[string]interface{}{
-				"error":   "format_failed",
-				"message": err.Error(),
-			},
-		)
+		return destregistry.NewFormatError("kafka", "", err)
 	}
 	if dataMap == nil {
 		dataMap = make(map[string]interface{})
