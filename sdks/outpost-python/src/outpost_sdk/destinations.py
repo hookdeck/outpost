@@ -62,8 +62,10 @@ class Destinations(BaseSDK):
 
         request = models.ListTenantDestinationsRequest(
             tenant_id=tenant_id,
-            type=type_,
-            topics=topics,
+            type=utils.unmarshal(type_, Optional[models.ListTenantDestinationsType]),
+            topics=utils.unmarshal(
+                topics, Optional[models.ListTenantDestinationsTopics]
+            ),
         )
 
         req = self._build_request(
@@ -174,8 +176,10 @@ class Destinations(BaseSDK):
 
         request = models.ListTenantDestinationsRequest(
             tenant_id=tenant_id,
-            type=type_,
-            topics=topics,
+            type=utils.unmarshal(type_, Optional[models.ListTenantDestinationsType]),
+            topics=utils.unmarshal(
+                topics, Optional[models.ListTenantDestinationsTopics]
+            ),
         )
 
         req = self._build_request_async(
@@ -1722,7 +1726,9 @@ class Destinations(BaseSDK):
             tenant_id=tenant_id,
             destination_id=destination_id,
             attempt_id=attempt_id,
-            include=include,
+            include=utils.unmarshal(
+                include, Optional[models.GetTenantDestinationAttemptInclude]
+            ),
         )
 
         req = self._build_request(
@@ -1837,7 +1843,9 @@ class Destinations(BaseSDK):
             tenant_id=tenant_id,
             destination_id=destination_id,
             attempt_id=attempt_id,
-            include=include,
+            include=utils.unmarshal(
+                include, Optional[models.GetTenantDestinationAttemptInclude]
+            ),
         )
 
         req = self._build_request_async(

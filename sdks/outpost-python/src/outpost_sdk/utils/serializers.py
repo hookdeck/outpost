@@ -4,7 +4,7 @@ from decimal import Decimal
 import functools
 import json
 import typing
-from typing import Any, Dict, List, Tuple, Union, get_args
+from typing import Any, Dict, Iterable, List, Mapping, Tuple, Union, get_args
 import typing_extensions
 from typing_extensions import get_origin
 
@@ -113,10 +113,12 @@ def validate_const(v):
 
 
 def unmarshal_json(raw, typ: Any) -> Any:
-    return unmarshal(from_json(raw), typ)
+    return unmarshal(from_json(raw), typ, coerce_iterables=False)
 
 
-def unmarshal(val, typ: Any) -> Any:
+def unmarshal(val, typ: Any, coerce_iterables: bool = True) -> Any:
+    if coerce_iterables:
+        val = _coerce_iterables_for_type(val, typ)
     unmarshaller = create_model(
         "Unmarshaller",
         body=(typ, ...),
@@ -193,7 +195,86 @@ def get_pydantic_model(data: Any, typ: Any) -> Any:
     if not _contains_pydantic_model(data):
         return unmarshal(data, typ)
 
+    return _coerce_iterables_for_type(data, typ)
+
+
+def _coerce_iterables_for_type(data: Any, typ: Any) -> Any:
+    if data is None or isinstance(data, (BaseModel, Unset)):
+        return data
+
+    typ = _resolve_type_alias(typ)
+    origin = get_origin(typ)
+
+    if _is_annotated_type(origin):
+        args = get_args(typ)
+        return _coerce_iterables_for_type(data, args[0]) if args else data
+
+    if is_union(origin):
+        for arg in (arg for arg in get_args(typ) if arg is not type(None)):
+            coerced = _coerce_iterables_for_type(data, arg)
+            if coerced is not data:
+                return coerced
+        return data
+
+    if _is_list_type(typ):
+        item_type = get_args(typ)[0] if get_args(typ) else Any
+        if isinstance(data, (str, bytes, bytearray, Mapping)):
+            return data
+        if isinstance(data, Iterable):
+            return [_coerce_iterables_for_type(item, item_type) for item in data]
+        return data
+
+    if _is_mapping_type(typ):
+        value_type = get_args(typ)[1] if len(get_args(typ)) > 1 else Any
+        if isinstance(data, Mapping):
+            return {
+                key: _coerce_iterables_for_type(value, value_type)
+                for key, value in data.items()
+            }
+        return data
+
+    if _is_pydantic_model_type(typ) and isinstance(data, Mapping):
+        coerced = None
+        for field_name, field in typ.model_fields.items():
+            field_type = field.annotation
+            for key in (field_name, field.alias):
+                if key is not None and key in data:
+                    value = data[key] if coerced is None else coerced[key]
+                    coerced_value = _coerce_iterables_for_type(value, field_type)
+                    if coerced_value is not value:
+                        if coerced is None:
+                            coerced = dict(data)
+                        coerced[key] = coerced_value
+        return coerced if coerced is not None else data
+
     return data
+
+
+def _resolve_type_alias(typ: Any) -> Any:
+    return getattr(typ, "__value__", typ)
+
+
+def _is_annotated_type(origin: Any) -> bool:
+    return any(
+        origin is typing_obj
+        for typing_obj in _get_typing_objects_by_name_of("Annotated")
+    )
+
+
+def _is_list_type(typ: Any) -> bool:
+    typ = _resolve_type_alias(typ)
+    return typ is list or get_origin(typ) is list
+
+
+def _is_mapping_type(typ: Any) -> bool:
+    typ = _resolve_type_alias(typ)
+    origin = get_origin(typ)
+    mapping_origin = get_origin(Mapping[Any, Any])
+    return typ in (dict, Dict, Mapping) or origin in (dict, Mapping, mapping_origin)
+
+
+def _is_pydantic_model_type(typ: Any) -> bool:
+    return isinstance(typ, type) and issubclass(typ, BaseModel)
 
 
 def _contains_pydantic_model(data: Any) -> bool:

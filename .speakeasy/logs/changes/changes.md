@@ -1,14 +1,14 @@
-## Go SDK Changes:
-* `Outpost.Configuration.GetManagedConfig()`: `response` **Changed** (Breaking ⚠️)
-    - `AlertCallbackUrl` **Removed** (Breaking ⚠️)
-    - `AlertExhaustedRetriesWindowSeconds` **Added**
-    - `OrganizationName` **Removed** (Breaking ⚠️)
-* `Outpost.Configuration.UpdateManagedConfig()`: 
-  * `request.Request` **Changed** (Breaking ⚠️)
-    - `AlertCallbackUrl` **Removed** (Breaking ⚠️)
-    - `AlertExhaustedRetriesWindowSeconds` **Added**
-    - `OrganizationName` **Removed** (Breaking ⚠️)
+## Python SDK Changes:
+* `outpost.configuration.get_managed_config()`: `response` **Changed** (Breaking ⚠️)
+    - `alert_callback_url` **Removed** (Breaking ⚠️)
+    - `alert_exhausted_retries_window_seconds` **Added**
+    - `organization_name` **Removed** (Breaking ⚠️)
+* `outpost.configuration.update_managed_config()`: 
+  * `request` **Changed** (Breaking ⚠️)
+    - `alert_callback_url` **Removed** (Breaking ⚠️)
+    - `alert_exhausted_retries_window_seconds` **Added**
+    - `organization_name` **Removed** (Breaking ⚠️)
   * `response` **Changed** (Breaking ⚠️)
-    - `AlertCallbackUrl` **Removed** (Breaking ⚠️)
-    - `AlertExhaustedRetriesWindowSeconds` **Added**
-    - `OrganizationName` **Removed** (Breaking ⚠️)
+    - `alert_callback_url` **Removed** (Breaking ⚠️)
+    - `alert_exhausted_retries_window_seconds` **Added**
+    - `organization_name` **Removed** (Breaking ⚠️)
