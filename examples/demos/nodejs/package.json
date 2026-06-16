@@ -22,16 +22,16 @@
     "node": ">=20.6.0"
   },
   "devDependencies": {
-    "@types/amqplib": "^0.10.7",
-    "@types/node": "^22.13.10",
+    "@types/amqplib": "^0.10.8",
+    "@types/node": "^25.9.3",
     "tsx": "^4.22.4",
-    "typescript": "^5.0.0"
+    "typescript": "^6.0.3"
   },
   "dependencies": {
-    "@aws-sdk/client-sqs": "^3.774.0",
+    "@aws-sdk/client-sqs": "^3.1069.0",
     "@google-cloud/pubsub": "^5.3.1",
-    "@hookdeck/outpost-sdk": "^1.0.1",
-    "amqplib": "^0.10.3",
-    "dotenv": "^16.4.7"
+    "@hookdeck/outpost-sdk": "^1.4.0",
+    "amqplib": "^2.0.1",
+    "dotenv": "^17.4.2"
   }
 }
