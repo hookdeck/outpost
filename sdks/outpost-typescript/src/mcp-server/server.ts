@@ -53,7 +53,7 @@ export function createMCPServer(deps: {
 }) {
   const server = new McpServer({
     name: "Outpost",
-    version: "1.4.0",
+    version: "1.4.1",
   });
 
   const client = new OutpostCore({

@@ -17,8 +17,8 @@ import { SDKValidationError } from "../errors/sdkvalidationerror.js";
  */
 export type ManagedConfig = {
   alertAutoDisableDestination?: string | undefined;
-  alertCallbackUrl?: string | undefined;
   alertConsecutiveFailureCount?: string | undefined;
+  alertExhaustedRetriesWindowSeconds?: string | undefined;
   deliveryTimeoutSeconds?: string | undefined;
   destinationsAwsKinesisMetadataInPayload?: string | undefined;
   destinationsIncludeMillisecondTimestamp?: string | undefined;
@@ -40,7 +40,6 @@ export type ManagedConfig = {
   idgenEventPrefix?: string | undefined;
   idgenType?: string | undefined;
   maxDestinationsPerTenant?: string | undefined;
-  organizationName?: string | undefined;
   portalBrandColor?: string | undefined;
   portalDisableOutpostBranding?: string | undefined;
   portalFaviconUrl?: string | undefined;
@@ -87,8 +86,8 @@ export const ManagedConfig$inboundSchema: z.ZodType<
   unknown
 > = z.object({
   ALERT_AUTO_DISABLE_DESTINATION: z.string().optional(),
-  ALERT_CALLBACK_URL: z.string().optional(),
   ALERT_CONSECUTIVE_FAILURE_COUNT: z.string().optional(),
+  ALERT_EXHAUSTED_RETRIES_WINDOW_SECONDS: z.string().optional(),
   DELIVERY_TIMEOUT_SECONDS: z.string().optional(),
   DESTINATIONS_AWS_KINESIS_METADATA_IN_PAYLOAD: z.string().optional(),
   DESTINATIONS_INCLUDE_MILLISECOND_TIMESTAMP: z.string().optional(),
@@ -110,7 +109,6 @@ export const ManagedConfig$inboundSchema: z.ZodType<
   IDGEN_EVENT_PREFIX: z.string().optional(),
   IDGEN_TYPE: z.string().optional(),
   MAX_DESTINATIONS_PER_TENANT: z.string().optional(),
-  ORGANIZATION_NAME: z.string().optional(),
   PORTAL_BRAND_COLOR: z.string().optional(),
   PORTAL_DISABLE_OUTPOST_BRANDING: z.string().optional(),
   PORTAL_FAVICON_URL: z.string().optional(),
@@ -151,8 +149,9 @@ export const ManagedConfig$inboundSchema: z.ZodType<
 }).transform((v) => {
   return remap$(v, {
     "ALERT_AUTO_DISABLE_DESTINATION": "alertAutoDisableDestination",
-    "ALERT_CALLBACK_URL": "alertCallbackUrl",
     "ALERT_CONSECUTIVE_FAILURE_COUNT": "alertConsecutiveFailureCount",
+    "ALERT_EXHAUSTED_RETRIES_WINDOW_SECONDS":
+      "alertExhaustedRetriesWindowSeconds",
     "DELIVERY_TIMEOUT_SECONDS": "deliveryTimeoutSeconds",
     "DESTINATIONS_AWS_KINESIS_METADATA_IN_PAYLOAD":
       "destinationsAwsKinesisMetadataInPayload",
@@ -185,7 +184,6 @@ export const ManagedConfig$inboundSchema: z.ZodType<
     "IDGEN_EVENT_PREFIX": "idgenEventPrefix",
     "IDGEN_TYPE": "idgenType",
     "MAX_DESTINATIONS_PER_TENANT": "maxDestinationsPerTenant",
-    "ORGANIZATION_NAME": "organizationName",
     "PORTAL_BRAND_COLOR": "portalBrandColor",
     "PORTAL_DISABLE_OUTPOST_BRANDING": "portalDisableOutpostBranding",
     "PORTAL_FAVICON_URL": "portalFaviconUrl",
@@ -231,8 +229,8 @@ export const ManagedConfig$inboundSchema: z.ZodType<
 /** @internal */
 export type ManagedConfig$Outbound = {
   ALERT_AUTO_DISABLE_DESTINATION?: string | undefined;
-  ALERT_CALLBACK_URL?: string | undefined;
   ALERT_CONSECUTIVE_FAILURE_COUNT?: string | undefined;
+  ALERT_EXHAUSTED_RETRIES_WINDOW_SECONDS?: string | undefined;
   DELIVERY_TIMEOUT_SECONDS?: string | undefined;
   DESTINATIONS_AWS_KINESIS_METADATA_IN_PAYLOAD?: string | undefined;
   DESTINATIONS_INCLUDE_MILLISECOND_TIMESTAMP?: string | undefined;
@@ -254,7 +252,6 @@ export type ManagedConfig$Outbound = {
   IDGEN_EVENT_PREFIX?: string | undefined;
   IDGEN_TYPE?: string | undefined;
   MAX_DESTINATIONS_PER_TENANT?: string | undefined;
-  ORGANIZATION_NAME?: string | undefined;
   PORTAL_BRAND_COLOR?: string | undefined;
   PORTAL_DISABLE_OUTPOST_BRANDING?: string | undefined;
   PORTAL_FAVICON_URL?: string | undefined;
@@ -301,8 +298,8 @@ export const ManagedConfig$outboundSchema: z.ZodType<
   ManagedConfig
 > = z.object({
   alertAutoDisableDestination: z.string().optional(),
-  alertCallbackUrl: z.string().optional(),
   alertConsecutiveFailureCount: z.string().optional(),
+  alertExhaustedRetriesWindowSeconds: z.string().optional(),
   deliveryTimeoutSeconds: z.string().optional(),
   destinationsAwsKinesisMetadataInPayload: z.string().optional(),
   destinationsIncludeMillisecondTimestamp: z.string().optional(),
@@ -324,7 +321,6 @@ export const ManagedConfig$outboundSchema: z.ZodType<
   idgenEventPrefix: z.string().optional(),
   idgenType: z.string().optional(),
   maxDestinationsPerTenant: z.string().optional(),
-  organizationName: z.string().optional(),
   portalBrandColor: z.string().optional(),
   portalDisableOutpostBranding: z.string().optional(),
   portalFaviconUrl: z.string().optional(),
@@ -365,8 +361,9 @@ export const ManagedConfig$outboundSchema: z.ZodType<
 }).transform((v) => {
   return remap$(v, {
     alertAutoDisableDestination: "ALERT_AUTO_DISABLE_DESTINATION",
-    alertCallbackUrl: "ALERT_CALLBACK_URL",
     alertConsecutiveFailureCount: "ALERT_CONSECUTIVE_FAILURE_COUNT",
+    alertExhaustedRetriesWindowSeconds:
+      "ALERT_EXHAUSTED_RETRIES_WINDOW_SECONDS",
     deliveryTimeoutSeconds: "DELIVERY_TIMEOUT_SECONDS",
     destinationsAwsKinesisMetadataInPayload:
       "DESTINATIONS_AWS_KINESIS_METADATA_IN_PAYLOAD",
@@ -399,7 +396,6 @@ export const ManagedConfig$outboundSchema: z.ZodType<
     idgenEventPrefix: "IDGEN_EVENT_PREFIX",
     idgenType: "IDGEN_TYPE",
     maxDestinationsPerTenant: "MAX_DESTINATIONS_PER_TENANT",
-    organizationName: "ORGANIZATION_NAME",
     portalBrandColor: "PORTAL_BRAND_COLOR",
     portalDisableOutpostBranding: "PORTAL_DISABLE_OUTPOST_BRANDING",
     portalFaviconUrl: "PORTAL_FAVICON_URL",
