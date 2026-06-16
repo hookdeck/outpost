@@ -7,8 +7,8 @@ package components
 // Self-hosted deployments configure these values using environment variables.
 type ManagedConfig struct {
 	AlertAutoDisableDestination                      *string `json:"ALERT_AUTO_DISABLE_DESTINATION,omitempty"`
-	AlertCallbackURL                                 *string `json:"ALERT_CALLBACK_URL,omitempty"`
 	AlertConsecutiveFailureCount                     *string `json:"ALERT_CONSECUTIVE_FAILURE_COUNT,omitempty"`
+	AlertExhaustedRetriesWindowSeconds               *string `json:"ALERT_EXHAUSTED_RETRIES_WINDOW_SECONDS,omitempty"`
 	DeliveryTimeoutSeconds                           *string `json:"DELIVERY_TIMEOUT_SECONDS,omitempty"`
 	DestinationsAwsKinesisMetadataInPayload          *string `json:"DESTINATIONS_AWS_KINESIS_METADATA_IN_PAYLOAD,omitempty"`
 	DestinationsIncludeMillisecondTimestamp          *string `json:"DESTINATIONS_INCLUDE_MILLISECOND_TIMESTAMP,omitempty"`
@@ -30,7 +30,6 @@ type ManagedConfig struct {
 	IdgenEventPrefix                                 *string `json:"IDGEN_EVENT_PREFIX,omitempty"`
 	IdgenType                                        *string `json:"IDGEN_TYPE,omitempty"`
 	MaxDestinationsPerTenant                         *string `json:"MAX_DESTINATIONS_PER_TENANT,omitempty"`
-	OrganizationName                                 *string `json:"ORGANIZATION_NAME,omitempty"`
 	PortalBrandColor                                 *string `json:"PORTAL_BRAND_COLOR,omitempty"`
 	PortalDisableOutpostBranding                     *string `json:"PORTAL_DISABLE_OUTPOST_BRANDING,omitempty"`
 	PortalFaviconURL                                 *string `json:"PORTAL_FAVICON_URL,omitempty"`
@@ -77,18 +76,18 @@ func (m *ManagedConfig) GetAlertAutoDisableDestination() *string {
 	return m.AlertAutoDisableDestination
 }
 
-func (m *ManagedConfig) GetAlertCallbackURL() *string {
-	if m == nil {
-		return nil
-	}
-	return m.AlertCallbackURL
-}
-
 func (m *ManagedConfig) GetAlertConsecutiveFailureCount() *string {
 	if m == nil {
 		return nil
 	}
 	return m.AlertConsecutiveFailureCount
+}
+
+func (m *ManagedConfig) GetAlertExhaustedRetriesWindowSeconds() *string {
+	if m == nil {
+		return nil
+	}
+	return m.AlertExhaustedRetriesWindowSeconds
 }
 
 func (m *ManagedConfig) GetDeliveryTimeoutSeconds() *string {
@@ -236,13 +235,6 @@ func (m *ManagedConfig) GetMaxDestinationsPerTenant() *string {
 		return nil
 	}
 	return m.MaxDestinationsPerTenant
-}
-
-func (m *ManagedConfig) GetOrganizationName() *string {
-	if m == nil {
-		return nil
-	}
-	return m.OrganizationName
 }
 
 func (m *ManagedConfig) GetPortalBrandColor() *string {

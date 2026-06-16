@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="color-scheme" content="light dark">
-    <title>SDK Changelog - typescript</title>
+    <title>SDK Changelog - go</title>
     <style>
         :root {
             --bg-color: #ffffff;
@@ -95,30 +95,33 @@
         }
     </style>
 </head>
-<body><h2 id="typescript-sdk-changes">Typescript SDK Changes:</h2>
+<body><h2 id="go-sdk-changes">Go SDK Changes:</h2>
 
 <ul>
-<li><code>outpost.destinations.update()</code>: <code>request.body</code> <strong>Changed</strong> (Breaking ⚠️)
+<li><code>Outpost.Configuration.GetManagedConfig()</code>: <code>response</code> <strong>Changed</strong> (Breaking ⚠️)
 
 <ul>
-<li><code>union(DestinationUpdateAWSKinesis)</code> <strong>Removed</strong> (Breaking ⚠️)</li>
-<li><code>union(DestinationUpdateAWSS3)</code> <strong>Removed</strong> (Breaking ⚠️)</li>
-<li><code>union(DestinationUpdateAWSSQS)</code> <strong>Removed</strong> (Breaking ⚠️)</li>
-<li><code>union(DestinationUpdateAzureServiceBus)</code> <strong>Removed</strong> (Breaking ⚠️)</li>
-<li><code>union(DestinationUpdateGCPPubSub)</code> <strong>Removed</strong> (Breaking ⚠️)</li>
-<li><code>union(DestinationUpdateHookdeck)</code> <strong>Removed</strong> (Breaking ⚠️)</li>
-<li><code>union(DestinationUpdateKafka)</code> <strong>Removed</strong> (Breaking ⚠️)</li>
-<li><code>union(DestinationUpdateRabbitMQ)</code> <strong>Removed</strong> (Breaking ⚠️)</li>
-<li><code>union(DestinationUpdateWebhook)</code> <strong>Removed</strong> (Breaking ⚠️)</li>
-<li><code>union(aws_kinesis)</code> <strong>Added</strong></li>
-<li><code>union(aws_s3)</code> <strong>Added</strong></li>
-<li><code>union(aws_sqs)</code> <strong>Added</strong></li>
-<li><code>union(azure_servicebus)</code> <strong>Added</strong></li>
-<li><code>union(gcp_pubsub)</code> <strong>Added</strong></li>
-<li><code>union(hookdeck)</code> <strong>Added</strong></li>
-<li><code>union(kafka)</code> <strong>Added</strong></li>
-<li><code>union(rabbitmq)</code> <strong>Added</strong></li>
-<li><code>union(webhook)</code> <strong>Added</strong></li>
+<li><code>AlertCallbackUrl</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>AlertExhaustedRetriesWindowSeconds</code> <strong>Added</strong></li>
+<li><code>OrganizationName</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+</ul></li>
+<li><code>Outpost.Configuration.UpdateManagedConfig()</code>:
+
+<ul>
+<li><code>request.Request</code> <strong>Changed</strong> (Breaking ⚠️)
+
+<ul>
+<li><code>AlertCallbackUrl</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>AlertExhaustedRetriesWindowSeconds</code> <strong>Added</strong></li>
+<li><code>OrganizationName</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+</ul></li>
+<li><code>response</code> <strong>Changed</strong> (Breaking ⚠️)
+
+<ul>
+<li><code>AlertCallbackUrl</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>AlertExhaustedRetriesWindowSeconds</code> <strong>Added</strong></li>
+<li><code>OrganizationName</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+</ul></li>
 </ul></li>
 </ul>
 </body>
