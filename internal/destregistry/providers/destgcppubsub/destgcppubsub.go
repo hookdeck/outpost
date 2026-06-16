@@ -184,7 +184,7 @@ func (pub *GCPPubSubPublisher) Publish(ctx context.Context, event *models.Event)
 	// Format the message
 	msg, err := pub.Format(ctx, event)
 	if err != nil {
-		return destregistry.NewFormatErrorDelivery("gcp_pubsub", "", err)
+		return destregistry.NewFormatError("gcp_pubsub", "", err)
 	}
 
 	// Publish the message

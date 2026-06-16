@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestNewFormatErrorDelivery(t *testing.T) {
+func TestNewFormatError(t *testing.T) {
 	t.Parallel()
 
 	rawErr := errors.New("failed to evaluate key template: invalid type")
@@ -17,7 +17,7 @@ func TestNewFormatErrorDelivery(t *testing.T) {
 	t.Run("returns a failed delivery and a publish-attempt error", func(t *testing.T) {
 		t.Parallel()
 
-		delivery, err := destregistry.NewFormatErrorDelivery("aws_s3", "", rawErr)
+		delivery, err := destregistry.NewFormatError("aws_s3", "", rawErr)
 
 		// A non-nil failed delivery means the registry records an attempt and acks
 		// the message instead of nacking it into the DLQ.
@@ -36,7 +36,7 @@ func TestNewFormatErrorDelivery(t *testing.T) {
 	t.Run("uses a generic message when none is given", func(t *testing.T) {
 		t.Parallel()
 
-		delivery, _ := destregistry.NewFormatErrorDelivery("aws_s3", "", rawErr)
+		delivery, _ := destregistry.NewFormatError("aws_s3", "", rawErr)
 
 		// ...but is NOT persisted on the attempt; the customer-facing response is generic.
 		assert.Equal(t, "could not format event for delivery", delivery.Response["error"])
@@ -46,7 +46,7 @@ func TestNewFormatErrorDelivery(t *testing.T) {
 	t.Run("uses the provided message when given", func(t *testing.T) {
 		t.Parallel()
 
-		delivery, _ := destregistry.NewFormatErrorDelivery("aws_s3", "could not build S3 object key", rawErr)
+		delivery, _ := destregistry.NewFormatError("aws_s3", "could not build S3 object key", rawErr)
 		assert.Equal(t, "could not build S3 object key", delivery.Response["error"])
 	})
 }

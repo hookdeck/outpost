@@ -258,7 +258,7 @@ func (p *AWSKinesisPublisher) Publish(ctx context.Context, event *models.Event) 
 	// Format the event into a PutRecordInput
 	input, err := p.Format(ctx, event)
 	if err != nil {
-		return destregistry.NewFormatErrorDelivery("aws_kinesis", "", err)
+		return destregistry.NewFormatError("aws_kinesis", "", err)
 	}
 
 	// Send the record to Kinesis

@@ -39,7 +39,7 @@ func NewErrDestinationPublishAttempt(err error, provider string, data map[string
 	return &ErrDestinationPublishAttempt{Err: err, Provider: provider, Data: data}
 }
 
-// NewFormatErrorDelivery returns the (*Delivery, error) a publisher should return when
+// NewFormatError returns the (*Delivery, error) a publisher should return when
 // formatting an event fails before it can be sent (e.g. an invalid key/partition
 // template or an unparseable payload). It records a failed attempt so the failure
 // is visible to the customer and the message is acked, instead of nacking into the DLQ.
@@ -47,7 +47,7 @@ func NewErrDestinationPublishAttempt(err error, provider string, data map[string
 // message is the customer-facing string persisted on the attempt (ResponseData);
 // when empty a generic default is used. The raw err is carried only in the returned
 // error (for logs/telemetry) and is not persisted on the attempt.
-func NewFormatErrorDelivery(provider, message string, err error) (*Delivery, error) {
+func NewFormatError(provider, message string, err error) (*Delivery, error) {
 	if message == "" {
 		message = "could not format event for delivery"
 	}
