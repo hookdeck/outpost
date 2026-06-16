@@ -29,7 +29,7 @@ generation:
     generateNewTests: false
     skipResponseBodyAssertions: false
 typescript:
-  version: 1.4.0
+  version: 1.4.1
   acceptHeaderEnum: true
   additionalDependencies:
     dependencies: {}
@@ -38,6 +38,7 @@ typescript:
   additionalPackageJSON: {}
   additionalScripts: {}
   alwaysIncludeInboundAndOutbound: false
+  apiPromiseHelpers: false
   author: Speakeasy
   baseErrorName: OutpostError
   clientServerStatusCodesAsErrors: true
@@ -47,6 +48,7 @@ typescript:
   enableMCPServer: true
   enableReactQuery: false
   enumFormat: union
+  eventStreamClassName: EventStream
   exportZodModelNamespace: false
   fixEnumNameSanitization: false
   flatAdditionalProperties: false
@@ -79,6 +81,7 @@ typescript:
   preApplyUnionDiscriminators: true
   preserveModelFieldNames: false
   privateIdentifierPrefix: '#'
+  requestExtras: false
   responseFormat: flat
   sseFlatResponse: false
   templateVersion: v2
