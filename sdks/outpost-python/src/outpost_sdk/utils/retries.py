@@ -93,6 +93,21 @@ def _parse_retry_after_header(response: httpx.Response) -> Optional[int]:
     return None
 
 
+def _parse_retry_after_ms_header(response: httpx.Response) -> Optional[int]:
+    retry_after_ms_header = response.headers.get("retry-after-ms")
+    if not retry_after_ms_header:
+        return None
+
+    try:
+        milliseconds = float(retry_after_ms_header)
+        if milliseconds >= 0:
+            return round(milliseconds)
+    except (OverflowError, ValueError):
+        pass
+
+    return None
+
+
 def _get_sleep_interval(
     exception: Exception,
     initial_interval: int,
@@ -234,6 +249,10 @@ def retry_with_backoff(
 
                 raise
 
+            if isinstance(exception, TemporaryError):
+                retry_after_ms = _parse_retry_after_ms_header(exception.response)
+                if retry_after_ms is not None:
+                    exception.retry_after = retry_after_ms
             sleep = _get_sleep_interval(
                 exception, initial_interval, max_interval, exponent, retries
             )
@@ -264,6 +283,10 @@ async def retry_with_backoff_async(
 
                 raise
 
+            if isinstance(exception, TemporaryError):
+                retry_after_ms = _parse_retry_after_ms_header(exception.response)
+                if retry_after_ms is not None:
+                    exception.retry_after = retry_after_ms
             sleep = _get_sleep_interval(
                 exception, initial_interval, max_interval, exponent, retries
             )

@@ -266,7 +266,7 @@ class Attempts(BaseSDK):
         request = models.GetAttemptRequest(
             attempt_id=attempt_id,
             tenant_id=tenant_id,
-            include=include,
+            include=utils.unmarshal(include, Optional[models.GetAttemptInclude]),
         )
 
         req = self._build_request(
@@ -379,7 +379,7 @@ class Attempts(BaseSDK):
         request = models.GetAttemptRequest(
             attempt_id=attempt_id,
             tenant_id=tenant_id,
-            include=include,
+            include=utils.unmarshal(include, Optional[models.GetAttemptInclude]),
         )
 
         req = self._build_request_async(

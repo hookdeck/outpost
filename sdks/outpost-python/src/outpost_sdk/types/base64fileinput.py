@@ -23,7 +23,11 @@ def encode_base64_file_input(value: Any) -> Any:
             with open(value, "rb") as fh:
                 binary = fh.read()
         else:
+            # Restore position after reading: pydantic may validate the same stream more than once.
+            position = value.tell() if value.seekable() else None
             binary = value.read()
+            if position is not None:
+                value.seek(position)
             if isinstance(binary, str):
                 binary = binary.encode()
         if not isinstance(binary, (bytes, bytearray)):

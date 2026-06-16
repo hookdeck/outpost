@@ -16,8 +16,8 @@ class ManagedConfigTypedDict(TypedDict):
     """
 
     alert_auto_disable_destination: NotRequired[str]
-    alert_callback_url: NotRequired[str]
     alert_consecutive_failure_count: NotRequired[str]
+    alert_exhausted_retries_window_seconds: NotRequired[str]
     delivery_timeout_seconds: NotRequired[str]
     destinations_aws_kinesis_metadata_in_payload: NotRequired[str]
     destinations_include_millisecond_timestamp: NotRequired[str]
@@ -39,7 +39,6 @@ class ManagedConfigTypedDict(TypedDict):
     idgen_event_prefix: NotRequired[str]
     idgen_type: NotRequired[str]
     max_destinations_per_tenant: NotRequired[str]
-    organization_name: NotRequired[str]
     portal_brand_color: NotRequired[str]
     portal_disable_outpost_branding: NotRequired[str]
     portal_favicon_url: NotRequired[str]
@@ -90,12 +89,12 @@ class ManagedConfig(BaseModel):
         Optional[str], pydantic.Field(alias="ALERT_AUTO_DISABLE_DESTINATION")
     ] = None
 
-    alert_callback_url: Annotated[
-        Optional[str], pydantic.Field(alias="ALERT_CALLBACK_URL")
-    ] = None
-
     alert_consecutive_failure_count: Annotated[
         Optional[str], pydantic.Field(alias="ALERT_CONSECUTIVE_FAILURE_COUNT")
+    ] = None
+
+    alert_exhausted_retries_window_seconds: Annotated[
+        Optional[str], pydantic.Field(alias="ALERT_EXHAUSTED_RETRIES_WINDOW_SECONDS")
     ] = None
 
     delivery_timeout_seconds: Annotated[
@@ -187,10 +186,6 @@ class ManagedConfig(BaseModel):
 
     max_destinations_per_tenant: Annotated[
         Optional[str], pydantic.Field(alias="MAX_DESTINATIONS_PER_TENANT")
-    ] = None
-
-    organization_name: Annotated[
-        Optional[str], pydantic.Field(alias="ORGANIZATION_NAME")
     ] = None
 
     portal_brand_color: Annotated[
@@ -344,8 +339,8 @@ class ManagedConfig(BaseModel):
         optional_fields = set(
             [
                 "ALERT_AUTO_DISABLE_DESTINATION",
-                "ALERT_CALLBACK_URL",
                 "ALERT_CONSECUTIVE_FAILURE_COUNT",
+                "ALERT_EXHAUSTED_RETRIES_WINDOW_SECONDS",
                 "DELIVERY_TIMEOUT_SECONDS",
                 "DESTINATIONS_AWS_KINESIS_METADATA_IN_PAYLOAD",
                 "DESTINATIONS_INCLUDE_MILLISECOND_TIMESTAMP",
@@ -367,7 +362,6 @@ class ManagedConfig(BaseModel):
                 "IDGEN_EVENT_PREFIX",
                 "IDGEN_TYPE",
                 "MAX_DESTINATIONS_PER_TENANT",
-                "ORGANIZATION_NAME",
                 "PORTAL_BRAND_COLOR",
                 "PORTAL_DISABLE_OUTPOST_BRANDING",
                 "PORTAL_FAVICON_URL",
