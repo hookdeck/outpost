@@ -19,6 +19,19 @@ import (
 // PreprocessDestinationOpts contains options for preprocessing a destination
 type PreprocessDestinationOpts struct {
 	Role string
+	// Request holds the destination fields exactly as the caller sent them in
+	// the API request. On updates, newDestination carries the result of
+	// merge-patching the request into the stored values, so it cannot answer
+	// "did the caller provide this field" — the request can.
+	Request PreprocessRequest
+}
+
+// PreprocessRequest is the caller's view of the provider-owned destination
+// fields, before any merging with stored state. Maps are nil when the request
+// did not contain the corresponding field.
+type PreprocessRequest struct {
+	Config      map[string]string
+	Credentials map[string]string
 }
 
 // Registry manages providers, their metadata, and publishers
