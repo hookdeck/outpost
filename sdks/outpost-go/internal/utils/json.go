@@ -512,6 +512,13 @@ func unmarshalValue(value json.RawMessage, v reflect.Value, tag reflect.StructTa
 			return nil
 		}
 	case reflect.Map:
+		if implementsJSONUnmarshaler(v.Type()) {
+			if v.CanAddr() {
+				return json.Unmarshal(value, v.Addr().Interface())
+			}
+			return json.Unmarshal(value, v.Interface())
+		}
+
 		if bytes.Equal(value, []byte("null")) || !isComplexValueType(dereferenceTypePointer(typ.Elem())) {
 			if v.CanAddr() {
 				return json.Unmarshal(value, v.Addr().Interface())
