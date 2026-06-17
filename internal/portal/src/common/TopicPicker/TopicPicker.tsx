@@ -118,16 +118,14 @@ const TopicPicker = ({
   };
 
   const toggleTopic = (topicId: string) => {
-    if (isEverythingSelected) {
-      selectedTopics = [];
-    }
+    const currentTopics = isEverythingSelected ? [] : selectedTopics;
 
     // Ensure if we manually add/toggle a custom topic it's immediately tracked
     setSeenTopics((prev) => Array.from(new Set([...prev, topicId])));
 
-    const newSelected = selectedTopics.includes(topicId)
-      ? selectedTopics.filter((id) => id !== topicId)
-      : [...selectedTopics, topicId];
+    const newSelected = currentTopics.includes(topicId)
+      ? currentTopics.filter((id) => id !== topicId)
+      : [...currentTopics, topicId];
     onTopicsChange(newSelected);
   };
 
@@ -246,18 +244,19 @@ const TopicPicker = ({
                   checked={isEverythingSelected || hasWildcard}
                   indeterminate={!isEverythingSelected && isIndeterminate}
                   onChange={() => {
-                    if (isEverythingSelected) {
-                      selectedTopics = [];
-                    }
+                    const currentTopics = isEverythingSelected
+                      ? []
+                      : selectedTopics;
+
                     if (hasWildcard) {
                       onTopicsChange(
-                        selectedTopics.filter((id) => id !== wildcardId),
+                        currentTopics.filter((id) => id !== wildcardId),
                       );
                     } else {
                       // Clicking the parent immediately subscribes to the wildcard
                       // and clears out any individual child selections for a clean state.
                       const childrenIds = categoryTopics.map((t) => t.id);
-                      const newSelected = selectedTopics.filter(
+                      const newSelected = currentTopics.filter(
                         (id) => !childrenIds.includes(id),
                       );
                       newSelected.push(wildcardId);
