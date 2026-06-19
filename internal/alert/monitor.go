@@ -90,6 +90,23 @@ func WithExhaustedRetriesIdempotence(idemp idempotence.Idempotence) AlertOption 
 	}
 }
 
+// WithConsecutiveFailureEnabled toggles consecutive-failure alerting. When set
+// to false the monitor never tracks or alerts on consecutive failures (and
+// therefore never auto-disables). Defaults to true.
+func WithConsecutiveFailureEnabled(enabled bool) AlertOption {
+	return func(m *alertMonitor) {
+		m.consecutiveFailureEnabled = enabled
+	}
+}
+
+// WithExhaustedRetriesEnabled toggles exhausted_retries alerting. When set to
+// false the monitor never emits exhausted_retries alerts. Defaults to true.
+func WithExhaustedRetriesEnabled(enabled bool) AlertOption {
+	return func(m *alertMonitor) {
+		m.exhaustedRetriesEnabled = enabled
+	}
+}
+
 // DeliveryAttempt represents a single delivery attempt
 type DeliveryAttempt struct {
 	Event       *models.Event
@@ -109,6 +126,9 @@ type alertMonitor struct {
 	alertThresholds         []int
 	retryMaxLimit           int
 	exhaustedRetryIdemp     idempotence.Idempotence
+
+	consecutiveFailureEnabled bool
+	exhaustedRetriesEnabled   bool
 }
 
 // NewAlertMonitor creates a new alert monitor. Emitter and retryMaxLimit are
@@ -119,10 +139,12 @@ func NewAlertMonitor(logger *logging.Logger, redisClient redis.Cmdable, emitter 
 		panic("alert: NewAlertMonitor requires a non-nil emitter")
 	}
 	alertMonitor := &alertMonitor{
-		logger:          logger,
-		emitter:         emitter,
-		retryMaxLimit:   retryMaxLimit,
-		alertThresholds: []int{50, 70, 90, 100}, // default thresholds
+		logger:                    logger,
+		emitter:                   emitter,
+		retryMaxLimit:             retryMaxLimit,
+		alertThresholds:           []int{50, 70, 90, 100}, // default thresholds
+		consecutiveFailureEnabled: true,
+		exhaustedRetriesEnabled:   true,
 	}
 
 	for _, opt := range opts {
@@ -142,93 +164,32 @@ func NewAlertMonitor(logger *logging.Logger, redisClient redis.Cmdable, emitter 
 
 func (m *alertMonitor) HandleAttempt(ctx context.Context, attempt DeliveryAttempt) error {
 	if attempt.Attempt.Status == models.AttemptStatusSuccess {
+		// Nothing is tracked when consecutive-failure alerting is disabled, so
+		// there is no count to reset.
+		if !m.consecutiveFailureEnabled {
+			return nil
+		}
 		return m.store.ResetConsecutiveFailureCount(ctx, attempt.Destination.TenantID, attempt.Destination.ID)
 	}
 
-	// Consecutive failure tracking
-	res, err := m.store.IncrementConsecutiveFailureCount(ctx, attempt.Destination.TenantID, attempt.Destination.ID, attempt.Attempt.ID)
-	if err != nil {
-		return fmt.Errorf("failed to get alert state: %w", err)
-	}
-
-	// Replayed attempt (MQ redelivery, producer re-publish) that already
-	// completed a full evaluation — skip re-emitting alerts. Attempts that
-	// were counted but never marked evaluated (eval failed mid-way and the
-	// message was nacked) fall through and re-run as recovery.
-	if !res.NewlyCounted && res.AlreadyEvaluated {
-		m.logger.Ctx(ctx).Debug("skipping replayed attempt: already evaluated",
-			zap.String("attempt_id", attempt.Attempt.ID),
-			zap.String("tenant_id", attempt.Destination.TenantID),
-			zap.String("destination_id", attempt.Destination.ID),
-		)
-		return nil
-	}
-
-	count := res.Count
-	level, shouldAlert := m.evaluator.ShouldAlert(count)
-	if shouldAlert {
-		// At 100% threshold, disable the destination and emit disabled alert.
-		// Both operations are idempotent on replay: DisableDestination is a no-op
-		// if already disabled, and consumers deduplicate events by ID.
-		if level == 100 && m.disabler != nil {
-			if err := m.disabler.DisableDestination(ctx, attempt.Destination.TenantID, attempt.Destination.ID); err != nil {
-				return fmt.Errorf("failed to disable destination: %w", err)
-			}
-
-			now := time.Now()
-			attempt.Destination.DisabledAt = &now
-
-			m.logger.Ctx(ctx).Audit("destination disabled",
-				zap.String("attempt_id", attempt.Attempt.ID),
-				zap.String("event_id", attempt.Event.ID),
-				zap.String("tenant_id", attempt.Destination.TenantID),
-				zap.String("destination_id", attempt.Destination.ID),
-				zap.String("destination_type", attempt.Destination.Type),
-			)
-
-			disabledData := DestinationDisabledData{
-				TenantID:    attempt.Destination.TenantID,
-				Destination: attempt.Destination,
-				DisabledAt:  now,
-				Reason:      "consecutive_failure",
-				Event:       attempt.Event,
-				Attempt:     attempt.Attempt,
-			}
-			if err := m.emitter.Emit(ctx, opevents.TopicAlertDestinationDisabled, attempt.Destination.TenantID, disabledData); err != nil {
-				return fmt.Errorf("failed to emit destination disabled alert: %w", err)
-			}
+	if m.consecutiveFailureEnabled {
+		// A replayed attempt that already completed evaluation skips the rest of
+		// the pipeline (exhausted-retries check and the evaluated mark), matching
+		// the original single-pass behavior.
+		done, err := m.handleConsecutiveFailure(ctx, attempt)
+		if err != nil {
+			return err
 		}
-
-		// Emit consecutive failure alert
-		cfData := ConsecutiveFailureData{
-			TenantID:    attempt.Destination.TenantID,
-			Event:       attempt.Event,
-			Attempt:     attempt.Attempt,
-			Destination: attempt.Destination,
-			ConsecutiveFailures: ConsecutiveFailures{
-				Current:   count,
-				Max:       m.autoDisableFailureCount,
-				Threshold: level,
-			},
+		if done {
+			return nil
 		}
-		if err := m.emitter.Emit(ctx, opevents.TopicAlertConsecutiveFailure, attempt.Destination.TenantID, cfData); err != nil {
-			return fmt.Errorf("failed to emit consecutive failure alert: %w", err)
-		}
-
-		m.logger.Ctx(ctx).Audit("alert sent",
-			zap.String("topic", opevents.TopicAlertConsecutiveFailure),
-			zap.String("attempt_id", attempt.Attempt.ID),
-			zap.String("event_id", attempt.Event.ID),
-			zap.String("tenant_id", attempt.Destination.TenantID),
-			zap.String("destination_id", attempt.Destination.ID),
-			zap.String("destination_type", attempt.Destination.Type),
-		)
 	}
 
 	// Exhausted retries check (independent of consecutive failure thresholds).
 	// Attempt is 1-indexed: with retryMaxLimit=10, attempt 11 is the final one.
-	// Skip if retryMaxLimit=0 (retries disabled — no exhausted state to report).
-	if m.retryMaxLimit > 0 && attempt.Event.EligibleForRetry && attempt.Attempt.AttemptNumber > m.retryMaxLimit {
+	// Skip if retryMaxLimit=0 (retries disabled — no exhausted state to report)
+	// or if exhausted-retries alerting is disabled.
+	if m.exhaustedRetriesEnabled && m.retryMaxLimit > 0 && attempt.Event.EligibleForRetry && attempt.Attempt.AttemptNumber > m.retryMaxLimit {
 		erData := ExhaustedRetriesData{
 			TenantID:    attempt.Destination.TenantID,
 			Event:       attempt.Event,
@@ -263,17 +224,110 @@ func (m *alertMonitor) HandleAttempt(ctx context.Context, attempt DeliveryAttemp
 		}
 	}
 
-	// Mark the attempt fully evaluated so replays skip re-emitting alerts.
+	// Mark the attempt fully evaluated so replays skip re-emitting alerts. Only
+	// relevant when consecutive-failure tracking ran — it is the consumer of the
+	// evaluated mark (the replay short-circuit above).
 	// Non-fatal: on failure the attempt simply re-evaluates on replay, which
 	// matches the previous behavior (emit/disable are idempotent-by-design).
-	if err := m.store.MarkAttemptEvaluated(ctx, attempt.Destination.TenantID, attempt.Destination.ID, attempt.Attempt.ID); err != nil {
-		m.logger.Ctx(ctx).Warn("failed to mark attempt evaluated",
-			zap.Error(err),
+	if m.consecutiveFailureEnabled {
+		if err := m.store.MarkAttemptEvaluated(ctx, attempt.Destination.TenantID, attempt.Destination.ID, attempt.Attempt.ID); err != nil {
+			m.logger.Ctx(ctx).Warn("failed to mark attempt evaluated",
+				zap.Error(err),
+				zap.String("attempt_id", attempt.Attempt.ID),
+				zap.String("tenant_id", attempt.Destination.TenantID),
+				zap.String("destination_id", attempt.Destination.ID),
+			)
+		}
+	}
+
+	return nil
+}
+
+// handleConsecutiveFailure runs consecutive-failure tracking, alerting and
+// auto-disable for a failed attempt. It returns done=true when the attempt is a
+// replay that already completed evaluation, signalling the caller to stop
+// processing (skip the exhausted-retries check and the evaluated mark).
+func (m *alertMonitor) handleConsecutiveFailure(ctx context.Context, attempt DeliveryAttempt) (done bool, err error) {
+	res, err := m.store.IncrementConsecutiveFailureCount(ctx, attempt.Destination.TenantID, attempt.Destination.ID, attempt.Attempt.ID)
+	if err != nil {
+		return false, fmt.Errorf("failed to get alert state: %w", err)
+	}
+
+	// Replayed attempt (MQ redelivery, producer re-publish) that already
+	// completed a full evaluation — skip re-emitting alerts. Attempts that
+	// were counted but never marked evaluated (eval failed mid-way and the
+	// message was nacked) fall through and re-run as recovery.
+	if !res.NewlyCounted && res.AlreadyEvaluated {
+		m.logger.Ctx(ctx).Debug("skipping replayed attempt: already evaluated",
 			zap.String("attempt_id", attempt.Attempt.ID),
 			zap.String("tenant_id", attempt.Destination.TenantID),
 			zap.String("destination_id", attempt.Destination.ID),
 		)
+		return true, nil
 	}
 
-	return nil
+	count := res.Count
+	level, shouldAlert := m.evaluator.ShouldAlert(count)
+	if !shouldAlert {
+		return false, nil
+	}
+
+	// At 100% threshold, disable the destination and emit disabled alert.
+	// Both operations are idempotent on replay: DisableDestination is a no-op
+	// if already disabled, and consumers deduplicate events by ID.
+	if level == 100 && m.disabler != nil {
+		if err := m.disabler.DisableDestination(ctx, attempt.Destination.TenantID, attempt.Destination.ID); err != nil {
+			return false, fmt.Errorf("failed to disable destination: %w", err)
+		}
+
+		now := time.Now()
+		attempt.Destination.DisabledAt = &now
+
+		m.logger.Ctx(ctx).Audit("destination disabled",
+			zap.String("attempt_id", attempt.Attempt.ID),
+			zap.String("event_id", attempt.Event.ID),
+			zap.String("tenant_id", attempt.Destination.TenantID),
+			zap.String("destination_id", attempt.Destination.ID),
+			zap.String("destination_type", attempt.Destination.Type),
+		)
+
+		disabledData := DestinationDisabledData{
+			TenantID:    attempt.Destination.TenantID,
+			Destination: attempt.Destination,
+			DisabledAt:  now,
+			Reason:      "consecutive_failure",
+			Event:       attempt.Event,
+			Attempt:     attempt.Attempt,
+		}
+		if err := m.emitter.Emit(ctx, opevents.TopicAlertDestinationDisabled, attempt.Destination.TenantID, disabledData); err != nil {
+			return false, fmt.Errorf("failed to emit destination disabled alert: %w", err)
+		}
+	}
+
+	// Emit consecutive failure alert
+	cfData := ConsecutiveFailureData{
+		TenantID:    attempt.Destination.TenantID,
+		Event:       attempt.Event,
+		Attempt:     attempt.Attempt,
+		Destination: attempt.Destination,
+		ConsecutiveFailures: ConsecutiveFailures{
+			Current:   count,
+			Max:       m.autoDisableFailureCount,
+			Threshold: level,
+		},
+	}
+	if err := m.emitter.Emit(ctx, opevents.TopicAlertConsecutiveFailure, attempt.Destination.TenantID, cfData); err != nil {
+		return false, fmt.Errorf("failed to emit consecutive failure alert: %w", err)
+	}
+
+	m.logger.Ctx(ctx).Audit("alert sent",
+		zap.String("topic", opevents.TopicAlertConsecutiveFailure),
+		zap.String("attempt_id", attempt.Attempt.ID),
+		zap.String("event_id", attempt.Event.ID),
+		zap.String("tenant_id", attempt.Destination.TenantID),
+		zap.String("destination_id", attempt.Destination.ID),
+		zap.String("destination_type", attempt.Destination.Type),
+	)
+
+	return false, nil
 }
