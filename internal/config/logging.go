@@ -20,6 +20,10 @@ import (
 //
 // See contributing/config.md for detailed guidelines on configuration logging.
 func (c *Config) LogConfigurationSummary() []zap.Field {
+	// Resolve alert settings so the summary logs the effective values. The error
+	// is ignored — config is already validated by the time this runs.
+	alertSettings, _ := c.Alert.ToConfig()
+
 	fields := []zap.Field{
 		// General
 		zap.String("service", c.Service),
@@ -92,8 +96,11 @@ func (c *Config) LogConfigurationSummary() []zap.Field {
 		zap.Bool("telemetry_disabled", c.Telemetry.Disabled || c.DisableTelemetry),
 
 		// Alert
-		zap.Int("alert_consecutive_failure_count", c.Alert.ConsecutiveFailureCount),
+		zap.Bool("alert_consecutive_failure_enabled", alertSettings.ConsecutiveFailure.Enabled),
+		zap.Int("alert_consecutive_failure_count", alertSettings.ConsecutiveFailure.Count),
 		zap.Bool("alert_auto_disable_destination", c.Alert.AutoDisableDestination),
+		zap.Bool("alert_exhausted_retries_enabled", alertSettings.ExhaustedRetries.Enabled),
+		zap.Int("alert_exhausted_retries_window_seconds", alertSettings.ExhaustedRetries.WindowSeconds),
 
 		// ID Generation
 		zap.String("idgen_type", c.IDGen.Type),

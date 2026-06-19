@@ -49,8 +49,21 @@ func (c *Config) Validate(flags Flags) error {
 		return err
 	}
 
+	if err := c.validateAlert(); err != nil {
+		return err
+	}
+
 	// Mark as validated if we get here
 	c.validated = true
+	return nil
+}
+
+// validateAlert rejects malformed alert config (non-numeric or out-of-range
+// consecutive_failure_count / exhausted_retries_window_seconds) at startup.
+func (c *Config) validateAlert() error {
+	if _, err := c.Alert.ToConfig(); err != nil {
+		return err
+	}
 	return nil
 }
 

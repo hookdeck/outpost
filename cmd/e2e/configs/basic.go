@@ -87,7 +87,8 @@ func Basic(t *testing.T, opts BasicOpts) config.Config {
 	c.LogBatchSize = 100
 	c.DeploymentID = opts.DeploymentID
 	c.Alert.AutoDisableDestination = true
-	c.Alert.ConsecutiveFailureCount = 20
+	consecutiveFailureCount := "20"
+	c.Alert.ConsecutiveFailureCount = &consecutiveFailureCount
 
 	// Setup cleanup
 	t.Cleanup(func() {
