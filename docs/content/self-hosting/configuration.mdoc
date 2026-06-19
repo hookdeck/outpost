@@ -98,9 +98,9 @@ Choose one for event log persistence:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `ALERT_CALLBACK_URL` | — | URL to POST to when an alert fires |
-| `ALERT_CONSECUTIVE_FAILURE_COUNT` | `20` | Consecutive failures before alert triggers |
-| `ALERT_AUTO_DISABLE_DESTINATION` | `true` | Auto-disable destination when failure count reaches 100% |
+| `ALERT_CONSECUTIVE_FAILURE_COUNT` | `100` | Consecutive delivery failures before alerting on a destination (and disabling it when `ALERT_AUTO_DISABLE_DESTINATION` is `true`). Leave unset for the default of `100`; set to an empty string to disable consecutive-failure alerting entirely. |
+| `ALERT_AUTO_DISABLE_DESTINATION` | `false` | Auto-disable a destination once `ALERT_CONSECUTIVE_FAILURE_COUNT` is reached. Has no effect when consecutive-failure alerting is disabled. |
+| `ALERT_EXHAUSTED_RETRIES_WINDOW_SECONDS` | `3600` | Suppression window (seconds) for `exhausted_retries` alerts: the first exhaustion per destination alerts and subsequent ones within the window are suppressed (`0` = no suppression, alert on every exhaustion). Leave unset for the default of `3600`; set to an empty string to disable `exhausted_retries` alerting entirely. |
 
 ## Destinations
 
@@ -159,7 +159,7 @@ portal:
   organization_name: "Acme Corp"
   accent_color: "#6122E7"
 
-alerts:
-  callback_url: "https://yourapp.com/api/outpost-alerts"
+alert:
   consecutive_failure_count: 50
+  exhausted_retries_window_seconds: 3600
 ```
