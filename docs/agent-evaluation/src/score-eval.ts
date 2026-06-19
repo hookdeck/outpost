@@ -60,7 +60,7 @@ Score an eval transcript.
   npm run score -- --llm [--write]      # Anthropic judge (needs ANTHROPIC_API_KEY)
   npm run score -- --llm --no-heuristic # LLM only (no regex heuristic)
 
-Heuristic: src/score-transcript.ts. LLM: reads scenarios/*.md Success criteria + assistant text; model from EVAL_SCORE_MODEL (default claude-sonnet-4-20250514).
+Heuristic: src/score-transcript.ts. LLM: reads scenarios/*.md Success criteria + assistant text; model from EVAL_SCORE_MODEL (default claude-sonnet-4-6).
 
 Options:
   --run <path>      transcript.json, a run directory, or legacy flat *-scenario-NN.json

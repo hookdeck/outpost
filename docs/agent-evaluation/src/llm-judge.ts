@@ -8,7 +8,7 @@ import { basename, dirname, join } from "node:path";
 import { extractTranscriptScoringText } from "./score-transcript.js";
 
 const ANTHROPIC_MESSAGES_URL = "https://api.anthropic.com/v1/messages";
-const DEFAULT_SCORE_MODEL = "claude-sonnet-4-20250514";
+const DEFAULT_SCORE_MODEL = "claude-sonnet-4-6";
 const MAX_TRANSCRIPT_CHARS = 180_000;
 
 export interface LlmCriterionJudgment {
