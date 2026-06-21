@@ -19,6 +19,11 @@ func (m *mockOS) Getenv(key string) string {
 	return m.envVars[key]
 }
 
+func (m *mockOS) LookupEnv(key string) (string, bool) {
+	v, ok := m.envVars[key]
+	return v, ok
+}
+
 func (m *mockOS) Stat(name string) (os.FileInfo, error) {
 	if err, ok := m.statErrs[name]; ok {
 		return nil, err

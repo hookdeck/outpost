@@ -3,10 +3,12 @@ package config
 import (
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/caarlos0/env/v9"
+	"github.com/hookdeck/outpost/internal/alert"
 	"github.com/hookdeck/outpost/internal/backoff"
 	"github.com/hookdeck/outpost/internal/clickhouse"
 	"github.com/hookdeck/outpost/internal/migrator"
@@ -190,11 +192,9 @@ func (c *Config) InitDefaults() {
 		},
 	}
 
-	c.Alert = AlertConfig{
-		ConsecutiveFailureCount:       100,
-		AutoDisableDestination:        false,
-		ExhaustedRetriesWindowSeconds: 3600,
-	}
+	// Alert: ConsecutiveFailureCount / ExhaustedRetriesWindowSeconds are left
+	// unset here so their defaults (and the empty-string "disabled" sentinel)
+	// are applied by AlertConfig.ToConfig rather than baked in as int zero values.
 
 	c.Telemetry = TelemetryConfig{
 		Disabled:          false,
@@ -278,11 +278,33 @@ func (c *Config) parseEnvVariables(osInterface OSInterface) error {
 				envMap[env[:i]] = env[i+1:]
 			}
 		}
-		return env.ParseWithOptions(c, env.Options{Environment: envMap})
+		if err := env.ParseWithOptions(c, env.Options{Environment: envMap}); err != nil {
+			return err
+		}
+	} else {
+		// For real OS, use env.Parse directly
+		if err := env.Parse(c); err != nil {
+			return err
+		}
 	}
 
-	// For real OS, use env.Parse directly
-	return env.Parse(c)
+	c.captureEmptyAlertEnv(osInterface)
+	return nil
+}
+
+// captureEmptyAlertEnv honors "an empty env var disables this alert dimension".
+// caarlos0/env ignores a present-but-empty env var (it never invokes the field's
+// unmarshaler), so it can't set these to empty on its own. We detect presence
+// via LookupEnv and apply the empty value explicitly. A present env var takes
+// precedence over a YAML value (env > yaml); present non-empty values are
+// already bound by caarlos0/env above.
+func (c *Config) captureEmptyAlertEnv(osInterface OSInterface) {
+	if v, ok := osInterface.LookupEnv("ALERT_CONSECUTIVE_FAILURE_COUNT"); ok && v == "" {
+		c.Alert.ConsecutiveFailureCount = NewOptionalString("")
+	}
+	if v, ok := osInterface.LookupEnv("ALERT_EXHAUSTED_RETRIES_WINDOW_SECONDS"); ok && v == "" {
+		c.Alert.ExhaustedRetriesWindowSeconds = NewOptionalString("")
+	}
 }
 
 func (c *Config) normalizeTopics() {
@@ -475,9 +497,62 @@ func (c *OperatorEventsConfig) ToConfig() opevents.Config {
 }
 
 type AlertConfig struct {
-	ConsecutiveFailureCount       int  `yaml:"consecutive_failure_count" env:"ALERT_CONSECUTIVE_FAILURE_COUNT" desc:"Number of consecutive delivery failures for a destination before triggering an alert and potentially disabling it." required:"N"`
-	AutoDisableDestination        bool `yaml:"auto_disable_destination" env:"ALERT_AUTO_DISABLE_DESTINATION" desc:"If true, automatically disables a destination after 'consecutive_failure_count' is reached." required:"N"`
-	ExhaustedRetriesWindowSeconds int  `yaml:"exhausted_retries_window_seconds" env:"ALERT_EXHAUSTED_RETRIES_WINDOW_SECONDS" desc:"Suppression window in seconds for exhausted_retries alerts. First exhaustion per destination emits an alert; subsequent exhaustions within the window are suppressed." required:"N"`
+	ConsecutiveFailureCount       OptionalString `yaml:"consecutive_failure_count" env:"ALERT_CONSECUTIVE_FAILURE_COUNT" desc:"Number of consecutive delivery failures before alerting on a destination and, with auto_disable_destination, disabling it. Leave unset for the default of 100; set to an empty string to disable consecutive-failure alerting entirely." required:"N"`
+	AutoDisableDestination        bool           `yaml:"auto_disable_destination" env:"ALERT_AUTO_DISABLE_DESTINATION" desc:"If true, automatically disables a destination when consecutive_failure_count is reached. Has no effect when consecutive-failure alerting is disabled." required:"N"`
+	ExhaustedRetriesWindowSeconds OptionalString `yaml:"exhausted_retries_window_seconds" env:"ALERT_EXHAUSTED_RETRIES_WINDOW_SECONDS" desc:"Suppression window in seconds for exhausted_retries alerts; the first exhaustion per destination emits an alert and subsequent ones within the window are suppressed (0 = no suppression). Leave unset for the default of 3600; set to an empty string to disable exhausted_retries alerting entirely." required:"N"`
+}
+
+// ToConfig resolves the raw alert config into operational alert.Settings. For
+// the two count fields the rule is: unset (nil) uses the built-in default, an
+// empty string disables that alert dimension, and any other value must parse to
+// a non-negative integer. It returns an error on a non-numeric or out-of-range
+// value so Validate can reject it at startup.
+func (c *AlertConfig) ToConfig() (alert.Settings, error) {
+	consecutive, err := resolveAlertCount(c.ConsecutiveFailureCount, alert.DefaultConsecutiveFailureCount, 1)
+	if err != nil {
+		return alert.Settings{}, fmt.Errorf("alert.consecutive_failure_count: %w", err)
+	}
+	exhausted, err := resolveAlertCount(c.ExhaustedRetriesWindowSeconds, alert.DefaultExhaustedRetriesWindowSeconds, 0)
+	if err != nil {
+		return alert.Settings{}, fmt.Errorf("alert.exhausted_retries_window_seconds: %w", err)
+	}
+	return alert.Settings{
+		ConsecutiveFailure: alert.ConsecutiveFailureSetting{
+			Enabled: consecutive.enabled,
+			Count:   consecutive.value,
+		},
+		ExhaustedRetries: alert.ExhaustedRetriesSetting{
+			Enabled:       exhausted.enabled,
+			WindowSeconds: exhausted.value,
+		},
+		AutoDisableDestination: c.AutoDisableDestination,
+	}, nil
+}
+
+type resolvedAlertCount struct {
+	enabled bool
+	value   int
+}
+
+// resolveAlertCount applies the unset/empty/value rule to a single raw field.
+// unset -> {enabled, defaultValue}; "" -> {disabled, 0}; else parse and require
+// value >= min.
+func resolveAlertCount(raw OptionalString, defaultValue, min int) (resolvedAlertCount, error) {
+	value, set := raw.Get()
+	if !set {
+		return resolvedAlertCount{enabled: true, value: defaultValue}, nil
+	}
+	if value == "" {
+		return resolvedAlertCount{enabled: false, value: 0}, nil
+	}
+	n, err := strconv.Atoi(strings.TrimSpace(value))
+	if err != nil {
+		return resolvedAlertCount{}, fmt.Errorf("must be an integer, an empty string to disable, or unset for the default: %q", value)
+	}
+	if n < min {
+		return resolvedAlertCount{}, fmt.Errorf("must be >= %d, got %d", min, n)
+	}
+	return resolvedAlertCount{enabled: true, value: n}, nil
 }
 
 // ConfigFilePath returns the path of the config file that was used

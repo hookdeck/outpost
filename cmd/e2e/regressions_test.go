@@ -91,7 +91,7 @@ func TestE2E_Regression_AutoDisableWithoutCallbackURL(t *testing.T) {
 		LogStorage: configs.LogStorageTypePostgres,
 	})
 	cfg.Alert.AutoDisableDestination = true
-	cfg.Alert.ConsecutiveFailureCount = 20
+	cfg.Alert.ConsecutiveFailureCount = config.NewOptionalString("20")
 
 	require.NoError(t, cfg.Validate(config.Flags{}))
 	configs.ApplyMigrations(t, &cfg)

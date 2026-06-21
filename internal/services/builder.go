@@ -351,14 +351,26 @@ func (b *ServiceBuilder) BuildLogWorker(baseRouter *gin.Engine) error {
 	}
 	emitter := opevents.NewEmitter(sink, b.cfg.DeploymentID, oeCfg.Topics)
 
+	alertSettings, err := b.cfg.Alert.ToConfig()
+	if err != nil {
+		return fmt.Errorf("failed to resolve alert config: %w", err)
+	}
+
 	var disabler alert.DestinationDisabler
-	if b.cfg.Alert.AutoDisableDestination {
+	if alertSettings.AutoDisableDestination {
 		disabler = newDestinationDisabler(svc.tenantStore)
 	}
-	exhaustedRetriesIdemp := idempotence.New(svc.redisClient,
-		idempotence.WithSuccessfulTTL(time.Duration(b.cfg.Alert.ExhaustedRetriesWindowSeconds)*time.Second),
-		idempotence.WithDeploymentID(b.cfg.DeploymentID),
-	)
+
+	// Build a suppression window only when exhausted-retries alerting is enabled
+	// with a positive window. A zero window means "alert on every exhaustion"
+	// (no suppression), so we leave the idempotence instance nil.
+	var exhaustedRetriesIdemp idempotence.Idempotence
+	if alertSettings.ExhaustedRetries.Enabled && alertSettings.ExhaustedRetries.WindowSeconds > 0 {
+		exhaustedRetriesIdemp = idempotence.New(svc.redisClient,
+			idempotence.WithSuccessfulTTL(time.Duration(alertSettings.ExhaustedRetries.WindowSeconds)*time.Second),
+			idempotence.WithDeploymentID(b.cfg.DeploymentID),
+		)
+	}
 	_, retryMaxLimit := b.cfg.GetRetryBackoff()
 	alertMonitor := alert.NewAlertMonitor(
 		b.logger,
@@ -367,7 +379,9 @@ func (b *ServiceBuilder) BuildLogWorker(baseRouter *gin.Engine) error {
 		retryMaxLimit,
 		alert.WithDisabler(disabler),
 		alert.WithExhaustedRetriesIdempotence(exhaustedRetriesIdemp),
-		alert.WithAutoDisableFailureCount(b.cfg.Alert.ConsecutiveFailureCount),
+		alert.WithConsecutiveFailureEnabled(alertSettings.ConsecutiveFailure.Enabled),
+		alert.WithAutoDisableFailureCount(alertSettings.ConsecutiveFailure.Count),
+		alert.WithExhaustedRetriesEnabled(alertSettings.ExhaustedRetries.Enabled),
 		alert.WithDeploymentID(b.cfg.DeploymentID),
 	)
 

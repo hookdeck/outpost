@@ -600,3 +600,135 @@ func countEmitCalls(emitter *mockAlertEmitter, topic string) int {
 	}
 	return count
 }
+
+func TestAlertMonitor_ConsecutiveFailures_GateDisabled(t *testing.T) {
+	// With consecutive-failure alerting disabled, failures never emit cf/disabled
+	// alerts and never auto-disable, even past the threshold.
+	t.Parallel()
+	ctx := context.Background()
+	logger := testutil.CreateTestLogger(t)
+	redisClient := testutil.CreateTestRedisClient(t)
+	emitter := &mockAlertEmitter{}
+	emitter.On("Emit", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	disabler := &mockDestinationDisabler{}
+	disabler.On("DisableDestination", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+
+	monitor := alert.NewAlertMonitor(
+		logger,
+		redisClient,
+		emitter,
+		10,
+		alert.WithDisabler(disabler),
+		alert.WithAutoDisableFailureCount(5),
+		alert.WithConsecutiveFailureEnabled(false),
+	)
+
+	dest := &alert.AlertDestination{ID: "dest_cf_off", TenantID: "tenant_cf_off"}
+	event := &models.Event{Topic: "test.event"}
+
+	// Well past the threshold of 5.
+	for i := 1; i <= 10; i++ {
+		attempt := alert.DeliveryAttempt{
+			Event:       event,
+			Destination: dest,
+			Attempt: &models.Attempt{
+				ID:     fmt.Sprintf("att_%d", i),
+				Status: "failed",
+				Code:   "500",
+				Time:   time.Now(),
+			},
+		}
+		require.NoError(t, monitor.HandleAttempt(ctx, attempt))
+	}
+
+	require.Equal(t, 0, countEmitCalls(emitter, "alert.destination.consecutive_failure"),
+		"no consecutive_failure alerts when gate disabled")
+	require.Equal(t, 0, countEmitCalls(emitter, "alert.destination.disabled"),
+		"no disabled alerts when gate disabled")
+	disabler.AssertNotCalled(t, "DisableDestination", mock.Anything, mock.Anything, mock.Anything)
+}
+
+func TestAlertMonitor_ExhaustedRetries_GateDisabled(t *testing.T) {
+	// With exhausted-retries alerting disabled, exceeding the retry limit emits
+	// nothing, even though retries are enabled and the event is eligible.
+	t.Parallel()
+	ctx := context.Background()
+	logger := testutil.CreateTestLogger(t)
+	redisClient := testutil.CreateTestRedisClient(t)
+	emitter := &mockAlertEmitter{}
+	emitter.On("Emit", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+
+	monitor := alert.NewAlertMonitor(
+		logger,
+		redisClient,
+		emitter,
+		3,
+		alert.WithAutoDisableFailureCount(100),
+		alert.WithExhaustedRetriesEnabled(false),
+	)
+
+	dest := &alert.AlertDestination{ID: "dest_er_off", TenantID: "tenant_er_off"}
+	event := &models.Event{Topic: "test.event", EligibleForRetry: true}
+
+	attempt := alert.DeliveryAttempt{
+		Event:       event,
+		Destination: dest,
+		Attempt: &models.Attempt{
+			ID:            "att_4",
+			AttemptNumber: 4,
+			Status:        "failed",
+			Code:          "500",
+			Time:          time.Now(),
+		},
+	}
+	require.NoError(t, monitor.HandleAttempt(ctx, attempt))
+
+	require.Equal(t, 0, countEmitCalls(emitter, "alert.attempt.exhausted_retries"),
+		"no exhausted_retries alerts when gate disabled")
+}
+
+func TestAlertMonitor_Gates_Independent(t *testing.T) {
+	// Consecutive-failure gate off but exhausted-retries gate on: exhausted_retries
+	// still fires while consecutive_failure stays silent.
+	t.Parallel()
+	ctx := context.Background()
+	logger := testutil.CreateTestLogger(t)
+	redisClient := testutil.CreateTestRedisClient(t)
+	emitter := &mockAlertEmitter{}
+	emitter.On("Emit", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+
+	monitor := alert.NewAlertMonitor(
+		logger,
+		redisClient,
+		emitter,
+		3,
+		alert.WithAutoDisableFailureCount(5),
+		alert.WithConsecutiveFailureEnabled(false),
+		alert.WithExhaustedRetriesEnabled(true),
+	)
+
+	dest := &alert.AlertDestination{ID: "dest_mix", TenantID: "tenant_mix"}
+	event := &models.Event{Topic: "test.event", EligibleForRetry: true}
+
+	// Enough failures to cross the cf threshold, with the last one exceeding the
+	// retry limit so exhausted_retries is eligible.
+	for i := 1; i <= 6; i++ {
+		attempt := alert.DeliveryAttempt{
+			Event:       event,
+			Destination: dest,
+			Attempt: &models.Attempt{
+				ID:            fmt.Sprintf("att_%d", i),
+				AttemptNumber: i,
+				Status:        "failed",
+				Code:          "500",
+				Time:          time.Now(),
+			},
+		}
+		require.NoError(t, monitor.HandleAttempt(ctx, attempt))
+	}
+
+	require.Equal(t, 0, countEmitCalls(emitter, "alert.destination.consecutive_failure"),
+		"consecutive_failure stays silent when its gate is off")
+	require.Greater(t, countEmitCalls(emitter, "alert.attempt.exhausted_retries"), 0,
+		"exhausted_retries still fires when its gate is on")
+}
