@@ -159,6 +159,52 @@ func TestRedisAlertStore_WithDeploymentID(t *testing.T) {
 	assert.Equal(t, 1, res.Count)
 }
 
+func TestAlertStoreTenantIsolation(t *testing.T) {
+	t.Parallel()
+
+	redisClient := testutil.CreateTestRedisClient(t)
+
+	// A single store (same deployment) shared by two tenants that happen to
+	// use the same destination id. The create API accepts a caller-supplied
+	// id, so distinct tenants can collide on a destination id like "prod".
+	store := alert.NewRedisAlertStore(redisClient, "")
+
+	destinationID := "dest_shared"
+	tenantA := "tenant_a"
+	tenantB := "tenant_b"
+
+	// Increment for tenant A.
+	resA, err := store.IncrementConsecutiveFailureCount(context.Background(), tenantA, destinationID, "att_1")
+	require.NoError(t, err)
+	assert.Equal(t, 1, resA.Count)
+
+	resA, err = store.IncrementConsecutiveFailureCount(context.Background(), tenantA, destinationID, "att_2")
+	require.NoError(t, err)
+	assert.Equal(t, 2, resA.Count)
+
+	// Tenant B uses the same destination id but must have its own counter.
+	resB, err := store.IncrementConsecutiveFailureCount(context.Background(), tenantB, destinationID, "att_1")
+	require.NoError(t, err)
+	assert.Equal(t, 1, resB.Count, "tenant B should not inherit tenant A's failure count")
+
+	// Evaluated markers are tenant-scoped too.
+	require.NoError(t, store.MarkAttemptEvaluated(context.Background(), tenantA, destinationID, "att_1"))
+	resB, err = store.IncrementConsecutiveFailureCount(context.Background(), tenantB, destinationID, "att_1")
+	require.NoError(t, err)
+	assert.False(t, resB.AlreadyEvaluated, "tenant B should not see tenant A's evaluated marker")
+
+	// Resetting tenant A must not clear tenant B's counter.
+	require.NoError(t, store.ResetConsecutiveFailureCount(context.Background(), tenantA, destinationID))
+
+	resA, err = store.IncrementConsecutiveFailureCount(context.Background(), tenantA, destinationID, "att_3")
+	require.NoError(t, err)
+	assert.Equal(t, 1, resA.Count, "tenant A should be reset")
+
+	resB, err = store.IncrementConsecutiveFailureCount(context.Background(), tenantB, destinationID, "att_2")
+	require.NoError(t, err)
+	assert.Equal(t, 2, resB.Count, "tenant B should be unaffected by tenant A reset")
+}
+
 func TestAlertStoreIsolation(t *testing.T) {
 	t.Parallel()
 
