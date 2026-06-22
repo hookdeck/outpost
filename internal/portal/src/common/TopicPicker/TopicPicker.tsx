@@ -39,6 +39,8 @@ const TopicPicker = ({
   selectedTopics,
   onTopicsChange,
 }: TopicPickerProps) => {
+  const allowWildcardTopics = CONFIGS.TOPICS_ALLOW_WILDCARDS === "true";
+
   // Keep track of any custom topics seen during this component's lifecycle
   // so they don't disappear if they are temporarily unselected or "Select All" is clicked.
   const [seenTopics, setSeenTopics] = useState<string[]>([]);
@@ -117,6 +119,23 @@ const TopicPicker = ({
     );
   };
 
+  const toggleCategorySelection = (topicsInCategory: Topic[]) => {
+    const currentTopics = isEverythingSelected ? [] : selectedTopics;
+    const categoryTopicIds = topicsInCategory.map((t) => t.id);
+    const areAllSelected = categoryTopicIds.every((id) =>
+      currentTopics.includes(id),
+    );
+
+    if (areAllSelected) {
+      onTopicsChange(
+        currentTopics.filter((id) => !categoryTopicIds.includes(id)),
+      );
+    } else {
+      const newSelected = new Set([...currentTopics, ...categoryTopicIds]);
+      onTopicsChange(Array.from(newSelected));
+    }
+  };
+
   const toggleTopic = (topicId: string) => {
     const currentTopics = isEverythingSelected ? [] : selectedTopics;
 
@@ -133,11 +152,14 @@ const TopicPicker = ({
     (t) => t.id.toLowerCase() === searchQuery.toLowerCase(),
   );
 
-  // The backend glob matcher (matchTopicPattern) natively supports '*' anywhere in the topic string.
+  // The backend glob matcher supports '*' anywhere in the topic string when enabled.
   const isWildcardSearch = searchQuery.includes("*");
 
   const showAddTopic =
-    searchQuery.length > 0 && !exactMatchExists && isWildcardSearch;
+    allowWildcardTopics &&
+    searchQuery.length > 0 &&
+    !exactMatchExists &&
+    isWildcardSearch;
 
   return (
     <div className="topic-picker" style={{ maxHeight: maxHeight }}>
@@ -145,14 +167,18 @@ const TopicPicker = ({
         <SearchInput
           value={searchQuery}
           onChange={(value) => setSearchQuery(value)}
-          placeholder="Filter or type a wildcard topic (e.g., order.*)"
+          placeholder={
+            allowWildcardTopics
+              ? "Filter or type a wildcard topic (e.g., order.*)"
+              : "Filter topics..."
+          }
         />
       </div>
       <div className="topic-picker__content">
         {searchQuery.length === 0 && (
           <div className="topic-picker__select-all">
             <Checkbox
-              label="Select All (*)"
+              label="Select All"
               checked={isEverythingSelected}
               onChange={toggleSelectAll}
             />
@@ -186,22 +212,34 @@ const TopicPicker = ({
             : ".";
           const wildcardId = `${category}${separator || "."}*`;
 
-          const hasWildcard = selectedTopics.includes(wildcardId);
-          const visibleTopics = categoryTopics.filter(
-            (t) => t.id !== wildcardId,
-          );
+          const hasWildcard =
+            allowWildcardTopics && selectedTopics.includes(wildcardId);
+          const visibleTopics = allowWildcardTopics
+            ? categoryTopics.filter((t) => t.id !== wildcardId)
+            : categoryTopics;
 
           const selectedCount = visibleTopics.filter((topic) =>
             selectedTopics.includes(topic.id),
           ).length;
-          // Always show indeterminate if any children are selected but the wildcard itself is not.
-          const isIndeterminate = !hasWildcard && selectedCount > 0;
+          const groupSelectionLabel = allowWildcardTopics
+            ? hasWildcard || isEverythingSelected
+              ? "Selected and future topics"
+              : selectedCount > 0
+                ? "Selected topics only"
+                : ""
+            : "";
+          const areAllSelected =
+            visibleTopics.length > 0 && selectedCount === visibleTopics.length;
+          const isIndeterminate = allowWildcardTopics
+            ? !hasWildcard && selectedCount > 0
+            : selectedCount > 0 && !areAllSelected;
 
           // Check if this is a flat topic (no actual nesting)
           const isFlatTopic =
             (categoryTopics.length === 1 &&
               categoryTopics[0].id === category) ||
-            (categoryTopics.length === 1 &&
+            (allowWildcardTopics &&
+              categoryTopics.length === 1 &&
               categoryTopics[0].id === wildcardId);
 
           if (isFlatTopic) {
@@ -238,12 +276,18 @@ const TopicPicker = ({
                   <span style={{ width: 24, display: "inline-block" }} />
                 )}
                 <Checkbox
-                  label={`${category} ${
-                    hasWildcard || isEverythingSelected ? `(${wildcardId})` : ""
-                  }`.trim()}
-                  checked={isEverythingSelected || hasWildcard}
+                  label={category}
+                  checked={
+                    isEverythingSelected ||
+                    (allowWildcardTopics ? hasWildcard : areAllSelected)
+                  }
                   indeterminate={!isEverythingSelected && isIndeterminate}
                   onChange={() => {
+                    if (!allowWildcardTopics) {
+                      toggleCategorySelection(visibleTopics);
+                      return;
+                    }
+
                     const currentTopics = isEverythingSelected
                       ? []
                       : selectedTopics;
@@ -265,6 +309,11 @@ const TopicPicker = ({
                   }}
                   disabled={isEverythingSelected}
                 />
+                {groupSelectionLabel && (
+                  <span className="topic-picker__category-selection">
+                    {groupSelectionLabel}
+                  </span>
+                )}
               </div>
               {isExpanded && visibleTopics.length > 0 && (
                 <div className="topic-picker__topics">
@@ -273,13 +322,28 @@ const TopicPicker = ({
                       <Checkbox
                         checked={
                           isEverythingSelected ||
-                          hasWildcard ||
+                          (allowWildcardTopics && hasWildcard) ||
                           selectedTopics.includes(topic.id)
                         }
-                        onChange={() => toggleTopic(topic.id)}
+                        onChange={() => {
+                          if (allowWildcardTopics && hasWildcard) {
+                            const explicitTopics = visibleTopics
+                              .map((t) => t.id)
+                              .filter((id) => id !== topic.id);
+                            onTopicsChange([
+                              ...selectedTopics.filter(
+                                (id) => id !== wildcardId,
+                              ),
+                              ...explicitTopics,
+                            ]);
+                            return;
+                          }
+
+                          toggleTopic(topic.id);
+                        }}
                         label={topic.id}
                         monospace
-                        disabled={isEverythingSelected || hasWildcard}
+                        disabled={isEverythingSelected}
                       />
                     </div>
                   ))}

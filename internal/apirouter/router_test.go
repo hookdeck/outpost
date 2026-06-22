@@ -58,10 +58,11 @@ type apiTest struct {
 type apiTestOption func(*apiTestConfig)
 
 type apiTestConfig struct {
-	tenantStore         tenantstore.TenantStore
-	destRegistry        destregistry.Registry
-	subscriptionEmitter apirouter.SubscriptionEmitter
-	logger              *logging.Logger
+	tenantStore          tenantstore.TenantStore
+	destRegistry         destregistry.Registry
+	subscriptionEmitter  apirouter.SubscriptionEmitter
+	logger               *logging.Logger
+	topicsAllowWildcards bool
 }
 
 func withTenantStore(ts tenantstore.TenantStore) apiTestOption {
@@ -85,6 +86,12 @@ func withSubscriptionEmitter(e apirouter.SubscriptionEmitter) apiTestOption {
 func withLogger(l *logging.Logger) apiTestOption {
 	return func(cfg *apiTestConfig) {
 		cfg.logger = l
+	}
+}
+
+func withTopicsAllowWildcards(allow bool) apiTestOption {
+	return func(cfg *apiTestConfig) {
+		cfg.topicsAllowWildcards = allow
 	}
 }
 
@@ -122,12 +129,13 @@ func newAPITest(t *testing.T, opts ...apiTestOption) *apiTest {
 
 	router := apirouter.NewRouter(
 		apirouter.RouterConfig{
-			ServiceName:  "test",
-			APIKey:       testAPIKey,
-			JWTSecret:    testJWTSecret,
-			Topics:       testutil.TestTopics,
-			Registry:     registry,
-			PortalConfig: portal.PortalConfig{},
+			ServiceName:          "test",
+			APIKey:               testAPIKey,
+			JWTSecret:            testJWTSecret,
+			Topics:               testutil.TestTopics,
+			TopicsAllowWildcards: cfg.topicsAllowWildcards,
+			Registry:             registry,
+			PortalConfig:         portal.PortalConfig{},
 		},
 		apirouter.RouterDeps{
 			TenantStore:         ts,

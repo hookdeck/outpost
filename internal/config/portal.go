@@ -37,6 +37,7 @@ func (c *Config) GetPortalConfig() portal.PortalConfig {
 			"ORGANIZATION_NAME":             c.Portal.OrgName,
 			"FORCE_THEME":                   c.Portal.ForceTheme,
 			"TOPICS":                        strings.Join(c.Topics, ","),
+			"TOPICS_ALLOW_WILDCARDS":        strconv.FormatBool(c.TopicsAllowWildcards),
 			"DISABLE_OUTPOST_BRANDING":      strconv.FormatBool(c.Portal.DisableOutpostBranding),
 			"DISABLE_TELEMETRY":             strconv.FormatBool(c.DisableTelemetry),
 			"ENABLE_DESTINATION_FILTER":     strconv.FormatBool(c.Portal.EnableDestinationFilter),

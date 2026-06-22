@@ -37,24 +37,26 @@ type TenantSubscriptionUpdatedData struct {
 }
 
 type DestinationHandlers struct {
-	logger      *logging.Logger
-	telemetry   telemetry.Telemetry
-	tenantStore tenantstore.TenantStore
-	emitter     SubscriptionEmitter
-	topics      []string
-	registry    destregistry.Registry
-	displayer   *destinationDisplayer
+	logger               *logging.Logger
+	telemetry            telemetry.Telemetry
+	tenantStore          tenantstore.TenantStore
+	emitter              SubscriptionEmitter
+	topics               []string
+	topicsAllowWildcards bool
+	registry             destregistry.Registry
+	displayer            *destinationDisplayer
 }
 
-func NewDestinationHandlers(logger *logging.Logger, telemetry telemetry.Telemetry, tenantStore tenantstore.TenantStore, emitter SubscriptionEmitter, topics []string, registry destregistry.Registry, displayer *destinationDisplayer) *DestinationHandlers {
+func NewDestinationHandlers(logger *logging.Logger, telemetry telemetry.Telemetry, tenantStore tenantstore.TenantStore, emitter SubscriptionEmitter, topics []string, topicsAllowWildcards bool, registry destregistry.Registry, displayer *destinationDisplayer) *DestinationHandlers {
 	return &DestinationHandlers{
-		logger:      logger,
-		telemetry:   telemetry,
-		tenantStore: tenantStore,
-		emitter:     emitter,
-		topics:      topics,
-		registry:    registry,
-		displayer:   displayer,
+		logger:               logger,
+		telemetry:            telemetry,
+		tenantStore:          tenantStore,
+		emitter:              emitter,
+		topics:               topics,
+		topicsAllowWildcards: topicsAllowWildcards,
+		registry:             registry,
+		displayer:            displayer,
 	}
 }
 
@@ -111,7 +113,7 @@ func (h *DestinationHandlers) Create(c *gin.Context) {
 	prev := h.snapshotTenant(tenant)
 
 	destination := input.ToDestination(tenant.ID)
-	if err := destination.Validate(h.topics); err != nil {
+	if err := destination.Validate(h.topics, h.topicsAllowWildcards); err != nil {
 		AbortWithValidationError(c, err)
 		return
 	}
@@ -181,7 +183,7 @@ func (h *DestinationHandlers) Update(c *gin.Context) {
 	// Validate.
 	if input.Topics != nil {
 		updatedDestination.Topics = input.Topics
-		if err := updatedDestination.Validate(h.topics); err != nil {
+		if err := updatedDestination.Validate(h.topics, h.topicsAllowWildcards); err != nil {
 			AbortWithValidationError(c, err)
 			return
 		}

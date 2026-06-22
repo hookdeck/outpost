@@ -16,6 +16,7 @@ func TestDestinationTopics_Validate(t *testing.T) {
 	type testCase struct {
 		topics          models.Topics
 		availableTopics []string
+		allowWildcards  bool
 		validated       bool
 	}
 
@@ -33,21 +34,30 @@ func TestDestinationTopics_Validate(t *testing.T) {
 		{
 			topics:          []string{"user.*"},
 			availableTopics: testutil.TestTopics,
+			validated:       false,
+		},
+		{
+			topics:          []string{"user.*"},
+			availableTopics: testutil.TestTopics,
+			allowWildcards:  true,
 			validated:       true,
 		},
 		{
 			topics:          []string{"order.*"},
 			availableTopics: testutil.TestTopics,
+			allowWildcards:  true,
 			validated:       false,
 		},
 		{
 			topics:          []string{"user.created", "order.*"},
 			availableTopics: testutil.TestTopics,
+			allowWildcards:  true,
 			validated:       false,
 		},
 		{
 			topics:          []string{"order.*"},
 			availableTopics: []string{"order.created", "user.created"},
+			allowWildcards:  true,
 			validated:       true,
 		},
 		{
@@ -92,6 +102,17 @@ func TestDestinationTopics_Validate(t *testing.T) {
 			validated:       true,
 		},
 		{
+			topics:          []string{"user.*"},
+			availableTopics: []string{},
+			validated:       false,
+		},
+		{
+			topics:          []string{"user.*"},
+			availableTopics: []string{},
+			allowWildcards:  true,
+			validated:       true,
+		},
+		{
 			topics:          []string{},
 			availableTopics: []string{},
 			validated:       false, // still require at least one topic
@@ -101,7 +122,7 @@ func TestDestinationTopics_Validate(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(fmt.Sprintf("validate topics %v with available topics %v", tc.topics, tc.availableTopics), func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, tc.validated, tc.topics.Validate(tc.availableTopics) == nil)
+			assert.Equal(t, tc.validated, tc.topics.Validate(tc.availableTopics, tc.allowWildcards) == nil)
 		})
 	}
 }

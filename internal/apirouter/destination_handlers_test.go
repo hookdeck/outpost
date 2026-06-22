@@ -67,6 +67,9 @@ func TestAPI_Destinations(t *testing.T) {
 			resp := h.do(h.withAPIKey(req))
 
 			require.Equal(t, http.StatusUnprocessableEntity, resp.Code)
+			var body map[string]any
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &body))
+			assert.Equal(t, "validation error", body["message"])
 		})
 
 		t.Run("missing topics returns 422", func(t *testing.T) {
@@ -94,8 +97,22 @@ func TestAPI_Destinations(t *testing.T) {
 			require.Equal(t, http.StatusUnprocessableEntity, resp.Code)
 		})
 
-		t.Run("wildcard topic pattern matching configured topic is accepted", func(t *testing.T) {
+		t.Run("wildcard topic pattern matching configured topic requires opt-in", func(t *testing.T) {
 			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+
+			req := h.jsonReq(http.MethodPost, "/api/v1/tenants/t1/destinations", map[string]any{
+				"type":   "webhook",
+				"topics": []string{"user.*"},
+				"config": map[string]string{"url": "https://example.com/hook"},
+			})
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusUnprocessableEntity, resp.Code)
+		})
+
+		t.Run("wildcard topic pattern matching configured topic is accepted when enabled", func(t *testing.T) {
+			h := newAPITest(t, withTopicsAllowWildcards(true))
 			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
 
 			req := h.jsonReq(http.MethodPost, "/api/v1/tenants/t1/destinations", map[string]any{
@@ -112,7 +129,7 @@ func TestAPI_Destinations(t *testing.T) {
 		})
 
 		t.Run("wildcard topic pattern not matching configured topic returns 422", func(t *testing.T) {
-			h := newAPITest(t)
+			h := newAPITest(t, withTopicsAllowWildcards(true))
 			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
 
 			req := h.jsonReq(http.MethodPost, "/api/v1/tenants/t1/destinations", map[string]any{

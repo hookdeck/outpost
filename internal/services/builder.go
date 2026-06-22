@@ -189,7 +189,14 @@ func (b *ServiceBuilder) BuildAPIWorkers(baseRouter *gin.Engine) error {
 		idempotence.WithSuccessfulTTL(time.Duration(b.cfg.PublishIdempotencyKeyTTL)*time.Second),
 		idempotence.WithDeploymentID(b.cfg.DeploymentID),
 	)
-	eventHandler := publishmq.NewEventHandler(b.logger, svc.deliveryMQ, svc.tenantStore, svc.eventTracer, b.cfg.Topics, publishIdempotence)
+	eventHandler := publishmq.NewEventHandler(
+		b.logger,
+		svc.deliveryMQ,
+		svc.tenantStore,
+		svc.eventTracer,
+		b.cfg.Topics,
+		publishIdempotence,
+	)
 
 	// Create operator events emitter for subscription updates
 	oeCfg := b.cfg.OperatorEvents.ToConfig()
@@ -201,14 +208,15 @@ func (b *ServiceBuilder) BuildAPIWorkers(baseRouter *gin.Engine) error {
 
 	apiHandler := apirouter.NewRouter(
 		apirouter.RouterConfig{
-			ServiceName:  b.cfg.OpenTelemetry.GetServiceName(),
-			APIKey:       b.cfg.APIKey,
-			JWTSecret:    b.cfg.APIJWTSecret,
-			DeploymentID: b.cfg.DeploymentID,
-			Topics:       b.cfg.Topics,
-			Registry:     svc.destRegistry,
-			PortalConfig: b.cfg.GetPortalConfig(),
-			GinMode:      b.cfg.GinMode,
+			ServiceName:          b.cfg.OpenTelemetry.GetServiceName(),
+			APIKey:               b.cfg.APIKey,
+			JWTSecret:            b.cfg.APIJWTSecret,
+			DeploymentID:         b.cfg.DeploymentID,
+			Topics:               b.cfg.Topics,
+			TopicsAllowWildcards: b.cfg.TopicsAllowWildcards,
+			Registry:             svc.destRegistry,
+			PortalConfig:         b.cfg.GetPortalConfig(),
+			GinMode:              b.cfg.GinMode,
 		},
 		apirouter.RouterDeps{
 			TenantStore:         svc.tenantStore,

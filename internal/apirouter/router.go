@@ -30,14 +30,15 @@ type RouteDefinition struct {
 }
 
 type RouterConfig struct {
-	ServiceName  string
-	APIKey       string
-	JWTSecret    string
-	DeploymentID string
-	Topics       []string
-	Registry     destregistry.Registry
-	PortalConfig portal.PortalConfig
-	GinMode      string
+	ServiceName          string
+	APIKey               string
+	JWTSecret            string
+	DeploymentID         string
+	Topics               []string
+	TopicsAllowWildcards bool
+	Registry             destregistry.Registry
+	PortalConfig         portal.PortalConfig
+	GinMode              string
 }
 
 type RouterDeps struct {
@@ -140,7 +141,7 @@ func NewRouter(cfg RouterConfig, deps RouterDeps) http.Handler {
 	displayer := newDestinationDisplayer(cfg.Registry)
 
 	tenantHandlers := NewTenantHandlers(deps.Logger, deps.Telemetry, cfg.JWTSecret, cfg.DeploymentID, deps.TenantStore)
-	destinationHandlers := NewDestinationHandlers(deps.Logger, deps.Telemetry, deps.TenantStore, deps.SubscriptionEmitter, cfg.Topics, cfg.Registry, displayer)
+	destinationHandlers := NewDestinationHandlers(deps.Logger, deps.Telemetry, deps.TenantStore, deps.SubscriptionEmitter, cfg.Topics, cfg.TopicsAllowWildcards, cfg.Registry, displayer)
 	publishHandlers := NewPublishHandlers(deps.Logger, deps.EventHandler)
 	logHandlers := NewLogHandlers(deps.Logger, deps.LogStore, deps.TenantStore, displayer)
 	retryHandlers := NewRetryHandlers(deps.Logger, deps.TenantStore, deps.LogStore, deps.DeliveryPublisher)
