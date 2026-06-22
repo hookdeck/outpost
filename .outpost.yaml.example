@@ -42,6 +42,28 @@ mqs:
     delivery_queue: "outpost-delivery" # SQS queue name for delivery events
     log_queue: "outpost-log" # SQS queue name for log events
 
+# Publish Message Queue (optional)
+# Configure one provider to ingest events from an external source instead
+# of (or in addition to) the Publish API. Only one provider may be set.
+# publishmq:
+#   rabbitmq:
+#     server_url: "amqp://guest:guest@localhost:5673"
+#     exchange: "outpost"
+#     queue: "publish"
+#   nats:
+#     servers:
+#       - "nats://nats:4222"
+#     # Watched directory of per-tenant account subdirectories.
+#     # Each subdirectory holds a meta.yaml and optional user.creds.
+#     accounts_dir: "/etc/outpost/nats-accounts"
+#     # Static list of accounts (combined with accounts_dir if both are set).
+#     accounts:
+#       - name: "acme"
+#         credentials_file: "/etc/outpost/acme.creds"
+#         stream: "events"
+#         consumer: "outpost"
+#         tenant_id: "acme"  # Outpost stamps this on every event; overrides payload.
+
 # Application Configuration
 aes_encryption_secret: "" # Secret for AES encryption
 topics: # List of topics to subscribe to
