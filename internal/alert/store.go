@@ -47,7 +47,7 @@ func NewRedisAlertStore(client redis.Cmdable, deploymentID string) AlertStore {
 }
 
 func (s *redisAlertStore) IncrementConsecutiveFailureCount(ctx context.Context, tenantID, destinationID, attemptID string) (FailureCountResult, error) {
-	key := s.getFailuresKey(destinationID)
+	key := s.getFailuresKey(tenantID, destinationID)
 
 	// Use a transaction to ensure atomicity between SADD, SCARD, and EXPIRE operations.
 	// SADD is idempotent — adding the same attemptID on replay is a no-op,
@@ -55,7 +55,7 @@ func (s *redisAlertStore) IncrementConsecutiveFailureCount(ctx context.Context, 
 	pipe := s.client.TxPipeline()
 	saddCmd := pipe.SAdd(ctx, key, attemptID)
 	scardCmd := pipe.SCard(ctx, key)
-	evaluatedCmd := pipe.SIsMember(ctx, s.getEvaluatedKey(destinationID), attemptID)
+	evaluatedCmd := pipe.SIsMember(ctx, s.getEvaluatedKey(tenantID, destinationID), attemptID)
 	pipe.Expire(ctx, key, alertKeyTTL)
 
 	_, err := pipe.Exec(ctx)
@@ -86,7 +86,7 @@ func (s *redisAlertStore) IncrementConsecutiveFailureCount(ctx context.Context, 
 }
 
 func (s *redisAlertStore) MarkAttemptEvaluated(ctx context.Context, tenantID, destinationID, attemptID string) error {
-	key := s.getEvaluatedKey(destinationID)
+	key := s.getEvaluatedKey(tenantID, destinationID)
 
 	pipe := s.client.TxPipeline()
 	pipe.SAdd(ctx, key, attemptID)
@@ -99,7 +99,7 @@ func (s *redisAlertStore) MarkAttemptEvaluated(ctx context.Context, tenantID, de
 }
 
 func (s *redisAlertStore) ResetConsecutiveFailureCount(ctx context.Context, tenantID, destinationID string) error {
-	return s.client.Del(ctx, s.getFailuresKey(destinationID), s.getEvaluatedKey(destinationID)).Err()
+	return s.client.Del(ctx, s.getFailuresKey(tenantID, destinationID), s.getEvaluatedKey(tenantID, destinationID)).Err()
 }
 
 func (s *redisAlertStore) deploymentPrefix() string {
@@ -109,10 +109,10 @@ func (s *redisAlertStore) deploymentPrefix() string {
 	return fmt.Sprintf("%s:", s.deploymentID)
 }
 
-func (s *redisAlertStore) getFailuresKey(destinationID string) string {
-	return fmt.Sprintf("%s%s:%s:%s", s.deploymentPrefix(), keyPrefixAlert, destinationID, keyFailures)
+func (s *redisAlertStore) getFailuresKey(tenantID, destinationID string) string {
+	return fmt.Sprintf("%s%s:%s:%s:%s", s.deploymentPrefix(), keyPrefixAlert, tenantID, destinationID, keyFailures)
 }
 
-func (s *redisAlertStore) getEvaluatedKey(destinationID string) string {
-	return fmt.Sprintf("%s%s:%s:%s", s.deploymentPrefix(), keyPrefixAlert, destinationID, keyEvaluated)
+func (s *redisAlertStore) getEvaluatedKey(tenantID, destinationID string) string {
+	return fmt.Sprintf("%s%s:%s:%s:%s", s.deploymentPrefix(), keyPrefixAlert, tenantID, destinationID, keyEvaluated)
 }
