@@ -452,6 +452,8 @@ func copyEvent(e *models.Event) *models.Event {
 		for k, v := range e.Metadata {
 			copied.Metadata[k] = v
 		}
+	} else {
+		copied.Metadata = map[string]string{}
 	}
 	if e.Data != nil {
 		copied.Data = make([]byte, len(e.Data))
