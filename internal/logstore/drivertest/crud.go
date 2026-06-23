@@ -147,6 +147,46 @@ func testCRUD(t *testing.T, newHarness HarnessMaker) {
 			require.NoError(t, err)
 		})
 
+		t.Run("nil metadata persists as empty", func(t *testing.T) {
+			// An event published without metadata has a nil Metadata map.
+			// Stores must persist it without error and round-trip it as an
+			// empty (non-nil) map, regardless of backend. Postgres in
+			// particular has `metadata jsonb NOT NULL`, so a nil map that
+			// encodes to SQL NULL is rejected at insert time.
+			nilTenantID := idgen.String()
+			destID := idgen.Destination()
+
+			event := testutil.EventFactory.AnyPointer(
+				testutil.EventFactory.WithID("nil_meta_evt"),
+				testutil.EventFactory.WithTenantID(nilTenantID),
+				testutil.EventFactory.WithDestinationID(destID),
+				testutil.EventFactory.WithMatchedDestinationIDs([]string{destID}),
+				testutil.EventFactory.WithMetadata(nil),
+				testutil.EventFactory.WithTime(baseTime.Add(-8*time.Minute)),
+			)
+			delivery := testutil.AttemptFactory.AnyPointer(
+				testutil.AttemptFactory.WithID("nil_meta_del"),
+				testutil.AttemptFactory.WithTenantID(nilTenantID),
+				testutil.AttemptFactory.WithEventID(event.ID),
+				testutil.AttemptFactory.WithDestinationID(destID),
+				testutil.AttemptFactory.WithStatus("success"),
+				testutil.AttemptFactory.WithTime(baseTime.Add(-8*time.Minute)),
+			)
+
+			err := logStore.InsertMany(ctx, []*models.LogEntry{{Event: event, Attempt: delivery}})
+			require.NoError(t, err, "inserting an event with nil metadata must not error")
+			require.NoError(t, h.FlushWrites(ctx))
+
+			retrieved, err := logStore.RetrieveEvent(ctx, driver.RetrieveEventRequest{
+				TenantID: nilTenantID,
+				EventID:  event.ID,
+			})
+			require.NoError(t, err)
+			require.NotNil(t, retrieved)
+			assert.NotNil(t, retrieved.Metadata, "nil metadata should round-trip as a non-nil empty map")
+			assert.Empty(t, retrieved.Metadata)
+		})
+
 		t.Run("duplicate entries in batch", func(t *testing.T) {
 			// Duplicates arise from MQ redelivery and producer re-publish;
 			// InsertMany must tolerate intra-batch duplicates (same Attempt.ID)
