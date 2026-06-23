@@ -39,8 +39,8 @@ type Destination struct {
 	DisabledAt       *time.Time       `json:"disabled_at" redis:"disabled_at"`
 }
 
-func (d *Destination) Validate(topics []string, allowWildcards ...bool) error {
-	if err := d.Topics.Validate(topics, allowWildcards...); err != nil {
+func (d *Destination) Validate(topics []string, allowWildcards bool) error {
+	if err := d.Topics.Validate(topics, allowWildcards); err != nil {
 		return err
 	}
 	return nil
@@ -159,7 +159,7 @@ func (t *Topics) MatchTopic(eventTopic string) bool {
 	return false
 }
 
-func (t *Topics) Validate(availableTopics []string, allowWildcards ...bool) error {
+func (t *Topics) Validate(availableTopics []string, allowWildcards bool) error {
 	if len(*t) == 0 {
 		return ErrInvalidTopics
 	}
@@ -168,7 +168,7 @@ func (t *Topics) Validate(availableTopics []string, allowWildcards ...bool) erro
 	}
 	// If no available topics are configured, allow any exact topic.
 	if len(availableTopics) == 0 {
-		if !topicsAllowWildcards(allowWildcards...) {
+		if !allowWildcards {
 			for _, topic := range *t {
 				if strings.Contains(topic, "*") {
 					return ErrInvalidTopics
@@ -182,7 +182,7 @@ func (t *Topics) Validate(availableTopics []string, allowWildcards ...bool) erro
 			return ErrInvalidTopics
 		}
 		if strings.Contains(topic, "*") {
-			if !topicsAllowWildcards(allowWildcards...) {
+			if !allowWildcards {
 				return ErrInvalidTopics
 			}
 			if !topicPatternMatchesAny(topic, availableTopics) {
@@ -195,10 +195,6 @@ func (t *Topics) Validate(availableTopics []string, allowWildcards ...bool) erro
 		}
 	}
 	return nil
-}
-
-func topicsAllowWildcards(allowWildcards ...bool) bool {
-	return len(allowWildcards) > 0 && allowWildcards[0]
 }
 
 func topicPatternMatchesAny(pattern string, topics []string) bool {
