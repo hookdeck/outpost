@@ -39,8 +39,8 @@ type Destination struct {
 	DisabledAt       *time.Time       `json:"disabled_at" redis:"disabled_at"`
 }
 
-func (d *Destination) Validate(topics []string) error {
-	if err := d.Topics.Validate(topics); err != nil {
+func (d *Destination) Validate(topics []string, allowWildcards bool) error {
+	if err := d.Topics.Validate(topics, allowWildcards); err != nil {
 		return err
 	}
 	return nil
@@ -148,29 +148,98 @@ func (t *Topics) MatchesAll() bool {
 }
 
 func (t *Topics) MatchTopic(eventTopic string) bool {
-	return eventTopic == "" || eventTopic == "*" || t.MatchesAll() || slices.Contains(*t, eventTopic)
+	if eventTopic == "" || eventTopic == "*" || t.MatchesAll() {
+		return true
+	}
+	for _, topic := range *t {
+		if matchTopicPattern(topic, eventTopic) {
+			return true
+		}
+	}
+	return false
 }
 
-func (t *Topics) Validate(availableTopics []string) error {
+func (t *Topics) Validate(availableTopics []string, allowWildcards bool) error {
 	if len(*t) == 0 {
 		return ErrInvalidTopics
 	}
 	if t.MatchesAll() {
 		return nil
 	}
-	// If no available topics are configured, allow any topics
+	// If no available topics are configured, allow any exact topic.
 	if len(availableTopics) == 0 {
+		if !allowWildcards {
+			for _, topic := range *t {
+				if strings.Contains(topic, "*") {
+					return ErrInvalidTopics
+				}
+			}
+		}
 		return nil
 	}
 	for _, topic := range *t {
 		if topic == "*" {
 			return ErrInvalidTopics
 		}
+		if strings.Contains(topic, "*") {
+			if !allowWildcards {
+				return ErrInvalidTopics
+			}
+			if !topicPatternMatchesAny(topic, availableTopics) {
+				return ErrInvalidTopics
+			}
+			continue
+		}
 		if !slices.Contains(availableTopics, topic) {
 			return ErrInvalidTopics
 		}
 	}
 	return nil
+}
+
+func topicPatternMatchesAny(pattern string, topics []string) bool {
+	for _, topic := range topics {
+		if matchTopicPattern(pattern, topic) {
+			return true
+		}
+	}
+	return false
+}
+
+func matchTopicPattern(pattern, topic string) bool {
+	if pattern == topic {
+		return true
+	}
+	if !strings.Contains(pattern, "*") {
+		return false
+	}
+
+	patternIndex, topicIndex := 0, 0
+	starIndex, starTopicIndex := -1, 0
+	for topicIndex < len(topic) {
+		if patternIndex < len(pattern) && pattern[patternIndex] == topic[topicIndex] {
+			patternIndex++
+			topicIndex++
+			continue
+		}
+		if patternIndex < len(pattern) && pattern[patternIndex] == '*' {
+			starIndex = patternIndex
+			starTopicIndex = topicIndex
+			patternIndex++
+			continue
+		}
+		if starIndex != -1 {
+			patternIndex = starIndex + 1
+			starTopicIndex++
+			topicIndex = starTopicIndex
+			continue
+		}
+		return false
+	}
+	for patternIndex < len(pattern) && pattern[patternIndex] == '*' {
+		patternIndex++
+	}
+	return patternIndex == len(pattern)
 }
 
 func TopicsFromString(s string) Topics {

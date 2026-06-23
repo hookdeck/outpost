@@ -194,7 +194,7 @@ components:
         - type: array
           items:
             type: string
-      description: '"*" or an array of enabled topics.'
+      description: '"*" or an array of enabled topics. Topic strings can include "*" as a wildcard matching any run of characters. When available topics are configured, wildcard patterns must match at least one available topic.'
       example: "*"
 
     Filter:
@@ -3229,6 +3229,8 @@ components:
           type: string
         TOPICS:
           type: string
+        TOPICS_ALLOW_WILDCARDS:
+          type: string
       additionalProperties: false
       example:
         TOPICS: "user.created,user.updated"
@@ -3394,6 +3396,7 @@ paths:
                 $ref: "#/components/schemas/ManagedConfig"
               example:
                 TOPICS: "user.created,user.updated"
+                TOPICS_ALLOW_WILDCARDS: "false"
                 DESTINATIONS_WEBHOOK_MODE: "default"
         "401":
           $ref: "#/components/responses/Unauthorized"
@@ -3418,6 +3421,7 @@ paths:
               $ref: "#/components/schemas/ManagedConfig"
             example:
               TOPICS: "user.created,user.updated"
+              TOPICS_ALLOW_WILDCARDS: "false"
               DESTINATIONS_WEBHOOK_MODE: "default"
       responses:
         "200":
@@ -3428,6 +3432,7 @@ paths:
                 $ref: "#/components/schemas/ManagedConfig"
               example:
                 TOPICS: "user.created,user.updated"
+                TOPICS_ALLOW_WILDCARDS: "false"
                 DESTINATIONS_WEBHOOK_MODE: "default"
         "400":
           $ref: "#/components/responses/BadRequest"

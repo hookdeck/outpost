@@ -19,6 +19,8 @@ Topics determine:
 
 Available topics are configured through the Hookdeck dashboard [project settings](https://dashboard.hookdeck.com/settings/project/general) or Config API. Topics determine which values are valid for the `topic` field when publishing events and which topics appear in the tenant portal.
 
+Wildcard topic subscriptions are disabled by default. Enable them in [project settings](https://dashboard.hookdeck.com/settings/project/general) or through the Config API with `TOPICS_ALLOW_WILDCARDS=true`.
+
 {% /tab %}
 {% tab label="Self-Hosted" %}
 Set the list of available topics using the `TOPICS` environment variable:
@@ -28,6 +30,8 @@ TOPICS=user.created,user.updated,user.deleted,order.placed,order.shipped
 ```
 
 If `TOPICS` is not set, Outpost defaults to `*`, allowing any topic value.
+
+Wildcard topic subscriptions are disabled by default. Set `TOPICS_ALLOW_WILDCARDS=TRUE` to allow `*` inside destination topic strings.
 {% /tab %}
 {% /tabs %}
 
@@ -64,6 +68,10 @@ curl '{% $OUTPOST_API_BASE_URL %}/tenants/<TENANT_ID>/destinations' \
 }'
 ```
 
+When wildcard topic subscriptions are enabled, destination topics can also use `*` inside a topic string as a wildcard that matches any run of characters. For example, `user.*` matches `user.created` and `user.profile.updated`, `*.created` matches `user.created` and `order.created`, and `order.*.completed` matches `order.payment.completed`.
+
+When available topics are configured, wildcard patterns must match at least one available topic.
+
 ## Event Fanout
 
 A single published event is independently delivered to every destination that matches its topic. Each delivery attempt is tracked separately.
@@ -87,5 +95,4 @@ curl '{% $OUTPOST_API_BASE_URL %}/tenants/<TENANT_ID>' \
 ```
 
 You can also subscribe to the `tenant.subscriptions.updated` [Operator Events](/docs/outpost/features/operator-events) topic to receive an event when the tenant's subscribed topics change.
-
 

@@ -262,6 +262,44 @@ func TestEventHandler_HandleResult(t *testing.T) {
 		require.Len(t, result.DestinationIDs, 3)
 	})
 
+	t.Run("normal publish with wildcard destination topics", func(t *testing.T) {
+		wildcardTenant := models.Tenant{
+			ID:        idgen.String(),
+			CreatedAt: time.Now(),
+		}
+		require.NoError(t, tenantStore.UpsertTenant(ctx, wildcardTenant))
+
+		destFactory := testutil.DestinationFactory
+		matchingDestinations := []models.Destination{
+			destFactory.Any(
+				destFactory.WithTenantID(wildcardTenant.ID),
+				destFactory.WithTopics([]string{"user.*"}),
+			),
+			destFactory.Any(
+				destFactory.WithTenantID(wildcardTenant.ID),
+				destFactory.WithTopics([]string{"*.created"}),
+			),
+		}
+		for _, dest := range matchingDestinations {
+			require.NoError(t, tenantStore.UpsertDestination(ctx, dest))
+		}
+		require.NoError(t, tenantStore.UpsertDestination(ctx, destFactory.Any(
+			destFactory.WithTenantID(wildcardTenant.ID),
+			destFactory.WithTopics([]string{"user.deleted*"}),
+		)))
+
+		event := testutil.EventFactory.AnyPointer(
+			testutil.EventFactory.WithTenantID(wildcardTenant.ID),
+			testutil.EventFactory.WithTopic("user.created"),
+		)
+
+		result, err := eventHandler.Handle(ctx, event)
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		require.False(t, result.Duplicate)
+		require.ElementsMatch(t, []string{matchingDestinations[0].ID, matchingDestinations[1].ID}, result.DestinationIDs)
+	})
+
 	t.Run("no destinations matched", func(t *testing.T) {
 		event := testutil.EventFactory.AnyPointer(
 			testutil.EventFactory.WithTenantID(tenant.ID),

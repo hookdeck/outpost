@@ -550,3 +550,15 @@ func TestTopicsNormalization(t *testing.T) {
 		})
 	}
 }
+
+func TestTopicsAllowWildcardsConfig(t *testing.T) {
+	mockOS := &mockOS{
+		envVars: map[string]string{
+			"TOPICS_ALLOW_WILDCARDS": "TRUE",
+		},
+	}
+
+	cfg, err := config.ParseWithoutValidation(config.Flags{}, mockOS)
+	assert.NoError(t, err)
+	assert.True(t, cfg.TopicsAllowWildcards)
+}
