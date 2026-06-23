@@ -102,6 +102,12 @@ func (p *PublishedEvent) toEvent() models.Event {
 	if p.EligibleForRetry != nil {
 		eligibleForRetry = *p.EligibleForRetry
 	}
+	metadata := p.Metadata
+	if metadata == nil {
+		// metadata is jsonb NOT NULL in the log store; a missing metadata
+		// field must become an empty map, never a nil one.
+		metadata = map[string]string{}
+	}
 	return models.Event{
 		ID:               id,
 		TenantID:         p.TenantID,
@@ -109,7 +115,7 @@ func (p *PublishedEvent) toEvent() models.Event {
 		Topic:            p.Topic,
 		EligibleForRetry: eligibleForRetry,
 		Time:             eventTime,
-		Metadata:         p.Metadata,
+		Metadata:         metadata,
 		Data:             p.Data,
 	}
 }

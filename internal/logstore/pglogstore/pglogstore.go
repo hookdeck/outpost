@@ -813,7 +813,13 @@ func eventArrays(events []*models.Event) []any {
 		topics[i] = e.Topic
 		eligibleForRetries[i] = e.EligibleForRetry
 		datas[i] = string(e.Data)
-		metadatas[i] = e.Metadata
+		// metadata is jsonb NOT NULL; a nil map encodes to SQL NULL under
+		// pgx and is rejected. Persist an empty object instead.
+		metadata := e.Metadata
+		if metadata == nil {
+			metadata = map[string]string{}
+		}
+		metadatas[i] = metadata
 	}
 
 	return []any{
@@ -869,7 +875,12 @@ func attemptArrays(entries []*models.LogEntry) []any {
 		eventTimes[i] = e.Time
 		eligibleForRetries[i] = e.EligibleForRetry
 		eventDatas[i] = string(e.Data)
-		eventMetadatas[i] = e.Metadata
+		// event_metadata is jsonb NOT NULL; see eventArrays.
+		eventMetadata := e.Metadata
+		if eventMetadata == nil {
+			eventMetadata = map[string]string{}
+		}
+		eventMetadatas[i] = eventMetadata
 	}
 
 	return []any{
