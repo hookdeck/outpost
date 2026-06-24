@@ -99,7 +99,12 @@ function parseJudgeJson(text: string): Omit<LlmJudgeReport, "model" | "runFile" 
   };
 }
 
-const JUDGE_SYSTEM = `You are an expert evaluator for Hookdeck Outpost onboarding documentation and API usage.
+/** True when the eval runner forwarded live Outpost credentials to the agent sandbox. */
+export function evalOutpostSecretsAvailable(): boolean {
+  return Boolean(process.env.OUTPOST_API_KEY?.trim());
+}
+
+const JUDGE_SYSTEM_BASE = `You are an expert evaluator for Hookdeck Outpost onboarding documentation and API usage.
 You judge whether an AI assistant's replies satisfy the scenario's Success criteria (markdown checklist from the scenario spec).
 Be strict: a criterion passes only if the transcript (including code the model wrote via tools) clearly satisfies it.
 You cannot run shell or HTTP — do not claim execution passed; use execution_in_transcript.pass = null and explain in note.
@@ -113,8 +118,25 @@ Output ONLY valid JSON (no markdown fences, no commentary outside JSON) matching
   "summary": "2-4 sentences overall"
 }
 Map each major bullet/checkbox line from Success criteria to one criteria[] entry (merge tiny sub-bullets if needed).
+Each criteria[].pass boolean MUST match your evidence — never set pass=false while evidence argues the criterion passed (or vice versa).`;
 
-Eval-harness / transcript environment: The assistant may run Bash (e.g. npx tsx, shell quickstarts) inside an automated eval where live secrets such as OUTPOST_API_KEY are often NOT injected, even when a later CI step verifies artifacts with real keys. If the transcript shows the assistant attempted that smoke run and it failed ONLY because required env vars or secrets were missing or empty (clear message: explicit throw, documented "set OUTPOST_API_KEY", 401/403 from missing auth, tool_result text stating unset variable, etc.)—and the written artifacts otherwise match the scenario (SDK usage, endpoints, fail-fast checks, README)—then treat Success-criteria rows about "execution", "runs to completion", or "live API" as PASS for that reason. Keep execution_in_transcript.pass = null (you still did not run code yourself). Set overall_transcript_pass to true when every criteria[] entry passes under these rules; do not fail the whole judgment solely because the eval transcript lacked keys. Do NOT use this exception when the script was never run, the error is vague, or failure likely reflects bugs, syntax errors, wrong API usage, or misconfiguration unrelated to missing env in the sandbox.`;
+function buildHarnessExecutionRules(): string {
+  if (evalOutpostSecretsAvailable()) {
+    return `Eval-harness / transcript environment: OUTPOST_API_KEY is injected into the agent sandbox for this run (the runner had live Outpost credentials). If the transcript shows the assistant ran curl or SDK smoke tests and they failed (401/403 from bad/missing key in the script, HTTP 4xx/5xx, uncaught exceptions, wrong API usage, mock servers or dummy keys when live keys were available), treat Success-criteria rows about "execution", "runs to completion", or "live API" as FAIL unless the transcript clearly shows success (expected 2xx/202, event id printed, exit 0). Do not excuse failures as "missing env in the sandbox" — keys were available to the agent. Set overall_transcript_pass false when any criterion fails under these rules.`;
+  }
+  return `Eval-harness / transcript environment: The assistant may run Bash (e.g. npx tsx, shell quickstarts) inside an automated eval where live secrets such as OUTPOST_API_KEY are NOT injected (transcript-only / local triage). If the transcript shows the assistant attempted that smoke run and it failed ONLY because required env vars or secrets were missing or empty (clear message: explicit throw, documented "set OUTPOST_API_KEY", 401/403 from missing auth, tool_result text stating unset variable, etc.)—and the written artifacts otherwise match the scenario (SDK usage, endpoints, fail-fast checks, README)—then treat Success-criteria rows about "execution", "runs to completion", or "live API" as PASS for that reason. Keep execution_in_transcript.pass = null (you still did not run code yourself). Set overall_transcript_pass to true when every criteria[] entry passes under these rules; do not fail the whole judgment solely because the eval transcript lacked keys. Do NOT use this exception when the script was never run, the error is vague, or failure likely reflects bugs, syntax errors, wrong API usage, or misconfiguration unrelated to missing env in the sandbox.`;
+}
+
+function buildJudgeSystem(): string {
+  return `${JUDGE_SYSTEM_BASE}\n\n${buildHarnessExecutionRules()}`;
+}
+
+function buildJudgeUserTail(): string {
+  if (evalOutpostSecretsAvailable()) {
+    return `Judge the transcript against the Success criteria. Remember: execution (running curl or scripts against a live API) is NOT evidenced by you unless the transcript shows successful HTTP/tool outcomes; normally set execution_in_transcript.pass to null. OUTPOST_API_KEY was available in the agent sandbox for this run — score execution-style criteria strictly from what the transcript shows; failed smoke runs, mock servers, or dummy keys are failures unless the transcript shows a clear live success path.`;
+  }
+  return `Judge the transcript against the Success criteria. Remember: execution (running curl or scripts against a live API) is NOT evidenced by you unless the transcript shows successful HTTP/tool outcomes; normally set execution_in_transcript.pass to null. If the transcript shows a run attempt failed only because OUTPOST_API_KEY or other required env was missing in the eval sandbox, apply the harness exception in your system instructions for execution-style criteria—do not mark overall_transcript_pass false for that alone.`;
+}
 
 export async function llmJudgeRun(options: {
   readonly runPath: string;
@@ -148,7 +170,7 @@ ${transcript}
 
 ---
 
-Judge the transcript against the Success criteria. Remember: execution (running curl or scripts against a live API) is NOT evidenced by you unless the transcript shows successful HTTP/tool outcomes; normally set execution_in_transcript.pass to null. If the transcript shows a run attempt failed only because OUTPOST_API_KEY or other required env was missing in the eval sandbox, apply the harness exception in your system instructions for execution-style criteria—do not mark overall_transcript_pass false for that alone.`;
+${buildJudgeUserTail()}`;
 
   const res = await fetch(ANTHROPIC_MESSAGES_URL, {
     method: "POST",
@@ -160,7 +182,7 @@ Judge the transcript against the Success criteria. Remember: execution (running 
     body: JSON.stringify({
       model,
       max_tokens: 8192,
-      system: JUDGE_SYSTEM,
+      system: buildJudgeSystem(),
       messages: [{ role: "user", content: userContent }],
     }),
   });
