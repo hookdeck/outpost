@@ -140,6 +140,7 @@ Each scenario run uses one directory:
   - **`<stamp>-scenario-NN.eval-aborted.json`** — **SIGTERM** / **SIGINT** before completion (not **SIGKILL**)
     If **`transcript.json`** is missing, check these files next to **`…/runs/<stamp>-scenario-NN/`** (same directory as the run folder, not inside it).
 - **`heuristic-score.json`** / **`llm-score.json`** — by default (unless disabled above)
+- **`llm-judge-failure.json`** — when the LLM judge returns unparseable JSON after retries: full raw model text per attempt plus `stop_reason` and token usage (for CI triage)
 - **Agent-written files** — the SDK **`cwd`** is this directory. Defaults include **`Write`**, **`Edit`**, and **`Bash`** for clones, installs, and generated code.
 
 Re-score a finished run without re-invoking the agent — uses **today's** [`src/score-transcript.ts`](src/score-transcript.ts) and **scenario markdown on disk** (so LLM criteria update when you edit **`## Success criteria`**):
