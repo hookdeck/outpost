@@ -36,7 +36,7 @@ npm run score -- --run results/runs/<stamp>-scenario-NN --write
 npm run score -- --run results/runs/<stamp>-scenario-NN --llm --write
 ```
 
-**Execution** (curl/SDK against live Outpost with `OUTPOST_API_KEY`) is **not** recorded in these JSON files. Use **`../scripts/execute-ci-artifacts.sh`** after **`eval:ci`**, or the second step in **`.github/workflows/docs-agent-eval-ci.yml`**, and the **Execution (full pass)** rows in `[../scenarios/](../scenarios/)` for human notes.
+**Execution** when `OUTPOST_API_KEY` is set: the agent may run live smoke tests during eval (evidence in `transcript.json`; **LLM judge** scores execution-style criteria). **`execute-ci-artifacts.sh`** (CI step 2) re-runs saved artifacts deterministically. Without the key, execution is transcript-only / manual — see **Execution (full pass)** rows in `[../scenarios/](../scenarios/)`.
 
 ---
 

@@ -143,6 +143,10 @@ func main() {
 }
 ```
 
+{% callout %}
+**Publish is asynchronous (HTTP 202).** A successful `Publish` call means Outpost **accepted** the event and returned an **event id**. It does not mean the event is already visible in the **events** or **attempts** APIs, or that your webhook has been delivered — processing and delivery continue in the background. When the program finishes, note the printed event id and confirm delivery using the steps below. See [Publish acceptance vs observability](/docs/outpost/concepts#publish-acceptance-vs-observability) for how this differs from listing events or attempts in your own code.
+{% /callout %}
+
 Run:
 
 ```sh
@@ -153,8 +157,49 @@ For all topics on that destination, use `components.CreateTopicsTopicsEnum(compo
 
 ## Verify delivery
 
-- In **Hookdeck Console**, confirm the webhook hit your test URL.
+When the program completes, you should see a published event id in the terminal.
+
+- In **Hookdeck Console**, open the Source or connection you used for `OUTPOST_TEST_WEBHOOK_URL` and confirm the webhook request arrived with the expected payload.
 - In the **Hookdeck Dashboard**, open **your Outpost project** and review **logs** to confirm the event was processed and delivered.
+
+Listing events with `s.Events.List` (or `GET …/events` with `tenant_id`) immediately after publish may return an empty list for a short time while Outpost indexes the event. That is normal eventual consistency, not a failed publish — you do not need the events API to finish this walkthrough. If you are building an activity or audit screen in your product, poll with retries instead of a single list call; see [Publish acceptance vs observability](/docs/outpost/concepts#publish-acceptance-vs-observability).
+
+### Optional: poll the events API
+
+Add after the successful publish block in `main` (add `"time"` to your imports if needed). Use this when your application must confirm an event appears in the events API (for example while building an activity feed):
+
+```go
+publishedID := pubRes.GetPublishResponse().GetID()
+var found bool
+for attempt := 1; attempt <= 8 && !found; attempt++ {
+	listRes, err := s.Events.List(ctx, operations.ListEventsRequest{
+		TenantID: []string{tenantID},
+		Topic:    []string{topic},
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+	if listRes.EventPaginatedResult != nil {
+		for _, ev := range listRes.EventPaginatedResult.GetModels() {
+			if ev.GetID() == publishedID {
+				fmt.Println("Verified in events list:", publishedID)
+				found = true
+				break
+			}
+		}
+	}
+	if !found {
+		time.Sleep(time.Second)
+	}
+}
+if !found {
+	fmt.Println(
+		"Event not visible in the events list yet; check Hookdeck Console for delivery.",
+	)
+}
+```
+
+For this quickstart, Console and dashboard logs are sufficient.
 
 ## Next steps
 
