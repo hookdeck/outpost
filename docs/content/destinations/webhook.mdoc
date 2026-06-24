@@ -298,8 +298,8 @@ Configure webhook operator behavior using these keys in the Config API or in [Ho
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `DESTINATIONS_WEBHOOK_MAX_RESPONSE_BODY_BYTES` | `0` (no limit) | Max bytes of the destination's response body stored on the delivery attempt (e.g. `131072` for 128 KB) |
+| `DESTINATIONS_WEBHOOK_MAX_RESPONSE_BODY_BYTES` | `0` (no limit) | Max bytes of the destination's response body stored on the delivery attempt (e.g. `131072` for 128 KiB) |
 
-Outpost stores the destination's response body on each delivery attempt so it's visible in the event log. A very large response can make the attempt log exceed the event queue's per-message size limit — that delivery then fails to record and is retried indefinitely. Set `DESTINATIONS_WEBHOOK_MAX_RESPONSE_BODY_BYTES` to bound the stored body — for example `131072` for a 128 KB limit. Responses larger than the limit are replaced with a placeholder (`Response body exceeded <N> bytes and was not stored`) rather than truncated, so the rest of the attempt is logged normally. The default of `0` keeps the full body.
+Outpost stores the destination's response body on each delivery attempt so it's visible in the event log. A very large response can make the attempt log exceed the event queue's per-message size limit — that delivery then fails to record and is retried indefinitely. Set `DESTINATIONS_WEBHOOK_MAX_RESPONSE_BODY_BYTES` to bound the stored body — for example `131072` for a 128 KiB limit. Responses larger than the limit are replaced with a placeholder (`Response body exceeded <N> bytes and was not stored`) rather than truncated, so the rest of the attempt is logged normally. The default of `0` keeps the full body.
 {% /tab %}
 {% /tabs %}
