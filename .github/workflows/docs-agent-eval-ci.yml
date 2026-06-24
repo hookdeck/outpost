@@ -6,6 +6,7 @@
 # Each run bills Anthropic (agent + judge).
 # Requires repo secrets: ANTHROPIC_API_KEY, EVAL_TEST_DESTINATION_URL, OUTPOST_API_KEY
 # (OUTPOST_TEST_WEBHOOK_URL uses the same URL as EVAL_TEST_DESTINATION_URL in CI.)
+# Env is scoped per step — see each run step's env block (no job-wide secret export).
 # See docs/agent-evaluation/README.md § CI (recommended slice).
 name: Docs agent eval (CI slice)
 
@@ -47,17 +48,6 @@ jobs:
       run:
         working-directory: docs/agent-evaluation
 
-    env:
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-      EVAL_TEST_DESTINATION_URL: ${{ secrets.EVAL_TEST_DESTINATION_URL }}
-      EVAL_LOCAL_DOCS: "1"
-      OUTPOST_API_KEY: ${{ secrets.OUTPOST_API_KEY }}
-      OUTPOST_TEST_WEBHOOK_URL: ${{ secrets.EVAL_TEST_DESTINATION_URL }}
-      OUTPOST_API_BASE_URL: https://api.outpost.hookdeck.com/2025-07-01
-      OUTPOST_CI_PUBLISH_TOPIC: user.created
-      # Agent eval 01/02 fixtures use this tenant; execute-ci-artifacts deletes before+after.
-      OUTPOST_CI_CLEANUP_TENANT: customer_acme_001
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
@@ -73,9 +63,23 @@ jobs:
         run: npm ci
 
       - name: Run eval CI slice (scenarios 01, 02)
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          EVAL_TEST_DESTINATION_URL: ${{ secrets.EVAL_TEST_DESTINATION_URL }}
+          EVAL_LOCAL_DOCS: "1"
+          OUTPOST_API_KEY: ${{ secrets.OUTPOST_API_KEY }}
+          OUTPOST_TEST_WEBHOOK_URL: ${{ secrets.EVAL_TEST_DESTINATION_URL }}
+          OUTPOST_API_BASE_URL: https://api.outpost.hookdeck.com/2025-07-01
         run: ./scripts/ci-eval.sh
 
       - name: Execute generated curl + TypeScript artifacts (live Outpost)
+        env:
+          OUTPOST_API_KEY: ${{ secrets.OUTPOST_API_KEY }}
+          OUTPOST_TEST_WEBHOOK_URL: ${{ secrets.EVAL_TEST_DESTINATION_URL }}
+          OUTPOST_API_BASE_URL: https://api.outpost.hookdeck.com/2025-07-01
+          OUTPOST_CI_PUBLISH_TOPIC: user.created
+          # Agent eval 01/02 fixtures use this tenant; delete before+after so destination caps do not break CI.
+          OUTPOST_CI_CLEANUP_TENANT: customer_acme_001
         run: ./scripts/execute-ci-artifacts.sh
 
       # Transcripts, heuristic + LLM scores, generated scripts — present after eval; execute step may add logs in-place.
