@@ -164,7 +164,7 @@ By default the HTML is written beside **`transcript.json`** (or **`--out`** on t
 
 **Privacy:** transcripts and tool results may contain secrets. The runner **redacts best-effort** when writing `transcript.json`, `llm-score.json`, `llm-judge-failure.json`, and eval failure sidecars (`src/redact-secrets.ts`); CI also runs **`scripts/redact-eval-artifacts.ts`** before uploading `results/runs` artifacts. Trajectory HTML applies light redaction to previews only. **Treat all run outputs as sensitive** — redaction is not a guarantee — and do not commit real run artifacts.
 
-**Regression check:** `npm run test:trajectory` — asserts step extraction and turn indexing against a tiny fixture.
+**Regression checks:** `npm run test` (or individually: `npm run test:trajectory`, `npm run test:redact-secrets`) — trajectory step extraction and secret redaction for eval artifacts.
 
 Legacy flat files `*-scenario-NN.json` next to `runs/` are still accepted by **`npm run score`** for older runs.
 

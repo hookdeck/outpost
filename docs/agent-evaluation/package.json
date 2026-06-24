@@ -12,7 +12,9 @@
     "score": "node --import tsx src/score-eval.ts",
     "viz:trajectory": "node --import tsx src/generate-trajectory-html.ts",
     "typecheck": "tsc --noEmit",
-    "test:trajectory": "node --import tsx src/trajectory-fixture-smoke.ts"
+    "test": "npm run test:trajectory && npm run test:redact-secrets",
+    "test:trajectory": "node --import tsx src/trajectory-fixture-smoke.ts",
+    "test:redact-secrets": "node --import tsx src/redact-secrets.test.ts"
   },
   "engines": {
     "node": ">=18"
