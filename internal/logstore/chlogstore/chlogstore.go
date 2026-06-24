@@ -792,7 +792,13 @@ func (s *logStoreImpl) InsertMany(ctx context.Context, entries []*models.LogEntr
 		}
 
 		for _, e := range eventMap {
-			metadataJSON, err := json.Marshal(e.Metadata)
+			// Normalize nil metadata to an empty object so it round-trips as
+			// a non-nil empty map, consistent with the Postgres backend.
+			metadata := e.Metadata
+			if metadata == nil {
+				metadata = map[string]string{}
+			}
+			metadataJSON, err := json.Marshal(metadata)
 			if err != nil {
 				return fmt.Errorf("failed to marshal metadata: %w", err)
 			}
@@ -834,7 +840,12 @@ func (s *logStoreImpl) InsertMany(ctx context.Context, entries []*models.LogEntr
 		event := entry.Event
 		a := entry.Attempt
 
-		metadataJSON, err := json.Marshal(event.Metadata)
+		// See event insert above: keep nil metadata as an empty object.
+		eventMetadata := event.Metadata
+		if eventMetadata == nil {
+			eventMetadata = map[string]string{}
+		}
+		metadataJSON, err := json.Marshal(eventMetadata)
 		if err != nil {
 			return fmt.Errorf("failed to marshal metadata: %w", err)
 		}
