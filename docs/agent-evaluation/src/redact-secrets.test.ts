@@ -107,6 +107,25 @@ function testCollectEnvSecretValues(): void {
   );
 }
 
+function testWebhookUrlLiteralRedaction(): void {
+  const fake_webhook_url = "https://events.example.test/webhook/fake_ci_destination_path_01";
+  withEnv(
+    {
+      EVAL_TEST_DESTINATION_URL: fake_webhook_url,
+      OUTPOST_TEST_WEBHOOK_URL: fake_webhook_url,
+      OUTPOST_API_KEY: undefined,
+      ANTHROPIC_API_KEY: undefined,
+    },
+    () => {
+      assert(collectEnvSecretValues().length === 1, "dedupes identical webhook URL env values");
+      const raw = `Turn 0 prompt includes test destination: ${fake_webhook_url}`;
+      const redacted = redactSecretsForArtifact(raw);
+      assertNotIncludes(redacted, fake_webhook_url, "webhook URL literal redacted");
+      assert(redacted.includes("[REDACTED]"), "webhook placeholder present");
+    },
+  );
+}
+
 function testRedactSecretsForArtifact(): void {
   withEnv(
     {
@@ -151,6 +170,7 @@ function testRedactEvalArtifactJson(): void {
 function main(): void {
   testRedactSecretsPatterns();
   testCollectEnvSecretValues();
+  testWebhookUrlLiteralRedaction();
   testRedactSecretsForArtifact();
   testRedactEvalArtifactJson();
   console.error("redact-secrets.test: OK");

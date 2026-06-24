@@ -162,7 +162,7 @@ npm run viz:trajectory -- --run results/runs/<stamp>-scenario-01/transcript.json
 
 By default the HTML is written beside **`transcript.json`** (or **`--out`** on the viz CLI). Open the file in a browser: click a row to highlight it and set **`#s=<step>`** in the URL for a quick bookmark. The page can **filter by tool kind**, **narrow Read rows to documentation vs code paths** (by extension), and **require doc heuristics** (reference, OpenAPI, quickstart, published URL, etc.) so you can focus on documentation-looking steps.
 
-**Privacy:** transcripts and tool results may contain secrets. The runner **redacts best-effort** when writing `transcript.json`, `llm-score.json`, `llm-judge-failure.json`, and eval failure sidecars (`src/redact-secrets.ts`); CI also runs **`scripts/redact-eval-artifacts.ts`** before uploading `results/runs` artifacts. Trajectory HTML applies light redaction to previews only. **Treat all run outputs as sensitive** — redaction is not a guarantee — and do not commit real run artifacts.
+**Privacy:** transcripts and tool results may contain secrets. The runner **redacts best-effort** when writing `transcript.json`, `llm-score.json`, `llm-judge-failure.json`, and eval failure sidecars (`src/redact-secrets.ts` — API keys and test webhook URLs from env); CI runs **`scripts/redact-eval-artifacts.ts`** with the same env before uploading `results/runs` artifacts. Trajectory HTML applies light redaction to previews only. **Treat all run outputs as sensitive** — redaction is not a guarantee — and do not commit real run artifacts.
 
 **Regression checks:** `npm run test` (or individually: `npm run test:trajectory`, `npm run test:redact-secrets`) — trajectory step extraction and secret redaction for eval artifacts.
 

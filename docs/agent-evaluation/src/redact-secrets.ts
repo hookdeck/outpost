@@ -3,13 +3,20 @@
  * Not a security guarantee — treat artifacts as sensitive even after redaction.
  */
 
-const ENV_SECRET_KEYS = ["OUTPOST_API_KEY", "ANTHROPIC_API_KEY"] as const;
+const ENV_SECRET_KEYS = [
+  "OUTPOST_API_KEY",
+  "ANTHROPIC_API_KEY",
+  "EVAL_TEST_DESTINATION_URL",
+  "OUTPOST_TEST_WEBHOOK_URL",
+] as const;
 
 export function collectEnvSecretValues(): string[] {
+  const seen = new Set<string>();
   const out: string[] = [];
   for (const key of ENV_SECRET_KEYS) {
     const value = process.env[key]?.trim();
-    if (value && value.length >= 8) {
+    if (value && value.length >= 8 && !seen.has(value)) {
+      seen.add(value);
       out.push(value);
     }
   }
