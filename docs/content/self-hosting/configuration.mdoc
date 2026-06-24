@@ -122,6 +122,7 @@ Choose one for event log persistence:
 | `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_SIGNATURE_HEADER` | `false` | Disable the signature header |
 | `DESTINATIONS_WEBHOOK_SIGNATURE_ALGORITHM` | `hmac-sha256` | Signature algorithm |
 | `DESTINATIONS_WEBHOOK_SIGNATURE_ENCODING` | `hex` | Encoding: `hex` or `base64` |
+| `DESTINATIONS_WEBHOOK_MAX_RESPONSE_BODY_BYTES` | `0` (no limit) | Max bytes of a destination response body stored on the delivery attempt (e.g. `131072` for 128 KB). Larger responses are replaced with a placeholder so the attempt log stays under the event queue's per-message size limit. |
 
 ## Observability
 
