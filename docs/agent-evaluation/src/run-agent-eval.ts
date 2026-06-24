@@ -1,9 +1,8 @@
 /**
  * Automated Outpost onboarding agent evals via the Claude Agent SDK.
  *
- * Requires ANTHROPIC_API_KEY and EVAL_TEST_DESTINATION_URL. When OUTPOST_API_KEY is set,
- * it is forwarded to the agent sandbox so smoke tests can hit live Outpost during eval.
- * CI also runs execute-ci-artifacts.sh to re-run saved artifacts — see README.
+ * Requires ANTHROPIC_API_KEY (and EVAL_TEST_DESTINATION_URL). Does not call Outpost.
+ * For a full eval, humans (or a separate verifier) run generated artifacts using OUTPOST_API_KEY — see README.
  *
  * @see https://platform.claude.com/docs/en/agent-sdk/overview
  */
@@ -787,9 +786,6 @@ Environment:
   Values can be set in docs/agent-evaluation/.env (loaded automatically) or exported in the shell.
   ANTHROPIC_API_KEY     Required
   EVAL_TEST_DESTINATION_URL   Required — Hookdeck Console Source URL (fed into {{TEST_DESTINATION_URL}})
-  OUTPOST_API_KEY       Required for ci-eval.sh / GitHub Actions; forwarded to the agent when set (live smoke tests). Optional for local transcript-only runs without execution.
-  OUTPOST_TEST_WEBHOOK_URL  Optional — defaults to EVAL_TEST_DESTINATION_URL in ci-eval.sh
-  OUTPOST_API_BASE_URL  Optional — managed default when unset in ci-eval.sh
   EVAL_API_BASE_URL     Optional (default: managed production URL)
   EVAL_TOPICS_LIST      Optional
   EVAL_DOCS_URL         Optional (ignored for Documentation links when EVAL_LOCAL_DOCS is set; still used to derive the default EVAL_LLMS_FULL_URL unless that is set)

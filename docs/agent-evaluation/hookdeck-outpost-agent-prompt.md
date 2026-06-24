@@ -104,7 +104,6 @@ Goal: tenant → **one destination** (often webhook to `{{TEST_DESTINATION_URL}}
 - Default to **curl** when they want the absolute minimum and did not name a language.
 - When they name **TypeScript**, **Python**, or **Go**, produce **only** what that language’s **quickstart** describes—typically **one file** (plus `package.json` / `go.mod` / venv if the quickstart needs it), not a full application tree.
 - Ask only for env vars and details the quickstart still needs.
-- **Verify delivery the quickstart way:** after publish, print the **event id** (or 202 success) and point the operator to **Hookdeck Console** / dashboard **logs** for the test webhook URL. **Do not** add an immediate `events.list` / `GET …/events` check that throws if the event is missing on the first try — publish is **202 (accepted)** and observability APIs are **eventually consistent** (see **{{DOCS_URL}}/concepts#publish-acceptance-vs-observability**). Reserve events/attempts listing and retry UX for **Building your own UI** / full-stack paths, not the one-file quickstart.
 
 ### New minimal application
 
@@ -146,7 +145,6 @@ Apply **only** the items below that fit the task; **skip** any that do not apply
 - [ ] **Ran** the smallest end-to-end check that fits this task (e.g. run the script or shell flow once, exercise one new API path, or smoke the UI/API flow you added) and saw a clear success signal (e.g. event id, HTTP 2xx, or expected output).
 - [ ] **Secrets:** The platform Outpost API key remains **server-side** / **environment** only — not in client bundles, not hard-coded in committed source.
 - [ ] **Repeatable:** Env vars, how to run, and how to verify with the test destination above are stated briefly (README, comments, or chat — match the task size; a one-file script may need only inline or chat notes).
-- [ ] **Quick path verification:** If this is a **quickstart-shaped** script (one file / curl flow), success is **publish accepted (202 / event id printed)** plus **Hookdeck Console** (or dashboard logs) for the test webhook — **not** a hard-fail `events.list` / `GET …/events` immediately after publish. If you must list events in code, **poll with retries** per **{{DOCS_URL}}/concepts#publish-acceptance-vs-observability**; do not throw on the first empty list.
 
 **When editing an existing application repository (Existing application or equivalent):**
 

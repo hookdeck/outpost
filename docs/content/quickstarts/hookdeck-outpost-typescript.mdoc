@@ -115,10 +115,6 @@ const published = await outpost.publish({
 console.log("Published event id:", published.id);
 ```
 
-{% callout %}
-**Publish is asynchronous (HTTP 202).** A successful `publish` means Outpost **accepted** the event and returned an **event id**. It does not mean the event is already visible in the **events** or **attempts** APIs, or that your webhook has been delivered — processing and delivery continue in the background. When the script finishes, note the printed event id and confirm delivery using the steps below. See [Publish acceptance vs observability](/docs/outpost/concepts#publish-acceptance-vs-observability) for how this differs from listing events or attempts in your own code.
-{% /callout %}
-
 Run:
 
 ```sh
@@ -129,35 +125,8 @@ To subscribe the destination to all topics, pass `topics: ["*"]` instead of `[to
 
 ## Verify delivery
 
-When the script completes, you should see a published event id in the terminal.
-
-- In **Hookdeck Console**, open the Source or connection you used for `OUTPOST_TEST_WEBHOOK_URL` and confirm the webhook request arrived with the expected payload.
+- In **Hookdeck Console**, inspect the Source or connection you used for `OUTPOST_TEST_WEBHOOK_URL` and confirm the webhook request arrived as expected.
 - In the **Hookdeck Dashboard**, open **your Outpost project** and review **logs** to confirm the event was processed and delivered.
-
-Listing events with `outpost.events.list` (or `GET …/events` with `tenant_id`) immediately after publish may return an empty list for a short time while Outpost indexes the event. That is normal eventual consistency, not a failed publish — you do not need the events API to finish this walkthrough. If you are building an activity or audit screen in your product, poll with retries instead of a single list call; see [Publish acceptance vs observability](/docs/outpost/concepts#publish-acceptance-vs-observability).
-
-### Optional: poll the events API
-
-Use this pattern when your application needs to confirm an event appears in the events API (for example while building an activity feed):
-
-```typescript
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-let found;
-for (let attempt = 1; attempt <= 8 && !found; attempt++) {
-  const { models: events } = await outpost.events.list({ tenantId, topic });
-  found = events?.find((e) => e.id === published.id);
-  if (!found) await sleep(1000);
-}
-if (!found) {
-  console.warn(
-    "Event not visible in the events list yet; check Hookdeck Console for delivery.",
-  );
-} else {
-  console.log("Verified in events list:", found.id);
-}
-```
-
-For this quickstart, Console and dashboard logs are sufficient.
 
 ## Next steps
 

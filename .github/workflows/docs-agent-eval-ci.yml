@@ -1,12 +1,9 @@
 # Runs scenarios 01+02 (curl + TypeScript SDK) with heuristic + LLM judge.
 # Sets EVAL_LOCAL_DOCS=1 so the agent reads repo docs under docs/ (not production WebFetch).
-# Injects OUTPOST_API_KEY (and related env) for the agent run so smoke tests hit live Outpost;
-# step 2 re-runs the saved artifacts deterministically.
 # Triggers: workflow_dispatch, or push (main) / pull_request when docs / OpenAPI / agent-eval / TS SDK paths change.
 # Each run bills Anthropic (agent + judge).
 # Requires repo secrets: ANTHROPIC_API_KEY, EVAL_TEST_DESTINATION_URL, OUTPOST_API_KEY
 # (OUTPOST_TEST_WEBHOOK_URL uses the same URL as EVAL_TEST_DESTINATION_URL in CI.)
-# Env is scoped per step — see each run step's env block (no job-wide secret export).
 # See docs/agent-evaluation/README.md § CI (recommended slice).
 name: Docs agent eval (CI slice)
 
@@ -67,9 +64,6 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           EVAL_TEST_DESTINATION_URL: ${{ secrets.EVAL_TEST_DESTINATION_URL }}
           EVAL_LOCAL_DOCS: "1"
-          OUTPOST_API_KEY: ${{ secrets.OUTPOST_API_KEY }}
-          OUTPOST_TEST_WEBHOOK_URL: ${{ secrets.EVAL_TEST_DESTINATION_URL }}
-          OUTPOST_API_BASE_URL: https://api.outpost.hookdeck.com/2025-07-01
         run: ./scripts/ci-eval.sh
 
       - name: Execute generated curl + TypeScript artifacts (live Outpost)

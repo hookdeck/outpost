@@ -88,10 +88,6 @@ curl --request POST "$OUTPOST_API_BASE_URL/publish" \
 
 On success, the response status is **202** — the event was accepted for delivery.
 
-{% callout %}
-**Publish is asynchronous (HTTP 202).** A **202** response means Outpost **accepted** the event and returned an **event id** in the response body. It does not mean the event is already listed in the **events** or **attempts** APIs, or that your webhook has been delivered — processing and delivery continue in the background. Note the event id from the response and confirm delivery using the steps below. See [Publish acceptance vs observability](/docs/outpost/concepts#publish-acceptance-vs-observability) for how this differs from listing events or attempts in your own integrations.
-{% /callout %}
-
 ## HTTP status codes (quick reference)
 
 | Step | Request | Success status |
@@ -102,34 +98,8 @@ On success, the response status is **202** — the event was accepted for delive
 
 ## Verify delivery
 
-After publish, parse the **event id** from the **202** response body (for example with `jq`).
-
-- In **Hookdeck Console**, open the Source or connection you used for the webhook URL and confirm the request arrived with the expected payload.
-- In the **Hookdeck Dashboard**, open **your Outpost project** and review **logs** to confirm the event was processed and delivered.
-
-Calling `GET …/events` with `tenant_id` (and optional `topic`) immediately after publish may return an empty list for a short time while Outpost indexes the event. That is normal eventual consistency, not a failed publish — you do not need the events API to finish this walkthrough. If you are building an activity or audit screen in your product, poll with retries instead of a single request; see [Publish acceptance vs observability](/docs/outpost/concepts#publish-acceptance-vs-observability).
-
-### Optional: poll the events API
-
-Use this pattern when your application must confirm an event appears in the events API (for example while building an activity feed):
-
-```sh
-EVENT_ID="<event id from publish response>"
-
-for attempt in $(seq 1 8); do
-  if curl -s -G "$OUTPOST_API_BASE_URL/events" \
-    --data-urlencode "tenant_id=$TENANT_ID" \
-    --data-urlencode "topic=user.created" \
-    -H "Authorization: Bearer $OUTPOST_API_KEY" \
-    | grep -q "$EVENT_ID"; then
-    echo "Verified in events list: $EVENT_ID"
-    break
-  fi
-  sleep 1
-done
-```
-
-For this quickstart, Console and dashboard logs are sufficient.
+- In **Hookdeck Console**, inspect the connection or destination you used (for example the Source you created) and confirm the webhook request and payload look correct.
+- In the **Hookdeck Dashboard**, open **your Outpost project** and review **logs** (and any deliveries or event views your project exposes) to confirm the event was processed and delivered.
 
 ## Next steps
 
