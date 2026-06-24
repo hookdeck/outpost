@@ -69,14 +69,14 @@ Read more about [event delivery and retries](/docs/outpost/features/event-delive
 
 ### Publish acceptance vs observability {#publish-acceptance-vs-observability}
 
-**Publish** (`POST /publish` or SDK `publish`) responds with **HTTP 202** and an **event id** when Outpost accepts the event for processing. That response means the event entered the pipeline — **not** that it already appears in **events** list APIs, **attempts** APIs, or at the destination URL.
+When you call **publish** (`POST /publish` or the SDK equivalent), Outpost responds with **HTTP 202** and an **event id** once it has **accepted** the event for processing. That response confirms the event entered the pipeline — it does **not** guarantee the event is already listed in the **events** or **attempts** APIs, or that the webhook has been delivered.
 
-**Read-after-publish:** Listing tenant events (`GET …/tenants/{tenant_id}/events`) or loading attempts right after publish can fail or return empty results for a short window while Outpost indexes and schedules delivery. This is normal eventual consistency, not a failed publish. Integrations should either:
+If you list tenant events (`GET …/events` with a `tenant_id` query parameter) or load delivery attempts immediately after publish, the result may be empty for a short time while Outpost indexes the event and schedules delivery. That is normal eventual consistency, not a failed publish.
 
-- Treat **202 + event id** (or SDK equivalent) as publish success in application code, and verify delivery via **Hookdeck Console**, dashboard **logs**, or downstream handling; or
-- **Poll** events/attempts with backoff when a UI or test must confirm visibility in those APIs.
+How you verify success depends on what you are building:
 
-Quickstarts use the first pattern. Customer-facing **activity** screens (events → attempts → retry) use the second — see [Building your own UI](/docs/outpost/guides/building-your-own-ui).
+- **Publish-and-confirm flows** (including the quickstarts in this documentation): treat **202 + event id** as publish success in your code, then confirm delivery in **Hookdeck Console**, your project's dashboard **logs**, or by watching your webhook endpoint.
+- **Activity or audit UIs** in your product: **poll** the events or attempts APIs with backoff until the event appears — see [Building your own UI](/docs/outpost/guides/building-your-own-ui) for patterns.
 
 ## Portal
 
