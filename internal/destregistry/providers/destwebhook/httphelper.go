@@ -30,8 +30,11 @@ type HTTPRequestResult struct {
 // caller signals the queue to nack the message instead of recording a
 // customer-visible attempt. See registry.go for the nil-attempt handling.
 //
+// maxResponseBodyBytes caps how much of the destination response body is read
+// and stored on the attempt. 0 means no limit. See ParseHTTPResponse.
+//
 // See: https://github.com/hookdeck/outpost/issues/571
-func ExecuteHTTPRequest(ctx context.Context, client *http.Client, req *http.Request, provider string) *HTTPRequestResult {
+func ExecuteHTTPRequest(ctx context.Context, client *http.Client, req *http.Request, provider string, maxResponseBodyBytes int) *HTTPRequestResult {
 	resp, err := client.Do(req)
 	if err != nil {
 		// Proxy infrastructure error: nack via nil Delivery so the customer's
@@ -89,7 +92,7 @@ func ExecuteHTTPRequest(ctx context.Context, client *http.Client, req *http.Requ
 			Status: "failed",
 			Code:   fmt.Sprintf("%d", resp.StatusCode),
 		}
-		ParseHTTPResponse(delivery, resp)
+		ParseHTTPResponse(delivery, resp, maxResponseBodyBytes)
 
 		// Extract body for error details
 		var bodyStr string
@@ -117,7 +120,7 @@ func ExecuteHTTPRequest(ctx context.Context, client *http.Client, req *http.Requ
 		Status: "success",
 		Code:   fmt.Sprintf("%d", resp.StatusCode),
 	}
-	ParseHTTPResponse(delivery, resp)
+	ParseHTTPResponse(delivery, resp, maxResponseBodyBytes)
 
 	return &HTTPRequestResult{
 		Delivery: delivery,
@@ -169,10 +172,30 @@ func ClassifyNetworkError(err error) string {
 
 // ParseHTTPResponse reads the HTTP response body into the delivery as a raw string.
 // The body is stored verbatim regardless of content type to preserve data integrity.
-func ParseHTTPResponse(delivery *destregistry.Delivery, resp *http.Response) {
-	bodyBytes, _ := io.ReadAll(resp.Body)
+//
+// maxBytes caps the stored body so an oversized response can't push the attempt
+// log past the queue's per-message size limit (which would fail to publish and
+// retry forever). 0 disables the cap. When the body exceeds maxBytes it is
+// replaced wholesale with a placeholder rather than truncated, so consumers never
+// receive a partial/corrupt body. We read with a maxBytes+1 LimitReader: enough to
+// detect the overflow without buffering the whole body, but it means we stop
+// before draining resp.Body, so that connection won't be reused — an acceptable
+// trade-off versus downloading an arbitrarily large body just to discard it.
+func ParseHTTPResponse(delivery *destregistry.Delivery, resp *http.Response, maxBytes int) {
+	var body string
+	if maxBytes > 0 {
+		bodyBytes, _ := io.ReadAll(io.LimitReader(resp.Body, int64(maxBytes)+1))
+		if len(bodyBytes) > maxBytes {
+			body = fmt.Sprintf("Response body exceeded %d bytes and was not stored", maxBytes)
+		} else {
+			body = string(bodyBytes)
+		}
+	} else {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		body = string(bodyBytes)
+	}
 	delivery.Response = map[string]interface{}{
 		"status": resp.StatusCode,
-		"body":   string(bodyBytes),
+		"body":   body,
 	}
 }
