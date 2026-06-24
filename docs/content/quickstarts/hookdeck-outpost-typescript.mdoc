@@ -115,6 +115,10 @@ const published = await outpost.publish({
 console.log("Published event id:", published.id);
 ```
 
+{% callout %}
+**Publish is asynchronous (HTTP 202).** A successful `publish` (or `POST /publish`) means Outpost **accepted** the event and returned an **event id** — not that the event is already visible in **events** or **attempts** APIs, and not that the webhook has been delivered. For this quickstart, treat the printed event id as success and confirm delivery in the Hookdeck Console (below). If you list events in code right after publish, **poll with retries** — see [Concepts — Publish acceptance vs observability](/docs/outpost/concepts#publish-acceptance-vs-observability).
+{% /callout %}
+
 Run:
 
 ```sh
@@ -125,8 +129,35 @@ To subscribe the destination to all topics, pass `topics: ["*"]` instead of `[to
 
 ## Verify delivery
 
+**Quick path (recommended):** use the test webhook URL you configured — no extra API calls required.
+
 - In **Hookdeck Console**, inspect the Source or connection you used for `OUTPOST_TEST_WEBHOOK_URL` and confirm the webhook request arrived as expected.
 - In the **Hookdeck Dashboard**, open **your Outpost project** and review **logs** to confirm the event was processed and delivered.
+
+Do **not** treat `GET …/tenants/{id}/events` (or `outpost.events.list`) immediately after publish as a pass/fail check unless you **retry**: the events list can lag briefly behind a **202** accept. That pattern belongs in activity UIs and integration tests, not in a one-shot quickstart script — see [Publish acceptance vs observability](/docs/outpost/concepts#publish-acceptance-vs-observability).
+
+### Optional: programmatic events check
+
+If you need code-level confirmation (for example while building an activity screen), poll before giving up:
+
+```typescript
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+let found;
+for (let attempt = 1; attempt <= 8 && !found; attempt++) {
+  const { models: events } = await outpost.events.list({ tenantId, topic });
+  found = events?.find((e) => e.id === published.id);
+  if (!found) await sleep(1000);
+}
+if (!found) {
+  console.warn(
+    "Event not visible in the events list yet; check Hookdeck Console for delivery.",
+  );
+} else {
+  console.log("Verified in events list:", found.id);
+}
+```
+
+Prefer **Console verification** for the quickstart; use polling only when you are intentionally exercising the events API.
 
 ## Next steps
 
