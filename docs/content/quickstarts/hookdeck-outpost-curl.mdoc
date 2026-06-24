@@ -111,7 +111,7 @@ Calling `GET …/events` with `tenant_id` (and optional `topic`) immediately aft
 
 ### Optional: poll the events API
 
-Use this pattern when your application must confirm an event appears in the events API (for example while building an activity feed):
+Uses `TENANT_ID`, `OUTPOST_API_BASE_URL`, and `OUTPOST_API_KEY` from the publish section above. Use this when your application must confirm an event appears in the events API (for example while building an activity feed):
 
 ```sh
 EVENT_ID="<event id from publish response>"

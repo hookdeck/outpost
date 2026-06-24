@@ -138,7 +138,7 @@ Listing events with `outpost.events.list` (or `GET …/events` with `tenant_id`)
 
 ### Optional: poll the events API
 
-Use this pattern when your application needs to confirm an event appears in the events API (for example while building an activity feed):
+This continues the script above — `published` is the value returned from `outpost.publish(...)`. Use the pattern when your application needs to confirm an event appears in the events API (for example while building an activity feed):
 
 ```typescript
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));

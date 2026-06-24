@@ -6,6 +6,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 import { extractTranscriptScoringText } from "./score-transcript.js";
+import { redactSecretsForArtifact } from "./redact-secrets.js";
 
 const ANTHROPIC_MESSAGES_URL = "https://api.anthropic.com/v1/messages";
 /** Latest Sonnet tier (Feb 2026); override with EVAL_SCORE_MODEL. */
@@ -183,7 +184,14 @@ async function writeJudgeFailureArtifact(
   artifact: LlmJudgeFailureArtifact,
 ): Promise<string> {
   const path = judgeFailureArtifactPath(run_path);
-  await writeFile(path, `${JSON.stringify(artifact, null, 2)}\n`, "utf8");
+  const redacted: LlmJudgeFailureArtifact = {
+    ...artifact,
+    attempts: artifact.attempts.map((a) => ({
+      ...a,
+      raw_text: redactSecretsForArtifact(a.raw_text),
+    })),
+  };
+  await writeFile(path, `${JSON.stringify(redacted, null, 2)}\n`, "utf8");
   return path;
 }
 

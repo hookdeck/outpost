@@ -83,6 +83,10 @@ jobs:
         run: ./scripts/execute-ci-artifacts.sh
 
       # Transcripts, heuristic + LLM scores, generated scripts — present after eval; execute step may add logs in-place.
+      - name: Redact secrets in eval artifacts (best effort)
+        if: always()
+        run: node --import tsx scripts/redact-eval-artifacts.ts
+
       - name: Upload agent eval outputs (debug)
         if: always()
         uses: actions/upload-artifact@v7
