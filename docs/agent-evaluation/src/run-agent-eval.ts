@@ -24,6 +24,7 @@ import {
 import { applyEvalHarness, parseEvalHarness } from "./eval-harness.js";
 import { writeTrajectoryHtmlForTranscript } from "./generate-trajectory-html.js";
 import { llmJudgeRun, scenarioMdPathFromRun } from "./llm-judge.js";
+import { redactEvalArtifactJson } from "./redact-secrets.js";
 import { scoreRunFile } from "./score-transcript.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -996,7 +997,7 @@ Agent cwd is usually the run directory. Scenarios may define ## Eval harness (JS
         messages: result.allMessages,
       };
 
-      await writeFile(outPath, JSON.stringify(payload, null, 2), "utf8");
+      await writeFile(outPath, redactEvalArtifactJson(payload), "utf8");
       console.error(`Wrote ${outPath}`);
 
       if (wantScore) {
@@ -1031,11 +1032,7 @@ Agent cwd is usually the run directory. Scenarios may define ## Eval harness (JS
           apiKey: process.env.ANTHROPIC_API_KEY!.trim(),
         });
         const llmPath = join(runDir, "llm-score.json");
-        await writeFile(
-          llmPath,
-          `${JSON.stringify(llmReport, null, 2)}\n`,
-          "utf8",
-        );
+        await writeFile(llmPath, redactEvalArtifactJson(llmReport), "utf8");
         console.error(
           `Wrote ${llmPath} (LLM overall_transcript_pass=${String(llmReport.overall_transcript_pass)})`,
         );
@@ -1065,7 +1062,12 @@ Agent cwd is usually the run directory. Scenarios may define ## Eval harness (JS
       const stack = err instanceof Error ? err.stack : undefined;
       await writeFile(
         sidecars.failure,
-        `${JSON.stringify({ failedAt: new Date().toISOString(), message, stack, runDirectory: runDir }, null, 2)}\n`,
+        redactEvalArtifactJson({
+          failedAt: new Date().toISOString(),
+          message,
+          stack,
+          runDirectory: runDir,
+        }),
         "utf8",
       );
       console.error(`Eval scenario failed (${file}):`, err);

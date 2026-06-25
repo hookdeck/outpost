@@ -137,7 +137,7 @@ Listing events with `client.events.list` (or `GET …/events` with `tenant_id`) 
 
 ### Optional: poll the events API
 
-Use this pattern when your application needs to confirm an event appears in the events API (for example while building an activity feed):
+This continues the script above — `published` is the return value from `client.publish(...)`, and `client`, `tenant_id`, and `topic` are already defined. Use the pattern when your application needs to confirm an event appears in the events API (for example while building an activity feed):
 
 ```python
 import time

@@ -3,6 +3,8 @@
  * Message shapes align with src/score-transcript.ts (assistant tool_use, user tool_result).
  */
 
+import { redactSecrets } from "./redact-secrets.js";
+
 export type TrajectoryKind =
   | "read"
   | "fetch"
@@ -84,39 +86,6 @@ interface RunJson {
 
 function isRecord(x: unknown): x is Record<string, unknown> {
   return typeof x === "object" && x !== null;
-}
-
-function redactSecrets(text: string, maxLen: number): string {
-  let s = text;
-  // Auth headers and bearer tokens
-  s = s.replace(
-    /\bAuthorization:\s*Bearer\s+\S+/gi,
-    "Authorization: Bearer [REDACTED]",
-  );
-  s = s.replace(
-    /\bAuthorization:\s*Basic\s+[A-Za-z0-9+/=]+/gi,
-    "Authorization: Basic [REDACTED]",
-  );
-  s = s.replace(/Bearer\s+sk-ant-api[^\s"'`<>]+/gi, "Bearer [REDACTED]");
-  s = s.replace(/Bearer\s+sk-proj-[^\s"'`<>]+/gi, "Bearer [REDACTED]");
-  s = s.replace(/Bearer\s+[A-Za-z0-9._~-]{20,}/g, "Bearer [REDACTED]");
-  // Common API header names (line or JSON-adjacent)
-  s = s.replace(/\bx-api-key\s*:\s*[^\s\n]+/gi, "x-api-key: [REDACTED]");
-  s = s.replace(/\bapi-key\s*:\s*[^\s\n]+/gi, "api-key: [REDACTED]");
-  s = s.replace(/\bx-auth-token\s*:\s*[^\s\n]+/gi, "x-auth-token: [REDACTED]");
-  s = s.replace(/\baccess-token\s*:\s*[^\s\n]+/gi, "access-token: [REDACTED]");
-  // URL query params
-  s = s.replace(
-    /([?&](?:api[_-]?key|access[_-]?token|token|client[_-]?secret|secret)=)([^&#\s"'`<>]+)/gi,
-    "$1[REDACTED]",
-  );
-  // Env / dotenv style: OUTPOST_API_KEY=..., HOOKDECK_*=..., etc.
-  s = s.replace(
-    /\b([A-Z][A-Z0-9_]*(?:KEY|TOKEN|SECRET|PASSWORD))=([^\s\n"'`#]+)/g,
-    "$1=[REDACTED]",
-  );
-  if (s.length > maxLen) s = `${s.slice(0, maxLen)}…`;
-  return s;
 }
 
 function summarizeToolResultContent(content: unknown): string {
