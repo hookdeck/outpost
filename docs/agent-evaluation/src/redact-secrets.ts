@@ -70,6 +70,24 @@ export function redactSecretsForArtifact(text: string): string {
   return redactKnownLiteralValues(redactSecrets(text), collectEnvSecretValues());
 }
 
+/** Redact string leaves in an artifact object; preserves JSON structure when serialized. */
+export function redactArtifactDeep(value: unknown): unknown {
+  if (typeof value === "string") {
+    return redactSecretsForArtifact(value);
+  }
+  if (Array.isArray(value)) {
+    return value.map(redactArtifactDeep);
+  }
+  if (typeof value === "object" && value !== null) {
+    const out: Record<string, unknown> = {};
+    for (const [key, child] of Object.entries(value)) {
+      out[key] = redactArtifactDeep(child);
+    }
+    return out;
+  }
+  return value;
+}
+
 export function redactEvalArtifactJson(value: unknown): string {
-  return `${redactSecretsForArtifact(JSON.stringify(value, null, 2))}\n`;
+  return `${JSON.stringify(redactArtifactDeep(value), null, 2)}\n`;
 }

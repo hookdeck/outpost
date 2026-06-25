@@ -167,12 +167,43 @@ function testRedactEvalArtifactJson(): void {
   );
 }
 
+function testRedactEvalArtifactJsonValid(): void {
+  const fake_webhook_url = "https://events.example.test/webhook/fake_ci_destination_path_01";
+  withEnv(
+    {
+      OUTPOST_API_KEY: "opst_json_embed_123456789",
+      EVAL_TEST_DESTINATION_URL: fake_webhook_url,
+      OUTPOST_TEST_WEBHOOK_URL: fake_webhook_url,
+      ANTHROPIC_API_KEY: undefined,
+    },
+    () => {
+      const payload = {
+        meta: { scenarioId: "01" },
+        messages: [
+          {
+            role: "assistant",
+            content: `Use ${fake_webhook_url} with key opst_json_embed_123456789`,
+          },
+        ],
+      };
+      const out = redactEvalArtifactJson(payload);
+      const parsed = JSON.parse(out.trim()) as {
+        messages: { content: string }[];
+      };
+      assertNotIncludes(out, fake_webhook_url, "serialized JSON has no raw webhook URL");
+      assertNotIncludes(out, "opst_json_embed_123456789", "serialized JSON has no raw API key");
+      assert(parsed.messages[0]!.content.includes("[REDACTED]"), "content redacted in structure");
+    },
+  );
+}
+
 function main(): void {
   testRedactSecretsPatterns();
   testCollectEnvSecretValues();
   testWebhookUrlLiteralRedaction();
   testRedactSecretsForArtifact();
   testRedactEvalArtifactJson();
+  testRedactEvalArtifactJsonValid();
   console.error("redact-secrets.test: OK");
 }
 
