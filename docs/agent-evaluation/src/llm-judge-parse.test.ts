@@ -1,12 +1,27 @@
 /**
  * Unit tests for LLM judge JSON parsing / overall reconciliation.
  */
-import { reconcileOverallTranscriptPass } from "./llm-judge.js";
+import {
+  parseJudgeBooleanExplicit,
+  reconcileOverallTranscriptPass,
+} from "./llm-judge.js";
 
 function assert(condition: boolean, message: string): void {
   if (!condition) {
-    throw new Error(message);
+    throw new Error(`Assertion failed: ${message}`);
   }
+}
+
+function testParseJudgeBooleanExplicit(): void {
+  assert(parseJudgeBooleanExplicit(true).value === true, "boolean true");
+  assert(parseJudgeBooleanExplicit(false).value === false, "boolean false");
+  assert(parseJudgeBooleanExplicit("false").value === false, 'string "false"');
+  assert(parseJudgeBooleanExplicit("FALSE").value === false, 'string "FALSE"');
+  assert(parseJudgeBooleanExplicit("true").value === true, 'string "true"');
+  assert(parseJudgeBooleanExplicit(undefined).value === false, "undefined => false");
+  assert(!parseJudgeBooleanExplicit(undefined).explicit, "undefined not explicit");
+  assert(parseJudgeBooleanExplicit("false").explicit, '"false" is explicit');
+  assert(parseJudgeBooleanExplicit(true).explicit, "boolean is explicit");
 }
 
 function testReconcileAllCriteriaPassOverridesOverallFalse(): void {
@@ -43,6 +58,7 @@ function testReconcileEmptyCriteriaUsesModelOverall(): void {
 }
 
 function main(): void {
+  testParseJudgeBooleanExplicit();
   testReconcileAllCriteriaPassOverridesOverallFalse();
   testReconcileAnyCriterionFailForcesOverallFalse();
   testReconcileEmptyCriteriaUsesModelOverall();
