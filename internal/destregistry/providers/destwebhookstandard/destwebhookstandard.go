@@ -67,9 +67,10 @@ import (
 
 type StandardWebhookDestination struct {
 	*destregistry.BaseProvider
-	userAgent    string
-	proxyURL     string
-	headerPrefix string // Prefix for metadata headers (defaults to "webhook-")
+	userAgent            string
+	proxyURL             string
+	headerPrefix         string // Prefix for metadata headers (defaults to "webhook-")
+	maxResponseBodyBytes int
 }
 
 type StandardWebhookDestinationConfig struct {
@@ -101,6 +102,14 @@ func WithProxyURL(proxyURL string) Option {
 		if proxyURL != "" {
 			d.proxyURL = proxyURL
 		}
+	}
+}
+
+// WithMaxResponseBodyBytes caps how much of the destination response body is
+// stored on the attempt. 0 (default) disables the cap.
+func WithMaxResponseBodyBytes(maxBytes int) Option {
+	return func(d *StandardWebhookDestination) {
+		d.maxResponseBodyBytes = maxBytes
 	}
 }
 
@@ -239,13 +248,14 @@ func (d *StandardWebhookDestination) CreatePublisher(ctx context.Context, destin
 	}
 
 	return &StandardWebhookPublisher{
-		BasePublisher: d.BaseProvider.NewPublisher(destregistry.WithDeliveryMetadata(destination.DeliveryMetadata)),
-		httpClient:    httpClient,
-		url:           config.URL,
-		secrets:       secrets,
-		sm:            sm,
-		headerPrefix:  d.headerPrefix,
-		customHeaders: config.CustomHeaders,
+		BasePublisher:        d.BaseProvider.NewPublisher(destregistry.WithDeliveryMetadata(destination.DeliveryMetadata)),
+		httpClient:           httpClient,
+		url:                  config.URL,
+		secrets:              secrets,
+		sm:                   sm,
+		headerPrefix:         d.headerPrefix,
+		customHeaders:        config.CustomHeaders,
+		maxResponseBodyBytes: d.maxResponseBodyBytes,
 	}, nil
 }
 
@@ -534,12 +544,13 @@ func (d *StandardWebhookDestination) Preprocess(newDestination *models.Destinati
 
 type StandardWebhookPublisher struct {
 	*destregistry.BasePublisher
-	httpClient    *http.Client
-	url           string
-	secrets       []destwebhook.WebhookSecret
-	sm            *destwebhook.SignatureManager
-	headerPrefix  string
-	customHeaders map[string]string
+	httpClient           *http.Client
+	url                  string
+	secrets              []destwebhook.WebhookSecret
+	sm                   *destwebhook.SignatureManager
+	headerPrefix         string
+	customHeaders        map[string]string
+	maxResponseBodyBytes int
 }
 
 func (p *StandardWebhookPublisher) Close() error {
@@ -558,7 +569,7 @@ func (p *StandardWebhookPublisher) Publish(ctx context.Context, event *models.Ev
 		return destregistry.NewFormatError("webhook_standard", "", err)
 	}
 
-	result := destwebhook.ExecuteHTTPRequest(ctx, p.httpClient, httpReq, "webhook_standard")
+	result := destwebhook.ExecuteHTTPRequest(ctx, p.httpClient, httpReq, "webhook_standard", p.maxResponseBodyBytes)
 	return result.Delivery, result.Error
 }
 

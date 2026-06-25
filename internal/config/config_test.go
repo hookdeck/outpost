@@ -402,6 +402,53 @@ destinations:
 	}
 }
 
+func TestDestinationWebhookMaxResponseBodyBytes(t *testing.T) {
+	tests := []struct {
+		name    string
+		files   map[string][]byte
+		envVars map[string]string
+		want    int
+	}{
+		{
+			name:    "default is unlimited",
+			files:   map[string][]byte{},
+			envVars: map[string]string{},
+			want:    0,
+		},
+		{
+			name: "yaml config",
+			files: map[string][]byte{
+				"config.yaml": []byte(`
+destinations:
+  webhook:
+    max_response_body_bytes: 131072
+`),
+			},
+			envVars: map[string]string{"CONFIG": "config.yaml"},
+			want:    131072,
+		},
+		{
+			name:    "env config",
+			files:   map[string][]byte{},
+			envVars: map[string]string{"DESTINATIONS_WEBHOOK_MAX_RESPONSE_BODY_BYTES": "65536"},
+			want:    65536,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockOS := &mockOS{
+				files:   tt.files,
+				envVars: tt.envVars,
+			}
+
+			cfg, err := config.ParseWithoutValidation(config.Flags{}, mockOS)
+			assert.NoError(t, err)
+			assert.Equal(t, tt.want, cfg.Destinations.Webhook.MaxResponseBodyBytes)
+		})
+	}
+}
+
 func TestConfigFilePath(t *testing.T) {
 	tests := []struct {
 		name         string

@@ -271,7 +271,7 @@ Set `DESTINATIONS_WEBHOOK_PROXY_URL` to your proxy URL (basic auth supported). S
 
 {% tabs tabGroup="deployment" %}
 {% tab label="Managed" %}
-Configure webhook operator behavior using these keys in the Config API or in [Hookdeck Destinations settings](https://dashboard.hookdeck.com/settings/project/destinations): `DESTINATIONS_WEBHOOK_HEADER_PREFIX`, `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_EVENT_ID_HEADER`, `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_TIMESTAMP_HEADER`, `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_TOPIC_HEADER`, `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_SIGNATURE_HEADER`, `DESTINATIONS_WEBHOOK_MODE`, `DESTINATIONS_WEBHOOK_SIGNATURE_ALGORITHM`, `DESTINATIONS_WEBHOOK_SIGNATURE_ENCODING`, `DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE`, and `DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE`.
+Configure webhook operator behavior using these keys in the Config API or in [Hookdeck Destinations settings](https://dashboard.hookdeck.com/settings/project/destinations): `DESTINATIONS_WEBHOOK_HEADER_PREFIX`, `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_EVENT_ID_HEADER`, `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_TIMESTAMP_HEADER`, `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_TOPIC_HEADER`, `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_SIGNATURE_HEADER`, `DESTINATIONS_WEBHOOK_MODE`, `DESTINATIONS_WEBHOOK_SIGNATURE_ALGORITHM`, `DESTINATIONS_WEBHOOK_SIGNATURE_ENCODING`, `DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE`, `DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE`, and `DESTINATIONS_WEBHOOK_MAX_RESPONSE_BODY_BYTES`.
 {% /tab %}
 {% tab label="Self-Hosted" %}
 ### Header Settings
@@ -293,5 +293,13 @@ Configure webhook operator behavior using these keys in the Config API or in [Ho
 | `DESTINATIONS_WEBHOOK_SIGNATURE_ENCODING` | `hex` | Encoding: `hex` or `base64` |
 | `DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE` | `{{.Body}}` | Template for signed content in default mode |
 | `DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE` | `v0={{.Signatures \| join ","}}` | Template for signature header value in default mode |
+
+### Response Handling
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DESTINATIONS_WEBHOOK_MAX_RESPONSE_BODY_BYTES` | `0` (no limit) | Max bytes of the destination's response body stored on the delivery attempt (e.g. `131072` for 128 KiB) |
+
+Outpost stores the destination's response body on each delivery attempt so it's visible in the event log. A very large response can make the attempt log exceed the event queue's per-message size limit — that delivery then fails to record and is retried indefinitely. Set `DESTINATIONS_WEBHOOK_MAX_RESPONSE_BODY_BYTES` to bound the stored body — for example `131072` for a 128 KiB limit. Responses larger than the limit are replaced with a placeholder (`Response body exceeded <N> bytes and was not stored`) rather than truncated, so the rest of the attempt is logged normally. The default of `0` keeps the full body.
 {% /tab %}
 {% /tabs %}

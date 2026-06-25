@@ -46,6 +46,7 @@ type DestinationWebhookConfig struct {
 	SignatureEncoding             string `yaml:"signature_encoding" env:"DESTINATIONS_WEBHOOK_SIGNATURE_ENCODING" desc:"Encoding for the signature (e.g., 'hex', 'base64'). Only applies to 'default' mode." required:"N"`
 	SignatureAlgorithm            string `yaml:"signature_algorithm" env:"DESTINATIONS_WEBHOOK_SIGNATURE_ALGORITHM" desc:"Algorithm used for signing webhook requests (e.g., 'hmac-sha256'). Only applies to 'default' mode." required:"N"`
 	SigningSecretTemplate         string `yaml:"signing_secret_template" env:"DESTINATIONS_WEBHOOK_SIGNING_SECRET_TEMPLATE" desc:"Go template for generating webhook signing secrets. Available variables: {{.RandomHex}} (64-char hex), {{.RandomBase64}} (base64-encoded), {{.RandomAlphanumeric}} (32-char alphanumeric). Defaults to 'whsec_{{.RandomHex}}'. Only applies to 'default' mode." required:"N"`
+	MaxResponseBodyBytes          int    `yaml:"max_response_body_bytes" env:"DESTINATIONS_WEBHOOK_MAX_RESPONSE_BODY_BYTES" desc:"Maximum size in bytes of a destination's response body stored on the delivery attempt. Responses larger than this are replaced with a placeholder so the attempt log stays under the event queue's per-message size limit (oversized log messages fail to publish and retry indefinitely). Default: 0 (no limit)." required:"N"`
 }
 
 // toConfig converts WebhookConfig to the provider config - private since it's only used internally
@@ -78,6 +79,7 @@ func (c *DestinationWebhookConfig) toConfig() *destregistrydefault.DestWebhookCo
 		SignatureEncoding:             c.SignatureEncoding,
 		SignatureAlgorithm:            c.SignatureAlgorithm,
 		SigningSecretTemplate:         c.SigningSecretTemplate,
+		MaxResponseBodyBytes:          c.MaxResponseBodyBytes,
 	}
 }
 
