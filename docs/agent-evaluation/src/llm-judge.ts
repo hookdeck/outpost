@@ -90,6 +90,40 @@ function stripJsonFence(text: string): string {
   return t;
 }
 
+/** When criteria[] is present, overall is the AND of criterion passes (models sometimes disagree). */
+export function reconcileOverallTranscriptPass(
+  overall_from_model: boolean,
+  criteria: readonly LlmCriterionJudgment[],
+): boolean {
+  if (criteria.length === 0) {
+    return overall_from_model;
+  }
+  return criteria.every((c) => c.pass);
+}
+
+/** Parse booleans from judge JSON; treats string "true"/"false" (case-insensitive) as explicit. */
+export function parseJudgeBooleanExplicit(
+  value: unknown,
+): { readonly explicit: boolean; readonly value: boolean } {
+  if (typeof value === "boolean") {
+    return { explicit: true, value };
+  }
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === "true") {
+      return { explicit: true, value: true };
+    }
+    if (normalized === "false") {
+      return { explicit: true, value: false };
+    }
+  }
+  return { explicit: false, value: Boolean(value) };
+}
+
+function parseJudgeBoolean(value: unknown): boolean {
+  return parseJudgeBooleanExplicit(value).value;
+}
+
 function parseJudgeJson(text: string): Omit<LlmJudgeReport, "model" | "runFile" | "scenarioFile" | "version"> & {
   version?: number;
 } {
@@ -101,7 +135,8 @@ function parseJudgeJson(text: string): Omit<LlmJudgeReport, "model" | "runFile" 
     const detail = parse_err instanceof Error ? parse_err.message : String(parse_err);
     throw new Error(`JSON.parse failed: ${detail}`);
   }
-  const overall = Boolean(parsed.overall_transcript_pass);
+  const overall_parsed = parseJudgeBooleanExplicit(parsed.overall_transcript_pass);
+  const overall_from_model = overall_parsed.value;
   const criteriaIn = parsed.criteria;
   const criteria: LlmCriterionJudgment[] = [];
   if (Array.isArray(criteriaIn)) {
@@ -110,10 +145,16 @@ function parseJudgeJson(text: string): Omit<LlmJudgeReport, "model" | "runFile" 
       const o = c as Record<string, unknown>;
       criteria.push({
         criterion: String(o.criterion ?? o.id ?? "unnamed"),
-        pass: Boolean(o.pass),
+        pass: parseJudgeBoolean(o.pass),
         evidence: String(o.evidence ?? ""),
       });
     }
+  }
+  const overall = reconcileOverallTranscriptPass(overall_from_model, criteria);
+  if (criteria.length > 0 && overall_parsed.explicit && overall !== overall_from_model) {
+    console.error(
+      `LLM judge: reconciled overall_transcript_pass ${overall_from_model} -> ${overall} (${criteria.length} criteria)`,
+    );
   }
   const exec = parsed.execution_in_transcript;
   let execution_in_transcript: LlmJudgeReport["execution_in_transcript"] = {
