@@ -15,6 +15,7 @@ import (
 	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/models"
+	"github.com/hookdeck/outpost/internal/opevents"
 	"github.com/hookdeck/outpost/internal/telemetry"
 	"github.com/hookdeck/outpost/internal/tenantstore"
 	"github.com/hookdeck/outpost/internal/util/maputil"
@@ -24,7 +25,7 @@ import (
 // SubscriptionEmitter emits operator events for subscription changes.
 // Satisfied by opevents.Emitter.
 type SubscriptionEmitter interface {
-	Emit(ctx context.Context, topic string, tenantID string, data any) error
+	Emit(ctx context.Context, ev opevents.Event) error
 }
 
 // TenantSubscriptionUpdatedData is the data payload for tenant.subscription.updated events.
@@ -579,7 +580,11 @@ func (h *DestinationHandlers) emitSubscriptionUpdateIfChanged(ctx context.Contex
 		DestinationsCount:         tenant.DestinationsCount,
 		PreviousDestinationsCount: prev.destinationsCount,
 	}
-	if err := h.emitter.Emit(ctx, "tenant.subscription.updated", tenantID, data); err != nil {
+	if err := h.emitter.Emit(ctx, opevents.Event{
+		Topic:    "tenant.subscription.updated",
+		TenantID: tenantID,
+		Data:     data,
+	}); err != nil {
 		h.logger.Ctx(ctx).Error("failed to emit subscription update", zap.Error(err))
 	}
 }

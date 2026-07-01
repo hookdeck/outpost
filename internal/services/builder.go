@@ -383,10 +383,8 @@ func (b *ServiceBuilder) BuildLogWorker(baseRouter *gin.Engine) error {
 	alertMonitor := alert.NewAlertMonitor(
 		b.logger,
 		svc.redisClient,
-		emitter,
 		retryMaxLimit,
 		alert.WithDisabler(disabler),
-		alert.WithExhaustedRetriesIdempotence(exhaustedRetriesIdemp),
 		alert.WithConsecutiveFailureEnabled(alertSettings.ConsecutiveFailure.Enabled),
 		alert.WithAutoDisableFailureCount(alertSettings.ConsecutiveFailure.Count),
 		alert.WithExhaustedRetriesEnabled(alertSettings.ExhaustedRetries.Enabled),
@@ -408,7 +406,7 @@ func (b *ServiceBuilder) BuildLogWorker(baseRouter *gin.Engine) error {
 	}
 
 	b.logger.Debug("creating log batcher")
-	batchProcessor, err := logmq.NewBatchProcessor(b.ctx, b.logger, svc.logStore, alertMonitor, logmq.BatchProcessorConfig{
+	batchProcessor, err := logmq.NewBatchProcessor(b.ctx, b.logger, svc.logStore, alertMonitor, emitter, exhaustedRetriesIdemp, logmq.BatchProcessorConfig{
 		ItemCountThreshold: batcherCfg.ItemCountThreshold,
 		DelayThreshold:     batcherCfg.DelayThreshold,
 	})

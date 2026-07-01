@@ -34,6 +34,7 @@ import (
 	"time"
 
 	"github.com/hookdeck/outpost/internal/alert"
+	"github.com/hookdeck/outpost/internal/idempotence"
 	"github.com/hookdeck/outpost/internal/logmq"
 	"github.com/hookdeck/outpost/internal/logstore/driver"
 	"github.com/hookdeck/outpost/internal/logstore/memlogstore"
@@ -203,8 +204,9 @@ type alertConfig struct {
 // doublesConfig controls test-double behavior. Zero values = passthrough: the
 // sink injects no failures and the harness uses a real memlogstore.
 type doublesConfig struct {
-	sinkFailOn map[string]bool // make sink.Send fail for these attemptIDs/topics
-	logStore   logmq.LogStore  // override the store (e.g. failingLogStore); nil = memlogstore
+	sinkFailOn map[string]bool         // make sink.Send fail for these attemptIDs/topics
+	logStore   logmq.LogStore          // override the store (e.g. failingLogStore); nil = memlogstore
+	idemp      idempotence.Idempotence // exhausted-retries suppression; nil = unsuppressed
 }
 
 type harness struct {
@@ -248,7 +250,7 @@ func newHarness(t *testing.T, cfg harnessConfig) *harness {
 	if cfg.alert.withDisabler {
 		opts = append(opts, alert.WithDisabler(disabler))
 	}
-	monitor := alert.NewAlertMonitor(logger, redisClient, emitter, retryMaxLimit, opts...)
+	monitor := alert.NewAlertMonitor(logger, redisClient, retryMaxLimit, opts...)
 
 	var logStore logmq.LogStore
 	var store driver.LogStore
@@ -263,7 +265,11 @@ func newHarness(t *testing.T, cfg harnessConfig) *harness {
 	if delay == 0 {
 		delay = 100 * time.Millisecond
 	}
-	bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, monitor, logmq.BatchProcessorConfig{
+	// Delivery (emitter) now lives with the batch processor, not the monitor.
+	// The characterization suite wires no idempotence by default (exhausted-retries
+	// emit unsuppressed), matching the previous monitor wiring; delivery tests can
+	// opt into a suppression window via doubles.idemp.
+	bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, monitor, emitter, cfg.doubles.idemp, logmq.BatchProcessorConfig{
 		ItemCountThreshold: cfg.batcher.itemCount,
 		DelayThreshold:     delay,
 	})
