@@ -211,7 +211,7 @@ func (bp *BatchProcessor) processBatch(_ string, msgs []*mqs.Message) {
 		}
 
 		if err := bp.deliver(bp.ctx, eval, entry); err != nil {
-			logger.Error("alert delivery failed",
+			logger.Error("opevent delivery failed",
 				zap.Error(err),
 				zap.String("attempt_id", entry.Attempt.ID),
 				zap.String("event_id", entry.Event.ID),
@@ -274,11 +274,12 @@ func (bp *BatchProcessor) emit(ctx context.Context, ev opevents.Event, entry *mo
 	if err := bp.emitter.Emit(ctx, ev); err != nil {
 		return err
 	}
-	bp.logger.Ctx(ctx).Audit("alert sent",
+	bp.logger.Ctx(ctx).Audit("opevent delivered",
 		zap.String("topic", ev.Topic),
 		zap.String("attempt_id", entry.Attempt.ID),
 		zap.String("event_id", entry.Event.ID),
 		zap.String("tenant_id", ev.TenantID),
-		zap.String("destination_id", entry.Destination.ID))
+		zap.String("destination_id", entry.Destination.ID),
+		zap.String("destination_type", entry.Destination.Type))
 	return nil
 }
