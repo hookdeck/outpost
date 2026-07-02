@@ -78,16 +78,16 @@ func newDeliveryPool(ctx context.Context, logger *logging.Logger, alerts AlertPi
 }
 
 // enqueue hands a delivery to the pool. It blocks while the queue is full —
-// that block is the backpressure path: it stalls the batch loop, which stalls
-// the batcher, which stops draining the broker, so excess backlog stays in the
-// broker instead of in memory.
+// the backpressure path: it stalls the postprocess workers, whose shard queues
+// then fill and stall the batch loop, the batcher, and finally the broker
+// fetch, so excess backlog stays in the broker instead of in memory.
 func (p *deliveryPool) enqueue(d delivery) {
 	p.queue <- d
 }
 
 // shutdown stops intake and drains: every enqueued delivery reaches a terminal
 // state before shutdown returns. The caller must guarantee no concurrent
-// enqueues (the batcher is shut down first).
+// enqueues (the postprocess pool — the only producer — is drained first).
 func (p *deliveryPool) shutdown() {
 	close(p.queue)
 	p.wg.Wait()

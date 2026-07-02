@@ -1,7 +1,7 @@
 package logmq_test
 
-// Replay / idempotency. Model C holds the logmq message un-acked until delivery
-// completes and relies on redelivery for durability, so the same attempt is
+// Replay / idempotency. The pipeline holds the logmq message un-acked until
+// delivery completes and relies on redelivery for durability, so the same attempt is
 // legitimately processed more than once. These tests pin that a replay does not
 // double-count, double-alert, or double-persist.
 
@@ -51,9 +51,8 @@ func TestCharacterization_ReplaySameAttempt(t *testing.T) {
 
 // A stale replay of an old failed attempt arriving AFTER a success reset is
 // skipped by the per-attempt processed gate — it must not re-count toward the
-// fresh streak. (Pre-step-3 behavior: the success reset also cleared the
-// replay markers, so the stale replay re-counted and could re-alert. The
-// delivery-owned gate survives the reset; this pins the intended new behavior.)
+// fresh streak. The gate must survive the reset: if the reset also cleared
+// the replay markers, the stale replay would re-count and could re-alert.
 func TestCharacterization_StaleReplayAfterReset_Skipped(t *testing.T) {
 	t.Parallel()
 	// max=2, thresholds[100] → an alert fires only at count 2. If the stale

@@ -370,7 +370,7 @@ func (b *ServiceBuilder) BuildLogWorker(baseRouter *gin.Engine) error {
 	}
 
 	// Per-attempt replay gate: a replay of a fully processed failed attempt is
-	// skipped. The default 24h TTL matches the old evaluated-set TTL.
+	// skipped. The default 24h TTL matches the alert store's failure-set TTL.
 	processedIdemp := idempotence.New(svc.redisClient,
 		idempotence.WithDeploymentID(b.cfg.DeploymentID),
 	)

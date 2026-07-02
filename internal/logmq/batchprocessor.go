@@ -97,8 +97,9 @@ type BatchProcessorConfig struct {
 //
 //	held/drain ≈ (2×batch + 3×workers) / (workers/emitTimeout)
 //
-// which the derived values keep an order of magnitude under the window even
-// with every send at emitTimeout.
+// which the derived values keep under the window with margin (~17s vs ~60s
+// until the worker cap binds; see sizing_test.go) even with every send at
+// emitTimeout.
 const (
 	// evalsPerShardPerSec is the eval throughput one shard sustains: an eval
 	// is ~2ms of Redis ops (≈500/s), halved for headroom because the disable

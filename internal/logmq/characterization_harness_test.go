@@ -129,7 +129,7 @@ func (s *recordingSink) snapshot() []sinkRecord {
 	return append([]sinkRecord(nil), s.records...)
 }
 
-// forDest returns the records for a single destination, in emission order.
+// forDest returns the records for a single destination, in arrival order.
 func (s *recordingSink) forDest(destID string) []sinkRecord {
 	out := []sinkRecord{}
 	for _, r := range s.snapshot() {
@@ -475,7 +475,7 @@ func attemptIDs(recs []sinkRecord) []string {
 
 // topicsForAttempt extracts one attempt's topics. WHICH topics an attempt
 // emitted is guaranteed; arrival order is not — an attempt's sends run
-// concurrently (step 6), so assert with ElementsMatch.
+// concurrently, so assert with ElementsMatch.
 func topicsForAttempt(recs []sinkRecord, attemptID string) []string {
 	out := []string{}
 	for _, r := range recs {

@@ -78,9 +78,9 @@ func TestCharacterization_MixedBatchAccounting(t *testing.T) {
 	assert.Len(t, h.sink.snapshot(), 1, "exactly one event delivered to the sink")
 }
 
-// A single failed attempt below any threshold (count 1) → persisted, acked, zero
-// sink records. (Under Model C this becomes the "ack immediately, no delivery
-// task" path; the assertion is identical.)
+// A single failed attempt below any threshold (count 1) → persisted, acked,
+// zero sink records (the "nothing to deliver" fast path: mark + ack, no
+// delivery task).
 func TestCharacterization_BelowThresholdNoAlert(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t, harnessConfig{

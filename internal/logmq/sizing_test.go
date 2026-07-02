@@ -1,6 +1,6 @@
 package logmq
 
-// White-box: pins the pool-sizing derivation (step 6). The formulas encode
+// White-box: pins the pool-sizing derivation. The formulas encode
 // the operating contract — line rate at any send latency the emit timeout
 // accepts, one batch of queue slack, visibility-safe ack latency — so a
 // change here is a behavior change, not a refactor.

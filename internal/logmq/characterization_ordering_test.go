@@ -1,13 +1,12 @@
 package logmq_test
 
 // Ordering & counting. The reason this suite exists: processing order changes
-// the alert outcome, and per-destination EVAL order must survive the Model C
-// refactor. Eval order is asserted through content — WHICH attempts alerted
-// (counts 5,7,9,10) proves the evaluator saw a destination's attempts in add
-// order. Sink ARRIVAL order is intentionally unordered — across attempts as
-// of step 4 (unordered delivery pool) and within an attempt as of step 6
-// (concurrent sends) — so no assertion constrains it; WHICH events an attempt
-// emitted still is (topicsForAttempt + ElementsMatch).
+// the alert outcome, and per-destination EVAL order must be preserved. Eval
+// order is asserted through content — WHICH attempts alerted (counts 5,7,9,10)
+// proves the evaluator saw a destination's attempts in add order. Sink ARRIVAL
+// order is intentionally unordered — across attempts (unordered delivery pool)
+// and within an attempt (concurrent sends) — so no assertion constrains it;
+// WHICH events an attempt emitted still is (topicsForAttempt + ElementsMatch).
 
 import (
 	"fmt"
@@ -42,7 +41,8 @@ func TestCharacterization_ThresholdsThenDisable(t *testing.T) {
 	// Which attempts alerted proves eval order; arrival order is unordered.
 	require.ElementsMatch(t, []string{"att_5", "att_7", "att_9", "att_10", "att_10"}, attemptIDs(recs))
 	require.ElementsMatch(t, []string{topicCF, topicCF, topicCF, topicDisabled, topicCF}, topics(recs))
-	// Within attempt 10, the disabled emit precedes the cf emit.
+	// Attempt 10 emits both the disabled and cf events; arrival order is
+	// unconstrained (concurrent sends).
 	require.ElementsMatch(t, []string{topicDisabled, topicCF}, topicsForAttempt(recs, "att_10"))
 
 	disabled := h.disabler.snapshot()
@@ -168,10 +168,10 @@ func TestCharacterization_EvalOrderDrivesAlerts(t *testing.T) {
 	assert.ElementsMatch(t, []string{topicDisabled, topicCF}, topicsForAttempt(recs, "att_10"))
 }
 
-// RFC discriminator: dest A split across TWO batches (6 failures, then 4) → count
-// continues across batches; alerts land at 5,7,9,10 (proven by which attempts
-// carry them). The superseded per-batch-spawn designs failed exactly here
-// (cross-batch eval order).
+// Dest A split across TWO batches (6 failures, then 4) → count continues
+// across batches; alerts land at 5,7,9,10 (proven by which attempts carry
+// them). This is the discriminator against any design that scopes eval state
+// or ordering to a single batch.
 func TestCharacterization_CountContinuesAcrossBatches(t *testing.T) {
 	t.Parallel()
 	// itemCount=6 flushes the first batch by count; the second batch of 4 flushes

@@ -1,6 +1,6 @@
 package logmq_test
 
-// Postprocess pool (step 5): eval runs off the batch loop on per-destination
+// Postprocess pool: eval runs off the batch loop on per-destination
 // shards. These tests pin the two sides of that contract — a slow eval never
 // blocks persistence, and sharding keeps the ordering the counter depends on:
 // same destination serial, different destinations (on different shards)
@@ -41,8 +41,8 @@ func destOnOtherShard(t *testing.T, destID string, shards int) string {
 }
 
 // A batch-1 attempt whose EVAL hangs must not delay batch 2's persistence.
-// Pre-step-5 behavior: eval ran serially in the batch loop, so a Redis hiccup
-// on one attempt's eval stalled every following batch. Both messages share a
+// (If eval ran serially in the batch loop, a Redis hiccup on one attempt's
+// eval would stall every following batch.) Both messages share a
 // destination, so this holds even for the blocked shard: persistence is
 // decoupled from eval entirely, not just across shards.
 func TestCharacterization_SlowEvalDoesNotBlockPersistence(t *testing.T) {

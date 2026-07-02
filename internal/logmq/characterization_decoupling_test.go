@@ -1,9 +1,8 @@
 package logmq_test
 
-// Decoupling (Group D — the reason step 4 exists): persistence and alert eval
-// must not be blocked by slow opevent delivery. These tests pin the DESIRED
-// Model C behavior: delivery runs on an unordered pool, so a slow sink stalls
-// only the messages that owe events, never the batch loop.
+// Decoupling: persistence and alert eval must not be blocked by slow opevent
+// delivery. Delivery runs on an unordered pool, so a slow sink stalls only
+// the messages that owe events, never the batch loop.
 
 import (
 	"fmt"
@@ -16,8 +15,8 @@ import (
 )
 
 // A batch-1 attempt whose alert delivery hangs must not delay batch 2's
-// persistence or ack. Pre-step-4 behavior: the serial loop blocked on the send,
-// so batch 2 waited on batch 1's sink call.
+// persistence or ack. (If sends ran serially in the batch loop, batch 2 would
+// wait on batch 1's sink call.)
 func TestCharacterization_SlowDeliveryDoesNotBlockPersistence(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t, harnessConfig{

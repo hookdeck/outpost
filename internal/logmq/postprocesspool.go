@@ -180,8 +180,9 @@ func (ap *postprocessPool) nackAlertFailure(ctx context.Context, err error, entr
 }
 
 // plan acts on an evaluation and builds the operator events owed for this
-// attempt, in emission order — disabled, consecutive_failure,
-// exhausted_retries. The disable (a DB write) happens here, in the ordered
+// attempt — disabled, consecutive_failure, exhausted_retries. The delivery
+// worker sends them concurrently, so slice order carries no meaning.
+// The disable (a DB write) happens here, in the ordered
 // lane: it's an action, not a notification, and it must precede event
 // construction so the payloads carry the destination's latest state
 // (disabled). The events are complete at return — workers share no mutable
@@ -196,7 +197,8 @@ func (ap *postprocessPool) plan(ctx context.Context, eval alert.Evaluation, entr
 
 	if cf := eval.ConsecutiveFailure; cf != nil {
 		if cf.Level == 100 && ap.alerts.Disabler != nil {
-			// Disable is idempotent on replay: a no-op if already disabled.
+			// Disable converges on replay: re-disabling rewrites DisabledAt,
+			// but the end state is the same.
 			if err := ap.alerts.Disabler.DisableDestination(ctx, dest.TenantID, dest.ID); err != nil {
 				return nil, fmt.Errorf("failed to disable destination: %w", err)
 			}

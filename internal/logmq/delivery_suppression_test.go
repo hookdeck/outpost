@@ -1,9 +1,9 @@
 package logmq_test
 
-// Delivery-layer exhausted-retries suppression. The window that used to live in
-// the alert package now lives at delivery: logmq wraps the keyed exhausted event
-// in idempotence. These tests exercise that path (the characterization suite
-// wires no idempotence, so it doesn't cover it).
+// Delivery-layer exhausted-retries suppression: the delivery worker wraps the
+// keyed exhausted event in an idempotence window. These tests exercise that
+// path (the characterization suite wires no idempotence, so it doesn't cover
+// it).
 
 import (
 	"testing"
