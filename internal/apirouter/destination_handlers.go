@@ -15,6 +15,7 @@ import (
 	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/models"
+	"github.com/hookdeck/outpost/internal/opevents"
 	"github.com/hookdeck/outpost/internal/telemetry"
 	"github.com/hookdeck/outpost/internal/tenantstore"
 	"github.com/hookdeck/outpost/internal/util/maputil"
@@ -24,16 +25,7 @@ import (
 // SubscriptionEmitter emits operator events for subscription changes.
 // Satisfied by opevents.Emitter.
 type SubscriptionEmitter interface {
-	Emit(ctx context.Context, topic string, tenantID string, data any) error
-}
-
-// TenantSubscriptionUpdatedData is the data payload for tenant.subscription.updated events.
-type TenantSubscriptionUpdatedData struct {
-	TenantID                  string   `json:"tenant_id"`
-	Topics                    []string `json:"topics"`
-	PreviousTopics            []string `json:"previous_topics"`
-	DestinationsCount         int      `json:"destinations_count"`
-	PreviousDestinationsCount int      `json:"previous_destinations_count"`
+	Emit(ctx context.Context, ev opevents.Event) error
 }
 
 type DestinationHandlers struct {
@@ -572,14 +564,13 @@ func (h *DestinationHandlers) emitSubscriptionUpdateIfChanged(ctx context.Contex
 		return
 	}
 
-	data := TenantSubscriptionUpdatedData{
+	if err := h.emitter.Emit(ctx, opevents.TenantSubscriptionUpdatedEvent(opevents.TenantSubscriptionUpdatedData{
 		TenantID:                  tenantID,
 		Topics:                    tenant.Topics,
 		PreviousTopics:            prev.topics,
 		DestinationsCount:         tenant.DestinationsCount,
 		PreviousDestinationsCount: prev.destinationsCount,
-	}
-	if err := h.emitter.Emit(ctx, "tenant.subscription.updated", tenantID, data); err != nil {
+	})); err != nil {
 		h.logger.Ctx(ctx).Error("failed to emit subscription update", zap.Error(err))
 	}
 }
