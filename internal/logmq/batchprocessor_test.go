@@ -10,9 +10,11 @@ import (
 	"errors"
 
 	"github.com/hookdeck/outpost/internal/alert"
+	"github.com/hookdeck/outpost/internal/idempotence"
 	"github.com/hookdeck/outpost/internal/logmq"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/mqs"
+	"github.com/hookdeck/outpost/internal/opevents"
 	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -79,7 +81,7 @@ func TestBatchProcessor_ValidEntry(t *testing.T) {
 	logger := testutil.CreateTestLogger(t)
 	logStore := &mockLogStore{}
 
-	bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, nil, nil, nil, logmq.BatchProcessorConfig{
+	bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, logmq.AlertPipeline{}, logmq.BatchProcessorConfig{
 		ItemCountThreshold: 1,
 		DelayThreshold:     1 * time.Second,
 	})
@@ -113,7 +115,7 @@ func TestBatchProcessor_InvalidEntry_MissingEvent(t *testing.T) {
 	logger := testutil.CreateTestLogger(t)
 	logStore := &mockLogStore{}
 
-	bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, nil, nil, nil, logmq.BatchProcessorConfig{
+	bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, logmq.AlertPipeline{}, logmq.BatchProcessorConfig{
 		ItemCountThreshold: 1,
 		DelayThreshold:     1 * time.Second,
 	})
@@ -146,7 +148,7 @@ func TestBatchProcessor_InvalidEntry_MissingAttempt(t *testing.T) {
 	logger := testutil.CreateTestLogger(t)
 	logStore := &mockLogStore{}
 
-	bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, nil, nil, nil, logmq.BatchProcessorConfig{
+	bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, logmq.AlertPipeline{}, logmq.BatchProcessorConfig{
 		ItemCountThreshold: 1,
 		DelayThreshold:     1 * time.Second,
 	})
@@ -179,7 +181,7 @@ func TestBatchProcessor_InvalidEntry_DoesNotBlockBatch(t *testing.T) {
 	logger := testutil.CreateTestLogger(t)
 	logStore := &mockLogStore{}
 
-	bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, nil, nil, nil, logmq.BatchProcessorConfig{
+	bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, logmq.AlertPipeline{}, logmq.BatchProcessorConfig{
 		ItemCountThreshold: 3, // Wait for 3 messages before processing
 		DelayThreshold:     1 * time.Second,
 	})
@@ -233,9 +235,9 @@ func TestBatchProcessor_DuplicateMessages(t *testing.T) {
 	ctx := context.Background()
 	logger := testutil.CreateTestLogger(t)
 	logStore := &mockLogStore{}
-	alertMon := &mockAlertMonitor{}
+	alertMon := &mockAlertEvaluator{}
 
-	bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, alertMon, nil, nil, logmq.BatchProcessorConfig{
+	bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, testAlertPipeline(t, alertMon), logmq.BatchProcessorConfig{
 		ItemCountThreshold: 3, // Wait for 3 messages before processing
 		DelayThreshold:     1 * time.Second,
 	})
@@ -288,7 +290,7 @@ func TestBatchProcessor_MalformedJSON(t *testing.T) {
 	logger := testutil.CreateTestLogger(t)
 	logStore := &mockLogStore{}
 
-	bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, nil, nil, nil, logmq.BatchProcessorConfig{
+	bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, logmq.AlertPipeline{}, logmq.BatchProcessorConfig{
 		ItemCountThreshold: 1,
 		DelayThreshold:     1 * time.Second,
 	})
@@ -310,14 +312,14 @@ func TestBatchProcessor_MalformedJSON(t *testing.T) {
 	assert.Empty(t, attempts)
 }
 
-// mockAlertMonitor records HandleAttempt calls and returns a configurable error.
-type mockAlertMonitor struct {
+// mockAlertEvaluator records Evaluate calls and returns a configurable error.
+type mockAlertEvaluator struct {
 	mu        sync.Mutex
-	calls     []alert.DeliveryAttempt
+	calls     []alert.Attempt
 	returnErr error
 }
 
-func (m *mockAlertMonitor) Evaluate(ctx context.Context, attempt alert.DeliveryAttempt) (alert.Evaluation, error) {
+func (m *mockAlertEvaluator) Evaluate(ctx context.Context, attempt alert.Attempt) (alert.Evaluation, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.calls = append(m.calls, attempt)
@@ -327,19 +329,30 @@ func (m *mockAlertMonitor) Evaluate(ctx context.Context, attempt alert.DeliveryA
 	return alert.Evaluation{}, nil
 }
 
-func (m *mockAlertMonitor) getCalls() []alert.DeliveryAttempt {
+func (m *mockAlertEvaluator) getCalls() []alert.Attempt {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return append([]alert.DeliveryAttempt(nil), m.calls...)
+	return append([]alert.Attempt(nil), m.calls...)
 }
 
-func TestBatchProcessor_AlertMonitor_WithDestination(t *testing.T) {
+// testAlertPipeline wraps an evaluator with the required delivery deps: a
+// noop-sink emitter and a real (miniredis-backed) processed gate.
+func testAlertPipeline(t *testing.T, evaluator logmq.AlertEvaluator) logmq.AlertPipeline {
+	t.Helper()
+	return logmq.AlertPipeline{
+		Evaluator:      evaluator,
+		Emitter:        opevents.NewEmitter(&opevents.NoopSink{}, "test-deploy", []string{"*"}),
+		ProcessedIdemp: idempotence.New(testutil.CreateTestRedisClient(t)),
+	}
+}
+
+func TestBatchProcessor_AlertEvaluator_WithDestination(t *testing.T) {
 	ctx := context.Background()
 	logger := testutil.CreateTestLogger(t)
 	logStore := &mockLogStore{}
-	alertMon := &mockAlertMonitor{}
+	alertMon := &mockAlertEvaluator{}
 
-	bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, alertMon, nil, nil, logmq.BatchProcessorConfig{
+	bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, testAlertPipeline(t, alertMon), logmq.BatchProcessorConfig{
 		ItemCountThreshold: 1,
 		DelayThreshold:     1 * time.Second,
 	})
@@ -360,21 +373,21 @@ func TestBatchProcessor_AlertMonitor_WithDestination(t *testing.T) {
 
 	time.Sleep(200 * time.Millisecond)
 
-	assert.True(t, mock.acked, "should be acked when alert monitor succeeds")
+	assert.True(t, mock.acked, "should be acked when alert evaluation succeeds")
 	assert.False(t, mock.nacked)
 
 	calls := alertMon.getCalls()
-	require.Len(t, calls, 1, "alert monitor should have been called once")
-	assert.Equal(t, dest.ID, calls[0].Destination.ID)
+	require.Len(t, calls, 1, "alert evaluator should have been called once")
+	assert.Equal(t, dest.ID, calls[0].DestinationID)
 }
 
-func TestBatchProcessor_AlertMonitor_NilDestination(t *testing.T) {
+func TestBatchProcessor_AlertEvaluator_NilDestination(t *testing.T) {
 	ctx := context.Background()
 	logger := testutil.CreateTestLogger(t)
 	logStore := &mockLogStore{}
-	alertMon := &mockAlertMonitor{}
+	alertMon := &mockAlertEvaluator{}
 
-	bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, alertMon, nil, nil, logmq.BatchProcessorConfig{
+	bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, testAlertPipeline(t, alertMon), logmq.BatchProcessorConfig{
 		ItemCountThreshold: 1,
 		DelayThreshold:     1 * time.Second,
 	})
@@ -396,16 +409,16 @@ func TestBatchProcessor_AlertMonitor_NilDestination(t *testing.T) {
 
 	assert.True(t, mock.acked, "should be acked even without destination (migration grace)")
 	assert.False(t, mock.nacked)
-	assert.Empty(t, alertMon.getCalls(), "alert monitor should not be called without destination")
+	assert.Empty(t, alertMon.getCalls(), "alert evaluator should not be called without destination")
 }
 
-func TestBatchProcessor_AlertMonitor_Error(t *testing.T) {
+func TestBatchProcessor_AlertEvaluator_Error(t *testing.T) {
 	ctx := context.Background()
 	logger := testutil.CreateTestLogger(t)
 	logStore := &mockLogStore{}
-	alertMon := &mockAlertMonitor{returnErr: errors.New("alert failed")}
+	alertMon := &mockAlertEvaluator{returnErr: errors.New("alert failed")}
 
-	bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, alertMon, nil, nil, logmq.BatchProcessorConfig{
+	bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, testAlertPipeline(t, alertMon), logmq.BatchProcessorConfig{
 		ItemCountThreshold: 1,
 		DelayThreshold:     1 * time.Second,
 	})
@@ -426,8 +439,8 @@ func TestBatchProcessor_AlertMonitor_Error(t *testing.T) {
 
 	time.Sleep(200 * time.Millisecond)
 
-	assert.False(t, mock.acked, "should not be acked when alert monitor fails")
-	assert.True(t, mock.nacked, "should be nacked when alert monitor fails")
+	assert.False(t, mock.acked, "should not be acked when alert evaluation fails")
+	assert.True(t, mock.nacked, "should be nacked when alert evaluation fails")
 
 	// Entry was still persisted to logstore
 	events, _ := logStore.getInserted()

@@ -3,11 +3,11 @@ package logmq_test
 // Characterization suite for the logmq post-persist pipeline.
 //
 // These tests pin the CURRENT behavior of BatchProcessor.processBatch wired to
-// the REAL alert monitor, REAL in-memory log store, REAL opevents emitter and a
+// the REAL alert evaluator, REAL in-memory log store, REAL opevents emitter and a
 // miniredis-backed alert store. The only doubles are at the external boundary:
 //   - recordingSink     (opevents.Sink): records emitted operator events, can
 //     inject Send failures.
-//   - recordingDisabler (alert.DestinationDisabler): records disable calls.
+//   - recordingDisabler (logmq.DestinationDisabler): records disable calls.
 //   - countingMessage   (mqs.QueueMessage): counts ack/nack for exactly-once.
 //
 // Observable oracles (assert ONLY on these):
@@ -112,7 +112,7 @@ type disableRecord struct {
 	destinationID string
 }
 
-// recordingDisabler implements alert.DestinationDisabler.
+// recordingDisabler implements logmq.DestinationDisabler.
 type recordingDisabler struct {
 	mu       sync.Mutex
 	disabled []disableRecord
@@ -182,7 +182,7 @@ func (f *failingLogStore) InsertMany(ctx context.Context, entries []*models.LogE
 // pipeline components; doubles tweaks the behavior of the test doubles.
 type harnessConfig struct {
 	batcher batcherConfig // real BatchProcessor
-	alert   alertConfig   // real AlertMonitor
+	alert   alertConfig   // real alert.Evaluator
 	doubles doublesConfig // test-double behavior
 }
 
@@ -192,13 +192,13 @@ type batcherConfig struct {
 	delay     time.Duration // ...or flush after this long (default 100ms)
 }
 
-// alertConfig drives the real AlertMonitor. Zero values fall back to defaults
+// alertConfig drives the real alert.Evaluator. Zero values fall back to defaults
 // (thresholds [50,70,90,100], autoDisableCount 10, retryMaxLimit 10).
 type alertConfig struct {
 	thresholds       []int
 	autoDisableCount int
 	retryMaxLimit    int
-	withDisabler     bool // attach the recordingDisabler to the monitor
+	withDisabler     bool // attach the recordingDisabler to the pipeline
 }
 
 // doublesConfig controls test-double behavior. Zero values = passthrough: the
@@ -243,14 +243,10 @@ func newHarness(t *testing.T, cfg harnessConfig) *harness {
 	if retryMaxLimit == 0 {
 		retryMaxLimit = 10
 	}
-	opts := []alert.AlertOption{
+	evaluator := alert.NewEvaluator(redisClient, retryMaxLimit,
 		alert.WithAutoDisableFailureCount(autoDisableCount),
 		alert.WithAlertThresholds(thresholds),
-	}
-	if cfg.alert.withDisabler {
-		opts = append(opts, alert.WithDisabler(disabler))
-	}
-	monitor := alert.NewAlertMonitor(logger, redisClient, retryMaxLimit, opts...)
+	)
 
 	var logStore logmq.LogStore
 	var store driver.LogStore
@@ -265,11 +261,20 @@ func newHarness(t *testing.T, cfg harnessConfig) *harness {
 	if delay == 0 {
 		delay = 100 * time.Millisecond
 	}
-	// Delivery (emitter) now lives with the batch processor, not the monitor.
-	// The characterization suite wires no idempotence by default (exhausted-retries
-	// emit unsuppressed), matching the previous monitor wiring; delivery tests can
-	// opt into a suppression window via doubles.idemp.
-	bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, monitor, emitter, cfg.doubles.idemp, logmq.BatchProcessorConfig{
+	// The suite wires the REAL processed gate (per-attempt replay dedup) over
+	// the same miniredis. No exhausted suppression window by default (emit on
+	// every exhaustion); delivery tests opt in via doubles.idemp. The disabler
+	// attaches to the pipeline when alert.withDisabler is set.
+	pipeline := logmq.AlertPipeline{
+		Evaluator:      evaluator,
+		Emitter:        emitter,
+		ProcessedIdemp: idempotence.New(redisClient),
+		ExhaustedIdemp: cfg.doubles.idemp,
+	}
+	if cfg.alert.withDisabler {
+		pipeline.Disabler = disabler
+	}
+	bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, pipeline, logmq.BatchProcessorConfig{
 		ItemCountThreshold: cfg.batcher.itemCount,
 		DelayThreshold:     delay,
 	})

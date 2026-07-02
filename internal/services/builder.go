@@ -364,10 +364,16 @@ func (b *ServiceBuilder) BuildLogWorker(baseRouter *gin.Engine) error {
 		return fmt.Errorf("failed to resolve alert config: %w", err)
 	}
 
-	var disabler alert.DestinationDisabler
+	var disabler logmq.DestinationDisabler
 	if alertSettings.AutoDisableDestination {
 		disabler = newDestinationDisabler(svc.tenantStore)
 	}
+
+	// Per-attempt replay gate: a failed attempt's alert processing runs at most
+	// once per attempt ID. The default 24h TTL matches the old evaluated-set TTL.
+	processedIdemp := idempotence.New(svc.redisClient,
+		idempotence.WithDeploymentID(b.cfg.DeploymentID),
+	)
 
 	// Build a suppression window only when exhausted-retries alerting is enabled
 	// with a positive window. A zero window means "alert on every exhaustion"
@@ -380,11 +386,9 @@ func (b *ServiceBuilder) BuildLogWorker(baseRouter *gin.Engine) error {
 		)
 	}
 	_, retryMaxLimit := b.cfg.GetRetryBackoff()
-	alertMonitor := alert.NewAlertMonitor(
-		b.logger,
+	alertEvaluator := alert.NewEvaluator(
 		svc.redisClient,
 		retryMaxLimit,
-		alert.WithDisabler(disabler),
 		alert.WithConsecutiveFailureEnabled(alertSettings.ConsecutiveFailure.Enabled),
 		alert.WithAutoDisableFailureCount(alertSettings.ConsecutiveFailure.Count),
 		alert.WithExhaustedRetriesEnabled(alertSettings.ExhaustedRetries.Enabled),
@@ -406,7 +410,13 @@ func (b *ServiceBuilder) BuildLogWorker(baseRouter *gin.Engine) error {
 	}
 
 	b.logger.Debug("creating log batcher")
-	batchProcessor, err := logmq.NewBatchProcessor(b.ctx, b.logger, svc.logStore, alertMonitor, emitter, exhaustedRetriesIdemp, logmq.BatchProcessorConfig{
+	batchProcessor, err := logmq.NewBatchProcessor(b.ctx, b.logger, svc.logStore, logmq.AlertPipeline{
+		Evaluator:      alertEvaluator,
+		Emitter:        emitter,
+		Disabler:       disabler,
+		ProcessedIdemp: processedIdemp,
+		ExhaustedIdemp: exhaustedRetriesIdemp,
+	}, logmq.BatchProcessorConfig{
 		ItemCountThreshold: batcherCfg.ItemCountThreshold,
 		DelayThreshold:     batcherCfg.DelayThreshold,
 	})
@@ -447,12 +457,12 @@ func (b *ServiceBuilder) BuildLogWorker(baseRouter *gin.Engine) error {
 	return nil
 }
 
-// destinationDisabler implements alert.DestinationDisabler by setting DisabledAt on the destination.
+// destinationDisabler implements logmq.DestinationDisabler by setting DisabledAt on the destination.
 type destinationDisabler struct {
 	tenantStore tenantstore.TenantStore
 }
 
-func newDestinationDisabler(tenantStore tenantstore.TenantStore) alert.DestinationDisabler {
+func newDestinationDisabler(tenantStore tenantstore.TenantStore) logmq.DestinationDisabler {
 	return &destinationDisabler{tenantStore: tenantStore}
 }
 
