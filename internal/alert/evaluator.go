@@ -23,26 +23,24 @@ type Attempt struct {
 	EligibleForRetry bool
 }
 
-// Evaluation is the tracker's verdict on one attempt. Zero value = nothing to
-// report (success, or a failure that crossed no threshold and exhausted no
-// retries).
+// Evaluation is the tracker's verdict on one attempt: one field per signal
+// kind, nil/false when that kind has nothing to report. An attempt can carry
+// several signals at once. Zero value = nothing to report (success, or a
+// failure that crossed no threshold and exhausted no retries).
 type Evaluation struct {
-	// ConsecutiveFailures is the destination's current consecutive-failure
-	// count after recording this attempt. 0 when consecutive-failure tracking
-	// is disabled.
-	ConsecutiveFailures int
-	// ThresholdCrossed reports that this attempt's count sits on a configured
-	// alert threshold (or at/above the 100% auto-disable count).
-	ThresholdCrossed bool
-	// ThresholdLevel is the crossed threshold's percentage (e.g. 50/70/90/100).
-	// 0 when no threshold was crossed.
-	ThresholdLevel int
-	// MaxFailures is the configured 100%-threshold failure count, for payload
-	// context alongside ConsecutiveFailures.
-	MaxFailures int
+	// ConsecutiveFailure is non-nil when this attempt's consecutive-failure
+	// count crossed an alert threshold.
+	ConsecutiveFailure *ConsecutiveFailureSignal
 	// RetriesExhausted reports that this attempt exceeded the retry budget for
 	// a retry-eligible event.
 	RetriesExhausted bool
+}
+
+// ConsecutiveFailureSignal reports a crossed consecutive-failure threshold.
+type ConsecutiveFailureSignal struct {
+	Failures int // current consecutive-failure count
+	Max      int // configured 100%-threshold failure count
+	Level    int // crossed threshold's percentage (e.g. 50/70/90/100)
 }
 
 // Evaluator evaluates delivery attempts against the destination's failure
@@ -155,11 +153,13 @@ func (e *evaluator) Evaluate(ctx context.Context, attempt Attempt) (Evaluation, 
 		if err != nil {
 			return Evaluation{}, fmt.Errorf("failed to track consecutive failures: %w", err)
 		}
-		level, crossed := e.thresholds.shouldAlert(count)
-		eval.ConsecutiveFailures = count
-		eval.ThresholdCrossed = crossed
-		eval.ThresholdLevel = level
-		eval.MaxFailures = e.autoDisableFailureCount
+		if level, crossed := e.thresholds.shouldAlert(count); crossed {
+			eval.ConsecutiveFailure = &ConsecutiveFailureSignal{
+				Failures: count,
+				Max:      e.autoDisableFailureCount,
+				Level:    level,
+			}
+		}
 	}
 
 	// Exhausted retries check (independent of consecutive failure thresholds).

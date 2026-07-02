@@ -280,14 +280,14 @@ func (bp *BatchProcessor) processAlerts(ctx context.Context, entry *models.LogEn
 // Exhausted-retries alerts are suppressed per (event, destination) within the
 // configured window; a suppressed duplicate is treated as delivered.
 func (bp *BatchProcessor) deliver(ctx context.Context, eval alert.Evaluation, entry *models.LogEntry) error {
-	if !eval.ThresholdCrossed && !eval.RetriesExhausted {
+	if eval.ConsecutiveFailure == nil && !eval.RetriesExhausted {
 		return nil
 	}
 
 	dest := opevents.NewAlertDestination(entry.Destination)
 
-	if eval.ThresholdCrossed {
-		if eval.ThresholdLevel == 100 && bp.alerts.Disabler != nil {
+	if cf := eval.ConsecutiveFailure; cf != nil {
+		if cf.Level == 100 && bp.alerts.Disabler != nil {
 			// Disable is idempotent on replay: a no-op if already disabled.
 			if err := bp.alerts.Disabler.DisableDestination(ctx, dest.TenantID, dest.ID); err != nil {
 				return fmt.Errorf("failed to disable destination: %w", err)
@@ -310,7 +310,7 @@ func (bp *BatchProcessor) deliver(ctx context.Context, eval alert.Evaluation, en
 		}
 
 		ev := opevents.ConsecutiveFailureEvent(dest, entry.Event, entry.Attempt,
-			eval.ConsecutiveFailures, eval.MaxFailures, eval.ThresholdLevel)
+			cf.Failures, cf.Max, cf.Level)
 		if err := bp.emit(ctx, ev, entry); err != nil {
 			return err
 		}

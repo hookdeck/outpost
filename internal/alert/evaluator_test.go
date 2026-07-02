@@ -40,8 +40,8 @@ func crossedLevels(t *testing.T, ctx context.Context, e alert.Evaluator, destID,
 	for i := from; i <= to; i++ {
 		eval, err := e.Evaluate(ctx, failedAttempt(destID, tenantID, fmt.Sprintf("att_%d", i)))
 		require.NoError(t, err)
-		if eval.ThresholdCrossed {
-			levels = append(levels, eval.ThresholdLevel)
+		if sig := eval.ConsecutiveFailure; sig != nil {
+			levels = append(levels, sig.Level)
 		}
 	}
 	return levels
@@ -95,15 +95,12 @@ func TestEvaluator_CountAndMaxFailures(t *testing.T) {
 
 	eval, err := e.Evaluate(ctx, failedAttempt("dest_cm", "tenant_cm", "att_1"))
 	require.NoError(t, err)
-	assert.Equal(t, 1, eval.ConsecutiveFailures)
-	assert.Equal(t, 4, eval.MaxFailures)
-	assert.False(t, eval.ThresholdCrossed)
+	assert.Nil(t, eval.ConsecutiveFailure, "1/4 crosses nothing")
 
 	eval, err = e.Evaluate(ctx, failedAttempt("dest_cm", "tenant_cm", "att_2"))
 	require.NoError(t, err)
-	assert.Equal(t, 2, eval.ConsecutiveFailures)
-	assert.True(t, eval.ThresholdCrossed, "2/4 = 50%")
-	assert.Equal(t, 50, eval.ThresholdLevel)
+	require.NotNil(t, eval.ConsecutiveFailure, "2/4 = 50%")
+	assert.Equal(t, alert.ConsecutiveFailureSignal{Failures: 2, Max: 4, Level: 50}, *eval.ConsecutiveFailure)
 }
 
 func TestEvaluator_SuccessResets(t *testing.T) {
@@ -147,9 +144,8 @@ func TestEvaluator_ReplayedAttemptDoesNotDoubleCount(t *testing.T) {
 
 	first, err := e.Evaluate(ctx, failedAttempt("dest_replay", "tenant_replay", "att_1"))
 	require.NoError(t, err)
-	require.Equal(t, 1, first.ConsecutiveFailures)
-	require.True(t, first.ThresholdCrossed)
-	require.Equal(t, 50, first.ThresholdLevel)
+	require.NotNil(t, first.ConsecutiveFailure)
+	require.Equal(t, alert.ConsecutiveFailureSignal{Failures: 1, Max: 2, Level: 50}, *first.ConsecutiveFailure)
 
 	replay, err := e.Evaluate(ctx, failedAttempt("dest_replay", "tenant_replay", "att_1"))
 	require.NoError(t, err)
@@ -243,8 +239,7 @@ func TestEvaluator_ConsecutiveFailure_Disabled(t *testing.T) {
 	for i := 1; i <= 10; i++ {
 		eval, err := e.Evaluate(ctx, failedAttempt("dest_cf_off", "tenant_cf_off", fmt.Sprintf("att_%d", i)))
 		require.NoError(t, err)
-		assert.Zero(t, eval.ConsecutiveFailures)
-		assert.False(t, eval.ThresholdCrossed)
+		assert.Nil(t, eval.ConsecutiveFailure)
 	}
 
 	// Success has nothing to reset and reports nothing.
@@ -295,7 +290,7 @@ func TestEvaluator_Gates_Independent(t *testing.T) {
 		a.EligibleForRetry = true
 		eval, err := e.Evaluate(ctx, a)
 		require.NoError(t, err)
-		assert.False(t, eval.ThresholdCrossed, "consecutive_failure stays silent when its gate is off")
+		assert.Nil(t, eval.ConsecutiveFailure, "consecutive_failure stays silent when its gate is off")
 		if eval.RetriesExhausted {
 			exhausted++
 		}
