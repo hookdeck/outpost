@@ -387,12 +387,11 @@ func (b *ServiceBuilder) BuildLogWorker(baseRouter *gin.Engine) error {
 	}
 	_, retryMaxLimit := b.cfg.GetRetryBackoff()
 	alertEvaluator := alert.NewEvaluator(
-		svc.redisClient,
+		alert.NewRedisAlertStore(svc.redisClient, b.cfg.DeploymentID),
 		retryMaxLimit,
 		alert.WithConsecutiveFailureEnabled(alertSettings.ConsecutiveFailure.Enabled),
 		alert.WithAutoDisableFailureCount(alertSettings.ConsecutiveFailure.Count),
 		alert.WithExhaustedRetriesEnabled(alertSettings.ExhaustedRetries.Enabled),
-		alert.WithDeploymentID(b.cfg.DeploymentID),
 	)
 
 	// Create batcher for batching log writes

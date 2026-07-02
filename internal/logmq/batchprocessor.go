@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/hookdeck/outpost/internal/alert"
-	"github.com/hookdeck/outpost/internal/idempotence"
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/mqs"
@@ -39,6 +38,23 @@ type DestinationDisabler interface {
 	DisableDestination(ctx context.Context, tenantID, destinationID string) error
 }
 
+// ReplayGate is the split-phase idempotence pair the pipeline uses as the
+// per-attempt replay gate: Processed is checked before eval, MarkProcessed
+// lands after delivery. Split-phase means no in-flight conflict detection —
+// concurrent duplicates both run and may both emit (tolerated: opevents are
+// at-least-once). Satisfied by idempotence.Idempotence.
+type ReplayGate interface {
+	Processed(ctx context.Context, key string) (bool, error)
+	MarkProcessed(ctx context.Context, key string) error
+}
+
+// SuppressionWindow wraps one send in a keyed dedup window: within the window
+// the send is skipped and counts as delivered. Satisfied by
+// idempotence.Idempotence.
+type SuppressionWindow interface {
+	Exec(ctx context.Context, key string, exec func(context.Context) error) error
+}
+
 // AlertPipeline groups the post-persist alert pipeline: evaluate the attempt,
 // act on the verdict (disable, opevents), and dedup replays.
 type AlertPipeline struct {
@@ -51,15 +67,12 @@ type AlertPipeline struct {
 	Disabler DestinationDisabler
 	// ProcessedIdemp is the per-attempt replay gate: a replay of a fully
 	// processed failed attempt is skipped instead of re-counting/re-alerting.
-	// Used split-phase (Processed before eval, MarkProcessed after delivery) —
-	// no in-flight conflict detection, so concurrent duplicates both run and
-	// may both emit (tolerated: opevents are at-least-once). Required when
-	// Evaluator is set.
-	ProcessedIdemp idempotence.Idempotence
+	// Required when Evaluator is set.
+	ProcessedIdemp ReplayGate
 	// ExhaustedIdemp is the per-(event,destination) suppression window for
 	// exhausted-retries alerts. Nil means no suppression (alert on every
 	// exhaustion).
-	ExhaustedIdemp idempotence.Idempotence
+	ExhaustedIdemp SuppressionWindow
 }
 
 // BatchProcessorConfig configures the batch processor. The pool fields are

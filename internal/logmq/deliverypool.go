@@ -5,7 +5,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hookdeck/outpost/internal/idempotence"
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/mqs"
@@ -54,8 +53,8 @@ type deliveryPool struct {
 	ctx            context.Context
 	logger         *logging.Logger
 	emitter        opevents.Emitter
-	processedIdemp idempotence.Idempotence
-	exhaustedIdemp idempotence.Idempotence
+	processedIdemp ReplayGate
+	exhaustedIdemp SuppressionWindow
 
 	queue chan delivery
 	wg    sync.WaitGroup

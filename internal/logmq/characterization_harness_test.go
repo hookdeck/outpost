@@ -331,7 +331,7 @@ func newHarness(t *testing.T, cfg harnessConfig) *harness {
 	if retryMaxLimit == 0 {
 		retryMaxLimit = 10
 	}
-	var evaluator logmq.AlertEvaluator = alert.NewEvaluator(redisClient, retryMaxLimit,
+	var evaluator logmq.AlertEvaluator = alert.NewEvaluator(alert.NewRedisAlertStore(redisClient, ""), retryMaxLimit,
 		alert.WithAutoDisableFailureCount(autoDisableCount),
 		alert.WithAlertThresholds(thresholds),
 	)

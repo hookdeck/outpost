@@ -34,7 +34,7 @@ func successAttempt(destID, tenantID string) alert.Attempt {
 
 // crossedLevels runs failed attempts (attempt IDs att_<from>..att_<to>) and
 // collects the threshold levels crossed, in order.
-func crossedLevels(t *testing.T, ctx context.Context, e alert.Evaluator, destID, tenantID string, from, to int) []int {
+func crossedLevels(t *testing.T, ctx context.Context, e *alert.Evaluator, destID, tenantID string, from, to int) []int {
 	t.Helper()
 	var levels []int
 	for i := from; i <= to; i++ {
@@ -53,7 +53,7 @@ func TestEvaluator_ThresholdCrossings(t *testing.T) {
 	redisClient := testutil.CreateTestRedisClient(t)
 
 	e := alert.NewEvaluator(
-		redisClient,
+		alert.NewRedisAlertStore(redisClient, ""),
 		10,
 		alert.WithAutoDisableFailureCount(20),
 		alert.WithAlertThresholds([]int{50, 66, 90, 100}),
@@ -71,7 +71,7 @@ func TestEvaluator_AboveMaxKeepsCrossing(t *testing.T) {
 	redisClient := testutil.CreateTestRedisClient(t)
 
 	e := alert.NewEvaluator(
-		redisClient,
+		alert.NewRedisAlertStore(redisClient, ""),
 		10,
 		alert.WithAutoDisableFailureCount(20),
 		alert.WithAlertThresholds([]int{50, 70, 90, 100}),
@@ -87,7 +87,7 @@ func TestEvaluator_CountAndMaxFailures(t *testing.T) {
 	redisClient := testutil.CreateTestRedisClient(t)
 
 	e := alert.NewEvaluator(
-		redisClient,
+		alert.NewRedisAlertStore(redisClient, ""),
 		10,
 		alert.WithAutoDisableFailureCount(4),
 		alert.WithAlertThresholds([]int{50, 100}),
@@ -109,7 +109,7 @@ func TestEvaluator_SuccessResets(t *testing.T) {
 	redisClient := testutil.CreateTestRedisClient(t)
 
 	e := alert.NewEvaluator(
-		redisClient,
+		alert.NewRedisAlertStore(redisClient, ""),
 		10,
 		alert.WithAutoDisableFailureCount(20),
 		alert.WithAlertThresholds([]int{50, 66, 90, 100}),
@@ -136,7 +136,7 @@ func TestEvaluator_ReplayedAttemptDoesNotDoubleCount(t *testing.T) {
 	redisClient := testutil.CreateTestRedisClient(t)
 
 	e := alert.NewEvaluator(
-		redisClient,
+		alert.NewRedisAlertStore(redisClient, ""),
 		10,
 		alert.WithAutoDisableFailureCount(2),
 		alert.WithAlertThresholds([]int{50, 100}),
@@ -159,7 +159,7 @@ func TestEvaluator_RetriesExhausted(t *testing.T) {
 
 	retryMaxLimit := 3
 	e := alert.NewEvaluator(
-		redisClient,
+		alert.NewRedisAlertStore(redisClient, ""),
 		retryMaxLimit,
 		alert.WithAutoDisableFailureCount(100), // high so cf thresholds don't interfere
 	)
@@ -189,7 +189,7 @@ func TestEvaluator_RetriesExhausted_NotEligible(t *testing.T) {
 	redisClient := testutil.CreateTestRedisClient(t)
 
 	e := alert.NewEvaluator(
-		redisClient,
+		alert.NewRedisAlertStore(redisClient, ""),
 		3,
 		alert.WithAutoDisableFailureCount(100),
 	)
@@ -209,7 +209,7 @@ func TestEvaluator_RetriesExhausted_RetriesDisabled(t *testing.T) {
 	redisClient := testutil.CreateTestRedisClient(t)
 
 	e := alert.NewEvaluator(
-		redisClient,
+		alert.NewRedisAlertStore(redisClient, ""),
 		0,
 		alert.WithAutoDisableFailureCount(100),
 	)
@@ -230,7 +230,7 @@ func TestEvaluator_ConsecutiveFailure_Disabled(t *testing.T) {
 	redisClient := testutil.CreateTestRedisClient(t)
 
 	e := alert.NewEvaluator(
-		redisClient,
+		alert.NewRedisAlertStore(redisClient, ""),
 		10,
 		alert.WithAutoDisableFailureCount(5),
 		alert.WithConsecutiveFailureEnabled(false),
@@ -254,7 +254,7 @@ func TestEvaluator_ExhaustedRetries_Disabled(t *testing.T) {
 	redisClient := testutil.CreateTestRedisClient(t)
 
 	e := alert.NewEvaluator(
-		redisClient,
+		alert.NewRedisAlertStore(redisClient, ""),
 		3,
 		alert.WithAutoDisableFailureCount(100),
 		alert.WithExhaustedRetriesEnabled(false),
@@ -276,7 +276,7 @@ func TestEvaluator_Gates_Independent(t *testing.T) {
 	redisClient := testutil.CreateTestRedisClient(t)
 
 	e := alert.NewEvaluator(
-		redisClient,
+		alert.NewRedisAlertStore(redisClient, ""),
 		3,
 		alert.WithAutoDisableFailureCount(5),
 		alert.WithConsecutiveFailureEnabled(false),

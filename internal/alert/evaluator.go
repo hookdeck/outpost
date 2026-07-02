@@ -8,8 +8,6 @@ package alert
 import (
 	"context"
 	"fmt"
-
-	"github.com/redis/go-redis/v9"
 )
 
 // Attempt is the tracker's input: the identity and outcome of one delivery
@@ -43,41 +41,21 @@ type ConsecutiveFailureSignal struct {
 	Level    int // crossed threshold's percentage (e.g. 50/70/90/100)
 }
 
-// Evaluator evaluates delivery attempts against the destination's failure
-// history and returns the resulting signals as data.
-type Evaluator interface {
-	Evaluate(ctx context.Context, attempt Attempt) (Evaluation, error)
-}
-
 // Option configures an evaluator.
-type Option func(*evaluator)
+type Option func(*Evaluator)
 
 // WithAutoDisableFailureCount sets the consecutive-failure count that means
 // 100% — the denominator for threshold math.
 func WithAutoDisableFailureCount(count int) Option {
-	return func(e *evaluator) {
+	return func(e *Evaluator) {
 		e.autoDisableFailureCount = count
 	}
 }
 
 // WithAlertThresholds sets the percentage thresholds at which alerts fire.
 func WithAlertThresholds(thresholds []int) Option {
-	return func(e *evaluator) {
+	return func(e *Evaluator) {
 		e.alertThresholds = thresholds
-	}
-}
-
-// WithStore sets the alert store for the evaluator.
-func WithStore(store AlertStore) Option {
-	return func(e *evaluator) {
-		e.store = store
-	}
-}
-
-// WithDeploymentID sets the deployment ID used to scope store keys.
-func WithDeploymentID(deploymentID string) Option {
-	return func(e *evaluator) {
-		e.deploymentID = deploymentID
 	}
 }
 
@@ -85,7 +63,7 @@ func WithDeploymentID(deploymentID string) Option {
 // to false the evaluator never tracks failures or crosses thresholds.
 // Defaults to true.
 func WithConsecutiveFailureEnabled(enabled bool) Option {
-	return func(e *evaluator) {
+	return func(e *Evaluator) {
 		e.consecutiveFailureEnabled = enabled
 	}
 }
@@ -93,16 +71,17 @@ func WithConsecutiveFailureEnabled(enabled bool) Option {
 // WithExhaustedRetriesEnabled toggles the retry-exhaustion signal. Defaults to
 // true.
 func WithExhaustedRetriesEnabled(enabled bool) Option {
-	return func(e *evaluator) {
+	return func(e *Evaluator) {
 		e.exhaustedRetriesEnabled = enabled
 	}
 }
 
-type evaluator struct {
+// Evaluator evaluates delivery attempts against the destination's failure
+// history and returns the resulting signals as data.
+type Evaluator struct {
 	store      AlertStore
 	thresholds thresholdEvaluator
 
-	deploymentID            string
 	autoDisableFailureCount int
 	alertThresholds         []int
 	retryMaxLimit           int
@@ -111,9 +90,10 @@ type evaluator struct {
 	exhaustedRetriesEnabled   bool
 }
 
-// NewEvaluator creates a new alert evaluator.
-func NewEvaluator(redisClient redis.Cmdable, retryMaxLimit int, opts ...Option) Evaluator {
-	e := &evaluator{
+// NewEvaluator creates a new alert evaluator on the given store.
+func NewEvaluator(store AlertStore, retryMaxLimit int, opts ...Option) *Evaluator {
+	e := &Evaluator{
+		store:                     store,
 		retryMaxLimit:             retryMaxLimit,
 		alertThresholds:           []int{50, 70, 90, 100}, // default thresholds
 		consecutiveFailureEnabled: true,
@@ -124,16 +104,12 @@ func NewEvaluator(redisClient redis.Cmdable, retryMaxLimit int, opts ...Option) 
 		opt(e)
 	}
 
-	if e.store == nil {
-		e.store = NewRedisAlertStore(redisClient, e.deploymentID)
-	}
-
 	e.thresholds = newThresholdEvaluator(e.alertThresholds, e.autoDisableFailureCount)
 
 	return e
 }
 
-func (e *evaluator) Evaluate(ctx context.Context, attempt Attempt) (Evaluation, error) {
+func (e *Evaluator) Evaluate(ctx context.Context, attempt Attempt) (Evaluation, error) {
 	if attempt.Success {
 		// Nothing is tracked when consecutive-failure tracking is disabled, so
 		// there is no count to reset.
