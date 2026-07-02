@@ -473,9 +473,9 @@ func attemptIDs(recs []sinkRecord) []string {
 	return out
 }
 
-// topicsForAttempt extracts one attempt's topic sequence, in emission order.
-// Per-attempt order is guaranteed (one delivery worker owns the attempt) even
-// though cross-attempt arrival order is not.
+// topicsForAttempt extracts one attempt's topics. WHICH topics an attempt
+// emitted is guaranteed; arrival order is not — an attempt's sends run
+// concurrently (step 6), so assert with ElementsMatch.
 func topicsForAttempt(recs []sinkRecord, attemptID string) []string {
 	out := []string{}
 	for _, r := range recs {

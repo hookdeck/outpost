@@ -62,31 +62,94 @@ type AlertPipeline struct {
 	ExhaustedIdemp idempotence.Idempotence
 }
 
-// BatchProcessorConfig configures the batch processor.
+// BatchProcessorConfig configures the batch processor. The pool fields are
+// test-only overrides: zero means "derive from ItemCountThreshold" (see the
+// derive* functions), which is how production always runs — no extra knobs.
 type BatchProcessorConfig struct {
 	ItemCountThreshold int
 	DelayThreshold     time.Duration
-	// PostprocessShards is the postprocess pool's shard count — the eval parallelism
-	// across destinations (same destination always evaluates serially).
-	// Zero means the default (8).
+	// PostprocessShards is the postprocess pool's shard count — the eval
+	// parallelism across destinations (same destination always evaluates
+	// serially). Zero derives from ItemCountThreshold.
 	PostprocessShards int
-	// PostprocessShardQueueDepth bounds each shard's queue; a full shard blocks the
-	// batch loop (backpressure). Zero means the default (16).
+	// PostprocessShardQueueDepth bounds each shard's queue; a full shard
+	// blocks the batch loop (backpressure). Zero derives.
 	PostprocessShardQueueDepth int
 	// DeliveryConcurrency is the opevent delivery pool's worker count.
-	// Zero means the default (10).
+	// Zero derives from ItemCountThreshold.
 	DeliveryConcurrency int
 	// DeliveryQueueDepth bounds the delivery queue; a full queue blocks the
-	// postprocess pool's workers (backpressure). Zero means the default
-	// (2× concurrency).
+	// postprocess pool's workers (backpressure). Zero means 2× concurrency.
 	DeliveryQueueDepth int
 }
 
+// Pool sizing derives from ItemCountThreshold (LOG_BATCH_SIZE), which doubles
+// as the operator's throughput declaration: batches are sized to roughly one
+// second of traffic, so LogBatchSize ≈ entries/second. The heuristic is wrong
+// only in the cheap direction — an oversized batch buys idle shards (parked
+// goroutines) and deeper-but-bounded queues.
+//
+// The safety bound behind all of it: a fetched message must reach its
+// terminal state within the broker's visibility window (~60s), or it
+// redelivers while still held. In-flight is bounded (a full queue blocks its
+// producer, all the way back to the consumer fetch), so worst-case ack
+// latency is
+//
+//	held/drain ≈ (2×batch + 3×workers) / (workers/emitTimeout)
+//
+// which the derived values keep an order of magnitude under the window even
+// with every send at emitTimeout.
 const (
-	defaultPostprocessShards          = 8
-	defaultPostprocessShardQueueDepth = 16
-	defaultDeliveryConcurrency        = 10
+	// evalsPerShardPerSec is the eval throughput one shard sustains: an eval
+	// is ~2ms of Redis ops (≈500/s), halved for headroom because the disable
+	// path also writes the DB inside the ordered lane.
+	evalsPerShardPerSec = 250
+	// minPostprocessShards keeps small deployments' eval lane comfortably
+	// ahead of intake; a shard costs one parked goroutine + one channel.
+	minPostprocessShards = 8
+	// maxPostprocessShards marks where shard count stops being the
+	// bottleneck: 64 shards claim >16k evals/s through one Redis and one
+	// intake consumer — horizontal-scale territory.
+	maxPostprocessShards = 64
+
+	minDeliveryConcurrency = 10
+	// maxDeliveryConcurrency caps the derived worker count (reached at
+	// LOG_BATCH_SIZE ≈ 1640). With the cap, a timeout-pinned sink stays
+	// visibility-safe up to LOG_BATCH_SIZE ≈ 37k (see sizing_test.go);
+	// deployments past that scale horizontally.
+	maxDeliveryConcurrency = 8192
 )
+
+// derivePostprocessShards sizes eval parallelism to intake: shards ×
+// evalsPerShardPerSec must cover LogBatchSize entries/second, so the ordered
+// lane is never the pipeline's bottleneck.
+func derivePostprocessShards(batchSize int) int {
+	return clamp(batchSize/evalsPerShardPerSec, minPostprocessShards, maxPostprocessShards)
+}
+
+// derivePostprocessShardQueueDepth spreads one full batch across the shard
+// queues (depth × shards ≈ LogBatchSize): dispatching a batch never blocks
+// while the pipeline is healthy, so batch N+1's persist never waits on a
+// merely-busy (vs stuck) stage. A stuck shard still backpressures — depth is
+// finite.
+func derivePostprocessShardQueueDepth(batchSize, shards int) int {
+	return max(1, (batchSize+shards-1)/shards)
+}
+
+// deriveDeliveryConcurrency sizes the pool for full line rate at the worst
+// send latency the emit timeout accepts: workers = rate × latency =
+// LogBatchSize/s × emitTimeout. A sink may run at the timeout's edge
+// indefinitely without the pipeline falling behind; past the timeout, sends
+// fail into nack/redelivery, which no worker count can (or should) mask.
+// Events-per-attempt doesn't factor in: a worker fans an attempt's sends out
+// concurrently, so it is occupied ~one send latency regardless of K.
+func deriveDeliveryConcurrency(batchSize int) int {
+	return clamp(batchSize*int(emitTimeout/time.Second), minDeliveryConcurrency, maxDeliveryConcurrency)
+}
+
+func clamp(v, lo, hi int) int {
+	return min(max(v, lo), hi)
+}
 
 // BatchProcessor batches log entries and writes them to the log store.
 type BatchProcessor struct {
@@ -122,7 +185,7 @@ func NewBatchProcessor(ctx context.Context, logger *logging.Logger, logStore Log
 	if alerts.Evaluator != nil {
 		concurrency := cfg.DeliveryConcurrency
 		if concurrency <= 0 {
-			concurrency = defaultDeliveryConcurrency
+			concurrency = deriveDeliveryConcurrency(cfg.ItemCountThreshold)
 		}
 		queueDepth := cfg.DeliveryQueueDepth
 		if queueDepth <= 0 {
@@ -132,11 +195,11 @@ func NewBatchProcessor(ctx context.Context, logger *logging.Logger, logStore Log
 
 		shards := cfg.PostprocessShards
 		if shards <= 0 {
-			shards = defaultPostprocessShards
+			shards = derivePostprocessShards(cfg.ItemCountThreshold)
 		}
 		shardDepth := cfg.PostprocessShardQueueDepth
 		if shardDepth <= 0 {
-			shardDepth = defaultPostprocessShardQueueDepth
+			shardDepth = derivePostprocessShardQueueDepth(cfg.ItemCountThreshold, shards)
 		}
 		bp.postprocessPool = newPostprocessPool(ctx, logger, alerts, bp.deliveryPool, shards, shardDepth)
 	}

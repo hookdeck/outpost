@@ -4,9 +4,10 @@ package logmq_test
 // the alert outcome, and per-destination EVAL order must survive the Model C
 // refactor. Eval order is asserted through content — WHICH attempts alerted
 // (counts 5,7,9,10) proves the evaluator saw a destination's attempts in add
-// order. Sink ARRIVAL order across attempts is intentionally unordered as of
-// step 4 (unordered delivery pool), so no assertion constrains it; within one
-// attempt, order holds (one worker owns the attempt: disabled before cf).
+// order. Sink ARRIVAL order is intentionally unordered — across attempts as
+// of step 4 (unordered delivery pool) and within an attempt as of step 6
+// (concurrent sends) — so no assertion constrains it; WHICH events an attempt
+// emitted still is (topicsForAttempt + ElementsMatch).
 
 import (
 	"fmt"
@@ -42,7 +43,7 @@ func TestCharacterization_ThresholdsThenDisable(t *testing.T) {
 	require.ElementsMatch(t, []string{"att_5", "att_7", "att_9", "att_10", "att_10"}, attemptIDs(recs))
 	require.ElementsMatch(t, []string{topicCF, topicCF, topicCF, topicDisabled, topicCF}, topics(recs))
 	// Within attempt 10, the disabled emit precedes the cf emit.
-	require.Equal(t, []string{topicDisabled, topicCF}, topicsForAttempt(recs, "att_10"))
+	require.ElementsMatch(t, []string{topicDisabled, topicCF}, topicsForAttempt(recs, "att_10"))
 
 	disabled := h.disabler.snapshot()
 	require.Len(t, disabled, 1)
@@ -125,8 +126,8 @@ func TestCharacterization_TwoDestinationsInterleaved(t *testing.T) {
 	assert.ElementsMatch(t, wantTopics, topics(recsB), "dest B records")
 	assert.ElementsMatch(t, []string{"a_5", "a_7", "a_9", "a_10", "a_10"}, attemptIDs(recsA))
 	assert.ElementsMatch(t, []string{"b_5", "b_7", "b_9", "b_10", "b_10"}, attemptIDs(recsB))
-	assert.Equal(t, []string{topicDisabled, topicCF}, topicsForAttempt(recsA, "a_10"))
-	assert.Equal(t, []string{topicDisabled, topicCF}, topicsForAttempt(recsB, "b_10"))
+	assert.ElementsMatch(t, []string{topicDisabled, topicCF}, topicsForAttempt(recsA, "a_10"))
+	assert.ElementsMatch(t, []string{topicDisabled, topicCF}, topicsForAttempt(recsB, "b_10"))
 
 	disabled := h.disabler.snapshot()
 	require.Len(t, disabled, 2)
@@ -164,7 +165,7 @@ func TestCharacterization_EvalOrderDrivesAlerts(t *testing.T) {
 	recs := h.sink.forDest(destA)
 	// Records are emitted at counts 5,7,9 (cf), 10 (disabled + cf).
 	require.ElementsMatch(t, []string{"att_05", "att_07", "att_09", "att_10", "att_10"}, attemptIDs(recs))
-	assert.Equal(t, []string{topicDisabled, topicCF}, topicsForAttempt(recs, "att_10"))
+	assert.ElementsMatch(t, []string{topicDisabled, topicCF}, topicsForAttempt(recs, "att_10"))
 }
 
 // RFC discriminator: dest A split across TWO batches (6 failures, then 4) → count
@@ -201,7 +202,7 @@ func TestCharacterization_CountContinuesAcrossBatches(t *testing.T) {
 	recs := h.sink.forDest(destA)
 	require.ElementsMatch(t, []string{topicCF, topicCF, topicCF, topicDisabled, topicCF}, topics(recs))
 	require.ElementsMatch(t, []string{"att_05", "att_07", "att_09", "att_10", "att_10"}, attemptIDs(recs))
-	require.Equal(t, []string{topicDisabled, topicCF}, topicsForAttempt(recs, "att_10"))
+	require.ElementsMatch(t, []string{topicDisabled, topicCF}, topicsForAttempt(recs, "att_10"))
 
 	require.Len(t, h.disabler.snapshot(), 1)
 	for _, m := range append(batch1, batch2...) {

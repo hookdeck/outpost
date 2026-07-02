@@ -3,6 +3,7 @@ package logmq
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/hookdeck/outpost/internal/idempotence"
 	"github.com/hookdeck/outpost/internal/logging"
@@ -10,15 +11,25 @@ import (
 	"github.com/hookdeck/outpost/internal/mqs"
 	"github.com/hookdeck/outpost/internal/opevents"
 	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
 )
+
+// emitTimeout caps a single sink send. It is the system's definition of the
+// worst ACCEPTABLE send latency: the delivery pool is sized to sustain full
+// line rate at exactly this latency (see deriveDeliveryConcurrency), so a
+// sink can run this slow indefinitely without falling behind. Anything slower
+// fails into the nack/redelivery path — no worker count makes a
+// beyond-timeout sink work, so sizing stops here.
+const emitTimeout = 5 * time.Second
 
 // delivery is one attempt's owed operator events plus the message whose
 // terminal state (ack/nack) they decide. Events are fully built before enqueue
 // — post-disable, so the payload carries the destination's latest state — and
-// one worker owns the whole delivery, so nothing here is shared across
-// goroutines.
+// one worker owns the whole delivery: its child send goroutines each read one
+// event, and the entry is read-only from here on.
 type delivery struct {
-	// events in emission order: disabled, consecutive_failure, exhausted_retries.
+	// events: disabled, consecutive_failure, exhausted_retries. Sent
+	// concurrently — no arrival-order guarantee within the attempt.
 	events []deliveryEvent
 	// entry supplies the audit-log fields.
 	entry *models.LogEntry
@@ -89,22 +100,36 @@ func (p *deliveryPool) worker() {
 	}
 }
 
-// process emits the attempt's events in order, then marks the replay gate and
-// acks. Any failure nacks with nothing marked, so redelivery re-runs the
-// attempt in full — events already sent may go out again (at-least-once).
+// process emits the attempt's events concurrently, then marks the replay gate
+// and acks. The worker still owns the whole attempt — the fan-out is child
+// goroutines inside it, so the shared ack needs no fan-in protocol — but the
+// worker is occupied ~one send latency instead of K× it, which is what lets
+// the pool's sizing ignore how many events an attempt owes. Arrival order
+// within an attempt is not guaranteed. Any failure nacks with nothing marked,
+// so redelivery re-runs the attempt in full — events already sent may go out
+// again (at-least-once).
 func (p *deliveryPool) process(d delivery) {
 	ctx := p.ctx
+	g, gctx := errgroup.WithContext(ctx)
 	for _, de := range d.events {
-		if err := p.send(ctx, de, d.entry); err != nil {
-			p.logger.Ctx(ctx).Error("opevent delivery failed",
-				zap.Error(err),
-				zap.String("topic", de.event.Topic),
-				zap.String("attempt_id", d.entry.Attempt.ID),
-				zap.String("event_id", d.entry.Event.ID),
-				zap.String("destination_id", d.entry.Destination.ID))
-			d.msg.Nack()
-			return
-		}
+		g.Go(func() error {
+			sendCtx, cancel := context.WithTimeout(gctx, emitTimeout)
+			defer cancel()
+			if err := p.send(sendCtx, de, d.entry); err != nil {
+				p.logger.Ctx(ctx).Error("opevent delivery failed",
+					zap.Error(err),
+					zap.String("topic", de.event.Topic),
+					zap.String("attempt_id", d.entry.Attempt.ID),
+					zap.String("event_id", d.entry.Event.ID),
+					zap.String("destination_id", d.entry.Destination.ID))
+				return err
+			}
+			return nil
+		})
+	}
+	if g.Wait() != nil {
+		d.msg.Nack()
+		return
 	}
 
 	if err := p.processedIdemp.MarkProcessed(ctx, d.processedKey); err != nil {
