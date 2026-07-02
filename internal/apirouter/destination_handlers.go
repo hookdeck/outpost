@@ -28,15 +28,6 @@ type SubscriptionEmitter interface {
 	Emit(ctx context.Context, ev opevents.Event) error
 }
 
-// TenantSubscriptionUpdatedData is the data payload for tenant.subscription.updated events.
-type TenantSubscriptionUpdatedData struct {
-	TenantID                  string   `json:"tenant_id"`
-	Topics                    []string `json:"topics"`
-	PreviousTopics            []string `json:"previous_topics"`
-	DestinationsCount         int      `json:"destinations_count"`
-	PreviousDestinationsCount int      `json:"previous_destinations_count"`
-}
-
 type DestinationHandlers struct {
 	logger               *logging.Logger
 	telemetry            telemetry.Telemetry
@@ -573,18 +564,13 @@ func (h *DestinationHandlers) emitSubscriptionUpdateIfChanged(ctx context.Contex
 		return
 	}
 
-	data := TenantSubscriptionUpdatedData{
+	if err := h.emitter.Emit(ctx, opevents.TenantSubscriptionUpdatedEvent(opevents.TenantSubscriptionUpdatedData{
 		TenantID:                  tenantID,
 		Topics:                    tenant.Topics,
 		PreviousTopics:            prev.topics,
 		DestinationsCount:         tenant.DestinationsCount,
 		PreviousDestinationsCount: prev.destinationsCount,
-	}
-	if err := h.emitter.Emit(ctx, opevents.Event{
-		Topic:    "tenant.subscription.updated",
-		TenantID: tenantID,
-		Data:     data,
-	}); err != nil {
+	})); err != nil {
 		h.logger.Ctx(ctx).Error("failed to emit subscription update", zap.Error(err))
 	}
 }

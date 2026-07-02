@@ -6,9 +6,28 @@ import (
 	"github.com/hookdeck/outpost/internal/models"
 )
 
-// Alert payloads: the wire contract for the alert.* topics. The typed
-// constructors below are the only way alert events are built, keeping topic,
+// Operator-event payloads: the wire contract for each topic. The typed
+// constructors below are the only way these events are built, keeping topic,
 // tenant, and payload shape in one place.
+
+// TenantSubscriptionUpdatedData is the data payload for
+// tenant.subscription.updated events.
+type TenantSubscriptionUpdatedData struct {
+	TenantID                  string   `json:"tenant_id"`
+	Topics                    []string `json:"topics"`
+	PreviousTopics            []string `json:"previous_topics"`
+	DestinationsCount         int      `json:"destinations_count"`
+	PreviousDestinationsCount int      `json:"previous_destinations_count"`
+}
+
+// TenantSubscriptionUpdatedEvent builds the tenant.subscription.updated event.
+func TenantSubscriptionUpdatedEvent(data TenantSubscriptionUpdatedData) Event {
+	return Event{
+		Topic:    TopicTenantSubscriptionUpdated,
+		TenantID: data.TenantID,
+		Data:     data,
+	}
+}
 
 // AlertDestination is the destination projection included in alert payloads.
 type AlertDestination struct {
