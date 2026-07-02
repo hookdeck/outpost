@@ -24,6 +24,7 @@ package logmq_test
 //   - characterization_acknowledgement_test.go ack/nack exactly-once
 //   - characterization_validation_test.go      intake (parse / dedup / persist)
 //   - characterization_decoupling_test.go      persistence decoupled from delivery
+//   - characterization_postprocess_test.go     sharded eval: order & parallelism
 
 import (
 	"context"
@@ -139,6 +140,36 @@ func (s *recordingSink) forDest(destID string) []sinkRecord {
 	return out
 }
 
+// blockingEvaluator wraps the real evaluator and blocks Evaluate for matching
+// attempt IDs until release() — simulating a slow eval (e.g. a Redis hiccup).
+// It counts inner Evaluate calls so tests can assert an eval did NOT run yet.
+type blockingEvaluator struct {
+	inner       logmq.AlertEvaluator
+	blockOn     map[string]bool // block these evals (by attemptID)...
+	blockCh     chan struct{}   // ...until this closes (via release)
+	releaseOnce sync.Once
+
+	blocked atomic.Int32 // evals that reached the block
+	entered atomic.Int32 // evals that reached the inner evaluator
+}
+
+func (e *blockingEvaluator) Evaluate(ctx context.Context, attempt alert.Attempt) (alert.Evaluation, error) {
+	if e.blockOn[attempt.AttemptID] {
+		e.blocked.Add(1)
+		<-e.blockCh
+	}
+	e.entered.Add(1)
+	return e.inner.Evaluate(ctx, attempt)
+}
+
+// release unblocks every blocked (and future) matching eval.
+func (e *blockingEvaluator) release() {
+	e.releaseOnce.Do(func() { close(e.blockCh) })
+}
+
+func (e *blockingEvaluator) blockedEvals() int32 { return e.blocked.Load() }
+func (e *blockingEvaluator) enteredEvals() int32 { return e.entered.Load() }
+
 type disableRecord struct {
 	tenantID      string
 	destinationID string
@@ -213,10 +244,18 @@ func (f *failingLogStore) InsertMany(ctx context.Context, entries []*models.LogE
 // harnessConfig groups knobs by concern: batcher + alert + delivery configure
 // the REAL pipeline components; doubles tweaks the behavior of the test doubles.
 type harnessConfig struct {
-	batcher  batcherConfig  // real BatchProcessor
-	alert    alertConfig    // real alert.Evaluator
-	delivery deliveryConfig // real delivery pool
-	doubles  doublesConfig  // test-double behavior
+	batcher     batcherConfig     // real BatchProcessor
+	alert       alertConfig       // real alert.Evaluator
+	postprocess postprocessConfig // real postprocess pool
+	delivery    deliveryConfig    // real delivery pool
+	doubles     doublesConfig     // test-double behavior
+}
+
+// postprocessConfig drives the real postprocess pool. Zero values fall back to
+// the BatchProcessor defaults.
+type postprocessConfig struct {
+	// shards is set by tests that pick destinations by shard (see shardOf).
+	shards int
 }
 
 // deliveryConfig drives the real delivery pool. Zero values fall back to the
@@ -249,6 +288,7 @@ type alertConfig struct {
 type doublesConfig struct {
 	sinkFailOn  map[string]bool         // make sink.Send fail for these attemptIDs/topics
 	sinkBlockOn map[string]bool         // block sink.Send for these attemptIDs/topics until h.sink.release()
+	evalBlockOn map[string]bool         // block Evaluate for these attemptIDs until h.eval.release()
 	logStore    logmq.LogStore          // override the store (e.g. failingLogStore); nil = memlogstore
 	idemp       idempotence.Idempotence // exhausted-retries suppression; nil = unsuppressed
 }
@@ -258,6 +298,7 @@ type harness struct {
 	ctx      context.Context
 	bp       *logmq.BatchProcessor
 	sink     *recordingSink
+	eval     *blockingEvaluator // nil unless doubles.evalBlockOn was set
 	disabler *recordingDisabler
 	store    driver.LogStore // nil when logStore was overridden with a non-memlogstore
 }
@@ -290,10 +331,19 @@ func newHarness(t *testing.T, cfg harnessConfig) *harness {
 	if retryMaxLimit == 0 {
 		retryMaxLimit = 10
 	}
-	evaluator := alert.NewEvaluator(redisClient, retryMaxLimit,
+	var evaluator logmq.AlertEvaluator = alert.NewEvaluator(redisClient, retryMaxLimit,
 		alert.WithAutoDisableFailureCount(autoDisableCount),
 		alert.WithAlertThresholds(thresholds),
 	)
+	var evalDouble *blockingEvaluator
+	if cfg.doubles.evalBlockOn != nil {
+		evalDouble = &blockingEvaluator{
+			inner:   evaluator,
+			blockOn: cfg.doubles.evalBlockOn,
+			blockCh: make(chan struct{}),
+		}
+		evaluator = evalDouble
+	}
 
 	var logStore logmq.LogStore
 	var store driver.LogStore
@@ -324,17 +374,21 @@ func newHarness(t *testing.T, cfg harnessConfig) *harness {
 	bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, pipeline, logmq.BatchProcessorConfig{
 		ItemCountThreshold:  cfg.batcher.itemCount,
 		DelayThreshold:      delay,
+		PostprocessShards:   cfg.postprocess.shards,
 		DeliveryConcurrency: cfg.delivery.concurrency,
 	})
 	require.NoError(t, err)
 	t.Cleanup(bp.Shutdown)
+	// LIFO: releases run BEFORE bp.Shutdown, so a test that never released its
+	// blocked sends/evals can't deadlock the drain.
 	if sink.blockCh != nil {
-		// LIFO: release runs BEFORE bp.Shutdown, so a test that never released
-		// its blocked sends can't deadlock the drain.
 		t.Cleanup(sink.release)
 	}
+	if evalDouble != nil {
+		t.Cleanup(evalDouble.release)
+	}
 
-	return &harness{t: t, ctx: ctx, bp: bp, sink: sink, disabler: disabler, store: store}
+	return &harness{t: t, ctx: ctx, bp: bp, sink: sink, eval: evalDouble, disabler: disabler, store: store}
 }
 
 // makeEntry builds a LogEntry with event+attempt+destination all populated.

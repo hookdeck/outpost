@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -46,14 +47,15 @@ func (m *mockLogStore) getInserted() (events []*models.Event, attempts []*models
 	return events, attempts
 }
 
-// mockQueueMessage implements mqs.QueueMessage for testing.
+// mockQueueMessage implements mqs.QueueMessage for testing. Terminal state is
+// atomic: acks/nacks land on pool-worker goroutines.
 type mockQueueMessage struct {
-	acked  bool
-	nacked bool
+	acked  atomic.Bool
+	nacked atomic.Bool
 }
 
-func (m *mockQueueMessage) Ack()  { m.acked = true }
-func (m *mockQueueMessage) Nack() { m.nacked = true }
+func (m *mockQueueMessage) Ack()  { m.acked.Store(true) }
+func (m *mockQueueMessage) Nack() { m.nacked.Store(true) }
 
 func newMockMessage(entry models.LogEntry) (*mockQueueMessage, *mqs.Message) {
 	body, _ := json.Marshal(entry)
@@ -102,8 +104,8 @@ func TestBatchProcessor_ValidEntry(t *testing.T) {
 	// Wait for batch to process
 	time.Sleep(200 * time.Millisecond)
 
-	assert.True(t, mock.acked, "valid message should be acked")
-	assert.False(t, mock.nacked, "valid message should not be nacked")
+	assert.True(t, mock.acked.Load(), "valid message should be acked")
+	assert.False(t, mock.nacked.Load(), "valid message should not be nacked")
 
 	events, attempts := logStore.getInserted()
 	assert.Len(t, events, 1)
@@ -135,8 +137,8 @@ func TestBatchProcessor_InvalidEntry_MissingEvent(t *testing.T) {
 	// Wait for batch to process
 	time.Sleep(200 * time.Millisecond)
 
-	assert.False(t, mock.acked, "invalid message should not be acked")
-	assert.True(t, mock.nacked, "invalid message should be nacked")
+	assert.False(t, mock.acked.Load(), "invalid message should not be acked")
+	assert.True(t, mock.nacked.Load(), "invalid message should be nacked")
 
 	events, attempts := logStore.getInserted()
 	assert.Empty(t, events, "no events should be inserted for invalid entry")
@@ -168,8 +170,8 @@ func TestBatchProcessor_InvalidEntry_MissingAttempt(t *testing.T) {
 	// Wait for batch to process
 	time.Sleep(200 * time.Millisecond)
 
-	assert.False(t, mock.acked, "invalid message should not be acked")
-	assert.True(t, mock.nacked, "invalid message should be nacked")
+	assert.False(t, mock.acked.Load(), "invalid message should not be acked")
+	assert.True(t, mock.nacked.Load(), "invalid message should be nacked")
 
 	events, attempts := logStore.getInserted()
 	assert.Empty(t, events, "no events should be inserted for invalid entry")
@@ -214,16 +216,16 @@ func TestBatchProcessor_InvalidEntry_DoesNotBlockBatch(t *testing.T) {
 	time.Sleep(200 * time.Millisecond)
 
 	// Valid messages should be acked
-	assert.True(t, mock1.acked, "valid message 1 should be acked")
-	assert.False(t, mock1.nacked, "valid message 1 should not be nacked")
+	assert.True(t, mock1.acked.Load(), "valid message 1 should be acked")
+	assert.False(t, mock1.nacked.Load(), "valid message 1 should not be nacked")
 
 	// Invalid message should be nacked
-	assert.False(t, mock2.acked, "invalid message should not be acked")
-	assert.True(t, mock2.nacked, "invalid message should be nacked")
+	assert.False(t, mock2.acked.Load(), "invalid message should not be acked")
+	assert.True(t, mock2.nacked.Load(), "invalid message should be nacked")
 
 	// Valid message 2 should be acked (not blocked by invalid message)
-	assert.True(t, mock3.acked, "valid message 2 should be acked")
-	assert.False(t, mock3.nacked, "valid message 2 should not be nacked")
+	assert.True(t, mock3.acked.Load(), "valid message 2 should be acked")
+	assert.False(t, mock3.nacked.Load(), "valid message 2 should not be nacked")
 
 	// Only valid entries should be inserted
 	events, attempts := logStore.getInserted()
@@ -267,12 +269,12 @@ func TestBatchProcessor_DuplicateMessages(t *testing.T) {
 	time.Sleep(200 * time.Millisecond)
 
 	// All copies acked, none nacked
-	assert.True(t, mock1.acked, "kept copy should be acked")
-	assert.False(t, mock1.nacked)
-	assert.True(t, mock2.acked, "duplicate copy should be acked")
-	assert.False(t, mock2.nacked)
-	assert.True(t, mock3.acked, "distinct message should be acked")
-	assert.False(t, mock3.nacked)
+	assert.True(t, mock1.acked.Load(), "kept copy should be acked")
+	assert.False(t, mock1.nacked.Load())
+	assert.True(t, mock2.acked.Load(), "duplicate copy should be acked")
+	assert.False(t, mock2.nacked.Load())
+	assert.True(t, mock3.acked.Load(), "distinct message should be acked")
+	assert.False(t, mock3.nacked.Load())
 
 	// Duplicate inserted once
 	_, attempts := logStore.getInserted()
@@ -304,8 +306,8 @@ func TestBatchProcessor_MalformedJSON(t *testing.T) {
 	// Wait for batch to process
 	time.Sleep(200 * time.Millisecond)
 
-	assert.False(t, mock.acked, "malformed message should not be acked")
-	assert.True(t, mock.nacked, "malformed message should be nacked")
+	assert.False(t, mock.acked.Load(), "malformed message should not be acked")
+	assert.True(t, mock.nacked.Load(), "malformed message should be nacked")
 
 	events, attempts := logStore.getInserted()
 	assert.Empty(t, events)
@@ -373,8 +375,8 @@ func TestBatchProcessor_AlertEvaluator_WithDestination(t *testing.T) {
 
 	time.Sleep(200 * time.Millisecond)
 
-	assert.True(t, mock.acked, "should be acked when alert evaluation succeeds")
-	assert.False(t, mock.nacked)
+	assert.True(t, mock.acked.Load(), "should be acked when alert evaluation succeeds")
+	assert.False(t, mock.nacked.Load())
 
 	calls := alertMon.getCalls()
 	require.Len(t, calls, 1, "alert evaluator should have been called once")
@@ -407,8 +409,8 @@ func TestBatchProcessor_AlertEvaluator_NilDestination(t *testing.T) {
 
 	time.Sleep(200 * time.Millisecond)
 
-	assert.True(t, mock.acked, "should be acked even without destination (migration grace)")
-	assert.False(t, mock.nacked)
+	assert.True(t, mock.acked.Load(), "should be acked even without destination (migration grace)")
+	assert.False(t, mock.nacked.Load())
 	assert.Empty(t, alertMon.getCalls(), "alert evaluator should not be called without destination")
 }
 
@@ -439,8 +441,8 @@ func TestBatchProcessor_AlertEvaluator_Error(t *testing.T) {
 
 	time.Sleep(200 * time.Millisecond)
 
-	assert.False(t, mock.acked, "should not be acked when alert evaluation fails")
-	assert.True(t, mock.nacked, "should be nacked when alert evaluation fails")
+	assert.False(t, mock.acked.Load(), "should not be acked when alert evaluation fails")
+	assert.True(t, mock.nacked.Load(), "should be nacked when alert evaluation fails")
 
 	// Entry was still persisted to logstore
 	events, _ := logStore.getInserted()
