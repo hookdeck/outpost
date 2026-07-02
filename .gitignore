@@ -34,6 +34,9 @@ cmd/dev
 .bruno/
 .cursor/
 .claude/
+# Per-developer skills CLI lock. Outpost's own skill is committed under .agents/skills/
+# and has no external skill dependencies, so the lock is not committed.
+skills-lock.json
 *.local.*
 bin/
 .envrc
