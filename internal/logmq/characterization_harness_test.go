@@ -19,10 +19,11 @@ package logmq_test
 //
 // Files in this suite (concern → file):
 //   - characterization_harness_test.go         shared setup, doubles, helpers
-//   - characterization_ordering_test.go        ordering & counting
+//   - characterization_ordering_test.go        eval ordering & counting
 //   - characterization_idempotency_test.go     replay / idempotency
 //   - characterization_acknowledgement_test.go ack/nack exactly-once
 //   - characterization_validation_test.go      intake (parse / dedup / persist)
+//   - characterization_decoupling_test.go      persistence decoupled from delivery
 
 import (
 	"context"
@@ -54,19 +55,37 @@ type sinkRecord struct {
 	attemptID string
 }
 
-// recordingSink implements opevents.Sink. It records each emitted event and can
-// inject Send errors keyed by attemptID or topic. Injected-failure events are
-// NOT recorded (so records reflect only successfully delivered events).
+// recordingSink implements opevents.Sink. It records each emitted event, can
+// inject Send errors keyed by attemptID or topic, and can block matching sends
+// until release() — simulating a slow sink. It also tracks how many sends run
+// concurrently. Injected-failure events are NOT recorded (so records reflect
+// only successfully delivered events).
 type recordingSink struct {
 	mu      sync.Mutex
 	records []sinkRecord
 	failOn  map[string]bool // key by attemptID or topic
+
+	blockOn     map[string]bool // block these sends (by attemptID or topic)...
+	blockCh     chan struct{}   // ...until this closes (via release)
+	releaseOnce sync.Once
+
+	inflight    atomic.Int32
+	maxInflight atomic.Int32
 }
 
 func (s *recordingSink) Init(ctx context.Context) error { return nil }
 func (s *recordingSink) Close() error                   { return nil }
 
 func (s *recordingSink) Send(ctx context.Context, event *opevents.OperatorEvent) error {
+	cur := s.inflight.Add(1)
+	defer s.inflight.Add(-1)
+	for {
+		max := s.maxInflight.Load()
+		if cur <= max || s.maxInflight.CompareAndSwap(max, cur) {
+			break
+		}
+	}
+
 	// All three alert payloads (consecutive_failure / disabled / exhausted)
 	// carry a destination with an id and an attempt with an id.
 	var payload struct {
@@ -81,6 +100,11 @@ func (s *recordingSink) Send(ctx context.Context, event *opevents.OperatorEvent)
 	destID := payload.Destination.ID
 	attemptID := payload.Attempt.ID
 
+	// Block outside the lock so a blocked send doesn't serialize the others.
+	if s.blockCh != nil && (s.blockOn[attemptID] || s.blockOn[event.Topic]) {
+		<-s.blockCh
+	}
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.failOn[attemptID] || s.failOn[event.Topic] {
@@ -89,6 +113,14 @@ func (s *recordingSink) Send(ctx context.Context, event *opevents.OperatorEvent)
 	s.records = append(s.records, sinkRecord{topic: event.Topic, destID: destID, attemptID: attemptID})
 	return nil
 }
+
+// release unblocks every blocked (and future) matching send.
+func (s *recordingSink) release() {
+	s.releaseOnce.Do(func() { close(s.blockCh) })
+}
+
+func (s *recordingSink) inflightSends() int32    { return s.inflight.Load() }
+func (s *recordingSink) maxInflightSends() int32 { return s.maxInflight.Load() }
 
 func (s *recordingSink) snapshot() []sinkRecord {
 	s.mu.Lock()
@@ -178,12 +210,22 @@ func (f *failingLogStore) InsertMany(ctx context.Context, entries []*models.LogE
 
 // ============================== Harness ==============================
 
-// harnessConfig groups knobs by concern: batcher + alert configure the REAL
-// pipeline components; doubles tweaks the behavior of the test doubles.
+// harnessConfig groups knobs by concern: batcher + alert + delivery configure
+// the REAL pipeline components; doubles tweaks the behavior of the test doubles.
 type harnessConfig struct {
-	batcher batcherConfig // real BatchProcessor
-	alert   alertConfig   // real alert.Evaluator
-	doubles doublesConfig // test-double behavior
+	batcher  batcherConfig  // real BatchProcessor
+	alert    alertConfig    // real alert.Evaluator
+	delivery deliveryConfig // real delivery pool
+	doubles  doublesConfig  // test-double behavior
+}
+
+// deliveryConfig drives the real delivery pool. Zero values fall back to the
+// BatchProcessor defaults.
+type deliveryConfig struct {
+	// concurrency 1 serializes delivery — used by tests whose semantics need
+	// deterministic delivery order (e.g. the exhausted suppression window,
+	// where concurrent Execs on one key hit the conflict path).
+	concurrency int
 }
 
 // batcherConfig drives the real BatchProcessor flush behavior.
@@ -202,11 +244,13 @@ type alertConfig struct {
 }
 
 // doublesConfig controls test-double behavior. Zero values = passthrough: the
-// sink injects no failures and the harness uses a real memlogstore.
+// sink injects no failures, blocks nothing, and the harness uses a real
+// memlogstore.
 type doublesConfig struct {
-	sinkFailOn map[string]bool         // make sink.Send fail for these attemptIDs/topics
-	logStore   logmq.LogStore          // override the store (e.g. failingLogStore); nil = memlogstore
-	idemp      idempotence.Idempotence // exhausted-retries suppression; nil = unsuppressed
+	sinkFailOn  map[string]bool         // make sink.Send fail for these attemptIDs/topics
+	sinkBlockOn map[string]bool         // block sink.Send for these attemptIDs/topics until h.sink.release()
+	logStore    logmq.LogStore          // override the store (e.g. failingLogStore); nil = memlogstore
+	idemp       idempotence.Idempotence // exhausted-retries suppression; nil = unsuppressed
 }
 
 type harness struct {
@@ -224,7 +268,10 @@ func newHarness(t *testing.T, cfg harnessConfig) *harness {
 	logger := testutil.CreateTestLogger(t)
 	redisClient := testutil.CreateTestRedisClient(t)
 
-	sink := &recordingSink{failOn: cfg.doubles.sinkFailOn}
+	sink := &recordingSink{failOn: cfg.doubles.sinkFailOn, blockOn: cfg.doubles.sinkBlockOn}
+	if sink.blockOn != nil {
+		sink.blockCh = make(chan struct{})
+	}
 	disabler := &recordingDisabler{}
 
 	// NOTE: opevents.NewEmitter returns a NOOP emitter when topics is nil/empty.
@@ -275,11 +322,17 @@ func newHarness(t *testing.T, cfg harnessConfig) *harness {
 		pipeline.Disabler = disabler
 	}
 	bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, pipeline, logmq.BatchProcessorConfig{
-		ItemCountThreshold: cfg.batcher.itemCount,
-		DelayThreshold:     delay,
+		ItemCountThreshold:  cfg.batcher.itemCount,
+		DelayThreshold:      delay,
+		DeliveryConcurrency: cfg.delivery.concurrency,
 	})
 	require.NoError(t, err)
 	t.Cleanup(bp.Shutdown)
+	if sink.blockCh != nil {
+		// LIFO: release runs BEFORE bp.Shutdown, so a test that never released
+		// its blocked sends can't deadlock the drain.
+		t.Cleanup(sink.release)
+	}
 
 	return &harness{t: t, ctx: ctx, bp: bp, sink: sink, disabler: disabler, store: store}
 }
@@ -362,6 +415,19 @@ func attemptIDs(recs []sinkRecord) []string {
 	out := make([]string, len(recs))
 	for i, r := range recs {
 		out[i] = r.attemptID
+	}
+	return out
+}
+
+// topicsForAttempt extracts one attempt's topic sequence, in emission order.
+// Per-attempt order is guaranteed (one delivery worker owns the attempt) even
+// though cross-attempt arrival order is not.
+func topicsForAttempt(recs []sinkRecord, attemptID string) []string {
+	out := []string{}
+	for _, r := range recs {
+		if r.attemptID == attemptID {
+			out = append(out, r.topic)
+		}
 	}
 	return out
 }

@@ -1,9 +1,12 @@
 package logmq_test
 
-// Ordering & counting. The reason this suite exists: processing order changes the
-// alert outcome, and per-destination order must survive the Model C refactor.
-// Every order assertion is scoped to a single destination (forDest); none
-// constrain global cross-destination order.
+// Ordering & counting. The reason this suite exists: processing order changes
+// the alert outcome, and per-destination EVAL order must survive the Model C
+// refactor. Eval order is asserted through content — WHICH attempts alerted
+// (counts 5,7,9,10) proves the evaluator saw a destination's attempts in add
+// order. Sink ARRIVAL order across attempts is intentionally unordered as of
+// step 4 (unordered delivery pool), so no assertion constrains it; within one
+// attempt, order holds (one worker owns the attempt: disabled before cf).
 
 import (
 	"fmt"
@@ -35,8 +38,11 @@ func TestCharacterization_ThresholdsThenDisable(t *testing.T) {
 
 	recs := h.sink.forDest(destA)
 	// cf at 5,7,9,10 (4 records) plus disabled at 10 (1 record) = 5 records.
-	// The disabled emit happens before the cf emit at count 10.
-	require.Equal(t, []string{topicCF, topicCF, topicCF, topicDisabled, topicCF}, topics(recs))
+	// Which attempts alerted proves eval order; arrival order is unordered.
+	require.ElementsMatch(t, []string{"att_5", "att_7", "att_9", "att_10", "att_10"}, attemptIDs(recs))
+	require.ElementsMatch(t, []string{topicCF, topicCF, topicCF, topicDisabled, topicCF}, topics(recs))
+	// Within attempt 10, the disabled emit precedes the cf emit.
+	require.Equal(t, []string{topicDisabled, topicCF}, topicsForAttempt(recs, "att_10"))
 
 	disabled := h.disabler.snapshot()
 	require.Len(t, disabled, 1)
@@ -49,8 +55,8 @@ func TestCharacterization_ThresholdsThenDisable(t *testing.T) {
 
 // Keystone: 5 failures, 1 success (reset), 5 failures → 50% alert at the 5th
 // failure, then a SECOND 50% alert at the post-reset 5th failure (not a
-// continuation to 70%). Order drives the outcome; this fails loudly if eval
-// reorders a destination's attempts.
+// continuation to 70%). Eval order drives the outcome; this fails loudly if
+// eval reorders a destination's attempts (the alerting attempt IDs change).
 func TestCharacterization_SuccessResetsConsecutiveCount(t *testing.T) {
 	t.Parallel()
 	// 11 messages in a single batch; the in-batch serial loop preserves add order.
@@ -78,7 +84,7 @@ func TestCharacterization_SuccessResetsConsecutiveCount(t *testing.T) {
 	recs := h.sink.forDest(destA)
 	// Two cf alerts, both at the 50% threshold (count 5), separated by the reset.
 	require.Equal(t, []string{topicCF, topicCF}, topics(recs))
-	require.Equal(t, []string{"fail_pre_5", "fail_post_5"}, attemptIDs(recs))
+	require.ElementsMatch(t, []string{"fail_pre_5", "fail_post_5"}, attemptIDs(recs))
 
 	// No disable: count never reached 10.
 	assert.Empty(t, h.disabler.snapshot())
@@ -88,8 +94,9 @@ func TestCharacterization_SuccessResetsConsecutiveCount(t *testing.T) {
 }
 
 // One batch interleaving dest A and dest B, each reaching its thresholds → each
-// destination's record subsequence matches its own expected sequence; the A-vs-B
-// interleaving is NOT constrained (guards the sharded eval pool).
+// destination's records match its own expected content; neither the A-vs-B
+// interleaving nor per-dest arrival order is constrained (guards the sharded
+// eval pool + unordered delivery).
 func TestCharacterization_TwoDestinationsInterleaved(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t, harnessConfig{
@@ -112,9 +119,14 @@ func TestCharacterization_TwoDestinationsInterleaved(t *testing.T) {
 	}
 	h.waitTerminal(msgs)
 
-	wantSeq := []string{topicCF, topicCF, topicCF, topicDisabled, topicCF}
-	assert.Equal(t, wantSeq, topics(h.sink.forDest(destA)), "dest A subsequence")
-	assert.Equal(t, wantSeq, topics(h.sink.forDest(destB)), "dest B subsequence")
+	wantTopics := []string{topicCF, topicCF, topicCF, topicDisabled, topicCF}
+	recsA, recsB := h.sink.forDest(destA), h.sink.forDest(destB)
+	assert.ElementsMatch(t, wantTopics, topics(recsA), "dest A records")
+	assert.ElementsMatch(t, wantTopics, topics(recsB), "dest B records")
+	assert.ElementsMatch(t, []string{"a_5", "a_7", "a_9", "a_10", "a_10"}, attemptIDs(recsA))
+	assert.ElementsMatch(t, []string{"b_5", "b_7", "b_9", "b_10", "b_10"}, attemptIDs(recsB))
+	assert.Equal(t, []string{topicDisabled, topicCF}, topicsForAttempt(recsA, "a_10"))
+	assert.Equal(t, []string{topicDisabled, topicCF}, topicsForAttempt(recsB, "b_10"))
 
 	disabled := h.disabler.snapshot()
 	require.Len(t, disabled, 2)
@@ -129,10 +141,11 @@ func TestCharacterization_TwoDestinationsInterleaved(t *testing.T) {
 	}
 }
 
-// 10 failures with distinct attempt IDs → the attemptIDs in dest A's records
-// appear in the same order they were added (guards single-destination reordering
-// under concurrent eval).
-func TestCharacterization_AttemptOrderPreserved(t *testing.T) {
+// 10 failures with distinct attempt IDs → the thresholds fire on exactly the
+// 5th/7th/9th/10th attempts ADDED. If eval reordered a destination's attempts,
+// different attempt IDs would carry the alerts (guards single-destination eval
+// reordering; arrival order at the sink is unconstrained).
+func TestCharacterization_EvalOrderDrivesAlerts(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t, harnessConfig{
 		batcher: batcherConfig{itemCount: 10},
@@ -149,21 +162,15 @@ func TestCharacterization_AttemptOrderPreserved(t *testing.T) {
 	h.waitTerminal(msgs)
 
 	recs := h.sink.forDest(destA)
-	// Records are emitted at counts 5,7,9 (cf), 10 (disabled then cf).
-	// attemptIDs carried: att_05, att_07, att_09, att_10, att_10.
-	require.Equal(t, []string{"att_05", "att_07", "att_09", "att_10", "att_10"}, attemptIDs(recs))
-
-	// The order is monotonic in add order.
-	prev := ""
-	for _, id := range attemptIDs(recs) {
-		assert.True(t, id >= prev, "attemptIDs should be monotonic in add order")
-		prev = id
-	}
+	// Records are emitted at counts 5,7,9 (cf), 10 (disabled + cf).
+	require.ElementsMatch(t, []string{"att_05", "att_07", "att_09", "att_10", "att_10"}, attemptIDs(recs))
+	assert.Equal(t, []string{topicDisabled, topicCF}, topicsForAttempt(recs, "att_10"))
 }
 
 // RFC discriminator: dest A split across TWO batches (6 failures, then 4) → count
-// continues across batches; alerts land at 5,7,9,10; dest A order is monotonic.
-// The superseded per-batch-spawn designs failed exactly here (cross-batch order).
+// continues across batches; alerts land at 5,7,9,10 (proven by which attempts
+// carry them). The superseded per-batch-spawn designs failed exactly here
+// (cross-batch eval order).
 func TestCharacterization_CountContinuesAcrossBatches(t *testing.T) {
 	t.Parallel()
 	// itemCount=6 flushes the first batch by count; the second batch of 4 flushes
@@ -192,8 +199,9 @@ func TestCharacterization_CountContinuesAcrossBatches(t *testing.T) {
 	h.waitTerminal(batch2)
 
 	recs := h.sink.forDest(destA)
-	require.Equal(t, []string{topicCF, topicCF, topicCF, topicDisabled, topicCF}, topics(recs))
-	require.Equal(t, []string{"att_05", "att_07", "att_09", "att_10", "att_10"}, attemptIDs(recs))
+	require.ElementsMatch(t, []string{topicCF, topicCF, topicCF, topicDisabled, topicCF}, topics(recs))
+	require.ElementsMatch(t, []string{"att_05", "att_07", "att_09", "att_10", "att_10"}, attemptIDs(recs))
+	require.Equal(t, []string{topicDisabled, topicCF}, topicsForAttempt(recs, "att_10"))
 
 	require.Len(t, h.disabler.snapshot(), 1)
 	for _, m := range append(batch1, batch2...) {

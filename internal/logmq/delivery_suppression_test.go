@@ -54,7 +54,11 @@ func TestDelivery_ExhaustedRetries_WindowSuppression(t *testing.T) {
 	h := newHarness(t, harnessConfig{
 		batcher: batcherConfig{itemCount: 2},
 		alert:   exhaustedAlertConfig(),
-		doubles: doublesConfig{idemp: idemp},
+		// Serial delivery: concurrent Execs on the same window key would hit
+		// the in-flight conflict path (sleep + ErrConflict) instead of the
+		// suppression this test pins.
+		delivery: deliveryConfig{concurrency: 1},
+		doubles:  doublesConfig{idemp: idemp},
 	})
 
 	dest, tenant, eventID := "dest_ws", "tenant_ws", "evt_ws"
@@ -126,6 +130,9 @@ func TestDelivery_ExhaustedRetries_EmitFailureClearsWindow(t *testing.T) {
 	h := newHarness(t, harnessConfig{
 		batcher: batcherConfig{itemCount: 2},
 		alert:   exhaustedAlertConfig(),
+		// Serial delivery: the fail-then-retry sequence on one window key
+		// needs deterministic delivery order.
+		delivery: deliveryConfig{concurrency: 1},
 		doubles: doublesConfig{
 			idemp:      idemp,
 			sinkFailOn: map[string]bool{"att_fail": true}, // first exhausted emit fails
