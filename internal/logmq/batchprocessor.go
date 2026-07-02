@@ -49,9 +49,12 @@ type AlertPipeline struct {
 	// Disabler auto-disables a destination when the 100% threshold is crossed.
 	// Nil disables auto-disable.
 	Disabler DestinationDisabler
-	// ProcessedIdemp is the per-attempt replay gate: a failed attempt's
-	// evaluate+deliver runs at most once per attempt ID within the gate's TTL.
-	// Required when Evaluator is set.
+	// ProcessedIdemp is the per-attempt replay gate: a replay of a fully
+	// processed failed attempt is skipped instead of re-counting/re-alerting.
+	// Used split-phase (Processed before eval, MarkProcessed after delivery) —
+	// no in-flight conflict detection, so concurrent duplicates both run and
+	// may both emit (tolerated: opevents are at-least-once). Required when
+	// Evaluator is set.
 	ProcessedIdemp idempotence.Idempotence
 	// ExhaustedIdemp is the per-(event,destination) suppression window for
 	// exhausted-retries alerts. Nil means no suppression (alert on every
@@ -230,8 +233,9 @@ func (bp *BatchProcessor) processBatch(_ string, msgs []*mqs.Message) {
 				zap.String("event_id", entry.Event.ID),
 				zap.String("destination_id", entry.Destination.ID))
 			// Nack so the message is redelivered. InsertMany is idempotent
-			// (upsert by attempt ID) and the processed gate clears on failure,
-			// so redelivery re-evaluates and re-emits any events not yet sent.
+			// (upsert by attempt ID) and a failed attempt is never marked
+			// processed, so redelivery re-evaluates and re-emits — events
+			// already sent may go out again (at-least-once).
 			validMsgs[i].Nack()
 			continue
 		}
@@ -243,11 +247,14 @@ func (bp *BatchProcessor) processBatch(_ string, msgs []*mqs.Message) {
 // processAlerts runs the alert pipeline for one persisted entry: evaluate the
 // attempt, then act on the verdict (disable + opevents).
 //
-// A failed attempt is wrapped in the per-attempt processed gate, so a replay
+// A failed attempt runs inside the per-attempt processed gate, so a replay
 // (MQ redelivery, producer re-publish) of a fully processed attempt is skipped
-// instead of re-alerting. The gate marks processed only when evaluate+deliver
-// complete, and clears on failure — so a nacked attempt re-runs in full on
-// redelivery (counting stays correct: the store is idempotent per attempt ID).
+// instead of re-counting or re-alerting. The check runs BEFORE eval — a stale
+// replay arriving after a success reset must not count toward the fresh
+// streak. The mark lands only after evaluate+deliver complete — a nacked
+// attempt re-runs in full on redelivery (counting stays correct: the store is
+// idempotent per attempt ID). The gate is split-phase (check/mark, no
+// in-flight claim) so delivery can later complete on another goroutine.
 // A success just resets the tracker — idempotent, so it needs no gate (and
 // gating it would cost one Redis key per successful attempt).
 func (bp *BatchProcessor) processAlerts(ctx context.Context, entry *models.LogEntry) error {
@@ -265,13 +272,24 @@ func (bp *BatchProcessor) processAlerts(ctx context.Context, entry *models.LogEn
 		return err
 	}
 
-	return bp.alerts.ProcessedIdemp.Exec(ctx, processedKey(attempt.AttemptID), func(ctx context.Context) error {
-		eval, err := bp.alerts.Evaluator.Evaluate(ctx, attempt)
-		if err != nil {
-			return err
-		}
-		return bp.deliver(ctx, eval, entry)
-	})
+	key := processedKey(attempt.AttemptID)
+	processed, err := bp.alerts.ProcessedIdemp.Processed(ctx, key)
+	if err != nil {
+		return err
+	}
+	if processed {
+		return nil
+	}
+
+	eval, err := bp.alerts.Evaluator.Evaluate(ctx, attempt)
+	if err != nil {
+		return err
+	}
+	if err := bp.deliver(ctx, eval, entry); err != nil {
+		return err
+	}
+
+	return bp.alerts.ProcessedIdemp.MarkProcessed(ctx, key)
 }
 
 // deliver acts on an evaluation: disables the destination at the 100%

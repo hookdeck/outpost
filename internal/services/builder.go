@@ -369,8 +369,8 @@ func (b *ServiceBuilder) BuildLogWorker(baseRouter *gin.Engine) error {
 		disabler = newDestinationDisabler(svc.tenantStore)
 	}
 
-	// Per-attempt replay gate: a failed attempt's alert processing runs at most
-	// once per attempt ID. The default 24h TTL matches the old evaluated-set TTL.
+	// Per-attempt replay gate: a replay of a fully processed failed attempt is
+	// skipped. The default 24h TTL matches the old evaluated-set TTL.
 	processedIdemp := idempotence.New(svc.redisClient,
 		idempotence.WithDeploymentID(b.cfg.DeploymentID),
 	)
