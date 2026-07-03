@@ -99,6 +99,7 @@ type WebhookDestination struct {
 	algorithm                string
 	rawSigningSecretTemplate string
 	signingSecretTemplate    *template.Template
+	maxResponseBodyBytes     int
 }
 
 type WebhookDestinationConfig struct {
@@ -142,6 +143,14 @@ func WithUserAgent(userAgent string) Option {
 func WithProxyURL(proxyURL string) Option {
 	return func(w *WebhookDestination) {
 		w.proxyURL = proxyURL
+	}
+}
+
+// WithMaxResponseBodyBytes caps how much of the destination response body is
+// stored on the attempt. 0 (default) disables the cap.
+func WithMaxResponseBodyBytes(maxBytes int) Option {
+	return func(w *WebhookDestination) {
+		w.maxResponseBodyBytes = maxBytes
 	}
 }
 
@@ -363,6 +372,7 @@ func (d *WebhookDestination) CreatePublisher(ctx context.Context, destination *m
 		disableTimestampHeader: d.disableTimestampHeader,
 		disableTopicHeader:     d.disableTopicHeader,
 		customHeaders:          config.CustomHeaders,
+		maxResponseBodyBytes:   d.maxResponseBodyBytes,
 	}, nil
 }
 
@@ -643,6 +653,7 @@ type WebhookPublisher struct {
 	disableTimestampHeader bool
 	disableTopicHeader     bool
 	customHeaders          map[string]string
+	maxResponseBodyBytes   int
 }
 
 func (p *WebhookPublisher) Close() error {
@@ -661,7 +672,7 @@ func (p *WebhookPublisher) Publish(ctx context.Context, event *models.Event) (*d
 		return destregistry.NewFormatError("webhook", "", err)
 	}
 
-	result := ExecuteHTTPRequest(ctx, p.httpClient, httpReq, "webhook")
+	result := ExecuteHTTPRequest(ctx, p.httpClient, httpReq, "webhook", p.maxResponseBodyBytes)
 	return result.Delivery, result.Error
 }
 
