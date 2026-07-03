@@ -10,6 +10,8 @@ const (
 	TopicAlertConsecutiveFailure   = "alert.destination.consecutive_failure"
 	TopicAlertDestinationDisabled  = "alert.destination.disabled"
 	TopicAlertExhaustedRetries     = "alert.attempt.exhausted_retries"
+	TopicAttemptSuccess            = "attempt.success"
+	TopicAttemptFailed             = "attempt.failed"
 	TopicTenantSubscriptionUpdated = "tenant.subscription.updated"
 )
 

@@ -31,7 +31,11 @@ Available topics:
 | `alert.destination.consecutive_failure` | Consecutive failure count reaches 50%, 70%, 90%, or 100% of `ALERT_CONSECUTIVE_FAILURE_COUNT` |
 | `alert.destination.disabled` | Destination auto-disabled at 100% failure threshold |
 | `alert.attempt.exhausted_retries` | Delivery exhausts all retry attempts (deduplicated per event+destination) |
+| `attempt.success` | Every successful delivery attempt |
+| `attempt.failed` | Every failed delivery attempt, including retries |
 | `tenant.subscription.updated` | Destination created/updated/deleted and tenant topics or destination count changed |
+
+The `attempt.success` and `attempt.failed` topics fire once per delivery attempt, so they dominate event volume — including under `*`. Subscribe to them deliberately and size your sink for your delivery throughput.
 
 {% tabs tabGroup="deployment" %}
 {% tab label="Managed" %}
@@ -194,6 +198,25 @@ Emitted when a delivery exhausts all retry attempts. Deduplicated per event+dest
 }
 ```
 
+### `attempt.success` / `attempt.failed`
+
+Emitted once per delivery attempt, keyed by outcome. The two topics share one payload shape; `attempt.status` carries the outcome. `attempt.failed` fires on every failed attempt including retries — use `attempt.attempt_number` and `event.eligible_for_retry` to distinguish retryable failures from final ones.
+
+```json
+{
+  "tenant_id": "tenant_123",
+  "event": {},
+  "attempt": {},
+  "destination": {
+    "id": "des_456",
+    "tenant_id": "tenant_123",
+    "type": "webhook",
+    "topics": ["order.created"],
+    "disabled_at": null
+  }
+}
+```
+
 ### `tenant.subscription.updated`
 
 Emitted when destination changes affect tenant-level subscribed topics or destination count.
@@ -210,7 +233,7 @@ Emitted when destination changes affect tenant-level subscribed topics or destin
 
 ## Delivery Guarantees
 
-`alert.*` topics are delivered with an at-least-once guarantee. For other topics (e.g. `tenant.subscription.updated`), delivery is on a best-effort basis with up to 3 attempts. Consumers should deduplicate using the event `id`.
+`alert.*` and `attempt.*` topics are delivered with an at-least-once guarantee. For other topics (e.g. `tenant.subscription.updated`), delivery is on a best-effort basis with up to 3 attempts. Consumers should deduplicate using the event `id`.
 
 ## Related Configuration
 

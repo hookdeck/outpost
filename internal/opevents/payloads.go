@@ -135,3 +135,41 @@ func ExhaustedRetriesEvent(dest *AlertDestination, event *models.Event, attempt 
 		},
 	}
 }
+
+// AttemptData is the data payload for attempt.success and attempt.failed
+// events. The two topics share one shape — the split exists for subscription
+// filtering, and Attempt.Status carries the outcome.
+type AttemptData struct {
+	TenantID    string            `json:"tenant_id"`
+	Event       *models.Event     `json:"event"`
+	Attempt     *models.Attempt   `json:"attempt"`
+	Destination *AlertDestination `json:"destination"`
+}
+
+// AttemptSuccessEvent builds the attempt.success event.
+func AttemptSuccessEvent(dest *AlertDestination, event *models.Event, attempt *models.Attempt) Event {
+	return Event{
+		Topic:    TopicAttemptSuccess,
+		TenantID: dest.TenantID,
+		Data: AttemptData{
+			TenantID:    dest.TenantID,
+			Event:       event,
+			Attempt:     attempt,
+			Destination: dest,
+		},
+	}
+}
+
+// AttemptFailedEvent builds the attempt.failed event.
+func AttemptFailedEvent(dest *AlertDestination, event *models.Event, attempt *models.Attempt) Event {
+	return Event{
+		Topic:    TopicAttemptFailed,
+		TenantID: dest.TenantID,
+		Data: AttemptData{
+			TenantID:    dest.TenantID,
+			Event:       event,
+			Attempt:     attempt,
+			Destination: dest,
+		},
+	}
+}
