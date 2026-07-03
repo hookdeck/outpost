@@ -40,7 +40,8 @@ func TestCharacterization_ReplaySameAttempt(t *testing.T) {
 	h.waitTerminal([]*countingMessage{cm2})
 
 	recs := h.sink.forDest(destA)
-	require.Equal(t, []string{topicCF}, topics(recs), "exactly one alert across both deliveries")
+	require.ElementsMatch(t, []string{topicFailed, topicCF}, topics(recs),
+		"exactly one attempt.failed and one alert across both deliveries — the replay is gated")
 
 	cm1.requireAcked(t)
 	cm2.requireAcked(t)
@@ -87,7 +88,10 @@ func TestCharacterization_StaleReplayAfterReset_Skipped(t *testing.T) {
 	h.add(msg4)
 	h.waitTerminal([]*countingMessage{cm4})
 
-	require.Empty(t, h.sink.forDest(destA), "stale replay must not count toward the fresh streak")
+	// One attempt event per processed message; the stale replay (skipped by the
+	// gate) adds nothing, and no alert topics fire — the fresh streak is at 1.
+	require.ElementsMatch(t, []string{topicFailed, topicSuccess, topicFailed}, topics(h.sink.forDest(destA)),
+		"stale replay must not count toward the fresh streak nor re-emit")
 	cm3.requireAcked(t)
 	cm4.requireAcked(t)
 }
@@ -114,7 +118,7 @@ func TestCharacterization_ExhaustedRetries(t *testing.T) {
 	h.waitTerminal([]*countingMessage{cm})
 
 	recs := h.sink.forDest(destA)
-	require.Equal(t, []string{topicExhaust}, topics(recs))
+	require.ElementsMatch(t, []string{topicExhaust, topicFailed}, topics(recs))
 
 	cm.requireAcked(t)
 }

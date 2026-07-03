@@ -60,14 +60,15 @@ type sinkRecord struct {
 }
 
 // recordingSink implements opevents.Sink. It records each emitted event, can
-// inject Send errors keyed by attemptID or topic, and can block matching sends
-// until release() — simulating a slow sink. It also tracks how many sends run
-// concurrently. Injected-failure events are NOT recorded (so records reflect
-// only successfully delivered events).
+// inject Send errors keyed by attemptID, topic, or "attemptID/topic" (one
+// attempt's one send), and can block matching sends until release() —
+// simulating a slow sink. It also tracks how many sends run concurrently.
+// Injected-failure events are NOT recorded (so records reflect only
+// successfully delivered events).
 type recordingSink struct {
 	mu      sync.Mutex
 	records []sinkRecord
-	failOn  map[string]bool // key by attemptID or topic
+	failOn  map[string]bool // key by attemptID, topic, or attemptID+"/"+topic
 
 	blockOn     map[string]bool // block these sends (by attemptID or topic)...
 	blockCh     chan struct{}   // ...until this closes (via release)
@@ -117,7 +118,7 @@ func (s *recordingSink) Send(ctx context.Context, event *opevents.OperatorEvent)
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.failOn[attemptID] || s.failOn[event.Topic] {
+	if s.failOn[attemptID] || s.failOn[event.Topic] || s.failOn[attemptID+"/"+event.Topic] {
 		return fmt.Errorf("injected send failure topic=%s attempt=%s", event.Topic, attemptID)
 	}
 	s.records = append(s.records, sinkRecord{topic: event.Topic, destID: destID, attemptID: attemptID})
@@ -500,8 +501,33 @@ func topicsForAttempt(recs []sinkRecord, attemptID string) []string {
 	return out
 }
 
+// forTopic filters a record slice down to one topic — e.g. to assert which
+// attempts carried the cf alerts without the per-attempt attempt.* noise.
+func forTopic(recs []sinkRecord, topic string) []sinkRecord {
+	out := []sinkRecord{}
+	for _, r := range recs {
+		if r.topic == topic {
+			out = append(out, r)
+		}
+	}
+	return out
+}
+
+// repeatTopic builds an expected-topics slice: n copies of topic, then rest.
+// Every attempt emits its attempt.success/attempt.failed event, so expected
+// multisets are mostly "one per attempt, plus the alerts".
+func repeatTopic(topic string, n int, rest ...string) []string {
+	out := make([]string, 0, n+len(rest))
+	for range n {
+		out = append(out, topic)
+	}
+	return append(out, rest...)
+}
+
 const (
 	topicCF       = opevents.TopicAlertConsecutiveFailure
 	topicDisabled = opevents.TopicAlertDestinationDisabled
 	topicExhaust  = opevents.TopicAlertExhaustedRetries
+	topicSuccess  = opevents.TopicAttemptSuccess
+	topicFailed   = opevents.TopicAttemptFailed
 )

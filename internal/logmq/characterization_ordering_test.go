@@ -39,9 +39,10 @@ func TestCharacterization_ThresholdsThenDisable(t *testing.T) {
 	h.waitTerminal(msgs)
 
 	recs := h.sink.forDest(destA)
-	// cf at counts 5,7,9,10 (4 records) plus disabled at 10 (1 record) = 5
-	// records. Which attempts carry them is nondeterministic (concurrent eval).
-	require.ElementsMatch(t, []string{topicCF, topicCF, topicCF, topicDisabled, topicCF}, topics(recs))
+	// attempt.failed per attempt (10), plus cf at counts 5,7,9,10 and the
+	// disable at 10. Which attempts carry the alerts is nondeterministic
+	// (concurrent eval).
+	require.ElementsMatch(t, repeatTopic(topicFailed, 10, topicCF, topicCF, topicCF, topicCF, topicDisabled), topics(recs))
 
 	disabled := h.disabler.snapshot()
 	require.Len(t, disabled, 1)
@@ -81,10 +82,11 @@ func TestCharacterization_SuccessResetsConsecutiveCount(t *testing.T) {
 	}
 
 	recs := h.sink.forDest(destA)
-	// Two cf alerts, both at the 50% threshold (count 5), separated by the
-	// reset. The paced sequence makes the carrying attempts deterministic.
-	require.Equal(t, []string{topicCF, topicCF}, topics(recs))
-	require.Equal(t, []string{"fail_pre_5", "fail_post_5"}, attemptIDs(recs))
+	// One attempt event per message (10 failed, 1 success), plus two cf
+	// alerts, both at the 50% threshold (count 5), separated by the reset.
+	require.ElementsMatch(t, repeatTopic(topicFailed, 10, topicSuccess, topicCF, topicCF), topics(recs))
+	// The paced sequence makes the cf-carrying attempts deterministic.
+	require.Equal(t, []string{"fail_pre_5", "fail_post_5"}, attemptIDs(forTopic(recs, topicCF)))
 
 	// No disable: count never reached 10.
 	assert.Empty(t, h.disabler.snapshot())
@@ -118,7 +120,7 @@ func TestCharacterization_TwoDestinationsInterleaved(t *testing.T) {
 	}
 	h.waitTerminal(msgs)
 
-	wantTopics := []string{topicCF, topicCF, topicCF, topicDisabled, topicCF}
+	wantTopics := repeatTopic(topicFailed, 10, topicCF, topicCF, topicCF, topicCF, topicDisabled)
 	assert.ElementsMatch(t, wantTopics, topics(h.sink.forDest(destA)), "dest A records")
 	assert.ElementsMatch(t, wantTopics, topics(h.sink.forDest(destB)), "dest B records")
 
@@ -157,8 +159,9 @@ func TestCharacterization_CountContinuesAcrossBatches(t *testing.T) {
 	}
 	h.waitTerminal(batch1)
 
-	// Batch 1 fully terminal → exactly counts 1..6 landed: one cf (at 5).
-	require.ElementsMatch(t, []string{topicCF}, topics(h.sink.forDest(destA)))
+	// Batch 1 fully terminal → exactly counts 1..6 landed: six attempt.failed,
+	// one cf (at 5).
+	require.ElementsMatch(t, repeatTopic(topicFailed, 6, topicCF), topics(h.sink.forDest(destA)))
 
 	batch2 := make([]*countingMessage, 0, 4)
 	for i := 7; i <= 10; i++ {
@@ -170,7 +173,7 @@ func TestCharacterization_CountContinuesAcrossBatches(t *testing.T) {
 
 	// Batch 2 continues at count 7: cf at 7, 9, 10 plus the disable.
 	recs := h.sink.forDest(destA)
-	require.ElementsMatch(t, []string{topicCF, topicCF, topicCF, topicDisabled, topicCF}, topics(recs))
+	require.ElementsMatch(t, repeatTopic(topicFailed, 10, topicCF, topicCF, topicCF, topicCF, topicDisabled), topics(recs))
 
 	require.Len(t, h.disabler.snapshot(), 1)
 	for _, m := range append(batch1, batch2...) {

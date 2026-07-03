@@ -70,7 +70,7 @@ func TestDelivery_ExhaustedRetries_WindowSuppression(t *testing.T) {
 
 	cm1.requireAcked(t)
 	cm2.requireAcked(t)
-	assert.Equal(t, []string{topicExhaust}, topics(h.sink.forDest(dest)),
+	assert.ElementsMatch(t, []string{topicFailed, topicFailed, topicExhaust}, topics(h.sink.forDest(dest)),
 		"second exhaustion of the same event+destination is suppressed within the window")
 }
 
@@ -94,7 +94,7 @@ func TestDelivery_ExhaustedRetries_NoWindowEmitsEvery(t *testing.T) {
 
 	cm1.requireAcked(t)
 	cm2.requireAcked(t)
-	assert.Equal(t, []string{topicExhaust, topicExhaust}, topics(h.sink.forDest(dest)),
+	assert.ElementsMatch(t, []string{topicFailed, topicFailed, topicExhaust, topicExhaust}, topics(h.sink.forDest(dest)),
 		"with no window, every exhaustion of the same event+destination delivers")
 }
 
@@ -118,7 +118,7 @@ func TestDelivery_ExhaustedRetries_PerEvent(t *testing.T) {
 
 	cm1.requireAcked(t)
 	cm2.requireAcked(t)
-	assert.Equal(t, []string{topicExhaust, topicExhaust}, topics(h.sink.forDest(dest)),
+	assert.ElementsMatch(t, []string{topicFailed, topicFailed, topicExhaust, topicExhaust}, topics(h.sink.forDest(dest)),
 		"each distinct event exhausting retries delivers its own alert")
 }
 
@@ -132,7 +132,10 @@ func TestDelivery_ExhaustedRetries_EmitFailureClearsWindow(t *testing.T) {
 		alert:   exhaustedAlertConfig(),
 		doubles: doublesConfig{
 			idemp:      idemp,
-			sinkFailOn: map[string]bool{"att_fail": true}, // first exhausted emit fails
+			// Only the exhausted send fails — att_fail's attempt.failed must
+			// deliver, or its errgroup sibling cancels the exhausted Exec
+			// mid-flight instead of exercising the clear-on-failure path.
+			sinkFailOn: map[string]bool{"att_fail/" + topicExhaust: true},
 		},
 	})
 
@@ -149,6 +152,6 @@ func TestDelivery_ExhaustedRetries_EmitFailureClearsWindow(t *testing.T) {
 	// The failed emit nacks; the retry (key cleared on failure) delivers and acks.
 	cmFail.requireNacked(t)
 	cmOK.requireAcked(t)
-	assert.Equal(t, []string{topicExhaust}, topics(h.sink.forDest(dest)),
+	assert.ElementsMatch(t, []string{topicFailed, topicFailed, topicExhaust}, topics(h.sink.forDest(dest)),
 		"retry after emit failure re-delivers because the window key was cleared")
 }

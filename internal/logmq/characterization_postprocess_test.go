@@ -49,7 +49,7 @@ func TestCharacterization_SlowEvalDoesNotBlockPersistence(t *testing.T) {
 	h.eval.release()
 	h.waitTerminal([]*countingMessage{cmSlow})
 	cmSlow.requireAcked(t)
-	assert.Equal(t, []string{topicCF}, topics(h.sink.forDest(dest)))
+	assert.ElementsMatch(t, []string{topicFailed, topicCF, topicSuccess}, topics(h.sink.forDest(dest)))
 }
 
 // One destination's attempts evaluate independently: while an attempt's eval
@@ -85,8 +85,8 @@ func TestCharacterization_SameDestEvalsRunIndependently(t *testing.T) {
 	h.waitTerminal([]*countingMessage{cm1})
 	cm1.requireAcked(t)
 	recs := h.sink.forDest(dest)
-	assert.ElementsMatch(t, []string{"att_pp3_1", "att_pp3_2"}, attemptIDs(recs))
-	assert.ElementsMatch(t, []string{topicCF, topicCF}, topics(recs))
+	assert.ElementsMatch(t, []string{"att_pp3_1", "att_pp3_2"}, attemptIDs(forTopic(recs, topicCF)))
+	assert.ElementsMatch(t, []string{topicCF, topicCF, topicFailed, topicFailed}, topics(recs))
 }
 
 // Shutdown drains the in-flight entry goroutines: every dispatched entry
@@ -115,5 +115,5 @@ func TestCharacterization_ShutdownDrainsPostprocess(t *testing.T) {
 
 	// Shutdown returned → the eval ran, the alert delivered and the msg acked.
 	cm.requireAcked(t)
-	assert.Equal(t, []string{topicCF}, topics(h.sink.forDest("dest_pp4")))
+	assert.ElementsMatch(t, []string{topicFailed, topicCF}, topics(h.sink.forDest("dest_pp4")))
 }

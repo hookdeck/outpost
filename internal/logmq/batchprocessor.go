@@ -297,9 +297,10 @@ func (bp *BatchProcessor) processBatch(_ string, msgs []*mqs.Message) {
 // replay arriving after a success reset must not count toward the fresh
 // streak. The mark lands only after the attempt's events are delivered — a
 // nacked attempt re-runs in full on redelivery (counting stays correct: the
-// store is idempotent per attempt ID). A success just resets the tracker —
-// idempotent, so it needs no gate (and gating it would cost one Redis key per
-// successful attempt).
+// store is idempotent per attempt ID). A success resets the tracker and emits
+// attempt.success — both idempotent-enough to skip the gate (gating would cost
+// one Redis key per successful attempt, the dominant traffic, to dedup a rare
+// redelivery re-emit; opevents are at-least-once anyway).
 func (bp *BatchProcessor) processEntry(ctx context.Context, entry *models.LogEntry, msg *mqs.Message) {
 	attempt := alert.Attempt{
 		TenantID:         entry.Destination.TenantID,
@@ -313,6 +314,13 @@ func (bp *BatchProcessor) processEntry(ctx context.Context, entry *models.LogEnt
 	if attempt.Success {
 		if _, err := bp.alerts.Evaluator.Evaluate(ctx, attempt); err != nil {
 			bp.nackAlertFailure(ctx, err, entry, msg)
+			return
+		}
+		success := deliveryEvent{
+			event: opevents.AttemptSuccessEvent(opevents.NewAlertDestination(entry.Destination), entry.Event, entry.Attempt),
+		}
+		if bp.sendAll(ctx, []deliveryEvent{success}, entry) != nil {
+			msg.Nack()
 			return
 		}
 		msg.Ack()
@@ -342,28 +350,9 @@ func (bp *BatchProcessor) processEntry(ctx context.Context, entry *models.LogEnt
 		return
 	}
 
-	// Deliver the attempt's events concurrently; arrival order within an
-	// attempt is not guaranteed. Any failure nacks with nothing marked, so
-	// redelivery re-runs the attempt in full — events already sent may go out
-	// again (at-least-once).
-	g, gctx := errgroup.WithContext(ctx)
-	for _, de := range events {
-		g.Go(func() error {
-			sendCtx, cancel := context.WithTimeout(gctx, bp.emitTimeout)
-			defer cancel()
-			if err := bp.send(sendCtx, de, entry); err != nil {
-				bp.logger.Ctx(ctx).Error("opevent delivery failed",
-					zap.Error(err),
-					zap.String("topic", de.event.Topic),
-					zap.String("attempt_id", entry.Attempt.ID),
-					zap.String("event_id", entry.Event.ID),
-					zap.String("destination_id", entry.Destination.ID))
-				return err
-			}
-			return nil
-		})
-	}
-	if g.Wait() != nil {
+	// Any failure nacks with nothing marked, so redelivery re-runs the attempt
+	// in full — events already sent may go out again (at-least-once).
+	if bp.sendAll(ctx, events, entry) != nil {
 		msg.Nack()
 		return
 	}
@@ -387,17 +376,38 @@ type deliveryEvent struct {
 	suppressKey string
 }
 
-// plan acts on an evaluation and builds the operator events owed for this
-// attempt — disabled, consecutive_failure, exhausted_retries. They are sent
-// concurrently, so slice order carries no meaning. The disable (a DB write)
-// happens here: it's an action, not a notification, and it must precede event
-// construction so the payloads carry the destination's latest state
-// (disabled).
-func (bp *BatchProcessor) plan(ctx context.Context, eval alert.Evaluation, entry *models.LogEntry) ([]deliveryEvent, error) {
-	if eval.ConsecutiveFailure == nil && !eval.RetriesExhausted {
-		return nil, nil
+// sendAll delivers an attempt's events concurrently, each under the emit
+// timeout; arrival order within an attempt is not guaranteed. The first
+// failure is returned (the rest still run to completion or cancellation).
+func (bp *BatchProcessor) sendAll(ctx context.Context, events []deliveryEvent, entry *models.LogEntry) error {
+	g, gctx := errgroup.WithContext(ctx)
+	for _, de := range events {
+		g.Go(func() error {
+			sendCtx, cancel := context.WithTimeout(gctx, bp.emitTimeout)
+			defer cancel()
+			if err := bp.send(sendCtx, de, entry); err != nil {
+				bp.logger.Ctx(ctx).Error("opevent delivery failed",
+					zap.Error(err),
+					zap.String("topic", de.event.Topic),
+					zap.String("attempt_id", entry.Attempt.ID),
+					zap.String("event_id", entry.Event.ID),
+					zap.String("destination_id", entry.Destination.ID))
+				return err
+			}
+			return nil
+		})
 	}
+	return g.Wait()
+}
 
+// plan acts on an evaluation and builds the operator events owed for this
+// attempt — attempt.failed always, plus disabled, consecutive_failure, and
+// exhausted_retries per the verdict. They are sent concurrently, so slice
+// order carries no meaning. The disable (a DB write) happens here: it's an
+// action, not a notification, and it must precede event construction so the
+// payloads carry the destination's latest state (disabled) — attempt.failed
+// included, since they share the projection.
+func (bp *BatchProcessor) plan(ctx context.Context, eval alert.Evaluation, entry *models.LogEntry) ([]deliveryEvent, error) {
 	dest := opevents.NewAlertDestination(entry.Destination)
 	var events []deliveryEvent
 
@@ -440,6 +450,10 @@ func (bp *BatchProcessor) plan(ctx context.Context, eval alert.Evaluation, entry
 		}
 		events = append(events, de)
 	}
+
+	events = append(events, deliveryEvent{
+		event: opevents.AttemptFailedEvent(dest, entry.Event, entry.Attempt),
+	})
 
 	return events, nil
 }
