@@ -15,7 +15,7 @@ import (
 
 // AlertEmitter is the interface for emitting alert events. Satisfied by opevents.Emitter.
 type AlertEmitter interface {
-	Emit(ctx context.Context, topic string, tenantID string, data any) error
+	Emit(ctx context.Context, ev opevents.Event) error
 }
 
 // DestinationDisabler handles disabling destinations.
@@ -198,7 +198,7 @@ func (m *alertMonitor) HandleAttempt(ctx context.Context, attempt DeliveryAttemp
 		}
 
 		emitFn := func(ctx context.Context) error {
-			if err := m.emitter.Emit(ctx, opevents.TopicAlertExhaustedRetries, attempt.Destination.TenantID, erData); err != nil {
+			if err := m.emitter.Emit(ctx, opevents.Event{Topic: opevents.TopicAlertExhaustedRetries, TenantID: attempt.Destination.TenantID, Data: erData}); err != nil {
 				return err
 			}
 			m.logger.Ctx(ctx).Audit("alert sent",
@@ -299,7 +299,7 @@ func (m *alertMonitor) handleConsecutiveFailure(ctx context.Context, attempt Del
 			Event:       attempt.Event,
 			Attempt:     attempt.Attempt,
 		}
-		if err := m.emitter.Emit(ctx, opevents.TopicAlertDestinationDisabled, attempt.Destination.TenantID, disabledData); err != nil {
+		if err := m.emitter.Emit(ctx, opevents.Event{Topic: opevents.TopicAlertDestinationDisabled, TenantID: attempt.Destination.TenantID, Data: disabledData}); err != nil {
 			return false, fmt.Errorf("failed to emit destination disabled alert: %w", err)
 		}
 	}
@@ -316,7 +316,7 @@ func (m *alertMonitor) handleConsecutiveFailure(ctx context.Context, attempt Del
 			Threshold: level,
 		},
 	}
-	if err := m.emitter.Emit(ctx, opevents.TopicAlertConsecutiveFailure, attempt.Destination.TenantID, cfData); err != nil {
+	if err := m.emitter.Emit(ctx, opevents.Event{Topic: opevents.TopicAlertConsecutiveFailure, TenantID: attempt.Destination.TenantID, Data: cfData}); err != nil {
 		return false, fmt.Errorf("failed to emit consecutive failure alert: %w", err)
 	}
 

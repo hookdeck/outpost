@@ -12,6 +12,7 @@ import (
 
 	"github.com/hookdeck/outpost/internal/alert"
 	"github.com/hookdeck/outpost/internal/idempotence"
+	"github.com/hookdeck/outpost/internal/opevents"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/util/testutil"
 )
@@ -20,8 +21,8 @@ type mockAlertEmitter struct {
 	mock.Mock
 }
 
-func (m *mockAlertEmitter) Emit(ctx context.Context, topic string, tenantID string, data any) error {
-	args := m.Called(ctx, topic, tenantID, data)
+func (m *mockAlertEmitter) Emit(ctx context.Context, ev opevents.Event) error {
+	args := m.Called(ctx, ev.Topic, ev.TenantID, ev.Data)
 	return args.Error(0)
 }
 
