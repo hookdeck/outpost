@@ -18,6 +18,9 @@
 # Node.js
 node_modules
 
+# Git worktrees (see AGENTS.md — keep local worktree checkouts here)
+.worktrees/
+
 # Terraform
 .terraform/
 terraform.tfstate
