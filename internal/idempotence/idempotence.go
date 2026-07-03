@@ -19,8 +19,20 @@ const (
 
 var ErrConflict = errors.New("conflict")
 
+// Idempotence deduplicates work by key. Exec is the packaged form: it claims
+// the key, runs the callback, and marks the key processed — for work that
+// completes within one call. Processed and MarkProcessed expose the check and
+// mark phases separately, for callers whose work spans a boundary Exec can't
+// wrap (e.g. the effects finish on another goroutine); such callers get no
+// in-flight conflict detection — concurrent duplicates both run, so their
+// effects must tolerate duplication.
 type Idempotence interface {
 	Exec(ctx context.Context, key string, exec func(context.Context) error) error
+	// Processed reports whether key was marked processed (by MarkProcessed or
+	// a successful Exec) within the SuccessfulTTL window.
+	Processed(ctx context.Context, key string) (bool, error)
+	// MarkProcessed marks key processed for the SuccessfulTTL window.
+	MarkProcessed(ctx context.Context, key string) error
 }
 
 type IdempotenceImpl struct {
@@ -149,6 +161,23 @@ func (i *IdempotenceImpl) Exec(ctx context.Context, key string, exec func(contex
 	}
 
 	return nil
+}
+
+func (i *IdempotenceImpl) Processed(ctx context.Context, key string) (bool, error) {
+	status, err := i.getIdempotencyStatus(ctx, i.prefixKey(key))
+	if err != nil {
+		if errors.Is(err, redis.Nil) {
+			return false, nil
+		}
+		return false, err
+	}
+	// A "processing" claim from an in-flight Exec does not count as processed:
+	// the caller re-runs, which split-phase users must tolerate anyway.
+	return status == StatusProcessed, nil
+}
+
+func (i *IdempotenceImpl) MarkProcessed(ctx context.Context, key string) error {
+	return i.markProcessedIdempotency(ctx, i.prefixKey(key))
 }
 
 func (i *IdempotenceImpl) checkIdempotency(ctx context.Context, idempotencyKey string) (bool, error) {
