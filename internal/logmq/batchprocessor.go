@@ -88,6 +88,9 @@ type AlertPipeline struct {
 type BatchProcessorConfig struct {
 	ItemCountThreshold int
 	DelayThreshold     time.Duration
+	// EmitTimeout is a test-only override for the per-send timeout; zero means
+	// the emitTimeout default. Production always runs the default.
+	EmitTimeout time.Duration
 }
 
 // BatchProcessor batches log entries and writes them to the log store, then
@@ -101,11 +104,12 @@ type BatchProcessorConfig struct {
 // cosmetic anyway with multiple logmq replicas interleaving a destination's
 // attempts. See the discussion on the parallelism RFC.
 type BatchProcessor struct {
-	ctx      context.Context
-	logger   *logging.Logger
-	logStore LogStore
-	alerts   AlertPipeline
-	batcher  *batcher.Batcher[*mqs.Message]
+	ctx         context.Context
+	logger      *logging.Logger
+	logStore    LogStore
+	alerts      AlertPipeline
+	batcher     *batcher.Batcher[*mqs.Message]
+	emitTimeout time.Duration
 	// inflight tracks entry goroutines so Shutdown can drain them. Each is
 	// bounded by emitTimeout, so the wait is bounded too.
 	inflight     sync.WaitGroup
@@ -123,10 +127,14 @@ func NewBatchProcessor(ctx context.Context, logger *logging.Logger, logStore Log
 		}
 	}
 	bp := &BatchProcessor{
-		ctx:      ctx,
-		logger:   logger,
-		logStore: logStore,
-		alerts:   alerts,
+		ctx:         ctx,
+		logger:      logger,
+		logStore:    logStore,
+		alerts:      alerts,
+		emitTimeout: cfg.EmitTimeout,
+	}
+	if bp.emitTimeout <= 0 {
+		bp.emitTimeout = emitTimeout
 	}
 
 	b, err := batcher.NewBatcher(batcher.Config[*mqs.Message]{
@@ -341,7 +349,7 @@ func (bp *BatchProcessor) processEntry(ctx context.Context, entry *models.LogEnt
 	g, gctx := errgroup.WithContext(ctx)
 	for _, de := range events {
 		g.Go(func() error {
-			sendCtx, cancel := context.WithTimeout(gctx, emitTimeout)
+			sendCtx, cancel := context.WithTimeout(gctx, bp.emitTimeout)
 			defer cancel()
 			if err := bp.send(sendCtx, de, entry); err != nil {
 				bp.logger.Ctx(ctx).Error("opevent delivery failed",

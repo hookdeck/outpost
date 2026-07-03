@@ -105,8 +105,14 @@ func (s *recordingSink) Send(ctx context.Context, event *opevents.OperatorEvent)
 	attemptID := payload.Attempt.ID
 
 	// Block outside the lock so a blocked send doesn't serialize the others.
+	// Honors ctx like a real sink call: a canceled send returns ctx.Err()
+	// (this is how the emit-timeout tests trip the deadline).
 	if s.blockCh != nil && (s.blockOn[attemptID] || s.blockOn[event.Topic]) {
-		<-s.blockCh
+		select {
+		case <-s.blockCh:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
 	}
 
 	s.mu.Lock()
@@ -256,6 +262,9 @@ type harnessConfig struct {
 type batcherConfig struct {
 	itemCount int           // flush when this many messages buffered
 	delay     time.Duration // ...or flush after this long (default 100ms)
+	// emitTimeout overrides the per-send timeout (zero = production default).
+	// Used with a blocked sink to trip the timeout without a 5s test.
+	emitTimeout time.Duration
 }
 
 // alertConfig drives the real alert.Evaluator. Zero values fall back to defaults
@@ -276,6 +285,23 @@ type doublesConfig struct {
 	evalBlockOn map[string]bool         // block Evaluate for these attemptIDs until h.eval.release()
 	logStore    logmq.LogStore          // override the store (e.g. failingLogStore); nil = memlogstore
 	idemp       idempotence.Idempotence // exhausted-retries suppression; nil = unsuppressed
+	// failMarkProcessed makes every MarkProcessed call on the replay gate
+	// error (the Processed check still works). Simulates Redis failing after
+	// the attempt's events were delivered.
+	failMarkProcessed bool
+}
+
+// failingMarkGate wraps a real ReplayGate and fails every MarkProcessed.
+type failingMarkGate struct {
+	inner logmq.ReplayGate
+}
+
+func (g *failingMarkGate) Processed(ctx context.Context, key string) (bool, error) {
+	return g.inner.Processed(ctx, key)
+}
+
+func (g *failingMarkGate) MarkProcessed(ctx context.Context, key string) error {
+	return fmt.Errorf("injected MarkProcessed failure key=%s", key)
 }
 
 type harness struct {
@@ -347,10 +373,14 @@ func newHarness(t *testing.T, cfg harnessConfig) *harness {
 	// the same miniredis. No exhausted suppression window by default (emit on
 	// every exhaustion); delivery tests opt in via doubles.idemp. The disabler
 	// attaches to the pipeline when alert.withDisabler is set.
+	var gate logmq.ReplayGate = idempotence.New(redisClient)
+	if cfg.doubles.failMarkProcessed {
+		gate = &failingMarkGate{inner: gate}
+	}
 	pipeline := logmq.AlertPipeline{
 		Evaluator:      evaluator,
 		Emitter:        emitter,
-		ProcessedIdemp: idempotence.New(redisClient),
+		ProcessedIdemp: gate,
 		ExhaustedIdemp: cfg.doubles.idemp,
 	}
 	if cfg.alert.withDisabler {
@@ -359,6 +389,7 @@ func newHarness(t *testing.T, cfg harnessConfig) *harness {
 	bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, pipeline, logmq.BatchProcessorConfig{
 		ItemCountThreshold: cfg.batcher.itemCount,
 		DelayThreshold:     delay,
+		EmitTimeout:        cfg.batcher.emitTimeout,
 	})
 	require.NoError(t, err)
 	t.Cleanup(bp.Shutdown)
