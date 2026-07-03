@@ -329,7 +329,7 @@ func newHarness(t *testing.T, cfg harnessConfig) *harness {
 
 	// NOTE: opevents.NewEmitter returns a NOOP emitter when topics is nil/empty.
 	// To accept all topics we must pass []string{"*"} (NOT nil).
-	emitter := opevents.NewEmitter(sink, "test-deploy", []string{"*"})
+	emitter := opevents.NewEmitter(sink, "test-deploy", []string{"*"}, logger)
 
 	thresholds := cfg.alert.thresholds
 	if thresholds == nil {

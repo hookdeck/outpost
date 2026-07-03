@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/hookdeck/outpost/internal/idgen"
+	"github.com/hookdeck/outpost/internal/logging"
+	"go.uber.org/zap"
 )
 
 const (
@@ -21,6 +23,9 @@ type Event struct {
 	Topic    string
 	TenantID string
 	Data     any
+	// LogFields is caller context attached to the delivery audit line —
+	// typically set by the payload constructors, not at emit call sites.
+	LogFields []zap.Field
 }
 
 // Emitter is the interface for emitting operator events.
@@ -33,12 +38,15 @@ type emitter struct {
 	sink         Sink
 	deploymentID string
 	topicFilter  map[string]bool // nil means accept all ("*")
+	logger       *logging.Logger
 }
 
 // NewEmitter creates an Emitter that filters by topics, builds the envelope, and
 // delegates to the provided Sink. If topics contains "*", all topics are accepted.
-// If topics is empty, a noop emitter is returned.
-func NewEmitter(sink Sink, deploymentID string, topics []string) Emitter {
+// If topics is empty, a noop emitter is returned. The emitter owns the delivery
+// audit log: a line is written iff an event was actually sent — filtered topics
+// and the noop emitter return nil without logging.
+func NewEmitter(sink Sink, deploymentID string, topics []string, logger *logging.Logger) Emitter {
 	if len(topics) == 0 {
 		return &noopEmitter{}
 	}
@@ -59,6 +67,7 @@ func NewEmitter(sink Sink, deploymentID string, topics []string) Emitter {
 		sink:         sink,
 		deploymentID: deploymentID,
 		topicFilter:  filter,
+		logger:       logger,
 	}
 }
 
@@ -82,7 +91,17 @@ func (e *emitter) Emit(ctx context.Context, ev Event) error {
 		Data:         rawData,
 	}
 
-	return e.sendWithRetry(ctx, event)
+	if err := e.sendWithRetry(ctx, event); err != nil {
+		return err
+	}
+
+	e.logger.Ctx(ctx).Audit("opevent delivered",
+		append([]zap.Field{
+			zap.String("opevent_id", event.ID),
+			zap.String("topic", event.Topic),
+			zap.String("tenant_id", event.TenantID),
+		}, ev.LogFields...)...)
+	return nil
 }
 
 func (e *emitter) sendWithRetry(ctx context.Context, event *OperatorEvent) error {

@@ -343,7 +343,7 @@ func testAlertPipeline(t *testing.T, evaluator logmq.AlertEvaluator) logmq.Alert
 	t.Helper()
 	return logmq.AlertPipeline{
 		Evaluator:      evaluator,
-		Emitter:        opevents.NewEmitter(&opevents.NoopSink{}, "test-deploy", []string{"*"}),
+		Emitter:        opevents.NewEmitter(&opevents.NoopSink{}, "test-deploy", []string{"*"}, testutil.CreateTestLogger(t)),
 		ProcessedIdemp: idempotence.New(testutil.CreateTestRedisClient(t)),
 	}
 }

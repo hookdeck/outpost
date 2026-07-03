@@ -385,7 +385,7 @@ func (bp *BatchProcessor) sendAll(ctx context.Context, events []deliveryEvent, e
 		g.Go(func() error {
 			sendCtx, cancel := context.WithTimeout(gctx, bp.emitTimeout)
 			defer cancel()
-			if err := bp.send(sendCtx, de, entry); err != nil {
+			if err := bp.send(sendCtx, de); err != nil {
 				bp.logger.Ctx(ctx).Error("opevent delivery failed",
 					zap.Error(err),
 					zap.String("topic", de.event.Topic),
@@ -458,22 +458,13 @@ func (bp *BatchProcessor) plan(ctx context.Context, eval alert.Evaluation, entry
 	return events, nil
 }
 
-// send emits one event and audits the send, inside the event's suppression
-// window when it has one. A suppressed duplicate (Exec skips the emit) counts
-// as delivered and is not audited.
-func (bp *BatchProcessor) send(ctx context.Context, de deliveryEvent, entry *models.LogEntry) error {
+// send emits one event, inside the event's suppression window when it has
+// one. A suppressed duplicate (Exec skips the emit) counts as delivered. The
+// emitter owns the delivery audit log — it fires iff an event actually went
+// out, so filtered topics and suppressed duplicates leave no line.
+func (bp *BatchProcessor) send(ctx context.Context, de deliveryEvent) error {
 	emit := func(ctx context.Context) error {
-		if err := bp.alerts.Emitter.Emit(ctx, de.event); err != nil {
-			return err
-		}
-		bp.logger.Ctx(ctx).Audit("opevent delivered",
-			zap.String("topic", de.event.Topic),
-			zap.String("attempt_id", entry.Attempt.ID),
-			zap.String("event_id", entry.Event.ID),
-			zap.String("tenant_id", de.event.TenantID),
-			zap.String("destination_id", entry.Destination.ID),
-			zap.String("destination_type", entry.Destination.Type))
-		return nil
+		return bp.alerts.Emitter.Emit(ctx, de.event)
 	}
 	if de.suppressKey == "" {
 		return emit(ctx)
