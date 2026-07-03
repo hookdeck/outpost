@@ -39,6 +39,10 @@ type LogStore interface {
 // processor.
 type AlertEvaluator interface {
 	Evaluate(ctx context.Context, attempt alert.Attempt) (alert.Evaluation, error)
+	// SignalsEnabled reports whether any alert signal can ever fire. When
+	// false, Evaluate is a stateless no-op, so the pipeline skips the replay
+	// gate (there is no streak or verdict to protect from replays).
+	SignalsEnabled() bool
 }
 
 // DestinationDisabler disables destinations that hit the auto-disable
@@ -110,6 +114,11 @@ type BatchProcessor struct {
 	alerts      AlertPipeline
 	batcher     *batcher.Batcher[*mqs.Message]
 	emitTimeout time.Duration
+	// alertsEnabled and emitsAttemptEvents are derived once from the pipeline's
+	// static config. alertsEnabled=false skips the replay gate on the failed
+	// path (nothing to protect); both false skips per-entry work entirely.
+	alertsEnabled      bool
+	emitsAttemptEvents bool
 	// inflight tracks entry goroutines so Shutdown can drain them. Each is
 	// bounded by emitTimeout, so the wait is bounded too.
 	inflight     sync.WaitGroup
@@ -135,6 +144,11 @@ func NewBatchProcessor(ctx context.Context, logger *logging.Logger, logStore Log
 	}
 	if bp.emitTimeout <= 0 {
 		bp.emitTimeout = emitTimeout
+	}
+	if alerts.Evaluator != nil {
+		bp.alertsEnabled = alerts.Evaluator.SignalsEnabled()
+		bp.emitsAttemptEvents = alerts.Emitter.Enabled(opevents.TopicAttemptSuccess) ||
+			alerts.Emitter.Enabled(opevents.TopicAttemptFailed)
 	}
 
 	b, err := batcher.NewBatcher(batcher.Config[*mqs.Message]{
@@ -266,7 +280,9 @@ func (bp *BatchProcessor) processBatch(_ string, msgs []*mqs.Message) {
 	// and every fetched message reaches ack/nack well inside the broker's
 	// visibility window.
 	for i, entry := range entries {
-		if bp.alerts.Evaluator == nil {
+		// No pipeline, or one that can't produce anything (every alert signal
+		// off and no attempt topic subscribed): persisted is terminal.
+		if bp.alerts.Evaluator == nil || (!bp.alertsEnabled && !bp.emitsAttemptEvents) {
 			validMsgs[i].Ack()
 			continue
 		}
@@ -300,7 +316,9 @@ func (bp *BatchProcessor) processBatch(_ string, msgs []*mqs.Message) {
 // store is idempotent per attempt ID). A success resets the tracker and emits
 // attempt.success — both idempotent-enough to skip the gate (gating would cost
 // one Redis key per successful attempt, the dominant traffic, to dedup a rare
-// redelivery re-emit; opevents are at-least-once anyway).
+// redelivery re-emit; opevents are at-least-once anyway). The gate exists for
+// alert state and alert-event dedup only, so when every signal is disabled the
+// failed path skips it too and just emits attempt.failed.
 func (bp *BatchProcessor) processEntry(ctx context.Context, entry *models.LogEntry, msg *mqs.Message) {
 	attempt := alert.Attempt{
 		TenantID:         entry.Destination.TenantID,
@@ -320,6 +338,22 @@ func (bp *BatchProcessor) processEntry(ctx context.Context, entry *models.LogEnt
 			event: opevents.AttemptSuccessEvent(opevents.NewAlertDestination(entry.Destination), entry.Event, entry.Attempt),
 		}
 		if bp.sendAll(ctx, []deliveryEvent{success}, entry) != nil {
+			msg.Nack()
+			return
+		}
+		msg.Ack()
+		return
+	}
+
+	// With every alert signal off there is no streak to protect and no verdict
+	// to compute, so the replay gate buys nothing — skip its two Redis round
+	// trips and emit attempt.failed ungated, same at-least-once treatment as
+	// attempt.success (a redelivery may re-emit; tolerated).
+	if !bp.alertsEnabled {
+		failed := deliveryEvent{
+			event: opevents.AttemptFailedEvent(opevents.NewAlertDestination(entry.Destination), entry.Event, entry.Attempt),
+		}
+		if bp.sendAll(ctx, []deliveryEvent{failed}, entry) != nil {
 			msg.Nack()
 			return
 		}

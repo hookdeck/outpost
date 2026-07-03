@@ -321,6 +321,10 @@ type mockAlertEvaluator struct {
 	returnErr error
 }
 
+// SignalsEnabled is true so the pipeline treats the mock as a live evaluator
+// (the gated path these tests exercise).
+func (m *mockAlertEvaluator) SignalsEnabled() bool { return true }
+
 func (m *mockAlertEvaluator) Evaluate(ctx context.Context, attempt alert.Attempt) (alert.Evaluation, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()

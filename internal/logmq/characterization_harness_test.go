@@ -163,6 +163,8 @@ type blockingEvaluator struct {
 	entered atomic.Int32 // evals that reached the inner evaluator
 }
 
+func (e *blockingEvaluator) SignalsEnabled() bool { return e.inner.SignalsEnabled() }
+
 func (e *blockingEvaluator) Evaluate(ctx context.Context, attempt alert.Attempt) (alert.Evaluation, error) {
 	if e.blockOn[attempt.AttemptID] {
 		e.blocked.Add(1)
@@ -268,13 +270,18 @@ type batcherConfig struct {
 	emitTimeout time.Duration
 }
 
-// alertConfig drives the real alert.Evaluator. Zero values fall back to defaults
-// (thresholds [50,70,90,100], autoDisableCount 10, retryMaxLimit 10).
+// alertConfig drives the real alert.Evaluator and emitter. Zero values fall
+// back to defaults (thresholds [50,70,90,100], autoDisableCount 10,
+// retryMaxLimit 10, all topics subscribed).
 type alertConfig struct {
 	thresholds       []int
 	autoDisableCount int
 	retryMaxLimit    int
 	withDisabler     bool // attach the recordingDisabler to the pipeline
+	signalsOff       bool // disable both evaluator signals (cf + exhausted)
+	// opeventTopics is the real emitter's subscription; nil = all ("*").
+	// Non-nil without attempt topics exercises the disabled-path early-outs.
+	opeventTopics []string
 }
 
 // doublesConfig controls test-double behavior. Zero values = passthrough: the
@@ -329,7 +336,11 @@ func newHarness(t *testing.T, cfg harnessConfig) *harness {
 
 	// NOTE: opevents.NewEmitter returns a NOOP emitter when topics is nil/empty.
 	// To accept all topics we must pass []string{"*"} (NOT nil).
-	emitter := opevents.NewEmitter(sink, "test-deploy", []string{"*"}, logger)
+	emitterTopics := cfg.alert.opeventTopics
+	if emitterTopics == nil {
+		emitterTopics = []string{"*"}
+	}
+	emitter := opevents.NewEmitter(sink, "test-deploy", emitterTopics, logger)
 
 	thresholds := cfg.alert.thresholds
 	if thresholds == nil {
@@ -343,10 +354,17 @@ func newHarness(t *testing.T, cfg harnessConfig) *harness {
 	if retryMaxLimit == 0 {
 		retryMaxLimit = 10
 	}
-	var evaluator logmq.AlertEvaluator = alert.NewEvaluator(alert.NewRedisAlertStore(redisClient, ""), retryMaxLimit,
+	evalOpts := []alert.Option{
 		alert.WithAutoDisableFailureCount(autoDisableCount),
 		alert.WithAlertThresholds(thresholds),
-	)
+	}
+	if cfg.alert.signalsOff {
+		evalOpts = append(evalOpts,
+			alert.WithConsecutiveFailureEnabled(false),
+			alert.WithExhaustedRetriesEnabled(false),
+		)
+	}
+	var evaluator logmq.AlertEvaluator = alert.NewEvaluator(alert.NewRedisAlertStore(redisClient, ""), retryMaxLimit, evalOpts...)
 	var evalDouble *blockingEvaluator
 	if cfg.doubles.evalBlockOn != nil {
 		evalDouble = &blockingEvaluator{

@@ -31,6 +31,10 @@ type Event struct {
 // Emitter is the interface for emitting operator events.
 type Emitter interface {
 	Emit(ctx context.Context, ev Event) error
+	// Enabled reports whether events on topic would be sent rather than
+	// discarded by the topic filter. Lets callers skip building events that
+	// would be dropped.
+	Enabled(topic string) bool
 }
 
 // emitter is the default Emitter implementation.
@@ -71,9 +75,13 @@ func NewEmitter(sink Sink, deploymentID string, topics []string, logger *logging
 	}
 }
 
+func (e *emitter) Enabled(topic string) bool {
+	// nil filter means accept all ("*")
+	return e.topicFilter == nil || e.topicFilter[topic]
+}
+
 func (e *emitter) Emit(ctx context.Context, ev Event) error {
-	// Topic filtering: nil filter means accept all ("*")
-	if e.topicFilter != nil && !e.topicFilter[ev.Topic] {
+	if !e.Enabled(ev.Topic) {
 		return nil
 	}
 
@@ -134,3 +142,5 @@ type noopEmitter struct{}
 func (e *noopEmitter) Emit(ctx context.Context, ev Event) error {
 	return nil
 }
+
+func (e *noopEmitter) Enabled(topic string) bool { return false }
