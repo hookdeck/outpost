@@ -1,7 +1,7 @@
 package logmq_test
 
-// Replay / idempotency. Model C holds the logmq message un-acked until delivery
-// completes and relies on redelivery for durability, so the same attempt is
+// Replay / idempotency. The pipeline holds the logmq message un-acked until
+// delivery completes and relies on redelivery for durability, so the same attempt is
 // legitimately processed more than once. These tests pin that a replay does not
 // double-count, double-alert, or double-persist.
 
@@ -49,9 +49,52 @@ func TestCharacterization_ReplaySameAttempt(t *testing.T) {
 	require.Len(t, h.listAttempt(destA), 1)
 }
 
+// A stale replay of an old failed attempt arriving AFTER a success reset is
+// skipped by the per-attempt processed gate — it must not re-count toward the
+// fresh streak. The gate must survive the reset: if the reset also cleared
+// the replay markers, the stale replay would re-count and could re-alert.
+func TestCharacterization_StaleReplayAfterReset_Skipped(t *testing.T) {
+	t.Parallel()
+	// max=2, thresholds[100] → an alert fires only at count 2. If the stale
+	// replay re-counted, att_fresh would be count 2 → alert. It must not.
+	h := newHarness(t, harnessConfig{
+		batcher: batcherConfig{itemCount: 1},
+		alert: alertConfig{
+			autoDisableCount: 2,
+			thresholds:       []int{100},
+		},
+	})
+
+	destA, tenant := "dest_sr", "tenant_sr"
+	stale := makeEntry(destA, tenant, "att_stale", models.AttemptStatusFailed)
+
+	// Fail (count 1, below threshold), then success (reset).
+	cm1, msg1 := newCountingMessage(stale)
+	h.add(msg1)
+	h.waitTerminal([]*countingMessage{cm1})
+
+	cm2, msg2 := newCountingMessage(makeEntry(destA, tenant, "att_ok", models.AttemptStatusSuccess))
+	h.add(msg2)
+	h.waitTerminal([]*countingMessage{cm2})
+
+	// Stale replay of the old failed attempt: skipped by the processed gate.
+	cm3, msg3 := newCountingMessage(stale)
+	h.add(msg3)
+	h.waitTerminal([]*countingMessage{cm3})
+
+	// A fresh failure starts a new streak at count 1 — no alert.
+	cm4, msg4 := newCountingMessage(makeEntry(destA, tenant, "att_fresh", models.AttemptStatusFailed))
+	h.add(msg4)
+	h.waitTerminal([]*countingMessage{cm4})
+
+	require.Empty(t, h.sink.forDest(destA), "stale replay must not count toward the fresh streak")
+	cm3.requireAcked(t)
+	cm4.requireAcked(t)
+}
+
 // retryMaxLimit=3; dest A attempt EligibleForRetry=true, AttemptNumber=4 →
 // exactly one exhausted_retries record; acked. Run WITHOUT the idempotence window
-// (single pipeline-level check; negatives live in monitor_test.go).
+// (single pipeline-level check; negatives live in the alert package tests).
 func TestCharacterization_ExhaustedRetries(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t, harnessConfig{
