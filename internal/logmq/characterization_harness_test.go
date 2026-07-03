@@ -15,14 +15,19 @@ package logmq_test
 //   - per-message ack/nack counters (exactly-once terminal state)
 //   - logStore.ListAttempt / ListEvent
 //
-// Per-destination order only — never assert global cross-destination order.
+// Entries process concurrently and in no particular order (goroutine per
+// entry), so never assert arrival order — across destinations OR within one.
+// Tests whose semantics need a deterministic sequence pace it themselves:
+// add one message, waitTerminal, add the next.
 //
 // Files in this suite (concern → file):
 //   - characterization_harness_test.go         shared setup, doubles, helpers
-//   - characterization_ordering_test.go        eval ordering & counting
+//   - characterization_ordering_test.go        failure counting & thresholds
 //   - characterization_idempotency_test.go     replay / idempotency
 //   - characterization_acknowledgement_test.go ack/nack exactly-once
 //   - characterization_validation_test.go      intake (parse / dedup / persist)
+//   - characterization_decoupling_test.go      persistence decoupled from delivery
+//   - characterization_postprocess_test.go     post-persist eval concurrency
 
 import (
 	"context"

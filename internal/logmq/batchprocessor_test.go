@@ -48,7 +48,7 @@ func (m *mockLogStore) getInserted() (events []*models.Event, attempts []*models
 }
 
 // mockQueueMessage implements mqs.QueueMessage for testing. Terminal state is
-// atomic: acks/nacks land off the test goroutine.
+// atomic: acks/nacks land on per-entry goroutines.
 type mockQueueMessage struct {
 	acked  atomic.Bool
 	nacked atomic.Bool

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/hookdeck/outpost/internal/alert"
@@ -13,10 +14,18 @@ import (
 	"github.com/hookdeck/outpost/internal/opevents"
 	"github.com/mikestefanello/batcher"
 	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
 )
 
 // ErrInvalidLogEntry is returned when a LogEntry is missing required fields.
 var ErrInvalidLogEntry = errors.New("invalid log entry: both event and attempt are required")
+
+// emitTimeout caps a single sink send. It is the system's definition of the
+// worst acceptable send latency, and it bounds each entry goroutine's
+// lifetime: in-flight work steady-states at arrival rate × this timeout even
+// when every send is stuck, and the shutdown drain is bounded by it. Anything
+// slower fails into the nack/redelivery path.
+const emitTimeout = 5 * time.Second
 
 // LogStore defines the interface for persisting log entries.
 // This is a consumer-defined interface containing only what logmq needs.
@@ -82,14 +91,25 @@ type BatchProcessorConfig struct {
 }
 
 // BatchProcessor batches log entries and writes them to the log store, then
-// runs the alert pipeline per entry — evaluate, act on the verdict (disable,
-// operator events), dedup replays — serially in the batch loop.
+// runs the alert pipeline per entry on its own goroutine — dispatch-and-move-on,
+// so a slow eval or sink send never blocks persistence of the next batch.
+//
+// Entries process in no particular order, including within a destination: the
+// consecutive-failure count tolerates approximate order (its store is a set of
+// attempt IDs, so counting is idempotent and commutative; only a success/
+// failure race around the reset can skew it), and per-process ordering was
+// cosmetic anyway with multiple logmq replicas interleaving a destination's
+// attempts. See the discussion on the parallelism RFC.
 type BatchProcessor struct {
 	ctx      context.Context
 	logger   *logging.Logger
 	logStore LogStore
 	alerts   AlertPipeline
 	batcher  *batcher.Batcher[*mqs.Message]
+	// inflight tracks entry goroutines so Shutdown can drain them. Each is
+	// bounded by emitTimeout, so the wait is bounded too.
+	inflight     sync.WaitGroup
+	shutdownOnce sync.Once
 }
 
 // NewBatchProcessor creates a new batch processor for log entries.
@@ -130,11 +150,16 @@ func (bp *BatchProcessor) Add(ctx context.Context, msg *mqs.Message) error {
 	return nil
 }
 
-// Shutdown gracefully shuts down the batch processor. The batcher flushes
-// pending batches, so every buffered message reaches a terminal state before
-// Shutdown returns.
+// Shutdown gracefully shuts down the batch processor: the batcher first
+// (flushes pending batches, which may still dispatch entry goroutines), then
+// the in-flight entries drain. Every dispatched message reaches a terminal
+// state before Shutdown returns, and the drain is bounded by emitTimeout.
+// Idempotent.
 func (bp *BatchProcessor) Shutdown() {
-	bp.batcher.Shutdown()
+	bp.shutdownOnce.Do(func() {
+		bp.batcher.Shutdown()
+		bp.inflight.Wait()
+	})
 }
 
 // processBatch processes a batch of messages.
@@ -227,7 +252,11 @@ func (bp *BatchProcessor) processBatch(_ string, msgs []*mqs.Message) {
 		zap.Int("count", len(validMsgs)),
 		zap.Int64("insert_duration_ms", time.Since(insertStart).Milliseconds()))
 
-	// Run the alert pipeline per persisted entry.
+	// Spawn one goroutine per persisted entry and return — the batch loop
+	// never waits on eval or delivery. In-flight goroutines are bounded by
+	// arrival rate × emitTimeout (each lives at most about one send latency),
+	// and every fetched message reaches ack/nack well inside the broker's
+	// visibility window.
 	for i, entry := range entries {
 		if bp.alerts.Evaluator == nil {
 			validMsgs[i].Ack()
@@ -243,7 +272,10 @@ func (bp *BatchProcessor) processBatch(_ string, msgs []*mqs.Message) {
 			continue
 		}
 
-		bp.processEntry(bp.ctx, entry, validMsgs[i])
+		msg := validMsgs[i]
+		bp.inflight.Go(func() {
+			bp.processEntry(bp.ctx, entry, msg)
+		})
 	}
 }
 
@@ -302,20 +334,30 @@ func (bp *BatchProcessor) processEntry(ctx context.Context, entry *models.LogEnt
 		return
 	}
 
-	// Deliver the attempt's events. Any failure nacks with nothing marked, so
+	// Deliver the attempt's events concurrently; arrival order within an
+	// attempt is not guaranteed. Any failure nacks with nothing marked, so
 	// redelivery re-runs the attempt in full — events already sent may go out
 	// again (at-least-once).
+	g, gctx := errgroup.WithContext(ctx)
 	for _, de := range events {
-		if err := bp.send(ctx, de, entry); err != nil {
-			bp.logger.Ctx(ctx).Error("opevent delivery failed",
-				zap.Error(err),
-				zap.String("topic", de.event.Topic),
-				zap.String("attempt_id", entry.Attempt.ID),
-				zap.String("event_id", entry.Event.ID),
-				zap.String("destination_id", entry.Destination.ID))
-			msg.Nack()
-			return
-		}
+		g.Go(func() error {
+			sendCtx, cancel := context.WithTimeout(gctx, emitTimeout)
+			defer cancel()
+			if err := bp.send(sendCtx, de, entry); err != nil {
+				bp.logger.Ctx(ctx).Error("opevent delivery failed",
+					zap.Error(err),
+					zap.String("topic", de.event.Topic),
+					zap.String("attempt_id", entry.Attempt.ID),
+					zap.String("event_id", entry.Event.ID),
+					zap.String("destination_id", entry.Destination.ID))
+				return err
+			}
+			return nil
+		})
+	}
+	if g.Wait() != nil {
+		msg.Nack()
+		return
 	}
 
 	if err := bp.alerts.ProcessedIdemp.MarkProcessed(ctx, key); err != nil {
@@ -338,10 +380,11 @@ type deliveryEvent struct {
 }
 
 // plan acts on an evaluation and builds the operator events owed for this
-// attempt — disabled, consecutive_failure, exhausted_retries, sent in slice
-// order. The disable (a DB write) happens here: it's an action, not a
-// notification, and it must precede event construction so the payloads carry
-// the destination's latest state (disabled).
+// attempt — disabled, consecutive_failure, exhausted_retries. They are sent
+// concurrently, so slice order carries no meaning. The disable (a DB write)
+// happens here: it's an action, not a notification, and it must precede event
+// construction so the payloads carry the destination's latest state
+// (disabled).
 func (bp *BatchProcessor) plan(ctx context.Context, eval alert.Evaluation, entry *models.LogEntry) ([]deliveryEvent, error) {
 	if eval.ConsecutiveFailure == nil && !eval.RetriesExhausted {
 		return nil, nil
