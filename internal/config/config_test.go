@@ -410,9 +410,15 @@ func TestDestinationWebhookMaxResponseBodyBytes(t *testing.T) {
 		want    int
 	}{
 		{
-			name:    "default is unlimited",
+			name:    "default is 128 KiB",
 			files:   map[string][]byte{},
 			envVars: map[string]string{},
+			want:    config.DefaultWebhookMaxResponseBodyBytes,
+		},
+		{
+			name:    "explicit 0 disables the cap",
+			files:   map[string][]byte{},
+			envVars: map[string]string{"DESTINATIONS_WEBHOOK_MAX_RESPONSE_BODY_BYTES": "0"},
 			want:    0,
 		},
 		{
@@ -421,11 +427,11 @@ func TestDestinationWebhookMaxResponseBodyBytes(t *testing.T) {
 				"config.yaml": []byte(`
 destinations:
   webhook:
-    max_response_body_bytes: 131072
+    max_response_body_bytes: 262144
 `),
 			},
 			envVars: map[string]string{"CONFIG": "config.yaml"},
-			want:    131072,
+			want:    262144,
 		},
 		{
 			name:    "env config",

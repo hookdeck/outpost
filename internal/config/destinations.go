@@ -29,6 +29,22 @@ func (c *DestinationsConfig) ToConfig(cfg *Config) destregistrydefault.RegisterD
 	}
 }
 
+// DefaultWebhookMaxResponseBodyBytes is the default cap on the destination
+// response body stored on a delivery attempt: 128 KiB.
+//
+// The attempt log (event + attempt, response body included) is published to the
+// configured message queue, so it must fit that queue's per-message limit. The
+// strictest limits among supported queues are 256 KiB (SQS default queue
+// attribute) and 256 KB (Azure Service Bus standard tier); Pub/Sub (10 MB) and
+// RabbitMQ (16 MiB default) allow far more. We considered deriving the default
+// per queue, but for three of the four the real limit is deployment-side config
+// we can't see (SQS queue attribute, Azure tier, RabbitMQ server setting), so a
+// single conservative value keeps it simple: half the 256 KiB floor, leaving the
+// other half for the event payload and envelope. Webhook responses are typically
+// small acknowledgments, so 128 KiB should be far more than any well-behaved
+// destination returns.
+const DefaultWebhookMaxResponseBodyBytes = 131072
+
 // Webhook configuration
 type DestinationWebhookConfig struct {
 	// ProxyURL may contain authentication credentials (e.g., http://user:pass@proxy:8080)
@@ -46,7 +62,7 @@ type DestinationWebhookConfig struct {
 	SignatureEncoding             string `yaml:"signature_encoding" env:"DESTINATIONS_WEBHOOK_SIGNATURE_ENCODING" desc:"Encoding for the signature (e.g., 'hex', 'base64'). Only applies to 'default' mode." required:"N"`
 	SignatureAlgorithm            string `yaml:"signature_algorithm" env:"DESTINATIONS_WEBHOOK_SIGNATURE_ALGORITHM" desc:"Algorithm used for signing webhook requests (e.g., 'hmac-sha256'). Only applies to 'default' mode." required:"N"`
 	SigningSecretTemplate         string `yaml:"signing_secret_template" env:"DESTINATIONS_WEBHOOK_SIGNING_SECRET_TEMPLATE" desc:"Go template for generating webhook signing secrets. Available variables: {{.RandomHex}} (64-char hex), {{.RandomBase64}} (base64-encoded), {{.RandomAlphanumeric}} (32-char alphanumeric). Defaults to 'whsec_{{.RandomHex}}'. Only applies to 'default' mode." required:"N"`
-	MaxResponseBodyBytes          int    `yaml:"max_response_body_bytes" env:"DESTINATIONS_WEBHOOK_MAX_RESPONSE_BODY_BYTES" desc:"Maximum size in bytes of a destination's response body stored on the delivery attempt. Responses larger than this are replaced with a placeholder so the attempt log stays under the event queue's per-message size limit (oversized log messages fail to publish and retry indefinitely). Default: 0 (no limit)." required:"N"`
+	MaxResponseBodyBytes          int    `yaml:"max_response_body_bytes" env:"DESTINATIONS_WEBHOOK_MAX_RESPONSE_BODY_BYTES" desc:"Maximum size in bytes of a destination's response body stored on the delivery attempt. Responses larger than this are replaced with a placeholder so the attempt log stays under the event queue's per-message size limit (oversized log messages fail to publish and retry indefinitely). Default: 131072 (128 KiB). Set to 0 to disable the cap." required:"N"`
 }
 
 // toConfig converts WebhookConfig to the provider config - private since it's only used internally

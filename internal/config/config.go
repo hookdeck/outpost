@@ -187,6 +187,7 @@ func (c *Config) InitDefaults() {
 			SignatureEncoding:        "hex",
 			SignatureAlgorithm:       "hmac-sha256",
 			SigningSecretTemplate:    "whsec_{{.RandomHex}}",
+			MaxResponseBodyBytes:     DefaultWebhookMaxResponseBodyBytes,
 		},
 		AWSKinesis: DestinationAWSKinesisConfig{
 			MetadataInPayload: true,
