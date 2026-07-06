@@ -101,6 +101,55 @@ export function reconcileOverallTranscriptPass(
   return criteria.every((c) => c.pass);
 }
 
+/** Evidence phrases that explicitly conclude a criterion IS satisfied. */
+const EVIDENCE_CONCLUDES_PASS: readonly RegExp[] = [
+  /\bcriterion\s+passes\b/i,
+  /\bpasses?\s+based\s+on\b/i,
+  /\boverall[^.]{0,60}\bpasses\b/i,
+  /\b(?:clearly|ultimately|does|it|this|which)\s+passes\b/i,
+  /\bshould\s+pass\b/i,
+  /\bcriterion\s+is\s+(?:met|satisfied)\b/i,
+];
+
+/** Evidence phrases that explicitly conclude a criterion is NOT satisfied. */
+const EVIDENCE_CONCLUDES_FAIL: readonly RegExp[] = [
+  /\bcriterion\s+fails\b/i,
+  /\bdoes\s+not\s+pass\b/i,
+  /\bdid\s+not\s+pass\b/i,
+  /\bshould\s+fail\b/i,
+  /\b(?:clearly|ultimately|it|this|which)\s+fails\b/i,
+  /\bnot\s+(?:met|satisfied)\b/i,
+  /\bfails?\s+the\s+criterion\b/i,
+];
+
+function anyMatch(patterns: readonly RegExp[], text: string): boolean {
+  return patterns.some((re) => re.test(text));
+}
+
+/**
+ * A criterion self-contradicts when its pass boolean disagrees with an explicit
+ * conclusion in its own evidence (e.g. pass=false but evidence says "criterion
+ * passes based on live API evidence"). Deliberately conservative: it only fires
+ * on explicit pass/fail wording and never when the evidence contains BOTH a
+ * pass- and a fail-conclusion (genuinely mixed evidence is left to the model).
+ * Used only to trigger a targeted re-ask — never to silently flip a verdict.
+ */
+export function criterionSelfContradicts(c: LlmCriterionJudgment): boolean {
+  const evidence = c.evidence ?? "";
+  const concludes_pass = anyMatch(EVIDENCE_CONCLUDES_PASS, evidence);
+  const concludes_fail = anyMatch(EVIDENCE_CONCLUDES_FAIL, evidence);
+  if (concludes_pass === concludes_fail) {
+    return false;
+  }
+  return c.pass ? concludes_fail : concludes_pass;
+}
+
+export function findContradictoryCriteria(
+  criteria: readonly LlmCriterionJudgment[],
+): readonly LlmCriterionJudgment[] {
+  return criteria.filter(criterionSelfContradicts);
+}
+
 /** Parse booleans from judge JSON; treats string "true"/"false" (case-insensitive) as explicit. */
 export function parseJudgeBooleanExplicit(
   value: unknown,
@@ -196,11 +245,12 @@ Output ONLY valid JSON (no markdown fences, no commentary outside JSON) matching
   "summary": "2-4 sentences overall"
 }
 Map each major bullet/checkbox line from Success criteria to one criteria[] entry (merge tiny sub-bullets if needed).
-Each criteria[].pass boolean MUST match your evidence — never set pass=false while evidence argues the criterion passed (or vice versa).`;
+Each criteria[].pass boolean MUST match your evidence: if your evidence concludes the criterion is satisfied, pass MUST be true; if it concludes the criterion is not satisfied, pass MUST be false. Never emit a criterion whose pass contradicts its own evidence, and never let a caveat or an "I must flag…" aside flip a pass to false when the criterion is otherwise met.
+Judge the FINAL state of the deliverable and its LAST relevant run, not the assistant's journey to get there. Coding agents routinely make a mistake and then correct it; a criterion PASSES when the final artifact satisfies it, even if earlier attempts in the same session failed. In particular, do not fail execution- or correctness-style criteria for self-corrected intermediate problems — e.g. a run from the wrong working directory, a module-resolution error (ERR_MODULE_NOT_FOUND), or an argument shape that was fixed — when a later run of the final artifact clearly succeeded (event id printed, expected 2xx/202, exit 0). Only fail when the final deliverable itself is wrong or its last run still fails.`;
 
 function buildHarnessExecutionRules(): string {
   if (evalOutpostSecretsAvailable()) {
-    return `Eval-harness / transcript environment: OUTPOST_API_KEY is injected into the agent sandbox for this run (the runner had live Outpost credentials). If the transcript shows the assistant ran curl or SDK smoke tests and they failed (401/403 from bad/missing key in the script, HTTP 4xx/5xx, uncaught exceptions, wrong API usage, mock servers or dummy keys when live keys were available), treat Success-criteria rows about "execution", "runs to completion", or "live API" as FAIL unless the transcript clearly shows success (expected 2xx/202, event id printed, exit 0). Do not excuse failures as "missing env in the sandbox" — keys were available to the agent. Set overall_transcript_pass false when any criterion fails under these rules.`;
+    return `Eval-harness / transcript environment: OUTPOST_API_KEY is injected into the agent sandbox for this run (the runner had live Outpost credentials). If the transcript shows the assistant ran curl or SDK smoke tests and they failed (401/403 from bad/missing key in the script, HTTP 4xx/5xx, uncaught exceptions, wrong API usage, mock servers or dummy keys when live keys were available), treat Success-criteria rows about "execution", "runs to completion", or "live API" as FAIL unless the transcript clearly shows success (expected 2xx/202, event id printed, exit 0). Score these rows on the assistant's FINAL script or command and its LAST run: if an earlier attempt failed (wrong working directory, a module-resolution error, or an argument shape that was later fixed) but a subsequent run of the final artifact clearly succeeded, the row PASSES — do not fail it for the earlier, self-corrected attempt. Do not excuse genuine failures as "missing env in the sandbox" — keys were available to the agent. Set overall_transcript_pass false only when a criterion's final state fails under these rules.`;
   }
   return `Eval-harness / transcript environment: The assistant may run Bash (e.g. npx tsx, shell quickstarts) inside an automated eval where live secrets such as OUTPOST_API_KEY are NOT injected (transcript-only / local triage). If the transcript shows the assistant attempted that smoke run and it failed ONLY because required env vars or secrets were missing or empty (clear message: explicit throw, documented "set OUTPOST_API_KEY", 401/403 from missing auth, tool_result text stating unset variable, etc.)—and the written artifacts otherwise match the scenario (SDK usage, endpoints, fail-fast checks, README)—then treat Success-criteria rows about "execution", "runs to completion", or "live API" as PASS for that reason. Keep execution_in_transcript.pass = null (you still did not run code yourself). Set overall_transcript_pass to true when every criteria[] entry passes under these rules; do not fail the whole judgment solely because the eval transcript lacked keys. Do NOT use this exception when the script was never run, the error is vague, or failure likely reflects bugs, syntax errors, wrong API usage, or misconfiguration unrelated to missing env in the sandbox.`;
 }
@@ -211,7 +261,7 @@ function buildJudgeSystem(): string {
 
 function buildJudgeUserTail(): string {
   if (evalOutpostSecretsAvailable()) {
-    return `Judge the transcript against the Success criteria. Remember: execution (running curl or scripts against a live API) is NOT evidenced by you unless the transcript shows successful HTTP/tool outcomes; normally set execution_in_transcript.pass to null. OUTPOST_API_KEY was available in the agent sandbox for this run — score execution-style criteria strictly from what the transcript shows; failed smoke runs, mock servers, or dummy keys are failures unless the transcript shows a clear live success path.`;
+    return `Judge the transcript against the Success criteria. Remember: execution (running curl or scripts against a live API) is NOT evidenced by you unless the transcript shows successful HTTP/tool outcomes; normally set execution_in_transcript.pass to null. OUTPOST_API_KEY was available in the agent sandbox for this run — score execution-style criteria strictly from what the transcript shows; failed smoke runs, mock servers, or dummy keys are failures unless the transcript shows a clear live success path. Judge the final deliverable and its last run: earlier attempts the assistant fixed before a successful final run do not fail execution-style criteria, and each criterion's pass must match its evidence.`;
   }
   return `Judge the transcript against the Success criteria. Remember: execution (running curl or scripts against a live API) is NOT evidenced by you unless the transcript shows successful HTTP/tool outcomes; normally set execution_in_transcript.pass to null. If the transcript shows a run attempt failed only because OUTPOST_API_KEY or other required env was missing in the eval sandbox, apply the harness exception in your system instructions for execution-style criteria—do not mark overall_transcript_pass false for that alone.`;
 }
@@ -287,6 +337,25 @@ async function callAnthropicJudge(options: {
   return { text, body };
 }
 
+const JSON_RETRY_NOTE =
+  `IMPORTANT: Your previous response was not valid complete JSON (see prior attempt diagnostics). ` +
+  `Output ONLY a single complete JSON object matching the schema in your system instructions — ` +
+  `no markdown fences, no commentary. Ensure the response ends with closing braces and includes summary.`;
+
+/** Re-ask note listing criteria whose pass boolean disagreed with their own evidence. */
+function buildContradictionRetryNote(
+  contradictions: readonly LlmCriterionJudgment[],
+): string {
+  const list = contradictions
+    .map((c) => `- "${c.criterion}" (you set pass=${c.pass}): ${c.evidence}`)
+    .join("\n");
+  return (
+    `IMPORTANT: In your previous response these criteria set a pass boolean that contradicts their own evidence:\n${list}\n\n` +
+    `Re-judge using the rules in your system instructions: judge the FINAL state of the deliverable and its last run, do not fail a criterion for self-corrected intermediate failures, and make each criterion's pass match its evidence. ` +
+    `Output ONLY the complete JSON object again with corrected pass values and an overall_transcript_pass consistent with them.`
+  );
+}
+
 export async function llmJudgeRun(options: {
   readonly runPath: string;
   readonly scenarioMdPath: string;
@@ -324,15 +393,9 @@ ${buildJudgeUserTail()}`;
   const system = buildJudgeSystem();
   const attempt_diagnostics: JudgeAttemptDiagnostics[] = [];
   let judged: ReturnType<typeof parseJudgeJson> | undefined;
+  let retry_note: string | undefined;
 
   for (let attempt = 1; attempt <= MAX_JUDGE_ATTEMPTS; attempt++) {
-    const retry_note =
-      attempt === 1
-        ? undefined
-        : `IMPORTANT: Your previous response was not valid complete JSON (see prior attempt diagnostics). ` +
-          `Output ONLY a single complete JSON object matching the schema in your system instructions — ` +
-          `no markdown fences, no commentary. Ensure the response ends with closing braces and includes summary.`;
-
     const { text, body } = await callAnthropicJudge({
       api_key: options.apiKey,
       model,
@@ -344,7 +407,20 @@ ${buildJudgeUserTail()}`;
     logJudgeAttempt(attempt, MAX_JUDGE_ATTEMPTS, body, text);
 
     try {
-      judged = parseJudgeJson(text);
+      const parsed = parseJudgeJson(text);
+      const contradictions = findContradictoryCriteria(parsed.criteria);
+      if (contradictions.length > 0 && attempt < MAX_JUDGE_ATTEMPTS) {
+        // Keep this parse as a fallback, then re-ask the model to reconcile
+        // pass with evidence rather than silently flipping the verdict.
+        judged = parsed;
+        retry_note = buildContradictionRetryNote(contradictions);
+        console.error(
+          `LLM judge attempt ${attempt}: ${contradictions.length} criterion(s) where pass disagrees with evidence ` +
+            `(${contradictions.map((c) => c.criterion).join(", ")}); re-asking to reconcile…`,
+        );
+        continue;
+      }
+      judged = parsed;
       break;
     } catch (parse_err) {
       const parse_error =
@@ -358,6 +434,7 @@ ${buildJudgeUserTail()}`;
         raw_text: text,
         parse_error,
       });
+      retry_note = JSON_RETRY_NOTE;
       if (attempt < MAX_JUDGE_ATTEMPTS) {
         console.error(
           `LLM judge attempt ${attempt} parse failed (${parse_error}); retrying…`,
