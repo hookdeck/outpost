@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/hookdeck/outpost/internal/destregistry"
+	"github.com/hookdeck/outpost/internal/destregistry/providers/destwebhook"
 	"github.com/hookdeck/outpost/internal/util/maputil"
 	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
@@ -333,6 +334,121 @@ func TestWebhookDestination_ValidateCustomHeaders(t *testing.T) {
 		assert.ErrorAs(t, err, &validationErr)
 		// Should have errors for both Content-Type and Host (reserved headers)
 		assert.GreaterOrEqual(t, len(validationErr.Errors), 2)
+	})
+}
+
+func TestWebhookDestination_HeaderNameValidation(t *testing.T) {
+	t.Parallel()
+
+	// Each header name flows through the same regex/reserved-header validation.
+	headerOptions := map[string]func(string) destwebhook.Option{
+		"event-id":  func(n string) destwebhook.Option { return destwebhook.WithEventIDHeader(n, false) },
+		"signature": func(n string) destwebhook.Option { return destwebhook.WithSignatureHeader(n, false) },
+		"timestamp": func(n string) destwebhook.Option { return destwebhook.WithTimestampHeader(n, false) },
+		"topic":     func(n string) destwebhook.Option { return destwebhook.WithTopicHeader(n, false) },
+	}
+
+	newProvider := func(headerOpt destwebhook.Option) error {
+		_, err := destwebhook.New(testutil.Registry.MetadataLoader(), nil,
+			destwebhook.WithHeaderPrefix(destwebhook.DefaultHeaderPrefix),
+			destwebhook.WithSignatureContentTemplate(destwebhook.DefaultSignatureContentTmpl),
+			destwebhook.WithSignatureHeaderTemplate(destwebhook.DefaultSignatureHeaderTmpl),
+			destwebhook.WithSignatureEncoding(destwebhook.DefaultEncoding),
+			destwebhook.WithSignatureAlgorithm(destwebhook.DefaultAlgorithm),
+			destwebhook.WithSigningSecretTemplate(destwebhook.DefaultSigningSecretTmpl),
+			headerOpt,
+		)
+		return err
+	}
+
+	for header, opt := range headerOptions {
+		opt := opt
+		t.Run(header, func(t *testing.T) {
+			t.Parallel()
+
+			t.Run("accepts valid names", func(t *testing.T) {
+				t.Parallel()
+				for _, name := range []string{"x-acme-digest", "X-Custom-Signature", "signature123", "X_Custom_Sig"} {
+					assert.NoError(t, newProvider(opt(name)), "name %q should be valid", name)
+				}
+			})
+
+			t.Run("rejects invalid characters", func(t *testing.T) {
+				t.Parallel()
+				for _, name := range []string{"has space", "has:colon", "-leading-dash", "_leading_underscore"} {
+					assert.Error(t, newProvider(opt(name)), "name %q should be rejected", name)
+				}
+			})
+
+			t.Run("rejects reserved headers", func(t *testing.T) {
+				t.Parallel()
+				for _, name := range []string{"Content-Type", "content-type", "Host", "User-Agent"} {
+					assert.Error(t, newProvider(opt(name)), "reserved name %q should be rejected", name)
+				}
+			})
+		})
+	}
+}
+
+func TestWebhookDestination_HeaderNameCollision(t *testing.T) {
+	t.Parallel()
+
+	newProvider := func(opts ...destwebhook.Option) error {
+		base := []destwebhook.Option{
+			destwebhook.WithHeaderPrefix(destwebhook.DefaultHeaderPrefix),
+			destwebhook.WithSignatureContentTemplate(destwebhook.DefaultSignatureContentTmpl),
+			destwebhook.WithSignatureHeaderTemplate(destwebhook.DefaultSignatureHeaderTmpl),
+			destwebhook.WithSignatureEncoding(destwebhook.DefaultEncoding),
+			destwebhook.WithSignatureAlgorithm(destwebhook.DefaultAlgorithm),
+			destwebhook.WithSigningSecretTemplate(destwebhook.DefaultSigningSecretTmpl),
+		}
+		_, err := destwebhook.New(testutil.Registry.MetadataLoader(), nil, append(base, opts...)...)
+		return err
+	}
+
+	t.Run("rejects two pinned names that collide", func(t *testing.T) {
+		t.Parallel()
+		err := newProvider(
+			destwebhook.WithEventIDHeader("x-acme", false),
+			destwebhook.WithTopicHeader("x-acme", false),
+		)
+		assert.Error(t, err)
+	})
+
+	t.Run("collision is case-insensitive", func(t *testing.T) {
+		t.Parallel()
+		err := newProvider(
+			destwebhook.WithEventIDHeader("X-Acme", false),
+			destwebhook.WithTopicHeader("x-acme", false),
+		)
+		assert.Error(t, err)
+	})
+
+	t.Run("rejects pinned name colliding with another default", func(t *testing.T) {
+		t.Parallel()
+		// event-id pinned to the default topic header name collides with topic's default.
+		err := newProvider(
+			destwebhook.WithEventIDHeader(destwebhook.DefaultHeaderPrefix+"topic", false),
+		)
+		assert.Error(t, err)
+	})
+
+	t.Run("no collision when the duplicate header is disabled", func(t *testing.T) {
+		t.Parallel()
+		err := newProvider(
+			destwebhook.WithEventIDHeader("x-acme", false),
+			destwebhook.WithTopicHeader("x-acme", true),
+		)
+		assert.NoError(t, err)
+	})
+
+	t.Run("distinct pinned names are accepted", func(t *testing.T) {
+		t.Parallel()
+		err := newProvider(
+			destwebhook.WithEventIDHeader("x-acme-event", false),
+			destwebhook.WithTopicHeader("x-acme-topic", false),
+		)
+		assert.NoError(t, err)
 	})
 }
 

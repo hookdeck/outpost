@@ -6,7 +6,9 @@ import (
 	"testing"
 
 	"github.com/hookdeck/outpost/internal/config"
+	destregistrydefault "github.com/hookdeck/outpost/internal/destregistry/providers"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type mockOS struct {
@@ -453,6 +455,157 @@ destinations:
 			assert.Equal(t, tt.want, cfg.Destinations.Webhook.MaxResponseBodyBytes)
 		})
 	}
+}
+
+func TestDestinationWebhookHeaderNames(t *testing.T) {
+	// want is the resolved SignatureHeader directive after parsing.
+	tests := []struct {
+		name    string
+		files   map[string][]byte
+		envVars map[string]string
+		want    destregistrydefault.WebhookHeaderConfig
+	}{
+		{
+			name:    "unset uses default",
+			files:   map[string][]byte{},
+			envVars: map[string]string{},
+			want:    destregistrydefault.WebhookHeaderConfig{},
+		},
+		{
+			name:    "env value pins name",
+			files:   map[string][]byte{},
+			envVars: map[string]string{"DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_NAME": "x-acme-digest"},
+			want:    destregistrydefault.WebhookHeaderConfig{Name: "x-acme-digest"},
+		},
+		{
+			name:    "empty env disables",
+			files:   map[string][]byte{},
+			envVars: map[string]string{"DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_NAME": ""},
+			want:    destregistrydefault.WebhookHeaderConfig{Disabled: true},
+		},
+		{
+			name: "yaml value pins name",
+			files: map[string][]byte{
+				"config.yaml": []byte(`
+destinations:
+  webhook:
+    signature_header_name: x-globex-sig
+`),
+			},
+			envVars: map[string]string{"CONFIG": "config.yaml"},
+			want:    destregistrydefault.WebhookHeaderConfig{Name: "x-globex-sig"},
+		},
+		{
+			name: "empty yaml disables",
+			files: map[string][]byte{
+				"config.yaml": []byte(`
+destinations:
+  webhook:
+    signature_header_name: ""
+`),
+			},
+			envVars: map[string]string{"CONFIG": "config.yaml"},
+			want:    destregistrydefault.WebhookHeaderConfig{Disabled: true},
+		},
+		{
+			name:    "whitespace-only env disables",
+			files:   map[string][]byte{},
+			envVars: map[string]string{"DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_NAME": " "},
+			want:    destregistrydefault.WebhookHeaderConfig{Disabled: true},
+		},
+		{
+			name:    "deprecated disable flag disables",
+			files:   map[string][]byte{},
+			envVars: map[string]string{"DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_SIGNATURE_HEADER": "true"},
+			want:    destregistrydefault.WebhookHeaderConfig{Disabled: true},
+		},
+		{
+			name:  "new config wins over deprecated flag",
+			files: map[string][]byte{},
+			envVars: map[string]string{
+				"DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_SIGNATURE_HEADER": "true",
+				"DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_NAME":            "x-acme-digest",
+			},
+			want: destregistrydefault.WebhookHeaderConfig{Name: "x-acme-digest"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockOS := &mockOS{
+				files:   tt.files,
+				envVars: tt.envVars,
+			}
+
+			cfg, err := config.ParseWithoutValidation(config.Flags{}, mockOS)
+			assert.NoError(t, err)
+
+			opts := cfg.Destinations.ToConfig(cfg)
+			require.NotNil(t, opts.Webhook)
+			assert.Equal(t, tt.want, opts.Webhook.SignatureHeader)
+		})
+	}
+}
+
+func TestDestinationWebhookHeaderNamesAllHeaders(t *testing.T) {
+	// Each of the four headers resolves independently through the same rule.
+	mockOS := &mockOS{
+		files: map[string][]byte{},
+		envVars: map[string]string{
+			"DESTINATIONS_WEBHOOK_EVENT_ID_HEADER_NAME":  "x-acme-event",
+			"DESTINATIONS_WEBHOOK_TIMESTAMP_HEADER_NAME": "",
+			// signature left unset -> default; topic disabled via deprecated flag
+			"DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_TOPIC_HEADER": "true",
+		},
+	}
+
+	cfg, err := config.ParseWithoutValidation(config.Flags{}, mockOS)
+	require.NoError(t, err)
+
+	opts := cfg.Destinations.ToConfig(cfg)
+	require.NotNil(t, opts.Webhook)
+	assert.Equal(t, destregistrydefault.WebhookHeaderConfig{Name: "x-acme-event"}, opts.Webhook.EventIDHeader)
+	assert.Equal(t, destregistrydefault.WebhookHeaderConfig{Disabled: true}, opts.Webhook.TimestampHeader)
+	assert.Equal(t, destregistrydefault.WebhookHeaderConfig{}, opts.Webhook.SignatureHeader)
+	assert.Equal(t, destregistrydefault.WebhookHeaderConfig{Disabled: true}, opts.Webhook.TopicHeader)
+}
+
+func TestDestinationWebhookDeprecationWarnings(t *testing.T) {
+	t.Run("warns when deprecated flag is true", func(t *testing.T) {
+		mockOS := &mockOS{
+			files:   map[string][]byte{},
+			envVars: map[string]string{"DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_SIGNATURE_HEADER": "true"},
+		}
+		cfg, err := config.ParseWithoutValidation(config.Flags{}, mockOS)
+		require.NoError(t, err)
+		warnings := cfg.DeprecationWarnings()
+		require.Len(t, warnings, 1)
+		assert.Contains(t, warnings[0], "DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_SIGNATURE_HEADER")
+		assert.Contains(t, warnings[0], "DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_NAME")
+	})
+
+	t.Run("silent when flag is false", func(t *testing.T) {
+		mockOS := &mockOS{
+			files:   map[string][]byte{},
+			envVars: map[string]string{"DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_SIGNATURE_HEADER": "false"},
+		}
+		cfg, err := config.ParseWithoutValidation(config.Flags{}, mockOS)
+		require.NoError(t, err)
+		assert.Empty(t, cfg.DeprecationWarnings())
+	})
+
+	t.Run("warns even when new config overrides", func(t *testing.T) {
+		mockOS := &mockOS{
+			files: map[string][]byte{},
+			envVars: map[string]string{
+				"DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_SIGNATURE_HEADER": "true",
+				"DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_NAME":            "x-acme-digest",
+			},
+		}
+		cfg, err := config.ParseWithoutValidation(config.Flags{}, mockOS)
+		require.NoError(t, err)
+		assert.Len(t, cfg.DeprecationWarnings(), 1)
+	})
 }
 
 func TestConfigFilePath(t *testing.T) {

@@ -116,13 +116,17 @@ Choose one for event log persistence:
 |----------|---------|-------------|
 | `DESTINATIONS_WEBHOOK_MODE` | `default` | Set to `standard` for Standard Webhooks compliance |
 | `DESTINATIONS_WEBHOOK_HEADER_PREFIX` | `x-outpost-` / `webhook-` | Prefix for system webhook headers (event id, topic, timestamp, signature). Unless overridden, defaults to **`x-outpost-`** when `DESTINATIONS_WEBHOOK_MODE` is `default` and **`webhook-`** when `standard`. |
-| `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_EVENT_ID_HEADER` | `false` | Disable the event ID header |
-| `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_TIMESTAMP_HEADER` | `false` | Disable the timestamp header |
-| `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_TOPIC_HEADER` | `false` | Disable the topic header |
-| `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_SIGNATURE_HEADER` | `false` | Disable the signature header |
+| `DESTINATIONS_WEBHOOK_EVENT_ID_HEADER_NAME` | — | Complete name of the event ID header. Unset uses the default `<prefix>event-id`; an explicit value pins that exact name; an empty string disables the header. Only applies to `default` mode. |
+| `DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_NAME` | — | Complete name of the signature header. Unset uses the default `<prefix>signature`; an explicit value pins that exact name; an empty string disables the header. Only applies to `default` mode. |
+| `DESTINATIONS_WEBHOOK_TIMESTAMP_HEADER_NAME` | — | Complete name of the timestamp header. Unset uses the default `<prefix>timestamp`; an explicit value pins that exact name; an empty string disables the header. Only applies to `default` mode. |
+| `DESTINATIONS_WEBHOOK_TOPIC_HEADER_NAME` | — | Complete name of the topic header. Unset uses the default `<prefix>topic`; an explicit value pins that exact name; an empty string disables the header. Only applies to `default` mode. |
 | `DESTINATIONS_WEBHOOK_SIGNATURE_ALGORITHM` | `hmac-sha256` | Signature algorithm |
 | `DESTINATIONS_WEBHOOK_SIGNATURE_ENCODING` | `hex` | Encoding: `hex` or `base64` |
 | `DESTINATIONS_WEBHOOK_MAX_RESPONSE_BODY_BYTES` | `131072` (128 KiB) | Max bytes of a destination response body stored on the delivery attempt. Larger responses are replaced with a placeholder so the attempt log stays under the event queue's per-message size limit. Set to `0` to disable the cap. |
+
+{% callout type="warning" %}
+The `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_EVENT_ID_HEADER`, `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_SIGNATURE_HEADER`, `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_TIMESTAMP_HEADER`, and `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_TOPIC_HEADER` flags are deprecated and will be removed in a future version. Disable a header by setting its corresponding `*_HEADER_NAME` variable to an empty string instead. A set `*_HEADER_NAME` always takes precedence over the matching deprecated flag.
+{% /callout %}
 
 ## Observability
 

@@ -84,6 +84,13 @@ func ValidateCustomHeaders(headers map[string]string) error {
 	return nil
 }
 
+// headerConfig is the resolved directive for a single system header: an empty
+// name with disabled=false means "use the default '<prefix>' + key".
+type headerConfig struct {
+	name     string
+	disabled bool
+}
+
 type WebhookDestination struct {
 	*destregistry.BaseProvider
 	headerPrefix             string
@@ -91,10 +98,10 @@ type WebhookDestination struct {
 	proxyURL                 string
 	signatureContentTemplate string
 	signatureHeaderTemplate  string
-	disableEventIDHeader     bool
-	disableSignatureHeader   bool
-	disableTimestampHeader   bool
-	disableTopicHeader       bool
+	eventIDHeader            headerConfig
+	signatureHeader          headerConfig
+	timestampHeader          headerConfig
+	topicHeader              headerConfig
 	encoding                 string
 	algorithm                string
 	rawSigningSecretTemplate string
@@ -154,28 +161,39 @@ func WithMaxResponseBodyBytes(maxBytes int) Option {
 	}
 }
 
-// Add these options after the existing Option definitions
-func WithDisableDefaultEventIDHeader(disable bool) Option {
+// WithEventIDHeader sets the event ID header directive. A non-empty name pins
+// the exact header name (bypassing "<prefix>event-id"); disabled omits the
+// header. The name is trimmed of whitespace.
+func WithEventIDHeader(name string, disabled bool) Option {
 	return func(w *WebhookDestination) {
-		w.disableEventIDHeader = disable
+		w.eventIDHeader = headerConfig{name: strings.TrimSpace(name), disabled: disabled}
 	}
 }
 
-func WithDisableDefaultSignatureHeader(disable bool) Option {
+// WithSignatureHeader sets the signature header directive. A non-empty name pins
+// the exact header name (bypassing "<prefix>signature"); disabled omits the
+// header. The name is trimmed of whitespace.
+func WithSignatureHeader(name string, disabled bool) Option {
 	return func(w *WebhookDestination) {
-		w.disableSignatureHeader = disable
+		w.signatureHeader = headerConfig{name: strings.TrimSpace(name), disabled: disabled}
 	}
 }
 
-func WithDisableDefaultTimestampHeader(disable bool) Option {
+// WithTimestampHeader sets the timestamp header directive. A non-empty name pins
+// the exact header name (bypassing "<prefix>timestamp"); disabled omits the
+// header. The name is trimmed of whitespace.
+func WithTimestampHeader(name string, disabled bool) Option {
 	return func(w *WebhookDestination) {
-		w.disableTimestampHeader = disable
+		w.timestampHeader = headerConfig{name: strings.TrimSpace(name), disabled: disabled}
 	}
 }
 
-func WithDisableDefaultTopicHeader(disable bool) Option {
+// WithTopicHeader sets the topic header directive. A non-empty name pins the
+// exact header name (bypassing "<prefix>topic"); disabled omits the header. The
+// name is trimmed of whitespace.
+func WithTopicHeader(name string, disabled bool) Option {
 	return func(w *WebhookDestination) {
-		w.disableTopicHeader = disable
+		w.topicHeader = headerConfig{name: strings.TrimSpace(name), disabled: disabled}
 	}
 }
 
@@ -245,6 +263,41 @@ func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePu
 	}
 	if destination.rawSigningSecretTemplate == "" {
 		return nil, fmt.Errorf("signing secret template is required")
+	}
+
+	// Validate the four system headers: reject invalid/reserved pinned names, and
+	// reject collisions between the effective names (pinned name, or "<prefix>" +
+	// key) of two enabled headers. A collision would make emission order-dependent
+	// since Format writes headers from a map, so whichever iterated last would
+	// silently win.
+	seenNames := map[string]string{}
+	for _, h := range []struct {
+		label string
+		key   string
+		cfg   headerConfig
+	}{
+		{"event ID", "event-id", destination.eventIDHeader},
+		{"signature", "signature", destination.signatureHeader},
+		{"timestamp", "timestamp", destination.timestampHeader},
+		{"topic", "topic", destination.topicHeader},
+	} {
+		if h.cfg.disabled {
+			continue
+		}
+		if h.cfg.name != "" {
+			if !headerNameRegex.MatchString(h.cfg.name) {
+				return nil, fmt.Errorf("invalid %s header name %q: must match %s", h.label, h.cfg.name, headerNameRegex.String())
+			}
+			if reservedHeaders[strings.ToLower(h.cfg.name)] {
+				return nil, fmt.Errorf("invalid %s header name %q: reserved header", h.label, h.cfg.name)
+			}
+		}
+		// HTTP header names are case-insensitive, so compare lowercased.
+		effective := strings.ToLower(resolveHeaderName(h.cfg, destination.headerPrefix, h.key))
+		if other, ok := seenNames[effective]; ok {
+			return nil, fmt.Errorf("%s and %s headers resolve to the same name %q; pin distinct names or disable one", other, h.label, effective)
+		}
+		seenNames[effective] = h.label
 	}
 
 	// Parse signing secret template — fail on invalid syntax
@@ -361,18 +414,18 @@ func (d *WebhookDestination) CreatePublisher(ctx context.Context, destination *m
 	}
 
 	return &WebhookPublisher{
-		BasePublisher:          d.BaseProvider.NewPublisher(destregistry.WithDeliveryMetadata(destination.DeliveryMetadata)),
-		httpClient:             httpClient,
-		url:                    config.URL,
-		headerPrefix:           d.headerPrefix,
-		secrets:                secrets,
-		sm:                     sm,
-		disableEventIDHeader:   d.disableEventIDHeader,
-		disableSignatureHeader: d.disableSignatureHeader,
-		disableTimestampHeader: d.disableTimestampHeader,
-		disableTopicHeader:     d.disableTopicHeader,
-		customHeaders:          config.CustomHeaders,
-		maxResponseBodyBytes:   d.maxResponseBodyBytes,
+		BasePublisher:        d.BaseProvider.NewPublisher(destregistry.WithDeliveryMetadata(destination.DeliveryMetadata)),
+		httpClient:           httpClient,
+		url:                  config.URL,
+		headerPrefix:         d.headerPrefix,
+		eventIDHeader:        d.eventIDHeader,
+		signatureHeader:      d.signatureHeader,
+		timestampHeader:      d.timestampHeader,
+		topicHeader:          d.topicHeader,
+		secrets:              secrets,
+		sm:                   sm,
+		customHeaders:        config.CustomHeaders,
+		maxResponseBodyBytes: d.maxResponseBodyBytes,
 	}, nil
 }
 
@@ -643,17 +696,17 @@ func (d *WebhookDestination) Preprocess(newDestination *models.Destination, orig
 
 type WebhookPublisher struct {
 	*destregistry.BasePublisher
-	httpClient             *http.Client
-	url                    string
-	headerPrefix           string
-	secrets                []WebhookSecret
-	sm                     *SignatureManager
-	disableEventIDHeader   bool
-	disableSignatureHeader bool
-	disableTimestampHeader bool
-	disableTopicHeader     bool
-	customHeaders          map[string]string
-	maxResponseBodyBytes   int
+	httpClient           *http.Client
+	url                  string
+	headerPrefix         string
+	eventIDHeader        headerConfig
+	signatureHeader      headerConfig
+	timestampHeader      headerConfig
+	topicHeader          headerConfig
+	secrets              []WebhookSecret
+	sm                   *SignatureManager
+	customHeaders        map[string]string
+	maxResponseBodyBytes int
 }
 
 func (p *WebhookPublisher) Close() error {
@@ -696,29 +749,19 @@ func (p *WebhookPublisher) Format(ctx context.Context, event *models.Event) (*ht
 	// Get merged metadata (system + event metadata) using BasePublisher
 	metadata := p.BasePublisher.MakeMetadata(event, now)
 
-	// Add headers from metadata, respecting disable flags
+	// Add headers from metadata. Known system headers respect their configured
+	// directive (disabled -> skip, custom name -> pin, default -> <prefix>+key);
+	// unknown metadata keys always use the prefix.
 	for key, value := range metadata {
-		// Check if this specific system header should be disabled
-		switch key {
-		case "timestamp":
-			if p.disableTimestampHeader {
-				continue
-			}
-		case "event-id":
-			if p.disableEventIDHeader {
-				continue
-			}
-		case "topic":
-			if p.disableTopicHeader {
-				continue
-			}
+		name, ok := p.resolveMetadataHeaderName(key)
+		if !ok {
+			continue
 		}
-		// Add the header with the appropriate prefix
-		req.Header.Set(p.headerPrefix+key, value)
+		req.Header.Set(name, value)
 	}
 
-	// Add signature header if not disabled
-	if !p.disableSignatureHeader {
+	// Add signature header unless disabled
+	if !p.signatureHeader.disabled {
 		signatureHeader := p.sm.GenerateSignatureHeader(SignaturePayload{
 			EventID:   event.ID,
 			Topic:     event.Topic,
@@ -726,11 +769,41 @@ func (p *WebhookPublisher) Format(ctx context.Context, event *models.Event) (*ht
 			Body:      string(rawBody),
 		})
 		if signatureHeader != "" {
-			req.Header.Set(p.headerPrefix+"signature", signatureHeader)
+			req.Header.Set(resolveHeaderName(p.signatureHeader, p.headerPrefix, "signature"), signatureHeader)
 		}
 	}
 
 	return req, nil
+}
+
+// resolveMetadataHeaderName returns the header name to use for a metadata key
+// and whether it should be emitted. Known system keys (event-id, timestamp,
+// topic) follow their configured directive; unknown keys always use the prefix.
+func (p *WebhookPublisher) resolveMetadataHeaderName(key string) (string, bool) {
+	var cfg headerConfig
+	switch key {
+	case "event-id":
+		cfg = p.eventIDHeader
+	case "timestamp":
+		cfg = p.timestampHeader
+	case "topic":
+		cfg = p.topicHeader
+	default:
+		return p.headerPrefix + key, true
+	}
+	if cfg.disabled {
+		return "", false
+	}
+	return resolveHeaderName(cfg, p.headerPrefix, key), true
+}
+
+// resolveHeaderName returns the pinned custom name when set, otherwise the
+// default "<prefix>" + key.
+func resolveHeaderName(cfg headerConfig, prefix, key string) string {
+	if cfg.name != "" {
+		return cfg.name
+	}
+	return prefix + key
 }
 
 // generateSignatureSecret creates a cryptographically secure random secret using the configured template.
