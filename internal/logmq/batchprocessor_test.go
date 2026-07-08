@@ -83,7 +83,7 @@ func TestBatchProcessor_ValidEntry(t *testing.T) {
 	logger := testutil.CreateTestLogger(t)
 	logStore := &mockLogStore{}
 
-	bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, logmq.AlertPipeline{}, logmq.BatchProcessorConfig{
+	bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, testAlertPipeline(t, &mockAlertEvaluator{}), logmq.BatchProcessorConfig{
 		ItemCountThreshold: 1,
 		DelayThreshold:     1 * time.Second,
 	})
@@ -117,7 +117,7 @@ func TestBatchProcessor_InvalidEntry_MissingEvent(t *testing.T) {
 	logger := testutil.CreateTestLogger(t)
 	logStore := &mockLogStore{}
 
-	bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, logmq.AlertPipeline{}, logmq.BatchProcessorConfig{
+	bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, testAlertPipeline(t, &mockAlertEvaluator{}), logmq.BatchProcessorConfig{
 		ItemCountThreshold: 1,
 		DelayThreshold:     1 * time.Second,
 	})
@@ -150,7 +150,7 @@ func TestBatchProcessor_InvalidEntry_MissingAttempt(t *testing.T) {
 	logger := testutil.CreateTestLogger(t)
 	logStore := &mockLogStore{}
 
-	bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, logmq.AlertPipeline{}, logmq.BatchProcessorConfig{
+	bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, testAlertPipeline(t, &mockAlertEvaluator{}), logmq.BatchProcessorConfig{
 		ItemCountThreshold: 1,
 		DelayThreshold:     1 * time.Second,
 	})
@@ -183,7 +183,7 @@ func TestBatchProcessor_InvalidEntry_DoesNotBlockBatch(t *testing.T) {
 	logger := testutil.CreateTestLogger(t)
 	logStore := &mockLogStore{}
 
-	bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, logmq.AlertPipeline{}, logmq.BatchProcessorConfig{
+	bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, testAlertPipeline(t, &mockAlertEvaluator{}), logmq.BatchProcessorConfig{
 		ItemCountThreshold: 3, // Wait for 3 messages before processing
 		DelayThreshold:     1 * time.Second,
 	})
@@ -292,7 +292,7 @@ func TestBatchProcessor_MalformedJSON(t *testing.T) {
 	logger := testutil.CreateTestLogger(t)
 	logStore := &mockLogStore{}
 
-	bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, logmq.AlertPipeline{}, logmq.BatchProcessorConfig{
+	bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, testAlertPipeline(t, &mockAlertEvaluator{}), logmq.BatchProcessorConfig{
 		ItemCountThreshold: 1,
 		DelayThreshold:     1 * time.Second,
 	})

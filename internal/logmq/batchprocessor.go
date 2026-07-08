@@ -69,18 +69,21 @@ type SuppressionWindow interface {
 }
 
 // AlertPipeline groups the post-persist alert pipeline: evaluate the attempt,
-// act on the verdict (disable, opevents), and dedup replays.
+// act on the verdict (disable, opevents), and dedup replays. Evaluator,
+// Emitter, and ProcessedIdemp are always required — "alerting off" is
+// expressed by config (signals disabled, no topics subscribed), never by
+// absent deps.
 type AlertPipeline struct {
-	// Evaluator is the alert tracker. Nil disables the pipeline entirely.
+	// Evaluator is the alert tracker. Required.
 	Evaluator AlertEvaluator
-	// Emitter delivers the operator events. Required when Evaluator is set.
+	// Emitter delivers the operator events. Required.
 	Emitter opevents.Emitter
 	// Disabler auto-disables a destination when the 100% threshold is crossed.
 	// Nil disables auto-disable.
 	Disabler DestinationDisabler
 	// ProcessedIdemp is the per-attempt replay gate: a replay of a fully
 	// processed failed attempt is skipped instead of re-counting/re-alerting.
-	// Required when Evaluator is set.
+	// Required.
 	ProcessedIdemp ReplayGate
 	// ExhaustedIdemp is the per-(event,destination) suppression window for
 	// exhausted-retries alerts. Nil means no suppression (alert on every
@@ -127,13 +130,14 @@ type BatchProcessor struct {
 
 // NewBatchProcessor creates a new batch processor for log entries.
 func NewBatchProcessor(ctx context.Context, logger *logging.Logger, logStore LogStore, alerts AlertPipeline, cfg BatchProcessorConfig) (*BatchProcessor, error) {
-	if alerts.Evaluator != nil {
-		if alerts.Emitter == nil {
-			return nil, errors.New("logmq: AlertPipeline requires an Emitter when Evaluator is set")
-		}
-		if alerts.ProcessedIdemp == nil {
-			return nil, errors.New("logmq: AlertPipeline requires a ProcessedIdemp when Evaluator is set")
-		}
+	if alerts.Evaluator == nil {
+		return nil, errors.New("logmq: AlertPipeline requires an Evaluator")
+	}
+	if alerts.Emitter == nil {
+		return nil, errors.New("logmq: AlertPipeline requires an Emitter")
+	}
+	if alerts.ProcessedIdemp == nil {
+		return nil, errors.New("logmq: AlertPipeline requires a ProcessedIdemp")
 	}
 	bp := &BatchProcessor{
 		ctx:         ctx,
@@ -145,11 +149,9 @@ func NewBatchProcessor(ctx context.Context, logger *logging.Logger, logStore Log
 	if bp.emitTimeout <= 0 {
 		bp.emitTimeout = emitTimeout
 	}
-	if alerts.Evaluator != nil {
-		bp.alertsEnabled = alerts.Evaluator.SignalsEnabled()
-		bp.emitsAttemptEvents = alerts.Emitter.Enabled(opevents.TopicAttemptSuccess) ||
-			alerts.Emitter.Enabled(opevents.TopicAttemptFailed)
-	}
+	bp.alertsEnabled = alerts.Evaluator.SignalsEnabled()
+	bp.emitsAttemptEvents = alerts.Emitter.Enabled(opevents.TopicAttemptSuccess) ||
+		alerts.Emitter.Enabled(opevents.TopicAttemptFailed)
 
 	b, err := batcher.NewBatcher(batcher.Config[*mqs.Message]{
 		GroupCountThreshold: 2,
@@ -280,9 +282,9 @@ func (bp *BatchProcessor) processBatch(_ string, msgs []*mqs.Message) {
 	// and every fetched message reaches ack/nack well inside the broker's
 	// visibility window.
 	for i, entry := range entries {
-		// No pipeline, or one that can't produce anything (every alert signal
-		// off and no attempt topic subscribed): persisted is terminal.
-		if bp.alerts.Evaluator == nil || (!bp.alertsEnabled && !bp.emitsAttemptEvents) {
+		// A pipeline that can't produce anything (every alert signal off and
+		// no attempt topic subscribed): persisted is terminal.
+		if !bp.alertsEnabled && !bp.emitsAttemptEvents {
 			validMsgs[i].Ack()
 			continue
 		}
