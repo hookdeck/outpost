@@ -55,8 +55,8 @@ func TestDelivery_MarkProcessedFailure_Nacks(t *testing.T) {
 	h.waitTerminal([]*countingMessage{cm})
 
 	cm.requireNacked(t)
-	assert.Equal(t, []string{topicCF}, topics(h.sink.forDest(dest)),
-		"the event was delivered before the mark failed")
+	assert.ElementsMatch(t, []string{topicFailed, topicCF}, topics(h.sink.forDest(dest)),
+		"the events were delivered before the mark failed")
 }
 
 // An attempt owing two events (disabled + cf at the 100% threshold) where one

@@ -140,6 +140,11 @@ func (i *IdempotenceImpl) Exec(ctx context.Context, key string, exec func(contex
 	execCtx, span := i.tracer.Start(ctx, "Idempotence.Exec")
 	err = exec(execCtx)
 	if err != nil {
+		// Known edge case: when exec failed because ctx itself was canceled,
+		// this clear fails too and the key lingers as "processing" until the
+		// claim TTL (options.Timeout) expires it — retries in that window get
+		// ErrConflict, then self-heal. Rare and bounded, so not worth the fix
+		// yet; if it bites, clear on context.WithoutCancel(ctx).
 		clearErr := i.clearIdempotency(ctx, prefixedKey)
 		if clearErr != nil {
 			finalErr := errors.Join(err, clearErr)

@@ -83,7 +83,7 @@ func TestBatchProcessor_ValidEntry(t *testing.T) {
 	logger := testutil.CreateTestLogger(t)
 	logStore := &mockLogStore{}
 
-	bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, logmq.AlertPipeline{}, logmq.BatchProcessorConfig{
+	bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, testAlertPipeline(t, &mockAlertEvaluator{}), logmq.BatchProcessorConfig{
 		ItemCountThreshold: 1,
 		DelayThreshold:     1 * time.Second,
 	})
@@ -117,7 +117,7 @@ func TestBatchProcessor_InvalidEntry_MissingEvent(t *testing.T) {
 	logger := testutil.CreateTestLogger(t)
 	logStore := &mockLogStore{}
 
-	bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, logmq.AlertPipeline{}, logmq.BatchProcessorConfig{
+	bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, testAlertPipeline(t, &mockAlertEvaluator{}), logmq.BatchProcessorConfig{
 		ItemCountThreshold: 1,
 		DelayThreshold:     1 * time.Second,
 	})
@@ -150,7 +150,7 @@ func TestBatchProcessor_InvalidEntry_MissingAttempt(t *testing.T) {
 	logger := testutil.CreateTestLogger(t)
 	logStore := &mockLogStore{}
 
-	bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, logmq.AlertPipeline{}, logmq.BatchProcessorConfig{
+	bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, testAlertPipeline(t, &mockAlertEvaluator{}), logmq.BatchProcessorConfig{
 		ItemCountThreshold: 1,
 		DelayThreshold:     1 * time.Second,
 	})
@@ -183,7 +183,7 @@ func TestBatchProcessor_InvalidEntry_DoesNotBlockBatch(t *testing.T) {
 	logger := testutil.CreateTestLogger(t)
 	logStore := &mockLogStore{}
 
-	bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, logmq.AlertPipeline{}, logmq.BatchProcessorConfig{
+	bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, testAlertPipeline(t, &mockAlertEvaluator{}), logmq.BatchProcessorConfig{
 		ItemCountThreshold: 3, // Wait for 3 messages before processing
 		DelayThreshold:     1 * time.Second,
 	})
@@ -292,7 +292,7 @@ func TestBatchProcessor_MalformedJSON(t *testing.T) {
 	logger := testutil.CreateTestLogger(t)
 	logStore := &mockLogStore{}
 
-	bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, logmq.AlertPipeline{}, logmq.BatchProcessorConfig{
+	bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, testAlertPipeline(t, &mockAlertEvaluator{}), logmq.BatchProcessorConfig{
 		ItemCountThreshold: 1,
 		DelayThreshold:     1 * time.Second,
 	})
@@ -321,6 +321,10 @@ type mockAlertEvaluator struct {
 	returnErr error
 }
 
+// SignalsEnabled is true so the pipeline treats the mock as a live evaluator
+// (the gated path these tests exercise).
+func (m *mockAlertEvaluator) SignalsEnabled() bool { return true }
+
 func (m *mockAlertEvaluator) Evaluate(ctx context.Context, attempt alert.Attempt) (alert.Evaluation, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -343,7 +347,7 @@ func testAlertPipeline(t *testing.T, evaluator logmq.AlertEvaluator) logmq.Alert
 	t.Helper()
 	return logmq.AlertPipeline{
 		Evaluator:      evaluator,
-		Emitter:        opevents.NewEmitter(&opevents.NoopSink{}, "test-deploy", []string{"*"}),
+		Emitter:        opevents.NewEmitter(&opevents.NoopSink{}, "test-deploy", []string{"*"}, testutil.CreateTestLogger(t)),
 		ProcessedIdemp: idempotence.New(testutil.CreateTestRedisClient(t)),
 	}
 }

@@ -72,15 +72,18 @@ func TestCharacterization_MixedBatchAccounting(t *testing.T) {
 	cmInvalid.requireNacked(t)
 	cmEmitFail.requireNacked(t)
 
-	// Only the alerting destination produced a (successful) record.
-	assert.Equal(t, []string{topicCF}, topics(h.sink.forDest(destAlert)))
+	// Successful records: one attempt event per processed attempt (the dup's
+	// kept copy included), plus the cf alert. The emit-fail destination
+	// recorded nothing — its sends all fail.
+	assert.ElementsMatch(t, []string{topicFailed, topicCF}, topics(h.sink.forDest(destAlert)))
+	assert.Equal(t, []string{topicSuccess}, topics(h.sink.forDest(destSuccess)))
+	assert.Equal(t, []string{topicSuccess}, topics(h.sink.forDest(destDup)), "the dup's kept copy emitted once")
 	assert.Empty(t, h.sink.forDest(destFail), "emit-fail destination produced no recorded event")
-	assert.Len(t, h.sink.snapshot(), 1, "exactly one event delivered to the sink")
+	assert.Len(t, h.sink.snapshot(), 4, "no records beyond the four accounted for")
 }
 
 // A single failed attempt below any threshold (count 1) → persisted, acked,
-// zero sink records (the "nothing to deliver" fast path: mark + ack, no
-// delivery task).
+// and only the attempt.failed event delivered — no alert topics.
 func TestCharacterization_BelowThresholdNoAlert(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t, harnessConfig{
@@ -94,6 +97,7 @@ func TestCharacterization_BelowThresholdNoAlert(t *testing.T) {
 	h.waitTerminal([]*countingMessage{cm})
 
 	cm.requireAcked(t)
-	assert.Empty(t, h.sink.snapshot(), "count 1 is below the 50%% threshold (5)")
+	assert.Equal(t, []string{topicFailed}, topics(h.sink.snapshot()),
+		"count 1 is below the 50%% threshold (5): only the attempt event, no alert")
 	require.Len(t, h.listAttempt(destA), 1, "attempt persisted")
 }

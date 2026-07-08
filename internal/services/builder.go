@@ -204,7 +204,7 @@ func (b *ServiceBuilder) BuildAPIWorkers(baseRouter *gin.Engine) error {
 	if err != nil {
 		return fmt.Errorf("failed to create operator events sink: %w", err)
 	}
-	subscriptionEmitter := opevents.NewEmitter(oeSink, b.cfg.DeploymentID, oeCfg.Topics)
+	subscriptionEmitter := opevents.NewEmitter(oeSink, b.cfg.DeploymentID, oeCfg.Topics, b.logger)
 
 	apiHandler := apirouter.NewRouter(
 		apirouter.RouterConfig{
@@ -357,7 +357,7 @@ func (b *ServiceBuilder) BuildLogWorker(baseRouter *gin.Engine) error {
 	if err != nil {
 		return fmt.Errorf("failed to create operator events sink: %w", err)
 	}
-	emitter := opevents.NewEmitter(sink, b.cfg.DeploymentID, oeCfg.Topics)
+	emitter := opevents.NewEmitter(sink, b.cfg.DeploymentID, oeCfg.Topics, b.logger)
 
 	alertSettings, err := b.cfg.Alert.ToConfig()
 	if err != nil {

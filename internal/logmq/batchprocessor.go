@@ -39,6 +39,10 @@ type LogStore interface {
 // processor.
 type AlertEvaluator interface {
 	Evaluate(ctx context.Context, attempt alert.Attempt) (alert.Evaluation, error)
+	// SignalsEnabled reports whether any alert signal can ever fire. When
+	// false, Evaluate is a stateless no-op, so the pipeline skips the replay
+	// gate (there is no streak or verdict to protect from replays).
+	SignalsEnabled() bool
 }
 
 // DestinationDisabler disables destinations that hit the auto-disable
@@ -65,18 +69,21 @@ type SuppressionWindow interface {
 }
 
 // AlertPipeline groups the post-persist alert pipeline: evaluate the attempt,
-// act on the verdict (disable, opevents), and dedup replays.
+// act on the verdict (disable, opevents), and dedup replays. Evaluator,
+// Emitter, and ProcessedIdemp are always required — "alerting off" is
+// expressed by config (signals disabled, no topics subscribed), never by
+// absent deps.
 type AlertPipeline struct {
-	// Evaluator is the alert tracker. Nil disables the pipeline entirely.
+	// Evaluator is the alert tracker. Required.
 	Evaluator AlertEvaluator
-	// Emitter delivers the operator events. Required when Evaluator is set.
+	// Emitter delivers the operator events. Required.
 	Emitter opevents.Emitter
 	// Disabler auto-disables a destination when the 100% threshold is crossed.
 	// Nil disables auto-disable.
 	Disabler DestinationDisabler
 	// ProcessedIdemp is the per-attempt replay gate: a replay of a fully
 	// processed failed attempt is skipped instead of re-counting/re-alerting.
-	// Required when Evaluator is set.
+	// Required.
 	ProcessedIdemp ReplayGate
 	// ExhaustedIdemp is the per-(event,destination) suppression window for
 	// exhausted-retries alerts. Nil means no suppression (alert on every
@@ -110,6 +117,11 @@ type BatchProcessor struct {
 	alerts      AlertPipeline
 	batcher     *batcher.Batcher[*mqs.Message]
 	emitTimeout time.Duration
+	// alertsEnabled and emitsAttemptEvents are derived once from the pipeline's
+	// static config. alertsEnabled=false skips the replay gate on the failed
+	// path (nothing to protect); both false skips per-entry work entirely.
+	alertsEnabled      bool
+	emitsAttemptEvents bool
 	// inflight tracks entry goroutines so Shutdown can drain them. Each is
 	// bounded by emitTimeout, so the wait is bounded too.
 	inflight     sync.WaitGroup
@@ -118,13 +130,14 @@ type BatchProcessor struct {
 
 // NewBatchProcessor creates a new batch processor for log entries.
 func NewBatchProcessor(ctx context.Context, logger *logging.Logger, logStore LogStore, alerts AlertPipeline, cfg BatchProcessorConfig) (*BatchProcessor, error) {
-	if alerts.Evaluator != nil {
-		if alerts.Emitter == nil {
-			return nil, errors.New("logmq: AlertPipeline requires an Emitter when Evaluator is set")
-		}
-		if alerts.ProcessedIdemp == nil {
-			return nil, errors.New("logmq: AlertPipeline requires a ProcessedIdemp when Evaluator is set")
-		}
+	if alerts.Evaluator == nil {
+		return nil, errors.New("logmq: AlertPipeline requires an Evaluator")
+	}
+	if alerts.Emitter == nil {
+		return nil, errors.New("logmq: AlertPipeline requires an Emitter")
+	}
+	if alerts.ProcessedIdemp == nil {
+		return nil, errors.New("logmq: AlertPipeline requires a ProcessedIdemp")
 	}
 	bp := &BatchProcessor{
 		ctx:         ctx,
@@ -136,6 +149,9 @@ func NewBatchProcessor(ctx context.Context, logger *logging.Logger, logStore Log
 	if bp.emitTimeout <= 0 {
 		bp.emitTimeout = emitTimeout
 	}
+	bp.alertsEnabled = alerts.Evaluator.SignalsEnabled()
+	bp.emitsAttemptEvents = alerts.Emitter.Enabled(opevents.TopicAttemptSuccess) ||
+		alerts.Emitter.Enabled(opevents.TopicAttemptFailed)
 
 	b, err := batcher.NewBatcher(batcher.Config[*mqs.Message]{
 		GroupCountThreshold: 2,
@@ -266,7 +282,9 @@ func (bp *BatchProcessor) processBatch(_ string, msgs []*mqs.Message) {
 	// and every fetched message reaches ack/nack well inside the broker's
 	// visibility window.
 	for i, entry := range entries {
-		if bp.alerts.Evaluator == nil {
+		// A pipeline that can't produce anything (every alert signal off and
+		// no attempt topic subscribed): persisted is terminal.
+		if !bp.alertsEnabled && !bp.emitsAttemptEvents {
 			validMsgs[i].Ack()
 			continue
 		}
@@ -297,9 +315,12 @@ func (bp *BatchProcessor) processBatch(_ string, msgs []*mqs.Message) {
 // replay arriving after a success reset must not count toward the fresh
 // streak. The mark lands only after the attempt's events are delivered — a
 // nacked attempt re-runs in full on redelivery (counting stays correct: the
-// store is idempotent per attempt ID). A success just resets the tracker —
-// idempotent, so it needs no gate (and gating it would cost one Redis key per
-// successful attempt).
+// store is idempotent per attempt ID). A success resets the tracker and emits
+// attempt.success — both idempotent-enough to skip the gate (gating would cost
+// one Redis key per successful attempt, the dominant traffic, to dedup a rare
+// redelivery re-emit; opevents are at-least-once anyway). The gate exists for
+// alert state and alert-event dedup only, so when every signal is disabled the
+// failed path skips it too and just emits attempt.failed.
 func (bp *BatchProcessor) processEntry(ctx context.Context, entry *models.LogEntry, msg *mqs.Message) {
 	attempt := alert.Attempt{
 		TenantID:         entry.Destination.TenantID,
@@ -313,6 +334,29 @@ func (bp *BatchProcessor) processEntry(ctx context.Context, entry *models.LogEnt
 	if attempt.Success {
 		if _, err := bp.alerts.Evaluator.Evaluate(ctx, attempt); err != nil {
 			bp.nackAlertFailure(ctx, err, entry, msg)
+			return
+		}
+		success := deliveryEvent{
+			event: opevents.AttemptSuccessEvent(opevents.NewAlertDestination(entry.Destination), entry.Event, entry.Attempt),
+		}
+		if bp.sendAll(ctx, []deliveryEvent{success}, entry) != nil {
+			msg.Nack()
+			return
+		}
+		msg.Ack()
+		return
+	}
+
+	// With every alert signal off there is no streak to protect and no verdict
+	// to compute, so the replay gate buys nothing — skip its two Redis round
+	// trips and emit attempt.failed ungated, same at-least-once treatment as
+	// attempt.success (a redelivery may re-emit; tolerated).
+	if !bp.alertsEnabled {
+		failed := deliveryEvent{
+			event: opevents.AttemptFailedEvent(opevents.NewAlertDestination(entry.Destination), entry.Event, entry.Attempt),
+		}
+		if bp.sendAll(ctx, []deliveryEvent{failed}, entry) != nil {
+			msg.Nack()
 			return
 		}
 		msg.Ack()
@@ -342,28 +386,9 @@ func (bp *BatchProcessor) processEntry(ctx context.Context, entry *models.LogEnt
 		return
 	}
 
-	// Deliver the attempt's events concurrently; arrival order within an
-	// attempt is not guaranteed. Any failure nacks with nothing marked, so
-	// redelivery re-runs the attempt in full — events already sent may go out
-	// again (at-least-once).
-	g, gctx := errgroup.WithContext(ctx)
-	for _, de := range events {
-		g.Go(func() error {
-			sendCtx, cancel := context.WithTimeout(gctx, bp.emitTimeout)
-			defer cancel()
-			if err := bp.send(sendCtx, de, entry); err != nil {
-				bp.logger.Ctx(ctx).Error("opevent delivery failed",
-					zap.Error(err),
-					zap.String("topic", de.event.Topic),
-					zap.String("attempt_id", entry.Attempt.ID),
-					zap.String("event_id", entry.Event.ID),
-					zap.String("destination_id", entry.Destination.ID))
-				return err
-			}
-			return nil
-		})
-	}
-	if g.Wait() != nil {
+	// Any failure nacks with nothing marked, so redelivery re-runs the attempt
+	// in full — events already sent may go out again (at-least-once).
+	if bp.sendAll(ctx, events, entry) != nil {
 		msg.Nack()
 		return
 	}
@@ -387,17 +412,38 @@ type deliveryEvent struct {
 	suppressKey string
 }
 
-// plan acts on an evaluation and builds the operator events owed for this
-// attempt — disabled, consecutive_failure, exhausted_retries. They are sent
-// concurrently, so slice order carries no meaning. The disable (a DB write)
-// happens here: it's an action, not a notification, and it must precede event
-// construction so the payloads carry the destination's latest state
-// (disabled).
-func (bp *BatchProcessor) plan(ctx context.Context, eval alert.Evaluation, entry *models.LogEntry) ([]deliveryEvent, error) {
-	if eval.ConsecutiveFailure == nil && !eval.RetriesExhausted {
-		return nil, nil
+// sendAll delivers an attempt's events concurrently, each under the emit
+// timeout; arrival order within an attempt is not guaranteed. The first
+// failure is returned (the rest still run to completion or cancellation).
+func (bp *BatchProcessor) sendAll(ctx context.Context, events []deliveryEvent, entry *models.LogEntry) error {
+	g, gctx := errgroup.WithContext(ctx)
+	for _, de := range events {
+		g.Go(func() error {
+			sendCtx, cancel := context.WithTimeout(gctx, bp.emitTimeout)
+			defer cancel()
+			if err := bp.send(sendCtx, de); err != nil {
+				bp.logger.Ctx(ctx).Error("opevent delivery failed",
+					zap.Error(err),
+					zap.String("topic", de.event.Topic),
+					zap.String("attempt_id", entry.Attempt.ID),
+					zap.String("event_id", entry.Event.ID),
+					zap.String("destination_id", entry.Destination.ID))
+				return err
+			}
+			return nil
+		})
 	}
+	return g.Wait()
+}
 
+// plan acts on an evaluation and builds the operator events owed for this
+// attempt — attempt.failed always, plus disabled, consecutive_failure, and
+// exhausted_retries per the verdict. They are sent concurrently, so slice
+// order carries no meaning. The disable (a DB write) happens here: it's an
+// action, not a notification, and it must precede event construction so the
+// payloads carry the destination's latest state (disabled) — attempt.failed
+// included, since they share the projection.
+func (bp *BatchProcessor) plan(ctx context.Context, eval alert.Evaluation, entry *models.LogEntry) ([]deliveryEvent, error) {
 	dest := opevents.NewAlertDestination(entry.Destination)
 	var events []deliveryEvent
 
@@ -441,25 +487,20 @@ func (bp *BatchProcessor) plan(ctx context.Context, eval alert.Evaluation, entry
 		events = append(events, de)
 	}
 
+	events = append(events, deliveryEvent{
+		event: opevents.AttemptFailedEvent(dest, entry.Event, entry.Attempt),
+	})
+
 	return events, nil
 }
 
-// send emits one event and audits the send, inside the event's suppression
-// window when it has one. A suppressed duplicate (Exec skips the emit) counts
-// as delivered and is not audited.
-func (bp *BatchProcessor) send(ctx context.Context, de deliveryEvent, entry *models.LogEntry) error {
+// send emits one event, inside the event's suppression window when it has
+// one. A suppressed duplicate (Exec skips the emit) counts as delivered. The
+// emitter owns the delivery audit log — it fires iff an event actually went
+// out, so filtered topics and suppressed duplicates leave no line.
+func (bp *BatchProcessor) send(ctx context.Context, de deliveryEvent) error {
 	emit := func(ctx context.Context) error {
-		if err := bp.alerts.Emitter.Emit(ctx, de.event); err != nil {
-			return err
-		}
-		bp.logger.Ctx(ctx).Audit("opevent delivered",
-			zap.String("topic", de.event.Topic),
-			zap.String("attempt_id", entry.Attempt.ID),
-			zap.String("event_id", entry.Event.ID),
-			zap.String("tenant_id", de.event.TenantID),
-			zap.String("destination_id", entry.Destination.ID),
-			zap.String("destination_type", entry.Destination.Type))
-		return nil
+		return bp.alerts.Emitter.Emit(ctx, de.event)
 	}
 	if de.suppressKey == "" {
 		return emit(ctx)

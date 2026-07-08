@@ -109,6 +109,13 @@ func NewEvaluator(store AlertStore, retryMaxLimit int, opts ...Option) *Evaluato
 	return e
 }
 
+// SignalsEnabled reports whether any signal can ever fire: consecutive-failure
+// tracking, or exhausted-retries with a positive retry limit. When false,
+// Evaluate never touches the store and always returns an empty verdict.
+func (e *Evaluator) SignalsEnabled() bool {
+	return e.consecutiveFailureEnabled || (e.exhaustedRetriesEnabled && e.retryMaxLimit > 0)
+}
+
 func (e *Evaluator) Evaluate(ctx context.Context, attempt Attempt) (Evaluation, error) {
 	if attempt.Success {
 		// Nothing is tracked when consecutive-failure tracking is disabled, so

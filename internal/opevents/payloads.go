@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/hookdeck/outpost/internal/models"
+	"go.uber.org/zap"
 )
 
 // Operator-event payloads: the wire contract for each topic. The typed
@@ -53,6 +54,17 @@ func NewAlertDestination(d *models.Destination) *AlertDestination {
 	}
 }
 
+// attemptLogFields is the delivery-audit log context shared by the
+// per-attempt event constructors.
+func attemptLogFields(dest *AlertDestination, event *models.Event, attempt *models.Attempt) []zap.Field {
+	return []zap.Field{
+		zap.String("attempt_id", attempt.ID),
+		zap.String("event_id", event.ID),
+		zap.String("destination_id", dest.ID),
+		zap.String("destination_type", dest.Type),
+	}
+}
+
 // ConsecutiveFailures represents the nested consecutive failure state.
 type ConsecutiveFailures struct {
 	Current   int `json:"current"`
@@ -90,8 +102,9 @@ type ExhaustedRetriesData struct {
 // ConsecutiveFailureEvent builds the alert.destination.consecutive_failure event.
 func ConsecutiveFailureEvent(dest *AlertDestination, event *models.Event, attempt *models.Attempt, current, max, threshold int) Event {
 	return Event{
-		Topic:    TopicAlertConsecutiveFailure,
-		TenantID: dest.TenantID,
+		Topic:     TopicAlertConsecutiveFailure,
+		TenantID:  dest.TenantID,
+		LogFields: attemptLogFields(dest, event, attempt),
 		Data: ConsecutiveFailureData{
 			TenantID:    dest.TenantID,
 			Event:       event,
@@ -109,8 +122,9 @@ func ConsecutiveFailureEvent(dest *AlertDestination, event *models.Event, attemp
 // DestinationDisabledEvent builds the alert.destination.disabled event.
 func DestinationDisabledEvent(dest *AlertDestination, event *models.Event, attempt *models.Attempt, disabledAt time.Time) Event {
 	return Event{
-		Topic:    TopicAlertDestinationDisabled,
-		TenantID: dest.TenantID,
+		Topic:     TopicAlertDestinationDisabled,
+		TenantID:  dest.TenantID,
+		LogFields: attemptLogFields(dest, event, attempt),
 		Data: DestinationDisabledData{
 			TenantID:    dest.TenantID,
 			Destination: dest,
@@ -125,9 +139,50 @@ func DestinationDisabledEvent(dest *AlertDestination, event *models.Event, attem
 // ExhaustedRetriesEvent builds the alert.attempt.exhausted_retries event.
 func ExhaustedRetriesEvent(dest *AlertDestination, event *models.Event, attempt *models.Attempt) Event {
 	return Event{
-		Topic:    TopicAlertExhaustedRetries,
-		TenantID: dest.TenantID,
+		Topic:     TopicAlertExhaustedRetries,
+		TenantID:  dest.TenantID,
+		LogFields: attemptLogFields(dest, event, attempt),
 		Data: ExhaustedRetriesData{
+			TenantID:    dest.TenantID,
+			Event:       event,
+			Attempt:     attempt,
+			Destination: dest,
+		},
+	}
+}
+
+// AttemptData is the data payload for attempt.success and attempt.failed
+// events. The two topics share one shape — the split exists for subscription
+// filtering, and Attempt.Status carries the outcome.
+type AttemptData struct {
+	TenantID    string            `json:"tenant_id"`
+	Event       *models.Event     `json:"event"`
+	Attempt     *models.Attempt   `json:"attempt"`
+	Destination *AlertDestination `json:"destination"`
+}
+
+// AttemptSuccessEvent builds the attempt.success event.
+func AttemptSuccessEvent(dest *AlertDestination, event *models.Event, attempt *models.Attempt) Event {
+	return Event{
+		Topic:     TopicAttemptSuccess,
+		TenantID:  dest.TenantID,
+		LogFields: attemptLogFields(dest, event, attempt),
+		Data: AttemptData{
+			TenantID:    dest.TenantID,
+			Event:       event,
+			Attempt:     attempt,
+			Destination: dest,
+		},
+	}
+}
+
+// AttemptFailedEvent builds the attempt.failed event.
+func AttemptFailedEvent(dest *AlertDestination, event *models.Event, attempt *models.Attempt) Event {
+	return Event{
+		Topic:     TopicAttemptFailed,
+		TenantID:  dest.TenantID,
+		LogFields: attemptLogFields(dest, event, attempt),
+		Data: AttemptData{
 			TenantID:    dest.TenantID,
 			Event:       event,
 			Attempt:     attempt,

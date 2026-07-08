@@ -52,7 +52,7 @@ func TestCharacterization_SlowDeliveryDoesNotBlockPersistence(t *testing.T) {
 	h.sink.release()
 	h.waitTerminal([]*countingMessage{cmSlow})
 	cmSlow.requireAcked(t)
-	assert.Equal(t, []string{topicCF}, topics(h.sink.forDest("dest_d1_slow")))
+	assert.ElementsMatch(t, []string{topicFailed, topicCF}, topics(h.sink.forDest("dest_d1_slow")))
 }
 
 // A hot destination's alerting attempts deliver in parallel — one slow send
@@ -89,7 +89,8 @@ func TestCharacterization_HotDestinationDeliversInParallel(t *testing.T) {
 		m.requireAcked(t)
 	}
 	assert.GreaterOrEqual(t, h.sink.maxInflightSends(), int32(3))
-	assert.ElementsMatch(t, []string{"att_1", "att_2", "att_3"}, attemptIDs(h.sink.forDest(destA)))
+	assert.ElementsMatch(t, []string{"att_1", "att_2", "att_3"},
+		attemptIDs(forTopic(h.sink.forDest(destA), topicCF)))
 }
 
 // Shutdown drains in-flight deliveries: every dispatched entry reaches its
@@ -118,5 +119,5 @@ func TestCharacterization_ShutdownDrainsDeliveries(t *testing.T) {
 
 	// Shutdown returned → the delivery completed and acked.
 	cm.requireAcked(t)
-	assert.Equal(t, []string{topicCF}, topics(h.sink.forDest("dest_d3")))
+	assert.ElementsMatch(t, []string{topicFailed, topicCF}, topics(h.sink.forDest("dest_d3")))
 }
