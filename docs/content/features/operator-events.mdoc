@@ -205,8 +205,35 @@ Emitted once per delivery attempt, keyed by outcome. The two topics share one pa
 ```json
 {
   "tenant_id": "tenant_123",
-  "event": {},
-  "attempt": {},
+  "event": {
+    "id": "evt_789",
+    "tenant_id": "tenant_123",
+    "destination_id": "des_456",
+    "matched_destination_ids": ["des_456"],
+    "topic": "order.created",
+    "eligible_for_retry": true,
+    "time": "2025-06-01T12:00:00Z",
+    "metadata": {},
+    "data": {
+      "order_id": "ord_123"
+    }
+  },
+  "attempt": {
+    "id": "att_abc",
+    "tenant_id": "tenant_123",
+    "event_id": "evt_789",
+    "destination_id": "des_456",
+    "destination_type": "webhook",
+    "attempt_number": 2,
+    "manual": false,
+    "status": "failed",
+    "time": "2025-06-01T12:00:05Z",
+    "code": "500",
+    "response_data": {
+      "status": 500,
+      "body": "internal server error"
+    }
+  },
   "destination": {
     "id": "des_456",
     "tenant_id": "tenant_123",
@@ -216,6 +243,10 @@ Emitted once per delivery attempt, keyed by outcome. The two topics share one pa
   }
 }
 ```
+
+An `attempt.success` payload is identical except `attempt.status` is `"success"` and `code`/`response_data` carry the destination's response (for a webhook, the HTTP status and body). For network-level failures, `code` is an error class such as `connection_refused` or `dns_error` instead of an HTTP status.
+
+The alert payloads above carry the same `event` and `attempt` objects, elided for brevity.
 
 ### `tenant.subscription.updated`
 
