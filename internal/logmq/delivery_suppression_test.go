@@ -131,7 +131,7 @@ func TestDelivery_ExhaustedRetries_EmitFailureClearsWindow(t *testing.T) {
 		batcher: batcherConfig{itemCount: 1},
 		alert:   exhaustedAlertConfig(),
 		doubles: doublesConfig{
-			idemp:      idemp,
+			idemp: idemp,
 			// Only the exhausted send fails — att_fail's attempt.failed must
 			// deliver, or its errgroup sibling cancels the exhausted Exec
 			// mid-flight instead of exercising the clear-on-failure path.
