@@ -9,27 +9,18 @@ import (
 )
 
 const (
-	keyPrefixAlert = "alert"  // Base prefix for all alert keys
-	keyFailures    = "cf"     // Set for consecutive failure attempt IDs
-	keyEvaluated   = "cfeval" // Set for fully evaluated attempt IDs
+	keyPrefixAlert = "alert" // Base prefix for all alert keys
+	keyFailures    = "cf"    // Set for consecutive failure attempt IDs
 	alertKeyTTL    = 24 * time.Hour
 )
 
-// FailureCountResult reports the state of consecutive-failure tracking
-// after recording an attempt.
-type FailureCountResult struct {
-	Count            int  // current consecutive failure count
-	NewlyCounted     bool // attempt was not previously counted (first delivery of this attempt)
-	AlreadyEvaluated bool // attempt was fully evaluated before (marked via MarkAttemptEvaluated)
-}
-
-// AlertStore manages alert-related data persistence
+// AlertStore persists the tracker's own state: the consecutive-failure count
+// per destination.
 type AlertStore interface {
-	IncrementConsecutiveFailureCount(ctx context.Context, tenantID, destinationID, attemptID string) (FailureCountResult, error)
-	// MarkAttemptEvaluated records that an attempt's alert evaluation fully
-	// completed, so replays (MQ redelivery, producer re-publish) can skip
-	// re-evaluating it.
-	MarkAttemptEvaluated(ctx context.Context, tenantID, destinationID, attemptID string) error
+	// IncrementConsecutiveFailureCount records a failed attempt and returns the
+	// destination's current consecutive-failure count. Recording is idempotent
+	// per attempt ID, so replays never double-count.
+	IncrementConsecutiveFailureCount(ctx context.Context, tenantID, destinationID, attemptID string) (int, error)
 	ResetConsecutiveFailureCount(ctx context.Context, tenantID, destinationID string) error
 }
 
@@ -46,60 +37,32 @@ func NewRedisAlertStore(client redis.Cmdable, deploymentID string) AlertStore {
 	}
 }
 
-func (s *redisAlertStore) IncrementConsecutiveFailureCount(ctx context.Context, tenantID, destinationID, attemptID string) (FailureCountResult, error) {
+func (s *redisAlertStore) IncrementConsecutiveFailureCount(ctx context.Context, tenantID, destinationID, attemptID string) (int, error) {
 	key := s.getFailuresKey(tenantID, destinationID)
 
 	// Use a transaction to ensure atomicity between SADD, SCARD, and EXPIRE operations.
 	// SADD is idempotent — adding the same attemptID on replay is a no-op,
 	// preventing double-counting when messages are redelivered.
 	pipe := s.client.TxPipeline()
-	saddCmd := pipe.SAdd(ctx, key, attemptID)
+	pipe.SAdd(ctx, key, attemptID)
 	scardCmd := pipe.SCard(ctx, key)
-	evaluatedCmd := pipe.SIsMember(ctx, s.getEvaluatedKey(tenantID, destinationID), attemptID)
 	pipe.Expire(ctx, key, alertKeyTTL)
 
 	_, err := pipe.Exec(ctx)
 	if err != nil {
-		return FailureCountResult{}, fmt.Errorf("failed to execute consecutive failure count transaction: %w", err)
-	}
-
-	added, err := saddCmd.Result()
-	if err != nil {
-		return FailureCountResult{}, fmt.Errorf("failed to record attempt: %w", err)
+		return 0, fmt.Errorf("failed to execute consecutive failure count transaction: %w", err)
 	}
 
 	count, err := scardCmd.Result()
 	if err != nil {
-		return FailureCountResult{}, fmt.Errorf("failed to get consecutive failure count: %w", err)
+		return 0, fmt.Errorf("failed to get consecutive failure count: %w", err)
 	}
 
-	evaluated, err := evaluatedCmd.Result()
-	if err != nil {
-		return FailureCountResult{}, fmt.Errorf("failed to check evaluated state: %w", err)
-	}
-
-	return FailureCountResult{
-		Count:            int(count),
-		NewlyCounted:     added == 1,
-		AlreadyEvaluated: evaluated,
-	}, nil
-}
-
-func (s *redisAlertStore) MarkAttemptEvaluated(ctx context.Context, tenantID, destinationID, attemptID string) error {
-	key := s.getEvaluatedKey(tenantID, destinationID)
-
-	pipe := s.client.TxPipeline()
-	pipe.SAdd(ctx, key, attemptID)
-	pipe.Expire(ctx, key, alertKeyTTL)
-
-	if _, err := pipe.Exec(ctx); err != nil {
-		return fmt.Errorf("failed to mark attempt evaluated: %w", err)
-	}
-	return nil
+	return int(count), nil
 }
 
 func (s *redisAlertStore) ResetConsecutiveFailureCount(ctx context.Context, tenantID, destinationID string) error {
-	return s.client.Del(ctx, s.getFailuresKey(tenantID, destinationID), s.getEvaluatedKey(tenantID, destinationID)).Err()
+	return s.client.Del(ctx, s.getFailuresKey(tenantID, destinationID)).Err()
 }
 
 func (s *redisAlertStore) deploymentPrefix() string {
@@ -111,8 +74,4 @@ func (s *redisAlertStore) deploymentPrefix() string {
 
 func (s *redisAlertStore) getFailuresKey(tenantID, destinationID string) string {
 	return fmt.Sprintf("%s%s:%s:%s:%s", s.deploymentPrefix(), keyPrefixAlert, tenantID, destinationID, keyFailures)
-}
-
-func (s *redisAlertStore) getEvaluatedKey(tenantID, destinationID string) string {
-	return fmt.Sprintf("%s%s:%s:%s:%s", s.deploymentPrefix(), keyPrefixAlert, tenantID, destinationID, keyEvaluated)
 }

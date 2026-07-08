@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hookdeck/outpost/internal/apirouter"
 	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/hookdeck/outpost/internal/models"
+	"github.com/hookdeck/outpost/internal/opevents"
 	"github.com/hookdeck/outpost/internal/tenantstore"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -1279,7 +1279,7 @@ func TestAPI_SubscriptionUpdated(t *testing.T) {
 		assert.Equal(t, "tenant.subscription.updated", call.topic)
 		assert.Equal(t, "t1", call.tenantID)
 
-		data := call.data.(apirouter.TenantSubscriptionUpdatedData)
+		data := call.data.(opevents.TenantSubscriptionUpdatedData)
 		assert.Equal(t, 1, data.DestinationsCount)
 		assert.Equal(t, 0, data.PreviousDestinationsCount)
 	})
@@ -1295,7 +1295,7 @@ func TestAPI_SubscriptionUpdated(t *testing.T) {
 		require.Equal(t, http.StatusOK, resp.Code)
 		require.Len(t, h.subscriptionEmitter.calls, 1)
 
-		data := h.subscriptionEmitter.calls[0].data.(apirouter.TenantSubscriptionUpdatedData)
+		data := h.subscriptionEmitter.calls[0].data.(opevents.TenantSubscriptionUpdatedData)
 		assert.Equal(t, 0, data.DestinationsCount)
 		assert.Equal(t, 1, data.PreviousDestinationsCount)
 	})
@@ -1315,7 +1315,7 @@ func TestAPI_SubscriptionUpdated(t *testing.T) {
 		require.Equal(t, http.StatusOK, resp.Code)
 		require.Len(t, h.subscriptionEmitter.calls, 1)
 
-		data := h.subscriptionEmitter.calls[0].data.(apirouter.TenantSubscriptionUpdatedData)
+		data := h.subscriptionEmitter.calls[0].data.(opevents.TenantSubscriptionUpdatedData)
 		assert.Contains(t, data.Topics, "user.deleted")
 		assert.Contains(t, data.PreviousTopics, "user.created")
 	})

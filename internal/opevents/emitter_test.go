@@ -51,7 +51,7 @@ func TestEmitter_Emit(t *testing.T) {
 		sink := &mockSink{}
 		em := opevents.NewEmitter(sink, "deploy-1", []string{"*"})
 
-		err := em.Emit(context.Background(), "any.topic", "tenant-1", map[string]string{"key": "val"})
+		err := em.Emit(context.Background(), opevents.Event{Topic: "any.topic", TenantID: "tenant-1", Data: map[string]string{"key": "val"}})
 		require.NoError(t, err)
 
 		events := sink.sentEvents()
@@ -69,7 +69,7 @@ func TestEmitter_Emit(t *testing.T) {
 			opevents.TopicTenantSubscriptionUpdated,
 		})
 
-		err := em.Emit(context.Background(), opevents.TopicAlertConsecutiveFailure, "t1", "data")
+		err := em.Emit(context.Background(), opevents.Event{Topic: opevents.TopicAlertConsecutiveFailure, TenantID: "t1", Data: "data"})
 		require.NoError(t, err)
 		assert.Len(t, sink.sentEvents(), 1)
 	})
@@ -79,7 +79,7 @@ func TestEmitter_Emit(t *testing.T) {
 		sink := &mockSink{}
 		em := opevents.NewEmitter(sink, "", []string{opevents.TopicAlertConsecutiveFailure})
 
-		err := em.Emit(context.Background(), opevents.TopicTenantSubscriptionUpdated, "t1", "data")
+		err := em.Emit(context.Background(), opevents.Event{Topic: opevents.TopicTenantSubscriptionUpdated, TenantID: "t1", Data: "data"})
 		require.NoError(t, err)
 		assert.Empty(t, sink.sentEvents())
 	})
@@ -93,7 +93,7 @@ func TestEmitter_Emit(t *testing.T) {
 			Count int `json:"count"`
 		}
 
-		err := em.Emit(context.Background(), "test.topic", "tenant-42", payload{Count: 7})
+		err := em.Emit(context.Background(), opevents.Event{Topic: "test.topic", TenantID: "tenant-42", Data: payload{Count: 7}})
 		require.NoError(t, err)
 
 		events := sink.sentEvents()
@@ -116,7 +116,7 @@ func TestEmitter_Emit(t *testing.T) {
 		sink := &mockSink{}
 		em := opevents.NewEmitter(sink, "", []string{"*"})
 
-		err := em.Emit(context.Background(), "t", "tenant", "data")
+		err := em.Emit(context.Background(), opevents.Event{Topic: "t", TenantID: "tenant", Data: "data"})
 		require.NoError(t, err)
 
 		events := sink.sentEvents()
@@ -134,7 +134,7 @@ func TestEmitter_Emit(t *testing.T) {
 		sink := &mockSink{}
 		em := opevents.NewEmitter(sink, "", []string{})
 
-		err := em.Emit(context.Background(), "any.topic", "t1", "data")
+		err := em.Emit(context.Background(), opevents.Event{Topic: "any.topic", TenantID: "t1", Data: "data"})
 		require.NoError(t, err)
 		assert.Empty(t, sink.sentEvents(), "noop emitter should not send events")
 	})
@@ -150,7 +150,7 @@ func TestEmitter_Emit(t *testing.T) {
 		}
 		em := opevents.NewEmitter(sink, "", []string{"*"})
 
-		err := em.Emit(context.Background(), "t", "t1", "data")
+		err := em.Emit(context.Background(), opevents.Event{Topic: "t", TenantID: "t1", Data: "data"})
 		require.NoError(t, err)
 		assert.Len(t, sink.sentEvents(), 1)
 	})
@@ -166,7 +166,7 @@ func TestEmitter_Emit(t *testing.T) {
 		}
 		em := opevents.NewEmitter(sink, "", []string{"*"})
 
-		err := em.Emit(context.Background(), "t", "t1", "data")
+		err := em.Emit(context.Background(), opevents.Event{Topic: "t", TenantID: "t1", Data: "data"})
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "fail-3")
 		assert.Empty(t, sink.sentEvents())
@@ -182,7 +182,7 @@ func TestEmitter_Emit(t *testing.T) {
 		}
 		em := opevents.NewEmitter(sink, "", []string{"*"})
 
-		err := em.Emit(ctx, "t", "t1", "data")
+		err := em.Emit(ctx, opevents.Event{Topic: "t", TenantID: "t1", Data: "data"})
 		require.Error(t, err)
 	})
 }

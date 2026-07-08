@@ -19,16 +19,14 @@ func TestRedisAlertStore(t *testing.T) {
 		store := alert.NewRedisAlertStore(redisClient, "")
 
 		// First increment
-		res, err := store.IncrementConsecutiveFailureCount(context.Background(), "tenant_1", "dest_1", "att_1")
+		count, err := store.IncrementConsecutiveFailureCount(context.Background(), "tenant_1", "dest_1", "att_1")
 		require.NoError(t, err)
-		assert.Equal(t, 1, res.Count)
-		assert.True(t, res.NewlyCounted)
+		assert.Equal(t, 1, count)
 
 		// Second increment (different attempt)
-		res, err = store.IncrementConsecutiveFailureCount(context.Background(), "tenant_1", "dest_1", "att_2")
+		count, err = store.IncrementConsecutiveFailureCount(context.Background(), "tenant_1", "dest_1", "att_2")
 		require.NoError(t, err)
-		assert.Equal(t, 2, res.Count)
-		assert.True(t, res.NewlyCounted)
+		assert.Equal(t, 2, count)
 	})
 
 	t.Run("reset consecutive failures", func(t *testing.T) {
@@ -37,18 +35,18 @@ func TestRedisAlertStore(t *testing.T) {
 		store := alert.NewRedisAlertStore(redisClient, "")
 
 		// Set up initial failures
-		res, err := store.IncrementConsecutiveFailureCount(context.Background(), "tenant_2", "dest_2", "att_1")
+		count, err := store.IncrementConsecutiveFailureCount(context.Background(), "tenant_2", "dest_2", "att_1")
 		require.NoError(t, err)
-		assert.Equal(t, 1, res.Count)
+		assert.Equal(t, 1, count)
 
 		// Reset failures
 		err = store.ResetConsecutiveFailureCount(context.Background(), "tenant_2", "dest_2")
 		require.NoError(t, err)
 
 		// Verify counter is reset by incrementing again
-		res, err = store.IncrementConsecutiveFailureCount(context.Background(), "tenant_2", "dest_2", "att_2")
+		count, err = store.IncrementConsecutiveFailureCount(context.Background(), "tenant_2", "dest_2", "att_2")
 		require.NoError(t, err)
-		assert.Equal(t, 1, res.Count)
+		assert.Equal(t, 1, count)
 	})
 
 	t.Run("idempotent on replay", func(t *testing.T) {
@@ -57,79 +55,24 @@ func TestRedisAlertStore(t *testing.T) {
 		store := alert.NewRedisAlertStore(redisClient, "")
 
 		// First call
-		res, err := store.IncrementConsecutiveFailureCount(context.Background(), "tenant_3", "dest_3", "att_1")
+		count, err := store.IncrementConsecutiveFailureCount(context.Background(), "tenant_3", "dest_3", "att_1")
 		require.NoError(t, err)
-		assert.Equal(t, 1, res.Count)
-		assert.True(t, res.NewlyCounted)
+		assert.Equal(t, 1, count)
 
 		// Replay same attempt — count should not change
-		res, err = store.IncrementConsecutiveFailureCount(context.Background(), "tenant_3", "dest_3", "att_1")
+		count, err = store.IncrementConsecutiveFailureCount(context.Background(), "tenant_3", "dest_3", "att_1")
 		require.NoError(t, err)
-		assert.Equal(t, 1, res.Count, "replaying the same attemptID should not increment the count")
-		assert.False(t, res.NewlyCounted, "replayed attemptID should not be newly counted")
+		assert.Equal(t, 1, count, "replaying the same attemptID should not increment the count")
 
 		// Different attempt should still increment
-		res, err = store.IncrementConsecutiveFailureCount(context.Background(), "tenant_3", "dest_3", "att_2")
+		count, err = store.IncrementConsecutiveFailureCount(context.Background(), "tenant_3", "dest_3", "att_2")
 		require.NoError(t, err)
-		assert.Equal(t, 2, res.Count)
-		assert.True(t, res.NewlyCounted)
+		assert.Equal(t, 2, count)
 
 		// Replay the second attempt — count should not change
-		res, err = store.IncrementConsecutiveFailureCount(context.Background(), "tenant_3", "dest_3", "att_2")
+		count, err = store.IncrementConsecutiveFailureCount(context.Background(), "tenant_3", "dest_3", "att_2")
 		require.NoError(t, err)
-		assert.Equal(t, 2, res.Count, "replaying the same attemptID should not increment the count")
-		assert.False(t, res.NewlyCounted)
-	})
-
-	t.Run("mark attempt evaluated", func(t *testing.T) {
-		t.Parallel()
-		redisClient := testutil.CreateTestRedisClient(t)
-		store := alert.NewRedisAlertStore(redisClient, "")
-
-		// Counted but not yet evaluated
-		res, err := store.IncrementConsecutiveFailureCount(context.Background(), "tenant_4", "dest_4", "att_1")
-		require.NoError(t, err)
-		assert.False(t, res.AlreadyEvaluated, "attempt should not be evaluated before MarkAttemptEvaluated")
-
-		// Replay before marking — still not evaluated (partial-failure recovery path)
-		res, err = store.IncrementConsecutiveFailureCount(context.Background(), "tenant_4", "dest_4", "att_1")
-		require.NoError(t, err)
-		assert.False(t, res.NewlyCounted)
-		assert.False(t, res.AlreadyEvaluated)
-
-		// Mark evaluated
-		err = store.MarkAttemptEvaluated(context.Background(), "tenant_4", "dest_4", "att_1")
-		require.NoError(t, err)
-
-		// Replay after marking — evaluated
-		res, err = store.IncrementConsecutiveFailureCount(context.Background(), "tenant_4", "dest_4", "att_1")
-		require.NoError(t, err)
-		assert.False(t, res.NewlyCounted)
-		assert.True(t, res.AlreadyEvaluated, "attempt should be evaluated after MarkAttemptEvaluated")
-
-		// Other attempts unaffected
-		res, err = store.IncrementConsecutiveFailureCount(context.Background(), "tenant_4", "dest_4", "att_2")
-		require.NoError(t, err)
-		assert.True(t, res.NewlyCounted)
-		assert.False(t, res.AlreadyEvaluated)
-	})
-
-	t.Run("reset clears evaluated markers", func(t *testing.T) {
-		t.Parallel()
-		redisClient := testutil.CreateTestRedisClient(t)
-		store := alert.NewRedisAlertStore(redisClient, "")
-
-		_, err := store.IncrementConsecutiveFailureCount(context.Background(), "tenant_5", "dest_5", "att_1")
-		require.NoError(t, err)
-		require.NoError(t, store.MarkAttemptEvaluated(context.Background(), "tenant_5", "dest_5", "att_1"))
-
-		err = store.ResetConsecutiveFailureCount(context.Background(), "tenant_5", "dest_5")
-		require.NoError(t, err)
-
-		res, err := store.IncrementConsecutiveFailureCount(context.Background(), "tenant_5", "dest_5", "att_1")
-		require.NoError(t, err)
-		assert.True(t, res.NewlyCounted)
-		assert.False(t, res.AlreadyEvaluated, "reset should clear evaluated markers")
+		assert.Equal(t, 2, count, "replaying the same attemptID should not increment the count")
 	})
 }
 
@@ -140,23 +83,23 @@ func TestRedisAlertStore_WithDeploymentID(t *testing.T) {
 	store := alert.NewRedisAlertStore(redisClient, "dp_test_001")
 
 	// Test increment with deployment ID
-	res, err := store.IncrementConsecutiveFailureCount(context.Background(), "tenant_1", "dest_1", "att_1")
+	count, err := store.IncrementConsecutiveFailureCount(context.Background(), "tenant_1", "dest_1", "att_1")
 	require.NoError(t, err)
-	assert.Equal(t, 1, res.Count)
+	assert.Equal(t, 1, count)
 
 	// Second increment
-	res, err = store.IncrementConsecutiveFailureCount(context.Background(), "tenant_1", "dest_1", "att_2")
+	count, err = store.IncrementConsecutiveFailureCount(context.Background(), "tenant_1", "dest_1", "att_2")
 	require.NoError(t, err)
-	assert.Equal(t, 2, res.Count)
+	assert.Equal(t, 2, count)
 
 	// Test reset with deployment ID
 	err = store.ResetConsecutiveFailureCount(context.Background(), "tenant_1", "dest_1")
 	require.NoError(t, err)
 
 	// Verify counter is reset
-	res, err = store.IncrementConsecutiveFailureCount(context.Background(), "tenant_1", "dest_1", "att_3")
+	count, err = store.IncrementConsecutiveFailureCount(context.Background(), "tenant_1", "dest_1", "att_3")
 	require.NoError(t, err)
-	assert.Equal(t, 1, res.Count)
+	assert.Equal(t, 1, count)
 }
 
 func TestAlertStoreTenantIsolation(t *testing.T) {
@@ -174,35 +117,29 @@ func TestAlertStoreTenantIsolation(t *testing.T) {
 	tenantB := "tenant_b"
 
 	// Increment for tenant A.
-	resA, err := store.IncrementConsecutiveFailureCount(context.Background(), tenantA, destinationID, "att_1")
+	countA, err := store.IncrementConsecutiveFailureCount(context.Background(), tenantA, destinationID, "att_1")
 	require.NoError(t, err)
-	assert.Equal(t, 1, resA.Count)
+	assert.Equal(t, 1, countA)
 
-	resA, err = store.IncrementConsecutiveFailureCount(context.Background(), tenantA, destinationID, "att_2")
+	countA, err = store.IncrementConsecutiveFailureCount(context.Background(), tenantA, destinationID, "att_2")
 	require.NoError(t, err)
-	assert.Equal(t, 2, resA.Count)
+	assert.Equal(t, 2, countA)
 
 	// Tenant B uses the same destination id but must have its own counter.
-	resB, err := store.IncrementConsecutiveFailureCount(context.Background(), tenantB, destinationID, "att_1")
+	countB, err := store.IncrementConsecutiveFailureCount(context.Background(), tenantB, destinationID, "att_1")
 	require.NoError(t, err)
-	assert.Equal(t, 1, resB.Count, "tenant B should not inherit tenant A's failure count")
-
-	// Evaluated markers are tenant-scoped too.
-	require.NoError(t, store.MarkAttemptEvaluated(context.Background(), tenantA, destinationID, "att_1"))
-	resB, err = store.IncrementConsecutiveFailureCount(context.Background(), tenantB, destinationID, "att_1")
-	require.NoError(t, err)
-	assert.False(t, resB.AlreadyEvaluated, "tenant B should not see tenant A's evaluated marker")
+	assert.Equal(t, 1, countB, "tenant B should not inherit tenant A's failure count")
 
 	// Resetting tenant A must not clear tenant B's counter.
 	require.NoError(t, store.ResetConsecutiveFailureCount(context.Background(), tenantA, destinationID))
 
-	resA, err = store.IncrementConsecutiveFailureCount(context.Background(), tenantA, destinationID, "att_3")
+	countA, err = store.IncrementConsecutiveFailureCount(context.Background(), tenantA, destinationID, "att_3")
 	require.NoError(t, err)
-	assert.Equal(t, 1, resA.Count, "tenant A should be reset")
+	assert.Equal(t, 1, countA, "tenant A should be reset")
 
-	resB, err = store.IncrementConsecutiveFailureCount(context.Background(), tenantB, destinationID, "att_2")
+	countB, err = store.IncrementConsecutiveFailureCount(context.Background(), tenantB, destinationID, "att_2")
 	require.NoError(t, err)
-	assert.Equal(t, 2, resB.Count, "tenant B should be unaffected by tenant A reset")
+	assert.Equal(t, 2, countB, "tenant B should be unaffected by tenant A reset")
 }
 
 func TestAlertStoreIsolation(t *testing.T) {
@@ -219,41 +156,35 @@ func TestAlertStoreIsolation(t *testing.T) {
 	destinationID := "dest_shared"
 
 	// Increment in store1
-	res1, err := store1.IncrementConsecutiveFailureCount(context.Background(), tenantID, destinationID, "att_1")
+	count1, err := store1.IncrementConsecutiveFailureCount(context.Background(), tenantID, destinationID, "att_1")
 	require.NoError(t, err)
-	assert.Equal(t, 1, res1.Count)
+	assert.Equal(t, 1, count1)
 
-	res1, err = store1.IncrementConsecutiveFailureCount(context.Background(), tenantID, destinationID, "att_2")
+	count1, err = store1.IncrementConsecutiveFailureCount(context.Background(), tenantID, destinationID, "att_2")
 	require.NoError(t, err)
-	assert.Equal(t, 2, res1.Count)
+	assert.Equal(t, 2, count1)
 
 	// Increment in store2 - should start at 1 (isolated from store1)
-	res2, err := store2.IncrementConsecutiveFailureCount(context.Background(), tenantID, destinationID, "att_1")
+	count2, err := store2.IncrementConsecutiveFailureCount(context.Background(), tenantID, destinationID, "att_1")
 	require.NoError(t, err)
-	assert.Equal(t, 1, res2.Count, "Store 2 should have its own counter")
-
-	// Evaluated markers are isolated too
-	require.NoError(t, store1.MarkAttemptEvaluated(context.Background(), tenantID, destinationID, "att_1"))
-	res2, err = store2.IncrementConsecutiveFailureCount(context.Background(), tenantID, destinationID, "att_1")
-	require.NoError(t, err)
-	assert.False(t, res2.AlreadyEvaluated, "Store 2 should not see store 1's evaluated marker")
+	assert.Equal(t, 1, count2, "Store 2 should have its own counter")
 
 	// Increment store1 again - should continue from 2
-	res1, err = store1.IncrementConsecutiveFailureCount(context.Background(), tenantID, destinationID, "att_3")
+	count1, err = store1.IncrementConsecutiveFailureCount(context.Background(), tenantID, destinationID, "att_3")
 	require.NoError(t, err)
-	assert.Equal(t, 3, res1.Count, "Store 1 counter should be unaffected by store 2")
+	assert.Equal(t, 3, count1, "Store 1 counter should be unaffected by store 2")
 
 	// Reset store1 - should not affect store2
 	err = store1.ResetConsecutiveFailureCount(context.Background(), tenantID, destinationID)
 	require.NoError(t, err)
 
 	// Verify store1 is reset
-	res1, err = store1.IncrementConsecutiveFailureCount(context.Background(), tenantID, destinationID, "att_4")
+	count1, err = store1.IncrementConsecutiveFailureCount(context.Background(), tenantID, destinationID, "att_4")
 	require.NoError(t, err)
-	assert.Equal(t, 1, res1.Count, "Store 1 should be reset")
+	assert.Equal(t, 1, count1, "Store 1 should be reset")
 
 	// Verify store2 is unaffected
-	res2, err = store2.IncrementConsecutiveFailureCount(context.Background(), tenantID, destinationID, "att_2")
+	count2, err = store2.IncrementConsecutiveFailureCount(context.Background(), tenantID, destinationID, "att_2")
 	require.NoError(t, err)
-	assert.Equal(t, 2, res2.Count, "Store 2 should be unaffected by store 1 reset")
+	assert.Equal(t, 2, count2, "Store 2 should be unaffected by store 1 reset")
 }

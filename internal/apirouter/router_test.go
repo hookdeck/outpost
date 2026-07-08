@@ -16,6 +16,7 @@ import (
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/logstore"
 	"github.com/hookdeck/outpost/internal/models"
+	"github.com/hookdeck/outpost/internal/opevents"
 	"github.com/hookdeck/outpost/internal/portal"
 	"github.com/hookdeck/outpost/internal/publishmq"
 	"github.com/hookdeck/outpost/internal/telemetry"
@@ -244,8 +245,8 @@ type emitCall struct {
 	data     any
 }
 
-func (m *mockSubscriptionEmitter) Emit(_ context.Context, topic string, tenantID string, data any) error {
-	m.calls = append(m.calls, emitCall{topic: topic, tenantID: tenantID, data: data})
+func (m *mockSubscriptionEmitter) Emit(_ context.Context, ev opevents.Event) error {
+	m.calls = append(m.calls, emitCall{topic: ev.Topic, tenantID: ev.TenantID, data: ev.Data})
 	return nil
 }
 

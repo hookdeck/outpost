@@ -15,9 +15,17 @@ const (
 	backoffFactor = 2
 )
 
+// Event is a request to emit an operator event. Callers (alert eval, apirouter)
+// build it and hand it to Emit, which owns envelope construction and delivery.
+type Event struct {
+	Topic    string
+	TenantID string
+	Data     any
+}
+
 // Emitter is the interface for emitting operator events.
 type Emitter interface {
-	Emit(ctx context.Context, topic string, tenantID string, data any) error
+	Emit(ctx context.Context, ev Event) error
 }
 
 // emitter is the default Emitter implementation.
@@ -54,23 +62,23 @@ func NewEmitter(sink Sink, deploymentID string, topics []string) Emitter {
 	}
 }
 
-func (e *emitter) Emit(ctx context.Context, topic string, tenantID string, data any) error {
+func (e *emitter) Emit(ctx context.Context, ev Event) error {
 	// Topic filtering: nil filter means accept all ("*")
-	if e.topicFilter != nil && !e.topicFilter[topic] {
+	if e.topicFilter != nil && !e.topicFilter[ev.Topic] {
 		return nil
 	}
 
-	rawData, err := json.Marshal(data)
+	rawData, err := json.Marshal(ev.Data)
 	if err != nil {
 		return fmt.Errorf("opevents: failed to marshal data: %w", err)
 	}
 
 	event := &OperatorEvent{
 		ID:           idgen.String(),
-		Topic:        topic,
+		Topic:        ev.Topic,
 		Time:         time.Now(),
 		DeploymentID: e.deploymentID,
-		TenantID:     tenantID,
+		TenantID:     ev.TenantID,
 		Data:         rawData,
 	}
 
@@ -104,6 +112,6 @@ func (e *emitter) sendWithRetry(ctx context.Context, event *OperatorEvent) error
 // noopEmitter discards all events. Used when operator events are disabled.
 type noopEmitter struct{}
 
-func (e *noopEmitter) Emit(ctx context.Context, topic string, tenantID string, data any) error {
+func (e *noopEmitter) Emit(ctx context.Context, ev Event) error {
 	return nil
 }
