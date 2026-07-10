@@ -3,9 +3,23 @@ package config
 import (
 	"strings"
 
+	destregistrydefault "github.com/hookdeck/outpost/internal/destregistry/providers"
 	"github.com/hookdeck/outpost/internal/version"
 	"go.uber.org/zap"
 )
+
+// webhookHeaderSummary renders a resolved webhook header directive for the
+// startup log: "disabled", "<default>" (prefix + key), or the pinned name.
+func webhookHeaderSummary(h destregistrydefault.WebhookHeaderConfig) string {
+	switch {
+	case h.Disabled:
+		return "disabled"
+	case h.Name == "":
+		return "<default>"
+	default:
+		return h.Name
+	}
+}
 
 // LogConfigurationSummary returns zap fields with configuration summary, masking sensitive data
 //
@@ -23,6 +37,11 @@ func (c *Config) LogConfigurationSummary() []zap.Field {
 	// Resolve alert settings so the summary logs the effective values. The error
 	// is ignored — config is already validated by the time this runs.
 	alertSettings, _ := c.Alert.ToConfig()
+
+	// Resolve the webhook config so the summary reflects the effective header
+	// directives after folding in the three-state name configs and deprecated
+	// DISABLE_* flags.
+	webhookCfg := c.Destinations.Webhook.toConfig()
 
 	fields := []zap.Field{
 		// General
@@ -108,6 +127,13 @@ func (c *Config) LogConfigurationSummary() []zap.Field {
 
 		// Retention
 		zap.Int("clickhouse_log_retention_ttl_days", c.ClickHouseLogRetentionTTLDays),
+
+		// Destinations - Webhook (effective header directives after resolving the
+		// three-state name configs and deprecated DISABLE_* flags)
+		zap.String("destinations_webhook_event_id_header", webhookHeaderSummary(webhookCfg.EventIDHeader)),
+		zap.String("destinations_webhook_signature_header", webhookHeaderSummary(webhookCfg.SignatureHeader)),
+		zap.String("destinations_webhook_timestamp_header", webhookHeaderSummary(webhookCfg.TimestampHeader)),
+		zap.String("destinations_webhook_topic_header", webhookHeaderSummary(webhookCfg.TopicHeader)),
 	}
 
 	// Add MQ-specific fields based on type

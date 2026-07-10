@@ -74,7 +74,7 @@ The request body contains the event's `data` field as JSON. The `metadata` field
 
 Webhook delivery is **at-least-once** (see [Event delivery & retries](/docs/outpost/features/event-delivery)). Your handler should deduplicate using the **event id** — the same stable `id` you set when [publishing](/docs/outpost/publishing/events) (Outpost may redeliver on retries).
 
-In **default** mode, that id is sent as the system **`event-id`** metadata field. The HTTP header name is **`{header_prefix}{metadata-key}`** with **no extra separator** — the prefix and key are concatenated as-is. So the default prefix `x-outpost-` plus `event-id` yields **`X-Outpost-Event-Id`**; a prefix without a trailing separator (for example `x-acme`) would produce `x-acme` + `event-id` → **`X-Acmeevent-Id`** (Go canonicalizes the wire name). Include a trailing hyphen in the prefix when you want a conventional shape like **`X-Acme-Event-Id`**. Change the prefix with **`DESTINATIONS_WEBHOOK_HEADER_PREFIX`**, or omit this header with **`DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_EVENT_ID_HEADER`**.
+In **default** mode, that id is sent as the system **`event-id`** metadata field. The HTTP header name is **`{header_prefix}{metadata-key}`** with **no extra separator** — the prefix and key are concatenated as-is. So the default prefix `x-outpost-` plus `event-id` yields **`X-Outpost-Event-Id`**; a prefix without a trailing separator (for example `x-acme`) would produce `x-acme` + `event-id` → **`X-Acmeevent-Id`** (Go canonicalizes the wire name). Include a trailing hyphen in the prefix when you want a conventional shape like **`X-Acme-Event-Id`**. Change the prefix with **`DESTINATIONS_WEBHOOK_HEADER_PREFIX`**, pin the full header name with **`DESTINATIONS_WEBHOOK_EVENT_ID_HEADER_NAME`**, or omit this header by setting that variable to an empty string.
 
 In **Standard Webhooks** mode, the same value is sent as the **`webhook-id`** header (default prefix `webhook-`, so typically **`Webhook-Id`**) per the [Standard Webhooks](https://www.standardwebhooks.com/) specification.
 
@@ -271,7 +271,7 @@ Set `DESTINATIONS_WEBHOOK_PROXY_URL` to your proxy URL (basic auth supported). S
 
 {% tabs tabGroup="deployment" %}
 {% tab label="Managed" %}
-Configure webhook operator behavior using these keys in the Config API or in [Hookdeck Destinations settings](https://dashboard.hookdeck.com/settings/project/destinations): `DESTINATIONS_WEBHOOK_HEADER_PREFIX`, `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_EVENT_ID_HEADER`, `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_TIMESTAMP_HEADER`, `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_TOPIC_HEADER`, `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_SIGNATURE_HEADER`, `DESTINATIONS_WEBHOOK_MODE`, `DESTINATIONS_WEBHOOK_SIGNATURE_ALGORITHM`, `DESTINATIONS_WEBHOOK_SIGNATURE_ENCODING`, `DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE`, `DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE`, and `DESTINATIONS_WEBHOOK_MAX_RESPONSE_BODY_BYTES`.
+Configure webhook operator behavior using these keys in the Config API or in [Hookdeck Destinations settings](https://dashboard.hookdeck.com/settings/project/destinations): `DESTINATIONS_WEBHOOK_HEADER_PREFIX`, `DESTINATIONS_WEBHOOK_EVENT_ID_HEADER_NAME`, `DESTINATIONS_WEBHOOK_TIMESTAMP_HEADER_NAME`, `DESTINATIONS_WEBHOOK_TOPIC_HEADER_NAME`, `DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_NAME`, `DESTINATIONS_WEBHOOK_MODE`, `DESTINATIONS_WEBHOOK_SIGNATURE_ALGORITHM`, `DESTINATIONS_WEBHOOK_SIGNATURE_ENCODING`, `DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE`, `DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE`, and `DESTINATIONS_WEBHOOK_MAX_RESPONSE_BODY_BYTES`.
 {% /tab %}
 {% tab label="Self-Hosted" %}
 ### Header Settings
@@ -279,10 +279,18 @@ Configure webhook operator behavior using these keys in the Config API or in [Ho
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `DESTINATIONS_WEBHOOK_HEADER_PREFIX` | `x-outpost-` / `webhook-` | Prefix for system webhook headers (event id, topic, timestamp, signature). Unless overridden, defaults to **`x-outpost-`** when `DESTINATIONS_WEBHOOK_MODE` is `default` and **`webhook-`** when `standard`. |
-| `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_EVENT_ID_HEADER` | `false` | Disable the event ID header |
-| `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_TIMESTAMP_HEADER` | `false` | Disable the timestamp header |
-| `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_TOPIC_HEADER` | `false` | Disable the topic header |
-| `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_SIGNATURE_HEADER` | `false` | Disable the signature header |
+| `DESTINATIONS_WEBHOOK_EVENT_ID_HEADER_NAME` | — | Complete name of the event ID header. Unset uses the default `<prefix>event-id`; an explicit value pins that exact name; an empty string disables the header. |
+| `DESTINATIONS_WEBHOOK_TIMESTAMP_HEADER_NAME` | — | Complete name of the timestamp header. Unset uses the default `<prefix>timestamp`; an explicit value pins that exact name; an empty string disables the header. |
+| `DESTINATIONS_WEBHOOK_TOPIC_HEADER_NAME` | — | Complete name of the topic header. Unset uses the default `<prefix>topic`; an explicit value pins that exact name; an empty string disables the header. |
+| `DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_NAME` | — | Complete name of the signature header. Unset uses the default `<prefix>signature`; an explicit value pins that exact name; an empty string disables the header. |
+
+{% callout type="warning" %}
+The `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_*_HEADER` flags are deprecated and will be removed in a future version. Disable a header by setting its corresponding `*_HEADER_NAME` variable to an empty string instead.
+{% /callout %}
+
+{% callout type="info" %}
+Header names are matched case-insensitively. Outpost rejects a configuration where two system headers resolve to the same name (for example pinning both event id and topic to `x-acme`). Also avoid pinning a system header to a name you also set via per-destination `custom_headers` — the last write wins and the result is not guaranteed.
+{% /callout %}
 
 ### Signature Settings
 

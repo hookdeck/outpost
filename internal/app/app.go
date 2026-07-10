@@ -66,6 +66,10 @@ func (a *App) PreRun(ctx context.Context) (err error) {
 
 	a.logger.Info("starting outpost", a.config.LogConfigurationSummary()...)
 
+	for _, warning := range a.config.DeprecationWarnings() {
+		a.logger.Warn(warning)
+	}
+
 	if err := a.configureIDGenerators(); err != nil {
 		return err
 	}

@@ -3119,14 +3119,12 @@ components:
           type: string
         DESTINATIONS_INCLUDE_MILLISECOND_TIMESTAMP:
           type: string
-        DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_EVENT_ID_HEADER:
+        DESTINATIONS_WEBHOOK_EVENT_ID_HEADER_NAME:
           type: string
-        DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_SIGNATURE_HEADER:
-          type: string
-        DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_TIMESTAMP_HEADER:
-          type: string
-        DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_TOPIC_HEADER:
-          type: string
+          description: >-
+            Complete name of the event ID header. Unset uses the default
+            "<prefix>event-id"; an explicit value pins that exact name; an empty
+            string disables the header. Only applies to "default" mode.
         DESTINATIONS_WEBHOOK_HEADER_PREFIX:
           type: string
         DESTINATIONS_WEBHOOK_MODE:
@@ -3139,10 +3137,28 @@ components:
           type: string
         DESTINATIONS_WEBHOOK_SIGNATURE_ENCODING:
           type: string
+        DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_NAME:
+          type: string
+          description: >-
+            Complete name of the signature header. Unset uses the default
+            "<prefix>signature"; an explicit value pins that exact name; an
+            empty string disables the header. Only applies to "default" mode.
         DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE:
           type: string
         DESTINATIONS_WEBHOOK_SIGNING_SECRET_TEMPLATE:
           type: string
+        DESTINATIONS_WEBHOOK_TIMESTAMP_HEADER_NAME:
+          type: string
+          description: >-
+            Complete name of the timestamp header. Unset uses the default
+            "<prefix>timestamp"; an explicit value pins that exact name; an
+            empty string disables the header. Only applies to "default" mode.
+        DESTINATIONS_WEBHOOK_TOPIC_HEADER_NAME:
+          type: string
+          description: >-
+            Complete name of the topic header. Unset uses the default
+            "<prefix>topic"; an explicit value pins that exact name; an empty
+            string disables the header. Only applies to "default" mode.
         HTTP_USER_AGENT:
           type: string
         IDGEN_ATTEMPT_PREFIX:

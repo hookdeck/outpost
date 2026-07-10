@@ -14,20 +14,29 @@ import (
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destwebhookstandard"
 )
 
+// WebhookHeaderConfig is the resolved directive for a single webhook system
+// header. The config layer collapses the three-state name config (and the
+// deprecated DISABLE_* flag) into this: an empty Name with Disabled false means
+// "use the default '<prefix>' + key".
+type WebhookHeaderConfig struct {
+	Name     string
+	Disabled bool
+}
+
 type DestWebhookConfig struct {
-	Mode                          string
-	ProxyURL                      string
-	HeaderPrefix                  string
-	DisableDefaultEventIDHeader   bool
-	DisableDefaultSignatureHeader bool
-	DisableDefaultTimestampHeader bool
-	DisableDefaultTopicHeader     bool
-	SignatureContentTemplate      string
-	SignatureHeaderTemplate       string
-	SignatureEncoding             string
-	SignatureAlgorithm            string
-	SigningSecretTemplate         string
-	MaxResponseBodyBytes          int
+	Mode                     string
+	ProxyURL                 string
+	HeaderPrefix             string
+	EventIDHeader            WebhookHeaderConfig
+	SignatureHeader          WebhookHeaderConfig
+	TimestampHeader          WebhookHeaderConfig
+	TopicHeader              WebhookHeaderConfig
+	SignatureContentTemplate string
+	SignatureHeaderTemplate  string
+	SignatureEncoding        string
+	SignatureAlgorithm       string
+	SigningSecretTemplate    string
+	MaxResponseBodyBytes     int
 }
 
 type DestAWSKinesisConfig struct {
@@ -76,10 +85,10 @@ func RegisterDefault(registry destregistry.Registry, opts RegisterDefaultDestina
 			webhookOpts = append(webhookOpts,
 				destwebhook.WithProxyURL(opts.Webhook.ProxyURL),
 				destwebhook.WithHeaderPrefix(opts.Webhook.HeaderPrefix),
-				destwebhook.WithDisableDefaultEventIDHeader(opts.Webhook.DisableDefaultEventIDHeader),
-				destwebhook.WithDisableDefaultSignatureHeader(opts.Webhook.DisableDefaultSignatureHeader),
-				destwebhook.WithDisableDefaultTimestampHeader(opts.Webhook.DisableDefaultTimestampHeader),
-				destwebhook.WithDisableDefaultTopicHeader(opts.Webhook.DisableDefaultTopicHeader),
+				destwebhook.WithEventIDHeader(opts.Webhook.EventIDHeader.Name, opts.Webhook.EventIDHeader.Disabled),
+				destwebhook.WithSignatureHeader(opts.Webhook.SignatureHeader.Name, opts.Webhook.SignatureHeader.Disabled),
+				destwebhook.WithTimestampHeader(opts.Webhook.TimestampHeader.Name, opts.Webhook.TimestampHeader.Disabled),
+				destwebhook.WithTopicHeader(opts.Webhook.TopicHeader.Name, opts.Webhook.TopicHeader.Disabled),
 				destwebhook.WithSignatureContentTemplate(opts.Webhook.SignatureContentTemplate),
 				destwebhook.WithSignatureHeaderTemplate(opts.Webhook.SignatureHeaderTemplate),
 				destwebhook.WithSignatureEncoding(opts.Webhook.SignatureEncoding),

@@ -291,6 +291,7 @@ func (c *Config) parseEnvVariables(osInterface OSInterface) error {
 	}
 
 	c.captureEmptyAlertEnv(osInterface)
+	c.captureEmptyWebhookHeaderEnv(osInterface)
 	return nil
 }
 
@@ -306,6 +307,23 @@ func (c *Config) captureEmptyAlertEnv(osInterface OSInterface) {
 	}
 	if v, ok := osInterface.LookupEnv("ALERT_EXHAUSTED_RETRIES_WINDOW_SECONDS"); ok && v == "" {
 		c.Alert.ExhaustedRetriesWindowSeconds = NewOptionalString("")
+	}
+}
+
+// captureEmptyWebhookHeaderEnv honors "an empty env var disables this webhook
+// header". Same caarlos0/env gap as captureEmptyAlertEnv: a present-but-empty
+// env var never reaches the OptionalString unmarshaler, so we detect it via
+// LookupEnv and set the empty (disabled) state explicitly.
+func (c *Config) captureEmptyWebhookHeaderEnv(osInterface OSInterface) {
+	for envVar, field := range map[string]*OptionalString{
+		"DESTINATIONS_WEBHOOK_EVENT_ID_HEADER_NAME":  &c.Destinations.Webhook.EventIDHeaderName,
+		"DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_NAME": &c.Destinations.Webhook.SignatureHeaderName,
+		"DESTINATIONS_WEBHOOK_TIMESTAMP_HEADER_NAME": &c.Destinations.Webhook.TimestampHeaderName,
+		"DESTINATIONS_WEBHOOK_TOPIC_HEADER_NAME":     &c.Destinations.Webhook.TopicHeaderName,
+	} {
+		if v, ok := osInterface.LookupEnv(envVar); ok && v == "" {
+			*field = NewOptionalString("")
+		}
 	}
 }
 
@@ -555,6 +573,12 @@ func resolveAlertCount(raw OptionalString, defaultValue, min int) (resolvedAlert
 		return resolvedAlertCount{}, fmt.Errorf("must be >= %d, got %d", min, n)
 	}
 	return resolvedAlertCount{enabled: true, value: n}, nil
+}
+
+// DeprecationWarnings returns human-readable warnings for deprecated config
+// options that are actively in use, so callers can surface them at startup.
+func (c *Config) DeprecationWarnings() []string {
+	return c.Destinations.Webhook.deprecationWarnings()
 }
 
 // ConfigFilePath returns the path of the config file that was used
