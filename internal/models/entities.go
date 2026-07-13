@@ -197,6 +197,52 @@ func (t *Topics) Validate(availableTopics []string, allowWildcards bool) error {
 	return nil
 }
 
+// Normalize returns a topic set with redundant entries removed, preserving
+// first-seen order. It performs two reductions:
+//
+//   - exact duplicates are collapsed to their first occurrence
+//     (["user.created","user.created"] -> ["user.created"]).
+//   - an entry is folded away when a sibling wildcard pattern covers it and the
+//     entry does not itself cover that sibling
+//     (["user.*","user.created"] -> ["user.*"]).
+//
+// Two mutually-non-covering patterns are both kept
+// (["*.created","user.*"] is unchanged), and ["*"] is returned as-is.
+// Normalization never changes MatchTopic results: it only drops entries that
+// are already covered by a retained entry.
+func (t Topics) Normalize() Topics {
+	if t.MatchesAll() || len(t) <= 1 {
+		return t
+	}
+	result := make(Topics, 0, len(t))
+	for _, e := range t {
+		if slices.Contains(result, e) {
+			continue // exact duplicate of an already-kept entry
+		}
+		if coveredByOther(e, t) {
+			continue // folded into a strictly-more-general sibling pattern
+		}
+		result = append(result, e)
+	}
+	return result
+}
+
+// coveredByOther reports whether entry e is covered by some other entry p in
+// topics such that p covers e but e does not cover p (p is strictly more
+// general). This keeps mutually-covering entries and pattern pairs that neither
+// covers, so only strictly-redundant entries are folded.
+func coveredByOther(e string, topics Topics) bool {
+	for _, p := range topics {
+		if p == e {
+			continue
+		}
+		if matchTopicPattern(p, e) && !matchTopicPattern(e, p) {
+			return true
+		}
+	}
+	return false
+}
+
 func topicPatternMatchesAny(pattern string, topics []string) bool {
 	for _, topic := range topics {
 		if matchTopicPattern(pattern, topic) {

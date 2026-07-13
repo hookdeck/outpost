@@ -109,6 +109,7 @@ func (h *DestinationHandlers) Create(c *gin.Context) {
 		AbortWithValidationError(c, err)
 		return
 	}
+	destination.Topics = destination.Topics.Normalize()
 	if err := h.registry.ValidateDestination(c.Request.Context(), &destination); err != nil {
 		AbortWithValidationError(c, err)
 		return
@@ -183,6 +184,7 @@ func (h *DestinationHandlers) Update(c *gin.Context) {
 			AbortWithValidationError(c, err)
 			return
 		}
+		updatedDestination.Topics = updatedDestination.Topics.Normalize()
 	}
 	shouldRevalidate := false
 	if input.Type != "" && input.Type != originalDestination.Type {
