@@ -127,6 +127,61 @@ func TestDestinationTopics_Validate(t *testing.T) {
 	}
 }
 
+func TestDestinationTopics_Normalize(t *testing.T) {
+	t.Parallel()
+
+	type testCase struct {
+		name     string
+		topics   models.Topics
+		expected models.Topics
+	}
+
+	testCases := []testCase{
+		{
+			name:     "exact duplicates collapse to first occurrence",
+			topics:   models.Topics{"user.created", "user.created"},
+			expected: models.Topics{"user.created"},
+		},
+		{
+			name:     "entry covered by sibling pattern is folded",
+			topics:   models.Topics{"user.*", "user.created"},
+			expected: models.Topics{"user.*"},
+		},
+		{
+			name:     "covered entry folded, mutually-non-covering patterns kept",
+			topics:   models.Topics{"*.created", "user.created", "user.*"},
+			expected: models.Topics{"*.created", "user.*"},
+		},
+		{
+			name:     "mutually-non-covering patterns are unchanged",
+			topics:   models.Topics{"*.created", "user.*"},
+			expected: models.Topics{"*.created", "user.*"},
+		},
+		{
+			name:     "distinct non-redundant topics are unchanged",
+			topics:   models.Topics{"user.created", "user.updated"},
+			expected: models.Topics{"user.created", "user.updated"},
+		},
+		{
+			name:     "match-all is returned as-is",
+			topics:   models.Topics{"*"},
+			expected: models.Topics{"*"},
+		},
+		{
+			name:     "first-seen order is preserved",
+			topics:   models.Topics{"user.updated", "user.created", "user.updated"},
+			expected: models.Topics{"user.updated", "user.created"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.expected, tc.topics.Normalize())
+		})
+	}
+}
+
 func TestDestination_JSONMarshalWithDeliveryMetadata(t *testing.T) {
 	t.Parallel()
 
