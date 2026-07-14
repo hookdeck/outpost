@@ -142,6 +142,46 @@ func TestAPI_Destinations(t *testing.T) {
 			require.Equal(t, http.StatusUnprocessableEntity, resp.Code)
 		})
 
+		t.Run("duplicate topics are normalized", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+
+			payload := validDestination()
+			payload["topics"] = []string{"user.created", "user.created"}
+
+			req := h.jsonReq(http.MethodPost, "/api/v1/tenants/t1/destinations", payload)
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusCreated, resp.Code)
+			var dest destregistry.DestinationDisplay
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &dest))
+			assert.Equal(t, models.Topics{"user.created"}, dest.Topics)
+
+			stored, err := h.tenantStore.RetrieveDestination(t.Context(), "t1", dest.ID)
+			require.NoError(t, err)
+			assert.Equal(t, models.Topics{"user.created"}, stored.Topics)
+		})
+
+		t.Run("topic covered by sibling wildcard is normalized", func(t *testing.T) {
+			h := newAPITest(t, withTopicsAllowWildcards(true))
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+
+			payload := validDestination()
+			payload["topics"] = []string{"user.*", "user.created"}
+
+			req := h.jsonReq(http.MethodPost, "/api/v1/tenants/t1/destinations", payload)
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusCreated, resp.Code)
+			var dest destregistry.DestinationDisplay
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &dest))
+			assert.Equal(t, models.Topics{"user.*"}, dest.Topics)
+
+			stored, err := h.tenantStore.RetrieveDestination(t.Context(), "t1", dest.ID)
+			require.NoError(t, err)
+			assert.Equal(t, models.Topics{"user.*"}, stored.Topics)
+		})
+
 		t.Run("import timestamps", func(t *testing.T) {
 			t.Run("disabled_at preserved on create", func(t *testing.T) {
 				h := newAPITest(t)
@@ -443,6 +483,50 @@ func TestAPI_Destinations(t *testing.T) {
 			var dest destregistry.DestinationDisplay
 			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &dest))
 			assert.Equal(t, models.Topics{"user.deleted"}, dest.Topics)
+		})
+
+		t.Run("duplicate topics are normalized", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+			h.tenantStore.CreateDestination(t.Context(), df.Any(
+				df.WithID("d1"), df.WithTenantID("t1"), df.WithTopics([]string{"user.created"}),
+			))
+
+			req := h.jsonReq(http.MethodPatch, "/api/v1/tenants/t1/destinations/d1", map[string]any{
+				"topics": []string{"user.deleted", "user.deleted"},
+			})
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+			var dest destregistry.DestinationDisplay
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &dest))
+			assert.Equal(t, models.Topics{"user.deleted"}, dest.Topics)
+
+			stored, err := h.tenantStore.RetrieveDestination(t.Context(), "t1", "d1")
+			require.NoError(t, err)
+			assert.Equal(t, models.Topics{"user.deleted"}, stored.Topics)
+		})
+
+		t.Run("topic covered by sibling wildcard is normalized", func(t *testing.T) {
+			h := newAPITest(t, withTopicsAllowWildcards(true))
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+			h.tenantStore.CreateDestination(t.Context(), df.Any(
+				df.WithID("d1"), df.WithTenantID("t1"), df.WithTopics([]string{"user.created"}),
+			))
+
+			req := h.jsonReq(http.MethodPatch, "/api/v1/tenants/t1/destinations/d1", map[string]any{
+				"topics": []string{"user.*", "user.created"},
+			})
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+			var dest destregistry.DestinationDisplay
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &dest))
+			assert.Equal(t, models.Topics{"user.*"}, dest.Topics)
+
+			stored, err := h.tenantStore.RetrieveDestination(t.Context(), "t1", "d1")
+			require.NoError(t, err)
+			assert.Equal(t, models.Topics{"user.*"}, stored.Topics)
 		})
 
 		t.Run("api key updates destination config", func(t *testing.T) {
