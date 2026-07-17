@@ -16,7 +16,7 @@ import (
 )
 
 // makeExhaustedEntry builds a failed attempt past the retry limit for a fixed
-// event+destination, so its exhausted-retries suppression key is deterministic.
+// tenant+destination, so its exhausted-retries suppression key is deterministic.
 // cf alerting is kept quiet by the callers' high thresholds/auto-disable count.
 func makeExhaustedEntry(destID, tenantID, eventID, attemptID string, attemptNumber int) models.LogEntry {
 	event := testutil.EventFactory.Any(
@@ -46,8 +46,9 @@ func exhaustedAlertConfig() alertConfig {
 	return alertConfig{thresholds: []int{100}, autoDisableCount: 100, retryMaxLimit: 3}
 }
 
-// Two exhaustions of the same event+destination within the window → only the
-// first delivers; the second is suppressed by the idempotence key.
+// Two exhaustions on the same destination within the window → only the first
+// delivers; the second is suppressed by the idempotence key. Same event here
+// (the replay case); distinct events are covered by PerDestination.
 func TestDelivery_ExhaustedRetries_WindowSuppression(t *testing.T) {
 	t.Parallel()
 	idemp := idempotence.New(testutil.CreateTestRedisClient(t), idempotence.WithSuccessfulTTL(10*time.Second))
@@ -71,12 +72,11 @@ func TestDelivery_ExhaustedRetries_WindowSuppression(t *testing.T) {
 	cm1.requireAcked(t)
 	cm2.requireAcked(t)
 	assert.ElementsMatch(t, []string{topicFailed, topicFailed, topicExhaust}, topics(h.sink.forDest(dest)),
-		"second exhaustion of the same event+destination is suppressed within the window")
+		"second exhaustion on the same destination is suppressed within the window")
 }
 
-// With no suppression window (idemp nil == WindowSeconds 0), every exhaustion of
-// the same event+destination delivers — the key is present but there's no
-// idempotence to enforce it.
+// With no suppression window (idemp nil == WindowSeconds 0), every exhaustion
+// delivers — the key is present but there's no idempotence to enforce it.
 func TestDelivery_ExhaustedRetries_NoWindowEmitsEvery(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t, harnessConfig{
@@ -95,35 +95,92 @@ func TestDelivery_ExhaustedRetries_NoWindowEmitsEvery(t *testing.T) {
 	cm1.requireAcked(t)
 	cm2.requireAcked(t)
 	assert.ElementsMatch(t, []string{topicFailed, topicFailed, topicExhaust, topicExhaust}, topics(h.sink.forDest(dest)),
-		"with no window, every exhaustion of the same event+destination delivers")
+		"with no window, every exhaustion delivers")
 }
 
-// Distinct events exhausting on the same destination carry distinct keys → each
-// delivers its own alert.
-func TestDelivery_ExhaustedRetries_PerEvent(t *testing.T) {
+// Distinct events exhausting on the same destination share the window key →
+// at most one alert per destination within the window.
+func TestDelivery_ExhaustedRetries_PerDestination(t *testing.T) {
 	t.Parallel()
 	idemp := idempotence.New(testutil.CreateTestRedisClient(t), idempotence.WithSuccessfulTTL(10*time.Second))
+	h := newHarness(t, harnessConfig{
+		batcher: batcherConfig{itemCount: 1},
+		alert:   exhaustedAlertConfig(),
+		doubles: doublesConfig{idemp: idemp},
+	})
+
+	// Paced one at a time: concurrent Execs on the shared window key would hit
+	// the in-flight conflict path instead of the suppression this test pins.
+	dest, tenant := "dest_pd", "tenant_pd"
+	cm1, msg1 := newCountingMessage(makeExhaustedEntry(dest, tenant, "evt_pd_1", "att_pd_1", 4))
+	cm2, msg2 := newCountingMessage(makeExhaustedEntry(dest, tenant, "evt_pd_2", "att_pd_2", 4))
+	h.add(msg1)
+	h.waitTerminal([]*countingMessage{cm1})
+	h.add(msg2)
+	h.waitTerminal([]*countingMessage{cm2})
+
+	cm1.requireAcked(t)
+	cm2.requireAcked(t)
+	assert.ElementsMatch(t, []string{topicFailed, topicFailed, topicExhaust}, topics(h.sink.forDest(dest)),
+		"a second event exhausting on the same destination within the window is suppressed")
+}
+
+// The window key is tenant-scoped: the same destination ID under two tenants
+// gets independent windows, so one tenant's alert never suppresses another's.
+func TestDelivery_ExhaustedRetries_TenantIsolation(t *testing.T) {
+	t.Parallel()
+	idemp := idempotence.New(testutil.CreateTestRedisClient(t), idempotence.WithSuccessfulTTL(10*time.Second))
+	h := newHarness(t, harnessConfig{
+		batcher: batcherConfig{itemCount: 1},
+		alert:   exhaustedAlertConfig(),
+		doubles: doublesConfig{idemp: idemp},
+	})
+
+	dest := "dest_ti"
+	cm1, msg1 := newCountingMessage(makeExhaustedEntry(dest, "tenant_ti_a", "evt_ti_a", "att_ti_a", 4))
+	cm2, msg2 := newCountingMessage(makeExhaustedEntry(dest, "tenant_ti_b", "evt_ti_b", "att_ti_b", 4))
+	h.add(msg1)
+	h.waitTerminal([]*countingMessage{cm1})
+	h.add(msg2)
+	h.waitTerminal([]*countingMessage{cm2})
+
+	cm1.requireAcked(t)
+	cm2.requireAcked(t)
+	assert.ElementsMatch(t, []string{topicFailed, topicFailed, topicExhaust, topicExhaust}, topics(h.sink.forDest(dest)),
+		"tenants with the same destination ID alert independently")
+}
+
+// Two events exhausting concurrently on one destination race on the shared
+// window key: exactly one alert delivers, and the loser — whether it lands on
+// the suppressed path or the in-flight conflict path — acks instead of nacking.
+func TestDelivery_ExhaustedRetries_ConcurrentConflictAcks(t *testing.T) {
+	t.Parallel()
+	idemp := idempotence.New(testutil.CreateTestRedisClient(t),
+		idempotence.WithSuccessfulTTL(10*time.Second),
+		// Short conflict wait so the losing Exec resolves quickly.
+		idempotence.WithTimeout(200*time.Millisecond),
+	)
 	h := newHarness(t, harnessConfig{
 		batcher: batcherConfig{itemCount: 2},
 		alert:   exhaustedAlertConfig(),
 		doubles: doublesConfig{idemp: idemp},
 	})
 
-	dest, tenant := "dest_pe", "tenant_pe"
-	cm1, msg1 := newCountingMessage(makeExhaustedEntry(dest, tenant, "evt_pe_1", "att_pe_1", 4))
-	cm2, msg2 := newCountingMessage(makeExhaustedEntry(dest, tenant, "evt_pe_2", "att_pe_2", 4))
+	dest, tenant := "dest_cc", "tenant_cc"
+	cm1, msg1 := newCountingMessage(makeExhaustedEntry(dest, tenant, "evt_cc_1", "att_cc_1", 4))
+	cm2, msg2 := newCountingMessage(makeExhaustedEntry(dest, tenant, "evt_cc_2", "att_cc_2", 4))
 	h.add(msg1)
 	h.add(msg2)
 	h.waitTerminal([]*countingMessage{cm1, cm2})
 
 	cm1.requireAcked(t)
 	cm2.requireAcked(t)
-	assert.ElementsMatch(t, []string{topicFailed, topicFailed, topicExhaust, topicExhaust}, topics(h.sink.forDest(dest)),
-		"each distinct event exhausting retries delivers its own alert")
+	assert.ElementsMatch(t, []string{topicFailed, topicFailed, topicExhaust}, topics(h.sink.forDest(dest)),
+		"concurrent exhaustions on one destination deliver exactly one alert")
 }
 
-// Emit failure clears the window key, so a later exhaustion of the same
-// event+destination re-delivers instead of being suppressed.
+// Emit failure clears the window key, so a later exhaustion on the same
+// destination re-delivers instead of being suppressed.
 func TestDelivery_ExhaustedRetries_EmitFailureClearsWindow(t *testing.T) {
 	t.Parallel()
 	idemp := idempotence.New(testutil.CreateTestRedisClient(t), idempotence.WithSuccessfulTTL(10*time.Second))
