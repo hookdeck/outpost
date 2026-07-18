@@ -40,10 +40,11 @@ const (
 
 const (
 	defaultNs      = "rsmq"
-	defaultVt      = 30
 	defaultDelay   = 0
 	defaultMaxsize = 65536
 )
+
+const DefaultVt uint = 30
 
 // Errors returned on rsmq operation
 var (
@@ -146,6 +147,7 @@ type Client interface {
 	CreateQueue(qname string, vt uint, delay uint, maxsize int) error
 	ReceiveMessage(qname string, vt uint) (*QueueMessage, error)
 	SendMessage(qname string, message string, delay uint, opts ...SendMessageOption) (string, error)
+	ChangeMessageVisibility(qname string, id string, vt uint) error
 	DeleteMessage(qname string, id string) error
 	Quit() error
 }
@@ -189,7 +191,7 @@ func NewRedisSMQ(client RedisClient, ns string, logger ...*logging.Logger) *Redi
 //	err:=redisRsmq.CreateQueue(qname,rsmq.UnsetVt,rsmq.UnsetDelay,rsmq.UnsetMaxsize)
 func (rsmq *RedisSMQ) CreateQueue(qname string, vt uint, delay uint, maxsize int) error {
 	if vt == UnsetVt {
-		vt = defaultVt
+		vt = DefaultVt
 	}
 	if delay == UnsetDelay {
 		delay = defaultDelay

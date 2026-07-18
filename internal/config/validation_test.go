@@ -338,6 +338,42 @@ func TestMisc(t *testing.T) {
 	}
 }
 
+func TestRetryMaxReceiveCount(t *testing.T) {
+	tests := []struct {
+		name            string
+		maxReceiveCount int
+		wantErr         error
+	}{
+		{
+			name:            "positive value is valid",
+			maxReceiveCount: 5,
+		},
+		{
+			name:            "zero disables the limit",
+			maxReceiveCount: 0,
+		},
+		{
+			name:            "negative value is invalid",
+			maxReceiveCount: -1,
+			wantErr:         config.ErrInvalidRetryMaxReceiveCount,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := validConfig()
+			cfg.RetryMaxReceiveCount = tt.maxReceiveCount
+
+			err := cfg.Validate(config.Flags{})
+			if tt.wantErr != nil {
+				assert.ErrorIs(t, err, tt.wantErr)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
 func TestOpenTelemetry(t *testing.T) {
 	tests := []struct {
 		name    string

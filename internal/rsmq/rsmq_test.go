@@ -173,7 +173,7 @@ func (s *RSMQSuite) TestGetQueueAttributes() {
 	queAttrib, err := s.rsmq.GetQueueAttributes(qname)
 	assert.Nil(t, err, "error is not nil on getting queue attributes")
 	assert.NotNil(t, queAttrib, "queueAttributes is nil")
-	assert.EqualValues(t, defaultVt, queAttrib.Vt, "queueAttributes vt is not as expected")
+	assert.EqualValues(t, DefaultVt, queAttrib.Vt, "queueAttributes vt is not as expected")
 	assert.EqualValues(t, defaultDelay, queAttrib.Delay, "queueAttributes delay is not as expected")
 	assert.Equal(t, defaultMaxsize, queAttrib.Maxsize, "queueAttributes maxsize is not as expected")
 	assert.Zero(t, queAttrib.TotalRecv, "queueAttributes totalRecv is not zero")
@@ -304,7 +304,7 @@ func (s *RSMQSuite) TestSetQueueAttributes() {
 		queAttrib, err = s.rsmq.GetQueueAttributes(qname)
 		assert.Nil(t, err, "error is not nil on getting queue attributes")
 		assert.NotNil(t, queAttrib, "queueAttributes is nil")
-		assert.EqualValues(t, defaultVt, queAttrib.Vt, "queueAttributes vt is not as expected")
+		assert.EqualValues(t, DefaultVt, queAttrib.Vt, "queueAttributes vt is not as expected")
 	})
 
 	t.Run("error when the queue attribute delay is not valid", func(t *testing.T) {

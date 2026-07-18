@@ -71,6 +71,7 @@ Choose one for event log persistence:
 | `MAX_RETRY_LIMIT` | `10` | Max retry attempts before giving up |
 | `RETRY_INTERVAL_SECONDS` | `30` | Base interval for exponential backoff retries |
 | `RETRY_SCHEDULE` | — | Comma-separated retry delays in seconds (overrides interval/limit) |
+| `RETRY_MAX_RECEIVE_COUNT` | `5` | Max times a retry task is received before moving to the `deliverymq-retry-dlq` dead-letter queue |
 
 ## Topics
 

@@ -98,6 +98,7 @@ func (c *Config) LogConfigurationSummary() []zap.Field {
 		zap.Ints("retry_schedule", c.RetrySchedule),
 		zap.Int("retry_interval_seconds", c.RetryIntervalSeconds),
 		zap.Int("retry_max_limit", c.RetryMaxLimit),
+		zap.Int("retry_max_receive_count", c.RetryMaxReceiveCount),
 
 		// Event Delivery
 		zap.Int("max_destinations_per_tenant", c.MaxDestinationsPerTenant),
