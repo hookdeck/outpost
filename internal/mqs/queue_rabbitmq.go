@@ -17,65 +17,87 @@ type RabbitMQConfig struct {
 
 type RabbitMQQueue struct {
 	base   *wrappedBaseQueue
-	once   *sync.Once
 	conn   *amqp091.Connection
 	config *RabbitMQConfig
 	topic  *pubsub.Topic
+	mu    sync.Mutex
 }
 
 var _ Queue = &RabbitMQQueue{}
 
 func (q *RabbitMQQueue) Init(ctx context.Context) (func(), error) {
-	var err error
-	q.once.Do(func() {
-		err = q.InitConn()
-	})
+	if _, _, err := q.ensureConnected(); err != nil {
+		return nil, err
+	}
+	return func() {
+		q.mu.Lock()
+		conn, topic := q.conn, q.topic
+		q.mu.Unlock()
+		if conn != nil {
+			conn.Close()
+		}
+		if topic != nil {
+			topic.Shutdown(ctx)
+		}
+	}, nil
+}
+
+func (q *RabbitMQQueue) Publish(ctx context.Context, incomingMessage IncomingMessage) error {
+	topic, _, err := q.ensureConnected()
+	if err != nil {
+		return err
+	}
+	metadata := map[string]string{"Queue": q.config.Queue}
+	err = q.base.Publish(ctx, topic, incomingMessage, metadata)
+	if err == nil || !q.connectionLost() {
+		return err
+	}
+	topic, _, rerr := q.ensureConnected()
+	if rerr != nil {
+		return err
+	}
+	return q.base.Publish(ctx, topic, incomingMessage, metadata)
+}
+
+func (q *RabbitMQQueue) Subscribe(ctx context.Context, opts ...SubscribeOption) (Subscription, error) {
+	_, conn, err := q.ensureConnected()
 	if err != nil {
 		return nil, err
 	}
+	subscription := rabbitpubsub.OpenSubscription(conn, q.config.Queue, nil)
+	return q.base.Subscribe(ctx, subscription)
+}
 
+func (q *RabbitMQQueue) ensureConnected() (*pubsub.Topic, *amqp091.Connection, error) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if q.conn != nil && !q.conn.IsClosed() {
+		return q.topic, q.conn, nil
+	}
+	conn, err := amqp091.Dial(q.config.ServerURL)
+	if err != nil {
+		return nil, nil, err
+	}
+	if oldTopic := q.topic; oldTopic != nil {
+		go oldTopic.Shutdown(context.Background())
+	}
 	var opts *rabbitpubsub.TopicOptions
 	if q.config.Queue != "" {
 		opts = &rabbitpubsub.TopicOptions{
 			KeyName: "Queue",
 		}
 	}
-
-	q.topic = rabbitpubsub.OpenTopic(q.conn, q.config.Exchange, opts)
-	return func() {
-		q.conn.Close()
-		q.topic.Shutdown(ctx)
-	}, nil
-}
-
-func (q *RabbitMQQueue) Publish(ctx context.Context, incomingMessage IncomingMessage) error {
-	return q.base.Publish(ctx, q.topic, incomingMessage, map[string]string{
-		"Queue": q.config.Queue,
-	})
-}
-
-func (q *RabbitMQQueue) Subscribe(ctx context.Context, opts ...SubscribeOption) (Subscription, error) {
-	var err error
-	q.once.Do(func() {
-		err = q.InitConn()
-	})
-	if err != nil {
-		return nil, err
-	}
-	subscription := rabbitpubsub.OpenSubscription(q.conn, q.config.Queue, nil)
-	return q.base.Subscribe(ctx, subscription)
-}
-
-func (q *RabbitMQQueue) InitConn() error {
-	conn, err := amqp091.Dial(q.config.ServerURL)
-	if err != nil {
-		return err
-	}
 	q.conn = conn
-	return nil
+	q.topic = rabbitpubsub.OpenTopic(conn, q.config.Exchange, opts)
+	return q.topic, q.conn, nil
+}
+
+func (q *RabbitMQQueue) connectionLost() bool {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	return q.conn == nil || q.conn.IsClosed()
 }
 
 func NewRabbitMQQueue(config *RabbitMQConfig) *RabbitMQQueue {
-	var once sync.Once
-	return &RabbitMQQueue{config: config, once: &once, base: newWrappedBaseQueue()}
+	return &RabbitMQQueue{config: config, base: newWrappedBaseQueue()}
 }
