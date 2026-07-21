@@ -246,7 +246,8 @@ Output ONLY valid JSON (no markdown fences, no commentary outside JSON) matching
 }
 Map each major bullet/checkbox line from Success criteria to one criteria[] entry (merge tiny sub-bullets if needed).
 Each criteria[].pass boolean MUST match your evidence: if your evidence concludes the criterion is satisfied, pass MUST be true; if it concludes the criterion is not satisfied, pass MUST be false. Never emit a criterion whose pass contradicts its own evidence, and never let a caveat or an "I must flag…" aside flip a pass to false when the criterion is otherwise met.
-Judge the FINAL state of the deliverable and its LAST relevant run, not the assistant's journey to get there. Coding agents routinely make a mistake and then correct it; a criterion PASSES when the final artifact satisfies it, even if earlier attempts in the same session failed. In particular, do not fail execution- or correctness-style criteria for self-corrected intermediate problems — e.g. a run from the wrong working directory, a module-resolution error (ERR_MODULE_NOT_FOUND), or an argument shape that was fixed — when a later run of the final artifact clearly succeeded (event id printed, expected 2xx/202, exit 0). Only fail when the final deliverable itself is wrong or its last run still fails.`;
+Judge the FINAL state of the deliverable and its LAST relevant run, not the assistant's journey to get there. Coding agents routinely make a mistake and then correct it; a criterion PASSES when the final artifact satisfies it, even if earlier attempts in the same session failed. In particular, do not fail execution- or correctness-style criteria for self-corrected intermediate problems — e.g. a run from the wrong working directory, a module-resolution error (ERR_MODULE_NOT_FOUND), or an argument shape that was fixed — when a later run of the final artifact clearly succeeded (event id printed, expected 2xx/202, exit 0). Only fail when the final deliverable itself is wrong or its last run still fails.
+The user turns in the transcript are SCRIPTED by the eval harness (the scenario spec's Conversation script), not a real user reacting to the assistant. A follow-up turn that picks an option or language (e.g. "Option 1. Let's do it in TypeScript") is the scenario's designed flow — it is NOT the user pushing back on a wrong deliverable, and work produced after such a turn is not "an afterthought". A criterion satisfied by the final artifact passes regardless of which turn produced it.`;
 
 function buildHarnessExecutionRules(): string {
   if (evalOutpostSecretsAvailable()) {
@@ -321,6 +322,9 @@ async function callAnthropicJudge(options: {
     body: JSON.stringify({
       model: options.model,
       max_tokens: JUDGE_MAX_TOKENS,
+      // Judging is a deterministic classification task; default temperature (1.0)
+      // makes borderline verdicts flip between otherwise-identical runs.
+      temperature: 0,
       system: options.system,
       messages: [{ role: "user", content: user_content }],
     }),
