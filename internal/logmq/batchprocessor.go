@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/hookdeck/outpost/internal/alert"
+	"github.com/hookdeck/outpost/internal/idempotence"
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/mqs"
@@ -85,9 +86,10 @@ type AlertPipeline struct {
 	// processed failed attempt is skipped instead of re-counting/re-alerting.
 	// Required.
 	ProcessedIdemp ReplayGate
-	// ExhaustedIdemp is the per-(event,destination) suppression window for
-	// exhausted-retries alerts. Nil means no suppression (alert on every
-	// exhaustion).
+	// ExhaustedIdemp is the per-(tenant,destination) suppression window for
+	// exhausted-retries alerts: at most one alert per destination within the
+	// window, regardless of which events exhaust. Nil means no suppression
+	// (alert on every exhaustion).
 	ExhaustedIdemp SuppressionWindow
 }
 
@@ -482,7 +484,7 @@ func (bp *BatchProcessor) plan(ctx context.Context, eval alert.Evaluation, entry
 			event: opevents.ExhaustedRetriesEvent(dest, entry.Event, entry.Attempt),
 		}
 		if bp.alerts.ExhaustedIdemp != nil {
-			de.suppressKey = exhaustedRetriesKey(entry.Event.ID, dest.ID)
+			de.suppressKey = exhaustedRetriesKey(dest.TenantID, dest.ID)
 		}
 		events = append(events, de)
 	}
@@ -498,6 +500,11 @@ func (bp *BatchProcessor) plan(ctx context.Context, eval alert.Evaluation, entry
 // one. A suppressed duplicate (Exec skips the emit) counts as delivered. The
 // emitter owns the delivery audit log — it fires iff an event actually went
 // out, so filtered topics and suppressed duplicates leave no line.
+//
+// An in-flight conflict (another exhaustion on the same destination is
+// emitting concurrently) also counts as delivered: nacking would re-emit the
+// entry's other events (attempt.failed) on redelivery, and the window's
+// contract is one alert per destination anyway.
 func (bp *BatchProcessor) send(ctx context.Context, de deliveryEvent) error {
 	emit := func(ctx context.Context) error {
 		return bp.alerts.Emitter.Emit(ctx, de.event)
@@ -505,7 +512,11 @@ func (bp *BatchProcessor) send(ctx context.Context, de deliveryEvent) error {
 	if de.suppressKey == "" {
 		return emit(ctx)
 	}
-	return bp.alerts.ExhaustedIdemp.Exec(ctx, de.suppressKey, emit)
+	err := bp.alerts.ExhaustedIdemp.Exec(ctx, de.suppressKey, emit)
+	if errors.Is(err, idempotence.ErrConflict) {
+		return nil
+	}
+	return err
 }
 
 // nackAlertFailure logs an alert-pipeline failure and nacks. InsertMany is
@@ -527,8 +538,10 @@ func processedKey(attemptID string) string {
 	return "logmq:processed:" + attemptID
 }
 
-// exhaustedRetriesKey is the per-(event,destination) suppression key for
-// exhausted-retries alerts. Format is stable — changing it resets live windows.
-func exhaustedRetriesKey(eventID, destinationID string) string {
-	return "opevents:exhausted:" + eventID + ":" + destinationID
+// exhaustedRetriesKey is the per-(tenant,destination) suppression key for
+// exhausted-retries alerts. Tenant scoping prevents cross-tenant collisions on
+// user-supplied destination IDs. Format is stable — changing it resets live
+// windows.
+func exhaustedRetriesKey(tenantID, destinationID string) string {
+	return "opevents:exhausted:" + tenantID + ":" + destinationID
 }
