@@ -39,12 +39,28 @@ func (m *mockRSMQ) SendMessage(qname string, message string, delay uint, opts ..
 	return m.inner.SendMessage(qname, message, delay, opts...)
 }
 
+func (m *mockRSMQ) ChangeMessageVisibility(qname string, id string, vt uint) error {
+	return m.inner.ChangeMessageVisibility(qname, id, vt)
+}
+
 func (m *mockRSMQ) DeleteMessage(qname string, id string) error {
 	return m.inner.DeleteMessage(qname, id)
 }
 
 func (m *mockRSMQ) Quit() error {
 	return m.inner.Quit()
+}
+
+// immediateVisibilityRSMQ records requested visibility timeouts while making
+// messages immediately visible so backoff tests do not wait in real time.
+type immediateVisibilityRSMQ struct {
+	rsmq.Client
+	visibilityTimeouts chan uint
+}
+
+func (m *immediateVisibilityRSMQ) ChangeMessageVisibility(qname string, id string, vt uint) error {
+	m.visibilityTimeouts <- vt
+	return m.Client.ChangeMessageVisibility(qname, id, 0)
 }
 
 // alwaysFailRSMQ is a test double that always fails ReceiveMessage.
@@ -59,8 +75,9 @@ func (m *alwaysFailRSMQ) ReceiveMessage(string, uint) (*rsmq.QueueMessage, error
 func (m *alwaysFailRSMQ) SendMessage(string, string, uint, ...rsmq.SendMessageOption) (string, error) {
 	return "", nil
 }
-func (m *alwaysFailRSMQ) DeleteMessage(string, string) error { return nil }
-func (m *alwaysFailRSMQ) Quit() error                        { return nil }
+func (m *alwaysFailRSMQ) ChangeMessageVisibility(string, string, uint) error { return nil }
+func (m *alwaysFailRSMQ) DeleteMessage(string, string) error                 { return nil }
+func (m *alwaysFailRSMQ) Quit() error                                        { return nil }
 
 // createRSMQClient creates an RSMQ client for testing
 func createRSMQClient(t *testing.T, redisConfig *iredis.RedisConfig) *rsmq.RedisSMQ {
@@ -358,6 +375,58 @@ func TestScheduler_Cancel(t *testing.T) {
 		// Cancel again should still not error
 		require.NoError(t, s.Cancel(ctx, id))
 	})
+}
+
+func TestScheduler_MaxReceiveCountMovesToDLQ(t *testing.T) {
+	t.Parallel()
+
+	redisConfig := testutil.CreateTestRedisConfig(t)
+	rsmqClient := createRSMQClient(t, redisConfig)
+	immediateClient := &immediateVisibilityRSMQ{
+		Client:             rsmqClient,
+		visibilityTimeouts: make(chan uint, 2),
+	}
+	logger := testutil.CreateTestLogger(t)
+
+	task := "poison_task"
+	var execCount atomic.Int64
+	exec := func(_ context.Context, _ string) error {
+		execCount.Add(1)
+		return errors.New("permanent failure")
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	s := scheduler.New("scheduler", immediateClient, exec,
+		scheduler.WithVisibilityTimeout(1),
+		scheduler.WithPollBackoff(10*time.Millisecond),
+		scheduler.WithMaxReceiveCount(2),
+		scheduler.WithLogger(logger))
+	require.NoError(t, s.Init(ctx))
+	defer func() { cancel(); s.Shutdown() }()
+
+	go s.Monitor(ctx)
+
+	require.NoError(t, s.Schedule(ctx, task, 0))
+
+	var dlqMsg *rsmq.QueueMessage
+	require.Eventually(t, func() bool {
+		msg, err := rsmqClient.ReceiveMessage("scheduler-dlq", rsmq.UnsetVt)
+		if err != nil || msg == nil {
+			return false
+		}
+		dlqMsg = msg
+		return true
+	}, 10*time.Second, 100*time.Millisecond, "message should land in the DLQ")
+
+	require.Equal(t, task, dlqMsg.Message, "DLQ message should carry the original task")
+	require.EqualValues(t, 2, execCount.Load(), "executor should run exactly maxReceiveCount times")
+	require.EqualValues(t, 1, <-immediateClient.visibilityTimeouts)
+	require.EqualValues(t, 2, <-immediateClient.visibilityTimeouts)
+
+	// The message must be gone from the main queue.
+	msg, err := rsmqClient.ReceiveMessage("scheduler", rsmq.UnsetVt)
+	require.NoError(t, err)
+	require.Nil(t, msg, "main queue should be empty after DLQ routing")
 }
 
 func TestScheduler_MonitorRetriesTransientErrors(t *testing.T) {

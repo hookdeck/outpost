@@ -21,6 +21,10 @@ type RetryEventGetter interface {
 	ListAttempt(ctx context.Context, request logstore.ListAttemptRequest) (logstore.ListAttemptResponse, error)
 }
 
+// retryMaxReceiveCount bounds receives of a retry task before it is moved to
+// the "deliverymq-retry-dlq" queue; separate from the delivery retry max limit.
+const retryMaxReceiveCount = 5
+
 // RetrySchedulerOption is a functional option for configuring the retry scheduler.
 type RetrySchedulerOption func(*retrySchedulerConfig)
 
@@ -112,13 +116,15 @@ func NewRetryScheduler(deliverymq *DeliveryMQ, redisConfig *redis.RedisConfig, d
 		return nil
 	}
 
-	if cfg.visibilityTimeout > 0 {
-		return scheduler.New("deliverymq-retry", rsmqClient, exec,
-			scheduler.WithPollBackoff(pollBackoff),
-			scheduler.WithVisibilityTimeout(cfg.visibilityTimeout),
-			scheduler.WithLogger(logger)), nil
+	schedulerOpts := []scheduler.Option{
+		scheduler.WithPollBackoff(pollBackoff),
+		scheduler.WithLogger(logger),
+		scheduler.WithMaxReceiveCount(retryMaxReceiveCount),
 	}
-	return scheduler.New("deliverymq-retry", rsmqClient, exec, scheduler.WithPollBackoff(pollBackoff), scheduler.WithLogger(logger)), nil
+	if cfg.visibilityTimeout > 0 {
+		schedulerOpts = append(schedulerOpts, scheduler.WithVisibilityTimeout(cfg.visibilityTimeout))
+	}
+	return scheduler.New("deliverymq-retry", rsmqClient, exec, schedulerOpts...), nil
 }
 
 // RetryTask contains the minimal info needed to retry a delivery.
