@@ -2,12 +2,16 @@ package config
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/hookdeck/outpost/internal/mqinfra"
 	"github.com/hookdeck/outpost/internal/mqs"
 )
+
+// errPartialAWSSQSCredentials rejects a config with exactly one static key set.
+var errPartialAWSSQSCredentials = errors.New("AWS SQS: both access_key_id and secret_access_key must be set together, or both omitted to use the default credential chain")
 
 type AWSSQSConfig struct {
 	AccessKeyID     string `yaml:"access_key_id" env:"AWS_SQS_ACCESS_KEY_ID" desc:"AWS Access Key ID for SQS. Optional: omit (with the secret access key) to use the AWS SDK default credential chain, e.g. an IAM role." required:"N"`
@@ -45,6 +49,9 @@ func (c *AWSSQSConfig) ToInfraConfig(queueType string) *mqinfra.MQInfraConfig {
 }
 
 func (c *AWSSQSConfig) ToQueueConfig(ctx context.Context, queueType string) (*mqs.QueueConfig, error) {
+	if (c.AccessKeyID == "") != (c.SecretAccessKey == "") {
+		return nil, errPartialAWSSQSCredentials
+	}
 	return &mqs.QueueConfig{
 		AWSSQS: &mqs.AWSSQSConfig{
 			Endpoint:                  c.Endpoint,

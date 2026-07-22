@@ -7,8 +7,8 @@ import (
 )
 
 type PublishAWSSQSConfig struct {
-	AccessKeyID     string `yaml:"access_key_id" env:"PUBLISH_AWS_SQS_ACCESS_KEY_ID" desc:"AWS Access Key ID for the SQS publish queue. Required if AWS SQS is the chosen publish MQ provider." required:"C"`
-	SecretAccessKey string `yaml:"secret_access_key" env:"PUBLISH_AWS_SQS_SECRET_ACCESS_KEY" desc:"AWS Secret Access Key for the SQS publish queue. Required if AWS SQS is the chosen publish MQ provider." required:"C"`
+	AccessKeyID     string `yaml:"access_key_id" env:"PUBLISH_AWS_SQS_ACCESS_KEY_ID" desc:"AWS Access Key ID for the SQS publish queue. Optional: omit (with the secret access key) to use the AWS SDK default credential chain, e.g. an IAM role." required:"N"`
+	SecretAccessKey string `yaml:"secret_access_key" env:"PUBLISH_AWS_SQS_SECRET_ACCESS_KEY" desc:"AWS Secret Access Key for the SQS publish queue. Optional: omit (with the access key ID) to use the AWS SDK default credential chain, e.g. an IAM role." required:"N"`
 	Region          string `yaml:"region" env:"PUBLISH_AWS_SQS_REGION" desc:"AWS Region for the SQS publish queue. Required if AWS SQS is the chosen publish MQ provider." required:"C"`
 	Endpoint        string `yaml:"endpoint" env:"PUBLISH_AWS_SQS_ENDPOINT" desc:"Custom AWS SQS endpoint URL for the publish queue. Optional." required:"N"`
 	Queue           string `yaml:"queue" env:"PUBLISH_AWS_SQS_QUEUE" desc:"Name of the SQS queue for publishing events. Required if AWS SQS is the chosen publish MQ provider." required:"C"`
@@ -99,9 +99,20 @@ func (c *PublishMQConfig) GetQueueConfig() *mqs.QueueConfig {
 	}
 }
 
+// Validate enforces the AWS SQS partial-credential rule for the selected provider.
+func (c *PublishMQConfig) Validate() error {
+	if c.GetInfraType() == "awssqs" {
+		if (c.AWSSQS.AccessKeyID == "") != (c.AWSSQS.SecretAccessKey == "") {
+			return errPartialAWSSQSCredentials
+		}
+	}
+	return nil
+}
+
+// hasPublishAWSSQSConfig selects SQS on Region alone; keys are optional so
+// IAM-role auth can use the AWS SDK default credential chain.
 func hasPublishAWSSQSConfig(config PublishAWSSQSConfig) bool {
-	return config.AccessKeyID != "" &&
-		config.SecretAccessKey != "" && config.Region != ""
+	return config.Region != ""
 }
 
 func hasPublishAzureServiceBusConfig(config PublishAzureServiceBusConfig) bool {

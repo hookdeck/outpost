@@ -29,6 +29,10 @@ func (c *Config) Validate(flags Flags) error {
 		return err
 	}
 
+	if err := c.validatePublishMQ(); err != nil {
+		return err
+	}
+
 	if err := c.validateAESEncryptionSecret(); err != nil {
 		return err
 	}
@@ -131,6 +135,14 @@ func (c *Config) validateMQs() error {
 		return ErrMissingMQs
 	}
 
+	return nil
+}
+
+// validatePublishMQ validates the optional publish MQ configuration
+func (c *Config) validatePublishMQ() error {
+	if err := c.PublishMQ.Validate(); err != nil {
+		return fmt.Errorf("failed to validate publish queue config: %w", err)
+	}
 	return nil
 }
 
