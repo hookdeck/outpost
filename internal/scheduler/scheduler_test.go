@@ -76,8 +76,8 @@ func (m *alwaysFailRSMQ) SendMessage(string, string, uint, ...rsmq.SendMessageOp
 	return "", nil
 }
 func (m *alwaysFailRSMQ) ChangeMessageVisibility(string, string, uint) error { return nil }
-func (m *alwaysFailRSMQ) DeleteMessage(string, string) error { return nil }
-func (m *alwaysFailRSMQ) Quit() error                        { return nil }
+func (m *alwaysFailRSMQ) DeleteMessage(string, string) error                 { return nil }
+func (m *alwaysFailRSMQ) Quit() error                                        { return nil }
 
 // createRSMQClient creates an RSMQ client for testing
 func createRSMQClient(t *testing.T, redisConfig *iredis.RedisConfig) *rsmq.RedisSMQ {

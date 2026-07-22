@@ -734,6 +734,48 @@ func (s *RSMQSuite) TestSendMessageWithCustomID() {
 		}
 	})
 
+	t.Run("override resets receive count", func(t *testing.T) {
+		err := s.rsmq.CreateQueue(qname, UnsetVt, UnsetDelay, UnsetMaxsize)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer s.rsmq.DeleteQueue(qname)
+
+		_, err = s.rsmq.SendMessage(qname, "first message", UnsetDelay, WithMessageID(customID))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		for i := uint64(1); i <= 2; i++ {
+			msg, err := s.rsmq.ReceiveMessage(qname, 0)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if msg == nil {
+				t.Fatal("expected to receive a message")
+			}
+			if msg.Rc != i {
+				t.Errorf("expected receive count %d, got %d", i, msg.Rc)
+			}
+		}
+
+		_, err = s.rsmq.SendMessage(qname, "second message", UnsetDelay, WithMessageID(customID))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		msg, err := s.rsmq.ReceiveMessage(qname, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if msg == nil {
+			t.Fatal("expected to receive the overwritten message")
+		}
+		if msg.Rc != 1 {
+			t.Errorf("expected receive count 1 after override, got %d", msg.Rc)
+		}
+	})
+
 	t.Run("override changes delay timing", func(t *testing.T) {
 		err := s.rsmq.CreateQueue(qname, UnsetVt, UnsetDelay, UnsetMaxsize)
 		if err != nil {

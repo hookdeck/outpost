@@ -82,7 +82,6 @@ type Config struct {
 	RetryMaxLimit                 int   `yaml:"retry_max_limit" env:"MAX_RETRY_LIMIT" desc:"Maximum number of retry attempts for a single event delivery before giving up. Ignored if retry_schedule is provided." required:"N"`
 	RetryPollBackoffMs            int   `yaml:"retry_poll_backoff_ms" env:"RETRY_POLL_BACKOFF_MS" desc:"Backoff time in milliseconds when the retry monitor finds no messages to process. When a retry message is found, the monitor immediately polls for the next message without delay. Lower values provide faster retry processing but increase Redis load. For serverless Redis providers (Upstash, ElastiCache Serverless), consider increasing to 5000-10000ms to reduce costs. Default: 100" required:"N"`
 	RetryVisibilityTimeoutSeconds int   `yaml:"retry_visibility_timeout_seconds" env:"RETRY_VISIBILITY_TIMEOUT_SECONDS" desc:"Time in seconds a retry message is hidden after being received before becoming visible again for reprocessing. This applies when event data is temporarily unavailable (e.g., race condition with log persistence). Default: 30" required:"N"`
-	RetryMaxReceiveCount          int   `yaml:"retry_max_receive_count" env:"RETRY_MAX_RECEIVE_COUNT" desc:"Maximum number of times a retry task can be received before it is moved to the deliverymq-retry-dlq queue. This is separate from retry_max_limit, which bounds delivery attempts to the destination. Set to 0 to disable. Default: 5" required:"N"`
 
 	// Event Delivery
 	MaxDestinationsPerTenant int `yaml:"max_destinations_per_tenant" env:"MAX_DESTINATIONS_PER_TENANT" desc:"Maximum number of destinations allowed per tenant/organization." required:"N"`
@@ -118,15 +117,14 @@ type Config struct {
 }
 
 var (
-	ErrMismatchedServiceType       = errors.New("config validation error: service type mismatch")
-	ErrInvalidServiceType          = errors.New("config validation error: invalid service type")
-	ErrMissingRedis                = errors.New("config validation error: redis configuration is required")
-	ErrMissingLogStorage           = errors.New("config validation error: log storage must be provided")
-	ErrMissingMQs                  = errors.New("config validation error: message queue configuration is required")
-	ErrMissingAESSecret            = errors.New("config validation error: AES encryption secret is required")
-	ErrInvalidPortalProxyURL       = errors.New("config validation error: invalid portal proxy url")
-	ErrInvalidDeploymentID         = errors.New("config validation error: deployment_id must contain only alphanumeric characters, hyphens, and underscores (max 64 characters)")
-	ErrInvalidRetryMaxReceiveCount = errors.New("config validation error: retry_max_receive_count must be greater than or equal to 0")
+	ErrMismatchedServiceType = errors.New("config validation error: service type mismatch")
+	ErrInvalidServiceType    = errors.New("config validation error: invalid service type")
+	ErrMissingRedis          = errors.New("config validation error: redis configuration is required")
+	ErrMissingLogStorage     = errors.New("config validation error: log storage must be provided")
+	ErrMissingMQs            = errors.New("config validation error: message queue configuration is required")
+	ErrMissingAESSecret      = errors.New("config validation error: AES encryption secret is required")
+	ErrInvalidPortalProxyURL = errors.New("config validation error: invalid portal proxy url")
+	ErrInvalidDeploymentID   = errors.New("config validation error: deployment_id must contain only alphanumeric characters, hyphens, and underscores (max 64 characters)")
 )
 
 func (c *Config) InitDefaults() {
@@ -172,7 +170,6 @@ func (c *Config) InitDefaults() {
 	c.RetryMaxLimit = 10
 	c.RetryPollBackoffMs = 100
 	c.RetryVisibilityTimeoutSeconds = 30
-	c.RetryMaxReceiveCount = 5
 	c.MaxDestinationsPerTenant = 20
 	c.DeliveryTimeoutSeconds = 5
 	c.PublishIdempotencyKeyTTL = 3600  // 1 hour

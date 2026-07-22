@@ -611,9 +611,6 @@ func (s *serviceInstance) initRetryScheduler(ctx context.Context, cfg *config.Co
 	if cfg.RetryVisibilityTimeoutSeconds > 0 {
 		retrySchedulerOpts = append(retrySchedulerOpts, deliverymq.WithRetryVisibilityTimeout(uint(cfg.RetryVisibilityTimeoutSeconds)))
 	}
-	if cfg.RetryMaxReceiveCount > 0 {
-		retrySchedulerOpts = append(retrySchedulerOpts, deliverymq.WithRetryMaxReceiveCount(uint64(cfg.RetryMaxReceiveCount)))
-	}
 	retryScheduler, err := deliverymq.NewRetryScheduler(s.deliveryMQ, cfg.Redis.ToConfig(), cfg.DeploymentID, pollBackoff, logger, s.logStore, retrySchedulerOpts...)
 	if err != nil {
 		logger.Error("failed to create delivery MQ retry scheduler", zap.String("service", s.name), zap.Error(err))

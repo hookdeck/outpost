@@ -21,12 +21,15 @@ type RetryEventGetter interface {
 	ListAttempt(ctx context.Context, request logstore.ListAttemptRequest) (logstore.ListAttemptResponse, error)
 }
 
+// retryMaxReceiveCount bounds receives of a retry task before it is moved to
+// the "deliverymq-retry-dlq" queue; separate from the delivery retry max limit.
+const retryMaxReceiveCount = 5
+
 // RetrySchedulerOption is a functional option for configuring the retry scheduler.
 type RetrySchedulerOption func(*retrySchedulerConfig)
 
 type retrySchedulerConfig struct {
 	visibilityTimeout uint
-	maxReceiveCount   uint64
 }
 
 // WithRetryVisibilityTimeout sets the visibility timeout for the retry scheduler queue.
@@ -35,15 +38,6 @@ type retrySchedulerConfig struct {
 func WithRetryVisibilityTimeout(vt uint) RetrySchedulerOption {
 	return func(c *retrySchedulerConfig) {
 		c.visibilityTimeout = vt
-	}
-}
-
-// WithRetryMaxReceiveCount limits how many times a retry task can be received
-// before it is moved to the "deliverymq-retry-dlq" dead-letter queue. This is
-// separate from the delivery retry max limit; 0 disables the limit.
-func WithRetryMaxReceiveCount(n uint64) RetrySchedulerOption {
-	return func(c *retrySchedulerConfig) {
-		c.maxReceiveCount = n
 	}
 }
 
@@ -125,12 +119,10 @@ func NewRetryScheduler(deliverymq *DeliveryMQ, redisConfig *redis.RedisConfig, d
 	schedulerOpts := []scheduler.Option{
 		scheduler.WithPollBackoff(pollBackoff),
 		scheduler.WithLogger(logger),
+		scheduler.WithMaxReceiveCount(retryMaxReceiveCount),
 	}
 	if cfg.visibilityTimeout > 0 {
 		schedulerOpts = append(schedulerOpts, scheduler.WithVisibilityTimeout(cfg.visibilityTimeout))
-	}
-	if cfg.maxReceiveCount > 0 {
-		schedulerOpts = append(schedulerOpts, scheduler.WithMaxReceiveCount(cfg.maxReceiveCount))
 	}
 	return scheduler.New("deliverymq-retry", rsmqClient, exec, schedulerOpts...), nil
 }

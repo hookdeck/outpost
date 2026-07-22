@@ -73,7 +73,6 @@ func TestDefaultValues(t *testing.T) {
 	assert.Equal(t, []int{}, cfg.RetrySchedule)
 	assert.Equal(t, 30, cfg.RetryIntervalSeconds)
 	assert.Equal(t, 10, cfg.RetryMaxLimit)
-	assert.Equal(t, 5, cfg.RetryMaxReceiveCount)
 	assert.Equal(t, 20, cfg.MaxDestinationsPerTenant)
 	assert.Equal(t, 5, cfg.DeliveryTimeoutSeconds)
 	assert.Equal(t, "config/outpost/destinations", cfg.Destinations.MetadataPath)
@@ -108,7 +107,6 @@ publish_max_concurrency: 5
 delivery_max_concurrency: 5
 log_max_concurrency: 5
 retry_interval_seconds: 60
-retry_max_receive_count: 7
 max_destinations_per_tenant: 50
 delivery_timeout_seconds: 10
 aes_encryption_secret: test-secret
@@ -134,7 +132,6 @@ aes_encryption_secret: test-secret
 	assert.Equal(t, 5, cfg.DeliveryMaxConcurrency)
 	assert.Equal(t, 5, cfg.LogMaxConcurrency)
 	assert.Equal(t, 60, cfg.RetryIntervalSeconds)
-	assert.Equal(t, 7, cfg.RetryMaxReceiveCount)
 	assert.Equal(t, 50, cfg.MaxDestinationsPerTenant)
 	assert.Equal(t, 10, cfg.DeliveryTimeoutSeconds)
 	assert.Equal(t, "test-secret", cfg.AESEncryptionSecret)

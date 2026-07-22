@@ -512,6 +512,9 @@ func (rsmq *RedisSMQ) SendMessage(qname string, message string, delay uint, opts
 	})
 	tx.HSet(key+q, messageID, message)
 	tx.HIncrBy(key+q, "totalsent", 1)
+	if options.id != "" {
+		tx.HDel(key+q, messageID+":rc", messageID+":fr")
+	}
 	if _, err := tx.Exec(); err != nil {
 		return "", err
 	}

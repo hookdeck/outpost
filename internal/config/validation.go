@@ -180,10 +180,6 @@ func (c *Config) validateDeploymentID() error {
 
 // validateRetryConfiguration validates and adjusts the retry configuration
 func (c *Config) validateRetryConfiguration() error {
-	if c.RetryMaxReceiveCount < 0 {
-		return ErrInvalidRetryMaxReceiveCount
-	}
-
 	// If retry_schedule is provided, override retry_max_limit to match schedule length
 	if len(c.RetrySchedule) > 0 {
 		c.RetryMaxLimit = len(c.RetrySchedule)
