@@ -3,11 +3,14 @@ package mqs
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/rabbitmq/amqp091-go"
 	"gocloud.dev/pubsub"
 	"gocloud.dev/pubsub/rabbitpubsub"
 )
+
+const rabbitmqRedialCooldown = 5 * time.Second
 
 type RabbitMQConfig struct {
 	ServerURL string
@@ -16,11 +19,13 @@ type RabbitMQConfig struct {
 }
 
 type RabbitMQQueue struct {
-	base   *wrappedBaseQueue
-	conn   *amqp091.Connection
-	config *RabbitMQConfig
-	topic  *pubsub.Topic
-	mu     sync.Mutex
+	base            *wrappedBaseQueue
+	conn            *amqp091.Connection
+	config          *RabbitMQConfig
+	topic           *pubsub.Topic
+	mu              sync.Mutex
+	lastDialFailure time.Time
+	lastDialErr     error
 }
 
 var _ Queue = &RabbitMQQueue{}
@@ -74,10 +79,16 @@ func (q *RabbitMQQueue) ensureConnected() (*pubsub.Topic, *amqp091.Connection, e
 	if q.conn != nil && !q.conn.IsClosed() {
 		return q.topic, q.conn, nil
 	}
+	if q.lastDialErr != nil && time.Since(q.lastDialFailure) < rabbitmqRedialCooldown {
+		return nil, nil, q.lastDialErr
+	}
 	conn, err := amqp091.Dial(q.config.ServerURL)
 	if err != nil {
+		q.lastDialFailure = time.Now()
+		q.lastDialErr = err
 		return nil, nil, err
 	}
+	q.lastDialErr = nil
 	if oldTopic := q.topic; oldTopic != nil {
 		go oldTopic.Shutdown(context.Background())
 	}

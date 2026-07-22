@@ -10,6 +10,22 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestMQ_RabbitMQRedialCooldown(t *testing.T) {
+	t.Parallel()
+	queue := mqs.NewRabbitMQQueue(&mqs.RabbitMQConfig{
+		ServerURL: "amqp://guest:guest@127.0.0.1:1/",
+		Queue:     "test",
+	})
+	ctx := context.Background()
+
+	// The broker is unreachable, so the first publish dials and fails.
+	firstErr := queue.Publish(ctx, &Msg{ID: "first"})
+	require.Error(t, firstErr)
+
+	// Within the cooldown the cached dial error is returned without redialing.
+	require.ErrorIs(t, queue.Publish(ctx, &Msg{ID: "second"}), firstErr)
+}
+
 func TestIntegrationMQ_RabbitMQPublishReconnects(t *testing.T) {
 	t.Parallel()
 	t.Cleanup(testinfra.Start(t))
