@@ -2,6 +2,7 @@ package config
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -9,9 +10,12 @@ import (
 	"github.com/hookdeck/outpost/internal/mqs"
 )
 
+// errPartialAWSSQSCredentials rejects a config with exactly one static key set.
+var errPartialAWSSQSCredentials = errors.New("AWS SQS: both access_key_id and secret_access_key must be set together, or both omitted to use the default credential chain")
+
 type AWSSQSConfig struct {
-	AccessKeyID     string `yaml:"access_key_id" env:"AWS_SQS_ACCESS_KEY_ID" desc:"AWS Access Key ID for SQS. Required if AWS SQS is the chosen MQ provider." required:"C"`
-	SecretAccessKey string `yaml:"secret_access_key" env:"AWS_SQS_SECRET_ACCESS_KEY" desc:"AWS Secret Access Key for SQS. Required if AWS SQS is the chosen MQ provider." required:"C"`
+	AccessKeyID     string `yaml:"access_key_id" env:"AWS_SQS_ACCESS_KEY_ID" desc:"AWS Access Key ID for SQS. Optional: omit (with the secret access key) to use the AWS SDK default credential chain, e.g. an IAM role." required:"N"`
+	SecretAccessKey string `yaml:"secret_access_key" env:"AWS_SQS_SECRET_ACCESS_KEY" desc:"AWS Secret Access Key for SQS. Optional: omit (with the access key ID) to use the AWS SDK default credential chain, e.g. an IAM role." required:"N"`
 	Region          string `yaml:"region" env:"AWS_SQS_REGION" desc:"AWS Region for SQS. Required if AWS SQS is the chosen MQ provider." required:"C"`
 	Endpoint        string `yaml:"endpoint" env:"AWS_SQS_ENDPOINT" desc:"Custom AWS SQS endpoint URL. Optional, typically used for local testing (e.g., LocalStack)." required:"N"`
 	DeliveryQueue   string `yaml:"delivery_queue" env:"AWS_SQS_DELIVERY_QUEUE" desc:"Name of the SQS queue for delivery events." required:"N"`
@@ -45,6 +49,9 @@ func (c *AWSSQSConfig) ToInfraConfig(queueType string) *mqinfra.MQInfraConfig {
 }
 
 func (c *AWSSQSConfig) ToQueueConfig(ctx context.Context, queueType string) (*mqs.QueueConfig, error) {
+	if (c.AccessKeyID == "") != (c.SecretAccessKey == "") {
+		return nil, errPartialAWSSQSCredentials
+	}
 	return &mqs.QueueConfig{
 		AWSSQS: &mqs.AWSSQSConfig{
 			Endpoint:                  c.Endpoint,
@@ -60,6 +67,8 @@ func (c *AWSSQSConfig) GetProviderType() string {
 	return "awssqs"
 }
 
+// IsConfigured selects SQS on Region alone; keys are optional so IAM-role auth
+// can use the AWS SDK default credential chain.
 func (c *AWSSQSConfig) IsConfigured() bool {
-	return c.AccessKeyID != "" && c.SecretAccessKey != "" && c.Region != ""
+	return c.Region != ""
 }

@@ -29,7 +29,14 @@ type AWSSQSConfig struct {
 	WaitTime                  time.Duration // optional - defaults to 20s if not set
 }
 
+// ToCredentials returns a static credentials provider, or (nil, nil) when no
+// static credentials are set so the caller falls back to the AWS SDK default
+// credential chain.
 func (c *AWSSQSConfig) ToCredentials() (*credentials.StaticCredentialsProvider, error) {
+	// An empty or all-empty ("::") credential string means no static credentials.
+	if strings.Trim(c.ServiceAccountCredentials, ":") == "" {
+		return nil, nil
+	}
 	creds := strings.Split(c.ServiceAccountCredentials, ":")
 	if len(creds) != 3 {
 		return nil, errors.New("invalid AWS Service Account Credentials")
@@ -100,10 +107,14 @@ func (q *AWSQueue) InitSDK(ctx context.Context) error {
 		return err
 	}
 
-	sdkConfig, err := config.LoadDefaultConfig(ctx,
+	opts := []func(*config.LoadOptions) error{
 		config.WithRegion(q.config.Region),
-		config.WithCredentialsProvider(creds),
-	)
+	}
+	if creds != nil {
+		opts = append(opts, config.WithCredentialsProvider(creds))
+	}
+
+	sdkConfig, err := config.LoadDefaultConfig(ctx, opts...)
 	if err != nil {
 		return err
 	}

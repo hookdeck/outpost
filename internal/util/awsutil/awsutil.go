@@ -18,10 +18,14 @@ func SQSClientFromConfig(ctx context.Context, cfg *mqs.AWSSQSConfig) (*sqs.Clien
 		return nil, err
 	}
 
-	sdkConfig, err := config.LoadDefaultConfig(ctx,
+	opts := []func(*config.LoadOptions) error{
 		config.WithRegion(cfg.Region),
-		config.WithCredentialsProvider(creds),
-	)
+	}
+	if creds != nil {
+		opts = append(opts, config.WithCredentialsProvider(creds))
+	}
+
+	sdkConfig, err := config.LoadDefaultConfig(ctx, opts...)
 	if err != nil {
 		return nil, err
 	}
