@@ -20,7 +20,7 @@ type RabbitMQQueue struct {
 	conn   *amqp091.Connection
 	config *RabbitMQConfig
 	topic  *pubsub.Topic
-	mu    sync.Mutex
+	mu     sync.Mutex
 }
 
 var _ Queue = &RabbitMQQueue{}
