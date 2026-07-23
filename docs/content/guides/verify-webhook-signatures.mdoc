@@ -1,0 +1,201 @@
+---
+title: "Verify Webhook Signatures"
+description: "Verify the HMAC signature on webhooks delivered by Outpost's default webhook mode."
+---
+
+Outpost signs every webhook it delivers. Verify the signature before trusting a request — it proves the request came from the sender that holds the signing secret and that the body was not modified in transit.
+
+This guide covers Outpost's **default** webhook mode. For [Standard Webhooks](https://www.standardwebhooks.com/) mode, verify with the official [Standard Webhooks SDKs](https://github.com/standard-webhooks/standard-webhooks/tree/main/libraries) instead.
+
+## Request format
+
+Each webhook is an HTTP POST. The body is the event payload as JSON, and system headers carry the delivery metadata:
+
+```
+POST /webhooks HTTP/1.1
+Content-Type: application/json
+x-outpost-event-id: evt_abc123
+x-outpost-topic: user.created
+x-outpost-timestamp: 2024-06-01T08:23:36Z
+x-outpost-signature: v0=abc123def456...
+
+{"user_id": "usr_123", "email": "user@example.com"}
+```
+
+Header names are `<prefix>event-id`, `<prefix>topic`, `<prefix>timestamp`, and `<prefix>signature`. The default prefix is `x-outpost-`; deployments commonly set their own (for example `x-acme-signature`). Substitute the actual prefix throughout this guide. Header names are case-insensitive.
+
+## How the signature is computed
+
+```
+signature = hex(HMAC-SHA256(secret, body))
+```
+
+- **`secret`** is the destination's signing secret, used exactly as issued. Secrets typically look like `whsec_a1b2c3...` — the whole string, including the `whsec_` prefix, is the HMAC key. Do not strip the prefix or base64-decode it.
+- **`body`** is the raw request body bytes, exactly as received.
+- The digest is hex-encoded.
+
+The signature header value is `v0=` followed by one or more comma-separated signatures:
+
+```
+x-outpost-signature: v0=<signature>
+x-outpost-signature: v0=<signature-1>,<signature-2>
+```
+
+Multiple signatures appear during [secret rotation](#secret-rotation); the request is valid if any of them matches.
+
+## Verification steps
+
+1. Read the **raw request body** before any parsing. Deserializing and re-serializing the JSON can reorder keys or change whitespace and will break verification.
+2. Read the signature header and check it starts with `v0=`. Reject the request if the header is missing.
+3. Strip `v0=` and split the rest on `,` to get the candidate signatures.
+4. Compute `hex(HMAC-SHA256(secret, body))` with your signing secret.
+5. Compare your computed signature against each candidate using a **constant-time comparison**. Accept the request if any candidate matches; otherwise respond with `401`.
+
+## Code examples
+
+Each example uses the default `x-outpost-signature` header name — substitute the actual prefix if it differs.
+
+{% tabs tabGroup="language" %}
+{% tab label="Node.js" %}
+```javascript
+const crypto = require("crypto");
+const express = require("express");
+
+const SIGNATURE_HEADER = "x-outpost-signature";
+
+function verifySignature(rawBody, signatureHeader, secret) {
+  if (!signatureHeader || !signatureHeader.startsWith("v0=")) return false;
+  const expected = crypto
+    .createHmac("sha256", secret)
+    .update(rawBody)
+    .digest("hex");
+  return signatureHeader
+    .slice(3)
+    .split(",")
+    .some((candidate) => {
+      const a = Buffer.from(candidate);
+      const b = Buffer.from(expected);
+      return a.length === b.length && crypto.timingSafeEqual(a, b);
+    });
+}
+
+const app = express();
+
+// express.raw() keeps the body as a Buffer for verification
+app.post("/webhooks", express.raw({ type: "application/json" }), (req, res) => {
+  const valid = verifySignature(
+    req.body,
+    req.get(SIGNATURE_HEADER),
+    process.env.WEBHOOK_SECRET
+  );
+  if (!valid) return res.status(401).send("invalid signature");
+
+  const event = JSON.parse(req.body);
+  // handle event...
+  res.sendStatus(200);
+});
+```
+{% /tab %}
+{% tab label="Python" %}
+```python
+import hashlib
+import hmac
+import os
+
+from flask import Flask, request
+
+SIGNATURE_HEADER = "x-outpost-signature"
+
+def verify_signature(raw_body: bytes, signature_header: str | None, secret: str) -> bool:
+    if not signature_header or not signature_header.startswith("v0="):
+        return False
+    expected = hmac.new(secret.encode(), raw_body, hashlib.sha256).hexdigest()
+    return any(
+        hmac.compare_digest(candidate, expected)
+        for candidate in signature_header[3:].split(",")
+    )
+
+app = Flask(__name__)
+
+@app.post("/webhooks")
+def webhooks():
+    if not verify_signature(
+        request.get_data(),  # raw body bytes
+        request.headers.get(SIGNATURE_HEADER),
+        os.environ["WEBHOOK_SECRET"],
+    ):
+        return "invalid signature", 401
+
+    event = request.get_json()
+    # handle event...
+    return "", 200
+```
+{% /tab %}
+{% tab label="Go" %}
+```go
+package main
+
+import (
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
+	"io"
+	"net/http"
+	"os"
+	"strings"
+)
+
+const signatureHeader = "x-outpost-signature"
+
+func verifySignature(rawBody []byte, header, secret string) bool {
+	if !strings.HasPrefix(header, "v0=") {
+		return false
+	}
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write(rawBody)
+	expected := hex.EncodeToString(mac.Sum(nil))
+	for _, candidate := range strings.Split(strings.TrimPrefix(header, "v0="), ",") {
+		if hmac.Equal([]byte(candidate), []byte(expected)) {
+			return true
+		}
+	}
+	return false
+}
+
+func handleWebhook(w http.ResponseWriter, r *http.Request) {
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, "failed to read body", http.StatusBadRequest)
+		return
+	}
+	if !verifySignature(body, r.Header.Get(signatureHeader), os.Getenv("WEBHOOK_SECRET")) {
+		http.Error(w, "invalid signature", http.StatusUnauthorized)
+		return
+	}
+
+	// handle event...
+	w.WriteHeader(http.StatusOK)
+}
+```
+{% /tab %}
+{% /tabs %}
+
+## Secret rotation
+
+When a signing secret is rotated, both the old and new secrets remain valid for a rotation window. During that window the signature header contains two comma-separated signatures — the current secret's first, the previous secret's second:
+
+```
+x-outpost-signature: v0=<signature-from-current-secret>,<signature-from-previous-secret>
+```
+
+The verification code above handles this automatically: it accepts the request if any candidate signature matches. Update the stored secret to the new value during the window, and the endpoint keeps verifying without downtime.
+
+## Duplicate deliveries
+
+Delivery is at-least-once — the same event can be delivered more than once, for example after a retry. The `<prefix>event-id` header carries a stable id for the event; store processed ids and skip any already handled.
+
+Prefer the event id over the timestamp for replay handling: the default signature covers only the request body, so the timestamp header is not authenticated.
+
+## Customization
+
+The scheme above is Outpost's default. Changing `DESTINATIONS_WEBHOOK_HEADER_PREFIX` only renames the headers — this guide stays accurate with the prefix substituted. Customizing the [signature templates, algorithm, or encoding](/docs/outpost/destinations/webhook#signatures) changes the scheme itself, and the resulting deliveries no longer match this guide.
