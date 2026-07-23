@@ -90,6 +90,7 @@ The following table shows the resources, default names, and configuration variab
 - Configure `RedrivePolicy` on main queue pointing to DLQ
 - Set appropriate `VisibilityTimeout` (SQS default: 30 seconds)
 - Set `maxReceiveCount` in RedrivePolicy for retry limit
+- Grant the Outpost principal `sqs:GetQueueUrl`, `sqs:SendMessage`, `sqs:ReceiveMessage`, `sqs:DeleteMessage`, and `sqs:ChangeMessageVisibility` on the queues. No create or delete permissions are needed when you manage the queues yourself.
 
 ### GCP Pub/Sub
 

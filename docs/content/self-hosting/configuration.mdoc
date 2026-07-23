@@ -37,6 +37,8 @@ Choose one message queue provider. The selected provider is used for both event 
 | `AWS_SQS_SECRET_ACCESS_KEY` | AWS Secret Access Key (optional; omit to use the AWS SDK default credential chain, e.g. an IAM role) |
 | `AWS_SQS_REGION` | AWS Region |
 
+Whichever way you authenticate, the principal needs these actions on the Outpost queues: `sqs:GetQueueUrl`, `sqs:SendMessage`, `sqs:ReceiveMessage`, `sqs:DeleteMessage`, and `sqs:ChangeMessageVisibility` (the batch API variants are covered by the same actions). With auto-provisioning enabled (the default, `MQS_AUTO_PROVISION=true`), it also needs `sqs:CreateQueue` and `sqs:GetQueueAttributes`. If you [manage the queues yourself](/docs/outpost/self-hosting/guides/byo-mqs), the first list is sufficient.
+
 **GCP Pub/Sub:**
 
 | Variable | Description |
