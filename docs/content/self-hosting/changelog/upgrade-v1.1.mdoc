@@ -59,12 +59,6 @@ Outpost stores each destination response body on the delivery attempt. Starting 
 
 To restore the previous unbounded behavior, set `DESTINATIONS_WEBHOOK_MAX_RESPONSE_BODY_BYTES=0`. See [Webhook destination](/docs/outpost/destinations/webhook) for sizing guidance.
 
-### Alert suppression is now per destination
-
-`ALERT_EXHAUSTED_RETRIES_WINDOW_SECONDS` documents that the first exhaustion per destination emits an alert and subsequent ones within the window are suppressed. Before v1.1, the suppression key included the event ID, so every distinct event that exhausted retries on a destination triggered an alert regardless of the window. The suppression now works as documented: one alert per destination per window.
-
-The suppression key format changed, so live suppression windows reset once on deploy. Worst case, you receive one extra alert per destination during the upgrade.
-
 ### Destination topics are normalized on write
 
 Creating or updating a destination now normalizes its `topics` list: exact duplicates are removed, and an entry that a sibling wildcard pattern strictly covers is folded into the wildcard (`["user.*", "user.created"]` becomes `["user.*"]`). First-seen order is preserved, and delivery matching is unchanged — normalization only removes entries already covered by a retained entry.
