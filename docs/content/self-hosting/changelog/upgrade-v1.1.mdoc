@@ -20,7 +20,7 @@ Unset keeps the default `<prefix><key>` behavior, an explicit value pins that ex
 
 ### IAM role authentication for AWS SQS
 
-`AWS_SQS_ACCESS_KEY_ID` and `AWS_SQS_SECRET_ACCESS_KEY` are now optional. When omitted, Outpost uses the AWS SDK default credential chain, so you can authenticate with an IAM role (for example EKS Pod Identity, IRSA, or an instance profile) instead of static credentials. Setting only one of the two is rejected at startup. See [Configuration](/docs/outpost/self-hosting/configuration).
+`AWS_SQS_ACCESS_KEY_ID` and `AWS_SQS_SECRET_ACCESS_KEY` are now optional. When omitted, Outpost uses the AWS SDK default credential chain, so you can authenticate with an IAM role (for example EKS Pod Identity, IRSA, or an instance profile) instead of static credentials. See [Configuration](/docs/outpost/self-hosting/configuration).
 
 ### Delivery attempt operator events
 
@@ -99,3 +99,7 @@ The deprecated fields are also removed from the OpenAPI spec and generated SDKs;
 3. **After upgrading:**
    - [ ] Add an alert on the `task exceeded max receive count, moved to dead-letter queue` error log
    - [ ] Check `deliverymq-retry-dlq` for tasks that were previously stuck in a retry loop
+
+## Thanks
+
+This release cycle includes first-time contributions from [@LendritIbrahimi](https://github.com/LendritIbrahimi), [@ambroziepaval](https://github.com/ambroziepaval), [@mvanhorn](https://github.com/mvanhorn), [@lovlyx](https://github.com/lovlyx), [@distroaryan](https://github.com/distroaryan), and [@Abdulmumin1](https://github.com/Abdulmumin1). Thank you!
