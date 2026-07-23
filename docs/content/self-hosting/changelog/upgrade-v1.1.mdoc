@@ -59,10 +59,6 @@ Outpost stores each destination response body on the delivery attempt. Starting 
 
 To restore the previous unbounded behavior, set `DESTINATIONS_WEBHOOK_MAX_RESPONSE_BODY_BYTES=0`. See [Webhook destination](/docs/outpost/destinations/webhook) for sizing guidance.
 
-### Destination topics are normalized on write
-
-Creating or updating a destination now normalizes its `topics` list: exact duplicates are removed, and an entry that a sibling wildcard pattern strictly covers is folded into the wildcard (`["user.*", "user.created"]` becomes `["user.*"]`). First-seen order is preserved, and delivery matching is unchanged — normalization only removes entries already covered by a retained entry.
-
 ### RabbitMQ connections redial automatically
 
 When using RabbitMQ as the message queue, a dropped connection previously wedged publishing until the process restarted. Outpost now redials dropped connections transparently. During a broker outage, publishes fail fast with a 5-second cooldown between redial attempts instead of hanging.
