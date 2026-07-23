@@ -194,7 +194,7 @@ The verification code above handles this automatically: it accepts the request i
 
 Delivery is at-least-once — the same event can be delivered more than once, for example after a retry. The `<prefix>event-id` header carries a stable id for the event; store processed ids and skip any already handled.
 
-Prefer the event id over the timestamp for replay handling: the default signature covers only the request body, so the timestamp header is not authenticated.
+The default signature covers only the request body, so the timestamp and event id headers are not authenticated. Checking the timestamp's freshness adds no replay protection, and event id deduplication handles retry duplicates rather than deliberate replay. Protection against deliberate replay requires the timestamp inside the signed content — a [custom signature template](/docs/outpost/destinations/webhook#custom-signature-templates) or Standard Webhooks mode.
 
 ## Customization
 
