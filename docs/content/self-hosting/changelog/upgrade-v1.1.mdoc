@@ -24,7 +24,11 @@ Unset keeps the default `<prefix><key>` behavior, an explicit value pins that ex
 
 ### Delivery attempt operator events
 
-Two new [operator events](/docs/outpost/features/operator-events) are published: `attempt.success` and `attempt.failed`, emitted per delivery attempt. Existing operator events are unchanged.
+Two new [operator events](/docs/outpost/features/operator-events) are published: `attempt.success` and `attempt.failed`, emitted once per delivery attempt. Existing operator event topics are unchanged.
+
+{% callout type="warning" %}
+If `OPERATION_EVENTS_TOPICS=*`, you start receiving `attempt.success` and `attempt.failed` immediately after upgrading. These fire once per delivery attempt, so your sink receives operator events at the deployment's full delivery throughput. This can be orders of magnitude more volume than the alert and subscription topics alone. If your sink is not sized for that, replace `*` with an explicit topic list before upgrading.
+{% /callout %}
 
 ### Faster log processing
 
@@ -87,6 +91,7 @@ The deprecated fields are also removed from the OpenAPI spec and generated SDKs;
 1. **Before upgrading:**
    - [ ] If you use any `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_*_HEADER` flag, switch to the `*_HEADER_NAME=""` replacement
    - [ ] If your destinations return response bodies larger than 128 KiB and you rely on them being stored, set `DESTINATIONS_WEBHOOK_MAX_RESPONSE_BODY_BYTES` accordingly (or `0` for no cap)
+   - [ ] If `OPERATION_EVENTS_TOPICS=*`, decide whether your sink can handle per-attempt volume; otherwise replace `*` with an explicit topic list
 
 2. **Upgrade:**
    - [ ] Update Outpost to v1.1 (no new migrations in this release)
