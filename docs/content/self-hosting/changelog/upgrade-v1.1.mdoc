@@ -1,0 +1,96 @@
+---
+title: "Upgrade to v1.1"
+description: "New features, behavior changes, and deprecations when upgrading Outpost from v1.0 to v1.1."
+---
+
+This guide covers what changes when upgrading from v1.0 to v1.1. There are no breaking changes and no new migrations, but there are behavior changes and deprecations to review before upgrading.
+
+## What's New
+
+### Configurable webhook system header names
+
+You can now pin the exact name of each system header the webhook destination sends, instead of only controlling the shared prefix:
+
+- `DESTINATIONS_WEBHOOK_EVENT_ID_HEADER_NAME`
+- `DESTINATIONS_WEBHOOK_TIMESTAMP_HEADER_NAME`
+- `DESTINATIONS_WEBHOOK_TOPIC_HEADER_NAME`
+- `DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_NAME`
+
+Unset keeps the default `<prefix><key>` behavior, an explicit value pins that exact name, and an empty string disables the header. See [Webhook destination](/docs/outpost/destinations/webhook) for details, including the duplicate-name validation rules.
+
+### IAM role authentication for AWS SQS
+
+`AWS_SQS_ACCESS_KEY_ID` and `AWS_SQS_SECRET_ACCESS_KEY` are now optional. When omitted, Outpost uses the AWS SDK default credential chain, so you can authenticate with an IAM role (for example EKS Pod Identity, IRSA, or an instance profile) instead of static credentials. Setting only one of the two is rejected at startup. See [Configuration](/docs/outpost/self-hosting/configuration).
+
+### Delivery attempt operator events
+
+Two new [operator events](/docs/outpost/features/operator-events) are published: `attempt.success` and `attempt.failed`, emitted per delivery attempt. Existing operator events are unchanged.
+
+### Faster log processing
+
+Alert evaluation and operator event delivery during log processing now run in parallel per destination instead of serially. This is an internal throughput improvement with no configuration changes.
+
+## Behavior Changes
+
+### Retry tasks now dead-letter instead of retrying forever
+
+Before v1.1, a delivery retry task that repeatedly failed to process (for example, a malformed task payload) was redelivered indefinitely and could occupy a delivery worker forever.
+
+Starting in v1.1, the retry scheduler:
+
+1. Applies exponential backoff between receives of a failing task (doubling per receive, capped at 15 minutes).
+2. After 5 receives, moves the task to a dead-letter queue named `deliverymq-retry-dlq`, stored in Redis alongside the retry queue itself.
+
+Each dead-lettered task logs an error, `task exceeded max receive count, moved to dead-letter queue`, that includes the queue name, message ID, receive count, and the full task payload. Alert on this log line to catch dead-lettered tasks.
+
+{% callout type="info" %}
+If your deployment had tasks stuck in a retry loop before the upgrade, they drain into the dead-letter queue shortly after upgrading. Entries appearing in `deliverymq-retry-dlq` right after the upgrade are expected and indicate previously invisible failures, not a new problem.
+{% /callout %}
+
+There is no automatic redrive. Dead-lettered tasks stay in Redis under the `rsmq:deliverymq-retry-dlq` keys (prefixed with your `DEPLOYMENT_ID` if set) for manual inspection.
+
+### Stored response body size cap
+
+Outpost stores each destination response body on the delivery attempt. Starting in v1.1, bodies larger than `DESTINATIONS_WEBHOOK_MAX_RESPONSE_BODY_BYTES` (default `131072`, 128 KiB) are replaced with a placeholder instead of stored. This prevents oversized attempt logs from exceeding the message queue's per-message size limit, which previously caused those deliveries to be retried indefinitely.
+
+To restore the previous unbounded behavior, set `DESTINATIONS_WEBHOOK_MAX_RESPONSE_BODY_BYTES=0`. See [Webhook destination](/docs/outpost/destinations/webhook) for sizing guidance.
+
+### Alert suppression is now per destination
+
+`ALERT_EXHAUSTED_RETRIES_WINDOW_SECONDS` documents that the first exhaustion per destination emits an alert and subsequent ones within the window are suppressed. Before v1.1, the suppression key included the event ID, so every distinct event that exhausted retries on a destination triggered an alert regardless of the window. The suppression now works as documented: one alert per destination per window.
+
+The suppression key format changed, so live suppression windows reset once on deploy. Worst case, you receive one extra alert per destination during the upgrade.
+
+### Destination topics are normalized on write
+
+Creating or updating a destination now normalizes its `topics` list: exact duplicates are removed, and an entry that a sibling wildcard pattern strictly covers is folded into the wildcard (`["user.*", "user.created"]` becomes `["user.*"]`). First-seen order is preserved, and delivery matching is unchanged — normalization only removes entries already covered by a retained entry.
+
+### RabbitMQ connections redial automatically
+
+When using RabbitMQ as the message queue, a dropped connection previously wedged publishing until the process restarted. Outpost now redials dropped connections transparently. During a broker outage, publishes fail fast with a 5-second cooldown between redial attempts instead of hanging.
+
+## Deprecations
+
+The `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_*_HEADER` flags are deprecated and will be removed in a future version. They still work in v1.1, but a set `*_HEADER_NAME` variable takes precedence over the matching flag.
+
+| Deprecated | Replacement |
+| --- | --- |
+| `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_EVENT_ID_HEADER=true` | `DESTINATIONS_WEBHOOK_EVENT_ID_HEADER_NAME=""` |
+| `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_TIMESTAMP_HEADER=true` | `DESTINATIONS_WEBHOOK_TIMESTAMP_HEADER_NAME=""` |
+| `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_TOPIC_HEADER=true` | `DESTINATIONS_WEBHOOK_TOPIC_HEADER_NAME=""` |
+| `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_SIGNATURE_HEADER=true` | `DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_NAME=""` |
+
+The deprecated fields are also removed from the OpenAPI spec and generated SDKs; the environment variables and Config API keys continue to work until removal.
+
+## Upgrade Checklist
+
+1. **Before upgrading:**
+   - [ ] If you use any `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_*_HEADER` flag, switch to the `*_HEADER_NAME=""` replacement
+   - [ ] If your destinations return response bodies larger than 128 KiB and you rely on them being stored, set `DESTINATIONS_WEBHOOK_MAX_RESPONSE_BODY_BYTES` accordingly (or `0` for no cap)
+
+2. **Upgrade:**
+   - [ ] Update Outpost to v1.1 (no new migrations in this release)
+
+3. **After upgrading:**
+   - [ ] Add an alert on the `task exceeded max receive count, moved to dead-letter queue` error log
+   - [ ] Check `deliverymq-retry-dlq` for tasks that were previously stuck in a retry loop
