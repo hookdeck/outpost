@@ -2,7 +2,7 @@
 
 package outpostgo
 
-// Generated from OpenAPI doc version 0.0.1 and generator version 2.906.0
+// Generated from OpenAPI doc version 0.0.1 and generator version 2.918.4
 
 import (
 	"bytes"
@@ -172,9 +172,9 @@ func WithTimeout(timeout time.Duration) SDKOption {
 // New creates a new instance of the SDK with the provided options
 func New(opts ...SDKOption) *Outpost {
 	sdk := &Outpost{
-		SDKVersion: "1.4.1",
+		SDKVersion: "1.5.0",
 		sdkConfiguration: config.SDKConfiguration{
-			UserAgent:  "speakeasy-sdk/go 1.4.1 2.906.0 0.0.1 github.com/hookdeck/outpost/sdks/outpost-go",
+			UserAgent:  "speakeasy-sdk/go 1.5.0 2.918.4 0.0.1 github.com/hookdeck/outpost/sdks/outpost-go",
 			ServerList: ServerList,
 		},
 		hooks: hooks.New(),

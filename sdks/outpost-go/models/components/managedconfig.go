@@ -6,67 +6,75 @@ package components
 // This API is available only on the managed version.
 // Self-hosted deployments configure these values using environment variables.
 type ManagedConfig struct {
-	AlertAutoDisableDestination                      *string `json:"ALERT_AUTO_DISABLE_DESTINATION,omitempty"`
-	AlertConsecutiveFailureCount                     *string `json:"ALERT_CONSECUTIVE_FAILURE_COUNT,omitempty"`
-	AlertExhaustedRetriesWindowSeconds               *string `json:"ALERT_EXHAUSTED_RETRIES_WINDOW_SECONDS,omitempty"`
-	DeliveryTimeoutSeconds                           *string `json:"DELIVERY_TIMEOUT_SECONDS,omitempty"`
-	DestinationsAwsKinesisMetadataInPayload          *string `json:"DESTINATIONS_AWS_KINESIS_METADATA_IN_PAYLOAD,omitempty"`
-	DestinationsIncludeMillisecondTimestamp          *string `json:"DESTINATIONS_INCLUDE_MILLISECOND_TIMESTAMP,omitempty"`
-	DestinationsWebhookDisableDefaultEventIDHeader   *string `json:"DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_EVENT_ID_HEADER,omitempty"`
-	DestinationsWebhookDisableDefaultSignatureHeader *string `json:"DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_SIGNATURE_HEADER,omitempty"`
-	DestinationsWebhookDisableDefaultTimestampHeader *string `json:"DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_TIMESTAMP_HEADER,omitempty"`
-	DestinationsWebhookDisableDefaultTopicHeader     *string `json:"DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_TOPIC_HEADER,omitempty"`
-	DestinationsWebhookHeaderPrefix                  *string `json:"DESTINATIONS_WEBHOOK_HEADER_PREFIX,omitempty"`
-	DestinationsWebhookMode                          *string `json:"DESTINATIONS_WEBHOOK_MODE,omitempty"`
-	DestinationsWebhookProxyURL                      *string `json:"DESTINATIONS_WEBHOOK_PROXY_URL,omitempty"`
-	DestinationsWebhookSignatureAlgorithm            *string `json:"DESTINATIONS_WEBHOOK_SIGNATURE_ALGORITHM,omitempty"`
-	DestinationsWebhookSignatureContentTemplate      *string `json:"DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE,omitempty"`
-	DestinationsWebhookSignatureEncoding             *string `json:"DESTINATIONS_WEBHOOK_SIGNATURE_ENCODING,omitempty"`
-	DestinationsWebhookSignatureHeaderTemplate       *string `json:"DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE,omitempty"`
-	DestinationsWebhookSigningSecretTemplate         *string `json:"DESTINATIONS_WEBHOOK_SIGNING_SECRET_TEMPLATE,omitempty"`
-	HTTPUserAgent                                    *string `json:"HTTP_USER_AGENT,omitempty"`
-	IdgenAttemptPrefix                               *string `json:"IDGEN_ATTEMPT_PREFIX,omitempty"`
-	IdgenDestinationPrefix                           *string `json:"IDGEN_DESTINATION_PREFIX,omitempty"`
-	IdgenEventPrefix                                 *string `json:"IDGEN_EVENT_PREFIX,omitempty"`
-	IdgenType                                        *string `json:"IDGEN_TYPE,omitempty"`
-	MaxDestinationsPerTenant                         *string `json:"MAX_DESTINATIONS_PER_TENANT,omitempty"`
-	PortalBrandColor                                 *string `json:"PORTAL_BRAND_COLOR,omitempty"`
-	PortalDisableOutpostBranding                     *string `json:"PORTAL_DISABLE_OUTPOST_BRANDING,omitempty"`
-	PortalFaviconURL                                 *string `json:"PORTAL_FAVICON_URL,omitempty"`
-	PortalForceTheme                                 *string `json:"PORTAL_FORCE_THEME,omitempty"`
-	PortalLogo                                       *string `json:"PORTAL_LOGO,omitempty"`
-	PortalLogoDark                                   *string `json:"PORTAL_LOGO_DARK,omitempty"`
-	PortalOrganizationName                           *string `json:"PORTAL_ORGANIZATION_NAME,omitempty"`
-	PortalRefererURL                                 *string `json:"PORTAL_REFERER_URL,omitempty"`
-	PortalRefreshURL                                 *string `json:"PORTAL_REFRESH_URL,omitempty"`
-	PortalEnableDestinationFilter                    *string `json:"PORTAL_ENABLE_DESTINATION_FILTER,omitempty"`
-	PortalEnableWebhookCustomHeaders                 *string `json:"PORTAL_ENABLE_WEBHOOK_CUSTOM_HEADERS,omitempty"`
-	RetryIntervalSeconds                             *string `json:"RETRY_INTERVAL_SECONDS,omitempty"`
-	MaxRetryLimit                                    *string `json:"MAX_RETRY_LIMIT,omitempty"`
-	RetrySchedule                                    *string `json:"RETRY_SCHEDULE,omitempty"`
-	OtelExporterOtlpEndpoint                         *string `json:"OTEL_EXPORTER_OTLP_ENDPOINT,omitempty"`
-	OtelExporterOtlpHeaders                          *string `json:"OTEL_EXPORTER_OTLP_HEADERS,omitempty"`
-	OtelExporterOtlpProtocol                         *string `json:"OTEL_EXPORTER_OTLP_PROTOCOL,omitempty"`
-	OtelExporterOtlpTracesEndpoint                   *string `json:"OTEL_EXPORTER_OTLP_TRACES_ENDPOINT,omitempty"`
-	OtelExporterOtlpMetricsEndpoint                  *string `json:"OTEL_EXPORTER_OTLP_METRICS_ENDPOINT,omitempty"`
-	OtelExporterOtlpLogsEndpoint                     *string `json:"OTEL_EXPORTER_OTLP_LOGS_ENDPOINT,omitempty"`
-	OtelServiceName                                  *string `json:"OTEL_SERVICE_NAME,omitempty"`
-	PublishAwsSqsAccessKeyID                         *string `json:"PUBLISH_AWS_SQS_ACCESS_KEY_ID,omitempty"`
-	PublishAwsSqsEndpoint                            *string `json:"PUBLISH_AWS_SQS_ENDPOINT,omitempty"`
-	PublishAwsSqsQueue                               *string `json:"PUBLISH_AWS_SQS_QUEUE,omitempty"`
-	PublishAwsSqsRegion                              *string `json:"PUBLISH_AWS_SQS_REGION,omitempty"`
-	PublishAwsSqsSecretAccessKey                     *string `json:"PUBLISH_AWS_SQS_SECRET_ACCESS_KEY,omitempty"`
-	PublishAzureServicebusConnectionString           *string `json:"PUBLISH_AZURE_SERVICEBUS_CONNECTION_STRING,omitempty"`
-	PublishAzureServicebusSubscription               *string `json:"PUBLISH_AZURE_SERVICEBUS_SUBSCRIPTION,omitempty"`
-	PublishAzureServicebusTopic                      *string `json:"PUBLISH_AZURE_SERVICEBUS_TOPIC,omitempty"`
-	PublishGcpPubsubProject                          *string `json:"PUBLISH_GCP_PUBSUB_PROJECT,omitempty"`
-	PublishGcpPubsubServiceAccountCredentials        *string `json:"PUBLISH_GCP_PUBSUB_SERVICE_ACCOUNT_CREDENTIALS,omitempty"`
-	PublishGcpPubsubSubscription                     *string `json:"PUBLISH_GCP_PUBSUB_SUBSCRIPTION,omitempty"`
-	PublishGcpPubsubTopic                            *string `json:"PUBLISH_GCP_PUBSUB_TOPIC,omitempty"`
-	PublishRabbitmqExchange                          *string `json:"PUBLISH_RABBITMQ_EXCHANGE,omitempty"`
-	PublishRabbitmqQueue                             *string `json:"PUBLISH_RABBITMQ_QUEUE,omitempty"`
-	PublishRabbitmqServerURL                         *string `json:"PUBLISH_RABBITMQ_SERVER_URL,omitempty"`
-	Topics                                           *string `json:"TOPICS,omitempty"`
+	// If "true", automatically disables a destination once ALERT_CONSECUTIVE_FAILURE_COUNT is reached. Has no effect when consecutive-failure alerting is disabled.
+	AlertAutoDisableDestination *string `json:"ALERT_AUTO_DISABLE_DESTINATION,omitempty"`
+	// Consecutive delivery failures before alerting on a destination (and disabling it when ALERT_AUTO_DISABLE_DESTINATION is "true"). Omit for the default of 100; set to an empty string to disable consecutive-failure alerting entirely.
+	AlertConsecutiveFailureCount *string `json:"ALERT_CONSECUTIVE_FAILURE_COUNT,omitempty"`
+	// Suppression window in seconds for exhausted_retries alerts: the first exhaustion per destination alerts and subsequent ones within the window are suppressed ("0" = no suppression). Omit for the default of 3600; set to an empty string to disable exhausted_retries alerting entirely.
+	AlertExhaustedRetriesWindowSeconds      *string `json:"ALERT_EXHAUSTED_RETRIES_WINDOW_SECONDS,omitempty"`
+	DeliveryTimeoutSeconds                  *string `json:"DELIVERY_TIMEOUT_SECONDS,omitempty"`
+	DestinationsAwsKinesisMetadataInPayload *string `json:"DESTINATIONS_AWS_KINESIS_METADATA_IN_PAYLOAD,omitempty"`
+	DestinationsIncludeMillisecondTimestamp *string `json:"DESTINATIONS_INCLUDE_MILLISECOND_TIMESTAMP,omitempty"`
+	// Complete name of the event ID header. Unset uses the default "<prefix>event-id"; an explicit value pins that exact name; an empty string disables the header. Only applies to "default" mode.
+	DestinationsWebhookEventIDHeaderName        *string `json:"DESTINATIONS_WEBHOOK_EVENT_ID_HEADER_NAME,omitempty"`
+	DestinationsWebhookHeaderPrefix             *string `json:"DESTINATIONS_WEBHOOK_HEADER_PREFIX,omitempty"`
+	DestinationsWebhookMode                     *string `json:"DESTINATIONS_WEBHOOK_MODE,omitempty"`
+	DestinationsWebhookProxyURL                 *string `json:"DESTINATIONS_WEBHOOK_PROXY_URL,omitempty"`
+	DestinationsWebhookSignatureAlgorithm       *string `json:"DESTINATIONS_WEBHOOK_SIGNATURE_ALGORITHM,omitempty"`
+	DestinationsWebhookSignatureContentTemplate *string `json:"DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE,omitempty"`
+	DestinationsWebhookSignatureEncoding        *string `json:"DESTINATIONS_WEBHOOK_SIGNATURE_ENCODING,omitempty"`
+	// Complete name of the signature header. Unset uses the default "<prefix>signature"; an explicit value pins that exact name; an empty string disables the header. Only applies to "default" mode.
+	DestinationsWebhookSignatureHeaderName     *string `json:"DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_NAME,omitempty"`
+	DestinationsWebhookSignatureHeaderTemplate *string `json:"DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE,omitempty"`
+	DestinationsWebhookSigningSecretTemplate   *string `json:"DESTINATIONS_WEBHOOK_SIGNING_SECRET_TEMPLATE,omitempty"`
+	// Complete name of the timestamp header. Unset uses the default "<prefix>timestamp"; an explicit value pins that exact name; an empty string disables the header. Only applies to "default" mode.
+	DestinationsWebhookTimestampHeaderName *string `json:"DESTINATIONS_WEBHOOK_TIMESTAMP_HEADER_NAME,omitempty"`
+	// Complete name of the topic header. Unset uses the default "<prefix>topic"; an explicit value pins that exact name; an empty string disables the header. Only applies to "default" mode.
+	DestinationsWebhookTopicHeaderName        *string `json:"DESTINATIONS_WEBHOOK_TOPIC_HEADER_NAME,omitempty"`
+	HTTPUserAgent                             *string `json:"HTTP_USER_AGENT,omitempty"`
+	IdgenAttemptPrefix                        *string `json:"IDGEN_ATTEMPT_PREFIX,omitempty"`
+	IdgenDestinationPrefix                    *string `json:"IDGEN_DESTINATION_PREFIX,omitempty"`
+	IdgenEventPrefix                          *string `json:"IDGEN_EVENT_PREFIX,omitempty"`
+	IdgenType                                 *string `json:"IDGEN_TYPE,omitempty"`
+	MaxDestinationsPerTenant                  *string `json:"MAX_DESTINATIONS_PER_TENANT,omitempty"`
+	PortalBrandColor                          *string `json:"PORTAL_BRAND_COLOR,omitempty"`
+	PortalDisableOutpostBranding              *string `json:"PORTAL_DISABLE_OUTPOST_BRANDING,omitempty"`
+	PortalFaviconURL                          *string `json:"PORTAL_FAVICON_URL,omitempty"`
+	PortalForceTheme                          *string `json:"PORTAL_FORCE_THEME,omitempty"`
+	PortalLogo                                *string `json:"PORTAL_LOGO,omitempty"`
+	PortalLogoDark                            *string `json:"PORTAL_LOGO_DARK,omitempty"`
+	PortalOrganizationName                    *string `json:"PORTAL_ORGANIZATION_NAME,omitempty"`
+	PortalRefererURL                          *string `json:"PORTAL_REFERER_URL,omitempty"`
+	PortalRefreshURL                          *string `json:"PORTAL_REFRESH_URL,omitempty"`
+	PortalEnableDestinationFilter             *string `json:"PORTAL_ENABLE_DESTINATION_FILTER,omitempty"`
+	PortalEnableWebhookCustomHeaders          *string `json:"PORTAL_ENABLE_WEBHOOK_CUSTOM_HEADERS,omitempty"`
+	RetryIntervalSeconds                      *string `json:"RETRY_INTERVAL_SECONDS,omitempty"`
+	MaxRetryLimit                             *string `json:"MAX_RETRY_LIMIT,omitempty"`
+	RetrySchedule                             *string `json:"RETRY_SCHEDULE,omitempty"`
+	OtelExporterOtlpEndpoint                  *string `json:"OTEL_EXPORTER_OTLP_ENDPOINT,omitempty"`
+	OtelExporterOtlpHeaders                   *string `json:"OTEL_EXPORTER_OTLP_HEADERS,omitempty"`
+	OtelExporterOtlpProtocol                  *string `json:"OTEL_EXPORTER_OTLP_PROTOCOL,omitempty"`
+	OtelExporterOtlpTracesEndpoint            *string `json:"OTEL_EXPORTER_OTLP_TRACES_ENDPOINT,omitempty"`
+	OtelExporterOtlpMetricsEndpoint           *string `json:"OTEL_EXPORTER_OTLP_METRICS_ENDPOINT,omitempty"`
+	OtelExporterOtlpLogsEndpoint              *string `json:"OTEL_EXPORTER_OTLP_LOGS_ENDPOINT,omitempty"`
+	OtelServiceName                           *string `json:"OTEL_SERVICE_NAME,omitempty"`
+	PublishAwsSqsAccessKeyID                  *string `json:"PUBLISH_AWS_SQS_ACCESS_KEY_ID,omitempty"`
+	PublishAwsSqsEndpoint                     *string `json:"PUBLISH_AWS_SQS_ENDPOINT,omitempty"`
+	PublishAwsSqsQueue                        *string `json:"PUBLISH_AWS_SQS_QUEUE,omitempty"`
+	PublishAwsSqsRegion                       *string `json:"PUBLISH_AWS_SQS_REGION,omitempty"`
+	PublishAwsSqsSecretAccessKey              *string `json:"PUBLISH_AWS_SQS_SECRET_ACCESS_KEY,omitempty"`
+	PublishAzureServicebusConnectionString    *string `json:"PUBLISH_AZURE_SERVICEBUS_CONNECTION_STRING,omitempty"`
+	PublishAzureServicebusSubscription        *string `json:"PUBLISH_AZURE_SERVICEBUS_SUBSCRIPTION,omitempty"`
+	PublishAzureServicebusTopic               *string `json:"PUBLISH_AZURE_SERVICEBUS_TOPIC,omitempty"`
+	PublishGcpPubsubProject                   *string `json:"PUBLISH_GCP_PUBSUB_PROJECT,omitempty"`
+	PublishGcpPubsubServiceAccountCredentials *string `json:"PUBLISH_GCP_PUBSUB_SERVICE_ACCOUNT_CREDENTIALS,omitempty"`
+	PublishGcpPubsubSubscription              *string `json:"PUBLISH_GCP_PUBSUB_SUBSCRIPTION,omitempty"`
+	PublishGcpPubsubTopic                     *string `json:"PUBLISH_GCP_PUBSUB_TOPIC,omitempty"`
+	PublishRabbitmqExchange                   *string `json:"PUBLISH_RABBITMQ_EXCHANGE,omitempty"`
+	PublishRabbitmqQueue                      *string `json:"PUBLISH_RABBITMQ_QUEUE,omitempty"`
+	PublishRabbitmqServerURL                  *string `json:"PUBLISH_RABBITMQ_SERVER_URL,omitempty"`
+	Topics                                    *string `json:"TOPICS,omitempty"`
+	TopicsAllowWildcards                      *string `json:"TOPICS_ALLOW_WILDCARDS,omitempty"`
 }
 
 func (m *ManagedConfig) GetAlertAutoDisableDestination() *string {
@@ -111,32 +119,11 @@ func (m *ManagedConfig) GetDestinationsIncludeMillisecondTimestamp() *string {
 	return m.DestinationsIncludeMillisecondTimestamp
 }
 
-func (m *ManagedConfig) GetDestinationsWebhookDisableDefaultEventIDHeader() *string {
+func (m *ManagedConfig) GetDestinationsWebhookEventIDHeaderName() *string {
 	if m == nil {
 		return nil
 	}
-	return m.DestinationsWebhookDisableDefaultEventIDHeader
-}
-
-func (m *ManagedConfig) GetDestinationsWebhookDisableDefaultSignatureHeader() *string {
-	if m == nil {
-		return nil
-	}
-	return m.DestinationsWebhookDisableDefaultSignatureHeader
-}
-
-func (m *ManagedConfig) GetDestinationsWebhookDisableDefaultTimestampHeader() *string {
-	if m == nil {
-		return nil
-	}
-	return m.DestinationsWebhookDisableDefaultTimestampHeader
-}
-
-func (m *ManagedConfig) GetDestinationsWebhookDisableDefaultTopicHeader() *string {
-	if m == nil {
-		return nil
-	}
-	return m.DestinationsWebhookDisableDefaultTopicHeader
+	return m.DestinationsWebhookEventIDHeaderName
 }
 
 func (m *ManagedConfig) GetDestinationsWebhookHeaderPrefix() *string {
@@ -181,6 +168,13 @@ func (m *ManagedConfig) GetDestinationsWebhookSignatureEncoding() *string {
 	return m.DestinationsWebhookSignatureEncoding
 }
 
+func (m *ManagedConfig) GetDestinationsWebhookSignatureHeaderName() *string {
+	if m == nil {
+		return nil
+	}
+	return m.DestinationsWebhookSignatureHeaderName
+}
+
 func (m *ManagedConfig) GetDestinationsWebhookSignatureHeaderTemplate() *string {
 	if m == nil {
 		return nil
@@ -193,6 +187,20 @@ func (m *ManagedConfig) GetDestinationsWebhookSigningSecretTemplate() *string {
 		return nil
 	}
 	return m.DestinationsWebhookSigningSecretTemplate
+}
+
+func (m *ManagedConfig) GetDestinationsWebhookTimestampHeaderName() *string {
+	if m == nil {
+		return nil
+	}
+	return m.DestinationsWebhookTimestampHeaderName
+}
+
+func (m *ManagedConfig) GetDestinationsWebhookTopicHeaderName() *string {
+	if m == nil {
+		return nil
+	}
+	return m.DestinationsWebhookTopicHeaderName
 }
 
 func (m *ManagedConfig) GetHTTPUserAgent() *string {
@@ -494,4 +502,11 @@ func (m *ManagedConfig) GetTopics() *string {
 		return nil
 	}
 	return m.Topics
+}
+
+func (m *ManagedConfig) GetTopicsAllowWildcards() *string {
+	if m == nil {
+		return nil
+	}
+	return m.TopicsAllowWildcards
 }
