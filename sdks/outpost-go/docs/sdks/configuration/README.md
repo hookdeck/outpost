@@ -99,6 +99,7 @@ func main() {
     res, err := s.Configuration.UpdateManagedConfig(ctx, components.ManagedConfig{
         DestinationsWebhookMode: outpostgo.Pointer("default"),
         Topics: outpostgo.Pointer("user.created,user.updated"),
+        TopicsAllowWildcards: outpostgo.Pointer("false"),
     })
     if err != nil {
         log.Fatal(err)

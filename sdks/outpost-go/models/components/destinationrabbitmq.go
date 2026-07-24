@@ -39,7 +39,7 @@ type DestinationRabbitMQ struct {
 	ID string `json:"id"`
 	// Type of the destination.
 	Type DestinationRabbitMQType `json:"type"`
-	// "*" or an array of enabled topics.
+	// "*" or an array of enabled topics. Topic strings can include "*" as a wildcard matching any run of characters. When available topics are configured, wildcard patterns must match at least one available topic.
 	Topics Topics `json:"topics"`
 	// Optional JSON schema filter for event matching. Events must match this filter to be delivered to this destination.
 	// Supports operators: $eq, $neq, $gt, $gte, $lt, $lte, $in, $nin, $startsWith, $endsWith, $exist, $or, $and, $not.

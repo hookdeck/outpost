@@ -37,7 +37,7 @@ func (e *DestinationUpdateAWSSQSType) UnmarshalJSON(data []byte) error {
 type DestinationUpdateAWSSQS struct {
 	// Destination type discriminator. Must equal the existing destination's type — type itself cannot be changed via PATCH.
 	Type DestinationUpdateAWSSQSType `json:"type"`
-	// "*" or an array of enabled topics.
+	// "*" or an array of enabled topics. Topic strings can include "*" as a wildcard matching any run of characters. When available topics are configured, wildcard patterns must match at least one available topic.
 	Topics *Topics `json:"topics,omitempty"`
 	// Optional JSON schema filter for event matching. Events must match this filter to be delivered to this destination.
 	// Supports operators: $eq, $neq, $gt, $gte, $lt, $lte, $in, $nin, $startsWith, $endsWith, $exist, $or, $and, $not.
