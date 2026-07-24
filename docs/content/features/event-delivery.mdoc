@@ -63,3 +63,5 @@ Each delivery attempt records:
 - Whether automatic retries are exhausted
 
 Access delivery attempts via the [API Reference](/docs/outpost/api#attempts), the tenant portal, or Admin UI.
+
+To receive attempts as they happen, subscribe to the `attempt.success` and `attempt.failed` [operator events](/docs/outpost/features/operator-events). They fire once per delivery attempt.

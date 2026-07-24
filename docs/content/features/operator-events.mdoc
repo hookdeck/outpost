@@ -16,11 +16,13 @@ Enable operator events by specifying topics and configuring a sink.
 Configure operator event topic subscriptions through [Hookdeck Monitoring settings](https://dashboard.hookdeck.com/settings/project/monitoring) or Config API.
 {% /tab %}
 {% tab label="Self-Hosted" %}
-Set `OPERATION_EVENTS_TOPICS` to a comma-separated list of topics, or `*` for all topics:
+Set `OPERATION_EVENTS_TOPICS` to a comma-separated list of topics:
 
 ```
-OPERATION_EVENTS_TOPICS=*
+OPERATION_EVENTS_TOPICS=alert.destination.disabled,alert.attempt.exhausted_retries
 ```
+
+Use `*` to subscribe to all topics. A wildcard subscription also includes topics added in future versions, so upgrading Outpost can change what your sink receives. Prefer an explicit topic list unless your sink is sized for per-attempt volume.
 {% /tab %}
 {% /tabs %}
 
@@ -35,7 +37,9 @@ Available topics:
 | `attempt.failed` | Every failed delivery attempt, including retries |
 | `tenant.subscription.updated` | Destination created/updated/deleted and tenant topics or destination count changed |
 
-The `attempt.success` and `attempt.failed` topics fire once per delivery attempt, so they dominate event volume — including under `*`. Subscribe to them deliberately and size your sink for your delivery throughput.
+{% callout type="warning" %}
+The `attempt.success` and `attempt.failed` topics fire once per delivery attempt, so they dominate event volume — including under `*`. A wildcard subscriber receives operator events at the deployment's full delivery throughput. Subscribe to these topics deliberately and size your sink accordingly.
+{% /callout %}
 
 {% tabs tabGroup="deployment" %}
 {% tab label="Managed" %}
