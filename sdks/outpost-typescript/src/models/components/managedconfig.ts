@@ -16,24 +16,45 @@ import { SDKValidationError } from "../errors/sdkvalidationerror.js";
  * Self-hosted deployments configure these values using environment variables.
  */
 export type ManagedConfig = {
+  /**
+   * If "true", automatically disables a destination once ALERT_CONSECUTIVE_FAILURE_COUNT is reached. Has no effect when consecutive-failure alerting is disabled.
+   */
   alertAutoDisableDestination?: string | undefined;
+  /**
+   * Consecutive delivery failures before alerting on a destination (and disabling it when ALERT_AUTO_DISABLE_DESTINATION is "true"). Omit for the default of 100; set to an empty string to disable consecutive-failure alerting entirely.
+   */
   alertConsecutiveFailureCount?: string | undefined;
+  /**
+   * Suppression window in seconds for exhausted_retries alerts: the first exhaustion per destination alerts and subsequent ones within the window are suppressed ("0" = no suppression). Omit for the default of 3600; set to an empty string to disable exhausted_retries alerting entirely.
+   */
   alertExhaustedRetriesWindowSeconds?: string | undefined;
   deliveryTimeoutSeconds?: string | undefined;
   destinationsAwsKinesisMetadataInPayload?: string | undefined;
   destinationsIncludeMillisecondTimestamp?: string | undefined;
-  destinationsWebhookDisableDefaultEventIdHeader?: string | undefined;
-  destinationsWebhookDisableDefaultSignatureHeader?: string | undefined;
-  destinationsWebhookDisableDefaultTimestampHeader?: string | undefined;
-  destinationsWebhookDisableDefaultTopicHeader?: string | undefined;
+  /**
+   * Complete name of the event ID header. Unset uses the default "<prefix>event-id"; an explicit value pins that exact name; an empty string disables the header. Only applies to "default" mode.
+   */
+  destinationsWebhookEventIdHeaderName?: string | undefined;
   destinationsWebhookHeaderPrefix?: string | undefined;
   destinationsWebhookMode?: string | undefined;
   destinationsWebhookProxyUrl?: string | undefined;
   destinationsWebhookSignatureAlgorithm?: string | undefined;
   destinationsWebhookSignatureContentTemplate?: string | undefined;
   destinationsWebhookSignatureEncoding?: string | undefined;
+  /**
+   * Complete name of the signature header. Unset uses the default "<prefix>signature"; an explicit value pins that exact name; an empty string disables the header. Only applies to "default" mode.
+   */
+  destinationsWebhookSignatureHeaderName?: string | undefined;
   destinationsWebhookSignatureHeaderTemplate?: string | undefined;
   destinationsWebhookSigningSecretTemplate?: string | undefined;
+  /**
+   * Complete name of the timestamp header. Unset uses the default "<prefix>timestamp"; an explicit value pins that exact name; an empty string disables the header. Only applies to "default" mode.
+   */
+  destinationsWebhookTimestampHeaderName?: string | undefined;
+  /**
+   * Complete name of the topic header. Unset uses the default "<prefix>topic"; an explicit value pins that exact name; an empty string disables the header. Only applies to "default" mode.
+   */
+  destinationsWebhookTopicHeaderName?: string | undefined;
   httpUserAgent?: string | undefined;
   idgenAttemptPrefix?: string | undefined;
   idgenDestinationPrefix?: string | undefined;
@@ -77,6 +98,7 @@ export type ManagedConfig = {
   publishRabbitmqQueue?: string | undefined;
   publishRabbitmqServerUrl?: string | undefined;
   topics?: string | undefined;
+  topicsAllowWildcards?: string | undefined;
 };
 
 /** @internal */
@@ -91,18 +113,18 @@ export const ManagedConfig$inboundSchema: z.ZodType<
   DELIVERY_TIMEOUT_SECONDS: z.string().optional(),
   DESTINATIONS_AWS_KINESIS_METADATA_IN_PAYLOAD: z.string().optional(),
   DESTINATIONS_INCLUDE_MILLISECOND_TIMESTAMP: z.string().optional(),
-  DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_EVENT_ID_HEADER: z.string().optional(),
-  DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_SIGNATURE_HEADER: z.string().optional(),
-  DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_TIMESTAMP_HEADER: z.string().optional(),
-  DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_TOPIC_HEADER: z.string().optional(),
+  DESTINATIONS_WEBHOOK_EVENT_ID_HEADER_NAME: z.string().optional(),
   DESTINATIONS_WEBHOOK_HEADER_PREFIX: z.string().optional(),
   DESTINATIONS_WEBHOOK_MODE: z.string().optional(),
   DESTINATIONS_WEBHOOK_PROXY_URL: z.string().optional(),
   DESTINATIONS_WEBHOOK_SIGNATURE_ALGORITHM: z.string().optional(),
   DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE: z.string().optional(),
   DESTINATIONS_WEBHOOK_SIGNATURE_ENCODING: z.string().optional(),
+  DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_NAME: z.string().optional(),
   DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE: z.string().optional(),
   DESTINATIONS_WEBHOOK_SIGNING_SECRET_TEMPLATE: z.string().optional(),
+  DESTINATIONS_WEBHOOK_TIMESTAMP_HEADER_NAME: z.string().optional(),
+  DESTINATIONS_WEBHOOK_TOPIC_HEADER_NAME: z.string().optional(),
   HTTP_USER_AGENT: z.string().optional(),
   IDGEN_ATTEMPT_PREFIX: z.string().optional(),
   IDGEN_DESTINATION_PREFIX: z.string().optional(),
@@ -146,6 +168,7 @@ export const ManagedConfig$inboundSchema: z.ZodType<
   PUBLISH_RABBITMQ_QUEUE: z.string().optional(),
   PUBLISH_RABBITMQ_SERVER_URL: z.string().optional(),
   TOPICS: z.string().optional(),
+  TOPICS_ALLOW_WILDCARDS: z.string().optional(),
 }).transform((v) => {
   return remap$(v, {
     "ALERT_AUTO_DISABLE_DESTINATION": "alertAutoDisableDestination",
@@ -157,14 +180,8 @@ export const ManagedConfig$inboundSchema: z.ZodType<
       "destinationsAwsKinesisMetadataInPayload",
     "DESTINATIONS_INCLUDE_MILLISECOND_TIMESTAMP":
       "destinationsIncludeMillisecondTimestamp",
-    "DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_EVENT_ID_HEADER":
-      "destinationsWebhookDisableDefaultEventIdHeader",
-    "DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_SIGNATURE_HEADER":
-      "destinationsWebhookDisableDefaultSignatureHeader",
-    "DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_TIMESTAMP_HEADER":
-      "destinationsWebhookDisableDefaultTimestampHeader",
-    "DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_TOPIC_HEADER":
-      "destinationsWebhookDisableDefaultTopicHeader",
+    "DESTINATIONS_WEBHOOK_EVENT_ID_HEADER_NAME":
+      "destinationsWebhookEventIdHeaderName",
     "DESTINATIONS_WEBHOOK_HEADER_PREFIX": "destinationsWebhookHeaderPrefix",
     "DESTINATIONS_WEBHOOK_MODE": "destinationsWebhookMode",
     "DESTINATIONS_WEBHOOK_PROXY_URL": "destinationsWebhookProxyUrl",
@@ -174,10 +191,16 @@ export const ManagedConfig$inboundSchema: z.ZodType<
       "destinationsWebhookSignatureContentTemplate",
     "DESTINATIONS_WEBHOOK_SIGNATURE_ENCODING":
       "destinationsWebhookSignatureEncoding",
+    "DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_NAME":
+      "destinationsWebhookSignatureHeaderName",
     "DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE":
       "destinationsWebhookSignatureHeaderTemplate",
     "DESTINATIONS_WEBHOOK_SIGNING_SECRET_TEMPLATE":
       "destinationsWebhookSigningSecretTemplate",
+    "DESTINATIONS_WEBHOOK_TIMESTAMP_HEADER_NAME":
+      "destinationsWebhookTimestampHeaderName",
+    "DESTINATIONS_WEBHOOK_TOPIC_HEADER_NAME":
+      "destinationsWebhookTopicHeaderName",
     "HTTP_USER_AGENT": "httpUserAgent",
     "IDGEN_ATTEMPT_PREFIX": "idgenAttemptPrefix",
     "IDGEN_DESTINATION_PREFIX": "idgenDestinationPrefix",
@@ -224,6 +247,7 @@ export const ManagedConfig$inboundSchema: z.ZodType<
     "PUBLISH_RABBITMQ_QUEUE": "publishRabbitmqQueue",
     "PUBLISH_RABBITMQ_SERVER_URL": "publishRabbitmqServerUrl",
     "TOPICS": "topics",
+    "TOPICS_ALLOW_WILDCARDS": "topicsAllowWildcards",
   });
 });
 /** @internal */
@@ -234,18 +258,18 @@ export type ManagedConfig$Outbound = {
   DELIVERY_TIMEOUT_SECONDS?: string | undefined;
   DESTINATIONS_AWS_KINESIS_METADATA_IN_PAYLOAD?: string | undefined;
   DESTINATIONS_INCLUDE_MILLISECOND_TIMESTAMP?: string | undefined;
-  DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_EVENT_ID_HEADER?: string | undefined;
-  DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_SIGNATURE_HEADER?: string | undefined;
-  DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_TIMESTAMP_HEADER?: string | undefined;
-  DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_TOPIC_HEADER?: string | undefined;
+  DESTINATIONS_WEBHOOK_EVENT_ID_HEADER_NAME?: string | undefined;
   DESTINATIONS_WEBHOOK_HEADER_PREFIX?: string | undefined;
   DESTINATIONS_WEBHOOK_MODE?: string | undefined;
   DESTINATIONS_WEBHOOK_PROXY_URL?: string | undefined;
   DESTINATIONS_WEBHOOK_SIGNATURE_ALGORITHM?: string | undefined;
   DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE?: string | undefined;
   DESTINATIONS_WEBHOOK_SIGNATURE_ENCODING?: string | undefined;
+  DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_NAME?: string | undefined;
   DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE?: string | undefined;
   DESTINATIONS_WEBHOOK_SIGNING_SECRET_TEMPLATE?: string | undefined;
+  DESTINATIONS_WEBHOOK_TIMESTAMP_HEADER_NAME?: string | undefined;
+  DESTINATIONS_WEBHOOK_TOPIC_HEADER_NAME?: string | undefined;
   HTTP_USER_AGENT?: string | undefined;
   IDGEN_ATTEMPT_PREFIX?: string | undefined;
   IDGEN_DESTINATION_PREFIX?: string | undefined;
@@ -289,6 +313,7 @@ export type ManagedConfig$Outbound = {
   PUBLISH_RABBITMQ_QUEUE?: string | undefined;
   PUBLISH_RABBITMQ_SERVER_URL?: string | undefined;
   TOPICS?: string | undefined;
+  TOPICS_ALLOW_WILDCARDS?: string | undefined;
 };
 
 /** @internal */
@@ -303,18 +328,18 @@ export const ManagedConfig$outboundSchema: z.ZodType<
   deliveryTimeoutSeconds: z.string().optional(),
   destinationsAwsKinesisMetadataInPayload: z.string().optional(),
   destinationsIncludeMillisecondTimestamp: z.string().optional(),
-  destinationsWebhookDisableDefaultEventIdHeader: z.string().optional(),
-  destinationsWebhookDisableDefaultSignatureHeader: z.string().optional(),
-  destinationsWebhookDisableDefaultTimestampHeader: z.string().optional(),
-  destinationsWebhookDisableDefaultTopicHeader: z.string().optional(),
+  destinationsWebhookEventIdHeaderName: z.string().optional(),
   destinationsWebhookHeaderPrefix: z.string().optional(),
   destinationsWebhookMode: z.string().optional(),
   destinationsWebhookProxyUrl: z.string().optional(),
   destinationsWebhookSignatureAlgorithm: z.string().optional(),
   destinationsWebhookSignatureContentTemplate: z.string().optional(),
   destinationsWebhookSignatureEncoding: z.string().optional(),
+  destinationsWebhookSignatureHeaderName: z.string().optional(),
   destinationsWebhookSignatureHeaderTemplate: z.string().optional(),
   destinationsWebhookSigningSecretTemplate: z.string().optional(),
+  destinationsWebhookTimestampHeaderName: z.string().optional(),
+  destinationsWebhookTopicHeaderName: z.string().optional(),
   httpUserAgent: z.string().optional(),
   idgenAttemptPrefix: z.string().optional(),
   idgenDestinationPrefix: z.string().optional(),
@@ -358,6 +383,7 @@ export const ManagedConfig$outboundSchema: z.ZodType<
   publishRabbitmqQueue: z.string().optional(),
   publishRabbitmqServerUrl: z.string().optional(),
   topics: z.string().optional(),
+  topicsAllowWildcards: z.string().optional(),
 }).transform((v) => {
   return remap$(v, {
     alertAutoDisableDestination: "ALERT_AUTO_DISABLE_DESTINATION",
@@ -369,14 +395,8 @@ export const ManagedConfig$outboundSchema: z.ZodType<
       "DESTINATIONS_AWS_KINESIS_METADATA_IN_PAYLOAD",
     destinationsIncludeMillisecondTimestamp:
       "DESTINATIONS_INCLUDE_MILLISECOND_TIMESTAMP",
-    destinationsWebhookDisableDefaultEventIdHeader:
-      "DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_EVENT_ID_HEADER",
-    destinationsWebhookDisableDefaultSignatureHeader:
-      "DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_SIGNATURE_HEADER",
-    destinationsWebhookDisableDefaultTimestampHeader:
-      "DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_TIMESTAMP_HEADER",
-    destinationsWebhookDisableDefaultTopicHeader:
-      "DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_TOPIC_HEADER",
+    destinationsWebhookEventIdHeaderName:
+      "DESTINATIONS_WEBHOOK_EVENT_ID_HEADER_NAME",
     destinationsWebhookHeaderPrefix: "DESTINATIONS_WEBHOOK_HEADER_PREFIX",
     destinationsWebhookMode: "DESTINATIONS_WEBHOOK_MODE",
     destinationsWebhookProxyUrl: "DESTINATIONS_WEBHOOK_PROXY_URL",
@@ -386,10 +406,16 @@ export const ManagedConfig$outboundSchema: z.ZodType<
       "DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE",
     destinationsWebhookSignatureEncoding:
       "DESTINATIONS_WEBHOOK_SIGNATURE_ENCODING",
+    destinationsWebhookSignatureHeaderName:
+      "DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_NAME",
     destinationsWebhookSignatureHeaderTemplate:
       "DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE",
     destinationsWebhookSigningSecretTemplate:
       "DESTINATIONS_WEBHOOK_SIGNING_SECRET_TEMPLATE",
+    destinationsWebhookTimestampHeaderName:
+      "DESTINATIONS_WEBHOOK_TIMESTAMP_HEADER_NAME",
+    destinationsWebhookTopicHeaderName:
+      "DESTINATIONS_WEBHOOK_TOPIC_HEADER_NAME",
     httpUserAgent: "HTTP_USER_AGENT",
     idgenAttemptPrefix: "IDGEN_ATTEMPT_PREFIX",
     idgenDestinationPrefix: "IDGEN_DESTINATION_PREFIX",
@@ -435,6 +461,7 @@ export const ManagedConfig$outboundSchema: z.ZodType<
     publishRabbitmqQueue: "PUBLISH_RABBITMQ_QUEUE",
     publishRabbitmqServerUrl: "PUBLISH_RABBITMQ_SERVER_URL",
     topics: "TOPICS",
+    topicsAllowWildcards: "TOPICS_ALLOW_WILDCARDS",
   });
 });
 

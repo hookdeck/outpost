@@ -26,7 +26,7 @@ export type DestinationUpdateHookdeck = {
    */
   type: "hookdeck";
   /**
-   * "*" or an array of enabled topics.
+   * "*" or an array of enabled topics. Topic strings can include "*" as a wildcard matching any run of characters. When available topics are configured, wildcard patterns must match at least one available topic.
    */
   topics?: Topics | undefined;
   /**
