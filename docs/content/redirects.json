@@ -60,6 +60,10 @@
     "to": "/docs/outpost/self-hosting/quickstarts/railway"
   },
   {
+    "from": "/docs/outpost/self-hosting/upgrade-v0.16",
+    "to": "/docs/outpost/self-hosting/changelog/upgrade-v0.16"
+  },
+  {
     "from": "/docs/outpost/guides/upgrade-v0.14",
     "to": "/docs/outpost/self-hosting/changelog/upgrade-v0.14"
   },

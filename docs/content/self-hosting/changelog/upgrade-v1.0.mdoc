@@ -1,0 +1,52 @@
+---
+title: "Upgrade to v1.0"
+description: "What v1.0 means for self-hosted deployments, and what changed when upgrading Outpost from v0.17 to v1.0."
+---
+
+Outpost v1.0 is the stable release milestone. There are no breaking changes and no new migrations: `v1.0.0` is the same build as `v0.17.2`, re-tagged to mark stability. If you are already on v0.17.2, upgrading is a version bump and nothing else.
+
+Pre-1.0 releases shipped several breaking changes with migration paths. From v1.0 on, you can expect a sharp focus on stability.
+
+{% callout type="info" %}
+Hookdeck also offers a [managed Outpost service](https://hookdeck.com/outpost). It runs the exact same code as the OSS release — there is no private fork — so self-hosted and managed deployments have full parity.
+{% /callout %}
+
+## Changes Since v0.17.0
+
+If you are upgrading from v0.17.0 or v0.17.1, you also pick up the v0.17 patch releases. These shipped features alongside fixes, so they are worth reviewing.
+
+### JSON merge-patch for destination updates
+
+Destination update (`PATCH /:tenant_id/destinations/:destination_id`) now applies [RFC 7396 JSON merge-patch](https://datatracker.ietf.org/doc/html/rfc7396) semantics to the `config`, `credentials`, `metadata`, and `delivery_metadata` objects:
+
+- Include a key to add or update it
+- Set a key to `null` to delete it
+- Set the entire field to `null` to clear it
+- Omit the field to leave it unchanged
+
+Previously these objects used a shallow merge that could not delete keys or clear fields. `filter` keeps full-replacement semantics.
+
+This is a behavior change if your integration relied on sending a partial object and expecting absent keys to be preserved — that still works — or sent explicit `null` values expecting them to be ignored, which now deletes the key.
+
+### Audit logging for tenant and destination mutations
+
+Tenant and destination create, update, delete, enable, and disable operations now emit audit log entries (for example `tenant created`, `destination disabled`) that include `tenant_id`, and for destinations `destination_id` and `destination_type`. Use these to track mutating API activity.
+
+### Tenant-scoped event and attempt lookups
+
+`GET /events/:id` and `GET /attempts/:id` accept an optional `tenant_id` query parameter to scope the lookup when authenticating with the admin API key.
+
+### Fixes
+
+- **SQS batch size**: Outpost now enforces the SQS 1 MB batch byte limit when publishing, preventing `BatchRequestTooLong` rejections and the resulting infinite retry loops with large payloads.
+- **Operator events without a sink**: configuring operator event topics without a sink logs a warning instead of crashing on startup; operator events are dropped until a sink is configured.
+- **JSON 404s**: unmatched `/api/` routes return JSON (`{"status": 404}`) instead of plain text.
+- **OpenAPI spec**: the destination `remote_setup_url` string was corrected to the `setup_link` object (`{ href, cta }`) to match the actual API response, and the missing `destination_type` attribute was added.
+- **ClickHouse deduplication**: retry attempts no longer insert duplicate event rows.
+
+## Upgrade Checklist
+
+1. **Before upgrading:**
+   - [ ] If your integration sends explicit `null` values in destination `config`, `credentials`, `metadata`, or `delivery_metadata` updates, note that `null` now deletes the key
+2. **Upgrade:**
+   - [ ] Update Outpost to v1.0 (no new migrations in this release)
