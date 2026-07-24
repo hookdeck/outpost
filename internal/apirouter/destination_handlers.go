@@ -439,6 +439,10 @@ func (h *DestinationHandlers) handleUpsertDestinationError(c *gin.Context, err e
 		AbortWithError(c, http.StatusBadRequest, NewErrBadRequest(err))
 		return
 	}
+	if errors.Is(err, tenantstore.ErrMaxDestinationsPerTenantReached) {
+		AbortWithError(c, http.StatusBadRequest, NewErrBadRequest(err))
+		return
+	}
 	AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 }
 
