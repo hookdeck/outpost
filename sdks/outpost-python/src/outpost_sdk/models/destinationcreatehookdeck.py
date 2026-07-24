@@ -28,7 +28,7 @@ class DestinationCreateHookdeckTypedDict(TypedDict):
     type: DestinationCreateHookdeckType
     r"""Type of the destination. Must be 'hookdeck'."""
     topics: TopicsUnionTypedDict
-    r"""\"*\" or an array of enabled topics."""
+    r"""\"*\" or an array of enabled topics. Topic strings can include \"*\" as a wildcard matching any run of characters. When available topics are configured, wildcard patterns must match at least one available topic."""
     credentials: HookdeckCredentialsTypedDict
     id: NotRequired[str]
     r"""Optional user-provided ID. An ID will be generated if empty."""
@@ -57,7 +57,7 @@ class DestinationCreateHookdeck(BaseModel):
     r"""Type of the destination. Must be 'hookdeck'."""
 
     topics: TopicsUnion
-    r"""\"*\" or an array of enabled topics."""
+    r"""\"*\" or an array of enabled topics. Topic strings can include \"*\" as a wildcard matching any run of characters. When available topics are configured, wildcard patterns must match at least one available topic."""
 
     credentials: HookdeckCredentials
 

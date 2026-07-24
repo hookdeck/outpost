@@ -29,7 +29,7 @@ class DestinationCreateWebhookTypedDict(TypedDict):
     type: DestinationCreateWebhookType
     r"""Type of the destination. Must be 'webhook'."""
     topics: TopicsUnionTypedDict
-    r"""\"*\" or an array of enabled topics."""
+    r"""\"*\" or an array of enabled topics. Topic strings can include \"*\" as a wildcard matching any run of characters. When available topics are configured, wildcard patterns must match at least one available topic."""
     config: WebhookConfigTypedDict
     id: NotRequired[str]
     r"""Optional user-provided ID. An ID will be generated if empty."""
@@ -58,7 +58,7 @@ class DestinationCreateWebhook(BaseModel):
     r"""Type of the destination. Must be 'webhook'."""
 
     topics: TopicsUnion
-    r"""\"*\" or an array of enabled topics."""
+    r"""\"*\" or an array of enabled topics. Topic strings can include \"*\" as a wildcard matching any run of characters. When available topics are configured, wildcard patterns must match at least one available topic."""
 
     config: WebhookConfig
 

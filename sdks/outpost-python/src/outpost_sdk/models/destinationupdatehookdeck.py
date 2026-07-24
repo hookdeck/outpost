@@ -31,7 +31,7 @@ class DestinationUpdateHookdeckTypedDict(TypedDict):
     type: DestinationUpdateHookdeckType
     r"""Destination type discriminator. Must equal the existing destination's type — type itself cannot be changed via PATCH."""
     topics: NotRequired[TopicsUnionTypedDict]
-    r"""\"*\" or an array of enabled topics."""
+    r"""\"*\" or an array of enabled topics. Topic strings can include \"*\" as a wildcard matching any run of characters. When available topics are configured, wildcard patterns must match at least one available topic."""
     filter_: NotRequired[Nullable[Dict[str, Any]]]
     r"""Optional JSON schema filter for event matching. Events must match this filter to be delivered to this destination.
     Supports operators: $eq, $neq, $gt, $gte, $lt, $lte, $in, $nin, $startsWith, $endsWith, $exist, $or, $and, $not.
@@ -54,7 +54,7 @@ class DestinationUpdateHookdeck(BaseModel):
     r"""Destination type discriminator. Must equal the existing destination's type — type itself cannot be changed via PATCH."""
 
     topics: Optional[TopicsUnion] = None
-    r"""\"*\" or an array of enabled topics."""
+    r"""\"*\" or an array of enabled topics. Topic strings can include \"*\" as a wildcard matching any run of characters. When available topics are configured, wildcard patterns must match at least one available topic."""
 
     filter_: Annotated[
         OptionalNullable[Dict[str, Any]], pydantic.Field(alias="filter")

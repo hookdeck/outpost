@@ -29,7 +29,7 @@ class DestinationCreateAWSKinesisTypedDict(TypedDict):
     type: DestinationCreateAWSKinesisType
     r"""Type of the destination. Must be 'aws_kinesis'."""
     topics: TopicsUnionTypedDict
-    r"""\"*\" or an array of enabled topics."""
+    r"""\"*\" or an array of enabled topics. Topic strings can include \"*\" as a wildcard matching any run of characters. When available topics are configured, wildcard patterns must match at least one available topic."""
     config: AWSKinesisConfigTypedDict
     credentials: AWSKinesisCredentialsTypedDict
     id: NotRequired[str]
@@ -58,7 +58,7 @@ class DestinationCreateAWSKinesis(BaseModel):
     r"""Type of the destination. Must be 'aws_kinesis'."""
 
     topics: TopicsUnion
-    r"""\"*\" or an array of enabled topics."""
+    r"""\"*\" or an array of enabled topics. Topic strings can include \"*\" as a wildcard matching any run of characters. When available topics are configured, wildcard patterns must match at least one available topic."""
 
     config: AWSKinesisConfig
 

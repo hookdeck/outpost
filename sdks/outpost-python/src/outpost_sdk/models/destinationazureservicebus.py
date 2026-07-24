@@ -34,7 +34,7 @@ class DestinationAzureServiceBusTypedDict(TypedDict):
     type: DestinationAzureServiceBusType
     r"""Type of the destination."""
     topics: TopicsUnionTypedDict
-    r"""\"*\" or an array of enabled topics."""
+    r"""\"*\" or an array of enabled topics. Topic strings can include \"*\" as a wildcard matching any run of characters. When available topics are configured, wildcard patterns must match at least one available topic."""
     disabled_at: Nullable[datetime]
     r"""ISO Date when the destination was disabled, or null if enabled."""
     created_at: datetime
@@ -68,7 +68,7 @@ class DestinationAzureServiceBus(BaseModel):
     r"""Type of the destination."""
 
     topics: TopicsUnion
-    r"""\"*\" or an array of enabled topics."""
+    r"""\"*\" or an array of enabled topics. Topic strings can include \"*\" as a wildcard matching any run of characters. When available topics are configured, wildcard patterns must match at least one available topic."""
 
     disabled_at: Nullable[datetime]
     r"""ISO Date when the destination was disabled, or null if enabled."""

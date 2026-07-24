@@ -13,8 +13,8 @@ class TopicsEnum(str, Enum):
 TopicsUnionTypedDict = TypeAliasType(
     "TopicsUnionTypedDict", Union[TopicsEnum, List[str]]
 )
-r"""\"*\" or an array of enabled topics."""
+r"""\"*\" or an array of enabled topics. Topic strings can include \"*\" as a wildcard matching any run of characters. When available topics are configured, wildcard patterns must match at least one available topic."""
 
 
 TopicsUnion = TypeAliasType("TopicsUnion", Union[TopicsEnum, List[str]])
-r"""\"*\" or an array of enabled topics."""
+r"""\"*\" or an array of enabled topics. Topic strings can include \"*\" as a wildcard matching any run of characters. When available topics are configured, wildcard patterns must match at least one available topic."""

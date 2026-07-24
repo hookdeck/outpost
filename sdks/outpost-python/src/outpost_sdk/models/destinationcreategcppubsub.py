@@ -29,7 +29,7 @@ class DestinationCreateGCPPubSubTypedDict(TypedDict):
     type: DestinationCreateGCPPubSubType
     r"""Type of the destination. Must be 'gcp_pubsub'."""
     topics: TopicsUnionTypedDict
-    r"""\"*\" or an array of enabled topics."""
+    r"""\"*\" or an array of enabled topics. Topic strings can include \"*\" as a wildcard matching any run of characters. When available topics are configured, wildcard patterns must match at least one available topic."""
     config: GCPPubSubConfigTypedDict
     credentials: GCPPubSubCredentialsTypedDict
     id: NotRequired[str]
@@ -58,7 +58,7 @@ class DestinationCreateGCPPubSub(BaseModel):
     r"""Type of the destination. Must be 'gcp_pubsub'."""
 
     topics: TopicsUnion
-    r"""\"*\" or an array of enabled topics."""
+    r"""\"*\" or an array of enabled topics. Topic strings can include \"*\" as a wildcard matching any run of characters. When available topics are configured, wildcard patterns must match at least one available topic."""
 
     config: GCPPubSubConfig
 
