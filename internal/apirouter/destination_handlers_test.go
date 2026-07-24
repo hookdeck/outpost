@@ -11,6 +11,7 @@ import (
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/opevents"
 	"github.com/hookdeck/outpost/internal/tenantstore"
+	"github.com/hookdeck/outpost/internal/tenantstore/memtenantstore"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -55,6 +56,23 @@ func TestAPI_Destinations(t *testing.T) {
 			resp := h.do(h.withJWT(req, "t1"))
 
 			require.Equal(t, http.StatusCreated, resp.Code)
+		})
+
+		t.Run("max destinations per tenant returns 400", func(t *testing.T) {
+			h := newAPITest(t, withTenantStore(memtenantstore.New(memtenantstore.WithMaxDestinationsPerTenant(1))))
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+
+			req := h.jsonReq(http.MethodPost, "/api/v1/tenants/t1/destinations", validDestination())
+			resp := h.do(h.withAPIKey(req))
+			require.Equal(t, http.StatusCreated, resp.Code)
+
+			req = h.jsonReq(http.MethodPost, "/api/v1/tenants/t1/destinations", validDestination())
+			resp = h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusBadRequest, resp.Code)
+			var body map[string]any
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &body))
+			assert.Equal(t, "maximum number of destinations per tenant reached", body["message"])
 		})
 
 		t.Run("missing type returns 422", func(t *testing.T) {
