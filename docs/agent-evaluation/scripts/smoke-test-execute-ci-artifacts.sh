@@ -74,7 +74,10 @@ EOSH
 chmod +x "$d01/outpost_quickstart.sh"
 
 # TypeScript: same semantics (wildcard subscription); publish uses OUTPOST_CI_PUBLISH_TOPIC.
-cat > "$d02/package.json" << 'EOJSON'
+# Written under typescript/ on purpose — agents sometimes nest the artifact in a
+# subdirectory, so the smoke test covers execute-ci-artifacts' recursive discovery.
+mkdir -p "$d02/typescript"
+cat > "$d02/typescript/package.json" << 'EOJSON'
 {
   "name": "ci-smoke-outpost-ts",
   "private": true,
@@ -85,7 +88,7 @@ cat > "$d02/package.json" << 'EOJSON'
 }
 EOJSON
 
-cat > "$d02/outpost-quickstart.ts" << 'EOTS'
+cat > "$d02/typescript/outpost-quickstart.ts" << 'EOTS'
 import { Outpost } from "@hookdeck/outpost-sdk";
 
 const apiKey = process.env.OUTPOST_API_KEY;

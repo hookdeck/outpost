@@ -143,6 +143,15 @@ if [[ ! -d "$d02" ]]; then
   exit 1
 fi
 
+# Agents don't always write the artifact at the run-dir root — some lay out a small
+# project directory (e.g. typescript/outpost-quickstart.ts). Root globs first so the
+# common case is unchanged, then a recursive fallback; sort keeps the pick deterministic.
+find_artifact() {
+  local dir=$1 pattern=$2 f
+  f=$(find "$dir" -name node_modules -prune -o -type f -name "$pattern" ! -name '*.d.ts' -print 2>/dev/null | sort | head -n 1)
+  [[ -n "$f" ]] && echo "$f"
+}
+
 pick_sh() {
   local dir=$1 f
   for f in "$dir"/*quickstart*.sh "$dir"/outpost*.sh; do
@@ -151,7 +160,8 @@ pick_sh() {
   for f in "$dir"/*.sh; do
     [[ -f "$f" ]] && { echo "$f"; return 0; }
   done
-  return 1
+  f=$(find_artifact "$dir" '*quickstart*.sh') || f=$(find_artifact "$dir" '*.sh') || return 1
+  echo "$f"
 }
 
 pick_ts() {
@@ -162,7 +172,8 @@ pick_ts() {
   for f in "$dir"/*.ts; do
     [[ -f "$f" ]] && { echo "$f"; return 0; }
   done
-  return 1
+  f=$(find_artifact "$dir" '*quickstart*.ts') || f=$(find_artifact "$dir" '*.ts') || return 1
+  echo "$f"
 }
 
 # Agent-generated scripts may `source .env` which can overwrite CI-exported
@@ -194,34 +205,38 @@ echo "execute-ci-artifacts: running bash $sh_path"
 export OUTPOST_API_KEY OUTPOST_TEST_WEBHOOK_URL
 [[ -n "${OUTPOST_API_BASE_URL:-}" ]] && export OUTPOST_API_BASE_URL
 chmod +x "$sh_path" 2>/dev/null || true
-# Run from the scenario 01 run dir so relative paths in the generated script behave.
-cd "$d01"
-stash01="$(hide_agent_env "$d01")"
+# Run from the script's own dir (usually the run dir root, possibly a subdir)
+# so relative paths and any sibling .env behave.
+sh_dir=$(dirname "$sh_path")
+cd "$sh_dir"
+stash01="$(hide_agent_env "$sh_dir")"
 bash "$sh_path" || {
-  restore_agent_env "$d01" "$stash01"
+  restore_agent_env "$sh_dir" "$stash01"
   echo "execute-ci-artifacts: scenario 01 shell failed (curl exit 22 = HTTP error). 404 is often a wrong path or a publish/destination topic that is not configured in your Outpost project. Set OUTPOST_API_BASE_URL if needed; try npm run smoke:execute-ci (uses destination topics [\"*\"])." >&2
   exit 1
 }
-restore_agent_env "$d01" "$stash01"
+restore_agent_env "$sh_dir" "$stash01"
 
 echo "execute-ci-artifacts: scenario 02 dir=$d02"
 ts_path=$(pick_ts "$d02") || {
   echo "execute-ci-artifacts: no .ts file found in $d02" >&2
   exit 1
 }
-echo "execute-ci-artifacts: running npx tsx $ts_path (from $d02)"
-cd "$d02"
+# Install and run next to the picked file so its own package.json / .env apply.
+ts_dir=$(dirname "$ts_path")
+echo "execute-ci-artifacts: running npx tsx $ts_path (from $ts_dir)"
+cd "$ts_dir"
 if [[ -f package.json ]]; then
   npm install --no-audit --no-fund
 fi
-stash02="$(hide_agent_env "$d02")"
+stash02="$(hide_agent_env "$ts_dir")"
 export OUTPOST_API_KEY OUTPOST_TEST_WEBHOOK_URL
 [[ -n "${OUTPOST_API_BASE_URL:-}" ]] && export OUTPOST_API_BASE_URL
 npx --yes tsx "$ts_path" || {
-  restore_agent_env "$d02" "$stash02"
+  restore_agent_env "$ts_dir" "$stash02"
   echo "execute-ci-artifacts: scenario 02 TypeScript failed. Check OUTPOST_API_KEY, OUTPOST_TEST_WEBHOOK_URL, and that OUTPOST_CI_PUBLISH_TOPIC (default user.created) exists in the project. Try: npm run smoke:execute-ci" >&2
   exit 1
 }
-restore_agent_env "$d02" "$stash02"
+restore_agent_env "$ts_dir" "$stash02"
 
 echo "execute-ci-artifacts: OK (scenario 01 shell + scenario 02 TypeScript)"
