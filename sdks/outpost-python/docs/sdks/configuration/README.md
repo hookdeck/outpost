@@ -78,6 +78,7 @@ with Outpost(
     res = outpost.configuration.update_managed_config(request={
         "destinations_webhook_mode": "default",
         "topics": "user.created,user.updated",
+        "topics_allow_wildcards": "false",
     })
 
     # Handle response

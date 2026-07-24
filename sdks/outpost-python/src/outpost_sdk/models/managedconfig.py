@@ -16,23 +16,30 @@ class ManagedConfigTypedDict(TypedDict):
     """
 
     alert_auto_disable_destination: NotRequired[str]
+    r"""If \"true\", automatically disables a destination once ALERT_CONSECUTIVE_FAILURE_COUNT is reached. Has no effect when consecutive-failure alerting is disabled."""
     alert_consecutive_failure_count: NotRequired[str]
+    r"""Consecutive delivery failures before alerting on a destination (and disabling it when ALERT_AUTO_DISABLE_DESTINATION is \"true\"). Omit for the default of 100; set to an empty string to disable consecutive-failure alerting entirely."""
     alert_exhausted_retries_window_seconds: NotRequired[str]
+    r"""Suppression window in seconds for exhausted_retries alerts: the first exhaustion per destination alerts and subsequent ones within the window are suppressed (\"0\" = no suppression). Omit for the default of 3600; set to an empty string to disable exhausted_retries alerting entirely."""
     delivery_timeout_seconds: NotRequired[str]
     destinations_aws_kinesis_metadata_in_payload: NotRequired[str]
     destinations_include_millisecond_timestamp: NotRequired[str]
-    destinations_webhook_disable_default_event_id_header: NotRequired[str]
-    destinations_webhook_disable_default_signature_header: NotRequired[str]
-    destinations_webhook_disable_default_timestamp_header: NotRequired[str]
-    destinations_webhook_disable_default_topic_header: NotRequired[str]
+    destinations_webhook_event_id_header_name: NotRequired[str]
+    r"""Complete name of the event ID header. Unset uses the default \"<prefix>event-id\"; an explicit value pins that exact name; an empty string disables the header. Only applies to \"default\" mode."""
     destinations_webhook_header_prefix: NotRequired[str]
     destinations_webhook_mode: NotRequired[str]
     destinations_webhook_proxy_url: NotRequired[str]
     destinations_webhook_signature_algorithm: NotRequired[str]
     destinations_webhook_signature_content_template: NotRequired[str]
     destinations_webhook_signature_encoding: NotRequired[str]
+    destinations_webhook_signature_header_name: NotRequired[str]
+    r"""Complete name of the signature header. Unset uses the default \"<prefix>signature\"; an explicit value pins that exact name; an empty string disables the header. Only applies to \"default\" mode."""
     destinations_webhook_signature_header_template: NotRequired[str]
     destinations_webhook_signing_secret_template: NotRequired[str]
+    destinations_webhook_timestamp_header_name: NotRequired[str]
+    r"""Complete name of the timestamp header. Unset uses the default \"<prefix>timestamp\"; an explicit value pins that exact name; an empty string disables the header. Only applies to \"default\" mode."""
+    destinations_webhook_topic_header_name: NotRequired[str]
+    r"""Complete name of the topic header. Unset uses the default \"<prefix>topic\"; an explicit value pins that exact name; an empty string disables the header. Only applies to \"default\" mode."""
     http_user_agent: NotRequired[str]
     idgen_attempt_prefix: NotRequired[str]
     idgen_destination_prefix: NotRequired[str]
@@ -76,6 +83,7 @@ class ManagedConfigTypedDict(TypedDict):
     publish_rabbitmq_queue: NotRequired[str]
     publish_rabbitmq_server_url: NotRequired[str]
     topics: NotRequired[str]
+    topics_allow_wildcards: NotRequired[str]
 
 
 class ManagedConfig(BaseModel):
@@ -88,14 +96,17 @@ class ManagedConfig(BaseModel):
     alert_auto_disable_destination: Annotated[
         Optional[str], pydantic.Field(alias="ALERT_AUTO_DISABLE_DESTINATION")
     ] = None
+    r"""If \"true\", automatically disables a destination once ALERT_CONSECUTIVE_FAILURE_COUNT is reached. Has no effect when consecutive-failure alerting is disabled."""
 
     alert_consecutive_failure_count: Annotated[
         Optional[str], pydantic.Field(alias="ALERT_CONSECUTIVE_FAILURE_COUNT")
     ] = None
+    r"""Consecutive delivery failures before alerting on a destination (and disabling it when ALERT_AUTO_DISABLE_DESTINATION is \"true\"). Omit for the default of 100; set to an empty string to disable consecutive-failure alerting entirely."""
 
     alert_exhausted_retries_window_seconds: Annotated[
         Optional[str], pydantic.Field(alias="ALERT_EXHAUSTED_RETRIES_WINDOW_SECONDS")
     ] = None
+    r"""Suppression window in seconds for exhausted_retries alerts: the first exhaustion per destination alerts and subsequent ones within the window are suppressed (\"0\" = no suppression). Omit for the default of 3600; set to an empty string to disable exhausted_retries alerting entirely."""
 
     delivery_timeout_seconds: Annotated[
         Optional[str], pydantic.Field(alias="DELIVERY_TIMEOUT_SECONDS")
@@ -111,25 +122,10 @@ class ManagedConfig(BaseModel):
         pydantic.Field(alias="DESTINATIONS_INCLUDE_MILLISECOND_TIMESTAMP"),
     ] = None
 
-    destinations_webhook_disable_default_event_id_header: Annotated[
-        Optional[str],
-        pydantic.Field(alias="DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_EVENT_ID_HEADER"),
+    destinations_webhook_event_id_header_name: Annotated[
+        Optional[str], pydantic.Field(alias="DESTINATIONS_WEBHOOK_EVENT_ID_HEADER_NAME")
     ] = None
-
-    destinations_webhook_disable_default_signature_header: Annotated[
-        Optional[str],
-        pydantic.Field(alias="DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_SIGNATURE_HEADER"),
-    ] = None
-
-    destinations_webhook_disable_default_timestamp_header: Annotated[
-        Optional[str],
-        pydantic.Field(alias="DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_TIMESTAMP_HEADER"),
-    ] = None
-
-    destinations_webhook_disable_default_topic_header: Annotated[
-        Optional[str],
-        pydantic.Field(alias="DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_TOPIC_HEADER"),
-    ] = None
+    r"""Complete name of the event ID header. Unset uses the default \"<prefix>event-id\"; an explicit value pins that exact name; an empty string disables the header. Only applies to \"default\" mode."""
 
     destinations_webhook_header_prefix: Annotated[
         Optional[str], pydantic.Field(alias="DESTINATIONS_WEBHOOK_HEADER_PREFIX")
@@ -156,6 +152,12 @@ class ManagedConfig(BaseModel):
         Optional[str], pydantic.Field(alias="DESTINATIONS_WEBHOOK_SIGNATURE_ENCODING")
     ] = None
 
+    destinations_webhook_signature_header_name: Annotated[
+        Optional[str],
+        pydantic.Field(alias="DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_NAME"),
+    ] = None
+    r"""Complete name of the signature header. Unset uses the default \"<prefix>signature\"; an explicit value pins that exact name; an empty string disables the header. Only applies to \"default\" mode."""
+
     destinations_webhook_signature_header_template: Annotated[
         Optional[str],
         pydantic.Field(alias="DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE"),
@@ -165,6 +167,17 @@ class ManagedConfig(BaseModel):
         Optional[str],
         pydantic.Field(alias="DESTINATIONS_WEBHOOK_SIGNING_SECRET_TEMPLATE"),
     ] = None
+
+    destinations_webhook_timestamp_header_name: Annotated[
+        Optional[str],
+        pydantic.Field(alias="DESTINATIONS_WEBHOOK_TIMESTAMP_HEADER_NAME"),
+    ] = None
+    r"""Complete name of the timestamp header. Unset uses the default \"<prefix>timestamp\"; an explicit value pins that exact name; an empty string disables the header. Only applies to \"default\" mode."""
+
+    destinations_webhook_topic_header_name: Annotated[
+        Optional[str], pydantic.Field(alias="DESTINATIONS_WEBHOOK_TOPIC_HEADER_NAME")
+    ] = None
+    r"""Complete name of the topic header. Unset uses the default \"<prefix>topic\"; an explicit value pins that exact name; an empty string disables the header. Only applies to \"default\" mode."""
 
     http_user_agent: Annotated[
         Optional[str], pydantic.Field(alias="HTTP_USER_AGENT")
@@ -334,6 +347,10 @@ class ManagedConfig(BaseModel):
 
     topics: Annotated[Optional[str], pydantic.Field(alias="TOPICS")] = None
 
+    topics_allow_wildcards: Annotated[
+        Optional[str], pydantic.Field(alias="TOPICS_ALLOW_WILDCARDS")
+    ] = None
+
     @model_serializer(mode="wrap")
     def serialize_model(self, handler):
         optional_fields = set(
@@ -344,18 +361,18 @@ class ManagedConfig(BaseModel):
                 "DELIVERY_TIMEOUT_SECONDS",
                 "DESTINATIONS_AWS_KINESIS_METADATA_IN_PAYLOAD",
                 "DESTINATIONS_INCLUDE_MILLISECOND_TIMESTAMP",
-                "DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_EVENT_ID_HEADER",
-                "DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_SIGNATURE_HEADER",
-                "DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_TIMESTAMP_HEADER",
-                "DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_TOPIC_HEADER",
+                "DESTINATIONS_WEBHOOK_EVENT_ID_HEADER_NAME",
                 "DESTINATIONS_WEBHOOK_HEADER_PREFIX",
                 "DESTINATIONS_WEBHOOK_MODE",
                 "DESTINATIONS_WEBHOOK_PROXY_URL",
                 "DESTINATIONS_WEBHOOK_SIGNATURE_ALGORITHM",
                 "DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE",
                 "DESTINATIONS_WEBHOOK_SIGNATURE_ENCODING",
+                "DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_NAME",
                 "DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE",
                 "DESTINATIONS_WEBHOOK_SIGNING_SECRET_TEMPLATE",
+                "DESTINATIONS_WEBHOOK_TIMESTAMP_HEADER_NAME",
+                "DESTINATIONS_WEBHOOK_TOPIC_HEADER_NAME",
                 "HTTP_USER_AGENT",
                 "IDGEN_ATTEMPT_PREFIX",
                 "IDGEN_DESTINATION_PREFIX",
@@ -399,6 +416,7 @@ class ManagedConfig(BaseModel):
                 "PUBLISH_RABBITMQ_QUEUE",
                 "PUBLISH_RABBITMQ_SERVER_URL",
                 "TOPICS",
+                "TOPICS_ALLOW_WILDCARDS",
             ]
         )
         serialized = handler(self)

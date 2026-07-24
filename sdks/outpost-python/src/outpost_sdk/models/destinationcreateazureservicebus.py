@@ -32,7 +32,7 @@ class DestinationCreateAzureServiceBusTypedDict(TypedDict):
     type: DestinationCreateAzureServiceBusType
     r"""Type of the destination. Must be 'azure_servicebus'."""
     topics: TopicsUnionTypedDict
-    r"""\"*\" or an array of enabled topics."""
+    r"""\"*\" or an array of enabled topics. Topic strings can include \"*\" as a wildcard matching any run of characters. When available topics are configured, wildcard patterns must match at least one available topic."""
     config: AzureServiceBusConfigTypedDict
     credentials: AzureServiceBusCredentialsTypedDict
     id: NotRequired[str]
@@ -61,7 +61,7 @@ class DestinationCreateAzureServiceBus(BaseModel):
     r"""Type of the destination. Must be 'azure_servicebus'."""
 
     topics: TopicsUnion
-    r"""\"*\" or an array of enabled topics."""
+    r"""\"*\" or an array of enabled topics. Topic strings can include \"*\" as a wildcard matching any run of characters. When available topics are configured, wildcard patterns must match at least one available topic."""
 
     config: AzureServiceBusConfig
 

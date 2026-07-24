@@ -11,10 +11,13 @@ import httpx
 
 
 class BackoffStrategy:
+    """Exponential backoff strategy configuration."""
+
     initial_interval: int
     max_interval: int
     exponent: float
     max_elapsed_time: int
+    jitter_ms: Optional[int]
 
     def __init__(
         self,
@@ -22,24 +25,63 @@ class BackoffStrategy:
         max_interval: int,
         exponent: float,
         max_elapsed_time: int,
+        jitter_ms: Optional[int] = None,
     ):
+        """Initialize a backoff strategy.
+
+        Args:
+            initial_interval: Initial retry interval in milliseconds.
+            max_interval: Maximum retry interval in milliseconds.
+            exponent: Base of the exponential backoff; the interval grows as
+                ``initial_interval * exponent ** retries``.
+            max_elapsed_time: Maximum total elapsed time in milliseconds.
+            jitter_ms: Additive jitter bound in milliseconds. When set, adds a random
+                value in ``[0, jitter_ms]`` to each computed backoff interval (default
+                ``+[0, 1s]``).
+
+        Note:
+            When a response carries a ``Retry-After`` or ``retry-after-ms`` header,
+            that delay is used as-is and the sleep-shaping parameters
+            (``initial_interval``, ``max_interval``, ``exponent``, ``jitter_ms``) are
+            ignored for that attempt.
+        """
+        if jitter_ms is not None and jitter_ms < 0:
+            raise ValueError("jitter_ms must be >= 0")
         self.initial_interval = initial_interval
         self.max_interval = max_interval
         self.exponent = exponent
         self.max_elapsed_time = max_elapsed_time
+        self.jitter_ms = jitter_ms
 
 
 class RetryConfig:
+    """Runtime retry configuration."""
+
     strategy: str
     backoff: BackoffStrategy
     retry_connection_errors: bool
+    status_codes_override: Optional[List[str]]
 
     def __init__(
-        self, strategy: str, backoff: BackoffStrategy, retry_connection_errors: bool
+        self,
+        strategy: str,
+        backoff: BackoffStrategy,
+        retry_connection_errors: bool,
+        status_codes_override: Optional[List[str]] = None,
     ):
+        """Initialize a retry configuration.
+
+        Args:
+            strategy: Retry strategy: ``"none"`` or ``"backoff"``.
+            backoff: Backoff parameters.
+            retry_connection_errors: Whether to also retry transport-level connection errors.
+            status_codes_override: Retryable HTTP status codes that take precedence over the
+                per-operation defaults when non-empty.
+        """
         self.strategy = strategy
         self.backoff = backoff
         self.retry_connection_errors = retry_connection_errors
+        self.status_codes_override = status_codes_override
 
 
 class Retries:
@@ -48,7 +90,7 @@ class Retries:
 
     def __init__(self, config: RetryConfig, status_codes: List[str]):
         self.config = config
-        self.status_codes = status_codes
+        self.status_codes = config.status_codes_override or status_codes
 
 
 class TemporaryError(Exception):
@@ -114,6 +156,7 @@ def _get_sleep_interval(
     max_interval: int,
     exponent: float,
     retries: int,
+    jitter_ms: Optional[int] = None,
 ) -> float:
     """Get sleep interval for retry with exponential backoff.
 
@@ -123,6 +166,7 @@ def _get_sleep_interval(
         max_interval: Maximum retry interval in milliseconds.
         exponent: Base for exponential backoff calculation.
         retries: Current retry attempt count.
+        jitter_ms: Additive jitter bound in ms; see ``BackoffStrategy.jitter_ms``.
 
     Returns:
         Sleep interval in seconds.
@@ -134,7 +178,11 @@ def _get_sleep_interval(
     ):
         return exception.retry_after / 1000
 
-    sleep = (initial_interval / 1000) * exponent**retries + random.uniform(0, 1)
+    sleep = (initial_interval / 1000) * exponent**retries
+    if jitter_ms is not None:
+        sleep += random.uniform(0, jitter_ms / 1000)
+    else:
+        sleep += random.uniform(0, 1)
     return min(sleep, max_interval / 1000)
 
 
@@ -177,6 +225,7 @@ def retry(func, retries: Retries):
             retries.config.backoff.max_interval,
             retries.config.backoff.exponent,
             retries.config.backoff.max_elapsed_time,
+            retries.config.backoff.jitter_ms,
         )
 
     return func()
@@ -221,6 +270,7 @@ async def retry_async(func, retries: Retries):
             retries.config.backoff.max_interval,
             retries.config.backoff.exponent,
             retries.config.backoff.max_elapsed_time,
+            retries.config.backoff.jitter_ms,
         )
 
     return await func()
@@ -232,6 +282,7 @@ def retry_with_backoff(
     max_interval=60000,
     exponent=1.5,
     max_elapsed_time=3600000,
+    jitter_ms=None,
 ):
     start = round(time.time() * 1000)
     retries = 0
@@ -254,7 +305,12 @@ def retry_with_backoff(
                 if retry_after_ms is not None:
                     exception.retry_after = retry_after_ms
             sleep = _get_sleep_interval(
-                exception, initial_interval, max_interval, exponent, retries
+                exception,
+                initial_interval,
+                max_interval,
+                exponent,
+                retries,
+                jitter_ms=jitter_ms,
             )
             time.sleep(sleep)
             retries += 1
@@ -266,6 +322,7 @@ async def retry_with_backoff_async(
     max_interval=60000,
     exponent=1.5,
     max_elapsed_time=3600000,
+    jitter_ms=None,
 ):
     start = round(time.time() * 1000)
     retries = 0
@@ -288,7 +345,12 @@ async def retry_with_backoff_async(
                 if retry_after_ms is not None:
                     exception.retry_after = retry_after_ms
             sleep = _get_sleep_interval(
-                exception, initial_interval, max_interval, exponent, retries
+                exception,
+                initial_interval,
+                max_interval,
+                exponent,
+                retries,
+                jitter_ms=jitter_ms,
             )
             await asyncio.sleep(sleep)
             retries += 1

@@ -29,7 +29,7 @@ class DestinationCreateAwss3TypedDict(TypedDict):
     type: DestinationCreateAwss3Type
     r"""Type of the destination. Must be 'aws_s3'."""
     topics: TopicsUnionTypedDict
-    r"""\"*\" or an array of enabled topics."""
+    r"""\"*\" or an array of enabled topics. Topic strings can include \"*\" as a wildcard matching any run of characters. When available topics are configured, wildcard patterns must match at least one available topic."""
     config: Awss3ConfigTypedDict
     credentials: Awss3CredentialsTypedDict
     id: NotRequired[str]
@@ -58,7 +58,7 @@ class DestinationCreateAwss3(BaseModel):
     r"""Type of the destination. Must be 'aws_s3'."""
 
     topics: TopicsUnion
-    r"""\"*\" or an array of enabled topics."""
+    r"""\"*\" or an array of enabled topics. Topic strings can include \"*\" as a wildcard matching any run of characters. When available topics are configured, wildcard patterns must match at least one available topic."""
 
     config: Awss3Config
 

@@ -15,7 +15,7 @@ async def run_sync_in_thread(func: Callable[..., _T], *args) -> _T:
 
 if TYPE_CHECKING:
     from .annotations import get_discriminator
-    from .datetimes import parse_datetime
+    from .datetimes import parse_datetime, parse_duration
     from .enums import OpenEnumMeta
     from .headers import get_headers, get_response_headers
     from .metadata import (
@@ -70,6 +70,7 @@ __all__ = [
     "get_default_logger",
     "get_discriminator",
     "parse_datetime",
+    "parse_duration",
     "get_global_from_env",
     "get_headers",
     "get_pydantic_model",
@@ -122,6 +123,7 @@ _dynamic_imports: dict[str, str] = {
     "get_default_logger": ".logger",
     "get_discriminator": ".annotations",
     "parse_datetime": ".datetimes",
+    "parse_duration": ".datetimes",
     "get_global_from_env": ".values",
     "get_headers": ".headers",
     "get_pydantic_model": ".serializers",

@@ -29,7 +29,7 @@ class DestinationCreateAWSSQSTypedDict(TypedDict):
     type: DestinationCreateAWSSQSType
     r"""Type of the destination. Must be 'aws_sqs'."""
     topics: TopicsUnionTypedDict
-    r"""\"*\" or an array of enabled topics."""
+    r"""\"*\" or an array of enabled topics. Topic strings can include \"*\" as a wildcard matching any run of characters. When available topics are configured, wildcard patterns must match at least one available topic."""
     config: AWSSQSConfigTypedDict
     credentials: AWSSQSCredentialsTypedDict
     id: NotRequired[str]
@@ -58,7 +58,7 @@ class DestinationCreateAWSSQS(BaseModel):
     r"""Type of the destination. Must be 'aws_sqs'."""
 
     topics: TopicsUnion
-    r"""\"*\" or an array of enabled topics."""
+    r"""\"*\" or an array of enabled topics. Topic strings can include \"*\" as a wildcard matching any run of characters. When available topics are configured, wildcard patterns must match at least one available topic."""
 
     config: AWSSQSConfig
 
