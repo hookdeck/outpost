@@ -108,6 +108,7 @@ async function run() {
   const result = await outpost.configuration.updateManagedConfig({
     destinationsWebhookMode: "default",
     topics: "user.created,user.updated",
+    topicsAllowWildcards: "false",
   });
 
   console.log(result);
@@ -134,6 +135,7 @@ async function run() {
   const res = await configurationUpdateManagedConfig(outpost, {
     destinationsWebhookMode: "default",
     topics: "user.created,user.updated",
+    topicsAllowWildcards: "false",
   });
   if (res.ok) {
     const { value: result } = res;
