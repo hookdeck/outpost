@@ -7,7 +7,7 @@ services:
       context: ../../../
       dockerfile: ./build/dev/loadtest/Dockerfile
     volumes:
-      - ../../../loadtest-app:/app
+      - ../../../loadtest/app:/app
       - go_mod_cache:/go/pkg
       - go_build_cache:/root/.cache/go-build
     ports:

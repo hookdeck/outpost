@@ -6,8 +6,8 @@ import (
 	"log/slog"
 	"sync"
 
-	"github.com/hookdeck/outpost/loadtest-app/internal/mock"
-	"github.com/hookdeck/outpost/loadtest-app/internal/outpost"
+	"github.com/hookdeck/outpost/loadtest/app/internal/mock"
+	"github.com/hookdeck/outpost/loadtest/app/internal/outpost"
 )
 
 type Provisioner struct {

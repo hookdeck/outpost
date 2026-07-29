@@ -10,8 +10,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/hookdeck/outpost/loadtest-app/internal/config"
-	"github.com/hookdeck/outpost/loadtest-app/internal/server"
+	"github.com/hookdeck/outpost/loadtest/app/internal/config"
+	"github.com/hookdeck/outpost/loadtest/app/internal/server"
 )
 
 func main() {

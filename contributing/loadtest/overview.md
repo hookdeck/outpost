@@ -23,7 +23,7 @@ Queries the mock webhook to confirm delivery and measure latency metrics:
 ### Start Supporting Services
 
 ```bash
-cd loadtest
+cd loadtest/k6
 docker-compose up -d
 ```
 
@@ -33,7 +33,7 @@ This starts:
 
 ### Configure Environment
 
-Use `loadtest/config/environments/local.json` or create a new one (e.g., `staging.json`):
+Use `loadtest/k6/config/environments/local.json` or create a new one (e.g., `staging.json`):
 
 ```json
 {
@@ -62,7 +62,7 @@ The mock webhook must be reachable by Outpost for event delivery to succeed.
 
 Use the default `basic.json` scenario, edit it locally, or create a new one.
 
-Default scenario at `loadtest/config/scenarios/events-throughput/basic.json`:
+Default scenario at `loadtest/k6/config/scenarios/events-throughput/basic.json`:
 
 ```json
 {

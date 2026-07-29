@@ -1,9 +1,9 @@
 package group
 
 import (
-	"github.com/hookdeck/outpost/loadtest-app/internal/eventlog"
-	"github.com/hookdeck/outpost/loadtest-app/internal/metrics"
-	"github.com/hookdeck/outpost/loadtest-app/internal/mock"
+	"github.com/hookdeck/outpost/loadtest/app/internal/eventlog"
+	"github.com/hookdeck/outpost/loadtest/app/internal/metrics"
+	"github.com/hookdeck/outpost/loadtest/app/internal/mock"
 )
 
 type Config struct {

@@ -3,13 +3,13 @@ package api
 import (
 	"time"
 
-	"github.com/hookdeck/outpost/loadtest-app/internal/config"
-	"github.com/hookdeck/outpost/loadtest-app/internal/eventlog"
-	"github.com/hookdeck/outpost/loadtest-app/internal/group"
-	"github.com/hookdeck/outpost/loadtest-app/internal/metrics"
-	"github.com/hookdeck/outpost/loadtest-app/internal/mock"
-	"github.com/hookdeck/outpost/loadtest-app/internal/outpost"
-	"github.com/hookdeck/outpost/loadtest-app/internal/publisher"
+	"github.com/hookdeck/outpost/loadtest/app/internal/config"
+	"github.com/hookdeck/outpost/loadtest/app/internal/eventlog"
+	"github.com/hookdeck/outpost/loadtest/app/internal/group"
+	"github.com/hookdeck/outpost/loadtest/app/internal/metrics"
+	"github.com/hookdeck/outpost/loadtest/app/internal/mock"
+	"github.com/hookdeck/outpost/loadtest/app/internal/outpost"
+	"github.com/hookdeck/outpost/loadtest/app/internal/publisher"
 )
 
 // App holds all the wired-together components for the load test.

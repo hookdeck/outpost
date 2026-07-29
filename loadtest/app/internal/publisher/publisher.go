@@ -10,10 +10,10 @@ import (
 
 	"golang.org/x/time/rate"
 
-	"github.com/hookdeck/outpost/loadtest-app/internal/eventlog"
-	"github.com/hookdeck/outpost/loadtest-app/internal/group"
-	"github.com/hookdeck/outpost/loadtest-app/internal/metrics"
-	"github.com/hookdeck/outpost/loadtest-app/internal/outpost"
+	"github.com/hookdeck/outpost/loadtest/app/internal/eventlog"
+	"github.com/hookdeck/outpost/loadtest/app/internal/group"
+	"github.com/hookdeck/outpost/loadtest/app/internal/metrics"
+	"github.com/hookdeck/outpost/loadtest/app/internal/outpost"
 )
 
 type Publisher struct {

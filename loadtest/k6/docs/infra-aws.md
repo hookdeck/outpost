@@ -27,7 +27,7 @@ All Terraform configurations and scripts in this repository assume the use of th
 Navigate to the terraform directory and initialize the Terraform modules:
 
 ```sh
-cd loadtest/infra/aws/terraform
+cd loadtest/k6/infra/aws/terraform
 terraform init
 ```
 
@@ -51,7 +51,7 @@ The process takes approximately 15-20 minutes to complete. You'll be prompted to
 After Terraform has successfully provisioned the infrastructure, deploy the monitoring stack:
 
 ```sh
-cd loadtest/infra/aws
+cd loadtest/k6/infra/aws
 chmod +x scripts/deploy-monitoring.sh
 ./scripts/deploy-monitoring.sh
 ```
@@ -63,7 +63,7 @@ This script installs Prometheus and Grafana on the EKS cluster for comprehensive
 Deploy the Outpost application using the Helm chart:
 
 ```sh
-cd loadtest/infra/aws
+cd loadtest/k6/infra/aws
 chmod +x scripts/deploy-outpost.sh
 ./scripts/deploy-outpost.sh
 ```
@@ -142,7 +142,7 @@ This creates a tenant with ID `123` which can be used for testing.
 
 ### Outpost Release / Customize Environment
 
-You can customize the Outpost deployment by modifying the values in `loadtest/infra/aws/values/outpost/values.yaml`:
+You can customize the Outpost deployment by modifying the values in `loadtest/k6/infra/aws/values/outpost/values.yaml`:
 
 - Change resource limits and requests
 - Adjust replica counts for services
@@ -153,7 +153,7 @@ You can customize the Outpost deployment by modifying the values in `loadtest/in
 After making changes to the values file, redeploy Outpost using the following command:
 
 ```sh
-cd loadtest/infra/aws
+cd loadtest/k6/infra/aws
 helm upgrade --install outpost ../../../deployments/kubernetes/charts/outpost \
   --namespace outpost-loadtest-1 \
   -f ./values/outpost/values.yaml
@@ -214,7 +214,7 @@ Get the full ECR URI for your values file:
 echo "ECR URI: ${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/outpost"
 ```
 
-Update the image repository and tag in `loadtest/infra/aws/values/outpost/values.yaml`:
+Update the image repository and tag in `loadtest/k6/infra/aws/values/outpost/values.yaml`:
 
 ```yaml
 outpost:
@@ -230,7 +230,7 @@ Then deploy a new Outpost release following the instructions in [Outpost Release
 To remove all resources:
 
 ```sh
-cd loadtest/infra/aws
+cd loadtest/k6/infra/aws
 chmod +x scripts/cleanup.sh
 ./scripts/cleanup.sh
 ```

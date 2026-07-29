@@ -8,8 +8,8 @@ import (
 
 	"strconv"
 
-	"github.com/hookdeck/outpost/loadtest-app/internal/eventlog"
-	"github.com/hookdeck/outpost/loadtest-app/internal/group"
+	"github.com/hookdeck/outpost/loadtest/app/internal/eventlog"
+	"github.com/hookdeck/outpost/loadtest/app/internal/group"
 )
 
 func (a *App) RegisterRoutes(mux *http.ServeMux) {

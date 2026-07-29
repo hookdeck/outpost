@@ -6,10 +6,10 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/hookdeck/outpost/loadtest-app/internal/api"
-	"github.com/hookdeck/outpost/loadtest-app/internal/config"
-	"github.com/hookdeck/outpost/loadtest-app/internal/dashboard"
-	"github.com/hookdeck/outpost/loadtest-app/internal/mockhttp"
+	"github.com/hookdeck/outpost/loadtest/app/internal/api"
+	"github.com/hookdeck/outpost/loadtest/app/internal/config"
+	"github.com/hookdeck/outpost/loadtest/app/internal/dashboard"
+	"github.com/hookdeck/outpost/loadtest/app/internal/mockhttp"
 )
 
 type Server struct {
