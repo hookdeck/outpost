@@ -45,6 +45,20 @@ Two rules when sizing one:
 Concurrency is Little's law over *deliveries*: `rate × destinations × response_time`.
 Fan-out multiplies.
 
+A profile can also ramp to its rate instead of opening at it:
+
+```yaml
+pattern: ramp
+pattern_params:
+  ramp_duration_seconds: 45
+```
+
+The ramp runs from publisher start, so it has to fit inside `warmup` — a spec whose
+ramp is still climbing when the window opens is rejected, because its opening samples
+would sit below the rate the run reports. Worth using against a deployment that has
+been idle: asked for its full rate on the first second it queues while it gets there,
+and that queue's wait shows up in the tail of an otherwise clean run.
+
 ### Against a deployed app
 
 Everything goes over HTTP, so the same command drives a remote target:

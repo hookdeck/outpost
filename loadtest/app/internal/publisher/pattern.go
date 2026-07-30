@@ -9,10 +9,17 @@ import (
 
 // PatternController adjusts the rate of a group publisher over time.
 type PatternController interface {
+	// InitialRate is the rate the group starts at, before Start's first
+	// adjustment. The publisher sizes its limiters from this, so a pattern that
+	// begins below its target does not spend its first tick at full rate — for
+	// a ramp that opening burst is the exact thing the ramp exists to avoid.
+	InitialRate(baseRate int64) int64
 	Start(ctx context.Context, rate *atomic.Int64, baseRate int64)
 }
 
 type constantPattern struct{}
+
+func (constantPattern) InitialRate(baseRate int64) int64 { return baseRate }
 
 func (constantPattern) Start(ctx context.Context, rate *atomic.Int64, baseRate int64) {
 	// No-op: rate stays constant
@@ -20,6 +27,13 @@ func (constantPattern) Start(ctx context.Context, rate *atomic.Int64, baseRate i
 
 type rampPattern struct {
 	durationSeconds int
+}
+
+func (p rampPattern) InitialRate(baseRate int64) int64 {
+	if p.durationSeconds <= 0 {
+		return baseRate
+	}
+	return max(baseRate/int64(p.durationSeconds), 1)
 }
 
 func (p rampPattern) Start(ctx context.Context, rate *atomic.Int64, baseRate int64) {
@@ -54,6 +68,10 @@ type burstPattern struct {
 	burstDuration   int // seconds
 	burstInterval   int // seconds between bursts
 }
+
+// Both burst and sine oscillate around the base rate rather than climbing to
+// it, so the base rate is where they belong at t=0.
+func (p burstPattern) InitialRate(baseRate int64) int64 { return baseRate }
 
 func (p burstPattern) Start(ctx context.Context, rate *atomic.Int64, baseRate int64) {
 	mult := p.multiplier
@@ -95,6 +113,8 @@ type sinePattern struct {
 	amplitude     float64 // fraction of base rate (0.5 = ±50%)
 	periodSeconds int
 }
+
+func (p sinePattern) InitialRate(baseRate int64) int64 { return baseRate }
 
 func (p sinePattern) Start(ctx context.Context, rate *atomic.Int64, baseRate int64) {
 	amp := p.amplitude

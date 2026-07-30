@@ -66,6 +66,21 @@ type Profile struct {
 // Rate is the profile's total offered events per second.
 func (p Profile) Rate() int { return p.TenantCount * p.RatePerTenant }
 
+// RampSeconds is how long a "ramp" profile takes to climb from zero to Rate().
+// The default matches the publisher's, so the two cannot disagree about what an
+// unspecified ramp means.
+func (p Profile) RampSeconds() int {
+	if v, ok := p.PatternParams["ramp_duration_seconds"]; ok {
+		switch n := v.(type) {
+		case int:
+			return n
+		case float64:
+			return int(n)
+		}
+	}
+	return 60
+}
+
 // Concurrency is the profile's share of the delivery budget, by Little's law:
 // in-flight = arrival rate × time in system.
 func (p Profile) Concurrency() float64 {
@@ -168,6 +183,24 @@ func (s *Spec) Validate() error {
 		}
 		if p.PayloadBytes <= 0 {
 			errs = append(errs, p.Name+": payload_bytes must be > 0")
+		}
+		// An unrecognised pattern falls back to constant inside the publisher,
+		// so a typo would produce a run that looks entirely normal and simply
+		// did not do what the spec asked.
+		switch p.Pattern {
+		case "", "constant", "burst", "sine":
+		case "ramp":
+			// The ramp starts when the publisher does, which is the start of
+			// warmup. A ramp longer than warmup is still climbing when the
+			// measured window opens, so the run reports a rate it never held.
+			if d := p.RampSeconds(); float64(d) > s.Warmup.Duration().Seconds() {
+				errs = append(errs, fmt.Sprintf(
+					"%s: ramp_duration_seconds %d exceeds warmup %s — the measured window would "+
+						"open mid-ramp, below the offered rate the run claims",
+					p.Name, d, s.Warmup.Duration()))
+			}
+		default:
+			errs = append(errs, p.Name+`: unknown pattern `+p.Pattern+` (constant, ramp, burst, sine)`)
 		}
 	}
 

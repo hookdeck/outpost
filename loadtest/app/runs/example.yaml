@@ -53,6 +53,15 @@ profiles:
     # concurrency without inflating the reported number.
     response_ms: 250
     response_jitter_ms: 50
+    # Optional. Without it the group opens at full rate, which asks an idle
+    # deployment for its steady-state throughput on the first second — it
+    # queues while it gets there, and the backlog's wait lands in the tail.
+    # The ramp runs from publisher start, so it must fit inside warmup or the
+    # measured window opens below the rate the run claims.
+    #
+    # pattern: ramp
+    # pattern_params:
+    #   ramp_duration_seconds: 20
 
   # Differs from baseline in one dimension: fan-out. Rate is scaled down so the
   # delivery rate matches baseline's and the panel shows fan-out's cost rather

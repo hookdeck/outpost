@@ -100,22 +100,31 @@ func (p *Publisher) Start(g *group.Group) error {
 	perTenantRate := g.Config.Publish.RatePerTenant
 	totalRate := perTenantRate * g.Config.TenantCount
 
+	// The pattern decides where the group opens. Sizing the limiters from the
+	// target instead would give a ramp a full-rate first tick, and the bucket
+	// starts full, so that tick is a burst of the whole per-tenant rate at once.
+	pattern := newPattern(g.Config.Publish.Pattern, g.Config.Publish.PatternParams)
+	startRate := pattern.InitialRate(int64(totalRate))
+	perTenantStart := max(int(startRate)/max(g.Config.TenantCount, 1), 1)
+
 	ctx, cancel := context.WithCancel(context.Background())
 	gp := &groupPublisher{
 		cancel:   cancel,
 		limiters: make([]*rate.Limiter, g.Config.TenantCount),
 	}
-	gp.rate.Store(int64(totalRate))
+	gp.rate.Store(startRate)
 	gp.phase.Store(phaseFree)
 	metrics.OfferedRate.With(prometheus.Labels{
 		"run_id": p.RunID(), "profile": g.Config.Name,
-	}).Set(float64(totalRate))
+	}).Set(float64(perTenantStart * g.Config.TenantCount))
 
 	for i := 0; i < g.Config.TenantCount; i++ {
-		limiter := rate.NewLimiter(rate.Limit(perTenantRate), max(perTenantRate, 1))
+		limiter := rate.NewLimiter(rate.Limit(perTenantStart), max(perTenantStart, 1))
 		gp.limiters[i] = limiter
 
-		// Workers per tenant: match rate 1:1 to handle high-latency targets (cloud APIs)
+		// Workers are sized for the target rate, not the opening one: a ramp
+		// reaches full rate inside the same group and must not have to grow a
+		// worker pool while it gets there.
 		workerCount := max(perTenantRate, 2)
 
 		jobs := make(chan publishJob, workerCount*2)
@@ -132,11 +141,10 @@ func (p *Publisher) Start(g *group.Group) error {
 	}
 
 	// Pattern controller
-	pattern := newPattern(g.Config.Publish.Pattern, g.Config.Publish.PatternParams)
 	go pattern.Start(ctx, &gp.rate, int64(totalRate))
 
 	// Rate syncer
-	go p.rateSyncer(ctx, gp, g.Config.TenantCount)
+	go p.rateSyncer(ctx, gp, g.Config.Name, g.Config.TenantCount)
 
 	p.running[g.Config.Name] = gp
 
@@ -176,7 +184,7 @@ func (p *Publisher) UpdateRate(groupName string, newRate int) {
 	gp.rate.Store(int64(newRate))
 }
 
-func (p *Publisher) rateSyncer(ctx context.Context, gp *groupPublisher, tenantCount int) {
+func (p *Publisher) rateSyncer(ctx context.Context, gp *groupPublisher, groupName string, tenantCount int) {
 	var lastRate int64
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
@@ -196,6 +204,13 @@ func (p *Publisher) rateSyncer(ctx context.Context, gp *groupPublisher, tenantCo
 					l.SetLimit(perTenant)
 					l.SetBurst(max(int(perTenant), 1))
 				}
+				// The gauge has to follow the pattern, not the target. Set once
+				// at start it reads the full rate throughout a ramp, so the one
+				// series that says what was actually offered would report load
+				// the run had not yet reached.
+				metrics.OfferedRate.With(prometheus.Labels{
+					"run_id": p.RunID(), "profile": groupName,
+				}).Set(float64(perTenant) * float64(tenantCount))
 				lastRate = currentRate
 			}
 		}
