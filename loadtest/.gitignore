@@ -1,0 +1,12 @@
+# Run exports and rendered figures are outputs of `make bench`, reproducible
+# from the spec plus a Prometheus with the run still in retention.
+out/
+report/charts/
+
+# Specs are client-side input — bench.sh reads one locally and POSTs it to the
+# app, so neither the deployment nor the repo needs a copy. The run export
+# embeds the spec that produced it, which is the record that matters.
+# example.yaml stays: it documents the format and is what `make bench` defaults
+# to on a fresh checkout.
+app/runs/*.yaml
+!app/runs/example.yaml
