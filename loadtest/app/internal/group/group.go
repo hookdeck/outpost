@@ -7,14 +7,14 @@ import (
 )
 
 type Config struct {
-	Name                  string   `json:"name"`
-	TenantPrefix          string   `json:"tenant_prefix"`
-	TenantCount           int      `json:"tenant_count"`
-	DestinationsPerTenant int      `json:"destinations_per_tenant"`
-	Topics                []string `json:"topics"`
-	Publish               PublishConfig `json:"publish"`
+	Name                  string            `json:"name"`
+	TenantPrefix          string            `json:"tenant_prefix"`
+	TenantCount           int               `json:"tenant_count"`
+	DestinationsPerTenant int               `json:"destinations_per_tenant"`
+	Topics                []string          `json:"topics"`
+	Publish               PublishConfig     `json:"publish"`
 	MockProfile           MockProfileConfig `json:"mock_profile"`
-	GracePeriodSeconds    int      `json:"grace_period_seconds,omitempty"` // default 30
+	GracePeriodSeconds    int               `json:"grace_period_seconds,omitempty"` // default 30
 }
 
 type PublishConfig struct {
@@ -22,12 +22,15 @@ type PublishConfig struct {
 	Pattern       string         `json:"pattern"` // constant, ramp, burst, sine
 	PatternParams map[string]any `json:"pattern_params,omitempty"`
 	PayloadBytes  int            `json:"payload_bytes"`
+	// Uniform ±variation around PayloadBytes. Symmetric, so the mean stays at
+	// PayloadBytes and the spec's bandwidth number holds.
+	PayloadJitterBytes int `json:"payload_jitter_bytes,omitempty"`
 }
 
 type MockProfileConfig struct {
-	LatencyMs  int64   `json:"latency_ms"`
-	JitterMs   int64   `json:"latency_jitter_ms"`
-	ErrorRate  float64 `json:"error_rate"`
+	LatencyMs int64   `json:"latency_ms"`
+	JitterMs  int64   `json:"latency_jitter_ms"`
+	ErrorRate float64 `json:"error_rate"`
 }
 
 type ProvisionedTenant struct {

@@ -255,7 +255,8 @@ func (p *Publisher) tenantManager(ctx context.Context, g *group.Group, gp *group
 		}
 
 		eventID := fmt.Sprintf("%s-t%d-%d-%d", g.Config.Name, tenantIndex, counter, time.Now().UnixNano())
-		payload := generatePayload(eventID, tenantID, g.Config.Publish.PayloadBytes)
+		payload := generatePayload(eventID, tenantID,
+			g.Config.Publish.PayloadBytes, g.Config.Publish.PayloadJitterBytes)
 
 		select {
 		case jobs <- publishJob{

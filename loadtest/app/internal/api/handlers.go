@@ -99,11 +99,12 @@ func (a *App) handleUpdateGroup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var update struct {
-		RatePerTenant *int     `json:"rate_per_tenant,omitempty"`
-		PayloadBytes  *int     `json:"payload_bytes,omitempty"`
-		LatencyMs     *int64   `json:"latency_ms,omitempty"`
-		JitterMs      *int64   `json:"latency_jitter_ms,omitempty"`
-		ErrorRate     *float64 `json:"error_rate,omitempty"`
+		RatePerTenant      *int     `json:"rate_per_tenant,omitempty"`
+		PayloadBytes       *int     `json:"payload_bytes,omitempty"`
+		PayloadJitterBytes *int     `json:"payload_jitter_bytes,omitempty"`
+		LatencyMs          *int64   `json:"latency_ms,omitempty"`
+		JitterMs           *int64   `json:"latency_jitter_ms,omitempty"`
+		ErrorRate          *float64 `json:"error_rate,omitempty"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&update); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
@@ -117,6 +118,9 @@ func (a *App) handleUpdateGroup(w http.ResponseWriter, r *http.Request) {
 	}
 	if update.PayloadBytes != nil {
 		g.Config.Publish.PayloadBytes = *update.PayloadBytes
+	}
+	if update.PayloadJitterBytes != nil {
+		g.Config.Publish.PayloadJitterBytes = *update.PayloadJitterBytes
 	}
 	if update.LatencyMs != nil {
 		g.MockProfile.SetLatency(*update.LatencyMs)
@@ -400,12 +404,12 @@ func groupResponse(g *group.Group) map[string]any {
 func groupSummary(g *group.Group) map[string]any {
 	snap := g.Metrics.Snapshot()
 	return map[string]any{
-		"name":              g.Config.Name,
-		"state":             g.State,
-		"publish_total":     snap.PublishTotal,
-		"delivery_total":    snap.DeliveryTotal,
-		"publish_rate":      snap.PublishRatePerSec,
-		"e2e_latency_p50":  snap.E2ELatencyP50,
+		"name":            g.Config.Name,
+		"state":           g.State,
+		"publish_total":   snap.PublishTotal,
+		"delivery_total":  snap.DeliveryTotal,
+		"publish_rate":    snap.PublishRatePerSec,
+		"e2e_latency_p50": snap.E2ELatencyP50,
 	}
 }
 

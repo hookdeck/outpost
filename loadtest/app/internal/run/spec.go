@@ -52,6 +52,13 @@ type Profile struct {
 	PayloadBytes  int      `yaml:"payload_bytes" json:"payload_bytes"`
 	Topics        []string `yaml:"topics,omitempty" json:"topics,omitempty"`
 
+	// PayloadJitterBytes varies event size uniformly by ±this much around
+	// PayloadBytes. Symmetric, so the mean is PayloadBytes and BytesPerSec below
+	// stays correct. A run with a fixed size measures one size; real traffic is
+	// a distribution, and compression, allocation classes, and buffer sizing all
+	// respond to the spread rather than the mean.
+	PayloadJitterBytes int `yaml:"payload_jitter_bytes,omitempty" json:"payload_jitter_bytes,omitempty"`
+
 	// ResponseMs is how long the mock receiver takes to respond. It is a swept
 	// input, not a result: delivery latency is measured to first byte, so this
 	// spends concurrency without inflating the reported number.
@@ -104,10 +111,11 @@ func (p Profile) GroupConfig() group.Config {
 		DestinationsPerTenant: p.Destinations,
 		Topics:                topics,
 		Publish: group.PublishConfig{
-			RatePerTenant: p.RatePerTenant,
-			Pattern:       p.Pattern,
-			PatternParams: p.PatternParams,
-			PayloadBytes:  p.PayloadBytes,
+			RatePerTenant:      p.RatePerTenant,
+			Pattern:            p.Pattern,
+			PatternParams:      p.PatternParams,
+			PayloadBytes:       p.PayloadBytes,
+			PayloadJitterBytes: p.PayloadJitterBytes,
 		},
 		MockProfile: group.MockProfileConfig{
 			LatencyMs: p.ResponseMs,
@@ -183,6 +191,25 @@ func (s *Spec) Validate() error {
 		}
 		if p.PayloadBytes <= 0 {
 			errs = append(errs, p.Name+": payload_bytes must be > 0")
+		}
+		// Both jitters are symmetric, so a jitter at or above its centre puts
+		// half the distribution at zero or below. The generators clamp rather
+		// than fail, which would quietly narrow the spread the spec asked for.
+		if p.PayloadJitterBytes < 0 {
+			errs = append(errs, p.Name+": payload_jitter_bytes must be >= 0")
+		} else if p.PayloadJitterBytes >= p.PayloadBytes && p.PayloadBytes > 0 {
+			errs = append(errs, fmt.Sprintf(
+				"%s: payload_jitter_bytes %d is not smaller than payload_bytes %d — "+
+					"the low half of the range would be zero-length",
+				p.Name, p.PayloadJitterBytes, p.PayloadBytes))
+		}
+		if p.JitterMs < 0 {
+			errs = append(errs, p.Name+": response_jitter_ms must be >= 0")
+		} else if p.JitterMs > p.ResponseMs {
+			errs = append(errs, fmt.Sprintf(
+				"%s: response_jitter_ms %d exceeds response_ms %d — "+
+					"the low half of the range would be a negative delay",
+				p.Name, p.JitterMs, p.ResponseMs))
 		}
 		// An unrecognised pattern falls back to constant inside the publisher,
 		// so a typo would produce a run that looks entirely normal and simply
