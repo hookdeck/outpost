@@ -14,8 +14,20 @@ import (
 	"github.com/hookdeck/outpost/loadtest/app/internal/server"
 )
 
+// logLevel reads LOG_LEVEL, defaulting to warn. The default is deliberately
+// quiet: stdout is a pipe, slog writes to it synchronously, and a collector
+// that rate-limits stops draining it — so anything logged per event can block
+// the goroutine that logs it. A run's output is its export, not its log.
+func logLevel() slog.Level {
+	var l slog.Level
+	if err := l.UnmarshalText([]byte(os.Getenv("LOG_LEVEL"))); err != nil {
+		return slog.LevelWarn
+	}
+	return l
+}
+
 func main() {
-	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug})))
+	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: logLevel()})))
 
 	cfg, err := config.Load()
 	if err != nil {

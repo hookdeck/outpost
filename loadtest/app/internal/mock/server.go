@@ -32,6 +32,10 @@ type Server struct {
 	mu       sync.RWMutex
 	routes   map[routeKey]*route
 	callback DeliveryCallback
+	// Routes already warned about, so the warning is per route rather than
+	// per delivery. Separate from mu: it is written on the hot path, and the
+	// route map is read there under RLock.
+	unregistered sync.Map
 }
 
 func NewServer(callback DeliveryCallback) *Server {
@@ -87,7 +91,15 @@ func (s *Server) handleWebhook(w http.ResponseWriter, r *http.Request) {
 	s.mu.RUnlock()
 
 	if !ok {
-		slog.Warn("webhook for unregistered route", "group", group, "tenant", tenant, "dest", dest)
+		// Once per route, not once per delivery. An unregistered route keeps
+		// receiving for the rest of the run, so logging every one turns a
+		// misconfigured destination into thousands of lines a second — the
+		// same stdout backpressure the per-delivery log was removed for, in
+		// precisely the situation where the volume is highest. The set is
+		// bounded by the number of routes the spec creates.
+		if _, seen := s.unregistered.LoadOrStore(key, struct{}{}); !seen {
+			slog.Warn("webhook for unregistered route", "group", group, "tenant", tenant, "dest", dest)
+		}
 		w.WriteHeader(http.StatusOK)
 		return
 	}
@@ -108,8 +120,12 @@ func (s *Server) handleWebhook(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprint(w, "OK")
 	}
 
-	// Fire callback after responding
-	slog.Debug("webhook received", "group", group, "tenant", tenant, "dest", dest, "event_id", eventID, "route_found", ok)
+	// Deliberately not logged. This handler runs once per delivery — at
+	// benchmark rates that is thousands of lines a second, and slog writes to
+	// stdout synchronously. When the log collector stops draining the pipe the
+	// write blocks here, inside the receive path, and the harness stalls the
+	// very deliveries it is timing. Per-delivery facts belong in the event log
+	// and the counters, both of which are in memory.
 	if s.callback != nil && eventID != "" {
 		s.callback(DeliveryRecord{
 			EventID:     eventID,
