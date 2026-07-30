@@ -29,8 +29,9 @@ type Record struct {
 	TenantID       string     `json:"tenant_id"`
 	Topic          string     `json:"topic"`
 	Status         Status     `json:"status"`
-	PublishedAt    time.Time  `json:"published_at"`
+	PublishedAt    time.Time  `json:"published_at"` // t0 — scheduled send
 	PublishLatency int64      `json:"publish_latency_ms,omitempty"`
+	WireLatency    int64      `json:"wire_latency_ms,omitempty"` // request write → ack, excludes generator lag
 	DeliveredAt    *time.Time `json:"delivered_at,omitempty"`
 	E2ELatency     int64      `json:"e2e_latency_ms,omitempty"`
 	Error          string     `json:"error,omitempty"`

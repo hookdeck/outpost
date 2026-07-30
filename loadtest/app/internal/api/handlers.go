@@ -8,8 +8,11 @@ import (
 
 	"strconv"
 
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+
 	"github.com/hookdeck/outpost/loadtest/app/internal/eventlog"
 	"github.com/hookdeck/outpost/loadtest/app/internal/group"
+	"github.com/hookdeck/outpost/loadtest/app/internal/metrics"
 )
 
 func (a *App) RegisterRoutes(mux *http.ServeMux) {
@@ -36,6 +39,17 @@ func (a *App) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/reset", a.handleResetAll)
 	mux.HandleFunc("GET /api/metrics", a.handleMetrics)
 	mux.HandleFunc("GET /api/status", a.handleStatus)
+
+	// Runs
+	a.registerRunRoutes(mux)
+
+	// Prometheus scrape target
+	mux.Handle("GET /metrics", promhttp.HandlerFor(metrics.Registry, promhttp.HandlerOpts{
+		// Native histograms are only negotiated over protobuf; without this the
+		// scrape silently falls back to the classic buckets and the published
+		// p99 becomes a bucket interpolation.
+		EnableOpenMetrics: true,
+	}))
 }
 
 func (a *App) handleCreateGroup(w http.ResponseWriter, r *http.Request) {

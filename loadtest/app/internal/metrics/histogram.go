@@ -1,98 +1,145 @@
 package metrics
 
-import "sync"
+import (
+	"math"
+	"sync"
+	"time"
+)
 
-// Histogram is a simple fixed-bucket histogram for latency tracking.
-// Uses log-linear buckets to keep memory bounded.
+// Histogram is a log-linear bucketed latency histogram.
+//
+// Buckets grow geometrically, so relative error is bounded at growthFactor-1
+// regardless of magnitude, and memory is fixed no matter how many values are
+// recorded. Every observation is counted — there is no sampling and no
+// recency window, so a percentile taken at the end of a run describes the
+// whole run.
+//
+// Two histograms over the same range can be merged by summing their buckets,
+// which is what makes per-bucket percentiles recoverable after the fact.
 type Histogram struct {
-	mu     sync.Mutex
-	min    int64
-	max    int64
-	count  int64
-	sum    int64
-	values []int64 // sorted insert, capped
+	mu      sync.Mutex
+	buckets []uint64
+	count   uint64
+	sumUs   float64
+	maxUs   float64
+	minUs   float64 // lower bound of bucket 1; anything below lands in bucket 0
+	growth  float64
+	logBase float64
 }
 
-const maxHistogramValues = 10000
-
-func NewHistogram(minVal, maxVal int64, sigFigs int) *Histogram {
+// NewHistogram builds a histogram covering [minVal, maxVal] milliseconds with
+// the given relative error, e.g. relErr 0.02 for 2% bucket width.
+func NewHistogram(minMs, maxMs float64, relErr float64) *Histogram {
+	if minMs <= 0 {
+		minMs = 0.01 // 10µs
+	}
+	if relErr <= 0 {
+		relErr = 0.02
+	}
+	growth := 1 + relErr
+	logBase := math.Log(growth)
+	n := int(math.Ceil(math.Log(maxMs/minMs)/logBase)) + 2
 	return &Histogram{
-		min:    minVal,
-		max:    maxVal,
-		values: make([]int64, 0, 1024),
+		buckets: make([]uint64, n),
+		minUs:   minMs * 1000,
+		growth:  growth,
+		logBase: logBase,
 	}
 }
 
-func (h *Histogram) Record(value int64) {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-
-	h.count++
-	h.sum += value
-
-	if len(h.values) < maxHistogramValues {
-		h.values = append(h.values, value)
-		// Keep sorted for percentile calculation (insertion sort at tail)
-		for i := len(h.values) - 1; i > 0 && h.values[i] < h.values[i-1]; i-- {
-			h.values[i], h.values[i-1] = h.values[i-1], h.values[i]
-		}
-	} else {
-		// Reservoir sampling to maintain representative distribution
-		// For simplicity, just replace the oldest entry after sorting
-		// This is a bounded approximation
-		idx := int(h.count % int64(maxHistogramValues))
-		h.values[idx] = value
-	}
+// NewLatencyHistogram is the standard shape: 10µs–10min at 2% relative error.
+func NewLatencyHistogram() *Histogram {
+	return NewHistogram(0.01, 600_000, 0.02)
 }
 
-func (h *Histogram) Percentile(p float64) int64 {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-
-	if len(h.values) == 0 {
+func (h *Histogram) index(us float64) int {
+	if us < h.minUs {
 		return 0
 	}
+	i := int(math.Log(us/h.minUs)/h.logBase) + 1
+	if i >= len(h.buckets) {
+		return len(h.buckets) - 1
+	}
+	return i
+}
 
-	// If we've exceeded reservoir, sort for accurate percentile
-	if h.count > maxHistogramValues {
-		h.sort()
+// bucketUpper is the upper bound in microseconds of bucket i.
+func (h *Histogram) bucketUpper(i int) float64 {
+	if i == 0 {
+		return h.minUs
 	}
+	return h.minUs * math.Pow(h.growth, float64(i))
+}
 
-	idx := int(float64(len(h.values)-1) * p / 100.0)
-	if idx < 0 {
-		idx = 0
+func (h *Histogram) Record(d time.Duration) {
+	us := float64(d.Microseconds())
+	if us < 0 {
+		us = 0
 	}
-	if idx >= len(h.values) {
-		idx = len(h.values) - 1
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.buckets[h.index(us)]++
+	h.count++
+	h.sumUs += us
+	if us > h.maxUs {
+		h.maxUs = us
 	}
-	return h.values[idx]
+}
+
+// PercentileMs returns the p-th percentile in milliseconds.
+func (h *Histogram) PercentileMs(p float64) float64 {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.count == 0 {
+		return 0
+	}
+	target := uint64(math.Ceil(p / 100.0 * float64(h.count)))
+	if target == 0 {
+		target = 1
+	}
+	var cum uint64
+	for i, c := range h.buckets {
+		cum += c
+		if cum >= target {
+			return math.Min(h.bucketUpper(i), h.maxUs) / 1000
+		}
+	}
+	return h.maxUs / 1000
+}
+
+// Percentile returns the p-th percentile rounded to whole milliseconds.
+func (h *Histogram) Percentile(p float64) int64 {
+	return int64(math.Round(h.PercentileMs(p)))
 }
 
 func (h *Histogram) Max() int64 {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	if len(h.values) == 0 {
+	return int64(math.Round(h.maxUs / 1000))
+}
+
+func (h *Histogram) MeanMs() float64 {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.count == 0 {
 		return 0
 	}
-	if h.count > maxHistogramValues {
-		h.sort()
-	}
-	return h.values[len(h.values)-1]
+	return h.sumUs / float64(h.count) / 1000
+}
+
+func (h *Histogram) Count() uint64 {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.count
 }
 
 func (h *Histogram) Reset() {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	h.count = 0
-	h.sum = 0
-	h.values = h.values[:0]
-}
-
-func (h *Histogram) sort() {
-	// Simple insertion sort — values are mostly sorted already
-	for i := 1; i < len(h.values); i++ {
-		for j := i; j > 0 && h.values[j] < h.values[j-1]; j-- {
-			h.values[j], h.values[j-1] = h.values[j-1], h.values[j]
-		}
+	for i := range h.buckets {
+		h.buckets[i] = 0
 	}
+	h.count = 0
+	h.sumUs = 0
+	h.maxUs = 0
 }
