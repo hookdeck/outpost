@@ -111,25 +111,40 @@ def fingerprint(metric):
 
 
 def capture_series(prom, run_id, start, end, step):
-    """Every loadtest_* series for this run, stitched back together across
-    chunk boundaries. The run_id label does the scoping, so there is nothing to
-    filter client-side."""
-    selector = f'{{__name__=~"loadtest_.+", run_id="{run_id}"}}'
+    """Every series for this run, stitched back together across chunk
+    boundaries.
+
+    Two sources with two different scopes. The loadtest app labels everything
+    with run_id, so the label does the scoping. Outpost's own metrics arrive
+    over OTLP and know nothing about runs, so they can only be scoped by time
+    — which means a concurrent run, or traffic from anything else pointed at
+    the same deployment, lands in this archive too. The window is the only
+    thing separating them.
+
+    Outpost's series matter here because the benchmark Prometheus has no
+    volume: it is the deployment's own account of the run, and if it is not
+    archived at the end it is gone at the next restart.
+    """
+    selectors = [
+        f'{{__name__=~"loadtest_.+", run_id="{run_id}"}}',
+        '{__name__=~"outpost_.+"}',
+    ]
     merged = {}
     chunks = 0
 
     cursor = start
     while cursor < end:
         stop = min(cursor + CHUNK, end)
-        for s in prom.range(selector, cursor, stop, step):
-            key = fingerprint(s["metric"])
-            entry = merged.setdefault(key, {"metric": s["metric"]})
-            # A series is either float samples or native histograms, never
-            # both, but which one it is depends on the metric — so carry
-            # whichever key Prometheus used rather than assuming.
-            for field in ("values", "histograms"):
-                if field in s:
-                    entry.setdefault(field, []).extend(s[field])
+        for selector in selectors:
+            for s in prom.range(selector, cursor, stop, step):
+                key = fingerprint(s["metric"])
+                entry = merged.setdefault(key, {"metric": s["metric"]})
+                # A series is either float samples or native histograms, never
+                # both, but which one it is depends on the metric — so carry
+                # whichever key Prometheus used rather than assuming.
+                for field in ("values", "histograms"):
+                    if field in s:
+                        entry.setdefault(field, []).extend(s[field])
         chunks += 1
         print(f"    chunk {chunks}: {cursor:%H:%M} → {stop:%H:%M}  "
               f"({len(merged)} series so far)", file=sys.stderr)

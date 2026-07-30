@@ -12,6 +12,20 @@ global:
   # classic buckets, and every native-histogram query returns empty.
   scrape_native_histograms: true
 
+# Outpost pushes here over OTLP rather than being scraped: it exports OTLP only
+# and has no Prometheus endpoint. Everything the loadtest app records is the
+# client's view of the deployment — offered rate, delivery latency, in-flight —
+# so a run can show that deliveries stopped but not what stopped them. These
+# series are the deployment's own account of the same window.
+otlp:
+  # Resource attributes become a target_info series by default, which means
+  # joining on instance to find out which deployment a sample came from.
+  # Promoting them makes deployment_id a label on the metrics themselves.
+  promote_resource_attributes:
+    - service.name
+    - service.instance.id
+    - deployment.environment
+
 scrape_configs:
   # Railway private networking. The target is the loadtest service's
   # RAILWAY_PRIVATE_DOMAIN, which is not always the service name — read it off

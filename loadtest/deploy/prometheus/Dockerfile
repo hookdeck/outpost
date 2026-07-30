@@ -16,8 +16,15 @@ COPY prometheus.yml /etc/prometheus/prometheus.yml
 # No volume, so the TSDB dies with the container. That is fine for this job:
 # bench.sh folds the series into the run export the moment the run ends, and
 # the export is the artifact. Nothing reads Prometheus afterwards.
+# --web.enable-otlp-receiver opens /api/v1/otlp/v1/metrics so Outpost can push
+# its own metrics in. Outpost has no Prometheus endpoint to scrape — it only
+# exports OTLP — and it runs in a different Railway project, so private
+# networking cannot reach this service and the push arrives over the public
+# domain. That makes this write path unauthenticated and open to anyone who
+# knows the URL; see prometheus.yml for how the two sources are kept apart.
 CMD [ "--config.file=/etc/prometheus/prometheus.yml", \
       "--storage.tsdb.path=/prometheus", \
       "--storage.tsdb.retention.time=7d", \
       "--enable-feature=native-histograms", \
+      "--web.enable-otlp-receiver", \
       "--web.listen-address=:9090" ]
