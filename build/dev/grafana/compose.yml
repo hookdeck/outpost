@@ -1,11 +1,16 @@
 name: "outpost"
 
+# Host paths are relative to build/dev/, not to this file. dev.sh always passes
+# build/dev/compose.yml first, which makes that the compose project directory,
+# and volume sources resolve against it. A `./foo.yml` here silently becomes a
+# new empty directory instead of the config you meant to mount.
+
 services:
   otel-collector:
     image: otel/opentelemetry-collector-contrib:latest
     command: ["--config=/etc/otel-collector-config.yaml"]
     volumes:
-      - ./otel-collector-config.yaml:/etc/otel-collector-config.yaml
+      - ./grafana/otel-collector-config.yaml:/etc/otel-collector-config.yaml
     ports:
       - "4317:4317" # OTLP gRPC
       - "4318:4318" # OTLP HTTP
@@ -14,10 +19,20 @@ services:
 
   prometheus:
     image: prom/prometheus:latest
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      # High-resolution mergeable histograms. A p99 off classic buckets is a
+      # bucket interpolation, which is not good enough to publish.
+      - --enable-feature=native-histograms
+      # A 24h run, with room to re-query it for a while afterwards.
+      - --storage.tsdb.retention.time=30d
     volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./grafana/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
     ports:
-      - "9090:9090"
+      # 9091, not 9090: the loadtest app owns 9090.
+      - "9091:9090"
 
   grafana:
     image: grafana/grafana:latest
@@ -30,9 +45,11 @@ services:
       - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
       - GF_AUTH_DISABLE_LOGIN_FORM=true
     volumes:
-      - ./provisioning/datasources:/etc/grafana/provisioning/datasources
-      - ./provisioning/dashboards:/etc/grafana/provisioning/dashboards
-      - ./dashboards:/etc/grafana/dashboards
+      - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources
+      - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards
+      - ./grafana/dashboards:/etc/grafana/dashboards
+      - grafana-data:/var/lib/grafana
 
 volumes:
   grafana-data:
+  prometheus-data:
