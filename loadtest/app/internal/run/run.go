@@ -257,6 +257,11 @@ func (c *Controller) execute(ctx context.Context, stop <-chan struct{}, r *Run) 
 		return
 	}
 
+	// The backlog watchdog runs for the whole publishing period, warm-up
+	// included: a spec that cannot be delivered falls behind immediately, well
+	// before the steady window opens.
+	go c.watchBacklog(ctx, stop, r)
+
 	// Warm-up. Every profile starts here, and all of them cross into steady
 	// together — windows that don't align make per-profile comparison
 	// meaningless.
@@ -313,6 +318,53 @@ func (c *Controller) execute(ctx context.Context, stop <-chan struct{}, r *Run) 
 	}
 
 	c.teardown(r)
+}
+
+// watchBacklog stops the run if undelivered deliveries pile up past the
+// spec's limit.
+//
+// It calls Stop rather than Abort deliberately. Halting publishing is the
+// action that actually relieves the deployment, and it is also the one that
+// preserves whatever measurement the run had managed so far: the drain runs,
+// the ledger closes, the export is written. An abort here would throw away the
+// evidence of the very failure worth looking at.
+//
+// The result is marked void regardless. A run whose backlog ran away was not
+// measuring latency, it was measuring how fast a queue grows.
+func (c *Controller) watchBacklog(ctx context.Context, stop <-chan struct{}, r *Run) {
+	limit := r.Spec.InFlightLimit()
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-stop:
+			return
+		case <-ticker.C:
+		}
+
+		// Only while publishing. During drain the backlog is supposed to be
+		// draining, and tripping there would abort a run that is recovering
+		// exactly as intended.
+		c.mu.RLock()
+		phase := r.Phase
+		c.mu.RUnlock()
+		if phase != PhaseWarmup && phase != PhaseSteady {
+			return
+		}
+
+		if n := c.tracker.InFlightCount(); n > limit {
+			slog.Error("backlog limit exceeded — stopping run",
+				"run", r.ID, "in_flight", n, "limit", limit, "phase", phase)
+			c.void(r, fmt.Sprintf(
+				"backlog ran away: %d deliveries in flight against a limit of %d "+
+					"— the deployment could not keep up with the offered load", n, limit))
+			_ = c.Stop()
+			return
+		}
+	}
 }
 
 func (c *Controller) void(r *Run, reason string) {

@@ -39,6 +39,35 @@ type Spec struct {
 	Window Duration `yaml:"window" json:"window"`
 	Drain  Duration `yaml:"drain" json:"drain"`
 
+	// MaxInFlight stops the run if pending deliveries exceed it. Zero derives
+	// a default from the concurrency budget.
+	//
+	// The budget check is a steady-state calculation: Little's law assumes
+	// deliveries keep up with publishing. It has nothing to say about what
+	// happens when they do not, so a spec can be comfortably "within budget"
+	// and still be unsurvivable — which is how a run validated at 1025 against
+	// a budget of 10000 drove a deployment's delivery pipeline to zero.
+	//
+	// The failure is not gradual. Once deliveries fall behind, events reach
+	// their delivery timeout and enter retry, and the retry load competes with
+	// the first attempts that are already struggling. Publishing carries on at
+	// full rate throughout, because the publish path is unaffected, so the
+	// backlog grows for as long as the run is left alone.
+	//
+	// Backing off early is the whole point: stopping publishing is the one
+	// action that helps, and it is worth taking while the deployment can still
+	// drain rather than after it cannot.
+	MaxInFlight int `yaml:"max_in_flight,omitempty" json:"max_in_flight,omitempty"`
+
+	// MaxInFlightRatio sets the limit as a multiple of the design concurrency
+	// instead of an absolute count, so it survives resizing the spec. Zero
+	// takes the default; MaxInFlight overrides both.
+	//
+	// Tighten it when the deployment's headroom is unknown or the run is long
+	// enough that damage compounds. The default is deliberately loose — it
+	// catches a pipeline collapse, not a deployment merely running warm.
+	MaxInFlightRatio float64 `yaml:"max_in_flight_ratio,omitempty" json:"max_in_flight_ratio,omitempty"`
+
 	Profiles []Profile `yaml:"profiles" json:"profiles"`
 }
 
@@ -145,6 +174,37 @@ func (s *Spec) Budget() Budget {
 	}
 	b.WithinBudget = s.ConcurrencyBudget == 0 || b.Concurrency <= float64(s.ConcurrencyBudget)*s.tolerance()
 	return b
+}
+
+// InFlightLimit is the pending-delivery count at which the run gives up.
+//
+// Ten times the design concurrency, because in-flight deliveries sit at
+// roughly the design figure when a run is healthy — Little's law again, from
+// the other side. A 4h run designed for 497 held 564. Ten times that is far
+// outside anything a working run reaches, and far below the tens of thousands
+// a failing one climbs to within a minute.
+//
+// The floor keeps small runs from tripping on ordinary jitter: a local check
+// with a design concurrency of 13 would otherwise abort at 130.
+const (
+	inFlightLimitRatio = 10
+	inFlightLimitFloor = 1000
+)
+
+func (s *Spec) InFlightLimit() int {
+	if s.MaxInFlight > 0 {
+		return s.MaxInFlight
+	}
+	if s.MaxInFlightRatio > 0 {
+		// An explicit ratio is honoured exactly. The floor exists to stop the
+		// default from firing on small runs, and applying it here would
+		// silently discard the tighter limit the operator asked for.
+		return int(s.Budget().Concurrency * s.MaxInFlightRatio)
+	}
+	if n := int(s.Budget().Concurrency * inFlightLimitRatio); n > inFlightLimitFloor {
+		return n
+	}
+	return inFlightLimitFloor
 }
 
 func (s *Spec) tolerance() float64 {
