@@ -1,0 +1,23 @@
+global:
+  scrape_interval: 10s
+  # Native histograms are only exposed over the protobuf exposition format.
+  # Without PrometheusProto first, the scrape silently falls back to classic
+  # buckets and every published percentile becomes a bucket interpolation.
+  scrape_protocols:
+    - PrometheusProto
+    - OpenMetricsText1.0.0
+    - PrometheusText0.0.4
+  # Protobuf alone is not enough: the scrape must also be told to keep the
+  # native buckets. Without this the histograms arrive and are stored as
+  # classic buckets, and every native-histogram query returns empty.
+  scrape_native_histograms: true
+
+scrape_configs:
+  # Railway private networking. The target is the loadtest service's
+  # RAILWAY_PRIVATE_DOMAIN, which is not always the service name — read it off
+  # the service rather than assuming. Private DNS is IPv6-only, so the app has
+  # to listen on :: (Go's ":9090" does).
+  - job_name: "loadtest"
+    scrape_interval: 5s
+    static_configs:
+      - targets: ["outpost.railway.internal:9090"]
