@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strconv"
 	"sync"
 	"time"
 
@@ -43,6 +44,11 @@ type Run struct {
 	// steady window queryable in Prometheus after the fact.
 	PhaseStarts map[string]time.Time `json:"phase_starts"`
 
+	// StoppedEarly marks a run whose steady window was cut short on request.
+	// It is not a void: the window that did run was measured normally and
+	// drained normally, it is simply shorter than the spec asked for.
+	StoppedEarly bool `json:"stopped_early,omitempty"`
+
 	Error string   `json:"error,omitempty"`
 	Voids []string `json:"voids,omitempty"` // conditions that invalidate the result
 }
@@ -69,6 +75,7 @@ type Controller struct {
 	current *Run
 	cancel  context.CancelFunc
 	done    chan struct{}
+	stop    chan struct{}
 }
 
 func NewController(
@@ -130,13 +137,34 @@ func (c *Controller) Start(spec *Spec) (*Run, error) {
 	c.current = r
 	c.cancel = cancel
 	c.done = make(chan struct{})
+	c.stop = make(chan struct{})
+	stop := c.stop
 	c.mu.Unlock()
 
 	c.publisher.SetRunID(r.ID)
 	metrics.EventLedger.Reset()
+	publishProfileInfo(r)
 
-	go c.execute(ctx, r)
+	go c.execute(ctx, stop, r)
 	return r, nil
+}
+
+// publishProfileInfo exposes the spec's swept dimensions as series labels. It
+// runs at start rather than per phase because the shape is fixed for the run,
+// and Reset first so a previous run's profiles do not linger in a scrape.
+func publishProfileInfo(r *Run) {
+	metrics.ProfileInfo.Reset()
+	for _, p := range r.Spec.Profiles {
+		metrics.ProfileInfo.With(prometheus.Labels{
+			"run_id":                  r.ID,
+			"profile":                 p.Name,
+			"tenants":                 strconv.Itoa(p.TenantCount),
+			"rate_per_tenant":         strconv.Itoa(p.RatePerTenant),
+			"destinations_per_tenant": strconv.Itoa(p.Destinations),
+			"payload_bytes":           strconv.Itoa(p.PayloadBytes),
+			"response_ms":             strconv.FormatInt(p.ResponseMs, 10),
+		}).Set(1)
+	}
 }
 
 // Abort stops the run immediately. Its results are marked void: a run that did
@@ -152,6 +180,34 @@ func (c *Controller) Abort() error {
 
 	cancel()
 	<-done
+	return nil
+}
+
+// Stop ends the steady window early and lets the run finish the way it
+// normally would: publishing stops, in-flight deliveries drain, the ledger
+// closes, the export is written.
+//
+// This is the difference between cutting a long run short and losing it.
+// Abort tears the run down mid-flight, so its in-flight events are neither
+// delivered nor cut off and the ledger cannot balance — which is exactly the
+// condition that voids a run. A 24 h window that has to end at hour 9 should
+// yield nine hours of measurement, not nothing.
+//
+// It returns immediately; the drain runs in the background. Callers that need
+// the export should poll for the complete phase.
+func (c *Controller) Stop() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if !c.active() {
+		return fmt.Errorf("no active run")
+	}
+	select {
+	case <-c.stop: // already stopping — repeated requests are harmless
+	default:
+		close(c.stop)
+		c.current.StoppedEarly = true
+		slog.Info("run stopping early", "run", c.current.ID, "phase", c.current.Phase)
+	}
 	return nil
 }
 
@@ -187,7 +243,7 @@ func (c *Controller) fail(r *Run, err error) {
 	slog.Error("run failed", "run", r.ID, "error", err)
 }
 
-func (c *Controller) execute(ctx context.Context, r *Run) {
+func (c *Controller) execute(ctx context.Context, stop <-chan struct{}, r *Run) {
 	defer close(c.done)
 	defer c.publisher.SetRunID("")
 
@@ -211,15 +267,22 @@ func (c *Controller) execute(ctx context.Context, r *Run) {
 		c.fail(r, err)
 		return
 	}
-	if !sleepCtx(ctx, r.Spec.Warmup.Duration()) {
+	switch sleepPhase(ctx, stop, r.Spec.Warmup.Duration()) {
+	case phaseAborted:
 		c.stopPublishers()
 		c.teardown(r)
 		c.abortRun(r)
 		return
+	case phaseStopped:
+		// Stopping this early still drains cleanly, but there is no steady
+		// window to report on. Say so rather than publishing an empty one.
+		c.void(r, "stopped during warm-up — no steady window was measured")
 	}
 
+	// A stop during warm-up leaves the channel closed, so this returns
+	// immediately and the run falls through to a normal drain.
 	c.setPhase(r, PhaseSteady)
-	if !sleepCtx(ctx, r.Spec.Window.Duration()) {
+	if sleepPhase(ctx, stop, r.Spec.Window.Duration()) == phaseAborted {
 		c.stopPublishers()
 		c.teardown(r)
 		c.abortRun(r)
@@ -250,6 +313,12 @@ func (c *Controller) execute(ctx context.Context, r *Run) {
 	}
 
 	c.teardown(r)
+}
+
+func (c *Controller) void(r *Run, reason string) {
+	c.mu.Lock()
+	r.Voids = append(r.Voids, reason)
+	c.mu.Unlock()
 }
 
 func (c *Controller) abortRun(r *Run) {
@@ -371,6 +440,13 @@ func (c *Controller) checkVoids(r *Run) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	// Measured against the window that actually ran, not the one the spec
+	// asked for. A run stopped early offers proportionally fewer events, and
+	// comparing those against the full window would flag every early stop as
+	// generator-bound.
+	steadyStart, steadyEnd := r.SteadyWindow()
+	steadySeconds := steadyEnd.Sub(steadyStart).Seconds()
+
 	for _, p := range r.Spec.Profiles {
 		counts := metrics.EventLedger.Get(r.ID, p.Name, PhaseSteady)
 
@@ -389,7 +465,7 @@ func (c *Controller) checkVoids(r *Run) {
 		if err != nil {
 			continue
 		}
-		want := float64(p.Rate()) * r.Spec.Window.Duration().Seconds()
+		want := float64(p.Rate()) * steadySeconds
 		got := float64(counts.Published + counts.PublishErrors)
 		if want > 0 && got < want*0.98 {
 			r.Voids = append(r.Voids, fmt.Sprintf(
@@ -452,16 +528,37 @@ type Artifact struct {
 	Total       metrics.Counts            `json:"total"`
 }
 
-func sleepCtx(ctx context.Context, d time.Duration) bool {
+// phaseOutcome distinguishes the three ways a timed phase can end. Stopping
+// and aborting both cut the phase short, but only one of them leaves a
+// measurable run behind, so they cannot share a boolean.
+type phaseOutcome int
+
+const (
+	phaseElapsed phaseOutcome = iota // ran its full duration
+	phaseStopped                     // Stop() — finish early, drain normally
+	phaseAborted                     // context cancelled — tear down, void
+)
+
+func sleepPhase(ctx context.Context, stop <-chan struct{}, d time.Duration) phaseOutcome {
 	if d <= 0 {
-		return ctx.Err() == nil
+		if ctx.Err() != nil {
+			return phaseAborted
+		}
+		select {
+		case <-stop:
+			return phaseStopped
+		default:
+			return phaseElapsed
+		}
 	}
 	t := time.NewTimer(d)
 	defer t.Stop()
 	select {
 	case <-t.C:
-		return true
+		return phaseElapsed
+	case <-stop:
+		return phaseStopped
 	case <-ctx.Done():
-		return false
+		return phaseAborted
 	}
 }

@@ -14,6 +14,7 @@ func (a *App) registerRunRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/runs", a.handleStartRun)
 	mux.HandleFunc("GET /api/runs/current", a.handleCurrentRun)
 	mux.HandleFunc("POST /api/runs/current/abort", a.handleAbortRun)
+	mux.HandleFunc("POST /api/runs/current/stop", a.handleStopRun)
 	mux.HandleFunc("GET /api/runs", a.handleListRuns)
 	mux.HandleFunc("GET /api/runs/{id}", a.handleGetRunArtifact)
 	mux.HandleFunc("POST /api/runs/validate", a.handleValidateSpec)
@@ -77,6 +78,17 @@ func (a *App) handleAbortRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, a.Runs.Current())
+}
+
+// handleStopRun ends the steady window early and lets the run drain to a
+// normal completion. Unlike abort it returns while the drain is still in
+// progress, so the caller polls /api/runs/current for the complete phase.
+func (a *App) handleStopRun(w http.ResponseWriter, r *http.Request) {
+	if err := a.Runs.Stop(); err != nil {
+		writeError(w, http.StatusConflict, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusAccepted, a.Runs.Current())
 }
 
 func (a *App) handleListRuns(w http.ResponseWriter, r *http.Request) {

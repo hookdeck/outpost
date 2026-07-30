@@ -101,6 +101,24 @@ var (
 		Name: "loadtest_run_phase_start_seconds",
 		Help: "Unix time at which each phase of the run began.",
 	}, []string{"run_id", "phase"})
+
+	// ProfileInfo carries each profile's shape as labels, so a run_id and a
+	// Prometheus URL are enough to rebuild the report. Without it the swept
+	// dimensions exist only in the spec file, and every other series is
+	// labelled by profile *name* — which says nothing about what the profile
+	// was. The sweep panels group by payload size, fan-out and response time,
+	// so they cannot be drawn from Prometheus alone unless those values are
+	// series data too.
+	//
+	// Values are plain integers in the metric's own units (bytes, ms, counts)
+	// so a consumer can parse them back without guessing at suffixes.
+	ProfileInfo = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "loadtest_profile_info",
+		Help: "Active run's profile shape, as the app parsed it.",
+	}, []string{
+		"run_id", "profile", "tenants", "rate_per_tenant",
+		"destinations_per_tenant", "payload_bytes", "response_ms",
+	})
 )
 
 // Registry holds every loadtest instrument. It is deliberately not the default
@@ -199,7 +217,7 @@ func init() {
 		PublishLatency, DeliveryLatency, GeneratorLag,
 		PublishedTotal, PublishErrorsTotal, DeliveredTotal, EventsCompletedTotal,
 		MissingTotal, RecoveredTotal, DuplicatesTotal, CutoffTotal, BytesPublishedTotal,
-		InFlight, OfferedRate, RunInfo, RunPhaseStart,
+		InFlight, OfferedRate, RunInfo, RunPhaseStart, ProfileInfo,
 	)
 	Registry.MustRegister(
 		collectors.NewGoCollector(),

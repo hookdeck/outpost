@@ -86,6 +86,14 @@ report() {
   echo "==> fetching series from prometheus"
   python3 "$REPORT_DIR/fetch.py" --prom "$PROM" --artifact "$artifact" --out "$artifact"
 
+  # Raw capture is separate from the enriched export and much larger: full
+  # native-histogram buckets at the scrape interval, over the whole run rather
+  # than the steady window. It is what makes a question that occurs to someone
+  # next month answerable without paying for the run again.
+  echo "==> archiving raw series"
+  python3 "$REPORT_DIR/capture.py" --prom "$PROM" --artifact "$artifact" \
+    --out "${artifact%.json}" || echo "warning: raw capture failed" >&2
+
   echo "==> rendering figures"
   python3 "$REPORT_DIR/make_charts.py" --data "$artifact"
 

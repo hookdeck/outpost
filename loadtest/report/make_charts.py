@@ -312,15 +312,16 @@ def _fmt_ms(ms):
 # time rule the spec is written to, so the figures follow the spec rather than
 # a naming convention that can silently drift out of step with it.
 SWEEP_DIMS = [
-    ("04-fanout", "Fan-out", "destinations_per_tenant", lambda v: f"{v:g}"),
+    ("04-fanout", "Fan-out", "destinations_per_tenant",
+     lambda v: f"{v:g} dest" + ("" if v == 1 else "s")),
     ("05-payload", "Payload size", "payload_bytes", _fmt_bytes),
     ("06-receiver-response", "Receiver response time", "response_ms", _fmt_ms),
 ]
 DIM_KEYS = [d[2] for d in SWEEP_DIMS]
 
 
-def _subtitle(base, exclude):
-    parts = [f"{base['rate']:g} events/s"]
+def _subtitle(base, exclude, rate=True):
+    parts = [f"{base['rate']:g} events/s"] if rate else []
     if exclude != "destinations_per_tenant":
         n = base["destinations_per_tenant"]
         parts.append(f"{n:g} destination" + ("s" if n != 1 else ""))
@@ -379,9 +380,14 @@ def load_dataset(path):
             if len(members) < 2:
                 continue
             members.sort(key=lambda p: p[dim])
-            levels = {fmt(p[dim]): (arr(p["name"], "del_p99"), arr(p["name"], "pub_p99"))
+            # Sweep members deliberately run at different rates — the payload
+            # levels drop to 100 and 60 events/s so the panel measures payload
+            # and not bandwidth. So the rate belongs on each line, not in the
+            # subtitle, where it would describe only the baseline member.
+            levels = {f"{fmt(p[dim])}  ({p['rate']:g}/s)":
+                      (arr(p["name"], "del_p99"), arr(p["name"], "pub_p99"))
                       for p in members}
-            sweeps.append((fname, title, _subtitle(b, dim), levels))
+            sweeps.append((fname, title, _subtitle(b, dim, rate=False), levels))
 
     total = art.get("total", {})
     run = art["run"]
@@ -558,14 +564,37 @@ def draw_failures(B, T):
 
 
 def draw_sweep(B, T, title, subtitle, data):
-    ax = B.axes([0.075, 0.145, 0.795, 0.605])
+    ax = B.axes([0.075, 0.145, 0.735, 0.605])
     titleblock(B, T, title, subtitle)
 
-    for (lbl, (dely, puby)), c in zip(data.items(), T["ramp"]):
+    series_list = list(zip(data.items(), T["ramp"]))
+    for (lbl, (dely, puby)), c in series_list:
         ax.plot(HOURS, dely, color=c, lw=2.0, zorder=3)
         ax.plot(HOURS, puby, color=c, lw=1.2, ls=(0, (3, 2)), alpha=0.85, zorder=2)
-        ax.text(24.4, dely[-1], lbl, color=c, fontsize=9.5, va="center",
-                fontfamily=MONO, fontweight="bold")
+
+    # Labels sit at each line's final value, pushed apart just enough not to
+    # overlap. A sweep whose levels barely differ — which is itself the result
+    # worth reading — would otherwise stack every label in one illegible pile.
+    gap = D.sweep_ymax * 0.055
+    ends = sorted(((dely[-1], lbl, c) for (lbl, (dely, _)), c in series_list),
+                  key=lambda t: t[0])
+    placed, prev = [], None
+    for end, lbl, c in ends:
+        y = end if prev is None or end - prev >= gap else prev + gap
+        placed.append((y, end, lbl, c))
+        prev = y
+    for y, end, lbl, c in placed:
+        # Anchored to the axis in data coords and nudged out in points, so the
+        # labels land just past the last sample whatever the window length. A
+        # hardcoded x here reads as "no labels at all" on any run that is not
+        # the 24-hour mock the panels were first drawn against.
+        ax.annotate(lbl, xy=(HOURS[-1], y), xytext=(8, 0),
+                    textcoords="offset points", color=c, fontsize=9.5,
+                    va="center", fontfamily=MONO, fontweight="bold",
+                    annotation_clip=False)
+        if abs(y - end) > 1e-9:  # leader line back to the true endpoint
+            ax.plot([HOURS[-1], HOURS[-1]], [end, y], color=c, lw=0.7,
+                    alpha=0.5, zorder=2, clip_on=False)
 
     frame(ax, T)
     hours_axis(ax)
