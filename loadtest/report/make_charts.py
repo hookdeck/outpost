@@ -320,6 +320,30 @@ SWEEP_DIMS = [
 DIM_KEYS = [d[2] for d in SWEEP_DIMS]
 
 
+def _aggregate_subtitle(profiles):
+    """Describe the pooled run: how much traffic, and over what spread.
+
+    The per-profile subtitle names one value per dimension. Pooled, each
+    dimension is a range, and the ranges are the point — this line has to say
+    that the number above it covers 128 KB payloads and 10 s receivers, not
+    just the 1 KB / 250 ms arm.
+    """
+    ps = list(profiles.values())
+    events = sum(p["rate"] for p in ps)
+    deliveries = sum(p["rate"] * p["destinations_per_tenant"] for p in ps)
+
+    def span(dim, fmt):
+        lo, hi = min(p[dim] for p in ps), max(p[dim] for p in ps)
+        return fmt(lo) if lo == hi else f"{fmt(lo)}–{fmt(hi)}"
+
+    return " · ".join([
+        f"all {len(ps)} profiles pooled",
+        f"{events:g} events/s → {deliveries:g} deliveries/s",
+        span("payload_bytes", _fmt_bytes) + " payload",
+        span("response_ms", _fmt_ms) + " receiver response",
+    ])
+
+
 def _subtitle(base, exclude, rate=True):
     parts = [f"{base['rate']:g} events/s"] if rate else []
     if exclude != "destinations_per_tenant":
@@ -352,7 +376,17 @@ def load_dataset(path):
         return np.asarray(per_profile[name][key], dtype=float)
 
     baseline = "baseline" if "baseline" in per_profile else next(iter(per_profile))
-    base = {k: arr(baseline, k) for k in ("pub_p50", "pub_p99", "del_p50", "del_p99")}
+
+    # The latency panel shows the whole run pooled, not one profile. fetch.py
+    # takes the quantile over every profile's histograms summed together, so a
+    # profile counts for as many deliveries as it sent. Exports written before
+    # the aggregate existed fall back to the baseline profile.
+    LATENCY_KEYS = ("pub_p50", "pub_p99", "del_p50", "del_p99")
+    aggregate = series_block.get("aggregate")
+    if aggregate:
+        base = {k: np.asarray(aggregate[k], dtype=float) for k in LATENCY_KEYS}
+    else:
+        base = {k: arr(baseline, k) for k in LATENCY_KEYS}
 
     # Failures: the profiles that actually failed something, worst first. A
     # panel of flat zero lines says less than naming the ones that moved.
@@ -402,7 +436,10 @@ def load_dataset(path):
 
     published = max((per_profile[n].get("published", 0) for n in per_profile),
                     default=0) or 1
-    subtitle = (f"{baseline} profile · {_subtitle(b, None)}" if b else None)
+    if aggregate:
+        subtitle = _aggregate_subtitle(profiles)
+    else:
+        subtitle = (f"{baseline} profile · {_subtitle(b, None)}" if b else None)
     return Dataset(hours=hours, base=base, failures=failures, sweeps=sweeps,
                    run_meta=meta, published_per_profile=published,
                    sample=False, voids=run.get("voids") or [],

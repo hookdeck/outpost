@@ -132,10 +132,30 @@ def main():
         series["published"] = art.get("profiles", {}).get(name, {}).get("published", 0)
         profiles[name] = series
 
+    # The headline latency panel reads this rather than a single profile.
+    #
+    # The quantile is taken over the summed histogram of every profile, not as
+    # a mean of the per-profile quantiles. Percentiles do not average: the mean
+    # of nine p99s is not the p99 of anything, and it would weight a 5 events/s
+    # arm the same as a 640 events/s one. Summing the histograms first pools
+    # the observations, so this is the p99 of all traffic in the run — each
+    # profile counted by how many deliveries it actually contributed.
+    #
+    # It reads higher than the baseline profile alone, which is the intent.
+    # Baseline is the fastest arm in the sheet, and quoting it as the run's
+    # latency reports the best case as if it were the whole.
+    allsel = f'{{run_id="{run_id}",phase="steady"}}'
+    aggregate = {}
+    for key, (metric, q) in QUANTILES.items():
+        query = f"histogram_quantile({q}, sum(rate({metric}{allsel}[{rate_window}])))"
+        aggregate[key] = [v * 1000 for v in
+                          align(prom.range(query, grid[0], grid[-1], step), grid)]
+
     art["series"] = {
         "hours": hours,
         "step_seconds": step,
         "rate_window": rate_window,
+        "aggregate": aggregate,
         "profiles": profiles,
     }
     art["offered_rate"] = sum(p["tenants"] * p["rate_per_tenant"]
