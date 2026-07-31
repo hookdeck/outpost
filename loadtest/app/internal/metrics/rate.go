@@ -7,11 +7,18 @@ import (
 )
 
 // RateCounter tracks event rates over sliding windows.
+//
+// The buckets are a fixed-size ring, allocated once. Record must never grow or
+// reallocate them: it runs on the hot path of every publish and every delivery,
+// under a mutex those paths contend on, so a reallocation here shows up as a
+// latency excursion in the measurement itself.
 type RateCounter struct {
-	mu      sync.Mutex
-	buckets []bucket
-	window  time.Duration
-	total   atomic.Int64
+	mu       sync.Mutex
+	buckets  []bucket // fixed length, indexed as a ring
+	head     int      // index of the newest bucket; -1 when empty
+	window   time.Duration
+	bucketDu time.Duration
+	total    atomic.Int64
 }
 
 type bucket struct {
@@ -20,9 +27,14 @@ type bucket struct {
 }
 
 func NewRateCounter(window time.Duration, bucketCount int) *RateCounter {
+	if bucketCount < 1 {
+		bucketCount = 1
+	}
 	return &RateCounter{
-		buckets: make([]bucket, 0, bucketCount),
-		window:  window,
+		buckets:  make([]bucket, bucketCount),
+		head:     -1,
+		window:   window,
+		bucketDu: window / time.Duration(bucketCount),
 	}
 }
 
@@ -31,15 +43,12 @@ func (r *RateCounter) Record(now time.Time) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	bucketDuration := r.window / time.Duration(cap(r.buckets))
-	if len(r.buckets) == 0 || now.Sub(r.buckets[len(r.buckets)-1].start) >= bucketDuration {
-		if len(r.buckets) >= cap(r.buckets) {
-			r.buckets = r.buckets[1:]
-		}
-		r.buckets = append(r.buckets, bucket{count: 1, start: now})
-	} else {
-		r.buckets[len(r.buckets)-1].count++
+	if r.head >= 0 && now.Sub(r.buckets[r.head].start) < r.bucketDu {
+		r.buckets[r.head].count++
+		return
 	}
+	r.head = (r.head + 1) % len(r.buckets)
+	r.buckets[r.head] = bucket{count: 1, start: now}
 }
 
 func (r *RateCounter) Rate(now time.Time) float64 {
@@ -48,12 +57,29 @@ func (r *RateCounter) Rate(now time.Time) float64 {
 
 	cutoff := now.Add(-r.window)
 	var count int64
+	var oldest time.Time
 	for _, b := range r.buckets {
-		if b.start.After(cutoff) {
-			count += b.count
+		if b.count == 0 || !b.start.After(cutoff) {
+			continue
+		}
+		count += b.count
+		if oldest.IsZero() || b.start.Before(oldest) {
+			oldest = b.start
 		}
 	}
-	return float64(count) / r.window.Seconds()
+	if count == 0 {
+		return 0
+	}
+	// Divide by the span the counted buckets actually cover, not by the nominal
+	// window. The newest bucket is mid-fill and the oldest has aged partway out,
+	// so a full-window divisor reports one bucket low — 10% on a 10-bucket ring.
+	span := now.Sub(oldest)
+	if span < r.bucketDu {
+		span = r.bucketDu
+	} else if span > r.window {
+		span = r.window
+	}
+	return float64(count) / span.Seconds()
 }
 
 func (r *RateCounter) Total() int64 {
@@ -63,6 +89,7 @@ func (r *RateCounter) Total() int64 {
 func (r *RateCounter) Reset() {
 	r.total.Store(0)
 	r.mu.Lock()
-	r.buckets = r.buckets[:0]
+	clear(r.buckets)
+	r.head = -1
 	r.mu.Unlock()
 }

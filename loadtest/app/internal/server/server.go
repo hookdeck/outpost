@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/http/pprof"
 
 	"github.com/hookdeck/outpost/loadtest/app/internal/api"
 	"github.com/hookdeck/outpost/loadtest/app/internal/config"
@@ -35,6 +36,19 @@ func New(cfg *config.Config) *Server {
 
 	// Mock HTTP (httpbin-style)
 	mockhttp.Register(mux)
+
+	// Profiling. Registered before the dashboard's catch-all; ServeMux prefers
+	// the longer pattern, so these win for /debug/pprof/* and nothing else
+	// changes. The RateCounter leak took a code read and a simulation to find
+	// because no heap profile was reachable on a running deployment.
+	if cfg.PprofEnabled {
+		mux.HandleFunc("GET /debug/pprof/", pprof.Index)
+		mux.HandleFunc("GET /debug/pprof/cmdline", pprof.Cmdline)
+		mux.HandleFunc("GET /debug/pprof/profile", pprof.Profile)
+		mux.HandleFunc("GET /debug/pprof/symbol", pprof.Symbol)
+		mux.HandleFunc("GET /debug/pprof/trace", pprof.Trace)
+		slog.Warn("pprof enabled on a public listener", "path", "/debug/pprof/")
+	}
 
 	// Dashboard
 	mux.Handle("GET /", dashboard.Handler())
