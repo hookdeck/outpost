@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"syscall"
 
 	"github.com/hookdeck/outpost/internal/destregistry"
 )
@@ -76,10 +77,29 @@ func ExecuteHTTPRequest(ctx context.Context, client *http.Client, req *http.Requ
 			}
 		}
 
+		// Record the cause on the attempt. Of the four failure paths through this
+		// package this was the only one leaving Delivery.Response nil, so a
+		// transport failure stored response_data NULL and the cause was not
+		// recoverable from ClickHouse or the logs afterwards.
+		//
+		// Which string is safe depends on the branch. A plain transport error is
+		// a *url.Error naming the customer's own destination and nothing of
+		// ours. ErrProxyDestination.Error() appends the proxy diagnostics, which
+		// are operator-side only — so that branch records the classification
+		// alone, matching the rule the diagnostics block above already follows.
+		message := err.Error()
+		if destErr != nil {
+			message = code
+			if destErr.DestHost != "" {
+				message = fmt.Sprintf("%s connecting to %s", code, destErr.DestHost)
+			}
+		}
+
 		return &HTTPRequestResult{
 			Delivery: &destregistry.Delivery{
-				Status: "failed",
-				Code:   code,
+				Status:   "failed",
+				Code:     code,
+				Response: map[string]interface{}{"error": message},
 			},
 			Error:    destregistry.NewErrDestinationPublishAttempt(err, provider, data),
 			Response: nil,
@@ -146,6 +166,15 @@ func ClassifyNetworkError(err error) string {
 		return "unknown"
 	}
 
+	// Source-side ephemeral port exhaustion. Ours, not the destination's, and the
+	// fix is connection reuse rather than a retry — so it must not disappear into
+	// the network_error catch-all among genuinely remote failures. Matched on the
+	// errno because the message is not portable: Linux renders EADDRNOTAVAIL as
+	// "cannot assign requested address", darwin as "can't".
+	if errors.Is(err, syscall.EADDRNOTAVAIL) {
+		return "address_unavailable"
+	}
+
 	errStr := err.Error()
 
 	switch {
@@ -157,6 +186,10 @@ func ClassifyNetworkError(err error) string {
 		return "connection_reset"
 	case strings.Contains(errStr, "network is unreachable"):
 		return "network_unreachable"
+	// Same condition arriving as an opaque string (e.g. synthesized from a proxy
+	// report), where the errno is not available to match on.
+	case strings.Contains(errStr, "assign requested address"):
+		return "address_unavailable"
 	case strings.Contains(errStr, "i/o timeout"):
 		return "timeout"
 	case strings.Contains(errStr, "context deadline exceeded"):
