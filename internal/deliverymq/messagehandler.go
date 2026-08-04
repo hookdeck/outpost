@@ -174,9 +174,9 @@ func (h *messageHandler) handleError(msg *mqs.Message, err error) error {
 	}
 	// Attempt errors from a destination's publish call (webhook 5xx, timeout,
 	// refused, etc.) are expected operational outcomes. Ack semantics are
-	// already decided above; the failure is captured in the audit log, the
-	// ClickHouse log entry, and the scheduled retry. Suppress propagation so
-	// the consumer doesn't log them as unexpected handler errors.
+	// already decided above; the failure is captured in the delivery.attempted
+	// line, the ClickHouse log entry, and the scheduled retry. Suppress
+	// propagation so the consumer doesn't log them as unexpected handler errors.
 	if atmErr, ok := err.(*AttemptError); ok {
 		var pubErr *destregistry.ErrDestinationPublishAttempt
 		if errors.As(atmErr.err, &pubErr) {
@@ -186,8 +186,8 @@ func (h *messageHandler) handleError(msg *mqs.Message, err error) error {
 	return err
 }
 
-// retryOutcome captures the retry-scheduling decisions made during a delivery
-// attempt so they can be folded into the single delivery.attempted audit event.
+// retryOutcome defers the retry-scheduling decisions taken during an attempt
+// so logDeliveryResult can fold them into the one delivery.attempted line.
 type retryOutcome struct {
 	scheduled      bool
 	backoff        time.Duration
@@ -278,10 +278,6 @@ func (h *messageHandler) logDeliveryResult(ctx context.Context, task *models.Del
 	attempt.AttemptNumber = task.Attempt
 	attempt.Manual = task.Manual
 
-	// Wide event: one audit per delivery attempt carrying the full outcome
-	// (attempt result, timing, retry decision). Replaces the separate
-	// "retry scheduled" and "scheduled retry canceled" audits so consumers
-	// don't have to join across lines to reconstruct what happened.
 	fields := []zap.Field{
 		zap.String("attempt_id", attempt.ID),
 		zap.String("event_id", task.Event.ID),

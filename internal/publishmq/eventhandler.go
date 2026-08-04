@@ -78,9 +78,8 @@ func (h *eventHandler) Handle(ctx context.Context, event *models.Event) (*Handle
 	logger := h.logger.Ctx(ctx)
 	receivedAt := time.Now()
 
-	// Wide event state: populated by the rest of Handle and emitted as a single
-	// audit at the end. Replaces the separate "processing event" and per-
-	// destination "delivery task enqueued" audits.
+	// Wide event state: accumulated through Handle, emitted as a single
+	// event.received line by the defer below.
 	var enqueuedMu sync.Mutex
 	var enqueued []string
 	var matched []string
