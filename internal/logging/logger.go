@@ -14,12 +14,6 @@ import (
 // operator logs (stdout, no OTel export) while auditLogger is otelzap-wrapped
 // so Audit() lines flow to both stdout and the OTel logs SDK. This keeps
 // infrastructure errors and debug noise out of customer-visible OTel sinks.
-//
-// Audit() is for control-plane changes — tenant and destination lifecycle,
-// manual retry, auto-disable — one line per user-visible decision. The hot
-// path uses Info even for its wide events (delivery.attempted,
-// event.received): they scale with throughput, and tenants read delivery
-// history through the events and attempts APIs, not this sink.
 type Logger struct {
 	*zap.Logger
 	auditLogger *otelzap.Logger
@@ -92,6 +86,11 @@ func (l *Logger) Ctx(ctx context.Context) LoggerWithCtx {
 	}
 }
 
+// Audit records control-plane decisions: lifecycle changes a tenant or
+// operator needs a durable record of.
+//
+// Per-unit-of-work outcomes on the hot path stay on Info however significant
+// they are — this sink isn't sized for per-event volume.
 func (l *Logger) Audit(msg string, fields ...zap.Field) {
 	l.auditLogger.Info(msg, fields...)
 }
