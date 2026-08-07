@@ -4,7 +4,7 @@ This document describes the workflow for running loadtests against the Outpost s
 
 ## Configuration
 
-The loadtest configurations are stored in the `loadtest/config` directory:
+The loadtest configurations are stored in the `loadtest/k6/config` directory:
 - `env/`: Contains environment-specific configurations
 - `scenarios/`: Contains test scenario configurations
 
@@ -94,7 +94,7 @@ docker-compose up -d
 
 ### Running Tests
 
-1. Update the configuration files in `loadtest/config` to simulate your desired scenario and environment.
+1. Update the configuration files in `loadtest/k6/config` to simulate your desired scenario and environment.
 
 2. Set your environment variables and run the tests:
 

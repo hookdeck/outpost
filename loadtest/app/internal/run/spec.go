@@ -1,0 +1,358 @@
+package run
+
+import (
+	"fmt"
+	"os"
+	"strings"
+	"time"
+
+	"gopkg.in/yaml.v3"
+
+	"github.com/hookdeck/outpost/loadtest/app/internal/group"
+)
+
+// Spec is the complete description of a benchmark run: what to publish, for
+// how long, and against what. It is also the reproduction artifact — a run
+// export embeds the spec that produced it, so a published number can be
+// re-derived rather than taken on trust.
+type Spec struct {
+	Name    string `yaml:"name" json:"name"`
+	Notes   string `yaml:"notes,omitempty" json:"notes,omitempty"`
+	Target  string `yaml:"target" json:"target"`                       // direct | gateway — which path was exercised
+	Version string `yaml:"version,omitempty" json:"version,omitempty"` // Outpost image/tag under test
+
+	// ConcurrencyBudget is the number of simultaneous in-flight deliveries the
+	// deployment is provisioned for. A spec that exceeds it measures
+	// saturation instead of the dimension it means to sweep, so the run
+	// refuses to start rather than producing a plausible wrong answer.
+	ConcurrencyBudget int `yaml:"concurrency_budget" json:"concurrency_budget"`
+
+	// BudgetTolerance allows deliberate overcommit, e.g. 1.2 for 20% over.
+	BudgetTolerance float64 `yaml:"budget_tolerance,omitempty" json:"budget_tolerance,omitempty"`
+
+	// Topics every profile publishes to unless it overrides them. They must
+	// already exist in the deployment's configured topic list, or destination
+	// creation fails with "invalid topics".
+	Topics []string `yaml:"topics,omitempty" json:"topics,omitempty"`
+
+	Warmup Duration `yaml:"warmup" json:"warmup"`
+	Window Duration `yaml:"window" json:"window"`
+	Drain  Duration `yaml:"drain" json:"drain"`
+
+	// MaxInFlight stops the run if pending deliveries exceed it. Zero derives
+	// a default from the concurrency budget.
+	//
+	// The budget check is a steady-state calculation: Little's law assumes
+	// deliveries keep up with publishing. It has nothing to say about what
+	// happens when they do not, so a spec can be comfortably "within budget"
+	// and still be unsurvivable — which is how a run validated at 1025 against
+	// a budget of 10000 drove a deployment's delivery pipeline to zero.
+	//
+	// The failure is not gradual. Once deliveries fall behind, events reach
+	// their delivery timeout and enter retry, and the retry load competes with
+	// the first attempts that are already struggling. Publishing carries on at
+	// full rate throughout, because the publish path is unaffected, so the
+	// backlog grows for as long as the run is left alone.
+	//
+	// Backing off early is the whole point: stopping publishing is the one
+	// action that helps, and it is worth taking while the deployment can still
+	// drain rather than after it cannot.
+	MaxInFlight int `yaml:"max_in_flight,omitempty" json:"max_in_flight,omitempty"`
+
+	// MaxInFlightRatio sets the limit as a multiple of the design concurrency
+	// instead of an absolute count, so it survives resizing the spec. Zero
+	// takes the default; MaxInFlight overrides both.
+	//
+	// Tighten it when the deployment's headroom is unknown or the run is long
+	// enough that damage compounds. The default is deliberately loose — it
+	// catches a pipeline collapse, not a deployment merely running warm.
+	MaxInFlightRatio float64 `yaml:"max_in_flight_ratio,omitempty" json:"max_in_flight_ratio,omitempty"`
+
+	Profiles []Profile `yaml:"profiles" json:"profiles"`
+}
+
+// Profile is one tenant shape in the mixed workload. Every profile publishes
+// into the same deployment; the report breaks results out per profile.
+type Profile struct {
+	Name          string   `yaml:"name" json:"name"`
+	TenantCount   int      `yaml:"tenants" json:"tenants"`
+	Destinations  int      `yaml:"destinations_per_tenant" json:"destinations_per_tenant"`
+	RatePerTenant int      `yaml:"rate_per_tenant" json:"rate_per_tenant"`
+	PayloadBytes  int      `yaml:"payload_bytes" json:"payload_bytes"`
+	Topics        []string `yaml:"topics,omitempty" json:"topics,omitempty"`
+
+	// PayloadJitterBytes varies event size uniformly by ±this much around
+	// PayloadBytes. Symmetric, so the mean is PayloadBytes and BytesPerSec below
+	// stays correct. A run with a fixed size measures one size; real traffic is
+	// a distribution, and compression, allocation classes, and buffer sizing all
+	// respond to the spread rather than the mean.
+	PayloadJitterBytes int `yaml:"payload_jitter_bytes,omitempty" json:"payload_jitter_bytes,omitempty"`
+
+	// ResponseMs is how long the mock receiver takes to respond. It is a swept
+	// input, not a result: delivery latency is measured to first byte, so this
+	// spends concurrency without inflating the reported number.
+	ResponseMs int64   `yaml:"response_ms" json:"response_ms"`
+	JitterMs   int64   `yaml:"response_jitter_ms,omitempty" json:"response_jitter_ms,omitempty"`
+	ErrorRate  float64 `yaml:"error_rate,omitempty" json:"error_rate,omitempty"`
+
+	Pattern       string         `yaml:"pattern,omitempty" json:"pattern,omitempty"`
+	PatternParams map[string]any `yaml:"pattern_params,omitempty" json:"pattern_params,omitempty"`
+}
+
+// Rate is the profile's total offered events per second.
+func (p Profile) Rate() int { return p.TenantCount * p.RatePerTenant }
+
+// RampSeconds is how long a "ramp" profile takes to climb from zero to Rate().
+// The default matches the publisher's, so the two cannot disagree about what an
+// unspecified ramp means.
+func (p Profile) RampSeconds() int {
+	if v, ok := p.PatternParams["ramp_duration_seconds"]; ok {
+		switch n := v.(type) {
+		case int:
+			return n
+		case float64:
+			return int(n)
+		}
+	}
+	return 60
+}
+
+// Concurrency is the profile's share of the delivery budget, by Little's law:
+// in-flight = arrival rate × time in system.
+func (p Profile) Concurrency() float64 {
+	return float64(p.Rate()) * float64(p.Destinations) * (float64(p.ResponseMs) / 1000)
+}
+
+// BytesPerSec is the profile's share of the bandwidth budget.
+func (p Profile) BytesPerSec() float64 {
+	return float64(p.Rate()) * float64(p.Destinations) * float64(p.PayloadBytes)
+}
+
+func (p Profile) GroupConfig() group.Config {
+	topics := p.Topics
+	if len(topics) == 0 {
+		topics = []string{"user.created"}
+	}
+	return group.Config{
+		Name:                  p.Name,
+		TenantPrefix:          p.Name,
+		TenantCount:           p.TenantCount,
+		DestinationsPerTenant: p.Destinations,
+		Topics:                topics,
+		Publish: group.PublishConfig{
+			RatePerTenant:      p.RatePerTenant,
+			Pattern:            p.Pattern,
+			PatternParams:      p.PatternParams,
+			PayloadBytes:       p.PayloadBytes,
+			PayloadJitterBytes: p.PayloadJitterBytes,
+		},
+		MockProfile: group.MockProfileConfig{
+			LatencyMs: p.ResponseMs,
+			JitterMs:  p.JitterMs,
+			ErrorRate: p.ErrorRate,
+		},
+	}
+}
+
+// Budget is the run's two resource totals, both design targets and reported
+// outputs. A latency figure floating free of the load that produced it is not
+// a checkable claim.
+type Budget struct {
+	Concurrency  float64 `json:"concurrency"`
+	BytesPerSec  float64 `json:"bytes_per_sec"`
+	OfferedRate  int     `json:"offered_rate"`
+	BudgetTarget int     `json:"budget_target"`
+	WithinBudget bool    `json:"within_budget"`
+}
+
+func (s *Spec) Budget() Budget {
+	b := Budget{BudgetTarget: s.ConcurrencyBudget}
+	for _, p := range s.Profiles {
+		b.Concurrency += p.Concurrency()
+		b.BytesPerSec += p.BytesPerSec()
+		b.OfferedRate += p.Rate()
+	}
+	b.WithinBudget = s.ConcurrencyBudget == 0 || b.Concurrency <= float64(s.ConcurrencyBudget)*s.tolerance()
+	return b
+}
+
+// InFlightLimit is the pending-delivery count at which the run gives up.
+//
+// Ten times the design concurrency, because in-flight deliveries sit at
+// roughly the design figure when a run is healthy — Little's law again, from
+// the other side. A 4h run designed for 497 held 564. Ten times that is far
+// outside anything a working run reaches, and far below the tens of thousands
+// a failing one climbs to within a minute.
+//
+// The floor keeps small runs from tripping on ordinary jitter: a local check
+// with a design concurrency of 13 would otherwise abort at 130.
+const (
+	inFlightLimitRatio = 10
+	inFlightLimitFloor = 1000
+)
+
+func (s *Spec) InFlightLimit() int {
+	if s.MaxInFlight > 0 {
+		return s.MaxInFlight
+	}
+	if s.MaxInFlightRatio > 0 {
+		// An explicit ratio is honoured exactly. The floor exists to stop the
+		// default from firing on small runs, and applying it here would
+		// silently discard the tighter limit the operator asked for.
+		return int(s.Budget().Concurrency * s.MaxInFlightRatio)
+	}
+	if n := int(s.Budget().Concurrency * inFlightLimitRatio); n > inFlightLimitFloor {
+		return n
+	}
+	return inFlightLimitFloor
+}
+
+func (s *Spec) tolerance() float64 {
+	if s.BudgetTolerance > 0 {
+		return s.BudgetTolerance
+	}
+	return 1.0
+}
+
+func (s *Spec) Validate() error {
+	var errs []string
+	if s.Name == "" {
+		errs = append(errs, "name is required")
+	}
+	if s.Target != "direct" && s.Target != "gateway" {
+		errs = append(errs, `target must be "direct" or "gateway" — the report states which path was exercised`)
+	}
+	if s.Window.Duration() <= 0 {
+		errs = append(errs, "window must be > 0")
+	}
+	if len(s.Profiles) == 0 {
+		errs = append(errs, "at least one profile is required")
+	}
+
+	seen := map[string]bool{}
+	for i, p := range s.Profiles {
+		where := fmt.Sprintf("profile[%d]", i)
+		if p.Name == "" {
+			errs = append(errs, where+": name is required")
+			continue
+		}
+		if seen[p.Name] {
+			errs = append(errs, where+": duplicate name "+p.Name)
+		}
+		seen[p.Name] = true
+		if p.TenantCount <= 0 {
+			errs = append(errs, p.Name+": tenants must be > 0")
+		}
+		if p.RatePerTenant <= 0 {
+			errs = append(errs, p.Name+": rate_per_tenant must be > 0")
+		}
+		if p.Destinations <= 0 {
+			errs = append(errs, p.Name+": destinations_per_tenant must be > 0")
+		}
+		if p.PayloadBytes <= 0 {
+			errs = append(errs, p.Name+": payload_bytes must be > 0")
+		}
+		// Both jitters are symmetric, so a jitter at or above its centre puts
+		// half the distribution at zero or below. The generators clamp rather
+		// than fail, which would quietly narrow the spread the spec asked for.
+		if p.PayloadJitterBytes < 0 {
+			errs = append(errs, p.Name+": payload_jitter_bytes must be >= 0")
+		} else if p.PayloadJitterBytes >= p.PayloadBytes && p.PayloadBytes > 0 {
+			errs = append(errs, fmt.Sprintf(
+				"%s: payload_jitter_bytes %d is not smaller than payload_bytes %d — "+
+					"the low half of the range would be zero-length",
+				p.Name, p.PayloadJitterBytes, p.PayloadBytes))
+		}
+		if p.JitterMs < 0 {
+			errs = append(errs, p.Name+": response_jitter_ms must be >= 0")
+		} else if p.JitterMs > p.ResponseMs {
+			errs = append(errs, fmt.Sprintf(
+				"%s: response_jitter_ms %d exceeds response_ms %d — "+
+					"the low half of the range would be a negative delay",
+				p.Name, p.JitterMs, p.ResponseMs))
+		}
+		// An unrecognised pattern falls back to constant inside the publisher,
+		// so a typo would produce a run that looks entirely normal and simply
+		// did not do what the spec asked.
+		switch p.Pattern {
+		case "", "constant", "burst", "sine":
+		case "ramp":
+			// The ramp starts when the publisher does, which is the start of
+			// warmup. A ramp longer than warmup is still climbing when the
+			// measured window opens, so the run reports a rate it never held.
+			if d := p.RampSeconds(); float64(d) > s.Warmup.Duration().Seconds() {
+				errs = append(errs, fmt.Sprintf(
+					"%s: ramp_duration_seconds %d exceeds warmup %s — the measured window would "+
+						"open mid-ramp, below the offered rate the run claims",
+					p.Name, d, s.Warmup.Duration()))
+			}
+		default:
+			errs = append(errs, p.Name+`: unknown pattern `+p.Pattern+` (constant, ramp, burst, sine)`)
+		}
+	}
+
+	if b := s.Budget(); !b.WithinBudget {
+		errs = append(errs, fmt.Sprintf(
+			"concurrency budget exceeded: %.0f concurrent deliveries against a target of %d. "+
+				"Past the budget the run measures saturation, not the dimension it sweeps — "+
+				"lower a rate, fan-out, or response time, or raise concurrency_budget deliberately",
+			b.Concurrency, s.ConcurrencyBudget))
+	}
+
+	if len(errs) > 0 {
+		return fmt.Errorf("invalid spec:\n  - %s", strings.Join(errs, "\n  - "))
+	}
+	return nil
+}
+
+func LoadSpec(path string) (*Spec, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSpec(data)
+}
+
+func ParseSpec(data []byte) (*Spec, error) {
+	var s Spec
+	dec := yaml.NewDecoder(strings.NewReader(string(data)))
+	dec.KnownFields(true) // a typo'd key must not silently mean "default"
+	if err := dec.Decode(&s); err != nil {
+		return nil, fmt.Errorf("parse spec: %w", err)
+	}
+	if s.Drain.Duration() == 0 {
+		s.Drain = Duration(2 * time.Minute)
+	}
+	if len(s.Topics) == 0 {
+		s.Topics = []string{"user.created"}
+	}
+	for i := range s.Profiles {
+		if len(s.Profiles[i].Topics) == 0 {
+			s.Profiles[i].Topics = s.Topics
+		}
+	}
+	return &s, nil
+}
+
+// Duration is a time.Duration that reads as "30s" / "10m" in YAML and JSON.
+type Duration time.Duration
+
+func (d Duration) Duration() time.Duration { return time.Duration(d) }
+func (d Duration) String() string          { return time.Duration(d).String() }
+
+func (d *Duration) UnmarshalYAML(n *yaml.Node) error {
+	var s string
+	if err := n.Decode(&s); err != nil {
+		return err
+	}
+	v, err := time.ParseDuration(s)
+	if err != nil {
+		return err
+	}
+	*d = Duration(v)
+	return nil
+}
+
+func (d Duration) MarshalJSON() ([]byte, error) {
+	return []byte(`"` + d.String() + `"`), nil
+}

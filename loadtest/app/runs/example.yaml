@@ -1,0 +1,75 @@
+# A run spec: the complete description of a benchmark, and the only input
+# `make bench` needs. This one is deliberately small — it exercises the whole
+# pipeline in about four minutes and is what `make bench` runs by default.
+#
+# It is an example of the format, not a benchmark. Real specs stay outside the
+# repo: a spec is client-side input, POSTed to the app by bench.sh, so it never
+# needs to live alongside the code. The run export embeds the spec that produced
+# it verbatim, which is what makes a published number reproducible.
+name: example
+notes: Pipeline check. The window is too short and the rate too low to say anything about the deployment.
+
+# Which path was exercised. "direct" publishes straight to the deployment;
+# "gateway" goes through the shared API gateway, whose ceiling is lower. The
+# figures state which, because the two are not comparable.
+target: direct
+
+# The deployment's `delivery_max_concurrency` — the size of the worker pool
+# deliveries queue for, and so the real ceiling on in-flight. A spec that
+# exceeds it measures saturation instead of the dimension it sweeps: deliveries
+# queue, events age past the sweep window, and the run reports a backlog where
+# a latency should be. Local dev (`.outpost.yaml.dev`) ships 100.
+concurrency_budget: 100
+
+# Fraction of the budget the spec is allowed to offer. Below 1.0 by default
+# because a queueing system near full utilisation has unbounded wait — jitter
+# alone starts a queue that never drains. 0.7–0.8 keeps the measurement in the
+# regime the sweeps are about.
+budget_tolerance: 0.8
+
+# warmup fills caches and connection pools; only the steady window is measured;
+# drain waits for deliveries still in flight, with the missing-sweep suspended
+# so a slow-but-arriving delivery is not misreported.
+warmup: 30s
+window: 2m
+drain: 90s
+
+# Must already exist in the deployment's configured topic list, or destination
+# creation fails with "invalid topics".
+topics:
+  - user.created
+
+# Baseline is level 1 of every dimension. A profile joins a sweep when it
+# differs from baseline in exactly one dimension — the figures derive the
+# sweeps from the spec, so there is no naming convention to get wrong.
+profiles:
+  - name: baseline
+    tenants: 10
+    destinations_per_tenant: 1
+    rate_per_tenant: 10
+    payload_bytes: 1024
+    # How long the mock receiver takes to respond. A swept input, not a result:
+    # delivery latency is measured to first byte, so response time spends
+    # concurrency without inflating the reported number.
+    response_ms: 250
+    response_jitter_ms: 50
+    # Optional. Without it the group opens at full rate, which asks an idle
+    # deployment for its steady-state throughput on the first second — it
+    # queues while it gets there, and the backlog's wait lands in the tail.
+    # The ramp runs from publisher start, so it must fit inside warmup or the
+    # measured window opens below the rate the run claims.
+    #
+    # pattern: ramp
+    # pattern_params:
+    #   ramp_duration_seconds: 20
+
+  # Differs from baseline in one dimension: fan-out. Rate is scaled down so the
+  # delivery rate matches baseline's and the panel shows fan-out's cost rather
+  # than a rate difference. Fan-out spends both budgets, so it dominates.
+  - name: fanout-5
+    tenants: 5
+    destinations_per_tenant: 5
+    rate_per_tenant: 4
+    payload_bytes: 1024
+    response_ms: 250
+    response_jitter_ms: 50

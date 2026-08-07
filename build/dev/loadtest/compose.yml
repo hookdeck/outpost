@@ -1,0 +1,34 @@
+name: "outpost"
+
+services:
+  loadtest:
+    image: outpost-loadtest
+    build:
+      context: ../../../
+      dockerfile: ./build/dev/loadtest/Dockerfile
+    volumes:
+      - ../../../loadtest/app:/app
+      # Run exports land on the host, where the report tooling reads them.
+      # They are the archival record of a run and must outlive the container.
+      - ../../../loadtest/out:/data/runs
+      - go_mod_cache:/go/pkg
+      - go_build_cache:/root/.cache/go-build
+    ports:
+      - "9090:9090"
+    environment:
+      - PORT=9090
+      - OUTPOST_URL=http://api:3333/api/v1
+      - OUTPOST_API_KEY=${OUTPOST_API_KEY:-apikey}
+      - MOCK_URL=http://loadtest:9090
+      - EXPORT_DIR=/data/runs
+
+volumes:
+  go_mod_cache:
+    driver: local
+  go_build_cache:
+    driver: local
+
+# No network override: the project name above puts this on the same
+# outpost_default network as the rest of the stack. Pointing it at a separate
+# external `outpost` network left the app unable to resolve `api`, and
+# Prometheus unable to resolve `loadtest`.

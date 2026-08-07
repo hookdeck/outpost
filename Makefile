@@ -49,6 +49,32 @@ health:
 smoke:
 	./build/dev/smoke.sh
 
+up/loadtest:
+	docker-compose -f build/dev/loadtest/compose.yml up -d --build
+
+down/loadtest:
+	docker-compose -f build/dev/loadtest/compose.yml down
+
+# Benchmark stack: outpost + loadtest app + prometheus + grafana.
+# Prometheus is on :9091 (the loadtest app owns :9090), Grafana on :3000.
+up/bench:
+	LOCAL_DEV_GRAFANA=1 ./build/dev/dev.sh up
+	docker-compose -f build/dev/loadtest/compose.yml up -d --build
+
+down/bench:
+	docker-compose -f build/dev/loadtest/compose.yml down
+	LOCAL_DEV_GRAFANA=1 ./build/dev/dev.sh down
+
+# One benchmark, end to end: validate → run → export → figures.
+#
+# The default spec is the committed example — a four-minute pipeline check, not
+# a result. Point SPEC at your own to run a real one; specs are client-side
+# input and are not kept in the repo. Drive a deployed app with LOADTEST_URL
+# and PROM_URL, and see build/dev/bench.sh for --detach / --report.
+SPEC ?= loadtest/app/runs/example.yaml
+bench:
+	./build/dev/bench.sh $(SPEC)
+
 # Run portal natively (vite hot reload). Portal is also available as a
 # containerized service via `make up` — use this target only when you want
 # the faster native dev loop.

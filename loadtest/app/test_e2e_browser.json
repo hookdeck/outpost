@@ -1,0 +1,52 @@
+[
+  {"action": "navigate", "url": "http://localhost:9090"},
+  {"action": "assert-text", "selector": "h1", "text": "Outpost Load Test"},
+  {"action": "screenshot", "name": "01-dashboard-empty.png"},
+
+  {"action": "type", "selector": "#f-name", "text": ""},
+  {"action": "type", "selector": "#f-name", "text": "smoke"},
+  {"action": "type", "selector": "#f-prefix", "text": ""},
+  {"action": "type", "selector": "#f-prefix", "text": "lt-smoke"},
+  {"action": "type", "selector": "#f-tenants", "text": ""},
+  {"action": "type", "selector": "#f-tenants", "text": "1"},
+  {"action": "type", "selector": "#f-dests", "text": ""},
+  {"action": "type", "selector": "#f-dests", "text": "1"},
+  {"action": "type", "selector": "#f-topics", "text": ""},
+  {"action": "type", "selector": "#f-topics", "text": "user.created"},
+  {"action": "type", "selector": "#f-rate", "text": ""},
+  {"action": "type", "selector": "#f-rate", "text": "20"},
+  {"action": "type", "selector": "#f-payload", "text": ""},
+  {"action": "type", "selector": "#f-payload", "text": "256"},
+  {"action": "type", "selector": "#f-latency", "text": ""},
+  {"action": "type", "selector": "#f-latency", "text": "50"},
+  {"action": "type", "selector": "#f-jitter", "text": ""},
+  {"action": "type", "selector": "#f-jitter", "text": "10"},
+  {"action": "type", "selector": "#f-error", "text": ""},
+  {"action": "type", "selector": "#f-error", "text": "0"},
+
+  {"action": "click", "selector": "#create-form button.primary"},
+  {"action": "sleep", "ms": 1500},
+  {"action": "assert-text", "selector": ".card-name", "text": "smoke"},
+  {"action": "assert-text", "selector": ".card-state", "text": "created"},
+  {"action": "screenshot", "name": "02-group-created.png"},
+
+  {"action": "click", "selector": "button:text('Provision')"},
+  {"action": "sleep", "ms": 5000},
+  {"action": "screenshot", "name": "03-provisioned.png"},
+
+  {"action": "click", "selector": "button.primary:text('Start')"},
+  {"action": "sleep", "ms": 8000},
+  {"action": "screenshot", "name": "04-running-metrics.png"},
+
+  {"action": "click", "selector": "button:text('Stop')"},
+  {"action": "sleep", "ms": 2000},
+  {"action": "screenshot", "name": "05-stopped.png"},
+
+  {"action": "click", "selector": "button:text('Teardown')"},
+  {"action": "sleep", "ms": 2000},
+  {"action": "screenshot", "name": "06-teardown.png"},
+
+  {"action": "click", "selector": "button.danger:text('Delete')"},
+  {"action": "sleep", "ms": 1500},
+  {"action": "screenshot", "name": "07-deleted.png"}
+]

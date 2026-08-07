@@ -84,7 +84,7 @@ kubectl port-forward -n monitoring svc/prometheus-grafana 3000:80
 Set up the custom dashboard with this curl command:
 
 ```
-curl -X POST http://localhost:3000/api/dashboards/db -H "Content-Type: application/json" -d @loadtest/grafana/outpost-dashboard.json
+curl -X POST http://localhost:3000/api/dashboards/db -H "Content-Type: application/json" -d @loadtest/k6/grafana/outpost-dashboard.json
 ```
 
 Navigate to `http://localhost:3000` in your browser to access Grafana.
