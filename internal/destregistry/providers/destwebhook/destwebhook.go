@@ -107,6 +107,21 @@ type WebhookDestination struct {
 	rawSigningSecretTemplate string
 	signingSecretTemplate    *template.Template
 	maxResponseBodyBytes     int
+
+	// httpClient is shared by every publisher this provider creates. Nothing
+	// in its configuration varies per destination — user agent, proxy and the
+	// transport wrapper are all provider-level — so a client per destination
+	// would just give each one its own two-connection idle pool. See
+	// destregistry.PoolSizing.
+	//
+	// Only connection-level concerns justify a separate client. Headers, auth,
+	// timeouts and body limits are per-request and belong on the request. If
+	// per-destination proxy settings or client certificates are ever needed,
+	// transports should be keyed by that configuration and shared within a key
+	// — not built per destination.
+	httpClient   *http.Client
+	pool         destregistry.PoolSizing
+	onConnection func(reused bool)
 }
 
 type WebhookDestinationConfig struct {
@@ -158,6 +173,22 @@ func WithProxyURL(proxyURL string) Option {
 func WithMaxResponseBodyBytes(maxBytes int) Option {
 	return func(w *WebhookDestination) {
 		w.maxResponseBodyBytes = maxBytes
+	}
+}
+
+// WithConnectionPool sizes the shared client's idle connection pool. The zero
+// value leaves Go's defaults in place.
+func WithConnectionPool(pool destregistry.PoolSizing) Option {
+	return func(w *WebhookDestination) {
+		w.pool = pool
+	}
+}
+
+// WithConnectionObserver registers a callback invoked once per request with
+// whether the underlying connection was reused.
+func WithConnectionObserver(fn func(reused bool)) Option {
+	return func(w *WebhookDestination) {
+		w.onConnection = fn
 	}
 }
 
@@ -307,6 +338,22 @@ func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePu
 	}
 	destination.signingSecretTemplate = tmpl
 
+	var proxyURL *string
+	if destination.proxyURL != "" {
+		proxyURL = &destination.proxyURL
+	}
+	httpClient, err := destregistry.NewHTTPClient(destregistry.HTTPClientConfig{
+		UserAgent:     &destination.userAgent,
+		ProxyURL:      proxyURL,
+		WrapTransport: WrapTransport,
+		Pool:          destination.pool,
+		OnConnection:  destination.onConnection,
+	})
+	if err != nil {
+		return nil, err
+	}
+	destination.httpClient = httpClient
+
 	return destination, nil
 }
 
@@ -399,23 +446,9 @@ func (d *WebhookDestination) CreatePublisher(ctx context.Context, destination *m
 		WithAlgorithm(GetAlgorithm(d.algorithm)),
 	)
 
-	var proxyURL *string
-	if d.proxyURL != "" {
-		proxyURL = &d.proxyURL
-	}
-
-	httpClient, err := destregistry.NewHTTPClient(destregistry.HTTPClientConfig{
-		UserAgent:     &d.userAgent,
-		ProxyURL:      proxyURL,
-		WrapTransport: WrapTransport,
-	})
-	if err != nil {
-		return nil, err
-	}
-
 	return &WebhookPublisher{
 		BasePublisher:        d.BaseProvider.NewPublisher(destregistry.WithDeliveryMetadata(destination.DeliveryMetadata)),
-		httpClient:           httpClient,
+		httpClient:           d.httpClient,
 		url:                  config.URL,
 		headerPrefix:         d.headerPrefix,
 		eventIDHeader:        d.eventIDHeader,

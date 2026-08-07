@@ -34,8 +34,13 @@ func WithHTTPClient(client *http.Client) ProviderOption {
 // Provider implementation
 type HookdeckProvider struct {
 	*destregistry.BaseProvider
-	userAgent  string
-	httpClient *http.Client
+	userAgent string
+	// httpClient is shared by every publisher this provider creates. This
+	// provider talks to a single host, so it is sized for depth rather than
+	// breadth — see destregistry.SizeSingleHostPool.
+	httpClient   *http.Client
+	pool         destregistry.PoolSizing
+	onConnection func(reused bool)
 }
 
 // Ensure our provider implements the Provider interface
@@ -45,6 +50,23 @@ var _ destregistry.Provider = (*HookdeckProvider)(nil)
 func WithUserAgent(userAgent string) ProviderOption {
 	return func(p *HookdeckProvider) {
 		p.userAgent = userAgent
+	}
+}
+
+// WithConnectionPool sizes the shared client's idle connection pool. Ignored
+// when a client is injected with WithHTTPClient.
+func WithConnectionPool(pool destregistry.PoolSizing) ProviderOption {
+	return func(p *HookdeckProvider) {
+		p.pool = pool
+	}
+}
+
+// WithConnectionObserver registers a callback invoked once per request with
+// whether the underlying connection was reused. Ignored when a client is
+// injected with WithHTTPClient.
+func WithConnectionObserver(fn func(reused bool)) ProviderOption {
+	return func(p *HookdeckProvider) {
+		p.onConnection = fn
 	}
 }
 
@@ -62,6 +84,18 @@ func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePu
 	// Apply options
 	for _, opt := range opts {
 		opt(provider)
+	}
+
+	if provider.httpClient == nil {
+		client, err := destregistry.NewHTTPClient(destregistry.HTTPClientConfig{
+			UserAgent:    &provider.userAgent,
+			Pool:         provider.pool,
+			OnConnection: provider.onConnection,
+		})
+		if err != nil {
+			return nil, err
+		}
+		provider.httpClient = client
 	}
 
 	return provider, nil
@@ -144,26 +178,12 @@ func (p *HookdeckProvider) CreatePublisher(ctx context.Context, destination *mod
 		})
 	}
 
-	// Determine HTTP client
-	var client *http.Client
-	if p.httpClient != nil {
-		client = p.httpClient
-	} else {
-		var err error
-		client, err = destregistry.NewHTTPClient(destregistry.HTTPClientConfig{
-			UserAgent: &p.userAgent,
-		})
-		if err != nil {
-			return nil, err
-		}
-	}
-
 	// Create publisher with base publisher from provider
 	publisher := &HookdeckPublisher{
 		BasePublisher: p.BaseProvider.NewPublisher(destregistry.WithDeliveryMetadata(destination.DeliveryMetadata)),
 		tokenString:   tokenString,
 		parsedToken:   parsedToken,
-		client:        client,
+		client:        p.httpClient,
 	}
 
 	return publisher, nil
