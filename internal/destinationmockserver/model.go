@@ -186,12 +186,21 @@ func verifySignature(secret string, payload []byte, signature string, algorithm 
 		},
 	}
 
+	sigFormatter, err := destwebhook.NewSignatureFormatter(destwebhook.DefaultSignatureContentTmpl)
+	if err != nil {
+		return false
+	}
+	headerFormatter, err := destwebhook.NewHeaderFormatter(destwebhook.DefaultSignatureHeaderTmpl)
+	if err != nil {
+		return false
+	}
+
 	sm := destwebhook.NewSignatureManager(
 		secrets,
 		destwebhook.WithEncoder(destwebhook.GetEncoder(encoding)),
 		destwebhook.WithAlgorithm(destwebhook.GetAlgorithm(algorithm)),
-		destwebhook.WithSignatureFormatter(destwebhook.NewSignatureFormatter(destwebhook.DefaultSignatureContentTmpl)),
-		destwebhook.WithHeaderFormatter(destwebhook.NewHeaderFormatter(destwebhook.DefaultSignatureHeaderTmpl)),
+		destwebhook.WithSignatureFormatter(sigFormatter),
+		destwebhook.WithHeaderFormatter(headerFormatter),
 	)
 
 	for _, sig := range signatures {

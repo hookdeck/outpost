@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destwebhook"
 	testsuite "github.com/hookdeck/outpost/internal/destregistry/testing"
 	"github.com/hookdeck/outpost/internal/models"
@@ -1047,6 +1048,58 @@ func TestWebhookPublisher_PreservesKeyOrder(t *testing.T) {
 	assert.Equal(t, `{"z":1,"a":2,"m":3}`, string(body))
 }
 
+// A template that parses but references a field of the other payload type only
+// fails when it renders. That must fail the delivery, not the process.
+func TestWebhookPublisher_SignatureTemplateRenderFailure(t *testing.T) {
+	dest := testutil.DestinationFactory.Any(
+		testutil.DestinationFactory.WithType("webhook"),
+		testutil.DestinationFactory.WithConfig(map[string]string{
+			"url": "http://example.com",
+		}),
+		testutil.DestinationFactory.WithCredentials(map[string]string{
+			"secret": "test-secret",
+		}),
+	)
+
+	tests := []struct {
+		name string
+		opt  destwebhook.Option
+	}{
+		{
+			name: "content template references .Signatures",
+			opt:  destwebhook.WithSignatureContentTemplate(`v1:{{.Timestamp.Unix}}:{{.Signatures | join ","}}`),
+		},
+		{
+			name: "header template references .Body",
+			opt:  destwebhook.WithSignatureHeaderTemplate("v0={{.Body}}"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			provider := NewTestProvider(t, tt.opt)
+
+			publisher, err := provider.CreatePublisher(context.Background(), &dest)
+			require.NoError(t, err)
+
+			event := testutil.EventFactory.Any(
+				testutil.EventFactory.WithDataMap(map[string]interface{}{"hello": "world"}),
+			)
+
+			assert.NotPanics(t, func() {
+				delivery, err := publisher.Publish(context.Background(), &event)
+				require.Error(t, err)
+				require.NotNil(t, delivery)
+				assert.Equal(t, "failed", delivery.Status)
+
+				var publishErr *destregistry.ErrDestinationPublishAttempt
+				require.ErrorAs(t, err, &publishErr)
+				assert.Equal(t, "format_failed", publishErr.Data["error"])
+			})
+		})
+	}
+}
+
 func TestWebhookPublisher_SignatureTemplates(t *testing.T) {
 	dest := testutil.DestinationFactory.Any(
 		testutil.DestinationFactory.WithType("webhook"),
@@ -1158,10 +1211,14 @@ func TestWebhookPublisher_SignatureTemplates(t *testing.T) {
 			if verifyHeaderTemplate == "" {
 				verifyHeaderTemplate = destwebhook.DefaultSignatureHeaderTmpl
 			}
+			sigFormatter, err := destwebhook.NewSignatureFormatter(verifyContentTemplate)
+			require.NoError(t, err)
+			headerFormatter, err := destwebhook.NewHeaderFormatter(verifyHeaderTemplate)
+			require.NoError(t, err)
 			sm := destwebhook.NewSignatureManager(
 				secrets,
-				destwebhook.WithSignatureFormatter(destwebhook.NewSignatureFormatter(verifyContentTemplate)),
-				destwebhook.WithHeaderFormatter(destwebhook.NewHeaderFormatter(verifyHeaderTemplate)),
+				destwebhook.WithSignatureFormatter(sigFormatter),
+				destwebhook.WithHeaderFormatter(headerFormatter),
 			)
 
 			// Verify signature matches expected content

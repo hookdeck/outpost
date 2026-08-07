@@ -391,10 +391,19 @@ func (d *WebhookDestination) CreatePublisher(ctx context.Context, destination *m
 		})
 	}
 
+	sigFormatter, err := NewSignatureFormatter(d.signatureContentTemplate)
+	if err != nil {
+		return nil, err
+	}
+	headerFormatter, err := NewHeaderFormatter(d.signatureHeaderTemplate)
+	if err != nil {
+		return nil, err
+	}
+
 	sm := NewSignatureManager(
 		secrets,
-		WithSignatureFormatter(NewSignatureFormatter(d.signatureContentTemplate)),
-		WithHeaderFormatter(NewHeaderFormatter(d.signatureHeaderTemplate)),
+		WithSignatureFormatter(sigFormatter),
+		WithHeaderFormatter(headerFormatter),
 		WithEncoder(GetEncoder(d.encoding)),
 		WithAlgorithm(GetAlgorithm(d.algorithm)),
 	)
@@ -762,12 +771,15 @@ func (p *WebhookPublisher) Format(ctx context.Context, event *models.Event) (*ht
 
 	// Add signature header unless disabled
 	if !p.signatureHeader.disabled {
-		signatureHeader := p.sm.GenerateSignatureHeader(SignaturePayload{
+		signatureHeader, err := p.sm.GenerateSignatureHeader(SignaturePayload{
 			EventID:   event.ID,
 			Topic:     event.Topic,
 			Timestamp: now,
 			Body:      string(rawBody),
 		})
+		if err != nil {
+			return nil, err
+		}
 		if signatureHeader != "" {
 			req.Header.Set(resolveHeaderName(p.signatureHeader, p.headerPrefix, "signature"), signatureHeader)
 		}
