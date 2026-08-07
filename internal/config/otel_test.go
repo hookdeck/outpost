@@ -62,20 +62,36 @@ func TestOTelExporterPerSignal(t *testing.T) {
 			},
 		},
 		{
-			name: "explicit exporter wins over endpoint inference",
+			name: "per-signal exporter cannot enable a signal gated off by endpoints",
 			envVars: map[string]string{
 				"OTEL_EXPORTER_OTLP_METRICS_ENDPOINT": "https://collector",
 				"OTEL_TRACES_EXPORTER":                "otlp",
 			},
-			traces: "otlp", metrics: "", logs: "none",
+			traces: "none", metrics: "", logs: "none",
 		},
 		{
-			name: "OTEL_EXPORTER wins over endpoint inference",
+			name: "OTEL_EXPORTER cannot enable signals gated off by endpoints",
 			envVars: map[string]string{
 				"OTEL_EXPORTER_OTLP_METRICS_ENDPOINT": "https://collector",
 				"OTEL_EXPORTER":                       "otlp",
 			},
-			traces: "otlp", metrics: "otlp", logs: "otlp",
+			traces: "none", metrics: "otlp", logs: "none",
+		},
+		{
+			name: "exporter none still disables a signal enabled by the generic endpoint",
+			envVars: map[string]string{
+				"OTEL_EXPORTER_OTLP_ENDPOINT": "https://collector",
+				"OTEL_LOGS_EXPORTER":          "none",
+			},
+			traces: "", metrics: "", logs: "none",
+		},
+		{
+			name: "an endpoint never forces a signal on over exporter none",
+			envVars: map[string]string{
+				"OTEL_EXPORTER_OTLP_METRICS_ENDPOINT": "https://collector",
+				"OTEL_METRICS_EXPORTER":               "none",
+			},
+			traces: "none", metrics: "none", logs: "none",
 		},
 	}
 
@@ -153,6 +169,62 @@ func TestOTelValidateProtocol(t *testing.T) {
 	assert.ErrorIs(t, otelCfg.Validate(), config.ErrInvalidOTelProtocol)
 }
 
+func TestOTelValidateExporter(t *testing.T) {
+	t.Parallel()
+
+	for _, exporter := range []string{"", "otlp", "console", "stdout", "none"} {
+		otelCfg := config.OpenTelemetryConfig{
+			ServiceName: "outpost",
+			Traces:      config.OpenTelemetryTypeConfig{Exporter: exporter},
+		}
+		assert.NoError(t, otelCfg.Validate(), exporter)
+	}
+
+	tests := []struct {
+		name string
+		cfg  config.OpenTelemetryConfig
+	}{
+		{
+			name: "typoed traces exporter",
+			cfg: config.OpenTelemetryConfig{
+				ServiceName: "outpost",
+				Traces:      config.OpenTelemetryTypeConfig{Exporter: "otpl"},
+			},
+		},
+		{
+			name: "invalid metrics exporter",
+			cfg: config.OpenTelemetryConfig{
+				ServiceName: "outpost",
+				Metrics:     config.OpenTelemetryTypeConfig{Exporter: "prometheus"},
+			},
+		},
+		{
+			name: "invalid logs exporter",
+			cfg: config.OpenTelemetryConfig{
+				ServiceName: "outpost",
+				Logs:        config.OpenTelemetryTypeConfig{Exporter: "invalid"},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			err := tt.cfg.Validate()
+			assert.ErrorIs(t, err, config.ErrInvalidOTelExporter)
+			assert.ErrorContains(t, err, "'otlp', 'console', 'stdout' or 'none'")
+		})
+	}
+
+	t.Run("empty service name skips exporter validation", func(t *testing.T) {
+		t.Parallel()
+		otelCfg := config.OpenTelemetryConfig{
+			Traces: config.OpenTelemetryTypeConfig{Exporter: "otpl"},
+		}
+		assert.NoError(t, otelCfg.Validate())
+	})
+}
+
 // Config file values stay in effect; environment variables refine them.
 func TestOTelConfigFileWithEnvOverride(t *testing.T) {
 	t.Parallel()
@@ -180,4 +252,27 @@ otel:
 	assert.Equal(t, "grpc", otelCfg.Traces.Protocol)
 	assert.Equal(t, "otlp", otelCfg.Metrics.Exporter)
 	assert.Equal(t, "none", otelCfg.Logs.Exporter)
+}
+
+// Endpoint gating applies to YAML-configured exporters too: a per-signal
+// endpoint in the environment disables the signals without one, regardless of
+// what the config file asks for.
+func TestOTelEndpointGatingOverridesConfigFile(t *testing.T) {
+	t.Parallel()
+
+	yaml := []byte(`
+otel:
+  service_name: outpost
+  traces:
+    exporter: otlp
+`)
+	cfg, err := config.ParseWithoutValidation(config.Flags{Config: "config.yaml"}, &mockOS{
+		files:   map[string][]byte{"config.yaml": yaml},
+		envVars: map[string]string{"OTEL_EXPORTER_OTLP_METRICS_ENDPOINT": "https://collector"},
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, "none", cfg.OpenTelemetry.Traces.Exporter)
+	assert.Equal(t, "", cfg.OpenTelemetry.Metrics.Exporter)
+	assert.Equal(t, "none", cfg.OpenTelemetry.Logs.Exporter)
 }

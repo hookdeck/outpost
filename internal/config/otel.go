@@ -8,8 +8,8 @@ import (
 )
 
 type OpenTelemetryTypeConfig struct {
-	Exporter string `yaml:"exporter" env:"OTEL_EXPORTER" desc:"Exporter for this signal ('otlp', 'console' or 'none'). Applies to all three signals; override a single signal with OTEL_TRACES_EXPORTER, OTEL_METRICS_EXPORTER or OTEL_LOGS_EXPORTER. If unset, a signal is enabled when its endpoint (or the generic OTEL_EXPORTER_OTLP_ENDPOINT) is set, or when no endpoint is set at all." required:"C"`
-	Protocol string `yaml:"protocol" env:"OTEL_PROTOCOL" desc:"OTLP protocol ('grpc' or 'http') for this signal. Applies to all three signals; the standard OTEL_EXPORTER_OTLP_{TRACES,METRICS,LOGS}_PROTOCOL and OTEL_EXPORTER_OTLP_PROTOCOL take precedence. Defaults to 'grpc'." required:"C"`
+	Exporter string `yaml:"exporter" env:"OTEL_EXPORTER" desc:"How an enabled signal exports: 'otlp' (the default), 'console'/'stdout', or 'none' to disable the signal. Applies to all three signals; override a single signal with OTEL_TRACES_EXPORTER, OTEL_METRICS_EXPORTER or OTEL_LOGS_EXPORTER. Which signals are enabled is decided by the endpoint variables: when one or more OTEL_EXPORTER_OTLP_{TRACES,METRICS,LOGS}_ENDPOINT variables are set without the generic OTEL_EXPORTER_OTLP_ENDPOINT, signals without an endpoint are disabled regardless of any exporter value — an exporter can disable a signal but never enable one." required:"C"`
+	Protocol string `yaml:"protocol" env:"OTEL_PROTOCOL" desc:"OTLP protocol ('grpc', 'http' or 'http/protobuf') for this signal. Applies to all three signals; the standard OTEL_EXPORTER_OTLP_{TRACES,METRICS,LOGS}_PROTOCOL and OTEL_EXPORTER_OTLP_PROTOCOL take precedence. Defaults to 'grpc'." required:"C"`
 }
 
 type OpenTelemetryConfig struct {
@@ -29,6 +29,11 @@ const (
 	// OTelExporterNone disables a signal. It is the specification's value and
 	// falls through to each provider constructor's no-exporter branch.
 	OTelExporterNone = "none"
+
+	OTelExporterOTLP    = "otlp"
+	OTelExporterConsole = "console"
+	// OTelExporterStdout is an alias for "console".
+	OTelExporterStdout = "stdout"
 )
 
 // otelSignals are the signal names as they appear in the specification's
@@ -41,7 +46,7 @@ var validOTelProtocols = map[string]bool{
 	OTelProtocolHTTPProtobuf: true,
 }
 
-var ErrInvalidOTelProtocol = errors.New("config validation error: invalid OpenTelemetry protocol, must be 'grpc' or 'http'")
+var ErrInvalidOTelProtocol = errors.New("config validation error: invalid OpenTelemetry protocol, must be 'grpc', 'http' or 'http/protobuf'")
 
 func validateOTelProtocol(protocol string) error {
 	if protocol == "" {
@@ -49,6 +54,25 @@ func validateOTelProtocol(protocol string) error {
 	}
 	if !validOTelProtocols[protocol] {
 		return ErrInvalidOTelProtocol
+	}
+	return nil
+}
+
+var validOTelExporters = map[string]bool{
+	OTelExporterOTLP:    true,
+	OTelExporterConsole: true,
+	OTelExporterStdout:  true,
+	OTelExporterNone:    true,
+}
+
+var ErrInvalidOTelExporter = errors.New("config validation error: invalid OpenTelemetry exporter, must be 'otlp', 'console', 'stdout' or 'none'")
+
+func validateOTelExporter(exporter string) error {
+	if exporter == "" {
+		return nil // Empty exporter defaults to otlp
+	}
+	if !validOTelExporters[exporter] {
+		return ErrInvalidOTelExporter
 	}
 	return nil
 }
@@ -97,10 +121,13 @@ func (c *OpenTelemetryConfig) resolveOTelEnv(osInterface OSInterface) {
 		}
 	}
 
-	// Endpoint inference, for signals left without an explicit exporter: a
-	// per-signal endpoint enables that signal and disables the others, while
-	// the generic endpoint enables all three. With no endpoint set at all,
-	// every signal stays enabled against the SDK's default endpoint.
+	// Endpoints decide WHICH signals are enabled; exporter values decide HOW
+	// an enabled signal exports (an exporter can disable a signal with "none",
+	// never enable one). When per-signal endpoints are set without the generic
+	// endpoint, every signal without its own endpoint is forced to "none",
+	// regardless of any explicit exporter value. With the generic endpoint set,
+	// or with no endpoint at all (the SDK's default endpoint), no gating
+	// happens and every signal keeps its configured exporter.
 	if osInterface.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT") != "" {
 		return
 	}
@@ -116,8 +143,8 @@ func (c *OpenTelemetryConfig) resolveOTelEnv(osInterface OSInterface) {
 		return
 	}
 	for _, signal := range otelSignals {
-		if cfg := signals[signal]; cfg.Exporter == "" && !endpoints[signal] {
-			cfg.Exporter = OTelExporterNone
+		if !endpoints[signal] {
+			signals[signal].Exporter = OTelExporterNone
 		}
 	}
 }
@@ -134,6 +161,16 @@ func (c *OpenTelemetryConfig) Validate() error {
 		return err
 	}
 	if err := validateOTelProtocol(c.Logs.Protocol); err != nil {
+		return err
+	}
+
+	if err := validateOTelExporter(c.Traces.Exporter); err != nil {
+		return err
+	}
+	if err := validateOTelExporter(c.Metrics.Exporter); err != nil {
+		return err
+	}
+	if err := validateOTelExporter(c.Logs.Exporter); err != nil {
 		return err
 	}
 
