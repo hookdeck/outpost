@@ -292,6 +292,7 @@ func (c *Config) parseEnvVariables(osInterface OSInterface) error {
 
 	c.captureEmptyAlertEnv(osInterface)
 	c.captureEmptyWebhookHeaderEnv(osInterface)
+	c.OpenTelemetry.resolveOTelEnv(osInterface)
 	return nil
 }
 
