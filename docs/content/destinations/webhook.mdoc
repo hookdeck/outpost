@@ -119,7 +119,7 @@ Templates use Go template syntax with helper functions such as `join`. The two t
 | `.Body` | Raw request body | yes | — |
 | `.Signatures` | List of generated signatures for all valid secrets | — | yes |
 
-A field marked `—` is not available in that template. Using it does not render as an empty value — the template still parses, but every delivery that renders it fails.
+A field marked `—` is not available in that template. Using it does not render as an empty value — the template still parses, but the configuration is rejected at startup.
 
 During secret rotation, `.Signatures` contains the current secret's signature first and the previous secret's signature second.
 
@@ -130,7 +130,7 @@ For example, to include a Unix timestamp in the signed content and header, use t
 t={{.Timestamp.Unix}},v0={{.Signatures | join ","}}
 ```
 
-Quote them according to whatever reads the line. In a double-quoted shell string or a JSON body the inner quotes must be escaped as `\"`; in a `.env` file, a Compose `environment:` entry, or a plain or single-quoted YAML scalar they must be left as-is — those pass backslashes through literally, and Go's template parser rejects a backslash inside an action.
+These are the literal template values. If the format carrying them requires escaping — the inner quotes in a JSON string, or in a double-quoted shell string — apply that format's own escaping; a JSON library or the dashboard does this for you.
 
 {% tabs tabGroup="deployment" %}
 {% tab label="Managed" %}
@@ -151,7 +151,7 @@ DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE="{{.Timestamp.Unix}}.{{.Body}}"
 DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE="t={{.Timestamp.Unix}},v0={{.Signatures | join \",\"}}"
 ```
 
-In a `.env` file or a Compose `environment:` entry, no shell parses the line, so write the quotes as-is:
+In a `.env` file or a Compose `environment:` entry, write the value unquoted:
 
 ```sh
 DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE={{.Timestamp.Unix}}.{{.Body}}

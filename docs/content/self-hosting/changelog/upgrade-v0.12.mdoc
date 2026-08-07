@@ -63,16 +63,16 @@ If your webhook receivers verify signatures using the old format, signature veri
 t={{.Timestamp.Unix}},v0={{.Signatures | join ","}}
 ```
 
-Quote them according to whatever reads the line. In a double-quoted shell string the inner quotes are escaped:
+These are the literal template values; if the format carrying them requires escaping, apply that format's own. In a double-quoted shell string the inner quotes are escaped:
 
-```bash
+```sh
 DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE="{{.Timestamp.Unix}}.{{.Body}}"
 DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE="t={{.Timestamp.Unix}},v0={{.Signatures | join \",\"}}"
 ```
 
-In a `.env` file, a Compose `environment:` entry, or a plain YAML scalar, nothing unescapes the line before Go sees it, so write the quotes as-is:
+In a `.env` file or a Compose `environment:` entry, write the value unquoted:
 
-```bash
+```sh
 DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE={{.Timestamp.Unix}}.{{.Body}}
 DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE=t={{.Timestamp.Unix}},v0={{.Signatures | join ","}}
 ```
