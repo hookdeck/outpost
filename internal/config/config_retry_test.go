@@ -2,6 +2,7 @@ package config_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/hookdeck/outpost/internal/config"
 	"github.com/stretchr/testify/assert"
@@ -102,6 +103,59 @@ retry_interval_seconds: 60
 			assert.Equal(t, tt.wantSchedule, cfg.RetrySchedule)
 			assert.Equal(t, tt.wantInterval, cfg.RetryIntervalSeconds)
 			assert.Equal(t, tt.wantMaxLimit, cfg.RetryMaxLimit)
+		})
+	}
+}
+
+func TestGetRetryPollBackoff(t *testing.T) {
+	tests := []struct {
+		name string
+		yaml string
+		want time.Duration
+	}{
+		{
+			name: "defaults to 30s, the default retry interval",
+			yaml: "",
+			want: 30 * time.Second,
+		},
+		{
+			name: "capped at a retry interval shorter than the backoff",
+			yaml: "retry_interval_seconds: 5\n",
+			want: 5 * time.Second,
+		},
+		{
+			name: "capped at the shortest entry of a custom schedule",
+			yaml: "retry_schedule: [10, 5, 300]\n",
+			want: 5 * time.Second,
+		},
+		{
+			name: "a schedule longer than the backoff leaves it alone",
+			yaml: "retry_schedule: [60, 300]\n",
+			want: 30 * time.Second,
+		},
+		{
+			name: "an explicitly configured backoff below the cap is used as-is",
+			yaml: "retry_poll_backoff_ms: 100\n",
+			want: 100 * time.Millisecond,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockOS := &mockOS{
+				files:   map[string][]byte{"config.yaml": []byte(tt.yaml)},
+				envVars: map[string]string{"CONFIG": "config.yaml"},
+			}
+
+			mockOS.envVars["API_KEY"] = "test-key"
+			mockOS.envVars["API_JWT_SECRET"] = "test-jwt-secret"
+			mockOS.envVars["AES_ENCRYPTION_SECRET"] = "test-aes-secret-16b"
+			mockOS.envVars["POSTGRES_URL"] = "postgres://localhost:5432/test"
+			mockOS.envVars["RABBITMQ_SERVER_URL"] = "amqp://localhost:5672"
+
+			cfg, err := config.ParseWithOS(config.Flags{}, mockOS)
+			assert.NoError(t, err)
+			assert.Equal(t, tt.want, cfg.GetRetryPollBackoff())
 		})
 	}
 }

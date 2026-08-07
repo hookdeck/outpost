@@ -16,7 +16,7 @@ import (
 )
 
 // mockRSMQ is a test double that wraps a real RSMQ client and injects
-// transient errors into ReceiveMessage for the first failCount calls.
+// transient errors into ReceiveMessagePoll for the first failCount calls.
 type mockRSMQ struct {
 	inner     *rsmq.RedisSMQ
 	calls     atomic.Int64
@@ -28,11 +28,11 @@ func (m *mockRSMQ) CreateQueue(qname string, vt uint, delay uint, maxsize int) e
 	return m.inner.CreateQueue(qname, vt, delay, maxsize)
 }
 
-func (m *mockRSMQ) ReceiveMessage(qname string, vt uint) (*rsmq.QueueMessage, error) {
+func (m *mockRSMQ) ReceiveMessagePoll(qname string, vt uint) (rsmq.PollResult, error) {
 	if m.calls.Add(1) <= m.failCount {
-		return nil, m.failErr
+		return rsmq.PollResult{}, m.failErr
 	}
-	return m.inner.ReceiveMessage(qname, vt)
+	return m.inner.ReceiveMessagePoll(qname, vt)
 }
 
 func (m *mockRSMQ) SendMessage(qname string, message string, delay uint, opts ...rsmq.SendMessageOption) (string, error) {
@@ -63,14 +63,14 @@ func (m *immediateVisibilityRSMQ) ChangeMessageVisibility(qname string, id strin
 	return m.Client.ChangeMessageVisibility(qname, id, 0)
 }
 
-// alwaysFailRSMQ is a test double that always fails ReceiveMessage.
+// alwaysFailRSMQ is a test double that always fails ReceiveMessagePoll.
 type alwaysFailRSMQ struct {
 	err error
 }
 
 func (m *alwaysFailRSMQ) CreateQueue(string, uint, uint, int) error { return nil }
-func (m *alwaysFailRSMQ) ReceiveMessage(string, uint) (*rsmq.QueueMessage, error) {
-	return nil, m.err
+func (m *alwaysFailRSMQ) ReceiveMessagePoll(string, uint) (rsmq.PollResult, error) {
+	return rsmq.PollResult{}, m.err
 }
 func (m *alwaysFailRSMQ) SendMessage(string, string, uint, ...rsmq.SendMessageOption) (string, error) {
 	return "", nil
@@ -130,6 +130,44 @@ func TestScheduler_Basic(t *testing.T) {
 	time.Sleep(time.Second)
 	require.Len(t, msgs, 3)
 	require.Equal(t, ids[2], msgs[2])
+}
+
+// TestScheduler_IdleSleepWakesOnDueMessage asserts the monitor sleeps until the
+// next message is due rather than for the full poll backoff. The backoff here
+// is far longer than the test, so a monitor that slept it flat would never run
+// the task.
+func TestScheduler_IdleSleepWakesOnDueMessage(t *testing.T) {
+	t.Parallel()
+
+	redisConfig := testutil.CreateTestRedisConfig(t)
+	rsmqClient := createRSMQClient(t, redisConfig)
+	logger := testutil.CreateTestLogger(t)
+
+	done := make(chan time.Time, 1)
+	exec := func(_ context.Context, id string) error {
+		done <- time.Now()
+		return nil
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	s := scheduler.New("scheduler", rsmqClient, exec,
+		scheduler.WithPollBackoff(time.Minute),
+		scheduler.WithLogger(logger))
+	require.NoError(t, s.Init(ctx))
+	defer func() { cancel(); s.Shutdown() }()
+
+	// Schedule before the monitor starts so its first poll finds the message
+	// pending and has to compute the sleep from the message's due time.
+	require.NoError(t, s.Schedule(ctx, idgen.String(), 1*time.Second))
+	start := time.Now()
+	go s.Monitor(ctx)
+
+	select {
+	case at := <-done:
+		require.WithinDuration(t, start.Add(time.Second), at, 500*time.Millisecond)
+	case <-time.After(5 * time.Second):
+		t.Fatal("task was not executed; monitor slept the full poll backoff")
+	}
 }
 
 func TestScheduler_ParallelMonitor(t *testing.T) {
@@ -464,8 +502,8 @@ func TestScheduler_MonitorRetriesTransientErrors(t *testing.T) {
 	id := idgen.String()
 	require.NoError(t, s.Schedule(ctx, id, 0))
 
-	time.Sleep(time.Second)
-	require.Len(t, msgs, 1)
+	// 3 errors back off 100ms + 200ms + 400ms before the message is received.
+	require.Eventually(t, func() bool { return len(msgs) == 1 }, 5*time.Second, 20*time.Millisecond)
 	require.Equal(t, id, msgs[0])
 }
 

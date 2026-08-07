@@ -37,6 +37,14 @@ type schedulerImpl struct {
 	exec       func(context.Context, string) error
 }
 
+const (
+	// errorBackoffBase is the first delay of the consecutive-error ladder, and
+	// minIdleSleep the floor on an idle sleep. Both are internal so the error
+	// tolerance documented in New stays fixed regardless of pollBackoff.
+	errorBackoffBase = 100 * time.Millisecond
+	minIdleSleep     = 10 * time.Millisecond
+)
+
 type config struct {
 	visibilityTimeout    uint
 	pollBackoff          time.Duration
@@ -55,6 +63,12 @@ func WithVisibilityTimeout(vt uint) Option {
 	}
 }
 
+// WithPollBackoff sets the maximum time the monitor sleeps when no message is
+// due. When the queue holds a message that is not yet visible, the monitor
+// instead sleeps until that message comes due, so the actual sleep is
+// min(timeUntilNextMessage, backoff). Worst-case lateness is therefore bounded
+// by backoff, and is zero when backoff is at most the shortest delay anything
+// is scheduled with.
 func WithPollBackoff(backoff time.Duration) Option {
 	return func(c *config) {
 		c.pollBackoff = backoff
@@ -86,7 +100,7 @@ func WithLogger(logger *logging.Logger) Option {
 }
 
 func New(name string, rsmqClient rsmq.Client, exec func(context.Context, string) error, opts ...Option) Scheduler {
-	// Error retry schedule (with 100ms pollBackoff used by retrymq):
+	// Error retry schedule:
 	//
 	//   Error  Backoff    Cumulative
 	//   1      100ms      0.1s
@@ -100,7 +114,9 @@ func New(name string, rsmqClient rsmq.Client, exec func(context.Context, string)
 	//   9      15s (cap)  40.5s
 	//   10     15s (cap)  55.5s      ← worker dies (~1 min total)
 	//
-	// Backoff formula: pollBackoff * 2^(attempt-1), capped at maxErrorBackoff.
+	// Backoff formula: errorBackoffBase * 2^(attempt-1), capped at
+	// maxErrorBackoff. The ladder is independent of pollBackoff so that this
+	// tolerance holds however the idle poll interval is configured.
 	// After maxConsecutiveErrors the worker dies permanently (supervisor does
 	// not restart it), so these values must tolerate transient infra outages
 	// (e.g. managed Redis/Dragonfly restarts) without killing the worker.
@@ -170,13 +186,13 @@ func (s *schedulerImpl) Monitor(ctx context.Context) error {
 		case <-ctx.Done():
 			return nil
 		default:
-			msg, err := s.rsmqClient.ReceiveMessage(s.name, rsmq.UnsetVt)
+			res, err := s.rsmqClient.ReceiveMessagePoll(s.name, rsmq.UnsetVt)
 			if err != nil {
 				consecutiveErrors++
 				if consecutiveErrors >= s.config.maxConsecutiveErrors {
 					return fmt.Errorf("max consecutive errors reached: %w", err)
 				}
-				backoff := min(s.config.pollBackoff*time.Duration(1<<(consecutiveErrors-1)), s.config.maxErrorBackoff)
+				backoff := min(errorBackoffBase*time.Duration(1<<(consecutiveErrors-1)), s.config.maxErrorBackoff)
 				s.config.logger.Ctx(ctx).Warn("scheduler receive error, retrying",
 					zap.Error(err),
 					zap.Int("attempt", consecutiveErrors),
@@ -189,8 +205,13 @@ func (s *schedulerImpl) Monitor(ctx context.Context) error {
 				continue
 			}
 			consecutiveErrors = 0
+			msg := res.Message
 			if msg == nil {
-				time.Sleep(s.config.pollBackoff)
+				select {
+				case <-ctx.Done():
+					return nil
+				case <-time.After(s.idleSleep(res)):
+				}
 				continue
 			}
 			if s.config.maxReceiveCount > 0 && msg.Rc > s.config.maxReceiveCount {
@@ -211,6 +232,20 @@ func (s *schedulerImpl) Monitor(ctx context.Context) error {
 			}()
 		}
 	}
+}
+
+// idleSleep returns how long to wait before the next poll when nothing was
+// due. An empty queue waits the full pollBackoff; otherwise the wait is capped
+// at the time until the queue's earliest message becomes visible, so a message
+// scheduled before the monitor started sleeping is picked up on time.
+func (s *schedulerImpl) idleSleep(res rsmq.PollResult) time.Duration {
+	sleep := s.config.pollBackoff
+	if res.HasNext && res.NextDue < sleep {
+		sleep = res.NextDue
+	}
+	// Floor the wait so a message that is due in a millisecond does not turn
+	// the monitor into a spin loop; never above the configured maximum.
+	return max(sleep, min(minIdleSleep, s.config.pollBackoff))
 }
 
 // moveToDLQ dead-letters a message that exceeded the max receive count. The

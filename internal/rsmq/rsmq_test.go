@@ -474,6 +474,80 @@ func (s *RSMQSuite) TestReceiveMessage() {
 	})
 }
 
+func (s *RSMQSuite) TestReceiveMessagePoll() {
+	t := s.T()
+	qname := "que"
+
+	err := s.rsmq.CreateQueue(qname, UnsetVt, UnsetDelay, UnsetMaxsize)
+	assert.Nil(t, err, "error is not nil on creating a queue")
+
+	t.Run("empty queue reports no next message", func(t *testing.T) {
+		res, err := s.rsmq.ReceiveMessagePoll(qname, UnsetVt)
+		assert.Nil(t, err, "error is not nil on polling an empty queue")
+		assert.Nil(t, res.Message, "message is not nil on polling an empty queue")
+		assert.False(t, res.HasNext, "HasNext is true on polling an empty queue")
+	})
+
+	t.Run("delayed message reports when it comes due", func(t *testing.T) {
+		id, err := s.rsmq.SendMessage(qname, "delayed", 30)
+		assert.Nil(t, err, "error is not nil on sending a delayed message")
+
+		res, err := s.rsmq.ReceiveMessagePoll(qname, UnsetVt)
+		assert.Nil(t, err, "error is not nil on polling for a not-yet-due message")
+		assert.Nil(t, res.Message, "message is not nil while the message is not due")
+		assert.True(t, res.HasNext, "HasNext is false while a message is queued")
+		assert.Greater(t, res.NextDue, 25*time.Second, "NextDue is too small")
+		assert.LessOrEqual(t, res.NextDue, 30*time.Second, "NextDue is too large")
+
+		assert.Nil(t, s.rsmq.DeleteMessage(qname, id), "error is not nil on cleaning up")
+	})
+
+	t.Run("due message is returned", func(t *testing.T) {
+		id, err := s.rsmq.SendMessage(qname, "message", UnsetDelay)
+		assert.Nil(t, err, "error is not nil on sending a message")
+
+		res, err := s.rsmq.ReceiveMessagePoll(qname, UnsetVt)
+		assert.Nil(t, err, "error is not nil on polling for a due message")
+		assert.NotNil(t, res.Message, "message is nil on polling for a due message")
+		assert.Equal(t, id, res.Message.ID, "message ID is not as expected")
+		assert.Equal(t, "message", res.Message.Message, "message body is not as expected")
+		assert.Equal(t, uint64(1), res.Message.Rc, "receive count is not as expected")
+
+		// The message is now hidden by vt rather than removed, so the queue
+		// still reports it as the next one due.
+		res, err = s.rsmq.ReceiveMessagePoll(qname, UnsetVt)
+		assert.Nil(t, err, "error is not nil on polling for a hidden message")
+		assert.Nil(t, res.Message, "message is not nil while hidden by vt")
+		assert.True(t, res.HasNext, "HasNext is false while a message is hidden by vt")
+		assert.Greater(t, res.NextDue, time.Duration(0), "NextDue is not positive while hidden by vt")
+		assert.LessOrEqual(t, res.NextDue, time.Duration(DefaultVt)*time.Second, "NextDue exceeds vt")
+
+		assert.Nil(t, s.rsmq.DeleteMessage(qname, id), "error is not nil on cleaning up")
+	})
+
+	t.Run("explicit vt overrides the queue vt", func(t *testing.T) {
+		id, err := s.rsmq.SendMessage(qname, "message", UnsetDelay)
+		assert.Nil(t, err, "error is not nil on sending a message")
+
+		res, err := s.rsmq.ReceiveMessagePoll(qname, 100)
+		assert.Nil(t, err, "error is not nil on polling with an explicit vt")
+		assert.NotNil(t, res.Message, "message is nil on polling with an explicit vt")
+
+		res, err = s.rsmq.ReceiveMessagePoll(qname, UnsetVt)
+		assert.Nil(t, err, "error is not nil on polling for a hidden message")
+		assert.Nil(t, res.Message, "message is not nil while hidden by the explicit vt")
+		assert.Greater(t, res.NextDue, time.Duration(DefaultVt)*time.Second, "explicit vt was not applied")
+
+		assert.Nil(t, s.rsmq.DeleteMessage(qname, id), "error is not nil on cleaning up")
+	})
+
+	t.Run("error when the queue does not exist", func(t *testing.T) {
+		res, err := s.rsmq.ReceiveMessagePoll("non-existing", UnsetVt)
+		assert.Equal(t, ErrQueueNotFound, err, "error is not as expected")
+		assert.Nil(t, res.Message, "message is not nil on polling a non-existing queue")
+	})
+}
+
 func (s *RSMQSuite) TestPopMessage() {
 	t := s.T()
 	qname := "que"

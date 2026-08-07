@@ -142,10 +142,23 @@ type QueueMessage struct {
 	Sent    time.Time
 }
 
+// PollResult is the outcome of a ReceiveMessagePoll call.
+type PollResult struct {
+	// Message is the received message, or nil if nothing was due.
+	Message *QueueMessage
+	// HasNext reports whether the queue holds any message at all. It is only
+	// meaningful when Message is nil.
+	HasNext bool
+	// NextDue is how long until the earliest message in the queue becomes
+	// visible. It is only meaningful when Message is nil and HasNext is true,
+	// and it is never negative.
+	NextDue time.Duration
+}
+
 // Client is the subset of *RedisSMQ methods used by consumers (e.g., scheduler)
 type Client interface {
 	CreateQueue(qname string, vt uint, delay uint, maxsize int) error
-	ReceiveMessage(qname string, vt uint) (*QueueMessage, error)
+	ReceiveMessagePoll(qname string, vt uint) (PollResult, error)
 	SendMessage(qname string, message string, delay uint, opts ...SendMessageOption) (string, error)
 	ChangeMessageVisibility(qname string, id string, vt uint) error
 	DeleteMessage(qname string, id string) error
@@ -524,31 +537,80 @@ func (rsmq *RedisSMQ) SendMessage(qname string, message string, delay uint, opts
 
 // ReceiveMessage receives message from the queue
 func (rsmq *RedisSMQ) ReceiveMessage(qname string, vt uint) (*QueueMessage, error) {
-	if err := validateQname(qname); err != nil {
-		return nil, err
-	}
-
-	queue, err := rsmq.getQueue(qname, true)
+	res, err := rsmq.ReceiveMessagePoll(qname, vt)
 	if err != nil {
 		return nil, err
 	}
+	return res.Message, nil
+}
 
-	if vt == UnsetVt {
-		vt = queue.vt
+// ReceiveMessagePoll receives a message from the queue and, when nothing is
+// due, reports when the queue's earliest message becomes visible so the caller
+// can sleep until then instead of polling on a fixed interval.
+func (rsmq *RedisSMQ) ReceiveMessagePoll(qname string, vt uint) (PollResult, error) {
+	if err := validateQname(qname); err != nil {
+		return PollResult{}, err
 	}
 
-	if err := validateVt(vt); err != nil {
-		return nil, err
+	vtArg := ""
+	if vt != UnsetVt {
+		if err := validateVt(vt); err != nil {
+			return PollResult{}, err
+		}
+		vtArg = strconv.FormatUint(uint64(vt), 10)
 	}
 
 	key := rsmq.ns + qname
 	hashKey := key + q // key + ":Q"
 
-	qvt := strconv.FormatUint(queue.ts+uint64(vt)*1000, 10)
-	ct := strconv.FormatUint(queue.ts, 10)
+	evalCmd := rsmq.client.EvalSha(hashReceiveMessage, []string{key, hashKey}, vtArg)
+	return rsmq.createPollResult(evalCmd)
+}
 
-	evalCmd := rsmq.client.EvalSha(hashReceiveMessage, []string{key, hashKey}, ct, qvt)
-	return rsmq.createQueueMessage(evalCmd)
+func (rsmq *RedisSMQ) createPollResult(cmd *redis.Cmd) (PollResult, error) {
+	if err := cmd.Err(); err != nil {
+		return PollResult{}, fmt.Errorf("rsmq command failed: %w", err)
+	}
+
+	vals, err := toAnySlice(cmd.Val())
+	if err != nil {
+		return PollResult{}, err
+	}
+	if len(vals) == 0 {
+		return PollResult{}, fmt.Errorf("empty receiveMessage response")
+	}
+
+	tag, ok := vals[0].(string)
+	if !ok {
+		return PollResult{}, fmt.Errorf("mismatched receiveMessage tag type: got %T", vals[0])
+	}
+
+	switch tag {
+	case "n":
+		return PollResult{}, ErrQueueNotFound
+	case "e":
+		if len(vals) != 3 {
+			return PollResult{}, fmt.Errorf("malformed receiveMessage empty response: %v", vals)
+		}
+		if convertIntToUint(vals[1]) == 0 {
+			return PollResult{}, nil
+		}
+		return PollResult{
+			HasNext: true,
+			NextDue: time.Duration(convertIntToUint(vals[2])) * time.Millisecond,
+		}, nil
+	case "m":
+		if len(vals) != 5 {
+			return PollResult{}, fmt.Errorf("malformed receiveMessage response: %v", vals)
+		}
+		msg, err := buildQueueMessage(vals[1:])
+		if err != nil {
+			return PollResult{}, err
+		}
+		return PollResult{Message: msg}, nil
+	default:
+		return PollResult{}, fmt.Errorf("unknown receiveMessage tag: %q", tag)
+	}
 }
 
 // PopMessage pop message from queue
@@ -577,28 +639,34 @@ func (rsmq *RedisSMQ) createQueueMessage(cmd *redis.Cmd) (*QueueMessage, error) 
 		return nil, fmt.Errorf("rsmq command failed: %w", err)
 	}
 
-	val := cmd.Val()
-
-	// Handle nil response - some Redis-compatible databases (e.g., Dragonfly)
-	// may return nil instead of empty array when no message is available
-	if val == nil {
-		return nil, nil
-	}
-
-	// Try different type assertions for cluster vs regular client compatibility
-	var vals []any
-	if v, ok := val.([]any); ok {
-		vals = v
-	} else if v, ok := val.([]interface{}); ok {
-		vals = make([]any, len(v))
-		for i, item := range v {
-			vals[i] = item
-		}
-	} else {
-		return nil, fmt.Errorf("mismatched message response type: got %T, value: %v", val, val)
+	vals, err := toAnySlice(cmd.Val())
+	if err != nil {
+		return nil, err
 	}
 	if len(vals) == 0 {
 		return nil, nil
+	}
+	return buildQueueMessage(vals)
+}
+
+// toAnySlice normalizes a script reply into a slice. A nil reply becomes an
+// empty slice — some Redis-compatible databases (e.g., Dragonfly) return nil
+// instead of an empty array.
+func toAnySlice(val any) ([]any, error) {
+	if val == nil {
+		return nil, nil
+	}
+	v, ok := val.([]any)
+	if !ok {
+		return nil, fmt.Errorf("mismatched message response type: got %T, value: %v", val, val)
+	}
+	return v, nil
+}
+
+// buildQueueMessage converts a {id, message, rc, fr} reply into a QueueMessage.
+func buildQueueMessage(vals []any) (*QueueMessage, error) {
+	if len(vals) < 4 {
+		return nil, fmt.Errorf("malformed message response: %v", vals)
 	}
 	id := vals[0].(string)
 	message := vals[1].(string)
