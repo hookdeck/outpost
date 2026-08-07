@@ -229,3 +229,40 @@ func TestWebhookDestination_SignatureOptions(t *testing.T) {
 		})
 	}
 }
+
+// Formatters are built in New() now, so a template that doesn't parse fails
+// provider construction rather than the first CreatePublisher call.
+func TestWebhookDestination_InvalidSignatureTemplate(t *testing.T) {
+	baseOpts := []destwebhook.Option{
+		destwebhook.WithHeaderPrefix(destwebhook.DefaultHeaderPrefix),
+		destwebhook.WithSignatureContentTemplate(destwebhook.DefaultSignatureContentTmpl),
+		destwebhook.WithSignatureHeaderTemplate(destwebhook.DefaultSignatureHeaderTmpl),
+		destwebhook.WithSignatureEncoding(destwebhook.DefaultEncoding),
+		destwebhook.WithSignatureAlgorithm(destwebhook.DefaultAlgorithm),
+		destwebhook.WithSigningSecretTemplate(destwebhook.DefaultSigningSecretTmpl),
+	}
+
+	tests := []struct {
+		name    string
+		opt     destwebhook.Option
+		wantErr string
+	}{
+		{
+			name:    "content template",
+			opt:     destwebhook.WithSignatureContentTemplate("{{.Timestamp.{{.Body}}"),
+			wantErr: "invalid signature content template",
+		},
+		{
+			name:    "header template",
+			opt:     destwebhook.WithSignatureHeaderTemplate("t={{.Timestamp},v0={{.Signatures}"),
+			wantErr: "invalid signature header template",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := destwebhook.New(testutil.Registry.MetadataLoader(), nil, append(baseOpts, tt.opt)...)
+			assert.ErrorContains(t, err, tt.wantErr)
+		})
+	}
+}

@@ -104,6 +104,15 @@ type WebhookDestination struct {
 	topicHeader              headerConfig
 	encoding                 string
 	algorithm                string
+	// Built once in New() and shared by every publisher: both are derived
+	// solely from provider config, and a parsed template is safe for parallel
+	// execution. Building them per destination gave each cached publisher its
+	// own copy of two sprig function maps (~44 KB retained per publisher).
+	signatureFormatter SignatureFormatter
+	headerFormatter    HeaderFormatter
+	encoder            SignatureEncoder
+	signingAlgorithm   SigningAlgorithm
+
 	rawSigningSecretTemplate string
 	signingSecretTemplate    *template.Template
 	maxResponseBodyBytes     int
@@ -300,6 +309,18 @@ func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePu
 		seenNames[effective] = h.label
 	}
 
+	// Build the signature formatters once — shared by every publisher
+	destination.signatureFormatter, err = NewSignatureFormatter(destination.signatureContentTemplate)
+	if err != nil {
+		return nil, err
+	}
+	destination.headerFormatter, err = NewHeaderFormatter(destination.signatureHeaderTemplate)
+	if err != nil {
+		return nil, err
+	}
+	destination.encoder = GetEncoder(destination.encoding)
+	destination.signingAlgorithm = GetAlgorithm(destination.algorithm)
+
 	// Parse signing secret template — fail on invalid syntax
 	tmpl, err := template.New("signing_secret").Funcs(sprig.TxtFuncMap()).Parse(destination.rawSigningSecretTemplate)
 	if err != nil {
@@ -391,21 +412,12 @@ func (d *WebhookDestination) CreatePublisher(ctx context.Context, destination *m
 		})
 	}
 
-	sigFormatter, err := NewSignatureFormatter(d.signatureContentTemplate)
-	if err != nil {
-		return nil, err
-	}
-	headerFormatter, err := NewHeaderFormatter(d.signatureHeaderTemplate)
-	if err != nil {
-		return nil, err
-	}
-
 	sm := NewSignatureManager(
 		secrets,
-		WithSignatureFormatter(sigFormatter),
-		WithHeaderFormatter(headerFormatter),
-		WithEncoder(GetEncoder(d.encoding)),
-		WithAlgorithm(GetAlgorithm(d.algorithm)),
+		WithSignatureFormatter(d.signatureFormatter),
+		WithHeaderFormatter(d.headerFormatter),
+		WithEncoder(d.encoder),
+		WithAlgorithm(d.signingAlgorithm),
 	)
 
 	var proxyURL *string
