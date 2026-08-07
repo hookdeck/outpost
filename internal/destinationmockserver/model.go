@@ -36,12 +36,28 @@ type mockStore struct {
 	mu           sync.RWMutex
 	destinations map[string]models.Destination
 	events       map[string][]Event
+
+	// Built once at construction — shared by every verifySignature call.
+	sigFormatter    destwebhook.SignatureFormatter
+	headerFormatter destwebhook.HeaderFormatter
 }
 
 func NewMockStore() MockStore {
+	// The default templates are package constants, so construction cannot
+	// fail at runtime — a panic here means the constants themselves are broken.
+	sigFormatter, err := destwebhook.NewSignatureFormatter(destwebhook.DefaultSignatureContentTmpl)
+	if err != nil {
+		panic(fmt.Sprintf("destinationmockserver: invalid default signature content template: %v", err))
+	}
+	headerFormatter, err := destwebhook.NewHeaderFormatter(destwebhook.DefaultSignatureHeaderTmpl)
+	if err != nil {
+		panic(fmt.Sprintf("destinationmockserver: invalid default signature header template: %v", err))
+	}
 	return &mockStore{
-		destinations: make(map[string]models.Destination),
-		events:       make(map[string][]Event),
+		destinations:    make(map[string]models.Destination),
+		events:          make(map[string][]Event),
+		sigFormatter:    sigFormatter,
+		headerFormatter: headerFormatter,
 	}
 }
 
@@ -120,7 +136,7 @@ func (s *mockStore) ReceiveEvent(ctx context.Context, destinationID string, rawB
 	if signature := metadata["signature"]; signature != "" {
 		// Try current secret
 		if secret := destination.Credentials["secret"]; secret != "" {
-			event.Verified = verifySignature(
+			event.Verified = s.verifySignature(
 				secret,
 				rawBody,
 				signature,
@@ -136,7 +152,7 @@ func (s *mockStore) ReceiveEvent(ctx context.Context, destinationID string, rawB
 				if invalidAtStr := destination.Credentials["previous_secret_invalid_at"]; invalidAtStr != "" {
 					if invalidAt, err := time.Parse(time.RFC3339, invalidAtStr); err == nil {
 						if time.Now().Before(invalidAt) {
-							event.Verified = verifySignature(
+							event.Verified = s.verifySignature(
 								prevSecret,
 								rawBody,
 								signature,
@@ -155,7 +171,7 @@ func (s *mockStore) ReceiveEvent(ctx context.Context, destinationID string, rawB
 }
 
 // verifySignature verifies the signature using the provided secret and algorithm
-func verifySignature(secret string, payload []byte, signature string, algorithm string, encoding string) bool {
+func (s *mockStore) verifySignature(secret string, payload []byte, signature string, algorithm string, encoding string) bool {
 	log.Println("verifySignature", secret, payload, signature, algorithm, encoding)
 	if signature == "" {
 		return false
@@ -186,21 +202,12 @@ func verifySignature(secret string, payload []byte, signature string, algorithm 
 		},
 	}
 
-	sigFormatter, err := destwebhook.NewSignatureFormatter(destwebhook.DefaultSignatureContentTmpl)
-	if err != nil {
-		return false
-	}
-	headerFormatter, err := destwebhook.NewHeaderFormatter(destwebhook.DefaultSignatureHeaderTmpl)
-	if err != nil {
-		return false
-	}
-
 	sm := destwebhook.NewSignatureManager(
 		secrets,
 		destwebhook.WithEncoder(destwebhook.GetEncoder(encoding)),
 		destwebhook.WithAlgorithm(destwebhook.GetAlgorithm(algorithm)),
-		destwebhook.WithSignatureFormatter(sigFormatter),
-		destwebhook.WithHeaderFormatter(headerFormatter),
+		destwebhook.WithSignatureFormatter(s.sigFormatter),
+		destwebhook.WithHeaderFormatter(s.headerFormatter),
 	)
 
 	for _, sig := range signatures {
