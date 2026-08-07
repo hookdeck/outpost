@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destwebhook"
+	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -207,7 +208,11 @@ func TestHeaderFormatter_ErrorsOnUnknownField(t *testing.T) {
 	})
 }
 
-func TestValidateSignatureTemplates(t *testing.T) {
+// New parses both signature templates and dry-runs them against synthetic
+// payloads, so both a template that doesn't parse and one that borrows a field
+// from the other payload type fail construction rather than the first
+// delivery.
+func TestNew_ValidatesSignatureTemplates(t *testing.T) {
 	tests := []struct {
 		name    string
 		content string
@@ -264,7 +269,14 @@ func TestValidateSignatureTemplates(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := destwebhook.ValidateSignatureTemplates(tt.content, tt.header)
+			_, err := destwebhook.New(testutil.Registry.MetadataLoader(), nil,
+				destwebhook.WithHeaderPrefix(destwebhook.DefaultHeaderPrefix),
+				destwebhook.WithSignatureContentTemplate(tt.content),
+				destwebhook.WithSignatureHeaderTemplate(tt.header),
+				destwebhook.WithSignatureEncoding(destwebhook.DefaultEncoding),
+				destwebhook.WithSignatureAlgorithm(destwebhook.DefaultAlgorithm),
+				destwebhook.WithSigningSecretTemplate(destwebhook.DefaultSigningSecretTmpl),
+			)
 			if tt.wantErr == "" {
 				assert.NoError(t, err)
 				return

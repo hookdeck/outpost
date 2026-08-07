@@ -1061,17 +1061,18 @@ func TestWebhookPublisher_SignatureTemplateRenderFailure(t *testing.T) {
 		}),
 	)
 
+	// Wrong-field templates now fail provider construction (see
+	// TestNew_ValidatesSignatureTemplates), so this uses a value-dependent
+	// template: it survives the construction dry-run, which renders against
+	// two synthetic signatures, and fails here where the single configured
+	// secret yields only one.
 	tests := []struct {
 		name string
 		opt  destwebhook.Option
 	}{
 		{
-			name: "content template references .Signatures",
-			opt:  destwebhook.WithSignatureContentTemplate(`v1:{{.Timestamp.Unix}}:{{.Signatures | join ","}}`),
-		},
-		{
-			name: "header template references .Body",
-			opt:  destwebhook.WithSignatureHeaderTemplate("v0={{.Body}}"),
+			name: "header template indexes a signature that doesn't exist",
+			opt:  destwebhook.WithSignatureHeaderTemplate("v0={{index .Signatures 1}}"),
 		},
 	}
 

@@ -57,10 +57,6 @@ func (c *Config) Validate(flags Flags) error {
 		return err
 	}
 
-	if err := c.validateDestinations(); err != nil {
-		return err
-	}
-
 	// Mark as validated if we get here
 	c.validated = true
 	return nil
@@ -70,16 +66,6 @@ func (c *Config) Validate(flags Flags) error {
 // consecutive_failure_count / exhausted_retries_window_seconds) at startup.
 func (c *Config) validateAlert() error {
 	if _, err := c.Alert.ToConfig(); err != nil {
-		return err
-	}
-	return nil
-}
-
-// validateDestinations rejects destination config that would otherwise only
-// fail on the first delivery — currently the webhook signature templates, which
-// are rendered here against a synthetic payload.
-func (c *Config) validateDestinations() error {
-	if err := c.Destinations.Webhook.validateSignatureTemplates(); err != nil {
 		return err
 	}
 	return nil

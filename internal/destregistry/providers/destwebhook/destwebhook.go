@@ -318,6 +318,13 @@ func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePu
 	if err != nil {
 		return nil, err
 	}
+	// Dry-run render both, so a template that parses but references a field
+	// its payload type doesn't have fails construction even when the provider
+	// is built outside config validation.
+	if err := dryRunFormatters(destination.signatureFormatter, destination.headerFormatter,
+		destination.signatureContentTemplate, destination.signatureHeaderTemplate); err != nil {
+		return nil, err
+	}
 	destination.encoder = GetEncoder(destination.encoding)
 	destination.signingAlgorithm = GetAlgorithm(destination.algorithm)
 

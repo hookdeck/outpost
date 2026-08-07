@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	destregistrydefault "github.com/hookdeck/outpost/internal/destregistry/providers"
-	"github.com/hookdeck/outpost/internal/destregistry/providers/destwebhook"
 	"github.com/hookdeck/outpost/internal/version"
 )
 
@@ -113,17 +112,6 @@ func (c *DestinationWebhookConfig) toConfig() *destregistrydefault.DestWebhookCo
 		SigningSecretTemplate:    c.SigningSecretTemplate,
 		MaxResponseBodyBytes:     c.MaxResponseBodyBytes,
 	}
-}
-
-// validateSignatureTemplates fails startup on a signature template that would
-// otherwise only blow up on the first delivery to a webhook destination. In
-// 'standard' mode the templates are fixed by the Standard Webhooks spec and the
-// configured ones are ignored, so there is nothing to check.
-func (c *DestinationWebhookConfig) validateSignatureTemplates() error {
-	if c.Mode == "standard" {
-		return nil
-	}
-	return destwebhook.ValidateSignatureTemplates(c.SignatureContentTemplate, c.SignatureHeaderTemplate)
 }
 
 // resolveWebhookHeaderName applies the three-state rule for a webhook header
