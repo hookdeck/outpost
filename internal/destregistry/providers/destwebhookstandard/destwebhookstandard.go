@@ -65,12 +65,23 @@ import (
 	"github.com/hookdeck/outpost/internal/models"
 )
 
+// Signature templates fixed by the Standard Webhooks spec.
+const (
+	signatureContentTemplate = "{{.EventID}}.{{.Timestamp.Unix}}.{{.Body}}"
+	signatureHeaderTemplate  = "v1,{{index .Signatures 0}}{{range slice .Signatures 1}} v1,{{.}}{{end}}"
+)
+
 type StandardWebhookDestination struct {
 	*destregistry.BaseProvider
 	userAgent            string
 	proxyURL             string
 	headerPrefix         string // Prefix for metadata headers (defaults to "webhook-")
 	maxResponseBodyBytes int
+
+	// Standard Webhooks templates are fixed by the spec, so the formatters are
+	// built once and shared by every publisher rather than per destination.
+	signatureFormatter destwebhook.SignatureFormatter
+	headerFormatter    destwebhook.HeaderFormatter
 }
 
 type StandardWebhookDestinationConfig struct {
@@ -136,6 +147,16 @@ func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePu
 	// headerPrefix may be empty (after trimming) to disable prefix entirely — that's valid.
 	// But the caller must have explicitly set it via WithHeaderPrefix.
 	// Config is responsible for providing the appropriate default ("webhook-").
+
+	destination.signatureFormatter, err = destwebhook.NewSignatureFormatter(signatureContentTemplate)
+	if err != nil {
+		return nil, err
+	}
+	destination.headerFormatter, err = destwebhook.NewHeaderFormatter(signatureHeaderTemplate)
+	if err != nil {
+		return nil, err
+	}
+
 	return destination, nil
 }
 
@@ -220,15 +241,11 @@ func (d *StandardWebhookDestination) CreatePublisher(ctx context.Context, destin
 		})
 	}
 
-	// Create SignatureManager with Standard Webhooks templates
+	// Create SignatureManager with the shared Standard Webhooks formatters
 	sm := destwebhook.NewSignatureManager(
 		secrets,
-		destwebhook.WithSignatureFormatter(
-			destwebhook.NewSignatureFormatter("{{.EventID}}.{{.Timestamp.Unix}}.{{.Body}}"),
-		),
-		destwebhook.WithHeaderFormatter(
-			destwebhook.NewHeaderFormatter("v1,{{index .Signatures 0}}{{range slice .Signatures 1}} v1,{{.}}{{end}}"),
-		),
+		destwebhook.WithSignatureFormatter(d.signatureFormatter),
+		destwebhook.WithHeaderFormatter(d.headerFormatter),
 		destwebhook.WithEncoder(destwebhook.GetEncoder("base64")),
 		destwebhook.WithAlgorithm(destwebhook.GetAlgorithm("hmac-sha256")),
 	)
@@ -600,12 +617,15 @@ func (p *StandardWebhookPublisher) Format(ctx context.Context, event *models.Eve
 	req.Header.Set(p.headerPrefix+"timestamp", strconv.FormatInt(now.Unix(), 10))
 
 	// Generate and set signature header
-	signatureHeader := p.sm.GenerateSignatureHeader(destwebhook.SignaturePayload{
+	signatureHeader, err := p.sm.GenerateSignatureHeader(destwebhook.SignaturePayload{
 		EventID:   messageID,
 		Topic:     event.Topic,
 		Timestamp: now,
 		Body:      string(rawBody),
 	})
+	if err != nil {
+		return nil, err
+	}
 	if signatureHeader != "" {
 		req.Header.Set(p.headerPrefix+"signature", signatureHeader)
 	}
