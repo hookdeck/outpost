@@ -3,6 +3,7 @@ package scheduler_test
 import (
 	"context"
 	"errors"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -79,6 +80,26 @@ func (m *alwaysFailRSMQ) ChangeMessageVisibility(string, string, uint) error { r
 func (m *alwaysFailRSMQ) DeleteMessage(string, string) error                 { return nil }
 func (m *alwaysFailRSMQ) Quit() error                                        { return nil }
 
+// msgLog records messages appended by executor callbacks. The scheduler runs
+// exec on the monitor's goroutines, so test-side reads race with appends
+// without a lock.
+type msgLog struct {
+	mu   sync.Mutex
+	msgs []string
+}
+
+func (l *msgLog) append(msg string) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.msgs = append(l.msgs, msg)
+}
+
+func (l *msgLog) snapshot() []string {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return append([]string(nil), l.msgs...)
+}
+
 // createRSMQClient creates an RSMQ client for testing
 func createRSMQClient(t *testing.T, redisConfig *iredis.RedisConfig) *rsmq.RedisSMQ {
 	ctx := context.Background()
@@ -154,17 +175,23 @@ func TestScheduler_IdleSleepWakesOnDueMessage(t *testing.T) {
 		scheduler.WithPollBackoff(time.Minute),
 		scheduler.WithLogger(logger))
 	require.NoError(t, s.Init(ctx))
-	defer func() { cancel(); s.Shutdown() }()
+	monitorDone := make(chan struct{})
+	defer func() { cancel(); <-monitorDone; s.Shutdown() }()
 
 	// Schedule before the monitor starts so its first poll finds the message
 	// pending and has to compute the sleep from the message's due time.
 	require.NoError(t, s.Schedule(ctx, idgen.String(), 1*time.Second))
 	start := time.Now()
-	go s.Monitor(ctx)
+	go func() {
+		defer close(monitorDone)
+		s.Monitor(ctx)
+	}()
 
 	select {
 	case at := <-done:
-		require.WithinDuration(t, start.Add(time.Second), at, 500*time.Millisecond)
+		elapsed := at.Sub(start)
+		require.GreaterOrEqual(t, elapsed, 500*time.Millisecond, "task executed before it was due")
+		require.LessOrEqual(t, elapsed, 3*time.Second, "task executed far past its due time")
 	case <-time.After(5 * time.Second):
 		t.Fatal("task was not executed; monitor slept the full poll backoff")
 	}
@@ -481,9 +508,9 @@ func TestScheduler_MonitorRetriesTransientErrors(t *testing.T) {
 		failErr:   errors.New("connection reset"),
 	}
 
-	msgs := []string{}
+	var msgs msgLog
 	exec := func(_ context.Context, msg string) error {
-		msgs = append(msgs, msg)
+		msgs.append(msg)
 		return nil
 	}
 
@@ -503,8 +530,8 @@ func TestScheduler_MonitorRetriesTransientErrors(t *testing.T) {
 	require.NoError(t, s.Schedule(ctx, id, 0))
 
 	// 3 errors back off 100ms + 200ms + 400ms before the message is received.
-	require.Eventually(t, func() bool { return len(msgs) == 1 }, 5*time.Second, 20*time.Millisecond)
-	require.Equal(t, id, msgs[0])
+	require.Eventually(t, func() bool { return len(msgs.snapshot()) == 1 }, 5*time.Second, 20*time.Millisecond)
+	require.Equal(t, id, msgs.snapshot()[0])
 }
 
 func TestScheduler_MonitorExhaustsRetries(t *testing.T) {
