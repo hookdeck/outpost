@@ -110,6 +110,19 @@ func createRSMQClient(t *testing.T, redisConfig *iredis.RedisConfig) *rsmq.Redis
 	return rsmq.NewRedisSMQ(adapter, "rsmq")
 }
 
+// startMonitor runs s.Monitor on ctx in a goroutine and returns a wait
+// function that blocks until it has exited. Cancel ctx, then wait, then
+// Shutdown — otherwise the monitor can log through the test logger after the
+// test has finished, which the race detector flags.
+func startMonitor(ctx context.Context, s scheduler.Scheduler) (wait func()) {
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		s.Monitor(ctx)
+	}()
+	return func() { <-done }
+}
+
 func TestScheduler_Basic(t *testing.T) {
 	t.Parallel()
 
@@ -126,8 +139,8 @@ func TestScheduler_Basic(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	s := scheduler.New("scheduler", rsmqClient, exec, scheduler.WithLogger(logger))
 	require.NoError(t, s.Init(ctx))
-	defer func() { cancel(); s.Shutdown() }()
-	go s.Monitor(ctx)
+	waitMonitor := startMonitor(ctx, s)
+	defer func() { cancel(); waitMonitor(); s.Shutdown() }()
 
 	// Act
 	ids := []string{
@@ -216,11 +229,11 @@ func TestScheduler_ParallelMonitor(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	s := scheduler.New("scheduler", rsmqClient, exec, scheduler.WithLogger(logger))
 	require.NoError(t, s.Init(ctx))
-	defer func() { cancel(); s.Shutdown() }()
 
-	go s.Monitor(ctx)
-	go s.Monitor(ctx)
-	go s.Monitor(ctx)
+	wait1 := startMonitor(ctx, s)
+	wait2 := startMonitor(ctx, s)
+	wait3 := startMonitor(ctx, s)
+	defer func() { cancel(); wait1(); wait2(); wait3(); s.Shutdown() }()
 
 	// Act
 	ids := []string{
@@ -266,9 +279,8 @@ func TestScheduler_VisibilityTimeout(t *testing.T) {
 	defer cancel()
 	s := scheduler.New("scheduler", rsmqClient, exec, scheduler.WithVisibilityTimeout(1), scheduler.WithLogger(logger))
 	require.NoError(t, s.Init(ctx))
-	defer s.Shutdown()
-
-	go s.Monitor(ctx)
+	waitMonitor := startMonitor(ctx, s)
+	defer func() { cancel(); waitMonitor(); s.Shutdown() }()
 
 	id := idgen.String()
 	s.Schedule(ctx, id, 1*time.Second)
@@ -300,10 +312,11 @@ func TestScheduler_CustomID(t *testing.T) {
 		rsmqClient := createRSMQClient(t, redisConfig)
 		s := scheduler.New(idgen.String(), rsmqClient, exec, scheduler.WithLogger(logger))
 		require.NoError(t, s.Init(ctx))
-		go s.Monitor(monitorCtx)
+		waitMonitor := startMonitor(monitorCtx, s)
 
 		t.Cleanup(func() {
 			cancelMonitor()
+			waitMonitor()
 			s.Shutdown()
 		})
 
@@ -414,10 +427,11 @@ func TestScheduler_Cancel(t *testing.T) {
 		rsmqClient := createRSMQClient(t, redisConfig)
 		s := scheduler.New(idgen.String(), rsmqClient, exec, scheduler.WithLogger(logger))
 		require.NoError(t, s.Init(ctx))
-		go s.Monitor(monitorCtx)
+		waitMonitor := startMonitor(monitorCtx, s)
 
 		t.Cleanup(func() {
 			cancelMonitor()
+			waitMonitor()
 			s.Shutdown()
 		})
 
@@ -477,9 +491,8 @@ func TestScheduler_MaxReceiveCountMovesToDLQ(t *testing.T) {
 		scheduler.WithMaxReceiveCount(2),
 		scheduler.WithLogger(logger))
 	require.NoError(t, s.Init(ctx))
-	defer func() { cancel(); s.Shutdown() }()
-
-	go s.Monitor(ctx)
+	waitMonitor := startMonitor(ctx, s)
+	defer func() { cancel(); waitMonitor(); s.Shutdown() }()
 
 	require.NoError(t, s.Schedule(ctx, task, 0))
 
@@ -531,9 +544,8 @@ func TestScheduler_MonitorRetriesTransientErrors(t *testing.T) {
 		scheduler.WithLogger(logger),
 	)
 	require.NoError(t, s.Init(ctx))
-	defer func() { cancel(); s.Shutdown() }()
-
-	go s.Monitor(ctx)
+	waitMonitor := startMonitor(ctx, s)
+	defer func() { cancel(); waitMonitor(); s.Shutdown() }()
 
 	// Schedule a message — Monitor should recover after 3 transient errors and process it
 	id := idgen.String()
