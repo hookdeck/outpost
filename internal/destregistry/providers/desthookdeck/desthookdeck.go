@@ -144,11 +144,23 @@ func NewPublisher(tokenString string, opts ...PublisherOption) (*HookdeckPublish
 
 	// Note: This NewPublisher is called from CreatePublisher which has access to BaseProvider
 	// For now, we create a default BasePublisher here - this will be refactored
+	timeout := 30 * time.Second
+	client, err := destregistry.NewHTTPClient(destregistry.HTTPClientConfig{
+		Timeout: &timeout,
+		// Single host — depth only. Concurrency is unknown here, so the
+		// floor applies; callers wanting a deeper pool inject a client via
+		// PublisherWithClient (as CreatePublisher effectively does by
+		// sharing the provider's client).
+		Pool: destregistry.SizeSingleHostPool(0),
+	})
+	if err != nil {
+		return nil, err
+	}
 	publisher := &HookdeckPublisher{
 		BasePublisher: destregistry.NewBasePublisher(),
 		tokenString:   tokenString,
 		parsedToken:   parsedToken,
-		client:        &http.Client{Timeout: 30 * time.Second},
+		client:        client,
 	}
 
 	// Apply custom options

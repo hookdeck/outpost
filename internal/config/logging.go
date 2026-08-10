@@ -1,7 +1,6 @@
 package config
 
 import (
-	"strconv"
 	"strings"
 
 	"github.com/hookdeck/outpost/internal/destregistry"
@@ -46,13 +45,8 @@ func (c *Config) LogConfigurationSummary() []zap.Field {
 	webhookCfg := c.Destinations.Webhook.toConfig()
 
 	// Delivery connection pool. Not configurable — derived from the delivery
-	// worker pool size and the host's FD limit — so the resolved values are
-	// logged along with the FD limit they came from.
+	// worker pool size — so the resolved values are logged.
 	fanOutPool := destregistry.SizeFanOutPool(c.DeliveryMaxConcurrency)
-	fdLimit := "unknown (assumed)"
-	if fanOutPool.FDLimitKnown {
-		fdLimit = strconv.Itoa(fanOutPool.FDLimit)
-	}
 
 	fields := []zap.Field{
 		// General
@@ -115,7 +109,6 @@ func (c *Config) LogConfigurationSummary() []zap.Field {
 		zap.Int("delivery_timeout_seconds", c.DeliveryTimeoutSeconds),
 		zap.Int("delivery_max_idle_conns", fanOutPool.MaxIdleConns),
 		zap.Int("delivery_max_idle_conns_per_host", fanOutPool.MaxIdleConnsPerHost),
-		zap.String("delivery_conn_pool_fd_limit", fdLimit),
 
 		// Idempotency
 		zap.Int("publish_idempotency_key_ttl", c.PublishIdempotencyKeyTTL),

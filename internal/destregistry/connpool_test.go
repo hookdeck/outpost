@@ -19,33 +19,47 @@ func TestSizeFanOutPool_PerHostDerivesFromConcurrency(t *testing.T) {
 	assert.Equal(t, 64, destregistry.SizeFanOutPool(64).MaxIdleConnsPerHost)
 }
 
-func TestSizeFanOutPool_TotalIsClamped(t *testing.T) {
+func TestSizeFanOutPool_TotalScalesWithConcurrency(t *testing.T) {
 	t.Parallel()
 
-	// The total is FD-derived, so its exact value depends on the host running
-	// the test. What's invariant is that it stays inside the clamp and never
-	// sits below the per-host depth.
-	for _, concurrency := range []int{0, 1, 16, 512, 100_000} {
-		pool := destregistry.SizeFanOutPool(concurrency)
-		assert.GreaterOrEqual(t, pool.MaxIdleConns, destregistry.MinTotalIdleConns)
-		assert.LessOrEqual(t, pool.MaxIdleConns, destregistry.MaxTotalIdleConns)
-		assert.LessOrEqual(t, pool.MaxIdleConnsPerHost, pool.MaxIdleConns,
-			"a per-host limit above the total would never be reachable")
+	// total = clamp(32×C, 512, max(4096, C)).
+	for _, tc := range []struct {
+		concurrency int
+		total       int
+	}{
+		{0, destregistry.MinTotalIdleConns},   // unknown → floor
+		{1, destregistry.MinTotalIdleConns},   // 32 → floor
+		{16, destregistry.MinTotalIdleConns},  // 512 → exactly the floor
+		{64, 2048},                            // 32×64, between floor and cap
+		{128, destregistry.MaxTotalIdleConns}, // 4096 → exactly the cap
+		{1000, destregistry.MaxTotalIdleConns},
+	} {
+		assert.Equal(t, tc.total, destregistry.SizeFanOutPool(tc.concurrency).MaxIdleConns,
+			"concurrency %d", tc.concurrency)
 	}
 }
 
-func TestSizeFanOutPool_ReportsFDLimit(t *testing.T) {
+func TestSizeFanOutPool_CapNeverBindsBelowConcurrency(t *testing.T) {
 	t.Parallel()
 
-	pool := destregistry.SizeFanOutPool(16)
-	assert.Positive(t, pool.FDLimit, "FDLimit should always be populated, fallback included")
+	// Above the cap, the total rises to the concurrency level itself so the
+	// per-host depth (== concurrency) is always reachable.
+	pool := destregistry.SizeFanOutPool(10_000)
+	assert.Equal(t, 10_000, pool.MaxIdleConns)
+	assert.Equal(t, 10_000, pool.MaxIdleConnsPerHost)
+
+	for _, concurrency := range []int{0, 1, 16, 512, 100_000} {
+		pool := destregistry.SizeFanOutPool(concurrency)
+		assert.LessOrEqual(t, pool.MaxIdleConnsPerHost, pool.MaxIdleConns,
+			"a per-host limit above the total would never be reachable (concurrency %d)", concurrency)
+	}
 }
 
 func TestSizeSingleHostPool_IsDepthOnly(t *testing.T) {
 	t.Parallel()
 
 	// One host: the total is the per-host value. No breadth needed, so this
-	// stays small regardless of the host's FD limit.
+	// stays small regardless of the fan-out formula.
 	pool := destregistry.SizeSingleHostPool(32)
 	assert.Equal(t, 32, pool.MaxIdleConnsPerHost)
 	assert.Equal(t, 32, pool.MaxIdleConns)
