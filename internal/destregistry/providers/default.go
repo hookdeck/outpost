@@ -1,6 +1,8 @@
 package destregistrydefault
 
 import (
+	"context"
+
 	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destawskinesis"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destawss3"
@@ -12,6 +14,7 @@ import (
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destrabbitmq"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destwebhook"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destwebhookstandard"
+	"github.com/hookdeck/outpost/internal/emetrics"
 )
 
 // WebhookHeaderConfig is the resolved directive for a single webhook system
@@ -48,6 +51,11 @@ type RegisterDefaultDestinationOptions struct {
 	IncludeMillisecondTimestamp bool
 	Webhook                     *DestWebhookConfig
 	AWSKinesis                  *DestAWSKinesisConfig
+
+	// DeliveryMaxConcurrency is the delivery worker pool size. It bounds how
+	// many deliveries can be in flight, and therefore how many connections a
+	// single destination could need. 0 leaves Go's per-host default in place.
+	DeliveryMaxConcurrency int
 }
 
 // RegisterDefault registers the default destination providers with the registry.
@@ -62,6 +70,21 @@ func RegisterDefault(registry destregistry.Registry, opts RegisterDefaultDestina
 		basePublisherOpts = append(basePublisherOpts, destregistry.WithMillisecondTimestamp(opts.IncludeMillisecondTimestamp))
 	}
 
+	// Webhook destinations fan out across arbitrarily many hosts, so their pool
+	// needs breadth as well as depth. The hookdeck provider talks to one host.
+	fanOutPool := destregistry.SizeFanOutPool(opts.DeliveryMaxConcurrency)
+	singleHostPool := destregistry.SizeSingleHostPool(opts.DeliveryMaxConcurrency)
+
+	emeter, err := emetrics.New()
+	if err != nil {
+		return err
+	}
+	connObserver := func(destinationType string) func(bool) {
+		return func(reused bool) {
+			emeter.DeliveryConnection(context.Background(), reused, destinationType)
+		}
+	}
+
 	// Register webhook provider based on mode
 	if opts.Webhook != nil && opts.Webhook.Mode == "standard" {
 		// Standard Webhooks mode - register webhook_standard as "webhook"
@@ -70,6 +93,8 @@ func RegisterDefault(registry destregistry.Registry, opts RegisterDefaultDestina
 			destwebhookstandard.WithProxyURL(opts.Webhook.ProxyURL),
 			destwebhookstandard.WithHeaderPrefix(opts.Webhook.HeaderPrefix),
 			destwebhookstandard.WithMaxResponseBodyBytes(opts.Webhook.MaxResponseBodyBytes),
+			destwebhookstandard.WithConnectionPool(fanOutPool),
+			destwebhookstandard.WithConnectionObserver(connObserver("webhook")),
 		}
 		webhookStandard, err := destwebhookstandard.New(loader, basePublisherOpts, webhookStandardOpts...)
 		if err != nil {
@@ -80,6 +105,8 @@ func RegisterDefault(registry destregistry.Registry, opts RegisterDefaultDestina
 		// Default mode - register customizable webhook as "webhook"
 		webhookOpts := []destwebhook.Option{
 			destwebhook.WithUserAgent(opts.UserAgent),
+			destwebhook.WithConnectionPool(fanOutPool),
+			destwebhook.WithConnectionObserver(connObserver("webhook")),
 		}
 		if opts.Webhook != nil {
 			webhookOpts = append(webhookOpts,
@@ -105,7 +132,9 @@ func RegisterDefault(registry destregistry.Registry, opts RegisterDefaultDestina
 	}
 
 	hookdeck, err := desthookdeck.New(loader, basePublisherOpts,
-		desthookdeck.WithUserAgent(opts.UserAgent))
+		desthookdeck.WithUserAgent(opts.UserAgent),
+		desthookdeck.WithConnectionPool(singleHostPool),
+		desthookdeck.WithConnectionObserver(connObserver("hookdeck")))
 	if err != nil {
 		return err
 	}

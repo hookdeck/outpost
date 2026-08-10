@@ -78,6 +78,11 @@ type StandardWebhookDestination struct {
 	headerPrefix         string // Prefix for metadata headers (defaults to "webhook-")
 	maxResponseBodyBytes int
 
+	// httpClient is shared by every publisher this provider creates — see the
+	// note on destwebhook.WebhookDestination.httpClient.
+	httpClient   *http.Client
+	pool         destregistry.PoolSizing
+	onConnection func(reused bool)
 	// Standard Webhooks templates are fixed by the spec, so the formatters are
 	// built once and shared by every publisher rather than per destination.
 	signatureFormatter destwebhook.SignatureFormatter
@@ -124,6 +129,22 @@ func WithMaxResponseBodyBytes(maxBytes int) Option {
 	}
 }
 
+// WithConnectionPool sizes the shared client's idle connection pool. The zero
+// value leaves Go's defaults in place.
+func WithConnectionPool(pool destregistry.PoolSizing) Option {
+	return func(d *StandardWebhookDestination) {
+		d.pool = pool
+	}
+}
+
+// WithConnectionObserver registers a callback invoked once per request with
+// whether the underlying connection was reused.
+func WithConnectionObserver(fn func(reused bool)) Option {
+	return func(d *StandardWebhookDestination) {
+		d.onConnection = fn
+	}
+}
+
 // WithHeaderPrefix sets the prefix for metadata headers.
 // The prefix is trimmed of whitespace. An empty string disables the prefix entirely.
 // Config is responsible for providing the appropriate default ("webhook-" for standard mode).
@@ -147,6 +168,22 @@ func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePu
 	// headerPrefix may be empty (after trimming) to disable prefix entirely — that's valid.
 	// But the caller must have explicitly set it via WithHeaderPrefix.
 	// Config is responsible for providing the appropriate default ("webhook-").
+
+	var proxyURL *string
+	if destination.proxyURL != "" {
+		proxyURL = &destination.proxyURL
+	}
+	httpClient, err := destregistry.NewHTTPClient(destregistry.HTTPClientConfig{
+		UserAgent:     &destination.userAgent,
+		ProxyURL:      proxyURL,
+		WrapTransport: destwebhook.WrapTransport,
+		Pool:          destination.pool,
+		OnConnection:  destination.onConnection,
+	})
+	if err != nil {
+		return nil, err
+	}
+	destination.httpClient = httpClient
 
 	destination.signatureFormatter, err = destwebhook.NewSignatureFormatter(signatureContentTemplate)
 	if err != nil {
@@ -250,23 +287,9 @@ func (d *StandardWebhookDestination) CreatePublisher(ctx context.Context, destin
 		destwebhook.WithAlgorithm(destwebhook.GetAlgorithm("hmac-sha256")),
 	)
 
-	var proxyURL *string
-	if d.proxyURL != "" {
-		proxyURL = &d.proxyURL
-	}
-
-	httpClient, err := destregistry.NewHTTPClient(destregistry.HTTPClientConfig{
-		UserAgent:     &d.userAgent,
-		ProxyURL:      proxyURL,
-		WrapTransport: destwebhook.WrapTransport,
-	})
-	if err != nil {
-		return nil, err
-	}
-
 	return &StandardWebhookPublisher{
 		BasePublisher:        d.BaseProvider.NewPublisher(destregistry.WithDeliveryMetadata(destination.DeliveryMetadata)),
-		httpClient:           httpClient,
+		httpClient:           d.httpClient,
 		url:                  config.URL,
 		secrets:              secrets,
 		sm:                   sm,

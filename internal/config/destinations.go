@@ -27,6 +27,7 @@ func (c *DestinationsConfig) ToConfig(cfg *Config) destregistrydefault.RegisterD
 		IncludeMillisecondTimestamp: c.IncludeMillisecondTimestamp,
 		Webhook:                     c.Webhook.toConfig(),
 		AWSKinesis:                  c.AWSKinesis.toConfig(),
+		DeliveryMaxConcurrency:      cfg.DeliveryMaxConcurrency,
 	}
 }
 

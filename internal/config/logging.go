@@ -3,6 +3,7 @@ package config
 import (
 	"strings"
 
+	"github.com/hookdeck/outpost/internal/destregistry"
 	destregistrydefault "github.com/hookdeck/outpost/internal/destregistry/providers"
 	"github.com/hookdeck/outpost/internal/version"
 	"go.uber.org/zap"
@@ -42,6 +43,10 @@ func (c *Config) LogConfigurationSummary() []zap.Field {
 	// directives after folding in the three-state name configs and deprecated
 	// DISABLE_* flags.
 	webhookCfg := c.Destinations.Webhook.toConfig()
+
+	// Delivery connection pool. Not configurable — derived from the delivery
+	// worker pool size — so the resolved values are logged.
+	fanOutPool := destregistry.SizeFanOutPool(c.DeliveryMaxConcurrency)
 
 	fields := []zap.Field{
 		// General
@@ -102,6 +107,8 @@ func (c *Config) LogConfigurationSummary() []zap.Field {
 		// Event Delivery
 		zap.Int("max_destinations_per_tenant", c.MaxDestinationsPerTenant),
 		zap.Int("delivery_timeout_seconds", c.DeliveryTimeoutSeconds),
+		zap.Int("delivery_max_idle_conns", fanOutPool.MaxIdleConns),
+		zap.Int("delivery_max_idle_conns_per_host", fanOutPool.MaxIdleConnsPerHost),
 
 		// Idempotency
 		zap.Int("publish_idempotency_key_ttl", c.PublishIdempotencyKeyTTL),

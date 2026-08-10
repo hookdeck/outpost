@@ -44,6 +44,17 @@ Number of events successfully delivered.
 | `type` | Destination type |
 | `status` | Delivery status (`success`, `failed`) |
 
+### `delivery_connections`
+
+Outbound HTTP connections used for delivery, split by whether the connection came from the idle pool or had to be opened.
+
+A high `reused=false` share means the idle connection pool is not holding connections long enough to be reused — expected at low traffic, but under sustained load it indicates the pool ceiling is binding.
+
+| Dimension | Description |
+|-----------|-------------|
+| `type` | Destination type (`webhook`, `hookdeck`) |
+| `reused` | Whether the connection was reused from the idle pool |
+
 ### `published_events`
 
 Number of events published via the Publish API.
