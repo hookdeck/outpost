@@ -86,6 +86,11 @@ func (l *Logger) Ctx(ctx context.Context) LoggerWithCtx {
 	}
 }
 
+// Audit records control-plane decisions: lifecycle changes a tenant or
+// operator needs a durable record of.
+//
+// Per-unit-of-work outcomes on the hot path stay on Info however significant
+// they are — this sink isn't sized for per-event volume.
 func (l *Logger) Audit(msg string, fields ...zap.Field) {
 	l.auditLogger.Info(msg, fields...)
 }
