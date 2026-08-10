@@ -91,7 +91,11 @@ func TestAWSS3Destination_Validate(t *testing.T) {
 	t.Run("should validate invalid storage class", func(t *testing.T) {
 		t.Parallel()
 		invalidDestination := validDestination
-		invalidDestination.Config["storage_class"] = "INVALID"
+		invalidDestination.Config = map[string]string{
+			"bucket":        "my-bucket",
+			"region":        "us-east-1",
+			"storage_class": "INVALID",
+		}
 		err := awsS3Destination.Validate(context.Background(), &invalidDestination)
 		var validationErr *destregistry.ErrDestinationValidation
 		assert.ErrorAs(t, err, &validationErr)
