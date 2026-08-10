@@ -114,29 +114,34 @@ func TestGetRetryPollBackoff(t *testing.T) {
 		want time.Duration
 	}{
 		{
-			name: "defaults to 30s, the default retry interval",
+			name: "default is auto, 30s ceiling",
 			yaml: "",
 			want: 30 * time.Second,
 		},
 		{
-			name: "capped at a retry interval shorter than the backoff",
+			name: "auto follows a retry interval shorter than the ceiling",
 			yaml: "retry_interval_seconds: 5\n",
 			want: 5 * time.Second,
 		},
 		{
-			name: "capped at the shortest entry of a custom schedule",
+			name: "auto follows the shortest entry of a custom schedule",
 			yaml: "retry_schedule: [10, 5, 300]\n",
 			want: 5 * time.Second,
 		},
 		{
-			name: "a schedule longer than the backoff leaves it alone",
+			name: "auto stays at the 30s ceiling under a longer schedule",
 			yaml: "retry_schedule: [60, 300]\n",
 			want: 30 * time.Second,
 		},
 		{
-			name: "an explicitly configured backoff below the cap is used as-is",
+			name: "an explicit backoff below the auto value is used as-is",
 			yaml: "retry_poll_backoff_ms: 100\n",
 			want: 100 * time.Millisecond,
+		},
+		{
+			name: "an explicit backoff longer than the shortest delay is honored, not capped",
+			yaml: "retry_schedule: [5]\nretry_poll_backoff_ms: 10000\n",
+			want: 10 * time.Second,
 		},
 	}
 
@@ -156,6 +161,53 @@ func TestGetRetryPollBackoff(t *testing.T) {
 			cfg, err := config.ParseWithOS(config.Flags{}, mockOS)
 			assert.NoError(t, err)
 			assert.Equal(t, tt.want, cfg.GetRetryPollBackoff())
+		})
+	}
+}
+
+func TestRetryConfigurationValidation(t *testing.T) {
+	tests := []struct {
+		name    string
+		yaml    string
+		wantErr string
+	}{
+		{
+			name:    "zero retry_schedule entry rejected",
+			yaml:    "retry_schedule: [5, 0, 300]\n",
+			wantErr: "retry_schedule entries must be at least 1 second",
+		},
+		{
+			name:    "negative retry_schedule entry rejected",
+			yaml:    "retry_schedule: [-5, 300]\n",
+			wantErr: "retry_schedule entries must be at least 1 second",
+		},
+		{
+			name:    "zero retry_interval_seconds rejected",
+			yaml:    "retry_interval_seconds: 0\n",
+			wantErr: "retry_interval_seconds must be at least 1",
+		},
+		{
+			name:    "negative retry_poll_backoff_ms rejected",
+			yaml:    "retry_poll_backoff_ms: -1\n",
+			wantErr: "retry_poll_backoff_ms must not be negative",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockOS := &mockOS{
+				files:   map[string][]byte{"config.yaml": []byte(tt.yaml)},
+				envVars: map[string]string{"CONFIG": "config.yaml"},
+			}
+
+			mockOS.envVars["API_KEY"] = "test-key"
+			mockOS.envVars["API_JWT_SECRET"] = "test-jwt-secret"
+			mockOS.envVars["AES_ENCRYPTION_SECRET"] = "test-aes-secret-16b"
+			mockOS.envVars["POSTGRES_URL"] = "postgres://localhost:5432/test"
+			mockOS.envVars["RABBITMQ_SERVER_URL"] = "amqp://localhost:5672"
+
+			_, err := config.ParseWithOS(config.Flags{}, mockOS)
+			assert.ErrorContains(t, err, tt.wantErr)
 		})
 	}
 }

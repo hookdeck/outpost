@@ -81,7 +81,7 @@ type Config struct {
 	RetrySchedule                 []int `yaml:"retry_schedule" env:"RETRY_SCHEDULE" envSeparator:"," desc:"Comma-separated list of retry delays in seconds. If provided, overrides retry_interval_seconds and retry_max_limit. Schedule length defines the max number of retries. Example: '5,60,600,3600,7200' for 5 retries at 5s, 1m, 10m, 1h, 2h." required:"N"`
 	RetryIntervalSeconds          int   `yaml:"retry_interval_seconds" env:"RETRY_INTERVAL_SECONDS" desc:"Interval in seconds for exponential backoff retry strategy (base 2). Ignored if retry_schedule is provided." required:"N"`
 	RetryMaxLimit                 int   `yaml:"retry_max_limit" env:"MAX_RETRY_LIMIT" desc:"Maximum number of retry attempts for a single event delivery before giving up. Ignored if retry_schedule is provided." required:"N"`
-	RetryPollBackoffMs            int   `yaml:"retry_poll_backoff_ms" env:"RETRY_POLL_BACKOFF_MS" desc:"Maximum time in milliseconds the retry monitor waits between polls while idle. When a retry is scheduled but not yet due, the monitor instead waits until it comes due, so idle cost is one Redis command per interval and worst-case retry lateness is one interval. The effective value is capped at the shortest configured retry delay, so retries are never late. When a retry message is found, the monitor immediately polls for the next message without delay. Default: 30000" required:"N"`
+	RetryPollBackoffMs            int   `yaml:"retry_poll_backoff_ms" env:"RETRY_POLL_BACKOFF_MS" desc:"Maximum time in milliseconds the retry monitor waits between polls while idle. When a retry is scheduled but not yet due, the monitor instead waits until it comes due. 0 or unset means auto: sleep until the next due message, at most min(30s, shortest configured retry delay), so retries are never late and idle cost is about one Redis command per interval. An explicit positive value is honored as-is as a fixed maximum idle sleep, which may add up to that much latency for retries scheduled while the monitor sleeps. When a retry message is found, the monitor immediately polls for the next message without delay. Default: 0 (auto)" required:"N"`
 	RetryVisibilityTimeoutSeconds int   `yaml:"retry_visibility_timeout_seconds" env:"RETRY_VISIBILITY_TIMEOUT_SECONDS" desc:"Time in seconds a retry message is hidden after being received before becoming visible again for reprocessing. This applies when event data is temporarily unavailable (e.g., race condition with log persistence). Default: 30" required:"N"`
 
 	// Event Delivery
@@ -169,7 +169,7 @@ func (c *Config) InitDefaults() {
 	c.RetrySchedule = []int{} // Empty by default, falls back to exponential backoff
 	c.RetryIntervalSeconds = 30
 	c.RetryMaxLimit = 10
-	c.RetryPollBackoffMs = 30000
+	c.RetryPollBackoffMs = 0 // 0 = auto: min(30s, shortest configured retry delay)
 	c.RetryVisibilityTimeoutSeconds = 30
 	c.MaxDestinationsPerTenant = 20
 	c.DeliveryTimeoutSeconds = 5
@@ -604,20 +604,28 @@ func (c *Config) GetRetryBackoff() (backoff.Backoff, int) {
 	}, c.RetryMaxLimit
 }
 
+// defaultRetryPollBackoff is the ceiling for the auto retry poll backoff
+// (RetryPollBackoffMs = 0): the monitor never sleeps longer than this while
+// idle, even when the shortest configured retry delay is longer.
+const defaultRetryPollBackoff = 30 * time.Second
+
 // GetRetryPollBackoff returns the maximum time the retry monitor waits between
-// polls while idle. The configured value is capped at the shortest delay a
-// retry can be scheduled with, so the monitor is always awake by the time the
-// earliest possible retry comes due and the idle interval never adds latency.
+// polls while idle. An explicitly configured positive value is honored as-is.
+// Otherwise (0 = auto) it is min(defaultRetryPollBackoff, shortest configured
+// retry delay), so the monitor is always awake by the time the earliest
+// possible retry comes due and the idle interval never adds latency.
 func (c *Config) GetRetryPollBackoff() time.Duration {
-	backoff := time.Duration(c.RetryPollBackoffMs) * time.Millisecond
+	if c.RetryPollBackoffMs > 0 {
+		return time.Duration(c.RetryPollBackoffMs) * time.Millisecond
+	}
 	shortest := time.Duration(c.RetryIntervalSeconds) * time.Second
 	if len(c.RetrySchedule) > 0 {
 		shortest = time.Duration(slices.Min(c.RetrySchedule)) * time.Second
 	}
-	if shortest > 0 && shortest < backoff {
+	if shortest > 0 && shortest < defaultRetryPollBackoff {
 		return shortest
 	}
-	return backoff
+	return defaultRetryPollBackoff
 }
 
 type TelemetryConfig struct {

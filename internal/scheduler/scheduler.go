@@ -68,7 +68,8 @@ func WithVisibilityTimeout(vt uint) Option {
 // instead sleeps until that message comes due, so the actual sleep is
 // min(timeUntilNextMessage, backoff). Worst-case lateness is therefore bounded
 // by backoff, and is zero when backoff is at most the shortest delay anything
-// is scheduled with.
+// is scheduled with — the config auto mode (retry_poll_backoff_ms = 0)
+// guarantees this; explicit values may trade retry latency for idle cost.
 func WithPollBackoff(backoff time.Duration) Option {
 	return func(c *config) {
 		c.pollBackoff = backoff
