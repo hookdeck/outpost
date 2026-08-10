@@ -56,11 +56,25 @@ The default webhook signature templates have changed to a simpler format without
 
 If your webhook receivers verify signatures using the old format, signature verification will fail after upgrading.
 
-**To maintain backward compatibility**, set these environment variables:
+**To maintain backward compatibility**, restore the old template values:
 
-```bash
+```
+{{.Timestamp.Unix}}.{{.Body}}
+t={{.Timestamp.Unix}},v0={{.Signatures | join ","}}
+```
+
+These are the literal template values; if the format carrying them requires escaping, apply that format's own. In a double-quoted shell string the inner quotes are escaped:
+
+```sh
 DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE="{{.Timestamp.Unix}}.{{.Body}}"
 DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE="t={{.Timestamp.Unix}},v0={{.Signatures | join \",\"}}"
+```
+
+In a `.env` file or a Compose `environment:` entry, write the value unquoted:
+
+```sh
+DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE={{.Timestamp.Unix}}.{{.Body}}
+DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE=t={{.Timestamp.Unix}},v0={{.Signatures | join ","}}
 ```
 
 ## SDK Request Body Field Names (All SDKs)

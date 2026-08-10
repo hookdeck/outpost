@@ -104,6 +104,15 @@ type WebhookDestination struct {
 	topicHeader              headerConfig
 	encoding                 string
 	algorithm                string
+	// Built once in New() and shared by every publisher: both are derived
+	// solely from provider config, and a parsed template is safe for parallel
+	// execution. Building them per destination gave each cached publisher its
+	// own copy of two sprig function maps (~44 KB retained per publisher).
+	signatureFormatter SignatureFormatter
+	headerFormatter    HeaderFormatter
+	encoder            SignatureEncoder
+	signingAlgorithm   SigningAlgorithm
+
 	rawSigningSecretTemplate string
 	signingSecretTemplate    *template.Template
 	maxResponseBodyBytes     int
@@ -331,6 +340,25 @@ func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePu
 		seenNames[effective] = h.label
 	}
 
+	// Build the signature formatters once — shared by every publisher
+	destination.signatureFormatter, err = NewSignatureFormatter(destination.signatureContentTemplate)
+	if err != nil {
+		return nil, err
+	}
+	destination.headerFormatter, err = NewHeaderFormatter(destination.signatureHeaderTemplate)
+	if err != nil {
+		return nil, err
+	}
+	// Dry-run render both, so a template that parses but references a field
+	// its payload type doesn't have fails construction even when the provider
+	// is built outside config validation.
+	if err := dryRunFormatters(destination.signatureFormatter, destination.headerFormatter,
+		destination.signatureContentTemplate, destination.signatureHeaderTemplate); err != nil {
+		return nil, err
+	}
+	destination.encoder = GetEncoder(destination.encoding)
+	destination.signingAlgorithm = GetAlgorithm(destination.algorithm)
+
 	// Parse signing secret template — fail on invalid syntax
 	tmpl, err := template.New("signing_secret").Funcs(sprig.TxtFuncMap()).Parse(destination.rawSigningSecretTemplate)
 	if err != nil {
@@ -440,10 +468,10 @@ func (d *WebhookDestination) CreatePublisher(ctx context.Context, destination *m
 
 	sm := NewSignatureManager(
 		secrets,
-		WithSignatureFormatter(NewSignatureFormatter(d.signatureContentTemplate)),
-		WithHeaderFormatter(NewHeaderFormatter(d.signatureHeaderTemplate)),
-		WithEncoder(GetEncoder(d.encoding)),
-		WithAlgorithm(GetAlgorithm(d.algorithm)),
+		WithSignatureFormatter(d.signatureFormatter),
+		WithHeaderFormatter(d.headerFormatter),
+		WithEncoder(d.encoder),
+		WithAlgorithm(d.signingAlgorithm),
 	)
 
 	return &WebhookPublisher{
@@ -795,12 +823,15 @@ func (p *WebhookPublisher) Format(ctx context.Context, event *models.Event) (*ht
 
 	// Add signature header unless disabled
 	if !p.signatureHeader.disabled {
-		signatureHeader := p.sm.GenerateSignatureHeader(SignaturePayload{
+		signatureHeader, err := p.sm.GenerateSignatureHeader(SignaturePayload{
 			EventID:   event.ID,
 			Topic:     event.Topic,
 			Timestamp: now,
 			Body:      string(rawBody),
 		})
+		if err != nil {
+			return nil, err
+		}
 		if signatureHeader != "" {
 			req.Header.Set(resolveHeaderName(p.signatureHeader, p.headerPrefix, "signature"), signatureHeader)
 		}
