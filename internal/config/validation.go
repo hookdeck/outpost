@@ -192,6 +192,17 @@ func (c *Config) validateDeploymentID() error {
 
 // validateRetryConfiguration validates and adjusts the retry configuration
 func (c *Config) validateRetryConfiguration() error {
+	for i, seconds := range c.RetrySchedule {
+		if seconds < 1 {
+			return fmt.Errorf("config validation error: retry_schedule entries must be at least 1 second, got %d at index %d", seconds, i)
+		}
+	}
+	if len(c.RetrySchedule) == 0 && c.RetryIntervalSeconds < 1 {
+		return fmt.Errorf("config validation error: retry_interval_seconds must be at least 1, got %d", c.RetryIntervalSeconds)
+	}
+	if c.RetryPollBackoffMs < 0 {
+		return fmt.Errorf("config validation error: retry_poll_backoff_ms must not be negative, got %d", c.RetryPollBackoffMs)
+	}
 	// If retry_schedule is provided, override retry_max_limit to match schedule length
 	if len(c.RetrySchedule) > 0 {
 		c.RetryMaxLimit = len(c.RetrySchedule)

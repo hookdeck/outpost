@@ -606,7 +606,7 @@ func (s *serviceInstance) initRetryScheduler(ctx context.Context, cfg *config.Co
 		return fmt.Errorf("log store must be initialized before retry scheduler")
 	}
 	logger.Debug("creating delivery MQ retry scheduler", zap.String("service", s.name))
-	pollBackoff := time.Duration(cfg.RetryPollBackoffMs) * time.Millisecond
+	pollBackoff := cfg.GetRetryPollBackoff()
 	var retrySchedulerOpts []deliverymq.RetrySchedulerOption
 	if cfg.RetryVisibilityTimeoutSeconds > 0 {
 		retrySchedulerOpts = append(retrySchedulerOpts, deliverymq.WithRetryVisibilityTimeout(uint(cfg.RetryVisibilityTimeoutSeconds)))
