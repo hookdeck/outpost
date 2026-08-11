@@ -83,6 +83,10 @@
             "title": "Migrate to Outpost"
           },
           {
+            "slug": "guides/verify-webhook-signatures",
+            "title": "Verify Webhook Signatures"
+          },
+          {
             "slug": "guides/building-your-own-ui",
             "title": "Building your own UI"
           }
