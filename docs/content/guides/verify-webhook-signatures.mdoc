@@ -183,7 +183,7 @@ func handleWebhook(w http.ResponseWriter, r *http.Request) {
 
 ## Secret rotation
 
-When a signing secret is rotated, both the old and new secrets remain valid for a rotation window. During that window the signature header contains two comma-separated signatures — the current secret's first, the previous secret's second:
+When a signing secret is rotated, both the old and new secrets remain valid for a rotation window (default 24 hours, see [Secret Rotation](/docs/outpost/destinations/webhook#secret-rotation)). During that window the signature header contains two comma-separated signatures — the current secret's first, the previous secret's second:
 
 ```
 x-outpost-signature: v0=<signature-from-current-secret>,<signature-from-previous-secret>
