@@ -1,5 +1,5 @@
-# Image tags live in .env.test so this stack and the testcontainers fallback
-# in internal/util/testinfra run the same versions. Start with `make up/test`.
+# Image tags live in .env.test so this stack and the containers the tests start
+# themselves run the same versions. Start with `make up/test`.
 
 name: "outpost-test"
 
