@@ -130,9 +130,6 @@ test/coverage:
 test/coverage/html:
 	go tool cover -html=coverage.out
 
-docs/generate/config:
-	go run cmd/configdocsgen/main.go
-
 migrate:
 	docker-compose -f build/dev/compose.yml --env-file .env run --rm --entrypoint "" api go run ./cmd/outpost migrate apply --yes
 

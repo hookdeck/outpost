@@ -98,13 +98,9 @@ If your field requires validation, update `Validate()` in `internal/config/valid
 
 ### 6. Update Documentation
 
-Don't forget to regenerate the configuration documentation:
-
-```bash
-go generate ./internal/config/...
-```
-
-This will update `docs/pages/references/configuration.mdx` with your new field's description.
+Add the field to `docs/content/self-hosting/configuration.mdoc` by hand. That page
+is curated — grouped into sections with prose around them — so it is not generated
+from the struct tags.
 
 ## Configuration Logging Checklist
 
