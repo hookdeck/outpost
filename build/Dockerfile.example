@@ -28,7 +28,7 @@ FROM busybox:1.36-musl AS busybox
 
 # Stage 2
 # Copy binaries to a new image
-FROM gcr.io/distroless/base-debian12:nonroot
+FROM gcr.io/distroless/base-debian13:nonroot
 
 # Copy statically linked shell from busybox for entrypoint script
 COPY --from=busybox /bin/sh /bin/sh
