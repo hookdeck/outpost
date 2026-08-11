@@ -106,6 +106,18 @@ func (s *PublisherSuite) TearDownTest() {
 	}
 }
 
+// requireMessageID reads the message_id the concurrent-publish tests stamp on
+// every event they send. A message without one did not come from the running
+// test, so say that plainly instead of panicking on the type assertion.
+func (s *PublisherSuite) requireMessageID(msg Message) int {
+	var body map[string]interface{}
+	s.Require().NoError(json.Unmarshal(msg.Data, &body))
+
+	id, ok := body["message_id"].(float64)
+	s.Require().True(ok, "consumed a message with no message_id, which this test never published: %s", string(msg.Data))
+	return int(id)
+}
+
 // verifyMessage performs base message verification and calls provider-specific assertions
 func (s *PublisherSuite) verifyMessage(msg Message, event models.Event) {
 	// Base verification of data
@@ -232,10 +244,7 @@ func (s *PublisherSuite) TestConcurrentPublish() {
 		select {
 		case msg := <-s.consumer.Consume():
 			// Get the message ID first
-			var body map[string]interface{}
-			err := json.Unmarshal(msg.Data, &body)
-			s.Require().NoError(err)
-			messageID := int(body["message_id"].(float64))
+			messageID := s.requireMessageID(msg)
 
 			// Verify against the correct event
 			s.verifyMessage(msg, events[messageID])
@@ -333,10 +342,7 @@ func (s *PublisherSuite) TestClosePublisherDuringConcurrentPublish() {
 	for receivedCount < expectedCount {
 		select {
 		case msg := <-s.consumer.Consume():
-			var body map[string]interface{}
-			err := json.Unmarshal(msg.Data, &body)
-			s.Require().NoError(err)
-			messageID := int(body["message_id"].(float64))
+			messageID := s.requireMessageID(msg)
 
 			// Get the original event for verification
 			eventsMu.RLock()

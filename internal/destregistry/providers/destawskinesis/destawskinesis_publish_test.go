@@ -79,6 +79,15 @@ func (c *KinesisConsumer) consume() {
 	}
 
 	iterator := iteratorOutput.ShardIterator
+	// lastSeq is the sequence number of the most recent record handed to the
+	// suite. GetRecords can return a record that an earlier call already
+	// returned — observed against localstack, with no error reported and the
+	// iterator advanced normally. Every test in the suite reads one shared
+	// channel, so a single redelivered record shifts every later read by one and
+	// each test then verifies the wrong event. Records within a shard are
+	// ordered, so dropping anything at or before lastSeq makes the stream
+	// deliver-once from the suite's point of view.
+	var lastSeq string
 	for {
 		select {
 		case <-c.done:
@@ -98,6 +107,12 @@ func (c *KinesisConsumer) consume() {
 
 			// Process each record
 			for _, record := range recordsOutput.Records {
+				if seq := aws.ToString(record.SequenceNumber); seq != "" {
+					if lastSeq != "" && !sequenceAfter(seq, lastSeq) {
+						continue
+					}
+					lastSeq = seq
+				}
 				var payload map[string]interface{}
 				err := json.Unmarshal(record.Data, &payload)
 				if err != nil {
@@ -143,6 +158,16 @@ func (c *KinesisConsumer) consume() {
 			}
 		}
 	}
+}
+
+// sequenceAfter reports whether a is a later Kinesis sequence number than b.
+// They are arbitrary-precision decimal integers, so compare by length first and
+// lexically only at equal length.
+func sequenceAfter(a, b string) bool {
+	if len(a) != len(b) {
+		return len(a) > len(b)
+	}
+	return a > b
 }
 
 func (c *KinesisConsumer) Consume() <-chan testsuite.Message {
