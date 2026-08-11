@@ -64,6 +64,7 @@ const express = require("express");
 const SIGNATURE_HEADER = "x-outpost-signature";
 
 function verifySignature(rawBody, signatureHeader, secret) {
+  if (!Buffer.isBuffer(rawBody) && typeof rawBody !== "string") return false;
   if (!signatureHeader || !signatureHeader.startsWith("v0=")) return false;
   const expected = crypto
     .createHmac("sha256", secret)
