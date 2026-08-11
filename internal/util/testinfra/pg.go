@@ -88,7 +88,10 @@ func (pgDB *PGDB) getPGPort(pgURL string) int {
 	return port
 }
 
-var pgOnce sync.Once
+var (
+	pgOnce      sync.Once
+	pgReadyOnce sync.Once
+)
 
 func ensurePostgres() string {
 	cfg := ReadConfig()
@@ -97,6 +100,19 @@ func ensurePostgres() string {
 			startPGTestcontainer(cfg)
 		})
 	}
+	// The postgres image runs a temporary server to initialise the cluster and
+	// resets connections made to it, so connect rather than dial.
+	pgReadyOnce.Do(func() {
+		waitReadyLogged("postgres", cfg.PostgresURL, func() error {
+			url := fmt.Sprintf("postgres://%s:%s@%s/%s?sslmode=%s", "outpost", "outpost", cfg.PostgresURL, "default", "disable")
+			db, err := pgxpool.New(context.Background(), url)
+			if err != nil {
+				return err
+			}
+			defer db.Close()
+			return db.Ping(context.Background())
+		})
+	})
 	return cfg.PostgresURL
 }
 
@@ -104,7 +120,7 @@ func startPGTestcontainer(cfg *Config) {
 	ctx := context.Background()
 
 	pgContainer, err := pgTestcontainer.Run(ctx,
-		"postgres:latest",
+		cfg.Images.Postgres,
 		pgTestcontainer.WithUsername("outpost"),
 		pgTestcontainer.WithPassword("outpost"),
 		pgTestcontainer.WithDatabase("default"),
@@ -119,9 +135,4 @@ func startPGTestcontainer(cfg *Config) {
 	}
 	log.Printf("Postgres running at %s", endpoint)
 	cfg.PostgresURL = endpoint
-	cfg.cleanupFns = append(cfg.cleanupFns, func() {
-		if err := pgContainer.Terminate(ctx); err != nil {
-			log.Printf("failed to terminate container: %s", err)
-		}
-	})
 }

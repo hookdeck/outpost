@@ -49,7 +49,10 @@ func clearDB(chConfig clickhouse.ClickHouseConfig, database string) {
 	}
 }
 
-var chOnce sync.Once
+var (
+	chOnce      sync.Once
+	chReadyOnce sync.Once
+)
 
 func ensureClickHouse() string {
 	cfg := ReadConfig()
@@ -58,6 +61,19 @@ func ensureClickHouse() string {
 			startCHTestcontainer(cfg)
 		})
 	}
+	chReadyOnce.Do(func() {
+		waitReadyLogged("clickhouse", cfg.ClickHouseURL, func() error {
+			chDB, err := clickhouse.New(&clickhouse.ClickHouseConfig{
+				Addr:     cfg.ClickHouseURL,
+				Username: "default",
+				Database: "default",
+			})
+			if err != nil {
+				return err
+			}
+			return chDB.Exec(context.Background(), "SELECT 1")
+		})
+	})
 	return cfg.ClickHouseURL
 }
 
@@ -65,7 +81,7 @@ func startCHTestcontainer(cfg *Config) {
 	ctx := context.Background()
 
 	clickHouseContainer, err := chTestcontainer.Run(ctx,
-		"clickhouse/clickhouse-server:latest",
+		cfg.Images.ClickHouse,
 		chTestcontainer.WithUsername("default"),
 		chTestcontainer.WithPassword(""),
 		chTestcontainer.WithDatabase("default"),
@@ -80,9 +96,4 @@ func startCHTestcontainer(cfg *Config) {
 	}
 	log.Printf("ClickHouse running at %s", endpoint)
 	cfg.ClickHouseURL = endpoint
-	cfg.cleanupFns = append(cfg.cleanupFns, func() {
-		if err := clickHouseContainer.Terminate(ctx); err != nil {
-			log.Printf("failed to terminate container: %s", err)
-		}
-	})
 }

@@ -15,13 +15,15 @@ const readyTimeout = 30 * time.Second
 // waitReady blocks until probe succeeds, and panics if it has not succeeded
 // within readyTimeout.
 //
-// Services started by testcontainers are already gated by that library's wait
-// strategies. Services supplied through the environment — the compose stack
-// behind TESTINFRA=1 — are not: `docker compose up -d` returns once containers
-// are created, not once they accept connections, so a suite that connects
-// immediately can lose the race. Without this, that race surfaces inside a test
-// as a connection reset partway through, which reads as a flaky test rather
-// than as infrastructure that was not ready.
+// Every Ensure* runs its probe, however the service was provided. Neither way of
+// starting one is trustworthy on its own: `docker compose up -d` returns when
+// containers are created, not when they accept connections, and a testcontainers
+// wait strategy watches a port or a log line, which a service can satisfy while
+// still refusing the protocol handshake a test needs. Both surface inside a test
+// as a reset or an EOF partway through, which reads as a flaky test rather than
+// as infrastructure that was not ready.
+//
+// This is why the probes below speak the protocol rather than dialing the port.
 func waitReady(name, endpoint string, probe func() error) {
 	deadline := time.Now().Add(readyTimeout)
 	var lastErr error

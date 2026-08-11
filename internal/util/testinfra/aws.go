@@ -49,7 +49,6 @@ func EnsureLocalStack() string {
 		localstackOnce.Do(func() {
 			startLocalStackTestContainer(cfg)
 		})
-		return cfg.LocalStackURL
 	}
 	// LocalStack serves HTTP before its individual services are usable, so ask
 	// the health endpoint rather than settling for an open port.
@@ -76,9 +75,7 @@ func EnsureLocalStack() string {
 func startLocalStackTestContainer(cfg *Config) {
 	ctx := context.Background()
 
-	localstackContainer, err := localstack.Run(ctx,
-		"localstack/localstack:latest",
-	)
+	localstackContainer, err := localstack.Run(ctx, cfg.Images.LocalStack)
 
 	if err != nil {
 		panic(err)
@@ -93,11 +90,6 @@ func startLocalStackTestContainer(cfg *Config) {
 	}
 	log.Printf("Localstack running at %s", endpoint)
 	cfg.LocalStackURL = endpoint
-	cfg.cleanupFns = append(cfg.cleanupFns, func() {
-		if err := localstackContainer.Terminate(ctx); err != nil {
-			log.Println("Failed to terminate localstack container", err)
-		}
-	})
 }
 
 func DeclareTestAWSInfrastructure(ctx context.Context, cfg *mqs.AWSSQSConfig, attributes map[string]string) (string, error) {

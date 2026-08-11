@@ -45,7 +45,6 @@ func EnsureRabbitMQ() string {
 		rabbitmqOnce.Do(func() {
 			startRabbitMQTestContainer(cfg)
 		})
-		return cfg.RabbitMQURL
 	}
 	// Dial rather than probe the port: RabbitMQ accepts TCP before it will
 	// complete an AMQP handshake, and it is the handshake that tests need.
@@ -64,9 +63,7 @@ func EnsureRabbitMQ() string {
 func startRabbitMQTestContainer(cfg *Config) {
 	ctx := context.Background()
 
-	rabbitmqContainer, err := rabbitmq.Run(ctx,
-		"rabbitmq:3-management-alpine",
-	)
+	rabbitmqContainer, err := rabbitmq.Run(ctx, cfg.Images.RabbitMQ)
 	if err != nil {
 		panic(err)
 	}
@@ -77,9 +74,4 @@ func startRabbitMQTestContainer(cfg *Config) {
 	}
 	log.Printf("RabbitMQ running at %s", endpoint)
 	cfg.RabbitMQURL = "amqp://guest:guest@" + endpoint
-	cfg.cleanupFns = append(cfg.cleanupFns, func() {
-		if err := rabbitmqContainer.Terminate(ctx); err != nil {
-			log.Printf("failed to terminate container: %s", err)
-		}
-	})
 }

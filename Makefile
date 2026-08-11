@@ -55,11 +55,12 @@ smoke:
 up/portal:
 	cd internal/portal && npm install && npm run dev
 
+# --env-file supplies the image pins; see the comment at the top of compose.yml.
 up/test:
-	docker-compose -f build/test/compose.yml up -d
+	docker-compose --env-file .env.test -f build/test/compose.yml up -d
 
 down/test:
-	docker-compose -f build/test/compose.yml down --volumes
+	docker-compose --env-file .env.test -f build/test/compose.yml down --volumes
 
 up/test/rediscluster:
 	@echo "Ensuring test network exists..."
