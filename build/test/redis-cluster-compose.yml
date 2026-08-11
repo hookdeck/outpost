@@ -23,7 +23,7 @@ services:
       - SLAVES_PER_MASTER=1 # 3 masters + 3 slaves = 6 nodes total
 
   test-runner:
-    image: golang:1.23-alpine
+    image: golang:1.26-alpine
     container_name: test-runner
     working_dir: /app
     volumes:
