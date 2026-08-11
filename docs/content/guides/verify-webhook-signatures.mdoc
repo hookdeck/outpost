@@ -198,4 +198,6 @@ The default signature covers only the request body, so the timestamp and event i
 
 ## Customization
 
-The scheme above is Outpost's default. Changing `DESTINATIONS_WEBHOOK_HEADER_PREFIX` only renames the headers — this guide stays accurate with the prefix substituted. Customizing the [signature templates, algorithm, or encoding](/docs/outpost/destinations/webhook#signatures) changes the scheme itself, and the resulting deliveries no longer match this guide.
+This guide describes Outpost's default configuration: default-mode signatures and default header naming. The header prefix is the one exception — `DESTINATIONS_WEBHOOK_HEADER_PREFIX` only renames headers, so the guide holds with the prefix substituted.
+
+Any other change to the [signature or header configuration](/docs/outpost/destinations/webhook#operator-configuration) changes what a receiver must implement. Operators who make those changes should document the resulting scheme for their own consumers.
