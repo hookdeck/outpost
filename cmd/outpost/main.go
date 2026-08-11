@@ -32,7 +32,11 @@ func main() {
 		},
 	}
 
+	// Print the error before exiting. Without this a failed `outpost migrate`
+	// — a bad config path, an unreachable database — reports nothing but a
+	// status of 1, during the one step an upgrade depends on.
 	if err := app.Run(context.Background(), os.Args); err != nil {
+		fmt.Fprintln(os.Stderr, "Error:", err)
 		os.Exit(1)
 	}
 }
