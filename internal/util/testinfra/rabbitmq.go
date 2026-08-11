@@ -6,6 +6,8 @@ import (
 	"sync"
 	"testing"
 
+	amqp091 "github.com/rabbitmq/amqp091-go"
+
 	"github.com/google/uuid"
 	"github.com/hookdeck/outpost/internal/mqs"
 	"github.com/hookdeck/outpost/internal/util/testutil"
@@ -32,7 +34,10 @@ func NewMQRabbitMQConfig(t *testing.T) mqs.QueueConfig {
 	return queueConfig
 }
 
-var rabbitmqOnce sync.Once
+var (
+	rabbitmqOnce      sync.Once
+	rabbitmqReadyOnce sync.Once
+)
 
 func EnsureRabbitMQ() string {
 	cfg := ReadConfig()
@@ -40,7 +45,19 @@ func EnsureRabbitMQ() string {
 		rabbitmqOnce.Do(func() {
 			startRabbitMQTestContainer(cfg)
 		})
+		return cfg.RabbitMQURL
 	}
+	// Dial rather than probe the port: RabbitMQ accepts TCP before it will
+	// complete an AMQP handshake, and it is the handshake that tests need.
+	rabbitmqReadyOnce.Do(func() {
+		waitReadyLogged("rabbitmq", cfg.RabbitMQURL, func() error {
+			conn, err := amqp091.Dial(cfg.RabbitMQURL)
+			if err != nil {
+				return err
+			}
+			return conn.Close()
+		})
+	})
 	return cfg.RabbitMQURL
 }
 

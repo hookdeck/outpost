@@ -13,6 +13,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/kinesis"
 	"github.com/aws/aws-sdk-go-v2/service/kinesis/types"
+	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/hookdeck/outpost/internal/destregistry/partitionkey"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destawskinesis"
 	testsuite "github.com/hookdeck/outpost/internal/destregistry/testing"
@@ -275,9 +276,11 @@ func deleteKinesisStream(ctx context.Context, client *kinesis.Client, streamName
 // AWSKinesisSuite is the test suite for AWS Kinesis
 type AWSKinesisSuite struct {
 	testsuite.PublisherSuite
-	consumer   *KinesisConsumer
-	client     *kinesis.Client
-	streamName string
+	consumer           *KinesisConsumer
+	client             *kinesis.Client
+	provider           destregistry.Provider
+	localstackEndpoint string
+	streamName         string
 }
 
 func TestAWSKinesisSuite(t *testing.T) {
@@ -288,11 +291,7 @@ func (s *AWSKinesisSuite) SetupSuite() {
 	t := s.T()
 	t.Cleanup(testinfra.Start(t))
 
-	// Create a unique stream name for the test
-	s.streamName = "test-stream-" + idgen.String()
-
-	// Setup AWS config and client
-	localstackEndpoint := testinfra.EnsureLocalStack()
+	s.localstackEndpoint = testinfra.EnsureLocalStack()
 	awsConfig, err := config.LoadDefaultConfig(context.Background(),
 		config.WithRegion("us-east-1"),
 		config.WithCredentialsProvider(
@@ -302,27 +301,31 @@ func (s *AWSKinesisSuite) SetupSuite() {
 
 	// Create Kinesis client with custom endpoint
 	s.client = kinesis.NewFromConfig(awsConfig, func(o *kinesis.Options) {
-		o.BaseEndpoint = aws.String(localstackEndpoint)
+		o.BaseEndpoint = aws.String(s.localstackEndpoint)
 	})
 
-	// Create test stream
-	err = ensureKinesisStream(context.Background(), s.client, s.streamName)
+	s.provider, err = destawskinesis.New(testutil.Registry.MetadataLoader(), nil)
 	require.NoError(t, err)
+}
 
-	// Create consumer
-	s.consumer, err = NewKinesisConsumer(s.client, s.streamName)
+// SetupTest gives each test its own stream and consumer. Sharing them across the
+// suite means anything one test leaves behind — or that the stream redelivers —
+// lands in the next test, which then verifies an event it never published.
+func (s *AWSKinesisSuite) SetupTest() {
+	t := s.T()
+
+	s.streamName = "test-stream-" + idgen.String()
+	require.NoError(t, ensureKinesisStream(context.Background(), s.client, s.streamName))
+
+	consumer, err := NewKinesisConsumer(s.client, s.streamName)
 	require.NoError(t, err)
+	s.consumer = consumer
 
-	// Create provider
-	provider, err := destawskinesis.New(testutil.Registry.MetadataLoader(), nil)
-	require.NoError(t, err)
-
-	// Create destination with partition key template
 	partitionKeyTemplate := "join('__', [metadata.topic, metadata.timestamp, metadata.\"event-id\"])"
 	destination := testutil.DestinationFactory.Any(
 		testutil.DestinationFactory.WithType("aws_kinesis"),
 		testutil.DestinationFactory.WithConfig(map[string]string{
-			"endpoint":               localstackEndpoint,
+			"endpoint":               s.localstackEndpoint,
 			"stream_name":            s.streamName,
 			"region":                 "us-east-1",
 			"partition_key_template": partitionKeyTemplate,
@@ -334,24 +337,27 @@ func (s *AWSKinesisSuite) SetupSuite() {
 		}),
 	)
 
-	// Initialize publisher suite with custom asserter
-	testConfig := testsuite.Config{
-		Provider: provider,
+	s.InitSuite(testsuite.Config{
+		Provider: s.provider,
 		Dest:     &destination,
 		Consumer: s.consumer,
 		Asserter: &KinesisAsserter{
 			partitionKeyTemplate: partitionKeyTemplate,
 		},
-	}
-	s.InitSuite(testConfig)
+	})
+
+	s.PublisherSuite.SetupTest()
 }
 
-func (s *AWSKinesisSuite) TearDownSuite() {
+func (s *AWSKinesisSuite) TearDownTest() {
+	s.PublisherSuite.TearDownTest()
+
 	if s.consumer != nil {
 		s.consumer.Close()
+		s.consumer = nil
 	}
-	if s.client != nil && s.streamName != "" {
-		// Delete the test stream
+	if s.streamName != "" {
 		_ = deleteKinesisStream(context.Background(), s.client, s.streamName)
+		s.streamName = ""
 	}
 }

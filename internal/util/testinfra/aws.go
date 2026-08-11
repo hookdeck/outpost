@@ -2,7 +2,9 @@ package testinfra
 
 import (
 	"context"
+	"fmt"
 	"log"
+	"net/http"
 	"strings"
 	"sync"
 	"testing"
@@ -36,7 +38,10 @@ func NewMQAWSConfig(t *testing.T, attributes map[string]string) mqs.QueueConfig 
 	return queueConfig
 }
 
-var localstackOnce sync.Once
+var (
+	localstackOnce      sync.Once
+	localstackReadyOnce sync.Once
+)
 
 func EnsureLocalStack() string {
 	cfg := ReadConfig()
@@ -44,7 +49,27 @@ func EnsureLocalStack() string {
 		localstackOnce.Do(func() {
 			startLocalStackTestContainer(cfg)
 		})
+		return cfg.LocalStackURL
 	}
+	// LocalStack serves HTTP before its individual services are usable, so ask
+	// the health endpoint rather than settling for an open port.
+	localstackReadyOnce.Do(func() {
+		waitReadyLogged("localstack", cfg.LocalStackURL, func() error {
+			req, err := http.NewRequest(http.MethodGet, cfg.LocalStackURL+"/_localstack/health", nil)
+			if err != nil {
+				return err
+			}
+			resp, err := (&http.Client{Timeout: 5 * time.Second}).Do(req)
+			if err != nil {
+				return err
+			}
+			defer resp.Body.Close()
+			if resp.StatusCode != http.StatusOK {
+				return fmt.Errorf("health returned %s", resp.Status)
+			}
+			return nil
+		})
+	})
 	return cfg.LocalStackURL
 }
 

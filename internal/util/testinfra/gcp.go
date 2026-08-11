@@ -40,13 +40,22 @@ func NewMQGCPConfig(t *testing.T, attributes map[string]string) mqs.QueueConfig 
 	return queueConfig
 }
 
-var gcpOnce sync.Once
+var (
+	gcpOnce      sync.Once
+	gcpReadyOnce sync.Once
+)
 
 func EnsureGCP() string {
 	cfg := ReadConfig()
 	if cfg.GCPURL == "" {
 		gcpOnce.Do(func() {
 			startGCPTestContainer(cfg)
+		})
+	} else {
+		gcpReadyOnce.Do(func() {
+			waitReadyLogged("pubsub emulator", cfg.GCPURL, func() error {
+				return dialTCP(cfg.GCPURL)
+			})
 		})
 	}
 	os.Setenv("PUBSUB_EMULATOR_HOST", cfg.GCPURL)

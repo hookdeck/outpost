@@ -9,7 +9,10 @@ import (
 	"github.com/testcontainers/testcontainers-go/wait"
 )
 
-var kafkaOnce sync.Once
+var (
+	kafkaOnce      sync.Once
+	kafkaReadyOnce sync.Once
+)
 
 func EnsureKafka() string {
 	cfg := ReadConfig()
@@ -17,7 +20,13 @@ func EnsureKafka() string {
 		kafkaOnce.Do(func() {
 			startKafkaTestContainer(cfg)
 		})
+		return cfg.KafkaURL
 	}
+	kafkaReadyOnce.Do(func() {
+		waitReadyLogged("kafka", cfg.KafkaURL, func() error {
+			return dialTCP(cfg.KafkaURL)
+		})
+	})
 	return cfg.KafkaURL
 }
 
