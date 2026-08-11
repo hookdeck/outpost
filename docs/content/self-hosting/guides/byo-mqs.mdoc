@@ -71,7 +71,7 @@ The following table shows the resources, default names, and configuration variab
 |----------|--------------------|-----------------|-----------------------|
 | Exchange | `outpost` | `outpost` | `RABBITMQ_EXCHANGE` |
 | Queue | `outpost-delivery` | `outpost-log` | `RABBITMQ_DELIVERY_QUEUE` / `RABBITMQ_LOG_QUEUE` |
-| DLQ | `outpost-delivery.dlq` | `outpost-log.dlq` | (auto-derived from queue name) |
+| DLQ | `outpost-delivery.dlq` | `outpost-log.dlq` | `RABBITMQ_DELIVERY_DLQ` / `RABBITMQ_LOG_DLQ` (optional; defaults to `<queue>.dlq` if unset) |
 
 **Configuration requirements:**
 - Exchange type: `topic`
@@ -84,7 +84,7 @@ The following table shows the resources, default names, and configuration variab
 | Resource | Delivery MQ Default | Log MQ Default | Environment Variable |
 |----------|--------------------|-----------------|-----------------------|
 | Queue | `outpost-delivery` | `outpost-log` | `AWS_SQS_DELIVERY_QUEUE` / `AWS_SQS_LOG_QUEUE` |
-| DLQ | `outpost-delivery-dlq` | `outpost-log-dlq` | (auto-derived from queue name) |
+| DLQ | `outpost-delivery-dlq` | `outpost-log-dlq` | `AWS_SQS_DELIVERY_DLQ` / `AWS_SQS_LOG_DLQ` (optional; defaults to `<queue>-dlq` if unset) |
 
 **Configuration requirements:**
 - Configure `RedrivePolicy` on main queue pointing to DLQ

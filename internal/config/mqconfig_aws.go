@@ -20,6 +20,8 @@ type AWSSQSConfig struct {
 	Endpoint        string `yaml:"endpoint" env:"AWS_SQS_ENDPOINT" desc:"Custom AWS SQS endpoint URL. Optional, typically used for local testing (e.g., LocalStack)." required:"N"`
 	DeliveryQueue   string `yaml:"delivery_queue" env:"AWS_SQS_DELIVERY_QUEUE" desc:"Name of the SQS queue for delivery events." required:"N"`
 	LogQueue        string `yaml:"log_queue" env:"AWS_SQS_LOG_QUEUE" desc:"Name of the SQS queue for log events." required:"N"`
+	DeliveryDLQ     string `yaml:"delivery_dlq" env:"AWS_SQS_DELIVERY_DLQ" desc:"Name of the dead-letter queue for the delivery queue. Optional; defaults to '<delivery_queue>-dlq' if unset." required:"N"`
+	LogDLQ          string `yaml:"log_dlq" env:"AWS_SQS_LOG_DLQ" desc:"Name of the dead-letter queue for the log queue. Optional; defaults to '<log_queue>-dlq' if unset." required:"N"`
 }
 
 func (c *AWSSQSConfig) getQueueName(queueType string) string {
@@ -28,6 +30,17 @@ func (c *AWSSQSConfig) getQueueName(queueType string) string {
 		return c.DeliveryQueue
 	case "logmq":
 		return c.LogQueue
+	default:
+		return ""
+	}
+}
+
+func (c *AWSSQSConfig) getDLQName(queueType string) string {
+	switch queueType {
+	case "deliverymq":
+		return c.DeliveryDLQ
+	case "logmq":
+		return c.LogDLQ
 	default:
 		return ""
 	}
@@ -44,6 +57,7 @@ func (c *AWSSQSConfig) ToInfraConfig(queueType string) *mqinfra.MQInfraConfig {
 			Region:                    c.Region,
 			ServiceAccountCredentials: c.getCredentials(),
 			Topic:                     c.getQueueName(queueType),
+			DLQ:                       c.getDLQName(queueType),
 		},
 	}
 }

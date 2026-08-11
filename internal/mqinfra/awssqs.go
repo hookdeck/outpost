@@ -15,6 +15,13 @@ type infraAWSSQS struct {
 	cfg *MQInfraConfig
 }
 
+func (infra *infraAWSSQS) dlqName() string {
+	if infra.cfg.AWSSQS.DLQ != "" {
+		return infra.cfg.AWSSQS.DLQ
+	}
+	return infra.cfg.AWSSQS.Topic + "-dlq"
+}
+
 func (infra *infraAWSSQS) Exist(ctx context.Context) (bool, error) {
 	if infra.cfg == nil || infra.cfg.AWSSQS == nil {
 		return false, errors.New("failed assertion: cfg.AWSSQS != nil") // IMPOSSIBLE
@@ -44,7 +51,7 @@ func (infra *infraAWSSQS) Exist(ctx context.Context) (bool, error) {
 		return false, err
 	}
 
-	dlqName := infra.cfg.AWSSQS.Topic + "-dlq"
+	dlqName := infra.dlqName()
 	_, err = awsutil.RetrieveQueueURL(ctx, sqsClient, dlqName)
 	if err != nil {
 		var apiErr smithy.APIError
@@ -82,7 +89,7 @@ func (infra *infraAWSSQS) Declare(ctx context.Context) error {
 		attributes["VisibilityTimeout"] = fmt.Sprintf("%d", infra.cfg.Policy.VisibilityTimeout)
 	}
 
-	dlqName := infra.cfg.AWSSQS.Topic + "-dlq"
+	dlqName := infra.dlqName()
 	dlqURL, err := awsutil.EnsureQueue(ctx, sqsClient, dlqName, awsutil.MakeCreateQueue(attributes))
 	if err != nil {
 		return err
@@ -127,7 +134,7 @@ func (infra *infraAWSSQS) TearDown(ctx context.Context) error {
 		return err
 	}
 
-	dlqURL, err := awsutil.RetrieveQueueURL(ctx, sqsClient, infra.cfg.AWSSQS.Topic+"-dlq")
+	dlqURL, err := awsutil.RetrieveQueueURL(ctx, sqsClient, infra.dlqName())
 	if err != nil {
 		return err
 	}

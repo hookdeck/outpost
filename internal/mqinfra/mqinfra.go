@@ -30,6 +30,7 @@ type AWSSQSInfraConfig struct {
 	Region                    string
 	ServiceAccountCredentials string
 	Topic                     string
+	DLQ                       string // optional override; falls back to Topic+"-dlq" if empty
 }
 
 type AzureServiceBusInfraConfig struct {
@@ -58,6 +59,7 @@ type RabbitMQInfraConfig struct {
 	ServerURL string
 	Exchange  string
 	Queue     string
+	DLQ       string // optional override; falls back to Queue+".dlq" if empty
 }
 
 func New(cfg *MQInfraConfig) MQInfra {
