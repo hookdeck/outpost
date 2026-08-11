@@ -16,7 +16,7 @@ Enable OpenTelemetry in the [Hookdeck Monitoring settings](https://dashboard.hoo
 {% tab label="Self-Hosted" %}
 Outpost uses the [OpenTelemetry Go SDK](https://opentelemetry.io/docs/languages/go/) and is configured via the standard `OTEL_*` environment variables documented in the [OTel SDK configuration reference](https://opentelemetry.io/docs/languages/sdk-configuration/general/).
 
-To enable metrics export, set `OTEL_SERVICE_NAME` and configure an exporter endpoint, for example:
+To enable OpenTelemetry, set `OTEL_SERVICE_NAME` and configure an exporter endpoint, for example:
 
 ```
 OTEL_SERVICE_NAME=outpost
@@ -24,6 +24,55 @@ OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
 ```
 {% /tab %}
 {% /tabs %}
+
+## Signal Configuration
+
+Setting `OTEL_SERVICE_NAME` enables all three signals: traces, metrics, and logs. Two sets of variables control them: the endpoint variables decide **which** signals are exported, and the exporter variables decide **how** an exported signal is written (or disable it with `none` — an exporter value can turn a signal off, never on).
+
+### Endpoints
+
+The endpoint variables decide which signals are enabled:
+
+- One or more per-signal endpoints (`OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`, `OTEL_EXPORTER_OTLP_METRICS_ENDPOINT`, `OTEL_EXPORTER_OTLP_LOGS_ENDPOINT`) with no generic endpoint: only the signals with an endpoint are exported. Signals without an endpoint are disabled, regardless of any exporter setting.
+- The generic `OTEL_EXPORTER_OTLP_ENDPOINT`: all three signals are exported.
+- No endpoint at all: all three signals are exported to the SDK's default endpoint.
+
+So exporting a single signal takes nothing but its endpoint — to export only metrics:
+
+```
+OTEL_SERVICE_NAME=outpost
+OTEL_EXPORTER_OTLP_METRICS_ENDPOINT=http://otel-collector:4317
+```
+
+### Exporters
+
+| Variable | Description |
+|----------|-------------|
+| `OTEL_TRACES_EXPORTER` / `OTEL_METRICS_EXPORTER` / `OTEL_LOGS_EXPORTER` | Exporter for a single signal. Takes precedence over `OTEL_EXPORTER` and the config file. |
+| `OTEL_EXPORTER` | Exporter for all three signals. |
+
+Accepted values are `otlp` (the default), `console` (alias `stdout`) to print to standard output, and `none` to disable the signal. Because a signal without its endpoint is already disabled when per-signal endpoints are in use, `console`/`stdout` only takes effect with no endpoints or with the generic endpoint. For example, to export everything except logs:
+
+```
+OTEL_SERVICE_NAME=outpost
+OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+OTEL_LOGS_EXPORTER=none
+```
+
+### Protocol
+
+Each signal's OTLP protocol is resolved in precedence order:
+
+1. `OTEL_EXPORTER_OTLP_TRACES_PROTOCOL` / `OTEL_EXPORTER_OTLP_METRICS_PROTOCOL` / `OTEL_EXPORTER_OTLP_LOGS_PROTOCOL`
+2. `OTEL_EXPORTER_OTLP_PROTOCOL`
+3. `OTEL_PROTOCOL`
+4. `grpc` (the default)
+
+Accepted values are `grpc`, `http`, and `http/protobuf` (`http` and `http/protobuf` are equivalent).
+
+{% callout %}
+The standard OpenTelemetry variables — the per-signal exporter and protocol variables and all endpoint variables — are read from the process environment, matching how the OpenTelemetry SDK reads them. Set them as real environment variables, not in an Outpost config file. Outpost's own `OTEL_EXPORTER` and `OTEL_PROTOCOL` variables and the YAML `traces:`, `metrics:`, and `logs:` sections work in config files as usual.
+{% /callout %}
 
 ## Available Metrics
 

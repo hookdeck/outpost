@@ -152,4 +152,21 @@ OTEL_METRICS_EXPORTER="otlp" # default
 OTEL_LOGS_EXPORTER="none" # disable logs
 ```
 
+Setting a per-signal endpoint also enables only that signal: with `OTEL_EXPORTER_OTLP_METRICS_ENDPOINT` set and no other endpoint or exporter variable, metrics are exported and traces and logs are off. The generic `OTEL_EXPORTER_OTLP_ENDPOINT` enables all three; a per-signal endpoint alongside it only refines where that signal sends. Setting no endpoint at all leaves every signal enabled against the SDK's default `localhost` endpoint.
+
+Exporter resolution per signal, first match wins:
+
+1. `OTEL_TRACES_EXPORTER` / `OTEL_METRICS_EXPORTER` / `OTEL_LOGS_EXPORTER`
+2. `OTEL_EXPORTER` — Outpost-specific, applies to all three
+3. the endpoint inference above
+
+Protocol resolution per signal, first match wins:
+
+1. `OTEL_EXPORTER_OTLP_{TRACES,METRICS,LOGS}_PROTOCOL`
+2. `OTEL_EXPORTER_OTLP_PROTOCOL`
+3. `OTEL_PROTOCOL` — Outpost-specific, applies to all three
+4. `grpc`
+
+`http` and the specification's `http/protobuf` are the same value; both are accepted.
+
 Currently, we only support `otlp` exporter. If you have specific needs for other exporter configuration (like Prometheus), you must set up your own OTEL collector and configure it accordingly.
