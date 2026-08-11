@@ -40,7 +40,10 @@ func NewMQGCPConfig(t *testing.T, attributes map[string]string) mqs.QueueConfig 
 	return queueConfig
 }
 
-var gcpOnce sync.Once
+var (
+	gcpOnce      sync.Once
+	gcpReadyOnce sync.Once
+)
 
 func EnsureGCP() string {
 	cfg := ReadConfig()
@@ -49,6 +52,11 @@ func EnsureGCP() string {
 			startGCPTestContainer(cfg)
 		})
 	}
+	gcpReadyOnce.Do(func() {
+		waitReadyLogged("pubsub emulator", cfg.GCPURL, func() error {
+			return dialTCP(cfg.GCPURL)
+		})
+	})
 	os.Setenv("PUBSUB_EMULATOR_HOST", cfg.GCPURL)
 	return cfg.GCPURL
 }
@@ -56,10 +64,7 @@ func EnsureGCP() string {
 func startGCPTestContainer(cfg *Config) {
 	ctx := context.Background()
 
-	gcloudContainer, err := gcloud.RunPubsub(ctx,
-		"gcr.io/google.com/cloudsdktool/cloud-sdk:367.0.0-emulators",
-	)
-
+	gcloudContainer, err := gcloud.RunPubsub(ctx, cfg.Images.GCP)
 	if err != nil {
 		panic(err)
 	}
@@ -70,11 +75,6 @@ func startGCPTestContainer(cfg *Config) {
 	}
 	log.Printf("GCP Emulator running at %s", endpoint)
 	cfg.GCPURL = endpoint
-	cfg.cleanupFns = append(cfg.cleanupFns, func() {
-		if err := gcloudContainer.Terminate(ctx); err != nil {
-			log.Println("Failed to terminate localstack container", err)
-		}
-	})
 }
 
 func DeclareTestGCPInfrastructure(ctx context.Context, cfg *mqs.GCPPubSubConfig, endpoint string) error {

@@ -6,6 +6,8 @@ import (
 	"sync"
 	"testing"
 
+	amqp091 "github.com/rabbitmq/amqp091-go"
+
 	"github.com/google/uuid"
 	"github.com/hookdeck/outpost/internal/mqs"
 	"github.com/hookdeck/outpost/internal/util/testutil"
@@ -32,7 +34,10 @@ func NewMQRabbitMQConfig(t *testing.T) mqs.QueueConfig {
 	return queueConfig
 }
 
-var rabbitmqOnce sync.Once
+var (
+	rabbitmqOnce      sync.Once
+	rabbitmqReadyOnce sync.Once
+)
 
 func EnsureRabbitMQ() string {
 	cfg := ReadConfig()
@@ -41,15 +46,24 @@ func EnsureRabbitMQ() string {
 			startRabbitMQTestContainer(cfg)
 		})
 	}
+	// Dial rather than probe the port: RabbitMQ accepts TCP before it will
+	// complete an AMQP handshake, and it is the handshake that tests need.
+	rabbitmqReadyOnce.Do(func() {
+		waitReadyLogged("rabbitmq", cfg.RabbitMQURL, func() error {
+			conn, err := amqp091.Dial(cfg.RabbitMQURL)
+			if err != nil {
+				return err
+			}
+			return conn.Close()
+		})
+	})
 	return cfg.RabbitMQURL
 }
 
 func startRabbitMQTestContainer(cfg *Config) {
 	ctx := context.Background()
 
-	rabbitmqContainer, err := rabbitmq.Run(ctx,
-		"rabbitmq:3-management-alpine",
-	)
+	rabbitmqContainer, err := rabbitmq.Run(ctx, cfg.Images.RabbitMQ)
 	if err != nil {
 		panic(err)
 	}
@@ -60,9 +74,4 @@ func startRabbitMQTestContainer(cfg *Config) {
 	}
 	log.Printf("RabbitMQ running at %s", endpoint)
 	cfg.RabbitMQURL = "amqp://guest:guest@" + endpoint
-	cfg.cleanupFns = append(cfg.cleanupFns, func() {
-		if err := rabbitmqContainer.Terminate(ctx); err != nil {
-			log.Printf("failed to terminate container: %s", err)
-		}
-	})
 }

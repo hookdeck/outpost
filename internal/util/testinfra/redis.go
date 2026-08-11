@@ -16,14 +16,14 @@ import (
 // Use this for tests that don't need RediSearch.
 // The container is terminated on cleanup.
 func NewRedisConfig(t *testing.T) *redis.RedisConfig {
-	return startRedisContainer(t, "redis/redis-stack-server:latest")
+	return startRedisContainer(t, ReadConfig().Images.Redis)
 }
 
 // NewRedisStackConfig spins up a dedicated Redis Stack container for tests requiring RediSearch.
 // Each test gets its own isolated container, eliminating cross-test interference.
 // The container is terminated on cleanup.
 func NewRedisStackConfig(t *testing.T) *redis.RedisConfig {
-	return startRedisContainer(t, "redis/redis-stack-server:latest")
+	return startRedisContainer(t, ReadConfig().Images.Redis)
 }
 
 // NewDragonflyConfig spins up a dedicated Dragonfly container for the test.
@@ -33,7 +33,7 @@ func NewDragonflyConfig(t *testing.T) *redis.RedisConfig {
 	ctx := context.Background()
 
 	req := testcontainers.ContainerRequest{
-		Image:        "docker.dragonflydb.io/dragonflydb/dragonfly:latest",
+		Image:        ReadConfig().Images.Dragonfly,
 		ExposedPorts: []string{"6379/tcp"},
 		Cmd:          []string{"--proactor_threads=1", "--maxmemory=256mb"},
 		WaitingFor:   wait.ForListeningPort("6379/tcp"),

@@ -1,3 +1,6 @@
+# Image tags live in .env.test so this stack and the containers the tests start
+# themselves run the same versions. Start with `make up/test`.
+
 name: "outpost-test"
 
 services:
@@ -9,11 +12,11 @@ services:
     ports:
       - 35555:5555
   test-clickhouse:
-    image: clickhouse/clickhouse-server:24-alpine
+    image: ${TEST_IMAGE_CLICKHOUSE:?run via `make up/test`, which passes --env-file .env.test}
     ports:
       - 39000:9000
   test-postgres:
-    image: postgres:16-alpine
+    image: ${TEST_IMAGE_POSTGRES:?run via `make up/test`, which passes --env-file .env.test}
     environment:
       - POSTGRES_USER=outpost
       - POSTGRES_PASSWORD=outpost
@@ -21,19 +24,19 @@ services:
     ports:
       - 35432:5432
   test-rabbitmq:
-    image: rabbitmq:3-management
+    image: ${TEST_IMAGE_RABBITMQ:?run via `make up/test`, which passes --env-file .env.test}
     ports:
       - 35672:5672
       - 45672:15672
   test-aws:
-    image: localstack/localstack:3
+    image: ${TEST_IMAGE_LOCALSTACK:?run via `make up/test`, which passes --env-file .env.test}
     environment:
       - SERVICES=s3,sns,sts,sqs,kinesis
     ports:
       - 34566:4566
       - 34571:4571
   test-kafka:
-    image: confluentinc/confluent-local:7.4.0
+    image: ${TEST_IMAGE_KAFKA:?run via `make up/test`, which passes --env-file .env.test}
     environment:
       KAFKA_ADVERTISED_LISTENERS: SASL_PLAINTEXT://test-kafka:29092,SASL_PLAINTEXT_HOST://localhost:39092
       KAFKA_LISTENERS: SASL_PLAINTEXT://0.0.0.0:29092,CONTROLLER://localhost:29093,SASL_PLAINTEXT_HOST://0.0.0.0:9092
@@ -47,7 +50,7 @@ services:
     ports:
       - 39092:9092
   test-gcp:
-    image: gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators
+    image: ${TEST_IMAGE_GCP:?run via `make up/test`, which passes --env-file .env.test}
     command:
       [
         "gcloud",
