@@ -98,8 +98,8 @@ The following table shows the resources, default names, and configuration variab
 |----------|--------------------|-----------------|-----------------------|
 | Topic | `outpost-delivery` | `outpost-log` | `GCP_PUBSUB_DELIVERY_TOPIC` / `GCP_PUBSUB_LOG_TOPIC` |
 | Subscription | `outpost-delivery-sub` | `outpost-log-sub` | `GCP_PUBSUB_DELIVERY_SUBSCRIPTION` / `GCP_PUBSUB_LOG_SUBSCRIPTION` |
-| DLQ Topic | `outpost-delivery-dlq` | `outpost-log-dlq` | (auto-derived from topic name) |
-| DLQ Subscription | `outpost-delivery-dlq-sub` | `outpost-log-dlq-sub` | (auto-derived from topic name) |
+| DLQ Topic | `outpost-delivery-dlq` | `outpost-log-dlq` | `GCP_PUBSUB_DELIVERY_DLQ_TOPIC` / `GCP_PUBSUB_LOG_DLQ_TOPIC` (optional; defaults to `<topic>-dlq` if unset) |
+| DLQ Subscription | `outpost-delivery-dlq-sub` | `outpost-log-dlq-sub` | `GCP_PUBSUB_DELIVERY_DLQ_SUBSCRIPTION` / `GCP_PUBSUB_LOG_DLQ_SUBSCRIPTION` (optional; defaults to `<dlq-topic>-sub` if unset) |
 
 **Configuration requirements:**
 - Create both topic and subscription pairs

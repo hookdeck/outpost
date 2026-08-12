@@ -183,6 +183,10 @@ func (c *Config) getMQSpecificFields(mqType string) []zap.Field {
 			zap.String("gcp_delivery_subscription", c.MQs.GCPPubSub.DeliverySubscription),
 			zap.String("gcp_log_topic", c.MQs.GCPPubSub.LogTopic),
 			zap.String("gcp_log_subscription", c.MQs.GCPPubSub.LogSubscription),
+			zap.String("gcp_delivery_dlq_topic", c.MQs.GCPPubSub.getDLQTopicByQueueType("deliverymq")),
+			zap.String("gcp_delivery_dlq_subscription", c.MQs.GCPPubSub.getDLQSubscriptionByQueueType("deliverymq")),
+			zap.String("gcp_log_dlq_topic", c.MQs.GCPPubSub.getDLQTopicByQueueType("logmq")),
+			zap.String("gcp_log_dlq_subscription", c.MQs.GCPPubSub.getDLQSubscriptionByQueueType("logmq")),
 		}
 	case "azureservicebus":
 		return []zap.Field{

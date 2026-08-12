@@ -518,6 +518,64 @@ func TestIntegrationMQInfra_GCPPubSub(t *testing.T) {
 	)
 }
 
+func TestIntegrationMQInfra_GCPPubSub_CustomDLQNames(t *testing.T) {
+	testutil.CheckIntegrationTest(t)
+	// Set PUBSUB_EMULATOR_HOST environment variable
+	testinfra.EnsureGCP()
+
+	topicID := "test-" + idgen.String()
+	subscriptionID := topicID + "-subscription"
+	customDLQTopic := "dead-letter-" + topicID
+	customDLQSub := customDLQTopic + "-consumer"
+
+	testMQInfra(t,
+		&Config{
+			infra: mqinfra.MQInfraConfig{
+				GCPPubSub: &mqinfra.GCPPubSubInfraConfig{
+					ProjectID:                 "test-project",
+					TopicID:                   topicID,
+					SubscriptionID:            subscriptionID,
+					DLQTopicID:                customDLQTopic,
+					DLQSubscriptionID:         customDLQSub,
+					ServiceAccountCredentials: "",
+					MinRetryBackoff:           1,
+					MaxRetryBackoff:           1,
+				},
+				Policy: mqinfra.Policy{
+					RetryLimit:        retryLimit,
+					VisibilityTimeout: 10,
+				},
+			},
+			mq: mqs.QueueConfig{
+				GCPPubSub: &mqs.GCPPubSubConfig{
+					ProjectID:                 "test-project",
+					TopicID:                   topicID,
+					SubscriptionID:            subscriptionID,
+					ServiceAccountCredentials: "",
+				},
+			},
+		},
+		&Config{
+			infra: mqinfra.MQInfraConfig{
+				GCPPubSub: &mqinfra.GCPPubSubInfraConfig{
+					ProjectID:                 "test-project",
+					TopicID:                   customDLQTopic,
+					SubscriptionID:            customDLQSub,
+					ServiceAccountCredentials: "",
+				},
+			},
+			mq: mqs.QueueConfig{
+				GCPPubSub: &mqs.GCPPubSubConfig{
+					ProjectID:                 "test-project",
+					TopicID:                   customDLQTopic,
+					SubscriptionID:            customDLQSub,
+					ServiceAccountCredentials: "",
+				},
+			},
+		},
+	)
+}
+
 func TestIntegrationMQInfra_AzureServiceBus(t *testing.T) {
 	t.Skip("skip TestIntegrationMQInfra_AzureServiceBus integration test for now since the emulator doesn't support managing resources")
 

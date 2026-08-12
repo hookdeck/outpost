@@ -50,6 +50,8 @@ type GCPPubSubInfraConfig struct {
 	ProjectID                 string
 	TopicID                   string
 	SubscriptionID            string
+	DLQTopicID                string // optional
+	DLQSubscriptionID         string // optional
 	ServiceAccountCredentials string
 	MinRetryBackoff           int // seconds, for PubSub RetryPolicy (default: 10)
 	MaxRetryBackoff           int // seconds, for PubSub RetryPolicy (default: 600)
