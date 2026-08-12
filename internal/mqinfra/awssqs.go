@@ -15,11 +15,15 @@ type infraAWSSQS struct {
 	cfg *MQInfraConfig
 }
 
+func DefaultAWSSQSDLQName(topic string) string {
+	return topic + "-dlq"
+}
+
 func (infra *infraAWSSQS) dlqName() string {
 	if infra.cfg.AWSSQS.DLQ != "" {
 		return infra.cfg.AWSSQS.DLQ
 	}
-	return infra.cfg.AWSSQS.Topic + "-dlq"
+	return DefaultAWSSQSDLQName(infra.cfg.AWSSQS.Topic)
 }
 
 func (infra *infraAWSSQS) Exist(ctx context.Context) (bool, error) {

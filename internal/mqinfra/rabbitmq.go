@@ -11,11 +11,15 @@ type infraRabbitMQ struct {
 	cfg *MQInfraConfig
 }
 
+func DefaultRabbitMQDLQName(queue string) string {
+	return queue + ".dlq"
+}
+
 func (infra *infraRabbitMQ) dlqName() string {
 	if infra.cfg.RabbitMQ.DLQ != "" {
 		return infra.cfg.RabbitMQ.DLQ
 	}
-	return infra.cfg.RabbitMQ.Queue + ".dlq"
+	return DefaultRabbitMQDLQName(infra.cfg.RabbitMQ.Queue)
 }
 
 func (infra *infraRabbitMQ) Exist(ctx context.Context) (bool, error) {

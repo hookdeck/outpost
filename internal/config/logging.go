@@ -162,6 +162,8 @@ func (c *Config) getMQSpecificFields(mqType string) []zap.Field {
 			zap.String("rabbitmq_exchange", c.MQs.RabbitMQ.Exchange),
 			zap.String("rabbitmq_delivery_queue", c.MQs.RabbitMQ.DeliveryQueue),
 			zap.String("rabbitmq_log_queue", c.MQs.RabbitMQ.LogQueue),
+			zap.String("rabbitmq_delivery_dlq", c.MQs.RabbitMQ.getDLQName("deliverymq")),
+			zap.String("rabbitmq_log_dlq", c.MQs.RabbitMQ.getDLQName("logmq")),
 		}
 	case "awssqs":
 		return []zap.Field{
@@ -170,6 +172,8 @@ func (c *Config) getMQSpecificFields(mqType string) []zap.Field {
 			zap.String("aws_region", c.MQs.AWSSQS.Region),
 			zap.String("aws_delivery_queue", c.MQs.AWSSQS.DeliveryQueue),
 			zap.String("aws_log_queue", c.MQs.AWSSQS.LogQueue),
+			zap.String("aws_delivery_dlq", c.MQs.AWSSQS.getDLQName("deliverymq")),
+			zap.String("aws_log_dlq", c.MQs.AWSSQS.getDLQName("logmq")),
 		}
 	case "gcppubsub":
 		return []zap.Field{

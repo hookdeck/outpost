@@ -36,14 +36,22 @@ func (c *AWSSQSConfig) getQueueName(queueType string) string {
 }
 
 func (c *AWSSQSConfig) getDLQName(queueType string) string {
+	var dlq string
 	switch queueType {
 	case "deliverymq":
-		return c.DeliveryDLQ
+		dlq = c.DeliveryDLQ
 	case "logmq":
-		return c.LogDLQ
+		dlq = c.LogDLQ
 	default:
 		return ""
 	}
+	if dlq != "" {
+		return dlq
+	}
+	if queue := c.getQueueName(queueType); queue != "" {
+		return mqinfra.DefaultAWSSQSDLQName(queue)
+	}
+	return ""
 }
 
 func (c *AWSSQSConfig) getCredentials() string {

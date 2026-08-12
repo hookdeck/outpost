@@ -29,14 +29,22 @@ func (c *RabbitMQConfig) getQueueName(queueType string) string {
 }
 
 func (c *RabbitMQConfig) getDLQName(queueType string) string {
+	var dlq string
 	switch queueType {
 	case "deliverymq":
-		return c.DeliveryDLQ
+		dlq = c.DeliveryDLQ
 	case "logmq":
-		return c.LogDLQ
+		dlq = c.LogDLQ
 	default:
 		return ""
 	}
+	if dlq != "" {
+		return dlq
+	}
+	if queue := c.getQueueName(queueType); queue != "" {
+		return mqinfra.DefaultRabbitMQDLQName(queue)
+	}
+	return ""
 }
 
 func (c *RabbitMQConfig) ToInfraConfig(queueType string) *mqinfra.MQInfraConfig {
