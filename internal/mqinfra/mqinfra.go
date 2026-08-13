@@ -30,6 +30,7 @@ type AWSSQSInfraConfig struct {
 	Region                    string
 	ServiceAccountCredentials string
 	Topic                     string
+	DLQ                       string // optional
 }
 
 type AzureServiceBusInfraConfig struct {
@@ -49,6 +50,8 @@ type GCPPubSubInfraConfig struct {
 	ProjectID                 string
 	TopicID                   string
 	SubscriptionID            string
+	DLQTopicID                string // optional
+	DLQSubscriptionID         string // optional
 	ServiceAccountCredentials string
 	MinRetryBackoff           int // seconds, for PubSub RetryPolicy (default: 10)
 	MaxRetryBackoff           int // seconds, for PubSub RetryPolicy (default: 600)
@@ -58,6 +61,7 @@ type RabbitMQInfraConfig struct {
 	ServerURL string
 	Exchange  string
 	Queue     string
+	DLQ       string // optional
 }
 
 func New(cfg *MQInfraConfig) MQInfra {

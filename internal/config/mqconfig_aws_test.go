@@ -46,6 +46,69 @@ func TestAWSSQSConfig_IsConfigured(t *testing.T) {
 	}
 }
 
+func TestAWSSQSConfig_DLQName(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		cfg       config.AWSSQSConfig
+		queueType string
+		want      string
+	}{
+		{
+			name:      "delivery falls back to derived name",
+			cfg:       config.AWSSQSConfig{Region: "us-east-1", DeliveryQueue: "outpost-delivery"},
+			queueType: "deliverymq",
+			want:      "outpost-delivery-dlq",
+		},
+		{
+			name:      "log falls back to derived name",
+			cfg:       config.AWSSQSConfig{Region: "us-east-1", LogQueue: "outpost-log"},
+			queueType: "logmq",
+			want:      "outpost-log-dlq",
+		},
+		{
+			name:      "delivery override wins",
+			cfg:       config.AWSSQSConfig{Region: "us-east-1", DeliveryQueue: "outpost-delivery", DeliveryDLQ: "dead_letter-outpost-delivery"},
+			queueType: "deliverymq",
+			want:      "dead_letter-outpost-delivery",
+		},
+		{
+			name:      "log override wins",
+			cfg:       config.AWSSQSConfig{Region: "us-east-1", LogQueue: "outpost-log", LogDLQ: "dead_letter-outpost-log"},
+			queueType: "logmq",
+			want:      "dead_letter-outpost-log",
+		},
+		{
+			name:      "log override does not leak into delivery",
+			cfg:       config.AWSSQSConfig{Region: "us-east-1", DeliveryQueue: "outpost-delivery", LogDLQ: "dead_letter-outpost-log"},
+			queueType: "deliverymq",
+			want:      "outpost-delivery-dlq",
+		},
+		{
+			name:      "no queue name yields no dlq name",
+			cfg:       config.AWSSQSConfig{Region: "us-east-1"},
+			queueType: "deliverymq",
+			want:      "",
+		},
+		{
+			name:      "unknown queue type yields no dlq name",
+			cfg:       config.AWSSQSConfig{Region: "us-east-1", DeliveryQueue: "outpost-delivery"},
+			queueType: "somethingelse",
+			want:      "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			infraCfg := tt.cfg.ToInfraConfig(tt.queueType)
+			require.NotNil(t, infraCfg.AWSSQS)
+			assert.Equal(t, tt.want, infraCfg.AWSSQS.DLQ)
+		})
+	}
+}
+
 func TestAWSSQSConfig_ToQueueConfig(t *testing.T) {
 	t.Parallel()
 

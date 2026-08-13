@@ -15,6 +15,10 @@ type GCPPubSubConfig struct {
 	DeliverySubscription      string `yaml:"delivery_subscription" env:"GCP_PUBSUB_DELIVERY_SUBSCRIPTION" desc:"Name of the GCP Pub/Sub subscription for delivery events." required:"N"`
 	LogTopic                  string `yaml:"log_topic" env:"GCP_PUBSUB_LOG_TOPIC" desc:"Name of the GCP Pub/Sub topic for log events." required:"N"`
 	LogSubscription           string `yaml:"log_subscription" env:"GCP_PUBSUB_LOG_SUBSCRIPTION" desc:"Name of the GCP Pub/Sub subscription for log events." required:"N"`
+	DeliveryDLQTopic          string `yaml:"delivery_dlq_topic" env:"GCP_PUBSUB_DELIVERY_DLQ_TOPIC" desc:"Name of the GCP Pub/Sub dead-letter topic for delivery events. Optional; defaults to '<delivery_topic>-dlq' if unset." required:"N"`
+	DeliveryDLQSubscription   string `yaml:"delivery_dlq_subscription" env:"GCP_PUBSUB_DELIVERY_DLQ_SUBSCRIPTION" desc:"Name of the GCP Pub/Sub subscription on the delivery dead-letter topic. Optional; defaults to '<delivery_dlq_topic>-sub' if unset." required:"N"`
+	LogDLQTopic               string `yaml:"log_dlq_topic" env:"GCP_PUBSUB_LOG_DLQ_TOPIC" desc:"Name of the GCP Pub/Sub dead-letter topic for log events. Optional; defaults to '<log_topic>-dlq' if unset." required:"N"`
+	LogDLQSubscription        string `yaml:"log_dlq_subscription" env:"GCP_PUBSUB_LOG_DLQ_SUBSCRIPTION" desc:"Name of the GCP Pub/Sub subscription on the log dead-letter topic. Optional; defaults to '<log_dlq_topic>-sub' if unset." required:"N"`
 }
 
 func (c *GCPPubSubConfig) getTopicByQueueType(queueType string) string {
@@ -39,6 +43,44 @@ func (c *GCPPubSubConfig) getSubscriptionByQueueType(queueType string) string {
 	}
 }
 
+func (c *GCPPubSubConfig) getDLQTopicByQueueType(queueType string) string {
+	var dlqTopic string
+	switch queueType {
+	case "deliverymq":
+		dlqTopic = c.DeliveryDLQTopic
+	case "logmq":
+		dlqTopic = c.LogDLQTopic
+	default:
+		return ""
+	}
+	if dlqTopic != "" {
+		return dlqTopic
+	}
+	if topic := c.getTopicByQueueType(queueType); topic != "" {
+		return mqinfra.DefaultGCPPubSubDLQTopicName(topic)
+	}
+	return ""
+}
+
+func (c *GCPPubSubConfig) getDLQSubscriptionByQueueType(queueType string) string {
+	var dlqSub string
+	switch queueType {
+	case "deliverymq":
+		dlqSub = c.DeliveryDLQSubscription
+	case "logmq":
+		dlqSub = c.LogDLQSubscription
+	default:
+		return ""
+	}
+	if dlqSub != "" {
+		return dlqSub
+	}
+	if dlqTopic := c.getDLQTopicByQueueType(queueType); dlqTopic != "" {
+		return mqinfra.DefaultGCPPubSubDLQSubscriptionName(dlqTopic)
+	}
+	return ""
+}
+
 func (c *GCPPubSubConfig) ToInfraConfig(queueType string) *mqinfra.MQInfraConfig {
 	return &mqinfra.MQInfraConfig{
 		GCPPubSub: &mqinfra.GCPPubSubInfraConfig{
@@ -46,6 +88,8 @@ func (c *GCPPubSubConfig) ToInfraConfig(queueType string) *mqinfra.MQInfraConfig
 			ServiceAccountCredentials: c.ServiceAccountCredentials,
 			TopicID:                   c.getTopicByQueueType(queueType),
 			SubscriptionID:            c.getSubscriptionByQueueType(queueType),
+			DLQTopicID:                c.getDLQTopicByQueueType(queueType),
+			DLQSubscriptionID:         c.getDLQSubscriptionByQueueType(queueType),
 		},
 	}
 }

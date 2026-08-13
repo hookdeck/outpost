@@ -225,6 +225,52 @@ func TestIntegrationMQInfra_RabbitMQ(t *testing.T) {
 	)
 }
 
+func TestIntegrationMQInfra_RabbitMQ_CustomDLQName(t *testing.T) {
+	testutil.CheckIntegrationTest(t)
+	exchange := idgen.String()
+	queue := idgen.String()
+	customDLQ := "dead_letter-" + queue
+
+	testMQInfra(t,
+		&Config{
+			infra: mqinfra.MQInfraConfig{
+				RabbitMQ: &mqinfra.RabbitMQInfraConfig{
+					ServerURL: testinfra.EnsureRabbitMQ(),
+					Exchange:  exchange,
+					Queue:     queue,
+					DLQ:       customDLQ,
+				},
+				Policy: mqinfra.Policy{
+					RetryLimit: retryLimit,
+				},
+			},
+			mq: mqs.QueueConfig{
+				RabbitMQ: &mqs.RabbitMQConfig{
+					ServerURL: testinfra.EnsureRabbitMQ(),
+					Exchange:  exchange,
+					Queue:     queue,
+				},
+			},
+		},
+		&Config{
+			infra: mqinfra.MQInfraConfig{
+				RabbitMQ: &mqinfra.RabbitMQInfraConfig{
+					ServerURL: testinfra.EnsureRabbitMQ(),
+					Exchange:  exchange,
+					Queue:     customDLQ,
+				},
+			},
+			mq: mqs.QueueConfig{
+				RabbitMQ: &mqs.RabbitMQConfig{
+					ServerURL: testinfra.EnsureRabbitMQ(),
+					Exchange:  exchange,
+					Queue:     customDLQ,
+				},
+			},
+		},
+	)
+}
+
 func TestIntegrationMQInfra_AWSSQS(t *testing.T) {
 	testutil.CheckIntegrationTest(t)
 	q := idgen.String()
@@ -268,6 +314,58 @@ func TestIntegrationMQInfra_AWSSQS(t *testing.T) {
 					ServiceAccountCredentials: "test:test:",
 					Region:                    "us-east-1",
 					Topic:                     q + "-dlq",
+					WaitTime:                  1 * time.Second,
+				},
+			},
+		},
+	)
+}
+
+func TestIntegrationMQInfra_AWSSQS_CustomDLQName(t *testing.T) {
+	testutil.CheckIntegrationTest(t)
+	q := idgen.String()
+	customDLQ := "dead_letter-" + q
+
+	testMQInfra(t,
+		&Config{
+			infra: mqinfra.MQInfraConfig{
+				AWSSQS: &mqinfra.AWSSQSInfraConfig{
+					Endpoint:                  testinfra.EnsureLocalStack(),
+					ServiceAccountCredentials: "test:test:",
+					Region:                    "us-east-1",
+					Topic:                     q,
+					DLQ:                       customDLQ,
+				},
+				Policy: mqinfra.Policy{
+					RetryLimit:        retryLimit,
+					VisibilityTimeout: 1,
+				},
+			},
+			mq: mqs.QueueConfig{
+				AWSSQS: &mqs.AWSSQSConfig{
+					Endpoint:                  testinfra.EnsureLocalStack(),
+					ServiceAccountCredentials: "test:test:",
+					Region:                    "us-east-1",
+					Topic:                     q,
+					WaitTime:                  1 * time.Second,
+				},
+			},
+		},
+		&Config{
+			infra: mqinfra.MQInfraConfig{
+				AWSSQS: &mqinfra.AWSSQSInfraConfig{
+					Endpoint:                  testinfra.EnsureLocalStack(),
+					ServiceAccountCredentials: "test:test:",
+					Region:                    "us-east-1",
+					Topic:                     customDLQ,
+				},
+			},
+			mq: mqs.QueueConfig{
+				AWSSQS: &mqs.AWSSQSConfig{
+					Endpoint:                  testinfra.EnsureLocalStack(),
+					ServiceAccountCredentials: "test:test:",
+					Region:                    "us-east-1",
+					Topic:                     customDLQ,
 					WaitTime:                  1 * time.Second,
 				},
 			},
@@ -413,6 +511,64 @@ func TestIntegrationMQInfra_GCPPubSub(t *testing.T) {
 					ProjectID:                 "test-project",
 					TopicID:                   topicID + "-dlq",
 					SubscriptionID:            topicID + "-dlq-sub",
+					ServiceAccountCredentials: "",
+				},
+			},
+		},
+	)
+}
+
+func TestIntegrationMQInfra_GCPPubSub_CustomDLQNames(t *testing.T) {
+	testutil.CheckIntegrationTest(t)
+	// Set PUBSUB_EMULATOR_HOST environment variable
+	testinfra.EnsureGCP()
+
+	topicID := "test-" + idgen.String()
+	subscriptionID := topicID + "-subscription"
+	customDLQTopic := "dead-letter-" + topicID
+	customDLQSub := customDLQTopic + "-consumer"
+
+	testMQInfra(t,
+		&Config{
+			infra: mqinfra.MQInfraConfig{
+				GCPPubSub: &mqinfra.GCPPubSubInfraConfig{
+					ProjectID:                 "test-project",
+					TopicID:                   topicID,
+					SubscriptionID:            subscriptionID,
+					DLQTopicID:                customDLQTopic,
+					DLQSubscriptionID:         customDLQSub,
+					ServiceAccountCredentials: "",
+					MinRetryBackoff:           1,
+					MaxRetryBackoff:           1,
+				},
+				Policy: mqinfra.Policy{
+					RetryLimit:        retryLimit,
+					VisibilityTimeout: 10,
+				},
+			},
+			mq: mqs.QueueConfig{
+				GCPPubSub: &mqs.GCPPubSubConfig{
+					ProjectID:                 "test-project",
+					TopicID:                   topicID,
+					SubscriptionID:            subscriptionID,
+					ServiceAccountCredentials: "",
+				},
+			},
+		},
+		&Config{
+			infra: mqinfra.MQInfraConfig{
+				GCPPubSub: &mqinfra.GCPPubSubInfraConfig{
+					ProjectID:                 "test-project",
+					TopicID:                   customDLQTopic,
+					SubscriptionID:            customDLQSub,
+					ServiceAccountCredentials: "",
+				},
+			},
+			mq: mqs.QueueConfig{
+				GCPPubSub: &mqs.GCPPubSubConfig{
+					ProjectID:                 "test-project",
+					TopicID:                   customDLQTopic,
+					SubscriptionID:            customDLQSub,
 					ServiceAccountCredentials: "",
 				},
 			},
