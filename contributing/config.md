@@ -112,7 +112,7 @@ When adding or modifying configuration fields, use this checklist:
 - [ ] **Sensitive fields are masked (showing only if configured, not actual value)**
 - [ ] MQ-specific fields added to `getMQSpecificFields()` (if applicable)
 - [ ] Validation added (if required)
-- [ ] Documentation regenerated with `go generate`
+- [ ] Field documented in `docs/content/self-hosting/configuration.mdoc`
 - [ ] Changes tested with `LOG_LEVEL=info` to verify logs appear correctly
 
 ## Why Configuration Logging Matters
