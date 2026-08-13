@@ -99,10 +99,12 @@ func (c *Config) LogConfigurationSummary() []zap.Field {
 		zap.Int("delivery_max_concurrency", c.DeliveryMaxConcurrency),
 		zap.Int("log_max_concurrency", c.LogMaxConcurrency),
 
-		// Delivery Retry
+		// Delivery Retry. retry_poll_backoff_ms is the resolved value: with
+		// RETRY_POLL_BACKOFF_MS unset or 0 it is derived from the retry delays.
 		zap.Ints("retry_schedule", c.RetrySchedule),
 		zap.Int("retry_interval_seconds", c.RetryIntervalSeconds),
 		zap.Int("retry_max_limit", c.RetryMaxLimit),
+		zap.Int("retry_poll_backoff_ms", int(c.GetRetryPollBackoff().Milliseconds())),
 
 		// Event Delivery
 		zap.Int("max_destinations_per_tenant", c.MaxDestinationsPerTenant),

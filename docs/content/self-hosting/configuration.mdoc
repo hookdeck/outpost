@@ -73,6 +73,7 @@ Choose one for event log persistence:
 | `MAX_RETRY_LIMIT` | `10` | Max retry attempts before giving up |
 | `RETRY_INTERVAL_SECONDS` | `30` | Base interval for exponential backoff retries |
 | `RETRY_SCHEDULE` | — | Comma-separated retry delays in seconds (overrides interval/limit) |
+| `RETRY_POLL_BACKOFF_MS` | `0` (auto) | Maximum time the retry monitor sleeps between polls while idle. `0` sleeps until the next retry comes due, capped at the shorter of 30 seconds and your shortest configured retry delay, so a retry is never late. An explicit positive value is honored as a fixed maximum, which can delay a retry scheduled while the monitor is already sleeping by up to that much. |
 
 ## Topics
 
