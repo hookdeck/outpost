@@ -45,6 +45,18 @@ Leaving a variable unset keeps the existing derived name, so upgrading changes n
 
 This also affects deployments that manage their own queues. With `MQS_AUTO_PROVISION=false`, Outpost verified that a dead-letter queue existed under the derived name, so a deployment whose DLQs follow a different naming convention could not start. Setting these variables lets Outpost find them. See [Bring your own message queue](/docs/outpost/self-hosting/guides/byo-mqs).
 
+### `outpost config list`
+
+A new CLI command prints the effective configuration after defaults, the YAML config file, and environment variables have been resolved:
+
+```bash
+outpost config list
+```
+
+Values are masked the same way they are in the startup log: secrets appear as `<field>_configured true|false`, and credentials are stripped from connection URLs. The command deliberately skips config validation, so it still prints when a required field is missing — which is when you most want to see what Outpost resolved. If validation does fail, it prints the error to stderr after the listing.
+
+The output is the same set of fields Outpost logs at startup, so it does not yet cover every setting.
+
 ### Go 1.26.5 and dependency refresh
 
 The toolchain moves to Go 1.26.5 and dependencies are refreshed, addressing the CVEs reported in [#1012](https://github.com/hookdeck/outpost/issues/1012), including `x/text` `norm.Iter` (GO-2026-5970), which was reachable through webhook delivery, pgx, and Kafka SCRAM.
@@ -126,4 +138,4 @@ The Docker base image moves from `distroless/base-debian12` to `distroless/base-
 
 ## Thanks
 
-This release cycle includes a first-time contribution from [@8BitJonny](https://github.com/8BitJonny), and a further contribution from [@ambroziepaval](https://github.com/ambroziepaval). Thank you!
+This release cycle includes first-time contributions from [@8BitJonny](https://github.com/8BitJonny) and [@zahradm](https://github.com/zahradm), and a further contribution from [@ambroziepaval](https://github.com/ambroziepaval). Thank you!
