@@ -392,6 +392,13 @@ func Parse(flags Flags) (*Config, error) {
 	return ParseWithOS(flags, defaultOS)
 }
 
+// LoadWithoutValidation parses config the same way Parse does, but skips
+// validation. It's for tools like `outpost config list` that want to show
+// the resolved configuration even when required fields are missing.
+func LoadWithoutValidation(flags Flags) (*Config, error) {
+	return ParseWithoutValidation(flags, defaultOS)
+}
+
 // ParseWithOS parses and validates config with a custom OS interface
 func ParseWithOS(flags Flags, osInterface OSInterface) (*Config, error) {
 	config, err := ParseWithoutValidation(flags, osInterface)

@@ -25,6 +25,7 @@ func main() {
 				},
 			},
 			newMigrateCommand(),
+			newConfigCommand(),
 		},
 		Action: func(ctx context.Context, c *cli.Command) error {
 			// Default action - show help
