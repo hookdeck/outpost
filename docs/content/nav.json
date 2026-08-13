@@ -263,6 +263,10 @@
             {
               "slug": "self-hosting/changelog/upgrade-v1.1",
               "title": "Upgrade to v1.1"
+            },
+            {
+              "slug": "self-hosting/changelog/upgrade-v1.2",
+              "title": "Upgrade to v1.2"
             }
           ]
         ]

@@ -1,0 +1,129 @@
+---
+title: "Upgrade to v1.2"
+description: "New features, fixes, and behavior changes when upgrading Outpost from v1.1 to v1.2."
+---
+
+This guide covers what changes when upgrading from v1.1 to v1.2. There are no breaking changes. There is one new PostgreSQL migration, and one behavior change to review before upgrading.
+
+| Change | Impact | Action Required |
+| --- | --- | --- |
+| [New PostgreSQL migration](#new-postgresql-migration) | PostgreSQL log storage | Run `outpost migrate apply --yes` before starting v1.2 |
+| [`RETRY_POLL_BACKOFF_MS` redefined](#retry_poll_backoff_ms-redefined) | Deployments that set it explicitly | Review or unset the value |
+| [Invalid signature templates now fail at startup](#invalid-signature-templates-fail-at-startup) | Custom webhook signature templates | Verify your templates before upgrading |
+
+## New PostgreSQL Migration
+
+Migration `000010` renames two indexes on the `attempts` table:
+
+- `deliveries_pkey` → `attempts_pkey`
+- `deliveries_default_pkey` → `attempts_default_pkey`
+
+Migration `000005` renamed the `deliveries` tables to `attempts`, but PostgreSQL does not rename an index when its table is renamed, so the primary keys kept their original names. This is a metadata-only rename: no table rewrite, no index rebuild, and no downtime.
+
+The server refuses to start with a pending migration, so run migrations before starting v1.2:
+
+```bash
+outpost migrate apply --yes
+outpost serve
+```
+
+ClickHouse deployments have no new migrations in this release.
+
+## What's New
+
+### Custom dead-letter queue names
+
+When Outpost auto-provisions its queues (`MQS_AUTO_PROVISION=true`, the default), you can now name the dead-letter queues instead of accepting the derived default:
+
+| Provider | Variables |
+| --- | --- |
+| AWS SQS | `AWS_SQS_DELIVERY_DLQ`, `AWS_SQS_LOG_DLQ` |
+| RabbitMQ | `RABBITMQ_DELIVERY_DLQ`, `RABBITMQ_LOG_DLQ` |
+| GCP Pub/Sub | `GCP_PUBSUB_DELIVERY_DLQ_TOPIC`, `GCP_PUBSUB_DELIVERY_DLQ_SUBSCRIPTION`, `GCP_PUBSUB_LOG_DLQ_TOPIC`, `GCP_PUBSUB_LOG_DLQ_SUBSCRIPTION` |
+
+Leaving a variable unset keeps the existing derived name, so upgrading changes nothing unless you set one. Azure Service Bus has no equivalent setting: it dead-letters into each subscription's built-in `$DeadLetterQueue` sub-queue, whose name the platform fixes.
+
+This also affects deployments that manage their own queues. With `MQS_AUTO_PROVISION=false`, Outpost verified that a dead-letter queue existed under the derived name, so a deployment whose DLQs follow a different naming convention could not start. Setting these variables lets Outpost find them. See [Bring your own message queue](/docs/outpost/self-hosting/guides/byo-mqs).
+
+### Go 1.26.5 and dependency refresh
+
+The toolchain moves to Go 1.26.5 and dependencies are refreshed, addressing the CVEs reported in [#1012](https://github.com/hookdeck/outpost/issues/1012), including `x/text` `norm.Iter` (GO-2026-5970), which was reachable through webhook delivery, pgx, and Kafka SCRAM.
+
+### Fewer idle Redis commands from the retry monitor
+
+The retry monitor previously polled Redis on a fixed interval whether or not anything was due, at a cost independent of traffic and multiplied by replica count. It now sleeps until the next retry actually comes due. See [`RETRY_POLL_BACKOFF_MS` redefined](#retry_poll_backoff_ms-redefined) for the configuration change this involves.
+
+### Connection reuse across deliveries
+
+Outpost previously built a separate HTTP client per destination, each inheriting Go's default of two idle connections. Above two concurrent deliveries to one destination, connection reuse collapsed to roughly one new connection per delivery.
+
+Each provider now shares one client with a sized connection pool. The sizing is derived rather than configured — per-host depth from `DELIVERY_MAX_CONCURRENCY`, total breadth from the process's `RLIMIT_NOFILE` (a quarter of the soft limit, floored at 100 and capped at 4096) — and the resolved values are logged at startup as `delivery_max_idle_conns` and `delivery_max_idle_conns_per_host`. Deployments running with a low file descriptor limit should confirm there is headroom for the logged total.
+
+## Behavior Changes
+
+### `RETRY_POLL_BACKOFF_MS` redefined
+
+The variable changes meaning in v1.2, and only affects deployments that set it explicitly.
+
+| | v1.1 | v1.2 |
+| --- | --- | --- |
+| Meaning | Fixed interval between retry queue polls | Maximum time the monitor sleeps while idle |
+| Default | `100` | `0` (auto) |
+
+With the default of `0`, the monitor sleeps until the next scheduled retry comes due, capped at the shorter of 30 seconds and your shortest configured retry delay, so a retry is never late. An explicit positive value is honored as a fixed maximum idle sleep, which can delay a retry scheduled while the monitor is already sleeping by up to that much.
+
+If you set `RETRY_POLL_BACKOFF_MS` to reduce Redis load, unset it: the auto behavior achieves that without the latency cost. If you set it for any other reason, the value still applies, but as a cap rather than a fixed interval.
+
+The consecutive-error backoff ladder no longer derives from this variable, so the monitor's tolerance for transient Redis failures is now fixed regardless of what you set.
+
+## Fixes
+
+### Invalid signature templates fail at startup
+
+A malformed webhook signature template previously passed startup and panicked the delivery worker on the first event. Because the event stayed queued, the worker panicked again on every restart.
+
+Config validation now builds both formatters and renders each against a synthetic payload, so a template that does not parse — or that references a field belonging to the other payload type — fails startup and names the offending template. Value-dependent failures that the dry run cannot catch now produce a failed delivery attempt instead of a panic.
+
+If you run a custom `DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE` or `DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE`, verify it against v1.2 in a non-production environment first: a template that is broken today will stop the server from starting rather than failing at delivery.
+
+### Per-signal OpenTelemetry configuration
+
+`OpenTelemetryConfig` has always had separate traces, metrics, and logs sections, but all three read the same pair of environment variables, so `OTEL_EXPORTER` and `OTEL_PROTOCOL` configured every signal at once. Enabling OTel for one signal enabled the other two against `localhost:4317`, where they retried into a dead socket for the life of the process.
+
+Exporter and protocol now resolve per signal:
+
+- Exporter: `OTEL_{SIGNAL}_EXPORTER`, then `OTEL_EXPORTER`, then endpoint inference.
+- Protocol: `OTEL_EXPORTER_OTLP_{SIGNAL}_PROTOCOL`, then `OTEL_EXPORTER_OTLP_PROTOCOL`, then `OTEL_PROTOCOL`, then `grpc`. The spec variables were previously read from a source the config package never populated, so they were silently ignored.
+
+Endpoints decide which signals export: a per-signal endpoint enables exactly those signals, the generic endpoint enables all three, and no endpoint leaves all three enabled as before. Deployments that set only a generic endpoint are unaffected. See [OpenTelemetry](/docs/outpost/features/opentelemetry).
+
+### Destination limit returns 400
+
+Creating a destination once a tenant has reached `MAX_DESTINATIONS_PER_TENANT` returns `400 Bad Request`. It previously returned `500 Internal Server Error`.
+
+### CLI errors are printed
+
+Every failure from the `outpost` CLI exited non-zero with nothing on stderr. Errors are now printed before exit, which matters most for `outpost migrate`, where a mistyped config path and an unreachable database were previously indistinguishable.
+
+## Other Changes
+
+The Docker base image moves from `distroless/base-debian12` to `distroless/base-debian13`.
+
+## Upgrade Checklist
+
+1. **Before upgrading:**
+   - [ ] If you set `RETRY_POLL_BACKOFF_MS`, decide whether to unset it or keep it as a cap
+   - [ ] If you use a custom webhook signature template, verify it starts under v1.2 in a non-production environment
+   - [ ] If you set per-signal OTel endpoints, confirm the signals you expect are the ones enabled
+   - [ ] If you run with a low `RLIMIT_NOFILE`, confirm there is headroom for the delivery connection pool
+
+2. **Upgrade:**
+   - [ ] Run `outpost migrate apply --yes` (PostgreSQL log storage; no ClickHouse migrations in this release)
+   - [ ] Update Outpost to v1.2
+
+3. **After upgrading:**
+   - [ ] Check the startup log for `delivery_max_idle_conns` and `delivery_max_idle_conns_per_host`
+
+## Thanks
+
+This release cycle includes a first-time contribution from [@8BitJonny](https://github.com/8BitJonny), and a further contribution from [@ambroziepaval](https://github.com/ambroziepaval). Thank you!
