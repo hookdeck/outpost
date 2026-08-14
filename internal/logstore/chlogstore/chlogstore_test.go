@@ -61,17 +61,11 @@ func setupClickHouseConnection(t *testing.T) clickhouse.DB {
 	return chDB
 }
 
-// stopMerges disables background merges for one table in the calling test's
-// database. Pass the logStore's own table field so the name cannot drift from
-// the one the code under test queries.
+// stopMerges holds duplicate rows in place for tests that assert on them —
+// ReplacingMergeTree collapses rows sharing the ORDER BY key on merge.
 //
-// ReplacingMergeTree collapses rows sharing the ORDER BY key whenever the
-// server decides to merge parts. Tests that assert on raw duplicate rows are
-// asserting on the pre-merge state, which the engine is otherwise free to
-// change at any moment. Qualifying the table name is what keeps this scoped:
-// bare `SYSTEM STOP MERGES` applies server-wide, and every test shares one
-// ClickHouse server. Each test has its own database (testinfra.NewClickHouseConfig),
-// which is dropped on cleanup, so the setting goes with it.
+// The table must be qualified: bare SYSTEM STOP MERGES is server-wide, and every
+// test shares one ClickHouse server.
 func stopMerges(t *testing.T, chDB clickhouse.DB, table string) {
 	t.Helper()
 
@@ -79,9 +73,7 @@ func stopMerges(t *testing.T, chDB clickhouse.DB, table string) {
 	var database string
 	require.NoError(t, chDB.QueryRow(ctx, "SELECT currentDatabase()").Scan(&database))
 
-	// SYSTEM STOP MERGES reports success for a table that does not exist, so an
-	// unmatched name would leave merges running and silently restore the race
-	// this call exists to remove.
+	// SYSTEM STOP MERGES reports success for a table that does not exist.
 	var exists uint64
 	require.NoError(t, chDB.QueryRow(ctx,
 		"SELECT count() FROM system.tables WHERE database = ? AND name = ?",
@@ -186,14 +178,11 @@ func TestEventDedup(t *testing.T) {
 	chDB := setupClickHouseConnection(t)
 	defer chDB.Close()
 
-	// Concrete type so the test uses the same table names the code under test does.
+	// Concrete type: the test needs the same table name the queries use.
 	logStore := NewLogStore(chDB, "").(*logStoreImpl)
 
-	// The injected legacy duplicates below reuse the originals' (event_time,
-	// event_id), so a background merge would collapse them and the raw row
-	// count would drop from 9 to 3. Production reads unmerged parts — that is
-	// why the read path dedups at all — so this test asserts on the unmerged
-	// state and holds merges off to keep it.
+	// The injected duplicates below share (event_time, event_id) with the
+	// originals, so a merge would collapse the raw count from 9 to 3.
 	stopMerges(t, chDB, logStore.eventsTable)
 
 	tenantID := "dedup-tenant"
@@ -323,13 +312,11 @@ func TestFetchAndDedupTruncation(t *testing.T) {
 	chDB := setupClickHouseConnection(t)
 	defer chDB.Close()
 
-	// Concrete type so the test uses the same table names the code under test does.
+	// Concrete type: the test needs the same table name the queries use.
 	logStore := NewLogStore(chDB, "").(*logStoreImpl)
 
-	// evt-trunc-a is inserted twice at the same event_time, so a background
-	// merge would collapse it and the first batch would come back already
-	// deduplicated — the overshoot this test exists to cover would never
-	// happen and the assertion would pass without exercising anything.
+	// evt-trunc-a is inserted twice at one event_time; a merge would collapse it
+	// and the first batch would come back deduplicated, so no overshoot to catch.
 	stopMerges(t, chDB, logStore.eventsTable)
 
 	tenantID := "dedup-truncation"
