@@ -128,10 +128,17 @@ dockers_v2:
       repository: "https://github.com/hookdeck/outpost"
       homepage: "https://hookdeck.com"
 
-# Sign published images with cosign, keyless via the workflow's OIDC token. The
-# default args sign with a local cosign.key; dropping --key is what selects
-# keyless. Runs in the publish phase, so --snapshot builds never reach it and
-# local builds need neither cosign nor credentials.
+# Signs checksums.txt, which covers every archive transitively. This one runs
+# before publish, so local snapshot builds pass --skip=sign to avoid needing
+# cosign installed.
+signs:
+  - cmd: cosign
+    signature: "${artifact}.sigstore.json"
+    artifacts: checksum
+    args: ["sign-blob", "--bundle=${signature}", "${artifact}", "--yes"]
+
+# Keyless cosign signing via the workflow's OIDC token. Omitting --key is what
+# selects keyless; publish-phase only, so --snapshot never invokes cosign.
 docker_signs:
   - artifacts: images
     args: ["sign", "${artifact}@${digest}", "--yes"]

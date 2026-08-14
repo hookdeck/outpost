@@ -17,7 +17,7 @@ build:
 	@echo "Binaries built in ./bin/"
 
 build/goreleaser:
-	goreleaser release -f ./build/.goreleaser.yaml --snapshot --clean
+	goreleaser release -f ./build/.goreleaser.yaml --snapshot --clean --skip=sign
 
 build/outpost:
 	go build -tags nomsgpack -o bin/outpost ./cmd/outpost
@@ -144,7 +144,7 @@ logs:
 # Use docker/push to push to Docker Hub: DOCKER_USER=<your-username> make docker/push TAG=v0.13.3-beta
 docker/build:
 	@if [ -z "$(TAG)" ]; then echo "Usage: make docker/build TAG=v0.13.3-beta"; exit 1; fi
-	GORELEASER_CURRENT_TAG=$(TAG) goreleaser release -f ./build/.goreleaser.yaml --snapshot --clean
+	GORELEASER_CURRENT_TAG=$(TAG) goreleaser release -f ./build/.goreleaser.yaml --snapshot --clean --skip=sign
 
 # Tag and push image to Docker Hub under DOCKER_USER (e.g. make docker/push DOCKER_USER=alexbouchard TAG=v0.13.3-beta).
 # Requires: docker login first.
