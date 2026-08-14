@@ -28,6 +28,16 @@ var ErrInvalidLogEntry = errors.New("invalid log entry: both event and attempt a
 // slower fails into the nack/redelivery path.
 const emitTimeout = 5 * time.Second
 
+// shutdownTimeout caps Shutdown so a stuck drain cannot hold the process open
+// indefinitely. It sits above the legitimate worst case — the final flush's
+// 30s insert plus one emitTimeout drain — so it only ever fires on a hang.
+//
+// The known hang is in batcher.Shutdown: it stops the ticker, then calls
+// processQueue, whose defer restarts it. If a tick lands between the
+// processingMutex acquisition and the send on its shutdown channel, the ticker
+// goroutine blocks on that mutex forever and the send never finds a receiver.
+const shutdownTimeout = 60 * time.Second
+
 // LogStore defines the interface for persisting log entries.
 // This is a consumer-defined interface containing only what logmq needs.
 type LogStore interface {
@@ -181,10 +191,26 @@ func (bp *BatchProcessor) Add(ctx context.Context, msg *mqs.Message) error {
 // the in-flight entries drain. Every dispatched message reaches a terminal
 // state before Shutdown returns, and the drain is bounded by emitTimeout.
 // Idempotent.
+//
+// Shutdown gives up after shutdownTimeout and returns, abandoning the drain
+// goroutine. Messages still in flight are never acked, so the broker
+// redelivers them. Losing the process to a stuck drain would strand them the
+// same way, with the process hanging until it is killed.
 func (bp *BatchProcessor) Shutdown() {
 	bp.shutdownOnce.Do(func() {
-		bp.batcher.Shutdown()
-		bp.inflight.Wait()
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			bp.batcher.Shutdown()
+			bp.inflight.Wait()
+		}()
+
+		select {
+		case <-done:
+		case <-time.After(shutdownTimeout):
+			bp.logger.Ctx(bp.ctx).Error("logmq batch processor shutdown timed out",
+				zap.Duration("timeout", shutdownTimeout))
+		}
 	})
 }
 
