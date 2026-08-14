@@ -104,11 +104,16 @@ dockers_v2:
     platforms:
       - linux/amd64
       - linux/arm64
-    # Keep the published manifest to just the two platforms. Enabling SBOM adds
-    # attestation entries that surface as "unknown/unknown" platforms on Docker Hub.
+    # Keep the published manifest to just the two platform entries, matching what
+    # the dockers/docker_manifests setup produced. Attestations are published as
+    # extra manifest entries that show up as "unknown/unknown" platforms on Docker
+    # Hub, and both sources have to be turned off: sbom drops --attest=type=sbom,
+    # and --provenance=false overrides buildx's default of attaching provenance
+    # whenever it pushes. GoReleaser never passes --provenance itself.
     sbom: false
     flags:
       - "--pull"
+      - "--provenance=false"
     labels:
       org.opencontainers.image.created: "{{ .Date }}"
       org.opencontainers.image.name: "{{ .ProjectName }}"
