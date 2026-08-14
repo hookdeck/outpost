@@ -111,7 +111,7 @@ func TestCharacterization_ShutdownDrainsPostprocess(t *testing.T) {
 		time.Sleep(50 * time.Millisecond)
 		h.eval.release()
 	}()
-	h.bp.Shutdown()
+	shutdownBounded(t, h.bp)
 
 	// Shutdown returned → the eval ran, the alert delivered and the msg acked.
 	cm.requireAcked(t)

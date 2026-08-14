@@ -115,7 +115,7 @@ func TestCharacterization_ShutdownDrainsDeliveries(t *testing.T) {
 		time.Sleep(50 * time.Millisecond)
 		h.sink.release()
 	}()
-	h.bp.Shutdown()
+	shutdownBounded(t, h.bp)
 
 	// Shutdown returned → the delivery completed and acked.
 	cm.requireAcked(t)
