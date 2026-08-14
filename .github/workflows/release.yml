@@ -8,6 +8,12 @@ on:
 jobs:
   release:
     runs-on: ubuntu-latest
+    # Declaring permissions replaces the defaults entirely, so contents: write
+    # has to be listed for the GitHub release. id-token: write mints the OIDC
+    # token cosign exchanges for a short-lived signing certificate.
+    permissions:
+      contents: write
+      id-token: write
     steps:
       - name: Code checkout
         uses: actions/checkout@v5
@@ -36,6 +42,8 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: 1.26.5
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v6
         with:
