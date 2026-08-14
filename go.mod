@@ -11,7 +11,6 @@ require (
 	github.com/ClickHouse/clickhouse-go/v2 v2.48.0
 	github.com/Masterminds/sprig/v3 v3.3.0
 	github.com/alicebob/miniredis/v2 v2.38.0
-	github.com/aws/aws-sdk-go v1.55.8
 	github.com/aws/aws-sdk-go-v2 v1.43.4
 	github.com/aws/aws-sdk-go-v2/config v1.32.35
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.34
