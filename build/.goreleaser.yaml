@@ -104,12 +104,8 @@ dockers_v2:
     platforms:
       - linux/amd64
       - linux/arm64
-    # Keep the published manifest to just the two platform entries, matching what
-    # the dockers/docker_manifests setup produced. Attestations are published as
-    # extra manifest entries that show up as "unknown/unknown" platforms on Docker
-    # Hub, and both sources have to be turned off: sbom drops --attest=type=sbom,
-    # and --provenance=false overrides buildx's default of attaching provenance
-    # whenever it pushes. GoReleaser never passes --provenance itself.
+    # No attestations, so the manifest keeps the same two platform entries as
+    # today. Takes both switches — buildx adds provenance on its own.
     sbom: false
     flags:
       - "--pull"
