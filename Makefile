@@ -12,23 +12,23 @@ build:
 		exit 1; \
 	fi
 	@echo "Building all binaries..."
-	go build -o bin/outpost ./cmd/outpost
-	go build -o bin/outpost-server ./cmd/outpost-server
+	go build -tags nomsgpack -o bin/outpost ./cmd/outpost
+	go build -tags nomsgpack -o bin/outpost-server ./cmd/outpost-server
 	@echo "Binaries built in ./bin/"
 
 build/goreleaser:
 	goreleaser release -f ./build/.goreleaser.yaml --snapshot --clean
 
 build/outpost:
-	go build -o bin/outpost ./cmd/outpost
+	go build -tags nomsgpack -o bin/outpost ./cmd/outpost
 
 build/server:
-	go build -o bin/outpost-server ./cmd/outpost-server
+	go build -tags nomsgpack -o bin/outpost-server ./cmd/outpost-server
 
 install:
 	@echo "Installing binaries to GOPATH/bin..."
-	go install ./cmd/outpost
-	go install ./cmd/outpost-server
+	go install -tags nomsgpack ./cmd/outpost
+	go install -tags nomsgpack ./cmd/outpost-server
 	@echo "Installation complete"
 
 clean:

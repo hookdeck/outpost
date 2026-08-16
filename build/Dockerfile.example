@@ -19,8 +19,8 @@ RUN go mod download
 COPY . .
 
 # Build all binaries
-RUN go build -o ./bin/outpost ./cmd/outpost && \
-    go build -o ./bin/outpost-server ./cmd/outpost-server
+RUN go build -tags nomsgpack -o ./bin/outpost ./cmd/outpost && \
+    go build -tags nomsgpack -o ./bin/outpost-server ./cmd/outpost-server
 
 # Stage 1
 # Get busybox shell for entrypoint script

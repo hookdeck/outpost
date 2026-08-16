@@ -19,6 +19,8 @@ builds:
       - -s -w
       - -X github.com/hookdeck/outpost/internal/version.version={{.Version}}
       - -X github.com/hookdeck/outpost/internal/version.commit={{.FullCommit}}
+    flags:
+      - -tags=nomsgpack
     binary: outpost
     env:
       - CGO_ENABLED=0
@@ -32,6 +34,8 @@ builds:
       - -s -w
       - -X github.com/hookdeck/outpost/internal/version.version={{.Version}}
       - -X github.com/hookdeck/outpost/internal/version.commit={{.FullCommit}}
+    flags:
+      - -tags=nomsgpack
     binary: outpost
     env:
       - CGO_ENABLED=0
@@ -47,6 +51,8 @@ builds:
       - -s -w
       - -X github.com/hookdeck/outpost/internal/version.version={{.Version}}
       - -X github.com/hookdeck/outpost/internal/version.commit={{.FullCommit}}
+    flags:
+      - -tags=nomsgpack
     binary: outpost-server
     env:
       - CGO_ENABLED=0
@@ -60,6 +66,8 @@ builds:
       - -s -w
       - -X github.com/hookdeck/outpost/internal/version.version={{.Version}}
       - -X github.com/hookdeck/outpost/internal/version.commit={{.FullCommit}}
+    flags:
+      - -tags=nomsgpack
     binary: outpost-server
     env:
       - CGO_ENABLED=0
