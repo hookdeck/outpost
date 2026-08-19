@@ -53,13 +53,7 @@ func delegateToBinary(binaryName string, c *cli.Command) error {
 	// Build arguments
 	args := buildArgs(c)
 
-	// Execute the binary
-	cmd := exec.Command(binary, args...)
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	return cmd.Run()
+	return execBinary(binary, args)
 }
 
 func runWithGo(binaryName string, c *cli.Command) error {
