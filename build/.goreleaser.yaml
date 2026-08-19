@@ -112,12 +112,14 @@ dockers_v2:
     platforms:
       - linux/amd64
       - linux/arm64
-    # No attestations, so the manifest keeps the same two platform entries as
-    # today. Takes both switches — buildx adds provenance on its own.
-    sbom: false
+    # Publish SBOM and provenance attestations. Both are on by default here:
+    # sbom: true adds --attest=type=sbom, and buildx attaches provenance itself
+    # whenever it pushes. They ride along as extra manifest entries reported as
+    # "unknown/unknown" platforms, which is how attestations are always carried —
+    # Docker Hub's UI filters them out of the tag listing.
+    sbom: true
     flags:
       - "--pull"
-      - "--provenance=false"
     labels:
       org.opencontainers.image.created: "{{ .Date }}"
       org.opencontainers.image.name: "{{ .ProjectName }}"
@@ -125,3 +127,18 @@ dockers_v2:
       org.opencontainers.image.version: "{{ .Version }}"
       repository: "https://github.com/hookdeck/outpost"
       homepage: "https://hookdeck.com"
+
+# Signs checksums.txt, which covers every archive transitively. This one runs
+# before publish, so local snapshot builds pass --skip=sign to avoid needing
+# cosign installed.
+signs:
+  - cmd: cosign
+    signature: "${artifact}.sigstore.json"
+    artifacts: checksum
+    args: ["sign-blob", "--bundle=${signature}", "${artifact}", "--yes"]
+
+# Keyless cosign signing via the workflow's OIDC token. Omitting --key is what
+# selects keyless; publish-phase only, so --snapshot never invokes cosign.
+docker_signs:
+  - artifacts: images
+    args: ["sign", "${artifact}@${digest}", "--yes"]
