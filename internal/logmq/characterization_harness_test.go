@@ -182,6 +182,34 @@ func (e *blockingEvaluator) release() {
 func (e *blockingEvaluator) blockedEvals() int32 { return e.blocked.Load() }
 func (e *blockingEvaluator) enteredEvals() int32 { return e.entered.Load() }
 
+// shutdownGrace bounds bp.Shutdown in tests. Nothing here legitimately takes
+// this long — the whole package runs in a few seconds.
+const shutdownGrace = 30 * time.Second
+
+// shutdownBounded calls bp.Shutdown and fails the test if it does not return
+// within shutdownGrace, instead of riding the 10m package timeout.
+//
+// batcher.Shutdown (mikestefanello/batcher@v0.1.0) can deadlock: it stops the
+// ticker, then calls processQueue, whose defer restarts it. A tick landing
+// between the processingMutex acquisition and the send on its shutdown channel
+// strands the ticker goroutine on that mutex, leaving the send with no
+// receiver. Rare, but it takes the whole package down with it when it happens.
+func shutdownBounded(t *testing.T, bp *logmq.BatchProcessor) {
+	t.Helper()
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		bp.Shutdown()
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(shutdownGrace):
+		t.Errorf("bp.Shutdown did not return within %s", shutdownGrace)
+	}
+}
+
 type disableRecord struct {
 	tenantID      string
 	destinationID string
@@ -411,7 +439,7 @@ func newHarness(t *testing.T, cfg harnessConfig) *harness {
 		EmitTimeout:        cfg.batcher.emitTimeout,
 	})
 	require.NoError(t, err)
-	t.Cleanup(bp.Shutdown)
+	t.Cleanup(func() { shutdownBounded(t, bp) })
 	// LIFO: releases run BEFORE bp.Shutdown, so a test that never released its
 	// blocked sends/evals can't deadlock the drain.
 	if sink.blockCh != nil {

@@ -88,7 +88,7 @@ func TestBatchProcessor_ValidEntry(t *testing.T) {
 		DelayThreshold:     1 * time.Second,
 	})
 	require.NoError(t, err)
-	defer bp.Shutdown()
+	defer shutdownBounded(t, bp)
 
 	event := testutil.EventFactory.Any()
 	attempt := testutil.AttemptFactory.Any()
@@ -122,7 +122,7 @@ func TestBatchProcessor_InvalidEntry_MissingEvent(t *testing.T) {
 		DelayThreshold:     1 * time.Second,
 	})
 	require.NoError(t, err)
-	defer bp.Shutdown()
+	defer shutdownBounded(t, bp)
 
 	attempt := testutil.AttemptFactory.Any()
 	entry := models.LogEntry{
@@ -155,7 +155,7 @@ func TestBatchProcessor_InvalidEntry_MissingAttempt(t *testing.T) {
 		DelayThreshold:     1 * time.Second,
 	})
 	require.NoError(t, err)
-	defer bp.Shutdown()
+	defer shutdownBounded(t, bp)
 
 	event := testutil.EventFactory.Any()
 	entry := models.LogEntry{
@@ -188,7 +188,7 @@ func TestBatchProcessor_InvalidEntry_DoesNotBlockBatch(t *testing.T) {
 		DelayThreshold:     1 * time.Second,
 	})
 	require.NoError(t, err)
-	defer bp.Shutdown()
+	defer shutdownBounded(t, bp)
 
 	// Create valid entry 1
 	event1 := testutil.EventFactory.Any()
@@ -244,7 +244,7 @@ func TestBatchProcessor_DuplicateMessages(t *testing.T) {
 		DelayThreshold:     1 * time.Second,
 	})
 	require.NoError(t, err)
-	defer bp.Shutdown()
+	defer shutdownBounded(t, bp)
 
 	// Two byte-identical copies of the same entry (redelivery / re-publish)
 	event := testutil.EventFactory.Any()
@@ -297,7 +297,7 @@ func TestBatchProcessor_MalformedJSON(t *testing.T) {
 		DelayThreshold:     1 * time.Second,
 	})
 	require.NoError(t, err)
-	defer bp.Shutdown()
+	defer shutdownBounded(t, bp)
 
 	mock, msg := newMockMessageFromBytes([]byte("not valid json"))
 	err = bp.Add(ctx, msg)
@@ -363,7 +363,7 @@ func TestBatchProcessor_AlertEvaluator_WithDestination(t *testing.T) {
 		DelayThreshold:     1 * time.Second,
 	})
 	require.NoError(t, err)
-	defer bp.Shutdown()
+	defer shutdownBounded(t, bp)
 
 	event := testutil.EventFactory.Any()
 	attempt := testutil.AttemptFactory.Any()
@@ -398,7 +398,7 @@ func TestBatchProcessor_AlertEvaluator_NilDestination(t *testing.T) {
 		DelayThreshold:     1 * time.Second,
 	})
 	require.NoError(t, err)
-	defer bp.Shutdown()
+	defer shutdownBounded(t, bp)
 
 	event := testutil.EventFactory.Any()
 	attempt := testutil.AttemptFactory.Any()
@@ -429,7 +429,7 @@ func TestBatchProcessor_AlertEvaluator_Error(t *testing.T) {
 		DelayThreshold:     1 * time.Second,
 	})
 	require.NoError(t, err)
-	defer bp.Shutdown()
+	defer shutdownBounded(t, bp)
 
 	event := testutil.EventFactory.Any()
 	attempt := testutil.AttemptFactory.Any()
