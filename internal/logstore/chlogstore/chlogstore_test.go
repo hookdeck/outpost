@@ -61,6 +61,28 @@ func setupClickHouseConnection(t *testing.T) clickhouse.DB {
 	return chDB
 }
 
+// stopMerges holds duplicate rows in place for tests that assert on them —
+// ReplacingMergeTree collapses rows sharing the ORDER BY key on merge.
+//
+// The table must be qualified: bare SYSTEM STOP MERGES is server-wide, and every
+// test shares one ClickHouse server.
+func stopMerges(t *testing.T, chDB clickhouse.DB, table string) {
+	t.Helper()
+
+	ctx := context.Background()
+	var database string
+	require.NoError(t, chDB.QueryRow(ctx, "SELECT currentDatabase()").Scan(&database))
+
+	// SYSTEM STOP MERGES reports success for a table that does not exist.
+	var exists uint64
+	require.NoError(t, chDB.QueryRow(ctx,
+		"SELECT count() FROM system.tables WHERE database = ? AND name = ?",
+		database, table).Scan(&exists))
+	require.Equal(t, uint64(1), exists, "no table %s.%s to stop merges on", database, table)
+
+	require.NoError(t, chDB.Exec(ctx, "SYSTEM STOP MERGES "+database+"."+table))
+}
+
 func newHarness(_ context.Context, t *testing.T) (drivertest.Harness, error) {
 	t.Helper()
 
@@ -156,7 +178,12 @@ func TestEventDedup(t *testing.T) {
 	chDB := setupClickHouseConnection(t)
 	defer chDB.Close()
 
-	logStore := NewLogStore(chDB, "")
+	// Concrete type: the test needs the same table name the queries use.
+	logStore := NewLogStore(chDB, "").(*logStoreImpl)
+
+	// The injected duplicates below share (event_time, event_id) with the
+	// originals, so a merge would collapse the raw count from 9 to 3.
+	stopMerges(t, chDB, logStore.eventsTable)
 
 	tenantID := "dedup-tenant"
 	baseTime := time.Now().Truncate(time.Second)
@@ -285,6 +312,13 @@ func TestFetchAndDedupTruncation(t *testing.T) {
 	chDB := setupClickHouseConnection(t)
 	defer chDB.Close()
 
+	// Concrete type: the test needs the same table name the queries use.
+	logStore := NewLogStore(chDB, "").(*logStoreImpl)
+
+	// evt-trunc-a is inserted twice at one event_time; a merge would collapse it
+	// and the first batch would come back deduplicated, so no overshoot to catch.
+	stopMerges(t, chDB, logStore.eventsTable)
+
 	tenantID := "dedup-truncation"
 	baseTime := time.Now().Truncate(time.Second)
 
@@ -310,7 +344,7 @@ func TestFetchAndDedupTruncation(t *testing.T) {
 		Compare: "<",
 		SortDir: "desc",
 	}, func(qi pagination.QueryInput) (string, []any) {
-		return buildEventQuery("events", driver.ListEventRequest{
+		return buildEventQuery(logStore.eventsTable, driver.ListEventRequest{
 			TenantIDs:  []string{tenantID},
 			TimeFilter: driver.TimeFilter{GTE: &startTime},
 		}, qi)
