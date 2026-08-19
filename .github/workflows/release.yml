@@ -8,9 +8,6 @@ on:
 jobs:
   release:
     runs-on: ubuntu-latest
-    env:
-      # https://goreleaser.com/customization/docker_manifest/
-      DOCKER_CLI_EXPERIMENTAL: "enabled"
     steps:
       - name: Code checkout
         uses: actions/checkout@v5
@@ -40,9 +37,12 @@ jobs:
         with:
           go-version: 1.26.5
       - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v4
+        uses: goreleaser/goreleaser-action@v6
         with:
-          version: latest
+          # Pinned deliberately: an unpinned "latest" means every tag push builds
+          # with whatever GoReleaser shipped that morning, and a breaking change
+          # surfaces mid-release, after the tag exists.
+          version: "v2.17.1"
           args: release -f build/.goreleaser.yaml --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
