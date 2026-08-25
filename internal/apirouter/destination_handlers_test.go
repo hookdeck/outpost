@@ -456,6 +456,10 @@ func TestAPI_Destinations(t *testing.T) {
 				df.WithID("d2"), df.WithTenantID("t1"),
 				df.WithType("aws_sqs"), df.WithTopics([]string{"user.deleted"}),
 			))
+			h.tenantStore.CreateDestination(t.Context(), df.Any(
+				df.WithID("d3"), df.WithTenantID("t1"),
+				df.WithType("aws_sqs"), df.WithTopics([]string{"user.*"}),
+			))
 
 			t.Run("type filter", func(t *testing.T) {
 				req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1/destinations?type=webhook", nil)

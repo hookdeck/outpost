@@ -195,6 +195,7 @@ func (b *ServiceBuilder) BuildAPIWorkers(baseRouter *gin.Engine) error {
 		svc.tenantStore,
 		svc.eventTracer,
 		b.cfg.Topics,
+		b.cfg.TopicsAllowWildcards,
 		publishIdempotence,
 	)
 

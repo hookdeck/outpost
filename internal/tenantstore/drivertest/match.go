@@ -36,7 +36,7 @@ func testMatch(t *testing.T, newHarness HarnessMaker) {
 				Metadata: map[string]string{},
 				Data:     json.RawMessage(`{}`),
 			}
-			matched, err := store.MatchEvent(ctx, event)
+			matched, err := store.MatchEvent(ctx, event, true)
 			require.NoError(t, err)
 			require.Len(t, matched, 3)
 			for _, id := range matched {
@@ -54,7 +54,7 @@ func testMatch(t *testing.T, newHarness HarnessMaker) {
 				Metadata:      map[string]string{},
 				Data:          json.RawMessage(`{}`),
 			}
-			matched, err := store.MatchEvent(ctx, event)
+			matched, err := store.MatchEvent(ctx, event, true)
 			require.NoError(t, err)
 			require.Len(t, matched, 3)
 		})
@@ -69,7 +69,7 @@ func testMatch(t *testing.T, newHarness HarnessMaker) {
 				Metadata:      map[string]string{},
 				Data:          json.RawMessage(`{}`),
 			}
-			matched, err := store.MatchEvent(ctx, event)
+			matched, err := store.MatchEvent(ctx, event, true)
 			require.NoError(t, err)
 			require.Len(t, matched, 3)
 		})
@@ -84,7 +84,7 @@ func testMatch(t *testing.T, newHarness HarnessMaker) {
 				Metadata:      map[string]string{},
 				Data:          json.RawMessage(`{}`),
 			}
-			matched, err := store.MatchEvent(ctx, event)
+			matched, err := store.MatchEvent(ctx, event, true)
 			require.NoError(t, err)
 			require.Len(t, matched, 3)
 		})
@@ -111,7 +111,7 @@ func testMatch(t *testing.T, newHarness HarnessMaker) {
 				Metadata: map[string]string{},
 				Data:     json.RawMessage(`{}`),
 			}
-			matched, err := store.MatchEvent(ctx, event)
+			matched, err := store.MatchEvent(ctx, event, true)
 			require.NoError(t, err)
 			require.Len(t, matched, 4)
 
@@ -124,7 +124,7 @@ func testMatch(t *testing.T, newHarness HarnessMaker) {
 				Metadata: map[string]string{},
 				Data:     json.RawMessage(`{}`),
 			}
-			matched, err = store.MatchEvent(ctx, event)
+			matched, err = store.MatchEvent(ctx, event, true)
 			require.NoError(t, err)
 			require.Len(t, matched, 2)
 			for _, id := range matched {
@@ -176,9 +176,19 @@ func testMatch(t *testing.T, newHarness HarnessMaker) {
 				testutil.EventFactory.WithTenantID(tenant.ID),
 				testutil.EventFactory.WithTopic("user.created"),
 			)
-			matched, err := store.MatchEvent(ctx, event)
+			matched, err := store.MatchEvent(ctx, event, true)
 			require.NoError(t, err)
 			assert.ElementsMatch(t, []string{"dest_user_family", "dest_created_family", "dest_exact"}, matched)
+		})
+
+		t.Run("ignores wildcard subscriptions when disabled", func(t *testing.T) {
+			event := testutil.EventFactory.Any(
+				testutil.EventFactory.WithTenantID(tenant.ID),
+				testutil.EventFactory.WithTopic("user.created"),
+			)
+			matched, err := store.MatchEvent(ctx, event, false)
+			require.NoError(t, err)
+			assert.Equal(t, []string{"dest_exact"}, matched)
 		})
 
 		t.Run("matches separator agnostic middle wildcard subscription", func(t *testing.T) {
@@ -186,7 +196,7 @@ func testMatch(t *testing.T, newHarness HarnessMaker) {
 				testutil.EventFactory.WithTenantID(tenant.ID),
 				testutil.EventFactory.WithTopic("order.payment.completed"),
 			)
-			matched, err := store.MatchEvent(ctx, event)
+			matched, err := store.MatchEvent(ctx, event, true)
 			require.NoError(t, err)
 			assert.ElementsMatch(t, []string{"dest_order_completed_family"}, matched)
 		})
@@ -196,7 +206,7 @@ func testMatch(t *testing.T, newHarness HarnessMaker) {
 				testutil.EventFactory.WithTenantID(tenant.ID),
 				testutil.EventFactory.WithTopic("order.payment.failed"),
 			)
-			matched, err := store.MatchEvent(ctx, event)
+			matched, err := store.MatchEvent(ctx, event, true)
 			require.NoError(t, err)
 			assert.Empty(t, matched)
 		})
@@ -260,7 +270,7 @@ func testMatch(t *testing.T, newHarness HarnessMaker) {
 				Metadata: map[string]string{},
 				Data:     json.RawMessage(`{"type":"order.created"}`),
 			}
-			matched, err := store.MatchEvent(ctx, event)
+			matched, err := store.MatchEvent(ctx, event, true)
 			require.NoError(t, err)
 			assert.Len(t, matched, 2)
 			assert.Contains(t, matched, "dest_no_filter")
@@ -276,7 +286,7 @@ func testMatch(t *testing.T, newHarness HarnessMaker) {
 				Metadata: map[string]string{},
 				Data:     json.RawMessage(`{"type":"order.created","customer":{"id":"cust_123","tier":"premium"}}`),
 			}
-			matched, err := store.MatchEvent(ctx, event)
+			matched, err := store.MatchEvent(ctx, event, true)
 			require.NoError(t, err)
 			assert.Len(t, matched, 3)
 			assert.Contains(t, matched, "dest_no_filter")
@@ -303,7 +313,7 @@ func testMatch(t *testing.T, newHarness HarnessMaker) {
 				Metadata: map[string]string{},
 				Data:     json.RawMessage(`{"type":"order.created"}`),
 			}
-			matched, err := store.MatchEvent(ctx, event)
+			matched, err := store.MatchEvent(ctx, event, true)
 			require.NoError(t, err)
 			for _, id := range matched {
 				assert.NotEqual(t, "dest_topic_and_filter", id)
@@ -326,7 +336,7 @@ func testMatch(t *testing.T, newHarness HarnessMaker) {
 				testutil.EventFactory.WithTenantID(data.tenant.ID),
 				testutil.EventFactory.WithTopic("user.deleted"),
 			)
-			matched, err := store.MatchEvent(ctx, event)
+			matched, err := store.MatchEvent(ctx, event, true)
 			require.NoError(t, err)
 			require.Len(t, matched, 2)
 			for _, id := range matched {
@@ -344,7 +354,7 @@ func testMatch(t *testing.T, newHarness HarnessMaker) {
 				testutil.EventFactory.WithTenantID(data.tenant.ID),
 				testutil.EventFactory.WithTopic("user.deleted"),
 			)
-			matched, err := store.MatchEvent(ctx, event)
+			matched, err := store.MatchEvent(ctx, event, true)
 			require.NoError(t, err)
 			require.Len(t, matched, 1)
 			require.Equal(t, data.destinations[3].ID, matched[0])
@@ -359,7 +369,7 @@ func testMatch(t *testing.T, newHarness HarnessMaker) {
 				testutil.EventFactory.WithTenantID(data.tenant.ID),
 				testutil.EventFactory.WithTopic("user.deleted"),
 			)
-			matched, err := store.MatchEvent(ctx, event)
+			matched, err := store.MatchEvent(ctx, event, true)
 			require.NoError(t, err)
 			require.Len(t, matched, 2)
 		})
@@ -381,7 +391,7 @@ func testMatch(t *testing.T, newHarness HarnessMaker) {
 			testutil.EventFactory.WithTenantID(data.tenant.ID),
 			testutil.EventFactory.WithTopic("user.created"),
 		)
-		matched, err := store.MatchEvent(ctx, event)
+		matched, err := store.MatchEvent(ctx, event, true)
 		require.NoError(t, err)
 		require.Len(t, matched, 2)
 		for _, id := range matched {

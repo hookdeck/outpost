@@ -144,7 +144,7 @@ func NewRouter(cfg RouterConfig, deps RouterDeps) http.Handler {
 	destinationHandlers := NewDestinationHandlers(deps.Logger, deps.Telemetry, deps.TenantStore, deps.SubscriptionEmitter, cfg.Topics, cfg.TopicsAllowWildcards, cfg.Registry, displayer)
 	publishHandlers := NewPublishHandlers(deps.Logger, deps.EventHandler)
 	logHandlers := NewLogHandlers(deps.Logger, deps.LogStore, deps.TenantStore, displayer)
-	retryHandlers := NewRetryHandlers(deps.Logger, deps.TenantStore, deps.LogStore, deps.DeliveryPublisher)
+	retryHandlers := NewRetryHandlers(deps.Logger, deps.TenantStore, deps.LogStore, deps.DeliveryPublisher, cfg.TopicsAllowWildcards)
 	topicHandlers := NewTopicHandlers(deps.Logger, cfg.Topics)
 	metricsHandlers := NewMetricsHandlers(deps.Logger, deps.LogStore)
 

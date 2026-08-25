@@ -48,11 +48,12 @@ func (d *Destination) Validate(topics []string, allowWildcards bool) error {
 
 // MatchEvent checks if the destination matches the given event.
 // Returns true if the destination is enabled, topic matches, and filter matches.
-func (d *Destination) MatchEvent(event Event) bool {
+// Embedded wildcard topic patterns are ignored when allowWildcards is false.
+func (d *Destination) MatchEvent(event Event, allowWildcards bool) bool {
 	if d.DisabledAt != nil {
 		return false
 	}
-	if !d.Topics.MatchTopic(event.Topic) {
+	if !d.Topics.MatchTopic(event.Topic, allowWildcards) {
 		return false
 	}
 	return MatchFilter(d.Filter, event)
@@ -147,11 +148,17 @@ func (t *Topics) MatchesAll() bool {
 	return len(*t) == 1 && (*t)[0] == "*"
 }
 
-func (t *Topics) MatchTopic(eventTopic string) bool {
+// MatchTopic reports whether an event topic matches this subscription.
+// The standalone "*" keeps its subscribe-to-all meaning when allowWildcards is
+// false, while embedded wildcard patterns such as "user.*" are ignored.
+func (t *Topics) MatchTopic(eventTopic string, allowWildcards bool) bool {
 	if eventTopic == "" || eventTopic == "*" || t.MatchesAll() {
 		return true
 	}
 	for _, topic := range *t {
+		if !allowWildcards && topic != "*" && strings.Contains(topic, "*") {
+			continue
+		}
 		if matchTopicPattern(topic, eventTopic) {
 			return true
 		}
