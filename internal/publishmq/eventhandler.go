@@ -35,13 +35,14 @@ type HandleResult struct {
 }
 
 type eventHandler struct {
-	emeter      emetrics.OutpostMetrics
-	eventTracer eventtracer.EventTracer
-	logger      *logging.Logger
-	idempotence idempotence.Idempotence
-	deliveryMQ  *deliverymq.DeliveryMQ
-	tenantStore tenantstore.TenantStore
-	topics      []string
+	emeter               emetrics.OutpostMetrics
+	eventTracer          eventtracer.EventTracer
+	logger               *logging.Logger
+	idempotence          idempotence.Idempotence
+	deliveryMQ           *deliverymq.DeliveryMQ
+	tenantStore          tenantstore.TenantStore
+	topics               []string
+	topicsAllowWildcards bool
 }
 
 func NewEventHandler(
@@ -50,17 +51,19 @@ func NewEventHandler(
 	tenantStore tenantstore.TenantStore,
 	eventTracer eventtracer.EventTracer,
 	topics []string,
+	topicsAllowWildcards bool,
 	idempotence idempotence.Idempotence,
 ) EventHandler {
 	emeter, _ := emetrics.New()
 	eventHandler := &eventHandler{
-		logger:      logger,
-		idempotence: idempotence,
-		deliveryMQ:  deliveryMQ,
-		tenantStore: tenantStore,
-		eventTracer: eventTracer,
-		topics:      topics,
-		emeter:      emeter,
+		logger:               logger,
+		idempotence:          idempotence,
+		deliveryMQ:           deliveryMQ,
+		tenantStore:          tenantStore,
+		eventTracer:          eventTracer,
+		topics:               topics,
+		topicsAllowWildcards: topicsAllowWildcards,
+		emeter:               emeter,
 	}
 	return eventHandler
 }
@@ -125,7 +128,7 @@ func (h *eventHandler) Handle(ctx context.Context, event *models.Event) (*Handle
 			return nil, err
 		}
 	} else {
-		matched, err = h.tenantStore.MatchEvent(ctx, *event)
+		matched, err = h.tenantStore.MatchEvent(ctx, *event, h.topicsAllowWildcards)
 		if err != nil {
 			matchFailed = true
 			logger.Error("failed to match event destinations",
@@ -215,7 +218,7 @@ func (h *eventHandler) matchSpecificDestination(ctx context.Context, event *mode
 		return []string{}, nil
 	}
 
-	if !destination.MatchEvent(*event) {
+	if !destination.MatchEvent(*event, h.topicsAllowWildcards) {
 		return []string{}, nil
 	}
 

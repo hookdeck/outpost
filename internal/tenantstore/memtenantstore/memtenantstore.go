@@ -288,8 +288,9 @@ func (s *store) ListDestination(_ context.Context, req driver.ListDestinationReq
 	hasFilter := len(req.Type) > 0 || len(req.Topics) > 0
 	if hasFilter {
 		filter = &destinationFilter{
-			Type:   req.Type,
-			Topics: req.Topics,
+			Type:           req.Type,
+			Topics:         req.Topics,
+			AllowWildcards: req.AllowWildcards,
 		}
 	}
 
@@ -413,7 +414,7 @@ func (s *store) DeleteDestination(_ context.Context, tenantID, destinationID str
 	return nil
 }
 
-func (s *store) MatchEvent(_ context.Context, event models.Event) ([]string, error) {
+func (s *store) MatchEvent(_ context.Context, event models.Event, allowWildcards bool) ([]string, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -424,7 +425,7 @@ func (s *store) MatchEvent(_ context.Context, event models.Event) ([]string, err
 		if !ok || drec.deletedAt != nil {
 			continue
 		}
-		if drec.destination.MatchEvent(event) {
+		if drec.destination.MatchEvent(event, allowWildcards) {
 			matched = append(matched, destID)
 		}
 	}
@@ -463,8 +464,9 @@ func (s *store) computeTenantTopics(tenantID string) []string {
 
 // destinationFilter specifies criteria for filtering destinations (package-private).
 type destinationFilter struct {
-	Type   []string
-	Topics []string
+	Type           []string
+	Topics         []string
+	AllowWildcards bool
 }
 
 func matchDestFilter(filter *destinationFilter, dest models.Destination) bool {
@@ -478,7 +480,7 @@ func matchDestFilter(filter *destinationFilter, dest models.Destination) bool {
 				return false
 			}
 			for _, topic := range filter.Topics {
-				if !dest.Topics.MatchTopic(topic) {
+				if !dest.Topics.MatchTopic(topic, filter.AllowWildcards) {
 					return false
 				}
 			}

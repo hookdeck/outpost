@@ -15,11 +15,12 @@ import (
 )
 
 type TenantHandlers struct {
-	logger       *logging.Logger
-	telemetry    telemetry.Telemetry
-	jwtSecret    string
-	deploymentID string
-	tenantStore  tenantstore.TenantStore
+	logger               *logging.Logger
+	telemetry            telemetry.Telemetry
+	jwtSecret            string
+	deploymentID         string
+	tenantStore          tenantstore.TenantStore
+	topicsAllowWildcards bool
 }
 
 func NewTenantHandlers(
@@ -28,14 +29,38 @@ func NewTenantHandlers(
 	jwtSecret string,
 	deploymentID string,
 	tenantStore tenantstore.TenantStore,
+	topicsAllowWildcards bool,
 ) *TenantHandlers {
 	return &TenantHandlers{
-		logger:       logger,
-		telemetry:    telemetry,
-		jwtSecret:    jwtSecret,
-		deploymentID: deploymentID,
-		tenantStore:  tenantStore,
+		logger:               logger,
+		telemetry:            telemetry,
+		jwtSecret:            jwtSecret,
+		deploymentID:         deploymentID,
+		tenantStore:          tenantStore,
+		topicsAllowWildcards: topicsAllowWildcards,
 	}
+}
+
+func (h *TenantHandlers) postprocessTenant(tenant models.Tenant) models.Tenant {
+	if !h.topicsAllowWildcards {
+		tenant.Topics = filterWildcardTopicPatterns(tenant.Topics)
+	}
+
+	return tenant
+}
+
+func (h *TenantHandlers) postprocessTenantList(tenants *tenantstore.TenantPaginatedResult) *tenantstore.TenantPaginatedResult {
+	if h.topicsAllowWildcards {
+		return tenants
+	}
+
+	processedTenants := *tenants
+	processedTenants.Models = make([]models.Tenant, len(tenants.Models))
+	for i, tenant := range tenants.Models {
+		processedTenants.Models[i] = h.postprocessTenant(tenant)
+	}
+
+	return &processedTenants
 }
 
 func (h *TenantHandlers) Upsert(c *gin.Context) {
@@ -71,7 +96,7 @@ func (h *TenantHandlers) Upsert(c *gin.Context) {
 		h.logger.Ctx(c.Request.Context()).Audit("tenant updated",
 			zap.String("tenant_id", tenantID),
 		)
-		c.JSON(http.StatusOK, existingTenant)
+		c.JSON(http.StatusOK, h.postprocessTenant(*existingTenant))
 		return
 	}
 
@@ -92,21 +117,21 @@ func (h *TenantHandlers) Upsert(c *gin.Context) {
 	h.logger.Ctx(c.Request.Context()).Audit("tenant created",
 		zap.String("tenant_id", tenantID),
 	)
-	c.JSON(http.StatusCreated, tenant)
+	c.JSON(http.StatusCreated, h.postprocessTenant(*tenant))
 }
 
 func (h *TenantHandlers) Retrieve(c *gin.Context) {
 	tenant := mustTenantFromContext(c)
-	c.JSON(http.StatusOK, tenant)
+	c.JSON(http.StatusOK, h.postprocessTenant(*tenant))
 }
 
 func (h *TenantHandlers) List(c *gin.Context) {
 	// Authz: JWT users can only see their own tenant
 	if tenant := tenantFromContext(c); tenant != nil {
-		c.JSON(http.StatusOK, tenantstore.TenantPaginatedResult{
+		c.JSON(http.StatusOK, h.postprocessTenantList(&tenantstore.TenantPaginatedResult{
 			Models: []models.Tenant{*tenant},
 			Count:  1,
-		})
+		}))
 		return
 	}
 
@@ -177,7 +202,7 @@ func (h *TenantHandlers) List(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, resp)
+	c.JSON(http.StatusOK, h.postprocessTenantList(resp))
 }
 
 func (h *TenantHandlers) Delete(c *gin.Context) {

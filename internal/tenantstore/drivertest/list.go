@@ -330,11 +330,19 @@ func testListDestination(t *testing.T, newHarness HarnessMaker) {
 		// The filter topic is treated as a concrete published topic. Destinations
 		// subscribed with wildcard patterns are included when they would receive it.
 		destinations, err = store.ListDestination(ctx, driver.ListDestinationRequest{
+			TenantID:       data.tenant.ID,
+			Topics:         []string{"user.created"},
+			AllowWildcards: true,
+		})
+		require.NoError(t, err)
+		require.Len(t, destinations, 5)
+
+		destinations, err = store.ListDestination(ctx, driver.ListDestinationRequest{
 			TenantID: data.tenant.ID,
 			Topics:   []string{"user.created"},
 		})
 		require.NoError(t, err)
-		require.Len(t, destinations, 5)
+		require.Len(t, destinations, 3)
 	})
 }
 

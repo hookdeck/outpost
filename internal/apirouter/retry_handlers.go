@@ -17,10 +17,11 @@ type deliveryPublisher interface {
 }
 
 type RetryHandlers struct {
-	logger            *logging.Logger
-	tenantStore       tenantstore.TenantStore
-	logStore          logstore.LogStore
-	deliveryPublisher deliveryPublisher
+	logger               *logging.Logger
+	tenantStore          tenantstore.TenantStore
+	logStore             logstore.LogStore
+	deliveryPublisher    deliveryPublisher
+	topicsAllowWildcards bool
 }
 
 func NewRetryHandlers(
@@ -28,12 +29,14 @@ func NewRetryHandlers(
 	tenantStore tenantstore.TenantStore,
 	logStore logstore.LogStore,
 	deliveryPublisher deliveryPublisher,
+	topicsAllowWildcards bool,
 ) *RetryHandlers {
 	return &RetryHandlers{
-		logger:            logger,
-		tenantStore:       tenantStore,
-		logStore:          logStore,
-		deliveryPublisher: deliveryPublisher,
+		logger:               logger,
+		tenantStore:          tenantStore,
+		logStore:             logStore,
+		deliveryPublisher:    deliveryPublisher,
+		topicsAllowWildcards: topicsAllowWildcards,
 	}
 }
 
@@ -107,7 +110,7 @@ func (h *RetryHandlers) Retry(c *gin.Context) {
 		return
 	}
 
-	if !destination.MatchEvent(*event) {
+	if !destination.MatchEvent(*event, h.topicsAllowWildcards) {
 		AbortWithError(c, http.StatusBadRequest, ErrorResponse{
 			Code:    http.StatusBadRequest,
 			Message: "destination does not match event",
