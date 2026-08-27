@@ -150,6 +150,45 @@ func TestAPI_Tenants(t *testing.T) {
 			assert.Equal(t, "t1", tenant.ID)
 		})
 
+		t.Run("wildcard patterns are hidden when disabled without changing storage", func(t *testing.T) {
+			store := tenantstore.NewMemTenantStore()
+			h := newAPITest(t, withTenantStore(store))
+			reenabled := newAPITest(t, withTenantStore(store), withTopicsAllowWildcards(true))
+
+			require.NoError(t, store.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1"))))
+			require.NoError(t, store.CreateDestination(t.Context(), df.Any(
+				df.WithID("d1"),
+				df.WithTenantID("t1"),
+				df.WithTopics([]string{"user.*", "order.created"}),
+			)))
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1", nil)
+			resp := h.do(h.withAPIKey(req))
+			require.Equal(t, http.StatusOK, resp.Code)
+
+			var tenant models.Tenant
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &tenant))
+			assert.Equal(t, []string{"order.created"}, tenant.Topics)
+
+			listReq := httptest.NewRequest(http.MethodGet, "/api/v1/tenants", nil)
+			listResp := h.do(h.withAPIKey(listReq))
+			require.Equal(t, http.StatusOK, listResp.Code)
+			var tenants tenantstore.TenantPaginatedResult
+			require.NoError(t, json.Unmarshal(listResp.Body.Bytes(), &tenants))
+			require.Len(t, tenants.Models, 1)
+			assert.Equal(t, []string{"order.created"}, tenants.Models[0].Topics)
+
+			stored, err := store.RetrieveTenant(t.Context(), "t1")
+			require.NoError(t, err)
+			assert.ElementsMatch(t, []string{"user.*", "order.created"}, stored.Topics)
+
+			req = httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1", nil)
+			resp = reenabled.do(reenabled.withAPIKey(req))
+			require.Equal(t, http.StatusOK, resp.Code)
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &tenant))
+			assert.ElementsMatch(t, []string{"user.*", "order.created"}, tenant.Topics)
+		})
+
 		t.Run("jwt returns own tenant", func(t *testing.T) {
 			h := newAPITest(t)
 			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))

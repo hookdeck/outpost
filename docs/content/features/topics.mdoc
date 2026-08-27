@@ -35,7 +35,7 @@ Wildcard topic subscriptions are disabled by default. Set `TOPICS_ALLOW_WILDCARD
 {% /tab %}
 {% /tabs %}
 
-When wildcard topic subscriptions are disabled, Outpost ignores stored wildcard patterns during matching. The stored topics are not changed, so re-enabling wildcard subscriptions restores the patterns. Exact topic subscriptions and the standalone `"*"` subscribe-to-all value continue to work.
+When wildcard topic subscriptions are disabled, Outpost ignores stored wildcard patterns during matching and omits them from destination and tenant API responses. The stored topics are not changed, so re-enabling wildcard subscriptions restores the patterns. Exact topic subscriptions and the standalone `"*"` subscribe-to-all value continue to work.
 
 ## Destination Topic Subscriptions
 

@@ -379,6 +379,49 @@ func TestAPI_Destinations(t *testing.T) {
 			assert.Equal(t, "d1", dest.ID)
 		})
 
+		t.Run("wildcard patterns are hidden when disabled without changing storage", func(t *testing.T) {
+			store := tenantstore.NewMemTenantStore()
+			h := newAPITest(t, withTenantStore(store))
+			reenabled := newAPITest(t, withTenantStore(store), withTopicsAllowWildcards(true))
+			restoredTopics := models.Topics{"user.*", "order.created"}
+
+			require.NoError(t, store.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1"))))
+			require.NoError(t, store.CreateDestination(t.Context(), df.Any(
+				df.WithID("d1"),
+				df.WithTenantID("t1"),
+				df.WithTopics(restoredTopics),
+			)))
+			require.NoError(t, store.CreateDestination(t.Context(), df.Any(
+				df.WithID("d2"),
+				df.WithTenantID("t1"),
+				df.WithTopics([]string{"*"}),
+			)))
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1/destinations/d1", nil)
+			resp := h.do(h.withAPIKey(req))
+			require.Equal(t, http.StatusOK, resp.Code)
+
+			var dest destregistry.DestinationDisplay
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &dest))
+			assert.Equal(t, models.Topics{"order.created"}, dest.Topics)
+
+			req = httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1/destinations/d2", nil)
+			resp = h.do(h.withAPIKey(req))
+			require.Equal(t, http.StatusOK, resp.Code)
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &dest))
+			assert.Equal(t, models.Topics{"*"}, dest.Topics)
+
+			stored, err := store.RetrieveDestination(t.Context(), "t1", "d1")
+			require.NoError(t, err)
+			assert.Equal(t, restoredTopics, stored.Topics)
+
+			req = httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1/destinations/d1", nil)
+			resp = reenabled.do(reenabled.withAPIKey(req))
+			require.Equal(t, http.StatusOK, resp.Code)
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &dest))
+			assert.Equal(t, restoredTopics, dest.Topics)
+		})
+
 		t.Run("nonexistent destination returns 404", func(t *testing.T) {
 			h := newAPITest(t)
 			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
