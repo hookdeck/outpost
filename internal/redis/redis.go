@@ -67,6 +67,7 @@ func createClusterClient(ctx context.Context, config *RedisConfig) (Client, erro
 		Addrs:    []string{fmt.Sprintf("%s:%d", config.Host, config.Port)},
 		Username: config.Username,
 		Password: config.Password,
+		PoolSize: config.PoolSize,
 		// Note: Database is ignored in cluster mode
 	}
 
@@ -106,6 +107,7 @@ func createRegularClient(ctx context.Context, config *RedisConfig) (Client, erro
 		Username: config.Username,
 		Password: config.Password,
 		DB:       config.Database,
+		PoolSize: config.PoolSize,
 	}
 
 	if config.TLSEnabled {

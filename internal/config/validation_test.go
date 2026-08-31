@@ -135,6 +135,24 @@ func TestRedis(t *testing.T) {
 			}(),
 			wantErr: config.ErrMissingRedis,
 		},
+		{
+			name: "custom redis pool size",
+			config: func() *config.Config {
+				c := validConfig()
+				c.Redis.PoolSize = 100
+				return c
+			}(),
+			wantErr: nil,
+		},
+		{
+			name: "negative redis pool size",
+			config: func() *config.Config {
+				c := validConfig()
+				c.Redis.PoolSize = -1
+				return c
+			}(),
+			wantErr: config.ErrInvalidRedisPoolSize,
+		},
 	}
 
 	for _, tt := range tests {
