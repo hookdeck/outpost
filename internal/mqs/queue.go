@@ -17,6 +17,7 @@ type QueueConfig struct {
 	AzureServiceBus *AzureServiceBusConfig
 	GCPPubSub       *GCPPubSubConfig
 	RabbitMQ        *RabbitMQConfig
+	NATS            *NATSConfig
 	InMemory        *InMemoryConfig // mainly for testing purposes
 
 	VisibilityTimeout time.Duration
@@ -94,6 +95,8 @@ func NewQueue(config *QueueConfig) Queue {
 		return NewGCPPubSubQueue(config.GCPPubSub, config.VisibilityTimeout)
 	} else if config.RabbitMQ != nil {
 		return NewRabbitMQQueue(config.RabbitMQ)
+	} else if config.NATS != nil {
+		return NewNATSQueue(config.NATS)
 	} else {
 		return NewInMemoryQueue(config.InMemory)
 	}

@@ -25,6 +25,7 @@ This document will focus on the first two types of integrations. The third type,
 - [x] GCP PubSub
 - [x] Azure ServiceBus
 - [x] RabbitMQ (AMQP 0.9.1)
+- [x] NATS JetStream
 
 publishmq only:
 
@@ -116,3 +117,30 @@ RabbitMQ's concept of visibility timeout is called [acknowledgement timeout](htt
 **Retry Behavior**:
 
 **When a message is nacked, it is retried immediately.** After reaching the retry limit, the message will be sent to the DLX (dead-lettered exchange) and it then routed to the DLQ.
+
+### NATS JetStream
+
+**Configuration**:
+
+- Server URL (required)
+- Stream name (required)
+- Subject (required) — one per queue type (deliverymq/logmq); both share one stream
+- DLQ subject (optional) — defaults to `dlq.<subject>` if unset
+
+**Infrastructure**:
+
+When using NATS JetStream for internal mq, Outpost will provision this infrastructure:
+
+1. main stream, scoped to `<stream>.>` so deliverymq and logmq can each declare it without one wiping out the other's subject
+2. a separate DLQ stream, subject `dlq.<subject>` by default
+3. durable consumer on the main stream, filtered to its own subject
+
+The DLQ subject intentionally lives outside the main stream's subject namespace (`dlq.` prefix rather than `<subject>.dlq`) — JetStream doesn't allow two streams to claim overlapping subjects, and nesting under the main stream's wildcard would do exactly that.
+
+**Visibility Timeout**:
+
+JetStream's equivalent is `AckWait` — the time a delivered-but-unacked message stays invisible before redelivery. Outpost uses a fixed 60s.
+
+**Retry Behavior**:
+
+**When a message is nacked, it's redelivered after `AckWait` elapses.** Unlike RabbitMQ/SQS, JetStream has no broker-native DLQ — once a message's delivery count exceeds the configured retry limit, Outpost explicitly republishes it to the DLQ subject and terminates the original.
