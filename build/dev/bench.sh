@@ -73,7 +73,7 @@ report() {
 
   local ok=0
   for _ in $(seq 1 "$attempts"); do
-    if curl -fsS "${AUTH[@]}" "$APP/api/runs/$run_id" -o "$artifact.tmp" 2>/dev/null \
+    if curl -fsS ${AUTH[@]+"${AUTH[@]}"} "$APP/api/runs/$run_id" -o "$artifact.tmp" 2>/dev/null \
        && jq -e '.run.id' "$artifact.tmp" >/dev/null 2>&1; then
       mv "$artifact.tmp" "$artifact"; ok=1; break
     fi
@@ -124,7 +124,7 @@ if [ ! -f "$SPEC" ]; then
 fi
 
 # --- preflight -------------------------------------------------------------
-if ! curl -fsS "${AUTH[@]}" "$APP/api/status" >/dev/null 2>&1; then
+if ! curl -fsS ${AUTH[@]+"${AUTH[@]}"} "$APP/api/status" >/dev/null 2>&1; then
   echo "error: loadtest app not reachable at $APP — run 'make up/bench' first" >&2
   exit 1
 fi
@@ -136,7 +136,7 @@ fi
 # Fail before provisioning rather than after: a spec that busts its budget
 # measures saturation, and finding that out an hour in is expensive.
 echo "==> validating $SPEC"
-validation="$(curl -sS "${AUTH[@]}" -X POST "$APP/api/runs/validate" --data-binary @"$SPEC")"
+validation="$(curl -sS ${AUTH[@]+"${AUTH[@]}"} -X POST "$APP/api/runs/validate" --data-binary @"$SPEC")"
 if [ "$(jq -r '.valid' <<<"$validation")" != "true" ]; then
   jq -r '.error' <<<"$validation" >&2
   exit 1
@@ -145,7 +145,7 @@ jq -r '.budget | "    \(.offered_rate) events/s · \(.concurrency|floor) concurr
 
 # --- run -------------------------------------------------------------------
 echo "==> starting run"
-started="$(curl -sS "${AUTH[@]}" -X POST "$APP/api/runs" --data-binary @"$SPEC")"
+started="$(curl -sS ${AUTH[@]+"${AUTH[@]}"} -X POST "$APP/api/runs" --data-binary @"$SPEC")"
 RUN_ID="$(jq -r '.id' <<<"$started")"
 if [ "$RUN_ID" = "null" ] || [ -z "$RUN_ID" ]; then
   echo "$started" >&2
@@ -164,11 +164,11 @@ fi
 
 # Abort the run if the operator interrupts, so a killed script doesn't leave
 # publishers hammering the deployment.
-trap 'echo; echo "==> aborting run"; curl -sS "${AUTH[@]}" -X POST "$APP/api/runs/current/abort" >/dev/null || true; exit 130' INT TERM
+trap 'echo; echo "==> aborting run"; curl -sS ${AUTH[@]+"${AUTH[@]}"} -X POST "$APP/api/runs/current/abort" >/dev/null || true; exit 130' INT TERM
 
 phase=""
 while true; do
-  cur="$(curl -sS "${AUTH[@]}" "$APP/api/runs/current")"
+  cur="$(curl -sS ${AUTH[@]+"${AUTH[@]}"} "$APP/api/runs/current")"
   p="$(jq -r '.phase' <<<"$cur")"
   if [ "$p" != "$phase" ]; then
     printf '    %-9s %s\n' "$p" "$(date +%H:%M:%S)"
