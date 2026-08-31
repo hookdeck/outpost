@@ -59,8 +59,17 @@ report() {
   # be being written. Asked for a run that finished long ago — or a typo — the
   # first 404 is the answer, and waiting half a minute for it is just noise.
   local attempts="${2:-1}"
-  mkdir -p "$OUT"
-  local artifact="$OUT/$run_id.json"
+  # One directory per run, holding every artifact that run produced: export,
+  # raw archive, ledger, figures. Filenames still carry the run id so a file
+  # lifted out of the directory still says which run it came from.
+  #
+  # The directory name puts the timestamp first — a run id is <name>-<stamp>,
+  # which sorts by name and scatters a run's history across the listing. There
+  # are dozens of these and the question asked of the directory is almost always
+  # "what ran most recently", so it sorts chronologically instead.
+  local rundir="$OUT/${run_id##*-}-${run_id%-*}"
+  mkdir -p "$rundir"
+  local artifact="$rundir/$run_id.json"
 
   local ok=0
   for _ in $(seq 1 "$attempts"); do
@@ -100,7 +109,7 @@ report() {
   jq -r '"==> " + .run.id,
          "    published \(.total.published)  completed \(.total.completed)  missing \(.total.missing)  cutoff \(.total.cutoff)",
          "    export    '"$artifact"'"' "$artifact"
-  echo "    figures   $REPORT_DIR/charts/"
+  echo "    figures   $rundir/charts/"
   [ "$voids" != "0" ] && echo "    VOID — figures carry the void notice; do not publish" && exit 3
   exit 0
 }

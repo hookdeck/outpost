@@ -193,18 +193,29 @@ def main():
         s["published"] = art.get("profiles", {}).get(name, {}).get("published", 0)
         # Failures come from the plain counters, which capture.py stores as
         # values rather than histograms.
-        cum = []
-        for metric in ("loadtest_publish_errors_total", "loadtest_missing_total"):
+        #
+        # Mirrors fetch.py: delivery failures are missing minus recovered, and
+        # publish errors are their own series. See the note there for why.
+        def counter(metric):
+            pts = []
             for ser in raw["series"]:
                 m = ser["metric"]
                 if (m["__name__"] == metric and m.get("profile") == name
                         and m.get("phase") == "steady" and ser.get("values")):
-                    pts = sorted((float(t), float(v)) for t, v in ser["values"])
-                    cum.append(pts)
-        def total_at(t):
-            return sum((next((v for ts, v in reversed(p) if ts <= t), 0.0)) for p in cum)
-        base = total_at(grid[0]) if grid else 0.0
-        s["failed_cum"] = [max(0.0, total_at(t) - base) for t in grid]
+                    pts.append(sorted((float(t), float(v)) for t, v in ser["values"]))
+            def at(t):
+                return sum(next((v for ts, v in reversed(p) if ts <= t), 0.0) for p in pts)
+            return at
+
+        missing, recovered = counter("loadtest_missing_total"), counter("loadtest_recovered_total")
+        perrors = counter("loadtest_publish_errors_total")
+
+        def cumulative(fn):
+            base = fn(grid[0]) if grid else 0.0
+            return [max(0.0, fn(t) - base) for t in grid]
+
+        s["failed_cum"] = cumulative(lambda t: missing(t) - recovered(t))
+        s["publish_errors_cum"] = cumulative(perrors)
         profiles[name] = s
 
     art["series"] = {

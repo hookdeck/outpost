@@ -123,11 +123,28 @@ def main():
         # Failures are cumulative from the start of the window: rare, bursty
         # events make a rate line noise, and a running total makes an incident
         # read as a step with its recovery visible.
-        fail = (f'sum(loadtest_publish_errors_total{psel} or vector(0)) + '
-                f'sum(loadtest_missing_total{psel} or vector(0))')
+        #
+        # An event that delivered is not a failure, however it was counted along
+        # the way. `missing` is written by the sweep and never revised, so a
+        # delivery that arrives after the grace period stays counted there and
+        # is added to `recovered` as well — subtracting is what makes the line
+        # mean "never arrived". LT2 plotted 206 recoveries as failures because
+        # this term was absent, in a run whose true delivery failures were zero.
+        #
+        # Publish errors are kept separate rather than summed in. They are a
+        # different event: the publish call did not succeed, so the event never
+        # entered the delivery path and no retry was ever owed. Adding them to
+        # delivery failures produces a total that answers no question.
+        fail = (f'sum(loadtest_missing_total{psel} or vector(0)) - '
+                f'sum(loadtest_recovered_total{psel} or vector(0))')
         cum = align(prom.range(fail, grid[0], grid[-1], step), grid)
         base = cum[0] if cum else 0.0
         series["failed_cum"] = [max(0.0, v - base) for v in cum]
+
+        perr = f'sum(loadtest_publish_errors_total{psel} or vector(0))'
+        pcum = align(prom.range(perr, grid[0], grid[-1], step), grid)
+        pbase = pcum[0] if pcum else 0.0
+        series["publish_errors_cum"] = [max(0.0, v - pbase) for v in pcum]
 
         series["published"] = art.get("profiles", {}).get(name, {}).get("published", 0)
         profiles[name] = series

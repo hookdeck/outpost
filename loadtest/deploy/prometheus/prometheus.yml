@@ -34,4 +34,4 @@ scrape_configs:
   - job_name: "loadtest"
     scrape_interval: 5s
     static_configs:
-      - targets: ["outpost.railway.internal:9090"]
+      - targets: ["loadtest.railway.internal:9090"]

@@ -7,7 +7,7 @@ sheet:
 
   01-measurement-model   what is measured, where the clocks are. Stable across runs.
   02-latency             publish + delivery p50/p99 over the window
-  03-failure-rate        cumulative failed events per workload profile
+  03-failure-rate        cumulative undelivered events and publish errors
   04-fanout              delivery + publish p99 by destinations per tenant
   05-payload             delivery + publish p99 by payload size
   06-receiver-response   delivery + publish p99 by receiver response time
@@ -43,12 +43,15 @@ import matplotlib.pyplot as plt
 from matplotlib import font_manager as fm
 from matplotlib.lines import Line2D
 from matplotlib.patches import FancyBboxPatch, FancyArrowPatch
-from matplotlib.ticker import FuncFormatter
+from matplotlib.ticker import FuncFormatter, LogLocator, NullFormatter
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "..", "..", ".."))
 OUT = os.path.join(HERE, "charts")
 os.makedirs(OUT, exist_ok=True)
+
+# Set by --no-void-notice, for a second unstamped copy of a void run's figures.
+NOTICE_OFF = False
 
 fm.fontManager.addfont(os.path.join(ROOT, "website/public/fonts/Figtree-Bold.ttf"))
 SANS = ["Helvetica Neue", "Helvetica", "Arial", "DejaVu Sans"]
@@ -129,6 +132,8 @@ def notice(T):
 
     Void beats sample: a real run that broke its own preconditions is more
     dangerous than an obvious mock, because the numbers look right."""
+    if NOTICE_OFF:
+        return None, None
     if D.voids:
         return VOID_NOTE, T["danger"]
     if D.sample:
@@ -173,7 +178,51 @@ def hours_axis(ax):
 
 
 def ms(v, _=None):
+    # Seconds past 1000 ms. The latency axes are logarithmic and reach five
+    # figures, where "10000 ms" is both wide and hard to read at a glance.
+    if v >= 1000:
+        return f"{v / 1000:g} s"
+    if 0 < v < 1:
+        return f"{v:g} ms"
     return f"{v:.0f} ms"
+
+
+def log_latency_axis(ax, lo, hi):
+    """A latency axis spanning the baseline and the excursions at once.
+
+    Within one run these differ by three orders of magnitude — a 20 ms median
+    against an 11 s spike. On a linear axis the spike sets the scale and the
+    median collapses onto the floor, which is what made the sweep panels
+    unreadable: they share one limit, so fan-out's worst moment flattened the
+    payload and response panels too.
+
+    Ticks at 1, 2 and 5 per decade keep the working range labelled instead of
+    jumping 100 → 1000 with nothing in between.
+    """
+    ax.set_yscale("log")
+    ax.set_ylim(lo, hi)
+    ax.yaxis.set_major_locator(LogLocator(base=10.0, subs=(1.0, 2.0, 5.0),
+                                          numticks=32))
+    ax.yaxis.set_minor_locator(LogLocator(base=10.0, subs=tuple(range(2, 10)),
+                                          numticks=128))
+    ax.yaxis.set_minor_formatter(NullFormatter())
+    ax.yaxis.set_major_formatter(FuncFormatter(ms))
+
+
+def _log_floor(arrays):
+    """Lowest positive value across the given series, with headroom below it.
+
+    A log axis cannot start at zero, and gaps in a run's series arrive as NaN
+    or 0. Both are excluded rather than clamped, so a single missing bucket
+    cannot drag the floor down by two decades and squash everything above it.
+    """
+    lows = []
+    for a in arrays:
+        a = np.asarray(a, dtype=float)
+        pos = a[np.isfinite(a) & (a > 0)]
+        if pos.size:
+            lows.append(pos.min())
+    return max(min(lows) * 0.7, 0.1) if lows else 1.0
 
 
 # ========================================================================= data
@@ -187,10 +236,13 @@ class Dataset:
 
     def __init__(self, hours, base, failures, sweeps, run_meta,
                  published_per_profile, sample, incident=None, voids=(),
-                 latency_subtitle=None):
+                 latency_subtitle=None, publish_errors=()):
         self.hours = np.asarray(hours, dtype=float)
         self.base = base                    # dict of pub/del p50/p99 arrays
         self.failures = failures            # [(label, cumulative array)]
+        # Publishes that never succeeded — a separate outcome from a delivery
+        # that never arrived, and drawn as one.
+        self.publish_errors = list(publish_errors)
         self.sweeps = sweeps                # [(file, title, subtitle, {level: (del, pub)})]
         self.run_meta = run_meta
         self.published_per_profile = published_per_profile
@@ -207,7 +259,11 @@ class Dataset:
     @property
     def latency_ymax(self):
         top = max(self.base[k].max() for k in self.base)
-        return top * 1.25
+        return top * 1.4
+
+    @property
+    def latency_ymin(self):
+        return _log_floor(self.base.values())
 
     @property
     def sweep_ymax(self):
@@ -215,7 +271,12 @@ class Dataset:
         for _, _, _, levels in self.sweeps:
             for dely, puby in levels.values():
                 top = max(top, dely.max(), puby.max())
-        return top * 1.25 if top else 1.0
+        return top * 1.4 if top else 1.0
+
+    @property
+    def sweep_ymin(self):
+        return _log_floor(y for _, _, _, levels in self.sweeps
+                          for pair in levels.values() for y in pair)
 
 
 # ------------------------------------------------------------ synthetic sample
@@ -390,15 +451,29 @@ def load_dataset(path):
 
     # Failures: the profiles that actually failed something, worst first. A
     # panel of flat zero lines says less than naming the ones that moved.
-    fails = []
+    #
+    # Two distinct kinds, never summed. `failed_cum` is events that never
+    # arrived — missing net of recovered. `publish_errors_cum` is publishes that
+    # did not succeed, so no delivery was ever owed. Exports written before the
+    # split carry a `failed_cum` that conflates them; there is no way to
+    # separate one after the fact, so they are read as delivery failures and
+    # `rebuild.py` against the raw archive is the way to correct them.
+    fails, perrs = [], []
     for name in per_profile:
         y = np.asarray(per_profile[name].get("failed_cum", []), dtype=float)
         if y.size and y[-1] > 0:
             fails.append((name, y))
+        e = np.asarray(per_profile[name].get("publish_errors_cum", []), dtype=float)
+        if e.size and e[-1] > 0:
+            perrs.append((name, e))
     fails.sort(key=lambda kv: kv[1][-1], reverse=True)
+    perrs.sort(key=lambda kv: kv[1][-1], reverse=True)
     if not fails:  # zero failures is itself the result — show the baseline flat
         fails = [(baseline, np.zeros_like(hours))]
-    failures = fails[:4]
+    # No truncation. A dropped profile reads as a profile that failed nothing,
+    # which is the one thing this panel must never say by omission.
+    failures = fails
+    publish_errors = perrs
 
     sweeps = []
     b = profiles.get(baseline)
@@ -443,7 +518,7 @@ def load_dataset(path):
     return Dataset(hours=hours, base=base, failures=failures, sweeps=sweeps,
                    run_meta=meta, published_per_profile=published,
                    sample=False, voids=run.get("voids") or [],
-                   latency_subtitle=subtitle)
+                   latency_subtitle=subtitle, publish_errors=publish_errors)
 
 
 def spec_rate(spec):
@@ -551,30 +626,86 @@ def draw_latency(B, T):
 
     frame(ax, T)
     hours_axis(ax)
-    ax.set_ylim(0, D.latency_ymax)
-    ax.yaxis.set_major_formatter(FuncFormatter(ms))
+    log_latency_axis(ax, D.latency_ymin, D.latency_ymax)
     ax.legend(ncol=4, loc="upper left", bbox_to_anchor=(0, 1.15), fontsize=9,
               handlelength=1.9, columnspacing=1.8)
     footer(B, T)
 
 
-def draw_failures(B, T):
-    ax = B.axes([0.075, 0.145, 0.735, 0.605])
-    titleblock(B, T, "Failures",
-               "Running total of publishes that did not deliver after retries, "
-               "per workload profile")
+def _failure_subtitle():
+    """The two totals, stated rather than left to be read off the lines.
 
-    worst = max((y[-1] for _, y in FAILURES), default=0.0)
-    for (lbl, y), c in zip(FAILURES, T["ramp"]):
-        pct = y[-1] / PUBLISHED_PER_PROFILE * 100
-        ax.plot(HOURS, y, color=c, lw=2.0, zorder=3)
+    The panel is titled Failures and a clean run still draws lines on it — the
+    publish-error series. Someone skimming sees lines under that title and
+    concludes the run failed something, when the number they need is the zero.
+    So the counts lead, and the definitions follow them.
+    """
+    undelivered = sum(y[-1] for _, y in FAILURES)
+    errors = sum(y[-1] for _, y in PUBLISH_ERRORS)
+    head = (f"{undelivered:,.0f} undelivered · {errors:,.0f} publish errors"
+            if errors else f"{undelivered:,.0f} undelivered")
+    # Kept to one line at 9.5 pt across an 11 in panel — roughly 130 characters.
+    # Longer and it runs off the right edge instead of wrapping.
+    return (f"{head}. Undelivered never reached a destination; a publish error "
+            f"placed none to fail. Cumulative, per profile.")
+
+
+def draw_failures(B, T):
+    # Narrower than the sweep panels: these labels carry a count and a
+    # percentage on their own line, so they need the extra margin.
+    ax = B.axes([0.075, 0.145, 0.655, 0.605])
+    titleblock(B, T, "Failures", _failure_subtitle())
+
+    # Solid: events published but never delivered. Dashed: publishes that never
+    # succeeded, so no delivery was ever owed.
+    # Both are cumulative and share the axis, because both are counts of events
+    # and the reader's question is how many of each.
+    ramp = T["ramp"]
+    lines = ([(lbl, y, False) for lbl, y in FAILURES] +
+             [(lbl, y, True) for lbl, y in PUBLISH_ERRORS])
+    lines = [(lbl, y, dashed, ramp[i % len(ramp)])
+             for i, (lbl, y, dashed) in enumerate(lines)]
+    worst = max((y[-1] for _, y, _, _ in lines), default=0.0)
+
+    # Labels are placed by a shared minimum-gap pass rather than at each line's
+    # own endpoint. Several profiles finishing on similar counts — the normal
+    # case for a good run — otherwise stack their labels into one illegible
+    # block, which is what LT2's four lines did at 13, 5 and 1 events.
+    # Sized for a two-line label at 8.5 pt, which occupies roughly a tenth of
+    # the plot height. Too small a gap and the minimum-gap pass still leaves
+    # the text overlapping, which is the failure it exists to prevent.
+    gap = (worst * 1.25) * 0.115 if worst else 1.0
+    ordered = sorted(lines, key=lambda t: t[1][-1])
+    # A label sitting exactly on zero — the normal case for a clean run — has
+    # its second line fall below the axis. Hold the lowest one just inside.
+    floor = (worst * 1.25) * 0.05 if worst else 0.0
+    placed, prev = [], None
+    for lbl, y, dashed, c in ordered:
+        end = y[-1]
+        pos = end if prev is None or end - prev >= gap else prev + gap
+        pos = max(pos, floor)
+        placed.append((lbl, y, dashed, c, pos))
+        prev = pos
+
+    for lbl, y, dashed, c in lines:
+        ax.plot(HOURS, y, color=c, lw=1.4 if dashed else 2.0,
+                ls=(0, (3, 2)) if dashed else "-", zorder=3)
+    for lbl, y, dashed, c, pos in placed:
         if worst == 0:
-            continue  # the panel already says "no failed events"
-        # Anchored just past the end of the data, not at hour 24 — short runs
-        # pushed every label off the panel.
-        ax.text(HOURS[-1] * 1.017, y[-1], f"{lbl}\n{y[-1]:,.0f}  ·  {pct:.3f}%",
-                color=c, fontsize=9, va="center", fontfamily=MONO,
-                linespacing=1.5)
+            continue  # the panel already says "no undelivered events"
+        end = y[-1]
+        pct = end / PUBLISHED_PER_PROFILE * 100
+        # Which kind a line is comes from the legend and the dash pattern, not
+        # from repeating it on every label — spelled out here it ran off the
+        # panel and crowded out the numbers, which are the point.
+        ax.annotate(f"{lbl}\n{end:,.0f}  ·  {pct:.3f}%",
+                    xy=(HOURS[-1], pos), xytext=(9, 0),
+                    textcoords="offset points", color=c, fontsize=8.5,
+                    va="center", fontfamily=MONO, linespacing=1.5,
+                    annotation_clip=False)
+        if abs(pos - end) > 1e-9:
+            ax.plot([HOURS[-1], HOURS[-1]], [end, pos], color=c, lw=0.7,
+                    alpha=0.5, zorder=2, clip_on=False)
 
     frame(ax, T)
     hours_axis(ax)
@@ -585,11 +716,20 @@ def draw_failures(B, T):
         # instead of repeating "0" at every gridline.
         ax.set_ylim(0, 1)
         ax.set_yticks([0, 1])
-        ax.text(0.5, 0.55, "no failed events", transform=ax.transAxes,
+        ax.text(0.5, 0.55, "no undelivered events", transform=ax.transAxes,
                 ha="center", va="center", fontsize=10, color=T["fg3"],
                 fontfamily=MONO)
     ax.yaxis.set_major_formatter(FuncFormatter(lambda v, _: f"{v:,.0f}"))
-    ax.set_ylabel("Failed events, cumulative", fontsize=9)
+    ax.set_ylabel("Events, cumulative", fontsize=9)
+    if PUBLISH_ERRORS:
+        # Only when both kinds are present. On a run with no publish errors the
+        # legend would name a category the panel does not draw.
+        ax.legend(handles=[
+            Line2D([], [], color=T["fg2"], lw=2.0, label="Undelivered"),
+            Line2D([], [], color=T["fg2"], lw=1.4, ls=(0, (3, 2)),
+                   label="Publish errors"),
+        ], ncol=2, loc="upper left", bbox_to_anchor=(0, 1.15), fontsize=9,
+            handlelength=1.9, columnspacing=1.8)
     if D.incident:
         at, label = D.incident
         i = int(np.searchsorted(HOURS, at))
@@ -612,14 +752,22 @@ def draw_sweep(B, T, title, subtitle, data):
     # Labels sit at each line's final value, pushed apart just enough not to
     # overlap. A sweep whose levels barely differ — which is itself the result
     # worth reading — would otherwise stack every label in one illegible pile.
-    gap = D.sweep_ymax * 0.055
+    #
+    # Spacing is computed in log space because the axis is logarithmic: a fixed
+    # gap in milliseconds is invisible at the top of the panel and taller than
+    # the whole working range at the bottom.
+    lo, hi = D.sweep_ymin, D.sweep_ymax
+    gap = 0.055 * (np.log10(hi) - np.log10(lo))
     ends = sorted(((dely[-1], lbl, c) for (lbl, (dely, _)), c in series_list),
                   key=lambda t: t[0])
     placed, prev = [], None
     for end, lbl, c in ends:
-        y = end if prev is None or end - prev >= gap else prev + gap
-        placed.append((y, end, lbl, c))
-        prev = y
+        # A non-positive endpoint has no place on a log axis; park it on the
+        # floor so the label still appears next to its line.
+        le = np.log10(end) if end > 0 else np.log10(lo)
+        ly = le if prev is None or le - prev >= gap else prev + gap
+        placed.append((10.0 ** ly, end if end > 0 else lo, lbl, c))
+        prev = ly
     for y, end, lbl, c in placed:
         # Anchored to the axis in data coords and nudged out in points, so the
         # labels land just past the last sample whatever the window length. A
@@ -635,8 +783,7 @@ def draw_sweep(B, T, title, subtitle, data):
 
     frame(ax, T)
     hours_axis(ax)
-    ax.set_ylim(0, D.sweep_ymax)
-    ax.yaxis.set_major_formatter(FuncFormatter(ms))
+    log_latency_axis(ax, lo, hi)
     ax.set_ylabel("Latency", fontsize=9)
     ax.legend(handles=[
         Line2D([], [], color=T["fg2"], lw=2.0, label="Delivery p99"),
@@ -694,16 +841,34 @@ def render_sheet(T, tag, PANELS):
 
 
 def main():
-    global D, HOURS, BASE, FAILURES, PUBLISHED_PER_PROFILE
+    global D, HOURS, BASE, FAILURES, PUBLISH_ERRORS, PUBLISHED_PER_PROFILE, OUT, NOTICE_OFF
 
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--data", help="run export JSON; omit to render the sample")
+    ap.add_argument("--out", help="output directory. Default is charts/ beside "
+                                  "the export, so each run keeps its own figures; "
+                                  "./charts for the synthetic sample.")
+    ap.add_argument("--no-void-notice", action="store_true",
+                    help="omit the void/sample stamp. Renders the same numbers "
+                         "without the warning, so write it somewhere other than "
+                         "the default directory and keep the stamped set.")
     args = ap.parse_args()
+
+    NOTICE_OFF = args.no_void_notice
+    # A run's figures belong with its data. The old behaviour — one shared
+    # charts/ that every render cleared — meant only the most recent run had
+    # any, which is worthless once there is more than one run worth comparing.
+    if args.out:
+        OUT = os.path.abspath(args.out)
+    elif args.data:
+        OUT = os.path.join(os.path.dirname(os.path.abspath(args.data)), "charts")
+    os.makedirs(OUT, exist_ok=True)
 
     D = load_dataset(args.data) if args.data else sample_dataset()
     HOURS = D.hours
     BASE = D.base
     FAILURES = D.failures
+    PUBLISH_ERRORS = D.publish_errors
     PUBLISHED_PER_PROFILE = D.published_per_profile
 
     if D.voids:
