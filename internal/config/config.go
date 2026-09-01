@@ -126,6 +126,7 @@ var (
 	ErrMissingAESSecret      = errors.New("config validation error: AES encryption secret is required")
 	ErrInvalidPortalProxyURL = errors.New("config validation error: invalid portal proxy url")
 	ErrInvalidDeploymentID   = errors.New("config validation error: deployment_id must contain only alphanumeric characters, hyphens, and underscores (max 64 characters)")
+	ErrInvalidRedisPoolSize  = errors.New("config validation error: redis pool_size must be >= 0")
 )
 
 func (c *Config) InitDefaults() {
@@ -421,6 +422,7 @@ type RedisConfig struct {
 	Database               int    `yaml:"database" env:"REDIS_DATABASE" desc:"Redis database number to select after connecting (ignored in cluster mode)." required:"Y"`
 	TLSEnabled             bool   `yaml:"tls_enabled" env:"REDIS_TLS_ENABLED" desc:"Enable TLS encryption for Redis connection." required:"N"`
 	ClusterEnabled         bool   `yaml:"cluster_enabled" env:"REDIS_CLUSTER_ENABLED" desc:"Enable Redis cluster mode for distributed Redis deployments." required:"N"`
+	PoolSize               int    `yaml:"pool_size" env:"REDIS_POOL_SIZE" desc:"Connection pool size per Redis client (per node in cluster mode). 0 uses go-redis's default of 10 per GOMAXPROCS." required:"N"`
 	DevClusterHostOverride bool   `yaml:"dev_cluster_host_override" env:"REDIS_DEV_CLUSTER_HOST_OVERRIDE" desc:"Development only: Force cluster to use original host for discovered nodes. DO NOT use in production." required:"N"`
 }
 
@@ -434,6 +436,7 @@ func (c *RedisConfig) ToConfig() *redis.RedisConfig {
 		TLSEnabled:             c.TLSEnabled,
 		ClusterEnabled:         c.ClusterEnabled,
 		DevClusterHostOverride: c.DevClusterHostOverride,
+		PoolSize:               c.PoolSize,
 	}
 }
 
