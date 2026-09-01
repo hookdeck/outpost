@@ -78,7 +78,7 @@ func (b *ServiceBuilder) BuildWorkers() (*worker.WorkerSupervisor, error) {
 
 	// Create base router with health check that all services will extend
 	b.logger.Debug("creating base router with health check")
-	baseRouter := NewBaseRouter(b.supervisor, b.cfg.GinMode)
+	baseRouter := NewBaseRouter(b.supervisor, b.cfg.GinMode, b.cfg.PprofEnabled)
 
 	if serviceType == config.ServiceTypeAPI || serviceType == config.ServiceTypeAll {
 		if err := b.BuildAPIWorkers(baseRouter); err != nil {
