@@ -71,7 +71,7 @@ Two things to know before adopting either, because both follow from Outpost's sc
 {% callout %}
 **Existing rows live in the DEFAULT partition.** Every row an existing install has written is in `events_default` and `attempts_default`. Creating monthly partitions doesn't move those rows, and PostgreSQL refuses to attach a partition for a month whose rows are still in the DEFAULT partition. Adopting partitioning on a running install means moving the existing rows first, not only creating partitions going forward.
 
-**Dropping a partition takes an `ACCESS EXCLUSIVE` lock on the table.** PostgreSQL allows `DETACH PARTITION ... CONCURRENTLY` only when the parent has no DEFAULT partition, and Outpost's tables always have one. Each retention drop briefly blocks writes to that table. The lock is short, a catalog change rather than a data rewrite, but it isn't lock-free.
+**Dropping a partition takes an `ACCESS EXCLUSIVE` lock on the table.** PostgreSQL allows `DETACH PARTITION ... CONCURRENTLY` only when the parent has no DEFAULT partition, and Outpost's tables always have one. Each retention drop briefly blocks reads and writes on that table. The lock is short, a catalog change rather than a data rewrite, but it isn't lock-free.
 {% /callout %}
 
 With pg_partman installed in a `partman` schema, register the parent while it holds no rows, then move the existing rows in. Run this once per table, in one transaction, during a low-traffic window:
