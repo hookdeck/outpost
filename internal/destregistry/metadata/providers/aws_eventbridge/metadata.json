@@ -1,0 +1,58 @@
+{
+  "type": "aws_eventbridge",
+  "label": "AWS EventBridge",
+  "description": "Send events to an Amazon EventBridge event bus using a service account to authenticate.",
+  "link": "https://aws.amazon.com/eventbridge/",
+  "config_fields": [
+    {
+      "key": "event_bus_name",
+      "type": "text",
+      "label": "Event Bus Name or ARN",
+      "description": "The name or ARN of your AWS EventBridge event bus. Leave empty to use the account's default event bus.",
+      "required": false
+    },
+    {
+      "key": "region",
+      "type": "text",
+      "label": "AWS Region",
+      "description": "The AWS region where your EventBridge event bus is located",
+      "required": true,
+      "pattern": "^[a-z]{2}-[a-z]+-[0-9]+$"
+    },
+    {
+      "key": "endpoint",
+      "type": "text",
+      "label": "Endpoint",
+      "description": "Custom endpoint URL for AWS EventBridge (optional, for testing or VPC endpoints)",
+      "required": false,
+      "pattern": "^https?:\\/\\/[^\\s]+$"
+    }
+  ],
+  "credential_fields": [
+    {
+      "key": "key",
+      "type": "text",
+      "label": "Access Key ID",
+      "description": "AWS Access Key ID",
+      "required": false,
+      "sensitive": true
+    },
+    {
+      "key": "secret",
+      "type": "text",
+      "label": "Secret Access Key",
+      "description": "AWS Secret Access Key",
+      "required": false,
+      "sensitive": true
+    },
+    {
+      "key": "session",
+      "type": "text",
+      "label": "Session Token",
+      "description": "AWS Session Token (optional, for temporary credentials)",
+      "required": false,
+      "sensitive": true
+    }
+  ],
+  "icon": "<svg width=\"16\" height=\"16\" viewBox=\"0 0 16 16\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M4 0H12C14.2091 0 16 1.79086 16 4V12C16 14.2091 14.2091 16 12 16H4C1.79086 16 0 14.2091 0 12V4C0 1.79086 1.79086 0 4 0Z\" fill=\"#7B42BC\"/><path d=\"M4 8H6.5M9.5 8H12M6.5 8L8 5.5M6.5 8L8 10.5\" stroke=\"white\" stroke-width=\"1.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/><circle cx=\"8\" cy=\"5.5\" r=\"1\" fill=\"white\"/><circle cx=\"8\" cy=\"10.5\" r=\"1\" fill=\"white\"/><circle cx=\"4\" cy=\"8\" r=\"1\" fill=\"white\"/><circle cx=\"12\" cy=\"8\" r=\"1\" fill=\"white\"/></svg>"
+}

@@ -11,11 +11,12 @@ import (
 
 // DestinationsConfig is the main configuration for all destination types
 type DestinationsConfig struct {
-	MetadataPath                string                      `yaml:"metadata_path" env:"DESTINATIONS_METADATA_PATH" desc:"Path to the directory containing custom destination type definitions." required:"N"`
-	IncludeMillisecondTimestamp bool                        `yaml:"include_millisecond_timestamp" env:"DESTINATIONS_INCLUDE_MILLISECOND_TIMESTAMP" desc:"If true, includes a 'timestamp-ms' field with millisecond precision in destination metadata. Useful for load testing and debugging." required:"N"`
-	ProxyURL                    string                      `yaml:"proxy_url" env:"DESTINATIONS_PROXY_URL" desc:"HTTP CONNECT forward proxy for destination connections, e.g. 'http://user:pass@proxy:10000'. Multiple whitespace-separated URLs are tunneled in order, nearest first. Applies to webhook, RabbitMQ and Kafka destinations; other types connect directly. DESTINATIONS_WEBHOOK_PROXY_URL, when set, takes precedence for webhooks; webhooks can't opt out while this is set." required:"N"`
-	Webhook                     DestinationWebhookConfig    `yaml:"webhook" desc:"Configuration specific to webhook destinations."`
-	AWSKinesis                  DestinationAWSKinesisConfig `yaml:"aws_kinesis" desc:"Configuration specific to AWS Kinesis destinations."`
+	MetadataPath                string                          `yaml:"metadata_path" env:"DESTINATIONS_METADATA_PATH" desc:"Path to the directory containing custom destination type definitions." required:"N"`
+	IncludeMillisecondTimestamp bool                            `yaml:"include_millisecond_timestamp" env:"DESTINATIONS_INCLUDE_MILLISECOND_TIMESTAMP" desc:"If true, includes a 'timestamp-ms' field with millisecond precision in destination metadata. Useful for load testing and debugging." required:"N"`
+	ProxyURL                    string                          `yaml:"proxy_url" env:"DESTINATIONS_PROXY_URL" desc:"HTTP CONNECT forward proxy for destination connections, e.g. 'http://user:pass@proxy:10000'. Multiple whitespace-separated URLs are tunneled in order, nearest first. Applies to webhook, RabbitMQ and Kafka destinations; other types connect directly. DESTINATIONS_WEBHOOK_PROXY_URL, when set, takes precedence for webhooks; webhooks can't opt out while this is set." required:"N"`
+	Webhook                     DestinationWebhookConfig        `yaml:"webhook" desc:"Configuration specific to webhook destinations."`
+	AWSKinesis                  DestinationAWSKinesisConfig     `yaml:"aws_kinesis" desc:"Configuration specific to AWS Kinesis destinations."`
+	AWSEventBridge              DestinationAWSEventBridgeConfig `yaml:"aws_eventbridge" desc:"Configuration specific to AWS EventBridge destinations."`
 }
 
 func (c *DestinationsConfig) ToConfig(cfg *Config) destregistrydefault.RegisterDefaultDestinationOptions {
@@ -35,6 +36,7 @@ func (c *DestinationsConfig) ToConfig(cfg *Config) destregistrydefault.RegisterD
 		ProxyURL:                    c.ProxyURL,
 		Webhook:                     webhook,
 		AWSKinesis:                  c.AWSKinesis.toConfig(),
+		AWSEventBridge:              c.AWSEventBridge.toConfig(),
 		DeliveryMaxConcurrency:      cfg.DeliveryMaxConcurrency,
 	}
 }
@@ -298,5 +300,25 @@ type DestinationAWSKinesisConfig struct {
 func (c *DestinationAWSKinesisConfig) toConfig() *destregistrydefault.DestAWSKinesisConfig {
 	return &destregistrydefault.DestAWSKinesisConfig{
 		MetadataInPayload: c.MetadataInPayload,
+	}
+}
+
+// DefaultEventBridgeSource is the EventBridge "Source" field stamped on every
+// published event when DESTINATIONS_EVENTBRIDGE_SOURCE is unset.
+const DefaultEventBridgeSource = "outpost"
+
+// AWS EventBridge configuration
+type DestinationAWSEventBridgeConfig struct {
+	Source string `yaml:"source" env:"DESTINATIONS_EVENTBRIDGE_SOURCE" desc:"The fixed EventBridge 'Source' field stamped on every published event, shared across all AWS EventBridge destinations in this deployment. Defaults to 'outpost'." required:"N"`
+}
+
+// toConfig converts DestinationAWSEventBridgeConfig to the provider config
+func (c *DestinationAWSEventBridgeConfig) toConfig() *destregistrydefault.DestAWSEventBridgeConfig {
+	source := c.Source
+	if source == "" {
+		source = DefaultEventBridgeSource
+	}
+	return &destregistrydefault.DestAWSEventBridgeConfig{
+		Source: source,
 	}
 }

@@ -63,6 +63,7 @@
           },
           { "slug": "destinations/aws-sqs", "title": "AWS SQS" },
           { "slug": "destinations/aws-kinesis", "title": "AWS Kinesis" },
+          { "slug": "destinations/aws-eventbridge", "title": "AWS EventBridge" },
           { "slug": "destinations/aws-s3", "title": "AWS S3" },
           { "slug": "destinations/gcp-pubsub", "title": "GCP Pub/Sub" },
           {
