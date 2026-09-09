@@ -64,7 +64,58 @@ DELETE FROM events   WHERE time < now() - interval '30 days';
 
 Run these in bounded batches rather than as a single statement, on whatever scheduler you already operate, such as a Kubernetes `CronJob`, a systemd timer, or [pg_cron](https://github.com/citusdata/pg_cron) if the extension is available to you. Both tables have a primary key leading with `time`, so these are index range scans rather than full table scans. You'll still take the dead tuple and vacuum cost that any large delete incurs.
 
-The `events` and `attempts` tables are declared as range partitioned on `time`, but Outpost creates only DEFAULT partitions and doesn't manage the partition lifecycle. Dropping expired partitions is cheaper than deleting rows at scale, so if you're running PostgreSQL at volume, managing partitions yourself with a tool like [pg_partman](https://github.com/pgpartman/pg_partman) is worth considering.
+The `events` and `attempts` tables are declared as range partitioned on `time`, but Outpost creates only DEFAULT partitions and doesn't manage the partition lifecycle. Dropping expired partitions is cheaper than deleting rows at scale, so if you're running PostgreSQL at volume, managing partitions yourself is worth considering. [pg_partman](https://github.com/pgpartman/pg_partman) is the usual choice when the extension is available on your PostgreSQL. [pg-partsmith](https://github.com/bedrock-python/pg-partsmith) runs as a container against the database and needs no extension, which matters on managed PostgreSQL where you can't install one.
+
+Two things to know before adopting either, because both follow from Outpost's schema rather than from the tool:
+
+{% callout %}
+**Existing rows live in the DEFAULT partition.** Every row an existing install has written is in `events_default` and `attempts_default`. Creating monthly partitions doesn't move those rows, and PostgreSQL refuses to attach a partition for a month whose rows are still in the DEFAULT partition. Adopting partitioning on a running install means moving the existing rows first, not only creating partitions going forward.
+
+**Dropping a partition takes an `ACCESS EXCLUSIVE` lock on the table.** PostgreSQL allows `DETACH PARTITION ... CONCURRENTLY` only when the parent has no DEFAULT partition, and Outpost's tables always have one. Each retention drop briefly blocks reads and writes on that table. The lock is short, a catalog change rather than a data rewrite, but it isn't lock-free.
+{% /callout %}
+
+With pg_partman installed in a `partman` schema, register the parent while it holds no rows, then move the existing rows in. Run this once per table, in one transaction, during a low-traffic window:
+
+```sql
+BEGIN;
+ALTER TABLE events DETACH PARTITION events_default;
+ALTER TABLE events_default RENAME TO events_default_old;
+SELECT partman.create_parent(
+  p_parent_table    := 'public.events',
+  p_control         := 'time',
+  p_interval        := '1 month',
+  p_premake         := 3,
+  p_start_partition := '2026-01-01'  -- at or before your oldest row
+);
+INSERT INTO events SELECT * FROM events_default_old;
+DROP TABLE events_default_old;
+COMMIT;
+```
+
+`create_parent` creates its own `events_default`, which is why the existing one is renamed first. Then set `retention` in `partman.part_config` and schedule `partman.run_maintenance_proc()` with [pg_cron](https://github.com/citusdata/pg_cron) or the `pg_partman_bgw` background worker. Without a scheduler, the partitions `create_parent` made are the only ones there will ever be.
+
+With pg-partsmith, describe both tables once:
+
+```yaml
+# partitions.yaml
+version: 1
+defaults: { schema: public, granularity: month, create_ahead_count: 3, retention_count: 6 }
+tables:
+  - { table_name: events, partition_column: time }
+  - { table_name: attempts, partition_column: time }
+```
+
+Run `backfill` once to move the existing rows out of the DEFAULT partitions into monthly partitions it creates, then run `apply --allow-destructive` on a schedule for the ongoing lifecycle:
+
+```sh
+docker run --rm -v "$PWD/partitions.yaml:/etc/pg-partsmith/partitions.yaml:ro" \
+  -e PG_PARTSMITH_DSN="$POSTGRES_URL" ghcr.io/bedrock-python/pg-partsmith:1.5.0 \
+  backfill -c /etc/pg-partsmith/partitions.yaml
+```
+
+`plan` in place of `backfill` prints what a run would do, including the lock each step takes, without changing anything.
+
+Whichever you use, check `SELECT count(*) FROM events_default;` after adopting. It should be zero, and it should stay zero.
 
 ## Querying
 
