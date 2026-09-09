@@ -84,8 +84,10 @@ func TestMakeHTTPClient_Proxy(t *testing.T) {
 		defer targetServer.Close()
 
 		// Create client with proxy configured
+		proxy, err := destregistry.ParseProxyURL(proxyServer.URL)
+		require.NoError(t, err)
 		client, err := destregistry.NewHTTPClient(destregistry.HTTPClientConfig{
-			ProxyURL: &proxyServer.URL,
+			Proxy: proxy,
 		})
 		require.NoError(t, err)
 
@@ -102,13 +104,8 @@ func TestMakeHTTPClient_Proxy(t *testing.T) {
 	t.Run("returns error for invalid proxy URL", func(t *testing.T) {
 		t.Parallel()
 
-		invalidProxy := "://invalid-url"
-		_, err := destregistry.NewHTTPClient(destregistry.HTTPClientConfig{
-			ProxyURL: &invalidProxy,
-		})
-
-		// Should return error for invalid proxy URL
+		_, err := destregistry.ParseProxyURL("://invalid-url")
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid proxy URL")
+		assert.Contains(t, err.Error(), "proxy hop 0")
 	})
 }

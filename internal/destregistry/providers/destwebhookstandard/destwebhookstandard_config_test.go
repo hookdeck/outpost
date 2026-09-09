@@ -2,6 +2,7 @@ package destwebhookstandard_test
 
 import (
 	"context"
+	"net/url"
 	"testing"
 
 	"github.com/hookdeck/outpost/internal/destregistry"
@@ -109,12 +110,12 @@ func TestNew(t *testing.T) {
 		assert.NotNil(t, provider)
 	})
 
-	t.Run("creates provider with proxy URL option", func(t *testing.T) {
+	t.Run("creates provider with proxy chain option", func(t *testing.T) {
 		t.Parallel()
 		provider, err := destwebhookstandard.New(
 			testutil.Registry.MetadataLoader(),
 			nil,
-			destwebhookstandard.WithProxyURL("http://proxy.example.com"),
+			destwebhookstandard.WithProxy(mustProxy(t, "http://proxy.example.com")),
 		)
 		require.NoError(t, err)
 		assert.NotNil(t, provider)
@@ -137,10 +138,17 @@ func TestNew(t *testing.T) {
 			testutil.Registry.MetadataLoader(),
 			nil,
 			destwebhookstandard.WithUserAgent("test-agent"),
-			destwebhookstandard.WithProxyURL("http://proxy.example.com"),
+			destwebhookstandard.WithProxy(mustProxy(t, "http://proxy.example.com")),
 			destwebhookstandard.WithHeaderPrefix("x-outpost-"),
 		)
 		require.NoError(t, err)
 		assert.NotNil(t, provider)
 	})
+}
+
+func mustProxy(t *testing.T, s string) []*url.URL {
+	t.Helper()
+	hops, err := destregistry.ParseProxyURL(s)
+	require.NoError(t, err)
+	return hops
 }

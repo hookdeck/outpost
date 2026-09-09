@@ -55,6 +55,7 @@ fi
 # profiles) avoids cross-file service-name collisions, e.g. otel-collector
 # defined by both grafana and uptrace.
 [ "${LOCAL_DEV_ENVOY:-}" = "1" ] && files+=(-f build/dev/envoy/compose.yml)
+[ "${LOCAL_DEV_ENVOY_CHAIN:-}" = "1" ] && files+=(-f build/dev/envoy-chain/compose.yml)
 [ "${LOCAL_DEV_GRAFANA:-}" = "1" ] && files+=(-f build/dev/grafana/compose.yml)
 [ "${LOCAL_DEV_UPTRACE:-}" = "1" ] && files+=(-f build/dev/uptrace/compose.yml)
 [ "${LOCAL_DEV_AZURE:-}" = "1" ] && files+=(-f build/dev/azure/compose.yml)

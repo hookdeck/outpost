@@ -10,6 +10,8 @@ import (
 	"net/url"
 	"sort"
 	"strings"
+
+	"github.com/hookdeck/outpost/internal/destregistry"
 )
 
 // WrapTransport is the destregistry.HTTPClientConfig.WrapTransport hook for
@@ -266,6 +268,14 @@ func (t *proxyTransport) classifyTransportError(err error, req *http.Request) er
 		return nil
 	}
 
+	// An intermediate hop refused to tunnel to the next one. Go wraps the
+	// dialer's error in the same proxyconnect OpError as a plain dial
+	// failure, so this has to run before the substring check below.
+	var connectErr *destregistry.ProxyConnectError
+	if errors.As(err, &connectErr) {
+		return classifyConnectResponse(connectErr.Status, connectErr.Header, err, hostOnly(connectErr.Next))
+	}
+
 	destHost := ""
 	if req != nil && req.URL != nil {
 		destHost = req.URL.Host
@@ -306,18 +316,35 @@ func onProxyConnectResponse(ctx context.Context, proxyURL *url.URL, connectReq *
 			destHost = connectReq.URL.Host
 		}
 	}
-	if h, _, err := net.SplitHostPort(destHost); err == nil {
-		destHost = h
-	}
+	return classifyConnectResponse(resp.StatusCode, resp.Header, fmt.Errorf("proxy returned %s", resp.Status), hostOnly(destHost))
+}
 
-	switch resp.StatusCode {
+// classifyConnectResponse maps a non-200 CONNECT response into the proxy
+// error sentinels. It serves both the last hop (via onProxyConnectResponse)
+// and intermediate hops (via ProxyConnectError from the chain dialer);
+// destHost is whichever host the CONNECT was for.
+func classifyConnectResponse(status int, header http.Header, underlying error, destHost string) error {
+	flag := envoyResponseFlag(header)
+	details := envoyResponseDetails(header)
+
+	switch status {
 	case http.StatusProxyAuthRequired,
 		http.StatusUnauthorized,
 		http.StatusForbidden:
+		// Envoy RBAC denies (the egress SSRF gate) are a property of the
+		// target, not of our credentials: a failed attempt, not a nack.
+		if status == http.StatusForbidden && strings.Contains(details, "rbac_access_denied") {
+			return &ErrProxyDestination{
+				Underlying:  underlying,
+				Code:        "network_unreachable",
+				DestHost:    destHost,
+				Diagnostics: envoyDiagnostics(flag, details),
+			}
+		}
 		// Auth-related failures are operator misconfiguration of proxy
 		// credentials — proxy infrastructure problem, not destination.
 		return &ErrProxyInfra{
-			Underlying: fmt.Errorf("proxy returned %s", resp.Status),
+			Underlying: underlying,
 			DestHost:   destHost,
 		}
 	}
@@ -326,18 +353,22 @@ func onProxyConnectResponse(ctx context.Context, proxyURL *url.URL, connectReq *
 	// to the destination. Attribute to destination; refine the code from the
 	// Envoy response flag when present.
 	code := "connection_refused"
-	flag := envoyResponseFlag(resp.Header)
-	details := envoyResponseDetails(resp.Header)
 	if flag != "" {
 		code = MapEnvoyResponseFlag(flag)
 	}
-
 	return &ErrProxyDestination{
-		Underlying:  fmt.Errorf("proxy returned %s", resp.Status),
+		Underlying:  underlying,
 		Code:        code,
 		DestHost:    destHost,
 		Diagnostics: envoyDiagnostics(flag, details),
 	}
+}
+
+func hostOnly(hostport string) string {
+	if h, _, err := net.SplitHostPort(hostport); err == nil {
+		return h
+	}
+	return hostport
 }
 
 // envoyResponseFlag returns the meaningful value of the x-envoy-response-flags

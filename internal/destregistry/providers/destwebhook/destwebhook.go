@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"math/big"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strings"
 	"text/template"
@@ -95,7 +96,7 @@ type WebhookDestination struct {
 	*destregistry.BaseProvider
 	headerPrefix             string
 	userAgent                string
-	proxyURL                 string
+	proxy                    []*url.URL
 	signatureContentTemplate string
 	signatureHeaderTemplate  string
 	eventIDHeader            headerConfig
@@ -171,9 +172,11 @@ func WithUserAgent(userAgent string) Option {
 	}
 }
 
-func WithProxyURL(proxyURL string) Option {
+// WithProxy routes every request through the given forward proxies,
+// nearest hop first. See destregistry.ParseProxyURL.
+func WithProxy(hops []*url.URL) Option {
 	return func(w *WebhookDestination) {
-		w.proxyURL = proxyURL
+		w.proxy = hops
 	}
 }
 
@@ -366,13 +369,9 @@ func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePu
 	}
 	destination.signingSecretTemplate = tmpl
 
-	var proxyURL *string
-	if destination.proxyURL != "" {
-		proxyURL = &destination.proxyURL
-	}
 	httpClient, err := destregistry.NewHTTPClient(destregistry.HTTPClientConfig{
 		UserAgent:     &destination.userAgent,
-		ProxyURL:      proxyURL,
+		Proxy:         destination.proxy,
 		WrapTransport: WrapTransport,
 		Pool:          destination.pool,
 		OnConnection:  destination.onConnection,

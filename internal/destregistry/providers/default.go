@@ -2,6 +2,8 @@ package destregistrydefault
 
 import (
 	"context"
+	"fmt"
+	"net/url"
 
 	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destawskinesis"
@@ -85,12 +87,20 @@ func RegisterDefault(registry destregistry.Registry, opts RegisterDefaultDestina
 		}
 	}
 
+	var proxy []*url.URL
+	if opts.Webhook != nil {
+		proxy, err = destregistry.ParseProxyURL(opts.Webhook.ProxyURL)
+		if err != nil {
+			return fmt.Errorf("webhook proxy: %w", err)
+		}
+	}
+
 	// Register webhook provider based on mode
 	if opts.Webhook != nil && opts.Webhook.Mode == "standard" {
 		// Standard Webhooks mode - register webhook_standard as "webhook"
 		webhookStandardOpts := []destwebhookstandard.Option{
 			destwebhookstandard.WithUserAgent(opts.UserAgent),
-			destwebhookstandard.WithProxyURL(opts.Webhook.ProxyURL),
+			destwebhookstandard.WithProxy(proxy),
 			destwebhookstandard.WithHeaderPrefix(opts.Webhook.HeaderPrefix),
 			destwebhookstandard.WithMaxResponseBodyBytes(opts.Webhook.MaxResponseBodyBytes),
 			destwebhookstandard.WithConnectionPool(fanOutPool),
@@ -110,7 +120,7 @@ func RegisterDefault(registry destregistry.Registry, opts RegisterDefaultDestina
 		}
 		if opts.Webhook != nil {
 			webhookOpts = append(webhookOpts,
-				destwebhook.WithProxyURL(opts.Webhook.ProxyURL),
+				destwebhook.WithProxy(proxy),
 				destwebhook.WithHeaderPrefix(opts.Webhook.HeaderPrefix),
 				destwebhook.WithEventIDHeader(opts.Webhook.EventIDHeader.Name, opts.Webhook.EventIDHeader.Disabled),
 				destwebhook.WithSignatureHeader(opts.Webhook.SignatureHeader.Name, opts.Webhook.SignatureHeader.Disabled),

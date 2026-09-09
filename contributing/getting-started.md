@@ -117,6 +117,7 @@ LOCAL_DEV_RABBITMQ=1
 | `LOCAL_DEV_PGADMIN=<port>` | Enable pgAdmin |
 | `LOCAL_DEV_TABIX=<port>` | Enable Tabix (ClickHouse UI) |
 | `LOCAL_DEV_ENVOY=1` | Forward proxy for `DESTINATIONS_WEBHOOK_PROXY_URL` testing |
+| `LOCAL_DEV_ENVOY_CHAIN=1` | Second proxy behind the first, for proxy hop-list testing |
 | `LOCAL_DEV_GRAFANA=1` | OTel collector + Prometheus + Grafana |
 | `LOCAL_DEV_UPTRACE=1` | Uptrace observability (alternative to Grafana — cannot be combined) |
 | `LOCAL_DEV_AZURE=1` | Azure Service Bus + SQL Edge emulators |

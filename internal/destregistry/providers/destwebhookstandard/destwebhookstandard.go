@@ -55,6 +55,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -74,7 +75,7 @@ const (
 type StandardWebhookDestination struct {
 	*destregistry.BaseProvider
 	userAgent            string
-	proxyURL             string
+	proxy                []*url.URL
 	headerPrefix         string // Prefix for metadata headers (defaults to "webhook-")
 	maxResponseBodyBytes int
 
@@ -112,12 +113,11 @@ func WithUserAgent(userAgent string) Option {
 	}
 }
 
-// WithProxyURL sets the proxy URL for the webhook request
-func WithProxyURL(proxyURL string) Option {
+// WithProxy routes every request through the given forward proxies,
+// nearest hop first. See destregistry.ParseProxyURL.
+func WithProxy(hops []*url.URL) Option {
 	return func(d *StandardWebhookDestination) {
-		if proxyURL != "" {
-			d.proxyURL = proxyURL
-		}
+		d.proxy = hops
 	}
 }
 
@@ -169,13 +169,9 @@ func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePu
 	// But the caller must have explicitly set it via WithHeaderPrefix.
 	// Config is responsible for providing the appropriate default ("webhook-").
 
-	var proxyURL *string
-	if destination.proxyURL != "" {
-		proxyURL = &destination.proxyURL
-	}
 	httpClient, err := destregistry.NewHTTPClient(destregistry.HTTPClientConfig{
 		UserAgent:     &destination.userAgent,
-		ProxyURL:      proxyURL,
+		Proxy:         destination.proxy,
 		WrapTransport: destwebhook.WrapTransport,
 		Pool:          destination.pool,
 		OnConnection:  destination.onConnection,

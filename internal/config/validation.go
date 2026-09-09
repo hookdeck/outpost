@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net/url"
 	"regexp"
+
+	"github.com/hookdeck/outpost/internal/destregistry"
 )
 
 // Validate checks if the configuration is valid
@@ -38,6 +40,10 @@ func (c *Config) Validate(flags Flags) error {
 	}
 
 	if err := c.validatePortal(); err != nil {
+		return err
+	}
+
+	if err := c.validateDestinations(); err != nil {
 		return err
 	}
 
@@ -160,6 +166,15 @@ func (c *Config) validatePortal() error {
 		if _, err := url.Parse(c.Portal.ProxyURL); err != nil {
 			return ErrInvalidPortalProxyURL
 		}
+	}
+	return nil
+}
+
+// validateDestinations fails boot on a malformed webhook proxy chain so a bad
+// hop never reaches the delivery path.
+func (c *Config) validateDestinations() error {
+	if _, err := destregistry.ParseProxyURL(c.Destinations.Webhook.ProxyURL); err != nil {
+		return fmt.Errorf("%w: %w", ErrInvalidWebhookProxyURL, err)
 	}
 	return nil
 }

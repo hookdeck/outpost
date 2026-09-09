@@ -18,21 +18,35 @@ import (
 // CONNECT request with the given status code. Non-CONNECT requests get 200.
 func newCONNECTRejectingProxy(t *testing.T, status int) *httptest.Server {
 	t.Helper()
-	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	return newCONNECTRejectingProxyWithHeaders(t, status, nil)
+}
+
+// newCONNECTRejectingProxyWithHeaders is newCONNECTRejectingProxy with extra
+// response headers on the rejection (e.g. Envoy response flags).
+func newCONNECTRejectingProxyWithHeaders(t *testing.T, status int, headers map[string]string) *httptest.Server {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodConnect {
+			for k, v := range headers {
+				w.Header().Set(k, v)
+			}
 			w.WriteHeader(status)
 			return
 		}
 		w.WriteHeader(http.StatusOK)
 	}))
+	t.Cleanup(srv.Close)
+	return srv
 }
 
 // makeProxiedClient constructs an HTTP client routed through proxyURL using
 // the proxyTransport wrapper, matching the NewHTTPClient flow.
 func makeProxiedClient(t *testing.T, proxyURL string) *http.Client {
 	t.Helper()
+	proxy, err := destregistry.ParseProxyURL(proxyURL)
+	require.NoError(t, err)
 	client, err := destregistry.NewHTTPClient(destregistry.HTTPClientConfig{
-		ProxyURL:      &proxyURL,
+		Proxy:         proxy,
 		WrapTransport: destwebhook.WrapTransport,
 	})
 	require.NoError(t, err)
@@ -375,4 +389,91 @@ func TestMapEnvoyResponseFlag(t *testing.T) {
 			assert.Equal(t, want, destwebhook.MapEnvoyResponseFlag(flag))
 		})
 	}
+}
+
+// nextHopHost is a stand-in second hop that must never be reached: hop 0
+// rejects the CONNECT to it. Any well-formed host:port works since no dial
+// is attempted.
+const nextHopHost = "next-hop.invalid:3128"
+
+func TestProxyTransport_Chain_IntermediateHopAuthFailure_ReturnsInfraError(t *testing.T) {
+	t.Parallel()
+	hop0 := newCONNECTRejectingProxy(t, http.StatusProxyAuthRequired)
+
+	client := makeProxiedClient(t, hop0.URL+" http://"+nextHopHost)
+	_, err := client.Get("https://example.invalid/")
+	require.Error(t, err)
+
+	var infraErr *destwebhook.ErrProxyInfra
+	require.True(t, errors.As(err, &infraErr), "got %v", err)
+	assert.Equal(t, "next-hop.invalid", infraErr.DestHost)
+}
+
+func TestProxyTransport_Chain_IntermediateHopUpstreamFailure_ReturnsDestinationError(t *testing.T) {
+	t.Parallel()
+	hop0 := newCONNECTRejectingProxyWithHeaders(t, http.StatusServiceUnavailable, map[string]string{
+		"x-envoy-response-flags":        "UF",
+		"x-envoy-response-code-details": "upstream_reset_before_response_started{connection_failure}",
+	})
+
+	client := makeProxiedClient(t, hop0.URL+" http://"+nextHopHost)
+	_, err := client.Get("https://example.invalid/")
+	require.Error(t, err)
+
+	var destErr *destwebhook.ErrProxyDestination
+	require.True(t, errors.As(err, &destErr), "got %v", err)
+	assert.Equal(t, "connection_refused", destErr.Code)
+	assert.Equal(t, "next-hop.invalid", destErr.DestHost, "attributed to the hop that could not be reached")
+	assert.Equal(t, "UF", destErr.Diagnostics["envoy_flag"])
+}
+
+func TestProxyTransport_Chain_IntermediateHopUnreachable_ReturnsInfraError(t *testing.T) {
+	t.Parallel()
+	dead := httptest.NewServer(http.NotFoundHandler())
+	deadURL := dead.URL
+	dead.Close()
+
+	client := makeProxiedClient(t, deadURL+" http://"+nextHopHost)
+	_, err := client.Get("https://example.invalid/")
+	require.Error(t, err)
+
+	var infraErr *destwebhook.ErrProxyInfra
+	require.True(t, errors.As(err, &infraErr), "got %v", err)
+}
+
+func TestProxyTransport_ConnectRBACDenied_ReturnsNetworkUnreachable(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name  string
+		chain func(hop0 string) string
+		dest  string
+	}{
+		{"last hop", func(h string) string { return h }, "example.invalid"},
+		{"intermediate hop", func(h string) string { return h + " http://" + nextHopHost }, "next-hop.invalid"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			hop0 := newCONNECTRejectingProxyWithHeaders(t, http.StatusForbidden, map[string]string{
+				"x-envoy-response-code-details": "rbac_access_denied",
+			})
+			client := makeProxiedClient(t, tc.chain(hop0.URL))
+			_, err := client.Get("https://example.invalid/")
+			require.Error(t, err)
+
+			var destErr *destwebhook.ErrProxyDestination
+			require.True(t, errors.As(err, &destErr), "got %v", err)
+			assert.Equal(t, "network_unreachable", destErr.Code)
+			assert.Equal(t, tc.dest, destErr.DestHost)
+		})
+	}
+}
+
+func TestProxyTransport_ConnectForbiddenWithoutRBACDetail_StaysInfra(t *testing.T) {
+	t.Parallel()
+	hop0 := newCONNECTRejectingProxy(t, http.StatusForbidden)
+	client := makeProxiedClient(t, hop0.URL)
+	_, err := client.Get("https://example.invalid/")
+	require.Error(t, err)
+	var infraErr *destwebhook.ErrProxyInfra
+	require.True(t, errors.As(err, &infraErr), "got %v", err)
 }
