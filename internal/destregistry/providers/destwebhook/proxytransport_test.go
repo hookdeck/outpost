@@ -31,8 +31,10 @@ func newCONNECTRejectingProxy(t *testing.T, status int) *httptest.Server {
 // the proxyTransport wrapper, matching the NewHTTPClient flow.
 func makeProxiedClient(t *testing.T, proxyURL string) *http.Client {
 	t.Helper()
+	proxy, err := destregistry.ParseProxyURL(proxyURL)
+	require.NoError(t, err)
 	client, err := destregistry.NewHTTPClient(destregistry.HTTPClientConfig{
-		ProxyURL:      &proxyURL,
+		Proxy:         proxy,
 		WrapTransport: destwebhook.WrapTransport,
 	})
 	require.NoError(t, err)

@@ -262,6 +262,33 @@ func TestMisc(t *testing.T) {
 			wantErr: config.ErrInvalidPortalProxyURL,
 		},
 		{
+			name: "webhook proxy chain is valid",
+			config: func() *config.Config {
+				c := validConfig()
+				c.Destinations.Webhook.ProxyURL = "http://user:pass@a:10000 https://b:8443"
+				return c
+			}(),
+			wantErr: nil,
+		},
+		{
+			name: "invalid webhook proxy url",
+			config: func() *config.Config {
+				c := validConfig()
+				c.Destinations.Webhook.ProxyURL = "://invalid"
+				return c
+			}(),
+			wantErr: config.ErrInvalidWebhookProxyURL,
+		},
+		{
+			name: "socks5 webhook proxy url is rejected",
+			config: func() *config.Config {
+				c := validConfig()
+				c.Destinations.Webhook.ProxyURL = "socks5://a:1080"
+				return c
+			}(),
+			wantErr: config.ErrInvalidWebhookProxyURL,
+		},
+		{
 			name: "empty deployment id is valid",
 			config: func() *config.Config {
 				c := validConfig()
@@ -418,4 +445,3 @@ func TestOpenTelemetry(t *testing.T) {
 		})
 	}
 }
-

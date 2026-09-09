@@ -1,7 +1,6 @@
 package destregistry
 
 import (
-	"fmt"
 	"net/http"
 	"net/http/httptrace"
 	"net/url"
@@ -11,13 +10,15 @@ import (
 type HTTPClientConfig struct {
 	Timeout   *time.Duration
 	UserAgent *string
-	ProxyURL  *string
-	// WrapTransport, if set, is invoked after a proxy URL has been installed
-	// on the *http.Transport. Callers can use it to attach proxy-specific
+	// Proxy lists the forward proxies to go through, nearest first. Empty
+	// means a direct connection.
+	Proxy []*url.URL
+	// WrapTransport, if set, is invoked after a proxy has been installed on
+	// the *http.Transport. Callers can use it to attach proxy-specific
 	// concerns (e.g. OnProxyConnectResponse callbacks, response classifiers)
 	// without bleeding those concerns into destregistry itself. Receives the
-	// underlying transport plus the parsed proxy URL; returns the
-	// RoundTripper to use thereafter.
+	// underlying transport plus the last hop, the one Go's transport talks
+	// to; returns the RoundTripper to use thereafter.
 	WrapTransport func(*http.Transport, *url.URL) http.RoundTripper
 
 	// Pool sizes the transport's idle connection pool. The zero value leaves
@@ -33,7 +34,7 @@ type HTTPClientConfig struct {
 }
 
 func (c HTTPClientConfig) needsTransport() bool {
-	return c.ProxyURL != nil ||
+	return len(c.Proxy) > 0 ||
 		c.UserAgent != nil ||
 		c.OnConnection != nil ||
 		c.Pool.MaxIdleConns > 0 ||
@@ -63,14 +64,11 @@ func NewHTTPClient(config HTTPClientConfig) (*http.Client, error) {
 
 	var rt http.RoundTripper = transport
 
-	if config.ProxyURL != nil && *config.ProxyURL != "" {
-		proxyURLParsed, err := url.Parse(*config.ProxyURL)
-		if err != nil {
-			return nil, fmt.Errorf("invalid proxy URL: %w", err)
-		}
-		transport.Proxy = http.ProxyURL(proxyURLParsed)
+	if n := len(config.Proxy); n > 0 {
+		last := config.Proxy[n-1]
+		transport.Proxy = http.ProxyURL(last)
 		if config.WrapTransport != nil {
-			rt = config.WrapTransport(transport, proxyURLParsed)
+			rt = config.WrapTransport(transport, last)
 		}
 	}
 
