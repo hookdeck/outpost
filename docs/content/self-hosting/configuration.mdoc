@@ -119,6 +119,7 @@ Choose one for event log persistence:
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `DESTINATIONS_WEBHOOK_MODE` | `default` | Set to `standard` for Standard Webhooks compliance |
+| `DESTINATIONS_WEBHOOK_PROXY_URL` | — | Forward proxy for webhook deliveries, e.g. `http://user:pass@proxy:8080`. See [Webhook Forward Proxy](/docs/outpost/self-hosting/guides/webhook-proxy). |
 | `DESTINATIONS_WEBHOOK_HEADER_PREFIX` | `x-outpost-` / `webhook-` | Prefix for system webhook headers (event id, topic, timestamp, signature). Unless overridden, defaults to **`x-outpost-`** when `DESTINATIONS_WEBHOOK_MODE` is `default` and **`webhook-`** when `standard`. |
 | `DESTINATIONS_WEBHOOK_EVENT_ID_HEADER_NAME` | — | Complete name of the event ID header. Unset uses the default `<prefix>event-id`; an explicit value pins that exact name; an empty string disables the header. Only applies to `default` mode. |
 | `DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_NAME` | — | Complete name of the signature header. Unset uses the default `<prefix>signature`; an explicit value pins that exact name; an empty string disables the header. Only applies to `default` mode. |

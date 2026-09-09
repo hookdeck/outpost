@@ -15,7 +15,7 @@ The proxy applies to every webhook destination served by the deployment.
 
 | Env var | Description |
 |---------|-------------|
-| `DESTINATIONS_WEBHOOK_PROXY_URL` | Proxy URL, e.g. `http://user:pass@proxy.example.com:8080`. Supports basic auth. |
+| `DESTINATIONS_WEBHOOK_PROXY_URL` | Proxy URL, e.g. `http://user:pass@proxy.example.com:8080`. Supports basic auth. Multiple whitespace-separated URLs are tunneled in order via CONNECT. |
 
 When set, Outpost installs an HTTP proxy on the webhook publisher's transport. HTTPS destinations use the standard `CONNECT` tunneling flow; HTTP destinations are forwarded request-by-request.
 

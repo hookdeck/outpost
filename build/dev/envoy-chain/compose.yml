@@ -1,0 +1,17 @@
+name: "outpost"
+
+# Second forward proxy for exercising DESTINATIONS_WEBHOOK_PROXY_URL as a
+# hop list. Requires LOCAL_DEV_ENVOY=1 for the first hop. Same config as
+# envoy/, so both listen on :10000 inside their own container:
+#
+#   DESTINATIONS_WEBHOOK_PROXY_URL="http://envoy:10000 http://envoy-upstream:10000"
+#
+# Expect `docker compose logs envoy` to show CONNECT envoy-upstream:10000
+# and `docker compose logs envoy-upstream` to show the CONNECT to the
+# destination.
+services:
+  envoy-upstream:
+    image: envoyproxy/envoy:v1.31-latest
+    volumes:
+      - ./envoy/envoy.yaml:/etc/envoy/envoy.yaml:ro
+    command: ["envoy", "-c", "/etc/envoy/envoy.yaml", "--log-level", "info"]
