@@ -506,6 +506,14 @@ func (bp *BatchProcessor) plan(ctx context.Context, eval alert.Evaluation, entry
 // entry's other events (attempt.failed) on redelivery, and the window's
 // contract is one alert per destination anyway.
 func (bp *BatchProcessor) send(ctx context.Context, de deliveryEvent) error {
+	// Filter before entering a suppression window. Emit also filters as a
+	// boundary safeguard, but an unsubscribed event must not touch Redis or
+	// turn a suppression failure into a delivery failure for an event that
+	// would never be sent.
+	if !bp.alerts.Emitter.Enabled(de.event.Topic) {
+		return nil
+	}
+
 	emit := func(ctx context.Context) error {
 		return bp.alerts.Emitter.Emit(ctx, de.event)
 	}

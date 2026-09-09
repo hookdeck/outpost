@@ -6,6 +6,8 @@ package logmq_test
 // it).
 
 import (
+	"context"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -14,6 +16,15 @@ import (
 	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
 )
+
+type failingSuppressionWindow struct {
+	calls atomic.Int32
+}
+
+func (w *failingSuppressionWindow) Exec(context.Context, string, func(context.Context) error) error {
+	w.calls.Add(1)
+	return context.DeadlineExceeded
+}
 
 // makeExhaustedEntry builds a failed attempt past the retry limit for a fixed
 // tenant+destination, so its exhausted-retries suppression key is deterministic.
@@ -96,6 +107,35 @@ func TestDelivery_ExhaustedRetries_NoWindowEmitsEvery(t *testing.T) {
 	cm2.requireAcked(t)
 	assert.ElementsMatch(t, []string{topicFailed, topicFailed, topicExhaust, topicExhaust}, topics(h.sink.forDest(dest)),
 		"with no window, every exhaustion delivers")
+}
+
+// An exhausted-retries event that is not subscribed must be filtered before
+// touching its suppression window. Otherwise a Redis timeout for an event that
+// can never be emitted nacks the whole log message and is misleadingly logged
+// as an operator-event delivery failure.
+func TestDelivery_ExhaustedRetries_UnsubscribedSkipsSuppression(t *testing.T) {
+	t.Parallel()
+	window := &failingSuppressionWindow{}
+	h := newHarness(t, harnessConfig{
+		batcher: batcherConfig{itemCount: 1},
+		alert: alertConfig{
+			thresholds:       []int{100},
+			autoDisableCount: 1,
+			retryMaxLimit:    3,
+			withDisabler:     true,
+			opeventTopics:    []string{topicDisabled},
+		},
+		doubles: doublesConfig{idemp: window},
+	})
+
+	dest, tenant := "dest_unsub", "tenant_unsub"
+	cm, msg := newCountingMessage(makeExhaustedEntry(dest, tenant, "evt_unsub", "att_unsub", 4))
+	h.add(msg)
+	h.waitTerminal([]*countingMessage{cm})
+
+	cm.requireAcked(t)
+	assert.Zero(t, window.calls.Load(), "unsubscribed exhausted-retries must not touch its suppression window")
+	assert.Equal(t, []string{topicDisabled}, topics(h.sink.forDest(dest)))
 }
 
 // Distinct events exhausting on the same destination share the window key →

@@ -320,7 +320,7 @@ type doublesConfig struct {
 	sinkBlockOn map[string]bool         // block sink.Send for these attemptIDs/topics until h.sink.release()
 	evalBlockOn map[string]bool         // block Evaluate for these attemptIDs until h.eval.release()
 	logStore    logmq.LogStore          // override the store (e.g. failingLogStore); nil = memlogstore
-	idemp       idempotence.Idempotence // exhausted-retries suppression; nil = unsuppressed
+	idemp       logmq.SuppressionWindow // exhausted-retries suppression; nil = unsuppressed
 	// failMarkProcessed makes every MarkProcessed call on the replay gate
 	// error (the Processed check still works). Simulates Redis failing after
 	// the attempt's events were delivered.
