@@ -1,15 +1,14 @@
 package logmq_test
 
 // Delivery-layer exhausted-retries suppression: the delivery worker wraps the
-// keyed exhausted event in an idempotence window. These tests exercise that
-// path (the characterization suite wires no idempotence, so it doesn't cover
-// it).
+// keyed exhausted event in a suppression window. These tests exercise that
+// path (the characterization suite wires no window, so it doesn't cover it).
 
 import (
 	"testing"
 	"time"
 
-	"github.com/hookdeck/outpost/internal/idempotence"
+	"github.com/hookdeck/outpost/internal/logmq"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
@@ -47,20 +46,18 @@ func exhaustedAlertConfig() alertConfig {
 }
 
 // Two exhaustions on the same destination within the window → only the first
-// delivers; the second is suppressed by the idempotence key. Same event here
+// delivers; the second is suppressed by the window key. Same event here
 // (the replay case); distinct events are covered by PerDestination.
 func TestDelivery_ExhaustedRetries_WindowSuppression(t *testing.T) {
 	t.Parallel()
-	idemp := idempotence.New(testutil.CreateTestRedisClient(t), idempotence.WithSuccessfulTTL(10*time.Second))
+	idemp := logmq.NewRedisSuppressionWindow(testutil.CreateTestRedisClient(t), "", 10*time.Second)
 	h := newHarness(t, harnessConfig{
 		batcher: batcherConfig{itemCount: 1},
 		alert:   exhaustedAlertConfig(),
 		doubles: doublesConfig{idemp: idemp},
 	})
 
-	// Paced one at a time: concurrent Execs on the same window key would hit
-	// the in-flight conflict path (sleep + ErrConflict) instead of the
-	// suppression this test pins.
+	// Paced one at a time so the first exhaustion is the one that delivers.
 	dest, tenant, eventID := "dest_ws", "tenant_ws", "evt_ws"
 	cm1, msg1 := newCountingMessage(makeExhaustedEntry(dest, tenant, eventID, "att_ws_1", 4))
 	cm2, msg2 := newCountingMessage(makeExhaustedEntry(dest, tenant, eventID, "att_ws_2", 5))
@@ -76,7 +73,7 @@ func TestDelivery_ExhaustedRetries_WindowSuppression(t *testing.T) {
 }
 
 // With no suppression window (idemp nil == WindowSeconds 0), every exhaustion
-// delivers — the key is present but there's no idempotence to enforce it.
+// delivers — the key is present but there's no window to enforce it.
 func TestDelivery_ExhaustedRetries_NoWindowEmitsEvery(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t, harnessConfig{
@@ -102,15 +99,14 @@ func TestDelivery_ExhaustedRetries_NoWindowEmitsEvery(t *testing.T) {
 // at most one alert per destination within the window.
 func TestDelivery_ExhaustedRetries_PerDestination(t *testing.T) {
 	t.Parallel()
-	idemp := idempotence.New(testutil.CreateTestRedisClient(t), idempotence.WithSuccessfulTTL(10*time.Second))
+	idemp := logmq.NewRedisSuppressionWindow(testutil.CreateTestRedisClient(t), "", 10*time.Second)
 	h := newHarness(t, harnessConfig{
 		batcher: batcherConfig{itemCount: 1},
 		alert:   exhaustedAlertConfig(),
 		doubles: doublesConfig{idemp: idemp},
 	})
 
-	// Paced one at a time: concurrent Execs on the shared window key would hit
-	// the in-flight conflict path instead of the suppression this test pins.
+	// Paced one at a time so the first exhaustion is the one that delivers.
 	dest, tenant := "dest_pd", "tenant_pd"
 	cm1, msg1 := newCountingMessage(makeExhaustedEntry(dest, tenant, "evt_pd_1", "att_pd_1", 4))
 	cm2, msg2 := newCountingMessage(makeExhaustedEntry(dest, tenant, "evt_pd_2", "att_pd_2", 4))
@@ -129,7 +125,7 @@ func TestDelivery_ExhaustedRetries_PerDestination(t *testing.T) {
 // gets independent windows, so one tenant's alert never suppresses another's.
 func TestDelivery_ExhaustedRetries_TenantIsolation(t *testing.T) {
 	t.Parallel()
-	idemp := idempotence.New(testutil.CreateTestRedisClient(t), idempotence.WithSuccessfulTTL(10*time.Second))
+	idemp := logmq.NewRedisSuppressionWindow(testutil.CreateTestRedisClient(t), "", 10*time.Second)
 	h := newHarness(t, harnessConfig{
 		batcher: batcherConfig{itemCount: 1},
 		alert:   exhaustedAlertConfig(),
@@ -151,15 +147,10 @@ func TestDelivery_ExhaustedRetries_TenantIsolation(t *testing.T) {
 }
 
 // Two events exhausting concurrently on one destination race on the shared
-// window key: exactly one alert delivers, and the loser — whether it lands on
-// the suppressed path or the in-flight conflict path — acks instead of nacking.
+// window key: exactly one alert delivers and the loser acks.
 func TestDelivery_ExhaustedRetries_ConcurrentConflictAcks(t *testing.T) {
 	t.Parallel()
-	idemp := idempotence.New(testutil.CreateTestRedisClient(t),
-		idempotence.WithSuccessfulTTL(10*time.Second),
-		// Short conflict wait so the losing Exec resolves quickly.
-		idempotence.WithTimeout(200*time.Millisecond),
-	)
+	idemp := logmq.NewRedisSuppressionWindow(testutil.CreateTestRedisClient(t), "", 10*time.Second)
 	h := newHarness(t, harnessConfig{
 		batcher: batcherConfig{itemCount: 2},
 		alert:   exhaustedAlertConfig(),
@@ -183,7 +174,7 @@ func TestDelivery_ExhaustedRetries_ConcurrentConflictAcks(t *testing.T) {
 // destination re-delivers instead of being suppressed.
 func TestDelivery_ExhaustedRetries_EmitFailureClearsWindow(t *testing.T) {
 	t.Parallel()
-	idemp := idempotence.New(testutil.CreateTestRedisClient(t), idempotence.WithSuccessfulTTL(10*time.Second))
+	idemp := logmq.NewRedisSuppressionWindow(testutil.CreateTestRedisClient(t), "", 10*time.Second)
 	h := newHarness(t, harnessConfig{
 		batcher: batcherConfig{itemCount: 1},
 		alert:   exhaustedAlertConfig(),
@@ -211,4 +202,37 @@ func TestDelivery_ExhaustedRetries_EmitFailureClearsWindow(t *testing.T) {
 	cmOK.requireAcked(t)
 	assert.ElementsMatch(t, []string{topicFailed, topicFailed, topicExhaust}, topics(h.sink.forDest(dest)),
 		"retry after emit failure re-delivers because the window key was cleared")
+}
+
+// The window loser acks while the winner's emit is still in flight. Before
+// the window owned its claim, the loser waited out a fixed conflict sleep as
+// long as the emit budget and nacked on the expired ctx instead.
+func TestDelivery_ExhaustedRetries_LoserAcksWhileWinnerInFlight(t *testing.T) {
+	t.Parallel()
+	idemp := logmq.NewRedisSuppressionWindow(testutil.CreateTestRedisClient(t), "", 10*time.Second)
+	h := newHarness(t, harnessConfig{
+		batcher: batcherConfig{itemCount: 1},
+		alert:   exhaustedAlertConfig(),
+		doubles: doublesConfig{
+			idemp:       idemp,
+			sinkBlockOn: map[string]bool{topicExhaust: true},
+		},
+	})
+
+	dest, tenant := "dest_if", "tenant_if"
+	cm1, msg1 := newCountingMessage(makeExhaustedEntry(dest, tenant, "evt_if_1", "att_if_1", 4))
+	cm2, msg2 := newCountingMessage(makeExhaustedEntry(dest, tenant, "evt_if_2", "att_if_2", 4))
+	h.add(msg1)
+	// msg1's exhausted emit is parked on the sink with the claim held.
+	h.sink.waitBlocked(t)
+	h.add(msg2)
+	h.waitTerminal([]*countingMessage{cm2})
+	cm2.requireAcked(t)
+	assert.ElementsMatch(t, []string{topicFailed, topicFailed}, topics(h.sink.forDest(dest)),
+		"loser acked before the winner's alert went out")
+
+	h.sink.release()
+	h.waitTerminal([]*countingMessage{cm1})
+	cm1.requireAcked(t)
+	assert.ElementsMatch(t, []string{topicFailed, topicFailed, topicExhaust}, topics(h.sink.forDest(dest)))
 }
