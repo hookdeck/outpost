@@ -1,6 +1,7 @@
 package destregistry
 
 import (
+	"crypto/tls"
 	"net/http"
 	"net/http/httptrace"
 	"net/url"
@@ -67,6 +68,11 @@ func NewHTTPClient(config HTTPClientConfig) (*http.Client, error) {
 	if n := len(config.Proxy); n > 0 {
 		last := config.Proxy[n-1]
 		transport.Proxy = http.ProxyURL(last)
+		if n > 1 {
+			// Go talks to the last hop; the dialer gets it there through
+			// every hop before it.
+			transport.DialContext = newChainDialer(config.Proxy[:n-1], transport.DialContext, func() *tls.Config { return transport.TLSClientConfig }).DialContext
+		}
 		if config.WrapTransport != nil {
 			rt = config.WrapTransport(transport, last)
 		}

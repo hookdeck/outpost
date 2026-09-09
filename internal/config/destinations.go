@@ -53,7 +53,7 @@ type DestinationWebhookConfig struct {
 	// and should be treated as sensitive.
 	// TODO: Implement sensitive value handling - https://github.com/hookdeck/outpost/issues/480
 	Mode         string `yaml:"mode" env:"DESTINATIONS_WEBHOOK_MODE" desc:"Webhook mode: 'default' for customizable webhooks or 'standard' for Standard Webhooks specification compliance. Defaults to 'default'." required:"N"`
-	ProxyURL     string `yaml:"proxy_url" env:"DESTINATIONS_WEBHOOK_PROXY_URL" desc:"Forward proxy for outgoing webhook requests. One or more HTTP/HTTPS proxy URLs separated by whitespace, nearest hop first; each intermediate hop is asked to CONNECT to the next and the last hop reaches the destination. When configured, all outgoing webhook traffic is routed through the chain." required:"N"`
+	ProxyURL     string `yaml:"proxy_url" env:"DESTINATIONS_WEBHOOK_PROXY_URL" desc:"Forward proxy for outgoing webhook requests (HTTP or HTTPS, basic auth supported). Multiple whitespace-separated URLs are tunneled in order." required:"N"`
 	HeaderPrefix string `yaml:"header_prefix" env:"DESTINATIONS_WEBHOOK_HEADER_PREFIX" desc:"Prefix for metadata headers added to webhook requests. Defaults to 'x-outpost-' in 'default' mode and 'webhook-' in 'standard' mode. Set to whitespace (e.g. ' ') to disable the prefix entirely." required:"N"`
 
 	// Header name configs. Each is three-state: unset uses the default
