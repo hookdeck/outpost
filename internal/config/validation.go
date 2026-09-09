@@ -108,6 +108,9 @@ func (c *Config) validateRedis() error {
 	if c.Redis.Host == "" {
 		return ErrMissingRedis
 	}
+	if c.Redis.PoolSize < 0 {
+		return ErrInvalidRedisPoolSize
+	}
 	return nil
 }
 
