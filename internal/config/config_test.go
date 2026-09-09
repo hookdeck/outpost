@@ -62,6 +62,7 @@ func TestDefaultValues(t *testing.T) {
 
 	// Test only fields that have explicit defaults
 	assert.Equal(t, 3333, cfg.APIPort)
+	assert.False(t, cfg.PprofEnabled)
 	assert.Equal(t, "127.0.0.1", cfg.Redis.Host)
 	assert.Equal(t, 6379, cfg.Redis.Port)
 	assert.Equal(t, "outpost", cfg.MQs.RabbitMQ.Exchange)
@@ -110,6 +111,7 @@ retry_interval_seconds: 60
 max_destinations_per_tenant: 50
 delivery_timeout_seconds: 10
 aes_encryption_secret: test-secret
+pprof_enabled: true
 `),
 		},
 		envVars: map[string]string{
@@ -133,6 +135,7 @@ aes_encryption_secret: test-secret
 	assert.Equal(t, 5, cfg.LogMaxConcurrency)
 	assert.Equal(t, 60, cfg.RetryIntervalSeconds)
 	assert.Equal(t, 50, cfg.MaxDestinationsPerTenant)
+	assert.True(t, cfg.PprofEnabled)
 	assert.Equal(t, 10, cfg.DeliveryTimeoutSeconds)
 	assert.Equal(t, "test-secret", cfg.AESEncryptionSecret)
 	// assert.Equal(t, "localhost:9000", cfg.ClickHouse.Addr)

@@ -55,6 +55,7 @@ type Config struct {
 	APIKey       string `yaml:"api_key" env:"API_KEY" desc:"API key for authenticating requests to the Outpost API." required:"Y"`
 	APIJWTSecret string `yaml:"api_jwt_secret" env:"API_JWT_SECRET" desc:"Secret key for signing and verifying JWTs if JWT authentication is used for the API." required:"Y"`
 	GinMode      string `yaml:"gin_mode" env:"GIN_MODE" desc:"Sets the Gin framework mode (e.g., 'debug', 'release', 'test'). See Gin documentation for details." required:"N"`
+	PprofEnabled bool   `yaml:"pprof_enabled" env:"PPROF_ENABLED" desc:"If true, exposes Go pprof profiling endpoints under /debug/pprof/ on the service's HTTP port (every service type). Unauthenticated; enable only when the port is not publicly reachable." required:"N" default:"false"`
 
 	// Application
 	DeploymentID         string   `yaml:"deployment_id" env:"DEPLOYMENT_ID" desc:"Optional deployment identifier for multi-tenancy. Enables multiple deployments to share the same infrastructure while maintaining data isolation." required:"N"`
