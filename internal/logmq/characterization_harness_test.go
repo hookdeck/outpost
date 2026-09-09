@@ -76,6 +76,7 @@ type recordingSink struct {
 
 	inflight    atomic.Int32
 	maxInflight atomic.Int32
+	blocked     atomic.Int32 // sends that reached the block
 }
 
 func (s *recordingSink) Init(ctx context.Context) error { return nil }
@@ -109,6 +110,7 @@ func (s *recordingSink) Send(ctx context.Context, event *opevents.OperatorEvent)
 	// Honors ctx like a real sink call: a canceled send returns ctx.Err()
 	// (this is how the emit-timeout tests trip the deadline).
 	if s.blockCh != nil && (s.blockOn[attemptID] || s.blockOn[event.Topic]) {
+		s.blocked.Add(1)
 		select {
 		case <-s.blockCh:
 		case <-ctx.Done():
@@ -128,6 +130,12 @@ func (s *recordingSink) Send(ctx context.Context, event *opevents.OperatorEvent)
 // release unblocks every blocked (and future) matching send.
 func (s *recordingSink) release() {
 	s.releaseOnce.Do(func() { close(s.blockCh) })
+}
+
+// waitBlocked waits until at least one send is parked on the block.
+func (s *recordingSink) waitBlocked(t *testing.T) {
+	t.Helper()
+	require.Eventually(t, func() bool { return s.blocked.Load() > 0 }, 2*time.Second, 5*time.Millisecond)
 }
 
 func (s *recordingSink) inflightSends() int32    { return s.inflight.Load() }
@@ -320,7 +328,7 @@ type doublesConfig struct {
 	sinkBlockOn map[string]bool         // block sink.Send for these attemptIDs/topics until h.sink.release()
 	evalBlockOn map[string]bool         // block Evaluate for these attemptIDs until h.eval.release()
 	logStore    logmq.LogStore          // override the store (e.g. failingLogStore); nil = memlogstore
-	idemp       idempotence.Idempotence // exhausted-retries suppression; nil = unsuppressed
+	idemp       logmq.SuppressionWindow // exhausted-retries suppression; nil = unsuppressed
 	// failMarkProcessed makes every MarkProcessed call on the replay gate
 	// error (the Processed check still works). Simulates Redis failing after
 	// the attempt's events were delivered.
