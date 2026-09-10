@@ -10,3 +10,7 @@ func ForceCloseRabbitMQConnection(q Queue) error {
 	}
 	return conn.Close()
 }
+
+func NATSQueueConfig(q Queue) *NATSConfig {
+	return q.(*NATSQueue).config
+}

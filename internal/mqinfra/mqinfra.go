@@ -16,6 +16,7 @@ type MQInfraConfig struct {
 	AzureServiceBus *AzureServiceBusInfraConfig
 	GCPPubSub       *GCPPubSubInfraConfig
 	RabbitMQ        *RabbitMQInfraConfig
+	NATS            *NATSInfraConfig
 
 	Policy Policy
 }
@@ -64,6 +65,13 @@ type RabbitMQInfraConfig struct {
 	DLQ       string // optional
 }
 
+type NATSInfraConfig struct {
+	ServerURL string
+	Stream    string
+	Subject   string
+	DLQ       string // optional
+}
+
 func New(cfg *MQInfraConfig) MQInfra {
 	if cfg.AWSSQS != nil {
 		return &infraAWSSQS{cfg: cfg}
@@ -76,6 +84,9 @@ func New(cfg *MQInfraConfig) MQInfra {
 	}
 	if cfg.RabbitMQ != nil {
 		return &infraRabbitMQ{cfg: cfg}
+	}
+	if cfg.NATS != nil {
+		return &infraNATS{cfg: cfg}
 	}
 
 	return &infraInvalid{}
