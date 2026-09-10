@@ -1,0 +1,1 @@
+DROP INDEX CONCURRENTLY IF EXISTS attempts_default_event_tenant_destination_time_id_idx;
