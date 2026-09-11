@@ -106,6 +106,7 @@ The following table shows the resources, default names, and configuration variab
 - Configure `DeadLetterPolicy` on main subscription
 - Set `ackDeadlineSeconds` for visibility timeout (default: 10 seconds)
 - Set `maxDeliveryAttempts` in DeadLetterPolicy
+- Disable `expirationPolicy` on both subscriptions; the default deletes a subscription after 31 days without a subscriber, and the DLQ subscription has none
 
 ### Azure Service Bus
 

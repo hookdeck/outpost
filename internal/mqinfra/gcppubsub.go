@@ -15,6 +15,11 @@ import (
 const (
 	defaultMinRetryBackoffSeconds = 10
 	defaultMaxRetryBackoffSeconds = 120
+
+	// Pub/Sub deletes subscriptions after 31 days without subscriber activity
+	// unless the expiration policy is explicitly disabled. A zero duration
+	// means never expire.
+	neverExpire = time.Duration(0)
 )
 
 type infraGCPPubSub struct {
@@ -165,7 +170,8 @@ func (infra *infraGCPPubSub) Declare(ctx context.Context) error {
 
 	if !dlqSubExists {
 		dlqSubConfig := pubsub.SubscriptionConfig{
-			Topic: dlqTopic,
+			Topic:            dlqTopic,
+			ExpirationPolicy: neverExpire,
 		}
 		_, err = client.CreateSubscription(ctx, dlqSubID, dlqSubConfig)
 		if err != nil {
@@ -203,8 +209,9 @@ func (infra *infraGCPPubSub) Declare(ctx context.Context) error {
 	if !subExists {
 		// Create new subscription with DLQ and retry settings
 		subConfig := pubsub.SubscriptionConfig{
-			Topic:       topic,
-			AckDeadline: getDuration(ackDeadline),
+			Topic:            topic,
+			AckDeadline:      getDuration(ackDeadline),
+			ExpirationPolicy: neverExpire,
 			DeadLetterPolicy: &pubsub.DeadLetterPolicy{
 				DeadLetterTopic:     dlqTopic.String(),
 				MaxDeliveryAttempts: maxDeliveryAttempts,
