@@ -80,6 +80,13 @@ func newTestInfraWithRedis(t *testing.T, provider infra.InfraProvider, lockKey s
 	return infra.NewInfraWithProvider(lock, provider, shouldManage, logger)
 }
 
+func TestLockKey(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "outpost:lock", infra.LockKey(""))
+	assert.Equal(t, "dep_1:outpost:lock", infra.LockKey("dep_1"))
+}
+
 func TestInfra_SingleNode(t *testing.T) {
 	t.Parallel()
 
