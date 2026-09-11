@@ -220,6 +220,7 @@ func (a *App) initializeInfrastructure(ctx context.Context) error {
 		DeliveryMQ:    a.config.MQs.ToInfraConfig("deliverymq"),
 		LogMQ:         a.config.MQs.ToInfraConfig("logmq"),
 		AutoProvision: a.config.MQs.AutoProvision,
+		DeploymentID:  a.config.DeploymentID,
 	}, a.redisClient, a.logger, a.config.MQs.GetInfraType()); err != nil {
 		a.logger.Error("infrastructure initialization failed", zap.Error(err))
 		return err
