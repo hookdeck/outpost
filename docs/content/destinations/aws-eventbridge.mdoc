@@ -1,0 +1,92 @@
+---
+title: "AWS EventBridge"
+description: "Send events to an Amazon EventBridge event bus, matched by rules you configure in AWS."
+---
+
+Send events to an Amazon EventBridge event bus.
+
+## Creating an EventBridge Destination
+
+```sh
+curl '{% $OUTPOST_API_BASE_URL %}/tenants/<TENANT_ID>/destinations' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer <API_KEY>' \
+--data '{
+  "type": "aws_eventbridge",
+  "topics": ["orders"],
+  "config": {
+    "event_bus_name": "my-bus",
+    "region": "us-east-1"
+  },
+  "credentials": {
+    "key": "<AWS_ACCESS_KEY_ID>",
+    "secret": "<AWS_SECRET_ACCESS_KEY>"
+  }
+}'
+```
+
+## Configuration
+
+### Config
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `config.event_bus_name` | string | No | The event bus name or ARN. Leave empty to use the account's default event bus. |
+| `config.region` | string | Yes | AWS region (e.g., `us-east-1`) |
+| `config.endpoint` | string | No | Custom endpoint URL (for LocalStack, etc.) |
+
+### Credentials
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `credentials.key` | string | No | AWS Access Key ID |
+| `credentials.secret` | string | No | AWS Secret Access Key |
+| `credentials.session` | string | No | AWS Session Token (for temporary credentials) |
+
+Credentials are optional on the destination itself so that a future credential-less publishing mode (the kind some AWS-partnered SaaS platforms use) can be added later without a breaking config change. Today, publishing always requires a working AWS Access Key/Secret pair — leaving them empty results in every publish attempt failing with an authorization error, not a silent fallback to some other credential source.
+
+## Event Format
+
+Each Outpost event is published as a single EventBridge entry:
+
+- **Source** is fixed for the whole deployment, not configured per destination.
+- **DetailType** is the event's topic.
+- **Detail** is a JSON object containing `metadata` and the event's `data` field:
+
+```json
+{
+  "metadata": {
+    "event-id": "evt_123",
+    "topic": "orders",
+    "timestamp": "1704067200"
+  },
+  "data": {
+    "order_id": "123",
+    "status": "created"
+  }
+}
+```
+
+{% tabs tabGroup="deployment" %}
+{% tab label="Managed" %}
+Configure `DESTINATIONS_EVENTBRIDGE_SOURCE` in the Config API or in [Hookdeck Outpost Destinations settings](https://dashboard.hookdeck.com/settings/project/destinations) to change the `Source` value stamped on every published event. Defaults to `outpost`.
+{% /tab %}
+{% tab label="Self-Hosted" %}
+Set `DESTINATIONS_EVENTBRIDGE_SOURCE` to change the `Source` value stamped on every published event. Defaults to `outpost`.
+{% /tab %}
+{% /tabs %}
+
+## IAM Permissions
+
+The IAM user or role requires:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Action": "events:PutEvents",
+    "Resource": "arn:aws:events:*:*:event-bus/my-bus"
+  }]
+}
+```

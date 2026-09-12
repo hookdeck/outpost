@@ -3117,6 +3117,12 @@ components:
           type: string
         DESTINATIONS_AWS_KINESIS_METADATA_IN_PAYLOAD:
           type: string
+        DESTINATIONS_EVENTBRIDGE_SOURCE:
+          type: string
+          description: >-
+            The fixed EventBridge "Source" field stamped on every published
+            event, shared across all AWS EventBridge destinations in this
+            deployment. Defaults to "outpost".
         DESTINATIONS_INCLUDE_MILLISECOND_TIMESTAMP:
           type: string
         DESTINATIONS_WEBHOOK_EVENT_ID_HEADER_NAME:

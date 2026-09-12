@@ -6,6 +6,7 @@ import (
 	"net/url"
 
 	"github.com/hookdeck/outpost/internal/destregistry"
+	"github.com/hookdeck/outpost/internal/destregistry/providers/destawseventbridge"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destawskinesis"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destawss3"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destawssqs"
@@ -48,11 +49,16 @@ type DestAWSKinesisConfig struct {
 	MetadataInPayload bool
 }
 
+type DestAWSEventBridgeConfig struct {
+	Source string
+}
+
 type RegisterDefaultDestinationOptions struct {
 	UserAgent                   string
 	IncludeMillisecondTimestamp bool
 	Webhook                     *DestWebhookConfig
 	AWSKinesis                  *DestAWSKinesisConfig
+	AWSEventBridge              *DestAWSEventBridgeConfig
 
 	// DeliveryMaxConcurrency is the delivery worker pool size. It bounds how
 	// many deliveries can be in flight, and therefore how many connections a
@@ -167,6 +173,18 @@ func RegisterDefault(registry destregistry.Registry, opts RegisterDefaultDestina
 		return err
 	}
 	registry.RegisterProvider("aws_kinesis", awsKinesis)
+
+	awsEventBridgeOpts := []destawseventbridge.Option{}
+	if opts.AWSEventBridge != nil {
+		awsEventBridgeOpts = append(awsEventBridgeOpts,
+			destawseventbridge.WithSource(opts.AWSEventBridge.Source),
+		)
+	}
+	awsEventBridge, err := destawseventbridge.New(loader, basePublisherOpts, awsEventBridgeOpts...)
+	if err != nil {
+		return err
+	}
+	registry.RegisterProvider("aws_eventbridge", awsEventBridge)
 
 	awsS3, err := destawss3.New(loader, basePublisherOpts)
 	if err != nil {
