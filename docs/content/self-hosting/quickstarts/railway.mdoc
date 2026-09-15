@@ -23,6 +23,8 @@ Deploy Outpost to Railway with a one-click deployment. Railway provides a hosted
 
 3. Note the generated `API_KEY` environment variable value and the public Railway URL of your Outpost instance — you'll need these for authentication and API requests.
 
+The template runs `outpost migrate apply --yes` as a [pre-deploy command](https://docs.railway.com/deployments/pre-deploy-command) before each deploy, so database migrations are applied without any manual step. See the [Schema Migration Guide](/docs/outpost/self-hosting/guides/migration) for details.
+
 ## Verify Installation
 
 {% callout %}
