@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	pubsubapi "cloud.google.com/go/pubsub/apiv1"
+	"cloud.google.com/go/pubsub/apiv1/pubsubpb"
 	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/mqinfra"
 	"github.com/hookdeck/outpost/internal/mqs"
@@ -13,6 +15,9 @@ import (
 	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/api/option"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 const retryLimit = 5
@@ -648,4 +653,41 @@ func TestIntegrationMQInfra_AzureServiceBus(t *testing.T) {
 				}},
 		},
 	)
+}
+
+func TestIntegrationMQInfra_GCPPubSub_SubscriptionsNeverExpire(t *testing.T) {
+	testutil.CheckIntegrationTest(t)
+	emulatorHost := testinfra.EnsureGCP()
+	t.Cleanup(testinfra.Start(t))
+
+	ctx := context.Background()
+	topicID := "test-" + idgen.String()
+	subscriptionID := topicID + "-subscription"
+	infra := mqinfra.New(&mqinfra.MQInfraConfig{
+		GCPPubSub: &mqinfra.GCPPubSubInfraConfig{
+			ProjectID:      "test-project",
+			TopicID:        topicID,
+			SubscriptionID: subscriptionID,
+		},
+	})
+	require.NoError(t, infra.Declare(ctx))
+	t.Cleanup(func() {
+		require.NoError(t, infra.TearDown(ctx))
+	})
+
+	client, err := pubsubapi.NewSubscriberClient(ctx,
+		option.WithEndpoint(emulatorHost),
+		option.WithoutAuthentication(),
+		option.WithGRPCDialOption(grpc.WithTransportCredentials(insecure.NewCredentials())))
+	require.NoError(t, err)
+	t.Cleanup(func() { client.Close() })
+
+	for _, subID := range []string{subscriptionID, mqinfra.DefaultGCPPubSubDLQSubscriptionName(mqinfra.DefaultGCPPubSubDLQTopicName(topicID))} {
+		sub, err := client.GetSubscription(ctx, &pubsubpb.GetSubscriptionRequest{
+			Subscription: "projects/test-project/subscriptions/" + subID,
+		})
+		require.NoError(t, err)
+		require.NotNil(t, sub.ExpirationPolicy, "%s: expiration policy must be set explicitly", subID)
+		assert.Nil(t, sub.ExpirationPolicy.Ttl, "%s: expiration policy must be never (nil ttl)", subID)
+	}
 }
