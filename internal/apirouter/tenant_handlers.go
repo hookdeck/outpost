@@ -43,7 +43,7 @@ func NewTenantHandlers(
 
 func (h *TenantHandlers) postprocessTenant(tenant models.Tenant) models.Tenant {
 	if !h.topicsAllowWildcards {
-		tenant.Topics = filterWildcardTopicPatterns(tenant.Topics)
+		tenant.Topics = models.Topics(tenant.Topics).WithoutWildcardPatterns()
 	}
 
 	return tenant

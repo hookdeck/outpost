@@ -166,6 +166,21 @@ func (t *Topics) MatchTopic(eventTopic string, allowWildcards bool) bool {
 	return false
 }
 
+// WithoutWildcardPatterns returns the topics with embedded wildcard patterns
+// such as "user.*" removed. The standalone "*" is kept.
+func (t Topics) WithoutWildcardPatterns() Topics {
+	if t == nil {
+		return nil
+	}
+	result := make(Topics, 0, len(t))
+	for _, topic := range t {
+		if topic == "*" || !strings.Contains(topic, "*") {
+			result = append(result, topic)
+		}
+	}
+	return result
+}
+
 func (t *Topics) Validate(availableTopics []string, allowWildcards bool) error {
 	if len(*t) == 0 {
 		return ErrInvalidTopics
