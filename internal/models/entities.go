@@ -144,6 +144,12 @@ type Attempt struct {
 
 type Topics []string
 
+// isWildcardPattern reports whether topic embeds a wildcard, such as "user.*".
+// The standalone "*" is not a pattern.
+func isWildcardPattern(topic string) bool {
+	return topic != "*" && strings.Contains(topic, "*")
+}
+
 func (t *Topics) MatchesAll() bool {
 	return len(*t) == 1 && (*t)[0] == "*"
 }
@@ -156,7 +162,7 @@ func (t *Topics) MatchTopic(eventTopic string, allowWildcards bool) bool {
 		return true
 	}
 	for _, topic := range *t {
-		if !allowWildcards && topic != "*" && strings.Contains(topic, "*") {
+		if !allowWildcards && isWildcardPattern(topic) {
 			continue
 		}
 		if matchTopicPattern(topic, eventTopic) {
@@ -174,7 +180,7 @@ func (t Topics) WithoutWildcardPatterns() Topics {
 	}
 	result := make(Topics, 0, len(t))
 	for _, topic := range t {
-		if topic == "*" || !strings.Contains(topic, "*") {
+		if !isWildcardPattern(topic) {
 			result = append(result, topic)
 		}
 	}
@@ -203,7 +209,7 @@ func (t *Topics) Validate(availableTopics []string, allowWildcards bool) error {
 		if topic == "*" {
 			return ErrInvalidTopics
 		}
-		if strings.Contains(topic, "*") {
+		if isWildcardPattern(topic) {
 			if !allowWildcards {
 				return ErrInvalidTopics
 			}
