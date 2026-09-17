@@ -377,13 +377,11 @@ func (b *ServiceBuilder) BuildLogWorker(baseRouter *gin.Engine) error {
 
 	// Build a suppression window only when exhausted-retries alerting is enabled
 	// with a positive window. A zero window means "alert on every exhaustion"
-	// (no suppression), so we leave the idempotence instance nil.
-	var exhaustedRetriesIdemp idempotence.Idempotence
+	// (no suppression), so we leave the window nil.
+	var exhaustedRetriesWindow logmq.SuppressionWindow
 	if alertSettings.ExhaustedRetries.Enabled && alertSettings.ExhaustedRetries.WindowSeconds > 0 {
-		exhaustedRetriesIdemp = idempotence.New(svc.redisClient,
-			idempotence.WithSuccessfulTTL(time.Duration(alertSettings.ExhaustedRetries.WindowSeconds)*time.Second),
-			idempotence.WithDeploymentID(b.cfg.DeploymentID),
-		)
+		exhaustedRetriesWindow = logmq.NewRedisSuppressionWindow(svc.redisClient, b.cfg.DeploymentID,
+			time.Duration(alertSettings.ExhaustedRetries.WindowSeconds)*time.Second)
 	}
 	_, retryMaxLimit := b.cfg.GetRetryBackoff()
 	alertEvaluator := alert.NewEvaluator(
@@ -414,7 +412,7 @@ func (b *ServiceBuilder) BuildLogWorker(baseRouter *gin.Engine) error {
 		Emitter:        emitter,
 		Disabler:       disabler,
 		ProcessedIdemp: processedIdemp,
-		ExhaustedIdemp: exhaustedRetriesIdemp,
+		ExhaustedIdemp: exhaustedRetriesWindow,
 	}, logmq.BatchProcessorConfig{
 		ItemCountThreshold: batcherCfg.ItemCountThreshold,
 		DelayThreshold:     batcherCfg.DelayThreshold,

@@ -76,6 +76,7 @@ type recordingSink struct {
 
 	inflight    atomic.Int32
 	maxInflight atomic.Int32
+	blocked     atomic.Int32 // sends that reached the block
 }
 
 func (s *recordingSink) Init(ctx context.Context) error { return nil }
@@ -109,6 +110,7 @@ func (s *recordingSink) Send(ctx context.Context, event *opevents.OperatorEvent)
 	// Honors ctx like a real sink call: a canceled send returns ctx.Err()
 	// (this is how the emit-timeout tests trip the deadline).
 	if s.blockCh != nil && (s.blockOn[attemptID] || s.blockOn[event.Topic]) {
+		s.blocked.Add(1)
 		select {
 		case <-s.blockCh:
 		case <-ctx.Done():
@@ -128,6 +130,12 @@ func (s *recordingSink) Send(ctx context.Context, event *opevents.OperatorEvent)
 // release unblocks every blocked (and future) matching send.
 func (s *recordingSink) release() {
 	s.releaseOnce.Do(func() { close(s.blockCh) })
+}
+
+// waitBlocked waits until at least one send is parked on the block.
+func (s *recordingSink) waitBlocked(t *testing.T) {
+	t.Helper()
+	require.Eventually(t, func() bool { return s.blocked.Load() > 0 }, 2*time.Second, 5*time.Millisecond)
 }
 
 func (s *recordingSink) inflightSends() int32    { return s.inflight.Load() }
