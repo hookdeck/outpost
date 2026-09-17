@@ -100,8 +100,9 @@ func Basic(t *testing.T, opts BasicOpts) config.Config {
 			log.Println("Failed to create logger:", err)
 		}
 		outpostInfra := infra.NewInfra(infra.Config{
-			DeliveryMQ: c.MQs.ToInfraConfig("deliverymq"),
-			LogMQ:      c.MQs.ToInfraConfig("logmq"),
+			DeliveryMQ:   c.MQs.ToInfraConfig("deliverymq"),
+			LogMQ:        c.MQs.ToInfraConfig("logmq"),
+			DeploymentID: c.DeploymentID,
 		}, redisClient, logger, c.MQs.GetInfraType())
 		if err := outpostInfra.Teardown(context.Background()); err != nil {
 			log.Println("Teardown failed:", err)
