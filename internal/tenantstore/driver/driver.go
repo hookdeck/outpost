@@ -20,7 +20,7 @@ type TenantStore interface {
 	CreateDestination(ctx context.Context, destination models.Destination) error
 	UpsertDestination(ctx context.Context, destination models.Destination) error
 	DeleteDestination(ctx context.Context, tenantID, destinationID string) error
-	MatchEvent(ctx context.Context, event models.Event) ([]string, error)
+	MatchEvent(ctx context.Context, event models.Event, allowWildcards bool) ([]string, error)
 }
 
 var (
@@ -63,8 +63,9 @@ type TenantPaginatedResult struct {
 
 // ListDestinationRequest contains parameters for listing destinations.
 type ListDestinationRequest struct {
-	TenantID string   // required — destinations are always tenant-scoped
-	IDs      []string // optional — filter to these destination IDs only
-	Type     []string // optional — OR semantics (matches any)
-	Topics   []string // optional — AND semantics ("*" = wildcard-only)
+	TenantID       string   // required — destinations are always tenant-scoped
+	IDs            []string // optional — filter to these destination IDs only
+	Type           []string // optional — OR semantics (matches any)
+	Topics         []string // optional — AND semantics ("*" = wildcard-only)
+	AllowWildcards bool     // whether persisted wildcard patterns participate in topic matching
 }

@@ -431,8 +431,9 @@ func (s *store) ListDestination(ctx context.Context, req driver.ListDestinationR
 	hasFilter := len(req.Type) > 0 || len(req.Topics) > 0
 	if hasFilter {
 		filter = &destinationFilter{
-			Type:   req.Type,
-			Topics: req.Topics,
+			Type:           req.Type,
+			Topics:         req.Topics,
+			AllowWildcards: req.AllowWildcards,
 		}
 	}
 
@@ -642,7 +643,7 @@ func (s *store) DeleteDestination(ctx context.Context, tenantID, destinationID s
 	return err
 }
 
-func (s *store) MatchEvent(ctx context.Context, event models.Event) ([]string, error) {
+func (s *store) MatchEvent(ctx context.Context, event models.Event, allowWildcards bool) ([]string, error) {
 	destinationSummaryList, err := s.listDestinationSummaryByTenant(ctx, event.TenantID, nil)
 	if err != nil {
 		return nil, err
@@ -654,7 +655,7 @@ func (s *store) MatchEvent(ctx context.Context, event models.Event) ([]string, e
 		if ds.Disabled {
 			continue
 		}
-		if event.Topic != "" && !ds.Topics.MatchTopic(event.Topic) {
+		if event.Topic != "" && !ds.Topics.MatchTopic(event.Topic, allowWildcards) {
 			continue
 		}
 		if !models.MatchFilter(ds.Filter, event) {

@@ -232,6 +232,25 @@ func TestAPI_Retry(t *testing.T) {
 
 			require.Equal(t, http.StatusAccepted, resp.Code)
 		})
+
+		t.Run("embedded wildcard is ignored when disabled", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+			h.tenantStore.UpsertDestination(t.Context(), df.Any(
+				df.WithID("d1"), df.WithTenantID("t1"), df.WithTopics([]string{"user.*"}),
+			))
+			e := ef.AnyPointer(ef.WithID("e1"), ef.WithTenantID("t1"), ef.WithTopic("user.created"))
+			require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
+				{Event: e, Attempt: attemptForEvent(e, af.WithDestinationID("d1"))},
+			}))
+
+			req := h.jsonReq(http.MethodPost, "/api/v1/retry", map[string]any{
+				"event_id":       "e1",
+				"destination_id": "d1",
+			})
+			resp := h.do(h.withAPIKey(req))
+			require.Equal(t, http.StatusBadRequest, resp.Code)
+		})
 	})
 
 	t.Run("Delivery task", func(t *testing.T) {

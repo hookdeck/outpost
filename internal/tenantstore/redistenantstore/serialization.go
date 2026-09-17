@@ -290,8 +290,9 @@ func parseResp3SearchResult(resultMap map[interface{}]interface{}) ([]models.Ten
 
 // destinationFilter specifies criteria for filtering destinations (package-private).
 type destinationFilter struct {
-	Type   []string
-	Topics []string
+	Type           []string
+	Topics         []string
+	AllowWildcards bool
 }
 
 // parseListDestinationSummaryByTenantCmd parses a Redis HGetAll command result into destination summaries.
@@ -368,7 +369,7 @@ func matchDestinationFilter(filter *destinationFilter, summary destinationSummar
 				return false
 			}
 			for _, topic := range filter.Topics {
-				if !summary.Topics.MatchTopic(topic) {
+				if !summary.Topics.MatchTopic(topic, filter.AllowWildcards) {
 					return false
 				}
 			}

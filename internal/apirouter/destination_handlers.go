@@ -56,9 +56,10 @@ func (h *DestinationHandlers) List(c *gin.Context) {
 	tenant := mustTenantFromContext(c)
 
 	destinations, err := h.tenantStore.ListDestination(c.Request.Context(), tenantstore.ListDestinationRequest{
-		TenantID: tenant.ID,
-		Type:     ParseArrayQueryParam(c, "type"),
-		Topics:   ParseArrayQueryParam(c, "topics"),
+		TenantID:       tenant.ID,
+		Type:           ParseArrayQueryParam(c, "type"),
+		Topics:         ParseArrayQueryParam(c, "topics"),
+		AllowWildcards: h.topicsAllowWildcards,
 	})
 	if err != nil {
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))

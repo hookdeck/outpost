@@ -395,9 +395,23 @@ func TestTopics_MatchTopic(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, tc.expected, tc.topics.MatchTopic(tc.eventTopic))
+			assert.Equal(t, tc.expected, tc.topics.MatchTopic(tc.eventTopic, true))
 		})
 	}
+
+	t.Run("disabled wildcards are ignored while exact topics still match", func(t *testing.T) {
+		t.Parallel()
+		topics := models.Topics{"user.*", "order.created"}
+		assert.False(t, topics.MatchTopic("user.created", false))
+		assert.True(t, topics.MatchTopic("user.created", true))
+		assert.True(t, topics.MatchTopic("order.created", false))
+	})
+
+	t.Run("subscribe-to-all still matches when wildcards are disabled", func(t *testing.T) {
+		t.Parallel()
+		topics := models.Topics{"user.*", "*"}
+		assert.True(t, topics.MatchTopic("user.created", false))
+	})
 }
 
 func BenchmarkTopics_MatchTopic(b *testing.B) {
@@ -420,25 +434,25 @@ func BenchmarkTopics_MatchTopic(b *testing.B) {
 
 	b.Run("exact match", func(b *testing.B) {
 		for range b.N {
-			_ = topicsExact.MatchTopic("order.updated")
+			_ = topicsExact.MatchTopic("order.updated", true)
 		}
 	})
 
 	b.Run("exact miss", func(b *testing.B) {
 		for range b.N {
-			_ = topicsExact.MatchTopic("payment.created")
+			_ = topicsExact.MatchTopic("payment.created", true)
 		}
 	})
 
 	b.Run("pattern match", func(b *testing.B) {
 		for range b.N {
-			_ = topicsPattern.MatchTopic("order.payment.completed")
+			_ = topicsPattern.MatchTopic("order.payment.completed", true)
 		}
 	})
 
 	b.Run("pattern miss", func(b *testing.B) {
 		for range b.N {
-			_ = topicsPattern.MatchTopic("order.payment.failed")
+			_ = topicsPattern.MatchTopic("order.payment.failed", true)
 		}
 	})
 }

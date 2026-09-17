@@ -18,6 +18,38 @@ import (
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 )
 
+func TestEventHandler_DisabledWildcardTopics(t *testing.T) {
+	ctx := t.Context()
+	store := tenantstore.NewMemTenantStore()
+	require.NoError(t, store.UpsertTenant(ctx, testutil.TenantFactory.Any(testutil.TenantFactory.WithID("tenant_1"))))
+	require.NoError(t, store.UpsertDestination(ctx, testutil.DestinationFactory.Any(
+		testutil.DestinationFactory.WithID("destination_1"),
+		testutil.DestinationFactory.WithTenantID("tenant_1"),
+		testutil.DestinationFactory.WithTopics([]string{"user.*"}),
+	)))
+
+	handler := publishmq.NewEventHandler(
+		testutil.CreateTestLogger(t),
+		nil,
+		store,
+		nil,
+		testutil.TestTopics,
+		false,
+		nil,
+	)
+
+	for _, destinationID := range []string{"", "destination_1"} {
+		event := testutil.EventFactory.AnyPointer(
+			testutil.EventFactory.WithTenantID("tenant_1"),
+			testutil.EventFactory.WithDestinationID(destinationID),
+			testutil.EventFactory.WithTopic("user.created"),
+		)
+		result, err := handler.Handle(ctx, event)
+		require.NoError(t, err)
+		require.Empty(t, result.DestinationIDs)
+	}
+}
+
 func TestIntegrationPublishMQEventHandler_Concurrency(t *testing.T) {
 	t.Cleanup(testinfra.Start(t))
 
@@ -38,6 +70,7 @@ func TestIntegrationPublishMQEventHandler_Concurrency(t *testing.T) {
 		tenantStore,
 		mockEventTracer,
 		testutil.TestTopics,
+		true,
 		idempotence.New(testutil.CreateTestRedisClient(t), idempotence.WithSuccessfulTTL(24*time.Hour)),
 	)
 
@@ -101,6 +134,7 @@ func TestEventHandler_WildcardTopic(t *testing.T) {
 		tenantStore,
 		mockEventTracer,
 		testutil.TestTopics,
+		true,
 		idempotence.New(testutil.CreateTestRedisClient(t), idempotence.WithSuccessfulTTL(24*time.Hour)),
 	)
 
@@ -230,6 +264,7 @@ func TestEventHandler_HandleResult(t *testing.T) {
 		tenantStore,
 		testutil.NewMockEventTracer(tracetest.NewInMemoryExporter()),
 		testutil.TestTopics,
+		true,
 		idempotence.New(testutil.CreateTestRedisClient(t), idempotence.WithSuccessfulTTL(24*time.Hour)),
 	)
 
@@ -460,6 +495,7 @@ func TestEventHandler_Filter(t *testing.T) {
 		tenantStore,
 		testutil.NewMockEventTracer(tracetest.NewInMemoryExporter()),
 		testutil.TestTopics,
+		true,
 		idempotence.New(testutil.CreateTestRedisClient(t), idempotence.WithSuccessfulTTL(24*time.Hour)),
 	)
 
