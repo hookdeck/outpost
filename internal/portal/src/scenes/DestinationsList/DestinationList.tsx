@@ -26,17 +26,15 @@ const DestinationList: React.FC = () => {
     () => destinations?.map((d) => d.id) ?? [],
     [destinations],
   );
-  const {
-    data: batchedMetrics,
-    isLoading: metricsLoading,
-    sampleCount: metricsSampleCount,
-  } = useBatchedMetrics({
-    measures: ["successful_count", "failed_count"],
-    destinationIds,
-    timeframe: "24h",
-    granularity: "4h",
-    filters: {},
-  });
+  const { data: batchedMetrics, isLoading: metricsLoading } = useBatchedMetrics(
+    {
+      measures: ["successful_count", "failed_count"],
+      destinationIds,
+      timeframe: "24h",
+      granularity: "4h",
+      filters: {},
+    },
+  );
 
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedStatus, setSelectedStatus] = useState<Record<string, boolean>>(
@@ -148,7 +146,6 @@ const DestinationList: React.FC = () => {
                 : undefined
             }
             isLoading={metricsLoading}
-            sampleCount={metricsSampleCount}
           />,
         ].filter((entry) => entry !== null),
         link: `/destinations/${destination.id}`,
