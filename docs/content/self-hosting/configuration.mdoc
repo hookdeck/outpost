@@ -130,7 +130,7 @@ Choose one for event log persistence:
 | `DESTINATIONS_WEBHOOK_SIGNATURE_ENCODING` | `hex` | Encoding: `hex` or `base64` |
 | `DESTINATIONS_WEBHOOK_SIGNATURE_SECRET_ENCODING` | `raw` | How the HMAC key is derived from the destination secret: `raw` uses the secret string as-is, `base64` and `hex` decode it. Only applies to `default` mode. |
 | `DESTINATIONS_WEBHOOK_SIGNATURE_SECRET_PREFIX` | — | Prefix stripped from the destination secret before decoding, e.g. `whsec_`. Ignored when the secret encoding is `raw`. |
-| `DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_HEADER_NAME` | — | Name of the compat signature header. Setting it enables the compat signature: a second signature in your previous format, sent alongside the primary one while receivers migrate. See [Migrate Webhook Signatures](/docs/outpost/guides/migrate-webhook-signatures). Only applies to `default` mode. |
+| `DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_HEADER_NAME` | — | Name of the compat signature header. Setting it enables the compat signature: a second signature in your previous format, sent alongside the primary one while receivers migrate. See [Change Webhook Signature Scheme](/docs/outpost/guides/change-webhook-signature-scheme). Only applies to `default` mode. |
 | `DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_CONTENT_TEMPLATE` | `{{.Body}}` | Template for the content signed by the compat signature |
 | `DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_HEADER_TEMPLATE` | `v0={{.Signatures \| join ","}}` | Template for the compat signature header value |
 | `DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_ENCODING` | `hex` | Compat signature encoding: `hex` or `base64` |

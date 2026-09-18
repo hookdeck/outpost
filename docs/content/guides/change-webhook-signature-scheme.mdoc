@@ -1,7 +1,9 @@
 ---
-title: "Migrate Webhook Signatures"
-description: "Move to Outpost from your own webhook implementation, or change your signature scheme, without breaking your receivers' verification code."
+title: "Change Webhook Signature Scheme"
+description: "Optional: send a second signature in your previous format so receivers keep verifying while you change signature schemes or move to Outpost."
 ---
+
+Outpost signs every webhook with its default scheme out of the box; nothing here is required. This guide is for the case where your receivers already verify a different signature format.
 
 A receiver's verification code depends on the exact signature format: header names, signed content, encoding, and how the key is derived from the secret. Changing any of those breaks verification for every receiver at once.
 
