@@ -44,3 +44,45 @@ func TestRegisterDefault_WebhookSignatureTemplates(t *testing.T) {
 		assert.NoError(t, err)
 	})
 }
+
+func TestRegisterDefault_WebhookCompatSignature(t *testing.T) {
+	webhookConfig := func(compat *destwebhook.CompatSignatureConfig) *destregistrydefault.DestWebhookConfig {
+		return &destregistrydefault.DestWebhookConfig{
+			HeaderPrefix:             destwebhook.DefaultHeaderPrefix,
+			SignatureContentTemplate: destwebhook.DefaultSignatureContentTmpl,
+			SignatureHeaderTemplate:  destwebhook.DefaultSignatureHeaderTmpl,
+			SignatureEncoding:        destwebhook.DefaultEncoding,
+			SignatureAlgorithm:       destwebhook.DefaultAlgorithm,
+			SigningSecretTemplate:    destwebhook.DefaultSigningSecretTmpl,
+			Compat:                   compat,
+		}
+	}
+
+	t.Run("registers with a valid compat signature", func(t *testing.T) {
+		registry := destregistry.NewRegistry(&destregistry.Config{}, testutil.CreateTestLogger(t))
+		err := destregistrydefault.RegisterDefault(registry, destregistrydefault.RegisterDefaultDestinationOptions{
+			Webhook: webhookConfig(&destwebhook.CompatSignatureConfig{
+				SignatureHeaderName:      "x-legacy-signature",
+				SignatureContentTemplate: destwebhook.DefaultSignatureContentTmpl,
+				SignatureHeaderTemplate:  destwebhook.DefaultSignatureHeaderTmpl,
+				SignatureEncoding:        destwebhook.DefaultEncoding,
+				SignatureAlgorithm:       destwebhook.DefaultAlgorithm,
+			}),
+		})
+		assert.NoError(t, err)
+	})
+
+	t.Run("rejects an invalid compat signature", func(t *testing.T) {
+		registry := destregistry.NewRegistry(&destregistry.Config{}, testutil.CreateTestLogger(t))
+		err := destregistrydefault.RegisterDefault(registry, destregistrydefault.RegisterDefaultDestinationOptions{
+			Webhook: webhookConfig(&destwebhook.CompatSignatureConfig{
+				SignatureHeaderName:      "x-legacy-signature",
+				SignatureContentTemplate: "{{.Nope}}",
+				SignatureHeaderTemplate:  destwebhook.DefaultSignatureHeaderTmpl,
+				SignatureEncoding:        destwebhook.DefaultEncoding,
+				SignatureAlgorithm:       destwebhook.DefaultAlgorithm,
+			}),
+		})
+		assert.ErrorContains(t, err, "compat signature")
+	})
+}

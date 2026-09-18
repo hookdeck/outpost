@@ -573,6 +573,111 @@ func TestDestinationWebhookHeaderNamesAllHeaders(t *testing.T) {
 	assert.Equal(t, destregistrydefault.WebhookHeaderConfig{Disabled: true}, opts.Webhook.TopicHeader)
 }
 
+func TestDestinationWebhookCompatSignature(t *testing.T) {
+	t.Run("unset leaves compat off", func(t *testing.T) {
+		mockOS := &mockOS{files: map[string][]byte{}, envVars: map[string]string{}}
+
+		cfg, err := config.ParseWithoutValidation(config.Flags{}, mockOS)
+		require.NoError(t, err)
+
+		opts := cfg.Destinations.ToConfig(cfg)
+		assert.Nil(t, opts.Webhook.Compat)
+		assert.Empty(t, opts.Webhook.SignatureSecretEncoding)
+	})
+
+	t.Run("header name alone enables it with the primary defaults", func(t *testing.T) {
+		mockOS := &mockOS{
+			files:   map[string][]byte{},
+			envVars: map[string]string{"DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_HEADER_NAME": "x-legacy-signature"},
+		}
+
+		cfg, err := config.ParseWithoutValidation(config.Flags{}, mockOS)
+		require.NoError(t, err)
+
+		compat := cfg.Destinations.ToConfig(cfg).Webhook.Compat
+		require.NotNil(t, compat)
+		assert.Equal(t, "x-legacy-signature", compat.SignatureHeaderName)
+		assert.Equal(t, "{{.Body}}", compat.SignatureContentTemplate)
+		assert.Equal(t, "v0={{.Signatures | join \",\"}}", compat.SignatureHeaderTemplate)
+		assert.Equal(t, "hex", compat.SignatureEncoding)
+		assert.Equal(t, "hmac-sha256", compat.SignatureAlgorithm)
+	})
+
+	t.Run("env vars", func(t *testing.T) {
+		mockOS := &mockOS{
+			files: map[string][]byte{},
+			envVars: map[string]string{
+				"DESTINATIONS_WEBHOOK_SIGNATURE_SECRET_ENCODING":         "hex",
+				"DESTINATIONS_WEBHOOK_SIGNATURE_SECRET_PREFIX":           "sk_",
+				"DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_HEADER_NAME":      "webhook-signature",
+				"DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_CONTENT_TEMPLATE": "{{.EventID}}.{{.Timestamp.Unix}}.{{.Body}}",
+				"DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_HEADER_TEMPLATE":  "v1,{{index .Signatures 0}}",
+				"DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_ENCODING":         "base64",
+				"DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_SECRET_ENCODING":  "base64",
+				"DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_SECRET_PREFIX":    "whsec_",
+				"DESTINATIONS_WEBHOOK_COMPAT_HEADERS":                    `webhook-id={{.EventID}}, webhook-timestamp={{.Timestamp.Unix}}, x-sigs={{.Signatures | join "\,"}}`,
+			},
+		}
+
+		cfg, err := config.ParseWithoutValidation(config.Flags{}, mockOS)
+		require.NoError(t, err)
+
+		opts := cfg.Destinations.ToConfig(cfg)
+		assert.Equal(t, "hex", opts.Webhook.SignatureSecretEncoding)
+		assert.Equal(t, "sk_", opts.Webhook.SignatureSecretPrefix)
+
+		compat := opts.Webhook.Compat
+		require.NotNil(t, compat)
+		assert.Equal(t, "webhook-signature", compat.SignatureHeaderName)
+		assert.Equal(t, "{{.EventID}}.{{.Timestamp.Unix}}.{{.Body}}", compat.SignatureContentTemplate)
+		assert.Equal(t, "v1,{{index .Signatures 0}}", compat.SignatureHeaderTemplate)
+		assert.Equal(t, "base64", compat.SignatureEncoding)
+		assert.Equal(t, "base64", compat.SecretEncoding)
+		assert.Equal(t, "whsec_", compat.SecretPrefix)
+		assert.Equal(t, map[string]string{
+			"webhook-id":        "{{.EventID}}",
+			"webhook-timestamp": "{{.Timestamp.Unix}}",
+			"x-sigs":            `{{.Signatures | join ","}}`,
+		}, compat.Headers)
+	})
+
+	t.Run("yaml", func(t *testing.T) {
+		mockOS := &mockOS{
+			files: map[string][]byte{
+				"/config.yaml": []byte(`
+destinations:
+  webhook:
+    compat:
+      signature_header_name: x-legacy-signature
+      signature_encoding: base64
+      headers:
+        x-legacy-id: "{{.EventID}}"
+`),
+			},
+			envVars: map[string]string{"CONFIG": "/config.yaml"},
+		}
+
+		cfg, err := config.ParseWithoutValidation(config.Flags{}, mockOS)
+		require.NoError(t, err)
+
+		compat := cfg.Destinations.ToConfig(cfg).Webhook.Compat
+		require.NotNil(t, compat)
+		assert.Equal(t, "x-legacy-signature", compat.SignatureHeaderName)
+		assert.Equal(t, "base64", compat.SignatureEncoding)
+		assert.Equal(t, map[string]string{"x-legacy-id": "{{.EventID}}"}, compat.Headers)
+	})
+
+	t.Run("headers env must be name=template pairs", func(t *testing.T) {
+		mockOS := &mockOS{envVars: map[string]string{
+			"DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_HEADER_NAME": "x-legacy-signature",
+			"DESTINATIONS_WEBHOOK_COMPAT_HEADERS":               "webhook-id",
+		}}
+		_, err := config.ParseWithoutValidation(config.Flags{}, mockOS)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), `"webhook-id" should be in "name=template" format`)
+	})
+}
+
 func TestDestinationWebhookDeprecationWarnings(t *testing.T) {
 	t.Run("warns when deprecated flag is true", func(t *testing.T) {
 		mockOS := &mockOS{

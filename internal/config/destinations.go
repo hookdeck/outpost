@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	destregistrydefault "github.com/hookdeck/outpost/internal/destregistry/providers"
+	"github.com/hookdeck/outpost/internal/destregistry/providers/destwebhook"
 	"github.com/hookdeck/outpost/internal/version"
 )
 
@@ -81,6 +82,57 @@ type DestinationWebhookConfig struct {
 	SignatureSecretPrefix    string `yaml:"signature_secret_prefix" env:"DESTINATIONS_WEBHOOK_SIGNATURE_SECRET_PREFIX" desc:"Prefix stripped from the destination secret before decoding (e.g., 'whsec_'). Ignored when DESTINATIONS_WEBHOOK_SIGNATURE_SECRET_ENCODING is 'raw'. Only applies to 'default' mode." required:"N"`
 	SigningSecretTemplate    string `yaml:"signing_secret_template" env:"DESTINATIONS_WEBHOOK_SIGNING_SECRET_TEMPLATE" desc:"Go template for generating webhook signing secrets. Available variables: {{.RandomHex}} (64-char hex), {{.RandomBase64}} (base64-encoded), {{.RandomAlphanumeric}} (32-char alphanumeric). Defaults to 'whsec_{{.RandomHex}}'. Only applies to 'default' mode." required:"N"`
 	MaxResponseBodyBytes     int    `yaml:"max_response_body_bytes" env:"DESTINATIONS_WEBHOOK_MAX_RESPONSE_BODY_BYTES" desc:"Maximum size in bytes of a destination's response body stored on the delivery attempt. Responses larger than this are replaced with a placeholder so the attempt log stays under the event queue's per-message size limit (oversized log messages fail to publish and retry indefinitely). Default: 131072 (128 KiB). Set to 0 to disable the cap." required:"N"`
+
+	Compat DestinationWebhookCompatConfig `yaml:"compat" desc:"A second signature sent alongside the primary one, so receivers verifying an older scheme keep working while they migrate. Only applies to 'default' mode."`
+}
+
+// DestinationWebhookCompatConfig mirrors the primary signature options. It is
+// enabled by setting SignatureHeaderName; the other signature options then
+// fall back to the same defaults as the primary signature.
+type DestinationWebhookCompatConfig struct {
+	SignatureHeaderName      string          `yaml:"signature_header_name" env:"DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_HEADER_NAME" desc:"Complete name of the compat signature header. Setting it enables the compat signature." required:"N"`
+	SignatureContentTemplate string          `yaml:"signature_content_template" env:"DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_CONTENT_TEMPLATE" desc:"Go template for the content signed by the compat signature. Same variables as DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE. Defaults to '{{.Body}}'." required:"N"`
+	SignatureHeaderTemplate  string          `yaml:"signature_header_template" env:"DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_HEADER_TEMPLATE" desc:"Go template for the value of the compat signature header. Same variables as DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE. Defaults to 'v0={{.Signatures | join \",\"}}'." required:"N"`
+	SignatureEncoding        string          `yaml:"signature_encoding" env:"DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_ENCODING" desc:"Encoding for the compat signature ('hex' or 'base64'). Defaults to 'hex'." required:"N"`
+	SignatureAlgorithm       string          `yaml:"signature_algorithm" env:"DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_ALGORITHM" desc:"Algorithm for the compat signature (e.g., 'hmac-sha256'). Defaults to 'hmac-sha256'." required:"N"`
+	SignatureSecretEncoding  string          `yaml:"signature_secret_encoding" env:"DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_SECRET_ENCODING" desc:"How the compat signature derives its HMAC key from the destination secret: 'raw', 'base64' or 'hex'. Defaults to 'raw'. A destination whose secret can't be decoded doesn't receive the compat signature." required:"N"`
+	SignatureSecretPrefix    string          `yaml:"signature_secret_prefix" env:"DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_SECRET_PREFIX" desc:"Prefix stripped from the destination secret before decoding for the compat signature (e.g., 'whsec_')." required:"N"`
+	Headers                  HeaderTemplates `yaml:"headers" env:"DESTINATIONS_WEBHOOK_COMPAT_HEADERS" desc:"Additional headers sent with the compat signature, as comma-separated 'name=template' pairs. Available variables: {{.EventID}}, {{.Topic}}, {{.Timestamp}}. Use '\\,' for a literal comma in a template. Example: 'webhook-id={{.EventID}},webhook-timestamp={{.Timestamp.Unix}}'." required:"N"`
+}
+
+// toProviderConfig returns nil when the compat signature isn't configured.
+func (c *DestinationWebhookCompatConfig) toProviderConfig() *destwebhook.CompatSignatureConfig {
+	if strings.TrimSpace(c.SignatureHeaderName) == "" {
+		return nil
+	}
+
+	cfg := &destwebhook.CompatSignatureConfig{
+		SignatureHeaderName:      c.SignatureHeaderName,
+		SignatureContentTemplate: c.SignatureContentTemplate,
+		SignatureHeaderTemplate:  c.SignatureHeaderTemplate,
+		SignatureEncoding:        c.SignatureEncoding,
+		SignatureAlgorithm:       c.SignatureAlgorithm,
+		SecretEncoding:           c.SignatureSecretEncoding,
+		SecretPrefix:             c.SignatureSecretPrefix,
+	}
+	if cfg.SignatureContentTemplate == "" {
+		cfg.SignatureContentTemplate = destwebhook.DefaultSignatureContentTmpl
+	}
+	if cfg.SignatureHeaderTemplate == "" {
+		cfg.SignatureHeaderTemplate = destwebhook.DefaultSignatureHeaderTmpl
+	}
+	if cfg.SignatureEncoding == "" {
+		cfg.SignatureEncoding = destwebhook.DefaultEncoding
+	}
+	if cfg.SignatureAlgorithm == "" {
+		cfg.SignatureAlgorithm = destwebhook.DefaultAlgorithm
+	}
+
+	if len(c.Headers) > 0 {
+		cfg.Headers = map[string]string(c.Headers)
+	}
+
+	return cfg
 }
 
 // toConfig converts WebhookConfig to the provider config - private since it's only used internally
@@ -100,7 +152,10 @@ func (c *DestinationWebhookConfig) toConfig() *destregistrydefault.DestWebhookCo
 		}
 	}
 
+	compat := c.Compat.toProviderConfig()
+
 	return &destregistrydefault.DestWebhookConfig{
+		Compat:                   compat,
 		SignatureSecretEncoding:  c.SignatureSecretEncoding,
 		SignatureSecretPrefix:    c.SignatureSecretPrefix,
 		Mode:                     c.Mode,
