@@ -573,6 +573,18 @@ func TestDestinationWebhookHeaderNamesAllHeaders(t *testing.T) {
 	assert.Equal(t, destregistrydefault.WebhookHeaderConfig{Disabled: true}, opts.Webhook.TopicHeader)
 }
 
+func TestDestinationWebhookTimestampFormat(t *testing.T) {
+	mockOS := &mockOS{
+		files:   map[string][]byte{},
+		envVars: map[string]string{"DESTINATIONS_WEBHOOK_TIMESTAMP_FORMAT": "unix"},
+	}
+
+	cfg, err := config.ParseWithoutValidation(config.Flags{}, mockOS)
+	require.NoError(t, err)
+
+	assert.Equal(t, "unix", cfg.Destinations.ToConfig(cfg).Webhook.TimestampFormat)
+}
+
 func TestDestinationWebhookCompatSignature(t *testing.T) {
 	t.Run("unset leaves compat off", func(t *testing.T) {
 		mockOS := &mockOS{files: map[string][]byte{}, envVars: map[string]string{}}

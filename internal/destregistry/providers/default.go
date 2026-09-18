@@ -36,6 +36,7 @@ type DestWebhookConfig struct {
 	SignatureHeader          WebhookHeaderConfig
 	TimestampHeader          WebhookHeaderConfig
 	TopicHeader              WebhookHeaderConfig
+	TimestampFormat          string
 	SignatureContentTemplate string
 	SignatureHeaderTemplate  string
 	SignatureEncoding        string
@@ -129,6 +130,7 @@ func RegisterDefault(registry destregistry.Registry, opts RegisterDefaultDestina
 				destwebhook.WithSignatureHeader(opts.Webhook.SignatureHeader.Name, opts.Webhook.SignatureHeader.Disabled),
 				destwebhook.WithTimestampHeader(opts.Webhook.TimestampHeader.Name, opts.Webhook.TimestampHeader.Disabled),
 				destwebhook.WithTopicHeader(opts.Webhook.TopicHeader.Name, opts.Webhook.TopicHeader.Disabled),
+				destwebhook.WithTimestampFormat(opts.Webhook.TimestampFormat),
 				destwebhook.WithSignatureContentTemplate(opts.Webhook.SignatureContentTemplate),
 				destwebhook.WithSignatureHeaderTemplate(opts.Webhook.SignatureHeaderTemplate),
 				destwebhook.WithSignatureEncoding(opts.Webhook.SignatureEncoding),
