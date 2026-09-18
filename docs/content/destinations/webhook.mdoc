@@ -3,10 +3,10 @@ title: "Webhook"
 description: "Deliver events via HTTP POST to any URL endpoint, with customizable headers and HMAC signature verification."
 ---
 
-Send events via HTTP POST to a URL endpoint. `DESTINATIONS_WEBHOOK_MODE` selects the format:
+Send events via HTTP POST to a URL endpoint. Outpost supports two webhook modes:
 
-- **Default mode** — configurable headers and signature; `x-outpost-` headers and a hex HMAC over the body by default
-- **Standard Webhooks mode** — the [Standard Webhooks](https://www.standardwebhooks.com/) specification, fixed
+- **Default mode** — Customizable headers and signature format
+- **Standard Webhooks mode** — Follows the [Standard Webhooks](https://www.standardwebhooks.com/) specification
 
 ## Creating a Webhook Destination
 
@@ -215,10 +215,10 @@ DESTINATIONS_WEBHOOK_MODE=standard
 {% /tab %}
 {% /tabs %}
 
-Standard Webhooks mode fixes the format. The options below are ignored with a startup warning when set; `DESTINATIONS_WEBHOOK_HEADER_PREFIX`, `DESTINATIONS_WEBHOOK_TOPIC_HEADER_NAME` and the [compat signature](#compat-signature) still apply.
+Standard Webhooks mode uses these values. Setting the options has no effect.
 
-| Option | Value in standard mode |
-|--------|------------------------|
+| Option | Value |
+|--------|-------|
 | `DESTINATIONS_WEBHOOK_EVENT_ID_HEADER_NAME` | `<prefix>id` |
 | `DESTINATIONS_WEBHOOK_TIMESTAMP_HEADER_NAME` | `<prefix>timestamp` |
 | `DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_NAME` | `<prefix>signature` |
