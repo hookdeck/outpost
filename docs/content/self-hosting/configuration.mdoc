@@ -130,6 +130,14 @@ Choose one for event log persistence:
 | `DESTINATIONS_WEBHOOK_SIGNATURE_ENCODING` | `hex` | Encoding: `hex` or `base64` |
 | `DESTINATIONS_WEBHOOK_SIGNATURE_SECRET_ENCODING` | `raw` | How the HMAC key is derived from the destination secret: `raw` uses the secret string as-is, `base64` and `hex` decode it. Only applies to `default` mode. |
 | `DESTINATIONS_WEBHOOK_SIGNATURE_SECRET_PREFIX` | — | Prefix stripped from the destination secret before decoding, e.g. `whsec_`. Ignored when the secret encoding is `raw`. |
+| `DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_HEADER_NAME` | — | Name of the compat signature header. Setting it enables the compat signature: a second signature in your previous format, sent alongside the primary one while receivers migrate. See [Migrate Webhook Signatures](/docs/outpost/guides/migrate-webhook-signatures). Only applies to `default` mode. |
+| `DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_CONTENT_TEMPLATE` | `{{.Body}}` | Template for the content signed by the compat signature |
+| `DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_HEADER_TEMPLATE` | `v0={{.Signatures \| join ","}}` | Template for the compat signature header value |
+| `DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_ENCODING` | `hex` | Compat signature encoding: `hex` or `base64` |
+| `DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_ALGORITHM` | `hmac-sha256` | Compat signature algorithm |
+| `DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_SECRET_ENCODING` | `raw` | How the compat signature derives its HMAC key from the destination secret: `raw`, `base64` or `hex` |
+| `DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_SECRET_PREFIX` | — | Prefix stripped from the destination secret before decoding for the compat signature |
+| `DESTINATIONS_WEBHOOK_COMPAT_HEADERS` | — | Extra headers sent with the compat signature, as comma-separated `name=template` pairs (`{{.EventID}}`, `{{.Topic}}`, `{{.Timestamp}}`). `\,` is a literal comma. |
 | `DESTINATIONS_WEBHOOK_MAX_RESPONSE_BODY_BYTES` | `131072` (128 KiB) | Max bytes of a destination response body stored on the delivery attempt. Larger responses are replaced with a placeholder so the attempt log stays under the event queue's per-message size limit. Set to `0` to disable the cap. |
 
 {% callout type="warning" %}

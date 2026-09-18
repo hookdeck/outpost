@@ -87,6 +87,10 @@
             "title": "Verify Webhook Signatures"
           },
           {
+            "slug": "guides/migrate-webhook-signatures",
+            "title": "Migrate Webhook Signatures"
+          },
+          {
             "slug": "guides/building-your-own-ui",
             "title": "Building your own UI"
           }

@@ -184,6 +184,8 @@ x-outpost-signature: t=1717249416,v0=<signature-from-current-secret>,<signature-
 
 If you customize `DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE`, keep `.Signatures` in the output so receivers can verify requests during secret rotation.
 
+Changing the signature scheme breaks verification for existing receivers. To give them a transition window, send the old signature alongside the new one. See [Migrate Webhook Signatures](/docs/outpost/guides/migrate-webhook-signatures).
+
 ### Standard Webhooks Mode
 
 Follows the [Standard Webhooks specification](https://www.standardwebhooks.com/):
@@ -328,6 +330,10 @@ Header names are matched case-insensitively. Outpost rejects a configuration whe
 | `DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE` | `v0={{.Signatures \| join ","}}` | Template for signature header value in default mode |
 | `DESTINATIONS_WEBHOOK_SIGNATURE_SECRET_ENCODING` | `raw` | How the HMAC key is derived from the destination secret: `raw` uses the secret string as-is, `base64` and `hex` decode it. Only applies to `default` mode. |
 | `DESTINATIONS_WEBHOOK_SIGNATURE_SECRET_PREFIX` | — | Prefix stripped from the destination secret before decoding, e.g. `whsec_`. Ignored when the secret encoding is `raw`. |
+
+### Compat Signature
+
+A second signature in your previous format, sent alongside the primary one while receivers migrate. Enabled by setting `DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_HEADER_NAME`; the other options mirror the signature settings above under `DESTINATIONS_WEBHOOK_COMPAT_*`. See [Migrate Webhook Signatures](/docs/outpost/guides/migrate-webhook-signatures) for the full option list and migration flows.
 
 ### Response Handling
 
