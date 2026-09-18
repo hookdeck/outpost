@@ -78,6 +78,7 @@ func (c *Config) LogConfigurationSummary() []zap.Field {
 		zap.Bool("redis_password_configured", c.Redis.Password != ""),
 		zap.Int("redis_database", c.Redis.Database),
 		zap.Bool("redis_tls_enabled", c.Redis.TLSEnabled),
+		zap.Bool("redis_tls_verify", c.Redis.TLSVerify),
 		zap.Bool("redis_cluster_enabled", c.Redis.ClusterEnabled),
 		zap.Int("redis_pool_size", c.Redis.PoolSize),
 

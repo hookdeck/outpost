@@ -17,6 +17,9 @@ These variables must be set for Outpost to start:
 | `REDIS_HOST` | Hostname of the Redis server (default: `127.0.0.1`) |
 | `REDIS_PORT` | Port of the Redis server (default: `6379`) |
 | `REDIS_DATABASE` | Redis database number (default: `0`) |
+| `REDIS_TLS_ENABLED` | Optional. Enable TLS for the Redis connection (default: `false`). |
+| `REDIS_TLS_VERIFY` | Optional. Verify the Redis server's TLS certificate against the system CA pool (default: `false`, i.e. the certificate is not verified). For self-signed certificates, point `SSL_CERT_FILE` or `SSL_CERT_DIR` at your CA. |
+| `REDIS_CLUSTER_ENABLED` | Optional. Enable Redis cluster mode (default: `false`). |
 | `REDIS_POOL_SIZE` | Optional. Connection pool size per Redis client (per node in cluster mode); default `0` uses go-redis's default of 10 per `GOMAXPROCS`. Raise it when Redis round-trip latency limits throughput; lower it to shrink the pool on hosts with many CPUs. |
 
 ## Message Queue

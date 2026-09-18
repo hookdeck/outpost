@@ -88,7 +88,7 @@ func createClusterClient(ctx context.Context, config *RedisConfig) (Client, erro
 	if config.TLSEnabled {
 		options.TLSConfig = &tls.Config{
 			MinVersion:         tls.VersionTLS12,
-			InsecureSkipVerify: true,
+			InsecureSkipVerify: !config.TLSVerify,
 		}
 	}
 
@@ -113,7 +113,7 @@ func createRegularClient(ctx context.Context, config *RedisConfig) (Client, erro
 	if config.TLSEnabled {
 		options.TLSConfig = &tls.Config{
 			MinVersion:         tls.VersionTLS12,
-			InsecureSkipVerify: true,
+			InsecureSkipVerify: !config.TLSVerify,
 		}
 	}
 
