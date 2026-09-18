@@ -215,22 +215,6 @@ DESTINATIONS_WEBHOOK_MODE=standard
 {% /tab %}
 {% /tabs %}
 
-Standard Webhooks mode uses these values. Setting the options has no effect.
-
-| Option | Value |
-|--------|-------|
-| `DESTINATIONS_WEBHOOK_EVENT_ID_HEADER_NAME` | `<prefix>id` |
-| `DESTINATIONS_WEBHOOK_TIMESTAMP_HEADER_NAME` | `<prefix>timestamp` |
-| `DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_NAME` | `<prefix>signature` |
-| `DESTINATIONS_WEBHOOK_TIMESTAMP_FORMAT` | `unix` |
-| `DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE` | `{{.EventID}}.{{.Timestamp.Unix}}.{{.Body}}` |
-| `DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE` | `v1,{{index .Signatures 0}}{{range slice .Signatures 1}} v1,{{.}}{{end}}` |
-| `DESTINATIONS_WEBHOOK_SIGNATURE_ENCODING` | `base64` |
-| `DESTINATIONS_WEBHOOK_SIGNATURE_ALGORITHM` | `hmac-sha256` |
-| `DESTINATIONS_WEBHOOK_SIGNATURE_SECRET_ENCODING` | `base64` |
-| `DESTINATIONS_WEBHOOK_SIGNATURE_SECRET_PREFIX` | `whsec_` |
-| `DESTINATIONS_WEBHOOK_SIGNING_SECRET_TEMPLATE` | `whsec_{{.RandomBase64}}` |
-
 ## Secret Rotation
 
 Rotate a webhook secret without downtime. During the rotation window, both the old and new secrets produce valid signatures.
@@ -340,7 +324,7 @@ Header names are matched case-insensitively. Outpost rejects a configuration whe
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `DESTINATIONS_WEBHOOK_MODE` | `default` | Set to `standard` for the [Standard Webhooks](#standard-webhooks-mode) format |
+| `DESTINATIONS_WEBHOOK_MODE` | `default` | Set to `standard` for Standard Webhooks compliance |
 | `DESTINATIONS_WEBHOOK_SIGNATURE_ALGORITHM` | `hmac-sha256` | Signature algorithm. Only applies to `default` mode. |
 | `DESTINATIONS_WEBHOOK_SIGNATURE_ENCODING` | `hex` | Encoding: `hex` or `base64`. Only applies to `default` mode. |
 | `DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE` | `{{.Body}}` | Template for signed content. Only applies to `default` mode. |
