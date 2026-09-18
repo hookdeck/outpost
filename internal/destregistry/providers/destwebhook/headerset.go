@@ -4,7 +4,12 @@ import (
 	"bytes"
 	"fmt"
 	"net/http"
+	"sort"
+	"strings"
 	"text/template"
+	"time"
+
+	"github.com/Masterminds/sprig/v3"
 )
 
 // signatureScheme is how a signature is computed: templates, encoding,
@@ -83,13 +88,35 @@ func (s *signatureScheme) manager(secrets []WebhookSecret) (*SignatureManager, e
 		keys[i] = secret
 		keys[i].Key = key
 	}
+	return s.newManager(keys), nil
+}
+
+// managerForDecodable signs with the secrets that decode and drops the rest.
+// It returns nil when none decode.
+func (s *signatureScheme) managerForDecodable(secrets []WebhookSecret) *SignatureManager {
+	keys := make([]WebhookSecret, 0, len(secrets))
+	for _, secret := range secrets {
+		key, err := s.decodeSecret(secret.Key)
+		if err != nil {
+			continue
+		}
+		secret.Key = key
+		keys = append(keys, secret)
+	}
+	if len(keys) == 0 {
+		return nil
+	}
+	return s.newManager(keys)
+}
+
+func (s *signatureScheme) newManager(keys []WebhookSecret) *SignatureManager {
 	return NewSignatureManager(
 		keys,
 		WithSignatureFormatter(s.signatureFormatter),
 		WithHeaderFormatter(s.headerFormatter),
 		WithEncoder(s.encoder),
 		WithAlgorithm(s.algorithm),
-	), nil
+	)
 }
 
 type headerTemplate struct {
@@ -104,6 +131,48 @@ type headerSet struct {
 	signatureName string // empty disables the signature header
 }
 
+// parseHeaderTemplates validates names and templates. Sorted by name so
+// emission and error messages are deterministic.
+func parseHeaderTemplates(headers map[string]string, label string) ([]headerTemplate, error) {
+	names := make([]string, 0, len(headers))
+	for name := range headers {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	parsed := make([]headerTemplate, 0, len(names))
+	for _, name := range names {
+		if err := validateHeaderName(name, label); err != nil {
+			return nil, err
+		}
+		tmpl, err := template.New(name).Funcs(sprig.TxtFuncMap()).Parse(headers[name])
+		if err != nil {
+			return nil, fmt.Errorf("invalid %s header template for %q: %w", label, name, err)
+		}
+		h := headerTemplate{name: name, tmpl: tmpl}
+		if _, err := h.render(SignaturePayload{
+			EventID:   "evt_validation",
+			Topic:     "validation.topic",
+			Timestamp: time.Now(),
+			Body:      `{"validation":true}`,
+		}); err != nil {
+			return nil, fmt.Errorf("invalid %s header template for %q: %w", label, name, err)
+		}
+		parsed = append(parsed, h)
+	}
+	return parsed, nil
+}
+
+func validateHeaderName(name, label string) error {
+	if !headerNameRegex.MatchString(name) {
+		return fmt.Errorf("invalid %s header name %q: must match %s", label, name, headerNameRegex.String())
+	}
+	if reservedHeaders[strings.ToLower(name)] {
+		return fmt.Errorf("invalid %s header name %q: reserved header", label, name)
+	}
+	return nil
+}
+
 func (h headerTemplate) render(payload SignaturePayload) (string, error) {
 	var buf bytes.Buffer
 	if err := h.tmpl.Execute(&buf, payload); err != nil {
@@ -114,6 +183,18 @@ func (h headerTemplate) render(payload SignaturePayload) (string, error) {
 
 // apply writes the set's headers onto req. Later sets overwrite earlier ones
 // on a name conflict, so callers order them by precedence.
+// names lists the header names the set writes, signature header included.
+func (h *headerSet) names() []string {
+	names := make([]string, 0, len(h.headers)+1)
+	for _, header := range h.headers {
+		names = append(names, header.name)
+	}
+	if h.signatureName != "" {
+		names = append(names, h.signatureName)
+	}
+	return names
+}
+
 func (h *headerSet) apply(req *http.Request, sm *SignatureManager, payload SignaturePayload) error {
 	for _, header := range h.headers {
 		value, err := header.render(payload)

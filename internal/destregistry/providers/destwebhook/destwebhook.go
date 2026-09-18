@@ -107,12 +107,14 @@ type WebhookDestination struct {
 	algorithm                string
 	secretEncoding           string
 	secretPrefix             string
+	compatConfig             *CompatSignatureConfig
 	// Built once in New() and shared by every publisher; parsed templates are
 	// safe for parallel execution. Building them per destination gave each
 	// cached publisher its own copy of two sprig function maps (~44 KB retained
 	// per publisher).
 	scheme  *signatureScheme
 	primary headerSet
+	compat  *compatSignature
 
 	rawSigningSecretTemplate string
 	signingSecretTemplate    *template.Template
@@ -345,6 +347,20 @@ func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePu
 		seenNames[effective] = h.label
 	}
 
+	if destination.compatConfig != nil {
+		destination.compat, err = newCompatSignature(destination.compatConfig)
+		if err != nil {
+			return nil, err
+		}
+		// Compat headers go on the request before the primary ones, so a compat
+		// name that matches a primary header would be overwritten silently.
+		for _, name := range destination.compat.names() {
+			if other, ok := seenNames[strings.ToLower(name)]; ok {
+				return nil, fmt.Errorf("compat header %q collides with the primary %s header", name, other)
+			}
+		}
+	}
+
 	// Parse signing secret template — fail on invalid syntax
 	tmpl, err := template.New("signing_secret").Funcs(sprig.TxtFuncMap()).Parse(destination.rawSigningSecretTemplate)
 	if err != nil {
@@ -482,6 +498,14 @@ func (d *WebhookDestination) CreatePublisher(ctx context.Context, destination *m
 		}})
 	}
 
+	// A secret the compat scheme can't decode is left out of the compat
+	// signature: the primary one still verifies, so delivery shouldn't fail
+	// over it. With no decodable secret the compat set is skipped entirely.
+	var compatSM *SignatureManager
+	if d.compat != nil {
+		compatSM = d.compat.scheme.managerForDecodable(secrets)
+	}
+
 	return &WebhookPublisher{
 		BasePublisher:        d.BaseProvider.NewPublisher(destregistry.WithDeliveryMetadata(destination.DeliveryMetadata)),
 		httpClient:           d.httpClient,
@@ -494,6 +518,8 @@ func (d *WebhookDestination) CreatePublisher(ctx context.Context, destination *m
 		secrets:              secrets,
 		sm:                   sm,
 		primary:              d.primary,
+		compat:               d.compat,
+		compatSM:             compatSM,
 		customHeaders:        config.CustomHeaders,
 		maxResponseBodyBytes: d.maxResponseBodyBytes,
 	}, nil
@@ -776,6 +802,8 @@ type WebhookPublisher struct {
 	secrets              []WebhookSecret
 	sm                   *SignatureManager
 	primary              headerSet
+	compat               *compatSignature
+	compatSM             *SignatureManager
 	customHeaders        map[string]string
 	maxResponseBodyBytes int
 }
@@ -822,6 +850,14 @@ func (p *WebhookPublisher) Format(ctx context.Context, event *models.Event) (*ht
 		Topic:     event.Topic,
 		Timestamp: now,
 		Body:      string(rawBody),
+	}
+
+	// Compat headers go on before the primary ones so the primary scheme wins
+	// on a name conflict.
+	if p.compatSM != nil {
+		if err := p.compat.apply(req, p.compatSM, payload); err != nil {
+			return nil, err
+		}
 	}
 
 	// Get merged metadata (system + event metadata) using BasePublisher
