@@ -24,7 +24,7 @@ func webhookStandardRegistry(t *testing.T) destregistry.Registry {
 	reg := destregistry.NewRegistry(&destregistry.Config{}, logger)
 	err := destregistrydefault.RegisterDefault(reg, destregistrydefault.RegisterDefaultDestinationOptions{
 		Webhook: &destregistrydefault.DestWebhookConfig{
-			Mode:                     "standard",
+			MetadataName:             destwebhook.StandardMetadataName,
 			HeaderPrefix:             destwebhook.StandardHeaderPrefix,
 			EventIDHeader:            destregistrydefault.WebhookHeaderConfig{Name: "webhook-id"},
 			TimestampFormat:          destwebhook.StandardTimestampFormat,

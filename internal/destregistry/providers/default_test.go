@@ -35,7 +35,7 @@ func TestRegisterDefault_WebhookStandardMetadata(t *testing.T) {
 	registry := destregistry.NewRegistry(&destregistry.Config{}, testutil.CreateTestLogger(t))
 	err := destregistrydefault.RegisterDefault(registry, destregistrydefault.RegisterDefaultDestinationOptions{
 		Webhook: &destregistrydefault.DestWebhookConfig{
-			Mode:                     "standard",
+			MetadataName:             destwebhook.StandardMetadataName,
 			HeaderPrefix:             destwebhook.StandardHeaderPrefix,
 			SignatureContentTemplate: destwebhook.StandardSignatureContentTmpl,
 			SignatureHeaderTemplate:  destwebhook.StandardSignatureHeaderTmpl,

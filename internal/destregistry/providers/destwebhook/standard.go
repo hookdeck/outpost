@@ -1,7 +1,8 @@
 package destwebhook
 
 // Standard Webhooks (https://www.standardwebhooks.com) expressed as values of
-// the webhook options. Config applies them as the defaults of "standard" mode.
+// the webhook options. "standard" mode is resolved in config, which sets
+// these; the provider itself has no modes.
 const (
 	StandardHeaderPrefix         = "webhook-"
 	StandardEventIDHeaderKey     = "id" // "<prefix>id" rather than "<prefix>event-id"

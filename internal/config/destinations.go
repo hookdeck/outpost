@@ -158,7 +158,6 @@ func (c *DestinationWebhookConfig) toConfig() *destregistrydefault.DestWebhookCo
 		Compat:                   c.Compat.toProviderConfig(),
 		SignatureSecretEncoding:  c.SignatureSecretEncoding,
 		SignatureSecretPrefix:    c.SignatureSecretPrefix,
-		Mode:                     c.Mode,
 		ProxyURL:                 c.ProxyURL,
 		HeaderPrefix:             headerPrefix,
 		EventIDHeader:            resolveWebhookHeaderName(c.EventIDHeaderName, c.DisableDefaultEventIDHeader),
@@ -179,11 +178,13 @@ func (c *DestinationWebhookConfig) toConfig() *destregistrydefault.DestWebhookCo
 	return cfg
 }
 
-// applyStandardWebhooks sets the options that define the Standard Webhooks
-// format. Configured values for them are ignored in standard mode (see
-// standardModeWarnings); the prefix, topic header, compat signature, proxy
+// applyStandardWebhooks is standard mode. The provider has no notion of
+// modes: config sets the options that define the Standard Webhooks format
+// here, and the configured values for them are ignored (see
+// standardModeWarnings). The prefix, topic header, compat signature, proxy
 // and response cap still apply.
 func applyStandardWebhooks(cfg *destregistrydefault.DestWebhookConfig) {
+	cfg.MetadataName = destwebhook.StandardMetadataName
 	cfg.SignatureContentTemplate = destwebhook.StandardSignatureContentTmpl
 	cfg.SignatureHeaderTemplate = destwebhook.StandardSignatureHeaderTmpl
 	cfg.SignatureEncoding = destwebhook.StandardEncoding

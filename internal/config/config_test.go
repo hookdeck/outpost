@@ -597,7 +597,7 @@ func TestDestinationWebhookStandardMode(t *testing.T) {
 		require.NoError(t, err)
 
 		webhook := cfg.Destinations.ToConfig(cfg).Webhook
-		assert.Equal(t, "standard", webhook.Mode)
+		assert.Equal(t, "webhook_standard", webhook.MetadataName)
 		assert.Equal(t, "webhook-", webhook.HeaderPrefix)
 		assert.Equal(t, destregistrydefault.WebhookHeaderConfig{Name: "webhook-id"}, webhook.EventIDHeader)
 		assert.Equal(t, destregistrydefault.WebhookHeaderConfig{}, webhook.TimestampHeader)

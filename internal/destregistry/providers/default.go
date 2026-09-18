@@ -28,7 +28,9 @@ type WebhookHeaderConfig struct {
 }
 
 type DestWebhookConfig struct {
-	Mode                     string
+	// MetadataName selects the metadata/providers entry describing the
+	// provider; empty means "webhook".
+	MetadataName             string
 	ProxyURL                 string
 	HeaderPrefix             string
 	EventIDHeader            WebhookHeaderConfig
@@ -121,8 +123,8 @@ func RegisterDefault(registry destregistry.Registry, opts RegisterDefaultDestina
 			destwebhook.WithSecretEncoding(opts.Webhook.SignatureSecretEncoding, opts.Webhook.SignatureSecretPrefix),
 			destwebhook.WithCompatSignature(opts.Webhook.Compat),
 		)
-		if opts.Webhook.Mode == "standard" {
-			webhookOpts = append(webhookOpts, destwebhook.WithMetadataName(destwebhook.StandardMetadataName))
+		if opts.Webhook.MetadataName != "" {
+			webhookOpts = append(webhookOpts, destwebhook.WithMetadataName(opts.Webhook.MetadataName))
 		}
 	}
 	webhook, err := destwebhook.New(loader, basePublisherOpts, webhookOpts...)
