@@ -591,10 +591,10 @@ func resolveAlertCount(raw OptionalString, defaultValue, min int) (resolvedAlert
 	return resolvedAlertCount{enabled: true, value: n}, nil
 }
 
-// DeprecationWarnings returns human-readable warnings for deprecated config
-// options that are actively in use, so callers can surface them at startup.
+// DeprecationWarnings returns human-readable warnings for config options that
+// are set but deprecated or ignored, so callers can surface them at startup.
 func (c *Config) DeprecationWarnings() []string {
-	return c.Destinations.Webhook.deprecationWarnings()
+	return append(c.Destinations.Webhook.deprecationWarnings(), c.Destinations.Webhook.standardModeWarnings()...)
 }
 
 // ConfigFilePath returns the path of the config file that was used
