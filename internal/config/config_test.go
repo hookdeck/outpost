@@ -585,6 +585,71 @@ func TestDestinationWebhookTimestampFormat(t *testing.T) {
 	assert.Equal(t, "unix", cfg.Destinations.ToConfig(cfg).Webhook.TimestampFormat)
 }
 
+func TestDestinationWebhookStandardMode(t *testing.T) {
+	t.Run("sets the Standard Webhooks values", func(t *testing.T) {
+		mockOS := &mockOS{
+			files:   map[string][]byte{},
+			envVars: map[string]string{"DESTINATIONS_WEBHOOK_MODE": "standard"},
+		}
+
+		cfg, err := config.ParseWithoutValidation(config.Flags{}, mockOS)
+		require.NoError(t, err)
+
+		webhook := cfg.Destinations.ToConfig(cfg).Webhook
+		assert.Equal(t, "standard", webhook.Mode)
+		assert.Equal(t, "webhook-", webhook.HeaderPrefix)
+		assert.Equal(t, destregistrydefault.WebhookHeaderConfig{Name: "webhook-id"}, webhook.EventIDHeader)
+		assert.Equal(t, destregistrydefault.WebhookHeaderConfig{}, webhook.TimestampHeader)
+		assert.Equal(t, "unix", webhook.TimestampFormat)
+		assert.Equal(t, "{{.EventID}}.{{.Timestamp.Unix}}.{{.Body}}", webhook.SignatureContentTemplate)
+		assert.Equal(t, "v1,{{index .Signatures 0}}{{range slice .Signatures 1}} v1,{{.}}{{end}}", webhook.SignatureHeaderTemplate)
+		assert.Equal(t, "base64", webhook.SignatureEncoding)
+		assert.Equal(t, "hmac-sha256", webhook.SignatureAlgorithm)
+		assert.Equal(t, "base64", webhook.SignatureSecretEncoding)
+		assert.Equal(t, "whsec_", webhook.SignatureSecretPrefix)
+		assert.Equal(t, "whsec_{{.RandomBase64}}", webhook.SigningSecretTemplate)
+	})
+
+	t.Run("explicit options win", func(t *testing.T) {
+		mockOS := &mockOS{
+			files: map[string][]byte{},
+			envVars: map[string]string{
+				"DESTINATIONS_WEBHOOK_MODE":                         "standard",
+				"DESTINATIONS_WEBHOOK_HEADER_PREFIX":                "x-acme-",
+				"DESTINATIONS_WEBHOOK_EVENT_ID_HEADER_NAME":         "x-acme-message",
+				"DESTINATIONS_WEBHOOK_SIGNATURE_SECRET_ENCODING":    "raw",
+				"DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_HEADER_NAME": "x-legacy-signature",
+			},
+		}
+
+		cfg, err := config.ParseWithoutValidation(config.Flags{}, mockOS)
+		require.NoError(t, err)
+
+		webhook := cfg.Destinations.ToConfig(cfg).Webhook
+		assert.Equal(t, "x-acme-", webhook.HeaderPrefix)
+		assert.Equal(t, destregistrydefault.WebhookHeaderConfig{Name: "x-acme-message"}, webhook.EventIDHeader)
+		assert.Equal(t, "raw", webhook.SignatureSecretEncoding)
+		assert.Equal(t, "base64", webhook.SignatureEncoding)
+		require.NotNil(t, webhook.Compat)
+		assert.Equal(t, "x-legacy-signature", webhook.Compat.SignatureHeaderName)
+	})
+
+	t.Run("whitespace prefix gives bare header names", func(t *testing.T) {
+		mockOS := &mockOS{
+			files: map[string][]byte{},
+			envVars: map[string]string{
+				"DESTINATIONS_WEBHOOK_MODE":          "standard",
+				"DESTINATIONS_WEBHOOK_HEADER_PREFIX": " ",
+			},
+		}
+
+		cfg, err := config.ParseWithoutValidation(config.Flags{}, mockOS)
+		require.NoError(t, err)
+
+		assert.Equal(t, destregistrydefault.WebhookHeaderConfig{Name: "id"}, cfg.Destinations.ToConfig(cfg).Webhook.EventIDHeader)
+	})
+}
+
 func TestDestinationWebhookCompatSignature(t *testing.T) {
 	t.Run("unset leaves compat off", func(t *testing.T) {
 		mockOS := &mockOS{files: map[string][]byte{}, envVars: map[string]string{}}

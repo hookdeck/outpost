@@ -317,14 +317,14 @@ func TestMisc(t *testing.T) {
 			wantErr: nil,
 		},
 		{
-			name: "webhook compat signature is rejected in standard mode",
+			name: "webhook compat signature is valid in standard mode",
 			config: func() *config.Config {
 				c := validConfig()
 				c.Destinations.Webhook.Mode = "standard"
 				c.Destinations.Webhook.Compat.SignatureHeaderName = "x-legacy-signature"
 				return c
 			}(),
-			wantErr: config.ErrInvalidWebhookCompatSignature,
+			wantErr: nil,
 		},
 		{
 			name: "webhook compat options are ignored without a signature header name",

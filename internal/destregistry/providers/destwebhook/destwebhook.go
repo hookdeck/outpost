@@ -101,6 +101,7 @@ type headerConfig struct {
 
 type WebhookDestination struct {
 	*destregistry.BaseProvider
+	metadataName             string
 	headerPrefix             string
 	userAgent                string
 	proxy                    []*url.URL
@@ -179,6 +180,14 @@ func WithHeaderPrefix(prefix string) Option {
 func WithUserAgent(userAgent string) Option {
 	return func(w *WebhookDestination) {
 		w.userAgent = userAgent
+	}
+}
+
+// WithMetadataName selects the metadata/providers entry (schema and
+// instructions) the provider is described by. Defaults to "webhook".
+func WithMetadataName(name string) Option {
+	return func(w *WebhookDestination) {
+		w.metadataName = name
 	}
 }
 
@@ -296,16 +305,15 @@ type signingSecretTemplateData struct {
 }
 
 func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePublisherOption, opts ...Option) (*WebhookDestination, error) {
-	base, err := destregistry.NewBaseProvider(loader, "webhook", basePublisherOpts...)
-	if err != nil {
-		return nil, err
-	}
-	destination := &WebhookDestination{
-		BaseProvider: base,
-	}
+	destination := &WebhookDestination{metadataName: "webhook"}
 	for _, opt := range opts {
 		opt(destination)
 	}
+	base, err := destregistry.NewBaseProvider(loader, destination.metadataName, basePublisherOpts...)
+	if err != nil {
+		return nil, err
+	}
+	destination.BaseProvider = base
 
 	// Validate all required configuration is provided
 	// Config is responsible for setting defaults - provider requires explicit values

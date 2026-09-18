@@ -119,17 +119,16 @@ type Config struct {
 }
 
 var (
-	ErrMismatchedServiceType         = errors.New("config validation error: service type mismatch")
-	ErrInvalidServiceType            = errors.New("config validation error: invalid service type")
-	ErrMissingRedis                  = errors.New("config validation error: redis configuration is required")
-	ErrMissingLogStorage             = errors.New("config validation error: log storage must be provided")
-	ErrMissingMQs                    = errors.New("config validation error: message queue configuration is required")
-	ErrMissingAESSecret              = errors.New("config validation error: AES encryption secret is required")
-	ErrInvalidPortalProxyURL         = errors.New("config validation error: invalid portal proxy url")
-	ErrInvalidWebhookProxyURL        = errors.New("config validation error: invalid webhook proxy url")
-	ErrInvalidWebhookCompatSignature = errors.New("config validation error: invalid webhook compat signature")
-	ErrInvalidDeploymentID           = errors.New("config validation error: deployment_id must contain only alphanumeric characters, hyphens, and underscores (max 64 characters)")
-	ErrInvalidRedisPoolSize          = errors.New("config validation error: redis pool_size must be >= 0")
+	ErrMismatchedServiceType  = errors.New("config validation error: service type mismatch")
+	ErrInvalidServiceType     = errors.New("config validation error: invalid service type")
+	ErrMissingRedis           = errors.New("config validation error: redis configuration is required")
+	ErrMissingLogStorage      = errors.New("config validation error: log storage must be provided")
+	ErrMissingMQs             = errors.New("config validation error: message queue configuration is required")
+	ErrMissingAESSecret       = errors.New("config validation error: AES encryption secret is required")
+	ErrInvalidPortalProxyURL  = errors.New("config validation error: invalid portal proxy url")
+	ErrInvalidWebhookProxyURL = errors.New("config validation error: invalid webhook proxy url")
+	ErrInvalidDeploymentID    = errors.New("config validation error: deployment_id must contain only alphanumeric characters, hyphens, and underscores (max 64 characters)")
+	ErrInvalidRedisPoolSize   = errors.New("config validation error: redis pool_size must be >= 0")
 )
 
 func (c *Config) InitDefaults() {
