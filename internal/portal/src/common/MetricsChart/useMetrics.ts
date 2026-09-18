@@ -243,14 +243,10 @@ export function useBatchedMetrics({
     return result;
   }, [data]);
 
-  const sampleCount = useMemo(() => {
-    if (!data) return request.sampleCount;
-
-    const responseBucketCount = new Set(
-      data.data.map((point) => point.time_bucket),
-    ).size;
-    return responseBucketCount || request.sampleCount;
-  }, [data, request.sampleCount]);
-
-  return { data: grouped, error, isLoading, sampleCount };
+  return {
+    data: grouped,
+    error,
+    isLoading,
+    sampleCount: request.sampleCount,
+  };
 }
