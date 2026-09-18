@@ -4,11 +4,8 @@ import type { MetricsDataPoint } from "../../common/MetricsChart/useMetrics";
 interface DestinationEventsCellProps {
   metricsData?: MetricsDataPoint[];
   isLoading: boolean;
+  sampleCount: number;
 }
-
-// The destination list queries 24 hours at 4-hour granularity. The API
-// includes both boundary buckets, so a complete sparkline has seven samples.
-const EMPTY_SERIES_SAMPLE_COUNT = 7;
 
 function formatCount(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -19,6 +16,7 @@ function formatCount(n: number): string {
 const DestinationEventsCell: React.FC<DestinationEventsCellProps> = ({
   metricsData,
   isLoading,
+  sampleCount,
 }) => {
   if (isLoading || !metricsData) {
     return <span className="histogram-cell__loading"></span>;
@@ -30,7 +28,7 @@ const DestinationEventsCell: React.FC<DestinationEventsCellProps> = ({
           successful: d.metrics.successful_count ?? 0,
           failed: d.metrics.failed_count ?? 0,
         }))
-      : Array.from({ length: EMPTY_SERIES_SAMPLE_COUNT }, () => ({
+      : Array.from({ length: sampleCount }, () => ({
           successful: 0,
           failed: 0,
         }));

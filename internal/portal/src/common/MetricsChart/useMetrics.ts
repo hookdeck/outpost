@@ -60,6 +60,29 @@ function getGranularity(timeframe: Timeframe) {
   }
 }
 
+function getTimeBucketCount(
+  start: string,
+  end: string,
+  granularity: string,
+): number {
+  const match = granularity.match(/^(\d+)([smhdw])$/);
+  if (!match) return 0;
+
+  const unitMilliseconds: Record<string, number> = {
+    s: 1_000,
+    m: 60_000,
+    h: 3_600_000,
+    d: 86_400_000,
+    w: 604_800_000,
+  };
+  const bucketSize = Number(match[1]) * unitMilliseconds[match[2]];
+  const startTime = Date.parse(start);
+  const endTime = Date.parse(end);
+  const firstBucket = Math.floor(startTime / bucketSize) * bucketSize;
+
+  return Math.max(0, Math.ceil((endTime - firstBucket) / bucketSize));
+}
+
 export function useMetrics({
   measures,
   destinationId,
@@ -161,10 +184,13 @@ export function useBatchedMetrics({
     : "";
   const idsKey = [...destinationIds].sort().join(",");
 
-  const url = useMemo(() => {
-    if (destinationIds.length === 0) return null;
+  const request = useMemo(() => {
+    if (destinationIds.length === 0) {
+      return { url: null, sampleCount: 0 };
+    }
 
     const { start, end } = getDateRange(timeframe);
+    const granularity = granularityOverride ?? getGranularity(timeframe);
     const params = new URLSearchParams();
     params.set("time[start]", start);
     params.set("time[end]", end);
@@ -186,13 +212,16 @@ export function useBatchedMetrics({
       }
     }
 
-    params.set("granularity", granularityOverride ?? getGranularity(timeframe));
+    params.set("granularity", granularity);
 
-    return `metrics/attempts?${params.toString()}`;
+    return {
+      url: `metrics/attempts?${params.toString()}`,
+      sampleCount: getTimeBucketCount(start, end, granularity),
+    };
   }, [idsKey, measuresKey, filtersKey, granularityOverride, timeframe]);
 
   const { data, error, isLoading } = useSWR<MetricsResponse>(
-    url,
+    request.url,
     (path: string) => apiClient.fetchRoot(path),
     {
       refreshInterval: 60_000,
@@ -214,5 +243,14 @@ export function useBatchedMetrics({
     return result;
   }, [data]);
 
-  return { data: grouped, error, isLoading };
+  const sampleCount = useMemo(() => {
+    if (!data) return request.sampleCount;
+
+    const responseBucketCount = new Set(
+      data.data.map((point) => point.time_bucket),
+    ).size;
+    return responseBucketCount || request.sampleCount;
+  }, [data, request.sampleCount]);
+
+  return { data: grouped, error, isLoading, sampleCount };
 }
