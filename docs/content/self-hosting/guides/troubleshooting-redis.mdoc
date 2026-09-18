@@ -61,6 +61,24 @@ REDIS_TLS_ENABLED=true
 REDIS_TLS_ENABLED=false
 ```
 
+#### TLS Certificate Verification:
+
+`REDIS_TLS_ENABLED=true` encrypts the connection but does not verify the server certificate by default. Set `REDIS_TLS_VERIFY=true` to verify it against the system CA pool. Managed services with publicly trusted certificates work as-is; for self-signed certificates, make the CA available to Outpost:
+
+```bash
+REDIS_TLS_ENABLED=true
+REDIS_TLS_VERIFY=true
+
+# Self-signed CA: either
+SSL_CERT_FILE=/custom-certs/redis-ca.crt
+# or
+SSL_CERT_DIR=/etc/ssl/certs:/custom-certs
+```
+
+In cluster mode, Outpost connects to the node addresses returned by the cluster, so certificates must be valid for those addresses (for example via IP SANs).
+
+A `certificate signed by unknown authority` or `certificate is valid for ... not ...` error during PING means verification is on and the certificate is not trusted or does not match the host.
+
 #### Verify Network Connectivity:
 ```bash
 # Test basic connectivity
