@@ -1,0 +1,91 @@
+---
+title: "Change Webhook Signature Scheme"
+description: "Optional: send a second signature in your previous format so receivers keep verifying while you change signature schemes or move to Outpost."
+---
+
+Outpost signs every webhook with its default scheme out of the box; nothing here is required. This guide is for the case where your receivers already verify a different signature format.
+
+A receiver's verification code depends on the exact signature format: header names, signed content, encoding, and how the key is derived from the secret. Changing any of those breaks verification for every receiver at once.
+
+The **compat signature** gives receivers a transition window. It is a second signature, in the old format, sent on the same request as the primary one. Receivers keep verifying the old headers until they switch to the new ones.
+
+Use it when you are:
+
+- moving to Outpost from a webhook system you built yourself, or from another provider, and your receivers already verify that system's signature, or
+- changing the signature scheme of a running Outpost deployment.
+
+{% callout type="info" %}
+The compat signature applies to the `default` webhook mode.
+{% /callout %}
+
+## How it works
+
+The compat signature takes the same options as the primary signature, under `DESTINATIONS_WEBHOOK_COMPAT_*`. It is enabled by setting `DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_HEADER_NAME`.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_HEADER_NAME` | — | Name of the compat signature header. Setting it enables the compat signature. |
+| `DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_CONTENT_TEMPLATE` | `{{.Body}}` | Template for the signed content |
+| `DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_HEADER_TEMPLATE` | `v0={{.Signatures \| join ","}}` | Template for the signature header value |
+| `DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_ENCODING` | `hex` | Encoding: `hex` or `base64` |
+| `DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_ALGORITHM` | `hmac-sha256` | Signature algorithm |
+| `DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_SECRET_ENCODING` | `raw` | How the HMAC key is derived from the destination secret: `raw`, `base64` or `hex` |
+| `DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_SECRET_PREFIX` | — | Prefix stripped from the secret before decoding, e.g. `whsec_` |
+| `DESTINATIONS_WEBHOOK_COMPAT_HEADERS` | — | Extra headers the old scheme needs, as comma-separated `name=template` pairs |
+
+Both signatures are computed from the same destination secret and the same timestamp, so receivers keep their existing secret. During [secret rotation](/docs/outpost/destinations/webhook#secret-rotation) both signatures include the previous secret.
+
+### Signing key
+
+By default Outpost uses the secret string itself as the HMAC key. If your previous implementation decoded the secret first, for example base64-decoding the part after a `whsec_` prefix as Standard Webhooks does, set `SIGNATURE_SECRET_ENCODING` and `SIGNATURE_SECRET_PREFIX` to match. One stored secret then serves both signatures.
+
+The same two options exist for the primary signature as `DESTINATIONS_WEBHOOK_SIGNATURE_SECRET_ENCODING` and `DESTINATIONS_WEBHOOK_SIGNATURE_SECRET_PREFIX`.
+
+A secret that can't be decoded with the compat settings is left out of the compat signature, and a destination with no decodable secret doesn't receive it. The primary signature is unaffected.
+
+### Extra headers
+
+If your previous signature covered values sent in other headers, such as an event ID or a timestamp, your receivers read those headers to verify it. `DESTINATIONS_WEBHOOK_COMPAT_HEADERS` reproduces them, with the names and formats your receivers expect. For example, Outpost's own `timestamp` header is RFC3339, and a compat header can send the same timestamp as unix seconds.
+
+The value is comma-separated `name=template` pairs, the same shape as `OTEL_EXPORTER_OTLP_HEADERS`. Templates can use `{{.EventID}}`, `{{.Topic}}` and `{{.Timestamp}}`. Write `\,` for a literal comma inside a template. In YAML config, `headers` is a map.
+
+A compat header name that matches one of the primary headers is rejected at startup. Compat headers win over a destination's `custom_headers` with the same name.
+
+## Ending the migration
+
+Every webhook destination in the deployment receives the compat signature while it is configured. Announce a sunset date to receivers, and remove the `DESTINATIONS_WEBHOOK_COMPAT_*` options when it passes.
+
+## Changing the scheme of a running deployment
+
+Say the deployment signs with a custom template and you want to move to Outpost's defaults.
+
+1. Copy the current signature settings to the compat options:
+
+   ```bash
+   DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_HEADER_NAME=x-acme-signature
+   DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_CONTENT_TEMPLATE={{.Timestamp.Unix}}.{{.Body}}
+   DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_HEADER_TEMPLATE=t={{.Timestamp.Unix}},v0={{.Signatures | join ","}}
+   ```
+
+2. Set the new primary scheme. The old and new signature headers need different names.
+3. Deploy. Every request now carries both signatures.
+4. Tell receivers how to verify the new signature and when the old one stops.
+
+## Moving to Outpost from a previous webhook system
+
+1. Configure the compat options to reproduce your previous signature. For a system that follows the [Standard Webhooks](https://www.standardwebhooks.com/) scheme:
+
+   ```bash
+   DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_HEADER_NAME=webhook-signature
+   DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_CONTENT_TEMPLATE={{.EventID}}.{{.Timestamp.Unix}}.{{.Body}}
+   DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_HEADER_TEMPLATE=v1,{{index .Signatures 0}}{{range slice .Signatures 1}} v1,{{.}}{{end}}
+   DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_ENCODING=base64
+   DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_SECRET_ENCODING=base64
+   DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_SECRET_PREFIX=whsec_
+   DESTINATIONS_WEBHOOK_COMPAT_HEADERS=webhook-id={{.EventID}},webhook-timestamp={{.Timestamp.Unix}}
+   ```
+
+   If your system used other header names, change the three header names and keep the rest.
+
+2. Create a destination for each existing endpoint with its current signing secret, using an admin API key.
+3. Receivers keep verifying the old headers with the same secret. Point them to [Verify Webhook Signatures](/docs/outpost/guides/verify-webhook-signatures) for the new scheme.

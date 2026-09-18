@@ -307,6 +307,36 @@ func TestMisc(t *testing.T) {
 			wantErr: config.ErrInvalidWebhookProxyURL,
 		},
 		{
+			name: "webhook compat signature is valid",
+			config: func() *config.Config {
+				c := validConfig()
+				c.Destinations.Webhook.Compat.SignatureHeaderName = "webhook-signature"
+				c.Destinations.Webhook.Compat.Headers = config.HeaderTemplates{"webhook-id": "{{.EventID}}"}
+				return c
+			}(),
+			wantErr: nil,
+		},
+		{
+			name: "webhook compat signature is rejected in standard mode",
+			config: func() *config.Config {
+				c := validConfig()
+				c.Destinations.Webhook.Mode = "standard"
+				c.Destinations.Webhook.Compat.SignatureHeaderName = "x-legacy-signature"
+				return c
+			}(),
+			wantErr: config.ErrInvalidWebhookCompatSignature,
+		},
+		{
+			name: "webhook compat options are ignored without a signature header name",
+			config: func() *config.Config {
+				c := validConfig()
+				c.Destinations.Webhook.Mode = "standard"
+				c.Destinations.Webhook.Compat.SignatureEncoding = "base64"
+				return c
+			}(),
+			wantErr: nil,
+		},
+		{
 			name: "empty deployment id is valid",
 			config: func() *config.Config {
 				c := validConfig()

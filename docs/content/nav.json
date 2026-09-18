@@ -87,6 +87,10 @@
             "title": "Verify Webhook Signatures"
           },
           {
+            "slug": "guides/change-webhook-signature-scheme",
+            "title": "Change Webhook Signature Scheme"
+          },
+          {
             "slug": "guides/building-your-own-ui",
             "title": "Building your own UI"
           }

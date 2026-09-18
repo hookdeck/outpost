@@ -105,14 +105,16 @@ type WebhookDestination struct {
 	topicHeader              headerConfig
 	encoding                 string
 	algorithm                string
-	// Built once in New() and shared by every publisher: both are derived
-	// solely from provider config, and a parsed template is safe for parallel
-	// execution. Building them per destination gave each cached publisher its
-	// own copy of two sprig function maps (~44 KB retained per publisher).
-	signatureFormatter SignatureFormatter
-	headerFormatter    HeaderFormatter
-	encoder            SignatureEncoder
-	signingAlgorithm   SigningAlgorithm
+	secretEncoding           string
+	secretPrefix             string
+	compatConfig             *CompatSignatureConfig
+	// Built once in New() and shared by every publisher; parsed templates are
+	// safe for parallel execution. Building them per destination gave each
+	// cached publisher its own copy of two sprig function maps (~44 KB retained
+	// per publisher).
+	scheme  *signatureScheme
+	primary headerSet
+	compat  *compatSignature
 
 	rawSigningSecretTemplate string
 	signingSecretTemplate    *template.Template
@@ -292,20 +294,22 @@ func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePu
 	// Validate all required configuration is provided
 	// Config is responsible for setting defaults - provider requires explicit values
 	// Note: headerPrefix may be empty (after trimming) to disable prefix entirely
-	if destination.encoding == "" {
-		return nil, fmt.Errorf("signature encoding is required")
-	}
-	if destination.algorithm == "" {
-		return nil, fmt.Errorf("signature algorithm is required")
-	}
-	if destination.signatureContentTemplate == "" {
-		return nil, fmt.Errorf("signature content template is required")
-	}
-	if destination.signatureHeaderTemplate == "" {
-		return nil, fmt.Errorf("signature header template is required")
-	}
 	if destination.rawSigningSecretTemplate == "" {
 		return nil, fmt.Errorf("signing secret template is required")
+	}
+	destination.scheme, err = newSignatureScheme(signatureSchemeConfig{
+		ContentTemplate: destination.signatureContentTemplate,
+		HeaderTemplate:  destination.signatureHeaderTemplate,
+		Encoding:        destination.encoding,
+		Algorithm:       destination.algorithm,
+		SecretEncoding:  destination.secretEncoding,
+		SecretPrefix:    destination.secretPrefix,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if !destination.signatureHeader.disabled {
+		destination.primary.signatureName = resolveHeaderName(destination.signatureHeader, destination.headerPrefix, "signature")
 	}
 
 	// Validate the four system headers: reject invalid/reserved pinned names, and
@@ -343,24 +347,19 @@ func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePu
 		seenNames[effective] = h.label
 	}
 
-	// Build the signature formatters once — shared by every publisher
-	destination.signatureFormatter, err = NewSignatureFormatter(destination.signatureContentTemplate)
-	if err != nil {
-		return nil, err
+	if destination.compatConfig != nil {
+		destination.compat, err = newCompatSignature(destination.compatConfig)
+		if err != nil {
+			return nil, err
+		}
+		// Compat headers go on the request before the primary ones, so a compat
+		// name that matches a primary header would be overwritten silently.
+		for _, name := range destination.compat.names() {
+			if other, ok := seenNames[strings.ToLower(name)]; ok {
+				return nil, fmt.Errorf("compat header %q collides with the primary %s header", name, other)
+			}
+		}
 	}
-	destination.headerFormatter, err = NewHeaderFormatter(destination.signatureHeaderTemplate)
-	if err != nil {
-		return nil, err
-	}
-	// Dry-run render both, so a template that parses but references a field
-	// its payload type doesn't have fails construction even when the provider
-	// is built outside config validation.
-	if err := dryRunFormatters(destination.signatureFormatter, destination.headerFormatter,
-		destination.signatureContentTemplate, destination.signatureHeaderTemplate); err != nil {
-		return nil, err
-	}
-	destination.encoder = GetEncoder(destination.encoding)
-	destination.signingAlgorithm = GetAlgorithm(destination.algorithm)
 
 	// Parse signing secret template — fail on invalid syntax
 	tmpl, err := template.New("signing_secret").Funcs(sprig.TxtFuncMap()).Parse(destination.rawSigningSecretTemplate)
@@ -368,6 +367,17 @@ func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePu
 		return nil, fmt.Errorf("invalid signing secret template %q: %w", destination.rawSigningSecretTemplate, err)
 	}
 	destination.signingSecretTemplate = tmpl
+
+	// A generated secret must be usable as the primary signing key, otherwise
+	// every destination created without an explicit secret fails at delivery.
+	sample, err := destination.renderSigningSecret(sampleSigningSecretData)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := decodeSecretKey(sample, destination.secretEncoding, destination.secretPrefix); err != nil {
+		return nil, fmt.Errorf("signing secret template output %q can't be decoded with signature secret encoding %q: %w",
+			sample, destination.secretEncoding, err)
+	}
 
 	httpClient, err := destregistry.NewHTTPClient(destregistry.HTTPClientConfig{
 		UserAgent:     &destination.userAgent,
@@ -428,8 +438,23 @@ func (d *WebhookDestination) ObfuscateDestination(destination *models.Destinatio
 }
 
 func (d *WebhookDestination) Validate(ctx context.Context, destination *models.Destination) error {
-	if _, _, err := d.resolveConfig(ctx, destination); err != nil {
+	_, creds, err := d.resolveConfig(ctx, destination)
+	if err != nil {
 		return err
+	}
+	for field, secret := range map[string]string{
+		"credentials.secret":          creds.Secret,
+		"credentials.previous_secret": creds.PreviousSecret,
+	} {
+		if secret == "" {
+			continue
+		}
+		if _, err := d.scheme.decodeSecret(secret); err != nil {
+			return destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{{
+				Field: field,
+				Type:  "invalid",
+			}})
+		}
 	}
 	return nil
 }
@@ -465,13 +490,21 @@ func (d *WebhookDestination) CreatePublisher(ctx context.Context, destination *m
 		})
 	}
 
-	sm := NewSignatureManager(
-		secrets,
-		WithSignatureFormatter(d.signatureFormatter),
-		WithHeaderFormatter(d.headerFormatter),
-		WithEncoder(d.encoder),
-		WithAlgorithm(d.signingAlgorithm),
-	)
+	sm, err := d.scheme.manager(secrets)
+	if err != nil {
+		return nil, destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{{
+			Field: "credentials.secret",
+			Type:  "invalid",
+		}})
+	}
+
+	// A secret the compat scheme can't decode is left out of the compat
+	// signature: the primary one still verifies, so delivery shouldn't fail
+	// over it. With no decodable secret the compat set is skipped entirely.
+	var compatSM *SignatureManager
+	if d.compat != nil {
+		compatSM = d.compat.scheme.managerForDecodable(secrets)
+	}
 
 	return &WebhookPublisher{
 		BasePublisher:        d.BaseProvider.NewPublisher(destregistry.WithDeliveryMetadata(destination.DeliveryMetadata)),
@@ -484,6 +517,9 @@ func (d *WebhookDestination) CreatePublisher(ctx context.Context, destination *m
 		topicHeader:          d.topicHeader,
 		secrets:              secrets,
 		sm:                   sm,
+		primary:              d.primary,
+		compat:               d.compat,
+		compatSM:             compatSM,
 		customHeaders:        config.CustomHeaders,
 		maxResponseBodyBytes: d.maxResponseBodyBytes,
 	}, nil
@@ -765,6 +801,9 @@ type WebhookPublisher struct {
 	topicHeader          headerConfig
 	secrets              []WebhookSecret
 	sm                   *SignatureManager
+	primary              headerSet
+	compat               *compatSignature
+	compatSM             *SignatureManager
 	customHeaders        map[string]string
 	maxResponseBodyBytes int
 }
@@ -806,6 +845,21 @@ func (p *WebhookPublisher) Format(ctx context.Context, event *models.Event) (*ht
 		req.Header.Set(key, value)
 	}
 
+	payload := SignaturePayload{
+		EventID:   event.ID,
+		Topic:     event.Topic,
+		Timestamp: now,
+		Body:      string(rawBody),
+	}
+
+	// Compat headers go on before the primary ones so the primary scheme wins
+	// on a name conflict.
+	if p.compatSM != nil {
+		if err := p.compat.apply(req, p.compatSM, payload); err != nil {
+			return nil, err
+		}
+	}
+
 	// Get merged metadata (system + event metadata) using BasePublisher
 	metadata := p.BasePublisher.MakeMetadata(event, now)
 
@@ -820,20 +874,8 @@ func (p *WebhookPublisher) Format(ctx context.Context, event *models.Event) (*ht
 		req.Header.Set(name, value)
 	}
 
-	// Add signature header unless disabled
-	if !p.signatureHeader.disabled {
-		signatureHeader, err := p.sm.GenerateSignatureHeader(SignaturePayload{
-			EventID:   event.ID,
-			Topic:     event.Topic,
-			Timestamp: now,
-			Body:      string(rawBody),
-		})
-		if err != nil {
-			return nil, err
-		}
-		if signatureHeader != "" {
-			req.Header.Set(resolveHeaderName(p.signatureHeader, p.headerPrefix, "signature"), signatureHeader)
-		}
+	if err := p.primary.apply(req, p.sm, payload); err != nil {
+		return nil, err
 	}
 
 	return req, nil
@@ -882,12 +924,22 @@ func (d *WebhookDestination) generateSignatureSecret() (string, error) {
 		return "", err
 	}
 
-	data := signingSecretTemplateData{
+	return d.renderSigningSecret(signingSecretTemplateData{
 		RandomHex:          hex.EncodeToString(randomBytes),
 		RandomBase64:       base64.StdEncoding.EncodeToString(randomBytes),
 		RandomAlphanumeric: alphanumeric,
-	}
+	})
+}
 
+// sampleSigningSecretData covers the full alphabet of each generated value,
+// so a template rendered with it decodes only if every generated secret would.
+var sampleSigningSecretData = signingSecretTemplateData{
+	RandomHex:          strings.Repeat("0123456789abcdef", 4),
+	RandomBase64:       base64.StdEncoding.EncodeToString(bytes.Repeat([]byte{0xfb, 0xff, 0xbf}, 11)[:32]), // "+/+/…", padded
+	RandomAlphanumeric: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef",
+}
+
+func (d *WebhookDestination) renderSigningSecret(data signingSecretTemplateData) (string, error) {
 	var buf bytes.Buffer
 	if err := d.signingSecretTemplate.Execute(&buf, data); err != nil {
 		return "", fmt.Errorf("failed to execute signing secret template: %w", err)
