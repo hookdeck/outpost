@@ -77,6 +77,8 @@ type DestinationWebhookConfig struct {
 	SignatureHeaderTemplate  string `yaml:"signature_header_template" env:"DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE" desc:"Go template for the value of the signature header. Only applies to 'default' mode." required:"N"`
 	SignatureEncoding        string `yaml:"signature_encoding" env:"DESTINATIONS_WEBHOOK_SIGNATURE_ENCODING" desc:"Encoding for the signature (e.g., 'hex', 'base64'). Only applies to 'default' mode." required:"N"`
 	SignatureAlgorithm       string `yaml:"signature_algorithm" env:"DESTINATIONS_WEBHOOK_SIGNATURE_ALGORITHM" desc:"Algorithm used for signing webhook requests (e.g., 'hmac-sha256'). Only applies to 'default' mode." required:"N"`
+	SignatureSecretEncoding  string `yaml:"signature_secret_encoding" env:"DESTINATIONS_WEBHOOK_SIGNATURE_SECRET_ENCODING" desc:"How the HMAC key is derived from the destination secret: 'raw' uses the secret string as-is, 'base64' and 'hex' decode it. Defaults to 'raw'. DESTINATIONS_WEBHOOK_SIGNING_SECRET_TEMPLATE must generate secrets this encoding can decode. Only applies to 'default' mode." required:"N"`
+	SignatureSecretPrefix    string `yaml:"signature_secret_prefix" env:"DESTINATIONS_WEBHOOK_SIGNATURE_SECRET_PREFIX" desc:"Prefix stripped from the destination secret before decoding (e.g., 'whsec_'). Ignored when DESTINATIONS_WEBHOOK_SIGNATURE_SECRET_ENCODING is 'raw'. Only applies to 'default' mode." required:"N"`
 	SigningSecretTemplate    string `yaml:"signing_secret_template" env:"DESTINATIONS_WEBHOOK_SIGNING_SECRET_TEMPLATE" desc:"Go template for generating webhook signing secrets. Available variables: {{.RandomHex}} (64-char hex), {{.RandomBase64}} (base64-encoded), {{.RandomAlphanumeric}} (32-char alphanumeric). Defaults to 'whsec_{{.RandomHex}}'. Only applies to 'default' mode." required:"N"`
 	MaxResponseBodyBytes     int    `yaml:"max_response_body_bytes" env:"DESTINATIONS_WEBHOOK_MAX_RESPONSE_BODY_BYTES" desc:"Maximum size in bytes of a destination's response body stored on the delivery attempt. Responses larger than this are replaced with a placeholder so the attempt log stays under the event queue's per-message size limit (oversized log messages fail to publish and retry indefinitely). Default: 131072 (128 KiB). Set to 0 to disable the cap." required:"N"`
 }
@@ -99,6 +101,8 @@ func (c *DestinationWebhookConfig) toConfig() *destregistrydefault.DestWebhookCo
 	}
 
 	return &destregistrydefault.DestWebhookConfig{
+		SignatureSecretEncoding:  c.SignatureSecretEncoding,
+		SignatureSecretPrefix:    c.SignatureSecretPrefix,
 		Mode:                     c.Mode,
 		ProxyURL:                 c.ProxyURL,
 		HeaderPrefix:             headerPrefix,

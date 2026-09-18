@@ -42,6 +42,8 @@ type DestWebhookConfig struct {
 	SignatureAlgorithm       string
 	SigningSecretTemplate    string
 	MaxResponseBodyBytes     int
+	SignatureSecretEncoding  string
+	SignatureSecretPrefix    string
 }
 
 type DestAWSKinesisConfig struct {
@@ -132,6 +134,7 @@ func RegisterDefault(registry destregistry.Registry, opts RegisterDefaultDestina
 				destwebhook.WithSignatureAlgorithm(opts.Webhook.SignatureAlgorithm),
 				destwebhook.WithSigningSecretTemplate(opts.Webhook.SigningSecretTemplate),
 				destwebhook.WithMaxResponseBodyBytes(opts.Webhook.MaxResponseBodyBytes),
+				destwebhook.WithSecretEncoding(opts.Webhook.SignatureSecretEncoding, opts.Webhook.SignatureSecretPrefix),
 			)
 		}
 		webhook, err := destwebhook.New(loader, basePublisherOpts, webhookOpts...)

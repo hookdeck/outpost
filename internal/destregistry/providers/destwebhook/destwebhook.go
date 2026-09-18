@@ -105,6 +105,8 @@ type WebhookDestination struct {
 	topicHeader              headerConfig
 	encoding                 string
 	algorithm                string
+	secretEncoding           string
+	secretPrefix             string
 	// Built once in New() and shared by every publisher: both are derived
 	// solely from provider config, and a parsed template is safe for parallel
 	// execution. Building them per destination gave each cached publisher its
@@ -307,6 +309,9 @@ func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePu
 	if destination.rawSigningSecretTemplate == "" {
 		return nil, fmt.Errorf("signing secret template is required")
 	}
+	if err := validateSecretEncoding(destination.secretEncoding); err != nil {
+		return nil, err
+	}
 
 	// Validate the four system headers: reject invalid/reserved pinned names, and
 	// reject collisions between the effective names (pinned name, or "<prefix>" +
@@ -369,6 +374,17 @@ func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePu
 	}
 	destination.signingSecretTemplate = tmpl
 
+	// A generated secret must be usable as the primary signing key, otherwise
+	// every destination created without an explicit secret fails at delivery.
+	sample, err := destination.renderSigningSecret(sampleSigningSecretData)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := decodeSecretKey(sample, destination.secretEncoding, destination.secretPrefix); err != nil {
+		return nil, fmt.Errorf("signing secret template output %q can't be decoded with signature secret encoding %q: %w",
+			sample, destination.secretEncoding, err)
+	}
+
 	httpClient, err := destregistry.NewHTTPClient(destregistry.HTTPClientConfig{
 		UserAgent:     &destination.userAgent,
 		Proxy:         destination.proxy,
@@ -428,8 +444,23 @@ func (d *WebhookDestination) ObfuscateDestination(destination *models.Destinatio
 }
 
 func (d *WebhookDestination) Validate(ctx context.Context, destination *models.Destination) error {
-	if _, _, err := d.resolveConfig(ctx, destination); err != nil {
+	_, creds, err := d.resolveConfig(ctx, destination)
+	if err != nil {
 		return err
+	}
+	for field, secret := range map[string]string{
+		"credentials.secret":          creds.Secret,
+		"credentials.previous_secret": creds.PreviousSecret,
+	} {
+		if secret == "" {
+			continue
+		}
+		if _, err := decodeSecretKey(secret, d.secretEncoding, d.secretPrefix); err != nil {
+			return destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{{
+				Field: field,
+				Type:  "invalid",
+			}})
+		}
 	}
 	return nil
 }
@@ -465,8 +496,16 @@ func (d *WebhookDestination) CreatePublisher(ctx context.Context, destination *m
 		})
 	}
 
+	signingSecrets, err := decodeSecretKeys(secrets, d.secretEncoding, d.secretPrefix)
+	if err != nil {
+		return nil, destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{{
+			Field: "credentials.secret",
+			Type:  "invalid",
+		}})
+	}
+
 	sm := NewSignatureManager(
-		secrets,
+		signingSecrets,
 		WithSignatureFormatter(d.signatureFormatter),
 		WithHeaderFormatter(d.headerFormatter),
 		WithEncoder(d.encoder),
@@ -820,14 +859,16 @@ func (p *WebhookPublisher) Format(ctx context.Context, event *models.Event) (*ht
 		req.Header.Set(name, value)
 	}
 
+	signaturePayload := SignaturePayload{
+		EventID:   event.ID,
+		Topic:     event.Topic,
+		Timestamp: now,
+		Body:      string(rawBody),
+	}
+
 	// Add signature header unless disabled
 	if !p.signatureHeader.disabled {
-		signatureHeader, err := p.sm.GenerateSignatureHeader(SignaturePayload{
-			EventID:   event.ID,
-			Topic:     event.Topic,
-			Timestamp: now,
-			Body:      string(rawBody),
-		})
+		signatureHeader, err := p.sm.GenerateSignatureHeader(signaturePayload)
 		if err != nil {
 			return nil, err
 		}
@@ -882,12 +923,22 @@ func (d *WebhookDestination) generateSignatureSecret() (string, error) {
 		return "", err
 	}
 
-	data := signingSecretTemplateData{
+	return d.renderSigningSecret(signingSecretTemplateData{
 		RandomHex:          hex.EncodeToString(randomBytes),
 		RandomBase64:       base64.StdEncoding.EncodeToString(randomBytes),
 		RandomAlphanumeric: alphanumeric,
-	}
+	})
+}
 
+// sampleSigningSecretData covers the full alphabet of each generated value,
+// so a template rendered with it decodes only if every generated secret would.
+var sampleSigningSecretData = signingSecretTemplateData{
+	RandomHex:          strings.Repeat("0123456789abcdef", 4),
+	RandomBase64:       base64.StdEncoding.EncodeToString(bytes.Repeat([]byte{0xfb, 0xff, 0xbf}, 11)[:32]), // "+/+/…", padded
+	RandomAlphanumeric: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef",
+}
+
+func (d *WebhookDestination) renderSigningSecret(data signingSecretTemplateData) (string, error) {
 	var buf bytes.Buffer
 	if err := d.signingSecretTemplate.Execute(&buf, data); err != nil {
 		return "", fmt.Errorf("failed to execute signing secret template: %w", err)
