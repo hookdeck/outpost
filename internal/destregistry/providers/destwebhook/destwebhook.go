@@ -107,14 +107,12 @@ type WebhookDestination struct {
 	algorithm                string
 	secretEncoding           string
 	secretPrefix             string
-	// Built once in New() and shared by every publisher: both are derived
-	// solely from provider config, and a parsed template is safe for parallel
-	// execution. Building them per destination gave each cached publisher its
-	// own copy of two sprig function maps (~44 KB retained per publisher).
-	signatureFormatter SignatureFormatter
-	headerFormatter    HeaderFormatter
-	encoder            SignatureEncoder
-	signingAlgorithm   SigningAlgorithm
+	// Built once in New() and shared by every publisher; parsed templates are
+	// safe for parallel execution. Building them per destination gave each
+	// cached publisher its own copy of two sprig function maps (~44 KB retained
+	// per publisher).
+	scheme  *signatureScheme
+	primary headerSet
 
 	rawSigningSecretTemplate string
 	signingSecretTemplate    *template.Template
@@ -294,23 +292,22 @@ func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePu
 	// Validate all required configuration is provided
 	// Config is responsible for setting defaults - provider requires explicit values
 	// Note: headerPrefix may be empty (after trimming) to disable prefix entirely
-	if destination.encoding == "" {
-		return nil, fmt.Errorf("signature encoding is required")
-	}
-	if destination.algorithm == "" {
-		return nil, fmt.Errorf("signature algorithm is required")
-	}
-	if destination.signatureContentTemplate == "" {
-		return nil, fmt.Errorf("signature content template is required")
-	}
-	if destination.signatureHeaderTemplate == "" {
-		return nil, fmt.Errorf("signature header template is required")
-	}
 	if destination.rawSigningSecretTemplate == "" {
 		return nil, fmt.Errorf("signing secret template is required")
 	}
-	if err := validateSecretEncoding(destination.secretEncoding); err != nil {
+	destination.scheme, err = newSignatureScheme(signatureSchemeConfig{
+		ContentTemplate: destination.signatureContentTemplate,
+		HeaderTemplate:  destination.signatureHeaderTemplate,
+		Encoding:        destination.encoding,
+		Algorithm:       destination.algorithm,
+		SecretEncoding:  destination.secretEncoding,
+		SecretPrefix:    destination.secretPrefix,
+	})
+	if err != nil {
 		return nil, err
+	}
+	if !destination.signatureHeader.disabled {
+		destination.primary.signatureName = resolveHeaderName(destination.signatureHeader, destination.headerPrefix, "signature")
 	}
 
 	// Validate the four system headers: reject invalid/reserved pinned names, and
@@ -347,25 +344,6 @@ func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePu
 		}
 		seenNames[effective] = h.label
 	}
-
-	// Build the signature formatters once — shared by every publisher
-	destination.signatureFormatter, err = NewSignatureFormatter(destination.signatureContentTemplate)
-	if err != nil {
-		return nil, err
-	}
-	destination.headerFormatter, err = NewHeaderFormatter(destination.signatureHeaderTemplate)
-	if err != nil {
-		return nil, err
-	}
-	// Dry-run render both, so a template that parses but references a field
-	// its payload type doesn't have fails construction even when the provider
-	// is built outside config validation.
-	if err := dryRunFormatters(destination.signatureFormatter, destination.headerFormatter,
-		destination.signatureContentTemplate, destination.signatureHeaderTemplate); err != nil {
-		return nil, err
-	}
-	destination.encoder = GetEncoder(destination.encoding)
-	destination.signingAlgorithm = GetAlgorithm(destination.algorithm)
 
 	// Parse signing secret template — fail on invalid syntax
 	tmpl, err := template.New("signing_secret").Funcs(sprig.TxtFuncMap()).Parse(destination.rawSigningSecretTemplate)
@@ -455,7 +433,7 @@ func (d *WebhookDestination) Validate(ctx context.Context, destination *models.D
 		if secret == "" {
 			continue
 		}
-		if _, err := decodeSecretKey(secret, d.secretEncoding, d.secretPrefix); err != nil {
+		if _, err := d.scheme.decodeSecret(secret); err != nil {
 			return destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{{
 				Field: field,
 				Type:  "invalid",
@@ -496,21 +474,13 @@ func (d *WebhookDestination) CreatePublisher(ctx context.Context, destination *m
 		})
 	}
 
-	signingSecrets, err := decodeSecretKeys(secrets, d.secretEncoding, d.secretPrefix)
+	sm, err := d.scheme.manager(secrets)
 	if err != nil {
 		return nil, destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{{
 			Field: "credentials.secret",
 			Type:  "invalid",
 		}})
 	}
-
-	sm := NewSignatureManager(
-		signingSecrets,
-		WithSignatureFormatter(d.signatureFormatter),
-		WithHeaderFormatter(d.headerFormatter),
-		WithEncoder(d.encoder),
-		WithAlgorithm(d.signingAlgorithm),
-	)
 
 	return &WebhookPublisher{
 		BasePublisher:        d.BaseProvider.NewPublisher(destregistry.WithDeliveryMetadata(destination.DeliveryMetadata)),
@@ -523,6 +493,7 @@ func (d *WebhookDestination) CreatePublisher(ctx context.Context, destination *m
 		topicHeader:          d.topicHeader,
 		secrets:              secrets,
 		sm:                   sm,
+		primary:              d.primary,
 		customHeaders:        config.CustomHeaders,
 		maxResponseBodyBytes: d.maxResponseBodyBytes,
 	}, nil
@@ -804,6 +775,7 @@ type WebhookPublisher struct {
 	topicHeader          headerConfig
 	secrets              []WebhookSecret
 	sm                   *SignatureManager
+	primary              headerSet
 	customHeaders        map[string]string
 	maxResponseBodyBytes int
 }
@@ -845,6 +817,13 @@ func (p *WebhookPublisher) Format(ctx context.Context, event *models.Event) (*ht
 		req.Header.Set(key, value)
 	}
 
+	payload := SignaturePayload{
+		EventID:   event.ID,
+		Topic:     event.Topic,
+		Timestamp: now,
+		Body:      string(rawBody),
+	}
+
 	// Get merged metadata (system + event metadata) using BasePublisher
 	metadata := p.BasePublisher.MakeMetadata(event, now)
 
@@ -859,22 +838,8 @@ func (p *WebhookPublisher) Format(ctx context.Context, event *models.Event) (*ht
 		req.Header.Set(name, value)
 	}
 
-	signaturePayload := SignaturePayload{
-		EventID:   event.ID,
-		Topic:     event.Topic,
-		Timestamp: now,
-		Body:      string(rawBody),
-	}
-
-	// Add signature header unless disabled
-	if !p.signatureHeader.disabled {
-		signatureHeader, err := p.sm.GenerateSignatureHeader(signaturePayload)
-		if err != nil {
-			return nil, err
-		}
-		if signatureHeader != "" {
-			req.Header.Set(resolveHeaderName(p.signatureHeader, p.headerPrefix, "signature"), signatureHeader)
-		}
+	if err := p.primary.apply(req, p.sm, payload); err != nil {
+		return nil, err
 	}
 
 	return req, nil

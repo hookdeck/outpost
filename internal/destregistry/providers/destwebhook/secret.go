@@ -54,16 +54,3 @@ func decodeSecretKey(secret, encoding, prefix string) (string, error) {
 		return "", validateSecretEncoding(encoding)
 	}
 }
-
-func decodeSecretKeys(secrets []WebhookSecret, encoding, prefix string) ([]WebhookSecret, error) {
-	decoded := make([]WebhookSecret, len(secrets))
-	for i, secret := range secrets {
-		key, err := decodeSecretKey(secret.Key, encoding, prefix)
-		if err != nil {
-			return nil, err
-		}
-		decoded[i] = secret
-		decoded[i].Key = key
-	}
-	return decoded, nil
-}

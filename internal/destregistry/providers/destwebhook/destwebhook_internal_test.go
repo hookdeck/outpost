@@ -55,8 +55,8 @@ func TestWebhookDestination_PublishersShareFormatters(t *testing.T) {
 	require.True(t, ok)
 
 	// Both publishers hold the provider's formatter instances, not copies.
-	assert.Same(t, provider.signatureFormatter, wp1.sm.sigFormatter)
-	assert.Same(t, provider.headerFormatter, wp1.sm.headerFormatter)
+	assert.Same(t, provider.scheme.signatureFormatter, wp1.sm.sigFormatter)
+	assert.Same(t, provider.scheme.headerFormatter, wp1.sm.headerFormatter)
 	assert.Same(t, wp1.sm.sigFormatter, wp2.sm.sigFormatter)
 	assert.Same(t, wp1.sm.headerFormatter, wp2.sm.headerFormatter)
 }
