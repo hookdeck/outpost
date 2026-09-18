@@ -14,10 +14,6 @@ Use it when you are:
 - moving to Outpost from a webhook system you built yourself, or from another provider, and your receivers already verify that system's signature, or
 - changing the signature scheme of a running Outpost deployment.
 
-{% callout type="info" %}
-The compat signature applies to the `default` webhook mode.
-{% /callout %}
-
 ## How it works
 
 The compat signature takes the same options as the primary signature, under `DESTINATIONS_WEBHOOK_COMPAT_*`. It is enabled by setting `DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_HEADER_NAME`.
