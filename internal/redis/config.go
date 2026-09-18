@@ -7,6 +7,7 @@ type RedisConfig struct {
 	Password       string
 	Database       int
 	TLSEnabled     bool
+	TLSVerify      bool
 	ClusterEnabled bool
 
 	// PoolSize is the connection pool size per client (per node in cluster
