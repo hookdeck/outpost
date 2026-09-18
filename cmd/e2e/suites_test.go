@@ -83,7 +83,8 @@ type basicSuite struct {
 	deploymentID   string             // Optional deployment ID
 	hasRediSearch  bool               // Whether the Redis backend supports RediSearch (only RedisStack)
 	opeventsServer *opeventsmock.MockServer
-	httpClient     *http.Client // Used by doJSON helpers
+	httpClient     *http.Client         // Used by doJSON helpers
+	configure      func(*config.Config) // Optional config override applied before boot
 }
 
 func (suite *basicSuite) SetupSuite() {
@@ -108,6 +109,10 @@ func (suite *basicSuite) SetupSuite() {
 	cfg.OperatorEvents.Topics = []string{"*"}
 	cfg.OperatorEvents.HTTP.URL = oeServer.GetURL()
 	cfg.OperatorEvents.HTTP.SigningSecret = "test-opevents-secret"
+
+	if suite.configure != nil {
+		suite.configure(&cfg)
+	}
 
 	require.NoError(t, cfg.Validate(config.Flags{}))
 
