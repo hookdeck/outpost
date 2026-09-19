@@ -140,7 +140,11 @@ const DestinationList: React.FC = () => {
             <Badge text="Active" success />
           ),
           <DestinationEventsCell
-            metricsData={batchedMetrics?.[destination.id]}
+            metricsData={
+              batchedMetrics
+                ? (batchedMetrics[destination.id] ?? [])
+                : undefined
+            }
             isLoading={metricsLoading}
           />,
         ].filter((entry) => entry !== null),

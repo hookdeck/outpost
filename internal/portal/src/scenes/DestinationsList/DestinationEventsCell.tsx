@@ -6,6 +6,8 @@ interface DestinationEventsCellProps {
   isLoading: boolean;
 }
 
+const EMPTY_SERIES_SAMPLE_COUNT = 6;
+
 function formatCount(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
@@ -20,10 +22,16 @@ const DestinationEventsCell: React.FC<DestinationEventsCellProps> = ({
     return <span className="histogram-cell__loading"></span>;
   }
 
-  const points = metricsData.map((d) => ({
-    successful: d.metrics.successful_count ?? 0,
-    failed: d.metrics.failed_count ?? 0,
-  }));
+  const points =
+    metricsData.length > 0
+      ? metricsData.map((d) => ({
+          successful: d.metrics.successful_count ?? 0,
+          failed: d.metrics.failed_count ?? 0,
+        }))
+      : Array.from({ length: EMPTY_SERIES_SAMPLE_COUNT }, () => ({
+          successful: 0,
+          failed: 0,
+        }));
 
   const total = points.reduce((sum, p) => sum + p.successful + p.failed, 0);
 
