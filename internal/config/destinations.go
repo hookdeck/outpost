@@ -53,17 +53,17 @@ type DestinationWebhookConfig struct {
 	// ProxyURL may contain authentication credentials (e.g., http://user:pass@proxy:8080)
 	// and should be treated as sensitive.
 	// TODO: Implement sensitive value handling - https://github.com/hookdeck/outpost/issues/480
-	Mode         string `yaml:"mode" env:"DESTINATIONS_WEBHOOK_MODE" desc:"Webhook mode: 'default' for customizable webhooks or 'standard' for Standard Webhooks specification compliance. Defaults to 'default'." required:"N"`
+	Mode         string `yaml:"mode" env:"DESTINATIONS_WEBHOOK_MODE" desc:"Webhook mode: 'default' or 'standard'. 'standard' uses the Standard Webhooks format and ignores the options marked default-only. Defaults to 'default'." required:"N"`
 	ProxyURL     string `yaml:"proxy_url" env:"DESTINATIONS_WEBHOOK_PROXY_URL" desc:"Forward proxy for outgoing webhook requests (HTTP or HTTPS, basic auth supported). Multiple whitespace-separated URLs are tunneled in order." required:"N"`
 	HeaderPrefix string `yaml:"header_prefix" env:"DESTINATIONS_WEBHOOK_HEADER_PREFIX" desc:"Prefix for metadata headers added to webhook requests. Defaults to 'x-outpost-' in 'default' mode and 'webhook-' in 'standard' mode. Set to whitespace (e.g. ' ') to disable the prefix entirely." required:"N"`
 
 	// Header name configs. Each is three-state: unset uses the default
 	// '<prefix>' + key, an explicit value pins that exact header name, and an
-	// empty string disables the header entirely. Only applies to 'default' mode.
+	// empty string disables the header entirely.
 	EventIDHeaderName   OptionalString `yaml:"event_id_header_name" env:"DESTINATIONS_WEBHOOK_EVENT_ID_HEADER_NAME" desc:"Complete name of the event ID header. Unset uses the default '<prefix>event-id'; an explicit value pins that exact name; an empty string disables the header. Only applies to 'default' mode." required:"N"`
 	SignatureHeaderName OptionalString `yaml:"signature_header_name" env:"DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_NAME" desc:"Complete name of the signature header. Unset uses the default '<prefix>signature'; an explicit value pins that exact name; an empty string disables the header. Only applies to 'default' mode." required:"N"`
 	TimestampHeaderName OptionalString `yaml:"timestamp_header_name" env:"DESTINATIONS_WEBHOOK_TIMESTAMP_HEADER_NAME" desc:"Complete name of the timestamp header. Unset uses the default '<prefix>timestamp'; an explicit value pins that exact name; an empty string disables the header. Only applies to 'default' mode." required:"N"`
-	TopicHeaderName     OptionalString `yaml:"topic_header_name" env:"DESTINATIONS_WEBHOOK_TOPIC_HEADER_NAME" desc:"Complete name of the topic header. Unset uses the default '<prefix>topic'; an explicit value pins that exact name; an empty string disables the header. Only applies to 'default' mode." required:"N"`
+	TopicHeaderName     OptionalString `yaml:"topic_header_name" env:"DESTINATIONS_WEBHOOK_TOPIC_HEADER_NAME" desc:"Complete name of the topic header. Unset uses the default '<prefix>topic'; an explicit value pins that exact name; an empty string disables the header." required:"N"`
 
 	// Deprecated: replaced by the *_HEADER_NAME configs above. Setting one of
 	// these to true still disables the corresponding header (an empty
@@ -72,7 +72,9 @@ type DestinationWebhookConfig struct {
 	DisableDefaultEventIDHeader   bool `yaml:"disable_default_event_id_header" env:"DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_EVENT_ID_HEADER" desc:"Deprecated: set DESTINATIONS_WEBHOOK_EVENT_ID_HEADER_NAME to an empty string to disable the event ID header instead. Only applies to 'default' mode." required:"N"`
 	DisableDefaultSignatureHeader bool `yaml:"disable_default_signature_header" env:"DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_SIGNATURE_HEADER" desc:"Deprecated: set DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_NAME to an empty string to disable the signature header instead. Only applies to 'default' mode." required:"N"`
 	DisableDefaultTimestampHeader bool `yaml:"disable_default_timestamp_header" env:"DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_TIMESTAMP_HEADER" desc:"Deprecated: set DESTINATIONS_WEBHOOK_TIMESTAMP_HEADER_NAME to an empty string to disable the timestamp header instead. Only applies to 'default' mode." required:"N"`
-	DisableDefaultTopicHeader     bool `yaml:"disable_default_topic_header" env:"DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_TOPIC_HEADER" desc:"Deprecated: set DESTINATIONS_WEBHOOK_TOPIC_HEADER_NAME to an empty string to disable the topic header instead. Only applies to 'default' mode." required:"N"`
+	DisableDefaultTopicHeader     bool `yaml:"disable_default_topic_header" env:"DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_TOPIC_HEADER" desc:"Deprecated: set DESTINATIONS_WEBHOOK_TOPIC_HEADER_NAME to an empty string to disable the topic header instead." required:"N"`
+
+	TimestampFormat string `yaml:"timestamp_format" env:"DESTINATIONS_WEBHOOK_TIMESTAMP_FORMAT" desc:"Format of the timestamp header: 'rfc3339' or 'unix' (seconds since the epoch). Defaults to 'rfc3339'. Only applies to 'default' mode." required:"N"`
 
 	SignatureContentTemplate string `yaml:"signature_content_template" env:"DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE" desc:"Go template for constructing the content to be signed for webhook requests. Only applies to 'default' mode." required:"N"`
 	SignatureHeaderTemplate  string `yaml:"signature_header_template" env:"DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE" desc:"Go template for the value of the signature header. Only applies to 'default' mode." required:"N"`
@@ -83,7 +85,7 @@ type DestinationWebhookConfig struct {
 	SigningSecretTemplate    string `yaml:"signing_secret_template" env:"DESTINATIONS_WEBHOOK_SIGNING_SECRET_TEMPLATE" desc:"Go template for generating webhook signing secrets. Available variables: {{.RandomHex}} (64-char hex), {{.RandomBase64}} (base64-encoded), {{.RandomAlphanumeric}} (32-char alphanumeric). Defaults to 'whsec_{{.RandomHex}}'. Only applies to 'default' mode." required:"N"`
 	MaxResponseBodyBytes     int    `yaml:"max_response_body_bytes" env:"DESTINATIONS_WEBHOOK_MAX_RESPONSE_BODY_BYTES" desc:"Maximum size in bytes of a destination's response body stored on the delivery attempt. Responses larger than this are replaced with a placeholder so the attempt log stays under the event queue's per-message size limit (oversized log messages fail to publish and retry indefinitely). Default: 131072 (128 KiB). Set to 0 to disable the cap." required:"N"`
 
-	Compat DestinationWebhookCompatConfig `yaml:"compat" desc:"A second signature sent alongside the primary one, so receivers verifying an older scheme keep working while they migrate. Only applies to 'default' mode."`
+	Compat DestinationWebhookCompatConfig `yaml:"compat" desc:"A second signature sent alongside the primary one, so receivers verifying an older scheme keep working while they migrate."`
 }
 
 // DestinationWebhookCompatConfig mirrors the primary signature options. It is
@@ -146,25 +148,23 @@ func (c *DestinationWebhookConfig) toConfig() *destregistrydefault.DestWebhookCo
 	if headerPrefix == "" {
 		// Apply mode-specific default only when truly empty (not whitespace)
 		if c.Mode == "standard" {
-			headerPrefix = "webhook-"
+			headerPrefix = destwebhook.StandardHeaderPrefix
 		} else {
-			headerPrefix = "x-outpost-"
+			headerPrefix = destwebhook.DefaultHeaderPrefix
 		}
 	}
 
-	compat := c.Compat.toProviderConfig()
-
-	return &destregistrydefault.DestWebhookConfig{
-		Compat:                   compat,
+	cfg := &destregistrydefault.DestWebhookConfig{
+		Compat:                   c.Compat.toProviderConfig(),
 		SignatureSecretEncoding:  c.SignatureSecretEncoding,
 		SignatureSecretPrefix:    c.SignatureSecretPrefix,
-		Mode:                     c.Mode,
 		ProxyURL:                 c.ProxyURL,
 		HeaderPrefix:             headerPrefix,
 		EventIDHeader:            resolveWebhookHeaderName(c.EventIDHeaderName, c.DisableDefaultEventIDHeader),
 		SignatureHeader:          resolveWebhookHeaderName(c.SignatureHeaderName, c.DisableDefaultSignatureHeader),
 		TimestampHeader:          resolveWebhookHeaderName(c.TimestampHeaderName, c.DisableDefaultTimestampHeader),
 		TopicHeader:              resolveWebhookHeaderName(c.TopicHeaderName, c.DisableDefaultTopicHeader),
+		TimestampFormat:          c.TimestampFormat,
 		SignatureContentTemplate: c.SignatureContentTemplate,
 		SignatureHeaderTemplate:  c.SignatureHeaderTemplate,
 		SignatureEncoding:        c.SignatureEncoding,
@@ -172,6 +172,64 @@ func (c *DestinationWebhookConfig) toConfig() *destregistrydefault.DestWebhookCo
 		SigningSecretTemplate:    c.SigningSecretTemplate,
 		MaxResponseBodyBytes:     c.MaxResponseBodyBytes,
 	}
+	if c.Mode == "standard" {
+		applyStandardWebhooks(cfg)
+	}
+	return cfg
+}
+
+// applyStandardWebhooks is standard mode. The provider has no notion of
+// modes: config sets the options that define the Standard Webhooks format
+// here, and the configured values for them are ignored (see
+// standardModeWarnings). The prefix, topic header, compat signature, proxy
+// and response cap still apply.
+func applyStandardWebhooks(cfg *destregistrydefault.DestWebhookConfig) {
+	cfg.MetadataName = destwebhook.StandardMetadataName
+	cfg.SignatureContentTemplate = destwebhook.StandardSignatureContentTmpl
+	cfg.SignatureHeaderTemplate = destwebhook.StandardSignatureHeaderTmpl
+	cfg.SignatureEncoding = destwebhook.StandardEncoding
+	cfg.SignatureAlgorithm = destwebhook.DefaultAlgorithm
+	cfg.SigningSecretTemplate = destwebhook.StandardSigningSecretTmpl
+	cfg.SignatureSecretEncoding = destwebhook.StandardSecretEncoding
+	cfg.SignatureSecretPrefix = destwebhook.StandardSecretPrefix
+	cfg.TimestampFormat = destwebhook.StandardTimestampFormat
+	cfg.EventIDHeader = destregistrydefault.WebhookHeaderConfig{Name: strings.TrimSpace(cfg.HeaderPrefix) + destwebhook.StandardEventIDHeaderKey}
+	cfg.SignatureHeader = destregistrydefault.WebhookHeaderConfig{}
+	cfg.TimestampHeader = destregistrydefault.WebhookHeaderConfig{}
+}
+
+// standardModeWarnings names each option set to a non-default value that
+// standard mode ignores.
+func (c *DestinationWebhookConfig) standardModeWarnings() []string {
+	if c.Mode != "standard" {
+		return nil
+	}
+	isSet := func(o OptionalString) bool { _, set := o.Get(); return set }
+	var ignored []string
+	for _, o := range []struct {
+		env   string
+		isSet bool
+	}{
+		{"DESTINATIONS_WEBHOOK_EVENT_ID_HEADER_NAME", isSet(c.EventIDHeaderName)},
+		{"DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_NAME", isSet(c.SignatureHeaderName)},
+		{"DESTINATIONS_WEBHOOK_TIMESTAMP_HEADER_NAME", isSet(c.TimestampHeaderName)},
+		{"DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_EVENT_ID_HEADER", c.DisableDefaultEventIDHeader},
+		{"DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_SIGNATURE_HEADER", c.DisableDefaultSignatureHeader},
+		{"DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_TIMESTAMP_HEADER", c.DisableDefaultTimestampHeader},
+		{"DESTINATIONS_WEBHOOK_TIMESTAMP_FORMAT", c.TimestampFormat != ""},
+		{"DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE", c.SignatureContentTemplate != destwebhook.DefaultSignatureContentTmpl},
+		{"DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE", c.SignatureHeaderTemplate != destwebhook.DefaultSignatureHeaderTmpl},
+		{"DESTINATIONS_WEBHOOK_SIGNATURE_ENCODING", c.SignatureEncoding != destwebhook.DefaultEncoding},
+		{"DESTINATIONS_WEBHOOK_SIGNATURE_ALGORITHM", c.SignatureAlgorithm != destwebhook.DefaultAlgorithm},
+		{"DESTINATIONS_WEBHOOK_SIGNATURE_SECRET_ENCODING", c.SignatureSecretEncoding != ""},
+		{"DESTINATIONS_WEBHOOK_SIGNATURE_SECRET_PREFIX", c.SignatureSecretPrefix != ""},
+		{"DESTINATIONS_WEBHOOK_SIGNING_SECRET_TEMPLATE", c.SigningSecretTemplate != destwebhook.DefaultSigningSecretTmpl},
+	} {
+		if o.isSet {
+			ignored = append(ignored, fmt.Sprintf("%s is ignored in standard webhook mode.", o.env))
+		}
+	}
+	return ignored
 }
 
 // resolveWebhookHeaderName applies the three-state rule for a webhook header

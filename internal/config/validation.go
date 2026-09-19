@@ -179,9 +179,6 @@ func (c *Config) validateDestinations() error {
 	if _, err := destregistry.ParseProxyURL(c.Destinations.Webhook.ProxyURL); err != nil {
 		return fmt.Errorf("%w: %w", ErrInvalidWebhookProxyURL, err)
 	}
-	if c.Destinations.Webhook.Compat.toProviderConfig() != nil && c.Destinations.Webhook.Mode == "standard" {
-		return fmt.Errorf("%w: only supported in 'default' webhook mode", ErrInvalidWebhookCompatSignature)
-	}
 	return nil
 }
 

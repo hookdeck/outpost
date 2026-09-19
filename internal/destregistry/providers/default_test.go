@@ -6,43 +6,52 @@ import (
 	"github.com/hookdeck/outpost/internal/destregistry"
 	destregistrydefault "github.com/hookdeck/outpost/internal/destregistry/providers"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destwebhook"
+	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // Signature template validation lives in destwebhook.New, so registration is
-// where a bad template fails startup — and only in default mode. In 'standard'
-// mode the templates are fixed by the Standard Webhooks spec, the configured
-// ones are never parsed, and registration must succeed regardless of their
-// contents.
+// where a bad template fails startup.
 func TestRegisterDefault_WebhookSignatureTemplates(t *testing.T) {
-	webhookConfig := func(mode string) *destregistrydefault.DestWebhookConfig {
-		return &destregistrydefault.DestWebhookConfig{
-			Mode:                     mode,
+	registry := destregistry.NewRegistry(&destregistry.Config{}, testutil.CreateTestLogger(t))
+	err := destregistrydefault.RegisterDefault(registry, destregistrydefault.RegisterDefaultDestinationOptions{
+		Webhook: &destregistrydefault.DestWebhookConfig{
 			HeaderPrefix:             destwebhook.DefaultHeaderPrefix,
 			SignatureContentTemplate: destwebhook.DefaultSignatureContentTmpl,
 			SignatureHeaderTemplate:  "v0={{.Body}}", // header templates have no .Body — invalid at render
 			SignatureEncoding:        destwebhook.DefaultEncoding,
 			SignatureAlgorithm:       destwebhook.DefaultAlgorithm,
 			SigningSecretTemplate:    destwebhook.DefaultSigningSecretTmpl,
-		}
-	}
-
-	t.Run("default mode rejects an invalid template", func(t *testing.T) {
-		registry := destregistry.NewRegistry(&destregistry.Config{}, testutil.CreateTestLogger(t))
-		err := destregistrydefault.RegisterDefault(registry, destregistrydefault.RegisterDefaultDestinationOptions{
-			Webhook: webhookConfig(""),
-		})
-		assert.ErrorContains(t, err, "can't evaluate field Body")
+		},
 	})
+	assert.ErrorContains(t, err, "can't evaluate field Body")
+}
 
-	t.Run("standard mode ignores the configured templates", func(t *testing.T) {
-		registry := destregistry.NewRegistry(&destregistry.Config{}, testutil.CreateTestLogger(t))
-		err := destregistrydefault.RegisterDefault(registry, destregistrydefault.RegisterDefaultDestinationOptions{
-			Webhook: webhookConfig("standard"),
-		})
-		assert.NoError(t, err)
+// Standard mode swaps the provider's metadata for the entry that carries the
+// Standard Webhooks verification instructions.
+func TestRegisterDefault_WebhookStandardMetadata(t *testing.T) {
+	registry := destregistry.NewRegistry(&destregistry.Config{}, testutil.CreateTestLogger(t))
+	err := destregistrydefault.RegisterDefault(registry, destregistrydefault.RegisterDefaultDestinationOptions{
+		Webhook: &destregistrydefault.DestWebhookConfig{
+			MetadataName:             destwebhook.StandardMetadataName,
+			HeaderPrefix:             destwebhook.StandardHeaderPrefix,
+			SignatureContentTemplate: destwebhook.StandardSignatureContentTmpl,
+			SignatureHeaderTemplate:  destwebhook.StandardSignatureHeaderTmpl,
+			SignatureEncoding:        destwebhook.StandardEncoding,
+			SignatureAlgorithm:       destwebhook.DefaultAlgorithm,
+			SigningSecretTemplate:    destwebhook.StandardSigningSecretTmpl,
+			SignatureSecretEncoding:  destwebhook.StandardSecretEncoding,
+			SignatureSecretPrefix:    destwebhook.StandardSecretPrefix,
+		},
 	})
+	require.NoError(t, err)
+
+	provider, err := registry.ResolveProvider(&models.Destination{Type: "webhook"})
+	require.NoError(t, err)
+	instructions := provider.Metadata().Instructions
+	assert.Contains(t, instructions, "webhook-signature")
 }
 
 func TestRegisterDefault_WebhookCompatSignature(t *testing.T) {

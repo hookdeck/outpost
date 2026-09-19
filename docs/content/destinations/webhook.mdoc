@@ -298,7 +298,7 @@ Set `DESTINATIONS_WEBHOOK_PROXY_URL` to your proxy URL (basic auth supported). S
 
 {% tabs tabGroup="deployment" %}
 {% tab label="Managed" %}
-Configure webhook operator behavior using these keys in the Config API or in [Hookdeck Destinations settings](https://dashboard.hookdeck.com/settings/project/destinations): `DESTINATIONS_WEBHOOK_HEADER_PREFIX`, `DESTINATIONS_WEBHOOK_EVENT_ID_HEADER_NAME`, `DESTINATIONS_WEBHOOK_TIMESTAMP_HEADER_NAME`, `DESTINATIONS_WEBHOOK_TOPIC_HEADER_NAME`, `DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_NAME`, `DESTINATIONS_WEBHOOK_MODE`, `DESTINATIONS_WEBHOOK_SIGNATURE_ALGORITHM`, `DESTINATIONS_WEBHOOK_SIGNATURE_ENCODING`, `DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE`, `DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE`, and `DESTINATIONS_WEBHOOK_MAX_RESPONSE_BODY_BYTES`.
+Configure webhook operator behavior using these keys in the Config API or in [Hookdeck Destinations settings](https://dashboard.hookdeck.com/settings/project/destinations): `DESTINATIONS_WEBHOOK_HEADER_PREFIX`, `DESTINATIONS_WEBHOOK_EVENT_ID_HEADER_NAME`, `DESTINATIONS_WEBHOOK_TIMESTAMP_HEADER_NAME`, `DESTINATIONS_WEBHOOK_TOPIC_HEADER_NAME`, `DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_NAME`, `DESTINATIONS_WEBHOOK_TIMESTAMP_FORMAT`, `DESTINATIONS_WEBHOOK_MODE`, `DESTINATIONS_WEBHOOK_SIGNATURE_ALGORITHM`, `DESTINATIONS_WEBHOOK_SIGNATURE_ENCODING`, `DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE`, `DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE`, and `DESTINATIONS_WEBHOOK_MAX_RESPONSE_BODY_BYTES`.
 {% /tab %}
 {% tab label="Self-Hosted" %}
 ### Header Settings
@@ -306,10 +306,11 @@ Configure webhook operator behavior using these keys in the Config API or in [Ho
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `DESTINATIONS_WEBHOOK_HEADER_PREFIX` | `x-outpost-` / `webhook-` | Prefix for system webhook headers (event id, topic, timestamp, signature). Unless overridden, defaults to **`x-outpost-`** when `DESTINATIONS_WEBHOOK_MODE` is `default` and **`webhook-`** when `standard`. |
-| `DESTINATIONS_WEBHOOK_EVENT_ID_HEADER_NAME` | — | Complete name of the event ID header. Unset uses the default `<prefix>event-id`; an explicit value pins that exact name; an empty string disables the header. |
-| `DESTINATIONS_WEBHOOK_TIMESTAMP_HEADER_NAME` | — | Complete name of the timestamp header. Unset uses the default `<prefix>timestamp`; an explicit value pins that exact name; an empty string disables the header. |
+| `DESTINATIONS_WEBHOOK_EVENT_ID_HEADER_NAME` | — | Complete name of the event ID header. Unset uses the default `<prefix>event-id`; an explicit value pins that exact name; an empty string disables the header. Only applies to `default` mode. |
+| `DESTINATIONS_WEBHOOK_TIMESTAMP_HEADER_NAME` | — | Complete name of the timestamp header. Unset uses the default `<prefix>timestamp`; an explicit value pins that exact name; an empty string disables the header. Only applies to `default` mode. |
 | `DESTINATIONS_WEBHOOK_TOPIC_HEADER_NAME` | — | Complete name of the topic header. Unset uses the default `<prefix>topic`; an explicit value pins that exact name; an empty string disables the header. |
-| `DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_NAME` | — | Complete name of the signature header. Unset uses the default `<prefix>signature`; an explicit value pins that exact name; an empty string disables the header. |
+| `DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_NAME` | — | Complete name of the signature header. Unset uses the default `<prefix>signature`; an explicit value pins that exact name; an empty string disables the header. Only applies to `default` mode. |
+| `DESTINATIONS_WEBHOOK_TIMESTAMP_FORMAT` | `rfc3339` / `unix` | Format of the timestamp header: `rfc3339` or `unix` (seconds since the epoch). Only applies to `default` mode. |
 
 {% callout type="warning" %}
 The `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_*_HEADER` flags are deprecated and will be removed in a future version. Disable a header by setting its corresponding `*_HEADER_NAME` variable to an empty string instead.
@@ -324,12 +325,12 @@ Header names are matched case-insensitively. Outpost rejects a configuration whe
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `DESTINATIONS_WEBHOOK_MODE` | `default` | Set to `standard` for Standard Webhooks compliance |
-| `DESTINATIONS_WEBHOOK_SIGNATURE_ALGORITHM` | `hmac-sha256` | Signature algorithm |
-| `DESTINATIONS_WEBHOOK_SIGNATURE_ENCODING` | `hex` | Encoding: `hex` or `base64` |
-| `DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE` | `{{.Body}}` | Template for signed content in default mode |
-| `DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE` | `v0={{.Signatures \| join ","}}` | Template for signature header value in default mode |
+| `DESTINATIONS_WEBHOOK_SIGNATURE_ALGORITHM` | `hmac-sha256` | Signature algorithm. Only applies to `default` mode. |
+| `DESTINATIONS_WEBHOOK_SIGNATURE_ENCODING` | `hex` | Encoding: `hex` or `base64`. Only applies to `default` mode. |
+| `DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE` | `{{.Body}}` | Template for signed content. Only applies to `default` mode. |
+| `DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE` | `v0={{.Signatures \| join ","}}` | Template for signature header value. Only applies to `default` mode. |
 | `DESTINATIONS_WEBHOOK_SIGNATURE_SECRET_ENCODING` | `raw` | How the HMAC key is derived from the destination secret: `raw` uses the secret string as-is, `base64` and `hex` decode it. Only applies to `default` mode. |
-| `DESTINATIONS_WEBHOOK_SIGNATURE_SECRET_PREFIX` | — | Prefix stripped from the destination secret before decoding, e.g. `whsec_`. Ignored when the secret encoding is `raw`. |
+| `DESTINATIONS_WEBHOOK_SIGNATURE_SECRET_PREFIX` | — | Prefix stripped from the destination secret before decoding, e.g. `whsec_`. Ignored when the secret encoding is `raw`. Only applies to `default` mode. |
 
 ### Compat Signature
 

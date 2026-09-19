@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 	"text/template"
 	"time"
@@ -29,6 +30,12 @@ const (
 	DefaultSignatureContentTmpl = "{{.Body}}"
 	DefaultSignatureHeaderTmpl  = "v0={{.Signatures | join \",\"}}"
 	DefaultSigningSecretTmpl    = "whsec_{{.RandomHex}}"
+)
+
+// Timestamp header formats.
+const (
+	TimestampFormatRFC3339 = "rfc3339"
+	TimestampFormatUnix    = "unix" // seconds since the epoch, as Standard Webhooks requires
 )
 
 // Reserved headers that cannot be set via custom_headers
@@ -94,6 +101,7 @@ type headerConfig struct {
 
 type WebhookDestination struct {
 	*destregistry.BaseProvider
+	metadataName             string
 	headerPrefix             string
 	userAgent                string
 	proxy                    []*url.URL
@@ -103,6 +111,7 @@ type WebhookDestination struct {
 	signatureHeader          headerConfig
 	timestampHeader          headerConfig
 	topicHeader              headerConfig
+	timestampFormat          string
 	encoding                 string
 	algorithm                string
 	secretEncoding           string
@@ -174,6 +183,14 @@ func WithUserAgent(userAgent string) Option {
 	}
 }
 
+// WithMetadataName selects the metadata/providers entry (schema and
+// instructions) the provider is described by. Defaults to "webhook".
+func WithMetadataName(name string) Option {
+	return func(w *WebhookDestination) {
+		w.metadataName = name
+	}
+}
+
 // WithProxy routes every request through the given forward proxies,
 // nearest hop first. See destregistry.ParseProxyURL.
 func WithProxy(hops []*url.URL) Option {
@@ -242,6 +259,14 @@ func WithTopicHeader(name string, disabled bool) Option {
 	}
 }
 
+// WithTimestampFormat sets how the timestamp header renders the delivery time:
+// TimestampFormatRFC3339 (the default) or TimestampFormatUnix.
+func WithTimestampFormat(format string) Option {
+	return func(w *WebhookDestination) {
+		w.timestampFormat = format
+	}
+}
+
 func WithSignatureContentTemplate(template string) Option {
 	return func(w *WebhookDestination) {
 		w.signatureContentTemplate = template
@@ -280,22 +305,26 @@ type signingSecretTemplateData struct {
 }
 
 func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePublisherOption, opts ...Option) (*WebhookDestination, error) {
-	base, err := destregistry.NewBaseProvider(loader, "webhook", basePublisherOpts...)
-	if err != nil {
-		return nil, err
-	}
-	destination := &WebhookDestination{
-		BaseProvider: base,
-	}
+	destination := &WebhookDestination{metadataName: "webhook"}
 	for _, opt := range opts {
 		opt(destination)
 	}
+	base, err := destregistry.NewBaseProvider(loader, destination.metadataName, basePublisherOpts...)
+	if err != nil {
+		return nil, err
+	}
+	destination.BaseProvider = base
 
 	// Validate all required configuration is provided
 	// Config is responsible for setting defaults - provider requires explicit values
 	// Note: headerPrefix may be empty (after trimming) to disable prefix entirely
 	if destination.rawSigningSecretTemplate == "" {
 		return nil, fmt.Errorf("signing secret template is required")
+	}
+	switch destination.timestampFormat {
+	case "", TimestampFormatRFC3339, TimestampFormatUnix:
+	default:
+		return nil, fmt.Errorf("invalid timestamp format %q: must be one of %s, %s", destination.timestampFormat, TimestampFormatRFC3339, TimestampFormatUnix)
 	}
 	destination.scheme, err = newSignatureScheme(signatureSchemeConfig{
 		ContentTemplate: destination.signatureContentTemplate,
@@ -515,6 +544,7 @@ func (d *WebhookDestination) CreatePublisher(ctx context.Context, destination *m
 		signatureHeader:      d.signatureHeader,
 		timestampHeader:      d.timestampHeader,
 		topicHeader:          d.topicHeader,
+		timestampFormat:      d.timestampFormat,
 		secrets:              secrets,
 		sm:                   sm,
 		primary:              d.primary,
@@ -799,6 +829,7 @@ type WebhookPublisher struct {
 	signatureHeader      headerConfig
 	timestampHeader      headerConfig
 	topicHeader          headerConfig
+	timestampFormat      string
 	secrets              []WebhookSecret
 	sm                   *SignatureManager
 	primary              headerSet
@@ -870,6 +901,11 @@ func (p *WebhookPublisher) Format(ctx context.Context, event *models.Event) (*ht
 		name, ok := p.resolveMetadataHeaderName(key)
 		if !ok {
 			continue
+		}
+		// Delivery and event metadata may override the system timestamp; only
+		// the system value is reformatted.
+		if key == "timestamp" && p.timestampFormat == TimestampFormatUnix && value == now.UTC().Format(time.RFC3339) {
+			value = strconv.FormatInt(now.Unix(), 10)
 		}
 		req.Header.Set(name, value)
 	}
