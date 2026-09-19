@@ -18,6 +18,8 @@ import type { Destination } from "../../typings/Destination";
 import getLogo from "../../utils/logo";
 import DestinationEventsCell from "./DestinationEventsCell";
 
+const DEFAULT_METRICS_SAMPLE_COUNT = 7;
+
 const DestinationList: React.FC = () => {
   const { data: destinations } = useSWR<Destination[]>("destinations");
   const destination_types = useDestinationTypes();
@@ -35,6 +37,9 @@ const DestinationList: React.FC = () => {
       filters: {},
     },
   );
+  const metricsSampleCount =
+    Object.values(batchedMetrics ?? {}).find((points) => points.length > 0)
+      ?.length ?? DEFAULT_METRICS_SAMPLE_COUNT;
 
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedStatus, setSelectedStatus] = useState<Record<string, boolean>>(
@@ -146,6 +151,7 @@ const DestinationList: React.FC = () => {
                 : undefined
             }
             isLoading={metricsLoading}
+            sampleCount={metricsSampleCount}
           />,
         ].filter((entry) => entry !== null),
         link: `/destinations/${destination.id}`,
