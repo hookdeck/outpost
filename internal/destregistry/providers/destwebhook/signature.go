@@ -17,6 +17,30 @@ import (
 	"github.com/Masterminds/sprig/v3"
 )
 
+// templateFuncNames are the sprig functions available in webhook templates, in
+// addition to Go's built-in template functions. Keep in sync with the list in
+// docs/content/destinations/webhook.mdoc.
+var templateFuncNames = []string{
+	"join",
+	"upper",
+	"lower",
+	"trim",
+	"trimPrefix",
+	"trimSuffix",
+	"replace",
+	"b64enc",
+	"default",
+}
+
+var templateFuncs = func() template.FuncMap {
+	all := sprig.TxtFuncMap()
+	funcs := make(template.FuncMap, len(templateFuncNames))
+	for _, name := range templateFuncNames {
+		funcs[name] = all[name]
+	}
+	return funcs
+}()
+
 type SignaturePayload struct {
 	EventID   string
 	Topic     string
@@ -70,7 +94,7 @@ func NewSignatureFormatter(templateStr string) (*SignatureFormatterImpl, error) 
 		return nil, fmt.Errorf("signature content template is required")
 	}
 
-	tmpl := template.New("signature").Funcs(sprig.TxtFuncMap())
+	tmpl := template.New("signature").Funcs(templateFuncs)
 
 	parsed, err := tmpl.Parse(templateStr)
 	if err != nil {
@@ -101,7 +125,7 @@ func NewHeaderFormatter(templateStr string) (*HeaderFormatterImpl, error) {
 		return nil, fmt.Errorf("signature header template is required")
 	}
 
-	tmpl := template.New("header").Funcs(sprig.TxtFuncMap())
+	tmpl := template.New("header").Funcs(templateFuncs)
 
 	parsed, err := tmpl.Parse(templateStr)
 	if err != nil {

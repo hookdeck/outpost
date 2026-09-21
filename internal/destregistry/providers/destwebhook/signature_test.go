@@ -8,6 +8,7 @@ import (
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destwebhook"
 	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // defaultSignatureManagerOpts provides the standard formatters for tests that
@@ -545,4 +546,41 @@ func TestSignatureManager(t *testing.T) {
 			), "signature should be valid with recent key")
 		})
 	})
+}
+
+func TestTemplates_RejectFunctionsOutsideTheAllowedSet(t *testing.T) {
+	t.Parallel()
+
+	for _, expr := range []string{`{{env "HOME"}}`, `{{expandenv "$HOME"}}`, `{{getHostByName "localhost"}}`, `{{randAlphaNum 8}}`} {
+		t.Run(expr, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := destwebhook.NewSignatureFormatter(expr)
+			assert.Error(t, err, "signature content template")
+
+			_, err = destwebhook.NewHeaderFormatter(expr)
+			assert.Error(t, err, "signature header template")
+
+			_, err = newTestProvider(destwebhook.WithSigningSecretTemplate(expr))
+			assert.Error(t, err, "signing secret template")
+
+			compat := standardWebhooksCompat()
+			compat.Headers = map[string]string{"x-legacy": expr}
+			_, err = newTestProvider(destwebhook.WithCompatSignature(compat))
+			assert.Error(t, err, "compat header template")
+		})
+	}
+}
+
+func TestTemplates_AllowedFunctions(t *testing.T) {
+	t.Parallel()
+
+	f, err := destwebhook.NewSignatureFormatter(
+		`{{upper .Topic}}|{{lower .Topic}}|{{trim " x "}}|{{trimPrefix "a" "ab"}}|{{trimSuffix "b" "ab"}}|{{replace "." "_" .Topic}}|{{b64enc .EventID}}|{{default "d" ""}}`,
+	)
+	require.NoError(t, err)
+
+	got, err := f.Format(destwebhook.SignaturePayload{EventID: "evt", Topic: "user.Created"})
+	require.NoError(t, err)
+	assert.Equal(t, "USER.CREATED|user.created|x|b|a|user_Created|ZXZ0|d", got)
 }

@@ -8,8 +8,6 @@ import (
 	"strings"
 	"text/template"
 	"time"
-
-	"github.com/Masterminds/sprig/v3"
 )
 
 // signatureScheme is how a signature is computed: templates, encoding,
@@ -145,7 +143,7 @@ func parseHeaderTemplates(headers map[string]string, label string) ([]headerTemp
 		if err := validateHeaderName(name, label); err != nil {
 			return nil, err
 		}
-		tmpl, err := template.New(name).Funcs(sprig.TxtFuncMap()).Parse(headers[name])
+		tmpl, err := template.New(name).Funcs(templateFuncs).Parse(headers[name])
 		if err != nil {
 			return nil, fmt.Errorf("invalid %s header template for %q: %w", label, name, err)
 		}
