@@ -17,7 +17,6 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/Masterminds/sprig/v3"
 	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/hookdeck/outpost/internal/destregistry/metadata"
 	"github.com/hookdeck/outpost/internal/models"
@@ -391,7 +390,7 @@ func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePu
 	}
 
 	// Parse signing secret template — fail on invalid syntax
-	tmpl, err := template.New("signing_secret").Funcs(sprig.TxtFuncMap()).Parse(destination.rawSigningSecretTemplate)
+	tmpl, err := template.New("signing_secret").Funcs(templateFuncs).Parse(destination.rawSigningSecretTemplate)
 	if err != nil {
 		return nil, fmt.Errorf("invalid signing secret template %q: %w", destination.rawSigningSecretTemplate, err)
 	}
