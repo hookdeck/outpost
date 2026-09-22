@@ -15,6 +15,22 @@ type ManagedConfig struct {
 	DeliveryTimeoutSeconds                  *string `json:"DELIVERY_TIMEOUT_SECONDS,omitempty"`
 	DestinationsAwsKinesisMetadataInPayload *string `json:"DESTINATIONS_AWS_KINESIS_METADATA_IN_PAYLOAD,omitempty"`
 	DestinationsIncludeMillisecondTimestamp *string `json:"DESTINATIONS_INCLUDE_MILLISECOND_TIMESTAMP,omitempty"`
+	// Additional headers sent with the compat signature, as comma-separated "name=template" pairs. Available variables: {{.EventID}}, {{.Topic}}, {{.Timestamp}}. Use "\," for a literal comma in a template.
+	DestinationsWebhookCompatHeaders *string `json:"DESTINATIONS_WEBHOOK_COMPAT_HEADERS,omitempty"`
+	// Algorithm for the compat signature. Defaults to "hmac-sha256".
+	DestinationsWebhookCompatSignatureAlgorithm *string `json:"DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_ALGORITHM,omitempty"`
+	// Go template for the content signed by the compat signature. Same variables as DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE. Defaults to "{{.Body}}".
+	DestinationsWebhookCompatSignatureContentTemplate *string `json:"DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_CONTENT_TEMPLATE,omitempty"`
+	// Encoding for the compat signature ("hex" or "base64"). Defaults to "hex".
+	DestinationsWebhookCompatSignatureEncoding *string `json:"DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_ENCODING,omitempty"`
+	// Complete name of the compat signature header. Setting it sends a second signature, in a previous scheme, alongside the primary one.
+	DestinationsWebhookCompatSignatureHeaderName *string `json:"DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_HEADER_NAME,omitempty"`
+	// Go template for the value of the compat signature header. Same variables as DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE. Defaults to "v0={{.Signatures | join ","}}".
+	DestinationsWebhookCompatSignatureHeaderTemplate *string `json:"DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_HEADER_TEMPLATE,omitempty"`
+	// How the compat signature derives its HMAC key from the destination secret: "raw", "base64" or "hex". Defaults to "raw". A destination whose secret can't be decoded doesn't receive the compat signature.
+	DestinationsWebhookCompatSignatureSecretEncoding *string `json:"DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_SECRET_ENCODING,omitempty"`
+	// Prefix stripped from the destination secret before decoding for the compat signature (e.g., "whsec_").
+	DestinationsWebhookCompatSignatureSecretPrefix *string `json:"DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_SECRET_PREFIX,omitempty"`
 	// Complete name of the event ID header. Unset uses the default "<prefix>event-id"; an explicit value pins that exact name; an empty string disables the header. Only applies to "default" mode.
 	DestinationsWebhookEventIDHeaderName        *string `json:"DESTINATIONS_WEBHOOK_EVENT_ID_HEADER_NAME,omitempty"`
 	DestinationsWebhookHeaderPrefix             *string `json:"DESTINATIONS_WEBHOOK_HEADER_PREFIX,omitempty"`
@@ -26,7 +42,13 @@ type ManagedConfig struct {
 	// Complete name of the signature header. Unset uses the default "<prefix>signature"; an explicit value pins that exact name; an empty string disables the header. Only applies to "default" mode.
 	DestinationsWebhookSignatureHeaderName     *string `json:"DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_NAME,omitempty"`
 	DestinationsWebhookSignatureHeaderTemplate *string `json:"DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE,omitempty"`
-	DestinationsWebhookSigningSecretTemplate   *string `json:"DESTINATIONS_WEBHOOK_SIGNING_SECRET_TEMPLATE,omitempty"`
+	// How the signature derives its HMAC key from the destination secret: "raw" uses the secret as-is, "base64" and "hex" decode it. Defaults to "raw". DESTINATIONS_WEBHOOK_SIGNING_SECRET_TEMPLATE must generate secrets this encoding can decode. Only applies to "default" mode.
+	DestinationsWebhookSignatureSecretEncoding *string `json:"DESTINATIONS_WEBHOOK_SIGNATURE_SECRET_ENCODING,omitempty"`
+	// Prefix stripped from the destination secret before decoding (e.g., "whsec_"). Ignored when DESTINATIONS_WEBHOOK_SIGNATURE_SECRET_ENCODING is "raw". Only applies to "default" mode.
+	DestinationsWebhookSignatureSecretPrefix *string `json:"DESTINATIONS_WEBHOOK_SIGNATURE_SECRET_PREFIX,omitempty"`
+	DestinationsWebhookSigningSecretTemplate *string `json:"DESTINATIONS_WEBHOOK_SIGNING_SECRET_TEMPLATE,omitempty"`
+	// Format of the timestamp header: "rfc3339" or "unix". Defaults to "rfc3339". Only applies to "default" mode.
+	DestinationsWebhookTimestampFormat *string `json:"DESTINATIONS_WEBHOOK_TIMESTAMP_FORMAT,omitempty"`
 	// Complete name of the timestamp header. Unset uses the default "<prefix>timestamp"; an explicit value pins that exact name; an empty string disables the header. Only applies to "default" mode.
 	DestinationsWebhookTimestampHeaderName *string `json:"DESTINATIONS_WEBHOOK_TIMESTAMP_HEADER_NAME,omitempty"`
 	// Complete name of the topic header. Unset uses the default "<prefix>topic"; an explicit value pins that exact name; an empty string disables the header. Only applies to "default" mode.
@@ -119,6 +141,62 @@ func (m *ManagedConfig) GetDestinationsIncludeMillisecondTimestamp() *string {
 	return m.DestinationsIncludeMillisecondTimestamp
 }
 
+func (m *ManagedConfig) GetDestinationsWebhookCompatHeaders() *string {
+	if m == nil {
+		return nil
+	}
+	return m.DestinationsWebhookCompatHeaders
+}
+
+func (m *ManagedConfig) GetDestinationsWebhookCompatSignatureAlgorithm() *string {
+	if m == nil {
+		return nil
+	}
+	return m.DestinationsWebhookCompatSignatureAlgorithm
+}
+
+func (m *ManagedConfig) GetDestinationsWebhookCompatSignatureContentTemplate() *string {
+	if m == nil {
+		return nil
+	}
+	return m.DestinationsWebhookCompatSignatureContentTemplate
+}
+
+func (m *ManagedConfig) GetDestinationsWebhookCompatSignatureEncoding() *string {
+	if m == nil {
+		return nil
+	}
+	return m.DestinationsWebhookCompatSignatureEncoding
+}
+
+func (m *ManagedConfig) GetDestinationsWebhookCompatSignatureHeaderName() *string {
+	if m == nil {
+		return nil
+	}
+	return m.DestinationsWebhookCompatSignatureHeaderName
+}
+
+func (m *ManagedConfig) GetDestinationsWebhookCompatSignatureHeaderTemplate() *string {
+	if m == nil {
+		return nil
+	}
+	return m.DestinationsWebhookCompatSignatureHeaderTemplate
+}
+
+func (m *ManagedConfig) GetDestinationsWebhookCompatSignatureSecretEncoding() *string {
+	if m == nil {
+		return nil
+	}
+	return m.DestinationsWebhookCompatSignatureSecretEncoding
+}
+
+func (m *ManagedConfig) GetDestinationsWebhookCompatSignatureSecretPrefix() *string {
+	if m == nil {
+		return nil
+	}
+	return m.DestinationsWebhookCompatSignatureSecretPrefix
+}
+
 func (m *ManagedConfig) GetDestinationsWebhookEventIDHeaderName() *string {
 	if m == nil {
 		return nil
@@ -182,11 +260,32 @@ func (m *ManagedConfig) GetDestinationsWebhookSignatureHeaderTemplate() *string 
 	return m.DestinationsWebhookSignatureHeaderTemplate
 }
 
+func (m *ManagedConfig) GetDestinationsWebhookSignatureSecretEncoding() *string {
+	if m == nil {
+		return nil
+	}
+	return m.DestinationsWebhookSignatureSecretEncoding
+}
+
+func (m *ManagedConfig) GetDestinationsWebhookSignatureSecretPrefix() *string {
+	if m == nil {
+		return nil
+	}
+	return m.DestinationsWebhookSignatureSecretPrefix
+}
+
 func (m *ManagedConfig) GetDestinationsWebhookSigningSecretTemplate() *string {
 	if m == nil {
 		return nil
 	}
 	return m.DestinationsWebhookSigningSecretTemplate
+}
+
+func (m *ManagedConfig) GetDestinationsWebhookTimestampFormat() *string {
+	if m == nil {
+		return nil
+	}
+	return m.DestinationsWebhookTimestampFormat
 }
 
 func (m *ManagedConfig) GetDestinationsWebhookTimestampHeaderName() *string {

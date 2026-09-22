@@ -65,7 +65,14 @@ func CreateTopicsArrayOfStr(arrayOfStr []string) Topics {
 	}
 }
 
-func (u *Topics) UnmarshalJSON(data []byte) error {
+func (u *Topics) UnmarshalJSON(data []byte) (err error) {
+	previous := *u
+	*u = Topics{}
+	defer func() {
+		if err != nil {
+			*u = previous
+		}
+	}()
 
 	var topicsEnum TopicsEnum = TopicsEnum("")
 	if err := utils.UnmarshalJSON(data, &topicsEnum, "", true, nil); err == nil {

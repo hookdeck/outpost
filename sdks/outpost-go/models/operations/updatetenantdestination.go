@@ -96,7 +96,14 @@ func CreateUpdateTenantDestinationResponseBodyDestination(destination components
 	}
 }
 
-func (u *UpdateTenantDestinationResponseBody) UnmarshalJSON(data []byte) error {
+func (u *UpdateTenantDestinationResponseBody) UnmarshalJSON(data []byte) (err error) {
+	previous := *u
+	*u = UpdateTenantDestinationResponseBody{}
+	defer func() {
+		if err != nil {
+			*u = previous
+		}
+	}()
 
 	var destination components.Destination = components.Destination{}
 	if err := utils.UnmarshalJSON(data, &destination, "", true, nil); err == nil {

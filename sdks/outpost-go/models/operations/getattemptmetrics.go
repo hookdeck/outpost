@@ -183,7 +183,14 @@ func CreateGetAttemptMetricsMeasuresUnionArrayOfGetAttemptMetricsMeasuresEnum2(a
 	}
 }
 
-func (u *GetAttemptMetricsMeasuresUnion) UnmarshalJSON(data []byte) error {
+func (u *GetAttemptMetricsMeasuresUnion) UnmarshalJSON(data []byte) (err error) {
+	previous := *u
+	*u = GetAttemptMetricsMeasuresUnion{}
+	defer func() {
+		if err != nil {
+			*u = previous
+		}
+	}()
 
 	var getAttemptMetricsMeasuresEnum1 GetAttemptMetricsMeasuresEnum1 = GetAttemptMetricsMeasuresEnum1("")
 	if err := utils.UnmarshalJSON(data, &getAttemptMetricsMeasuresEnum1, "", true, nil); err == nil {
@@ -335,7 +342,14 @@ func CreateGetAttemptMetricsDimensionsUnionArrayOfGetAttemptMetricsDimensionsEnu
 	}
 }
 
-func (u *GetAttemptMetricsDimensionsUnion) UnmarshalJSON(data []byte) error {
+func (u *GetAttemptMetricsDimensionsUnion) UnmarshalJSON(data []byte) (err error) {
+	previous := *u
+	*u = GetAttemptMetricsDimensionsUnion{}
+	defer func() {
+		if err != nil {
+			*u = previous
+		}
+	}()
 
 	var getAttemptMetricsDimensionsEnum1 GetAttemptMetricsDimensionsEnum1 = GetAttemptMetricsDimensionsEnum1("")
 	if err := utils.UnmarshalJSON(data, &getAttemptMetricsDimensionsEnum1, "", true, nil); err == nil {
@@ -399,7 +413,14 @@ func CreateGetAttemptMetricsFiltersDestinationIDArrayOfStr(arrayOfStr []string) 
 	}
 }
 
-func (u *GetAttemptMetricsFiltersDestinationID) UnmarshalJSON(data []byte) error {
+func (u *GetAttemptMetricsFiltersDestinationID) UnmarshalJSON(data []byte) (err error) {
+	previous := *u
+	*u = GetAttemptMetricsFiltersDestinationID{}
+	defer func() {
+		if err != nil {
+			*u = previous
+		}
+	}()
 
 	var str string = ""
 	if err := utils.UnmarshalJSON(data, &str, "", true, nil); err == nil {
@@ -463,7 +484,14 @@ func CreateFiltersDestinationTypeArrayOfDestinationType(arrayOfDestinationType [
 	}
 }
 
-func (u *FiltersDestinationType) UnmarshalJSON(data []byte) error {
+func (u *FiltersDestinationType) UnmarshalJSON(data []byte) (err error) {
+	previous := *u
+	*u = FiltersDestinationType{}
+	defer func() {
+		if err != nil {
+			*u = previous
+		}
+	}()
 
 	var destinationType components.DestinationType = components.DestinationType("")
 	if err := utils.UnmarshalJSON(data, &destinationType, "", true, nil); err == nil {
@@ -527,7 +555,14 @@ func CreateGetAttemptMetricsFiltersTopicArrayOfStr(arrayOfStr []string) GetAttem
 	}
 }
 
-func (u *GetAttemptMetricsFiltersTopic) UnmarshalJSON(data []byte) error {
+func (u *GetAttemptMetricsFiltersTopic) UnmarshalJSON(data []byte) (err error) {
+	previous := *u
+	*u = GetAttemptMetricsFiltersTopic{}
+	defer func() {
+		if err != nil {
+			*u = previous
+		}
+	}()
 
 	var str string = ""
 	if err := utils.UnmarshalJSON(data, &str, "", true, nil); err == nil {
@@ -643,7 +678,14 @@ func CreateFiltersStatusArrayOfFiltersStatusEnum2(arrayOfFiltersStatusEnum2 []Fi
 	}
 }
 
-func (u *FiltersStatus) UnmarshalJSON(data []byte) error {
+func (u *FiltersStatus) UnmarshalJSON(data []byte) (err error) {
+	previous := *u
+	*u = FiltersStatus{}
+	defer func() {
+		if err != nil {
+			*u = previous
+		}
+	}()
 
 	var filtersStatusEnum1 FiltersStatusEnum1 = FiltersStatusEnum1("")
 	if err := utils.UnmarshalJSON(data, &filtersStatusEnum1, "", true, nil); err == nil {
@@ -707,7 +749,14 @@ func CreateFiltersCodeArrayOfStr(arrayOfStr []string) FiltersCode {
 	}
 }
 
-func (u *FiltersCode) UnmarshalJSON(data []byte) error {
+func (u *FiltersCode) UnmarshalJSON(data []byte) (err error) {
+	previous := *u
+	*u = FiltersCode{}
+	defer func() {
+		if err != nil {
+			*u = previous
+		}
+	}()
 
 	var str string = ""
 	if err := utils.UnmarshalJSON(data, &str, "", true, nil); err == nil {
@@ -798,7 +847,14 @@ func CreateFiltersAttemptNumberArrayOfStr(arrayOfStr []string) FiltersAttemptNum
 	}
 }
 
-func (u *FiltersAttemptNumber) UnmarshalJSON(data []byte) error {
+func (u *FiltersAttemptNumber) UnmarshalJSON(data []byte) (err error) {
+	previous := *u
+	*u = FiltersAttemptNumber{}
+	defer func() {
+		if err != nil {
+			*u = previous
+		}
+	}()
 
 	var str string = ""
 	if err := utils.UnmarshalJSON(data, &str, "", true, nil); err == nil {
@@ -862,7 +918,14 @@ func CreateGetAttemptMetricsFiltersTenantIDArrayOfStr(arrayOfStr []string) GetAt
 	}
 }
 
-func (u *GetAttemptMetricsFiltersTenantID) UnmarshalJSON(data []byte) error {
+func (u *GetAttemptMetricsFiltersTenantID) UnmarshalJSON(data []byte) (err error) {
+	previous := *u
+	*u = GetAttemptMetricsFiltersTenantID{}
+	defer func() {
+		if err != nil {
+			*u = previous
+		}
+	}()
 
 	var str string = ""
 	if err := utils.UnmarshalJSON(data, &str, "", true, nil); err == nil {

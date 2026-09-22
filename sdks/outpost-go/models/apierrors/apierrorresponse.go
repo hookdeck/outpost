@@ -44,7 +44,14 @@ func CreateDataMapOfAny(mapOfAny map[string]any) Data {
 	}
 }
 
-func (u *Data) UnmarshalJSON(data []byte) error {
+func (u *Data) UnmarshalJSON(data []byte) (err error) {
+	previous := *u
+	*u = Data{}
+	defer func() {
+		if err != nil {
+			*u = previous
+		}
+	}()
 
 	var arrayOfStr []string = []string{}
 	if err := utils.UnmarshalJSON(data, &arrayOfStr, "", true, nil); err == nil {

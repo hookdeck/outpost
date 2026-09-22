@@ -63,7 +63,7 @@ func WithRetries(config retry.Config) Option {
 // WithOperationTimeout allows setting the request timeout applied for an operation.
 func WithOperationTimeout(timeout time.Duration) Option {
 	return func(opts *Options, supportedOptions ...string) error {
-		if !utils.Contains(supportedOptions, SupportedOptionRetries) {
+		if !utils.Contains(supportedOptions, SupportedOptionTimeout) {
 			return ErrUnsupportedOption
 		}
 

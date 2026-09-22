@@ -43,7 +43,14 @@ func CreateDestinationIDArrayOfStr(arrayOfStr []string) DestinationID {
 	}
 }
 
-func (u *DestinationID) UnmarshalJSON(data []byte) error {
+func (u *DestinationID) UnmarshalJSON(data []byte) (err error) {
+	previous := *u
+	*u = DestinationID{}
+	defer func() {
+		if err != nil {
+			*u = previous
+		}
+	}()
 
 	var str string = ""
 	if err := utils.UnmarshalJSON(data, &str, "", true, nil); err == nil {

@@ -129,7 +129,14 @@ func CreateGetEventMetricsMeasuresUnionArrayOfGetEventMetricsMeasuresEnum2(array
 	}
 }
 
-func (u *GetEventMetricsMeasuresUnion) UnmarshalJSON(data []byte) error {
+func (u *GetEventMetricsMeasuresUnion) UnmarshalJSON(data []byte) (err error) {
+	previous := *u
+	*u = GetEventMetricsMeasuresUnion{}
+	defer func() {
+		if err != nil {
+			*u = previous
+		}
+	}()
 
 	var getEventMetricsMeasuresEnum1 GetEventMetricsMeasuresEnum1 = GetEventMetricsMeasuresEnum1("")
 	if err := utils.UnmarshalJSON(data, &getEventMetricsMeasuresEnum1, "", true, nil); err == nil {
@@ -251,7 +258,14 @@ func CreateGetEventMetricsDimensionsUnionArrayOfGetEventMetricsDimensionsEnum2(a
 	}
 }
 
-func (u *GetEventMetricsDimensionsUnion) UnmarshalJSON(data []byte) error {
+func (u *GetEventMetricsDimensionsUnion) UnmarshalJSON(data []byte) (err error) {
+	previous := *u
+	*u = GetEventMetricsDimensionsUnion{}
+	defer func() {
+		if err != nil {
+			*u = previous
+		}
+	}()
 
 	var getEventMetricsDimensionsEnum1 GetEventMetricsDimensionsEnum1 = GetEventMetricsDimensionsEnum1("")
 	if err := utils.UnmarshalJSON(data, &getEventMetricsDimensionsEnum1, "", true, nil); err == nil {
@@ -315,7 +329,14 @@ func CreateGetEventMetricsFiltersTopicArrayOfStr(arrayOfStr []string) GetEventMe
 	}
 }
 
-func (u *GetEventMetricsFiltersTopic) UnmarshalJSON(data []byte) error {
+func (u *GetEventMetricsFiltersTopic) UnmarshalJSON(data []byte) (err error) {
+	previous := *u
+	*u = GetEventMetricsFiltersTopic{}
+	defer func() {
+		if err != nil {
+			*u = previous
+		}
+	}()
 
 	var str string = ""
 	if err := utils.UnmarshalJSON(data, &str, "", true, nil); err == nil {
@@ -379,7 +400,14 @@ func CreateGetEventMetricsFiltersDestinationIDArrayOfStr(arrayOfStr []string) Ge
 	}
 }
 
-func (u *GetEventMetricsFiltersDestinationID) UnmarshalJSON(data []byte) error {
+func (u *GetEventMetricsFiltersDestinationID) UnmarshalJSON(data []byte) (err error) {
+	previous := *u
+	*u = GetEventMetricsFiltersDestinationID{}
+	defer func() {
+		if err != nil {
+			*u = previous
+		}
+	}()
 
 	var str string = ""
 	if err := utils.UnmarshalJSON(data, &str, "", true, nil); err == nil {
@@ -443,7 +471,14 @@ func CreateGetEventMetricsFiltersTenantIDArrayOfStr(arrayOfStr []string) GetEven
 	}
 }
 
-func (u *GetEventMetricsFiltersTenantID) UnmarshalJSON(data []byte) error {
+func (u *GetEventMetricsFiltersTenantID) UnmarshalJSON(data []byte) (err error) {
+	previous := *u
+	*u = GetEventMetricsFiltersTenantID{}
+	defer func() {
+		if err != nil {
+			*u = previous
+		}
+	}()
 
 	var str string = ""
 	if err := utils.UnmarshalJSON(data, &str, "", true, nil); err == nil {
