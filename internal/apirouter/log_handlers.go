@@ -90,6 +90,7 @@ type APIAttempt struct {
 	AttemptNumber   int                    `json:"attempt_number"`
 	Manual          bool                   `json:"manual"`
 	DestinationType string                 `json:"destination_type"`
+	LatencyMs       *int64                 `json:"latency_ms"`
 
 	EventID       string      `json:"event_id"`
 	DestinationID string      `json:"destination_id"`
@@ -157,6 +158,7 @@ func toAPIAttempt(ar *logstore.AttemptRecord, opts IncludeOptions, destDisplay *
 		AttemptNumber:   ar.Attempt.AttemptNumber,
 		Manual:          ar.Attempt.Manual,
 		DestinationType: ar.Attempt.DestinationType,
+		LatencyMs:       ar.Attempt.LatencyMs,
 		EventID:         ar.Attempt.EventID,
 		DestinationID:   ar.Attempt.DestinationID,
 	}

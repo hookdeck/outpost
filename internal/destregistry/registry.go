@@ -189,7 +189,9 @@ func (r *registry) PublishEvent(ctx context.Context, destination *models.Destina
 	timeoutCtx, cancel := context.WithTimeout(ctx, r.config.DeliveryTimeout)
 	defer cancel()
 
+	publishStart := time.Now()
 	deliveryData, err := publisher.Publish(timeoutCtx, event)
+	latencyMs := time.Since(publishStart).Milliseconds()
 	if err != nil {
 		// Context canceled = system shutdown, return nil attempt to trigger nack → requeue.
 		// This is handled centrally so individual publishers don't need to check for it.
@@ -203,6 +205,7 @@ func (r *registry) PublishEvent(ctx context.Context, destination *models.Destina
 			attempt.Status = deliveryData.Status
 			attempt.Code = deliveryData.Code
 			attempt.ResponseData = deliveryData.Response
+			attempt.LatencyMs = &latencyMs
 		} else {
 			attempt = nil
 		}
@@ -259,6 +262,7 @@ func (r *registry) PublishEvent(ctx context.Context, destination *models.Destina
 	attempt.Status = deliveryData.Status
 	attempt.Code = deliveryData.Code
 	attempt.ResponseData = deliveryData.Response
+	attempt.LatencyMs = &latencyMs
 
 	return attempt, nil
 }

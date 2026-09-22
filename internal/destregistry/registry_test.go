@@ -21,6 +21,7 @@ type mockProvider struct {
 	*destregistry.BaseProvider
 	publishDelay time.Duration
 	mockError    error
+	failDelivery *destregistry.Delivery
 }
 
 type mockPublisher struct {
@@ -28,6 +29,8 @@ type mockPublisher struct {
 	closed       bool
 	publishDelay time.Duration
 	mockError    error
+	// Returned alongside mockError, like a real publisher's classified failure.
+	failDelivery *destregistry.Delivery
 }
 
 var mockPublisherID int64
@@ -98,6 +101,7 @@ func (p *mockProvider) CreatePublisher(ctx context.Context, dest *models.Destina
 	pub := newMockPublisher()
 	pub.publishDelay = p.publishDelay
 	pub.mockError = p.mockError
+	pub.failDelivery = p.failDelivery
 	return pub, nil
 }
 
@@ -112,7 +116,7 @@ func (p *mockPublisher) Publish(ctx context.Context, event *models.Event) (*dest
 	select {
 	case <-time.After(p.publishDelay):
 		if p.mockError != nil {
-			return nil, p.mockError
+			return p.failDelivery, p.mockError
 		}
 		return &destregistry.Delivery{
 			Status:   "success",
@@ -697,6 +701,80 @@ func TestPublishEventTimeout(t *testing.T) {
 		assert.Equal(t, "test", publishErr.Provider)
 		assert.Equal(t, "timeout", publishErr.Data["error"])
 		assert.Equal(t, timeout.String(), publishErr.Data["timeout"])
+	})
+}
+
+// TestPublishEventLatency tests that LatencyMs is set on successful and failed
+// attempts and unset when the provider was never reached.
+func TestPublishEventLatency(t *testing.T) {
+	t.Parallel()
+
+	const delay = 50 * time.Millisecond
+
+	t.Run("successful attempt records latency", func(t *testing.T) {
+		t.Parallel()
+
+		registry := destregistry.NewRegistry(&destregistry.Config{
+			DeliveryTimeout: time.Second,
+		}, testutil.CreateTestLogger(t))
+
+		provider, err := newMockProvider()
+		require.NoError(t, err)
+		provider.publishDelay = delay
+		require.NoError(t, registry.RegisterProvider("test", provider))
+
+		attempt, err := registry.PublishEvent(context.Background(), &models.Destination{Type: "test"}, &models.Event{})
+		require.NoError(t, err)
+		require.NotNil(t, attempt)
+		require.NotNil(t, attempt.LatencyMs, "latency must be recorded on success")
+		assert.GreaterOrEqual(t, *attempt.LatencyMs, delay.Milliseconds())
+		assert.Less(t, *attempt.LatencyMs, (10 * delay).Milliseconds(), "latency should measure the publish call, not the whole test")
+	})
+
+	t.Run("failed attempt with delivery records latency", func(t *testing.T) {
+		t.Parallel()
+
+		registry := destregistry.NewRegistry(&destregistry.Config{
+			DeliveryTimeout: time.Second,
+		}, testutil.CreateTestLogger(t))
+
+		provider, err := newMockProvider()
+		require.NoError(t, err)
+		provider.publishDelay = delay
+		provider.failDelivery = &destregistry.Delivery{Status: "failed", Code: "503"}
+		provider.mockError = destregistry.NewErrDestinationPublishAttempt(
+			errors.New("request failed with status 503"),
+			"test",
+			map[string]interface{}{"status": 503},
+		)
+		require.NoError(t, registry.RegisterProvider("test", provider))
+
+		attempt, err := registry.PublishEvent(context.Background(), &models.Destination{Type: "test"}, &models.Event{})
+		require.Error(t, err)
+		require.NotNil(t, attempt)
+		assert.Equal(t, "failed", attempt.Status)
+		require.NotNil(t, attempt.LatencyMs, "a failed attempt still took time to fail")
+		assert.GreaterOrEqual(t, *attempt.LatencyMs, delay.Milliseconds())
+	})
+
+	t.Run("attempt that never reached the provider has no latency", func(t *testing.T) {
+		t.Parallel()
+
+		registry := destregistry.NewRegistry(&destregistry.Config{}, testutil.CreateTestLogger(t))
+
+		provider := &mockFailingProvider{
+			createErr: destregistry.NewErrDestinationPublishAttempt(
+				errors.New("bad credentials"),
+				"test",
+				map[string]interface{}{"error": "client_creation_failed"},
+			),
+		}
+		require.NoError(t, registry.RegisterProvider("test", provider))
+
+		attempt, err := registry.PublishEvent(context.Background(), &models.Destination{ID: "dest-1", Type: "test"}, &models.Event{ID: "evt-1"})
+		require.Error(t, err)
+		require.NotNil(t, attempt)
+		assert.Nil(t, attempt.LatencyMs, "no publish call happened, so there is nothing to measure")
 	})
 }
 

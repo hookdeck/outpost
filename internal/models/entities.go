@@ -138,6 +138,9 @@ type Attempt struct {
 	Time            time.Time              `json:"time"`
 	Code            string                 `json:"code"`
 	ResponseData    map[string]interface{} `json:"response_data"`
+	// Provider response time in ms, measured around Publish. Nil when the
+	// attempt never reached the provider or predates latency tracking.
+	LatencyMs *int64 `json:"latency_ms"`
 }
 
 // ============================== Types ==============================

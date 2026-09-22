@@ -1054,7 +1054,7 @@ func TestAPI_Attempts(t *testing.T) {
 			h := newAPITest(t)
 
 			e := ef.AnyPointer(ef.WithTenantID("t1"))
-			a := attemptForEvent(e, af.WithID("a1"))
+			a := attemptForEvent(e, af.WithID("a1"), af.WithLatencyMs(212))
 			require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
 				{Event: e, Attempt: a},
 			}))
@@ -1067,6 +1067,28 @@ func TestAPI_Attempts(t *testing.T) {
 			var attempt apirouter.APIAttempt
 			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &attempt))
 			assert.Equal(t, "a1", attempt.ID)
+			require.NotNil(t, attempt.LatencyMs)
+			assert.Equal(t, int64(212), *attempt.LatencyMs)
+		})
+
+		t.Run("attempt without latency serializes null", func(t *testing.T) {
+			h := newAPITest(t)
+
+			e := ef.AnyPointer(ef.WithTenantID("t1"))
+			a := attemptForEvent(e, af.WithID("a2"))
+			require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
+				{Event: e, Attempt: a},
+			}))
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/attempts/a2", nil)
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+
+			var raw map[string]json.RawMessage
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &raw))
+			require.Contains(t, raw, "latency_ms", "latency_ms is always present")
+			assert.Equal(t, "null", string(raw["latency_ms"]))
 		})
 
 		t.Run("nonexistent attempt returns 404", func(t *testing.T) {
