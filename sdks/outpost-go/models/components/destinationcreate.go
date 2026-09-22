@@ -145,7 +145,14 @@ func CreateDestinationCreateKafka(kafka DestinationCreateKafka) DestinationCreat
 	}
 }
 
-func (u *DestinationCreate) UnmarshalJSON(data []byte) error {
+func (u *DestinationCreate) UnmarshalJSON(data []byte) (err error) {
+	previous := *u
+	*u = DestinationCreate{}
+	defer func() {
+		if err != nil {
+			*u = previous
+		}
+	}()
 
 	type discriminator struct {
 		Type string `json:"type"`

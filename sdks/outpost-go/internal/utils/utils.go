@@ -13,7 +13,10 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
+
+	"github.com/hookdeck/outpost/sdks/outpost-go/optionalnullable"
 )
 
 const (
@@ -249,6 +252,35 @@ func isNil(typ reflect.Type, val reflect.Value) bool {
 	return false
 }
 
+func unwrapOptionalNullable(val reflect.Value) (reflect.Value, bool) {
+	if val.Kind() == reflect.Map && val.IsNil() && val.CanInterface() {
+		if _, isWrapper := val.Interface().(optionalnullable.OptionalNullableInterface); isWrapper {
+			return val, false
+		}
+	}
+
+	nullableValue, ok := optionalnullable.AsOptionalNullable(val)
+	if !ok {
+		return val, true
+	}
+
+	inner, isSet := nullableValue.GetUntyped()
+	if !isSet || inner == nil {
+		return val, false
+	}
+
+	val = reflect.ValueOf(inner)
+	if isNil(val.Type(), val) {
+		return val, false
+	}
+
+	if val.Kind() == reflect.Pointer {
+		val = val.Elem()
+	}
+
+	return val, true
+}
+
 func isEmptyContainer(typ reflect.Type, val reflect.Value) bool {
 	if isNil(typ, val) {
 		return true
@@ -290,4 +322,37 @@ func ConsumeRawBody(res *http.Response) ([]byte, error) {
 	res.Body = io.NopCloser(bytes.NewBuffer(rawBody))
 
 	return rawBody, nil
+}
+
+type bodyWithCancel struct {
+	io.ReadCloser
+	cancel context.CancelFunc
+	once   sync.Once
+}
+
+func (b *bodyWithCancel) Read(p []byte) (int, error) {
+	n, err := b.ReadCloser.Read(p)
+	if err != nil {
+		b.release()
+	}
+	return n, err
+}
+
+func (b *bodyWithCancel) Close() error {
+	err := b.ReadCloser.Close()
+	b.release()
+	return err
+}
+
+func (b *bodyWithCancel) release() {
+	b.once.Do(b.cancel)
+}
+
+// BodyWithCancel returns body wrapped so that cancel runs once reading ends or
+// the body is closed. A nil cancel returns body unchanged.
+func BodyWithCancel(body io.ReadCloser, cancel context.CancelFunc) io.ReadCloser {
+	if cancel == nil {
+		return body
+	}
+	return &bodyWithCancel{ReadCloser: body, cancel: cancel}
 }

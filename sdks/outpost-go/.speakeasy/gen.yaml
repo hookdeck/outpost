@@ -29,7 +29,7 @@ generation:
     generateNewTests: false
     skipResponseBodyAssertions: false
 go:
-  version: 1.5.0
+  version: 1.6.0
   additionalDependencies: {}
   allowUnknownFieldsInWeakUnions: false
   baseErrorName: OutpostError
@@ -41,6 +41,7 @@ go:
   flatteningOrder: parameters-first
   forwardCompatibleEnumsByDefault: false
   forwardCompatibleUnionsByDefault: "false"
+  idiomaticMethodCollisionNames: false
   imports:
     option: openapi
     paths:
@@ -57,10 +58,12 @@ go:
   modulePath: ""
   multipartArrayFormat: legacy
   nullableOptionalWrapper: true
+  optionalMethodArguments: pointers
   outputModelSuffix: output
   packageName: github.com/hookdeck/outpost/sdks/outpost-go
   respectRequiredFields: false
   respectTitlesForPrimitiveUnionMembers: false
   responseFormat: envelope-http
   sdkPackageName: ""
+  unionGenerics: false
   unionStrategy: left-to-right

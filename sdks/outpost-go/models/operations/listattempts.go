@@ -43,7 +43,14 @@ func CreateDestinationTypeArrayOfDestinationType(arrayOfDestinationType []compon
 	}
 }
 
-func (u *DestinationType) UnmarshalJSON(data []byte) error {
+func (u *DestinationType) UnmarshalJSON(data []byte) (err error) {
+	previous := *u
+	*u = DestinationType{}
+	defer func() {
+		if err != nil {
+			*u = previous
+		}
+	}()
 
 	var destinationType components.DestinationType = components.DestinationType("")
 	if err := utils.UnmarshalJSON(data, &destinationType, "", true, nil); err == nil {

@@ -230,7 +230,14 @@ func CreateEventUnionEventSummary(eventSummary EventSummary) EventUnion {
 	}
 }
 
-func (u *EventUnion) UnmarshalJSON(data []byte) error {
+func (u *EventUnion) UnmarshalJSON(data []byte) (err error) {
+	previous := *u
+	*u = EventUnion{}
+	defer func() {
+		if err != nil {
+			*u = previous
+		}
+	}()
 
 	var eventFull EventFull = EventFull{}
 	if err := utils.UnmarshalJSON(data, &eventFull, "", true, nil); err == nil {

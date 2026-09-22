@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math/big"
 	"mime"
 	"mime/multipart"
 	"net/textproto"
@@ -14,8 +15,10 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"time"
 
 	"github.com/hookdeck/outpost/sdks/outpost-go/optionalnullable"
+	"github.com/hookdeck/outpost/sdks/outpost-go/types"
 )
 
 const (
@@ -170,6 +173,35 @@ func encodeMultipartFormData(w io.Writer, data interface{}) (string, error) {
 		}
 
 		tag := parseMultipartFormTag(field)
+
+		// Explicit null is representable only in JSON-tagged parts, whose
+		// value is a JSON document; ordinary parts have no null encoding,
+		// so unset, typed-nil and non-JSON explicit-null wrappers are omitted
+		if nullableValue, ok := optionalnullable.AsOptionalNullable(valType); ok {
+			inner, isSet := nullableValue.GetUntyped()
+			if !isSet {
+				continue
+			}
+
+			if inner == nil {
+				if !tag.JSON {
+					continue
+				}
+			} else {
+				valType = reflect.ValueOf(inner)
+				fieldType = valType.Type()
+
+				if isNil(fieldType, valType) {
+					continue
+				}
+
+				if fieldType.Kind() == reflect.Pointer {
+					fieldType = fieldType.Elem()
+					valType = valType.Elem()
+				}
+			}
+		}
+
 		if tag.File {
 			switch fieldType.Kind() {
 			case reflect.Slice, reflect.Array:
@@ -317,6 +349,36 @@ func encodeFormData(fieldName string, w io.Writer, data interface{}) error {
 			}
 
 			tag := parseFormTag(field)
+
+			// Explicit null is representable only in JSON-tagged fields, whose
+			// value is a JSON document; ordinary form fields have no null
+			// encoding, so unset, typed-nil and non-JSON explicit-null
+			// wrappers are omitted
+			if nullableValue, ok := optionalnullable.AsOptionalNullable(valType); ok {
+				inner, isSet := nullableValue.GetUntyped()
+				if !isSet {
+					continue
+				}
+
+				if inner == nil {
+					if !tag.JSON {
+						continue
+					}
+				} else {
+					valType = reflect.ValueOf(inner)
+					fieldType = valType.Type()
+
+					if isNil(fieldType, valType) {
+						continue
+					}
+
+					if fieldType.Kind() == reflect.Pointer {
+						fieldType = fieldType.Elem()
+						valType = valType.Elem()
+					}
+				}
+			}
+
 			if tag.JSON {
 				data, err := MarshalJSON(valType.Interface(), field.Tag, true)
 				if err != nil {
@@ -346,9 +408,34 @@ func encodeFormData(fieldName string, w io.Writer, data interface{}) error {
 	case reflect.Map:
 		// check if optionalnullable.OptionalNullable[T]
 		if nullableValue, ok := optionalnullable.AsOptionalNullable(requestValType); ok {
-			// Handle optionalnullable.OptionalNullable[T] using GetUntyped method
+			// Serialize the wrapped value using the rules for its own type
 			if value, isSet := nullableValue.GetUntyped(); isSet && value != nil {
-				dataValues.Set(fieldName, valToString(value))
+				innerValue := reflect.ValueOf(value)
+
+				switch innerValue.Kind() {
+				case reflect.Map, reflect.Struct:
+					switch innerValue.Interface().(type) {
+					case time.Time, types.Date, big.Int:
+					default:
+						return encodeFormData(fieldName, w, value)
+					}
+				}
+
+				values := populateForm(fieldName, false, innerValue.Type(), innerValue, ",", nil, nil, func(sf reflect.StructField) string {
+					tag := parseFormTag(sf)
+					if tag == nil {
+						return ""
+					}
+
+					return tag.Name
+				})
+				for k, v := range values {
+					for _, vv := range v {
+						dataValues.Add(k, vv)
+					}
+				}
+
+				break
 			}
 			// If not set or explicitly null, skip adding to form
 			break
