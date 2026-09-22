@@ -52,8 +52,10 @@ def match_status_codes(status_codes: List[str], status_code: int) -> bool:
 
 T = TypeVar("T")
 
+
 def cast_partial(typ):
     return partial(cast, typ)
+
 
 def get_global_from_env(
     value: Optional[T], env_key: str, type_cast: Callable[[str], T]

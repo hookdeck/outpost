@@ -24,6 +24,22 @@ class ManagedConfigTypedDict(TypedDict):
     delivery_timeout_seconds: NotRequired[str]
     destinations_aws_kinesis_metadata_in_payload: NotRequired[str]
     destinations_include_millisecond_timestamp: NotRequired[str]
+    destinations_webhook_compat_headers: NotRequired[str]
+    r"""Additional headers sent with the compat signature, as comma-separated \"name=template\" pairs. Available variables: {{.EventID}}, {{.Topic}}, {{.Timestamp}}. Use \"\,\" for a literal comma in a template."""
+    destinations_webhook_compat_signature_algorithm: NotRequired[str]
+    r"""Algorithm for the compat signature. Defaults to \"hmac-sha256\"."""
+    destinations_webhook_compat_signature_content_template: NotRequired[str]
+    r"""Go template for the content signed by the compat signature. Same variables as DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE. Defaults to \"{{.Body}}\"."""
+    destinations_webhook_compat_signature_encoding: NotRequired[str]
+    r"""Encoding for the compat signature (\"hex\" or \"base64\"). Defaults to \"hex\"."""
+    destinations_webhook_compat_signature_header_name: NotRequired[str]
+    r"""Complete name of the compat signature header. Setting it sends a second signature, in a previous scheme, alongside the primary one."""
+    destinations_webhook_compat_signature_header_template: NotRequired[str]
+    r"""Go template for the value of the compat signature header. Same variables as DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE. Defaults to \"v0={{.Signatures | join \",\"}}\"."""
+    destinations_webhook_compat_signature_secret_encoding: NotRequired[str]
+    r"""How the compat signature derives its HMAC key from the destination secret: \"raw\", \"base64\" or \"hex\". Defaults to \"raw\". A destination whose secret can't be decoded doesn't receive the compat signature."""
+    destinations_webhook_compat_signature_secret_prefix: NotRequired[str]
+    r"""Prefix stripped from the destination secret before decoding for the compat signature (e.g., \"whsec_\")."""
     destinations_webhook_event_id_header_name: NotRequired[str]
     r"""Complete name of the event ID header. Unset uses the default \"<prefix>event-id\"; an explicit value pins that exact name; an empty string disables the header. Only applies to \"default\" mode."""
     destinations_webhook_header_prefix: NotRequired[str]
@@ -35,7 +51,13 @@ class ManagedConfigTypedDict(TypedDict):
     destinations_webhook_signature_header_name: NotRequired[str]
     r"""Complete name of the signature header. Unset uses the default \"<prefix>signature\"; an explicit value pins that exact name; an empty string disables the header. Only applies to \"default\" mode."""
     destinations_webhook_signature_header_template: NotRequired[str]
+    destinations_webhook_signature_secret_encoding: NotRequired[str]
+    r"""How the signature derives its HMAC key from the destination secret: \"raw\" uses the secret as-is, \"base64\" and \"hex\" decode it. Defaults to \"raw\". DESTINATIONS_WEBHOOK_SIGNING_SECRET_TEMPLATE must generate secrets this encoding can decode. Only applies to \"default\" mode."""
+    destinations_webhook_signature_secret_prefix: NotRequired[str]
+    r"""Prefix stripped from the destination secret before decoding (e.g., \"whsec_\"). Ignored when DESTINATIONS_WEBHOOK_SIGNATURE_SECRET_ENCODING is \"raw\". Only applies to \"default\" mode."""
     destinations_webhook_signing_secret_template: NotRequired[str]
+    destinations_webhook_timestamp_format: NotRequired[str]
+    r"""Format of the timestamp header: \"rfc3339\" or \"unix\". Defaults to \"rfc3339\". Only applies to \"default\" mode."""
     destinations_webhook_timestamp_header_name: NotRequired[str]
     r"""Complete name of the timestamp header. Unset uses the default \"<prefix>timestamp\"; an explicit value pins that exact name; an empty string disables the header. Only applies to \"default\" mode."""
     destinations_webhook_topic_header_name: NotRequired[str]
@@ -122,6 +144,53 @@ class ManagedConfig(BaseModel):
         pydantic.Field(alias="DESTINATIONS_INCLUDE_MILLISECOND_TIMESTAMP"),
     ] = None
 
+    destinations_webhook_compat_headers: Annotated[
+        Optional[str], pydantic.Field(alias="DESTINATIONS_WEBHOOK_COMPAT_HEADERS")
+    ] = None
+    r"""Additional headers sent with the compat signature, as comma-separated \"name=template\" pairs. Available variables: {{.EventID}}, {{.Topic}}, {{.Timestamp}}. Use \"\,\" for a literal comma in a template."""
+
+    destinations_webhook_compat_signature_algorithm: Annotated[
+        Optional[str],
+        pydantic.Field(alias="DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_ALGORITHM"),
+    ] = None
+    r"""Algorithm for the compat signature. Defaults to \"hmac-sha256\"."""
+
+    destinations_webhook_compat_signature_content_template: Annotated[
+        Optional[str],
+        pydantic.Field(alias="DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_CONTENT_TEMPLATE"),
+    ] = None
+    r"""Go template for the content signed by the compat signature. Same variables as DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE. Defaults to \"{{.Body}}\"."""
+
+    destinations_webhook_compat_signature_encoding: Annotated[
+        Optional[str],
+        pydantic.Field(alias="DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_ENCODING"),
+    ] = None
+    r"""Encoding for the compat signature (\"hex\" or \"base64\"). Defaults to \"hex\"."""
+
+    destinations_webhook_compat_signature_header_name: Annotated[
+        Optional[str],
+        pydantic.Field(alias="DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_HEADER_NAME"),
+    ] = None
+    r"""Complete name of the compat signature header. Setting it sends a second signature, in a previous scheme, alongside the primary one."""
+
+    destinations_webhook_compat_signature_header_template: Annotated[
+        Optional[str],
+        pydantic.Field(alias="DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_HEADER_TEMPLATE"),
+    ] = None
+    r"""Go template for the value of the compat signature header. Same variables as DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE. Defaults to \"v0={{.Signatures | join \",\"}}\"."""
+
+    destinations_webhook_compat_signature_secret_encoding: Annotated[
+        Optional[str],
+        pydantic.Field(alias="DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_SECRET_ENCODING"),
+    ] = None
+    r"""How the compat signature derives its HMAC key from the destination secret: \"raw\", \"base64\" or \"hex\". Defaults to \"raw\". A destination whose secret can't be decoded doesn't receive the compat signature."""
+
+    destinations_webhook_compat_signature_secret_prefix: Annotated[
+        Optional[str],
+        pydantic.Field(alias="DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_SECRET_PREFIX"),
+    ] = None
+    r"""Prefix stripped from the destination secret before decoding for the compat signature (e.g., \"whsec_\")."""
+
     destinations_webhook_event_id_header_name: Annotated[
         Optional[str], pydantic.Field(alias="DESTINATIONS_WEBHOOK_EVENT_ID_HEADER_NAME")
     ] = None
@@ -163,10 +232,27 @@ class ManagedConfig(BaseModel):
         pydantic.Field(alias="DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE"),
     ] = None
 
+    destinations_webhook_signature_secret_encoding: Annotated[
+        Optional[str],
+        pydantic.Field(alias="DESTINATIONS_WEBHOOK_SIGNATURE_SECRET_ENCODING"),
+    ] = None
+    r"""How the signature derives its HMAC key from the destination secret: \"raw\" uses the secret as-is, \"base64\" and \"hex\" decode it. Defaults to \"raw\". DESTINATIONS_WEBHOOK_SIGNING_SECRET_TEMPLATE must generate secrets this encoding can decode. Only applies to \"default\" mode."""
+
+    destinations_webhook_signature_secret_prefix: Annotated[
+        Optional[str],
+        pydantic.Field(alias="DESTINATIONS_WEBHOOK_SIGNATURE_SECRET_PREFIX"),
+    ] = None
+    r"""Prefix stripped from the destination secret before decoding (e.g., \"whsec_\"). Ignored when DESTINATIONS_WEBHOOK_SIGNATURE_SECRET_ENCODING is \"raw\". Only applies to \"default\" mode."""
+
     destinations_webhook_signing_secret_template: Annotated[
         Optional[str],
         pydantic.Field(alias="DESTINATIONS_WEBHOOK_SIGNING_SECRET_TEMPLATE"),
     ] = None
+
+    destinations_webhook_timestamp_format: Annotated[
+        Optional[str], pydantic.Field(alias="DESTINATIONS_WEBHOOK_TIMESTAMP_FORMAT")
+    ] = None
+    r"""Format of the timestamp header: \"rfc3339\" or \"unix\". Defaults to \"rfc3339\". Only applies to \"default\" mode."""
 
     destinations_webhook_timestamp_header_name: Annotated[
         Optional[str],
@@ -361,6 +447,14 @@ class ManagedConfig(BaseModel):
                 "DELIVERY_TIMEOUT_SECONDS",
                 "DESTINATIONS_AWS_KINESIS_METADATA_IN_PAYLOAD",
                 "DESTINATIONS_INCLUDE_MILLISECOND_TIMESTAMP",
+                "DESTINATIONS_WEBHOOK_COMPAT_HEADERS",
+                "DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_ALGORITHM",
+                "DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_CONTENT_TEMPLATE",
+                "DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_ENCODING",
+                "DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_HEADER_NAME",
+                "DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_HEADER_TEMPLATE",
+                "DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_SECRET_ENCODING",
+                "DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_SECRET_PREFIX",
                 "DESTINATIONS_WEBHOOK_EVENT_ID_HEADER_NAME",
                 "DESTINATIONS_WEBHOOK_HEADER_PREFIX",
                 "DESTINATIONS_WEBHOOK_MODE",
@@ -370,7 +464,10 @@ class ManagedConfig(BaseModel):
                 "DESTINATIONS_WEBHOOK_SIGNATURE_ENCODING",
                 "DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_NAME",
                 "DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE",
+                "DESTINATIONS_WEBHOOK_SIGNATURE_SECRET_ENCODING",
+                "DESTINATIONS_WEBHOOK_SIGNATURE_SECRET_PREFIX",
                 "DESTINATIONS_WEBHOOK_SIGNING_SECRET_TEMPLATE",
+                "DESTINATIONS_WEBHOOK_TIMESTAMP_FORMAT",
                 "DESTINATIONS_WEBHOOK_TIMESTAMP_HEADER_NAME",
                 "DESTINATIONS_WEBHOOK_TOPIC_HEADER_NAME",
                 "HTTP_USER_AGENT",
