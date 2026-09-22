@@ -32,6 +32,38 @@ export type ManagedConfig = {
   destinationsAwsKinesisMetadataInPayload?: string | undefined;
   destinationsIncludeMillisecondTimestamp?: string | undefined;
   /**
+   * Additional headers sent with the compat signature, as comma-separated "name=template" pairs. Available variables: {{.EventID}}, {{.Topic}}, {{.Timestamp}}. Use "\," for a literal comma in a template.
+   */
+  destinationsWebhookCompatHeaders?: string | undefined;
+  /**
+   * Algorithm for the compat signature. Defaults to "hmac-sha256".
+   */
+  destinationsWebhookCompatSignatureAlgorithm?: string | undefined;
+  /**
+   * Go template for the content signed by the compat signature. Same variables as DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE. Defaults to "{{.Body}}".
+   */
+  destinationsWebhookCompatSignatureContentTemplate?: string | undefined;
+  /**
+   * Encoding for the compat signature ("hex" or "base64"). Defaults to "hex".
+   */
+  destinationsWebhookCompatSignatureEncoding?: string | undefined;
+  /**
+   * Complete name of the compat signature header. Setting it sends a second signature, in a previous scheme, alongside the primary one.
+   */
+  destinationsWebhookCompatSignatureHeaderName?: string | undefined;
+  /**
+   * Go template for the value of the compat signature header. Same variables as DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE. Defaults to "v0={{.Signatures | join ","}}".
+   */
+  destinationsWebhookCompatSignatureHeaderTemplate?: string | undefined;
+  /**
+   * How the compat signature derives its HMAC key from the destination secret: "raw", "base64" or "hex". Defaults to "raw". A destination whose secret can't be decoded doesn't receive the compat signature.
+   */
+  destinationsWebhookCompatSignatureSecretEncoding?: string | undefined;
+  /**
+   * Prefix stripped from the destination secret before decoding for the compat signature (e.g., "whsec_").
+   */
+  destinationsWebhookCompatSignatureSecretPrefix?: string | undefined;
+  /**
    * Complete name of the event ID header. Unset uses the default "<prefix>event-id"; an explicit value pins that exact name; an empty string disables the header. Only applies to "default" mode.
    */
   destinationsWebhookEventIdHeaderName?: string | undefined;
@@ -46,7 +78,19 @@ export type ManagedConfig = {
    */
   destinationsWebhookSignatureHeaderName?: string | undefined;
   destinationsWebhookSignatureHeaderTemplate?: string | undefined;
+  /**
+   * How the signature derives its HMAC key from the destination secret: "raw" uses the secret as-is, "base64" and "hex" decode it. Defaults to "raw". DESTINATIONS_WEBHOOK_SIGNING_SECRET_TEMPLATE must generate secrets this encoding can decode. Only applies to "default" mode.
+   */
+  destinationsWebhookSignatureSecretEncoding?: string | undefined;
+  /**
+   * Prefix stripped from the destination secret before decoding (e.g., "whsec_"). Ignored when DESTINATIONS_WEBHOOK_SIGNATURE_SECRET_ENCODING is "raw". Only applies to "default" mode.
+   */
+  destinationsWebhookSignatureSecretPrefix?: string | undefined;
   destinationsWebhookSigningSecretTemplate?: string | undefined;
+  /**
+   * Format of the timestamp header: "rfc3339" or "unix". Defaults to "rfc3339". Only applies to "default" mode.
+   */
+  destinationsWebhookTimestampFormat?: string | undefined;
   /**
    * Complete name of the timestamp header. Unset uses the default "<prefix>timestamp"; an explicit value pins that exact name; an empty string disables the header. Only applies to "default" mode.
    */
@@ -113,6 +157,14 @@ export const ManagedConfig$inboundSchema: z.ZodType<
   DELIVERY_TIMEOUT_SECONDS: z.string().optional(),
   DESTINATIONS_AWS_KINESIS_METADATA_IN_PAYLOAD: z.string().optional(),
   DESTINATIONS_INCLUDE_MILLISECOND_TIMESTAMP: z.string().optional(),
+  DESTINATIONS_WEBHOOK_COMPAT_HEADERS: z.string().optional(),
+  DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_ALGORITHM: z.string().optional(),
+  DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_CONTENT_TEMPLATE: z.string().optional(),
+  DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_ENCODING: z.string().optional(),
+  DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_HEADER_NAME: z.string().optional(),
+  DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_HEADER_TEMPLATE: z.string().optional(),
+  DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_SECRET_ENCODING: z.string().optional(),
+  DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_SECRET_PREFIX: z.string().optional(),
   DESTINATIONS_WEBHOOK_EVENT_ID_HEADER_NAME: z.string().optional(),
   DESTINATIONS_WEBHOOK_HEADER_PREFIX: z.string().optional(),
   DESTINATIONS_WEBHOOK_MODE: z.string().optional(),
@@ -122,7 +174,10 @@ export const ManagedConfig$inboundSchema: z.ZodType<
   DESTINATIONS_WEBHOOK_SIGNATURE_ENCODING: z.string().optional(),
   DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_NAME: z.string().optional(),
   DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE: z.string().optional(),
+  DESTINATIONS_WEBHOOK_SIGNATURE_SECRET_ENCODING: z.string().optional(),
+  DESTINATIONS_WEBHOOK_SIGNATURE_SECRET_PREFIX: z.string().optional(),
   DESTINATIONS_WEBHOOK_SIGNING_SECRET_TEMPLATE: z.string().optional(),
+  DESTINATIONS_WEBHOOK_TIMESTAMP_FORMAT: z.string().optional(),
   DESTINATIONS_WEBHOOK_TIMESTAMP_HEADER_NAME: z.string().optional(),
   DESTINATIONS_WEBHOOK_TOPIC_HEADER_NAME: z.string().optional(),
   HTTP_USER_AGENT: z.string().optional(),
@@ -180,6 +235,21 @@ export const ManagedConfig$inboundSchema: z.ZodType<
       "destinationsAwsKinesisMetadataInPayload",
     "DESTINATIONS_INCLUDE_MILLISECOND_TIMESTAMP":
       "destinationsIncludeMillisecondTimestamp",
+    "DESTINATIONS_WEBHOOK_COMPAT_HEADERS": "destinationsWebhookCompatHeaders",
+    "DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_ALGORITHM":
+      "destinationsWebhookCompatSignatureAlgorithm",
+    "DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_CONTENT_TEMPLATE":
+      "destinationsWebhookCompatSignatureContentTemplate",
+    "DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_ENCODING":
+      "destinationsWebhookCompatSignatureEncoding",
+    "DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_HEADER_NAME":
+      "destinationsWebhookCompatSignatureHeaderName",
+    "DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_HEADER_TEMPLATE":
+      "destinationsWebhookCompatSignatureHeaderTemplate",
+    "DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_SECRET_ENCODING":
+      "destinationsWebhookCompatSignatureSecretEncoding",
+    "DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_SECRET_PREFIX":
+      "destinationsWebhookCompatSignatureSecretPrefix",
     "DESTINATIONS_WEBHOOK_EVENT_ID_HEADER_NAME":
       "destinationsWebhookEventIdHeaderName",
     "DESTINATIONS_WEBHOOK_HEADER_PREFIX": "destinationsWebhookHeaderPrefix",
@@ -195,8 +265,14 @@ export const ManagedConfig$inboundSchema: z.ZodType<
       "destinationsWebhookSignatureHeaderName",
     "DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE":
       "destinationsWebhookSignatureHeaderTemplate",
+    "DESTINATIONS_WEBHOOK_SIGNATURE_SECRET_ENCODING":
+      "destinationsWebhookSignatureSecretEncoding",
+    "DESTINATIONS_WEBHOOK_SIGNATURE_SECRET_PREFIX":
+      "destinationsWebhookSignatureSecretPrefix",
     "DESTINATIONS_WEBHOOK_SIGNING_SECRET_TEMPLATE":
       "destinationsWebhookSigningSecretTemplate",
+    "DESTINATIONS_WEBHOOK_TIMESTAMP_FORMAT":
+      "destinationsWebhookTimestampFormat",
     "DESTINATIONS_WEBHOOK_TIMESTAMP_HEADER_NAME":
       "destinationsWebhookTimestampHeaderName",
     "DESTINATIONS_WEBHOOK_TOPIC_HEADER_NAME":
@@ -258,6 +334,14 @@ export type ManagedConfig$Outbound = {
   DELIVERY_TIMEOUT_SECONDS?: string | undefined;
   DESTINATIONS_AWS_KINESIS_METADATA_IN_PAYLOAD?: string | undefined;
   DESTINATIONS_INCLUDE_MILLISECOND_TIMESTAMP?: string | undefined;
+  DESTINATIONS_WEBHOOK_COMPAT_HEADERS?: string | undefined;
+  DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_ALGORITHM?: string | undefined;
+  DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_CONTENT_TEMPLATE?: string | undefined;
+  DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_ENCODING?: string | undefined;
+  DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_HEADER_NAME?: string | undefined;
+  DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_HEADER_TEMPLATE?: string | undefined;
+  DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_SECRET_ENCODING?: string | undefined;
+  DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_SECRET_PREFIX?: string | undefined;
   DESTINATIONS_WEBHOOK_EVENT_ID_HEADER_NAME?: string | undefined;
   DESTINATIONS_WEBHOOK_HEADER_PREFIX?: string | undefined;
   DESTINATIONS_WEBHOOK_MODE?: string | undefined;
@@ -267,7 +351,10 @@ export type ManagedConfig$Outbound = {
   DESTINATIONS_WEBHOOK_SIGNATURE_ENCODING?: string | undefined;
   DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_NAME?: string | undefined;
   DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE?: string | undefined;
+  DESTINATIONS_WEBHOOK_SIGNATURE_SECRET_ENCODING?: string | undefined;
+  DESTINATIONS_WEBHOOK_SIGNATURE_SECRET_PREFIX?: string | undefined;
   DESTINATIONS_WEBHOOK_SIGNING_SECRET_TEMPLATE?: string | undefined;
+  DESTINATIONS_WEBHOOK_TIMESTAMP_FORMAT?: string | undefined;
   DESTINATIONS_WEBHOOK_TIMESTAMP_HEADER_NAME?: string | undefined;
   DESTINATIONS_WEBHOOK_TOPIC_HEADER_NAME?: string | undefined;
   HTTP_USER_AGENT?: string | undefined;
@@ -328,6 +415,14 @@ export const ManagedConfig$outboundSchema: z.ZodType<
   deliveryTimeoutSeconds: z.string().optional(),
   destinationsAwsKinesisMetadataInPayload: z.string().optional(),
   destinationsIncludeMillisecondTimestamp: z.string().optional(),
+  destinationsWebhookCompatHeaders: z.string().optional(),
+  destinationsWebhookCompatSignatureAlgorithm: z.string().optional(),
+  destinationsWebhookCompatSignatureContentTemplate: z.string().optional(),
+  destinationsWebhookCompatSignatureEncoding: z.string().optional(),
+  destinationsWebhookCompatSignatureHeaderName: z.string().optional(),
+  destinationsWebhookCompatSignatureHeaderTemplate: z.string().optional(),
+  destinationsWebhookCompatSignatureSecretEncoding: z.string().optional(),
+  destinationsWebhookCompatSignatureSecretPrefix: z.string().optional(),
   destinationsWebhookEventIdHeaderName: z.string().optional(),
   destinationsWebhookHeaderPrefix: z.string().optional(),
   destinationsWebhookMode: z.string().optional(),
@@ -337,7 +432,10 @@ export const ManagedConfig$outboundSchema: z.ZodType<
   destinationsWebhookSignatureEncoding: z.string().optional(),
   destinationsWebhookSignatureHeaderName: z.string().optional(),
   destinationsWebhookSignatureHeaderTemplate: z.string().optional(),
+  destinationsWebhookSignatureSecretEncoding: z.string().optional(),
+  destinationsWebhookSignatureSecretPrefix: z.string().optional(),
   destinationsWebhookSigningSecretTemplate: z.string().optional(),
+  destinationsWebhookTimestampFormat: z.string().optional(),
   destinationsWebhookTimestampHeaderName: z.string().optional(),
   destinationsWebhookTopicHeaderName: z.string().optional(),
   httpUserAgent: z.string().optional(),
@@ -395,6 +493,21 @@ export const ManagedConfig$outboundSchema: z.ZodType<
       "DESTINATIONS_AWS_KINESIS_METADATA_IN_PAYLOAD",
     destinationsIncludeMillisecondTimestamp:
       "DESTINATIONS_INCLUDE_MILLISECOND_TIMESTAMP",
+    destinationsWebhookCompatHeaders: "DESTINATIONS_WEBHOOK_COMPAT_HEADERS",
+    destinationsWebhookCompatSignatureAlgorithm:
+      "DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_ALGORITHM",
+    destinationsWebhookCompatSignatureContentTemplate:
+      "DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_CONTENT_TEMPLATE",
+    destinationsWebhookCompatSignatureEncoding:
+      "DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_ENCODING",
+    destinationsWebhookCompatSignatureHeaderName:
+      "DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_HEADER_NAME",
+    destinationsWebhookCompatSignatureHeaderTemplate:
+      "DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_HEADER_TEMPLATE",
+    destinationsWebhookCompatSignatureSecretEncoding:
+      "DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_SECRET_ENCODING",
+    destinationsWebhookCompatSignatureSecretPrefix:
+      "DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_SECRET_PREFIX",
     destinationsWebhookEventIdHeaderName:
       "DESTINATIONS_WEBHOOK_EVENT_ID_HEADER_NAME",
     destinationsWebhookHeaderPrefix: "DESTINATIONS_WEBHOOK_HEADER_PREFIX",
@@ -410,8 +523,13 @@ export const ManagedConfig$outboundSchema: z.ZodType<
       "DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_NAME",
     destinationsWebhookSignatureHeaderTemplate:
       "DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE",
+    destinationsWebhookSignatureSecretEncoding:
+      "DESTINATIONS_WEBHOOK_SIGNATURE_SECRET_ENCODING",
+    destinationsWebhookSignatureSecretPrefix:
+      "DESTINATIONS_WEBHOOK_SIGNATURE_SECRET_PREFIX",
     destinationsWebhookSigningSecretTemplate:
       "DESTINATIONS_WEBHOOK_SIGNING_SECRET_TEMPLATE",
+    destinationsWebhookTimestampFormat: "DESTINATIONS_WEBHOOK_TIMESTAMP_FORMAT",
     destinationsWebhookTimestampHeaderName:
       "DESTINATIONS_WEBHOOK_TIMESTAMP_HEADER_NAME",
     destinationsWebhookTopicHeaderName:

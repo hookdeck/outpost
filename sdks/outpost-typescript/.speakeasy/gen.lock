@@ -1,26 +1,26 @@
 lockVersion: 2.0.0
 id: edb58086-83b9-45a3-9095-52bf57a11009
 management:
-  docChecksum: c324f52b261715acd94f0e24b43ea28b
+  docChecksum: 5a8af4b2c39a07acdceeb2849a73b495
   docVersion: 0.0.1
-  speakeasyVersion: 1.791.0
-  generationVersion: 2.924.0
-  releaseVersion: 1.5.0
-  configChecksum: b0c3f026ae9c3f3a8eb8cafe5cfa65d8
+  speakeasyVersion: 1.798.0
+  generationVersion: 2.938.0
+  releaseVersion: 1.6.0
+  configChecksum: d8d2a2ec2e1308f0cee63fe9310baf43
   repoURL: https://github.com/hookdeck/outpost.git
   repoSubDirectory: sdks/outpost-typescript
   installationURL: https://github.com/hookdeck/outpost
   published: true
 persistentEdits:
-  generation_id: df646cba-71cb-4fd4-a370-a85e534e42b5
-  pristine_commit_hash: f32826faab7ec6afbb841de34c2bc8368aedb860
-  pristine_tree_hash: 1bbbdf04358735ce87021a1247ffbbfd7c813967
+  generation_id: c00a7821-85a9-4342-b330-94d3dc99745c
+  pristine_commit_hash: 7b7dd214d4ee0576c5f999d6fea9eb9c23b9ee82
+  pristine_tree_hash: d3c2303f690789eaf602afb8f1b797d32925fd44
 features:
   typescript:
     additionalDependencies: 0.1.0
     additionalProperties: 0.1.4
     constsAndDefaults: 0.1.14
-    core: 3.31.4
+    core: 3.31.6
     defaultEnabledRetries: 0.1.0
     enumUnions: 0.1.0
     envVarSecurityUsage: 0.1.2
@@ -34,9 +34,9 @@ features:
     nameOverrides: 2.81.4
     nullables: 0.1.1
     responseFormat: 0.3.0
-    retries: 2.83.1
+    retries: 2.83.2
     sdkHooks: 0.4.0
-    unions: 2.86.4
+    unions: 2.86.5
 trackedFiles:
   .gitattributes:
     id: 24139dae6567
@@ -348,8 +348,8 @@ trackedFiles:
     pristine_git_object: a059479fd884b79d3d0ece45249299ff92b74047
   docs/models/components/managedconfig.md:
     id: f5084f1c1f7a
-    last_write_checksum: sha1:a9b0d497b51a2f3d0a5eede4a569ac5c8080c4f7
-    pristine_git_object: 443faa636b83a02e2c6b1b4bfc71c75e96cabba8
+    last_write_checksum: sha1:abfede24ee8ce6362abb1f8f66b08fe33354a809
+    pristine_git_object: 4f5be31c74e8af1e054c71566976dc678c085e42
   docs/models/components/metricsdatapoint.md:
     id: dfbc8ed48932
     last_write_checksum: sha1:98cd730d46794e7aef19d65e365d7b6f89176487
@@ -904,12 +904,12 @@ trackedFiles:
     pristine_git_object: c9a9042272cbc4b2cf7ae93f82d4ea8a7d25bba2
   jsr.json:
     id: 7f6ab7767282
-    last_write_checksum: sha1:6cac6b7328f71889a01f5e8d54dcbd8b158c7543
-    pristine_git_object: b50c9ea78874624c193d30b70f2ba229618150a3
+    last_write_checksum: sha1:e88c4d6691692a3901856869d0683257d00137ea
+    pristine_git_object: ea50fefe6ae3225f9d404230426865ddcbc6ed9f
   package.json:
     id: 7030d0b2f71b
-    last_write_checksum: sha1:6f81c06a8d64dd847a9ff42aa8d121e09a48f8d2
-    pristine_git_object: 7506ee81478c530762249acc7a9a7d253c18dd08
+    last_write_checksum: sha1:0038296290c920151978948146128aa9d3351f0d
+    pristine_git_object: da6b7aa37c189baf95285b82f8a23fc794add8ff
   src/core.ts:
     id: f431fdbcd144
     last_write_checksum: sha1:c858d8ea76a86c428e26943bf348319ba0a3c865
@@ -1052,12 +1052,12 @@ trackedFiles:
     pristine_git_object: 0aebd8b0a4867e35cb3348fc52921c3c0b4725b7
   src/lib/config.ts:
     id: 320761608fb3
-    last_write_checksum: sha1:5ba8e4a3b71a53a6bd997c338177eb14e30c582a
-    pristine_git_object: 1c02773a8088ae9a982051d8a88de9b52e571424
+    last_write_checksum: sha1:40455ec94a616300afc53d4f936d49e61dcbe49f
+    pristine_git_object: 9381fc3a7b215c8de073209eb33fdad75c78e763
   src/lib/encodings.ts:
     id: 3bd8ead98afd
-    last_write_checksum: sha1:50d9b187dcfc3cca8d3bbd9fe074f865d715d2b0
-    pristine_git_object: dcab511b4b4d98f1e4b7dd94866e2b41c478b7f0
+    last_write_checksum: sha1:a257d6f6108693db2197617c579400bc8f0da914
+    pristine_git_object: d6e751fe6a9a39af519df802d05c999f6783bae8
   src/lib/files.ts:
     id: e5efa54fcb95
     last_write_checksum: sha1:795c14026405d547bfc47012f7ad9666e530fa7f
@@ -1124,8 +1124,8 @@ trackedFiles:
     pristine_git_object: 0955a573c2ce989d63c737410ab8cc28706d9f74
   src/mcp-server/mcp-server.ts:
     id: aabbc4ab07c1
-    last_write_checksum: sha1:1b8e6b428eb18888bf6a97cf3872c14c03029425
-    pristine_git_object: a08ee05e090313edf53a6fd567ee6f7e5c33a8dc
+    last_write_checksum: sha1:1589242d00cc1ecbb7641f784d20b01d4becdc21
+    pristine_git_object: 6849acff15861500a6337600b59afd7a03efc58e
   src/mcp-server/prompts.ts:
     id: 26f3d73cbf31
     last_write_checksum: sha1:3472c8babea2d3b44d3a61e42fbba471fbd936b7
@@ -1140,8 +1140,8 @@ trackedFiles:
     pristine_git_object: c25696d4c4f70e081fa5d87ad6891874c509a577
   src/mcp-server/server.ts:
     id: 2784dd48e82a
-    last_write_checksum: sha1:a5e4445b1273d715f7ab6769b5d46c9a2de4cd64
-    pristine_git_object: bd9ae7b447a7634f2a345206bbef5afec5ee1e86
+    last_write_checksum: sha1:c0e03ed46df2af900282da1587dd6ded1d52b120
+    pristine_git_object: 1e8af0b3922136af035446e8b8ed7ffa4dcde03a
   src/mcp-server/shared.ts:
     id: 074e80d4be1e
     last_write_checksum: sha1:d89576cea2bef3856b7fc3e65b868875528be042
@@ -1524,8 +1524,8 @@ trackedFiles:
     pristine_git_object: 8ef1965cf279a8d8b5aca7093981332e93312c60
   src/models/components/managedconfig.ts:
     id: f3c9dfef76a1
-    last_write_checksum: sha1:a8ab5d634f3581a56a86c3c91a92a488e63bb40c
-    pristine_git_object: 8fc8a6e5f96186be1735272935f8f17eb195a076
+    last_write_checksum: sha1:4a611b66bab6764ad9997bc468cf8b7b5544e53e
+    pristine_git_object: 31e9dc0f69830bd8493408832fe68746a61aebb4
   src/models/components/metricsdatapoint.ts:
     id: 55e9f7c3cc30
     last_write_checksum: sha1:3c1a228845dc83f0b1ea5eb00f807a510fcdd5b4
@@ -2444,7 +2444,7 @@ examples:
           application/json: {}
 examplesVersion: 1.0.2
 generatedTests: {}
-releaseNotes: "## Typescript SDK Changes:\n* `outpost.configuration.getManagedConfig()`:  `response` **Changed** (Breaking ⚠️)\n* `outpost.configuration.updateManagedConfig()`: \n  *  `request` **Changed** (Breaking ⚠️)\n  *  `response` **Changed** (Breaking ⚠️)\n"
+releaseNotes: "## Typescript SDK Changes:\n* `outpost.configuration.getManagedConfig()`:  `response` **Changed**\n* `outpost.configuration.updateManagedConfig()`: \n  *  `request` **Changed**\n  *  `response` **Changed**\n"
 generatedFiles:
   - .gitattributes
   - .npmignore
