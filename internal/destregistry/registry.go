@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"hash"
 	"hash/fnv"
+	"sort"
 	"strconv"
 	"time"
 
@@ -278,15 +280,28 @@ func (r *registry) ResolveProvider(destination *models.Destination) (Provider, e
 	return provider, nil
 }
 
-// MakePublisherKey creates a unique key for a destination that includes type and config
+// MakePublisherKey creates a unique key for a destination that includes type, config and credentials
 func MakePublisherKey(dest *models.Destination) string {
 	h := fnv.New64a()
-	for k, v := range dest.Config {
-		h.Write([]byte(k))
-		h.Write([]byte(v))
-	}
+	hashSortedMap(h, dest.Config)
+	hashSortedMap(h, dest.Credentials)
 	h.Write([]byte(dest.Type))
 	return dest.ID + "." + strconv.FormatUint(h.Sum64(), 36)
+}
+
+func hashSortedMap(h hash.Hash64, m map[string]string) {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		h.Write([]byte(k))
+		h.Write([]byte{0})
+		h.Write([]byte(m[k]))
+		h.Write([]byte{0})
+	}
+	h.Write([]byte{0})
 }
 
 func (r *registry) ResolvePublisher(ctx context.Context, destination *models.Destination) (Publisher, error) {

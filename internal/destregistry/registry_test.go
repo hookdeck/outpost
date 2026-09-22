@@ -164,6 +164,7 @@ func TestRegistryConcurrentPublisherManagement(t *testing.T) {
 type publishTarget struct {
 	providerType string
 	config       string
+	credential   string
 }
 
 var publishedEvents = make(map[publishTarget][]models.Event)
@@ -171,12 +172,14 @@ var publishedEvents = make(map[publishTarget][]models.Event)
 type mockPublisherWithConfig struct {
 	providerType string
 	config       string
+	credential   string
 }
 
 func (p *mockPublisherWithConfig) Publish(ctx context.Context, event *models.Event) (*destregistry.Delivery, error) {
 	target := publishTarget{
 		providerType: p.providerType,
 		config:       p.config,
+		credential:   p.credential,
 	}
 	publishedEvents[target] = append(publishedEvents[target], *event)
 	return &destregistry.Delivery{
@@ -209,6 +212,7 @@ func (p *mockProviderWithConfig) CreatePublisher(ctx context.Context, destinatio
 	return &mockPublisherWithConfig{
 		providerType: p.providerType,
 		config:       destination.Config["id"],
+		credential:   destination.Credentials["secret"],
 	}, nil
 }
 
@@ -330,6 +334,61 @@ func TestDestinationChanges(t *testing.T) {
 
 		secondEvents := publishedEvents[secondTarget]
 		assert.Len(t, secondEvents, 1, "second event should go through mock2")
+		if len(secondEvents) > 0 {
+			assert.JSONEq(t, `{"msg":"second"}`, string(secondEvents[0].Data))
+		}
+	})
+
+	t.Run("credentials change", func(t *testing.T) {
+		publishedEvents = make(map[publishTarget][]models.Event)
+		registry := destregistry.NewRegistry(&destregistry.Config{}, testutil.CreateTestLogger(t))
+		provider, err := newMockProviderWithConfig("mock1")
+		require.NoError(t, err)
+		registry.RegisterProvider("mock1", provider)
+
+		dest := &models.Destination{
+			ID:   "test-dest",
+			Type: "mock1",
+			Config: map[string]string{
+				"id": "config1",
+			},
+			Credentials: map[string]string{
+				"secret": "secret1",
+			},
+		}
+
+		e1 := testutil.EventFactory.Any(testutil.EventFactory.WithDataMap(map[string]interface{}{"msg": "first"}))
+		_, err = registry.PublishEvent(context.Background(), dest, &e1)
+		require.NoError(t, err)
+
+		// Same ID, type and config; only credentials rotated
+		destUpdated := &models.Destination{
+			ID:   "test-dest",
+			Type: "mock1",
+			Config: map[string]string{
+				"id": "config1",
+			},
+			Credentials: map[string]string{
+				"secret":          "secret2",
+				"previous_secret": "secret1",
+			},
+		}
+
+		e2 := testutil.EventFactory.Any(testutil.EventFactory.WithDataMap(map[string]interface{}{"msg": "second"}))
+		_, err = registry.PublishEvent(context.Background(), destUpdated, &e2)
+		require.NoError(t, err)
+
+		firstTarget := publishTarget{providerType: "mock1", config: "config1", credential: "secret1"}
+		secondTarget := publishTarget{providerType: "mock1", config: "config1", credential: "secret2"}
+
+		firstEvents := publishedEvents[firstTarget]
+		assert.Len(t, firstEvents, 1, "only first event should be published with secret1")
+		if len(firstEvents) > 0 {
+			assert.JSONEq(t, `{"msg":"first"}`, string(firstEvents[0].Data))
+		}
+
+		secondEvents := publishedEvents[secondTarget]
+		assert.Len(t, secondEvents, 1, "second event should be published with secret2")
 		if len(secondEvents) > 0 {
 			assert.JSONEq(t, `{"msg":"second"}`, string(secondEvents[0].Data))
 		}
