@@ -55,7 +55,7 @@ var (
 	eventDimensions = newStringSet("tenant_id", "topic", "destination_id")
 	eventFilters    = newStringSet("tenant_id", "topic", "destination_id")
 
-	attemptMeasures   = newStringSet("count", "successful_count", "failed_count", "error_rate", "first_attempt_count", "retry_count", "manual_retry_count", "avg_attempt_number", "rate", "successful_rate", "failed_rate")
+	attemptMeasures   = newStringSet("count", "successful_count", "failed_count", "error_rate", "first_attempt_count", "retry_count", "manual_retry_count", "avg_attempt_number", "rate", "successful_rate", "failed_rate", "avg_latency", "p50_latency", "p95_latency", "p99_latency")
 	attemptDimensions = newStringSet("tenant_id", "destination_id", "destination_type", "topic", "status", "code", "manual", "attempt_number")
 	attemptFilters    = newStringSet("tenant_id", "destination_id", "destination_type", "topic", "status", "code", "manual", "attempt_number")
 )
@@ -386,6 +386,14 @@ func attemptDataPointToAPI(dp logstore.AttemptMetricsDataPoint, measures, dimens
 			metrics["successful_rate"] = derefFloat64(dp.SuccessfulRate)
 		case "failed_rate":
 			metrics["failed_rate"] = derefFloat64(dp.FailedRate)
+		case "avg_latency":
+			metrics["avg_latency"] = nullableFloat64(dp.AvgLatency)
+		case "p50_latency":
+			metrics["p50_latency"] = nullableFloat64(dp.P50Latency)
+		case "p95_latency":
+			metrics["p95_latency"] = nullableFloat64(dp.P95Latency)
+		case "p99_latency":
+			metrics["p99_latency"] = nullableFloat64(dp.P99Latency)
 		}
 	}
 
@@ -432,6 +440,14 @@ func derefFloat64(p *float64) float64 {
 		return *p
 	}
 	return 0
+}
+
+// nullableFloat64 keeps nil as JSON null.
+func nullableFloat64(p *float64) any {
+	if p != nil {
+		return *p
+	}
+	return nil
 }
 
 func derefString(p *string) string {

@@ -3,6 +3,7 @@ package chlogstore
 import (
 	"context"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -300,8 +301,11 @@ func (s *logStoreImpl) QueryAttemptMetrics(ctx context.Context, req driver.Metri
 		sfRetryCount
 		sfManualRetry
 		sfAvgAttemptNum
+		sfAvgLatency
+		sfLatencyQuantiles
 	)
 	var order []sf
+	wantLatencyQuantiles := false
 
 	// Time bucket
 	if req.Granularity != nil {
@@ -379,6 +383,20 @@ func (s *logStoreImpl) QueryAttemptMetrics(ctx context.Context, req driver.Metri
 		case "avg_attempt_number":
 			selectExprs = append(selectExprs, "avg(attempt_number)")
 			order = append(order, sfAvgAttemptNum)
+		case "avg_latency":
+			// avg over a Nullable column is Nullable(Float64): NULL when no
+			// row has a value.
+			selectExprs = append(selectExprs, "avg(latency_ms)")
+			order = append(order, sfAvgLatency)
+		case "p50_latency", "p95_latency", "p99_latency":
+			if wantLatencyQuantiles {
+				continue
+			}
+			wantLatencyQuantiles = true
+			// One t-digest state per group serves all three percentiles;
+			// quantileExact would materialize every value per group.
+			selectExprs = append(selectExprs, "quantilesTDigest(0.5, 0.95, 0.99)(latency_ms)")
+			order = append(order, sfLatencyQuantiles)
 		}
 	}
 
@@ -452,6 +470,8 @@ func (s *logStoreImpl) QueryAttemptMetrics(ctx context.Context, req driver.Metri
 		retryCount       uint64
 		manualRetry      uint64
 		avgAttemptNum    float64
+		avgLatency       *float64
+		latencyQuantiles []float32
 	)
 
 	scanDests := make([]any, len(order))
@@ -491,6 +511,10 @@ func (s *logStoreImpl) QueryAttemptMetrics(ctx context.Context, req driver.Metri
 			scanDests[i] = &manualRetry
 		case sfAvgAttemptNum:
 			scanDests[i] = &avgAttemptNum
+		case sfAvgLatency:
+			scanDests[i] = &avgLatency
+		case sfLatencyQuantiles:
+			scanDests[i] = &latencyQuantiles
 		}
 	}
 
@@ -554,6 +578,16 @@ func (s *logStoreImpl) QueryAttemptMetrics(ctx context.Context, req driver.Metri
 			case sfAvgAttemptNum:
 				v := avgAttemptNum
 				dp.AvgAttemptNumber = &v
+			case sfAvgLatency:
+				if avgLatency != nil {
+					dp.AvgLatency = latencyMeasure(*avgLatency)
+				}
+			case sfLatencyQuantiles:
+				if len(latencyQuantiles) == 3 {
+					dp.P50Latency = latencyMeasure(float64(latencyQuantiles[0]))
+					dp.P95Latency = latencyMeasure(float64(latencyQuantiles[1]))
+					dp.P99Latency = latencyMeasure(float64(latencyQuantiles[2]))
+				}
 			}
 		}
 		data = append(data, dp)
@@ -596,4 +630,12 @@ func wrapCHMetricsError(op string, err error) error {
 		return fmt.Errorf("%s: %w: %w", op, driver.ErrResourceLimit, err)
 	}
 	return fmt.Errorf("%s: %w", op, err)
+}
+
+// latencyMeasure maps the NaN quantilesTDigest returns for an all-NULL group to nil.
+func latencyMeasure(v float64) *float64 {
+	if math.IsNaN(v) {
+		return nil
+	}
+	return &v
 }

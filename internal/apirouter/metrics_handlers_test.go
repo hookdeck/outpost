@@ -602,6 +602,91 @@ func TestAPI_MetricsAttempts(t *testing.T) {
 		assert.Empty(t, result.Data)
 	})
 
+	// Attempts default to time.Now(), which is past baseEnd; pin them in the window.
+	inWindow := baseStart.Add(30 * time.Minute)
+
+	t.Run("latency measures", func(t *testing.T) {
+		h := newAPITest(t)
+
+		e1 := ef.AnyPointer(ef.WithTenantID("t1"))
+		require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
+			{Event: e1, Attempt: attemptForEvent(e1, af.WithTime(inWindow), af.WithLatencyMs(100))},
+			{Event: e1, Attempt: attemptForEvent(e1, af.WithTime(inWindow), af.WithLatencyMs(300))},
+			{Event: e1, Attempt: attemptForEvent(e1, af.WithTime(inWindow))}, // no latency: skipped, not counted as 0
+		}))
+
+		req := httptest.NewRequest(http.MethodGet,
+			"/api/v1/metrics/attempts?"+baseQS+"&measures[0]=count&measures[1]=avg_latency&measures[2]=p50_latency&measures[3]=p95_latency&measures[4]=p99_latency", nil)
+		resp := h.do(h.withAPIKey(req))
+
+		require.Equal(t, http.StatusOK, resp.Code)
+
+		var result apirouter.APIMetricsResponse
+		require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
+		require.Len(t, result.Data, 1)
+		m := result.Data[0].Metrics
+		assert.Equal(t, float64(3), m["count"])
+		assert.Equal(t, 200.0, m["avg_latency"])
+		assert.Equal(t, 200.0, m["p50_latency"])
+		assert.Equal(t, 290.0, m["p95_latency"])
+		assert.Equal(t, 298.0, m["p99_latency"])
+	})
+
+	t.Run("latency measures are null when nothing was recorded", func(t *testing.T) {
+		h := newAPITest(t)
+
+		e1 := ef.AnyPointer(ef.WithTenantID("t1"))
+		require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
+			{Event: e1, Attempt: attemptForEvent(e1, af.WithTime(inWindow))},
+		}))
+
+		req := httptest.NewRequest(http.MethodGet,
+			"/api/v1/metrics/attempts?"+baseQS+"&measures[0]=count&measures[1]=avg_latency&measures[2]=p95_latency", nil)
+		resp := h.do(h.withAPIKey(req))
+
+		require.Equal(t, http.StatusOK, resp.Code)
+
+		var result apirouter.APIMetricsResponse
+		require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
+		require.Len(t, result.Data, 1)
+		m := result.Data[0].Metrics
+		assert.Equal(t, float64(1), m["count"])
+		require.Contains(t, m, "avg_latency", "requested measures are always present")
+		assert.Nil(t, m["avg_latency"], "no recorded latency must be null, not 0")
+		assert.Nil(t, m["p95_latency"])
+	})
+
+	t.Run("latency measures are null in empty buckets", func(t *testing.T) {
+		h := newAPITest(t)
+
+		e1 := ef.AnyPointer(ef.WithTenantID("t1"))
+		require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
+			{Event: e1, Attempt: attemptForEvent(e1, af.WithTime(inWindow), af.WithLatencyMs(150))},
+		}))
+
+		req := httptest.NewRequest(http.MethodGet,
+			"/api/v1/metrics/attempts?"+baseQS+"&granularity=1m&measures[0]=count&measures[1]=avg_latency", nil)
+		resp := h.do(h.withAPIKey(req))
+
+		require.Equal(t, http.StatusOK, resp.Code)
+
+		var result apirouter.APIMetricsResponse
+		require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
+		require.Greater(t, len(result.Data), 1)
+
+		populated := 0
+		for _, dp := range result.Data {
+			require.Contains(t, dp.Metrics, "avg_latency")
+			if dp.Metrics["count"] == float64(0) {
+				assert.Nil(t, dp.Metrics["avg_latency"], "empty bucket %s must be null", dp.TimeBucket)
+				continue
+			}
+			populated++
+			assert.Equal(t, 150.0, dp.Metrics["avg_latency"])
+		}
+		assert.Equal(t, 1, populated)
+	})
+
 	t.Run("rate measures without counts", func(t *testing.T) {
 		h := newAPITest(t)
 

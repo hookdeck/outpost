@@ -11,6 +11,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// latencyPercentileTolerance covers the gap between exact percentiles (PG, mem)
+// and ClickHouse's t-digest estimate. Dataset values are 50ms apart, so 25ms
+// still pins each percentile to one expected value.
+const latencyPercentileTolerance = 25.0
+
 func testMetricsDataCorrectness(t *testing.T, ctx context.Context, logStore driver.LogStore, ds *metricsDataset) {
 	fullRange := ds.timeRange.toDriver()
 	denseRange := ds.denseDayRange.toDriver()
@@ -375,6 +380,103 @@ func testMetricsDataCorrectness(t *testing.T, ctx context.Context, logStore driv
 			assert.Equal(t, 0, *dp.RetryCount)
 			assert.Equal(t, 30, *dp.ManualRetryCount)
 			assert.InDelta(t, 1.0, *dp.AvgAttemptNumber, 0.001)
+		})
+
+		t.Run("latency measures", func(t *testing.T) {
+			resp, err := logStore.QueryAttemptMetrics(ctx, driver.MetricsRequest{
+				Filters:   map[string][]string{"tenant_id": {ds.tenant1}},
+				TimeRange: fullRange,
+				Measures:  []string{"avg_latency", "p50_latency", "p95_latency", "p99_latency"},
+			})
+			require.NoError(t, err)
+			require.Len(t, resp.Data, 1)
+			dp := resp.Data[0]
+			require.NotNil(t, dp.AvgLatency)
+			require.NotNil(t, dp.P50Latency)
+			require.NotNil(t, dp.P95Latency)
+			require.NotNil(t, dp.P99Latency)
+			// 270 recorded (manual attempts have none): values 100..500, 30 each
+			assert.InDelta(t, 300.0, *dp.AvgLatency, 0.001)
+			assert.InDelta(t, 300.0, *dp.P50Latency, latencyPercentileTolerance)
+			assert.InDelta(t, 500.0, *dp.P95Latency, latencyPercentileTolerance)
+			assert.InDelta(t, 500.0, *dp.P99Latency, latencyPercentileTolerance)
+		})
+
+		t.Run("latency by destination_id", func(t *testing.T) {
+			resp, err := logStore.QueryAttemptMetrics(ctx, driver.MetricsRequest{
+				Filters:    map[string][]string{"tenant_id": {ds.tenant1}},
+				TimeRange:  fullRange,
+				Measures:   []string{"count", "avg_latency"},
+				Dimensions: []string{"destination_id"},
+			})
+			require.NoError(t, err)
+			require.Len(t, resp.Data, 2)
+			for _, dp := range resp.Data {
+				require.NotNil(t, dp.DestinationID)
+				require.NotNil(t, dp.AvgLatency)
+				// dest_1.1: 100,200,300,400,500 (avg 300); dest_1.2: 150,250,350,450 (avg 300)
+				assert.InDelta(t, 300.0, *dp.AvgLatency, 0.001, "destination %s", *dp.DestinationID)
+			}
+		})
+
+		t.Run("latency is nil when no attempt recorded one", func(t *testing.T) {
+			resp, err := logStore.QueryAttemptMetrics(ctx, driver.MetricsRequest{
+				Filters:   map[string][]string{"tenant_id": {ds.tenant2}},
+				TimeRange: fullRange,
+				Measures:  []string{"count", "avg_latency", "p50_latency", "p95_latency", "p99_latency"},
+			})
+			require.NoError(t, err)
+			require.Len(t, resp.Data, 1)
+			dp := resp.Data[0]
+			require.NotNil(t, dp.Count)
+			assert.Equal(t, 5, *dp.Count)
+			assert.Nil(t, dp.AvgLatency, "avg_latency must be nil, not 0, when nothing was recorded")
+			assert.Nil(t, dp.P50Latency)
+			assert.Nil(t, dp.P95Latency)
+			assert.Nil(t, dp.P99Latency)
+		})
+
+		t.Run("latency filtered to manual attempts is nil", func(t *testing.T) {
+			// Manual attempts have no latency: a non-empty all-NULL group is nil.
+			resp, err := logStore.QueryAttemptMetrics(ctx, driver.MetricsRequest{
+				Filters:   map[string][]string{"tenant_id": {ds.tenant1}, "manual": {"true"}},
+				TimeRange: fullRange,
+				Measures:  []string{"count", "avg_latency", "p95_latency"},
+			})
+			require.NoError(t, err)
+			require.Len(t, resp.Data, 1)
+			dp := resp.Data[0]
+			require.NotNil(t, dp.Count)
+			assert.Equal(t, 30, *dp.Count)
+			assert.Nil(t, dp.AvgLatency)
+			assert.Nil(t, dp.P95Latency)
+		})
+
+		t.Run("latency with 1h granularity on dense day", func(t *testing.T) {
+			resp, err := logStore.QueryAttemptMetrics(ctx, driver.MetricsRequest{
+				Filters:     map[string][]string{"tenant_id": {ds.tenant1}},
+				TimeRange:   denseRange,
+				Granularity: &driver.Granularity{Value: 1, Unit: "h"},
+				Measures:    []string{"count", "avg_latency", "p95_latency"},
+			})
+			require.NoError(t, err)
+			require.Len(t, resp.Data, 24)
+
+			for _, dp := range resp.Data {
+				require.NotNil(t, dp.TimeBucket)
+				require.NotNil(t, dp.Count)
+				h := dp.TimeBucket.Hour()
+				if h < 10 || h > 14 {
+					assert.Nil(t, dp.AvgLatency, "hour %d is empty: avg_latency must be nil", h)
+					assert.Nil(t, dp.P95Latency, "hour %d is empty: p95_latency must be nil", h)
+					continue
+				}
+				require.NotNil(t, dp.AvgLatency, "hour %d has data: avg_latency must be set", h)
+				require.NotNil(t, dp.P95Latency, "hour %d has data: p95_latency must be set", h)
+				assert.GreaterOrEqual(t, *dp.AvgLatency, 100.0)
+				assert.LessOrEqual(t, *dp.AvgLatency, 500.0)
+				assert.GreaterOrEqual(t, *dp.P95Latency, *dp.AvgLatency-latencyPercentileTolerance)
+			}
 		})
 
 		t.Run("rate no granularity", func(t *testing.T) {
