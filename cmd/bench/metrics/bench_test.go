@@ -221,6 +221,41 @@ var attemptCases = []struct {
 		},
 	},
 	{
+		name: "AvgLatencyAll",
+		req: driver.MetricsRequest{
+			TimeRange: fullMonth,
+			Measures:  []string{"avg_latency"},
+			Filters:   tenant0(),
+		},
+	},
+	{
+		name: "LatencyPercentilesAll",
+		req: driver.MetricsRequest{
+			TimeRange: fullMonth,
+			Measures:  []string{"p50_latency", "p95_latency", "p99_latency"},
+			Filters:   tenant0(),
+		},
+	},
+	{
+		name: "LatencyPercentilesByDestinationHourly",
+		req: driver.MetricsRequest{
+			TimeRange:   oneDay,
+			Granularity: hourly(),
+			Measures:    []string{"count", "avg_latency", "p95_latency"},
+			Dimensions:  []string{"destination_id"},
+			Filters:     tenant0(),
+		},
+	},
+	{
+		name: "LatencyPercentilesSingleDestinationDaily",
+		req: driver.MetricsRequest{
+			TimeRange:   fullMonth,
+			Granularity: daily(),
+			Measures:    []string{"count", "error_rate", "avg_latency", "p50_latency", "p95_latency", "p99_latency"},
+			Filters:     withTenant0(map[string][]string{"destination_id": {"dest_42"}}),
+		},
+	},
+	{
 		name: "FailedRate",
 		req: driver.MetricsRequest{
 			TimeRange: fullMonth,
