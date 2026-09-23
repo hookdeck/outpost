@@ -123,6 +123,10 @@ export type Attempt = {
    */
   manual?: boolean | undefined;
   /**
+   * Time in milliseconds from sending the attempt to receiving the destination's response (or the error), measured around the provider's publish call. Null for attempts that never reached the provider and for attempts recorded before latency was tracked.
+   */
+  latencyMs?: number | null | undefined;
+  /**
    * The ID of the associated event.
    */
   eventId?: string | undefined;
@@ -326,6 +330,7 @@ export const Attempt$inboundSchema: z.ZodType<Attempt, z.ZodTypeDef, unknown> =
     response_data: z.nullable(z.record(z.any())).optional(),
     attempt_number: z.number().int().optional(),
     manual: z.boolean().optional(),
+    latency_ms: z.nullable(z.number().int()).optional(),
     event_id: z.string().optional(),
     destination_id: z.string().optional(),
     event: z.nullable(
@@ -340,6 +345,7 @@ export const Attempt$inboundSchema: z.ZodType<Attempt, z.ZodTypeDef, unknown> =
       "tenant_id": "tenantId",
       "response_data": "responseData",
       "attempt_number": "attemptNumber",
+      "latency_ms": "latencyMs",
       "event_id": "eventId",
       "destination_id": "destinationId",
     });
@@ -354,6 +360,7 @@ export type Attempt$Outbound = {
   response_data?: { [k: string]: any } | null | undefined;
   attempt_number?: number | undefined;
   manual?: boolean | undefined;
+  latency_ms?: number | null | undefined;
   event_id?: string | undefined;
   destination_id?: string | undefined;
   event?: EventFull$Outbound | EventSummary$Outbound | null | undefined;
@@ -374,6 +381,7 @@ export const Attempt$outboundSchema: z.ZodType<
   responseData: z.nullable(z.record(z.any())).optional(),
   attemptNumber: z.number().int().optional(),
   manual: z.boolean().optional(),
+  latencyMs: z.nullable(z.number().int()).optional(),
   eventId: z.string().optional(),
   destinationId: z.string().optional(),
   event: z.nullable(
@@ -388,6 +396,7 @@ export const Attempt$outboundSchema: z.ZodType<
     tenantId: "tenant_id",
     responseData: "response_data",
     attemptNumber: "attempt_number",
+    latencyMs: "latency_ms",
     eventId: "event_id",
     destinationId: "destination_id",
   });
