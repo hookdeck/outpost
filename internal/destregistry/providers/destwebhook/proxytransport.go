@@ -11,7 +11,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/hookdeck/outpost/internal/destregistry"
+	"github.com/hookdeck/outpost/internal/proxychain"
 )
 
 // WrapTransport is the destregistry.HTTPClientConfig.WrapTransport hook for
@@ -271,7 +271,7 @@ func (t *proxyTransport) classifyTransportError(err error, req *http.Request) er
 	// An intermediate hop refused to tunnel to the next one. Go wraps the
 	// dialer's error in the same proxyconnect OpError as a plain dial
 	// failure, so this has to run before the substring check below.
-	var connectErr *destregistry.ProxyConnectError
+	var connectErr *proxychain.ConnectError
 	if errors.As(err, &connectErr) {
 		return classifyConnectResponse(connectErr.Status, connectErr.Header, err, hostOnly(connectErr.Next))
 	}

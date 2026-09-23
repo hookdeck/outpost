@@ -6,7 +6,7 @@ import (
 	"net/url"
 	"regexp"
 
-	"github.com/hookdeck/outpost/internal/destregistry"
+	"github.com/hookdeck/outpost/internal/proxychain"
 )
 
 // Validate checks if the configuration is valid
@@ -176,7 +176,7 @@ func (c *Config) validatePortal() error {
 // validateDestinations fails boot on a malformed webhook proxy chain so a bad
 // hop never reaches the delivery path.
 func (c *Config) validateDestinations() error {
-	if _, err := destregistry.ParseProxyURL(c.Destinations.Webhook.ProxyURL); err != nil {
+	if _, err := proxychain.Parse(c.Destinations.Webhook.ProxyURL); err != nil {
 		return fmt.Errorf("%w: %w", ErrInvalidWebhookProxyURL, err)
 	}
 	return nil

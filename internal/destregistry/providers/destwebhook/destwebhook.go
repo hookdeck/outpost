@@ -191,7 +191,7 @@ func WithMetadataName(name string) Option {
 }
 
 // WithProxy routes every request through the given forward proxies,
-// nearest hop first. See destregistry.ParseProxyURL.
+// nearest hop first. See proxychain.Parse.
 func WithProxy(hops []*url.URL) Option {
 	return func(w *WebhookDestination) {
 		w.proxy = hops

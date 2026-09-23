@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/hookdeck/outpost/internal/destregistry"
+	"github.com/hookdeck/outpost/internal/proxychain"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -84,7 +85,7 @@ func TestMakeHTTPClient_Proxy(t *testing.T) {
 		defer targetServer.Close()
 
 		// Create client with proxy configured
-		proxy, err := destregistry.ParseProxyURL(proxyServer.URL)
+		proxy, err := proxychain.Parse(proxyServer.URL)
 		require.NoError(t, err)
 		client, err := destregistry.NewHTTPClient(destregistry.HTTPClientConfig{
 			Proxy: proxy,
@@ -104,7 +105,7 @@ func TestMakeHTTPClient_Proxy(t *testing.T) {
 	t.Run("returns error for invalid proxy URL", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := destregistry.ParseProxyURL("://invalid-url")
+		_, err := proxychain.Parse("://invalid-url")
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "proxy hop 0")
 	})

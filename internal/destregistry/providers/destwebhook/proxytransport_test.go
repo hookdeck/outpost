@@ -10,6 +10,7 @@ import (
 
 	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destwebhook"
+	"github.com/hookdeck/outpost/internal/proxychain"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -43,7 +44,7 @@ func newCONNECTRejectingProxyWithHeaders(t *testing.T, status int, headers map[s
 // the proxyTransport wrapper, matching the NewHTTPClient flow.
 func makeProxiedClient(t *testing.T, proxyURL string) *http.Client {
 	t.Helper()
-	proxy, err := destregistry.ParseProxyURL(proxyURL)
+	proxy, err := proxychain.Parse(proxyURL)
 	require.NoError(t, err)
 	client, err := destregistry.NewHTTPClient(destregistry.HTTPClientConfig{
 		Proxy:         proxy,
