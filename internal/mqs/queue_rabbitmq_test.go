@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hookdeck/outpost/internal/consumer"
 	"github.com/hookdeck/outpost/internal/mqs"
 	"github.com/hookdeck/outpost/internal/util/testinfra"
 	"github.com/stretchr/testify/require"
@@ -62,4 +63,95 @@ func TestIntegrationMQ_RabbitMQPublishReconnects(t *testing.T) {
 	// The publish must transparently redial instead of failing forever.
 	require.NoError(t, queue.Publish(ctx, &Msg{ID: "after-disconnect"}))
 	require.Equal(t, "after-disconnect", receive(t).ID)
+}
+
+func TestIntegrationMQ_RabbitMQSubscriptionReconnects(t *testing.T) {
+	t.Parallel()
+	t.Cleanup(testinfra.Start(t))
+	config := testinfra.NewMQRabbitMQConfig(t)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	queue := mqs.NewQueue(&config)
+	cleanup, err := queue.Init(ctx)
+	require.NoError(t, err)
+	defer cleanup()
+
+	subscription, err := queue.Subscribe(ctx)
+	require.NoError(t, err)
+
+	received := make(chan string, 10)
+	csm := consumer.New(subscription, handlerFunc(func(ctx context.Context, msg *mqs.Message) error {
+		msg.Ack()
+		parsed := &Msg{}
+		if err := parsed.FromMessage(msg); err != nil {
+			return err
+		}
+		received <- parsed.ID
+		return nil
+	}),
+		consumer.WithConcurrency(5),
+		consumer.WithMaxConsecutiveErrors(3),
+		consumer.WithInitialBackoff(50*time.Millisecond),
+	)
+	runErr := make(chan error, 1)
+	go func() { runErr <- csm.Run(ctx) }()
+
+	// Messages whose ack was lost with the connection are redelivered, so
+	// skip anything that isn't the expected ID.
+	awaitMessage := func(id string) {
+		t.Helper()
+		timeout := time.After(10 * time.Second)
+		for {
+			select {
+			case got := <-received:
+				if got == id {
+					return
+				}
+			case err := <-runErr:
+				t.Fatalf("consumer exited: %v", err)
+			case <-timeout:
+				t.Fatalf("timed out waiting for %s", id)
+			}
+		}
+	}
+
+	require.NoError(t, queue.Publish(ctx, &Msg{ID: "before-disconnect"}))
+	awaitMessage("before-disconnect")
+
+	// Simulate the broker dropping the connection.
+	require.NoError(t, mqs.ForceCloseRabbitMQConnection(queue))
+
+	require.NoError(t, queue.Publish(ctx, &Msg{ID: "after-disconnect"}))
+	awaitMessage("after-disconnect")
+
+	cancel()
+	require.ErrorIs(t, <-runErr, context.Canceled)
+}
+
+type handlerFunc func(ctx context.Context, msg *mqs.Message) error
+
+func (f handlerFunc) Handle(ctx context.Context, msg *mqs.Message) error { return f(ctx, msg) }
+
+func TestIntegrationMQ_RabbitMQNoRedialAfterCleanup(t *testing.T) {
+	t.Parallel()
+	t.Cleanup(testinfra.Start(t))
+	config := testinfra.NewMQRabbitMQConfig(t)
+
+	ctx := context.Background()
+	queue := mqs.NewQueue(&config)
+	cleanup, err := queue.Init(ctx)
+	require.NoError(t, err)
+
+	subscription, err := queue.Subscribe(ctx)
+	require.NoError(t, err)
+	defer subscription.Shutdown(ctx)
+
+	cleanup()
+
+	receiveCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	_, err = subscription.Receive(receiveCtx)
+	require.Error(t, err)
+	require.True(t, mqs.RabbitMQConnectionClosed(queue), "queue redialed after cleanup")
 }
