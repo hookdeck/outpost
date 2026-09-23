@@ -131,7 +131,6 @@ func (q *RabbitMQQueue) dial() (*amqp091.Connection, error) {
 		timeout = time.Duration(uri.ConnectionTimeout) * time.Millisecond
 	}
 	return amqp091.DialConfig(q.config.ServerURL, amqp091.Config{
-		Locale: "en_US",
 		Dial: func(network, addr string) (net.Conn, error) {
 			ctx, cancel := context.WithTimeout(context.Background(), timeout)
 			defer cancel()
