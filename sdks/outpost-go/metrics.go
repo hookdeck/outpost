@@ -339,7 +339,11 @@ func (s *Metrics) GetEventMetrics(ctx context.Context, request operations.GetEve
 //
 // **Measures:** `count`, `successful_count`, `failed_count`, `error_rate`,
 // `first_attempt_count`, `retry_count`, `manual_retry_count`, `avg_attempt_number`,
-// `rate`, `successful_rate`, `failed_rate`
+// `rate`, `successful_rate`, `failed_rate`, `avg_latency`, `p50_latency`, `p95_latency`, `p99_latency`
+//
+// Latency measures are in milliseconds and computed over attempts that recorded a
+// latency (see `latency_ms` on the attempt object). They are `null` for a bucket
+// with no such attempts, rather than `0`.
 //
 // **Dimensions:** `tenant_id` (admin-only), `destination_id`, `destination_type`, `topic`, `status`, `code`, `manual`, `attempt_number`
 //

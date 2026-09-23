@@ -2562,6 +2562,11 @@ components:
           type: boolean
           description: Whether this attempt was manually triggered (e.g., a retry initiated by a user).
           example: false
+        latency_ms:
+          type: integer
+          nullable: true
+          description: Time in milliseconds from sending the attempt to receiving the destination's response (or the error), measured around the provider's publish call. Null for attempts that never reached the provider and for attempts recorded before latency was tracked.
+          example: 212
         event_id:
           type: string
           description: The ID of the associated event.
@@ -3345,11 +3350,9 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: Filter tenants by ID(s). Use bracket notation for multiple values (e.g., `id[0]=t1&id[1]=t2` or `id[]=t1&id[]=t2`).
         - name: limit
           in: query
@@ -3549,21 +3552,17 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: Filter events by ID(s). Use bracket notation for multiple values (e.g., `id[0]=abc&id[1]=def`).
         - name: tenant_id
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: |
             Filter events by tenant ID(s). Use bracket notation for multiple values (e.g., `tenant_id[0]=t1&tenant_id[1]=t2`).
             When authenticated with a Tenant JWT, this parameter is ignored and the JWT's tenant is used.
@@ -3582,11 +3581,9 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: Filter events by topic(s). Use bracket notation for multiple values (e.g., `topic[0]=user.created&topic[1]=user.updated`).
         - name: time
           in: query
@@ -3734,11 +3731,9 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: |
             Filter attempts by tenant ID(s). Use bracket notation for multiple values (e.g., `tenant_id[0]=t1&tenant_id[1]=t2`).
             When authenticated with a Tenant JWT, this parameter is ignored and the JWT's tenant is used.
@@ -3747,21 +3742,17 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: Filter attempts by event ID(s). Use bracket notation for multiple values (e.g., `event_id[0]=e1&event_id[1]=e2`).
         - name: destination_id
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: Filter attempts by destination ID(s). Use bracket notation for multiple values (e.g., `destination_id[0]=d1&destination_id[1]=d2`).
         - name: destination_type
           in: query
@@ -3784,11 +3775,9 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: Filter attempts by event topic(s). Use bracket notation for multiple values (e.g., `topic[0]=user.created&topic[1]=user.updated`).
         - name: time
           in: query
@@ -3823,11 +3812,9 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: |
             Fields to include in the response. Use bracket notation for multiple values (e.g., `include[0]=event&include[1]=response_data`).
             - `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
@@ -3872,6 +3859,7 @@ paths:
                         time: "2024-01-01T00:00:05Z"
                         code: "200"
                         attempt_number: 1
+                        latency_ms: 212
                         event_id: "evt_123"
                         destination_id: "des_456"
                       - id: "att_124"
@@ -3879,6 +3867,7 @@ paths:
                         time: "2024-01-02T10:00:01Z"
                         code: "503"
                         attempt_number: 2
+                        latency_ms: 1502
                         event_id: "evt_789"
                         destination_id: "des_789"
                 AdminAttemptsWithIncludeExample:
@@ -3896,6 +3885,7 @@ paths:
                         time: "2024-01-01T00:00:05Z"
                         code: "200"
                         attempt_number: 1
+                        latency_ms: 212
                         event_id: "evt_123"
                         destination_id: "des_456"
                         event:
@@ -3939,11 +3929,9 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: |
             Fields to include in the response. Use bracket notation for multiple values (e.g., `include[0]=event&include[1]=response_data`).
             - `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
@@ -3965,6 +3953,7 @@ paths:
                     time: "2024-01-01T00:00:05Z"
                     code: "200"
                     attempt_number: 1
+                    latency_ms: 212
                     event_id: "evt_123"
                     destination_id: "des_456"
                 AttemptWithIncludeExample:
@@ -3979,6 +3968,7 @@ paths:
                       body: '{"status":"ok"}'
                       headers: {"content-type": "application/json"}
                     attempt_number: 1
+                    latency_ms: 212
                     event_id: "evt_123"
                     destination_id: "des_456"
                     event:
@@ -4093,21 +4083,17 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - $ref: "#/components/schemas/DestinationType"
-              - type: array
-                items:
-                  $ref: "#/components/schemas/DestinationType"
+            type: array
+            items:
+              $ref: "#/components/schemas/DestinationType"
           description: Filter destinations by type(s). Use bracket notation for multiple values (e.g., `type[0]=webhook&type[1]=aws_sqs`).
         - name: topics
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: Filter destinations by supported topic(s). Use bracket notation for multiple values (e.g., `topics[0]=user.created&topics[1]=user.deleted`).
       responses:
         "200":
@@ -4457,11 +4443,9 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: Filter attempts by event ID(s). Use bracket notation for multiple values (e.g., `event_id[0]=e1&event_id[1]=e2`).
         - name: status
           in: query
@@ -4474,11 +4458,9 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: Filter attempts by event topic(s). Use bracket notation for multiple values (e.g., `topic[0]=user.created&topic[1]=user.updated`).
         - name: time
           in: query
@@ -4513,11 +4495,9 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: |
             Fields to include in the response. Use bracket notation for multiple values (e.g., `include[0]=event&include[1]=response_data`).
             - `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
@@ -4562,6 +4542,7 @@ paths:
                         time: "2024-01-01T00:00:05Z"
                         code: "200"
                         attempt_number: 1
+                        latency_ms: 212
                         event_id: "evt_123"
                         destination_id: "des_456"
                       - id: "atm_124"
@@ -4569,6 +4550,7 @@ paths:
                         time: "2024-01-02T10:00:01Z"
                         code: "503"
                         attempt_number: 2
+                        latency_ms: 1502
                         event_id: "evt_789"
                         destination_id: "des_456"
         "401":
@@ -4608,11 +4590,9 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: |
             Fields to include in the response. Use bracket notation for multiple values (e.g., `include[0]=event&include[1]=response_data`).
             - `event`: Include event summary
@@ -4634,6 +4614,7 @@ paths:
                     time: "2024-01-01T00:00:05Z"
                     code: "200"
                     attempt_number: 1
+                    latency_ms: 212
                     event_id: "evt_123"
                     destination_id: "des_456"
         "401":
@@ -5156,7 +5137,11 @@ paths:
 
         **Measures:** `count`, `successful_count`, `failed_count`, `error_rate`,
         `first_attempt_count`, `retry_count`, `manual_retry_count`, `avg_attempt_number`,
-        `rate`, `successful_rate`, `failed_rate`
+        `rate`, `successful_rate`, `failed_rate`, `avg_latency`, `p50_latency`, `p95_latency`, `p99_latency`
+
+        Latency measures are in milliseconds and computed over attempts that recorded a
+        latency (see `latency_ms` on the attempt object). They are `null` for a bucket
+        with no such attempts, rather than `0`.
 
         **Dimensions:** `tenant_id` (admin-only), `destination_id`, `destination_type`, `topic`, `status`, `code`, `manual`, `attempt_number`
 
@@ -5201,13 +5186,13 @@ paths:
           schema:
             oneOf:
               - type: string
-                enum: [count, successful_count, failed_count, error_rate, first_attempt_count, retry_count, manual_retry_count, avg_attempt_number, rate, successful_rate, failed_rate]
+                enum: [count, successful_count, failed_count, error_rate, first_attempt_count, retry_count, manual_retry_count, avg_attempt_number, rate, successful_rate, failed_rate, avg_latency, p50_latency, p95_latency, p99_latency]
               - type: array
                 items:
                   type: string
-                  enum: [count, successful_count, failed_count, error_rate, first_attempt_count, retry_count, manual_retry_count, avg_attempt_number, rate, successful_rate, failed_rate]
-          description: Measures to compute. At least one required. Rate measures (`rate`, `successful_rate`, `failed_rate`) are throughput in events/second. Use bracket notation for multiple values (e.g., `measures[0]=count&measures[1]=error_rate`).
-          example: ["count", "error_rate"]
+                  enum: [count, successful_count, failed_count, error_rate, first_attempt_count, retry_count, manual_retry_count, avg_attempt_number, rate, successful_rate, failed_rate, avg_latency, p50_latency, p95_latency, p99_latency]
+          description: Measures to compute. At least one required. Rate measures (`rate`, `successful_rate`, `failed_rate`) are throughput in events/second. Latency measures (`avg_latency`, `p50_latency`, `p95_latency`, `p99_latency`) are destination response times in milliseconds, `null` when no attempt in the bucket recorded a latency. Use bracket notation for multiple values (e.g., `measures[0]=count&measures[1]=error_rate`).
+          example: ["count", "error_rate", "p95_latency"]
         - name: dimensions
           in: query
           required: false
@@ -5318,6 +5303,8 @@ paths:
                           successful_count: 1393
                           failed_count: 30
                           error_rate: 0.0211
+                          avg_latency: 212.4
+                          p95_latency: 810
                     metadata:
                       granularity: "1d"
                       query_time_ms: 38

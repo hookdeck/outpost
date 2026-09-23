@@ -1,19 +1,19 @@
 lockVersion: 2.0.0
 id: f0627709-5a00-43ac-8678-ca716d6f379c
 management:
-  docChecksum: 6c3d30227dd26fc53cc3df8f5ccf770c
+  docChecksum: 1dcec59b1aae95cad33764a33914e30b
   docVersion: 0.0.1
   speakeasyVersion: 1.798.0
   generationVersion: 2.938.0
-  releaseVersion: 1.6.0
-  configChecksum: 8da19e6cd06a85b99a6109e1af2a865b
+  releaseVersion: 1.6.1
+  configChecksum: 225ef3d4e8a423a1a092df3939472505
   repoURL: https://github.com/hookdeck/outpost.git
   repoSubDirectory: sdks/outpost-go
   installationURL: https://github.com/hookdeck/outpost
 persistentEdits:
-  generation_id: 1fd96132-9d81-4b41-af10-cafee75a0b18
-  pristine_commit_hash: 4e61c674ad0241fe93458cea46bd97fcc5241dc8
-  pristine_tree_hash: 48bb454c58dd2554c696325360f6bb4b270e502f
+  generation_id: 09d8f2a8-dcd9-49c1-9e8a-7292eff29fb6
+  pristine_commit_hash: ae10d7b47164f3349ac596616be266307b7fd894
+  pristine_tree_hash: fa418a06f7c037debf792b1790c2094b423ddefd
 features:
   go:
     additionalDependencies: 0.1.0
@@ -94,8 +94,8 @@ trackedFiles:
     pristine_git_object: 71ddaa3bff7c43aa01c16c3b89c30ab09e66f732
   docs/models/components/attempt.md:
     id: 830868ab1006
-    last_write_checksum: sha1:52c12e4038ca066af9e4394f7c12f35cffe5361d
-    pristine_git_object: f25290d6bb660215c1cfb8fdc714f7435061475e
+    last_write_checksum: sha1:9caccdf9d3c71a08dfaf401052718701f695ed12
+    pristine_git_object: 320bf98b78b1ba9af98f259ff4071dc0570deaa3
   docs/models/components/attemptpaginatedresult.md:
     id: 56e122fd3059
     last_write_checksum: sha1:5582cd39fe8bd7132e966c73204f03674b7fa115
@@ -718,20 +718,20 @@ trackedFiles:
     pristine_git_object: 4f12ca072b0a8cee0b27359549a2471b1517581a
   docs/models/operations/getattemptmetricsmeasuresenum1.md:
     id: 4057a7c16751
-    last_write_checksum: sha1:3610684ca16502e539a1aa8c15a8e32c16c2f116
-    pristine_git_object: 089476203de0c31abdf5f33cfb816edf4df00d21
+    last_write_checksum: sha1:971d557ac685f900d7698cde9e0fbf86ed3404a7
+    pristine_git_object: efd56afd3a5253322d51671929e8706829357798
   docs/models/operations/getattemptmetricsmeasuresenum2.md:
     id: dfe6f415e02b
-    last_write_checksum: sha1:f6779514e6b1700cffaf6ae7751fd8dbb8acd418
-    pristine_git_object: 8453b07ef639178c259fd8dc88efdb9e292d1e85
+    last_write_checksum: sha1:3ac16a1f4848e301c0ae2256fdbb01ac23b47470
+    pristine_git_object: 0d0cb09500661be4cf50272533070da954734e0e
   docs/models/operations/getattemptmetricsmeasuresunion.md:
     id: 454f41df243f
-    last_write_checksum: sha1:ed3ad8b4a0f803216c9665c47d56ad156a95e2fd
-    pristine_git_object: 44cc67051a611770fbc03f4f2091ecee86e090da
+    last_write_checksum: sha1:f87b450424030ba0873aaad16ea87b520e9c5cc2
+    pristine_git_object: cbfc49965c5955578cf76c888c09b4fcb15b5422
   docs/models/operations/getattemptmetricsrequest.md:
     id: accc5c32f0c1
-    last_write_checksum: sha1:00b13f004d8fffaf9b012800093088ac8bd97c0d
-    pristine_git_object: f28d7fce6ed7f48189fa4e266a673026fd76fad6
+    last_write_checksum: sha1:e3fd8aefe59fa28c98ea74fbf6a9f54aae6be6ef
+    pristine_git_object: 9baf431005a6bcbbac94894b32f57666453883de
   docs/models/operations/getattemptmetricsresponse.md:
     id: 69295ef2ea44
     last_write_checksum: sha1:765207f47455d5bae79f60ce273d7d110750d5e8
@@ -1026,8 +1026,8 @@ trackedFiles:
     pristine_git_object: e9712192ac75106a3f8306a70fe5257849ba310d
   docs/sdks/metrics/README.md:
     id: a8545d964e21
-    last_write_checksum: sha1:f900c8f086e95bac77904cbb4fb06c3fa87aaa5a
-    pristine_git_object: 8affd3c29daba3f78810eb63597518d8e76e2bda
+    last_write_checksum: sha1:eb95d6a9abea17f8717850c4d6e8a7df0cf7c2f2
+    pristine_git_object: 4b44662f72a49bfec564ae9f0a849b8699514a7a
   docs/sdks/outpost/README.md:
     id: f9b868668835
     last_write_checksum: sha1:ac17e2449e507035258aca017b7f44802d476f1c
@@ -1118,8 +1118,8 @@ trackedFiles:
     pristine_git_object: 72ca1538bf771e82f1d878c128796a4e93bf8e0e
   metrics.go:
     id: 9539b0d0fd18
-    last_write_checksum: sha1:01fe1f09fa059a438b5d0d61776ece4a7a22fd4f
-    pristine_git_object: 6f01bb0e395aaaa6544afac15af6b67d2ef7a0e2
+    last_write_checksum: sha1:45962a727c673c00848935a29e88281bd6fca325
+    pristine_git_object: 2fbec457b07add64dfe6af7defd56a0c07a0fd9d
   models/apierrors/apierror.go:
     id: 4cecf27a5a54
     last_write_checksum: sha1:e699d3325ea82ea2b0d29656396210f0513c3391
@@ -1158,8 +1158,8 @@ trackedFiles:
     pristine_git_object: 7a24725d255c9bb5620dcd8e128b1b9b4965469b
   models/components/attempt.go:
     id: f1a7ba25d0ee
-    last_write_checksum: sha1:bac7dbbbf8191ba66e2dcd967cbe4d5653ec2412
-    pristine_git_object: 8af8aa4d47e92a0fab2e96b301ac34f5402fedd8
+    last_write_checksum: sha1:6c170db6adc203c440c40e9b2d2037885f64fc4c
+    pristine_git_object: f44cde4dc4c4037ae9e29575e0d80be3a8b592d6
   models/components/attemptpaginatedresult.go:
     id: 9540a56f5184
     last_write_checksum: sha1:96a7782573d0d04417e8993960c363605500f0af
@@ -1538,8 +1538,8 @@ trackedFiles:
     pristine_git_object: 9027959a7425677472a96e1a3ce4d7c7cdc7d79c
   models/operations/getattemptmetrics.go:
     id: 2cba7e6f3d47
-    last_write_checksum: sha1:e9414012e8c83ece7ee0fded9c3ab908d2848c42
-    pristine_git_object: 1407ab499998f7e9aae7c8a95869d7270c676852
+    last_write_checksum: sha1:265dbdbd4f9a79458625caf0164be5e85175dc78
+    pristine_git_object: 717f16fc3547a31ce917641542b0f8d4bbbe8e6a
   models/operations/getdestinationtypeschema.go:
     id: 469bb274efa3
     last_write_checksum: sha1:96aae2a5d2c9603791e9786dafbb3a668e52ace2
@@ -1642,8 +1642,8 @@ trackedFiles:
     pristine_git_object: 50aa468688c05e04abd6c94a941d3b525e697ffa
   outpost.go:
     id: 7aebc57e3f81
-    last_write_checksum: sha1:984d2075c00fbbce382bf40b44764e6bd62709a2
-    pristine_git_object: 5e16ca3b277a194e9dba93993ba04ea633103198
+    last_write_checksum: sha1:b2a216ea2915ee37d3b2546acd998e24d65a57e4
+    pristine_git_object: de835bf05008b6e867e2dbce5dc9d6759d4d83c1
   retry/config.go:
     id: 82d673cb0389
     last_write_checksum: sha1:102d1953fbd7e9f312c4442c71ccca2eaaeaa27d
@@ -2082,14 +2082,14 @@ examples:
           attempt_id: "<id>"
       responses:
         "200":
-          application/json: {"id": "atm_123", "status": "success", "time": "2024-01-01T00:00:05Z", "code": "200", "attempt_number": 1, "event_id": "evt_123", "destination_id": "des_456"}
+          application/json: {"id": "atm_123", "status": "success", "time": "2024-01-01T00:00:05Z", "code": "200", "attempt_number": 1, "latency_ms": 212, "event_id": "evt_123", "destination_id": "des_456"}
     AttemptWithIncludeExample:
       parameters:
         path:
           attempt_id: "<id>"
       responses:
         "200":
-          application/json: {"id": "atm_123", "status": "success", "time": "2024-01-01T00:00:05Z", "code": "200", "response_data": {"status_code": 200, "body": "{\"status\":\"ok\"}", "headers": {"content-type": "application/json"}}, "attempt_number": 1, "event_id": "evt_123", "destination_id": "des_456", "event": {"id": "evt_123", "topic": "user.created", "time": "2024-01-01T00:00:00Z", "eligible_for_retry": false, "metadata": {"source": "crm"}, "data": {"user_id": "userid", "status": "active"}}}
+          application/json: {"id": "atm_123", "status": "success", "time": "2024-01-01T00:00:05Z", "code": "200", "response_data": {"status_code": 200, "body": "{\"status\":\"ok\"}", "headers": {"content-type": "application/json"}}, "attempt_number": 1, "latency_ms": 212, "event_id": "evt_123", "destination_id": "des_456", "event": {"id": "evt_123", "topic": "user.created", "time": "2024-01-01T00:00:00Z", "eligible_for_retry": false, "metadata": {"source": "crm"}, "data": {"user_id": "userid", "status": "active"}}}
   retryEvent:
     RetryAccepted:
       requestBody:
@@ -2121,7 +2121,7 @@ examples:
           dir: "desc"
       responses:
         "200":
-          application/json: {"pagination": {"order_by": "time", "dir": "desc", "limit": 100, "next": "MTcwNDA2NzIwMA==", "prev": null}, "models": [{"id": "atm_123", "status": "success", "time": "2024-01-01T00:00:05Z", "code": "200", "attempt_number": 1, "event_id": "evt_123", "destination_id": "des_456"}, {"id": "atm_124", "status": "failed", "time": "2024-01-02T10:00:01Z", "code": "503", "attempt_number": 2, "event_id": "evt_789", "destination_id": "des_456"}]}
+          application/json: {"pagination": {"order_by": "time", "dir": "desc", "limit": 100, "next": "MTcwNDA2NzIwMA==", "prev": null}, "models": [{"id": "atm_123", "status": "success", "time": "2024-01-01T00:00:05Z", "code": "200", "attempt_number": 1, "latency_ms": 212, "event_id": "evt_123", "destination_id": "des_456"}, {"id": "atm_124", "status": "failed", "time": "2024-01-02T10:00:01Z", "code": "503", "attempt_number": 2, "latency_ms": 1502, "event_id": "evt_789", "destination_id": "des_456"}]}
   getTenantDestinationAttempt:
     DestinationAttemptExample:
       parameters:
@@ -2131,7 +2131,7 @@ examples:
           attempt_id: "<id>"
       responses:
         "200":
-          application/json: {"id": "atm_123", "status": "success", "time": "2024-01-01T00:00:05Z", "code": "200", "attempt_number": 1, "event_id": "evt_123", "destination_id": "des_456"}
+          application/json: {"id": "atm_123", "status": "success", "time": "2024-01-01T00:00:05Z", "code": "200", "attempt_number": 1, "latency_ms": 212, "event_id": "evt_123", "destination_id": "des_456"}
   listDestinationTypeSchemas:
     DestinationTypesExample:
       responses:
@@ -2157,7 +2157,7 @@ examples:
           destination_type: "webhook"
       responses:
         "200":
-          application/json: {"pagination": {"order_by": "time", "dir": "desc", "limit": 100, "next": "MTcwNDA2NzIwMA==", "prev": null}, "models": [{"id": "atm_123", "status": "success", "time": "2024-01-01T00:00:05Z", "code": "200", "attempt_number": 1, "event_id": "evt_123", "destination_id": "des_456"}, {"id": "att_124", "status": "failed", "time": "2024-01-02T10:00:01Z", "code": "503", "attempt_number": 2, "event_id": "evt_789", "destination_id": "des_789"}]}
+          application/json: {"pagination": {"order_by": "time", "dir": "desc", "limit": 100, "next": "MTcwNDA2NzIwMA==", "prev": null}, "models": [{"id": "atm_123", "status": "success", "time": "2024-01-01T00:00:05Z", "code": "200", "attempt_number": 1, "latency_ms": 212, "event_id": "evt_123", "destination_id": "des_456"}, {"id": "att_124", "status": "failed", "time": "2024-01-02T10:00:01Z", "code": "503", "attempt_number": 2, "latency_ms": 1502, "event_id": "evt_789", "destination_id": "des_789"}]}
     AdminAttemptsWithIncludeExample:
       parameters:
         query:
@@ -2167,7 +2167,7 @@ examples:
           destination_type: "webhook"
       responses:
         "200":
-          application/json: {"pagination": {"order_by": "time", "dir": "desc", "limit": 100, "next": null, "prev": null}, "models": [{"id": "del_123", "status": "success", "time": "2024-01-01T00:00:05Z", "code": "200", "attempt_number": 1, "event_id": "evt_123", "destination_id": "des_456", "event": {"id": "evt_123", "topic": "user.created", "time": "2024-01-01T00:00:00Z", "eligible_for_retry": false, "metadata": {"source": "crm"}}}]}
+          application/json: {"pagination": {"order_by": "time", "dir": "desc", "limit": 100, "next": null, "prev": null}, "models": [{"id": "del_123", "status": "success", "time": "2024-01-01T00:00:05Z", "code": "200", "attempt_number": 1, "latency_ms": 212, "event_id": "evt_123", "destination_id": "des_456", "event": {"id": "evt_123", "topic": "user.created", "time": "2024-01-01T00:00:00Z", "eligible_for_retry": false, "metadata": {"source": "crm"}}}]}
   getEventMetrics:
     speakeasy-default-get-event-metrics:
       parameters:
@@ -2206,7 +2206,7 @@ examples:
           time[start]: "2026-03-02T00:00:00Z"
           time[end]: "2026-03-03T00:00:00Z"
           granularity: "1h"
-          measures: ["count", "error_rate"]
+          measures: ["count", "error_rate", "p95_latency"]
           filters[destination_type]: "webhook"
           time: {"start": "2026-03-02T00:00:00Z", "end": "2026-03-03T00:00:00Z"}
       responses:
@@ -2226,12 +2226,12 @@ examples:
           time[start]: "2026-03-02T00:00:00Z"
           time[end]: "2026-03-03T00:00:00Z"
           granularity: "1h"
-          measures: ["count", "error_rate"]
+          measures: ["count", "error_rate", "p95_latency"]
           filters[destination_type]: "webhook"
           time: {"start": "2026-03-02T00:00:00Z", "end": "2026-03-03T00:00:00Z"}
       responses:
         "200":
-          application/json: {"data": [{"time_bucket": "2026-03-02T00:00:00Z", "dimensions": {"destination_id": "dest_abc"}, "metrics": {"count": 1423, "successful_count": 1393, "failed_count": 30, "error_rate": 0.0211}}], "metadata": {"granularity": "1d", "query_time_ms": 38, "row_count": 1, "row_limit": 100000, "truncated": false}}
+          application/json: {"data": [{"time_bucket": "2026-03-02T00:00:00Z", "dimensions": {"destination_id": "dest_abc"}, "metrics": {"count": 1423, "successful_count": 1393, "failed_count": 30, "error_rate": 0.0211, "avg_latency": 212.4, "p95_latency": 810}}], "metadata": {"granularity": "1d", "query_time_ms": 38, "row_count": 1, "row_limit": 100000, "truncated": false}}
   getManagedConfig:
     speakeasy-default-get-managed-config:
       responses:
@@ -2258,7 +2258,7 @@ examples:
           application/json: {}
 examplesVersion: 1.0.2
 generatedTests: {}
-releaseNotes: "## Go SDK Changes:\n* `Outpost.Configuration.GetManagedConfig()`:  `response` **Changed**\n* `Outpost.Configuration.UpdateManagedConfig()`: \n  *  `request.Request` **Changed**\n  *  `response` **Changed**\n"
+releaseNotes: "## Go SDK Changes:\n* `Outpost.Metrics.GetAttemptMetrics()`: \n  *  `request.Request.Measures` **Changed** (Breaking ⚠️)\n* `Outpost.Attempts.List()`:  `response.Models[].LatencyMs` **Added**\n* `Outpost.Attempts.Get()`:  `response.LatencyMs` **Added**\n* `Outpost.Destinations.ListAttempts()`:  `response.Models[].LatencyMs` **Added**\n* `Outpost.Destinations.GetAttempt()`:  `response.LatencyMs` **Added**\n"
 generatedFiles:
   - .gitattributes
   - /models/apierrors/badrequesterror.go
