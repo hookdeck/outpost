@@ -74,8 +74,11 @@ func (q *RabbitMQQueue) Subscribe(ctx context.Context, opts ...SubscribeOption) 
 	if err != nil {
 		return nil, err
 	}
-	subscription := rabbitpubsub.OpenSubscription(conn, q.config.Queue, nil)
-	return q.base.Subscribe(ctx, subscription)
+	return &rabbitMQSubscription{
+		queue:        q,
+		conn:         conn,
+		subscription: rabbitpubsub.OpenSubscription(conn, q.config.Queue, nil),
+	}, nil
 }
 
 func (q *RabbitMQQueue) ensureConnected() (*pubsub.Topic, *amqp091.Connection, error) {
@@ -112,6 +115,64 @@ func (q *RabbitMQQueue) connectionLost() bool {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 	return q.conn == nil || q.conn.IsClosed()
+}
+
+// rabbitMQSubscription reopens the underlying subscription after its connection
+// closes, since a gocloud subscription stays in a permanent error state once its
+// connection is gone.
+type rabbitMQSubscription struct {
+	queue        *RabbitMQQueue
+	mu           sync.Mutex
+	conn         *amqp091.Connection
+	subscription *pubsub.Subscription
+	shutdown     bool
+}
+
+var _ Subscription = &rabbitMQSubscription{}
+
+// Receive returns the error that revealed a dropped connection after
+// resubscribing, so the caller's backoff still applies to the reconnect.
+func (s *rabbitMQSubscription) Receive(ctx context.Context) (*Message, error) {
+	s.mu.Lock()
+	conn, subscription := s.conn, s.subscription
+	s.mu.Unlock()
+
+	msg, err := subscription.Receive(ctx)
+	if err != nil {
+		if conn.IsClosed() {
+			s.resubscribe(subscription)
+		}
+		return nil, err
+	}
+	return &Message{
+		QueueMessage: msg,
+		LoggableID:   msg.LoggableID,
+		Body:         msg.Body,
+	}, nil
+}
+
+func (s *rabbitMQSubscription) resubscribe(dead *pubsub.Subscription) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	// Another Receive may have already replaced it.
+	if s.shutdown || s.subscription != dead {
+		return
+	}
+	_, conn, err := s.queue.ensureConnected()
+	if err != nil {
+		return
+	}
+	s.conn = conn
+	s.subscription = rabbitpubsub.OpenSubscription(conn, s.queue.config.Queue, nil)
+	go dead.Shutdown(context.Background())
+}
+
+func (s *rabbitMQSubscription) Shutdown(ctx context.Context) error {
+	s.mu.Lock()
+	s.shutdown = true
+	subscription := s.subscription
+	s.mu.Unlock()
+	return subscription.Shutdown(ctx)
 }
 
 func NewRabbitMQQueue(config *RabbitMQConfig) *RabbitMQQueue {
