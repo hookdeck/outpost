@@ -241,6 +241,10 @@ func (b *ServiceBuilder) BuildAPIWorkers(baseRouter *gin.Engine) error {
 
 	// Worker 2: PublishMQ Consumer (optional)
 	if b.cfg.PublishMQ.GetQueueConfig() != nil {
+		if b.cfg.PublishMQ.ProxyIgnored() {
+			b.logger.Info("PUBLISH_PROXY_URL is ignored: only the RabbitMQ publish queue connects through a proxy",
+				zap.String("publishmq_type", b.cfg.PublishMQ.GetInfraType()))
+		}
 		publishMQ := publishmq.New(publishmq.WithQueue(b.cfg.PublishMQ.GetQueueConfig()))
 		messageHandler := publishmq.NewMessageHandler(eventHandler)
 		publishMQWorker := NewConsumerWorker(

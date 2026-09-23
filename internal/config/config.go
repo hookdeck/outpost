@@ -127,6 +127,7 @@ var (
 	ErrMissingAESSecret       = errors.New("config validation error: AES encryption secret is required")
 	ErrInvalidPortalProxyURL  = errors.New("config validation error: invalid portal proxy url")
 	ErrInvalidWebhookProxyURL = errors.New("config validation error: invalid webhook proxy url")
+	ErrInvalidPublishProxyURL = errors.New("config validation error: invalid publish proxy url")
 	ErrInvalidDeploymentID    = errors.New("config validation error: deployment_id must contain only alphanumeric characters, hyphens, and underscores (max 64 characters)")
 	ErrInvalidRedisPoolSize   = errors.New("config validation error: redis pool_size must be >= 0")
 )

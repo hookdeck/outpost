@@ -1,6 +1,7 @@
 package config_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/hookdeck/outpost/internal/config"
@@ -90,4 +91,79 @@ func TestPublishMQConfig_Validate(t *testing.T) {
 			require.NoError(t, err)
 		})
 	}
+}
+
+func TestPublishMQConfig_ProxyURL(t *testing.T) {
+	t.Parallel()
+	const proxy = "http://user:pass@proxy:10000"
+
+	t.Run("rabbitmq publish queue dials through the proxy", func(t *testing.T) {
+		t.Parallel()
+		cfg := config.PublishMQConfig{
+			RabbitMQ: config.PublishRabbitMQConfig{ServerURL: "amqp://broker:5672", Queue: "q"},
+			ProxyURL: proxy,
+		}
+		require.NotNil(t, cfg.GetQueueConfig().RabbitMQ.Dial)
+		assert.False(t, cfg.ProxyIgnored())
+	})
+
+	t.Run("unset proxy keeps the direct dial", func(t *testing.T) {
+		t.Parallel()
+		cfg := config.PublishMQConfig{
+			RabbitMQ: config.PublishRabbitMQConfig{ServerURL: "amqp://broker:5672", Queue: "q"},
+			ProxyURL: " \n",
+		}
+		assert.Nil(t, cfg.GetQueueConfig().RabbitMQ.Dial)
+		assert.False(t, cfg.ProxyIgnored())
+	})
+
+	t.Run("invalid proxy fails the dial instead of connecting directly", func(t *testing.T) {
+		t.Parallel()
+		cfg := config.PublishMQConfig{
+			RabbitMQ: config.PublishRabbitMQConfig{ServerURL: "amqp://broker:5672", Queue: "q"},
+			ProxyURL: "socks5://proxy:1080",
+		}
+		dial := cfg.GetQueueConfig().RabbitMQ.Dial
+		require.NotNil(t, dial)
+		_, err := dial(context.Background(), "tcp", "broker:5672")
+		require.Error(t, err)
+	})
+
+	for name, cfg := range map[string]config.PublishMQConfig{
+		"awssqs":          {AWSSQS: config.PublishAWSSQSConfig{Region: "us-east-1", Queue: "q"}},
+		"gcppubsub":       {GCPPubSub: config.PublishGCPPubSubConfig{Project: "p", Topic: "t", Subscription: "s"}},
+		"azureservicebus": {AzureServiceBus: config.PublishAzureServiceBusConfig{ConnectionString: "cs", Topic: "t", Subscription: "s"}},
+	} {
+		t.Run(name+" ignores the proxy", func(t *testing.T) {
+			t.Parallel()
+			cfg.ProxyURL = proxy
+			require.NoError(t, cfg.Validate())
+			require.NotNil(t, cfg.GetQueueConfig())
+			assert.True(t, cfg.ProxyIgnored())
+		})
+	}
+
+	t.Run("no publish provider does not report the proxy as ignored", func(t *testing.T) {
+		t.Parallel()
+		cfg := config.PublishMQConfig{ProxyURL: proxy}
+		assert.False(t, cfg.ProxyIgnored())
+	})
+}
+
+func TestPublishProxyURL_InternalMQsConnectDirectly(t *testing.T) {
+	t.Parallel()
+	c := &config.Config{}
+	c.InitDefaults()
+	c.MQs.RabbitMQ.ServerURL = "amqp://internal:5672"
+	c.PublishMQ.RabbitMQ.ServerURL = "amqp://publish:5672"
+	c.PublishMQ.RabbitMQ.Queue = "publish"
+	c.PublishMQ.ProxyURL = "http://proxy:10000"
+
+	for _, queueType := range []string{"deliverymq", "logmq"} {
+		qc, err := c.MQs.ToQueueConfig(context.Background(), queueType)
+		require.NoError(t, err)
+		require.NotNil(t, qc.RabbitMQ)
+		assert.Nil(t, qc.RabbitMQ.Dial, queueType)
+	}
+	require.NotNil(t, c.PublishMQ.GetQueueConfig().RabbitMQ.Dial)
 }

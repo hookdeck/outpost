@@ -2,9 +2,11 @@ package mqs
 
 import (
 	"context"
+	"net"
 	"sync"
 	"time"
 
+	"github.com/hookdeck/outpost/internal/proxychain"
 	"github.com/rabbitmq/amqp091-go"
 	"gocloud.dev/pubsub"
 	"gocloud.dev/pubsub/rabbitpubsub"
@@ -16,6 +18,9 @@ type RabbitMQConfig struct {
 	ServerURL string
 	Exchange  string // optional
 	Queue     string
+	// Dial, when set, opens the broker connection in place of a direct TCP
+	// dial, e.g. through a proxy chain.
+	Dial proxychain.DialFunc
 }
 
 type RabbitMQQueue struct {
@@ -82,7 +87,7 @@ func (q *RabbitMQQueue) ensureConnected() (*pubsub.Topic, *amqp091.Connection, e
 	if q.lastDialErr != nil && time.Since(q.lastDialFailure) < rabbitmqRedialCooldown {
 		return nil, nil, q.lastDialErr
 	}
-	conn, err := amqp091.Dial(q.config.ServerURL)
+	conn, err := q.dial()
 	if err != nil {
 		q.lastDialFailure = time.Now()
 		q.lastDialErr = err
@@ -111,4 +116,36 @@ func (q *RabbitMQQueue) connectionLost() bool {
 
 func NewRabbitMQQueue(config *RabbitMQConfig) *RabbitMQQueue {
 	return &RabbitMQQueue{config: config, base: newWrappedBaseQueue()}
+}
+
+func (q *RabbitMQQueue) dial() (*amqp091.Connection, error) {
+	if q.config.Dial == nil {
+		return amqp091.Dial(q.config.ServerURL)
+	}
+	uri, err := amqp091.ParseURI(q.config.ServerURL)
+	if err != nil {
+		return nil, err
+	}
+	timeout := 30 * time.Second
+	if uri.ConnectionTimeout != 0 {
+		timeout = time.Duration(uri.ConnectionTimeout) * time.Millisecond
+	}
+	return amqp091.DialConfig(q.config.ServerURL, amqp091.Config{
+		Locale: "en_US",
+		Dial: func(network, addr string) (net.Conn, error) {
+			ctx, cancel := context.WithTimeout(context.Background(), timeout)
+			defer cancel()
+			conn, err := q.config.Dial(ctx, network, addr)
+			if err != nil {
+				return nil, err
+			}
+			// Same handshake deadline as amqp091's default dialer; the
+			// library clears it once the connection is open.
+			if err := conn.SetDeadline(time.Now().Add(timeout)); err != nil {
+				conn.Close()
+				return nil, err
+			}
+			return conn, nil
+		},
+	})
 }

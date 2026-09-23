@@ -307,6 +307,36 @@ func TestMisc(t *testing.T) {
 			wantErr: config.ErrInvalidWebhookProxyURL,
 		},
 		{
+			name: "publish proxy chain is valid",
+			config: func() *config.Config {
+				c := validConfig()
+				c.PublishMQ.RabbitMQ.ServerURL = "amqp://broker:5672"
+				c.PublishMQ.ProxyURL = "http://user:pass@a:10000 https://b:8443"
+				return c
+			}(),
+			wantErr: nil,
+		},
+		{
+			name: "invalid publish proxy url",
+			config: func() *config.Config {
+				c := validConfig()
+				c.PublishMQ.RabbitMQ.ServerURL = "amqp://broker:5672"
+				c.PublishMQ.ProxyURL = "socks5://a:1080"
+				return c
+			}(),
+			wantErr: config.ErrInvalidPublishProxyURL,
+		},
+		{
+			name: "invalid publish proxy url with a non-rabbitmq provider",
+			config: func() *config.Config {
+				c := validConfig()
+				c.PublishMQ.GCPPubSub.Project = "p"
+				c.PublishMQ.ProxyURL = "://invalid"
+				return c
+			}(),
+			wantErr: config.ErrInvalidPublishProxyURL,
+		},
+		{
 			name: "webhook compat signature is valid",
 			config: func() *config.Config {
 				c := validConfig()

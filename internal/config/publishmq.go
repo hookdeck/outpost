@@ -1,9 +1,13 @@
 package config
 
 import (
+	"context"
 	"fmt"
+	"net"
+	"strings"
 
 	"github.com/hookdeck/outpost/internal/mqs"
+	"github.com/hookdeck/outpost/internal/proxychain"
 )
 
 type PublishAWSSQSConfig struct {
@@ -38,6 +42,7 @@ type PublishMQConfig struct {
 	AzureServiceBus PublishAzureServiceBusConfig `yaml:"azure_servicebus" desc:"Configuration for using Azure Service Bus as the publish message queue. Only one publish MQ provider should be configured." required:"N"`
 	GCPPubSub       PublishGCPPubSubConfig       `yaml:"gcp_pubsub" desc:"Configuration for using GCP Pub/Sub as the publish message queue. Only one publish MQ provider should be configured." required:"N"`
 	RabbitMQ        PublishRabbitMQConfig        `yaml:"rabbitmq" desc:"Configuration for using RabbitMQ as the publish message queue. Only one publish MQ provider should be configured." required:"N"`
+	ProxyURL        string                       `yaml:"proxy_url" env:"PUBLISH_PROXY_URL" desc:"HTTP CONNECT forward proxy for the publish queue connection, e.g. 'http://user:pass@proxy:10000'. Multiple whitespace-separated URLs are tunneled in order, nearest first. RabbitMQ only; ignored for other providers." required:"N"`
 }
 
 func (c PublishMQConfig) GetInfraType() string {
@@ -92,6 +97,7 @@ func (c *PublishMQConfig) GetQueueConfig() *mqs.QueueConfig {
 				ServerURL: c.RabbitMQ.ServerURL,
 				Exchange:  c.RabbitMQ.Exchange,
 				Queue:     c.RabbitMQ.Queue,
+				Dial:      c.proxyDial(),
 			},
 		}
 	default:
@@ -99,8 +105,12 @@ func (c *PublishMQConfig) GetQueueConfig() *mqs.QueueConfig {
 	}
 }
 
-// Validate enforces the AWS SQS partial-credential rule for the selected provider.
+// Validate enforces the AWS SQS partial-credential rule for the selected
+// provider and rejects a malformed proxy chain.
 func (c *PublishMQConfig) Validate() error {
+	if _, err := proxychain.Parse(c.ProxyURL); err != nil {
+		return fmt.Errorf("%w: %w", ErrInvalidPublishProxyURL, err)
+	}
 	if c.GetInfraType() == "awssqs" {
 		if (c.AWSSQS.AccessKeyID == "") != (c.AWSSQS.SecretAccessKey == "") {
 			return errPartialAWSSQSCredentials
@@ -125,4 +135,23 @@ func hasPublishGCPPubSubConfig(config PublishGCPPubSubConfig) bool {
 
 func hasPublishRabbitMQConfig(config PublishRabbitMQConfig) bool {
 	return config.ServerURL != ""
+}
+
+// ProxyIgnored reports whether a proxy is configured for a provider that
+// connects directly.
+func (c *PublishMQConfig) ProxyIgnored() bool {
+	infraType := c.GetInfraType()
+	return strings.TrimSpace(c.ProxyURL) != "" && infraType != "" && infraType != "rabbitmq"
+}
+
+func (c *PublishMQConfig) proxyDial() proxychain.DialFunc {
+	hops, err := proxychain.Parse(c.ProxyURL)
+	if err != nil {
+		// Validate rejects this at startup; never fall back to a direct dial.
+		return func(context.Context, string, string) (net.Conn, error) { return nil, err }
+	}
+	if len(hops) == 0 {
+		return nil
+	}
+	return proxychain.NewDialer(hops, nil, nil).DialContext
 }
