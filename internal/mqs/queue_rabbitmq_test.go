@@ -132,3 +132,26 @@ func TestIntegrationMQ_RabbitMQSubscriptionReconnects(t *testing.T) {
 type handlerFunc func(ctx context.Context, msg *mqs.Message) error
 
 func (f handlerFunc) Handle(ctx context.Context, msg *mqs.Message) error { return f(ctx, msg) }
+
+func TestIntegrationMQ_RabbitMQNoRedialAfterCleanup(t *testing.T) {
+	t.Parallel()
+	t.Cleanup(testinfra.Start(t))
+	config := testinfra.NewMQRabbitMQConfig(t)
+
+	ctx := context.Background()
+	queue := mqs.NewQueue(&config)
+	cleanup, err := queue.Init(ctx)
+	require.NoError(t, err)
+
+	subscription, err := queue.Subscribe(ctx)
+	require.NoError(t, err)
+	defer subscription.Shutdown(ctx)
+
+	cleanup()
+
+	receiveCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	_, err = subscription.Receive(receiveCtx)
+	require.Error(t, err)
+	require.True(t, mqs.RabbitMQConnectionClosed(queue), "queue redialed after cleanup")
+}

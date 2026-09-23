@@ -2,6 +2,7 @@ package mqs
 
 import (
 	"context"
+	"errors"
 	"net"
 	"sync"
 	"time"
@@ -13,6 +14,8 @@ import (
 )
 
 const rabbitmqRedialCooldown = 5 * time.Second
+
+var errRabbitMQQueueClosed = errors.New("rabbitmq queue closed")
 
 type RabbitMQConfig struct {
 	ServerURL string
@@ -31,6 +34,7 @@ type RabbitMQQueue struct {
 	mu              sync.Mutex
 	lastDialFailure time.Time
 	lastDialErr     error
+	closed          bool
 }
 
 var _ Queue = &RabbitMQQueue{}
@@ -41,6 +45,7 @@ func (q *RabbitMQQueue) Init(ctx context.Context) (func(), error) {
 	}
 	return func() {
 		q.mu.Lock()
+		q.closed = true
 		conn, topic := q.conn, q.topic
 		q.mu.Unlock()
 		if conn != nil {
@@ -84,6 +89,9 @@ func (q *RabbitMQQueue) Subscribe(ctx context.Context, opts ...SubscribeOption) 
 func (q *RabbitMQQueue) ensureConnected() (*pubsub.Topic, *amqp091.Connection, error) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
+	if q.closed {
+		return nil, nil, errRabbitMQQueueClosed
+	}
 	if q.conn != nil && !q.conn.IsClosed() {
 		return q.topic, q.conn, nil
 	}

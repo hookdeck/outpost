@@ -10,3 +10,7 @@ func ForceCloseRabbitMQConnection(q Queue) error {
 	}
 	return conn.Close()
 }
+
+func RabbitMQConnectionClosed(q Queue) bool {
+	return q.(*RabbitMQQueue).connectionLost()
+}
