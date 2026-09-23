@@ -204,6 +204,8 @@ class AttemptTypedDict(TypedDict):
     r"""The attempt number (1 for first attempt, 2+ for retries)."""
     manual: NotRequired[bool]
     r"""Whether this attempt was manually triggered (e.g., a retry initiated by a user)."""
+    latency_ms: NotRequired[Nullable[int]]
+    r"""Time in milliseconds from sending the attempt to receiving the destination's response (or the error), measured around the provider's publish call. Null for attempts that never reached the provider and for attempts recorded before latency was tracked."""
     event_id: NotRequired[str]
     r"""The ID of the associated event."""
     destination_id: NotRequired[str]
@@ -240,6 +242,9 @@ class Attempt(BaseModel):
     manual: Optional[bool] = None
     r"""Whether this attempt was manually triggered (e.g., a retry initiated by a user)."""
 
+    latency_ms: OptionalNullable[int] = UNSET
+    r"""Time in milliseconds from sending the attempt to receiving the destination's response (or the error), measured around the provider's publish call. Null for attempts that never reached the provider and for attempts recorded before latency was tracked."""
+
     event_id: Optional[str] = None
     r"""The ID of the associated event."""
 
@@ -263,13 +268,14 @@ class Attempt(BaseModel):
                 "response_data",
                 "attempt_number",
                 "manual",
+                "latency_ms",
                 "event_id",
                 "destination_id",
                 "event",
                 "destination",
             ]
         )
-        nullable_fields = set(["response_data", "event"])
+        nullable_fields = set(["response_data", "latency_ms", "event"])
         serialized = handler(self)
         m = {}
 

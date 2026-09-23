@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="color-scheme" content="light dark">
-    <title>SDK Changelog - go</title>
+    <title>SDK Changelog - python</title>
     <style>
         :root {
             --bg-color: #ffffff;
@@ -95,13 +95,13 @@
         }
     </style>
 </head>
-<body><h2 id="go-sdk-changes">Go SDK Changes:</h2>
+<body><h2 id="python-sdk-changes">Python SDK Changes:</h2>
 
 <ul>
-<li><code>Outpost.Metrics.GetAttemptMetrics()</code>:
+<li><code>outpost.metrics.get_attempt_metrics()</code>:
 
 <ul>
-<li><code>request.Request.Measures</code> <strong>Changed</strong> (Breaking ⚠️)
+<li><code>request.measures</code> <strong>Changed</strong> (Breaking ⚠️)
 
 <ul>
 <li><code>union(&quot;count&quot;,&quot;successful_count&quot; and 13 more)</code> <strong>Added</strong></li>
@@ -110,10 +110,10 @@
 <li><code>union(Array&lt;&quot;count&quot;,&quot;successful_count&quot; and 9 more&gt;)</code> <strong>Removed</strong> (Breaking ⚠️)</li>
 </ul></li>
 </ul></li>
-<li><code>Outpost.Attempts.List()</code>:  <code>response.Models[].LatencyMs</code> <strong>Added</strong></li>
-<li><code>Outpost.Attempts.Get()</code>:  <code>response.LatencyMs</code> <strong>Added</strong></li>
-<li><code>Outpost.Destinations.ListAttempts()</code>:  <code>response.Models[].LatencyMs</code> <strong>Added</strong></li>
-<li><code>Outpost.Destinations.GetAttempt()</code>:  <code>response.LatencyMs</code> <strong>Added</strong></li>
+<li><code>outpost.attempts.list()</code>:  <code>response.models[].latency_ms</code> <strong>Added</strong></li>
+<li><code>outpost.attempts.get()</code>:  <code>response.latency_ms</code> <strong>Added</strong></li>
+<li><code>outpost.destinations.list_attempts()</code>:  <code>response.models[].latency_ms</code> <strong>Added</strong></li>
+<li><code>outpost.destinations.get_attempt()</code>:  <code>response.latency_ms</code> <strong>Added</strong></li>
 </ul>
 </body>
 </html>
