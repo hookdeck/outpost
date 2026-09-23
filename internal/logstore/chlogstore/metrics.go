@@ -393,9 +393,10 @@ func (s *logStoreImpl) QueryAttemptMetrics(ctx context.Context, req driver.Metri
 				continue
 			}
 			wantLatencyQuantiles = true
-			// One t-digest state per group serves all three percentiles;
-			// quantileExact would materialize every value per group.
-			selectExprs = append(selectExprs, "quantilesTDigest(0.5, 0.95, 0.99)(latency_ms)")
+			// One quantilesTiming state per group serves all three percentiles.
+			// It is built for millisecond latencies: deterministic, exact below
+			// 1024ms and within 16ms up to 30s, bounded memory.
+			selectExprs = append(selectExprs, "quantilesTiming(0.5, 0.95, 0.99)(latency_ms)")
 			order = append(order, sfLatencyQuantiles)
 		}
 	}
@@ -632,7 +633,7 @@ func wrapCHMetricsError(op string, err error) error {
 	return fmt.Errorf("%s: %w", op, err)
 }
 
-// latencyMeasure maps the NaN quantilesTDigest returns for an all-NULL group to nil.
+// latencyMeasure maps the NaN quantilesTiming returns for an all-NULL group to nil.
 func latencyMeasure(v float64) *float64 {
 	if math.IsNaN(v) {
 		return nil

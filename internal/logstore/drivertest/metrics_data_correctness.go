@@ -11,9 +11,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// latencyPercentileTolerance covers the gap between exact percentiles (PG, mem)
-// and ClickHouse's t-digest estimate. Dataset values are 50ms apart, so 25ms
-// still pins each percentile to one expected value.
+// latencyPercentileTolerance covers the difference between interpolated
+// percentiles (PG percentile_cont, mem) and ClickHouse's histogram-based
+// quantilesTiming. Dataset values are 50ms apart, so 25ms still pins each
+// percentile to one expected value.
 const latencyPercentileTolerance = 25.0
 
 func testMetricsDataCorrectness(t *testing.T, ctx context.Context, logStore driver.LogStore, ds *metricsDataset) {
