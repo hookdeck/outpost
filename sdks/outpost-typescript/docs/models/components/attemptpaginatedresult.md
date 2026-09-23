@@ -31,6 +31,7 @@ let value: AttemptPaginatedResult = {
       },
       attemptNumber: 1,
       manual: false,
+      latencyMs: 212,
       eventId: "evt_123",
       destinationId: "des_456",
       event: {
