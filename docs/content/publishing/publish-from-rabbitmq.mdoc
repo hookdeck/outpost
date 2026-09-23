@@ -61,6 +61,20 @@ publishmq:
     queue: publish
 ```
 
+### Connecting through a proxy
+
+If your broker only accepts connections from allowlisted IPs, set `PUBLISH_PROXY_URL` (YAML: `publishmq.proxy_url`) to route the publish queue connection through an HTTP forward proxy with a static egress IP, then allowlist that IP on the broker.
+
+```
+PUBLISH_PROXY_URL="http://user:pass@proxy.example.com:8080"
+```
+
+Outpost opens an HTTP `CONNECT` tunnel through the proxy to the broker's host and port and runs AMQP inside it. With `amqps://`, TLS is negotiated with the broker end to end through the tunnel, so the proxy never sees message contents or broker credentials. Multiple whitespace-separated proxy URLs are tunneled in order, nearest first; the broker sees the connection coming from the last one. Each hop may carry its own basic auth credentials.
+
+The proxy must allow `CONNECT` to the broker's port (`5672` for `amqp`, `5671` for `amqps` by default). Any idle timeout on the proxy must be longer than the AMQP heartbeat interval (10 seconds unless the server URL sets `heartbeat`). The [Webhook Forward Proxy](/docs/outpost/self-hosting/guides/webhook-proxy) guide has a reference Envoy configuration that works for both.
+
+`PUBLISH_PROXY_URL` applies to the RabbitMQ publish queue only. AWS SQS, GCP Pub/Sub and Azure Service Bus publish queues connect directly and ignore it, and it never applies to Outpost's internal delivery and log queues.
+
 ### Troubleshooting
 
 - [Ask a question](https://github.com/hookdeck/outpost/discussions/new?category=q-a)
