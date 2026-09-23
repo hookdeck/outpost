@@ -57,6 +57,7 @@ func testCRUD(t *testing.T, newHarness HarnessMaker) {
 				testutil.AttemptFactory.WithDestinationID(destID),
 				testutil.AttemptFactory.WithStatus("success"),
 				testutil.AttemptFactory.WithTime(baseTime.Add(-30*time.Minute)),
+				testutil.AttemptFactory.WithLatencyMs(123),
 			)
 
 			err := logStore.InsertMany(ctx, []*models.LogEntry{{Event: event, Attempt: delivery}})
@@ -79,6 +80,8 @@ func testCRUD(t *testing.T, newHarness HarnessMaker) {
 			require.Len(t, response.Data, 1)
 			assert.Equal(t, event.ID, response.Data[0].Event.ID)
 			assert.Equal(t, "success", response.Data[0].Attempt.Status)
+			require.NotNil(t, response.Data[0].Attempt.LatencyMs, "latency must round-trip")
+			assert.Equal(t, int64(123), *response.Data[0].Attempt.LatencyMs)
 
 			// Verify via Retrieve
 			retrieved, err := logStore.RetrieveEvent(ctx, driver.RetrieveEventRequest{
@@ -408,6 +411,26 @@ func testCRUD(t *testing.T, newHarness HarnessMaker) {
 			require.NoError(t, err)
 			require.NotNil(t, retrieved)
 			assert.Equal(t, knownAttemptID, retrieved.Attempt.ID)
+		})
+
+		t.Run("RetrieveAttempt round-trips latency", func(t *testing.T) {
+			retrieved, err := logStore.RetrieveAttempt(ctx, driver.RetrieveAttemptRequest{
+				TenantID:  tenantID,
+				AttemptID: "single_del",
+			})
+			require.NoError(t, err)
+			require.NotNil(t, retrieved)
+			require.NotNil(t, retrieved.Attempt.LatencyMs)
+			assert.Equal(t, int64(123), *retrieved.Attempt.LatencyMs)
+
+			// Inserted without a latency: nil must round-trip as nil.
+			noLatency, err := logStore.RetrieveAttempt(ctx, driver.RetrieveAttemptRequest{
+				TenantID:  tenantID,
+				AttemptID: "batch_del_00",
+			})
+			require.NoError(t, err)
+			require.NotNil(t, noLatency)
+			assert.Nil(t, noLatency.Attempt.LatencyMs)
 		})
 
 		t.Run("RetrieveAttempt non-existent returns nil", func(t *testing.T) {

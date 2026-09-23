@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -466,7 +467,8 @@ func buildAttemptQuery(table string, req driver.ListAttemptRequest, q pagination
 			code,
 			response_data,
 			manual,
-			attempt_number
+			attempt_number,
+			latency_ms
 		FROM %s
 		WHERE %s
 		%s
@@ -496,6 +498,7 @@ func scanAttemptRecords(rows clickhouse.Rows) ([]attemptRecordWithPosition, erro
 			responseDataStr  string
 			manual           bool
 			attemptNumber    uint32
+			latencyMs        *uint32
 		)
 
 		err := rows.Scan(
@@ -515,6 +518,7 @@ func scanAttemptRecords(rows clickhouse.Rows) ([]attemptRecordWithPosition, erro
 			&responseDataStr,
 			&manual,
 			&attemptNumber,
+			&latencyMs,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("scan failed: %w", err)
@@ -548,6 +552,7 @@ func scanAttemptRecords(rows clickhouse.Rows) ([]attemptRecordWithPosition, erro
 					Time:            attemptTime,
 					Code:            code,
 					ResponseData:    responseData,
+					LatencyMs:       latencyFromCH(latencyMs),
 				},
 				Event: &models.Event{
 					ID:               eventID,
@@ -669,7 +674,8 @@ func (s *logStoreImpl) RetrieveAttempt(ctx context.Context, req driver.RetrieveA
 			code,
 			response_data,
 			manual,
-			attempt_number
+			attempt_number,
+			latency_ms
 		FROM %s
 		WHERE %s
 		LIMIT 1`, s.attemptsTable, whereClause)
@@ -693,6 +699,7 @@ func (s *logStoreImpl) RetrieveAttempt(ctx context.Context, req driver.RetrieveA
 		responseDataStr  string
 		manual           bool
 		attemptNumber    uint32
+		latencyMs        *uint32
 	)
 
 	err := row.Scan(
@@ -712,6 +719,7 @@ func (s *logStoreImpl) RetrieveAttempt(ctx context.Context, req driver.RetrieveA
 		&responseDataStr,
 		&manual,
 		&attemptNumber,
+		&latencyMs,
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -747,6 +755,7 @@ func (s *logStoreImpl) RetrieveAttempt(ctx context.Context, req driver.RetrieveA
 			Time:            attemptTime,
 			Code:            code,
 			ResponseData:    responseData,
+			LatencyMs:       latencyFromCH(latencyMs),
 		},
 		Event: &models.Event{
 			ID:               eventID,
@@ -829,7 +838,7 @@ func (s *logStoreImpl) InsertMany(ctx context.Context, entries []*models.LogEntr
 	attemptBatch, err := s.chDB.PrepareBatch(ctx,
 		fmt.Sprintf(`INSERT INTO %s (
 			event_id, tenant_id, destination_id, destination_type, topic, eligible_for_retry, event_time, metadata, data,
-			attempt_id, status, attempt_time, code, response_data, manual, attempt_number
+			attempt_id, status, attempt_time, code, response_data, manual, attempt_number, latency_ms
 		)`, s.attemptsTable),
 	)
 	if err != nil {
@@ -871,6 +880,7 @@ func (s *logStoreImpl) InsertMany(ctx context.Context, entries []*models.LogEntr
 			string(responseDataJSON),
 			a.Manual,
 			uint32(a.AttemptNumber),
+			latencyToCH(a.LatencyMs),
 		); err != nil {
 			return fmt.Errorf("attempts batch append failed: %w", err)
 		}
@@ -904,4 +914,29 @@ func buildAttemptCursorCondition(compare, position string) (string, []any) {
 	)`, compare, compare)
 
 	return condition, []any{attemptTimeMs, attemptTimeMs, attemptID}
+}
+
+// latencyToCH maps the model's *int64 to the Nullable(UInt32) column, clamping
+// out-of-range values.
+func latencyToCH(ms *int64) *uint32 {
+	if ms == nil {
+		return nil
+	}
+	v := *ms
+	if v < 0 {
+		v = 0
+	}
+	if v > math.MaxUint32 {
+		v = math.MaxUint32
+	}
+	u := uint32(v)
+	return &u
+}
+
+func latencyFromCH(ms *uint32) *int64 {
+	if ms == nil {
+		return nil
+	}
+	v := int64(*ms)
+	return &v
 }

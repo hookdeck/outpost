@@ -31,11 +31,11 @@ SELECT concat('Seeding ', toString({rows:UInt64}), ' events + chained attempts..
 
 SELECT '[1/7] Inserting events...' AS message;
 
-INSERT INTO events (event_id, tenant_id, destination_id, topic, eligible_for_retry, event_time, metadata, data)
+INSERT INTO events (event_id, tenant_id, matched_destination_ids, topic, eligible_for_retry, event_time, metadata, data)
 SELECT
   concat('evt_', toString(number))                              AS event_id,
   if(number % 10 = 0, 'tenant_1', 'tenant_0')                  AS tenant_id,
-  concat('dest_', toString(number % 500))                       AS destination_id,
+  [concat('dest_', toString(number % 500))]                     AS matched_destination_ids,
   multiIf(
     number % 3 = 0, 'order.created',
     number % 3 = 1, 'order.updated',
@@ -62,7 +62,7 @@ SELECT '[2/7] Inserting attempt 1 (all events)...' AS message;
 
 INSERT INTO attempts (
   event_id, tenant_id, destination_id, topic, eligible_for_retry, event_time, metadata, data,
-  attempt_id, status, attempt_time, code, response_data, manual, attempt_number
+  attempt_id, status, attempt_time, code, response_data, manual, attempt_number, latency_ms
 )
 SELECT
   concat('evt_', toString(number))                              AS event_id,
@@ -95,14 +95,16 @@ SELECT
   )                                                             AS code,
   ''                                                            AS response_data,
   false                                                         AS manual,
-  toUInt32(1)                                                   AS attempt_number
+  toUInt32(1)                                                   AS attempt_number,
+  -- latency: 20..520ms body; every 200th event's attempts time out at 5000ms (~1.6% of attempts, a p99 tail)
+  toUInt32(if(number % 200 = 0, 5000, 20 + (number * 7919) % 500))    AS latency_ms
 FROM numbers({rows:UInt64});
 
 SELECT '[3/7] Inserting attempt 2 (20% of events)...' AS message;
 
 INSERT INTO attempts (
   event_id, tenant_id, destination_id, topic, eligible_for_retry, event_time, metadata, data,
-  attempt_id, status, attempt_time, code, response_data, manual, attempt_number
+  attempt_id, status, attempt_time, code, response_data, manual, attempt_number, latency_ms
 )
 SELECT
   concat('evt_', toString(number))                              AS event_id,
@@ -135,7 +137,9 @@ SELECT
   )                                                             AS code,
   ''                                                            AS response_data,
   false                                                         AS manual,
-  toUInt32(2)                                                   AS attempt_number
+  toUInt32(2)                                                   AS attempt_number,
+  -- latency: 20..520ms body; every 200th event's attempts time out at 5000ms (~1.6% of attempts, a p99 tail)
+  toUInt32(if(number % 200 = 0, 5000, 20 + (number * 7919) % 500))    AS latency_ms
 FROM numbers({rows:UInt64})
 WHERE number % 5 = 0;
 
@@ -143,7 +147,7 @@ SELECT '[4/7] Inserting attempt 3 (5% of events)...' AS message;
 
 INSERT INTO attempts (
   event_id, tenant_id, destination_id, topic, eligible_for_retry, event_time, metadata, data,
-  attempt_id, status, attempt_time, code, response_data, manual, attempt_number
+  attempt_id, status, attempt_time, code, response_data, manual, attempt_number, latency_ms
 )
 SELECT
   concat('evt_', toString(number))                              AS event_id,
@@ -176,7 +180,9 @@ SELECT
   )                                                             AS code,
   ''                                                            AS response_data,
   number % 10 = 9                                               AS manual,
-  toUInt32(3)                                                   AS attempt_number
+  toUInt32(3)                                                   AS attempt_number,
+  -- latency: 20..520ms body; every 200th event's attempts time out at 5000ms (~1.6% of attempts, a p99 tail)
+  toUInt32(if(number % 200 = 0, 5000, 20 + (number * 7919) % 500))    AS latency_ms
 FROM numbers({rows:UInt64})
 WHERE number % 20 = 0;
 
@@ -184,7 +190,7 @@ SELECT '[5/7] Inserting attempt 4 (1% of events)...' AS message;
 
 INSERT INTO attempts (
   event_id, tenant_id, destination_id, topic, eligible_for_retry, event_time, metadata, data,
-  attempt_id, status, attempt_time, code, response_data, manual, attempt_number
+  attempt_id, status, attempt_time, code, response_data, manual, attempt_number, latency_ms
 )
 SELECT
   concat('evt_', toString(number))                              AS event_id,
@@ -217,7 +223,9 @@ SELECT
   )                                                             AS code,
   ''                                                            AS response_data,
   number % 10 = 9                                               AS manual,
-  toUInt32(4)                                                   AS attempt_number
+  toUInt32(4)                                                   AS attempt_number,
+  -- latency: 20..520ms body; every 200th event's attempts time out at 5000ms (~1.6% of attempts, a p99 tail)
+  toUInt32(if(number % 200 = 0, 5000, 20 + (number * 7919) % 500))    AS latency_ms
 FROM numbers({rows:UInt64})
 WHERE number % 100 = 0;
 

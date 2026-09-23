@@ -480,6 +480,11 @@ func copyAttempt(a *models.Attempt) *models.Attempt {
 		Code:            a.Code,
 	}
 
+	if a.LatencyMs != nil {
+		v := *a.LatencyMs
+		copied.LatencyMs = &v
+	}
+
 	if a.ResponseData != nil {
 		copied.ResponseData = make(map[string]any, len(a.ResponseData))
 		for k, v := range a.ResponseData {

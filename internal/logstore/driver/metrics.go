@@ -101,6 +101,12 @@ type AttemptMetricsDataPoint struct {
 	Rate              *float64
 	SuccessfulRate    *float64
 	FailedRate        *float64
+	// Latency measures ignore attempts with a nil LatencyMs and are nil, not
+	// zero, when a group has none (including zero-filled empty buckets).
+	AvgLatency *float64
+	P50Latency *float64
+	P95Latency *float64
+	P99Latency *float64
 	// Dimensions
 	TenantID        *string
 	DestinationID   *string

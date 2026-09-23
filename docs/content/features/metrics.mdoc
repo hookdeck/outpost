@@ -12,6 +12,7 @@ Use metrics to answer questions like:
 - What is our delivery success rate?
 - Are errors increasing for a specific destination?
 - Which status codes are causing the most failed attempts?
+- How quickly is a destination responding, and is its p95 drifting?
 
 ## Metrics Scope
 
@@ -48,6 +49,12 @@ Each dataset supports a specific set of `measures` values.
 | `rate` | Attempt throughput (attempts per second). |
 | `successful_rate` | Successful attempt throughput (successful attempts per second). |
 | `failed_rate` | Failed attempt throughput (failed attempts per second). |
+| `avg_latency` | Average destination response time in milliseconds. |
+| `p50_latency` | Median destination response time in milliseconds. |
+| `p95_latency` | 95th percentile destination response time in milliseconds. |
+| `p99_latency` | 99th percentile destination response time in milliseconds. |
+
+Latency is measured per attempt around the provider's publish call and stored as `latency_ms` on the attempt. Failed attempts count too (a timeout records roughly the delivery timeout), so filter by `status` to look at successful deliveries only. The latency measures are `null`, not `0`, for a bucket in which no attempt recorded a latency, which includes attempts logged before latency tracking existed.
 
 ## Available Dimensions and Filters
 

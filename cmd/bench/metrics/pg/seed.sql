@@ -38,14 +38,14 @@ SELECT COALESCE(:'ROWS', '10000000') AS rows_count \gset
 
 \echo [1/7] Inserting events...
 
-INSERT INTO events (id, tenant_id, destination_id, time, topic, eligible_for_retry, data, metadata)
+INSERT INTO events (id, tenant_id, matched_destination_ids, time, topic, eligible_for_retry, data, metadata)
 SELECT
   'evt_' || n                                           AS id,
   CASE WHEN n % 10 = 0
     THEN 'tenant_1'
     ELSE 'tenant_0'
   END                                                   AS tenant_id,
-  'dest_' || (n % 500)                                  AS destination_id,
+  ARRAY['dest_' || (n % 500)]                           AS matched_destination_ids,
   '2000-01-01'::timestamptz
     + (n::double precision / :'rows_count'::double precision)
     * ('2000-02-01'::timestamptz - '2000-01-01'::timestamptz)
@@ -74,7 +74,8 @@ FROM generate_series(0, :'rows_count'::int - 1) AS n;
 INSERT INTO attempts (
   id, event_id, tenant_id, destination_id, topic, status, time,
   attempt_number, manual, code, response_data,
-  event_time, eligible_for_retry, event_data, event_metadata
+  event_time, eligible_for_retry, event_data, event_metadata,
+  latency_ms
 )
 SELECT
   'att_' || n || '_0'                                   AS id,
@@ -106,7 +107,9 @@ SELECT
                                                         AS event_time,
   (n % 3 != 2)                                          AS eligible_for_retry,
   '{}'                                                  AS event_data,
-  '{}'::jsonb                                           AS event_metadata
+  '{}'::jsonb                                           AS event_metadata,
+  -- latency: 20..520ms body; every 200th event's attempts time out at 5000ms (~1.6% of attempts, a p99 tail)
+  CASE WHEN n % 200 = 0 THEN 5000 ELSE 20 + (n::bigint * 7919) % 500 END AS latency_ms
 FROM generate_series(0, :'rows_count'::int - 1) AS n;
 
 \echo [3/7] Inserting attempt 2 (20% of events)...
@@ -114,7 +117,8 @@ FROM generate_series(0, :'rows_count'::int - 1) AS n;
 INSERT INTO attempts (
   id, event_id, tenant_id, destination_id, topic, status, time,
   attempt_number, manual, code, response_data,
-  event_time, eligible_for_retry, event_data, event_metadata
+  event_time, eligible_for_retry, event_data, event_metadata,
+  latency_ms
 )
 SELECT
   'att_' || n || '_1'                                   AS id,
@@ -146,7 +150,9 @@ SELECT
                                                         AS event_time,
   (n % 3 != 2)                                          AS eligible_for_retry,
   '{}'                                                  AS event_data,
-  '{}'::jsonb                                           AS event_metadata
+  '{}'::jsonb                                           AS event_metadata,
+  -- latency: 20..520ms body; every 200th event's attempts time out at 5000ms (~1.6% of attempts, a p99 tail)
+  CASE WHEN n % 200 = 0 THEN 5000 ELSE 20 + (n::bigint * 7919) % 500 END AS latency_ms
 FROM generate_series(0, :'rows_count'::int - 1) AS n
 WHERE n % 5 = 0;
 
@@ -155,7 +161,8 @@ WHERE n % 5 = 0;
 INSERT INTO attempts (
   id, event_id, tenant_id, destination_id, topic, status, time,
   attempt_number, manual, code, response_data,
-  event_time, eligible_for_retry, event_data, event_metadata
+  event_time, eligible_for_retry, event_data, event_metadata,
+  latency_ms
 )
 SELECT
   'att_' || n || '_2'                                   AS id,
@@ -187,7 +194,9 @@ SELECT
                                                         AS event_time,
   (n % 3 != 2)                                          AS eligible_for_retry,
   '{}'                                                  AS event_data,
-  '{}'::jsonb                                           AS event_metadata
+  '{}'::jsonb                                           AS event_metadata,
+  -- latency: 20..520ms body; every 200th event's attempts time out at 5000ms (~1.6% of attempts, a p99 tail)
+  CASE WHEN n % 200 = 0 THEN 5000 ELSE 20 + (n::bigint * 7919) % 500 END AS latency_ms
 FROM generate_series(0, :'rows_count'::int - 1) AS n
 WHERE n % 20 = 0;
 
@@ -196,7 +205,8 @@ WHERE n % 20 = 0;
 INSERT INTO attempts (
   id, event_id, tenant_id, destination_id, topic, status, time,
   attempt_number, manual, code, response_data,
-  event_time, eligible_for_retry, event_data, event_metadata
+  event_time, eligible_for_retry, event_data, event_metadata,
+  latency_ms
 )
 SELECT
   'att_' || n || '_3'                                   AS id,
@@ -228,7 +238,9 @@ SELECT
                                                         AS event_time,
   (n % 3 != 2)                                          AS eligible_for_retry,
   '{}'                                                  AS event_data,
-  '{}'::jsonb                                           AS event_metadata
+  '{}'::jsonb                                           AS event_metadata,
+  -- latency: 20..520ms body; every 200th event's attempts time out at 5000ms (~1.6% of attempts, a p99 tail)
+  CASE WHEN n % 200 = 0 THEN 5000 ELSE 20 + (n::bigint * 7919) % 500 END AS latency_ms
 FROM generate_series(0, :'rows_count'::int - 1) AS n
 WHERE n % 100 = 0;
 
