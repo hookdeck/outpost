@@ -286,6 +286,8 @@ type Attempt struct {
 	AttemptNumber *int64 `json:"attempt_number,omitempty"`
 	// Whether this attempt was manually triggered (e.g., a retry initiated by a user).
 	Manual *bool `json:"manual,omitempty"`
+	// Time in milliseconds from sending the attempt to receiving the destination's response (or the error), measured around the provider's publish call. Null for attempts that never reached the provider and for attempts recorded before latency was tracked.
+	LatencyMs optionalnullable.OptionalNullable[int64] `json:"latency_ms,omitempty"`
 	// The ID of the associated event.
 	EventID *string `json:"event_id,omitempty"`
 	// The destination ID this attempt was sent to.
@@ -360,6 +362,13 @@ func (a *Attempt) GetManual() *bool {
 		return nil
 	}
 	return a.Manual
+}
+
+func (a *Attempt) GetLatencyMs() optionalnullable.OptionalNullable[int64] {
+	if a == nil {
+		return nil
+	}
+	return a.LatencyMs
 }
 
 func (a *Attempt) GetEventID() *string {

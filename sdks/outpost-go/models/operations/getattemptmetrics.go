@@ -58,6 +58,10 @@ const (
 	GetAttemptMetricsMeasuresEnum2Rate              GetAttemptMetricsMeasuresEnum2 = "rate"
 	GetAttemptMetricsMeasuresEnum2SuccessfulRate    GetAttemptMetricsMeasuresEnum2 = "successful_rate"
 	GetAttemptMetricsMeasuresEnum2FailedRate        GetAttemptMetricsMeasuresEnum2 = "failed_rate"
+	GetAttemptMetricsMeasuresEnum2AvgLatency        GetAttemptMetricsMeasuresEnum2 = "avg_latency"
+	GetAttemptMetricsMeasuresEnum2P50Latency        GetAttemptMetricsMeasuresEnum2 = "p50_latency"
+	GetAttemptMetricsMeasuresEnum2P95Latency        GetAttemptMetricsMeasuresEnum2 = "p95_latency"
+	GetAttemptMetricsMeasuresEnum2P99Latency        GetAttemptMetricsMeasuresEnum2 = "p99_latency"
 )
 
 func (e GetAttemptMetricsMeasuresEnum2) ToPointer() *GetAttemptMetricsMeasuresEnum2 {
@@ -90,6 +94,14 @@ func (e *GetAttemptMetricsMeasuresEnum2) UnmarshalJSON(data []byte) error {
 	case "successful_rate":
 		fallthrough
 	case "failed_rate":
+		fallthrough
+	case "avg_latency":
+		fallthrough
+	case "p50_latency":
+		fallthrough
+	case "p95_latency":
+		fallthrough
+	case "p99_latency":
 		*e = GetAttemptMetricsMeasuresEnum2(v)
 		return nil
 	default:
@@ -111,6 +123,10 @@ const (
 	GetAttemptMetricsMeasuresEnum1Rate              GetAttemptMetricsMeasuresEnum1 = "rate"
 	GetAttemptMetricsMeasuresEnum1SuccessfulRate    GetAttemptMetricsMeasuresEnum1 = "successful_rate"
 	GetAttemptMetricsMeasuresEnum1FailedRate        GetAttemptMetricsMeasuresEnum1 = "failed_rate"
+	GetAttemptMetricsMeasuresEnum1AvgLatency        GetAttemptMetricsMeasuresEnum1 = "avg_latency"
+	GetAttemptMetricsMeasuresEnum1P50Latency        GetAttemptMetricsMeasuresEnum1 = "p50_latency"
+	GetAttemptMetricsMeasuresEnum1P95Latency        GetAttemptMetricsMeasuresEnum1 = "p95_latency"
+	GetAttemptMetricsMeasuresEnum1P99Latency        GetAttemptMetricsMeasuresEnum1 = "p99_latency"
 )
 
 func (e GetAttemptMetricsMeasuresEnum1) ToPointer() *GetAttemptMetricsMeasuresEnum1 {
@@ -143,6 +159,14 @@ func (e *GetAttemptMetricsMeasuresEnum1) UnmarshalJSON(data []byte) error {
 	case "successful_rate":
 		fallthrough
 	case "failed_rate":
+		fallthrough
+	case "avg_latency":
+		fallthrough
+	case "p50_latency":
+		fallthrough
+	case "p95_latency":
+		fallthrough
+	case "p99_latency":
 		*e = GetAttemptMetricsMeasuresEnum1(v)
 		return nil
 	default:
@@ -157,7 +181,7 @@ const (
 	GetAttemptMetricsMeasuresUnionTypeArrayOfGetAttemptMetricsMeasuresEnum2 GetAttemptMetricsMeasuresUnionType = "arrayOfGetAttemptMetricsMeasuresEnum2"
 )
 
-// GetAttemptMetricsMeasuresUnion - Measures to compute. At least one required. Rate measures (`rate`, `successful_rate`, `failed_rate`) are throughput in events/second. Use bracket notation for multiple values (e.g., `measures[0]=count&measures[1]=error_rate`).
+// GetAttemptMetricsMeasuresUnion - Measures to compute. At least one required. Rate measures (`rate`, `successful_rate`, `failed_rate`) are throughput in events/second. Latency measures (`avg_latency`, `p50_latency`, `p95_latency`, `p99_latency`) are destination response times in milliseconds, `null` when no attempt in the bucket recorded a latency. Use bracket notation for multiple values (e.g., `measures[0]=count&measures[1]=error_rate`).
 type GetAttemptMetricsMeasuresUnion struct {
 	GetAttemptMetricsMeasuresEnum1        *GetAttemptMetricsMeasuresEnum1  `queryParam:"inline" union:"member"`
 	ArrayOfGetAttemptMetricsMeasuresEnum2 []GetAttemptMetricsMeasuresEnum2 `queryParam:"inline" union:"member"`
@@ -964,7 +988,7 @@ type GetAttemptMetricsRequest struct {
 	// When omitted, returns a single aggregate row per dimension combination.
 	//
 	Granularity *string `queryParam:"style=form,explode=true,name=granularity"`
-	// Measures to compute. At least one required. Rate measures (`rate`, `successful_rate`, `failed_rate`) are throughput in events/second. Use bracket notation for multiple values (e.g., `measures[0]=count&measures[1]=error_rate`).
+	// Measures to compute. At least one required. Rate measures (`rate`, `successful_rate`, `failed_rate`) are throughput in events/second. Latency measures (`avg_latency`, `p50_latency`, `p95_latency`, `p99_latency`) are destination response times in milliseconds, `null` when no attempt in the bucket recorded a latency. Use bracket notation for multiple values (e.g., `measures[0]=count&measures[1]=error_rate`).
 	Measures GetAttemptMetricsMeasuresUnion `queryParam:"style=form,explode=true,name=measures"`
 	// Dimensions to group results by. Use bracket notation for multiple values (e.g., `dimensions[0]=status&dimensions[1]=destination_id`).
 	Dimensions *GetAttemptMetricsDimensionsUnion `queryParam:"style=form,explode=true,name=dimensions"`

@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="color-scheme" content="light dark">
-    <title>SDK Changelog - typescript</title>
+    <title>SDK Changelog - go</title>
     <style>
         :root {
             --bg-color: #ffffff;
@@ -95,58 +95,25 @@
         }
     </style>
 </head>
-<body><h2 id="typescript-sdk-changes">Typescript SDK Changes:</h2>
+<body><h2 id="go-sdk-changes">Go SDK Changes:</h2>
 
 <ul>
-<li><code>outpost.configuration.getManagedConfig()</code>: <code>response</code> <strong>Changed</strong>
+<li><code>Outpost.Metrics.GetAttemptMetrics()</code>:
 
 <ul>
-<li><code>destinationsWebhookCompatHeaders</code> <strong>Added</strong></li>
-<li><code>destinationsWebhookCompatSignatureAlgorithm</code> <strong>Added</strong></li>
-<li><code>destinationsWebhookCompatSignatureContentTemplate</code> <strong>Added</strong></li>
-<li><code>destinationsWebhookCompatSignatureEncoding</code> <strong>Added</strong></li>
-<li><code>destinationsWebhookCompatSignatureHeaderName</code> <strong>Added</strong></li>
-<li><code>destinationsWebhookCompatSignatureHeaderTemplate</code> <strong>Added</strong></li>
-<li><code>destinationsWebhookCompatSignatureSecretEncoding</code> <strong>Added</strong></li>
-<li><code>destinationsWebhookCompatSignatureSecretPrefix</code> <strong>Added</strong></li>
-<li><code>destinationsWebhookSignatureSecretEncoding</code> <strong>Added</strong></li>
-<li><code>destinationsWebhookSignatureSecretPrefix</code> <strong>Added</strong></li>
-<li><code>destinationsWebhookTimestampFormat</code> <strong>Added</strong></li>
-</ul></li>
-<li><code>outpost.configuration.updateManagedConfig()</code>:
+<li><code>request.Request.Measures</code> <strong>Changed</strong> (Breaking ⚠️)
 
 <ul>
-<li><code>request</code> <strong>Changed</strong>
-
-<ul>
-<li><code>destinationsWebhookCompatHeaders</code> <strong>Added</strong></li>
-<li><code>destinationsWebhookCompatSignatureAlgorithm</code> <strong>Added</strong></li>
-<li><code>destinationsWebhookCompatSignatureContentTemplate</code> <strong>Added</strong></li>
-<li><code>destinationsWebhookCompatSignatureEncoding</code> <strong>Added</strong></li>
-<li><code>destinationsWebhookCompatSignatureHeaderName</code> <strong>Added</strong></li>
-<li><code>destinationsWebhookCompatSignatureHeaderTemplate</code> <strong>Added</strong></li>
-<li><code>destinationsWebhookCompatSignatureSecretEncoding</code> <strong>Added</strong></li>
-<li><code>destinationsWebhookCompatSignatureSecretPrefix</code> <strong>Added</strong></li>
-<li><code>destinationsWebhookSignatureSecretEncoding</code> <strong>Added</strong></li>
-<li><code>destinationsWebhookSignatureSecretPrefix</code> <strong>Added</strong></li>
-<li><code>destinationsWebhookTimestampFormat</code> <strong>Added</strong></li>
-</ul></li>
-<li><code>response</code> <strong>Changed</strong>
-
-<ul>
-<li><code>destinationsWebhookCompatHeaders</code> <strong>Added</strong></li>
-<li><code>destinationsWebhookCompatSignatureAlgorithm</code> <strong>Added</strong></li>
-<li><code>destinationsWebhookCompatSignatureContentTemplate</code> <strong>Added</strong></li>
-<li><code>destinationsWebhookCompatSignatureEncoding</code> <strong>Added</strong></li>
-<li><code>destinationsWebhookCompatSignatureHeaderName</code> <strong>Added</strong></li>
-<li><code>destinationsWebhookCompatSignatureHeaderTemplate</code> <strong>Added</strong></li>
-<li><code>destinationsWebhookCompatSignatureSecretEncoding</code> <strong>Added</strong></li>
-<li><code>destinationsWebhookCompatSignatureSecretPrefix</code> <strong>Added</strong></li>
-<li><code>destinationsWebhookSignatureSecretEncoding</code> <strong>Added</strong></li>
-<li><code>destinationsWebhookSignatureSecretPrefix</code> <strong>Added</strong></li>
-<li><code>destinationsWebhookTimestampFormat</code> <strong>Added</strong></li>
+<li><code>union(&quot;count&quot;,&quot;successful_count&quot; and 13 more)</code> <strong>Added</strong></li>
+<li><code>union(&quot;count&quot;,&quot;successful_count&quot; and 9 more)</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>union(Array&lt;&quot;count&quot;,&quot;successful_count&quot; and 13 more&gt;)</code> <strong>Added</strong></li>
+<li><code>union(Array&lt;&quot;count&quot;,&quot;successful_count&quot; and 9 more&gt;)</code> <strong>Removed</strong> (Breaking ⚠️)</li>
 </ul></li>
 </ul></li>
+<li><code>Outpost.Attempts.List()</code>:  <code>response.Models[].LatencyMs</code> <strong>Added</strong></li>
+<li><code>Outpost.Attempts.Get()</code>:  <code>response.LatencyMs</code> <strong>Added</strong></li>
+<li><code>Outpost.Destinations.ListAttempts()</code>:  <code>response.Models[].LatencyMs</code> <strong>Added</strong></li>
+<li><code>Outpost.Destinations.GetAttempt()</code>:  <code>response.LatencyMs</code> <strong>Added</strong></li>
 </ul>
 </body>
 </html>

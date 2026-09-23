@@ -2873,6 +2873,38 @@ components:
           type: string
         DESTINATIONS_INCLUDE_MILLISECOND_TIMESTAMP:
           type: string
+        DESTINATIONS_WEBHOOK_COMPAT_HEADERS:
+          type: string
+          description: >-
+            Additional headers sent with the compat signature, as comma-separated "name=template" pairs. Available variables: {{.EventID}}, {{.Topic}}, {{.Timestamp}}. Use "\," for a literal comma in a template.
+        DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_ALGORITHM:
+          type: string
+          description: >-
+            Algorithm for the compat signature. Defaults to "hmac-sha256".
+        DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_CONTENT_TEMPLATE:
+          type: string
+          description: >-
+            Go template for the content signed by the compat signature. Same variables as DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE. Defaults to "{{.Body}}".
+        DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_ENCODING:
+          type: string
+          description: >-
+            Encoding for the compat signature ("hex" or "base64"). Defaults to "hex".
+        DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_HEADER_NAME:
+          type: string
+          description: >-
+            Complete name of the compat signature header. Setting it sends a second signature, in a previous scheme, alongside the primary one.
+        DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_HEADER_TEMPLATE:
+          type: string
+          description: >-
+            Go template for the value of the compat signature header. Same variables as DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE. Defaults to "v0={{.Signatures | join ","}}".
+        DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_SECRET_ENCODING:
+          type: string
+          description: >-
+            How the compat signature derives its HMAC key from the destination secret: "raw", "base64" or "hex". Defaults to "raw". A destination whose secret can't be decoded doesn't receive the compat signature.
+        DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_SECRET_PREFIX:
+          type: string
+          description: >-
+            Prefix stripped from the destination secret before decoding for the compat signature (e.g., "whsec_").
         DESTINATIONS_WEBHOOK_EVENT_ID_HEADER_NAME:
           type: string
           description: >-
@@ -2895,8 +2927,20 @@ components:
             Complete name of the signature header. Unset uses the default "<prefix>signature"; an explicit value pins that exact name; an empty string disables the header. Only applies to "default" mode.
         DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE:
           type: string
+        DESTINATIONS_WEBHOOK_SIGNATURE_SECRET_ENCODING:
+          type: string
+          description: >-
+            How the signature derives its HMAC key from the destination secret: "raw" uses the secret as-is, "base64" and "hex" decode it. Defaults to "raw". DESTINATIONS_WEBHOOK_SIGNING_SECRET_TEMPLATE must generate secrets this encoding can decode. Only applies to "default" mode.
+        DESTINATIONS_WEBHOOK_SIGNATURE_SECRET_PREFIX:
+          type: string
+          description: >-
+            Prefix stripped from the destination secret before decoding (e.g., "whsec_"). Ignored when DESTINATIONS_WEBHOOK_SIGNATURE_SECRET_ENCODING is "raw". Only applies to "default" mode.
         DESTINATIONS_WEBHOOK_SIGNING_SECRET_TEMPLATE:
           type: string
+        DESTINATIONS_WEBHOOK_TIMESTAMP_FORMAT:
+          type: string
+          description: >-
+            Format of the timestamp header: "rfc3339" or "unix". Defaults to "rfc3339". Only applies to "default" mode.
         DESTINATIONS_WEBHOOK_TIMESTAMP_HEADER_NAME:
           type: string
           description: >-
@@ -3264,11 +3308,9 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: Filter tenants by ID(s). Use bracket notation for multiple values (e.g., `id[0]=t1&id[1]=t2` or `id[]=t1&id[]=t2`).
         - name: limit
           in: query
@@ -3468,21 +3510,17 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: Filter events by ID(s). Use bracket notation for multiple values (e.g., `id[0]=abc&id[1]=def`).
         - name: tenant_id
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: |
             Filter events by tenant ID(s). Use bracket notation for multiple values (e.g., `tenant_id[0]=t1&tenant_id[1]=t2`).
             When authenticated with a Tenant JWT, this parameter is ignored and the JWT's tenant is used.
@@ -3501,11 +3539,9 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: Filter events by topic(s). Use bracket notation for multiple values (e.g., `topic[0]=user.created&topic[1]=user.updated`).
         - name: time
           in: query
@@ -3653,11 +3689,9 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: |
             Filter attempts by tenant ID(s). Use bracket notation for multiple values (e.g., `tenant_id[0]=t1&tenant_id[1]=t2`).
             When authenticated with a Tenant JWT, this parameter is ignored and the JWT's tenant is used.
@@ -3666,21 +3700,17 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: Filter attempts by event ID(s). Use bracket notation for multiple values (e.g., `event_id[0]=e1&event_id[1]=e2`).
         - name: destination_id
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: Filter attempts by destination ID(s). Use bracket notation for multiple values (e.g., `destination_id[0]=d1&destination_id[1]=d2`).
         - name: destination_type
           in: query
@@ -3703,11 +3733,9 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: Filter attempts by event topic(s). Use bracket notation for multiple values (e.g., `topic[0]=user.created&topic[1]=user.updated`).
         - name: time
           in: query
@@ -3742,11 +3770,9 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: |
             Fields to include in the response. Use bracket notation for multiple values (e.g., `include[0]=event&include[1]=response_data`).
             - `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
@@ -3858,11 +3884,9 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: |
             Fields to include in the response. Use bracket notation for multiple values (e.g., `include[0]=event&include[1]=response_data`).
             - `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
@@ -4012,21 +4036,17 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - $ref: "#/components/schemas/DestinationType"
-              - type: array
-                items:
-                  $ref: "#/components/schemas/DestinationType"
+            type: array
+            items:
+              $ref: "#/components/schemas/DestinationType"
           description: Filter destinations by type(s). Use bracket notation for multiple values (e.g., `type[0]=webhook&type[1]=aws_sqs`).
         - name: topics
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: Filter destinations by supported topic(s). Use bracket notation for multiple values (e.g., `topics[0]=user.created&topics[1]=user.deleted`).
       responses:
         "200":
@@ -4376,11 +4396,9 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: Filter attempts by event ID(s). Use bracket notation for multiple values (e.g., `event_id[0]=e1&event_id[1]=e2`).
         - name: status
           in: query
@@ -4393,11 +4411,9 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: Filter attempts by event topic(s). Use bracket notation for multiple values (e.g., `topic[0]=user.created&topic[1]=user.updated`).
         - name: time
           in: query
@@ -4432,11 +4448,9 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: |
             Fields to include in the response. Use bracket notation for multiple values (e.g., `include[0]=event&include[1]=response_data`).
             - `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
@@ -4527,11 +4541,9 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: |
             Fields to include in the response. Use bracket notation for multiple values (e.g., `include[0]=event&include[1]=response_data`).
             - `event`: Include event summary
