@@ -28,6 +28,10 @@ Outpost separates failures the proxy is responsible for from failures the destin
 
 If you expect proxy outages longer than your queue's redelivery window, raise `MinRetryBackoff`, `MaxRetryBackoff`, and `RetryLimit` in your queue configuration so the redelivery window covers the worst case. See [Configuration](/docs/outpost/self-hosting/configuration).
 
+## Publish queue
+
+The same kind of proxy can carry the connection to a RabbitMQ [publish queue](/docs/outpost/publishing/publish-from-rabbitmq#connecting-through-a-proxy), so a broker that allowlists source IPs sees the proxy's address. Set `PUBLISH_PROXY_URL` in the same format as `DESTINATIONS_WEBHOOK_PROXY_URL`; the two are independent. Outpost tunnels AMQP through every hop with `CONNECT`, so each hop must allow `CONNECT` to the broker's port. `PUBLISH_PROXY_URL` is RabbitMQ only: AWS SQS, GCP Pub/Sub and Azure Service Bus publish queues connect directly.
+
 ## Using Envoy
 
 When the proxy is [Envoy](https://www.envoyproxy.io/), Outpost automatically reads `x-envoy-response-flags` from proxy responses and maps them to the same network error codes used elsewhere (e.g. `UT` → `timeout`, `DF` → `dns_error`). No Outpost-side configuration is required, but Envoy must be configured to emit the header.

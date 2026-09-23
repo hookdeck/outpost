@@ -1,4 +1,5 @@
-package destregistry
+// Package proxychain dials through a chain of HTTP CONNECT forward proxies.
+package proxychain
 
 import (
 	"bufio"
@@ -13,7 +14,7 @@ import (
 	"time"
 )
 
-// ParseProxyURL parses the proxy config value: one or more forward proxy
+// Parse parses the proxy config value: one or more forward proxy
 // URLs separated by whitespace, nearest hop first. An unencoded space is never valid inside a URL, so a
 // single-proxy value parses as a one-element chain unchanged. Empty or
 // whitespace-only input yields nil (no proxy).
@@ -21,7 +22,7 @@ import (
 // Every hop must be an absolute http or https URL with a host. Errors name
 // the offending hop by index and never echo the value, which may carry
 // credentials.
-func ParseProxyURL(s string) ([]*url.URL, error) {
+func Parse(s string) ([]*url.URL, error) {
 	fields := strings.Fields(s)
 	if len(fields) == 0 {
 		return nil, nil
@@ -43,56 +44,55 @@ func ParseProxyURL(s string) ([]*url.URL, error) {
 	return hops, nil
 }
 
-// RedactedProxyURL renders a proxy hop as scheme://host[:port] for logs and
+// Redact renders a proxy hop as scheme://host[:port] for logs and
 // error messages, dropping userinfo, path and query.
-func RedactedProxyURL(u *url.URL) string {
+func Redact(u *url.URL) string {
 	if u == nil {
 		return ""
 	}
 	return u.Scheme + "://" + u.Host
 }
 
-// ProxyConnectError is returned by the chain dialer when an intermediate hop
-// answers a CONNECT with anything but 200. Hop and Next are redacted
+// ConnectError is returned by the dialer when a hop answers a CONNECT with anything but 200. Hop and Next are redacted
 // scheme://host:port strings; Header carries the hop's response headers so
 // the caller can classify (for Envoy, x-envoy-response-flags).
-type ProxyConnectError struct {
+type ConnectError struct {
 	Hop    string
 	Next   string
 	Status int
 	Header http.Header
 }
 
-func (e *ProxyConnectError) Error() string {
+func (e *ConnectError) Error() string {
 	return fmt.Sprintf("proxy %s returned %d for CONNECT %s", e.Hop, e.Status, e.Next)
 }
 
 // DialFunc matches http.Transport.DialContext.
 type DialFunc func(ctx context.Context, network, addr string) (net.Conn, error)
 
-// chainDialer tunnels through hops 0..n-2 of a proxy chain so the transport,
-// whose Proxy is the last hop, ends up talking to that hop over an
-// already-established CONNECT tunnel. Go's transport cannot tell the
-// returned conn from a direct dial: it still sends its own CONNECT (or
-// absolute-URI request) to the last hop, with that hop's credentials.
-type chainDialer struct {
+// Dialer reaches addr by CONNECTing through every hop in order. The returned
+// conn is a raw tunnel to addr; anything the caller layers on top (TLS to
+// the target, AMQP) runs end to end through it.
+type Dialer struct {
 	hops []*url.URL
 	dial DialFunc
-	// tls is read per dial so TLSClientConfig set on the transport after
-	// construction (WrapTransport, tests) still applies to https hops.
+	// tls is read per dial so TLSClientConfig set on a transport after
+	// construction still applies to https hops.
 	tls func() *tls.Config
 }
 
-func newChainDialer(hops []*url.URL, dial DialFunc, tlsConfig func() *tls.Config) *chainDialer {
+// NewDialer returns a Dialer over hops. dial opens the TCP connection to the
+// first hop (nil uses a net.Dialer); tlsConfig supplies the config for https
+// hops (nil uses the zero config).
+func NewDialer(hops []*url.URL, dial DialFunc, tlsConfig func() *tls.Config) *Dialer {
 	if dial == nil {
 		dial = (&net.Dialer{Timeout: 30 * time.Second, KeepAlive: 30 * time.Second}).DialContext
 	}
-	return &chainDialer{hops: hops, dial: dial, tls: tlsConfig}
+	return &Dialer{hops: hops, dial: dial, tls: tlsConfig}
 }
 
-// DialContext receives the last hop's host:port from the transport and
-// returns a conn tunneled to it through every intermediate hop.
-func (d *chainDialer) DialContext(ctx context.Context, network, lastHopAddr string) (net.Conn, error) {
+// DialContext returns a conn tunneled to addr through every hop.
+func (d *Dialer) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
 	first := d.hops[0]
 	conn, err := d.dial(ctx, network, proxyHostPort(first))
 	if err != nil {
@@ -106,7 +106,7 @@ func (d *chainDialer) DialContext(ctx context.Context, network, lastHopAddr stri
 
 	for i, hop := range d.hops {
 		var next *url.URL
-		nextAddr := lastHopAddr
+		nextAddr := addr
 		if i+1 < len(d.hops) {
 			next = d.hops[i+1]
 			nextAddr = proxyHostPort(next)
@@ -125,7 +125,7 @@ func (d *chainDialer) DialContext(ctx context.Context, network, lastHopAddr stri
 }
 
 // wrapTLS starts TLS on conn to a proxy hop. On failure the conn is closed.
-func (d *chainDialer) wrapTLS(ctx context.Context, conn net.Conn, serverName string) (net.Conn, error) {
+func (d *Dialer) wrapTLS(ctx context.Context, conn net.Conn, serverName string) (net.Conn, error) {
 	var cfg *tls.Config
 	if d.tls != nil {
 		cfg = d.tls()
@@ -174,8 +174,8 @@ func connectThrough(ctx context.Context, conn net.Conn, hop *url.URL, target str
 	}
 	if resp.StatusCode != http.StatusOK {
 		_ = resp.Body.Close()
-		return &ProxyConnectError{
-			Hop:    RedactedProxyURL(hop),
+		return &ConnectError{
+			Hop:    Redact(hop),
 			Next:   target,
 			Status: resp.StatusCode,
 			Header: resp.Header,

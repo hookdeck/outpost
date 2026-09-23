@@ -6,6 +6,8 @@ import (
 	"net/http/httptrace"
 	"net/url"
 	"time"
+
+	"github.com/hookdeck/outpost/internal/proxychain"
 )
 
 type HTTPClientConfig struct {
@@ -71,7 +73,7 @@ func NewHTTPClient(config HTTPClientConfig) (*http.Client, error) {
 		if n > 1 {
 			// Go talks to the last hop; the dialer gets it there through
 			// every hop before it.
-			transport.DialContext = newChainDialer(config.Proxy[:n-1], transport.DialContext, func() *tls.Config { return transport.TLSClientConfig }).DialContext
+			transport.DialContext = proxychain.NewDialer(config.Proxy[:n-1], transport.DialContext, func() *tls.Config { return transport.TLSClientConfig }).DialContext
 		}
 		if config.WrapTransport != nil {
 			rt = config.WrapTransport(transport, last)

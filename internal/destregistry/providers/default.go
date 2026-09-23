@@ -16,6 +16,7 @@ import (
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destrabbitmq"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destwebhook"
 	"github.com/hookdeck/outpost/internal/emetrics"
+	"github.com/hookdeck/outpost/internal/proxychain"
 )
 
 // WebhookHeaderConfig is the resolved directive for a single webhook system
@@ -94,7 +95,7 @@ func RegisterDefault(registry destregistry.Registry, opts RegisterDefaultDestina
 
 	var proxy []*url.URL
 	if opts.Webhook != nil {
-		proxy, err = destregistry.ParseProxyURL(opts.Webhook.ProxyURL)
+		proxy, err = proxychain.Parse(opts.Webhook.ProxyURL)
 		if err != nil {
 			return fmt.Errorf("webhook proxy: %w", err)
 		}

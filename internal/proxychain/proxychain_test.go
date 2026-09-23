@@ -1,20 +1,20 @@
-package destregistry_test
+package proxychain_test
 
 import (
 	"testing"
 
-	"github.com/hookdeck/outpost/internal/destregistry"
+	"github.com/hookdeck/outpost/internal/proxychain"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestParseProxyURL(t *testing.T) {
+func TestParse(t *testing.T) {
 	t.Parallel()
 
 	t.Run("empty and whitespace-only yield no proxy", func(t *testing.T) {
 		t.Parallel()
 		for _, in := range []string{"", "   ", "\t\n"} {
-			hops, err := destregistry.ParseProxyURL(in)
+			hops, err := proxychain.Parse(in)
 			require.NoError(t, err)
 			assert.Nil(t, hops)
 		}
@@ -22,7 +22,7 @@ func TestParseProxyURL(t *testing.T) {
 
 	t.Run("single URL parses unchanged, including comma in password", func(t *testing.T) {
 		t.Parallel()
-		hops, err := destregistry.ParseProxyURL("http://user:p,ss@proxy.example.com:3128")
+		hops, err := proxychain.Parse("http://user:p,ss@proxy.example.com:3128")
 		require.NoError(t, err)
 		require.Len(t, hops, 1)
 		assert.Equal(t, "proxy.example.com:3128", hops[0].Host)
@@ -32,7 +32,7 @@ func TestParseProxyURL(t *testing.T) {
 
 	t.Run("multiple hops split on any whitespace, order preserved", func(t *testing.T) {
 		t.Parallel()
-		hops, err := destregistry.ParseProxyURL("http://a:10000 \t https://b:8443\nhttp://c")
+		hops, err := proxychain.Parse("http://a:10000 \t https://b:8443\nhttp://c")
 		require.NoError(t, err)
 		require.Len(t, hops, 3)
 		assert.Equal(t, "a:10000", hops[0].Host)
@@ -52,7 +52,7 @@ func TestParseProxyURL(t *testing.T) {
 		}
 		for name, in := range cases {
 			t.Run(name, func(t *testing.T) {
-				hops, err := destregistry.ParseProxyURL(in)
+				hops, err := proxychain.Parse(in)
 				require.Error(t, err)
 				assert.Nil(t, hops)
 				assert.Contains(t, err.Error(), "proxy hop 1")
@@ -62,10 +62,10 @@ func TestParseProxyURL(t *testing.T) {
 	})
 }
 
-func TestRedactedProxyURL(t *testing.T) {
+func TestRedact(t *testing.T) {
 	t.Parallel()
-	hops, err := destregistry.ParseProxyURL("https://user:pass@proxy.example.com:8443/ignored?x=1")
+	hops, err := proxychain.Parse("https://user:pass@proxy.example.com:8443/ignored?x=1")
 	require.NoError(t, err)
-	assert.Equal(t, "https://proxy.example.com:8443", destregistry.RedactedProxyURL(hops[0]))
-	assert.Equal(t, "", destregistry.RedactedProxyURL(nil))
+	assert.Equal(t, "https://proxy.example.com:8443", proxychain.Redact(hops[0]))
+	assert.Equal(t, "", proxychain.Redact(nil))
 }
