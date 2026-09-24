@@ -3,6 +3,7 @@ package mqs
 import (
 	"context"
 	"fmt"
+	"runtime"
 	"sync"
 	"time"
 
@@ -101,7 +102,56 @@ func (q *AzureServiceBusQueue) Subscribe(ctx context.Context, opts ...SubscribeO
 		return nil, err
 	}
 
-	return q.base.Subscribe(ctx, subscription)
+	return &azureServiceBusSubscription{subscription: subscription, receiver: receiver}, nil
+}
+
+type azureServiceBusSubscription struct {
+	subscription *pubsub.Subscription
+	receiver     *azservicebus.Receiver
+}
+
+var _ Subscription = &azureServiceBusSubscription{}
+
+func (s *azureServiceBusSubscription) Receive(ctx context.Context) (*Message, error) {
+	msg, err := s.subscription.Receive(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &Message{
+		QueueMessage: &azureServiceBusMessage{Message: msg, receiver: s.receiver},
+		LoggableID:   msg.LoggableID,
+		ID:           msg.LoggableID,
+		Body:         msg.Body,
+	}, nil
+}
+
+func (s *azureServiceBusSubscription) Shutdown(ctx context.Context) error {
+	return s.subscription.Shutdown(ctx)
+}
+
+// azureServiceBusMessage adds Reject, which dead-letters the message. gocloud's
+// Nack abandons it.
+type azureServiceBusMessage struct {
+	*pubsub.Message
+	receiver *azservicebus.Receiver
+}
+
+var _ Rejecter = &azureServiceBusMessage{}
+
+func (m *azureServiceBusMessage) Reject() {
+	var sbmsg *azservicebus.ReceivedMessage
+	if !m.As(&sbmsg) {
+		m.Nack()
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	if err := m.receiver.DeadLetterMessage(ctx, sbmsg, nil); err != nil {
+		m.Nack()
+		return
+	}
+	// Settled outside gocloud, so drop its "never acked" finalizer.
+	runtime.SetFinalizer(m.Message, nil)
 }
 
 func (q *AzureServiceBusQueue) InitClient(ctx context.Context) error {

@@ -2,12 +2,15 @@ package mqs_test
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/hookdeck/outpost/internal/consumer"
 	"github.com/hookdeck/outpost/internal/mqs"
 	"github.com/hookdeck/outpost/internal/util/testinfra"
+	"github.com/rabbitmq/amqp091-go"
 	"github.com/stretchr/testify/require"
 )
 
@@ -154,4 +157,78 @@ func TestIntegrationMQ_RabbitMQNoRedialAfterCleanup(t *testing.T) {
 	_, err = subscription.Receive(receiveCtx)
 	require.Error(t, err)
 	require.True(t, mqs.RabbitMQConnectionClosed(queue), "queue redialed after cleanup")
+}
+
+func TestIntegrationMQ_RabbitMQReject(t *testing.T) {
+	t.Parallel()
+	t.Cleanup(testinfra.Start(t))
+
+	config := &mqs.RabbitMQConfig{
+		ServerURL: testinfra.EnsureRabbitMQ(),
+		Exchange:  uuid.New().String(),
+		Queue:     uuid.New().String(),
+	}
+	dlx := config.Exchange + "-dlx"
+	dlq := config.Queue + "-dlq"
+
+	conn, err := amqp091.Dial(config.ServerURL)
+	require.NoError(t, err)
+	defer conn.Close()
+	ch, err := conn.Channel()
+	require.NoError(t, err)
+	defer ch.Close()
+	require.NoError(t, ch.ExchangeDeclare(config.Exchange, "topic", false, true, false, false, nil))
+	require.NoError(t, ch.ExchangeDeclare(dlx, "fanout", false, true, false, false, nil))
+	_, err = ch.QueueDeclare(dlq, false, true, false, false, nil)
+	require.NoError(t, err)
+	require.NoError(t, ch.QueueBind(dlq, "", dlx, false, nil))
+	_, err = ch.QueueDeclare(config.Queue, false, true, false, false, amqp091.Table{
+		"x-dead-letter-exchange": dlx,
+	})
+	require.NoError(t, err)
+	require.NoError(t, ch.QueueBind(config.Queue, config.Queue, config.Exchange, false, nil))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	queue := mqs.NewQueue(&mqs.QueueConfig{RabbitMQ: config})
+	cleanup, err := queue.Init(ctx)
+	require.NoError(t, err)
+	defer cleanup()
+	subscription, err := queue.Subscribe(ctx)
+	require.NoError(t, err)
+	defer subscription.Shutdown(ctx)
+
+	receive := func() *Msg {
+		t.Helper()
+		rctx, rcancel := context.WithTimeout(ctx, 10*time.Second)
+		defer rcancel()
+		msg, err := subscription.Receive(rctx)
+		require.NoError(t, err)
+		msg.Ack()
+		parsed := &Msg{}
+		require.NoError(t, parsed.FromMessage(msg))
+		return parsed
+	}
+
+	require.NoError(t, queue.Publish(ctx, &Msg{ID: "rejected"}))
+	rctx, rcancel := context.WithTimeout(ctx, 10*time.Second)
+	defer rcancel()
+	msg, err := subscription.Receive(rctx)
+	require.NoError(t, err)
+	msg.Reject()
+
+	// The rejected message is dead-lettered instead of redelivered.
+	require.NoError(t, queue.Publish(ctx, &Msg{ID: "next"}))
+	require.Equal(t, "next", receive().ID)
+
+	require.Eventually(t, func() bool {
+		d, ok, err := ch.Get(dlq, true)
+		require.NoError(t, err)
+		if !ok {
+			return false
+		}
+		parsed := &Msg{}
+		require.NoError(t, json.Unmarshal(d.Body, parsed))
+		return parsed.ID == "rejected"
+	}, 5*time.Second, 100*time.Millisecond)
 }

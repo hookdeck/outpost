@@ -75,6 +75,7 @@ type Config struct {
 
 	// Consumers
 	PublishMaxConcurrency  int `yaml:"publish_max_concurrency" env:"PUBLISH_MAX_CONCURRENCY" desc:"Maximum number of messages to process concurrently from the publish queue." required:"N"`
+	PublishMaxRedeliveries int `yaml:"publish_max_redeliveries" env:"PUBLISH_MAX_REDELIVERIES" desc:"Maximum number of times a publish queue message that failed with a transient error is redelivered before Outpost rejects it. 0 redelivers without limit. RabbitMQ and Azure Service Bus only." required:"N"`
 	DeliveryMaxConcurrency int `yaml:"delivery_max_concurrency" env:"DELIVERY_MAX_CONCURRENCY" desc:"Maximum number of delivery attempts to process concurrently." required:"N"`
 	LogMaxConcurrency      int `yaml:"log_max_concurrency" env:"LOG_MAX_CONCURRENCY" desc:"Maximum number of log writing operations to process concurrently." required:"N"`
 
@@ -119,17 +120,18 @@ type Config struct {
 }
 
 var (
-	ErrMismatchedServiceType  = errors.New("config validation error: service type mismatch")
-	ErrInvalidServiceType     = errors.New("config validation error: invalid service type")
-	ErrMissingRedis           = errors.New("config validation error: redis configuration is required")
-	ErrMissingLogStorage      = errors.New("config validation error: log storage must be provided")
-	ErrMissingMQs             = errors.New("config validation error: message queue configuration is required")
-	ErrMissingAESSecret       = errors.New("config validation error: AES encryption secret is required")
-	ErrInvalidPortalProxyURL  = errors.New("config validation error: invalid portal proxy url")
-	ErrInvalidWebhookProxyURL = errors.New("config validation error: invalid webhook proxy url")
-	ErrInvalidPublishProxyURL = errors.New("config validation error: invalid publish proxy url")
-	ErrInvalidDeploymentID    = errors.New("config validation error: deployment_id must contain only alphanumeric characters, hyphens, and underscores (max 64 characters)")
-	ErrInvalidRedisPoolSize   = errors.New("config validation error: redis pool_size must be >= 0")
+	ErrMismatchedServiceType         = errors.New("config validation error: service type mismatch")
+	ErrInvalidServiceType            = errors.New("config validation error: invalid service type")
+	ErrMissingRedis                  = errors.New("config validation error: redis configuration is required")
+	ErrMissingLogStorage             = errors.New("config validation error: log storage must be provided")
+	ErrMissingMQs                    = errors.New("config validation error: message queue configuration is required")
+	ErrMissingAESSecret              = errors.New("config validation error: AES encryption secret is required")
+	ErrInvalidPortalProxyURL         = errors.New("config validation error: invalid portal proxy url")
+	ErrInvalidWebhookProxyURL        = errors.New("config validation error: invalid webhook proxy url")
+	ErrInvalidPublishProxyURL        = errors.New("config validation error: invalid publish proxy url")
+	ErrInvalidDeploymentID           = errors.New("config validation error: deployment_id must contain only alphanumeric characters, hyphens, and underscores (max 64 characters)")
+	ErrInvalidRedisPoolSize          = errors.New("config validation error: redis pool_size must be >= 0")
+	ErrInvalidPublishMaxRedeliveries = errors.New("config validation error: publish_max_redeliveries must be >= 0")
 )
 
 func (c *Config) InitDefaults() {

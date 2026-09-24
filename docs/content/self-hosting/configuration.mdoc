@@ -65,6 +65,7 @@ Optional. Configures the queue Outpost consumes published events from; see [Publ
 
 | Variable | Default | Description |
 |----------|---------|-------------|
+| `PUBLISH_MAX_REDELIVERIES` | `0` | Maximum number of times a message that failed with a transient error is redelivered before Outpost rejects it. `0` redelivers without limit. RabbitMQ and Azure Service Bus only; on those, invalid messages are rejected on the first failure regardless. See the Failed messages section of each publish guide, e.g. [Publish from RabbitMQ](/docs/outpost/publishing/publish-from-rabbitmq#failed-messages). |
 | `PUBLISH_PROXY_URL` | — | HTTP `CONNECT` forward proxy for the publish queue connection, e.g. `http://user:pass@proxy:8080`. Multiple whitespace-separated URLs are tunneled in order. RabbitMQ only; other providers connect directly and ignore it. See [Publish from RabbitMQ](/docs/outpost/publishing/publish-from-rabbitmq#connecting-through-a-proxy). |
 
 ## Log Storage

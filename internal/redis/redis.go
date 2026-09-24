@@ -17,6 +17,7 @@ const (
 
 type (
 	Cmdable            = r.Cmdable
+	IntCmd             = r.IntCmd
 	MapStringStringCmd = r.MapStringStringCmd
 	SliceCmd           = r.SliceCmd
 	StringCmd          = r.StringCmd
