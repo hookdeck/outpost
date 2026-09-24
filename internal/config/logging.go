@@ -98,6 +98,7 @@ func (c *Config) LogConfigurationSummary() []zap.Field {
 
 		// Consumers
 		zap.Int("publish_max_concurrency", c.PublishMaxConcurrency),
+		zap.Int("publish_max_redeliveries", c.PublishMaxRedeliveries),
 		zap.Int("delivery_max_concurrency", c.DeliveryMaxConcurrency),
 		zap.Int("log_max_concurrency", c.LogMaxConcurrency),
 

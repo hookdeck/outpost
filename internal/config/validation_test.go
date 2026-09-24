@@ -153,6 +153,15 @@ func TestRedis(t *testing.T) {
 			}(),
 			wantErr: config.ErrInvalidRedisPoolSize,
 		},
+		{
+			name: "negative publish max redeliveries",
+			config: func() *config.Config {
+				c := validConfig()
+				c.PublishMaxRedeliveries = -1
+				return c
+			}(),
+			wantErr: config.ErrInvalidPublishMaxRedeliveries,
+		},
 	}
 
 	for _, tt := range tests {
