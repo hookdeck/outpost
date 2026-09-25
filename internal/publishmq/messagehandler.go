@@ -48,23 +48,20 @@ var _ consumer.MessageHandler = (*messageHandler)(nil)
 func (h *messageHandler) Handle(ctx context.Context, msg *mqs.Message) error {
 	var publishedEvent PublishedEvent
 	if err := json.Unmarshal(msg.Body, &publishedEvent); err != nil {
-		msg.Reject()
-		return err
+		return reject(msg, err)
 	}
 	// json.RawMessage is []byte, so null, invalid JSON, and non-object types
 	// slip past unmarshaling. Reject since data must be a JSON object.
 	if !json.Valid(publishedEvent.Data) || publishedEvent.Data[0] != '{' {
-		msg.Reject()
-		return ErrInvalidData
+		return reject(msg, ErrInvalidData)
 	}
 	event := publishedEvent.toEvent()
 	_, err := h.eventHandler.Handle(ctx, &event)
 	if err != nil {
-		// A redelivered copy of an invalid message fails the same way, so
-		// only transient errors go back on the queue.
-		if errors.Is(err, ErrRequiredTopic) || errors.Is(err, ErrInvalidTopic) {
-			msg.Reject()
-			return err
+		// ErrInvalidTopic goes back on the queue: adding the topic to TOPICS
+		// fixes it.
+		if errors.Is(err, ErrRequiredTopic) {
+			return reject(msg, err)
 		}
 		return h.nack(ctx, msg, err)
 	}
@@ -88,7 +85,16 @@ func (h *messageHandler) nack(ctx context.Context, msg *mqs.Message, err error) 
 		return err
 	}
 	msg.Reject()
-	return fmt.Errorf("rejected after %d redeliveries: %w", h.maxRedeliveries, err)
+	return fmt.Errorf("rejected message %s after %d redeliveries: %w", msg.LoggableID, h.maxRedeliveries, err)
+}
+
+func reject(msg *mqs.Message, err error) error {
+	if !msg.Rejectable() {
+		msg.Nack()
+		return err
+	}
+	msg.Reject()
+	return fmt.Errorf("rejected message %s: %w", msg.LoggableID, err)
 }
 
 // messageKey falls back to a body hash for brokers or publishers that set no

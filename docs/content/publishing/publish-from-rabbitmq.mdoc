@@ -24,12 +24,12 @@ RabbitMQ messages should have the same payload structure as the [Publish API end
 
 Outpost treats a failed message in one of two ways:
 
-- **Invalid messages** fail the same way on every delivery: invalid JSON, `data` that is not a JSON object, or a missing or unconfigured `topic`. Outpost rejects them on the first failure without requeueing. RabbitMQ routes them to the queue's [dead-letter exchange](https://www.rabbitmq.com/docs/dlx) if it has one and discards them otherwise.
-- **Transient failures**, such as Outpost losing its Redis connection, are nacked with requeue. RabbitMQ redelivers the message immediately, with no backoff and no limit.
+- **Invalid messages** fail the same way on every delivery: invalid JSON, `data` that is not a JSON object, or a missing `topic`. Outpost rejects them on the first failure without requeueing. RabbitMQ routes them to the queue's [dead-letter exchange](https://www.rabbitmq.com/docs/dlx) if it has one and discards them otherwise.
+- **Transient failures**, such as Outpost losing its Redis connection or a `topic` that is not in `TOPICS` yet, are nacked with requeue. RabbitMQ redelivers the message immediately, with no backoff and no limit.
 
-Dead-lettering, redelivery limits and backoff are configured on your queue, not in Outpost. Use a [quorum queue](https://www.rabbitmq.com/docs/quorum-queues) with a delivery limit (`x-delivery-limit`) and a dead-letter exchange. Classic queues cannot limit redelivery. RabbitMQ does not delay redeliveries, so until the limit is reached a failing message is redelivered as fast as Outpost can nack it.
+Dead-lettering, redelivery limits and backoff are configured on your queue, not in Outpost. Use a [quorum queue](https://www.rabbitmq.com/docs/quorum-queues) with a delivery limit (`x-delivery-limit`) and a dead-letter exchange. Classic queues cannot limit redelivery. On RabbitMQ 4.0 and later, quorum queues have a delivery limit of 20 by default. RabbitMQ does not delay redeliveries, so until the limit is reached a failing message is redelivered as fast as Outpost can nack it.
 
-`PUBLISH_MAX_REDELIVERIES` sets a limit on the Outpost side instead: once a message has been redelivered that many times, Outpost rejects it like an invalid message. Without a dead-letter exchange the message is then lost.
+`PUBLISH_MAX_REDELIVERIES` sets a limit on the Outpost side instead: once a message has been redelivered that many times, Outpost rejects it like an invalid message. Without a dead-letter exchange the message is then lost. If the queue also has a delivery limit, the lower of the two applies.
 
 ## Configuration
 
