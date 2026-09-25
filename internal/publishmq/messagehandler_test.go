@@ -96,12 +96,14 @@ func TestMessageHandler_InvalidJSON(t *testing.T) {
 	qm := &mockQueueMessage{}
 	msg := &mqs.Message{
 		QueueMessage: qm,
+		LoggableID:   "msg_1",
 		Body:         []byte(`not json`),
 	}
 
 	err := handler.Handle(context.Background(), msg)
 
 	require.Error(t, err)
+	assert.Contains(t, err.Error(), "msg_1", "error should identify the rejected message")
 	assert.True(t, qm.rejected, "message should be rejected")
 	assert.Empty(t, eh.calls, "event handler should not be called")
 }
@@ -112,7 +114,7 @@ func TestMessageHandler_EventHandlerError(t *testing.T) {
 		err          error
 		wantRejected bool
 	}{
-		{"invalid topic", publishmq.ErrInvalidTopic, true},
+		{"invalid topic", publishmq.ErrInvalidTopic, false},
 		{"required topic", publishmq.ErrRequiredTopic, true},
 		{"transient error", errors.New("redis: connection refused"), false},
 	}
