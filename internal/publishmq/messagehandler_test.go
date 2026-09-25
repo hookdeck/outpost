@@ -153,31 +153,72 @@ func TestMessageHandler_RejectFallsBackToNack(t *testing.T) {
 	assert.True(t, qm.nacked, "message should be nacked when the broker cannot reject")
 }
 
-func TestMessageHandler_MaxRedeliveriesSkipsNonRejectable(t *testing.T) {
+func TestMessageHandler_ZeroRedeliveries(t *testing.T) {
 	counter := &fakeRedeliveryCounter{err: errors.New("must not be called")}
 	handler := publishmq.NewMessageHandler(
 		&mockEventHandler{err: errors.New("transient")},
-		publishmq.WithMaxRedeliveries(1, counter),
+		publishmq.WithMaxRedeliveries(0, counter),
 	)
+	body := []byte(`{"tenant_id":"t1","topic":"user.created","data":{}}`)
 
-	for i := 0; i < 3; i++ {
-		qm := &nackOnlyQueueMessage{}
-		err := handler.Handle(context.Background(), &mqs.Message{
-			QueueMessage: qm,
-			ID:           "msg_1",
-			Body:         []byte(`{"tenant_id":"t1","topic":"user.created","data":{}}`),
+	qm := &mockQueueMessage{}
+	err := handler.Handle(context.Background(), &mqs.Message{QueueMessage: qm, ID: "msg_1", Body: body})
+	require.Error(t, err)
+	assert.NotContains(t, err.Error(), "must not be called")
+	assert.True(t, qm.rejected, "first failure should be rejected")
+
+	nq := &nackOnlyQueueMessage{}
+	err = handler.Handle(context.Background(), &mqs.Message{QueueMessage: nq, ID: "msg_2", Body: body})
+	require.Error(t, err)
+	assert.True(t, nq.acked, "first failure should be acked where the broker cannot reject")
+}
+
+func TestMessageHandler_MaxRedeliveriesAcksNonRejectable(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		body string
+	}{
+		{"transient error", errors.New("transient"), `{"tenant_id":"t1","topic":"user.created","data":{}}`},
+		{"invalid message", nil, `not json`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			handler := publishmq.NewMessageHandler(
+				&mockEventHandler{err: tt.err},
+				publishmq.WithMaxRedeliveries(1, &fakeRedeliveryCounter{}),
+			)
+			receive := func() (*nackOnlyQueueMessage, error) {
+				qm := &nackOnlyQueueMessage{}
+				err := handler.Handle(context.Background(), &mqs.Message{
+					QueueMessage: qm,
+					LoggableID:   "msg_1",
+					ID:           "msg_1",
+					Body:         []byte(tt.body),
+				})
+				return qm, err
+			}
+
+			qm, err := receive()
+			require.Error(t, err)
+			assert.True(t, qm.nacked, "first failure should be nacked")
+
+			qm, err = receive()
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "dropped message msg_1")
+			assert.True(t, qm.acked, "message should be acked once redeliveries run out")
+			assert.False(t, qm.nacked)
 		})
-		require.Error(t, err)
-		assert.NotContains(t, err.Error(), "must not be called")
-		assert.True(t, qm.nacked, "receive %d should be nacked", i+1)
 	}
 }
 
 type nackOnlyQueueMessage struct {
+	acked  bool
 	nacked bool
 }
 
-func (m *nackOnlyQueueMessage) Ack()  {}
+func (m *nackOnlyQueueMessage) Ack()  { m.acked = true }
 func (m *nackOnlyQueueMessage) Nack() { m.nacked = true }
 
 type fakeRedeliveryCounter struct {

@@ -152,7 +152,7 @@ func (c *Config) validatePublishMQ() error {
 	if err := c.PublishMQ.Validate(); err != nil {
 		return fmt.Errorf("failed to validate publish queue config: %w", err)
 	}
-	if c.PublishMaxRedeliveries < 0 {
+	if c.PublishMaxRedeliveries < -1 {
 		return ErrInvalidPublishMaxRedeliveries
 	}
 	return nil

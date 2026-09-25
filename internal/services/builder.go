@@ -247,7 +247,7 @@ func (b *ServiceBuilder) BuildAPIWorkers(baseRouter *gin.Engine) error {
 		}
 		publishMQ := publishmq.New(publishmq.WithQueue(publishQueueConfig))
 		var messageHandlerOpts []publishmq.MessageHandlerOption
-		if b.cfg.PublishMaxRedeliveries > 0 {
+		if b.cfg.PublishMaxRedeliveries >= 0 {
 			messageHandlerOpts = append(messageHandlerOpts, publishmq.WithMaxRedeliveries(
 				b.cfg.PublishMaxRedeliveries,
 				publishmq.NewRedisRedeliveryCounter(svc.redisClient, b.cfg.DeploymentID),
