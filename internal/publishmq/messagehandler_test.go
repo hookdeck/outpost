@@ -208,6 +208,7 @@ func TestMessageHandler_MaxRedeliveries(t *testing.T) {
 		qm := &mockQueueMessage{}
 		err := handler.Handle(context.Background(), &mqs.Message{
 			QueueMessage: qm,
+			LoggableID:   "msg_1",
 			ID:           "msg_1",
 			Body:         []byte(`{"tenant_id":"t1","topic":"user.created","data":{"key":"value"}}`),
 		})
@@ -225,6 +226,7 @@ func TestMessageHandler_MaxRedeliveries(t *testing.T) {
 
 	qm, err := receive()
 	require.ErrorIs(t, err, transientErr)
+	assert.Contains(t, err.Error(), "msg_1", "error should identify the rejected message")
 	assert.True(t, qm.rejected, "the second redelivery should be rejected")
 	assert.False(t, qm.nacked, "message should not be nacked after max redeliveries")
 }
