@@ -70,6 +70,7 @@ func TestDefaultValues(t *testing.T) {
 	assert.Equal(t, "outpost-delivery", cfg.MQs.RabbitMQ.DeliveryQueue)
 	assert.Equal(t, "outpost-log", cfg.MQs.RabbitMQ.LogQueue)
 	assert.Equal(t, 1, cfg.PublishMaxConcurrency)
+	assert.Equal(t, -1, cfg.PublishMaxRedeliveries)
 	assert.Equal(t, 1, cfg.DeliveryMaxConcurrency)
 	assert.Equal(t, 1, cfg.LogMaxConcurrency)
 	assert.Equal(t, []int{}, cfg.RetrySchedule)
@@ -81,6 +82,38 @@ func TestDefaultValues(t *testing.T) {
 	assert.Equal(t, 10, cfg.LogBatchThresholdSeconds)
 	assert.Equal(t, 1000, cfg.LogBatchSize)
 	assert.Equal(t, "", cfg.Destinations.Webhook.HeaderPrefix)
+}
+
+func TestPublishMaxRedeliveries(t *testing.T) {
+	tests := []struct {
+		name    string
+		envVars map[string]string
+		yaml    string
+		want    int
+	}{
+		{name: "unset", want: -1},
+		{name: "empty env", envVars: map[string]string{"PUBLISH_MAX_REDELIVERIES": ""}, want: -1},
+		{name: "env 0", envVars: map[string]string{"PUBLISH_MAX_REDELIVERIES": "0"}, want: 0},
+		{name: "env 5", envVars: map[string]string{"PUBLISH_MAX_REDELIVERIES": "5"}, want: 5},
+		{name: "yaml 0", yaml: "publish_max_redeliveries: 0\n", want: 0},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockOS := &mockOS{files: map[string][]byte{}, envVars: map[string]string{}}
+			for k, v := range tt.envVars {
+				mockOS.envVars[k] = v
+			}
+			if tt.yaml != "" {
+				mockOS.files["config.yaml"] = []byte(tt.yaml)
+				mockOS.envVars["CONFIG"] = "config.yaml"
+			}
+
+			cfg, err := config.ParseWithoutValidation(config.Flags{}, mockOS)
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, cfg.PublishMaxRedeliveries)
+		})
+	}
 }
 
 func TestYAMLConfig(t *testing.T) {

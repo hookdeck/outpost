@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net"
+	"runtime"
 	"sync"
 	"time"
 
@@ -152,11 +153,36 @@ func (s *rabbitMQSubscription) Receive(ctx context.Context) (*Message, error) {
 		}
 		return nil, err
 	}
+	// LoggableID falls back to the delivery tag, which changes on every
+	// redelivery, so ID reads the message ID from the delivery.
+	var delivery amqp091.Delivery
+	msg.As(&delivery)
 	return &Message{
-		QueueMessage: msg,
+		QueueMessage: &rabbitMQMessage{Message: msg},
 		LoggableID:   msg.LoggableID,
+		ID:           delivery.MessageId,
 		Body:         msg.Body,
 	}, nil
+}
+
+// rabbitMQMessage adds Reject, since gocloud's Nack always requeues.
+type rabbitMQMessage struct {
+	*pubsub.Message
+}
+
+var _ Rejecter = &rabbitMQMessage{}
+
+func (m *rabbitMQMessage) Reject() {
+	var delivery amqp091.Delivery
+	if !m.As(&delivery) {
+		m.Nack()
+		return
+	}
+	// Settled outside gocloud, so drop its "never acked" finalizer.
+	runtime.SetFinalizer(m.Message, nil)
+	// A failed nack means the channel is gone, and the broker requeues the
+	// message on its own.
+	_ = delivery.Nack(false, false)
 }
 
 func (s *rabbitMQSubscription) resubscribe(dead *pubsub.Subscription) {

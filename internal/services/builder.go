@@ -246,7 +246,14 @@ func (b *ServiceBuilder) BuildAPIWorkers(baseRouter *gin.Engine) error {
 				zap.String("publishmq_type", b.cfg.PublishMQ.GetInfraType()))
 		}
 		publishMQ := publishmq.New(publishmq.WithQueue(publishQueueConfig))
-		messageHandler := publishmq.NewMessageHandler(eventHandler)
+		var messageHandlerOpts []publishmq.MessageHandlerOption
+		if b.cfg.PublishMaxRedeliveries >= 0 {
+			messageHandlerOpts = append(messageHandlerOpts, publishmq.WithMaxRedeliveries(
+				b.cfg.PublishMaxRedeliveries,
+				publishmq.NewRedisRedeliveryCounter(svc.redisClient, b.cfg.DeploymentID),
+			))
+		}
+		messageHandler := publishmq.NewMessageHandler(eventHandler, messageHandlerOpts...)
 		publishMQWorker := NewConsumerWorker(
 			"publishmq-consumer",
 			publishMQ.Subscribe,

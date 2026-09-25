@@ -79,7 +79,35 @@ type IncomingMessage interface {
 type Message struct {
 	QueueMessage
 	LoggableID string
-	Body       []byte
+	// ID is the broker's message ID, stable across redeliveries. Empty when
+	// the message has none.
+	ID   string
+	Body []byte
+}
+
+// Rejecter is implemented by queue messages whose broker can stop redelivering
+// a message in a way its owner can see.
+type Rejecter interface {
+	Reject()
+}
+
+// Reject stops the broker from redelivering the message. RabbitMQ nacks
+// without requeue, which dead-letters the message if the queue has a
+// dead-letter exchange and discards it otherwise. Azure Service Bus
+// dead-letters it. Other brokers have no such option, so the message is
+// nacked and their own redelivery policy applies.
+func (m *Message) Reject() {
+	if r, ok := m.QueueMessage.(Rejecter); ok {
+		r.Reject()
+		return
+	}
+	m.Nack()
+}
+
+// Rejectable reports whether Reject stops redelivery.
+func (m *Message) Rejectable() bool {
+	_, ok := m.QueueMessage.(Rejecter)
+	return ok
 }
 
 func NewQueue(config *QueueConfig) Queue {
@@ -175,6 +203,7 @@ func (s *WrappedSubscription) Receive(ctx context.Context) (*Message, error) {
 	return &Message{
 		QueueMessage: msg,
 		LoggableID:   msg.LoggableID,
+		ID:           msg.LoggableID,
 		Body:         msg.Body,
 	}, nil
 }

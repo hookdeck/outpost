@@ -26,6 +26,14 @@ GCP Pub/Sub messages should have the same payload structure as the [Publish API 
 
 Once you have these in place, you can configure Outpost to subscribe to receive events and then publish them to subscribed Outpost Destinations.
 
+## Failed messages
+
+When Outpost fails to process a message, it nacks the message and Pub/Sub redelivers it without limit. This includes messages that can never succeed, such as invalid JSON, `data` that is not a JSON object, or a missing `topic` when `TOPICS` is set.
+
+Dead-lettering, redelivery limits and backoff are configured on your subscription, not in Outpost. Set a [dead-letter topic](https://cloud.google.com/pubsub/docs/handling-failures) with `max_delivery_attempts`, and a retry policy with exponential backoff to space out redeliveries. Without a retry policy, Pub/Sub redelivers a nacked message immediately.
+
+`PUBLISH_MAX_REDELIVERIES` sets a limit on the Outpost side instead: once a message has been redelivered that many times, Outpost acks it and it is lost. `0` acks a message on its first failure. To keep those messages, set `max_delivery_attempts` no higher than `PUBLISH_MAX_REDELIVERIES` so your dead-letter topic receives them first.
+
 ## Configuration
 
 Provide Outpost with credentials, topic, and subscription for your GCP Pub/Sub instance used for publishing events.
