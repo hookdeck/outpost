@@ -2751,6 +2751,75 @@ components:
           additionalProperties: true
           example: { "user_id": "userid", "status": "active" }
     # Attempt schemas for attempts-first API
+    AttemptDestination:
+      type: object
+      description: The destination an attempt was sent to, without credentials. Use the destination endpoints to retrieve credentials.
+      required: [id, tenant_id, type, topics, config, created_at, updated_at, disabled_at, target]
+      properties:
+        id:
+          type: string
+          description: Control plane generated ID or user provided ID for the destination.
+          example: "des_12345"
+        tenant_id:
+          type: string
+          description: The tenant the destination belongs to.
+          example: "tenant_123"
+        type:
+          type: string
+          description: Type of the destination.
+          example: "webhook"
+        topics:
+          $ref: "#/components/schemas/Topics"
+        filter:
+          $ref: "#/components/schemas/Filter"
+        config:
+          type: object
+          additionalProperties:
+            type: string
+          description: Type-specific destination configuration.
+          example: { "url": "https://my-service.com/webhook/handler" }
+        delivery_metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Static key-value pairs merged into event metadata on every attempt.
+          example: { "app-id": "my-app", "region": "us-east-1" }
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Arbitrary contextual information stored with the destination.
+          example: { "internal-id": "123", "team": "platform" }
+        disabled_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: ISO Date when the destination was disabled, or null if enabled.
+          example: null
+        created_at:
+          type: string
+          format: date-time
+          description: ISO Date when the destination was created.
+          example: "2024-01-01T00:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: ISO Date when the destination was last updated.
+          example: "2024-01-01T00:00:00Z"
+        target:
+          type: string
+          description: A human-readable representation of the destination target (e.g., URL host). Read-only.
+          readOnly: true
+          example: "my-service.com"
+        target_url:
+          type: string
+          format: url
+          nullable: true
+          description: A URL link to the destination target. Read-only.
+          readOnly: true
+          example: "https://my-service.com/webhook/handler"
     Attempt:
       type: object
       description: An attempt represents a single delivery attempt of an event to a destination.
@@ -2812,8 +2881,8 @@ components:
           description: The associated event object. Only present when include=event or include=event.data.
         destination:
           nullable: true
-          $ref: "#/components/schemas/Destination"
-          description: The destination object. Only present when include=destination.
+          $ref: "#/components/schemas/AttemptDestination"
+          description: The destination object, without credentials. Only present when include=destination.
     EventSummary:
       type: object
       description: Event object without data (returned when include=event).
@@ -3357,7 +3426,7 @@ tags:
       - `include=event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
       - `include=event.data`: Include full event with payload data
       - `include=response_data`: Include response body and headers from the attempt
-      - `include=destination`: Include the full destination object with target information
+      - `include=destination`: Include the destination object with target information, without credentials
   - name: Events
     description: |
       An event represents a payload published to Outpost. Events are matched against all destinations whose topic subscriptions match the event topic, then delivered.
@@ -4034,7 +4103,7 @@ paths:
             - `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
             - `event.data`: Include full event with payload data
             - `response_data`: Include response body and headers
-            - `destination`: Include the full destination object
+            - `destination`: Include the destination object, without credentials
         - name: order_by
           in: query
           required: false
@@ -4153,7 +4222,7 @@ paths:
             - `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
             - `event.data`: Include full event with payload data
             - `response_data`: Include response body and headers
-            - `destination`: Include the full destination object
+            - `destination`: Include the destination object, without credentials
       responses:
         "200":
           description: Attempt details.
@@ -4726,7 +4795,7 @@ paths:
             - `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
             - `event.data`: Include full event with payload data
             - `response_data`: Include response body and headers
-            - `destination`: Include the full destination object
+            - `destination`: Include the destination object, without credentials
         - name: order_by
           in: query
           required: false
@@ -4824,7 +4893,7 @@ paths:
             - `event`: Include event summary
             - `event.data`: Include full event with payload data
             - `response_data`: Include response body and headers
-            - `destination`: Include the full destination object
+            - `destination`: Include the destination object, without credentials
       responses:
         "200":
           description: Attempt details.
