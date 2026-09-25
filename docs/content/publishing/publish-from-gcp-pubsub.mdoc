@@ -28,7 +28,7 @@ Once you have these in place, you can configure Outpost to subscribe to receive 
 
 ## Failed messages
 
-When Outpost fails to process a message, it nacks the message and Pub/Sub redelivers it without limit. This includes messages that can never succeed, such as invalid JSON, `data` that is not a JSON object, or a missing `topic`.
+When Outpost fails to process a message, it nacks the message and Pub/Sub redelivers it without limit. This includes messages that can never succeed, such as invalid JSON, `data` that is not a JSON object, or a missing `topic` when `TOPICS` is set.
 
 Dead-lettering, redelivery limits and backoff are configured on your subscription, not in Outpost. Set a [dead-letter topic](https://cloud.google.com/pubsub/docs/handling-failures) with `max_delivery_attempts`, and a retry policy with exponential backoff to space out redeliveries. Without a retry policy, Pub/Sub redelivers a nacked message immediately. `PUBLISH_MAX_REDELIVERIES` does not apply to Pub/Sub.
 
