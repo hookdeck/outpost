@@ -75,6 +75,14 @@ func (s *RequestBodySanitizer) sanitizeDestinationRequest(data map[string]interf
 		sanitized[k] = v
 	}
 
+	if credentials, ok := sanitized["credentials"].(map[string]interface{}); ok {
+		redacted := make(map[string]interface{}, len(credentials))
+		for k := range credentials {
+			redacted[k] = SensitiveFieldMask
+		}
+		sanitized["credentials"] = redacted
+	}
+
 	// Get the destination type to load metadata
 	destinationType, ok := sanitized["type"].(string)
 	if !ok {
@@ -85,11 +93,6 @@ func (s *RequestBodySanitizer) sanitizeDestinationRequest(data map[string]interf
 	meta, err := s.registry.MetadataLoader().Load(destinationType)
 	if err != nil {
 		return sanitized // If we can't load metadata, return as-is
-	}
-
-	// Sanitize credentials field based on metadata
-	if credentials, ok := sanitized["credentials"].(map[string]interface{}); ok {
-		sanitized["credentials"] = s.sanitizeFieldsMap(credentials, meta.CredentialFields)
 	}
 
 	// Also check config fields for any marked as sensitive

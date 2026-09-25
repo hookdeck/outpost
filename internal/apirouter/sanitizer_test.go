@@ -97,6 +97,23 @@ func TestRequestBodySanitizer_SanitizeDestinationRequest(t *testing.T) {
 	}
 }
 
+func TestRequestBodySanitizer_RedactsAllCredentials(t *testing.T) {
+	sanitizer := &RequestBodySanitizer{}
+
+	// No type, as in a PATCH body, so metadata can't be loaded.
+	input := `{"credentials":{"secret":"whsec_abc123","username":"app_user"},"topics":["user.created"]}`
+
+	result, err := sanitizer.SanitizeRequestBody(strings.NewReader(input))
+	if err != nil {
+		t.Fatalf("SanitizeRequestBody() error = %v", err)
+	}
+
+	expected := `{"credentials":{"secret":"[REDACTED]","username":"[REDACTED]"},"topics":["user.created"]}`
+	if string(result) != expected {
+		t.Errorf("SanitizeRequestBody() = %s, want %s", result, expected)
+	}
+}
+
 func TestRequestBodySanitizer_SizeLimit(t *testing.T) {
 	sanitizer := &RequestBodySanitizer{}
 
