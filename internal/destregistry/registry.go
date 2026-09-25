@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"hash"
 	"hash/fnv"
-	"sort"
+	"maps"
+	"slices"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/hookdeck/outpost/internal/destregistry/metadata"
@@ -112,8 +114,12 @@ func NewRegistry(cfg *Config, logger *logging.Logger) Registry {
 	onEvict := func(key string, p Publisher) {
 		if err := p.Close(); err != nil {
 			// TODO: consider how to get context for OTEL logging
+			// Log only the destination ID prefix, not the full key: the key now
+			// folds credentials and delivery metadata into an FNV hash, so the
+			// hash suffix is a secret-derived value that should stay out of logs.
+			destID, _, _ := strings.Cut(key, ".")
 			logger.Error("failed to close publisher on eviction",
-				zap.String("key", key),
+				zap.String("destination_id", destID),
 				zap.Error(err),
 			)
 		}
@@ -280,22 +286,20 @@ func (r *registry) ResolveProvider(destination *models.Destination) (Provider, e
 	return provider, nil
 }
 
-// MakePublisherKey creates a unique key for a destination that includes type, config and credentials
+// MakePublisherKey creates a unique key for a destination that includes type, config,
+// credentials and delivery metadata. Any of these can be baked into the publisher when
+// it is created, so a change in any of them must produce a new cache key.
 func MakePublisherKey(dest *models.Destination) string {
 	h := fnv.New64a()
 	hashSortedMap(h, dest.Config)
 	hashSortedMap(h, dest.Credentials)
+	hashSortedMap(h, dest.DeliveryMetadata)
 	h.Write([]byte(dest.Type))
 	return dest.ID + "." + strconv.FormatUint(h.Sum64(), 36)
 }
 
 func hashSortedMap(h hash.Hash64, m map[string]string) {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	for _, k := range keys {
+	for _, k := range slices.Sorted(maps.Keys(m)) {
 		h.Write([]byte(k))
 		h.Write([]byte{0})
 		h.Write([]byte(m[k]))
