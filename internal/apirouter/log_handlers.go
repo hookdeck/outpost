@@ -98,6 +98,13 @@ type APIAttempt struct {
 	Destination   interface{} `json:"destination,omitempty"`
 }
 
+// APIAttemptDestination is the destination object when include=destination.
+// Credentials are only returned by the destination endpoints.
+type APIAttemptDestination struct {
+	*destregistry.DestinationDisplay
+	Credentials *struct{} `json:"credentials,omitempty"` // shadows the embedded credentials
+}
+
 // APIEventSummary is the event object when expand=event (without data)
 type APIEventSummary struct {
 	ID                    string            `json:"id"`
@@ -193,7 +200,7 @@ func toAPIAttempt(ar *logstore.AttemptRecord, opts IncludeOptions, destDisplay *
 	}
 
 	if opts.Destination && destDisplay != nil {
-		api.Destination = destDisplay
+		api.Destination = APIAttemptDestination{DestinationDisplay: destDisplay}
 	}
 
 	return api

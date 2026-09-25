@@ -471,6 +471,20 @@ func TestLoggerMiddleware_DifferentDestinationTypes(t *testing.T) {
 			expectedKeep: []string{"https://public-api.example.com/webhook", "POST", "webhook"},
 		},
 		{
+			name: "credential not marked sensitive in metadata",
+			requestBody: map[string]interface{}{
+				"type": "webhook",
+				"config": map[string]interface{}{
+					"url": "https://example.com/webhook",
+				},
+				"credentials": map[string]interface{}{
+					"secret": "whsec_abc123def456",
+				},
+			},
+			expectedMask: []string{"whsec_abc123def456"},
+			expectedKeep: []string{"webhook", "https://example.com/webhook"},
+		},
+		{
 			name: "unknown destination type",
 			requestBody: map[string]interface{}{
 				"type": "unknown_type",
@@ -478,8 +492,8 @@ func TestLoggerMiddleware_DifferentDestinationTypes(t *testing.T) {
 					"some_field": "some_value",
 				},
 			},
-			expectedMask: []string{},
-			expectedKeep: []string{"unknown_type", "some_value"}, // Unknown type won't be sanitized
+			expectedMask: []string{"some_value"},
+			expectedKeep: []string{"unknown_type"},
 		},
 	}
 
