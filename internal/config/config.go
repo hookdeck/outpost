@@ -75,7 +75,7 @@ type Config struct {
 
 	// Consumers
 	PublishMaxConcurrency  int `yaml:"publish_max_concurrency" env:"PUBLISH_MAX_CONCURRENCY" desc:"Maximum number of messages to process concurrently from the publish queue." required:"N"`
-	PublishMaxRedeliveries int `yaml:"publish_max_redeliveries" env:"PUBLISH_MAX_REDELIVERIES" desc:"Maximum number of times a publish queue message that failed with a transient error is redelivered before Outpost rejects it. 0 redelivers without limit. RabbitMQ and Azure Service Bus only." required:"N"`
+	PublishMaxRedeliveries int `yaml:"publish_max_redeliveries" env:"PUBLISH_MAX_REDELIVERIES" desc:"Maximum number of times a failed publish queue message is redelivered before Outpost stops redelivering it: rejected on RabbitMQ and Azure Service Bus (dead-lettered if configured), acked (deleted) on AWS SQS and GCP Pub/Sub. -1 (default) redelivers without limit; 0 never redelivers." required:"N"`
 	DeliveryMaxConcurrency int `yaml:"delivery_max_concurrency" env:"DELIVERY_MAX_CONCURRENCY" desc:"Maximum number of delivery attempts to process concurrently." required:"N"`
 	LogMaxConcurrency      int `yaml:"log_max_concurrency" env:"LOG_MAX_CONCURRENCY" desc:"Maximum number of log writing operations to process concurrently." required:"N"`
 
@@ -131,7 +131,7 @@ var (
 	ErrInvalidPublishProxyURL        = errors.New("config validation error: invalid publish proxy url")
 	ErrInvalidDeploymentID           = errors.New("config validation error: deployment_id must contain only alphanumeric characters, hyphens, and underscores (max 64 characters)")
 	ErrInvalidRedisPoolSize          = errors.New("config validation error: redis pool_size must be >= 0")
-	ErrInvalidPublishMaxRedeliveries = errors.New("config validation error: publish_max_redeliveries must be >= 0")
+	ErrInvalidPublishMaxRedeliveries = errors.New("config validation error: publish_max_redeliveries must be >= -1")
 )
 
 func (c *Config) InitDefaults() {
@@ -170,6 +170,7 @@ func (c *Config) InitDefaults() {
 		},
 	}
 	c.PublishMaxConcurrency = 1
+	c.PublishMaxRedeliveries = -1
 	c.DeliveryMaxConcurrency = 1
 	c.LogMaxConcurrency = 1
 	c.RetrySchedule = []int{} // Empty by default, falls back to exponential backoff

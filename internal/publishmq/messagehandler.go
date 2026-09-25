@@ -23,9 +23,9 @@ type messageHandler struct {
 
 type MessageHandlerOption func(*messageHandler)
 
-// WithMaxRedeliveries rejects a message once it has failed with a transient
-// error maxRedeliveries+1 times, on brokers that support Reject. 0 redelivers
-// without limit.
+// WithMaxRedeliveries stops redelivering a message once it has failed
+// maxRedeliveries+1 times: rejected where the broker supports it, acked
+// otherwise. Without it, failed messages are redelivered without limit.
 func WithMaxRedeliveries(maxRedeliveries int, counter RedeliveryCounter) MessageHandlerOption {
 	return func(h *messageHandler) {
 		h.maxRedeliveries = maxRedeliveries
@@ -48,12 +48,12 @@ var _ consumer.MessageHandler = (*messageHandler)(nil)
 func (h *messageHandler) Handle(ctx context.Context, msg *mqs.Message) error {
 	var publishedEvent PublishedEvent
 	if err := json.Unmarshal(msg.Body, &publishedEvent); err != nil {
-		return reject(msg, err)
+		return h.reject(ctx, msg, err)
 	}
 	// json.RawMessage is []byte, so null, invalid JSON, and non-object types
 	// slip past unmarshaling. Reject since data must be a JSON object.
 	if !json.Valid(publishedEvent.Data) || publishedEvent.Data[0] != '{' {
-		return reject(msg, ErrInvalidData)
+		return h.reject(ctx, msg, ErrInvalidData)
 	}
 	event := publishedEvent.toEvent()
 	_, err := h.eventHandler.Handle(ctx, &event)
@@ -61,7 +61,7 @@ func (h *messageHandler) Handle(ctx context.Context, msg *mqs.Message) error {
 		// ErrInvalidTopic goes back on the queue: adding the topic to TOPICS
 		// fixes it.
 		if errors.Is(err, ErrRequiredTopic) {
-			return reject(msg, err)
+			return h.reject(ctx, msg, err)
 		}
 		return h.nack(ctx, msg, err)
 	}
@@ -70,28 +70,38 @@ func (h *messageHandler) Handle(ctx context.Context, msg *mqs.Message) error {
 }
 
 func (h *messageHandler) nack(ctx context.Context, msg *mqs.Message, err error) error {
-	if h.maxRedeliveries <= 0 || !msg.Rejectable() {
+	if h.redeliveryCounter == nil {
 		msg.Nack()
 		return err
 	}
-	// Without a count, redeliver rather than risk dropping the message.
-	failures, countErr := h.redeliveryCounter.Incr(ctx, messageKey(msg))
-	if countErr != nil {
-		msg.Nack()
-		return errors.Join(err, fmt.Errorf("count redeliveries: %w", countErr))
+	if h.maxRedeliveries > 0 {
+		// Without a count, redeliver rather than risk dropping the message.
+		failures, countErr := h.redeliveryCounter.Incr(ctx, messageKey(msg))
+		if countErr != nil {
+			msg.Nack()
+			return errors.Join(err, fmt.Errorf("count redeliveries: %w", countErr))
+		}
+		if failures <= int64(h.maxRedeliveries) {
+			msg.Nack()
+			return err
+		}
 	}
-	if failures <= int64(h.maxRedeliveries) {
-		msg.Nack()
-		return err
+	// Past the cap, the customer's dead-letter setup owns the message. Brokers
+	// without a reject (SQS, Pub/Sub) can only stop redelivery by acking.
+	if !msg.Rejectable() {
+		msg.Ack()
+		return fmt.Errorf("dropped message %s after %d redeliveries: %w", msg.LoggableID, h.maxRedeliveries, err)
 	}
 	msg.Reject()
 	return fmt.Errorf("rejected message %s after %d redeliveries: %w", msg.LoggableID, h.maxRedeliveries, err)
 }
 
-func reject(msg *mqs.Message, err error) error {
+// reject stops redelivery of an invalid message. On brokers without a reject
+// it is nacked like a transient failure, so PUBLISH_MAX_REDELIVERIES still
+// bounds it.
+func (h *messageHandler) reject(ctx context.Context, msg *mqs.Message, err error) error {
 	if !msg.Rejectable() {
-		msg.Nack()
-		return err
+		return h.nack(ctx, msg, err)
 	}
 	msg.Reject()
 	return fmt.Errorf("rejected message %s: %w", msg.LoggableID, err)

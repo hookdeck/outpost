@@ -29,7 +29,7 @@ Outpost treats a failed message in one of two ways:
 
 Dead-lettering, redelivery limits and backoff are configured on your queue, not in Outpost. Use a [quorum queue](https://www.rabbitmq.com/docs/quorum-queues) with a delivery limit (`x-delivery-limit`) and a dead-letter exchange. Classic queues cannot limit redelivery. On RabbitMQ 4.0 and later, quorum queues have a delivery limit of 20 by default. RabbitMQ does not delay redeliveries, so until the limit is reached a failing message is redelivered as fast as Outpost can nack it.
 
-`PUBLISH_MAX_REDELIVERIES` sets a limit on the Outpost side instead: once a message has been redelivered that many times, Outpost rejects it like an invalid message. Without a dead-letter exchange the message is then lost. If the queue also has a delivery limit, the lower of the two applies.
+`PUBLISH_MAX_REDELIVERIES` sets a limit on the Outpost side instead: once a message has been redelivered that many times, Outpost rejects it like an invalid message. `0` rejects every failure without redelivery. Without a dead-letter exchange the message is then lost. If the queue also has a delivery limit, the lower of the two applies.
 
 ## Configuration
 
