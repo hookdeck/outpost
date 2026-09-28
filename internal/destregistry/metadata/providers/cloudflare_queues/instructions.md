@@ -9,7 +9,7 @@
 
 ## Prerequisites
 
-- **Cloudflare Account**: A Cloudflare account with a Workers Paid plan (required for Queues)
+- **Cloudflare Account**: Queues is available on the Workers Free plan (fixed 24-hour message retention) and on Workers Paid
 - **Wrangler CLI** (optional): Install via `npm install -g wrangler` for CLI-based setup
 
 ## How to Find Your Account ID
@@ -57,11 +57,11 @@ npx wrangler queues list
 The output will show your queue with its ID:
 
 ```
-┌──────────────────────────────────────┬──────────┐
-│ id                                   │ name     │
-├──────────────────────────────────────┼──────────┤
-│ 12345678-1234-1234-1234-123456789abc │ my-queue │
-└──────────────────────────────────────┴──────────┘
+┌──────────────────────────────────┬──────────┐
+│ id                               │ name     │
+├──────────────────────────────────┼──────────┤
+│ 9d7d4cf8a3a14d9aaeb50c3e74e2f4b1 │ my-queue │
+└──────────────────────────────────┴──────────┘
 ```
 
 ## How to Create an API Token
@@ -86,24 +86,31 @@ You need a Cloudflare API Token with permissions to write to Queues.
 ### Permission Details
 
 The API Token requires the following permission:
-- **Account** > **Queues** > **Edit** - This grants `queues:write` access to send messages to queues
+- **Account** > **Queues** > **Edit** (API name: Queues Write), which allows sending messages to queues
 
 ## Configuration
 
 When configuring your Cloudflare Queues destination, you'll need:
 
 1. **Account ID**: Your Cloudflare Account ID
-2. **Queue ID**: The UUID of your Cloudflare Queue
-3. **API Token**: A Cloudflare API Token with Queues write permission
+2. **Queue ID**: The ID of your Cloudflare Queue (32-character hex string, not the queue name)
+3. **API Token**: A Cloudflare API Token with the Account > Queues > Edit (Queues Write) permission
 
 ## Message Format
 
-When events are sent to Cloudflare Queues, each message contains:
+Each event is published as a single Cloudflare Queue message (128 KB maximum) with the following request body:
 
-- **body**: The event payload as a JSON object
-- **contentType**: Set to `application/json`
+```json
+{
+  "body": {
+    "data": <event.Data>,
+    "metadata": <merged metadata>
+  },
+  "content_type": "json"
+}
+```
 
-Messages are sent using the [Cloudflare Queues REST API](https://developers.cloudflare.com/api/operations/queue-send-messages).
+`content_type: "json"` tells Cloudflare to deliver the body as a parsed object to consumer Workers. Messages are sent via [`POST /accounts/{account_id}/queues/{queue_id}/messages`](https://developers.cloudflare.com/api/resources/queues/subresources/messages/methods/push/).
 
 ## Testing the Integration
 
@@ -145,32 +152,33 @@ max_batch_timeout = 30
 
 ### Authentication Errors (401)
 
-- Verify your API Token is correct and hasn't been revoked
-- Ensure the token has **Queues > Edit** permission
-- Check the token is scoped to the correct account
+Cloudflare returns `401 Authentication error` for all of these:
 
-### Queue Not Found (404)
+- The API Token is wrong, expired or revoked
+- The token lacks the **Account > Queues > Edit** (Queues Write) permission, for example a token with Queues Read only
+- The token isn't scoped to the account in the Account ID
 
-- Verify the Queue ID is correct (it's a UUID, not the queue name)
-- Ensure the queue exists in the account associated with your API Token
-- Check the Account ID matches where the queue was created
+### Invalid Queue ID (400)
 
-### Permission Denied (403)
+- Cloudflare returns `Invalid queueID` when the Queue ID isn't a 32-character hex string, for example the queue name or a dashed UUID
 
-- Verify your API Token has the **Queues > Edit** permission
-- Ensure the token is scoped to the account containing the queue
+### Queue Not Found (500)
+
+- Cloudflare returns `500 Unknown Internal Error` for a well-formed Queue ID that doesn't exist in the account
+- Verify the Queue ID with `npx wrangler queues list` and check the Account ID matches where the queue was created
 
 ### Rate Limiting (429)
 
-Cloudflare Queues has rate limits. If you encounter rate limiting:
-- Implement backoff/retry logic
-- Consider batching messages
-- Review [Cloudflare Queues limits](https://developers.cloudflare.com/queues/platform/limits/)
+Cloudflare limits each queue to 5,000 messages per second. Throttled attempts fail and Outpost retries them according to its retry policy. See [Cloudflare Queues limits](https://developers.cloudflare.com/queues/platform/limits/).
+
+### Message Too Large
+
+Cloudflare rejects messages larger than 128 KB (128,000 bytes), including the `data` and `metadata` wrapper Outpost adds, with a `413` response. Outpost does not check the size before sending, so an oversized event fails on every attempt.
 
 ## Additional Resources
 
 - [Cloudflare Queues Documentation](https://developers.cloudflare.com/queues/)
-- [Queues REST API Reference](https://developers.cloudflare.com/api/operations/queue-send-messages)
+- [Queues REST API Reference](https://developers.cloudflare.com/api/resources/queues/subresources/messages/methods/push/)
 - [Cloudflare API Tokens](https://developers.cloudflare.com/fundamentals/api/get-started/create-token/)
 - [Wrangler CLI Documentation](https://developers.cloudflare.com/workers/wrangler/)
 - [Queues Pricing](https://developers.cloudflare.com/queues/platform/pricing/)
