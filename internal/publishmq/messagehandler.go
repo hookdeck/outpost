@@ -58,8 +58,8 @@ func (h *messageHandler) Handle(ctx context.Context, msg *mqs.Message) error {
 	event := publishedEvent.toEvent()
 	_, err := h.eventHandler.Handle(ctx, &event)
 	if err != nil {
-		// ErrInvalidTopic goes back on the queue: adding the topic to TOPICS
-		// fixes it.
+		// A missing topic never succeeds. Other errors, including
+		// ErrInvalidTopic, are redelivered: adding the topic to TOPICS fixes it.
 		if errors.Is(err, ErrRequiredTopic) {
 			return h.reject(ctx, msg, err)
 		}

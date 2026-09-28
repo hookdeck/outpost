@@ -75,7 +75,7 @@ type Config struct {
 
 	// Consumers
 	PublishMaxConcurrency  int `yaml:"publish_max_concurrency" env:"PUBLISH_MAX_CONCURRENCY" desc:"Maximum number of messages to process concurrently from the publish queue." required:"N"`
-	PublishMaxRedeliveries int `yaml:"publish_max_redeliveries" env:"PUBLISH_MAX_REDELIVERIES" desc:"Maximum number of times a failed publish queue message is redelivered before Outpost stops redelivering it: rejected on RabbitMQ and Azure Service Bus (dead-lettered if configured), acked (deleted) on AWS SQS and GCP Pub/Sub. -1 (default) redelivers without limit; 0 never redelivers." required:"N"`
+	PublishMaxRedeliveries int `yaml:"publish_max_redeliveries" env:"PUBLISH_MAX_REDELIVERIES" desc:"Maximum number of times a failed publish queue message is redelivered before Outpost stops redelivering it: rejected on RabbitMQ and Azure Service Bus (dead-lettered if configured), acked (deleted) on AWS SQS and GCP Pub/Sub. -1 (default) redelivers without limit; 0 never redelivers. Counts attempts, not time: without backoff on the queue, a short outage can use it up." required:"N"`
 	DeliveryMaxConcurrency int `yaml:"delivery_max_concurrency" env:"DELIVERY_MAX_CONCURRENCY" desc:"Maximum number of delivery attempts to process concurrently." required:"N"`
 	LogMaxConcurrency      int `yaml:"log_max_concurrency" env:"LOG_MAX_CONCURRENCY" desc:"Maximum number of log writing operations to process concurrently." required:"N"`
 
