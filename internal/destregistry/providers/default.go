@@ -192,7 +192,10 @@ func RegisterDefault(registry destregistry.Registry, opts RegisterDefaultDestina
 	}
 	registry.RegisterProvider("kafka", kafkaDest)
 
-	cloudflareQueues, err := destcfqueues.New(loader, basePublisherOpts)
+	cloudflareQueues, err := destcfqueues.New(loader, basePublisherOpts,
+		destcfqueues.WithUserAgent(opts.UserAgent),
+		destcfqueues.WithConnectionPool(singleHostPool),
+		destcfqueues.WithConnectionObserver(connObserver("cloudflare_queues")))
 	if err != nil {
 		return err
 	}

@@ -252,6 +252,50 @@ func TestCloudflareQueuesPublisher_Publish_APIError(t *testing.T) {
 	}
 }
 
+func TestCloudflareQueuesPublisher_Publish_FormatError(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("request must not be sent when formatting fails")
+	}))
+	defer server.Close()
+
+	publisher := newPublisher(t, server.URL)
+	defer publisher.Close()
+
+	event := testutil.EventFactory.Any()
+	event.Data = []byte("{not json")
+
+	delivery, err := publisher.Publish(context.Background(), &event)
+	require.Error(t, err)
+	require.NotNil(t, delivery, "format errors record a failed attempt instead of a nil delivery")
+	assert.Equal(t, "failed", delivery.Status)
+	assert.Equal(t, "ERR", delivery.Code)
+}
+
+func TestCloudflareQueuesPublisher_Publish_UserAgent(t *testing.T) {
+	t.Parallel()
+
+	var gotUA string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotUA = r.Header.Get("User-Agent")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(successResponseJSON))
+	}))
+	defer server.Close()
+
+	publisher := newPublisher(t, server.URL, destcfqueues.WithUserAgent("outpost-test/1.0"))
+	defer publisher.Close()
+
+	event := testutil.EventFactory.Any(
+		testutil.EventFactory.WithDataMap(map[string]interface{}{"key": "value"}),
+	)
+	delivery, err := publisher.Publish(context.Background(), &event)
+	require.NoError(t, err)
+	assert.Equal(t, "success", delivery.Status)
+	assert.Equal(t, "outpost-test/1.0", gotUA)
+}
+
 func TestCloudflareQueuesPublisher_Format_EscapesPathSegments(t *testing.T) {
 	t.Parallel()
 

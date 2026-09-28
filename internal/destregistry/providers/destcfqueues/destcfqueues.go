@@ -28,7 +28,14 @@ const (
 // CloudflareQueuesDestination implements the destregistry.Provider interface for Cloudflare Queues.
 type CloudflareQueuesDestination struct {
 	*destregistry.BaseProvider
-	baseURL string
+	baseURL   string
+	userAgent string
+	// httpClient is shared by every publisher this provider creates. All
+	// requests go to the Cloudflare API host, so it is sized for depth rather
+	// than breadth — see destregistry.SizeSingleHostPool.
+	httpClient   *http.Client
+	pool         destregistry.PoolSizing
+	onConnection func(reused bool)
 }
 
 // Option configures a CloudflareQueuesDestination.
@@ -39,6 +46,28 @@ type Option func(*CloudflareQueuesDestination)
 func WithBaseURL(url string) Option {
 	return func(d *CloudflareQueuesDestination) {
 		d.baseURL = url
+	}
+}
+
+// WithUserAgent sets the User-Agent header on Cloudflare API requests.
+func WithUserAgent(userAgent string) Option {
+	return func(d *CloudflareQueuesDestination) {
+		d.userAgent = userAgent
+	}
+}
+
+// WithConnectionPool sizes the shared client's idle connection pool.
+func WithConnectionPool(pool destregistry.PoolSizing) Option {
+	return func(d *CloudflareQueuesDestination) {
+		d.pool = pool
+	}
+}
+
+// WithConnectionObserver registers a callback invoked once per request with
+// whether the underlying connection was reused.
+func WithConnectionObserver(fn func(reused bool)) Option {
+	return func(d *CloudflareQueuesDestination) {
+		d.onConnection = fn
 	}
 }
 
@@ -70,6 +99,19 @@ func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePu
 		opt(d)
 	}
 
+	cfg := destregistry.HTTPClientConfig{
+		Pool:         d.pool,
+		OnConnection: d.onConnection,
+	}
+	if d.userAgent != "" {
+		cfg.UserAgent = &d.userAgent
+	}
+	httpClient, err := destregistry.NewHTTPClient(cfg)
+	if err != nil {
+		return nil, err
+	}
+	d.httpClient = httpClient
+
 	return d, nil
 }
 
@@ -89,14 +131,9 @@ func (d *CloudflareQueuesDestination) CreatePublisher(ctx context.Context, desti
 		return nil, err
 	}
 
-	httpClient, err := destregistry.NewHTTPClient(destregistry.HTTPClientConfig{})
-	if err != nil {
-		return nil, err
-	}
-
 	return &CloudflareQueuesPublisher{
 		BasePublisher: d.BaseProvider.NewPublisher(destregistry.WithDeliveryMetadata(destination.DeliveryMetadata)),
-		httpClient:    httpClient,
+		httpClient:    d.httpClient,
 		baseURL:       d.baseURL,
 		accountID:     cfg.AccountID,
 		queueID:       cfg.QueueID,
@@ -222,7 +259,7 @@ func (p *CloudflareQueuesPublisher) Publish(ctx context.Context, event *models.E
 
 	req, err := p.Format(ctx, event)
 	if err != nil {
-		return nil, err
+		return destregistry.NewFormatError(providerType, "", err)
 	}
 
 	resp, err := p.httpClient.Do(req)
