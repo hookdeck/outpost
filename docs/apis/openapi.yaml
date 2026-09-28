@@ -332,10 +332,12 @@ components:
         account_id:
           type: string
           description: Cloudflare Account ID (32-character hex string).
+          pattern: "^[0-9a-f]{32}$"
           example: "023e105f4ecef8ad9ca31a8372d0c353"
         queue_id:
           type: string
           description: Cloudflare Queue ID (32-character hex string, not the queue name).
+          pattern: "^[0-9a-f]{32}$"
           example: "9d7d4cf8a3a14d9aaeb50c3e74e2f4b1"
     CloudflareQueuesCredentials:
       type: object
@@ -2307,9 +2309,11 @@ components:
         account_id:
           type: string
           description: Cloudflare Account ID (32-character hex string).
+          pattern: "^[0-9a-f]{32}$"
         queue_id:
           type: string
           description: Cloudflare Queue ID (32-character hex string, not the queue name).
+          pattern: "^[0-9a-f]{32}$"
     CloudflareQueuesCredentialsUpdate:
       type: object
       description: Partial Cloudflare Queues credentials for PATCH updates (RFC 7396 merge-patch).

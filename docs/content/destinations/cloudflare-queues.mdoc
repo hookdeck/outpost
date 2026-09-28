@@ -30,8 +30,8 @@ curl '{% $OUTPOST_API_BASE_URL %}/tenants/<TENANT_ID>/destinations' \
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `config.account_id` | string | Yes | Cloudflare Account ID |
-| `config.queue_id` | string | Yes | Cloudflare Queue ID |
+| `config.account_id` | string | Yes | Cloudflare Account ID (32-character hex string) |
+| `config.queue_id` | string | Yes | Cloudflare Queue ID (32-character hex string, not the queue name) |
 
 ### Credentials
 

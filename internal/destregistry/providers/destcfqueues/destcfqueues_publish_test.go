@@ -15,15 +15,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// Example IDs in Cloudflare's format (32-character hex).
+const (
+	testAccountID = "023e105f4ecef8ad9ca31a8372d0c353"
+	testQueueID   = "9d7d4cf8a3a14d9aaeb50c3e74e2f4b1"
+)
+
 // successResponseJSON is a real Cloudflare Queues push success response.
 const successResponseJSON = `{"success":true,"errors":[],"messages":[],"result":{"metadata":{"metrics":{"backlog_count":1,"backlog_bytes":56,"oldest_message_timestamp_ms":0}}}}`
 
 func newPublisher(t *testing.T, serverURL string, extraOpts ...destcfqueues.Option) *destcfqueues.CloudflareQueuesPublisher {
-	t.Helper()
-	return newPublisherWithConfig(t, serverURL, "test-account-id", "test-queue-id", extraOpts...)
-}
-
-func newPublisherWithConfig(t *testing.T, serverURL, accountID, queueID string, extraOpts ...destcfqueues.Option) *destcfqueues.CloudflareQueuesPublisher {
 	t.Helper()
 	opts := append([]destcfqueues.Option{}, extraOpts...)
 	if serverURL != "" {
@@ -34,8 +35,8 @@ func newPublisherWithConfig(t *testing.T, serverURL, accountID, queueID string, 
 	destination := testutil.DestinationFactory.Any(
 		testutil.DestinationFactory.WithType("cloudflare_queues"),
 		testutil.DestinationFactory.WithConfig(map[string]string{
-			"account_id": accountID,
-			"queue_id":   queueID,
+			"account_id": testAccountID,
+			"queue_id":   testQueueID,
 		}),
 		testutil.DestinationFactory.WithCredentials(map[string]string{
 			"api_token": "test-api-token",
@@ -67,7 +68,7 @@ func TestCloudflareQueuesPublisher_Format(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, http.MethodPost, req.Method)
-	assert.Equal(t, "https://api.cloudflare.com/client/v4/accounts/test-account-id/queues/test-queue-id/messages", req.URL.String())
+	assert.Equal(t, "https://api.cloudflare.com/client/v4/accounts/"+testAccountID+"/queues/"+testQueueID+"/messages", req.URL.String())
 	assert.Equal(t, "application/json", req.Header.Get("Content-Type"))
 	assert.Equal(t, "Bearer test-api-token", req.Header.Get("Authorization"))
 
@@ -100,7 +101,7 @@ func TestCloudflareQueuesPublisher_Publish_Success(t *testing.T) {
 		assert.Equal(t, http.MethodPost, r.Method)
 		assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
 		assert.Equal(t, "Bearer test-api-token", r.Header.Get("Authorization"))
-		assert.True(t, strings.HasSuffix(r.URL.Path, "/accounts/test-account-id/queues/test-queue-id/messages"))
+		assert.True(t, strings.HasSuffix(r.URL.Path, "/accounts/"+testAccountID+"/queues/"+testQueueID+"/messages"))
 		receivedBody, _ = io.ReadAll(r.Body)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
@@ -291,17 +292,4 @@ func TestCloudflareQueuesPublisher_Publish_UserAgent(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "success", delivery.Status)
 	assert.Equal(t, "outpost-test/1.0", gotUA)
-}
-
-func TestCloudflareQueuesPublisher_Format_EscapesPathSegments(t *testing.T) {
-	t.Parallel()
-
-	publisher := newPublisherWithConfig(t, "https://api.example.com", "acc/../x", "q/../../user/tokens/verify?")
-	defer publisher.Close()
-
-	event := testutil.EventFactory.Any()
-	req, err := publisher.Format(context.Background(), &event)
-	require.NoError(t, err)
-	assert.Equal(t, "/accounts/acc%2F..%2Fx/queues/q%2F..%2F..%2Fuser%2Ftokens%2Fverify%3F/messages", req.URL.EscapedPath())
-	assert.Empty(t, req.URL.RawQuery)
 }

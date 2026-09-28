@@ -92,9 +92,11 @@ The API Token requires the following permission:
 
 When configuring your Cloudflare Queues destination, you'll need:
 
-1. **Account ID**: Your Cloudflare Account ID
+1. **Account ID**: Your Cloudflare Account ID (32-character hex string)
 2. **Queue ID**: The ID of your Cloudflare Queue (32-character hex string, not the queue name)
 3. **API Token**: A Cloudflare API Token with the Account > Queues > Edit (Queues Write) permission
+
+Account ID and Queue ID must be 32-character lowercase hex strings, as Cloudflare shows them. Outpost rejects anything else, such as the queue name, a dashed UUID or uppercase hex, when the destination is created or updated.
 
 ## Message Format
 
@@ -157,10 +159,6 @@ Cloudflare returns `401 Authentication error` for all of these:
 - The API Token is wrong, expired or revoked
 - The token lacks the **Account > Queues > Edit** (Queues Write) permission, for example a token with Queues Read only
 - The token isn't scoped to the account in the Account ID
-
-### Invalid Queue ID (400)
-
-- Cloudflare returns `Invalid queueID` when the Queue ID isn't a 32-character hex string, for example the queue name or a dashed UUID
 
 ### Queue Not Found (500)
 
