@@ -331,19 +331,20 @@ components:
       properties:
         account_id:
           type: string
-          description: Cloudflare Account ID
-          example: "abc123def456789"
+          description: Cloudflare Account ID (32-character hex string).
+          example: "023e105f4ecef8ad9ca31a8372d0c353"
         queue_id:
           type: string
-          description: Cloudflare Queue ID
-          example: "my-queue"
+          description: Cloudflare Queue ID (32-character hex string, not the queue name).
+          example: "9d7d4cf8a3a14d9aaeb50c3e74e2f4b1"
     CloudflareQueuesCredentials:
       type: object
       required: [api_token]
       properties:
         api_token:
           type: string
-          description: Cloudflare API Token with queues:write permission
+          description: Cloudflare API Token with the Account > Queues > Edit (Queues Write) permission, scoped to the target account.
+          example: "v1.0-1234567890abcdef..."
     RabbitMQConfig:
       type: object
       required: [server_url, exchange]
@@ -1309,6 +1310,8 @@ components:
 
     DestinationCloudflareQueues:
       type: object
+      x-docs-type: "Cloudflare Queues"
+      # Properties duplicated from DestinationBase
       required:
         [
           id,
@@ -1359,7 +1362,7 @@ components:
           additionalProperties:
             type: string
           nullable: true
-          description: Static key-value pairs merged into event metadata on every delivery.
+          description: Static key-value pairs merged into event metadata on every attempt.
           example: { "app-id": "my-app", "region": "us-east-1" }
         metadata:
           type: object
@@ -1372,14 +1375,14 @@ components:
           type: string
           description: A human-readable representation of the destination target (Cloudflare Queue ID). Read-only.
           readOnly: true
-          example: "my-queue"
+          example: "9d7d4cf8a3a14d9aaeb50c3e74e2f4b1"
         target_url:
           type: string
           format: url
           nullable: true
-          description: A URL link to the destination target (Cloudflare Dashboard link to the queue). Read-only.
+          description: A URL link to the Cloudflare dashboard queues list for the account. Read-only.
           readOnly: true
-          example: "https://dash.cloudflare.com/abc123def456789/queues/my-queue"
+          example: "https://dash.cloudflare.com/023e105f4ecef8ad9ca31a8372d0c353/workers/queues"
       example:
         id: "des_cf_queues_123"
         type: "cloudflare_queues"
@@ -1388,10 +1391,10 @@ components:
         created_at: "2024-03-10T14:30:00Z"
         updated_at: "2024-03-10T14:30:00Z"
         config:
-          account_id: "abc123def456789"
-          queue_id: "my-queue"
+          account_id: "023e105f4ecef8ad9ca31a8372d0c353"
+          queue_id: "9d7d4cf8a3a14d9aaeb50c3e74e2f4b1"
         credentials:
-          api_token: "cf_token_..."
+          api_token: "v1.0-1234567890abcdef..."
 
     # Polymorphic Destination Schema (for Responses)
     Destination:
@@ -1991,11 +1994,12 @@ components:
           example: null
     DestinationCreateCloudflareQueues:
       type: object
+      x-docs-type: "Cloudflare Queues"
       required: [type, topics, config, credentials]
       properties:
         id:
           type: string
-          description: Optional user-provided ID. A UUID will be generated if empty.
+          description: Optional user-provided ID. An ID will be generated if empty.
           example: "user-provided-id"
         type:
           type: string
@@ -2014,7 +2018,7 @@ components:
           additionalProperties:
             type: string
           nullable: true
-          description: Static key-value pairs merged into event metadata on every delivery.
+          description: Static key-value pairs merged into event metadata on every attempt.
           example: { "app-id": "my-app", "region": "us-east-1" }
         metadata:
           type: object
@@ -2023,6 +2027,34 @@ components:
           nullable: true
           description: Arbitrary contextual information stored with the destination.
           example: { "internal-id": "123", "team": "platform" }
+        created_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            Optional override for the creation timestamp. Intended for importing
+            destinations from another system. Must not be in the future.
+            **Admin (API key) auth only — sending this with JWT auth returns 403.**
+            Defaults to the current time when omitted.
+          example: "2024-02-15T10:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            Optional override for the last-updated timestamp. Intended for
+            importing destinations. Must not be in the future.
+            **Admin (API key) auth only — sending this with JWT auth returns 403.**
+            Defaults to created_at when omitted.
+          example: "2024-02-15T10:00:00Z"
+        disabled_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            If set, the destination is created in a disabled state with this
+            timestamp. Must not be in the future. Defaults to null (enabled).
+          example: null
 
     # Polymorphic Destination Creation Schema (for Request Bodies)
     DestinationCreate:
@@ -2268,6 +2300,23 @@ components:
         password:
           type: string
           description: SASL password for authentication.
+    CloudflareQueuesConfigUpdate:
+      type: object
+      description: Partial Cloudflare Queues config for PATCH updates (RFC 7396 merge-patch).
+      properties:
+        account_id:
+          type: string
+          description: Cloudflare Account ID (32-character hex string).
+        queue_id:
+          type: string
+          description: Cloudflare Queue ID (32-character hex string, not the queue name).
+    CloudflareQueuesCredentialsUpdate:
+      type: object
+      description: Partial Cloudflare Queues credentials for PATCH updates (RFC 7396 merge-patch).
+      properties:
+        api_token:
+          type: string
+          description: Cloudflare API Token with the Account > Queues > Edit (Queues Write) permission, scoped to the target account.
 
     DestinationUpdateWebhook:
       type: object
@@ -2757,30 +2806,58 @@ components:
           example: null
     DestinationUpdateCloudflareQueues:
       type: object
+      x-docs-type: "Cloudflare Queues"
       # Properties duplicated from DestinationUpdateBase
+      required: [type]
       properties:
+        type:
+          type: string
+          enum: [cloudflare_queues]
+          description: Destination type discriminator. Must equal the existing destination's type — type itself cannot be changed via PATCH.
+          example: "cloudflare_queues"
         topics:
           $ref: "#/components/schemas/Topics"
         filter:
           $ref: "#/components/schemas/Filter"
         config:
-          $ref: "#/components/schemas/CloudflareQueuesConfig" # account_id/queue_id required here, but PATCH means optional
+          $ref: "#/components/schemas/CloudflareQueuesConfigUpdate"
         credentials:
-          $ref: "#/components/schemas/CloudflareQueuesCredentials" # api_token required here, but PATCH means optional
+          $ref: "#/components/schemas/CloudflareQueuesCredentialsUpdate"
         delivery_metadata:
           type: object
           additionalProperties:
-            type: string
+            oneOf:
+              - type: string
+              - type: "null"
           nullable: true
-          description: Static key-value pairs merged into event metadata on every delivery.
+          description: >-
+            Static key-value pairs merged into event metadata on every attempt.
+            Uses JSON merge-patch semantics (RFC 7396): send keys to add/update,
+            null values to delete keys, null for entire field to clear all.
+            Omit or send {} for no change.
           example: { "app-id": "my-app", "region": "us-east-1" }
         metadata:
           type: object
           additionalProperties:
-            type: string
+            oneOf:
+              - type: string
+              - type: "null"
           nullable: true
-          description: Arbitrary contextual information stored with the destination.
+          description: >-
+            Arbitrary contextual information stored with the destination.
+            Uses JSON merge-patch semantics (RFC 7396): send keys to add/update,
+            null values to delete keys, null for entire field to clear all.
+            Omit or send {} for no change.
           example: { "internal-id": "123", "team": "platform" }
+        disabled_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            Update the disabled state of the destination. Send a timestamp
+            (must not be in the future) to disable, null to enable, or omit
+            to leave unchanged.
+          example: null
 
     # Polymorphic Destination Update Schema (for Request Bodies)
     DestinationUpdate:
@@ -3160,6 +3237,7 @@ components:
         - azure_servicebus
         - aws_s3
         - gcp_pubsub
+        - kafka
         - cloudflare_queues
       description: Type of destination.
       example: "webhook"
@@ -5348,7 +5426,7 @@ paths:
         required: true
         schema:
           type: string
-          enum: [webhook, aws_sqs, rabbitmq, hookdeck, aws_kinesis, azure_servicebus, aws_s3, gcp_pubsub, kafka]
+          enum: [webhook, aws_sqs, rabbitmq, hookdeck, aws_kinesis, azure_servicebus, aws_s3, gcp_pubsub, kafka, cloudflare_queues]
         description: The type of the destination.
     get:
       tags: [Schemas]
