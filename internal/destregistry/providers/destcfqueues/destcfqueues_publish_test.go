@@ -15,22 +15,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// successResponseJSON mirrors a real Cloudflare Queues push success response.
-// Captured from CF docs; replace with a recorded fixture once we have live creds.
-const successResponseJSON = `{
-  "success": true,
-  "result": {
-    "metadata": {
-      "metrics": {
-        "backlog_bytes": 1024,
-        "backlog_count": 5,
-        "oldest_message_timestamp_ms": 1710950954154
-      }
-    }
-  },
-  "messages": [],
-  "errors": []
-}`
+// successResponseJSON is a real Cloudflare Queues push success response.
+const successResponseJSON = `{"success":true,"errors":[],"messages":[],"result":{"metadata":{"metrics":{"backlog_count":1,"backlog_bytes":56,"oldest_message_timestamp_ms":0}}}}`
 
 func newPublisher(t *testing.T, serverURL string, extraOpts ...destcfqueues.Option) *destcfqueues.CloudflareQueuesPublisher {
 	t.Helper()
@@ -177,33 +163,41 @@ func TestCloudflareQueuesPublisher_Publish_APIError(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name         string
-		statusCode   int
-		responseBody string
-		expectedCode string
+		name          string
+		statusCode    int
+		responseBody  string
+		expectedCode  string
+		expectedError string
 	}{
 		{
-			name:         "401 Unauthorized",
-			statusCode:   http.StatusUnauthorized,
-			responseBody: `{"success":false,"errors":[{"code":10000,"message":"Authentication error","documentation_url":"https://developers.cloudflare.com/api","source":{"pointer":"/"}}],"messages":[],"result":null}`,
-			expectedCode: "401",
+			name:          "401 invalid token, token without Queues Write, or wrong account",
+			statusCode:    http.StatusUnauthorized,
+			responseBody:  `{"result":null,"success":false,"errors":[{"code":10000,"message":"Authentication error"}],"messages":[]}`,
+			expectedCode:  "401",
+			expectedError: "cloudflare API error: Authentication error",
 		},
 		{
-			name:         "403 Forbidden",
-			statusCode:   http.StatusForbidden,
-			responseBody: `{"success":false,"errors":[{"code":10001,"message":"Access denied"}],"messages":[],"result":null}`,
-			expectedCode: "403",
+			name:         "400 malformed queue id",
+			statusCode:   http.StatusBadRequest,
+			responseBody: `{"success":false,"errors":[{"message":"Invalid queueID","code":10107}],"messages":[],"result":null}`,
+			expectedCode: "400",
 		},
 		{
-			name:         "404 Not Found",
+			name:         "404 malformed account id",
 			statusCode:   http.StatusNotFound,
-			responseBody: `{"success":false,"errors":[{"code":10002,"message":"Queue not found"}],"messages":[],"result":null}`,
+			responseBody: `{"result":null,"success":false,"errors":[{"code":7003,"message":"Could not route to /client/v4/accounts/not-an-account/queues/test-queue-id/messages, perhaps your object identifier is invalid?"}],"messages":[]}`,
 			expectedCode: "404",
 		},
 		{
-			name:         "500 Internal Server Error",
+			name:         "413 message too large",
+			statusCode:   http.StatusRequestEntityTooLarge,
+			responseBody: `{"success":false,"errors":[{"message":"Message length of 135118 bytes exceeds limit of 128000 bytes","code":10204}],"messages":[],"result":null}`,
+			expectedCode: "413",
+		},
+		{
+			name:         "500 nonexistent queue",
 			statusCode:   http.StatusInternalServerError,
-			responseBody: `{"success":false,"errors":[{"code":10003,"message":"Internal error"}],"messages":[],"result":null}`,
+			responseBody: `{"success":false,"errors":[{"message":"Unknown Internal Error","code":15000}],"messages":[],"result":null}`,
 			expectedCode: "500",
 		},
 		{
@@ -248,6 +242,9 @@ func TestCloudflareQueuesPublisher_Publish_APIError(t *testing.T) {
 			require.NotNil(t, delivery)
 			assert.Equal(t, "failed", delivery.Status)
 			assert.Equal(t, tt.expectedCode, delivery.Code)
+			if tt.expectedError != "" {
+				assert.ErrorContains(t, err, tt.expectedError)
+			}
 		})
 	}
 }
