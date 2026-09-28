@@ -1293,7 +1293,7 @@ func TestAPI_Attempts(t *testing.T) {
 			h := newAPITest(t)
 
 			require.NoError(t, h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1"))))
-			dest := df.Any(df.WithID("d1"), df.WithTenantID("t1"))
+			dest := df.Any(df.WithID("d1"), df.WithTenantID("t1"), df.WithCredentials(map[string]string{"secret": "whsec_test"}))
 			require.NoError(t, h.tenantStore.CreateDestination(t.Context(), dest))
 
 			e := ef.AnyPointer(ef.WithID("e1"), ef.WithTenantID("t1"), ef.WithDestinationID("d1"))
@@ -1314,13 +1314,15 @@ func TestAPI_Attempts(t *testing.T) {
 			require.True(t, ok, "destination should be an object when include=destination")
 			assert.Equal(t, "d1", destMap["id"])
 			assert.Equal(t, "t1", destMap["tenant_id"])
+			assert.Contains(t, destMap, "target")
+			assert.NotContains(t, destMap, "credentials")
 		})
 
 		t.Run("include destination on list populates destination", func(t *testing.T) {
 			h := newAPITest(t)
 
 			require.NoError(t, h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1"))))
-			dest := df.Any(df.WithID("d1"), df.WithTenantID("t1"))
+			dest := df.Any(df.WithID("d1"), df.WithTenantID("t1"), df.WithCredentials(map[string]string{"secret": "whsec_test"}))
 			require.NoError(t, h.tenantStore.CreateDestination(t.Context(), dest))
 
 			e := ef.AnyPointer(ef.WithID("e1"), ef.WithTenantID("t1"), ef.WithDestinationID("d1"))
@@ -1346,6 +1348,7 @@ func TestAPI_Attempts(t *testing.T) {
 			destMap, ok := attempt["destination"].(map[string]any)
 			require.True(t, ok, "destination should be an object when include=destination")
 			assert.Equal(t, "d1", destMap["id"])
+			assert.NotContains(t, destMap, "credentials")
 		})
 
 		t.Run("without include destination field is omitted", func(t *testing.T) {
