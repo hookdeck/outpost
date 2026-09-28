@@ -7,7 +7,6 @@ import type {
   DestinationCreateAzureServiceBus,
   DestinationCreateAwss3,
   DestinationCreateGCPPubSub,
-  DestinationCreateCloudflareQueues,
 } from '../../sdks/outpost-typescript/dist/commonjs/models/components/index';
 
 export function createWebhookDestination(
@@ -140,23 +139,6 @@ export function createGcpPubSubDestination(
     },
     credentials: {
       serviceAccountJson: '{"type":"service_account","project_id":"my-project"}',
-    },
-    ...overrides,
-  };
-}
-
-export function createCloudflareQueuesDestination(
-  overrides?: Partial<DestinationCreateCloudflareQueues>
-): DestinationCreateCloudflareQueues {
-  return {
-    type: 'cloudflare_queues',
-    topics: ['*'],
-    config: {
-      accountId: 'abc123def456',
-      queueId: 'my-queue-id',
-    },
-    credentials: {
-      apiToken: 'cf-api-token-example',
     },
     ...overrides,
   };
