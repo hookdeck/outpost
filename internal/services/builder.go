@@ -10,6 +10,7 @@ import (
 	"github.com/hookdeck/outpost/internal/alert"
 	apirouter "github.com/hookdeck/outpost/internal/apirouter"
 	"github.com/hookdeck/outpost/internal/config"
+	"github.com/hookdeck/outpost/internal/consumer"
 	"github.com/hookdeck/outpost/internal/deliverymq"
 	"github.com/hookdeck/outpost/internal/destregistry"
 	destregistrydefault "github.com/hookdeck/outpost/internal/destregistry/providers"
@@ -18,6 +19,7 @@ import (
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/logmq"
 	"github.com/hookdeck/outpost/internal/logstore"
+	"github.com/hookdeck/outpost/internal/mqs"
 	"github.com/hookdeck/outpost/internal/opevents"
 	"github.com/hookdeck/outpost/internal/publishmq"
 	"github.com/hookdeck/outpost/internal/redis"
@@ -237,7 +239,8 @@ func (b *ServiceBuilder) BuildAPIWorkers(baseRouter *gin.Engine) error {
 
 	// Worker 1: RetryMQ Consumer
 	retryWorker := NewRetryMQWorker(svc.retryScheduler, b.logger)
-	b.supervisor.Register(retryWorker)
+	_, retryRegisterOpts := restartOptions(b.cfg, config.SupervisorWorkerRetryMQ)
+	b.supervisor.Register(retryWorker, retryRegisterOpts...)
 
 	// Worker 2: PublishMQ Consumer (optional)
 	if publishQueueConfig := b.cfg.PublishMQ.GetQueueConfig(); publishQueueConfig != nil {
@@ -254,18 +257,46 @@ func (b *ServiceBuilder) BuildAPIWorkers(baseRouter *gin.Engine) error {
 			))
 		}
 		messageHandler := publishmq.NewMessageHandler(eventHandler, messageHandlerOpts...)
-		publishMQWorker := NewConsumerWorker(
-			"publishmq-consumer",
-			publishMQ.Subscribe,
-			messageHandler,
-			b.cfg.PublishMaxConcurrency,
-			b.logger,
-		)
-		b.supervisor.Register(publishMQWorker)
+		publishMQWorker, registerOpts := newSupervisedConsumerWorker(b.cfg, config.SupervisorWorkerPublishMQ,
+			"publishmq-consumer", publishMQ.Subscribe, messageHandler, b.cfg.PublishMaxConcurrency, b.logger)
+		b.supervisor.Register(publishMQWorker, registerOpts...)
 	}
 
 	b.logger.Info("API service workers built successfully")
 	return nil
+}
+
+// restartOptions returns the supervisor options for the worker under key in
+// supervisor.workers: a restart policy when restarts are enabled, none
+// otherwise.
+func restartOptions(cfg *config.Config, key string) (bool, []worker.RegisterOption) {
+	policy, enabled := cfg.Supervisor.RestartPolicy(key)
+	if !enabled {
+		return false, nil
+	}
+	return true, []worker.RegisterOption{worker.WithRestartPolicy(policy)}
+}
+
+// newSupervisedConsumerWorker builds a consumer worker and how the supervisor
+// runs it. With restarts disabled it is a plain consumer worker.
+func newSupervisedConsumerWorker(
+	cfg *config.Config,
+	key, name string,
+	subscribe func(ctx context.Context, opts ...mqs.SubscribeOption) (mqs.Subscription, error),
+	handler consumer.MessageHandler,
+	concurrency int,
+	logger *logging.Logger,
+) (worker.Worker, []worker.RegisterOption) {
+	enabled, registerOpts := restartOptions(cfg, key)
+	if !enabled {
+		return NewConsumerWorker(name, subscribe, handler, concurrency, logger), nil
+	}
+	w := NewConsumerWorker(name, subscribe, handler, concurrency, logger,
+		// gocloud replays a hard receive error, so retrying Receive is
+		// wasted; end the run fast and let the supervisor restart it.
+		WithMaxConsecutiveErrors(3),
+	)
+	return w, registerOpts
 }
 
 // BuildDeliveryWorker creates and registers the delivery worker.
@@ -329,14 +360,9 @@ func (b *ServiceBuilder) BuildDeliveryWorker(baseRouter *gin.Engine) error {
 	svc.router = baseRouter
 
 	// Create DeliveryMQ worker
-	deliveryWorker := NewConsumerWorker(
-		"deliverymq-consumer",
-		svc.deliveryMQ.Subscribe,
-		handler,
-		b.cfg.DeliveryMaxConcurrency,
-		b.logger,
-	)
-	b.supervisor.Register(deliveryWorker)
+	deliveryWorker, deliveryRegisterOpts := newSupervisedConsumerWorker(b.cfg, config.SupervisorWorkerDeliveryMQ,
+		"deliverymq-consumer", svc.deliveryMQ.Subscribe, handler, b.cfg.DeliveryMaxConcurrency, b.logger)
+	b.supervisor.Register(deliveryWorker, deliveryRegisterOpts...)
 
 	b.logger.Info("delivery service worker built successfully")
 	return nil
@@ -453,14 +479,9 @@ func (b *ServiceBuilder) BuildLogWorker(baseRouter *gin.Engine) error {
 	svc.router = baseRouter
 
 	// Create LogMQ worker
-	logWorker := NewConsumerWorker(
-		"logmq-consumer",
-		logMQ.Subscribe,
-		handler,
-		b.cfg.LogMaxConcurrency,
-		b.logger,
-	)
-	b.supervisor.Register(logWorker)
+	logWorker, logRegisterOpts := newSupervisedConsumerWorker(b.cfg, config.SupervisorWorkerLogMQ,
+		"logmq-consumer", logMQ.Subscribe, handler, b.cfg.LogMaxConcurrency, b.logger)
+	b.supervisor.Register(logWorker, logRegisterOpts...)
 
 	b.logger.Info("log service worker built successfully")
 	return nil
