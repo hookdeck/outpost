@@ -132,6 +132,13 @@ func (c *Config) LogConfigurationSummary() []zap.Field {
 		zap.Bool("alert_exhausted_retries_enabled", alertSettings.ExhaustedRetries.Enabled),
 		zap.Int("alert_exhausted_retries_window_seconds", alertSettings.ExhaustedRetries.WindowSeconds),
 
+		// Supervisor
+		zap.Bool("supervisor_enabled", c.Supervisor.Enabled),
+		zap.Int("supervisor_startup_max_attempts", c.Supervisor.Startup.MaxAttempts),
+		zap.Int("supervisor_startup_max_duration_seconds", c.Supervisor.Startup.MaxDurationSeconds),
+		zap.Int("supervisor_recovery_max_attempts", c.Supervisor.Recovery.MaxAttempts),
+		zap.Int("supervisor_recovery_max_duration_seconds", c.Supervisor.Recovery.MaxDurationSeconds),
+
 		// ID Generation
 		zap.String("idgen_type", c.IDGen.Type),
 		zap.String("idgen_event_prefix", c.IDGen.EventPrefix),
@@ -155,6 +162,19 @@ func (c *Config) LogConfigurationSummary() []zap.Field {
 	// Add MQ-specific fields based on type
 	mqType := c.MQs.GetInfraType()
 	fields = append(fields, c.getMQSpecificFields(mqType)...)
+
+	// Effective per-worker supervisor settings (overrides applied).
+	for _, key := range SupervisorWorkerKeys {
+		enabled, startup, recovery := c.Supervisor.Effective(key)
+		prefix := "supervisor_" + key + "_"
+		fields = append(fields,
+			zap.Bool(prefix+"enabled", enabled),
+			zap.Int(prefix+"startup_max_attempts", startup.MaxAttempts),
+			zap.Int(prefix+"startup_max_duration_seconds", startup.MaxDurationSeconds),
+			zap.Int(prefix+"recovery_max_attempts", recovery.MaxAttempts),
+			zap.Int(prefix+"recovery_max_duration_seconds", recovery.MaxDurationSeconds),
+		)
+	}
 
 	return fields
 }
