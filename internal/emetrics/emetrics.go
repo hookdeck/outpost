@@ -18,6 +18,8 @@ type OutpostMetrics interface {
 	APIResponseLatency(ctx context.Context, latency time.Duration, opts APIResponseLatencyOpts)
 	APICalls(ctx context.Context, opts APICallsOpts)
 	DeliveryConnection(ctx context.Context, reused bool, destinationType string)
+	WorkerRunFailed(ctx context.Context, worker, phase string)
+	WorkerStatus(ctx context.Context, worker, status string)
 }
 
 type DeliveryLatencyOpts struct {
@@ -50,6 +52,8 @@ type emetricsImpl struct {
 	apiResponseLatency    metric.Int64Histogram
 	apiCallsCounter       metric.Int64Counter
 	deliveryConnCounter   metric.Int64Counter
+	workerFailuresCounter metric.Int64Counter
+	workerStatusGauge     metric.Int64Gauge
 }
 
 func New() (OutpostMetrics, error) {
@@ -96,6 +100,18 @@ func New() (OutpostMetrics, error) {
 
 	if impl.deliveryConnCounter, err = meter.Int64Counter("outpost.delivery_connections",
 		metric.WithDescription("Outbound delivery connections, split by whether the connection was reused from the idle pool"),
+	); err != nil {
+		return nil, err
+	}
+
+	if impl.workerFailuresCounter, err = meter.Int64Counter("outpost.worker_failures",
+		metric.WithDescription("Failed worker runs that the supervisor restarts, by worker and phase (startup or recovery)"),
+	); err != nil {
+		return nil, err
+	}
+
+	if impl.workerStatusGauge, err = meter.Int64Gauge("outpost.worker_status",
+		metric.WithDescription("Worker health: 0 healthy, 1 degraded, 2 failed"),
 	); err != nil {
 		return nil, err
 	}
@@ -151,4 +167,22 @@ func (e *emetricsImpl) APICalls(ctx context.Context, opts APICallsOpts) {
 		attribute.String("method", opts.Method),
 		attribute.String("path", opts.Path),
 	))
+}
+
+func (e *emetricsImpl) WorkerRunFailed(ctx context.Context, worker, phase string) {
+	e.workerFailuresCounter.Add(ctx, 1, metric.WithAttributes(
+		attribute.String("worker", worker),
+		attribute.String("phase", phase),
+	))
+}
+
+func (e *emetricsImpl) WorkerStatus(ctx context.Context, worker, status string) {
+	var v int64
+	switch status {
+	case "degraded":
+		v = 1
+	case "failed":
+		v = 2
+	}
+	e.workerStatusGauge.Record(ctx, v, metric.WithAttributes(attribute.String("worker", worker)))
 }
