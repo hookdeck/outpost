@@ -3444,14 +3444,19 @@ paths:
 
         > This endpoint is only available for **self-hosted** Outpost deployments. Managed Outpost health is monitored by Hookdeck.
 
-        Returns HTTP 200 when all workers are healthy, or HTTP 503 if any worker has failed.
+        Worker status is one of:
+        - `healthy`: running.
+        - `degraded`: failing and being restarted, within its restart budget. The service keeps serving. Only reported when supervisor restarts are enabled for the worker (`SUPERVISOR_ENABLED` or a per-worker override such as `SUPERVISOR_PUBLISHMQ_ENABLED`).
+        - `failed`: failed, or failing past its restart budget. With restarts enabled, Outpost keeps restarting it, and it returns to `healthy` once it recovers.
+
+        Returns HTTP 200 when no worker has failed (the overall status is `degraded` if any worker is degraded), or HTTP 503 if any worker has failed.
 
         Note: Error details are not exposed for security reasons. Check application logs for detailed error information.
       operationId: healthCheck
       security: []
       responses:
         "200":
-          description: Service is healthy - all workers are operational.
+          description: Service is healthy or degraded - no worker has failed.
           content:
             application/json:
               schema:
@@ -3463,7 +3468,7 @@ paths:
                 properties:
                   status:
                     type: string
-                    enum: [healthy]
+                    enum: [healthy, degraded]
                     example: healthy
                   timestamp:
                     type: string
@@ -3479,16 +3484,31 @@ paths:
                       properties:
                         status:
                           type: string
-                          enum: [healthy]
+                          enum: [healthy, degraded]
                           example: healthy
+                        since:
+                          type: string
+                          format: date-time
+                          description: Start of the worker's current failure episode. Present when the status is `degraded` or `failed`.
+                          example: "2025-11-11T10:29:45Z"
+                        reason:
+                          type: string
+                          enum: [startup_failed, recovery_failed]
+                          description: |
+                            Present when the status is `degraded` or `failed`.
+                            `startup_failed`: the worker has not been healthy since the process started (usually configuration or a dependency that is not up yet).
+                            `recovery_failed`: the worker was healthy and then failed (e.g. a broker restart or failover).
+                          example: recovery_failed
               example:
-                status: healthy
+                status: degraded
                 timestamp: "2025-11-11T10:30:00Z"
                 workers:
                   http-server:
                     status: healthy
-                  retrymq-consumer:
-                    status: healthy
+                  publishmq-consumer:
+                    status: degraded
+                    since: "2025-11-11T10:29:45Z"
+                    reason: recovery_failed
         "503":
           description: Service is unhealthy - one or more workers have failed.
           content:
@@ -3518,16 +3538,31 @@ paths:
                       properties:
                         status:
                           type: string
-                          enum: [healthy, failed]
+                          enum: [healthy, degraded, failed]
                           example: failed
+                        since:
+                          type: string
+                          format: date-time
+                          description: Start of the worker's current failure episode. Present when the status is `degraded` or `failed`.
+                          example: "2025-11-11T10:29:45Z"
+                        reason:
+                          type: string
+                          enum: [startup_failed, recovery_failed]
+                          description: |
+                            Present when the status is `degraded` or `failed`.
+                            `startup_failed`: the worker has not been healthy since the process started (usually configuration or a dependency that is not up yet).
+                            `recovery_failed`: the worker was healthy and then failed (e.g. a broker restart or failover).
+                          example: recovery_failed
               example:
                 status: failed
                 timestamp: "2025-11-11T10:30:15Z"
                 workers:
                   http-server:
                     status: healthy
-                  retrymq-consumer:
+                  publishmq-consumer:
                     status: failed
+                    since: "2025-11-11T10:29:44Z"
+                    reason: startup_failed
   /config:
     get:
       tags: [Configuration]

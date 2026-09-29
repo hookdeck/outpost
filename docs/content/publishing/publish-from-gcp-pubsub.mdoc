@@ -78,6 +78,10 @@ publishmq:
     subscription: "outpost-publish-sub" # Pub/Sub subscription for published events
 ```
 
+### Health
+
+In a self-hosted deployment, if the publish consumer fails (it can't subscribe, or 10 receives fail in a row, about 70 seconds), `/healthz` reports it `failed` (HTTP 503) until the process restarts. You can turn on restarts instead with `SUPERVISOR_PUBLISHMQ_ENABLED=true` (or `SUPERVISOR_ENABLED=true` for every worker): Outpost then restarts the consumer with a backoff and reports it `degraded` while it retries. See [Supervisor](/docs/outpost/self-hosting/configuration#supervisor) for the limits after which it reports `failed`.
+
 ### Troubleshooting
 
 - [Ask a question](https://github.com/hookdeck/outpost/discussions/new?category=q-a)
