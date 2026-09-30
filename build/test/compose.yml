@@ -28,6 +28,11 @@ services:
     ports:
       - 35672:5672
       - 45672:15672
+  test-nats:
+    image: ${TEST_IMAGE_NATS:?run via `make up/test`, which passes --env-file .env.test}
+    command: ["-js"]
+    ports:
+      - 34222:4222
   test-aws:
     image: ${TEST_IMAGE_LOCALSTACK:?run via `make up/test`, which passes --env-file .env.test}
     environment:

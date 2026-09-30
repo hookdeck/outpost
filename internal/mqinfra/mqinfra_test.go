@@ -230,6 +230,67 @@ func TestIntegrationMQInfra_RabbitMQ(t *testing.T) {
 	)
 }
 
+func TestIntegrationMQInfra_NATS(t *testing.T) {
+	testutil.CheckIntegrationTest(t)
+	stream := "test" + idgen.String()
+	subject := stream + ".events"
+	dlqSubject := mqinfra.DefaultNATSDLQName(subject)
+	dlqStream := mqinfra.DefaultNATSDLQStreamName(dlqSubject)
+
+	testMQInfra(t,
+		&Config{
+			infra: mqinfra.MQInfraConfig{
+				NATS: &mqinfra.NATSInfraConfig{
+					ServerURL: testinfra.EnsureNATS(),
+					Stream:    stream,
+					Subject:   subject,
+				},
+				// +1 beyond the shared retryLimit: unlike RabbitMQ/SQS's
+				// broker-native DLQ, NATS's DLQ move happens by intercepting
+				// the last allowed delivery inside this provider's own
+				// Receive (see exceededMaxDeliver) rather than the app
+				// nacking it and a broker moving it afterward — so that
+				// final attempt is never handed back to the caller. Getting
+				// the same app-visible "retryLimit normal deliveries, then
+				// DLQ" behavior this shared test expects needs one extra
+				// configured attempt to cover the one this provider absorbs
+				// itself.
+				Policy: mqinfra.Policy{
+					RetryLimit: retryLimit + 1,
+				},
+			},
+			mq: mqs.QueueConfig{
+				NATS: &mqs.NATSConfig{
+					ServerURL:  testinfra.EnsureNATS(),
+					Stream:     stream,
+					Subject:    subject,
+					DLQSubject: dlqSubject,
+					// Must match the infra config's own MaxDeliver
+					// (Policy.RetryLimit+1 above) exactly, or
+					// exceededMaxDeliver fires at the wrong delivery.
+					MaxDeliver: retryLimit + 2,
+				},
+			},
+		},
+		&Config{
+			infra: mqinfra.MQInfraConfig{
+				NATS: &mqinfra.NATSInfraConfig{
+					ServerURL: testinfra.EnsureNATS(),
+					Stream:    dlqStream,
+					Subject:   dlqSubject,
+				},
+			},
+			mq: mqs.QueueConfig{
+				NATS: &mqs.NATSConfig{
+					ServerURL: testinfra.EnsureNATS(),
+					Stream:    dlqStream,
+					Subject:   dlqSubject,
+				},
+			},
+		},
+	)
+}
+
 func TestIntegrationMQInfra_RabbitMQ_CustomDLQName(t *testing.T) {
 	testutil.CheckIntegrationTest(t)
 	exchange := idgen.String()

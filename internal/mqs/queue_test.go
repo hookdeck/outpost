@@ -34,6 +34,13 @@ func TestIntegrationMQ_RabbitMQ(t *testing.T) {
 	testMQ(t, func() mqs.QueueConfig { return config })
 }
 
+func TestIntegrationMQ_NATS(t *testing.T) {
+	t.Parallel()
+	t.Cleanup(testinfra.Start(t))
+	config := testinfra.NewMQNATSConfig(t)
+	testMQ(t, func() mqs.QueueConfig { return config })
+}
+
 func TestIntegrationMQ_AWSSQS(t *testing.T) {
 	t.Parallel()
 	t.Cleanup(testinfra.Start(t))
