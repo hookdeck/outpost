@@ -101,7 +101,7 @@ services:
 
   localstack:
     profiles: ["localstack"]
-    image: localstack/localstack:latest
+    image: localstack/localstack:3.8.1
     environment:
       - SERVICES=s3,sns,sts,sqs,kinesis
     ports:
