@@ -137,6 +137,7 @@ var (
 	ErrInvalidRedisPoolSize          = errors.New("config validation error: redis pool_size must be >= 0")
 	ErrInvalidPublishMaxRedeliveries = errors.New("config validation error: publish_max_redeliveries must be >= -1")
 	ErrInvalidSupervisorLimit        = errors.New("config validation error: invalid supervisor limit")
+	ErrInvalidSupervisorWorker       = errors.New("config validation error: invalid supervisor restart worker")
 )
 
 func (c *Config) InitDefaults() {

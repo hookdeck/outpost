@@ -158,7 +158,7 @@ func TestIntegrationPublishMQRestart_BrokerOutage(t *testing.T) {
 
 	broker := &flakyBroker{}
 	consumerCfg := withDialer(cfg, broker.dial)
-	h := startPublishMQWorker(t, supervisorConfig(true), consumerCfg, cfg)
+	h := startPublishMQWorker(t, supervisorConfig(config.SupervisorWorkerPublishMQ), consumerCfg, cfg)
 	runBrokerOutage(t, h, broker)
 }
 
@@ -176,7 +176,7 @@ func TestIntegrationDeliveryMQRestart_BrokerOutage(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(cleanup)
 
-	h := startSupervisedConsumer(t, supervisorConfig(true), config.SupervisorWorkerDeliveryMQ, "deliverymq-consumer",
+	h := startSupervisedConsumer(t, supervisorConfig(config.SupervisorWorkerDeliveryMQ), config.SupervisorWorkerDeliveryMQ, "deliverymq-consumer",
 		deliveryMQ.Subscribe, cfg)
 	runBrokerOutage(t, h, broker)
 }
@@ -209,7 +209,7 @@ func TestIntegrationPublishMQRestart_QueueDeleted(t *testing.T) {
 	t.Cleanup(testinfra.Start(t))
 	cfg := testinfra.NewMQRabbitMQConfig(t)
 
-	h := startPublishMQWorker(t, supervisorConfig(true), cfg, cfg)
+	h := startPublishMQWorker(t, supervisorConfig(config.SupervisorWorkerPublishMQ), cfg, cfg)
 	h.publish("before")
 	h.awaitMessage("before", 10*time.Second)
 
@@ -237,7 +237,7 @@ func TestIntegrationPublishMQRestart_BadCredentialsAtBoot(t *testing.T) {
 	badCfg := badPasswordConfig(t, cfg)
 
 	start := time.Now()
-	h := startPublishMQWorker(t, supervisorConfig(true), badCfg, cfg)
+	h := startPublishMQWorker(t, supervisorConfig(config.SupervisorWorkerPublishMQ), badCfg, cfg)
 
 	got := h.awaitStatus(worker.WorkerStatusDegraded, 5*time.Second)
 	require.Equal(t, worker.ReasonStartupFailed, got.Reason)
@@ -251,12 +251,13 @@ func TestIntegrationPublishMQRestart_BadCredentialsAtBoot(t *testing.T) {
 	require.False(t, h.supervisor.GetHealthTracker().IsHealthy())
 }
 
-// supervisorConfig returns the default config with restarts on or off.
-func supervisorConfig(enabled bool) *config.Config {
+// supervisorConfig returns the default config with restarts on for the
+// given workers only.
+func supervisorConfig(restartWorkers ...string) *config.Config {
 	cfg := &config.Config{}
 	cfg.InitDefaults()
 	cfg.PublishMaxConcurrency = 1
-	cfg.Supervisor.Enabled = enabled
+	cfg.Supervisor.RestartWorkers = restartWorkers
 	return cfg
 }
 
@@ -276,7 +277,7 @@ func TestIntegrationPublishMQRestart_DisabledByDefault(t *testing.T) {
 	t.Cleanup(testinfra.Start(t))
 	cfg := testinfra.NewMQRabbitMQConfig(t)
 
-	h := startPublishMQWorker(t, supervisorConfig(false), badPasswordConfig(t, cfg), cfg)
+	h := startPublishMQWorker(t, supervisorConfig(), badPasswordConfig(t, cfg), cfg)
 
 	// As without a restart policy: failed on the first error, no since/reason, no restart.
 	got := h.awaitStatus(worker.WorkerStatusFailed, 15*time.Second)

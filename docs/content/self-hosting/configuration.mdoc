@@ -160,14 +160,14 @@ The `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_EVENT_ID_HEADER`, `DESTINATIONS_WEBHOO
 
 ## Supervisor
 
-The supervisor can restart a worker whose run fails, such as a queue consumer losing its connection to the broker. Restarts are off by default: a worker is reported `failed` on its first failure and `/healthz` returns HTTP 503 until the process restarts. Set `SUPERVISOR_ENABLED=true` to turn them on for every worker below, or enable them per worker.
+The supervisor can restart a worker whose run fails, such as a queue consumer losing its connection to the broker. Restarts are off by default: a worker is reported `failed` on its first failure and `/healthz` returns HTTP 503 until the process restarts. List the workers to restart in `SUPERVISOR_RESTART_WORKERS`, for example `SUPERVISOR_RESTART_WORKERS=publishmq,deliverymq`.
 
-| Worker | `/healthz` name | Key |
+| Worker | `/healthz` name | Name in `SUPERVISOR_RESTART_WORKERS` |
 |--------|-----------------|-----|
-| Publish queue consumer | `publishmq-consumer` | `PUBLISHMQ` |
-| Delivery queue consumer | `deliverymq-consumer` | `DELIVERYMQ` |
-| Log queue consumer | `logmq-consumer` | `LOGMQ` |
-| Retry scheduler | `retrymq-consumer` | `RETRYMQ` |
+| Publish queue consumer | `publishmq-consumer` | `publishmq` |
+| Delivery queue consumer | `deliverymq-consumer` | `deliverymq` |
+| Log queue consumer | `logmq-consumer` | `logmq` |
+| Retry scheduler | `retrymq-consumer` | `retrymq` |
 
 The HTTP server (`http-server`) is never restarted: it fails when it can't bind its port, which a restart doesn't fix.
 
@@ -177,11 +177,11 @@ With restarts on, `/healthz` reports a failing worker as `degraded` (HTTP 200) w
 
 A worker is `healthy` again once a restarted run has stayed connected for 30 seconds. Until then it keeps its `degraded` or `failed` status, so `/healthz` can return 503 for up to 30 seconds after the worker has recovered. If a liveness probe checks `/healthz`, allow for that in its failure threshold.
 
-A worker is in the *startup* phase until it has stayed connected for 30 seconds once, and in the *recovery* phase after that. Each phase has two limits, and the first one reached ends the budget. `-1` disables a limit. Restarts back off from 1 second, doubling up to 60 seconds.
+A worker is in the *startup* phase until it has stayed connected for 30 seconds once, and in the *recovery* phase after that. Each phase has two limits, which apply to every listed worker, and the first one reached ends the budget. `-1` disables a limit. Restarts back off from 1 second, doubling up to 60 seconds.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `SUPERVISOR_ENABLED` | `false` | Restart failed workers instead of reporting them `failed` at once. |
+| `SUPERVISOR_RESTART_WORKERS` | empty | Comma-separated names of the workers to restart instead of reporting them `failed` at once. An unknown name fails startup. |
 | `SUPERVISOR_STARTUP_MAX_ATTEMPTS` | `5` | Restarts allowed in the startup phase. With the backoff, `5` reports a worker that can't start as `failed` about 31 seconds after its first failure, plus the time each failed attempt takes. |
 | `SUPERVISOR_STARTUP_MAX_DURATION_SECONDS` | `-1` | In the startup phase, the worker is reported `failed` if no restart has succeeded within this many seconds of its first failure. |
 | `SUPERVISOR_RECOVERY_MAX_ATTEMPTS` | `-1` | Restarts allowed in the recovery phase. |
@@ -189,17 +189,7 @@ A worker is in the *startup* phase until it has stayed connected for 30 seconds 
 
 These timings assume a failed run ends quickly. With restarts on, a queue consumer ends a run after 3 consecutive receive errors instead of 10. The retry scheduler keeps retrying Redis for about a minute inside each run, so during a Redis outage it shows `degraded` after about a minute and reaches `failed` later than the limits suggest: about 3 to 3.5 minutes in recovery and about 6 minutes at startup with the defaults.
 
-Each worker can override any of these. Replace `<KEY>` with the worker's key from the first table, for example `SUPERVISOR_DELIVERYMQ_ENABLED`. An unset override inherits the global value.
-
-| Variable | Overrides |
-|----------|-----------|
-| `SUPERVISOR_<KEY>_ENABLED` | `SUPERVISOR_ENABLED` |
-| `SUPERVISOR_<KEY>_STARTUP_MAX_ATTEMPTS` | `SUPERVISOR_STARTUP_MAX_ATTEMPTS` |
-| `SUPERVISOR_<KEY>_STARTUP_MAX_DURATION_SECONDS` | `SUPERVISOR_STARTUP_MAX_DURATION_SECONDS` |
-| `SUPERVISOR_<KEY>_RECOVERY_MAX_ATTEMPTS` | `SUPERVISOR_RECOVERY_MAX_ATTEMPTS` |
-| `SUPERVISOR_<KEY>_RECOVERY_MAX_DURATION_SECONDS` | `SUPERVISOR_RECOVERY_MAX_DURATION_SECONDS` |
-
-With restarts on, setting a worker's four limits to `-1` keeps its failures from ever failing `/healthz`. For example, with all four `SUPERVISOR_PUBLISHMQ_*` limits at `-1`, the publish queue consumer is still restarted and shows as `degraded` with the error in the logs, but your orchestrator won't restart or unroute the instance because of it.
+With restarts on, setting all four limits to `-1` keeps a listed worker's failures from ever failing `/healthz`: it is still restarted and shows as `degraded` with the error in the logs, but your orchestrator won't restart or unroute the instance because of it.
 
 ## Observability
 
@@ -243,17 +233,13 @@ alert:
   exhausted_retries_window_seconds: 3600
 
 supervisor:
-  enabled: true
+  restart_workers:
+    - publishmq
+    - deliverymq
   startup:
     max_attempts: 5
     max_duration_seconds: -1
   recovery:
     max_attempts: -1
     max_duration_seconds: 120
-  workers:
-    publishmq:
-      recovery:
-        max_duration_seconds: 300
-    retrymq:
-      enabled: false
 ```

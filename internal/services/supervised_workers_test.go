@@ -12,38 +12,29 @@ import (
 
 func TestSupervisedWorkers_Enabled(t *testing.T) {
 	cases := []struct {
-		name     string
-		global   bool
-		override *bool
-		want     bool
+		name    string
+		restart func(key string) []string
+		want    bool
 	}{
-		{name: "default off", want: false},
-		{name: "global on", global: true, want: true},
-		{name: "global on, worker off", global: true, override: new(false), want: false},
-		{name: "global off, worker on", override: new(true), want: true},
-	}
-	setOverride := func(cfg *config.Config, key string, v bool) {
-		o := config.NewOptionalBool(v)
-		switch key {
-		case config.SupervisorWorkerPublishMQ:
-			cfg.Supervisor.Workers.PublishMQ.Enabled = o
-		case config.SupervisorWorkerDeliveryMQ:
-			cfg.Supervisor.Workers.DeliveryMQ.Enabled = o
-		case config.SupervisorWorkerLogMQ:
-			cfg.Supervisor.Workers.LogMQ.Enabled = o
-		case config.SupervisorWorkerRetryMQ:
-			cfg.Supervisor.Workers.RetryMQ.Enabled = o
-		}
+		{name: "default off", restart: func(string) []string { return nil }, want: false},
+		{name: "listed", restart: func(key string) []string { return []string{key} }, want: true},
+		{name: "all listed", restart: func(string) []string { return config.SupervisorWorkerKeys }, want: true},
+		{name: "others listed", restart: func(key string) []string {
+			var others []string
+			for _, k := range config.SupervisorWorkerKeys {
+				if k != key {
+					others = append(others, k)
+				}
+			}
+			return others
+		}, want: false},
 	}
 	for _, key := range config.SupervisorWorkerKeys {
 		for _, tc := range cases {
 			t.Run(key+"/"+tc.name, func(t *testing.T) {
 				cfg := &config.Config{}
 				cfg.InitDefaults()
-				cfg.Supervisor.Enabled = tc.global
-				if tc.override != nil {
-					setOverride(cfg, key, *tc.override)
-				}
+				cfg.Supervisor.RestartWorkers = tc.restart(key)
 
 				enabled, opts := services.RestartOptions(cfg, key)
 				assert.Equal(t, tc.want, enabled)
@@ -62,14 +53,5 @@ func TestSupervisedWorkers_Enabled(t *testing.T) {
 				assert.Len(t, wOpts, len(opts))
 			})
 		}
-	}
-
-	// Enabling one worker leaves the others off.
-	cfg := &config.Config{}
-	cfg.InitDefaults()
-	cfg.Supervisor.Workers.LogMQ.Enabled = config.NewOptionalBool(true)
-	for _, key := range config.SupervisorWorkerKeys {
-		enabled, _ := services.RestartOptions(cfg, key)
-		assert.Equal(t, key == config.SupervisorWorkerLogMQ, enabled, key)
 	}
 }

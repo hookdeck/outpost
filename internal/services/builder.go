@@ -266,9 +266,8 @@ func (b *ServiceBuilder) BuildAPIWorkers(baseRouter *gin.Engine) error {
 	return nil
 }
 
-// restartOptions returns the supervisor options for the worker under key in
-// supervisor.workers: a restart policy when restarts are enabled, none
-// otherwise.
+// restartOptions returns the supervisor options for the worker named key: a
+// restart policy when it is in supervisor.restart_workers, none otherwise.
 func restartOptions(cfg *config.Config, key string) (bool, []worker.RegisterOption) {
 	policy, enabled := cfg.Supervisor.RestartPolicy(key)
 	if !enabled {
