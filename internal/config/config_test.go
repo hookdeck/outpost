@@ -787,6 +787,30 @@ destinations:
 }
 
 func TestDestinationWebhookDeprecationWarnings(t *testing.T) {
+	t.Run("warns when the webhook proxy key is set", func(t *testing.T) {
+		mockOS := &mockOS{
+			files:   map[string][]byte{},
+			envVars: map[string]string{"DESTINATIONS_WEBHOOK_PROXY_URL": "http://proxy:10000"},
+		}
+		cfg, err := config.ParseWithoutValidation(config.Flags{}, mockOS)
+		require.NoError(t, err)
+		warnings := cfg.DeprecationWarnings()
+		require.Len(t, warnings, 1)
+		assert.Contains(t, warnings[0], "DESTINATIONS_WEBHOOK_PROXY_URL is deprecated")
+		assert.Contains(t, warnings[0], "DESTINATIONS_PROXY_URL")
+		assert.Equal(t, "http://proxy:10000", cfg.Destinations.ToConfig(cfg).Webhook.ProxyURL, "still applies while it exists")
+	})
+
+	t.Run("silent when only the general proxy key is set", func(t *testing.T) {
+		mockOS := &mockOS{
+			files:   map[string][]byte{},
+			envVars: map[string]string{"DESTINATIONS_PROXY_URL": "http://proxy:10000"},
+		}
+		cfg, err := config.ParseWithoutValidation(config.Flags{}, mockOS)
+		require.NoError(t, err)
+		assert.Empty(t, cfg.DeprecationWarnings())
+	})
+
 	t.Run("warns when deprecated flag is true", func(t *testing.T) {
 		mockOS := &mockOS{
 			files:   map[string][]byte{},

@@ -15,8 +15,8 @@ The proxy applies to every webhook destination served by the deployment.
 
 | Env var | Description |
 |---------|-------------|
-| `DESTINATIONS_WEBHOOK_PROXY_URL` | Proxy URL, e.g. `http://user:pass@proxy.example.com:8080`. Supports basic auth. Multiple whitespace-separated URLs are tunneled in order via CONNECT. |
-| `DESTINATIONS_PROXY_URL` | Same format. Used for webhooks when `DESTINATIONS_WEBHOOK_PROXY_URL` is unset, and for [other destination types](#other-destination-types). Webhooks always go through a proxy while it is set. |
+| `DESTINATIONS_PROXY_URL` | Proxy URL, e.g. `http://user:pass@proxy.example.com:8080`. Supports basic auth. Multiple whitespace-separated URLs are tunneled in order via CONNECT. Also used for [other destination types](#other-destination-types); webhooks always go through a proxy while it is set. |
+| `DESTINATIONS_WEBHOOK_PROXY_URL` | **Deprecated**: use `DESTINATIONS_PROXY_URL`. Same format; when set, it overrides `DESTINATIONS_PROXY_URL` for webhooks. Outpost logs a deprecation warning at startup. |
 
 When set, Outpost installs an HTTP proxy on the webhook publisher's transport. HTTPS destinations use the standard `CONNECT` tunneling flow; HTTP destinations are forwarded request-by-request.
 
@@ -37,7 +37,7 @@ Failure attribution mostly matches webhooks: proxy-side failures (proxy unreacha
 
 ## Publish queue
 
-The same kind of proxy can carry the connection to a RabbitMQ [publish queue](/docs/outpost/publishing/publish-from-rabbitmq#connecting-through-a-proxy), so a broker that allowlists source IPs sees the proxy's address. Set `PUBLISH_PROXY_URL` in the same format as `DESTINATIONS_WEBHOOK_PROXY_URL`; the two are independent. Outpost tunnels AMQP through every hop with `CONNECT`, so each hop must allow `CONNECT` to the broker's port. `PUBLISH_PROXY_URL` is RabbitMQ only: AWS SQS, GCP Pub/Sub and Azure Service Bus publish queues connect directly.
+The same kind of proxy can carry the connection to a RabbitMQ [publish queue](/docs/outpost/publishing/publish-from-rabbitmq#connecting-through-a-proxy), so a broker that allowlists source IPs sees the proxy's address. Set `PUBLISH_PROXY_URL` in the same format as `DESTINATIONS_PROXY_URL`; the two are independent. Outpost tunnels AMQP through every hop with `CONNECT`, so each hop must allow `CONNECT` to the broker's port. `PUBLISH_PROXY_URL` is RabbitMQ only: AWS SQS, GCP Pub/Sub and Azure Service Bus publish queues connect directly.
 
 ## Using Envoy
 

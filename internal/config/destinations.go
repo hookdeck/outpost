@@ -61,7 +61,7 @@ type DestinationWebhookConfig struct {
 	// and should be treated as sensitive.
 	// TODO: Implement sensitive value handling - https://github.com/hookdeck/outpost/issues/480
 	Mode         string `yaml:"mode" env:"DESTINATIONS_WEBHOOK_MODE" desc:"Webhook mode: 'default' or 'standard'. 'standard' uses the Standard Webhooks format and ignores the options marked default-only. Defaults to 'default'." required:"N"`
-	ProxyURL     string `yaml:"proxy_url" env:"DESTINATIONS_WEBHOOK_PROXY_URL" desc:"Forward proxy for outgoing webhook requests (HTTP or HTTPS, basic auth supported). Multiple whitespace-separated URLs are tunneled in order. Unset uses DESTINATIONS_PROXY_URL." required:"N"`
+	ProxyURL     string `yaml:"proxy_url" env:"DESTINATIONS_WEBHOOK_PROXY_URL" desc:"Deprecated: use DESTINATIONS_PROXY_URL. Forward proxy for outgoing webhook requests (HTTP or HTTPS, basic auth supported). Multiple whitespace-separated URLs are tunneled in order. When set, it overrides DESTINATIONS_PROXY_URL for webhooks." required:"N"`
 	HeaderPrefix string `yaml:"header_prefix" env:"DESTINATIONS_WEBHOOK_HEADER_PREFIX" desc:"Prefix for metadata headers added to webhook requests. Defaults to 'x-outpost-' in 'default' mode and 'webhook-' in 'standard' mode. Set to whitespace (e.g. ' ') to disable the prefix entirely." required:"N"`
 
 	// Header name configs. Each is three-state: unset uses the default
@@ -282,6 +282,9 @@ func (c *DestinationWebhookConfig) deprecationWarnings() []string {
 				d.oldEnv, d.newEnv,
 			))
 		}
+	}
+	if strings.TrimSpace(c.ProxyURL) != "" {
+		warnings = append(warnings, "DESTINATIONS_WEBHOOK_PROXY_URL is deprecated and will be removed in a future version. Use DESTINATIONS_PROXY_URL instead.")
 	}
 	return warnings
 }
