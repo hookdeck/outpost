@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -110,4 +111,47 @@ func TestDialer_AuthRejected(t *testing.T) {
 	assert.Equal(t, "http://"+proxychaintest.HostOf(hop1.URL), connectErr.Hop)
 	assert.Equal(t, target, connectErr.Next)
 	assert.NotContains(t, err.Error(), "topsecret")
+}
+
+func TestDialer_CancelWhileCONNECTUnanswered(t *testing.T) {
+	t.Parallel()
+	hop := proxychaintest.New(t, false)
+	hop.Hold = make(chan struct{})
+	t.Cleanup(func() { close(hop.Hold) })
+	hops, err := proxychain.Parse(hop.URL)
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	time.AfterFunc(100*time.Millisecond, cancel)
+	start := time.Now()
+	_, err = proxychain.NewDialer(hops, nil, nil).DialContext(ctx, "tcp", "127.0.0.1:1")
+	require.ErrorIs(t, err, context.Canceled)
+	assert.Less(t, time.Since(start), 2*time.Second)
+}
+
+func TestDialer_HopErrorMarksTargetCONNECT(t *testing.T) {
+	t.Parallel()
+	for _, n := range []int{1, 2} {
+		hops := make([]string, n)
+		var held *proxychaintest.Proxy
+		for i := range hops {
+			p := proxychaintest.New(t, false)
+			hops[i] = p.URL
+			held = p
+		}
+		// Only the last hop leaves its CONNECT unanswered.
+		held.Hold = make(chan struct{})
+		t.Cleanup(func() { close(held.Hold) })
+		chain, err := proxychain.Parse(strings.Join(hops, " "))
+		require.NoError(t, err)
+
+		ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+		_, err = proxychain.NewDialer(chain, nil, nil).DialContext(ctx, "tcp", "127.0.0.1:1")
+		cancel()
+		var hopErr *proxychain.HopError
+		require.True(t, errors.As(err, &hopErr), "got %v", err)
+		assert.True(t, hopErr.ToTarget)
+		var netErr net.Error
+		assert.True(t, errors.As(err, &netErr) && netErr.Timeout(), "got %v", err)
+	}
 }
