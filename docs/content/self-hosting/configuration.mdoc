@@ -189,7 +189,7 @@ A worker is in the *startup* phase until it has stayed connected for 30 seconds 
 
 These timings assume a failed run ends quickly. With restarts on, a queue consumer ends a run after 3 consecutive receive errors instead of 10. The retry scheduler keeps retrying Redis for about a minute inside each run, so during a Redis outage it shows `degraded` after about a minute and reaches `failed` later than the limits suggest: about 3 to 3.5 minutes in recovery and about 6 minutes at startup with the defaults.
 
-Each worker can override any of these limits. Replace `<KEY>` with the worker's override key from the first table, for example `SUPERVISOR_PUBLISHMQ_RECOVERY_MAX_DURATION_SECONDS`. An unset override inherits the global value. Overrides only apply to workers listed in `SUPERVISOR_RESTART_WORKERS`; for other workers they have no effect.
+Each listed worker can override any of these limits. Replace `<KEY>` with the worker's override key from the first table, for example `SUPERVISOR_PUBLISHMQ_RECOVERY_MAX_DURATION_SECONDS`. An unset override inherits the global value. Overrides only apply to workers listed in `SUPERVISOR_RESTART_WORKERS`; for other workers they have no effect.
 
 | Variable | Overrides |
 |----------|-----------|
