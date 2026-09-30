@@ -66,6 +66,40 @@ Run these in bounded batches rather than as a single statement, on whatever sche
 
 The `events` and `attempts` tables are declared as range partitioned on `time`, but Outpost creates only DEFAULT partitions and doesn't manage the partition lifecycle. Dropping expired partitions is cheaper than deleting rows at scale, so if you're running PostgreSQL at volume, managing partitions yourself with a tool like [pg_partman](https://github.com/pgpartman/pg_partman) is worth considering.
 
+Two things to know before adopting it, because both follow from Outpost's schema rather than from the tool:
+
+{% callout %}
+**Existing rows live in the DEFAULT partition.** Every row an existing install has written is in `events_default` and `attempts_default`. Creating monthly partitions doesn't move those rows, and PostgreSQL refuses to attach a partition for a month whose rows are still in the DEFAULT partition. Adopting partitioning on a running install means moving the existing rows first, not only creating partitions going forward.
+
+**Dropping a partition takes an `ACCESS EXCLUSIVE` lock on the table.** PostgreSQL allows `DETACH PARTITION ... CONCURRENTLY` only when the parent has no DEFAULT partition, and Outpost's tables always have one. Each retention drop briefly blocks reads and writes on that table. The lock is short, a catalog change rather than a data rewrite, but it isn't lock-free.
+{% /callout %}
+
+With pg_partman installed in a `partman` schema, register each table while keeping Outpost's DEFAULT partition, then move the existing rows out of it, the current month first:
+
+```sql
+SELECT partman.create_parent(
+  p_parent_table    := 'public.events',
+  p_control         := 'time',
+  p_interval        := '1 month',
+  p_premake         := 3,
+  p_start_partition := '2026-10-01',  -- first day of next month
+  p_default_table   := false          -- keep Outpost's events_default
+);
+
+BEGIN;
+LOCK TABLE events IN EXCLUSIVE MODE;  -- holds off writes until COMMIT
+SELECT partman.partition_data_time('public.events', p_order := 'DESC');  -- the current month
+COMMIT;
+
+CALL partman.partition_data_proc('public.events');  -- the earlier months, one commit each
+```
+
+Repeat for `attempts`. The current month needs the lock because Outpost is still writing to it: new rows keep landing in `events_default` while that month moves, and attaching its partition then fails with `updated partition constraint for default partition ... would be violated by some row`. Writes wait while that one month moves, and reads wait briefly while its partition is attached. Nothing writes to the earlier months, so `partition_data_proc` moves them without holding up writes.
+
+Then set `retention` and `retention_keep_table = false` in `partman.part_config` (by default, expired partitions are detached but kept) and schedule `partman.run_maintenance_proc()` with [pg_cron](https://github.com/citusdata/pg_cron) or the `pg_partman_bgw` background worker. The first run drops everything older than `retention`. Without a scheduler, the partitions `create_parent` made are the only ones there will ever be.
+
+After adopting, check `SELECT count(*) FROM events_default;`. It should be zero, and it should stay zero.
+
 ## Querying
 
 Event and delivery history is available through the events endpoints of the [Outpost API](/docs/outpost/api), and to your tenants through the [tenant user portal](/docs/outpost/features/tenant-user-portal). The [Metrics API](/docs/outpost/features/metrics) aggregates over the same data.
