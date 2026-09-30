@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/hookdeck/outpost/internal/destregistry"
@@ -68,6 +68,7 @@ func (d *RabbitMQDestination) CreatePublisher(ctx context.Context, destination *
 		BasePublisher: d.BaseProvider.NewPublisher(destregistry.WithDeliveryMetadata(destination.DeliveryMetadata)),
 		url:           rabbitURL(config, credentials),
 		exchange:      config.Exchange,
+		lock:          make(chan struct{}, 1),
 	}, nil
 }
 
@@ -113,14 +114,16 @@ type RabbitMQPublisher struct {
 	exchange string
 	conn     *amqp091.Connection
 	channel  *amqp091.Channel
-	mu       sync.Mutex
+	// lock guards conn and channel. A channel rather than a mutex so a
+	// delivery waiting on another's dial gives up at its own deadline.
+	lock chan struct{}
 }
 
 func (p *RabbitMQPublisher) Close() error {
 	p.BasePublisher.StartClose()
 
-	p.mu.Lock()
-	defer p.mu.Unlock()
+	p.lock <- struct{}{}
+	defer func() { <-p.lock }()
 
 	if p.channel != nil {
 		p.channel.Close()
@@ -138,6 +141,9 @@ func (p *RabbitMQPublisher) Publish(ctx context.Context, event *models.Event) (*
 	defer p.BasePublisher.FinishPublish()
 
 	if err := p.ensureConnection(ctx); err != nil {
+		if errors.Is(err, context.Canceled) {
+			return nil, err
+		}
 		return &destregistry.Delivery{
 				Status: "failed",
 				Code:   ClassifyRabbitMQError(err),
@@ -188,22 +194,29 @@ func (p *RabbitMQPublisher) Publish(ctx context.Context, event *models.Event) (*
 	}, nil
 }
 
-func (p *RabbitMQPublisher) ensureConnection(_ context.Context) error {
-	p.mu.Lock()
-	defer p.mu.Unlock()
+func (p *RabbitMQPublisher) ensureConnection(ctx context.Context) error {
+	select {
+	case p.lock <- struct{}{}:
+	case <-ctx.Done():
+		return fmt.Errorf("failed to connect to RabbitMQ: %w", ctx.Err())
+	}
+	defer func() { <-p.lock }()
 
 	if p.conn != nil && !p.conn.IsClosed() && p.channel != nil && !p.channel.IsClosed() {
 		return nil
 	}
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("failed to connect to RabbitMQ: %w", err)
+	}
 
 	// Create new connection
-	conn, err := amqp091.Dial(p.url)
+	conn, err := dial(ctx, p.url)
 	if err != nil {
 		return fmt.Errorf("failed to connect to RabbitMQ: %w", err)
 	}
 
 	// Create channel
-	channel, err := conn.Channel()
+	channel, err := openChannel(ctx, conn)
 	if err != nil {
 		conn.Close()
 		return fmt.Errorf("failed to create channel: %w", err)
@@ -220,6 +233,74 @@ func (p *RabbitMQPublisher) ensureConnection(_ context.Context) error {
 	p.channel = channel
 
 	return nil
+}
+
+// dial opens the connection within ctx: the TCP dial, TLS and AMQP
+// handshakes all stop at ctx's deadline or the URL's connection_timeout
+// (default 30s), whichever comes first.
+func dial(ctx context.Context, url string) (*amqp091.Connection, error) {
+	uri, err := amqp091.ParseURI(url)
+	if err != nil {
+		return nil, err
+	}
+	timeout := 30 * time.Second
+	if uri.ConnectionTimeout != 0 {
+		timeout = time.Duration(uri.ConnectionTimeout) * time.Millisecond
+	}
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	// The deadline bounds the TLS and AMQP handshakes; cancel cuts them
+	// short too.
+	var stop func() bool
+	conn, err := amqp091.DialConfig(url, amqp091.Config{
+		Dial: func(network, addr string) (net.Conn, error) {
+			conn, err := (&net.Dialer{}).DialContext(ctx, network, addr)
+			if err != nil {
+				return nil, err
+			}
+			// amqp091 clears the deadline once the connection is open.
+			deadline, _ := ctx.Deadline()
+			if err := conn.SetDeadline(deadline); err != nil {
+				conn.Close()
+				return nil, err
+			}
+			stop = context.AfterFunc(ctx, func() { _ = conn.SetDeadline(time.Now()) })
+			return conn, nil
+		},
+	})
+	if stop != nil && !stop() {
+		if err == nil {
+			_ = conn.CloseDeadline(time.Now())
+			return nil, ctx.Err()
+		}
+		if errors.Is(ctx.Err(), context.Canceled) {
+			return nil, ctx.Err()
+		}
+	}
+	return conn, err
+}
+
+// openChannel opens a channel on conn, dropping conn if ctx ends first:
+// amqp091 has no deadline once the handshake is done.
+func openChannel(ctx context.Context, conn *amqp091.Connection) (*amqp091.Channel, error) {
+	type result struct {
+		channel *amqp091.Channel
+		err     error
+	}
+	done := make(chan result, 1)
+	go func() {
+		channel, err := conn.Channel()
+		done <- result{channel, err}
+	}()
+	select {
+	case r := <-done:
+		return r.channel, r.err
+	case <-ctx.Done():
+		// Close would wait for the broker's close-ok.
+		_ = conn.CloseDeadline(time.Now())
+		<-done
+		return nil, ctx.Err()
+	}
 }
 
 func rabbitURL(config *RabbitMQDestinationConfig, credentials *RabbitMQDestinationCredentials) string {
@@ -262,6 +343,12 @@ func ClassifyRabbitMQError(err error) string {
 			return "channel_error"
 		case amqp091.ConnectionForced:
 			return "connection_forced"
+		case amqp091.FrameError:
+			// The handshake deadline surfaces as a frame error.
+			if strings.Contains(errStr, "i/o timeout") {
+				return "timeout"
+			}
+			return "rabbitmq_error"
 		default:
 			return "rabbitmq_error"
 		}
@@ -293,14 +380,14 @@ func ClassifyRabbitMQError(err error) string {
 // ===== TEST HELPERS =====
 
 func (p *RabbitMQPublisher) GetConnection() *amqp091.Connection {
-	p.mu.Lock()
-	defer p.mu.Unlock()
+	p.lock <- struct{}{}
+	defer func() { <-p.lock }()
 	return p.conn
 }
 
 func (p *RabbitMQPublisher) ForceConnectionClose() {
-	p.mu.Lock()
-	defer p.mu.Unlock()
+	p.lock <- struct{}{}
+	defer func() { <-p.lock }()
 	if p.conn != nil {
 		p.conn.Close()
 	}
