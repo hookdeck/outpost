@@ -13,6 +13,7 @@ import (
 type DestinationsConfig struct {
 	MetadataPath                string                      `yaml:"metadata_path" env:"DESTINATIONS_METADATA_PATH" desc:"Path to the directory containing custom destination type definitions." required:"N"`
 	IncludeMillisecondTimestamp bool                        `yaml:"include_millisecond_timestamp" env:"DESTINATIONS_INCLUDE_MILLISECOND_TIMESTAMP" desc:"If true, includes a 'timestamp-ms' field with millisecond precision in destination metadata. Useful for load testing and debugging." required:"N"`
+	ProxyURL                    string                      `yaml:"proxy_url" env:"DESTINATIONS_PROXY_URL" desc:"HTTP CONNECT forward proxy for destination connections, e.g. 'http://user:pass@proxy:10000'. Multiple whitespace-separated URLs are tunneled in order, nearest first. Applies to webhook, RabbitMQ and Kafka destinations; other types connect directly. DESTINATIONS_WEBHOOK_PROXY_URL, when set, takes precedence for webhooks; webhooks can't opt out while this is set." required:"N"`
 	Webhook                     DestinationWebhookConfig    `yaml:"webhook" desc:"Configuration specific to webhook destinations."`
 	AWSKinesis                  DestinationAWSKinesisConfig `yaml:"aws_kinesis" desc:"Configuration specific to AWS Kinesis destinations."`
 }
@@ -23,10 +24,16 @@ func (c *DestinationsConfig) ToConfig(cfg *Config) destregistrydefault.RegisterD
 		userAgent = fmt.Sprintf("Outpost/%s", version.Version())
 	}
 
+	webhook := c.Webhook.toConfig()
+	if strings.TrimSpace(webhook.ProxyURL) == "" {
+		webhook.ProxyURL = c.ProxyURL
+	}
+
 	return destregistrydefault.RegisterDefaultDestinationOptions{
 		UserAgent:                   userAgent,
 		IncludeMillisecondTimestamp: c.IncludeMillisecondTimestamp,
-		Webhook:                     c.Webhook.toConfig(),
+		ProxyURL:                    c.ProxyURL,
+		Webhook:                     webhook,
 		AWSKinesis:                  c.AWSKinesis.toConfig(),
 		DeliveryMaxConcurrency:      cfg.DeliveryMaxConcurrency,
 	}
@@ -54,7 +61,7 @@ type DestinationWebhookConfig struct {
 	// and should be treated as sensitive.
 	// TODO: Implement sensitive value handling - https://github.com/hookdeck/outpost/issues/480
 	Mode         string `yaml:"mode" env:"DESTINATIONS_WEBHOOK_MODE" desc:"Webhook mode: 'default' or 'standard'. 'standard' uses the Standard Webhooks format and ignores the options marked default-only. Defaults to 'default'." required:"N"`
-	ProxyURL     string `yaml:"proxy_url" env:"DESTINATIONS_WEBHOOK_PROXY_URL" desc:"Forward proxy for outgoing webhook requests (HTTP or HTTPS, basic auth supported). Multiple whitespace-separated URLs are tunneled in order." required:"N"`
+	ProxyURL     string `yaml:"proxy_url" env:"DESTINATIONS_WEBHOOK_PROXY_URL" desc:"Forward proxy for outgoing webhook requests (HTTP or HTTPS, basic auth supported). Multiple whitespace-separated URLs are tunneled in order. Unset uses DESTINATIONS_PROXY_URL." required:"N"`
 	HeaderPrefix string `yaml:"header_prefix" env:"DESTINATIONS_WEBHOOK_HEADER_PREFIX" desc:"Prefix for metadata headers added to webhook requests. Defaults to 'x-outpost-' in 'default' mode and 'webhook-' in 'standard' mode. Set to whitespace (e.g. ' ') to disable the prefix entirely." required:"N"`
 
 	// Header name configs. Each is three-state: unset uses the default

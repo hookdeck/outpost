@@ -16,6 +16,7 @@ The proxy applies to every webhook destination served by the deployment.
 | Env var | Description |
 |---------|-------------|
 | `DESTINATIONS_WEBHOOK_PROXY_URL` | Proxy URL, e.g. `http://user:pass@proxy.example.com:8080`. Supports basic auth. Multiple whitespace-separated URLs are tunneled in order via CONNECT. |
+| `DESTINATIONS_PROXY_URL` | Same format. Used for webhooks when `DESTINATIONS_WEBHOOK_PROXY_URL` is unset, and for [other destination types](#other-destination-types). Webhooks always go through a proxy while it is set. |
 
 When set, Outpost installs an HTTP proxy on the webhook publisher's transport. HTTPS destinations use the standard `CONNECT` tunneling flow; HTTP destinations are forwarded request-by-request.
 
@@ -27,6 +28,12 @@ Outpost separates failures the proxy is responsible for from failures the destin
 - **Destination-side failures reported via the proxy** (DNS failure, connection refused, upstream timeout) are recorded as a normal delivery attempt with the matching network error code, the same as if no proxy were in path.
 
 If you expect proxy outages longer than your queue's redelivery window, raise `MinRetryBackoff`, `MaxRetryBackoff`, and `RetryLimit` in your queue configuration so the redelivery window covers the worst case. See [Configuration](/docs/outpost/self-hosting/configuration).
+
+## Other destination types
+
+`DESTINATIONS_PROXY_URL` also carries RabbitMQ and Kafka destination connections, so brokers that allowlist source IPs see the proxy's address. Outpost tunnels the broker protocol through every hop with `CONNECT`, so each hop must allow `CONNECT` to the broker's port; TLS (`amqps`, Kafka TLS) runs end to end between Outpost and the broker. For Kafka, every broker the cluster advertises is reached through the proxy. Other destination types (AWS SQS, Kinesis, S3, GCP Pub/Sub, Azure Service Bus, Hookdeck) connect directly.
+
+Failure attribution mostly matches webhooks: proxy-side failures (proxy unreachable, proxy auth rejected, TLS to a proxy) are redelivered by the queue, and destination-side failures reported by the proxy are recorded as failed attempts with the matching network error code. One difference: a `CONNECT` that no hop answers before the delivery timeout is recorded as a `timeout` attempt, because a silent proxy and a destination that drops traffic look the same from Outpost. Webhooks redeliver in that case when the silent hop is an intermediate one.
 
 ## Publish queue
 

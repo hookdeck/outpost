@@ -40,9 +40,9 @@ func (c *Config) LogConfigurationSummary() []zap.Field {
 	alertSettings, _ := c.Alert.ToConfig()
 
 	// Resolve the webhook config so the summary reflects the effective header
-	// directives after folding in the three-state name configs and deprecated
-	// DISABLE_* flags.
-	webhookCfg := c.Destinations.Webhook.toConfig()
+	// directives (three-state name configs, deprecated DISABLE_* flags) and
+	// proxy chain.
+	webhookCfg := c.Destinations.ToConfig(c).Webhook
 
 	// Delivery connection pool. Not configurable — derived from the delivery
 	// worker pool size — so the resolved values are logged.
@@ -137,6 +137,11 @@ func (c *Config) LogConfigurationSummary() []zap.Field {
 
 		// Retention
 		zap.Int("clickhouse_log_retention_ttl_days", c.ClickHouseLogRetentionTTLDays),
+
+		// Proxy chains in effect (configured only; values may carry credentials)
+		zap.Bool("publish_proxy_url_configured", strings.TrimSpace(c.PublishMQ.ProxyURL) != ""),
+		zap.Bool("destinations_proxy_url_configured", strings.TrimSpace(c.Destinations.ProxyURL) != ""),
+		zap.Bool("destinations_webhook_proxied", strings.TrimSpace(webhookCfg.ProxyURL) != ""),
 
 		// Destinations - Webhook (effective header directives after resolving the
 		// three-state name configs and deprecated DISABLE_* flags)

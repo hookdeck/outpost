@@ -69,14 +69,12 @@ func (e *ConnectError) Error() string {
 }
 
 // HopError is a failure talking to a proxy hop other than a refused
-// CONNECT: the TLS handshake with the hop, or a CONNECT through it that
-// failed or went unanswered. ToTarget reports whether that CONNECT was for
-// the dialed address (sent to the last hop), where a timeout may be the
-// target's rather than the hop's.
+// CONNECT. Handshake reports a failed TLS handshake with the hop; otherwise
+// a CONNECT through the hop failed or went unanswered.
 type HopError struct {
-	Hop      string
-	ToTarget bool
-	Err      error
+	Hop       string
+	Handshake bool
+	Err       error
 }
 
 func (e *HopError) Error() string {
@@ -118,7 +116,7 @@ func (d *Dialer) DialContext(ctx context.Context, network, addr string) (net.Con
 	}
 	if first.Scheme == "https" {
 		if conn, err = d.wrapTLS(ctx, conn, first.Hostname()); err != nil {
-			return nil, &HopError{Hop: Redact(first), Err: err}
+			return nil, &HopError{Hop: Redact(first), Handshake: true, Err: err}
 		}
 	}
 
@@ -135,11 +133,11 @@ func (d *Dialer) DialContext(ctx context.Context, network, addr string) (net.Con
 			if errors.As(err, &connectErr) {
 				return nil, err
 			}
-			return nil, &HopError{Hop: Redact(hop), ToTarget: next == nil, Err: err}
+			return nil, &HopError{Hop: Redact(hop), Err: err}
 		}
 		if next != nil && next.Scheme == "https" {
 			if conn, err = d.wrapTLS(ctx, conn, next.Hostname()); err != nil {
-				return nil, &HopError{Hop: Redact(next), Err: err}
+				return nil, &HopError{Hop: Redact(next), Handshake: true, Err: err}
 			}
 		}
 	}

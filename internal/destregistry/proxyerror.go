@@ -217,3 +217,44 @@ func EnvoyDiagnostics(flag, details string) map[string]string {
 	}
 	return d
 }
+
+// IsProxyError reports whether err carries a proxy failure from a
+// ProxyDialFunc connection.
+func IsProxyError(err error) bool {
+	var infraErr *ErrProxyInfra
+	var destErr *ErrProxyDestination
+	return errors.As(err, &infraErr) || errors.As(err, &destErr)
+}
+
+// ProxyPublishResult is a publisher's result for a proxy failure (see
+// IsProxyError): ErrProxyInfra returns a nil Delivery so the message is
+// nacked, ErrProxyDestination a failed attempt with the proxy's code.
+func ProxyPublishResult(err error, provider string) (*Delivery, error) {
+	var infraErr *ErrProxyInfra
+	if errors.As(err, &infraErr) {
+		return nil, NewErrDestinationPublishAttempt(err, provider, map[string]interface{}{
+			"error":   "proxy_infrastructure",
+			"message": infraErr.Error(),
+		})
+	}
+	var destErr *ErrProxyDestination
+	if !errors.As(err, &destErr) {
+		return nil, err
+	}
+	data := map[string]interface{}{
+		"error":   "connection_failed",
+		"message": err.Error(),
+	}
+	for k, v := range destErr.Diagnostics {
+		data[k] = v
+	}
+	message := destErr.Code
+	if destErr.DestHost != "" {
+		message = fmt.Sprintf("%s connecting to %s", destErr.Code, destErr.DestHost)
+	}
+	return &Delivery{
+		Status:   "failed",
+		Code:     destErr.Code,
+		Response: map[string]interface{}{"error": message},
+	}, NewErrDestinationPublishAttempt(err, provider, data)
+}

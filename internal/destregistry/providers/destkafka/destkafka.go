@@ -3,7 +3,10 @@ package destkafka
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
+	"net"
+	"net/url"
 	"strings"
 	"time"
 
@@ -11,6 +14,7 @@ import (
 	"github.com/hookdeck/outpost/internal/destregistry/metadata"
 	"github.com/hookdeck/outpost/internal/destregistry/partitionkey"
 	"github.com/hookdeck/outpost/internal/models"
+	"github.com/hookdeck/outpost/internal/proxychain"
 	"github.com/segmentio/kafka-go"
 	"github.com/segmentio/kafka-go/sasl"
 	"github.com/segmentio/kafka-go/sasl/plain"
@@ -36,16 +40,31 @@ type KafkaCredentials struct {
 
 type KafkaDestination struct {
 	*destregistry.BaseProvider
+	proxyDial proxychain.DialFunc
 }
 
 var _ destregistry.Provider = (*KafkaDestination)(nil)
 
-func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePublisherOption) (*KafkaDestination, error) {
+type Option func(*KafkaDestination)
+
+// WithProxy connects to brokers through the given forward proxies, nearest
+// hop first. TLS runs end to end through the tunnel.
+func WithProxy(hops []*url.URL) Option {
+	return func(d *KafkaDestination) {
+		d.proxyDial = destregistry.ProxyDialFunc(hops)
+	}
+}
+
+func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePublisherOption, opts ...Option) (*KafkaDestination, error) {
 	base, err := destregistry.NewBaseProvider(loader, "kafka", basePublisherOpts...)
 	if err != nil {
 		return nil, err
 	}
-	return &KafkaDestination{BaseProvider: base}, nil
+	d := &KafkaDestination{BaseProvider: base}
+	for _, opt := range opts {
+		opt(d)
+	}
+	return d, nil
 }
 
 func (d *KafkaDestination) Validate(ctx context.Context, destination *models.Destination) error {
@@ -98,7 +117,7 @@ func (d *KafkaDestination) CreatePublisher(ctx context.Context, destination *mod
 	}
 
 	// Build transport
-	transport := &kafka.Transport{}
+	transport := &kafka.Transport{Dial: d.proxyDial}
 	if mechanism != nil {
 		transport.SASL = mechanism
 	}
@@ -120,6 +139,8 @@ func (d *KafkaDestination) CreatePublisher(ctx context.Context, destination *mod
 		BasePublisher:        d.BaseProvider.NewPublisher(destregistry.WithDeliveryMetadata(destination.DeliveryMetadata)),
 		writer:               writer,
 		partitionKeyTemplate: config.PartitionKeyTemplate,
+		proxied:              d.proxyDial != nil,
+		brokerHosts:          brokerHosts(config.Brokers),
 	}, nil
 }
 
@@ -199,6 +220,8 @@ type KafkaPublisher struct {
 	*destregistry.BasePublisher
 	writer               *kafka.Writer
 	partitionKeyTemplate string
+	proxied              bool
+	brokerHosts          string
 }
 
 func (p *KafkaPublisher) Close() error {
@@ -253,11 +276,20 @@ func (p *KafkaPublisher) Publish(ctx context.Context, event *models.Event) (*des
 	}
 
 	if err := p.writer.WriteMessages(ctx, msg); err != nil {
+		// Produce errors come back per message, and WriteErrors doesn't
+		// unwrap; we always write one.
+		var writeErrs kafka.WriteErrors
+		if errors.As(err, &writeErrs) && len(writeErrs) == 1 && writeErrs[0] != nil {
+			err = writeErrs[0]
+		}
+		if destregistry.IsProxyError(err) {
+			return destregistry.ProxyPublishResult(err, "kafka")
+		}
 		return &destregistry.Delivery{
 				Status: "failed",
 				Code:   ClassifyKafkaError(err),
 				Response: map[string]interface{}{
-					"error": err.Error(),
+					"error": p.responseError(err),
 				},
 			}, destregistry.NewErrDestinationPublishAttempt(err, "kafka", map[string]interface{}{
 				"error":   ClassifyKafkaError(err),
@@ -270,6 +302,21 @@ func (p *KafkaPublisher) Publish(ctx context.Context, event *models.Event) (*des
 		Code:     "OK",
 		Response: map[string]interface{}{},
 	}, nil
+}
+
+// responseError is the customer-visible error. Through a proxy, network
+// errors name the proxy's address, so only broker and TLS errors are kept
+// verbatim.
+func (p *KafkaPublisher) responseError(err error) string {
+	var kafkaErr kafka.Error
+	if !p.proxied || errors.As(err, &kafkaErr) {
+		return err.Error()
+	}
+	code := ClassifyKafkaError(err)
+	if code == "tls_error" {
+		return err.Error()
+	}
+	return fmt.Sprintf("%s connecting to %s", code, p.brokerHosts)
 }
 
 // ClassifyKafkaError returns a descriptive error code based on the error type.
@@ -301,6 +348,23 @@ func ClassifyKafkaError(err error) string {
 }
 
 // Helper functions
+
+// brokerHosts lists the distinct broker hosts, without ports.
+func brokerHosts(brokers []string) string {
+	hosts := make([]string, 0, len(brokers))
+	seen := make(map[string]bool, len(brokers))
+	for _, b := range brokers {
+		host := b
+		if h, _, err := net.SplitHostPort(b); err == nil {
+			host = h
+		}
+		if !seen[host] {
+			seen[host] = true
+			hosts = append(hosts, host)
+		}
+	}
+	return strings.Join(hosts, ",")
+}
 
 func parseBrokers(brokersStr string) []string {
 	if brokersStr == "" {

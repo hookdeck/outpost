@@ -173,9 +173,12 @@ func (c *Config) validatePortal() error {
 	return nil
 }
 
-// validateDestinations fails boot on a malformed webhook proxy chain so a bad
-// hop never reaches the delivery path.
+// validateDestinations fails boot on a malformed proxy chain so a bad hop
+// never reaches the delivery path.
 func (c *Config) validateDestinations() error {
+	if _, err := proxychain.Parse(c.Destinations.ProxyURL); err != nil {
+		return fmt.Errorf("%w: %w", ErrInvalidDestinationsProxyURL, err)
+	}
 	if _, err := proxychain.Parse(c.Destinations.Webhook.ProxyURL); err != nil {
 		return fmt.Errorf("%w: %w", ErrInvalidWebhookProxyURL, err)
 	}

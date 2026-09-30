@@ -11,6 +11,8 @@ import (
 	testsuite "github.com/hookdeck/outpost/internal/destregistry/testing"
 	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/models"
+	"github.com/hookdeck/outpost/internal/proxychain"
+	"github.com/hookdeck/outpost/internal/proxychain/proxychaintest"
 	"github.com/hookdeck/outpost/internal/util/testinfra"
 	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/segmentio/kafka-go"
@@ -127,6 +129,8 @@ func (a *KafkaAsserter) AssertMessage(t testsuite.TestingT, msg testsuite.Messag
 type KafkaPublishSuite struct {
 	testsuite.PublisherSuite
 	consumer *KafkaConsumer
+	// proxied publishes through a two-hop CONNECT proxy chain.
+	proxied bool
 }
 
 func (s *KafkaPublishSuite) SetupSuite() {
@@ -139,7 +143,13 @@ func (s *KafkaPublishSuite) SetupSuite() {
 	// Ensure topic exists by creating it
 	ensureKafkaTopic(t, brokerAddr, topic)
 
-	provider, err := destkafka.New(testutil.Registry.MetadataLoader(), nil)
+	var opts []destkafka.Option
+	if s.proxied {
+		hops, err := proxychain.Parse(proxychaintest.New(t, false).URL + " " + proxychaintest.New(t, false).URL)
+		require.NoError(t, err)
+		opts = append(opts, destkafka.WithProxy(hops))
+	}
+	provider, err := destkafka.New(testutil.Registry.MetadataLoader(), nil, opts...)
 	require.NoError(t, err)
 
 	dest := testutil.DestinationFactory.Any(
@@ -178,6 +188,13 @@ func TestKafkaPublishIntegration(t *testing.T) {
 		t.Skip("Skipping integration test in short mode")
 	}
 	suite.Run(t, new(KafkaPublishSuite))
+}
+
+func TestKafkaPublishThroughProxyIntegration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
+	suite.Run(t, &KafkaPublishSuite{proxied: true})
 }
 
 // TestKafkaPublisher_ConnectionErrors tests that connection errors return a Delivery object alongside the error.

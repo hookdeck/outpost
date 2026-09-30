@@ -129,7 +129,7 @@ func TestDialer_CancelWhileCONNECTUnanswered(t *testing.T) {
 	assert.Less(t, time.Since(start), 2*time.Second)
 }
 
-func TestDialer_HopErrorMarksTargetCONNECT(t *testing.T) {
+func TestDialer_HopErrorOnUnansweredCONNECT(t *testing.T) {
 	t.Parallel()
 	for _, n := range []int{1, 2} {
 		hops := make([]string, n)
@@ -150,7 +150,7 @@ func TestDialer_HopErrorMarksTargetCONNECT(t *testing.T) {
 		cancel()
 		var hopErr *proxychain.HopError
 		require.True(t, errors.As(err, &hopErr), "got %v", err)
-		assert.True(t, hopErr.ToTarget)
+		assert.False(t, hopErr.Handshake)
 		var netErr net.Error
 		assert.True(t, errors.As(err, &netErr) && netErr.Timeout(), "got %v", err)
 	}
