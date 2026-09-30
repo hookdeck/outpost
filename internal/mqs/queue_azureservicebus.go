@@ -30,7 +30,7 @@ type AzureServiceBusConfig struct {
 
 type AzureServiceBusQueue struct {
 	base   *wrappedBaseQueue
-	once   *sync.Once
+	mu     sync.Mutex
 	client *azservicebus.Client
 	config *AzureServiceBusConfig
 	topic  *pubsub.Topic
@@ -39,11 +39,7 @@ type AzureServiceBusQueue struct {
 var _ Queue = &AzureServiceBusQueue{}
 
 func (q *AzureServiceBusQueue) Init(ctx context.Context) (func(), error) {
-	var err error
-	q.once.Do(func() {
-		err = q.InitClient(ctx)
-	})
-	if err != nil {
+	if err := q.ensureClient(ctx); err != nil {
 		return nil, err
 	}
 
@@ -72,11 +68,7 @@ func (q *AzureServiceBusQueue) Publish(ctx context.Context, incomingMessage Inco
 }
 
 func (q *AzureServiceBusQueue) Subscribe(ctx context.Context, opts ...SubscribeOption) (Subscription, error) {
-	var err error
-	q.once.Do(func() {
-		err = q.InitClient(ctx)
-	})
-	if err != nil {
+	if err := q.ensureClient(ctx); err != nil {
 		return nil, err
 	}
 
@@ -102,6 +94,15 @@ func (q *AzureServiceBusQueue) Subscribe(ctx context.Context, opts ...SubscribeO
 	}
 
 	return q.base.Subscribe(ctx, subscription)
+}
+
+func (q *AzureServiceBusQueue) ensureClient(ctx context.Context) error {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if q.client != nil {
+		return nil
+	}
+	return q.InitClient(ctx)
 }
 
 func (q *AzureServiceBusQueue) InitClient(ctx context.Context) error {
@@ -143,10 +144,8 @@ func (q *AzureServiceBusQueue) InitClient(ctx context.Context) error {
 }
 
 func NewAzureServiceBusQueue(config *AzureServiceBusConfig) *AzureServiceBusQueue {
-	var once sync.Once
 	return &AzureServiceBusQueue{
 		config: config,
-		once:   &once,
 		base:   newWrappedBaseQueue(),
 	}
 }

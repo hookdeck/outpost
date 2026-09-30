@@ -14,3 +14,10 @@ func ForceCloseRabbitMQConnection(q Queue) error {
 func RabbitMQConnectionClosed(q Queue) bool {
 	return q.(*RabbitMQQueue).connectionLost()
 }
+
+func AWSQueueURL(q Queue) string {
+	aq := q.(*AWSQueue)
+	aq.mu.Lock()
+	defer aq.mu.Unlock()
+	return aq.sqsQueueURL
+}
