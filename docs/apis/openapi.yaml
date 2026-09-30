@@ -3750,6 +3750,14 @@ components:
           type: string
         DESTINATIONS_INCLUDE_MILLISECOND_TIMESTAMP:
           type: string
+        DESTINATIONS_PROXY_URL:
+          type: string
+          description: >-
+            HTTP forward proxy for webhook, RabbitMQ and Kafka destinations, as a
+            single http(s) URL (e.g., "http://user:pass@proxy.example.com:8080").
+            RabbitMQ and Kafka connections are tunneled with CONNECT, so the proxy
+            must allow CONNECT to the broker ports. Set to an empty string to
+            remove the proxy.
         DESTINATIONS_WEBHOOK_COMPAT_HEADERS:
           type: string
           description: >-
@@ -3805,6 +3813,11 @@ components:
           type: string
         DESTINATIONS_WEBHOOK_PROXY_URL:
           type: string
+          deprecated: true
+          description: >-
+            Deprecated alias of DESTINATIONS_PROXY_URL: reads return the same
+            value and writes set DESTINATIONS_PROXY_URL. A request that changes
+            both keys to different values is rejected.
         DESTINATIONS_WEBHOOK_SIGNATURE_ALGORITHM:
           type: string
         DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE:
