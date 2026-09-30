@@ -163,6 +163,19 @@ func (c *Config) LogConfigurationSummary() []zap.Field {
 	mqType := c.MQs.GetInfraType()
 	fields = append(fields, c.getMQSpecificFields(mqType)...)
 
+	// Effective per-worker supervisor settings (overrides applied).
+	for _, key := range SupervisorWorkerKeys {
+		startup, recovery := c.Supervisor.Effective(key)
+		prefix := "supervisor_" + key + "_"
+		fields = append(fields,
+			zap.Bool(prefix+"restart", c.Supervisor.RestartEnabled(key)),
+			zap.Int(prefix+"startup_max_attempts", startup.MaxAttempts),
+			zap.Int(prefix+"startup_max_duration_seconds", startup.MaxDurationSeconds),
+			zap.Int(prefix+"recovery_max_attempts", recovery.MaxAttempts),
+			zap.Int(prefix+"recovery_max_duration_seconds", recovery.MaxDurationSeconds),
+		)
+	}
+
 	return fields
 }
 

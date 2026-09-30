@@ -1,6 +1,7 @@
 package config_test
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -76,6 +77,108 @@ supervisor:
 			Recovery: worker.Limits{MaxAttempts: -1, MaxDuration: 300 * time.Second},
 		}, p)
 	})
+}
+
+func TestSupervisorConfig_Overrides(t *testing.T) {
+	t.Run("env: override one worker; unset and empty inherit", func(t *testing.T) {
+		cfg := parseSupervisor(t, "", map[string]string{
+			"SUPERVISOR_RESTART_WORKERS":                         "publishmq,deliverymq",
+			"SUPERVISOR_RECOVERY_MAX_DURATION_SECONDS":           "300",
+			"SUPERVISOR_PUBLISHMQ_STARTUP_MAX_ATTEMPTS":          "-1",
+			"SUPERVISOR_PUBLISHMQ_STARTUP_MAX_DURATION_SECONDS":  "",
+			"SUPERVISOR_PUBLISHMQ_RECOVERY_MAX_DURATION_SECONDS": "-1",
+		})
+		p, on := cfg.Supervisor.RestartPolicy(config.SupervisorWorkerPublishMQ)
+		assert.True(t, on)
+		assert.Equal(t, worker.RestartPolicy{
+			Startup:  worker.Limits{MaxAttempts: -1, MaxDuration: -1},
+			Recovery: worker.Limits{MaxAttempts: -1, MaxDuration: -1},
+		}, p)
+
+		p, on = cfg.Supervisor.RestartPolicy(config.SupervisorWorkerDeliveryMQ)
+		assert.True(t, on)
+		assert.Equal(t, worker.RestartPolicy{
+			Startup:  worker.Limits{MaxAttempts: 5, MaxDuration: -1},
+			Recovery: worker.Limits{MaxAttempts: -1, MaxDuration: 300 * time.Second},
+		}, p, "other workers keep the globals")
+	})
+
+	t.Run("yaml", func(t *testing.T) {
+		cfg := parseSupervisor(t, `
+supervisor:
+  restart_workers: [publishmq]
+  startup:
+    max_attempts: 3
+  workers:
+    publishmq:
+      startup:
+        max_duration_seconds: 20
+      recovery:
+        max_attempts: 4
+        max_duration_seconds:
+`, map[string]string{})
+		p, _ := cfg.Supervisor.RestartPolicy(config.SupervisorWorkerPublishMQ)
+		assert.Equal(t, worker.RestartPolicy{
+			Startup:  worker.Limits{MaxAttempts: 3, MaxDuration: 20 * time.Second},
+			Recovery: worker.Limits{MaxAttempts: 4, MaxDuration: 120 * time.Second},
+		}, p)
+	})
+
+	t.Run("overrides for a worker not in the list are ignored", func(t *testing.T) {
+		cfg := parseSupervisor(t, "", map[string]string{
+			"SUPERVISOR_RESTART_WORKERS":              "logmq",
+			"SUPERVISOR_RETRYMQ_STARTUP_MAX_ATTEMPTS": "1",
+		})
+		assert.Equal(t, []string{"logmq"}, enabledWorkers(cfg))
+		c := validConfig()
+		c.Supervisor = cfg.Supervisor
+		require.NoError(t, c.Validate(config.Flags{}))
+	})
+
+	t.Run("env: non-integer override is a parse error", func(t *testing.T) {
+		m := &mockOS{files: map[string][]byte{}, envVars: map[string]string{
+			"SUPERVISOR_PUBLISHMQ_STARTUP_MAX_ATTEMPTS": "five",
+		}}
+		_, err := config.ParseWithoutValidation(config.Flags{}, m)
+		require.Error(t, err)
+	})
+
+	for _, key := range config.SupervisorWorkerKeys {
+		t.Run("each worker/"+key, func(t *testing.T) {
+			prefix := "SUPERVISOR_" + strings.ToUpper(key) + "_"
+			cfg := parseSupervisor(t, "", map[string]string{
+				"SUPERVISOR_RESTART_WORKERS":             strings.Join(config.SupervisorWorkerKeys, ","),
+				"SUPERVISOR_RECOVERY_MAX_ATTEMPTS":       "9",
+				prefix + "STARTUP_MAX_ATTEMPTS":          "1",
+				prefix + "STARTUP_MAX_DURATION_SECONDS":  "2",
+				prefix + "RECOVERY_MAX_DURATION_SECONDS": "-1",
+			})
+			p, _ := cfg.Supervisor.RestartPolicy(key)
+			assert.Equal(t, worker.RestartPolicy{
+				Startup:  worker.Limits{MaxAttempts: 1, MaxDuration: 2 * time.Second},
+				Recovery: worker.Limits{MaxAttempts: 9, MaxDuration: -1},
+			}, p)
+			for _, other := range config.SupervisorWorkerKeys {
+				if other == key {
+					continue
+				}
+				op, _ := cfg.Supervisor.RestartPolicy(other)
+				assert.Equal(t, 5, op.Startup.MaxAttempts, other)
+				assert.Equal(t, 120*time.Second, op.Recovery.MaxDuration, other)
+			}
+
+			cfg = parseSupervisor(t, "supervisor:\n  workers:\n    "+key+":\n      recovery:\n        max_attempts: 4\n", map[string]string{})
+			p, _ = cfg.Supervisor.RestartPolicy(key)
+			assert.Equal(t, 4, p.Recovery.MaxAttempts)
+
+			parsed := parseSupervisor(t, "", map[string]string{prefix + "RECOVERY_MAX_ATTEMPTS": "-3"})
+			c := validConfig()
+			c.Supervisor = parsed.Supervisor
+			err := c.Validate(config.Flags{})
+			require.ErrorIs(t, err, config.ErrInvalidSupervisorLimit)
+			assert.Contains(t, err.Error(), "supervisor.workers."+key+".recovery.max_attempts")
+		})
+	}
 }
 
 func TestSupervisorConfig_RestartWorkers(t *testing.T) {
