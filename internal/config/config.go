@@ -167,6 +167,15 @@ func (c *Config) InitDefaults() {
 			LogTopic:             "outpost-log",
 			LogSubscription:      "outpost-log-sub",
 		},
+		NATS: NATSConfig{
+			// Subjects must be prefixed with the stream name (JetStream
+			// requires it, see mqinfra.Declare's "<stream>.>" wildcard), so
+			// these can't reuse the plain "outpost-delivery"/"outpost-log"
+			// names the other providers default to.
+			Stream:          "outpost",
+			DeliverySubject: "outpost.delivery",
+			LogSubject:      "outpost.log",
+		},
 	}
 	c.PublishMaxConcurrency = 1
 	c.DeliveryMaxConcurrency = 1

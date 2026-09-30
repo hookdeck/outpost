@@ -40,6 +40,13 @@ func (infra *infraNATS) durableName() string {
 	return sanitizeName(infra.cfg.NATS.Subject) + "-consumer"
 }
 
+// dlqDurableName names the DLQ stream's own consumer — without one, an
+// exhausted message can be moved into the DLQ stream but never read back
+// out through the normal Queue interface, unlike RabbitMQ/SQS's DLQs.
+func (infra *infraNATS) dlqDurableName() string {
+	return sanitizeName(infra.dlqSubject()) + "-consumer"
+}
+
 func (infra *infraNATS) connect() (*nats.Conn, jetstream.JetStream, error) {
 	nc, err := nats.Connect(infra.cfg.NATS.ServerURL)
 	if err != nil {
@@ -86,11 +93,26 @@ func (infra *infraNATS) Exist(ctx context.Context) (bool, error) {
 		return false, err
 	}
 
+	if _, err := js.Consumer(ctx, dlqStream, infra.dlqDurableName()); err != nil {
+		if errors.Is(err, jetstream.ErrConsumerNotFound) {
+			return false, nil
+		}
+		return false, err
+	}
+
 	return true, nil
 }
 
 func (infra *infraNATS) dlqStreamName() string {
-	return sanitizeName(infra.dlqSubject())
+	return DefaultNATSDLQStreamName(infra.dlqSubject())
+}
+
+// DefaultNATSDLQStreamName derives the DLQ stream's name from its subject —
+// exported so callers that need to subscribe directly to the DLQ (e.g.
+// tests verifying an exhausted message actually lands there) can name it
+// the same way Declare does, without duplicating the sanitization rule.
+func DefaultNATSDLQStreamName(dlqSubject string) string {
+	return sanitizeName(dlqSubject)
 }
 
 func (infra *infraNATS) Declare(ctx context.Context) error {
@@ -128,9 +150,12 @@ func (infra *infraNATS) Declare(ctx context.Context) error {
 		return err
 	}
 
-	maxDeliver := infra.cfg.Policy.RetryLimit
-	if maxDeliver <= 0 {
-		maxDeliver = 5
+	// Adding 1 because JetStream's NumDelivered counts the initial delivery
+	// as attempt #1, matching the AWS SQS/Azure/GCP providers' own +1
+	// handling of RetryLimit (e.g. SQS's maxReceiveCount).
+	maxDeliver := 5
+	if infra.cfg.Policy.RetryLimit > 0 {
+		maxDeliver = infra.cfg.Policy.RetryLimit + 1
 	}
 
 	if _, err := js.CreateOrUpdateConsumer(ctx, infra.cfg.NATS.Stream, jetstream.ConsumerConfig{
@@ -139,6 +164,19 @@ func (infra *infraNATS) Declare(ctx context.Context) error {
 		AckPolicy:     jetstream.AckExplicitPolicy,
 		AckWait:       60 * time.Second,
 		MaxDeliver:    maxDeliver,
+	}); err != nil {
+		return err
+	}
+
+	// A consumer on the DLQ stream too, so a moved message can actually be
+	// read back out (via the same Queue interface, e.g. for reprocessing or
+	// this provider's own DLQ test) instead of only being inspectable
+	// through raw stream tooling.
+	if _, err := js.CreateOrUpdateConsumer(ctx, infra.dlqStreamName(), jetstream.ConsumerConfig{
+		Durable:       infra.dlqDurableName(),
+		FilterSubject: dlq,
+		AckPolicy:     jetstream.AckExplicitPolicy,
+		AckWait:       60 * time.Second,
 	}); err != nil {
 		return err
 	}

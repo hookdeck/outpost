@@ -204,6 +204,15 @@ func (c *Config) getMQSpecificFields(mqType string) []zap.Field {
 			zap.String("azure_log_topic", c.MQs.AzureServiceBus.LogTopic),
 			zap.String("azure_log_subscription", c.MQs.AzureServiceBus.LogSubscription),
 		}
+	case "nats":
+		return []zap.Field{
+			zap.String("nats_url", maskURL(c.MQs.NATS.ServerURL)),
+			zap.String("nats_stream", c.MQs.NATS.Stream),
+			zap.String("nats_delivery_subject", c.MQs.NATS.DeliverySubject),
+			zap.String("nats_log_subject", c.MQs.NATS.LogSubject),
+			zap.String("nats_delivery_dlq", c.MQs.NATS.getDLQSubject("deliverymq")),
+			zap.String("nats_log_dlq", c.MQs.NATS.getDLQSubject("logmq")),
+		}
 	default:
 		return []zap.Field{}
 	}

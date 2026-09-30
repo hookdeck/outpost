@@ -143,4 +143,4 @@ JetStream's equivalent is `AckWait` — the time a delivered-but-unacked message
 
 **Retry Behavior**:
 
-**When a message is nacked, it's redelivered after `AckWait` elapses.** Unlike RabbitMQ/SQS, JetStream has no broker-native DLQ — once a message's delivery count exceeds the configured retry limit, Outpost explicitly republishes it to the DLQ subject and terminates the original.
+**When a message is nacked, it's redelivered immediately** — `Nak()` carries no delay, unlike a message that simply times out waiting for `AckWait`. Unlike RabbitMQ/SQS, JetStream has no broker-native DLQ — once a message's delivery count reaches the configured retry limit, Outpost explicitly republishes it to the DLQ subject and terminates the original.

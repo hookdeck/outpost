@@ -2,6 +2,8 @@ package config
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/hookdeck/outpost/internal/mqinfra"
@@ -13,8 +15,8 @@ type NATSConfig struct {
 	Stream          string `yaml:"stream" env:"NATS_STREAM" desc:"Name of the JetStream stream to use." required:"N"`
 	DeliverySubject string `yaml:"delivery_subject" env:"NATS_DELIVERY_SUBJECT" desc:"Subject for delivery events." required:"N"`
 	LogSubject      string `yaml:"log_subject" env:"NATS_LOG_SUBJECT" desc:"Subject for log events." required:"N"`
-	DeliveryDLQ     string `yaml:"delivery_dlq" env:"NATS_DELIVERY_DLQ" desc:"Subject for delivery messages that exhaust all delivery attempts. Optional; defaults to '<delivery_subject>.dlq' if unset." required:"N"`
-	LogDLQ          string `yaml:"log_dlq" env:"NATS_LOG_DLQ" desc:"Subject for log messages that exhaust all delivery attempts. Optional; defaults to '<log_subject>.dlq' if unset." required:"N"`
+	DeliveryDLQ     string `yaml:"delivery_dlq" env:"NATS_DELIVERY_DLQ" desc:"Subject for delivery messages that exhaust all delivery attempts. Optional; defaults to 'dlq.<delivery_subject>' if unset." required:"N"`
+	LogDLQ          string `yaml:"log_dlq" env:"NATS_LOG_DLQ" desc:"Subject for log messages that exhaust all delivery attempts. Optional; defaults to 'dlq.<log_subject>' if unset." required:"N"`
 }
 
 func (c *NATSConfig) getSubject(queueType string) string {
@@ -59,11 +61,28 @@ func (c *NATSConfig) ToInfraConfig(queueType string) *mqinfra.MQInfraConfig {
 }
 
 func (c *NATSConfig) ToQueueConfig(ctx context.Context, queueType string) (*mqs.QueueConfig, error) {
+	if c.Stream == "" {
+		return nil, fmt.Errorf("nats: stream name is required")
+	}
+	subject := c.getSubject(queueType)
+	if subject == "" {
+		return nil, fmt.Errorf("nats: subject is required for %s", queueType)
+	}
+	// The main stream only claims subjects under "<stream>.>" (see
+	// mqinfra.Declare), so a subject without that prefix lets stream
+	// creation succeed while every publish then fails with "no response
+	// from stream" — a much harder failure to diagnose than rejecting it
+	// up front here.
+	prefix := c.Stream + "."
+	if !strings.HasPrefix(subject, prefix) {
+		return nil, fmt.Errorf("nats: subject %q must start with the stream name prefix %q", subject, prefix)
+	}
+
 	return &mqs.QueueConfig{
 		NATS: &mqs.NATSConfig{
 			ServerURL:  c.ServerURL,
 			Stream:     c.Stream,
-			Subject:    c.getSubject(queueType),
+			Subject:    subject,
 			DLQSubject: c.getDLQSubject(queueType),
 			AckWait:    60 * time.Second,
 		},
