@@ -307,6 +307,24 @@ func TestMisc(t *testing.T) {
 			wantErr: config.ErrInvalidWebhookProxyURL,
 		},
 		{
+			name: "destinations proxy chain is valid",
+			config: func() *config.Config {
+				c := validConfig()
+				c.Destinations.ProxyURL = "http://user:pass@a:10000 https://b:8443"
+				return c
+			}(),
+			wantErr: nil,
+		},
+		{
+			name: "invalid destinations proxy url",
+			config: func() *config.Config {
+				c := validConfig()
+				c.Destinations.ProxyURL = "http://a:10000 socks5://b:1080"
+				return c
+			}(),
+			wantErr: config.ErrInvalidDestinationsProxyURL,
+		},
+		{
 			name: "publish proxy chain is valid",
 			config: func() *config.Config {
 				c := validConfig()

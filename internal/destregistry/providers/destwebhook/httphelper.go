@@ -26,7 +26,7 @@ type HTTPRequestResult struct {
 // Most errors return a Delivery object with a classified error code so the
 // caller can record a failed attempt.
 //
-// Proxy *infrastructure* errors (ErrProxyInfra) return Delivery: nil so the
+// Proxy *infrastructure* errors (destregistry.ErrProxyInfra) return Delivery: nil so the
 // caller signals the queue to nack the message instead of recording a
 // customer-visible attempt. See registry.go for the nil-attempt handling.
 //
@@ -39,7 +39,7 @@ func ExecuteHTTPRequest(ctx context.Context, client *http.Client, req *http.Requ
 	if err != nil {
 		// Proxy infrastructure error: nack via nil Delivery so the customer's
 		// retry budget is not charged for our infra outage.
-		var infraErr *ErrProxyInfra
+		var infraErr *destregistry.ErrProxyInfra
 		if errors.As(err, &infraErr) {
 			return &HTTPRequestResult{
 				Delivery: nil,
@@ -54,7 +54,7 @@ func ExecuteHTTPRequest(ctx context.Context, client *http.Client, req *http.Requ
 		// Proxy-attributed destination error: use the explicit Code instead of
 		// substring-matching the underlying error.
 		var code string
-		var destErr *ErrProxyDestination
+		var destErr *destregistry.ErrProxyDestination
 		if errors.As(err, &destErr) {
 			code = destErr.Code
 		} else {

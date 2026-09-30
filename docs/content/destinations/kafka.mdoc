@@ -133,3 +133,7 @@ TLS is enabled by default. Set `config.tls` to `"false"` to connect without TLS 
   }
 }
 ```
+
+## Forward Proxy
+
+Self-hosted deployments can route Kafka broker connections through an HTTP `CONNECT` forward proxy by setting `DESTINATIONS_PROXY_URL`, e.g. for static-IP egress to brokers that allowlist source IPs. TLS runs end to end through the tunnel. See [Webhook Forward Proxy](/docs/outpost/self-hosting/guides/webhook-proxy#other-destination-types).

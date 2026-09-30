@@ -6,6 +6,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -67,6 +68,21 @@ func (e *ConnectError) Error() string {
 	return fmt.Sprintf("proxy %s returned %d for CONNECT %s", e.Hop, e.Status, e.Next)
 }
 
+// HopError is a failure talking to a proxy hop other than a refused
+// CONNECT. Handshake reports a failed TLS handshake with the hop; otherwise
+// a CONNECT through the hop failed or went unanswered.
+type HopError struct {
+	Hop       string
+	Handshake bool
+	Err       error
+}
+
+func (e *HopError) Error() string {
+	return fmt.Sprintf("proxy %s: %v", e.Hop, e.Err)
+}
+
+func (e *HopError) Unwrap() error { return e.Err }
+
 // DialFunc matches http.Transport.DialContext.
 type DialFunc func(ctx context.Context, network, addr string) (net.Conn, error)
 
@@ -100,7 +116,7 @@ func (d *Dialer) DialContext(ctx context.Context, network, addr string) (net.Con
 	}
 	if first.Scheme == "https" {
 		if conn, err = d.wrapTLS(ctx, conn, first.Hostname()); err != nil {
-			return nil, err
+			return nil, &HopError{Hop: Redact(first), Handshake: true, Err: err}
 		}
 	}
 
@@ -113,11 +129,15 @@ func (d *Dialer) DialContext(ctx context.Context, network, addr string) (net.Con
 		}
 		if err := connectThrough(ctx, conn, hop, nextAddr); err != nil {
 			conn.Close()
-			return nil, err
+			var connectErr *ConnectError
+			if errors.As(err, &connectErr) {
+				return nil, err
+			}
+			return nil, &HopError{Hop: Redact(hop), Err: err}
 		}
 		if next != nil && next.Scheme == "https" {
 			if conn, err = d.wrapTLS(ctx, conn, next.Hostname()); err != nil {
-				return nil, err
+				return nil, &HopError{Hop: Redact(next), Handshake: true, Err: err}
 			}
 		}
 	}
@@ -163,12 +183,13 @@ func connectThrough(ctx context.Context, conn net.Conn, hop *url.URL, target str
 
 	if deadline, ok := ctx.Deadline(); ok {
 		_ = conn.SetDeadline(deadline)
-		defer func() { _ = conn.SetDeadline(time.Time{}) }()
 	}
-	if err := req.Write(conn); err != nil {
-		return err
+	stop := context.AfterFunc(ctx, func() { _ = conn.SetDeadline(time.Now()) })
+	resp, err := roundTripConnect(conn, req)
+	if !stop() || (err != nil && ctx.Err() != nil) {
+		return ctx.Err()
 	}
-	resp, err := http.ReadResponse(bufio.NewReader(conn), req)
+	_ = conn.SetDeadline(time.Time{})
 	if err != nil {
 		return err
 	}
@@ -182,6 +203,13 @@ func connectThrough(ctx context.Context, conn net.Conn, hop *url.URL, target str
 		}
 	}
 	return nil
+}
+
+func roundTripConnect(conn net.Conn, req *http.Request) (*http.Response, error) {
+	if err := req.Write(conn); err != nil {
+		return nil, err
+	}
+	return http.ReadResponse(bufio.NewReader(conn), req)
 }
 
 // proxyHostPort returns host:port for a hop, defaulting the port by scheme

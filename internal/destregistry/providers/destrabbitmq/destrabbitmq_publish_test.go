@@ -8,6 +8,8 @@ import (
 	testsuite "github.com/hookdeck/outpost/internal/destregistry/testing"
 	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/models"
+	"github.com/hookdeck/outpost/internal/proxychain"
+	"github.com/hookdeck/outpost/internal/proxychain/proxychaintest"
 	"github.com/hookdeck/outpost/internal/util/testinfra"
 	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/rabbitmq/amqp091-go"
@@ -162,6 +164,8 @@ func (a *RabbitMQAsserter) AssertMessage(t testsuite.TestingT, msg testsuite.Mes
 type RabbitMQPublishSuite struct {
 	testsuite.PublisherSuite
 	consumer *RabbitMQConsumer
+	// proxied publishes through a two-hop CONNECT proxy chain.
+	proxied bool
 }
 
 func (s *RabbitMQPublishSuite) SetupSuite() {
@@ -170,7 +174,13 @@ func (s *RabbitMQPublishSuite) SetupSuite() {
 	rabbitURL := testinfra.EnsureRabbitMQ()
 	exchange := idgen.String()
 
-	provider, err := destrabbitmq.New(testutil.Registry.MetadataLoader(), nil)
+	var opts []destrabbitmq.Option
+	if s.proxied {
+		hops, err := proxychain.Parse(proxychaintest.New(t, false).URL + " " + proxychaintest.New(t, false).URL)
+		require.NoError(t, err)
+		opts = append(opts, destrabbitmq.WithProxy(hops))
+	}
+	provider, err := destrabbitmq.New(testutil.Registry.MetadataLoader(), nil, opts...)
 	require.NoError(t, err)
 
 	dest := testutil.DestinationFactory.Any(
@@ -209,6 +219,13 @@ func TestRabbitMQPublishIntegration(t *testing.T) {
 		t.Skip("Skipping integration test in short mode")
 	}
 	suite.Run(t, new(RabbitMQPublishSuite))
+}
+
+func TestRabbitMQPublishThroughProxyIntegration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
+	suite.Run(t, &RabbitMQPublishSuite{proxied: true})
 }
 
 // Helper functions

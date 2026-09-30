@@ -66,7 +66,7 @@ func TestProxyTransport_ConnectAuthFailure_ReturnsInfraError(t *testing.T) {
 	_, err := client.Get("https://example.invalid/")
 	require.Error(t, err)
 
-	var infraErr *destwebhook.ErrProxyInfra
+	var infraErr *destregistry.ErrProxyInfra
 	require.True(t, errors.As(err, &infraErr),
 		"expected ErrProxyInfra for proxy 407, got: %v", err)
 	assert.Equal(t, "example.invalid", infraErr.DestHost)
@@ -83,14 +83,14 @@ func TestProxyTransport_ConnectBadGateway_ReturnsDestinationError(t *testing.T) 
 	_, err := client.Get("https://example.invalid/")
 	require.Error(t, err)
 
-	var destErr *destwebhook.ErrProxyDestination
+	var destErr *destregistry.ErrProxyDestination
 	require.True(t, errors.As(err, &destErr),
 		"expected ErrProxyDestination for proxy 502, got: %v", err)
 	assert.Equal(t, "connection_refused", destErr.Code)
 	assert.Equal(t, "example.invalid", destErr.DestHost)
 
 	// Must not be ErrProxyInfra (would cause incorrect nack).
-	var infraErr *destwebhook.ErrProxyInfra
+	var infraErr *destregistry.ErrProxyInfra
 	assert.False(t, errors.As(err, &infraErr),
 		"5xx from proxy must not be infra error")
 }
@@ -106,7 +106,7 @@ func TestProxyTransport_ConnectServiceUnavailable_ReturnsDestinationError(t *tes
 	_, err := client.Get("https://example.invalid/")
 	require.Error(t, err)
 
-	var destErr *destwebhook.ErrProxyDestination
+	var destErr *destregistry.ErrProxyDestination
 	require.True(t, errors.As(err, &destErr),
 		"expected ErrProxyDestination for proxy 503, got: %v", err)
 	assert.Equal(t, "connection_refused", destErr.Code)
@@ -128,7 +128,7 @@ func TestProxyTransport_ProxyUnreachable_ReturnsInfraError(t *testing.T) {
 	_, err := client.Get("https://example.invalid/")
 	require.Error(t, err)
 
-	var infraErr *destwebhook.ErrProxyInfra
+	var infraErr *destregistry.ErrProxyInfra
 	require.True(t, errors.As(err, &infraErr),
 		"expected ErrProxyInfra when proxy is unreachable, got: %v", err)
 }
@@ -194,7 +194,7 @@ func TestProxyTransport_ErrProxyInfra_DoesNotLeakProxyDetails(t *testing.T) {
 	_, err := client.Get("https://example.invalid/")
 	require.Error(t, err)
 
-	var infraErr *destwebhook.ErrProxyInfra
+	var infraErr *destregistry.ErrProxyInfra
 	require.True(t, errors.As(err, &infraErr))
 
 	// Sanitized message must not contain the proxy host/port.
@@ -230,7 +230,7 @@ func TestProxyTransport_EnvoySynthesizedResponse_UF_ReturnsConnectionRefused(t *
 	_, err := client.Get("http://example.invalid/hook")
 	require.Error(t, err)
 
-	var destErr *destwebhook.ErrProxyDestination
+	var destErr *destregistry.ErrProxyDestination
 	require.True(t, errors.As(err, &destErr),
 		"expected ErrProxyDestination for envoy UF flag, got: %v", err)
 	assert.Equal(t, "connection_refused", destErr.Code)
@@ -247,7 +247,7 @@ func TestProxyTransport_EnvoySynthesizedResponse_UT_ReturnsTimeout(t *testing.T)
 	_, err := client.Get("http://example.invalid/hook")
 	require.Error(t, err)
 
-	var destErr *destwebhook.ErrProxyDestination
+	var destErr *destregistry.ErrProxyDestination
 	require.True(t, errors.As(err, &destErr))
 	assert.Equal(t, "timeout", destErr.Code)
 }
@@ -262,7 +262,7 @@ func TestProxyTransport_EnvoySynthesizedResponse_DF_ReturnsDNSError(t *testing.T
 	_, err := client.Get("http://example.invalid/hook")
 	require.Error(t, err)
 
-	var destErr *destwebhook.ErrProxyDestination
+	var destErr *destregistry.ErrProxyDestination
 	require.True(t, errors.As(err, &destErr))
 	assert.Equal(t, "dns_error", destErr.Code)
 	assert.Equal(t, "DF", destErr.Diagnostics["envoy_flag"], "envoy_flag captured for operator diagnostics")
@@ -281,7 +281,7 @@ func TestProxyTransport_EnvoySynthesizedResponse_UC_ReturnsConnectionReset(t *te
 	_, err := client.Get("http://example.invalid/hook")
 	require.Error(t, err)
 
-	var destErr *destwebhook.ErrProxyDestination
+	var destErr *destregistry.ErrProxyDestination
 	require.True(t, errors.As(err, &destErr))
 	assert.Equal(t, "connection_reset", destErr.Code)
 	assert.Equal(t, "UC", destErr.Diagnostics["envoy_flag"])
@@ -356,7 +356,7 @@ func TestProxyTransport_EnvoyConnectFlag_RefinesInfraErrorCode(t *testing.T) {
 	_, err := client.Get("https://example.invalid/")
 	require.Error(t, err)
 
-	var destErr *destwebhook.ErrProxyDestination
+	var destErr *destregistry.ErrProxyDestination
 	require.True(t, errors.As(err, &destErr),
 		"expected ErrProxyDestination, got: %v", err)
 	assert.Equal(t, "dns_error", destErr.Code,
@@ -387,7 +387,7 @@ func TestMapEnvoyResponseFlag(t *testing.T) {
 	for flag, want := range cases {
 		t.Run(flag, func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, want, destwebhook.MapEnvoyResponseFlag(flag))
+			assert.Equal(t, want, destregistry.MapEnvoyResponseFlag(flag))
 		})
 	}
 }
@@ -405,7 +405,7 @@ func TestProxyTransport_Chain_IntermediateHopAuthFailure_ReturnsInfraError(t *te
 	_, err := client.Get("https://example.invalid/")
 	require.Error(t, err)
 
-	var infraErr *destwebhook.ErrProxyInfra
+	var infraErr *destregistry.ErrProxyInfra
 	require.True(t, errors.As(err, &infraErr), "got %v", err)
 	assert.Equal(t, "next-hop.invalid", infraErr.DestHost)
 }
@@ -421,7 +421,7 @@ func TestProxyTransport_Chain_IntermediateHopUpstreamFailure_ReturnsDestinationE
 	_, err := client.Get("https://example.invalid/")
 	require.Error(t, err)
 
-	var destErr *destwebhook.ErrProxyDestination
+	var destErr *destregistry.ErrProxyDestination
 	require.True(t, errors.As(err, &destErr), "got %v", err)
 	assert.Equal(t, "connection_refused", destErr.Code)
 	assert.Equal(t, "next-hop.invalid", destErr.DestHost, "attributed to the hop that could not be reached")
@@ -438,7 +438,7 @@ func TestProxyTransport_Chain_IntermediateHopUnreachable_ReturnsInfraError(t *te
 	_, err := client.Get("https://example.invalid/")
 	require.Error(t, err)
 
-	var infraErr *destwebhook.ErrProxyInfra
+	var infraErr *destregistry.ErrProxyInfra
 	require.True(t, errors.As(err, &infraErr), "got %v", err)
 }
 
@@ -461,7 +461,7 @@ func TestProxyTransport_ConnectRBACDenied_ReturnsNetworkUnreachable(t *testing.T
 			_, err := client.Get("https://example.invalid/")
 			require.Error(t, err)
 
-			var destErr *destwebhook.ErrProxyDestination
+			var destErr *destregistry.ErrProxyDestination
 			require.True(t, errors.As(err, &destErr), "got %v", err)
 			assert.Equal(t, "network_unreachable", destErr.Code)
 			assert.Equal(t, tc.dest, destErr.DestHost)
@@ -475,6 +475,6 @@ func TestProxyTransport_ConnectForbiddenWithoutRBACDetail_StaysInfra(t *testing.
 	client := makeProxiedClient(t, hop0.URL)
 	_, err := client.Get("https://example.invalid/")
 	require.Error(t, err)
-	var infraErr *destwebhook.ErrProxyInfra
+	var infraErr *destregistry.ErrProxyInfra
 	require.True(t, errors.As(err, &infraErr), "got %v", err)
 }

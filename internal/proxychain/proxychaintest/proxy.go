@@ -128,3 +128,48 @@ func HostOf(rawURL string) string {
 	u, _ := url.Parse(rawURL)
 	return u.Host
 }
+
+// FirstBytes starts a TCP server that reports the first n bytes the client
+// sends on the first connection that sends them (a protocol header, a TLS
+// ClientHello), then hangs up. Closed on test cleanup.
+func FirstBytes(t *testing.T, n int) (string, <-chan []byte) {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("proxychaintest: listen: %v", err)
+	}
+	t.Cleanup(func() { ln.Close() })
+	got := make(chan []byte, 1)
+	go func() {
+		for {
+			conn, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			go func() {
+				defer conn.Close()
+				_ = conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+				buf := make([]byte, n)
+				if _, err := io.ReadFull(conn, buf); err == nil {
+					select {
+					case got <- buf:
+					default:
+					}
+				}
+			}()
+		}
+	}()
+	return ln.Addr().String(), got
+}
+
+// ClosedAddr returns a local address nothing listens on.
+func ClosedAddr(t *testing.T) string {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("proxychaintest: listen: %v", err)
+	}
+	addr := ln.Addr().String()
+	ln.Close()
+	return addr
+}

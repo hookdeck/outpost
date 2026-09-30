@@ -57,8 +57,12 @@ type DestAWSKinesisConfig struct {
 type RegisterDefaultDestinationOptions struct {
 	UserAgent                   string
 	IncludeMillisecondTimestamp bool
-	Webhook                     *DestWebhookConfig
-	AWSKinesis                  *DestAWSKinesisConfig
+	// ProxyURL is the forward proxy chain for RabbitMQ and Kafka. Webhooks
+	// use Webhook.ProxyURL only; the config layer resolves its fallback to
+	// this value.
+	ProxyURL   string
+	Webhook    *DestWebhookConfig
+	AWSKinesis *DestAWSKinesisConfig
 
 	// DeliveryMaxConcurrency is the delivery worker pool size. It bounds how
 	// many deliveries can be in flight, and therefore how many connections a
@@ -93,9 +97,14 @@ func RegisterDefault(registry destregistry.Registry, opts RegisterDefaultDestina
 		}
 	}
 
-	var proxy []*url.URL
+	proxy, err := proxychain.Parse(opts.ProxyURL)
+	if err != nil {
+		return fmt.Errorf("destinations proxy: %w", err)
+	}
+
+	var webhookProxy []*url.URL
 	if opts.Webhook != nil {
-		proxy, err = proxychain.Parse(opts.Webhook.ProxyURL)
+		webhookProxy, err = proxychain.Parse(opts.Webhook.ProxyURL)
 		if err != nil {
 			return fmt.Errorf("webhook proxy: %w", err)
 		}
@@ -108,7 +117,7 @@ func RegisterDefault(registry destregistry.Registry, opts RegisterDefaultDestina
 	}
 	if opts.Webhook != nil {
 		webhookOpts = append(webhookOpts,
-			destwebhook.WithProxy(proxy),
+			destwebhook.WithProxy(webhookProxy),
 			destwebhook.WithHeaderPrefix(opts.Webhook.HeaderPrefix),
 			destwebhook.WithEventIDHeader(opts.Webhook.EventIDHeader.Name, opts.Webhook.EventIDHeader.Disabled),
 			destwebhook.WithSignatureHeader(opts.Webhook.SignatureHeader.Name, opts.Webhook.SignatureHeader.Disabled),
@@ -179,13 +188,13 @@ func RegisterDefault(registry destregistry.Registry, opts RegisterDefaultDestina
 	}
 	registry.RegisterProvider("azure_servicebus", azureServiceBus)
 
-	rabbitmq, err := destrabbitmq.New(loader, basePublisherOpts)
+	rabbitmq, err := destrabbitmq.New(loader, basePublisherOpts, destrabbitmq.WithProxy(proxy))
 	if err != nil {
 		return err
 	}
 	registry.RegisterProvider("rabbitmq", rabbitmq)
 
-	kafkaDest, err := destkafka.New(loader, basePublisherOpts)
+	kafkaDest, err := destkafka.New(loader, basePublisherOpts, destkafka.WithProxy(proxy))
 	if err != nil {
 		return err
 	}
