@@ -113,4 +113,13 @@ rabbitmqadmin declare binding source=events destination=order-events routing_key
 
 ## Forward Proxy
 
-Self-hosted deployments can route RabbitMQ connections through an HTTP `CONNECT` forward proxy by setting `DESTINATIONS_PROXY_URL`, e.g. for static-IP egress to brokers that allowlist source IPs. TLS runs end to end through the tunnel. See [Webhook Forward Proxy](/docs/outpost/self-hosting/guides/webhook-proxy#other-destination-types).
+RabbitMQ connections can be routed through an HTTP `CONNECT` forward proxy, e.g. for static-IP egress to brokers that allowlist source IPs. TLS runs end to end through the tunnel. The proxy must allow `CONNECT` to the broker's port; many proxies allow `CONNECT` only to port 443 by default.
+
+{% tabs tabGroup="deployment" %}
+{% tab label="Managed" %}
+Set the Proxy URL in [Hookdeck Destinations settings](https://dashboard.hookdeck.com/settings/project/destinations), or `DESTINATIONS_PROXY_URL` via the [Config API](/docs/outpost/api#configuration). The same proxy also carries webhook and Kafka destinations.
+{% /tab %}
+{% tab label="Self-Hosted" %}
+Set `DESTINATIONS_PROXY_URL`. See [Webhook Forward Proxy](/docs/outpost/self-hosting/guides/webhook-proxy#other-destination-types).
+{% /tab %}
+{% /tabs %}
