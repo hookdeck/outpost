@@ -2,21 +2,17 @@
 
 [Amazon EventBridge](https://aws.amazon.com/eventbridge/) is a serverless event bus that lets you route events between your own applications, AWS services, and third-party SaaS applications using rules that you configure.
 
-Each Outpost event is published as a single EventBridge entry:
-
-- **Source** is fixed for the whole Outpost deployment (set via the `DESTINATIONS_AWS_EVENTBRIDGE_SOURCE` server config, defaulting to `outpost`), not configured per destination.
-- **DetailType** is the event's topic.
-- **Detail** is a JSON object containing `metadata` (the same event metadata included with every Outpost destination) and `data` (the event payload).
-
 ## How to configure AWS EventBridge as an event destination using the AWS CLI
 
 To follow these steps you will need an AWS account, and the [AWS CLI](https://aws.amazon.com/cli/) installed and authenticated.
 
-1. Create an event bus if you don't want to use the account's default bus (optional)
+1. Create an event bus (optional)
 
     ```sh
     aws events create-event-bus --name BUSNAME --region REGION
     ```
+
+    Skip this step to use your account's default event bus, and use `default` as BUSNAME in the next step.
 
 2. Create a policy with the permissions needed to publish events
 
@@ -55,4 +51,4 @@ To follow these steps you will need an AWS account, and the [AWS CLI](https://aw
 
 6. Configure your AWS EventBridge Event Destination
 
-    Use the Access Key and Access Secret created in step 5, along with your event bus name (or leave it empty to use the account's default event bus) and region, to configure your AWS EventBridge Event Destination.
+    Use the Access Key ID and Secret Access Key created in step 5, along with your region and event bus name, to configure your AWS EventBridge Event Destination. Leave the event bus name empty to use the default event bus.
