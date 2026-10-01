@@ -630,5 +630,59 @@ func testCursorValidation(t *testing.T, ctx context.Context, logStore driver.Log
 			require.NoError(t, err)
 			require.NotEmpty(t, page2.Data)
 		})
+
+		// A cursor holds a position and nothing about the query it came from.
+		// The store does not reject a cursor reused with another sort order or
+		// filter: it lists from that position with the new parameters.
+		attemptIDs := func(res driver.ListAttemptResponse) []string {
+			ids := make([]string, len(res.Data))
+			for i, record := range res.Data {
+				ids[i] = record.Attempt.ID
+			}
+			return ids
+		}
+
+		t.Run("cursor of another sort order lists from its position in the requested order", func(t *testing.T) {
+			page1, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
+				TenantIDs:  []string{tenantID},
+				SortOrder:  "desc",
+				TimeFilter: driver.TimeFilter{GTE: &startTime},
+				Limit:      2,
+			})
+			require.NoError(t, err)
+			require.Equal(t, []string{"cursor_del_4", "cursor_del_3"}, attemptIDs(page1))
+
+			res, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
+				TenantIDs:  []string{tenantID},
+				SortOrder:  "asc",
+				Next:       page1.Next,
+				TimeFilter: driver.TimeFilter{GTE: &startTime},
+				Limit:      2,
+			})
+			require.NoError(t, err)
+			assert.Equal(t, []string{"cursor_del_4"}, attemptIDs(res))
+		})
+
+		t.Run("cursor of another filter lists from its position with the requested filter", func(t *testing.T) {
+			page1, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
+				TenantIDs:  []string{tenantID},
+				SortOrder:  "desc",
+				TimeFilter: driver.TimeFilter{GTE: &startTime},
+				Limit:      2,
+			})
+			require.NoError(t, err)
+			require.Equal(t, []string{"cursor_del_4", "cursor_del_3"}, attemptIDs(page1))
+
+			res, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
+				TenantIDs:  []string{tenantID},
+				EventIDs:   []string{"cursor_evt_0", "cursor_evt_4"},
+				SortOrder:  "desc",
+				Next:       page1.Next,
+				TimeFilter: driver.TimeFilter{GTE: &startTime},
+				Limit:      2,
+			})
+			require.NoError(t, err)
+			assert.Equal(t, []string{"cursor_del_0"}, attemptIDs(res))
+		})
 	})
 }

@@ -1,13 +1,19 @@
 package apirouter_test
 
 import (
+	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"testing"
+	"time"
 
+	"github.com/hookdeck/outpost/internal/apirouter"
 	"github.com/hookdeck/outpost/internal/cursor"
+	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/util/testutil"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -73,6 +79,119 @@ func TestAPI_InvalidCursorReturns400(t *testing.T) {
 					})
 				}
 			}
+		})
+	}
+}
+
+// An empty next or prev is the same as none: the list starts from its first page.
+func TestAPI_EmptyCursorIsNoCursor(t *testing.T) {
+	paths := []string{
+		"/api/v1/tenants",
+		"/api/v1/events",
+		"/api/v1/attempts",
+		"/api/v1/tenants/t1/destinations/d1/attempts",
+	}
+
+	for _, path := range paths {
+		for _, query := range []string{"next=", "prev=", "next=&prev="} {
+			t.Run(path+"?"+query, func(t *testing.T) {
+				h := newAPITest(t)
+				require.NoError(t, h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1"))))
+				require.NoError(t, h.tenantStore.CreateDestination(t.Context(), df.Any(df.WithID("d1"), df.WithTenantID("t1"))))
+				event := ef.AnyPointer(ef.WithID("e1"), ef.WithTenantID("t1"), ef.WithDestinationID("d1"))
+				require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
+					{Event: event, Attempt: attemptForEvent(event)},
+				}))
+
+				req := httptest.NewRequest(http.MethodGet, path+"?"+query, nil)
+				resp := h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusOK, resp.Code, "body: %s", resp.Body.String())
+				var result struct {
+					Models []json.RawMessage `json:"models"`
+				}
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
+				assert.Len(t, result.Models, 1)
+			})
+		}
+	}
+}
+
+// A cursor holds a position and nothing about the query it came from. A cursor
+// reused with another sort order or filter is not rejected: the list continues
+// from that position with the parameters of the new request.
+func TestAPI_CursorOfAnotherQueryListsFromItsPosition(t *testing.T) {
+	lists := []struct {
+		name string
+		path string
+		ids  []string // ids of the three records, oldest first
+	}{
+		{"events", "/api/v1/events", []string{"e1", "e2", "e3"}},
+		{"attempts", "/api/v1/attempts", []string{"a1", "a2", "a3"}},
+		{"destination attempts", "/api/v1/tenants/t1/destinations/d1/attempts", []string{"a1", "a2", "a3"}},
+	}
+
+	for _, list := range lists {
+		t.Run(list.name, func(t *testing.T) {
+			h := newAPITest(t)
+			require.NoError(t, h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1"))))
+			require.NoError(t, h.tenantStore.CreateDestination(t.Context(), df.Any(df.WithID("d1"), df.WithTenantID("t1"))))
+
+			baseTime := time.Now().Add(-time.Hour).Truncate(time.Second)
+			topics := []string{"user.created", "user.updated", "user.updated"}
+			var entries []*models.LogEntry
+			for i := range 3 {
+				at := baseTime.Add(time.Duration(i) * time.Minute)
+				event := ef.AnyPointer(ef.WithID(fmt.Sprintf("e%d", i+1)), ef.WithTenantID("t1"), ef.WithDestinationID("d1"), ef.WithTopic(topics[i]), ef.WithTime(at))
+				entries = append(entries, &models.LogEntry{
+					Event:   event,
+					Attempt: attemptForEvent(event, af.WithID(fmt.Sprintf("a%d", i+1)), af.WithTime(at)),
+				})
+			}
+			require.NoError(t, h.logStore.InsertMany(t.Context(), entries))
+
+			get := func(query string) (ids []string, next string) {
+				req := httptest.NewRequest(http.MethodGet, list.path+"?"+query, nil)
+				resp := h.do(h.withAPIKey(req))
+				require.Equal(t, http.StatusOK, resp.Code, "body: %s", resp.Body.String())
+
+				var result struct {
+					Models []struct {
+						ID string `json:"id"`
+					} `json:"models"`
+					Pagination apirouter.SeekPagination `json:"pagination"`
+				}
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
+				ids = []string{}
+				for _, model := range result.Models {
+					ids = append(ids, model.ID)
+				}
+				if result.Pagination.Next != nil {
+					next = *result.Pagination.Next
+				}
+				return ids, next
+			}
+			oldest, middle, newest := list.ids[0], list.ids[1], list.ids[2]
+
+			// The cursor points past the middle record of the newest-first list.
+			page, next := get("dir=desc&limit=2")
+			require.Equal(t, []string{newest, middle}, page)
+			require.NotEmpty(t, next)
+
+			t.Run("same query continues the list", func(t *testing.T) {
+				page, _ := get("dir=desc&limit=2&next=" + next)
+				assert.Equal(t, []string{oldest}, page)
+			})
+
+			t.Run("another sort order lists from the position in that order", func(t *testing.T) {
+				page, _ := get("dir=asc&limit=2&next=" + next)
+				assert.Equal(t, []string{newest}, page)
+			})
+
+			t.Run("another filter lists from the position with that filter", func(t *testing.T) {
+				page, _ := get("dir=desc&limit=2&topic=user.updated&next=" + next)
+				assert.Empty(t, page)
+			})
 		})
 	}
 }

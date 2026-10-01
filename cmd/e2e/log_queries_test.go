@@ -324,6 +324,46 @@ func (s *basicSuite) TestLogQueries_Pagination() {
 			s.True(!eventTime.After(timeLTEParsed), "event time %v should be <= %v", eventTime, timeLTEParsed)
 		}
 	})
+
+	listEvents := func(query string) (ids []string, next string) {
+		var resp struct {
+			Models     []map[string]any `json:"models"`
+			Pagination map[string]any   `json:"pagination"`
+		}
+		status := s.doJSON(http.MethodGet, s.apiURL("/events?tenant_id="+setup.tenantID+"&"+query), nil, &resp)
+		s.Require().Equal(http.StatusOK, status)
+		ids = []string{}
+		for _, event := range resp.Models {
+			ids = append(ids, event["id"].(string))
+		}
+		next, _ = resp.Pagination["next"].(string)
+		return ids, next
+	}
+
+	s.Run("empty next is the same as no cursor", func() {
+		page, _ := listEvents("dir=asc&limit=3&next=")
+		s.Equal(setup.eventIDs[:3], page)
+	})
+
+	// A cursor holds a position and nothing about the query it came from. A
+	// cursor reused with another sort order or filter is not rejected: the
+	// list continues from that position with the parameters of the new request.
+	s.Run("cursor of another query lists from its position", func() {
+		page, next := listEvents("dir=asc&limit=3")
+		s.Require().Equal(setup.eventIDs[:3], page)
+		s.Require().NotEmpty(next)
+
+		s.Run("another sort order", func() {
+			page, _ := listEvents("dir=desc&limit=10&next=" + next)
+			s.Equal([]string{setup.eventIDs[1], setup.eventIDs[0]}, page)
+		})
+
+		s.Run("another filter", func() {
+			sixth := setup.baseTime.Add(5 * time.Second).UTC().Format(time.RFC3339)
+			page, _ := listEvents("dir=asc&limit=10&time[gte]=" + sixth + "&next=" + next)
+			s.Equal(setup.eventIDs[5:], page)
+		})
+	})
 }
 
 // The attempts of a deleted destination stay readable through its routes.
