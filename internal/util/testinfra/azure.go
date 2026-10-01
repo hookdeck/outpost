@@ -26,9 +26,16 @@
 //   - Topic: TestIntegrationMQ_AzureServiceBus-topic
 //   - Subscription: TestIntegrationMQ_AzureServiceBus-subscription
 
+// For TestIntegrationMQMaxBytes_AzureSB:
+//   - Topic: TestIntegrationMQMaxBytes_AzureSB-topic
+//   - Subscription: TestIntegrationMQMaxBytes_AzureSB-subscription
+
 // For any future tests, follow the naming pattern:
 //   - Topic: {TestName}-topic
 //   - Subscription: {TestName}-subscription
+//
+// Subscription names are limited to 50 characters, so keep {TestName} to 37.
+// With a longer name the emulator starts but the subscription receives nothing.
 
 // Example Usage:
 //   // Instead of:
@@ -69,6 +76,13 @@ func GetMQAzureConfig(t *testing.T, testName string) mqs.QueueConfig {
 				ConnectionString: connString,
 				Topic:            "TestIntegrationMQ_AzureServiceBus-topic",
 				Subscription:     "TestIntegrationMQ_AzureServiceBus-subscription",
+			},
+		},
+		"TestIntegrationMQMaxBytes_AzureSB": {
+			AzureServiceBus: &mqs.AzureServiceBusConfig{
+				ConnectionString: connString,
+				Topic:            "TestIntegrationMQMaxBytes_AzureSB-topic",
+				Subscription:     "TestIntegrationMQMaxBytes_AzureSB-subscription",
 			},
 		},
 		"TestDestinationAzureServiceBusSuite": {

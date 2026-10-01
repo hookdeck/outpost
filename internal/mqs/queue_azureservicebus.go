@@ -94,7 +94,8 @@ func (q *AzureServiceBusQueue) Subscribe(ctx context.Context, opts ...SubscribeO
 		return nil, err
 	}
 
-	return &azureServiceBusSubscription{subscription: subscription, receiver: receiver}, nil
+	sub := &azureServiceBusSubscription{subscription: subscription, receiver: receiver}
+	return limitBytes(sub, ApplySubscribeOptions(opts).MaxBytes), nil
 }
 
 type azureServiceBusSubscription struct {

@@ -163,6 +163,17 @@ func TestIntegrationMQ_RabbitMQReject(t *testing.T) {
 	t.Parallel()
 	t.Cleanup(testinfra.Start(t))
 
+	t.Run("no byte limit", func(t *testing.T) {
+		testRabbitMQReject(t)
+	})
+	// One message fits at a time, so "next" is received only if the reject
+	// released the rejected message's bytes.
+	t.Run("byte limit", func(t *testing.T) {
+		testRabbitMQReject(t, mqs.WithMaxBytes(1))
+	})
+}
+
+func testRabbitMQReject(t *testing.T, opts ...mqs.SubscribeOption) {
 	config := &mqs.RabbitMQConfig{
 		ServerURL: testinfra.EnsureRabbitMQ(),
 		Exchange:  uuid.New().String(),
@@ -194,7 +205,7 @@ func TestIntegrationMQ_RabbitMQReject(t *testing.T) {
 	cleanup, err := queue.Init(ctx)
 	require.NoError(t, err)
 	defer cleanup()
-	subscription, err := queue.Subscribe(ctx)
+	subscription, err := queue.Subscribe(ctx, opts...)
 	require.NoError(t, err)
 	defer subscription.Shutdown(ctx)
 
@@ -215,6 +226,7 @@ func TestIntegrationMQ_RabbitMQReject(t *testing.T) {
 	defer rcancel()
 	msg, err := subscription.Receive(rctx)
 	require.NoError(t, err)
+	require.True(t, msg.Rejectable())
 	msg.Reject()
 
 	// The rejected message is dead-lettered instead of redelivered.

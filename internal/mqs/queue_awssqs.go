@@ -103,7 +103,7 @@ func (q *AWSQueue) Subscribe(ctx context.Context, opts ...SubscribeOption) (Subs
 	subscription := awssnssqs.OpenSubscriptionV2(ctx, q.sqsClient, q.sqsQueueURL, &awssnssqs.SubscriptionOptions{
 		WaitTime: waitTime,
 	})
-	return q.base.Subscribe(ctx, subscription)
+	return q.base.Subscribe(ctx, subscription, opts...)
 }
 
 func (q *AWSQueue) InitSDK(ctx context.Context) error {

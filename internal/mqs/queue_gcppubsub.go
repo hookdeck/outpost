@@ -144,24 +144,7 @@ func (q *GCPPubSubQueue) Subscribe(ctx context.Context, opts ...SubscribeOption)
 	}
 
 	sub := client.Subscription(q.config.SubscriptionID)
-	sub.ReceiveSettings.MaxOutstandingMessages = concurrency
-	// Use a single StreamingPull stream per subscription to keep concurrency
-	// control explicit; scaling is done at the subscription level, not via
-	// additional goroutines within a subscription.
-	sub.ReceiveSettings.NumGoroutines = 1
-	// Disable automatic lease extension so messages are not held beyond the
-	// subscription's ack deadline. We are intentional about consumer processing
-	// logic and do not want the SDK silently extending message leases — if a
-	// handler exceeds the ack deadline, the message should be redelivered.
-	sub.ReceiveSettings.MaxExtension = -1 * time.Second
-	// The native SDK sends a "receipt modack" (ModifyAckDeadline) when it first
-	// receives a message, using its internal ack-latency p99 as the deadline
-	// (minimum 10s). This overrides the subscription's ackDeadlineSeconds on the
-	// server side. Without MinExtensionPeriod, a subscription configured with a
-	// 60s ack deadline effectively becomes 10s, causing premature redelivery for
-	// any handler that takes >10s. Setting MinExtensionPeriod to match the
-	// subscription's visibility timeout prevents this override.
-	sub.ReceiveSettings.MinExtensionPeriod = q.visibilityTimeout
+	q.configureReceive(&sub.ReceiveSettings, o)
 
 	msgChan := make(chan *Message, concurrency)
 	subCtx, cancel := context.WithCancel(ctx)
@@ -195,7 +178,43 @@ func (q *GCPPubSubQueue) Subscribe(ctx context.Context, opts ...SubscribeOption)
 		})
 	}()
 
-	return s, nil
+	// The byte limit is enforced by limitBytes, as on the other providers,
+	// and not by ReceiveSettings.MaxOutstandingBytes, which stays at the SDK
+	// default.
+	//
+	// The SDK's MaxOutstanding* settings gate the receive callback: a message
+	// takes its share before the callback is called and gives it back when
+	// the callback returns. The callback above returns as soon as it has
+	// handed the message to msgChan, long before the message is handled, so
+	// those gates never fill up. The Pub/Sub service applies the message
+	// count to the stream on its side, which is why MaxOutstandingMessages
+	// still bounds concurrency, but it has no equivalent for bytes.
+	//
+	// Pub/Sub therefore keeps sending up to MaxOutstandingMessages messages
+	// into the process. They wait here for bytes with their ack deadline
+	// running, and are redelivered if they wait longer than that.
+	return limitBytes(s, o.MaxBytes), nil
+}
+
+func (q *GCPPubSubQueue) configureReceive(rs *nativepubsub.ReceiveSettings, o SubscribeOptions) {
+	rs.MaxOutstandingMessages = o.Concurrency
+	// Use a single StreamingPull stream per subscription to keep concurrency
+	// control explicit; scaling is done at the subscription level, not via
+	// additional goroutines within a subscription.
+	rs.NumGoroutines = 1
+	// Disable automatic lease extension so messages are not held beyond the
+	// subscription's ack deadline. We are intentional about consumer processing
+	// logic and do not want the SDK silently extending message leases — if a
+	// handler exceeds the ack deadline, the message should be redelivered.
+	rs.MaxExtension = -1 * time.Second
+	// The native SDK sends a "receipt modack" (ModifyAckDeadline) when it first
+	// receives a message, using its internal ack-latency p99 as the deadline
+	// (minimum 10s). This overrides the subscription's ackDeadlineSeconds on the
+	// server side. Without MinExtensionPeriod, a subscription configured with a
+	// 60s ack deadline effectively becomes 10s, causing premature redelivery for
+	// any handler that takes >10s. Setting MinExtensionPeriod to match the
+	// subscription's visibility timeout prevents this override.
+	rs.MinExtensionPeriod = q.visibilityTimeout
 }
 
 // gcpNativeSubscription bridges the native SDK StreamingPull to the mqs.Subscription interface.

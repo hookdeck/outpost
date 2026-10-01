@@ -51,11 +51,19 @@ type SubscribeOption func(*SubscribeOptions)
 // SubscribeOptions holds options for Subscribe.
 type SubscribeOptions struct {
 	Concurrency int
+	MaxBytes    int64
 }
 
 // WithConcurrency sets the max in-flight messages for the subscription.
 func WithConcurrency(n int) SubscribeOption {
 	return func(o *SubscribeOptions) { o.Concurrency = n }
+}
+
+// WithMaxBytes sets the max total body size, in bytes, of in-flight messages
+// for the subscription. A message larger than n is still delivered. 0 means
+// no limit.
+func WithMaxBytes(n int64) SubscribeOption {
+	return func(o *SubscribeOptions) { o.MaxBytes = n }
 }
 
 // ApplySubscribeOptions applies all options and returns the result.
@@ -176,7 +184,7 @@ func (q *InMemoryQueue) Subscribe(ctx context.Context, opts ...SubscribeOption) 
 	if err != nil {
 		return nil, err
 	}
-	return q.base.Subscribe(ctx, subscription)
+	return q.base.Subscribe(ctx, subscription, opts...)
 }
 
 func NewInMemoryQueue(config *InMemoryConfig) *InMemoryQueue {
@@ -253,6 +261,10 @@ func (q *wrappedBaseQueue) Publish(ctx context.Context, topic *pubsub.Topic, inc
 	return err
 }
 
-func (q *wrappedBaseQueue) Subscribe(ctx context.Context, subscription *pubsub.Subscription) (Subscription, error) {
-	return wrappedSubscription(subscription)
+func (q *wrappedBaseQueue) Subscribe(ctx context.Context, subscription *pubsub.Subscription, opts ...SubscribeOption) (Subscription, error) {
+	sub, err := wrappedSubscription(subscription)
+	if err != nil {
+		return nil, err
+	}
+	return limitBytes(sub, ApplySubscribeOptions(opts).MaxBytes), nil
 }

@@ -128,7 +128,7 @@ func (q *NATSQueue) Subscribe(ctx context.Context, opts ...SubscribeOption) (Sub
 		return nil, err
 	}
 
-	return &NATSSubscription{
+	sub := &NATSSubscription{
 		msgs:       msgs,
 		js:         js,
 		dlqSubject: q.config.DLQSubject,
@@ -139,7 +139,8 @@ func (q *NATSQueue) Subscribe(ctx context.Context, opts ...SubscribeOption) (Sub
 		// then reach the DLQ early, or never, depending on which way they
 		// drifted.
 		maxDeliver: consumer.CachedInfo().Config.MaxDeliver,
-	}, nil
+	}
+	return limitBytes(sub, ApplySubscribeOptions(opts).MaxBytes), nil
 }
 
 // durableName derives a valid JetStream durable consumer name from a subject.

@@ -80,11 +80,12 @@ func (q *RabbitMQQueue) Subscribe(ctx context.Context, opts ...SubscribeOption) 
 	if err != nil {
 		return nil, err
 	}
-	return &rabbitMQSubscription{
+	sub := &rabbitMQSubscription{
 		queue:        q,
 		conn:         conn,
 		subscription: rabbitpubsub.OpenSubscription(conn, q.config.Queue, nil),
-	}, nil
+	}
+	return limitBytes(sub, ApplySubscribeOptions(opts).MaxBytes), nil
 }
 
 func (q *RabbitMQQueue) ensureConnected() (*pubsub.Topic, *amqp091.Connection, error) {

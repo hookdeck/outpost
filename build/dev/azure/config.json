@@ -64,6 +64,17 @@
             ]
           },
           {
+            "Name": "TestIntegrationMQMaxBytes_AzureSB-topic",
+            "Properties": {},
+            "Subscriptions": [
+              {
+                "Name": "TestIntegrationMQMaxBytes_AzureSB-subscription",
+                "Properties": {},
+                "Rules": []
+              }
+            ]
+          },
+          {
             "Name": "TestDestinationAzureServiceBusSuite-topic",
             "Properties": {},
             "Subscriptions": [
