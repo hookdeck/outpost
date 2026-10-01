@@ -67,14 +67,7 @@ Each Outpost event is published as a single EventBridge entry:
 }
 ```
 
-{% tabs tabGroup="deployment" %}
-{% tab label="Managed" %}
-Configure `DESTINATIONS_EVENTBRIDGE_SOURCE` in the Config API or in [Hookdeck Outpost Destinations settings](https://dashboard.hookdeck.com/settings/project/destinations) to change the `Source` value stamped on every published event. Defaults to `outpost`.
-{% /tab %}
-{% tab label="Self-Hosted" %}
-Set `DESTINATIONS_EVENTBRIDGE_SOURCE` to change the `Source` value stamped on every published event. Defaults to `outpost`.
-{% /tab %}
-{% /tabs %}
+On a self-hosted deployment, set `DESTINATIONS_AWS_EVENTBRIDGE_SOURCE` to change the `Source` value stamped on every published event. Defaults to `outpost`.
 
 ## IAM Permissions
 

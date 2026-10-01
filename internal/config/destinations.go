@@ -303,22 +303,14 @@ func (c *DestinationAWSKinesisConfig) toConfig() *destregistrydefault.DestAWSKin
 	}
 }
 
-// DefaultEventBridgeSource is the EventBridge "Source" field stamped on every
-// published event when DESTINATIONS_EVENTBRIDGE_SOURCE is unset.
-const DefaultEventBridgeSource = "outpost"
-
 // AWS EventBridge configuration
 type DestinationAWSEventBridgeConfig struct {
-	Source string `yaml:"source" env:"DESTINATIONS_EVENTBRIDGE_SOURCE" desc:"The fixed EventBridge 'Source' field stamped on every published event, shared across all AWS EventBridge destinations in this deployment. Defaults to 'outpost'." required:"N"`
+	Source string `yaml:"source" env:"DESTINATIONS_AWS_EVENTBRIDGE_SOURCE" desc:"The EventBridge 'Source' set on every event published by AWS EventBridge destinations. Must not be empty or start with 'aws.'. Defaults to 'outpost'." required:"N"`
 }
 
 // toConfig converts DestinationAWSEventBridgeConfig to the provider config
 func (c *DestinationAWSEventBridgeConfig) toConfig() *destregistrydefault.DestAWSEventBridgeConfig {
-	source := c.Source
-	if source == "" {
-		source = DefaultEventBridgeSource
-	}
 	return &destregistrydefault.DestAWSEventBridgeConfig{
-		Source: source,
+		Source: c.Source,
 	}
 }

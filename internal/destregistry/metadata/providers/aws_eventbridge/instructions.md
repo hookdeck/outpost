@@ -4,7 +4,7 @@
 
 Each Outpost event is published as a single EventBridge entry:
 
-- **Source** is fixed for the whole Outpost deployment (set via the `DESTINATIONS_EVENTBRIDGE_SOURCE` server config, defaulting to `outpost`), not configured per destination.
+- **Source** is fixed for the whole Outpost deployment (set via the `DESTINATIONS_AWS_EVENTBRIDGE_SOURCE` server config, defaulting to `outpost`), not configured per destination.
 - **DetailType** is the event's topic.
 - **Detail** is a JSON object containing `metadata` (the same event metadata included with every Outpost destination) and `data` (the event payload).
 

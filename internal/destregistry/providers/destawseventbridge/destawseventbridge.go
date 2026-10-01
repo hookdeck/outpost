@@ -50,16 +50,10 @@ var _ destregistry.Provider = (*AWSEventBridgeProvider)(nil)
 // Option is a functional option for configuring AWSEventBridgeProvider
 type Option func(*AWSEventBridgeProvider)
 
-// WithSource sets the fixed EventBridge "Source" field stamped on every
-// published event. This is an app-level operator setting, not a per-destination
-// config field: EventBridge rules commonly match on Source to identify which
-// application emitted an event, so it should stay consistent across every
-// EventBridge destination for a given Outpost deployment.
+// WithSource sets the Source of every published event.
 func WithSource(source string) Option {
 	return func(p *AWSEventBridgeProvider) {
-		if source != "" {
-			p.source = source
-		}
+		p.source = source
 	}
 }
 
@@ -70,13 +64,13 @@ func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePu
 		return nil, err
 	}
 
-	provider := &AWSEventBridgeProvider{
-		BaseProvider: base,
-		source:       "outpost",
-	}
-
+	provider := &AWSEventBridgeProvider{BaseProvider: base}
 	for _, opt := range opts {
 		opt(provider)
+	}
+
+	if provider.source == "" {
+		return nil, errors.New("aws_eventbridge: source is required (DESTINATIONS_AWS_EVENTBRIDGE_SOURCE)")
 	}
 
 	return provider, nil

@@ -619,6 +619,27 @@ func TestDestinationWebhookTimestampFormat(t *testing.T) {
 	assert.Equal(t, "unix", cfg.Destinations.ToConfig(cfg).Webhook.TimestampFormat)
 }
 
+func TestDestinationAWSEventBridgeSource(t *testing.T) {
+	t.Run("defaults to outpost", func(t *testing.T) {
+		cfg, err := config.ParseWithoutValidation(config.Flags{}, &mockOS{files: map[string][]byte{}, envVars: map[string]string{}})
+		require.NoError(t, err)
+
+		assert.Equal(t, "outpost", cfg.Destinations.ToConfig(cfg).AWSEventBridge.Source)
+	})
+
+	t.Run("reads DESTINATIONS_AWS_EVENTBRIDGE_SOURCE", func(t *testing.T) {
+		mockOS := &mockOS{
+			files:   map[string][]byte{},
+			envVars: map[string]string{"DESTINATIONS_AWS_EVENTBRIDGE_SOURCE": "com.example.app"},
+		}
+
+		cfg, err := config.ParseWithoutValidation(config.Flags{}, mockOS)
+		require.NoError(t, err)
+
+		assert.Equal(t, "com.example.app", cfg.Destinations.ToConfig(cfg).AWSEventBridge.Source)
+	})
+}
+
 func TestDestinationWebhookStandardMode(t *testing.T) {
 	t.Run("sets the Standard Webhooks values", func(t *testing.T) {
 		mockOS := &mockOS{

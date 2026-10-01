@@ -28,7 +28,7 @@ func TestAWSEventBridgeDestination_Validate(t *testing.T) {
 		}),
 	)
 
-	provider, err := destawseventbridge.New(testutil.Registry.MetadataLoader(), nil)
+	provider, err := destawseventbridge.New(testutil.Registry.MetadataLoader(), nil, destawseventbridge.WithSource("outpost"))
 	require.NoError(t, err)
 
 	t.Run("should validate valid destination", func(t *testing.T) {
@@ -107,10 +107,17 @@ func TestAWSEventBridgeDestination_Validate(t *testing.T) {
 	})
 }
 
+func TestAWSEventBridgeDestination_New_RequiresSource(t *testing.T) {
+	t.Parallel()
+
+	_, err := destawseventbridge.New(testutil.Registry.MetadataLoader(), nil)
+	assert.ErrorContains(t, err, "aws_eventbridge: source is required (DESTINATIONS_AWS_EVENTBRIDGE_SOURCE)")
+}
+
 func TestAWSEventBridgeDestination_ComputeTarget(t *testing.T) {
 	t.Parallel()
 
-	provider, err := destawseventbridge.New(testutil.Registry.MetadataLoader(), nil)
+	provider, err := destawseventbridge.New(testutil.Registry.MetadataLoader(), nil, destawseventbridge.WithSource("outpost"))
 	require.NoError(t, err)
 
 	t.Run("should return event_bus_name and region as target, with a console URL for a plain name", func(t *testing.T) {

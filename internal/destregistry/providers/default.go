@@ -165,18 +165,6 @@ func RegisterDefault(registry destregistry.Registry, opts RegisterDefaultDestina
 	}
 	registry.RegisterProvider("aws_sqs", awsSQS)
 
-	awsKinesisOpts := []destawskinesis.Option{}
-	if opts.AWSKinesis != nil {
-		awsKinesisOpts = append(awsKinesisOpts,
-			destawskinesis.WithMetadataInPayload(opts.AWSKinesis.MetadataInPayload),
-		)
-	}
-	awsKinesis, err := destawskinesis.New(loader, basePublisherOpts, awsKinesisOpts...)
-	if err != nil {
-		return err
-	}
-	registry.RegisterProvider("aws_kinesis", awsKinesis)
-
 	awsEventBridgeOpts := []destawseventbridge.Option{}
 	if opts.AWSEventBridge != nil {
 		awsEventBridgeOpts = append(awsEventBridgeOpts,
@@ -188,6 +176,18 @@ func RegisterDefault(registry destregistry.Registry, opts RegisterDefaultDestina
 		return err
 	}
 	registry.RegisterProvider("aws_eventbridge", awsEventBridge)
+
+	awsKinesisOpts := []destawskinesis.Option{}
+	if opts.AWSKinesis != nil {
+		awsKinesisOpts = append(awsKinesisOpts,
+			destawskinesis.WithMetadataInPayload(opts.AWSKinesis.MetadataInPayload),
+		)
+	}
+	awsKinesis, err := destawskinesis.New(loader, basePublisherOpts, awsKinesisOpts...)
+	if err != nil {
+		return err
+	}
+	registry.RegisterProvider("aws_kinesis", awsKinesis)
 
 	awsS3, err := destawss3.New(loader, basePublisherOpts)
 	if err != nil {

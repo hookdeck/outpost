@@ -140,6 +140,7 @@ Choose one for event log persistence:
 | `MAX_DESTINATIONS_PER_TENANT` | `20` | Maximum destinations each tenant may create. Set as low as is practical for your product to limit abuse and load; lowering this value later does **not** remove destinations that already exist. |
 | `DESTINATIONS_PROXY_URL` | — | HTTP `CONNECT` forward proxy for destination connections, e.g. `http://user:pass@proxy:8080`. Multiple whitespace-separated URLs are tunneled in order. Applies to webhook, RabbitMQ and Kafka destinations; other destination types connect directly. The deprecated `DESTINATIONS_WEBHOOK_PROXY_URL`, when set, takes precedence for webhooks; there is no way to proxy RabbitMQ and Kafka without also proxying webhooks. See [Webhook Forward Proxy](/docs/outpost/self-hosting/guides/webhook-proxy#other-destination-types). |
 | `DESTINATIONS_METADATA_PATH` | — | Optional. Filesystem path to a directory of [custom destination metadata](https://github.com/hookdeck/outpost/tree/main/internal/destregistry/metadata/providers) (per-type `metadata.json` and `instructions.md`). Non-core fields such as `label`, `description`, `icon`, and `instructions` can be customized; `config_fields` and `credential_fields` cannot be overridden. |
+| `DESTINATIONS_AWS_EVENTBRIDGE_SOURCE` | `outpost` | `Source` set on every event published by [AWS EventBridge](/docs/outpost/destinations/aws-eventbridge) destinations. Must not be empty or start with `aws.`. |
 
 ## Webhook Behavior
 
