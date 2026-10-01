@@ -388,9 +388,9 @@ func (s *store) fetchTenants(ctx context.Context, baseFilter string, q paginatio
 	if q.CursorPos == "" {
 		query = baseFilter
 	} else {
-		cursorTimestamp, err := strconv.ParseInt(q.CursorPos, 10, 64)
+		cursorTimestamp, err := cursor.ParseTimeMs(q.CursorPos)
 		if err != nil {
-			return nil, fmt.Errorf("%w: invalid timestamp", driver.ErrInvalidCursor)
+			return nil, err
 		}
 
 		if q.Compare == "<" {

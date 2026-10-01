@@ -197,3 +197,30 @@ func TestVersionMismatchMessage(t *testing.T) {
 		assert.Contains(t, err.Error(), "05")
 	})
 }
+
+func TestParseTimeMs(t *testing.T) {
+	t.Run("timestamp within years 0000-9999", func(t *testing.T) {
+		for _, tc := range []struct {
+			in   string
+			want int64
+		}{
+			{"1700000000000", 1700000000000},
+			{"0", 0},
+			{"-1", -1},
+			{"-62167219200000", -62167219200000},
+			{"253402300799999", 253402300799999},
+		} {
+			got, err := cursor.ParseTimeMs(tc.in)
+			require.NoError(t, err, tc.in)
+			assert.Equal(t, tc.want, got)
+		}
+	})
+
+	t.Run("anything else is an invalid cursor", func(t *testing.T) {
+		for _, in := range []string{"", "yesterday", "1700000000000.5", "99999999999999999999", "9223372036854775807", "-9223372036854775808"} {
+			_, err := cursor.ParseTimeMs(in)
+			require.ErrorIs(t, err, cursor.ErrInvalidCursor, in)
+			assert.EqualError(t, err, "invalid cursor: invalid timestamp", in)
+		}
+	})
+}

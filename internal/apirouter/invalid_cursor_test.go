@@ -55,6 +55,7 @@ func TestAPI_InvalidCursorReturns400(t *testing.T) {
 				cases = append(cases,
 					cursorCase{"empty position", cursor.Encode("tnt", 1, ""), invalidCursor},
 					cursorCase{"position that is not a timestamp", cursor.Encode("tnt", 1, "yesterday"), invalidTimestamp},
+					cursorCase{"position with a timestamp out of range", cursor.Encode("tnt", 1, "9223372036854775807"), invalidTimestamp},
 				)
 			} else {
 				// The mem log store's position is "{timestamp}_{id}".

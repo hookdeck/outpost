@@ -7,7 +7,9 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"strconv"
 	"strings"
+	"time"
 )
 
 var (
@@ -17,6 +19,23 @@ var (
 	// ErrVersionMismatch indicates the cursor version doesn't match the expected version.
 	ErrVersionMismatch = errors.New("cursor version mismatch")
 )
+
+// A cursor timestamp has to be a time the API can express: an RFC 3339 year
+// (0000-9999), with a day of margin for UTC offsets.
+var (
+	minTimeMs = time.Date(0, 1, 1, 0, 0, 0, 0, time.UTC).Add(-24 * time.Hour).UnixMilli()
+	maxTimeMs = time.Date(10000, 1, 1, 0, 0, 0, 0, time.UTC).Add(24 * time.Hour).UnixMilli()
+)
+
+// ParseTimeMs reads the unix milliseconds timestamp of a cursor position.
+// The error wraps ErrInvalidCursor.
+func ParseTimeMs(s string) (int64, error) {
+	timeMs, err := strconv.ParseInt(s, 10, 64)
+	if err != nil || timeMs < minTimeMs || timeMs > maxTimeMs {
+		return 0, fmt.Errorf("%w: invalid timestamp", ErrInvalidCursor)
+	}
+	return timeMs, nil
+}
 
 // Base62Encode encodes a string to base62.
 func Base62Encode(s string) string {

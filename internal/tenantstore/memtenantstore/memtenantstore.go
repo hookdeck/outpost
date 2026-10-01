@@ -3,7 +3,6 @@ package memtenantstore
 
 import (
 	"context"
-	"fmt"
 	"slices"
 	"sort"
 	"strconv"
@@ -243,9 +242,9 @@ func (s *store) fetchTenants(activeTenants []models.Tenant, q pagination.QueryIn
 	if q.CursorPos == "" {
 		filtered = append(filtered, activeTenants...)
 	} else {
-		cursorTs, err := strconv.ParseInt(q.CursorPos, 10, 64)
+		cursorTs, err := cursor.ParseTimeMs(q.CursorPos)
 		if err != nil {
-			return nil, fmt.Errorf("%w: invalid timestamp", driver.ErrInvalidCursor)
+			return nil, err
 		}
 		for _, t := range activeTenants {
 			ts := t.CreatedAt.UnixMilli()

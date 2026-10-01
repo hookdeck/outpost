@@ -103,6 +103,8 @@ func (s *basicSuite) TestErrorResponses_TenantValidation() {
 			errorCase{name: "list with a prev cursor of another version", method: http.MethodGet, path: "/tenants?prev=" + cursor.Encode("tnt", 2, "1700000000000"), status: http.StatusBadRequest, message: cursorVersionMismatch},
 			errorCase{name: "list with a next cursor with an empty position", method: http.MethodGet, path: "/tenants?next=" + cursor.Encode("tnt", 1, ""), status: http.StatusBadRequest, message: invalidCursor},
 			errorCase{name: "list with a prev cursor with an empty position", method: http.MethodGet, path: "/tenants?prev=" + cursor.Encode("tnt", 1, ""), status: http.StatusBadRequest, message: invalidCursor},
+			errorCase{name: "list with a next cursor with a timestamp out of range", method: http.MethodGet, path: "/tenants?next=" + cursor.Encode("tnt", 1, "9223372036854775807"), status: http.StatusBadRequest, message: cursorInvalidTimestamp},
+			errorCase{name: "list with a prev cursor with a timestamp out of range", method: http.MethodGet, path: "/tenants?prev=" + cursor.Encode("tnt", 1, "9223372036854775807"), status: http.StatusBadRequest, message: cursorInvalidTimestamp},
 		)
 	}
 	for i := range cases {
