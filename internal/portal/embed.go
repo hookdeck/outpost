@@ -33,16 +33,9 @@ func isAPIPath(path string) bool {
 	return path == "/api" || strings.HasPrefix(path, "/api/")
 }
 
-// apiNotFound writes the 404 with the same key order as the API's other errors.
-func apiNotFound(c *gin.Context) {
-	c.JSON(http.StatusNotFound, struct {
-		Status  int    `json:"status"`
-		Message string `json:"message"`
-	}{http.StatusNotFound, "not found"})
-}
-
-// AddRoutes serves the static file system for the UI React App.
-func AddRoutes(router *gin.Engine, config PortalConfig) {
+// AddRoutes serves the static file system for the UI React App. A request
+// under /api that matches no route goes to apiNotFound.
+func AddRoutes(router *gin.Engine, config PortalConfig, apiNotFound gin.HandlerFunc) {
 	// Hijack the / route to serve the index.html file and append the env variables
 	router.GET("/inject-portal-config.js", func(c *gin.Context) {
 		c.Header("Cache-Control", "no-cache, no-store, must-revalidate")

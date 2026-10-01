@@ -141,7 +141,9 @@ func TestAPI_ErrorResponsesAreJSON(t *testing.T) {
 				if !tt.noAuth {
 					req = h.withAPIKey(req)
 				}
-				testutil.RequireErrorResponse(t, h.do(req), http.StatusNotFound, "not found")
+				resp := h.do(req)
+				testutil.RequireErrorResponse(t, resp, http.StatusNotFound, "not found")
+				require.Equal(t, `{"status":404,"message":"not found"}`, resp.Body.String())
 			})
 		}
 	})
