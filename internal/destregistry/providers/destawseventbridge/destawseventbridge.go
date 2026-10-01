@@ -24,6 +24,8 @@ import (
 // EventBridge rejects an entry with an empty DetailType.
 const DefaultDetailType = "event"
 
+const defaultEventBusName = "default"
+
 type AWSEventBridgeConfig struct {
 	EventBusName string
 	Region       string
@@ -140,29 +142,25 @@ func (p *AWSEventBridgeProvider) resolveConfig(ctx context.Context, destination 
 		}, nil
 }
 
-// ComputeTarget returns a human-readable target for display
+// ComputeTarget returns a human-readable target for display. An ARN can name
+// a bus in another account, so it is shown as is, without a console link.
 func (p *AWSEventBridgeProvider) ComputeTarget(destination *models.Destination) destregistry.DestinationTarget {
 	eventBusName := destination.Config["event_bus_name"]
 	region := destination.Config["region"]
+	if strings.HasPrefix(eventBusName, "arn:") {
+		return destregistry.DestinationTarget{Target: eventBusName}
+	}
+	if eventBusName == "" {
+		eventBusName = defaultEventBusName
+	}
 	return destregistry.DestinationTarget{
-		Target:    fmt.Sprintf("%s in %s", eventBusName, region),
-		TargetURL: makeEventBridgeConsoleURL(eventBusName, region),
+		Target: fmt.Sprintf("%s in %s", eventBusName, region),
+		TargetURL: fmt.Sprintf("https://%s.console.aws.amazon.com/events/home?region=%s#/eventbus/%s",
+			region, region, url.PathEscape(eventBusName)),
 	}
 }
 
-// makeEventBridgeConsoleURL builds a console deep-link for a plain event bus
-// name. An ARN can name a bus in another account/region, so it's left as a
-// target string only rather than guessed at as a same-account console link.
-func makeEventBridgeConsoleURL(eventBusName, region string) string {
-	if eventBusName == "" || region == "" || strings.HasPrefix(eventBusName, "arn:") {
-		return ""
-	}
-	return fmt.Sprintf("https://%s.console.aws.amazon.com/events/home?region=%s#/eventbus/%s",
-		region, region, url.QueryEscape(eventBusName))
-}
-
-// Preprocess re-validates the resolved config so a bad config.endpoint is
-// rejected at preprocess time rather than surfacing only on first publish.
+// Preprocess rejects an invalid config before it is stored.
 func (p *AWSEventBridgeProvider) Preprocess(newDestination *models.Destination, originalDestination *models.Destination, opts *destregistry.PreprocessDestinationOpts) error {
 	if newDestination.Config == nil {
 		return nil

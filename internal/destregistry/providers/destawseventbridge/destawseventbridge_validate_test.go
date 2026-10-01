@@ -151,16 +151,44 @@ func TestAWSEventBridgeDestination_ComputeTarget(t *testing.T) {
 		assert.Contains(t, target.TargetURL, "my-bus")
 	})
 
-	t.Run("should not build a console URL for an ARN event bus", func(t *testing.T) {
+	t.Run("should target the default bus when event_bus_name is empty", func(t *testing.T) {
 		t.Parallel()
 		destination := testutil.DestinationFactory.Any(
 			testutil.DestinationFactory.WithType("aws_eventbridge"),
 			testutil.DestinationFactory.WithConfig(map[string]string{
-				"event_bus_name": "arn:aws:events:us-east-1:123456789012:event-bus/my-bus",
+				"region": "us-east-1",
+			}),
+		)
+		target := provider.ComputeTarget(&destination)
+		assert.Equal(t, "default in us-east-1", target.Target)
+		assert.Equal(t, "https://us-east-1.console.aws.amazon.com/events/home?region=us-east-1#/eventbus/default", target.TargetURL)
+	})
+
+	t.Run("should show an ARN event bus as is, without a console URL", func(t *testing.T) {
+		t.Parallel()
+		arn := "arn:aws:events:us-east-1:123456789012:event-bus/my-bus"
+		destination := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithType("aws_eventbridge"),
+			testutil.DestinationFactory.WithConfig(map[string]string{
+				"event_bus_name": arn,
 				"region":         "us-east-1",
 			}),
 		)
 		target := provider.ComputeTarget(&destination)
+		assert.Equal(t, arn, target.Target)
 		assert.Empty(t, target.TargetURL)
+	})
+
+	t.Run("should escape the event bus name in the console URL", func(t *testing.T) {
+		t.Parallel()
+		destination := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithType("aws_eventbridge"),
+			testutil.DestinationFactory.WithConfig(map[string]string{
+				"event_bus_name": "aws.partner/example.com/orders",
+				"region":         "us-east-1",
+			}),
+		)
+		target := provider.ComputeTarget(&destination)
+		assert.Equal(t, "https://us-east-1.console.aws.amazon.com/events/home?region=us-east-1#/eventbus/aws.partner%2Fexample.com%2Forders", target.TargetURL)
 	})
 }
