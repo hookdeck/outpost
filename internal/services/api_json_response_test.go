@@ -193,7 +193,7 @@ func TestBaseRouter_APIResponsesAreJSON(t *testing.T) {
 		{"401 jwt of missing tenant", http.MethodGet, "/api/v1/tenants/nope", jwtFor(t, "nope"), "", http.StatusUnauthorized, "unauthorized"},
 		{"403 jwt on admin-only route", http.MethodPost, "/api/v1/publish", jwtFor(t, "t1"), publishBody, http.StatusForbidden, "forbidden"},
 		{"403 jwt on another tenant", http.MethodGet, "/api/v1/tenants/t2", jwtFor(t, "t1"), "", http.StatusForbidden, "forbidden"},
-		{"409 publish conflict", http.MethodPost, "/api/v1/publish", admin, publishBody, http.StatusConflict, "event is already being processed"},
+		{"409 publish conflict", http.MethodPost, "/api/v1/publish", admin, publishBody, http.StatusConflict, "event conflict, retry later"},
 		{"404 unknown route", http.MethodGet, "/api/v1/nope", admin, "", http.StatusNotFound, "not found"},
 		{"404 unknown route, no auth", http.MethodGet, "/api/v1/nope", "", "", http.StatusNotFound, "not found"},
 		{"404 wrong method", http.MethodDelete, "/api/v1/publish", admin, "", http.StatusNotFound, "not found"},

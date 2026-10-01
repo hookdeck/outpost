@@ -159,7 +159,7 @@ func TestAPI_Publish(t *testing.T) {
 			})
 			resp := h.do(h.withAPIKey(req))
 
-			testutil.RequireErrorResponse(t, resp, http.StatusConflict, "event is already being processed")
+			testutil.RequireErrorResponse(t, resp, http.StatusConflict, "event conflict, retry later")
 		})
 
 		t.Run("required topic returns 422 with detail", func(t *testing.T) {

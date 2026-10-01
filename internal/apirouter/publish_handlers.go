@@ -57,7 +57,7 @@ func (h *PublishHandlers) Ingest(c *gin.Context) {
 		if errors.Is(err, idempotence.ErrConflict) {
 			AbortWithError(c, http.StatusConflict, ErrorResponse{
 				Code:    http.StatusConflict,
-				Message: "event is already being processed",
+				Message: "event conflict, retry later",
 			})
 		} else if errors.Is(err, publishmq.ErrRequiredTopic) {
 			AbortWithValidationError(c, ErrorResponse{

@@ -5556,7 +5556,7 @@ paths:
         "403":
           $ref: "#/components/responses/Forbidden"
         "409":
-          description: Conflict. An event with the provided `id` is still being processed.
+          description: Conflict. Another request with the same event `id` is in progress or has just failed. Retry the request.
           content:
             application/json:
               schema:
