@@ -5330,7 +5330,10 @@ paths:
     get:
       tags: [Destinations]
       summary: List Destination Attempts
-      description: Retrieves a paginated list of attempts scoped to a specific destination.
+      description: |
+        Retrieves a paginated list of attempts scoped to a specific destination.
+
+        The attempts of a deleted destination remain available. Returns `404` if the tenant never had a destination with this ID.
       operationId: listTenantDestinationAttempts
       parameters:
         - name: event_id
@@ -5490,7 +5493,10 @@ paths:
     get:
       tags: [Destinations]
       summary: Get Destination Attempt
-      description: Retrieves details for a specific attempt scoped to a destination.
+      description: |
+        Retrieves details for a specific attempt scoped to a destination.
+
+        The attempts of a deleted destination remain available. Returns `404` if the tenant never had a destination with this ID, or if the destination has no attempt with this ID.
       operationId: getTenantDestinationAttempt
       parameters:
         - name: include

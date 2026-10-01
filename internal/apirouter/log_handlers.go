@@ -222,7 +222,42 @@ func (h *LogHandlers) ListAttempts(c *gin.Context) {
 func (h *LogHandlers) ListDestinationAttempts(c *gin.Context) {
 	tenant := mustTenantFromContext(c)
 	destinationID := c.Param("destination_id")
+	if !h.mustKnowDestination(c, tenant.ID, destinationID) {
+		return
+	}
 	h.listAttemptsInternal(c, []string{tenant.ID}, destinationID)
+}
+
+// mustKnowDestination reports whether the tenant has or had the destination,
+// and answers the request with a 404 when it never did. A deleted destination
+// counts, also once its record is gone and only its attempts remain.
+func (h *LogHandlers) mustKnowDestination(c *gin.Context, tenantID, destinationID string) bool {
+	destination, err := h.tenantStore.RetrieveDestination(c.Request.Context(), tenantID, destinationID)
+	if errors.Is(err, tenantstore.ErrDestinationDeleted) {
+		return true
+	}
+	if err != nil && !errors.Is(err, tenantstore.ErrDestinationNotFound) {
+		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
+		return false
+	}
+	if destination != nil {
+		return true
+	}
+
+	attempts, err := h.logStore.ListAttempt(c.Request.Context(), logstore.ListAttemptRequest{
+		TenantIDs:      []string{tenantID},
+		DestinationIDs: []string{destinationID},
+		Limit:          1,
+	})
+	if err != nil {
+		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
+		return false
+	}
+	if len(attempts.Data) == 0 {
+		AbortWithError(c, http.StatusNotFound, NewErrNotFound("destination"))
+		return false
+	}
+	return true
 }
 
 func (h *LogHandlers) listAttemptsInternal(c *gin.Context, tenantIDs []string, destinationID string) {
@@ -403,18 +438,15 @@ func (h *LogHandlers) RetrieveAttempt(c *gin.Context) {
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return
 	}
-	if attemptRecord == nil {
-		AbortWithError(c, http.StatusNotFound, NewErrNotFound("attempt"))
-		return
-	}
-
 	// Authz: when accessed via a destination-scoped route, verify the attempt
 	// belongs to the destination in the path.
-	if destinationID := c.Param("destination_id"); destinationID != "" {
-		if attemptRecord.Attempt.DestinationID != destinationID {
-			AbortWithError(c, http.StatusNotFound, NewErrNotFound("attempt"))
+	destinationID := c.Param("destination_id")
+	if attemptRecord == nil || (destinationID != "" && attemptRecord.Attempt.DestinationID != destinationID) {
+		if destinationID != "" && !h.mustKnowDestination(c, ctxTenantID, destinationID) {
 			return
 		}
+		AbortWithError(c, http.StatusNotFound, NewErrNotFound("attempt"))
+		return
 	}
 
 	includeOpts := parseIncludeOptions(c)
