@@ -31,7 +31,7 @@ Dead-lettering, redelivery limits and backoff are configured on your queue, not 
 
 `PUBLISH_MAX_REDELIVERIES` sets a limit on the Outpost side instead: once a message has been redelivered that many times, Outpost rejects it like an invalid message. `0` rejects every failure without redelivery. Without a dead-letter exchange the message is then lost. If the queue also has a delivery limit, the lower of the two applies.
 
-Outpost counts failures per message, identified by the AMQP `message_id` property. A message published without one is identified by its body, so messages with identical bodies share a count. The count expires 24 hours after the last failure and is not reset by a successful delivery. Set `message_id` when publishing if you use this limit.
+Outpost counts failures per AMQP `message_id`. A message published without one is identified by its body, so messages with identical bodies share a count: set `message_id` when publishing if you use this limit.
 
 ## Configuration
 

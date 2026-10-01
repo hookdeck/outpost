@@ -79,16 +79,6 @@ log_max_concurrency: 1 # Max number of log messages to process concurrently
 # Restart queue workers that fail instead of reporting them failed at once. Off by default.
 # supervisor:
 #   restart_workers: [publishmq, deliverymq, logmq, retrymq]
-#   startup:
-#     max_attempts: 5 # Restarts allowed while a worker has never started (-1 = no limit)
-#     max_duration_seconds: -1
-#   recovery:
-#     max_attempts: -1
-#     max_duration_seconds: 120 # Seconds without a successful restart before the worker is reported failed
-#   workers: # Per-worker overrides; unset values inherit the limits above
-#     publishmq:
-#       recovery:
-#         max_duration_seconds: -1
 
 ## Log Batcher
 log_batch_threshold_seconds: 10 # Time to wait before sending a batch of logs (env: LOG_BATCH_THRESHOLD_SECONDS)
@@ -111,11 +101,10 @@ destinations:
   #   source: "outpost" # EventBridge Source set on every event
   webhook:
     header_prefix: "x-custom-" # Prefix for webhook headers
-    # Header names: unset uses <prefix>+key, a value pins that exact name, "" disables the header
-    # event_id_header_name: ""
-    # signature_header_name: ""
-    # timestamp_header_name: ""
-    # topic_header_name: ""
+    # disable_default_event_id_header
+    # disable_default_signature_header
+    # disable_default_timestamp_header
+    # disable_default_topic_header
     # signature_content_template: {{.Timestamp.UnixMilli}}.{{.Body}}
     # signature_header_template: t={{.Timestamp.UnixMilli}},v0={{.Signatures | join ","}}
     # signature_encoding: hex

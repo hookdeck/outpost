@@ -1,17 +1,16 @@
 ---
 title: "Upgrade to v1.6"
-description: "Breaking changes, behavior changes, and new features when upgrading Outpost from v1.5 to v1.6."
+description: "Breaking changes and behavior changes when upgrading Outpost from v1.5 to v1.6."
 ---
 
-This guide covers what changes when upgrading from v1.5 to v1.6. There is one breaking API change and a few behavior changes to review before upgrading. There are no new PostgreSQL or ClickHouse migrations.
+This guide covers what changes when upgrading from v1.5 to v1.6. There is one breaking API change and one behavior change to review before upgrading. There are no new PostgreSQL or ClickHouse migrations.
 
 | Change | Impact | Action Required |
 | --- | --- | --- |
 | [Attempts no longer embed destination credentials](#attempts-no-longer-embed-destination-credentials) | API clients and SDKs reading attempts with `include=destination` | Upgrade the SDK; read credentials from the destination endpoints |
 | [Invalid publish queue messages are rejected](#invalid-publish-queue-messages-are-rejected) | Publishing from RabbitMQ or Azure Service Bus | Configure dead-lettering if you want to keep invalid messages |
-| [RabbitMQ destinations connect within the delivery timeout](#rabbitmq-destinations-connect-within-the-delivery-timeout) | RabbitMQ destinations on slow links | Review `DELIVERY_TIMEOUT_SECONDS` |
-| [Kafka attempt error text](#kafka-attempt-error-text) | Tooling that matches on Kafka attempt error messages | Match on the error code instead |
-| [`DESTINATIONS_WEBHOOK_PROXY_URL` deprecated](#destinations_webhook_proxy_url-deprecated) | Deployments that set it | Move to `DESTINATIONS_PROXY_URL` |
+
+For new features and fixes, see the [v1.6.0 release notes](https://github.com/hookdeck/outpost/releases/tag/v1.6.0).
 
 ## Breaking Changes
 
@@ -21,7 +20,7 @@ This guide covers what changes when upgrading from v1.5 to v1.6. There is one br
 
 SDK versions generated before v1.6 type the embedded destination as a full destination with required `credentials`, so they can fail to parse these responses. Upgrade to an SDK release generated from the v1.6 API before calling attempts with `include=destination` against a v1.6 server. In the new SDKs the embedded destination is an `AttemptDestination`, whose `config` is a generic string map instead of a per-type object.
 
-The request body that Outpost logs on a 5xx response now redacts every credential value. Before, webhook secrets and the bodies of `PATCH` requests without a `type` were logged in plaintext.
+The request body that Outpost logs on a 5xx response also redacts every credential value now.
 
 ## Behavior Changes
 
@@ -37,52 +36,9 @@ A publish queue message that can never succeed is now rejected on its first fail
 
 If you publish from RabbitMQ and want to keep invalid messages, configure a dead-letter exchange on the queue before upgrading. See the Failed messages section of [Publish from RabbitMQ](/docs/outpost/publishing/publish-from-rabbitmq#failed-messages).
 
-Other failures are still redelivered without limit unless you set the new [`PUBLISH_MAX_REDELIVERIES`](#publish-queue-redelivery-limit).
+Other failures are still redelivered without limit unless you set the new `PUBLISH_MAX_REDELIVERIES`.
 
-### RabbitMQ destinations connect within the delivery timeout
+### Other changes
 
-Connecting to a RabbitMQ destination, including the TLS and AMQP handshakes, now has to finish within the delivery timeout (`DELIVERY_TIMEOUT_SECONDS`, default `5`). Before, the connection had its own 30 second timeout and the attempt could outlast the delivery timeout.
-
-A broker that takes longer than the delivery timeout to accept a connection now produces a failed attempt with a `timeout` code. Raise `DELIVERY_TIMEOUT_SECONDS` if your RabbitMQ destinations connect slowly.
-
-### Kafka attempt error text
-
-The `error` recorded on a failed Kafka attempt no longer carries the `Kafka write errors (1/1), errors: [...]` wrapper, only the underlying error. Error codes are unchanged.
-
-### `DESTINATIONS_WEBHOOK_PROXY_URL` deprecated
-
-`DESTINATIONS_PROXY_URL` replaces it and also applies to RabbitMQ and Kafka destinations. `DESTINATIONS_WEBHOOK_PROXY_URL` still works and overrides `DESTINATIONS_PROXY_URL` for webhooks when both are set. Outpost logs a deprecation warning at startup while it is set.
-
-## What's New
-
-### AWS EventBridge and Cloudflare Queues destinations
-
-Two new destination types: [AWS EventBridge](/docs/outpost/destinations/aws-eventbridge) publishes to an event bus with the topic as the detail type, and [Cloudflare Queues](/docs/outpost/destinations/cloudflare-queues) publishes to a queue through the Cloudflare HTTP API. Both appear in the portal and the destination type endpoints after upgrading.
-
-`DESTINATIONS_AWS_EVENTBRIDGE_SOURCE` sets the EventBridge `Source` on every event (default `outpost`).
-
-### Forward proxy for RabbitMQ and Kafka destinations
-
-`DESTINATIONS_PROXY_URL` routes webhook, RabbitMQ, and Kafka destination connections through an HTTP `CONNECT` forward proxy, so destinations that allowlist source IPs see the proxy's address. See [Webhook Forward Proxy](/docs/outpost/self-hosting/guides/webhook-proxy).
-
-### NATS JetStream as a message queue
-
-NATS JetStream joins AWS SQS, GCP Pub/Sub, Azure Service Bus, and RabbitMQ as a provider for the delivery and log queues. Set `NATS_SERVER_URL` to use it. It is not available as a publish queue. See [Bring your own message queue](/docs/outpost/self-hosting/guides/byo-mqs).
-
-### Worker restarts
-
-The supervisor can restart a queue worker that fails, such as a consumer that lost its connection to the broker, instead of reporting it `failed` until the process restarts. Restarts are off by default. List the workers to restart in `SUPERVISOR_RESTART_WORKERS`; `/healthz` then reports a failing worker as `degraded` while it is within its restart budget. See [Configuration](/docs/outpost/self-hosting/configuration).
-
-### Publish queue redelivery limit
-
-`PUBLISH_MAX_REDELIVERIES` caps how many times Outpost redelivers a failed publish queue message. The default `-1` keeps the v1.5 behavior of redelivering without limit. Past the limit, RabbitMQ and Azure Service Bus reject the message, and AWS SQS and GCP Pub/Sub ack it, which deletes it. See the Failed messages section of each publish guide.
-
-## Fixes
-
-### Rotated destination credentials take effect immediately
-
-Outpost caches a publisher per destination, and the cache key ignored credentials. After a credential change, such as a rotated webhook secret, deliveries kept using the old value until the cached publisher expired. The key now includes credentials, so the next delivery uses the new value.
-
-### Queue client initialization is retried
-
-A queue client that failed to initialize on its first subscribe is now initialized again on the next subscribe, instead of leaving the worker with an unusable client.
+- `DESTINATIONS_WEBHOOK_PROXY_URL` is deprecated in favor of `DESTINATIONS_PROXY_URL`, which also applies to RabbitMQ and Kafka destinations. The old variable still works and overrides the new one for webhooks.
+- Connecting to a RabbitMQ destination now has to finish within `DELIVERY_TIMEOUT_SECONDS` (default `5`). Before, the connection had its own 30 second timeout.
