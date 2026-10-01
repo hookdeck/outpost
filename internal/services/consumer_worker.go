@@ -21,6 +21,7 @@ type ConsumerWorker struct {
 	logger      *logging.Logger
 
 	maxConsecutiveErrors int
+	maxBytes             int64
 }
 
 // ConsumerWorkerOption configures a ConsumerWorker.
@@ -31,6 +32,14 @@ type ConsumerWorkerOption func(*ConsumerWorker)
 func WithMaxConsecutiveErrors(n int) ConsumerWorkerOption {
 	return func(w *ConsumerWorker) {
 		w.maxConsecutiveErrors = n
+	}
+}
+
+// WithMaxBytes limits the total body size, in bytes, of messages the worker
+// holds unsettled. 0 means no limit.
+func WithMaxBytes(n int64) ConsumerWorkerOption {
+	return func(w *ConsumerWorker) {
+		w.maxBytes = n
 	}
 }
 
@@ -66,7 +75,11 @@ func (w *ConsumerWorker) Run(ctx context.Context) error {
 	logger := w.logger.Ctx(ctx)
 	logger.Info("consumer worker starting", zap.String("name", w.name))
 
-	subscription, err := w.subscribe(ctx, mqs.WithConcurrency(w.concurrency))
+	subOpts := []mqs.SubscribeOption{mqs.WithConcurrency(w.concurrency)}
+	if w.maxBytes > 0 {
+		subOpts = append(subOpts, mqs.WithMaxBytes(w.maxBytes))
+	}
+	subscription, err := w.subscribe(ctx, subOpts...)
 	if err != nil {
 		logger.Error("error subscribing", zap.String("name", w.name), zap.Error(err))
 		return err

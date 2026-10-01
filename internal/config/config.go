@@ -74,10 +74,12 @@ type Config struct {
 	PublishMQ PublishMQConfig `yaml:"publishmq"`
 
 	// Consumers
-	PublishMaxConcurrency  int `yaml:"publish_max_concurrency" env:"PUBLISH_MAX_CONCURRENCY" desc:"Maximum number of messages to process concurrently from the publish queue." required:"N"`
-	PublishMaxRedeliveries int `yaml:"publish_max_redeliveries" env:"PUBLISH_MAX_REDELIVERIES" desc:"Maximum number of times a failed publish queue message is redelivered before Outpost stops redelivering it: rejected on RabbitMQ and Azure Service Bus (dead-lettered if configured), acked (deleted) on AWS SQS and GCP Pub/Sub. -1 (default) redelivers without limit; 0 never redelivers. Counts attempts, not time: without backoff on the queue, a short outage can use it up." required:"N"`
-	DeliveryMaxConcurrency int `yaml:"delivery_max_concurrency" env:"DELIVERY_MAX_CONCURRENCY" desc:"Maximum number of delivery attempts to process concurrently." required:"N"`
-	LogMaxConcurrency      int `yaml:"log_max_concurrency" env:"LOG_MAX_CONCURRENCY" desc:"Maximum number of log writing operations to process concurrently." required:"N"`
+	PublishMaxConcurrency       int   `yaml:"publish_max_concurrency" env:"PUBLISH_MAX_CONCURRENCY" desc:"Maximum number of messages to process concurrently from the publish queue." required:"N"`
+	PublishMaxConcurrencyBytes  int64 `yaml:"publish_max_concurrency_bytes" env:"PUBLISH_MAX_CONCURRENCY_BYTES" desc:"Maximum total size in bytes, measured by message body, of publish queue messages a process handles at once. Applies together with publish_max_concurrency. A message larger than the limit is still processed. 0 (default) means no limit." required:"N"`
+	PublishMaxRedeliveries      int   `yaml:"publish_max_redeliveries" env:"PUBLISH_MAX_REDELIVERIES" desc:"Maximum number of times a failed publish queue message is redelivered before Outpost stops redelivering it: rejected on RabbitMQ and Azure Service Bus (dead-lettered if configured), acked (deleted) on AWS SQS and GCP Pub/Sub. -1 (default) redelivers without limit; 0 never redelivers. Counts attempts, not time: without backoff on the queue, a short outage can use it up." required:"N"`
+	DeliveryMaxConcurrency      int   `yaml:"delivery_max_concurrency" env:"DELIVERY_MAX_CONCURRENCY" desc:"Maximum number of delivery attempts to process concurrently." required:"N"`
+	DeliveryMaxConcurrencyBytes int64 `yaml:"delivery_max_concurrency_bytes" env:"DELIVERY_MAX_CONCURRENCY_BYTES" desc:"Maximum total size in bytes, measured by message body, of delivery queue messages a process handles at once. Applies together with delivery_max_concurrency. A message larger than the limit is still delivered. 0 (default) means no limit." required:"N"`
+	LogMaxConcurrency           int   `yaml:"log_max_concurrency" env:"LOG_MAX_CONCURRENCY" desc:"Maximum number of log writing operations to process concurrently." required:"N"`
 
 	// Delivery Retry
 	RetrySchedule                 []int `yaml:"retry_schedule" env:"RETRY_SCHEDULE" envSeparator:"," desc:"Comma-separated list of retry delays in seconds. If provided, overrides retry_interval_seconds and retry_max_limit. Schedule length defines the max number of retries. Example: '5,60,600,3600,7200' for 5 retries at 5s, 1m, 10m, 1h, 2h." required:"N"`
@@ -123,22 +125,24 @@ type Config struct {
 }
 
 var (
-	ErrMismatchedServiceType         = errors.New("config validation error: service type mismatch")
-	ErrInvalidServiceType            = errors.New("config validation error: invalid service type")
-	ErrMissingRedis                  = errors.New("config validation error: redis configuration is required")
-	ErrMissingLogStorage             = errors.New("config validation error: log storage must be provided")
-	ErrMissingMQs                    = errors.New("config validation error: message queue configuration is required")
-	ErrMissingAESSecret              = errors.New("config validation error: AES encryption secret is required")
-	ErrInvalidPortalProxyURL         = errors.New("config validation error: invalid portal proxy url")
-	ErrInvalidWebhookProxyURL        = errors.New("config validation error: invalid webhook proxy url")
-	ErrInvalidAWSEventBridgeSource   = errors.New("config validation error: invalid aws eventbridge source")
-	ErrInvalidDestinationsProxyURL   = errors.New("config validation error: invalid destinations proxy url")
-	ErrInvalidPublishProxyURL        = errors.New("config validation error: invalid publish proxy url")
-	ErrInvalidDeploymentID           = errors.New("config validation error: deployment_id must contain only alphanumeric characters, hyphens, and underscores (max 64 characters)")
-	ErrInvalidRedisPoolSize          = errors.New("config validation error: redis pool_size must be >= 0")
-	ErrInvalidPublishMaxRedeliveries = errors.New("config validation error: publish_max_redeliveries must be >= -1")
-	ErrInvalidSupervisorLimit        = errors.New("config validation error: invalid supervisor limit")
-	ErrInvalidSupervisorWorker       = errors.New("config validation error: invalid supervisor restart worker")
+	ErrMismatchedServiceType              = errors.New("config validation error: service type mismatch")
+	ErrInvalidServiceType                 = errors.New("config validation error: invalid service type")
+	ErrMissingRedis                       = errors.New("config validation error: redis configuration is required")
+	ErrMissingLogStorage                  = errors.New("config validation error: log storage must be provided")
+	ErrMissingMQs                         = errors.New("config validation error: message queue configuration is required")
+	ErrMissingAESSecret                   = errors.New("config validation error: AES encryption secret is required")
+	ErrInvalidPortalProxyURL              = errors.New("config validation error: invalid portal proxy url")
+	ErrInvalidWebhookProxyURL             = errors.New("config validation error: invalid webhook proxy url")
+	ErrInvalidAWSEventBridgeSource        = errors.New("config validation error: invalid aws eventbridge source")
+	ErrInvalidDestinationsProxyURL        = errors.New("config validation error: invalid destinations proxy url")
+	ErrInvalidPublishProxyURL             = errors.New("config validation error: invalid publish proxy url")
+	ErrInvalidDeploymentID                = errors.New("config validation error: deployment_id must contain only alphanumeric characters, hyphens, and underscores (max 64 characters)")
+	ErrInvalidRedisPoolSize               = errors.New("config validation error: redis pool_size must be >= 0")
+	ErrInvalidPublishMaxRedeliveries      = errors.New("config validation error: publish_max_redeliveries must be >= -1")
+	ErrInvalidPublishMaxConcurrencyBytes  = errors.New("config validation error: publish_max_concurrency_bytes must be >= 0")
+	ErrInvalidDeliveryMaxConcurrencyBytes = errors.New("config validation error: delivery_max_concurrency_bytes must be >= 0")
+	ErrInvalidSupervisorLimit             = errors.New("config validation error: invalid supervisor limit")
+	ErrInvalidSupervisorWorker            = errors.New("config validation error: invalid supervisor restart worker")
 )
 
 func (c *Config) InitDefaults() {

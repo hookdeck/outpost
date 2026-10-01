@@ -286,16 +286,29 @@ func newSupervisedConsumerWorker(
 	concurrency int,
 	logger *logging.Logger,
 ) (worker.Worker, []worker.RegisterOption) {
+	opts := []ConsumerWorkerOption{WithMaxBytes(consumerMaxBytes(cfg, key))}
 	enabled, registerOpts := restartOptions(cfg, key)
 	if !enabled {
-		return NewConsumerWorker(name, subscribe, handler, concurrency, logger), nil
+		return NewConsumerWorker(name, subscribe, handler, concurrency, logger, opts...), nil
 	}
-	w := NewConsumerWorker(name, subscribe, handler, concurrency, logger,
-		// gocloud replays a hard receive error, so retrying Receive is
-		// wasted; end the run fast and let the supervisor restart it.
-		WithMaxConsecutiveErrors(3),
-	)
+	// gocloud replays a hard receive error, so retrying Receive is
+	// wasted; end the run fast and let the supervisor restart it.
+	opts = append(opts, WithMaxConsecutiveErrors(3))
+	w := NewConsumerWorker(name, subscribe, handler, concurrency, logger, opts...)
 	return w, registerOpts
+}
+
+// consumerMaxBytes returns the byte limit of the consumer worker named key.
+// The log queue has none.
+func consumerMaxBytes(cfg *config.Config, key string) int64 {
+	switch key {
+	case config.SupervisorWorkerPublishMQ:
+		return cfg.PublishMaxConcurrencyBytes
+	case config.SupervisorWorkerDeliveryMQ:
+		return cfg.DeliveryMaxConcurrencyBytes
+	default:
+		return 0
+	}
 }
 
 // BuildDeliveryWorker creates and registers the delivery worker.

@@ -162,6 +162,44 @@ func TestRedis(t *testing.T) {
 			}(),
 			wantErr: config.ErrInvalidPublishMaxRedeliveries,
 		},
+		{
+			name: "zero max concurrency bytes",
+			config: func() *config.Config {
+				c := validConfig()
+				c.PublishMaxConcurrencyBytes = 0
+				c.DeliveryMaxConcurrencyBytes = 0
+				return c
+			}(),
+			wantErr: nil,
+		},
+		{
+			name: "positive max concurrency bytes",
+			config: func() *config.Config {
+				c := validConfig()
+				c.PublishMaxConcurrencyBytes = 64 << 20
+				c.DeliveryMaxConcurrencyBytes = 256 << 20
+				return c
+			}(),
+			wantErr: nil,
+		},
+		{
+			name: "negative publish max concurrency bytes",
+			config: func() *config.Config {
+				c := validConfig()
+				c.PublishMaxConcurrencyBytes = -1
+				return c
+			}(),
+			wantErr: config.ErrInvalidPublishMaxConcurrencyBytes,
+		},
+		{
+			name: "negative delivery max concurrency bytes",
+			config: func() *config.Config {
+				c := validConfig()
+				c.DeliveryMaxConcurrencyBytes = -1
+				return c
+			}(),
+			wantErr: config.ErrInvalidDeliveryMaxConcurrencyBytes,
+		},
 	}
 
 	for _, tt := range tests {

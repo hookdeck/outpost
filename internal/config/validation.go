@@ -36,6 +36,10 @@ func (c *Config) Validate(flags Flags) error {
 		return err
 	}
 
+	if err := c.validateMaxConcurrencyBytes(); err != nil {
+		return err
+	}
+
 	if err := c.validateAESEncryptionSecret(); err != nil {
 		return err
 	}
@@ -159,6 +163,17 @@ func (c *Config) validatePublishMQ() error {
 	}
 	if c.PublishMaxRedeliveries < -1 {
 		return ErrInvalidPublishMaxRedeliveries
+	}
+	return nil
+}
+
+// validateMaxConcurrencyBytes validates the consumer byte limits
+func (c *Config) validateMaxConcurrencyBytes() error {
+	if c.PublishMaxConcurrencyBytes < 0 {
+		return ErrInvalidPublishMaxConcurrencyBytes
+	}
+	if c.DeliveryMaxConcurrencyBytes < 0 {
+		return ErrInvalidDeliveryMaxConcurrencyBytes
 	}
 	return nil
 }

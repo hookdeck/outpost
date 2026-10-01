@@ -116,6 +116,60 @@ func TestPublishMaxRedeliveries(t *testing.T) {
 	}
 }
 
+func TestMaxConcurrencyBytes(t *testing.T) {
+	tests := []struct {
+		name         string
+		envVars      map[string]string
+		yaml         string
+		wantPublish  int64
+		wantDelivery int64
+	}{
+		{name: "unset"},
+		{
+			name: "env",
+			envVars: map[string]string{
+				"PUBLISH_MAX_CONCURRENCY_BYTES":  "67108864",
+				"DELIVERY_MAX_CONCURRENCY_BYTES": "4294967296",
+			},
+			wantPublish:  67108864,
+			wantDelivery: 4294967296,
+		},
+		{
+			name:         "yaml",
+			yaml:         "publish_max_concurrency_bytes: 1048576\ndelivery_max_concurrency_bytes: 268435456\n",
+			wantPublish:  1048576,
+			wantDelivery: 268435456,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockOS := &mockOS{files: map[string][]byte{}, envVars: map[string]string{}}
+			for k, v := range tt.envVars {
+				mockOS.envVars[k] = v
+			}
+			if tt.yaml != "" {
+				mockOS.files["config.yaml"] = []byte(tt.yaml)
+				mockOS.envVars["CONFIG"] = "config.yaml"
+			}
+
+			cfg, err := config.ParseWithoutValidation(config.Flags{}, mockOS)
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantPublish, cfg.PublishMaxConcurrencyBytes)
+			assert.Equal(t, tt.wantDelivery, cfg.DeliveryMaxConcurrencyBytes)
+
+			logged := map[string]int64{}
+			for _, field := range cfg.LogConfigurationSummary() {
+				logged[field.Key] = field.Integer
+			}
+			require.Contains(t, logged, "publish_max_concurrency_bytes")
+			require.Contains(t, logged, "delivery_max_concurrency_bytes")
+			assert.Equal(t, tt.wantPublish, logged["publish_max_concurrency_bytes"])
+			assert.Equal(t, tt.wantDelivery, logged["delivery_max_concurrency_bytes"])
+		})
+	}
+}
+
 func TestYAMLConfig(t *testing.T) {
 	mockOS := &mockOS{
 		files: map[string][]byte{
