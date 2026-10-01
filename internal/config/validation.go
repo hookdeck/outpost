@@ -63,6 +63,10 @@ func (c *Config) Validate(flags Flags) error {
 		return err
 	}
 
+	if err := c.Supervisor.validate(); err != nil {
+		return err
+	}
+
 	// Mark as validated if we get here
 	c.validated = true
 	return nil

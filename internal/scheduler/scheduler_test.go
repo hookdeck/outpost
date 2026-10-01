@@ -604,3 +604,44 @@ func TestScheduler_MonitorCancelsDuringBackoff(t *testing.T) {
 	err := s.Monitor(ctx)
 	require.NoError(t, err, "Monitor should return nil on context cancellation")
 }
+
+// Monitor can be called again on the same scheduler after it returned an
+// error (as when the supervisor restarts the retry worker): the next run
+// picks up due messages and runs each once.
+func TestScheduler_MonitorRerunAfterError(t *testing.T) {
+	t.Parallel()
+
+	redisConfig := testutil.CreateTestRedisConfig(t)
+	rsmqClient := &mockRSMQ{
+		inner:     createRSMQClient(t, redisConfig),
+		failCount: 1,
+		failErr:   errors.New("connection refused"),
+	}
+	logger := testutil.CreateTestLogger(t)
+
+	var msgs msgLog
+	exec := func(_ context.Context, id string) error {
+		msgs.append(id)
+		return nil
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	s := scheduler.New("scheduler", rsmqClient, exec,
+		scheduler.WithLogger(logger),
+		scheduler.WithMaxConsecutiveErrors(1),
+	)
+	require.NoError(t, s.Init(ctx))
+
+	ids := []string{idgen.String(), idgen.String()}
+	require.NoError(t, s.Schedule(ctx, ids[0], 0))
+	require.Error(t, s.Monitor(ctx), "first run ends on the poll error")
+	require.Empty(t, msgs.snapshot())
+
+	waitMonitor := startMonitor(ctx, s)
+	defer func() { cancel(); waitMonitor(); s.Shutdown() }()
+	require.NoError(t, s.Schedule(ctx, ids[1], 0))
+
+	require.Eventually(t, func() bool { return len(msgs.snapshot()) == 2 }, 5*time.Second, 10*time.Millisecond)
+	time.Sleep(300 * time.Millisecond)
+	require.ElementsMatch(t, ids, msgs.snapshot(), "each message runs once")
+}
