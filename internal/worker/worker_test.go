@@ -8,9 +8,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 // Mock worker for testing
@@ -474,7 +476,9 @@ func TestWorkerSupervisor_Run_VerySlowShutdown_NoTimeout(t *testing.T) {
 }
 
 func TestWorkerSupervisor_Run_ShutdownTimeout(t *testing.T) {
-	logger := testutil.CreateTestLogger(t)
+	// The worker outlives the test and logs when it stops, so the logger
+	// can't be tied to t.
+	logger := logging.NewTestLogger(zap.NewNop())
 	// Set shutdown timeout to 500ms
 	supervisor := NewWorkerSupervisor(logger, WithShutdownTimeout(500*time.Millisecond))
 

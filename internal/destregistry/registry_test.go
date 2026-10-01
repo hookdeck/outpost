@@ -488,7 +488,7 @@ func TestPublisherExpiration(t *testing.T) {
 	t.Run("refresh_extends_ttl", func(t *testing.T) {
 		t.Parallel()
 		registry := destregistry.NewRegistry(&destregistry.Config{
-			PublisherTTL: 100 * time.Millisecond,
+			PublisherTTL: 500 * time.Millisecond,
 		}, testutil.CreateTestLogger(t))
 		provider, err := newMockProvider()
 		require.NoError(t, err)
@@ -501,16 +501,16 @@ func TestPublisherExpiration(t *testing.T) {
 		require.NoError(t, err)
 		id1 := p1.(*mockPublisher).id
 
-		// Wait 90ms (almost expired)
-		time.Sleep(90 * time.Millisecond)
+		// Wait most of the TTL
+		time.Sleep(300 * time.Millisecond)
 
 		// Access refreshes TTL
 		p2, err := registry.ResolvePublisher(context.Background(), dest)
 		require.NoError(t, err)
 		assert.Equal(t, id1, p2.(*mockPublisher).id)
 
-		// Wait 90ms (within refreshed TTL)
-		time.Sleep(90 * time.Millisecond)
+		// Wait past the original TTL, within the refreshed one
+		time.Sleep(300 * time.Millisecond)
 
 		// Still alive since last access refreshed TTL
 		p3, err := registry.ResolvePublisher(context.Background(), dest)
@@ -518,7 +518,7 @@ func TestPublisherExpiration(t *testing.T) {
 		assert.Equal(t, id1, p3.(*mockPublisher).id)
 
 		// Wait > TTL for final expiration
-		time.Sleep(110 * time.Millisecond)
+		time.Sleep(550 * time.Millisecond)
 
 		// Should get new publisher
 		p4, err := registry.ResolvePublisher(context.Background(), dest)
