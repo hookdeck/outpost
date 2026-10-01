@@ -211,7 +211,7 @@ func (h *TenantHandlers) Delete(c *gin.Context) {
 	err := h.tenantStore.DeleteTenant(c.Request.Context(), tenant.ID)
 	if err != nil {
 		if err == tenantstore.ErrTenantNotFound {
-			c.Status(http.StatusNotFound)
+			AbortWithError(c, http.StatusNotFound, NewErrNotFound("tenant"))
 			return
 		}
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))

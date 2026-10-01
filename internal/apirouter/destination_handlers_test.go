@@ -430,6 +430,10 @@ func TestAPI_Destinations(t *testing.T) {
 			resp := h.do(h.withAPIKey(req))
 
 			require.Equal(t, http.StatusNotFound, resp.Code)
+
+			var body map[string]any
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &body))
+			assert.Equal(t, "destination not found", body["message"])
 		})
 
 		t.Run("jwt returns destination on own tenant", func(t *testing.T) {
@@ -453,6 +457,10 @@ func TestAPI_Destinations(t *testing.T) {
 			resp := h.do(h.withAPIKey(req))
 
 			require.Equal(t, http.StatusNotFound, resp.Code)
+
+			var body map[string]any
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &body))
+			assert.Equal(t, "destination not found", body["message"])
 		})
 	})
 
@@ -639,6 +647,10 @@ func TestAPI_Destinations(t *testing.T) {
 			resp := h.do(h.withAPIKey(req))
 
 			require.Equal(t, http.StatusNotFound, resp.Code)
+
+			var body map[string]any
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &body))
+			assert.Equal(t, "destination not found", body["message"])
 		})
 
 		t.Run("destination belonging to other tenant returns 404", func(t *testing.T) {
@@ -655,6 +667,10 @@ func TestAPI_Destinations(t *testing.T) {
 			resp := h.do(h.withAPIKey(req))
 
 			require.Equal(t, http.StatusNotFound, resp.Code)
+
+			var body map[string]any
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &body))
+			assert.Equal(t, "destination not found", body["message"])
 		})
 
 		t.Run("changing type returns 422", func(t *testing.T) {
@@ -1277,6 +1293,10 @@ func TestAPI_Destinations(t *testing.T) {
 			resp := h.do(h.withAPIKey(req))
 
 			require.Equal(t, http.StatusNotFound, resp.Code)
+
+			var body map[string]any
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &body))
+			assert.Equal(t, "destination not found", body["message"])
 		})
 
 		t.Run("jwt deletes destination on own tenant", func(t *testing.T) {
@@ -1300,6 +1320,10 @@ func TestAPI_Destinations(t *testing.T) {
 			resp := h.do(h.withAPIKey(req))
 
 			require.Equal(t, http.StatusNotFound, resp.Code)
+
+			var body map[string]any
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &body))
+			assert.Equal(t, "destination not found", body["message"])
 		})
 	})
 

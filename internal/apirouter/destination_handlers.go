@@ -366,7 +366,7 @@ func (h *DestinationHandlers) RetrieveProviderMetadata(c *gin.Context) {
 	providerType := c.Param("type")
 	metadata, err := h.registry.RetrieveProviderMetadata(providerType)
 	if err != nil {
-		c.Status(http.StatusNotFound)
+		AbortWithError(c, http.StatusNotFound, NewErrNotFound("destination type"))
 		return
 	}
 	c.JSON(http.StatusOK, metadata)
@@ -418,14 +418,14 @@ func (h *DestinationHandlers) mustRetrieveDestination(c *gin.Context, tenantID, 
 	destination, err := h.tenantStore.RetrieveDestination(c.Request.Context(), tenantID, destinationID)
 	if err != nil {
 		if errors.Is(err, tenantstore.ErrDestinationDeleted) {
-			c.Status(http.StatusNotFound)
+			AbortWithError(c, http.StatusNotFound, NewErrNotFound("destination"))
 			return nil
 		}
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return nil
 	}
 	if destination == nil {
-		c.Status(http.StatusNotFound)
+		AbortWithError(c, http.StatusNotFound, NewErrNotFound("destination"))
 		return nil
 	}
 	return destination
