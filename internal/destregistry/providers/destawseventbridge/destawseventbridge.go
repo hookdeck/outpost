@@ -227,14 +227,8 @@ func (p *AWSEventBridgePublisher) Format(ctx context.Context, event *models.Even
 	}, nil
 }
 
-// Publish sends a single event via PutEvents.
-//
-// PutEvents is a batch API even for one entry, and it reports per-entry
-// success/failure in the response body rather than solely via the returned
-// Go error: a request can come back with err == nil and FailedEntryCount == 1
-// if that one entry was rejected (bad detail JSON, an unauthorized source,
-// etc.), so both the top-level error and the entry's own ErrorCode must be
-// checked before a publish can be called successful.
+// Publish sends a single event via PutEvents. PutEvents reports rejected
+// entries in the response body with a nil error, so both are checked.
 func (p *AWSEventBridgePublisher) Publish(ctx context.Context, event *models.Event) (*destregistry.Delivery, error) {
 	if err := p.BasePublisher.StartPublish(); err != nil {
 		return nil, err
@@ -248,35 +242,27 @@ func (p *AWSEventBridgePublisher) Publish(ctx context.Context, event *models.Eve
 
 	output, err := p.client.PutEvents(ctx, input)
 	if err != nil {
-		code, message := classifyError(err)
-		return &destregistry.Delivery{
-				Status: "failed",
-				Code:   "ERR",
-				Response: map[string]interface{}{
-					"error_code": code,
-					"error":      message,
-				},
-			}, destregistry.NewErrDestinationPublishAttempt(err, "aws_eventbridge", map[string]interface{}{
-				"error_code": code,
-				"error":      message,
-			})
+		response := map[string]interface{}{"error": err.Error()}
+		var apiErr smithy.APIError
+		if errors.As(err, &apiErr) {
+			response["error_code"] = apiErr.ErrorCode()
+		}
+		return failedDelivery(err, response)
 	}
 
-	if output.FailedEntryCount > 0 && len(output.Entries) > 0 {
-		result := output.Entries[0]
-		code, message := classifyErrorCode(awssdk.ToString(result.ErrorCode))
-		entryErr := fmt.Errorf("eventbridge: entry rejected: %s", code)
-		return &destregistry.Delivery{
-				Status: "failed",
-				Code:   "ERR",
-				Response: map[string]interface{}{
-					"error_code": code,
-					"error":      message,
-				},
-			}, destregistry.NewErrDestinationPublishAttempt(entryErr, "aws_eventbridge", map[string]interface{}{
-				"error_code": code,
-				"error":      message,
-			})
+	if output.FailedEntryCount > 0 {
+		entryErr := errors.New("eventbridge: entry rejected")
+		response := map[string]interface{}{}
+		if len(output.Entries) > 0 && output.Entries[0].ErrorCode != nil {
+			code := awssdk.ToString(output.Entries[0].ErrorCode)
+			entryErr = fmt.Errorf("%w: %s", entryErr, code)
+			if message := awssdk.ToString(output.Entries[0].ErrorMessage); message != "" {
+				entryErr = fmt.Errorf("%w: %s", entryErr, message)
+			}
+			response["error_code"] = code
+		}
+		response["error"] = entryErr.Error()
+		return failedDelivery(entryErr, response)
 	}
 
 	response := map[string]interface{}{
@@ -297,42 +283,10 @@ func (p *AWSEventBridgePublisher) Publish(ctx context.Context, event *models.Eve
 	}, nil
 }
 
-// classifyError sanitizes a top-level PutEvents error (a transport/auth
-// failure that never reached the per-entry response) into a safe code and a
-// generic, non-AWS-authored description. AWS error messages can carry
-// account IDs and ARNs in the free-text portion; only the closed-set error
-// code is safe to surface as-is, so the message here is always ours, never
-// AWS's.
-func classifyError(err error) (code string, message string) {
-	var apiErr smithy.APIError
-	if errors.As(err, &apiErr) {
-		return classifyErrorCode(apiErr.ErrorCode())
-	}
-	return "request_failed", "the request to EventBridge failed"
-}
-
-// classifyErrorCode maps a PutEvents per-entry (or API-level) error code to a
-// safe code/message pair. The code itself is one of EventBridge's own
-// documented, non-sensitive enum values and is passed through; the message is
-// authored here rather than using AWS's own ErrorMessage, which can embed
-// account IDs or ARNs.
-func classifyErrorCode(errorCode string) (code string, message string) {
-	switch errorCode {
-	case "":
-		return "unknown", "the event was rejected for an unspecified reason"
-	case "AccessDeniedException", "NotAuthorizedForSourceException", "NotAuthorizedForDetailTypeException":
-		return errorCode, "the configured credentials are not authorized for this event bus, source, or detail type"
-	case "InvalidAccountIdException":
-		return errorCode, "the configured event bus is not valid for this account"
-	case "InvalidArgument", "MalformedDetail":
-		return errorCode, "the event was rejected as malformed"
-	case "ThrottlingException":
-		return errorCode, "the request was throttled by EventBridge"
-	case "InternalFailure":
-		return errorCode, "EventBridge reported an internal failure"
-	case "RedactionFailure":
-		return errorCode, "EventBridge failed to redact the event"
-	default:
-		return errorCode, "the event was rejected by EventBridge"
-	}
+func failedDelivery(err error, response map[string]interface{}) (*destregistry.Delivery, error) {
+	return &destregistry.Delivery{
+		Status:   "failed",
+		Code:     "ERR",
+		Response: response,
+	}, destregistry.NewErrDestinationPublishAttempt(err, "aws_eventbridge", response)
 }
