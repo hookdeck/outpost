@@ -158,7 +158,7 @@ func TestAPI_Publish(t *testing.T) {
 			})
 			resp := h.do(h.withAPIKey(req))
 
-			require.Equal(t, http.StatusConflict, resp.Code)
+			requireErrorResponse(t, resp, http.StatusConflict, "event is already being processed")
 		})
 
 		t.Run("required topic returns 422 with detail", func(t *testing.T) {

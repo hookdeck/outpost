@@ -162,11 +162,13 @@ func newAPITest(t *testing.T, opts ...apiTestOption) *apiTest {
 	}
 }
 
-// do executes a request and returns the response recorder.
+// do executes a request and returns the response recorder. It fails the test
+// when the response is not JSON with a body: every API response must be.
 func (a *apiTest) do(req *http.Request) *httptest.ResponseRecorder {
 	a.t.Helper()
 	w := httptest.NewRecorder()
 	a.router.ServeHTTP(w, req)
+	testutil.RequireJSONResponse(a.t, req.Method+" "+req.URL.Path, w.Code, w.Header(), w.Body.Bytes())
 	return w
 }
 

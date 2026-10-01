@@ -7,10 +7,13 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strings"
+	"testing"
 	"time"
 
 	opeventsmock "github.com/hookdeck/outpost/cmd/e2e/opevents"
 	"github.com/hookdeck/outpost/internal/idgen"
+	"github.com/hookdeck/outpost/internal/util/testutil"
 )
 
 const (
@@ -115,6 +118,17 @@ func (d *webhookDestination) SetCredentials(s *basicSuite, creds map[string]stri
 // Internal HTTP helpers
 // =============================================================================
 
+// requireJSONAPIResponse fails the test when a response from the Outpost API
+// is not JSON with a body: every API response must be. Responses from other
+// servers (the mock destination server) are not checked.
+func requireJSONAPIResponse(t testing.TB, req *http.Request, resp *http.Response, body []byte) {
+	t.Helper()
+	if !strings.HasPrefix(req.URL.Path, "/api/") {
+		return
+	}
+	testutil.RequireJSONResponse(t, req.Method+" "+req.URL.Path, resp.StatusCode, resp.Header, body)
+}
+
 // doJSON sends a request with admin API key auth. Returns status code.
 // Fails test on transport/marshal errors. result can be nil to discard body.
 func (s *basicSuite) doJSON(method, url string, body any, result any) int {
@@ -151,6 +165,7 @@ func (s *basicSuite) doJSONWithAuth(method, url string, authHeader string, body 
 
 	respBody, err := io.ReadAll(resp.Body)
 	s.Require().NoError(err)
+	requireJSONAPIResponse(s.T(), req, resp, respBody)
 
 	// Log response body on non-2xx when caller doesn't inspect it (aids CI debugging).
 	if result == nil && resp.StatusCode >= 400 && len(respBody) > 0 {
@@ -178,6 +193,7 @@ func (s *basicSuite) doRawGet(url string) (int, []byte) {
 
 	body, err := io.ReadAll(resp.Body)
 	s.Require().NoError(err)
+	requireJSONAPIResponse(s.T(), req, resp, body)
 	return resp.StatusCode, body
 }
 
