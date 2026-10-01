@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
@@ -28,6 +29,8 @@ func ErrorHandlerMiddleware() gin.HandlerFunc {
 		handleErrorResponse(c, errorResponse)
 	}
 }
+
+const expectedRFC3339 = "expected RFC3339 (e.g. 2024-01-15T09:30:00Z or 2024-01-15T09:30:00.123Z)"
 
 type ErrorResponse struct {
 	Err     error       `json:"-"`
@@ -63,6 +66,14 @@ func (e *ErrorResponse) Parse(err error) {
 	if isInvalidJSON(err) {
 		e.Code = http.StatusUnprocessableEntity
 		e.Message = "invalid JSON"
+		e.Err = err
+		return
+	}
+
+	var timeParseErr *time.ParseError
+	if errors.As(err, &timeParseErr) {
+		e.Code = http.StatusUnprocessableEntity
+		e.Message = fmt.Sprintf("invalid timestamp %q: %s", timeParseErr.Value, expectedRFC3339)
 		e.Err = err
 		return
 	}

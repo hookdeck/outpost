@@ -263,6 +263,10 @@ func (h *DestinationHandlers) Update(c *gin.Context) {
 		} else {
 			var ts time.Time
 			if err := json.Unmarshal(input.DisabledAt, &ts); err != nil {
+				var parseErr *time.ParseError
+				if errors.As(err, &parseErr) {
+					err = errors.New(expectedRFC3339)
+				}
 				AbortWithValidationError(c, fmt.Errorf("invalid disabled_at: %w", err))
 				return
 			}

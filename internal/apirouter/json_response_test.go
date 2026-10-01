@@ -170,6 +170,33 @@ func TestAPI_ErrorResponsesAreJSON(t *testing.T) {
 		}
 	})
 
+	t.Run("422 timestamp that is not RFC3339", func(t *testing.T) {
+		const expectedFormat = "expected RFC3339 (e.g. 2024-01-15T09:30:00Z or 2024-01-15T09:30:00.123Z)"
+		const destination = `"type":"webhook","topics":["*"],"config":{"url":"https://example.com/hook"}`
+		tests := []struct {
+			name    string
+			method  string
+			path    string
+			body    string
+			message string
+		}{
+			{"publish time", http.MethodPost, "/api/v1/publish", `{"tenant_id":"t1","topic":"user.created","data":{"a":1},"time":"yesterday"}`, `invalid timestamp "yesterday": ` + expectedFormat},
+			{"create destination created_at", http.MethodPost, "/api/v1/tenants/t1/destinations", `{` + destination + `,"created_at":"yesterday"}`, `invalid timestamp "yesterday": ` + expectedFormat},
+			{"create destination updated_at", http.MethodPost, "/api/v1/tenants/t1/destinations", `{` + destination + `,"updated_at":"2024-01-15"}`, `invalid timestamp "2024-01-15": ` + expectedFormat},
+			{"create destination disabled_at", http.MethodPost, "/api/v1/tenants/t1/destinations", `{` + destination + `,"disabled_at":"yesterday"}`, `invalid timestamp "yesterday": ` + expectedFormat},
+			{"update destination disabled_at", http.MethodPatch, "/api/v1/tenants/t1/destinations/d1", `{"disabled_at":"yesterday"}`, "invalid disabled_at: " + expectedFormat},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				h := setup(t)
+				require.NoError(t, h.tenantStore.CreateDestination(t.Context(), df.Any(df.WithID("d1"), df.WithTenantID("t1"))))
+				req := httptest.NewRequest(tt.method, tt.path, strings.NewReader(tt.body))
+				req.Header.Set("Content-Type", "application/json")
+				testutil.RequireErrorResponse(t, h.do(h.withAPIKey(req)), http.StatusUnprocessableEntity, tt.message)
+			})
+		}
+	})
+
 	t.Run("500 destination cannot be displayed", func(t *testing.T) {
 		tests := []struct {
 			name   string

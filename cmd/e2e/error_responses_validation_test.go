@@ -13,6 +13,7 @@ const (
 	invalidCursor          = "invalid cursor"
 	cursorVersionMismatch  = "invalid cursor: cursor version mismatch: expected version 01"
 	cursorInvalidTimestamp = "invalid cursor: invalid timestamp"
+	expectedRFC3339        = "expected RFC3339 (e.g. 2024-01-15T09:30:00Z or 2024-01-15T09:30:00.123Z)"
 )
 
 func (s *basicSuite) TestErrorResponses_PublishValidation() {
@@ -31,6 +32,7 @@ func (s *basicSuite) TestErrorResponses_PublishValidation() {
 		publish("malformed JSON", rawBody("{"), invalidJSON, ""),
 		publish("no body", nil, invalidJSON, ""),
 		publish("wrong field type", map[string]any{"tenant_id": 1, "topic": "user.created", "data": data}, invalidJSON, ""),
+		publish("time that is not RFC3339", map[string]any{"tenant_id": tenant.ID, "topic": "user.created", "data": data, "time": "yesterday"}, `invalid timestamp "yesterday": `+expectedRFC3339, ""),
 		publish("missing tenant_id", map[string]any{"topic": "user.created", "data": data}, validationError, "tenant_id is required"),
 		publish("missing data", map[string]any{"tenant_id": tenant.ID, "topic": "user.created"}, validationError, "data is required"),
 		publish("data is not an object", map[string]any{"tenant_id": tenant.ID, "topic": "user.created", "data": "text"}, validationError, "data must be a valid JSON object"),
@@ -153,6 +155,9 @@ func (s *basicSuite) TestErrorResponses_CreateDestinationValidation() {
 		create("unknown type", webhook(map[string]any{"type": "nope"}), unprocessable, "no provider registered for destination type: nope", ""),
 		create("missing config", webhook(map[string]any{"config": nil}), unprocessable, validationError, "config.url is required"),
 		create("invalid url", webhook(map[string]any{"config": map[string]any{"url": "not a url"}}), unprocessable, validationError, "config.url"),
+		create("created_at that is not RFC3339", webhook(map[string]any{"created_at": "yesterday"}), unprocessable, `invalid timestamp "yesterday": `+expectedRFC3339, ""),
+		create("updated_at that is not RFC3339", webhook(map[string]any{"updated_at": "yesterday"}), unprocessable, `invalid timestamp "yesterday": `+expectedRFC3339, ""),
+		create("disabled_at that is not RFC3339", webhook(map[string]any{"disabled_at": "yesterday"}), unprocessable, `invalid timestamp "yesterday": `+expectedRFC3339, ""),
 		create("created_at in the future", webhook(map[string]any{"created_at": "2999-01-01T00:00:00Z"}), unprocessable, "created_at cannot be in the future", ""),
 		create("updated_at in the future", webhook(map[string]any{"updated_at": "2999-01-01T00:00:00Z"}), unprocessable, "updated_at cannot be in the future", ""),
 		create("disabled_at in the future", webhook(map[string]any{"disabled_at": "2999-01-01T00:00:00Z"}), unprocessable, "disabled_at cannot be in the future", ""),
@@ -205,6 +210,7 @@ func (s *basicSuite) TestErrorResponses_UpdateDestinationValidation() {
 		update("delivery_metadata of the wrong type", map[string]any{"delivery_metadata": "text"}, invalidJSON, ""),
 		update("metadata of the wrong type", map[string]any{"metadata": "text"}, invalidJSON, ""),
 		update("disabled_at of the wrong type", map[string]any{"disabled_at": 1}, invalidJSON, ""),
+		update("disabled_at that is not RFC3339", map[string]any{"disabled_at": "yesterday"}, "invalid disabled_at: "+expectedRFC3339, ""),
 		update("disabled_at in the future", map[string]any{"disabled_at": "2999-01-01T00:00:00Z"}, "disabled_at cannot be in the future", ""),
 		update("invalid url", map[string]any{"config": map[string]any{"url": "not a url"}}, validationError, "config.url"),
 	})
@@ -303,8 +309,8 @@ func (s *basicSuite) TestErrorResponses_MetricsValidation() {
 	}{
 		{"no time range", "measures[0]=count", "time[start] and time[end] are required"},
 		{"no time[end]", "time[start]=2024-01-01T00:00:00Z&measures[0]=count", "time[start] and time[end] are required"},
-		{"invalid time[start]", "time[start]=yesterday&time[end]=2024-01-02T00:00:00Z&measures[0]=count", "invalid time[start]: expected RFC3339 (e.g. 2024-01-15T09:30:00Z or 2024-01-15T09:30:00.123Z)"},
-		{"invalid time[end]", "time[start]=2024-01-01T00:00:00Z&time[end]=tomorrow&measures[0]=count", "invalid time[end]: expected RFC3339 (e.g. 2024-01-15T09:30:00Z or 2024-01-15T09:30:00.123Z)"},
+		{"invalid time[start]", "time[start]=yesterday&time[end]=2024-01-02T00:00:00Z&measures[0]=count", "invalid time[start]: " + expectedRFC3339},
+		{"invalid time[end]", "time[start]=2024-01-01T00:00:00Z&time[end]=tomorrow&measures[0]=count", "invalid time[end]: " + expectedRFC3339},
 		{"start after end", "time[start]=2024-01-02T00:00:00Z&time[end]=2024-01-01T00:00:00Z&measures[0]=count", "invalid time range: start must be before end"},
 		{"invalid granularity", timeRange + "&measures[0]=count&granularity=hourly", `invalid granularity "hourly": must match <number><unit> where unit is one of s,m,h,d,w,M`},
 		{"granularity of zero", timeRange + "&measures[0]=count&granularity=0h", `invalid granularity "0h": value must be > 0`},

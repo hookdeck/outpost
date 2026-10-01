@@ -123,14 +123,13 @@ func parseMetricsRequest(c *gin.Context, allowedMeasures, allowedDimensions, all
 		return nil, fmt.Errorf("time[start] and time[end] are required")
 	}
 
-	const expectedFormat = "expected RFC3339 (e.g. 2024-01-15T09:30:00Z or 2024-01-15T09:30:00.123Z)"
 	start, err := time.Parse(time.RFC3339, startStr)
 	if err != nil {
-		return nil, errors.New("invalid time[start]: " + expectedFormat)
+		return nil, errors.New("invalid time[start]: " + expectedRFC3339)
 	}
 	end, err := time.Parse(time.RFC3339, endStr)
 	if err != nil {
-		return nil, errors.New("invalid time[end]: " + expectedFormat)
+		return nil, errors.New("invalid time[end]: " + expectedRFC3339)
 	}
 
 	// granularity (optional)
