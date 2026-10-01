@@ -4,6 +4,8 @@ info:
   version: "0.0.1"
   description: |
     The Outpost API is a REST-based JSON API for managing tenants, destinations, and publishing events.
+
+    Outpost runs in two deployment models — **managed** (hosted by Hookdeck) and **self-hosted** — and they differ in where the API lives and what credential reaches it. See the servers list and the `AdminApiKey` security scheme. A few endpoints exist in one model only and say so in their description.
   contact:
     name: Outpost Support
     email: support@hookdeck.com
@@ -13,15 +15,27 @@ security:
   - TenantJwt: []
 servers:
   - url: https://api.outpost.hookdeck.com/2025-07-01
-    description: Outpost API (production)
+    description: Managed Outpost. Not `api.hookdeck.com`, which is the Hookdeck Event Gateway.
   - url: http://localhost:3333/api/v1
-    description: Local development server base path
+    description: Self-hosted Outpost, at its default local address. A deployed instance serves the same paths under its own host.
 components:
   securitySchemes:
     AdminApiKey:
       type: http
       scheme: bearer
-      description: Admin API Key configured via API_KEY environment variable.
+      description: |
+        Bearer token for server-side calls. Where it comes from depends on the
+        deployment:
+
+        - **Managed Outpost:** a Hookdeck **project API key belonging to your
+          Outpost project** (Hookdeck Dashboard → your Outpost project →
+          Settings → Secrets). A key from a different Hookdeck project
+          authenticates but returns `404` on most Outpost routes.
+        - **Self-hosted:** the admin API key set in the `API_KEY` environment
+          variable.
+
+        The scheme is named for the self-hosted credential. Managed deployments
+        have no separate "admin key" to create — the project API key is it.
     TenantJwt:
       type: http
       scheme: bearer
