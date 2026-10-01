@@ -2,6 +2,7 @@ package mqs
 
 import (
 	"context"
+	"log"
 	"strings"
 	"sync"
 	"time"
@@ -22,7 +23,6 @@ type NATSConfig struct {
 	Stream     string
 	Subject    string
 	DLQSubject string // optional; exhausted messages are moved here instead of being lost
-	MaxDeliver int
 	AckWait    time.Duration
 }
 
@@ -36,16 +36,6 @@ type NATSQueue struct {
 var _ Queue = &NATSQueue{}
 
 func NewNATSQueue(config *NATSConfig) *NATSQueue {
-	if config.MaxDeliver == 0 {
-		// Must track mqinfra's own default (Policy.RetryLimit's fallback of
-		// 5, +2 — see infraNATS.Declare) since nothing currently threads the
-		// real Policy.RetryLimit through to this config: a mismatch here
-		// makes exceededMaxDeliver trigger a delivery before the JetStream
-		// consumer's actual MaxDeliver is reached, moving a message to the
-		// DLQ (and terming it) while the broker would still have redelivered
-		// it at least once more.
-		config.MaxDeliver = 7
-	}
 	if config.AckWait == 0 {
 		config.AckWait = 60 * time.Second
 	}
@@ -142,7 +132,13 @@ func (q *NATSQueue) Subscribe(ctx context.Context, opts ...SubscribeOption) (Sub
 		msgs:       msgs,
 		js:         js,
 		dlqSubject: q.config.DLQSubject,
-		maxDeliver: q.config.MaxDeliver,
+		// Read from the live consumer rather than a locally-configured
+		// value: with MQS_AUTO_PROVISION=false an operator may have created
+		// the consumer with a different MaxDeliver than this process
+		// assumes, and nothing else keeps the two in sync — a message would
+		// then reach the DLQ early, or never, depending on which way they
+		// drifted.
+		maxDeliver: consumer.CachedInfo().Config.MaxDeliver,
 	}, nil
 }
 
@@ -170,60 +166,30 @@ var _ Subscription = &NATSSubscription{}
 // NextContext, returns as soon as ctx is done. Messages also lets JetStream
 // overlap pull requests instead of paying a full round-trip per message,
 // which Fetch(1, ...) caps regardless of consumer concurrency settings.
+//
+// Every delivery is handed back here, including the last one JetStream will
+// ever make for this message — unlike RabbitMQ/SQS, nothing here decides a
+// message is "exhausted" before the caller gets to see it. That decision
+// instead happens in the returned message's own Nack (see natsQueueMessage),
+// so the handler gets its full MaxDeliver attempts, the same as every other
+// provider, rather than losing the last one to this provider's own
+// client-side DLQ handling.
 func (s *NATSSubscription) Receive(ctx context.Context) (*Message, error) {
-	for {
-		m, err := s.msgs.Next(jetstream.NextContext(ctx))
-		if err != nil {
-			return nil, err
-		}
-
-		if s.exceededMaxDeliver(m) {
-			s.moveToDLQ(ctx, m)
-			continue
-		}
-
-		return &Message{
-			QueueMessage: &natsQueueMessage{msg: m},
-			LoggableID:   m.Subject(),
-			Body:         m.Data(),
-		}, nil
-	}
-}
-
-// exceededMaxDeliver reports whether this is the last delivery JetStream
-// will make. NumDelivered never exceeds MaxDeliver — JetStream simply stops
-// redelivering after the MaxDeliver-th attempt — so gating on ">" never
-// fires; the message is then neither acked, nacked nor termed, and (with
-// WorkQueue retention and no message limits) sits in the stream forever.
-// ">=" catches it on that final allowed delivery instead.
-func (s *NATSSubscription) exceededMaxDeliver(m jetstream.Msg) bool {
-	if s.dlqSubject == "" || s.maxDeliver <= 0 {
-		return false
-	}
-	meta, err := m.Metadata()
+	m, err := s.msgs.Next(jetstream.NextContext(ctx))
 	if err != nil {
-		return false
+		return nil, err
 	}
-	return int(meta.NumDelivered) >= s.maxDeliver
-}
 
-// moveToDLQ republishes an exhausted message to the DLQ subject and
-// terminates it, so JetStream stops redelivering it — the equivalent of
-// RabbitMQ's automatic dead-letter-exchange routing, done explicitly here
-// since JetStream has no broker-side DLQ mechanism of its own. If the DLQ
-// publish itself fails, Term would drop the message with no record of it
-// anywhere; Nak instead so it's redelivered and gets another chance to
-// reach the DLQ, rather than being silently lost.
-func (s *NATSSubscription) moveToDLQ(ctx context.Context, m jetstream.Msg) {
-	if s.js == nil {
-		m.Nak()
-		return
-	}
-	if _, err := s.js.Publish(ctx, s.dlqSubject, m.Data()); err != nil {
-		m.Nak()
-		return
-	}
-	m.Term()
+	return &Message{
+		QueueMessage: &natsQueueMessage{
+			msg:        m,
+			js:         s.js,
+			dlqSubject: s.dlqSubject,
+			maxDeliver: s.maxDeliver,
+		},
+		LoggableID: m.Subject(),
+		Body:       m.Data(),
+	}, nil
 }
 
 func (s *NATSSubscription) Shutdown(ctx context.Context) error {
@@ -232,10 +198,69 @@ func (s *NATSSubscription) Shutdown(ctx context.Context) error {
 }
 
 type natsQueueMessage struct {
-	msg jetstream.Msg
+	msg        jetstream.Msg
+	js         jetstream.JetStream
+	dlqSubject string
+	maxDeliver int
 }
 
 var _ QueueMessage = &natsQueueMessage{}
 
-func (m *natsQueueMessage) Ack()  { m.msg.Ack() }
-func (m *natsQueueMessage) Nack() { m.msg.Nak() }
+func (m *natsQueueMessage) Ack() { m.msg.Ack() }
+
+// Nack redelivers the message normally, unless this is the last delivery
+// JetStream will ever make for it (NumDelivered >= MaxDeliver) — gating on
+// ">" never fires, since JetStream simply stops redelivering after the
+// MaxDeliver-th attempt, so a message that reaches here on its final
+// attempt would otherwise be neither acked, nacked nor termed, and (with
+// WorkQueue retention and no message limits) sit in the stream forever.
+// On that final attempt, this republishes it to the DLQ subject and
+// terminates it instead — the equivalent of RabbitMQ's automatic
+// dead-letter-exchange routing, done explicitly here since JetStream has no
+// broker-side DLQ mechanism of its own.
+func (m *natsQueueMessage) Nack() {
+	if m.exceededMaxDeliver() {
+		m.moveToDLQ()
+		return
+	}
+	m.msg.Nak()
+}
+
+func (m *natsQueueMessage) exceededMaxDeliver() bool {
+	if m.dlqSubject == "" || m.maxDeliver <= 0 {
+		return false
+	}
+	meta, err := m.msg.Metadata()
+	if err != nil {
+		return false
+	}
+	return int(meta.NumDelivered) >= m.maxDeliver
+}
+
+// moveToDLQ runs on a message's last allowed delivery, so unlike every
+// other Nack, there's no further redelivery for a failed DLQ publish to
+// fall back on — a plain Nak here would just be silently dropped by
+// JetStream too. A short bounded retry covers a transient failure; one
+// that's still failing after that is logged, since that's the only
+// remaining way to keep it from disappearing without a trace. Terminated
+// either way: leaving it unacked forever (the original bug this fixes) is
+// worse than a rare, logged loss.
+func (m *natsQueueMessage) moveToDLQ() {
+	defer m.msg.Term()
+
+	if m.js == nil {
+		return
+	}
+
+	ctx := context.Background()
+	var err error
+	for attempt := 0; attempt < 3; attempt++ {
+		if attempt > 0 {
+			time.Sleep(time.Duration(attempt) * 100 * time.Millisecond)
+		}
+		if _, err = m.js.Publish(ctx, m.dlqSubject, m.msg.Data()); err == nil {
+			return
+		}
+	}
+	log.Printf("nats: giving up moving exhausted message to DLQ subject %q after retries: %v", m.dlqSubject, err)
+}

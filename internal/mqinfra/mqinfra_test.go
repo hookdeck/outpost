@@ -255,11 +255,11 @@ func TestIntegrationMQInfra_NATS(t *testing.T) {
 					Stream:     stream,
 					Subject:    subject,
 					DLQSubject: dlqSubject,
-					// Left unset deliberately: NewNATSQueue's own default
-					// (RetryLimit+2, matching infraNATS.Declare's) is what's
-					// under test here — this provider's app-visible attempt
-					// count now matches every other provider's at the same
-					// RetryLimit, same as this shared test expects.
+					// No MaxDeliver here: NATSQueue.Subscribe reads it from
+					// the live consumer mqinfra provisioned above instead,
+					// so this provider's app-visible attempt count matches
+					// every other provider's at the same RetryLimit, same
+					// as this shared test expects.
 				},
 			},
 		},

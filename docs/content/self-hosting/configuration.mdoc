@@ -41,8 +41,8 @@ Choose one message queue provider. The selected provider is used for both event 
 | `NATS_STREAM` | Stream name (default: `outpost`) |
 | `NATS_DELIVERY_SUBJECT` | Subject for delivery events (default: `outpost.delivery`) |
 | `NATS_LOG_SUBJECT` | Subject for log events (default: `outpost.log`) |
-| `NATS_DELIVERY_DLQ` | Subject for delivery messages that exhaust all delivery attempts (default: `dlq.outpost.delivery`) |
-| `NATS_LOG_DLQ` | Subject for log messages that exhaust all delivery attempts (default: `dlq.outpost.log`) |
+| `NATS_DELIVERY_DLQ` | Subject for delivery messages that exhaust all delivery attempts (default: `dlq.outpost-delivery`) |
+| `NATS_LOG_DLQ` | Subject for log messages that exhaust all delivery attempts (default: `dlq.outpost-log`) |
 
 `NATS_DELIVERY_SUBJECT` and `NATS_LOG_SUBJECT` must start with `NATS_STREAM` followed by a `.` — the main stream only claims subjects under `<stream>.>`. NATS servers default `max_payload` to 1 MiB; raise it in your server configuration if you deliver larger events.
 

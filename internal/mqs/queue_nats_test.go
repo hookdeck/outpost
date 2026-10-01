@@ -16,18 +16,15 @@ func TestNewNATSQueue_Defaults(t *testing.T) {
 	t.Run("applies defaults when unset", func(t *testing.T) {
 		t.Parallel()
 		queue := mqs.NewNATSQueue(&mqs.NATSConfig{ServerURL: "nats://127.0.0.1:1"})
-		assert.Equal(t, 7, mqs.NATSQueueConfig(queue).MaxDeliver)
 		assert.Equal(t, 60*time.Second, mqs.NATSQueueConfig(queue).AckWait)
 	})
 
 	t.Run("preserves explicit values", func(t *testing.T) {
 		t.Parallel()
 		queue := mqs.NewNATSQueue(&mqs.NATSConfig{
-			ServerURL:  "nats://127.0.0.1:1",
-			MaxDeliver: 10,
-			AckWait:    5 * time.Second,
+			ServerURL: "nats://127.0.0.1:1",
+			AckWait:   5 * time.Second,
 		})
-		assert.Equal(t, 10, mqs.NATSQueueConfig(queue).MaxDeliver)
 		assert.Equal(t, 5*time.Second, mqs.NATSQueueConfig(queue).AckWait)
 	})
 }

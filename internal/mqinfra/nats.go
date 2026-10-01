@@ -150,18 +150,17 @@ func (infra *infraNATS) Declare(ctx context.Context) error {
 		return err
 	}
 
-	// +2, not +1: SQS's own maxReceiveCount is RetryLimit+1 because
-	// NumDelivered counts the initial delivery as attempt #1 — but SQS's
-	// broker routes an exhausted message to its DLQ on its own, as an extra
-	// action the app never sees. JetStream has no such broker-side mover;
-	// this provider's own Receive has to intercept a delivery itself to do
-	// it (see exceededMaxDeliver), which costs one of the MaxDeliver
-	// attempts that would otherwise have reached the app. +2 keeps the
-	// app-visible attempt count at RetryLimit+1, the same as every other
-	// provider, instead of one fewer.
-	maxDeliver := 7
+	// Adding 1 because JetStream's NumDelivered counts the initial delivery
+	// as attempt #1, matching the AWS SQS/Azure/GCP providers' own +1
+	// handling of RetryLimit (e.g. SQS's maxReceiveCount). The handler sees
+	// every one of these deliveries, including the last — the DLQ move for
+	// an exhausted message happens in response to the handler's own Nack on
+	// that last attempt (mqs.natsQueueMessage.Nack), not by intercepting
+	// the delivery before the handler ever sees it, so this needs no extra
+	// margin beyond the other providers' own +1.
+	maxDeliver := 6
 	if infra.cfg.Policy.RetryLimit > 0 {
-		maxDeliver = infra.cfg.Policy.RetryLimit + 2
+		maxDeliver = infra.cfg.Policy.RetryLimit + 1
 	}
 
 	if _, err := js.CreateOrUpdateConsumer(ctx, infra.cfg.NATS.Stream, jetstream.ConsumerConfig{
