@@ -15,7 +15,7 @@ security:
   - TenantJwt: []
 servers:
   - url: https://api.outpost.hookdeck.com/2025-07-01
-    description: Managed Outpost. Not `api.hookdeck.com`, which is the Hookdeck Event Gateway.
+    description: Managed Outpost, hosted by Hookdeck.
   - url: http://localhost:3333/api/v1
     description: Self-hosted Outpost, at its default local address. A deployed instance serves the same paths under its own host.
 components:
