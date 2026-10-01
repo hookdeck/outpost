@@ -65,31 +65,3 @@ func TestParseCursorPosition(t *testing.T) {
 		}
 	})
 }
-
-func TestDecodeCursor(t *testing.T) {
-	t.Run("returns the position of a readable cursor", func(t *testing.T) {
-		position, err := driver.DecodeCursor(cursor.Encode("evt", 1, "1700000000000::evt_1"), "evt", 1)
-		require.NoError(t, err)
-		assert.Equal(t, "1700000000000::evt_1", position)
-	})
-
-	cases := []struct {
-		name    string
-		cursor  string
-		message string
-	}{
-		{"not a cursor", "not-a-cursor", "invalid cursor"},
-		{"cursor of another resource", cursor.Encode("att", 1, "1700000000000::att_1"), "invalid cursor"},
-		{"cursor of another version", cursor.Encode("evt", 2, "1700000000000::evt_1"), "invalid cursor: cursor version mismatch: expected version 01"},
-		{"empty position", cursor.Encode("evt", 1, ""), "invalid cursor"},
-		{"position without an id", cursor.Encode("evt", 1, "1700000000000"), "invalid cursor"},
-		{"position with a timestamp that is not a number", cursor.Encode("evt", 1, "yesterday::evt_1"), "invalid cursor: invalid timestamp"},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			_, err := driver.DecodeCursor(tc.cursor, "evt", 1)
-			require.ErrorIs(t, err, cursor.ErrInvalidCursor)
-			assert.EqualError(t, err, tc.message)
-		})
-	}
-}

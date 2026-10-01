@@ -77,7 +77,7 @@ func (s *logStore) ListEvent(ctx context.Context, req driver.ListEventRequest) (
 				return cursor.Encode(cursorResourceEvent, cursorVersion, position)
 			},
 			Decode: func(c string) (string, error) {
-				return driver.DecodeCursor(c, cursorResourceEvent, cursorVersion)
+				return cursor.Decode(c, cursorResourceEvent, cursorVersion)
 			},
 		},
 	})
@@ -292,7 +292,7 @@ func (s *logStore) ListAttempt(ctx context.Context, req driver.ListAttemptReques
 				return cursor.Encode(cursorResourceAttempt, cursorVersion, position)
 			},
 			Decode: func(c string) (string, error) {
-				return driver.DecodeCursor(c, cursorResourceAttempt, cursorVersion)
+				return cursor.Decode(c, cursorResourceAttempt, cursorVersion)
 			},
 		},
 	})

@@ -152,7 +152,7 @@ func (s *logStoreImpl) ListEvent(ctx context.Context, req driver.ListEventReques
 				return cursor.Encode(cursorResourceEvent, cursorVersion, e.cursorPosition())
 			},
 			Decode: func(c string) (string, error) {
-				return driver.DecodeCursor(c, cursorResourceEvent, cursorVersion)
+				return cursor.Decode(c, cursorResourceEvent, cursorVersion)
 			},
 		},
 	})
@@ -364,7 +364,7 @@ func (s *logStoreImpl) ListAttempt(ctx context.Context, req driver.ListAttemptRe
 				return cursor.Encode(cursorResourceAttempt, cursorVersion, ar.cursorPosition())
 			},
 			Decode: func(c string) (string, error) {
-				return driver.DecodeCursor(c, cursorResourceAttempt, cursorVersion)
+				return cursor.Decode(c, cursorResourceAttempt, cursorVersion)
 			},
 		},
 	})

@@ -29,16 +29,3 @@ func ParseCursorPosition(position string) (timeMs int64, id string, err error) {
 	}
 	return timeMs, id, nil
 }
-
-// DecodeCursor decodes a cursor of the given resource and version and checks
-// that its "{unix milliseconds}::{id}" position can be read.
-func DecodeCursor(encoded, resource string, version int) (string, error) {
-	position, err := cursor.Decode(encoded, resource, version)
-	if err != nil {
-		return "", err
-	}
-	if _, _, err := ParseCursorPosition(position); err != nil {
-		return "", err
-	}
-	return position, nil
-}
