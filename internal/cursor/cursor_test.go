@@ -143,6 +143,8 @@ func TestDecode(t *testing.T) {
 		_, err := cursor.Decode(encoded, "evt", 2)
 		require.Error(t, err)
 		assert.True(t, errors.Is(err, cursor.ErrVersionMismatch))
+		assert.True(t, errors.Is(err, cursor.ErrInvalidCursor))
+		assert.EqualError(t, err, "invalid cursor: cursor version mismatch: expected version 02")
 	})
 
 	t.Run("invalid base62 returns ErrInvalidCursor", func(t *testing.T) {

@@ -3,12 +3,15 @@ package e2e_test
 import (
 	"net/http"
 
+	"github.com/hookdeck/outpost/internal/cursor"
 	"github.com/hookdeck/outpost/internal/idgen"
 )
 
 const (
-	validationError = "validation error"
-	invalidJSON     = "invalid JSON"
+	validationError       = "validation error"
+	invalidJSON           = "invalid JSON"
+	invalidCursor         = "invalid cursor"
+	cursorVersionMismatch = "invalid cursor: cursor version mismatch: expected version 01"
 )
 
 func (s *basicSuite) TestErrorResponses_PublishValidation() {
@@ -93,8 +96,10 @@ func (s *basicSuite) TestErrorResponses_TenantValidation() {
 	// The tenant store parses cursors, and a Redis without RediSearch answers the list with 501.
 	if s.doJSON(http.MethodGet, s.apiURL("/tenants"), nil, nil) != http.StatusNotImplemented {
 		cases = append(cases,
-			errorCase{name: "list with an invalid next cursor", method: http.MethodGet, path: "/tenants?next=not-a-cursor", status: http.StatusBadRequest, message: "invalid cursor: invalid cursor"},
-			errorCase{name: "list with an invalid prev cursor", method: http.MethodGet, path: "/tenants?prev=not-a-cursor", status: http.StatusBadRequest, message: "invalid cursor: invalid cursor"},
+			errorCase{name: "list with an invalid next cursor", method: http.MethodGet, path: "/tenants?next=not-a-cursor", status: http.StatusBadRequest, message: invalidCursor},
+			errorCase{name: "list with an invalid prev cursor", method: http.MethodGet, path: "/tenants?prev=not-a-cursor", status: http.StatusBadRequest, message: invalidCursor},
+			errorCase{name: "list with a next cursor of another version", method: http.MethodGet, path: "/tenants?next=" + cursor.Encode("tnt", 2, "1700000000000"), status: http.StatusBadRequest, message: cursorVersionMismatch},
+			errorCase{name: "list with a prev cursor of another version", method: http.MethodGet, path: "/tenants?prev=" + cursor.Encode("tnt", 2, "1700000000000"), status: http.StatusBadRequest, message: cursorVersionMismatch},
 		)
 	}
 	for i := range cases {
@@ -206,21 +211,23 @@ func (s *basicSuite) TestErrorResponses_LogQueryValidation() {
 	admin := s.adminAuth()
 
 	lists := []struct {
-		name string
-		path string
+		name           string
+		path           string
+		cursorResource string
 	}{
-		{"events", "/events"},
-		{"attempts", "/attempts"},
-		{"destination attempts", "/tenants/" + tenant.ID + "/destinations/" + dest.ID + "/attempts"},
+		{"events", "/events", "evt"},
+		{"attempts", "/attempts", "att"},
+		{"destination attempts", "/tenants/" + tenant.ID + "/destinations/" + dest.ID + "/attempts", "att"},
 	}
 
-	queries := []struct {
+	type logQuery struct {
 		name    string
 		query   string
 		status  int
 		message string
 		detail  string
-	}{
+	}
+	queries := []logQuery{
 		{"invalid dir", "dir=sideways", http.StatusUnprocessableEntity, validationError, "must be 'asc' or 'desc'"},
 		{"invalid order_by", "order_by=id", http.StatusUnprocessableEntity, validationError, "must be one of: [time]"},
 		{"invalid time[gte]", "time[gte]=yesterday", http.StatusUnprocessableEntity, validationError, "query.time[gte]"},
@@ -229,13 +236,17 @@ func (s *basicSuite) TestErrorResponses_LogQueryValidation() {
 		{"invalid time[lt]", "time[lt]=yesterday", http.StatusUnprocessableEntity, validationError, "query.time[lt]"},
 		{"unsupported time operator", "time[any]=2024-01-01", http.StatusBadRequest, "operator 'any' is not supported, use 'gte', 'lte', 'gt', or 'lt'", ""},
 		{"next and prev", "next=abc&prev=def", http.StatusBadRequest, "cannot specify both 'next' and 'prev' cursors", ""},
-		{"invalid next cursor", "next=not-a-cursor", http.StatusBadRequest, "invalid cursor", ""},
-		{"invalid prev cursor", "prev=not-a-cursor", http.StatusBadRequest, "invalid cursor", ""},
+		{"invalid next cursor", "next=not-a-cursor", http.StatusBadRequest, invalidCursor, ""},
+		{"invalid prev cursor", "prev=not-a-cursor", http.StatusBadRequest, invalidCursor, ""},
 	}
 
 	for _, list := range lists {
 		s.Run(list.name, func() {
-			for _, query := range queries {
+			otherVersion := cursor.Encode(list.cursorResource, 2, "1700000000000")
+			for _, query := range append(queries,
+				logQuery{"next cursor of another version", "next=" + otherVersion, http.StatusBadRequest, cursorVersionMismatch, ""},
+				logQuery{"prev cursor of another version", "prev=" + otherVersion, http.StatusBadRequest, cursorVersionMismatch, ""},
+			) {
 				s.Run(query.name, func() {
 					s.requireError(errorCase{
 						method: http.MethodGet, path: list.path + "?" + query.query, auth: admin,

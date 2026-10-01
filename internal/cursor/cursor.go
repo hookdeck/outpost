@@ -52,7 +52,7 @@ func Encode(resource string, version int, data string) string {
 // Decode decodes and validates a cursor string.
 // Returns the data portion if the cursor matches the expected resource and version.
 // Returns ErrInvalidCursor if the cursor is malformed.
-// Returns ErrVersionMismatch if the version doesn't match.
+// Returns an error wrapping both ErrInvalidCursor and ErrVersionMismatch if the version doesn't match.
 func Decode(encoded string, resource string, version int) (string, error) {
 	if encoded == "" {
 		return "", nil
@@ -71,7 +71,7 @@ func Decode(encoded string, resource string, version int) (string, error) {
 		resourcePrefix := resource + "v"
 		if strings.HasPrefix(raw, resourcePrefix) {
 			// Has correct resource but wrong version
-			return "", fmt.Errorf("%w: expected version %02d", ErrVersionMismatch, version)
+			return "", fmt.Errorf("%w: %w: expected version %02d", ErrInvalidCursor, ErrVersionMismatch, version)
 		}
 		return "", ErrInvalidCursor
 	}

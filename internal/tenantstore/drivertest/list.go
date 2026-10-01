@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hookdeck/outpost/internal/cursor"
 	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/pagination/paginationtest"
@@ -515,6 +516,7 @@ func testListTenant(t *testing.T, newHarness HarnessMaker) {
 			})
 			require.Error(t, err)
 			assert.ErrorIs(t, err, driver.ErrInvalidCursor)
+			assert.EqualError(t, err, "invalid cursor")
 		})
 
 		t.Run("invalid prev cursor returns error", func(t *testing.T) {
@@ -523,6 +525,7 @@ func testListTenant(t *testing.T, newHarness HarnessMaker) {
 			})
 			require.Error(t, err)
 			assert.ErrorIs(t, err, driver.ErrInvalidCursor)
+			assert.EqualError(t, err, "invalid cursor")
 		})
 
 		t.Run("malformed cursor format returns error", func(t *testing.T) {
@@ -531,6 +534,25 @@ func testListTenant(t *testing.T, newHarness HarnessMaker) {
 			})
 			require.Error(t, err)
 			assert.ErrorIs(t, err, driver.ErrInvalidCursor)
+			assert.EqualError(t, err, "invalid cursor")
+		})
+
+		t.Run("cursor of another version returns error", func(t *testing.T) {
+			_, err := store.ListTenant(ctx, driver.ListTenantRequest{
+				Next: cursor.Encode("tnt", 2, "1700000000000"),
+			})
+			require.Error(t, err)
+			assert.ErrorIs(t, err, driver.ErrInvalidCursor)
+			assert.EqualError(t, err, "invalid cursor: cursor version mismatch: expected version 01")
+		})
+
+		t.Run("cursor with a position that is not a timestamp returns error", func(t *testing.T) {
+			_, err := store.ListTenant(ctx, driver.ListTenantRequest{
+				Next: cursor.Encode("tnt", 1, "yesterday"),
+			})
+			require.Error(t, err)
+			assert.ErrorIs(t, err, driver.ErrInvalidCursor)
+			assert.EqualError(t, err, "invalid cursor: invalid timestamp")
 		})
 
 		t.Run("limit zero uses default", func(t *testing.T) {
