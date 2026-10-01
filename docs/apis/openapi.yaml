@@ -5333,7 +5333,7 @@ paths:
       description: |
         Retrieves a paginated list of attempts scoped to a specific destination.
 
-        The attempts of a deleted destination remain available. Returns `404` if the tenant never had a destination with this ID.
+        Returns `404` if the destination does not exist or has been deleted. The attempts of a deleted destination remain available from `GET /attempts?destination_id=`.
       operationId: listTenantDestinationAttempts
       parameters:
         - name: event_id
@@ -5496,7 +5496,7 @@ paths:
       description: |
         Retrieves details for a specific attempt scoped to a destination.
 
-        The attempts of a deleted destination remain available. Returns `404` if the tenant never had a destination with this ID, or if the destination has no attempt with this ID.
+        Returns `404` if the destination does not exist or has been deleted, or if the destination has no attempt with this ID. An attempt of a deleted destination remains available from `GET /attempts/{attempt_id}`.
       operationId: getTenantDestinationAttempt
       parameters:
         - name: include

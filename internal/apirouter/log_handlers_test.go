@@ -29,8 +29,9 @@ type destinationAuth func(*http.Request) *http.Request
 
 // forEachDestinationAuth runs fn with the API key and with tenant t1's JWT,
 // each against a fresh store holding:
-//   - tenant t1: destination d1 with attempt a1, and attempt a-expired of the
-//     destination "expired" that the tenant store has no record of
+//   - tenant t1: destination d1 with event e1 and attempt a1, and event
+//     e-expired and attempt a-expired of the destination "expired", deleted
+//     so long ago that the tenant store has no record of it
 //   - tenant t2: destination d2 with attempt a2
 func forEachDestinationAuth(t *testing.T, name string, fn func(t *testing.T, h *apiTest, auth destinationAuth)) {
 	t.Helper()
@@ -43,9 +44,9 @@ func forEachDestinationAuth(t *testing.T, name string, fn func(t *testing.T, h *
 				require.NoError(t, h.tenantStore.CreateDestination(t.Context(), df.Any(df.WithID("d1"), df.WithTenantID("t1"))))
 				require.NoError(t, h.tenantStore.CreateDestination(t.Context(), df.Any(df.WithID("d2"), df.WithTenantID("t2"))))
 
-				e1 := ef.AnyPointer(ef.WithID("e1"), ef.WithTenantID("t1"), ef.WithDestinationID("d1"))
-				e2 := ef.AnyPointer(ef.WithID("e2"), ef.WithTenantID("t2"), ef.WithDestinationID("d2"))
-				expired := ef.AnyPointer(ef.WithID("e-expired"), ef.WithTenantID("t1"), ef.WithDestinationID("expired"))
+				e1 := ef.AnyPointer(ef.WithID("e1"), ef.WithTenantID("t1"), ef.WithDestinationID("d1"), ef.WithMatchedDestinationIDs([]string{"d1"}))
+				e2 := ef.AnyPointer(ef.WithID("e2"), ef.WithTenantID("t2"), ef.WithDestinationID("d2"), ef.WithMatchedDestinationIDs([]string{"d2"}))
+				expired := ef.AnyPointer(ef.WithID("e-expired"), ef.WithTenantID("t1"), ef.WithDestinationID("expired"), ef.WithMatchedDestinationIDs([]string{"expired"}))
 				require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
 					{Event: e1, Attempt: attemptForEvent(e1, af.WithID("a1"))},
 					{Event: e2, Attempt: attemptForEvent(e2, af.WithID("a2"))},
@@ -1627,62 +1628,18 @@ func TestAPI_Attempts(t *testing.T) {
 				testutil.RequireErrorResponse(t, resp, http.StatusNotFound, "destination not found")
 			})
 
-			forEachDestinationAuth(t, "deleted destination returns its attempts", func(t *testing.T, h *apiTest, auth destinationAuth) {
+			forEachDestinationAuth(t, "deleted destination returns 404", func(t *testing.T, h *apiTest, auth destinationAuth) {
 				require.NoError(t, h.tenantStore.DeleteDestination(t.Context(), "t1", "d1"))
 
 				req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1/destinations/d1/attempts", nil)
 				resp := h.do(auth(req))
 
-				require.Equal(t, http.StatusOK, resp.Code)
-
-				var result apirouter.AttemptPaginatedResult
-				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
-				require.Len(t, result.Models, 1)
-				assert.Equal(t, "a1", result.Models[0].ID)
+				testutil.RequireErrorResponse(t, resp, http.StatusNotFound, "destination not found")
 			})
 
-			forEachDestinationAuth(t, "deleted destination without attempts returns empty list", func(t *testing.T, h *apiTest, auth destinationAuth) {
-				require.NoError(t, h.tenantStore.CreateDestination(t.Context(), df.Any(df.WithID("unused"), df.WithTenantID("t1"))))
-				require.NoError(t, h.tenantStore.DeleteDestination(t.Context(), "t1", "unused"))
-
-				req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1/destinations/unused/attempts", nil)
-				resp := h.do(auth(req))
-
-				require.Equal(t, http.StatusOK, resp.Code)
-
-				var result apirouter.AttemptPaginatedResult
-				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
-				assert.Empty(t, result.Models)
-			})
-
-			forEachDestinationAuth(t, "deleted destination whose record is gone returns its attempts", func(t *testing.T, h *apiTest, auth destinationAuth) {
-				// The tenant store no longer has "expired"; its attempt remains.
+			forEachDestinationAuth(t, "deleted destination whose record has expired returns 404", func(t *testing.T, h *apiTest, auth destinationAuth) {
+				// Its attempt is still in the log store.
 				req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1/destinations/expired/attempts", nil)
-				resp := h.do(auth(req))
-
-				require.Equal(t, http.StatusOK, resp.Code)
-
-				var result apirouter.AttemptPaginatedResult
-				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
-				require.Len(t, result.Models, 1)
-				assert.Equal(t, "a-expired", result.Models[0].ID)
-			})
-
-			forEachDestinationAuth(t, "deleted destination whose record is gone with a filter that matches nothing returns empty list", func(t *testing.T, h *apiTest, auth destinationAuth) {
-				req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1/destinations/expired/attempts?event_id=other", nil)
-				resp := h.do(auth(req))
-
-				require.Equal(t, http.StatusOK, resp.Code)
-
-				var result apirouter.AttemptPaginatedResult
-				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
-				assert.Empty(t, result.Models)
-			})
-
-			forEachDestinationAuth(t, "deleted destination whose record and attempts are gone returns 404 like one that never existed", func(t *testing.T, h *apiTest, auth destinationAuth) {
-				// Nothing tells such a destination from one that never existed:
-				// the tenant store has no record and the log store no attempt.
-				req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1/destinations/expired-without-attempts/attempts", nil)
 				resp := h.do(auth(req))
 
 				testutil.RequireErrorResponse(t, resp, http.StatusNotFound, "destination not found")
@@ -1827,13 +1784,6 @@ func TestAPI_Attempts(t *testing.T) {
 				testutil.RequireErrorResponse(t, resp, http.StatusNotFound, "destination not found")
 			})
 
-			forEachDestinationAuth(t, "deleted destination whose record and attempts are gone returns 404 like one that never existed", func(t *testing.T, h *apiTest, auth destinationAuth) {
-				req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1/destinations/expired-without-attempts/attempts/a-expired", nil)
-				resp := h.do(auth(req))
-
-				testutil.RequireErrorResponse(t, resp, http.StatusNotFound, "destination not found")
-			})
-
 			forEachDestinationAuth(t, "missing attempt returns 404", func(t *testing.T, h *apiTest, auth destinationAuth) {
 				req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1/destinations/d1/attempts/missing", nil)
 				resp := h.do(auth(req))
@@ -1841,46 +1791,113 @@ func TestAPI_Attempts(t *testing.T) {
 				testutil.RequireErrorResponse(t, resp, http.StatusNotFound, "attempt not found")
 			})
 
-			forEachDestinationAuth(t, "deleted destination returns its attempt", func(t *testing.T, h *apiTest, auth destinationAuth) {
+			forEachDestinationAuth(t, "deleted destination returns 404 for its attempt", func(t *testing.T, h *apiTest, auth destinationAuth) {
 				require.NoError(t, h.tenantStore.DeleteDestination(t.Context(), "t1", "d1"))
 
 				req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1/destinations/d1/attempts/a1", nil)
 				resp := h.do(auth(req))
 
-				require.Equal(t, http.StatusOK, resp.Code)
-
-				var attempt apirouter.APIAttempt
-				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &attempt))
-				assert.Equal(t, "a1", attempt.ID)
+				testutil.RequireErrorResponse(t, resp, http.StatusNotFound, "destination not found")
 			})
 
-			forEachDestinationAuth(t, "missing attempt of a deleted destination returns 404", func(t *testing.T, h *apiTest, auth destinationAuth) {
+			forEachDestinationAuth(t, "deleted destination and unknown attempt returns destination not found", func(t *testing.T, h *apiTest, auth destinationAuth) {
 				require.NoError(t, h.tenantStore.DeleteDestination(t.Context(), "t1", "d1"))
 
 				req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1/destinations/d1/attempts/missing", nil)
 				resp := h.do(auth(req))
 
-				testutil.RequireErrorResponse(t, resp, http.StatusNotFound, "attempt not found")
+				testutil.RequireErrorResponse(t, resp, http.StatusNotFound, "destination not found")
 			})
 
-			forEachDestinationAuth(t, "deleted destination whose record is gone returns its attempt", func(t *testing.T, h *apiTest, auth destinationAuth) {
+			forEachDestinationAuth(t, "deleted destination whose record has expired returns 404 for its attempt", func(t *testing.T, h *apiTest, auth destinationAuth) {
 				req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1/destinations/expired/attempts/a-expired", nil)
+				resp := h.do(auth(req))
+
+				testutil.RequireErrorResponse(t, resp, http.StatusNotFound, "destination not found")
+			})
+		})
+	})
+
+	// Deleting a destination closes its own routes; its events and attempts
+	// stay in the log store and readable through the top-level routes.
+	t.Run("DeletedDestinationHistory", func(t *testing.T) {
+		destinations := []struct {
+			name          string
+			destinationID string
+			eventID       string
+			attemptID     string
+			deleteRecord  bool
+		}{
+			{"deleted destination", "d1", "e1", "a1", true},
+			{"deleted destination whose record has expired", "expired", "e-expired", "a-expired", false},
+		}
+		for _, d := range destinations {
+			setup := func(t *testing.T, h *apiTest) {
+				if d.deleteRecord {
+					require.NoError(t, h.tenantStore.DeleteDestination(t.Context(), "t1", d.destinationID))
+				}
+			}
+
+			forEachDestinationAuth(t, d.name+" keeps its attempts on the attempts list", func(t *testing.T, h *apiTest, auth destinationAuth) {
+				setup(t, h)
+
+				for _, query := range []string{"", "&include=destination"} {
+					req := httptest.NewRequest(http.MethodGet, "/api/v1/attempts?destination_id="+d.destinationID+query, nil)
+					resp := h.do(auth(req))
+
+					require.Equal(t, http.StatusOK, resp.Code)
+
+					var result struct {
+						Models []map[string]any `json:"models"`
+					}
+					require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
+					require.Len(t, result.Models, 1)
+					assert.Equal(t, d.attemptID, result.Models[0]["id"])
+					assert.Equal(t, d.destinationID, result.Models[0]["destination_id"])
+					assert.NotContains(t, result.Models[0], "destination")
+				}
+			})
+
+			forEachDestinationAuth(t, d.name+" keeps its attempt on the attempt route", func(t *testing.T, h *apiTest, auth destinationAuth) {
+				setup(t, h)
+
+				for _, query := range []string{"", "?include=destination"} {
+					req := httptest.NewRequest(http.MethodGet, "/api/v1/attempts/"+d.attemptID+query, nil)
+					resp := h.do(auth(req))
+
+					require.Equal(t, http.StatusOK, resp.Code)
+
+					var attempt map[string]any
+					require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &attempt))
+					assert.Equal(t, d.attemptID, attempt["id"])
+					assert.Equal(t, d.destinationID, attempt["destination_id"])
+					assert.NotContains(t, attempt, "destination")
+				}
+			})
+
+			forEachDestinationAuth(t, d.name+" keeps its events on the event routes", func(t *testing.T, h *apiTest, auth destinationAuth) {
+				setup(t, h)
+
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/events?destination_id="+d.destinationID, nil)
 				resp := h.do(auth(req))
 
 				require.Equal(t, http.StatusOK, resp.Code)
 
-				var attempt apirouter.APIAttempt
-				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &attempt))
-				assert.Equal(t, "a-expired", attempt.ID)
-			})
+				var result apirouter.EventPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
+				require.Len(t, result.Models, 1)
+				assert.Equal(t, d.eventID, result.Models[0].ID)
 
-			forEachDestinationAuth(t, "missing attempt of a deleted destination whose record is gone returns 404", func(t *testing.T, h *apiTest, auth destinationAuth) {
-				req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1/destinations/expired/attempts/missing", nil)
-				resp := h.do(auth(req))
+				req = httptest.NewRequest(http.MethodGet, "/api/v1/events/"+d.eventID, nil)
+				resp = h.do(auth(req))
 
-				testutil.RequireErrorResponse(t, resp, http.StatusNotFound, "attempt not found")
+				require.Equal(t, http.StatusOK, resp.Code)
+
+				var event apirouter.APIEvent
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &event))
+				assert.Equal(t, d.eventID, event.ID)
 			})
-		})
+		}
 	})
 
 	t.Run("no auth returns 401", func(t *testing.T) {

@@ -185,10 +185,8 @@ func TestAPI_StoreFailuresReturn500(t *testing.T) {
 		{name: "retrieve attempt: destination", tenantFail: "RetrieveDestination", method: http.MethodGet, path: "/attempts/a1?include=destination"},
 		{name: "list destination attempts", logFail: "ListAttempt", method: http.MethodGet, path: "/tenants/t1/destinations/d1/attempts"},
 		{name: "list destination attempts: destination lookup", tenantFail: "RetrieveDestination", method: http.MethodGet, path: "/tenants/t1/destinations/d1/attempts"},
-		{name: "list destination attempts: attempts of an unknown destination", logFail: "ListAttempt", method: http.MethodGet, path: "/tenants/t1/destinations/unknown/attempts"},
 		{name: "retrieve destination attempt", logFail: "RetrieveAttempt", method: http.MethodGet, path: "/tenants/t1/destinations/d1/attempts/a1"},
-		{name: "retrieve destination attempt: destination lookup", tenantFail: "RetrieveDestination", method: http.MethodGet, path: "/tenants/t1/destinations/d1/attempts/missing"},
-		{name: "retrieve destination attempt: attempts of an unknown destination", logFail: "ListAttempt", method: http.MethodGet, path: "/tenants/t1/destinations/unknown/attempts/a1"},
+		{name: "retrieve destination attempt: destination lookup", tenantFail: "RetrieveDestination", method: http.MethodGet, path: "/tenants/t1/destinations/d1/attempts/a1"},
 
 		// metrics_handlers.go
 		{name: "event metrics", logFail: "QueryEventMetrics", method: http.MethodGet, path: "/metrics/events" + metricsQS},

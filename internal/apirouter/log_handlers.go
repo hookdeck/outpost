@@ -11,6 +11,7 @@ import (
 	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/logstore"
+	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/tenantstore"
 )
 
@@ -210,43 +211,11 @@ func (h *LogHandlers) ListAttempts(c *gin.Context) {
 // Same as ListAttempts but scoped to a specific destination via URL param.
 func (h *LogHandlers) ListDestinationAttempts(c *gin.Context) {
 	tenant := mustTenantFromContext(c)
-	destinationID := c.Param("destination_id")
-	if !h.mustKnowDestination(c, tenant.ID, destinationID) {
+	destination := mustRetrieveDestination(c, h.tenantStore, tenant.ID, c.Param("destination_id"))
+	if destination == nil {
 		return
 	}
-	h.listAttemptsInternal(c, []string{tenant.ID}, destinationID)
-}
-
-// mustKnowDestination reports whether the tenant has or had the destination,
-// and answers the request with a 404 when it never did. A deleted destination
-// counts, also once its record is gone and only its attempts remain.
-func (h *LogHandlers) mustKnowDestination(c *gin.Context, tenantID, destinationID string) bool {
-	destination, err := h.tenantStore.RetrieveDestination(c.Request.Context(), tenantID, destinationID)
-	if errors.Is(err, tenantstore.ErrDestinationDeleted) {
-		return true
-	}
-	if err != nil && !errors.Is(err, tenantstore.ErrDestinationNotFound) {
-		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
-		return false
-	}
-	if destination != nil {
-		return true
-	}
-
-	attempts, err := h.logStore.ListAttempt(c.Request.Context(), logstore.ListAttemptRequest{
-		TenantIDs:      []string{tenantID},
-		DestinationIDs: []string{destinationID},
-		Limit:          1,
-	})
-	if err != nil {
-		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
-		return false
-	}
-	if len(attempts.Data) == 0 {
-		AbortWithError(c, http.StatusNotFound, NewErrNotFound("destination"))
-		return false
-	}
-	return true
+	h.listAttemptsInternal(c, []string{tenant.ID}, destination.ID)
 }
 
 func (h *LogHandlers) listAttemptsInternal(c *gin.Context, tenantIDs []string, destinationID string) {
@@ -418,13 +387,23 @@ func (h *LogHandlers) RetrieveEvent(c *gin.Context) {
 	})
 }
 
-// RetrieveAttempt handles GET /attempts/:attempt_id
+// RetrieveAttempt handles GET /attempts/:attempt_id and
+// GET /:tenant_id/destinations/:destination_id/attempts/:attempt_id
 func (h *LogHandlers) RetrieveAttempt(c *gin.Context) {
 	ctxTenantID := tenantIDFromContext(c)
 	if ctxTenantID == "" {
 		ctxTenantID = c.Query("tenant_id")
 	}
 	attemptID := c.Param("attempt_id")
+
+	// Destination-scoped route: the destination in the path must exist.
+	var pathDestination *models.Destination
+	if destinationID := c.Param("destination_id"); destinationID != "" {
+		pathDestination = mustRetrieveDestination(c, h.tenantStore, ctxTenantID, destinationID)
+		if pathDestination == nil {
+			return
+		}
+	}
 
 	attemptRecord, err := h.logStore.RetrieveAttempt(c.Request.Context(), logstore.RetrieveAttemptRequest{
 		TenantID:  ctxTenantID,
@@ -436,11 +415,7 @@ func (h *LogHandlers) RetrieveAttempt(c *gin.Context) {
 	}
 	// Authz: when accessed via a destination-scoped route, verify the attempt
 	// belongs to the destination in the path.
-	destinationID := c.Param("destination_id")
-	if attemptRecord == nil || (destinationID != "" && attemptRecord.Attempt.DestinationID != destinationID) {
-		if destinationID != "" && !h.mustKnowDestination(c, ctxTenantID, destinationID) {
-			return
-		}
+	if attemptRecord == nil || (pathDestination != nil && attemptRecord.Attempt.DestinationID != pathDestination.ID) {
 		AbortWithError(c, http.StatusNotFound, NewErrNotFound("attempt"))
 		return
 	}
@@ -449,12 +424,18 @@ func (h *LogHandlers) RetrieveAttempt(c *gin.Context) {
 
 	var destDisplay *destregistry.DestinationDisplay
 	if includeOpts.Destination {
-		dest, err := h.tenantStore.RetrieveDestination(c.Request.Context(), attemptRecord.Attempt.TenantID, attemptRecord.Attempt.DestinationID)
-		if err != nil && !errors.Is(err, tenantstore.ErrDestinationDeleted) && !errors.Is(err, tenantstore.ErrDestinationNotFound) {
-			AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
-			return
+		dest := pathDestination
+		if dest == nil {
+			dest, err = h.tenantStore.RetrieveDestination(c.Request.Context(), attemptRecord.Attempt.TenantID, attemptRecord.Attempt.DestinationID)
+			if err != nil && !errors.Is(err, tenantstore.ErrDestinationDeleted) && !errors.Is(err, tenantstore.ErrDestinationNotFound) {
+				AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
+				return
+			}
+			if err != nil {
+				dest = nil
+			}
 		}
-		if err == nil && dest != nil {
+		if dest != nil {
 			display, err := h.displayer.Display(dest)
 			if err != nil {
 				AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))

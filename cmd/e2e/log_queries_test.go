@@ -366,8 +366,9 @@ func (s *basicSuite) TestLogQueries_Pagination() {
 	})
 }
 
-// The attempts of a deleted destination stay readable through its routes.
-func (s *basicSuite) TestLogQueries_DeletedDestinationAttempts() {
+// Deleting a destination closes its own routes, attempts included. Its events
+// and attempts stay readable through the top-level event and attempt routes.
+func (s *basicSuite) TestLogQueries_DeletedDestinationHistory() {
 	tenant := s.createTenant()
 	dest := s.createWebhookDestination(tenant.ID, "*")
 
@@ -376,10 +377,11 @@ func (s *basicSuite) TestLogQueries_DeletedDestinationAttempts() {
 	attempts := s.waitForNewAttempts(tenant.ID, 1)
 	attemptID, ok := attempts[0]["id"].(string)
 	s.Require().True(ok, "attempt id should be a string")
+	s.waitForEventInLogstore(eventID)
 
 	s.deleteDestination(tenant.ID, dest.ID)
 
-	path := "/tenants/" + tenant.ID + "/destinations/" + dest.ID + "/attempts"
+	destinationPath := "/tenants/" + tenant.ID + "/destinations/" + dest.ID
 	auths := []struct {
 		name string
 		auth string
@@ -387,50 +389,63 @@ func (s *basicSuite) TestLogQueries_DeletedDestinationAttempts() {
 		{"api key", s.adminAuth()},
 		{"jwt", s.tenantAuth(tenant.ID)},
 	}
-	type attemptList struct {
+	type list struct {
 		Models []map[string]any `json:"models"`
 	}
 
 	for _, auth := range auths {
-		s.Run("list with "+auth.name, func() {
-			var list attemptList
-			status := s.doJSONWithAuth(http.MethodGet, s.apiURL(path), auth.auth, nil, &list)
-			s.Require().Equal(http.StatusOK, status)
-			s.Require().Len(list.Models, 1)
-			s.Equal(attemptID, list.Models[0]["id"])
-			s.Equal(dest.ID, list.Models[0]["destination_id"])
-		})
-
-		s.Run("list with include=destination and "+auth.name, func() {
-			var list attemptList
-			status := s.doJSONWithAuth(http.MethodGet, s.apiURL(path+"?include=destination"), auth.auth, nil, &list)
-			s.Require().Equal(http.StatusOK, status)
-			s.Require().Len(list.Models, 1)
-			s.NotContains(list.Models[0], "destination")
-		})
-
-		s.Run("get with "+auth.name, func() {
-			var attempt map[string]any
-			status := s.doJSONWithAuth(http.MethodGet, s.apiURL(path+"/"+attemptID), auth.auth, nil, &attempt)
-			s.Require().Equal(http.StatusOK, status)
-			s.Equal(attemptID, attempt["id"])
-			s.Equal(dest.ID, attempt["destination_id"])
-		})
-
-		s.Run("missing attempt with "+auth.name, func() {
+		s.Run("destination attempts list returns 404 with "+auth.name, func() {
 			s.requireError(errorCase{
-				method: http.MethodGet, path: path + "/att_missing", auth: auth.auth,
-				status: http.StatusNotFound, message: "attempt not found",
+				method: http.MethodGet, path: destinationPath + "/attempts", auth: auth.auth,
+				status: http.StatusNotFound, message: "destination not found",
 			})
 		})
 
-		s.Run("global list filtered by the destination with "+auth.name, func() {
-			var list attemptList
-			url := s.apiURL("/attempts?tenant_id=" + tenant.ID + "&destination_id=" + dest.ID)
-			status := s.doJSONWithAuth(http.MethodGet, url, auth.auth, nil, &list)
+		s.Run("destination attempt route returns 404 for its attempt with "+auth.name, func() {
+			s.requireError(errorCase{
+				method: http.MethodGet, path: destinationPath + "/attempts/" + attemptID, auth: auth.auth,
+				status: http.StatusNotFound, message: "destination not found",
+			})
+		})
+
+		for _, include := range []string{"", "&include=destination"} {
+			s.Run("attempts list filtered by the destination returns its attempts with "+auth.name+include, func() {
+				var attempts list
+				url := s.apiURL("/attempts?tenant_id=" + tenant.ID + "&destination_id=" + dest.ID + include)
+				status := s.doJSONWithAuth(http.MethodGet, url, auth.auth, nil, &attempts)
+				s.Require().Equal(http.StatusOK, status)
+				s.Require().Len(attempts.Models, 1)
+				s.Equal(attemptID, attempts.Models[0]["id"])
+				s.Equal(dest.ID, attempts.Models[0]["destination_id"])
+				s.NotContains(attempts.Models[0], "destination")
+			})
+		}
+
+		for _, include := range []string{"", "?include=destination"} {
+			s.Run("attempt route returns its attempt with "+auth.name+include, func() {
+				var attempt map[string]any
+				status := s.doJSONWithAuth(http.MethodGet, s.apiURL("/attempts/"+attemptID+include), auth.auth, nil, &attempt)
+				s.Require().Equal(http.StatusOK, status)
+				s.Equal(attemptID, attempt["id"])
+				s.Equal(dest.ID, attempt["destination_id"])
+				s.NotContains(attempt, "destination")
+			})
+		}
+
+		s.Run("events list filtered by the destination returns its events with "+auth.name, func() {
+			var events list
+			url := s.apiURL("/events?tenant_id=" + tenant.ID + "&destination_id=" + dest.ID)
+			status := s.doJSONWithAuth(http.MethodGet, url, auth.auth, nil, &events)
 			s.Require().Equal(http.StatusOK, status)
-			s.Require().Len(list.Models, 1)
-			s.Equal(attemptID, list.Models[0]["id"])
+			s.Require().Len(events.Models, 1)
+			s.Equal(eventID, events.Models[0]["id"])
+		})
+
+		s.Run("event route returns its event with "+auth.name, func() {
+			var event map[string]any
+			status := s.doJSONWithAuth(http.MethodGet, s.apiURL("/events/"+eventID), auth.auth, nil, &event)
+			s.Require().Equal(http.StatusOK, status)
+			s.Equal(eventID, event["id"])
 		})
 	}
 }

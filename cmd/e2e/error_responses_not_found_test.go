@@ -14,31 +14,27 @@ func (s *basicSuite) TestErrorResponses_DestinationNotFound() {
 	s.deleteDestination(tenant.ID, deleted.ID)
 
 	destinations := []struct {
-		name    string
-		id      string
-		deleted bool
+		name string
+		id   string
 	}{
-		{"missing destination", idgen.Destination(), false},
-		{"deleted destination", deleted.ID, true},
-		{"destination of another tenant", otherDest.ID, false},
+		{"missing destination", idgen.Destination()},
+		{"deleted destination", deleted.ID},
+		{"destination of another tenant", otherDest.ID},
 	}
 
-	// The attempts of a deleted destination stay readable: its routes are
-	// covered below and in TestLogQueries_DeletedDestinationAttempts.
 	requests := []struct {
-		name     string
-		method   string
-		suffix   string
-		body     any
-		attempts bool
+		name   string
+		method string
+		suffix string
+		body   any
 	}{
-		{"get", http.MethodGet, "", nil, false},
-		{"update", http.MethodPatch, "", map[string]any{"topics": []string{"user.created"}}, false},
-		{"delete", http.MethodDelete, "", nil, false},
-		{"enable", http.MethodPut, "/enable", nil, false},
-		{"disable", http.MethodPut, "/disable", nil, false},
-		{"list attempts", http.MethodGet, "/attempts", nil, true},
-		{"get attempt", http.MethodGet, "/attempts/att_missing", nil, true},
+		{"get", http.MethodGet, "", nil},
+		{"update", http.MethodPatch, "", map[string]any{"topics": []string{"user.created"}}},
+		{"delete", http.MethodDelete, "", nil},
+		{"enable", http.MethodPut, "/enable", nil},
+		{"disable", http.MethodPut, "/disable", nil},
+		{"list attempts", http.MethodGet, "/attempts", nil},
+		{"get attempt", http.MethodGet, "/attempts/att_missing", nil},
 	}
 
 	auths := []struct {
@@ -52,9 +48,6 @@ func (s *basicSuite) TestErrorResponses_DestinationNotFound() {
 	for _, destination := range destinations {
 		s.Run(destination.name, func() {
 			for _, request := range requests {
-				if destination.deleted && request.attempts {
-					continue
-				}
 				for _, auth := range auths {
 					s.Run(request.name+" with "+auth.name, func() {
 						s.requireError(errorCase{
@@ -70,26 +63,6 @@ func (s *basicSuite) TestErrorResponses_DestinationNotFound() {
 			}
 		})
 	}
-
-	s.Run("attempts of a deleted destination", func() {
-		path := "/tenants/" + tenant.ID + "/destinations/" + deleted.ID + "/attempts"
-		for _, auth := range auths {
-			s.Run("list is empty with "+auth.name, func() {
-				var list struct {
-					Models []map[string]any `json:"models"`
-				}
-				status := s.doJSONWithAuth(http.MethodGet, s.apiURL(path), auth.auth, nil, &list)
-				s.Require().Equal(http.StatusOK, status)
-				s.Empty(list.Models)
-			})
-			s.Run("missing attempt with "+auth.name, func() {
-				s.requireError(errorCase{
-					method: http.MethodGet, path: path + "/att_missing", auth: auth.auth,
-					status: http.StatusNotFound, message: "attempt not found",
-				})
-			})
-		}
-	})
 
 	s.runErrorCases([]errorCase{
 		{name: "unknown destination type", method: http.MethodGet, path: "/destination-types/nope", auth: s.adminAuth(), status: http.StatusNotFound, message: "destination type not found"},
