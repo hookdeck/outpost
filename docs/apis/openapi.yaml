@@ -3389,11 +3389,23 @@ components:
 
 # Security is applied per-operation based on AuthScope
 
+# `x-outpost-deployment` marks an operation or tag that exists in only one
+# deployment model: `managed` or `self-hosted`. **Its absence means the
+# operation is available in both** — the key is present only where
+# availability is restricted, so adding an endpoint that works everywhere
+# needs nothing here.
+#
+# It carries the same fact as the "only available for..." sentences in the
+# descriptions beside it, in a form a generator, a validator or an agent can
+# read without parsing English. The prose stays, because it is what a human
+# reading the reference sees.
 tags:
   - name: Health
+    x-outpost-deployment: self-hosted
     description: |
       This endpoint is only available for **self-hosted** Outpost deployments. Managed Outpost health is monitored by Hookdeck.
   - name: Configuration
+    x-outpost-deployment: managed
     description: |
       The Configuration API is available for **managed Outpost** deployments only. It allows you to read and update instance-level settings — the same settings available as environment variables in self-hosted deployments.
   - name: Tenants
@@ -3448,6 +3460,7 @@ paths:
 
         Note: Error details are not exposed for security reasons. Check application logs for detailed error information.
       operationId: healthCheck
+      x-outpost-deployment: self-hosted
       security: []
       responses:
         "200":
@@ -3538,6 +3551,7 @@ paths:
         This endpoint is only available for the managed version.
         In self-hosted deployments, configuration is controlled through environment variables instead.
       operationId: getManagedConfig
+      x-outpost-deployment: managed
       responses:
         "200":
           description: Managed configuration.
@@ -3564,6 +3578,7 @@ paths:
 
         Only the supported configuration keys are accepted.
       operationId: updateManagedConfig
+      x-outpost-deployment: managed
       requestBody:
         required: true
         content:
