@@ -227,6 +227,20 @@ func TestAPI_Retry(t *testing.T) {
 			testutil.RequireErrorResponse(t, resp, http.StatusNotFound, "destination not found")
 		})
 
+		t.Run("deleted destination returns 404", func(t *testing.T) {
+			h := setup(t)
+			require.NoError(t, h.tenantStore.DeleteDestination(t.Context(), "t1", "d1"))
+
+			req := h.jsonReq(http.MethodPost, "/api/v1/retry", map[string]any{
+				"event_id":       "e1",
+				"destination_id": "d1",
+			})
+			resp := h.do(h.withAPIKey(req))
+
+			testutil.RequireErrorResponse(t, resp, http.StatusNotFound, "destination not found")
+			assert.Empty(t, h.deliveryPub.calls)
+		})
+
 		t.Run("destination without an attempt for the event returns 404", func(t *testing.T) {
 			h := setup(t)
 

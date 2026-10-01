@@ -2,6 +2,7 @@ package apirouter
 
 import (
 	"context"
+	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -92,6 +93,10 @@ func (h *RetryHandlers) Retry(c *gin.Context) {
 	// 2. Check destination exists and is enabled
 	destination, err := h.tenantStore.RetrieveDestination(c.Request.Context(), event.TenantID, req.DestinationID)
 	if err != nil {
+		if errors.Is(err, tenantstore.ErrDestinationDeleted) {
+			AbortWithError(c, http.StatusNotFound, NewErrNotFound("destination"))
+			return
+		}
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return
 	}
