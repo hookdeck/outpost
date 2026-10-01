@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/url"
 	"regexp"
+	"strings"
 
 	"github.com/hookdeck/outpost/internal/proxychain"
 )
@@ -181,13 +182,20 @@ func (c *Config) validatePortal() error {
 }
 
 // validateDestinations fails boot on a malformed proxy chain so a bad hop
-// never reaches the delivery path.
+// never reaches the delivery path, and on an EventBridge source that AWS
+// would reject on every publish.
 func (c *Config) validateDestinations() error {
 	if _, err := proxychain.Parse(c.Destinations.ProxyURL); err != nil {
 		return fmt.Errorf("%w: %w", ErrInvalidDestinationsProxyURL, err)
 	}
 	if _, err := proxychain.Parse(c.Destinations.Webhook.ProxyURL); err != nil {
 		return fmt.Errorf("%w: %w", ErrInvalidWebhookProxyURL, err)
+	}
+	switch source := c.Destinations.AWSEventBridge.Source; {
+	case source == "":
+		return fmt.Errorf("%w: DESTINATIONS_AWS_EVENTBRIDGE_SOURCE must not be empty", ErrInvalidAWSEventBridgeSource)
+	case strings.HasPrefix(source, "aws."):
+		return fmt.Errorf("%w: DESTINATIONS_AWS_EVENTBRIDGE_SOURCE must not start with 'aws.'", ErrInvalidAWSEventBridgeSource)
 	}
 	return nil
 }

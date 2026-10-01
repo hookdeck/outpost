@@ -157,6 +157,9 @@ func (c *Config) LogConfigurationSummary() []zap.Field {
 		zap.String("destinations_webhook_signature_header", webhookHeaderSummary(webhookCfg.SignatureHeader)),
 		zap.String("destinations_webhook_timestamp_header", webhookHeaderSummary(webhookCfg.TimestampHeader)),
 		zap.String("destinations_webhook_topic_header", webhookHeaderSummary(webhookCfg.TopicHeader)),
+
+		// Destinations - AWS EventBridge
+		zap.String("destinations_aws_eventbridge_source", c.Destinations.AWSEventBridge.Source),
 	}
 
 	// Add MQ-specific fields based on type
