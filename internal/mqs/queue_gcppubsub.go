@@ -184,6 +184,7 @@ func (q *GCPPubSubQueue) Subscribe(ctx context.Context, opts ...SubscribeOption)
 			m := &Message{
 				QueueMessage: &gcpNativeAcker{msg: msg},
 				LoggableID:   msg.ID,
+				ID:           msg.ID,
 				Body:         msg.Data,
 			}
 			select {
