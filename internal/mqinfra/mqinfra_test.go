@@ -230,6 +230,58 @@ func TestIntegrationMQInfra_RabbitMQ(t *testing.T) {
 	)
 }
 
+func TestIntegrationMQInfra_NATS(t *testing.T) {
+	testutil.CheckIntegrationTest(t)
+	stream := "test" + idgen.String()
+	subject := stream + ".events"
+	dlqSubject := mqinfra.DefaultNATSDLQName(subject)
+	dlqStream := mqinfra.DefaultNATSDLQStreamName(dlqSubject)
+
+	testMQInfra(t,
+		&Config{
+			infra: mqinfra.MQInfraConfig{
+				NATS: &mqinfra.NATSInfraConfig{
+					ServerURL: testinfra.EnsureNATS(),
+					Stream:    stream,
+					Subject:   subject,
+				},
+				Policy: mqinfra.Policy{
+					RetryLimit: retryLimit,
+				},
+			},
+			mq: mqs.QueueConfig{
+				NATS: &mqs.NATSConfig{
+					ServerURL:  testinfra.EnsureNATS(),
+					Stream:     stream,
+					Subject:    subject,
+					DLQSubject: dlqSubject,
+					// No MaxDeliver here: NATSQueue.Subscribe reads it from
+					// the live consumer mqinfra provisioned above instead,
+					// so this provider's app-visible attempt count matches
+					// every other provider's at the same RetryLimit, same
+					// as this shared test expects.
+				},
+			},
+		},
+		&Config{
+			infra: mqinfra.MQInfraConfig{
+				NATS: &mqinfra.NATSInfraConfig{
+					ServerURL: testinfra.EnsureNATS(),
+					Stream:    dlqStream,
+					Subject:   dlqSubject,
+				},
+			},
+			mq: mqs.QueueConfig{
+				NATS: &mqs.NATSConfig{
+					ServerURL: testinfra.EnsureNATS(),
+					Stream:    dlqStream,
+					Subject:   dlqSubject,
+				},
+			},
+		},
+	)
+}
+
 func TestIntegrationMQInfra_RabbitMQ_CustomDLQName(t *testing.T) {
 	testutil.CheckIntegrationTest(t)
 	exchange := idgen.String()

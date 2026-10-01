@@ -24,6 +24,7 @@ type Config struct {
 	PostgresURL       string
 	LocalStackURL     string
 	RabbitMQURL       string
+	NATSURL           string
 	KafkaURL          string
 	MockServerURL     string
 	GCPURL            string
@@ -38,6 +39,7 @@ type Images struct {
 	Postgres   string
 	ClickHouse string
 	RabbitMQ   string
+	NATS       string
 	Kafka      string
 	LocalStack string
 	GCP        string
@@ -50,6 +52,7 @@ func readImages(v *viper.Viper) Images {
 		Postgres:   requireImage(v, "TEST_IMAGE_POSTGRES"),
 		ClickHouse: requireImage(v, "TEST_IMAGE_CLICKHOUSE"),
 		RabbitMQ:   requireImage(v, "TEST_IMAGE_RABBITMQ"),
+		NATS:       requireImage(v, "TEST_IMAGE_NATS"),
 		Kafka:      requireImage(v, "TEST_IMAGE_KAFKA"),
 		LocalStack: requireImage(v, "TEST_IMAGE_LOCALSTACK"),
 		GCP:        requireImage(v, "TEST_IMAGE_GCP"),
@@ -109,6 +112,7 @@ func initConfig() {
 			GCPURL:            v.GetString("TEST_GCP_URL"),
 			AzureSBConnString: v.GetString("TEST_AZURE_SB_CONNSTRING"),
 			RabbitMQURL:       rabbitmqURL,
+			NATSURL:           v.GetString("TEST_NATS_URL"),
 			KafkaURL:          v.GetString("TEST_KAFKA_URL"),
 			MockServerURL:     mockServerURL,
 			Images:            readImages(v),
@@ -125,6 +129,7 @@ func initConfig() {
 		GCPURL:            "",
 		AzureSBConnString: "",
 		RabbitMQURL:       "",
+		NATSURL:           "",
 		KafkaURL:          "",
 		MockServerURL:     "",
 		Images:            readImages(v),

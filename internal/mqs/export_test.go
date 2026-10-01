@@ -21,3 +21,7 @@ func AWSQueueURL(q Queue) string {
 	defer aq.mu.Unlock()
 	return aq.sqsQueueURL
 }
+
+func NATSQueueConfig(q Queue) *NATSConfig {
+	return q.(*NATSQueue).config
+}

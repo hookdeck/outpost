@@ -79,6 +79,26 @@ The following table shows the resources, default names, and configuration variab
 - DLQ routing: Configure `x-dead-letter-exchange` and `x-dead-letter-routing-key` on main queue
 - Bindings: Bind queues to exchange with routing keys matching queue names
 
+### NATS JetStream
+
+| Resource | Delivery MQ Default | Log MQ Default | Environment Variable |
+|----------|--------------------|-----------------|-----------------------|
+| Stream | `outpost` | `outpost` | `NATS_STREAM` |
+| Subject | `outpost.delivery` | `outpost.log` | `NATS_DELIVERY_SUBJECT` / `NATS_LOG_SUBJECT` |
+| DLQ Subject | `dlq.outpost-delivery` | `dlq.outpost-log` | `NATS_DELIVERY_DLQ` / `NATS_LOG_DLQ` (optional; defaults to `dlq.<subject>` if unset, with `.` replaced by `-`) |
+| Consumer | `outpost-delivery-consumer` | `outpost-log-consumer` | derived from the subject, not independently configurable |
+| DLQ Consumer | `dlq-outpost-delivery-consumer` | `dlq-outpost-log-consumer` | derived from the DLQ subject, not independently configurable |
+
+**Configuration requirements:**
+- Stream subjects: scope the main stream to `<stream>.>` so the delivery and log subjects can each be declared without one wiping out the other's subject list
+- Retention: `WorkQueuePolicy`, so a message is removed once acked or terminated
+- Delivery and log subjects must be prefixed with the stream name followed by `.` — a subject outside that prefix lets the stream declare successfully while every publish then fails
+- DLQ stream: a separate stream whose subject sits outside the main stream's `<stream>.>` wildcard (JetStream doesn't allow two streams to claim overlapping subjects)
+- Consumer names: `.`, `*`, `>` and whitespace in a subject become `-` (JetStream consumer names can't contain them), then `-consumer` is appended — if you provision these yourself with `MQS_AUTO_PROVISION=false`, the name has to match exactly or Outpost won't find it
+- DLQ consumer: the DLQ stream needs its own consumer too, so a message moved there can be read back out (e.g. for reprocessing) through the same interface as the main queue
+- Consumer: `AckExplicitPolicy`, `AckWait` around 60 seconds, `MaxDeliver` set to the retry limit plus 1 (JetStream counts the initial delivery as attempt #1) — the handler sees every one of these deliveries, including the last; only a Nack on that final attempt moves the message to the DLQ
+- NATS servers default `max_payload` to 1 MiB; raise it if you deliver larger events
+
 ### AWS SQS
 
 | Resource | Delivery MQ Default | Log MQ Default | Environment Variable |
