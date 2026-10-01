@@ -1679,6 +1679,25 @@ func TestAPI_Attempts(t *testing.T) {
 				assert.Empty(t, result.Models)
 			})
 
+			forEachDestinationAuth(t, "deleted destination whose record and attempts are gone returns 404 like one that never existed", func(t *testing.T, h *apiTest, auth destinationAuth) {
+				// Nothing tells such a destination from one that never existed:
+				// the tenant store has no record and the log store no attempt.
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1/destinations/expired-without-attempts/attempts", nil)
+				resp := h.do(auth(req))
+
+				testutil.RequireErrorResponse(t, resp, http.StatusNotFound, "destination not found")
+			})
+
+			forEachDestinationAuth(t, "unknown destination with an invalid query returns 404 rather than 422 or 400", func(t *testing.T, h *apiTest, auth destinationAuth) {
+				// The destination is checked before the query is validated.
+				for _, query := range []string{"dir=sideways", "order_by=id", "time[gte]=yesterday", "limit=0", "next=not-a-cursor", "next=a&prev=b"} {
+					req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1/destinations/missing/attempts?"+query, nil)
+					resp := h.do(auth(req))
+
+					testutil.RequireErrorResponse(t, resp, http.StatusNotFound, "destination not found")
+				}
+			})
+
 			t.Run("include destination on destination-scoped list", func(t *testing.T) {
 				h := newAPITest(t)
 				require.NoError(t, h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1"))))
@@ -1796,6 +1815,20 @@ func TestAPI_Attempts(t *testing.T) {
 			forEachDestinationAuth(t, "destination of another tenant returns 404", func(t *testing.T, h *apiTest, auth destinationAuth) {
 				// t2 owns d2 and its attempt a2.
 				req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1/destinations/d2/attempts/a2", nil)
+				resp := h.do(auth(req))
+
+				testutil.RequireErrorResponse(t, resp, http.StatusNotFound, "destination not found")
+			})
+
+			forEachDestinationAuth(t, "unknown destination and unknown attempt returns destination not found rather than attempt not found", func(t *testing.T, h *apiTest, auth destinationAuth) {
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1/destinations/missing/attempts/missing", nil)
+				resp := h.do(auth(req))
+
+				testutil.RequireErrorResponse(t, resp, http.StatusNotFound, "destination not found")
+			})
+
+			forEachDestinationAuth(t, "deleted destination whose record and attempts are gone returns 404 like one that never existed", func(t *testing.T, h *apiTest, auth destinationAuth) {
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1/destinations/expired-without-attempts/attempts/a-expired", nil)
 				resp := h.do(auth(req))
 
 				testutil.RequireErrorResponse(t, resp, http.StatusNotFound, "destination not found")
