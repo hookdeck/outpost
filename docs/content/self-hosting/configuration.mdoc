@@ -78,6 +78,7 @@ Optional. Configures the queue Outpost consumes published events from; see [Publ
 
 | Variable | Default | Description |
 |----------|---------|-------------|
+| `PUBLISH_MAX_CONCURRENCY_BYTES` | `0` (off) | Max total size in bytes of publish queue messages a process handles at once. Works like `DELIVERY_MAX_CONCURRENCY_BYTES`; see [Limiting consumers by bytes](#limiting-consumers-by-bytes). |
 | `PUBLISH_MAX_REDELIVERIES` | `-1` | Maximum number of times a failed message is redelivered before Outpost stops redelivering it. `-1` (or unset) redelivers without limit; `0` never redelivers. It counts attempts, not time: without backoff on the queue, a short outage can use it up. RabbitMQ and Azure Service Bus reject the message (dead-lettered if configured); AWS SQS and GCP Pub/Sub have no reject, so Outpost acks it and it is deleted. Invalid messages are rejected on the first failure regardless on RabbitMQ and Azure Service Bus. A broker-side delivery limit also applies, and the lower one fires first. See the Failed messages section of each publish guide, e.g. [Publish from RabbitMQ](/docs/outpost/publishing/publish-from-rabbitmq#failed-messages). |
 | `PUBLISH_PROXY_URL` | — | HTTP `CONNECT` forward proxy for the publish queue connection, e.g. `http://user:pass@proxy:8080`. Multiple whitespace-separated URLs are tunneled in order. RabbitMQ only; other providers connect directly and ignore it. See [Publish from RabbitMQ](/docs/outpost/publishing/publish-from-rabbitmq#connecting-through-a-proxy). |
 
@@ -96,11 +97,34 @@ Choose one for event log persistence:
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `DELIVERY_MAX_CONCURRENCY` | `1` | Max concurrent delivery attempts |
+| `DELIVERY_MAX_CONCURRENCY_BYTES` | `0` (off) | Max total size in bytes of delivery queue messages a process handles at once, e.g. `268435456` for 256 MiB. See [Limiting consumers by bytes](#limiting-consumers-by-bytes). |
 | `DELIVERY_TIMEOUT_SECONDS` | `5` | HTTP request timeout for webhook delivery |
 | `MAX_RETRY_LIMIT` | `10` | Max retry attempts before giving up |
 | `RETRY_INTERVAL_SECONDS` | `30` | Base interval for exponential backoff retries |
 | `RETRY_SCHEDULE` | — | Comma-separated retry delays in seconds (overrides interval/limit) |
 | `RETRY_POLL_BACKOFF_MS` | `0` (auto) | Maximum time the retry monitor sleeps between polls while idle. `0` sleeps until the next retry comes due, capped at the shorter of 30 seconds and your shortest configured retry delay, so a retry is never late. An explicit positive value is honored as a fixed maximum, which can delay a retry scheduled while the monitor is already sleeping by up to that much. |
+
+### Limiting consumers by bytes
+
+`DELIVERY_MAX_CONCURRENCY` limits how many messages are handled at once, so the memory they hold grows with their size. `DELIVERY_MAX_CONCURRENCY_BYTES` and `PUBLISH_MAX_CONCURRENCY_BYTES` add a limit on their total size, so large events are handled fewer at a time.
+
+- The value is a plain integer number of bytes. `0` or unset turns the limit off.
+- A message counts with the size of its body, from when it is received until it is acknowledged, returned to the queue or rejected.
+- A message starts only when both the count limit and the byte limit have room. Small messages still run at up to `DELIVERY_MAX_CONCURRENCY`; large ones run fewer at a time.
+- Messages start in the order they are received. A large message waiting for room holds back the messages behind it, including small ones that would fit.
+- A message larger than the whole limit is still delivered, so the queue never stalls on it. It runs on its own, when nothing else is in flight, and everything else waits until it is done, so set the limit well above your largest message.
+- Each limit applies per process and per queue. With several replicas, each one holds up to the limit.
+- `PUBLISH_MAX_CONCURRENCY_BYTES` covers messages consumed from the publish queue. Events published through the API go to the delivery queue and are covered by `DELIVERY_MAX_CONCURRENCY_BYTES`.
+
+Outpost applies the limit after it receives a message, on every message queue, so it bounds the bytes being handled. The process also holds the one message waiting for room, and the messages the queue has already handed over:
+
+| Queue | Also held in the process |
+|-------|--------------------------|
+| AWS SQS, Azure Service Bus, NATS JetStream | The few messages the queue client fetches ahead. |
+| GCP Pub/Sub | Up to `DELIVERY_MAX_CONCURRENCY` (or `PUBLISH_MAX_CONCURRENCY`) messages. Pub/Sub limits what it sends to a subscriber by message count, not by bytes, so it keeps sending up to the count limit while the byte limit lets only some of them start. Copies delivered again after their ack deadline add to that. |
+| RabbitMQ | Possibly the rest of the queue. Outpost sets no prefetch, so RabbitMQ can push the whole queue to the consumer's connection, where it waits in memory: the limit does not bound the memory of the process. |
+
+A message waiting for room has already been received. If it waits longer than the queue's visibility timeout or ack deadline, the queue delivers it again, and each such delivery counts toward the queue's dead-letter limit. On GCP Pub/Sub this is the case to plan for: keep the count limit and the subscription's ack deadline in proportion, so that the messages Pub/Sub sends together can all be handled within one ack deadline. With large messages and slow destinations, lower the count limit or raise the ack deadline.
 
 ## Topics
 

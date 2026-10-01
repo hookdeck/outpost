@@ -64,8 +64,10 @@ retry_max_limit: 10 # Maximum number of event delivery retries
 
 ## Consumer Settings
 publish_max_concurrency: 1 # Max number of publish messages to process concurrently
+publish_max_concurrency_bytes: 0 # Max total bytes of publish messages to process concurrently (0 = no limit)
 publish_max_redeliveries: -1 # Max redeliveries of a failed publish message before Outpost stops redelivering it (-1 = unlimited, 0 = none)
 delivery_max_concurrency: 1 # Max number of delivery messages to process concurrently
+delivery_max_concurrency_bytes: 0 # Max total bytes of delivery messages to process concurrently (0 = no limit)
 log_max_concurrency: 1 # Max number of log messages to process concurrently
 
 ## Log Batcher
