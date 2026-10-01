@@ -232,8 +232,7 @@ func (b *ServiceBuilder) BuildAPIWorkers(baseRouter *gin.Engine) error {
 		},
 	)
 
-	// Mount API handler onto base router (everything except /healthz goes to apiHandler)
-	baseRouter.NoRoute(gin.WrapH(apiHandler))
+	mountAPI(baseRouter, apiHandler)
 
 	svc.router = baseRouter
 

@@ -100,7 +100,7 @@ func newBaseRouter(t *testing.T, store tenantstore.TenantStore, handler eventHan
 	)
 
 	router := services.NewBaseRouter(worker.NewWorkerSupervisor(logger), gin.TestMode, false)
-	router.NoRoute(gin.WrapH(apiHandler))
+	services.MountAPI(router, apiHandler)
 	return router
 }
 
