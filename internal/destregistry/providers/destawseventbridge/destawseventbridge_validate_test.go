@@ -45,12 +45,28 @@ func TestAWSEventBridgeDestination_Validate(t *testing.T) {
 		assert.NoError(t, provider.Validate(context.Background(), &destination))
 	})
 
-	t.Run("should validate valid destination with no credentials", func(t *testing.T) {
+	t.Run("should validate valid destination with no session token", func(t *testing.T) {
 		t.Parallel()
 		destination := validDestination
-		destination.Credentials = map[string]string{}
-		assert.NoError(t, provider.Validate(context.Background(), &destination),
-			"credentials are optional so a destination with none configured must still validate")
+		destination.Credentials = map[string]string{
+			"key":    "test-key",
+			"secret": "test-secret",
+		}
+		assert.NoError(t, provider.Validate(context.Background(), &destination))
+	})
+
+	t.Run("should validate missing credentials", func(t *testing.T) {
+		t.Parallel()
+		invalidDestination := validDestination
+		invalidDestination.Credentials = map[string]string{}
+		err := provider.Validate(context.Background(), &invalidDestination)
+		var validationErr *destregistry.ErrDestinationValidation
+		require.ErrorAs(t, err, &validationErr)
+		assert.Len(t, validationErr.Errors, 2)
+		assert.Equal(t, "credentials.key", validationErr.Errors[0].Field)
+		assert.Equal(t, "required", validationErr.Errors[0].Type)
+		assert.Equal(t, "credentials.secret", validationErr.Errors[1].Field)
+		assert.Equal(t, "required", validationErr.Errors[1].Type)
 	})
 
 	t.Run("should validate invalid type", func(t *testing.T) {

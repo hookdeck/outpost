@@ -20,23 +20,16 @@ import (
 	"github.com/hookdeck/outpost/internal/models"
 )
 
-// AWSEventBridgeConfig is the resolved destination config.
 type AWSEventBridgeConfig struct {
 	EventBusName string
 	Region       string
 	Endpoint     string
 }
 
-// AWSEventBridgeCredentials are optional: an empty Key/Secret is passed to the
-// AWS SDK as an explicit (invalid) static credentials provider rather than
-// omitted, so a destination with no credentials configured fails loudly with
-// an auth error instead of the SDK silently falling back to its default
-// credential chain (env vars, shared config, EC2/ECS/EKS instance role) and
-// authenticating as whatever role this process happens to be running under.
 type AWSEventBridgeCredentials struct {
 	Key     string
 	Secret  string
-	Session string
+	Session string // optional
 }
 
 // Provider implementation

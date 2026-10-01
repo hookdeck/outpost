@@ -34,7 +34,7 @@
       "type": "text",
       "label": "Access Key ID",
       "description": "AWS Access Key ID",
-      "required": false,
+      "required": true,
       "sensitive": true
     },
     {
@@ -42,7 +42,7 @@
       "type": "text",
       "label": "Secret Access Key",
       "description": "AWS Secret Access Key",
-      "required": false,
+      "required": true,
       "sensitive": true
     },
     {

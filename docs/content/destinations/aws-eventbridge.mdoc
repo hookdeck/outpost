@@ -39,11 +39,9 @@ curl '{% $OUTPOST_API_BASE_URL %}/tenants/<TENANT_ID>/destinations' \
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `credentials.key` | string | No | AWS Access Key ID |
-| `credentials.secret` | string | No | AWS Secret Access Key |
+| `credentials.key` | string | Yes | AWS Access Key ID |
+| `credentials.secret` | string | Yes | AWS Secret Access Key |
 | `credentials.session` | string | No | AWS Session Token (for temporary credentials) |
-
-Credentials are optional on the destination itself so that a future credential-less publishing mode (the kind some AWS-partnered SaaS platforms use) can be added later without a breaking config change. Today, publishing always requires a working AWS Access Key/Secret pair — leaving them empty results in every publish attempt failing with an authorization error, not a silent fallback to some other credential source.
 
 ## Event Format
 
