@@ -210,7 +210,7 @@ func TestAPI_Publish(t *testing.T) {
 			})
 			resp := h.do(h.withAPIKey(req))
 
-			require.Equal(t, http.StatusInternalServerError, resp.Code)
+			testutil.RequireErrorResponse(t, resp, http.StatusInternalServerError, "internal server error")
 		})
 	})
 

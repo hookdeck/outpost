@@ -63,6 +63,7 @@ type apiTestConfig struct {
 	destRegistry         destregistry.Registry
 	subscriptionEmitter  apirouter.SubscriptionEmitter
 	logger               *logging.Logger
+	apiKey               string
 	topics               []string
 	topicsAllowWildcards bool
 }
@@ -97,6 +98,12 @@ func withLogger(l *logging.Logger) apiTestOption {
 	}
 }
 
+func withAPIKeyConfig(apiKey string) apiTestOption {
+	return func(cfg *apiTestConfig) {
+		cfg.apiKey = apiKey
+	}
+}
+
 func withTopics(topics []string) apiTestOption {
 	return func(cfg *apiTestConfig) {
 		cfg.topics = topics
@@ -115,6 +122,7 @@ func newAPITest(t *testing.T, opts ...apiTestOption) *apiTest {
 	cfg := apiTestConfig{
 		tenantStore: tenantstore.NewMemTenantStore(),
 		logStore:    logstore.NewMemLogStore(),
+		apiKey:      testAPIKey,
 		topics:      testutil.TestTopics,
 	}
 	for _, o := range opts {
@@ -146,7 +154,7 @@ func newAPITest(t *testing.T, opts ...apiTestOption) *apiTest {
 	router := apirouter.NewRouter(
 		apirouter.RouterConfig{
 			ServiceName:          "test",
-			APIKey:               testAPIKey,
+			APIKey:               cfg.apiKey,
 			JWTSecret:            testJWTSecret,
 			Topics:               cfg.topics,
 			TopicsAllowWildcards: cfg.topicsAllowWildcards,

@@ -452,7 +452,7 @@ func TestAPI_Tenants(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants", nil)
 			resp := h.do(h.withAPIKey(req))
 
-			require.Equal(t, http.StatusNotImplemented, resp.Code)
+			testutil.RequireErrorResponse(t, resp, http.StatusNotImplemented, "list tenant feature is not enabled")
 		})
 	})
 
