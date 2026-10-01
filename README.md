@@ -39,7 +39,7 @@ SDKs:
 
 Production-ready infrastructure for sending webhooks and delivering events from your platform to your customers' systems. Self-host it anywhere, or use [Hookdeck Outpost](https://hookdeck.com/outpost) as a managed service.
 
-Add outbound webhooks and [Event Destinations](https://eventdestinations.org) to your platform, with support for Webhooks, Hookdeck Event Gateway, Amazon EventBridge, AWS SQS, AWS S3, GCP Pub/Sub, RabbitMQ, and Kafka. Outpost handles retries, tenant isolation, observability, and provides a portal for your end users.
+Add outbound webhooks and [Event Destinations](https://eventdestinations.org) to your platform, with support for Webhooks, Hookdeck Event Gateway, Amazon EventBridge, AWS SQS, AWS Kinesis, AWS S3, GCP Pub/Sub, Azure Service Bus, RabbitMQ, Kafka, and Cloudflare Queues. Outpost handles retries, tenant isolation, observability, and provides a portal for your end users.
 
 The runtime has minimal dependencies (Redis/Redis cluster, PostgreSQL, a supported message queue), is 100% backward compatible with your existing webhook implementation, and is optimized for high-throughput, low-cost operation.
 
@@ -62,7 +62,7 @@ Read [Outpost Concepts](https://hookdeck.com/docs/outpost/concepts) to learn mor
 - **OpenTelemetry**: OTel standardized traces, metrics, and logs.
 - **Webhook best practices**: Opt-out webhook best practices, such as headers for idempotency, timestamp and signature, and signature rotation.
 - **SDKs and MCP server**: Go, Python, and TypeScript SDKs are available. Outpost also ships with an MCP server.
-- **Event destination types**: Out of the box support for Webhooks, Hookdeck Event Gateway, Amazon EventBridge, AWS SQS, AWS S3, GCP Pub/Sub, RabbitMQ, and Kafka.
+- **Event destination types**: Out of the box support for Webhooks, Hookdeck Event Gateway, Amazon EventBridge, AWS SQS, AWS Kinesis, AWS S3, GCP Pub/Sub, Azure Service Bus, RabbitMQ, Kafka, and Cloudflare Queues.
 
 See the [Outpost Features](https://hookdeck.com/docs/outpost/features) for more information.
 
