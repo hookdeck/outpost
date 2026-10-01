@@ -4247,6 +4247,8 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "422":
+          $ref: "#/components/responses/ValidationError"
         "500":
           $ref: "#/components/responses/InternalServerError"
         "501":
@@ -4507,8 +4509,14 @@ paths:
                         metadata: { "source": "oms" }
                         data: { "order_id": "orderid", "tracking": "1Z..." }
 
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "422":
+          $ref: "#/components/responses/ValidationError"
         "500":
           $ref: "#/components/responses/InternalServerError"
 
@@ -4753,8 +4761,14 @@ paths:
                           eligible_for_retry: false
                           metadata: { "source": "crm" }
 
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "422":
+          $ref: "#/components/responses/ValidationError"
         "500":
           $ref: "#/components/responses/InternalServerError"
 
@@ -5059,6 +5073,8 @@ paths:
                     credentials:
                       secret: "whsec_abc123def456"
                       # previous_secret and previous_secret_invalid_at are absent on creation
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -5438,12 +5454,16 @@ paths:
                         event_id: "evt_789"
                         destination_id: "des_456"
 
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationError"
         "500":
           $ref: "#/components/responses/InternalServerError"
 
@@ -5606,6 +5626,8 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationError"
         "500":
           $ref: "#/components/responses/InternalServerError"
 
