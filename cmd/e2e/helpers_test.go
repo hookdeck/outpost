@@ -123,7 +123,7 @@ func (d *webhookDestination) SetCredentials(s *basicSuite, creds map[string]stri
 // servers (the mock destination server) are not checked.
 func requireJSONAPIResponse(t testing.TB, req *http.Request, resp *http.Response, body []byte) {
 	t.Helper()
-	if !strings.HasPrefix(req.URL.Path, "/api/") {
+	if req.URL.Path != "/api" && !strings.HasPrefix(req.URL.Path, "/api/") {
 		return
 	}
 	testutil.RequireJSONResponse(t, req.Method+" "+req.URL.Path, resp.StatusCode, resp.Header, body)
@@ -145,11 +145,24 @@ func (s *basicSuite) doJSONRaw(method, url string, body any, result any) int {
 func (s *basicSuite) doJSONWithAuth(method, url string, authHeader string, body any, result any) int {
 	s.T().Helper()
 
-	var bodyReader io.Reader
+	var raw []byte
 	if body != nil {
 		b, err := json.Marshal(body)
 		s.Require().NoError(err)
-		bodyReader = bytes.NewReader(b)
+		raw = b
+	}
+
+	return s.doRawWithAuth(method, url, authHeader, raw, result)
+}
+
+// doRawWithAuth sends body as it is, so a test can send malformed JSON.
+// An empty authHeader sends no Authorization header.
+func (s *basicSuite) doRawWithAuth(method, url string, authHeader string, body []byte, result any) int {
+	s.T().Helper()
+
+	var bodyReader io.Reader
+	if body != nil {
+		bodyReader = bytes.NewReader(body)
 	}
 
 	req, err := http.NewRequest(method, url, bodyReader)
@@ -216,6 +229,11 @@ func (s *basicSuite) waitForEventInLogstore(eventID string) []byte {
 // apiURL builds a full URL for the outpost API.
 func (s *basicSuite) apiURL(path string) string {
 	return fmt.Sprintf("http://localhost:%d/api/v1%s", s.config.APIPort, path)
+}
+
+// rootURL builds a full URL for a path outside /api/v1.
+func (s *basicSuite) rootURL(path string) string {
+	return fmt.Sprintf("http://localhost:%d%s", s.config.APIPort, path)
 }
 
 // mockServerURL returns the mock server base URL.
