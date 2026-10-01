@@ -4448,7 +4448,7 @@ paths:
             default: 100
             minimum: 1
             maximum: 1000
-          description: Number of items per page (default 100, max 1000).
+          description: Number of items per page (1-1000, default 100). A value outside this range, or one that is not an integer, returns a 400.
         - name: next
           in: query
           required: false
@@ -4658,7 +4658,7 @@ paths:
             default: 100
             minimum: 1
             maximum: 1000
-          description: Number of items per page (default 100, max 1000).
+          description: Number of items per page (1-1000, default 100). A value outside this range, or one that is not an integer, returns a 400.
         - name: next
           in: query
           required: false
@@ -5379,7 +5379,7 @@ paths:
             default: 100
             minimum: 1
             maximum: 1000
-          description: Number of items per page (default 100, max 1000).
+          description: Number of items per page (1-1000, default 100). A value outside this range, or one that is not an integer, returns a 400.
         - name: next
           in: query
           required: false

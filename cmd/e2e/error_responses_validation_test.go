@@ -236,6 +236,10 @@ func (s *basicSuite) TestErrorResponses_LogQueryValidation() {
 		{"invalid time[lt]", "time[lt]=yesterday", http.StatusUnprocessableEntity, validationError, "query.time[lt]"},
 		{"unsupported time operator", "time[any]=2024-01-01", http.StatusBadRequest, "operator 'any' is not supported, use 'gte', 'lte', 'gt', or 'lt'", ""},
 		{"next and prev", "next=abc&prev=def", http.StatusBadRequest, "cannot specify both 'next' and 'prev' cursors", ""},
+		{"limit that is not a number", "limit=ten", http.StatusBadRequest, "invalid limit: must be an integer", ""},
+		{"limit of zero", "limit=0", http.StatusBadRequest, "invalid limit: must be between 1 and 1000", ""},
+		{"negative limit", "limit=-1", http.StatusBadRequest, "invalid limit: must be between 1 and 1000", ""},
+		{"limit over the maximum", "limit=1001", http.StatusBadRequest, "invalid limit: must be between 1 and 1000", ""},
 		{"invalid next cursor", "next=not-a-cursor", http.StatusBadRequest, invalidCursor, ""},
 		{"invalid prev cursor", "prev=not-a-cursor", http.StatusBadRequest, invalidCursor, ""},
 	}

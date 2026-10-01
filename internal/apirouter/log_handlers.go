@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -36,20 +35,10 @@ func NewLogHandlers(
 	}
 }
 
-// parseLimit parses the limit query parameter with a default and maximum value.
-// If the provided limit exceeds maxLimit, it is capped at maxLimit.
-func parseLimit(c *gin.Context, defaultLimit, maxLimit int) int {
-	limit := defaultLimit
-	if limitStr := c.Query("limit"); limitStr != "" {
-		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
-			limit = l
-		}
-	}
-	if limit > maxLimit {
-		limit = maxLimit
-	}
-	return limit
-}
+const (
+	defaultLogListLimit = 100
+	maxLogListLimit     = 1000
+)
 
 // IncludeOptions represents which fields to include in the response
 type IncludeOptions struct {
@@ -297,7 +286,14 @@ func (h *LogHandlers) listAttemptsInternal(c *gin.Context, tenantIDs []string, d
 		return
 	}
 
-	limit := parseLimit(c, 100, 1000)
+	limit, errResp := ParseLimit(c, maxLogListLimit)
+	if errResp != nil {
+		AbortWithError(c, errResp.Code, *errResp)
+		return
+	}
+	if limit == 0 {
+		limit = defaultLogListLimit
+	}
 
 	var destinationIDs []string
 	if destinationID != "" {
@@ -519,7 +515,14 @@ func (h *LogHandlers) listEventsInternal(c *gin.Context, tenantIDs []string) {
 		return
 	}
 
-	limit := parseLimit(c, 100, 1000)
+	limit, errResp := ParseLimit(c, maxLogListLimit)
+	if errResp != nil {
+		AbortWithError(c, errResp.Code, *errResp)
+		return
+	}
+	if limit == 0 {
+		limit = defaultLogListLimit
+	}
 
 	destinationIDs := ParseArrayQueryParam(c, "destination_id")
 

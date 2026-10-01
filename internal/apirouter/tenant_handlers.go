@@ -3,7 +3,6 @@ package apirouter
 import (
 	"errors"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -161,18 +160,12 @@ func (h *TenantHandlers) List(c *gin.Context) {
 	}
 
 	// Parse limit if provided
-	if limitStr := c.Query("limit"); limitStr != "" {
-		limit, err := strconv.Atoi(limitStr)
-		if err != nil {
-			AbortWithError(c, http.StatusBadRequest, NewErrBadRequest(errors.New("invalid limit: must be an integer")))
-			return
-		}
-		if limit < 1 || limit > 100 {
-			AbortWithError(c, http.StatusBadRequest, NewErrBadRequest(errors.New("invalid limit: must be between 1 and 100")))
-			return
-		}
-		req.Limit = limit
+	limit, errResp := ParseLimit(c, 100)
+	if errResp != nil {
+		AbortWithError(c, errResp.Code, *errResp)
+		return
 	}
+	req.Limit = limit
 
 	// Call entity store
 	resp, err := h.tenantStore.ListTenant(c.Request.Context(), req)
