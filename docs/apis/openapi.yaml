@@ -347,6 +347,39 @@ components:
           type: string
           description: Cloudflare API Token with the Account > Queues > Edit (Queues Write) permission, scoped to the target account.
           example: "v1.0-1234567890abcdef..."
+    AWSEventBridgeConfig:
+      type: object
+      required: [region]
+      properties:
+        event_bus_name:
+          type: string
+          description: Optional. The name or ARN of the EventBridge event bus. Defaults to the account's default event bus.
+          example: "my-event-bus"
+        region:
+          type: string
+          description: The AWS region where the event bus is located.
+          example: "us-east-1"
+        endpoint:
+          type: string
+          format: url
+          description: Optional. Custom AWS endpoint URL (e.g., for LocalStack or VPC endpoints).
+          example: "https://events.us-east-1.amazonaws.com"
+    AWSEventBridgeCredentials:
+      type: object
+      required: [key, secret]
+      properties:
+        key:
+          type: string
+          description: AWS Access Key ID.
+          example: "AKIAIOSFODNN7EXAMPLE"
+        secret:
+          type: string
+          description: AWS Secret Access Key.
+          example: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+        session:
+          type: string
+          description: Optional AWS Session Token (for temporary credentials).
+          example: "AQoDYXdzEPT//////////wEXAMPLE..."
     RabbitMQConfig:
       type: object
       required: [server_url, exchange]
@@ -1398,6 +1431,95 @@ components:
         credentials:
           api_token: "v1.0-1234567890abcdef..."
 
+    DestinationAWSEventBridge:
+      type: object
+      x-docs-type: "AWS EventBridge"
+      # Properties duplicated from DestinationBase
+      required:
+        [
+          id,
+          type,
+          topics,
+          config,
+          credentials,
+          created_at,
+          updated_at,
+          disabled_at,
+        ]
+      properties:
+        id:
+          type: string
+          description: Control plane generated ID or user provided ID for the destination.
+          example: "des_12345"
+        type:
+          type: string
+          description: Type of the destination.
+          enum: [aws_eventbridge]
+          example: "aws_eventbridge"
+        topics:
+          $ref: "#/components/schemas/Topics"
+        filter:
+          $ref: "#/components/schemas/Filter"
+        disabled_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: ISO Date when the destination was disabled, or null if enabled.
+          example: null
+        created_at:
+          type: string
+          format: date-time
+          description: ISO Date when the destination was created.
+          example: "2024-01-01T00:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: ISO Date when the destination was last updated.
+          example: "2024-01-01T00:00:00Z"
+        config:
+          $ref: "#/components/schemas/AWSEventBridgeConfig"
+        credentials:
+          $ref: "#/components/schemas/AWSEventBridgeCredentials"
+        delivery_metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Static key-value pairs merged into event metadata on every attempt.
+          example: { "app-id": "my-app", "region": "us-east-1" }
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Arbitrary contextual information stored with the destination.
+          example: { "internal-id": "123", "team": "platform" }
+        target:
+          type: string
+          description: A human-readable representation of the destination target (event bus name and region, or the event bus ARN). Read-only.
+          readOnly: true
+          example: "my-event-bus in us-east-1"
+        target_url:
+          type: string
+          format: url
+          nullable: true
+          description: A URL link to the destination target (AWS Console link to the event bus). Null when the event bus is given as an ARN. Read-only.
+          readOnly: true
+          example: "https://us-east-1.console.aws.amazon.com/events/home?region=us-east-1#/eventbus/my-event-bus"
+      example:
+        id: "des_evb_123"
+        type: "aws_eventbridge"
+        topics: ["*"]
+        disabled_at: null
+        created_at: "2024-03-10T14:30:00Z"
+        updated_at: "2024-03-10T14:30:00Z"
+        config:
+          event_bus_name: "my-event-bus"
+          region: "us-east-1"
+        credentials:
+          key: "AKIAIOSFODNN7EXAMPLE"
+          secret: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+
     # Polymorphic Destination Schema (for Responses)
     Destination:
       oneOf:
@@ -1411,6 +1533,7 @@ components:
         - $ref: "#/components/schemas/DestinationGCPPubSub"
         - $ref: "#/components/schemas/DestinationKafka"
         - $ref: "#/components/schemas/DestinationCloudflareQueues"
+        - $ref: "#/components/schemas/DestinationAWSEventBridge"
       discriminator:
         propertyName: type
         mapping:
@@ -1424,6 +1547,7 @@ components:
           gcp_pubsub: "#/components/schemas/DestinationGCPPubSub"
           kafka: "#/components/schemas/DestinationKafka"
           cloudflare_queues: "#/components/schemas/DestinationCloudflareQueues"
+          aws_eventbridge: "#/components/schemas/DestinationAWSEventBridge"
 
     DestinationCreateWebhook:
       type: object
@@ -2057,6 +2181,69 @@ components:
             If set, the destination is created in a disabled state with this
             timestamp. Must not be in the future. Defaults to null (enabled).
           example: null
+    DestinationCreateAWSEventBridge:
+      type: object
+      x-docs-type: "AWS EventBridge"
+      required: [type, topics, config, credentials]
+      properties:
+        id:
+          type: string
+          description: Optional user-provided ID. An ID will be generated if empty.
+          example: "user-provided-id"
+        type:
+          type: string
+          description: Type of the destination. Must be 'aws_eventbridge'.
+          enum: [aws_eventbridge]
+        topics:
+          $ref: "#/components/schemas/Topics"
+        filter:
+          $ref: "#/components/schemas/Filter"
+        config:
+          $ref: "#/components/schemas/AWSEventBridgeConfig"
+        credentials:
+          $ref: "#/components/schemas/AWSEventBridgeCredentials"
+        delivery_metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Static key-value pairs merged into event metadata on every attempt.
+          example: { "app-id": "my-app", "region": "us-east-1" }
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Arbitrary contextual information stored with the destination.
+          example: { "internal-id": "123", "team": "platform" }
+        created_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            Optional override for the creation timestamp. Intended for importing
+            destinations from another system. Must not be in the future.
+            **Admin (API key) auth only — sending this with JWT auth returns 403.**
+            Defaults to the current time when omitted.
+          example: "2024-02-15T10:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            Optional override for the last-updated timestamp. Intended for
+            importing destinations. Must not be in the future.
+            **Admin (API key) auth only — sending this with JWT auth returns 403.**
+            Defaults to created_at when omitted.
+          example: "2024-02-15T10:00:00Z"
+        disabled_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            If set, the destination is created in a disabled state with this
+            timestamp. Must not be in the future. Defaults to null (enabled).
+          example: null
 
     # Polymorphic Destination Creation Schema (for Request Bodies)
     DestinationCreate:
@@ -2071,6 +2258,7 @@ components:
         - $ref: "#/components/schemas/DestinationCreateGCPPubSub"
         - $ref: "#/components/schemas/DestinationCreateKafka"
         - $ref: "#/components/schemas/DestinationCreateCloudflareQueues"
+        - $ref: "#/components/schemas/DestinationCreateAWSEventBridge"
       discriminator:
         propertyName: type
         mapping:
@@ -2084,6 +2272,7 @@ components:
           gcp_pubsub: "#/components/schemas/DestinationCreateGCPPubSub"
           kafka: "#/components/schemas/DestinationCreateKafka"
           cloudflare_queues: "#/components/schemas/DestinationCreateCloudflareQueues"
+          aws_eventbridge: "#/components/schemas/DestinationCreateAWSEventBridge"
 
     # Type-Specific Destination Update Schemas (for Request Bodies)
     # Type-Specific Partial Schemas for PATCH Request Bodies
@@ -2321,6 +2510,33 @@ components:
         api_token:
           type: string
           description: Cloudflare API Token with the Account > Queues > Edit (Queues Write) permission, scoped to the target account.
+    AWSEventBridgeConfigUpdate:
+      type: object
+      description: Partial AWS EventBridge config for PATCH updates (RFC 7396 merge-patch).
+      properties:
+        event_bus_name:
+          type: string
+          description: Optional. The name or ARN of the EventBridge event bus. Defaults to the account's default event bus.
+        region:
+          type: string
+          description: The AWS region where the event bus is located.
+        endpoint:
+          type: string
+          format: url
+          description: Optional. Custom AWS endpoint URL (e.g., for LocalStack or VPC endpoints).
+    AWSEventBridgeCredentialsUpdate:
+      type: object
+      description: Partial AWS EventBridge credentials for PATCH updates (RFC 7396 merge-patch).
+      properties:
+        key:
+          type: string
+          description: AWS Access Key ID.
+        secret:
+          type: string
+          description: AWS Secret Access Key.
+        session:
+          type: string
+          description: Optional AWS Session Token (for temporary credentials).
 
     DestinationUpdateWebhook:
       type: object
@@ -2862,6 +3078,60 @@ components:
             (must not be in the future) to disable, null to enable, or omit
             to leave unchanged.
           example: null
+    DestinationUpdateAWSEventBridge:
+      type: object
+      x-docs-type: "AWS EventBridge"
+      # Properties duplicated from DestinationUpdateBase
+      required: [type]
+      properties:
+        type:
+          type: string
+          enum: [aws_eventbridge]
+          description: Destination type discriminator. Must equal the existing destination's type — type itself cannot be changed via PATCH.
+          example: "aws_eventbridge"
+        topics:
+          $ref: "#/components/schemas/Topics"
+        filter:
+          $ref: "#/components/schemas/Filter"
+        config:
+          $ref: "#/components/schemas/AWSEventBridgeConfigUpdate"
+        credentials:
+          $ref: "#/components/schemas/AWSEventBridgeCredentialsUpdate"
+        delivery_metadata:
+          type: object
+          additionalProperties:
+            oneOf:
+              - type: string
+              - type: "null"
+          nullable: true
+          description: >-
+            Static key-value pairs merged into event metadata on every attempt.
+            Uses JSON merge-patch semantics (RFC 7396): send keys to add/update,
+            null values to delete keys, null for entire field to clear all.
+            Omit or send {} for no change.
+          example: { "app-id": "my-app", "region": "us-east-1" }
+        metadata:
+          type: object
+          additionalProperties:
+            oneOf:
+              - type: string
+              - type: "null"
+          nullable: true
+          description: >-
+            Arbitrary contextual information stored with the destination.
+            Uses JSON merge-patch semantics (RFC 7396): send keys to add/update,
+            null values to delete keys, null for entire field to clear all.
+            Omit or send {} for no change.
+          example: { "internal-id": "123", "team": "platform" }
+        disabled_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            Update the disabled state of the destination. Send a timestamp
+            (must not be in the future) to disable, null to enable, or omit
+            to leave unchanged.
+          example: null
 
     # Polymorphic Destination Update Schema (for Request Bodies)
     DestinationUpdate:
@@ -2876,6 +3146,7 @@ components:
         - $ref: "#/components/schemas/DestinationUpdateRabbitMQ"
         - $ref: "#/components/schemas/DestinationUpdateKafka"
         - $ref: "#/components/schemas/DestinationUpdateCloudflareQueues"
+        - $ref: "#/components/schemas/DestinationUpdateAWSEventBridge"
       discriminator:
         propertyName: type
         mapping:
@@ -2889,6 +3160,7 @@ components:
           gcp_pubsub: "#/components/schemas/DestinationUpdateGCPPubSub"
           kafka: "#/components/schemas/DestinationUpdateKafka"
           cloudflare_queues: "#/components/schemas/DestinationUpdateCloudflareQueues"
+          aws_eventbridge: "#/components/schemas/DestinationUpdateAWSEventBridge"
     # Event Schemas
     PublishRequest:
       type: object
@@ -3243,6 +3515,7 @@ components:
         - gcp_pubsub
         - kafka
         - cloudflare_queues
+        - aws_eventbridge
       description: Type of destination.
       example: "webhook"
     DestinationTypeSchema:
@@ -5465,7 +5738,7 @@ paths:
         required: true
         schema:
           type: string
-          enum: [webhook, aws_sqs, rabbitmq, hookdeck, aws_kinesis, azure_servicebus, aws_s3, gcp_pubsub, kafka, cloudflare_queues]
+          enum: [webhook, aws_sqs, rabbitmq, hookdeck, aws_kinesis, azure_servicebus, aws_s3, gcp_pubsub, kafka, cloudflare_queues, aws_eventbridge]
         description: The type of the destination.
     get:
       tags: [Schemas]
