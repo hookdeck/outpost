@@ -58,6 +58,12 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/APIErrorResponse"
+    Forbidden:
+      description: The credentials are valid but not allowed to perform the request.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/APIErrorResponse"
     NotFound:
       description: Requested resource not found.
       content:
@@ -4307,6 +4313,8 @@ paths:
                 updated_at: "2024-01-15T10:30:00Z"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "422":
           $ref: "#/components/responses/ValidationError"
         "500":
@@ -4333,6 +4341,8 @@ paths:
                 updated_at: "2024-01-15T10:30:00Z"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
         "500":
@@ -4355,6 +4365,8 @@ paths:
                     success: true
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
         "500":
@@ -4869,6 +4881,8 @@ paths:
                     tenant_id: "tenant_123"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
         "500":
@@ -4903,6 +4917,8 @@ paths:
                     tenant_id: "tenant_123"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
         "500":
@@ -4996,6 +5012,8 @@ paths:
                         secret: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
         "500":
@@ -5043,6 +5061,8 @@ paths:
                       # previous_secret and previous_secret_invalid_at are absent on creation
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
         "422":
@@ -5093,6 +5113,8 @@ paths:
                       previous_secret_invalid_at: "2024-02-16T10:00:00Z"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
         "500":
@@ -5141,6 +5163,8 @@ paths:
                       previous_secret_invalid_at: "2024-02-16T10:00:00Z"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
         "422":
@@ -5165,6 +5189,8 @@ paths:
                     success: true
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
         "500":
@@ -5213,6 +5239,8 @@ paths:
                       previous_secret_invalid_at: "2024-02-16T10:00:00Z"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
         "500":
@@ -5261,6 +5289,8 @@ paths:
                       previous_secret_invalid_at: "2024-02-16T10:00:00Z"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
         "500":
@@ -5410,6 +5440,8 @@ paths:
 
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
         "500":
@@ -5476,6 +5508,8 @@ paths:
                     destination_id: "des_456"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
         "500":
@@ -5519,8 +5553,14 @@ paths:
                 destination_ids: ["des_webhook_123"]
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "409":
-          description: Conflict. An event with the provided `id` already exists.
+          description: Conflict. An event with the provided `id` is still being processed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APIErrorResponse"
         "422":
           description: The event topic was either required or was invalid.
         "500":

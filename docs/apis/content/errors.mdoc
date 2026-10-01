@@ -17,7 +17,9 @@ Common error responses include:
 |--------|-------------|
 | `400` | Malformed JSON or invalid request parameters. |
 | `401` | Missing or invalid authentication credentials. |
+| `403` | The credentials are valid but not allowed to perform the request. |
 | `404` | Requested resource not found. |
+| `409` | The request conflicts with one that is still being processed. |
 | `422` | Request body fails validation. |
 | `500` | Unexpected server error. |
 
