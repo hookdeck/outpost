@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"mime"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -22,6 +23,8 @@ import (
 	"github.com/hookdeck/outpost/internal/telemetry"
 	"github.com/hookdeck/outpost/internal/tenantstore"
 	"github.com/hookdeck/outpost/internal/util/testutil"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
 
@@ -199,6 +202,21 @@ func (a *apiTest) withJWT(req *http.Request, tenantID string) *http.Request {
 	}
 	req.Header.Set("Authorization", "Bearer "+token)
 	return req
+}
+
+// requireErrorResponse asserts that resp is the JSON error envelope with the
+// given status code and message.
+func requireErrorResponse(t *testing.T, resp *httptest.ResponseRecorder, status int, message string) {
+	t.Helper()
+	require.Equal(t, status, resp.Code)
+
+	mediaType, _, _ := mime.ParseMediaType(resp.Header().Get("Content-Type"))
+	assert.Equal(t, "application/json", mediaType)
+
+	var body map[string]any
+	require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &body))
+	assert.Equal(t, float64(status), body["status"])
+	assert.Equal(t, message, body["message"])
 }
 
 // ---------------------------------------------------------------------------

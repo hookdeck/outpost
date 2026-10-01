@@ -29,6 +29,17 @@ func (s *listUnsupportedStore) ListTenant(_ context.Context, _ tenantstore.ListT
 	return nil, tenantstore.ErrListTenantNotSupported
 }
 
+// deleteNotFoundStore wraps a TenantStore and overrides DeleteTenant
+// to return ErrTenantNotFound, simulating a tenant removed between
+// the auth lookup and the delete.
+type deleteNotFoundStore struct {
+	tenantstore.TenantStore
+}
+
+func (s *deleteNotFoundStore) DeleteTenant(_ context.Context, _ string) error {
+	return tenantstore.ErrTenantNotFound
+}
+
 func TestAPI_Tenants(t *testing.T) {
 	t.Run("Upsert", func(t *testing.T) {
 		t.Run("api key creates tenant", func(t *testing.T) {
@@ -472,6 +483,16 @@ func TestAPI_Tenants(t *testing.T) {
 			// Verify deleted in store
 			_, err := h.tenantStore.RetrieveTenant(t.Context(), "t1")
 			assert.ErrorIs(t, err, tenantstore.ErrTenantDeleted)
+		})
+
+		t.Run("tenant gone at delete returns 404", func(t *testing.T) {
+			h := newAPITest(t, withTenantStore(&deleteNotFoundStore{tenantstore.NewMemTenantStore()}))
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+
+			req := httptest.NewRequest(http.MethodDelete, "/api/v1/tenants/t1", nil)
+			resp := h.do(h.withAPIKey(req))
+
+			requireErrorResponse(t, resp, http.StatusNotFound, "tenant not found")
 		})
 	})
 
