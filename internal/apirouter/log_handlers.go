@@ -292,7 +292,7 @@ func (h *LogHandlers) listAttemptsInternal(c *gin.Context, tenantIDs []string, d
 
 	response, err := h.logStore.ListAttempt(c.Request.Context(), req)
 	if err != nil {
-		if errors.Is(err, cursor.ErrInvalidCursor) || errors.Is(err, cursor.ErrVersionMismatch) {
+		if errors.Is(err, cursor.ErrInvalidCursor) {
 			AbortWithError(c, http.StatusBadRequest, NewErrBadRequest(err))
 			return
 		}
@@ -523,7 +523,7 @@ func (h *LogHandlers) listEventsInternal(c *gin.Context, tenantIDs []string) {
 
 	response, err := h.logStore.ListEvent(c.Request.Context(), req)
 	if err != nil {
-		if errors.Is(err, cursor.ErrInvalidCursor) || errors.Is(err, cursor.ErrVersionMismatch) {
+		if errors.Is(err, cursor.ErrInvalidCursor) {
 			AbortWithError(c, http.StatusBadRequest, NewErrBadRequest(err))
 			return
 		}
