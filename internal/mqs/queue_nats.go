@@ -38,13 +38,13 @@ var _ Queue = &NATSQueue{}
 func NewNATSQueue(config *NATSConfig) *NATSQueue {
 	if config.MaxDeliver == 0 {
 		// Must track mqinfra's own default (Policy.RetryLimit's fallback of
-		// 5, +1 — see infraNATS.Declare) since nothing currently threads the
+		// 5, +2 — see infraNATS.Declare) since nothing currently threads the
 		// real Policy.RetryLimit through to this config: a mismatch here
 		// makes exceededMaxDeliver trigger a delivery before the JetStream
 		// consumer's actual MaxDeliver is reached, moving a message to the
 		// DLQ (and terming it) while the broker would still have redelivered
 		// it at least once more.
-		config.MaxDeliver = 6
+		config.MaxDeliver = 7
 	}
 	if config.AckWait == 0 {
 		config.AckWait = 60 * time.Second
@@ -128,7 +128,12 @@ func (q *NATSQueue) Subscribe(ctx context.Context, opts ...SubscribeOption) (Sub
 		return nil, err
 	}
 
-	msgs, err := consumer.Messages()
+	// PullMaxMessages(1): Messages buffers up to 500 messages client-side by
+	// default. Receive only ever processes one at a time, so under backlog
+	// the rest of that buffer sits unacked long enough for AckWait to lapse
+	// — JetStream redelivers them elsewhere while this buffer still goes on
+	// to process the original copies too, delivering both.
+	msgs, err := consumer.Messages(jetstream.PullMaxMessages(1))
 	if err != nil {
 		return nil, err
 	}
