@@ -33,6 +33,14 @@ func isAPIPath(path string) bool {
 	return path == "/api" || strings.HasPrefix(path, "/api/")
 }
 
+// apiNotFound writes the 404 with the same key order as the API's other errors.
+func apiNotFound(c *gin.Context) {
+	c.JSON(http.StatusNotFound, struct {
+		Status  int    `json:"status"`
+		Message string `json:"message"`
+	}{http.StatusNotFound, "not found"})
+}
+
 // AddRoutes serves the static file system for the UI React App.
 func AddRoutes(router *gin.Engine, config PortalConfig) {
 	// Hijack the / route to serve the index.html file and append the env variables
@@ -52,10 +60,7 @@ func AddRoutes(router *gin.Engine, config PortalConfig) {
 		proxy := httputil.NewSingleHostReverseProxy(remote)
 		router.NoRoute(func(c *gin.Context) {
 			if isAPIPath(c.Request.URL.Path) {
-				c.JSON(http.StatusNotFound, gin.H{
-					"status":  http.StatusNotFound,
-					"message": "not found",
-				})
+				apiNotFound(c)
 				return
 			}
 			if c.Request.Method != "GET" {
@@ -69,10 +74,7 @@ func AddRoutes(router *gin.Engine, config PortalConfig) {
 		fallbackFileSystem := newFallbackFileSystem(embeddedBuildFolder)
 		router.NoRoute(func(c *gin.Context) {
 			if isAPIPath(c.Request.URL.Path) {
-				c.JSON(http.StatusNotFound, gin.H{
-					"status":  http.StatusNotFound,
-					"message": "not found",
-				})
+				apiNotFound(c)
 			}
 		})
 		router.Use(static.Serve("/", embeddedBuildFolder))

@@ -89,6 +89,7 @@ func TestAddRoutes_NoRoute_APIRootReturnsJSON404(t *testing.T) {
 
 				assert.Equal(t, float64(http.StatusNotFound), response["status"])
 				assert.Equal(t, "not found", response["message"])
+				assert.Equal(t, `{"status":404,"message":"not found"}`, w.Body.String())
 			})
 		}
 	}
