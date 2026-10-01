@@ -1,6 +1,7 @@
 package apirouter_test
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -8,10 +9,32 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hookdeck/outpost/internal/logstore"
 	"github.com/hookdeck/outpost/internal/models"
+	"github.com/hookdeck/outpost/internal/tenantstore"
+	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// unscopedLogStore ignores the tenant filter on attempt lookups.
+type unscopedLogStore struct {
+	logstore.LogStore
+}
+
+func (s *unscopedLogStore) ListAttempt(ctx context.Context, req logstore.ListAttemptRequest) (logstore.ListAttemptResponse, error) {
+	req.TenantIDs = nil
+	return s.LogStore.ListAttempt(ctx, req)
+}
+
+// retrieveDestinationErrorStore fails every destination lookup.
+type retrieveDestinationErrorStore struct {
+	tenantstore.TenantStore
+}
+
+func (s *retrieveDestinationErrorStore) RetrieveDestination(context.Context, string, string) (*models.Destination, error) {
+	return nil, errors.New("store unavailable")
+}
 
 func TestAPI_Retry(t *testing.T) {
 	// setup creates a standard test harness with a tenant, destination, and event
@@ -119,23 +142,27 @@ func TestAPI_Retry(t *testing.T) {
 			})
 			resp := h.do(h.withAPIKey(req))
 
-			require.Equal(t, http.StatusNotFound, resp.Code)
+			testutil.RequireErrorResponse(t, resp, http.StatusNotFound, "event not found")
 		})
 	})
 
 	t.Run("Tenant isolation", func(t *testing.T) {
-		t.Run("jwt other tenant event returns 404", func(t *testing.T) {
-			h := newAPITest(t)
-			// Create two tenants
-			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
-			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t2")))
+		// seed creates two tenants and an event of t1 delivered to t1's destination.
+		seed := func(t *testing.T, h *apiTest) {
+			t.Helper()
+			require.NoError(t, h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1"))))
+			require.NoError(t, h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t2"))))
 			dest := df.Any(df.WithID("d1"), df.WithTenantID("t1"), df.WithTopics([]string{"*"}))
-			h.tenantStore.UpsertDestination(t.Context(), dest)
-			// Event belongs to t1
+			require.NoError(t, h.tenantStore.UpsertDestination(t.Context(), dest))
 			e := ef.AnyPointer(ef.WithID("e1"), ef.WithTenantID("t1"), ef.WithTopic("user.created"))
 			require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
 				{Event: e, Attempt: attemptForEvent(e, af.WithDestinationID("d1"))},
 			}))
+		}
+
+		t.Run("jwt other tenant event returns 404", func(t *testing.T) {
+			h := newAPITest(t)
+			seed(t, h)
 
 			// JWT for t2 tries to retry t1's event
 			req := h.jsonReq(http.MethodPost, "/api/v1/retry", map[string]any{
@@ -144,7 +171,22 @@ func TestAPI_Retry(t *testing.T) {
 			})
 			resp := h.do(h.withJWT(req, "t2"))
 
-			require.Equal(t, http.StatusNotFound, resp.Code)
+			testutil.RequireErrorResponse(t, resp, http.StatusNotFound, "event not found")
+			assert.Empty(t, h.deliveryPub.calls)
+		})
+
+		t.Run("jwt other tenant event returns 404 when the log store returns it", func(t *testing.T) {
+			h := newAPITest(t, withLogStore(&unscopedLogStore{logstore.NewMemLogStore()}))
+			seed(t, h)
+
+			req := h.jsonReq(http.MethodPost, "/api/v1/retry", map[string]any{
+				"event_id":       "e1",
+				"destination_id": "d1",
+			})
+			resp := h.do(h.withJWT(req, "t2"))
+
+			testutil.RequireErrorResponse(t, resp, http.StatusNotFound, "event not found")
+			assert.Empty(t, h.deliveryPub.calls)
 		})
 
 		t.Run("api key can access any tenant event", func(t *testing.T) {
@@ -170,6 +212,23 @@ func TestAPI_Retry(t *testing.T) {
 	t.Run("Destination checks", func(t *testing.T) {
 		t.Run("destination not found returns 404", func(t *testing.T) {
 			h := setup(t)
+			// The event was delivered to a destination the tenant store does not have.
+			e := ef.AnyPointer(ef.WithID("e2"), ef.WithTenantID("t1"), ef.WithTopic("user.created"))
+			require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
+				{Event: e, Attempt: attemptForEvent(e, af.WithDestinationID("gone"))},
+			}))
+
+			req := h.jsonReq(http.MethodPost, "/api/v1/retry", map[string]any{
+				"event_id":       "e2",
+				"destination_id": "gone",
+			})
+			resp := h.do(h.withAPIKey(req))
+
+			testutil.RequireErrorResponse(t, resp, http.StatusNotFound, "destination not found")
+		})
+
+		t.Run("destination without an attempt for the event returns 404", func(t *testing.T) {
+			h := setup(t)
 
 			req := h.jsonReq(http.MethodPost, "/api/v1/retry", map[string]any{
 				"event_id":       "e1",
@@ -177,7 +236,19 @@ func TestAPI_Retry(t *testing.T) {
 			})
 			resp := h.do(h.withAPIKey(req))
 
-			require.Equal(t, http.StatusNotFound, resp.Code)
+			testutil.RequireErrorResponse(t, resp, http.StatusNotFound, "event not found")
+		})
+
+		t.Run("destination store error returns 500", func(t *testing.T) {
+			h := setup(t, withTenantStore(&retrieveDestinationErrorStore{tenantstore.NewMemTenantStore()}))
+
+			req := h.jsonReq(http.MethodPost, "/api/v1/retry", map[string]any{
+				"event_id":       "e1",
+				"destination_id": "d1",
+			})
+			resp := h.do(h.withAPIKey(req))
+
+			testutil.RequireErrorResponse(t, resp, http.StatusInternalServerError, "internal server error")
 		})
 
 		t.Run("disabled destination returns 400", func(t *testing.T) {
@@ -197,7 +268,7 @@ func TestAPI_Retry(t *testing.T) {
 			})
 			resp := h.do(h.withAPIKey(req))
 
-			require.Equal(t, http.StatusBadRequest, resp.Code)
+			testutil.RequireErrorResponse(t, resp, http.StatusBadRequest, "Destination is disabled")
 		})
 
 		t.Run("topic mismatch returns 400", func(t *testing.T) {
@@ -218,7 +289,7 @@ func TestAPI_Retry(t *testing.T) {
 			})
 			resp := h.do(h.withAPIKey(req))
 
-			require.Equal(t, http.StatusBadRequest, resp.Code)
+			testutil.RequireErrorResponse(t, resp, http.StatusBadRequest, "destination does not match event")
 		})
 
 		t.Run("wildcard destination matches any topic", func(t *testing.T) {
@@ -249,7 +320,7 @@ func TestAPI_Retry(t *testing.T) {
 				"destination_id": "d1",
 			})
 			resp := h.do(h.withAPIKey(req))
-			require.Equal(t, http.StatusBadRequest, resp.Code)
+			testutil.RequireErrorResponse(t, resp, http.StatusBadRequest, "destination does not match event")
 		})
 	})
 
@@ -300,7 +371,7 @@ func TestAPI_Retry(t *testing.T) {
 			})
 			resp := h.do(h.withAPIKey(req))
 
-			require.Equal(t, http.StatusInternalServerError, resp.Code)
+			testutil.RequireErrorResponse(t, resp, http.StatusInternalServerError, "internal server error")
 		})
 	})
 }

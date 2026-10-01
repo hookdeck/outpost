@@ -59,6 +59,7 @@ type apiTestOption func(*apiTestConfig)
 
 type apiTestConfig struct {
 	tenantStore          tenantstore.TenantStore
+	logStore             logstore.LogStore
 	destRegistry         destregistry.Registry
 	subscriptionEmitter  apirouter.SubscriptionEmitter
 	logger               *logging.Logger
@@ -69,6 +70,12 @@ type apiTestConfig struct {
 func withTenantStore(ts tenantstore.TenantStore) apiTestOption {
 	return func(cfg *apiTestConfig) {
 		cfg.tenantStore = ts
+	}
+}
+
+func withLogStore(ls logstore.LogStore) apiTestOption {
+	return func(cfg *apiTestConfig) {
+		cfg.logStore = ls
 	}
 }
 
@@ -107,6 +114,7 @@ func newAPITest(t *testing.T, opts ...apiTestOption) *apiTest {
 
 	cfg := apiTestConfig{
 		tenantStore: tenantstore.NewMemTenantStore(),
+		logStore:    logstore.NewMemLogStore(),
 		topics:      testutil.TestTopics,
 	}
 	for _, o := range opts {
@@ -118,7 +126,7 @@ func newAPITest(t *testing.T, opts ...apiTestOption) *apiTest {
 		logger = logging.NewTestLogger(zap.NewNop())
 	}
 	ts := cfg.tenantStore
-	ls := logstore.NewMemLogStore()
+	ls := cfg.logStore
 	dp := &mockDeliveryPublisher{}
 	eh := &mockEventHandler{}
 	var se *mockSubscriptionEmitter
