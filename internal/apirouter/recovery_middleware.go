@@ -13,6 +13,8 @@ func RecoveryMiddleware() gin.HandlerFunc {
 			c.Abort()
 			return
 		}
+		// A Content-Type the handler set before the panic would otherwise be kept.
+		c.Header("Content-Type", "application/json; charset=utf-8")
 		c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorResponse{
 			Status:  http.StatusInternalServerError,
 			Message: "internal server error",
