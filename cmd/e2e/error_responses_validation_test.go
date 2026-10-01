@@ -301,8 +301,8 @@ func (s *basicSuite) TestErrorResponses_MetricsValidation() {
 	}{
 		{"no time range", "measures[0]=count", "time[start] and time[end] are required"},
 		{"no time[end]", "time[start]=2024-01-01T00:00:00Z&measures[0]=count", "time[start] and time[end] are required"},
-		{"invalid time[start]", "time[start]=yesterday&time[end]=2024-01-02T00:00:00Z&measures[0]=count", `invalid time[start]: parsing time "yesterday" as "2006-01-02T15:04:05Z07:00": cannot parse "yesterday" as "2006"`},
-		{"invalid time[end]", "time[start]=2024-01-01T00:00:00Z&time[end]=tomorrow&measures[0]=count", `invalid time[end]: parsing time "tomorrow" as "2006-01-02T15:04:05Z07:00": cannot parse "tomorrow" as "2006"`},
+		{"invalid time[start]", "time[start]=yesterday&time[end]=2024-01-02T00:00:00Z&measures[0]=count", "invalid time[start]: expected RFC3339 (e.g. 2024-01-15T09:30:00Z or 2024-01-15T09:30:00.123Z)"},
+		{"invalid time[end]", "time[start]=2024-01-01T00:00:00Z&time[end]=tomorrow&measures[0]=count", "invalid time[end]: expected RFC3339 (e.g. 2024-01-15T09:30:00Z or 2024-01-15T09:30:00.123Z)"},
 		{"start after end", "time[start]=2024-01-02T00:00:00Z&time[end]=2024-01-01T00:00:00Z&measures[0]=count", "invalid time range: start must be before end"},
 		{"invalid granularity", timeRange + "&measures[0]=count&granularity=hourly", `invalid granularity "hourly": must match <number><unit> where unit is one of s,m,h,d,w,M`},
 		{"granularity of zero", timeRange + "&measures[0]=count&granularity=0h", `invalid granularity "0h": value must be > 0`},
