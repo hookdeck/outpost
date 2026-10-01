@@ -44,12 +44,6 @@ func NewBaseRouter(supervisor *worker.WorkerSupervisor, ginMode string, pprofEna
 	return r
 }
 
-// mountAPI sends every request the base router has no route for (everything
-// except the health checks) to the API handler.
-func mountAPI(baseRouter *gin.Engine, apiHandler http.Handler) {
-	baseRouter.NoRoute(gin.WrapH(apiHandler))
-}
-
 // registerPprof mounts net/http/pprof under /debug/pprof/. The handlers are
 // unauthenticated, so this is opt-in via config.
 func registerPprof(r *gin.Engine) {
