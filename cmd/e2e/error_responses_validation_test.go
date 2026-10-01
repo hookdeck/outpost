@@ -89,8 +89,13 @@ func (s *basicSuite) TestErrorResponses_TenantValidation() {
 		{name: "list with a limit that is not a number", method: http.MethodGet, path: "/tenants?limit=ten", status: http.StatusBadRequest, message: "invalid limit: must be an integer"},
 		{name: "list with a limit of zero", method: http.MethodGet, path: "/tenants?limit=0", status: http.StatusBadRequest, message: "invalid limit: must be between 1 and 100"},
 		{name: "list with a limit over the maximum", method: http.MethodGet, path: "/tenants?limit=101", status: http.StatusBadRequest, message: "invalid limit: must be between 1 and 100"},
-		{name: "list with an invalid next cursor", method: http.MethodGet, path: "/tenants?next=not-a-cursor", status: http.StatusBadRequest, message: "invalid cursor: invalid cursor"},
-		{name: "list with an invalid prev cursor", method: http.MethodGet, path: "/tenants?prev=not-a-cursor", status: http.StatusBadRequest, message: "invalid cursor: invalid cursor"},
+	}
+	// The tenant store parses cursors, and a Redis without RediSearch answers the list with 501.
+	if s.doJSON(http.MethodGet, s.apiURL("/tenants"), nil, nil) != http.StatusNotImplemented {
+		cases = append(cases,
+			errorCase{name: "list with an invalid next cursor", method: http.MethodGet, path: "/tenants?next=not-a-cursor", status: http.StatusBadRequest, message: "invalid cursor: invalid cursor"},
+			errorCase{name: "list with an invalid prev cursor", method: http.MethodGet, path: "/tenants?prev=not-a-cursor", status: http.StatusBadRequest, message: "invalid cursor: invalid cursor"},
+		)
 	}
 	for i := range cases {
 		cases[i].auth = admin

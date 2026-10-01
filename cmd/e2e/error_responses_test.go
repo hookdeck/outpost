@@ -138,7 +138,8 @@ func (r apiRoute) fill(tenantID, destinationID string) string {
 }
 
 // apiRoutes lists every route of the API.
-// TestErrorResponses_RouteTableMatchesRouter fails when it differs from the router.
+// TestErrorResponses_RouteTableMatchesRouter fails when its methods and paths differ
+// from the router's; the adminOnly and requireTenant flags are not checked.
 var apiRoutes = []apiRoute{
 	{method: http.MethodGet, path: "/destination-types"},
 	{method: http.MethodGet, path: "/destination-types/:type"},
