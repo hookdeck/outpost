@@ -9,9 +9,30 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destawseventbridge"
 	"github.com/hookdeck/outpost/internal/models"
+	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func newPublisher(t *testing.T, eventBusName string) *destawseventbridge.AWSEventBridgePublisher {
+	t.Helper()
+	provider, err := destawseventbridge.New(testutil.Registry.MetadataLoader(), nil, destawseventbridge.WithSource("outpost"))
+	require.NoError(t, err)
+
+	config := map[string]string{"region": "us-east-1"}
+	if eventBusName != "" {
+		config["event_bus_name"] = eventBusName
+	}
+	destination := testutil.DestinationFactory.Any(
+		testutil.DestinationFactory.WithType("aws_eventbridge"),
+		testutil.DestinationFactory.WithConfig(config),
+		testutil.DestinationFactory.WithCredentials(map[string]string{"key": "test", "secret": "test"}),
+	)
+	publisher, err := provider.CreatePublisher(context.Background(), &destination)
+	require.NoError(t, err)
+	t.Cleanup(func() { publisher.Close() })
+	return publisher.(*destawseventbridge.AWSEventBridgePublisher)
+}
 
 func TestFormat(t *testing.T) {
 	t.Parallel()
@@ -27,9 +48,9 @@ func TestFormat(t *testing.T) {
 		Data: json.RawMessage(`{"message":"Hello World"}`),
 	}
 
-	t.Run("Source, DetailType, and EventBusName are set from provider config, not per-event", func(t *testing.T) {
+	t.Run("Source and EventBusName come from the provider and destination, DetailType from the event topic", func(t *testing.T) {
 		t.Parallel()
-		publisher := destawseventbridge.NewAWSEventBridgePublisher(nil, "my-bus", "outpost")
+		publisher := newPublisher(t, "my-bus")
 
 		input, err := publisher.Format(context.Background(), &testEvent)
 		require.NoError(t, err)
@@ -43,7 +64,7 @@ func TestFormat(t *testing.T) {
 
 	t.Run("EventBusName is omitted (uses account default bus) when not configured", func(t *testing.T) {
 		t.Parallel()
-		publisher := destawseventbridge.NewAWSEventBridgePublisher(nil, "", "outpost")
+		publisher := newPublisher(t, "")
 
 		input, err := publisher.Format(context.Background(), &testEvent)
 		require.NoError(t, err)
@@ -52,9 +73,9 @@ func TestFormat(t *testing.T) {
 		assert.Nil(t, input.Entries[0].EventBusName)
 	})
 
-	t.Run("Detail contains metadata and data, same envelope shape as aws_kinesis", func(t *testing.T) {
+	t.Run("Detail contains metadata and data", func(t *testing.T) {
 		t.Parallel()
-		publisher := destawseventbridge.NewAWSEventBridgePublisher(nil, "my-bus", "outpost")
+		publisher := newPublisher(t, "my-bus")
 
 		input, err := publisher.Format(context.Background(), &testEvent)
 		require.NoError(t, err)
@@ -76,7 +97,7 @@ func TestFormat(t *testing.T) {
 
 	t.Run("two different topics produce two different DetailType values", func(t *testing.T) {
 		t.Parallel()
-		publisher := destawseventbridge.NewAWSEventBridgePublisher(nil, "my-bus", "outpost")
+		publisher := newPublisher(t, "my-bus")
 
 		orderEvent := testEvent
 		orderEvent.Topic = "order.shipped"
@@ -88,5 +109,18 @@ func TestFormat(t *testing.T) {
 
 		assert.Equal(t, "user.created", aws.ToString(input1.Entries[0].DetailType))
 		assert.Equal(t, "order.shipped", aws.ToString(input2.Entries[0].DetailType))
+	})
+
+	t.Run("an event without a topic gets the default DetailType", func(t *testing.T) {
+		t.Parallel()
+		publisher := newPublisher(t, "my-bus")
+
+		noTopicEvent := testEvent
+		noTopicEvent.Topic = ""
+
+		input, err := publisher.Format(context.Background(), &noTopicEvent)
+		require.NoError(t, err)
+
+		assert.Equal(t, destawseventbridge.DefaultDetailType, aws.ToString(input.Entries[0].DetailType))
 	})
 }

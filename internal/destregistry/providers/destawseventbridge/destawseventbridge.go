@@ -20,6 +20,10 @@ import (
 	"github.com/hookdeck/outpost/internal/models"
 )
 
+// DefaultDetailType is the DetailType of an event published without a topic.
+// EventBridge rejects an entry with an empty DetailType.
+const DefaultDetailType = "event"
+
 type AWSEventBridgeConfig struct {
 	EventBusName string
 	Region       string
@@ -177,45 +181,30 @@ type AWSEventBridgePublisher struct {
 	source       string
 }
 
-// NewAWSEventBridgePublisher creates a publisher for testing Format() and
-// other client-independent logic without a live/mocked AWS client.
-func NewAWSEventBridgePublisher(client *eventbridge.Client, eventBusName, source string) *AWSEventBridgePublisher {
-	return &AWSEventBridgePublisher{
-		BasePublisher: &destregistry.BasePublisher{},
-		client:        client,
-		eventBusName:  eventBusName,
-		source:        source,
-	}
-}
-
 func (p *AWSEventBridgePublisher) Close() error {
 	p.BasePublisher.StartClose()
 	return nil
 }
 
-// Format prepares the event as a single-entry PutEventsInput. EventBridge has
-// no side channel for metadata the way SQS message attributes do, so the
-// metadata travels inside Detail alongside the event data, same envelope
-// shape as the aws_kinesis provider's metadata-in-payload mode.
+// Format prepares the event as a single-entry PutEventsInput. Detail carries
+// the event data and its metadata.
 func (p *AWSEventBridgePublisher) Format(ctx context.Context, event *models.Event) (*eventbridge.PutEventsInput, error) {
-	metadata := p.BasePublisher.MakeMetadata(event, time.Now())
-	metadataMap := make(map[string]interface{}, len(metadata))
-	for k, v := range metadata {
-		metadataMap[k] = v
-	}
-
-	envelope := map[string]interface{}{
-		"metadata": metadataMap,
+	detail, err := json.Marshal(map[string]interface{}{
+		"metadata": p.BasePublisher.MakeMetadata(event, time.Now()),
 		"data":     json.RawMessage(event.Data),
-	}
-	detail, err := json.Marshal(envelope)
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal event detail: %w", err)
 	}
 
+	detailType := event.Topic
+	if detailType == "" {
+		detailType = DefaultDetailType
+	}
+
 	entry := types.PutEventsRequestEntry{
 		Source:     awssdk.String(p.source),
-		DetailType: awssdk.String(event.Topic),
+		DetailType: awssdk.String(detailType),
 		Detail:     awssdk.String(string(detail)),
 	}
 	if p.eventBusName != "" {
@@ -267,7 +256,7 @@ func (p *AWSEventBridgePublisher) Publish(ctx context.Context, event *models.Eve
 
 	response := map[string]interface{}{
 		"source":      p.source,
-		"detail_type": event.Topic,
+		"detail_type": awssdk.ToString(input.Entries[0].DetailType),
 	}
 	if len(output.Entries) > 0 {
 		response["event_id"] = awssdk.ToString(output.Entries[0].EventId)

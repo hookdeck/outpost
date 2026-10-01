@@ -48,7 +48,7 @@ curl '{% $OUTPOST_API_BASE_URL %}/tenants/<TENANT_ID>/destinations' \
 Each Outpost event is published as a single EventBridge entry:
 
 - **Source** is fixed for the whole deployment, not configured per destination.
-- **DetailType** is the event's topic.
+- **DetailType** is the event's topic. EventBridge requires a detail type, so an event published without a topic uses `event`.
 - **Detail** is a JSON object containing `metadata` and the event's `data` field:
 
 ```json
