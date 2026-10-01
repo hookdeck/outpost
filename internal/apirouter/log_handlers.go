@@ -431,9 +431,6 @@ func (h *LogHandlers) RetrieveAttempt(c *gin.Context) {
 				AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 				return
 			}
-			if err != nil {
-				dest = nil
-			}
 		}
 		if dest != nil {
 			display, err := h.displayer.Display(dest)

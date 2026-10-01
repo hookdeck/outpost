@@ -408,10 +408,10 @@ func (s *basicSuite) TestLogQueries_DeletedDestinationHistory() {
 			})
 		})
 
-		for _, include := range []string{"", "&include=destination"} {
-			s.Run("attempts list filtered by the destination returns its attempts with "+auth.name+include, func() {
+		for _, include := range []struct{ name, query string }{{"", ""}, {" and include destination", "&include=destination"}} {
+			s.Run("attempts list filtered by the destination returns its attempts with "+auth.name+include.name, func() {
 				var attempts list
-				url := s.apiURL("/attempts?tenant_id=" + tenant.ID + "&destination_id=" + dest.ID + include)
+				url := s.apiURL("/attempts?tenant_id=" + tenant.ID + "&destination_id=" + dest.ID + include.query)
 				status := s.doJSONWithAuth(http.MethodGet, url, auth.auth, nil, &attempts)
 				s.Require().Equal(http.StatusOK, status)
 				s.Require().Len(attempts.Models, 1)
@@ -421,10 +421,10 @@ func (s *basicSuite) TestLogQueries_DeletedDestinationHistory() {
 			})
 		}
 
-		for _, include := range []string{"", "?include=destination"} {
-			s.Run("attempt route returns its attempt with "+auth.name+include, func() {
+		for _, include := range []struct{ name, query string }{{"", ""}, {" and include destination", "?include=destination"}} {
+			s.Run("attempt route returns its attempt with "+auth.name+include.name, func() {
 				var attempt map[string]any
-				status := s.doJSONWithAuth(http.MethodGet, s.apiURL("/attempts/"+attemptID+include), auth.auth, nil, &attempt)
+				status := s.doJSONWithAuth(http.MethodGet, s.apiURL("/attempts/"+attemptID+include.query), auth.auth, nil, &attempt)
 				s.Require().Equal(http.StatusOK, status)
 				s.Equal(attemptID, attempt["id"])
 				s.Equal(dest.ID, attempt["destination_id"])

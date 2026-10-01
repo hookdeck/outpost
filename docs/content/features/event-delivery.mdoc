@@ -64,6 +64,6 @@ Each delivery attempt records:
 
 Access delivery attempts via the [API Reference](/docs/outpost/api#attempts), the tenant portal, or Admin UI.
 
-Attempts of a deleted destination stay in the event log: list them with the `destination_id` filter on [list attempts](/docs/outpost/api/attempts#list-attempts). The deleted destination's own endpoints, its attempts endpoints included, return `404`.
+Attempts of a deleted destination stay in the event log: list them with the `destination_id` filter on [list attempts](/docs/outpost/api/attempts#list-attempts). The deleted destination's own endpoints, including its attempts endpoints, return `404`.
 
 To receive attempts as they happen, subscribe to the `attempt.success` and `attempt.failed` [operator events](/docs/outpost/features/operator-events). They fire once per delivery attempt.
