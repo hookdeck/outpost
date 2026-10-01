@@ -14,6 +14,7 @@ import (
 	"github.com/hookdeck/outpost/internal/apirouter"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/tenantstore"
+	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -487,12 +488,12 @@ func TestAPI_Tenants(t *testing.T) {
 
 		t.Run("tenant gone at delete returns 404", func(t *testing.T) {
 			h := newAPITest(t, withTenantStore(&deleteNotFoundStore{tenantstore.NewMemTenantStore()}))
-			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+			require.NoError(t, h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1"))))
 
 			req := httptest.NewRequest(http.MethodDelete, "/api/v1/tenants/t1", nil)
 			resp := h.do(h.withAPIKey(req))
 
-			requireErrorResponse(t, resp, http.StatusNotFound, "tenant not found")
+			testutil.RequireErrorResponse(t, resp, http.StatusNotFound, "tenant not found")
 		})
 	})
 

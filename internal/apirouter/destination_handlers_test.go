@@ -14,6 +14,7 @@ import (
 	"github.com/hookdeck/outpost/internal/opevents"
 	"github.com/hookdeck/outpost/internal/tenantstore"
 	"github.com/hookdeck/outpost/internal/tenantstore/memtenantstore"
+	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -431,7 +432,7 @@ func TestAPI_Destinations(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1/destinations/nope", nil)
 			resp := h.do(h.withAPIKey(req))
 
-			requireErrorResponse(t, resp, http.StatusNotFound, "destination not found")
+			testutil.RequireErrorResponse(t, resp, http.StatusNotFound, "destination not found")
 		})
 
 		t.Run("jwt returns destination on own tenant", func(t *testing.T) {
@@ -454,7 +455,7 @@ func TestAPI_Destinations(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1/destinations/d1", nil)
 			resp := h.do(h.withAPIKey(req))
 
-			requireErrorResponse(t, resp, http.StatusNotFound, "destination not found")
+			testutil.RequireErrorResponse(t, resp, http.StatusNotFound, "destination not found")
 		})
 	})
 
@@ -640,7 +641,7 @@ func TestAPI_Destinations(t *testing.T) {
 			})
 			resp := h.do(h.withAPIKey(req))
 
-			requireErrorResponse(t, resp, http.StatusNotFound, "destination not found")
+			testutil.RequireErrorResponse(t, resp, http.StatusNotFound, "destination not found")
 		})
 
 		t.Run("destination belonging to other tenant returns 404", func(t *testing.T) {
@@ -656,7 +657,7 @@ func TestAPI_Destinations(t *testing.T) {
 			})
 			resp := h.do(h.withAPIKey(req))
 
-			requireErrorResponse(t, resp, http.StatusNotFound, "destination not found")
+			testutil.RequireErrorResponse(t, resp, http.StatusNotFound, "destination not found")
 		})
 
 		t.Run("changing type returns 422", func(t *testing.T) {
@@ -1278,7 +1279,7 @@ func TestAPI_Destinations(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1/destinations/d1", nil)
 			resp := h.do(h.withAPIKey(req))
 
-			requireErrorResponse(t, resp, http.StatusNotFound, "destination not found")
+			testutil.RequireErrorResponse(t, resp, http.StatusNotFound, "destination not found")
 		})
 
 		t.Run("jwt deletes destination on own tenant", func(t *testing.T) {
@@ -1301,7 +1302,7 @@ func TestAPI_Destinations(t *testing.T) {
 			req := httptest.NewRequest(http.MethodDelete, "/api/v1/tenants/t1/destinations/d1", nil)
 			resp := h.do(h.withAPIKey(req))
 
-			requireErrorResponse(t, resp, http.StatusNotFound, "destination not found")
+			testutil.RequireErrorResponse(t, resp, http.StatusNotFound, "destination not found")
 		})
 	})
 
@@ -1376,7 +1377,7 @@ func TestAPI_Destinations(t *testing.T) {
 			req := httptest.NewRequest(http.MethodPut, "/api/v1/tenants/t1/destinations/d1/enable", nil)
 			resp := h.do(h.withAPIKey(req))
 
-			requireErrorResponse(t, resp, http.StatusNotFound, "destination not found")
+			testutil.RequireErrorResponse(t, resp, http.StatusNotFound, "destination not found")
 		})
 
 		t.Run("disable destination belonging to other tenant returns 404", func(t *testing.T) {
@@ -1388,7 +1389,7 @@ func TestAPI_Destinations(t *testing.T) {
 			req := httptest.NewRequest(http.MethodPut, "/api/v1/tenants/t1/destinations/d1/disable", nil)
 			resp := h.do(h.withAPIKey(req))
 
-			requireErrorResponse(t, resp, http.StatusNotFound, "destination not found")
+			testutil.RequireErrorResponse(t, resp, http.StatusNotFound, "destination not found")
 		})
 	})
 
@@ -1521,8 +1522,8 @@ func TestAPI_SubscriptionUpdated(t *testing.T) {
 }
 
 // TestAPI_DestinationTypes tests the /destination-types endpoints.
-// Note: response body is a passthrough from the registry stub (returns nil);
-// not validated here. 404 path not testable without enhancing the stub.
+// Note: response body is a passthrough from the registry stub (returns empty
+// metadata); not validated here.
 func TestAPI_DestinationTypes(t *testing.T) {
 	t.Run("List", func(t *testing.T) {
 		t.Run("api key returns 200", func(t *testing.T) {
@@ -1561,8 +1562,6 @@ func TestAPI_DestinationTypes(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, "/api/v1/destination-types/webhook", nil)
 			resp := h.do(h.withAPIKey(req))
 
-			// The stub returns (nil, nil) for RetrieveProviderMetadata,
-			// so the handler returns 200 with null body.
 			require.Equal(t, http.StatusOK, resp.Code)
 		})
 
@@ -1582,7 +1581,7 @@ func TestAPI_DestinationTypes(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, "/api/v1/destination-types/nope", nil)
 			resp := h.do(h.withAPIKey(req))
 
-			requireErrorResponse(t, resp, http.StatusNotFound, "destination type not found")
+			testutil.RequireErrorResponse(t, resp, http.StatusNotFound, "destination type not found")
 		})
 
 		t.Run("no auth returns 401", func(t *testing.T) {

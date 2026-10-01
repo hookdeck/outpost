@@ -2,7 +2,6 @@ package services_test
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -21,7 +20,6 @@ import (
 	"github.com/hookdeck/outpost/internal/tenantstore"
 	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/hookdeck/outpost/internal/worker"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -114,16 +112,6 @@ func serve(t *testing.T, router http.Handler, req *http.Request) *httptest.Respo
 	return rec
 }
 
-func requireErrorResponse(t *testing.T, rec *httptest.ResponseRecorder, status int, message string) {
-	t.Helper()
-	require.Equal(t, status, rec.Code)
-
-	var body map[string]any
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body), "body: %s", rec.Body.String())
-	assert.Equal(t, float64(status), body["status"])
-	assert.Equal(t, message, body["message"])
-}
-
 func jwtFor(t *testing.T, tenantID string) string {
 	t.Helper()
 	token, err := apirouter.JWT.New(testJWTSecret, apirouter.JWTClaims{TenantID: tenantID})
@@ -169,7 +157,7 @@ func TestBaseRouter_APINotFoundIsJSON(t *testing.T) {
 			req.Header.Set("Content-Type", "application/json")
 			req.Header.Set("Authorization", "Bearer "+testAPIKey)
 
-			requireErrorResponse(t, serve(t, router, req), http.StatusNotFound, tt.message)
+			testutil.RequireErrorResponse(t, serve(t, router, req), http.StatusNotFound, tt.message)
 		})
 	}
 }
@@ -226,7 +214,7 @@ func TestBaseRouter_APIResponsesAreJSON(t *testing.T) {
 				req.Header.Set("Authorization", tt.auth)
 			}
 
-			requireErrorResponse(t, serve(t, router, req), tt.status, tt.message)
+			testutil.RequireErrorResponse(t, serve(t, router, req), tt.status, tt.message)
 		})
 	}
 

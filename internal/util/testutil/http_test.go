@@ -22,6 +22,9 @@ func TestCheckJSONResponse(t *testing.T) {
 		{"text body", "text/plain", "404 page not found", false},
 		{"json body, text content type", "text/plain", `{"status":404}`, false},
 		{"json content type, invalid body", "application/json", "not json", false},
+		{"json null", "application/json", "null", false},
+		{"json string", "application/json", `"not found"`, false},
+		{"json number", "application/json", "404", false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

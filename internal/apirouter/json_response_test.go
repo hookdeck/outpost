@@ -7,6 +7,7 @@ import (
 
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/tenantstore"
+	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/require"
 )
 
@@ -64,7 +65,7 @@ func TestAPI_ErrorResponsesAreJSON(t *testing.T) {
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
 				h := setup(t)
-				requireErrorResponse(t, h.do(tt.req(h)), http.StatusUnauthorized, "unauthorized")
+				testutil.RequireErrorResponse(t, h.do(tt.req(h)), http.StatusUnauthorized, "unauthorized")
 			})
 		}
 	})
@@ -73,13 +74,13 @@ func TestAPI_ErrorResponsesAreJSON(t *testing.T) {
 		t.Run("jwt on admin-only route", func(t *testing.T) {
 			h := setup(t)
 			req := h.withJWT(h.jsonReq(http.MethodPost, "/api/v1/publish", publishBody), "t1")
-			requireErrorResponse(t, h.do(req), http.StatusForbidden, "forbidden")
+			testutil.RequireErrorResponse(t, h.do(req), http.StatusForbidden, "forbidden")
 		})
 
 		t.Run("jwt on another tenant", func(t *testing.T) {
 			h := setup(t)
 			req := h.withJWT(h.jsonReq(http.MethodGet, "/api/v1/tenants/t2", nil), "t1")
-			requireErrorResponse(t, h.do(req), http.StatusForbidden, "forbidden")
+			testutil.RequireErrorResponse(t, h.do(req), http.StatusForbidden, "forbidden")
 		})
 	})
 
@@ -99,7 +100,7 @@ func TestAPI_ErrorResponsesAreJSON(t *testing.T) {
 			t.Run(tt.name, func(t *testing.T) {
 				h := setup(t)
 				req := h.withAPIKey(h.jsonReq(tt.method, tt.path, nil))
-				requireErrorResponse(t, h.do(req), http.StatusNotFound, "not found")
+				testutil.RequireErrorResponse(t, h.do(req), http.StatusNotFound, "not found")
 			})
 		}
 	})
@@ -107,6 +108,6 @@ func TestAPI_ErrorResponsesAreJSON(t *testing.T) {
 	t.Run("500 panic in handler chain", func(t *testing.T) {
 		h := newAPITest(t, withTenantStore(&panicStore{tenantstore.NewMemTenantStore()}))
 		req := h.withAPIKey(h.jsonReq(http.MethodGet, "/api/v1/tenants/t1", nil))
-		requireErrorResponse(t, h.do(req), http.StatusInternalServerError, "internal server error")
+		testutil.RequireErrorResponse(t, h.do(req), http.StatusInternalServerError, "internal server error")
 	})
 }

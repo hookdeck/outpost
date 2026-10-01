@@ -11,6 +11,7 @@ import (
 	"github.com/hookdeck/outpost/internal/idempotence"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/publishmq"
+	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -158,7 +159,7 @@ func TestAPI_Publish(t *testing.T) {
 			})
 			resp := h.do(h.withAPIKey(req))
 
-			requireErrorResponse(t, resp, http.StatusConflict, "event is already being processed")
+			testutil.RequireErrorResponse(t, resp, http.StatusConflict, "event is already being processed")
 		})
 
 		t.Run("required topic returns 422 with detail", func(t *testing.T) {

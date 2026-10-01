@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"io"
-	"mime"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -23,8 +22,6 @@ import (
 	"github.com/hookdeck/outpost/internal/telemetry"
 	"github.com/hookdeck/outpost/internal/tenantstore"
 	"github.com/hookdeck/outpost/internal/util/testutil"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
 
@@ -206,21 +203,6 @@ func (a *apiTest) withJWT(req *http.Request, tenantID string) *http.Request {
 	return req
 }
 
-// requireErrorResponse asserts that resp is the JSON error envelope with the
-// given status code and message.
-func requireErrorResponse(t *testing.T, resp *httptest.ResponseRecorder, status int, message string) {
-	t.Helper()
-	require.Equal(t, status, resp.Code)
-
-	mediaType, _, _ := mime.ParseMediaType(resp.Header().Get("Content-Type"))
-	assert.Equal(t, "application/json", mediaType)
-
-	var body map[string]any
-	require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &body))
-	assert.Equal(t, float64(status), body["status"])
-	assert.Equal(t, message, body["message"])
-}
-
 // ---------------------------------------------------------------------------
 // Mocks
 // ---------------------------------------------------------------------------
@@ -295,6 +277,8 @@ func (r *stubRegistry) ResolvePublisher(context.Context, *models.Destination) (d
 }
 func (r *stubRegistry) MetadataLoader() metadata.MetadataLoader { return nil }
 func (r *stubRegistry) RetrieveProviderMetadata(string) (*metadata.ProviderMetadata, error) {
-	return nil, nil
+	return &metadata.ProviderMetadata{}, nil
 }
-func (r *stubRegistry) ListProviderMetadata() []*metadata.ProviderMetadata { return nil }
+func (r *stubRegistry) ListProviderMetadata() []*metadata.ProviderMetadata {
+	return []*metadata.ProviderMetadata{}
+}

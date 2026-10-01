@@ -7,6 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/hookdeck/outpost/internal/apirouter"
+	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -26,7 +27,7 @@ func TestRecoveryMiddleware(t *testing.T) {
 			panic("test panic")
 		})
 
-		requireErrorResponse(t, w, http.StatusInternalServerError, "internal server error")
+		testutil.RequireErrorResponse(t, w, http.StatusInternalServerError, "internal server error")
 	})
 
 	t.Run("panic after the handler set a content type still returns JSON", func(t *testing.T) {
@@ -35,7 +36,7 @@ func TestRecoveryMiddleware(t *testing.T) {
 			panic("test panic")
 		})
 
-		requireErrorResponse(t, w, http.StatusInternalServerError, "internal server error")
+		testutil.RequireErrorResponse(t, w, http.StatusInternalServerError, "internal server error")
 		assert.Equal(t, "application/json; charset=utf-8", w.Header().Get("Content-Type"))
 	})
 
