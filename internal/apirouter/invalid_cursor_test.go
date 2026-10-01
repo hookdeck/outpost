@@ -52,7 +52,10 @@ func TestAPI_InvalidCursorReturns400(t *testing.T) {
 				{"cursor of another version", cursor.Encode(list.resource, 2, "1700000000000"), versionMismatch},
 			}
 			if list.resource == "tnt" {
-				cases = append(cases, cursorCase{"position that is not a timestamp", cursor.Encode("tnt", 1, "yesterday"), invalidTimestamp})
+				cases = append(cases,
+					cursorCase{"empty position", cursor.Encode("tnt", 1, ""), invalidCursor},
+					cursorCase{"position that is not a timestamp", cursor.Encode("tnt", 1, "yesterday"), invalidTimestamp},
+				)
 			} else {
 				// The mem log store's position is "{timestamp}_{id}".
 				cases = append(cases,

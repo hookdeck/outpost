@@ -555,6 +555,23 @@ func testListTenant(t *testing.T, newHarness HarnessMaker) {
 			assert.EqualError(t, err, "invalid cursor: invalid timestamp")
 		})
 
+		t.Run("cursor with an empty position returns error", func(t *testing.T) {
+			for _, param := range []string{"next", "prev"} {
+				t.Run(param, func(t *testing.T) {
+					req := driver.ListTenantRequest{}
+					if param == "next" {
+						req.Next = cursor.Encode("tnt", 1, "")
+					} else {
+						req.Prev = cursor.Encode("tnt", 1, "")
+					}
+					_, err := store.ListTenant(ctx, req)
+					require.Error(t, err)
+					assert.ErrorIs(t, err, driver.ErrInvalidCursor)
+					assert.EqualError(t, err, "invalid cursor")
+				})
+			}
+		})
+
 		t.Run("limit zero uses default", func(t *testing.T) {
 			resp, err := store.ListTenant(ctx, driver.ListTenantRequest{Limit: 0})
 			require.NoError(t, err)

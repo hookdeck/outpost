@@ -314,7 +314,15 @@ func (s *store) ListTenant(ctx context.Context, req driver.ListTenantRequest) (*
 				return cursor.Encode("tnt", 1, strconv.FormatInt(t.CreatedAt.UnixMilli(), 10))
 			},
 			Decode: func(c string) (string, error) {
-				return cursor.Decode(c, "tnt", 1)
+				pos, err := cursor.Decode(c, "tnt", 1)
+				if err != nil {
+					return "", err
+				}
+				// An empty position is the first page, which only a request without a cursor asks for.
+				if pos == "" {
+					return "", driver.ErrInvalidCursor
+				}
+				return pos, nil
 			},
 		},
 		Fetch: func(ctx context.Context, q pagination.QueryInput) ([]models.Tenant, error) {
