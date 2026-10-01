@@ -5,6 +5,7 @@ import (
 	"net/http/pprof"
 
 	"github.com/gin-gonic/gin"
+	"github.com/hookdeck/outpost/internal/apirouter"
 	"github.com/hookdeck/outpost/internal/worker"
 )
 
@@ -30,7 +31,7 @@ func HealthHandler(supervisor *worker.WorkerSupervisor) gin.HandlerFunc {
 func NewBaseRouter(supervisor *worker.WorkerSupervisor, ginMode string, pprofEnabled bool) *gin.Engine {
 	gin.SetMode(ginMode)
 	r := gin.New()
-	r.Use(gin.Recovery())
+	r.Use(apirouter.RecoveryMiddleware())
 
 	healthHandler := HealthHandler(supervisor)
 	r.GET("/healthz", healthHandler)

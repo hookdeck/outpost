@@ -29,6 +29,10 @@ func createJSONFromConfigs(env map[string]string) string {
 	return "{" + strings.Join(parts, ",") + "}"
 }
 
+func isAPIPath(path string) bool {
+	return path == "/api" || strings.HasPrefix(path, "/api/")
+}
+
 // AddRoutes serves the static file system for the UI React App.
 func AddRoutes(router *gin.Engine, config PortalConfig) {
 	// Hijack the / route to serve the index.html file and append the env variables
@@ -47,7 +51,7 @@ func AddRoutes(router *gin.Engine, config PortalConfig) {
 		}
 		proxy := httputil.NewSingleHostReverseProxy(remote)
 		router.NoRoute(func(c *gin.Context) {
-			if strings.HasPrefix(c.Request.URL.Path, "/api/") {
+			if isAPIPath(c.Request.URL.Path) {
 				c.JSON(http.StatusNotFound, gin.H{
 					"status":  http.StatusNotFound,
 					"message": "not found",
@@ -64,7 +68,7 @@ func AddRoutes(router *gin.Engine, config PortalConfig) {
 		embeddedBuildFolder := newStaticFileSystem()
 		fallbackFileSystem := newFallbackFileSystem(embeddedBuildFolder)
 		router.NoRoute(func(c *gin.Context) {
-			if strings.HasPrefix(c.Request.URL.Path, "/api/") {
+			if isAPIPath(c.Request.URL.Path) {
 				c.JSON(http.StatusNotFound, gin.H{
 					"status":  http.StatusNotFound,
 					"message": "not found",

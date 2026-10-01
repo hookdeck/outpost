@@ -155,6 +155,20 @@ func NewErrBadRequest(err error) ErrorResponse {
 	}
 }
 
+func NewErrUnauthorized() ErrorResponse {
+	return ErrorResponse{
+		Code:    http.StatusUnauthorized,
+		Message: "unauthorized",
+	}
+}
+
+func NewErrForbidden() ErrorResponse {
+	return ErrorResponse{
+		Code:    http.StatusForbidden,
+		Message: "forbidden",
+	}
+}
+
 func NewErrNotFound(resource string) ErrorResponse {
 	return ErrorResponse{
 		Code:    http.StatusNotFound,
