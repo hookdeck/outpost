@@ -14,8 +14,9 @@ import (
 // Every list answers a cursor it cannot read with the same 400 and wording.
 func TestAPI_InvalidCursorReturns400(t *testing.T) {
 	const (
-		invalidCursor   = "invalid cursor"
-		versionMismatch = "invalid cursor: cursor version mismatch: expected version 01"
+		invalidCursor    = "invalid cursor"
+		invalidTimestamp = "invalid cursor: invalid timestamp"
+		versionMismatch  = "invalid cursor: cursor version mismatch: expected version 01"
 	)
 
 	type cursorCase struct {
@@ -45,7 +46,16 @@ func TestAPI_InvalidCursorReturns400(t *testing.T) {
 				{"cursor of another version", cursor.Encode(list.resource, 2, "1700000000000"), versionMismatch},
 			}
 			if list.resource == "tnt" {
-				cases = append(cases, cursorCase{"position that is not a timestamp", cursor.Encode("tnt", 1, "yesterday"), "invalid cursor: invalid timestamp"})
+				cases = append(cases, cursorCase{"position that is not a timestamp", cursor.Encode("tnt", 1, "yesterday"), invalidTimestamp})
+			} else {
+				// The mem log store's position is "{timestamp}_{id}".
+				cases = append(cases,
+					cursorCase{"empty position", cursor.Encode(list.resource, 1, ""), invalidCursor},
+					cursorCase{"position that is one word", cursor.Encode(list.resource, 1, "yesterday"), invalidCursor},
+					cursorCase{"position without an id", cursor.Encode(list.resource, 1, "2024-01-15T09:30:00.000000000Z_"), invalidCursor},
+					cursorCase{"position of another log store", cursor.Encode(list.resource, 1, "1700000000000::id"), invalidCursor},
+					cursorCase{"position with a timestamp that is not a time", cursor.Encode(list.resource, 1, "yesterday_id"), invalidTimestamp},
+				)
 			}
 
 			for _, tc := range cases {

@@ -8,10 +8,11 @@ import (
 )
 
 const (
-	validationError       = "validation error"
-	invalidJSON           = "invalid JSON"
-	invalidCursor         = "invalid cursor"
-	cursorVersionMismatch = "invalid cursor: cursor version mismatch: expected version 01"
+	validationError        = "validation error"
+	invalidJSON            = "invalid JSON"
+	invalidCursor          = "invalid cursor"
+	cursorVersionMismatch  = "invalid cursor: cursor version mismatch: expected version 01"
+	cursorInvalidTimestamp = "invalid cursor: invalid timestamp"
 )
 
 func (s *basicSuite) TestErrorResponses_PublishValidation() {
@@ -214,10 +215,11 @@ func (s *basicSuite) TestErrorResponses_LogQueryValidation() {
 		name           string
 		path           string
 		cursorResource string
+		otherResource  string
 	}{
-		{"events", "/events", "evt"},
-		{"attempts", "/attempts", "att"},
-		{"destination attempts", "/tenants/" + tenant.ID + "/destinations/" + dest.ID + "/attempts", "att"},
+		{"events", "/events", "evt", "att"},
+		{"attempts", "/attempts", "att", "evt"},
+		{"destination attempts", "/tenants/" + tenant.ID + "/destinations/" + dest.ID + "/attempts", "att", "evt"},
 	}
 
 	type logQuery struct {
@@ -246,11 +248,27 @@ func (s *basicSuite) TestErrorResponses_LogQueryValidation() {
 
 	for _, list := range lists {
 		s.Run(list.name, func() {
-			otherVersion := cursor.Encode(list.cursorResource, 2, "1700000000000")
-			for _, query := range append(queries,
-				logQuery{"next cursor of another version", "next=" + otherVersion, http.StatusBadRequest, cursorVersionMismatch, ""},
-				logQuery{"prev cursor of another version", "prev=" + otherVersion, http.StatusBadRequest, cursorVersionMismatch, ""},
-			) {
+			cursors := []struct {
+				name    string
+				cursor  string
+				message string
+			}{
+				{"cursor of another version", cursor.Encode(list.cursorResource, 2, "1700000000000::id"), cursorVersionMismatch},
+				{"cursor of another list", cursor.Encode(list.otherResource, 1, "1700000000000::id"), invalidCursor},
+				{"cursor with an empty position", cursor.Encode(list.cursorResource, 1, ""), invalidCursor},
+				{"cursor with a position that is one word", cursor.Encode(list.cursorResource, 1, "yesterday"), invalidCursor},
+				{"cursor with a position without an id", cursor.Encode(list.cursorResource, 1, "1700000000000"), invalidCursor},
+				{"cursor with a timestamp that is not a number", cursor.Encode(list.cursorResource, 1, "yesterday::id"), cursorInvalidTimestamp},
+				{"cursor with a timestamp out of range", cursor.Encode(list.cursorResource, 1, "9223372036854775807::id"), cursorInvalidTimestamp},
+			}
+			listQueries := queries
+			for _, c := range cursors {
+				listQueries = append(listQueries,
+					logQuery{"next " + c.name, "next=" + c.cursor, http.StatusBadRequest, c.message, ""},
+					logQuery{"prev " + c.name, "prev=" + c.cursor, http.StatusBadRequest, c.message, ""},
+				)
+			}
+			for _, query := range listQueries {
 				s.Run(query.name, func() {
 					s.requireError(errorCase{
 						method: http.MethodGet, path: list.path + "?" + query.query, auth: admin,

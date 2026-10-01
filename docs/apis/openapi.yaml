@@ -4454,13 +4454,13 @@ paths:
           required: false
           schema:
             type: string
-          description: Cursor for next page of results.
+          description: Cursor for the next page of results, from `pagination.next` of a previous response. Mutually exclusive with `prev`. A cursor that cannot be read returns a 400.
         - name: prev
           in: query
           required: false
           schema:
             type: string
-          description: Cursor for previous page of results.
+          description: Cursor for the previous page of results, from `pagination.prev` of a previous response. Mutually exclusive with `next`. A cursor that cannot be read returns a 400.
         - name: order_by
           in: query
           required: false
@@ -4664,13 +4664,13 @@ paths:
           required: false
           schema:
             type: string
-          description: Cursor for next page of results.
+          description: Cursor for the next page of results, from `pagination.next` of a previous response. Mutually exclusive with `prev`. A cursor that cannot be read returns a 400.
         - name: prev
           in: query
           required: false
           schema:
             type: string
-          description: Cursor for previous page of results.
+          description: Cursor for the previous page of results, from `pagination.prev` of a previous response. Mutually exclusive with `next`. A cursor that cannot be read returns a 400.
         - name: include
           in: query
           required: false
@@ -5385,13 +5385,13 @@ paths:
           required: false
           schema:
             type: string
-          description: Cursor for next page of results.
+          description: Cursor for the next page of results, from `pagination.next` of a previous response. Mutually exclusive with `prev`. A cursor that cannot be read returns a 400.
         - name: prev
           in: query
           required: false
           schema:
             type: string
-          description: Cursor for previous page of results.
+          description: Cursor for the previous page of results, from `pagination.prev` of a previous response. Mutually exclusive with `next`. A cursor that cannot be read returns a 400.
         - name: include
           in: query
           required: false

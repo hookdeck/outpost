@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
@@ -44,11 +43,6 @@ type attemptRecordWithPosition struct {
 	attemptTime time.Time
 }
 
-// parseTimestampMs parses a millisecond timestamp string.
-func parseTimestampMs(s string) (int64, error) {
-	return strconv.ParseInt(s, 10, 64)
-}
-
 func (s *logStore) ListEvent(ctx context.Context, req driver.ListEventRequest) (driver.ListEventResponse, error) {
 	sortOrder := req.SortOrder
 	if sortOrder != "asc" && sortOrder != "desc" {
@@ -66,7 +60,10 @@ func (s *logStore) ListEvent(ctx context.Context, req driver.ListEventRequest) (
 		Next:  req.Next,
 		Prev:  req.Prev,
 		Fetch: func(ctx context.Context, q pagination.QueryInput) ([]eventWithPosition, error) {
-			query, args := buildEventQuery(req, q)
+			query, args, err := buildEventQuery(req, q)
+			if err != nil {
+				return nil, err
+			}
 			rows, err := s.db.Query(ctx, query, args...)
 			if err != nil {
 				return nil, fmt.Errorf("query failed: %w", err)
@@ -80,7 +77,7 @@ func (s *logStore) ListEvent(ctx context.Context, req driver.ListEventRequest) (
 				return cursor.Encode(cursorResourceEvent, cursorVersion, position)
 			},
 			Decode: func(c string) (string, error) {
-				return cursor.Decode(c, cursorResourceEvent, cursorVersion)
+				return driver.DecodeCursor(c, cursorResourceEvent, cursorVersion)
 			},
 		},
 	})
@@ -101,7 +98,7 @@ func (s *logStore) ListEvent(ctx context.Context, req driver.ListEventRequest) (
 	}, nil
 }
 
-func buildEventQuery(req driver.ListEventRequest, q pagination.QueryInput) (string, []any) {
+func buildEventQuery(req driver.ListEventRequest, q pagination.QueryInput) (string, []any, error) {
 	var conditions []string
 	var args []any
 	argNum := 1
@@ -152,7 +149,10 @@ func buildEventQuery(req driver.ListEventRequest, q pagination.QueryInput) (stri
 	}
 
 	if q.CursorPos != "" {
-		cursorCond, cursorArgs := buildEventCursorCondition(q.Compare, q.CursorPos, argNum)
+		cursorCond, cursorArgs, err := buildEventCursorCondition(q.Compare, q.CursorPos, argNum)
+		if err != nil {
+			return "", nil, err
+		}
 		conditions = append(conditions, cursorCond)
 		args = append(args, cursorArgs...)
 		argNum += len(cursorArgs)
@@ -184,19 +184,14 @@ func buildEventQuery(req driver.ListEventRequest, q pagination.QueryInput) (stri
 
 	args = append(args, q.Limit)
 
-	return query, args
+	return query, args, nil
 }
 
-func buildEventCursorCondition(compare, position string, argOffset int) (string, []any) {
-	parts := strings.SplitN(position, "::", 2)
-	if len(parts) != 2 {
-		return "1=1", nil // invalid cursor, return always true
-	}
-	eventTimeMs, err := parseTimestampMs(parts[0])
+func buildEventCursorCondition(compare, position string, argOffset int) (string, []any, error) {
+	eventTimeMs, eventID, err := driver.ParseCursorPosition(position)
 	if err != nil {
-		return "1=1", nil // invalid timestamp, return always true
+		return "", nil, err
 	}
-	eventID := parts[1]
 
 	// Convert milliseconds to PostgreSQL timestamp
 	condition := fmt.Sprintf(`(
@@ -204,7 +199,7 @@ func buildEventCursorCondition(compare, position string, argOffset int) (string,
 		OR (time = to_timestamp($%d / 1000.0) AND id %s $%d)
 	)`, compare, argOffset, argOffset+1, compare, argOffset+2)
 
-	return condition, []any{eventTimeMs, eventTimeMs, eventID}
+	return condition, []any{eventTimeMs, eventTimeMs, eventID}, nil
 }
 
 func scanEvents(rows pgx.Rows) ([]eventWithPosition, error) {
@@ -280,7 +275,10 @@ func (s *logStore) ListAttempt(ctx context.Context, req driver.ListAttemptReques
 		Next:  req.Next,
 		Prev:  req.Prev,
 		Fetch: func(ctx context.Context, q pagination.QueryInput) ([]attemptRecordWithPosition, error) {
-			query, args := buildAttemptQuery(req, q)
+			query, args, err := buildAttemptQuery(req, q)
+			if err != nil {
+				return nil, err
+			}
 			rows, err := s.db.Query(ctx, query, args...)
 			if err != nil {
 				return nil, fmt.Errorf("query failed: %w", err)
@@ -294,7 +292,7 @@ func (s *logStore) ListAttempt(ctx context.Context, req driver.ListAttemptReques
 				return cursor.Encode(cursorResourceAttempt, cursorVersion, position)
 			},
 			Decode: func(c string) (string, error) {
-				return cursor.Decode(c, cursorResourceAttempt, cursorVersion)
+				return driver.DecodeCursor(c, cursorResourceAttempt, cursorVersion)
 			},
 		},
 	})
@@ -315,7 +313,7 @@ func (s *logStore) ListAttempt(ctx context.Context, req driver.ListAttemptReques
 	}, nil
 }
 
-func buildAttemptQuery(req driver.ListAttemptRequest, q pagination.QueryInput) (string, []any) {
+func buildAttemptQuery(req driver.ListAttemptRequest, q pagination.QueryInput) (string, []any, error) {
 	var conditions []string
 	var args []any
 	argNum := 1
@@ -378,7 +376,10 @@ func buildAttemptQuery(req driver.ListAttemptRequest, q pagination.QueryInput) (
 	}
 
 	if q.CursorPos != "" {
-		cursorCond, cursorArgs := buildAttemptCursorCondition(q.Compare, q.CursorPos, argNum)
+		cursorCond, cursorArgs, err := buildAttemptCursorCondition(q.Compare, q.CursorPos, argNum)
+		if err != nil {
+			return "", nil, err
+		}
 		conditions = append(conditions, cursorCond)
 		args = append(args, cursorArgs...)
 		argNum += len(cursorArgs)
@@ -419,19 +420,14 @@ func buildAttemptQuery(req driver.ListAttemptRequest, q pagination.QueryInput) (
 
 	args = append(args, q.Limit)
 
-	return query, args
+	return query, args, nil
 }
 
-func buildAttemptCursorCondition(compare, position string, argOffset int) (string, []any) {
-	parts := strings.SplitN(position, "::", 2)
-	if len(parts) != 2 {
-		return "1=1", nil // invalid cursor, return always true
-	}
-	attemptTimeMs, err := parseTimestampMs(parts[0])
+func buildAttemptCursorCondition(compare, position string, argOffset int) (string, []any, error) {
+	attemptTimeMs, attemptID, err := driver.ParseCursorPosition(position)
 	if err != nil {
-		return "1=1", nil // invalid timestamp, return always true
+		return "", nil, err
 	}
-	attemptID := parts[1]
 
 	// Convert milliseconds to PostgreSQL timestamp
 	condition := fmt.Sprintf(`(
@@ -439,7 +435,7 @@ func buildAttemptCursorCondition(compare, position string, argOffset int) (strin
 		OR (time = to_timestamp($%d / 1000.0) AND id %s $%d)
 	)`, compare, argOffset, argOffset+1, compare, argOffset+2)
 
-	return condition, []any{attemptTimeMs, attemptTimeMs, attemptID}
+	return condition, []any{attemptTimeMs, attemptTimeMs, attemptID}, nil
 }
 
 func scanAttemptRecords(rows pgx.Rows) ([]attemptRecordWithPosition, error) {

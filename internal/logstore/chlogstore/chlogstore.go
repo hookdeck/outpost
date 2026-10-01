@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"strconv"
 	"strings"
 	"time"
 
@@ -59,7 +58,7 @@ func fetchAndDedup[T any](
 	ctx context.Context,
 	chDB clickhouse.DB,
 	q pagination.QueryInput,
-	buildQuery func(pagination.QueryInput) (string, []any),
+	buildQuery func(pagination.QueryInput) (string, []any, error),
 	scan func(clickhouse.Rows) ([]T, error),
 	getID func(T) string,
 	getCursorPos func(T) string,
@@ -75,7 +74,10 @@ func fetchAndDedup[T any](
 			SortDir:   q.SortDir,
 			CursorPos: cursorPos,
 		}
-		query, args := buildQuery(qi)
+		query, args, err := buildQuery(qi)
+		if err != nil {
+			return nil, err
+		}
 		rows, err := chDB.Query(ctx, query, args...)
 		if err != nil {
 			return nil, fmt.Errorf("query failed: %w", err)
@@ -139,7 +141,7 @@ func (s *logStoreImpl) ListEvent(ctx context.Context, req driver.ListEventReques
 		Next:  req.Next,
 		Prev:  req.Prev,
 		Fetch: func(ctx context.Context, q pagination.QueryInput) ([]eventWithPosition, error) {
-			return fetchAndDedup(ctx, s.chDB, q, func(qi pagination.QueryInput) (string, []any) {
+			return fetchAndDedup(ctx, s.chDB, q, func(qi pagination.QueryInput) (string, []any, error) {
 				return buildEventQuery(s.eventsTable, req, qi)
 			}, scanEvents, func(e eventWithPosition) string {
 				return e.Event.ID
@@ -150,7 +152,7 @@ func (s *logStoreImpl) ListEvent(ctx context.Context, req driver.ListEventReques
 				return cursor.Encode(cursorResourceEvent, cursorVersion, e.cursorPosition())
 			},
 			Decode: func(c string) (string, error) {
-				return cursor.Decode(c, cursorResourceEvent, cursorVersion)
+				return driver.DecodeCursor(c, cursorResourceEvent, cursorVersion)
 			},
 		},
 	})
@@ -171,7 +173,7 @@ func (s *logStoreImpl) ListEvent(ctx context.Context, req driver.ListEventReques
 	}, nil
 }
 
-func buildEventQuery(table string, req driver.ListEventRequest, q pagination.QueryInput) (string, []any) {
+func buildEventQuery(table string, req driver.ListEventRequest, q pagination.QueryInput) (string, []any, error) {
 	var conditions []string
 	var args []any
 
@@ -213,7 +215,10 @@ func buildEventQuery(table string, req driver.ListEventRequest, q pagination.Que
 	}
 
 	if q.CursorPos != "" {
-		cursorCond, cursorArgs := buildEventCursorCondition(q.Compare, q.CursorPos)
+		cursorCond, cursorArgs, err := buildEventCursorCondition(q.Compare, q.CursorPos)
+		if err != nil {
+			return "", nil, err
+		}
 		conditions = append(conditions, cursorCond)
 		args = append(args, cursorArgs...)
 	}
@@ -242,7 +247,7 @@ func buildEventQuery(table string, req driver.ListEventRequest, q pagination.Que
 		LIMIT %d
 	`, table, whereClause, orderByClause, q.Limit)
 
-	return query, args
+	return query, args, nil
 }
 
 func scanEvents(rows clickhouse.Rows) ([]eventWithPosition, error) {
@@ -307,23 +312,18 @@ func scanEvents(rows clickhouse.Rows) ([]eventWithPosition, error) {
 	return results, nil
 }
 
-func buildEventCursorCondition(compare, position string) (string, []any) {
-	parts := strings.SplitN(position, "::", 2)
-	if len(parts) != 2 {
-		return "1=1", nil // invalid cursor, return always true
-	}
-	eventTimeMs, err := parseTimestampMs(parts[0])
+func buildEventCursorCondition(compare, position string) (string, []any, error) {
+	eventTimeMs, eventID, err := driver.ParseCursorPosition(position)
 	if err != nil {
-		return "1=1", nil // invalid timestamp, return always true
+		return "", nil, err
 	}
-	eventID := parts[1]
 
 	condition := fmt.Sprintf(`(
 		event_time %s fromUnixTimestamp64Milli(?)
 		OR (event_time = fromUnixTimestamp64Milli(?) AND event_id %s ?)
 	)`, compare, compare)
 
-	return condition, []any{eventTimeMs, eventTimeMs, eventID}
+	return condition, []any{eventTimeMs, eventTimeMs, eventID}, nil
 }
 
 // attemptRecordWithPosition wraps an attempt record with its cursor position data.
@@ -353,7 +353,7 @@ func (s *logStoreImpl) ListAttempt(ctx context.Context, req driver.ListAttemptRe
 		Next:  req.Next,
 		Prev:  req.Prev,
 		Fetch: func(ctx context.Context, q pagination.QueryInput) ([]attemptRecordWithPosition, error) {
-			return fetchAndDedup(ctx, s.chDB, q, func(qi pagination.QueryInput) (string, []any) {
+			return fetchAndDedup(ctx, s.chDB, q, func(qi pagination.QueryInput) (string, []any, error) {
 				return buildAttemptQuery(s.attemptsTable, req, qi)
 			}, scanAttemptRecords, func(ar attemptRecordWithPosition) string {
 				return ar.Attempt.ID
@@ -364,7 +364,7 @@ func (s *logStoreImpl) ListAttempt(ctx context.Context, req driver.ListAttemptRe
 				return cursor.Encode(cursorResourceAttempt, cursorVersion, ar.cursorPosition())
 			},
 			Decode: func(c string) (string, error) {
-				return cursor.Decode(c, cursorResourceAttempt, cursorVersion)
+				return driver.DecodeCursor(c, cursorResourceAttempt, cursorVersion)
 			},
 		},
 	})
@@ -385,7 +385,7 @@ func (s *logStoreImpl) ListAttempt(ctx context.Context, req driver.ListAttemptRe
 	}, nil
 }
 
-func buildAttemptQuery(table string, req driver.ListAttemptRequest, q pagination.QueryInput) (string, []any) {
+func buildAttemptQuery(table string, req driver.ListAttemptRequest, q pagination.QueryInput) (string, []any, error) {
 	var conditions []string
 	var args []any
 
@@ -437,7 +437,10 @@ func buildAttemptQuery(table string, req driver.ListAttemptRequest, q pagination
 	}
 
 	if q.CursorPos != "" {
-		cursorCond, cursorArgs := buildAttemptCursorCondition(q.Compare, q.CursorPos)
+		cursorCond, cursorArgs, err := buildAttemptCursorCondition(q.Compare, q.CursorPos)
+		if err != nil {
+			return "", nil, err
+		}
 		conditions = append(conditions, cursorCond)
 		args = append(args, cursorArgs...)
 	}
@@ -475,7 +478,7 @@ func buildAttemptQuery(table string, req driver.ListAttemptRequest, q pagination
 		LIMIT %d
 	`, table, whereClause, orderByClause, q.Limit)
 
-	return query, args
+	return query, args, nil
 }
 
 func scanAttemptRecords(rows clickhouse.Rows) ([]attemptRecordWithPosition, error) {
@@ -893,27 +896,18 @@ func (s *logStoreImpl) InsertMany(ctx context.Context, entries []*models.LogEntr
 	return nil
 }
 
-func parseTimestampMs(s string) (int64, error) {
-	return strconv.ParseInt(s, 10, 64)
-}
-
-func buildAttemptCursorCondition(compare, position string) (string, []any) {
-	parts := strings.SplitN(position, "::", 2)
-	if len(parts) != 2 {
-		return "1=1", nil
-	}
-	attemptTimeMs, err := parseTimestampMs(parts[0])
+func buildAttemptCursorCondition(compare, position string) (string, []any, error) {
+	attemptTimeMs, attemptID, err := driver.ParseCursorPosition(position)
 	if err != nil {
-		return "1=1", nil // invalid timestamp, return always true
+		return "", nil, err
 	}
-	attemptID := parts[1]
 
 	condition := fmt.Sprintf(`(
 		attempt_time %s fromUnixTimestamp64Milli(?)
 		OR (attempt_time = fromUnixTimestamp64Milli(?) AND attempt_id %s ?)
 	)`, compare, compare)
 
-	return condition, []any{attemptTimeMs, attemptTimeMs, attemptID}
+	return condition, []any{attemptTimeMs, attemptTimeMs, attemptID}, nil
 }
 
 // latencyToCH maps the model's *int64 to the Nullable(UInt32) column, clamping
