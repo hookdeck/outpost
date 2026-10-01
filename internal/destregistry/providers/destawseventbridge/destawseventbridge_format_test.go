@@ -41,7 +41,7 @@ func TestFormat(t *testing.T) {
 		ID:       "event-123",
 		Topic:    "user.created",
 		TenantID: "tenant-789",
-		Time:     time.Now(),
+		Time:     time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC),
 		Metadata: map[string]string{
 			"custom_field": "custom_value",
 		},
@@ -122,5 +122,16 @@ func TestFormat(t *testing.T) {
 		require.NoError(t, err)
 
 		assert.Equal(t, destawseventbridge.DefaultDetailType, aws.ToString(input.Entries[0].DetailType))
+	})
+
+	t.Run("Time is the event time, not the publish time", func(t *testing.T) {
+		t.Parallel()
+		publisher := newPublisher(t, "my-bus")
+
+		input, err := publisher.Format(context.Background(), &testEvent)
+		require.NoError(t, err)
+
+		require.NotNil(t, input.Entries[0].Time)
+		assert.True(t, testEvent.Time.Equal(*input.Entries[0].Time))
 	})
 }

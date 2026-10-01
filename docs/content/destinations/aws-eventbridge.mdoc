@@ -49,6 +49,7 @@ Each Outpost event is published as a single EventBridge entry:
 
 - **Source** is fixed for the whole deployment, not configured per destination.
 - **DetailType** is the event's topic. EventBridge requires a detail type, so an event published without a topic uses `event`.
+- **Time** is the event's own time, so a retried delivery keeps the original timestamp.
 - **Detail** is a JSON object containing `metadata` and the event's `data` field:
 
 ```json

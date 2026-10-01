@@ -207,6 +207,9 @@ func (p *AWSEventBridgePublisher) Format(ctx context.Context, event *models.Even
 		DetailType: awssdk.String(detailType),
 		Detail:     awssdk.String(string(detail)),
 	}
+	if !event.Time.IsZero() {
+		entry.Time = awssdk.Time(event.Time)
+	}
 	if p.eventBusName != "" {
 		entry.EventBusName = awssdk.String(p.eventBusName)
 	}
