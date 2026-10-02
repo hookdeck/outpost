@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -668,5 +669,114 @@ func TestAPI_Tenants(t *testing.T) {
 
 			require.Equal(t, http.StatusUnauthorized, resp.Code)
 		})
+	})
+}
+
+// A body sent with chunked transfer encoding has no declared length.
+func TestAPI_TenantUpsert_ChunkedBody(t *testing.T) {
+	put := func(t *testing.T, h *apiTest, body string, chunked bool) (int, string) {
+		t.Helper()
+		server := httptest.NewServer(h.router)
+		defer server.Close()
+
+		req, err := http.NewRequest(http.MethodPut, server.URL+"/api/v1/tenants/t1", strings.NewReader(body))
+		require.NoError(t, err)
+		req.Header.Set("Content-Type", "application/json")
+		if chunked {
+			req.ContentLength = -1
+			req.TransferEncoding = []string{"chunked"}
+		}
+		resp, err := http.DefaultClient.Do(h.withAPIKey(req))
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		respBody, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		return resp.StatusCode, string(respBody)
+	}
+	storedMetadata := func(t *testing.T, h *apiTest) models.Metadata {
+		t.Helper()
+		tenant, err := h.tenantStore.RetrieveTenant(t.Context(), "t1")
+		require.NoError(t, err)
+		return tenant.Metadata
+	}
+
+	for _, chunked := range []bool{false, true} {
+		name := "declared length"
+		if chunked {
+			name = "chunked"
+		}
+
+		t.Run(name+" creates tenant with metadata", func(t *testing.T) {
+			h := newAPITest(t)
+
+			status, _ := put(t, h, `{"metadata":{"plan":"pro"}}`, chunked)
+
+			require.Equal(t, http.StatusCreated, status)
+			assert.Equal(t, models.Metadata{"plan": "pro"}, storedMetadata(t, h))
+		})
+
+		t.Run(name+" invalid JSON returns 422", func(t *testing.T) {
+			h := newAPITest(t)
+
+			status, body := put(t, h, `{not json`, chunked)
+
+			require.Equal(t, http.StatusUnprocessableEntity, status)
+			assert.JSONEq(t, `{"status":422,"message":"invalid JSON"}`, body)
+			tenant, err := h.tenantStore.RetrieveTenant(t.Context(), "t1")
+			require.NoError(t, err)
+			assert.Nil(t, tenant)
+		})
+
+		t.Run(name+" updates metadata", func(t *testing.T) {
+			h := newAPITest(t)
+			require.NoError(t, h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1"), tf.WithMetadata(map[string]string{"plan": "pro"}))))
+
+			status, _ := put(t, h, `{"metadata":{"plan":"enterprise"}}`, chunked)
+
+			require.Equal(t, http.StatusOK, status)
+			assert.Equal(t, models.Metadata{"plan": "enterprise"}, storedMetadata(t, h))
+		})
+
+		t.Run(name+" empty body creates tenant", func(t *testing.T) {
+			h := newAPITest(t)
+
+			status, _ := put(t, h, "", chunked)
+
+			require.Equal(t, http.StatusCreated, status)
+			assert.Empty(t, storedMetadata(t, h))
+		})
+
+		t.Run(name+" empty body replaces metadata with none", func(t *testing.T) {
+			h := newAPITest(t)
+			require.NoError(t, h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1"), tf.WithMetadata(map[string]string{"plan": "pro"}))))
+
+			status, _ := put(t, h, "", chunked)
+
+			require.Equal(t, http.StatusOK, status)
+			assert.Empty(t, storedMetadata(t, h))
+		})
+	}
+
+	// A whitespace-only body is invalid JSON when its length is declared, and
+	// indistinguishable from an empty body when it is chunked.
+	t.Run("declared length whitespace-only body returns 422", func(t *testing.T) {
+		h := newAPITest(t)
+		require.NoError(t, h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1"), tf.WithMetadata(map[string]string{"plan": "pro"}))))
+
+		status, body := put(t, h, " \n ", false)
+
+		require.Equal(t, http.StatusUnprocessableEntity, status)
+		assert.JSONEq(t, `{"status":422,"message":"invalid JSON"}`, body)
+		assert.Equal(t, models.Metadata{"plan": "pro"}, storedMetadata(t, h))
+	})
+
+	t.Run("chunked whitespace-only body is treated as empty", func(t *testing.T) {
+		h := newAPITest(t)
+		require.NoError(t, h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1"), tf.WithMetadata(map[string]string{"plan": "pro"}))))
+
+		status, _ := put(t, h, " \n ", true)
+
+		require.Equal(t, http.StatusOK, status)
+		assert.Empty(t, storedMetadata(t, h))
 	})
 }
