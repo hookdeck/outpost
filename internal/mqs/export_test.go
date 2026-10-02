@@ -77,16 +77,18 @@ func IsGCPPull(sub Subscription) bool {
 // GCPPullState is what a pull subscription holds (received, not settled) and
 // has asked for (response pending).
 type GCPPullState struct {
-	HeldCount int
-	HeldBytes int64
-	Requested int
+	HeldCount      int
+	HeldBytes      int64
+	Requested      int
+	RequestedBytes int64 // reserved by the pulls in flight
+	ResponseBytes  int64 // what one pull response is expected to carry at most
 }
 
 func GCPPullStateOf(sub Subscription) GCPPullState {
 	s := sub.(*gcpPullSubscription)
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return GCPPullState{HeldCount: s.heldCount, HeldBytes: s.heldBytes, Requested: s.reqCount}
+	return GCPPullState{HeldCount: s.heldCount, HeldBytes: s.heldBytes, Requested: s.reqCount, RequestedBytes: s.reqBytes, ResponseBytes: s.response}
 }
 
 const GCPPullSizePeriod = gcpPullSizePeriod

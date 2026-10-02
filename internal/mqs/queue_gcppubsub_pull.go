@@ -14,7 +14,6 @@ import (
 	"cloud.google.com/go/pubsub/apiv1/pubsubpb"
 	"github.com/googleapis/gax-go/v2"
 	"google.golang.org/api/option"
-	"google.golang.org/api/option/internaloption"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
@@ -26,17 +25,23 @@ const (
 	// Most messages asked for and not yet received, over all pulls in flight.
 	// Also the most one Pull request may ask for.
 	gcpPullMaxRequested = 1000
-	// Pulls in flight while messages keep coming. One when the last pull came
-	// back empty.
+	// Count limit when the subscriber sets none.
+	gcpPullDefaultMaxCount = 1000
+	// Most pulls in flight. They wait at the service while the subscription
+	// is empty.
 	gcpPullMaxParallel = 4
-	// The size estimate is the largest body seen in the last one to two
-	// periods.
+	// The largest body is kept for one to two periods.
 	gcpPullSizePeriod = 30 * time.Second
+	// Bytes one pull response carries at most. Pub/Sub does not document it;
+	// measured responses stop at about 10 MB. A larger response, once seen,
+	// takes its place.
+	gcpPullResponseBytes = 10 << 20
 	// Shortest time between the start of a pull that returned nothing and the
 	// next pull, in case the service answers an empty subscription at once.
 	gcpPullEmptyInterval = 250 * time.Millisecond
 	gcpPullRetryDelay    = time.Second
 
+	// Ack and nack requests.
 	gcpAckBatchSize  = 1000
 	gcpAckTimeout    = 5 * time.Second
 	gcpAckAttempts   = 3
@@ -53,21 +58,19 @@ type gcpSubscriberAPI interface {
 }
 
 func newGCPSubscriberClient(ctx context.Context, opts ...option.ClientOption) (*vkit.SubscriberClient, error) {
-	var base []option.ClientOption
 	if addr := os.Getenv("PUBSUB_EMULATOR_HOST"); addr != "" {
-		base = []option.ClientOption{
+		// The emulator takes no credentials.
+		return vkit.NewSubscriberClient(ctx,
 			option.WithEndpoint(addr),
 			option.WithGRPCDialOption(grpc.WithTransportCredentials(insecure.NewCredentials())),
 			option.WithoutAuthentication(),
 			option.WithTelemetryDisabled(),
-			internaloption.SkipDialSettingsValidation(),
-		}
-	} else {
-		base = []option.ClientOption{
-			option.WithGRPCDialOption(grpc.WithKeepaliveParams(keepalive.ClientParameters{
-				Time: 5 * time.Minute,
-			})),
-		}
+		)
+	}
+	base := []option.ClientOption{
+		option.WithGRPCDialOption(grpc.WithKeepaliveParams(keepalive.ClientParameters{
+			Time: 5 * time.Minute,
+		})),
 	}
 	return vkit.NewSubscriberClient(ctx, append(base, opts...)...)
 }
@@ -77,12 +80,13 @@ func newGCPSubscriberClient(ctx context.Context, opts ...option.ClientOption) (*
 // to a handler, so the backlog stays in the subscription, with no ack deadline
 // running and no delivery attempt counted.
 //
-// Sizes are not known before a pull. Each requested message reserves the
-// largest body seen recently; with no recent message, one message is pulled.
-// A pull asks for at most twice what the last one returned. Messages larger
+// Pulls are kept waiting at the service for all the room there is, so a
+// message is received as soon as it is published. Sizes are not known before
+// a pull: it reserves what one response can carry, or less when the largest
+// body seen recently says its messages cannot add up to that. Messages larger
 // than their reservation still go to handlers and the next pull waits for
-// their bytes, so the process holds at most the limit plus the messages of
-// the pulls in flight.
+// their bytes, so the process holds at most the limit plus what the pulls in
+// flight return beyond their reservations.
 type gcpPullSubscription struct {
 	api      gcpSubscriberAPI
 	path     string
@@ -109,9 +113,8 @@ type gcpPullSubscription struct {
 	reqCount  int // asked for, response pending
 	reqBytes  int64
 	pulls     int
-	ramp      int  // most messages the next pull may ask for
-	busy      bool // the last pull returned messages
 	sizes     gcpSizeWindow
+	response  int64 // most bytes one pull response carries
 	acks      []string
 	nacks     []string
 }
@@ -122,7 +125,7 @@ var _ ConcurrentSubscription = &gcpPullSubscription{}
 func newGCPPullSubscription(ctx context.Context, api gcpSubscriberAPI, path string, o SubscribeOptions) *gcpPullSubscription {
 	maxCount := o.Concurrency
 	if maxCount <= 0 {
-		maxCount = gcpPullMaxRequested
+		maxCount = gcpPullDefaultMaxCount
 	}
 	subCtx, cancel := context.WithCancel(ctx)
 	s := &gcpPullSubscription{
@@ -137,7 +140,7 @@ func newGCPPullSubscription(ctx context.Context, api gcpSubscriberAPI, path stri
 		sendWake: make(chan struct{}, 1),
 		sendStop: make(chan struct{}),
 		sendDone: make(chan struct{}),
-		ramp:     1,
+		response: gcpPullResponseBytes,
 	}
 	go s.sendLoop()
 	go func() {
@@ -223,35 +226,66 @@ func (s *gcpPullSubscription) schedule() {
 // nextPull returns how many messages to ask for now and the bytes they
 // reserve, or 0 when there is no room.
 func (s *gcpPullSubscription) nextPull(now time.Time) (int, int64) {
-	maxPulls := 1
-	if s.busy {
-		maxPulls = gcpPullMaxParallel
-	}
-	if s.pulls >= maxPulls {
+	if s.pulls >= gcpPullMaxParallel {
 		return 0, 0
 	}
-	n := min(s.maxCount-s.heldCount-s.reqCount, gcpPullMaxRequested-s.reqCount, s.ramp)
-	if n < 1 {
+	free := min(s.maxCount-s.heldCount-s.reqCount, gcpPullMaxRequested-s.reqCount)
+	if free < 1 {
 		return 0, 0
 	}
 	room := s.maxBytes - s.heldBytes - s.reqBytes
-	size := s.sizes.largest(now)
-	if size == 0 {
-		if s.reqCount > 0 || room <= 0 {
+	// Largest body seen recently, 0 when none was.
+	largest := s.sizes.largest(now)
+	// reserve returns the most the response to a pull for n messages can
+	// carry: a whole response, or n times the largest body if that is less.
+	reserve := func(n int) int64 {
+		if largest == 0 {
+			return s.response
+		}
+		return min(int64(n)*largest, s.response)
+	}
+
+	// A pull takes about as long for one message as for many, so each asks
+	// for a share of the count limit: a quarter, or more when the byte limit
+	// has no room for four pulls of that size.
+	most := min(s.maxCount, gcpPullMaxRequested)
+	parallel := int(min(max(s.maxBytes/reserve(most), 1), gcpPullMaxParallel))
+	share := (most + parallel - 1) / parallel
+	n := min(free, share)
+	reserved := reserve(n)
+	// While others are out, the next pull waits until it can ask for a whole
+	// share, so that handlers finishing one by one do not use up the pulls in
+	// flight.
+	enough := share
+	if reserved > room {
+		if reserved <= s.maxBytes-s.heldBytes {
+			// It fits once the pulls in flight are back.
 			return 0, 0
 		}
-		return 1, 0
-	}
-	fit := room / size
-	if fit < 1 {
-		// Messages larger than the whole limit run one at a time.
-		if s.heldCount > 0 || s.reqCount > 0 {
+		// The messages held leave less room than a response. Ask for what
+		// fits at the largest size, a quarter of the limit or more at a time.
+		if largest == 0 {
+			// No size to go by: one message.
+			if s.reqCount > 0 || room <= 0 {
+				return 0, 0
+			}
+			return 1, 0
+		}
+		n = int(min(room/largest, int64(free)))
+		if n < 1 {
+			// Messages larger than the whole limit run one at a time.
+			if s.heldCount == 0 && s.reqCount == 0 {
+				return 1, largest
+			}
 			return 0, 0
 		}
-		return 1, size
+		reserved = int64(n) * largest
+		enough = int(min(int64(share), max((s.maxBytes/largest+gcpPullMaxParallel-1)/gcpPullMaxParallel, 1)))
 	}
-	n = int(min(int64(n), fit))
-	return n, int64(n) * size
+	if n < enough && s.pulls > 0 {
+		return 0, 0
+	}
+	return n, reserved
 }
 
 func (s *gcpPullSubscription) pull(n int, reserved int64) {
@@ -283,16 +317,15 @@ func (s *gcpPullSubscription) pull(n int, reserved int64) {
 	s.pulls--
 	s.reqCount -= n
 	s.reqBytes -= reserved
-	if err == nil {
-		s.busy = len(received) > 0
-		s.ramp = min(max(2*len(received), 1), gcpPullMaxRequested)
-	} else {
-		s.busy = false
-	}
 	if fatal != nil && s.err == nil {
 		s.err = fatal
 		s.stopped = true
 	}
+	var total int64
+	for _, rm := range received {
+		total += int64(len(rm.GetMessage().GetData()))
+	}
+	s.response = max(s.response, total)
 	for _, rm := range received {
 		size := int64(len(rm.GetMessage().GetData()))
 		s.sizes.add(now, size)

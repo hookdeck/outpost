@@ -80,7 +80,7 @@ func TestIntegrationMQMaxBytes_GCPPubSubShutdownWhileWaiting(t *testing.T) {
 }
 
 // Without a limit the StreamingPull settings are the ones used before the
-// option existed. A limit does not change them: it uses another receive path.
+// option existed.
 func TestGCPPubSubQueue_MaxBytesLeavesStreamSettings(t *testing.T) {
 	t.Parallel()
 	queue := mqs.NewQueue(&mqs.QueueConfig{
@@ -96,7 +96,6 @@ func TestGCPPubSubQueue_MaxBytesLeavesStreamSettings(t *testing.T) {
 	}
 	assert.Equal(t, want, mqs.GCPReceiveSettings(queue, mqs.WithConcurrency(5)))
 	assert.Equal(t, want, mqs.GCPReceiveSettings(queue, mqs.WithConcurrency(5), mqs.WithMaxBytes(0)))
-	assert.Equal(t, want, mqs.GCPReceiveSettings(queue, mqs.WithConcurrency(5), mqs.WithMaxBytes(1<<20)))
 }
 
 // Only a limit switches Pub/Sub to the pull loop. The shared helper is never
@@ -237,9 +236,9 @@ func TestIntegrationMQMaxBytes_GCPPubSubBacklogStaysInSubscription(t *testing.T)
 	assert.Equal(t, fitting, mqs.GCPPullStateOf(subscription).HeldCount)
 }
 
-// Large messages arrive after a small one set the size estimate. The pulls
-// in flight bring in what they had asked for, over the limit; after that the
-// large size is what a pull reserves.
+// Large messages arrive after a small one. The pull in flight was counted
+// with the small size and brings in what it had asked for, over the limit;
+// after that the large size is what a pull reserves.
 func TestIntegrationMQMaxBytes_GCPPubSubMixedSizes(t *testing.T) {
 	t.Cleanup(testinfra.Start(t))
 	config := testinfra.NewMQGCPConfig(t, nil)
@@ -254,16 +253,17 @@ func TestIntegrationMQMaxBytes_GCPPubSubMixedSizes(t *testing.T) {
 		larges    = 24
 		largeSize = 1 << 20
 		limit     = 5 << 19 // 2.5 MiB: two large messages
-		inFlight  = 8       // four pulls of two after one message came back
+		count     = 13      // a small one held, three pulls of four
 	)
-	subscription, err := queue.Subscribe(ctx, mqs.WithConcurrency(100), mqs.WithMaxBytes(limit))
+	subscription, err := queue.Subscribe(ctx, mqs.WithConcurrency(count), mqs.WithMaxBytes(limit))
 	require.NoError(t, err)
 	defer subscription.Shutdown(context.Background())
 
 	publishGCPBacklog(t, ctx, queue, "small", 1, 16)
 	small, err := subscription.Receive(ctx)
 	require.NoError(t, err)
-	require.Eventually(t, func() bool { return mqs.GCPPullStateOf(subscription).Requested == inFlight }, 10*time.Second, 10*time.Millisecond)
+	// Everything the count limit leaves is asked for, counted at the small size.
+	require.Eventually(t, func() bool { return mqs.GCPPullStateOf(subscription).Requested == count-1 }, 10*time.Second, 10*time.Millisecond)
 
 	publishGCPBacklog(t, ctx, queue, "large", larges, largeSize)
 	require.Eventually(t, func() bool {
@@ -273,8 +273,8 @@ func TestIntegrationMQMaxBytes_GCPPubSubMixedSizes(t *testing.T) {
 	time.Sleep(2 * time.Second)
 	state := mqs.GCPPullStateOf(subscription)
 	assert.Zero(t, state.Requested)
-	assert.LessOrEqual(t, state.HeldCount, 1+inFlight)
-	assert.LessOrEqual(t, state.HeldBytes, int64(limit+inFlight*(largeSize+64)))
+	assert.LessOrEqual(t, state.HeldCount, count)
+	assert.LessOrEqual(t, state.HeldBytes, int64(limit+(count-1)*(largeSize+64)))
 
 	small.Ack()
 	for range state.HeldCount - 1 {
@@ -291,6 +291,45 @@ func TestIntegrationMQMaxBytes_GCPPubSubMixedSizes(t *testing.T) {
 		assert.LessOrEqual(t, held.HeldBytes, int64(limit))
 		msg.Ack()
 	}
+}
+
+// One large message does not hold small ones back: the small messages behind
+// it are taken in a few pulls, not a few per pull.
+func TestIntegrationMQMaxBytes_GCPPubSubSmallAfterLarge(t *testing.T) {
+	t.Parallel()
+	t.Cleanup(testinfra.Start(t))
+	config := testinfra.NewMQGCPConfig(t, nil)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	queue := mqs.NewQueue(&config)
+	cleanup, err := queue.Init(ctx)
+	require.NoError(t, err)
+	defer cleanup()
+
+	const (
+		smalls = 300
+		limit  = 16 << 20 // three large messages
+	)
+	publishGCPBacklog(t, ctx, queue, "large", 1, 4<<20)
+	publishGCPBacklog(t, ctx, queue, "small", smalls, 16)
+
+	client, err := mqs.NewGCPSubscriberClient(ctx)
+	require.NoError(t, err)
+	api := &countingGCPAPI{GCPSubscriberAPI: client}
+	path := fmt.Sprintf("projects/%s/subscriptions/%s", config.GCPPubSub.ProjectID, config.GCPPubSub.SubscriptionID)
+	subscription := mqs.NewGCPPullSubscription(ctx, api, path, mqs.WithConcurrency(100), mqs.WithMaxBytes(limit))
+	defer subscription.Shutdown(context.Background())
+
+	for range 1 + smalls {
+		msg, err := subscription.Receive(ctx)
+		require.NoError(t, err)
+		assert.LessOrEqual(t, mqs.GCPPullStateOf(subscription).HeldBytes, int64(limit))
+		msg.Ack()
+	}
+	pulls := api.pulls.Load()
+	t.Logf("%d pull requests for %d messages", pulls, 1+smalls)
+	// Three per pull, the number of large messages that fit, would be 100.
+	assert.LessOrEqual(t, pulls, int64(40))
 }
 
 // Messages the process has received and no handler has taken go back when
