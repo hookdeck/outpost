@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/hookdeck/outpost/internal/destregistry/metadata"
@@ -48,75 +49,84 @@ func (s *RequestBodySanitizer) SanitizeRequestBody(body io.Reader) ([]byte, erro
 		return []byte{}, nil
 	}
 
-	// Try to parse as JSON
 	var requestData map[string]interface{}
 	if err := json.Unmarshal(bodyBytes, &requestData); err != nil {
-		// If not valid JSON, return as-is (might be form data or other format)
-		return bodyBytes, nil
+		return unparseableBody(bodyBytes), nil
 	}
 
-	// Sanitize the parsed JSON
-	sanitizedData := s.sanitizeDestinationRequest(requestData)
-
-	// Marshal back to JSON
-	sanitizedBytes, err := json.Marshal(sanitizedData)
+	sanitizedBytes, err := json.Marshal(s.sanitizeRequest(requestData))
 	if err != nil {
-		return bodyBytes, nil // Return original if we can't marshal back
+		return unparseableBody(bodyBytes), nil
 	}
 
 	return sanitizedBytes, nil
 }
 
-// sanitizeDestinationRequest sanitizes a destination request payload
-func (s *RequestBodySanitizer) sanitizeDestinationRequest(data map[string]interface{}) map[string]interface{} {
-	// Make a copy to avoid modifying the original
-	sanitized := make(map[string]interface{})
+func unparseableBody(body []byte) []byte {
+	return []byte(fmt.Sprintf("[REQUEST_BODY_UNPARSEABLE: %d bytes]", len(body)))
+}
+
+// sanitizeRequest redacts credentials and sensitive config fields in a request
+// payload. credentials, type and config are matched case-insensitively, as
+// encoding/json does when the handlers decode the same body. Keys inside
+// config are matched the same way, which is broader than the decoder.
+func (s *RequestBodySanitizer) sanitizeRequest(data map[string]interface{}) map[string]interface{} {
+	sanitized := make(map[string]interface{}, len(data))
+	var configFields []metadata.FieldSchema
+
 	for k, v := range data {
-		sanitized[k] = v
-	}
-
-	if credentials, ok := sanitized["credentials"].(map[string]interface{}); ok {
-		redacted := make(map[string]interface{}, len(credentials))
-		for k := range credentials {
-			redacted[k] = SensitiveFieldMask
+		switch {
+		case strings.EqualFold(k, "credentials"):
+			sanitized[k] = redactCredentials(v)
+		case strings.EqualFold(k, "type"):
+			sanitized[k] = v
+			if destinationType, ok := v.(string); ok {
+				if meta, err := s.registry.MetadataLoader().Load(destinationType); err == nil {
+					configFields = append(configFields, meta.ConfigFields...)
+				}
+			}
+		default:
+			sanitized[k] = v
 		}
-		sanitized["credentials"] = redacted
 	}
 
-	// Get the destination type to load metadata
-	destinationType, ok := sanitized["type"].(string)
-	if !ok {
-		return sanitized // Can't determine type, return as-is
-	}
-
-	// Load metadata for this destination type
-	meta, err := s.registry.MetadataLoader().Load(destinationType)
-	if err != nil {
-		return sanitized // If we can't load metadata, return as-is
-	}
-
-	// Also check config fields for any marked as sensitive
-	if config, ok := sanitized["config"].(map[string]interface{}); ok {
-		sanitized["config"] = s.sanitizeFieldsMap(config, meta.ConfigFields)
+	for k, v := range sanitized {
+		if !strings.EqualFold(k, "config") {
+			continue
+		}
+		if config, ok := v.(map[string]interface{}); ok {
+			sanitized[k] = s.sanitizeFieldsMap(config, configFields)
+		}
 	}
 
 	return sanitized
 }
 
+func redactCredentials(value interface{}) interface{} {
+	if value == nil {
+		return nil
+	}
+	credentials, ok := value.(map[string]interface{})
+	if !ok {
+		return SensitiveFieldMask
+	}
+	redacted := make(map[string]interface{}, len(credentials))
+	for k := range credentials {
+		redacted[k] = SensitiveFieldMask
+	}
+	return redacted
+}
+
 // sanitizeFieldsMap sanitizes a map based on field schemas
 func (s *RequestBodySanitizer) sanitizeFieldsMap(fields map[string]interface{}, schemas []metadata.FieldSchema) map[string]interface{} {
-	sanitized := make(map[string]interface{})
+	sanitized := make(map[string]interface{}, len(fields))
 
-	// Copy all fields first
 	for k, v := range fields {
 		sanitized[k] = v
-	}
-
-	// Find sensitive fields and redact them
-	for _, schema := range schemas {
-		if schema.Sensitive {
-			if _, exists := sanitized[schema.Key]; exists {
-				sanitized[schema.Key] = SensitiveFieldMask
+		for _, schema := range schemas {
+			if schema.Sensitive && strings.EqualFold(schema.Key, k) {
+				sanitized[k] = SensitiveFieldMask
+				break
 			}
 		}
 	}
