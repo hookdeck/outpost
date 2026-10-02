@@ -21,6 +21,8 @@ export const GetDestinationTypeSchemaType = {
   AwsS3: "aws_s3",
   GcpPubsub: "gcp_pubsub",
   Kafka: "kafka",
+  CloudflareQueues: "cloudflare_queues",
+  AwsEventbridge: "aws_eventbridge",
 } as const;
 /**
  * The type of the destination.

@@ -83,15 +83,15 @@ export type ListEventsRequest = {
    */
   time?: components.Operator | undefined;
   /**
-   * Number of items per page (default 100, max 1000).
+   * Number of items per page (1-1000, default 100). A value outside this range, or one that is not an integer, returns a 400.
    */
   limit?: number | undefined;
   /**
-   * Cursor for next page of results.
+   * Cursor for the next page of results, from `pagination.next` of a previous response. Mutually exclusive with `prev`. A cursor that cannot be read returns a 400.
    */
   next?: string | undefined;
   /**
-   * Cursor for previous page of results.
+   * Cursor for the previous page of results, from `pagination.prev` of a previous response. Mutually exclusive with `next`. A cursor that cannot be read returns a 400.
    */
   prev?: string | undefined;
   /**

@@ -41,6 +41,7 @@ export function destinationsCreate(
 ): APIPromise<
   Result<
     components.Destination,
+    | errors.BadRequestError
     | errors.UnauthorizedError
     | errors.NotFoundError
     | errors.APIErrorResponse
@@ -72,6 +73,7 @@ async function $do(
   [
     Result<
       components.Destination,
+      | errors.BadRequestError
       | errors.UnauthorizedError
       | errors.NotFoundError
       | errors.APIErrorResponse
@@ -170,6 +172,7 @@ async function $do(
 
   const [result] = await M.match<
     components.Destination,
+    | errors.BadRequestError
     | errors.UnauthorizedError
     | errors.NotFoundError
     | errors.APIErrorResponse
@@ -184,9 +187,10 @@ async function $do(
     | SDKValidationError
   >(
     M.json(201, components.Destination$inboundSchema),
+    M.jsonErr(400, errors.BadRequestError$inboundSchema),
     M.jsonErr(401, errors.UnauthorizedError$inboundSchema),
     M.jsonErr(404, errors.NotFoundError$inboundSchema),
-    M.jsonErr(422, errors.APIErrorResponse$inboundSchema),
+    M.jsonErr([403, 422], errors.APIErrorResponse$inboundSchema),
     M.jsonErr(500, errors.InternalServerError$inboundSchema),
     M.fail("4XX"),
     M.fail("5XX"),

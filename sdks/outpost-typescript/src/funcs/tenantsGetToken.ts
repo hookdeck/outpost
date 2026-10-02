@@ -43,6 +43,7 @@ export function tenantsGetToken(
   Result<
     components.TenantToken,
     | errors.UnauthorizedError
+    | errors.APIErrorResponse
     | errors.NotFoundError
     | errors.InternalServerError
     | OutpostError
@@ -71,6 +72,7 @@ async function $do(
     Result<
       components.TenantToken,
       | errors.UnauthorizedError
+      | errors.APIErrorResponse
       | errors.NotFoundError
       | errors.InternalServerError
       | OutpostError
@@ -165,6 +167,7 @@ async function $do(
   const [result] = await M.match<
     components.TenantToken,
     | errors.UnauthorizedError
+    | errors.APIErrorResponse
     | errors.NotFoundError
     | errors.InternalServerError
     | OutpostError
@@ -178,6 +181,7 @@ async function $do(
   >(
     M.json(200, components.TenantToken$inboundSchema),
     M.jsonErr(401, errors.UnauthorizedError$inboundSchema),
+    M.jsonErr(403, errors.APIErrorResponse$inboundSchema),
     M.jsonErr(404, errors.NotFoundError$inboundSchema),
     M.jsonErr(500, errors.InternalServerError$inboundSchema),
     M.fail("4XX"),

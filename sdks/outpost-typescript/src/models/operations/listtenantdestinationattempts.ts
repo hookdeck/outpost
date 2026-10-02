@@ -41,7 +41,7 @@ export type ListTenantDestinationAttemptsTopic = string | Array<string>;
  * - `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
  * - `event.data`: Include full event with payload data
  * - `response_data`: Include response body and headers
- * - `destination`: Include the full destination object
+ * - `destination`: Include the destination object, without credentials
  */
 export type ListTenantDestinationAttemptsInclude = string | Array<string>;
 
@@ -98,15 +98,15 @@ export type ListTenantDestinationAttemptsRequest = {
    */
   time?: components.Operator | undefined;
   /**
-   * Number of items per page (default 100, max 1000).
+   * Number of items per page (1-1000, default 100). A value outside this range, or one that is not an integer, returns a 400.
    */
   limit?: number | undefined;
   /**
-   * Cursor for next page of results.
+   * Cursor for the next page of results, from `pagination.next` of a previous response. Mutually exclusive with `prev`. A cursor that cannot be read returns a 400.
    */
   next?: string | undefined;
   /**
-   * Cursor for previous page of results.
+   * Cursor for the previous page of results, from `pagination.prev` of a previous response. Mutually exclusive with `next`. A cursor that cannot be read returns a 400.
    */
   prev?: string | undefined;
   /**
@@ -116,7 +116,7 @@ export type ListTenantDestinationAttemptsRequest = {
    * - `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
    * - `event.data`: Include full event with payload data
    * - `response_data`: Include response body and headers
-   * - `destination`: Include the full destination object
+   * - `destination`: Include the destination object, without credentials
    */
   include?: string | Array<string> | undefined;
   /**

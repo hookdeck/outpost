@@ -7,6 +7,12 @@ import { safeParse } from "../../lib/schemas.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 import {
+  DestinationCreateAWSEventBridge,
+  DestinationCreateAWSEventBridge$inboundSchema,
+  DestinationCreateAWSEventBridge$Outbound,
+  DestinationCreateAWSEventBridge$outboundSchema,
+} from "./destinationcreateawseventbridge.js";
+import {
   DestinationCreateAWSKinesis,
   DestinationCreateAWSKinesis$inboundSchema,
   DestinationCreateAWSKinesis$Outbound,
@@ -30,6 +36,12 @@ import {
   DestinationCreateAzureServiceBus$Outbound,
   DestinationCreateAzureServiceBus$outboundSchema,
 } from "./destinationcreateazureservicebus.js";
+import {
+  DestinationCreateCloudflareQueues,
+  DestinationCreateCloudflareQueues$inboundSchema,
+  DestinationCreateCloudflareQueues$Outbound,
+  DestinationCreateCloudflareQueues$outboundSchema,
+} from "./destinationcreatecloudflarequeues.js";
 import {
   DestinationCreateGCPPubSub,
   DestinationCreateGCPPubSub$inboundSchema,
@@ -70,7 +82,9 @@ export type DestinationCreate =
   | DestinationCreateAzureServiceBus
   | DestinationCreateAwss3
   | DestinationCreateGCPPubSub
-  | DestinationCreateKafka;
+  | DestinationCreateKafka
+  | DestinationCreateCloudflareQueues
+  | DestinationCreateAWSEventBridge;
 
 /** @internal */
 export const DestinationCreate$inboundSchema: z.ZodType<
@@ -87,6 +101,8 @@ export const DestinationCreate$inboundSchema: z.ZodType<
   DestinationCreateAwss3$inboundSchema,
   DestinationCreateGCPPubSub$inboundSchema,
   DestinationCreateKafka$inboundSchema,
+  DestinationCreateCloudflareQueues$inboundSchema,
+  DestinationCreateAWSEventBridge$inboundSchema,
 ]);
 /** @internal */
 export type DestinationCreate$Outbound =
@@ -98,7 +114,9 @@ export type DestinationCreate$Outbound =
   | DestinationCreateAzureServiceBus$Outbound
   | DestinationCreateAwss3$Outbound
   | DestinationCreateGCPPubSub$Outbound
-  | DestinationCreateKafka$Outbound;
+  | DestinationCreateKafka$Outbound
+  | DestinationCreateCloudflareQueues$Outbound
+  | DestinationCreateAWSEventBridge$Outbound;
 
 /** @internal */
 export const DestinationCreate$outboundSchema: z.ZodType<
@@ -115,6 +133,8 @@ export const DestinationCreate$outboundSchema: z.ZodType<
   DestinationCreateAwss3$outboundSchema,
   DestinationCreateGCPPubSub$outboundSchema,
   DestinationCreateKafka$outboundSchema,
+  DestinationCreateCloudflareQueues$outboundSchema,
+  DestinationCreateAWSEventBridge$outboundSchema,
 ]);
 
 export function destinationCreateToJSON(

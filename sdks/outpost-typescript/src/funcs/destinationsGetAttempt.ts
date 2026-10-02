@@ -32,6 +32,8 @@ import { Result } from "../types/fp.js";
  *
  * @remarks
  * Retrieves details for a specific attempt scoped to a destination.
+ *
+ * Returns `404` if the destination does not exist or has been deleted, or if the destination has no attempt with this ID. An attempt of a deleted destination remains available from `GET /attempts/{attempt_id}`.
  */
 export function destinationsGetAttempt(
   client: OutpostCore,
@@ -44,6 +46,7 @@ export function destinationsGetAttempt(
   Result<
     components.Attempt,
     | errors.UnauthorizedError
+    | errors.APIErrorResponse
     | errors.NotFoundError
     | errors.InternalServerError
     | OutpostError
@@ -78,6 +81,7 @@ async function $do(
     Result<
       components.Attempt,
       | errors.UnauthorizedError
+      | errors.APIErrorResponse
       | errors.NotFoundError
       | errors.InternalServerError
       | OutpostError
@@ -191,6 +195,7 @@ async function $do(
   const [result] = await M.match<
     components.Attempt,
     | errors.UnauthorizedError
+    | errors.APIErrorResponse
     | errors.NotFoundError
     | errors.InternalServerError
     | OutpostError
@@ -204,6 +209,7 @@ async function $do(
   >(
     M.json(200, components.Attempt$inboundSchema),
     M.jsonErr(401, errors.UnauthorizedError$inboundSchema),
+    M.jsonErr(403, errors.APIErrorResponse$inboundSchema),
     M.jsonErr(404, errors.NotFoundError$inboundSchema),
     M.jsonErr(500, errors.InternalServerError$inboundSchema),
     M.fail("4XX"),

@@ -13,5 +13,5 @@ let value: DestinationType = "webhook";
 ## Values
 
 ```typescript
-"webhook" | "aws_sqs" | "rabbitmq" | "hookdeck" | "aws_kinesis" | "azure_servicebus" | "aws_s3" | "gcp_pubsub"
+"webhook" | "aws_sqs" | "rabbitmq" | "hookdeck" | "aws_kinesis" | "azure_servicebus" | "aws_s3" | "gcp_pubsub" | "kafka" | "cloudflare_queues" | "aws_eventbridge"
 ```

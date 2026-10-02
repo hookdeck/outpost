@@ -9,11 +9,11 @@ import { ClosedEnum } from "../../types/enums.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 import {
-  Destination,
-  Destination$inboundSchema,
-  Destination$Outbound,
-  Destination$outboundSchema,
-} from "./destination.js";
+  AttemptDestination,
+  AttemptDestination$inboundSchema,
+  AttemptDestination$Outbound,
+  AttemptDestination$outboundSchema,
+} from "./attemptdestination.js";
 
 /**
  * The attempt status.
@@ -138,7 +138,10 @@ export type Attempt = {
    * The associated event object. Only present when include=event or include=event.data.
    */
   event?: EventFull | EventSummary | null | undefined;
-  destination?: Destination | undefined;
+  /**
+   * The destination an attempt was sent to, without credentials. Use the destination endpoints to retrieve credentials.
+   */
+  destination?: AttemptDestination | undefined;
 };
 
 /** @internal */
@@ -339,7 +342,7 @@ export const Attempt$inboundSchema: z.ZodType<Attempt, z.ZodTypeDef, unknown> =
         z.lazy(() => EventSummary$inboundSchema),
       ]),
     ).optional(),
-    destination: Destination$inboundSchema.optional(),
+    destination: AttemptDestination$inboundSchema.optional(),
   }).transform((v) => {
     return remap$(v, {
       "tenant_id": "tenantId",
@@ -364,7 +367,7 @@ export type Attempt$Outbound = {
   event_id?: string | undefined;
   destination_id?: string | undefined;
   event?: EventFull$Outbound | EventSummary$Outbound | null | undefined;
-  destination?: Destination$Outbound | undefined;
+  destination?: AttemptDestination$Outbound | undefined;
 };
 
 /** @internal */
@@ -390,7 +393,7 @@ export const Attempt$outboundSchema: z.ZodType<
       z.lazy(() => EventSummary$outboundSchema),
     ]),
   ).optional(),
-  destination: Destination$outboundSchema.optional(),
+  destination: AttemptDestination$outboundSchema.optional(),
 }).transform((v) => {
   return remap$(v, {
     tenantId: "tenant_id",

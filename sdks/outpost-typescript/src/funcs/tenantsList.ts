@@ -49,6 +49,7 @@ export function tenantsList(
     components.TenantPaginatedResult,
     | errors.BadRequestError
     | errors.UnauthorizedError
+    | errors.APIErrorResponse
     | errors.InternalServerError
     | errors.NotImplementedError
     | OutpostError
@@ -78,6 +79,7 @@ async function $do(
       components.TenantPaginatedResult,
       | errors.BadRequestError
       | errors.UnauthorizedError
+      | errors.APIErrorResponse
       | errors.InternalServerError
       | errors.NotImplementedError
       | OutpostError
@@ -172,6 +174,7 @@ async function $do(
     components.TenantPaginatedResult,
     | errors.BadRequestError
     | errors.UnauthorizedError
+    | errors.APIErrorResponse
     | errors.InternalServerError
     | errors.NotImplementedError
     | OutpostError
@@ -186,6 +189,7 @@ async function $do(
     M.json(200, components.TenantPaginatedResult$inboundSchema),
     M.jsonErr(400, errors.BadRequestError$inboundSchema),
     M.jsonErr(401, errors.UnauthorizedError$inboundSchema),
+    M.jsonErr(422, errors.APIErrorResponse$inboundSchema),
     M.jsonErr(500, errors.InternalServerError$inboundSchema),
     M.jsonErr(501, errors.NotImplementedError$inboundSchema),
     M.fail("4XX"),

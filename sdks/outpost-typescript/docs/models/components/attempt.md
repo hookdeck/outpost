@@ -37,23 +37,36 @@ let value: Attempt = {
     },
   },
   destination: {
-    id: "des_webhook_123",
+    id: "des_12345",
+    tenantId: "tenant_123",
     type: "webhook",
-    topics: [
-      "user.created",
-      "order.shipped",
-    ],
-    disabledAt: null,
-    createdAt: new Date("2024-02-15T10:00:00Z"),
-    updatedAt: new Date("2024-02-15T10:00:00Z"),
+    topics: "*",
+    filter: {
+      "data": {
+        "amount": {
+          "$gte": 100,
+        },
+        "customer": {
+          "tier": "premium",
+        },
+      },
+    },
     config: {
-      url: "https://my-service.com/webhook/handler",
+      "url": "https://my-service.com/webhook/handler",
     },
-    credentials: {
-      secret: "whsec_abc123def456",
-      previousSecret: "whsec_prev789xyz012",
-      previousSecretInvalidAt: new Date("2024-02-16T10:00:00Z"),
+    deliveryMetadata: {
+      "app-id": "my-app",
+      "region": "us-east-1",
     },
+    metadata: {
+      "internal-id": "123",
+      "team": "platform",
+    },
+    disabledAt: null,
+    createdAt: new Date("2024-01-01T00:00:00Z"),
+    updatedAt: new Date("2024-01-01T00:00:00Z"),
+    target: "my-service.com",
+    targetUrl: "https://my-service.com/webhook/handler",
   },
 };
 ```
@@ -74,4 +87,4 @@ let value: Attempt = {
 | `eventId`                                                                                                                                                                                                                                                  | *string*                                                                                                                                                                                                                                                   | :heavy_minus_sign:                                                                                                                                                                                                                                         | The ID of the associated event.                                                                                                                                                                                                                            | evt_123                                                                                                                                                                                                                                                    |
 | `destinationId`                                                                                                                                                                                                                                            | *string*                                                                                                                                                                                                                                                   | :heavy_minus_sign:                                                                                                                                                                                                                                         | The destination ID this attempt was sent to.                                                                                                                                                                                                               | des_456                                                                                                                                                                                                                                                    |
 | `event`                                                                                                                                                                                                                                                    | *components.EventUnion*                                                                                                                                                                                                                                    | :heavy_minus_sign:                                                                                                                                                                                                                                         | The associated event object. Only present when include=event or include=event.data.                                                                                                                                                                        |                                                                                                                                                                                                                                                            |
-| `destination`                                                                                                                                                                                                                                              | *components.Destination*                                                                                                                                                                                                                                   | :heavy_minus_sign:                                                                                                                                                                                                                                         | N/A                                                                                                                                                                                                                                                        |                                                                                                                                                                                                                                                            |
+| `destination`                                                                                                                                                                                                                                              | [components.AttemptDestination](../../models/components/attemptdestination.md)                                                                                                                                                                             | :heavy_minus_sign:                                                                                                                                                                                                                                         | The destination an attempt was sent to, without credentials. Use the destination endpoints to retrieve credentials.                                                                                                                                        |                                                                                                                                                                                                                                                            |

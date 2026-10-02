@@ -9,7 +9,7 @@ let value: UpdateTenantDestinationRequest = {
   tenantId: "<id>",
   destinationId: "<id>",
   body: {
-    type: "hookdeck",
+    type: "aws_kinesis",
   },
 };
 ```

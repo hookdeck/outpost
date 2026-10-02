@@ -159,6 +159,8 @@ export class Destinations extends ClientSDK {
    *
    * @remarks
    * Retrieves a paginated list of attempts scoped to a specific destination.
+   *
+   * Returns `404` if the destination does not exist or has been deleted. The attempts of a deleted destination remain available from `GET /attempts?destination_id=`.
    */
   async listAttempts(
     request: operations.ListTenantDestinationAttemptsRequest,
@@ -176,6 +178,8 @@ export class Destinations extends ClientSDK {
    *
    * @remarks
    * Retrieves details for a specific attempt scoped to a destination.
+   *
+   * Returns `404` if the destination does not exist or has been deleted, or if the destination has no attempt with this ID. An attempt of a deleted destination remains available from `GET /attempts/{attempt_id}`.
    */
   async getAttempt(
     tenantId: string,

@@ -9,10 +9,10 @@ import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 
 /**
- * Managed configuration values for Outpost Cloud.
+ * Configuration values for managed Outpost.
  *
  * @remarks
- * This API is available only on the managed version.
+ * This API is only available on managed Outpost.
  * Self-hosted deployments configure these values using environment variables.
  */
 export type ManagedConfig = {
