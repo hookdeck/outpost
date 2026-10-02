@@ -124,7 +124,7 @@ func (s *RequestBodySanitizer) sanitizeFieldsMap(fields map[string]interface{}, 
 	return sanitized
 }
 
-// BufferedReader creates a reader that can be used multiple times
+// BufferedReader holds the first MaxRequestBodySize+1 bytes of a reader
 type BufferedReader struct {
 	buffer []byte
 }
@@ -170,13 +170,25 @@ func (br *BufferedReader) NewReader() io.Reader {
 	return bytes.NewReader(br.buffer)
 }
 
-// NewReadCloser creates a new ReadCloser from the buffered content
 type nopCloser struct {
 	io.Reader
 }
 
 func (nopCloser) Close() error { return nil }
 
+// NewReadCloser creates a new ReadCloser from the buffered content
 func (br *BufferedReader) NewReadCloser() io.ReadCloser {
 	return nopCloser{bytes.NewReader(br.buffer)}
+}
+
+// NewReadCloserWithRest returns the buffered content followed by whatever is
+// left unread in rest, the reader the buffer was filled from.
+func (br *BufferedReader) NewReadCloserWithRest(rest io.ReadCloser) io.ReadCloser {
+	if rest == nil {
+		return br.NewReadCloser()
+	}
+	return struct {
+		io.Reader
+		io.Closer
+	}{io.MultiReader(bytes.NewReader(br.buffer), rest), rest}
 }

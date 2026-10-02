@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -245,7 +246,9 @@ func TestLoggerMiddleware_SuccessResponseNoBodyLogging(t *testing.T) {
 func TestLoggerMiddleware_OversizedRequestBody(t *testing.T) {
 	router, logs, _ := setupTestEnvironment(t)
 
+	var handlerBody []byte
 	router.POST("/api/v1/test/destinations", func(c *gin.Context) {
+		handlerBody, _ = io.ReadAll(c.Request.Body)
 		c.AbortWithError(http.StatusInternalServerError, fmt.Errorf("test error"))
 	})
 
@@ -267,6 +270,7 @@ func TestLoggerMiddleware_OversizedRequestBody(t *testing.T) {
 
 	// Verify error response
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.Equal(t, bodyBytes, handlerBody, "Handler should receive the whole body")
 
 	// Check that oversized body is handled with appropriate message
 	var foundTruncatedLog bool

@@ -34,8 +34,8 @@ func LoggerMiddlewareWithSanitizer(logger *logging.Logger, sanitizer *RequestBod
 		if sanitizer != nil && shouldBufferRequestBody(c) {
 			if br, err := NewBufferedReader(c.Request.Body); err == nil {
 				bufferedBody = br
-				// Replace the request body with a new reader so the handler can still read it
-				c.Request.Body = br.NewReadCloser()
+				// Only the start of the body is buffered; the handler reads it back followed by the rest
+				c.Request.Body = br.NewReadCloserWithRest(c.Request.Body)
 			}
 		}
 
