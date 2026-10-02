@@ -96,6 +96,25 @@ func TestJWT(t *testing.T) {
 		assert.Equal(t, "", claims.DeploymentID)
 	})
 
+	t.Run("should return empty deployment_id when claim is not a string", func(t *testing.T) {
+		t.Parallel()
+		now := time.Now()
+		jwtToken := jwt.NewWithClaims(signingMethod, jwt.MapClaims{
+			"iss":           issuer,
+			"sub":           tenantID,
+			"iat":           now.Unix(),
+			"exp":           now.Add(24 * time.Hour).Unix(),
+			"deployment_id": 123,
+		})
+		token, err := jwtToken.SignedString([]byte(jwtKey))
+		if err != nil {
+			t.Fatal(err)
+		}
+		claims, err := apirouter.JWT.Extract(jwtKey, token)
+		assert.Nil(t, err)
+		assert.Equal(t, "", claims.DeploymentID)
+	})
+
 	t.Run("should fail to extract claims from token with invalid issuer", func(t *testing.T) {
 		t.Parallel()
 		now := time.Now()
