@@ -111,29 +111,39 @@ Choose one for event log persistence:
 - The value is a plain integer number of bytes. `0` or unset turns the limit off.
 - A message counts with the size of its body, from when it is received until it is acknowledged, returned to the queue or rejected.
 - A message starts only when both the count limit and the byte limit have room. Small messages still run at up to `DELIVERY_MAX_CONCURRENCY`; large ones run fewer at a time.
-- Messages start in the order they are received. A large message waiting for room holds back the messages behind it, including small ones that would fit.
-- A message larger than the whole limit is still delivered, so the queue never stalls on it. It runs on its own, when nothing else is in flight, and everything else waits until it is done, so set the limit well above your largest message.
+- A message larger than the whole limit is still delivered, so the queue never stalls on it. Set the limit well above your largest message.
 - Each limit applies per process and per queue. With several replicas, each one holds up to the limit.
 - `PUBLISH_MAX_CONCURRENCY_BYTES` covers messages consumed from the publish queue. Events published through the API go to the delivery queue and are covered by `DELIVERY_MAX_CONCURRENCY_BYTES`.
 
-The limit bounds the bytes being handled. On every queue except GCP Pub/Sub, Outpost applies it after it receives a message, so the process also holds the messages already handed over that are waiting for room:
+How the limit is applied depends on the queue.
+
+#### AWS SQS, Azure Service Bus, NATS JetStream, RabbitMQ
+
+Outpost applies the limit after it receives a message.
+
+- Messages start in the order they are received. A large message waiting for room holds back the messages behind it, including small ones that would fit.
+- A message larger than the whole limit runs on its own, when nothing else is in flight, and everything else waits until it is done.
+- A message waiting for room has already been received. If it waits longer than the queue's visibility timeout, the queue delivers it again, and each such delivery counts toward the queue's dead-letter limit.
+
+The limit bounds the bytes being handled. The process also holds the messages already handed over that are waiting for room:
 
 | Queue | Also held in the process |
 |-------|--------------------------|
 | AWS SQS, Azure Service Bus, NATS JetStream | The few messages the queue client fetches ahead. |
 | RabbitMQ | Possibly the rest of the queue. Outpost sets no prefetch, so RabbitMQ can push the whole queue to the consumer's connection, where it waits in memory: the limit does not bound the memory of the process. |
 
-On these queues a message waiting for room has already been received. If it waits longer than the queue's visibility timeout, the queue delivers it again, and each such delivery counts toward the queue's dead-letter limit.
-
 #### GCP Pub/Sub
 
-With a byte limit, Outpost does not keep a stream open to the subscription. It pulls messages in batches sized to the room left under the count limit and the byte limit, and pulls again when messages finish.
+With a byte limit, Outpost does not keep a stream open to the subscription. It keeps up to four pull requests waiting at Pub/Sub, sized to the room left under the count limit and the byte limit, and sends new ones as messages finish.
 
 - The backlog waits in the subscription, not in the process. A message that has not been pulled has no ack deadline running and counts no delivery attempt, however long it waits.
-- A message's size is not known before it is pulled. Each message asked for is counted with the largest message seen in the last 30 to 60 seconds. After a quiet period the first pull takes a single message. A pull asks for at most twice as many messages as the last one returned, and all pulls in flight together for at most 1000.
-- When messages turn out larger than expected, they are still handled, and nothing more is pulled until there is room again. The process holds at most the limit plus one batch: the messages it had asked for at that moment.
-- A message larger than the whole limit that arrives in a batch runs together with that batch. After it, messages are pulled one at a time until no such message has been seen for 30 to 60 seconds.
-- A pulled message has the subscription's ack deadline, and Outpost does not extend it.
+- Pulls wait for all the room there is, so a message is received as soon as it is published, also after a quiet period.
+- A message's size is not known before it is pulled. Outpost counts a pull with what Pub/Sub returns in one response at most (about 10 MB), or with less when the largest message seen in the last minute or so says its messages cannot add up to that. So with 10 MB of room or more, small messages are pulled at up to `DELIVERY_MAX_CONCURRENCY`, also after a large one. With less room, a pull asks only for as many messages as fit at that largest size.
+- When messages turn out larger than they were counted, which happens when large messages follow a minute or more of small ones only, they are still handled, and nothing more is pulled until there is room again.
+- The process holds at most the limit plus what the pulls in flight return beyond what they were counted for. With responses of about 10 MB that is at most about 40 MB above the limit. Google does not document the response size; if Pub/Sub returns a larger response, Outpost counts pulls with that size from then on. Keep the limit well below the memory of the process.
+- Throughput is highest when the limit leaves room for four responses (40 MB) on top of the messages being handled. With a smaller limit, fewer pulls run at once after a quiet period or a large message; under 10 MB, the first pull after a quiet period takes a single message.
+- A message larger than the whole limit that arrives in a batch runs together with that batch. After it, messages are pulled one at a time until no such message has been seen for about a minute.
+- A pulled message has the subscription's ack deadline, and Outpost does not extend it. Without a byte limit Outpost sets its own deadline on the delivery and log queues (60 seconds) whatever the subscription says. Subscriptions Outpost creates use the same 60 seconds; on a subscription you created, such as the publish queue's, set the ack deadline to cover your slowest message.
 
 ## Topics
 
