@@ -62,6 +62,14 @@ func (c *CreateTenantDestinationRequest) GetBodyKafka() *components.DestinationC
 	return c.GetBody().DestinationCreateKafka
 }
 
+func (c *CreateTenantDestinationRequest) GetBodyCloudflareQueues() *components.DestinationCreateCloudflareQueues {
+	return c.GetBody().DestinationCreateCloudflareQueues
+}
+
+func (c *CreateTenantDestinationRequest) GetBodyAwsEventbridge() *components.DestinationCreateAWSEventBridge {
+	return c.GetBody().DestinationCreateAWSEventBridge
+}
+
 type CreateTenantDestinationResponse struct {
 	HTTPMeta components.HTTPMetadata `json:"-"`
 	// Destination created successfully.
@@ -141,6 +149,20 @@ func (c *CreateTenantDestinationResponse) GetDestinationGcpPubsub() *components.
 func (c *CreateTenantDestinationResponse) GetDestinationKafka() *components.DestinationKafka {
 	if v := c.GetDestination(); v != nil {
 		return v.DestinationKafka
+	}
+	return nil
+}
+
+func (c *CreateTenantDestinationResponse) GetDestinationCloudflareQueues() *components.DestinationCloudflareQueues {
+	if v := c.GetDestination(); v != nil {
+		return v.DestinationCloudflareQueues
+	}
+	return nil
+}
+
+func (c *CreateTenantDestinationResponse) GetDestinationAwsEventbridge() *components.DestinationAWSEventBridge {
+	if v := c.GetDestination(); v != nil {
+		return v.DestinationAWSEventBridge
 	}
 	return nil
 }

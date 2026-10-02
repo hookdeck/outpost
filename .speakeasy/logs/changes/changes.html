@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="color-scheme" content="light dark">
-    <title>SDK Changelog - typescript</title>
+    <title>SDK Changelog - go</title>
     <style>
         :root {
             --bg-color: #ffffff;
@@ -95,25 +95,198 @@
         }
     </style>
 </head>
-<body><h2 id="typescript-sdk-changes">Typescript SDK Changes:</h2>
+<body><h2 id="go-sdk-changes">Go SDK Changes:</h2>
 
 <ul>
-<li><code>outpost.metrics.getAttemptMetrics()</code>:
+<li><code>Outpost.Health.Check()</code>: <code>response</code> <strong>Changed</strong> (Breaking ⚠️)
 
 <ul>
-<li><code>request.measures</code> <strong>Changed</strong> (Breaking ⚠️)
+<li><code>Status.Enum(degraded)</code> <strong>Added</strong> (Breaking ⚠️)</li>
+<li><code>Workers.Map&lt;workers&gt;.Reason</code> <strong>Added</strong></li>
+<li><code>Workers.Map&lt;workers&gt;.Since</code> <strong>Added</strong></li>
+<li><code>Workers.Map&lt;workers&gt;.Status.Enum(degraded)</code> <strong>Added</strong> (Breaking ⚠️)</li>
+</ul></li>
+<li><code>Outpost.Destinations.GetAttempt()</code>:
 
 <ul>
-<li><code>union(&quot;count&quot;,&quot;successful_count&quot; and 13 more)</code> <strong>Added</strong></li>
-<li><code>union(&quot;count&quot;,&quot;successful_count&quot; and 9 more)</code> <strong>Removed</strong> (Breaking ⚠️)</li>
-<li><code>union(Array&lt;&quot;count&quot;,&quot;successful_count&quot; and 13 more&gt;)</code> <strong>Added</strong></li>
-<li><code>union(Array&lt;&quot;count&quot;,&quot;successful_count&quot; and 9 more&gt;)</code> <strong>Removed</strong> (Breaking ⚠️)</li>
+<li><code>response.Destination</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>error.status[403]</code> <strong>Added</strong></li>
+</ul></li>
+<li><code>Outpost.Destinations.ListAttempts()</code>:
+
+<ul>
+<li><code>response.Models[].Destination</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>error</code> <strong>Changed</strong>
+
+<ul>
+<li><code>Status[400]</code> <strong>Added</strong></li>
+<li><code>Status[403]</code> <strong>Added</strong></li>
+<li><code>Status[422]</code> <strong>Added</strong></li>
 </ul></li>
 </ul></li>
-<li><code>outpost.attempts.list()</code>:  <code>response.models[].latencyMs</code> <strong>Added</strong></li>
-<li><code>outpost.attempts.get()</code>:  <code>response.latencyMs</code> <strong>Added</strong></li>
-<li><code>outpost.destinations.listAttempts()</code>:  <code>response.models[].latencyMs</code> <strong>Added</strong></li>
-<li><code>outpost.destinations.getAttempt()</code>:  <code>response.latencyMs</code> <strong>Added</strong></li>
+<li><code>Outpost.Destinations.Disable()</code>:
+
+<ul>
+<li><code>response</code> <strong>Changed</strong> (Breaking ⚠️)
+
+<ul>
+<li><code>union(aws_eventbridge)</code> <strong>Added</strong> (Breaking ⚠️)</li>
+<li><code>union(cloudflare_queues)</code> <strong>Added</strong> (Breaking ⚠️)</li>
+</ul></li>
+<li><code>error.status[403]</code> <strong>Added</strong></li>
+</ul></li>
+<li><code>Outpost.Destinations.Enable()</code>:
+
+<ul>
+<li><code>response</code> <strong>Changed</strong> (Breaking ⚠️)
+
+<ul>
+<li><code>union(aws_eventbridge)</code> <strong>Added</strong> (Breaking ⚠️)</li>
+<li><code>union(cloudflare_queues)</code> <strong>Added</strong> (Breaking ⚠️)</li>
+</ul></li>
+<li><code>error.status[403]</code> <strong>Added</strong></li>
+</ul></li>
+<li><code>Outpost.Destinations.Update()</code>:
+
+<ul>
+<li><code>request.Body</code> <strong>Changed</strong>
+
+<ul>
+<li><code>union(aws_eventbridge)</code> <strong>Added</strong></li>
+<li><code>union(cloudflare_queues)</code> <strong>Added</strong></li>
+</ul></li>
+<li><code>response.union(Destination)</code> <strong>Changed</strong> (Breaking ⚠️)
+
+<ul>
+<li><code>union(aws_eventbridge)</code> <strong>Added</strong> (Breaking ⚠️)</li>
+<li><code>union(cloudflare_queues)</code> <strong>Added</strong> (Breaking ⚠️)</li>
+</ul></li>
+<li><code>error.status[403]</code> <strong>Added</strong></li>
+</ul></li>
+<li><code>Outpost.Destinations.Get()</code>:
+
+<ul>
+<li><code>response</code> <strong>Changed</strong> (Breaking ⚠️)
+
+<ul>
+<li><code>union(aws_eventbridge)</code> <strong>Added</strong> (Breaking ⚠️)</li>
+<li><code>union(cloudflare_queues)</code> <strong>Added</strong> (Breaking ⚠️)</li>
+</ul></li>
+<li><code>error.status[403]</code> <strong>Added</strong></li>
+</ul></li>
+<li><code>Outpost.Destinations.Create()</code>:
+
+<ul>
+<li><code>request.Body</code> <strong>Changed</strong>
+
+<ul>
+<li><code>union(aws_eventbridge)</code> <strong>Added</strong></li>
+<li><code>union(cloudflare_queues)</code> <strong>Added</strong></li>
+</ul></li>
+<li><code>response</code> <strong>Changed</strong> (Breaking ⚠️)
+
+<ul>
+<li><code>union(aws_eventbridge)</code> <strong>Added</strong> (Breaking ⚠️)</li>
+<li><code>union(cloudflare_queues)</code> <strong>Added</strong> (Breaking ⚠️)</li>
+</ul></li>
+<li><code>error</code> <strong>Changed</strong>
+
+<ul>
+<li><code>Status[400]</code> <strong>Added</strong></li>
+<li><code>Status[403]</code> <strong>Added</strong></li>
+</ul></li>
+</ul></li>
+<li><code>Outpost.Destinations.List()</code>:
+
+<ul>
+<li><code>request.Type</code> <strong>Changed</strong>
+
+<ul>
+<li><code>[].Enum(awsEventbridge)</code> <strong>Added</strong></li>
+<li><code>[].Enum(cloudflareQueues)</code> <strong>Added</strong></li>
+<li><code>[].Enum(kafka)</code> <strong>Added</strong></li>
+</ul></li>
+<li><code>response.[]</code> <strong>Changed</strong> (Breaking ⚠️)
+
+<ul>
+<li><code>union(aws_eventbridge)</code> <strong>Added</strong> (Breaking ⚠️)</li>
+<li><code>union(cloudflare_queues)</code> <strong>Added</strong> (Breaking ⚠️)</li>
+</ul></li>
+<li><code>error.status[403]</code> <strong>Added</strong></li>
+</ul></li>
+<li><code>Outpost.Attempts.Get()</code>:  <code>response.Destination</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>Outpost.Attempts.List()</code>:
+
+<ul>
+<li><code>request.Request.DestinationType</code> <strong>Changed</strong>
+
+<ul>
+<li><code>union(DestinationType).Enum(awsEventbridge)</code> <strong>Added</strong></li>
+<li><code>union(DestinationType).Enum(cloudflareQueues)</code> <strong>Added</strong></li>
+<li><code>union(DestinationType).Enum(kafka)</code> <strong>Added</strong></li>
+</ul></li>
+<li><code>response.Models[].Destination</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>error</code> <strong>Changed</strong>
+
+<ul>
+<li><code>Status[400]</code> <strong>Added</strong></li>
+<li><code>Status[403]</code> <strong>Added</strong></li>
+<li><code>Status[422]</code> <strong>Added</strong></li>
+</ul></li>
+</ul></li>
+<li><code>Outpost.OperatorEvents.GetEvent()</code>: <strong>Added</strong></li>
+<li><code>Outpost.Events.Get()</code>:  <code>response.EligibleForRetry</code> <strong>Added</strong></li>
+<li><code>Outpost.OperatorEvents.Retry()</code>: <strong>Added</strong></li>
+<li><code>Outpost.Publish()</code>:  <code>error.status[409]</code> <strong>Added</strong></li>
+<li><code>Outpost.Retry()</code>:  <code>error.status[422]</code> <strong>Added</strong></li>
+<li><code>Outpost.OperatorEvents.ListAttempts()</code>: <strong>Added</strong></li>
+<li><code>Outpost.Tenants.List()</code>:  <code>error.status[422]</code> <strong>Added</strong></li>
+<li><code>Outpost.Tenants.Upsert()</code>:  <code>error.status[403]</code> <strong>Added</strong></li>
+<li><code>Outpost.Tenants.Get()</code>:  <code>error.status[403]</code> <strong>Added</strong></li>
+<li><code>Outpost.Tenants.Delete()</code>:  <code>error.status[403]</code> <strong>Added</strong></li>
+<li><code>Outpost.Tenants.GetPortalUrl()</code>:  <code>error.status[403]</code> <strong>Added</strong></li>
+<li><code>Outpost.Tenants.GetToken()</code>:  <code>error.status[403]</code> <strong>Added</strong></li>
+<li><code>Outpost.Events.List()</code>:
+
+<ul>
+<li><code>response.Models[].EligibleForRetry</code> <strong>Added</strong></li>
+<li><code>error</code> <strong>Changed</strong>
+
+<ul>
+<li><code>Status[400]</code> <strong>Added</strong></li>
+<li><code>Status[403]</code> <strong>Added</strong></li>
+<li><code>Status[422]</code> <strong>Added</strong></li>
+</ul></li>
+</ul></li>
+<li><code>Outpost.OperatorEvents.GetAttempt()</code>: <strong>Added</strong></li>
+<li><code>Outpost.OperatorEvents.ListEventAttempts()</code>: <strong>Added</strong></li>
+<li><code>Outpost.OperatorEvents.ListDestinationTypes()</code>: <strong>Added</strong></li>
+<li><code>Outpost.OperatorEvents.ListEvents()</code>: <strong>Added</strong></li>
+<li><code>Outpost.OperatorEvents.DisableDestination()</code>: <strong>Added</strong></li>
+<li><code>Outpost.OperatorEvents.EnableDestination()</code>: <strong>Added</strong></li>
+<li><code>Outpost.OperatorEvents.DeleteDestination()</code>: <strong>Added</strong></li>
+<li><code>Outpost.Destinations.Delete()</code>:  <code>error.status[403]</code> <strong>Added</strong></li>
+<li><code>Outpost.OperatorEvents.UpdateDestination()</code>: <strong>Added</strong></li>
+<li><code>Outpost.OperatorEvents.GetDestination()</code>: <strong>Added</strong></li>
+<li><code>Outpost.OperatorEvents.CreateDestination()</code>: <strong>Added</strong></li>
+<li><code>Outpost.OperatorEvents.ListDestinations()</code>: <strong>Added</strong></li>
+<li><code>Outpost.Schemas.GetDestinationType()</code>: <code>request.Type</code> <strong>Changed</strong>
+
+<ul>
+<li><code>Enum(awsEventbridge)</code> <strong>Added</strong></li>
+<li><code>Enum(cloudflareQueues)</code> <strong>Added</strong></li>
+</ul></li>
+<li><code>Outpost.Metrics.GetAttemptMetrics()</code>:
+
+<ul>
+<li><code>request.Request.Filters[destinationType]</code> <strong>Changed</strong>
+
+<ul>
+<li><code>union(DestinationType).Enum(awsEventbridge)</code> <strong>Added</strong></li>
+<li><code>union(DestinationType).Enum(cloudflareQueues)</code> <strong>Added</strong></li>
+<li><code>union(DestinationType).Enum(kafka)</code> <strong>Added</strong></li>
+</ul></li>
+</ul></li>
 </ul>
 </body>
 </html>

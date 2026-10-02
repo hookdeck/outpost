@@ -100,17 +100,17 @@ type ListTenantDestinationAttemptsRequest struct {
 	Topic []string `queryParam:"style=form,explode=true,name=topic"`
 	// Filter attempts by event time range using comparison operators.
 	Time *components.Operator `queryParam:"style=deepObject,explode=true,name=time"`
-	// Number of items per page (default 100, max 1000).
+	// Number of items per page (1-1000, default 100). A value outside this range, or one that is not an integer, returns a 400.
 	Limit *int64 `default:"100" queryParam:"style=form,explode=true,name=limit"`
-	// Cursor for next page of results.
+	// Cursor for the next page of results, from `pagination.next` of a previous response. Mutually exclusive with `prev`. A cursor that cannot be read returns a 400.
 	Next *string `queryParam:"style=form,explode=true,name=next"`
-	// Cursor for previous page of results.
+	// Cursor for the previous page of results, from `pagination.prev` of a previous response. Mutually exclusive with `next`. A cursor that cannot be read returns a 400.
 	Prev *string `queryParam:"style=form,explode=true,name=prev"`
 	// Fields to include in the response. Use bracket notation for multiple values (e.g., `include[0]=event&include[1]=response_data`).
 	// - `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
 	// - `event.data`: Include full event with payload data
 	// - `response_data`: Include response body and headers
-	// - `destination`: Include the full destination object
+	// - `destination`: Include the destination object, without credentials
 	//
 	Include []string `queryParam:"style=form,explode=true,name=include"`
 	// Field to sort by.

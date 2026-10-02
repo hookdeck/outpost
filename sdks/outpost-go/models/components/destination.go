@@ -12,27 +12,31 @@ import (
 type DestinationUnionType string
 
 const (
-	DestinationUnionTypeWebhook         DestinationUnionType = "webhook"
-	DestinationUnionTypeAwsSqs          DestinationUnionType = "aws_sqs"
-	DestinationUnionTypeRabbitmq        DestinationUnionType = "rabbitmq"
-	DestinationUnionTypeHookdeck        DestinationUnionType = "hookdeck"
-	DestinationUnionTypeAwsKinesis      DestinationUnionType = "aws_kinesis"
-	DestinationUnionTypeAzureServicebus DestinationUnionType = "azure_servicebus"
-	DestinationUnionTypeAwsS3           DestinationUnionType = "aws_s3"
-	DestinationUnionTypeGcpPubsub       DestinationUnionType = "gcp_pubsub"
-	DestinationUnionTypeKafka           DestinationUnionType = "kafka"
+	DestinationUnionTypeWebhook          DestinationUnionType = "webhook"
+	DestinationUnionTypeAwsSqs           DestinationUnionType = "aws_sqs"
+	DestinationUnionTypeRabbitmq         DestinationUnionType = "rabbitmq"
+	DestinationUnionTypeHookdeck         DestinationUnionType = "hookdeck"
+	DestinationUnionTypeAwsKinesis       DestinationUnionType = "aws_kinesis"
+	DestinationUnionTypeAzureServicebus  DestinationUnionType = "azure_servicebus"
+	DestinationUnionTypeAwsS3            DestinationUnionType = "aws_s3"
+	DestinationUnionTypeGcpPubsub        DestinationUnionType = "gcp_pubsub"
+	DestinationUnionTypeKafka            DestinationUnionType = "kafka"
+	DestinationUnionTypeCloudflareQueues DestinationUnionType = "cloudflare_queues"
+	DestinationUnionTypeAwsEventbridge   DestinationUnionType = "aws_eventbridge"
 )
 
 type Destination struct {
-	DestinationWebhook         *DestinationWebhook         `queryParam:"inline" union:"member"`
-	DestinationHookdeck        *DestinationHookdeck        `queryParam:"inline" union:"member"`
-	DestinationAWSSQS          *DestinationAWSSQS          `queryParam:"inline" union:"member"`
-	DestinationAWSKinesis      *DestinationAWSKinesis      `queryParam:"inline" union:"member"`
-	DestinationAwss3           *DestinationAwss3           `queryParam:"inline" union:"member"`
-	DestinationRabbitMQ        *DestinationRabbitMQ        `queryParam:"inline" union:"member"`
-	DestinationAzureServiceBus *DestinationAzureServiceBus `queryParam:"inline" union:"member"`
-	DestinationGCPPubSub       *DestinationGCPPubSub       `queryParam:"inline" union:"member"`
-	DestinationKafka           *DestinationKafka           `queryParam:"inline" union:"member"`
+	DestinationWebhook          *DestinationWebhook          `queryParam:"inline" union:"member"`
+	DestinationHookdeck         *DestinationHookdeck         `queryParam:"inline" union:"member"`
+	DestinationAWSSQS           *DestinationAWSSQS           `queryParam:"inline" union:"member"`
+	DestinationAWSKinesis       *DestinationAWSKinesis       `queryParam:"inline" union:"member"`
+	DestinationAwss3            *DestinationAwss3            `queryParam:"inline" union:"member"`
+	DestinationRabbitMQ         *DestinationRabbitMQ         `queryParam:"inline" union:"member"`
+	DestinationAzureServiceBus  *DestinationAzureServiceBus  `queryParam:"inline" union:"member"`
+	DestinationGCPPubSub        *DestinationGCPPubSub        `queryParam:"inline" union:"member"`
+	DestinationKafka            *DestinationKafka            `queryParam:"inline" union:"member"`
+	DestinationCloudflareQueues *DestinationCloudflareQueues `queryParam:"inline" union:"member"`
+	DestinationAWSEventBridge   *DestinationAWSEventBridge   `queryParam:"inline" union:"member"`
 
 	Type DestinationUnionType
 }
@@ -145,6 +149,30 @@ func CreateDestinationKafka(kafka DestinationKafka) Destination {
 	}
 }
 
+func CreateDestinationCloudflareQueues(cloudflareQueues DestinationCloudflareQueues) Destination {
+	typ := DestinationUnionTypeCloudflareQueues
+
+	typStr := DestinationCloudflareQueuesType(typ)
+	cloudflareQueues.Type = typStr
+
+	return Destination{
+		DestinationCloudflareQueues: &cloudflareQueues,
+		Type:                        typ,
+	}
+}
+
+func CreateDestinationAwsEventbridge(awsEventbridge DestinationAWSEventBridge) Destination {
+	typ := DestinationUnionTypeAwsEventbridge
+
+	typStr := DestinationAWSEventBridgeType(typ)
+	awsEventbridge.Type = typStr
+
+	return Destination{
+		DestinationAWSEventBridge: &awsEventbridge,
+		Type:                      typ,
+	}
+}
+
 func (u *Destination) UnmarshalJSON(data []byte) (err error) {
 	previous := *u
 	*u = Destination{}
@@ -245,6 +273,24 @@ func (u *Destination) UnmarshalJSON(data []byte) (err error) {
 		u.DestinationKafka = destinationKafka
 		u.Type = DestinationUnionTypeKafka
 		return nil
+	case "cloudflare_queues":
+		destinationCloudflareQueues := new(DestinationCloudflareQueues)
+		if err := utils.UnmarshalJSON(data, &destinationCloudflareQueues, "", true, nil); err != nil {
+			return fmt.Errorf("could not unmarshal `%s` into expected (Type == cloudflare_queues) type DestinationCloudflareQueues within Destination: %w", string(data), err)
+		}
+
+		u.DestinationCloudflareQueues = destinationCloudflareQueues
+		u.Type = DestinationUnionTypeCloudflareQueues
+		return nil
+	case "aws_eventbridge":
+		destinationAWSEventBridge := new(DestinationAWSEventBridge)
+		if err := utils.UnmarshalJSON(data, &destinationAWSEventBridge, "", true, nil); err != nil {
+			return fmt.Errorf("could not unmarshal `%s` into expected (Type == aws_eventbridge) type DestinationAWSEventBridge within Destination: %w", string(data), err)
+		}
+
+		u.DestinationAWSEventBridge = destinationAWSEventBridge
+		u.Type = DestinationUnionTypeAwsEventbridge
+		return nil
 	}
 
 	return fmt.Errorf("could not unmarshal `%s` into any supported union types for Destination", string(data))
@@ -285,6 +331,14 @@ func (u Destination) MarshalJSON() ([]byte, error) {
 
 	if u.DestinationKafka != nil {
 		return utils.MarshalJSON(u.DestinationKafka, "", true)
+	}
+
+	if u.DestinationCloudflareQueues != nil {
+		return utils.MarshalJSON(u.DestinationCloudflareQueues, "", true)
+	}
+
+	if u.DestinationAWSEventBridge != nil {
+		return utils.MarshalJSON(u.DestinationAWSEventBridge, "", true)
 	}
 
 	return nil, errors.New("could not marshal union type Destination: all fields are null")

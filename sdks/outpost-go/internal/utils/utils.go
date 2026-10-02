@@ -180,10 +180,45 @@ func parseParamTag(tagKey string, field reflect.StructField, defaultStyle string
 			tag.ParamName = v
 		case "serialization":
 			tag.Serialization = v
+		case "allowReserved":
+			tag.AllowReserved = v == "true"
 		}
 	}
 
 	return tag
+}
+
+func escapePathValue(val interface{}, allowReserved bool) string {
+	return valToString(val)
+}
+
+func escapeExceptReserved(s string) string {
+	return percentEncode(s, reservedQueryChars)
+}
+
+// `#` terminates both the path and the query, and `?` terminates the path.
+const (
+	reservedPathChars  = ":/[]@!$&'()*+,;="
+	reservedQueryChars = ":/?[]@!$&'()*+,;="
+)
+
+func percentEncode(s string, reservedChars string) string {
+	const upperhex = "0123456789ABCDEF"
+	var buf strings.Builder
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		switch {
+		case c >= 'A' && c <= 'Z', c >= 'a' && c <= 'z', c >= '0' && c <= '9',
+			c == '-', c == '.', c == '_', c == '~',
+			strings.IndexByte(reservedChars, c) >= 0:
+			buf.WriteByte(c)
+		default:
+			buf.WriteByte('%')
+			buf.WriteByte(upperhex[c>>4])
+			buf.WriteByte(upperhex[c&15])
+		}
+	}
+	return buf.String()
 }
 
 func valToString(val interface{}) string {

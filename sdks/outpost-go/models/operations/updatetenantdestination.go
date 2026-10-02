@@ -74,6 +74,14 @@ func (u *UpdateTenantDestinationRequest) GetBodyKafka() *components.DestinationU
 	return u.GetBody().DestinationUpdateKafka
 }
 
+func (u *UpdateTenantDestinationRequest) GetBodyCloudflareQueues() *components.DestinationUpdateCloudflareQueues {
+	return u.GetBody().DestinationUpdateCloudflareQueues
+}
+
+func (u *UpdateTenantDestinationRequest) GetBodyAwsEventbridge() *components.DestinationUpdateAWSEventBridge {
+	return u.GetBody().DestinationUpdateAWSEventBridge
+}
+
 type UpdateTenantDestinationResponseBodyType string
 
 const (

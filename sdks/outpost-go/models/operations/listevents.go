@@ -146,11 +146,11 @@ type ListEventsRequest struct {
 	Topic []string `queryParam:"style=form,explode=true,name=topic"`
 	// Filter events by time range using comparison operators.
 	Time *components.Operator `queryParam:"style=deepObject,explode=true,name=time"`
-	// Number of items per page (default 100, max 1000).
+	// Number of items per page (1-1000, default 100). A value outside this range, or one that is not an integer, returns a 400.
 	Limit *int64 `default:"100" queryParam:"style=form,explode=true,name=limit"`
-	// Cursor for next page of results.
+	// Cursor for the next page of results, from `pagination.next` of a previous response. Mutually exclusive with `prev`. A cursor that cannot be read returns a 400.
 	Next *string `queryParam:"style=form,explode=true,name=next"`
-	// Cursor for previous page of results.
+	// Cursor for the previous page of results, from `pagination.prev` of a previous response. Mutually exclusive with `next`. A cursor that cannot be read returns a 400.
 	Prev *string `queryParam:"style=form,explode=true,name=prev"`
 	// Field to sort by.
 	OrderBy *ListEventsOrderBy `default:"time" queryParam:"style=form,explode=true,name=order_by"`

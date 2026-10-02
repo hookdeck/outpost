@@ -11,14 +11,17 @@ import (
 type DestinationType string
 
 const (
-	DestinationTypeWebhook         DestinationType = "webhook"
-	DestinationTypeAwsSqs          DestinationType = "aws_sqs"
-	DestinationTypeRabbitmq        DestinationType = "rabbitmq"
-	DestinationTypeHookdeck        DestinationType = "hookdeck"
-	DestinationTypeAwsKinesis      DestinationType = "aws_kinesis"
-	DestinationTypeAzureServicebus DestinationType = "azure_servicebus"
-	DestinationTypeAwsS3           DestinationType = "aws_s3"
-	DestinationTypeGcpPubsub       DestinationType = "gcp_pubsub"
+	DestinationTypeWebhook          DestinationType = "webhook"
+	DestinationTypeAwsSqs           DestinationType = "aws_sqs"
+	DestinationTypeRabbitmq         DestinationType = "rabbitmq"
+	DestinationTypeHookdeck         DestinationType = "hookdeck"
+	DestinationTypeAwsKinesis       DestinationType = "aws_kinesis"
+	DestinationTypeAzureServicebus  DestinationType = "azure_servicebus"
+	DestinationTypeAwsS3            DestinationType = "aws_s3"
+	DestinationTypeGcpPubsub        DestinationType = "gcp_pubsub"
+	DestinationTypeKafka            DestinationType = "kafka"
+	DestinationTypeCloudflareQueues DestinationType = "cloudflare_queues"
+	DestinationTypeAwsEventbridge   DestinationType = "aws_eventbridge"
 )
 
 func (e DestinationType) ToPointer() *DestinationType {
@@ -45,6 +48,12 @@ func (e *DestinationType) UnmarshalJSON(data []byte) error {
 	case "aws_s3":
 		fallthrough
 	case "gcp_pubsub":
+		fallthrough
+	case "kafka":
+		fallthrough
+	case "cloudflare_queues":
+		fallthrough
+	case "aws_eventbridge":
 		*e = DestinationType(v)
 		return nil
 	default:

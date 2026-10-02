@@ -2,8 +2,8 @@
 
 package components
 
-// ManagedConfig - Managed configuration values for Outpost Cloud.
-// This API is available only on the managed version.
+// ManagedConfig - Configuration values for managed Outpost.
+// This API is only available on managed Outpost.
 // Self-hosted deployments configure these values using environment variables.
 type ManagedConfig struct {
 	// If "true", automatically disables a destination once ALERT_CONSECUTIVE_FAILURE_COUNT is reached. Has no effect when consecutive-failure alerting is disabled.
