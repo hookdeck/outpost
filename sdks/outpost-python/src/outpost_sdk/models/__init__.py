@@ -16,9 +16,26 @@ if TYPE_CHECKING:
         EventUnionTypedDict,
         Status,
     )
+    from .attemptdestination import AttemptDestination, AttemptDestinationTypedDict
     from .attemptpaginatedresult import (
         AttemptPaginatedResult,
         AttemptPaginatedResultTypedDict,
+    )
+    from .awseventbridgeconfig import (
+        AWSEventBridgeConfig,
+        AWSEventBridgeConfigTypedDict,
+    )
+    from .awseventbridgeconfigupdate import (
+        AWSEventBridgeConfigUpdate,
+        AWSEventBridgeConfigUpdateTypedDict,
+    )
+    from .awseventbridgecredentials import (
+        AWSEventBridgeCredentials,
+        AWSEventBridgeCredentialsTypedDict,
+    )
+    from .awseventbridgecredentialsupdate import (
+        AWSEventBridgeCredentialsUpdate,
+        AWSEventBridgeCredentialsUpdateTypedDict,
     )
     from .awskinesisconfig import AWSKinesisConfig, AWSKinesisConfigTypedDict
     from .awskinesisconfigupdate import (
@@ -63,9 +80,29 @@ if TYPE_CHECKING:
         AzureServiceBusCredentialsUpdate,
         AzureServiceBusCredentialsUpdateTypedDict,
     )
+    from .cloudflarequeuesconfig import (
+        CloudflareQueuesConfig,
+        CloudflareQueuesConfigTypedDict,
+    )
+    from .cloudflarequeuesconfigupdate import (
+        CloudflareQueuesConfigUpdate,
+        CloudflareQueuesConfigUpdateTypedDict,
+    )
+    from .cloudflarequeuescredentials import (
+        CloudflareQueuesCredentials,
+        CloudflareQueuesCredentialsTypedDict,
+    )
+    from .cloudflarequeuescredentialsupdate import (
+        CloudflareQueuesCredentialsUpdate,
+        CloudflareQueuesCredentialsUpdateTypedDict,
+    )
     from .createtenantdestinationop import (
         CreateTenantDestinationRequest,
         CreateTenantDestinationRequestTypedDict,
+    )
+    from .deleteoperatoreventdestinationop import (
+        DeleteOperatorEventDestinationRequest,
+        DeleteOperatorEventDestinationRequestTypedDict,
     )
     from .deletetenantdestinationop import (
         DeleteTenantDestinationRequest,
@@ -73,6 +110,11 @@ if TYPE_CHECKING:
     )
     from .deletetenantop import DeleteTenantRequest, DeleteTenantRequestTypedDict
     from .destination import Destination, DestinationTypedDict
+    from .destinationawseventbridge import (
+        DestinationAWSEventBridge,
+        DestinationAWSEventBridgeType,
+        DestinationAWSEventBridgeTypedDict,
+    )
     from .destinationawskinesis import (
         DestinationAWSKinesis,
         DestinationAWSKinesisType,
@@ -93,7 +135,17 @@ if TYPE_CHECKING:
         DestinationAzureServiceBusType,
         DestinationAzureServiceBusTypedDict,
     )
+    from .destinationcloudflarequeues import (
+        DestinationCloudflareQueues,
+        DestinationCloudflareQueuesType,
+        DestinationCloudflareQueuesTypedDict,
+    )
     from .destinationcreate import DestinationCreate, DestinationCreateTypedDict
+    from .destinationcreateawseventbridge import (
+        DestinationCreateAWSEventBridge,
+        DestinationCreateAWSEventBridgeType,
+        DestinationCreateAWSEventBridgeTypedDict,
+    )
     from .destinationcreateawskinesis import (
         DestinationCreateAWSKinesis,
         DestinationCreateAWSKinesisType,
@@ -113,6 +165,11 @@ if TYPE_CHECKING:
         DestinationCreateAzureServiceBus,
         DestinationCreateAzureServiceBusType,
         DestinationCreateAzureServiceBusTypedDict,
+    )
+    from .destinationcreatecloudflarequeues import (
+        DestinationCreateCloudflareQueues,
+        DestinationCreateCloudflareQueuesType,
+        DestinationCreateCloudflareQueuesTypedDict,
     )
     from .destinationcreategcppubsub import (
         DestinationCreateGCPPubSub,
@@ -174,6 +231,11 @@ if TYPE_CHECKING:
         SetupLinkTypedDict,
     )
     from .destinationupdate import DestinationUpdate, DestinationUpdateTypedDict
+    from .destinationupdateawseventbridge import (
+        DestinationUpdateAWSEventBridge,
+        DestinationUpdateAWSEventBridgeType,
+        DestinationUpdateAWSEventBridgeTypedDict,
+    )
     from .destinationupdateawskinesis import (
         DestinationUpdateAWSKinesis,
         DestinationUpdateAWSKinesisType,
@@ -193,6 +255,11 @@ if TYPE_CHECKING:
         DestinationUpdateAzureServiceBus,
         DestinationUpdateAzureServiceBusType,
         DestinationUpdateAzureServiceBusTypedDict,
+    )
+    from .destinationupdatecloudflarequeues import (
+        DestinationUpdateCloudflareQueues,
+        DestinationUpdateCloudflareQueuesType,
+        DestinationUpdateCloudflareQueuesTypedDict,
     )
     from .destinationupdategcppubsub import (
         DestinationUpdateGCPPubSub,
@@ -224,9 +291,17 @@ if TYPE_CHECKING:
         DestinationWebhookType,
         DestinationWebhookTypedDict,
     )
+    from .disableoperatoreventdestinationop import (
+        DisableOperatorEventDestinationRequest,
+        DisableOperatorEventDestinationRequestTypedDict,
+    )
     from .disabletenantdestinationop import (
         DisableTenantDestinationRequest,
         DisableTenantDestinationRequestTypedDict,
+    )
+    from .enableoperatoreventdestinationop import (
+        EnableOperatorEventDestinationRequest,
+        EnableOperatorEventDestinationRequestTypedDict,
     )
     from .enabletenantdestinationop import (
         EnableTenantDestinationRequest,
@@ -313,6 +388,18 @@ if TYPE_CHECKING:
         GetEventMetricsTimeTypedDict,
     )
     from .geteventop import GetEventRequest, GetEventRequestTypedDict
+    from .getoperatoreventattemptop import (
+        GetOperatorEventAttemptRequest,
+        GetOperatorEventAttemptRequestTypedDict,
+    )
+    from .getoperatoreventdestinationop import (
+        GetOperatorEventDestinationRequest,
+        GetOperatorEventDestinationRequestTypedDict,
+    )
+    from .getoperatoreventop import (
+        GetOperatorEventRequest,
+        GetOperatorEventRequestTypedDict,
+    )
     from .gettenantdestinationattemptop import (
         GetTenantDestinationAttemptInclude,
         GetTenantDestinationAttemptIncludeTypedDict,
@@ -333,9 +420,10 @@ if TYPE_CHECKING:
     from .healthcheckop import (
         HealthCheckResponse,
         HealthCheckResponseTypedDict,
-        HealthCheckStatus1,
-        HealthCheckStatus2,
+        HealthCheckStatus,
+        Reason,
         Workers,
+        WorkersStatus,
         WorkersTypedDict,
     )
     from .hookdeckcredentials import HookdeckCredentials, HookdeckCredentialsTypedDict
@@ -393,6 +481,15 @@ if TYPE_CHECKING:
         ListEventsTopic,
         ListEventsTopicTypedDict,
     )
+    from .listoperatoreventattemptsbyeventop import (
+        ListOperatorEventAttemptsByEventRequest,
+        ListOperatorEventAttemptsByEventRequestTypedDict,
+    )
+    from .listoperatoreventattemptsop import (
+        ListOperatorEventAttemptsRequest,
+        ListOperatorEventAttemptsRequestTypedDict,
+        ListOperatorEventAttemptsStatus,
+    )
     from .listtenantdestinationattemptsop import (
         ListTenantDestinationAttemptsDir,
         ListTenantDestinationAttemptsEventID,
@@ -426,6 +523,18 @@ if TYPE_CHECKING:
     from .metricsmetadata import MetricsMetadata, MetricsMetadataTypedDict
     from .metricsresponse import MetricsResponse, MetricsResponseTypedDict
     from .operator import Operator, OperatorTypedDict
+    from .operatoreventdestinationcreate import (
+        OperatorEventDestinationCreate,
+        OperatorEventDestinationCreateTypedDict,
+    )
+    from .operatoreventdestinationupdate import (
+        OperatorEventDestinationUpdate,
+        OperatorEventDestinationUpdateTypedDict,
+    )
+    from .operatoreventretryrequest import (
+        OperatorEventRetryRequest,
+        OperatorEventRetryRequestTypedDict,
+    )
     from .portalredirect import PortalRedirect, PortalRedirectTypedDict
     from .publishrequest import PublishRequest, PublishRequestTypedDict
     from .publishresponse import PublishResponse, PublishResponseTypedDict
@@ -456,6 +565,10 @@ if TYPE_CHECKING:
     from .tenanttoken import TenantToken, TenantTokenTypedDict
     from .tenantupsert import TenantUpsert, TenantUpsertTypedDict
     from .topics_union import TopicsEnum, TopicsUnion, TopicsUnionTypedDict
+    from .updateoperatoreventdestinationop import (
+        UpdateOperatorEventDestinationRequest,
+        UpdateOperatorEventDestinationRequestTypedDict,
+    )
     from .updatetenantdestinationop import (
         UpdateTenantDestinationRequest,
         UpdateTenantDestinationRequestTypedDict,
@@ -472,6 +585,14 @@ if TYPE_CHECKING:
     )
 
 __all__ = [
+    "AWSEventBridgeConfig",
+    "AWSEventBridgeConfigTypedDict",
+    "AWSEventBridgeConfigUpdate",
+    "AWSEventBridgeConfigUpdateTypedDict",
+    "AWSEventBridgeCredentials",
+    "AWSEventBridgeCredentialsTypedDict",
+    "AWSEventBridgeCredentialsUpdate",
+    "AWSEventBridgeCredentialsUpdateTypedDict",
     "AWSKinesisConfig",
     "AWSKinesisConfigTypedDict",
     "AWSKinesisConfigUpdate",
@@ -489,6 +610,8 @@ __all__ = [
     "AWSSQSCredentialsUpdate",
     "AWSSQSCredentialsUpdateTypedDict",
     "Attempt",
+    "AttemptDestination",
+    "AttemptDestinationTypedDict",
     "AttemptPaginatedResult",
     "AttemptPaginatedResultTypedDict",
     "AttemptTypedDict",
@@ -508,13 +631,26 @@ __all__ = [
     "AzureServiceBusCredentialsTypedDict",
     "AzureServiceBusCredentialsUpdate",
     "AzureServiceBusCredentialsUpdateTypedDict",
+    "CloudflareQueuesConfig",
+    "CloudflareQueuesConfigTypedDict",
+    "CloudflareQueuesConfigUpdate",
+    "CloudflareQueuesConfigUpdateTypedDict",
+    "CloudflareQueuesCredentials",
+    "CloudflareQueuesCredentialsTypedDict",
+    "CloudflareQueuesCredentialsUpdate",
+    "CloudflareQueuesCredentialsUpdateTypedDict",
     "CreateTenantDestinationRequest",
     "CreateTenantDestinationRequestTypedDict",
+    "DeleteOperatorEventDestinationRequest",
+    "DeleteOperatorEventDestinationRequestTypedDict",
     "DeleteTenantDestinationRequest",
     "DeleteTenantDestinationRequestTypedDict",
     "DeleteTenantRequest",
     "DeleteTenantRequestTypedDict",
     "Destination",
+    "DestinationAWSEventBridge",
+    "DestinationAWSEventBridgeType",
+    "DestinationAWSEventBridgeTypedDict",
     "DestinationAWSKinesis",
     "DestinationAWSKinesisType",
     "DestinationAWSKinesisTypedDict",
@@ -527,7 +663,13 @@ __all__ = [
     "DestinationAzureServiceBus",
     "DestinationAzureServiceBusType",
     "DestinationAzureServiceBusTypedDict",
+    "DestinationCloudflareQueues",
+    "DestinationCloudflareQueuesType",
+    "DestinationCloudflareQueuesTypedDict",
     "DestinationCreate",
+    "DestinationCreateAWSEventBridge",
+    "DestinationCreateAWSEventBridgeType",
+    "DestinationCreateAWSEventBridgeTypedDict",
     "DestinationCreateAWSKinesis",
     "DestinationCreateAWSKinesisType",
     "DestinationCreateAWSKinesisTypedDict",
@@ -540,6 +682,9 @@ __all__ = [
     "DestinationCreateAzureServiceBus",
     "DestinationCreateAzureServiceBusType",
     "DestinationCreateAzureServiceBusTypedDict",
+    "DestinationCreateCloudflareQueues",
+    "DestinationCreateCloudflareQueuesType",
+    "DestinationCreateCloudflareQueuesTypedDict",
     "DestinationCreateGCPPubSub",
     "DestinationCreateGCPPubSubType",
     "DestinationCreateGCPPubSubTypedDict",
@@ -576,6 +721,9 @@ __all__ = [
     "DestinationTypeSchemaTypedDict",
     "DestinationTypedDict",
     "DestinationUpdate",
+    "DestinationUpdateAWSEventBridge",
+    "DestinationUpdateAWSEventBridgeType",
+    "DestinationUpdateAWSEventBridgeTypedDict",
     "DestinationUpdateAWSKinesis",
     "DestinationUpdateAWSKinesisType",
     "DestinationUpdateAWSKinesisTypedDict",
@@ -588,6 +736,9 @@ __all__ = [
     "DestinationUpdateAzureServiceBus",
     "DestinationUpdateAzureServiceBusType",
     "DestinationUpdateAzureServiceBusTypedDict",
+    "DestinationUpdateCloudflareQueues",
+    "DestinationUpdateCloudflareQueuesType",
+    "DestinationUpdateCloudflareQueuesTypedDict",
     "DestinationUpdateGCPPubSub",
     "DestinationUpdateGCPPubSubType",
     "DestinationUpdateGCPPubSubTypedDict",
@@ -608,8 +759,12 @@ __all__ = [
     "DestinationWebhookType",
     "DestinationWebhookTypedDict",
     "Dir",
+    "DisableOperatorEventDestinationRequest",
+    "DisableOperatorEventDestinationRequestTypedDict",
     "DisableTenantDestinationRequest",
     "DisableTenantDestinationRequestTypedDict",
+    "EnableOperatorEventDestinationRequest",
+    "EnableOperatorEventDestinationRequestTypedDict",
     "EnableTenantDestinationRequest",
     "EnableTenantDestinationRequestTypedDict",
     "Event",
@@ -686,6 +841,12 @@ __all__ = [
     "GetEventMetricsTimeTypedDict",
     "GetEventRequest",
     "GetEventRequestTypedDict",
+    "GetOperatorEventAttemptRequest",
+    "GetOperatorEventAttemptRequestTypedDict",
+    "GetOperatorEventDestinationRequest",
+    "GetOperatorEventDestinationRequestTypedDict",
+    "GetOperatorEventRequest",
+    "GetOperatorEventRequestTypedDict",
     "GetTenantDestinationAttemptInclude",
     "GetTenantDestinationAttemptIncludeTypedDict",
     "GetTenantDestinationAttemptRequest",
@@ -700,8 +861,7 @@ __all__ = [
     "GetTenantTokenRequestTypedDict",
     "HealthCheckResponse",
     "HealthCheckResponseTypedDict",
-    "HealthCheckStatus1",
-    "HealthCheckStatus2",
+    "HealthCheckStatus",
     "HookdeckCredentials",
     "HookdeckCredentialsTypedDict",
     "HookdeckCredentialsUpdate",
@@ -747,6 +907,11 @@ __all__ = [
     "ListEventsTenantIDTypedDict",
     "ListEventsTopic",
     "ListEventsTopicTypedDict",
+    "ListOperatorEventAttemptsByEventRequest",
+    "ListOperatorEventAttemptsByEventRequestTypedDict",
+    "ListOperatorEventAttemptsRequest",
+    "ListOperatorEventAttemptsRequestTypedDict",
+    "ListOperatorEventAttemptsStatus",
     "ListTenantDestinationAttemptsDir",
     "ListTenantDestinationAttemptsEventID",
     "ListTenantDestinationAttemptsEventIDTypedDict",
@@ -778,6 +943,12 @@ __all__ = [
     "MetricsResponse",
     "MetricsResponseTypedDict",
     "Operator",
+    "OperatorEventDestinationCreate",
+    "OperatorEventDestinationCreateTypedDict",
+    "OperatorEventDestinationUpdate",
+    "OperatorEventDestinationUpdateTypedDict",
+    "OperatorEventRetryRequest",
+    "OperatorEventRetryRequestTypedDict",
     "OperatorTypedDict",
     "Option",
     "OptionTypedDict",
@@ -797,6 +968,7 @@ __all__ = [
     "RabbitMQCredentialsTypedDict",
     "RabbitMQCredentialsUpdate",
     "RabbitMQCredentialsUpdateTypedDict",
+    "Reason",
     "RetryRequest",
     "RetryRequestTypedDict",
     "Security",
@@ -820,6 +992,8 @@ __all__ = [
     "TopicsEnum",
     "TopicsUnion",
     "TopicsUnionTypedDict",
+    "UpdateOperatorEventDestinationRequest",
+    "UpdateOperatorEventDestinationRequestTypedDict",
     "UpdateTenantDestinationRequest",
     "UpdateTenantDestinationRequestTypedDict",
     "UpdateTenantDestinationResponse",
@@ -835,6 +1009,7 @@ __all__ = [
     "WebhookCredentialsUpdate",
     "WebhookCredentialsUpdateTypedDict",
     "Workers",
+    "WorkersStatus",
     "WorkersTypedDict",
 ]
 
@@ -848,8 +1023,18 @@ _dynamic_imports: dict[str, str] = {
     "EventUnion": ".attempt",
     "EventUnionTypedDict": ".attempt",
     "Status": ".attempt",
+    "AttemptDestination": ".attemptdestination",
+    "AttemptDestinationTypedDict": ".attemptdestination",
     "AttemptPaginatedResult": ".attemptpaginatedresult",
     "AttemptPaginatedResultTypedDict": ".attemptpaginatedresult",
+    "AWSEventBridgeConfig": ".awseventbridgeconfig",
+    "AWSEventBridgeConfigTypedDict": ".awseventbridgeconfig",
+    "AWSEventBridgeConfigUpdate": ".awseventbridgeconfigupdate",
+    "AWSEventBridgeConfigUpdateTypedDict": ".awseventbridgeconfigupdate",
+    "AWSEventBridgeCredentials": ".awseventbridgecredentials",
+    "AWSEventBridgeCredentialsTypedDict": ".awseventbridgecredentials",
+    "AWSEventBridgeCredentialsUpdate": ".awseventbridgecredentialsupdate",
+    "AWSEventBridgeCredentialsUpdateTypedDict": ".awseventbridgecredentialsupdate",
     "AWSKinesisConfig": ".awskinesisconfig",
     "AWSKinesisConfigTypedDict": ".awskinesisconfig",
     "AWSKinesisConfigUpdate": ".awskinesisconfigupdate",
@@ -882,14 +1067,27 @@ _dynamic_imports: dict[str, str] = {
     "AzureServiceBusCredentialsTypedDict": ".azureservicebuscredentials",
     "AzureServiceBusCredentialsUpdate": ".azureservicebuscredentialsupdate",
     "AzureServiceBusCredentialsUpdateTypedDict": ".azureservicebuscredentialsupdate",
+    "CloudflareQueuesConfig": ".cloudflarequeuesconfig",
+    "CloudflareQueuesConfigTypedDict": ".cloudflarequeuesconfig",
+    "CloudflareQueuesConfigUpdate": ".cloudflarequeuesconfigupdate",
+    "CloudflareQueuesConfigUpdateTypedDict": ".cloudflarequeuesconfigupdate",
+    "CloudflareQueuesCredentials": ".cloudflarequeuescredentials",
+    "CloudflareQueuesCredentialsTypedDict": ".cloudflarequeuescredentials",
+    "CloudflareQueuesCredentialsUpdate": ".cloudflarequeuescredentialsupdate",
+    "CloudflareQueuesCredentialsUpdateTypedDict": ".cloudflarequeuescredentialsupdate",
     "CreateTenantDestinationRequest": ".createtenantdestinationop",
     "CreateTenantDestinationRequestTypedDict": ".createtenantdestinationop",
+    "DeleteOperatorEventDestinationRequest": ".deleteoperatoreventdestinationop",
+    "DeleteOperatorEventDestinationRequestTypedDict": ".deleteoperatoreventdestinationop",
     "DeleteTenantDestinationRequest": ".deletetenantdestinationop",
     "DeleteTenantDestinationRequestTypedDict": ".deletetenantdestinationop",
     "DeleteTenantRequest": ".deletetenantop",
     "DeleteTenantRequestTypedDict": ".deletetenantop",
     "Destination": ".destination",
     "DestinationTypedDict": ".destination",
+    "DestinationAWSEventBridge": ".destinationawseventbridge",
+    "DestinationAWSEventBridgeType": ".destinationawseventbridge",
+    "DestinationAWSEventBridgeTypedDict": ".destinationawseventbridge",
     "DestinationAWSKinesis": ".destinationawskinesis",
     "DestinationAWSKinesisType": ".destinationawskinesis",
     "DestinationAWSKinesisTypedDict": ".destinationawskinesis",
@@ -902,8 +1100,14 @@ _dynamic_imports: dict[str, str] = {
     "DestinationAzureServiceBus": ".destinationazureservicebus",
     "DestinationAzureServiceBusType": ".destinationazureservicebus",
     "DestinationAzureServiceBusTypedDict": ".destinationazureservicebus",
+    "DestinationCloudflareQueues": ".destinationcloudflarequeues",
+    "DestinationCloudflareQueuesType": ".destinationcloudflarequeues",
+    "DestinationCloudflareQueuesTypedDict": ".destinationcloudflarequeues",
     "DestinationCreate": ".destinationcreate",
     "DestinationCreateTypedDict": ".destinationcreate",
+    "DestinationCreateAWSEventBridge": ".destinationcreateawseventbridge",
+    "DestinationCreateAWSEventBridgeType": ".destinationcreateawseventbridge",
+    "DestinationCreateAWSEventBridgeTypedDict": ".destinationcreateawseventbridge",
     "DestinationCreateAWSKinesis": ".destinationcreateawskinesis",
     "DestinationCreateAWSKinesisType": ".destinationcreateawskinesis",
     "DestinationCreateAWSKinesisTypedDict": ".destinationcreateawskinesis",
@@ -916,6 +1120,9 @@ _dynamic_imports: dict[str, str] = {
     "DestinationCreateAzureServiceBus": ".destinationcreateazureservicebus",
     "DestinationCreateAzureServiceBusType": ".destinationcreateazureservicebus",
     "DestinationCreateAzureServiceBusTypedDict": ".destinationcreateazureservicebus",
+    "DestinationCreateCloudflareQueues": ".destinationcreatecloudflarequeues",
+    "DestinationCreateCloudflareQueuesType": ".destinationcreatecloudflarequeues",
+    "DestinationCreateCloudflareQueuesTypedDict": ".destinationcreatecloudflarequeues",
     "DestinationCreateGCPPubSub": ".destinationcreategcppubsub",
     "DestinationCreateGCPPubSubType": ".destinationcreategcppubsub",
     "DestinationCreateGCPPubSubTypedDict": ".destinationcreategcppubsub",
@@ -955,6 +1162,9 @@ _dynamic_imports: dict[str, str] = {
     "SetupLinkTypedDict": ".destinationtypeschema",
     "DestinationUpdate": ".destinationupdate",
     "DestinationUpdateTypedDict": ".destinationupdate",
+    "DestinationUpdateAWSEventBridge": ".destinationupdateawseventbridge",
+    "DestinationUpdateAWSEventBridgeType": ".destinationupdateawseventbridge",
+    "DestinationUpdateAWSEventBridgeTypedDict": ".destinationupdateawseventbridge",
     "DestinationUpdateAWSKinesis": ".destinationupdateawskinesis",
     "DestinationUpdateAWSKinesisType": ".destinationupdateawskinesis",
     "DestinationUpdateAWSKinesisTypedDict": ".destinationupdateawskinesis",
@@ -967,6 +1177,9 @@ _dynamic_imports: dict[str, str] = {
     "DestinationUpdateAzureServiceBus": ".destinationupdateazureservicebus",
     "DestinationUpdateAzureServiceBusType": ".destinationupdateazureservicebus",
     "DestinationUpdateAzureServiceBusTypedDict": ".destinationupdateazureservicebus",
+    "DestinationUpdateCloudflareQueues": ".destinationupdatecloudflarequeues",
+    "DestinationUpdateCloudflareQueuesType": ".destinationupdatecloudflarequeues",
+    "DestinationUpdateCloudflareQueuesTypedDict": ".destinationupdatecloudflarequeues",
     "DestinationUpdateGCPPubSub": ".destinationupdategcppubsub",
     "DestinationUpdateGCPPubSubType": ".destinationupdategcppubsub",
     "DestinationUpdateGCPPubSubTypedDict": ".destinationupdategcppubsub",
@@ -985,8 +1198,12 @@ _dynamic_imports: dict[str, str] = {
     "DestinationWebhook": ".destinationwebhook",
     "DestinationWebhookType": ".destinationwebhook",
     "DestinationWebhookTypedDict": ".destinationwebhook",
+    "DisableOperatorEventDestinationRequest": ".disableoperatoreventdestinationop",
+    "DisableOperatorEventDestinationRequestTypedDict": ".disableoperatoreventdestinationop",
     "DisableTenantDestinationRequest": ".disabletenantdestinationop",
     "DisableTenantDestinationRequestTypedDict": ".disabletenantdestinationop",
+    "EnableOperatorEventDestinationRequest": ".enableoperatoreventdestinationop",
+    "EnableOperatorEventDestinationRequestTypedDict": ".enableoperatoreventdestinationop",
     "EnableTenantDestinationRequest": ".enabletenantdestinationop",
     "EnableTenantDestinationRequestTypedDict": ".enabletenantdestinationop",
     "Event": ".event",
@@ -1057,6 +1274,12 @@ _dynamic_imports: dict[str, str] = {
     "GetEventMetricsTimeTypedDict": ".geteventmetricsop",
     "GetEventRequest": ".geteventop",
     "GetEventRequestTypedDict": ".geteventop",
+    "GetOperatorEventAttemptRequest": ".getoperatoreventattemptop",
+    "GetOperatorEventAttemptRequestTypedDict": ".getoperatoreventattemptop",
+    "GetOperatorEventDestinationRequest": ".getoperatoreventdestinationop",
+    "GetOperatorEventDestinationRequestTypedDict": ".getoperatoreventdestinationop",
+    "GetOperatorEventRequest": ".getoperatoreventop",
+    "GetOperatorEventRequestTypedDict": ".getoperatoreventop",
     "GetTenantDestinationAttemptInclude": ".gettenantdestinationattemptop",
     "GetTenantDestinationAttemptIncludeTypedDict": ".gettenantdestinationattemptop",
     "GetTenantDestinationAttemptRequest": ".gettenantdestinationattemptop",
@@ -1072,9 +1295,10 @@ _dynamic_imports: dict[str, str] = {
     "GetTenantTokenRequestTypedDict": ".gettenanttokenop",
     "HealthCheckResponse": ".healthcheckop",
     "HealthCheckResponseTypedDict": ".healthcheckop",
-    "HealthCheckStatus1": ".healthcheckop",
-    "HealthCheckStatus2": ".healthcheckop",
+    "HealthCheckStatus": ".healthcheckop",
+    "Reason": ".healthcheckop",
     "Workers": ".healthcheckop",
+    "WorkersStatus": ".healthcheckop",
     "WorkersTypedDict": ".healthcheckop",
     "HookdeckCredentials": ".hookdeckcredentials",
     "HookdeckCredentialsTypedDict": ".hookdeckcredentials",
@@ -1121,6 +1345,11 @@ _dynamic_imports: dict[str, str] = {
     "ListEventsTenantIDTypedDict": ".listeventsop",
     "ListEventsTopic": ".listeventsop",
     "ListEventsTopicTypedDict": ".listeventsop",
+    "ListOperatorEventAttemptsByEventRequest": ".listoperatoreventattemptsbyeventop",
+    "ListOperatorEventAttemptsByEventRequestTypedDict": ".listoperatoreventattemptsbyeventop",
+    "ListOperatorEventAttemptsRequest": ".listoperatoreventattemptsop",
+    "ListOperatorEventAttemptsRequestTypedDict": ".listoperatoreventattemptsop",
+    "ListOperatorEventAttemptsStatus": ".listoperatoreventattemptsop",
     "ListTenantDestinationAttemptsDir": ".listtenantdestinationattemptsop",
     "ListTenantDestinationAttemptsEventID": ".listtenantdestinationattemptsop",
     "ListTenantDestinationAttemptsEventIDTypedDict": ".listtenantdestinationattemptsop",
@@ -1153,6 +1382,12 @@ _dynamic_imports: dict[str, str] = {
     "MetricsResponseTypedDict": ".metricsresponse",
     "Operator": ".operator",
     "OperatorTypedDict": ".operator",
+    "OperatorEventDestinationCreate": ".operatoreventdestinationcreate",
+    "OperatorEventDestinationCreateTypedDict": ".operatoreventdestinationcreate",
+    "OperatorEventDestinationUpdate": ".operatoreventdestinationupdate",
+    "OperatorEventDestinationUpdateTypedDict": ".operatoreventdestinationupdate",
+    "OperatorEventRetryRequest": ".operatoreventretryrequest",
+    "OperatorEventRetryRequestTypedDict": ".operatoreventretryrequest",
     "PortalRedirect": ".portalredirect",
     "PortalRedirectTypedDict": ".portalredirect",
     "PublishRequest": ".publishrequest",
@@ -1189,6 +1424,8 @@ _dynamic_imports: dict[str, str] = {
     "TopicsEnum": ".topics_union",
     "TopicsUnion": ".topics_union",
     "TopicsUnionTypedDict": ".topics_union",
+    "UpdateOperatorEventDestinationRequest": ".updateoperatoreventdestinationop",
+    "UpdateOperatorEventDestinationRequestTypedDict": ".updateoperatoreventdestinationop",
     "UpdateTenantDestinationRequest": ".updatetenantdestinationop",
     "UpdateTenantDestinationRequestTypedDict": ".updatetenantdestinationop",
     "UpdateTenantDestinationResponse": ".updatetenantdestinationop",

@@ -17,9 +17,9 @@ from typing import Callable, Dict, Optional, Tuple, Union
 
 SERVERS = [
     "https://api.outpost.hookdeck.com/2025-07-01",
-    # Outpost API (production)
+    # Managed Outpost, hosted by Hookdeck at `api.outpost.hookdeck.com`. The Hookdeck Event Gateway API at `api.hookdeck.com` is a separate API.
     "http://localhost:3333/api/v1",
-    # Local development server base path
+    # Self-hosted Outpost, at its default local address. A deployed instance serves the same paths under its own host.
 ]
 """Contains the list of servers available to the SDK"""
 

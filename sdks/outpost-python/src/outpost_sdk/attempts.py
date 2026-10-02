@@ -15,7 +15,7 @@ class Attempts(BaseSDK):
     - `include=event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
     - `include=event.data`: Include full event with payload data
     - `include=response_data`: Include response body and headers from the attempt
-    - `include=destination`: Include the full destination object with target information
+    - `include=destination`: Include the destination object with target information, without credentials
 
     """
 
@@ -102,11 +102,21 @@ class Attempts(BaseSDK):
         response_data: Any = None
         if utils.match_response(http_res, "200", "application/json"):
             return unmarshal_json_response(models.AttemptPaginatedResult, http_res)
+        if utils.match_response(http_res, "400", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.BadRequestErrorData, http_res
+            )
+            raise errors.BadRequestError(response_data, http_res)
         if utils.match_response(http_res, "401", "application/json"):
             response_data = unmarshal_json_response(
                 errors.UnauthorizedErrorData, http_res
             )
             raise errors.UnauthorizedError(response_data, http_res)
+        if utils.match_response(http_res, ["403", "422"], "application/json"):
+            response_data = unmarshal_json_response(
+                errors.APIErrorResponseData, http_res
+            )
+            raise errors.APIErrorResponse(response_data, http_res)
         if utils.match_response(http_res, "500", "application/json"):
             response_data = unmarshal_json_response(
                 errors.InternalServerErrorData, http_res
@@ -204,11 +214,21 @@ class Attempts(BaseSDK):
         response_data: Any = None
         if utils.match_response(http_res, "200", "application/json"):
             return unmarshal_json_response(models.AttemptPaginatedResult, http_res)
+        if utils.match_response(http_res, "400", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.BadRequestErrorData, http_res
+            )
+            raise errors.BadRequestError(response_data, http_res)
         if utils.match_response(http_res, "401", "application/json"):
             response_data = unmarshal_json_response(
                 errors.UnauthorizedErrorData, http_res
             )
             raise errors.UnauthorizedError(response_data, http_res)
+        if utils.match_response(http_res, ["403", "422"], "application/json"):
+            response_data = unmarshal_json_response(
+                errors.APIErrorResponseData, http_res
+            )
+            raise errors.APIErrorResponse(response_data, http_res)
         if utils.match_response(http_res, "500", "application/json"):
             response_data = unmarshal_json_response(
                 errors.InternalServerErrorData, http_res
@@ -250,7 +270,7 @@ class Attempts(BaseSDK):
             - `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
             - `event.data`: Include full event with payload data
             - `response_data`: Include response body and headers
-            - `destination`: Include the full destination object
+            - `destination`: Include the destination object, without credentials
 
         :param retries: Override the default retry configuration for this method
         :param server_url: Override the default server URL for this method
@@ -365,7 +385,7 @@ class Attempts(BaseSDK):
             - `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
             - `event.data`: Include full event with payload data
             - `response_data`: Include response body and headers
-            - `destination`: Include the full destination object
+            - `destination`: Include the destination object, without credentials
 
         :param retries: Override the default retry configuration for this method
         :param server_url: Override the default server URL for this method

@@ -15,7 +15,7 @@ r"""Fields to include in the response. Use bracket notation for multiple values 
 - `event`: Include event summary
 - `event.data`: Include full event with payload data
 - `response_data`: Include response body and headers
-- `destination`: Include the full destination object
+- `destination`: Include the destination object, without credentials
 
 """
 
@@ -27,7 +27,7 @@ r"""Fields to include in the response. Use bracket notation for multiple values 
 - `event`: Include event summary
 - `event.data`: Include full event with payload data
 - `response_data`: Include response body and headers
-- `destination`: Include the full destination object
+- `destination`: Include the destination object, without credentials
 
 """
 
@@ -44,7 +44,7 @@ class GetTenantDestinationAttemptRequestTypedDict(TypedDict):
     - `event`: Include event summary
     - `event.data`: Include full event with payload data
     - `response_data`: Include response body and headers
-    - `destination`: Include the full destination object
+    - `destination`: Include the destination object, without credentials
 
     """
 
@@ -73,7 +73,7 @@ class GetTenantDestinationAttemptRequest(BaseModel):
     - `event`: Include event summary
     - `event.data`: Include full event with payload data
     - `response_data`: Include response body and headers
-    - `destination`: Include the full destination object
+    - `destination`: Include the destination object, without credentials
 
     """
 

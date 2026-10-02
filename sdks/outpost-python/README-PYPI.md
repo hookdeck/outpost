@@ -13,6 +13,8 @@ Developer-friendly & type-safe Python SDK specifically catered to leverage the O
 ## Summary
 
 Outpost API: The Outpost API is a REST-based JSON API for managing tenants, destinations, and publishing events.
+
+Outpost runs in two deployment models: **managed** (hosted by Hookdeck) and **self-hosted**. They differ in where the API is served and in which API key authenticates server-side calls. On managed Outpost, use a Hookdeck project API key from your Outpost project. On self-hosted Outpost, use the key set in the `API_KEY` environment variable. A few endpoints exist in one model only and say so in their description.
 <!-- End Summary [summary] -->
 
 <!-- Start Table of Contents [toc] -->
@@ -267,6 +269,23 @@ with Outpost(
 * [get_event_metrics](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/metrics/README.md#get_event_metrics) - Get Event Metrics
 * [get_attempt_metrics](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/metrics/README.md#get_attempt_metrics) - Get Attempt Metrics
 
+### [OperatorEvents](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/operatorevents/README.md)
+
+* [list_destination_types](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/operatorevents/README.md#list_destination_types) - List Operator Event Destination Type Schemas
+* [list_destinations](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/operatorevents/README.md#list_destinations) - List Operator Event Destinations
+* [create_destination](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/operatorevents/README.md#create_destination) - Create Operator Event Destination
+* [get_destination](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/operatorevents/README.md#get_destination) - Get Operator Event Destination
+* [update_destination](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/operatorevents/README.md#update_destination) - Update Operator Event Destination
+* [delete_destination](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/operatorevents/README.md#delete_destination) - Delete Operator Event Destination
+* [enable_destination](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/operatorevents/README.md#enable_destination) - Enable Operator Event Destination
+* [disable_destination](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/operatorevents/README.md#disable_destination) - Disable Operator Event Destination
+* [list_events](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/operatorevents/README.md#list_events) - List Operator Events
+* [get_event](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/operatorevents/README.md#get_event) - Get Operator Event
+* [list_event_attempts](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/operatorevents/README.md#list_event_attempts) - List Attempts for an Operator Event
+* [list_attempts](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/operatorevents/README.md#list_attempts) - List Operator Event Attempts
+* [get_attempt](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/operatorevents/README.md#get_attempt) - Get Operator Event Attempt
+* [retry](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/operatorevents/README.md#retry) - Retry Operator Event Delivery
+
 ### [Schemas](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/schemas/README.md)
 
 * [list_destination_types](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/docs/sdks/schemas/README.md#list_destination_types) - List Destination Type Schemas
@@ -428,12 +447,12 @@ with Outpost(
 
 
 **Inherit from [`OutpostError`](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/./src/outpost_sdk/errors/outposterror.py)**:
-* [`NotFoundError`](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/./src/outpost_sdk/errors/notfounderror.py): Status codes relating to the resource/entity they are requesting not being found or endpoints/routes not existing. Applicable to 21 of 29 methods.*
-* [`BadRequestError`](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/./src/outpost_sdk/errors/badrequesterror.py): A collection of codes that generally means the end user got something wrong in making the request. Applicable to 9 of 29 methods.*
-* [`APIErrorResponse`](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/./src/outpost_sdk/errors/apierrorresponse.py): Standard error response format. Applicable to 6 of 29 methods.*
-* [`TimeoutErrorT`](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/./src/outpost_sdk/errors/timeouterrort.py): Timeouts occurred with the request. Applicable to 5 of 29 methods.*
-* [`RateLimitedError`](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/./src/outpost_sdk/errors/ratelimitederror.py): Status codes relating to the client being rate limited by the server. Status code `429`. Applicable to 5 of 29 methods.*
-* [`NotImplementedErrorT`](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/./src/outpost_sdk/errors/notimplementederrort.py): List Tenants feature is not available. Requires Redis with RediSearch module. Status code `501`. Applicable to 1 of 29 methods.*
+* [`NotFoundError`](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/./src/outpost_sdk/errors/notfounderror.py): Status codes relating to the resource/entity they are requesting not being found or endpoints/routes not existing. Applicable to 29 of 43 methods.*
+* [`APIErrorResponse`](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/./src/outpost_sdk/errors/apierrorresponse.py): Standard error response format. Applicable to 26 of 43 methods.*
+* [`BadRequestError`](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/./src/outpost_sdk/errors/badrequesterror.py): A collection of codes that generally means the end user got something wrong in making the request. Applicable to 16 of 43 methods.*
+* [`TimeoutErrorT`](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/./src/outpost_sdk/errors/timeouterrort.py): Timeouts occurred with the request. Applicable to 5 of 43 methods.*
+* [`RateLimitedError`](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/./src/outpost_sdk/errors/ratelimitederror.py): Status codes relating to the client being rate limited by the server. Status code `429`. Applicable to 5 of 43 methods.*
+* [`NotImplementedErrorT`](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/./src/outpost_sdk/errors/notimplementederrort.py): List Tenants feature is not available. Requires Redis with RediSearch module. Status code `501`. Applicable to 1 of 43 methods.*
 * [`ResponseValidationError`](https://github.com/hookdeck/outpost/blob/master/sdks/outpost-python/./src/outpost_sdk/errors/responsevalidationerror.py): Type mismatch between the response data and the expected Pydantic model. Provides access to the Pydantic validation error via the `cause` attribute.
 
 </details>
@@ -448,10 +467,10 @@ with Outpost(
 
 You can override the default server globally by passing a server index to the `server_idx: int` optional parameter when initializing the SDK client instance. The selected server will then be used as the default on the operations that use it. This table lists the indexes associated with the available servers:
 
-| #   | Server                                        | Description                        |
-| --- | --------------------------------------------- | ---------------------------------- |
-| 0   | `https://api.outpost.hookdeck.com/2025-07-01` | Outpost API (production)           |
-| 1   | `http://localhost:3333/api/v1`                | Local development server base path |
+| #   | Server                                        | Description                                                                                                                                |
+| --- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| 0   | `https://api.outpost.hookdeck.com/2025-07-01` | Managed Outpost, hosted by Hookdeck at `api.outpost.hookdeck.com`. The Hookdeck Event Gateway API at `api.hookdeck.com` is a separate API. |
+| 1   | `http://localhost:3333/api/v1`                | Self-hosted Outpost, at its default local address. A deployed instance serves the same paths under its own host.                           |
 
 #### Example
 

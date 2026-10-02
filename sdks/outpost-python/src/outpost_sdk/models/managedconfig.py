@@ -9,8 +9,8 @@ from typing_extensions import Annotated, NotRequired, TypedDict
 
 
 class ManagedConfigTypedDict(TypedDict):
-    r"""Managed configuration values for Outpost Cloud.
-    This API is available only on the managed version.
+    r"""Configuration values for managed Outpost.
+    This API is only available on managed Outpost.
     Self-hosted deployments configure these values using environment variables.
 
     """
@@ -109,8 +109,8 @@ class ManagedConfigTypedDict(TypedDict):
 
 
 class ManagedConfig(BaseModel):
-    r"""Managed configuration values for Outpost Cloud.
-    This API is available only on the managed version.
+    r"""Configuration values for managed Outpost.
+    This API is only available on managed Outpost.
     Self-hosted deployments configure these values using environment variables.
 
     """

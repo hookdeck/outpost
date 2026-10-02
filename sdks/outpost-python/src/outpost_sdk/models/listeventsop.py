@@ -88,11 +88,11 @@ class ListEventsRequestTypedDict(TypedDict):
     time: NotRequired[OperatorTypedDict]
     r"""Filter events by time range using comparison operators."""
     limit: NotRequired[int]
-    r"""Number of items per page (default 100, max 1000)."""
+    r"""Number of items per page (1-1000, default 100). A value outside this range, or one that is not an integer, returns a 400."""
     next_cursor: NotRequired[str]
-    r"""Cursor for next page of results."""
+    r"""Cursor for the next page of results, from `pagination.next` of a previous response. Mutually exclusive with `prev`. A cursor that cannot be read returns a 400."""
     prev_cursor: NotRequired[str]
-    r"""Cursor for previous page of results."""
+    r"""Cursor for the previous page of results, from `pagination.prev` of a previous response. Mutually exclusive with `next`. A cursor that cannot be read returns a 400."""
     order_by: NotRequired[ListEventsOrderBy]
     r"""Field to sort by."""
     direction: NotRequired[ListEventsDir]
@@ -138,21 +138,21 @@ class ListEventsRequest(BaseModel):
         Optional[int],
         FieldMetadata(query=QueryParamMetadata(style="form", explode=True)),
     ] = 100
-    r"""Number of items per page (default 100, max 1000)."""
+    r"""Number of items per page (1-1000, default 100). A value outside this range, or one that is not an integer, returns a 400."""
 
     next_cursor: Annotated[
         Optional[str],
         pydantic.Field(alias="next"),
         FieldMetadata(query=QueryParamMetadata(style="form", explode=True)),
     ] = None
-    r"""Cursor for next page of results."""
+    r"""Cursor for the next page of results, from `pagination.next` of a previous response. Mutually exclusive with `prev`. A cursor that cannot be read returns a 400."""
 
     prev_cursor: Annotated[
         Optional[str],
         pydantic.Field(alias="prev"),
         FieldMetadata(query=QueryParamMetadata(style="form", explode=True)),
     ] = None
-    r"""Cursor for previous page of results."""
+    r"""Cursor for the previous page of results, from `pagination.prev` of a previous response. Mutually exclusive with `next`. A cursor that cannot be read returns a 400."""
 
     order_by: Annotated[
         Optional[ListEventsOrderBy],

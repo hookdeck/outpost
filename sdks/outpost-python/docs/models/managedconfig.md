@@ -1,7 +1,7 @@
 # ManagedConfig
 
-Managed configuration values for Outpost Cloud.
-This API is available only on the managed version.
+Configuration values for managed Outpost.
+This API is only available on managed Outpost.
 Self-hosted deployments configure these values using environment variables.
 
 

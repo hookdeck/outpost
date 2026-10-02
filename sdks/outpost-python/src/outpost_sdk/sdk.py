@@ -22,20 +22,46 @@ if TYPE_CHECKING:
     from outpost_sdk.events import Events
     from outpost_sdk.health import Health
     from outpost_sdk.metrics import Metrics
+    from outpost_sdk.operator_events import OperatorEvents
     from outpost_sdk.schemas import Schemas
     from outpost_sdk.tenants import Tenants
     from outpost_sdk.topics_sdk import TopicsSDK
 
 
 class Outpost(BaseSDK):
-    r"""Outpost API: The Outpost API is a REST-based JSON API for managing tenants, destinations, and publishing events."""
+    r"""Outpost API: The Outpost API is a REST-based JSON API for managing tenants, destinations, and publishing events.
+
+    Outpost runs in two deployment models: **managed** (hosted by Hookdeck) and **self-hosted**. They differ in where the API is served and in which API key authenticates server-side calls. On managed Outpost, use a Hookdeck project API key from your Outpost project. On self-hosted Outpost, use the key set in the `API_KEY` environment variable. A few endpoints exist in one model only and say so in their description.
+
+    """
 
     health: "Health"
     r"""This endpoint is only available for **self-hosted** Outpost deployments. Managed Outpost health is monitored by Hookdeck.
 
     """
     configuration: "Configuration"
-    r"""The Configuration API is available for **managed Outpost** deployments only. It allows you to read and update instance-level settings — the same settings available as environment variables in self-hosted deployments.
+    r"""The Configuration API is only available on managed Outpost. It allows you to read and update instance-level settings, the same settings available as environment variables in self-hosted deployments.
+
+    """
+    operator_events: "OperatorEvents"
+    r"""Operator events are Outpost's own lifecycle and alerting stream: delivery failures, destinations being auto-disabled, retry exhaustion and tenant subscription changes. They are about the deployment, not about a tenant's traffic, so they are delivered to **operator event destinations** rather than to tenant destinations. An operator event destination is deployment-wide, is not owned by any tenant you create, and has the same shape as a tenant destination: any destination type listed by `GET /operator-events/destination-types`, with that type's `config` and `credentials`.
+
+    The Operator Events API is only available on managed Outpost, and requires the Admin API Key. Self-hosted deployments configure the same thing through environment variables and a single sink. See the [Operator Events](https://hookdeck.com/docs/outpost/features/operator-events) feature page.
+
+    **Available topics**
+
+    | Topic | Trigger |
+    |-------|---------|
+    | `alert.destination.consecutive_failure` | Consecutive failure count reaches 50%, 70%, 90%, or 100% of `ALERT_CONSECUTIVE_FAILURE_COUNT` |
+    | `alert.destination.disabled` | Destination auto-disabled at the 100% failure threshold |
+    | `alert.attempt.exhausted_retries` | Delivery exhausts all retry attempts |
+    | `attempt.success` | Every successful delivery attempt |
+    | `attempt.failed` | Every failed delivery attempt, including retries |
+    | `tenant.subscription.updated` | A destination was created, updated or deleted and the tenant's topics or destination count changed |
+
+    A destination may subscribe to every topic with `[\"*\"]`, but `attempt.success` and `attempt.failed` fire once per delivery attempt and will dominate volume. Prefer an explicit topic list.
+
+    **Topics are derived from these destinations.** The union of every enabled operator event destination's `topics` is what the deployment subscribes to, which is why `PATCH /config` rejects `OPERATOR_EVENTS_TOPICS` with a 422: change the destinations and the configuration follows.
 
     """
     tenants: "Tenants"
@@ -55,7 +81,7 @@ class Outpost(BaseSDK):
     - `include=event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
     - `include=event.data`: Include full event with payload data
     - `include=response_data`: Include response body and headers from the attempt
-    - `include=destination`: Include the full destination object with target information
+    - `include=destination`: Include the destination object with target information, without credentials
 
     """
     destinations: "Destinations"
@@ -81,6 +107,7 @@ class Outpost(BaseSDK):
     _sub_sdk_map = {
         "health": ("outpost_sdk.health", "Health"),
         "configuration": ("outpost_sdk.configuration", "Configuration"),
+        "operator_events": ("outpost_sdk.operator_events", "OperatorEvents"),
         "tenants": ("outpost_sdk.tenants", "Tenants"),
         "events": ("outpost_sdk.events", "Events"),
         "attempts": ("outpost_sdk.attempts", "Attempts"),
@@ -339,6 +366,11 @@ class Outpost(BaseSDK):
         if utils.match_response(http_res, "408", "application/json"):
             response_data = unmarshal_json_response(errors.TimeoutErrorTData, http_res)
             raise errors.TimeoutErrorT(response_data, http_res)
+        if utils.match_response(http_res, "409", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.APIErrorResponseData, http_res
+            )
+            raise errors.APIErrorResponse(response_data, http_res)
         if utils.match_response(http_res, "429", "application/json"):
             response_data = unmarshal_json_response(
                 errors.RateLimitedErrorData, http_res
@@ -374,7 +406,7 @@ class Outpost(BaseSDK):
                 errors.UnauthorizedErrorData, http_res
             )
             raise errors.UnauthorizedError(response_data, http_res)
-        if utils.match_response(http_res, ["409", "4XX"], "*"):
+        if utils.match_response(http_res, "4XX", "*"):
             http_res_text = utils.stream_to_text(http_res)
             raise errors.APIError("API error occurred", http_res, http_res_text)
         if utils.match_response(http_res, "5XX", "*"):
@@ -476,6 +508,11 @@ class Outpost(BaseSDK):
         if utils.match_response(http_res, "408", "application/json"):
             response_data = unmarshal_json_response(errors.TimeoutErrorTData, http_res)
             raise errors.TimeoutErrorT(response_data, http_res)
+        if utils.match_response(http_res, "409", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.APIErrorResponseData, http_res
+            )
+            raise errors.APIErrorResponse(response_data, http_res)
         if utils.match_response(http_res, "429", "application/json"):
             response_data = unmarshal_json_response(
                 errors.RateLimitedErrorData, http_res
@@ -511,7 +548,7 @@ class Outpost(BaseSDK):
                 errors.UnauthorizedErrorData, http_res
             )
             raise errors.UnauthorizedError(response_data, http_res)
-        if utils.match_response(http_res, ["409", "4XX"], "*"):
+        if utils.match_response(http_res, "4XX", "*"):
             http_res_text = await utils.stream_to_text_async(http_res)
             raise errors.APIError("API error occurred", http_res, http_res_text)
         if utils.match_response(http_res, "5XX", "*"):
@@ -531,7 +568,9 @@ class Outpost(BaseSDK):
     ) -> models.SuccessResponse:
         r"""Retry Event Delivery
 
-        Triggers a retry for delivering an event to a destination. The event must exist and the destination must be enabled and match the event's topic.
+        Triggers a retry for delivering an event to a destination. The event must exist, and the destination must be enabled, match the event's topic and filter, and already have a delivery attempt for the event. A retry never sends an event to a destination that has no earlier attempt for it.
+
+        Returns 404 `event not found` if the event does not exist, or belongs to another tenant when authenticated with a Tenant JWT. Returns 404 `destination not found` if the destination does not exist for the event's tenant or has been deleted.
 
         When authenticated with a Tenant JWT, only events belonging to that tenant can be retried.
         When authenticated with Admin API Key, events from any tenant can be retried.
@@ -611,6 +650,11 @@ class Outpost(BaseSDK):
         if utils.match_response(http_res, "404", "application/json"):
             response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
             raise errors.NotFoundError(response_data, http_res)
+        if utils.match_response(http_res, "422", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.APIErrorResponseData, http_res
+            )
+            raise errors.APIErrorResponse(response_data, http_res)
         if utils.match_response(http_res, "500", "application/json"):
             response_data = unmarshal_json_response(
                 errors.InternalServerErrorData, http_res
@@ -636,7 +680,9 @@ class Outpost(BaseSDK):
     ) -> models.SuccessResponse:
         r"""Retry Event Delivery
 
-        Triggers a retry for delivering an event to a destination. The event must exist and the destination must be enabled and match the event's topic.
+        Triggers a retry for delivering an event to a destination. The event must exist, and the destination must be enabled, match the event's topic and filter, and already have a delivery attempt for the event. A retry never sends an event to a destination that has no earlier attempt for it.
+
+        Returns 404 `event not found` if the event does not exist, or belongs to another tenant when authenticated with a Tenant JWT. Returns 404 `destination not found` if the destination does not exist for the event's tenant or has been deleted.
 
         When authenticated with a Tenant JWT, only events belonging to that tenant can be retried.
         When authenticated with Admin API Key, events from any tenant can be retried.
@@ -716,6 +762,11 @@ class Outpost(BaseSDK):
         if utils.match_response(http_res, "404", "application/json"):
             response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
             raise errors.NotFoundError(response_data, http_res)
+        if utils.match_response(http_res, "422", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.APIErrorResponseData, http_res
+            )
+            raise errors.APIErrorResponse(response_data, http_res)
         if utils.match_response(http_res, "500", "application/json"):
             response_data = unmarshal_json_response(
                 errors.InternalServerErrorData, http_res

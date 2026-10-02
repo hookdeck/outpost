@@ -3,40 +3,88 @@
 from __future__ import annotations
 from datetime import datetime
 from enum import Enum
-from outpost_sdk.types import BaseModel
-from typing import Dict
-from typing_extensions import TypedDict
+from outpost_sdk.types import BaseModel, UNSET_SENTINEL
+from pydantic import model_serializer
+from typing import Dict, Optional
+from typing_extensions import NotRequired, TypedDict
 
 
-class HealthCheckStatus1(str, Enum):
+class HealthCheckStatus(str, Enum):
     HEALTHY = "healthy"
+    DEGRADED = "degraded"
 
 
-class HealthCheckStatus2(str, Enum):
+class WorkersStatus(str, Enum):
     HEALTHY = "healthy"
+    DEGRADED = "degraded"
+
+
+class Reason(str, Enum):
+    r"""Present when the status is `degraded` or `failed`.
+    `startup_failed`: the worker has not been healthy since the process started (usually configuration or a dependency that is not up yet).
+    `recovery_failed`: the worker was healthy and then failed (e.g. a broker restart or failover).
+
+    """
+
+    STARTUP_FAILED = "startup_failed"
+    RECOVERY_FAILED = "recovery_failed"
 
 
 class WorkersTypedDict(TypedDict):
-    status: HealthCheckStatus2
+    status: WorkersStatus
+    since: NotRequired[datetime]
+    r"""Start of the worker's current failure episode. Present when the status is `degraded` or `failed`."""
+    reason: NotRequired[Reason]
+    r"""Present when the status is `degraded` or `failed`.
+    `startup_failed`: the worker has not been healthy since the process started (usually configuration or a dependency that is not up yet).
+    `recovery_failed`: the worker was healthy and then failed (e.g. a broker restart or failover).
+
+    """
 
 
 class Workers(BaseModel):
-    status: HealthCheckStatus2
+    status: WorkersStatus
+
+    since: Optional[datetime] = None
+    r"""Start of the worker's current failure episode. Present when the status is `degraded` or `failed`."""
+
+    reason: Optional[Reason] = None
+    r"""Present when the status is `degraded` or `failed`.
+    `startup_failed`: the worker has not been healthy since the process started (usually configuration or a dependency that is not up yet).
+    `recovery_failed`: the worker was healthy and then failed (e.g. a broker restart or failover).
+
+    """
+
+    @model_serializer(mode="wrap")
+    def serialize_model(self, handler):
+        optional_fields = set(["since", "reason"])
+        serialized = handler(self)
+        m = {}
+
+        for n, f in type(self).model_fields.items():
+            k = f.alias or n
+            val = serialized.get(k, serialized.get(n))
+
+            if val != UNSET_SENTINEL:
+                if val is not None or k not in optional_fields:
+                    m[k] = val
+
+        return m
 
 
 class HealthCheckResponseTypedDict(TypedDict):
-    r"""Service is healthy - all workers are operational."""
+    r"""Service is healthy or degraded - no worker has failed."""
 
-    status: HealthCheckStatus1
+    status: HealthCheckStatus
     timestamp: datetime
     r"""When this health check was performed"""
     workers: Dict[str, WorkersTypedDict]
 
 
 class HealthCheckResponse(BaseModel):
-    r"""Service is healthy - all workers are operational."""
+    r"""Service is healthy or degraded - no worker has failed."""
 
-    status: HealthCheckStatus1
+    status: HealthCheckStatus
 
     timestamp: datetime
     r"""When this health check was performed"""
