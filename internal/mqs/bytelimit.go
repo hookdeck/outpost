@@ -36,12 +36,6 @@ type byteLimitSubscription struct {
 }
 
 var _ Subscription = &byteLimitSubscription{}
-var _ ConcurrentSubscription = &byteLimitSubscription{}
-
-func (s *byteLimitSubscription) SupportsConcurrency() bool {
-	cs, ok := s.inner.(ConcurrentSubscription)
-	return ok && cs.SupportsConcurrency()
-}
 
 // Receive returns the next message once its body fits in the limit. The
 // message is already received while it waits. If ctx ends or the subscription

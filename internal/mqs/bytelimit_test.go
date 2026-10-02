@@ -289,25 +289,6 @@ func TestLimitBytes_ShutdownUnblocksWaitingReceive(t *testing.T) {
 	})
 }
 
-type fakeConcurrentSubscription struct {
-	*fakeSubscription
-	concurrent bool
-}
-
-func (s *fakeConcurrentSubscription) SupportsConcurrency() bool { return s.concurrent }
-
-func TestLimitBytes_KeepsSupportsConcurrency(t *testing.T) {
-	t.Parallel()
-
-	supports := func(sub mqs.Subscription) bool {
-		cs, ok := sub.(mqs.ConcurrentSubscription)
-		return ok && cs.SupportsConcurrency()
-	}
-	assert.False(t, supports(mqs.LimitBytes(newFakeSubscription(), 10)))
-	assert.False(t, supports(mqs.LimitBytes(&fakeConcurrentSubscription{newFakeSubscription(), false}, 10)))
-	assert.True(t, supports(mqs.LimitBytes(&fakeConcurrentSubscription{newFakeSubscription(), true}, 10)))
-}
-
 func TestLimitBytes_KeepsRejectable(t *testing.T) {
 	t.Parallel()
 
