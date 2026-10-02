@@ -48,6 +48,10 @@ func (q *GCPPubSubQueue) Init(ctx context.Context) (func(), error) {
 	defer q.mu.Unlock()
 	if !q.initialized {
 		if err := q.initTopic(ctx); err != nil {
+			for _, fn := range q.cleanupFns {
+				fn()
+			}
+			q.cleanupFns = nil
 			return nil, err
 		}
 		q.initialized = true

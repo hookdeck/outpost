@@ -3,6 +3,7 @@ package mqs
 import (
 	"context"
 	"log"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -23,7 +24,6 @@ type NATSConfig struct {
 	Stream     string
 	Subject    string
 	DLQSubject string // optional; exhausted messages are moved here instead of being lost
-	AckWait    time.Duration
 }
 
 type NATSQueue struct {
@@ -36,9 +36,6 @@ type NATSQueue struct {
 var _ Queue = &NATSQueue{}
 
 func NewNATSQueue(config *NATSConfig) *NATSQueue {
-	if config.AckWait == 0 {
-		config.AckWait = 60 * time.Second
-	}
 	return &NATSQueue{config: config}
 }
 
@@ -180,6 +177,11 @@ func (s *NATSSubscription) Receive(ctx context.Context) (*Message, error) {
 		return nil, err
 	}
 
+	loggableID := m.Subject()
+	if meta, err := m.Metadata(); err == nil {
+		loggableID = strconv.FormatUint(meta.Sequence.Stream, 10)
+	}
+
 	return &Message{
 		QueueMessage: &natsQueueMessage{
 			msg:        m,
@@ -187,7 +189,7 @@ func (s *NATSSubscription) Receive(ctx context.Context) (*Message, error) {
 			dlqSubject: s.dlqSubject,
 			maxDeliver: s.maxDeliver,
 		},
-		LoggableID: m.Subject(),
+		LoggableID: loggableID,
 		Body:       m.Data(),
 	}, nil
 }

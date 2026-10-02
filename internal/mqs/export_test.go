@@ -22,6 +22,9 @@ func AWSQueueURL(q Queue) string {
 	return aq.sqsQueueURL
 }
 
-func NATSQueueConfig(q Queue) *NATSConfig {
-	return q.(*NATSQueue).config
+func GCPPubSubCleanupFns(q Queue) int {
+	gq := q.(*GCPPubSubQueue)
+	gq.mu.Lock()
+	defer gq.mu.Unlock()
+	return len(gq.cleanupFns)
 }
