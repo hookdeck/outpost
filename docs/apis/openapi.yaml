@@ -3944,7 +3944,7 @@ tags:
   - name: Publish
     description: Use the Publish endpoint to send events into Outpost. Events are matched against all destinations whose topic subscriptions and filters match the event. Requires Admin API Key.
   - name: Retry
-    description: Triggers a retry for delivering an event to a destination. The event must exist and the destination must be enabled and match the event's topic.
+    description: Triggers a retry for delivering an event to a destination. The event must exist, and the destination must be enabled, match the event's topic and already have a delivery attempt for the event.
   - name: Schemas
     description: |
       Destination types describe the available event delivery targets and their configuration schemas. Use these endpoints to render UI forms and list available destination types with their configuration schemas.
@@ -5598,7 +5598,9 @@ paths:
       tags: [Retry]
       summary: Retry Event Delivery
       description: |
-        Triggers a retry for delivering an event to a destination. The event must exist and the destination must be enabled and match the event's topic.
+        Triggers a retry for delivering an event to a destination. The event must exist, and the destination must be enabled, match the event's topic and already have a delivery attempt for the event. A retry does not deliver an event to a destination that was never sent it.
+
+        Returns 404 `event not found` if the event does not exist, and 404 `destination not found` if the destination does not exist for the event's tenant or has been deleted.
 
         When authenticated with a Tenant JWT, only events belonging to that tenant can be retried.
         When authenticated with Admin API Key, events from any tenant can be retried.
@@ -5628,6 +5630,7 @@ paths:
             Bad request. This can happen when:
             - The destination is disabled
             - The destination does not match the event's topic
+            - The event has no delivery attempt for the destination
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
