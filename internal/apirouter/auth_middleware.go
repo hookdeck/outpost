@@ -44,11 +44,12 @@ type AuthOptions struct {
 //  1. VPC mode (apiKey=""): grant admin, resolve tenant if RequireTenant, done.
 //  2. Validate auth header → 401 if missing/malformed.
 //  3. token == apiKey → admin, resolve tenant if RequireTenant, done.
-//  4. JWT.Extract(token) → 401 if invalid.
+//  4. JWT.Extract(token) → 401 if invalid, or if its deployment_id claim
+//     is set and differs from deploymentID.
 //  5. AdminOnly? → 403.
 //  6. :tenant_id param mismatch? → 403.
 //  7. Set tenantID + RoleTenant, always resolve tenant for JWT → 401 if missing/deleted.
-func AuthMiddleware(apiKey, jwtSecret string, tenantRetriever TenantRetriever, opts AuthOptions) gin.HandlerFunc {
+func AuthMiddleware(apiKey, jwtSecret, deploymentID string, tenantRetriever TenantRetriever, opts AuthOptions) gin.HandlerFunc {
 	// VPC mode — no API key configured, everything is admin.
 	if apiKey == "" {
 		return func(c *gin.Context) {
@@ -87,6 +88,10 @@ func AuthMiddleware(apiKey, jwtSecret string, tenantRetriever TenantRetriever, o
 		// 4. Try JWT
 		claims, err := JWT.Extract(jwtSecret, token)
 		if err != nil {
+			c.AbortWithStatus(http.StatusUnauthorized)
+			return
+		}
+		if claims.DeploymentID != "" && claims.DeploymentID != deploymentID {
 			c.AbortWithStatus(http.StatusUnauthorized)
 			return
 		}

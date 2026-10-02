@@ -63,6 +63,7 @@ type apiTestConfig struct {
 	subscriptionEmitter  apirouter.SubscriptionEmitter
 	logger               *logging.Logger
 	topicsAllowWildcards bool
+	deploymentID         string
 }
 
 func withTenantStore(ts tenantstore.TenantStore) apiTestOption {
@@ -92,6 +93,12 @@ func withLogger(l *logging.Logger) apiTestOption {
 func withTopicsAllowWildcards(allow bool) apiTestOption {
 	return func(cfg *apiTestConfig) {
 		cfg.topicsAllowWildcards = allow
+	}
+}
+
+func withDeploymentID(id string) apiTestOption {
+	return func(cfg *apiTestConfig) {
+		cfg.deploymentID = id
 	}
 }
 
@@ -132,6 +139,7 @@ func newAPITest(t *testing.T, opts ...apiTestOption) *apiTest {
 			ServiceName:          "test",
 			APIKey:               testAPIKey,
 			JWTSecret:            testJWTSecret,
+			DeploymentID:         cfg.deploymentID,
 			Topics:               testutil.TestTopics,
 			TopicsAllowWildcards: cfg.topicsAllowWildcards,
 			Registry:             registry,

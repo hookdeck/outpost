@@ -84,7 +84,7 @@ func registerRoutes(router *gin.RouterGroup, cfg RouterConfig, tenantRetriever T
 func buildMiddlewareChain(cfg RouterConfig, tenantRetriever TenantRetriever, def RouteDefinition) []gin.HandlerFunc {
 	chain := make([]gin.HandlerFunc, 0)
 
-	chain = append(chain, AuthMiddleware(cfg.APIKey, cfg.JWTSecret, tenantRetriever, AuthOptions{
+	chain = append(chain, AuthMiddleware(cfg.APIKey, cfg.JWTSecret, cfg.DeploymentID, tenantRetriever, AuthOptions{
 		AdminOnly:     def.AdminOnly,
 		RequireTenant: def.RequireTenant,
 	}))
