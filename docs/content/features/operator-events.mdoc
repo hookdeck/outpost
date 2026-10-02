@@ -46,13 +46,13 @@ The `attempt.success` and `attempt.failed` topics fire once per delivery attempt
 Operator event delivery and topic selection are managed through [Hookdeck Monitoring settings](https://dashboard.hookdeck.com/settings/project/monitoring).
 {% /tab %}
 {% tab label="Self-Hosted" %}
-If `OPERATOR_EVENTS_TOPICS` is empty or unset, operator events are disabled. If topics are configured but no sink is set, Outpost fails to start.
+If `OPERATOR_EVENTS_TOPICS` is empty or unset, operator events are disabled. If topics are configured but no sink is set, Outpost logs a warning and drops operator events.
 {% /tab %}
 {% /tabs %}
 
 ### Sinks
 
-Configure exactly one sink to receive events.
+Configure one sink to receive events. If more than one is configured, Outpost uses the first of HTTP, AWS SQS, GCP Pub/Sub and RabbitMQ.
 
 {% tabs tabGroup="deployment" %}
 {% tab label="Managed" %}
