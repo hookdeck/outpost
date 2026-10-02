@@ -47,6 +47,8 @@ The same endpoints also return `400` `invalid cursor` for every `next` or `prev`
 
 The attempts of a deleted destination stay available from `GET /attempts` with the `destination_id` filter and from `GET /attempts/:attempt_id`.
 
+In the SDKs, the `destinations` methods that list and get attempts now fail with `NotFoundError` for a deleted destination. This applies to SDK versions generated before v1.6 as well.
+
 ## Behavior Changes
 
 ### Invalid publish queue messages are rejected
@@ -67,6 +69,6 @@ Other failures are still redelivered without limit unless you set the new `PUBLI
 
 - `DESTINATIONS_WEBHOOK_PROXY_URL` is deprecated in favor of `DESTINATIONS_PROXY_URL`, which also applies to RabbitMQ and Kafka destinations. The old variable still works and overrides the new one for webhooks.
 - Connecting to a RabbitMQ destination now has to finish within `DELIVERY_TIMEOUT_SECONDS` (default `5`). Before, the connection had its own 30 second timeout.
-- Every API error response now has the JSON error body (`{"status": 404, "message": "destination not found"}`). In v1.5, `401` and `403` responses and the `409` from `POST /publish` had no body, and the `404` for a missing destination or destination type was plain text. Their status codes are unchanged.
+- Every API error response now has the JSON error body (`{"status": 404, "message": "destination not found"}`). In v1.5, `401` and `403` responses and the `409` from `POST /publish` had no body, and the `404` for a missing destination or destination type was plain text. Their status codes are unchanged. The SDKs, including versions generated before v1.6, now surface a `401` as `UnauthorizedError` instead of the generic `APIError`.
 - `POST /retry` for a deleted destination returns `404` instead of `500`.
 - `GET /topics` returns `[]` instead of `null` when no topics are configured.
