@@ -2,9 +2,9 @@ package mqs
 
 import (
 	"context"
-	"time"
 
 	nativepubsub "cloud.google.com/go/pubsub"
+	"google.golang.org/api/option"
 )
 
 func ForceCloseRabbitMQConnection(q Queue) error {
@@ -59,42 +59,12 @@ func GCPReceiveSettings(q Queue, opts ...SubscribeOption) nativepubsub.ReceiveSe
 	return rs
 }
 
-type GCPSubscriberAPI = gcpSubscriberAPI
-
-func NewGCPSubscriberClient(ctx context.Context) (GCPSubscriberAPI, error) {
-	return newGCPSubscriberClient(ctx)
+// GCPSubscribe subscribes with extra client options, e.g. a test server.
+func GCPSubscribe(ctx context.Context, q Queue, clientOpts []option.ClientOption, opts ...SubscribeOption) (Subscription, error) {
+	return q.(*GCPPubSubQueue).subscribe(ctx, ApplySubscribeOptions(opts), clientOpts...)
 }
 
-func NewGCPPullSubscription(ctx context.Context, api GCPSubscriberAPI, path string, opts ...SubscribeOption) Subscription {
-	return newGCPPullSubscription(ctx, api, path, ApplySubscribeOptions(opts))
-}
-
-func IsGCPPull(sub Subscription) bool {
-	_, ok := sub.(*gcpPullSubscription)
+func IsGCPLimited(sub Subscription) bool {
+	_, ok := sub.(*gcpLimitedSubscription)
 	return ok
-}
-
-// GCPPullState is what a pull subscription holds (received, not settled) and
-// has asked for (response pending).
-type GCPPullState struct {
-	HeldCount      int
-	HeldBytes      int64
-	Requested      int
-	RequestedBytes int64 // reserved by the pulls in flight
-	ResponseBytes  int64 // what one pull response is expected to carry at most
-}
-
-func GCPPullStateOf(sub Subscription) GCPPullState {
-	s := sub.(*gcpPullSubscription)
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return GCPPullState{HeldCount: s.heldCount, HeldBytes: s.heldBytes, Requested: s.reqCount, RequestedBytes: s.reqBytes, ResponseBytes: s.response}
-}
-
-const GCPPullSizePeriod = gcpPullSizePeriod
-
-// GCPSizeWindow returns the add and largest functions of a new size window.
-func GCPSizeWindow() (add func(time.Time, int64), largest func(time.Time) int64) {
-	w := &gcpSizeWindow{}
-	return w.add, w.largest
 }

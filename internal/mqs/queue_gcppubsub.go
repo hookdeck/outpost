@@ -3,6 +3,7 @@ package mqs
 import (
 	"context"
 	"fmt"
+	"math"
 	"sync"
 	"time"
 
@@ -127,7 +128,6 @@ func (q *GCPPubSubQueue) Publish(ctx context.Context, incomingMessage IncomingMe
 
 func (q *GCPPubSubQueue) Subscribe(ctx context.Context, opts ...SubscribeOption) (Subscription, error) {
 	o := ApplySubscribeOptions(opts)
-	concurrency := o.Concurrency
 
 	var clientOpts []option.ClientOption
 	if q.config.ServiceAccountCredentials != "" {
@@ -137,22 +137,11 @@ func (q *GCPPubSubQueue) Subscribe(ctx context.Context, opts ...SubscribeOption)
 		}
 		clientOpts = append(clientOpts, option.WithCredentials(creds))
 	}
+	return q.subscribe(ctx, o, clientOpts...)
+}
 
-	// StreamingPull cannot bound the bytes a subscriber holds. Pub/Sub limits
-	// a stream by message count only, and a message it has sent that the
-	// client has not read yet has its ack deadline running: it expires
-	// unread, is sent again, and can be dead-lettered without being handled.
-	// With a byte limit, messages are pulled in batches sized to the room
-	// left instead.
-	if o.MaxBytes > 0 {
-		api, err := newGCPSubscriberClient(ctx, clientOpts...)
-		if err != nil {
-			return nil, fmt.Errorf("create pubsub client: %w", err)
-		}
-		path := fmt.Sprintf("projects/%s/subscriptions/%s", q.config.ProjectID, q.config.SubscriptionID)
-		return newGCPPullSubscription(ctx, api, path, o), nil
-	}
-
+func (q *GCPPubSubQueue) subscribe(ctx context.Context, o SubscribeOptions, clientOpts ...option.ClientOption) (Subscription, error) {
+	concurrency := o.Concurrency
 	client, err := nativepubsub.NewClient(ctx, q.config.ProjectID, clientOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("create pubsub client: %w", err)
@@ -160,6 +149,10 @@ func (q *GCPPubSubQueue) Subscribe(ctx context.Context, opts ...SubscribeOption)
 
 	sub := client.Subscription(q.config.SubscriptionID)
 	q.configureReceive(&sub.ReceiveSettings, o)
+
+	if o.MaxBytes > 0 {
+		return newGCPLimitedSubscription(ctx, client, sub), nil
+	}
 
 	msgChan := make(chan *Message, concurrency)
 	subCtx, cancel := context.WithCancel(ctx)
@@ -215,6 +208,11 @@ func (q *GCPPubSubQueue) configureReceive(rs *nativepubsub.ReceiveSettings, o Su
 	// any handler that takes >10s. Setting MinExtensionPeriod to match the
 	// subscription's visibility timeout prevents this override.
 	rs.MinExtensionPeriod = q.visibilityTimeout
+	if o.MaxBytes > 0 {
+		// Sent on the StreamingPull request: Pub/Sub stops sending once the
+		// unacked messages reach either limit.
+		rs.MaxOutstandingBytes = int(min(o.MaxBytes, math.MaxInt))
+	}
 }
 
 // gcpNativeSubscription bridges the native SDK StreamingPull to the mqs.Subscription interface.
