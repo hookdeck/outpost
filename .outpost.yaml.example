@@ -24,7 +24,7 @@ clickhouse:
 
 ## Message Queue
 mqs:
-  # Choose either RabbitMQ or AWS SQS configuration
+  # Configure one provider only
 
   # RabbitMQ Configuration Example
   rabbitmq:
@@ -34,13 +34,20 @@ mqs:
     log_queue: "outpost-log" # Queue for log events
 
   # AWS SQS Configuration Example
-  awssqs:
+  aws_sqs:
     access_key_id: "YOUR_AWS_ACCESS_KEY" # AWS access key ID
     secret_access_key: "YOUR_AWS_SECRET_KEY" # AWS secret access key
     region: "us-west-2" # AWS region
     endpoint: "https://sqs.us-west-2.amazonaws.com" # SQS endpoint (optional, for custom endpoints)
     delivery_queue: "outpost-delivery" # SQS queue name for delivery events
     log_queue: "outpost-log" # SQS queue name for log events
+
+  # NATS JetStream Configuration Example
+  nats:
+    server_url: "nats://localhost:4222" # NATS server URL
+    stream: "outpost" # JetStream stream name
+    delivery_subject: "outpost.delivery" # Subject for delivery events (must start with "<stream>.")
+    log_subject: "outpost.log" # Subject for log events (must start with "<stream>.")
 
 # Application Configuration
 aes_encryption_secret: "" # Secret for AES encryption
@@ -68,6 +75,11 @@ publish_max_redeliveries: -1 # Max redeliveries of a failed publish message befo
 delivery_max_concurrency: 1 # Max number of delivery messages to process concurrently
 log_max_concurrency: 1 # Max number of log messages to process concurrently
 
+## Supervisor
+# Restart queue workers that fail instead of reporting them failed at once. Off by default.
+# supervisor:
+#   restart_workers: [publishmq, deliverymq, logmq, retrymq]
+
 ## Log Batcher
 log_batch_threshold_seconds: 10 # Time to wait before sending a batch of logs (env: LOG_BATCH_THRESHOLD_SECONDS)
 log_batch_size: 1000 # Maximum number of logs to include in a batch (env: LOG_BATCH_SIZE)
@@ -84,6 +96,9 @@ portal:
 # Destinations Configuration
 destinations:
   metadata_path: "config/outpost/destinations" # Path to destination metadata
+  # proxy_url: "http://user:pass@proxy:10000" # Forward proxy for webhook, RabbitMQ and Kafka destinations
+  # aws_eventbridge:
+  #   source: "outpost" # EventBridge Source set on every event
   webhook:
     header_prefix: "x-custom-" # Prefix for webhook headers
     # disable_default_event_id_header

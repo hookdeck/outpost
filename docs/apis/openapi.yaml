@@ -4,6 +4,8 @@ info:
   version: "0.0.1"
   description: |
     The Outpost API is a REST-based JSON API for managing tenants, destinations, and publishing events.
+
+    Outpost runs in two deployment models: **managed** (hosted by Hookdeck) and **self-hosted**. They differ in where the API is served and in which API key authenticates server-side calls. On managed Outpost, use a Hookdeck project API key from your Outpost project. On self-hosted Outpost, use the key set in the `API_KEY` environment variable. A few endpoints exist in one model only and say so in their description.
   contact:
     name: Outpost Support
     email: support@hookdeck.com
@@ -13,15 +15,27 @@ security:
   - TenantJwt: []
 servers:
   - url: https://api.outpost.hookdeck.com/2025-07-01
-    description: Outpost API (production)
+    description: Managed Outpost, hosted by Hookdeck at `api.outpost.hookdeck.com`. The Hookdeck Event Gateway API at `api.hookdeck.com` is a separate API.
   - url: http://localhost:3333/api/v1
-    description: Local development server base path
+    description: Self-hosted Outpost, at its default local address. A deployed instance serves the same paths under its own host.
 components:
   securitySchemes:
     AdminApiKey:
       type: http
       scheme: bearer
-      description: Admin API Key configured via API_KEY environment variable.
+      description: |
+        Bearer token for server-side calls. Where it comes from depends on the
+        deployment:
+
+        - **Managed:** a Hookdeck **project API key belonging to your
+          Outpost project** (Hookdeck Dashboard → your Outpost project →
+          Settings → Secrets). A key from a different Hookdeck project
+          authenticates but returns `404` on most Outpost routes.
+        - **Self-hosted:** the admin API key set in the `API_KEY` environment
+          variable.
+
+        The scheme is named for the self-hosted credential. Managed Outpost has
+        no separate admin key to create. The project API key takes its place.
     TenantJwt:
       type: http
       scheme: bearer
@@ -3699,8 +3713,8 @@ components:
     ManagedConfig:
       type: object
       description: |
-        Managed configuration values for Outpost Cloud.
-        This API is available only on the managed version.
+        Configuration values for managed Outpost.
+        This API is only available on managed Outpost.
         Self-hosted deployments configure these values using environment variables.
       properties:
         ALERT_AUTO_DISABLE_DESTINATION:
@@ -4053,13 +4067,13 @@ tags:
   - name: Configuration
     x-outpost-deployment: managed
     description: |
-      The Configuration API is available for **managed Outpost** deployments only. It allows you to read and update instance-level settings — the same settings available as environment variables in self-hosted deployments.
+      The Configuration API is only available on managed Outpost. It allows you to read and update instance-level settings, the same settings available as environment variables in self-hosted deployments.
   - name: Operator Events
     x-outpost-deployment: managed
     description: |
       Operator events are Outpost's own lifecycle and alerting stream: delivery failures, destinations being auto-disabled, retry exhaustion and tenant subscription changes. They are about the deployment, not about a tenant's traffic, so they are delivered to **operator event destinations** rather than to tenant destinations.
 
-      The Operator Events API is available for **managed Outpost** deployments only, and requires the Admin API Key. Self-hosted deployments configure the same thing through environment variables and a single sink — see the [Operator Events](https://hookdeck.com/docs/outpost/features/operator-events) feature page.
+      The Operator Events API is only available on managed Outpost, and requires the Admin API Key. Self-hosted deployments configure the same thing through environment variables and a single sink — see the [Operator Events](https://hookdeck.com/docs/outpost/features/operator-events) feature page.
 
       **Available topics**
 
@@ -4250,7 +4264,7 @@ paths:
       description: |
         Returns managed Outpost configuration values.
 
-        This endpoint is only available for the managed version.
+        This endpoint is only available on managed Outpost.
         In self-hosted deployments, configuration is controlled through environment variables instead.
       operationId: getManagedConfig
       x-outpost-deployment: managed
@@ -4275,7 +4289,7 @@ paths:
       description: |
         Updates one or more managed Outpost configuration values. Null values clear the configuration and reverts to Outpost default behavior.
 
-        This endpoint is only available for the managed version.
+        This endpoint is only available on managed Outpost.
         In self-hosted deployments, configuration is controlled through environment variables instead.
 
         Only the supported configuration keys are accepted.

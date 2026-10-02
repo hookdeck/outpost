@@ -1,0 +1,88 @@
+---
+title: "Upgrade to v1.6"
+description: "Breaking changes and behavior changes when upgrading Outpost from v1.5 to v1.6."
+---
+
+This guide covers what changes when upgrading from v1.5 to v1.6. There are four breaking API changes and one behavior change to review before upgrading. There are no new PostgreSQL or ClickHouse migrations.
+
+| Change | Impact | Action Required |
+| --- | --- | --- |
+| [Attempts no longer embed destination credentials](#attempts-no-longer-embed-destination-credentials) | API clients and SDKs reading attempts with `include=destination` | Upgrade the SDK; read credentials from the destination endpoints |
+| [Event and attempt lists reject an invalid limit](#event-and-attempt-lists-reject-an-invalid-limit) | API clients listing events or attempts with a `limit` over 1000 | Send a `limit` between 1 and 1000 |
+| [Destination attempts endpoints return 404 for a deleted destination](#destination-attempts-endpoints-return-404-for-a-deleted-destination) | API clients reading the attempts of a deleted destination through its own endpoints | Read them from `GET /attempts` with the `destination_id` filter |
+| [Retry reports whether the event or the destination is the problem](#retry-reports-whether-the-event-or-the-destination-is-the-problem) | API clients that treat every `404` from `POST /retry` as a missing event | Handle `404` `destination not found` and `400` |
+| [Invalid publish queue messages are rejected](#invalid-publish-queue-messages-are-rejected) | Publishing from RabbitMQ or Azure Service Bus | Configure dead-lettering if you want to keep invalid messages |
+
+For new features and fixes, see the [v1.6.0 release notes](https://github.com/hookdeck/outpost/releases/tag/v1.6.0).
+
+## Breaking Changes
+
+### Attempts no longer embed destination credentials
+
+`include=destination` on `GET /attempts`, `GET /attempts/:id`, and `GET /tenants/:tenant_id/destinations/:destination_id/attempts` now returns the destination without `credentials`. Credentials are only returned by the destination endpoints, for example `GET /tenants/:tenant_id/destinations/:destination_id`.
+
+SDK versions generated before v1.6 type the embedded destination as a full destination with required `credentials`, so they can fail to parse these responses. Upgrade to an SDK release generated from the v1.6 API before calling attempts with `include=destination` against a v1.6 server. In the new SDKs the embedded destination is an `AttemptDestination`, whose `config` is a generic string map instead of a per-type object.
+
+The request body that Outpost logs on a 5xx response also redacts the values in `credentials` now.
+
+### Event and attempt lists reject an invalid limit
+
+`GET /events`, `GET /attempts`, and `GET /tenants/:tenant_id/destinations/:destination_id/attempts` now return `400` for a `limit` that is not an integer between 1 and 1000. v1.5 accepted any value.
+
+| `limit` | v1.5 | v1.6 |
+| --- | --- | --- |
+| Over 1000 | `200`, capped at 1000 | `400` `invalid limit: must be between 1 and 1000` |
+| 0 or negative | `200` with the default of 100 | `400` `invalid limit: must be between 1 and 1000` |
+| Not an integer | `200` with the default of 100 | `400` `invalid limit: must be an integer` |
+
+The same endpoints also return `400` with a message that starts with `invalid cursor` for every `next` or `prev` cursor they can't read. v1.5 ignored some of them and returned the first page. Cursors returned by Outpost, including ones returned before the upgrade, still work.
+
+### Destination attempts endpoints return 404 for a deleted destination
+
+`GET /tenants/:tenant_id/destinations/:destination_id/attempts` and `GET /tenants/:tenant_id/destinations/:destination_id/attempts/:attempt_id` now return `404` `destination not found` when the destination is deleted or does not exist, like the other destination endpoints.
+
+| Destination in the path | v1.5 | v1.6 |
+| --- | --- | --- |
+| Deleted | `200` with its attempts | `404` `destination not found` |
+| Does not exist | `200` with an empty list, or `404` `attempt not found` for a single attempt | `404` `destination not found` |
+
+The attempts of a deleted destination stay available from `GET /attempts` with the `destination_id` filter and from `GET /attempts/:attempt_id`.
+
+In the SDKs, the `destinations` methods that list and get attempts now fail with `NotFoundError` for a deleted destination. This applies to SDK versions generated before v1.6 as well.
+
+### Retry reports whether the event or the destination is the problem
+
+`POST /retry` needs an earlier attempt of the event for the destination. In v1.5, a request without one returned `404` `event not found`, whatever the reason. v1.6 checks the event first, then the destination:
+
+| The event exists, the destination has no attempt for it and is | v1.5 | v1.6 |
+| --- | --- | --- |
+| Missing or deleted | `404` `event not found` | `404` `destination not found` |
+| Disabled | `404` `event not found` | `400` `Destination is disabled` |
+| Not matching the event's topic or filter | `404` `event not found` | `400` `destination does not match event` |
+| Enabled and matching | `404` `event not found` | `400` `event has no attempt for this destination` |
+
+A missing event still returns `404` `event not found`, and a retry for a destination that has an attempt for the event is unchanged.
+
+## Behavior Changes
+
+### Invalid publish queue messages are rejected
+
+A publish queue message that can never succeed is now rejected on its first failure instead of being redelivered. This covers invalid JSON, `data` that is not a JSON object, and a missing `topic` when `TOPICS` is set.
+
+| Broker | v1.5 | v1.6 |
+| --- | --- | --- |
+| RabbitMQ | Requeued and redelivered without limit | Rejected without requeue: routed to the queue's dead-letter exchange if it has one, discarded otherwise |
+| Azure Service Bus | Abandoned until the subscription's max delivery count | Dead-lettered on the first failure |
+| AWS SQS, GCP Pub/Sub | Redelivered until the queue's own limit | Unchanged |
+
+If you publish from RabbitMQ and want to keep invalid messages, configure a dead-letter exchange on the queue before upgrading. See the Failed messages section of [Publish from RabbitMQ](/docs/outpost/publishing/publish-from-rabbitmq#failed-messages).
+
+Other failures are still redelivered without limit unless you set the new `PUBLISH_MAX_REDELIVERIES`.
+
+### Other changes
+
+- `DESTINATIONS_WEBHOOK_PROXY_URL` is deprecated in favor of `DESTINATIONS_PROXY_URL`, which also applies to RabbitMQ and Kafka destinations. The old variable still works and overrides the new one for webhooks.
+- Connecting to a RabbitMQ destination now has to finish within `DELIVERY_TIMEOUT_SECONDS` (default `5`). Before, the connection had its own 30 second timeout.
+- Every API error response now has the JSON error body (`{"status": 404, "message": "destination not found"}`). In v1.5, `401` and `403` responses and the `409` from `POST /publish` had no body, and the `404` for a missing destination or destination type was plain text. Their status codes are unchanged. The SDKs, including versions generated before v1.6, now surface a `401` as `UnauthorizedError` instead of the generic `APIError`.
+- `POST /retry` for a deleted destination returns `404` instead of `500`.
+- `GET /topics` returns `[]` instead of `null` when no topics are configured.
