@@ -49,6 +49,13 @@ func (s *basicSuite) TestErrorResponses_RetryValidation() {
 	eventID := idgen.Event()
 	s.publish(tenant.ID, "user.created", map[string]any{"test": "retry_validation"}, withEventID(eventID))
 	s.waitForNewAttempts(tenant.ID, 1)
+	s.waitForEventInLogstore(eventID)
+
+	// Created after the delivery: no attempt for the event.
+	later := s.createWebhookDestination(tenant.ID, "*")
+	laterMismatch := s.createWebhookDestination(tenant.ID, "user.deleted")
+	laterDisabled := s.createWebhookDestination(tenant.ID, "*")
+	s.disableDestination(tenant.ID, laterDisabled.ID)
 
 	retry := func(name string, body any, status int, message, detail string) errorCase {
 		return errorCase{
@@ -63,6 +70,15 @@ func (s *basicSuite) TestErrorResponses_RetryValidation() {
 		retry("no body", nil, http.StatusUnprocessableEntity, invalidJSON, ""),
 		retry("missing event_id", map[string]any{"destination_id": dest.ID}, http.StatusUnprocessableEntity, validationError, "event_id is required"),
 		retry("missing destination_id", map[string]any{"event_id": eventID}, http.StatusUnprocessableEntity, validationError, "destination_id is required"),
+
+		retry("destination without an attempt for the event", map[string]any{"event_id": eventID, "destination_id": later.ID}, http.StatusBadRequest, "event has no attempt for this destination", ""),
+		retry("destination without an attempt that does not match the event", map[string]any{"event_id": eventID, "destination_id": laterMismatch.ID}, http.StatusBadRequest, "destination does not match event", ""),
+		retry("disabled destination without an attempt", map[string]any{"event_id": eventID, "destination_id": laterDisabled.ID}, http.StatusBadRequest, "Destination is disabled", "destination_disabled"),
+	})
+
+	s.Run("destination without an attempt receives nothing", func() {
+		events, _ := s.fetchMockServerEvents(later.ID)
+		s.Empty(events)
 	})
 
 	destinationURL := s.apiURL("/tenants/" + tenant.ID + "/destinations/" + dest.ID)

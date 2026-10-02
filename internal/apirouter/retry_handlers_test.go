@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// unscopedLogStore ignores the tenant filter on attempt lookups.
+// unscopedLogStore ignores the tenant filter on attempt and event lookups.
 type unscopedLogStore struct {
 	logstore.LogStore
 }
@@ -25,6 +25,11 @@ type unscopedLogStore struct {
 func (s *unscopedLogStore) ListAttempt(ctx context.Context, req logstore.ListAttemptRequest) (logstore.ListAttemptResponse, error) {
 	req.TenantIDs = nil
 	return s.LogStore.ListAttempt(ctx, req)
+}
+
+func (s *unscopedLogStore) RetrieveEvent(ctx context.Context, req logstore.RetrieveEventRequest) (*models.Event, error) {
+	req.TenantID = ""
+	return s.LogStore.RetrieveEvent(ctx, req)
 }
 
 // retrieveDestinationErrorStore fails every destination lookup.
@@ -241,18 +246,6 @@ func TestAPI_Retry(t *testing.T) {
 			assert.Empty(t, h.deliveryPub.calls)
 		})
 
-		t.Run("destination without an attempt for the event returns 404", func(t *testing.T) {
-			h := setup(t)
-
-			req := h.jsonReq(http.MethodPost, "/api/v1/retry", map[string]any{
-				"event_id":       "e1",
-				"destination_id": "nonexistent",
-			})
-			resp := h.do(h.withAPIKey(req))
-
-			testutil.RequireErrorResponse(t, resp, http.StatusNotFound, "event not found")
-		})
-
 		t.Run("destination store error returns 500", func(t *testing.T) {
 			h := setup(t, withTenantStore(&retrieveDestinationErrorStore{tenantstore.NewMemTenantStore()}))
 
@@ -335,6 +328,112 @@ func TestAPI_Retry(t *testing.T) {
 			})
 			resp := h.do(h.withAPIKey(req))
 			testutil.RequireErrorResponse(t, resp, http.StatusBadRequest, "destination does not match event")
+		})
+	})
+
+	// The event exists, but the destination in the request has no attempt for it.
+	t.Run("No attempt for the destination", func(t *testing.T) {
+		retry := func(h *apiTest, eventID, destinationID string) *http.Request {
+			return h.jsonReq(http.MethodPost, "/api/v1/retry", map[string]any{
+				"event_id":       eventID,
+				"destination_id": destinationID,
+			})
+		}
+
+		t.Run("unknown destination returns 404 destination not found", func(t *testing.T) {
+			h := setup(t)
+
+			resp := h.do(h.withAPIKey(retry(h, "e1", "nonexistent")))
+
+			testutil.RequireErrorResponse(t, resp, http.StatusNotFound, "destination not found")
+			assert.Empty(t, h.deliveryPub.calls)
+		})
+
+		t.Run("unknown event and unknown destination returns 404 event not found", func(t *testing.T) {
+			h := setup(t)
+
+			resp := h.do(h.withAPIKey(retry(h, "nonexistent", "nonexistent")))
+
+			testutil.RequireErrorResponse(t, resp, http.StatusNotFound, "event not found")
+		})
+
+		t.Run("destination of another tenant returns 404 destination not found", func(t *testing.T) {
+			h := setup(t)
+			require.NoError(t, h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t2"))))
+			require.NoError(t, h.tenantStore.UpsertDestination(t.Context(), df.Any(df.WithID("d2"), df.WithTenantID("t2"), df.WithTopics([]string{"*"}))))
+
+			resp := h.do(h.withAPIKey(retry(h, "e1", "d2")))
+
+			testutil.RequireErrorResponse(t, resp, http.StatusNotFound, "destination not found")
+			assert.Empty(t, h.deliveryPub.calls)
+		})
+
+		t.Run("deleted destination returns 404 destination not found", func(t *testing.T) {
+			h := setup(t)
+			require.NoError(t, h.tenantStore.UpsertDestination(t.Context(), df.Any(df.WithID("d2"), df.WithTenantID("t1"), df.WithTopics([]string{"*"}))))
+			require.NoError(t, h.tenantStore.DeleteDestination(t.Context(), "t1", "d2"))
+
+			resp := h.do(h.withAPIKey(retry(h, "e1", "d2")))
+
+			testutil.RequireErrorResponse(t, resp, http.StatusNotFound, "destination not found")
+		})
+
+		t.Run("disabled destination returns 400", func(t *testing.T) {
+			h := setup(t)
+			require.NoError(t, h.tenantStore.UpsertDestination(t.Context(), df.Any(df.WithID("d2"), df.WithTenantID("t1"), df.WithTopics([]string{"*"}), df.WithDisabledAt(time.Now()))))
+
+			resp := h.do(h.withAPIKey(retry(h, "e1", "d2")))
+
+			testutil.RequireErrorResponse(t, resp, http.StatusBadRequest, "Destination is disabled")
+		})
+
+		t.Run("topic mismatch returns 400", func(t *testing.T) {
+			h := setup(t)
+			require.NoError(t, h.tenantStore.UpsertDestination(t.Context(), df.Any(df.WithID("d2"), df.WithTenantID("t1"), df.WithTopics([]string{"user.deleted"}))))
+
+			resp := h.do(h.withAPIKey(retry(h, "e1", "d2")))
+
+			testutil.RequireErrorResponse(t, resp, http.StatusBadRequest, "destination does not match event")
+		})
+
+		t.Run("matching destination returns 400 and queues nothing", func(t *testing.T) {
+			h := setup(t)
+			require.NoError(t, h.tenantStore.UpsertDestination(t.Context(), df.Any(df.WithID("d2"), df.WithTenantID("t1"), df.WithTopics([]string{"*"}))))
+
+			for _, withAuth := range []func(*http.Request) *http.Request{
+				h.withAPIKey,
+				func(r *http.Request) *http.Request { return h.withJWT(r, "t1") },
+			} {
+				resp := h.do(withAuth(retry(h, "e1", "d2")))
+
+				testutil.RequireErrorResponse(t, resp, http.StatusBadRequest, "event has no attempt for this destination")
+			}
+			assert.Empty(t, h.deliveryPub.calls)
+		})
+
+		t.Run("jwt other tenant event returns 404 event not found", func(t *testing.T) {
+			h := setup(t)
+			require.NoError(t, h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t2"))))
+			require.NoError(t, h.tenantStore.UpsertDestination(t.Context(), df.Any(df.WithID("d2"), df.WithTenantID("t2"), df.WithTopics([]string{"*"}))))
+
+			// t2's own destination and an unknown one: neither reveals t1's event.
+			for _, destinationID := range []string{"d2", "nonexistent"} {
+				resp := h.do(h.withJWT(retry(h, "e1", destinationID), "t2"))
+
+				testutil.RequireErrorResponse(t, resp, http.StatusNotFound, "event not found")
+			}
+			assert.Empty(t, h.deliveryPub.calls)
+		})
+
+		t.Run("jwt other tenant event returns 404 when the log store returns it", func(t *testing.T) {
+			h := setup(t, withLogStore(&unscopedLogStore{logstore.NewMemLogStore()}))
+			require.NoError(t, h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t2"))))
+			require.NoError(t, h.tenantStore.UpsertDestination(t.Context(), df.Any(df.WithID("d2"), df.WithTenantID("t2"), df.WithTopics([]string{"*"}))))
+
+			resp := h.do(h.withJWT(retry(h, "e1", "d2"), "t2"))
+
+			testutil.RequireErrorResponse(t, resp, http.StatusNotFound, "event not found")
+			assert.Empty(t, h.deliveryPub.calls)
 		})
 	})
 

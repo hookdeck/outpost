@@ -194,6 +194,7 @@ func TestAPI_StoreFailuresReturn500(t *testing.T) {
 
 		// retry_handlers.go
 		{name: "retry: attempt lookup", logFail: "ListAttempt", method: http.MethodPost, path: "/retry", body: retryBody},
+		{name: "retry: event lookup without an attempt", logFail: "RetrieveEvent", method: http.MethodPost, path: "/retry", body: map[string]any{"event_id": "e1", "destination_id": "disabled"}},
 		{name: "retry: destination lookup", tenantFail: "RetrieveDestination", method: http.MethodPost, path: "/retry", body: retryBody},
 	}
 

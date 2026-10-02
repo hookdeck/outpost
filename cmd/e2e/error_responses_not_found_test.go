@@ -84,6 +84,7 @@ func (s *basicSuite) TestErrorResponses_EventAndAttemptNotFound() {
 
 	// Created after the delivery: has no attempt for the event.
 	laterDest := s.createWebhookDestination(tenant.ID, "*")
+	otherDest := s.createWebhookDestination(other.ID, "*")
 
 	admin := s.adminAuth()
 	otherJWT := s.tenantAuth(other.ID)
@@ -107,21 +108,39 @@ func (s *basicSuite) TestErrorResponses_EventAndAttemptNotFound() {
 			status: http.StatusNotFound, message: "event not found",
 		},
 		{
-			name:   "retry to a missing destination",
+			name:   "retry a missing event to a missing destination",
 			method: http.MethodPost, path: "/retry", auth: admin,
-			body:   map[string]any{"event_id": eventID, "destination_id": "des_missing"},
+			body:   map[string]any{"event_id": "evt_missing", "destination_id": "des_missing"},
 			status: http.StatusNotFound, message: "event not found",
 		},
 		{
-			name:   "retry to a destination the event was not delivered to",
+			name:   "retry to a missing destination",
 			method: http.MethodPost, path: "/retry", auth: admin,
-			body:   map[string]any{"event_id": eventID, "destination_id": laterDest.ID},
-			status: http.StatusNotFound, message: "event not found",
+			body:   map[string]any{"event_id": eventID, "destination_id": "des_missing"},
+			status: http.StatusNotFound, message: "destination not found",
+		},
+		{
+			name:   "retry to a destination of another tenant",
+			method: http.MethodPost, path: "/retry", auth: admin,
+			body:   map[string]any{"event_id": eventID, "destination_id": otherDest.ID},
+			status: http.StatusNotFound, message: "destination not found",
 		},
 		{
 			name:   "retry an event of another tenant with jwt",
 			method: http.MethodPost, path: "/retry", auth: otherJWT,
 			body:   map[string]any{"event_id": eventID, "destination_id": dest.ID},
+			status: http.StatusNotFound, message: "event not found",
+		},
+		{
+			name:   "retry an event of another tenant to an own destination with jwt",
+			method: http.MethodPost, path: "/retry", auth: otherJWT,
+			body:   map[string]any{"event_id": eventID, "destination_id": otherDest.ID},
+			status: http.StatusNotFound, message: "event not found",
+		},
+		{
+			name:   "retry an event of another tenant to a missing destination with jwt",
+			method: http.MethodPost, path: "/retry", auth: otherJWT,
+			body:   map[string]any{"event_id": eventID, "destination_id": "des_missing"},
 			status: http.StatusNotFound, message: "event not found",
 		},
 	})
@@ -131,6 +150,15 @@ func (s *basicSuite) TestErrorResponses_EventAndAttemptNotFound() {
 		s.requireError(errorCase{
 			method: http.MethodPost, path: "/retry", auth: admin,
 			body:   map[string]any{"event_id": eventID, "destination_id": dest.ID},
+			status: http.StatusNotFound, message: "destination not found",
+		})
+	})
+
+	s.Run("retry to a deleted destination the event was not sent to", func() {
+		s.deleteDestination(tenant.ID, laterDest.ID)
+		s.requireError(errorCase{
+			method: http.MethodPost, path: "/retry", auth: admin,
+			body:   map[string]any{"event_id": eventID, "destination_id": laterDest.ID},
 			status: http.StatusNotFound, message: "destination not found",
 		})
 	})
