@@ -3,6 +3,7 @@ package mqs
 import (
 	"context"
 	"fmt"
+	"math"
 	"sync"
 	"time"
 
@@ -147,6 +148,9 @@ func (q *GCPPubSubQueue) Subscribe(ctx context.Context, opts ...SubscribeOption)
 	q.configureReceive(&sub.ReceiveSettings, o)
 
 	msgChan := make(chan *Message, concurrency)
+	if o.MaxBytes > 0 {
+		msgChan = make(chan *Message)
+	}
 	subCtx, cancel := context.WithCancel(ctx)
 	done := make(chan struct{})
 
@@ -154,18 +158,34 @@ func (q *GCPPubSubQueue) Subscribe(ctx context.Context, opts ...SubscribeOption)
 		msgChan: msgChan,
 		cancel:  cancel,
 		done:    done,
+		stopped: make(chan struct{}),
 		client:  client,
 	}
 
-	go func() {
-		defer close(done)
-		defer close(msgChan)
-		// sub.Receive blocks until subCtx is cancelled or a fatal error occurs.
-		// The callback nacks on context cancellation to avoid buffering messages
-		// that won't be processed.
-		s.recvErr = sub.Receive(subCtx, func(_ context.Context, msg *nativepubsub.Message) {
+	// The callback nacks on context cancellation to avoid buffering messages
+	// that won't be processed.
+	callback := func(_ context.Context, msg *nativepubsub.Message) {
+		m := &Message{
+			QueueMessage: &gcpNativeAcker{msg: msg},
+			LoggableID:   msg.ID,
+			ID:           msg.ID,
+			Body:         msg.Data,
+		}
+		select {
+		case msgChan <- m:
+		case <-subCtx.Done():
+			msg.Nack()
+		}
+	}
+	if o.MaxBytes > 0 {
+		// The SDK counts a message against MaxOutstandingMessages and
+		// MaxOutstandingBytes only while its callback runs, and stops reading
+		// from the stream when either is used up. With a byte limit the
+		// callback therefore stays in place until the message is settled.
+		callback = func(_ context.Context, msg *nativepubsub.Message) {
+			acker := &gcpSettlingAcker{msg: msg, settled: make(chan struct{})}
 			m := &Message{
-				QueueMessage: &gcpNativeAcker{msg: msg},
+				QueueMessage: acker,
 				LoggableID:   msg.ID,
 				ID:           msg.ID,
 				Body:         msg.Data,
@@ -174,26 +194,23 @@ func (q *GCPPubSubQueue) Subscribe(ctx context.Context, opts ...SubscribeOption)
 			case msgChan <- m:
 			case <-subCtx.Done():
 				msg.Nack()
+				return
 			}
-		})
+			select {
+			case <-acker.settled:
+			case <-s.stopped:
+			}
+		}
+	}
+
+	go func() {
+		defer close(done)
+		defer close(msgChan)
+		// sub.Receive blocks until subCtx is cancelled or a fatal error occurs.
+		s.recvErr = sub.Receive(subCtx, callback)
 	}()
 
-	// The byte limit is enforced by limitBytes, as on the other providers,
-	// and not by ReceiveSettings.MaxOutstandingBytes, which stays at the SDK
-	// default.
-	//
-	// The SDK's MaxOutstanding* settings gate the receive callback: a message
-	// takes its share before the callback is called and gives it back when
-	// the callback returns. The callback above returns as soon as it has
-	// handed the message to msgChan, long before the message is handled, so
-	// those gates never fill up. The Pub/Sub service applies the message
-	// count to the stream on its side, which is why MaxOutstandingMessages
-	// still bounds concurrency, but it has no equivalent for bytes.
-	//
-	// Pub/Sub therefore keeps sending up to MaxOutstandingMessages messages
-	// into the process. They wait here for bytes with their ack deadline
-	// running, and are redelivered if they wait longer than that.
-	return limitBytes(s, o.MaxBytes), nil
+	return s, nil
 }
 
 func (q *GCPPubSubQueue) configureReceive(rs *nativepubsub.ReceiveSettings, o SubscribeOptions) {
@@ -215,15 +232,20 @@ func (q *GCPPubSubQueue) configureReceive(rs *nativepubsub.ReceiveSettings, o Su
 	// any handler that takes >10s. Setting MinExtensionPeriod to match the
 	// subscription's visibility timeout prevents this override.
 	rs.MinExtensionPeriod = q.visibilityTimeout
+	if o.MaxBytes > 0 {
+		rs.MaxOutstandingBytes = int(min(o.MaxBytes, math.MaxInt))
+	}
 }
 
 // gcpNativeSubscription bridges the native SDK StreamingPull to the mqs.Subscription interface.
 type gcpNativeSubscription struct {
-	msgChan <-chan *Message
-	cancel  context.CancelFunc
-	done    chan struct{}
-	client  *nativepubsub.Client
-	recvErr error // set by the background goroutine when sub.Receive exits
+	msgChan  <-chan *Message
+	cancel   context.CancelFunc
+	done     chan struct{}
+	stopped  chan struct{} // closed by Shutdown
+	stopOnce sync.Once
+	client   *nativepubsub.Client
+	recvErr  error // set by the background goroutine when sub.Receive exits
 }
 
 var _ Subscription = &gcpNativeSubscription{}
@@ -246,6 +268,9 @@ func (s *gcpNativeSubscription) Receive(ctx context.Context) (*Message, error) {
 
 func (s *gcpNativeSubscription) Shutdown(_ context.Context) error {
 	s.cancel()
+	// Callers shut down once their handlers are finished: a message still
+	// unsettled now stays that way, so its callback must not keep Receive open.
+	s.stopOnce.Do(func() { close(s.stopped) })
 	<-s.done
 	// Nack any remaining buffered messages for faster redelivery.
 	for msg := range s.msgChan {
@@ -267,3 +292,21 @@ type gcpNativeAcker struct {
 
 func (a *gcpNativeAcker) Ack()  { a.msg.Ack() }
 func (a *gcpNativeAcker) Nack() { a.msg.Nack() }
+
+// gcpSettlingAcker also signals the receive callback that the message is
+// settled.
+type gcpSettlingAcker struct {
+	msg     *nativepubsub.Message
+	settled chan struct{}
+	once    sync.Once
+}
+
+func (a *gcpSettlingAcker) Ack() {
+	a.msg.Ack()
+	a.once.Do(func() { close(a.settled) })
+}
+
+func (a *gcpSettlingAcker) Nack() {
+	a.msg.Nack()
+	a.once.Do(func() { close(a.settled) })
+}

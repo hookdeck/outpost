@@ -3,11 +3,13 @@ package mqs_test
 import (
 	"context"
 	"fmt"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	nativepubsub "cloud.google.com/go/pubsub"
 	"github.com/hookdeck/outpost/internal/consumer"
 	"github.com/hookdeck/outpost/internal/mqs"
 	"github.com/hookdeck/outpost/internal/util/testinfra"
@@ -69,29 +71,39 @@ func TestIntegrationMQMaxBytes_AWSSQSShutdownWhileWaiting(t *testing.T) {
 func TestIntegrationMQMaxBytes_GCPPubSubShutdownWhileWaiting(t *testing.T) {
 	t.Parallel()
 	t.Cleanup(testinfra.Start(t))
-	// The subscription stops with the consumer's context, and the Pub/Sub
-	// client does not send nacks made after that: the waiting message comes
-	// back once its ack deadline passes, too long to wait for here.
+	// Redelivery is not checked. The Pub/Sub client nacks the waiting message
+	// when the consumer stops, but its stream stays open until the handler in
+	// flight has settled, and the emulator sends the nacked message straight
+	// back to that stream, where nobody reads it: it returns once the
+	// stream's 60s ack deadline passes.
 	testMQMaxBytesShutdownWhileWaiting(t, testinfra.NewMQGCPConfig(t, nil), false)
 }
 
-// The byte limit never reaches the Pub/Sub SDK: its receive settings are the
-// same with and without it.
-func TestGCPPubSubQueue_MaxBytesLeavesReceiveSettings(t *testing.T) {
+// On Pub/Sub the limit is the client's own MaxOutstandingBytes. Without a
+// limit the receive settings are the ones used before the option existed.
+func TestGCPPubSubQueue_MaxBytesSetsMaxOutstandingBytes(t *testing.T) {
 	t.Parallel()
-	queue := mqs.NewQueue(&mqs.QueueConfig{GCPPubSub: &mqs.GCPPubSubConfig{}})
+	queue := mqs.NewQueue(&mqs.QueueConfig{
+		GCPPubSub:         &mqs.GCPPubSubConfig{},
+		VisibilityTimeout: 30 * time.Second,
+	})
 
-	off := mqs.GCPReceiveSettings(queue, mqs.WithConcurrency(5))
-	assert.Equal(t, 5, off.MaxOutstandingMessages)
-	assert.Zero(t, off.MaxOutstandingBytes, "left at the SDK default")
+	want := nativepubsub.ReceiveSettings{
+		MaxOutstandingMessages: 5,
+		NumGoroutines:          1,
+		MaxExtension:           -1 * time.Second,
+		MinExtensionPeriod:     30 * time.Second,
+	}
+	assert.Equal(t, want, mqs.GCPReceiveSettings(queue, mqs.WithConcurrency(5)))
+	assert.Equal(t, want, mqs.GCPReceiveSettings(queue, mqs.WithConcurrency(5), mqs.WithMaxBytes(0)))
 
-	on := mqs.GCPReceiveSettings(queue, mqs.WithConcurrency(5), mqs.WithMaxBytes(1<<20))
-	assert.Equal(t, off, on)
+	want.MaxOutstandingBytes = 1 << 20
+	assert.Equal(t, want, mqs.GCPReceiveSettings(queue, mqs.WithConcurrency(5), mqs.WithMaxBytes(1<<20)))
 }
 
-// With a limit the Pub/Sub subscription is wrapped by the shared helper and
-// still manages its own concurrency; without one it is returned as is.
-func TestIntegrationMQMaxBytes_GCPPubSubWrapsSubscription(t *testing.T) {
+// The Pub/Sub client enforces the limit, so the subscription is never wrapped
+// by the shared helper, and it manages its own concurrency either way.
+func TestIntegrationMQMaxBytes_GCPPubSubNotWrapped(t *testing.T) {
 	t.Parallel()
 	t.Cleanup(testinfra.Start(t))
 	config := testinfra.NewMQGCPConfig(t, nil)
@@ -99,13 +111,12 @@ func TestIntegrationMQMaxBytes_GCPPubSubWrapsSubscription(t *testing.T) {
 	queue := mqs.NewQueue(&config)
 
 	cases := []struct {
-		name    string
-		opts    []mqs.SubscribeOption
-		limited bool
+		name string
+		opts []mqs.SubscribeOption
 	}{
 		{name: "no option", opts: []mqs.SubscribeOption{mqs.WithConcurrency(5)}},
 		{name: "zero", opts: []mqs.SubscribeOption{mqs.WithConcurrency(5), mqs.WithMaxBytes(0)}},
-		{name: "limit", opts: []mqs.SubscribeOption{mqs.WithConcurrency(5), mqs.WithMaxBytes(1 << 20)}, limited: true},
+		{name: "limit", opts: []mqs.SubscribeOption{mqs.WithConcurrency(5), mqs.WithMaxBytes(1 << 20)}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -113,11 +124,159 @@ func TestIntegrationMQMaxBytes_GCPPubSubWrapsSubscription(t *testing.T) {
 			require.NoError(t, err)
 			defer subscription.Shutdown(ctx)
 
-			assert.Equal(t, tc.limited, mqs.IsByteLimited(subscription))
+			assert.False(t, mqs.IsByteLimited(subscription))
 			concurrent, ok := subscription.(mqs.ConcurrentSubscription)
 			require.True(t, ok)
 			assert.True(t, concurrent.SupportsConcurrency())
 		})
+	}
+}
+
+// With a byte limit the count limit is held by the Pub/Sub client as well:
+// the emulator sends the whole backlog at once whatever the stream asks for,
+// and only two messages reach handlers at a time.
+func TestIntegrationMQMaxBytes_GCPPubSubCountLimit(t *testing.T) {
+	t.Parallel()
+	t.Cleanup(testinfra.Start(t))
+	config := testinfra.NewMQGCPConfig(t, nil)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	queue := mqs.NewQueue(&config)
+	cleanup, err := queue.Init(ctx)
+	require.NoError(t, err)
+	defer cleanup()
+
+	const total = 12
+	for i := range total {
+		require.NoError(t, queue.Publish(ctx, &Msg{ID: fmt.Sprintf("m-%02d", i)}))
+	}
+
+	subscription, err := queue.Subscribe(ctx, mqs.WithConcurrency(2), mqs.WithMaxBytes(1<<30))
+	require.NoError(t, err)
+	defer subscription.Shutdown(context.Background())
+
+	var (
+		mu       sync.Mutex
+		inFlight int
+		maxSeen  int
+		wg       sync.WaitGroup
+	)
+	for range total {
+		msg, err := subscription.Receive(ctx)
+		require.NoError(t, err)
+		mu.Lock()
+		inFlight++
+		maxSeen = max(maxSeen, inFlight)
+		mu.Unlock()
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			time.Sleep(200 * time.Millisecond)
+			mu.Lock()
+			inFlight--
+			mu.Unlock()
+			msg.Ack()
+		}()
+	}
+	wg.Wait()
+	assert.Equal(t, 2, maxSeen)
+}
+
+// The emulator pushes a backlog many times the limit at the subscriber. The
+// process must hold the limit plus what the client has already read from the
+// stream, not the backlog.
+func TestIntegrationMQMaxBytes_GCPPubSubBacklogStaysOutOfProcess(t *testing.T) {
+	t.Cleanup(testinfra.Start(t))
+	config := testinfra.NewMQGCPConfig(t, nil)
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	defer cancel()
+	queue := mqs.NewQueue(&config)
+	cleanup, err := queue.Init(ctx)
+	require.NoError(t, err)
+	defer cleanup()
+
+	const (
+		total    = 64
+		bodySize = 1 << 20
+		limit    = 4 << 20
+		fitting  = 3 // a body is slightly over 1 MiB
+		// The backlog is 64 MiB. Measured: about 14 MiB over the baseline.
+		maxGrowth = 32 << 20
+	)
+	padding := strings.Repeat("x", bodySize)
+	for i := range total {
+		require.NoError(t, queue.Publish(ctx, &Msg{ID: fmt.Sprintf("m-%02d", i), Data: map[string]string{"pad": padding}}))
+	}
+	heap := func() uint64 {
+		runtime.GC()
+		runtime.GC()
+		var stats runtime.MemStats
+		runtime.ReadMemStats(&stats)
+		return stats.HeapAlloc
+	}
+	baseline := heap()
+
+	subscription, err := queue.Subscribe(ctx, mqs.WithConcurrency(total), mqs.WithMaxBytes(limit))
+	require.NoError(t, err)
+	defer subscription.Shutdown(context.Background())
+
+	held := make(chan *mqs.Message, total)
+	go func() {
+		for {
+			msg, err := subscription.Receive(ctx)
+			if err != nil {
+				return
+			}
+			held <- msg
+		}
+	}()
+
+	require.Eventually(t, func() bool { return len(held) == fitting }, 30*time.Second, 10*time.Millisecond)
+	// Time for the client to read whatever it is going to read.
+	time.Sleep(3 * time.Second)
+	assert.Len(t, held, fitting)
+	growth := int64(heap()) - int64(baseline)
+	assert.Less(t, growth, int64(maxGrowth), "heap grew by %d MiB with a %d MiB limit", growth>>20, limit>>20)
+
+	for range total {
+		select {
+		case msg := <-held:
+			msg.Ack()
+		case <-ctx.Done():
+			t.Fatal("backlog not consumed")
+		}
+	}
+}
+
+// A message that is never settled must not keep the subscription from
+// shutting down.
+func TestIntegrationMQMaxBytes_GCPPubSubShutdownWithUnsettledMessage(t *testing.T) {
+	t.Parallel()
+	t.Cleanup(testinfra.Start(t))
+	config := testinfra.NewMQGCPConfig(t, nil)
+	ctx := context.Background()
+	queue := mqs.NewQueue(&config)
+	cleanup, err := queue.Init(ctx)
+	require.NoError(t, err)
+	defer cleanup()
+
+	subscription, err := queue.Subscribe(ctx, mqs.WithConcurrency(5), mqs.WithMaxBytes(1<<20))
+	require.NoError(t, err)
+	require.NoError(t, queue.Publish(ctx, &Msg{ID: "unsettled"}))
+
+	recvCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	defer cancel()
+	_, err = subscription.Receive(recvCtx)
+	require.NoError(t, err)
+
+	stopped := make(chan error, 1)
+	go func() { stopped <- subscription.Shutdown(ctx) }()
+	select {
+	case <-stopped:
+	// The client waits for its next lease pass (up to 10s here) before it
+	// gives up on the unsettled message.
+	case <-time.After(30 * time.Second):
+		t.Fatal("shutdown did not return")
 	}
 }
 
@@ -166,8 +325,13 @@ func testMQMaxBytesShutdownWhileWaiting(t *testing.T, config mqs.QueueConfig, re
 	case <-time.After(20 * time.Second):
 		t.Fatal("no message handled")
 	}
-	require.Eventually(t, func() bool { return mqs.ByteLimitWaiting(subscription) },
-		20*time.Second, 10*time.Millisecond, "second message never waited for bytes")
+	if mqs.IsByteLimited(subscription) {
+		require.Eventually(t, func() bool { return mqs.ByteLimitWaiting(subscription) },
+			20*time.Second, 10*time.Millisecond, "second message never waited for bytes")
+	} else {
+		// The wait happens inside the queue's own client, out of sight.
+		time.Sleep(time.Second)
+	}
 	require.Empty(t, started, "second message started while the first holds the limit")
 
 	cancel()
