@@ -7,6 +7,7 @@ import (
 
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/rsmq"
+	"github.com/hookdeck/outpost/internal/worker"
 	"go.uber.org/zap"
 )
 
@@ -118,8 +119,9 @@ func New(name string, rsmqClient rsmq.Client, exec func(context.Context, string)
 	// Backoff formula: errorBackoffBase * 2^(attempt-1), capped at
 	// maxErrorBackoff. The ladder is independent of pollBackoff so that this
 	// tolerance holds however the idle poll interval is configured.
-	// After maxConsecutiveErrors the worker dies permanently (supervisor does
-	// not restart it), so these values must tolerate transient infra outages
+	// After maxConsecutiveErrors Monitor returns. Unless the worker is
+	// registered with a restart policy, the supervisor does not restart it,
+	// so these values must tolerate transient infra outages
 	// (e.g. managed Redis/Dragonfly restarts) without killing the worker.
 	// ~1 min is sufficient for managed Redis/Dragonfly to recover from
 	// routine restarts or brief network blips.
@@ -206,6 +208,7 @@ func (s *schedulerImpl) Monitor(ctx context.Context) error {
 				continue
 			}
 			consecutiveErrors = 0
+			worker.Ready(ctx)
 			msg := res.Message
 			if msg == nil {
 				select {

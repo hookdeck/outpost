@@ -19,6 +19,19 @@ type ConsumerWorker struct {
 	handler     consumer.MessageHandler
 	concurrency int
 	logger      *logging.Logger
+
+	maxConsecutiveErrors int
+}
+
+// ConsumerWorkerOption configures a ConsumerWorker.
+type ConsumerWorkerOption func(*ConsumerWorker)
+
+// WithMaxConsecutiveErrors sets how many receive errors in a row end a run.
+// Defaults to the consumer package default.
+func WithMaxConsecutiveErrors(n int) ConsumerWorkerOption {
+	return func(w *ConsumerWorker) {
+		w.maxConsecutiveErrors = n
+	}
 }
 
 // NewConsumerWorker creates a new generic consumer worker.
@@ -28,14 +41,19 @@ func NewConsumerWorker(
 	handler consumer.MessageHandler,
 	concurrency int,
 	logger *logging.Logger,
+	opts ...ConsumerWorkerOption,
 ) worker.Worker {
-	return &ConsumerWorker{
+	w := &ConsumerWorker{
 		name:        name,
 		subscribe:   subscribe,
 		handler:     handler,
 		concurrency: concurrency,
 		logger:      logger,
 	}
+	for _, opt := range opts {
+		opt(w)
+	}
+	return w
 }
 
 // Name returns the worker name.
@@ -54,11 +72,17 @@ func (w *ConsumerWorker) Run(ctx context.Context) error {
 		return err
 	}
 
-	csm := consumer.New(subscription, w.handler,
+	worker.Ready(ctx)
+
+	csmOpts := []consumer.Option{
 		consumer.WithName(w.name),
 		consumer.WithConcurrency(w.concurrency),
 		consumer.WithLogger(w.logger),
-	)
+	}
+	if w.maxConsecutiveErrors > 0 {
+		csmOpts = append(csmOpts, consumer.WithMaxConsecutiveErrors(w.maxConsecutiveErrors))
+	}
+	csm := consumer.New(subscription, w.handler, csmOpts...)
 
 	if err := csm.Run(ctx); err != nil {
 		// Only report as failure if it's not a graceful shutdown

@@ -36,6 +36,7 @@ func webhookStandardRegistry(t *testing.T) destregistry.Registry {
 			SignatureSecretPrefix:    destwebhook.StandardSecretPrefix,
 			SigningSecretTemplate:    destwebhook.StandardSigningSecretTmpl,
 		},
+		AWSEventBridge: &destregistrydefault.DestAWSEventBridgeConfig{Source: "outpost"},
 	})
 	require.NoError(t, err)
 	return reg

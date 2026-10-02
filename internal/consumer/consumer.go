@@ -27,8 +27,9 @@ import (
 //	10     15s (cap)  70.4s      ← worker dies (~1 min total)
 //
 // Backoff formula: initialBackoff * 2^(attempt-1), capped at maxBackoff.
-// After maxConsecutiveErrors the worker dies permanently (supervisor does
-// not restart it), so these values must tolerate transient infra outages
+// After maxConsecutiveErrors the run ends. Unless the worker is registered
+// with a restart policy, the supervisor does not restart it, so these values
+// must tolerate transient infra outages
 // (e.g. brief MQ broker restarts, GCP OAuth/DNS blips) without killing the
 // worker. ~1 min is sufficient for managed broker recovery from routine
 // restarts or short network blips.
@@ -45,6 +46,9 @@ type Consumer interface {
 type MessageHandler interface {
 	Handle(context.Context, *mqs.Message) error
 }
+
+// Option configures a consumer created with New.
+type Option = func(*consumerImplOptions)
 
 type consumerImplOptions struct {
 	name                 string

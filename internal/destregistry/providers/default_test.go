@@ -45,6 +45,7 @@ func TestRegisterDefault_WebhookStandardMetadata(t *testing.T) {
 			SignatureSecretEncoding:  destwebhook.StandardSecretEncoding,
 			SignatureSecretPrefix:    destwebhook.StandardSecretPrefix,
 		},
+		AWSEventBridge: &destregistrydefault.DestAWSEventBridgeConfig{Source: "outpost"},
 	})
 	require.NoError(t, err)
 
@@ -77,6 +78,7 @@ func TestRegisterDefault_WebhookCompatSignature(t *testing.T) {
 				SignatureEncoding:        destwebhook.DefaultEncoding,
 				SignatureAlgorithm:       destwebhook.DefaultAlgorithm,
 			}),
+			AWSEventBridge: &destregistrydefault.DestAWSEventBridgeConfig{Source: "outpost"},
 		})
 		assert.NoError(t, err)
 	})

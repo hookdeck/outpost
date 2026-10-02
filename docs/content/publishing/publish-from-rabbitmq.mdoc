@@ -86,6 +86,10 @@ The proxy must allow `CONNECT` to the broker's port (`5672` for `amqp`, `5671` f
 
 `PUBLISH_PROXY_URL` applies to the RabbitMQ publish queue only. AWS SQS, GCP Pub/Sub and Azure Service Bus publish queues connect directly and ignore it, and it never applies to Outpost's internal delivery and log queues.
 
+### Health
+
+In a self-hosted deployment, if the publish consumer fails (it can't subscribe, or 10 receives fail in a row, about 70 seconds), `/healthz` reports it `failed` (HTTP 503) until the process restarts. You can turn on restarts instead by adding `publishmq` to `SUPERVISOR_RESTART_WORKERS`: Outpost then restarts the consumer with a backoff and reports it `degraded` while it retries. See [Supervisor](/docs/outpost/self-hosting/configuration#supervisor) for the limits after which it reports `failed`.
+
 ### Troubleshooting
 
 - [Ask a question](https://github.com/hookdeck/outpost/discussions/new?category=q-a)
