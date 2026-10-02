@@ -24,7 +24,9 @@ actions:
         description: |
           Bearer token for authentication. The SDK exposes a single "apiKey" parameter; its value can be either:
 
-          **Admin API Key:** Static key configured via the `API_KEY` environment variable.
+          **Admin API Key:** Where it comes from depends on the deployment.
+          On managed Outpost, a Hookdeck project API key belonging to your Outpost project (Hookdeck Dashboard → your Outpost project → Settings → Secrets). A key from a different Hookdeck project authenticates but returns `404` on most Outpost routes.
+          On self-hosted Outpost, the key set in the `API_KEY` environment variable.
           Required for admin operations (publishing events, managing tenants, generating tenant tokens).
 
           **JWT (tenant token):** Obtained via GET /tenants/{tenant_id}/token (requires Admin API Key). Valid for 24 hours, scoped to one tenant.
