@@ -3,13 +3,14 @@ title: "Upgrade to v1.6"
 description: "Breaking changes and behavior changes when upgrading Outpost from v1.5 to v1.6."
 ---
 
-This guide covers what changes when upgrading from v1.5 to v1.6. There are three breaking API changes and one behavior change to review before upgrading. There are no new PostgreSQL or ClickHouse migrations.
+This guide covers what changes when upgrading from v1.5 to v1.6. There are four breaking API changes and one behavior change to review before upgrading. There are no new PostgreSQL or ClickHouse migrations.
 
 | Change | Impact | Action Required |
 | --- | --- | --- |
 | [Attempts no longer embed destination credentials](#attempts-no-longer-embed-destination-credentials) | API clients and SDKs reading attempts with `include=destination` | Upgrade the SDK; read credentials from the destination endpoints |
 | [Event and attempt lists reject an invalid limit](#event-and-attempt-lists-reject-an-invalid-limit) | API clients listing events or attempts with a `limit` over 1000 | Send a `limit` between 1 and 1000 |
 | [Destination attempts endpoints return 404 for a deleted destination](#destination-attempts-endpoints-return-404-for-a-deleted-destination) | API clients reading the attempts of a deleted destination through its own endpoints | Read them from `GET /attempts` with the `destination_id` filter |
+| [Retry reports whether the event or the destination is the problem](#retry-reports-whether-the-event-or-the-destination-is-the-problem) | API clients that treat every `404` from `POST /retry` as a missing event | Handle `404` `destination not found` and `400` |
 | [Invalid publish queue messages are rejected](#invalid-publish-queue-messages-are-rejected) | Publishing from RabbitMQ or Azure Service Bus | Configure dead-lettering if you want to keep invalid messages |
 
 For new features and fixes, see the [v1.6.0 release notes](https://github.com/hookdeck/outpost/releases/tag/v1.6.0).
@@ -22,7 +23,7 @@ For new features and fixes, see the [v1.6.0 release notes](https://github.com/ho
 
 SDK versions generated before v1.6 type the embedded destination as a full destination with required `credentials`, so they can fail to parse these responses. Upgrade to an SDK release generated from the v1.6 API before calling attempts with `include=destination` against a v1.6 server. In the new SDKs the embedded destination is an `AttemptDestination`, whose `config` is a generic string map instead of a per-type object.
 
-The request body that Outpost logs on a 5xx response also redacts every credential value now.
+The request body that Outpost logs on a 5xx response also redacts the values in `credentials` now.
 
 ### Event and attempt lists reject an invalid limit
 
@@ -34,7 +35,7 @@ The request body that Outpost logs on a 5xx response also redacts every credenti
 | 0 or negative | `200` with the default of 100 | `400` `invalid limit: must be between 1 and 1000` |
 | Not an integer | `200` with the default of 100 | `400` `invalid limit: must be an integer` |
 
-The same endpoints also return `400` `invalid cursor` for every `next` or `prev` cursor they can't read. v1.5 ignored some of them and returned the first page. Cursors returned by Outpost, including ones returned before the upgrade, still work.
+The same endpoints also return `400` with a message that starts with `invalid cursor` for every `next` or `prev` cursor they can't read. v1.5 ignored some of them and returned the first page. Cursors returned by Outpost, including ones returned before the upgrade, still work.
 
 ### Destination attempts endpoints return 404 for a deleted destination
 
@@ -48,6 +49,19 @@ The same endpoints also return `400` `invalid cursor` for every `next` or `prev`
 The attempts of a deleted destination stay available from `GET /attempts` with the `destination_id` filter and from `GET /attempts/:attempt_id`.
 
 In the SDKs, the `destinations` methods that list and get attempts now fail with `NotFoundError` for a deleted destination. This applies to SDK versions generated before v1.6 as well.
+
+### Retry reports whether the event or the destination is the problem
+
+`POST /retry` needs an earlier attempt of the event for the destination. In v1.5, a request without one returned `404` `event not found`, whatever the reason. v1.6 checks the event first, then the destination:
+
+| The event exists, the destination has no attempt for it and is | v1.5 | v1.6 |
+| --- | --- | --- |
+| Missing or deleted | `404` `event not found` | `404` `destination not found` |
+| Disabled | `404` `event not found` | `400` `Destination is disabled` |
+| Not matching the event's topic or filter | `404` `event not found` | `400` `destination does not match event` |
+| Enabled and matching | `404` `event not found` | `400` `event has no attempt for this destination` |
+
+A missing event still returns `404` `event not found`, and a retry for a destination that has an attempt for the event is unchanged.
 
 ## Behavior Changes
 
