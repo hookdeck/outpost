@@ -3282,6 +3282,10 @@ components:
           format: date-time
           description: Time the event was received/processed.
           example: "2024-01-01T00:00:00Z"
+        eligible_for_retry:
+          type: boolean
+          description: Whether this event can be retried.
+          example: true
         metadata:
           type: object
           nullable: true
@@ -3934,6 +3938,83 @@ components:
         TOPICS: "user.created,user.updated"
         DESTINATIONS_WEBHOOK_MODE: "default"
 
+    # Operator Events (managed only)
+    OperatorEventDestinationCreate:
+      type: object
+      required: [type, topics, config]
+      properties:
+        type:
+          type: string
+          description: >-
+            Type of the destination. `GET /operator-events/destination-types` lists the types
+            this deployment accepts and the `config` and `credentials` fields each one takes.
+          example: "webhook"
+        topics:
+          type: array
+          items:
+            type: string
+          description: >-
+            Operator event topics to subscribe to. Use `["*"]` to subscribe to every topic. See
+            the Operator Events tag description for the available topics.
+          example: ["alert.destination.disabled", "alert.destination.consecutive_failure"]
+        config:
+          type: object
+          additionalProperties:
+            type: string
+          description: >-
+            Configuration for the chosen destination type, with the same fields as a tenant
+            destination of that type. Send `{}` for a type with no config fields.
+          example: { "url": "https://alerts.acme.com/outpost" }
+        credentials:
+          type: object
+          additionalProperties:
+            type: string
+          description: >-
+            Credentials for the chosen destination type, with the same fields as a tenant
+            destination of that type. For `webhook` this is optional: set `secret` to supply the
+            signing secret, or omit it and Outpost generates one.
+          example: { "secret": "whsec_abc123" }
+    OperatorEventDestinationUpdate:
+      type: object
+      description: Fields to change. Omitted fields are left as they are.
+      properties:
+        topics:
+          type: array
+          items:
+            type: string
+          description: >-
+            Replacement list of operator event topics. Use `["*"]` to subscribe to every topic.
+            Full-replacement semantics: the list sent becomes the subscription.
+          example: ["alert.destination.disabled", "alert.attempt.exhausted_retries"]
+        config:
+          type: object
+          additionalProperties: true
+          description: >-
+            Config fields to change for the destination's type. Merge-patch semantics: fields
+            that are not sent keep their value.
+          example: { "url": "https://alerts.acme.com/outpost" }
+        credentials:
+          type: object
+          additionalProperties: true
+          description: >-
+            Credential fields to change for the destination's type. Merge-patch semantics:
+            fields that are not sent keep their value. For `webhook`, set `secret` to replace
+            the signing secret, or send `rotate_secret: true` to have Outpost generate a new one
+            and keep the current one valid as `previous_secret`.
+          example: { "rotate_secret": true }
+    OperatorEventRetryRequest:
+      type: object
+      required: [event_id, destination_id]
+      properties:
+        event_id:
+          type: string
+          description: The ID of the operator event to redeliver.
+          example: "F1JKYUvykB5grOoE6Bnm6jztlF"
+        destination_id:
+          type: string
+          description: The ID of the operator event destination to redeliver it to.
+          example: "des_12345"
+
 # Security is applied per-operation based on AuthScope
 
 # `x-outpost-deployment` marks an operation or tag that exists in only one
@@ -3955,6 +4036,27 @@ tags:
     x-outpost-deployment: managed
     description: |
       The Configuration API is only available on managed Outpost. It allows you to read and update instance-level settings, the same settings available as environment variables in self-hosted deployments.
+  - name: Operator Events
+    x-outpost-deployment: managed
+    description: |
+      Operator events are Outpost's own lifecycle and alerting stream: delivery failures, destinations being auto-disabled, retry exhaustion and tenant subscription changes. They are about the deployment, not about a tenant's traffic, so they are delivered to **operator event destinations** rather than to tenant destinations. An operator event destination is deployment-wide, is not owned by any tenant you create, and has the same shape as a tenant destination: any destination type listed by `GET /operator-events/destination-types`, with that type's `config` and `credentials`.
+
+      The Operator Events API is only available on managed Outpost, and requires the Admin API Key. Self-hosted deployments configure the same thing through environment variables and a single sink. See the [Operator Events](https://hookdeck.com/docs/outpost/features/operator-events) feature page.
+
+      **Available topics**
+
+      | Topic | Trigger |
+      |-------|---------|
+      | `alert.destination.consecutive_failure` | Consecutive failure count reaches 50%, 70%, 90%, or 100% of `ALERT_CONSECUTIVE_FAILURE_COUNT` |
+      | `alert.destination.disabled` | Destination auto-disabled at the 100% failure threshold |
+      | `alert.attempt.exhausted_retries` | Delivery exhausts all retry attempts |
+      | `attempt.success` | Every successful delivery attempt |
+      | `attempt.failed` | Every failed delivery attempt, including retries |
+      | `tenant.subscription.updated` | A destination was created, updated or deleted and the tenant's topics or destination count changed |
+
+      A destination may subscribe to every topic with `["*"]`, but `attempt.success` and `attempt.failed` fire once per delivery attempt and will dominate volume. Prefer an explicit topic list.
+
+      **Topics are derived from these destinations.** The union of every enabled operator event destination's `topics` is what the deployment subscribes to, which is why `PATCH /config` rejects `OPERATOR_EVENTS_TOPICS` with a 422: change the destinations and the configuration follows.
   - name: Tenants
     description: |
       The API segments resources per `tenant`. A tenant represents a user/team/organization in your product. The provided value determines the tenant's ID, which can be any string representation.
@@ -4190,6 +4292,653 @@ paths:
           $ref: "#/components/responses/ValidationError"
         "500":
           $ref: "#/components/responses/InternalServerError"
+  # Operator Events
+  /operator-events/destination-types:
+    get:
+      tags: [Operator Events]
+      summary: List Operator Event Destination Type Schemas
+      description: |
+        Returns the destination types an operator event destination may use, with the `config`
+        and `credentials` fields each type takes.
+
+        This endpoint is only available on managed Outpost.
+      operationId: listOperatorEventDestinationTypeSchemas
+      x-outpost-deployment: managed
+      responses:
+        "200":
+          description: A list of destination type schemas.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DestinationTypeSchema"
+              examples:
+                OperatorEventDestinationTypesExample:
+                  value:
+                    - type: "webhook"
+                      label: "Webhook"
+                      description: "Send events as webhooks (HTTP POST)."
+                      icon: "<svg />"
+                      config_fields:
+                        - key: "url"
+                          type: "text"
+                          label: "Webhook URL"
+                          description: "The URL to send webhook events to via HTTP POST"
+                          required: true
+                          pattern: "^https?:\\/\\/[^\\s]+$"
+                        - key: "custom_headers"
+                          type: "key_value_map"
+                          label: "Custom Headers"
+                          description: "Additional HTTP headers to include with every webhook request"
+                          required: false
+                      credential_fields: []
+                    - type: "hookdeck"
+                      label: "Hookdeck"
+                      description: "Send events to Hookdeck Event Gateway."
+                      icon: "<svg />"
+                      setup_link:
+                        href: "https://dashboard.hookdeck.com/connect"
+                        cta: "Generate Hookdeck Token"
+                      config_fields: []
+                      credential_fields:
+                        - key: "token"
+                          type: "text"
+                          label: "Hookdeck Token"
+                          description: "The Hookdeck authentication token"
+                          required: true
+                          sensitive: true
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /operator-events/destinations:
+    get:
+      tags: [Operator Events]
+      summary: List Operator Event Destinations
+      description: |
+        Returns every operator event destination configured for this deployment.
+
+        The response is a plain array, not a paginated result. A project that has never had an
+        operator event destination may answer 404 `tenant not found` instead of an empty array.
+
+        This endpoint is only available on managed Outpost.
+      operationId: listOperatorEventDestinations
+      x-outpost-deployment: managed
+      responses:
+        "200":
+          description: A list of operator event destinations.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Destination"
+              examples:
+                OperatorEventDestinationsExample:
+                  value:
+                    - id: "des_12345"
+                      type: "webhook"
+                      topics:
+                        ["alert.destination.disabled", "alert.destination.consecutive_failure"]
+                      config:
+                        url: "https://alerts.acme.com/outpost"
+                      credentials:
+                        secret: "whsec_abc123"
+                      created_at: "2024-01-01T00:00:00Z"
+                      updated_at: "2024-01-01T00:00:00Z"
+                      disabled_at: null
+                      target: "https://alerts.acme.com/outpost"
+                    - id: "des_67890"
+                      type: "hookdeck"
+                      topics: ["*"]
+                      config:
+                        source_name: "outpost-alerts"
+                        source_id: "src_xxxyyyzzz"
+                      credentials:
+                        token: "hd_token_..."
+                      created_at: "2024-01-02T00:00:00Z"
+                      updated_at: "2024-01-02T00:00:00Z"
+                      disabled_at: null
+                      target: "outpost-alerts"
+                      target_url: "https://dashboard.hookdeck.com/sources/src_xxxyyyzzz"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    post:
+      tags: [Operator Events]
+      summary: Create Operator Event Destination
+      description: |
+        Creates an operator event destination of any type listed by
+        `GET /operator-events/destination-types`. `config` and `credentials` take the same fields
+        as a tenant destination of that type.
+
+        For a `webhook` destination, set `credentials.secret` to supply the signing secret. When
+        it is omitted, Outpost generates one. Either way the secret is returned in `credentials`.
+
+        Creating or changing a destination changes which topics the deployment subscribes to,
+        which is why `OPERATOR_EVENTS_TOPICS` cannot be set through `PATCH /config`.
+
+        This endpoint is only available on managed Outpost.
+      operationId: createOperatorEventDestination
+      x-outpost-deployment: managed
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OperatorEventDestinationCreate"
+            examples:
+              Webhook:
+                value:
+                  type: "webhook"
+                  topics:
+                    ["alert.destination.disabled", "alert.destination.consecutive_failure"]
+                  config:
+                    url: "https://alerts.acme.com/outpost"
+              Hookdeck:
+                value:
+                  type: "hookdeck"
+                  topics: ["*"]
+                  config: {}
+                  credentials:
+                    token: "hd_token_..."
+      responses:
+        "200":
+          description: The created operator event destination.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Destination"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /operator-events/destinations/{destination_id}:
+    parameters:
+      - name: destination_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The ID of the operator event destination.
+    get:
+      tags: [Operator Events]
+      summary: Get Operator Event Destination
+      description: |
+        Retrieves a single operator event destination.
+
+        Returns 404 `destination not found` if no operator event destination has this ID, or
+        404 `tenant not found` if the project has never had one.
+
+        This endpoint is only available on managed Outpost.
+      operationId: getOperatorEventDestination
+      x-outpost-deployment: managed
+      responses:
+        "200":
+          description: The operator event destination.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Destination"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    patch:
+      tags: [Operator Events]
+      summary: Update Operator Event Destination
+      description: |
+        Updates an operator event destination. `topics` uses full-replacement semantics: the list
+        sent becomes the subscription.
+
+        `config` and `credentials` take the fields of the destination's type; fields that are not
+        sent keep their value. The type itself cannot be changed.
+
+        To change the signing secret of a `webhook` destination, set `credentials.secret`, or send
+        `credentials.rotate_secret: true` to have Outpost generate a new one. On rotation the
+        current secret stays valid as `previous_secret`, for 24 hours by default.
+
+        Returns 404 `destination not found` if no operator event destination has this ID, or
+        404 `tenant not found` if the project has never had one.
+
+        This endpoint is only available on managed Outpost.
+      operationId: updateOperatorEventDestination
+      x-outpost-deployment: managed
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OperatorEventDestinationUpdate"
+            example:
+              topics:
+                [
+                  "alert.destination.disabled",
+                  "alert.destination.consecutive_failure",
+                  "alert.attempt.exhausted_retries",
+                ]
+      responses:
+        "200":
+          description: The updated operator event destination.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Destination"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    delete:
+      tags: [Operator Events]
+      summary: Delete Operator Event Destination
+      description: |
+        Deletes an operator event destination. Deleting the last one leaves the deployment with no
+        operator event delivery, and therefore silent.
+
+        Returns 404 `destination not found` if no operator event destination has this ID, or
+        404 `tenant not found` if the project has never had one.
+
+        This endpoint is only available on managed Outpost.
+      operationId: deleteOperatorEventDestination
+      x-outpost-deployment: managed
+      responses:
+        "200":
+          description: Operator event destination deleted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+              examples:
+                OperatorEventDestinationDeleted:
+                  value:
+                    success: true
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /operator-events/destinations/{destination_id}/enable:
+    parameters:
+      - name: destination_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The ID of the operator event destination.
+    put:
+      tags: [Operator Events]
+      summary: Enable Operator Event Destination
+      description: |
+        Enables a previously disabled operator event destination. Returns the destination with
+        `disabled_at` set to null.
+
+        Returns 404 `destination not found` if no operator event destination has this ID, or
+        404 `tenant not found` if the project has never had one.
+
+        This endpoint is only available on managed Outpost.
+      operationId: enableOperatorEventDestination
+      x-outpost-deployment: managed
+      responses:
+        "200":
+          description: Operator event destination enabled.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Destination"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /operator-events/destinations/{destination_id}/disable:
+    parameters:
+      - name: destination_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The ID of the operator event destination.
+    put:
+      tags: [Operator Events]
+      summary: Disable Operator Event Destination
+      description: |
+        Disables an operator event destination. A disabled destination receives nothing, so
+        disabling the only one leaves the deployment configured and silent.
+
+        Returns 404 `destination not found` if no operator event destination has this ID, or
+        404 `tenant not found` if the project has never had one.
+
+        This endpoint is only available on managed Outpost.
+      operationId: disableOperatorEventDestination
+      x-outpost-deployment: managed
+      responses:
+        "200":
+          description: Operator event destination disabled.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Destination"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /operator-events/events:
+    get:
+      tags: [Operator Events]
+      summary: List Operator Events
+      description: |
+        Returns the 100 most recent operator events emitted by this deployment, newest first.
+        Paging is not available yet: this operation takes no query parameters, so
+        `pagination.next` cannot be passed back.
+
+        Each row is an Outpost event whose `topic` is the operator event topic, whose
+        `matched_destination_ids` are operator event destinations, and whose `tenant_id` is the
+        ID of your Outpost project. The topic-specific payload is nested under `data`, which
+        carries the same envelope the sink receives: `id`, `topic`, `time`, `tenant_id` and a
+        `data` object described on the
+        [Operator Events](https://hookdeck.com/docs/outpost/features/operator-events) feature page.
+
+        This endpoint is only available on managed Outpost.
+      operationId: listOperatorEvents
+      x-outpost-deployment: managed
+      responses:
+        "200":
+          description: A paginated list of operator events.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventPaginatedResult"
+              examples:
+                OperatorEventsListExample:
+                  value:
+                    pagination:
+                      order_by: "time"
+                      dir: "desc"
+                      limit: 100
+                      next: null
+                      prev: null
+                    models:
+                      - id: "F1JKYUvykB5grOoE6Bnm6jztlF"
+                        tenant_id: "tm_12345"
+                        matched_destination_ids: ["des_12345"]
+                        topic: "attempt.failed"
+                        time: "2024-01-01T00:00:00Z"
+                        eligible_for_retry: true
+                        data:
+                          id: "F1JKYUvykB5grOoE6Bnm6jztlF"
+                          topic: "attempt.failed"
+                          time: "2024-01-01T00:00:00Z"
+                          tenant_id: "tenant_123"
+                          data:
+                            tenant_id: "tenant_123"
+                            event: {}
+                            attempt: {}
+                            destination: {}
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /operator-events/events/{event_id}:
+    parameters:
+      - name: event_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The ID of the operator event.
+    get:
+      tags: [Operator Events]
+      summary: Get Operator Event
+      description: |
+        Retrieves a single operator event.
+
+        This endpoint is only available on managed Outpost.
+      operationId: getOperatorEvent
+      x-outpost-deployment: managed
+      responses:
+        "200":
+          description: Operator event details.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Event"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /operator-events/events/{event_id}/attempts:
+    parameters:
+      - name: event_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The ID of the operator event.
+    get:
+      tags: [Operator Events]
+      summary: List Attempts for an Operator Event
+      description: |
+        Returns the 100 most recent delivery attempts made for one operator event, newest first.
+        Paging is not available yet: this operation takes no query parameters, so
+        `pagination.next` cannot be passed back.
+
+        This endpoint is only available on managed Outpost.
+      operationId: listOperatorEventAttemptsByEvent
+      x-outpost-deployment: managed
+      responses:
+        "200":
+          description: A paginated list of delivery attempts for the operator event.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttemptPaginatedResult"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /operator-events/attempts:
+    get:
+      tags: [Operator Events]
+      summary: List Operator Event Attempts
+      description: |
+        Returns the delivery attempts made to operator event destinations, newest first.
+
+        The response holds one page of up to `limit` attempts. Paging is not available yet:
+        `pagination.next` cannot be passed back.
+
+        This endpoint is only available on managed Outpost.
+      operationId: listOperatorEventAttempts
+      x-outpost-deployment: managed
+      parameters:
+        - name: event_id
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter attempts by operator event ID.
+        - name: destination_id
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter attempts by operator event destination ID.
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [success, failed]
+          description: Filter attempts by status.
+        - name: topic
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter attempts by operator event topic.
+        - name: time
+          in: query
+          required: false
+          style: deepObject
+          explode: true
+          schema:
+            $ref: "#/components/schemas/Operator"
+          description: Filter attempts by the time of the attempt, using comparison operators (e.g., `time[gte]=2024-01-01T00:00:00Z`).
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 100
+            minimum: 1
+            maximum: 1000
+          description: Number of items per page (1-1000, default 100). A value outside this range returns a 400.
+      responses:
+        "200":
+          description: A paginated list of operator event delivery attempts.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttemptPaginatedResult"
+              examples:
+                OperatorEventAttemptsListExample:
+                  value:
+                    pagination:
+                      order_by: "time"
+                      dir: "desc"
+                      limit: 100
+                      next: null
+                      prev: null
+                    models:
+                      - id: "atm_12345"
+                        tenant_id: "tm_12345"
+                        status: "success"
+                        time: "2024-01-01T00:00:05Z"
+                        code: "200"
+                        attempt_number: 1
+                        manual: false
+                        latency_ms: 11
+                        event_id: "F1JKYUvykB5grOoE6Bnm6jztlF"
+                        destination_id: "des_12345"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /operator-events/attempts/{attempt_id}:
+    parameters:
+      - name: attempt_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The ID of the operator event delivery attempt.
+    get:
+      tags: [Operator Events]
+      summary: Get Operator Event Attempt
+      description: |
+        Retrieves a single operator event delivery attempt.
+
+        This endpoint is only available on managed Outpost.
+      operationId: getOperatorEventAttempt
+      x-outpost-deployment: managed
+      responses:
+        "200":
+          description: Operator event delivery attempt details.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Attempt"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /operator-events/retry:
+    post:
+      tags: [Operator Events]
+      summary: Retry Operator Event Delivery
+      description: |
+        Redelivers an operator event to one operator event destination. The event must exist, and
+        the destination must be enabled, match the event's topic and filter, and already have a
+        delivery attempt for the event.
+
+        Returns 404 `event not found` if the event does not exist. Returns 404
+        `destination not found` if the destination does not exist or has been deleted.
+
+        Unlike `POST /retry`, which answers `202`, this answers `200` with `{"success": true}`.
+
+        This endpoint is only available on managed Outpost.
+      operationId: retryOperatorEvent
+      x-outpost-deployment: managed
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OperatorEventRetryRequest"
+            example:
+              event_id: "F1JKYUvykB5grOoE6Bnm6jztlF"
+              destination_id: "des_12345"
+      responses:
+        "200":
+          description: Retry accepted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+              examples:
+                OperatorEventRetryAccepted:
+                  value:
+                    success: true
+        "400":
+          description: |
+            Bad request. This can happen when:
+            - The destination is disabled
+            - The destination does not match the event's topic or filter
+            - The event has no delivery attempt for the destination
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
   # Tenants
   /tenants:
     get:
