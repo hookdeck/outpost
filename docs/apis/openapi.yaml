@@ -4309,8 +4309,6 @@ paths:
 
         This endpoint is only available for the managed version.
       operationId: listOperatorEventDestinationTypeSchemas
-      security:
-        - AdminApiKey: []
       responses:
         "200":
           description: A list of destination type schemas.
@@ -4360,8 +4358,6 @@ paths:
 
         This endpoint is only available for the managed version.
       operationId: listOperatorEventDestinations
-      security:
-        - AdminApiKey: []
       responses:
         "200":
           description: A list of operator event destinations.
@@ -4416,8 +4412,6 @@ paths:
 
         This endpoint is only available for the managed version.
       operationId: createOperatorEventDestination
-      security:
-        - AdminApiKey: []
       requestBody:
         required: true
         content:
@@ -4465,8 +4459,6 @@ paths:
 
         This endpoint is only available for the managed version.
       operationId: getOperatorEventDestination
-      security:
-        - AdminApiKey: []
       responses:
         "200":
           description: The operator event destination.
@@ -4487,8 +4479,6 @@ paths:
 
         This endpoint is only available for the managed version.
       operationId: updateOperatorEventDestination
-      security:
-        - AdminApiKey: []
       requestBody:
         required: true
         content:
@@ -4526,8 +4516,6 @@ paths:
 
         This endpoint is only available for the managed version.
       operationId: deleteOperatorEventDestination
-      security:
-        - AdminApiKey: []
       responses:
         "200":
           description: Operator event destination deleted.
@@ -4561,8 +4549,6 @@ paths:
 
         This endpoint is only available for the managed version.
       operationId: enableOperatorEventDestination
-      security:
-        - AdminApiKey: []
       responses:
         "200":
           description: Operator event destination enabled.
@@ -4592,8 +4578,6 @@ paths:
 
         This endpoint is only available for the managed version.
       operationId: disableOperatorEventDestination
-      security:
-        - AdminApiKey: []
       responses:
         "200":
           description: Operator event destination disabled.
@@ -4622,8 +4606,6 @@ paths:
 
         This endpoint is only available for the managed version.
       operationId: listOperatorEvents
-      security:
-        - AdminApiKey: []
       responses:
         "200":
           description: A paginated list of operator events.
@@ -4678,8 +4660,6 @@ paths:
 
         This endpoint is only available for the managed version.
       operationId: getOperatorEvent
-      security:
-        - AdminApiKey: []
       responses:
         "200":
           description: Operator event details.
@@ -4710,8 +4690,6 @@ paths:
 
         This endpoint is only available for the managed version.
       operationId: listOperatorEventAttemptsByEvent
-      security:
-        - AdminApiKey: []
       responses:
         "200":
           description: A paginated list of delivery attempts for the operator event.
@@ -4733,8 +4711,6 @@ paths:
 
         This endpoint is only available for the managed version.
       operationId: listOperatorEventAttempts
-      security:
-        - AdminApiKey: []
       parameters:
         - name: event_id
           in: query
@@ -4810,8 +4786,6 @@ paths:
 
         This endpoint is only available for the managed version.
       operationId: getOperatorEventAttempt
-      security:
-        - AdminApiKey: []
       responses:
         "200":
           description: Operator event delivery attempt details.
@@ -4838,8 +4812,6 @@ paths:
 
         This endpoint is only available for the managed version.
       operationId: retryOperatorEvent
-      security:
-        - AdminApiKey: []
       requestBody:
         required: true
         content:
