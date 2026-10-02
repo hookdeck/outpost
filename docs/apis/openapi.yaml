@@ -35,6 +35,7 @@ components:
         - `sub` (subject): The tenant_id this token is scoped to
         - `iat` (issued at): Unix timestamp when the token was created
         - `exp` (expiration): Unix timestamp when the token expires (24 hours after issuance)
+        - `deployment_id` (optional): The `DEPLOYMENT_ID` of the deployment that issued the token, when one is configured. A token carrying this claim is rejected with `401` by a deployment whose `DEPLOYMENT_ID` differs or is not set.
 
         **Example decoded payload:**
         ```json

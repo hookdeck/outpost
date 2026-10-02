@@ -91,6 +91,18 @@ Choose one for event log persistence:
 | `CLICKHOUSE_ADDR` | ClickHouse address (e.g., `localhost:9000`) |
 | `CLICKHOUSE_LOG_RETENTION_TTL_DAYS` | Days to retain event and delivery logs in ClickHouse (default: `0`, retained indefinitely). No PostgreSQL equivalent; see the [Event & Delivery Log](/docs/outpost/self-hosting/guides/event-delivery-log) guide. |
 
+## Deployment ID
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DEPLOYMENT_ID` | — | Optional. Identifier for this deployment: letters, digits, hyphens and underscores, up to 64 characters. Prefixes the deployment's Redis keys and ClickHouse tables. |
+
+Set `DEPLOYMENT_ID` to run several Outpost deployments against the same Redis or ClickHouse. Each deployment reads and writes only the Redis keys and ClickHouse tables under its own ID, so changing the value on an existing deployment starts it with no tenants or destinations. With ClickHouse log storage, its tables do not exist yet: `outpost serve` refuses to start until `outpost migrate apply` creates them, empty. See the [Schema Migration Guide](/docs/outpost/self-hosting/guides/migration).
+
+Give each deployment its own `API_KEY`, `API_JWT_SECRET` and `AES_ENCRYPTION_SECRET`. Message queues and PostgreSQL log storage are not prefixed, so each deployment also needs its own queues or topics and, with PostgreSQL log storage, its own database.
+
+A tenant JWT issued by a deployment with a `DEPLOYMENT_ID` carries that ID in its `deployment_id` claim. The API responds `401` to a token whose claim differs from its own `DEPLOYMENT_ID`, including when the deployment has no `DEPLOYMENT_ID`. A token without the claim skips this check; it is still verified against `API_JWT_SECRET`.
+
 ## Delivery
 
 | Variable | Default | Description |
