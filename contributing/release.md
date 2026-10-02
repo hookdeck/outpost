@@ -38,8 +38,10 @@ The tag triggers two workflows (they do not depend on each other):
 
 | Workflow | What it does |
 |----------|----------------|
-| [release.yml](../.github/workflows/release.yml) | Builds Outpost binaries and Docker images (via GoReleaser) and uploads binary assets so they are available for the tag. Pushes Docker images to Docker Hub (e.g. `hookdeck/outpost:{{ tag }}-amd64`). |
+| [release.yml](../.github/workflows/release.yml) | Builds Outpost binaries and Docker images (via GoReleaser) and uploads binary assets so they are available for the tag. Pushes a multi-arch (amd64, arm64) Docker image to Docker Hub as `hookdeck/outpost:{{ tag }}` and `hookdeck/outpost:latest`. |
 | [sdk-generate-on-release-dispatch.yml](../.github/workflows/sdk-generate-on-release-dispatch.yml) → [sdk-generate-on-release.yml](../.github/workflows/sdk-generate-on-release.yml) | Dispatch runs the Speakeasy workflow **at the release tag** (same tree as the tag). A vendored Speakeasy executor forces PRs against `main`. Generates the Go, Python, and TypeScript SDKs **sequentially** and opens **three pull requests** (one per SDK). Sequential runs avoid conflicts on the shared `.speakeasy/workflow.lock` (see [SDKs – SDK generation and lock files](sdks.md#sdk-generation-and-lock-files)). |
+
+Publishing the release (not the tag push) also runs [update-compose-version.yml](../.github/workflows/update-compose-version.yml), which opens a PR bumping the image version in `examples/docker-compose/compose.yml`. Prereleases are skipped.
 
 ### 3. Merge the SDK PRs into main
 
@@ -54,7 +56,7 @@ When the SDK PRs are merged into main, the SDKs are released (published).
 ### 5. Outpost binaries (when and where)
 
 - **When are they built?** — As soon as the tag is pushed. [release.yml](../.github/workflows/release.yml) runs and uses **GoReleaser** to build the binaries (e.g. `outpost`, `outpost-server` for linux/amd64 and arm64), archive them (tar.gz), and build Docker images.
-- **Where do they go?** — Binary archives are uploaded so they are available for that tag (e.g. as release assets once you create the release for the tag). Docker images are pushed to Docker Hub (e.g. `hookdeck/outpost:{{ tag }}-amd64`).
+- **Where do they go?** — Binary archives are uploaded so they are available for that tag (e.g. as release assets once you create the release for the tag). A multi-arch Docker image is pushed to Docker Hub as `hookdeck/outpost:{{ tag }}` and `hookdeck/outpost:latest`.
 
 ---
 
@@ -64,6 +66,7 @@ When the SDK PRs are merged into main, the SDKs are released (published).
 2. **Workflows run automatically** — The tag triggers [release.yml](../.github/workflows/release.yml) (Outpost binaries + Docker) and the SDK generate workflows ([sdk-generate-on-release-dispatch.yml](../.github/workflows/sdk-generate-on-release-dispatch.yml) → [sdk-generate-on-release.yml](../.github/workflows/sdk-generate-on-release.yml)), which generates the three SDKs **sequentially** and opens a PR for each.
 3. **Merge the SDK PRs** — Review and merge the three PRs (Go, Python, TypeScript) into main. See [SDKs](sdks.md) for testing and review guidance.
 4. **SDKs are released** when those PRs are merged to main.
+5. **Merge the compose version PR** — opened by [update-compose-version.yml](../.github/workflows/update-compose-version.yml) when the release is published.
 
 For more detail on SDK generation, versioning, and lock files, see [contributing/sdks.md](sdks.md).
 

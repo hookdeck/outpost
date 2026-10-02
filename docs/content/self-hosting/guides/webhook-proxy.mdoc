@@ -31,7 +31,7 @@ If you expect proxy outages longer than your queue's redelivery window, raise `M
 
 ## Other destination types
 
-`DESTINATIONS_PROXY_URL` also carries RabbitMQ and Kafka destination connections, so brokers that allowlist source IPs see the proxy's address. Outpost tunnels the broker protocol through every hop with `CONNECT`, so each hop must allow `CONNECT` to the broker's port; TLS (`amqps`, Kafka TLS) runs end to end between Outpost and the broker. For Kafka, every broker the cluster advertises is reached through the proxy. Other destination types (AWS SQS, Kinesis, S3, GCP Pub/Sub, Azure Service Bus, Hookdeck) connect directly.
+`DESTINATIONS_PROXY_URL` also carries RabbitMQ and Kafka destination connections, so brokers that allowlist source IPs see the proxy's address. Outpost tunnels the broker protocol through every hop with `CONNECT`, so each hop must allow `CONNECT` to the broker's port; TLS (`amqps`, Kafka TLS) runs end to end between Outpost and the broker. For Kafka, every broker the cluster advertises is reached through the proxy. Other destination types (AWS SQS, EventBridge, Kinesis, S3, GCP Pub/Sub, Azure Service Bus, Cloudflare Queues, Hookdeck) connect directly.
 
 Failure attribution mostly matches webhooks: proxy-side failures (proxy unreachable, proxy auth rejected, TLS to a proxy) are redelivered by the queue, and destination-side failures reported by the proxy are recorded as failed attempts with the matching network error code. One difference: a `CONNECT` that no hop answers before the delivery timeout is recorded as a `timeout` attempt, because a silent proxy and a destination that drops traffic look the same from Outpost. Webhooks redeliver in that case when the silent hop is an intermediate one.
 
