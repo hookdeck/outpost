@@ -134,16 +134,14 @@ The limit bounds the bytes being handled. The process also holds the messages al
 
 #### GCP Pub/Sub
 
-With a byte limit, Outpost does not keep a stream open to the subscription. It keeps up to four pull requests waiting at Pub/Sub, sized to the room left under the count limit and the byte limit, and sends new ones as messages finish.
+Outpost sends both limits to Pub/Sub when it opens the subscription's stream, and Pub/Sub applies them: it stops sending once the messages the process has not yet acknowledged reach either limit.
 
-- The backlog waits in the subscription, not in the process. A message that has not been pulled has no ack deadline running and counts no delivery attempt, however long it waits.
-- Pulls wait for all the room there is, so a message is received as soon as it is published, also after a quiet period.
-- A message's size is not known before it is pulled. Outpost counts a pull with what Pub/Sub returns in one response at most (about 10 MB), or with less when the largest message seen in the last minute or so says its messages cannot add up to that. So with 10 MB of room or more, small messages are pulled at up to `DELIVERY_MAX_CONCURRENCY`, also after a large one. With less room, a pull asks only for as many messages as fit at that largest size.
-- When messages turn out larger than they were counted, which happens when large messages follow a minute or more of small ones only, they are still handled, and nothing more is pulled until there is room again.
-- The process holds at most the limit plus what the pulls in flight return beyond what they were counted for. With responses of about 10 MB that is at most about 40 MB above the limit. Google does not document the response size; if Pub/Sub returns a larger response, Outpost counts pulls with that size from then on. Keep the limit well below the memory of the process.
-- Throughput is highest when the limit leaves room for four responses (40 MB) on top of the messages being handled. With a smaller limit, fewer pulls run at once after a quiet period or a large message; under 10 MB, the first pull after a quiet period takes a single message.
-- A message larger than the whole limit that arrives in a batch runs together with that batch. After it, messages are pulled one at a time until no such message has been seen for about a minute.
-- A pulled message has the subscription's ack deadline, and Outpost does not extend it. Without a byte limit Outpost sets its own deadline on the delivery and log queues (60 seconds) whatever the subscription says. Subscriptions Outpost creates use the same 60 seconds; on a subscription you created, such as the publish queue's, set the ack deadline to cover your slowest message.
+- The backlog waits in the subscription, not in the process. A waiting message has no ack deadline running and counts no delivery attempt.
+- Pub/Sub sends while the process is under the byte limit, so the process holds at most the limit plus one message.
+- A message larger than the whole limit is delivered alone.
+- Pub/Sub counts a message with its attributes and a few hundred bytes of overhead, so slightly more than its body.
+- The Pub/Sub emulator applies neither limit.
+- On shutdown, received messages that no handler has taken are returned to the subscription at once.
 
 ## Topics
 
