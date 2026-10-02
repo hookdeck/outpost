@@ -19,6 +19,8 @@ class GetDestinationTypeSchemaType(str, Enum):
     AWS_S3 = "aws_s3"
     GCP_PUBSUB = "gcp_pubsub"
     KAFKA = "kafka"
+    CLOUDFLARE_QUEUES = "cloudflare_queues"
+    AWS_EVENTBRIDGE = "aws_eventbridge"
 
 
 class GetDestinationTypeSchemaRequestTypedDict(TypedDict):

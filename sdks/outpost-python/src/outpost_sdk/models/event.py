@@ -23,6 +23,8 @@ class EventTypedDict(TypedDict):
     topic: NotRequired[str]
     time: NotRequired[datetime]
     r"""Time the event was received/processed."""
+    eligible_for_retry: NotRequired[bool]
+    r"""Whether this event can be retried."""
     metadata: NotRequired[Nullable[Dict[str, str]]]
     r"""Key-value string pairs of metadata associated with the event."""
     data: NotRequired[Dict[str, Any]]
@@ -43,6 +45,9 @@ class Event(BaseModel):
     time: Optional[datetime] = None
     r"""Time the event was received/processed."""
 
+    eligible_for_retry: Optional[bool] = None
+    r"""Whether this event can be retried."""
+
     metadata: OptionalNullable[Dict[str, str]] = UNSET
     r"""Key-value string pairs of metadata associated with the event."""
 
@@ -58,6 +63,7 @@ class Event(BaseModel):
                 "matched_destination_ids",
                 "topic",
                 "time",
+                "eligible_for_retry",
                 "metadata",
                 "data",
             ]

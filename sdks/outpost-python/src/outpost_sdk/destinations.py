@@ -116,6 +116,11 @@ class Destinations(BaseSDK):
                 errors.UnauthorizedErrorData, http_res
             )
             raise errors.UnauthorizedError(response_data, http_res)
+        if utils.match_response(http_res, "403", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.APIErrorResponseData, http_res
+            )
+            raise errors.APIErrorResponse(response_data, http_res)
         if utils.match_response(http_res, "404", "application/json"):
             response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
             raise errors.NotFoundError(response_data, http_res)
@@ -232,6 +237,11 @@ class Destinations(BaseSDK):
                 errors.UnauthorizedErrorData, http_res
             )
             raise errors.UnauthorizedError(response_data, http_res)
+        if utils.match_response(http_res, "403", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.APIErrorResponseData, http_res
+            )
+            raise errors.APIErrorResponse(response_data, http_res)
         if utils.match_response(http_res, "404", "application/json"):
             response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
             raise errors.NotFoundError(response_data, http_res)
@@ -331,6 +341,11 @@ class Destinations(BaseSDK):
         response_data: Any = None
         if utils.match_response(http_res, "201", "application/json"):
             return unmarshal_json_response(models.Destination, http_res)
+        if utils.match_response(http_res, "400", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.BadRequestErrorData, http_res
+            )
+            raise errors.BadRequestError(response_data, http_res)
         if utils.match_response(http_res, "401", "application/json"):
             response_data = unmarshal_json_response(
                 errors.UnauthorizedErrorData, http_res
@@ -339,7 +354,7 @@ class Destinations(BaseSDK):
         if utils.match_response(http_res, "404", "application/json"):
             response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
             raise errors.NotFoundError(response_data, http_res)
-        if utils.match_response(http_res, "422", "application/json"):
+        if utils.match_response(http_res, ["403", "422"], "application/json"):
             response_data = unmarshal_json_response(
                 errors.APIErrorResponseData, http_res
             )
@@ -440,6 +455,11 @@ class Destinations(BaseSDK):
         response_data: Any = None
         if utils.match_response(http_res, "201", "application/json"):
             return unmarshal_json_response(models.Destination, http_res)
+        if utils.match_response(http_res, "400", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.BadRequestErrorData, http_res
+            )
+            raise errors.BadRequestError(response_data, http_res)
         if utils.match_response(http_res, "401", "application/json"):
             response_data = unmarshal_json_response(
                 errors.UnauthorizedErrorData, http_res
@@ -448,7 +468,7 @@ class Destinations(BaseSDK):
         if utils.match_response(http_res, "404", "application/json"):
             response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
             raise errors.NotFoundError(response_data, http_res)
-        if utils.match_response(http_res, "422", "application/json"):
+        if utils.match_response(http_res, ["403", "422"], "application/json"):
             response_data = unmarshal_json_response(
                 errors.APIErrorResponseData, http_res
             )
@@ -551,6 +571,11 @@ class Destinations(BaseSDK):
                 errors.UnauthorizedErrorData, http_res
             )
             raise errors.UnauthorizedError(response_data, http_res)
+        if utils.match_response(http_res, "403", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.APIErrorResponseData, http_res
+            )
+            raise errors.APIErrorResponse(response_data, http_res)
         if utils.match_response(http_res, "404", "application/json"):
             response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
             raise errors.NotFoundError(response_data, http_res)
@@ -652,6 +677,11 @@ class Destinations(BaseSDK):
                 errors.UnauthorizedErrorData, http_res
             )
             raise errors.UnauthorizedError(response_data, http_res)
+        if utils.match_response(http_res, "403", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.APIErrorResponseData, http_res
+            )
+            raise errors.APIErrorResponse(response_data, http_res)
         if utils.match_response(http_res, "404", "application/json"):
             response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
             raise errors.NotFoundError(response_data, http_res)
@@ -764,7 +794,7 @@ class Destinations(BaseSDK):
         if utils.match_response(http_res, "404", "application/json"):
             response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
             raise errors.NotFoundError(response_data, http_res)
-        if utils.match_response(http_res, "422", "application/json"):
+        if utils.match_response(http_res, ["403", "422"], "application/json"):
             response_data = unmarshal_json_response(
                 errors.APIErrorResponseData, http_res
             )
@@ -878,7 +908,7 @@ class Destinations(BaseSDK):
         if utils.match_response(http_res, "404", "application/json"):
             response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
             raise errors.NotFoundError(response_data, http_res)
-        if utils.match_response(http_res, "422", "application/json"):
+        if utils.match_response(http_res, ["403", "422"], "application/json"):
             response_data = unmarshal_json_response(
                 errors.APIErrorResponseData, http_res
             )
@@ -981,6 +1011,11 @@ class Destinations(BaseSDK):
                 errors.UnauthorizedErrorData, http_res
             )
             raise errors.UnauthorizedError(response_data, http_res)
+        if utils.match_response(http_res, "403", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.APIErrorResponseData, http_res
+            )
+            raise errors.APIErrorResponse(response_data, http_res)
         if utils.match_response(http_res, "404", "application/json"):
             response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
             raise errors.NotFoundError(response_data, http_res)
@@ -1082,6 +1117,11 @@ class Destinations(BaseSDK):
                 errors.UnauthorizedErrorData, http_res
             )
             raise errors.UnauthorizedError(response_data, http_res)
+        if utils.match_response(http_res, "403", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.APIErrorResponseData, http_res
+            )
+            raise errors.APIErrorResponse(response_data, http_res)
         if utils.match_response(http_res, "404", "application/json"):
             response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
             raise errors.NotFoundError(response_data, http_res)
@@ -1183,6 +1223,11 @@ class Destinations(BaseSDK):
                 errors.UnauthorizedErrorData, http_res
             )
             raise errors.UnauthorizedError(response_data, http_res)
+        if utils.match_response(http_res, "403", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.APIErrorResponseData, http_res
+            )
+            raise errors.APIErrorResponse(response_data, http_res)
         if utils.match_response(http_res, "404", "application/json"):
             response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
             raise errors.NotFoundError(response_data, http_res)
@@ -1284,6 +1329,11 @@ class Destinations(BaseSDK):
                 errors.UnauthorizedErrorData, http_res
             )
             raise errors.UnauthorizedError(response_data, http_res)
+        if utils.match_response(http_res, "403", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.APIErrorResponseData, http_res
+            )
+            raise errors.APIErrorResponse(response_data, http_res)
         if utils.match_response(http_res, "404", "application/json"):
             response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
             raise errors.NotFoundError(response_data, http_res)
@@ -1385,6 +1435,11 @@ class Destinations(BaseSDK):
                 errors.UnauthorizedErrorData, http_res
             )
             raise errors.UnauthorizedError(response_data, http_res)
+        if utils.match_response(http_res, "403", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.APIErrorResponseData, http_res
+            )
+            raise errors.APIErrorResponse(response_data, http_res)
         if utils.match_response(http_res, "404", "application/json"):
             response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
             raise errors.NotFoundError(response_data, http_res)
@@ -1486,6 +1541,11 @@ class Destinations(BaseSDK):
                 errors.UnauthorizedErrorData, http_res
             )
             raise errors.UnauthorizedError(response_data, http_res)
+        if utils.match_response(http_res, "403", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.APIErrorResponseData, http_res
+            )
+            raise errors.APIErrorResponse(response_data, http_res)
         if utils.match_response(http_res, "404", "application/json"):
             response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
             raise errors.NotFoundError(response_data, http_res)
@@ -1518,6 +1578,9 @@ class Destinations(BaseSDK):
         r"""List Destination Attempts
 
         Retrieves a paginated list of attempts scoped to a specific destination.
+
+        Returns `404` if the destination does not exist or has been deleted. The attempts of a deleted destination remain available from `GET /attempts?destination_id=`.
+
 
         :param request: The request object to send.
         :param retries: Override the default retry configuration for this method
@@ -1584,6 +1647,11 @@ class Destinations(BaseSDK):
         response_data: Any = None
         if utils.match_response(http_res, "200", "application/json"):
             return unmarshal_json_response(models.AttemptPaginatedResult, http_res)
+        if utils.match_response(http_res, "400", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.BadRequestErrorData, http_res
+            )
+            raise errors.BadRequestError(response_data, http_res)
         if utils.match_response(http_res, "401", "application/json"):
             response_data = unmarshal_json_response(
                 errors.UnauthorizedErrorData, http_res
@@ -1592,6 +1660,11 @@ class Destinations(BaseSDK):
         if utils.match_response(http_res, "404", "application/json"):
             response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
             raise errors.NotFoundError(response_data, http_res)
+        if utils.match_response(http_res, ["403", "422"], "application/json"):
+            response_data = unmarshal_json_response(
+                errors.APIErrorResponseData, http_res
+            )
+            raise errors.APIErrorResponse(response_data, http_res)
         if utils.match_response(http_res, "500", "application/json"):
             response_data = unmarshal_json_response(
                 errors.InternalServerErrorData, http_res
@@ -1621,6 +1694,9 @@ class Destinations(BaseSDK):
         r"""List Destination Attempts
 
         Retrieves a paginated list of attempts scoped to a specific destination.
+
+        Returns `404` if the destination does not exist or has been deleted. The attempts of a deleted destination remain available from `GET /attempts?destination_id=`.
+
 
         :param request: The request object to send.
         :param retries: Override the default retry configuration for this method
@@ -1687,6 +1763,11 @@ class Destinations(BaseSDK):
         response_data: Any = None
         if utils.match_response(http_res, "200", "application/json"):
             return unmarshal_json_response(models.AttemptPaginatedResult, http_res)
+        if utils.match_response(http_res, "400", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.BadRequestErrorData, http_res
+            )
+            raise errors.BadRequestError(response_data, http_res)
         if utils.match_response(http_res, "401", "application/json"):
             response_data = unmarshal_json_response(
                 errors.UnauthorizedErrorData, http_res
@@ -1695,6 +1776,11 @@ class Destinations(BaseSDK):
         if utils.match_response(http_res, "404", "application/json"):
             response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
             raise errors.NotFoundError(response_data, http_res)
+        if utils.match_response(http_res, ["403", "422"], "application/json"):
+            response_data = unmarshal_json_response(
+                errors.APIErrorResponseData, http_res
+            )
+            raise errors.APIErrorResponse(response_data, http_res)
         if utils.match_response(http_res, "500", "application/json"):
             response_data = unmarshal_json_response(
                 errors.InternalServerErrorData, http_res
@@ -1730,6 +1816,9 @@ class Destinations(BaseSDK):
 
         Retrieves details for a specific attempt scoped to a destination.
 
+        Returns `404` if the destination does not exist or has been deleted, or if the destination has no attempt with this ID. An attempt of a deleted destination remains available from `GET /attempts/{attempt_id}`.
+
+
         :param tenant_id: The ID of the tenant. Required when using AdminApiKey authentication.
         :param destination_id: The ID of the destination.
         :param attempt_id: The ID of the attempt.
@@ -1737,7 +1826,7 @@ class Destinations(BaseSDK):
             - `event`: Include event summary
             - `event.data`: Include full event with payload data
             - `response_data`: Include response body and headers
-            - `destination`: Include the full destination object
+            - `destination`: Include the destination object, without credentials
 
         :param retries: Override the default retry configuration for this method
         :param server_url: Override the default server URL for this method
@@ -1811,6 +1900,11 @@ class Destinations(BaseSDK):
                 errors.UnauthorizedErrorData, http_res
             )
             raise errors.UnauthorizedError(response_data, http_res)
+        if utils.match_response(http_res, "403", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.APIErrorResponseData, http_res
+            )
+            raise errors.APIErrorResponse(response_data, http_res)
         if utils.match_response(http_res, "404", "application/json"):
             response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
             raise errors.NotFoundError(response_data, http_res)
@@ -1849,6 +1943,9 @@ class Destinations(BaseSDK):
 
         Retrieves details for a specific attempt scoped to a destination.
 
+        Returns `404` if the destination does not exist or has been deleted, or if the destination has no attempt with this ID. An attempt of a deleted destination remains available from `GET /attempts/{attempt_id}`.
+
+
         :param tenant_id: The ID of the tenant. Required when using AdminApiKey authentication.
         :param destination_id: The ID of the destination.
         :param attempt_id: The ID of the attempt.
@@ -1856,7 +1953,7 @@ class Destinations(BaseSDK):
             - `event`: Include event summary
             - `event.data`: Include full event with payload data
             - `response_data`: Include response body and headers
-            - `destination`: Include the full destination object
+            - `destination`: Include the destination object, without credentials
 
         :param retries: Override the default retry configuration for this method
         :param server_url: Override the default server URL for this method
@@ -1930,6 +2027,11 @@ class Destinations(BaseSDK):
                 errors.UnauthorizedErrorData, http_res
             )
             raise errors.UnauthorizedError(response_data, http_res)
+        if utils.match_response(http_res, "403", "application/json"):
+            response_data = unmarshal_json_response(
+                errors.APIErrorResponseData, http_res
+            )
+            raise errors.APIErrorResponse(response_data, http_res)
         if utils.match_response(http_res, "404", "application/json"):
             response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
             raise errors.NotFoundError(response_data, http_res)

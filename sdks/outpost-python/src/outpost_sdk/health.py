@@ -25,7 +25,12 @@ class Health(BaseSDK):
 
         > This endpoint is only available for **self-hosted** Outpost deployments. Managed Outpost health is monitored by Hookdeck.
 
-        Returns HTTP 200 when all workers are healthy, or HTTP 503 if any worker has failed.
+        Worker status is one of:
+        - `healthy`: running.
+        - `degraded`: failing and being restarted, within its restart budget. The service keeps serving. Only reported for workers listed in `SUPERVISOR_RESTART_WORKERS`.
+        - `failed`: failed, or failing past its restart budget. With restarts enabled, Outpost keeps restarting it, and it returns to `healthy` once it recovers.
+
+        Returns HTTP 200 when no worker has failed (the overall status is `degraded` if any worker is degraded), or HTTP 503 if any worker has failed.
 
         Note: Error details are not exposed for security reasons. Check application logs for detailed error information.
 
@@ -76,7 +81,7 @@ class Health(BaseSDK):
                 oauth2_scopes=None,
                 security_source=None,
                 tags=["Health"],
-                extensions=None,
+                extensions={"x-outpost-deployment": "self-hosted"},
             ),
             request=req,
             is_error_status_code=lambda c: utils.match_status_codes(["4XX", "5XX"], c),
@@ -155,7 +160,12 @@ class Health(BaseSDK):
 
         > This endpoint is only available for **self-hosted** Outpost deployments. Managed Outpost health is monitored by Hookdeck.
 
-        Returns HTTP 200 when all workers are healthy, or HTTP 503 if any worker has failed.
+        Worker status is one of:
+        - `healthy`: running.
+        - `degraded`: failing and being restarted, within its restart budget. The service keeps serving. Only reported for workers listed in `SUPERVISOR_RESTART_WORKERS`.
+        - `failed`: failed, or failing past its restart budget. With restarts enabled, Outpost keeps restarting it, and it returns to `healthy` once it recovers.
+
+        Returns HTTP 200 when no worker has failed (the overall status is `degraded` if any worker is degraded), or HTTP 503 if any worker has failed.
 
         Note: Error details are not exposed for security reasons. Check application logs for detailed error information.
 
@@ -206,7 +216,7 @@ class Health(BaseSDK):
                 oauth2_scopes=None,
                 security_source=None,
                 tags=["Health"],
-                extensions=None,
+                extensions={"x-outpost-deployment": "self-hosted"},
             ),
             request=req,
             is_error_status_code=lambda c: utils.match_status_codes(["4XX", "5XX"], c),

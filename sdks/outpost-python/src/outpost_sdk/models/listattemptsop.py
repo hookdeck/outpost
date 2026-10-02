@@ -89,7 +89,7 @@ r"""Fields to include in the response. Use bracket notation for multiple values 
 - `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
 - `event.data`: Include full event with payload data
 - `response_data`: Include response body and headers
-- `destination`: Include the full destination object
+- `destination`: Include the destination object, without credentials
 
 """
 
@@ -99,7 +99,7 @@ r"""Fields to include in the response. Use bracket notation for multiple values 
 - `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
 - `event.data`: Include full event with payload data
 - `response_data`: Include response body and headers
-- `destination`: Include the full destination object
+- `destination`: Include the destination object, without credentials
 
 """
 
@@ -137,17 +137,17 @@ class ListAttemptsRequestTypedDict(TypedDict):
     time: NotRequired[OperatorTypedDict]
     r"""Filter attempts by event time range using comparison operators."""
     limit: NotRequired[int]
-    r"""Number of items per page (default 100, max 1000)."""
+    r"""Number of items per page (1-1000, default 100). A value outside this range, or one that is not an integer, returns a 400."""
     next_cursor: NotRequired[str]
-    r"""Cursor for next page of results."""
+    r"""Cursor for the next page of results, from `pagination.next` of a previous response. Mutually exclusive with `prev`. A cursor that cannot be read returns a 400."""
     prev_cursor: NotRequired[str]
-    r"""Cursor for previous page of results."""
+    r"""Cursor for the previous page of results, from `pagination.prev` of a previous response. Mutually exclusive with `next`. A cursor that cannot be read returns a 400."""
     include: NotRequired[ListAttemptsIncludeTypedDict]
     r"""Fields to include in the response. Use bracket notation for multiple values (e.g., `include[0]=event&include[1]=response_data`).
     - `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
     - `event.data`: Include full event with payload data
     - `response_data`: Include response body and headers
-    - `destination`: Include the full destination object
+    - `destination`: Include the destination object, without credentials
 
     """
     order_by: NotRequired[ListAttemptsOrderBy]
@@ -207,21 +207,21 @@ class ListAttemptsRequest(BaseModel):
         Optional[int],
         FieldMetadata(query=QueryParamMetadata(style="form", explode=True)),
     ] = 100
-    r"""Number of items per page (default 100, max 1000)."""
+    r"""Number of items per page (1-1000, default 100). A value outside this range, or one that is not an integer, returns a 400."""
 
     next_cursor: Annotated[
         Optional[str],
         pydantic.Field(alias="next"),
         FieldMetadata(query=QueryParamMetadata(style="form", explode=True)),
     ] = None
-    r"""Cursor for next page of results."""
+    r"""Cursor for the next page of results, from `pagination.next` of a previous response. Mutually exclusive with `prev`. A cursor that cannot be read returns a 400."""
 
     prev_cursor: Annotated[
         Optional[str],
         pydantic.Field(alias="prev"),
         FieldMetadata(query=QueryParamMetadata(style="form", explode=True)),
     ] = None
-    r"""Cursor for previous page of results."""
+    r"""Cursor for the previous page of results, from `pagination.prev` of a previous response. Mutually exclusive with `next`. A cursor that cannot be read returns a 400."""
 
     include: Annotated[
         Optional[ListAttemptsInclude],
@@ -231,7 +231,7 @@ class ListAttemptsRequest(BaseModel):
     - `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
     - `event.data`: Include full event with payload data
     - `response_data`: Include response body and headers
-    - `destination`: Include the full destination object
+    - `destination`: Include the destination object, without credentials
 
     """
 
