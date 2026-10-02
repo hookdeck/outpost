@@ -59,15 +59,24 @@ type apiTestOption func(*apiTestConfig)
 
 type apiTestConfig struct {
 	tenantStore          tenantstore.TenantStore
+	logStore             logstore.LogStore
 	destRegistry         destregistry.Registry
 	subscriptionEmitter  apirouter.SubscriptionEmitter
 	logger               *logging.Logger
+	apiKey               string
+	topics               []string
 	topicsAllowWildcards bool
 }
 
 func withTenantStore(ts tenantstore.TenantStore) apiTestOption {
 	return func(cfg *apiTestConfig) {
 		cfg.tenantStore = ts
+	}
+}
+
+func withLogStore(ls logstore.LogStore) apiTestOption {
+	return func(cfg *apiTestConfig) {
+		cfg.logStore = ls
 	}
 }
 
@@ -89,6 +98,18 @@ func withLogger(l *logging.Logger) apiTestOption {
 	}
 }
 
+func withAPIKeyConfig(apiKey string) apiTestOption {
+	return func(cfg *apiTestConfig) {
+		cfg.apiKey = apiKey
+	}
+}
+
+func withTopics(topics []string) apiTestOption {
+	return func(cfg *apiTestConfig) {
+		cfg.topics = topics
+	}
+}
+
 func withTopicsAllowWildcards(allow bool) apiTestOption {
 	return func(cfg *apiTestConfig) {
 		cfg.topicsAllowWildcards = allow
@@ -100,6 +121,9 @@ func newAPITest(t *testing.T, opts ...apiTestOption) *apiTest {
 
 	cfg := apiTestConfig{
 		tenantStore: tenantstore.NewMemTenantStore(),
+		logStore:    logstore.NewMemLogStore(),
+		apiKey:      testAPIKey,
+		topics:      testutil.TestTopics,
 	}
 	for _, o := range opts {
 		o(&cfg)
@@ -110,7 +134,7 @@ func newAPITest(t *testing.T, opts ...apiTestOption) *apiTest {
 		logger = logging.NewTestLogger(zap.NewNop())
 	}
 	ts := cfg.tenantStore
-	ls := logstore.NewMemLogStore()
+	ls := cfg.logStore
 	dp := &mockDeliveryPublisher{}
 	eh := &mockEventHandler{}
 	var se *mockSubscriptionEmitter
@@ -130,9 +154,9 @@ func newAPITest(t *testing.T, opts ...apiTestOption) *apiTest {
 	router := apirouter.NewRouter(
 		apirouter.RouterConfig{
 			ServiceName:          "test",
-			APIKey:               testAPIKey,
+			APIKey:               cfg.apiKey,
 			JWTSecret:            testJWTSecret,
-			Topics:               testutil.TestTopics,
+			Topics:               cfg.topics,
 			TopicsAllowWildcards: cfg.topicsAllowWildcards,
 			Registry:             registry,
 			PortalConfig:         portal.PortalConfig{},
@@ -159,11 +183,13 @@ func newAPITest(t *testing.T, opts ...apiTestOption) *apiTest {
 	}
 }
 
-// do executes a request and returns the response recorder.
+// do executes a request and returns the response recorder. It fails the test
+// when the response is not JSON with a body: every API response must be.
 func (a *apiTest) do(req *http.Request) *httptest.ResponseRecorder {
 	a.t.Helper()
 	w := httptest.NewRecorder()
 	a.router.ServeHTTP(w, req)
+	testutil.RequireJSONResponse(a.t, req.Method+" "+req.URL.Path, w.Code, w.Header(), w.Body.Bytes())
 	return w
 }
 
@@ -275,6 +301,8 @@ func (r *stubRegistry) ResolvePublisher(context.Context, *models.Destination) (d
 }
 func (r *stubRegistry) MetadataLoader() metadata.MetadataLoader { return nil }
 func (r *stubRegistry) RetrieveProviderMetadata(string) (*metadata.ProviderMetadata, error) {
-	return nil, nil
+	return &metadata.ProviderMetadata{}, nil
 }
-func (r *stubRegistry) ListProviderMetadata() []*metadata.ProviderMetadata { return nil }
+func (r *stubRegistry) ListProviderMetadata() []*metadata.ProviderMetadata {
+	return []*metadata.ProviderMetadata{}
+}

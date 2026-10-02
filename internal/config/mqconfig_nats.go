@@ -84,7 +84,6 @@ func (c *NATSConfig) ToQueueConfig(ctx context.Context, queueType string) (*mqs.
 			Stream:     c.Stream,
 			Subject:    subject,
 			DLQSubject: c.getDLQSubject(queueType),
-			AckWait:    60 * time.Second,
 		},
 		VisibilityTimeout: 60 * time.Second,
 	}, nil

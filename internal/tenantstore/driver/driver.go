@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/hookdeck/outpost/internal/cursor"
 	"github.com/hookdeck/outpost/internal/models"
 )
 
@@ -31,7 +32,7 @@ var (
 	ErrDestinationDeleted              = errors.New("destination has been deleted")
 	ErrMaxDestinationsPerTenantReached = errors.New("maximum number of destinations per tenant reached")
 	ErrListTenantNotSupported          = errors.New("list tenant feature is not enabled")
-	ErrInvalidCursor                   = errors.New("invalid cursor")
+	ErrInvalidCursor                   = cursor.ErrInvalidCursor
 	ErrInvalidOrder                    = errors.New("invalid order: must be 'asc' or 'desc'")
 	ErrConflictingCursors              = errors.New("cannot specify both next and prev cursors")
 )

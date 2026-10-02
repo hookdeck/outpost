@@ -109,6 +109,9 @@ type Config struct {
 	// Alert
 	Alert AlertConfig `yaml:"alert"`
 
+	// Supervisor
+	Supervisor SupervisorConfig `yaml:"supervisor" envPrefix:"SUPERVISOR_"`
+
 	// Operator Events
 	OperatorEvents OperatorEventsConfig `yaml:"operator_events"`
 
@@ -128,11 +131,14 @@ var (
 	ErrMissingAESSecret              = errors.New("config validation error: AES encryption secret is required")
 	ErrInvalidPortalProxyURL         = errors.New("config validation error: invalid portal proxy url")
 	ErrInvalidWebhookProxyURL        = errors.New("config validation error: invalid webhook proxy url")
+	ErrInvalidAWSEventBridgeSource   = errors.New("config validation error: invalid aws eventbridge source")
 	ErrInvalidDestinationsProxyURL   = errors.New("config validation error: invalid destinations proxy url")
 	ErrInvalidPublishProxyURL        = errors.New("config validation error: invalid publish proxy url")
 	ErrInvalidDeploymentID           = errors.New("config validation error: deployment_id must contain only alphanumeric characters, hyphens, and underscores (max 64 characters)")
 	ErrInvalidRedisPoolSize          = errors.New("config validation error: redis pool_size must be >= 0")
 	ErrInvalidPublishMaxRedeliveries = errors.New("config validation error: publish_max_redeliveries must be >= -1")
+	ErrInvalidSupervisorLimit        = errors.New("config validation error: invalid supervisor limit")
+	ErrInvalidSupervisorWorker       = errors.New("config validation error: invalid supervisor restart worker")
 )
 
 func (c *Config) InitDefaults() {
@@ -210,11 +216,19 @@ func (c *Config) InitDefaults() {
 		AWSKinesis: DestinationAWSKinesisConfig{
 			MetadataInPayload: true,
 		},
+		AWSEventBridge: DestinationAWSEventBridgeConfig{
+			Source: "outpost",
+		},
 	}
 
 	// Alert: ConsecutiveFailureCount / ExhaustedRetriesWindowSeconds are left
 	// unset here so their defaults (and the empty-string "disabled" sentinel)
 	// are applied by AlertConfig.ToConfig rather than baked in as int zero values.
+
+	c.Supervisor = SupervisorConfig{
+		Startup:  SupervisorLimitsConfig{MaxAttempts: 5, MaxDurationSeconds: -1},
+		Recovery: SupervisorLimitsConfig{MaxAttempts: -1, MaxDurationSeconds: 120},
+	}
 
 	c.Telemetry = TelemetryConfig{
 		Disabled:          false,

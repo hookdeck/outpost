@@ -71,3 +71,26 @@ func TestAzureServiceBusQueue_SubscribeRetriesFailedInit(t *testing.T) {
 		require.NotNil(t, sub)
 	})
 }
+
+func TestGCPPubSubQueue_FailedInitReleasesConnections(t *testing.T) {
+	t.Parallel()
+
+	config := &mqs.GCPPubSubConfig{
+		ProjectID:                 "test-project",
+		ServiceAccountCredentials: `{"type":"service_account","client_email":"test@test-project.iam.gserviceaccount.com","private_key":"test","token_uri":"http://127.0.0.1:1/token"}`,
+	}
+	q := mqs.NewGCPPubSubQueue(config, 0)
+
+	// An empty topic ID fails after the connection and client are opened.
+	for range 2 {
+		_, err := q.Init(t.Context())
+		require.Error(t, err)
+		assert.Zero(t, mqs.GCPPubSubCleanupFns(q))
+	}
+
+	config.TopicID = "publish"
+	cleanup, err := q.Init(t.Context())
+	require.NoError(t, err)
+	assert.Equal(t, 3, mqs.GCPPubSubCleanupFns(q))
+	cleanup()
+}

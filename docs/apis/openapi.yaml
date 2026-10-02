@@ -58,6 +58,12 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/APIErrorResponse"
+    Forbidden:
+      description: The credentials are valid but not allowed to perform the request.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/APIErrorResponse"
     NotFound:
       description: Requested resource not found.
       content:
@@ -310,6 +316,61 @@ components:
           description: The URL of the SQS queue.
           example: "https://sqs.us-east-1.amazonaws.com/123456789012/my-queue"
     AWSSQSCredentials:
+      type: object
+      required: [key, secret]
+      properties:
+        key:
+          type: string
+          description: AWS Access Key ID.
+          example: "AKIAIOSFODNN7EXAMPLE"
+        secret:
+          type: string
+          description: AWS Secret Access Key.
+          example: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+        session:
+          type: string
+          description: Optional AWS Session Token (for temporary credentials).
+          example: "AQoDYXdzEPT//////////wEXAMPLE..."
+    CloudflareQueuesConfig:
+      type: object
+      required: [account_id, queue_id]
+      properties:
+        account_id:
+          type: string
+          description: Cloudflare Account ID (32-character hex string).
+          pattern: "^[0-9a-f]{32}$"
+          example: "023e105f4ecef8ad9ca31a8372d0c353"
+        queue_id:
+          type: string
+          description: Cloudflare Queue ID (32-character hex string, not the queue name).
+          pattern: "^[0-9a-f]{32}$"
+          example: "9d7d4cf8a3a14d9aaeb50c3e74e2f4b1"
+    CloudflareQueuesCredentials:
+      type: object
+      required: [api_token]
+      properties:
+        api_token:
+          type: string
+          description: Cloudflare API Token with the Account > Queues > Edit (Queues Write) permission, scoped to the target account.
+          example: "v1.0-1234567890abcdef..."
+    AWSEventBridgeConfig:
+      type: object
+      required: [region]
+      properties:
+        event_bus_name:
+          type: string
+          description: Optional. The name or ARN of the EventBridge event bus. Defaults to the account's default event bus.
+          example: "my-event-bus"
+        region:
+          type: string
+          description: The AWS region where the event bus is located.
+          example: "us-east-1"
+        endpoint:
+          type: string
+          format: url
+          description: Optional. Custom AWS endpoint URL (e.g., for LocalStack or VPC endpoints).
+          example: "https://events.us-east-1.amazonaws.com"
+    AWSEventBridgeCredentials:
       type: object
       required: [key, secret]
       properties:
@@ -1288,6 +1349,183 @@ components:
           username: "outpost"
           password: "secure_password_123"
 
+    DestinationCloudflareQueues:
+      type: object
+      x-docs-type: "Cloudflare Queues"
+      # Properties duplicated from DestinationBase
+      required:
+        [
+          id,
+          type,
+          topics,
+          config,
+          credentials,
+          created_at,
+          updated_at,
+          disabled_at,
+        ]
+      properties:
+        id:
+          type: string
+          description: Control plane generated ID or user provided ID for the destination.
+          example: "des_12345"
+        type:
+          type: string
+          description: Type of the destination.
+          enum: [cloudflare_queues]
+          example: "cloudflare_queues"
+        topics:
+          $ref: "#/components/schemas/Topics"
+        filter:
+          $ref: "#/components/schemas/Filter"
+        disabled_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: ISO Date when the destination was disabled, or null if enabled.
+          example: null
+        created_at:
+          type: string
+          format: date-time
+          description: ISO Date when the destination was created.
+          example: "2024-01-01T00:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: ISO Date when the destination was last updated.
+          example: "2024-01-01T00:00:00Z"
+        config:
+          $ref: "#/components/schemas/CloudflareQueuesConfig"
+        credentials:
+          $ref: "#/components/schemas/CloudflareQueuesCredentials"
+        delivery_metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Static key-value pairs merged into event metadata on every attempt.
+          example: { "app-id": "my-app", "region": "us-east-1" }
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Arbitrary contextual information stored with the destination.
+          example: { "internal-id": "123", "team": "platform" }
+        target:
+          type: string
+          description: A human-readable representation of the destination target (Cloudflare Queue ID). Read-only.
+          readOnly: true
+          example: "9d7d4cf8a3a14d9aaeb50c3e74e2f4b1"
+        target_url:
+          type: string
+          format: url
+          nullable: true
+          description: A URL link to the Cloudflare dashboard queues list for the account. Read-only.
+          readOnly: true
+          example: "https://dash.cloudflare.com/023e105f4ecef8ad9ca31a8372d0c353/workers/queues"
+      example:
+        id: "des_cf_queues_123"
+        type: "cloudflare_queues"
+        topics: ["*"]
+        disabled_at: null
+        created_at: "2024-03-10T14:30:00Z"
+        updated_at: "2024-03-10T14:30:00Z"
+        config:
+          account_id: "023e105f4ecef8ad9ca31a8372d0c353"
+          queue_id: "9d7d4cf8a3a14d9aaeb50c3e74e2f4b1"
+        credentials:
+          api_token: "v1.0-1234567890abcdef..."
+
+    DestinationAWSEventBridge:
+      type: object
+      x-docs-type: "AWS EventBridge"
+      # Properties duplicated from DestinationBase
+      required:
+        [
+          id,
+          type,
+          topics,
+          config,
+          credentials,
+          created_at,
+          updated_at,
+          disabled_at,
+        ]
+      properties:
+        id:
+          type: string
+          description: Control plane generated ID or user provided ID for the destination.
+          example: "des_12345"
+        type:
+          type: string
+          description: Type of the destination.
+          enum: [aws_eventbridge]
+          example: "aws_eventbridge"
+        topics:
+          $ref: "#/components/schemas/Topics"
+        filter:
+          $ref: "#/components/schemas/Filter"
+        disabled_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: ISO Date when the destination was disabled, or null if enabled.
+          example: null
+        created_at:
+          type: string
+          format: date-time
+          description: ISO Date when the destination was created.
+          example: "2024-01-01T00:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: ISO Date when the destination was last updated.
+          example: "2024-01-01T00:00:00Z"
+        config:
+          $ref: "#/components/schemas/AWSEventBridgeConfig"
+        credentials:
+          $ref: "#/components/schemas/AWSEventBridgeCredentials"
+        delivery_metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Static key-value pairs merged into event metadata on every attempt.
+          example: { "app-id": "my-app", "region": "us-east-1" }
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Arbitrary contextual information stored with the destination.
+          example: { "internal-id": "123", "team": "platform" }
+        target:
+          type: string
+          description: A human-readable representation of the destination target (event bus name and region, or the event bus ARN). Read-only.
+          readOnly: true
+          example: "my-event-bus in us-east-1"
+        target_url:
+          type: string
+          format: url
+          nullable: true
+          description: A URL link to the destination target (AWS Console link to the event bus). Null when the event bus is given as an ARN. Read-only.
+          readOnly: true
+          example: "https://us-east-1.console.aws.amazon.com/events/home?region=us-east-1#/eventbus/my-event-bus"
+      example:
+        id: "des_evb_123"
+        type: "aws_eventbridge"
+        topics: ["*"]
+        disabled_at: null
+        created_at: "2024-03-10T14:30:00Z"
+        updated_at: "2024-03-10T14:30:00Z"
+        config:
+          event_bus_name: "my-event-bus"
+          region: "us-east-1"
+        credentials:
+          key: "AKIAIOSFODNN7EXAMPLE"
+          secret: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+
     # Polymorphic Destination Schema (for Responses)
     Destination:
       oneOf:
@@ -1300,6 +1538,8 @@ components:
         - $ref: "#/components/schemas/DestinationAzureServiceBus"
         - $ref: "#/components/schemas/DestinationGCPPubSub"
         - $ref: "#/components/schemas/DestinationKafka"
+        - $ref: "#/components/schemas/DestinationCloudflareQueues"
+        - $ref: "#/components/schemas/DestinationAWSEventBridge"
       discriminator:
         propertyName: type
         mapping:
@@ -1312,6 +1552,8 @@ components:
           aws_s3: "#/components/schemas/DestinationAWSS3"
           gcp_pubsub: "#/components/schemas/DestinationGCPPubSub"
           kafka: "#/components/schemas/DestinationKafka"
+          cloudflare_queues: "#/components/schemas/DestinationCloudflareQueues"
+          aws_eventbridge: "#/components/schemas/DestinationAWSEventBridge"
 
     DestinationCreateWebhook:
       type: object
@@ -1882,6 +2124,132 @@ components:
             If set, the destination is created in a disabled state with this
             timestamp. Must not be in the future. Defaults to null (enabled).
           example: null
+    DestinationCreateCloudflareQueues:
+      type: object
+      x-docs-type: "Cloudflare Queues"
+      required: [type, topics, config, credentials]
+      properties:
+        id:
+          type: string
+          description: Optional user-provided ID. An ID will be generated if empty.
+          example: "user-provided-id"
+        type:
+          type: string
+          description: Type of the destination. Must be 'cloudflare_queues'.
+          enum: [cloudflare_queues]
+        topics:
+          $ref: "#/components/schemas/Topics"
+        filter:
+          $ref: "#/components/schemas/Filter"
+        config:
+          $ref: "#/components/schemas/CloudflareQueuesConfig"
+        credentials:
+          $ref: "#/components/schemas/CloudflareQueuesCredentials"
+        delivery_metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Static key-value pairs merged into event metadata on every attempt.
+          example: { "app-id": "my-app", "region": "us-east-1" }
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Arbitrary contextual information stored with the destination.
+          example: { "internal-id": "123", "team": "platform" }
+        created_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            Optional override for the creation timestamp. Intended for importing
+            destinations from another system. Must not be in the future.
+            **Admin (API key) auth only — sending this with JWT auth returns 403.**
+            Defaults to the current time when omitted.
+          example: "2024-02-15T10:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            Optional override for the last-updated timestamp. Intended for
+            importing destinations. Must not be in the future.
+            **Admin (API key) auth only — sending this with JWT auth returns 403.**
+            Defaults to created_at when omitted.
+          example: "2024-02-15T10:00:00Z"
+        disabled_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            If set, the destination is created in a disabled state with this
+            timestamp. Must not be in the future. Defaults to null (enabled).
+          example: null
+    DestinationCreateAWSEventBridge:
+      type: object
+      x-docs-type: "AWS EventBridge"
+      required: [type, topics, config, credentials]
+      properties:
+        id:
+          type: string
+          description: Optional user-provided ID. An ID will be generated if empty.
+          example: "user-provided-id"
+        type:
+          type: string
+          description: Type of the destination. Must be 'aws_eventbridge'.
+          enum: [aws_eventbridge]
+        topics:
+          $ref: "#/components/schemas/Topics"
+        filter:
+          $ref: "#/components/schemas/Filter"
+        config:
+          $ref: "#/components/schemas/AWSEventBridgeConfig"
+        credentials:
+          $ref: "#/components/schemas/AWSEventBridgeCredentials"
+        delivery_metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Static key-value pairs merged into event metadata on every attempt.
+          example: { "app-id": "my-app", "region": "us-east-1" }
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Arbitrary contextual information stored with the destination.
+          example: { "internal-id": "123", "team": "platform" }
+        created_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            Optional override for the creation timestamp. Intended for importing
+            destinations from another system. Must not be in the future.
+            **Admin (API key) auth only — sending this with JWT auth returns 403.**
+            Defaults to the current time when omitted.
+          example: "2024-02-15T10:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            Optional override for the last-updated timestamp. Intended for
+            importing destinations. Must not be in the future.
+            **Admin (API key) auth only — sending this with JWT auth returns 403.**
+            Defaults to created_at when omitted.
+          example: "2024-02-15T10:00:00Z"
+        disabled_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            If set, the destination is created in a disabled state with this
+            timestamp. Must not be in the future. Defaults to null (enabled).
+          example: null
 
     # Polymorphic Destination Creation Schema (for Request Bodies)
     DestinationCreate:
@@ -1895,6 +2263,8 @@ components:
         - $ref: "#/components/schemas/DestinationCreateRabbitMQ"
         - $ref: "#/components/schemas/DestinationCreateGCPPubSub"
         - $ref: "#/components/schemas/DestinationCreateKafka"
+        - $ref: "#/components/schemas/DestinationCreateCloudflareQueues"
+        - $ref: "#/components/schemas/DestinationCreateAWSEventBridge"
       discriminator:
         propertyName: type
         mapping:
@@ -1907,6 +2277,8 @@ components:
           aws_s3: "#/components/schemas/DestinationCreateAWSS3"
           gcp_pubsub: "#/components/schemas/DestinationCreateGCPPubSub"
           kafka: "#/components/schemas/DestinationCreateKafka"
+          cloudflare_queues: "#/components/schemas/DestinationCreateCloudflareQueues"
+          aws_eventbridge: "#/components/schemas/DestinationCreateAWSEventBridge"
 
     # Type-Specific Destination Update Schemas (for Request Bodies)
     # Type-Specific Partial Schemas for PATCH Request Bodies
@@ -2125,6 +2497,52 @@ components:
         password:
           type: string
           description: SASL password for authentication.
+    CloudflareQueuesConfigUpdate:
+      type: object
+      description: Partial Cloudflare Queues config for PATCH updates (RFC 7396 merge-patch).
+      properties:
+        account_id:
+          type: string
+          description: Cloudflare Account ID (32-character hex string).
+          pattern: "^[0-9a-f]{32}$"
+        queue_id:
+          type: string
+          description: Cloudflare Queue ID (32-character hex string, not the queue name).
+          pattern: "^[0-9a-f]{32}$"
+    CloudflareQueuesCredentialsUpdate:
+      type: object
+      description: Partial Cloudflare Queues credentials for PATCH updates (RFC 7396 merge-patch).
+      properties:
+        api_token:
+          type: string
+          description: Cloudflare API Token with the Account > Queues > Edit (Queues Write) permission, scoped to the target account.
+    AWSEventBridgeConfigUpdate:
+      type: object
+      description: Partial AWS EventBridge config for PATCH updates (RFC 7396 merge-patch).
+      properties:
+        event_bus_name:
+          type: string
+          description: Optional. The name or ARN of the EventBridge event bus. Defaults to the account's default event bus.
+        region:
+          type: string
+          description: The AWS region where the event bus is located.
+        endpoint:
+          type: string
+          format: url
+          description: Optional. Custom AWS endpoint URL (e.g., for LocalStack or VPC endpoints).
+    AWSEventBridgeCredentialsUpdate:
+      type: object
+      description: Partial AWS EventBridge credentials for PATCH updates (RFC 7396 merge-patch).
+      properties:
+        key:
+          type: string
+          description: AWS Access Key ID.
+        secret:
+          type: string
+          description: AWS Secret Access Key.
+        session:
+          type: string
+          description: Optional AWS Session Token (for temporary credentials).
 
     DestinationUpdateWebhook:
       type: object
@@ -2612,6 +3030,114 @@ components:
             (must not be in the future) to disable, null to enable, or omit
             to leave unchanged.
           example: null
+    DestinationUpdateCloudflareQueues:
+      type: object
+      x-docs-type: "Cloudflare Queues"
+      # Properties duplicated from DestinationUpdateBase
+      required: [type]
+      properties:
+        type:
+          type: string
+          enum: [cloudflare_queues]
+          description: Destination type discriminator. Must equal the existing destination's type — type itself cannot be changed via PATCH.
+          example: "cloudflare_queues"
+        topics:
+          $ref: "#/components/schemas/Topics"
+        filter:
+          $ref: "#/components/schemas/Filter"
+        config:
+          $ref: "#/components/schemas/CloudflareQueuesConfigUpdate"
+        credentials:
+          $ref: "#/components/schemas/CloudflareQueuesCredentialsUpdate"
+        delivery_metadata:
+          type: object
+          additionalProperties:
+            oneOf:
+              - type: string
+              - type: "null"
+          nullable: true
+          description: >-
+            Static key-value pairs merged into event metadata on every attempt.
+            Uses JSON merge-patch semantics (RFC 7396): send keys to add/update,
+            null values to delete keys, null for entire field to clear all.
+            Omit or send {} for no change.
+          example: { "app-id": "my-app", "region": "us-east-1" }
+        metadata:
+          type: object
+          additionalProperties:
+            oneOf:
+              - type: string
+              - type: "null"
+          nullable: true
+          description: >-
+            Arbitrary contextual information stored with the destination.
+            Uses JSON merge-patch semantics (RFC 7396): send keys to add/update,
+            null values to delete keys, null for entire field to clear all.
+            Omit or send {} for no change.
+          example: { "internal-id": "123", "team": "platform" }
+        disabled_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            Update the disabled state of the destination. Send a timestamp
+            (must not be in the future) to disable, null to enable, or omit
+            to leave unchanged.
+          example: null
+    DestinationUpdateAWSEventBridge:
+      type: object
+      x-docs-type: "AWS EventBridge"
+      # Properties duplicated from DestinationUpdateBase
+      required: [type]
+      properties:
+        type:
+          type: string
+          enum: [aws_eventbridge]
+          description: Destination type discriminator. Must equal the existing destination's type — type itself cannot be changed via PATCH.
+          example: "aws_eventbridge"
+        topics:
+          $ref: "#/components/schemas/Topics"
+        filter:
+          $ref: "#/components/schemas/Filter"
+        config:
+          $ref: "#/components/schemas/AWSEventBridgeConfigUpdate"
+        credentials:
+          $ref: "#/components/schemas/AWSEventBridgeCredentialsUpdate"
+        delivery_metadata:
+          type: object
+          additionalProperties:
+            oneOf:
+              - type: string
+              - type: "null"
+          nullable: true
+          description: >-
+            Static key-value pairs merged into event metadata on every attempt.
+            Uses JSON merge-patch semantics (RFC 7396): send keys to add/update,
+            null values to delete keys, null for entire field to clear all.
+            Omit or send {} for no change.
+          example: { "app-id": "my-app", "region": "us-east-1" }
+        metadata:
+          type: object
+          additionalProperties:
+            oneOf:
+              - type: string
+              - type: "null"
+          nullable: true
+          description: >-
+            Arbitrary contextual information stored with the destination.
+            Uses JSON merge-patch semantics (RFC 7396): send keys to add/update,
+            null values to delete keys, null for entire field to clear all.
+            Omit or send {} for no change.
+          example: { "internal-id": "123", "team": "platform" }
+        disabled_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            Update the disabled state of the destination. Send a timestamp
+            (must not be in the future) to disable, null to enable, or omit
+            to leave unchanged.
+          example: null
 
     # Polymorphic Destination Update Schema (for Request Bodies)
     DestinationUpdate:
@@ -2625,6 +3151,8 @@ components:
         - $ref: "#/components/schemas/DestinationUpdateGCPPubSub"
         - $ref: "#/components/schemas/DestinationUpdateRabbitMQ"
         - $ref: "#/components/schemas/DestinationUpdateKafka"
+        - $ref: "#/components/schemas/DestinationUpdateCloudflareQueues"
+        - $ref: "#/components/schemas/DestinationUpdateAWSEventBridge"
       discriminator:
         propertyName: type
         mapping:
@@ -2637,6 +3165,8 @@ components:
           aws_s3: "#/components/schemas/DestinationUpdateAWSS3"
           gcp_pubsub: "#/components/schemas/DestinationUpdateGCPPubSub"
           kafka: "#/components/schemas/DestinationUpdateKafka"
+          cloudflare_queues: "#/components/schemas/DestinationUpdateCloudflareQueues"
+          aws_eventbridge: "#/components/schemas/DestinationUpdateAWSEventBridge"
     # Event Schemas
     PublishRequest:
       type: object
@@ -2989,6 +3519,9 @@ components:
         - azure_servicebus
         - aws_s3
         - gcp_pubsub
+        - kafka
+        - cloudflare_queues
+        - aws_eventbridge
       description: Type of destination.
       example: "webhook"
     DestinationTypeSchema:
@@ -3490,11 +4023,23 @@ components:
 
 # Security is applied per-operation based on AuthScope
 
+# `x-outpost-deployment` marks an operation or tag that exists in only one
+# deployment model: `managed` or `self-hosted`. **Its absence means the
+# operation is available in both** — the key is present only where
+# availability is restricted, so adding an endpoint that works everywhere
+# needs nothing here.
+#
+# It carries the same fact as the "only available for..." sentences in the
+# descriptions beside it, in a form a generator, a validator or an agent can
+# read without parsing English. The prose stays, because it is what a human
+# reading the reference sees.
 tags:
   - name: Health
+    x-outpost-deployment: self-hosted
     description: |
       This endpoint is only available for **self-hosted** Outpost deployments. Managed Outpost health is monitored by Hookdeck.
   - name: Configuration
+    x-outpost-deployment: managed
     description: |
       The Configuration API is available for **managed Outpost** deployments only. It allows you to read and update instance-level settings — the same settings available as environment variables in self-hosted deployments.
   - name: Operator Events
@@ -3534,7 +4079,7 @@ tags:
   - name: Publish
     description: Use the Publish endpoint to send events into Outpost. Events are matched against all destinations whose topic subscriptions and filters match the event. Requires Admin API Key.
   - name: Retry
-    description: Triggers a retry for delivering an event to a destination. The event must exist and the destination must be enabled and match the event's topic.
+    description: Triggers a retry for delivering an event to a destination. The event must exist, and the destination must be enabled, match the event's topic and filter, and already have a delivery attempt for the event.
   - name: Schemas
     description: |
       Destination types describe the available event delivery targets and their configuration schemas. Use these endpoints to render UI forms and list available destination types with their configuration schemas.
@@ -3567,14 +4112,20 @@ paths:
 
         > This endpoint is only available for **self-hosted** Outpost deployments. Managed Outpost health is monitored by Hookdeck.
 
-        Returns HTTP 200 when all workers are healthy, or HTTP 503 if any worker has failed.
+        Worker status is one of:
+        - `healthy`: running.
+        - `degraded`: failing and being restarted, within its restart budget. The service keeps serving. Only reported for workers listed in `SUPERVISOR_RESTART_WORKERS`.
+        - `failed`: failed, or failing past its restart budget. With restarts enabled, Outpost keeps restarting it, and it returns to `healthy` once it recovers.
+
+        Returns HTTP 200 when no worker has failed (the overall status is `degraded` if any worker is degraded), or HTTP 503 if any worker has failed.
 
         Note: Error details are not exposed for security reasons. Check application logs for detailed error information.
       operationId: healthCheck
+      x-outpost-deployment: self-hosted
       security: []
       responses:
         "200":
-          description: Service is healthy - all workers are operational.
+          description: Service is healthy or degraded - no worker has failed.
           content:
             application/json:
               schema:
@@ -3586,7 +4137,7 @@ paths:
                 properties:
                   status:
                     type: string
-                    enum: [healthy]
+                    enum: [healthy, degraded]
                     example: healthy
                   timestamp:
                     type: string
@@ -3602,16 +4153,31 @@ paths:
                       properties:
                         status:
                           type: string
-                          enum: [healthy]
+                          enum: [healthy, degraded]
                           example: healthy
+                        since:
+                          type: string
+                          format: date-time
+                          description: Start of the worker's current failure episode. Present when the status is `degraded` or `failed`.
+                          example: "2025-11-11T10:29:45Z"
+                        reason:
+                          type: string
+                          enum: [startup_failed, recovery_failed]
+                          description: |
+                            Present when the status is `degraded` or `failed`.
+                            `startup_failed`: the worker has not been healthy since the process started (usually configuration or a dependency that is not up yet).
+                            `recovery_failed`: the worker was healthy and then failed (e.g. a broker restart or failover).
+                          example: recovery_failed
               example:
-                status: healthy
+                status: degraded
                 timestamp: "2025-11-11T10:30:00Z"
                 workers:
                   http-server:
                     status: healthy
-                  retrymq-consumer:
-                    status: healthy
+                  publishmq-consumer:
+                    status: degraded
+                    since: "2025-11-11T10:29:45Z"
+                    reason: recovery_failed
         "503":
           description: Service is unhealthy - one or more workers have failed.
           content:
@@ -3641,16 +4207,31 @@ paths:
                       properties:
                         status:
                           type: string
-                          enum: [healthy, failed]
+                          enum: [healthy, degraded, failed]
                           example: failed
+                        since:
+                          type: string
+                          format: date-time
+                          description: Start of the worker's current failure episode. Present when the status is `degraded` or `failed`.
+                          example: "2025-11-11T10:29:45Z"
+                        reason:
+                          type: string
+                          enum: [startup_failed, recovery_failed]
+                          description: |
+                            Present when the status is `degraded` or `failed`.
+                            `startup_failed`: the worker has not been healthy since the process started (usually configuration or a dependency that is not up yet).
+                            `recovery_failed`: the worker was healthy and then failed (e.g. a broker restart or failover).
+                          example: recovery_failed
               example:
                 status: failed
                 timestamp: "2025-11-11T10:30:15Z"
                 workers:
                   http-server:
                     status: healthy
-                  retrymq-consumer:
+                  publishmq-consumer:
                     status: failed
+                    since: "2025-11-11T10:29:44Z"
+                    reason: startup_failed
   /config:
     get:
       tags: [Configuration]
@@ -3661,6 +4242,7 @@ paths:
         This endpoint is only available for the managed version.
         In self-hosted deployments, configuration is controlled through environment variables instead.
       operationId: getManagedConfig
+      x-outpost-deployment: managed
       responses:
         "200":
           description: Managed configuration.
@@ -3687,6 +4269,7 @@ paths:
 
         Only the supported configuration keys are accepted.
       operationId: updateManagedConfig
+      x-outpost-deployment: managed
       requestBody:
         required: true
         content:
@@ -4372,6 +4955,8 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "422":
+          $ref: "#/components/responses/ValidationError"
         "500":
           $ref: "#/components/responses/InternalServerError"
         "501":
@@ -4438,6 +5023,8 @@ paths:
                 updated_at: "2024-01-15T10:30:00Z"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "422":
           $ref: "#/components/responses/ValidationError"
         "500":
@@ -4464,6 +5051,8 @@ paths:
                 updated_at: "2024-01-15T10:30:00Z"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
         "500":
@@ -4486,6 +5075,8 @@ paths:
                     success: true
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
         "500":
@@ -4565,19 +5156,19 @@ paths:
             default: 100
             minimum: 1
             maximum: 1000
-          description: Number of items per page (default 100, max 1000).
+          description: Number of items per page (1-1000, default 100). A value outside this range, or one that is not an integer, returns a 400.
         - name: next
           in: query
           required: false
           schema:
             type: string
-          description: Cursor for next page of results.
+          description: Cursor for the next page of results, from `pagination.next` of a previous response. Mutually exclusive with `prev`. A cursor that cannot be read returns a 400.
         - name: prev
           in: query
           required: false
           schema:
             type: string
-          description: Cursor for previous page of results.
+          description: Cursor for the previous page of results, from `pagination.prev` of a previous response. Mutually exclusive with `next`. A cursor that cannot be read returns a 400.
         - name: order_by
           in: query
           required: false
@@ -4626,8 +5217,14 @@ paths:
                         metadata: { "source": "oms" }
                         data: { "order_id": "orderid", "tracking": "1Z..." }
 
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "422":
+          $ref: "#/components/responses/ValidationError"
         "500":
           $ref: "#/components/responses/InternalServerError"
 
@@ -4769,19 +5366,19 @@ paths:
             default: 100
             minimum: 1
             maximum: 1000
-          description: Number of items per page (default 100, max 1000).
+          description: Number of items per page (1-1000, default 100). A value outside this range, or one that is not an integer, returns a 400.
         - name: next
           in: query
           required: false
           schema:
             type: string
-          description: Cursor for next page of results.
+          description: Cursor for the next page of results, from `pagination.next` of a previous response. Mutually exclusive with `prev`. A cursor that cannot be read returns a 400.
         - name: prev
           in: query
           required: false
           schema:
             type: string
-          description: Cursor for previous page of results.
+          description: Cursor for the previous page of results, from `pagination.prev` of a previous response. Mutually exclusive with `next`. A cursor that cannot be read returns a 400.
         - name: include
           in: query
           required: false
@@ -4872,8 +5469,14 @@ paths:
                           eligible_for_retry: false
                           metadata: { "source": "crm" }
 
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "422":
+          $ref: "#/components/responses/ValidationError"
         "500":
           $ref: "#/components/responses/InternalServerError"
 
@@ -5000,6 +5603,8 @@ paths:
                     tenant_id: "tenant_123"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
         "500":
@@ -5034,6 +5639,8 @@ paths:
                     tenant_id: "tenant_123"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
         "500":
@@ -5127,6 +5734,8 @@ paths:
                         secret: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
         "500":
@@ -5172,8 +5781,12 @@ paths:
                     credentials:
                       secret: "whsec_abc123def456"
                       # previous_secret and previous_secret_invalid_at are absent on creation
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
         "422":
@@ -5224,6 +5837,8 @@ paths:
                       previous_secret_invalid_at: "2024-02-16T10:00:00Z"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
         "500":
@@ -5272,6 +5887,8 @@ paths:
                       previous_secret_invalid_at: "2024-02-16T10:00:00Z"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
         "422":
@@ -5296,6 +5913,8 @@ paths:
                     success: true
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
         "500":
@@ -5344,6 +5963,8 @@ paths:
                       previous_secret_invalid_at: "2024-02-16T10:00:00Z"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
         "500":
@@ -5392,6 +6013,8 @@ paths:
                       previous_secret_invalid_at: "2024-02-16T10:00:00Z"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
         "500":
@@ -5415,7 +6038,10 @@ paths:
     get:
       tags: [Destinations]
       summary: List Destination Attempts
-      description: Retrieves a paginated list of attempts scoped to a specific destination.
+      description: |
+        Retrieves a paginated list of attempts scoped to a specific destination.
+
+        Returns `404` if the destination does not exist or has been deleted. The attempts of a deleted destination remain available from `GET /attempts?destination_id=`.
       operationId: listTenantDestinationAttempts
       parameters:
         - name: event_id
@@ -5461,19 +6087,19 @@ paths:
             default: 100
             minimum: 1
             maximum: 1000
-          description: Number of items per page (default 100, max 1000).
+          description: Number of items per page (1-1000, default 100). A value outside this range, or one that is not an integer, returns a 400.
         - name: next
           in: query
           required: false
           schema:
             type: string
-          description: Cursor for next page of results.
+          description: Cursor for the next page of results, from `pagination.next` of a previous response. Mutually exclusive with `prev`. A cursor that cannot be read returns a 400.
         - name: prev
           in: query
           required: false
           schema:
             type: string
-          description: Cursor for previous page of results.
+          description: Cursor for the previous page of results, from `pagination.prev` of a previous response. Mutually exclusive with `next`. A cursor that cannot be read returns a 400.
         - name: include
           in: query
           required: false
@@ -5539,10 +6165,16 @@ paths:
                         event_id: "evt_789"
                         destination_id: "des_456"
 
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationError"
         "500":
           $ref: "#/components/responses/InternalServerError"
 
@@ -5569,7 +6201,10 @@ paths:
     get:
       tags: [Destinations]
       summary: Get Destination Attempt
-      description: Retrieves details for a specific attempt scoped to a destination.
+      description: |
+        Retrieves details for a specific attempt scoped to a destination.
+
+        Returns `404` if the destination does not exist or has been deleted, or if the destination has no attempt with this ID. An attempt of a deleted destination remains available from `GET /attempts/{attempt_id}`.
       operationId: getTenantDestinationAttempt
       parameters:
         - name: include
@@ -5607,6 +6242,8 @@ paths:
                     destination_id: "des_456"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
         "500":
@@ -5650,8 +6287,14 @@ paths:
                 destination_ids: ["des_webhook_123"]
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "409":
-          description: Conflict. An event with the provided `id` already exists.
+          description: Conflict. Another request with the same event `id` is in progress or has just failed. Retry the request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APIErrorResponse"
         "422":
           description: The event topic was either required or was invalid.
         "500":
@@ -5663,7 +6306,9 @@ paths:
       tags: [Retry]
       summary: Retry Event Delivery
       description: |
-        Triggers a retry for delivering an event to a destination. The event must exist and the destination must be enabled and match the event's topic.
+        Triggers a retry for delivering an event to a destination. The event must exist, and the destination must be enabled, match the event's topic and filter, and already have a delivery attempt for the event. A retry never sends an event to a destination that has no earlier attempt for it.
+
+        Returns 404 `event not found` if the event does not exist, or belongs to another tenant when authenticated with a Tenant JWT. Returns 404 `destination not found` if the destination does not exist for the event's tenant or has been deleted.
 
         When authenticated with a Tenant JWT, only events belonging to that tenant can be retried.
         When authenticated with Admin API Key, events from any tenant can be retried.
@@ -5692,11 +6337,14 @@ paths:
           description: |
             Bad request. This can happen when:
             - The destination is disabled
-            - The destination does not match the event's topic
+            - The destination does not match the event's topic or filter
+            - The event has no delivery attempt for the destination
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationError"
         "500":
           $ref: "#/components/responses/InternalServerError"
 
@@ -5869,7 +6517,7 @@ paths:
         required: true
         schema:
           type: string
-          enum: [webhook, aws_sqs, rabbitmq, hookdeck, aws_kinesis, azure_servicebus, aws_s3, gcp_pubsub, kafka]
+          enum: [webhook, aws_sqs, rabbitmq, hookdeck, aws_kinesis, azure_servicebus, aws_s3, gcp_pubsub, kafka, cloudflare_queues, aws_eventbridge]
         description: The type of the destination.
     get:
       tags: [Schemas]

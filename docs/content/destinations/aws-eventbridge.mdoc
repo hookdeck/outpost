@@ -1,0 +1,123 @@
+---
+title: "AWS EventBridge"
+description: "Publish events to an Amazon EventBridge event bus, with the topic as the detail type."
+---
+
+Send events to an Amazon EventBridge event bus.
+
+## Creating an EventBridge Destination
+
+```sh
+curl '{% $OUTPOST_API_BASE_URL %}/tenants/<TENANT_ID>/destinations' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer <API_KEY>' \
+--data '{
+  "type": "aws_eventbridge",
+  "topics": ["orders"],
+  "config": {
+    "event_bus_name": "my-bus",
+    "region": "us-east-1"
+  },
+  "credentials": {
+    "key": "<AWS_ACCESS_KEY_ID>",
+    "secret": "<AWS_SECRET_ACCESS_KEY>"
+  }
+}'
+```
+
+## Configuration
+
+### Config
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `config.event_bus_name` | string | No | The event bus name or ARN. Defaults to the account's default event bus. |
+| `config.region` | string | Yes | AWS region (e.g., `us-east-1`) |
+| `config.endpoint` | string | No | Custom endpoint URL (for LocalStack, etc.) |
+
+### Credentials
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `credentials.key` | string | Yes | AWS Access Key ID |
+| `credentials.secret` | string | Yes | AWS Secret Access Key |
+| `credentials.session` | string | No | AWS Session Token (for temporary credentials) |
+
+## Event Format
+
+Each event is published with `PutEvents` as a single EventBridge entry:
+
+- **Source**: the same value for every AWS EventBridge destination in the deployment. Defaults to `outpost`.
+- **DetailType**: the event's topic. EventBridge requires a detail type, so an event published without a topic uses `event`.
+- **Time**: the event's own time, not the time of the delivery attempt. A retried event keeps its original `time`.
+- **Detail**: a JSON object with the event's `data` and its `metadata`. `metadata` contains system metadata (`event-id`, `topic`, `timestamp`) merged with any custom event metadata.
+
+On a self-hosted deployment, set [`DESTINATIONS_AWS_EVENTBRIDGE_SOURCE`](/docs/outpost/self-hosting/configuration#destinations) to change the `Source`.
+
+EventBridge reserves sources that start with `aws.`, so Outpost refuses to start with one.
+
+### Example
+
+Publishing this event:
+
+```json
+{
+  "topic": "orders",
+  "data": { "order_id": "123", "status": "created" },
+  "metadata": { "service": "checkout-service" }
+}
+```
+
+Results in this event on the bus:
+
+```json
+{
+  "version": "0",
+  "id": "b6258446-a909-45b1-b9c6-a6da99bbf50e",
+  "detail-type": "orders",
+  "source": "outpost",
+  "account": "123456789012",
+  "time": "2024-01-01T00:00:00Z",
+  "region": "us-east-1",
+  "resources": [],
+  "detail": {
+    "metadata": {
+      "event-id": "evt_123",
+      "topic": "orders",
+      "timestamp": "2024-01-01T00:00:05Z",
+      "service": "checkout-service"
+    },
+    "data": {
+      "order_id": "123",
+      "status": "created"
+    }
+  }
+}
+```
+
+`time` is the event's time. `detail.metadata.timestamp` is the time of the delivery attempt.
+
+A rule with the event pattern `{"source": ["outpost"], "detail-type": ["orders"]}` matches it.
+
+### Limits
+
+EventBridge rejects an entry larger than 1 MB (source, detail type, detail and time combined) and a detail type longer than 128 characters. Outpost does not check either before sending, so such an event fails on every attempt.
+
+EventBridge accepts events for an event bus that does not exist and drops them: the delivery attempt succeeds and nothing arrives. Check `config.event_bus_name` if events go missing.
+
+## IAM Permissions
+
+The IAM user or role requires:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Action": "events:PutEvents",
+    "Resource": "arn:aws:events:*:*:event-bus/my-bus"
+  }]
+}
+```
+
+For the default event bus, the resource is `arn:aws:events:*:*:event-bus/default`.

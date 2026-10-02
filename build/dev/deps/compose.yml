@@ -103,7 +103,7 @@ services:
     profiles: ["localstack"]
     image: localstack/localstack:3.8.1
     environment:
-      - SERVICES=s3,sns,sts,sqs,kinesis
+      - SERVICES=s3,sns,sts,sqs,kinesis,events
     ports:
       - 24566:4566
       - 24571:4571

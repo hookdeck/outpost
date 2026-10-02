@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -12,6 +11,7 @@ import (
 	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/logstore"
+	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/tenantstore"
 )
 
@@ -36,20 +36,10 @@ func NewLogHandlers(
 	}
 }
 
-// parseLimit parses the limit query parameter with a default and maximum value.
-// If the provided limit exceeds maxLimit, it is capped at maxLimit.
-func parseLimit(c *gin.Context, defaultLimit, maxLimit int) int {
-	limit := defaultLimit
-	if limitStr := c.Query("limit"); limitStr != "" {
-		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
-			limit = l
-		}
-	}
-	if limit > maxLimit {
-		limit = maxLimit
-	}
-	return limit
-}
+const (
+	defaultLogListLimit = 100
+	maxLogListLimit     = 1000
+)
 
 // IncludeOptions represents which fields to include in the response
 type IncludeOptions struct {
@@ -221,8 +211,11 @@ func (h *LogHandlers) ListAttempts(c *gin.Context) {
 // Same as ListAttempts but scoped to a specific destination via URL param.
 func (h *LogHandlers) ListDestinationAttempts(c *gin.Context) {
 	tenant := mustTenantFromContext(c)
-	destinationID := c.Param("destination_id")
-	h.listAttemptsInternal(c, []string{tenant.ID}, destinationID)
+	destination := mustRetrieveDestination(c, h.tenantStore, tenant.ID, c.Param("destination_id"))
+	if destination == nil {
+		return
+	}
+	h.listAttemptsInternal(c, []string{tenant.ID}, destination.ID)
 }
 
 func (h *LogHandlers) listAttemptsInternal(c *gin.Context, tenantIDs []string, destinationID string) {
@@ -262,7 +255,14 @@ func (h *LogHandlers) listAttemptsInternal(c *gin.Context, tenantIDs []string, d
 		return
 	}
 
-	limit := parseLimit(c, 100, 1000)
+	limit, errResp := ParseLimit(c, maxLogListLimit)
+	if errResp != nil {
+		AbortWithError(c, errResp.Code, *errResp)
+		return
+	}
+	if limit == 0 {
+		limit = defaultLogListLimit
+	}
 
 	var destinationIDs []string
 	if destinationID != "" {
@@ -292,7 +292,7 @@ func (h *LogHandlers) listAttemptsInternal(c *gin.Context, tenantIDs []string, d
 
 	response, err := h.logStore.ListAttempt(c.Request.Context(), req)
 	if err != nil {
-		if errors.Is(err, cursor.ErrInvalidCursor) || errors.Is(err, cursor.ErrVersionMismatch) {
+		if errors.Is(err, cursor.ErrInvalidCursor) {
 			AbortWithError(c, http.StatusBadRequest, NewErrBadRequest(err))
 			return
 		}
@@ -387,13 +387,23 @@ func (h *LogHandlers) RetrieveEvent(c *gin.Context) {
 	})
 }
 
-// RetrieveAttempt handles GET /attempts/:attempt_id
+// RetrieveAttempt handles GET /attempts/:attempt_id and
+// GET /:tenant_id/destinations/:destination_id/attempts/:attempt_id
 func (h *LogHandlers) RetrieveAttempt(c *gin.Context) {
 	ctxTenantID := tenantIDFromContext(c)
 	if ctxTenantID == "" {
 		ctxTenantID = c.Query("tenant_id")
 	}
 	attemptID := c.Param("attempt_id")
+
+	// Destination-scoped route: the destination in the path must exist.
+	var pathDestination *models.Destination
+	if destinationID := c.Param("destination_id"); destinationID != "" {
+		pathDestination = mustRetrieveDestination(c, h.tenantStore, ctxTenantID, destinationID)
+		if pathDestination == nil {
+			return
+		}
+	}
 
 	attemptRecord, err := h.logStore.RetrieveAttempt(c.Request.Context(), logstore.RetrieveAttemptRequest{
 		TenantID:  ctxTenantID,
@@ -403,30 +413,26 @@ func (h *LogHandlers) RetrieveAttempt(c *gin.Context) {
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return
 	}
-	if attemptRecord == nil {
-		AbortWithError(c, http.StatusNotFound, NewErrNotFound("attempt"))
-		return
-	}
-
 	// Authz: when accessed via a destination-scoped route, verify the attempt
 	// belongs to the destination in the path.
-	if destinationID := c.Param("destination_id"); destinationID != "" {
-		if attemptRecord.Attempt.DestinationID != destinationID {
-			AbortWithError(c, http.StatusNotFound, NewErrNotFound("attempt"))
-			return
-		}
+	if attemptRecord == nil || (pathDestination != nil && attemptRecord.Attempt.DestinationID != pathDestination.ID) {
+		AbortWithError(c, http.StatusNotFound, NewErrNotFound("attempt"))
+		return
 	}
 
 	includeOpts := parseIncludeOptions(c)
 
 	var destDisplay *destregistry.DestinationDisplay
 	if includeOpts.Destination {
-		dest, err := h.tenantStore.RetrieveDestination(c.Request.Context(), attemptRecord.Attempt.TenantID, attemptRecord.Attempt.DestinationID)
-		if err != nil && !errors.Is(err, tenantstore.ErrDestinationDeleted) && !errors.Is(err, tenantstore.ErrDestinationNotFound) {
-			AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
-			return
+		dest := pathDestination
+		if dest == nil {
+			dest, err = h.tenantStore.RetrieveDestination(c.Request.Context(), attemptRecord.Attempt.TenantID, attemptRecord.Attempt.DestinationID)
+			if err != nil && !errors.Is(err, tenantstore.ErrDestinationDeleted) && !errors.Is(err, tenantstore.ErrDestinationNotFound) {
+				AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
+				return
+			}
 		}
-		if err == nil && dest != nil {
+		if dest != nil {
 			display, err := h.displayer.Display(dest)
 			if err != nil {
 				AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
@@ -487,7 +493,14 @@ func (h *LogHandlers) listEventsInternal(c *gin.Context, tenantIDs []string) {
 		return
 	}
 
-	limit := parseLimit(c, 100, 1000)
+	limit, errResp := ParseLimit(c, maxLogListLimit)
+	if errResp != nil {
+		AbortWithError(c, errResp.Code, *errResp)
+		return
+	}
+	if limit == 0 {
+		limit = defaultLogListLimit
+	}
 
 	destinationIDs := ParseArrayQueryParam(c, "destination_id")
 
@@ -510,7 +523,7 @@ func (h *LogHandlers) listEventsInternal(c *gin.Context, tenantIDs []string) {
 
 	response, err := h.logStore.ListEvent(c.Request.Context(), req)
 	if err != nil {
-		if errors.Is(err, cursor.ErrInvalidCursor) || errors.Is(err, cursor.ErrVersionMismatch) {
+		if errors.Is(err, cursor.ErrInvalidCursor) {
 			AbortWithError(c, http.StatusBadRequest, NewErrBadRequest(err))
 			return
 		}

@@ -6,10 +6,12 @@ import (
 	"net/url"
 
 	"github.com/hookdeck/outpost/internal/destregistry"
+	"github.com/hookdeck/outpost/internal/destregistry/providers/destawseventbridge"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destawskinesis"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destawss3"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destawssqs"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destazureservicebus"
+	"github.com/hookdeck/outpost/internal/destregistry/providers/destcfqueues"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destgcppubsub"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/desthookdeck"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destkafka"
@@ -54,15 +56,20 @@ type DestAWSKinesisConfig struct {
 	MetadataInPayload bool
 }
 
+type DestAWSEventBridgeConfig struct {
+	Source string
+}
+
 type RegisterDefaultDestinationOptions struct {
 	UserAgent                   string
 	IncludeMillisecondTimestamp bool
 	// ProxyURL is the forward proxy chain for RabbitMQ and Kafka. Webhooks
 	// use Webhook.ProxyURL only; the config layer resolves its fallback to
 	// this value.
-	ProxyURL   string
-	Webhook    *DestWebhookConfig
-	AWSKinesis *DestAWSKinesisConfig
+	ProxyURL       string
+	Webhook        *DestWebhookConfig
+	AWSKinesis     *DestAWSKinesisConfig
+	AWSEventBridge *DestAWSEventBridgeConfig
 
 	// DeliveryMaxConcurrency is the delivery worker pool size. It bounds how
 	// many deliveries can be in flight, and therefore how many connections a
@@ -158,6 +165,18 @@ func RegisterDefault(registry destregistry.Registry, opts RegisterDefaultDestina
 	}
 	registry.RegisterProvider("aws_sqs", awsSQS)
 
+	awsEventBridgeOpts := []destawseventbridge.Option{}
+	if opts.AWSEventBridge != nil {
+		awsEventBridgeOpts = append(awsEventBridgeOpts,
+			destawseventbridge.WithSource(opts.AWSEventBridge.Source),
+		)
+	}
+	awsEventBridge, err := destawseventbridge.New(loader, basePublisherOpts, awsEventBridgeOpts...)
+	if err != nil {
+		return err
+	}
+	registry.RegisterProvider("aws_eventbridge", awsEventBridge)
+
 	awsKinesisOpts := []destawskinesis.Option{}
 	if opts.AWSKinesis != nil {
 		awsKinesisOpts = append(awsKinesisOpts,
@@ -199,6 +218,15 @@ func RegisterDefault(registry destregistry.Registry, opts RegisterDefaultDestina
 		return err
 	}
 	registry.RegisterProvider("kafka", kafkaDest)
+
+	cloudflareQueues, err := destcfqueues.New(loader, basePublisherOpts,
+		destcfqueues.WithUserAgent(opts.UserAgent),
+		destcfqueues.WithConnectionPool(singleHostPool),
+		destcfqueues.WithConnectionObserver(connObserver("cloudflare_queues")))
+	if err != nil {
+		return err
+	}
+	registry.RegisterProvider("cloudflare_queues", cloudflareQueues)
 
 	return nil
 }

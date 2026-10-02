@@ -40,6 +40,15 @@ func TestAPI_Topics(t *testing.T) {
 		assert.Equal(t, testutil.TestTopics, topics)
 	})
 
+	t.Run("no topics configured returns an empty list", func(t *testing.T) {
+		h := newAPITest(t, withTopics(nil))
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/topics", nil)
+		resp := h.do(h.withAPIKey(req))
+
+		require.Equal(t, http.StatusOK, resp.Code)
+		assert.JSONEq(t, `[]`, resp.Body.String())
+	})
+
 	t.Run("without auth returns 401", func(t *testing.T) {
 		h := newAPITest(t)
 		req := httptest.NewRequest(http.MethodGet, "/api/v1/topics", nil)

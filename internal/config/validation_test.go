@@ -316,6 +316,33 @@ func TestMisc(t *testing.T) {
 			wantErr: config.ErrInvalidWebhookProxyURL,
 		},
 		{
+			name: "custom EventBridge source is valid",
+			config: func() *config.Config {
+				c := validConfig()
+				c.Destinations.AWSEventBridge.Source = "com.example.app"
+				return c
+			}(),
+			wantErr: nil,
+		},
+		{
+			name: "empty EventBridge source is rejected",
+			config: func() *config.Config {
+				c := validConfig()
+				c.Destinations.AWSEventBridge.Source = ""
+				return c
+			}(),
+			wantErr: config.ErrInvalidAWSEventBridgeSource,
+		},
+		{
+			name: "EventBridge source with the reserved aws. prefix is rejected",
+			config: func() *config.Config {
+				c := validConfig()
+				c.Destinations.AWSEventBridge.Source = "aws.events"
+				return c
+			}(),
+			wantErr: config.ErrInvalidAWSEventBridgeSource,
+		},
+		{
 			name: "destinations proxy chain is valid",
 			config: func() *config.Config {
 				c := validConfig()

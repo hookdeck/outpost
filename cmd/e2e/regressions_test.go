@@ -63,12 +63,12 @@ func (c *regressionHTTPClient) doJSONWithAuth(t *testing.T, method, url string, 
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
-	if result != nil {
-		respBody, err := io.ReadAll(resp.Body)
-		require.NoError(t, err)
-		if len(respBody) > 0 {
-			require.NoError(t, json.Unmarshal(respBody, result))
-		}
+	respBody, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	requireJSONAPIResponse(t, req, resp, respBody)
+
+	if result != nil && len(respBody) > 0 {
+		require.NoError(t, json.Unmarshal(respBody, result))
 	}
 
 	return resp.StatusCode

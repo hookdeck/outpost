@@ -1,0 +1,194 @@
+package destawseventbridge_test
+
+import (
+	"context"
+	"testing"
+
+	"github.com/hookdeck/outpost/internal/destregistry"
+	"github.com/hookdeck/outpost/internal/destregistry/providers/destawseventbridge"
+	"github.com/hookdeck/outpost/internal/util/testutil"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestAWSEventBridgeDestination_Validate(t *testing.T) {
+	t.Parallel()
+
+	validDestination := testutil.DestinationFactory.Any(
+		testutil.DestinationFactory.WithType("aws_eventbridge"),
+		testutil.DestinationFactory.WithConfig(map[string]string{
+			"event_bus_name": "my-bus",
+			"region":         "us-east-1",
+			"endpoint":       "https://events.us-east-1.amazonaws.com",
+		}),
+		testutil.DestinationFactory.WithCredentials(map[string]string{
+			"key":     "test-key",
+			"secret":  "test-secret",
+			"session": "test-session",
+		}),
+	)
+
+	provider, err := destawseventbridge.New(testutil.Registry.MetadataLoader(), nil, destawseventbridge.WithSource("outpost"))
+	require.NoError(t, err)
+
+	t.Run("should validate valid destination", func(t *testing.T) {
+		t.Parallel()
+		assert.NoError(t, provider.Validate(context.Background(), &validDestination))
+	})
+
+	t.Run("should validate valid destination with no event_bus_name (default bus)", func(t *testing.T) {
+		t.Parallel()
+		destination := validDestination
+		destination.Config = map[string]string{
+			"region": "us-east-1",
+		}
+		assert.NoError(t, provider.Validate(context.Background(), &destination))
+	})
+
+	t.Run("should validate valid destination with no session token", func(t *testing.T) {
+		t.Parallel()
+		destination := validDestination
+		destination.Credentials = map[string]string{
+			"key":    "test-key",
+			"secret": "test-secret",
+		}
+		assert.NoError(t, provider.Validate(context.Background(), &destination))
+	})
+
+	t.Run("should validate missing credentials", func(t *testing.T) {
+		t.Parallel()
+		invalidDestination := validDestination
+		invalidDestination.Credentials = map[string]string{}
+		err := provider.Validate(context.Background(), &invalidDestination)
+		var validationErr *destregistry.ErrDestinationValidation
+		require.ErrorAs(t, err, &validationErr)
+		assert.Len(t, validationErr.Errors, 2)
+		assert.Equal(t, "credentials.key", validationErr.Errors[0].Field)
+		assert.Equal(t, "required", validationErr.Errors[0].Type)
+		assert.Equal(t, "credentials.secret", validationErr.Errors[1].Field)
+		assert.Equal(t, "required", validationErr.Errors[1].Type)
+	})
+
+	t.Run("should validate invalid type", func(t *testing.T) {
+		t.Parallel()
+		invalidDestination := validDestination
+		invalidDestination.Type = "invalid"
+		err := provider.Validate(context.Background(), &invalidDestination)
+		var validationErr *destregistry.ErrDestinationValidation
+		assert.ErrorAs(t, err, &validationErr)
+		assert.Equal(t, "type", validationErr.Errors[0].Field)
+		assert.Equal(t, "invalid_type", validationErr.Errors[0].Type)
+	})
+
+	t.Run("should validate missing region", func(t *testing.T) {
+		t.Parallel()
+		invalidDestination := validDestination
+		invalidDestination.Config = map[string]string{
+			"event_bus_name": "my-bus",
+		}
+		err := provider.Validate(context.Background(), &invalidDestination)
+		var validationErr *destregistry.ErrDestinationValidation
+		assert.ErrorAs(t, err, &validationErr)
+		assert.Equal(t, "config.region", validationErr.Errors[0].Field)
+		assert.Equal(t, "required", validationErr.Errors[0].Type)
+	})
+
+	t.Run("should validate malformed region", func(t *testing.T) {
+		t.Parallel()
+		invalidDestination := validDestination
+		invalidDestination.Config = map[string]string{
+			"event_bus_name": "my-bus",
+			"region":         "not-a-region",
+		}
+		err := provider.Validate(context.Background(), &invalidDestination)
+		var validationErr *destregistry.ErrDestinationValidation
+		assert.ErrorAs(t, err, &validationErr)
+		assert.Equal(t, "config.region", validationErr.Errors[0].Field)
+		assert.Equal(t, "pattern", validationErr.Errors[0].Type)
+	})
+
+	t.Run("should validate malformed endpoint", func(t *testing.T) {
+		t.Parallel()
+		invalidDestination := validDestination
+		invalidDestination.Config = map[string]string{
+			"event_bus_name": "my-bus",
+			"region":         "us-east-1",
+			"endpoint":       "not-a-valid-url",
+		}
+		err := provider.Validate(context.Background(), &invalidDestination)
+		var validationErr *destregistry.ErrDestinationValidation
+		assert.ErrorAs(t, err, &validationErr)
+		assert.Equal(t, "config.endpoint", validationErr.Errors[0].Field)
+		assert.Equal(t, "pattern", validationErr.Errors[0].Type)
+	})
+}
+
+func TestAWSEventBridgeDestination_New_RequiresSource(t *testing.T) {
+	t.Parallel()
+
+	_, err := destawseventbridge.New(testutil.Registry.MetadataLoader(), nil)
+	assert.ErrorContains(t, err, "aws_eventbridge: source is required (DESTINATIONS_AWS_EVENTBRIDGE_SOURCE)")
+}
+
+func TestAWSEventBridgeDestination_ComputeTarget(t *testing.T) {
+	t.Parallel()
+
+	provider, err := destawseventbridge.New(testutil.Registry.MetadataLoader(), nil, destawseventbridge.WithSource("outpost"))
+	require.NoError(t, err)
+
+	t.Run("should return event_bus_name and region as target, with a console URL for a plain name", func(t *testing.T) {
+		t.Parallel()
+		destination := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithType("aws_eventbridge"),
+			testutil.DestinationFactory.WithConfig(map[string]string{
+				"event_bus_name": "my-bus",
+				"region":         "us-east-1",
+			}),
+		)
+		target := provider.ComputeTarget(&destination)
+		assert.Equal(t, "my-bus in us-east-1", target.Target)
+		assert.Contains(t, target.TargetURL, "us-east-1.console.aws.amazon.com")
+		assert.Contains(t, target.TargetURL, "my-bus")
+	})
+
+	t.Run("should target the default bus when event_bus_name is empty", func(t *testing.T) {
+		t.Parallel()
+		destination := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithType("aws_eventbridge"),
+			testutil.DestinationFactory.WithConfig(map[string]string{
+				"region": "us-east-1",
+			}),
+		)
+		target := provider.ComputeTarget(&destination)
+		assert.Equal(t, "default in us-east-1", target.Target)
+		assert.Equal(t, "https://us-east-1.console.aws.amazon.com/events/home?region=us-east-1#/eventbus/default", target.TargetURL)
+	})
+
+	t.Run("should show an ARN event bus as is, without a console URL", func(t *testing.T) {
+		t.Parallel()
+		arn := "arn:aws:events:us-east-1:123456789012:event-bus/my-bus"
+		destination := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithType("aws_eventbridge"),
+			testutil.DestinationFactory.WithConfig(map[string]string{
+				"event_bus_name": arn,
+				"region":         "us-east-1",
+			}),
+		)
+		target := provider.ComputeTarget(&destination)
+		assert.Equal(t, arn, target.Target)
+		assert.Empty(t, target.TargetURL)
+	})
+
+	t.Run("should escape the event bus name in the console URL", func(t *testing.T) {
+		t.Parallel()
+		destination := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithType("aws_eventbridge"),
+			testutil.DestinationFactory.WithConfig(map[string]string{
+				"event_bus_name": "aws.partner/example.com/orders",
+				"region":         "us-east-1",
+			}),
+		)
+		target := provider.ComputeTarget(&destination)
+		assert.Equal(t, "https://us-east-1.console.aws.amazon.com/events/home?region=us-east-1#/eventbus/aws.partner%2Fexample.com%2Forders", target.TargetURL)
+	})
+}

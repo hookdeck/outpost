@@ -147,7 +147,7 @@ func (h *DestinationHandlers) Create(c *gin.Context) {
 
 func (h *DestinationHandlers) Retrieve(c *gin.Context) {
 	tenant := mustTenantFromContext(c)
-	destination := h.mustRetrieveDestination(c, tenant.ID, c.Param("destination_id"))
+	destination := mustRetrieveDestination(c, h.tenantStore, tenant.ID, c.Param("destination_id"))
 	if destination == nil {
 		return
 	}
@@ -171,7 +171,7 @@ func (h *DestinationHandlers) Update(c *gin.Context) {
 	// Retrieve destination.
 	tenant := mustTenantFromContext(c)
 	prev := h.snapshotTenant(tenant)
-	originalDestination := h.mustRetrieveDestination(c, tenant.ID, c.Param("destination_id"))
+	originalDestination := mustRetrieveDestination(c, h.tenantStore, tenant.ID, c.Param("destination_id"))
 	if originalDestination == nil {
 		return
 	}
@@ -263,6 +263,10 @@ func (h *DestinationHandlers) Update(c *gin.Context) {
 		} else {
 			var ts time.Time
 			if err := json.Unmarshal(input.DisabledAt, &ts); err != nil {
+				var parseErr *time.ParseError
+				if errors.As(err, &parseErr) {
+					err = errors.New(expectedRFC3339)
+				}
 				AbortWithValidationError(c, fmt.Errorf("invalid disabled_at: %w", err))
 				return
 			}
@@ -331,7 +335,7 @@ func (h *DestinationHandlers) Update(c *gin.Context) {
 func (h *DestinationHandlers) Delete(c *gin.Context) {
 	tenant := mustTenantFromContext(c)
 	prev := h.snapshotTenant(tenant)
-	destination := h.mustRetrieveDestination(c, tenant.ID, c.Param("destination_id"))
+	destination := mustRetrieveDestination(c, h.tenantStore, tenant.ID, c.Param("destination_id"))
 	if destination == nil {
 		return
 	}
@@ -366,7 +370,7 @@ func (h *DestinationHandlers) RetrieveProviderMetadata(c *gin.Context) {
 	providerType := c.Param("type")
 	metadata, err := h.registry.RetrieveProviderMetadata(providerType)
 	if err != nil {
-		c.Status(http.StatusNotFound)
+		AbortWithError(c, http.StatusNotFound, NewErrNotFound("destination type"))
 		return
 	}
 	c.JSON(http.StatusOK, metadata)
@@ -375,7 +379,7 @@ func (h *DestinationHandlers) RetrieveProviderMetadata(c *gin.Context) {
 func (h *DestinationHandlers) setDisabilityHandler(c *gin.Context, disabled bool) {
 	tenant := mustTenantFromContext(c)
 	prev := h.snapshotTenant(tenant)
-	destination := h.mustRetrieveDestination(c, tenant.ID, c.Param("destination_id"))
+	destination := mustRetrieveDestination(c, h.tenantStore, tenant.ID, c.Param("destination_id"))
 	if destination == nil {
 		return
 	}
@@ -414,18 +418,20 @@ func (h *DestinationHandlers) setDisabilityHandler(c *gin.Context, disabled bool
 	c.JSON(http.StatusOK, display)
 }
 
-func (h *DestinationHandlers) mustRetrieveDestination(c *gin.Context, tenantID, destinationID string) *models.Destination {
-	destination, err := h.tenantStore.RetrieveDestination(c.Request.Context(), tenantID, destinationID)
+// mustRetrieveDestination returns the tenant's destination, or answers the
+// request and returns nil: 404 when it is deleted or does not exist.
+func mustRetrieveDestination(c *gin.Context, store tenantstore.TenantStore, tenantID, destinationID string) *models.Destination {
+	destination, err := store.RetrieveDestination(c.Request.Context(), tenantID, destinationID)
 	if err != nil {
 		if errors.Is(err, tenantstore.ErrDestinationDeleted) {
-			c.Status(http.StatusNotFound)
+			AbortWithError(c, http.StatusNotFound, NewErrNotFound("destination"))
 			return nil
 		}
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return nil
 	}
 	if destination == nil {
-		c.Status(http.StatusNotFound)
+		AbortWithError(c, http.StatusNotFound, NewErrNotFound("destination"))
 		return nil
 	}
 	return destination

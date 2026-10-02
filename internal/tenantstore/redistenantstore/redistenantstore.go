@@ -314,11 +314,7 @@ func (s *store) ListTenant(ctx context.Context, req driver.ListTenantRequest) (*
 				return cursor.Encode("tnt", 1, strconv.FormatInt(t.CreatedAt.UnixMilli(), 10))
 			},
 			Decode: func(c string) (string, error) {
-				data, err := cursor.Decode(c, "tnt", 1)
-				if err != nil {
-					return "", fmt.Errorf("%w: %v", driver.ErrInvalidCursor, err)
-				}
-				return data, nil
+				return cursor.Decode(c, "tnt", 1)
 			},
 		},
 		Fetch: func(ctx context.Context, q pagination.QueryInput) ([]models.Tenant, error) {
@@ -392,9 +388,9 @@ func (s *store) fetchTenants(ctx context.Context, baseFilter string, q paginatio
 	if q.CursorPos == "" {
 		query = baseFilter
 	} else {
-		cursorTimestamp, err := strconv.ParseInt(q.CursorPos, 10, 64)
+		cursorTimestamp, err := cursor.ParseTimeMs(q.CursorPos)
 		if err != nil {
-			return nil, fmt.Errorf("%w: invalid timestamp", driver.ErrInvalidCursor)
+			return nil, err
 		}
 
 		if q.Compare == "<" {

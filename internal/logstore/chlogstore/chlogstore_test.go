@@ -343,7 +343,7 @@ func TestFetchAndDedupTruncation(t *testing.T) {
 		Limit:   limit,
 		Compare: "<",
 		SortDir: "desc",
-	}, func(qi pagination.QueryInput) (string, []any) {
+	}, func(qi pagination.QueryInput) (string, []any, error) {
 		return buildEventQuery(logStore.eventsTable, driver.ListEventRequest{
 			TenantIDs:  []string{tenantID},
 			TimeFilter: driver.TimeFilter{GTE: &startTime},
