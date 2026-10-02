@@ -10,66 +10,133 @@ import (
 	"time"
 )
 
-type HealthCheckStatus1 string
+type HealthCheckStatus string
 
 const (
-	HealthCheckStatus1Healthy HealthCheckStatus1 = "healthy"
+	HealthCheckStatusHealthy  HealthCheckStatus = "healthy"
+	HealthCheckStatusDegraded HealthCheckStatus = "degraded"
 )
 
-func (e HealthCheckStatus1) ToPointer() *HealthCheckStatus1 {
+func (e HealthCheckStatus) ToPointer() *HealthCheckStatus {
 	return &e
 }
-func (e *HealthCheckStatus1) UnmarshalJSON(data []byte) error {
+func (e *HealthCheckStatus) UnmarshalJSON(data []byte) error {
 	var v string
 	if err := json.Unmarshal(data, &v); err != nil {
 		return err
 	}
 	switch v {
 	case "healthy":
-		*e = HealthCheckStatus1(v)
+		fallthrough
+	case "degraded":
+		*e = HealthCheckStatus(v)
 		return nil
 	default:
-		return fmt.Errorf("invalid value for HealthCheckStatus1: %v", v)
+		return fmt.Errorf("invalid value for HealthCheckStatus: %v", v)
 	}
 }
 
-type HealthCheckStatus2 string
+type WorkersStatus string
 
 const (
-	HealthCheckStatus2Healthy HealthCheckStatus2 = "healthy"
+	WorkersStatusHealthy  WorkersStatus = "healthy"
+	WorkersStatusDegraded WorkersStatus = "degraded"
 )
 
-func (e HealthCheckStatus2) ToPointer() *HealthCheckStatus2 {
+func (e WorkersStatus) ToPointer() *WorkersStatus {
 	return &e
 }
-func (e *HealthCheckStatus2) UnmarshalJSON(data []byte) error {
+func (e *WorkersStatus) UnmarshalJSON(data []byte) error {
 	var v string
 	if err := json.Unmarshal(data, &v); err != nil {
 		return err
 	}
 	switch v {
 	case "healthy":
-		*e = HealthCheckStatus2(v)
+		fallthrough
+	case "degraded":
+		*e = WorkersStatus(v)
 		return nil
 	default:
-		return fmt.Errorf("invalid value for HealthCheckStatus2: %v", v)
+		return fmt.Errorf("invalid value for WorkersStatus: %v", v)
+	}
+}
+
+// Reason - Present when the status is `degraded` or `failed`.
+// `startup_failed`: the worker has not been healthy since the process started (usually configuration or a dependency that is not up yet).
+// `recovery_failed`: the worker was healthy and then failed (e.g. a broker restart or failover).
+type Reason string
+
+const (
+	ReasonStartupFailed  Reason = "startup_failed"
+	ReasonRecoveryFailed Reason = "recovery_failed"
+)
+
+func (e Reason) ToPointer() *Reason {
+	return &e
+}
+func (e *Reason) UnmarshalJSON(data []byte) error {
+	var v string
+	if err := json.Unmarshal(data, &v); err != nil {
+		return err
+	}
+	switch v {
+	case "startup_failed":
+		fallthrough
+	case "recovery_failed":
+		*e = Reason(v)
+		return nil
+	default:
+		return fmt.Errorf("invalid value for Reason: %v", v)
 	}
 }
 
 type Workers struct {
-	Status HealthCheckStatus2 `json:"status"`
+	Status WorkersStatus `json:"status"`
+	// Start of the worker's current failure episode. Present when the status is `degraded` or `failed`.
+	Since *time.Time `json:"since,omitempty"`
+	// Present when the status is `degraded` or `failed`.
+	// `startup_failed`: the worker has not been healthy since the process started (usually configuration or a dependency that is not up yet).
+	// `recovery_failed`: the worker was healthy and then failed (e.g. a broker restart or failover).
+	//
+	Reason *Reason `json:"reason,omitempty"`
 }
 
-func (w *Workers) GetStatus() HealthCheckStatus2 {
+func (w Workers) MarshalJSON() ([]byte, error) {
+	return utils.MarshalJSON(w, "", false)
+}
+
+func (w *Workers) UnmarshalJSON(data []byte) error {
+	if err := utils.UnmarshalJSON(data, &w, "", false, nil); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (w *Workers) GetStatus() WorkersStatus {
 	if w == nil {
-		return HealthCheckStatus2("")
+		return WorkersStatus("")
 	}
 	return w.Status
 }
 
-// HealthCheckResponseBody - Service is healthy - all workers are operational.
+func (w *Workers) GetSince() *time.Time {
+	if w == nil {
+		return nil
+	}
+	return w.Since
+}
+
+func (w *Workers) GetReason() *Reason {
+	if w == nil {
+		return nil
+	}
+	return w.Reason
+}
+
+// HealthCheckResponseBody - Service is healthy or degraded - no worker has failed.
 type HealthCheckResponseBody struct {
-	Status HealthCheckStatus1 `json:"status"`
+	Status HealthCheckStatus `json:"status"`
 	// When this health check was performed
 	Timestamp time.Time          `json:"timestamp"`
 	Workers   map[string]Workers `json:"workers"`
@@ -86,9 +153,9 @@ func (h *HealthCheckResponseBody) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (h *HealthCheckResponseBody) GetStatus() HealthCheckStatus1 {
+func (h *HealthCheckResponseBody) GetStatus() HealthCheckStatus {
 	if h == nil {
-		return HealthCheckStatus1("")
+		return HealthCheckStatus("")
 	}
 	return h.Status
 }
@@ -109,7 +176,7 @@ func (h *HealthCheckResponseBody) GetWorkers() map[string]Workers {
 
 type HealthCheckResponse struct {
 	HTTPMeta components.HTTPMetadata `json:"-"`
-	// Service is healthy - all workers are operational.
+	// Service is healthy or degraded - no worker has failed.
 	Object *HealthCheckResponseBody
 }
 

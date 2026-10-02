@@ -12,27 +12,31 @@ import (
 type DestinationCreateType string
 
 const (
-	DestinationCreateTypeWebhook         DestinationCreateType = "webhook"
-	DestinationCreateTypeAwsSqs          DestinationCreateType = "aws_sqs"
-	DestinationCreateTypeRabbitmq        DestinationCreateType = "rabbitmq"
-	DestinationCreateTypeHookdeck        DestinationCreateType = "hookdeck"
-	DestinationCreateTypeAwsKinesis      DestinationCreateType = "aws_kinesis"
-	DestinationCreateTypeAzureServicebus DestinationCreateType = "azure_servicebus"
-	DestinationCreateTypeAwsS3           DestinationCreateType = "aws_s3"
-	DestinationCreateTypeGcpPubsub       DestinationCreateType = "gcp_pubsub"
-	DestinationCreateTypeKafka           DestinationCreateType = "kafka"
+	DestinationCreateTypeWebhook          DestinationCreateType = "webhook"
+	DestinationCreateTypeAwsSqs           DestinationCreateType = "aws_sqs"
+	DestinationCreateTypeRabbitmq         DestinationCreateType = "rabbitmq"
+	DestinationCreateTypeHookdeck         DestinationCreateType = "hookdeck"
+	DestinationCreateTypeAwsKinesis       DestinationCreateType = "aws_kinesis"
+	DestinationCreateTypeAzureServicebus  DestinationCreateType = "azure_servicebus"
+	DestinationCreateTypeAwsS3            DestinationCreateType = "aws_s3"
+	DestinationCreateTypeGcpPubsub        DestinationCreateType = "gcp_pubsub"
+	DestinationCreateTypeKafka            DestinationCreateType = "kafka"
+	DestinationCreateTypeCloudflareQueues DestinationCreateType = "cloudflare_queues"
+	DestinationCreateTypeAwsEventbridge   DestinationCreateType = "aws_eventbridge"
 )
 
 type DestinationCreate struct {
-	DestinationCreateWebhook         *DestinationCreateWebhook         `queryParam:"inline" union:"member"`
-	DestinationCreateHookdeck        *DestinationCreateHookdeck        `queryParam:"inline" union:"member"`
-	DestinationCreateAWSSQS          *DestinationCreateAWSSQS          `queryParam:"inline" union:"member"`
-	DestinationCreateAWSKinesis      *DestinationCreateAWSKinesis      `queryParam:"inline" union:"member"`
-	DestinationCreateAwss3           *DestinationCreateAwss3           `queryParam:"inline" union:"member"`
-	DestinationCreateAzureServiceBus *DestinationCreateAzureServiceBus `queryParam:"inline" union:"member"`
-	DestinationCreateRabbitMQ        *DestinationCreateRabbitMQ        `queryParam:"inline" union:"member"`
-	DestinationCreateGCPPubSub       *DestinationCreateGCPPubSub       `queryParam:"inline" union:"member"`
-	DestinationCreateKafka           *DestinationCreateKafka           `queryParam:"inline" union:"member"`
+	DestinationCreateWebhook          *DestinationCreateWebhook          `queryParam:"inline" union:"member"`
+	DestinationCreateHookdeck         *DestinationCreateHookdeck         `queryParam:"inline" union:"member"`
+	DestinationCreateAWSSQS           *DestinationCreateAWSSQS           `queryParam:"inline" union:"member"`
+	DestinationCreateAWSKinesis       *DestinationCreateAWSKinesis       `queryParam:"inline" union:"member"`
+	DestinationCreateAwss3            *DestinationCreateAwss3            `queryParam:"inline" union:"member"`
+	DestinationCreateAzureServiceBus  *DestinationCreateAzureServiceBus  `queryParam:"inline" union:"member"`
+	DestinationCreateRabbitMQ         *DestinationCreateRabbitMQ         `queryParam:"inline" union:"member"`
+	DestinationCreateGCPPubSub        *DestinationCreateGCPPubSub        `queryParam:"inline" union:"member"`
+	DestinationCreateKafka            *DestinationCreateKafka            `queryParam:"inline" union:"member"`
+	DestinationCreateCloudflareQueues *DestinationCreateCloudflareQueues `queryParam:"inline" union:"member"`
+	DestinationCreateAWSEventBridge   *DestinationCreateAWSEventBridge   `queryParam:"inline" union:"member"`
 
 	Type DestinationCreateType
 }
@@ -145,6 +149,30 @@ func CreateDestinationCreateKafka(kafka DestinationCreateKafka) DestinationCreat
 	}
 }
 
+func CreateDestinationCreateCloudflareQueues(cloudflareQueues DestinationCreateCloudflareQueues) DestinationCreate {
+	typ := DestinationCreateTypeCloudflareQueues
+
+	typStr := DestinationCreateCloudflareQueuesType(typ)
+	cloudflareQueues.Type = typStr
+
+	return DestinationCreate{
+		DestinationCreateCloudflareQueues: &cloudflareQueues,
+		Type:                              typ,
+	}
+}
+
+func CreateDestinationCreateAwsEventbridge(awsEventbridge DestinationCreateAWSEventBridge) DestinationCreate {
+	typ := DestinationCreateTypeAwsEventbridge
+
+	typStr := DestinationCreateAWSEventBridgeType(typ)
+	awsEventbridge.Type = typStr
+
+	return DestinationCreate{
+		DestinationCreateAWSEventBridge: &awsEventbridge,
+		Type:                            typ,
+	}
+}
+
 func (u *DestinationCreate) UnmarshalJSON(data []byte) (err error) {
 	previous := *u
 	*u = DestinationCreate{}
@@ -245,6 +273,24 @@ func (u *DestinationCreate) UnmarshalJSON(data []byte) (err error) {
 		u.DestinationCreateKafka = destinationCreateKafka
 		u.Type = DestinationCreateTypeKafka
 		return nil
+	case "cloudflare_queues":
+		destinationCreateCloudflareQueues := new(DestinationCreateCloudflareQueues)
+		if err := utils.UnmarshalJSON(data, &destinationCreateCloudflareQueues, "", true, nil); err != nil {
+			return fmt.Errorf("could not unmarshal `%s` into expected (Type == cloudflare_queues) type DestinationCreateCloudflareQueues within DestinationCreate: %w", string(data), err)
+		}
+
+		u.DestinationCreateCloudflareQueues = destinationCreateCloudflareQueues
+		u.Type = DestinationCreateTypeCloudflareQueues
+		return nil
+	case "aws_eventbridge":
+		destinationCreateAWSEventBridge := new(DestinationCreateAWSEventBridge)
+		if err := utils.UnmarshalJSON(data, &destinationCreateAWSEventBridge, "", true, nil); err != nil {
+			return fmt.Errorf("could not unmarshal `%s` into expected (Type == aws_eventbridge) type DestinationCreateAWSEventBridge within DestinationCreate: %w", string(data), err)
+		}
+
+		u.DestinationCreateAWSEventBridge = destinationCreateAWSEventBridge
+		u.Type = DestinationCreateTypeAwsEventbridge
+		return nil
 	}
 
 	return fmt.Errorf("could not unmarshal `%s` into any supported union types for DestinationCreate", string(data))
@@ -285,6 +331,14 @@ func (u DestinationCreate) MarshalJSON() ([]byte, error) {
 
 	if u.DestinationCreateKafka != nil {
 		return utils.MarshalJSON(u.DestinationCreateKafka, "", true)
+	}
+
+	if u.DestinationCreateCloudflareQueues != nil {
+		return utils.MarshalJSON(u.DestinationCreateCloudflareQueues, "", true)
+	}
+
+	if u.DestinationCreateAWSEventBridge != nil {
+		return utils.MarshalJSON(u.DestinationCreateAWSEventBridge, "", true)
 	}
 
 	return nil, errors.New("could not marshal union type DestinationCreate: all fields are null")

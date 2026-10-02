@@ -1,0 +1,9 @@
+# UpdateOperatorEventDestinationRequest
+
+
+## Fields
+
+| Field                                                                                                  | Type                                                                                                   | Required                                                                                               | Description                                                                                            |
+| ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------ |
+| `DestinationID`                                                                                        | `string`                                                                                               | :heavy_check_mark:                                                                                     | The ID of the operator event destination.                                                              |
+| `Body`                                                                                                 | [components.OperatorEventDestinationUpdate](../../models/components/operatoreventdestinationupdate.md) | :heavy_check_mark:                                                                                     | N/A                                                                                                    |

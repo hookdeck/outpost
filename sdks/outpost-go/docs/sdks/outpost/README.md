@@ -4,6 +4,8 @@
 
 Outpost API: The Outpost API is a REST-based JSON API for managing tenants, destinations, and publishing events.
 
+Outpost runs in two deployment models: **managed** (hosted by Hookdeck) and **self-hosted**. They differ in where the API is served and in which API key authenticates server-side calls. On managed Outpost, use a Hookdeck project API key from your Outpost project. On self-hosted Outpost, use the key set in the `API_KEY` environment variable. A few endpoints exist in one model only and say so in their description.
+
 
 ### Available Operations
 
@@ -75,6 +77,7 @@ func main() {
 | apierrors.NotFoundError       | 404                           | application/json              |
 | apierrors.UnauthorizedError   | 401, 403, 407                 | application/json              |
 | apierrors.TimeoutError        | 408                           | application/json              |
+| apierrors.APIErrorResponse    | 409                           | application/json              |
 | apierrors.RateLimitedError    | 429                           | application/json              |
 | apierrors.BadRequestError     | 413, 414, 415, 422, 431       | application/json              |
 | apierrors.TimeoutError        | 504                           | application/json              |
@@ -86,7 +89,9 @@ func main() {
 
 ## Retry
 
-Triggers a retry for delivering an event to a destination. The event must exist and the destination must be enabled and match the event's topic.
+Triggers a retry for delivering an event to a destination. The event must exist, and the destination must be enabled, match the event's topic and filter, and already have a delivery attempt for the event. A retry never sends an event to a destination that has no earlier attempt for it.
+
+Returns 404 `event not found` if the event does not exist, or belongs to another tenant when authenticated with a Tenant JWT. Returns 404 `destination not found` if the destination does not exist for the event's tenant or has been deleted.
 
 When authenticated with a Tenant JWT, only events belonging to that tenant can be retried.
 When authenticated with Admin API Key, events from any tenant can be retried.
@@ -143,5 +148,6 @@ func main() {
 | ----------------------------- | ----------------------------- | ----------------------------- |
 | apierrors.UnauthorizedError   | 401                           | application/json              |
 | apierrors.NotFoundError       | 404                           | application/json              |
+| apierrors.APIErrorResponse    | 422                           | application/json              |
 | apierrors.InternalServerError | 500                           | application/json              |
 | apierrors.APIError            | 4XX, 5XX                      | \*/\*                         |

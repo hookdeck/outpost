@@ -2,7 +2,7 @@
 
 package outpostgo
 
-// Generated from OpenAPI doc version 0.0.1 and generator version 2.938.0
+// Generated from OpenAPI doc version 0.0.1 and generator version 2.943.0
 
 import (
 	"bytes"
@@ -22,9 +22,9 @@ import (
 
 // ServerList contains the list of servers available to the SDK
 var ServerList = []string{
-	// Outpost API (production)
+	// Managed Outpost, hosted by Hookdeck at `api.outpost.hookdeck.com`. The Hookdeck Event Gateway API at `api.hookdeck.com` is a separate API.
 	"https://api.outpost.hookdeck.com/2025-07-01",
-	// Local development server base path
+	// Self-hosted Outpost, at its default local address. A deployed instance serves the same paths under its own host.
 	"http://localhost:3333/api/v1",
 }
 
@@ -55,14 +55,36 @@ func Float64(f float64) *float64 { return &f }
 func Pointer[T any](v T) *T { return &v }
 
 // Outpost API: The Outpost API is a REST-based JSON API for managing tenants, destinations, and publishing events.
+//
+// Outpost runs in two deployment models: **managed** (hosted by Hookdeck) and **self-hosted**. They differ in where the API is served and in which API key authenticates server-side calls. On managed Outpost, use a Hookdeck project API key from your Outpost project. On self-hosted Outpost, use the key set in the `API_KEY` environment variable. A few endpoints exist in one model only and say so in their description.
 type Outpost struct {
 	SDKVersion string
 	// This endpoint is only available for **self-hosted** Outpost deployments. Managed Outpost health is monitored by Hookdeck.
 	//
 	Health *Health
-	// The Configuration API is available for **managed Outpost** deployments only. It allows you to read and update instance-level settings — the same settings available as environment variables in self-hosted deployments.
+	// The Configuration API is only available on managed Outpost. It allows you to read and update instance-level settings, the same settings available as environment variables in self-hosted deployments.
 	//
 	Configuration *Configuration
+	// Operator events are Outpost's own lifecycle and alerting stream: delivery failures, destinations being auto-disabled, retry exhaustion and tenant subscription changes. They are about the deployment, not about a tenant's traffic, so they are delivered to **operator event destinations** rather than to tenant destinations. An operator event destination is deployment-wide, is not owned by any tenant you create, and has the same shape as a tenant destination: any destination type listed by `GET /operator-events/destination-types`, with that type's `config` and `credentials`.
+	//
+	// The Operator Events API is only available on managed Outpost, and requires the Admin API Key. Self-hosted deployments configure the same thing through environment variables and a single sink. See the [Operator Events](https://hookdeck.com/docs/outpost/features/operator-events) feature page.
+	//
+	// **Available topics**
+	//
+	// | Topic | Trigger |
+	// |-------|---------|
+	// | `alert.destination.consecutive_failure` | Consecutive failure count reaches 50%, 70%, 90%, or 100% of `ALERT_CONSECUTIVE_FAILURE_COUNT` |
+	// | `alert.destination.disabled` | Destination auto-disabled at the 100% failure threshold |
+	// | `alert.attempt.exhausted_retries` | Delivery exhausts all retry attempts |
+	// | `attempt.success` | Every successful delivery attempt |
+	// | `attempt.failed` | Every failed delivery attempt, including retries |
+	// | `tenant.subscription.updated` | A destination was created, updated or deleted and the tenant's topics or destination count changed |
+	//
+	// A destination may subscribe to every topic with `["*"]`, but `attempt.success` and `attempt.failed` fire once per delivery attempt and will dominate volume. Prefer an explicit topic list.
+	//
+	// **Topics are derived from these destinations.** The union of every enabled operator event destination's `topics` is what the deployment subscribes to, which is why `PATCH /config` rejects `OPERATOR_EVENTS_TOPICS` with a 422: change the destinations and the configuration follows.
+	//
+	OperatorEvents *OperatorEvents
 	// The API segments resources per `tenant`. A tenant represents a user/team/organization in your product. The provided value determines the tenant's ID, which can be any string representation.
 	//
 	// If your system is not multi-tenant, create a single tenant with a hard-code tenant ID upon initialization. If your system has a single tenant but multiple environments, create a tenant per environment, like `live` and `test`.
@@ -77,7 +99,7 @@ type Outpost struct {
 	// - `include=event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
 	// - `include=event.data`: Include full event with payload data
 	// - `include=response_data`: Include response body and headers from the attempt
-	// - `include=destination`: Include the full destination object with target information
+	// - `include=destination`: Include the destination object with target information, without credentials
 	//
 	Attempts *Attempts
 	// Destinations are the endpoints where events are sent. Each destination is associated with a tenant and can be configured to receive specific event topics.
@@ -172,11 +194,11 @@ func WithTimeout(timeout time.Duration) SDKOption {
 // New creates a new instance of the SDK with the provided options
 func New(opts ...SDKOption) *Outpost {
 	sdk := &Outpost{
-		SDKVersion: "1.6.1",
+		SDKVersion: "1.7.0",
 		sdkConfiguration: config.SDKConfiguration{
-			UserAgent:         "speakeasy-sdk/go 1.6.1 2.938.0 0.0.1 github.com/hookdeck/outpost/sdks/outpost-go",
-			SDKVersion:        "1.6.1",
-			GenVersion:        "2.938.0",
+			UserAgent:         "speakeasy-sdk/go 1.7.0 2.943.0 0.0.1 github.com/hookdeck/outpost/sdks/outpost-go",
+			SDKVersion:        "1.7.0",
+			GenVersion:        "2.943.0",
 			OpenAPIDocVersion: "0.0.1",
 			ServerList:        ServerList,
 		},
@@ -200,6 +222,7 @@ func New(opts ...SDKOption) *Outpost {
 
 	sdk.Health = newHealth(sdk, sdk.sdkConfiguration, sdk.hooks)
 	sdk.Configuration = newConfiguration(sdk, sdk.sdkConfiguration, sdk.hooks)
+	sdk.OperatorEvents = newOperatorEvents(sdk, sdk.sdkConfiguration, sdk.hooks)
 	sdk.Tenants = newTenants(sdk, sdk.sdkConfiguration, sdk.hooks)
 	sdk.Events = newEvents(sdk, sdk.sdkConfiguration, sdk.hooks)
 	sdk.Attempts = newAttempts(sdk, sdk.sdkConfiguration, sdk.hooks)
@@ -412,7 +435,7 @@ func (s *Outpost) Publish(ctx context.Context, request components.PublishRequest
 
 			var out apierrors.NotFoundError
 			if err := utils.UnmarshalJsonFromResponseBody(bytes.NewBuffer(rawBody), &out, ""); err != nil {
-				return nil, err
+				return nil, apierrors.NewResponseValidationError("response did not match the declared error schema", httpRes.StatusCode, string(rawBody), httpRes, err)
 			}
 
 			return nil, &out
@@ -437,7 +460,7 @@ func (s *Outpost) Publish(ctx context.Context, request components.PublishRequest
 
 			var out apierrors.UnauthorizedError
 			if err := utils.UnmarshalJsonFromResponseBody(bytes.NewBuffer(rawBody), &out, ""); err != nil {
-				return nil, err
+				return nil, apierrors.NewResponseValidationError("response did not match the declared error schema", httpRes.StatusCode, string(rawBody), httpRes, err)
 			}
 
 			return nil, &out
@@ -458,7 +481,28 @@ func (s *Outpost) Publish(ctx context.Context, request components.PublishRequest
 
 			var out apierrors.TimeoutError
 			if err := utils.UnmarshalJsonFromResponseBody(bytes.NewBuffer(rawBody), &out, ""); err != nil {
+				return nil, apierrors.NewResponseValidationError("response did not match the declared error schema", httpRes.StatusCode, string(rawBody), httpRes, err)
+			}
+
+			return nil, &out
+		default:
+			rawBody, err := utils.ConsumeRawBody(httpRes)
+			if err != nil {
 				return nil, err
+			}
+			return nil, apierrors.NewAPIError(fmt.Sprintf("unknown content-type received: %s", httpRes.Header.Get("Content-Type")), httpRes.StatusCode, string(rawBody), httpRes)
+		}
+	case httpRes.StatusCode == 409:
+		switch {
+		case utils.MatchContentType(httpRes.Header.Get("Content-Type"), `application/json`):
+			rawBody, err := utils.ConsumeRawBody(httpRes)
+			if err != nil {
+				return nil, err
+			}
+
+			var out apierrors.APIErrorResponse
+			if err := utils.UnmarshalJsonFromResponseBody(bytes.NewBuffer(rawBody), &out, ""); err != nil {
+				return nil, apierrors.NewResponseValidationError("response did not match the declared error schema", httpRes.StatusCode, string(rawBody), httpRes, err)
 			}
 
 			return nil, &out
@@ -479,7 +523,7 @@ func (s *Outpost) Publish(ctx context.Context, request components.PublishRequest
 
 			var out apierrors.RateLimitedError
 			if err := utils.UnmarshalJsonFromResponseBody(bytes.NewBuffer(rawBody), &out, ""); err != nil {
-				return nil, err
+				return nil, apierrors.NewResponseValidationError("response did not match the declared error schema", httpRes.StatusCode, string(rawBody), httpRes, err)
 			}
 
 			return nil, &out
@@ -508,7 +552,7 @@ func (s *Outpost) Publish(ctx context.Context, request components.PublishRequest
 
 			var out apierrors.BadRequestError
 			if err := utils.UnmarshalJsonFromResponseBody(bytes.NewBuffer(rawBody), &out, ""); err != nil {
-				return nil, err
+				return nil, apierrors.NewResponseValidationError("response did not match the declared error schema", httpRes.StatusCode, string(rawBody), httpRes, err)
 			}
 
 			return nil, &out
@@ -529,7 +573,7 @@ func (s *Outpost) Publish(ctx context.Context, request components.PublishRequest
 
 			var out apierrors.TimeoutError
 			if err := utils.UnmarshalJsonFromResponseBody(bytes.NewBuffer(rawBody), &out, ""); err != nil {
-				return nil, err
+				return nil, apierrors.NewResponseValidationError("response did not match the declared error schema", httpRes.StatusCode, string(rawBody), httpRes, err)
 			}
 
 			return nil, &out
@@ -552,7 +596,7 @@ func (s *Outpost) Publish(ctx context.Context, request components.PublishRequest
 
 			var out apierrors.NotFoundError
 			if err := utils.UnmarshalJsonFromResponseBody(bytes.NewBuffer(rawBody), &out, ""); err != nil {
-				return nil, err
+				return nil, apierrors.NewResponseValidationError("response did not match the declared error schema", httpRes.StatusCode, string(rawBody), httpRes, err)
 			}
 
 			return nil, &out
@@ -583,7 +627,7 @@ func (s *Outpost) Publish(ctx context.Context, request components.PublishRequest
 
 			var out apierrors.InternalServerError
 			if err := utils.UnmarshalJsonFromResponseBody(bytes.NewBuffer(rawBody), &out, ""); err != nil {
-				return nil, err
+				return nil, apierrors.NewResponseValidationError("response did not match the declared error schema", httpRes.StatusCode, string(rawBody), httpRes, err)
 			}
 
 			return nil, &out
@@ -604,7 +648,7 @@ func (s *Outpost) Publish(ctx context.Context, request components.PublishRequest
 
 			var out apierrors.BadRequestError
 			if err := utils.UnmarshalJsonFromResponseBody(bytes.NewBuffer(rawBody), &out, ""); err != nil {
-				return nil, err
+				return nil, apierrors.NewResponseValidationError("response did not match the declared error schema", httpRes.StatusCode, string(rawBody), httpRes, err)
 			}
 
 			return nil, &out
@@ -625,7 +669,7 @@ func (s *Outpost) Publish(ctx context.Context, request components.PublishRequest
 
 			var out apierrors.UnauthorizedError
 			if err := utils.UnmarshalJsonFromResponseBody(bytes.NewBuffer(rawBody), &out, ""); err != nil {
-				return nil, err
+				return nil, apierrors.NewResponseValidationError("response did not match the declared error schema", httpRes.StatusCode, string(rawBody), httpRes, err)
 			}
 
 			return nil, &out
@@ -636,8 +680,6 @@ func (s *Outpost) Publish(ctx context.Context, request components.PublishRequest
 			}
 			return nil, apierrors.NewAPIError(fmt.Sprintf("unknown content-type received: %s", httpRes.Header.Get("Content-Type")), httpRes.StatusCode, string(rawBody), httpRes)
 		}
-	case httpRes.StatusCode == 409:
-		fallthrough
 	case httpRes.StatusCode >= 400 && httpRes.StatusCode < 500:
 		rawBody, err := utils.ConsumeRawBody(httpRes)
 		if err != nil {
@@ -663,7 +705,9 @@ func (s *Outpost) Publish(ctx context.Context, request components.PublishRequest
 }
 
 // Retry Event Delivery
-// Triggers a retry for delivering an event to a destination. The event must exist and the destination must be enabled and match the event's topic.
+// Triggers a retry for delivering an event to a destination. The event must exist, and the destination must be enabled, match the event's topic and filter, and already have a delivery attempt for the event. A retry never sends an event to a destination that has no earlier attempt for it.
+//
+// Returns 404 `event not found` if the event does not exist, or belongs to another tenant when authenticated with a Tenant JWT. Returns 404 `destination not found` if the destination does not exist for the event's tenant or has been deleted.
 //
 // When authenticated with a Tenant JWT, only events belonging to that tenant can be retried.
 // When authenticated with Admin API Key, events from any tenant can be retried.
@@ -864,7 +908,7 @@ func (s *Outpost) Retry(ctx context.Context, request components.RetryRequest, op
 
 			var out apierrors.UnauthorizedError
 			if err := utils.UnmarshalJsonFromResponseBody(bytes.NewBuffer(rawBody), &out, ""); err != nil {
-				return nil, err
+				return nil, apierrors.NewResponseValidationError("response did not match the declared error schema", httpRes.StatusCode, string(rawBody), httpRes, err)
 			}
 
 			return nil, &out
@@ -885,7 +929,28 @@ func (s *Outpost) Retry(ctx context.Context, request components.RetryRequest, op
 
 			var out apierrors.NotFoundError
 			if err := utils.UnmarshalJsonFromResponseBody(bytes.NewBuffer(rawBody), &out, ""); err != nil {
+				return nil, apierrors.NewResponseValidationError("response did not match the declared error schema", httpRes.StatusCode, string(rawBody), httpRes, err)
+			}
+
+			return nil, &out
+		default:
+			rawBody, err := utils.ConsumeRawBody(httpRes)
+			if err != nil {
 				return nil, err
+			}
+			return nil, apierrors.NewAPIError(fmt.Sprintf("unknown content-type received: %s", httpRes.Header.Get("Content-Type")), httpRes.StatusCode, string(rawBody), httpRes)
+		}
+	case httpRes.StatusCode == 422:
+		switch {
+		case utils.MatchContentType(httpRes.Header.Get("Content-Type"), `application/json`):
+			rawBody, err := utils.ConsumeRawBody(httpRes)
+			if err != nil {
+				return nil, err
+			}
+
+			var out apierrors.APIErrorResponse
+			if err := utils.UnmarshalJsonFromResponseBody(bytes.NewBuffer(rawBody), &out, ""); err != nil {
+				return nil, apierrors.NewResponseValidationError("response did not match the declared error schema", httpRes.StatusCode, string(rawBody), httpRes, err)
 			}
 
 			return nil, &out
@@ -906,7 +971,7 @@ func (s *Outpost) Retry(ctx context.Context, request components.RetryRequest, op
 
 			var out apierrors.InternalServerError
 			if err := utils.UnmarshalJsonFromResponseBody(bytes.NewBuffer(rawBody), &out, ""); err != nil {
-				return nil, err
+				return nil, apierrors.NewResponseValidationError("response did not match the declared error schema", httpRes.StatusCode, string(rawBody), httpRes, err)
 			}
 
 			return nil, &out

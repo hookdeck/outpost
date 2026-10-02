@@ -57,6 +57,18 @@ destinationUpdate := components.CreateDestinationUpdateGcpPubsub(components.Dest
 destinationUpdate := components.CreateDestinationUpdateKafka(components.DestinationUpdateKafka{/* values here */})
 ```
 
+### DestinationUpdateCloudflareQueues
+
+```go
+destinationUpdate := components.CreateDestinationUpdateCloudflareQueues(components.DestinationUpdateCloudflareQueues{/* values here */})
+```
+
+### DestinationUpdateAWSEventBridge
+
+```go
+destinationUpdate := components.CreateDestinationUpdateAwsEventbridge(components.DestinationUpdateAWSEventBridge{/* values here */})
+```
+
 ## Union Discrimination
 
 Use the `Type` field to determine which variant is active, then access the corresponding field:
@@ -81,5 +93,9 @@ switch destinationUpdate.Type {
 		// destinationUpdate.DestinationUpdateGCPPubSub is populated
 	case components.DestinationUpdateTypeKafka:
 		// destinationUpdate.DestinationUpdateKafka is populated
+	case components.DestinationUpdateTypeCloudflareQueues:
+		// destinationUpdate.DestinationUpdateCloudflareQueues is populated
+	case components.DestinationUpdateTypeAwsEventbridge:
+		// destinationUpdate.DestinationUpdateAWSEventBridge is populated
 }
 ```

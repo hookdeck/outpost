@@ -1,4 +1,4 @@
-# HealthCheckStatus1
+# HealthCheckStatus
 
 ## Example Usage
 
@@ -7,7 +7,7 @@ import (
 	"github.com/hookdeck/outpost/sdks/outpost-go/models/operations"
 )
 
-value := operations.HealthCheckStatus1Healthy
+value := operations.HealthCheckStatusHealthy
 ```
 
 
@@ -15,4 +15,5 @@ value := operations.HealthCheckStatus1Healthy
 
 | Name                        | Value                       |
 | --------------------------- | --------------------------- |
-| `HealthCheckStatus1Healthy` | healthy                     |
+| `HealthCheckStatusHealthy`  | healthy                     |
+| `HealthCheckStatusDegraded` | degraded                    |

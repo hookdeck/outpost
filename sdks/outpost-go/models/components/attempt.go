@@ -293,8 +293,9 @@ type Attempt struct {
 	// The destination ID this attempt was sent to.
 	DestinationID *string `json:"destination_id,omitempty"`
 	// The associated event object. Only present when include=event or include=event.data.
-	Event       optionalnullable.OptionalNullable[EventUnion] `json:"event,omitempty"`
-	Destination *Destination                                  `json:"destination,omitempty"`
+	Event optionalnullable.OptionalNullable[EventUnion] `json:"event,omitempty"`
+	// The destination an attempt was sent to, without credentials. Use the destination endpoints to retrieve credentials.
+	Destination *AttemptDestination `json:"destination,omitempty"`
 }
 
 func (a Attempt) MarshalJSON() ([]byte, error) {
@@ -392,72 +393,9 @@ func (a *Attempt) GetEvent() optionalnullable.OptionalNullable[EventUnion] {
 	return a.Event
 }
 
-func (a *Attempt) GetDestination() *Destination {
+func (a *Attempt) GetDestination() *AttemptDestination {
 	if a == nil {
 		return nil
 	}
 	return a.Destination
-}
-
-func (a *Attempt) GetDestinationWebhook() *DestinationWebhook {
-	if v := a.GetDestination(); v != nil {
-		return v.DestinationWebhook
-	}
-	return nil
-}
-
-func (a *Attempt) GetDestinationAwsSqs() *DestinationAWSSQS {
-	if v := a.GetDestination(); v != nil {
-		return v.DestinationAWSSQS
-	}
-	return nil
-}
-
-func (a *Attempt) GetDestinationRabbitmq() *DestinationRabbitMQ {
-	if v := a.GetDestination(); v != nil {
-		return v.DestinationRabbitMQ
-	}
-	return nil
-}
-
-func (a *Attempt) GetDestinationHookdeck() *DestinationHookdeck {
-	if v := a.GetDestination(); v != nil {
-		return v.DestinationHookdeck
-	}
-	return nil
-}
-
-func (a *Attempt) GetDestinationAwsKinesis() *DestinationAWSKinesis {
-	if v := a.GetDestination(); v != nil {
-		return v.DestinationAWSKinesis
-	}
-	return nil
-}
-
-func (a *Attempt) GetDestinationAzureServicebus() *DestinationAzureServiceBus {
-	if v := a.GetDestination(); v != nil {
-		return v.DestinationAzureServiceBus
-	}
-	return nil
-}
-
-func (a *Attempt) GetDestinationAwsS3() *DestinationAwss3 {
-	if v := a.GetDestination(); v != nil {
-		return v.DestinationAwss3
-	}
-	return nil
-}
-
-func (a *Attempt) GetDestinationGcpPubsub() *DestinationGCPPubSub {
-	if v := a.GetDestination(); v != nil {
-		return v.DestinationGCPPubSub
-	}
-	return nil
-}
-
-func (a *Attempt) GetDestinationKafka() *DestinationKafka {
-	if v := a.GetDestination(); v != nil {
-		return v.DestinationKafka
-	}
-	return nil
 }
