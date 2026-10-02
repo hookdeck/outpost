@@ -5,7 +5,7 @@ info:
   description: |
     The Outpost API is a REST-based JSON API for managing tenants, destinations, and publishing events.
 
-    Outpost runs in two deployment models — **managed** (hosted by Hookdeck) and **self-hosted** — and they differ in where the API lives and what credential reaches it. See the servers list and the `AdminApiKey` security scheme. A few endpoints exist in one model only and say so in their description.
+    Outpost runs in two deployment models: **managed** (hosted by Hookdeck) and **self-hosted**. They differ in where the API is served and in which API key authenticates server-side calls. On managed Outpost, use a Hookdeck project API key from your Outpost project. On self-hosted Outpost, use the key set in the `API_KEY` environment variable. A few endpoints exist in one model only and say so in their description.
   contact:
     name: Outpost Support
     email: support@hookdeck.com
@@ -15,7 +15,7 @@ security:
   - TenantJwt: []
 servers:
   - url: https://api.outpost.hookdeck.com/2025-07-01
-    description: Managed Outpost, hosted by Hookdeck.
+    description: Managed Outpost, hosted by Hookdeck at `api.outpost.hookdeck.com`. The Hookdeck Event Gateway API at `api.hookdeck.com` is a separate API.
   - url: http://localhost:3333/api/v1
     description: Self-hosted Outpost, at its default local address. A deployed instance serves the same paths under its own host.
 components:
@@ -34,8 +34,8 @@ components:
         - **Self-hosted:** the admin API key set in the `API_KEY` environment
           variable.
 
-        The scheme is named for the self-hosted credential. Managed deployments
-        have no separate "admin key" to create — the project API key is it.
+        The scheme is named for the self-hosted credential. Managed Outpost has
+        no separate admin key to create. The project API key takes its place.
     TenantJwt:
       type: http
       scheme: bearer
@@ -3176,8 +3176,8 @@ components:
     ManagedConfig:
       type: object
       description: |
-        Managed configuration values for managed Outpost.
-        This API is available only on managed Outpost.
+        Configuration values for managed Outpost.
+        This API is only available on managed Outpost.
         Self-hosted deployments configure these values using environment variables.
       properties:
         ALERT_AUTO_DISABLE_DESTINATION:
@@ -3409,7 +3409,7 @@ tags:
       This endpoint is only available for **self-hosted** Outpost deployments. Managed Outpost health is monitored by Hookdeck.
   - name: Configuration
     description: |
-      The Configuration API is available for **managed Outpost** deployments only. It allows you to read and update instance-level settings — the same settings available as environment variables in self-hosted deployments.
+      The Configuration API is only available on managed Outpost. It allows you to read and update instance-level settings, the same settings available as environment variables in self-hosted deployments.
   - name: Tenants
     description: |
       The API segments resources per `tenant`. A tenant represents a user/team/organization in your product. The provided value determines the tenant's ID, which can be any string representation.
