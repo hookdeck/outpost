@@ -362,3 +362,82 @@ const value: components.DestinationCreateKafka = {
 };
 ```
 
+### `components.DestinationCreateCloudflareQueues`
+
+```typescript
+const value: components.DestinationCreateCloudflareQueues = {
+  id: "user-provided-id",
+  type: "cloudflare_queues",
+  topics: "*",
+  filter: {
+    "data": {
+      "amount": {
+        "$gte": 100,
+      },
+      "customer": {
+        "tier": "premium",
+      },
+    },
+  },
+  config: {
+    accountId: "023e105f4ecef8ad9ca31a8372d0c353",
+    queueId: "9d7d4cf8a3a14d9aaeb50c3e74e2f4b1",
+  },
+  credentials: {
+    apiToken: "v1.0-1234567890abcdef...",
+  },
+  deliveryMetadata: {
+    "app-id": "my-app",
+    "region": "us-east-1",
+  },
+  metadata: {
+    "internal-id": "123",
+    "team": "platform",
+  },
+  createdAt: new Date("2024-02-15T10:00:00Z"),
+  updatedAt: new Date("2024-02-15T10:00:00Z"),
+  disabledAt: null,
+};
+```
+
+### `components.DestinationCreateAWSEventBridge`
+
+```typescript
+const value: components.DestinationCreateAWSEventBridge = {
+  id: "user-provided-id",
+  type: "aws_eventbridge",
+  topics: "*",
+  filter: {
+    "data": {
+      "amount": {
+        "$gte": 100,
+      },
+      "customer": {
+        "tier": "premium",
+      },
+    },
+  },
+  config: {
+    eventBusName: "my-event-bus",
+    region: "us-east-1",
+    endpoint: "https://events.us-east-1.amazonaws.com",
+  },
+  credentials: {
+    key: "AKIAIOSFODNN7EXAMPLE",
+    secret: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+    session: "AQoDYXdzEPT//////////wEXAMPLE...",
+  },
+  deliveryMetadata: {
+    "app-id": "my-app",
+    "region": "us-east-1",
+  },
+  metadata: {
+    "internal-id": "123",
+    "team": "platform",
+  },
+  createdAt: new Date("2024-02-15T10:00:00Z"),
+  updatedAt: new Date("2024-02-15T10:00:00Z"),
+  disabledAt: null,
+};
+```
+

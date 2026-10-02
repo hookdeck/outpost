@@ -7,6 +7,12 @@ import { safeParse } from "../../lib/schemas.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 import {
+  DestinationAWSEventBridge,
+  DestinationAWSEventBridge$inboundSchema,
+  DestinationAWSEventBridge$Outbound,
+  DestinationAWSEventBridge$outboundSchema,
+} from "./destinationawseventbridge.js";
+import {
   DestinationAWSKinesis,
   DestinationAWSKinesis$inboundSchema,
   DestinationAWSKinesis$Outbound,
@@ -30,6 +36,12 @@ import {
   DestinationAzureServiceBus$Outbound,
   DestinationAzureServiceBus$outboundSchema,
 } from "./destinationazureservicebus.js";
+import {
+  DestinationCloudflareQueues,
+  DestinationCloudflareQueues$inboundSchema,
+  DestinationCloudflareQueues$Outbound,
+  DestinationCloudflareQueues$outboundSchema,
+} from "./destinationcloudflarequeues.js";
 import {
   DestinationGCPPubSub,
   DestinationGCPPubSub$inboundSchema,
@@ -70,7 +82,9 @@ export type Destination =
   | DestinationAzureServiceBus
   | DestinationAwss3
   | DestinationGCPPubSub
-  | DestinationKafka;
+  | DestinationKafka
+  | DestinationCloudflareQueues
+  | DestinationAWSEventBridge;
 
 /** @internal */
 export const Destination$inboundSchema: z.ZodType<
@@ -87,6 +101,8 @@ export const Destination$inboundSchema: z.ZodType<
   DestinationAwss3$inboundSchema,
   DestinationGCPPubSub$inboundSchema,
   DestinationKafka$inboundSchema,
+  DestinationCloudflareQueues$inboundSchema,
+  DestinationAWSEventBridge$inboundSchema,
 ]);
 /** @internal */
 export type Destination$Outbound =
@@ -98,7 +114,9 @@ export type Destination$Outbound =
   | DestinationAzureServiceBus$Outbound
   | DestinationAwss3$Outbound
   | DestinationGCPPubSub$Outbound
-  | DestinationKafka$Outbound;
+  | DestinationKafka$Outbound
+  | DestinationCloudflareQueues$Outbound
+  | DestinationAWSEventBridge$Outbound;
 
 /** @internal */
 export const Destination$outboundSchema: z.ZodType<
@@ -115,6 +133,8 @@ export const Destination$outboundSchema: z.ZodType<
   DestinationAwss3$outboundSchema,
   DestinationGCPPubSub$outboundSchema,
   DestinationKafka$outboundSchema,
+  DestinationCloudflareQueues$outboundSchema,
+  DestinationAWSEventBridge$outboundSchema,
 ]);
 
 export function destinationToJSON(destination: Destination): string {

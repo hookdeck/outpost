@@ -19,7 +19,10 @@ export const tool$destinationsGetAttempt: ToolDefinition<typeof args> = {
   name: "destinations-get-attempt",
   description: `Get Destination Attempt
 
-Retrieves details for a specific attempt scoped to a destination.`,
+Retrieves details for a specific attempt scoped to a destination.
+
+Returns \`404\` if the destination does not exist or has been deleted, or if the destination has no attempt with this ID. An attempt of a deleted destination remains available from \`GET /attempts/{attempt_id}\`.
+`,
   args,
   tool: async (client, args, ctx) => {
     const [result, apiCall] = await destinationsGetAttempt(

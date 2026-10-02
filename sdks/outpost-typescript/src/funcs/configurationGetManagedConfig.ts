@@ -30,7 +30,7 @@ import { Result } from "../types/fp.js";
  * @remarks
  * Returns managed Outpost configuration values.
  *
- * This endpoint is only available for the managed version.
+ * This endpoint is only available on managed Outpost.
  * In self-hosted deployments, configuration is controlled through environment variables instead.
  */
 export function configurationGetManagedConfig(

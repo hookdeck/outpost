@@ -31,6 +31,20 @@ import { tool$eventsList } from "./tools/eventsList.js";
 import { tool$healthCheck } from "./tools/healthCheck.js";
 import { tool$metricsGetAttemptMetrics } from "./tools/metricsGetAttemptMetrics.js";
 import { tool$metricsGetEventMetrics } from "./tools/metricsGetEventMetrics.js";
+import { tool$operatorEventsCreateDestination } from "./tools/operatorEventsCreateDestination.js";
+import { tool$operatorEventsDeleteDestination } from "./tools/operatorEventsDeleteDestination.js";
+import { tool$operatorEventsDisableDestination } from "./tools/operatorEventsDisableDestination.js";
+import { tool$operatorEventsEnableDestination } from "./tools/operatorEventsEnableDestination.js";
+import { tool$operatorEventsGetAttempt } from "./tools/operatorEventsGetAttempt.js";
+import { tool$operatorEventsGetDestination } from "./tools/operatorEventsGetDestination.js";
+import { tool$operatorEventsGetEvent } from "./tools/operatorEventsGetEvent.js";
+import { tool$operatorEventsListAttempts } from "./tools/operatorEventsListAttempts.js";
+import { tool$operatorEventsListDestinations } from "./tools/operatorEventsListDestinations.js";
+import { tool$operatorEventsListDestinationTypes } from "./tools/operatorEventsListDestinationTypes.js";
+import { tool$operatorEventsListEventAttempts } from "./tools/operatorEventsListEventAttempts.js";
+import { tool$operatorEventsListEvents } from "./tools/operatorEventsListEvents.js";
+import { tool$operatorEventsRetry } from "./tools/operatorEventsRetry.js";
+import { tool$operatorEventsUpdateDestination } from "./tools/operatorEventsUpdateDestination.js";
 import { tool$publish } from "./tools/publish.js";
 import { tool$retry } from "./tools/retry.js";
 import { tool$schemasGetDestinationType } from "./tools/schemasGetDestinationType.js";
@@ -53,7 +67,7 @@ export function createMCPServer(deps: {
 }) {
   const server = new McpServer({
     name: "Outpost",
-    version: "1.6.1",
+    version: "1.7.0",
   });
 
   const client = new OutpostCore({
@@ -88,6 +102,20 @@ export function createMCPServer(deps: {
   tool(tool$healthCheck);
   tool(tool$configurationGetManagedConfig);
   tool(tool$configurationUpdateManagedConfig);
+  tool(tool$operatorEventsListDestinationTypes);
+  tool(tool$operatorEventsListDestinations);
+  tool(tool$operatorEventsCreateDestination);
+  tool(tool$operatorEventsGetDestination);
+  tool(tool$operatorEventsUpdateDestination);
+  tool(tool$operatorEventsDeleteDestination);
+  tool(tool$operatorEventsEnableDestination);
+  tool(tool$operatorEventsDisableDestination);
+  tool(tool$operatorEventsListEvents);
+  tool(tool$operatorEventsGetEvent);
+  tool(tool$operatorEventsListEventAttempts);
+  tool(tool$operatorEventsListAttempts);
+  tool(tool$operatorEventsGetAttempt);
+  tool(tool$operatorEventsRetry);
   tool(tool$tenantsList);
   tool(tool$tenantsUpsert);
   tool(tool$tenantsGet);

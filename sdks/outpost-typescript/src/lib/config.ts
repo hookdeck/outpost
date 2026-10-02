@@ -12,11 +12,11 @@ import { Params, pathToFunc } from "./url.js";
  */
 export const ServerList = [
   /**
-   * Outpost API (production)
+   * Managed Outpost, hosted by Hookdeck at `api.outpost.hookdeck.com`. The Hookdeck Event Gateway API at `api.hookdeck.com` is a separate API.
    */
   "https://api.outpost.hookdeck.com/2025-07-01",
   /**
-   * Local development server base path
+   * Self-hosted Outpost, at its default local address. A deployed instance serves the same paths under its own host.
    */
   "http://localhost:3333/api/v1",
 ] as const;
@@ -65,8 +65,8 @@ export function serverURLFromOptions(options: SDKOptions): URL | null {
 export const SDK_METADATA = {
   language: "typescript",
   openapiDocVersion: "0.0.1",
-  sdkVersion: "1.6.1",
-  genVersion: "2.938.0",
+  sdkVersion: "1.7.0",
+  genVersion: "2.943.0",
   userAgent:
-    "speakeasy-sdk/typescript 1.6.1 2.938.0 0.0.1 @hookdeck/outpost-sdk",
+    "speakeasy-sdk/typescript 1.7.0 2.943.0 0.0.1 @hookdeck/outpost-sdk",
 } as const;

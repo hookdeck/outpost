@@ -11,7 +11,7 @@ export const tool$configurationGetManagedConfig: ToolDefinition = {
 
 Returns managed Outpost configuration values.
 
-This endpoint is only available for the managed version.
+This endpoint is only available on managed Outpost.
 In self-hosted deployments, configuration is controlled through environment variables instead.
 `,
   tool: async (client, ctx) => {

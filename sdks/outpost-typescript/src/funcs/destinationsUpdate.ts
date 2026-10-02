@@ -196,7 +196,7 @@ async function $do(
     M.json(200, operations.UpdateTenantDestinationResponse$inboundSchema),
     M.jsonErr(401, errors.UnauthorizedError$inboundSchema),
     M.jsonErr(404, errors.NotFoundError$inboundSchema),
-    M.jsonErr(422, errors.APIErrorResponse$inboundSchema),
+    M.jsonErr([403, 422], errors.APIErrorResponse$inboundSchema),
     M.jsonErr(500, errors.InternalServerError$inboundSchema),
     M.fail("4XX"),
     M.fail("5XX"),

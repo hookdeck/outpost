@@ -49,7 +49,9 @@ export function attemptsList(
 ): APIPromise<
   Result<
     components.AttemptPaginatedResult,
+    | errors.BadRequestError
     | errors.UnauthorizedError
+    | errors.APIErrorResponse
     | errors.InternalServerError
     | OutpostError
     | ResponseValidationError
@@ -76,7 +78,9 @@ async function $do(
   [
     Result<
       components.AttemptPaginatedResult,
+      | errors.BadRequestError
       | errors.UnauthorizedError
+      | errors.APIErrorResponse
       | errors.InternalServerError
       | OutpostError
       | ResponseValidationError
@@ -180,7 +184,9 @@ async function $do(
 
   const [result] = await M.match<
     components.AttemptPaginatedResult,
+    | errors.BadRequestError
     | errors.UnauthorizedError
+    | errors.APIErrorResponse
     | errors.InternalServerError
     | OutpostError
     | ResponseValidationError
@@ -192,7 +198,9 @@ async function $do(
     | SDKValidationError
   >(
     M.json(200, components.AttemptPaginatedResult$inboundSchema),
+    M.jsonErr(400, errors.BadRequestError$inboundSchema),
     M.jsonErr(401, errors.UnauthorizedError$inboundSchema),
+    M.jsonErr([403, 422], errors.APIErrorResponse$inboundSchema),
     M.jsonErr(500, errors.InternalServerError$inboundSchema),
     M.fail("4XX"),
     M.fail("5XX"),

@@ -264,3 +264,59 @@ const value: components.DestinationUpdateKafka = {
 };
 ```
 
+### `components.DestinationUpdateCloudflareQueues`
+
+```typescript
+const value: components.DestinationUpdateCloudflareQueues = {
+  type: "cloudflare_queues",
+  topics: "*",
+  filter: {
+    "data": {
+      "amount": {
+        "$gte": 100,
+      },
+      "customer": {
+        "tier": "premium",
+      },
+    },
+  },
+  deliveryMetadata: {
+    "app-id": "my-app",
+    "region": "us-east-1",
+  },
+  metadata: {
+    "internal-id": "123",
+    "team": "platform",
+  },
+  disabledAt: null,
+};
+```
+
+### `components.DestinationUpdateAWSEventBridge`
+
+```typescript
+const value: components.DestinationUpdateAWSEventBridge = {
+  type: "aws_eventbridge",
+  topics: "*",
+  filter: {
+    "data": {
+      "amount": {
+        "$gte": 100,
+      },
+      "customer": {
+        "tier": "premium",
+      },
+    },
+  },
+  deliveryMetadata: {
+    "app-id": "my-app",
+    "region": "us-east-1",
+  },
+  metadata: {
+    "internal-id": "123",
+    "team": "platform",
+  },
+  disabledAt: null,
+};
+```
+

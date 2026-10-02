@@ -14,7 +14,9 @@ export const tool$retry: ToolDefinition<typeof args> = {
   name: "retry",
   description: `Retry Event Delivery
 
-Triggers a retry for delivering an event to a destination. The event must exist and the destination must be enabled and match the event's topic.
+Triggers a retry for delivering an event to a destination. The event must exist, and the destination must be enabled, match the event's topic and filter, and already have a delivery attempt for the event. A retry never sends an event to a destination that has no earlier attempt for it.
+
+Returns 404 \`event not found\` if the event does not exist, or belongs to another tenant when authenticated with a Tenant JWT. Returns 404 \`destination not found\` if the destination does not exist for the event's tenant or has been deleted.
 
 When authenticated with a Tenant JWT, only events belonging to that tenant can be retried.
 When authenticated with Admin API Key, events from any tenant can be retried.
