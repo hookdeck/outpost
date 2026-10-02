@@ -2,6 +2,7 @@ package apirouter
 
 import (
 	"context"
+	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -47,7 +48,8 @@ type retryRequest struct {
 
 // Retry handles POST /retry
 // Accepts { event_id, destination_id } in body.
-// Looks up the event, verifies the destination exists and is enabled, then publishes a manual delivery task.
+// Looks up the event, verifies the destination exists, is enabled, matches the event and has
+// already been sent it, then publishes a manual delivery task.
 func (h *RetryHandlers) Retry(c *gin.Context) {
 	var req retryRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -57,7 +59,7 @@ func (h *RetryHandlers) Retry(c *gin.Context) {
 
 	tenantID := tenantIDFromContext(c)
 
-	// 1. Look up prior attempt (includes event data) — single logstore query
+	// 1. Look up prior attempt (includes event data)
 	listReq := logstore.ListAttemptRequest{
 		EventIDs:       []string{req.EventID},
 		DestinationIDs: []string{req.DestinationID},
@@ -72,14 +74,29 @@ func (h *RetryHandlers) Retry(c *gin.Context) {
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return
 	}
-	if len(attemptResp.Data) == 0 {
-		AbortWithError(c, http.StatusNotFound, NewErrNotFound("event"))
-		return
-	}
 
-	record := attemptResp.Data[0]
-	event := record.Event
-	attemptNumber := record.Attempt.AttemptNumber + 1
+	var event *models.Event
+	var attemptNumber int
+	hasAttempt := len(attemptResp.Data) > 0
+	if hasAttempt {
+		record := attemptResp.Data[0]
+		event = record.Event
+		attemptNumber = record.Attempt.AttemptNumber + 1
+	} else {
+		// No attempt for the pair: look the event up on its own to tell which part is missing.
+		event, err = h.logStore.RetrieveEvent(c.Request.Context(), logstore.RetrieveEventRequest{
+			TenantID: tenantID,
+			EventID:  req.EventID,
+		})
+		if err != nil {
+			AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
+			return
+		}
+		if event == nil {
+			AbortWithError(c, http.StatusNotFound, NewErrNotFound("event"))
+			return
+		}
+	}
 
 	// Authz: JWT tenant can only retry their own events
 	if tenant := tenantFromContext(c); tenant != nil {
@@ -92,6 +109,10 @@ func (h *RetryHandlers) Retry(c *gin.Context) {
 	// 2. Check destination exists and is enabled
 	destination, err := h.tenantStore.RetrieveDestination(c.Request.Context(), event.TenantID, req.DestinationID)
 	if err != nil {
+		if errors.Is(err, tenantstore.ErrDestinationDeleted) {
+			AbortWithError(c, http.StatusNotFound, NewErrNotFound("destination"))
+			return
+		}
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return
 	}
@@ -114,6 +135,14 @@ func (h *RetryHandlers) Retry(c *gin.Context) {
 		AbortWithError(c, http.StatusBadRequest, ErrorResponse{
 			Code:    http.StatusBadRequest,
 			Message: "destination does not match event",
+		})
+		return
+	}
+
+	if !hasAttempt {
+		AbortWithError(c, http.StatusBadRequest, ErrorResponse{
+			Code:    http.StatusBadRequest,
+			Message: "event has no attempt for this destination",
 		})
 		return
 	}

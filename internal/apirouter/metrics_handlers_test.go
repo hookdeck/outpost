@@ -9,6 +9,7 @@ import (
 
 	"github.com/hookdeck/outpost/internal/apirouter"
 	"github.com/hookdeck/outpost/internal/models"
+	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -211,6 +212,23 @@ func TestAPI_MetricsEvents(t *testing.T) {
 		resp := h.do(h.withAPIKey(req))
 
 		assert.Equal(t, http.StatusBadRequest, resp.Code)
+	})
+
+	t.Run("time that is not RFC3339 returns 400 naming the expected format", func(t *testing.T) {
+		h := newAPITest(t)
+		const expectedFormat = "expected RFC3339 (e.g. 2024-01-15T09:30:00Z or 2024-01-15T09:30:00.123Z)"
+
+		for _, tc := range []struct{ query, message string }{
+			{"time[start]=yesterday&time[end]=2024-01-02T00:00:00Z", "invalid time[start]: " + expectedFormat},
+			{"time[start]=2024-01-01T00:00:00Z&time[end]=2024-01-02", "invalid time[end]: " + expectedFormat},
+		} {
+			for _, path := range []string{"/api/v1/metrics/events", "/api/v1/metrics/attempts"} {
+				req := httptest.NewRequest(http.MethodGet, path+"?"+tc.query+"&measures[0]=count", nil)
+				resp := h.do(h.withAPIKey(req))
+
+				testutil.RequireErrorResponse(t, resp, http.StatusBadRequest, tc.message)
+			}
+		}
 	})
 
 	t.Run("invalid granularity returns 400", func(t *testing.T) {

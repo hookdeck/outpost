@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -483,30 +484,84 @@ func testEdgeCases(t *testing.T, ctx context.Context, logStore driver.LogStore, 
 }
 
 func testCursorValidation(t *testing.T, ctx context.Context, logStore driver.LogStore, h Harness) {
-	t.Run("malformed cursor returns error", func(t *testing.T) {
-		tenantID := idgen.String()
-		startTime := time.Now().Add(-1 * time.Hour)
-
-		testCases := []struct {
-			name   string
-			cursor string
-		}{
-			{"completely invalid base62", "!!!invalid!!!"},
-			{"random string", "abcdef123456"},
-		}
-
-		for _, tc := range testCases {
-			t.Run(tc.name, func(t *testing.T) {
-				_, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
-					TenantIDs:  []string{tenantID},
-					SortOrder:  "desc",
-					Next:       tc.cursor,
-					TimeFilter: driver.TimeFilter{GTE: &startTime},
-					Limit:      10,
-				})
-				require.Error(t, err)
-				assert.True(t, errors.Is(err, cursor.ErrInvalidCursor), "expected cursor.ErrInvalidCursor, got: %v", err)
+	lists := []struct {
+		name     string
+		resource string // cursor resource of the list
+		other    string // cursor resource of the other list
+		list     func(tenantID, next, prev string) error
+	}{
+		{"ListEvent", "evt", "att", func(tenantID, next, prev string) error {
+			_, err := logStore.ListEvent(ctx, driver.ListEventRequest{
+				TenantIDs: []string{tenantID},
+				SortOrder: "desc",
+				Next:      next,
+				Prev:      prev,
+				Limit:     10,
 			})
+			return err
+		}},
+		{"ListAttempt", "att", "evt", func(tenantID, next, prev string) error {
+			_, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
+				TenantIDs: []string{tenantID},
+				SortOrder: "desc",
+				Next:      next,
+				Prev:      prev,
+				Limit:     10,
+			})
+			return err
+		}},
+	}
+
+	t.Run("unreadable cursor returns error", func(t *testing.T) {
+		const (
+			invalidCursor   = "invalid cursor"
+			versionMismatch = "invalid cursor: cursor version mismatch: expected version 01"
+			// The position format is the driver's own, so which part of a
+			// position is unreadable, and the message detail, differ per driver.
+			invalidPosition = ""
+		)
+
+		for _, list := range lists {
+			testCases := []struct {
+				name    string
+				cursor  string
+				message string
+			}{
+				{"completely invalid base62", "!!!invalid!!!", invalidCursor},
+				{"random string", "abcdef123456", invalidCursor},
+				{"cursor of the other list", cursor.Encode(list.other, 1, "1700000000000::id"), invalidCursor},
+				{"cursor of another version", cursor.Encode(list.resource, 2, "1700000000000::id"), versionMismatch},
+				{"empty position", cursor.Encode(list.resource, 1, ""), invalidCursor},
+				{"position that is one word", cursor.Encode(list.resource, 1, "yesterday"), invalidCursor},
+				{"position that is only a number", cursor.Encode(list.resource, 1, "1700000000000"), invalidCursor},
+				{"position without a timestamp", cursor.Encode(list.resource, 1, "::id"), invalidPosition},
+				{"position without an id", cursor.Encode(list.resource, 1, "1700000000000::"), invalidPosition},
+				{"position with a timestamp that is not a time", cursor.Encode(list.resource, 1, "yesterday::id"), invalidPosition},
+				{"position with a timestamp that is not a time, other separator", cursor.Encode(list.resource, 1, "yesterday_id"), invalidPosition},
+				{"position with a timestamp larger than an integer", cursor.Encode(list.resource, 1, "99999999999999999999::id"), invalidPosition},
+				{"position with a timestamp out of range", cursor.Encode(list.resource, 1, "9223372036854775807::id"), invalidPosition},
+				{"position with a timestamp out of range, negative", cursor.Encode(list.resource, 1, "-9223372036854775808::id"), invalidPosition},
+			}
+
+			for _, tc := range testCases {
+				for _, param := range []string{"next", "prev"} {
+					t.Run(list.name+"/"+tc.name+" in "+param, func(t *testing.T) {
+						var err error
+						if param == "next" {
+							err = list.list(idgen.String(), tc.cursor, "")
+						} else {
+							err = list.list(idgen.String(), "", tc.cursor)
+						}
+						require.Error(t, err)
+						assert.True(t, errors.Is(err, cursor.ErrInvalidCursor), "expected cursor.ErrInvalidCursor, got: %v", err)
+						if tc.message != invalidPosition {
+							assert.EqualError(t, err, tc.message)
+						} else {
+							assert.True(t, strings.HasPrefix(err.Error(), invalidCursor), "expected an invalid cursor message, got: %v", err)
+						}
+					})
+				}
+			}
 		}
 	})
 
@@ -574,6 +629,60 @@ func testCursorValidation(t *testing.T, ctx context.Context, logStore driver.Log
 			})
 			require.NoError(t, err)
 			require.NotEmpty(t, page2.Data)
+		})
+
+		// A cursor holds a position and nothing about the query it came from.
+		// The store does not reject a cursor reused with another sort order or
+		// filter: it lists from that position with the new parameters.
+		attemptIDs := func(res driver.ListAttemptResponse) []string {
+			ids := make([]string, len(res.Data))
+			for i, record := range res.Data {
+				ids[i] = record.Attempt.ID
+			}
+			return ids
+		}
+
+		t.Run("cursor of another sort order lists from its position in the requested order", func(t *testing.T) {
+			page1, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
+				TenantIDs:  []string{tenantID},
+				SortOrder:  "desc",
+				TimeFilter: driver.TimeFilter{GTE: &startTime},
+				Limit:      2,
+			})
+			require.NoError(t, err)
+			require.Equal(t, []string{"cursor_del_4", "cursor_del_3"}, attemptIDs(page1))
+
+			res, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
+				TenantIDs:  []string{tenantID},
+				SortOrder:  "asc",
+				Next:       page1.Next,
+				TimeFilter: driver.TimeFilter{GTE: &startTime},
+				Limit:      2,
+			})
+			require.NoError(t, err)
+			assert.Equal(t, []string{"cursor_del_4"}, attemptIDs(res))
+		})
+
+		t.Run("cursor of another filter lists from its position with the requested filter", func(t *testing.T) {
+			page1, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
+				TenantIDs:  []string{tenantID},
+				SortOrder:  "desc",
+				TimeFilter: driver.TimeFilter{GTE: &startTime},
+				Limit:      2,
+			})
+			require.NoError(t, err)
+			require.Equal(t, []string{"cursor_del_4", "cursor_del_3"}, attemptIDs(page1))
+
+			res, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
+				TenantIDs:  []string{tenantID},
+				EventIDs:   []string{"cursor_evt_0", "cursor_evt_4"},
+				SortOrder:  "desc",
+				Next:       page1.Next,
+				TimeFilter: driver.TimeFilter{GTE: &startTime},
+				Limit:      2,
+			})
+			require.NoError(t, err)
+			assert.Equal(t, []string{"cursor_del_0"}, attemptIDs(res))
 		})
 	})
 }

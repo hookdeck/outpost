@@ -58,6 +58,12 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/APIErrorResponse"
+    Forbidden:
+      description: The credentials are valid but not allowed to perform the request.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/APIErrorResponse"
     NotFound:
       description: Requested resource not found.
       content:
@@ -3950,7 +3956,7 @@ tags:
   - name: Publish
     description: Use the Publish endpoint to send events into Outpost. Events are matched against all destinations whose topic subscriptions and filters match the event. Requires Admin API Key.
   - name: Retry
-    description: Triggers a retry for delivering an event to a destination. The event must exist and the destination must be enabled and match the event's topic.
+    description: Triggers a retry for delivering an event to a destination. The event must exist, and the destination must be enabled, match the event's topic and filter, and already have a delivery attempt for the event.
   - name: Schemas
     description: |
       Destination types describe the available event delivery targets and their configuration schemas. Use these endpoints to render UI forms and list available destination types with their configuration schemas.
@@ -4256,6 +4262,8 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "422":
+          $ref: "#/components/responses/ValidationError"
         "500":
           $ref: "#/components/responses/InternalServerError"
         "501":
@@ -4322,6 +4330,8 @@ paths:
                 updated_at: "2024-01-15T10:30:00Z"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "422":
           $ref: "#/components/responses/ValidationError"
         "500":
@@ -4348,6 +4358,8 @@ paths:
                 updated_at: "2024-01-15T10:30:00Z"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
         "500":
@@ -4370,6 +4382,8 @@ paths:
                     success: true
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
         "500":
@@ -4449,19 +4463,19 @@ paths:
             default: 100
             minimum: 1
             maximum: 1000
-          description: Number of items per page (default 100, max 1000).
+          description: Number of items per page (1-1000, default 100). A value outside this range, or one that is not an integer, returns a 400.
         - name: next
           in: query
           required: false
           schema:
             type: string
-          description: Cursor for next page of results.
+          description: Cursor for the next page of results, from `pagination.next` of a previous response. Mutually exclusive with `prev`. A cursor that cannot be read returns a 400.
         - name: prev
           in: query
           required: false
           schema:
             type: string
-          description: Cursor for previous page of results.
+          description: Cursor for the previous page of results, from `pagination.prev` of a previous response. Mutually exclusive with `next`. A cursor that cannot be read returns a 400.
         - name: order_by
           in: query
           required: false
@@ -4510,8 +4524,14 @@ paths:
                         metadata: { "source": "oms" }
                         data: { "order_id": "orderid", "tracking": "1Z..." }
 
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "422":
+          $ref: "#/components/responses/ValidationError"
         "500":
           $ref: "#/components/responses/InternalServerError"
 
@@ -4653,19 +4673,19 @@ paths:
             default: 100
             minimum: 1
             maximum: 1000
-          description: Number of items per page (default 100, max 1000).
+          description: Number of items per page (1-1000, default 100). A value outside this range, or one that is not an integer, returns a 400.
         - name: next
           in: query
           required: false
           schema:
             type: string
-          description: Cursor for next page of results.
+          description: Cursor for the next page of results, from `pagination.next` of a previous response. Mutually exclusive with `prev`. A cursor that cannot be read returns a 400.
         - name: prev
           in: query
           required: false
           schema:
             type: string
-          description: Cursor for previous page of results.
+          description: Cursor for the previous page of results, from `pagination.prev` of a previous response. Mutually exclusive with `next`. A cursor that cannot be read returns a 400.
         - name: include
           in: query
           required: false
@@ -4756,8 +4776,14 @@ paths:
                           eligible_for_retry: false
                           metadata: { "source": "crm" }
 
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "422":
+          $ref: "#/components/responses/ValidationError"
         "500":
           $ref: "#/components/responses/InternalServerError"
 
@@ -4884,6 +4910,8 @@ paths:
                     tenant_id: "tenant_123"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
         "500":
@@ -4918,6 +4946,8 @@ paths:
                     tenant_id: "tenant_123"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
         "500":
@@ -5011,6 +5041,8 @@ paths:
                         secret: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
         "500":
@@ -5056,8 +5088,12 @@ paths:
                     credentials:
                       secret: "whsec_abc123def456"
                       # previous_secret and previous_secret_invalid_at are absent on creation
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
         "422":
@@ -5108,6 +5144,8 @@ paths:
                       previous_secret_invalid_at: "2024-02-16T10:00:00Z"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
         "500":
@@ -5156,6 +5194,8 @@ paths:
                       previous_secret_invalid_at: "2024-02-16T10:00:00Z"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
         "422":
@@ -5180,6 +5220,8 @@ paths:
                     success: true
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
         "500":
@@ -5228,6 +5270,8 @@ paths:
                       previous_secret_invalid_at: "2024-02-16T10:00:00Z"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
         "500":
@@ -5276,6 +5320,8 @@ paths:
                       previous_secret_invalid_at: "2024-02-16T10:00:00Z"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
         "500":
@@ -5299,7 +5345,10 @@ paths:
     get:
       tags: [Destinations]
       summary: List Destination Attempts
-      description: Retrieves a paginated list of attempts scoped to a specific destination.
+      description: |
+        Retrieves a paginated list of attempts scoped to a specific destination.
+
+        Returns `404` if the destination does not exist or has been deleted. The attempts of a deleted destination remain available from `GET /attempts?destination_id=`.
       operationId: listTenantDestinationAttempts
       parameters:
         - name: event_id
@@ -5345,19 +5394,19 @@ paths:
             default: 100
             minimum: 1
             maximum: 1000
-          description: Number of items per page (default 100, max 1000).
+          description: Number of items per page (1-1000, default 100). A value outside this range, or one that is not an integer, returns a 400.
         - name: next
           in: query
           required: false
           schema:
             type: string
-          description: Cursor for next page of results.
+          description: Cursor for the next page of results, from `pagination.next` of a previous response. Mutually exclusive with `prev`. A cursor that cannot be read returns a 400.
         - name: prev
           in: query
           required: false
           schema:
             type: string
-          description: Cursor for previous page of results.
+          description: Cursor for the previous page of results, from `pagination.prev` of a previous response. Mutually exclusive with `next`. A cursor that cannot be read returns a 400.
         - name: include
           in: query
           required: false
@@ -5423,10 +5472,16 @@ paths:
                         event_id: "evt_789"
                         destination_id: "des_456"
 
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationError"
         "500":
           $ref: "#/components/responses/InternalServerError"
 
@@ -5453,7 +5508,10 @@ paths:
     get:
       tags: [Destinations]
       summary: Get Destination Attempt
-      description: Retrieves details for a specific attempt scoped to a destination.
+      description: |
+        Retrieves details for a specific attempt scoped to a destination.
+
+        Returns `404` if the destination does not exist or has been deleted, or if the destination has no attempt with this ID. An attempt of a deleted destination remains available from `GET /attempts/{attempt_id}`.
       operationId: getTenantDestinationAttempt
       parameters:
         - name: include
@@ -5491,6 +5549,8 @@ paths:
                     destination_id: "des_456"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
         "500":
@@ -5534,8 +5594,14 @@ paths:
                 destination_ids: ["des_webhook_123"]
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "409":
-          description: Conflict. An event with the provided `id` already exists.
+          description: Conflict. Another request with the same event `id` is in progress or has just failed. Retry the request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APIErrorResponse"
         "422":
           description: The event topic was either required or was invalid.
         "500":
@@ -5547,7 +5613,9 @@ paths:
       tags: [Retry]
       summary: Retry Event Delivery
       description: |
-        Triggers a retry for delivering an event to a destination. The event must exist and the destination must be enabled and match the event's topic.
+        Triggers a retry for delivering an event to a destination. The event must exist, and the destination must be enabled, match the event's topic and filter, and already have a delivery attempt for the event. A retry never sends an event to a destination that has no earlier attempt for it.
+
+        Returns 404 `event not found` if the event does not exist, or belongs to another tenant when authenticated with a Tenant JWT. Returns 404 `destination not found` if the destination does not exist for the event's tenant or has been deleted.
 
         When authenticated with a Tenant JWT, only events belonging to that tenant can be retried.
         When authenticated with Admin API Key, events from any tenant can be retried.
@@ -5576,11 +5644,14 @@ paths:
           description: |
             Bad request. This can happen when:
             - The destination is disabled
-            - The destination does not match the event's topic
+            - The destination does not match the event's topic or filter
+            - The event has no delivery attempt for the destination
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationError"
         "500":
           $ref: "#/components/responses/InternalServerError"
 

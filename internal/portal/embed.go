@@ -29,8 +29,13 @@ func createJSONFromConfigs(env map[string]string) string {
 	return "{" + strings.Join(parts, ",") + "}"
 }
 
-// AddRoutes serves the static file system for the UI React App.
-func AddRoutes(router *gin.Engine, config PortalConfig) {
+func isAPIPath(path string) bool {
+	return path == "/api" || strings.HasPrefix(path, "/api/")
+}
+
+// AddRoutes serves the static file system for the UI React App. A request
+// under /api that matches no route goes to apiNotFound.
+func AddRoutes(router *gin.Engine, config PortalConfig, apiNotFound gin.HandlerFunc) {
 	// Hijack the / route to serve the index.html file and append the env variables
 	router.GET("/inject-portal-config.js", func(c *gin.Context) {
 		c.Header("Cache-Control", "no-cache, no-store, must-revalidate")
@@ -47,11 +52,8 @@ func AddRoutes(router *gin.Engine, config PortalConfig) {
 		}
 		proxy := httputil.NewSingleHostReverseProxy(remote)
 		router.NoRoute(func(c *gin.Context) {
-			if strings.HasPrefix(c.Request.URL.Path, "/api/") {
-				c.JSON(http.StatusNotFound, gin.H{
-					"status":  http.StatusNotFound,
-					"message": "not found",
-				})
+			if isAPIPath(c.Request.URL.Path) {
+				apiNotFound(c)
 				return
 			}
 			if c.Request.Method != "GET" {
@@ -64,11 +66,8 @@ func AddRoutes(router *gin.Engine, config PortalConfig) {
 		embeddedBuildFolder := newStaticFileSystem()
 		fallbackFileSystem := newFallbackFileSystem(embeddedBuildFolder)
 		router.NoRoute(func(c *gin.Context) {
-			if strings.HasPrefix(c.Request.URL.Path, "/api/") {
-				c.JSON(http.StatusNotFound, gin.H{
-					"status":  http.StatusNotFound,
-					"message": "not found",
-				})
+			if isAPIPath(c.Request.URL.Path) {
+				apiNotFound(c)
 			}
 		})
 		router.Use(static.Serve("/", embeddedBuildFolder))

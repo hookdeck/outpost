@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -18,6 +19,8 @@ const (
 	cursorResourceEvent   = "evt"
 	cursorResourceAttempt = "att"
 	cursorVersion         = 1
+
+	timeIDLayout = "2006-01-02T15:04:05.000000000Z07:00"
 )
 
 // memLogStore is an in-memory implementation of driver.LogStore.
@@ -119,7 +122,7 @@ func (s *memLogStore) ListEvent(ctx context.Context, req driver.ListEventRequest
 				return cursor.Encode(cursorResourceEvent, cursorVersion, e.timeID)
 			},
 			Decode: func(c string) (string, error) {
-				return cursor.Decode(c, cursorResourceEvent, cursorVersion)
+				return decodeCursor(c, cursorResourceEvent)
 			},
 		},
 	})
@@ -313,7 +316,7 @@ func (s *memLogStore) ListAttempt(ctx context.Context, req driver.ListAttemptReq
 				return cursor.Encode(cursorResourceAttempt, cursorVersion, r.timeID)
 			},
 			Decode: func(c string) (string, error) {
-				return cursor.Decode(c, cursorResourceAttempt, cursorVersion)
+				return decodeCursor(c, cursorResourceAttempt)
 			},
 		},
 	})
@@ -499,7 +502,24 @@ func copyAttempt(a *models.Attempt) *models.Attempt {
 // Uses fixed-width nanoseconds to ensure correct string sorting (RFC3339Nano has variable width).
 // Format: "2006-01-02T15:04:05.000000000Z_id"
 func makeTimeID(t time.Time, id string) string {
-	return fmt.Sprintf("%s_%s", t.UTC().Format("2006-01-02T15:04:05.000000000Z07:00"), id)
+	return fmt.Sprintf("%s_%s", t.UTC().Format(timeIDLayout), id)
+}
+
+// decodeCursor decodes a cursor of the given resource and checks that its
+// position is a time ID.
+func decodeCursor(encoded, resource string) (string, error) {
+	position, err := cursor.Decode(encoded, resource, cursorVersion)
+	if err != nil {
+		return "", err
+	}
+	ts, id, found := strings.Cut(position, "_")
+	if !found || ts == "" || id == "" {
+		return "", cursor.ErrInvalidCursor
+	}
+	if t, err := time.Parse(timeIDLayout, ts); err != nil || makeTimeID(t, id) != position {
+		return "", fmt.Errorf("%w: invalid timestamp", cursor.ErrInvalidCursor)
+	}
+	return position, nil
 }
 
 // compareTimeID compares two time IDs using the given operator.

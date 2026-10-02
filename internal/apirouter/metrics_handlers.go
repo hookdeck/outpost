@@ -125,11 +125,11 @@ func parseMetricsRequest(c *gin.Context, allowedMeasures, allowedDimensions, all
 
 	start, err := time.Parse(time.RFC3339, startStr)
 	if err != nil {
-		return nil, fmt.Errorf("invalid time[start]: %w", err)
+		return nil, errors.New("invalid time[start]: " + expectedRFC3339)
 	}
 	end, err := time.Parse(time.RFC3339, endStr)
 	if err != nil {
-		return nil, fmt.Errorf("invalid time[end]: %w", err)
+		return nil, errors.New("invalid time[end]: " + expectedRFC3339)
 	}
 
 	// granularity (optional)

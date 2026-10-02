@@ -110,7 +110,7 @@ func NewRouter(cfg RouterConfig, deps RouterDeps) http.Handler {
 
 	r := gin.New()
 	// Core middlewares
-	r.Use(gin.Recovery())
+	r.Use(RecoveryMiddleware())
 	r.Use(deps.Telemetry.MakeSentryHandler())
 	r.Use(otelgin.Middleware(cfg.ServiceName))
 	r.Use(MetricsMiddleware())
@@ -134,7 +134,9 @@ func NewRouter(cfg RouterConfig, deps RouterDeps) http.Handler {
 		})
 	}
 
-	portal.AddRoutes(r, cfg.PortalConfig)
+	portal.AddRoutes(r, cfg.PortalConfig, func(c *gin.Context) {
+		AbortWithError(c, http.StatusNotFound, ErrorResponse{Code: http.StatusNotFound, Message: "not found"})
+	})
 
 	apiRouter := r.Group("/api/v1")
 
