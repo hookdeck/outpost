@@ -98,6 +98,35 @@ Repeat for `attempts`. The current month needs the lock because Outpost is still
 
 Then set `retention` and `retention_keep_table = false` in `partman.part_config` (by default, expired partitions are detached but kept) and schedule `partman.run_maintenance_proc()` with [pg_cron](https://github.com/citusdata/pg_cron) or the `pg_partman_bgw` background worker. The first run drops everything older than `retention`. Without a scheduler, the partitions `create_parent` made are the only ones there will ever be.
 
+Where you can't install an extension, [pg-partsmith](https://github.com/bedrock-python/pg-partsmith) does the same from a container that connects to the database. Describe both tables once:
+
+```yaml
+# partitions.yaml
+version: 1
+
+defaults:
+  schema: public
+  granularity: month
+  create_ahead_count: 3   # months created ahead, the current one included
+  retention_count: 6      # months kept, the current one included
+
+tables:
+  - { table_name: events, partition_column: time }
+  - { table_name: attempts, partition_column: time }
+```
+
+Then run `apply` once, with the same connection URL Outpost uses:
+
+```sh
+docker run --rm -v "$PWD/partitions.yaml:/etc/pg-partsmith/partitions.yaml:ro" \
+  -e PG_PARTSMITH_DSN="$POSTGRES_URL" ghcr.io/bedrock-python/pg-partsmith:1.7.2 \
+  apply -c /etc/pg-partsmith/partitions.yaml
+```
+
+`apply` creates partitions for the current month and the ones ahead, and moves the rows the current month already has out of `events_default`. Writes wait while they move, and new rows land in the new partition from then on. Then run the same command with `backfill` in place of `apply`. It moves the earlier months out of the DEFAULT partitions, oldest first, in batches of 10,000 rows (`--batch-rows`). Each batch commits on its own, so a month's rows don't show through `events` from its first batch until its partition is attached, which means events briefly disappear from the API and the tenant portal. Larger batches shorten that, at the cost of longer waits for writes. Nothing writes to the earlier months, so with the default batches `backfill` holds up writes only briefly, while each month's partition is attached.
+
+From then on, run `apply --allow-destructive` on a schedule, daily is plenty, on the same kind of scheduler as above. It creates partitions ahead and drops the ones older than `retention_count`; the first run drops every month `backfill` moved that is older than that. `plan --locks` in place of `apply` prints what a run would do, and the lock each step takes, without changing anything. `plan --check` exits non-zero when partitions are missing or something needs a look, which makes it a monitoring check.
+
 After adopting, check `SELECT count(*) FROM events_default;`. It should be zero, and it should stay zero.
 
 ## Querying
