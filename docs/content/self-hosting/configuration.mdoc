@@ -116,15 +116,15 @@ Choose one for event log persistence:
 - Each limit applies per process and per queue. With several replicas, each one holds up to the limit.
 - `PUBLISH_MAX_CONCURRENCY_BYTES` covers messages consumed from the publish queue. Events published through the API go to the delivery queue and are covered by `DELIVERY_MAX_CONCURRENCY_BYTES`.
 
-Outpost applies the limit after it receives a message, on every message queue, so it bounds the bytes being handled. The process also holds the one message waiting for room, and the messages the queue has already handed over:
+The limit bounds the bytes being handled. On GCP Pub/Sub the Pub/Sub client applies it and stops reading from the subscription while the limit is used up. On the other queues Outpost applies it after it receives a message. The process also holds the messages already handed over that are waiting for room:
 
 | Queue | Also held in the process |
 |-------|--------------------------|
 | AWS SQS, Azure Service Bus, NATS JetStream | The few messages the queue client fetches ahead. |
-| GCP Pub/Sub | Up to `DELIVERY_MAX_CONCURRENCY` (or `PUBLISH_MAX_CONCURRENCY`) messages. Pub/Sub limits what it sends to a subscriber by message count, not by bytes, so it keeps sending up to the count limit while the byte limit lets only some of them start. Copies delivered again after their ack deadline add to that. |
+| GCP Pub/Sub | The messages the client read last from the subscription, and what the connection has buffered: up to a few tens of megabytes, whatever the count limit and the backlog. Pub/Sub limits what it sends to a subscriber by message count, not by bytes, so more messages can be on their way to the process. |
 | RabbitMQ | Possibly the rest of the queue. Outpost sets no prefetch, so RabbitMQ can push the whole queue to the consumer's connection, where it waits in memory: the limit does not bound the memory of the process. |
 
-A message waiting for room has already been received. If it waits longer than the queue's visibility timeout or ack deadline, the queue delivers it again, and each such delivery counts toward the queue's dead-letter limit. On GCP Pub/Sub this is the case to plan for: keep the count limit and the subscription's ack deadline in proportion, so that the messages Pub/Sub sends together can all be handled within one ack deadline. With large messages and slow destinations, lower the count limit or raise the ack deadline.
+A message waiting for room has already been received, or on GCP Pub/Sub sent. If it waits longer than the queue's visibility timeout or ack deadline, the queue delivers it again, and each such delivery counts toward the queue's dead-letter limit. On GCP Pub/Sub this is the case to plan for: keep the count limit and the subscription's ack deadline in proportion, so that the messages Pub/Sub sends together can all be handled within one ack deadline. With large messages and slow destinations, lower the count limit or raise the ack deadline.
 
 ## Topics
 
