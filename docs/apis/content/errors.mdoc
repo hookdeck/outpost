@@ -20,6 +20,7 @@ Common error responses include:
 | `403` | The credentials are valid but not allowed to perform the request. |
 | `404` | Requested resource not found. |
 | `409` | The request conflicts with another one that is in progress or has just failed. Retry the request. |
+| `413` | Request body is larger than 1 MiB. Applies to every request with a body except publish. |
 | `422` | Request body fails validation. |
 | `500` | Unexpected server error. |
 

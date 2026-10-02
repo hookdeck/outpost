@@ -84,6 +84,12 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/APIErrorResponse"
+    RequestBodyTooLarge:
+      description: Request body is larger than 1 MiB.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/APIErrorResponse"
     ValidationError:
       description: Request body fails validation.
       content:
@@ -4346,6 +4352,8 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/Forbidden"
+        "413":
+          $ref: "#/components/responses/RequestBodyTooLarge"
         "422":
           $ref: "#/components/responses/ValidationError"
         "500":
@@ -5110,6 +5118,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/RequestBodyTooLarge"
         "422":
           $ref: "#/components/responses/ValidationError"
         "500":
@@ -5212,6 +5222,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/RequestBodyTooLarge"
         "422":
           $ref: "#/components/responses/ValidationError"
         "500":
@@ -5664,6 +5676,8 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/RequestBodyTooLarge"
         "422":
           $ref: "#/components/responses/ValidationError"
         "500":

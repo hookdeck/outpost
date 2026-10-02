@@ -29,6 +29,11 @@ type RouteDefinition struct {
 	Middlewares   []gin.HandlerFunc
 }
 
+const (
+	apiBasePath = "/api/v1"
+	publishPath = "/publish"
+)
+
 type RouterConfig struct {
 	ServiceName          string
 	APIKey               string
@@ -123,6 +128,7 @@ func NewRouter(cfg RouterConfig, deps RouterDeps) http.Handler {
 
 	// Application logic
 	r.Use(ErrorHandlerMiddleware())
+	r.Use(RequestBodyLimitMiddleware())
 
 	if v, ok := binding.Validator.Engine().(*validator.Validate); ok {
 		v.RegisterTagNameFunc(func(fld reflect.StructField) string {
@@ -138,7 +144,7 @@ func NewRouter(cfg RouterConfig, deps RouterDeps) http.Handler {
 		AbortWithError(c, http.StatusNotFound, ErrorResponse{Code: http.StatusNotFound, Message: "not found"})
 	})
 
-	apiRouter := r.Group("/api/v1")
+	apiRouter := r.Group(apiBasePath)
 
 	displayer := newDestinationDisplayer(cfg.Registry, cfg.TopicsAllowWildcards)
 
@@ -157,7 +163,7 @@ func NewRouter(cfg RouterConfig, deps RouterDeps) http.Handler {
 		{Method: http.MethodGet, Path: "/topics", Handler: topicHandlers.List},
 
 		// Publish / Retry
-		{Method: http.MethodPost, Path: "/publish", Handler: publishHandlers.Ingest, AdminOnly: true},
+		{Method: http.MethodPost, Path: publishPath, Handler: publishHandlers.Ingest, AdminOnly: true},
 		{Method: http.MethodPost, Path: "/retry", Handler: retryHandlers.Retry},
 
 		// Tenants
