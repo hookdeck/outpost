@@ -361,10 +361,20 @@ func TestAPI_Retry(t *testing.T) {
 			h := setup(t)
 			require.NoError(t, h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t2"))))
 			require.NoError(t, h.tenantStore.UpsertDestination(t.Context(), df.Any(df.WithID("d2"), df.WithTenantID("t2"), df.WithTopics([]string{"*"}))))
+			require.NoError(t, h.tenantStore.UpsertDestination(t.Context(), df.Any(df.WithID("d2-disabled"), df.WithTenantID("t2"), df.WithTopics([]string{"*"}), df.WithDisabledAt(time.Now()))))
+			require.NoError(t, h.tenantStore.UpsertDestination(t.Context(), df.Any(df.WithID("d2-mismatch"), df.WithTenantID("t2"), df.WithTopics([]string{"user.deleted"}))))
 
-			resp := h.do(h.withAPIKey(retry(h, "e1", "d2")))
+			// Whatever its state, another tenant's destination reads as an unknown one.
+			for _, destinationID := range []string{"d2", "d2-disabled", "d2-mismatch"} {
+				for _, withAuth := range []func(*http.Request) *http.Request{
+					h.withAPIKey,
+					func(r *http.Request) *http.Request { return h.withJWT(r, "t1") },
+				} {
+					resp := h.do(withAuth(retry(h, "e1", destinationID)))
 
-			testutil.RequireErrorResponse(t, resp, http.StatusNotFound, "destination not found")
+					testutil.RequireErrorResponse(t, resp, http.StatusNotFound, "destination not found")
+				}
+			}
 			assert.Empty(t, h.deliveryPub.calls)
 		})
 
@@ -385,6 +395,11 @@ func TestAPI_Retry(t *testing.T) {
 			resp := h.do(h.withAPIKey(retry(h, "e1", "d2")))
 
 			testutil.RequireErrorResponse(t, resp, http.StatusBadRequest, "Destination is disabled")
+			var body struct {
+				Data map[string]string `json:"data"`
+			}
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &body))
+			assert.Equal(t, "destination_disabled", body.Data["error"])
 		})
 
 		t.Run("topic mismatch returns 400", func(t *testing.T) {
@@ -456,6 +471,19 @@ func TestAPI_Retry(t *testing.T) {
 			assert.Equal(t, "t1", task.Event.TenantID)
 			assert.Equal(t, "d1", task.DestinationID)
 			assert.Equal(t, 2, task.Attempt, "should derive attempt_number=2 from 1 prior attempt")
+		})
+
+		t.Run("does not look the event up when an attempt exists", func(t *testing.T) {
+			h := setup(t, withLogStore(&failingLogStore{LogStore: logstore.NewMemLogStore(), fail: "RetrieveEvent"}))
+
+			req := h.jsonReq(http.MethodPost, "/api/v1/retry", map[string]any{
+				"event_id":       "e1",
+				"destination_id": "d1",
+			})
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusAccepted, resp.Code)
+			require.Len(t, h.deliveryPub.calls, 1)
 		})
 
 		t.Run("returns success body", func(t *testing.T) {

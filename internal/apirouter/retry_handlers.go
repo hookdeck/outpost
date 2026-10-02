@@ -59,7 +59,7 @@ func (h *RetryHandlers) Retry(c *gin.Context) {
 
 	tenantID := tenantIDFromContext(c)
 
-	// 1. Look up prior attempt (includes event data) — single logstore query
+	// 1. Look up prior attempt (includes event data)
 	listReq := logstore.ListAttemptRequest{
 		EventIDs:       []string{req.EventID},
 		DestinationIDs: []string{req.DestinationID},

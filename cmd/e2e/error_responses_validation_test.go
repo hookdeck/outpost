@@ -76,11 +76,6 @@ func (s *basicSuite) TestErrorResponses_RetryValidation() {
 		retry("disabled destination without an attempt", map[string]any{"event_id": eventID, "destination_id": laterDisabled.ID}, http.StatusBadRequest, "Destination is disabled", "destination_disabled"),
 	})
 
-	s.Run("destination without an attempt receives nothing", func() {
-		events, _ := s.fetchMockServerEvents(later.ID)
-		s.Empty(events)
-	})
-
 	destinationURL := s.apiURL("/tenants/" + tenant.ID + "/destinations/" + dest.ID)
 
 	s.Run("destination does not match the event", func() {

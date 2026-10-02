@@ -75,6 +75,13 @@ func (s *basicSuite) TestErrorResponses_EventAndAttemptNotFound() {
 	dest := s.createWebhookDestination(tenant.ID, "*")
 	other := s.createTenant()
 
+	// Published while its tenant has no destination: matches nothing, so it gets no attempt
+	// and is never written to the log store. Sent before the delivered event, whose arrival
+	// in the log store is waited for below.
+	unmatchedEventID := idgen.Event()
+	unmatched := s.publish(other.ID, "user.created", map[string]any{"test": "not_found"}, withEventID(unmatchedEventID))
+	s.Require().Empty(unmatched.DestinationIDs)
+
 	eventID := idgen.Event()
 	s.publish(tenant.ID, "user.created", map[string]any{"test": "not_found"}, withEventID(eventID))
 	attempts := s.waitForNewAttempts(tenant.ID, 1)
@@ -114,6 +121,12 @@ func (s *basicSuite) TestErrorResponses_EventAndAttemptNotFound() {
 			status: http.StatusNotFound, message: "event not found",
 		},
 		{
+			name:   "retry an event that matched no destination",
+			method: http.MethodPost, path: "/retry", auth: admin,
+			body:   map[string]any{"event_id": unmatchedEventID, "destination_id": otherDest.ID},
+			status: http.StatusNotFound, message: "event not found",
+		},
+		{
 			name:   "retry to a missing destination",
 			method: http.MethodPost, path: "/retry", auth: admin,
 			body:   map[string]any{"event_id": eventID, "destination_id": "des_missing"},
@@ -122,6 +135,12 @@ func (s *basicSuite) TestErrorResponses_EventAndAttemptNotFound() {
 		{
 			name:   "retry to a destination of another tenant",
 			method: http.MethodPost, path: "/retry", auth: admin,
+			body:   map[string]any{"event_id": eventID, "destination_id": otherDest.ID},
+			status: http.StatusNotFound, message: "destination not found",
+		},
+		{
+			name:   "retry to a destination of another tenant with jwt",
+			method: http.MethodPost, path: "/retry", auth: s.tenantAuth(tenant.ID),
 			body:   map[string]any{"event_id": eventID, "destination_id": otherDest.ID},
 			status: http.StatusNotFound, message: "destination not found",
 		},
