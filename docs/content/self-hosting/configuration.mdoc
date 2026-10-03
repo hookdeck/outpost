@@ -136,12 +136,11 @@ The limit bounds the bytes being handled. The process also holds the messages al
 
 Outpost sends both limits to Pub/Sub when it opens the subscription's stream, and Pub/Sub applies them: it stops sending once the messages the process has not yet acknowledged reach either limit.
 
+- Pub/Sub measures a message by its compressed size. For payloads that compress well, such as JSON, the process holds more than the limit in uncompressed bytes: about the limit times the compression ratio. Set the limit with that in mind.
+- Pub/Sub sends while the process is under the limit, so it can go over by one message. A message larger than the whole limit is delivered alone.
 - The backlog waits in the subscription, not in the process. A waiting message has no ack deadline running and counts no delivery attempt.
-- Pub/Sub sends while the process is under the byte limit, so the process holds at most the limit plus one message.
-- A message larger than the whole limit is delivered alone.
-- Pub/Sub counts a message with its attributes and a few hundred bytes of overhead, so slightly more than its body.
+- When Outpost stops, messages it has received and not started are returned to the subscription once the messages in progress finish, so another process usually gets them within seconds.
 - The Pub/Sub emulator applies neither limit.
-- On shutdown, received messages that no handler has taken are returned to the subscription at once.
 
 ## Topics
 
