@@ -109,7 +109,7 @@ Choose one for event log persistence:
 `DELIVERY_MAX_CONCURRENCY` limits how many messages are handled at once, so the memory they hold grows with their size. `DELIVERY_MAX_CONCURRENCY_BYTES` and `PUBLISH_MAX_CONCURRENCY_BYTES` add a limit on their total size, so large events are handled fewer at a time.
 
 - The value is a plain integer number of bytes. `0` or unset turns the limit off.
-- A message counts with the size of its body, from when it is received until it is acknowledged, returned to the queue or rejected.
+- A message counts with the size of its body (on GCP Pub/Sub, its compressed size; see below), from when it is received until it is acknowledged, returned to the queue or rejected.
 - A message starts only when both the count limit and the byte limit have room. Small messages still run at up to `DELIVERY_MAX_CONCURRENCY`; large ones run fewer at a time.
 - A message larger than the whole limit is still delivered, so the queue never stalls on it. Set the limit well above your largest message.
 - Each limit applies per process and per queue. With several replicas, each one holds up to the limit.
@@ -134,13 +134,7 @@ The limit bounds the bytes being handled. The process also holds the messages al
 
 #### GCP Pub/Sub
 
-Outpost sends both limits to Pub/Sub when it opens the subscription's stream, and Pub/Sub applies them: it stops sending once the messages the process has not yet acknowledged reach either limit.
-
-- Pub/Sub measures a message by its compressed size. For payloads that compress well, such as JSON, the process holds more than the limit in uncompressed bytes: about the limit times the compression ratio. Set the limit with that in mind.
-- Pub/Sub sends while the process is under the limit, so it can go over by one message. A message larger than the whole limit is delivered alone.
-- The backlog waits in the subscription, not in the process. A waiting message has no ack deadline running and counts no delivery attempt.
-- When Outpost stops, messages it has received and not started are returned to the subscription once the messages in progress finish, so another process usually gets them within seconds.
-- The Pub/Sub emulator applies neither limit.
+Pub/Sub applies both limits before it sends: it stops sending once the messages the process has not yet acknowledged reach either one, so the backlog waits in the subscription and uses no delivery attempts. Pub/Sub measures each message by its stored, compressed size, so for payloads that compress well the process holds several times the byte limit in uncompressed bytes; for JSON, about 1.5 times for small messages up to about 4 times around 1 MB. Set the byte limit to your memory budget divided by the expected ratio, and keep the count limit as the backstop. A message larger than the byte limit is delivered alone.
 
 ## Topics
 
