@@ -79,6 +79,9 @@ func (w *ConsumerWorker) Run(ctx context.Context) error {
 	if w.maxBytes > 0 {
 		subOpts = append(subOpts, mqs.WithMaxBytes(w.maxBytes))
 	}
+	if w.logger != nil {
+		subOpts = append(subOpts, mqs.WithLogger(w.logger.With(zap.String("name", w.name))))
+	}
 	subscription, err := w.subscribe(ctx, subOpts...)
 	if err != nil {
 		logger.Error("error subscribing", zap.String("name", w.name), zap.Error(err))

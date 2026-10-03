@@ -8,6 +8,7 @@ import (
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
+	"go.uber.org/zap"
 	"gocloud.dev/pubsub"
 	_ "gocloud.dev/pubsub/mempubsub"
 )
@@ -52,6 +53,7 @@ type SubscribeOption func(*SubscribeOptions)
 type SubscribeOptions struct {
 	Concurrency int
 	MaxBytes    int64
+	Logger      *zap.Logger
 }
 
 // WithConcurrency sets the max in-flight messages for the subscription.
@@ -64,6 +66,11 @@ func WithConcurrency(n int) SubscribeOption {
 // no limit.
 func WithMaxBytes(n int64) SubscribeOption {
 	return func(o *SubscribeOptions) { o.MaxBytes = n }
+}
+
+// WithLogger sets the logger for the subscription's debug and shutdown logs.
+func WithLogger(l *zap.Logger) SubscribeOption {
+	return func(o *SubscribeOptions) { o.Logger = l }
 }
 
 // ApplySubscribeOptions applies all options and returns the result.

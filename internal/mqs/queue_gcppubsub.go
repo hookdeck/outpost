@@ -144,7 +144,7 @@ func (q *GCPPubSubQueue) subscribe(ctx context.Context, o SubscribeOptions, clie
 	if o.MaxBytes > 0 {
 		settings := nativepubsub.DefaultReceiveSettings
 		q.configureReceive(&settings, o)
-		return newGCPLimitedSubscription(ctx, q.config.ProjectID, q.config.SubscriptionID, settings, clientOpts)
+		return newGCPLimitedSubscription(ctx, q.config.ProjectID, q.config.SubscriptionID, settings, clientOpts, o.Logger)
 	}
 
 	concurrency := o.Concurrency
