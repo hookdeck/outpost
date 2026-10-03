@@ -12,35 +12,36 @@ import (
 // limit. Pub/Sub holds the stream at MaxOutstandingMessages and
 // MaxOutstandingBytes, so the backlog waits in the subscription.
 //
-// Received messages are handed to Receive one at a time. When ctx ends or
-// Shutdown is called, messages not handed over yet are nacked while the
-// stream is still open: the client sends nacks recorded before it stops,
-// and drops those recorded after.
+// Received messages are handed to Receive one at a time. Messages not handed
+// over when Shutdown is called are nacked while the stream is still open: the
+// client sends the nacks it has recorded before it closes the stream, and
+// drops those recorded after. Until then they stay in the process: a nack on
+// an open stream would come straight back to it.
 type gcpLimitedSubscription struct {
-	msgChan   chan *Message
-	stopping  chan struct{}
-	handoff   sync.RWMutex // held for reading by each hand-off in progress
-	stopOnce  sync.Once
-	stopAfter func() bool
-	cancel    context.CancelFunc
-	done      chan struct{}
-	client    *nativepubsub.Client
-	recvErr   error // set before done is closed
+	msgChan  chan *Message
+	release  chan struct{} // closed by Shutdown: nack instead of handing over
+	handoff  sync.RWMutex  // held for reading by each hand-off in progress
+	stopOnce sync.Once
+	cancel   context.CancelFunc
+	done     chan struct{}
+	client   *nativepubsub.Client
+	recvErr  error // set before done is closed
 }
 
 var _ Subscription = &gcpLimitedSubscription{}
 var _ ConcurrentSubscription = &gcpLimitedSubscription{}
 
 func newGCPLimitedSubscription(ctx context.Context, client *nativepubsub.Client, sub *nativepubsub.Subscription) *gcpLimitedSubscription {
+	// The stream outlives ctx so that messages received while handlers finish
+	// can be nacked by Shutdown before it closes.
 	recvCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
 	s := &gcpLimitedSubscription{
-		msgChan:  make(chan *Message),
-		stopping: make(chan struct{}),
-		cancel:   cancel,
-		done:     make(chan struct{}),
-		client:   client,
+		msgChan: make(chan *Message),
+		release: make(chan struct{}),
+		cancel:  cancel,
+		done:    make(chan struct{}),
+		client:  client,
 	}
-	s.stopAfter = context.AfterFunc(ctx, s.stop)
 	go func() {
 		defer close(s.done)
 		s.recvErr = sub.Receive(recvCtx, s.handOff)
@@ -52,7 +53,7 @@ func (s *gcpLimitedSubscription) handOff(_ context.Context, msg *nativepubsub.Me
 	s.handoff.RLock()
 	defer s.handoff.RUnlock()
 	select {
-	case <-s.stopping:
+	case <-s.release:
 		msg.Nack()
 		return
 	default:
@@ -65,20 +66,9 @@ func (s *gcpLimitedSubscription) handOff(_ context.Context, msg *nativepubsub.Me
 	}
 	select {
 	case s.msgChan <- m:
-	case <-s.stopping:
+	case <-s.release:
 		msg.Nack()
 	}
-}
-
-// stop nacks the messages not handed over, then closes the stream.
-func (s *gcpLimitedSubscription) stop() {
-	s.stopOnce.Do(func() {
-		close(s.stopping)
-		// Wait for hand-offs in progress to finish or nack.
-		s.handoff.Lock()
-		s.handoff.Unlock()
-		s.cancel()
-	})
 }
 
 func (s *gcpLimitedSubscription) Receive(ctx context.Context) (*Message, error) {
@@ -95,10 +85,16 @@ func (s *gcpLimitedSubscription) Receive(ctx context.Context) (*Message, error) 
 	}
 }
 
-// Shutdown returns once the stream is closed and the nacks are sent.
+// Shutdown nacks the messages not handed over, then closes the stream. It
+// returns once the nacks are sent.
 func (s *gcpLimitedSubscription) Shutdown(_ context.Context) error {
-	s.stopAfter()
-	s.stop()
+	s.stopOnce.Do(func() {
+		close(s.release)
+		// Wait for hand-offs in progress to nack.
+		s.handoff.Lock()
+		s.handoff.Unlock()
+		s.cancel()
+	})
 	<-s.done
 	return s.client.Close()
 }

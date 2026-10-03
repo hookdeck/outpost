@@ -149,10 +149,9 @@ func fakeReceivedMessages(n int) []*pubsubpb.ReceivedMessage {
 }
 
 // Messages received from the stream and not handed to Receive go back to
-// Pub/Sub with a nack before the subscription stops, whether it stops by
-// Shutdown or by its context. After 6s the client no longer tracks them
-// (lease extension is off) and drops a nack that comes after the stream
-// closes.
+// Pub/Sub with a nack when the subscription shuts down, also after its
+// context has ended. After 6s the client no longer tracks them (lease
+// extension is off) and drops a nack that comes after the stream closes.
 func TestGCPPubSubQueue_LimitedStopNacksUnreceived(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -181,11 +180,12 @@ func TestGCPPubSubQueue_LimitedStopNacksUnreceived(t *testing.T) {
 			time.Sleep(tc.wait)
 
 			if stopBy == "context" {
+				// Handlers still run after their context ends: the stream stays
+				// open, and a nack now would bring the message straight back.
 				cancel()
-				require.Eventually(t, func() bool {
-					_, nacked := f.settled()
-					return len(nacked) == 2
-				}, 5*time.Second, 10*time.Millisecond)
+				time.Sleep(300 * time.Millisecond)
+				_, nacked := f.settled()
+				require.Empty(t, nacked)
 			}
 			stopping := time.Now()
 			require.NoError(t, sub.Shutdown(context.Background()))
