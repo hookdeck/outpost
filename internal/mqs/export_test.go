@@ -4,6 +4,7 @@ import (
 	"context"
 
 	nativepubsub "cloud.google.com/go/pubsub"
+	"cloud.google.com/go/pubsub/apiv1/pubsubpb"
 	"google.golang.org/api/option"
 )
 
@@ -67,4 +68,10 @@ func GCPSubscribe(ctx context.Context, q Queue, clientOpts []option.ClientOption
 func IsGCPLimited(sub Subscription) bool {
 	_, ok := sub.(*gcpLimitedSubscription)
 	return ok
+}
+
+// GCPReceived records a message as read from the limited subscription's
+// stream.
+func GCPReceived(sub Subscription, ackID, messageID string) {
+	sub.(*gcpLimitedSubscription).received([]*pubsubpb.ReceivedMessage{{AckId: ackID, Message: &pubsubpb.PubsubMessage{MessageId: messageID}}})
 }
