@@ -131,7 +131,9 @@ func TestIntegrationMQMaxBytes_GCPPubSubReceivePath(t *testing.T) {
 // Messages the process has received and no handler has taken go back when
 // the subscription shuts down, and another subscriber gets them at once
 // (the subscription's ack deadline is 20s). The emulator applies no flow
-// control, so all of them are received.
+// control, so all of them are received. A smoke test: it passes without
+// checking anything if the messages have not reached the client after 1s;
+// TestGCPPubSubQueue_LimitedStopNacksUnreceived covers the ordering.
 func TestIntegrationMQMaxBytes_GCPPubSubShutdownReturnsReceived(t *testing.T) {
 	t.Parallel()
 	t.Cleanup(testinfra.Start(t))
@@ -214,13 +216,9 @@ func testMQMaxBytesShutdownWhileWaiting(t *testing.T, config mqs.QueueConfig, re
 	case <-time.After(20 * time.Second):
 		t.Fatal("no message handled")
 	}
-	if mqs.IsByteLimited(subscription) {
-		require.Eventually(t, func() bool { return mqs.ByteLimitWaiting(subscription) },
-			20*time.Second, 10*time.Millisecond, "second message never waited for bytes")
-	} else {
-		// The second message is not received while the first holds the limit.
-		time.Sleep(time.Second)
-	}
+	require.True(t, mqs.IsByteLimited(subscription))
+	require.Eventually(t, func() bool { return mqs.ByteLimitWaiting(subscription) },
+		20*time.Second, 10*time.Millisecond, "second message never waited for bytes")
 	require.Empty(t, started, "second message started while the first holds the limit")
 
 	cancel()

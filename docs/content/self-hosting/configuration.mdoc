@@ -134,7 +134,7 @@ The limit bounds the bytes being handled. The process also holds the messages al
 
 #### GCP Pub/Sub
 
-Pub/Sub applies both limits before it sends: it stops sending once the messages the process has not yet acknowledged reach either one, so the backlog waits in the subscription and uses no delivery attempts. Pub/Sub measures each message by its stored, compressed size, so for payloads that compress well the process holds several times the byte limit in uncompressed bytes; for JSON, about 1.5 times for small messages up to about 4 times around 1 MB. Set the byte limit to your memory budget divided by the expected ratio, and keep the count limit as the backstop. A message larger than the byte limit is delivered alone.
+Pub/Sub applies both limits before it sends: it stops sending once the messages the process has not yet acknowledged reach either one, so the backlog waits in the subscription and uses no delivery attempts. Pub/Sub measures each message by a compressed size (about its gzip size), so for payloads that compress well the process holds several times the byte limit in uncompressed bytes; for JSON, about 1.5 times for small messages up to about 4 times around 1 MB. Set the byte limit to your memory budget divided by the expected ratio, and keep the count limit as the backstop. A message larger than the byte limit is delivered alone. The Pub/Sub emulator applies neither limit.
 
 ## Topics
 
