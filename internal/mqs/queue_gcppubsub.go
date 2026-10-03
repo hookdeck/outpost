@@ -195,7 +195,9 @@ func (q *GCPPubSubQueue) configureReceive(rs *nativepubsub.ReceiveSettings, o Su
 	rs.MaxOutstandingMessages = o.Concurrency
 	// Use a single StreamingPull stream per subscription to keep concurrency
 	// control explicit; scaling is done at the subscription level, not via
-	// additional goroutines within a subscription.
+	// additional goroutines within a subscription. The byte-limited
+	// subscription depends on it: it tracks one stream and half-closes only
+	// that one when receiving stops; other streams would keep receiving.
 	rs.NumGoroutines = 1
 	// Disable automatic lease extension so messages are not held beyond the
 	// subscription's ack deadline. We are intentional about consumer processing

@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	gcpShutdownNackTimeout = 10 * time.Second
+	gcpNackTimeout = 10 * time.Second
 	// Pub/Sub ends a half-closed stream about 2s after the half-close.
 	gcpHalfCloseTimeout = 5 * time.Second
 
@@ -55,7 +55,7 @@ type gcpLimitedSubscription struct {
 	stopping   bool                 // receiving stopped: messages read from the stream are not passed on
 	holdNacks  bool                 // from stopping until the stream has ended
 	nacks      []gcpNack            // held until the stream has ended
-	stream     *gcpTrackedStream    // latest stream
+	stream     *gcpTrackedStream    // latest stream; one at a time, see configureReceive
 	unsettled  map[string]string    // ack ID -> message ID, received and not acked or nacked
 	receivedAt map[string]time.Time // message ID -> when it came off the stream
 	handedOver int
@@ -99,8 +99,8 @@ func newGCPLimitedSubscription(ctx context.Context, projectID, subscriptionID st
 	sub.ReceiveSettings = settings
 	s.subName = sub.String()
 
-	// The stream outlives ctx: messages received while handlers finish are
-	// nacked by Shutdown.
+	// The SDK outlives ctx so handlers still running can ack; the stream is
+	// half-closed when ctx ends.
 	recvCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
 	s.cancel = cancel
 	go func() {
@@ -153,14 +153,16 @@ func (s *gcpLimitedSubscription) holdSettlements(ctx context.Context, method str
 		s.nacks = append(s.nacks, settled...)
 	}
 	s.mu.Unlock()
-	ids := make([]string, len(settled))
-	for i, n := range settled {
-		ids[i] = n.id
-	}
+	msg := "gcp pubsub nack"
 	if ack {
-		s.logger.Debug("gcp pubsub ack", zap.Strings("message_ids", ids))
-	} else {
-		s.logger.Debug("gcp pubsub nack", zap.Strings("message_ids", ids), zap.Bool("held", hold))
+		msg = "gcp pubsub ack"
+	}
+	if ce := s.logger.Check(zap.DebugLevel, msg); ce != nil {
+		fields := []zap.Field{zap.Strings("message_ids", nackIDs(settled))}
+		if !ack {
+			fields = append(fields, zap.Bool("held", hold))
+		}
+		ce.Write(fields...)
 	}
 	if hold {
 		return nil
@@ -304,12 +306,10 @@ func (s *gcpLimitedSubscription) received(msgs []*pubsubpb.ReceivedMessage) bool
 		return true
 	}
 	now := time.Now()
-	ids := make([]string, len(msgs))
 	s.mu.Lock()
 	stopping := s.stopping
-	for i, m := range msgs {
+	for _, m := range msgs {
 		id := m.GetMessage().GetMessageId()
-		ids[i] = id
 		if stopping {
 			s.nacks = append(s.nacks, gcpNack{ackID: m.AckId, id: id, receivedAt: now})
 			continue
@@ -318,7 +318,13 @@ func (s *gcpLimitedSubscription) received(msgs []*pubsubpb.ReceivedMessage) bool
 		s.receivedAt[id] = now
 	}
 	s.mu.Unlock()
-	s.logger.Debug("gcp pubsub stream received", zap.Int("count", len(msgs)), zap.Strings("message_ids", ids), zap.Bool("stopping", stopping))
+	if ce := s.logger.Check(zap.DebugLevel, "gcp pubsub stream received"); ce != nil {
+		ids := make([]string, len(msgs))
+		for i, m := range msgs {
+			ids[i] = m.GetMessage().GetMessageId()
+		}
+		ce.Write(zap.Int("count", len(msgs)), zap.Strings("message_ids", ids), zap.Bool("stopping", stopping))
+	}
 	return !stopping
 }
 
@@ -354,24 +360,30 @@ func (s *gcpLimitedSubscription) stopReceiving() {
 
 func (s *gcpLimitedSubscription) flushAfterStreamEnd(t *gcpTrackedStream, start time.Time) {
 	defer close(s.flushed)
-	if t != nil {
-		select {
-		case <-t.done:
-		case <-time.After(gcpHalfCloseTimeout):
-			s.logger.Debug("gcp pubsub stream did not end after the half-close, cancelling it")
-			t.cancel()
-			<-t.done
-		}
+	if t == nil {
+		// No stream was open, so nothing was received. A stream opened
+		// later is half-closed before its first request.
+		s.mu.Lock()
+		s.holdNacks = false
+		s.mu.Unlock()
+		return
+	}
+	select {
+	case <-t.done:
+	case <-time.After(gcpHalfCloseTimeout):
+		s.logger.Debug("gcp pubsub stream did not end after the half-close, cancelling it")
+		t.cancel()
+		<-t.done
 	}
 	s.mu.Lock()
 	nacks := s.nacks
 	s.nacks, s.holdNacks = nil, false
 	s.mu.Unlock()
-	if len(nacks) == 0 || t == nil {
+	if len(nacks) == 0 {
 		s.logger.Debug("gcp pubsub stream ended after receiving stopped", zap.Duration("took", time.Since(start)), zap.Int("nacks", 0))
 		return
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), gcpShutdownNackTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), gcpNackTimeout)
 	defer cancel()
 	err := s.sendNacks(ctx, t.conn, nacks)
 	fields := []zap.Field{zap.Duration("took", time.Since(start)), zap.Int("nacks", len(nacks)), zap.Strings("message_ids", nackIDs(nacks))}
@@ -469,8 +481,11 @@ func (s *gcpLimitedSubscription) handedOverAt(id string) {
 		}
 	}
 	s.mu.Unlock()
-	if ok {
-		s.logger.Debug("gcp pubsub message handed over", zap.String("message_id", id), zap.Float64("held_ms", float64(held.Microseconds())/1000))
+	if !ok {
+		return
+	}
+	if ce := s.logger.Check(zap.DebugLevel, "gcp pubsub message handed over"); ce != nil {
+		ce.Write(zap.String("message_id", id), zap.Float64("held_ms", float64(held.Microseconds())/1000))
 	}
 }
 
@@ -527,7 +542,7 @@ func (s *gcpLimitedSubscription) Shutdown(ctx context.Context) error {
 		s.cancel()
 		<-s.done
 
-		ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), gcpShutdownNackTimeout)
+		ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), gcpNackTimeout)
 		defer cancel()
 		held, unsettled, err := s.nackHeld(ctx)
 		nackErr = err
