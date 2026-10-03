@@ -141,6 +141,12 @@ func (q *GCPPubSubQueue) Subscribe(ctx context.Context, opts ...SubscribeOption)
 }
 
 func (q *GCPPubSubQueue) subscribe(ctx context.Context, o SubscribeOptions, clientOpts ...option.ClientOption) (Subscription, error) {
+	if o.MaxBytes > 0 {
+		settings := nativepubsub.DefaultReceiveSettings
+		q.configureReceive(&settings, o)
+		return newGCPLimitedSubscription(ctx, q.config.ProjectID, q.config.SubscriptionID, settings, clientOpts)
+	}
+
 	concurrency := o.Concurrency
 	client, err := nativepubsub.NewClient(ctx, q.config.ProjectID, clientOpts...)
 	if err != nil {
@@ -149,10 +155,6 @@ func (q *GCPPubSubQueue) subscribe(ctx context.Context, o SubscribeOptions, clie
 
 	sub := client.Subscription(q.config.SubscriptionID)
 	q.configureReceive(&sub.ReceiveSettings, o)
-
-	if o.MaxBytes > 0 {
-		return newGCPLimitedSubscription(ctx, client, sub), nil
-	}
 
 	msgChan := make(chan *Message, concurrency)
 	subCtx, cancel := context.WithCancel(ctx)

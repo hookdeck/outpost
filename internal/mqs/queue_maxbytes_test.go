@@ -94,8 +94,9 @@ func TestGCPPubSubQueue_MaxBytesLeavesStreamSettings(t *testing.T) {
 	assert.False(t, got.UseLegacyFlowControl)
 }
 
-// Only a limit switches to the limited subscription. The shared helper is
-// never used, and the subscription manages its own concurrency either way.
+// Only a limit switches to the limited subscription. The byte-limit wrapper
+// of the other queues is never used, and the subscription manages its own
+// concurrency either way.
 func TestIntegrationMQMaxBytes_GCPPubSubReceivePath(t *testing.T) {
 	t.Parallel()
 	t.Cleanup(testinfra.Start(t))
@@ -124,6 +125,47 @@ func TestIntegrationMQMaxBytes_GCPPubSubReceivePath(t *testing.T) {
 			require.True(t, ok)
 			assert.True(t, concurrent.SupportsConcurrency())
 		})
+	}
+}
+
+// Messages the process has received and no handler has taken go back when
+// the subscription shuts down, and another subscriber gets them at once
+// (the subscription's ack deadline is 20s). The emulator applies no flow
+// control, so all of them are received.
+func TestIntegrationMQMaxBytes_GCPPubSubShutdownReturnsReceived(t *testing.T) {
+	t.Parallel()
+	t.Cleanup(testinfra.Start(t))
+	config := testinfra.NewMQGCPConfig(t, nil)
+	ctx := context.Background()
+	queue := mqs.NewQueue(&config)
+	cleanup, err := queue.Init(ctx)
+	require.NoError(t, err)
+	defer cleanup()
+
+	const total = 3
+	for i := range total {
+		require.NoError(t, queue.Publish(ctx, &Msg{ID: fmt.Sprintf("m-%d", i)}))
+	}
+	subscription, err := queue.Subscribe(ctx, mqs.WithConcurrency(5), mqs.WithMaxBytes(1<<20))
+	require.NoError(t, err)
+	msg, err := subscription.Receive(ctx)
+	require.NoError(t, err)
+	msg.Ack()
+	time.Sleep(time.Second)
+
+	stopping := time.Now()
+	require.NoError(t, subscription.Shutdown(ctx))
+	assert.Less(t, time.Since(stopping), 2*time.Second)
+
+	otherCtx, otherCancel := context.WithTimeout(ctx, 3*time.Second)
+	defer otherCancel()
+	other, err := queue.Subscribe(otherCtx, mqs.WithConcurrency(5), mqs.WithMaxBytes(1<<20))
+	require.NoError(t, err)
+	defer other.Shutdown(ctx)
+	for i := range total - 1 {
+		msg, err := other.Receive(otherCtx)
+		require.NoError(t, err, "message %d was not returned to the subscription", i)
+		msg.Ack()
 	}
 }
 

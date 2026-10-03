@@ -24,10 +24,12 @@ type fakeSubscriberServer struct {
 	pubsubpb.UnimplementedSubscriberServer
 	send []*pubsubpb.ReceivedMessage
 
-	mu     sync.Mutex
-	first  []*pubsubpb.StreamingPullRequest // first request of each stream
-	acked  []string
-	nacked []string
+	mu         sync.Mutex
+	first      []*pubsubpb.StreamingPullRequest // first request of each stream
+	open       []context.Context                // context of each stream
+	acked      []string
+	nacked     []string
+	nackedOpen []string // nacked while a stream was open
 }
 
 func (f *fakeSubscriberServer) StreamingPull(stream pubsubpb.Subscriber_StreamingPullServer) error {
@@ -37,6 +39,7 @@ func (f *fakeSubscriberServer) StreamingPull(stream pubsubpb.Subscriber_Streamin
 	}
 	f.mu.Lock()
 	f.first = append(f.first, req)
+	f.open = append(f.open, stream.Context())
 	f.mu.Unlock()
 	if len(f.send) > 0 {
 		if err := stream.Send(&pubsubpb.StreamingPullResponse{ReceivedMessages: f.send}); err != nil {
@@ -54,6 +57,12 @@ func (f *fakeSubscriberServer) ModifyAckDeadline(_ context.Context, req *pubsubp
 	if req.AckDeadlineSeconds == 0 {
 		f.mu.Lock()
 		f.nacked = append(f.nacked, req.AckIds...)
+		for _, ctx := range f.open {
+			if ctx.Err() == nil {
+				f.nackedOpen = append(f.nackedOpen, req.AckIds...)
+				break
+			}
+		}
 		f.mu.Unlock()
 	}
 	return &emptypb.Empty{}, nil
@@ -72,10 +81,10 @@ func (f *fakeSubscriberServer) firstRequests() []*pubsubpb.StreamingPullRequest 
 	return append([]*pubsubpb.StreamingPullRequest(nil), f.first...)
 }
 
-func (f *fakeSubscriberServer) settled() (acked, nacked []string) {
+func (f *fakeSubscriberServer) settled() (acked, nacked, nackedOpen []string) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	return append([]string(nil), f.acked...), append([]string(nil), f.nacked...)
+	return append([]string(nil), f.acked...), append([]string(nil), f.nacked...), append([]string(nil), f.nackedOpen...)
 }
 
 // startFakeSubscriber serves f on a local port and returns client options
@@ -88,9 +97,12 @@ func startFakeSubscriber(t *testing.T, f *fakeSubscriberServer) []option.ClientO
 	pubsubpb.RegisterSubscriberServer(srv, f)
 	go srv.Serve(lis)
 	t.Cleanup(srv.Stop)
-	conn, err := grpc.NewClient(lis.Addr().String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
-	require.NoError(t, err)
-	return []option.ClientOption{option.WithGRPCConn(conn)}
+	return []option.ClientOption{
+		option.WithEndpoint(lis.Addr().String()),
+		option.WithoutAuthentication(),
+		option.WithGRPCDialOption(grpc.WithTransportCredentials(insecure.NewCredentials())),
+		option.WithTelemetryDisabled(),
+	}
 }
 
 func newFakeGCPQueue() mqs.Queue {
@@ -150,8 +162,9 @@ func fakeReceivedMessages(n int) []*pubsubpb.ReceivedMessage {
 
 // Messages received from the stream and not handed to Receive go back to
 // Pub/Sub with a nack when the subscription shuts down, also after its
-// context has ended. After 6s the client no longer tracks them (lease
-// extension is off) and drops a nack that comes after the stream closes.
+// context has ended and after the client stopped tracking them (6s, lease
+// extension off). The nacks reach Pub/Sub only after the stream has closed:
+// on an open stream, Pub/Sub could send the message straight back to it.
 func TestGCPPubSubQueue_LimitedStopNacksUnreceived(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -184,16 +197,17 @@ func TestGCPPubSubQueue_LimitedStopNacksUnreceived(t *testing.T) {
 				// open, and a nack now would bring the message straight back.
 				cancel()
 				time.Sleep(300 * time.Millisecond)
-				_, nacked := f.settled()
+				_, nacked, _ := f.settled()
 				require.Empty(t, nacked)
 			}
 			stopping := time.Now()
 			require.NoError(t, sub.Shutdown(context.Background()))
 			assert.Less(t, time.Since(stopping), 2*time.Second)
 
-			acked, nacked := f.settled()
+			acked, nacked, nackedOpen := f.settled()
 			assert.Len(t, acked, 1)
 			assert.Len(t, nacked, 2)
+			assert.Empty(t, nackedOpen)
 			assert.ElementsMatch(t, []string{"ack-0", "ack-1", "ack-2"}, append(acked, nacked...))
 		})
 	}

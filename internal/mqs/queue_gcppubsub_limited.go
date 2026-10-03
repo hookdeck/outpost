@@ -2,21 +2,30 @@ package mqs
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
+	"time"
 
 	nativepubsub "cloud.google.com/go/pubsub"
+	"cloud.google.com/go/pubsub/apiv1/pubsubpb"
+	"google.golang.org/api/option"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
+
+const gcpShutdownNackTimeout = 10 * time.Second
+
+type gcpHeldNackKey struct{}
 
 // gcpLimitedSubscription is the StreamingPull subscription used with a byte
 // limit. Pub/Sub holds the stream at MaxOutstandingMessages and
 // MaxOutstandingBytes, so the backlog waits in the subscription.
 //
-// Received messages are handed to Receive one at a time. Messages not handed
-// over when Shutdown is called are nacked while the stream is still open: the
-// client sends the nacks it has recorded before it closes the stream, and
-// drops those recorded after. Until then they stay in the process: a nack on
-// an open stream would come straight back to it.
+// Messages not handed to Receive by Shutdown are nacked after the stream has
+// closed.
 type gcpLimitedSubscription struct {
 	msgChan  chan *Message
 	release  chan struct{} // closed by Shutdown: nack instead of handing over
@@ -26,37 +35,119 @@ type gcpLimitedSubscription struct {
 	done     chan struct{}
 	client   *nativepubsub.Client
 	recvErr  error // set before done is closed
+
+	mu         sync.Mutex
+	nacks      []*pubsubpb.ModifyAckDeadlineRequest // held until the stream has closed
+	nackMD     metadata.MD
+	stream     *grpc.ClientConn // connection of the latest stream
+	streamDone chan struct{}    // closed once that stream has ended
 }
 
 var _ Subscription = &gcpLimitedSubscription{}
 var _ ConcurrentSubscription = &gcpLimitedSubscription{}
 
-func newGCPLimitedSubscription(ctx context.Context, client *nativepubsub.Client, sub *nativepubsub.Subscription) *gcpLimitedSubscription {
-	// The stream outlives ctx so that messages received while handlers finish
-	// can be nacked by Shutdown before it closes.
-	recvCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
+func newGCPLimitedSubscription(ctx context.Context, projectID, subscriptionID string, settings nativepubsub.ReceiveSettings, clientOpts []option.ClientOption) (*gcpLimitedSubscription, error) {
 	s := &gcpLimitedSubscription{
 		msgChan: make(chan *Message),
 		release: make(chan struct{}),
-		cancel:  cancel,
 		done:    make(chan struct{}),
-		client:  client,
 	}
+	clientOpts = append(clientOpts,
+		option.WithGRPCDialOption(grpc.WithChainUnaryInterceptor(s.holdNacks)),
+		option.WithGRPCDialOption(grpc.WithChainStreamInterceptor(s.trackStream)),
+	)
+	client, err := nativepubsub.NewClient(ctx, projectID, clientOpts...)
+	if err != nil {
+		return nil, fmt.Errorf("create pubsub client: %w", err)
+	}
+	s.client = client
+	sub := client.Subscription(subscriptionID)
+	sub.ReceiveSettings = settings
+
+	// The stream outlives ctx: messages received while handlers finish are
+	// nacked by Shutdown.
+	recvCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
+	s.cancel = cancel
 	go func() {
 		defer close(s.done)
 		s.recvErr = sub.Receive(recvCtx, s.handOff)
 	}()
-	return s
+	return s, nil
+}
+
+// holdNacks keeps nacks sent after Shutdown started until the stream has
+// closed.
+func (s *gcpLimitedSubscription) holdNacks(ctx context.Context, method string, req, reply any, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
+	r, ok := req.(*pubsubpb.ModifyAckDeadlineRequest)
+	if !ok || r.AckDeadlineSeconds != 0 || !s.stopping() || ctx.Value(gcpHeldNackKey{}) != nil {
+		return invoker(ctx, method, req, reply, cc, opts...)
+	}
+	md, _ := metadata.FromOutgoingContext(ctx)
+	s.mu.Lock()
+	s.nacks = append(s.nacks, proto.Clone(r).(*pubsubpb.ModifyAckDeadlineRequest))
+	s.nackMD = md
+	s.mu.Unlock()
+	return nil
+}
+
+// trackStream records the connection of each StreamingPull stream and when
+// it ends. The stream is closed on that connection before the held nacks are
+// sent on it, so Pub/Sub cannot send the nacked messages back to the stream.
+func (s *gcpLimitedSubscription) trackStream(ctx context.Context, desc *grpc.StreamDesc, cc *grpc.ClientConn, method string, streamer grpc.Streamer, opts ...grpc.CallOption) (grpc.ClientStream, error) {
+	if method != "/google.pubsub.v1.Subscriber/StreamingPull" {
+		return streamer(ctx, desc, cc, method, opts...)
+	}
+	done := make(chan struct{})
+	var once sync.Once
+	opts = append(opts, grpc.OnFinish(func(error) { once.Do(func() { close(done) }) }))
+	cs, err := streamer(ctx, desc, cc, method, opts...)
+	if err != nil {
+		return nil, err
+	}
+	s.mu.Lock()
+	s.stream, s.streamDone = cc, done
+	s.mu.Unlock()
+	return cs, nil
+}
+
+func (s *gcpLimitedSubscription) sendHeldNacks(ctx context.Context) error {
+	s.mu.Lock()
+	nacks, md, cc, streamDone := s.nacks, s.nackMD, s.stream, s.streamDone
+	s.nacks = nil
+	s.mu.Unlock()
+	if len(nacks) == 0 || cc == nil {
+		return nil
+	}
+	select {
+	case <-streamDone:
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+	ctx = context.WithValue(metadata.NewOutgoingContext(ctx, md), gcpHeldNackKey{}, true)
+	var errs error
+	for _, req := range nacks {
+		if err := cc.Invoke(ctx, "/google.pubsub.v1.Subscriber/ModifyAckDeadline", req, &emptypb.Empty{}); err != nil {
+			errs = errors.Join(errs, fmt.Errorf("nack: %w", err))
+		}
+	}
+	return errs
+}
+
+func (s *gcpLimitedSubscription) stopping() bool {
+	select {
+	case <-s.release:
+		return true
+	default:
+		return false
+	}
 }
 
 func (s *gcpLimitedSubscription) handOff(_ context.Context, msg *nativepubsub.Message) {
 	s.handoff.RLock()
 	defer s.handoff.RUnlock()
-	select {
-	case <-s.release:
+	if s.stopping() {
 		msg.Nack()
 		return
-	default:
 	}
 	m := &Message{
 		QueueMessage: &gcpNativeAcker{msg: msg},
@@ -85,18 +176,22 @@ func (s *gcpLimitedSubscription) Receive(ctx context.Context) (*Message, error) 
 	}
 }
 
-// Shutdown nacks the messages not handed over, then closes the stream. It
-// returns once the nacks are sent.
-func (s *gcpLimitedSubscription) Shutdown(_ context.Context) error {
+// Shutdown closes the stream, then nacks the messages not handed over.
+func (s *gcpLimitedSubscription) Shutdown(ctx context.Context) error {
+	var nackErr error
 	s.stopOnce.Do(func() {
 		close(s.release)
-		// Wait for hand-offs in progress to nack.
 		s.handoff.Lock()
 		s.handoff.Unlock()
 		s.cancel()
+		<-s.done
+
+		ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), gcpShutdownNackTimeout)
+		defer cancel()
+		nackErr = s.sendHeldNacks(ctx)
 	})
 	<-s.done
-	return s.client.Close()
+	return errors.Join(nackErr, s.client.Close())
 }
 
 func (s *gcpLimitedSubscription) SupportsConcurrency() bool {
