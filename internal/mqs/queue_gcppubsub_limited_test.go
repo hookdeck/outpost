@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -15,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/api/option"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
@@ -25,11 +27,15 @@ import (
 // the messages in send, then stays open until the client cancels it or
 // half-closes it. After a half-close it sends the messages in
 // sendOnHalfClose (in flight when the client half-closed) and ends the stream
-// 100ms later, as Pub/Sub does after about 2s.
+// 100ms later, as Pub/Sub does after about 2s; with keepHalfClosed it keeps
+// the stream open until the client cancels it. With failFirst, only the
+// first stream gets send, and it then fails with UNAVAILABLE.
 type fakeSubscriberServer struct {
 	pubsubpb.UnimplementedSubscriberServer
 	send            []*pubsubpb.ReceivedMessage
 	sendOnHalfClose []*pubsubpb.ReceivedMessage
+	keepHalfClosed  bool
+	failFirst       bool
 
 	mu         sync.Mutex
 	first      []*pubsubpb.StreamingPullRequest // first request of each stream
@@ -55,13 +61,17 @@ func (f *fakeSubscriberServer) StreamingPull(stream pubsubpb.Subscriber_Streamin
 		return err
 	}
 	f.mu.Lock()
+	n := len(f.first)
 	f.first = append(f.first, req)
 	f.open = append(f.open, stream.Context())
 	f.mu.Unlock()
-	if len(f.send) > 0 {
+	if len(f.send) > 0 && (!f.failFirst || n == 0) {
 		if err := stream.Send(&pubsubpb.StreamingPullResponse{ReceivedMessages: f.send}); err != nil {
 			return err
 		}
+	}
+	if f.failFirst && n == 0 {
+		return status.Error(codes.Unavailable, "stream reset")
 	}
 
 	for {
@@ -79,6 +89,10 @@ func (f *fakeSubscriberServer) StreamingPull(stream pubsubpb.Subscriber_Streamin
 			if err := stream.Send(&pubsubpb.StreamingPullResponse{ReceivedMessages: f.sendOnHalfClose}); err != nil {
 				return err
 			}
+		}
+		if f.keepHalfClosed {
+			<-stream.Context().Done()
+			return nil
 		}
 		select {
 		case <-time.After(100 * time.Millisecond):
@@ -203,6 +217,21 @@ func (s *earlyEndStream) RecvMsg(m any) error {
 	}
 }
 
+// shutdownWithin fails the test if Shutdown does not return within d, e.g.
+// when the SDK no longer stops a parked stream on its own.
+func shutdownWithin(t *testing.T, sub mqs.Subscription, d time.Duration) error {
+	t.Helper()
+	done := make(chan error, 1)
+	go func() { done <- sub.Shutdown(context.Background()) }()
+	select {
+	case err := <-done:
+		return err
+	case <-time.After(d):
+		t.Fatalf("Shutdown did not return within %s", d)
+		return nil
+	}
+}
+
 func newFakeGCPQueue() mqs.Queue {
 	return mqs.NewQueue(&mqs.QueueConfig{
 		GCPPubSub:         &mqs.GCPPubSubConfig{ProjectID: "test-project", SubscriptionID: "test-sub"},
@@ -235,7 +264,7 @@ func TestGCPPubSubQueue_StreamingPullRequestLimits(t *testing.T) {
 			ctx := context.Background()
 			sub, err := mqs.GCPSubscribe(ctx, newFakeGCPQueue(), clientOpts, tc.opts...)
 			require.NoError(t, err)
-			defer sub.Shutdown(ctx)
+			defer shutdownWithin(t, sub, 10*time.Second)
 			assert.Equal(t, tc.limited, mqs.IsGCPLimited(sub))
 
 			require.Eventually(t, func() bool { return len(f.firstRequests()) > 0 }, 10*time.Second, 10*time.Millisecond)
@@ -308,7 +337,7 @@ func TestGCPPubSubQueue_LimitedStopNacksUnreceived(t *testing.T) {
 				require.Eventually(t, func() bool { _, nacked, _ := f.settled(); return len(nacked) == 2 }, 2*time.Second, 10*time.Millisecond)
 			}
 			stopping := time.Now()
-			require.NoError(t, sub.Shutdown(context.Background()))
+			require.NoError(t, shutdownWithin(t, sub, 10*time.Second))
 			assert.Less(t, time.Since(stopping), 2*time.Second)
 
 			acked, nacked, nackedOpen := f.settled()
@@ -338,7 +367,7 @@ func TestGCPPubSubQueue_LimitedShutdownNacksUnsettled(t *testing.T) {
 	require.Eventually(t, func() bool { acked, _, _ := f.settled(); return len(acked) == 1 }, 5*time.Second, 10*time.Millisecond)
 	// Read from the stream, never seen by the SDK's ack/nack sender.
 	mqs.GCPReceived(sub, "ack-dropped", "m-dropped")
-	require.NoError(t, sub.Shutdown(ctx))
+	require.NoError(t, shutdownWithin(t, sub, 10*time.Second))
 
 	acked, nacked, nackedOpen := f.settled()
 	assert.Equal(t, []string{"ack-0"}, acked)
@@ -348,18 +377,16 @@ func TestGCPPubSubQueue_LimitedShutdownNacksUnsettled(t *testing.T) {
 
 // When the context passed to Subscribe ends, the subscription stops taking
 // messages at once while handlers still run: the stream is half-closed, so
-// Pub/Sub sends nothing more and ends it. Messages read after that are nacked
-// once the stream has ended, not at Shutdown, also while the SDK waits for
-// room and does not read the stream itself; a handler still running acks as
-// usual.
+// Pub/Sub sends nothing more and ends it. Messages not handed over, also
+// those read after the half-close, are nacked once the stream has ended, not
+// at Shutdown; a handler still running acks as usual.
 func TestGCPPubSubQueue_LimitedStopsReceivingAtContextEnd(t *testing.T) {
 	t.Parallel()
 	f := &fakeSubscriberServer{send: fakeReceivedMessages(2), sendOnHalfClose: fakeReceivedMessagesFrom(2, 2)}
 	clientOpts := startFakeSubscriber(t, f)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	// Count 1: the SDK stops reading the stream while the handler of ack-0
-	// runs.
+	// Count 1: ack-0 is handed over, ack-1 is not.
 	sub, err := mqs.GCPSubscribe(ctx, newFakeGCPQueue(), clientOpts, mqs.WithConcurrency(1), mqs.WithMaxBytes(1<<20))
 	require.NoError(t, err)
 
@@ -378,11 +405,74 @@ func TestGCPPubSubQueue_LimitedStopsReceivingAtContextEnd(t *testing.T) {
 	require.Eventually(t, func() bool { acked, _, _ := f.settled(); return len(acked) == 1 }, 2*time.Second, 10*time.Millisecond, "ack after the stream ended not sent")
 
 	stopping := time.Now()
-	require.NoError(t, sub.Shutdown(context.Background()))
+	require.NoError(t, shutdownWithin(t, sub, 10*time.Second))
 	assert.Less(t, time.Since(stopping), time.Second)
 	acked, nacked, nackedOpen = f.settled()
 	assert.Equal(t, []string{"ack-0"}, acked)
 	assert.ElementsMatch(t, []string{"ack-1", "ack-2", "ack-3"}, nacked)
 	assert.Empty(t, nackedOpen)
 	assert.Len(t, f.firstRequests(), 1, "a new stream was opened after receiving stopped")
+}
+
+// If Pub/Sub does not end a half-closed stream, the subscription cancels it
+// after a few seconds and only then nacks the messages read after the
+// half-close.
+func TestGCPPubSubQueue_LimitedCancelsStreamNotEndedAfterHalfClose(t *testing.T) {
+	t.Parallel()
+	f := &fakeSubscriberServer{send: fakeReceivedMessages(1), sendOnHalfClose: fakeReceivedMessagesFrom(1, 2), keepHalfClosed: true}
+	clientOpts := startFakeSubscriber(t, f)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	sub, err := mqs.GCPSubscribe(ctx, newFakeGCPQueue(), clientOpts, mqs.WithConcurrency(10), mqs.WithMaxBytes(1<<20))
+	require.NoError(t, err)
+
+	inFlight, err := sub.Receive(ctx)
+	require.NoError(t, err)
+	stopping := time.Now()
+	cancel()
+
+	require.Eventually(t, func() bool { return f.halfCloses() == 1 }, time.Second, 10*time.Millisecond, "stream not half-closed at context end")
+	require.Eventually(t, func() bool { _, nacked, _ := f.settled(); return len(nacked) == 2 }, 10*time.Second, 10*time.Millisecond, "messages read after the half-close not nacked")
+	assert.GreaterOrEqual(t, time.Since(stopping), 4*time.Second, "nacked before the stream was cancelled")
+	_, nacked, nackedOpen := f.settled()
+	assert.ElementsMatch(t, []string{"ack-1", "ack-2"}, nacked)
+	assert.Empty(t, nackedOpen)
+
+	inFlight.Ack()
+	require.Eventually(t, func() bool { acked, _, _ := f.settled(); return len(acked) == 1 }, 2*time.Second, 10*time.Millisecond, "ack after the stream was cancelled not sent")
+	require.NoError(t, shutdownWithin(t, sub, 10*time.Second))
+	acked, _, _ := f.settled()
+	assert.Equal(t, []string{"ack-0"}, acked)
+	assert.Len(t, f.firstRequests(), 1, "a new stream was opened after receiving stopped")
+}
+
+// When a stream fails mid-run, the SDK opens a new one. Messages from the
+// old stream are still acked and nacked, and at the context end only the new
+// stream is half-closed.
+func TestGCPPubSubQueue_LimitedStreamReconnect(t *testing.T) {
+	t.Parallel()
+	f := &fakeSubscriberServer{send: fakeReceivedMessages(2), failFirst: true}
+	clientOpts := startFakeSubscriber(t, f)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	sub, err := mqs.GCPSubscribe(ctx, newFakeGCPQueue(), clientOpts, mqs.WithConcurrency(10), mqs.WithMaxBytes(1<<20))
+	require.NoError(t, err)
+
+	msg, err := sub.Receive(ctx)
+	require.NoError(t, err)
+	require.Eventually(t, func() bool { return len(f.firstRequests()) == 2 }, 5*time.Second, 10*time.Millisecond, "no new stream after the first failed")
+	msg.Ack()
+	require.Eventually(t, func() bool { acked, _, _ := f.settled(); return len(acked) == 1 }, 2*time.Second, 10*time.Millisecond, "ack of a message from the failed stream not sent")
+
+	cancel()
+	require.Eventually(t, func() bool { _, nacked, _ := f.settled(); return len(nacked) == 1 }, 2*time.Second, 10*time.Millisecond, "message not handed over not nacked")
+	require.NoError(t, shutdownWithin(t, sub, 10*time.Second))
+
+	ackedID := "ack-" + strings.TrimPrefix(msg.ID, "m-")
+	acked, nacked, nackedOpen := f.settled()
+	assert.Equal(t, []string{ackedID}, acked)
+	assert.ElementsMatch(t, []string{"ack-0", "ack-1"}, append(acked, nacked...))
+	assert.Empty(t, nackedOpen)
+	assert.Equal(t, 1, f.halfCloses())
+	assert.Len(t, f.firstRequests(), 2)
 }
