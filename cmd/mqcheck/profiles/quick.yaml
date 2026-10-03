@@ -1,0 +1,35 @@
+# Quick tier: correctness on local brokers in a few minutes. Timeouts are
+# scaled down; capacity is a smoke step, shown but not judged.
+name: quick
+tier: quick
+cases: [all]
+parallel: 4
+queue:
+  visibility_timeout: 10s
+  max_attempts: 5
+grace_period: 15s
+limits:
+  count: 10
+payloads:
+  small: json-2KB
+  large: rand-64KB
+thresholds:
+  wait_p99: 1s
+  wait_max_fraction: 0.10
+  held_beyond_limit: 1
+  hand_back: 5s
+  first_after_restart: 5s
+  error_within: 90s
+worker:
+  log_level: warn
+  count_env: DELIVERY_MAX_CONCURRENCY
+  bytes_env: DELIVERY_MAX_CONCURRENCY_BYTES
+capacity:
+  enabled: true
+  limits: {count: 100}
+  handler: {latency: 20ms, jitter: 10ms}
+  payload: json-6KB
+  rate_steps: [200]
+  warmup: 2s
+  step_hold: 8s
+  targets: {min_rate: 0}
