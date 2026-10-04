@@ -53,4 +53,9 @@ make down    # stop and remove the stack
 make nuke    # stop + remove volumes (wipe state)
 make up/portal   # run portal natively for vite hot reload (escape hatch)
 make up/test     # separate test project (isolated lifecycle)
+make up/dest     # destination brokers (project outpost-dest, build/dest/)
 ```
+
+api, delivery and log also join the `outpost-dest` network (created by
+`dev.sh` and `make up/dest`), so destinations can point at `dest-rabbitmq`,
+`dest-aws`, `dest-gcp`, `dest-kafka`.

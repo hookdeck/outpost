@@ -31,6 +31,8 @@ publishmq only:
 
 - [ ] Kafka
 
+The local dev stack (`make up`) runs Outpost on NATS JetStream by default; [Getting Started](getting-started.md#choosing-the-internal-message-queue) shows how to switch to another queue. Tests of the other internal queues run with `TESTCOMPAT=1` ([Test](test.md#test-groups)).
+
 ## Configuration
 
 The common configuration (policy) for all MQs includes:

@@ -109,14 +109,18 @@ down/test/rediscluster:
 	@echo "Redis cluster test environment stopped."
 
 test/setup:
-	@echo "To setup the test environment, run the following command:"
+	@echo "To set up the test environment:"
 	@echo "$$ go install gotest.tools/gotestsum@latest"
-	@echo "$$ make up/test"
-	@echo "$$ make up/azure"
+	@echo "$$ export TESTINFRA=1    # use the services from make up/test"
+	@echo "$$ make up/test          # ClickHouse, Postgres, NATS, mock server"
+	@echo "$$ make test"
 	@echo ""
-	@echo "Before running the tests, make sure to:"
-	@echo "$$ export TESTINFRA=1 TESTAZURE=1"
+	@echo "Optional test groups (export before make up/test and make test); each includes the one above:"
+	@echo "  TESTDEST=1     destination providers: RabbitMQ, AWS, GCP Pub/Sub, Kafka (starts make up/dest)"
+	@echo "  TESTCOMPAT=1   Outpost on RabbitMQ / SQS / Pub/Sub internal queues, backend compat suites"
+	@echo "  TESTAZURE=1    Azure Service Bus (needs the emulator: LOCAL_DEV_AZURE=1 make up)"
 	@echo ""
+	@echo "See contributing/test.md for details."
 
 test:
 	TEST="$(TEST)" RUN="$(RUN)" TESTARGS="$(TESTARGS)" ./scripts/test.sh test

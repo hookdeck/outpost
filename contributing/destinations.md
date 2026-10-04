@@ -2,115 +2,64 @@
 
 ## Local Development
 
-There are a few helper Go scripts to help with the development process of various destination types. In these example snippets, we use `localhost` as the example host. If your dev services run inside Docker, `localhost` will not work. You should use `host.docker.internal` instead.
+`make up/dest` starts the brokers Outpost delivers to: RabbitMQ, LocalStack (AWS), the Pub/Sub emulator and Kafka (`make up/dest DEST="rabbitmq aws"` for some of them). The services of `make up` reach them by name (`dest-rabbitmq:5672`, `http://dest-aws:4566`, ...); from your machine they're on `localhost` (`15672`, `14566`, ...). See [Destination stack](test.md#destination-stack) for the full list.
 
-### AWS
+The helpers in `cmd/destinations` create a queue, topic or bucket on that stack and print what arrives. Their defaults match the stack; environment variables at the top of each `main.go` change addresses and names (`DEST_`-prefixed, for example `DEST_SQS_QUEUE`, `DEST_RABBITMQ_QUEUE`), e.g. when two checkouts share one stack.
 
-> We currently only support AWS SQS destination.
+The examples below use the API of `make up` at `localhost:3333` with the API key `apikey`.
 
-To test AWS SQS destination locally, you can use [LocalStack](https://github.com/localstack/localstack) which is a fully functional local AWS cloud stack. You can run the Docker image using the MQs Docker Compose file in this project.
-
-```sh
-$ cd build/dev/mqs
-# .../hookdeck/outpost/build/dev/mqs
-$ docker-compose up -d
-```
-
-You can run the local dev script to configure and subscribe to a SQS queue:
+### AWS SQS
 
 ```sh
-# back at root .../hookdeck/outpost directory
-$ go run cmd/destinations/aws/main.go
+$ make up/dest DEST=aws
+$ go run ./cmd/destinations/awssqs
 .......... [*] Ready to receive messages.
-	Endpoint: http://localhost:4566
+	Endpoint: http://localhost:14566
 	Queue: http://sqs.eu-central-1.localhost.localstack.cloud:4566/000000000000/destination_sqs_queue
-.......... [*] Waiting for logs. To exit press CTRL+C
 ```
 
-Using this credential, you can create an AWS destination and start receiving events:
+Create a destination. Outpost runs in Docker, so `endpoint` is the in-network address; Outpost reads the region from the queue URL's host, so keep the URL the helper printed:
 
 ```sh
-$ curl --location 'localhost:4000/<TENANT_ID>/destinations' \
+$ curl 'localhost:3333/api/v1/tenants/<TENANT_ID>/destinations' \
 --header 'Content-Type: application/json' \
---header 'Authorization: ••••••' \
+--header 'Authorization: Bearer apikey' \
 --data '{
     "type": "aws_sqs",
     "topics": ["*"],
     "config": {
-        "endpoint": "http://localhost:4566",
+        "endpoint": "http://dest-aws:4566",
         "queue_url": "http://sqs.eu-central-1.localhost.localstack.cloud:4566/000000000000/destination_sqs_queue"
-    }
+    },
+    "credentials": {"key": "test", "secret": "test"}
 }'
 ```
 
-```json
-{
-  "id": "...",
-  "type": "aws_sqs",
-  "topics": [
-    "*"
-  ],
-  "config": {
-    "endpoint": "http://localhost:4566",
-    "queue_url": "http://sqs.eu-central-1.localhost.localstack.cloud:4566/000000000000/destination_sqs_queue"
-  },
-  "created_at": "...",
-  "disabled_at": null
-}
-
-```
+`cmd/destinations` also has `awskinesis`, `awss3` and `awseventbridge` on the same LocalStack.
 
 ### RabbitMQ
 
-To test RabbitMQ destination, make sure you have a running RabbitMQ instance. You can do so locally using the MQs Docker Compose file in this project.
-
 ```sh
-$ cd build/dev/mqs
-# .../hookdeck/outpost/build/dev/mqs
-$ docker-compose up -d
+$ make up/dest DEST=rabbitmq
+$ go run ./cmd/destinations/rabbitmq
 ```
 
-You can visit the [RabbitMQ Management Interface](http://localhost:15672) to confirm that you have RabbitMQ running. (Small tip: the default credentials for the dashboard is `guest`:`guest`)
-
-From then, you can run the local dev script to declare a simple exchange & with a queue subscripiton:
+The helper declares the exchange `destination_exchange` with a queue bound to it. The management UI is at [localhost:15673](http://localhost:15673) (`guest`/`guest`).
 
 ```sh
-# back at root .../hookdeck/outpost directory
-$ go run cmd/destinations/rabbitmq/main.go
-```
-
-The test exchange is `destination_exchange` and the test queue is `destination_queue`.
-
-You can create a RabbitMQ destination to start receiving events:
-
-```sh
-$ curl --location 'localhost:4000/<TENANT_ID>/destinations' \
+$ curl 'localhost:3333/api/v1/tenants/<TENANT_ID>/destinations' \
 --header 'Content-Type: application/json' \
---header 'Authorization: ••••••' \
+--header 'Authorization: Bearer apikey' \
 --data '{
     "type": "rabbitmq",
     "topics": ["*"],
     "config": {
-        "server_url": "amqp://guest:guest@localhost:5672",
-        "exchange": "destination_exchange"
-    }
+        "server_url": "dest-rabbitmq:5672",
+        "exchange": "destination_exchange",
+        "tls": "false"
+    },
+    "credentials": {"username": "guest", "password": "guest"}
 }'
-```
-
-```json
-{
-  "id": "...",
-  "type": "rabbitmq",
-  "topics": [
-    "*"
-  ],
-  "config": {
-    "server_url": "amqp://guest:guest@localhost:5672",
-    "exchange": "destination_exchange"
-  },
-  "created_at": "...",
-  "disabled_at": null
-}
 ```
 
 ### Webhooks
