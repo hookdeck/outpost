@@ -19,7 +19,7 @@ import (
 )
 
 // kafkaJaasPath is where the broker's JAAS config lands inside the container,
-// matching the mount path in build/test/compose.yml.
+// matching the mount path in build/dest/compose.yml.
 const kafkaJaasPath = "/etc/kafka/jaas.conf"
 
 var kafkaService = &service{name: "kafka", startHint: hintDest}
@@ -71,7 +71,7 @@ func startKafkaTestContainer(cfg *Config) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	jaasFile := filepath.Join(projectRoot, "build", "test", "kafka_jaas.conf")
+	jaasFile := filepath.Join(projectRoot, "build", "dest", "kafka_jaas.conf")
 
 	req := testcontainers.ContainerRequest{
 		Image:        cfg.Images.Kafka,

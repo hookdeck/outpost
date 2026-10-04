@@ -42,6 +42,7 @@ services:
     env_file: ../../.env
     environment:
       SERVICE: api
+    networks: [default, dest]
     depends_on:
       <<: *deps_depends_on
       migrate: { condition: service_completed_successfully }
@@ -60,6 +61,7 @@ services:
     env_file: ../../.env
     environment:
       SERVICE: delivery
+    networks: [default, dest]
     depends_on:
       <<: *deps_depends_on
       api: { condition: service_healthy }
@@ -73,6 +75,7 @@ services:
     env_file: ../../.env
     environment:
       SERVICE: log
+    networks: [default, dest]
     depends_on:
       <<: *deps_depends_on
       api: { condition: service_healthy }
@@ -88,6 +91,13 @@ services:
       - NODE_ENV=development
     env_file: ../../.env
     command: sh -c "npm install && npx vite dev --host"
+
+# The destination stack (`make up/dest`) runs on this network, so the services
+# that deliver can reach dest-rabbitmq, dest-kafka, ... dev.sh creates it.
+networks:
+  dest:
+    name: outpost-dest
+    external: true
 
 volumes:
   portal_node_modules:

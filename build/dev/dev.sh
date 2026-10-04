@@ -74,6 +74,8 @@ export COMPOSE_PROFILES
 
 case "$cmd" in
   up)
+    # Shared with the destination stack (make up/dest); see compose.yml.
+    docker network create outpost-dest >/dev/null 2>&1 || true
     exec docker compose --env-file .env "${files[@]}" up -d "$@"
     ;;
   down)

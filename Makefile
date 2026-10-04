@@ -55,12 +55,30 @@ smoke:
 up/portal:
 	cd internal/portal && npm install && npm run dev
 
+# Test infrastructure for TESTINFRA=1 runs: the services the default test run
+# needs. With TESTDEST=1 or TESTCOMPAT=1 it also starts the destination stack.
 # --env-file supplies the image pins; see the comment at the top of compose.yml.
 up/test:
 	docker-compose --env-file .env.test -f build/test/compose.yml up -d
+	@if [ "$(TESTDEST)" = "1" ] || [ "$(TESTCOMPAT)" = "1" ]; then $(MAKE) --no-print-directory up/dest; fi
 
 down/test:
 	docker-compose --env-file .env.test -f build/test/compose.yml down --volumes
+
+# Destination stack: brokers Outpost delivers to (build/dest/compose.yml), used
+# by manual testing against `make up`, cmd/destinations and the TESTDEST=1 /
+# TESTCOMPAT=1 tests. DEST picks brokers; default all.
+DEST_ALL := rabbitmq aws gcp kafka
+DEST ?= $(DEST_ALL)
+comma := ,
+
+up/dest:
+	@for d in $(DEST); do case " $(DEST_ALL) " in *" $$d "*) ;; *) echo "unknown DEST '$$d' (choose from: $(DEST_ALL))"; exit 2;; esac; done
+	@docker network create outpost-dest >/dev/null 2>&1 || true
+	COMPOSE_PROFILES="$(subst $() ,$(comma),$(strip $(DEST)))" docker-compose --env-file .env.test -f build/dest/compose.yml up -d
+
+down/dest:
+	COMPOSE_PROFILES="*" docker-compose --env-file .env.test -f build/dest/compose.yml down --volumes
 
 up/test/rediscluster:
 	@echo "Ensuring test network exists..."
@@ -131,6 +149,7 @@ test/coverage/html:
 	go tool cover -html=coverage.out
 
 migrate:
+	@docker network create outpost-dest >/dev/null 2>&1 || true
 	docker-compose -f build/dev/compose.yml --env-file .env run --rm --entrypoint "" api go run ./cmd/outpost migrate apply --yes
 
 redis/debug:

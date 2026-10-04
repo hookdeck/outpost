@@ -1,5 +1,9 @@
 # Image tags live in .env.test so this stack and the containers the tests start
 # themselves run the same versions. Start with `make up/test`.
+#
+# These are the services the default test run needs. The brokers that the
+# TESTDEST=1 and TESTCOMPAT=1 test groups add live in the destination stack
+# (build/dest/compose.yml, `make up/dest`).
 
 name: "outpost-test"
 
@@ -23,48 +27,8 @@ services:
       - POSTGRES_DB=default
     ports:
       - 35432:5432
-  test-rabbitmq:
-    image: ${TEST_IMAGE_RABBITMQ:?run via `make up/test`, which passes --env-file .env.test}
-    ports:
-      - 35672:5672
-      - 45672:15672
   test-nats:
     image: ${TEST_IMAGE_NATS:?run via `make up/test`, which passes --env-file .env.test}
     command: ["-js"]
     ports:
       - 34222:4222
-  test-aws:
-    image: ${TEST_IMAGE_LOCALSTACK:?run via `make up/test`, which passes --env-file .env.test}
-    environment:
-      - SERVICES=s3,sns,sts,sqs,kinesis,events
-    ports:
-      - 34566:4566
-      - 34571:4571
-  test-kafka:
-    image: ${TEST_IMAGE_KAFKA:?run via `make up/test`, which passes --env-file .env.test}
-    environment:
-      KAFKA_ADVERTISED_LISTENERS: SASL_PLAINTEXT://test-kafka:29092,SASL_PLAINTEXT_HOST://localhost:39092
-      KAFKA_LISTENERS: SASL_PLAINTEXT://0.0.0.0:29092,CONTROLLER://localhost:29093,SASL_PLAINTEXT_HOST://0.0.0.0:9092
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: SASL_PLAINTEXT:SASL_PLAINTEXT,SASL_PLAINTEXT_HOST:SASL_PLAINTEXT,CONTROLLER:PLAINTEXT
-      KAFKA_INTER_BROKER_LISTENER_NAME: SASL_PLAINTEXT
-      KAFKA_SASL_MECHANISM_INTER_BROKER_PROTOCOL: PLAIN
-      KAFKA_SASL_ENABLED_MECHANISMS: PLAIN
-      KAFKA_OPTS: "-Djava.security.auth.login.config=/etc/kafka/jaas.conf"
-    volumes:
-      - ./kafka_jaas.conf:/etc/kafka/jaas.conf:ro
-    ports:
-      - 39092:9092
-  test-gcp:
-    image: ${TEST_IMAGE_GCP:?run via `make up/test`, which passes --env-file .env.test}
-    command:
-      [
-        "gcloud",
-        "beta",
-        "emulators",
-        "pubsub",
-        "start",
-        "--host-port=0.0.0.0:8085",
-        "--project=test",
-      ]
-    ports:
-      - "38085:8085"

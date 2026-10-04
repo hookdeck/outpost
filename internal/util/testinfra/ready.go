@@ -130,5 +130,5 @@ func dialTCP(endpoint string) error {
 // endpoint.
 const (
 	hintTest = "Start the test stack: `make up/test`."
-	hintDest = hintTest
+	hintDest = "Start the destination stack: `make up/dest` (or `TESTDEST=1 make up/test`)."
 )
