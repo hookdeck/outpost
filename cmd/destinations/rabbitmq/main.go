@@ -6,13 +6,16 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/hookdeck/outpost/cmd/destinations/internal/destenv"
 	"github.com/rabbitmq/amqp091-go"
 )
 
-const (
-	RABBIT_SERVER_URL = "amqp://guest:guest@localhost:15672"
-	RABBIT_EXCHANGE   = "destination_exchange"
-	RABBIT_QUEUE      = "destination_queue"
+// Consumes a RabbitMQ destination: binds a queue to the exchange and prints
+// every message. Defaults match the local destination stack (`make up/dest`).
+var (
+	RABBIT_SERVER_URL = destenv.Get("DEST_RABBITMQ_URL", "amqp://guest:guest@localhost:15672")
+	RABBIT_EXCHANGE   = destenv.Get("DEST_RABBITMQ_EXCHANGE", "destination_exchange")
+	RABBIT_QUEUE      = destenv.Get("DEST_RABBITMQ_QUEUE", "destination_queue")
 )
 
 func main() {
@@ -59,7 +62,7 @@ func run() error {
 	}
 	err = ch.QueueBind(
 		q.Name,          // queue name
-		"",              // routing key
+		"#",             // routing key: Outpost publishes with the event topic, take all
 		RABBIT_EXCHANGE, // exchange
 		false,
 		nil,

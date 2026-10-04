@@ -21,7 +21,7 @@ const (
 	LOCAL_PROJECT_ID   = "test-project"
 	LOCAL_TOPIC        = "test-topic"
 	LOCAL_SUBSCRIPTION = "test-subscription"
-	LOCAL_ENDPOINT     = "localhost:18085" // Local dev emulator endpoint (see build/dev/deps/compose.yml)
+	LOCAL_ENDPOINT     = "localhost:18085" // Pub/Sub emulator of the local destination stack (make up/dest)
 
 	// To use real GCP, set these environment variables:
 	// GCP_PROJECT_ID - Your GCP project ID

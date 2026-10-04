@@ -10,13 +10,16 @@ import (
 	"syscall"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus"
+	"github.com/hookdeck/outpost/cmd/destinations/internal/destenv"
 )
 
-// local
-const (
-	TOPIC_NAME        = "destination-test"
-	SUBSCRIPTION_NAME = "destination-test-sub"
-	CONNECTION_STRING = "Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;"
+// Defaults match the Azure Service Bus emulator of the dev stack
+// (LOCAL_DEV_AZURE=1 make up), whose entities are fixed in
+// build/dev/azure/config.json.
+var (
+	TOPIC_NAME        = destenv.Get("DEST_AZURE_SERVICEBUS_TOPIC", "destination-test")
+	SUBSCRIPTION_NAME = destenv.Get("DEST_AZURE_SERVICEBUS_SUBSCRIPTION", "destination-test-sub")
+	CONNECTION_STRING = destenv.Get("DEST_AZURE_SERVICEBUS_CONNECTION_STRING", "Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;")
 )
 
 func main() {

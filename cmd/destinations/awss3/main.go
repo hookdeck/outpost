@@ -14,14 +14,16 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/hookdeck/outpost/cmd/destinations/internal/destenv"
 )
 
-// Change these constants to match your AWS S3 configuration
-
-const (
-	S3Region       = "us-east-1"
-	AWSCredentials = "aws_key:aws_secret:aws_session"
-	S3Bucket       = "destination_s3_bucket"
+// Defaults match the local destination stack (`make up/dest`). For AWS
+// itself, set DEST_AWS_ENDPOINT="" and DEST_AWS_CREDENTIALS="key:secret:session".
+var (
+	S3Region       = destenv.Get("DEST_AWS_REGION", "us-east-1")
+	AWSEndpoint    = destenv.Get("DEST_AWS_ENDPOINT", "http://localhost:14566")
+	AWSCredentials = destenv.Get("DEST_AWS_CREDENTIALS", "test:test:")
+	S3Bucket       = destenv.Get("DEST_S3_BUCKET", "destination-s3-bucket")
 )
 
 // This program monitors an AWS S3 bucket for new objects and logs them.
@@ -40,8 +42,11 @@ func run() error {
 	ctx := context.Background()
 
 	credsParts := strings.Split(AWSCredentials, ":")
+	if len(credsParts) == 2 {
+		credsParts = append(credsParts, "")
+	}
 	if len(credsParts) != 3 {
-		return fmt.Errorf("invalid AWS credentials format")
+		return fmt.Errorf("invalid AWS credentials format (key:secret[:session])")
 	}
 
 	// Set up AWS configuration with the provided credentials
@@ -56,7 +61,20 @@ func run() error {
 	}
 
 	// Create an S3 client using the loaded configuration
-	s3Client := s3.NewFromConfig(awsCfg)
+	s3Client := s3.NewFromConfig(awsCfg, func(o *s3.Options) {
+		if AWSEndpoint != "" {
+			o.BaseEndpoint = aws.String(AWSEndpoint)
+			o.UsePathStyle = true // LocalStack
+		}
+	})
+
+	// A local stack starts empty: create the bucket there. On AWS the bucket
+	// is yours to create.
+	if AWSEndpoint != "" {
+		if _, err := s3Client.CreateBucket(ctx, &s3.CreateBucketInput{Bucket: aws.String(S3Bucket)}); err != nil {
+			log.Printf("[*] create bucket %s: %v (continuing)", S3Bucket, err)
+		}
+	}
 
 	// Listen for termination signals
 	termChan := make(chan os.Signal, 1)

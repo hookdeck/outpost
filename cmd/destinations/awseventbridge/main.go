@@ -16,17 +16,22 @@ import (
 	ebtypes "github.com/aws/aws-sdk-go-v2/service/eventbridge/types"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	sqstypes "github.com/aws/aws-sdk-go-v2/service/sqs/types"
+	"github.com/hookdeck/outpost/cmd/destinations/internal/destenv"
+)
+
+// Defaults match the local destination stack (`make up/dest`).
+var (
+	awsRegion    = destenv.Get("DEST_AWS_REGION", "us-east-1")
+	awsEndpoint  = destenv.Get("DEST_AWS_ENDPOINT", "http://localhost:14566")
+	awsAccessKey = "test"
+	awsSecretKey = "test"
+	eventBusName = destenv.Get("DEST_EVENTBRIDGE_BUS", "destination_eventbridge_bus")
+	ruleName     = destenv.Get("DEST_EVENTBRIDGE_RULE", "destination_eventbridge_rule")
+	targetQueue  = destenv.Get("DEST_EVENTBRIDGE_QUEUE", "destination_eventbridge_queue")
 )
 
 const (
-	awsRegion      = "us-east-1"
-	awsEndpoint    = "http://localhost:24566"
-	awsAccessKey   = "test"
-	awsSecretKey   = "test"
-	eventBusName   = "destination_eventbridge_bus"
-	ruleName       = "destination_eventbridge_rule"
 	targetID       = "sqs"
-	targetQueue    = "destination_eventbridge_queue"
 	matchAllEvents = `{"source":[{"prefix":""}]}`
 )
 
@@ -41,10 +46,14 @@ func main() {
 		log.Fatalf("Failed to load AWS config: %v", err)
 	}
 	ebClient := eventbridge.NewFromConfig(awsConfig, func(o *eventbridge.Options) {
-		o.BaseEndpoint = aws.String(awsEndpoint)
+		if awsEndpoint != "" {
+			o.BaseEndpoint = aws.String(awsEndpoint)
+		}
 	})
 	sqsClient := sqs.NewFromConfig(awsConfig, func(o *sqs.Options) {
-		o.BaseEndpoint = aws.String(awsEndpoint)
+		if awsEndpoint != "" {
+			o.BaseEndpoint = aws.String(awsEndpoint)
+		}
 	})
 
 	switch {
