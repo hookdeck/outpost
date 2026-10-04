@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/hookdeck/outpost/cmd/destinations/internal/destenv"
 	"github.com/rabbitmq/amqp091-go"
@@ -25,7 +26,7 @@ func main() {
 }
 
 func run() error {
-	conn, err := amqp091.Dial(RABBIT_SERVER_URL)
+	conn, err := dialWithRetry(RABBIT_SERVER_URL, 30*time.Second)
 	if err != nil {
 		return err
 	}
@@ -94,4 +95,21 @@ func run() error {
 	<-termChan
 
 	return nil
+}
+
+// dialWithRetry retries while the broker starts: right after `make up/dest`
+// RabbitMQ accepts TCP before it completes the AMQP handshake.
+func dialWithRetry(url string, timeout time.Duration) (*amqp091.Connection, error) {
+	deadline := time.Now().Add(timeout)
+	for {
+		conn, err := amqp091.Dial(url)
+		if err == nil {
+			return conn, nil
+		}
+		if time.Now().After(deadline) {
+			return nil, err
+		}
+		log.Printf("[*] waiting for RabbitMQ at %s: %v", url, err)
+		time.Sleep(time.Second)
+	}
 }

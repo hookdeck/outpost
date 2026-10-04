@@ -78,7 +78,7 @@ func main() {
 
 	log.Printf("[*] Ready to receive events from EventBridge")
 	log.Printf("[*] Configuration:")
-	log.Printf("\tEndpoint: %s (use 'http://localstack:4566' if Outpost runs inside the Docker network)", awsEndpoint)
+	log.Printf("\tEndpoint: %s (use 'http://dest-aws:4566' in destinations of the make up stack)", awsEndpoint)
 	log.Printf("\tRegion: %s", awsRegion)
 	log.Printf("\tEvent bus: %s", eventBusName)
 	log.Printf("\tCredentials: %s / %s", awsAccessKey, awsSecretKey)
