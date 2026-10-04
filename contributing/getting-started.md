@@ -31,7 +31,8 @@ make nuke    # stop + remove volumes (wipe state)
 ```
 
 `make up` is declarative — it reads `.env` and reconciles the running stack
-to match. Edit `.env`, re-run `make up`, and only the diff is applied.
+to match. Edit `.env`, re-run `make up`, and only the diff is applied;
+services whose flag you turned off are removed.
 
 ### Verifying the stack
 
@@ -134,6 +135,18 @@ After changing `.env`, reconcile the stack:
 make up
 ```
 
+### Upgrading an existing setup (RabbitMQ → NATS default)
+
+Setups copied from `.env.dev` / `.outpost.yaml.dev` before NATS became the default keep working unchanged on RabbitMQ: `LOCAL_DEV_RABBITMQ=1` in `.env` and `mqs.rabbitmq` in `.outpost.yaml` still go together. To move to the NATS default, change both files together, then `make up` (it removes the RabbitMQ container):
+
+```sh
+cp .env.dev .env                    # or: LOCAL_DEV_NATS=1, drop LOCAL_DEV_RABBITMQ=1
+cp .outpost.yaml.dev .outpost.yaml  # or: mqs.nats.server_url "nats://nats:4222", drop mqs.rabbitmq
+make up
+```
+
+Changing only one of the two files leaves Outpost pointing at a queue that isn't running; `make up` stops with an error saying which flag is missing.
+
 ### Choosing the internal message queue
 
 A `LOCAL_DEV_*` flag only starts a queue; Outpost uses the one configured under `mqs:` in `.outpost.yaml`. The default pair is `LOCAL_DEV_NATS=1` and `mqs.nats.server_url: "nats://nats:4222"`. To run on RabbitMQ instead:
@@ -150,7 +163,7 @@ mqs:
     server_url: "amqp://guest:guest@rabbitmq:5672"
 ```
 
-When several queues are configured, Outpost picks one in this order: AWS SQS, Azure Service Bus, GCP Pub/Sub, RabbitMQ, NATS. So uncommenting `rabbitmq` is enough to switch; the `nats` block can stay. Then `make up`.
+When several queues are configured, Outpost picks one in this order: AWS SQS, Azure Service Bus, GCP Pub/Sub, RabbitMQ, NATS. So uncommenting `rabbitmq` is enough to switch; the `nats` block can stay. Comment out `LOCAL_DEV_NATS=1` too if you don't need NATS running. Then `make up`.
 
 NATS uses one stream (`outpost` by default) with the subjects `outpost.delivery` and `outpost.log`, and DLQ subjects `dlq.outpost-delivery` / `dlq.outpost-log` (streams `dlq-outpost-delivery` / `dlq-outpost-log`). To share one NATS server between several Outpost deployments, give each its own `NATS_STREAM` and subjects (`NATS_DELIVERY_SUBJECT`, `NATS_LOG_SUBJECT`, prefixed with the stream name); see `.env.example`.
 

@@ -62,47 +62,58 @@ $ curl 'localhost:3333/api/v1/tenants/<TENANT_ID>/destinations' \
 }'
 ```
 
-### Webhooks
+### Kafka
 
-To test local webhooks destination, you can run a local mock server:
+The stack's Kafka doesn't create topics on first use, so a destination to a missing topic fails with `topic_not_found`. The helper creates the topic (`destination-topic`, or `DEST_KAFKA_TOPIC`) and prints what arrives:
 
 ```sh
-$ go run cmd/destinations/webhooks/main.go
-# [*] Server listening on port :4000
-
-# or specify a preferred PORT
-$ PORT=3000 go run cmd/destinations/webhooks/main.go
-# [*] Server listening on port :3000
+$ make up/dest DEST=kafka
+$ go run ./cmd/destinations/kafka
 ```
 
-You can create a webhooks destination to start receiving events:
+```sh
+$ curl 'localhost:3333/api/v1/tenants/<TENANT_ID>/destinations' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer apikey' \
+--data '{
+    "type": "kafka",
+    "topics": ["*"],
+    "config": {
+        "brokers": "dest-kafka:29094",
+        "topic": "destination-topic",
+        "sasl_mechanism": "plain",
+        "tls": "false"
+    },
+    "credentials": {"username": "admin", "password": "admin-secret"}
+}'
+```
+
+To create a topic without the helper: `docker exec outpost-dest-dest-kafka-1 kafka-topics --bootstrap-server localhost:29092 --create --topic <name>`.
+
+### GCP Pub/Sub
+
+`go run ./cmd/destinations/gcppubsub` creates a topic and subscription on the stack's emulator (`make up/dest DEST=gcp`) and prints what arrives; `DEST_GCP_*` variables point it at another project or at GCP itself (see the helper's usage output).
+
+### Webhooks
+
+`go run ./cmd/destinations/webhooks` listens on port 4444 (`PORT` to change it) and prints every request. The `make up` services reach your machine as `host.docker.internal`:
 
 ```sh
-$ curl --location 'localhost:4000/<TENANT_ID>/destinations' \
+$ go run ./cmd/destinations/webhooks
+[*] Server listening on port :4444
+```
+
+```sh
+$ curl 'localhost:3333/api/v1/tenants/<TENANT_ID>/destinations' \
 --header 'Content-Type: application/json' \
---header 'Authorization: ••••••' \
+--header 'Authorization: Bearer apikey' \
 --data '{
     "type": "webhook",
     "topics": ["*"],
     "config": {
-        "url": "http://localhost:4444"
+        "url": "http://host.docker.internal:4444"
     }
 }'
-```
-
-```json
-{
-  "id": "...",
-  "type": "webhook",
-  "topics": [
-    "*"
-  ],
-  "config": {
-    "url": "http://localhost:4444"
-  },
-  "created_at": "...",
-  "disabled_at": null
-}
 ```
 
 ## Implementation
