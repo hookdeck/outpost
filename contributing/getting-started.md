@@ -27,7 +27,7 @@ See [Configuration](#configuration) to customize with PostgreSQL, RabbitMQ, AWS 
 ```sh
 make up      # bring up everything enabled in .env
 make down    # stop and remove the stack
-make nuke    # stop + remove volumes (wipe state)
+make nuke    # stop + remove volumes of every dev service, including disabled ones (wipe state)
 ```
 
 `make up` is declarative — it reads `.env` and reconciles the running stack
@@ -145,7 +145,7 @@ cp .outpost.yaml.dev .outpost.yaml  # or: mqs.nats.server_url "nats://nats:4222"
 make up
 ```
 
-Changing only one of the two files leaves Outpost pointing at a queue that isn't running; `make up` stops with an error saying which flag is missing.
+Changing only one of the two files leaves Outpost pointing at a queue that isn't running; `make up` stops with an error saying which flag is missing. `make nuke` resets all dev state: it removes the volumes of every service in the dev stack, including ones whose flag is off (e.g. old RabbitMQ or Postgres data).
 
 ### Choosing the internal message queue
 
