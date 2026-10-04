@@ -38,7 +38,9 @@ both `grafana/` and `uptrace/`).
 ## Adding a new add-on
 
 1. Create `build/dev/<name>/compose.yml` with `name: "outpost"` at the top
-   and no `networks:` block (compose creates the default network).
+   and no `networks:` block (compose creates the default network). Relative
+   paths resolve from `build/dev/` (the directory of the first compose file),
+   not from the add-on's directory: mount `./<name>/config.yml`.
 2. Add a `LOCAL_DEV_<NAME>=1` branch in `dev.sh` appending the file.
 3. Add the flag to `.env.dev` (commented) and document it in
    `contributing/getting-started.md`.

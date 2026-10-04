@@ -55,7 +55,7 @@ services:
       - 28123:8123  # HTTP
     volumes:
       - clickhouse:/var/lib/clickhouse/
-      - ./clickhouse/cors.xml:/etc/clickhouse-server/config.d/cors.xml:ro
+      - ./deps/clickhouse/cors.xml:/etc/clickhouse-server/config.d/cors.xml:ro
     ulimits:
       nofile:
         soft: 262144
