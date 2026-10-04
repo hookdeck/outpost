@@ -85,6 +85,9 @@ services:
 
   # ============================== MQs ==============================
   # LOCAL_DEV_RABBITMQ=1, LOCAL_DEV_LOCALSTACK=1, LOCAL_DEV_GCP=1
+  #
+  # A healthcheck runs for as long as the stack is up, so keep the probes
+  # cheap: a costly one shows up as idle CPU.
   rabbitmq:
     profiles: ["rabbitmq"]
     image: rabbitmq:3-management
@@ -93,10 +96,12 @@ services:
       - 25673:15672  # Management UI
     volumes:
       - rabbitmq:/var/lib/rabbitmq
+    # An open AMQP port means the broker finished booting. rabbitmq-diagnostics
+    # would start an Erlang VM on every check.
     healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "-q", "check_port_connectivity"]
+      test: ["CMD", "bash", "-c", "echo > /dev/tcp/127.0.0.1/5672"]
       interval: 5s
-      timeout: 10s
+      timeout: 3s
       retries: 20
 
   localstack:
