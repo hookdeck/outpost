@@ -7,6 +7,7 @@ x-deps-depends-on: &deps_depends_on
   dragonfly:  { condition: service_healthy, required: false }
   postgres:   { condition: service_healthy, required: false }
   clickhouse: { condition: service_healthy, required: false }
+  nats:       { condition: service_healthy, required: false }
   rabbitmq:   { condition: service_healthy, required: false }
   localstack: { condition: service_healthy, required: false }
   gcp:        { condition: service_healthy, required: false }

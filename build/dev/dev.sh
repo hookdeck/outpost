@@ -40,7 +40,9 @@ fi
 [ "${LOCAL_DEV_POSTGRES:-}" = "1" ] && profiles+=(postgres)
 [ "${LOCAL_DEV_CLICKHOUSE:-}" = "1" ] && profiles+=(clickhouse)
 
-# Message queues
+# Message queues. Starting a queue doesn't select it: Outpost uses the one
+# configured under `mqs:` in .outpost.yaml (or the matching env vars).
+[ "${LOCAL_DEV_NATS:-}" = "1" ] && profiles+=(nats)
 [ "${LOCAL_DEV_RABBITMQ:-}" = "1" ] && profiles+=(rabbitmq)
 [ "${LOCAL_DEV_LOCALSTACK:-}" = "1" ] && profiles+=(localstack)
 [ "${LOCAL_DEV_GCP:-}" = "1" ] && profiles+=(gcp)

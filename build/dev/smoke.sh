@@ -87,7 +87,7 @@ event_body=$(jq -nc \
   --arg trace "$TRACE" \
   '{tenant_id:$tenant, topic:$topic, data:{trace:$trace, smoke:true}}')
 pub_resp=$(req POST "/publish" "$event_body") \
-  || fail "publish failed (rabbitmq or publishmq config likely wrong)"
+  || fail "publish failed (internal mq config likely wrong; see SERVICE=api make logs)"
 event_id=$(echo "$pub_resp" | jq -r '.id // empty')
 ok "event ingested${event_id:+ (id=$event_id)}"
 

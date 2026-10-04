@@ -12,9 +12,14 @@ redis:
   password: "password"
   database: 0
 
+# Internal message queue. Start the matching service in .env (LOCAL_DEV_NATS=1,
+# LOCAL_DEV_RABBITMQ=1, ...). If several are configured, Outpost picks one in
+# this order: aws_sqs, azure_servicebus, gcp_pubsub, rabbitmq, nats.
 mqs:
-  rabbitmq:
-    server_url: "amqp://guest:guest@rabbitmq:5672"
+  nats:
+    server_url: "nats://nats:4222"
+  # rabbitmq:
+  #   server_url: "amqp://guest:guest@rabbitmq:5672"
   # aws_sqs:
   #   endpoint: "http://aws:4566"
   #   region: "us-east-1"
@@ -26,7 +31,8 @@ mqs:
   # azure_servicebus:
   #   connection_string: "Endpoint=sb://azuresb;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;"
 
-# Publish MQ (optional, for ingesting events from external sources)
+# Publish MQ (optional, for ingesting events from external sources). Start the
+# matching service in .env too (e.g. LOCAL_DEV_RABBITMQ=1).
 # publishmq:
 #   rabbitmq:
 #     server_url: "amqp://guest:guest@rabbitmq:5672"

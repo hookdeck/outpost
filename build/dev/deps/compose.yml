@@ -84,10 +84,27 @@ services:
       retries: 15
 
   # ============================== MQs ==============================
-  # LOCAL_DEV_RABBITMQ=1, LOCAL_DEV_LOCALSTACK=1, LOCAL_DEV_GCP=1
+  # LOCAL_DEV_NATS=1 (default in .env.dev), LOCAL_DEV_RABBITMQ=1,
+  # LOCAL_DEV_LOCALSTACK=1, LOCAL_DEV_GCP=1
   #
   # A healthcheck runs for as long as the stack is up, so keep the probes
   # cheap: a costly one shows up as idle CPU.
+  nats:
+    profiles: ["nats"]
+    image: nats:2.10-alpine
+    # -js enables JetStream (plain NATS has no persistence); -m serves /healthz.
+    command: ["-js", "-sd", "/data", "-m", "8222"]
+    ports:
+      - 24222:4222  # client
+      - 28222:8222  # monitoring
+    volumes:
+      - nats:/data
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8222/healthz?js-enabled-only=true"]
+      interval: 3s
+      timeout: 2s
+      retries: 20
+
   rabbitmq:
     profiles: ["rabbitmq"]
     image: rabbitmq:3-management
@@ -152,6 +169,8 @@ volumes:
   clickhouse:
     driver: local
   postgres:
+    driver: local
+  nats:
     driver: local
   rabbitmq:
     driver: local

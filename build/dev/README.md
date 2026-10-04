@@ -24,7 +24,7 @@ mechanism.
 | dir | purpose | gating |
 |---|---|---|
 | `compose.yml` | core (api, delivery, log, portal) — always on | — |
-| `deps/` | redis/dragonfly, postgres, clickhouse, rabbitmq, localstack, gcp + GUIs | compose profiles, per service |
+| `deps/` | redis/dragonfly, postgres, clickhouse, nats, rabbitmq, localstack, gcp + GUIs | compose profiles, per service |
 | `envoy/` | forward proxy for `DESTINATIONS_PROXY_URL` flows | `LOCAL_DEV_ENVOY=1` |
 | `envoy-chain/` | second proxy behind `envoy/`, for hop-list flows | `LOCAL_DEV_ENVOY_CHAIN=1` |
 | `grafana/` | otel-collector + Prometheus + Grafana | `LOCAL_DEV_GRAFANA=1` |
