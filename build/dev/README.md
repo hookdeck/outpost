@@ -16,8 +16,12 @@ LOCAL_DEV_X=1
 ```
 
 `make up` is declarative: edit `.env`, re-run `make up`, only the diff is
-applied. There are no `up/<addon>` targets — flipping the flag is the
-mechanism.
+applied, and services whose flag was turned off are removed. Add-ons have no
+`up/<addon>` targets — flipping the flag is the mechanism. (`make up/dest`
+is a separate stack, not an add-on; see below.)
+
+`dev.sh` also stops `make up` early when the Outpost config uses RabbitMQ or
+NATS but the matching `LOCAL_DEV_*` flag is off.
 
 ## Layout
 

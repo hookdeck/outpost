@@ -79,6 +79,7 @@ up/dest:
 
 down/dest:
 	COMPOSE_PROFILES="*" docker-compose --env-file .env.test -f build/dest/compose.yml down --volumes
+	@docker network rm outpost-dest >/dev/null 2>&1 || true
 
 up/test/rediscluster:
 	@echo "Ensuring test network exists..."
@@ -153,8 +154,7 @@ test/coverage/html:
 	go tool cover -html=coverage.out
 
 migrate:
-	@docker network create outpost-dest >/dev/null 2>&1 || true
-	docker-compose -f build/dev/compose.yml --env-file .env run --rm --entrypoint "" api go run ./cmd/outpost migrate apply --yes
+	./build/dev/dev.sh run --rm migrate
 
 redis/debug:
 	go run cmd/redis-debug/main.go $(ARGS)

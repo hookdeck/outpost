@@ -2,14 +2,14 @@
 # Drives `make up` / `make down`. Reads LOCAL_DEV_* from .env and assembles
 # the docker compose invocation: list of -f files + COMPOSE_PROFILES.
 #
-# Usage: dev.sh up|down [extra docker compose args...]
+# Usage: dev.sh up|down|run [extra docker compose args...]
 set -euo pipefail
 
 cmd="${1:-}"
 shift || true
 
 if [ -z "$cmd" ]; then
-  echo "usage: dev.sh up|down [extra args]" >&2
+  echo "usage: dev.sh up|down|run [extra args]" >&2
   exit 2
 fi
 
@@ -72,19 +72,61 @@ fi
 COMPOSE_PROFILES="$(IFS=,; echo "${profiles[*]}")"
 export COMPOSE_PROFILES
 
+# check_queue_flags fails fast when the Outpost config points at a queue whose
+# service isn't enabled: the api would otherwise wait ~2 minutes for it and
+# fail with a bare i/o timeout. Checks the YAML file named by CONFIG and .env.
+check_queue_flags() {
+  local sources=(.env)
+  [ -n "${CONFIG:-}" ] && [ -f "${CONFIG}" ] && sources+=("${CONFIG}")
+  uses() { grep -hEv '^[[:space:]]*#' "${sources[@]}" 2>/dev/null | grep -qE "$1"; }
+  local fail=0
+  if uses 'amqp://[^"[:space:]]*@rabbitmq:' && [ "${LOCAL_DEV_RABBITMQ:-}" != "1" ]; then
+    echo "error: your Outpost config uses RabbitMQ (rabbitmq:5672) but LOCAL_DEV_RABBITMQ=1 isn't set in .env." >&2
+    fail=1
+  fi
+  if uses 'nats://nats:' && [ "${LOCAL_DEV_NATS:-}" != "1" ]; then
+    echo "error: your Outpost config uses NATS (nats:4222) but LOCAL_DEV_NATS=1 isn't set in .env." >&2
+    fail=1
+  fi
+  if [ "$fail" = "1" ]; then
+    echo "Enable the queue in .env, or point mqs: in ${CONFIG:-.outpost.yaml} at an enabled one." >&2
+    echo "Upgrading from a RabbitMQ setup? See \"Choosing the internal message queue\" in contributing/getting-started.md." >&2
+    exit 1
+  fi
+}
+
+dc() { docker compose --env-file .env "${files[@]}" "$@"; }
+
 case "$cmd" in
   up)
+    check_queue_flags
     # Shared with the destination stack (make up/dest); see compose.yml.
     docker network create outpost-dest >/dev/null 2>&1 || true
-    exec docker compose --env-file .env "${files[@]}" up -d "$@"
+    # Services whose flag was turned off: compose leaves containers of
+    # inactive profiles running, so remove them to match .env.
+    inactive=$(comm -13 <(dc config --services | sort) <(COMPOSE_PROFILES="*" dc config --services | sort))
+    if [ -n "$inactive" ]; then
+      # shellcheck disable=SC2086
+      COMPOSE_PROFILES="*" dc rm --stop --force $inactive >/dev/null 2>&1 || true
+    fi
+    exec docker compose --env-file .env "${files[@]}" up -d --remove-orphans "$@"
     ;;
   down)
-    # --remove-orphans cleans up containers from add-on files that may have
-    # been included previously but aren't in the current invocation.
-    exec docker compose --env-file .env "${files[@]}" down --remove-orphans "$@"
+    # All profiles, so services whose flag was turned off since `make up` go
+    # too; --remove-orphans cleans up containers from add-on files that may
+    # have been included previously but aren't in the current invocation.
+    COMPOSE_PROFILES="*" dc down --remove-orphans "$@"
+    # Fails, harmlessly, while the destination stack still uses it.
+    docker network rm outpost-dest >/dev/null 2>&1 || true
+    ;;
+  run)
+    # One-off command in a service, e.g. `dev.sh run --rm migrate`.
+    check_queue_flags
+    docker network create outpost-dest >/dev/null 2>&1 || true
+    exec docker compose --env-file .env "${files[@]}" run "$@"
     ;;
   *)
-    echo "usage: dev.sh up|down [extra args]" >&2
+    echo "usage: dev.sh up|down|run [extra args]" >&2
     exit 2
     ;;
 esac
