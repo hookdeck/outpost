@@ -41,10 +41,10 @@ func Race(t *testing.T) {
 	}
 }
 
-// Test groups beyond the default run form a ladder: TESTDEST=1 adds the
-// destination provider tests, TESTCOMPAT=1 adds Outpost on the other internal
-// queues and the backend compat suites, and includes TESTDEST (it needs the
-// same brokers).
+// Test groups beyond the default run: TESTDEST=1 adds the destination
+// provider tests; TESTCOMPAT=1 adds Outpost on the other internal queues and
+// the backend compat suites, and includes TESTDEST (it needs the same
+// brokers). TESTDEST ⊂ TESTCOMPAT; TESTAZURE is separate (see testinfra).
 
 // SkipUnlessCompat skips tests of alternative backends: internal queues other
 // than NATS, and e2e suites on non-default stores.

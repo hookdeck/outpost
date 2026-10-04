@@ -214,7 +214,8 @@ func runBrokerOutage(t *testing.T, h *publishMQHarness, broker *flakyBroker) {
 }
 
 // restartQueue is a queue the restart tests below run on: NATS by default,
-// RabbitMQ with TESTCOMPAT=1.
+// RabbitMQ with TESTCOMPAT=1. The /nats publish-MQ variants exercise the
+// queue-agnostic supervisor; NATS isn't a publish queue provider.
 type restartQueue struct {
 	name   string
 	compat bool

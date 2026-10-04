@@ -116,10 +116,10 @@ test/setup:
 	@echo "$$ make up/test          # ClickHouse, Postgres, NATS, mock server"
 	@echo "$$ make test"
 	@echo ""
-	@echo "Optional test groups (export before make up/test and make test); each includes the one above:"
+	@echo "Optional test groups (export before make up/test and make test). TESTDEST ⊂ TESTCOMPAT; TESTAZURE is separate:"
 	@echo "  TESTDEST=1     destination providers: RabbitMQ, AWS, GCP Pub/Sub, Kafka (starts make up/dest)"
 	@echo "  TESTCOMPAT=1   Outpost on RabbitMQ / SQS / Pub/Sub internal queues, backend compat suites"
-	@echo "  TESTAZURE=1    Azure Service Bus (needs the emulator: LOCAL_DEV_AZURE=1 make up)"
+	@echo "  TESTAZURE=1    separate: Azure Service Bus only (needs the emulator: LOCAL_DEV_AZURE=1 make up)"
 	@echo ""
 	@echo "See contributing/test.md for details."
 

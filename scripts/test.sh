@@ -55,7 +55,7 @@ cmd_e2e() {
     run_tests "./cmd/e2e"
 }
 
-# Command: full - run all tests, including every optional test group
+# Command: full - run all tests with TESTCOMPAT and TESTDEST (not TESTAZURE)
 cmd_full() {
     export TESTCOMPAT=1 TESTDEST=1
     echo "Running full test suite with TESTCOMPAT=1 TESTDEST=1..."

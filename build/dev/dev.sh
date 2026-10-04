@@ -75,7 +75,8 @@ export COMPOSE_PROFILES
 # check_queue_flags fails fast when the internal queue Outpost will use runs
 # in this stack but isn't enabled: the api would otherwise wait ~2 minutes for
 # it and fail with a bare i/o timeout. Like Outpost, it reads the YAML file
-# named by CONFIG and lets .env variables override it.
+# named by CONFIG and lets .env variables override it. It also sees variables
+# exported in your shell, which the containers don't get (they read .env only).
 check_queue_flags() {
   local yaml=""
   [ -n "${CONFIG:-}" ] && [ -f "${CONFIG}" ] && yaml="${CONFIG}"

@@ -117,14 +117,14 @@ $ make test/coverage/html
 
 ## Test groups
 
-Integration tests (`TestIntegration…`, and the e2e suites) need external services. They form a ladder: by default `make test` runs what a default dev setup uses, so a test run needs few services and stays fast. Each flag adds a group of tests and includes the groups below it; a test outside the enabled groups skips with a message naming its flag.
+Integration tests (`TestIntegration…`, and the e2e suites) need external services. They form a ladder: by default `make test` runs what a default dev setup uses, so a test run needs few services and stays fast. `TESTDEST ⊂ TESTCOMPAT`: each row of the table adds to the rows above it. `TESTAZURE` is separate and adds only the Azure tests. A test outside the enabled groups skips with a message naming its flag.
 
 | Flag | Adds | Services |
 |------|------|----------|
 | (none) | Log stores (ClickHouse, Postgres), Redis and Dragonfly, NATS JetStream as the internal queue, e2e suites on NATS + ClickHouse + Dragonfly | test stack: `make up/test` (ClickHouse, Postgres, NATS, mock server). Redis and Dragonfly always run as testcontainers |
 | `TESTDEST=1` | Destination providers, every case: RabbitMQ, AWS SQS, Kinesis, S3 and EventBridge, GCP Pub/Sub, Kafka, and the e2e test that delivers to S3 | + destination stack: `make up/dest` (RabbitMQ, LocalStack, Pub/Sub emulator, Kafka) |
 | `TESTCOMPAT=1` | Outpost on the other internal queues: RabbitMQ, AWS SQS and GCP Pub/Sub (`internal/mqs`, `internal/mqinfra`, the RabbitMQ variants of the worker restart tests in `internal/services`, e2e on RabbitMQ), and the backend compat suites (e2e on Postgres, Redis Stack, and Redis Cluster when `TEST_REDIS_CLUSTER_URL` is set, see `make up/test/rediscluster`). Includes `TESTDEST` | + destination stack (same brokers) |
-| `TESTAZURE=1` | Azure Service Bus as internal queue and destination | Azure Service Bus emulator (`LOCAL_DEV_AZURE=1` in `.env`, then `make up`) |
+| `TESTAZURE=1` (separate) | Azure Service Bus as internal queue and destination; doesn't enable the rows above | Azure Service Bus emulator (`LOCAL_DEV_AZURE=1` in `.env`, then `make up`) |
 
 `./scripts/test.sh full` (`make test/full`) sets `TESTCOMPAT=1` and `TESTDEST=1`. `-short` (`make test/unit`, and CI) skips every integration test whatever the flags say.
 
