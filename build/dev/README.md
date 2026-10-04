@@ -23,7 +23,8 @@ is a separate stack, not an add-on; see below.)
 `dev.sh` also stops `make up` early when the internal queue Outpost will
 select (same order as Outpost: SQS, Azure Service Bus, Pub/Sub, RabbitMQ,
 NATS) is this stack's RabbitMQ or NATS but its `LOCAL_DEV_*` flag is off, or
-when the publish queue is this stack's RabbitMQ without `LOCAL_DEV_RABBITMQ=1`.
+when the selected publish queue (SQS, Azure Service Bus, Pub/Sub, RabbitMQ) is
+this stack's RabbitMQ without `LOCAL_DEV_RABBITMQ=1`.
 Leftover blocks of queues Outpost doesn't select are ignored.
 
 ## Layout
