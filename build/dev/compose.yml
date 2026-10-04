@@ -43,6 +43,7 @@ services:
     environment:
       SERVICE: api
     networks: [default, dest]
+    extra_hosts: ["host.docker.internal:host-gateway"] # reach helpers on your machine, e.g. cmd/destinations/webhooks
     depends_on:
       <<: *deps_depends_on
       migrate: { condition: service_completed_successfully }
@@ -62,6 +63,7 @@ services:
     environment:
       SERVICE: delivery
     networks: [default, dest]
+    extra_hosts: ["host.docker.internal:host-gateway"] # reach helpers on your machine, e.g. cmd/destinations/webhooks
     depends_on:
       <<: *deps_depends_on
       api: { condition: service_healthy }
@@ -76,6 +78,7 @@ services:
     environment:
       SERVICE: log
     networks: [default, dest]
+    extra_hosts: ["host.docker.internal:host-gateway"] # reach helpers on your machine, e.g. cmd/destinations/webhooks
     depends_on:
       <<: *deps_depends_on
       api: { condition: service_healthy }
