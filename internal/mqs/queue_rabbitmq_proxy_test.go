@@ -20,6 +20,7 @@ import (
 	"github.com/hookdeck/outpost/internal/proxychain"
 	"github.com/hookdeck/outpost/internal/proxychain/proxychaintest"
 	"github.com/hookdeck/outpost/internal/util/testinfra"
+	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -151,6 +152,7 @@ func TestMQ_RabbitMQProxyHonoursConnectionTimeout(t *testing.T) {
 }
 
 func TestIntegrationMQ_RabbitMQPublishThroughProxyChain(t *testing.T) {
+	testutil.SkipUnlessCompat(t)
 	t.Parallel()
 	t.Cleanup(testinfra.Start(t))
 	config := testinfra.NewMQRabbitMQConfig(t)

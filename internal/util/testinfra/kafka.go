@@ -7,7 +7,7 @@ import (
 	"net/netip"
 	"path/filepath"
 	"strconv"
-	"sync"
+	"testing"
 	"time"
 
 	"github.com/moby/moby/api/types/container"
@@ -22,27 +22,23 @@ import (
 // matching the mount path in build/test/compose.yml.
 const kafkaJaasPath = "/etc/kafka/jaas.conf"
 
-var (
-	kafkaOnce      sync.Once
-	kafkaReadyOnce sync.Once
-)
+var kafkaService = &service{name: "kafka", startHint: hintDest}
 
-func EnsureKafka() string {
+// EnsureKafka returns the host:port of the test Kafka broker (SASL PLAIN,
+// admin/admin-secret), failing t if it isn't available.
+func EnsureKafka(t testing.TB) string {
+	t.Helper()
 	cfg := ReadConfig()
-	if cfg.KafkaURL == "" {
-		kafkaOnce.Do(func() {
-			startKafkaTestContainer(cfg)
-		})
-	}
 	// A broker opens 9092 while it is still starting up and drops the SASL
 	// handshake, so authenticate rather than dial.
-	kafkaReadyOnce.Do(func() {
-		waitReadyLogged("kafka", cfg.KafkaURL, func() error {
+	return kafkaService.ensure(t, cfg.KafkaURL,
+		func() (string, error) { return startKafkaTestContainer(cfg) },
+		func(endpoint string) error {
 			dialer := &kafka.Dialer{
 				SASLMechanism: plain.Mechanism{Username: "admin", Password: "admin-secret"},
 				Timeout:       5 * time.Second,
 			}
-			conn, err := dialer.DialContext(context.Background(), "tcp", cfg.KafkaURL)
+			conn, err := dialer.DialContext(context.Background(), "tcp", endpoint)
 			if err != nil {
 				return err
 			}
@@ -50,11 +46,9 @@ func EnsureKafka() string {
 			_, err = conn.Brokers()
 			return err
 		})
-	})
-	return cfg.KafkaURL
 }
 
-func startKafkaTestContainer(cfg *Config) {
+func startKafkaTestContainer(cfg *Config) (string, error) {
 	ctx := context.Background()
 
 	// A Kafka broker hands clients the address in its advertised listener, so the
@@ -63,7 +57,10 @@ func startKafkaTestContainer(cfg *Config) {
 	// Claim a free port from the OS and bind the container to it explicitly.
 	// Reserving one per process, rather than hardcoding a port, keeps two test
 	// binaries that both want Kafka from fighting over the same number.
-	hostPort := reserveHostPort()
+	hostPort, err := reserveHostPort()
+	if err != nil {
+		return "", err
+	}
 
 	jaasConfig := `org.apache.kafka.common.security.plain.PlainLoginModule required username="admin" password="admin-secret" user_admin="admin-secret";`
 
@@ -72,7 +69,7 @@ func startKafkaTestContainer(cfg *Config) {
 	// compose stack mounts.
 	projectRoot, err := findProjectRoot()
 	if err != nil {
-		panic(err)
+		return "", err
 	}
 	jaasFile := filepath.Join(projectRoot, "build", "test", "kafka_jaas.conf")
 
@@ -119,22 +116,22 @@ func startKafkaTestContainer(cfg *Config) {
 		Started:          true,
 	})
 	if err != nil {
-		panic(err)
+		return "", err
 	}
 
 	endpoint := "127.0.0.1:" + hostPort
 	log.Printf("Kafka running at %s", endpoint)
-	cfg.KafkaURL = endpoint
+	return endpoint, nil
 }
 
 // reserveHostPort returns a port the OS reports as free. The listener is closed
 // before the port is used, so this is a hint rather than a reservation — good
 // enough for picking a broker port, not for anything that must not be raced.
-func reserveHostPort() string {
+func reserveHostPort() (string, error) {
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
-		panic(err)
+		return "", err
 	}
 	defer listener.Close()
-	return strconv.Itoa(listener.Addr().(*net.TCPAddr).Port)
+	return strconv.Itoa(listener.Addr().(*net.TCPAddr).Port), nil
 }

@@ -170,8 +170,9 @@ type RabbitMQPublishSuite struct {
 
 func (s *RabbitMQPublishSuite) SetupSuite() {
 	t := s.T()
+	testutil.SkipUnlessDest(t)
 	t.Cleanup(testinfra.Start(t))
-	rabbitURL := testinfra.EnsureRabbitMQ()
+	rabbitURL := testinfra.EnsureRabbitMQ(t)
 	exchange := idgen.String()
 
 	var opts []destrabbitmq.Option

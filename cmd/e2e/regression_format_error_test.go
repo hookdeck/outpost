@@ -17,6 +17,7 @@ import (
 	"github.com/hookdeck/outpost/internal/app"
 	"github.com/hookdeck/outpost/internal/config"
 	"github.com/hookdeck/outpost/internal/util/testinfra"
+	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/require"
 )
 
@@ -37,6 +38,7 @@ func TestE2E_Regression_FormatErrorIsDeliveredAttempt(t *testing.T) {
 		t.Skip("skipping e2e test")
 	}
 
+	testutil.SkipUnlessDest(t)
 	testinfraCleanup := testinfra.Start(t)
 	defer testinfraCleanup()
 	gin.SetMode(gin.TestMode)
@@ -45,7 +47,7 @@ func TestE2E_Regression_FormatErrorIsDeliveredAttempt(t *testing.T) {
 	defer cancel()
 
 	// LocalStack S3: the bucket doubles as the "was anything actually delivered?" sink.
-	endpoint := testinfra.EnsureLocalStack()
+	endpoint := testinfra.EnsureLocalStack(t)
 	awsCfg, err := awsconfig.LoadDefaultConfig(ctx,
 		awsconfig.WithRegion("us-east-1"),
 		awsconfig.WithCredentialsProvider(credentials.NewStaticCredentialsProvider("test", "test", "")),

@@ -157,10 +157,11 @@ type S3PublishSuite struct {
 
 func (s *S3PublishSuite) SetupSuite() {
 	t := s.T()
+	testutil.SkipUnlessDest(t)
 	t.Cleanup(testinfra.Start(t))
 
 	// Get LocalStack endpoint
-	endpoint := testinfra.EnsureLocalStack()
+	endpoint := testinfra.EnsureLocalStack(t)
 
 	// Set AWS environment variables for LocalStack
 	// The AWS SDK v2 will pick these up automatically

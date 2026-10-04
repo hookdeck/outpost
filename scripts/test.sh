@@ -55,10 +55,10 @@ cmd_e2e() {
     run_tests "./cmd/e2e"
 }
 
-# Command: full - run all tests with full backend compatibility
+# Command: full - run all tests, including every optional test group
 cmd_full() {
-    export TESTCOMPAT=1
-    echo "Running full test suite with TESTCOMPAT=1..."
+    export TESTCOMPAT=1 TESTDEST=1
+    echo "Running full test suite with TESTCOMPAT=1 TESTDEST=1..."
     run_tests "$TEST"
     echo ""
     echo "Running e2e tests..."
@@ -86,14 +86,16 @@ case "${1:-test}" in
         echo "  test    Run unit + integration tests (default)"
         echo "  unit    Run tests with -short flag (skip long-running tests)"
         echo "  e2e     Run end-to-end tests (./cmd/e2e)"
-        echo "  full    Run full test suite with TESTCOMPAT=1 (test + e2e)"
+        echo "  full    Run full test suite with TESTCOMPAT=1 TESTDEST=1 (test + e2e)"
         echo ""
         echo "Environment variables:"
         echo "  TEST          Package(s) to test (default: ./internal/...)"
         echo "  RUN           Filter tests by name pattern"
         echo "  TESTARGS      Additional arguments to pass to test command"
         echo "  TESTINFRA     Set to 1 to enable infrastructure-dependent tests"
-        echo "  TESTCOMPAT    Set to 1 to run full backend compatibility suite"
+        echo "  TESTDEST      Set to 1 to run destination provider tests (needs make up/dest)"
+        echo "  TESTCOMPAT    Set to 1 to also run Outpost on RabbitMQ/SQS/Pub/Sub internal queues and backend compat suites (implies TESTDEST)"
+        echo "  TESTAZURE     Set to 1 to run Azure Service Bus tests (needs the emulator)"
         echo "  TESTREDISCLUSTER  Set to 1 to enable Redis cluster tests"
         echo "  RUNNER        Force test runner: 'gotestsum' or 'go' (default: auto-detect)"
         echo "  GOTESTSUM_RERUN_FAILS  Number of times to rerun failed tests (default: 2)"

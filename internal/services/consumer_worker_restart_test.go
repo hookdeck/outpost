@@ -11,11 +11,14 @@ import (
 
 	"github.com/hookdeck/outpost/internal/config"
 	"github.com/hookdeck/outpost/internal/deliverymq"
+	"github.com/hookdeck/outpost/internal/mqinfra"
 	"github.com/hookdeck/outpost/internal/mqs"
 	"github.com/hookdeck/outpost/internal/services"
 	"github.com/hookdeck/outpost/internal/util/testinfra"
 	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/hookdeck/outpost/internal/worker"
+	natsgo "github.com/nats-io/nats.go"
+	"github.com/nats-io/nats.go/jetstream"
 	amqp091 "github.com/rabbitmq/amqp091-go"
 	"github.com/stretchr/testify/require"
 )
@@ -151,7 +154,12 @@ func (h *publishMQHarness) awaitMessage(id string, timeout time.Duration) {
 	}
 }
 
+// The broker outage tests run on RabbitMQ only (TESTCOMPAT=1): its consumer
+// fails when the connection drops, which is what the supervisor reacts to.
+// The NATS client reconnects and re-pulls on its own, so an outage never
+// reaches the supervisor and there is nothing to restart.
 func TestIntegrationPublishMQRestart_BrokerOutage(t *testing.T) {
+	testutil.SkipUnlessCompat(t)
 	t.Parallel()
 	t.Cleanup(testinfra.Start(t))
 	cfg := testinfra.NewMQRabbitMQConfig(t)
@@ -165,6 +173,7 @@ func TestIntegrationPublishMQRestart_BrokerOutage(t *testing.T) {
 // The internal delivery queue gets the same restarts when enabled: RabbitMQ
 // as the internal MQ, consumed through deliverymq as the delivery service does.
 func TestIntegrationDeliveryMQRestart_BrokerOutage(t *testing.T) {
+	testutil.SkipUnlessCompat(t)
 	t.Parallel()
 	t.Cleanup(testinfra.Start(t))
 	cfg := testinfra.NewMQRabbitMQConfig(t)
@@ -204,51 +213,116 @@ func runBrokerOutage(t *testing.T, h *publishMQHarness, broker *flakyBroker) {
 	h.awaitStatus(worker.WorkerStatusHealthy, 45*time.Second)
 }
 
-func TestIntegrationPublishMQRestart_QueueDeleted(t *testing.T) {
-	t.Parallel()
-	t.Cleanup(testinfra.Start(t))
-	cfg := testinfra.NewMQRabbitMQConfig(t)
-
-	h := startPublishMQWorker(t, supervisorConfig(config.SupervisorWorkerPublishMQ), cfg, cfg)
-	h.publish("before")
-	h.awaitMessage("before", 10*time.Second)
-
-	conn, err := amqp091.Dial(cfg.RabbitMQ.ServerURL)
-	require.NoError(t, err)
-	defer conn.Close()
-	ch, err := conn.Channel()
-	require.NoError(t, err)
-	_, err = ch.QueueDelete(cfg.RabbitMQ.Queue, false, false, false)
-	require.NoError(t, err)
-
-	h.awaitStatus(worker.WorkerStatusDegraded, 15*time.Second)
-
-	require.NoError(t, testutil.DeclareTestRabbitMQInfrastructure(context.Background(), cfg.RabbitMQ))
-	h.publish("after")
-	h.awaitMessage("after", 30*time.Second)
-	h.awaitStatus(worker.WorkerStatusHealthy, 45*time.Second)
+// restartQueue is a queue the restart tests below run on: NATS by default,
+// RabbitMQ with TESTCOMPAT=1.
+type restartQueue struct {
+	name   string
+	compat bool
+	// newConfig provisions a fresh queue.
+	newConfig func(t *testing.T) mqs.QueueConfig
+	// failingConfig returns a config for the same queue whose consumer
+	// can't start.
+	failingConfig func(t *testing.T, cfg mqs.QueueConfig) mqs.QueueConfig
+	// deleteQueue removes the queue under a running consumer; redeclare
+	// provisions it again.
+	deleteQueue func(t *testing.T, cfg mqs.QueueConfig)
+	redeclare   func(t *testing.T, cfg mqs.QueueConfig)
 }
 
-func TestIntegrationPublishMQRestart_BadCredentialsAtBoot(t *testing.T) {
+var restartQueues = []restartQueue{
+	{
+		name:      "nats",
+		newConfig: testinfra.NewMQNATSConfig,
+		failingConfig: func(t *testing.T, cfg mqs.QueueConfig) mqs.QueueConfig {
+			unreachable := *cfg.NATS
+			unreachable.ServerURL = "nats://127.0.0.1:1" // nothing listens on port 1
+			cfg.NATS = &unreachable
+			return cfg
+		},
+		deleteQueue: func(t *testing.T, cfg mqs.QueueConfig) {
+			nc, err := natsgo.Connect(cfg.NATS.ServerURL)
+			require.NoError(t, err)
+			defer nc.Close()
+			js, err := jetstream.New(nc)
+			require.NoError(t, err)
+			require.NoError(t, js.DeleteStream(context.Background(), cfg.NATS.Stream))
+		},
+		redeclare: func(t *testing.T, cfg mqs.QueueConfig) {
+			infra := mqinfra.New(&mqinfra.MQInfraConfig{NATS: &mqinfra.NATSInfraConfig{
+				ServerURL: cfg.NATS.ServerURL,
+				Stream:    cfg.NATS.Stream,
+				Subject:   cfg.NATS.Subject,
+			}})
+			require.NoError(t, infra.Declare(context.Background()))
+		},
+	},
+	{
+		name:          "rabbitmq",
+		compat:        true,
+		newConfig:     testinfra.NewMQRabbitMQConfig,
+		failingConfig: badPasswordConfig,
+		deleteQueue: func(t *testing.T, cfg mqs.QueueConfig) {
+			conn, err := amqp091.Dial(cfg.RabbitMQ.ServerURL)
+			require.NoError(t, err)
+			defer conn.Close()
+			ch, err := conn.Channel()
+			require.NoError(t, err)
+			_, err = ch.QueueDelete(cfg.RabbitMQ.Queue, false, false, false)
+			require.NoError(t, err)
+		},
+		redeclare: func(t *testing.T, cfg mqs.QueueConfig) {
+			require.NoError(t, testutil.DeclareTestRabbitMQInfrastructure(context.Background(), cfg.RabbitMQ))
+		},
+	},
+}
+
+// eachRestartQueue runs test once per queue, as parallel subtests.
+func eachRestartQueue(t *testing.T, test func(t *testing.T, q restartQueue, cfg mqs.QueueConfig)) {
 	t.Parallel()
-	t.Cleanup(testinfra.Start(t))
-	cfg := testinfra.NewMQRabbitMQConfig(t)
+	for _, q := range restartQueues {
+		t.Run(q.name, func(t *testing.T) {
+			if q.compat {
+				testutil.SkipUnlessCompat(t)
+			}
+			t.Parallel()
+			t.Cleanup(testinfra.Start(t))
+			test(t, q, q.newConfig(t))
+		})
+	}
+}
 
-	badCfg := badPasswordConfig(t, cfg)
+func TestIntegrationPublishMQRestart_QueueDeleted(t *testing.T) {
+	eachRestartQueue(t, func(t *testing.T, q restartQueue, cfg mqs.QueueConfig) {
+		h := startPublishMQWorker(t, supervisorConfig(config.SupervisorWorkerPublishMQ), cfg, cfg)
+		h.publish("before")
+		h.awaitMessage("before", 10*time.Second)
 
-	start := time.Now()
-	h := startPublishMQWorker(t, supervisorConfig(config.SupervisorWorkerPublishMQ), badCfg, cfg)
+		q.deleteQueue(t, cfg)
+		h.awaitStatus(worker.WorkerStatusDegraded, 15*time.Second)
 
-	got := h.awaitStatus(worker.WorkerStatusDegraded, 5*time.Second)
-	require.Equal(t, worker.ReasonStartupFailed, got.Reason)
+		q.redeclare(t, cfg)
+		h.publish("after")
+		h.awaitMessage("after", 30*time.Second)
+		h.awaitStatus(worker.WorkerStatusHealthy, 45*time.Second)
+	})
+}
 
-	// 5 restarts at 1, 2, 4, 8, 16s (±20%): failed at ~31s plus the time
-	// each failed login takes.
-	got = h.awaitStatus(worker.WorkerStatusFailed, 60*time.Second)
-	elapsed := time.Since(start)
-	require.Greater(t, elapsed, 24*time.Second)
-	require.Equal(t, worker.ReasonStartupFailed, got.Reason)
-	require.False(t, h.supervisor.GetHealthTracker().IsHealthy())
+func TestIntegrationPublishMQRestart_StartupFailure(t *testing.T) {
+	eachRestartQueue(t, func(t *testing.T, q restartQueue, cfg mqs.QueueConfig) {
+		start := time.Now()
+		h := startPublishMQWorker(t, supervisorConfig(config.SupervisorWorkerPublishMQ), q.failingConfig(t, cfg), cfg)
+
+		got := h.awaitStatus(worker.WorkerStatusDegraded, 5*time.Second)
+		require.Equal(t, worker.ReasonStartupFailed, got.Reason)
+
+		// 5 restarts at 1, 2, 4, 8, 16s (±20%): failed at ~31s plus the time
+		// each failed start takes.
+		got = h.awaitStatus(worker.WorkerStatusFailed, 60*time.Second)
+		elapsed := time.Since(start)
+		require.Greater(t, elapsed, 24*time.Second)
+		require.Equal(t, worker.ReasonStartupFailed, got.Reason)
+		require.False(t, h.supervisor.GetHealthTracker().IsHealthy())
+	})
 }
 
 // supervisorConfig returns the default config with restarts on for the
@@ -273,16 +347,14 @@ func badPasswordConfig(t *testing.T, cfg mqs.QueueConfig) mqs.QueueConfig {
 }
 
 func TestIntegrationPublishMQRestart_DisabledByDefault(t *testing.T) {
-	t.Parallel()
-	t.Cleanup(testinfra.Start(t))
-	cfg := testinfra.NewMQRabbitMQConfig(t)
+	eachRestartQueue(t, func(t *testing.T, q restartQueue, cfg mqs.QueueConfig) {
+		h := startPublishMQWorker(t, supervisorConfig(), q.failingConfig(t, cfg), cfg)
 
-	h := startPublishMQWorker(t, supervisorConfig(), badPasswordConfig(t, cfg), cfg)
-
-	// As without a restart policy: failed on the first error, no since/reason, no restart.
-	got := h.awaitStatus(worker.WorkerStatusFailed, 15*time.Second)
-	require.Equal(t, worker.WorkerHealth{Status: worker.WorkerStatusFailed}, got)
-	require.False(t, h.supervisor.GetHealthTracker().IsHealthy())
+		// As without a restart policy: failed on the first error, no since/reason, no restart.
+		got := h.awaitStatus(worker.WorkerStatusFailed, 15*time.Second)
+		require.Equal(t, worker.WorkerHealth{Status: worker.WorkerStatusFailed}, got)
+		require.False(t, h.supervisor.GetHealthTracker().IsHealthy())
+	})
 }
 
 type handlerFunc func(ctx context.Context, msg *mqs.Message) error

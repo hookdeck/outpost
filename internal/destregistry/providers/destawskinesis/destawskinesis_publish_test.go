@@ -289,9 +289,10 @@ func TestAWSKinesisSuite(t *testing.T) {
 
 func (s *AWSKinesisSuite) SetupSuite() {
 	t := s.T()
+	testutil.SkipUnlessDest(t)
 	t.Cleanup(testinfra.Start(t))
 
-	s.localstackEndpoint = testinfra.EnsureLocalStack()
+	s.localstackEndpoint = testinfra.EnsureLocalStack(t)
 	awsConfig, err := config.LoadDefaultConfig(context.Background(),
 		config.WithRegion("us-east-1"),
 		config.WithCredentialsProvider(

@@ -135,7 +135,7 @@ type eventBridgeFixture struct {
 }
 
 func newEventBridgeFixture(t *testing.T) *eventBridgeFixture {
-	endpoint := testinfra.EnsureLocalStack()
+	endpoint := testinfra.EnsureLocalStack(t)
 	awsConfig, err := config.LoadDefaultConfig(context.Background(),
 		config.WithRegion("us-east-1"),
 		config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider("test", "test", "")),
@@ -210,6 +210,7 @@ func TestAWSEventBridgeSuite(t *testing.T) {
 
 func (s *AWSEventBridgeSuite) SetupSuite() {
 	t := s.T()
+	testutil.SkipUnlessDest(t)
 	t.Cleanup(testinfra.Start(t))
 	s.fixture = newEventBridgeFixture(t)
 
@@ -294,6 +295,7 @@ func publishAndReceive(t *testing.T, busName string, event models.Event) eventBr
 }
 
 func TestAWSEventBridgePublish_DefaultBus(t *testing.T) {
+	testutil.SkipUnlessDest(t)
 	t.Cleanup(testinfra.Start(t))
 
 	event := testutil.EventFactory.Any(testutil.EventFactory.WithTopic("user.created"))
@@ -303,6 +305,7 @@ func TestAWSEventBridgePublish_DefaultBus(t *testing.T) {
 }
 
 func TestAWSEventBridgePublish_NoTopic(t *testing.T) {
+	testutil.SkipUnlessDest(t)
 	t.Cleanup(testinfra.Start(t))
 
 	event := testutil.EventFactory.Any(testutil.EventFactory.WithTopic(""))
@@ -312,6 +315,7 @@ func TestAWSEventBridgePublish_NoTopic(t *testing.T) {
 }
 
 func TestAWSEventBridgePublish_EventTime(t *testing.T) {
+	testutil.SkipUnlessDest(t)
 	t.Cleanup(testinfra.Start(t))
 
 	eventTime := time.Now().Add(-time.Hour).UTC().Truncate(time.Second)

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"log"
-	"strconv"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -452,7 +451,7 @@ func TestIntegrationIdempotence_WithUnackedFailures(t *testing.T) {
 	t.Parallel()
 
 	visibilityTimeout := 2 * time.Second
-	mq := startAWSSQSQueueWithVisibilityTimeout(context.Background(), t, visibilityTimeout)
+	mq := startQueueWithVisibilityTimeout(context.Background(), t, visibilityTimeout)
 
 	ctx, cancel := context.WithTimeout(context.Background(), visibilityTimeout*3+time.Second)
 	defer cancel()
@@ -510,7 +509,7 @@ func TestIntegrationIdempotence_WithConcurrentHandlerAndSuccess(t *testing.T) {
 	t.Parallel()
 
 	visibilityTimeout := 2 * time.Second
-	mq := startAWSSQSQueueWithVisibilityTimeout(context.Background(), t, visibilityTimeout)
+	mq := startQueueWithVisibilityTimeout(context.Background(), t, visibilityTimeout)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second) // exec should only take ~1s
 	defer cancel()
@@ -592,7 +591,7 @@ func TestIntegrationIdempotence_WithConcurrentHandlerAndFailedExecution(t *testi
 	t.Parallel()
 
 	visibilityTimeout := 2 * time.Second
-	mq := startAWSSQSQueueWithVisibilityTimeout(context.Background(), t, visibilityTimeout)
+	mq := startQueueWithVisibilityTimeout(context.Background(), t, visibilityTimeout)
 
 	ctx, cancel := context.WithTimeout(context.Background(), visibilityTimeout*3+time.Second)
 	defer cancel()
@@ -680,11 +679,12 @@ func (m *MockMsg) ToMessage() (*mqs.Message, error) {
 	return &mqs.Message{Body: []byte(m.ID)}, nil
 }
 
-func startAWSSQSQueueWithVisibilityTimeout(ctx context.Context, t *testing.T, visibilityTimeout time.Duration) mqs.Queue {
+// startQueueWithVisibilityTimeout starts a NATS queue whose unacked messages
+// come back after visibilityTimeout.
+func startQueueWithVisibilityTimeout(ctx context.Context, t *testing.T, visibilityTimeout time.Duration) mqs.Queue {
 	t.Cleanup(testinfra.Start(t))
-	mqConfig := testinfra.NewMQAWSConfig(t, map[string]string{
-		"VisibilityTimeout": strconv.Itoa(int(visibilityTimeout.Seconds())),
-	})
+	mqConfig := testinfra.NewMQNATSConfig(t)
+	testinfra.SetNATSAckWait(t, mqConfig, visibilityTimeout)
 	mq := mqs.NewQueue(&mqConfig)
 	cleanup, err := mq.Init(ctx)
 	t.Cleanup(cleanup)

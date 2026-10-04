@@ -6,7 +6,6 @@ import (
 	"log"
 	"net/http"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -19,7 +18,7 @@ import (
 func NewMQAWSConfig(t *testing.T, attributes map[string]string) mqs.QueueConfig {
 	queueConfig := mqs.QueueConfig{
 		AWSSQS: &mqs.AWSSQSConfig{
-			Endpoint:                  EnsureLocalStack(),
+			Endpoint:                  EnsureLocalStack(t),
 			Region:                    "us-east-1",
 			ServiceAccountCredentials: "test:test:",
 			Topic:                     uuid.New().String(),
@@ -38,23 +37,19 @@ func NewMQAWSConfig(t *testing.T, attributes map[string]string) mqs.QueueConfig 
 	return queueConfig
 }
 
-var (
-	localstackOnce      sync.Once
-	localstackReadyOnce sync.Once
-)
+var localstackService = &service{name: "localstack", startHint: hintDest}
 
-func EnsureLocalStack() string {
+// EnsureLocalStack returns the URL of the test LocalStack (AWS), failing t if
+// it isn't available.
+func EnsureLocalStack(t testing.TB) string {
+	t.Helper()
 	cfg := ReadConfig()
-	if cfg.LocalStackURL == "" {
-		localstackOnce.Do(func() {
-			startLocalStackTestContainer(cfg)
-		})
-	}
 	// LocalStack serves HTTP before its individual services are usable, so ask
 	// the health endpoint rather than settling for an open port.
-	localstackReadyOnce.Do(func() {
-		waitReadyLogged("localstack", cfg.LocalStackURL, func() error {
-			req, err := http.NewRequest(http.MethodGet, cfg.LocalStackURL+"/_localstack/health", nil)
+	return localstackService.ensure(t, cfg.LocalStackURL,
+		func() (string, error) { return startLocalStackTestContainer(cfg) },
+		func(endpoint string) error {
+			req, err := http.NewRequest(http.MethodGet, endpoint+"/_localstack/health", nil)
 			if err != nil {
 				return err
 			}
@@ -68,28 +63,25 @@ func EnsureLocalStack() string {
 			}
 			return nil
 		})
-	})
-	return cfg.LocalStackURL
 }
 
-func startLocalStackTestContainer(cfg *Config) {
+func startLocalStackTestContainer(cfg *Config) (string, error) {
 	ctx := context.Background()
 
 	localstackContainer, err := localstack.Run(ctx, cfg.Images.LocalStack)
-
 	if err != nil {
-		panic(err)
+		return "", err
 	}
 
 	endpoint, err := localstackContainer.PortEndpoint(ctx, "4566/tcp", "")
 	if err != nil {
-		panic(err)
+		return "", err
 	}
 	if !strings.Contains(endpoint, "http://") {
 		endpoint = "http://" + endpoint
 	}
 	log.Printf("Localstack running at %s", endpoint)
-	cfg.LocalStackURL = endpoint
+	return endpoint, nil
 }
 
 func DeclareTestAWSInfrastructure(ctx context.Context, cfg *mqs.AWSSQSConfig, attributes map[string]string) (string, error) {

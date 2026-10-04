@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"sync"
 	"testing"
 	"time"
 
@@ -28,7 +27,7 @@ func NewMQGCPConfig(t *testing.T, attributes map[string]string) mqs.QueueConfig 
 		},
 	}
 	ctx := context.Background()
-	url := EnsureGCP()
+	url := EnsureGCP(t)
 	if err := DeclareTestGCPInfrastructure(ctx, queueConfig.GCPPubSub, url); err != nil {
 		panic(err)
 	}
@@ -40,41 +39,34 @@ func NewMQGCPConfig(t *testing.T, attributes map[string]string) mqs.QueueConfig 
 	return queueConfig
 }
 
-var (
-	gcpOnce      sync.Once
-	gcpReadyOnce sync.Once
-)
+var gcpService = &service{name: "pubsub emulator", startHint: hintDest}
 
-func EnsureGCP() string {
+// EnsureGCP returns the host:port of the test Pub/Sub emulator and points
+// PUBSUB_EMULATOR_HOST at it, failing t if it isn't available.
+func EnsureGCP(t testing.TB) string {
+	t.Helper()
 	cfg := ReadConfig()
-	if cfg.GCPURL == "" {
-		gcpOnce.Do(func() {
-			startGCPTestContainer(cfg)
-		})
-	}
-	gcpReadyOnce.Do(func() {
-		waitReadyLogged("pubsub emulator", cfg.GCPURL, func() error {
-			return dialTCP(cfg.GCPURL)
-		})
-	})
-	os.Setenv("PUBSUB_EMULATOR_HOST", cfg.GCPURL)
-	return cfg.GCPURL
+	endpoint := gcpService.ensure(t, cfg.GCPURL,
+		func() (string, error) { return startGCPTestContainer(cfg) },
+		dialTCP)
+	os.Setenv("PUBSUB_EMULATOR_HOST", endpoint)
+	return endpoint
 }
 
-func startGCPTestContainer(cfg *Config) {
+func startGCPTestContainer(cfg *Config) (string, error) {
 	ctx := context.Background()
 
 	gcloudContainer, err := gcloud.RunPubsub(ctx, cfg.Images.GCP)
 	if err != nil {
-		panic(err)
+		return "", err
 	}
 
 	endpoint, err := gcloudContainer.PortEndpoint(ctx, "8085/tcp", "")
 	if err != nil {
-		panic(err)
+		return "", err
 	}
 	log.Printf("GCP Emulator running at %s", endpoint)
-	cfg.GCPURL = endpoint
+	return endpoint, nil
 }
 
 func DeclareTestGCPInfrastructure(ctx context.Context, cfg *mqs.GCPPubSubConfig, endpoint string) error {
