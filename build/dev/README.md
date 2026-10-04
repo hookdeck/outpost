@@ -20,8 +20,11 @@ applied, and services whose flag was turned off are removed. Add-ons have no
 `up/<addon>` targets — flipping the flag is the mechanism. (`make up/dest`
 is a separate stack, not an add-on; see below.)
 
-`dev.sh` also stops `make up` early when the Outpost config uses RabbitMQ or
-NATS but the matching `LOCAL_DEV_*` flag is off.
+`dev.sh` also stops `make up` early when the internal queue Outpost will
+select (same order as Outpost: SQS, Azure Service Bus, Pub/Sub, RabbitMQ,
+NATS) is this stack's RabbitMQ or NATS but its `LOCAL_DEV_*` flag is off, or
+when the publish queue is this stack's RabbitMQ without `LOCAL_DEV_RABBITMQ=1`.
+Leftover blocks of queues Outpost doesn't select are ignored.
 
 ## Layout
 
@@ -54,7 +57,7 @@ both `grafana/` and `uptrace/`).
 ```
 make up      # bring up everything enabled in .env
 make down    # stop and remove the stack
-make nuke    # stop + remove volumes (wipe state)
+make nuke    # stop + remove volumes of every dev service, including disabled ones (wipe state)
 make up/portal   # run portal natively for vite hot reload (escape hatch)
 make up/test     # separate test project (isolated lifecycle)
 make up/dest     # destination brokers (project outpost-dest, build/dest/)

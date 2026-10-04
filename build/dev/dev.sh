@@ -72,25 +72,56 @@ fi
 COMPOSE_PROFILES="$(IFS=,; echo "${profiles[*]}")"
 export COMPOSE_PROFILES
 
-# check_queue_flags fails fast when the Outpost config points at a queue whose
-# service isn't enabled: the api would otherwise wait ~2 minutes for it and
-# fail with a bare i/o timeout. Checks the YAML file named by CONFIG and .env.
+# check_queue_flags fails fast when the internal queue Outpost will use runs
+# in this stack but isn't enabled: the api would otherwise wait ~2 minutes for
+# it and fail with a bare i/o timeout. Like Outpost, it reads the YAML file
+# named by CONFIG and lets .env variables override it.
 check_queue_flags() {
-  local sources=(.env)
-  [ -n "${CONFIG:-}" ] && [ -f "${CONFIG}" ] && sources+=("${CONFIG}")
-  uses() { grep -hEv '^[[:space:]]*#' "${sources[@]}" 2>/dev/null | grep -qE "$1"; }
-  local fail=0
-  if uses 'amqp://[^"[:space:]]*@rabbitmq:' && [ "${LOCAL_DEV_RABBITMQ:-}" != "1" ]; then
-    echo "error: your Outpost config uses RabbitMQ (rabbitmq:5672) but LOCAL_DEV_RABBITMQ=1 isn't set in .env." >&2
-    fail=1
+  local yaml=""
+  [ -n "${CONFIG:-}" ] && [ -f "${CONFIG}" ] && yaml="${CONFIG}"
+
+  # yaml_value <section> <provider> <key>: the value of section.provider.key
+  # in the YAML file, ignoring comments. Enough for the flat layout of
+  # .outpost.yaml.dev; not a YAML parser.
+  yaml_value() {
+    [ -n "$yaml" ] || return 0
+    awk -v section="$1" -v provider="$2" -v key="$3" '
+      { sub(/[[:space:]]+#.*$/, ""); if ($0 ~ /^[[:space:]]*(#|$)/) next }
+      /^[^[:space:]]/ { top = $0; sub(/:.*/, "", top); prov = ""; next }
+      top == section && /^  [^[:space:]]/ { prov = $0; sub(/^ +/, "", prov); sub(/:.*/, "", prov); next }
+      top == section && prov == provider && $0 ~ "^    " key ":" {
+        v = $0; sub(/^[^:]*:[[:space:]]*/, "", v); q = sprintf("%c", 39); gsub("^[\"" q "]|[\"" q "]$", "", v); print v; exit
+      }' "$yaml"
+  }
+  # setting <ENV_VAR> <provider> <key>: .env wins over the YAML file.
+  setting() { if [ -n "${!1:-}" ]; then echo "${!1}"; else yaml_value mqs "$2" "$3"; fi; }
+
+  # Same order as Outpost's MQ selection (MQsConfig.init in
+  # internal/config/mq.go): the first configured provider wins.
+  local selected="" url=""
+  if [ -n "$(setting AWS_SQS_REGION aws_sqs region)" ]; then selected=aws_sqs
+  elif [ -n "$(setting AZURE_SERVICEBUS_CONNECTION_STRING azure_servicebus connection_string)" ]; then selected=azure_servicebus
+  elif [ -n "$(setting GCP_PUBSUB_PROJECT gcp_pubsub project)" ]; then selected=gcp_pubsub
+  elif url="$(setting RABBITMQ_SERVER_URL rabbitmq server_url)"; [ -n "$url" ]; then selected=rabbitmq
+  elif url="$(setting NATS_SERVER_URL nats server_url)"; [ -n "$url" ]; then selected=nats
   fi
-  if uses 'nats://nats:' && [ "${LOCAL_DEV_NATS:-}" != "1" ]; then
-    echo "error: your Outpost config uses NATS (nats:4222) but LOCAL_DEV_NATS=1 isn't set in .env." >&2
-    fail=1
+
+  local missing=""
+  case "$selected:$url" in
+    rabbitmq:*@rabbitmq:*) [ "${LOCAL_DEV_RABBITMQ:-}" = "1" ] || missing="RabbitMQ (rabbitmq:5672) as the internal queue, but LOCAL_DEV_RABBITMQ=1" ;;
+    nats:nats://nats:*)    [ "${LOCAL_DEV_NATS:-}" = "1" ]     || missing="NATS (nats:4222) as the internal queue, but LOCAL_DEV_NATS=1" ;;
+  esac
+  # The publish queue is separate from the internal one.
+  local publish
+  publish="$(if [ -n "${PUBLISH_RABBITMQ_SERVER_URL:-}" ]; then echo "$PUBLISH_RABBITMQ_SERVER_URL"; else yaml_value publishmq rabbitmq server_url; fi)"
+  if [ -z "$missing" ] && [[ "$publish" == *@rabbitmq:* ]] && [ "${LOCAL_DEV_RABBITMQ:-}" != "1" ]; then
+    missing="RabbitMQ (rabbitmq:5672) as the publish queue, but LOCAL_DEV_RABBITMQ=1"
   fi
-  if [ "$fail" = "1" ]; then
-    echo "Enable the queue in .env, or point mqs: in ${CONFIG:-.outpost.yaml} at an enabled one." >&2
-    echo "Upgrading from a RabbitMQ setup? See \"Choosing the internal message queue\" in contributing/getting-started.md." >&2
+
+  if [ -n "$missing" ]; then
+    echo "error: your Outpost config uses $missing isn't set in .env." >&2
+    echo "Enable it in .env, or point mqs: in ${CONFIG:-.outpost.yaml} at an enabled queue." >&2
+    echo "Upgrading from a RabbitMQ setup? See \"Upgrading an existing setup\" in contributing/getting-started.md." >&2
     exit 1
   fi
 }
@@ -120,8 +151,8 @@ case "$cmd" in
     docker network rm outpost-dest >/dev/null 2>&1 || true
     ;;
   run)
-    # One-off command in a service, e.g. `dev.sh run --rm migrate`.
-    check_queue_flags
+    # One-off command in a service, e.g. `dev.sh run --rm migrate`. No queue
+    # check: migrations don't connect to the queue.
     docker network create outpost-dest >/dev/null 2>&1 || true
     exec docker compose --env-file .env "${files[@]}" run "$@"
     ;;
