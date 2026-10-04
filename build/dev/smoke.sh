@@ -7,6 +7,11 @@
 # api, redis, mq, delivery worker, egress, log worker, log store.
 set -uo pipefail
 
+# Same as health.sh: OUTPOST_URL / OUTPOST_API_KEY in .env retarget the test.
+if [ -f .env ]; then
+  set -a; . ./.env; set +a
+fi
+
 API="${OUTPOST_URL:-http://localhost:3333/api/v1}"
 KEY="${OUTPOST_API_KEY:-apikey}"
 WEBHOOK="${OUTPOST_SMOKE_WEBHOOK:-https://mock.hookdeck.com}"
