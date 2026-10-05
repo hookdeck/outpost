@@ -16,6 +16,8 @@ Outpost records two kinds of thing:
 
 Configuration data lives elsewhere. Tenants and destinations are stored in Redis, so removing log data never affects a tenant's configured destinations.
 
+For the full table schemas and how they relate to the Redis keys, see [Data Model](/docs/outpost/self-hosting/data-model).
+
 ### When an event is written
 
 An event is written to the log together with its first delivery attempt, rather than at the moment it's published.
