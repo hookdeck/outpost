@@ -52,13 +52,15 @@ If `OPERATOR_EVENTS_TOPICS` is empty or unset, operator events are disabled. If 
 
 ### Sinks
 
-Configure one sink to receive events. If more than one is configured, Outpost uses the first of HTTP, AWS SQS, GCP Pub/Sub and RabbitMQ.
-
 {% tabs tabGroup="deployment" %}
 {% tab label="Managed" %}
-Configure sinks for operator event forwarding in [Hookdeck Monitoring settings](https://dashboard.hookdeck.com/settings/project/monitoring).
+Configure the operator events sink in [Hookdeck Monitoring settings](https://dashboard.hookdeck.com/settings/project/monitoring) or through the API.
+
+Managed Outpost delivers operator events through Outpost itself, so the sink can be any of the [supported destination types](/docs/outpost/overview#supported-destinations). Configuration and delivery format, including signatures, follow the documentation for the chosen destination type.
 {% /tab %}
 {% tab label="Self-Hosted" %}
+Configure one sink to receive events. If more than one is configured, Outpost uses the first of HTTP, AWS SQS, GCP Pub/Sub and RabbitMQ.
+
 Four sink types are supported:
 
 #### HTTP
