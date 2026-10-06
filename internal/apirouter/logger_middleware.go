@@ -27,15 +27,16 @@ func LoggerMiddlewareWithSanitizer(logger *logging.Logger, sanitizer *RequestBod
 
 		logger := logger.Ctx(c.Request.Context()).WithOptions(zap.AddStacktrace(zap.FatalLevel))
 
-		// Buffer request body if we have a sanitizer and this might be a destination request
 		var bufferedBody *BufferedReader
 		var requestBodyFields []zap.Field
 
-		if sanitizer != nil && shouldBufferRequestBody(c) {
+		// Buffer the start of the body for the 5xx log. A body that is going to
+		// be rejected for its declared length is left unread.
+		if sanitizer != nil && isBodyLimitedRequest(c) && !declaresOversizedBody(c) {
 			if br, err := NewBufferedReader(c.Request.Body); err == nil {
 				bufferedBody = br
-				// Replace the request body with a new reader so the handler can still read it
-				c.Request.Body = br.NewReadCloser()
+				// Only the start of the body is buffered; the handler reads it back followed by the rest
+				c.Request.Body = br.NewReadCloserWithRest(c.Request.Body)
 			}
 		}
 
@@ -198,24 +199,6 @@ func getErrorWithStackTrace(err error) error {
 		return errResp.Err
 	}
 	return err
-}
-
-// shouldBufferRequestBody determines if we should buffer the request body for potential logging
-func shouldBufferRequestBody(c *gin.Context) bool {
-	// Only buffer POST, PUT, PATCH requests that might contain request bodies
-	method := c.Request.Method
-	if method != "POST" && method != "PUT" && method != "PATCH" {
-		return false
-	}
-
-	// Exclude publish endpoints since they contain user data that shouldn't be logged. We could consider making this configurable in the future.
-	path := c.Request.URL.Path
-	if strings.Contains(path, "/publish") {
-		return false
-	}
-
-	// Buffer all other POST/PUT/PATCH requests for potential 5xx error logging
-	return true
 }
 
 // getRequestBodyFields creates log fields for sanitized request body

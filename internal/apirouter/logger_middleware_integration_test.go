@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -245,7 +246,9 @@ func TestLoggerMiddleware_SuccessResponseNoBodyLogging(t *testing.T) {
 func TestLoggerMiddleware_OversizedRequestBody(t *testing.T) {
 	router, logs, _ := setupTestEnvironment(t)
 
+	var handlerBody []byte
 	router.POST("/api/v1/test/destinations", func(c *gin.Context) {
+		handlerBody, _ = io.ReadAll(c.Request.Body)
 		c.AbortWithError(http.StatusInternalServerError, fmt.Errorf("test error"))
 	})
 
@@ -267,6 +270,7 @@ func TestLoggerMiddleware_OversizedRequestBody(t *testing.T) {
 
 	// Verify error response
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.Equal(t, bodyBytes, handlerBody, "Handler should receive the whole body")
 
 	// Check that oversized body is handled with appropriate message
 	var foundTruncatedLog bool
@@ -402,6 +406,46 @@ func TestLoggerMiddleware_PublishEndpointExcluded(t *testing.T) {
 		for _, field := range logEntry.Context {
 			assert.NotEqual(t, "request_body", field.Key, "Publish endpoint bodies should not be logged")
 		}
+	}
+}
+
+// Test that an id containing "publish" does not turn off body logging
+func TestLoggerMiddleware_PublishInIDIsLogged(t *testing.T) {
+	router, logs, _ := setupTestEnvironment(t)
+
+	router.POST("/api/v1/tenants/:tenant_id/destinations", func(c *gin.Context) {
+		c.AbortWithError(http.StatusInternalServerError, fmt.Errorf("test error"))
+	})
+	router.PATCH("/api/v1/tenants/:tenant_id/destinations/:destination_id", func(c *gin.Context) {
+		c.AbortWithError(http.StatusInternalServerError, fmt.Errorf("test error"))
+	})
+
+	body := `{"type":"webhook","credentials":{"api_key":"secret-1"}}`
+	requests := []struct{ method, path string }{
+		{http.MethodPost, "/api/v1/tenants/publisher-1/destinations"},
+		{http.MethodPatch, "/api/v1/tenants/t1/destinations/publish-x"},
+	}
+
+	for _, r := range requests {
+		logs.TakeAll()
+
+		req := httptest.NewRequest(r.method, r.path, strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusInternalServerError, w.Code)
+
+		var requestBodyLog string
+		for _, logEntry := range logs.All() {
+			for _, field := range logEntry.Context {
+				if field.Key == "request_body" {
+					requestBodyLog = field.String
+				}
+			}
+		}
+		assert.Equal(t, `{"credentials":{"api_key":"[REDACTED]"},"type":"webhook"}`, requestBodyLog, "%s %s", r.method, r.path)
 	}
 }
 

@@ -180,6 +180,13 @@ func NewErrForbidden() ErrorResponse {
 	}
 }
 
+func NewErrRequestBodyTooLarge() ErrorResponse {
+	return ErrorResponse{
+		Code:    http.StatusRequestEntityTooLarge,
+		Message: "request body too large",
+	}
+}
+
 func NewErrNotFound(resource string) ErrorResponse {
 	return ErrorResponse{
 		Code:    http.StatusNotFound,
