@@ -7,6 +7,11 @@
 # api, redis, mq, delivery worker, egress, log worker, log store.
 set -uo pipefail
 
+# Same as health.sh: OUTPOST_URL / OUTPOST_API_KEY in .env retarget the test.
+if [ -f .env ]; then
+  set -a; . ./.env; set +a
+fi
+
 API="${OUTPOST_URL:-http://localhost:3333/api/v1}"
 KEY="${OUTPOST_API_KEY:-apikey}"
 WEBHOOK="${OUTPOST_SMOKE_WEBHOOK:-https://mock.hookdeck.com}"
@@ -82,7 +87,7 @@ event_body=$(jq -nc \
   --arg trace "$TRACE" \
   '{tenant_id:$tenant, topic:$topic, data:{trace:$trace, smoke:true}}')
 pub_resp=$(req POST "/publish" "$event_body") \
-  || fail "publish failed (rabbitmq or publishmq config likely wrong)"
+  || fail "publish failed (internal mq config likely wrong; see SERVICE=api make logs)"
 event_id=$(echo "$pub_resp" | jq -r '.id // empty')
 ok "event ingested${event_id:+ (id=$event_id)}"
 

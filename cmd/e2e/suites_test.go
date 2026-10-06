@@ -79,6 +79,7 @@ type basicSuite struct {
 	suite.Suite
 	e2eSuite
 	logStorageType configs.LogStorageType
+	mqType         configs.MQType     // Internal MQ; default NATS
 	redisConfig    *redis.RedisConfig // Optional Redis config override
 	deploymentID   string             // Optional deployment ID
 	hasRediSearch  bool               // Whether the Redis backend supports RediSearch (only RedisStack)
@@ -101,6 +102,7 @@ func (suite *basicSuite) SetupSuite() {
 
 	cfg := configs.Basic(t, configs.BasicOpts{
 		LogStorage:   suite.logStorageType,
+		MQ:           suite.mqType,
 		RedisConfig:  suite.redisConfig,
 		DeploymentID: suite.deploymentID,
 	})
@@ -147,10 +149,10 @@ func (s *basicSuite) TearDownSuite() {
 // =============================================================================
 // Default E2E Test Suites (always run)
 // =============================================================================
-// These suites test the primary supported configuration: Dragonfly + ClickHouse.
-// They run in parallel by default.
+// These suites test the primary supported configuration: Dragonfly + ClickHouse,
+// NATS JetStream as the internal MQ. They run in parallel by default.
 
-// TestE2E tests the main configuration: Dragonfly (Redis) + ClickHouse (log storage).
+// TestE2E tests the main configuration: Dragonfly (Redis) + ClickHouse (log storage) + NATS.
 func TestE2E(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
@@ -189,6 +191,19 @@ func TestE2E_Compat_Postgres(t *testing.T) {
 	testutil.SkipUnlessCompat(t)
 	suite.Run(t, &basicSuite{
 		logStorageType: configs.LogStorageTypePostgres,
+		redisConfig:    testinfra.NewDragonflyStackConfig(t),
+	})
+}
+
+// TestE2E_Compat_RabbitMQ tests RabbitMQ as the internal MQ.
+func TestE2E_Compat_RabbitMQ(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping e2e test")
+	}
+	testutil.SkipUnlessCompat(t)
+	suite.Run(t, &basicSuite{
+		logStorageType: configs.LogStorageTypeClickHouse,
+		mqType:         configs.MQTypeRabbitMQ,
 		redisConfig:    testinfra.NewDragonflyStackConfig(t),
 	})
 }

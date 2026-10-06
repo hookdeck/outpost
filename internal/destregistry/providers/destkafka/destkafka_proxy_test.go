@@ -130,8 +130,9 @@ func TestKafkaPublisher_ProxyRejectsLeaderIntegration(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
 	}
+	testutil.SkipUnlessDest(t)
 	t.Cleanup(testinfra.Start(t))
-	brokerAddr := testinfra.EnsureKafka()
+	brokerAddr := testinfra.EnsureKafka(t)
 	require.True(t, strings.HasPrefix(brokerAddr, "localhost:"), "advertised listener is %s", brokerAddr)
 	bootstrap := "127.0.0.1:" + strings.TrimPrefix(brokerAddr, "localhost:")
 	topic := "test-topic-proxy-leader"

@@ -7,6 +7,7 @@ x-deps-depends-on: &deps_depends_on
   dragonfly:  { condition: service_healthy, required: false }
   postgres:   { condition: service_healthy, required: false }
   clickhouse: { condition: service_healthy, required: false }
+  nats:       { condition: service_healthy, required: false }
   rabbitmq:   { condition: service_healthy, required: false }
   localstack: { condition: service_healthy, required: false }
   gcp:        { condition: service_healthy, required: false }
@@ -41,6 +42,8 @@ services:
     env_file: ../../.env
     environment:
       SERVICE: api
+    networks: [default, dest]
+    extra_hosts: ["host.docker.internal:host-gateway"] # reach helpers on your machine, e.g. cmd/destinations/webhooks
     depends_on:
       <<: *deps_depends_on
       migrate: { condition: service_completed_successfully }
@@ -59,6 +62,8 @@ services:
     env_file: ../../.env
     environment:
       SERVICE: delivery
+    networks: [default, dest]
+    extra_hosts: ["host.docker.internal:host-gateway"] # reach helpers on your machine, e.g. cmd/destinations/webhooks
     depends_on:
       <<: *deps_depends_on
       api: { condition: service_healthy }
@@ -72,6 +77,8 @@ services:
     env_file: ../../.env
     environment:
       SERVICE: log
+    networks: [default, dest]
+    extra_hosts: ["host.docker.internal:host-gateway"] # reach helpers on your machine, e.g. cmd/destinations/webhooks
     depends_on:
       <<: *deps_depends_on
       api: { condition: service_healthy }
@@ -87,6 +94,13 @@ services:
       - NODE_ENV=development
     env_file: ../../.env
     command: sh -c "npm install && npx vite dev --host"
+
+# The destination stack (`make up/dest`) runs on this network, so the services
+# that deliver can reach dest-rabbitmq, dest-kafka, ... dev.sh creates it.
+networks:
+  dest:
+    name: outpost-dest
+    external: true
 
 volumes:
   portal_node_modules:

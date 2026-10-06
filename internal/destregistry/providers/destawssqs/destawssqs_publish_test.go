@@ -115,6 +115,7 @@ func TestAWSSQSSuite(t *testing.T) {
 
 func (s *AWSSQSSuite) SetupSuite() {
 	t := s.T()
+	testutil.SkipUnlessDest(t)
 	t.Cleanup(testinfra.Start(t))
 	mqConfig := testinfra.NewMQAWSConfig(t, nil)
 

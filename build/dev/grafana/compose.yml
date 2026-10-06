@@ -5,7 +5,7 @@ services:
     image: otel/opentelemetry-collector-contrib:latest
     command: ["--config=/etc/otel-collector-config.yaml"]
     volumes:
-      - ./otel-collector-config.yaml:/etc/otel-collector-config.yaml
+      - ./grafana/otel-collector-config.yaml:/etc/otel-collector-config.yaml
     ports:
       - "4317:4317" # OTLP gRPC
       - "4318:4318" # OTLP HTTP
@@ -15,7 +15,7 @@ services:
   prometheus:
     image: prom/prometheus:latest
     volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./grafana/prometheus.yml:/etc/prometheus/prometheus.yml
     ports:
       - "9090:9090"
 
@@ -30,9 +30,9 @@ services:
       - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
       - GF_AUTH_DISABLE_LOGIN_FORM=true
     volumes:
-      - ./provisioning/datasources:/etc/grafana/provisioning/datasources
-      - ./provisioning/dashboards:/etc/grafana/provisioning/dashboards
-      - ./dashboards:/etc/grafana/dashboards
+      - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources
+      - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards
+      - ./grafana/dashboards:/etc/grafana/dashboards
 
 volumes:
   grafana-data:

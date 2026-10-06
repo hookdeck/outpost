@@ -135,9 +135,10 @@ type KafkaPublishSuite struct {
 
 func (s *KafkaPublishSuite) SetupSuite() {
 	t := s.T()
+	testutil.SkipUnlessDest(t)
 	t.Cleanup(testinfra.Start(t))
 
-	brokerAddr := testinfra.EnsureKafka()
+	brokerAddr := testinfra.EnsureKafka(t)
 	topic := "test-topic-" + idgen.String()
 
 	// Ensure topic exists by creating it

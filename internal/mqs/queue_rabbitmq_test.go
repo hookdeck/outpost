@@ -10,6 +10,7 @@ import (
 	"github.com/hookdeck/outpost/internal/consumer"
 	"github.com/hookdeck/outpost/internal/mqs"
 	"github.com/hookdeck/outpost/internal/util/testinfra"
+	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/rabbitmq/amqp091-go"
 	"github.com/stretchr/testify/require"
 )
@@ -31,6 +32,7 @@ func TestMQ_RabbitMQRedialCooldown(t *testing.T) {
 }
 
 func TestIntegrationMQ_RabbitMQPublishReconnects(t *testing.T) {
+	testutil.SkipUnlessCompat(t)
 	t.Parallel()
 	t.Cleanup(testinfra.Start(t))
 	config := testinfra.NewMQRabbitMQConfig(t)
@@ -69,6 +71,7 @@ func TestIntegrationMQ_RabbitMQPublishReconnects(t *testing.T) {
 }
 
 func TestIntegrationMQ_RabbitMQSubscriptionReconnects(t *testing.T) {
+	testutil.SkipUnlessCompat(t)
 	t.Parallel()
 	t.Cleanup(testinfra.Start(t))
 	config := testinfra.NewMQRabbitMQConfig(t)
@@ -137,6 +140,7 @@ type handlerFunc func(ctx context.Context, msg *mqs.Message) error
 func (f handlerFunc) Handle(ctx context.Context, msg *mqs.Message) error { return f(ctx, msg) }
 
 func TestIntegrationMQ_RabbitMQNoRedialAfterCleanup(t *testing.T) {
+	testutil.SkipUnlessCompat(t)
 	t.Parallel()
 	t.Cleanup(testinfra.Start(t))
 	config := testinfra.NewMQRabbitMQConfig(t)
@@ -160,11 +164,12 @@ func TestIntegrationMQ_RabbitMQNoRedialAfterCleanup(t *testing.T) {
 }
 
 func TestIntegrationMQ_RabbitMQReject(t *testing.T) {
+	testutil.SkipUnlessCompat(t)
 	t.Parallel()
 	t.Cleanup(testinfra.Start(t))
 
 	config := &mqs.RabbitMQConfig{
-		ServerURL: testinfra.EnsureRabbitMQ(),
+		ServerURL: testinfra.EnsureRabbitMQ(t),
 		Exchange:  uuid.New().String(),
 		Queue:     uuid.New().String(),
 	}

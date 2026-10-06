@@ -14,6 +14,8 @@ import (
 	"google.golang.org/api/option"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+
+	"github.com/hookdeck/outpost/cmd/destinations/internal/destenv"
 )
 
 const (
@@ -21,14 +23,14 @@ const (
 	LOCAL_PROJECT_ID   = "test-project"
 	LOCAL_TOPIC        = "test-topic"
 	LOCAL_SUBSCRIPTION = "test-subscription"
-	LOCAL_ENDPOINT     = "localhost:18085" // Local dev emulator endpoint (see build/dev/deps/compose.yml)
+	LOCAL_ENDPOINT     = "localhost:18085" // Pub/Sub emulator of the local destination stack (make up/dest)
 
 	// To use real GCP, set these environment variables:
-	// GCP_PROJECT_ID - Your GCP project ID
-	// GCP_TOPIC - Your Pub/Sub topic name
-	// GCP_SUBSCRIPTION - Your subscription name
-	// GCP_CREDENTIALS - Path to service account JSON file
-	// GCP_ENDPOINT - Leave empty for production or set for custom endpoint
+	// DEST_GCP_PROJECT_ID - Your GCP project ID
+	// DEST_GCP_TOPIC - Your Pub/Sub topic name
+	// DEST_GCP_SUBSCRIPTION - Your subscription name
+	// DEST_GCP_CREDENTIALS - Path to service account JSON file
+	// DEST_GCP_ENDPOINT - Leave empty for production or set for custom endpoint
 )
 
 func main() {
@@ -75,19 +77,19 @@ TO USE WITH LOCAL EMULATOR:
   go run cmd/destinations/gcppubsub/main.go
 
 TO USE WITH REAL GCP:
-  export GCP_PROJECT_ID="your-project-id"
-  export GCP_TOPIC="your-topic"
-  export GCP_SUBSCRIPTION="your-subscription"
-  export GCP_CREDENTIALS="/path/to/service-account.json"
-  export GCP_ENDPOINT=""  # Leave empty for production
+  export DEST_GCP_PROJECT_ID="your-project-id"
+  export DEST_GCP_TOPIC="your-topic"
+  export DEST_GCP_SUBSCRIPTION="your-subscription"
+  export DEST_GCP_CREDENTIALS="/path/to/service-account.json"
+  export DEST_GCP_ENDPOINT=""  # Leave empty for production
   go run cmd/destinations/gcppubsub/main.go
 
 ENVIRONMENT VARIABLES:
-  GCP_PROJECT_ID     - GCP project ID (local: test-project)
-  GCP_TOPIC          - Pub/Sub topic name (local: test-topic)
-  GCP_SUBSCRIPTION   - Subscription name (local: test-subscription)
-  GCP_CREDENTIALS    - Path to service account JSON file (unset for emulator)
-  GCP_ENDPOINT       - Custom endpoint (local: localhost:18085)
+  DEST_GCP_PROJECT_ID     - GCP project ID (local: test-project)
+  DEST_GCP_TOPIC          - Pub/Sub topic name (local: test-topic)
+  DEST_GCP_SUBSCRIPTION   - Subscription name (local: test-subscription)
+  DEST_GCP_CREDENTIALS    - Path to service account JSON file (unset for emulator)
+  DEST_GCP_ENDPOINT       - Custom endpoint (local: localhost:18085)
 
 NOTES:
   - The program will create the topic and subscription if they don't exist
@@ -99,11 +101,11 @@ func run() error {
 	ctx := context.Background()
 
 	// Get configuration from environment or use local defaults
-	projectID := getEnvOrDefault("GCP_PROJECT_ID", LOCAL_PROJECT_ID)
-	topicName := getEnvOrDefault("GCP_TOPIC", LOCAL_TOPIC)
-	subscriptionName := getEnvOrDefault("GCP_SUBSCRIPTION", LOCAL_SUBSCRIPTION)
-	endpoint := getEnvOrDefault("GCP_ENDPOINT", LOCAL_ENDPOINT)
-	credentialsPath := os.Getenv("GCP_CREDENTIALS")
+	projectID := destenv.Get("DEST_GCP_PROJECT_ID", LOCAL_PROJECT_ID)
+	topicName := destenv.Get("DEST_GCP_TOPIC", LOCAL_TOPIC)
+	subscriptionName := destenv.Get("DEST_GCP_SUBSCRIPTION", LOCAL_SUBSCRIPTION)
+	endpoint := destenv.Get("DEST_GCP_ENDPOINT", LOCAL_ENDPOINT)
+	credentialsPath := destenv.Get("DEST_GCP_CREDENTIALS", "")
 
 	log.Printf("Configuration:")
 	log.Printf("  Project ID: %s", projectID)
@@ -223,22 +225,15 @@ func run() error {
 	return nil
 }
 
-func getEnvOrDefault(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
-	}
-	return defaultValue
-}
-
 func cleanup() error {
 	ctx := context.Background()
 
 	// Get configuration from environment or use local defaults
-	projectID := getEnvOrDefault("GCP_PROJECT_ID", LOCAL_PROJECT_ID)
-	topicName := getEnvOrDefault("GCP_TOPIC", LOCAL_TOPIC)
-	subscriptionName := getEnvOrDefault("GCP_SUBSCRIPTION", LOCAL_SUBSCRIPTION)
-	endpoint := getEnvOrDefault("GCP_ENDPOINT", LOCAL_ENDPOINT)
-	credentialsPath := os.Getenv("GCP_CREDENTIALS")
+	projectID := destenv.Get("DEST_GCP_PROJECT_ID", LOCAL_PROJECT_ID)
+	topicName := destenv.Get("DEST_GCP_TOPIC", LOCAL_TOPIC)
+	subscriptionName := destenv.Get("DEST_GCP_SUBSCRIPTION", LOCAL_SUBSCRIPTION)
+	endpoint := destenv.Get("DEST_GCP_ENDPOINT", LOCAL_ENDPOINT)
+	credentialsPath := destenv.Get("DEST_GCP_CREDENTIALS", "")
 
 	log.Printf("Cleanup Configuration:")
 	log.Printf("  Project ID: %s", projectID)

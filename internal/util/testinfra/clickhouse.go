@@ -3,7 +3,6 @@ package testinfra
 import (
 	"context"
 	"log"
-	"sync"
 	"testing"
 
 	"github.com/hookdeck/outpost/internal/clickhouse"
@@ -13,7 +12,7 @@ import (
 
 func NewClickHouseConfig(t *testing.T) clickhouse.ClickHouseConfig {
 	chConfig := clickhouse.ClickHouseConfig{
-		Addr:     ensureClickHouse(),
+		Addr:     ensureClickHouse(t),
 		Username: "default",
 		Password: "",
 		Database: "default",
@@ -49,22 +48,16 @@ func clearDB(chConfig clickhouse.ClickHouseConfig, database string) {
 	}
 }
 
-var (
-	chOnce      sync.Once
-	chReadyOnce sync.Once
-)
+var clickhouseService = &service{name: "clickhouse", startHint: hintTest}
 
-func ensureClickHouse() string {
+func ensureClickHouse(t testing.TB) string {
+	t.Helper()
 	cfg := ReadConfig()
-	if cfg.ClickHouseURL == "" {
-		chOnce.Do(func() {
-			startCHTestcontainer(cfg)
-		})
-	}
-	chReadyOnce.Do(func() {
-		waitReadyLogged("clickhouse", cfg.ClickHouseURL, func() error {
+	return clickhouseService.ensure(t, cfg.ClickHouseURL,
+		func() (string, error) { return startCHTestcontainer(cfg) },
+		func(endpoint string) error {
 			chDB, err := clickhouse.New(&clickhouse.ClickHouseConfig{
-				Addr:     cfg.ClickHouseURL,
+				Addr:     endpoint,
 				Username: "default",
 				Database: "default",
 			})
@@ -73,11 +66,9 @@ func ensureClickHouse() string {
 			}
 			return chDB.Exec(context.Background(), "SELECT 1")
 		})
-	})
-	return cfg.ClickHouseURL
 }
 
-func startCHTestcontainer(cfg *Config) {
+func startCHTestcontainer(cfg *Config) (string, error) {
 	ctx := context.Background()
 
 	clickHouseContainer, err := chTestcontainer.Run(ctx,
@@ -87,13 +78,13 @@ func startCHTestcontainer(cfg *Config) {
 		chTestcontainer.WithDatabase("default"),
 	)
 	if err != nil {
-		panic(err)
+		return "", err
 	}
 
 	endpoint, err := clickHouseContainer.PortEndpoint(ctx, "9000/tcp", "")
 	if err != nil {
-		panic(err)
+		return "", err
 	}
 	log.Printf("ClickHouse running at %s", endpoint)
-	cfg.ClickHouseURL = endpoint
+	return endpoint, nil
 }

@@ -3,7 +3,6 @@ package testinfra
 import (
 	"context"
 	"log"
-	"sync"
 	"testing"
 
 	amqp091 "github.com/rabbitmq/amqp091-go"
@@ -17,7 +16,7 @@ import (
 func NewMQRabbitMQConfig(t *testing.T) mqs.QueueConfig {
 	queueConfig := mqs.QueueConfig{
 		RabbitMQ: &mqs.RabbitMQConfig{
-			ServerURL: EnsureRabbitMQ(),
+			ServerURL: EnsureRabbitMQ(t),
 			Exchange:  uuid.New().String(),
 			Queue:     uuid.New().String(),
 		},
@@ -34,44 +33,38 @@ func NewMQRabbitMQConfig(t *testing.T) mqs.QueueConfig {
 	return queueConfig
 }
 
-var (
-	rabbitmqOnce      sync.Once
-	rabbitmqReadyOnce sync.Once
-)
+var rabbitmqService = &service{name: "rabbitmq", startHint: hintDest}
 
-func EnsureRabbitMQ() string {
+// EnsureRabbitMQ returns the AMQP URL of the test RabbitMQ, failing t if it
+// isn't available.
+func EnsureRabbitMQ(t testing.TB) string {
+	t.Helper()
 	cfg := ReadConfig()
-	if cfg.RabbitMQURL == "" {
-		rabbitmqOnce.Do(func() {
-			startRabbitMQTestContainer(cfg)
-		})
-	}
 	// Dial rather than probe the port: RabbitMQ accepts TCP before it will
 	// complete an AMQP handshake, and it is the handshake that tests need.
-	rabbitmqReadyOnce.Do(func() {
-		waitReadyLogged("rabbitmq", cfg.RabbitMQURL, func() error {
-			conn, err := amqp091.Dial(cfg.RabbitMQURL)
+	return rabbitmqService.ensure(t, cfg.RabbitMQURL,
+		func() (string, error) { return startRabbitMQTestContainer(cfg) },
+		func(endpoint string) error {
+			conn, err := amqp091.Dial(endpoint)
 			if err != nil {
 				return err
 			}
 			return conn.Close()
 		})
-	})
-	return cfg.RabbitMQURL
 }
 
-func startRabbitMQTestContainer(cfg *Config) {
+func startRabbitMQTestContainer(cfg *Config) (string, error) {
 	ctx := context.Background()
 
 	rabbitmqContainer, err := rabbitmq.Run(ctx, cfg.Images.RabbitMQ)
 	if err != nil {
-		panic(err)
+		return "", err
 	}
 
 	endpoint, err := rabbitmqContainer.PortEndpoint(ctx, "5672/tcp", "")
 	if err != nil {
-		panic(err)
+		return "", err
 	}
 	log.Printf("RabbitMQ running at %s", endpoint)
-	cfg.RabbitMQURL = "amqp://guest:guest@" + endpoint
+	return "amqp://guest:guest@" + endpoint, nil
 }

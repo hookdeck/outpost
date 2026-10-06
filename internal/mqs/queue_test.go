@@ -28,6 +28,7 @@ func TestIntegrationMQ_InMemory(t *testing.T) {
 }
 
 func TestIntegrationMQ_RabbitMQ(t *testing.T) {
+	testutil.SkipUnlessCompat(t)
 	t.Parallel()
 	t.Cleanup(testinfra.Start(t))
 	config := testinfra.NewMQRabbitMQConfig(t)
@@ -42,6 +43,7 @@ func TestIntegrationMQ_NATS(t *testing.T) {
 }
 
 func TestIntegrationMQ_AWSSQS(t *testing.T) {
+	testutil.SkipUnlessCompat(t)
 	t.Parallel()
 	t.Cleanup(testinfra.Start(t))
 	config := testinfra.NewMQAWSConfig(t, nil)
@@ -49,6 +51,7 @@ func TestIntegrationMQ_AWSSQS(t *testing.T) {
 }
 
 func TestIntegrationMQ_GCPPubSub(t *testing.T) {
+	testutil.SkipUnlessCompat(t)
 	t.Parallel()
 	t.Cleanup(testinfra.Start(t))
 	config := testinfra.NewMQGCPConfig(t, nil)

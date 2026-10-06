@@ -2,14 +2,14 @@
 # Drives `make up` / `make down`. Reads LOCAL_DEV_* from .env and assembles
 # the docker compose invocation: list of -f files + COMPOSE_PROFILES.
 #
-# Usage: dev.sh up|down [extra docker compose args...]
+# Usage: dev.sh up|down|run [extra docker compose args...]
 set -euo pipefail
 
 cmd="${1:-}"
 shift || true
 
 if [ -z "$cmd" ]; then
-  echo "usage: dev.sh up|down [extra args]" >&2
+  echo "usage: dev.sh up|down|run [extra args]" >&2
   exit 2
 fi
 
@@ -40,7 +40,9 @@ fi
 [ "${LOCAL_DEV_POSTGRES:-}" = "1" ] && profiles+=(postgres)
 [ "${LOCAL_DEV_CLICKHOUSE:-}" = "1" ] && profiles+=(clickhouse)
 
-# Message queues
+# Message queues. Starting a queue doesn't select it: Outpost uses the one
+# configured under `mqs:` in .outpost.yaml (or the matching env vars).
+[ "${LOCAL_DEV_NATS:-}" = "1" ] && profiles+=(nats)
 [ "${LOCAL_DEV_RABBITMQ:-}" = "1" ] && profiles+=(rabbitmq)
 [ "${LOCAL_DEV_LOCALSTACK:-}" = "1" ] && profiles+=(localstack)
 [ "${LOCAL_DEV_GCP:-}" = "1" ] && profiles+=(gcp)
@@ -70,17 +72,112 @@ fi
 COMPOSE_PROFILES="$(IFS=,; echo "${profiles[*]}")"
 export COMPOSE_PROFILES
 
+# check_queue_flags fails fast when the internal queue Outpost will use runs
+# in this stack but isn't enabled: the api would otherwise wait ~2 minutes for
+# it and fail with a bare i/o timeout. Like Outpost, it reads the YAML file
+# named by CONFIG and lets .env variables override it. It also sees variables
+# exported in your shell, which the containers don't get (they read .env only).
+check_queue_flags() {
+  local yaml=""
+  [ -n "${CONFIG:-}" ] && [ -f "${CONFIG}" ] && yaml="${CONFIG}"
+
+  # yaml_value <section> <provider> <key>: the value of section.provider.key
+  # in the YAML file, ignoring comments. Enough for the flat layout of
+  # .outpost.yaml.dev; not a YAML parser.
+  yaml_value() {
+    [ -n "$yaml" ] || return 0
+    awk -v section="$1" -v provider="$2" -v key="$3" '
+      { sub(/[[:space:]]+#.*$/, ""); if ($0 ~ /^[[:space:]]*(#|$)/) next }
+      /^[^[:space:]]/ { top = $0; sub(/:.*/, "", top); prov = ""; next }
+      top == section && /^  [^[:space:]]/ { prov = $0; sub(/^ +/, "", prov); sub(/:.*/, "", prov); next }
+      top == section && prov == provider && $0 ~ "^    " key ":" {
+        v = $0; sub(/^[^:]*:[[:space:]]*/, "", v); q = sprintf("%c", 39); gsub("^[\"" q "]|[\"" q "]$", "", v); print v; exit
+      }' "$yaml"
+  }
+  # setting_in <section> <ENV_VAR> <provider> <key>: .env wins over the YAML
+  # file. setting is the same for the internal queue (section mqs).
+  setting_in() { if [ -n "${!2:-}" ]; then echo "${!2}"; else yaml_value "$1" "$3" "$4"; fi; }
+  setting() { setting_in mqs "$@"; }
+  # Azure: a connection string, or all six service-principal fields
+  # (AzureServiceBusConfig.IsConfigured, internal/config/mqconfig_azure.go).
+  azure_sp_configured() {
+    local f
+    for f in tenant_id:TENANT_ID client_id:CLIENT_ID client_secret:CLIENT_SECRET \
+      subscription_id:SUBSCRIPTION_ID resource_group:RESOURCE_GROUP namespace:NAMESPACE; do
+      [ -n "$(setting "AZURE_SERVICEBUS_${f#*:}" azure_servicebus "${f%%:*}")" ] || return 1
+    done
+  }
+
+  # Same order as Outpost's MQ selection (MQsConfig.init in
+  # internal/config/mq.go): the first configured provider wins.
+  local selected="" url=""
+  if [ -n "$(setting AWS_SQS_REGION aws_sqs region)" ]; then selected=aws_sqs
+  elif [ -n "$(setting AZURE_SERVICEBUS_CONNECTION_STRING azure_servicebus connection_string)" ] || azure_sp_configured; then selected=azure_servicebus
+  elif [ -n "$(setting GCP_PUBSUB_PROJECT gcp_pubsub project)" ]; then selected=gcp_pubsub
+  elif url="$(setting RABBITMQ_SERVER_URL rabbitmq server_url)"; [ -n "$url" ]; then selected=rabbitmq
+  elif url="$(setting NATS_SERVER_URL nats server_url)"; [ -n "$url" ]; then selected=nats
+  fi
+
+  local missing=""
+  case "$selected:$url" in
+    rabbitmq:*@rabbitmq:*) [ "${LOCAL_DEV_RABBITMQ:-}" = "1" ] || missing="RabbitMQ (rabbitmq:5672) as the internal queue, but LOCAL_DEV_RABBITMQ=1" ;;
+    nats:nats://nats:*)    [ "${LOCAL_DEV_NATS:-}" = "1" ]     || missing="NATS (nats:4222) as the internal queue, but LOCAL_DEV_NATS=1" ;;
+  esac
+  # The publish queue is separate from the internal one, with its own order
+  # (PublishMQConfig.GetInfraType, internal/config/publishmq.go): SQS region,
+  # Azure connection string + topic + subscription, Pub/Sub project, RabbitMQ.
+  local publish=""
+  if [ -n "$(setting_in publishmq PUBLISH_AWS_SQS_REGION aws_sqs region)" ]; then :
+  elif [ -n "$(setting_in publishmq PUBLISH_AZURE_SERVICEBUS_CONNECTION_STRING azure_servicebus connection_string)" ] &&
+    [ -n "$(setting_in publishmq PUBLISH_AZURE_SERVICEBUS_TOPIC azure_servicebus topic)" ] &&
+    [ -n "$(setting_in publishmq PUBLISH_AZURE_SERVICEBUS_SUBSCRIPTION azure_servicebus subscription)" ]; then :
+  elif [ -n "$(setting_in publishmq PUBLISH_GCP_PUBSUB_PROJECT gcp_pubsub project)" ]; then :
+  else publish="$(setting_in publishmq PUBLISH_RABBITMQ_SERVER_URL rabbitmq server_url)"
+  fi
+  if [ -z "$missing" ] && [[ "$publish" == *@rabbitmq:* ]] && [ "${LOCAL_DEV_RABBITMQ:-}" != "1" ]; then
+    missing="RabbitMQ (rabbitmq:5672) as the publish queue, but LOCAL_DEV_RABBITMQ=1"
+  fi
+
+  if [ -n "$missing" ]; then
+    echo "error: your Outpost config uses $missing isn't set in .env." >&2
+    echo "Enable it in .env, or point mqs: in ${CONFIG:-.outpost.yaml} at an enabled queue." >&2
+    echo "Upgrading from a RabbitMQ setup? See \"Upgrading an existing setup\" in contributing/getting-started.md." >&2
+    exit 1
+  fi
+}
+
+dc() { docker compose --env-file .env "${files[@]}" "$@"; }
+
 case "$cmd" in
   up)
-    exec docker compose --env-file .env "${files[@]}" up -d "$@"
+    check_queue_flags
+    # Shared with the destination stack (make up/dest); see compose.yml.
+    docker network create outpost-dest >/dev/null 2>&1 || true
+    # Services whose flag was turned off: compose leaves containers of
+    # inactive profiles running, so remove them to match .env.
+    inactive=$(comm -13 <(dc config --services | sort) <(COMPOSE_PROFILES="*" dc config --services | sort))
+    if [ -n "$inactive" ]; then
+      # shellcheck disable=SC2086
+      COMPOSE_PROFILES="*" dc rm --stop --force $inactive >/dev/null 2>&1 || true
+    fi
+    exec docker compose --env-file .env "${files[@]}" up -d --remove-orphans "$@"
     ;;
   down)
-    # --remove-orphans cleans up containers from add-on files that may have
-    # been included previously but aren't in the current invocation.
-    exec docker compose --env-file .env "${files[@]}" down --remove-orphans "$@"
+    # All profiles, so services whose flag was turned off since `make up` go
+    # too; --remove-orphans cleans up containers from add-on files that may
+    # have been included previously but aren't in the current invocation.
+    COMPOSE_PROFILES="*" dc down --remove-orphans "$@"
+    # Fails, harmlessly, while the destination stack still uses it.
+    docker network rm outpost-dest >/dev/null 2>&1 || true
+    ;;
+  run)
+    # One-off command in a service, e.g. `dev.sh run --rm migrate`. No queue
+    # check: migrations don't connect to the queue.
+    docker network create outpost-dest >/dev/null 2>&1 || true
+    exec docker compose --env-file .env "${files[@]}" run "$@"
     ;;
   *)
-    echo "usage: dev.sh up|down [extra args]" >&2
+    echo "usage: dev.sh up|down|run [extra args]" >&2
     exit 2
     ;;
 esac

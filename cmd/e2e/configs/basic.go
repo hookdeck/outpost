@@ -25,8 +25,17 @@ const (
 	LogStorageTypeClickHouse LogStorageType = "clickhouse"
 )
 
+// MQType is the internal message queue an e2e config runs on.
+type MQType string
+
+const (
+	MQTypeNATS     MQType = "nats"
+	MQTypeRabbitMQ MQType = "rabbitmq"
+)
+
 type BasicOpts struct {
 	LogStorage   LogStorageType
+	MQ           MQType             // Internal MQ; default NATS
 	RedisConfig  *redis.RedisConfig // Optional Redis config override
 	DeploymentID string             // Optional deployment ID for multi-tenancy testing
 }
@@ -41,8 +50,6 @@ func Basic(t *testing.T, opts BasicOpts) config.Config {
 		// Use default test Redis config
 		redisConfig = testutil.CreateTestRedisConfig(t)
 	}
-	rabbitmqServerURL := testinfra.EnsureRabbitMQ()
-
 	logLevel := "fatal"
 	if os.Getenv("LOG_LEVEL") != "" {
 		logLevel = os.Getenv("LOG_LEVEL")
@@ -71,11 +78,7 @@ func Basic(t *testing.T, opts BasicOpts) config.Config {
 	c.Redis.ClusterEnabled = redisConfig.ClusterEnabled
 	c.Redis.DevClusterHostOverride = redisConfig.DevClusterHostOverride
 
-	// MQ overrides
-	c.MQs.RabbitMQ.ServerURL = rabbitmqServerURL
-	c.MQs.RabbitMQ.Exchange = idgen.String()
-	c.MQs.RabbitMQ.DeliveryQueue = idgen.String()
-	c.MQs.RabbitMQ.LogQueue = idgen.String()
+	require.NoError(t, setMQ(t, c, opts.MQ))
 
 	// Test-specific overrides
 	c.PublishMaxConcurrency = 3
@@ -149,6 +152,27 @@ func CreateRedisClusterConfig(t *testing.T) *redis.RedisConfig {
 	t.Logf("Redis client created successfully")
 
 	return redisConfig
+}
+
+// setMQ points the internal queues at a fresh, uniquely named set of queues
+// on the requested MQ, so parallel suites don't share messages.
+func setMQ(t *testing.T, c *config.Config, mq MQType) error {
+	switch mq {
+	case "", MQTypeNATS:
+		stream := "e2e_" + idgen.String()
+		c.MQs.NATS.ServerURL = testinfra.EnsureNATS(t)
+		c.MQs.NATS.Stream = stream
+		c.MQs.NATS.DeliverySubject = stream + ".delivery"
+		c.MQs.NATS.LogSubject = stream + ".log"
+	case MQTypeRabbitMQ:
+		c.MQs.RabbitMQ.ServerURL = testinfra.EnsureRabbitMQ(t)
+		c.MQs.RabbitMQ.Exchange = idgen.String()
+		c.MQs.RabbitMQ.DeliveryQueue = idgen.String()
+		c.MQs.RabbitMQ.LogQueue = idgen.String()
+	default:
+		return fmt.Errorf("invalid mq type: %s", mq)
+	}
+	return nil
 }
 
 func setLogStorage(t *testing.T, c *config.Config, logStorage LogStorageType) error {

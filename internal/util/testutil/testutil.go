@@ -41,9 +41,26 @@ func Race(t *testing.T) {
 	}
 }
 
+// Test groups beyond the default run: TESTDEST=1 adds the destination
+// provider tests; TESTCOMPAT=1 adds Outpost on the other internal queues and
+// the backend compat suites, and includes TESTDEST (it needs the same
+// brokers). TESTDEST ⊂ TESTCOMPAT; TESTAZURE is separate (see testinfra).
+
+// SkipUnlessCompat skips tests of alternative backends: internal queues other
+// than NATS, and e2e suites on non-default stores.
 func SkipUnlessCompat(t *testing.T) {
+	t.Helper()
 	if os.Getenv("TESTCOMPAT") != "1" {
 		t.Skip("skipping compat test (set TESTCOMPAT=1 to run)")
+	}
+}
+
+// SkipUnlessDest skips destination provider tests, which need the destination
+// stack (make up/dest). TESTCOMPAT=1 runs them too.
+func SkipUnlessDest(t *testing.T) {
+	t.Helper()
+	if os.Getenv("TESTDEST") != "1" && os.Getenv("TESTCOMPAT") != "1" {
+		t.Skip("skipping destination test (set TESTDEST=1 to run)")
 	}
 }
 

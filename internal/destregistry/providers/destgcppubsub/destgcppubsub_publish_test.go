@@ -137,6 +137,7 @@ type GCPPubSubPublishSuite struct {
 
 func (s *GCPPubSubPublishSuite) SetupSuite() {
 	t := s.T()
+	testutil.SkipUnlessDest(t)
 	t.Cleanup(testinfra.Start(t))
 
 	// Set up GCP Pub/Sub test infrastructure
@@ -144,7 +145,7 @@ func (s *GCPPubSubPublishSuite) SetupSuite() {
 	s.config = mqConfig
 
 	// Get emulator endpoint
-	endpoint := testinfra.EnsureGCP()
+	endpoint := testinfra.EnsureGCP(t)
 
 	provider, err := destgcppubsub.New(testutil.Registry.MetadataLoader(), nil)
 	require.NoError(t, err)

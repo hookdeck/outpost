@@ -7,7 +7,6 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
-	"sync"
 	"testing"
 
 	"github.com/hookdeck/outpost/internal/util/testutil"
@@ -17,7 +16,7 @@ import (
 
 func NewPostgresConfig(t *testing.T) string {
 	pgDB := &PGDB{}
-	pgAddr := ensurePostgres()
+	pgAddr := ensurePostgres(t)
 	defaultPGURL := fmt.Sprintf("postgres://%s:%s@%s/%s?sslmode=%s", "outpost", "outpost", pgAddr, "default", "disable")
 	database := "test_" + testutil.RandomString(10)
 	pgURL := strings.Replace(defaultPGURL, "default", database, 1)
@@ -88,23 +87,17 @@ func (pgDB *PGDB) getPGPort(pgURL string) int {
 	return port
 }
 
-var (
-	pgOnce      sync.Once
-	pgReadyOnce sync.Once
-)
+var postgresService = &service{name: "postgres", startHint: hintTest}
 
-func ensurePostgres() string {
+func ensurePostgres(t testing.TB) string {
+	t.Helper()
 	cfg := ReadConfig()
-	if cfg.PostgresURL == "" {
-		pgOnce.Do(func() {
-			startPGTestcontainer(cfg)
-		})
-	}
 	// The postgres image runs a temporary server to initialise the cluster and
 	// resets connections made to it, so connect rather than dial.
-	pgReadyOnce.Do(func() {
-		waitReadyLogged("postgres", cfg.PostgresURL, func() error {
-			url := fmt.Sprintf("postgres://%s:%s@%s/%s?sslmode=%s", "outpost", "outpost", cfg.PostgresURL, "default", "disable")
+	return postgresService.ensure(t, cfg.PostgresURL,
+		func() (string, error) { return startPGTestcontainer(cfg) },
+		func(endpoint string) error {
+			url := fmt.Sprintf("postgres://%s:%s@%s/%s?sslmode=%s", "outpost", "outpost", endpoint, "default", "disable")
 			db, err := pgxpool.New(context.Background(), url)
 			if err != nil {
 				return err
@@ -112,11 +105,9 @@ func ensurePostgres() string {
 			defer db.Close()
 			return db.Ping(context.Background())
 		})
-	})
-	return cfg.PostgresURL
 }
 
-func startPGTestcontainer(cfg *Config) {
+func startPGTestcontainer(cfg *Config) (string, error) {
 	ctx := context.Background()
 
 	pgContainer, err := pgTestcontainer.Run(ctx,
@@ -126,13 +117,13 @@ func startPGTestcontainer(cfg *Config) {
 		pgTestcontainer.WithDatabase("default"),
 	)
 	if err != nil {
-		panic(err)
+		return "", err
 	}
 
 	endpoint, err := pgContainer.PortEndpoint(ctx, "5432/tcp", "")
 	if err != nil {
-		panic(err)
+		return "", err
 	}
 	log.Printf("Postgres running at %s", endpoint)
-	cfg.PostgresURL = endpoint
+	return endpoint, nil
 }

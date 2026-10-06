@@ -188,6 +188,7 @@ func testMQInfra(t *testing.T, mqConfig *Config, dlqConfig *Config) {
 
 func TestIntegrationMQInfra_RabbitMQ(t *testing.T) {
 	testutil.CheckIntegrationTest(t)
+	testutil.SkipUnlessCompat(t)
 	exchange := idgen.String()
 	queue := idgen.String()
 
@@ -195,7 +196,7 @@ func TestIntegrationMQInfra_RabbitMQ(t *testing.T) {
 		&Config{
 			infra: mqinfra.MQInfraConfig{
 				RabbitMQ: &mqinfra.RabbitMQInfraConfig{
-					ServerURL: testinfra.EnsureRabbitMQ(),
+					ServerURL: testinfra.EnsureRabbitMQ(t),
 					Exchange:  exchange,
 					Queue:     queue,
 				},
@@ -205,7 +206,7 @@ func TestIntegrationMQInfra_RabbitMQ(t *testing.T) {
 			},
 			mq: mqs.QueueConfig{
 				RabbitMQ: &mqs.RabbitMQConfig{
-					ServerURL: testinfra.EnsureRabbitMQ(),
+					ServerURL: testinfra.EnsureRabbitMQ(t),
 					Exchange:  exchange,
 					Queue:     queue,
 				},
@@ -214,14 +215,14 @@ func TestIntegrationMQInfra_RabbitMQ(t *testing.T) {
 		&Config{
 			infra: mqinfra.MQInfraConfig{
 				RabbitMQ: &mqinfra.RabbitMQInfraConfig{
-					ServerURL: testinfra.EnsureRabbitMQ(),
+					ServerURL: testinfra.EnsureRabbitMQ(t),
 					Exchange:  exchange,
 					Queue:     queue + ".dlq",
 				},
 			},
 			mq: mqs.QueueConfig{
 				RabbitMQ: &mqs.RabbitMQConfig{
-					ServerURL: testinfra.EnsureRabbitMQ(),
+					ServerURL: testinfra.EnsureRabbitMQ(t),
 					Exchange:  exchange,
 					Queue:     queue + ".dlq",
 				},
@@ -241,7 +242,7 @@ func TestIntegrationMQInfra_NATS(t *testing.T) {
 		&Config{
 			infra: mqinfra.MQInfraConfig{
 				NATS: &mqinfra.NATSInfraConfig{
-					ServerURL: testinfra.EnsureNATS(),
+					ServerURL: testinfra.EnsureNATS(t),
 					Stream:    stream,
 					Subject:   subject,
 				},
@@ -251,7 +252,7 @@ func TestIntegrationMQInfra_NATS(t *testing.T) {
 			},
 			mq: mqs.QueueConfig{
 				NATS: &mqs.NATSConfig{
-					ServerURL:  testinfra.EnsureNATS(),
+					ServerURL:  testinfra.EnsureNATS(t),
 					Stream:     stream,
 					Subject:    subject,
 					DLQSubject: dlqSubject,
@@ -266,14 +267,14 @@ func TestIntegrationMQInfra_NATS(t *testing.T) {
 		&Config{
 			infra: mqinfra.MQInfraConfig{
 				NATS: &mqinfra.NATSInfraConfig{
-					ServerURL: testinfra.EnsureNATS(),
+					ServerURL: testinfra.EnsureNATS(t),
 					Stream:    dlqStream,
 					Subject:   dlqSubject,
 				},
 			},
 			mq: mqs.QueueConfig{
 				NATS: &mqs.NATSConfig{
-					ServerURL: testinfra.EnsureNATS(),
+					ServerURL: testinfra.EnsureNATS(t),
 					Stream:    dlqStream,
 					Subject:   dlqSubject,
 				},
@@ -284,6 +285,7 @@ func TestIntegrationMQInfra_NATS(t *testing.T) {
 
 func TestIntegrationMQInfra_RabbitMQ_CustomDLQName(t *testing.T) {
 	testutil.CheckIntegrationTest(t)
+	testutil.SkipUnlessCompat(t)
 	exchange := idgen.String()
 	queue := idgen.String()
 	customDLQ := "dead_letter-" + queue
@@ -292,7 +294,7 @@ func TestIntegrationMQInfra_RabbitMQ_CustomDLQName(t *testing.T) {
 		&Config{
 			infra: mqinfra.MQInfraConfig{
 				RabbitMQ: &mqinfra.RabbitMQInfraConfig{
-					ServerURL: testinfra.EnsureRabbitMQ(),
+					ServerURL: testinfra.EnsureRabbitMQ(t),
 					Exchange:  exchange,
 					Queue:     queue,
 					DLQ:       customDLQ,
@@ -303,7 +305,7 @@ func TestIntegrationMQInfra_RabbitMQ_CustomDLQName(t *testing.T) {
 			},
 			mq: mqs.QueueConfig{
 				RabbitMQ: &mqs.RabbitMQConfig{
-					ServerURL: testinfra.EnsureRabbitMQ(),
+					ServerURL: testinfra.EnsureRabbitMQ(t),
 					Exchange:  exchange,
 					Queue:     queue,
 				},
@@ -312,14 +314,14 @@ func TestIntegrationMQInfra_RabbitMQ_CustomDLQName(t *testing.T) {
 		&Config{
 			infra: mqinfra.MQInfraConfig{
 				RabbitMQ: &mqinfra.RabbitMQInfraConfig{
-					ServerURL: testinfra.EnsureRabbitMQ(),
+					ServerURL: testinfra.EnsureRabbitMQ(t),
 					Exchange:  exchange,
 					Queue:     customDLQ,
 				},
 			},
 			mq: mqs.QueueConfig{
 				RabbitMQ: &mqs.RabbitMQConfig{
-					ServerURL: testinfra.EnsureRabbitMQ(),
+					ServerURL: testinfra.EnsureRabbitMQ(t),
 					Exchange:  exchange,
 					Queue:     customDLQ,
 				},
@@ -330,13 +332,14 @@ func TestIntegrationMQInfra_RabbitMQ_CustomDLQName(t *testing.T) {
 
 func TestIntegrationMQInfra_AWSSQS(t *testing.T) {
 	testutil.CheckIntegrationTest(t)
+	testutil.SkipUnlessCompat(t)
 	q := idgen.String()
 
 	testMQInfra(t,
 		&Config{
 			infra: mqinfra.MQInfraConfig{
 				AWSSQS: &mqinfra.AWSSQSInfraConfig{
-					Endpoint:                  testinfra.EnsureLocalStack(),
+					Endpoint:                  testinfra.EnsureLocalStack(t),
 					ServiceAccountCredentials: "test:test:",
 					Region:                    "us-east-1",
 					Topic:                     q,
@@ -348,7 +351,7 @@ func TestIntegrationMQInfra_AWSSQS(t *testing.T) {
 			},
 			mq: mqs.QueueConfig{
 				AWSSQS: &mqs.AWSSQSConfig{
-					Endpoint:                  testinfra.EnsureLocalStack(),
+					Endpoint:                  testinfra.EnsureLocalStack(t),
 					ServiceAccountCredentials: "test:test:",
 					Region:                    "us-east-1",
 					Topic:                     q,
@@ -359,7 +362,7 @@ func TestIntegrationMQInfra_AWSSQS(t *testing.T) {
 		&Config{
 			infra: mqinfra.MQInfraConfig{
 				AWSSQS: &mqinfra.AWSSQSInfraConfig{
-					Endpoint:                  testinfra.EnsureLocalStack(),
+					Endpoint:                  testinfra.EnsureLocalStack(t),
 					ServiceAccountCredentials: "test:test:",
 					Region:                    "us-east-1",
 					Topic:                     q + "-dlq",
@@ -367,7 +370,7 @@ func TestIntegrationMQInfra_AWSSQS(t *testing.T) {
 			},
 			mq: mqs.QueueConfig{
 				AWSSQS: &mqs.AWSSQSConfig{
-					Endpoint:                  testinfra.EnsureLocalStack(),
+					Endpoint:                  testinfra.EnsureLocalStack(t),
 					ServiceAccountCredentials: "test:test:",
 					Region:                    "us-east-1",
 					Topic:                     q + "-dlq",
@@ -380,6 +383,7 @@ func TestIntegrationMQInfra_AWSSQS(t *testing.T) {
 
 func TestIntegrationMQInfra_AWSSQS_CustomDLQName(t *testing.T) {
 	testutil.CheckIntegrationTest(t)
+	testutil.SkipUnlessCompat(t)
 	q := idgen.String()
 	customDLQ := "dead_letter-" + q
 
@@ -387,7 +391,7 @@ func TestIntegrationMQInfra_AWSSQS_CustomDLQName(t *testing.T) {
 		&Config{
 			infra: mqinfra.MQInfraConfig{
 				AWSSQS: &mqinfra.AWSSQSInfraConfig{
-					Endpoint:                  testinfra.EnsureLocalStack(),
+					Endpoint:                  testinfra.EnsureLocalStack(t),
 					ServiceAccountCredentials: "test:test:",
 					Region:                    "us-east-1",
 					Topic:                     q,
@@ -400,7 +404,7 @@ func TestIntegrationMQInfra_AWSSQS_CustomDLQName(t *testing.T) {
 			},
 			mq: mqs.QueueConfig{
 				AWSSQS: &mqs.AWSSQSConfig{
-					Endpoint:                  testinfra.EnsureLocalStack(),
+					Endpoint:                  testinfra.EnsureLocalStack(t),
 					ServiceAccountCredentials: "test:test:",
 					Region:                    "us-east-1",
 					Topic:                     q,
@@ -411,7 +415,7 @@ func TestIntegrationMQInfra_AWSSQS_CustomDLQName(t *testing.T) {
 		&Config{
 			infra: mqinfra.MQInfraConfig{
 				AWSSQS: &mqinfra.AWSSQSInfraConfig{
-					Endpoint:                  testinfra.EnsureLocalStack(),
+					Endpoint:                  testinfra.EnsureLocalStack(t),
 					ServiceAccountCredentials: "test:test:",
 					Region:                    "us-east-1",
 					Topic:                     customDLQ,
@@ -419,7 +423,7 @@ func TestIntegrationMQInfra_AWSSQS_CustomDLQName(t *testing.T) {
 			},
 			mq: mqs.QueueConfig{
 				AWSSQS: &mqs.AWSSQSConfig{
-					Endpoint:                  testinfra.EnsureLocalStack(),
+					Endpoint:                  testinfra.EnsureLocalStack(t),
 					ServiceAccountCredentials: "test:test:",
 					Region:                    "us-east-1",
 					Topic:                     customDLQ,
@@ -438,13 +442,14 @@ func TestIntegrationMQInfra_AWSSQS_CustomDLQName(t *testing.T) {
 // path builds a working client and can declare/publish/receive.
 func TestIntegrationMQInfra_AWSSQS_DefaultCredentialChain(t *testing.T) {
 	testutil.CheckIntegrationTest(t)
+	testutil.SkipUnlessCompat(t)
 
 	// Provide credentials via the environment so the SDK default chain resolves them.
 	// t.Setenv is incompatible with t.Parallel, so this test runs serially.
 	t.Setenv("AWS_ACCESS_KEY_ID", "test")
 	t.Setenv("AWS_SECRET_ACCESS_KEY", "test")
 
-	endpoint := testinfra.EnsureLocalStack()
+	endpoint := testinfra.EnsureLocalStack(t)
 	t.Cleanup(testinfra.Start(t))
 
 	q := idgen.String()
@@ -523,8 +528,9 @@ func TestIntegrationMQInfra_AWSSQS_DefaultCredentialChain(t *testing.T) {
 
 func TestIntegrationMQInfra_GCPPubSub(t *testing.T) {
 	testutil.CheckIntegrationTest(t)
+	testutil.SkipUnlessCompat(t)
 	// Set PUBSUB_EMULATOR_HOST environment variable
-	testinfra.EnsureGCP()
+	testinfra.EnsureGCP(t)
 
 	topicID := "test-" + idgen.String()
 	subscriptionID := topicID + "-subscription"
@@ -577,8 +583,9 @@ func TestIntegrationMQInfra_GCPPubSub(t *testing.T) {
 
 func TestIntegrationMQInfra_GCPPubSub_CustomDLQNames(t *testing.T) {
 	testutil.CheckIntegrationTest(t)
+	testutil.SkipUnlessCompat(t)
 	// Set PUBSUB_EMULATOR_HOST environment variable
-	testinfra.EnsureGCP()
+	testinfra.EnsureGCP(t)
 
 	topicID := "test-" + idgen.String()
 	subscriptionID := topicID + "-subscription"
@@ -709,7 +716,8 @@ func TestIntegrationMQInfra_AzureServiceBus(t *testing.T) {
 
 func TestIntegrationMQInfra_GCPPubSub_SubscriptionsNeverExpire(t *testing.T) {
 	testutil.CheckIntegrationTest(t)
-	emulatorHost := testinfra.EnsureGCP()
+	testutil.SkipUnlessCompat(t)
+	emulatorHost := testinfra.EnsureGCP(t)
 	t.Cleanup(testinfra.Start(t))
 
 	ctx := context.Background()
