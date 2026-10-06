@@ -2,6 +2,7 @@ package apirouter
 
 import (
 	"errors"
+	"io"
 	"net/http"
 	"time"
 
@@ -69,9 +70,12 @@ func (h *TenantHandlers) Upsert(c *gin.Context) {
 	var input struct {
 		Metadata models.Metadata `json:"metadata,omitempty"`
 	}
-	// Only attempt to parse JSON if there's a request body
-	if c.Request.ContentLength > 0 {
-		if err := c.ShouldBindJSON(&input); err != nil {
+	// The body is optional. A chunked body has no declared length, so it is
+	// only known to be empty once reading it returns io.EOF.
+	if c.Request.ContentLength != 0 {
+		err := c.ShouldBindJSON(&input)
+		emptyBody := c.Request.ContentLength < 0 && errors.Is(err, io.EOF)
+		if err != nil && !emptyBody {
 			AbortWithValidationError(c, err)
 			return
 		}
