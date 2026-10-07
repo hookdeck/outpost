@@ -666,6 +666,83 @@ func TestMessageHandler_PublishAndLogError(t *testing.T) {
 	assert.Equal(t, 1, publisher.current, "publish should be attempted once")
 }
 
+func TestMessageHandler_PublishAttemptErrorAndLogError_Nacks(t *testing.T) {
+	// Test scenario:
+	// - Publish fails with a publish attempt error (eligible for retry)
+	// - Log publisher also fails, so the attempt log is not published
+	// - Should nack so the message is redelivered and the log published
+	// - Redelivery with logmq back should publish the log, reschedule the
+	//   retry under the same ID, and ack
+
+	// Setup test data
+	tenant := models.Tenant{ID: idgen.String()}
+	destination := testutil.DestinationFactory.Any(
+		testutil.DestinationFactory.WithType("webhook"),
+		testutil.DestinationFactory.WithTenantID(tenant.ID),
+	)
+	event := testutil.EventFactory.Any(
+		testutil.EventFactory.WithTenantID(tenant.ID),
+		testutil.EventFactory.WithDestinationID(destination.ID),
+		testutil.EventFactory.WithEligibleForRetry(true),
+	)
+
+	// Setup mocks
+	destGetter := &mockDestinationGetter{dest: &destination}
+	retryScheduler := newMockRetryScheduler()
+	publishErr := &destregistry.ErrDestinationPublishAttempt{
+		Err:      errors.New("webhook returned 503"),
+		Provider: "webhook",
+		Data: map[string]interface{}{
+			"error":   "publish_failed",
+			"message": "webhook returned 503",
+		},
+	}
+	publisher := newMockPublisher([]error{publishErr, publishErr})
+	logPublisher := newMockLogPublisher(errors.New("log publish failed"))
+
+	// Setup message handler
+	handler := deliverymq.NewMessageHandler(
+		testutil.CreateTestLogger(t),
+		logPublisher,
+		destGetter,
+		publisher,
+		testutil.NewMockEventTracer(nil),
+		retryScheduler,
+		&backoff.ConstantBackoff{Interval: 1 * time.Second},
+		10,
+		idempotence.New(testutil.CreateTestRedisClient(t), idempotence.WithSuccessfulTTL(24*time.Hour)),
+	)
+
+	task := models.DeliveryTask{
+		Event:         event,
+		DestinationID: destination.ID,
+		Attempt:       1,
+	}
+
+	// First delivery: attempt fails and the attempt log cannot be published
+	mockMsg, msg := newDeliveryMockMessage(task)
+	err := handler.Handle(context.Background(), msg)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "log publish failed")
+	assert.True(t, mockMsg.nacked, "message should be nacked when the attempt log is not published")
+	assert.False(t, mockMsg.acked, "message should not be acked when the attempt log is not published")
+	assert.Len(t, retryScheduler.schedules, 1, "retry should be scheduled")
+
+	// Redelivery with logmq back: attempt log is published and message acked
+	logPublisher.err = nil
+	mockMsg2, msg2 := newDeliveryMockMessage(task)
+	err = handler.Handle(context.Background(), msg2)
+	require.NoError(t, err)
+	assert.True(t, mockMsg2.acked, "redelivered message should be acked once the attempt log is published")
+	assert.False(t, mockMsg2.nacked, "redelivered message should not be nacked")
+	assert.Equal(t, 2, publisher.current, "publish should be attempted on each delivery")
+	require.Len(t, logPublisher.entries, 2, "attempt log should be published on redelivery")
+	assert.Equal(t, models.AttemptStatusFailed, logPublisher.entries[1].Attempt.Status)
+	require.Len(t, retryScheduler.taskIDs, 2, "retry should be rescheduled on redelivery")
+	assert.Equal(t, models.RetryID(task.Event.ID, task.DestinationID), retryScheduler.taskIDs[0])
+	assert.Equal(t, retryScheduler.taskIDs[0], retryScheduler.taskIDs[1], "retry should be rescheduled under the same ID")
+}
+
 func TestManualDelivery_Success(t *testing.T) {
 	// Test scenario:
 	// - Automatic delivery fails and schedules a retry
