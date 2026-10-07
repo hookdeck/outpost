@@ -3,7 +3,9 @@ package destregistry
 import (
 	"context"
 	"fmt"
+	"maps"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -25,6 +27,14 @@ func ObfuscateValue(value string) string {
 type BaseProvider struct {
 	metadata          *metadata.ProviderMetadata
 	basePublisherOpts []BasePublisherOption
+	// fixedFields holds selects removed by RemoveFieldOption because a
+	// single option remained: path -> the only accepted value.
+	fixedFields map[string]fixedField
+}
+
+type fixedField struct {
+	key   string
+	value string
 }
 
 // NewBaseProvider creates a new base provider with loaded metadata
@@ -50,6 +60,28 @@ func (p *BaseProvider) NewPublisher(additionalOpts ...BasePublisherOption) *Base
 // Metadata returns the provider metadata
 func (p *BaseProvider) Metadata() *metadata.ProviderMetadata {
 	return p.metadata
+}
+
+// RemoveFieldOption stops offering option value of the select field key, for
+// a capability the operator has not enabled. Fields only visible for that
+// option are removed too. If a single option remains, the select is removed
+// from the metadata and validation accepts only that value (or none). Call it
+// before the provider is registered.
+func (p *BaseProvider) RemoveFieldOption(key, value string) {
+	path := "config." + key
+	for _, f := range p.metadata.CredentialFields {
+		if f.Key == key {
+			path = "credentials." + key
+		}
+	}
+	meta, fixed := p.metadata.WithoutOption(key, value)
+	p.metadata = meta
+	if fixed != "" {
+		if p.fixedFields == nil {
+			p.fixedFields = map[string]fixedField{}
+		}
+		p.fixedFields[path] = fixedField{key: key, value: fixed}
+	}
 }
 
 // ObfuscateDestination returns a copy of the destination with sensitive fields masked
@@ -105,17 +137,37 @@ func (p *BaseProvider) Validate(ctx context.Context, destination *models.Destina
 
 	var errors []ValidationErrorDetail
 
-	// Validate config fields
-	for _, field := range p.metadata.ConfigFields {
-		if err := validateField(field, destination.Config[field.Key], "config."+field.Key); err != nil {
-			errors = append(errors, *err)
+	validateFields := func(fields []metadata.FieldSchema, values map[string]string, prefix string) {
+		for _, field := range fields {
+			path := prefix + field.Key
+			value := values[field.Key]
+			if !p.metadata.IsVisible(field, destination.Config, destination.Credentials) {
+				if value != "" {
+					errors = append(errors, ValidationErrorDetail{Field: path, Type: "forbidden"})
+				}
+				continue
+			}
+			if err := validateField(field, value, path); err != nil {
+				errors = append(errors, *err)
+				continue
+			}
+			if value != "" && field.Type == "select" && p.metadata.IsController(field.Key) &&
+				!slices.ContainsFunc(field.Options, func(o metadata.FieldOption) bool { return o.Value == value }) {
+				errors = append(errors, ValidationErrorDetail{Field: path, Type: "enum"})
+			}
 		}
 	}
+	validateFields(p.metadata.ConfigFields, destination.Config, "config.")
+	validateFields(p.metadata.CredentialFields, destination.Credentials, "credentials.")
 
-	// Validate credential fields
-	for _, field := range p.metadata.CredentialFields {
-		if err := validateField(field, destination.Credentials[field.Key], "credentials."+field.Key); err != nil {
-			errors = append(errors, *err)
+	for _, path := range slices.Sorted(maps.Keys(p.fixedFields)) {
+		fixed := p.fixedFields[path]
+		values := destination.Config
+		if strings.HasPrefix(path, "credentials.") {
+			values = destination.Credentials
+		}
+		if v := values[fixed.key]; v != "" && v != fixed.value {
+			errors = append(errors, ValidationErrorDetail{Field: path, Type: "enum"})
 		}
 	}
 
