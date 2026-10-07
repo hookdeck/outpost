@@ -12,9 +12,9 @@ This page describes every table and key Outpost writes, so you can size, back up
 | Store | What it holds | Lifetime | Written by |
 |-------|---------------|----------|------------|
 | Redis | Tenants, destinations and their credentials | Permanent until deleted | API service |
-| Redis | Retry schedule (RSMQ) | Until the retry runs | Delivery service |
-| Redis | Idempotency, alert, and suppression state | TTL-bound, minutes to a day | All services |
-| Redis | Installation, migration, and lock metadata | Permanent | All services, migration tool |
+| Redis | Retry schedule (RSMQ) | Until the retry runs | Delivery service schedules, API service runs |
+| Redis | Short-lived processing state | TTL-bound, minutes to a day | All services |
+| Redis | Installation, migration, and lock metadata | Permanent, except locks, which expire | All services, migration tool |
 | PostgreSQL or ClickHouse | Events and delivery attempts | Until retention removes them | Log service |
 
 The stores don't share foreign keys. They're joined by ID in application code:
@@ -23,7 +23,7 @@ The stores don't share foreign keys. They're joined by ID in application code:
 Redis                                         Log store (PostgreSQL / ClickHouse)
 ─────                                         ───────────────────────────────────
 tenant:{<tenant_id>}:tenant          1 ──┐
-                                         │ N
+                                         │ 1
 tenant:{<tenant_id>}:destinations ◄──────┤    events
   (summary hash, one field per           │      id / event_id ───────────┐ 1
    destination)                          │      tenant_id                 │
@@ -40,28 +40,17 @@ tenant:{<tenant_id>}:destination:<id> ◄──┘                              
 - A **delivery attempt** belongs to one event and one destination. A single event has one attempt per matched destination per try, including retries and manual retries.
 - Log rows reference tenants and destinations by ID only. Deleting a tenant or destination in Redis leaves its history in the log store until retention removes it.
 
-## Deployment ID prefixing
-
-When `DEPLOYMENT_ID` is set, Outpost namespaces its data so several deployments can share the same Redis and ClickHouse:
-
-- **Redis** keys are prefixed with `<DEPLOYMENT_ID>:`, for example `prod:tenant:{acme}:tenant`.
-- **ClickHouse** tables are prefixed with `<DEPLOYMENT_ID>_`, for example `prod_events`, `prod_attempts`, and `prod_schema_migrations`.
-- **PostgreSQL** tables are not prefixed. Give each deployment its own database or schema.
-
-The key and table names below are shown without a prefix.
-
 ## Log store
 
 The log store holds two tables, `events` and `attempts`, in both backends. Each attempt row embeds a copy of its event's fields, so listing attempts never needs a join. The trade-off is that event payloads are stored once per attempt as well as once in `events`.
 
 An event is written together with its first delivery attempt. An event that matches no destination produces no attempt and isn't written. See [Event & Delivery Log](/docs/outpost/self-hosting/guides/event-delivery-log) for retention and backend selection.
 
-{% tabs %}
-{% tab title="PostgreSQL" %}
+### PostgreSQL
 
 Both tables are range partitioned on `time`. Outpost creates only a DEFAULT partition for each (`events_default` and `attempts_default`) and doesn't manage further partitions.
 
-### `events`
+**`events` table**
 
 One row per published event that matched at least one destination.
 
@@ -85,7 +74,7 @@ Primary key: `(time, id)`.
 | `idx_events_id` | `id` | Retrieving an event by ID. |
 | GIN | `matched_destination_ids` | Filtering events by destination. |
 
-### `attempts`
+**`attempts` table**
 
 One row per delivery attempt. Event fields are copied onto every attempt.
 
@@ -121,18 +110,17 @@ Primary key: `(time, id)`.
 | `idx_attempts_event_time` | `event_id, time DESC, id DESC` | Listing the attempts for an event, and loading the event for a retry. |
 | `idx_attempts_id` | `id` | Retrieving an attempt by ID. |
 
-### `schema_migrations`
+**`schema_migrations` table**
 
 Managed by the migration tool to track the applied schema version. Don't edit it by hand; use the [migration tool](/docs/outpost/self-hosting/guides/migration).
 
-{% /tab %}
-{% tab title="ClickHouse" %}
+### ClickHouse
 
 Both tables use the `ReplacingMergeTree` engine. Rows with the same sorting key are deduplicated during background merges, so a retried insert can briefly appear twice before the merge runs. Both tables are partitioned by month.
 
 When `CLICKHOUSE_LOG_RETENTION_TTL_DAYS` is set, Outpost applies it as a table TTL on `event_time` for `events` and `attempt_time` for `attempts`.
 
-### `events`
+**`events` table**
 
 One row per published event that matched at least one destination.
 
@@ -151,7 +139,7 @@ One row per published event that matched at least one destination.
 - Order by: `(event_time, event_id)`
 - Skip indexes: bloom filters on `tenant_id`, `event_id`, `topic`, and `matched_destination_ids`.
 
-### `attempts`
+**`attempts` table**
 
 One row per delivery attempt. Event fields are copied onto every attempt.
 
@@ -179,12 +167,9 @@ One row per delivery attempt. Event fields are copied onto every attempt.
 - Order by: `(attempt_time, attempt_id)`
 - Skip indexes: bloom filters on `tenant_id`, `destination_id`, `destination_type`, `event_id`, `attempt_id`, and `topic`; a set index on `status`.
 
-### `schema_migrations`
+**`schema_migrations` table**
 
 Managed by the migration tool to track the applied schema version. Don't edit it by hand; use the [migration tool](/docs/outpost/self-hosting/guides/migration).
-
-{% /tab %}
-{% /tabs %}
 
 ## Redis
 
@@ -227,9 +212,9 @@ Each retry's ID is derived from its event ID and destination ID, so there is at 
 
 A retry body holds only the event ID, tenant ID, and destination ID. When the retry is due, Outpost loads the event and the previous attempt number from the log store's `attempts` table, then publishes a new delivery task. Dead-lettered retries aren't redriven automatically.
 
-### Idempotency and alerting state
+### Short-lived processing state
 
-These keys are short-lived and self-expiring. They're safe to lose; losing them can only cause a duplicate delivery or a repeated alert.
+These keys are short-lived and self-expiring, and safe to lose. Losing an idempotency key can cause a duplicate delivery. Losing an `alert:…:cf` key resets the destination's consecutive-failure count, which delays threshold alerts and auto-disable.
 
 | Key | Type | TTL | Purpose |
 |-----|------|-----|---------|
@@ -238,7 +223,7 @@ These keys are short-lived and self-expiring. They're safe to lose; losing them 
 | `publishmq:failures:<message_id>` | String (counter) | 24 hours | Counts failed receives of a message from the publish queue. |
 | `alert:<tenant_id>:<destination_id>:cf` | Set | 24 hours | IDs of consecutive failed attempts for a destination. Its size is the consecutive failure count; a successful attempt deletes it. |
 | `logmq:processed:<attempt_id>` | String | 24 hours | Marks a failed attempt as processed for alerting, so a redelivered log message isn't counted twice. |
-| `opevents:exhausted:<tenant_id>:<destination_id>` | String | `ALERT_EXHAUSTED_RETRIES_WINDOW_SECONDS` (default 1 hour) | Suppresses repeat exhausted-retries alerts for a destination within the window. |
+| `opevents:exhausted:<tenant_id>:<destination_id>` | String | `ALERT_EXHAUSTED_RETRIES_WINDOW_SECONDS` (default 1 hour) | Limits exhausted-retries alerts to one per destination per window. |
 
 ### Deployment metadata
 
@@ -257,6 +242,6 @@ Following one event through the system shows how the stores relate:
 1. **Publish.** The API service, or the publish queue consumer, claims `idempotency:publishmq:<event_id>`. It reads `tenant:{<tenant_id>}:destinations` to find the destinations that match the event's topic and filters, then enqueues one delivery task per destination on the delivery queue.
 2. **Deliver.** The delivery service claims `idempotency:deliverymq:<event_id>:<destination_id>:<attempt>` and reads `tenant:{<tenant_id>}:destination:<destination_id>` for the destination's config and decrypted credentials. It makes the attempt and sends the result to the log queue. On a retryable failure, it also schedules a retry in `rsmq:deliverymq-retry`.
 3. **Log.** The log service writes the event to `events`, if it isn't there yet, and the attempt to `attempts`, in batches. For failed attempts, it updates `alert:<tenant_id>:<destination_id>:cf` and may emit operator events or disable the destination. A successful attempt resets the count.
-4. **Retry.** When a retry is due, the delivery service reads the event and the latest attempt from `attempts`, then enqueues a new delivery task with the next attempt number, which returns to step 2.
+4. **Retry.** When a retry is due, the API service, which runs the retry scheduler, reads the event and the latest attempt from `attempts`, then enqueues a new delivery task with the next attempt number, which returns to step 2.
 
 Because step 4 reads from the log store, a retry can only run once the previous attempt has been written there. A retry that finds no prior attempt waits and tries again.
