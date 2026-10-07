@@ -160,6 +160,11 @@ func (c *Config) LogConfigurationSummary() []zap.Field {
 
 		// Destinations - AWS EventBridge
 		zap.String("destinations_aws_eventbridge_source", c.Destinations.AWSEventBridge.Source),
+
+		// Workload Identity
+		zap.String("workload_identity_issuer", c.WorkloadIdentity.Issuer),
+		zap.Bool("workload_identity_signing_key_configured", c.WorkloadIdentity.SigningKey != "" || c.WorkloadIdentity.SigningKeyFile != ""),
+		zap.Bool("workload_identity_verification_keys_configured", c.WorkloadIdentity.VerificationKeys != "" || c.WorkloadIdentity.VerificationKeysFile != ""),
 	}
 
 	// Add MQ-specific fields based on type
