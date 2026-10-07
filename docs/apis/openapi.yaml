@@ -3832,9 +3832,9 @@ components:
           type: string
           description: >-
             Format of the timestamp header: "rfc3339", "unix" (seconds since the
-            epoch) or "iso8601" (UTC with milliseconds and no offset, e.g.
-            "2026-10-05T15:02:25.447"). Defaults to "rfc3339". Only applies to
-            "default" mode.
+            epoch) or "iso8601_milli_no_offset" (UTC with milliseconds and no
+            offset, e.g. "2026-10-05T15:02:25.447"). Defaults to "rfc3339".
+            Only applies to "default" mode.
         DESTINATIONS_WEBHOOK_TIMESTAMP_HEADER_NAME:
           type: string
           description: >-
