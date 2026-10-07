@@ -21,6 +21,7 @@ services:
       - INITIAL_PORT=7000
       - MASTERS=3
       - SLAVES_PER_MASTER=1 # 3 masters + 3 slaves = 6 nodes total
+      - LC_ALL=C # the image sets a locale it doesn't ship, and Redis exits on it
 
   test-runner:
     image: golang:1.27-alpine
@@ -32,18 +33,13 @@ services:
       - go-modules:/go/pkg/mod # Cache Go modules
       - go-build:/root/.cache/go-build # Cache Go build artifacts
     environment:
-      # Test Infrastructure
+      # Test Infrastructure: the make up/test services, by container name and port
       - TESTINFRA=1
-      # DBs - using container service names
-      - TEST_POSTGRES_URL=postgres:5432
-      - TEST_CLICKHOUSE_URL=clickhouse:9000
-      # MQs
-      - TEST_RABBITMQ_URL=rabbitmq:5672
-      - TEST_LOCALSTACK_URL=aws:4566
-      - TEST_GCP_URL=gcp:8085
-      - TEST_AZURE_SB_CONNSTRING=Endpoint=sb://azure;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;
-      # Misc
-      - TEST_MOCKSERVER_URL=mock:5555
+      - TESTCOMPAT=1 # the Redis Cluster suite is a compat suite
+      - TEST_POSTGRES_URL=test-postgres:5432
+      - TEST_CLICKHOUSE_URL=test-clickhouse:9000
+      - TEST_NATS_URL=test-nats:4222
+      - TEST_MOCKSERVER_URL=test-mock:5555
       # Redis Cluster
       - TEST_REDIS_CLUSTER_URL=redis-cluster:7000
       # Build
