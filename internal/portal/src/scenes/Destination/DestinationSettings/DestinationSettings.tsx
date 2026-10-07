@@ -127,7 +127,11 @@ const DestinationSettings = ({
 
     // Clear stored values of fields that no longer apply (e.g. the previous
     // authentication method's credentials).
-    const formFieldValues = { ...destination.config, ...formValues };
+    const formFieldValues = {
+      ...destination.credentials,
+      ...destination.config,
+      ...formValues,
+    };
     type.config_fields.forEach((field) => {
       if (
         field.key in destination.config &&
