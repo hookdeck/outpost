@@ -27,6 +27,7 @@ import DestinationConfigFields from "../../../common/DestinationConfigFields/Des
 import FilterField from "../../../common/FilterField/FilterField";
 import CONFIGS from "../../../config";
 import { getFormValues } from "../../../utils/formHelper";
+import { isFieldVisible } from "../../../utils/fieldVisibility";
 
 const DestinationSettings = ({
   destination,
@@ -113,14 +114,34 @@ const DestinationSettings = ({
     const formValues = getFormValues(form);
 
     // Split values into config and credentials
-    const config: Record<string, string> = {};
-    const credentials: Record<string, string> = {};
+    const config: Record<string, string | null> = {};
+    const credentials: Record<string, string | null> = {};
 
     Object.entries(formValues).forEach(([key, value]) => {
       if (type.credential_fields.some((field) => field.key === key)) {
         credentials[key] = String(value);
       } else {
         config[key] = String(value);
+      }
+    });
+
+    // Clear stored values of fields that no longer apply (e.g. the previous
+    // authentication method's credentials).
+    const formFieldValues = { ...destination.config, ...formValues };
+    type.config_fields.forEach((field) => {
+      if (
+        field.key in destination.config &&
+        !isFieldVisible(type, field, formFieldValues)
+      ) {
+        config[field.key] = null;
+      }
+    });
+    type.credential_fields.forEach((field) => {
+      if (
+        field.key in destination.credentials &&
+        !isFieldVisible(type, field, formFieldValues)
+      ) {
+        credentials[field.key] = null;
       }
     });
 
