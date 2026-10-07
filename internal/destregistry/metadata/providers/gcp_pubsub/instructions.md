@@ -48,7 +48,7 @@ To follow these steps you will need a Google Cloud project and the [gcloud CLI](
 <!-- visible_when auth_method=workload_identity -->
 ### Workload Identity Federation (no keys)
 
-Select Workload Identity Federation as the authentication method to see the Issuer and Subject to use below.
+Use the Issuer and Subject shown for this destination in the steps below.
 
 1. Create a workload identity pool
 

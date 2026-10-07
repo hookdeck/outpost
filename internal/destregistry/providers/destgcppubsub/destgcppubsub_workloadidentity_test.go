@@ -5,11 +5,12 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
-	"encoding/pem"
 	"math/big"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -25,6 +26,9 @@ import (
 	"github.com/hookdeck/outpost/internal/workloadidentity"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/api/option"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 )
 
 const (
@@ -34,13 +38,9 @@ const (
 
 func newTestIssuer(t *testing.T) *workloadidentity.Issuer {
 	t.Helper()
-	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	require.NoError(t, err)
-	der, err := x509.MarshalECPrivateKey(key)
-	require.NoError(t, err)
 	issuer, err := workloadidentity.New(workloadidentity.Config{
 		Issuer:     "https://outpost.example.com/workload-identity",
-		SigningKey: string(pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: der})),
+		SigningKey: testutil.SigningKeyPEM(t),
 	})
 	require.NoError(t, err)
 	return issuer
@@ -200,6 +200,43 @@ func TestValidate_AuthMethod(t *testing.T) {
 			tenantID:    strings.Repeat("t", 120),
 			config:      map[string]string{"auth_method": "workload_identity"},
 			credentials: map[string]string{"workload_identity_provider": testProvider},
+		},
+		{
+			name:        "tenant id with a quote",
+			tenantID:    "acme'corp",
+			config:      map[string]string{"auth_method": "workload_identity"},
+			credentials: map[string]string{"workload_identity_provider": testProvider},
+			want:        []destregistry.ValidationErrorDetail{{Field: "tenant_id", Type: "pattern"}},
+		},
+		{
+			name:        "tenant id with a slash",
+			tenantID:    "acme/corp",
+			config:      map[string]string{"auth_method": "workload_identity"},
+			credentials: map[string]string{"workload_identity_provider": testProvider},
+			want:        []destregistry.ValidationErrorDetail{{Field: "tenant_id", Type: "pattern"}},
+		},
+		{
+			name:        "tenant id with a space",
+			tenantID:    "acme corp",
+			config:      map[string]string{"auth_method": "workload_identity"},
+			credentials: map[string]string{"workload_identity_provider": testProvider},
+			want:        []destregistry.ValidationErrorDetail{{Field: "tenant_id", Type: "pattern"}},
+		},
+		{
+			name:        "tenant id with allowed punctuation",
+			tenantID:    "org_1.team-a:prod@eu",
+			config:      map[string]string{"auth_method": "workload_identity"},
+			credentials: map[string]string{"workload_identity_provider": testProvider},
+		},
+		{
+			name:        "tenant id with a quote and a service account key",
+			tenantID:    "acme'corp",
+			credentials: map[string]string{"service_account_json": serviceAccountJSON},
+		},
+		{
+			name:        "empty service account key with workload identity",
+			config:      map[string]string{"auth_method": "workload_identity"},
+			credentials: map[string]string{"workload_identity_provider": testProvider, "service_account_json": ""},
 		},
 		{
 			name:        "long tenant id with service account key",
@@ -417,4 +454,91 @@ func TestCreatePublisher_WorkloadIdentity(t *testing.T) {
 		map[string]string{"workload_identity_provider": testProvider}))
 	require.NoError(t, err)
 	require.NoError(t, publisher.Close())
+}
+
+func TestObfuscateDestination_AlwaysReturnsServiceAccountJSON(t *testing.T) {
+	t.Parallel()
+	provider, err := destgcppubsub.New(testutil.Registry.MetadataLoader(), nil, destgcppubsub.WithWorkloadIdentity(newTestIssuer(t)))
+	require.NoError(t, err)
+
+	wif := gcpDestination("tenant_a",
+		map[string]string{"auth_method": "workload_identity"},
+		map[string]string{"workload_identity_provider": testProvider})
+	got := provider.ObfuscateDestination(wif)
+	assert.Equal(t, map[string]string{"service_account_json": "", "workload_identity_provider": testProvider}, map[string]string(got.Credentials))
+	assert.NotContains(t, wif.Credentials, "service_account_json", "the stored destination is not modified")
+
+	key := gcpDestination("tenant_a", nil, map[string]string{"service_account_json": `{"type":"service_account","project_id":"my-project"}`})
+	assert.Equal(t, `{"ty`, provider.ObfuscateDestination(key).Credentials["service_account_json"][:4])
+	assert.NotEqual(t, key.Credentials["service_account_json"], provider.ObfuscateDestination(key).Credentials["service_account_json"])
+}
+
+// A failed token exchange reaches the delivery attempt with Google's error.
+func TestPublishEvent_WorkloadIdentityExchangeFailure(t *testing.T) {
+	t.Parallel()
+	google := newFakeGoogle(t, newTestIssuer(t))
+	google.stsError = `{"error":"invalid_grant","error_description":"The given credential is rejected by the attribute condition."}`
+
+	// The exchange happens before the RPC is sent: the server only needs to
+	// accept a TLS connection.
+	addr, clientTLS := startTLSGRPCServer(t)
+
+	registry := destregistry.NewRegistry(&destregistry.Config{}, testutil.CreateTestLogger(t))
+	provider, err := destgcppubsub.New(testutil.Registry.MetadataLoader(), nil,
+		destgcppubsub.WithWorkloadIdentity(google.issuer),
+		destgcppubsub.WithGoogleEndpoints(google.server.URL+"/v1/token", google.server.URL),
+		destgcppubsub.WithClientOptions(
+			option.WithEndpoint(addr),
+			option.WithGRPCDialOption(grpc.WithTransportCredentials(credentials.NewTLS(clientTLS))),
+		),
+	)
+	require.NoError(t, err)
+	require.NoError(t, registry.RegisterProvider("gcp_pubsub", provider))
+
+	dest := gcpDestination("tenant_a",
+		map[string]string{"auth_method": "workload_identity"},
+		map[string]string{"workload_identity_provider": testProvider})
+	event := testutil.EventFactory.Any(testutil.EventFactory.WithTenantID("tenant_a"))
+
+	attempt, err := registry.PublishEvent(context.Background(), dest, &event)
+	require.Error(t, err)
+	require.NotNil(t, attempt)
+	assert.Equal(t, "failed", attempt.Status)
+	assert.Equal(t, "ERR", attempt.Code)
+	assert.Contains(t, attempt.ResponseData["error"], "code = Unauthenticated")
+	assert.Contains(t, attempt.ResponseData["error"], "rejected by the attribute condition")
+
+	var pubErr *destregistry.ErrDestinationPublishAttempt
+	require.ErrorAs(t, err, &pubErr)
+	assert.Equal(t, "publish_failed", pubErr.Data["error"])
+}
+
+func startTLSGRPCServer(t *testing.T) (string, *tls.Config) {
+	t.Helper()
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+	tmpl := &x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		NotBefore:    time.Now().Add(-time.Hour),
+		NotAfter:     time.Now().Add(time.Hour),
+		IPAddresses:  []net.IP{net.ParseIP("127.0.0.1")},
+		KeyUsage:     x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+	}
+	der, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, &key.PublicKey, key)
+	require.NoError(t, err)
+	cert, err := x509.ParseCertificate(der)
+	require.NoError(t, err)
+
+	lis, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	server := grpc.NewServer(grpc.Creds(credentials.NewTLS(&tls.Config{
+		Certificates: []tls.Certificate{{Certificate: [][]byte{der}, PrivateKey: key}},
+	})))
+	go func() { _ = server.Serve(lis) }()
+	t.Cleanup(server.Stop)
+
+	pool := x509.NewCertPool()
+	pool.AddCert(cert)
+	return lis.Addr().String(), &tls.Config{RootCAs: pool}
 }

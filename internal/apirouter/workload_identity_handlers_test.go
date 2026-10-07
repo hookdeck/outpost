@@ -1,12 +1,7 @@
 package apirouter_test
 
 import (
-	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rand"
-	"crypto/x509"
 	"encoding/json"
-	"encoding/pem"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -29,13 +24,9 @@ const (
 
 func newTestWorkloadIdentity(t *testing.T) *workloadidentity.Issuer {
 	t.Helper()
-	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	require.NoError(t, err)
-	der, err := x509.MarshalECPrivateKey(key)
-	require.NoError(t, err)
 	issuer, err := workloadidentity.New(workloadidentity.Config{
 		Issuer:     testIssuerURL,
-		SigningKey: string(pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: der})),
+		SigningKey: testutil.SigningKeyPEM(t),
 	})
 	require.NoError(t, err)
 	return issuer
@@ -277,7 +268,27 @@ func TestWorkloadIdentity_Destinations(t *testing.T) {
 		require.Equal(t, http.StatusOK, resp.Code, resp.Body.String())
 		var dest destregistry.DestinationDisplay
 		require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &dest))
-		assert.Equal(t, []string{"workload_identity_provider"}, keys(dest.Credentials))
+		assert.Equal(t, map[string]string{"workload_identity_provider": testWIFProvider, "service_account_json": ""}, map[string]string(dest.Credentials))
+	})
+
+	t.Run("switch from key to workload identity with empty strings", func(t *testing.T) {
+		h := newWorkloadIdentityAPITest(t, true)
+		require.Equal(t, http.StatusCreated, create(h, "d1", nil, map[string]string{"service_account_json": testSAKeyJSON}).Code)
+
+		resp := patch(h, "d1", map[string]any{
+			"config":      map[string]any{"auth_method": "workload_identity"},
+			"credentials": map[string]any{"workload_identity_provider": testWIFProvider, "service_account_json": ""},
+		})
+		require.Equal(t, http.StatusOK, resp.Code, resp.Body.String())
+		var dest destregistry.DestinationDisplay
+		require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &dest))
+		assert.Equal(t, map[string]string{"workload_identity_provider": testWIFProvider, "service_account_json": ""}, map[string]string(dest.Credentials))
+	})
+
+	t.Run("create with an empty key, as typed clients send it", func(t *testing.T) {
+		h := newWorkloadIdentityAPITest(t, true)
+		resp := create(h, "d1", wif, map[string]string{"workload_identity_provider": testWIFProvider, "service_account_json": ""})
+		require.Equal(t, http.StatusCreated, resp.Code, resp.Body.String())
 	})
 
 	t.Run("switch from workload identity to key", func(t *testing.T) {
@@ -301,4 +312,52 @@ func keys(m map[string]string) []string {
 		out = append(out, k)
 	}
 	return out
+}
+
+// Clients built against a schema where credentials.service_account_json is
+// required must be able to read workload identity destinations.
+func TestWorkloadIdentity_ResponsesIncludeServiceAccountJSON(t *testing.T) {
+	h := newWorkloadIdentityAPITest(t, true)
+	createResp := h.do(h.withAPIKey(h.jsonReq(http.MethodPost, "/api/v1/tenants/t1/destinations", map[string]any{
+		"id":          "d1",
+		"type":        "gcp_pubsub",
+		"topics":      "*",
+		"config":      map[string]string{"project_id": "p", "topic": "t", "auth_method": "workload_identity"},
+		"credentials": map[string]string{"workload_identity_provider": testWIFProvider},
+	})))
+	require.Equal(t, http.StatusCreated, createResp.Code, createResp.Body.String())
+
+	requireKey := func(name string, body []byte) {
+		t.Helper()
+		var dest struct {
+			Credentials map[string]*string `json:"credentials"`
+		}
+		require.NoError(t, json.Unmarshal(body, &dest), name)
+		v, ok := dest.Credentials["service_account_json"]
+		require.True(t, ok, "%s: credentials.service_account_json missing", name)
+		require.NotNil(t, v, name)
+		assert.Equal(t, "", *v, name)
+	}
+	requireKey("create", createResp.Body.Bytes())
+
+	get := h.do(h.withAPIKey(h.jsonReq(http.MethodGet, "/api/v1/tenants/t1/destinations/d1", nil)))
+	require.Equal(t, http.StatusOK, get.Code)
+	requireKey("get", get.Body.Bytes())
+
+	list := h.do(h.withAPIKey(h.jsonReq(http.MethodGet, "/api/v1/tenants/t1/destinations", nil)))
+	require.Equal(t, http.StatusOK, list.Code)
+	var items []json.RawMessage
+	require.NoError(t, json.Unmarshal(list.Body.Bytes(), &items))
+	require.Len(t, items, 1)
+	requireKey("list", items[0])
+
+	patched := h.do(h.withAPIKey(h.jsonReq(http.MethodPatch, "/api/v1/tenants/t1/destinations/d1", map[string]any{
+		"credentials": map[string]any{"service_account_email": "publisher@p.iam.gserviceaccount.com"},
+	})))
+	require.Equal(t, http.StatusOK, patched.Code, patched.Body.String())
+	requireKey("patch", patched.Body.Bytes())
+
+	stored, err := h.tenantStore.RetrieveDestination(t.Context(), "t1", "d1")
+	require.NoError(t, err)
+	assert.NotContains(t, stored.Credentials, "service_account_json", "storage is unchanged")
 }

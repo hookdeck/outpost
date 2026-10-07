@@ -1,11 +1,6 @@
 package e2e_test
 
 import (
-	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rand"
-	"crypto/x509"
-	"encoding/pem"
 	"fmt"
 	"io"
 	"net/http"
@@ -14,7 +9,7 @@ import (
 	"github.com/hookdeck/outpost/cmd/e2e/configs"
 	"github.com/hookdeck/outpost/internal/config"
 	"github.com/hookdeck/outpost/internal/util/testinfra"
-	"github.com/stretchr/testify/require"
+	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -91,11 +86,7 @@ type workloadIdentitySuite struct {
 }
 
 func (s *workloadIdentitySuite) SetupSuite() {
-	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	require.NoError(s.T(), err)
-	der, err := x509.MarshalECPrivateKey(key)
-	require.NoError(s.T(), err)
-	signingKey := string(pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: der}))
+	signingKey := testutil.SigningKeyPEM(s.T())
 
 	s.base = &basicSuite{
 		logStorageType: configs.LogStorageTypeClickHouse,
@@ -171,6 +162,8 @@ func (s *workloadIdentitySuite) TestCreateDestination() {
 	s.Require().Equal(http.StatusCreated, status)
 	s.Equal("workload_identity", dest.Config["auth_method"])
 	s.Equal(e2eWIFProvider, dest.Credentials["workload_identity_provider"])
+	s.Contains(dest.Credentials, "service_account_json", "kept for clients that require the field")
+	s.Equal("", dest.Credentials["service_account_json"])
 
 	s.Run("with a key as well", func() {
 		s.base.requireError(errorCase{

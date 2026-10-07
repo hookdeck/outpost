@@ -45,7 +45,7 @@ curl '{% $OUTPOST_API_BASE_URL %}/tenants/<TENANT_ID>/destinations' \
 
 *Not required when using the Pub/Sub emulator. **Required for the `workload_identity` auth method.
 
-Credentials of the auth method not in use must not be set. To switch methods with a `PATCH`, set the previous method's credentials to `null` in the same request.
+Credentials of the auth method not in use must not be set; an empty string counts as not set. To switch methods with a `PATCH`, set the previous method's credentials to `null` or an empty string in the same request. Responses always include `credentials.service_account_json`, as an empty string for the `workload_identity` auth method.
 
 ## Message Format
 
@@ -103,7 +103,7 @@ The token's claims:
 | `aud` | `//iam.googleapis.com/` followed by the destination's `workload_identity_provider` |
 | `iat`, `exp` | Valid for 5 minutes |
 
-It is signed with `RS256` or `ES256`, and its `kid` header names the key in the issuer's JWKS. A token is only ever issued for the destination's own tenant, so a provider whose attribute condition pins one subject rejects every other tenant. Tenant IDs longer than 120 bytes can't be used: Google limits the subject to 127 bytes.
+It is signed with `RS256` or `ES256`, and its `kid` header names the key in the issuer's JWKS. A token is only ever issued for the destination's own tenant, so a provider whose attribute condition pins one subject rejects every other tenant. The tenant ID must be at most 120 bytes (Google limits the subject to 127 bytes) and contain only letters, digits and `.`, `_`, `-`, `:`, `@`, so the subject is usable in an IAM principal and an attribute condition.
 
 `GET /tenants/<TENANT_ID>/workload-identity` returns the issuer and subject for a tenant. The portal shows them when Workload Identity Federation is selected.
 

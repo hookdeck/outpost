@@ -188,6 +188,8 @@ Generate a key with `openssl ecparam -name prime256v1 -genkey -noout -out signin
 
 To rotate the key: add the new key to `WORKLOAD_IDENTITY_VERIFICATION_KEYS` and wait for providers to refetch the JWKS (Outpost serves it with a 5-minute cache lifetime; providers may cache longer), then make it the signing key and move the old key to `WORKLOAD_IDENTITY_VERIFICATION_KEYS`. Remove the old key once tokens signed with it have expired (5 minutes).
 
+Removing the workload identity configuration stops destinations that use it from delivering: their deliveries fail until they are switched to another authentication method.
+
 ## Supervisor
 
 The supervisor can restart a worker whose run fails, such as a queue consumer losing its connection to the broker. Restarts are off by default: a worker is reported `failed` on its first failure and `/healthz` returns HTTP 503 until the process restarts.

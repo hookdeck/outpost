@@ -1,33 +1,20 @@
 package config_test
 
 import (
-	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rand"
-	"crypto/x509"
-	"encoding/pem"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/hookdeck/outpost/internal/config"
+	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func testSigningKeyPEM(t *testing.T) string {
-	t.Helper()
-	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	require.NoError(t, err)
-	der, err := x509.MarshalECPrivateKey(key)
-	require.NoError(t, err)
-	return string(pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: der}))
-}
-
 func TestWorkloadIdentityConfig(t *testing.T) {
 	const issuer = "https://outpost.example.com/workload-identity"
-	key := testSigningKeyPEM(t)
+	key := testutil.SigningKeyPEM(t)
 	keyFile := filepath.Join(t.TempDir(), "key.pem")
 	require.NoError(t, os.WriteFile(keyFile, []byte(key), 0o600))
 
@@ -67,7 +54,7 @@ func TestWorkloadIdentityConfig(t *testing.T) {
 }
 
 func TestWorkloadIdentityConfig_Env(t *testing.T) {
-	key := testSigningKeyPEM(t)
+	key := testutil.SigningKeyPEM(t)
 	m := &mockOS{files: map[string][]byte{}, envVars: map[string]string{
 		"WORKLOAD_IDENTITY_ISSUER":      "https://outpost.example.com/workload-identity",
 		"WORKLOAD_IDENTITY_SIGNING_KEY": strings.ReplaceAll(key, "\n", `\n`),
@@ -81,7 +68,7 @@ func TestWorkloadIdentityConfig_Env(t *testing.T) {
 }
 
 func TestWorkloadIdentityConfig_YAML(t *testing.T) {
-	key := testSigningKeyPEM(t)
+	key := testutil.SigningKeyPEM(t)
 	indented := "    " + strings.ReplaceAll(strings.TrimSpace(key), "\n", "\n    ")
 	m := &mockOS{files: map[string][]byte{"/c.yaml": []byte(
 		"workload_identity:\n  issuer: https://outpost.example.com/workload-identity\n  signing_key: |\n" + indented + "\n",

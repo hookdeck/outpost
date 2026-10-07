@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 	"time"
 
@@ -35,6 +36,11 @@ const (
 	maxSubjectBytes = 127
 )
 
+// subjectTenantIDPattern limits tenant IDs used in a workload identity
+// subject to characters that are safe in an IAM principal identifier and in a
+// quoted attribute condition.
+var subjectTenantIDPattern = regexp.MustCompile(`^[A-Za-z0-9._:@-]+$`)
+
 // TokenIssuer mints the OIDC token a workload identity pool exchanges for
 // Google credentials.
 type TokenIssuer interface {
@@ -48,6 +54,8 @@ type GCPPubSubDestination struct {
 	stsTokenURL       string
 	iamCredentialsURL string
 	tokenHTTPClient   *http.Client
+	// clientOptions are appended to every Pub/Sub client's options (tests).
+	clientOptions []option.ClientOption
 }
 
 type GCPPubSubDestinationConfig struct {
@@ -138,6 +146,8 @@ func (d *GCPPubSubDestination) CreatePublisher(ctx context.Context, destination 
 		opts = append(opts, option.WithCredentialsJSON([]byte(creds.ServiceAccountJSON)))
 	}
 
+	opts = append(opts, d.clientOptions...)
+
 	// Create the client
 	client, err := pubsub.NewClient(ctx, cfg.ProjectID, opts...)
 	if err != nil {
@@ -168,14 +178,23 @@ func (d *GCPPubSubDestination) resolveMetadata(ctx context.Context, destination 
 		authMethod = AuthMethodServiceAccountKey
 	}
 
-	if authMethod == AuthMethodWorkloadIdentity &&
-		len(workloadidentity.TenantSubject(destination.TenantID)) > maxSubjectBytes {
-		return nil, nil, destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{
-			{
-				Field: "tenant_id",
-				Type:  "maxlength",
-			},
-		})
+	if authMethod == AuthMethodWorkloadIdentity {
+		if len(workloadidentity.TenantSubject(destination.TenantID)) > maxSubjectBytes {
+			return nil, nil, destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{
+				{
+					Field: "tenant_id",
+					Type:  "maxlength",
+				},
+			})
+		}
+		if !subjectTenantIDPattern.MatchString(destination.TenantID) {
+			return nil, nil, destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{
+				{
+					Field: "tenant_id",
+					Type:  "pattern",
+				},
+			})
+		}
 	}
 
 	// Validate service_account_json is valid JSON (if not using emulator endpoint)
@@ -252,6 +271,17 @@ type subjectTokenSupplier struct {
 
 func (s subjectTokenSupplier) SubjectToken(ctx context.Context, opts externalaccount.SupplierOptions) (string, error) {
 	return s.issuer.Mint(s.subject, s.audience)
+}
+
+// ObfuscateDestination always returns service_account_json, empty for
+// workload_identity destinations, so clients that expect the field keep
+// parsing them.
+func (d *GCPPubSubDestination) ObfuscateDestination(destination *models.Destination) *models.Destination {
+	result := d.BaseProvider.ObfuscateDestination(destination)
+	if _, ok := result.Credentials["service_account_json"]; !ok {
+		result.Credentials["service_account_json"] = ""
+	}
+	return result
 }
 
 func (d *GCPPubSubDestination) ComputeTarget(destination *models.Destination) destregistry.DestinationTarget {

@@ -565,15 +565,17 @@ components:
         auth_method:
           type: string
           enum: [service_account_key, workload_identity]
+          x-speakeasy-unknown-values: allow
           description: Optional. How Outpost authenticates to Google Cloud. Omitted means `service_account_key`. `workload_identity` is only accepted when the Outpost instance has workload identity configured.
           example: "service_account_key"
     GCPPubSubCredentials:
       type: object
+      required: [service_account_json]
       description: Set the credentials of the selected `auth_method` only.
       properties:
         service_account_json:
           type: string
-          description: Service account key JSON. The entire JSON key file content as a string. Required for the `service_account_key` auth method.
+          description: Service account key JSON. The entire JSON key file content as a string. Empty string when `auth_method` is `workload_identity`.
           example: '{"type":"service_account","project_id":"my-project","private_key_id":"key123","private_key":"-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n","client_email":"my-service@my-project.iam.gserviceaccount.com"}'
         workload_identity_provider:
           type: string
@@ -2507,7 +2509,8 @@ components:
         auth_method:
           type: string
           enum: [service_account_key, workload_identity]
-          description: How Outpost authenticates to Google Cloud. When switching, set the previous method's credentials to `null` in the same request.
+          x-speakeasy-unknown-values: allow
+          description: How Outpost authenticates to Google Cloud. When switching, set the previous method's credentials to `null` or an empty string in the same request.
     GCPPubSubCredentialsUpdate:
       type: object
       description: Partial GCP Pub/Sub credentials for PATCH updates (RFC 7396 merge-patch).
