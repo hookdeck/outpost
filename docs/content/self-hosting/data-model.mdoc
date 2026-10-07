@@ -1,0 +1,247 @@
+---
+title: "Data Model"
+description: "How Outpost lays out its data across Redis and the PostgreSQL or ClickHouse log store, and how the tables and keys relate to each other."
+---
+
+Outpost's data model is split across two stores. Redis holds configuration and short-lived coordination state. The log store, PostgreSQL or ClickHouse, holds the event and delivery history.
+
+This page describes every table and key Outpost writes, so you can size, back up, inspect, and debug a self-hosted deployment. Treat it as a read-only reference: Outpost owns these structures, and its migrations may change them between releases.
+
+## Overview
+
+| Store | What it holds | Lifetime | Written by |
+|-------|---------------|----------|------------|
+| Redis | Tenants, destinations and their credentials | Permanent until deleted | API service |
+| Redis | Retry schedule (RSMQ) | Until the retry runs | Delivery service schedules, API service runs |
+| Redis | Short-lived processing state | TTL-bound, minutes to a day | All services |
+| Redis | Installation, migration, and lock metadata | Permanent, except locks, which expire | All services, migration tool |
+| PostgreSQL or ClickHouse | Events and delivery attempts | Until retention removes them | Log service |
+
+The stores don't share foreign keys. They're joined by ID in application code:
+
+```text
+Redis                                         Log store (PostgreSQL / ClickHouse)
+─────                                         ───────────────────────────────────
+tenant:{<tenant_id>}:tenant          1 ──┐
+                                         │ 1
+tenant:{<tenant_id>}:destinations ◄──────┤    events
+  (summary hash, one field per           │      id / event_id ───────────┐ 1
+   destination)                          │      tenant_id                 │
+                                         │ N    matched_destination_ids   │
+tenant:{<tenant_id>}:destination:<id> ◄──┘                                │ N
+                         ▲                    attempts                    │
+                         └─────────────────────  destination_id           │
+                                                 event_id ◄───────────────┘
+                                                 tenant_id
+```
+
+- A **tenant** owns many **destinations**. Both live in Redis under the same `{<tenant_id>}` hash tag.
+- An **event** belongs to one tenant and records the IDs of the destinations it matched when it was published.
+- A **delivery attempt** belongs to one event and one destination. A single event has one attempt per matched destination per try, including retries and manual retries.
+- Log rows reference tenants and destinations by ID only. Deleting a tenant or destination in Redis leaves its history in the log store until retention removes it.
+
+## Log store
+
+The log store holds two tables, `events` and `attempts`, in both backends. Each attempt row embeds a copy of its event's fields, so listing attempts never needs a join. The trade-off is that event payloads are stored once per attempt as well as once in `events`.
+
+An event is written together with its first delivery attempt. An event that matches no destination produces no attempt and isn't written. See [Event & Delivery Log](/docs/outpost/self-hosting/guides/event-delivery-log) for retention and backend selection.
+
+### PostgreSQL
+
+Both tables are range partitioned on `time`. Outpost creates only a DEFAULT partition for each (`events_default` and `attempts_default`) and doesn't manage further partitions.
+
+**`events` table**
+
+One row per published event that matched at least one destination.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | `text` | Event ID. |
+| `tenant_id` | `text` | Tenant the event was published for. |
+| `matched_destination_ids` | `text[]` | Destinations the event matched when it was published. |
+| `time` | `timestamptz` | Event time. Partition key. |
+| `topic` | `text` | Event topic. |
+| `eligible_for_retry` | `boolean` | Whether failed attempts are retried automatically. |
+| `data` | `text` | Event payload, stored as the raw JSON string so key order is preserved. |
+| `metadata` | `jsonb` | Event metadata. |
+
+Primary key: `(time, id)`.
+
+| Index | Columns | Used for |
+|-------|---------|----------|
+| `idx_events_tenant_time` | `tenant_id, time DESC, id DESC` | Listing a tenant's events. |
+| `idx_events_tenant_topic_time` | `tenant_id, topic, time DESC, id DESC` | Filtering by topic. |
+| `idx_events_id` | `id` | Retrieving an event by ID. |
+| GIN | `matched_destination_ids` | Filtering events by destination. |
+
+**`attempts` table**
+
+One row per delivery attempt. Event fields are copied onto every attempt.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | `text` | Attempt ID. |
+| `event_id` | `text` | Event this attempt delivered. References `events.id`. |
+| `tenant_id` | `text` | Tenant ID, copied from the event. |
+| `destination_id` | `text` | Destination the attempt was made against. |
+| `destination_type` | `text` | Destination type, such as `webhook` or `aws_sqs`. |
+| `topic` | `text` | Event topic, copied from the event. |
+| `status` | `text` | `success` or `failed`. |
+| `time` | `timestamptz` | Attempt time. Partition key. |
+| `attempt_number` | `integer` | Attempt number for this event and destination. |
+| `manual` | `boolean` | Whether the attempt was a manual retry. |
+| `code` | `text` | Response code from the destination, such as an HTTP status. |
+| `response_data` | `text` | Destination response, as a JSON string. |
+| `latency_ms` | `integer` | Time the destination took to respond. `NULL` for attempts written before v1.6. |
+| `event_time` | `timestamptz` | Event time, copied from the event. |
+| `eligible_for_retry` | `boolean` | Copied from the event. |
+| `event_data` | `text` | Event payload, copied from the event. |
+| `event_metadata` | `jsonb` | Event metadata, copied from the event. |
+
+Primary key: `(time, id)`.
+
+| Index | Columns | Used for |
+|-------|---------|----------|
+| `idx_attempts_tenant_time` | `tenant_id, time DESC, id DESC` | Listing a tenant's attempts. |
+| `idx_attempts_tenant_dest_time` | `tenant_id, destination_id, time DESC, id DESC` | Filtering by destination. |
+| `idx_attempts_tenant_desttype_time` | `tenant_id, destination_type, time DESC, id DESC` | Filtering by destination type. |
+| `idx_attempts_tenant_status_time` | `tenant_id, status, time DESC, id DESC` | Filtering by status. |
+| `idx_attempts_tenant_topic_time` | `tenant_id, topic, time DESC, id DESC` | Filtering by topic. |
+| `idx_attempts_event_time` | `event_id, time DESC, id DESC` | Listing the attempts for an event, and loading the event for a retry. |
+| `idx_attempts_id` | `id` | Retrieving an attempt by ID. |
+
+**`schema_migrations` table**
+
+Managed by the migration tool to track the applied schema version. Don't edit it by hand; use the [migration tool](/docs/outpost/self-hosting/guides/migration).
+
+### ClickHouse
+
+Both tables use the `ReplacingMergeTree` engine. Rows with the same sorting key are deduplicated during background merges, so a retried insert can briefly appear twice before the merge runs. Both tables are partitioned by month.
+
+When `CLICKHOUSE_LOG_RETENTION_TTL_DAYS` is set, Outpost applies it as a table TTL on `event_time` for `events` and `attempt_time` for `attempts`.
+
+**`events` table**
+
+One row per published event that matched at least one destination.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `event_id` | `String` | Event ID. |
+| `tenant_id` | `String` | Tenant the event was published for. |
+| `matched_destination_ids` | `Array(String)` | Destinations the event matched when it was published. |
+| `topic` | `String` | Event topic. |
+| `eligible_for_retry` | `Bool` | Whether failed attempts are retried automatically. |
+| `event_time` | `DateTime64(3)` | Event time. |
+| `metadata` | `String` | Event metadata, as a JSON string. |
+| `data` | `String` | Event payload, as the raw JSON string. |
+
+- Partition: `toYYYYMM(event_time)`
+- Order by: `(event_time, event_id)`
+- Skip indexes: bloom filters on `tenant_id`, `event_id`, `topic`, and `matched_destination_ids`.
+
+**`attempts` table**
+
+One row per delivery attempt. Event fields are copied onto every attempt.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `event_id` | `String` | Event this attempt delivered. References `events.event_id`. |
+| `tenant_id` | `String` | Tenant ID, copied from the event. |
+| `destination_id` | `String` | Destination the attempt was made against. |
+| `destination_type` | `String` | Destination type, such as `webhook` or `aws_sqs`. |
+| `topic` | `String` | Event topic, copied from the event. |
+| `eligible_for_retry` | `Bool` | Copied from the event. |
+| `event_time` | `DateTime64(3)` | Event time, copied from the event. |
+| `metadata` | `String` | Event metadata, copied from the event. |
+| `data` | `String` | Event payload, copied from the event. |
+| `attempt_id` | `String` | Attempt ID. |
+| `status` | `String` | `success` or `failed`. |
+| `attempt_time` | `DateTime64(3)` | Attempt time. |
+| `code` | `String` | Response code from the destination, such as an HTTP status. |
+| `response_data` | `String` | Destination response, as a JSON string. |
+| `manual` | `Bool` | Whether the attempt was a manual retry. |
+| `attempt_number` | `UInt32` | Attempt number for this event and destination. |
+| `latency_ms` | `Nullable(UInt32)` | Time the destination took to respond. `NULL` for attempts written before v1.6. |
+
+- Partition: `toYYYYMM(attempt_time)`
+- Order by: `(attempt_time, attempt_id)`
+- Skip indexes: bloom filters on `tenant_id`, `destination_id`, `destination_type`, `event_id`, `attempt_id`, and `topic`; a set index on `status`.
+
+**`schema_migrations` table**
+
+Managed by the migration tool to track the applied schema version. Don't edit it by hand; use the [migration tool](/docs/outpost/self-hosting/guides/migration).
+
+## Redis
+
+Redis is the source of truth for tenant and destination configuration. Back it up and enable RDB or AOF persistence. Losing it loses your tenants, destinations, and pending retries; the log store can't rebuild them.
+
+The `{<tenant_id>}` braces in tenant keys are a Redis Cluster hash tag. They place all of a tenant's keys in the same slot, which lets Outpost update a tenant and its destinations in a single transaction on clustered Redis.
+
+### Tenants and destinations
+
+| Key | Type | TTL | Contents |
+|-----|------|-----|----------|
+| `tenant:{<tenant_id>}:tenant` | Hash | None | The tenant record. |
+| `tenant:{<tenant_id>}:destinations` | Hash | None | Destination summaries, one field per destination ID. |
+| `tenant:{<tenant_id>}:destination:<destination_id>` | Hash | None | The full destination record. |
+| `tenant_idx` | RediSearch index | None | Index over tenant hashes for listing tenants. |
+
+**Tenant hash fields:** `id`, `entity` (always `tenant`), `created_at`, `updated_at`, `metadata` (JSON), and `deleted_at` once deleted. Timestamps are Unix milliseconds.
+
+**Destination hash fields:** `id`, `entity` (always `destination`), `type`, `topics` (JSON), `config` (JSON), `credentials`, `delivery_metadata`, `metadata` (JSON), `filter` (JSON), `created_at`, `updated_at`, `disabled_at` when disabled, and `deleted_at` once deleted. `credentials` and `delivery_metadata` are encrypted with `AES_ENCRYPTION_SECRET`.
+
+**Destination summary hash:** each field is a destination ID and each value is a JSON object with the destination's `id`, `type`, `topics`, `filter`, and `disabled` flag. Outpost matches published events against this hash, so routing reads one key per tenant rather than one per destination. It's kept in sync with the destination hashes on every write.
+
+**Deletion is a soft delete.** Deleting a destination removes its field from the summary hash, sets `deleted_at` on the destination hash, and expires that hash after 7 days. Deleting a tenant does the same for every destination, removes the summary hash, and sets `deleted_at` with a 7 day expiry on the tenant hash. Recreating a tenant with the same ID within those 7 days clears `deleted_at` and the expiry.
+
+**`tenant_idx`** is created at startup only when the Redis deployment supports RediSearch (`FT.*` commands). It indexes keys under the `tenant:` prefix whose `entity` field is `tenant`. Without it, the list tenants endpoint isn't available.
+
+### Retry schedule
+
+Scheduled retries are stored in an [RSMQ](https://github.com/smrchy/rsmq) queue inside Redis, under the `rsmq:` namespace.
+
+| Key | Type | Contents |
+|-----|------|----------|
+| `rsmq:QUEUES` | Set | Names of the queues Outpost has created. |
+| `rsmq:deliverymq-retry` | Sorted set | Pending retry IDs, scored by the time each becomes due. |
+| `rsmq:deliverymq-retry:Q` | Hash | Queue settings, plus each retry's body and receive counters. |
+| `rsmq:deliverymq-retry-dlq` | Sorted set | Retries that failed to be processed after 5 receives. |
+| `rsmq:deliverymq-retry-dlq:Q` | Hash | Bodies for dead-lettered retries. |
+
+Each retry's ID is derived from its event ID and destination ID, so there is at most one pending retry per event and destination. Scheduling a new retry, or making a manual retry, replaces or cancels the pending one.
+
+A retry body holds only the event ID, tenant ID, and destination ID. When the retry is due, Outpost loads the event and the previous attempt number from the log store's `attempts` table, then publishes a new delivery task. Dead-lettered retries aren't redriven automatically.
+
+### Short-lived processing state
+
+These keys are short-lived and self-expiring, and safe to lose. Losing an idempotency key can cause a duplicate delivery. Losing an `alert:…:cf` key resets the destination's consecutive-failure count, which delays threshold alerts and auto-disable.
+
+| Key | Type | TTL | Purpose |
+|-----|------|-----|---------|
+| `idempotency:publishmq:<event_id>` | String | `PUBLISH_IDEMPOTENCY_KEY_TTL` (default 1 hour) | Deduplicates published events. Holds `processing` during work, then `processed`. |
+| `idempotency:deliverymq:<event_id>:<destination_id>:<attempt>` | String | `DELIVERY_IDEMPOTENCY_KEY_TTL` (default 1 hour) | Deduplicates delivery tasks, so each attempt is made once. |
+| `publishmq:failures:<message_id>` | String (counter) | 24 hours | Counts failed receives of a message from the publish queue. |
+| `alert:<tenant_id>:<destination_id>:cf` | Set | 24 hours | IDs of consecutive failed attempts for a destination. Its size is the consecutive failure count; a successful attempt deletes it. |
+| `logmq:processed:<attempt_id>` | String | 24 hours | Marks a failed attempt as processed for alerting, so a redelivered log message isn't counted twice. |
+| `opevents:exhausted:<tenant_id>:<destination_id>` | String | `ALERT_EXHAUSTED_RETRIES_WINDOW_SECONDS` (default 1 hour) | Limits exhausted-retries alerts to one per destination per window. |
+
+### Deployment metadata
+
+| Key | Type | TTL | Purpose |
+|-----|------|-----|---------|
+| `outpost:installation_id` | String | None | Anonymous installation ID used for telemetry. Only created when telemetry is enabled. |
+| `outpost:log_retention_ttl` | String | None | The ClickHouse retention TTL, in days, that was last applied. Used to skip reapplying an unchanged value at startup. |
+| `outpost:migration:<name>` | Hash | None | Status of a Redis data migration: `status` (`applied` or `not_applicable`) and a timestamp. |
+| `.outpost:migration_lock` | String | 1 hour | Held while migrations run, so only one runner applies them. |
+| `outpost:lock` | String | 60 seconds | Held while message queue infrastructure is provisioned at startup. |
+
+## Lifecycle of an event across stores
+
+Following one event through the system shows how the stores relate:
+
+1. **Publish.** The API service, or the publish queue consumer, claims `idempotency:publishmq:<event_id>`. It reads `tenant:{<tenant_id>}:destinations` to find the destinations that match the event's topic and filters, then enqueues one delivery task per destination on the delivery queue.
+2. **Deliver.** The delivery service claims `idempotency:deliverymq:<event_id>:<destination_id>:<attempt>` and reads `tenant:{<tenant_id>}:destination:<destination_id>` for the destination's config and decrypted credentials. It makes the attempt and sends the result to the log queue. On a retryable failure, it also schedules a retry in `rsmq:deliverymq-retry`.
+3. **Log.** The log service writes the event to `events`, if it isn't there yet, and the attempt to `attempts`, in batches. For failed attempts, it updates `alert:<tenant_id>:<destination_id>:cf` and may emit operator events or disable the destination. A successful attempt resets the count.
+4. **Retry.** When a retry is due, the API service, which runs the retry scheduler, reads the event and the latest attempt from `attempts`, then enqueues a new delivery task with the next attempt number, which returns to step 2.
+
+Because step 4 reads from the log store, a retry can only run once the previous attempt has been written there. A retry that finds no prior attempt waits and tries again.

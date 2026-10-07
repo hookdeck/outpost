@@ -180,6 +180,7 @@
               "slug": "self-hosting/configuration",
               "title": "Configuration Reference"
             },
+            { "slug": "self-hosting/data-model", "title": "Data Model" },
             {
               "title": "Github Repository",
               "href": "https://github.com/hookdeck/outpost"
@@ -243,40 +244,40 @@
         "sections": [
           [
             {
-              "slug": "self-hosting/changelog/upgrade-v0.12",
-              "title": "Upgrade to v0.12"
-            },
-            {
-              "slug": "self-hosting/changelog/upgrade-v0.13",
-              "title": "Upgrade to v0.13"
-            },
-            {
-              "slug": "self-hosting/changelog/upgrade-v0.14",
-              "title": "Upgrade to v0.14"
-            },
-            {
-              "slug": "self-hosting/changelog/upgrade-v0.16",
-              "title": "Upgrade to v0.16"
-            },
-            {
-              "slug": "self-hosting/changelog/upgrade-v0.17",
-              "title": "Upgrade to v0.17"
-            },
-            {
-              "slug": "self-hosting/changelog/upgrade-v1.0",
-              "title": "Upgrade to v1.0"
-            },
-            {
-              "slug": "self-hosting/changelog/upgrade-v1.1",
-              "title": "Upgrade to v1.1"
+              "slug": "self-hosting/changelog/upgrade-v1.6",
+              "title": "Upgrade to v1.6"
             },
             {
               "slug": "self-hosting/changelog/upgrade-v1.2",
               "title": "Upgrade to v1.2"
             },
             {
-              "slug": "self-hosting/changelog/upgrade-v1.6",
-              "title": "Upgrade to v1.6"
+              "slug": "self-hosting/changelog/upgrade-v1.1",
+              "title": "Upgrade to v1.1"
+            },
+            {
+              "slug": "self-hosting/changelog/upgrade-v1.0",
+              "title": "Upgrade to v1.0"
+            },
+            {
+              "slug": "self-hosting/changelog/upgrade-v0.17",
+              "title": "Upgrade to v0.17"
+            },
+            {
+              "slug": "self-hosting/changelog/upgrade-v0.16",
+              "title": "Upgrade to v0.16"
+            },
+            {
+              "slug": "self-hosting/changelog/upgrade-v0.14",
+              "title": "Upgrade to v0.14"
+            },
+            {
+              "slug": "self-hosting/changelog/upgrade-v0.13",
+              "title": "Upgrade to v0.13"
+            },
+            {
+              "slug": "self-hosting/changelog/upgrade-v0.12",
+              "title": "Upgrade to v0.12"
             }
           ]
         ]
