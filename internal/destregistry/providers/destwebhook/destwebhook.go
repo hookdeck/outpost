@@ -33,9 +33,16 @@ const (
 
 // Timestamp header formats.
 const (
-	TimestampFormatRFC3339 = "rfc3339"
-	TimestampFormatUnix    = "unix" // seconds since the epoch, as Standard Webhooks requires
+	TimestampFormatRFC3339              = "rfc3339"
+	TimestampFormatUnix                 = "unix" // seconds since the epoch, as Standard Webhooks requires
+	TimestampFormatISO8601MilliNoOffset = "iso8601_milli_no_offset"
 )
+
+// TimestampLayoutISO8601MilliNoOffset renders
+// TimestampFormatISO8601MilliNoOffset: UTC with milliseconds and no offset
+// (e.g. 2026-10-05T15:02:25.447), the shape Python's
+// datetime.isoformat(timespec="milliseconds") produces for a naive datetime.
+const TimestampLayoutISO8601MilliNoOffset = "2006-01-02T15:04:05.000"
 
 // Reserved headers that cannot be set via custom_headers
 var reservedHeaders = map[string]bool{
@@ -259,7 +266,8 @@ func WithTopicHeader(name string, disabled bool) Option {
 }
 
 // WithTimestampFormat sets how the timestamp header renders the delivery time:
-// TimestampFormatRFC3339 (the default) or TimestampFormatUnix.
+// TimestampFormatRFC3339 (the default), TimestampFormatUnix or
+// TimestampFormatISO8601MilliNoOffset.
 func WithTimestampFormat(format string) Option {
 	return func(w *WebhookDestination) {
 		w.timestampFormat = format
@@ -321,9 +329,9 @@ func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePu
 		return nil, fmt.Errorf("signing secret template is required")
 	}
 	switch destination.timestampFormat {
-	case "", TimestampFormatRFC3339, TimestampFormatUnix:
+	case "", TimestampFormatRFC3339, TimestampFormatUnix, TimestampFormatISO8601MilliNoOffset:
 	default:
-		return nil, fmt.Errorf("invalid timestamp format %q: must be one of %s, %s", destination.timestampFormat, TimestampFormatRFC3339, TimestampFormatUnix)
+		return nil, fmt.Errorf("invalid timestamp format %q: must be one of %s, %s, %s", destination.timestampFormat, TimestampFormatRFC3339, TimestampFormatUnix, TimestampFormatISO8601MilliNoOffset)
 	}
 	destination.scheme, err = newSignatureScheme(signatureSchemeConfig{
 		ContentTemplate: destination.signatureContentTemplate,
@@ -903,8 +911,13 @@ func (p *WebhookPublisher) Format(ctx context.Context, event *models.Event) (*ht
 		}
 		// Delivery and event metadata may override the system timestamp; only
 		// the system value is reformatted.
-		if key == "timestamp" && p.timestampFormat == TimestampFormatUnix && value == now.UTC().Format(time.RFC3339) {
-			value = strconv.FormatInt(now.Unix(), 10)
+		if key == "timestamp" && value == now.UTC().Format(time.RFC3339) {
+			switch p.timestampFormat {
+			case TimestampFormatUnix:
+				value = strconv.FormatInt(now.Unix(), 10)
+			case TimestampFormatISO8601MilliNoOffset:
+				value = now.UTC().Format(TimestampLayoutISO8601MilliNoOffset)
+			}
 		}
 		req.Header.Set(name, value)
 	}

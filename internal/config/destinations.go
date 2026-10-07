@@ -83,7 +83,7 @@ type DestinationWebhookConfig struct {
 	DisableDefaultTimestampHeader bool `yaml:"disable_default_timestamp_header" env:"DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_TIMESTAMP_HEADER" desc:"Deprecated: set DESTINATIONS_WEBHOOK_TIMESTAMP_HEADER_NAME to an empty string to disable the timestamp header instead. Only applies to 'default' mode." required:"N"`
 	DisableDefaultTopicHeader     bool `yaml:"disable_default_topic_header" env:"DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_TOPIC_HEADER" desc:"Deprecated: set DESTINATIONS_WEBHOOK_TOPIC_HEADER_NAME to an empty string to disable the topic header instead." required:"N"`
 
-	TimestampFormat string `yaml:"timestamp_format" env:"DESTINATIONS_WEBHOOK_TIMESTAMP_FORMAT" desc:"Format of the timestamp header: 'rfc3339' or 'unix' (seconds since the epoch). Defaults to 'rfc3339'. Only applies to 'default' mode." required:"N"`
+	TimestampFormat string `yaml:"timestamp_format" env:"DESTINATIONS_WEBHOOK_TIMESTAMP_FORMAT" desc:"Format of the timestamp header: 'rfc3339', 'unix' (seconds since the epoch) or 'iso8601_milli_no_offset' (UTC with milliseconds and no offset, e.g. '2026-10-05T15:02:25.447'). Defaults to 'rfc3339'. Only applies to 'default' mode." required:"N"`
 
 	SignatureContentTemplate string `yaml:"signature_content_template" env:"DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE" desc:"Go template for constructing the content to be signed for webhook requests. Only applies to 'default' mode." required:"N"`
 	SignatureHeaderTemplate  string `yaml:"signature_header_template" env:"DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE" desc:"Go template for the value of the signature header. Only applies to 'default' mode." required:"N"`
