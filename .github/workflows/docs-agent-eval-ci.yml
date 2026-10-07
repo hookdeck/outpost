@@ -92,3 +92,58 @@ jobs:
           path: docs/agent-evaluation/results/runs
           if-no-files-found: warn
           retention-days: 14
+
+  # Post-merge runs have no PR to go red on, so a failure opens (or comments on) one issue
+  # instead of sitting unnoticed in the Actions tab. Same pattern as hookdeck/evals.
+  # failure() only, not cancelled(): the concurrency group cancels a pending run when a
+  # newer merge queues behind it, which is expected and not worth an alert.
+  eval-alert:
+    needs: [eval-ci]
+    if: ${{ failure() && github.event_name == 'push' }}
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Open or update the alert issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          # No checkout in this job, so gh has no git remote to infer the repository from.
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          COMMIT_URL: ${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}
+          # Passed through env, not interpolated into the script, so a commit message cannot inject shell.
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          gh label create agent-eval-failure --color B60205 \
+            --description "Docs agent eval failed on main" --force >/dev/null
+
+          subject="$(head -n1 <<<"$COMMIT_MESSAGE")"
+          body="$(sed 's/^  //' <<EOF
+            The docs agent eval failed on \`main\`: ${RUN_URL}
+
+            Triggered by ${COMMIT_URL} (${subject})
+
+            The docs from this merge are already live, so fix forward. Likely causes, in rough order:
+
+            1. **The docs or TS SDK change broke the quickstart path** the agent follows (scenario 01 curl, 02 TypeScript).
+            2. **Harness or environment:** secrets, the shared CI tenant, topics in the CI Outpost project, or the live API.
+            3. **Noise:** agent runs are nondeterministic; re-run the workflow before digging in.
+
+            Start with the \`llm-score.json\` and \`trajectory.html\` in the run's uploaded artifact.
+          EOF
+          )"
+
+          existing="$(gh issue list --label agent-eval-failure --state open \
+            --json number --jq '.[0].number // empty')"
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body "$body"
+          else
+            gh issue create \
+              --title "Docs agent eval is failing on main" \
+              --label agent-eval-failure \
+              --assignee leggetter \
+              --body "$body"
+          fi
