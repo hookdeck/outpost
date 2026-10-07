@@ -1,335 +1,81 @@
-# GCP Pub/Sub Destination
+# GCP Pub/Sub Configuration Instructions
 
-This guide provides comprehensive instructions for setting up a GCP Pub/Sub destination using the gcloud CLI.
+[Google Cloud Pub/Sub](https://cloud.google.com/pubsub) is a fully managed messaging service for sending events between independent applications.
 
-## Prerequisites
+## How to configure GCP Pub/Sub as an event destination using the gcloud CLI
 
-- **gcloud CLI**: Install the [Google Cloud CLI](https://cloud.google.com/sdk/docs/install)
-- **GCP Account**: A Google Cloud Platform account
-- **Permissions**: You need sufficient permissions to create projects (if creating new), topics, service accounts, and assign IAM roles
+To follow these steps you will need a Google Cloud project and the [gcloud CLI](https://cloud.google.com/sdk/docs/install) installed and authenticated.
 
-## Authentication
+1. Enable the Pub/Sub API
 
-Before proceeding with the setup, you must authenticate the gcloud CLI with your Google account.
+    ```sh
+    gcloud services enable pubsub.googleapis.com --project=PROJECT_ID
+    ```
 
-### Authenticate with User Credentials
+2. Create a topic if one doesn't exist (optional)
 
-```bash
-# Login to your Google account
-gcloud auth login
+    ```sh
+    gcloud pubsub topics create TOPIC --project=PROJECT_ID
+    ```
 
-# This will open a browser window for authentication
-# Follow the prompts to complete the login process
-```
+3. Give Outpost access to the topic as shown below for your authentication method, then configure your GCP Pub/Sub event destination with the Project ID and Topic.
 
-### Set Application Default Credentials (Recommended)
+### Service account key
 
-For running applications that use GCP services, also set up Application Default Credentials:
+1. Create a service account
 
-```bash
-# Set application default credentials
-gcloud auth application-default login
+    ```sh
+    gcloud iam service-accounts create SERVICE_ACCOUNT --project=PROJECT_ID
+    ```
 
-# This ensures your local development environment can authenticate
-# with GCP services using your user account
-```
+2. Allow it to publish to the topic
 
-### Verify Authentication
+    ```sh
+    gcloud pubsub topics add-iam-policy-binding TOPIC --project=PROJECT_ID \
+      --member="serviceAccount:SERVICE_ACCOUNT@PROJECT_ID.iam.gserviceaccount.com" \
+      --role="roles/pubsub.publisher"
+    ```
 
-```bash
-# Check currently authenticated account
-gcloud auth list
+3. Create a key
 
-# Verify active configuration
-gcloud config list
-```
+    ```sh
+    gcloud iam service-accounts keys create key.json \
+      --iam-account="SERVICE_ACCOUNT@PROJECT_ID.iam.gserviceaccount.com"
+    ```
 
-**Note**: The `gcloud auth login` command authenticates your user account for running gcloud CLI commands. The `gcloud auth application-default login` command sets up credentials that applications (including Outpost during local testing) can use to authenticate with GCP services.
+4. Paste the contents of `key.json` into Service Account JSON.
 
-## Setup Instructions
+<!-- visible_when auth_method=workload_identity -->
+### Workload Identity Federation (no keys)
 
-### 1. Create a GCP Project (Optional)
+Select Workload Identity Federation as the authentication method to see the Issuer and Subject to use below.
 
-If you don't have an existing GCP project, you can create one using the CLI:
+1. Create a workload identity pool
 
-```bash
-# Set your desired project ID (must be globally unique)
-export PROJECT_ID="outpost-test-$(date +%s)"
+    ```sh
+    gcloud iam workload-identity-pools create POOL --project=PROJECT_ID --location=global
+    ```
 
-# Create a new project
-gcloud projects create $PROJECT_ID --name="Outpost Project"
+2. Create a provider that trusts the Issuer for this Subject only
 
-# List your projects to verify
-# This can take a few moments to propagate
-gcloud projects list
+    ```sh
+    gcloud iam workload-identity-pools providers create-oidc PROVIDER --project=PROJECT_ID \
+      --location=global --workload-identity-pool=POOL \
+      --issuer-uri="ISSUER" \
+      --attribute-mapping="google.subject=assertion.sub" \
+      --attribute-condition="assertion.sub == 'SUBJECT'"
+    ```
 
-# Link a billing account (required for Pub/Sub)
-# First, list available billing accounts
-gcloud billing accounts list
+3. Allow the Subject to publish to the topic
 
-# Set your billing account ID from the previous command
-export BILLING_ACCOUNT_ID="your-billing-account-id"
+    ```sh
+    PROJECT_NUMBER=$(gcloud projects describe PROJECT_ID --format="value(projectNumber)")
+    gcloud pubsub topics add-iam-policy-binding TOPIC --project=PROJECT_ID \
+      --member="principal://iam.googleapis.com/projects/$PROJECT_NUMBER/locations/global/workloadIdentityPools/POOL/subject/SUBJECT" \
+      --role="roles/pubsub.publisher"
+    ```
 
-# Link billing account to project (replace BILLING_ACCOUNT_ID)
-gcloud billing projects link $PROJECT_ID \
-    --billing-account=$BILLING_ACCOUNT_ID
-```
+4. Enter `projects/PROJECT_NUMBER/locations/global/workloadIdentityPools/POOL/providers/PROVIDER` as the Workload Identity Provider.
 
-**Note**: If you already have a project, skip to step 2.
-
-### 2. Set Your GCP Project
-
-Set the project ID as a variable and configure gcloud to use it:
-
-```bash
-# Set your GCP project ID if you haven't already
-export PROJECT_ID="your-project-id"
-
-# Configure gcloud to use the project
-gcloud config set project $PROJECT_ID
-
-# Set the quota project for Application Default Credentials
-# This prevents quota warnings when using the project
-gcloud auth application-default set-quota-project $PROJECT_ID
-```
-
-### 3. Enable the Pub/Sub API
-
-Enable the Pub/Sub API for your project:
-
-```bash
-gcloud services enable pubsub.googleapis.com
-```
-
-### 4. Create a Pub/Sub Topic
-
-Create a new Pub/Sub topic where events will be published:
-
-```bash
-# Set your topic name
-export TOPIC_NAME="outpost-events"
-
-# Create the topic
-gcloud pubsub topics create $TOPIC_NAME
-
-# Verify the topic was created
-gcloud pubsub topics list
-```
-
-### 5. Create a Service Account
-
-Create a dedicated service account for Outpost to use when publishing to Pub/Sub:
-
-```bash
-# Set service account name
-export SERVICE_ACCOUNT_NAME="outpost-pubsub-publisher"
-
-# Create the service account
-gcloud iam service-accounts create $SERVICE_ACCOUNT_NAME \
-    --display-name="Outpost Pub/Sub Publisher" \
-    --description="Service account for Outpost to publish messages to Pub/Sub"
-
-# Verify the service account was created
-gcloud iam service-accounts list
-```
-
-### 6. Grant Pub/Sub Publisher Permissions
-
-Assign the Pub/Sub Publisher role to the service account:
-
-```bash
-# Grant Pub/Sub Publisher role at the project level
-gcloud projects add-iam-policy-binding $PROJECT_ID \
-    --member="serviceAccount:${SERVICE_ACCOUNT_NAME}@${PROJECT_ID}.iam.gserviceaccount.com" \
-    --role="roles/pubsub.publisher"
-
-# Alternatively, grant permissions only for the specific topic (more restrictive)
-gcloud pubsub topics add-iam-policy-binding $TOPIC_NAME \
-    --member="serviceAccount:${SERVICE_ACCOUNT_NAME}@${PROJECT_ID}.iam.gserviceaccount.com" \
-    --role="roles/pubsub.publisher"
-```
-
-### 7. Create and Download Service Account Keys
-
-Generate a JSON key file for the service account:
-
-```bash
-# Create and download the service account key
-gcloud iam service-accounts keys create ~/outpost-pubsub-key.json \
-    --iam-account="${SERVICE_ACCOUNT_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
-
-# Verify the key was created
-ls -la ~/outpost-pubsub-key.json
-```
-
-**Important**: Store this key file securely. It provides authentication credentials for your service account.
-
-## Configuration
-
-When configuring your Outpost destination, you'll need:
-
-1. **Project ID**: Your GCP project ID (e.g., `my-gcp-project`)
-2. **Topic Name**: The name of your Pub/Sub topic (e.g., `outpost-events`)
-3. **Service Account Credentials**: The contents of the JSON key file or the path to it
-
-### Example Configuration
-
-```json
-{
-  "type": "gcp_pubsub",
-  "config": {
-    "project_id": "your-project-id",
-    "topic_name": "outpost-events",
-    "credentials_json": "contents-of-key-file"
-  }
-}
-```
-
-## Testing the Integration
-
-### Create a Test Subscription
-
-Create a subscription to verify messages are being published:
-
-```bash
-# Create a test subscription
-export SUBSCRIPTION_NAME="outpost-events-test"
-
-gcloud pubsub subscriptions create $SUBSCRIPTION_NAME \
-    --topic=$TOPIC_NAME \
-    --ack-deadline=60
-
-# Pull messages from the subscription to test
-gcloud pubsub subscriptions pull $SUBSCRIPTION_NAME \
-    --auto-ack \
-    --limit=10
-```
-
-### Publish a Test Message
-
-Test publishing directly to verify permissions:
-
-```bash
-# Publish a test message
-gcloud pubsub topics publish $TOPIC_NAME \
-    --message="Test message from Outpost setup"
-
-# Pull the message to verify
-gcloud pubsub subscriptions pull $SUBSCRIPTION_NAME \
-    --auto-ack \
-    --limit=1
-```
-
-### Verify Service Account Permissions
-
-Check the IAM policy bindings:
-
-```bash
-# View project-level IAM policy for the service account
-gcloud projects get-iam-policy $PROJECT_ID \
-    --flatten="bindings[].members" \
-    --filter="bindings.members:serviceAccount:${SERVICE_ACCOUNT_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
-
-# View topic-level IAM policy
-gcloud pubsub topics get-iam-policy $TOPIC_NAME
-```
-
-## Troubleshooting
-
-### Permission Denied Errors
-
-If you encounter permission errors:
-
-1. Verify the service account has the correct role:
-   ```bash
-   gcloud projects get-iam-policy $PROJECT_ID \
-       --flatten="bindings[].members" \
-       --filter="bindings.members:serviceAccount:${SERVICE_ACCOUNT_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
-   ```
-
-2. Ensure the Pub/Sub API is enabled:
-   ```bash
-   gcloud services list --enabled | grep pubsub
-   ```
-
-3. Check that the credentials file path is correct:
-   ```bash
-   cat $GOOGLE_APPLICATION_CREDENTIALS
-   ```
-
-### Topic Not Found Errors
-
-Verify the topic exists and is in the correct project:
-
-```bash
-gcloud pubsub topics describe $TOPIC_NAME
-```
-
-### Authentication Issues
-
-Validate your service account key:
-
-```bash
-# Test authentication with the service account
-gcloud auth activate-service-account \
-    --key-file=$GOOGLE_APPLICATION_CREDENTIALS
-
-# List topics to verify access
-gcloud pubsub topics list
-```
-
-### Message Delivery Issues
-
-1. Check topic configuration:
-   ```bash
-   gcloud pubsub topics describe $TOPIC_NAME
-   ```
-
-2. Monitor message metrics:
-   ```bash
-   gcloud pubsub topics list-subscriptions $TOPIC_NAME
-   ```
-
-3. Review Cloud Logging for errors:
-   ```bash
-   gcloud logging read "resource.type=pubsub_topic AND resource.labels.topic_id=$TOPIC_NAME" \
-       --limit=50 \
-       --format=json
-   ```
-
-## Cleanup (Optional)
-
-To remove the resources created during setup:
-
-```bash
-# Delete the subscription (if created for testing)
-gcloud pubsub subscriptions delete $SUBSCRIPTION_NAME
-
-# Delete the service account key
-gcloud iam service-accounts keys list \
-    --iam-account="${SERVICE_ACCOUNT_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
-# Note the KEY_ID and delete it
-gcloud iam service-accounts keys delete KEY_ID \
-    --iam-account="${SERVICE_ACCOUNT_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
-
-# Remove IAM policy binding
-gcloud projects remove-iam-policy-binding $PROJECT_ID \
-    --member="serviceAccount:${SERVICE_ACCOUNT_NAME}@${PROJECT_ID}.iam.gserviceaccount.com" \
-    --role="roles/pubsub.publisher"
-
-# Delete the service account
-gcloud iam service-accounts delete \
-    "${SERVICE_ACCOUNT_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
-
-# Delete the topic
-gcloud pubsub topics delete $TOPIC_NAME
-```
-
-## Additional Resources
-
-- [GCP Pub/Sub Documentation](https://cloud.google.com/pubsub/docs)
-- [gcloud pubsub Command Reference](https://cloud.google.com/sdk/gcloud/reference/pubsub)
-- [Service Account Best Practices](https://cloud.google.com/iam/docs/best-practices-service-accounts)
-- [Pub/Sub Authentication Guide](https://cloud.google.com/pubsub/docs/authentication)
-- [IAM Roles for Pub/Sub](https://cloud.google.com/pubsub/docs/access-control)
-- [Pub/Sub Monitoring](https://cloud.google.com/pubsub/docs/monitoring)
+To act as a service account instead, grant `roles/iam.workloadIdentityUser` on the service account to the `principal://…` member from step 3, grant the service account `roles/pubsub.publisher` on the topic, and enter its email as the Service Account Email.
+<!-- /visible_when -->

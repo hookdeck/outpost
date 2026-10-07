@@ -1,6 +1,6 @@
 ---
 title: "GCP Pub/Sub"
-description: "Publish events to a Google Cloud Pub/Sub topic using a service account."
+description: "Publish events to a Google Cloud Pub/Sub topic using a service account key or Workload Identity Federation."
 ---
 
 Publish events to a Google Cloud Pub/Sub topic.
@@ -33,14 +33,19 @@ curl '{% $OUTPOST_API_BASE_URL %}/tenants/<TENANT_ID>/destinations' \
 | `config.project_id` | string | Yes | GCP project ID |
 | `config.topic` | string | Yes | Pub/Sub topic name |
 | `config.endpoint` | string | No | Custom endpoint for the Pub/Sub emulator |
+| `config.auth_method` | string | No | `service_account_key` (default) or `workload_identity`. See [Workload Identity Federation](#workload-identity-federation) |
 
 ### Credentials
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `credentials.service_account_json` | string | Yes* | Service account JSON key file contents |
+| `credentials.service_account_json` | string | Yes* | Service account JSON key file contents. `service_account_key` auth method only |
+| `credentials.workload_identity_provider` | string | Yes** | Workload identity pool provider, `projects/<PROJECT_NUMBER>/locations/global/workloadIdentityPools/<POOL>/providers/<PROVIDER>`. `workload_identity` auth method only |
+| `credentials.service_account_email` | string | No | Service account to impersonate. `workload_identity` auth method only |
 
-*Not required when using the Pub/Sub emulator.
+*Not required when using the Pub/Sub emulator. **Required for the `workload_identity` auth method.
+
+Credentials of the auth method not in use must not be set. To switch methods with a `PATCH`, set the previous method's credentials to `null` in the same request.
 
 ## Message Format
 
@@ -84,6 +89,68 @@ Results in a Pub/Sub message with:
 3. Grant the **Pub/Sub Publisher** role (`roles/pubsub.publisher`)
 4. Create a JSON key and download it
 5. Use the JSON file contents as `credentials.service_account_json`
+
+## Workload Identity Federation
+
+Available when the Outpost instance has [workload identity](/docs/outpost/self-hosting/configuration#workload-identity) configured. No key is stored: for each destination, Outpost signs a short-lived token for the destination's tenant and exchanges it at Google's Security Token Service. The tenant's project trusts Outpost's issuer through a [workload identity pool](https://cloud.google.com/iam/docs/workload-identity-federation). Use it where an organization policy blocks service account key creation.
+
+The token's claims:
+
+| Claim | Value |
+|-------|-------|
+| `iss` | The issuer, `WORKLOAD_IDENTITY_ISSUER` |
+| `sub` | `tenant:<TENANT_ID>` |
+| `aud` | `//iam.googleapis.com/` followed by the destination's `workload_identity_provider` |
+| `iat`, `exp` | Valid for 5 minutes |
+
+It is signed with `RS256` or `ES256`, and its `kid` header names the key in the issuer's JWKS. A token is only ever issued for the destination's own tenant, so a provider whose attribute condition pins one subject rejects every other tenant. Tenant IDs longer than 120 bytes can't be used: Google limits the subject to 127 bytes.
+
+`GET /tenants/<TENANT_ID>/workload-identity` returns the issuer and subject for a tenant. The portal shows them when Workload Identity Federation is selected.
+
+### Setup in the tenant's project
+
+```sh
+gcloud iam workload-identity-pools create POOL --project=PROJECT_ID --location=global
+
+gcloud iam workload-identity-pools providers create-oidc PROVIDER --project=PROJECT_ID \
+  --location=global --workload-identity-pool=POOL \
+  --issuer-uri="ISSUER" \
+  --attribute-mapping="google.subject=assertion.sub" \
+  --attribute-condition="assertion.sub == 'SUBJECT'"
+
+PROJECT_NUMBER=$(gcloud projects describe PROJECT_ID --format="value(projectNumber)")
+gcloud pubsub topics add-iam-policy-binding TOPIC --project=PROJECT_ID \
+  --member="principal://iam.googleapis.com/projects/$PROJECT_NUMBER/locations/global/workloadIdentityPools/POOL/subject/SUBJECT" \
+  --role="roles/pubsub.publisher"
+```
+
+Then create the destination:
+
+```sh
+curl '{% $OUTPOST_API_BASE_URL %}/tenants/<TENANT_ID>/destinations' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer <API_KEY>' \
+--data '{
+  "type": "gcp_pubsub",
+  "topics": ["orders"],
+  "config": {
+    "project_id": "my-gcp-project",
+    "topic": "my-pubsub-topic",
+    "auth_method": "workload_identity"
+  },
+  "credentials": {
+    "workload_identity_provider": "projects/123456789/locations/global/workloadIdentityPools/POOL/providers/PROVIDER"
+  }
+}'
+```
+
+To publish as a service account instead of the federated identity, grant the `principal://…` member `roles/iam.workloadIdentityUser` on the service account, grant the service account `roles/pubsub.publisher` on the topic, and set `credentials.service_account_email`. Outpost then impersonates it.
+
+Token exchange failures (unknown provider, attribute condition not met, missing permission) fail the delivery attempt with Google's error message.
+
+### Issuer not reachable from Google
+
+Google fetches the issuer's discovery document and JWKS from `WORKLOAD_IDENTITY_ISSUER`. If the Outpost API isn't publicly reachable, download the JWKS from `<ISSUER>/jwks.json` and upload it to the provider with `--jwk-json-path` on `create-oidc` (or `update-oidc`). Upload it again after rotating keys.
 
 ## Local Development with the Pub/Sub Emulator
 
