@@ -35,6 +35,9 @@ type fakeMigration struct {
 	applyCalled  bool
 	verifyCalled bool
 	verifyValid  bool
+
+	cleanupItems  int
+	cleanupCalled bool
 }
 
 func newFakeMigration(name string, version int) *fakeMigration {
@@ -92,8 +95,10 @@ func (m *fakeMigration) Verify(ctx context.Context, state *migratorredis.State) 
 	}, nil
 }
 
-func (m *fakeMigration) PlanCleanup(ctx context.Context) (int, error) { return 0, nil }
+func (m *fakeMigration) PlanCleanup(ctx context.Context) (int, error) { return m.cleanupItems, nil }
 func (m *fakeMigration) Cleanup(ctx context.Context, state *migratorredis.State) error {
+	m.cleanupCalled = true
+	m.cleanupItems = 0
 	return nil
 }
 
@@ -341,4 +346,74 @@ func TestCoordinator_DeploymentID_Scoping(t *testing.T) {
 	status := mr.HGet("dp_test:outpost:migration:001_first", "status")
 	assert.Equal(t, "applied", status,
 		"migration key should be scoped to deployment_id prefix")
+}
+
+func TestCoordinator_Cleanup(t *testing.T) {
+	ctx := context.Background()
+	setup := func(t *testing.T) (*Coordinator, *fakeMigration, *fakeMigration, *fakeMigration) {
+		applied := newFakeMigration("001_applied", 1)
+		applied.cleanupItems = 3
+		notApplicable := newFakeMigration("002_not_applicable", 2)
+		notApplicable.applicable = false
+		notApplicable.notAppReason = "not needed"
+		notApplicable.cleanupItems = 5
+		other := newFakeMigration("003_other", 3)
+		other.cleanupItems = 2
+		c, _, cleanup := newTestCoordinator(t, applied, notApplicable, other)
+		t.Cleanup(cleanup)
+		require.NoError(t, c.Apply(ctx, ApplyOptions{}))
+		return c, applied, notApplicable, other
+	}
+
+	t.Run("plan lists applied migrations with data left", func(t *testing.T) {
+		c, _, _, other := setup(t)
+		other.cleanupItems = 0
+		plans, err := c.PlanCleanup(ctx)
+		require.NoError(t, err)
+		require.Len(t, plans, 1)
+		assert.Equal(t, "001_applied", plans[0].Name)
+		assert.Equal(t, 3, plans[0].Items)
+	})
+
+	t.Run("runs only the named migration", func(t *testing.T) {
+		c, applied, notApplicable, other := setup(t)
+		plan, err := c.PlanCleanupFor(ctx, "redis/001_applied")
+		require.NoError(t, err)
+		assert.Equal(t, 3, plan.Items)
+
+		require.NoError(t, c.Cleanup(ctx, "001_applied"))
+		assert.True(t, applied.cleanupCalled)
+		assert.False(t, notApplicable.cleanupCalled)
+		assert.False(t, other.cleanupCalled)
+	})
+
+	t.Run("not applicable has nothing to clean up", func(t *testing.T) {
+		c, _, _, _ := setup(t)
+		plan, err := c.PlanCleanupFor(ctx, "002_not_applicable")
+		require.NoError(t, err)
+		assert.Equal(t, "not needed", plan.NotApplicableReason)
+		assert.Equal(t, 0, plan.Items)
+		assert.ErrorIs(t, c.Cleanup(ctx, "002_not_applicable"), ErrNotApplied)
+	})
+
+	t.Run("pending and unknown migrations", func(t *testing.T) {
+		pending := newFakeMigration("001_pending", 1)
+		c, _, cleanup := newTestCoordinator(t, pending)
+		defer cleanup()
+		_, err := c.PlanCleanupFor(ctx, "001_pending")
+		assert.ErrorIs(t, err, ErrNotApplied)
+		assert.ErrorIs(t, c.Cleanup(ctx, "001_pending"), ErrNotApplied)
+		assert.False(t, pending.cleanupCalled)
+		_, err = c.PlanCleanupFor(ctx, "999_nope")
+		assert.ErrorIs(t, err, ErrUnknownMigration)
+	})
+
+	t.Run("fails while the migration lock is held", func(t *testing.T) {
+		c, applied, _, _ := setup(t)
+		ok, err := c.newRedisLock().AttemptLock(ctx)
+		require.NoError(t, err)
+		require.True(t, ok)
+		assert.Error(t, c.Cleanup(ctx, "001_applied"))
+		assert.False(t, applied.cleanupCalled)
+	})
 }
