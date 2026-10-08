@@ -2,8 +2,12 @@
 # Sets EVAL_LOCAL_DOCS=1 so the agent reads repo docs under docs/ (not production WebFetch).
 # Injects OUTPOST_API_KEY (and related env) for the agent run so smoke tests hit live Outpost;
 # step 2 re-runs the saved artifacts deterministically.
-# Triggers: workflow_dispatch, or push (main) / pull_request when docs / OpenAPI / agent-eval / TS SDK paths change.
-# Each run bills Anthropic (agent + judge).
+# Triggers: push (main) when docs / OpenAPI / TS SDK paths change, or workflow_dispatch on any branch.
+# Post-merge only: each run bills Anthropic (agent + judge, roughly $3), and running on every PR
+# commit plus again on merge cost several times more for the same signal. To check a branch
+# before merge (e.g. harness changes under docs/agent-evaluation/), dispatch it manually:
+#   gh workflow run docs-agent-eval-ci.yml --ref <branch>
+# Scheduled drift monitoring lives in hookdeck/evals, not here.
 # Requires repo secrets: ANTHROPIC_API_KEY, EVAL_TEST_DESTINATION_URL, OUTPOST_API_KEY
 # (OUTPOST_TEST_WEBHOOK_URL uses the same URL as EVAL_TEST_DESTINATION_URL in CI.)
 # Env is scoped per step — see each run step's env block (no job-wide secret export).
@@ -18,16 +22,6 @@ on:
     paths:
       - "docs/content/**"
       - "docs/apis/**"
-      - "docs/agent-evaluation/**"
-      - "docs/README.md"
-      - "docs/AGENTS.md"
-      - "sdks/outpost-typescript/**"
-      - ".github/workflows/docs-agent-eval-ci.yml"
-  pull_request:
-    paths:
-      - "docs/content/**"
-      - "docs/apis/**"
-      - "docs/agent-evaluation/**"
       - "docs/README.md"
       - "docs/AGENTS.md"
       - "sdks/outpost-typescript/**"
@@ -40,8 +34,6 @@ jobs:
     concurrency:
       group: outpost-docs-agent-eval-live-outpost
       cancel-in-progress: false
-    # Fork PRs cannot use repository secrets; skip instead of failing a required-looking job.
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 60
     defaults:
@@ -100,3 +92,58 @@ jobs:
           path: docs/agent-evaluation/results/runs
           if-no-files-found: warn
           retention-days: 14
+
+  # Post-merge runs have no PR to go red on, so a failure opens (or comments on) one issue
+  # instead of sitting unnoticed in the Actions tab. Same pattern as hookdeck/evals.
+  # failure() only, not cancelled(): the concurrency group cancels a pending run when a
+  # newer merge queues behind it, which is expected and not worth an alert.
+  eval-alert:
+    needs: [eval-ci]
+    if: ${{ failure() && github.event_name == 'push' }}
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Open or update the alert issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          # No checkout in this job, so gh has no git remote to infer the repository from.
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          COMMIT_URL: ${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}
+          # Passed through env, not interpolated into the script, so a commit message cannot inject shell.
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          gh label create agent-eval-failure --color B60205 \
+            --description "Docs agent eval failed on main" --force >/dev/null
+
+          subject="$(head -n1 <<<"$COMMIT_MESSAGE")"
+          body="$(sed 's/^  //' <<EOF
+            The docs agent eval failed on \`main\`: ${RUN_URL}
+
+            Triggered by ${COMMIT_URL} (${subject})
+
+            The docs from this merge are already live, so fix forward. Likely causes, in rough order:
+
+            1. **The docs or TS SDK change broke the quickstart path** the agent follows (scenario 01 curl, 02 TypeScript).
+            2. **Harness or environment:** secrets, the shared CI tenant, topics in the CI Outpost project, or the live API.
+            3. **Noise:** agent runs are nondeterministic; re-run the workflow before digging in.
+
+            Start with the \`llm-score.json\` and \`trajectory.html\` in the run's uploaded artifact.
+          EOF
+          )"
+
+          existing="$(gh issue list --label agent-eval-failure --state open \
+            --json number --jq '.[0].number // empty')"
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body "$body"
+          else
+            gh issue create \
+              --title "Docs agent eval is failing on main" \
+              --label agent-eval-failure \
+              --assignee leggetter \
+              --body "$body"
+          fi
