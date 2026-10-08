@@ -174,14 +174,14 @@ The `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_EVENT_ID_HEADER`, `DESTINATIONS_WEBHOO
 
 ## Supervisor
 
-The supervisor can restart a worker whose run fails, such as a queue consumer losing its connection to the broker. Restarts are off by default: a worker is reported `failed` on its first failure and `/healthz` returns HTTP 503 until the process restarts. List the workers to restart in `SUPERVISOR_RESTART_WORKERS`, for example `SUPERVISOR_RESTART_WORKERS=publishmq,deliverymq`.
+The supervisor can restart a worker whose run fails, such as a queue consumer losing its connection to the broker. Restarts are off by default: a worker is reported `failed` on its first failure and `/healthz` returns HTTP 503 until the process restarts.
 
-| Worker | `/healthz` name | Name in `SUPERVISOR_RESTART_WORKERS` | Override key |
-|--------|-----------------|------|-----|
-| Publish queue consumer | `publishmq-consumer` | `publishmq` | `PUBLISHMQ` |
-| Delivery queue consumer | `deliverymq-consumer` | `deliverymq` | `DELIVERYMQ` |
-| Log queue consumer | `logmq-consumer` | `logmq` | `LOGMQ` |
-| Retry scheduler | `retrymq-consumer` | `retrymq` | `RETRYMQ` |
+To turn restarts on, list the workers in `SUPERVISOR_RESTART_WORKERS`, for example `SUPERVISOR_RESTART_WORKERS=publishmq,deliverymq`. The workers that support restarts are:
+
+- `publishmq`: the publish queue consumer, shown as `publishmq-consumer` in `/healthz`
+- `deliverymq`: the delivery queue consumer, shown as `deliverymq-consumer`
+- `logmq`: the log queue consumer, shown as `logmq-consumer`
+- `retrymq`: the retry scheduler, shown as `retrymq-consumer`
 
 The HTTP server (`http-server`) is never restarted: it fails when it can't bind its port, which a restart doesn't fix.
 
@@ -203,14 +203,14 @@ A worker is in the *startup* phase until it has stayed connected for 30 seconds 
 
 These timings assume a failed run ends quickly. With restarts on, a queue consumer ends a run after 3 consecutive receive errors instead of 10. The retry scheduler keeps retrying Redis for about a minute inside each run, so during a Redis outage it shows `degraded` after about a minute and reaches `failed` later than the limits suggest: about 3 to 3.5 minutes in recovery and about 6 minutes at startup with the defaults.
 
-Each listed worker can override any of these limits. Replace `<KEY>` with the worker's override key from the first table, for example `SUPERVISOR_PUBLISHMQ_RECOVERY_MAX_DURATION_SECONDS`. An unset override inherits the global value. Overrides only apply to workers listed in `SUPERVISOR_RESTART_WORKERS`; for other workers they have no effect.
+Each listed worker can override any of these limits. Replace `<WORKER>` with the worker's name in uppercase, for example `SUPERVISOR_PUBLISHMQ_RECOVERY_MAX_DURATION_SECONDS`. An unset override inherits the global value. Overrides only apply to workers listed in `SUPERVISOR_RESTART_WORKERS`; for other workers they have no effect.
 
 | Variable | Overrides |
 |----------|-----------|
-| `SUPERVISOR_<KEY>_STARTUP_MAX_ATTEMPTS` | `SUPERVISOR_STARTUP_MAX_ATTEMPTS` |
-| `SUPERVISOR_<KEY>_STARTUP_MAX_DURATION_SECONDS` | `SUPERVISOR_STARTUP_MAX_DURATION_SECONDS` |
-| `SUPERVISOR_<KEY>_RECOVERY_MAX_ATTEMPTS` | `SUPERVISOR_RECOVERY_MAX_ATTEMPTS` |
-| `SUPERVISOR_<KEY>_RECOVERY_MAX_DURATION_SECONDS` | `SUPERVISOR_RECOVERY_MAX_DURATION_SECONDS` |
+| `SUPERVISOR_<WORKER>_STARTUP_MAX_ATTEMPTS` | `SUPERVISOR_STARTUP_MAX_ATTEMPTS` |
+| `SUPERVISOR_<WORKER>_STARTUP_MAX_DURATION_SECONDS` | `SUPERVISOR_STARTUP_MAX_DURATION_SECONDS` |
+| `SUPERVISOR_<WORKER>_RECOVERY_MAX_ATTEMPTS` | `SUPERVISOR_RECOVERY_MAX_ATTEMPTS` |
+| `SUPERVISOR_<WORKER>_RECOVERY_MAX_DURATION_SECONDS` | `SUPERVISOR_RECOVERY_MAX_DURATION_SECONDS` |
 
 Setting a listed worker's four limits to `-1` keeps its failures from ever failing `/healthz`. For example, with all four `SUPERVISOR_PUBLISHMQ_*` limits at `-1`, the publish queue consumer is still restarted and shows as `degraded` with the error in the logs, but your orchestrator won't restart or unroute the instance because of it.
 
