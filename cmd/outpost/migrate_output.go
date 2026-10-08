@@ -126,3 +126,18 @@ func printVerificationReport(w io.Writer, report *coordinator.VerificationReport
 		fmt.Fprintln(w, "Verification reported issues.")
 	}
 }
+
+// printCleanupCandidates renders `outpost migrate cleanup` without a
+// migration name: what each applied migration would clean up.
+func printCleanupCandidates(w io.Writer, plans []coordinator.RedisCleanupPlan) {
+	if len(plans) == 0 {
+		fmt.Fprintln(w, "Nothing to clean up.")
+		return
+	}
+	fmt.Fprintln(w, "Applied migrations with data to clean up:")
+	for _, p := range plans {
+		fmt.Fprintf(w, "  - redis/%s: %s\n      keys to clean up: %d\n", p.Name, p.Description, p.Items)
+	}
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Run 'outpost migrate cleanup <migration>' to clean up one of them.")
+}

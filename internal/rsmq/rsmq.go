@@ -106,9 +106,11 @@ type RedisClient interface {
 
 // RedisSMQ is the client of rsmq to execute queue and message operations
 type RedisSMQ struct {
-	client RedisClient
-	ns     string
-	logger *logging.Logger
+	client    RedisClient
+	ns        string
+	logger    *logging.Logger
+	tagPrefix string
+	untagged  bool
 }
 
 // QueueAttributes contains some attributes and stats of queue
@@ -167,8 +169,36 @@ type Client interface {
 
 var _ Client = (*RedisSMQ)(nil)
 
+// Option configures a RedisSMQ.
+type Option func(*RedisSMQ)
+
+// WithLogger sets the logger. A nil logger disables logging.
+func WithLogger(logger *logging.Logger) Option {
+	return func(rsmq *RedisSMQ) {
+		rsmq.logger = logger
+	}
+}
+
+// WithHashTagPrefix prepends prefix to the queue name inside the hash tag, so
+// queues with the same name in different namespaces (e.g. one per deployment
+// on a shared Redis Cluster) map to different slots.
+func WithHashTagPrefix(prefix string) Option {
+	return func(rsmq *RedisSMQ) {
+		rsmq.tagPrefix = prefix
+	}
+}
+
+// WithUntaggedKeys uses the key layout from before queue names were
+// hash-tagged (<ns>:<qname>, <ns>:<qname>:Q), as earlier versions did; tests
+// use it to play those versions. Its keys span two Redis Cluster slots.
+func WithUntaggedKeys() Option {
+	return func(rsmq *RedisSMQ) {
+		rsmq.untagged = true
+	}
+}
+
 // NewRedisSMQ creates and returns new rsmq client
-func NewRedisSMQ(client RedisClient, ns string, logger ...*logging.Logger) *RedisSMQ {
+func NewRedisSMQ(client RedisClient, ns string, opts ...Option) *RedisSMQ {
 	if client == nil {
 		panic("")
 	}
@@ -180,15 +210,12 @@ func NewRedisSMQ(client RedisClient, ns string, logger ...*logging.Logger) *Redi
 		ns += ":"
 	}
 
-	var l *logging.Logger
-	if len(logger) > 0 {
-		l = logger[0]
-	}
-
 	rsmq := &RedisSMQ{
 		client: client,
 		ns:     ns,
-		logger: l,
+	}
+	for _, opt := range opts {
+		opt(rsmq)
 	}
 
 	client.ScriptLoad(scriptPopMessage)
@@ -196,6 +223,16 @@ func NewRedisSMQ(client RedisClient, ns string, logger ...*logging.Logger) *Redi
 	client.ScriptLoad(scriptChangeMessageVisibility)
 
 	return rsmq
+}
+
+// queueKey returns the key of the queue's zset; its hash is queueKey + ":Q".
+// The queue name is hash-tagged so both keys map to the same Redis Cluster
+// slot, as the scripts and transactions touching both require.
+func (rsmq *RedisSMQ) queueKey(qname string) string {
+	if rsmq.untagged {
+		return rsmq.ns + qname
+	}
+	return rsmq.ns + "{" + rsmq.tagPrefix + qname + "}"
 }
 
 // CreateQueue creates a new queue with given attributes
@@ -236,7 +273,7 @@ func (rsmq *RedisSMQ) CreateQueue(qname string, vt uint, delay uint, maxsize int
 		return err
 	}
 
-	key := rsmq.ns + qname + q
+	key := rsmq.queueKey(qname) + q
 
 	tx := rsmq.client.TxPipeline()
 	r := tx.HSetNX(key, "vt", vt)
@@ -310,7 +347,7 @@ func (rsmq *RedisSMQ) CreateQueue(qname string, vt uint, delay uint, maxsize int
 }
 
 func (rsmq *RedisSMQ) getQueue(qname string, uid bool) (*queueDef, error) {
-	key := rsmq.ns + qname + q
+	key := rsmq.queueKey(qname) + q
 
 	tx := rsmq.client.TxPipeline()
 
@@ -362,7 +399,7 @@ func (rsmq *RedisSMQ) GetQueueAttributes(qname string) (*QueueAttributes, error)
 		return nil, err
 	}
 
-	key := rsmq.ns + qname
+	key := rsmq.queueKey(qname)
 
 	tx := rsmq.client.TxPipeline()
 	hmGetSliceCmd := tx.HMGet(key+q, "vt", "delay", "maxsize", "totalrecv", "totalsent", "created", "modified")
@@ -433,7 +470,7 @@ func (rsmq *RedisSMQ) SetQueueAttributes(qname string, vt uint, delay uint, maxs
 		return nil, err
 	}
 
-	key := rsmq.ns + qname + q
+	key := rsmq.queueKey(qname) + q
 
 	tx := rsmq.client.TxPipeline()
 	tx.HSet(key, "modified", queue.ts)
@@ -458,7 +495,7 @@ func (rsmq *RedisSMQ) DeleteQueue(qname string) error {
 		return err
 	}
 
-	key := rsmq.ns + qname
+	key := rsmq.queueKey(qname)
 
 	tx := rsmq.client.TxPipeline()
 	r := tx.Del(key + q)
@@ -507,7 +544,7 @@ func (rsmq *RedisSMQ) SendMessage(qname string, message string, delay uint, opts
 		return "", ErrMessageTooLong
 	}
 
-	key := rsmq.ns + qname
+	key := rsmq.queueKey(qname)
 
 	// Use custom ID if provided, otherwise use generated one
 	messageID := queue.uid
@@ -560,7 +597,7 @@ func (rsmq *RedisSMQ) ReceiveMessagePoll(qname string, vt uint) (PollResult, err
 		vtArg = strconv.FormatUint(uint64(vt), 10)
 	}
 
-	key := rsmq.ns + qname
+	key := rsmq.queueKey(qname)
 	hashKey := key + q // key + ":Q"
 
 	evalCmd := rsmq.client.EvalSha(hashReceiveMessage, []string{key, hashKey}, vtArg)
@@ -624,7 +661,7 @@ func (rsmq *RedisSMQ) PopMessage(qname string) (*QueueMessage, error) {
 		return nil, err
 	}
 
-	key := rsmq.ns + qname
+	key := rsmq.queueKey(qname)
 	hashKey := key + q // key + ":Q"
 
 	t := strconv.FormatUint(queue.ts, 10)
@@ -711,7 +748,7 @@ func (rsmq *RedisSMQ) ChangeMessageVisibility(qname string, id string, vt uint) 
 		return err
 	}
 
-	key := rsmq.ns + qname
+	key := rsmq.queueKey(qname)
 	t := strconv.FormatUint(queue.ts+uint64(vt)*1000, 10)
 
 	evalCmd := rsmq.client.EvalSha(hashChangeMessageVisibility, []string{key}, id, t)
@@ -738,7 +775,7 @@ func (rsmq *RedisSMQ) DeleteMessage(qname string, id string) error {
 		return err
 	}
 
-	key := rsmq.ns + qname
+	key := rsmq.queueKey(qname)
 
 	tx := rsmq.client.TxPipeline()
 	zremIntCmd := tx.ZRem(key, id)

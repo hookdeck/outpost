@@ -145,6 +145,11 @@ type RedisClientInterface interface {
 func testRedisOperations(client RedisClientInterface) {
 	// Check specific RSMQ keys
 	rsmqKeys := []string{
+		"rsmq:{deliverymq-retry}:Q",
+		"rsmq:{deliverymq-retry}",
+		"rsmq:{deliverymq-retry-dlq}:Q",
+		"rsmq:{deliverymq-retry-dlq}",
+		// Untagged layout from earlier versions; `outpost migrate` moves it.
 		"rsmq:deliverymq-retry:Q",
 		"rsmq:deliverymq-retry",
 		"rsmq:deliverymq-retry-dlq:Q",

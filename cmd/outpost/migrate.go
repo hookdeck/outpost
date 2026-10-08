@@ -70,6 +70,19 @@ func newMigrateCommand() *cli.Command {
 				Action: runMigrateVerify,
 			},
 			{
+				Name:      "cleanup",
+				Usage:     "Remove data an applied Redis migration left behind (run once the previous version is fully rolled out)",
+				ArgsUsage: "<migration>",
+				Flags: []cli.Flag{
+					&cli.BoolFlag{
+						Name:    "yes",
+						Aliases: []string{"y"},
+						Usage:   "Skip confirmation prompt",
+					},
+				},
+				Action: runMigrateCleanup,
+			},
+			{
 				Name:  "unlock",
 				Usage: "Force clear the Redis migration lock (use with caution)",
 				Flags: []cli.Flag{
@@ -221,6 +234,53 @@ func runMigrateVerify(ctx context.Context, c *cli.Command) error {
 		if !report.Ok() {
 			return fmt.Errorf("verification failed")
 		}
+		return nil
+	})
+}
+
+func runMigrateCleanup(ctx context.Context, c *cli.Command) error {
+	return withCoordinator(ctx, c, func(coord *coordinator.Coordinator) error {
+		name := c.Args().First()
+		if name == "" {
+			plans, err := coord.PlanCleanup(ctx)
+			if err != nil {
+				return err
+			}
+			printCleanupCandidates(os.Stdout, plans)
+			return nil
+		}
+
+		plan, err := coord.PlanCleanupFor(ctx, name)
+		if err != nil {
+			return err
+		}
+		if plan.NotApplicableReason != "" {
+			fmt.Fprintf(os.Stdout, "redis/%s is not applicable (%s); nothing to clean up.\n", plan.Name, plan.NotApplicableReason)
+			return nil
+		}
+		if plan.Items == 0 {
+			fmt.Fprintf(os.Stdout, "Nothing to clean up for redis/%s.\n", plan.Name)
+			return nil
+		}
+
+		fmt.Fprintf(os.Stdout, "redis/%s: %s\n  keys to clean up: %d\n", plan.Name, plan.Description, plan.Items)
+		if !c.Bool("yes") {
+			fmt.Fprint(os.Stdout, "\nThis deletes old data and cannot be undone. Continue? [y/N]: ")
+			var response string
+			if _, err := fmt.Fscanln(os.Stdin, &response); err != nil {
+				fmt.Fprintln(os.Stdout, "Cancelled.")
+				return nil
+			}
+			if response != "y" && response != "Y" && response != "yes" {
+				fmt.Fprintln(os.Stdout, "Cancelled.")
+				return nil
+			}
+		}
+
+		if err := coord.Cleanup(ctx, plan.Name); err != nil {
+			return err
+		}
+		fmt.Fprintf(os.Stdout, "\nCleanup of redis/%s complete.\n", plan.Name)
 		return nil
 	})
 }
