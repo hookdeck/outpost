@@ -24,10 +24,6 @@
     "to": "/docs/outpost/overview#supported-destinations"
   },
   {
-    "from": "/docs/outpost/guides",
-    "to": "/docs/outpost/overview"
-  },
-  {
     "from": "/docs/outpost/references",
     "to": "/docs/outpost/overview"
   },
