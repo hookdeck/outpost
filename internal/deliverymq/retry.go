@@ -55,20 +55,19 @@ func NewRetryScheduler(deliverymq *DeliveryMQ, redisConfig *redis.RedisConfig, d
 
 	adapter := rsmq.NewRedisAdapter(redisClient)
 
-	// Construct RSMQ namespace with deployment prefix if provided
-	// This creates keys like: dp_001:rsmq:QUEUES, dp_001:rsmq:deliverymq-retry:Q
-	// Without deployment ID: rsmq:QUEUES, rsmq:deliverymq-retry:Q
+	// Construct RSMQ namespace with deployment prefix if provided. The
+	// deployment prefix also goes inside the hash tag so deployments sharing a
+	// Redis Cluster spread across slots.
+	// This creates keys like: dp_001:rsmq:QUEUES, dp_001:rsmq:{dp_001:deliverymq-retry}:Q
+	// Without deployment ID: rsmq:QUEUES, rsmq:{deliverymq-retry}:Q
 	namespace := "rsmq"
+	tagPrefix := ""
 	if deploymentID != "" {
 		namespace = fmt.Sprintf("%s:rsmq", deploymentID)
+		tagPrefix = deploymentID + ":"
 	}
 
-	var rsmqClient *rsmq.RedisSMQ
-	if logger != nil {
-		rsmqClient = rsmq.NewRedisSMQ(adapter, namespace, logger)
-	} else {
-		rsmqClient = rsmq.NewRedisSMQ(adapter, namespace)
-	}
+	rsmqClient := rsmq.NewRedisSMQ(adapter, namespace, rsmq.WithLogger(logger), rsmq.WithHashTagPrefix(tagPrefix))
 
 	exec := func(ctx context.Context, msg string) error {
 		retryTask := RetryTask{}
