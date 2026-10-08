@@ -67,7 +67,11 @@ func NewRetryScheduler(deliverymq *DeliveryMQ, redisConfig *redis.RedisConfig, d
 		tagPrefix = deploymentID + ":"
 	}
 
-	rsmqClient := rsmq.NewRedisSMQ(adapter, namespace, rsmq.WithLogger(logger), rsmq.WithHashTagPrefix(tagPrefix))
+	var rsmqClient rsmq.Client = rsmq.NewRedisSMQ(adapter, namespace, rsmq.WithLogger(logger), rsmq.WithHashTagPrefix(tagPrefix))
+	if !redisConfig.ClusterEnabled {
+		legacy := rsmq.NewRedisSMQ(adapter, namespace, rsmq.WithLogger(logger), rsmq.WithUntaggedKeys())
+		rsmqClient = newLegacyDrainClient(rsmqClient, legacy, logger)
+	}
 
 	exec := func(ctx context.Context, msg string) error {
 		retryTask := RetryTask{}
