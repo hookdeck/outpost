@@ -136,7 +136,7 @@ func printCleanupCandidates(w io.Writer, plans []coordinator.RedisCleanupPlan) {
 	}
 	fmt.Fprintln(w, "Applied migrations with data to clean up:")
 	for _, p := range plans {
-		fmt.Fprintf(w, "  - redis/%s: %s\n      items to clean up: %d\n", p.Name, p.Description, p.Items)
+		fmt.Fprintf(w, "  - redis/%s: %s\n      keys to clean up: %d\n", p.Name, p.Description, p.Items)
 	}
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Run 'outpost migrate cleanup <migration>' to clean up one of them.")

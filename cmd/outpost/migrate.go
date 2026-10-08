@@ -263,7 +263,7 @@ func runMigrateCleanup(ctx context.Context, c *cli.Command) error {
 			return nil
 		}
 
-		fmt.Fprintf(os.Stdout, "redis/%s: %s\n  items to clean up: %d\n", plan.Name, plan.Description, plan.Items)
+		fmt.Fprintf(os.Stdout, "redis/%s: %s\n  keys to clean up: %d\n", plan.Name, plan.Description, plan.Items)
 		if !c.Bool("yes") {
 			fmt.Fprint(os.Stdout, "\nThis deletes old data and cannot be undone. Continue? [y/N]: ")
 			var response string

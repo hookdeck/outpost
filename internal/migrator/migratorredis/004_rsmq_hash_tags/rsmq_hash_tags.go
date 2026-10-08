@@ -193,7 +193,8 @@ func (m *RSMQHashTagsMigration) move(ctx context.Context, k queueKeys, deleteOld
 }
 
 // Verify reports messages still under the untagged keys: retries scheduled by
-// instances running the previous version after Apply. Cleanup moves them.
+// instances running the previous version after Apply. They are expected until
+// Cleanup moves them, so they're reported without failing verification.
 func (m *RSMQHashTagsMigration) Verify(ctx context.Context, state *migratorredis.State) (*migratorredis.VerificationResult, error) {
 	result := &migratorredis.VerificationResult{Valid: true, Details: map[string]string{}}
 	for _, queue := range queues {
@@ -205,18 +206,16 @@ func (m *RSMQHashTagsMigration) Verify(ctx context.Context, state *migratorredis
 		}
 		result.Details[queue] = fmt.Sprintf("%d messages under the old keys", n)
 		if n > 0 {
-			result.Valid = false
 			result.Issues = append(result.Issues, fmt.Sprintf(
-				"%d messages under %s, scheduled by instances of the previous version; run 'outpost migrate cleanup %s'",
+				"%d retries still under the previous key layout (%s); run 'outpost migrate cleanup %s' once no instance of the previous version is running",
 				n, k.oldZset, m.Name()))
-			continue
 		}
 		result.ChecksPassed++
 	}
 	return result, nil
 }
 
-// PlanCleanup returns the number of untagged keys left.
+// PlanCleanup returns the number of untagged keys left (zsets and hashes).
 func (m *RSMQHashTagsMigration) PlanCleanup(ctx context.Context) (int, error) {
 	total := 0
 	for _, queue := range queues {

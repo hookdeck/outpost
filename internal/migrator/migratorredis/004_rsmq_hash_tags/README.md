@@ -30,7 +30,7 @@ Per queue, a Lua script moves messages in batches of 1000 (each batch atomic):
 The untagged hash keeps its queue settings, so instances still running the previous version see a valid, empty queue and keep working without errors. Retries they schedule from then on stay under the untagged keys until Cleanup.
 
 ### Verify
-Reports messages still under the untagged keys (scheduled by instances of the previous version after Apply).
+Reports messages still under the untagged keys (scheduled by instances of the previous version after Apply). They are expected until Cleanup, so Verify reports the count and still passes.
 
 ### Cleanup
 Run once no instance of the previous version is left (`outpost migrate cleanup 004_rsmq_hash_tags`):
@@ -41,6 +41,7 @@ Run once no instance of the previous version is left (`outpost migrate cleanup 0
 
 - A retry an instance of the previous version was processing during Apply, or one it scheduled during the rollout, can be delivered twice (at-least-once). Stopping the previous version before Apply avoids it.
 - Without Cleanup, retries scheduled by the previous version during the rollout never fire.
+- Rolling back to the previous version after Apply leaves the moved retries unfired (it reads only the untagged keys) until the new version runs again.
 
 ## Redis Cluster
 

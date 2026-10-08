@@ -238,10 +238,14 @@ func testCleanup(t *testing.T, e *env) {
 	_, err = e.tagged.SendMessage(queue, "new-a", 3600, rsmq.WithMessageID(id("a")))
 	require.NoError(t, err)
 
+	// Leftovers are expected until cleanup: reported, not a failure.
 	result, err := e.migration.Verify(ctx, state)
 	require.NoError(t, err)
-	assert.False(t, result.Valid)
-	assert.Len(t, result.Issues, 1)
+	assert.True(t, result.Valid)
+	assert.Equal(t, 2, result.ChecksPassed)
+	require.Len(t, result.Issues, 1)
+	assert.Contains(t, result.Issues[0], "2 retries still under the previous key layout")
+	assert.Contains(t, result.Issues[0], "once no instance of the previous version is running")
 
 	n, err := e.migration.PlanCleanup(ctx)
 	require.NoError(t, err)
@@ -266,6 +270,7 @@ func testCleanup(t *testing.T, e *env) {
 	result, err = e.migration.Verify(ctx, state)
 	require.NoError(t, err)
 	assert.True(t, result.Valid, result.Issues)
+	assert.Empty(t, result.Issues)
 
 	msg, err := e.tagged.ReceiveMessage(queue, 30)
 	require.NoError(t, err)
