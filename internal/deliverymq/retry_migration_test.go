@@ -7,6 +7,8 @@ import (
 
 	"github.com/hookdeck/outpost/internal/deliverymq"
 	"github.com/hookdeck/outpost/internal/idgen"
+	"github.com/hookdeck/outpost/internal/migrator/migratorredis"
+	migration_004 "github.com/hookdeck/outpost/internal/migrator/migratorredis/004_rsmq_hash_tags"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/mqs"
 	"github.com/hookdeck/outpost/internal/redis"
@@ -18,7 +20,7 @@ import (
 )
 
 // legacyRetryQueue schedules retries the way versions before hash-tagged
-// rsmq keys did, and reports how many remain in that legacy queue.
+// rsmq keys did, and reports how many remain in that queue.
 type legacyRetryQueue struct {
 	scheduler scheduler.Scheduler
 	client    redis.Client
@@ -47,7 +49,7 @@ func (q *legacyRetryQueue) len(t *testing.T, ctx context.Context) int64 {
 	return n
 }
 
-func TestRetryScheduler_LegacyQueue(t *testing.T) {
+func TestRetryScheduler_MigratedLegacyQueue(t *testing.T) {
 	tests := []struct {
 		name         string
 		deploymentID string
@@ -59,12 +61,12 @@ func TestRetryScheduler_LegacyQueue(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			testRetrySchedulerLegacyQueue(t, tt.deploymentID, tt.legacyNs, tt.currentKey)
+			testRetrySchedulerMigratedLegacyQueue(t, tt.deploymentID, tt.legacyNs, tt.currentKey)
 		})
 	}
 }
 
-func testRetrySchedulerLegacyQueue(t *testing.T, deploymentID, legacyNs, currentKey string) {
+func testRetrySchedulerMigratedLegacyQueue(t *testing.T, deploymentID, legacyNs, currentKey string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -90,6 +92,16 @@ func testRetrySchedulerLegacyQueue(t *testing.T, deploymentID, legacyNs, current
 	legacy := newLegacyRetryQueue(t, ctx, redisConfig, legacyNs)
 	retryTask := deliverymq.RetryTask{EventID: event.ID, TenantID: tenant.ID, DestinationID: destination.ID}
 
+	// A retry scheduled by the previous version, then the migration.
+	legacy.schedule(t, ctx, retryTask, 0)
+	require.Equal(t, int64(1), legacy.len(t, ctx))
+	m := migration_004.New(legacy.client, migratorredis.NewLoggerAdapter(testutil.CreateTestLogger(t), false), deploymentID)
+	plan, err := m.Plan(ctx)
+	require.NoError(t, err)
+	_, err = m.Apply(ctx, plan)
+	require.NoError(t, err)
+	require.Equal(t, int64(0), legacy.len(t, ctx))
+
 	mqConfig := &mqs.QueueConfig{InMemory: &mqs.InMemoryConfig{Name: testutil.RandomString(5)}}
 	deliveryMQ := deliverymq.New(deliverymq.WithQueue(mqConfig))
 	cleanup, err := deliveryMQ.Init(ctx)
@@ -101,45 +113,33 @@ func testRetrySchedulerLegacyQueue(t *testing.T, deploymentID, legacyNs, current
 	require.NoError(t, retryScheduler.Init(ctx))
 	defer retryScheduler.Shutdown()
 
+	subscription, err := deliveryMQ.Subscribe(ctx)
+	require.NoError(t, err)
+	defer subscription.Shutdown(ctx)
+	go retryScheduler.Monitor(ctx)
+
+	msg, err := subscription.Receive(ctx)
+	require.NoError(t, err)
+	msg.Ack()
+	var task models.DeliveryTask
+	require.NoError(t, task.FromMessage(msg))
+	assert.Equal(t, event.ID, task.Event.ID)
+	assert.Equal(t, destination.ID, task.DestinationID)
+	assert.Equal(t, 2, task.Attempt)
+
+	require.Eventually(t, func() bool {
+		n, err := legacy.client.ZCard(ctx, currentKey).Result()
+		return err == nil && n == 0
+	}, 2*time.Second, 10*time.Millisecond, "retry should be deleted after it fires")
+
 	t.Run("new retries go to the hash-tagged queue", func(t *testing.T) {
 		msg, err := retryTask.ToString()
 		require.NoError(t, err)
 		retryID := models.RetryID(event.ID, destination.ID)
 		require.NoError(t, retryScheduler.Schedule(ctx, msg, time.Hour, scheduler.WithTaskID(retryID)))
-		n, err := legacy.client.Exists(ctx, currentKey, currentKey+":Q").Result()
+		n, err := legacy.client.ZCard(ctx, currentKey).Result()
 		require.NoError(t, err)
-		assert.Equal(t, int64(2), n)
+		assert.Equal(t, int64(1), n)
 		assert.Equal(t, int64(0), legacy.len(t, ctx))
-		require.NoError(t, retryScheduler.Cancel(ctx, retryID))
-	})
-
-	t.Run("cancel removes a retry scheduled in the legacy queue", func(t *testing.T) {
-		legacy.schedule(t, ctx, retryTask, time.Hour)
-		require.Equal(t, int64(1), legacy.len(t, ctx))
-
-		require.NoError(t, retryScheduler.Cancel(ctx, models.RetryID(event.ID, destination.ID)))
-		assert.Equal(t, int64(0), legacy.len(t, ctx))
-	})
-
-	t.Run("retry scheduled in the legacy queue fires and is removed", func(t *testing.T) {
-		subscription, err := deliveryMQ.Subscribe(ctx)
-		require.NoError(t, err)
-		defer subscription.Shutdown(ctx)
-
-		legacy.schedule(t, ctx, retryTask, 0)
-		go retryScheduler.Monitor(ctx)
-
-		msg, err := subscription.Receive(ctx)
-		require.NoError(t, err)
-		msg.Ack()
-		var task models.DeliveryTask
-		require.NoError(t, task.FromMessage(msg))
-		assert.Equal(t, event.ID, task.Event.ID)
-		assert.Equal(t, destination.ID, task.DestinationID)
-		assert.Equal(t, 2, task.Attempt)
-
-		require.Eventually(t, func() bool {
-			return legacy.len(t, ctx) == 0
-		}, 2*time.Second, 10*time.Millisecond, "legacy retry should be deleted after it fires")
 	})
 }

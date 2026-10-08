@@ -189,8 +189,8 @@ func WithHashTagPrefix(prefix string) Option {
 }
 
 // WithUntaggedKeys uses the key layout from before queue names were
-// hash-tagged (<ns>:<qname>, <ns>:<qname>:Q), to read queues written by older
-// versions. Its keys span two Redis Cluster slots.
+// hash-tagged (<ns>:<qname>, <ns>:<qname>:Q), as earlier versions did; tests
+// use it to play those versions. Its keys span two Redis Cluster slots.
 func WithUntaggedKeys() Option {
 	return func(rsmq *RedisSMQ) {
 		rsmq.untagged = true

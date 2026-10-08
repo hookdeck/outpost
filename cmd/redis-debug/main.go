@@ -149,7 +149,7 @@ func testRedisOperations(client RedisClientInterface) {
 		"rsmq:{deliverymq-retry}",
 		"rsmq:{deliverymq-retry-dlq}:Q",
 		"rsmq:{deliverymq-retry-dlq}",
-		// Untagged layout written by earlier versions; drained by newer ones.
+		// Untagged layout from earlier versions; `outpost migrate` moves it.
 		"rsmq:deliverymq-retry:Q",
 		"rsmq:deliverymq-retry",
 		"rsmq:deliverymq-retry-dlq:Q",
