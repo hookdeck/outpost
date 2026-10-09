@@ -174,6 +174,7 @@ func (r apiRoute) fill(tenantID, destinationID string) string {
 		":destination_id", destinationID,
 		":attempt_id", "att_missing",
 		":event_id", "evt_missing",
+		":subscription_id", "sub_missing",
 		":type", "webhook",
 	).Replace(r.path)
 }
@@ -215,6 +216,16 @@ var apiRoutes = []apiRoute{
 
 	{method: http.MethodGet, path: "/metrics/events"},
 	{method: http.MethodGet, path: "/metrics/attempts"},
+
+	// MCP Events. The event list, subscribe and unsubscribe don't resolve
+	// the tenant in the auth step: the event list doesn't need it, subscribe
+	// answers a missing one with an mcp_error and unsubscribe with {}.
+	{method: http.MethodGet, path: "/tenants/:tenant_id/mcp/events", adminOnly: true, minVersion: 2},
+	{method: http.MethodPut, path: "/tenants/:tenant_id/mcp/subscriptions", adminOnly: true, minVersion: 2},
+	{method: http.MethodPost, path: "/tenants/:tenant_id/mcp/subscriptions/unsubscribe", adminOnly: true, minVersion: 2},
+	{method: http.MethodGet, path: "/tenants/:tenant_id/mcp/subscriptions", requireTenant: true, minVersion: 2},
+	{method: http.MethodDelete, path: "/tenants/:tenant_id/mcp/subscriptions/:subscription_id", requireTenant: true, minVersion: 2},
+	{method: http.MethodDelete, path: "/tenants/:tenant_id/mcp/subscriptions", adminOnly: true, requireTenant: true, minVersion: 2},
 }
 
 // apiRoutesWhere returns the apiRoutes for which keep is true.
@@ -473,6 +484,30 @@ func (s *basicSuite) TestErrorResponses_TenantNotFound() {
 			})
 		})
 	}
+}
+
+// mcp destinations are MCP Events subscriptions: the generic create endpoint
+// refuses them in every version, before any provider validation.
+func (s *basicSuite) TestErrorResponses_MCPDestinationCreate() {
+	tenant := s.createTenant()
+	var cases []errorCase
+	for _, version := range apiVersions {
+		cases = append(cases, errorCase{
+			name:    fmt.Sprintf("v%d", version),
+			method:  http.MethodPost,
+			path:    "/tenants/" + tenant.ID + "/destinations",
+			version: version,
+			auth:    s.adminAuth(),
+			body: map[string]any{
+				"type":   "mcp",
+				"topics": []string{"*"},
+				"config": map[string]any{"url": "https://example.com/hook"},
+			},
+			status:  http.StatusBadRequest,
+			message: "mcp destinations can't be created here: MCP clients subscribe through PUT /tenants/{tenant_id}/mcp/subscriptions",
+		})
+	}
+	s.runErrorCases(cases)
 }
 
 func (s *basicSuite) TestErrorResponses_UnknownRoute() {

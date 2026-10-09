@@ -23,6 +23,11 @@ func ErrorHandlerMiddleware() gin.HandlerFunc {
 		if err == nil {
 			return
 		}
+		// The handler answered already and attached the error for the
+		// request log only (mcp_error bodies).
+		if c.Writer.Written() {
+			return
+		}
 
 		var errorResponse ErrorResponse
 		errorResponse.Parse(err.Err)
