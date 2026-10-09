@@ -1,0 +1,27 @@
+{
+  "type": "object",
+  "properties": {
+    "total": {
+      "description": "Order total in major units.",
+      "anyOf": [
+        { "type": "number" },
+        {
+          "type": "object",
+          "properties": {
+            "$gt": { "type": "number" }, "$gte": { "type": "number" },
+            "$lt": { "type": "number" }, "$lte": { "type": "number" }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "currency": {
+      "description": "ISO 4217 currency code.",
+      "anyOf": [
+        { "type": "string" },
+        { "type": "array", "items": { "type": "string" } }
+      ]
+    }
+  },
+  "additionalProperties": false
+}
