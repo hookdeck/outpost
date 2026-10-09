@@ -74,6 +74,7 @@ require (
 	go.uber.org/zap v1.28.0
 	gocloud.dev v0.46.0
 	gocloud.dev/pubsub/rabbitpubsub v0.46.0
+	golang.org/x/net v0.57.0
 	golang.org/x/oauth2 v0.36.0
 	golang.org/x/sync v0.22.0
 	google.golang.org/api v0.292.0
@@ -224,7 +225,6 @@ require (
 	golang.org/x/arch v0.30.0 // indirect
 	golang.org/x/crypto v0.54.0 // indirect
 	golang.org/x/mod v0.39.0 // indirect
-	golang.org/x/net v0.57.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
 	golang.org/x/text v0.40.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
