@@ -19,7 +19,7 @@ func validateAgainst(t *testing.T, schema, data string) []string {
 	compiled, unsupported, err := compileSchema(tree)
 	require.NoError(t, err)
 	require.Empty(t, unsupported)
-	return validateJSON(compiled, []byte(data), "data", propertyNameSet(tree))
+	return validateJSON(compiled, []byte(data), "data", propertyNameSet(tree), dataChecks)
 }
 
 func TestRenderValidationErrors(t *testing.T) {

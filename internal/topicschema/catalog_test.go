@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -172,14 +173,49 @@ func TestNewCatalogRules(t *testing.T) {
 		},
 		{
 			name:   "unresolvable local references",
-			topics: []string{"a", "b"},
+			topics: []string{"a"},
 			defs: Definitions{
 				"a": schemaDef(`{"properties":{"x":{"$ref":"#/$defs/missing"}}}`),
-				"b": schemaDef(`{"$ref":"#nowhere"}`),
 			},
 			want: []string{
 				`topic "a": payload_schema: json-pointer in "#/$defs/missing" not found`,
-				`topic "b": payload_schema: anchor in "#nowhere" not found in schema ""`,
+			},
+		},
+		{
+			// The validator resolves anchors, but inference and the
+			// breaking-change diff follow JSON pointers only.
+			name:   "anchor references",
+			topics: []string{"a", "b", "c", "d", "ok"},
+			defs: Definitions{
+				"a":  schemaDef(`{"$anchor":"root","properties":{"x":{"$ref":"#root"}}}`),
+				"b":  schemaDef(`{"$ref":"#nowhere"}`),
+				"c":  schemaDef(`{"$dynamicAnchor":"meta","properties":{"x":{"$dynamicRef":"#meta"}}}`),
+				"d":  schemaDef(`{"properties":{"x":{"$ref":"#%zz"}}}`),
+				"ok": schemaDef(`{"properties":{"x":{"$ref":"#"},"y":{"$ref":"#%2Fproperties%2Fx"},"z":{"$dynamicRef":"#/properties/x"}}}`),
+			},
+			want: []string{
+				`topic "a": payload_schema.properties.x.$ref "#root" must be a JSON pointer such as "#/$defs/name"; anchors are not supported`,
+				`topic "b": payload_schema.$ref "#nowhere" must be a JSON pointer such as "#/$defs/name"; anchors are not supported`,
+				`topic "c": payload_schema.properties.x.$dynamicRef "#meta" must be a JSON pointer such as "#/$defs/name"; anchors are not supported`,
+				`topic "d": payload_schema.properties.x.$ref "#%zz" must be a JSON pointer such as "#/$defs/name"; anchors are not supported`,
+			},
+		},
+		{
+			// A nested $id starts a resource that the validator resolves the
+			// references below it against, unlike inference and the diff.
+			name:   "$id and anchors below the root",
+			topics: []string{"a", "b", "c", "root"},
+			defs: Definitions{
+				"a": schemaDef(`{"type":"object","$defs":{"code":{"type":"string"}},
+					"properties":{"code":{"$id":"https://example.com/code","$ref":"#/$defs/code","$defs":{"code":{"type":"integer"}}}}}`),
+				"b":    schemaDef(`{"$defs":{"n":{"$anchor":"node","type":"string"}}}`),
+				"c":    schemaDef(`{"items":{"$dynamicAnchor":"meta"}}`),
+				"root": schemaDef(`{"$id":"https://example.com/order","$anchor":"order","$dynamicAnchor":"meta","type":"object","properties":{"x":{"$ref":"#"}}}`),
+			},
+			want: []string{
+				`topic "a": payload_schema.properties.code.$id is only allowed at the payload_schema root, since it changes how references below it resolve`,
+				`topic "b": payload_schema.$defs.n.$anchor is only allowed at the payload_schema root; reference subschemas with JSON pointers such as "#/$defs/name"`,
+				`topic "c": payload_schema.items.$dynamicAnchor is only allowed at the payload_schema root; reference subschemas with JSON pointers such as "#/$defs/name"`,
 			},
 		},
 		{
@@ -213,6 +249,7 @@ func TestNewCatalogRules(t *testing.T) {
 			want: []string{
 				`topic "a": payload_schema.$schema must be "https://json-schema.org/draft/2020-12/schema"`,
 				`topic "b": payload_schema.$schema must be "https://json-schema.org/draft/2020-12/schema"`,
+				`topic "c": payload_schema.$defs.x.$id is only allowed at the payload_schema root, since it changes how references below it resolve`,
 				`topic "c": payload_schema.$defs.x.$schema must be "https://json-schema.org/draft/2020-12/schema"`,
 			},
 		},
@@ -386,6 +423,20 @@ func TestNewCatalogImported(t *testing.T) {
 	}, c.Warnings())
 }
 
+func TestNewCatalogImportedAnchors(t *testing.T) {
+	// ParseOpenAPI keeps schema-local anchors as written; the catalog then
+	// rejects them, naming the JSON pointer form to use instead.
+	doc := parseTestOpenAPI(parseTestJSONBody("a", `{type: object, properties: {price: {$ref: '#/components/schemas/Price'}, total: {$ref: '#money'}}}`),
+		"schemas:\n  Price: {$anchor: money, type: number}\n")
+	defs, err := ParseOpenAPI(doc)
+	require.NoError(t, err)
+	_, err = NewCatalog([]string{"a"}, nil, WithImported(defs))
+	assert.Equal(t, []string{
+		`topic "a": payload_schema.$defs.Price.$anchor is only allowed at the payload_schema root; reference subschemas with JSON pointers such as "#/$defs/name"`,
+		`topic "a": payload_schema.properties.total.$ref "#money" must be a JSON pointer such as "#/$defs/name"; anchors are not supported`,
+	}, configProblems(t, err))
+}
+
 func TestCatalogAccessors(t *testing.T) {
 	object := json.RawMessage(`{"type":"object","properties":{"id":{"type":"string","x-mcp-filter":false}}}`)
 	c, err := NewCatalog([]string{"c", "a", "b", "d", "a"}, Definitions{
@@ -544,6 +595,42 @@ func TestValidateDataLargeNumbers(t *testing.T) {
 	// Anywhere in the value, schema or not.
 	assert.Equal(t, []string{"data.*[1]: must be a number of at most 1000 characters with an exponent between -1000 and 1000"},
 		c.ValidateData("enforced", []byte(`{"id":"x","total":1,"extra":[1,1e5000]}`)).Errors)
+
+	// With several, the first in key order is reported, every time.
+	several := []byte(`{"total":1e5000,"pad":"x","id":1e5000,"day":1e5000,"currency":1e5000}`)
+	for range 100 {
+		require.Equal(t, []string{"data.currency: must be a number of at most 1000 characters with an exponent between -1000 and 1000"},
+			c.ValidateData("enforced", several).Errors)
+	}
+}
+
+func TestValidateDataDuplicateKeys(t *testing.T) {
+	// encoding/json keeps the last of duplicate keys, but the data is
+	// delivered as published, and some consumers read the first one.
+	c := validationCatalog(t)
+	for _, tc := range []struct {
+		data string
+		want string
+	}{
+		{`{"id":"o_1","total":"not-a-number","total":5}`, "data: has duplicate keys"},
+		{`{"id":"o_1","total":5,"total":5}`, "data: has duplicate keys"},
+		{`{"id":"o_1","total":5,"extra":{"a":[{"k":1,"k":2}]}}`, "data.*.*[0]: has duplicate keys"},
+		{`{"id":"o_1","total":5,"pad":"x","day":{"total":1,"total":2}}`, "data.day: has duplicate keys"},
+		{`{"id":"o_1","total":5,"extra":{"a":1},"extra":{"a":1}}`, "data: has duplicate keys"},
+	} {
+		assert.Equal(t, ValidationResult{Mode: ValidationEnforce, Checked: true, Errors: []string{tc.want}},
+			c.ValidateData("enforced", []byte(tc.data)), tc.data)
+		assert.Equal(t, ValidationResult{Mode: ValidationWarn, Checked: true, Errors: []string{tc.want}},
+			c.ValidateData("warned", []byte(tc.data)), tc.data)
+	}
+	assert.Equal(t, ValidationResult{Mode: ValidationOff}, c.ValidateData("off", []byte(`{"total":1,"total":2}`)))
+	// Keys that only look alike, and colons in strings, aren't duplicates.
+	assert.True(t, c.ValidateData("enforced", []byte(`{"id":"a:b\":","total":5,"Total":"x","extra":{"total":[{"total":1}]}}`)).Valid)
+
+	// The size limit still applies first.
+	c = validationCatalog(t, WithMaxValidationBytes(20))
+	assert.Equal(t, ValidationResult{Mode: ValidationWarn, SkippedTooLarge: true},
+		c.ValidateData("warned", []byte(`{"id":"o_1","id":"o_1"}`)))
 }
 
 func TestFormats(t *testing.T) {
@@ -684,6 +771,9 @@ func TestValidateArguments(t *testing.T) {
 		`{"total":42}`,
 		`{"currency":` + values(100) + `}`,
 		`{"currency":"` + strings.Repeat("x", 256) + `"}`,
+		`{"currency":"` + strings.Repeat("é", 256) + `"}`,
+		`{"currency":["` + strings.Repeat("x", 256) + `"]}`,
+		`{"total":1}` + strings.Repeat(" ", 16<<10-11),
 		`{}`,
 		``,
 	} {
@@ -719,19 +809,19 @@ func TestValidateArguments(t *testing.T) {
 		}},
 		{`{"currency":{"$gte":"USD"}}`, []string{"arguments.currency: must be array", "arguments.currency: must be string"}},
 		{`{"currency":[]}`, []string{"arguments.currency: must be string", "arguments.currency: must have at least 1 item"}},
-		{`{"currency":` + values(101) + `}`, []string{"arguments.currency: must be string", "arguments.currency: must have at most 100 items"}},
-		{`{"currency":"` + strings.Repeat("x", 257) + `"}`, []string{
-			"arguments.currency: must be array",
-			"arguments.currency: must be at most 256 characters",
-		}},
-		{`{"currency":["` + strings.Repeat("x", 257) + `"]}`, []string{
-			"arguments.currency: must be string",
-			"arguments.currency[0]: must be at most 256 characters",
-		}},
+		// Lists and strings past the inferred limits fail before the schema
+		// is checked, with only the size problem reported.
+		{`{"currency":` + values(101) + `}`, []string{"arguments.currency: must have at most 100 items"}},
+		{`{"currency":"` + strings.Repeat("x", 257) + `"}`, []string{"arguments.currency: must be at most 256 characters"}},
+		{`{"currency":"` + strings.Repeat("é", 257) + `"}`, []string{"arguments.currency: must be at most 256 characters"}},
+		{`{"currency":["` + strings.Repeat("x", 257) + `"]}`, []string{"arguments.currency[0]: must be at most 256 characters"}},
+		{`{"total":{"$gte":` + values(101) + `}}`, []string{"arguments.total.$gte: must have at most 100 items"}},
+		{`{"currency":"USD","x":` + values(101) + `,"total":"` + strings.Repeat("x", 257) + `"}`, []string{"arguments.total: must be at most 256 characters"}},
 		{`{"total":1e5000}`, []string{"arguments.total: must be a number of at most 1000 characters with an exponent between -1000 and 1000"}},
 		{`null`, []string{"arguments: must be object"}},
 		{`{"total":`, []string{"arguments: must be valid JSON"}},
 		{`{"total":1}` + strings.Repeat(" ", maxArgumentsBytes), []string{"arguments: exceed the size limit"}},
+		{`{"total":1}` + strings.Repeat(" ", 16<<10-10), []string{"arguments: exceed the size limit"}},
 	} {
 		assert.Equal(t, tc.want, c.ValidateArguments(topic, []byte(tc.args)), tc.args)
 	}
@@ -740,6 +830,27 @@ func TestValidateArguments(t *testing.T) {
 	off, err := NewCatalog([]string{"t"}, Definitions{"t": {PayloadSchema: json.RawMessage(`{"type":"object"}`)}})
 	require.NoError(t, err)
 	assert.Equal(t, []string{"arguments: topic is not MCP-enabled"}, off.ValidateArguments("t", []byte(`{}`)))
+}
+
+func TestValidateArgumentsBoundsWork(t *testing.T) {
+	// The validator checks every list item against the enum even past
+	// maxItems, comparing numbers as exact rationals, so long lists must
+	// fail before the schema is checked.
+	enum := make([]string, 1000)
+	for i := range enum {
+		enum[i] = fmt.Sprint(i + 1)
+	}
+	schema := `{"type":"object","properties":{"status":{"type":"integer","enum":[` + strings.Join(enum, ",") + `]}}}`
+	c, err := NewCatalog([]string{"t"}, Definitions{"t": {PayloadSchema: json.RawMessage(schema), MCP: MCPSettings{Enabled: true}}})
+	require.NoError(t, err)
+
+	items := strings.TrimSuffix(strings.Repeat("1,", (maxArgumentsBytes-20)/2), ",")
+	args := []byte(`{"status":[` + items + `]}`)
+	require.LessOrEqual(t, len(args), maxArgumentsBytes)
+	start := time.Now()
+	assert.Equal(t, []string{"arguments.status: must have at most 100 items"}, c.ValidateArguments("t", args))
+	assert.Less(t, time.Since(start), time.Second)
+	assert.Nil(t, c.ValidateArguments("t", []byte(`{"status":[`+strings.TrimSuffix(strings.Repeat("1000,", 100), ",")+`]}`)))
 }
 
 func TestCatalogConcurrentUse(t *testing.T) {

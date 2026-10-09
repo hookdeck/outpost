@@ -88,7 +88,10 @@ func TestBreakingChanges(t *testing.T) {
 			name: "type changed",
 			prev: `{"type":"object","properties":{"total":{"type":"number"}}}`,
 			next: `{"type":"object","properties":{"total":{"type":"string"}}}`,
-			want: []string{"[/properties/total] type_narrowed: type changed from number to string"},
+			want: []string{
+				"[/properties/total] filter_hidden: property no longer accepts range operators",
+				"[/properties/total] type_narrowed: type changed from number to string",
+			},
 		},
 		{
 			name: "number to integer",
@@ -276,17 +279,37 @@ func TestBreakingChanges(t *testing.T) {
 			next: `{"type":"object","properties":{"sku":{"type":"string","pattern":"^[A-Z]+$"}}}`,
 			want: []string{`[/properties/sku] constraint_tightened: pattern changed from "^[A-Z0-9]+$" to "^[A-Z]+$"`},
 		},
+		// Only date and date-time are asserted; other formats are annotations.
 		{
 			name: "format added",
-			prev: `{"type":"object","properties":{"email":{"type":"string"}}}`,
-			next: `{"type":"object","properties":{"email":{"type":"string","format":"email"}}}`,
-			want: []string{`[/properties/email] constraint_tightened: format "email" added`},
+			prev: `{"type":"object","properties":{"o":{"type":"object","properties":{"at":{"type":"string"}}}}}`,
+			next: `{"type":"object","properties":{"o":{"type":"object","properties":{"at":{"type":"string","format":"date-time"}}}}}`,
+			want: []string{`[/properties/o/properties/at] constraint_tightened: format "date-time" added`},
 		},
 		{
 			name: "format changed",
 			prev: `{"type":"object","properties":{"at":{"type":"string","format":"date-time"}}}`,
 			next: `{"type":"object","properties":{"at":{"type":"string","format":"date"}}}`,
 			want: []string{`[/properties/at] constraint_tightened: format changed from "date-time" to "date"`},
+		},
+		{
+			name: "annotation format replaced by an asserted one",
+			prev: `{"type":"object","properties":{"o":{"type":"object","properties":{"at":{"type":"string","format":"email"}}}}}`,
+			next: `{"type":"object","properties":{"o":{"type":"object","properties":{"at":{"type":"string","format":"date"}}}}}`,
+			want: []string{`[/properties/o/properties/at] constraint_tightened: format changed from "email" to "date"`},
+		},
+		{
+			name: "items with an asserted format added",
+			prev: `{"type":"object","properties":{"days":{"type":"array"}}}`,
+			next: `{"type":"object","properties":{"days":{"type":"array","items":{"format":"date"}}}}`,
+			want: []string{"[/properties/days] constraint_tightened: array items now constrained"},
+		},
+		{
+			// Payloads only widen, but the argument loses its range operators.
+			name: "date format replaced by an annotation",
+			prev: `{"type":"object","properties":{"d":{"type":"string","format":"date"}}}`,
+			next: `{"type":"object","properties":{"d":{"type":"string","format":"email"}}}`,
+			want: []string{"[/properties/d] filter_hidden: property no longer accepts range operators"},
 		},
 
 		// additionalProperties and items.
@@ -399,6 +422,28 @@ func TestBreakingChanges(t *testing.T) {
 			prev: `{"type":"object","properties":{"a":{"$ref":"#/$defs/missing"}}}`,
 			next: `{"type":"object","properties":{"a":{"$ref":"#/$defs/other"}}}`,
 			want: []string{`[/properties/a] composite_changed: $ref "#/$defs/missing" does not resolve`},
+		},
+		{
+			// What a reference that resolves on neither side pointed at can't
+			// be compared, so it never counts as unchanged.
+			name: "unresolvable reference unchanged",
+			prev: `{"type":"object","properties":{"a":{"$ref":"#/$defs/missing"},"b":{"type":"string"}}}`,
+			next: `{"type":"object","properties":{"a":{"$ref":"#/$defs/missing","description":"A."},"b":{"type":"string","title":"B"}}}`,
+			want: []string{`[/properties/a] composite_changed: $ref "#/$defs/missing" does not resolve`},
+		},
+		{
+			// The catalog rejects anchors; a snapshot written before it did
+			// can't hide a narrowed target behind one.
+			name: "anchor reference target narrowed",
+			prev: `{"type":"object","properties":{"price":{"$ref":"#money"}},"$defs":{"m":{"$anchor":"money","type":"number"}}}`,
+			next: `{"type":"object","properties":{"price":{"$ref":"#money"}},"$defs":{"m":{"$anchor":"money","type":"string"}}}`,
+			want: []string{`[/properties/price] composite_changed: $ref "#money" does not resolve`},
+		},
+		{
+			name: "$dynamicRef target narrowed",
+			prev: `{"type":"object","properties":{"price":{"$dynamicRef":"#/$defs/m"}},"$defs":{"m":{"type":"number"}}}`,
+			next: `{"type":"object","properties":{"price":{"$dynamicRef":"#/$defs/m"}},"$defs":{"m":{"type":"string"}}}`,
+			want: []string{"[/properties/price] composite_changed: $dynamicRef changed"},
 		},
 
 		// allOf.
@@ -517,6 +562,33 @@ func TestBreakingChanges(t *testing.T) {
 			want: []string{"[/properties/total] filter_hidden: property no longer filterable: not a scalar type"},
 		},
 		{
+			name: "date format removed from a filterable property",
+			prev: `{"type":"object","properties":{"d":{"type":"string","format":"date"}}}`,
+			next: `{"type":"object","properties":{"d":{"type":"string"}}}`,
+			want: []string{"[/properties/d] filter_hidden: property no longer accepts range operators"},
+		},
+		{
+			name: "dated property widened to another type",
+			prev: `{"type":"object","properties":{"d":{"type":"string","format":"date"}}}`,
+			next: `{"type":"object","properties":{"d":{"type":["string","boolean"],"format":"date"}}}`,
+			want: []string{"[/properties/d] filter_hidden: property no longer accepts range operators"},
+		},
+		{
+			name: "dated property through a $ref loses its format",
+			prev: `{"type":"object","properties":{"d":{"$ref":"#/$defs/day"}},"$defs":{"day":{"type":"string","format":"date"}}}`,
+			next: `{"type":"object","properties":{"d":{"$ref":"#/$defs/day"}},"$defs":{"day":{"type":"string"}}}`,
+			want: []string{"[/properties/d] filter_hidden: property no longer accepts range operators"},
+		},
+		{
+			name: "date to date-time",
+			prev: `{"type":"object","properties":{"d":{"type":"string","format":"date"}}}`,
+			next: `{"type":"object","properties":{"d":{"type":"string","format":"date-time"}}}`,
+			want: []string{
+				`[/properties/d] constraint_tightened: format changed from "date" to "date-time"`,
+				"[/properties/d] filter_hidden: property no longer accepts range operators",
+			},
+		},
+		{
 			name: "removed filterable property is only reported as removed",
 			prev: `{"type":"object","properties":{"status":{"type":"string"},"id":{"type":"string"}}}`,
 			next: `{"type":"object","properties":{"id":{"type":"string"}}}`,
@@ -560,8 +632,6 @@ func TestBreakingChanges(t *testing.T) {
 		{name: "items added through a $ref to annotations",
 			prev: `{"type":"object","properties":{"t":{"type":"array"}},"$defs":{"any":{"allOf":[{"description":"Anything."}]}}}`,
 			next: `{"type":"object","properties":{"t":{"type":"array","items":{"$ref":"#/$defs/any"}}},"$defs":{"any":{"allOf":[{"description":"Anything."}]}}}`},
-		{name: "unresolvable $ref unchanged", prev: `{"type":"object","properties":{"a":{"$ref":"#/$defs/missing"},"b":{"type":"string"}}}`,
-			next: `{"type":"object","properties":{"a":{"$ref":"#/$defs/missing","description":"A."},"b":{"type":"string","title":"B"}}}`},
 		{name: "maximum raised", prev: `{"type":"object","properties":{"n":{"type":"number","maximum":50}}}`,
 			next: `{"type":"object","properties":{"n":{"type":"number","maximum":100}}}`},
 		{name: "minimum lowered", prev: `{"type":"object","properties":{"n":{"type":"number","minimum":1}}}`,
@@ -574,6 +644,18 @@ func TestBreakingChanges(t *testing.T) {
 			next: `{"type":"object","properties":{"s":{"type":"string","maxLength":10}}}`},
 		{name: "pattern and format removed", prev: `{"type":"object","properties":{"s":{"type":"string","pattern":"^a","format":"email"}}}`,
 			next: `{"type":"object","properties":{"s":{"type":"string"}}}`},
+		{name: "annotation format added", prev: `{"type":"object","properties":{"email":{"type":"string"}}}`,
+			next: `{"type":"object","properties":{"email":{"type":"string","format":"email"}}}`},
+		{name: "annotation format changed", prev: `{"type":"object","properties":{"id":{"type":"string","format":"uuid"}}}`,
+			next: `{"type":"object","properties":{"id":{"type":"string","format":"uri"}}}`},
+		{name: "date-time format replaced by an annotation", prev: `{"type":"object","properties":{"at":{"type":"string","format":"date-time"}}}`,
+			next: `{"type":"object","properties":{"at":{"type":"string","format":"email"}}}`},
+		{name: "items with an annotation format added", prev: `{"type":"object","properties":{"t":{"type":"array"}}}`,
+			next: `{"type":"object","properties":{"t":{"type":"array","items":{"format":"email"}}}}`},
+		{name: "dated property widened to an integer keeps range operators", prev: `{"type":"object","properties":{"d":{"type":["string","null"],"format":"date"}}}`,
+			next: `{"type":"object","properties":{"d":{"type":["string","null","integer"],"format":"date"}}}`},
+		{name: "integer widened to a string keeps range operators", prev: `{"type":"object","properties":{"n":{"type":"integer"}}}`,
+			next: `{"type":"object","properties":{"n":{"type":["integer","string"]}}}`},
 		{name: "multipleOf refined", prev: `{"type":"object","properties":{"n":{"type":"number","multipleOf":4}}}`,
 			next: `{"type":"object","properties":{"n":{"type":"number","multipleOf":2}}}`},
 		{name: "multipleOf refined to a fraction", prev: `{"type":"object","properties":{"n":{"type":"number","multipleOf":0.5}}}`,
@@ -689,6 +771,7 @@ func TestBreakingChangesFixtures(t *testing.T) {
 			// Address only relaxed, but anyOf is compared by equality.
 			"[/properties/shipping] composite_changed: anyOf changed",
 			"[/properties/status] filter_hidden: property no longer filterable: x-mcp-filter is false",
+			"[/properties/total] filter_hidden: property no longer accepts range operators",
 			"[/properties/total] type_narrowed: type changed from number to string",
 		}, breaking(v2, v3))
 	})
@@ -753,7 +836,7 @@ func TestBreakingChangesDeterministic(t *testing.T) {
 	}
 
 	first := BreakingChanges(prev, next, topics)
-	require.Len(t, first, 45)
+	require.Len(t, first, 50)
 	for range 20 {
 		require.Equal(t, first, BreakingChanges(prev, next, topics))
 	}

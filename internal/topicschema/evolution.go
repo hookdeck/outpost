@@ -563,12 +563,12 @@ func (d *differ) compare(t diffTask, queue []diffTask) []diffTask {
 	}
 
 	if pv.badRef != "" || nv.badRef != "" {
-		// The catalog rejects unresolvable references, so this only happens
-		// with hand-edited snapshots: fall back to equality.
-		if !d.sameEntries(t.prev, t.next) {
-			ref := cmp.Or(pv.badRef, nv.badRef)
-			d.report(pv.at, ChangeCompositeChanged, "$ref "+displayString(ref)+" does not resolve")
-		}
+		// The catalog only accepts references resolveLocalRef follows, so
+		// this only happens with hand-edited snapshots, or ones taken before
+		// it rejected anchors. What such a reference points at can't be
+		// compared, so it is reported even when it reads the same.
+		ref := cmp.Or(pv.badRef, nv.badRef)
+		d.report(pv.at, ChangeCompositeChanged, "$ref "+displayString(ref)+" does not resolve")
 		return queue
 	}
 	if nv.rejectAll {
@@ -708,6 +708,9 @@ func (d *differ) constrains(s docSide, entries []schemaEntry) bool {
 		}
 		for k, v := range n {
 			if constraintKeywords[k] || (k == "uniqueItems" && v == true) {
+				return true
+			}
+			if s, ok := v.(string); ok && k == "format" && assertedFormats[s] {
 				return true
 			}
 		}
@@ -1073,7 +1076,9 @@ func (d *differ) checkUniqueItems(pv, nv schemaView) {
 }
 
 // checkStringKeyword reports pattern or format values next adds that prev
-// didn't have.
+// didn't have. Formats other than date and date-time are annotations that
+// any string satisfies, so only asserted formats count; checkFilters reports
+// a lost date format taking an argument's range operators with it.
 func (d *differ) checkStringKeyword(pv, nv schemaView, kw string) {
 	var prev []string
 	var at *schemaPointer
@@ -1087,7 +1092,7 @@ func (d *differ) checkStringKeyword(pv, nv schemaView, kw string) {
 	}
 	for _, f := range nv.frags {
 		s, ok := f.m[kw].(string)
-		if !ok || slices.Contains(prev, s) {
+		if !ok || slices.Contains(prev, s) || (kw == "format" && !assertedFormats[s]) {
 			continue
 		}
 		if len(prev) == 0 {
@@ -1206,24 +1211,10 @@ func (d *differ) sameForms(prev, next []canonForm) bool {
 	return d.sameRefTargets(refs)
 }
 
-// sameEntries reports whether two conjunctions are equal schema by schema.
-func (d *differ) sameEntries(prev, next []schemaEntry) bool {
-	if len(prev) != len(next) {
-		return false
-	}
-	var pw, nw canonWriter
-	for i := range prev {
-		if !bytes.Equal(pw.schema(nil, prev[i].node), nw.schema(nil, next[i].node)) {
-			return false
-		}
-	}
-	d.spend(pw.nodes + nw.nodes)
-	return d.sameRefTargets(pw.refs)
-}
-
 // sameRefTargets reports whether every reference in refs, and every
 // reference reachable from their targets, resolves to equal schemas in both
-// documents. Both failing to resolve counts as equal.
+// documents. A reference that doesn't resolve never counts as equal: what it
+// points at, such as an anchor's target, can't be compared.
 func (d *differ) sameRefTargets(refs []string) bool {
 	queue := slices.Clone(refs)
 	seen := make(map[string]struct{}, len(refs))
@@ -1252,7 +1243,7 @@ func (d *differ) refCheck(ref string) refCheck {
 	}
 	prev, prevOK := d.resolve(sidePrev, ref)
 	next, nextOK := d.resolve(sideNext, ref)
-	c := refCheck{same: prevOK == nextOK}
+	var c refCheck
 	if prevOK && nextOK {
 		var pw, nw canonWriter
 		c.same = bytes.Equal(pw.schema(nil, prev.node), nw.schema(nil, next.node))
@@ -1266,7 +1257,9 @@ func (d *differ) refCheck(ref string) refCheck {
 // checkFilters reports top-level properties that were subscription arguments
 // in prev and aren't in next: hidden with x-mcp-filter: false, no longer
 // scalar, or moved out of the root properties. Removed properties are
-// reported as such by the main walk.
+// reported as such by the main walk. It also reports arguments that lose
+// their range operators, such as a date string losing its format, which
+// only widens the payload but rejects the $gt-style filters stored for it.
 func (d *differ) checkFilters() {
 	prevRoot, _ := d.roots[sidePrev].(map[string]any)
 	prevProps, _ := prevRoot["properties"].(map[string]any)
@@ -1277,7 +1270,8 @@ func (d *differ) checkFilters() {
 	nextProps, _ := nextRoot["properties"].(map[string]any)
 	var merged map[string]struct{}
 	for _, name := range slices.Sorted(maps.Keys(prevProps)) {
-		if _, ok := filterableArgument(d.roots[sidePrev], name, prevProps[name]); !ok {
+		prevArg, ok := filterableArgument(d.roots[sidePrev], name, prevProps[name])
+		if !ok {
 			continue
 		}
 		at := (*schemaPointer)(nil).child("properties", name)
@@ -1291,7 +1285,10 @@ func (d *differ) checkFilters() {
 			}
 			continue
 		}
-		if _, ok := filterableArgument(d.roots[sideNext], name, nextProp); ok {
+		if nextArg, ok := filterableArgument(d.roots[sideNext], name, nextProp); ok {
+			if prevArg.Ranged && !nextArg.Ranged {
+				d.report(at, ChangeFilterHidden, "property no longer accepts range operators")
+			}
 			continue
 		}
 		detail := "property no longer filterable: not a scalar type"
@@ -1334,11 +1331,12 @@ func isAnnotation(kw string) bool {
 
 // constraintKeywords reject values by themselves. Subschema keywords that
 // constrains walks into ($ref, allOf, properties, items,
-// additionalProperties) aren't listed.
+// additionalProperties) aren't listed, nor is format, which only rejects
+// values for the asserted formats.
 var constraintKeywords = func() map[string]bool {
 	m := map[string]bool{
 		"type": true, "enum": true, "const": true,
-		"pattern": true, "format": true, "multipleOf": true,
+		"pattern": true, "multipleOf": true,
 	}
 	for _, k := range boundKeywords {
 		m[k.inclusive] = true
@@ -1372,8 +1370,9 @@ var (
 // canonWriter writes the canonical form schema equality is decided on:
 // object keys sorted, numbers normalized so 1 and 1.0 are equal, and
 // annotations left out since they don't change which payloads validate.
-// $refs aren't followed; they're collected so their targets get compared
-// too. nodes counts the values written, for the work budget.
+// $refs and $dynamicRefs aren't followed; they're collected so their
+// targets get compared too. nodes counts the values written, for the work
+// budget.
 type canonWriter struct {
 	refs  []string
 	nodes int
@@ -1404,7 +1403,9 @@ func (w *canonWriter) schema(b []byte, node any) []byte {
 
 func (w *canonWriter) keyword(b []byte, kw string, v any) []byte {
 	switch {
-	case kw == "$ref":
+	case kw == "$ref" || kw == "$dynamicRef":
+		// The catalog only accepts JSON pointer fragments, with which
+		// $dynamicRef resolves as $ref does.
 		if ref, ok := v.(string); ok {
 			w.refs = append(w.refs, ref)
 		}
