@@ -25,9 +25,9 @@ func HealthHandler(supervisor *worker.WorkerSupervisor) gin.HandlerFunc {
 // NewBaseRouter creates a base router with health check endpoint
 // This is used by all services to expose /healthz
 //
-// TODO: Rethink API versioning strategy in the future.
-// For now, we expose health check at both /healthz and /api/v1/healthz for backwards compatibility.
-// The /api/v1 prefix is hardcoded here but should be part of a broader versioning approach.
+// The health check is also served under each API version prefix, so a client
+// configured with a versioned base URL can reach it. /api/v2/healthz also lets
+// a client detect whether the server serves API v2.
 func NewBaseRouter(supervisor *worker.WorkerSupervisor, ginMode string, pprofEnabled bool) *gin.Engine {
 	gin.SetMode(ginMode)
 	r := gin.New()
@@ -36,6 +36,7 @@ func NewBaseRouter(supervisor *worker.WorkerSupervisor, ginMode string, pprofEna
 	healthHandler := HealthHandler(supervisor)
 	r.GET("/healthz", healthHandler)
 	r.GET("/api/v1/healthz", healthHandler)
+	r.GET("/api/v2/healthz", healthHandler)
 
 	if pprofEnabled {
 		registerPprof(r)

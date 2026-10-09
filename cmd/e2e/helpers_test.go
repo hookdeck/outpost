@@ -231,6 +231,11 @@ func (s *basicSuite) apiURL(path string) string {
 	return fmt.Sprintf("http://localhost:%d/api/v1%s", s.config.APIPort, path)
 }
 
+// apiV2URL builds a full URL for the outpost API v2.
+func (s *basicSuite) apiV2URL(path string) string {
+	return fmt.Sprintf("http://localhost:%d/api/v2%s", s.config.APIPort, path)
+}
+
 // rootURL builds a full URL for a path outside /api/v1.
 func (s *basicSuite) rootURL(path string) string {
 	return fmt.Sprintf("http://localhost:%d%s", s.config.APIPort, path)

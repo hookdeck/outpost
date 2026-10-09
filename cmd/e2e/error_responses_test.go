@@ -3,7 +3,9 @@ package e2e_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 	"testing"
 
@@ -39,8 +41,9 @@ type rawBody string
 type errorCase struct {
 	name    string
 	method  string
-	path    string // under /api/v1, unless url is set
-	url     string // full URL, for paths outside /api/v1
+	path    string // under /api/v<version>, unless url is set
+	version int    // API version of path; 0 is v1
+	url     string // full URL, for paths outside the API versions
 	auth    string // Authorization header; empty sends none
 	body    any    // JSON-encoded, or a rawBody
 	status  int
@@ -82,7 +85,7 @@ func (s *basicSuite) requireError(c errorCase) {
 
 	url := c.url
 	if url == "" {
-		url = s.apiURL(c.path)
+		url = s.versionURL(c.version, c.path)
 	}
 
 	var resp errorResponse
@@ -109,16 +112,54 @@ func (s *basicSuite) runErrorCases(cases []errorCase) {
 	}
 }
 
+// apiVersions lists the API versions the router serves.
+var apiVersions = []int{1, 2}
+
+// versionURL builds a full URL for path in the given API version; 0 is v1.
+func (s *basicSuite) versionURL(version int, path string) string {
+	s.T().Helper()
+	switch version {
+	case 0, 1:
+		return s.apiURL(path)
+	case 2:
+		return s.apiV2URL(path)
+	}
+	s.T().Fatalf("unknown API version %d", version)
+	return ""
+}
+
+// forEachVersionRoute runs f in a subtest per API version and route the
+// version serves.
+func (s *basicSuite) forEachVersionRoute(routes []apiRoute, f func(version int, route apiRoute)) {
+	for _, version := range apiVersions {
+		s.Run(fmt.Sprintf("v%d", version), func() {
+			for _, route := range routes {
+				if !route.servedIn(version) {
+					continue
+				}
+				s.Run(route.name(), func() {
+					f(version, route)
+				})
+			}
+		})
+	}
+}
+
 // apiRoute is one route of the API with its auth requirements.
 type apiRoute struct {
 	method        string
 	path          string
 	adminOnly     bool // rejects tenant JWTs
 	requireTenant bool // 404 when the tenant in the path does not exist
+	minVersion    int  // first API version serving the route; 0 is every version
 }
 
 func (r apiRoute) name() string {
 	return r.method + " " + r.path
+}
+
+func (r apiRoute) servedIn(version int) bool {
+	return r.minVersion <= version
 }
 
 func (r apiRoute) tenantScoped() bool {
@@ -138,8 +179,9 @@ func (r apiRoute) fill(tenantID, destinationID string) string {
 }
 
 // apiRoutes lists every route of the API.
-// TestErrorResponses_RouteTableMatchesRouter fails when its methods and paths differ
-// from the router's; the adminOnly and requireTenant flags are not checked.
+// TestErrorResponses_RouteTableMatchesRouter fails when its methods, paths and
+// versions differ from the router's; the adminOnly and requireTenant flags are
+// not checked.
 var apiRoutes = []apiRoute{
 	{method: http.MethodGet, path: "/destination-types"},
 	{method: http.MethodGet, path: "/destination-types/:type"},
@@ -173,6 +215,17 @@ var apiRoutes = []apiRoute{
 
 	{method: http.MethodGet, path: "/metrics/events"},
 	{method: http.MethodGet, path: "/metrics/attempts"},
+}
+
+// apiRoutesWhere returns the apiRoutes for which keep is true.
+func apiRoutesWhere(keep func(apiRoute) bool) []apiRoute {
+	var routes []apiRoute
+	for _, route := range apiRoutes {
+		if keep(route) {
+			routes = append(routes, route)
+		}
+	}
+	return routes
 }
 
 type noopDeliveryPublisher struct{}
@@ -212,19 +265,30 @@ func TestErrorResponses_RouteTableMatchesRouter(t *testing.T) {
 	engine, ok := handler.(*gin.Engine)
 	require.True(t, ok, "the API router is no longer a *gin.Engine; list its routes another way")
 
-	var registered []string
+	registered := map[int][]string{}
 	for _, route := range engine.Routes() {
-		if path, ok := strings.CutPrefix(route.Path, "/api/v1"); ok {
-			registered = append(registered, route.Method+" "+path)
+		path, ok := strings.CutPrefix(route.Path, "/api/")
+		if !ok {
+			continue
 		}
+		var version int
+		if _, err := fmt.Sscanf(path, "v%d/", &version); err != nil || !slices.Contains(apiVersions, version) {
+			t.Errorf("%s %s is outside the API versions %v", route.Method, route.Path, apiVersions)
+			continue
+		}
+		path = strings.TrimPrefix(path, fmt.Sprintf("v%d", version))
+		registered[version] = append(registered[version], route.Method+" "+path)
 	}
 
-	var listed []string
-	for _, route := range apiRoutes {
-		listed = append(listed, route.name())
+	for _, version := range apiVersions {
+		var listed []string
+		for _, route := range apiRoutes {
+			if route.servedIn(version) {
+				listed = append(listed, route.name())
+			}
+		}
+		assert.ElementsMatch(t, registered[version], listed, "v%d", version)
 	}
-
-	assert.ElementsMatch(t, registered, listed)
 }
 
 func (s *basicSuite) TestErrorResponses_Unauthorized() {
@@ -232,16 +296,15 @@ func (s *basicSuite) TestErrorResponses_Unauthorized() {
 	dest := s.createWebhookDestination(tenant.ID, "*")
 
 	s.Run("no auth header", func() {
-		for _, route := range apiRoutes {
-			s.Run(route.name(), func() {
-				s.requireError(errorCase{
-					method:  route.method,
-					path:    route.fill(tenant.ID, dest.ID),
-					status:  http.StatusUnauthorized,
-					message: "unauthorized",
-				})
+		s.forEachVersionRoute(apiRoutes, func(version int, route apiRoute) {
+			s.requireError(errorCase{
+				method:  route.method,
+				path:    route.fill(tenant.ID, dest.ID),
+				version: version,
+				status:  http.StatusUnauthorized,
+				message: "unauthorized",
 			})
-		}
+		})
 	})
 
 	// Routes of each auth kind: open to tenants, admin-only, tenant-scoped.
@@ -263,17 +326,16 @@ func (s *basicSuite) TestErrorResponses_Unauthorized() {
 	}
 	for _, header := range headers {
 		s.Run(header.name, func() {
-			for _, route := range representative {
-				s.Run(route.name(), func() {
-					s.requireError(errorCase{
-						method:  route.method,
-						path:    route.fill(tenant.ID, dest.ID),
-						auth:    header.auth,
-						status:  http.StatusUnauthorized,
-						message: "unauthorized",
-					})
+			s.forEachVersionRoute(representative, func(version int, route apiRoute) {
+				s.requireError(errorCase{
+					method:  route.method,
+					path:    route.fill(tenant.ID, dest.ID),
+					version: version,
+					auth:    header.auth,
+					status:  http.StatusUnauthorized,
+					message: "unauthorized",
 				})
-			}
+			})
 		})
 	}
 
@@ -291,17 +353,16 @@ func (s *basicSuite) TestErrorResponses_Unauthorized() {
 			{method: http.MethodGet, path: "/tenants/:tenant_id/destinations"},
 			{method: http.MethodGet, path: "/tenants/:tenant_id/destinations/:destination_id"},
 		}
-		for _, route := range stale {
-			s.Run(route.name(), func() {
-				s.requireError(errorCase{
-					method:  route.method,
-					path:    route.fill(gone.ID, goneDest.ID),
-					auth:    jwt,
-					status:  http.StatusUnauthorized,
-					message: "unauthorized",
-				})
+		s.forEachVersionRoute(stale, func(version int, route apiRoute) {
+			s.requireError(errorCase{
+				method:  route.method,
+				path:    route.fill(gone.ID, goneDest.ID),
+				version: version,
+				auth:    jwt,
+				status:  http.StatusUnauthorized,
+				message: "unauthorized",
 			})
-		}
+		})
 	})
 }
 
@@ -312,37 +373,29 @@ func (s *basicSuite) TestErrorResponses_Forbidden() {
 	jwt := s.tenantAuth(tenant.ID)
 
 	s.Run("jwt on an admin-only route", func() {
-		for _, route := range apiRoutes {
-			if !route.adminOnly {
-				continue
-			}
-			s.Run(route.name(), func() {
-				s.requireError(errorCase{
-					method:  route.method,
-					path:    route.fill(tenant.ID, "des_missing"),
-					auth:    jwt,
-					status:  http.StatusForbidden,
-					message: "forbidden",
-				})
+		s.forEachVersionRoute(apiRoutesWhere(func(r apiRoute) bool { return r.adminOnly }), func(version int, route apiRoute) {
+			s.requireError(errorCase{
+				method:  route.method,
+				path:    route.fill(tenant.ID, "des_missing"),
+				version: version,
+				auth:    jwt,
+				status:  http.StatusForbidden,
+				message: "forbidden",
 			})
-		}
+		})
 	})
 
 	s.Run("jwt on another tenant", func() {
-		for _, route := range apiRoutes {
-			if !route.tenantScoped() {
-				continue
-			}
-			s.Run(route.name(), func() {
-				s.requireError(errorCase{
-					method:  route.method,
-					path:    route.fill(other.ID, otherDest.ID),
-					auth:    jwt,
-					status:  http.StatusForbidden,
-					message: "forbidden",
-				})
+		s.forEachVersionRoute(apiRoutesWhere(apiRoute.tenantScoped), func(version int, route apiRoute) {
+			s.requireError(errorCase{
+				method:  route.method,
+				path:    route.fill(other.ID, otherDest.ID),
+				version: version,
+				auth:    jwt,
+				status:  http.StatusForbidden,
+				message: "forbidden",
 			})
-		}
+		})
 	})
 
 	metricsQuery := "?time[start]=2024-01-01T00:00:00Z&time[end]=2024-01-02T00:00:00Z&measures[0]=count"
@@ -408,20 +461,16 @@ func (s *basicSuite) TestErrorResponses_TenantNotFound() {
 
 	for _, tenant := range tenants {
 		s.Run(tenant.name, func() {
-			for _, route := range apiRoutes {
-				if !route.requireTenant {
-					continue
-				}
-				s.Run(route.name(), func() {
-					s.requireError(errorCase{
-						method:  route.method,
-						path:    route.fill(tenant.tenantID, tenant.destinationID),
-						auth:    s.adminAuth(),
-						status:  http.StatusNotFound,
-						message: "tenant not found",
-					})
+			s.forEachVersionRoute(apiRoutesWhere(func(r apiRoute) bool { return r.requireTenant }), func(version int, route apiRoute) {
+				s.requireError(errorCase{
+					method:  route.method,
+					path:    route.fill(tenant.tenantID, tenant.destinationID),
+					version: version,
+					auth:    s.adminAuth(),
+					status:  http.StatusNotFound,
+					message: "tenant not found",
 				})
-			}
+			})
 		})
 	}
 }
@@ -433,7 +482,12 @@ func (s *basicSuite) TestErrorResponses_UnknownRoute() {
 		{name: "unknown nested route", method: http.MethodGet, path: "/tenants/t1/nope", auth: s.adminAuth(), status: http.StatusNotFound, message: "not found"},
 		{name: "wrong method", method: http.MethodDelete, path: "/publish", auth: s.adminAuth(), status: http.StatusNotFound, message: "not found"},
 		{name: "wrong method on the health check", method: http.MethodPost, path: "/healthz", status: http.StatusNotFound, message: "not found"},
-		{name: "unknown version", method: http.MethodGet, url: s.rootURL("/api/v2/tenants"), auth: s.adminAuth(), status: http.StatusNotFound, message: "not found"},
+		{name: "unknown route in v2", method: http.MethodGet, path: "/nope", version: 2, auth: s.adminAuth(), status: http.StatusNotFound, message: "not found"},
+		{name: "wrong method in v2", method: http.MethodDelete, path: "/publish", version: 2, auth: s.adminAuth(), status: http.StatusNotFound, message: "not found"},
+		{name: "wrong method on the v2 health check", method: http.MethodPost, path: "/healthz", version: 2, status: http.StatusNotFound, message: "not found"},
+		{name: "unknown version", method: http.MethodGet, url: s.rootURL("/api/v3/tenants"), auth: s.adminAuth(), status: http.StatusNotFound, message: "not found"},
+		{name: "unknown version, no auth", method: http.MethodGet, url: s.rootURL("/api/v3/tenants"), status: http.StatusNotFound, message: "not found"},
+		{name: "health check of an unknown version", method: http.MethodGet, url: s.rootURL("/api/v3/healthz"), status: http.StatusNotFound, message: "not found"},
 		{name: "api root", method: http.MethodGet, url: s.rootURL("/api"), auth: s.adminAuth(), status: http.StatusNotFound, message: "not found"},
 		{name: "api root, not GET", method: http.MethodPost, url: s.rootURL("/api"), auth: s.adminAuth(), status: http.StatusNotFound, message: "not found"},
 	})

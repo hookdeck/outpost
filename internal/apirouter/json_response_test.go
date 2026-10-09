@@ -68,6 +68,9 @@ func TestAPI_ErrorResponsesAreJSON(t *testing.T) {
 			{"jwt without tenant", func(h *apiTest) *http.Request {
 				return h.withJWT(h.jsonReq(http.MethodGet, "/api/v1/topics", nil), "")
 			}},
+			{"jwt without tenant in v2", func(h *apiTest) *http.Request {
+				return h.withJWT(h.jsonReq(http.MethodGet, "/api/v2/topics", nil), "")
+			}},
 			{"jwt of deleted tenant", func(h *apiTest) *http.Request {
 				return h.withJWT(h.jsonReq(http.MethodGet, "/api/v1/tenants/gone", nil), "gone")
 			}},
@@ -130,7 +133,10 @@ func TestAPI_ErrorResponsesAreJSON(t *testing.T) {
 			{name: "unknown route", method: http.MethodGet, path: "/api/v1/nope"},
 			{name: "unknown route, no auth", method: http.MethodGet, path: "/api/v1/nope", noAuth: true},
 			{name: "wrong method", method: http.MethodDelete, path: "/api/v1/publish"},
-			{name: "unknown version", method: http.MethodGet, path: "/api/v2/tenants"},
+			{name: "unknown route in v2", method: http.MethodGet, path: "/api/v2/nope"},
+			{name: "wrong method in v2", method: http.MethodDelete, path: "/api/v2/publish"},
+			{name: "unknown version", method: http.MethodGet, path: "/api/v3/tenants"},
+			{name: "unknown version, no auth", method: http.MethodGet, path: "/api/v3/tenants", noAuth: true},
 			{name: "api root", method: http.MethodGet, path: "/api"},
 			{name: "api root, not GET", method: http.MethodPost, path: "/api"},
 		}

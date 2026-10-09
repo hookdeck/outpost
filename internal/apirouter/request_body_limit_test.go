@@ -2,6 +2,7 @@ package apirouter_test
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -52,6 +53,9 @@ func TestAPI_RequestBodyLimit(t *testing.T) {
 		{"tenant upsert", http.MethodPut, "/api/v1/tenants/t1", "", http.StatusOK, false},
 		{"destination create", http.MethodPost, "/api/v1/tenants/t1/destinations", destinationFields, http.StatusCreated, true},
 		{"destination update", http.MethodPatch, "/api/v1/tenants/t1/destinations/d1", "", http.StatusOK, true},
+		{"v2 tenant upsert", http.MethodPut, "/api/v2/tenants/t1", "", http.StatusOK, false},
+		{"v2 destination create", http.MethodPost, "/api/v2/tenants/t1/destinations", destinationFields, http.StatusCreated, true},
+		{"v2 destination update", http.MethodPatch, "/api/v2/tenants/t1/destinations/d1", "", http.StatusOK, true},
 	}
 	auths := []struct {
 		name string
@@ -128,44 +132,56 @@ func TestAPI_RequestBodyLimit(t *testing.T) {
 		assert.Empty(t, tenant.Metadata["pad"])
 	})
 
-	t.Run("ids containing publish are limited like any other", func(t *testing.T) {
-		h := setup(t)
-		require.NoError(t, h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("publisher-1"))))
-		require.NoError(t, h.tenantStore.UpsertDestination(t.Context(), df.Any(df.WithID("publish-x"), df.WithTenantID("t1"), df.WithTopics([]string{"*"}))))
-
-		requests := []struct {
-			method, path, fields, tenantID string
-			contentLengths                 []int64
-		}{
-			{http.MethodPatch, "/api/v1/tenants/t1/destinations/publish-x", "", "t1", []int64{limit + 1, -1}},
-			{http.MethodPut, "/api/v1/tenants/publisher-1", "", "publisher-1", []int64{limit + 1}},
-			{http.MethodPost, "/api/v1/tenants/publisher-1/destinations", destinationFields, "publisher-1", []int64{limit + 1, -1}},
-		}
-		for _, r := range requests {
-			for _, contentLength := range r.contentLengths {
-				req := newReq(r.method, r.path, paddedBody(t, r.fields, limit+1))
-				req.ContentLength = contentLength
-				resp := h.do(h.withJWT(req, r.tenantID))
-				testutil.RequireErrorResponse(t, resp, http.StatusRequestEntityTooLarge, tooLargeMessage)
+	for _, base := range []string{"/api/v1", "/api/v2"} {
+		t.Run(base+" ids containing publish are limited like any other", func(t *testing.T) {
+			h := setup(t)
+			require.NoError(t, h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("publisher-1"))))
+			require.NoError(t, h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("publish"))))
+			for _, id := range []string{"publish-x", "publish"} {
+				require.NoError(t, h.tenantStore.UpsertDestination(t.Context(), df.Any(df.WithID(id), df.WithTenantID("t1"), df.WithTopics([]string{"*"}))))
 			}
-		}
-	})
 
-	t.Run("publish is not limited", func(t *testing.T) {
-		h := setup(t)
-		body := `{"tenant_id":"t1","topic":"user.created","data":{"pad":"` + strings.Repeat("a", 2*limit) + `"}}`
-		resp := h.do(h.withAPIKey(newReq(http.MethodPost, "/api/v1/publish", body)))
-		require.Equal(t, http.StatusAccepted, resp.Code)
-	})
+			requests := []struct {
+				method, path, fields, tenantID string
+				contentLengths                 []int64
+			}{
+				{http.MethodPatch, base + "/tenants/t1/destinations/publish-x", "", "t1", []int64{limit + 1, -1}},
+				// The path ends in /publish, but the route is not publish.
+				{http.MethodPatch, base + "/tenants/t1/destinations/publish", "", "t1", []int64{limit + 1, -1}},
+				{http.MethodPut, base + "/tenants/publisher-1", "", "publisher-1", []int64{limit + 1}},
+				{http.MethodPut, base + "/tenants/publish", "", "publish", []int64{limit + 1}},
+				{http.MethodPost, base + "/tenants/publisher-1/destinations", destinationFields, "publisher-1", []int64{limit + 1, -1}},
+			}
+			for _, r := range requests {
+				for _, contentLength := range r.contentLengths {
+					req := newReq(r.method, r.path, paddedBody(t, r.fields, limit+1))
+					req.ContentLength = contentLength
+					resp := h.do(h.withJWT(req, r.tenantID))
+					testutil.RequireErrorResponse(t, resp, http.StatusRequestEntityTooLarge, tooLargeMessage)
+				}
+			}
+		})
 
-	t.Run("publish with a trailing slash is still redirected", func(t *testing.T) {
-		h := setup(t)
-		body := `{"tenant_id":"t1","topic":"user.created","data":{"pad":"` + strings.Repeat("a", 2*limit) + `"}}`
-		resp := httptest.NewRecorder()
-		h.router.ServeHTTP(resp, h.withAPIKey(newReq(http.MethodPost, "/api/v1/publish/", body)))
-		require.Equal(t, http.StatusTemporaryRedirect, resp.Code)
-		assert.Equal(t, "/api/v1/publish", resp.Header().Get("Location"))
-	})
+		t.Run(base+" publish is not limited", func(t *testing.T) {
+			h := setup(t)
+			body := `{"tenant_id":"t1","topic":"user.created","data":{"pad":"` + strings.Repeat("a", 2*limit) + `"}}`
+			for _, contentLength := range []int64{int64(len(body)), -1} {
+				req := newReq(http.MethodPost, base+"/publish", body)
+				req.ContentLength = contentLength
+				resp := h.do(h.withAPIKey(req))
+				require.Equal(t, http.StatusAccepted, resp.Code)
+			}
+		})
+
+		t.Run(base+" publish with a trailing slash is still redirected", func(t *testing.T) {
+			h := setup(t)
+			body := `{"tenant_id":"t1","topic":"user.created","data":{"pad":"` + strings.Repeat("a", 2*limit) + `"}}`
+			resp := httptest.NewRecorder()
+			h.router.ServeHTTP(resp, h.withAPIKey(newReq(http.MethodPost, base+"/publish/", body)))
+			require.Equal(t, http.StatusTemporaryRedirect, resp.Code)
+			assert.Equal(t, base+"/publish", resp.Header().Get("Location"))
+		})
+	}
 
 	t.Run("chunked body over HTTP", func(t *testing.T) {
 		h := setup(t)
@@ -197,6 +213,48 @@ func TestAPI_RequestBodyLimit(t *testing.T) {
 		require.Equal(t, http.StatusRequestEntityTooLarge, status)
 		assert.JSONEq(t, tooLargeBody, body)
 	})
+}
+
+// The requests whose body is limited are the ones whose body is logged on a
+// 5xx. Publish bodies are event data, so they are never logged, in any version.
+func TestAPI_RequestBodyLimit_LoggedBodies(t *testing.T) {
+	core, logs := observer.New(zap.InfoLevel)
+	h := newAPITest(t, withLogger(logging.NewTestLogger(zap.New(core))), withDestRegistry(&displayErrorRegistry{}))
+	require.NoError(t, h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1"))))
+	require.NoError(t, h.tenantStore.UpsertDestination(t.Context(), df.Any(df.WithID("publish"), df.WithTenantID("t1"), df.WithTopics([]string{"*"}))))
+	h.eventHandler.err = errors.New("publish failed")
+
+	loggedBody := func(req *http.Request) (string, bool) {
+		t.Helper()
+		logs.TakeAll()
+		resp := h.do(h.withAPIKey(req))
+		require.Equal(t, http.StatusInternalServerError, resp.Code)
+		var body string
+		var found bool
+		for _, entry := range logs.FilterMessage("request completed").All() {
+			if v, ok := entry.ContextMap()["request_body"]; ok {
+				body, found = v.(string), true
+			}
+		}
+		return body, found
+	}
+
+	for _, base := range []string{"/api/v1", "/api/v2"} {
+		t.Run(base+" publish", func(t *testing.T) {
+			body, found := loggedBody(h.jsonReq(http.MethodPost, base+"/publish", map[string]any{
+				"tenant_id": "t1", "topic": "user.created", "data": map[string]any{"email": "someone@example.com"},
+			}))
+			assert.False(t, found, "publish body logged: %s", body)
+		})
+
+		t.Run(base+" destination update", func(t *testing.T) {
+			body, found := loggedBody(h.jsonReq(http.MethodPatch, base+"/tenants/t1/destinations/publish", map[string]any{
+				"topics": []string{"user.created"},
+			}))
+			require.True(t, found, "destination update body not logged")
+			assert.JSONEq(t, `{"topics":["user.created"]}`, body)
+		})
+	}
 }
 
 // A body whose declared length is over the limit is answered without reading
