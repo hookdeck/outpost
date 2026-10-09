@@ -53,6 +53,20 @@ outpost:
 
   # Outpost YAML config
   config: {}
+  # Topic schemas go in the same config. Only the API pods load them, at startup.
+  # config:
+  #   topics:
+  #     - order.created
+  #   topics_schemas:
+  #     order.created:
+  #       description: "Fires when a new order is placed."
+  #       validation: warn # off (default), warn or enforce
+  #       payload_schema:
+  #         type: object
+  #         properties:
+  #           total: { type: number }
+  #   # Or load them from a file mounted with extraVolumes and extraVolumeMounts:
+  #   # topics_schemas_file: /schemas/topics-schemas.yaml
 
 ingress:
   enabled: false

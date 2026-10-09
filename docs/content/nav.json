@@ -244,6 +244,10 @@
         "sections": [
           [
             {
+              "slug": "self-hosting/changelog/upgrade-api-v2",
+              "title": "Upgrade to API v2"
+            },
+            {
               "slug": "self-hosting/changelog/upgrade-v1.6",
               "title": "Upgrade to v1.6"
             },
