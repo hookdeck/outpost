@@ -74,6 +74,10 @@ type ValidationResult struct {
 	Errors []string
 }
 
+// DataTooLargeError is the only entry of ValidationResult.Errors when
+// enforce mode rejects data over the validation size limit.
+const DataTooLargeError = "data exceeds the schema validation size limit"
+
 // MCPEvent is one precomputed events/list entry.
 type MCPEvent struct {
 	Name string

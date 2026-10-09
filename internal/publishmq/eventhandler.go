@@ -3,7 +3,9 @@ package publishmq
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -14,6 +16,7 @@ import (
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/tenantstore"
+	"github.com/hookdeck/outpost/internal/topicschema"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 )
@@ -22,7 +25,31 @@ var (
 	ErrInvalidTopic  = errors.New("invalid topic")
 	ErrRequiredTopic = errors.New("topic is required")
 	ErrInvalidData   = errors.New("data must be a valid JSON object")
+	// ErrSchemaValidation matches every *SchemaValidationError.
+	ErrSchemaValidation = errors.New("event data does not match the topic schema")
 )
+
+// SchemaValidationError rejects an event whose data fails its topic's payload
+// schema in enforce mode. Errors never contain payload values, so they are
+// safe to log and to return to the publisher.
+type SchemaValidationError struct {
+	Topic  string
+	Errors []string
+}
+
+func (e *SchemaValidationError) Error() string {
+	return fmt.Sprintf("%s: topic %q: %s", ErrSchemaValidation, e.Topic, strings.Join(e.Errors, "; "))
+}
+
+func (e *SchemaValidationError) Is(target error) bool {
+	return target == ErrSchemaValidation
+}
+
+// SchemaValidator validates event data against the topic's payload schema.
+// *topicschema.Catalog implements it.
+type SchemaValidator interface {
+	ValidateData(topic string, data []byte) topicschema.ValidationResult
+}
 
 type EventHandler interface {
 	Handle(ctx context.Context, event *models.Event) (*HandleResult, error)
@@ -43,6 +70,25 @@ type eventHandler struct {
 	tenantStore          tenantstore.TenantStore
 	topics               []string
 	topicsAllowWildcards bool
+	schemaValidator      SchemaValidator
+}
+
+// EventHandlerOption configures NewEventHandler.
+type EventHandlerOption func(*eventHandler)
+
+// WithSchemaValidator validates event data at publish, as configured per
+// topic. Without it no event is validated and SchemaValid stays nil.
+func WithSchemaValidator(v SchemaValidator) EventHandlerOption {
+	return func(h *eventHandler) {
+		h.schemaValidator = v
+	}
+}
+
+// WithMetrics replaces the default OpenTelemetry metrics.
+func WithMetrics(m emetrics.OutpostMetrics) EventHandlerOption {
+	return func(h *eventHandler) {
+		h.emeter = m
+	}
 }
 
 func NewEventHandler(
@@ -53,8 +99,8 @@ func NewEventHandler(
 	topics []string,
 	topicsAllowWildcards bool,
 	idempotence idempotence.Idempotence,
+	opts ...EventHandlerOption,
 ) EventHandler {
-	emeter, _ := emetrics.New()
 	eventHandler := &eventHandler{
 		logger:               logger,
 		idempotence:          idempotence,
@@ -63,7 +109,12 @@ func NewEventHandler(
 		eventTracer:          eventTracer,
 		topics:               topics,
 		topicsAllowWildcards: topicsAllowWildcards,
-		emeter:               emeter,
+	}
+	for _, opt := range opts {
+		opt(eventHandler)
+	}
+	if eventHandler.emeter == nil {
+		eventHandler.emeter, _ = emetrics.New()
 	}
 	return eventHandler
 }
@@ -89,6 +140,7 @@ func (h *eventHandler) Handle(ctx context.Context, event *models.Event) (*Handle
 	var duplicate bool
 	var enqueueFailed bool
 	var matchFailed bool
+	var schema schemaOutcome
 
 	defer func() {
 		enqueuedMu.Lock()
@@ -116,10 +168,23 @@ func (h *eventHandler) Handle(ctx context.Context, event *models.Event) (*Handle
 		if enqueueFailed {
 			fields = append(fields, zap.Bool("enqueue_failed", true))
 		}
+		if schema.status != "" {
+			fields = append(fields, zap.String("schema_validation", schema.status))
+		}
+		if len(schema.errors) > 0 {
+			fields = append(fields, zap.Strings("schema_errors", schema.errors))
+		}
 		logger.Info("event.received", fields...)
 	}()
 
+	// Validate before matching and idempotency: a rejected publish costs no
+	// store lookups and leaves its event ID unclaimed, so the publisher can
+	// retry it once the data is fixed.
 	var err error
+	schema, err = h.validateSchema(ctx, event)
+	if err != nil {
+		return nil, err
+	}
 
 	// Branch: specific destination vs topic-based matching
 	if event.DestinationID != "" {
@@ -174,6 +239,59 @@ func (h *eventHandler) Handle(ctx context.Context, event *models.Event) (*Handle
 	}
 
 	return result, nil
+}
+
+// Values of the schema_validation field on event.received.
+const (
+	schemaStatusValid    = "valid"
+	schemaStatusInvalid  = "invalid"
+	schemaStatusRejected = "rejected"
+	schemaStatusTooLarge = "skipped_too_large"
+)
+
+// schemaOutcome is the schema check result reported on event.received.
+type schemaOutcome struct {
+	status string // empty when the topic is not validated
+	errors []string
+}
+
+// validateSchema checks the event data against its topic's payload schema and
+// stamps event.SchemaValid. That must happen before doPublish, which copies
+// the event into every delivery task. Data that fails an enforced schema
+// returns a *SchemaValidationError.
+func (h *eventHandler) validateSchema(ctx context.Context, event *models.Event) (schemaOutcome, error) {
+	// The verdict is Outpost's own: never keep a value set by the caller.
+	event.SchemaValid = nil
+	if h.schemaValidator == nil {
+		return schemaOutcome{}, nil
+	}
+
+	result := h.schemaValidator.ValidateData(event.Topic, event.Data)
+	switch {
+	case result.SkippedTooLarge:
+		h.emeter.EventSchemaInvalid(ctx, event.Topic, string(result.Mode), emetrics.SchemaInvalidReasonTooLarge)
+		return schemaOutcome{status: schemaStatusTooLarge}, nil
+	case !result.Checked:
+		return schemaOutcome{}, nil
+	case result.Valid:
+		valid := true
+		event.SchemaValid = &valid
+		return schemaOutcome{status: schemaStatusValid}, nil
+	}
+
+	reason := emetrics.SchemaInvalidReasonInvalid
+	if len(result.Errors) == 1 && result.Errors[0] == topicschema.DataTooLargeError {
+		reason = emetrics.SchemaInvalidReasonTooLarge
+	}
+	h.emeter.EventSchemaInvalid(ctx, event.Topic, string(result.Mode), reason)
+
+	if result.Mode == topicschema.ValidationEnforce {
+		return schemaOutcome{status: schemaStatusRejected, errors: result.Errors},
+			&SchemaValidationError{Topic: event.Topic, Errors: result.Errors}
+	}
+	valid := false
+	event.SchemaValid = &valid
+	return schemaOutcome{status: schemaStatusInvalid, errors: result.Errors}, nil
 }
 
 func (h *eventHandler) doPublish(ctx context.Context, event *models.Event, matchedDestinations []string, enqueuedMu *sync.Mutex, enqueued *[]string) error {

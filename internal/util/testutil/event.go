@@ -96,6 +96,12 @@ func (f *mockEventFactory) WithData(data json.RawMessage) func(*models.Event) {
 	}
 }
 
+func (f *mockEventFactory) WithSchemaValid(valid bool) func(*models.Event) {
+	return func(event *models.Event) {
+		event.SchemaValid = &valid
+	}
+}
+
 // WithDataMap is a convenience helper that marshals a map to json.RawMessage.
 // Use when you don't care about key order and want a shorter syntax.
 func (f *mockEventFactory) WithDataMap(data map[string]interface{}) func(*models.Event) {
