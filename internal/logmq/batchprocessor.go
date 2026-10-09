@@ -92,6 +92,52 @@ type AlertPipeline struct {
 	ExhaustedIdemp SuppressionWindow
 }
 
+// AttemptStatusRecorder keeps a per-destination record of the latest delivery
+// attempts, fed with each persisted batch's entries for the configured
+// destination types. Best effort: errors are logged, never nacked.
+type AttemptStatusRecorder interface {
+	RecordAttempts(ctx context.Context, entries []*models.LogEntry) error
+}
+
+// statusRecordTimeout bounds one RecordAttempts call.
+const statusRecordTimeout = 5 * time.Second
+
+// SEP-3415: a webhook receiver answers 410 Gone to reject one event (stale,
+// duplicate) "without affecting the subscription itself", so an MCP 410 never
+// touches the destination's consecutive-failure streak.
+const (
+	mcpDestinationType = "mcp"
+	mcpRejectedCode    = "410"
+)
+
+// BatchProcessorOption configures optional batch processor behaviour.
+type BatchProcessorOption func(*BatchProcessor)
+
+// WithTypeMaxRetries sets per-destination-type retry limits, carried to the
+// alert evaluator in alert.Attempt.MaxRetries (types not listed use the
+// evaluator's default). Pair it with alert.WithTypeMaxRetries so the
+// evaluator's SignalsEnabled accounts for them.
+func WithTypeMaxRetries(limits map[string]int) BatchProcessorOption {
+	return func(bp *BatchProcessor) {
+		bp.typeMaxRetries = make(map[string]int, len(limits))
+		for t, limit := range limits {
+			bp.typeMaxRetries[t] = limit
+		}
+	}
+}
+
+// WithAttemptStatusRecorder records the persisted attempts of the given
+// destination types with recorder.
+func WithAttemptStatusRecorder(recorder AttemptStatusRecorder, destinationTypes ...string) BatchProcessorOption {
+	return func(bp *BatchProcessor) {
+		bp.statusRecorder = recorder
+		bp.statusTypes = make(map[string]bool, len(destinationTypes))
+		for _, t := range destinationTypes {
+			bp.statusTypes[t] = true
+		}
+	}
+}
+
 // BatchProcessorConfig configures the batch processor.
 type BatchProcessorConfig struct {
 	ItemCountThreshold int
@@ -127,10 +173,14 @@ type BatchProcessor struct {
 	// bounded by emitTimeout, so the wait is bounded too.
 	inflight     sync.WaitGroup
 	shutdownOnce sync.Once
+
+	typeMaxRetries map[string]int
+	statusRecorder AttemptStatusRecorder
+	statusTypes    map[string]bool
 }
 
 // NewBatchProcessor creates a new batch processor for log entries.
-func NewBatchProcessor(ctx context.Context, logger *logging.Logger, logStore LogStore, alerts AlertPipeline, cfg BatchProcessorConfig) (*BatchProcessor, error) {
+func NewBatchProcessor(ctx context.Context, logger *logging.Logger, logStore LogStore, alerts AlertPipeline, cfg BatchProcessorConfig, opts ...BatchProcessorOption) (*BatchProcessor, error) {
 	if alerts.Evaluator == nil {
 		return nil, errors.New("logmq: AlertPipeline requires an Evaluator")
 	}
@@ -149,6 +199,9 @@ func NewBatchProcessor(ctx context.Context, logger *logging.Logger, logStore Log
 	}
 	if bp.emitTimeout <= 0 {
 		bp.emitTimeout = emitTimeout
+	}
+	for _, opt := range opts {
+		opt(bp)
 	}
 	bp.alertsEnabled = alerts.Evaluator.SignalsEnabled()
 	bp.emitsAttemptEvents = alerts.Emitter.Enabled(opevents.TopicAttemptSuccess) ||
@@ -277,6 +330,8 @@ func (bp *BatchProcessor) processBatch(_ string, msgs []*mqs.Message) {
 		zap.Int("count", len(validMsgs)),
 		zap.Int64("insert_duration_ms", time.Since(insertStart).Milliseconds()))
 
+	bp.recordStatus(entries)
+
 	// Spawn one goroutine per persisted entry and return — the batch loop
 	// never waits on eval or delivery. In-flight goroutines are bounded by
 	// arrival rate × emitTimeout (each lives at most about one send latency),
@@ -330,7 +385,11 @@ func (bp *BatchProcessor) processEntry(ctx context.Context, entry *models.LogEnt
 		Number:           entry.Attempt.AttemptNumber,
 		Success:          entry.Attempt.Status == models.AttemptStatusSuccess,
 		EligibleForRetry: entry.Event.EligibleForRetry,
+		MaxRetries:       bp.maxRetriesFor(entry.Destination.Type),
 	}
+	attempt.SkipConsecutiveFailure = !attempt.Success &&
+		entry.Destination.Type == mcpDestinationType &&
+		entry.Attempt.Code == mcpRejectedCode
 
 	if attempt.Success {
 		if _, err := bp.alerts.Evaluator.Evaluate(ctx, attempt); err != nil {
@@ -528,6 +587,52 @@ func (bp *BatchProcessor) nackAlertFailure(ctx context.Context, err error, entry
 		zap.String("event_id", entry.Event.ID),
 		zap.String("destination_id", entry.Destination.ID))
 	msg.Nack()
+}
+
+// maxRetriesFor maps the destination type's retry limit to
+// alert.Attempt.MaxRetries: 0 (evaluator default) for types without their
+// own, negative when the type's limit is 0 (no retries).
+func (bp *BatchProcessor) maxRetriesFor(destinationType string) int {
+	limit, ok := bp.typeMaxRetries[destinationType]
+	if !ok {
+		return 0
+	}
+	if limit <= 0 {
+		return -1
+	}
+	return limit
+}
+
+// recordStatus hands the batch's persisted entries of the recorded
+// destination types to the status recorder on a tracked goroutine, so the
+// batch loop never waits on it. Best effort: a failure is logged and the
+// messages' fate is unaffected.
+func (bp *BatchProcessor) recordStatus(entries []*models.LogEntry) {
+	if bp.statusRecorder == nil {
+		return
+	}
+	var recorded []*models.LogEntry
+	for _, entry := range entries {
+		destinationType := entry.Attempt.DestinationType
+		if destinationType == "" && entry.Destination != nil {
+			destinationType = entry.Destination.Type
+		}
+		if bp.statusTypes[destinationType] {
+			recorded = append(recorded, entry)
+		}
+	}
+	if len(recorded) == 0 {
+		return
+	}
+	bp.inflight.Go(func() {
+		ctx, cancel := context.WithTimeout(bp.ctx, statusRecordTimeout)
+		defer cancel()
+		if err := bp.statusRecorder.RecordAttempts(ctx, recorded); err != nil {
+			bp.logger.Ctx(ctx).Warn("failed to record attempt status",
+				zap.Error(err),
+				zap.Int("entry_count", len(recorded)))
+		}
+	})
 }
 
 // processedKey is the per-attempt replay gate key. Format is stable — changing

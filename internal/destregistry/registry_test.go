@@ -26,7 +26,7 @@ type mockProvider struct {
 
 type mockPublisher struct {
 	id           int64
-	closed       bool
+	closed       atomic.Bool // set from the registry's async eviction close
 	publishDelay time.Duration
 	mockError    error
 	// Returned alongside mockError, like a real publisher's classified failure.
@@ -132,7 +132,7 @@ func (p *mockPublisher) Publish(ctx context.Context, event *models.Event) (*dest
 }
 
 func (p *mockPublisher) Close() error {
-	p.closed = true
+	p.closed.Store(true)
 	return nil
 }
 
@@ -651,7 +651,9 @@ func TestPublisherEviction(t *testing.T) {
 	require.NoError(t, err)
 	// Cache: [p2], p1 evicted
 
-	assert.True(t, mp1.closed, "Expected evicted publisher to be closed")
+	// Eviction closes off the caller's goroutine, so the close lands shortly
+	// after ResolvePublisher returns.
+	assert.Eventually(t, mp1.closed.Load, time.Second, 5*time.Millisecond, "Expected evicted publisher to be closed")
 }
 
 func TestObfuscateValue(t *testing.T) {

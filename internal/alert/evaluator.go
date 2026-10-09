@@ -19,6 +19,14 @@ type Attempt struct {
 	Number           int // 1-indexed attempt number
 	Success          bool
 	EligibleForRetry bool
+	// MaxRetries is the retry budget of the attempt's destination type, when
+	// it has its own: 0 = the evaluator's default limit, negative = no
+	// retries (never exhausted).
+	MaxRetries int
+	// SkipConsecutiveFailure leaves the consecutive-failure streak untouched
+	// (no increment, no reset) for a failure that says nothing about the
+	// destination's health, e.g. a receiver rejecting one event with 410.
+	SkipConsecutiveFailure bool
 }
 
 // Evaluation is the tracker's verdict on one attempt: one field per signal
@@ -76,6 +84,18 @@ func WithExhaustedRetriesEnabled(enabled bool) Option {
 	}
 }
 
+// WithTypeMaxRetries declares the per-destination-type retry limits that
+// attempts may carry in Attempt.MaxRetries. The evaluator only uses them to
+// decide SignalsEnabled: exhausted-retries can fire when any type retries,
+// even with the default limit at 0.
+func WithTypeMaxRetries(limits map[string]int) Option {
+	return func(e *Evaluator) {
+		for _, limit := range limits {
+			e.typeMaxRetries = max(e.typeMaxRetries, limit)
+		}
+	}
+}
+
 // Evaluator evaluates delivery attempts against the destination's failure
 // history and returns the resulting signals as data.
 type Evaluator struct {
@@ -85,6 +105,8 @@ type Evaluator struct {
 	autoDisableFailureCount int
 	alertThresholds         []int
 	retryMaxLimit           int
+	// typeMaxRetries is the highest per-type retry limit (WithTypeMaxRetries).
+	typeMaxRetries int
 
 	consecutiveFailureEnabled bool
 	exhaustedRetriesEnabled   bool
@@ -110,10 +132,12 @@ func NewEvaluator(store AlertStore, retryMaxLimit int, opts ...Option) *Evaluato
 }
 
 // SignalsEnabled reports whether any signal can ever fire: consecutive-failure
-// tracking, or exhausted-retries with a positive retry limit. When false,
-// Evaluate never touches the store and always returns an empty verdict.
+// tracking, or exhausted-retries with a positive retry limit (default or any
+// per-type one). When false, Evaluate never touches the store and always
+// returns an empty verdict.
 func (e *Evaluator) SignalsEnabled() bool {
-	return e.consecutiveFailureEnabled || (e.exhaustedRetriesEnabled && e.retryMaxLimit > 0)
+	return e.consecutiveFailureEnabled ||
+		(e.exhaustedRetriesEnabled && (e.retryMaxLimit > 0 || e.typeMaxRetries > 0))
 }
 
 func (e *Evaluator) Evaluate(ctx context.Context, attempt Attempt) (Evaluation, error) {
@@ -131,7 +155,7 @@ func (e *Evaluator) Evaluate(ctx context.Context, attempt Attempt) (Evaluation, 
 
 	var eval Evaluation
 
-	if e.consecutiveFailureEnabled {
+	if e.consecutiveFailureEnabled && !attempt.SkipConsecutiveFailure {
 		count, err := e.store.IncrementConsecutiveFailureCount(ctx, attempt.TenantID, attempt.DestinationID, attempt.AttemptID)
 		if err != nil {
 			return Evaluation{}, fmt.Errorf("failed to track consecutive failures: %w", err)
@@ -146,12 +170,26 @@ func (e *Evaluator) Evaluate(ctx context.Context, attempt Attempt) (Evaluation, 
 	}
 
 	// Exhausted retries check (independent of consecutive failure thresholds).
-	// Attempt is 1-indexed: with retryMaxLimit=10, attempt 11 is the final one.
-	// Skip if retryMaxLimit=0 (retries disabled — no exhausted state to report)
+	// Attempt is 1-indexed: with a limit of 10, attempt 11 is the final one.
+	// Skip if the limit is 0 (retries disabled — no exhausted state to report)
 	// or if the exhausted-retries signal is disabled.
-	if e.exhaustedRetriesEnabled && e.retryMaxLimit > 0 && attempt.EligibleForRetry && attempt.Number > e.retryMaxLimit {
+	limit := e.retryLimit(attempt)
+	if e.exhaustedRetriesEnabled && limit > 0 && attempt.EligibleForRetry && attempt.Number > limit {
 		eval.RetriesExhausted = true
 	}
 
 	return eval, nil
+}
+
+// retryLimit is the retry budget that applies to the attempt: its own
+// MaxRetries when set, else the evaluator's default.
+func (e *Evaluator) retryLimit(attempt Attempt) int {
+	switch {
+	case attempt.MaxRetries > 0:
+		return attempt.MaxRetries
+	case attempt.MaxRetries < 0:
+		return 0
+	default:
+		return e.retryMaxLimit
+	}
 }
