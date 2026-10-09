@@ -295,6 +295,9 @@ type harnessConfig struct {
 	batcher batcherConfig // real BatchProcessor
 	alert   alertConfig   // real alert.Evaluator
 	doubles doublesConfig // test-double behavior
+	// bpOpts are passed to NewBatchProcessor (per-type retry limits, status
+	// recorder).
+	bpOpts []logmq.BatchProcessorOption
 }
 
 // batcherConfig drives the real BatchProcessor flush behavior.
@@ -315,6 +318,8 @@ type alertConfig struct {
 	retryMaxLimit    int
 	withDisabler     bool // attach the recordingDisabler to the pipeline
 	signalsOff       bool // disable both evaluator signals (cf + exhausted)
+	// evalOpts are extra evaluator options, applied last.
+	evalOpts []alert.Option
 	// opeventTopics is the real emitter's subscription; nil = all ("*").
 	// Non-nil without attempt topics exercises the disabled-path early-outs.
 	opeventTopics []string
@@ -400,6 +405,7 @@ func newHarness(t *testing.T, cfg harnessConfig) *harness {
 			alert.WithExhaustedRetriesEnabled(false),
 		)
 	}
+	evalOpts = append(evalOpts, cfg.alert.evalOpts...)
 	var evaluator logmq.AlertEvaluator = alert.NewEvaluator(alert.NewRedisAlertStore(redisClient, ""), retryMaxLimit, evalOpts...)
 	var evalDouble *blockingEvaluator
 	if cfg.doubles.evalBlockOn != nil {
@@ -445,7 +451,7 @@ func newHarness(t *testing.T, cfg harnessConfig) *harness {
 		ItemCountThreshold: cfg.batcher.itemCount,
 		DelayThreshold:     delay,
 		EmitTimeout:        cfg.batcher.emitTimeout,
-	})
+	}, cfg.bpOpts...)
 	require.NoError(t, err)
 	t.Cleanup(func() { shutdownBounded(t, bp) })
 	// LIFO: releases run BEFORE bp.Shutdown, so a test that never released its

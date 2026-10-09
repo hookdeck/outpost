@@ -25,7 +25,31 @@ func idempotencyKeyFromDeliveryTask(task models.DeliveryTask) string {
 
 var (
 	errDestinationDisabled = errors.New("destination disabled")
+	// errDestinationExpired: the destination's expires_at has passed. No
+	// attempt (first or retry) is made after expiry.
+	errDestinationExpired = errors.New("destination expired")
+	// errDestinationGenerationMismatch: a retry scheduled for an earlier
+	// destination that was deleted and recreated under the same ID.
+	errDestinationGenerationMismatch = errors.New("destination generation mismatch")
+	// errRetryParked: the retry was parked on its disabled destination, to be
+	// resumed when the destination is re-enabled.
+	errRetryParked = errors.New("retry parked on disabled destination")
+	// errDestinationDisabledAgain: parking found the destination enabled, but
+	// the re-read shows it disabled again. Rare; nacked so the redelivery
+	// re-evaluates (and parks) instead of dropping the retry.
+	errDestinationDisabledAgain = errors.New("destination re-disabled while parking retry")
 )
+
+// isPermanentPreDeliveryErr reports whether a pre-delivery error settles the
+// task for good: the message is acked and the error is not surfaced to the
+// consumer. Every other pre-delivery error nacks.
+func isPermanentPreDeliveryErr(err error) bool {
+	return errors.Is(err, tenantstore.ErrDestinationDeleted) ||
+		errors.Is(err, errDestinationDisabled) ||
+		errors.Is(err, errDestinationExpired) ||
+		errors.Is(err, errDestinationGenerationMismatch) ||
+		errors.Is(err, errRetryParked)
+}
 
 // Error types to distinguish between different stages of delivery
 type PreDeliveryError struct {
@@ -74,6 +98,100 @@ type messageHandler struct {
 	retryMaxLimit  int
 	idempotence    idempotence.Idempotence
 	publisher      Publisher
+
+	// Per-destination-type behaviour, set through MessageHandlerOptions.
+	retryPolicies     map[string]retryPolicy
+	generationChecked map[string]bool
+	retryParker       RetryParker
+	parkedRetryTypes  map[string]bool
+
+	now       func() time.Time
+	isExpired func(destination *models.Destination, now time.Time) bool
+}
+
+// retryPolicy is the retry schedule for one destination type: the backoff
+// before each retry and the number of retries after the first attempt.
+type retryPolicy struct {
+	backoff  backoff.Backoff
+	maxLimit int
+}
+
+// RetryParker parks a retry whose destination is disabled so it can be
+// resumed when the destination is re-enabled, instead of being dropped.
+//
+// ParkRetry must re-check the stored destination atomically with parking:
+// park only while it is live and disabled. parked=false with a nil error means
+// the destination is no longer disabled (or no longer live); the handler then
+// re-reads it and proceeds as for any other task. An error nacks the task.
+type RetryParker interface {
+	ParkRetry(ctx context.Context, task RetryTask, destination *models.Destination) (parked bool, err error)
+}
+
+// MessageHandlerOption configures optional, per-destination-type behaviour of
+// the delivery handler.
+type MessageHandlerOption func(*messageHandler)
+
+// WithRetryPolicy gives one destination type its own retry schedule in place of
+// the handler's default backoff and max limit: the backoff before each retry
+// (nil keeps the default backoff) and the number of retries after the first
+// attempt (negative = 0, no retries). It drives retry scheduling and the
+// attempt_max log field.
+func WithRetryPolicy(destinationType string, b backoff.Backoff, maxLimit int) MessageHandlerOption {
+	return func(h *messageHandler) {
+		if h.retryPolicies == nil {
+			h.retryPolicies = make(map[string]retryPolicy)
+		}
+		h.retryPolicies[destinationType] = retryPolicy{backoff: b, maxLimit: max(maxLimit, 0)}
+	}
+}
+
+// WithGenerationCheckedTypes marks destination types whose IDs can be reused
+// after deletion (deterministic IDs). Retries scheduled for them carry the
+// destination's CreatedAt and are dropped when it no longer matches, so a
+// pending retry never reaches a newer destination that took over the ID.
+func WithGenerationCheckedTypes(destinationTypes ...string) MessageHandlerOption {
+	return func(h *messageHandler) {
+		if h.generationChecked == nil {
+			h.generationChecked = make(map[string]bool, len(destinationTypes))
+		}
+		for _, t := range destinationTypes {
+			h.generationChecked[t] = true
+		}
+	}
+}
+
+// WithRetryParker sets the parker used for WithParkedRetryTypes.
+func WithRetryParker(parker RetryParker) MessageHandlerOption {
+	return func(h *messageHandler) {
+		h.retryParker = parker
+	}
+}
+
+// WithParkedRetryTypes makes automatic retries (attempt > 1, not manual) of the
+// given destination types park on a disabled destination instead of being
+// dropped. Needs WithRetryParker; first attempts and manual retries are never
+// parked.
+func WithParkedRetryTypes(destinationTypes ...string) MessageHandlerOption {
+	return func(h *messageHandler) {
+		if h.parkedRetryTypes == nil {
+			h.parkedRetryTypes = make(map[string]bool, len(destinationTypes))
+		}
+		for _, t := range destinationTypes {
+			h.parkedRetryTypes[t] = true
+		}
+	}
+}
+
+// expirable is implemented by destinations that carry an expiry.
+type expirable interface {
+	IsExpired(now time.Time) bool
+}
+
+// destinationExpired reports whether the destination's expiry has passed.
+// Destinations without an expiry never expire.
+func destinationExpired(destination *models.Destination, now time.Time) bool {
+	e, ok := any(destination).(expirable)
+	return ok && e.IsExpired(now)
 }
 
 type Publisher interface {
@@ -107,8 +225,9 @@ func NewMessageHandler(
 	retryBackoff backoff.Backoff,
 	retryMaxLimit int,
 	idempotence idempotence.Idempotence,
+	opts ...MessageHandlerOption,
 ) consumer.MessageHandler {
-	return &messageHandler{
+	h := &messageHandler{
 		eventTracer:    eventTracer,
 		logger:         logger,
 		logMQ:          logMQ,
@@ -118,7 +237,13 @@ func NewMessageHandler(
 		retryBackoff:   retryBackoff,
 		retryMaxLimit:  retryMaxLimit,
 		idempotence:    idempotence,
+		now:            time.Now,
+		isExpired:      destinationExpired,
 	}
+	for _, opt := range opts {
+		opt(h)
+	}
+	return h
 }
 
 func (h *messageHandler) Handle(ctx context.Context, msg *mqs.Message) error {
@@ -168,7 +293,7 @@ func (h *messageHandler) handleError(msg *mqs.Message, err error) error {
 	// Don't return error for expected cases
 	var preErr *PreDeliveryError
 	if errors.As(err, &preErr) {
-		if errors.Is(preErr.err, tenantstore.ErrDestinationDeleted) || errors.Is(preErr.err, errDestinationDisabled) {
+		if isPermanentPreDeliveryErr(preErr.err) {
 			return nil
 		}
 	}
@@ -220,14 +345,14 @@ func (h *messageHandler) doHandle(ctx context.Context, task models.DeliveryTask,
 
 		attemptErr := &AttemptError{err: err}
 
-		if h.shouldScheduleRetry(task, err) {
+		if h.shouldScheduleRetry(task, destination, err) {
 			// scheduleRetry uses RetryID (event_id:destination_id) as the scheduler
 			// task ID. The scheduler has upsert semantics: scheduling with the same ID
 			// atomically replaces the existing entry (both timing and payload). This
 			// means manual retries automatically override any pending automatic retry
 			// without needing an explicit cancel — the new tier's delay takes effect
 			// and the old scheduled retry is gone in a single operation.
-			backoff, retryErr := h.scheduleRetry(ctx, task)
+			backoff, retryErr := h.scheduleRetry(ctx, task, destination)
 			retry.backoff = backoff
 			if retryErr != nil {
 				retry.scheduleFailed = true
@@ -235,7 +360,7 @@ func (h *messageHandler) doHandle(ctx context.Context, task models.DeliveryTask,
 			}
 			retry.scheduled = true
 		} else if task.Manual {
-			// Budget exhausted or not eligible — cancel any lingering scheduled retry.
+			// Budget exhausted, not eligible or non-retryable — cancel any lingering scheduled retry.
 			// Unlike the case above, there's no new retry to schedule so we must
 			// explicitly cancel to prevent a stale automatic retry from firing.
 			if cancelErr := h.retryScheduler.Cancel(ctx, models.RetryID(task.Event.ID, task.DestinationID)); cancelErr == nil {
@@ -288,7 +413,7 @@ func (h *messageHandler) logDeliveryResult(ctx context.Context, task *models.Del
 		zap.String("attempt_status", attempt.Status),
 		zap.String("attempt_code", attempt.Code),
 		zap.Int("attempt_number", task.Attempt),
-		zap.Int("attempt_max", h.retryMaxLimit+1),
+		zap.Int("attempt_max", h.retryPolicyFor(destination.Type).maxLimit+1),
 		zap.Bool("manual", task.Manual),
 		zap.Bool("eligible_for_retry", task.Event.EligibleForRetry),
 		zap.Time("attempt_started_at", attemptStart),
@@ -306,12 +431,20 @@ func (h *messageHandler) logDeliveryResult(ctx context.Context, task *models.Del
 	if retry.cancelFailed {
 		fields = append(fields, zap.Bool("retry_cancel_failed", true))
 	}
+	if destregistry.IsNonRetryable(err) {
+		fields = append(fields, zap.Bool("non_retryable", true))
+	}
 	logger.Info("delivery.attempted", fields...)
 
+	// The destination rides along for alert evaluation in logmq, which never
+	// needs credentials: publish a copy without them so secrets don't transit
+	// the log queue. The caller's destination is left untouched.
+	logDestination := *destination
+	logDestination.Credentials = nil
 	logEntry := models.LogEntry{
 		Event:       &task.Event,
 		Attempt:     attempt,
-		Destination: destination,
+		Destination: &logDestination,
 	}
 	if logErr := h.logMQ.Publish(ctx, logEntry); logErr != nil {
 		logger.Error("failed to publish attempt log",
@@ -347,7 +480,7 @@ func (h *messageHandler) logDeliveryResult(ctx context.Context, task *models.Del
 	return nil
 }
 
-func (h *messageHandler) shouldScheduleRetry(task models.DeliveryTask, err error) bool {
+func (h *messageHandler) shouldScheduleRetry(task models.DeliveryTask, destination *models.Destination, err error) bool {
 	if !task.Event.EligibleForRetry {
 		return false
 	}
@@ -355,8 +488,34 @@ func (h *messageHandler) shouldScheduleRetry(task models.DeliveryTask, err error
 	if !errors.As(err, &pubErr) {
 		return false
 	}
-	// Attempt is 1-indexed: max attempts = 1 (initial) + retryMaxLimit (retries)
-	return task.Attempt <= h.retryMaxLimit
+	if pubErr.NonRetryable {
+		return false
+	}
+	// Attempt is 1-indexed: max attempts = 1 (initial) + maxLimit (retries)
+	return task.Attempt <= h.retryPolicyFor(destination.Type).maxLimit
+}
+
+// retryPolicyFor returns the destination type's retry policy, falling back to
+// the handler's default backoff and max limit.
+func (h *messageHandler) retryPolicyFor(destinationType string) retryPolicy {
+	p, ok := h.retryPolicies[destinationType]
+	if !ok {
+		return retryPolicy{backoff: h.retryBackoff, maxLimit: h.retryMaxLimit}
+	}
+	if p.backoff == nil {
+		p.backoff = h.retryBackoff
+	}
+	return p
+}
+
+// retryTaskFor builds the retry task for a delivery task, stamping the
+// destination generation for generation-checked types.
+func (h *messageHandler) retryTaskFor(task models.DeliveryTask, destination *models.Destination) RetryTask {
+	retryTask := RetryTaskFromDeliveryTask(task)
+	if h.generationChecked[destination.Type] && !destination.CreatedAt.IsZero() {
+		retryTask.DestinationCreatedAt = destination.CreatedAt.UnixMilli()
+	}
+	return retryTask
 }
 
 func (h *messageHandler) shouldNackError(err error) bool {
@@ -368,7 +527,7 @@ func (h *messageHandler) shouldNackError(err error) bool {
 	var preErr *PreDeliveryError
 	if errors.As(err, &preErr) {
 		// Don't nack if it's a permanent error
-		if errors.Is(preErr.err, tenantstore.ErrDestinationDeleted) || errors.Is(preErr.err, errDestinationDisabled) {
+		if isPermanentPreDeliveryErr(preErr.err) {
 			return false
 		}
 		return true // Nack other pre-delivery errors
@@ -404,12 +563,12 @@ func (h *messageHandler) shouldNackDeliveryError(err error) bool {
 	return true // Nack other delivery errors
 }
 
-func (h *messageHandler) scheduleRetry(ctx context.Context, task models.DeliveryTask) (time.Duration, error) {
+func (h *messageHandler) scheduleRetry(ctx context.Context, task models.DeliveryTask, destination *models.Destination) (time.Duration, error) {
 	// Attempt is 1-indexed; backoff schedule is 0-indexed.
 	// Clamp to 0 to safely handle any leftover Attempt=0 in-flight tasks.
-	backoffDuration := h.retryBackoff.Duration(max(task.Attempt-1, 0))
+	backoffDuration := h.retryPolicyFor(destination.Type).backoff.Duration(max(task.Attempt-1, 0))
 
-	retryTask := RetryTaskFromDeliveryTask(task)
+	retryTask := h.retryTaskFor(task, destination)
 	retryTaskStr, err := retryTask.ToString()
 	if err != nil {
 		return backoffDuration, err
@@ -430,9 +589,107 @@ func (h *messageHandler) scheduleRetry(ctx context.Context, task models.Delivery
 }
 
 // ensurePublishableDestination ensures that the destination exists and is in a publishable state.
-// Returns an error if the destination is not found, deleted, disabled, or any other state that
-// would prevent publishing.
+// Returns an error if the destination is not found, deleted, from another generation, expired,
+// disabled, or any other state that would prevent publishing. An automatic retry of a parked
+// type is parked on its disabled destination instead of being dropped.
 func (h *messageHandler) ensurePublishableDestination(ctx context.Context, task models.DeliveryTask) (*models.Destination, error) {
+	destination, err := h.retrieveDestination(ctx, task)
+	if err != nil {
+		return nil, err
+	}
+	err = h.checkPublishable(ctx, task, destination)
+	if err == nil {
+		return destination, nil
+	}
+	if !errors.Is(err, errDestinationDisabled) || !h.shouldPark(task, destination) {
+		return nil, err
+	}
+
+	logger := h.logger.Ctx(ctx)
+	parked, err := h.retryParker.ParkRetry(ctx, h.retryTaskFor(task, destination), destination)
+	if err != nil {
+		logger.Error("failed to park retry",
+			zap.Error(err),
+			zap.String("event_id", task.Event.ID),
+			zap.String("tenant_id", task.Event.TenantID),
+			zap.String("destination_id", destination.ID),
+			zap.String("destination_type", destination.Type),
+			zap.Int("attempt", task.Attempt))
+		return nil, fmt.Errorf("failed to park retry: %w", err)
+	}
+	if parked {
+		logger.Debug("retry parked on disabled destination",
+			zap.String("event_id", task.Event.ID),
+			zap.String("tenant_id", task.Event.TenantID),
+			zap.String("destination_id", destination.ID),
+			zap.String("destination_type", destination.Type),
+			zap.Int("attempt", task.Attempt))
+		return nil, errRetryParked
+	}
+
+	// The store saw the destination enabled again: it was re-enabled after our
+	// read. Re-read so the attempt runs against the current state (a refresh
+	// may also have rotated credentials or moved the expiry).
+	destination, err = h.retrieveDestination(ctx, task)
+	if err != nil {
+		return nil, err
+	}
+	if err := h.checkPublishable(ctx, task, destination); err != nil {
+		if errors.Is(err, errDestinationDisabled) {
+			return nil, errDestinationDisabledAgain
+		}
+		return nil, err
+	}
+	return destination, nil
+}
+
+// shouldPark reports whether a task whose destination is disabled should be
+// parked rather than dropped: automatic retries of parked types only. First
+// attempts belong to events that matched while the destination was enabled
+// and are dropped as before; manual retries are user-initiated and never
+// deferred.
+func (h *messageHandler) shouldPark(task models.DeliveryTask, destination *models.Destination) bool {
+	return h.retryParker != nil &&
+		h.parkedRetryTypes[destination.Type] &&
+		task.Attempt > 1 &&
+		!task.Manual
+}
+
+// checkPublishable checks a retrieved destination, in order: retry generation,
+// expiry, disabled. Stale and expired tasks are dropped before the disabled
+// check so they are never parked.
+func (h *messageHandler) checkPublishable(ctx context.Context, task models.DeliveryTask, destination *models.Destination) error {
+	if task.DestinationCreatedAt != 0 && task.DestinationCreatedAt != destination.CreatedAt.UnixMilli() {
+		h.logger.Ctx(ctx).Debug("dropping retry for an earlier destination generation",
+			zap.String("event_id", task.Event.ID),
+			zap.String("tenant_id", task.Event.TenantID),
+			zap.String("destination_id", destination.ID),
+			zap.String("destination_type", destination.Type),
+			zap.Int64("task_destination_created_at", task.DestinationCreatedAt),
+			zap.Int64("destination_created_at", destination.CreatedAt.UnixMilli()))
+		return errDestinationGenerationMismatch
+	}
+	if h.isExpired(destination, h.now()) {
+		h.logger.Ctx(ctx).Debug("skipping expired destination",
+			zap.String("event_id", task.Event.ID),
+			zap.String("tenant_id", task.Event.TenantID),
+			zap.String("destination_id", destination.ID),
+			zap.String("destination_type", destination.Type))
+		return errDestinationExpired
+	}
+	if destination.DisabledAt != nil {
+		h.logger.Ctx(ctx).Debug("skipping disabled destination",
+			zap.String("event_id", task.Event.ID),
+			zap.String("tenant_id", task.Event.TenantID),
+			zap.String("destination_id", destination.ID),
+			zap.String("destination_type", destination.Type),
+			zap.Time("disabled_at", *destination.DisabledAt))
+		return errDestinationDisabled
+	}
+	return nil
+}
+
+func (h *messageHandler) retrieveDestination(ctx context.Context, task models.DeliveryTask) (*models.Destination, error) {
 	destination, err := h.tenantStore.RetrieveDestination(ctx, task.Event.TenantID, task.DestinationID)
 	if err != nil {
 		logger := h.logger.Ctx(ctx)
@@ -457,15 +714,6 @@ func (h *messageHandler) ensurePublishableDestination(ctx context.Context, task 
 			zap.String("tenant_id", task.Event.TenantID),
 			zap.String("destination_id", task.DestinationID))
 		return nil, tenantstore.ErrDestinationNotFound
-	}
-	if destination.DisabledAt != nil {
-		h.logger.Ctx(ctx).Debug("skipping disabled destination",
-			zap.String("event_id", task.Event.ID),
-			zap.String("tenant_id", task.Event.TenantID),
-			zap.String("destination_id", destination.ID),
-			zap.String("destination_type", destination.Type),
-			zap.Time("disabled_at", *destination.DisabledAt))
-		return nil, errDestinationDisabled
 	}
 	return destination, nil
 }

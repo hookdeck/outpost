@@ -40,6 +40,12 @@ type DeliveryTask struct {
 	Attempt       int                `json:"attempt"`
 	Manual        bool               `json:"manual"`
 	Telemetry     *DeliveryTelemetry `json:"telemetry,omitempty"`
+	// DestinationCreatedAt is the generation (CreatedAt, Unix ms) of the
+	// destination this task was scheduled for; 0 = unchecked. Retries of
+	// destinations whose IDs can be reused after deletion carry it, so a retry
+	// scheduled for a deleted destination is dropped instead of reaching a
+	// newer destination with the same ID.
+	DestinationCreatedAt int64 `json:"destination_created_at,omitempty"`
 }
 
 var _ mqs.IncomingMessage = &DeliveryTask{}

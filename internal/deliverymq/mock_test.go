@@ -105,6 +105,7 @@ func (m *mockMultiDestinationGetter) RetrieveDestination(ctx context.Context, te
 }
 
 type mockEventGetter struct {
+	mu      sync.Mutex
 	records []*logstore.AttemptRecord // tracks logged attempts with event data
 	err     error
 }
@@ -116,10 +117,14 @@ func newMockEventGetter() *mockEventGetter {
 }
 
 func (m *mockEventGetter) addRecord(attempt *models.Attempt, event *models.Event) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.records = append(m.records, &logstore.AttemptRecord{Attempt: attempt, Event: event})
 }
 
 func (m *mockEventGetter) ListAttempt(ctx context.Context, req logstore.ListAttemptRequest) (logstore.ListAttemptResponse, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	if m.err != nil {
 		return logstore.ListAttemptResponse{}, m.err
 	}
@@ -193,6 +198,7 @@ func contains(slice []string, s string) bool {
 }
 
 type mockLogPublisher struct {
+	mu          sync.Mutex
 	err         error
 	entries     []models.LogEntry
 	eventGetter *mockEventGetter // if set, feed logged attempts to this getter
@@ -205,7 +211,17 @@ func newMockLogPublisher(err error) *mockLogPublisher {
 	}
 }
 
+// snapshot returns the published entries; safe while a handler goroutine is
+// still publishing.
+func (m *mockLogPublisher) snapshot() []models.LogEntry {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return append([]models.LogEntry(nil), m.entries...)
+}
+
 func (m *mockLogPublisher) Publish(ctx context.Context, entry models.LogEntry) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.entries = append(m.entries, entry)
 	// Feed attempt+event to mockEventGetter so ListAttempt returns correct data
 	if m.eventGetter != nil && entry.Attempt != nil {
