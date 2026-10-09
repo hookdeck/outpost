@@ -578,9 +578,10 @@ func duplicateKey(raw []byte, root string) (string, string, bool) {
 	}
 }
 
-// Topics returns one entry per TOPICS entry, in TOPICS order.
+// Topics returns one entry per TOPICS entry, in TOPICS order. It is never
+// nil, so it encodes as a JSON array.
 func (c *Catalog) Topics() []Topic {
-	if c == nil {
+	if c == nil || len(c.topics) == 0 {
 		return []Topic{}
 	}
 	return slices.Clone(c.topics)

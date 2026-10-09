@@ -16,6 +16,7 @@ import (
 	"github.com/hookdeck/outpost/internal/opevents"
 	"github.com/hookdeck/outpost/internal/redis"
 	"github.com/hookdeck/outpost/internal/telemetry"
+	"github.com/hookdeck/outpost/internal/topicschema"
 	"github.com/hookdeck/outpost/internal/version"
 	"github.com/joho/godotenv"
 	"gopkg.in/yaml.v3"
@@ -42,8 +43,14 @@ func getConfigLocations() []string {
 }
 
 type Config struct {
-	validated  bool   // tracks whether Validate() has been called successfully
-	configPath string // stores the path of the config file used
+	validated   bool        // tracks whether Validate() has been called successfully
+	configPath  string      // stores the path of the config file used
+	osInterface OSInterface // the OS the config was parsed with; nil means the real OS
+
+	// Set by LoadTopicCatalog. topicCatalog is a pointer so copies of the
+	// config share the immutable catalog.
+	topicCatalog               *topicschema.Catalog
+	topicsSchemasOpenAPIDigest string
 
 	Service       string              `yaml:"service" env:"SERVICE" desc:"Specifies the service type to run. Valid values: 'api', 'log', 'delivery', or empty/all for singular mode (runs all services)." required:"N"`
 	LogLevel      string              `yaml:"log_level" env:"LOG_LEVEL" desc:"Defines the verbosity of application logs. Common values: 'trace', 'debug', 'info', 'warn', 'error'." required:"N"`
@@ -63,6 +70,13 @@ type Config struct {
 	Topics               []string `yaml:"topics" env:"TOPICS" envSeparator:"," desc:"Comma-separated list of topics that this Outpost instance should subscribe to for event processing." required:"N"`
 	TopicsAllowWildcards bool     `yaml:"topics_allow_wildcards" env:"TOPICS_ALLOW_WILDCARDS" desc:"If true, destination topic subscriptions can use '*' inside topic strings as a wildcard pattern. If false, stored wildcard patterns are ignored without being deleted." required:"N" default:"false"`
 	HTTPUserAgent        string   `yaml:"http_user_agent" env:"HTTP_USER_AGENT" desc:"Custom HTTP User-Agent string for outgoing webhook deliveries. If unset, defaults to 'Outpost/{version}'." required:"N"`
+
+	// Topic schemas, loaded by the API service at startup (LoadTopicCatalog)
+	TopicsSchemas              TopicSchemas `yaml:"topics_schemas" env:"TOPICS_SCHEMAS" desc:"Topic schemas keyed by topic name, as a JSON object (in YAML, also a mapping): description, payload_schema (JSON Schema 2020-12 for the event data), validation (off, warn or enforce), mcp, deprecated and replaced_by. Every key must be in topics. Mutually exclusive with topics_schemas_file." required:"N"`
+	TopicsSchemasFile          string       `yaml:"topics_schemas_file" env:"TOPICS_SCHEMAS_FILE" desc:"Path to a YAML or JSON file (JSON when the name ends in .json) with topic schemas in the topics_schemas shape. Mutually exclusive with topics_schemas." required:"N"`
+	TopicsSchemasOpenAPI       string       `yaml:"topics_schemas_openapi" env:"TOPICS_SCHEMAS_OPENAPI" desc:"File path or http(s) URL of an OpenAPI 3.1 document (up to 4 MiB) whose webhooks provide topic schemas. Webhooks not in topics are skipped with a warning; a topics_schemas or topics_schemas_file entry replaces the imported one for its topic. A URL is fetched on every API startup." required:"N"`
+	TopicsSchemasOpenAPISHA256 string       `yaml:"topics_schemas_openapi_sha256" env:"TOPICS_SCHEMAS_OPENAPI_SHA256" desc:"Hex SHA-256 of the topics_schemas_openapi document. A document that doesn't match fails startup." required:"N"`
+	TopicsValidationMaxBytes   int          `yaml:"topics_validation_max_bytes" env:"TOPICS_VALIDATION_MAX_BYTES" desc:"Largest event data, in bytes, validated against its topic schema. Larger data is rejected when the topic's validation is enforce, and accepted without validation when it's warn." required:"N" default:"1048576"`
 
 	// Infrastructure
 	Redis       RedisConfig      `yaml:"redis"`
@@ -139,6 +153,7 @@ var (
 	ErrInvalidPublishMaxRedeliveries = errors.New("config validation error: publish_max_redeliveries must be >= -1")
 	ErrInvalidSupervisorLimit        = errors.New("config validation error: invalid supervisor limit")
 	ErrInvalidSupervisorWorker       = errors.New("config validation error: invalid supervisor restart worker")
+	ErrInvalidTopicSchemas           = errors.New("config validation error: invalid topic schemas")
 )
 
 func (c *Config) InitDefaults() {
@@ -200,6 +215,7 @@ func (c *Config) InitDefaults() {
 	c.DeliveryIdempotencyKeyTTL = 3600 // 1 hour
 	c.LogBatchThresholdSeconds = 10
 	c.LogBatchSize = 1000
+	c.TopicsValidationMaxBytes = 1 << 20 // 1 MiB
 
 	// Set defaults for Destinations config
 	c.Destinations = DestinationsConfig{
@@ -401,6 +417,9 @@ func ParseWithoutValidation(flags Flags, osInterface OSInterface) (*Config, erro
 
 	// Initialize defaults
 	config.InitDefaults()
+
+	// Keep the OS for LoadTopicCatalog, which reads TOPICS_SCHEMAS_FILE.
+	config.osInterface = osInterface
 
 	// Parse config file (lower priority)
 	if err := config.parseConfigFile(flags.Config, osInterface); err != nil {

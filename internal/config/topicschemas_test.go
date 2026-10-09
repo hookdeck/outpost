@@ -1,0 +1,585 @@
+package config_test
+
+import (
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"strings"
+	"sync/atomic"
+	"testing"
+
+	"github.com/hookdeck/outpost/internal/config"
+	"github.com/hookdeck/outpost/internal/topicschema"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+const orderSchemasJSON = `{"order.created":{"description":"An order was placed.","validation":"enforce","payload_schema":{"type":"object","properties":{"total":{"type":"number"}},"required":["total"]}}}`
+
+const orderSchemasYAML = `order.created:
+  description: An order was placed.
+  validation: enforce
+  payload_schema:
+    type: object
+    properties:
+      total:
+        type: number
+    required: [total]
+`
+
+const shopOpenAPI = `openapi: 3.1.0
+info:
+  title: Shop
+  version: "1"
+webhooks:
+  order.created:
+    post:
+      summary: Imported order.
+      x-mcp-enabled: true
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Order'
+  invoice.paid:
+    post:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+components:
+  schemas:
+    Order:
+      type: object
+      properties:
+        total:
+          type: number
+`
+
+// recordingOS is a mockOS that records every file read.
+type recordingOS struct {
+	*mockOS
+	reads []string
+}
+
+func (r *recordingOS) ReadFile(name string) ([]byte, error) {
+	r.reads = append(r.reads, name)
+	return r.mockOS.ReadFile(name)
+}
+
+func newTopicsOS(env map[string]string, files map[string]string) *recordingOS {
+	m := &mockOS{files: map[string][]byte{}, envVars: map[string]string{"TOPICS": "order.created,order.updated"}}
+	for k, v := range env {
+		m.envVars[k] = v
+	}
+	for k, v := range files {
+		m.files[k] = []byte(v)
+	}
+	return &recordingOS{mockOS: m}
+}
+
+// parseTopicsConfig parses config from env and files, with a YAML config file
+// when yamlConfig is set.
+func parseTopicsConfig(t *testing.T, env map[string]string, files map[string]string, yamlConfig string) (*config.Config, *recordingOS) {
+	t.Helper()
+	osi := newTopicsOS(env, files)
+	if yamlConfig != "" {
+		osi.files["config.yaml"] = []byte(yamlConfig)
+		osi.envVars["CONFIG"] = "config.yaml"
+	}
+	cfg, err := config.ParseWithoutValidation(config.Flags{}, osi)
+	require.NoError(t, err)
+	return cfg, osi
+}
+
+func loadCatalog(t *testing.T, cfg *config.Config) *topicschema.Catalog {
+	t.Helper()
+	catalog, err := cfg.LoadTopicCatalog(context.Background())
+	require.NoError(t, err)
+	require.NotNil(t, catalog)
+	assert.Same(t, catalog, cfg.TopicCatalog())
+	return catalog
+}
+
+func requireOrderCreated(t *testing.T, catalog *topicschema.Catalog) topicschema.Topic {
+	t.Helper()
+	topic, ok := catalog.Topic("order.created")
+	require.True(t, ok)
+	assert.Equal(t, topicschema.ValidationEnforce, topic.Validation)
+	assert.Equal(t, "An order was placed.", topic.Description)
+	assert.JSONEq(t, `{"type":"object","properties":{"total":{"type":"number"}},"required":["total"]}`, string(topic.PayloadSchema))
+	return topic
+}
+
+func TestTopicSchemas_Sources(t *testing.T) {
+	t.Run("env JSON", func(t *testing.T) {
+		cfg, _ := parseTopicsConfig(t, map[string]string{"TOPICS_SCHEMAS": orderSchemasJSON}, nil, "")
+		assert.True(t, cfg.TopicsSchemas.IsSet())
+		requireOrderCreated(t, loadCatalog(t, cfg))
+	})
+
+	t.Run("YAML mapping", func(t *testing.T) {
+		yamlConfig := "topics_schemas:\n" + indent(orderSchemasYAML, "  ")
+		cfg, _ := parseTopicsConfig(t, nil, nil, yamlConfig)
+		assert.True(t, cfg.TopicsSchemas.IsSet())
+		requireOrderCreated(t, loadCatalog(t, cfg))
+	})
+
+	t.Run("YAML string containing JSON", func(t *testing.T) {
+		quoted, err := json.Marshal(orderSchemasJSON)
+		require.NoError(t, err)
+		cfg, _ := parseTopicsConfig(t, nil, nil, "topics_schemas: "+string(quoted)+"\n")
+		assert.JSONEq(t, orderSchemasJSON, string(cfg.TopicsSchemas.Raw()))
+		requireOrderCreated(t, loadCatalog(t, cfg))
+	})
+
+	t.Run("env replaces YAML", func(t *testing.T) {
+		yamlConfig := "topics_schemas:\n  order.updated:\n    description: from YAML\n"
+		cfg, _ := parseTopicsConfig(t, map[string]string{"TOPICS_SCHEMAS": orderSchemasJSON}, nil, yamlConfig)
+		catalog := loadCatalog(t, cfg)
+		requireOrderCreated(t, catalog)
+		updated, ok := catalog.Topic("order.updated")
+		require.True(t, ok)
+		assert.Empty(t, updated.Description)
+	})
+
+	t.Run("empty env and YAML null are unset", func(t *testing.T) {
+		cfg, _ := parseTopicsConfig(t, map[string]string{"TOPICS_SCHEMAS": ""}, nil, "topics_schemas:\n")
+		assert.False(t, cfg.TopicsSchemas.IsSet())
+		assert.False(t, loadCatalog(t, cfg).HasSchemas())
+	})
+
+	t.Run("JSON file", func(t *testing.T) {
+		cfg, osi := parseTopicsConfig(t,
+			map[string]string{"TOPICS_SCHEMAS_FILE": "schemas/topics.JSON"},
+			map[string]string{"schemas/topics.JSON": orderSchemasJSON}, "")
+		requireOrderCreated(t, loadCatalog(t, cfg))
+		assert.Contains(t, osi.reads, "schemas/topics.JSON")
+	})
+
+	t.Run("YAML file", func(t *testing.T) {
+		cfg, osi := parseTopicsConfig(t,
+			map[string]string{"TOPICS_SCHEMAS_FILE": "schemas/topics.yaml"},
+			map[string]string{"schemas/topics.yaml": orderSchemasYAML}, "")
+		requireOrderCreated(t, loadCatalog(t, cfg))
+		assert.Contains(t, osi.reads, "schemas/topics.yaml")
+	})
+
+	t.Run("missing file", func(t *testing.T) {
+		cfg, _ := parseTopicsConfig(t, map[string]string{"TOPICS_SCHEMAS_FILE": "missing.yaml"}, nil, "")
+		_, err := cfg.LoadTopicCatalog(context.Background())
+		require.ErrorIs(t, err, config.ErrInvalidTopicSchemas)
+		assert.Contains(t, err.Error(), "reading TOPICS_SCHEMAS_FILE")
+	})
+
+	t.Run("no schemas", func(t *testing.T) {
+		cfg, _ := parseTopicsConfig(t, nil, nil, "")
+		catalog := loadCatalog(t, cfg)
+		assert.False(t, catalog.HasSchemas())
+		assert.Len(t, catalog.Topics(), 2)
+	})
+}
+
+func TestTopicSchemas_UnquotedYAMLDateStaysString(t *testing.T) {
+	const schemas = `order.created:
+  payload_schema:
+    type: object
+    properties:
+      day:
+        type: string
+        format: date
+        default: 2026-01-01
+`
+	wantSchema := `{"type":"object","properties":{"day":{"type":"string","format":"date","default":"2026-01-01"}}}`
+
+	t.Run("inline", func(t *testing.T) {
+		cfg, _ := parseTopicsConfig(t, nil, nil, "topics_schemas:\n"+indent(schemas, "  "))
+		topic, ok := loadCatalog(t, cfg).Topic("order.created")
+		require.True(t, ok)
+		assert.JSONEq(t, wantSchema, string(topic.PayloadSchema))
+	})
+
+	t.Run("file", func(t *testing.T) {
+		cfg, _ := parseTopicsConfig(t,
+			map[string]string{"TOPICS_SCHEMAS_FILE": "topics.yml"},
+			map[string]string{"topics.yml": schemas}, "")
+		topic, ok := loadCatalog(t, cfg).Topic("order.created")
+		require.True(t, ok)
+		assert.JSONEq(t, wantSchema, string(topic.PayloadSchema))
+	})
+}
+
+func TestTopicSchemas_SchemaErrors(t *testing.T) {
+	tests := []struct {
+		name    string
+		env     map[string]string
+		wantMsg string
+	}{
+		{
+			name:    "mcp enabled without payload_schema",
+			env:     map[string]string{"TOPICS_SCHEMAS": `{"order.created":{"mcp":{"enabled":true}}}`},
+			wantMsg: "payload_schema",
+		},
+		{
+			name:    "key missing from TOPICS",
+			env:     map[string]string{"TOPICS_SCHEMAS": `{"invoice.paid":{"description":"x"}}`},
+			wantMsg: "invoice.paid",
+		},
+		{
+			name:    "invalid JSON",
+			env:     map[string]string{"TOPICS_SCHEMAS": `{"order.created":`},
+			wantMsg: "invalid topic schemas",
+		},
+		{
+			name:    "unknown field",
+			env:     map[string]string{"TOPICS_SCHEMAS": `{"order.created":{"validaton":"warn"}}`},
+			wantMsg: "validaton",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg, _ := parseTopicsConfig(t, tt.env, nil, "")
+			catalog, err := cfg.LoadTopicCatalog(context.Background())
+			require.Error(t, err)
+			assert.Nil(t, catalog)
+			assert.ErrorIs(t, err, config.ErrInvalidTopicSchemas)
+			var configErr *topicschema.ConfigError
+			require.ErrorAs(t, err, &configErr)
+			assert.Contains(t, err.Error(), tt.wantMsg)
+			assert.True(t, strings.HasPrefix(err.Error(), "invalid topic schemas:"), err.Error())
+			assert.Equal(t, 1, strings.Count(err.Error(), "invalid topic schemas"), "not double-prefixed: %s", err)
+			// The failed load stores nothing.
+			assert.False(t, cfg.TopicCatalog().HasSchemas())
+		})
+	}
+
+	t.Run("YAML alias cycle fails at parse", func(t *testing.T) {
+		osi := newTopicsOS(map[string]string{"CONFIG": "config.yaml"}, map[string]string{
+			"config.yaml": "topics_schemas: &a\n  order.created: *a\n",
+		})
+		_, err := config.ParseWithoutValidation(config.Flags{}, osi)
+		require.ErrorIs(t, err, config.ErrInvalidTopicSchemas)
+	})
+}
+
+func TestTopicSchemas_Validate(t *testing.T) {
+	pin := strings.Repeat("ab", 32)
+	tests := []struct {
+		name    string
+		mutate  func(c *config.Config)
+		wantErr bool
+	}{
+		{name: "defaults", mutate: func(c *config.Config) {}},
+		{name: "inline only", mutate: func(c *config.Config) { c.TopicsSchemas = config.NewTopicSchemas(orderSchemasJSON) }},
+		{name: "file only", mutate: func(c *config.Config) { c.TopicsSchemasFile = "topics.yaml" }},
+		{name: "inline and file", wantErr: true, mutate: func(c *config.Config) {
+			c.TopicsSchemas = config.NewTopicSchemas(orderSchemasJSON)
+			c.TopicsSchemasFile = "topics.yaml"
+		}},
+		{name: "inline, file and OpenAPI", wantErr: true, mutate: func(c *config.Config) {
+			c.TopicsSchemas = config.NewTopicSchemas(orderSchemasJSON)
+			c.TopicsSchemasFile = "topics.yaml"
+			c.TopicsSchemasOpenAPI = "openapi.yaml"
+		}},
+		{name: "inline and OpenAPI", mutate: func(c *config.Config) {
+			c.TopicsSchemas = config.NewTopicSchemas(orderSchemasJSON)
+			c.TopicsSchemasOpenAPI = "https://example.com/openapi.yaml"
+		}},
+		{name: "sha256 pin", mutate: func(c *config.Config) {
+			c.TopicsSchemasOpenAPI = "openapi.yaml"
+			c.TopicsSchemasOpenAPISHA256 = pin
+		}},
+		{name: "uppercase sha256 pin", mutate: func(c *config.Config) {
+			c.TopicsSchemasOpenAPI = "openapi.yaml"
+			c.TopicsSchemasOpenAPISHA256 = strings.ToUpper(pin)
+		}},
+		{name: "short sha256 pin", wantErr: true, mutate: func(c *config.Config) {
+			c.TopicsSchemasOpenAPI = "openapi.yaml"
+			c.TopicsSchemasOpenAPISHA256 = pin[:62]
+		}},
+		{name: "non-hex sha256 pin", wantErr: true, mutate: func(c *config.Config) {
+			c.TopicsSchemasOpenAPI = "openapi.yaml"
+			c.TopicsSchemasOpenAPISHA256 = strings.Repeat("zz", 32)
+		}},
+		{name: "sha256 pin without OpenAPI", wantErr: true, mutate: func(c *config.Config) {
+			c.TopicsSchemasOpenAPISHA256 = pin
+		}},
+		{name: "zero max bytes", wantErr: true, mutate: func(c *config.Config) { c.TopicsValidationMaxBytes = 0 }},
+		{name: "negative max bytes", wantErr: true, mutate: func(c *config.Config) { c.TopicsValidationMaxBytes = -1 }},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := validConfig()
+			tt.mutate(c)
+			err := c.Validate(config.Flags{})
+			if tt.wantErr {
+				assert.ErrorIs(t, err, config.ErrInvalidTopicSchemas)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestTopicSchemas_Defaults(t *testing.T) {
+	cfg, _ := parseTopicsConfig(t, nil, nil, "")
+	assert.Equal(t, 1048576, cfg.TopicsValidationMaxBytes)
+	assert.False(t, cfg.TopicsSchemas.IsSet())
+
+	cfg, _ = parseTopicsConfig(t, map[string]string{"TOPICS_VALIDATION_MAX_BYTES": "2048"}, nil, "")
+	assert.Equal(t, 2048, cfg.TopicsValidationMaxBytes)
+
+	cfg, _ = parseTopicsConfig(t, nil, nil, "topics_validation_max_bytes: 4096\ntopics_schemas_openapi_sha256: abc\n")
+	assert.Equal(t, 4096, cfg.TopicsValidationMaxBytes)
+	assert.Equal(t, "abc", cfg.TopicsSchemasOpenAPISHA256)
+}
+
+func TestTopicSchemas_TopicCatalogBeforeLoad(t *testing.T) {
+	c := &config.Config{}
+	c.InitDefaults()
+	c.Topics = []string{"a", "b"}
+	c.TopicsSchemas = config.NewTopicSchemas(`{"a":{"validation":"bogus"}}`)
+
+	catalog := c.TopicCatalog()
+	require.NotNil(t, catalog)
+	assert.False(t, catalog.HasSchemas())
+	assert.Len(t, catalog.Topics(), 2)
+
+	stored := topicschema.EmptyCatalog([]string{"x"})
+	c.SetTopicCatalog(stored)
+	assert.Same(t, stored, c.TopicCatalog())
+
+	// Copies share the stored catalog.
+	copied := *c
+	assert.Same(t, stored, copied.TopicCatalog())
+}
+
+func TestTopicSchemas_ConfigBuiltInCodeReadsRealFiles(t *testing.T) {
+	path := t.TempDir() + "/topics.json"
+	require.NoError(t, os.WriteFile(path, []byte(orderSchemasJSON), 0o600))
+
+	c := &config.Config{}
+	c.InitDefaults()
+	c.Topics = []string{"order.created"}
+	c.TopicsSchemasFile = path
+	requireOrderCreated(t, loadCatalog(t, c))
+}
+
+func TestTopicSchemas_OpenAPIFile(t *testing.T) {
+	sum := sha256.Sum256([]byte(shopOpenAPI))
+	digest := hex.EncodeToString(sum[:])
+
+	t.Run("imported", func(t *testing.T) {
+		cfg, osi := parseTopicsConfig(t,
+			map[string]string{"TOPICS_SCHEMAS_OPENAPI": "openapi.yaml"},
+			map[string]string{"openapi.yaml": shopOpenAPI}, "")
+		catalog := loadCatalog(t, cfg)
+		assert.Contains(t, osi.reads, "openapi.yaml")
+		topic, ok := catalog.Topic("order.created")
+		require.True(t, ok)
+		assert.Equal(t, "Imported order.", topic.Description)
+		assert.True(t, topic.MCP.Enabled)
+		assert.Equal(t, []string{`imported topic "invoice.paid" is not in TOPICS and was skipped`}, catalog.Warnings())
+		assert.Equal(t, digest, cfg.TopicsSchemasOpenAPIDigest())
+	})
+
+	t.Run("TOPICS_SCHEMAS replaces imported entries", func(t *testing.T) {
+		cfg, _ := parseTopicsConfig(t,
+			map[string]string{"TOPICS_SCHEMAS_OPENAPI": "openapi.yaml", "TOPICS_SCHEMAS": orderSchemasJSON},
+			map[string]string{"openapi.yaml": shopOpenAPI}, "")
+		topic := requireOrderCreated(t, loadCatalog(t, cfg))
+		assert.False(t, topic.MCP.Enabled, "the entry is replaced whole")
+	})
+
+	t.Run("pin matches", func(t *testing.T) {
+		cfg, _ := parseTopicsConfig(t,
+			map[string]string{"TOPICS_SCHEMAS_OPENAPI": "openapi.yaml", "TOPICS_SCHEMAS_OPENAPI_SHA256": strings.ToUpper(digest)},
+			map[string]string{"openapi.yaml": shopOpenAPI}, "")
+		loadCatalog(t, cfg)
+	})
+
+	t.Run("pin mismatch", func(t *testing.T) {
+		cfg, _ := parseTopicsConfig(t,
+			map[string]string{"TOPICS_SCHEMAS_OPENAPI": "openapi.yaml", "TOPICS_SCHEMAS_OPENAPI_SHA256": strings.Repeat("0", 64)},
+			map[string]string{"openapi.yaml": shopOpenAPI}, "")
+		_, err := cfg.LoadTopicCatalog(context.Background())
+		require.ErrorIs(t, err, config.ErrInvalidTopicSchemas)
+		assert.Contains(t, err.Error(), digest)
+	})
+
+	t.Run("OpenAPI 3.0", func(t *testing.T) {
+		cfg, _ := parseTopicsConfig(t,
+			map[string]string{"TOPICS_SCHEMAS_OPENAPI": "openapi.yaml"},
+			map[string]string{"openapi.yaml": strings.Replace(shopOpenAPI, "3.1.0", "3.0.3", 1)}, "")
+		_, err := cfg.LoadTopicCatalog(context.Background())
+		require.ErrorIs(t, err, config.ErrInvalidTopicSchemas)
+		var configErr *topicschema.ConfigError
+		assert.ErrorAs(t, err, &configErr)
+	})
+
+	t.Run("missing file", func(t *testing.T) {
+		cfg, _ := parseTopicsConfig(t, map[string]string{"TOPICS_SCHEMAS_OPENAPI": "missing.yaml"}, nil, "")
+		_, err := cfg.LoadTopicCatalog(context.Background())
+		require.ErrorIs(t, err, config.ErrInvalidTopicSchemas)
+		assert.Contains(t, err.Error(), "missing.yaml")
+	})
+}
+
+func TestTopicSchemas_OpenAPIURL(t *testing.T) {
+	sum := sha256.Sum256([]byte(shopOpenAPI))
+	digest := hex.EncodeToString(sum[:])
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/openapi.yaml", func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(shopOpenAPI))
+	})
+	mux.HandleFunc("/missing.yaml", http.NotFound)
+	mux.HandleFunc("/huge.yaml", func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(shopOpenAPI))
+		_, _ = w.Write([]byte("# " + strings.Repeat("x", 4<<20) + "\n"))
+	})
+	mux.HandleFunc("/loop", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/loop", http.StatusFound)
+	})
+	mux.HandleFunc("/moved", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/openapi.yaml", http.StatusMovedPermanently)
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	load := func(t *testing.T, env map[string]string) (*config.Config, *topicschema.Catalog, error) {
+		t.Helper()
+		cfg, _ := parseTopicsConfig(t, env, nil, "")
+		catalog, err := cfg.LoadTopicCatalog(context.Background())
+		return cfg, catalog, err
+	}
+
+	t.Run("200", func(t *testing.T) {
+		cfg, catalog, err := load(t, map[string]string{"TOPICS_SCHEMAS_OPENAPI": srv.URL + "/openapi.yaml"})
+		require.NoError(t, err)
+		topic, ok := catalog.Topic("order.created")
+		require.True(t, ok)
+		assert.True(t, topic.MCP.Enabled)
+		assert.Equal(t, digest, cfg.TopicsSchemasOpenAPIDigest())
+	})
+
+	t.Run("redirect followed", func(t *testing.T) {
+		_, catalog, err := load(t, map[string]string{"TOPICS_SCHEMAS_OPENAPI": srv.URL + "/moved"})
+		require.NoError(t, err)
+		assert.True(t, catalog.MCPEnabled())
+	})
+
+	t.Run("sha256 match", func(t *testing.T) {
+		_, _, err := load(t, map[string]string{
+			"TOPICS_SCHEMAS_OPENAPI":        srv.URL + "/openapi.yaml",
+			"TOPICS_SCHEMAS_OPENAPI_SHA256": digest,
+		})
+		require.NoError(t, err)
+	})
+
+	errorCases := []struct {
+		name    string
+		env     map[string]string
+		wantMsg string
+	}{
+		{name: "404", env: map[string]string{"TOPICS_SCHEMAS_OPENAPI": srv.URL + "/missing.yaml"}, wantMsg: "unexpected status 404"},
+		{name: "oversize", env: map[string]string{"TOPICS_SCHEMAS_OPENAPI": srv.URL + "/huge.yaml"}, wantMsg: "larger than the 4 MiB limit"},
+		{name: "redirect loop", env: map[string]string{"TOPICS_SCHEMAS_OPENAPI": srv.URL + "/loop"}, wantMsg: "stopped after 3 redirects"},
+		{name: "sha256 mismatch", env: map[string]string{
+			"TOPICS_SCHEMAS_OPENAPI":        srv.URL + "/openapi.yaml",
+			"TOPICS_SCHEMAS_OPENAPI_SHA256": strings.Repeat("f", 64),
+		}, wantMsg: "has SHA-256 " + digest},
+		{name: "unsupported scheme", env: map[string]string{"TOPICS_SCHEMAS_OPENAPI": "ftp://example.com/openapi.yaml"}, wantMsg: `unsupported URL scheme "ftp"`},
+	}
+	for _, tt := range errorCases {
+		t.Run(tt.name, func(t *testing.T) {
+			_, catalog, err := load(t, tt.env)
+			require.ErrorIs(t, err, config.ErrInvalidTopicSchemas)
+			assert.Nil(t, catalog)
+			assert.Contains(t, err.Error(), tt.wantMsg)
+		})
+	}
+
+	t.Run("errors mask credentials", func(t *testing.T) {
+		u := strings.Replace(srv.URL, "http://", "http://user:secret@", 1) + "/missing.yaml?token=hunter2"
+		_, _, err := load(t, map[string]string{"TOPICS_SCHEMAS_OPENAPI": u})
+		require.Error(t, err)
+		assert.NotContains(t, err.Error(), "secret")
+		assert.NotContains(t, err.Error(), "hunter2")
+		assert.Contains(t, err.Error(), "/missing.yaml?***")
+	})
+
+	t.Run("context cancelled", func(t *testing.T) {
+		cfg, _ := parseTopicsConfig(t, map[string]string{"TOPICS_SCHEMAS_OPENAPI": srv.URL + "/openapi.yaml"}, nil, "")
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		_, err := cfg.LoadTopicCatalog(ctx)
+		require.ErrorIs(t, err, config.ErrInvalidTopicSchemas)
+		assert.True(t, errors.Is(err, context.Canceled), err.Error())
+	})
+}
+
+func TestTopicSchemas_NoIOOutsideLoad(t *testing.T) {
+	var hits atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits.Add(1)
+		_, _ = w.Write([]byte(shopOpenAPI))
+	}))
+	defer srv.Close()
+
+	for _, source := range []string{"openapi.yaml", srv.URL + "/openapi.yaml?token=hunter2"} {
+		t.Run(source, func(t *testing.T) {
+			osi := newTopicsOS(map[string]string{
+				"TOPICS_SCHEMAS_FILE":    "topics.yaml",
+				"TOPICS_SCHEMAS_OPENAPI": source,
+				"POSTGRES_URL":           "postgres://localhost:5432/outpost",
+				"RABBITMQ_SERVER_URL":    "amqp://localhost:5672",
+				"AES_ENCRYPTION_SECRET":  "secret",
+			}, map[string]string{"topics.yaml": orderSchemasYAML, "openapi.yaml": shopOpenAPI})
+
+			cfg, err := config.ParseWithOS(config.Flags{}, osi)
+			require.NoError(t, err)
+			require.NoError(t, cfg.Validate(config.Flags{}))
+			fields := cfg.LogConfigurationSummary()
+
+			assert.Empty(t, osi.reads, "no schema file is read before LoadTopicCatalog")
+			assert.Zero(t, hits.Load(), "no OpenAPI URL is fetched before LoadTopicCatalog")
+			assert.False(t, cfg.TopicCatalog().HasSchemas())
+
+			summary := map[string]any{}
+			for _, f := range fields {
+				switch {
+				case f.String != "":
+					summary[f.Key] = f.String
+				case f.Interface != nil:
+					summary[f.Key] = f.Interface
+				default:
+					summary[f.Key] = f.Integer
+				}
+			}
+			assert.Equal(t, "topics.yaml", summary["topics_schemas_file"])
+			assert.NotContains(t, summary["topics_schemas_openapi"], "hunter2")
+			assert.Contains(t, summary, "topics_schemas_configured")
+			assert.Contains(t, summary, "topics_schemas_openapi_sha256_configured")
+			assert.EqualValues(t, 1048576, summary["topics_validation_max_bytes"])
+
+			_, err = cfg.LoadTopicCatalog(context.Background())
+			require.NoError(t, err)
+			assert.Contains(t, osi.reads, "topics.yaml")
+		})
+	}
+}
+
+func indent(s, prefix string) string {
+	lines := strings.Split(strings.TrimRight(s, "\n"), "\n")
+	for i, line := range lines {
+		lines[i] = prefix + line
+	}
+	return strings.Join(lines, "\n") + "\n"
+}

@@ -447,6 +447,7 @@ func TestEmptyAndNilCatalogs(t *testing.T) {
 	}
 	assert.Equal(t, []Topic{{Name: "a", Validation: ValidationOff}}, EmptyCatalog([]string{"a"}).Topics())
 	assert.Equal(t, []Topic{}, (*Catalog)(nil).Topics())
+	assert.Equal(t, []Topic{}, EmptyCatalog(nil).Topics(), "never nil, so it encodes as []")
 
 	c, err := NewCatalog([]string{"a"}, nil)
 	require.NoError(t, err)
