@@ -77,6 +77,7 @@ type Config struct {
 	TopicsSchemasOpenAPI       string       `yaml:"topics_schemas_openapi" env:"TOPICS_SCHEMAS_OPENAPI" desc:"File path or http(s) URL of an OpenAPI 3.1 document (up to 4 MiB) whose webhooks provide topic schemas. Webhooks not in topics are skipped with a warning; a topics_schemas or topics_schemas_file entry replaces the imported one for its topic. A URL is fetched on every API startup." required:"N"`
 	TopicsSchemasOpenAPISHA256 string       `yaml:"topics_schemas_openapi_sha256" env:"TOPICS_SCHEMAS_OPENAPI_SHA256" desc:"Hex SHA-256 of the topics_schemas_openapi document. A document that doesn't match fails startup." required:"N"`
 	TopicsValidationMaxBytes   int          `yaml:"topics_validation_max_bytes" env:"TOPICS_VALIDATION_MAX_BYTES" desc:"Largest event data, in bytes, validated against its topic schema. Larger data is rejected when the topic's validation is enforce, and accepted without validation when it's warn." required:"N" default:"262144"`
+	TopicsAllowBreakingChanges bool         `yaml:"topics_allow_breaking_changes" env:"TOPICS_ALLOW_BREAKING_CHANGES" desc:"If true, the API service applies topic schema changes that break live MCP Events subscriptions, and ends those subscriptions, instead of failing startup. Set it for one deploy, then remove it: a warning is logged while it's set." required:"N" default:"false"`
 
 	// Infrastructure
 	Redis       RedisConfig      `yaml:"redis"`
@@ -101,8 +102,14 @@ type Config struct {
 	RetryVisibilityTimeoutSeconds int   `yaml:"retry_visibility_timeout_seconds" env:"RETRY_VISIBILITY_TIMEOUT_SECONDS" desc:"Time in seconds a retry message is hidden after being received before becoming visible again for reprocessing. This applies when event data is temporarily unavailable (e.g., race condition with log persistence). Default: 30" required:"N"`
 
 	// Event Delivery
-	MaxDestinationsPerTenant int `yaml:"max_destinations_per_tenant" env:"MAX_DESTINATIONS_PER_TENANT" desc:"Maximum number of destinations allowed per tenant/organization." required:"N"`
+	MaxDestinationsPerTenant int `yaml:"max_destinations_per_tenant" env:"MAX_DESTINATIONS_PER_TENANT" desc:"Maximum number of destinations allowed per tenant/organization. MCP Events subscriptions don't count toward it." required:"N"`
 	DeliveryTimeoutSeconds   int `yaml:"delivery_timeout_seconds" env:"DELIVERY_TIMEOUT_SECONDS" desc:"Timeout in seconds for HTTP requests made during event delivery to webhook destinations." required:"N"`
+
+	// MCP Events. The subscription limits are top-level because their env
+	// names don't start with MCP_.
+	MCP                             MCPConfig `yaml:"mcp"`
+	MaxMCPSubscriptionsPerTenant    int       `yaml:"max_mcp_subscriptions_per_tenant" env:"MAX_MCP_SUBSCRIPTIONS_PER_TENANT" desc:"MCP Events subscriptions each tenant may hold, from 1 to 10000. They don't count toward max_destinations_per_tenant. Every publish to a tenant is matched against all its destinations, so keep it as low as your product allows." required:"N" default:"100"`
+	MaxMCPSubscriptionsPerPrincipal int       `yaml:"max_mcp_subscriptions_per_principal" env:"MAX_MCP_SUBSCRIPTIONS_PER_PRINCIPAL" desc:"MCP Events subscriptions each principal may hold within a tenant, so one agent can't use up the tenant's limit. 0 turns the limit off." required:"N" default:"20"`
 
 	// Idempotency
 	PublishIdempotencyKeyTTL  int `yaml:"publish_idempotency_key_ttl" env:"PUBLISH_IDEMPOTENCY_KEY_TTL" desc:"Time-to-live in seconds for publish queue idempotency keys. Controls how long processed events are remembered to prevent duplicate processing. Default: 3600 (1 hour)." required:"N"`
@@ -154,6 +161,7 @@ var (
 	ErrInvalidSupervisorLimit        = errors.New("config validation error: invalid supervisor limit")
 	ErrInvalidSupervisorWorker       = errors.New("config validation error: invalid supervisor restart worker")
 	ErrInvalidTopicSchemas           = errors.New("config validation error: invalid topic schemas")
+	ErrInvalidMCPConfig              = errors.New("config validation error: invalid MCP configuration")
 )
 
 func (c *Config) InitDefaults() {
@@ -217,6 +225,9 @@ func (c *Config) InitDefaults() {
 	c.LogBatchSize = 1000
 	c.TopicsValidationMaxBytes = 256 << 10 // 256 KiB
 	c.Portal.ShowMCPDestinations = true
+	c.MCP.initDefaults()
+	c.MaxMCPSubscriptionsPerTenant = 100
+	c.MaxMCPSubscriptionsPerPrincipal = 20
 
 	// Set defaults for Destinations config
 	c.Destinations = DestinationsConfig{
@@ -640,9 +651,14 @@ func resolveAlertCount(raw OptionalString, defaultValue, min int) (resolvedAlert
 }
 
 // DeprecationWarnings returns human-readable warnings for config options that
-// are set but deprecated or ignored, so callers can surface them at startup.
+// are set but deprecated or ignored, or meant to be removed after one deploy,
+// so callers can surface them at startup.
 func (c *Config) DeprecationWarnings() []string {
-	return append(c.Destinations.Webhook.deprecationWarnings(), c.Destinations.Webhook.standardModeWarnings()...)
+	warnings := append(c.Destinations.Webhook.deprecationWarnings(), c.Destinations.Webhook.standardModeWarnings()...)
+	if c.TopicsAllowBreakingChanges {
+		warnings = append(warnings, "TOPICS_ALLOW_BREAKING_CHANGES is set: the API service applies topic schema changes that break live MCP Events subscriptions and ends those subscriptions. Remove it after this deploy.")
+	}
+	return warnings
 }
 
 // ConfigFilePath returns the path of the config file that was used
@@ -675,8 +691,9 @@ const defaultRetryPollBackoff = 30 * time.Second
 // GetRetryPollBackoff returns the maximum time the retry monitor waits between
 // polls while idle. An explicitly configured positive value is honored as-is.
 // Otherwise (0 = auto) it is min(defaultRetryPollBackoff, shortest configured
-// retry delay), so the monitor is always awake by the time the earliest
-// possible retry comes due and the idle interval never adds latency.
+// retry delay, MCP_RETRY_SCHEDULE included), so the monitor is always awake by
+// the time the earliest possible retry comes due and the idle interval never
+// adds latency.
 func (c *Config) GetRetryPollBackoff() time.Duration {
 	if c.RetryPollBackoffMs > 0 {
 		return time.Duration(c.RetryPollBackoffMs) * time.Millisecond
@@ -684,6 +701,13 @@ func (c *Config) GetRetryPollBackoff() time.Duration {
 	shortest := time.Duration(c.RetryIntervalSeconds) * time.Second
 	if len(c.RetrySchedule) > 0 {
 		shortest = time.Duration(slices.Min(c.RetrySchedule)) * time.Second
+	}
+	if len(c.MCP.RetrySchedule) > 0 {
+		// Entries are positive once validated, but `outpost config list`
+		// logs this for unvalidated config too.
+		if mcp := time.Duration(slices.Min(c.MCP.RetrySchedule)) * time.Second; mcp > 0 && (shortest <= 0 || mcp < shortest) {
+			shortest = mcp
+		}
 	}
 	if shortest > 0 && shortest < defaultRetryPollBackoff {
 		return shortest

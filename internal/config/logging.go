@@ -1,6 +1,7 @@
 package config
 
 import (
+	"net/url"
 	"strings"
 
 	"github.com/hookdeck/outpost/internal/destregistry"
@@ -69,6 +70,31 @@ func (c *Config) LogConfigurationSummary() []zap.Field {
 		zap.String("topics_schemas_openapi", maskOpenAPISource(c.TopicsSchemasOpenAPI)),
 		zap.Bool("topics_schemas_openapi_sha256_configured", c.TopicsSchemasOpenAPISHA256 != ""),
 		zap.Int("topics_validation_max_bytes", c.TopicsValidationMaxBytes),
+		zap.Bool("topics_allow_breaking_changes", c.TopicsAllowBreakingChanges),
+
+		// MCP Events
+		zap.String("mcp_server_url", maskURLSecrets(c.MCP.ServerURL)),
+		zap.Strings("mcp_callback_allowlist", c.MCP.CallbackAllowlist),
+		zap.Bool("mcp_allow_insecure_callbacks", c.MCP.AllowInsecureCallbacks),
+		zap.String("mcp_proxy_url", maskURLSecrets(c.MCP.ProxyURL)),
+		zap.String("mcp_verification_ttl", c.MCP.VerificationTTL.String()),
+		zap.Int("mcp_verification_rate_limit", c.MCP.VerificationRateLimit),
+		zap.Int("mcp_verification_failure_limit", c.MCP.VerificationFailureLimit),
+		zap.String("mcp_secret_rotation_grace", c.MCP.SecretRotationGrace.String()),
+		zap.String("mcp_ttl_default", c.MCP.TTLDefault.String()),
+		zap.String("mcp_ttl_min", c.MCP.TTLMin.String()),
+		zap.String("mcp_ttl_max", c.MCP.TTLMax.String()),
+		zap.Bool("mcp_allow_no_expiry", c.MCP.AllowNoExpiry),
+		zap.Ints("mcp_retry_schedule", c.MCP.RetrySchedule),
+		zap.String("mcp_error_codes", c.MCP.ErrorCodes),
+		zap.Bool("mcp_send_terminated", c.MCP.SendTerminated),
+		zap.String("mcp_expiry_sweep_interval", c.MCP.ExpirySweepInterval.String()),
+		zap.Int("mcp_max_inflight_per_host", c.MCP.MaxInFlightPerHost),
+		zap.Int("max_mcp_subscriptions_per_tenant", c.MaxMCPSubscriptionsPerTenant),
+		zap.Int("max_mcp_subscriptions_per_principal", c.MaxMCPSubscriptionsPerPrincipal),
+
+		// Portal
+		zap.Bool("portal_show_mcp_destinations", c.Portal.ShowMCPDestinations),
 
 		// API
 		zap.Int("api_port", c.APIPort),
@@ -265,6 +291,29 @@ func maskURL(url string) string {
 		}
 	}
 	return url
+}
+
+// maskURLSecrets hides the userinfo and query string of a URL, which may
+// carry credentials, and drops the fragment. A value that doesn't parse as an
+// absolute URL is replaced rather than shown, since its credentials can't be
+// located.
+func maskURLSecrets(raw string) string {
+	if raw == "" {
+		return ""
+	}
+	u, err := url.Parse(raw)
+	if err != nil || u.Scheme == "" || u.Host == "" {
+		return "<invalid URL>"
+	}
+	masked := url.URL{Scheme: u.Scheme, Host: u.Host, Path: u.Path, RawPath: u.RawPath}
+	out := masked.String()
+	if u.User != nil {
+		out = strings.Replace(out, "://", "://***@", 1)
+	}
+	if u.RawQuery != "" || u.ForceQuery {
+		out += "?***"
+	}
+	return out
 }
 
 // maskPostgresURLHost extracts and returns just the host from a postgres URL
