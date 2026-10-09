@@ -1,0 +1,62 @@
+# Recursive schemas: a self-referencing component used as the payload root,
+# and mutually recursive components reached from an inline schema.
+openapi: 3.1.1
+info:
+  title: Catalog webhooks
+  version: 1.0.0
+webhooks:
+  category.updated:
+    post:
+      summary: A category changed.
+      x-mcp-enabled: true
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Category'
+  tree.changed:
+    post:
+      summary: A tree changed.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                tree:
+                  $ref: '#/components/schemas/TreeNode'
+                parentCategory:
+                  $ref: '#/components/schemas/Category/properties/parent'
+                changedAt:
+                  type: string
+                  format: date-time
+components:
+  schemas:
+    Category:
+      type: object
+      properties:
+        name:
+          type: string
+        parent:
+          $ref: '#/components/schemas/Category'
+        children:
+          type: array
+          items:
+            $ref: '#/components/schemas/Category'
+      required: [name]
+    TreeNode:
+      type: object
+      properties:
+        value:
+          type: string
+        branches:
+          type: array
+          items:
+            $ref: '#/components/schemas/Branch'
+    Branch:
+      type: object
+      properties:
+        label:
+          type: string
+        node:
+          $ref: '#/components/schemas/TreeNode'
