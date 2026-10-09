@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	mathrand "math/rand"
+	"net"
 	"os"
 	"strconv"
 	"testing"
@@ -104,11 +105,31 @@ func RandomString(length int) string {
 	return fmt.Sprintf("%x", b)[2 : length+2]
 }
 
+// Random ports are picked below the kernel's default ephemeral range
+// (32768–60999 on Linux), where outgoing connections, httptest servers and
+// Docker's published ports take theirs: a port from that range could be in
+// use, or taken before the test listens on it.
+const (
+	minRandomPort = 10000
+	maxRandomPort = 32767
+)
+
+// RandomPortNumber returns a random port in the range 10000–32767 that is
+// free when it returns (another listener can still take it before the
+// caller does).
 func RandomPortNumber() int {
-	return 10000 + mathrand.Intn(50000)
+	port := minRandomPort + mathrand.Intn(maxRandomPort-minRandomPort+1)
+	for range 20 {
+		if l, err := net.Listen("tcp", ":"+strconv.Itoa(port)); err == nil {
+			l.Close()
+			return port
+		}
+		port = minRandomPort + mathrand.Intn(maxRandomPort-minRandomPort+1)
+	}
+	return port
 }
 
-// RandomPort returns a random port string in the range :10000–:59999.
+// RandomPort returns a random port string in the range :10000–:32767.
 func RandomPort() string {
 	return ":" + strconv.Itoa(RandomPortNumber())
 }

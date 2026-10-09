@@ -4,11 +4,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/hookdeck/outpost/internal/destregistry/metadata"
+	"github.com/hookdeck/outpost/internal/destregistry/providers/destmcp"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/topicschema"
 )
@@ -21,18 +21,6 @@ const (
 	// createModeExternal: created elsewhere (mcp: by agents); clients show
 	// instructions instead of a form.
 	createModeExternal = "external"
-)
-
-// Placeholders of the mcp type's instructions template.
-const (
-	// mcpInstructionsServerURL becomes MCP_SERVER_URL as markdown-escaped
-	// inline text, or "your MCP server" when unset.
-	mcpInstructionsServerURL = "{{MCP_SERVER_URL}}"
-	// mcpInstructionsTopics becomes a markdown bullet list of the
-	// MCP-enabled topics, one escaped name per line. Put it on its own line.
-	mcpInstructionsTopics = "{{MCP_TOPICS}}"
-	// mcpInstructionsNoServerURL stands in for an unset MCP_SERVER_URL.
-	mcpInstructionsNoServerURL = "your MCP server"
 )
 
 // destinationTypeV1 is a destination type as API v1 returns it: the provider
@@ -81,7 +69,17 @@ func newDestinationTypes(registry destregistry.Registry, catalog *topicschema.Ca
 			continue
 		}
 		if meta.Type == models.DestinationTypeMCP {
-			t.mcpInstructions = renderMCPInstructions(meta.Instructions, serverURL, catalog.MCPTopics())
+			// The mcp instructions are a Go text/template (see the
+			// provider's instructions.md); values are rendered as code
+			// spans, so they can't break the markdown.
+			instructions, err := destmcp.RenderInstructions(meta.Instructions, destmcp.InstructionsData{
+				ServerURL: serverURL,
+				Topics:    catalog.MCPTopics(),
+			})
+			if err != nil {
+				return nil, err
+			}
+			t.mcpInstructions = instructions
 		} else {
 			v1 = append(v1, destinationTypeV1{ProviderMetadata: meta})
 		}
@@ -178,52 +176,4 @@ func (t *destinationTypes) retrieve(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, dto)
-}
-
-// renderMCPInstructions fills the mcp type's instructions template with the
-// MCP server URL and the MCP-enabled topics, both markdown-escaped.
-func renderMCPInstructions(template, serverURL string, topics []string) string {
-	server := mcpInstructionsNoServerURL
-	if serverURL != "" {
-		server = escapeMarkdown(serverURL)
-	}
-	var list strings.Builder
-	for i, topic := range topics {
-		if i > 0 {
-			list.WriteByte('\n')
-		}
-		list.WriteString("- ")
-		list.WriteString(escapeMarkdown(topic))
-	}
-	return strings.NewReplacer(
-		mcpInstructionsServerURL, server,
-		mcpInstructionsTopics, list.String(),
-	).Replace(template)
-}
-
-// escapeMarkdown makes s literal inline markdown text: every ASCII
-// punctuation character is backslash-escaped (CommonMark allows escaping any
-// of them), and line breaks, which could start a block, become spaces.
-// Multi-byte UTF-8 sequences never contain ASCII bytes, so the byte loop is
-// safe.
-func escapeMarkdown(s string) string {
-	var b strings.Builder
-	b.Grow(len(s) + len(s)/4)
-	for i := 0; i < len(s); i++ {
-		c := s[i]
-		switch {
-		case c == '\n' || c == '\r':
-			b.WriteByte(' ')
-		case isASCIIPunct(c):
-			b.WriteByte('\\')
-			b.WriteByte(c)
-		default:
-			b.WriteByte(c)
-		}
-	}
-	return b.String()
-}
-
-func isASCIIPunct(c byte) bool {
-	return (c >= '!' && c <= '/') || (c >= ':' && c <= '@') || (c >= '[' && c <= '`') || (c >= '{' && c <= '~')
 }

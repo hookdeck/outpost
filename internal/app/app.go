@@ -15,10 +15,14 @@ import (
 	"github.com/hookdeck/outpost/internal/infra"
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/logretention"
+	"github.com/hookdeck/outpost/internal/mcpworker"
+	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/otel"
 	"github.com/hookdeck/outpost/internal/redis"
 	"github.com/hookdeck/outpost/internal/services"
 	"github.com/hookdeck/outpost/internal/telemetry"
+	"github.com/hookdeck/outpost/internal/tenantstore"
+	"github.com/hookdeck/outpost/internal/topicschema"
 	"github.com/hookdeck/outpost/internal/worker"
 	"go.uber.org/zap"
 )
@@ -83,6 +87,14 @@ func (a *App) PreRun(ctx context.Context) (err error) {
 	}
 
 	if err := a.loadTopicCatalog(ctx); err != nil {
+		return err
+	}
+
+	for _, warning := range a.config.MCPWarnings(a.config.TopicCatalog()) {
+		a.logger.Warn(warning)
+	}
+
+	if err := a.applyTopicSchemas(ctx); err != nil {
 		return err
 	}
 
@@ -244,6 +256,38 @@ func (a *App) loadTopicCatalog(ctx context.Context) error {
 	}
 	if catalog.HasSchemas() {
 		a.logger.Info("topic schemas loaded", zap.Strings("mcp_topics", catalog.MCPTopics()))
+	}
+	return nil
+}
+
+// applyTopicSchemas records the loaded topic configuration as the applied
+// one, refusing a breaking change to an MCP-enabled topic with live
+// subscriptions unless TOPICS_ALLOW_BREAKING_CHANGES is set. API service
+// only, like loadTopicCatalog: the mcp-subscriptions worker, also API only,
+// ends the subscriptions a forced change breaks.
+func (a *App) applyTopicSchemas(ctx context.Context) error {
+	service, err := a.config.GetService()
+	if err != nil {
+		return err
+	}
+	if service != config.ServiceTypeAPI && service != config.ServiceTypeAll {
+		return nil
+	}
+	// A topic is live while it has an unexpired subscription in the mcp
+	// index. Counting needs neither the encryption secret nor Init.
+	index := tenantstore.New(tenantstore.Config{
+		RedisClient:  a.redisClient,
+		DeploymentID: a.config.DeploymentID,
+		IndexedTypes: []string{models.DestinationTypeMCP},
+	})
+	_, err = topicschema.Apply(ctx, a.redisClient, a.config.DeploymentID, a.config.TopicCatalog().Snapshot(), topicschema.ApplyOptions{
+		AllowBreaking: a.config.TopicsAllowBreakingChanges,
+		LiveTopics:    mcpworker.LiveTopics(index, nil),
+		Logger:        a.logger,
+	})
+	if err != nil {
+		a.logger.Error("failed to apply topic schemas", zap.Error(err))
+		return fmt.Errorf("topic schemas: %w", err)
 	}
 	return nil
 }

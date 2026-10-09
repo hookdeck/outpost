@@ -88,41 +88,15 @@ const (
 
 // TopicMCPSubscriptionExpired is the operator event for an MCP subscription
 // deleted after its expires_at.
-const TopicMCPSubscriptionExpired = "mcp.subscription.expired"
+const TopicMCPSubscriptionExpired = opevents.TopicMCPSubscriptionExpired
 
 // MCPSubscriptionExpiredData is the data of mcp.subscription.expired.
-type MCPSubscriptionExpiredData struct {
-	TenantID       string    `json:"tenant_id"`
-	SubscriptionID string    `json:"subscription_id"`
-	Principal      string    `json:"principal"`
-	Topic          string    `json:"topic"`
-	URL            string    `json:"url"`
-	ExpiresAt      time.Time `json:"expires_at"`
-}
+type MCPSubscriptionExpiredData = opevents.MCPSubscriptionExpiredData
 
 // MCPSubscriptionExpiredEvent builds the mcp.subscription.expired event of an
-// expired subscription.
+// expired subscription, as the mcp-subscriptions worker does.
 func MCPSubscriptionExpiredEvent(d *models.Destination) opevents.Event {
-	var expiresAt time.Time
-	if d.ExpiresAt != nil {
-		expiresAt = d.ExpiresAt.UTC()
-	}
-	return opevents.Event{
-		Topic:    TopicMCPSubscriptionExpired,
-		TenantID: d.TenantID,
-		Data: MCPSubscriptionExpiredData{
-			TenantID:       d.TenantID,
-			SubscriptionID: d.ID,
-			Principal:      d.Config[mcpConfigPrincipal],
-			Topic:          mcpEventName(d),
-			URL:            d.Config[mcpConfigURL],
-			ExpiresAt:      expiresAt,
-		},
-		LogFields: []zap.Field{
-			zap.String("destination_id", d.ID),
-			zap.String("topic", mcpEventName(d)),
-		},
-	}
+	return opevents.MCPSubscriptionExpiredEvent(opevents.NewMCPSubscriptionExpiredData(d))
 }
 
 // MCPHandlers serves the MCP Events endpoints of API v2: the events/list,

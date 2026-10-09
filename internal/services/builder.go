@@ -12,13 +12,18 @@ import (
 	"github.com/hookdeck/outpost/internal/config"
 	"github.com/hookdeck/outpost/internal/consumer"
 	"github.com/hookdeck/outpost/internal/deliverymq"
+	"github.com/hookdeck/outpost/internal/deliverystatus"
 	"github.com/hookdeck/outpost/internal/destregistry"
 	destregistrydefault "github.com/hookdeck/outpost/internal/destregistry/providers"
+	"github.com/hookdeck/outpost/internal/destregistry/providers/destmcp"
 	"github.com/hookdeck/outpost/internal/eventtracer"
 	"github.com/hookdeck/outpost/internal/idempotence"
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/logmq"
 	"github.com/hookdeck/outpost/internal/logstore"
+	"github.com/hookdeck/outpost/internal/mcpevents"
+	"github.com/hookdeck/outpost/internal/mcpworker"
+	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/mqs"
 	"github.com/hookdeck/outpost/internal/opevents"
 	"github.com/hookdeck/outpost/internal/publishmq"
@@ -40,6 +45,10 @@ type ServiceBuilder struct {
 
 	// Track service instances for cleanup
 	services []*serviceInstance
+
+	// mcpNet is the MCP callback network stack, shared by every service of
+	// the process (see mcpNetwork).
+	mcpNet *mcpNetwork
 }
 
 // serviceInstance represents a single service with its cleanup functions and common dependencies
@@ -159,14 +168,33 @@ func (b *ServiceBuilder) BuildAPIWorkers(baseRouter *gin.Engine) error {
 	}
 	b.services = append(b.services, svc)
 
-	// Initialize common infrastructure
-	if err := svc.initDestRegistry(b.cfg, b.logger); err != nil {
+	// Initialize common infrastructure. Redis comes first: the mcp
+	// provider's Verifier keeps its cache and rate limits there.
+	if err := svc.initRedis(b.ctx, b.cfg, b.logger); err != nil {
+		return err
+	}
+	mcpNet, err := b.mcpNetwork()
+	if err != nil {
+		return err
+	}
+	rateLimit, failureLimit := b.cfg.MCPVerificationLimits()
+	mcpVerifier, err := mcpevents.NewVerifier(mcpevents.VerifierConfig{
+		Client:       mcpNet.client,
+		Store:        mcpevents.NewRedisVerificationStore(svc.redisClient, b.cfg.DeploymentID),
+		HostLimiter:  mcpNet.hostLimiter,
+		TTL:          b.cfg.MCP.VerificationTTL.Duration(),
+		RateLimit:    rateLimit,
+		FailureLimit: failureLimit,
+		Exempt:       allowlistExempt(mcpNet.allowlist),
+		Logger:       b.logger,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create mcp verifier: %w", err)
+	}
+	if err := svc.initDestRegistry(b.cfg, b.logger, mcpNet.destMCPConfig(b.cfg, mcpVerifier)); err != nil {
 		return err
 	}
 	if err := svc.initDeliveryMQ(b.ctx, b.cfg, b.logger); err != nil {
-		return err
-	}
-	if err := svc.initRedis(b.ctx, b.cfg, b.logger); err != nil {
 		return err
 	}
 	if err := svc.initLogStore(b.ctx, b.cfg, b.logger); err != nil {
@@ -189,6 +217,7 @@ func (b *ServiceBuilder) BuildAPIWorkers(baseRouter *gin.Engine) error {
 	// The catalog app.PreRun loaded, or schema-less TOPICS when nothing was
 	// loaded. Shared by publish-time validation and GET /topics.
 	topicCatalog := b.cfg.TopicCatalog()
+	topicSnapshot := topicCatalog.Snapshot()
 	publishIdempotence := idempotence.New(svc.redisClient,
 		idempotence.WithTimeout(5*time.Second),
 		idempotence.WithSuccessfulTTL(time.Duration(b.cfg.PublishIdempotencyKeyTTL)*time.Second),
@@ -203,6 +232,9 @@ func (b *ServiceBuilder) BuildAPIWorkers(baseRouter *gin.Engine) error {
 		b.cfg.TopicsAllowWildcards,
 		publishIdempotence,
 		publishmq.WithSchemaValidator(topicCatalog),
+		// MCP subscriptions to a topic this instance doesn't serve over MCP
+		// (being ended by the mcp-subscriptions worker) get no events.
+		publishmq.WithMCPTopicCheck(topicSnapshot.MCPServed),
 	)
 
 	// Create operator events emitter for subscription updates
@@ -212,6 +244,48 @@ func (b *ServiceBuilder) BuildAPIWorkers(baseRouter *gin.Engine) error {
 		return fmt.Errorf("failed to create operator events sink: %w", err)
 	}
 	subscriptionEmitter := opevents.NewEmitter(oeSink, b.cfg.DeploymentID, oeCfg.Topics, b.logger)
+
+	// MCP Events: terminated envelopes, operator events off the request
+	// path, and the resume of parked retries. All are closed after the
+	// workers return (cleanup funcs run after the supervisor).
+	mcpNotifier, err := mcpevents.NewNotifier(mcpevents.NotifierConfig{
+		Client:      mcpNet.client,
+		HostLimiter: mcpNet.hostLimiter,
+		Profile:     b.cfg.MCPCodeProfile(),
+		Disabled:    !b.cfg.MCP.SendTerminated,
+		Logger:      b.logger,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create mcp notifier: %w", err)
+	}
+	svc.cleanupFuncs = append(svc.cleanupFuncs, func(ctx context.Context, logger *logging.LoggerWithCtx) {
+		if err := mcpNotifier.Close(); err != nil {
+			logger.Warn("mcp notifier close", zap.Error(err))
+		}
+	})
+	mcpEmitter := mcpevents.NewAsyncEmitter(subscriptionEmitter, mcpevents.AsyncEmitterConfig{Logger: b.logger})
+	svc.cleanupFuncs = append(svc.cleanupFuncs, func(ctx context.Context, logger *logging.LoggerWithCtx) {
+		if err := mcpEmitter.Close(); err != nil {
+			logger.Warn("mcp operator event emitter close", zap.Error(err))
+		}
+	})
+	mcpResumer := newParkedRetryResumer(svc.tenantStore, svc.retryScheduler, b.logger)
+	svc.cleanupFuncs = append(svc.cleanupFuncs, func(ctx context.Context, logger *logging.LoggerWithCtx) {
+		mcpResumer.Close()
+	})
+	mcpDeps := &apirouter.MCPDeps{
+		Notifier:      mcpNotifier,
+		Emitter:       mcpEmitter,
+		Resumer:       mcpResumer,
+		AlertResetter: alert.NewRedisAlertStore(svc.redisClient, b.cfg.DeploymentID),
+		StatusReader:  b.newDeliveryStatusStore(svc.redisClient),
+		Config: apirouter.MCPHandlerConfig{
+			TTL:                          b.cfg.MCPTTLConfig(),
+			CodeProfile:                  b.cfg.MCPCodeProfile(),
+			MaxSubscriptionsPerPrincipal: b.cfg.MaxMCPSubscriptionsPerPrincipal,
+			ServerURL:                    b.cfg.MCP.ServerURL,
+		},
+	}
 
 	apiHandler := apirouter.NewRouter(
 		apirouter.RouterConfig{
@@ -234,6 +308,7 @@ func (b *ServiceBuilder) BuildAPIWorkers(baseRouter *gin.Engine) error {
 			EventHandler:        eventHandler,
 			Telemetry:           b.telemetry,
 			SubscriptionEmitter: subscriptionEmitter,
+			MCP:                 mcpDeps,
 		},
 	)
 
@@ -247,7 +322,27 @@ func (b *ServiceBuilder) BuildAPIWorkers(baseRouter *gin.Engine) error {
 	_, retryRegisterOpts := restartOptions(b.cfg, config.SupervisorWorkerRetryMQ)
 	b.supervisor.Register(retryWorker, retryRegisterOpts...)
 
-	// Worker 2: PublishMQ Consumer (optional)
+	// Worker 2: mcp-subscriptions (expiry sweep, ended and broken topics,
+	// topic configuration heartbeat). API service only, so "all" mode
+	// registers it once. It never returns an error, so it needs no restart
+	// policy.
+	mcpWorker, err := mcpworker.New(mcpworker.Config{
+		Redis:        svc.redisClient,
+		DeploymentID: b.cfg.DeploymentID,
+		Store:        svc.tenantStore,
+		Snapshot:     topicSnapshot,
+		Notifier:     mcpNotifier,
+		Emitter:      mcpEmitter,
+		Interval:     b.cfg.MCP.ExpirySweepInterval.Duration(),
+		TTLMax:       b.cfg.MCP.TTLMax.Duration(),
+		Logger:       b.logger,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create mcp subscriptions worker: %w", err)
+	}
+	b.supervisor.Register(mcpWorker)
+
+	// Worker 3: PublishMQ Consumer (optional)
 	if publishQueueConfig := b.cfg.PublishMQ.GetQueueConfig(); publishQueueConfig != nil {
 		if b.cfg.PublishMQ.ProxyIgnored() {
 			b.logger.Info("PUBLISH_PROXY_URL is ignored: only the RabbitMQ publish queue connects through a proxy",
@@ -323,7 +418,13 @@ func (b *ServiceBuilder) BuildDeliveryWorker(baseRouter *gin.Engine) error {
 	if err := svc.initDeliveryMQ(b.ctx, b.cfg, b.logger); err != nil {
 		return err
 	}
-	if err := svc.initDestRegistry(b.cfg, b.logger); err != nil {
+	// Deliveries need the MCP network stack but no Verifier: only
+	// subscribe validates mcp destinations.
+	mcpNet, err := b.mcpNetwork()
+	if err != nil {
+		return err
+	}
+	if err := svc.initDestRegistry(b.cfg, b.logger, mcpNet.destMCPConfig(b.cfg, nil)); err != nil {
 		return err
 	}
 	if err := svc.initEventTracer(b.cfg, b.logger); err != nil {
@@ -339,14 +440,18 @@ func (b *ServiceBuilder) BuildDeliveryWorker(baseRouter *gin.Engine) error {
 		return err
 	}
 
-	// Initialize delivery idempotence
+	// Initialize delivery idempotence. A duplicate waits up to 5s for the
+	// attempt in progress, but the processing claim must outlive the
+	// longest attempt (mcp attempts get 10s whatever the global timeout).
 	deliveryIdempotence := idempotence.New(svc.redisClient,
 		idempotence.WithTimeout(5*time.Second),
+		idempotence.WithProcessingTTL(deliveryProcessingTTL(b.cfg)),
 		idempotence.WithSuccessfulTTL(time.Duration(b.cfg.DeliveryIdempotencyKeyTTL)*time.Second),
 		idempotence.WithDeploymentID(b.cfg.DeploymentID),
 	)
 
 	retryBackoff, retryMaxLimit := b.cfg.GetRetryBackoff()
+	mcpBackoff, mcpMaxRetries := b.cfg.MCPRetryBackoff()
 
 	// Create delivery handler
 	handler := deliverymq.NewMessageHandler(
@@ -359,6 +464,10 @@ func (b *ServiceBuilder) BuildDeliveryWorker(baseRouter *gin.Engine) error {
 		retryBackoff,
 		retryMaxLimit,
 		deliveryIdempotence,
+		deliverymq.WithRetryPolicy(models.DestinationTypeMCP, mcpBackoff, mcpMaxRetries),
+		deliverymq.WithGenerationCheckedTypes(models.DestinationTypeMCP),
+		deliverymq.WithRetryParker(newRetryParker(svc.tenantStore, b.logger)),
+		deliverymq.WithParkedRetryTypes(models.DestinationTypeMCP),
 	)
 
 	svc.router = baseRouter
@@ -426,12 +535,17 @@ func (b *ServiceBuilder) BuildLogWorker(baseRouter *gin.Engine) error {
 			time.Duration(alertSettings.ExhaustedRetries.WindowSeconds)*time.Second)
 	}
 	_, retryMaxLimit := b.cfg.GetRetryBackoff()
+	// mcp destinations retry on MCP_RETRY_SCHEDULE, so they exhaust their
+	// retries at its length.
+	_, mcpMaxRetries := b.cfg.MCPRetryBackoff()
+	typeMaxRetries := map[string]int{models.DestinationTypeMCP: mcpMaxRetries}
 	alertEvaluator := alert.NewEvaluator(
 		alert.NewRedisAlertStore(svc.redisClient, b.cfg.DeploymentID),
 		retryMaxLimit,
 		alert.WithConsecutiveFailureEnabled(alertSettings.ConsecutiveFailure.Enabled),
 		alert.WithAutoDisableFailureCount(alertSettings.ConsecutiveFailure.Count),
 		alert.WithExhaustedRetriesEnabled(alertSettings.ExhaustedRetries.Enabled),
+		alert.WithTypeMaxRetries(typeMaxRetries),
 	)
 
 	// Create batcher for batching log writes
@@ -458,7 +572,11 @@ func (b *ServiceBuilder) BuildLogWorker(baseRouter *gin.Engine) error {
 	}, logmq.BatchProcessorConfig{
 		ItemCountThreshold: batcherCfg.ItemCountThreshold,
 		DelayThreshold:     batcherCfg.DelayThreshold,
-	})
+	},
+		logmq.WithTypeMaxRetries(typeMaxRetries),
+		// The record behind deliveryStatus on MCP subscription refreshes.
+		logmq.WithAttemptStatusRecorder(b.newDeliveryStatusStore(svc.redisClient), models.DestinationTypeMCP),
+	)
 	if err != nil {
 		b.logger.Error("failed to create batcher", zap.Error(err))
 		return err
@@ -491,26 +609,22 @@ func (b *ServiceBuilder) BuildLogWorker(baseRouter *gin.Engine) error {
 	return nil
 }
 
-// destinationDisabler implements logmq.DestinationDisabler by setting DisabledAt on the destination.
-type destinationDisabler struct {
-	tenantStore tenantstore.TenantStore
+// newDeliveryStatusStore returns the store of the per-destination delivery
+// status record of mcp subscriptions. Records outlive the longest
+// subscription by a week.
+func (b *ServiceBuilder) newDeliveryStatusStore(client redis.Client) *deliverystatus.RedisStore {
+	return deliverystatus.NewRedisStore(client, b.cfg.DeploymentID, b.cfg.MCP.TTLMax.Duration()+deliveryStatusRetention)
 }
 
-func newDestinationDisabler(tenantStore tenantstore.TenantStore) logmq.DestinationDisabler {
-	return &destinationDisabler{tenantStore: tenantStore}
-}
+// deliveryStatusRetention is how long a delivery status record outlives
+// MCP_TTL_MAX.
+const deliveryStatusRetention = 7 * 24 * time.Hour
 
-func (d *destinationDisabler) DisableDestination(ctx context.Context, tenantID, destinationID string) error {
-	destination, err := d.tenantStore.RetrieveDestination(ctx, tenantID, destinationID)
-	if err != nil {
-		return err
-	}
-	if destination == nil {
-		return nil
-	}
-	now := time.Now()
-	destination.DisabledAt = &now
-	return d.tenantStore.UpsertDestination(ctx, *destination)
+// deliveryProcessingTTL is the delivery idempotence claim TTL: the longest
+// attempt (the global delivery timeout, or the 10s of an mcp attempt) plus
+// a margin.
+func deliveryProcessingTTL(cfg *config.Config) time.Duration {
+	return max(time.Duration(cfg.DeliveryTimeoutSeconds)*time.Second, destmcp.DefaultDeliveryTimeout) + 5*time.Second
 }
 
 // Helper methods for serviceInstance to initialize common dependencies
@@ -556,26 +670,39 @@ func (s *serviceInstance) initTenantStore(ctx context.Context, cfg *config.Confi
 		return fmt.Errorf("redis client must be initialized before tenant store")
 	}
 	logger.Debug("creating tenant store", zap.String("service", s.name))
-	s.tenantStore = tenantstore.New(tenantstore.Config{
-		RedisClient:              s.redisClient,
-		Secret:                   cfg.AESEncryptionSecret,
-		AvailableTopics:          cfg.Topics,
-		MaxDestinationsPerTenant: cfg.MaxDestinationsPerTenant,
-		DeploymentID:             cfg.DeploymentID,
-	})
+	s.tenantStore = tenantstore.New(tenantStoreConfig(cfg, s.redisClient))
 	if err := s.tenantStore.Init(ctx); err != nil {
 		return fmt.Errorf("failed to initialize tenant store: %w", err)
 	}
 	return nil
 }
 
-func (s *serviceInstance) initDestRegistry(cfg *config.Config, logger *logging.Logger) error {
+// tenantStoreConfig is the tenant store configuration of every service:
+// mcp subscriptions have their own per-tenant limit and are indexed across
+// tenants for the expiry sweep.
+func tenantStoreConfig(cfg *config.Config, client redis.Client) tenantstore.Config {
+	return tenantstore.Config{
+		RedisClient:              client,
+		Secret:                   cfg.AESEncryptionSecret,
+		AvailableTopics:          cfg.Topics,
+		MaxDestinationsPerTenant: cfg.MaxDestinationsPerTenant,
+		TypeLimits:               map[string]int{models.DestinationTypeMCP: cfg.MaxMCPSubscriptionsPerTenant},
+		IndexedTypes:             []string{models.DestinationTypeMCP},
+		DeploymentID:             cfg.DeploymentID,
+	}
+}
+
+// initDestRegistry builds the registry; mcp configures the mcp provider
+// (nil: it validates nothing and delivers with a strict guard).
+func (s *serviceInstance) initDestRegistry(cfg *config.Config, logger *logging.Logger, mcp *destregistrydefault.DestMCPConfig) error {
 	logger.Debug("initializing destination registry", zap.String("service", s.name))
 	registry := destregistry.NewRegistry(&destregistry.Config{
 		DestinationMetadataPath: cfg.Destinations.MetadataPath,
 		DeliveryTimeout:         time.Duration(cfg.DeliveryTimeoutSeconds) * time.Second,
 	}, logger)
-	if err := destregistrydefault.RegisterDefault(registry, cfg.Destinations.ToConfig(cfg)); err != nil {
+	opts := cfg.Destinations.ToConfig(cfg)
+	opts.MCP = mcp
+	if err := destregistrydefault.RegisterDefault(registry, opts); err != nil {
 		logger.Error("destination registry setup failed", zap.String("service", s.name), zap.Error(err))
 		return err
 	}

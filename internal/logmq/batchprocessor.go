@@ -51,6 +51,16 @@ type DestinationDisabler interface {
 	DisableDestination(ctx context.Context, tenantID, destinationID string) error
 }
 
+// ConditionalDestinationDisabler is a DestinationDisabler that disables only
+// a live, enabled destination and reports whether its call did. When it
+// didn't (already disabled, deleted or gone), the pipeline emits no
+// alert.destination.disabled event: the destination was disabled by an
+// earlier attempt, or there is nothing left to disable.
+type ConditionalDestinationDisabler interface {
+	DestinationDisabler
+	DisableDestinationIfEnabled(ctx context.Context, tenantID, destinationID string) (changed bool, err error)
+}
+
 // ReplayGate is the split-phase idempotence pair the pipeline uses as the
 // per-attempt replay gate: Processed is checked before eval, MarkProcessed
 // lands after delivery. Split-phase means no in-flight conflict detection —
@@ -496,6 +506,18 @@ func (bp *BatchProcessor) sendAll(ctx context.Context, events []deliveryEvent, e
 	return g.Wait()
 }
 
+// disable auto-disables a destination and reports whether this call changed
+// it. A plain DestinationDisabler converges on replay (re-disabling rewrites
+// DisabledAt, but the end state is the same) and always reports a change; a
+// ConditionalDestinationDisabler reports none when the destination was
+// already disabled, deleted or gone.
+func (bp *BatchProcessor) disable(ctx context.Context, tenantID, destinationID string) (bool, error) {
+	if cd, ok := bp.alerts.Disabler.(ConditionalDestinationDisabler); ok {
+		return cd.DisableDestinationIfEnabled(ctx, tenantID, destinationID)
+	}
+	return true, bp.alerts.Disabler.DisableDestination(ctx, tenantID, destinationID)
+}
+
 // plan acts on an evaluation and builds the operator events owed for this
 // attempt — attempt.failed always, plus disabled, consecutive_failure, and
 // exhausted_retries per the verdict. They are sent concurrently, so slice
@@ -509,9 +531,8 @@ func (bp *BatchProcessor) plan(ctx context.Context, eval alert.Evaluation, entry
 
 	if cf := eval.ConsecutiveFailure; cf != nil {
 		if cf.Level == 100 && bp.alerts.Disabler != nil {
-			// Disable converges on replay: re-disabling rewrites DisabledAt,
-			// but the end state is the same.
-			if err := bp.alerts.Disabler.DisableDestination(ctx, dest.TenantID, dest.ID); err != nil {
+			changed, err := bp.disable(ctx, dest.TenantID, dest.ID)
+			if err != nil {
 				return nil, fmt.Errorf("failed to disable destination: %w", err)
 			}
 
@@ -519,16 +540,18 @@ func (bp *BatchProcessor) plan(ctx context.Context, eval alert.Evaluation, entry
 			now := time.Now()
 			dest.DisabledAt = &now
 
-			bp.logger.Ctx(ctx).Audit("destination disabled",
-				zap.String("attempt_id", entry.Attempt.ID),
-				zap.String("event_id", entry.Event.ID),
-				zap.String("tenant_id", dest.TenantID),
-				zap.String("destination_id", dest.ID),
-				zap.String("destination_type", dest.Type))
+			if changed {
+				bp.logger.Ctx(ctx).Audit("destination disabled",
+					zap.String("attempt_id", entry.Attempt.ID),
+					zap.String("event_id", entry.Event.ID),
+					zap.String("tenant_id", dest.TenantID),
+					zap.String("destination_id", dest.ID),
+					zap.String("destination_type", dest.Type))
 
-			events = append(events, deliveryEvent{
-				event: opevents.DestinationDisabledEvent(dest, entry.Event, entry.Attempt, now),
-			})
+				events = append(events, deliveryEvent{
+					event: opevents.DestinationDisabledEvent(dest, entry.Event, entry.Attempt, now),
+				})
+			}
 		}
 
 		events = append(events, deliveryEvent{

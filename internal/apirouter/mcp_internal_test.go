@@ -49,37 +49,6 @@ func TestRequestBodySanitizer_MCPParamsSecrets(t *testing.T) {
 	}
 }
 
-func TestEscapeMarkdown(t *testing.T) {
-	cases := map[string]string{
-		"order.created":                   `order\.created`,
-		"https://mcp.acme.com/mcp":        `https\:\/\/mcp\.acme\.com\/mcp`,
-		"plain":                           "plain",
-		"<script>alert(1)</script>":       `\<script\>alert\(1\)\<\/script\>`,
-		"[x](javascript:alert(1))":        `\[x\]\(javascript\:alert\(1\)\)`,
-		"a\nb\r# heading":                 `a b \# heading`,
-		"`code` *b* _i_ ~s~ |t| {x} !@$%": "\\`code\\` \\*b\\* \\_i\\_ \\~s\\~ \\|t\\| \\{x\\} \\!\\@\\$\\%",
-		"commande.créée":                  `commande\.créée`,
-		"\\":                              `\\`,
-	}
-	for in, want := range cases {
-		assert.Equal(t, want, escapeMarkdown(in), in)
-	}
-}
-
-func TestRenderMCPInstructions(t *testing.T) {
-	template := "Connect {{MCP_SERVER_URL}} in ChatGPT.\n\n{{MCP_TOPICS}}\n\nAgain: {{MCP_SERVER_URL}}"
-
-	got := renderMCPInstructions(template, "https://mcp.acme.com/mcp", []string{"order.created", "a_b*c"})
-	assert.Equal(t, "Connect https\\:\\/\\/mcp\\.acme\\.com\\/mcp in ChatGPT.\n\n- order\\.created\n- a\\_b\\*c\n\nAgain: https\\:\\/\\/mcp\\.acme\\.com\\/mcp", got)
-
-	got = renderMCPInstructions(template, "", []string{"x"})
-	assert.Equal(t, "Connect your MCP server in ChatGPT.\n\n- x\n\nAgain: your MCP server", got)
-
-	// Values are never read as placeholders.
-	got = renderMCPInstructions("{{MCP_TOPICS}}", "{{MCP_TOPICS}}", []string{"{{MCP_SERVER_URL}}"})
-	assert.Equal(t, `- \{\{MCP\_SERVER\_URL\}\}`, got)
-}
-
 func TestV1AttemptTypes(t *testing.T) {
 	inactive := v1AttemptTypes{}
 	types, ok := inactive.filter(nil)

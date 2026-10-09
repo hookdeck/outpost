@@ -5,7 +5,10 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/hookdeck/outpost/internal/destregistry/metadata"
+	destregistrydefault "github.com/hookdeck/outpost/internal/destregistry/providers"
+	"github.com/hookdeck/outpost/internal/destregistry/providers/destwebhook"
 	"github.com/hookdeck/outpost/internal/topicschema"
 	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
@@ -52,7 +55,7 @@ func TestMCPDestinationTypes(t *testing.T) {
 
 		assert.Equal(t, "mcp", types[1]["type"])
 		assert.Equal(t, "external", types[1]["create_mode"])
-		const rendered = "Connect https\\:\\/\\/mcp\\.acme\\.com\\/mcp to your agent.\n\n- order\\.created\n- order\\.shipped\n"
+		const rendered = "Connect `https://mcp.acme.com/mcp` to your agent.\n\n- `order.created`\n- `order.shipped`\n"
 		assert.Equal(t, rendered, types[1]["instructions"])
 
 		code, one := m.getTypes("v2", "/destination-types/mcp")
@@ -89,11 +92,57 @@ func TestMCPDestinationTypes(t *testing.T) {
 		require.Equal(t, http.StatusOK, code)
 		var mcpType map[string]any
 		require.NoError(t, json.Unmarshal(body, &mcpType))
-		assert.Equal(t, "Connect your MCP server to your agent.\n\n- order\\.created\n- order\\.shipped\n", mcpType["instructions"])
+		assert.Equal(t, "Connect your MCP server to your agent.\n\n- `order.created`\n- `order.shipped`\n", mcpType["instructions"])
 	})
 
 	t.Run("JWT", func(t *testing.T) {
 		resp := m.do(m.withJWT(m.jsonReq(http.MethodGet, "/api/v2/destination-types", nil), mcpTenant))
 		require.Equal(t, http.StatusOK, resp.Code)
 	})
+}
+
+// The real mcp provider's instructions are a Go text/template: v2 serves
+// them rendered, never the template itself.
+func TestMCPDestinationTypes_RealProviderInstructions(t *testing.T) {
+	catalog := mcpCatalog(t)
+	registry := destregistry.NewRegistry(&destregistry.Config{}, testutil.CreateTestLogger(t))
+	require.NoError(t, destregistrydefault.RegisterDefault(registry, destregistrydefault.RegisterDefaultDestinationOptions{
+		Webhook: &destregistrydefault.DestWebhookConfig{
+			MetadataName:             destwebhook.StandardMetadataName,
+			HeaderPrefix:             destwebhook.StandardHeaderPrefix,
+			EventIDHeader:            destregistrydefault.WebhookHeaderConfig{Name: "webhook-id"},
+			TimestampFormat:          destwebhook.StandardTimestampFormat,
+			SignatureContentTemplate: destwebhook.StandardSignatureContentTmpl,
+			SignatureHeaderTemplate:  destwebhook.StandardSignatureHeaderTmpl,
+			SignatureEncoding:        destwebhook.StandardEncoding,
+			SignatureAlgorithm:       destwebhook.DefaultAlgorithm,
+			SignatureSecretEncoding:  destwebhook.StandardSecretEncoding,
+			SignatureSecretPrefix:    destwebhook.StandardSecretPrefix,
+			SigningSecretTemplate:    destwebhook.StandardSigningSecretTmpl,
+		},
+		AWSEventBridge: &destregistrydefault.DestAWSEventBridgeConfig{Source: "outpost"},
+		MCP:            &destregistrydefault.DestMCPConfig{Catalog: catalog},
+	}))
+
+	for _, tt := range []struct {
+		name, serverURL, want string
+	}{
+		{"with MCP_SERVER_URL", "https://mcp.acme.com/mcp", "`https://mcp.acme.com/mcp`"},
+		{"without MCP_SERVER_URL", "", "our MCP server"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			m := newMCPTest(t, withMCPServerURL(tt.serverURL), withMCPAPIOptions(withDestRegistry(registry)))
+			code, body := m.getTypes("v2", "/destination-types/mcp")
+			require.Equal(t, http.StatusOK, code)
+			var mcpType struct {
+				CreateMode   string `json:"create_mode"`
+				Instructions string `json:"instructions"`
+			}
+			require.NoError(t, json.Unmarshal(body, &mcpType))
+			assert.Equal(t, "external", mcpType.CreateMode)
+			assert.NotContains(t, mcpType.Instructions, "{{", "the template is rendered")
+			assert.Contains(t, mcpType.Instructions, tt.want)
+			assert.Contains(t, mcpType.Instructions, "- `order.created`\n- `order.shipped`")
+		})
+	}
 }

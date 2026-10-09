@@ -318,6 +318,8 @@ type alertConfig struct {
 	retryMaxLimit    int
 	withDisabler     bool // attach the recordingDisabler to the pipeline
 	signalsOff       bool // disable both evaluator signals (cf + exhausted)
+	// disabler, when set, is attached instead of the recordingDisabler.
+	disabler logmq.DestinationDisabler
 	// evalOpts are extra evaluator options, applied last.
 	evalOpts []alert.Option
 	// opeventTopics is the real emitter's subscription; nil = all ("*").
@@ -446,6 +448,9 @@ func newHarness(t *testing.T, cfg harnessConfig) *harness {
 	}
 	if cfg.alert.withDisabler {
 		pipeline.Disabler = disabler
+	}
+	if cfg.alert.disabler != nil {
+		pipeline.Disabler = cfg.alert.disabler
 	}
 	bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, pipeline, logmq.BatchProcessorConfig{
 		ItemCountThreshold: cfg.batcher.itemCount,

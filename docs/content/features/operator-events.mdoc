@@ -167,7 +167,7 @@ Emitted when a destination reaches 50%, 70%, 90%, or 100% of `ALERT_CONSECUTIVE_
 
 ### `alert.destination.disabled`
 
-Emitted when a destination is auto-disabled after reaching the 100% threshold (only when `ALERT_AUTO_DISABLE_DESTINATION=true`).
+Emitted when a destination is auto-disabled after reaching the 100% threshold (only when `ALERT_AUTO_DISABLE_DESTINATION=true`). It comes from the attempt that disabled the destination: attempts that were already in flight and fail afterwards report `alert.consecutive_failure` only, and a destination deleted in the meantime is left deleted, with no event.
 
 ```json
 {
@@ -303,6 +303,8 @@ A client that stops refreshing, for example because its user removed the plugin,
 ## Delivery Guarantees
 
 `alert.*` and `attempt.*` topics are delivered with an at-least-once guarantee. For other topics (e.g. `tenant.subscription.updated`), delivery is on a best-effort basis with up to 3 attempts. Consumers should deduplicate using the event `id`.
+
+`alert.destination.disabled` is the exception among `alert.*` topics: it is sent at most once per auto-disable. If sending it fails, the attempt is processed again and its other events are sent again, but the destination is already disabled by then, so no second `alert.destination.disabled` is sent.
 
 `mcp.subscription.expired` is best effort as well, with up to 3 attempts, and is emitted once per expired subscription. It goes through an in-memory queue of the API service, so it is lost if the process stops before sending it, and dropped if the queue is full during a large wave of expirations.
 

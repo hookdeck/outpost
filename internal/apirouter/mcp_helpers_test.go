@@ -60,8 +60,9 @@ func mcpCatalog(t *testing.T) *topicschema.Catalog {
 // Providers
 // ---------------------------------------------------------------------------
 
-// mcpInstructionsTemplate is the fake mcp provider's instructions template.
-const mcpInstructionsTemplate = "Connect {{MCP_SERVER_URL}} to your agent.\n\n{{MCP_TOPICS}}\n"
+// mcpInstructionsTemplate is the fake mcp provider's instructions template,
+// a Go text/template like the real one.
+const mcpInstructionsTemplate = "Connect {{if .ServerURL}}{{.ServerURL}}{{else}}your MCP server{{end}} to your agent.\n\n{{range .Topics}}- {{.}}\n{{end}}"
 
 // fakeMCPProvider stands in for the mcp provider: it validates like it
 // (catalog, arguments, secret) with a scriptable verification, and rotates

@@ -183,15 +183,10 @@ func WithParkedRetryTypes(destinationTypes ...string) MessageHandlerOption {
 }
 
 // expirable is implemented by destinations that carry an expiry.
-type expirable interface {
-	IsExpired(now time.Time) bool
-}
-
 // destinationExpired reports whether the destination's expiry has passed.
 // Destinations without an expiry never expire.
 func destinationExpired(destination *models.Destination, now time.Time) bool {
-	e, ok := any(destination).(expirable)
-	return ok && e.IsExpired(now)
+	return destination.IsExpired(now)
 }
 
 type Publisher interface {

@@ -446,6 +446,35 @@ func TestMessageHandler_DestinationExpired(t *testing.T) {
 		})
 	}
 
+	// Without the test hook: the destination's own expires_at.
+	t.Run("stored expires_at", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct {
+			name      string
+			expiresAt time.Time
+			delivered bool
+		}{
+			{"passed", now.Add(-time.Millisecond), false},
+			{"now", now, false},
+			{"ahead", now.Add(time.Millisecond), true},
+		} {
+			dest := testutil.DestinationFactory.Any(
+				testutil.DestinationFactory.WithType(mcpType),
+				testutil.DestinationFactory.WithExpiresAt(tc.expiresAt),
+			)
+			publisher := &recordingPublisher{}
+			h := newPerTypeHandler(t, handlerDeps{
+				getter:    &mockDestinationGetter{dest: &dest},
+				publisher: publisher,
+				opts:      []deliverymq.MessageHandlerOption{deliverymq.WithClockForTest(func() time.Time { return now })},
+			})
+			mockMsg, err := handle(t, h, models.NewDeliveryTask(retryEvent(dest.TenantID, dest.ID), dest.ID))
+			require.NoError(t, err, tc.name)
+			assert.True(t, mockMsg.acked, tc.name)
+			assert.Equal(t, tc.delivered, publisher.attempts() == 1, tc.name)
+		}
+	})
+
 	t.Run("not yet expired is delivered", func(t *testing.T) {
 		t.Parallel()
 		dest := testutil.DestinationFactory.Any(testutil.DestinationFactory.WithType(mcpType))
