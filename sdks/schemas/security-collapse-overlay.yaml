@@ -83,3 +83,46 @@ actions:
     update:
       security:
         - BearerAuth: []
+
+  - target: $["paths"]["/tenants/{tenant_id}/mcp/events"]["get"]["security"]
+    remove: true
+  - target: $["paths"]["/tenants/{tenant_id}/mcp/events"]["get"]
+    update:
+      security:
+        - BearerAuth: []
+
+  - target: $["paths"]["/tenants/{tenant_id}/mcp/subscriptions"]["put"]["security"]
+    remove: true
+  - target: $["paths"]["/tenants/{tenant_id}/mcp/subscriptions"]["put"]
+    update:
+      security:
+        - BearerAuth: []
+
+  - target: $["paths"]["/tenants/{tenant_id}/mcp/subscriptions/unsubscribe"]["post"]["security"]
+    remove: true
+  - target: $["paths"]["/tenants/{tenant_id}/mcp/subscriptions/unsubscribe"]["post"]
+    update:
+      security:
+        - BearerAuth: []
+
+  - target: $["paths"]["/tenants/{tenant_id}/mcp/subscriptions"]["delete"]["security"]
+    remove: true
+  - target: $["paths"]["/tenants/{tenant_id}/mcp/subscriptions"]["delete"]
+    update:
+      security:
+        - BearerAuth: []
+
+  # Remove and replace operation-level security: MCP endpoints that also accept a tenant JWT
+  - target: $["paths"]["/tenants/{tenant_id}/mcp/subscriptions"]["get"]["security"]
+    remove: true
+  - target: $["paths"]["/tenants/{tenant_id}/mcp/subscriptions"]["get"]
+    update:
+      security:
+        - BearerAuth: []
+
+  - target: $["paths"]["/tenants/{tenant_id}/mcp/subscriptions/{subscription_id}"]["delete"]["security"]
+    remove: true
+  - target: $["paths"]["/tenants/{tenant_id}/mcp/subscriptions/{subscription_id}"]["delete"]
+    update:
+      security:
+        - BearerAuth: []

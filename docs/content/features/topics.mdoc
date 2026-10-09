@@ -100,7 +100,7 @@ You can also subscribe to the `tenant.subscription.updated` [Operator Events](/d
 
 ## Topic Schemas
 
-A topic schema describes the events of one topic: what they represent, a JSON Schema for their `data`, whether Outpost validates published events against it, and whether the topic is exposed to MCP Events clients. Schemas are optional and set per topic. A topic without one keeps working unchanged.
+A topic schema describes the events of one topic: what they represent, a JSON Schema for their `data`, whether Outpost validates published events against it, and whether the topic is exposed to [MCP Events](/docs/outpost/guides/mcp-events) clients. Schemas are optional and set per topic. A topic without one keeps working unchanged.
 
 In API v2, [`GET /topics`](#listing-topics) returns each topic with its schema, so you can document your event types once and render them in your own UI.
 
@@ -267,6 +267,20 @@ Strings with `format: date-time` accept values and lists but no range operators.
 
 Hide a property from arguments with `"x-mcp-filter": false`, for example for IDs and timestamps that make poor filters. `x-mcp-filter` must be a boolean. Properties whose name starts with `$` are never arguments, since filters would read them as operators. MCP clients receive the payload schema without `x-mcp-filter`.
 
+Outpost publishes the arguments to MCP clients as the event's `inputSchema` in `events/list`, and validates subscriptions against it. Unknown arguments fail validation.
+
+When a client subscribes, Outpost turns its arguments into the subscription's [destination filter](/docs/outpost/features/filter). Each argument becomes a condition on the same property of the event `data`, and an event must meet all of them:
+
+| Argument | Filter |
+|----------|--------|
+| `"currency": "USD"` | `{"data": {"currency": "USD"}}` |
+| `"currency": ["USD", "EUR"]` | `{"data": {"currency": {"$in": ["USD", "EUR"]}}}` |
+| `"total": {"$gte": 100}` | `{"data": {"total": {"$gte": 100}}}` |
+| `"total": {"$gte": 100}, "currency": "USD"` | `{"data": {"total": {"$gte": 100}, "currency": "USD"}}` |
+| `{}` or no arguments | No filter: every event of the topic |
+
+The filter matches the event, not the MCP envelope, so payload fields sit directly under `data`. An MCP server with rules the arguments can't express can pass its own `filter` on subscribe instead. See the [MCP Events guide](/docs/outpost/guides/mcp-events) to set up subscriptions, and [MCP destination](/docs/outpost/destinations/mcp) for how events are delivered.
+
 ### Listing Topics
 
 In API v2, `GET /topics` returns every topic in `TOPICS` order, with its schema configuration. A topic without a schema has only `name`, `validation: "off"` and `mcp.enabled: false`. API v1 keeps returning topic names; see [Upgrade to API v2](/docs/outpost/self-hosting/changelog/upgrade-api-v2).
@@ -308,9 +322,33 @@ To make a change that existing consumers can't handle, such as removing a field 
 
 1. Add the new topic, by convention with a version suffix such as `order.created.v2`, and publish to both topics during the overlap.
 2. Set `deprecated: true` and `replaced_by: "order.created.v2"` on the old topic. `GET /topics` returns both fields, and MCP clients see the old topic's description prefixed with `Deprecated: use order.created.v2.` Publishing to the old topic and its existing destinations keep working.
-3. Remove the old topic from `TOPICS` once its publishers and destinations have moved.
+3. Remove the old topic from `TOPICS` once its publishers and destinations have moved. Its remaining MCP subscriptions are then ended, as described in [Ending a topic](#ending-a-topic).
 
 `replaced_by` must name another topic in `TOPICS`. If the deprecated topic is MCP-enabled, its replacement must be MCP-enabled too.
 
-Outpost doesn't check schema changes for compatibility yet. Breaking-change checks for topics with live MCP subscriptions arrive with MCP subscriptions.
+#### Breaking-change check
+
+An MCP subscription outlives the event list it was created from: the client refreshes it with the same arguments, and expects payloads that match the schema it saw. So once a topic has live MCP subscriptions, its schema can only change additively.
+
+When the API service starts with topic schemas that differ from the last applied ones, which it keeps in Redis, it compares each topic that is MCP-enabled in both and has at least one live subscription. The check is as lenient as possible while existing subscriptions stay valid:
+
+- **Allowed:** new properties, required or not; changes to `required`; descriptions and other annotations; widenings, such as `integer` to `number`, a new `enum` value or a removed `type`; relaxed constraints.
+- **Breaking:** a property removed or renamed, at any depth; a type narrowed, such as `number` to `integer`; an `enum` narrowed or added, or a `const` changed or added; a constraint tightened or added, such as a raised `minimum`, a lowered `maxLength`, a new or changed `pattern` or `format`, or `additionalProperties: false`; a top-level property that is no longer an argument, because of `x-mcp-filter: false` or a type that can't be filtered.
+- **Composites:** an `allOf` whose branches are all object schemas is compared as the union of their properties. Any change inside `anyOf`, `oneOf`, `not`, `if`, `then`, `else`, `dependentSchemas`, `patternProperties`, `prefixItems`, `contains` or `unevaluated*` is breaking.
+
+Changes to topics without live subscriptions, or without `mcp.enabled`, aren't checked. Nor is ending a topic, which ends its subscriptions instead.
+
+On a breaking change, the API service fails to start and lists each change: the topic, a JSON pointer into its payload schema, and the kind of change (`property_removed`, `type_narrowed`, `enum_narrowed`, `const_changed`, `constraint_tightened`, `filter_hidden` or `composite_changed`). The supported fix is the new-topic path above.
+
+**Rollouts and rollbacks.** Each API instance reports the topic configuration it runs to Redis every 20 seconds. A configuration that an instance has reported in the last 60 seconds is accepted without a check, and doesn't replace the last applied one. During a rolling deploy, instances on the previous configuration can therefore restart. A rollback to a configuration that no instance runs anymore is checked like any other change, and rolling back a widening is a narrowing.
+
+**Forcing a breaking change.** With `TOPICS_ALLOW_BREAKING_CHANGES=true`, Outpost applies the change and ends the affected topics' subscriptions: every subscription created or last refreshed against an old schema of the topic gets a `terminated` envelope with `Unsupported` and `{"feature": "payloadSchema", "reason": "schema_changed"}`, so clients resubscribe against the new event list. That includes subscriptions that instances still on the old schema accept during the rollout, until `MCP_TTL_MAX` after the last such instance stops. Set the flag for one deploy, then remove it: Outpost logs a warning while it's set.
+
+#### Ending a topic
+
+A topic ends for MCP when you remove it from `TOPICS` or from your schemas, or turn off its `mcp.enabled`. API instances running that configuration stop delivering the topic's events to MCP subscriptions, and on its next pass, the API service deletes the topic's subscriptions and sends each a `terminated` envelope with `NotFound` and `{"kind": "event"}`.
+
+Subscriptions are only ended when the topic is off in both the instance's configuration and the last applied one, so an instance on an older or rolled-back configuration never ends them.
+
+As a guard against a missing or empty schema configuration, the API service refuses to start with a configuration that ends every MCP-enabled topic at once, unless `TOPICS_ALLOW_BREAKING_CHANGES` is set.
 

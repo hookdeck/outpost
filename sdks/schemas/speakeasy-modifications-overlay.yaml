@@ -343,3 +343,69 @@ actions:
       after: sdk.operatorEvents.retry()
       before: sdk.OperatorEvents.retryOperatorEvent()
       type: method-name
+  # MCP Events operations. They are grouped under sdk.mcp and kept out of the
+  # TypeScript SDK's generated MCP server (x-speakeasy-mcp.disabled): as agent
+  # tools they would let any agent connected to that server subscribe arbitrary
+  # principals and callback URLs with the admin key, bypassing the operator's
+  # authorization. See
+  # https://www.speakeasy.com/docs/standalone-mcp/customize-tools
+  - target: $["paths"]["/tenants/{tenant_id}/mcp/events"]["get"]
+    update:
+      x-speakeasy-name-override: listEvents
+      x-speakeasy-group: mcp
+      x-speakeasy-mcp:
+        disabled: true
+    x-speakeasy-metadata:
+      after: sdk.mcp.listEvents()
+      before: sdk.MCP.listMCPEvents()
+      type: method-name
+  - target: $["paths"]["/tenants/{tenant_id}/mcp/subscriptions"]["put"]
+    update:
+      x-speakeasy-name-override: subscribe
+      x-speakeasy-group: mcp
+      x-speakeasy-mcp:
+        disabled: true
+    x-speakeasy-metadata:
+      after: sdk.mcp.subscribe()
+      before: sdk.MCP.subscribeMCP()
+      type: method-name
+  - target: $["paths"]["/tenants/{tenant_id}/mcp/subscriptions/unsubscribe"]["post"]
+    update:
+      x-speakeasy-name-override: unsubscribe
+      x-speakeasy-group: mcp
+      x-speakeasy-mcp:
+        disabled: true
+    x-speakeasy-metadata:
+      after: sdk.mcp.unsubscribe()
+      before: sdk.MCP.unsubscribeMCP()
+      type: method-name
+  - target: $["paths"]["/tenants/{tenant_id}/mcp/subscriptions"]["get"]
+    update:
+      x-speakeasy-name-override: listSubscriptions
+      x-speakeasy-group: mcp
+      x-speakeasy-mcp:
+        disabled: true
+    x-speakeasy-metadata:
+      after: sdk.mcp.listSubscriptions()
+      before: sdk.MCP.listMCPSubscriptions()
+      type: method-name
+  - target: $["paths"]["/tenants/{tenant_id}/mcp/subscriptions/{subscription_id}"]["delete"]
+    update:
+      x-speakeasy-name-override: deleteSubscription
+      x-speakeasy-group: mcp
+      x-speakeasy-mcp:
+        disabled: true
+    x-speakeasy-metadata:
+      after: sdk.mcp.deleteSubscription()
+      before: sdk.MCP.deleteMCPSubscription()
+      type: method-name
+  - target: $["paths"]["/tenants/{tenant_id}/mcp/subscriptions"]["delete"]
+    update:
+      x-speakeasy-name-override: deleteSubscriptions
+      x-speakeasy-group: mcp
+      x-speakeasy-mcp:
+        disabled: true
+    x-speakeasy-metadata:
+      after: sdk.mcp.deleteSubscriptions()
+      before: sdk.MCP.deleteMCPSubscriptions()
+      type: method-name

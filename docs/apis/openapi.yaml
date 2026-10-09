@@ -106,6 +106,95 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/APIErrorResponse"
+    MCPError:
+      description: |
+        The MCP request failed. Rethrow `mcp_error` as the JSON-RPC error of the MCP request: its `code`, `message` and `data` become the JSON-RPC error's fields. The examples use the default `sketch` codes.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/MCPErrorResponse"
+          examples:
+            InvalidArguments:
+              summary: Arguments don't match the event's inputSchema
+              value:
+                mcp_error:
+                  kind: "invalid_params"
+                  code: -32602
+                  message: "InvalidParams"
+                  data:
+                    field: "arguments"
+                    reason: "invalid"
+                    errors:
+                      - "arguments.total.$gte: must be number"
+                      - "arguments.total: must be array"
+                      - "arguments.total: must be number"
+            AddressNotAllowed:
+              summary: Callback host isn't globally routable or allowlisted
+              value:
+                mcp_error:
+                  kind: "invalid_params"
+                  code: -32602
+                  message: "InvalidParams"
+                  data:
+                    field: "delivery.url"
+                    reason: "address_not_allowed"
+            EventNotFound:
+              summary: Unknown, non-MCP or disallowed event name
+              value:
+                mcp_error:
+                  kind: "not_found"
+                  code: -32011
+                  message: "NotFound"
+                  data:
+                    kind: "event"
+            TenantNotFound:
+              summary: Tenant doesn't exist (subscribe)
+              value:
+                mcp_error:
+                  kind: "not_found"
+                  code: -32011
+                  message: "NotFound"
+                  data:
+                    kind: "tenant"
+            SubscriptionLimit:
+              summary: MAX_MCP_SUBSCRIPTIONS_PER_TENANT reached
+              value:
+                mcp_error:
+                  kind: "resource_exhausted"
+                  code: -32013
+                  message: "ResourceExhausted"
+                  data:
+                    limit: "subscriptions"
+                    max: 100
+            VerificationRate:
+              summary: MCP_VERIFICATION_RATE_LIMIT reached for the principal
+              value:
+                mcp_error:
+                  kind: "resource_exhausted"
+                  code: -32013
+                  message: "ResourceExhausted"
+                  data:
+                    limit: "verification_rate"
+                    retryAfterMs: 42000
+            UnsupportedDeliveryMode:
+              summary: delivery.mode other than webhook
+              value:
+                mcp_error:
+                  kind: "unsupported"
+                  code: -32014
+                  message: "Unsupported"
+                  data:
+                    feature: "deliveryMode"
+                    value: "poll"
+            ChallengeFailed:
+              summary: Callback didn't echo the verification challenge
+              value:
+                mcp_error:
+                  kind: "callback_endpoint_error"
+                  code: -32015
+                  message: "CallbackEndpointError"
+                  data:
+                    reason: "challenge_failed"
   schemas:
     # Shared Query Schemas
     Operator:
@@ -139,13 +228,13 @@ components:
           example: "123"
         destinations_count:
           type: integer
-          description: Number of destinations associated with the tenant.
+          description: Number of destinations associated with the tenant, including MCP Events subscriptions (type `mcp`) in API v1 and v2 alike.
           example: 5
         topics:
           type: array
           items:
             type: string
-          description: List of subscribed topics across all destinations for this tenant.
+          description: List of subscribed topics across all destinations for this tenant, including the topics of MCP Events subscriptions in API v1 and v2 alike.
           example: ["user.created", "user.deleted"]
         metadata:
           type: object
@@ -601,6 +690,52 @@ components:
           type: string
           description: SASL password for authentication.
           example: "secure_password_123"
+    MCPConfig:
+      type: object
+      description: Configuration of an MCP Events subscription. Set by Outpost from the subscribe request and read-only.
+      required: [url, subscription_id, principal, event, arguments]
+      properties:
+        url:
+          type: string
+          description: The callback URL from `delivery.url`, normalized.
+          example: "https://receiver.example.com/mcp-events/abc123"
+        subscription_id:
+          type: string
+          description: The subscription ID, equal to the destination ID. Sent as `X-MCP-Subscription-Id` on every delivery.
+          example: "sub_1fa69bec3707ee16223ae5400f92f935"
+        principal:
+          type: string
+          description: The principal that subscribed, as passed by your MCP server.
+          example: "user_8f2c"
+        event:
+          type: string
+          description: The subscribed event name, which is the topic.
+          example: "order.created"
+        arguments:
+          type: string
+          description: The subscription arguments, as a canonical JSON string with sorted keys. `{}` when the client sent none.
+          example: '{"currency":"USD","total":{"$gte":100}}'
+        schema_hash:
+          type: string
+          description: SHA-256, in hex, of the topic's payload schema when the subscription was created or last refreshed. Outpost uses it to end subscriptions after a breaking schema change applied with `TOPICS_ALLOW_BREAKING_CHANGES`.
+          example: "8bdecd62e9fd5024a655cfb867d4bfd67293264c9529691be1727e6057dd52d6"
+    MCPCredentials:
+      type: object
+      description: Signing secrets of an MCP Events subscription, supplied by the MCP client. Always masked in responses, so only the first 4 characters are shown.
+      properties:
+        secret:
+          type: string
+          description: The `whsec_` signing secret from `delivery.secret`, masked.
+          example: "whse**********************************************"
+        previous_secret:
+          type: string
+          description: The secret the client replaced on its last refresh, masked. Deliveries are signed with it as well until `previous_secret_invalid_at`.
+          example: "whse**********************************************"
+        previous_secret_invalid_at:
+          type: string
+          format: date-time
+          description: When Outpost stops signing with `previous_secret`, `MCP_SECRET_ROTATION_GRACE` after the rotation.
+          example: "2026-10-10T16:58:12Z"
 
     # Type-Specific Destination Schemas (for Responses)
     DestinationWebhook:
@@ -1550,6 +1685,107 @@ components:
           key: "AKIAIOSFODNN7EXAMPLE"
           secret: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
 
+    DestinationMCP:
+      type: object
+      x-docs-type: "MCP"
+      description: An MCP Events subscription. It is created, refreshed and deleted through the MCP endpoints, and returned by API v2 only. See [MCP destination](https://hookdeck.com/docs/outpost/destinations/mcp).
+      # Properties duplicated from DestinationBase
+      required:
+        [
+          id,
+          type,
+          topics,
+          config,
+          credentials,
+          created_at,
+          updated_at,
+          disabled_at,
+        ]
+      properties:
+        id:
+          type: string
+          description: The subscription ID, `sub_` followed by 32 hex characters derived from the principal, callback URL, event name and arguments. Unique within the tenant.
+          example: "sub_1fa69bec3707ee16223ae5400f92f935"
+        type:
+          type: string
+          description: Type of the destination.
+          enum: [mcp]
+          example: "mcp"
+        topics:
+          type: array
+          items:
+            type: string
+          description: The subscribed event name, as the only topic.
+          example: ["order.created"]
+        filter:
+          $ref: "#/components/schemas/Filter"
+        disabled_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: ISO Date when the subscription was auto-disabled, or null if enabled. A refresh or `PUT .../enable` re-enables it.
+          example: null
+        expires_at:
+          type: string
+          format: date-time
+          description: When the subscription expires unless the MCP client refreshes it. Outpost makes no delivery attempt after it, and deletes the subscription shortly after. Omitted for a subscription granted no expiry (`MCP_ALLOW_NO_EXPIRY`).
+          example: "2026-10-09T18:00:00.123Z"
+        created_at:
+          type: string
+          format: date-time
+          description: ISO Date when the subscription was created. A refresh keeps it.
+          example: "2026-10-09T17:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: ISO Date when the subscription was last updated.
+          example: "2026-10-09T17:00:00Z"
+        config:
+          $ref: "#/components/schemas/MCPConfig"
+        credentials:
+          $ref: "#/components/schemas/MCPCredentials"
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: The `metadata` passed to the subscribe endpoint.
+          example: { "plugin": "chatgpt" }
+        target:
+          type: string
+          description: A human-readable representation of the destination target (the callback URL host). Read-only.
+          readOnly: true
+          example: "receiver.example.com"
+        target_url:
+          type: string
+          format: url
+          nullable: true
+          description: The callback URL. Read-only.
+          readOnly: true
+          example: "https://receiver.example.com/mcp-events/abc123"
+      example:
+        id: "sub_1fa69bec3707ee16223ae5400f92f935"
+        type: "mcp"
+        topics: ["order.created"]
+        filter:
+          data:
+            total:
+              $gte: 100
+            currency: "USD"
+        disabled_at: null
+        expires_at: "2026-10-09T18:00:00.123Z"
+        created_at: "2026-10-09T17:00:00Z"
+        updated_at: "2026-10-09T17:00:00Z"
+        config:
+          url: "https://receiver.example.com/mcp-events/abc123"
+          subscription_id: "sub_1fa69bec3707ee16223ae5400f92f935"
+          principal: "user_8f2c"
+          event: "order.created"
+          arguments: '{"currency":"USD","total":{"$gte":100}}'
+          schema_hash: "8bdecd62e9fd5024a655cfb867d4bfd67293264c9529691be1727e6057dd52d6"
+        credentials:
+          secret: "whse**********************************************"
+
     # Polymorphic Destination Schema (for Responses)
     Destination:
       oneOf:
@@ -1564,6 +1800,7 @@ components:
         - $ref: "#/components/schemas/DestinationKafka"
         - $ref: "#/components/schemas/DestinationCloudflareQueues"
         - $ref: "#/components/schemas/DestinationAWSEventBridge"
+        - $ref: "#/components/schemas/DestinationMCP"
       discriminator:
         propertyName: type
         mapping:
@@ -1578,6 +1815,7 @@ components:
           kafka: "#/components/schemas/DestinationKafka"
           cloudflare_queues: "#/components/schemas/DestinationCloudflareQueues"
           aws_eventbridge: "#/components/schemas/DestinationAWSEventBridge"
+          mcp: "#/components/schemas/DestinationMCP"
 
     DestinationCreateWebhook:
       type: object
@@ -3251,7 +3489,7 @@ components:
           type: array
           items:
             type: string
-          description: The IDs of destinations that matched this event. Empty array if no destinations matched.
+          description: The IDs of destinations that matched this event. Empty array if no destinations matched. In API v2, it includes matching MCP Events subscriptions (type `mcp`). API v1 leaves them out.
           example: ["des_456", "des_789"]
     RetryRequest:
       type: object
@@ -3282,7 +3520,7 @@ components:
           type: array
           items:
             type: string
-          description: The destination IDs that this event was routed to based on topic and filter matching.
+          description: The destination IDs that this event was routed to based on topic and filter matching. MCP Events subscriptions (type `mcp`) are never listed, in API v1 or v2, so the list stays bounded however many agents subscribe. Find deliveries to them through the attempts endpoints.
           example: ["des_456", "des_789"]
         topic:
           type: string
@@ -3360,6 +3598,11 @@ components:
           nullable: true
           description: ISO Date when the destination was disabled, or null if enabled.
           example: null
+        expires_at:
+          type: string
+          format: date-time
+          description: When the destination expires. Only set on MCP Events subscriptions (type `mcp`) that have an expiry.
+          example: "2026-10-09T18:00:00.123Z"
         created_at:
           type: string
           format: date-time
@@ -3562,7 +3805,8 @@ components:
         - kafka
         - cloudflare_queues
         - aws_eventbridge
-      description: Type of destination.
+        - mcp
+      description: Type of destination. `mcp` destinations are MCP Events subscriptions, returned by API v2 only and never created through `POST /tenants/{tenant_id}/destinations`.
       example: "webhook"
     DestinationTypeSchema:
       type: object
@@ -3580,9 +3824,17 @@ components:
           type: string
           description: SVG icon string.
           example: "<svg />"
+        create_mode:
+          type: string
+          enum: [form, external]
+          description: |
+            How destinations of this type are created. With `form`, render a form from `config_fields` and `credential_fields` and submit it to `POST /tenants/{tenant_id}/destinations`. With `external`, the type can't be created from a form: show `instructions` in place of the form, and offer no submit step. `mcp` is the only `external` type.
+
+            Returned by API v2 for every type. API v1 omits it.
+          example: "form"
         instructions:
           type: string
-          description: Markdown instructions.
+          description: Markdown instructions. For an `external` type, the instructions to show in place of a create form. For `mcp`, they are filled in with `MCP_SERVER_URL` and the MCP-enabled topics.
           example: "Some *markdown*"
         setup_link:
           type: object
@@ -3725,6 +3977,354 @@ components:
           type: string
           description: The topic that replaces this deprecated topic. Omitted when not set.
           example: "order.created.v2"
+
+    # MCP Events Schemas (for the MCP endpoints)
+    # The results of events/list and events/subscribe are forwarded verbatim to
+    # MCP clients, so they and every pass-through field are free-form objects,
+    # and their timestamps are plain strings: generated SDKs must not drop,
+    # rename or reformat anything.
+    MCPEvent:
+      type: object
+      additionalProperties: true
+      description: One entry of the `events/list` result, built from a topic whose `mcp.enabled` is set.
+      required: [name, delivery, inputSchema, payloadSchema]
+      properties:
+        name:
+          type: string
+          description: The event name, which is the topic name.
+          example: "order.created"
+        description:
+          type: string
+          description: >-
+            The topic's `description`. For a deprecated topic, it starts with `Deprecated: use <replaced_by>.`, or `Deprecated.` when `replaced_by` isn't set. Omitted when the topic has no description.
+          example: "Fires when a new order is placed."
+        delivery:
+          type: array
+          items:
+            type: string
+          description: The delivery modes the event supports. Always `["webhook"]`.
+          example: ["webhook"]
+        inputSchema:
+          type: object
+          additionalProperties: true
+          description: >-
+            JSON Schema for the subscription `arguments`, inferred from the topic's `payload_schema`. Each filterable top-level property is an optional argument that takes a value, a list of 1 to 100 values, or, for numbers and `format: date` strings, an object of `$gt`, `$gte`, `$lt` and `$lte`. Unknown arguments fail validation. See [MCP subscription arguments](https://hookdeck.com/docs/outpost/features/topics#mcp-subscription-arguments).
+        payloadSchema:
+          type: object
+          additionalProperties: true
+          description: The topic's `payload_schema` without its `x-mcp-filter` annotations. It describes the `data` of every delivered event.
+      example:
+        name: "order.created"
+        description: "Fires when a new order is placed."
+        delivery: ["webhook"]
+        inputSchema:
+          type: object
+          properties:
+            total:
+              description: Order total in major units.
+              anyOf:
+                - type: number
+                - type: array
+                  items:
+                    type: number
+                  minItems: 1
+                  maxItems: 100
+                - type: object
+                  properties:
+                    $gt:
+                      type: number
+                    $gte:
+                      type: number
+                    $lt:
+                      type: number
+                    $lte:
+                      type: number
+                  additionalProperties: false
+                  minProperties: 1
+            currency:
+              description: ISO 4217 currency code.
+              anyOf:
+                - type: string
+                  maxLength: 256
+                - type: array
+                  items:
+                    type: string
+                    maxLength: 256
+                  minItems: 1
+                  maxItems: 100
+          additionalProperties: false
+        payloadSchema:
+          type: object
+          properties:
+            order_id:
+              type: string
+            total:
+              type: number
+              description: Order total in major units.
+            currency:
+              type: string
+              description: ISO 4217 currency code.
+            created_at:
+              type: string
+              format: date-time
+          required: [order_id, total, currency]
+    MCPEventList:
+      type: object
+      additionalProperties: true
+      description: The `events/list` result. Return it to the MCP client unchanged.
+      required: [events]
+      properties:
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/MCPEvent"
+          description: The MCP-enabled topics on this page, in `TOPICS` order.
+        nextCursor:
+          type: string
+          description: Opaque cursor for the next page, to pass back as `cursor`. Omitted when there are no more pages, as in MCP's `PaginatedResult`.
+          example: "dDpvcmRlci5jcmVhdGVk"
+    MCPSubscribeRequest:
+      type: object
+      required: [principal, params]
+      properties:
+        principal:
+          type: string
+          minLength: 1
+          description: |
+            The authenticated subject of the MCP request, such as an OAuth `sub`, as resolved by your MCP server. 1 to 512 bytes.
+
+            It is part of the subscription key, and callback verification is cached per tenant, principal and callback URL, so it must identify one subject within the tenant.
+          example: "user_8f2c"
+        params:
+          type: object
+          additionalProperties: true
+          description: |
+            The `params` of the `events/subscribe` request, passed through unchanged:
+
+            - `name` (required): the event name, an MCP-enabled topic.
+            - `arguments`: an object matching the event's `inputSchema`, up to 4 KiB as canonical JSON. Defaults to `{}`.
+            - `delivery.mode`: absent or `webhook`. Any other value fails with `unsupported`.
+            - `delivery.url` (required): the `https` callback URL, at most 2048 bytes once normalized, with no credentials or fragment.
+            - `delivery.secret` (required): `whsec_` followed by the standard base64 encoding, padded or not, of 24 to 64 bytes.
+            - `ttlMs`: the suggested lifetime in milliseconds. Absent grants `MCP_TTL_DEFAULT`. A number is rounded down and clamped to `MCP_TTL_MIN` and `MCP_TTL_MAX`, so a negative value grants the minimum. `null` requests no expiry, granted only with `MCP_ALLOW_NO_EXPIRY=true`, else `MCP_TTL_MAX`. Any other type fails with `invalid_params`.
+
+            `cursor`, `maxAgeMs` and unknown fields are ignored.
+          example:
+            name: "order.created"
+            arguments:
+              total:
+                $gte: 100
+              currency: "USD"
+            delivery:
+              mode: "webhook"
+              url: "https://receiver.example.com/mcp-events/abc123"
+              secret: "whsec_MfKQ9r8GKYqrTwjUPD8ILPZIo2LaLaSw"
+            cursor: null
+        filter:
+          type: object
+          additionalProperties: true
+          description: |
+            Optional. A [destination filter](https://hookdeck.com/docs/outpost/features/filter) that replaces the filter Outpost generates from `params.arguments`, for logic the arguments can't express. It matches the whole event, so payload fields sit under `data`. Up to 8 KiB as canonical JSON.
+
+            It's applied on every subscribe call: a refresh without it switches the subscription back to the generated filter.
+          example:
+            data:
+              total:
+                $gte: 100
+              currency:
+                $in: ["USD", "CAD"]
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          description: Optional key-value pairs stored as the subscription destination's `metadata`. A refresh without it keeps the stored metadata.
+          example:
+            plugin: "chatgpt"
+        allowed_topics:
+          type: array
+          items:
+            type: string
+          description: >-
+            Optional. The event names this principal may subscribe to, from your own authorization. When set, a `params.name` outside it fails with `not_found` (`{"kind": "event"}`), the same error as an unknown event, so the response doesn't reveal that the event exists.
+          example: ["order.created", "order.shipped"]
+    MCPUnsubscribeRequest:
+      type: object
+      required: [principal, params]
+      properties:
+        principal:
+          type: string
+          minLength: 1
+          description: The authenticated subject of the MCP request, as passed to the subscribe endpoint.
+          example: "user_8f2c"
+        params:
+          type: object
+          additionalProperties: true
+          description: The `params` of the `events/unsubscribe` request, passed through unchanged. Outpost reads `name`, `arguments` (default `{}`) and `delivery.url`, and ignores every other field, including `delivery.mode` and `delivery.secret`.
+          example:
+            name: "order.created"
+            arguments:
+              total:
+                $gte: 100
+              currency: "USD"
+            delivery:
+              url: "https://receiver.example.com/mcp-events/abc123"
+    MCPSubscribeResult:
+      type: object
+      additionalProperties: true
+      description: The `events/subscribe` result. Return it to the MCP client unchanged.
+      required: [id, refreshBefore, cursor, truncated]
+      properties:
+        id:
+          type: string
+          description: The subscription ID, `sub_` followed by the first 32 hex characters of the SHA-256 of the canonical JSON of `{arguments, name, principal, url}`. It's stable across refreshes and is sent as `X-MCP-Subscription-Id` on every delivery.
+          example: "sub_1fa69bec3707ee16223ae5400f92f935"
+        refreshBefore:
+          type: string
+          nullable: true
+          description: >-
+            When the subscription expires unless the client subscribes again, as an RFC 3339 UTC timestamp truncated to the second. Always present. `null` only when the client sent `ttlMs: null` and `MCP_ALLOW_NO_EXPIRY` is `true`.
+          example: "2026-10-09T18:00:00Z"
+        cursor:
+          type: string
+          nullable: true
+          description: Always `null`. Outpost doesn't replay events.
+          example: null
+        truncated:
+          type: boolean
+          description: Always `false`.
+          example: false
+        deliveryStatus:
+          type: object
+          additionalProperties: true
+          description: |
+            Present only when the call refreshed a live subscription, and omitted if Outpost can't read the subscription's status record. The record is written by the log service as it records delivery attempts.
+
+            - `active`: `false` when the subscription had been auto-disabled after repeated failures. The refresh that returns it has re-enabled the subscription and resumed its pending retries.
+            - `lastDeliveryAt`: when the last successful delivery was made, as an RFC 3339 UTC timestamp, or `null`.
+            - `lastError`: when the last attempt failed, its category: `connection_refused`, `timeout`, `tls_error`, `http_4xx` or `http_5xx`. Otherwise `null`. It never contains response content.
+          example:
+            active: true
+            lastDeliveryAt: "2026-10-09T16:58:12Z"
+            lastError: null
+    MCPEmptyResult:
+      type: object
+      additionalProperties: true
+      description: The `events/unsubscribe` result, always the empty object `{}`. Return it to the MCP client unchanged.
+      example: {}
+    MCPSubscription:
+      type: object
+      description: An MCP Events subscription, as listed for you rather than for MCP clients.
+      required: [id, principal, event, url, created_at]
+      properties:
+        id:
+          type: string
+          description: The subscription ID, also the destination ID.
+          example: "sub_1fa69bec3707ee16223ae5400f92f935"
+        principal:
+          type: string
+          example: "user_8f2c"
+        event:
+          type: string
+          description: The subscribed event name.
+          example: "order.created"
+        arguments:
+          type: object
+          additionalProperties: true
+          description: The subscription arguments.
+          example:
+            total:
+              $gte: 100
+            currency: "USD"
+        url:
+          type: string
+          description: The callback URL, normalized.
+          example: "https://receiver.example.com/mcp-events/abc123"
+        filter:
+          type: object
+          additionalProperties: true
+          nullable: true
+          description: The destination filter, generated from `arguments` or passed as `filter` on subscribe.
+          example:
+            data:
+              total:
+                $gte: 100
+              currency: "USD"
+        expires_at:
+          type: string
+          nullable: true
+          description: When the subscription expires, as an RFC 3339 timestamp. `null` when it was granted no expiry.
+          example: "2026-10-09T18:00:00.123Z"
+        created_at:
+          type: string
+          description: When the subscription was created, as an RFC 3339 timestamp. A refresh keeps it.
+          example: "2026-10-09T17:00:00Z"
+        updated_at:
+          type: string
+          description: When the subscription was last updated, as an RFC 3339 timestamp.
+          example: "2026-10-09T17:00:00Z"
+        disabled_at:
+          type: string
+          nullable: true
+          description: When the subscription was auto-disabled, as an RFC 3339 timestamp, or `null` when it is enabled.
+          example: null
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: The `metadata` passed on subscribe.
+          example:
+            plugin: "chatgpt"
+    MCPSubscriptionsDeleteResult:
+      type: object
+      required: [success, deleted]
+      properties:
+        success:
+          type: boolean
+          example: true
+        deleted:
+          type: integer
+          description: The number of subscriptions deleted.
+          example: 3
+    MCPErrorDetail:
+      type: object
+      additionalProperties: true
+      description: An MCP Events error, ready to rethrow as a JSON-RPC error.
+      required: [kind, code, message]
+      properties:
+        kind:
+          type: string
+          description: |
+            The error kind, stable across `MCP_ERROR_CODES` profiles: `invalid_params`, `not_found`, `resource_exhausted`, `unsupported` or `callback_endpoint_error`. New kinds may be added.
+          example: "callback_endpoint_error"
+        code:
+          type: integer
+          description: The JSON-RPC error code for `kind` under the configured `MCP_ERROR_CODES` profile.
+          example: -32015
+        message:
+          type: string
+          description: The error name, such as `InvalidParams` or `CallbackEndpointError`.
+          example: "CallbackEndpointError"
+        data:
+          type: object
+          additionalProperties: true
+          description: |
+            Details whose shape depends on `kind`:
+
+            - `invalid_params`: `{field, reason, errors?}`. `field` names the request field, such as `arguments`, `delivery.url`, `delivery.secret`, `ttlMs`, `principal` or `cursor`. `reason` is a fixed code, such as `address_not_allowed`, `https_required` or `invalid_url` for `delivery.url`. `errors` lists argument validation errors as paths and messages, such as `arguments.total: must be number`, without the submitted values.
+            - `not_found`: `{kind}`, where `kind` is `event`, `tenant` or `subscription`.
+            - `resource_exhausted`: `{limit, max?, retryAfterMs?}`. `limit` is `subscriptions` (`MAX_MCP_SUBSCRIPTIONS_PER_TENANT`), `principal_subscriptions` (`MAX_MCP_SUBSCRIPTIONS_PER_PRINCIPAL`) or `verification_rate`.
+            - `unsupported`: `{feature, value}`, such as `{"feature": "deliveryMode", "value": "poll"}`.
+            - `callback_endpoint_error`: `{reason}`, one of `connection_refused`, `timeout`, `tls_error`, `http_4xx`, `http_5xx` and `challenge_failed`.
+          example:
+            reason: "challenge_failed"
+    MCPErrorResponse:
+      type: object
+      description: The body of an MCP failure (`422`) from an MCP endpoint.
+      required: [mcp_error]
+      properties:
+        mcp_error:
+          $ref: "#/components/schemas/MCPErrorDetail"
 
     MetricsDataPoint:
       type: object
@@ -4131,6 +4731,7 @@ tags:
       | `attempt.success` | Every successful delivery attempt |
       | `attempt.failed` | Every failed delivery attempt, including retries |
       | `tenant.subscription.updated` | A destination was created, updated or deleted and the tenant's topics or destination count changed |
+      | `mcp.subscription.expired` | An MCP Events subscription reached its `expires_at` without a refresh and Outpost deleted it |
 
       A destination may subscribe to every topic with `["*"]`, but `attempt.success` and `attempt.failed` fire once per delivery attempt and will dominate volume. Prefer an explicit topic list.
 
@@ -4147,6 +4748,32 @@ tags:
       The `topics` array can contain either a list of topics or a wildcard `*` implying that all topics are supported. If you do not wish to implement topics for your application, you set all destination topics to `*`.
 
       By default all destination `credentials` are obfuscated and the values cannot be read. This does not apply to the `webhook` type destination secret and each destination can expose their own obfuscation logic.
+
+      Destinations of type `mcp` are [MCP Events subscriptions](https://hookdeck.com/docs/outpost/destinations/mcp). They are created, refreshed and deleted through the MCP endpoints, so these endpoints can read and enable them but not create, update, disable or delete them. API v1 leaves them out entirely.
+  - name: MCP
+    x-outpost-deployment: self-hosted
+    description: |
+      The MCP endpoints back the [MCP Events](https://hookdeck.com/docs/outpost/guides/mcp-events) methods of your MCP server. Your MCP server authenticates each MCP request, resolves its principal and tenant, and forwards `events/list`, `events/subscribe` and `events/unsubscribe` to the first three endpoints. Each returns the MCP result to send back unchanged, or `422` with an `mcp_error` to rethrow as the JSON-RPC error. The other three endpoints are for you, not for MCP clients: list subscriptions, and end them when access is revoked.
+
+      A subscription is a destination of type `mcp` whose ID is derived from the principal, the callback URL, the event name and the arguments. See [MCP destination](https://hookdeck.com/docs/outpost/destinations/mcp) for how events are delivered.
+
+      These endpoints are only served by API v2 (`/api/v2`). Managed Outpost doesn't serve API v2 yet.
+
+      **Errors**
+
+      An MCP failure returns `422` with the body `{"mcp_error": {"kind", "code", "message", "data"}}`. `kind` is stable. `code` depends on `MCP_ERROR_CODES`, and `message` is the error name.
+
+      | `kind` | `message` | `code` (`sketch`, the default) | `code` (`sep-3415`) | `data` |
+      |--------|-----------|--------------------------------|---------------------|--------|
+      | `invalid_params` | `InvalidParams` | `-32602` | `-32602` | `{field, reason, errors?}` |
+      | `not_found` | `NotFound` | `-32011` | `-32023` | `{kind: "event" \| "tenant" \| "subscription"}` |
+      | `resource_exhausted` | `ResourceExhausted` | `-32013` | `-32025` | `{limit: "subscriptions" \| "principal_subscriptions" \| "verification_rate", max?, retryAfterMs?}` |
+      | `unsupported` | `Unsupported` | `-32014` | `-32026` | `{feature, value}` |
+      | `callback_endpoint_error` | `CallbackEndpointError` | `-32015` | `-32027` | `{reason}`: `connection_refused`, `timeout`, `tls_error`, `http_4xx`, `http_5xx` or `challenge_failed` |
+
+      The endpoints never return `Forbidden` (`-32012`, or `-32024` with `sep-3415`): your MCP server authorizes the principal before calling them. Outpost uses that code only in the `terminated` envelope it sends when you revoke a subscription.
+
+      `mcp_error` never contains callback response content, resolved addresses or published values. A callback host that doesn't resolve, resolves to an address that isn't allowed, or can't be checked returns the same `invalid_params` error, `{"field": "delivery.url", "reason": "address_not_allowed"}`, so the response can't be used to probe internal hosts.
   - name: Publish
     description: Use the Publish endpoint to send events into Outpost. Events are matched against all destinations whose topic subscriptions and filters match the event. Requires Admin API Key.
   - name: Retry
@@ -5281,7 +5908,8 @@ paths:
               - type: array
                 items:
                   type: string
-          description: Filter events by matched destination ID(s). Returns events that were routed to the specified destination(s). Use bracket notation for multiple values (e.g., `destination_id[0]=d1&destination_id[1]=d2`).
+          description: >-
+            Filter events by matched destination ID(s). Returns events that were routed to the specified destination(s). Use bracket notation for multiple values (e.g., `destination_id[0]=d1&destination_id[1]=d2`). Events don't record MCP Events subscriptions in `matched_destination_ids`, so an MCP subscription ID matches no events: list its attempts instead.
         - name: topic
           in: query
           required: false
@@ -5437,6 +6065,8 @@ paths:
 
         When authenticated with a Tenant JWT, returns only attempts belonging to that tenant.
         When authenticated with Admin API Key, returns attempts across all tenants. Use `tenant_id` query parameter to filter by tenant.
+
+        API v1 doesn't return attempts to MCP Events subscriptions (type `mcp`). In API v2, they are the way to see deliveries to MCP subscriptions, which events don't record in `matched_destination_ids`.
       operationId: listAttempts
       security:
         - AdminApiKey: []
@@ -5648,6 +6278,8 @@ paths:
 
         When authenticated with a Tenant JWT, only attempts belonging to that tenant can be accessed.
         When authenticated with Admin API Key, attempts from any tenant can be accessed.
+
+        In API v1, an attempt to an MCP Events subscription (type `mcp`) returns `404`.
       operationId: getAttempt
       parameters:
         - name: tenant_id
@@ -5813,7 +6445,10 @@ paths:
     get:
       tags: [Destinations]
       summary: List Destinations
-      description: Return a list of the destinations for the tenant. The endpoint is not paged.
+      description: |
+        Return a list of the destinations for the tenant. The endpoint is not paged.
+
+        In API v2, the list includes the tenant's MCP Events subscriptions (type `mcp`). API v1 leaves them out.
       operationId: listTenantDestinations
       parameters:
         - name: type
@@ -5895,7 +6530,10 @@ paths:
     post:
       tags: [Destinations]
       summary: Create Destination
-      description: Creates a new destination for the tenant. The request body structure depends on the `type`.
+      description: |
+        Creates a new destination for the tenant. The request body structure depends on the `type`.
+
+        `type: mcp` is rejected with `400`, in API v1 and v2: MCP Events subscriptions are created through `PUT /tenants/{tenant_id}/mcp/subscriptions`, so that their identity, callback verification and expiry can't be bypassed. MCP subscriptions don't count toward `MAX_DESTINATIONS_PER_TENANT`.
       operationId: createTenantDestination
       requestBody:
         required: true
@@ -5965,7 +6603,10 @@ paths:
     get:
       tags: [Destinations]
       summary: Get Destination
-      description: Retrieves details for a specific destination.
+      description: |
+        Retrieves details for a specific destination.
+
+        In API v1, an MCP Events subscription (type `mcp`) returns `404`.
       operationId: getTenantDestination
       responses:
         "200":
@@ -6000,7 +6641,10 @@ paths:
     patch:
       tags: [Destinations]
       summary: Update Destination
-      description: Updates the configuration of an existing destination. The request body structure depends on the destination's `type`. Type itself cannot be updated. May return an OAuth redirect URL for certain types.
+      description: |
+        Updates the configuration of an existing destination. The request body structure depends on the destination's `type`. Type itself cannot be updated. May return an OAuth redirect URL for certain types.
+
+        An MCP Events subscription (type `mcp`) can't be updated and returns `400`. The MCP client changes it by subscribing again.
       operationId: updateTenantDestination
       requestBody:
         required: true
@@ -6039,6 +6683,8 @@ paths:
                       secret: "whsec_abc123def456"
                       previous_secret: "whsec_prev789xyz012"
                       previous_secret_invalid_at: "2024-02-16T10:00:00Z"
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -6054,7 +6700,10 @@ paths:
     delete:
       tags: [Destinations]
       summary: Delete Destination
-      description: Deletes a specific destination.
+      description: |
+        Deletes a specific destination.
+
+        An MCP Events subscription (type `mcp`) returns `400`: delete it with `DELETE /tenants/{tenant_id}/mcp/subscriptions/{subscription_id}`, which also notifies the MCP client.
       operationId: deleteTenantDestination
       responses:
         "200":
@@ -6067,6 +6716,8 @@ paths:
                 SuccessExample:
                   value:
                     success: true
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -6093,7 +6744,10 @@ paths:
     put:
       tags: [Destinations]
       summary: Enable Destination
-      description: Enables a previously disabled destination.
+      description: |
+        Enables a previously disabled destination.
+
+        This also works on an auto-disabled MCP Events subscription (type `mcp`), with the same effect as a refresh from the MCP client: Outpost resets its consecutive-failure count and resumes the automatic retries it held while the subscription was disabled. Use it for a subscription granted no expiry, whose client may never refresh.
       operationId: enableTenantDestination
       responses:
         "200":
@@ -6143,7 +6797,10 @@ paths:
     put:
       tags: [Destinations]
       summary: Disable Destination
-      description: Disables a previously enabled destination.
+      description: |
+        Disables a previously enabled destination.
+
+        An MCP Events subscription (type `mcp`) can't be disabled and returns `400`. End it with `DELETE /tenants/{tenant_id}/mcp/subscriptions/{subscription_id}` instead.
       operationId: disableTenantDestination
       responses:
         "200":
@@ -6167,6 +6824,8 @@ paths:
                       secret: "whsec_abc123def456"
                       previous_secret: "whsec_prev789xyz012"
                       previous_secret_invalid_at: "2024-02-16T10:00:00Z"
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -6198,6 +6857,8 @@ paths:
         Retrieves a paginated list of attempts scoped to a specific destination.
 
         Returns `404` if the destination does not exist or has been deleted. The attempts of a deleted destination remain available from `GET /attempts?destination_id=`.
+
+        API v1 doesn't return attempts to MCP Events subscriptions (type `mcp`).
       operationId: listTenantDestinationAttempts
       parameters:
         - name: event_id
@@ -6361,6 +7022,8 @@ paths:
         Retrieves details for a specific attempt scoped to a destination.
 
         Returns `404` if the destination does not exist or has been deleted, or if the destination has no attempt with this ID. An attempt of a deleted destination remains available from `GET /attempts/{attempt_id}`.
+
+        In API v1, an attempt to an MCP Events subscription (type `mcp`) returns `404`.
       operationId: getTenantDestinationAttempt
       parameters:
         - name: include
@@ -6402,6 +7065,476 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  # MCP Events (API v2 only)
+  /tenants/{tenant_id}/mcp/events:
+    parameters:
+      - name: tenant_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The tenant the MCP request is for. The event list doesn't depend on the tenant, which doesn't need to exist.
+    get:
+      tags: [MCP]
+      summary: List MCP Events
+      x-outpost-deployment: self-hosted
+      description: |
+        Returns the `events/list` result for an MCP client: one entry per topic whose `mcp.enabled` is set, in `TOPICS` order. Return the body to the client unchanged. The protocol envelope, such as `resultType`, stays your MCP server's job.
+
+        Pass `topics` to list only the events the principal may discover, after your own authorization check. Topics are instance configuration, so the result only changes when you deploy new topic schemas.
+
+        A page holds up to `limit` events and about 1 MiB of JSON, and at least one event. `nextCursor` is present only when more pages remain. An invalid `cursor` or `limit` fails with `invalid_params`.
+
+        API v2 only. Requires the Admin API Key.
+      operationId: listMCPEvents
+      security:
+        - AdminApiKey: []
+      parameters:
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+          description: The `cursor` from the `events/list` request params, passed through unchanged.
+        - name: topics
+          in: query
+          required: false
+          style: form
+          explode: false
+          schema:
+            type: array
+            items:
+              type: string
+          description: |
+            The event names the principal may discover. Comma-separated (`topics=order.created,order.shipped`), repeated (`topics=order.created&topics=order.shipped`) or both. Names that aren't MCP-enabled topics are ignored.
+
+            Present but empty (`topics=`) lists no events. Omit it to list every MCP-enabled topic.
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 100
+          description: Maximum number of events per page (1-100, default 100).
+      responses:
+        "200":
+          description: The `events/list` result.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MCPEventList"
+              examples:
+                LastPage:
+                  summary: One page, no more pages
+                  value:
+                    events:
+                      - name: "order.created"
+                        description: "Fires when a new order is placed."
+                        delivery: ["webhook"]
+                        inputSchema:
+                          type: object
+                          properties:
+                            total:
+                              description: Order total in major units.
+                              anyOf:
+                                - type: number
+                                - type: array
+                                  items:
+                                    type: number
+                                  minItems: 1
+                                  maxItems: 100
+                                - type: object
+                                  properties:
+                                    $gt:
+                                      type: number
+                                    $gte:
+                                      type: number
+                                    $lt:
+                                      type: number
+                                    $lte:
+                                      type: number
+                                  additionalProperties: false
+                                  minProperties: 1
+                            currency:
+                              description: ISO 4217 currency code.
+                              anyOf:
+                                - type: string
+                                  maxLength: 256
+                                - type: array
+                                  items:
+                                    type: string
+                                    maxLength: 256
+                                  minItems: 1
+                                  maxItems: 100
+                          additionalProperties: false
+                        payloadSchema:
+                          type: object
+                          properties:
+                            order_id:
+                              type: string
+                            total:
+                              type: number
+                              description: Order total in major units.
+                            currency:
+                              type: string
+                              description: ISO 4217 currency code.
+                            created_at:
+                              type: string
+                              format: date-time
+                          required: [order_id, total, currency]
+                MoreEvents:
+                  summary: A page with more pages after it
+                  value:
+                    events:
+                      - name: "order.created"
+                        delivery: ["webhook"]
+                        inputSchema:
+                          type: object
+                          properties: {}
+                          additionalProperties: false
+                        payloadSchema:
+                          type: object
+                    nextCursor: "dDpvcmRlci5jcmVhdGVk"
+                NoEvents:
+                  summary: No MCP-enabled topic, or an empty topics allowlist
+                  value:
+                    events: []
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "422":
+          $ref: "#/components/responses/MCPError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /tenants/{tenant_id}/mcp/subscriptions:
+    parameters:
+      - name: tenant_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The ID of the tenant the subscription belongs to, which is the tenant your events for it are published to.
+    put:
+      tags: [MCP]
+      summary: Subscribe (MCP)
+      x-outpost-deployment: self-hosted
+      description: |
+        Creates or refreshes a webhook subscription from an `events/subscribe` request, and returns the `events/subscribe` result. Return it to the MCP client unchanged.
+
+        The call is idempotent. The subscription ID is derived from `principal`, the normalized `params.delivery.url`, `params.name` and `params.arguments`, so the same request refreshes the existing subscription. Outpost:
+
+        1. Validates `params` (see `MCPSubscribeRequest`): the event must be MCP-enabled and, when `allowed_topics` is set, in it, and `arguments` must match the event's `inputSchema`.
+        2. Resolves the callback host and rejects it unless every address is globally routable per the IANA special-purpose address registries, or in `MCP_CALLBACK_ALLOWLIST`.
+        3. Verifies the callback, unless verification for the same tenant, principal and URL passed within `MCP_VERIFICATION_TTL`: it POSTs a signed `{"type": "verification", "challenge": "<nonce>"}` envelope and requires a `2xx` response whose body is `{"challenge": "<nonce>"}`. Redirects are not followed. Each challenge counts toward `MCP_VERIFICATION_RATE_LIMIT` for the principal.
+        4. Grants a TTL from `params.ttlMs`, then creates or updates the `mcp` destination with the subscription ID.
+
+        A new subscription counts toward `MAX_MCP_SUBSCRIPTIONS_PER_TENANT` and `MAX_MCP_SUBSCRIPTIONS_PER_PRINCIPAL`. A refresh extends the expiry and replaces the secret when it changed, signing with the previous one too for `MCP_SECRET_ROTATION_GRACE`. It also re-enables an auto-disabled subscription and resumes its pending retries, and returns `deliveryStatus`. A subscription past its `expires_at` is deleted, reported as `mcp.subscription.expired`, and replaced by a new one.
+
+        The tenant must exist. A missing tenant fails with `not_found` (`{"kind": "tenant"}`). An existing destination with the subscription ID that isn't an MCP subscription fails with `invalid_params` (`{"field": "id", "reason": "conflict"}`).
+
+        Verification can take up to 10 seconds, and the whole call up to 20 seconds, so set your HTTP client timeout above 20 seconds.
+
+        API v2 only. Requires the Admin API Key.
+      operationId: subscribeMCP
+      security:
+        - AdminApiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MCPSubscribeRequest"
+            example:
+              principal: "user_8f2c"
+              params:
+                name: "order.created"
+                arguments:
+                  total:
+                    $gte: 100
+                  currency: "USD"
+                delivery:
+                  mode: "webhook"
+                  url: "https://receiver.example.com/mcp-events/abc123"
+                  secret: "whsec_MfKQ9r8GKYqrTwjUPD8ILPZIo2LaLaSw"
+                cursor: null
+              allowed_topics: ["order.created", "order.shipped"]
+      responses:
+        "200":
+          description: The subscription was created or refreshed. The body is the `events/subscribe` result.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MCPSubscribeResult"
+              examples:
+                Created:
+                  summary: New subscription
+                  value:
+                    id: "sub_1fa69bec3707ee16223ae5400f92f935"
+                    refreshBefore: "2026-10-09T18:00:00Z"
+                    cursor: null
+                    truncated: false
+                Refreshed:
+                  summary: Refresh of a live subscription
+                  value:
+                    id: "sub_1fa69bec3707ee16223ae5400f92f935"
+                    refreshBefore: "2026-10-09T19:00:00Z"
+                    cursor: null
+                    truncated: false
+                    deliveryStatus:
+                      active: true
+                      lastDeliveryAt: "2026-10-09T16:58:12Z"
+                      lastError: null
+                ReenabledAfterFailures:
+                  summary: Refresh that re-enabled an auto-disabled subscription
+                  value:
+                    id: "sub_1fa69bec3707ee16223ae5400f92f935"
+                    refreshBefore: "2026-10-09T19:00:00Z"
+                    cursor: null
+                    truncated: false
+                    deliveryStatus:
+                      active: false
+                      lastDeliveryAt: "2026-10-09T15:45:00Z"
+                      lastError: "http_5xx"
+                NoExpiry:
+                  summary: ttlMs null with MCP_ALLOW_NO_EXPIRY=true
+                  value:
+                    id: "sub_1fa69bec3707ee16223ae5400f92f935"
+                    refreshBefore: null
+                    cursor: null
+                    truncated: false
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "413":
+          $ref: "#/components/responses/RequestBodyTooLarge"
+        "422":
+          $ref: "#/components/responses/MCPError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    get:
+      tags: [MCP]
+      summary: List MCP Subscriptions
+      x-outpost-deployment: self-hosted
+      description: |
+        Lists the tenant's MCP subscriptions, optionally narrowed to one principal or one event. For you, not for MCP clients. The list isn't paginated: it holds at most `MAX_MCP_SUBSCRIPTIONS_PER_TENANT` subscriptions.
+
+        A subscription past its `expires_at` stays listed until the background sweep deletes it, within about `MCP_EXPIRY_SWEEP_INTERVAL` plus 60 seconds. No delivery is attempted after `expires_at`.
+
+        API v2 only. Accepts a Tenant JWT.
+      operationId: listMCPSubscriptions
+      security:
+        - AdminApiKey: []
+        - TenantJwt: []
+      parameters:
+        - name: principal
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Only list this principal's subscriptions.
+        - name: topic
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Only list subscriptions to this event name.
+      responses:
+        "200":
+          description: The tenant's MCP subscriptions.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MCPSubscription"
+              example:
+                - id: "sub_1fa69bec3707ee16223ae5400f92f935"
+                  principal: "user_8f2c"
+                  event: "order.created"
+                  arguments:
+                    total:
+                      $gte: 100
+                    currency: "USD"
+                  url: "https://receiver.example.com/mcp-events/abc123"
+                  filter:
+                    data:
+                      total:
+                        $gte: 100
+                      currency: "USD"
+                  expires_at: "2026-10-09T18:00:00.123Z"
+                  created_at: "2026-10-09T17:00:00Z"
+                  updated_at: "2026-10-09T17:00:00Z"
+                  disabled_at: null
+                  metadata:
+                    plugin: "chatgpt"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/MCPError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    delete:
+      tags: [MCP]
+      summary: Delete a Principal's MCP Subscriptions
+      x-outpost-deployment: self-hosted
+      description: |
+        Ends every subscription of one principal in the tenant, for a disconnected account or revoked access.
+
+        Outpost first records the revocation for 10 minutes, so a subscribe call for this principal that is already in flight can't recreate a subscription after this call returns. It then deletes each subscription, drops its pending retries, and sends it a `terminated` envelope with the `Forbidden` error and `{"reason": "access_revoked"}` (unless `MCP_SEND_TERMINATED=false`). It doesn't block subscribe calls that start afterward: your MCP server must deny them.
+
+        A missing or empty `principal` fails with `invalid_params` (`{"field": "principal"}`).
+
+        API v2 only. Requires the Admin API Key.
+      operationId: deleteMCPSubscriptions
+      security:
+        - AdminApiKey: []
+      parameters:
+        - name: principal
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 1
+          description: The principal whose subscriptions to end.
+      responses:
+        "200":
+          description: The principal's subscriptions were deleted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MCPSubscriptionsDeleteResult"
+              example:
+                success: true
+                deleted: 3
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/MCPError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /tenants/{tenant_id}/mcp/subscriptions/unsubscribe:
+    parameters:
+      - name: tenant_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The ID of the tenant the subscription belongs to.
+    post:
+      tags: [MCP]
+      summary: Unsubscribe (MCP)
+      x-outpost-deployment: self-hosted
+      description: |
+        Ends a subscription from an `events/unsubscribe` request, and returns the `events/unsubscribe` result, `{}`. Return it to the MCP client unchanged.
+
+        Outpost derives the subscription ID the way subscribe does, deletes the subscription and drops its pending retries. It returns `{}` whether or not anything matched, including when the tenant doesn't exist. It doesn't check the event against the current topics, so a subscription to a topic that is no longer MCP-enabled can still be removed. No `terminated` envelope is sent.
+
+        Only a malformed request fails, with `invalid_params`: a missing `principal` or `params.name`, `arguments` that aren't an object or exceed 4 KiB, or a `delivery.url` that can't be normalized.
+
+        API v2 only. Requires the Admin API Key.
+      operationId: unsubscribeMCP
+      security:
+        - AdminApiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MCPUnsubscribeRequest"
+            example:
+              principal: "user_8f2c"
+              params:
+                name: "order.created"
+                arguments:
+                  total:
+                    $gte: 100
+                  currency: "USD"
+                delivery:
+                  mode: "webhook"
+                  url: "https://receiver.example.com/mcp-events/abc123"
+      responses:
+        "200":
+          description: The `events/unsubscribe` result.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MCPEmptyResult"
+              example: {}
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "413":
+          $ref: "#/components/responses/RequestBodyTooLarge"
+        "422":
+          $ref: "#/components/responses/MCPError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /tenants/{tenant_id}/mcp/subscriptions/{subscription_id}:
+    parameters:
+      - name: tenant_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The ID of the tenant. Required when using AdminApiKey authentication.
+      - name: subscription_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The subscription ID, which is also its destination ID.
+    delete:
+      tags: [MCP]
+      summary: Delete MCP Subscription
+      x-outpost-deployment: self-hosted
+      description: |
+        Ends one subscription, for revoked access or a tenant disconnecting an agent. The tenant portal's **Disconnect** action calls it.
+
+        Outpost deletes the subscription, drops its pending retries, and sends a `terminated` envelope with the `Forbidden` error and `{"reason": "access_revoked"}` to the callback URL (unless `MCP_SEND_TERMINATED=false`). Returns `404` when the tenant has no MCP subscription with this ID, including when the ID belongs to another destination type.
+
+        This only ends the subscription. If the principal keeps access to the event, the MCP client can subscribe again.
+
+        API v2 only. Accepts a Tenant JWT.
+      operationId: deleteMCPSubscription
+      security:
+        - AdminApiKey: []
+        - TenantJwt: []
+      responses:
+        "200":
+          description: The subscription was deleted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+              example:
+                success: true
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/MCPError"
         "500":
           $ref: "#/components/responses/InternalServerError"
 
@@ -6527,6 +7660,7 @@ paths:
           description: |
             Bad request. This can happen when:
             - The destination is disabled
+            - The destination is an MCP Events subscription past its `expires_at` (`data.error` is `destination_expired`)
             - The destination does not match the event's topic or filter
             - The event has no delivery attempt for the destination
         "401":
@@ -6544,7 +7678,10 @@ paths:
     get:
       tags: [Schemas]
       summary: List Destination Type Schemas
-      description: Returns a list of JSON-based input schemas for each available destination type.
+      description: |
+        Returns a list of JSON-based input schemas for each available destination type.
+
+        In API v2, every type carries `create_mode`. Offer a create form only for `form` types, and show the `instructions` of `external` types instead. The `mcp` type is listed once at least one topic has `mcp.enabled` set. API v1 returns the same list as before, without `mcp` and without `create_mode`.
       operationId: listDestinationTypeSchemas
       responses:
         "200":
@@ -6562,6 +7699,7 @@ paths:
                       label: "Webhook"
                       description: "Send event via an HTTP POST request to a URL"
                       icon: "<svg />"
+                      create_mode: "form"
                       instructions: "Enter the URL..."
                       config_fields: [
                           {
@@ -6587,6 +7725,7 @@ paths:
                       label: "Apache Kafka"
                       description: "Send events to Apache Kafka topics for real-time event streaming"
                       icon: "<svg />"
+                      create_mode: "form"
                       config_fields:
                         [
                           {
@@ -6652,6 +7791,7 @@ paths:
                       label: "AWS SQS"
                       description: "Send event to an AWS SQS queue"
                       icon: "<svg />"
+                      create_mode: "form"
                       instructions: "Enter Queue URL..."
                       config_fields:
                         [
@@ -6697,6 +7837,33 @@ paths:
                             sensitive: true,
                           },
                         ]
+                    - type: "mcp"
+                      label: "MCP Events"
+                      description: "Deliver events to AI agents that subscribe through an MCP server"
+                      icon: "<svg />"
+                      create_mode: "external"
+                      instructions: "Connect `https://mcp.example.com/mcp` in ChatGPT or another MCP client, then ask your agent to subscribe to `order.created`."
+                      config_fields:
+                        [
+                          {
+                            key: "url",
+                            type: "text",
+                            label: "Callback URL",
+                            description: "The URL the MCP client asked events to be delivered to.",
+                            required: true,
+                          },
+                        ]
+                      credential_fields:
+                        [
+                          {
+                            key: "secret",
+                            type: "text",
+                            label: "Secret",
+                            description: "Signing secret supplied by the MCP client.",
+                            required: true,
+                            sensitive: true,
+                          },
+                        ]
         "401":
           $ref: "#/components/responses/Unauthorized"
         "500":
@@ -6709,12 +7876,15 @@ paths:
         required: true
         schema:
           type: string
-          enum: [webhook, aws_sqs, rabbitmq, hookdeck, aws_kinesis, azure_servicebus, aws_s3, gcp_pubsub, kafka, cloudflare_queues, aws_eventbridge]
+          enum: [webhook, aws_sqs, rabbitmq, hookdeck, aws_kinesis, azure_servicebus, aws_s3, gcp_pubsub, kafka, cloudflare_queues, aws_eventbridge, mcp]
         description: The type of the destination.
     get:
       tags: [Schemas]
       summary: Get Destination Type Schema
-      description: Returns the input schema for a specific destination type.
+      description: |
+        Returns the input schema for a specific destination type.
+
+        `mcp` returns `404` in API v1, and in API v2 until at least one topic has `mcp.enabled` set.
       operationId: getDestinationTypeSchema
       responses:
         "200":
@@ -6730,6 +7900,7 @@ paths:
                     label: "Webhook"
                     description: "Send event via an HTTP POST request to a URL"
                     icon: "<svg />"
+                    create_mode: "form"
                     instructions: "Enter the URL..."
                     # setup_link is optional, omitted here
                     config_fields: [
@@ -6834,6 +8005,8 @@ paths:
         **Dimensions:** `tenant_id` (admin-only), `topic`, `destination_id`
 
         **Filters:** `tenant_id` (admin-only), `topic`, `destination_id`
+
+        `destination_id` comes from the events' `matched_destination_ids`, which never lists MCP Events subscriptions. Attempt metrics include deliveries to MCP subscriptions in API v1 and v2.
       operationId: getEventMetrics
       parameters:
         - name: time

@@ -2,9 +2,10 @@
 
 The Outpost REST API is a JSON API for managing tenants, destinations, and publishing events to your webhook infrastructure.
 
-Outpost API versions are included in the base URL. Managed deployments use calendar versioning (i.e. `/2025-07-01`), while OSS/self-hosted deployments use `/v1` as the API prefix.
+Outpost API versions are included in the base URL. Managed deployments use calendar versioning (i.e. `/2025-07-01`), while OSS/self-hosted deployments use `/api/v1` and `/api/v2` as the API prefix.
 
 **Managed URL:** `https://api.outpost.hookdeck.com/2025-07-01`
 
-**Self-hosted URL:** `https://outpost.your-domain.com/api/v1`
+**Self-hosted URL:** `https://outpost.your-domain.com/api/v2`
 
+This reference describes API v2. Self-hosted Outpost serves it under `/api/v2`, beside `/api/v1`, from the same instance. API v1 is the same except where an operation says otherwise, and every managed dated version serves API v1. The [MCP Events](/docs/outpost/guides/mcp-events) endpoints are only available in API v2. See [Upgrade to API v2](/docs/outpost/self-hosting/changelog/upgrade-api-v2) for the differences.
