@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"slices"
 	"strings"
 	"sync"
@@ -19,6 +20,7 @@ import (
 	"github.com/hookdeck/outpost/internal/topicschema"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/sync/semaphore"
 )
 
 var (
@@ -51,6 +53,17 @@ type SchemaValidator interface {
 	ValidateData(topic string, data []byte) topicschema.ValidationResult
 }
 
+// validationLimiter is implemented by schema validators that only parse data
+// up to a size, such as *topicschema.Catalog.
+type validationLimiter interface {
+	MaxValidationBytes() int
+}
+
+// validationBudgetFactor bounds the data validated at once to this many times
+// the validator's size limit. Validating takes up to a few hundred times the
+// data size in memory, so concurrent publishes must not all validate at once.
+const validationBudgetFactor = 4
+
 type EventHandler interface {
 	Handle(ctx context.Context, event *models.Event) (*HandleResult, error)
 }
@@ -71,16 +84,31 @@ type eventHandler struct {
 	topics               []string
 	topicsAllowWildcards bool
 	schemaValidator      SchemaValidator
+	// validating bounds the bytes of data validated at once when the
+	// validator has a size limit, maxValidationBytes. It is nil otherwise.
+	validating         *semaphore.Weighted
+	maxValidationBytes int
 }
 
 // EventHandlerOption configures NewEventHandler.
 type EventHandlerOption func(*eventHandler)
 
 // WithSchemaValidator validates event data at publish, as configured per
-// topic. Without it no event is validated and SchemaValid stays nil.
+// topic. Without it no event is validated and SchemaValid stays nil. When the
+// validator has a size limit (MaxValidationBytes), publishes wait for their
+// turn once validationBudgetFactor times that much data is being validated.
 func WithSchemaValidator(v SchemaValidator) EventHandlerOption {
 	return func(h *eventHandler) {
 		h.schemaValidator = v
+		h.validating, h.maxValidationBytes = nil, 0
+		if l, ok := v.(validationLimiter); ok && l.MaxValidationBytes() > 0 {
+			h.maxValidationBytes = l.MaxValidationBytes()
+			budget := int64(math.MaxInt64)
+			if int64(h.maxValidationBytes) <= budget/validationBudgetFactor {
+				budget = int64(h.maxValidationBytes) * validationBudgetFactor
+			}
+			h.validating = semaphore.NewWeighted(budget)
+		}
 	}
 }
 
@@ -266,6 +294,15 @@ func (h *eventHandler) validateSchema(ctx context.Context, event *models.Event) 
 		return schemaOutcome{}, nil
 	}
 
+	// Data over the size limit is rejected or skipped without being parsed,
+	// so it doesn't wait.
+	if h.validating != nil && len(event.Data) <= h.maxValidationBytes {
+		weight := int64(len(event.Data))
+		if err := h.validating.Acquire(ctx, weight); err != nil {
+			return schemaOutcome{}, err
+		}
+		defer h.validating.Release(weight)
+	}
 	result := h.schemaValidator.ValidateData(event.Topic, event.Data)
 	switch {
 	case result.SkippedTooLarge:

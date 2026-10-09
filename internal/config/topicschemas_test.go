@@ -259,12 +259,50 @@ func TestTopicSchemas_SchemaErrors(t *testing.T) {
 		})
 	}
 
-	t.Run("YAML alias cycle fails at parse", func(t *testing.T) {
-		osi := newTopicsOS(map[string]string{"CONFIG": "config.yaml"}, map[string]string{
-			"config.yaml": "topics_schemas: &a\n  order.created: *a\n",
+	// Services that never load the catalog (delivery, log, outpost migrate,
+	// outpost config list) parse the same config file, so a topics_schemas
+	// mapping that can't be converted only fails LoadTopicCatalog.
+	yamlErrors := []struct {
+		name    string
+		yaml    string
+		wantMsg string
+	}{
+		{
+			name:    "alias cycle",
+			yaml:    "topics_schemas: &a\n  order.created: *a\n",
+			wantMsg: "alias *a refers to a node that contains it",
+		},
+		{
+			name:    "merge key",
+			yaml:    "topics_schemas:\n  order.created: &base\n    description: d\n  order.updated:\n    <<: *base\n",
+			wantMsg: "merge keys (<<) are not supported",
+		},
+	}
+	for _, tt := range yamlErrors {
+		t.Run("YAML "+tt.name+" fails only the load", func(t *testing.T) {
+			osi := newTopicsOS(map[string]string{
+				"CONFIG":                "config.yaml",
+				"SERVICE":               "delivery",
+				"POSTGRES_URL":          "postgres://localhost:5432/outpost",
+				"RABBITMQ_SERVER_URL":   "amqp://localhost:5672",
+				"AES_ENCRYPTION_SECRET": "secret",
+			}, map[string]string{"config.yaml": tt.yaml})
+			cfg, err := config.ParseWithOS(config.Flags{}, osi)
+			require.NoError(t, err)
+			require.NoError(t, cfg.Validate(config.Flags{}))
+			assert.True(t, cfg.TopicsSchemas.IsSet())
+
+			catalog, err := cfg.LoadTopicCatalog(context.Background())
+			assert.Nil(t, catalog)
+			require.ErrorIs(t, err, config.ErrInvalidTopicSchemas)
+			assert.True(t, strings.HasPrefix(err.Error(), "invalid topic schemas: topics_schemas: "), err.Error())
+			assert.Contains(t, err.Error(), tt.wantMsg)
 		})
-		_, err := config.ParseWithoutValidation(config.Flags{}, osi)
-		require.ErrorIs(t, err, config.ErrInvalidTopicSchemas)
+	}
+
+	t.Run("env replaces a YAML mapping that can't be converted", func(t *testing.T) {
+		cfg, _ := parseTopicsConfig(t, map[string]string{"TOPICS_SCHEMAS": orderSchemasJSON}, nil, yamlErrors[1].yaml)
+		requireOrderCreated(t, loadCatalog(t, cfg))
 	})
 }
 
@@ -329,7 +367,7 @@ func TestTopicSchemas_Validate(t *testing.T) {
 
 func TestTopicSchemas_Defaults(t *testing.T) {
 	cfg, _ := parseTopicsConfig(t, nil, nil, "")
-	assert.Equal(t, 1048576, cfg.TopicsValidationMaxBytes)
+	assert.Equal(t, 262144, cfg.TopicsValidationMaxBytes)
 	assert.False(t, cfg.TopicsSchemas.IsSet())
 
 	cfg, _ = parseTopicsConfig(t, map[string]string{"TOPICS_VALIDATION_MAX_BYTES": "2048"}, nil, "")
@@ -360,6 +398,20 @@ func TestTopicSchemas_TopicCatalogBeforeLoad(t *testing.T) {
 	assert.Same(t, stored, copied.TopicCatalog())
 }
 
+func TestTopicSchemas_OpenAPIWithoutTopics(t *testing.T) {
+	// An empty TOPICS allows any topic, so imported definitions can't be
+	// checked against it, rather than all being skipped.
+	path := t.TempDir() + "/openapi.yaml"
+	require.NoError(t, os.WriteFile(path, []byte(shopOpenAPI), 0o600))
+
+	c := &config.Config{}
+	c.InitDefaults()
+	c.TopicsSchemasOpenAPI = path
+	_, err := c.LoadTopicCatalog(context.Background())
+	require.ErrorIs(t, err, config.ErrInvalidTopicSchemas)
+	assert.Contains(t, err.Error(), "topic schemas require TOPICS to list the topics")
+}
+
 func TestTopicSchemas_ConfigBuiltInCodeReadsRealFiles(t *testing.T) {
 	path := t.TempDir() + "/topics.json"
 	require.NoError(t, os.WriteFile(path, []byte(orderSchemasJSON), 0o600))
@@ -387,6 +439,28 @@ func TestTopicSchemas_OpenAPIFile(t *testing.T) {
 		assert.True(t, topic.MCP.Enabled)
 		assert.Equal(t, []string{`imported topic "invoice.paid" is not in TOPICS and was skipped`}, catalog.Warnings())
 		assert.Equal(t, digest, cfg.TopicsSchemasOpenAPIDigest())
+	})
+
+	t.Run("broken webhooks outside TOPICS are skipped", func(t *testing.T) {
+		doc := strings.Replace(shopOpenAPI, "              type: object\ncomponents:", "              $ref: './schemas/invoice.yaml'\ncomponents:", 1)
+		doc = strings.Replace(doc, "webhooks:\n", "webhooks:\n  refund.issued:\n    $ref: 'hooks.yaml#/refund'\n", 1)
+		files := map[string]string{"openapi.yaml": doc}
+
+		cfg, _ := parseTopicsConfig(t, map[string]string{"TOPICS_SCHEMAS_OPENAPI": "openapi.yaml"}, files, "")
+		catalog := loadCatalog(t, cfg)
+		topic, ok := catalog.Topic("order.created")
+		require.True(t, ok)
+		assert.True(t, topic.MCP.Enabled)
+		assert.Equal(t, []string{
+			`imported topic "invoice.paid" is not in TOPICS and was skipped`,
+			`imported topic "refund.issued" is not in TOPICS and was skipped; it would fail to import: /webhooks/refund.issued/$ref: external $ref "hooks.yaml#/refund" is not supported; move the referenced object into the document`,
+		}, catalog.Warnings())
+
+		cfg, _ = parseTopicsConfig(t, map[string]string{"TOPICS_SCHEMAS_OPENAPI": "openapi.yaml", "TOPICS": "order.created,invoice.paid"}, files, "")
+		_, err := cfg.LoadTopicCatalog(context.Background())
+		require.ErrorIs(t, err, config.ErrInvalidTopicSchemas)
+		assert.Contains(t, err.Error(), `topic "invoice.paid": /webhooks/invoice.paid/post/requestBody/content/application~1json/schema/$ref: external $ref "./schemas/invoice.yaml" is not supported`)
+		assert.NotContains(t, err.Error(), "refund.issued")
 	})
 
 	t.Run("TOPICS_SCHEMAS replaces imported entries", func(t *testing.T) {
@@ -567,7 +641,7 @@ func TestTopicSchemas_NoIOOutsideLoad(t *testing.T) {
 			assert.NotContains(t, summary["topics_schemas_openapi"], "hunter2")
 			assert.Contains(t, summary, "topics_schemas_configured")
 			assert.Contains(t, summary, "topics_schemas_openapi_sha256_configured")
-			assert.EqualValues(t, 1048576, summary["topics_validation_max_bytes"])
+			assert.EqualValues(t, 262144, summary["topics_validation_max_bytes"])
 
 			_, err = cfg.LoadTopicCatalog(context.Background())
 			require.NoError(t, err)

@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -352,4 +354,138 @@ func TestSchemaValidationError(t *testing.T) {
 	assert.Equal(t,
 		`event data does not match the topic schema: topic "order.created": data.total: must be number; data.id: must be string`,
 		err.Error())
+}
+
+// blockingValidator holds every validation until released, and caps the data
+// it validates like *topicschema.Catalog.
+type blockingValidator struct {
+	maxBytes int
+	// entered receives the size of each validation once it starts.
+	entered chan int
+	release chan struct{}
+	once    sync.Once
+}
+
+func newBlockingValidator(maxBytes int) *blockingValidator {
+	return &blockingValidator{maxBytes: maxBytes, entered: make(chan int, 16), release: make(chan struct{})}
+}
+
+func (v *blockingValidator) MaxValidationBytes() int { return v.maxBytes }
+
+// releaseAll lets every validation, current and future, finish.
+func (v *blockingValidator) releaseAll() { v.once.Do(func() { close(v.release) }) }
+
+func (v *blockingValidator) ValidateData(_ string, data []byte) topicschema.ValidationResult {
+	v.entered <- len(data)
+	<-v.release
+	return topicschema.ValidationResult{Mode: topicschema.ValidationOff}
+}
+
+// waitEntered returns the size of the next validation to start.
+func (v *blockingValidator) waitEntered(t *testing.T) int {
+	t.Helper()
+	select {
+	case n := <-v.entered:
+		return n
+	case <-time.After(2 * time.Second):
+		t.Fatal("a validation should have started")
+		return 0
+	}
+}
+
+// requireWaiting fails if a validation starts soon.
+func (v *blockingValidator) requireWaiting(t *testing.T) {
+	t.Helper()
+	select {
+	case n := <-v.entered:
+		t.Fatalf("a validation of %d bytes started; it should wait", n)
+	case <-time.After(50 * time.Millisecond):
+	}
+}
+
+func TestEventHandler_SchemaValidationBudget(t *testing.T) {
+	type publishFunc func(ctx context.Context, id string, size int) <-chan error
+	// The validator caps data at 100 bytes, so at most 400 bytes are
+	// validated at once.
+	setup := func(t *testing.T) (*blockingValidator, publishFunc) {
+		v := newBlockingValidator(100)
+		handler := publishmq.NewEventHandler(
+			testutil.CreateTestLogger(t), nil, tenantstore.NewMemTenantStore(), nil,
+			testutil.TestTopics, false, nil,
+			publishmq.WithSchemaValidator(v),
+			publishmq.WithMetrics(newFakeMetrics(t)),
+		)
+		var running sync.WaitGroup
+		t.Cleanup(func() {
+			v.releaseAll()
+			running.Wait()
+		})
+		publish := func(ctx context.Context, id string, size int) <-chan error {
+			event := schemaEvent(id)
+			const prefix = `{"pad":"`
+			event.Data = json.RawMessage(prefix + strings.Repeat("x", size-len(prefix)-2) + `"}`)
+			done := make(chan error, 1)
+			running.Go(func() {
+				_, err := handler.Handle(ctx, event)
+				done <- err
+			})
+			return done
+		}
+		return v, publish
+	}
+	// fill starts four 100-byte validations, which take the whole budget.
+	fill := func(t *testing.T, v *blockingValidator, publish publishFunc) []<-chan error {
+		var done []<-chan error
+		for i := range 4 {
+			done = append(done, publish(t.Context(), fmt.Sprintf("evt_%d", i), 100))
+			assert.Equal(t, 100, v.waitEntered(t))
+		}
+		return done
+	}
+	result := func(t *testing.T, done <-chan error) error {
+		t.Helper()
+		select {
+		case err := <-done:
+			return err
+		case <-time.After(2 * time.Second):
+			t.Fatal("the publish should have returned")
+			return nil
+		}
+	}
+
+	t.Run("validations beyond the budget wait", func(t *testing.T) {
+		v, publish := setup(t)
+		done := fill(t, v, publish)
+
+		next := publish(t.Context(), "evt_next", 100)
+		v.requireWaiting(t)
+
+		v.release <- struct{}{}
+		assert.Equal(t, 100, v.waitEntered(t), "a finished validation lets the next one start")
+		v.releaseAll()
+		for _, d := range append(done, next) {
+			require.NoError(t, result(t, d))
+		}
+	})
+
+	t.Run("waiting ends with the context", func(t *testing.T) {
+		v, publish := setup(t)
+		fill(t, v, publish)
+
+		ctx, cancel := context.WithCancel(t.Context())
+		waiting := publish(ctx, "evt_cancelled", 100)
+		v.requireWaiting(t)
+		cancel()
+		require.ErrorIs(t, result(t, waiting), context.Canceled)
+		v.requireWaiting(t)
+	})
+
+	t.Run("data over the size limit doesn't wait", func(t *testing.T) {
+		// The validator rejects or skips it without parsing it.
+		v, publish := setup(t)
+		fill(t, v, publish)
+
+		publish(t.Context(), "evt_large", 101)
+		assert.Equal(t, 101, v.waitEntered(t))
+	})
 }
