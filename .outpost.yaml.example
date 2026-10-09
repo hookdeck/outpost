@@ -72,7 +72,7 @@ topics: # List of topics to subscribe to
 # topics_schemas_file: "config/outpost/topics-schemas.yaml" # YAML or JSON file with the same content
 # topics_schemas_openapi: "config/outpost/openapi.yaml" # OpenAPI 3.1 document (file path or URL) whose webhooks provide schemas
 # topics_schemas_openapi_sha256: "" # Hex SHA-256 pin for the OpenAPI document
-# topics_validation_max_bytes: 1048576 # Largest event data validated against its topic schema
+# topics_validation_max_bytes: 262144 # Largest event data validated against its topic schema; validation takes roughly 20-350x this in memory
 
 ## API
 api_port: 3333 # Default port for the API server

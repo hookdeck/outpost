@@ -1,15 +1,18 @@
 import type { Context } from 'mocha';
 
 /**
- * API version helpers for tests of behaviour that only Outpost API v2 has.
+ * API version helpers for tests of behaviour that differs between Outpost API
+ * versions.
  *
  * API_BASE_URL points at one API version of a server, e.g.
  * http://localhost:3333/api/v2. v2-only tests run against the v2 base URL of
  * that server, so they also run when API_BASE_URL points at v1, and skip when
  * the server predates v2: GET <origin>/api/v2/healthz returns 404 there.
+ * v1-only tests run against the v1 base URL, which every server serves.
  *
  * A base URL that does not end in /api/vN (a managed dated version) cannot be
- * probed. It is used as it is and must point at a version that serves v2.
+ * rewritten or probed. It is used as it is and must point at a version that
+ * serves what the test needs.
  */
 
 const DEFAULT_BASE_URL = 'http://localhost:3333/api/v1';
@@ -18,6 +21,11 @@ const VERSIONED_PATH = /\/api\/v\d+\/?$/;
 /** The base URL the suite is configured with. */
 export function apiBaseURL(): string {
   return process.env.API_BASE_URL || DEFAULT_BASE_URL;
+}
+
+/** The base URL of API v1 on the server that baseURL points at. */
+export function apiV1BaseURL(baseURL: string = apiBaseURL()): string {
+  return baseURL.replace(VERSIONED_PATH, '/api/v1');
 }
 
 /** The base URL of API v2 on the server that baseURL points at. */

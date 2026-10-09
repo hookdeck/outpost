@@ -9,6 +9,7 @@ import type {
   DestinationType,
   Tenant,
 } from '../../sdks/outpost-typescript/dist/commonjs/models/components';
+import { fetchTopics, topicNames } from './topics';
 
 // Load environment variables from .env file
 loadEnv();
@@ -33,10 +34,14 @@ export type { Destination, DestinationCreate, DestinationUpdate, Tenant };
 export class SdkClient {
   private sdk: Outpost;
   private tenantId: string;
+  private baseURL: string;
+  private apiKey: string;
 
   constructor(config: SdkClientConfig = {}) {
     const baseURL = config.baseURL || process.env.API_BASE_URL || 'http://localhost:3333/api/v1';
     this.tenantId = config.tenantId || process.env.TENANT_ID || 'test-tenant';
+    this.baseURL = baseURL;
+    this.apiKey = config.apiKey || process.env.API_KEY || '';
 
     if (process.env.DEBUG_API_REQUESTS === 'true') {
       console.log(`[SdkClient] Creating SDK client with baseURL: ${baseURL}`);
@@ -44,7 +49,7 @@ export class SdkClient {
 
     this.sdk = new Outpost({
       serverURL: baseURL,
-      apiKey: config.apiKey || process.env.API_KEY || '',
+      apiKey: this.apiKey,
       timeoutMs: config.timeout || 10000,
       retryConfig: {
         strategy: 'backoff',
@@ -118,11 +123,11 @@ export class SdkClient {
 
   /**
    * List the instance's topic names. GET /topics returns names in API v1 and
-   * topic objects in API v2.
+   * topic objects in API v2, and the SDK only reads the shape it was generated
+   * for, so this calls the endpoint directly (see utils/topics.ts).
    */
   async listTopicNames(): Promise<string[]> {
-    const topics = (await this.sdk.topics.list()) as Array<string | { name: string }>;
-    return topics.map((t) => (typeof t === 'string' ? t : t.name));
+    return topicNames(await fetchTopics(this.baseURL, this.apiKey));
   }
 
   /**
