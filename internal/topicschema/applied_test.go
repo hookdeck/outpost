@@ -14,7 +14,6 @@ import (
 	"github.com/hookdeck/outpost/internal/logging"
 	internalredis "github.com/hookdeck/outpost/internal/redis"
 	"github.com/hookdeck/outpost/internal/redislock"
-	"github.com/hookdeck/outpost/internal/util/testinfra"
 	goredis "github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -547,23 +546,10 @@ func TestApply_Miniredis(t *testing.T) {
 	runApplySuite(t, client, mr.FastForward)
 }
 
-func TestApply_RedisStack(t *testing.T) {
-	t.Parallel()
-	testinfra.Start(t)
-	runApplyIntegration(t, testinfra.NewRedisStackConfig(t))
-}
-
-func TestApply_Dragonfly(t *testing.T) {
-	t.Parallel()
-	testinfra.Start(t)
-	runApplyIntegration(t, testinfra.NewDragonflyConfig(t))
-}
-
-func runApplyIntegration(t *testing.T, cfg *internalredis.RedisConfig) {
-	client, err := internalredis.New(context.Background(), cfg)
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = client.Close() })
-	require.NoError(t, client.FlushDB(context.Background()).Err())
+// RunApplySuiteForTest runs the Apply suite against client. It is exported
+// for the testcontainers variants in applied_integration_test.go, which live
+// in the external test package to avoid an import cycle through testinfra.
+func RunApplySuiteForTest(t *testing.T, client goredis.Cmdable) {
 	runApplySuite(t, client, time.Sleep)
 }
 
