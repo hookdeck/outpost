@@ -352,7 +352,7 @@ On a breaking change, the API service fails to start and lists each change: the 
 
 #### Ending a topic
 
-A topic ends for MCP when you remove it from `TOPICS` or from your schemas, or turn off its `mcp.enabled`. API instances running that configuration stop delivering the topic's events to MCP subscriptions, and on its next pass, the API service deletes the topic's subscriptions and sends each a `terminated` envelope with `NotFound` and `{"kind": "event"}`.
+A topic ends for MCP when you remove it from `TOPICS` or from your schemas, or turn off its `mcp.enabled`. API instances running that configuration stop delivering the topic's events to MCP subscriptions, and on its next pass, the API service deletes the topic's subscriptions and sends each a `terminated` envelope with `NotFound` and `{"kind": "event"}`. Subscriptions already past their `expires_at` get no envelope: they're deleted as expired.
 
 Subscriptions are only ended when the topic is off in both the instance's configuration and the last applied one, so an instance on an older or rolled-back configuration never ends them.
 
