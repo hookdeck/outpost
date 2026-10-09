@@ -1,0 +1,16 @@
+{
+  "name": "order.created",
+  "description": "Fires when a new order is placed.",
+  "payload_schema": {
+    "type": "object",
+    "properties": {
+      "orderId": { "type": "string", "x-mcp-filter": false },
+      "total": { "type": "number", "description": "Order total in major units." },
+      "currency": { "type": "string", "description": "ISO 4217 currency code." },
+      "createdAt": { "type": "string", "format": "date-time", "x-mcp-filter": false }
+    },
+    "required": ["orderId", "total", "currency"]
+  },
+  "validation": "enforce",
+  "mcp": { "enabled": true }
+}
