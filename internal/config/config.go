@@ -200,6 +200,7 @@ func (c *Config) InitDefaults() {
 	c.DeliveryIdempotencyKeyTTL = 3600 // 1 hour
 	c.LogBatchThresholdSeconds = 10
 	c.LogBatchSize = 1000
+	c.Portal.ShowMCPDestinations = true
 
 	// Set defaults for Destinations config
 	c.Destinations = DestinationsConfig{

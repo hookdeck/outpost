@@ -6,23 +6,52 @@ import useSWR from "swr";
 import Badge from "../../common/Badge/Badge";
 import Button from "../../common/Button/Button";
 import { Checkbox } from "../../common/Checkbox/Checkbox";
+import DestinationStatusBadge from "../../common/DestinationStatusBadge/DestinationStatusBadge";
 import Dropdown from "../../common/Dropdown/Dropdown";
 import { AddIcon, FilterIcon, Loading } from "../../common/Icons";
 import { useBatchedMetrics } from "../../common/MetricsChart/useMetrics";
 import SearchInput from "../../common/SearchInput/SearchInput";
 import Table from "../../common/Table/Table";
 import Tooltip from "../../common/Tooltip/Tooltip";
-import CONFIGS from "../../config";
-import { useDestinationTypes } from "../../destination-types";
+import CONFIGS, { SHOW_MCP_DESTINATIONS } from "../../config";
+import {
+  useAllDestinationTypes,
+  useDestinationTypes,
+} from "../../destination-types";
 import type { Destination } from "../../typings/Destination";
+import {
+  configString,
+  destinationStatus,
+  isDestinationVisible,
+  isMCPDestinationType,
+  lookupType,
+  typeLabel,
+} from "../../utils/destinationTypes";
 import getLogo from "../../utils/logo";
 import DestinationEventsCell from "./DestinationEventsCell";
 
 const DEFAULT_METRICS_SAMPLE_COUNT = 7;
 
 const DestinationList: React.FC = () => {
-  const { data: destinations } = useSWR<Destination[]>("destinations");
+  const { data: allDestinations } = useSWR<Destination[]>("destinations");
+  const all_destination_types = useAllDestinationTypes();
   const destination_types = useDestinationTypes();
+
+  // Hidden MCP destinations are dropped once, so every count, filter and
+  // metrics request below ignores them.
+  const destinations = useMemo(
+    () =>
+      allDestinations && all_destination_types
+        ? allDestinations.filter((destination) =>
+            isDestinationVisible(
+              destination,
+              all_destination_types,
+              SHOW_MCP_DESTINATIONS,
+            ),
+          )
+        : undefined,
+    [allDestinations, all_destination_types],
+  );
 
   const destinationIds = useMemo(
     () => destinations?.map((d) => d.id) ?? [],
@@ -55,19 +84,29 @@ const DestinationList: React.FC = () => {
     { header: "Event Deliveries 24h", width: 170 },
   ].filter((column) => column !== null);
 
+  // The agent an MCP destination delivers to, shown next to its target.
+  const mcpPrincipal = (destination: Destination) =>
+    isMCPDestinationType(
+      destination.type,
+      lookupType(all_destination_types, destination.type),
+    )
+      ? configString(destination, "principal")
+      : undefined;
+
+  const now = Date.now();
+  const hasExpiringDestinations =
+    destinations?.some((destination) => !!destination.expires_at) ?? false;
+
   const filtered_destinations =
     destination_types && destinations
       ? destinations.filter((destination) => {
           const search_value = searchTerm.toLowerCase();
 
-          if (Object.values(selectedStatus).some((value) => value)) {
-            if (selectedStatus.active && selectedStatus.disabled) {
-              // Continue to search term filtering
-            } else if (selectedStatus.active && destination.disabled_at) {
-              return false;
-            } else if (selectedStatus.disabled && !destination.disabled_at) {
-              return false;
-            }
+          if (
+            Object.values(selectedStatus).some((value) => value) &&
+            !selectedStatus[destinationStatus(destination, now)]
+          ) {
+            return false;
           }
 
           if (selectedTopics.length > 0) {
@@ -82,80 +121,91 @@ const DestinationList: React.FC = () => {
             }
           }
 
-          return (
-            destination.type.toLowerCase().includes(search_value) ||
-            destination.target.toLowerCase().includes(search_value)
-          );
+          return [
+            destination.type,
+            destination.target,
+            mcpPrincipal(destination),
+          ].some((value) => value?.toLowerCase().includes(search_value));
         })
       : [];
 
   const table_rows = destination_types
-    ? filtered_destinations?.map((destination) => ({
-        id: destination.id,
-        entries: [
-          <>
-            <div
-              style={{ minWidth: "16px", width: "16px", display: "flex" }}
-              dangerouslySetInnerHTML={{
-                __html: destination_types[destination.type].icon as string,
-              }}
-            />
-            <span className="subtitle-m">
-              {destination_types[destination.type].label}
-            </span>
-          </>,
-          <span className="muted-variant">{destination.target}</span>,
-          CONFIGS.TOPICS ? (
-            <Tooltip
-              content={
-                <div className="destination-list__topics-tooltip">
-                  {(destination.topics.length > 0 &&
-                  destination.topics[0] === "*"
-                    ? CONFIGS.TOPICS.split(",")
-                    : destination.topics
-                  )
-                    .slice(0, 9)
-                    .map((topic) => (
-                      <Badge key={topic} text={topic.trim()} />
-                    ))}
-                  {(destination.topics[0] === "*"
-                    ? CONFIGS.TOPICS.split(",").length
-                    : destination.topics.length) > 9 && (
-                    <span className="subtitle-s muted">
-                      +{" "}
-                      {(destination.topics[0] === "*"
-                        ? CONFIGS.TOPICS.split(",").length
-                        : destination.topics.length) - 9}{" "}
-                      more
-                    </span>
-                  )}
-                </div>
-              }
-            >
-              <span className="muted-variant">
-                {destination.topics.length > 0 && destination.topics[0] === "*"
-                  ? "All"
-                  : destination.topics.length}
+    ? filtered_destinations?.map((destination) => {
+        // The type may be missing: an unknown type, or mcp once the operator
+        // has no MCP-enabled topic left. The row still renders.
+        const type = lookupType(destination_types, destination.type);
+        const principal = mcpPrincipal(destination);
+        return {
+          id: destination.id,
+          entries: [
+            <>
+              <div
+                style={{ minWidth: "16px", width: "16px", display: "flex" }}
+                dangerouslySetInnerHTML={{
+                  __html: type?.icon ?? "",
+                }}
+              />
+              <span className="subtitle-m">
+                {typeLabel(destination.type, type)}
               </span>
-            </Tooltip>
-          ) : null,
-          destination.disabled_at ? (
-            <Badge text="Disabled" />
-          ) : (
-            <Badge text="Active" success />
-          ),
-          <DestinationEventsCell
-            metricsData={
-              batchedMetrics
-                ? (batchedMetrics[destination.id] ?? [])
-                : undefined
-            }
-            isLoading={metricsLoading}
-            sampleCount={metricsSampleCount}
-          />,
-        ].filter((entry) => entry !== null),
-        link: `/destinations/${destination.id}`,
-      })) || []
+            </>,
+            principal ? (
+              <span className="destination-list__target">
+                <span>{principal}</span>
+                <span className="muted-variant">{destination.target}</span>
+              </span>
+            ) : (
+              <span className="muted-variant">{destination.target}</span>
+            ),
+            CONFIGS.TOPICS ? (
+              <Tooltip
+                content={
+                  <div className="destination-list__topics-tooltip">
+                    {(destination.topics.length > 0 &&
+                    destination.topics[0] === "*"
+                      ? CONFIGS.TOPICS.split(",")
+                      : destination.topics
+                    )
+                      .slice(0, 9)
+                      .map((topic) => (
+                        <Badge key={topic} text={topic.trim()} />
+                      ))}
+                    {(destination.topics[0] === "*"
+                      ? CONFIGS.TOPICS.split(",").length
+                      : destination.topics.length) > 9 && (
+                      <span className="subtitle-s muted">
+                        +{" "}
+                        {(destination.topics[0] === "*"
+                          ? CONFIGS.TOPICS.split(",").length
+                          : destination.topics.length) - 9}{" "}
+                        more
+                      </span>
+                    )}
+                  </div>
+                }
+              >
+                <span className="muted-variant">
+                  {destination.topics.length > 0 &&
+                  destination.topics[0] === "*"
+                    ? "All"
+                    : destination.topics.length}
+                </span>
+              </Tooltip>
+            ) : null,
+            <DestinationStatusBadge destination={destination} now={now} />,
+            <DestinationEventsCell
+              metricsData={
+                batchedMetrics
+                  ? (batchedMetrics[destination.id] ?? [])
+                  : undefined
+              }
+              isLoading={metricsLoading}
+              sampleCount={metricsSampleCount}
+            />,
+          ].filter((entry) => entry !== null),
+          link: `/destinations/${destination.id}`,
+        };
+      }) || []
     : [];
 
   const logo = getLogo();
@@ -225,6 +275,20 @@ const DestinationList: React.FC = () => {
                     }
                   />
                 </div>
+                {(hasExpiringDestinations || selectedStatus.expired) && (
+                  <div className="dropdown-item">
+                    <Checkbox
+                      label="Expired"
+                      checked={selectedStatus.expired}
+                      onChange={() =>
+                        setSelectedStatus({
+                          ...selectedStatus,
+                          expired: !selectedStatus.expired,
+                        })
+                      }
+                    />
+                  </div>
+                )}
               </Dropdown>
               <Dropdown
                 trigger="Topics"

@@ -12,7 +12,10 @@ import { ApiContext, formatError } from "../../../app";
 import { showToast } from "../../../common/Toast/Toast";
 import { mutate } from "swr";
 import CONFIGS from "../../../config";
+import NotFoundState from "../../../common/NotFoundState/NotFoundState";
+import { isExternalType, lookupType } from "../../../utils/destinationTypes";
 import { useCreateDestinationContext } from "../CreateDestination";
+import ExternalTypeInstructions from "./ExternalTypeInstructions";
 
 export default function ConfigStep() {
   const {
@@ -21,6 +24,7 @@ export default function ConfigStep() {
     destinationTypes,
     hasDestinationTypes,
     steps,
+    buildSearchParams,
   } = useCreateDestinationContext();
   const apiClient = useContext(ApiContext);
   const navigate = useNavigate();
@@ -29,7 +33,7 @@ export default function ConfigStep() {
 
   // Hydrate type from URL search params if context is empty (page refresh)
   const type = stepValues.type || searchParams.get("type");
-  const destinationType = destinationTypes[type];
+  const destinationType = lookupType(destinationTypes, type);
   const [filter, setFilter] = useState<Filter>(stepValues.filter || null);
   const [showFilter, setShowFilter] = useState(!!stepValues.filter);
   const [filterValid, setFilterValid] = useState(true);
@@ -59,9 +63,13 @@ export default function ConfigStep() {
       ...stepValues,
       ...formValues,
     };
-    setIsCreating(true);
 
-    const destination_type = destinationTypes[values.type];
+    const destination_type = lookupType(destinationTypes, values.type);
+    // Only form types are created here; the API rejects the others anyway.
+    if (!destination_type || isExternalType(destination_type)) {
+      return;
+    }
+    setIsCreating(true);
 
     let topics: string[];
     if (typeof values.topics === "string") {
@@ -128,6 +136,24 @@ export default function ConfigStep() {
 
   if (!destinationType && hasDestinationTypes && !type) {
     return null; // Redirecting
+  }
+
+  // A ?type= deep link can name a type that doesn't exist or is hidden.
+  if (hasDestinationTypes && !destinationType) {
+    return (
+      <NotFoundState
+        title="Destination type not found"
+        message={`The destination type "${type}" isn't available.`}
+        backTo={`/new/type${buildSearchParams({ type: "" })}`}
+        backLabel="Choose a destination type"
+      />
+    );
+  }
+
+  // External types are created outside the portal, so a ?type= deep link to
+  // one gets its instructions and never a form.
+  if (destinationType && isExternalType(destinationType)) {
+    return <ExternalTypeInstructions type={destinationType} />;
   }
 
   return (

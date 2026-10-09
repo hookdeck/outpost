@@ -43,6 +43,8 @@ func TestAddRoutes_NoRoute(t *testing.T) {
 			apiRequests := []struct{ method, path string }{
 				{http.MethodGet, "/api/v1/nonexistent"},
 				{http.MethodPost, "/api/v1/nonexistent"},
+				{http.MethodGet, "/api/v2/nonexistent"},
+				{http.MethodDelete, "/api/v2/tenants/t1/mcp/subscriptions/sub_1"},
 				{http.MethodGet, "/api"},
 				{http.MethodPost, "/api"},
 			}

@@ -23,6 +23,10 @@ interface CredentialField extends ConfigField {
 
 interface DestinationTypeReference {
   type: string;
+  // "form" (also when absent, as in API v1) means the portal's create form.
+  // Any other value, today "external" (mcp), means the type is created outside
+  // the portal and `instructions` replace the form.
+  create_mode?: string;
   config_fields: ConfigField[];
   credential_fields: CredentialField[];
   instructions: string;
@@ -52,6 +56,17 @@ interface Destination {
   target_url?: string;
   disabled_at: string;
   created_at: string;
+  // Set on destinations that expire, such as MCP subscriptions. Absent or null
+  // means no expiry.
+  expires_at?: string | null;
+  metadata?: Record<string, string>;
+}
+
+// The part of a v2 GET /topics entry the portal keeps: a deprecated topic and
+// its replacement, if any.
+interface TopicDeprecation {
+  name: string;
+  replaced_by?: string;
 }
 
 export type {
@@ -60,4 +75,5 @@ export type {
   ConfigField,
   CredentialField,
   DestinationTypeReference,
+  TopicDeprecation,
 };
