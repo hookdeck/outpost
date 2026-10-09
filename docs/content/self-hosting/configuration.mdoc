@@ -100,7 +100,9 @@ Choose one for event log persistence:
 | `MAX_RETRY_LIMIT` | `10` | Max retry attempts before giving up |
 | `RETRY_INTERVAL_SECONDS` | `30` | Base interval for exponential backoff retries |
 | `RETRY_SCHEDULE` | — | Comma-separated retry delays in seconds (overrides interval/limit) |
-| `RETRY_POLL_BACKOFF_MS` | `0` (auto) | Maximum time the retry monitor sleeps between polls while idle. `0` sleeps until the next retry comes due, capped at the shorter of 30 seconds and your shortest configured retry delay, so a retry is never late. An explicit positive value is honored as a fixed maximum, which can delay a retry scheduled while the monitor is already sleeping by up to that much. |
+| `RETRY_POLL_BACKOFF_MS` | `0` (auto) | Maximum time the retry monitor sleeps between polls while idle. `0` sleeps until the next retry comes due, capped at the shorter of 30 seconds and your shortest configured retry delay, including `MCP_RETRY_SCHEDULE`, so a retry is never late. An explicit positive value is honored as a fixed maximum, which can delay a retry scheduled while the monitor is already sleeping by up to that much. |
+
+MCP destinations don't use `DELIVERY_TIMEOUT_SECONDS`, `MAX_RETRY_LIMIT`, `RETRY_INTERVAL_SECONDS` or `RETRY_SCHEDULE`: they have a 10 second timeout and their own `MCP_RETRY_SCHEDULE`. See [MCP Events](#mcp-events).
 
 ## Topics
 
@@ -113,8 +115,39 @@ Choose one for event log persistence:
 | `TOPICS_SCHEMAS_OPENAPI` | — | File path or `http(s)` URL of an OpenAPI 3.1 document (up to 4 MiB) whose `webhooks` provide topic schemas. Webhooks not in `TOPICS` are skipped with a warning, even when they can't be imported. An operation marked `deprecated: true` makes its topic deprecated. A `TOPICS_SCHEMAS` or `TOPICS_SCHEMAS_FILE` entry replaces the imported one for its topic. A URL is fetched on every API startup, so prefer a vendored file. See [Importing from OpenAPI](/docs/outpost/features/topics#importing-from-openapi). |
 | `TOPICS_SCHEMAS_OPENAPI_SHA256` | — | Hex SHA-256 of the `TOPICS_SCHEMAS_OPENAPI` document. A document that doesn't match fails startup. |
 | `TOPICS_VALIDATION_MAX_BYTES` | `262144` (256 KiB) | Largest event `data` validated against its topic schema. Larger `data` is rejected with `422` when the topic's `validation` is `enforce`, and accepted without validation when it's `warn`. Validation takes roughly 20 to 350 times the size of `data` in memory, and the total size validated at once is capped, so raise this only with API service memory to match. |
+| `TOPICS_ALLOW_BREAKING_CHANGES` | `false` | Apply topic schema changes that break live MCP Events subscriptions, and end those subscriptions, instead of failing startup. Set it for one deploy, then remove it: Outpost logs a warning while it's set. See [Schema evolution and deprecation](/docs/outpost/features/topics#schema-evolution-and-deprecation). |
 
-The YAML keys are `topics_schemas`, `topics_schemas_file`, `topics_schemas_openapi`, `topics_schemas_openapi_sha256` and `topics_validation_max_bytes`. Only the API service loads topic schemas, at startup; the delivery and log services, `outpost migrate` and `outpost config list` don't, so a problem in the schemas only stops the API service.
+The YAML keys are `topics_schemas`, `topics_schemas_file`, `topics_schemas_openapi`, `topics_schemas_openapi_sha256`, `topics_validation_max_bytes` and `topics_allow_breaking_changes`. Only the API service loads topic schemas and checks schema changes, at startup; the delivery and log services, `outpost migrate` and `outpost config list` don't, so a problem in the schemas only stops the API service.
+
+## MCP Events
+
+These settings configure [MCP Events](/docs/outpost/guides/mcp-events) subscriptions and the [MCP destination type](/docs/outpost/destinations/mcp). They take effect once a topic has `mcp.enabled` set. Set the same values on every service: the API service handles subscriptions, the delivery service delivers, and the log service uses the retry schedule and TTLs for alerts and delivery status.
+
+Durations accept Go duration strings, such as `90s`, `5m` or `24h`, or a number of seconds. In YAML, the keys sit under `mcp:`, except the two subscription limits, which are top-level.
+
+| Variable | YAML key | Default | Description |
+|----------|----------|---------|-------------|
+| `MCP_SERVER_URL` | `mcp.server_url` | — | Public URL of your MCP server, as an absolute `http(s)` URL. Outpost fills it into the `mcp` type's `instructions`, which the tenant portal shows in place of a create form. |
+| `MCP_CALLBACK_ALLOWLIST` | `mcp.callback_allowlist` | — | Comma-separated IP addresses and CIDR ranges exempt from the callback address check, for local development and tunnels. `localhost` stands for `127.0.0.0/8` and `::1/128`. Host names, wildcards and `/0` ranges are rejected at startup, and private or loopback ranges log a warning. |
+| `MCP_ALLOW_INSECURE_CALLBACKS` | `mcp.allow_insecure_callbacks` | `false` | Allow `http` callback URLs whose addresses are all in `MCP_CALLBACK_ALLOWLIST`. Without it, `http` is only allowed for loopback addresses in the allowlist. For development only. |
+| `MCP_PROXY_URL` | `mcp.proxy_url` | — | HTTP forward proxy for MCP deliveries, verification challenges and `terminated` envelopes, for example for a fixed egress IP. Outpost still resolves and checks the callback host first, but the proxy connects, so pinning the checked address is its job. `DESTINATIONS_PROXY_URL`, `HTTP_PROXY` and `HTTPS_PROXY` never apply to MCP traffic. |
+| `MCP_VERIFICATION_TTL` | `mcp.verification_ttl` | `24h` | How long a passed verification challenge is cached per tenant, principal and callback URL. |
+| `MCP_VERIFICATION_RATE_LIMIT` | `mcp.verification_rate_limit` | `10` | Verification challenges per tenant and principal per minute. Over it, subscribe fails with `resource_exhausted` (`verification_rate`). Cached verifications don't count. |
+| `MCP_VERIFICATION_FAILURE_LIMIT` | `mcp.verification_failure_limit` | `120` | Failed or unanswered verification challenges per callback host per minute, across the deployment, which protects hosts from being flooded through Outpost. Successful challenges don't count, so a shared receiver such as ChatGPT's isn't throttled by its own traffic. Allowlisted hosts are exempt. |
+| `MCP_SECRET_ROTATION_GRACE` | `mcp.secret_rotation_grace` | `24h` | How long Outpost keeps signing with the previous secret after a client rotates it. |
+| `MCP_TTL_DEFAULT` | `mcp.ttl_default` | `1h` | Subscription lifetime granted when the client suggests none, as ChatGPT does. |
+| `MCP_TTL_MIN` | `mcp.ttl_min` | `5m` | Shortest lifetime granted. Shorter suggestions are raised to it. |
+| `MCP_TTL_MAX` | `mcp.ttl_max` | `24h` | Longest lifetime granted. Longer suggestions are lowered to it. |
+| `MCP_ALLOW_NO_EXPIRY` | `mcp.allow_no_expiry` | `false` | Grant no expiry when a client asks for it with `ttlMs: null`. Otherwise such a client gets `MCP_TTL_MAX`. A subscription with no expiry is only removed by unsubscribe, revocation or topic termination. |
+| `MCP_RETRY_SCHEDULE` | `mcp.retry_schedule` | `30,120,600` | Comma-separated retry delays in seconds for MCP deliveries. The default makes 4 attempts within about 12.5 minutes. In YAML, a list. |
+| `MCP_ERROR_CODES` | `mcp.error_codes` | `sketch` | The JSON-RPC error codes in `mcp_error` and `terminated` envelopes: `sketch`, the numbers ChatGPT follows, or `sep-3415`, the provisional numbers of SEP-3415. |
+| `MCP_SEND_TERMINATED` | `mcp.send_terminated` | `true` | Send a `terminated` envelope when Outpost ends a subscription: revocation, topic removal or a forced breaking change. ChatGPT doesn't process them yet. |
+| `MCP_EXPIRY_SWEEP_INTERVAL` | `mcp.expiry_sweep_interval` | `30s` | How often the API service deletes expired subscriptions and ends subscriptions to topics that are no longer MCP-enabled, with 10% jitter. Subscriptions are deleted 60 seconds after they expire; no delivery is made after `expires_at`. |
+| `MCP_MAX_INFLIGHT_PER_HOST` | `mcp.max_inflight_per_host` | `8` | Delivery attempts, challenges and `terminated` envelopes in flight per callback host and port, per Outpost process. An attempt over the limit fails with code `throttled` and is retried. |
+| `MAX_MCP_SUBSCRIPTIONS_PER_TENANT` | `max_mcp_subscriptions_per_tenant` | `100` | MCP subscriptions each tenant may hold, from `1` to `10000`. They don't count toward `MAX_DESTINATIONS_PER_TENANT`. Every publish to a tenant is matched against all its destinations, so keep it as low as your product allows. |
+| `MAX_MCP_SUBSCRIPTIONS_PER_PRINCIPAL` | `max_mcp_subscriptions_per_principal` | `20` | MCP subscriptions each principal may hold within a tenant, so one agent can't use up the tenant's limit. `0` turns the limit off. |
+
+`MCP_TTL_MIN`, `MCP_TTL_DEFAULT` and `MCP_TTL_MAX` must be in increasing order or equal. Outpost logs a warning at startup when a topic has `mcp.enabled` set and `DELIVERY_MAX_CONCURRENCY` is below `8`: MCP attempts can take up to 10 seconds each, against URLs that agents choose.
 
 ## Portal
 
@@ -131,6 +164,7 @@ The YAML keys are `topics_schemas`, `topics_schemas_file`, `topics_schemas_opena
 | `PORTAL_DISABLE_OUTPOST_BRANDING` | `false` | Remove the "Powered by Outpost" footer |
 | `PORTAL_ENABLE_DESTINATION_FILTER` | `false` | Show filter configuration UI per destination |
 | `PORTAL_ENABLE_WEBHOOK_CUSTOM_HEADERS` | `false` | Allow tenants to set custom HTTP headers on webhook destinations |
+| `PORTAL_SHOW_MCP_DESTINATIONS` | `true` | Show [MCP Events](/docs/outpost/destinations/mcp) subscriptions and the MCP setup instructions in the portal. Only hides them in the portal: the API still returns them to the tenant's JWT. YAML key: `portal.show_mcp_destinations`. |
 
 ## Alerts
 
@@ -144,8 +178,8 @@ The YAML keys are `topics_schemas`, `topics_schemas_file`, `topics_schemas_opena
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `MAX_DESTINATIONS_PER_TENANT` | `20` | Maximum destinations each tenant may create. Set as low as is practical for your product to limit abuse and load; lowering this value later does **not** remove destinations that already exist. |
-| `DESTINATIONS_PROXY_URL` | — | HTTP `CONNECT` forward proxy for destination connections, e.g. `http://user:pass@proxy:8080`. Multiple whitespace-separated URLs are tunneled in order. Applies to webhook, RabbitMQ and Kafka destinations; other destination types connect directly. The deprecated `DESTINATIONS_WEBHOOK_PROXY_URL`, when set, takes precedence for webhooks; there is no way to proxy RabbitMQ and Kafka without also proxying webhooks. See [Webhook Forward Proxy](/docs/outpost/self-hosting/guides/webhook-proxy#other-destination-types). |
+| `MAX_DESTINATIONS_PER_TENANT` | `20` | Maximum destinations each tenant may create. Set as low as is practical for your product to limit abuse and load; lowering this value later does **not** remove destinations that already exist. MCP Events subscriptions have their own limits, `MAX_MCP_SUBSCRIPTIONS_PER_TENANT` and `MAX_MCP_SUBSCRIPTIONS_PER_PRINCIPAL`, and don't count toward this one. |
+| `DESTINATIONS_PROXY_URL` | — | HTTP `CONNECT` forward proxy for destination connections, e.g. `http://user:pass@proxy:8080`. Multiple whitespace-separated URLs are tunneled in order. Applies to webhook, RabbitMQ and Kafka destinations; other destination types connect directly. MCP destinations use `MCP_PROXY_URL` instead. The deprecated `DESTINATIONS_WEBHOOK_PROXY_URL`, when set, takes precedence for webhooks; there is no way to proxy RabbitMQ and Kafka without also proxying webhooks. See [Webhook Forward Proxy](/docs/outpost/self-hosting/guides/webhook-proxy#other-destination-types). |
 | `DESTINATIONS_METADATA_PATH` | — | Optional. Filesystem path to a directory of [custom destination metadata](https://github.com/hookdeck/outpost/tree/main/internal/destregistry/metadata/providers) (per-type `metadata.json` and `instructions.md`). Non-core fields such as `label`, `description`, `icon`, and `instructions` can be customized; `config_fields` and `credential_fields` cannot be overridden. |
 | `DESTINATIONS_AWS_EVENTBRIDGE_SOURCE` | `outpost` | `Source` set on every event published by [AWS EventBridge](/docs/outpost/destinations/aws-eventbridge) destinations. Must not be empty or start with `aws.`. |
 
@@ -261,6 +295,15 @@ portal:
   referer_url: "https://yourapp.com/settings/webhooks"
   organization_name: "Acme Corp"
   accent_color: "#6122E7"
+  show_mcp_destinations: true
+
+mcp:
+  server_url: "https://mcp.yourapp.com/mcp"
+  ttl_default: 1h
+  retry_schedule: [30, 120, 600]
+  # callback_allowlist: [localhost] # local development only
+max_mcp_subscriptions_per_tenant: 100
+max_mcp_subscriptions_per_principal: 20
 
 alert:
   consecutive_failure_count: 50

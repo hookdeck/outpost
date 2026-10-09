@@ -70,6 +70,26 @@ outpost:
   #   # topics_schemas_file: /schemas/topics-schemas.yaml
   #   # Validation takes roughly 20-350x the data size in API pod memory:
   #   # topics_validation_max_bytes: 262144
+  #
+  # MCP Events: set mcp.enabled on a topic schema, in a deploy after every
+  # service runs a release with MCP support. The config is shared by all pods.
+  # Raise delivery_max_concurrency to at least 8 when MCP is on.
+  # config:
+  #   topics_schemas:
+  #     order.created:
+  #       mcp:
+  #         enabled: true
+  #       payload_schema:
+  #         type: object
+  #         properties:
+  #           total: { type: number }
+  #   mcp:
+  #     server_url: "https://mcp.example.com/mcp"
+  #     ttl_default: 1h
+  #     retry_schedule: [30, 120, 600]
+  #   max_mcp_subscriptions_per_tenant: 100
+  #   max_mcp_subscriptions_per_principal: 20
+  #   delivery_max_concurrency: 8
 
 ingress:
   enabled: false

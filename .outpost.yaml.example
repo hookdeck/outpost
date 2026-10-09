@@ -73,6 +73,31 @@ topics: # List of topics to subscribe to
 # topics_schemas_openapi: "config/outpost/openapi.yaml" # OpenAPI 3.1 document (file path or URL) whose webhooks provide schemas
 # topics_schemas_openapi_sha256: "" # Hex SHA-256 pin for the OpenAPI document
 # topics_validation_max_bytes: 262144 # Largest event data validated against its topic schema; validation takes roughly 20-350x this in memory
+# topics_allow_breaking_changes: false # Apply schema changes that break live MCP subscriptions, ending them. One deploy only.
+
+## MCP Events
+# Takes effect once a topic has mcp.enabled set. Set the same values on every service.
+# Durations take Go duration strings (90s, 5m, 24h) or seconds.
+# mcp:
+#   server_url: "https://mcp.example.com/mcp" # Public URL of your MCP server, shown in the portal's setup instructions
+#   callback_allowlist: [localhost] # IPs/CIDRs exempt from the callback address check. Development only
+#   allow_insecure_callbacks: false # Allow http callbacks to allowlisted non-loopback addresses. Development only
+#   proxy_url: "" # Forward proxy for MCP deliveries, challenges and terminated envelopes
+#   verification_ttl: 24h # How long a passed callback challenge is cached
+#   verification_rate_limit: 10 # Challenges per tenant and principal per minute
+#   verification_failure_limit: 120 # Failed challenges per callback host per minute
+#   secret_rotation_grace: 24h # How long the previous secret keeps signing after a rotation
+#   ttl_default: 1h # Lifetime granted when the client suggests none
+#   ttl_min: 5m
+#   ttl_max: 24h
+#   allow_no_expiry: false # Grant no expiry when a client asks for it
+#   retry_schedule: [30, 120, 600] # Retry delays in seconds
+#   error_codes: sketch # sketch or sep-3415
+#   send_terminated: true # Send terminated envelopes when Outpost ends a subscription
+#   expiry_sweep_interval: 30s # How often expired subscriptions are deleted
+#   max_inflight_per_host: 8 # Attempts in flight per callback host, per process
+# max_mcp_subscriptions_per_tenant: 100 # MCP subscriptions per tenant, separate from max_destinations_per_tenant
+# max_mcp_subscriptions_per_principal: 20 # MCP subscriptions per principal within a tenant (0 = no limit)
 
 ## API
 api_port: 3333 # Default port for the API server
@@ -110,11 +135,12 @@ portal:
   brand_color: "#6122E7" # Portal brand color
   # logo: "https://example.com" # Portal logo URL
   #logo_dark: "https://example.com" # Portal logo URL for dark mode
+  # show_mcp_destinations: true # Show MCP Events subscriptions and setup instructions
 
 # Destinations Configuration
 destinations:
   metadata_path: "config/outpost/destinations" # Path to destination metadata
-  # proxy_url: "http://user:pass@proxy:10000" # Forward proxy for webhook, RabbitMQ and Kafka destinations
+  # proxy_url: "http://user:pass@proxy:10000" # Forward proxy for webhook, RabbitMQ and Kafka destinations (MCP uses mcp.proxy_url)
   # aws_eventbridge:
   #   source: "outpost" # EventBridge Source set on every event
   webhook:

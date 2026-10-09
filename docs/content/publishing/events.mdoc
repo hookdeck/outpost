@@ -47,7 +47,7 @@ If you already publish events to a supported message queue, refer to the relevan
 | `eligible_for_retry` | No | Whether to automatically retry failed deliveries. Defaults to `true`. |
 | `time` | No | ISO 8601 timestamp of the event. |
 | `metadata` | No | Arbitrary key-value pairs. For webhooks, translated to HTTP headers. |
-| `data` | No | The event payload — freeform JSON. |
+| `data` | No | The event payload — freeform JSON. When the topic has a [schema](/docs/outpost/features/topics#validation) with `validation: enforce`, `data` must match it: the Publish API returns `422`, and a publish queue treats the message as invalid. |
 
 ## Publish API
 
@@ -84,7 +84,7 @@ For webhook destinations, merged metadata is translated into HTTP headers. This 
 - Set static headers (e.g., `x-api-key`) on the destination via `delivery_metadata`
 - Override or add dynamic headers per event via the event's `metadata` field
 
-For destinations that don't natively support metadata (e.g., S3), it is included in the event payload or object metadata.
+For destinations that don't natively support metadata (e.g., S3), it is included in the event payload or object metadata. [MCP Events](/docs/outpost/destinations/mcp) destinations don't send metadata: their requests carry only the MCP Events headers.
 
 ## Event Fanout
 

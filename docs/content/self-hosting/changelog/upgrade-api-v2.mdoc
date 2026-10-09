@@ -5,12 +5,18 @@ description: "What changes between Outpost API v1 and API v2, and how to run bot
 
 API v2 is Outpost's first major API version. Self-hosted Outpost serves it under `/api/v2`, beside `/api/v1`, from the same instance. API v1 keeps working unchanged, so you can move clients to v2 one at a time.
 
+API v2 brings topic schemas and [MCP Events](/docs/outpost/guides/mcp-events): AI agents subscribe to a tenant's events through your MCP server, and each subscription is a destination of the new type `mcp`. API v1 hides MCP subscriptions, so existing clients and custom UIs never receive a destination type they can't handle.
+
 Managed Outpost doesn't serve API v2 yet. Every managed dated version, such as `2025-07-01`, keeps serving v1.
 
 | Change | Impact | Action Required |
 | --- | --- | --- |
 | [Topics are returned as objects](#topics-are-returned-as-objects) | Clients that call `GET /topics` on `/api/v2` | Read `name` from each topic object |
+| [Destination types carry `create_mode`](#destination-types-carry-create_mode) | UIs that render create forms from `GET /destination-types` on `/api/v2` | Offer a form only for `form` types |
+| [MCP subscriptions are destinations](#mcp-subscriptions-are-destinations) | Clients that list destinations or attempts on `/api/v2` | Handle type `mcp` as read-only |
+| [Publish results include MCP subscriptions](#publish-results-include-mcp-subscriptions) | Publishers that read `destination_ids` on `/api/v2` | None, unless you look the IDs up |
 | [Topic schema validation applies to v1 publishes](#topic-schema-validation-applies-to-v1-publishes) | Publishers to topics you set to `validation: enforce` | Run the topic with `warn` first |
+| [Two-phase rollout for MCP Events](#two-phase-rollout-for-mcp-events) | Deployments that turn on MCP Events | Upgrade every service before enabling an MCP topic |
 | [New database migrations](#new-database-migrations) | PostgreSQL and ClickHouse log storage | Run `outpost migrate apply --yes` before starting the new version |
 
 ## Breaking Changes from v1 to v2
@@ -18,6 +24,14 @@ Managed Outpost doesn't serve API v2 yet. Every managed dated version, such as `
 | Endpoint | v1 | v2 |
 | --- | --- | --- |
 | `GET /topics` | Topic names as strings | Topic objects with `name`, `description`, `payload_schema`, `validation`, `mcp`, `deprecated` and `replaced_by` |
+| `GET /destination-types` | Unchanged | Every type gains `create_mode`. Includes `mcp` once a topic has `mcp.enabled` set |
+| `GET /destination-types/{type}` | Unchanged, `404` for `mcp` | Includes `create_mode`. `mcp` once a topic has `mcp.enabled` set |
+| `GET /tenants/{tenant_id}/destinations` | Excludes `mcp` destinations | Includes them |
+| `GET /tenants/{tenant_id}/destinations/{destination_id}` | `404` for an `mcp` destination | Returns it |
+| `GET /attempts`, `GET /attempts/{attempt_id}` and the destination-scoped attempt endpoints | Exclude attempts to `mcp` destinations | Include them |
+| `POST /publish` | `destination_ids` excludes `mcp` destinations | Includes them |
+
+Nothing changes until a topic has `mcp.enabled` set, except `GET /topics` and `create_mode`. Without MCP-enabled topics, no `mcp` destination or attempt exists.
 
 ### Topics are returned as objects
 
@@ -45,25 +59,87 @@ Managed Outpost doesn't serve API v2 yet. Every managed dated version, such as `
 
 `description`, `payload_schema`, `deprecated` and `replaced_by` are omitted when they're not set, so without topic schemas each object has only `name`, `validation` and `mcp`. A client that only needs the names can map each object to its `name`.
 
-## Endpoints Unchanged So Far
+### Destination types carry `create_mode`
 
-These endpoints behave the same in v1 and v2 for now. Later releases document their v2 changes in this section.
+In v2, every destination type has a `create_mode`. `mcp` is the first type that can't be created from a form: only an agent can create one, through your MCP server.
 
-### Destination types
+```json
+[
+  {
+    "type": "webhook",
+    "label": "Webhook",
+    "create_mode": "form",
+    "config_fields": [{ "key": "url", "type": "text", "label": "URL", "required": true }],
+    "credential_fields": [{ "key": "secret", "type": "text", "label": "Secret", "required": false, "sensitive": true }]
+  },
+  {
+    "type": "mcp",
+    "label": "MCP Events",
+    "create_mode": "external",
+    "instructions": "Connect `https://mcp.acme.com/mcp` in ChatGPT or another MCP client, then ask your agent to subscribe to `order.created`."
+  }
+]
+```
 
-`GET /destination-types` and `GET /destination-types/{type}` return the same destination types, in the same shape, in v1 and v2.
+The examples leave out `description`, `icon` and the `mcp` type's fields.
 
-### Destinations
+| `create_mode` | What a client shows |
+| --- | --- |
+| `form` | A create form built from `config_fields` and `credential_fields`, submitted to `POST /tenants/{tenant_id}/destinations`. Every type except `mcp`. |
+| `external` | The type's markdown `instructions` in place of the form, with no submit step. For `mcp`, the instructions name `MCP_SERVER_URL` and the MCP-enabled topics. |
 
-The destination endpoints under `/tenants/{tenant_id}/destinations` behave the same in v1 and v2.
+v1 returns the same bytes as before: no `create_mode` and no `mcp`.
 
-### Events and attempts
+### MCP subscriptions are destinations
 
-`GET /events`, `GET /attempts` and the tenant and destination variants of these endpoints return the same events and attempts in v1 and v2.
+In v2, a tenant's MCP subscriptions are listed with its other destinations, as `type: mcp`, with `expires_at` and their subscription details in `config`. Their attempts appear in the attempts endpoints like any other. See [MCP destination](/docs/outpost/destinations/mcp#destination-object) for the object.
+
+An `mcp` destination is managed through the MCP endpoints, not the generic destination endpoints:
+
+| Endpoint | For an `mcp` destination |
+| --- | --- |
+| `POST /tenants/{tenant_id}/destinations` with `type: mcp` | `400`, in v1 and v2 |
+| `PATCH`, `DELETE`, `PUT .../disable` | `400`. End a subscription with `DELETE /tenants/{tenant_id}/mcp/subscriptions/{subscription_id}` |
+| `PUT .../enable` | Re-enables an auto-disabled subscription and resumes its held retries |
+| `POST /retry` | Works, except `400` (`destination_expired`) once the subscription is past `expires_at` |
+
+To move a custom UI to v2:
+
+1. Render create forms only for `form` types, and show `instructions` for `external` types, including when a link opens the create form for a given type.
+2. Show `mcp` destinations read-only: their principal (`config.principal`), event (`config.event`), arguments (`config.arguments`, a JSON string) and `expires_at`. Hide edit, disable, delete and secret rotation for them.
+3. Offer a disconnect action that calls `DELETE /tenants/{tenant_id}/mcp/subscriptions/{subscription_id}`, which accepts a tenant JWT.
+4. Don't fail on an unknown `type`: look destination types up by `type` and fall back gracefully.
+
+### Publish results include MCP subscriptions
+
+The `202` response of `POST /publish` lists matching `mcp` destinations in `destination_ids` in v2, and leaves them out in v1, so a v1 publisher never receives an ID that v1 returns `404` for.
+
+## Additive in v2
+
+The [MCP endpoints](/docs/outpost/api) are only served under `/api/v2`:
+
+| Endpoint | Use |
+| --- | --- |
+| `GET /tenants/{tenant_id}/mcp/events` | `events/list` result |
+| `PUT /tenants/{tenant_id}/mcp/subscriptions` | `events/subscribe`: create or refresh a subscription |
+| `POST /tenants/{tenant_id}/mcp/subscriptions/unsubscribe` | `events/unsubscribe` |
+| `GET /tenants/{tenant_id}/mcp/subscriptions` | List subscriptions |
+| `DELETE /tenants/{tenant_id}/mcp/subscriptions/{subscription_id}` | End one subscription |
+| `DELETE /tenants/{tenant_id}/mcp/subscriptions?principal=` | End a principal's subscriptions |
+
+## Same in v1 and v2
+
+Some MCP behavior applies to both versions:
+
+- **Events.** Events are listed and returned in both versions. Their `matched_destination_ids` never lists `mcp` destinations, in either version, so it stays bounded however many agents subscribe. Filtering events by an `mcp` destination ID returns nothing: use the attempts endpoints in v2.
+- **Tenants.** A tenant's `destinations_count` and `topics` include its MCP subscriptions in both versions, as does the `tenant.subscription.updated` operator event. In v1, `destinations_count` can therefore be higher than the number of destinations listed.
+- **Metrics.** Attempt metrics include deliveries to `mcp` destinations in both versions. Event metrics by `destination_id` don't include them.
+- **Limits.** MCP subscriptions have their own limits, `MAX_MCP_SUBSCRIPTIONS_PER_TENANT` and `MAX_MCP_SUBSCRIPTIONS_PER_PRINCIPAL`, and don't count toward `MAX_DESTINATIONS_PER_TENANT`.
+- **Operator events.** The new `mcp.subscription.expired` topic is emitted whatever version your clients use. A sink subscribed to `*` receives it.
 
 ## Publishing
 
-`POST /publish` takes the same request and returns the same response in v1 and v2.
+`POST /publish` takes the same request in v1 and v2. Its response differs only in [`destination_ids`](#publish-results-include-mcp-subscriptions).
 
 ### Topic schema validation applies to v1 publishes
 
@@ -77,17 +153,28 @@ Events carry the new `schema_valid` field in both versions. It's omitted for top
 
 Serving v2 needs no configuration:
 
-- **Same instance.** Every endpoint is served under both `/api/v1` and `/api/v2`, on the same port, including `/api/v2/healthz`. Unknown versions, such as `/api/v3`, return a JSON `404`. If an ingress or reverse proxy in front of Outpost only forwards `/api/v1`, add `/api/v2`.
+- **Same instance.** Every endpoint is served under both `/api/v1` and `/api/v2`, on the same port, including `/api/v2/healthz`. The MCP endpoints are only served under `/api/v2`. Unknown versions, such as `/api/v3`, return a JSON `404`. If an ingress or reverse proxy in front of Outpost only forwards `/api/v1`, add `/api/v2`.
 - **Same credentials.** The admin API key and tenant JWTs work on both versions. JWTs carry no version, so a token issued through v1 works on v2.
 - **Same data.** Both versions read and write the same tenants, destinations, events and attempts. Pagination cursors from one version work on the other.
-- **Tenant portal.** The portal is unaffected. It reads topics from the instance configuration, not from `GET /topics`.
-- **SDKs.** The SDKs target API v1. Keep them on `/api/v1` or a managed dated URL: SDK versions released before API v2 expect `GET /topics` to return strings, so their `topics.list()` fails against v2. SDK releases for API v2 follow once managed Outpost serves it.
+- **Tenant portal.** The portal calls API v2, so it needs `/api/v2` to be reachable wherever the portal is used. It shows MCP subscriptions read-only, with a disconnect action. See [Tenant Portal](/docs/outpost/features/tenant-user-portal#mcp-subscriptions).
+- **SDKs.** The published SDKs target API v1. Keep them on `/api/v1` or a managed dated URL: they expect `GET /topics` to return strings, so `topics.list()` fails against v2. SDK releases for API v2 follow once managed Outpost serves it. The SDKs' MCP Events handlers call the MCP endpoints themselves, so point them at your `/api/v2` URL.
 
 To move a client, change its base URL from `/api/v1` to `/api/v2` and handle the [breaking changes](#breaking-changes-from-v1-to-v2) above.
 
+## Two-Phase Rollout for MCP Events
+
+Instances of an earlier release can't handle `mcp` destinations. An earlier delivery service can't deliver to them and redelivers the task until it is dead-lettered, an earlier API service fails to list a tenant's destinations, and earlier matching sends wildcard and expired events to them. Roll out MCP Events in two deploys:
+
+1. **Upgrade.** Deploy the new release to every API, delivery and log instance, without any topic that has `mcp.enabled` set. No `mcp` destination can exist yet. Run the [database migrations](#new-database-migrations) as part of this deploy.
+2. **Enable.** Once no instance runs an earlier release, set `mcp.enabled` on your topics, with `MCP_SERVER_URL` and any other [MCP settings](/docs/outpost/self-hosting/configuration#mcp-events), in a later deploy. Set the MCP settings on every service.
+
+Don't roll back to an earlier release while MCP subscriptions exist. To turn MCP Events off, remove `mcp.enabled` from your topics instead: Outpost then ends their subscriptions and notifies the clients. See [Ending a topic](/docs/outpost/features/topics#ending-a-topic).
+
+From the second deploy on, the API service checks topic schema changes at startup, and fails to start on a breaking change to a topic with live subscriptions. See [Breaking-change check](/docs/outpost/features/topics#breaking-change-check).
+
 ## New Database Migrations
 
-The release that adds API v2 also adds PostgreSQL migration `000012` and ClickHouse migration `000005`. Both add a nullable `schema_valid` column to the events and attempts tables. Existing rows stay `NULL`, which the API omits.
+The release that adds API v2 also adds PostgreSQL migration `000012` and ClickHouse migration `000005`. Both add a nullable `schema_valid` column to the events and attempts tables. Existing rows stay `NULL`, which the API omits. MCP Events adds no log store migration: its state lives in Redis, as described in [Data Model](/docs/outpost/self-hosting/data-model#mcp-events).
 
 The server refuses to start with a pending migration, so run migrations before starting the new version:
 
