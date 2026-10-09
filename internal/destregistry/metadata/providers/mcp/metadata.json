@@ -1,0 +1,85 @@
+{
+  "type": "mcp",
+  "create_mode": "external",
+  "config_fields": [
+    {
+      "key": "url",
+      "type": "text",
+      "label": "Callback URL",
+      "description": "The URL the MCP client asked events to be delivered to.",
+      "required": true,
+      "disabled": true
+    },
+    {
+      "key": "subscription_id",
+      "type": "text",
+      "label": "Subscription ID",
+      "description": "The ID the MCP client knows the subscription by, derived from the principal, callback URL, event and arguments. It is also the destination ID.",
+      "required": true,
+      "disabled": true
+    },
+    {
+      "key": "principal",
+      "type": "text",
+      "label": "Principal",
+      "description": "The authenticated subject that created the subscription, as your MCP server identified it.",
+      "required": true,
+      "disabled": true
+    },
+    {
+      "key": "event",
+      "type": "text",
+      "label": "Event",
+      "description": "The subscribed event.",
+      "required": true,
+      "disabled": true
+    },
+    {
+      "key": "arguments",
+      "type": "text",
+      "label": "Arguments",
+      "description": "The subscription arguments, as canonical JSON.",
+      "required": true,
+      "disabled": true
+    },
+    {
+      "key": "schema_hash",
+      "type": "text",
+      "label": "Schema Hash",
+      "description": "The SHA-256 of the event's payload schema when the subscription was created or last refreshed.",
+      "required": true,
+      "disabled": true
+    }
+  ],
+  "credential_fields": [
+    {
+      "key": "secret",
+      "type": "text",
+      "label": "Secret",
+      "description": "Signing secret supplied by the MCP client.",
+      "required": true,
+      "disabled": true,
+      "sensitive": true
+    },
+    {
+      "key": "previous_secret",
+      "type": "text",
+      "label": "Previous Secret",
+      "description": "The secret the MCP client rotated away from. Deliveries are also signed with it until it expires.",
+      "required": false,
+      "disabled": true,
+      "sensitive": true
+    },
+    {
+      "key": "previous_secret_invalid_at",
+      "type": "text",
+      "label": "Previous Secret Expires At",
+      "description": "When the previous secret stops signing deliveries, in RFC 3339 format.",
+      "required": false,
+      "disabled": true
+    }
+  ],
+  "label": "MCP Events",
+  "description": "Deliver events to AI agents that subscribe through an MCP server.",
+  "icon": "<svg width=\"16\" height=\"16\" viewBox=\"0 0 16 16\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M2.5 7.8L8 2.3a2 2 0 0 1 2.8 2.8L6.6 9.3\" stroke=\"#7A786E\" stroke-width=\"1.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/><path d=\"M6.7 9.2L11 4.9a2 2 0 0 1 2.8 2.8l-5 5a.6.6 0 0 0 0 .85l1 1\" stroke=\"#7A786E\" stroke-width=\"1.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/><path d=\"M9.4 3.5L5.2 7.7a2 2 0 0 0 2.8 2.8l4.2-4.2\" stroke=\"#7A786E\" stroke-width=\"1.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg>"
+}

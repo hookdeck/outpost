@@ -15,7 +15,19 @@ type ProviderMetadata struct {
 	Icon             string        `json:"icon"`
 	SetupLink        *SetupLink    `json:"setup_link,omitempty"`
 	Instructions     string        `json:"instructions"`
+	// CreateMode is how destinations of the type are created: empty for a
+	// form built from ConfigFields and CredentialFields (API v2 reports it
+	// as CreateModeForm), or CreateModeExternal for a type that is only ever
+	// created outside the destinations API, whose Instructions replace the
+	// form. It is a core field: DESTINATIONS_METADATA_PATH can't override it.
+	CreateMode string `json:"create_mode,omitempty"`
 }
+
+// Create modes.
+const (
+	CreateModeForm     = "form"
+	CreateModeExternal = "external"
+)
 
 type SetupLink struct {
 	Href string `json:"href"`

@@ -7,7 +7,6 @@ import (
 	"time"
 
 	internalredis "github.com/hookdeck/outpost/internal/redis"
-	"github.com/hookdeck/outpost/internal/util/testinfra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -134,26 +133,7 @@ func TestRedisVerificationStore_Miniredis(t *testing.T) {
 	}
 }
 
-func TestRedisVerificationStore_RedisStack(t *testing.T) {
-	t.Parallel()
-	testinfra.Start(t)
-	runVerificationStoreIntegration(t, testinfra.NewRedisStackConfig(t))
-}
-
-func TestRedisVerificationStore_Dragonfly(t *testing.T) {
-	t.Parallel()
-	testinfra.Start(t)
-	runVerificationStoreIntegration(t, testinfra.NewDragonflyConfig(t))
-}
-
-func runVerificationStoreIntegration(t *testing.T, cfg *internalredis.RedisConfig) {
-	for _, dep := range []string{"", "dp_test_001"} {
-		t.Run("deployment="+dep, func(t *testing.T) {
-			client, err := internalredis.New(context.Background(), cfg)
-			require.NoError(t, err)
-			t.Cleanup(func() { _ = client.Close() })
-			require.NoError(t, client.FlushDB(context.Background()).Err())
-			runVerificationStoreSuite(t, client, dep, time.Sleep)
-		})
-	}
-}
+// The Redis Stack and Dragonfly runs of this suite are in
+// verifystore_integration_test.go, an external test package: testinfra
+// imports the destination providers, which import this package, so tests
+// inside the package can't use it.
