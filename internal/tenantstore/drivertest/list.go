@@ -345,6 +345,70 @@ func testListDestination(t *testing.T, newHarness HarnessMaker) {
 		require.NoError(t, err)
 		require.Len(t, destinations, 3)
 	})
+
+	t.Run("ExcludeTypes", func(t *testing.T) {
+		ctx := context.Background()
+		h, err := newHarness(ctx, t)
+		require.NoError(t, err)
+		t.Cleanup(h.Close)
+
+		store, err := h.MakeDriver(ctx)
+		require.NoError(t, err)
+		data := setupMultiDestination(t, ctx, store)
+		mcp := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithTenantID(data.tenant.ID),
+			testutil.DestinationFactory.WithType("mcp"),
+			testutil.DestinationFactory.WithTopics([]string{"user.created"}),
+		)
+		require.NoError(t, store.CreateDestination(ctx, mcp))
+
+		all, err := store.ListDestination(ctx, driver.ListDestinationRequest{TenantID: data.tenant.ID})
+		require.NoError(t, err)
+		require.Len(t, all, 6)
+
+		t.Run("list all", func(t *testing.T) {
+			destinations, err := store.ListDestination(ctx, driver.ListDestinationRequest{
+				TenantID:     data.tenant.ID,
+				ExcludeTypes: []string{"mcp"},
+			})
+			require.NoError(t, err)
+			require.Len(t, destinations, 5)
+			for _, d := range destinations {
+				assert.NotEqual(t, "mcp", d.Type)
+			}
+		})
+
+		t.Run("by IDs", func(t *testing.T) {
+			destinations, err := store.ListDestination(ctx, driver.ListDestinationRequest{
+				TenantID:     data.tenant.ID,
+				IDs:          []string{mcp.ID, data.destinations[0].ID},
+				ExcludeTypes: []string{"mcp"},
+			})
+			require.NoError(t, err)
+			require.Len(t, destinations, 1)
+			assert.Equal(t, data.destinations[0].ID, destinations[0].ID)
+		})
+
+		t.Run("with topics", func(t *testing.T) {
+			destinations, err := store.ListDestination(ctx, driver.ListDestinationRequest{
+				TenantID:     data.tenant.ID,
+				Topics:       []string{"user.created"},
+				ExcludeTypes: []string{"mcp"},
+			})
+			require.NoError(t, err)
+			require.Len(t, destinations, 3)
+		})
+
+		t.Run("exclusion wins over inclusion", func(t *testing.T) {
+			destinations, err := store.ListDestination(ctx, driver.ListDestinationRequest{
+				TenantID:     data.tenant.ID,
+				Type:         []string{"mcp", "webhook"},
+				ExcludeTypes: []string{"mcp"},
+			})
+			require.NoError(t, err)
+			require.Len(t, destinations, 5)
+		})
+	})
 }
 
 func testListTenant(t *testing.T, newHarness HarnessMaker) {

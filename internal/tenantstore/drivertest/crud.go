@@ -185,10 +185,12 @@ func testCRUD(t *testing.T, newHarness HarnessMaker) {
 		require.NoError(t, err)
 
 		now := time.Now()
+		expiresAt := now.Add(time.Hour)
 		input := models.Destination{
-			ID:     idgen.Destination(),
-			Type:   "rabbitmq",
-			Topics: []string{"user.created", "user.updated"},
+			ID:        idgen.Destination(),
+			ExpiresAt: &expiresAt,
+			Type:      "rabbitmq",
+			Topics:    []string{"user.created", "user.updated"},
 			Config: map[string]string{
 				"server_url": "localhost:5672",
 				"exchange":   "events",
@@ -431,6 +433,66 @@ func testCRUD(t *testing.T, newHarness HarnessMaker) {
 		})
 	})
 
+	t.Run("ExpiresAtPersistence", func(t *testing.T) {
+		ctx := context.Background()
+		h, err := newHarness(ctx, t)
+		require.NoError(t, err)
+		t.Cleanup(h.Close)
+
+		store, err := h.MakeDriver(ctx)
+		require.NoError(t, err)
+
+		expiresAt := time.Now().Add(time.Hour)
+		destination := testutil.DestinationFactory.Any(testutil.DestinationFactory.WithExpiresAt(expiresAt))
+
+		t.Run("sets on create", func(t *testing.T) {
+			require.NoError(t, store.CreateDestination(ctx, destination))
+			actual, err := store.RetrieveDestination(ctx, destination.TenantID, destination.ID)
+			require.NoError(t, err)
+			assertEqualTimePtr(t, &expiresAt, actual.ExpiresAt, "ExpiresAt")
+		})
+
+		t.Run("moves on upsert", func(t *testing.T) {
+			later := expiresAt.Add(time.Hour)
+			destination.ExpiresAt = &later
+			require.NoError(t, store.UpsertDestination(ctx, destination))
+			actual, err := store.RetrieveDestination(ctx, destination.TenantID, destination.ID)
+			require.NoError(t, err)
+			assertEqualTimePtr(t, &later, actual.ExpiresAt, "ExpiresAt")
+		})
+
+		t.Run("clears on upsert", func(t *testing.T) {
+			destination.ExpiresAt = nil
+			require.NoError(t, store.UpsertDestination(ctx, destination))
+			actual, err := store.RetrieveDestination(ctx, destination.TenantID, destination.ID)
+			require.NoError(t, err)
+			assert.Nil(t, actual.ExpiresAt)
+		})
+
+		t.Run("create over a tombstone does not inherit it", func(t *testing.T) {
+			destination.ExpiresAt = &expiresAt
+			require.NoError(t, store.UpsertDestination(ctx, destination))
+			require.NoError(t, store.DeleteDestination(ctx, destination.TenantID, destination.ID))
+
+			destination.ExpiresAt = nil
+			require.NoError(t, store.CreateDestination(ctx, destination))
+			actual, err := store.RetrieveDestination(ctx, destination.TenantID, destination.ID)
+			require.NoError(t, err)
+			assert.Nil(t, actual.ExpiresAt)
+		})
+
+		t.Run("listed with its expiry, expired or not", func(t *testing.T) {
+			past := time.Now().Add(-time.Minute)
+			destination.ExpiresAt = &past
+			require.NoError(t, store.UpsertDestination(ctx, destination))
+			list, err := store.ListDestination(ctx, driver.ListDestinationRequest{TenantID: destination.TenantID})
+			require.NoError(t, err)
+			require.Len(t, list, 1)
+			assertEqualTimePtr(t, &past, list[0].ExpiresAt, "ExpiresAt")
+			assert.True(t, list[0].IsExpired(time.Now()))
+		})
+	})
+
 	t.Run("FilterPersistence", func(t *testing.T) {
 		ctx := context.Background()
 		h, err := newHarness(ctx, t)
@@ -545,4 +607,5 @@ func assertEqualDestination(t *testing.T, expected, actual models.Destination) {
 	assertEqualTime(t, expected.CreatedAt, actual.CreatedAt, "CreatedAt")
 	assertEqualTime(t, expected.UpdatedAt, actual.UpdatedAt, "UpdatedAt")
 	assertEqualTimePtr(t, expected.DisabledAt, actual.DisabledAt, "DisabledAt")
+	assertEqualTimePtr(t, expected.ExpiresAt, actual.ExpiresAt, "ExpiresAt")
 }

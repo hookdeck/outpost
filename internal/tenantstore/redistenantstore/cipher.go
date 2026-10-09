@@ -6,6 +6,7 @@ import (
 	"crypto/md5"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"io"
 )
 
@@ -36,6 +37,9 @@ func (a *aesCipher) decrypt(toBeDecrypted []byte) ([]byte, error) {
 	}
 
 	nonceSize := aead.NonceSize()
+	if len(toBeDecrypted) < nonceSize+aead.Overhead() {
+		return nil, errors.New("ciphertext too short")
+	}
 	nonce, encrypted := toBeDecrypted[:nonceSize], toBeDecrypted[nonceSize:]
 
 	decrypted, err := aead.Open(nil, nonce, encrypted, nil)

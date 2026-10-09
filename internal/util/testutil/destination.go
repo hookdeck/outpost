@@ -106,3 +106,9 @@ func (f *mockDestinationFactory) WithFilter(filter models.Filter) func(*models.D
 		destination.Filter = filter
 	}
 }
+
+func (f *mockDestinationFactory) WithExpiresAt(expiresAt time.Time) func(*models.Destination) {
+	return func(destination *models.Destination) {
+		destination.ExpiresAt = &expiresAt
+	}
+}
