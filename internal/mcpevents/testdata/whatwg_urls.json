@@ -1,0 +1,322 @@
+[
+  {
+    "input": "https://example.com",
+    "href": "https://example.com/"
+  },
+  {
+    "input": "https://example.com/",
+    "href": "https://example.com/"
+  },
+  {
+    "input": "HTTPS://EXAMPLE.COM/Path?Q=1",
+    "href": "https://example.com/Path?Q=1"
+  },
+  {
+    "input": "https://Example.COM./a",
+    "href": "https://example.com./a"
+  },
+  {
+    "input": "https://example.com../a",
+    "href": "https://example.com../a"
+  },
+  {
+    "input": "https://example.com:443/",
+    "href": "https://example.com/"
+  },
+  {
+    "input": "https://example.com:0443/",
+    "href": "https://example.com/"
+  },
+  {
+    "input": "https://example.com:00443/x",
+    "href": "https://example.com/x"
+  },
+  {
+    "input": "https://example.com:8443/",
+    "href": "https://example.com:8443/"
+  },
+  {
+    "input": "https://example.com:08443/",
+    "href": "https://example.com:8443/"
+  },
+  {
+    "input": "https://example.com:65535/",
+    "href": "https://example.com:65535/"
+  },
+  {
+    "input": "https://example.com:65536/",
+    "error": "ERR_INVALID_URL"
+  },
+  {
+    "input": "https://example.com:0/",
+    "href": "https://example.com:0/"
+  },
+  {
+    "input": "https://example.com:/",
+    "href": "https://example.com/"
+  },
+  {
+    "input": "http://example.com:80/",
+    "href": "http://example.com/"
+  },
+  {
+    "input": "http://example.com:443/",
+    "href": "http://example.com:443/"
+  },
+  {
+    "input": "https://example.com:80/",
+    "href": "https://example.com:80/"
+  },
+  {
+    "input": "https://bücher.de/",
+    "href": "https://xn--bcher-kva.de/"
+  },
+  {
+    "input": "https://BÜCHER.de/",
+    "href": "https://xn--bcher-kva.de/"
+  },
+  {
+    "input": "https://xn--bcher-kva.de/",
+    "href": "https://xn--bcher-kva.de/"
+  },
+  {
+    "input": "https://faß.de/",
+    "href": "https://xn--fa-hia.de/"
+  },
+  {
+    "input": "https://例え.テスト/",
+    "href": "https://xn--r8jz45g.xn--zckzah/"
+  },
+  {
+    "input": "https://my_host.example.com/",
+    "href": "https://my_host.example.com/"
+  },
+  {
+    "input": "https://-lead.example.com/",
+    "href": "https://-lead.example.com/"
+  },
+  {
+    "input": "https://r3---sn-abc.example.com/",
+    "href": "https://r3---sn-abc.example.com/"
+  },
+  {
+    "input": "https://127.0.0.1/",
+    "href": "https://127.0.0.1/"
+  },
+  {
+    "input": "https://127.0.0.1.:8443/",
+    "href": "https://127.0.0.1:8443/"
+  },
+  {
+    "input": "https://127.1/",
+    "href": "https://127.0.0.1/"
+  },
+  {
+    "input": "https://0x7f.0.0.1/",
+    "href": "https://127.0.0.1/"
+  },
+  {
+    "input": "https://2130706433/",
+    "href": "https://127.0.0.1/"
+  },
+  {
+    "input": "https://127.000.0.1/",
+    "href": "https://127.0.0.1/"
+  },
+  {
+    "input": "https://1.2.3.256/",
+    "error": "ERR_INVALID_URL"
+  },
+  {
+    "input": "https://example.123/",
+    "error": "ERR_INVALID_URL"
+  },
+  {
+    "input": "https://[::1]/",
+    "href": "https://[::1]/"
+  },
+  {
+    "input": "https://[::1]:443/",
+    "href": "https://[::1]/"
+  },
+  {
+    "input": "https://[0:0:0:0:0:0:0:1]:8443/",
+    "href": "https://[::1]:8443/"
+  },
+  {
+    "input": "https://[2001:DB8:0:0:0:0:0:1]/",
+    "href": "https://[2001:db8::1]/"
+  },
+  {
+    "input": "https://[2001:4860:4860:0:0:0:0:8888]/",
+    "href": "https://[2001:4860:4860::8888]/"
+  },
+  {
+    "input": "https://[::ffff:7f00:1]/",
+    "href": "https://[::ffff:7f00:1]/"
+  },
+  {
+    "input": "https://[::ffff:127.0.0.1]/",
+    "href": "https://[::ffff:7f00:1]/"
+  },
+  {
+    "input": "https://[0:0:0:0:0:ffff:127.0.0.1]/",
+    "href": "https://[::ffff:7f00:1]/"
+  },
+  {
+    "input": "https://[::127.0.0.1]/",
+    "href": "https://[::7f00:1]/"
+  },
+  {
+    "input": "https://[fe80::1%25en0]/",
+    "error": "ERR_INVALID_URL"
+  },
+  {
+    "input": "https://user:pass@example.com/",
+    "href": "https://user:pass@example.com/"
+  },
+  {
+    "input": "https://user@example.com/",
+    "href": "https://user@example.com/"
+  },
+  {
+    "input": "https://@example.com/",
+    "href": "https://example.com/"
+  },
+  {
+    "input": "https://example.com/#frag",
+    "href": "https://example.com/#frag"
+  },
+  {
+    "input": "https://example.com/#",
+    "href": "https://example.com/#"
+  },
+  {
+    "input": "https://example.com/?",
+    "href": "https://example.com/?"
+  },
+  {
+    "input": "https://example.com/?a=1&b=2",
+    "href": "https://example.com/?a=1&b=2"
+  },
+  {
+    "input": "https://example.com/?q=<x>\"y\"'z'`{}|^",
+    "href": "https://example.com/?q=%3Cx%3E%22y%22%27z%27`{}|^"
+  },
+  {
+    "input": "https://example.com/a b",
+    "href": "https://example.com/a%20b"
+  },
+  {
+    "input": "https://example.com/a<b>\"c\"`d{e}f^g|h",
+    "href": "https://example.com/a%3Cb%3E%22c%22%60d%7Be%7Df%5Eg|h"
+  },
+  {
+    "input": "https://example.com/café/日",
+    "href": "https://example.com/caf%C3%A9/%E6%97%A5"
+  },
+  {
+    "input": "https://example.com/%7e%7E%zz",
+    "href": "https://example.com/%7e%7E%zz"
+  },
+  {
+    "input": "https://example.com/%2e/a/./b/../c",
+    "href": "https://example.com/a/c"
+  },
+  {
+    "input": "https://example.com/a/%2E%2e/b",
+    "href": "https://example.com/b"
+  },
+  {
+    "input": "https://example.com/a/b/..",
+    "href": "https://example.com/a/"
+  },
+  {
+    "input": "https://example.com/a/b/.",
+    "href": "https://example.com/a/b/"
+  },
+  {
+    "input": "https://example.com/..",
+    "href": "https://example.com/"
+  },
+  {
+    "input": "https://example.com//double//slash/",
+    "href": "https://example.com//double//slash/"
+  },
+  {
+    "input": "https://example.com/a!$&'()*+,;=:@[]~-._",
+    "href": "https://example.com/a!$&'()*+,;=:@[]~-._"
+  },
+  {
+    "input": "https://example.com/a\\b",
+    "href": "https://example.com/a/b"
+  },
+  {
+    "input": "https://example.com\\@evil.com/",
+    "href": "https://example.com/@evil.com/"
+  },
+  {
+    "input": " https://example.com/ ",
+    "href": "https://example.com/"
+  },
+  {
+    "input": "https://exa\tmple.com/",
+    "href": "https://example.com/"
+  },
+  {
+    "input": "https:example.com/",
+    "href": "https://example.com/"
+  },
+  {
+    "input": "https:/example.com/",
+    "href": "https://example.com/"
+  },
+  {
+    "input": "//example.com/",
+    "error": "ERR_INVALID_URL"
+  },
+  {
+    "input": "/relative/path",
+    "error": "ERR_INVALID_URL"
+  },
+  {
+    "input": "example.com",
+    "error": "ERR_INVALID_URL"
+  },
+  {
+    "input": "ftp://example.com/",
+    "href": "ftp://example.com/"
+  },
+  {
+    "input": "javascript:alert(1)",
+    "href": "javascript:alert(1)"
+  },
+  {
+    "input": "file:///etc/passwd",
+    "href": "file:///etc/passwd"
+  },
+  {
+    "input": "wss://example.com/",
+    "href": "wss://example.com/"
+  },
+  {
+    "input": "https://",
+    "error": "ERR_INVALID_URL"
+  },
+  {
+    "input": "https:///path",
+    "href": "https://path/"
+  },
+  {
+    "input": "https://:443/",
+    "error": "ERR_INVALID_URL"
+  },
+  {
+    "input": "https://ex%61mple.com/",
+    "href": "https://example.com/"
+  },
+  {
+    "input": "https://example.com/ ",
+    "href": "https://example.com/%E2%80%A8"
+  }
+]
