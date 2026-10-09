@@ -1,5 +1,7 @@
 import { useNavigate } from "react-router-dom";
+import Badge from "../../../common/Badge/Badge";
 import { Loading } from "../../../common/Icons";
+import { isExternalType } from "../../../utils/destinationTypes";
 import { useCreateDestinationContext } from "../CreateDestination";
 
 export default function TypeStep() {
@@ -61,6 +63,11 @@ export default function TypeStep() {
                           }}
                         />{" "}
                         {destination.label}
+                        {/* External types are created outside the portal: the
+                        next step shows their instructions, not a form. */}
+                        {isExternalType(destination) && (
+                          <Badge text="External" size="s" />
+                        )}
                       </h3>
                       <p className="body-m muted">{destination.description}</p>
                     </div>

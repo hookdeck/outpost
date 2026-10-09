@@ -1,5 +1,5 @@
 import { useEffect, useState, createContext, useMemo } from "react";
-import { BrowserRouter, Routes, Route, Link } from "react-router-dom";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 import DestinationList from "./scenes/DestinationsList/DestinationList";
 import useSWR, { SWRConfig } from "swr";
 
@@ -7,7 +7,8 @@ import "./global.scss";
 import "./app.scss";
 import { Loading } from "./common/Icons";
 import ErrorBoundary from "./common/ErrorBoundary/ErrorBoundary";
-import CONFIGS from "./config";
+import NotFoundState from "./common/NotFoundState/NotFoundState";
+import CONFIGS, { API_BASE_PATH } from "./config";
 import Destination from "./scenes/Destination/Destination";
 import { ToastProvider } from "./common/Toast/Toast";
 import { SidebarProvider } from "./common/Sidebar/Sidebar";
@@ -61,32 +62,10 @@ type TenantResponse = {
 
 function NotFound() {
   return (
-    <div
-      style={{
-        textAlign: "center",
-        padding: "2rem",
-        maxWidth: "500px",
-        margin: "0 auto",
-      }}
-    >
-      <h1 style={{ fontSize: "2rem", marginBottom: "1rem", color: "#374151" }}>
-        Page Not Found
-      </h1>
-      <p style={{ fontSize: "1rem", marginBottom: "2rem", color: "#6b7280" }}>
-        The page you're looking for doesn't exist.
-      </p>
-      <Link
-        to="/"
-        style={{
-          color: "#3b82f6",
-          textDecoration: "none",
-          fontSize: "1rem",
-          fontWeight: "500",
-        }}
-      >
-        ← Back to Destinations
-      </Link>
-    </div>
+    <NotFoundState
+      title="Page Not Found"
+      message="The page you're looking for doesn't exist."
+    />
   );
 }
 
@@ -123,13 +102,13 @@ function AuthenticatedApp({
 
   const apiClient: ApiClient = {
     fetch: (path: string, init?: RequestInit) => {
-      return fetch(`/api/v1/tenants/${tenant.id}/${path}`, {
+      return fetch(`${API_BASE_PATH}/tenants/${tenant.id}/${path}`, {
         ...init,
         headers: makeHeaders(init),
       }).then(handleResponse);
     },
     fetchRoot: (path: string, init?: RequestInit) => {
-      return fetch(`/api/v1/${path}`, {
+      return fetch(`${API_BASE_PATH}/${path}`, {
         ...init,
         headers: makeHeaders(init),
       }).then(handleResponse);
@@ -234,7 +213,7 @@ function useTenant(token?: string): TenantResponse | undefined {
   }, [token]);
 
   const { data } = useSWR<TenantResponse>(
-    tenantId && token ? [`/api/v1/tenants/${tenantId}`, token] : null,
+    tenantId && token ? [`${API_BASE_PATH}/tenants/${tenantId}`, token] : null,
     ([url, token]: [string, string]) =>
       fetch(url, {
         headers: { Authorization: `Bearer ${token}` },

@@ -216,6 +216,7 @@ func (c *Config) InitDefaults() {
 	c.LogBatchThresholdSeconds = 10
 	c.LogBatchSize = 1000
 	c.TopicsValidationMaxBytes = 256 << 10 // 256 KiB
+	c.Portal.ShowMCPDestinations = true
 
 	// Set defaults for Destinations config
 	c.Destinations = DestinationsConfig{

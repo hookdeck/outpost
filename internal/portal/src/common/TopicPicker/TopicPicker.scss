@@ -101,4 +101,14 @@
     margin-top: var(--spacing-3);
     margin-bottom: var(--spacing-3);
   }
+
+  &__deprecation {
+    display: inline-flex;
+    margin-left: var(--spacing-2);
+    vertical-align: middle;
+
+    .topic-picker__topic & {
+      margin-left: 0;
+    }
+  }
 }

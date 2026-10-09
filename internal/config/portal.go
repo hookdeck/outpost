@@ -20,6 +20,9 @@ type PortalConfig struct {
 	DisableOutpostBranding     bool   `yaml:"disable_outpost_branding" env:"PORTAL_DISABLE_OUTPOST_BRANDING" desc:"If true, disables Outpost branding in the portal." required:"N"`
 	EnableDestinationFilter    bool   `yaml:"enable_destination_filter" env:"PORTAL_ENABLE_DESTINATION_FILTER" desc:"If true, enables destination filter UI in the portal." required:"N" default:"false"`
 	EnableWebhookCustomHeaders bool   `yaml:"enable_webhook_custom_headers" env:"PORTAL_ENABLE_WEBHOOK_CUSTOM_HEADERS" desc:"If true, enables custom headers UI for webhook destinations in the portal." required:"N" default:"false"`
+	// ShowMCPDestinations is true by default, set in InitDefaults: the default
+	// tag is documentation only.
+	ShowMCPDestinations bool `yaml:"show_mcp_destinations" env:"PORTAL_SHOW_MCP_DESTINATIONS" desc:"If false, hides the MCP destination type and MCP destinations in the portal. Display only: the API still returns MCP destinations to tenant tokens." required:"N" default:"true"`
 }
 
 // GetPortalConfig returns the portal configuration with all necessary fields
@@ -42,6 +45,7 @@ func (c *Config) GetPortalConfig() portal.PortalConfig {
 			"DISABLE_TELEMETRY":             strconv.FormatBool(c.DisableTelemetry),
 			"ENABLE_DESTINATION_FILTER":     strconv.FormatBool(c.Portal.EnableDestinationFilter),
 			"ENABLE_WEBHOOK_CUSTOM_HEADERS": strconv.FormatBool(c.Portal.EnableWebhookCustomHeaders),
+			"SHOW_MCP_DESTINATIONS":         strconv.FormatBool(c.Portal.ShowMCPDestinations),
 		},
 	}
 }

@@ -1,10 +1,13 @@
 import { useState, useMemo, useEffect } from "react";
 
 import "./TopicPicker.scss";
+import Badge from "../Badge/Badge";
 import { Checkbox } from "../Checkbox/Checkbox";
 import CONFIGS from "../../config";
 import SearchInput from "../SearchInput/SearchInput";
 import { DropdownIcon } from "../Icons";
+import { useTopicDeprecations } from "../../topic-deprecations";
+import { deprecationLabel } from "../../utils/topics";
 
 interface Topic {
   id: string;
@@ -40,6 +43,16 @@ const TopicPicker = ({
   onTopicsChange,
 }: TopicPickerProps) => {
   const allowWildcardTopics = CONFIGS.TOPICS_ALLOW_WILDCARDS === "true";
+  const deprecations = useTopicDeprecations();
+
+  const renderDeprecation = (topicId: string) => {
+    const label = deprecationLabel(deprecations.get(topicId));
+    return label ? (
+      <span className="topic-picker__deprecation">
+        <Badge text={label} size="s" />
+      </span>
+    ) : null;
+  };
 
   // Keep track of any custom topics seen during this component's lifecycle
   // so they don't disappear if they are temporarily unselected or "Select All" is clicked.
@@ -255,6 +268,7 @@ const TopicPicker = ({
                   monospace
                   disabled={isEverythingSelected}
                 />
+                {renderDeprecation(topic.id)}
               </div>
             );
           }
@@ -345,6 +359,7 @@ const TopicPicker = ({
                         monospace
                         disabled={isEverythingSelected}
                       />
+                      {renderDeprecation(topic.id)}
                     </div>
                   ))}
                 </div>
