@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"slices"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -86,7 +87,32 @@ func (h *PublishHandlers) Ingest(c *gin.Context) {
 		}
 		return
 	}
+	if apiVersionFromContext(c) < apiV2 {
+		result = withoutHiddenDestinations(result)
+	}
 	c.JSON(http.StatusAccepted, result)
+}
+
+// withoutHiddenDestinations returns result without the matched destinations
+// API v1 hides (MCP subscriptions), for a v1 publish response. result is not
+// modified.
+func withoutHiddenDestinations(result *publishmq.HandleResult) *publishmq.HandleResult {
+	if result == nil || len(result.MatchedDestinationTypes) != len(result.DestinationIDs) ||
+		!slices.ContainsFunc(result.MatchedDestinationTypes, func(typ string) bool {
+			return slices.Contains(v1HiddenDestinationTypes, typ)
+		}) {
+		return result
+	}
+	visible := *result
+	visible.DestinationIDs = make([]string, 0, len(result.DestinationIDs))
+	visible.MatchedDestinationTypes = make([]string, 0, len(result.DestinationIDs))
+	for i, id := range result.DestinationIDs {
+		if typ := result.MatchedDestinationTypes[i]; !slices.Contains(v1HiddenDestinationTypes, typ) {
+			visible.DestinationIDs = append(visible.DestinationIDs, id)
+			visible.MatchedDestinationTypes = append(visible.MatchedDestinationTypes, typ)
+		}
+	}
+	return &visible
 }
 
 // schemaErrorData keeps data a JSON array, as for every other validation
