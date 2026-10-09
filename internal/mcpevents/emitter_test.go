@@ -7,10 +7,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/opevents"
-	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap/zaptest"
 )
 
 // fakeEmitter records events; block, when set, holds every Emit until it is
@@ -127,7 +128,9 @@ func TestAsyncEmitter_CloseGivesUp(t *testing.T) {
 
 func TestAsyncEmitter_Enabled(t *testing.T) {
 	t.Parallel()
-	logger := testutil.CreateTestLogger(t)
+	// Not testutil.CreateTestLogger: testutil imports the destination
+	// providers, which import this package (an import cycle in tests).
+	logger := logging.NewTestLogger(zaptest.NewLogger(t))
 
 	// The wrapped emitter's topic filter applies: filtered events aren't queued.
 	filtered := opevents.NewEmitter(nil, "", []string{"tenant.subscription.updated"}, logger)

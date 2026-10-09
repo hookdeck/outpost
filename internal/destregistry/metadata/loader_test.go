@@ -1,6 +1,7 @@
 package metadata
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -89,6 +90,62 @@ func TestMetadataLoader(t *testing.T) {
 		loader := NewMetadataLoader(tmpDir)
 		_, err := loader.Load("nonexistent")
 		assert.Error(t, err)
+	})
+}
+
+func TestMetadataLoader_MCP(t *testing.T) {
+	t.Run("loads the embedded mcp metadata", func(t *testing.T) {
+		metadata, err := NewMetadataLoader("").Load("mcp")
+		require.NoError(t, err)
+		assert.Equal(t, "mcp", metadata.Type)
+		assert.Equal(t, CreateModeExternal, metadata.CreateMode)
+		assert.Equal(t, "MCP Events", metadata.Label)
+		assert.NotEmpty(t, metadata.Icon)
+		assert.NotEmpty(t, metadata.Instructions)
+		assert.Len(t, metadata.ConfigFields, 6)
+		assert.Len(t, metadata.CredentialFields, 3)
+	})
+
+	t.Run("create_mode can't be overridden", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		for provider, override := range map[string]string{
+			"mcp":     `{"create_mode": "form", "label": "Agents"}`,
+			"webhook": `{"create_mode": "external", "label": "Hooks"}`,
+		} {
+			require.NoError(t, os.MkdirAll(filepath.Join(tmpDir, provider), 0755))
+			writeTestFile(t, filepath.Join(tmpDir, provider, "metadata.json"), override)
+		}
+		loader := NewMetadataLoader(tmpDir)
+
+		mcp, err := loader.Load("mcp")
+		require.NoError(t, err)
+		assert.Equal(t, CreateModeExternal, mcp.CreateMode)
+		assert.Equal(t, "Agents", mcp.Label, "other fields still merge")
+
+		webhook, err := loader.Load("webhook")
+		require.NoError(t, err)
+		assert.Empty(t, webhook.CreateMode)
+		assert.Equal(t, "Hooks", webhook.Label)
+	})
+
+	// API v1 serves provider metadata as is: types without a create mode
+	// must encode exactly as before the field existed.
+	t.Run("form types encode without create_mode", func(t *testing.T) {
+		loader := NewMetadataLoader("")
+		for _, provider := range []string{"webhook", "hookdeck", "aws_sqs", "aws_kinesis", "aws_s3", "aws_eventbridge", "azure_servicebus", "gcp_pubsub", "rabbitmq", "kafka", "cloudflare_queues", "webhook_standard"} {
+			metadata, err := loader.Load(provider)
+			require.NoError(t, err, provider)
+			assert.Empty(t, metadata.CreateMode, provider)
+			b, err := json.Marshal(metadata)
+			require.NoError(t, err)
+			assert.NotContains(t, string(b), "create_mode", provider)
+		}
+
+		metadata, err := loader.Load("mcp")
+		require.NoError(t, err)
+		b, err := json.Marshal(metadata)
+		require.NoError(t, err)
+		assert.Contains(t, string(b), `"create_mode":"external"`)
 	})
 }
 
