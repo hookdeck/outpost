@@ -685,6 +685,83 @@ func TestAPI_Events(t *testing.T) {
 	})
 }
 
+// schema_valid appears on every event object when the event was validated,
+// and is omitted when it was not.
+func TestAPI_EventSchemaValid(t *testing.T) {
+	h := newAPITest(t)
+	want := map[string]string{"e-valid": "true", "e-invalid": "false", "e-unchecked": ""}
+	events := []*models.Event{
+		ef.AnyPointer(ef.WithID("e-valid"), ef.WithTenantID("t1"), ef.WithSchemaValid(true)),
+		ef.AnyPointer(ef.WithID("e-invalid"), ef.WithTenantID("t1"), ef.WithSchemaValid(false)),
+		ef.AnyPointer(ef.WithID("e-unchecked"), ef.WithTenantID("t1")),
+	}
+	for _, e := range events {
+		require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
+			{Event: e, Attempt: attemptForEvent(e, af.WithID("a-"+e.ID))},
+		}))
+	}
+
+	assertSchemaValid := func(t *testing.T, event map[string]json.RawMessage) {
+		t.Helper()
+		var id string
+		require.NoError(t, json.Unmarshal(event["id"], &id))
+		got, ok := event["schema_valid"]
+		if want[id] == "" {
+			assert.False(t, ok, "%s: schema_valid must be omitted when unchecked", id)
+			return
+		}
+		assert.Equal(t, want[id], string(got), id)
+	}
+	get := func(t *testing.T, path string, v any) {
+		t.Helper()
+		resp := h.do(h.withAPIKey(httptest.NewRequest(http.MethodGet, path, nil)))
+		require.Equal(t, http.StatusOK, resp.Code)
+		require.NoError(t, json.Unmarshal(resp.Body.Bytes(), v))
+	}
+
+	t.Run("retrieve event", func(t *testing.T) {
+		for id := range want {
+			var event map[string]json.RawMessage
+			get(t, "/api/v1/events/"+id, &event)
+			assertSchemaValid(t, event)
+		}
+	})
+
+	t.Run("list events", func(t *testing.T) {
+		var result struct {
+			Models []map[string]json.RawMessage `json:"models"`
+		}
+		get(t, "/api/v1/events", &result)
+		require.Len(t, result.Models, len(want))
+		for _, event := range result.Models {
+			assertSchemaValid(t, event)
+		}
+	})
+
+	for _, include := range []string{"event", "event.data"} {
+		t.Run("attempts with include="+include, func(t *testing.T) {
+			var result struct {
+				Models []struct {
+					Event map[string]json.RawMessage `json:"event"`
+				} `json:"models"`
+			}
+			get(t, "/api/v1/attempts?include="+include, &result)
+			require.Len(t, result.Models, len(want))
+			for _, attempt := range result.Models {
+				assertSchemaValid(t, attempt.Event)
+			}
+
+			for id := range want {
+				var attempt struct {
+					Event map[string]json.RawMessage `json:"event"`
+				}
+				get(t, "/api/v1/attempts/a-"+id+"?include="+include, &attempt)
+				assertSchemaValid(t, attempt.Event)
+			}
+		})
+	}
+}
+
 func TestAPI_Attempts(t *testing.T) {
 	t.Run("List", func(t *testing.T) {
 		t.Run("api key returns all attempts", func(t *testing.T) {

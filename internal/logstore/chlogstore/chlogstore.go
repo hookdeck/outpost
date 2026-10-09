@@ -240,7 +240,8 @@ func buildEventQuery(table string, req driver.ListEventRequest, q pagination.Que
 			eligible_for_retry,
 			event_time,
 			metadata,
-			data
+			data,
+			schema_valid
 		FROM %s
 		WHERE %s
 		%s
@@ -262,6 +263,7 @@ func scanEvents(rows clickhouse.Rows) ([]eventWithPosition, error) {
 			eventTime             time.Time
 			metadataStr           string
 			dataStr               string
+			schemaValid           *bool
 		)
 
 		err := rows.Scan(
@@ -273,6 +275,7 @@ func scanEvents(rows clickhouse.Rows) ([]eventWithPosition, error) {
 			&eventTime,
 			&metadataStr,
 			&dataStr,
+			&schemaValid,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("scan failed: %w", err)
@@ -300,6 +303,7 @@ func scanEvents(rows clickhouse.Rows) ([]eventWithPosition, error) {
 				Time:                  eventTime,
 				Data:                  json.RawMessage(dataStr),
 				Metadata:              metadata,
+				SchemaValid:           schemaValid,
 			},
 			eventTime: eventTime,
 		})
@@ -471,7 +475,8 @@ func buildAttemptQuery(table string, req driver.ListAttemptRequest, q pagination
 			response_data,
 			manual,
 			attempt_number,
-			latency_ms
+			latency_ms,
+			schema_valid
 		FROM %s
 		WHERE %s
 		%s
@@ -502,6 +507,7 @@ func scanAttemptRecords(rows clickhouse.Rows) ([]attemptRecordWithPosition, erro
 			manual           bool
 			attemptNumber    uint32
 			latencyMs        *uint32
+			schemaValid      *bool
 		)
 
 		err := rows.Scan(
@@ -522,6 +528,7 @@ func scanAttemptRecords(rows clickhouse.Rows) ([]attemptRecordWithPosition, erro
 			&manual,
 			&attemptNumber,
 			&latencyMs,
+			&schemaValid,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("scan failed: %w", err)
@@ -566,6 +573,7 @@ func scanAttemptRecords(rows clickhouse.Rows) ([]attemptRecordWithPosition, erro
 					Time:             eventTime,
 					Data:             json.RawMessage(dataStr),
 					Metadata:         metadata,
+					SchemaValid:      schemaValid,
 				},
 			},
 			attemptTime: attemptTime,
@@ -602,7 +610,8 @@ func (s *logStoreImpl) RetrieveEvent(ctx context.Context, req driver.RetrieveEve
 			eligible_for_retry,
 			event_time,
 			metadata,
-			data
+			data,
+			schema_valid
 		FROM %s
 		WHERE %s
 		LIMIT 1`, s.eventsTable, whereClause)
@@ -621,6 +630,7 @@ func (s *logStoreImpl) RetrieveEvent(ctx context.Context, req driver.RetrieveEve
 		&event.Time,
 		&metadataStr,
 		&dataStr,
+		&event.SchemaValid,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
@@ -678,7 +688,8 @@ func (s *logStoreImpl) RetrieveAttempt(ctx context.Context, req driver.RetrieveA
 			response_data,
 			manual,
 			attempt_number,
-			latency_ms
+			latency_ms,
+			schema_valid
 		FROM %s
 		WHERE %s
 		LIMIT 1`, s.attemptsTable, whereClause)
@@ -703,6 +714,7 @@ func (s *logStoreImpl) RetrieveAttempt(ctx context.Context, req driver.RetrieveA
 		manual           bool
 		attemptNumber    uint32
 		latencyMs        *uint32
+		schemaValid      *bool
 	)
 
 	err := row.Scan(
@@ -723,6 +735,7 @@ func (s *logStoreImpl) RetrieveAttempt(ctx context.Context, req driver.RetrieveA
 		&manual,
 		&attemptNumber,
 		&latencyMs,
+		&schemaValid,
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -769,6 +782,7 @@ func (s *logStoreImpl) RetrieveAttempt(ctx context.Context, req driver.RetrieveA
 			Time:             eventTime,
 			Data:             json.RawMessage(dataStr),
 			Metadata:         metadata,
+			SchemaValid:      schemaValid,
 		},
 	}, nil
 }
@@ -796,7 +810,8 @@ func (s *logStoreImpl) InsertMany(ctx context.Context, entries []*models.LogEntr
 	if len(eventMap) > 0 {
 		eventBatch, err := s.chDB.PrepareBatch(ctx,
 			fmt.Sprintf(`INSERT INTO %s (
-				event_id, tenant_id, matched_destination_ids, topic, eligible_for_retry, event_time, metadata, data
+				event_id, tenant_id, matched_destination_ids, topic, eligible_for_retry, event_time, metadata, data,
+				schema_valid
 			)`, s.eventsTable),
 		)
 		if err != nil {
@@ -827,6 +842,7 @@ func (s *logStoreImpl) InsertMany(ctx context.Context, entries []*models.LogEntr
 				e.Time,
 				string(metadataJSON),
 				string(e.Data),
+				e.SchemaValid,
 			); err != nil {
 				return fmt.Errorf("events batch append failed: %w", err)
 			}
@@ -841,7 +857,8 @@ func (s *logStoreImpl) InsertMany(ctx context.Context, entries []*models.LogEntr
 	attemptBatch, err := s.chDB.PrepareBatch(ctx,
 		fmt.Sprintf(`INSERT INTO %s (
 			event_id, tenant_id, destination_id, destination_type, topic, eligible_for_retry, event_time, metadata, data,
-			attempt_id, status, attempt_time, code, response_data, manual, attempt_number, latency_ms
+			attempt_id, status, attempt_time, code, response_data, manual, attempt_number, latency_ms,
+			schema_valid
 		)`, s.attemptsTable),
 	)
 	if err != nil {
@@ -884,6 +901,7 @@ func (s *logStoreImpl) InsertMany(ctx context.Context, entries []*models.LogEntr
 			a.Manual,
 			uint32(a.AttemptNumber),
 			latencyToCH(a.LatencyMs),
+			event.SchemaValid,
 		); err != nil {
 			return fmt.Errorf("attempts batch append failed: %w", err)
 		}
