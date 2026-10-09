@@ -30,6 +30,51 @@ func TenantSubscriptionUpdatedEvent(data TenantSubscriptionUpdatedData) Event {
 	}
 }
 
+// MCPSubscriptionExpiredData is the data payload for mcp.subscription.expired
+// events. It carries the subscription key and callback, never its secrets.
+type MCPSubscriptionExpiredData struct {
+	TenantID       string `json:"tenant_id"`
+	SubscriptionID string `json:"subscription_id"`
+	Principal      string `json:"principal"`
+	// Topic is the subscribed event name.
+	Topic     string    `json:"topic"`
+	URL       string    `json:"url"`
+	ExpiresAt time.Time `json:"expires_at"`
+}
+
+// NewMCPSubscriptionExpiredData projects an expired mcp destination into the
+// payload shape. Its ID is the subscription ID.
+func NewMCPSubscriptionExpiredData(d *models.Destination) MCPSubscriptionExpiredData {
+	data := MCPSubscriptionExpiredData{
+		TenantID:       d.TenantID,
+		SubscriptionID: d.ID,
+		Principal:      d.Config["principal"],
+		Topic:          d.Config["event"],
+		URL:            d.Config["url"],
+	}
+	if data.Topic == "" && len(d.Topics) > 0 {
+		data.Topic = d.Topics[0]
+	}
+	if d.ExpiresAt != nil {
+		data.ExpiresAt = *d.ExpiresAt
+	}
+	return data
+}
+
+// MCPSubscriptionExpiredEvent builds the mcp.subscription.expired event.
+func MCPSubscriptionExpiredEvent(data MCPSubscriptionExpiredData) Event {
+	data.ExpiresAt = data.ExpiresAt.UTC()
+	return Event{
+		Topic:    TopicMCPSubscriptionExpired,
+		TenantID: data.TenantID,
+		LogFields: []zap.Field{
+			zap.String("destination_id", data.SubscriptionID),
+			zap.String("destination_type", models.DestinationTypeMCP),
+		},
+		Data: data,
+	}
+}
+
 // AlertDestination is the destination projection included in alert payloads.
 type AlertDestination struct {
 	ID         string        `json:"id"`

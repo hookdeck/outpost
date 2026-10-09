@@ -13,6 +13,7 @@ const (
 	TopicAttemptSuccess            = "attempt.success"
 	TopicAttemptFailed             = "attempt.failed"
 	TopicTenantSubscriptionUpdated = "tenant.subscription.updated"
+	TopicMCPSubscriptionExpired    = "mcp.subscription.expired"
 )
 
 // OperatorEvent is the envelope for all operator events emitted by Outpost.

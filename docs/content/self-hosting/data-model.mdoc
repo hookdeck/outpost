@@ -256,12 +256,13 @@ The index entries are written before the subscription and removed after it, so t
 
 ### Topic schemas
 
-The API service records the topic schemas it applied, to [check schema changes](/docs/outpost/features/topics#schema-evolution-and-deprecation) at the next startup. The two keys share the `{outpost:topic_schemas}` hash tag so they're written together, and start with `<deployment_id>:` when `DEPLOYMENT_ID` is set.
+The API service records the topic schemas it applied, to [check schema changes](/docs/outpost/features/topics#schema-evolution-and-deprecation) at the next startup. The keys in `{outpost:topic_schemas}` share that hash tag so they're written together. All the keys start with `<deployment_id>:` when `DEPLOYMENT_ID` is set.
 
 | Key | Type | TTL | Contents |
 |-----|------|-----|----------|
-| `{outpost:topic_schemas}:applied` | String | None | JSON with the last applied topic schemas (each topic's payload schema and MCP flag), their hash, when they were applied, and the old schema hashes of topics changed with `TOPICS_ALLOW_BREAKING_CHANGES`, whose subscriptions still need to end. |
+| `{outpost:topic_schemas}:applied` | String | None | JSON with the last applied topic schemas (each topic's payload schema and MCP flag), their hash, when they were applied, each topic's earlier schema hashes (up to 16), and the old schema hashes of topics changed with `TOPICS_ALLOW_BREAKING_CHANGES`, whose subscriptions still need to end. |
 | `{outpost:topic_schemas}:history` | List | None | The last 50 applied schema hashes, with when each was applied. |
+| `{outpost:topic_schemas}:termination` | Hash | None | Progress of the [MCP subscriptions worker](/docs/outpost/self-hosting/architecture#mcp-subscriptions-worker) through the subscriptions of topics changed with `TOPICS_ALLOW_BREAKING_CHANGES` (a scan cursor per topic), and when an instance last ran an older configuration. |
 | `outpost:topic_schemas:live:<hash>` | String | 60 seconds | Marks a topic configuration that an API instance is running. Each instance refreshes its own every 20 seconds. |
 
 Losing these keys loses the baseline: the next startup applies its schemas without a breaking-change check.

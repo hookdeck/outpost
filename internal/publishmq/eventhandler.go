@@ -93,6 +93,9 @@ type eventHandler struct {
 	// validator has a size limit, maxValidationBytes. It is nil otherwise.
 	validating         *semaphore.Weighted
 	maxValidationBytes int
+	// mcpTopicEnabled, when set, reports whether a topic is MCP-enabled in
+	// this instance's configuration; MCP matches of other topics are dropped.
+	mcpTopicEnabled func(topic string) bool
 }
 
 // EventHandlerOption configures NewEventHandler.
@@ -114,6 +117,16 @@ func WithSchemaValidator(v SchemaValidator) EventHandlerOption {
 			}
 			h.validating = semaphore.NewWeighted(budget)
 		}
+	}
+}
+
+// WithMCPTopicCheck drops matched MCP subscriptions (type mcp) when
+// enabled(event topic) is false, so a topic that is no longer MCP-enabled
+// stops reaching its subscriptions before they are ended. Dropped
+// subscriptions are neither enqueued nor listed in the result.
+func WithMCPTopicCheck(enabled func(topic string) bool) EventHandlerOption {
+	return func(h *eventHandler) {
+		h.mcpTopicEnabled = enabled
 	}
 }
 
@@ -173,6 +186,7 @@ func (h *eventHandler) Handle(ctx context.Context, event *models.Event) (*Handle
 	var duplicate bool
 	var enqueueFailed bool
 	var matchFailed bool
+	var mcpDropped int
 	var schema schemaOutcome
 
 	defer func() {
@@ -201,6 +215,9 @@ func (h *eventHandler) Handle(ctx context.Context, event *models.Event) (*Handle
 		}
 		if matchFailed {
 			fields = append(fields, zap.Bool("match_failed", true))
+		}
+		if mcpDropped > 0 {
+			fields = append(fields, zap.Int("mcp_topic_disabled_count", mcpDropped))
 		}
 		if enqueueFailed {
 			fields = append(fields, zap.Bool("enqueue_failed", true))
@@ -240,6 +257,7 @@ func (h *eventHandler) Handle(ctx context.Context, event *models.Event) (*Handle
 			return nil, err
 		}
 	}
+	matched, mcpDropped = h.dropMCPOfDisabledTopic(event.Topic, matched)
 
 	ids := make([]string, len(matched))
 	types := make([]string, len(matched))
@@ -373,6 +391,22 @@ func (h *eventHandler) doPublish(ctx context.Context, event *models.Event, match
 		return err
 	}
 	return nil
+}
+
+// dropMCPOfDisabledTopic removes the MCP subscriptions from matched when the
+// topic is not MCP-enabled here (WithMCPTopicCheck), returning how many it
+// removed. MCP subscriptions only match their exact topic, so the event topic
+// is theirs.
+func (h *eventHandler) dropMCPOfDisabledTopic(topic string, matched []tenantstore.MatchedDestination) ([]tenantstore.MatchedDestination, int) {
+	if h.mcpTopicEnabled == nil || !slices.ContainsFunc(matched, isMCPMatch) || h.mcpTopicEnabled(topic) {
+		return matched, 0
+	}
+	kept := slices.DeleteFunc(slices.Clone(matched), isMCPMatch)
+	return kept, len(matched) - len(kept)
+}
+
+func isMCPMatch(m tenantstore.MatchedDestination) bool {
+	return m.Type == models.DestinationTypeMCP
 }
 
 // matchSpecificDestination handles the case where a specific destination_id is provided.
