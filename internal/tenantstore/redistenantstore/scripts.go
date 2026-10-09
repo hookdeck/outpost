@@ -205,6 +205,47 @@ end
 return 'disabled'
 `
 
+// scriptEnableDestination clears disabled_at on a live destination and flips
+// its summary entry, provided the entry still reads as the caller saw it, and
+// optionally moves its parked retries to a resume set.
+//
+// KEYS[1] destination hash, KEYS[2] summary hash, KEYS[3] parked retries,
+// KEYS[4] resume set.
+//
+// ARGV[1] destination ID, ARGV[2] summary entry read by the caller ("" when
+// absent), ARGV[3] the entry to write ("" to leave an absent entry absent),
+// ARGV[4] "1" to move the parked retries to KEYS[4].
+//
+// Returns {"ok", was_disabled ("1" or ""), resume key or ""}, {"not_found"},
+// {"deleted"} or {"retry"}.
+const scriptEnableDestination = `
+local cur = redis.call('HMGET', KEYS[1], 'deleted_at', 'disabled_at')
+if redis.call('EXISTS', KEYS[1]) == 0 then
+	return {'not_found'}
+end
+if cur[1] then
+	return {'deleted'}
+end
+local wasDisabled = ''
+if cur[2] then
+	local entry = redis.call('HGET', KEYS[2], ARGV[1]) or ''
+	if entry ~= ARGV[2] then
+		return {'retry'}
+	end
+	redis.call('HDEL', KEYS[1], 'disabled_at')
+	if ARGV[3] ~= '' then
+		redis.call('HSET', KEYS[2], ARGV[1], ARGV[3])
+	end
+	wasDisabled = '1'
+end
+local resumed = ''
+if ARGV[4] == '1' and redis.call('EXISTS', KEYS[3]) == 1 then
+	redis.call('RENAME', KEYS[3], KEYS[4])
+	resumed = KEYS[4]
+end
+return {'ok', wasDisabled, resumed}
+`
+
 // scriptDeleteDestinationIf tombstones a live destination matching the
 // condition, removes it from the summary and its buckets and drops its parked
 // retries.
@@ -332,6 +373,7 @@ var (
 	createDestinationScript       = goredis.NewScript(scriptCreateDestination)
 	updateDestinationIfLiveScript = goredis.NewScript(scriptUpdateDestinationIfLive)
 	disableDestinationScript      = goredis.NewScript(scriptDisableDestination)
+	enableDestinationScript       = goredis.NewScript(scriptEnableDestination)
 	deleteDestinationIfScript     = goredis.NewScript(scriptDeleteDestinationIf)
 	writeFenceScript              = goredis.NewScript(scriptWriteFence)
 	parkRetryScript               = goredis.NewScript(scriptParkRetry)

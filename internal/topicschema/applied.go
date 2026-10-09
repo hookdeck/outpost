@@ -148,6 +148,34 @@ func (a *Applied) IsBroken(topic, schemaHash string) bool {
 	return false
 }
 
+// BrokenSet holds the broken topic hashes of an Applied for lookups, without
+// the rest of it. Immutable once built; the nil set has none.
+type BrokenSet map[string]map[string]struct{}
+
+// BrokenSet returns the broken topic hashes of a, nil when there are none.
+func (a *Applied) BrokenSet() BrokenSet {
+	if a == nil || len(a.Broken) == 0 {
+		return nil
+	}
+	set := make(BrokenSet, len(a.Broken))
+	for topic, hashes := range a.Broken {
+		set[topic] = make(map[string]struct{}, len(hashes))
+		for _, b := range hashes {
+			set[topic][b.Hash] = struct{}{}
+		}
+	}
+	return set
+}
+
+// IsBroken is Applied.IsBroken.
+func (s BrokenSet) IsBroken(topic, schemaHash string) bool {
+	if schemaHash == "" {
+		return false
+	}
+	_, ok := s[topic][schemaHash]
+	return ok
+}
+
 // HistoryEntry is one applied configuration hash.
 type HistoryEntry struct {
 	Hash      string    `json:"hash"`

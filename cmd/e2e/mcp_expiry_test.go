@@ -8,21 +8,22 @@ import (
 
 	"github.com/hookdeck/outpost/cmd/e2e/configs"
 	opeventsmock "github.com/hookdeck/outpost/cmd/e2e/opevents"
+	"github.com/hookdeck/outpost/internal/mcpworker"
 	"github.com/hookdeck/outpost/internal/util/testinfra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 // mcpSweepGrace is the mcp-subscriptions worker's grace after expires_at
-// before it deletes a subscription (mcpworker.DefaultGrace), plus a margin
-// for the sweep interval.
-const mcpSweepGrace = 60*time.Second + 15*time.Second
+// before it deletes a subscription, at the 1s sweep interval of
+// withMCPTestSettings (mcpworker.GraceFor: 5s).
+var mcpSweepGrace = mcpworker.GraceFor(time.Second)
 
 // TestE2E_MCP_ExpirySweep checks that the mcp-subscriptions worker deletes
 // an expired subscription in the background, without any call from the
 // client, and reports it once with mcp.subscription.expired. The worker
-// waits a fixed 60s grace past expires_at, so this test takes about a
-// minute; it runs in parallel with the others.
+// waits a grace of twice the sweep interval past expires_at (at least 5s),
+// so this test takes about 10 seconds.
 func TestE2E_MCP_ExpirySweep(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
@@ -83,7 +84,8 @@ func TestE2E_MCP_ExpirySweep(t *testing.T) {
 
 	// Poll for the background deletion.
 	var expired []opeventsmock.ReceivedEvent
-	deadline := time.Now().Add(time.Until(dest.ExpiresAt) + mcpSweepGrace)
+	// The grace, plus a margin for the sweep interval and a slow pass.
+	deadline := time.Now().Add(time.Until(dest.ExpiresAt) + mcpSweepGrace + 15*time.Second)
 	for time.Now().Before(deadline) {
 		if expired = oeServer.GetEventsByTopic("mcp.subscription.expired"); len(expired) > 0 {
 			break
@@ -91,7 +93,7 @@ func TestE2E_MCP_ExpirySweep(t *testing.T) {
 		time.Sleep(250 * time.Millisecond)
 	}
 	require.Len(t, expired, 1, "the sweep reports the expiry")
-	assert.GreaterOrEqual(t, time.Since(dest.ExpiresAt), 60*time.Second, "after the grace")
+	assert.GreaterOrEqual(t, time.Since(dest.ExpiresAt), mcpSweepGrace, "after the grace")
 
 	var data struct {
 		TenantID       string    `json:"tenant_id"`

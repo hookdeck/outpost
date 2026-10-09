@@ -32,19 +32,6 @@ const (
 // connection instead.
 const maxDrainBytes = 64 << 10
 
-// headerNames are the delivery headers, spelled as the MCP Events
-// documentation shows them: http.Header.Set would canonicalize
-// X-MCP-Subscription-Id to X-Mcp-Subscription-Id and webhook-id to
-// Webhook-Id. Header names are case-insensitive, so this is cosmetic, but it
-// matches what receivers see in the docs.
-var headerNames = [...]string{
-	mcpevents.HeaderContentType,
-	mcpevents.HeaderWebhookID,
-	mcpevents.HeaderWebhookTimestamp,
-	mcpevents.HeaderWebhookSignature,
-	mcpevents.HeaderSubscriptionID,
-}
-
 // Publisher delivers events to one subscription. It holds no resources: the
 // client and host limiter belong to the provider, so Close returns at once.
 type Publisher struct {
@@ -111,15 +98,12 @@ func (p *Publisher) Publish(ctx context.Context, event *models.Event) (*destregi
 }
 
 // setHeaders sets the delivery headers, signed with every key valid now (both
-// during a rotation).
+// during a rotation). SetHeaders spells them as the MCP Events documentation
+// shows them, like the verification challenges and terminated envelopes.
 func (p *Publisher) setHeaders(h http.Header, msgID string, body []byte) error {
 	now := p.now()
-	signed := make(http.Header, len(headerNames))
-	if err := mcpevents.SetHeaders(signed, msgID, p.subscriptionID, now, body, mcpevents.ActiveKeys(p.secrets, now)); err != nil {
+	if err := mcpevents.SetHeaders(h, msgID, p.subscriptionID, now, body, mcpevents.ActiveKeys(p.secrets, now)); err != nil {
 		return err
-	}
-	for _, name := range headerNames {
-		h[name] = signed[http.CanonicalHeaderKey(name)]
 	}
 	if p.userAgent != "" {
 		h.Set("User-Agent", p.userAgent)

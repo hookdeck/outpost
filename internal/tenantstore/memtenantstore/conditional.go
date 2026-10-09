@@ -167,18 +167,30 @@ func (s *store) UpdateDestinationIfLive(_ context.Context, destination models.De
 	s.upsertDestinationLocked(destination, drec.buckets)
 
 	if o.ResumeParked && destination.DisabledAt == nil {
-		if parked := s.parked[key]; parked.live(now) {
-			suffix, err := randomSuffix()
-			if err != nil {
-				return driver.UpdateResult{}, err
-			}
-			result.ResumeKey = parkedRetriesKey(tenantID, destination.ID) + resumeKeyInfix +
-				strconv.FormatInt(now.UnixMilli(), 10) + ":" + suffix
-			s.resumeSets[result.ResumeKey] = parked
+		if result.ResumeKey, err = s.resumeParkedLocked(tenantID, destination.ID, now); err != nil {
+			return driver.UpdateResult{}, err
 		}
-		delete(s.parked, key)
 	}
 	return result, nil
+}
+
+// resumeParkedLocked moves the destination's parked retries to a new resume
+// set and returns its key, or "" when nothing is parked.
+func (s *store) resumeParkedLocked(tenantID, destinationID string, now time.Time) (string, error) {
+	key := destKey(tenantID, destinationID)
+	parked := s.parked[key]
+	delete(s.parked, key)
+	if !parked.live(now) {
+		return "", nil
+	}
+	suffix, err := randomSuffix()
+	if err != nil {
+		return "", err
+	}
+	resumeKey := parkedRetriesKey(tenantID, destinationID) + resumeKeyInfix +
+		strconv.FormatInt(now.UnixMilli(), 10) + ":" + suffix
+	s.resumeSets[resumeKey] = parked
+	return resumeKey, nil
 }
 
 func (s *store) DisableDestination(_ context.Context, tenantID, destinationID string, at time.Time) (bool, error) {
@@ -197,6 +209,32 @@ func (s *store) DisableDestination(_ context.Context, tenantID, destinationID st
 	}
 	drec.destination.DisabledAt = &at
 	return true, nil
+}
+
+func (s *store) EnableDestination(_ context.Context, tenantID, destinationID string, opts ...driver.WriteOption) (driver.UpdateResult, error) {
+	o, err := driver.ResolveEnableOptions(opts)
+	if err != nil {
+		return driver.UpdateResult{}, err
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	drec, ok := s.destinations[destKey(tenantID, destinationID)]
+	if !ok {
+		return driver.UpdateResult{}, driver.ErrDestinationNotFound
+	}
+	if drec.deletedAt != nil {
+		return driver.UpdateResult{}, driver.ErrDestinationDeleted
+	}
+	result := driver.UpdateResult{WasDisabled: drec.destination.DisabledAt != nil}
+	drec.destination.DisabledAt = nil
+	if o.ResumeParked {
+		if result.ResumeKey, err = s.resumeParkedLocked(tenantID, destinationID, time.Now()); err != nil {
+			return driver.UpdateResult{}, err
+		}
+	}
+	return result, nil
 }
 
 func (s *store) DeleteDestinationIf(_ context.Context, tenantID, destinationID string, c driver.DeleteCondition) (driver.DeleteResult, error) {

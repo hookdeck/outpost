@@ -283,16 +283,9 @@ func (s *store) UpdateDestinationIfLive(ctx context.Context, destination models.
 	}
 
 	tenantID := destination.TenantID
-	parkedKey := s.redisParkedRetriesKey(tenantID, destination.ID)
-	resume := ""
-	resumeKey := parkedKey + resumeKeyInfix + "none"
-	if o.ResumeParked && destination.DisabledAt == nil {
-		resume = "1"
-		suffix, err := randomSuffix()
-		if err != nil {
-			return driver.UpdateResult{}, err
-		}
-		resumeKey = parkedKey + resumeKeyInfix + strconv.FormatInt(now.UnixMilli(), 10) + ":" + suffix
+	parkedKey, resumeKey, resume, err := s.resumeKeys(tenantID, destination.ID, o.ResumeParked && destination.DisabledAt == nil, now)
+	if err != nil {
+		return driver.UpdateResult{}, err
 	}
 	keys := []string{
 		s.redisDestinationID(destination.ID, tenantID),
@@ -388,6 +381,80 @@ func (s *store) DisableDestination(ctx context.Context, tenantID, destinationID 
 		}
 	}
 	return false, errScriptContention
+}
+
+// resumeKeys returns the parked-retries key of a destination and the resume
+// set key a conditional write declares, with the script argument moving the
+// parked retries there ("1") or not (""). Without resume the resume key is a
+// placeholder the script never touches.
+func (s *store) resumeKeys(tenantID, destinationID string, resume bool, now time.Time) (parkedKey, resumeKey, arg string, err error) {
+	parkedKey = s.redisParkedRetriesKey(tenantID, destinationID)
+	if !resume {
+		return parkedKey, parkedKey + resumeKeyInfix + "none", "", nil
+	}
+	suffix, err := randomSuffix()
+	if err != nil {
+		return "", "", "", err
+	}
+	return parkedKey, parkedKey + resumeKeyInfix + strconv.FormatInt(now.UnixMilli(), 10) + ":" + suffix, "1", nil
+}
+
+func (s *store) EnableDestination(ctx context.Context, tenantID, destinationID string, opts ...driver.WriteOption) (driver.UpdateResult, error) {
+	o, err := driver.ResolveEnableOptions(opts)
+	if err != nil {
+		return driver.UpdateResult{}, err
+	}
+	parkedKey, resumeKey, resume, err := s.resumeKeys(tenantID, destinationID, o.ResumeParked, time.Now())
+	if err != nil {
+		return driver.UpdateResult{}, err
+	}
+	keys := []string{
+		s.redisDestinationID(destinationID, tenantID),
+		s.redisTenantDestinationSummaryKey(tenantID),
+		parkedKey,
+		resumeKey,
+	}
+	for range maxScriptAttempts {
+		// As in DisableDestination: the script rewrites the summary entry
+		// only if it still reads as seen here, so a concurrent refresh is
+		// never reverted.
+		seen, err := s.redisClient.HGet(ctx, keys[1], destinationID).Result()
+		if err != nil && err != redis.Nil {
+			return driver.UpdateResult{}, err
+		}
+		next := ""
+		if err == nil {
+			var ds destinationSummary
+			if err := ds.UnmarshalBinary([]byte(seen)); err != nil {
+				return driver.UpdateResult{}, err
+			}
+			ds.Disabled = false
+			b, err := ds.MarshalBinary()
+			if err != nil {
+				return driver.UpdateResult{}, err
+			}
+			next = string(b)
+		}
+
+		res, err := scriptReply(enableDestinationScript.Run(ctx, s.redisClient, keys, destinationID, seen, next, resume))
+		if err != nil {
+			return driver.UpdateResult{}, err
+		}
+		switch res[0] {
+		case "ok":
+			if len(res) == 3 {
+				return driver.UpdateResult{WasDisabled: res[1] == "1", ResumeKey: res[2]}, nil
+			}
+		case "not_found":
+			return driver.UpdateResult{}, driver.ErrDestinationNotFound
+		case "deleted":
+			return driver.UpdateResult{}, driver.ErrDestinationDeleted
+		case "retry":
+			continue
+		}
+		return driver.UpdateResult{}, fmt.Errorf("unexpected enable script reply %q", res)
+	}
+	return driver.UpdateResult{}, errScriptContention
 }
 
 // Statuses of scriptDeleteDestinationIf.

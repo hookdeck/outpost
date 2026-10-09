@@ -59,6 +59,10 @@ type validationLimiter interface {
 	MaxValidationBytes() int
 }
 
+// maxConcurrentEnqueues bounds the delivery tasks one publish enqueues at
+// once.
+const maxConcurrentEnqueues = 32
+
 // validationBudgetFactor bounds the data validated at once to this many times
 // the validator's size limit. Validating takes up to a few hundred times the
 // data size in memory, so concurrent publishes must not all validate at once.
@@ -374,7 +378,11 @@ func (h *eventHandler) doPublish(ctx context.Context, event *models.Event, match
 
 	h.emeter.EventEligbible(ctx, event)
 
+	// Bound the fan-out: a tenant can have hundreds of matching
+	// destinations (MCP subscriptions), and each enqueue holds a broker
+	// round trip.
 	var g errgroup.Group
+	g.SetLimit(maxConcurrentEnqueues)
 	for _, destID := range matchedDestinations {
 		g.Go(func() error {
 			if err := h.enqueueDeliveryTask(ctx, models.NewDeliveryTask(*event, destID)); err != nil {

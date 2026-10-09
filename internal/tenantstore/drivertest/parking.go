@@ -154,6 +154,97 @@ func testParking(t *testing.T, newHarness HarnessMaker) {
 		})
 	})
 
+	t.Run("EnableResumes", func(t *testing.T) {
+		ctx, store := newStore(t)
+		d := disabled(t, ctx, store)
+		for _, member := range []string{"r1", "r2", "r3"} {
+			_, err := store.ParkRetry(ctx, d.TenantID, d.ID, member, 10, expireAt())
+			require.NoError(t, err)
+		}
+
+		res, err := store.EnableDestination(ctx, d.TenantID, d.ID, driver.WithResumeParkedRetries())
+		require.NoError(t, err)
+		assert.True(t, res.WasDisabled)
+		require.NotEmpty(t, res.ResumeKey)
+		park, err := store.ParkRetry(ctx, d.TenantID, d.ID, "r4", 10, expireAt())
+		require.NoError(t, err)
+		assert.Equal(t, driver.ParkResultEnabled, park, "enabled again: deliver")
+		assert.ElementsMatch(t, []string{"r1", "r2", "r3"}, popAll(t, ctx, store, d.TenantID, res.ResumeKey))
+		require.NoError(t, store.DeleteResumeSet(ctx, d.TenantID, res.ResumeKey))
+
+		t.Run("nothing parked", func(t *testing.T) {
+			changed, err := store.DisableDestination(ctx, d.TenantID, d.ID, time.Now())
+			require.NoError(t, err)
+			require.True(t, changed)
+			res, err := store.EnableDestination(ctx, d.TenantID, d.ID, driver.WithResumeParkedRetries())
+			require.NoError(t, err)
+			assert.True(t, res.WasDisabled)
+			assert.Empty(t, res.ResumeKey)
+		})
+
+		t.Run("not without the option", func(t *testing.T) {
+			changed, err := store.DisableDestination(ctx, d.TenantID, d.ID, time.Now())
+			require.NoError(t, err)
+			require.True(t, changed)
+			_, err = store.ParkRetry(ctx, d.TenantID, d.ID, "r5", 10, expireAt())
+			require.NoError(t, err)
+
+			res, err := store.EnableDestination(ctx, d.TenantID, d.ID)
+			require.NoError(t, err)
+			assert.True(t, res.WasDisabled)
+			assert.Empty(t, res.ResumeKey)
+
+			// Left behind; the next enable with the option moves them.
+			res, err = store.EnableDestination(ctx, d.TenantID, d.ID, driver.WithResumeParkedRetries())
+			require.NoError(t, err)
+			assert.False(t, res.WasDisabled)
+			require.NotEmpty(t, res.ResumeKey)
+			assert.Equal(t, []string{"r5"}, popAll(t, ctx, store, d.TenantID, res.ResumeKey))
+		})
+	})
+
+	t.Run("ParkWhileEnabling", func(t *testing.T) {
+		ctx, store := newStore(t)
+		for round := range 5 {
+			d := disabled(t, ctx, store)
+			const parkers = 20
+
+			var wg sync.WaitGroup
+			var mu sync.Mutex
+			var parked []string
+			var key string
+			for i := range parkers {
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					member := fmt.Sprintf("r%d", i)
+					res, err := store.ParkRetry(ctx, d.TenantID, d.ID, member, 1000, expireAt())
+					assert.NoError(t, err)
+					assert.Contains(t, []driver.ParkResult{driver.ParkResultParked, driver.ParkResultEnabled}, res)
+					if res == driver.ParkResultParked {
+						mu.Lock()
+						parked = append(parked, member)
+						mu.Unlock()
+					}
+				}()
+			}
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				res, err := store.EnableDestination(ctx, d.TenantID, d.ID, driver.WithResumeParkedRetries())
+				assert.NoError(t, err)
+				key = res.ResumeKey
+			}()
+			wg.Wait()
+
+			var resumed []string
+			if key != "" {
+				resumed = popAll(t, ctx, store, d.TenantID, key)
+			}
+			assert.ElementsMatch(t, parked, resumed, "round %d", round)
+		}
+	})
+
 	t.Run("ResumeKeyValidation", func(t *testing.T) {
 		ctx, store := newStore(t)
 		d := disabled(t, ctx, store)

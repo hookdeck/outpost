@@ -33,7 +33,7 @@ A subscription is identified by its principal, callback URL, event name and argu
 | `POST /tenants/{tenant_id}/destinations` | `400` for `type: mcp`, in API v1 and v2. |
 | `GET /tenants/{tenant_id}/destinations` and `GET .../destinations/{id}` | Returned in API v2. API v1 leaves them out of the list and returns `404` for one. |
 | `PATCH`, `DELETE` and `PUT .../disable` | `400`. Use the MCP endpoints instead. |
-| `PUT .../enable` | Re-enables an auto-disabled subscription, like a refresh: the consecutive-failure count is reset and held retries resume. |
+| `PUT .../enable` | Re-enables an auto-disabled subscription, like a refresh: the consecutive-failure count is reset and held retries resume. It changes nothing else, so a refresh that lands at the same time keeps its expiry and secret. |
 | Attempts endpoints | Return their attempts in API v2. API v1 leaves them out. |
 | `POST /retry` | Works as for other types. `400` with `destination_expired` once the subscription is past `expires_at`. |
 
@@ -104,6 +104,7 @@ User-Agent: Outpost/1.7.0
 | `cursor` | Always `null`. Outpost doesn't replay events. |
 
 - The headers above are the only ones sent. Event `metadata`, `delivery_metadata`, custom headers, `DESTINATIONS_WEBHOOK_MODE`, the header prefix and every other `DESTINATIONS_WEBHOOK_*` setting don't apply to `mcp` destinations.
+- Over HTTP/1.1, header names are sent spelled as above, on events and [control envelopes](#control-envelopes) alike. Over HTTP/2 they are lowercase. Match them case-insensitively, as HTTP requires.
 - `User-Agent` is `HTTP_USER_AGENT`, `Outpost/<version>` by default.
 - The body is serialized once and signed over those exact bytes. Each attempt gets a fresh `webhook-timestamp` and signature.
 - Destination filters match the event, not the envelope, so a filter on the payload uses `data.*`, as for every other destination type.
@@ -234,7 +235,7 @@ A `terminated` envelope carries the JSON-RPC error that ended the subscription:
 | The topic is no longer MCP-enabled | `NotFound` | `-32011` / `-32023` | `{"kind": "event"}` |
 | A breaking schema change applied with `TOPICS_ALLOW_BREAKING_CHANGES` | `Unsupported` | `-32014` / `-32026` | `{"feature": "payloadSchema", "reason": "schema_changed"}` |
 
-The codes follow `MCP_ERROR_CODES`. Expiry and unsubscribe send nothing, and neither does deleting the tenant.
+The codes follow `MCP_ERROR_CODES`. Expiry and unsubscribe send nothing, and neither does deleting the tenant. A subscription broken by a schema change that its client refreshes before the background pass ends it gets no envelope either: the refresh fails with the same `Unsupported` error and deletes it, and the client's next subscribe creates a new one.
 
 The `webhook-id` of a `terminated` envelope is derived from the subscription, so a receiver can deduplicate it. Outpost makes one attempt, with a 10 second timeout and no retries. Background terminations queue until they are sent, while a revoke request that finds the queue full skips the envelope, logs it and still deletes the subscription. ChatGPT doesn't process `terminated` envelopes yet: set `MCP_SEND_TERMINATED=false` to stop sending them.
 

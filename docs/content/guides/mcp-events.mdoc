@@ -379,7 +379,7 @@ A shorter `MCP_TTL_MIN` and `MCP_RETRY_SCHEDULE` make expiry and retries quicker
 - **Limits.** Each tenant can hold `MAX_MCP_SUBSCRIPTIONS_PER_TENANT` subscriptions (100 by default), and each principal `MAX_MCP_SUBSCRIPTIONS_PER_PRINCIPAL` within a tenant (20 by default), separate from `MAX_DESTINATIONS_PER_TENANT`. Every publish to a tenant is matched against all its destinations, so keep the limits as low as your product allows.
 - **Delivery capacity.** Callback URLs are chosen by agents, and each MCP attempt can take up to 10 seconds. Run the delivery service with `DELIVERY_MAX_CONCURRENCY` of at least 8, and see [MCP destination](/docs/outpost/destinations/mcp#delivery-rules) for the per-host limits.
 - **Observability.** Deliveries to MCP subscriptions are attempts like any other, in the attempts API, metrics, the tenant portal and the `attempt.*` operator events. Events don't list MCP subscriptions in `matched_destination_ids`: look up deliveries by attempt. The [`mcp.subscription.expired`](/docs/outpost/features/operator-events) operator event reports expirations.
-- **Expiry.** Outpost stops delivering at `expires_at`, and the API service deletes expired subscriptions every `MCP_EXPIRY_SWEEP_INTERVAL` (30 seconds), 60 seconds after they expire. See [Architecture](/docs/outpost/self-hosting/architecture#mcp-subscriptions-worker).
+- **Expiry.** Outpost stops delivering at `expires_at`, and the API service deletes expired subscriptions every `MCP_EXPIRY_SWEEP_INTERVAL` (30 seconds), once they have been expired for twice that interval, between 5 and 60 seconds (60 seconds by default). See [Architecture](/docs/outpost/self-hosting/architecture#mcp-subscriptions-worker).
 - **Schema changes.** Breaking changes to a topic with live subscriptions fail startup unless `TOPICS_ALLOW_BREAKING_CHANGES` is set, which ends those subscriptions. See [Schema evolution and deprecation](/docs/outpost/features/topics#schema-evolution-and-deprecation).
 
 ## Migrating from webhook destinations
@@ -410,5 +410,6 @@ Subscribe and list errors reach the client as JSON-RPC errors. The `kind` of Out
 | `resource_exhausted`, `limit: "subscriptions"` or `"principal_subscriptions"` | A subscription limit is reached. |
 | `resource_exhausted`, `limit: "verification_rate"` | The principal sent more than `MCP_VERIFICATION_RATE_LIMIT` challenges in a minute. Retry after `retryAfterMs`. |
 | `unsupported`, `feature: "deliveryMode"` | The client asked for a delivery mode other than `webhook`. |
+| `unsupported`, `feature: "payloadSchema"`, `reason: "schema_changed"` | A refresh of a subscription created against a payload schema that a breaking change applied with `TOPICS_ALLOW_BREAKING_CHANGES` replaced. Outpost deleted it; the client re-reads `events/list` and subscribes again. |
 
 If subscribed clients receive nothing, list the tenant's attempts. An attempt with code `address_not_allowed` means the callback host now resolves to an address that isn't allowed. A missing attempt means the event didn't match: check the tenant, the topic, and the subscription's `filter`.

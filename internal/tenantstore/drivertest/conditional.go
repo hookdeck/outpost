@@ -2,6 +2,8 @@ package drivertest
 
 import (
 	"context"
+	"encoding/json"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -323,6 +325,164 @@ func testConditional(t *testing.T, newHarness HarnessMaker) {
 		t.Run("missing", func(t *testing.T) {
 			_, err := store.DisableDestination(ctx, d.TenantID, idgen.Destination(), time.Now())
 			require.ErrorIs(t, err, driver.ErrDestinationNotFound)
+		})
+	})
+
+	t.Run("EnableDestination", func(t *testing.T) {
+		matches := func(t *testing.T, ctx context.Context, store driver.TenantStore, d models.Destination, data string) bool {
+			t.Helper()
+			matched, err := matchedIDs(store.MatchEvent(ctx, testutil.EventFactory.Any(
+				testutil.EventFactory.WithTenantID(d.TenantID),
+				testutil.EventFactory.WithTopic("order.created"),
+				testutil.EventFactory.WithData(json.RawMessage(data)),
+			), true))
+			require.NoError(t, err)
+			return slices.Contains(matched, d.ID)
+		}
+		filterX := models.Filter{"data": map[string]any{"x": "1"}}
+
+		t.Run("re-enables and reports it", func(t *testing.T) {
+			ctx, store := newStore(t)
+			d := newMCPDestination(idgen.String(), testutil.DestinationFactory.WithFilter(filterX))
+			require.NoError(t, store.CreateDestination(ctx, d))
+			changed, err := store.DisableDestination(ctx, d.TenantID, d.ID, time.Now())
+			require.NoError(t, err)
+			require.True(t, changed)
+			require.False(t, matches(t, ctx, store, d, `{"x":"1"}`))
+
+			res, err := store.EnableDestination(ctx, d.TenantID, d.ID)
+			require.NoError(t, err)
+			assert.True(t, res.WasDisabled)
+			assert.Empty(t, res.ResumeKey)
+
+			got, err := store.RetrieveDestination(ctx, d.TenantID, d.ID)
+			require.NoError(t, err)
+			assert.Nil(t, got.DisabledAt)
+			assertEqualDestination(t, d, *got)
+			assert.True(t, matches(t, ctx, store, d, `{"x":"1"}`), "matched again")
+			list, err := store.ListDestination(ctx, driver.ListDestinationRequest{TenantID: d.TenantID})
+			require.NoError(t, err)
+			require.Len(t, list, 1)
+			assert.Nil(t, list[0].DisabledAt)
+
+			t.Run("already enabled", func(t *testing.T) {
+				res, err := store.EnableDestination(ctx, d.TenantID, d.ID)
+				require.NoError(t, err)
+				assert.False(t, res.WasDisabled)
+				again, err := store.RetrieveDestination(ctx, d.TenantID, d.ID)
+				require.NoError(t, err)
+				assertEqualDestination(t, *got, *again)
+			})
+		})
+
+		// The enabler read the destination, then a refresh committed (new
+		// expiry, secret and filter): enabling keeps every refreshed field.
+		t.Run("does not revert a refresh between read and enable", func(t *testing.T) {
+			for _, refreshEnables := range []bool{false, true} {
+				ctx, store := newStore(t)
+				d := newMCPDestination(idgen.String(),
+					testutil.DestinationFactory.WithFilter(filterX),
+					testutil.DestinationFactory.WithExpiresAt(time.Now().Add(time.Minute)))
+				require.NoError(t, store.CreateDestination(ctx, d))
+				changed, err := store.DisableDestination(ctx, d.TenantID, d.ID, time.Now())
+				require.NoError(t, err)
+				require.True(t, changed)
+
+				read, err := store.RetrieveDestination(ctx, d.TenantID, d.ID)
+				require.NoError(t, err)
+				refreshed := *read
+				later := time.Now().Add(time.Hour)
+				refreshed.ExpiresAt = &later
+				refreshed.Credentials = map[string]string{"secret": "new"}
+				refreshed.Filter = models.Filter{"data": map[string]any{"x": "2"}}
+				if refreshEnables {
+					refreshed.DisabledAt = nil
+				}
+				_, err = store.UpdateDestinationIfLive(ctx, refreshed, read.CreatedAt)
+				require.NoError(t, err)
+
+				res, err := store.EnableDestination(ctx, d.TenantID, d.ID)
+				require.NoError(t, err)
+				assert.Equal(t, !refreshEnables, res.WasDisabled, "refresh enables: %v", refreshEnables)
+
+				got, err := store.RetrieveDestination(ctx, d.TenantID, d.ID)
+				require.NoError(t, err)
+				assert.Nil(t, got.DisabledAt)
+				assertEqualTimePtr(t, &later, got.ExpiresAt, "ExpiresAt")
+				assert.Equal(t, "new", got.Credentials["secret"])
+				assert.Equal(t, refreshed.Filter, got.Filter)
+				assert.True(t, matches(t, ctx, store, d, `{"x":"2"}`), "the refreshed filter matches")
+				assert.False(t, matches(t, ctx, store, d, `{"x":"1"}`), "the old filter is gone")
+			}
+		})
+
+		t.Run("concurrent refreshes are never reverted", func(t *testing.T) {
+			ctx, store := newStore(t)
+			for round := range 10 {
+				d := newMCPDestination(idgen.String(), testutil.DestinationFactory.WithFilter(filterX))
+				require.NoError(t, store.CreateDestination(ctx, d))
+				changed, err := store.DisableDestination(ctx, d.TenantID, d.ID, time.Now())
+				require.NoError(t, err)
+				require.True(t, changed)
+
+				refreshed := d
+				now := time.Now()
+				refreshed.DisabledAt = &now
+				refreshed.Filter = models.Filter{"data": map[string]any{"x": "2"}}
+				var wg sync.WaitGroup
+				wg.Add(2)
+				go func() {
+					defer wg.Done()
+					_, err := store.UpdateDestinationIfLive(ctx, refreshed, d.CreatedAt)
+					assert.NoError(t, err)
+				}()
+				go func() {
+					defer wg.Done()
+					_, err := store.EnableDestination(ctx, d.TenantID, d.ID)
+					assert.NoError(t, err)
+				}()
+				wg.Wait()
+
+				// Whatever the order, the stored filter is the refresh's and
+				// matching agrees with the stored destination.
+				got, err := store.RetrieveDestination(ctx, d.TenantID, d.ID)
+				require.NoError(t, err)
+				assert.Equal(t, refreshed.Filter, got.Filter, "round %d", round)
+				assert.Equal(t, got.DisabledAt == nil, matches(t, ctx, store, d, `{"x":"2"}`), "round %d", round)
+				assert.False(t, matches(t, ctx, store, d, `{"x":"1"}`), "round %d", round)
+			}
+		})
+
+		t.Run("not live", func(t *testing.T) {
+			ctx, store := newStore(t)
+			d := newMCPDestination(idgen.String(), testutil.DestinationFactory.WithDisabledAt(time.Now()))
+			require.NoError(t, store.CreateDestination(ctx, d))
+
+			_, err := store.EnableDestination(ctx, d.TenantID, idgen.Destination())
+			require.ErrorIs(t, err, driver.ErrDestinationNotFound)
+
+			res, err := store.DeleteDestinationIf(ctx, d.TenantID, d.ID, driver.DeleteCondition{Reason: driver.DeleteReasonRevoked})
+			require.NoError(t, err)
+			require.True(t, res.Deleted)
+			_, err = store.EnableDestination(ctx, d.TenantID, d.ID, driver.WithResumeParkedRetries())
+			require.ErrorIs(t, err, driver.ErrDestinationDeleted)
+			assertNotLive(t, ctx, store, d)
+		})
+
+		t.Run("takes only WithResumeParkedRetries", func(t *testing.T) {
+			ctx, store := newStore(t)
+			d := newMCPDestination(idgen.String(), testutil.DestinationFactory.WithDisabledAt(time.Now()))
+			require.NoError(t, store.CreateDestination(ctx, d))
+			for _, opt := range []driver.WriteOption{
+				driver.WithBuckets(driver.Bucket{Name: "b"}),
+				driver.WithNotDeletedSince(time.Now()),
+			} {
+				_, err := store.EnableDestination(ctx, d.TenantID, d.ID, opt)
+				assert.Error(t, err)
+			}
+			got, err := store.RetrieveDestination(ctx, d.TenantID, d.ID)
+			require.NoError(t, err)
+			assert.NotNil(t, got.DisabledAt, "unchanged")
 		})
 	})
 

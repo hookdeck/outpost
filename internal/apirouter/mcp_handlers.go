@@ -742,42 +742,38 @@ func (h *MCPHandlers) afterReenable(ctx context.Context, tenantID, destinationID
 
 // reenable is PUT .../destinations/:id/enable for an mcp destination: like a
 // refresh, it clears disabled_at only while the subscription is live, resets
-// its consecutive failures first and resumes its parked retries.
+// its consecutive failures first and resumes its parked retries. It returns
+// the subscription as stored after the enable.
 func (h *MCPHandlers) reenable(ctx context.Context, destination *models.Destination) (*models.Destination, error) {
 	if destination.DisabledAt == nil {
 		return destination, nil
 	}
 	alertsReset := h.resetAlerts(ctx, destination.TenantID, destination.ID)
 
-	// Write over a fresh read, to keep the window in which a concurrent
-	// refresh could be overwritten as short as possible.
-	current, err := h.tenantStore.RetrieveDestination(ctx, destination.TenantID, destination.ID)
-	if err != nil {
-		return nil, err
-	}
-	if current == nil || current.Type != models.DestinationTypeMCP || !current.CreatedAt.Equal(destination.CreatedAt) {
-		return nil, tenantstore.ErrDestinationNotFound
-	}
-	if current.DisabledAt == nil {
-		return current, nil
-	}
-	updated := *current
-	updated.DisabledAt = nil
-	updated.UpdatedAt = h.now()
-
+	// Only disabled_at is cleared, so a refresh landing meanwhile keeps its
+	// expiry and secret; the parked retries move to a resume set in the
+	// same step.
 	var opts []tenantstore.WriteOption
 	if h.deps != nil && h.deps.Resumer != nil {
 		opts = append(opts, tenantstore.WithResumeParkedRetries())
 	}
-	result, err := h.tenantStore.UpdateDestinationIfLive(ctx, updated, current.CreatedAt, opts...)
+	result, err := h.tenantStore.EnableDestination(ctx, destination.TenantID, destination.ID, opts...)
 	if err != nil {
-		if errors.Is(err, tenantstore.ErrDestinationConflict) || errors.Is(err, tenantstore.ErrDestinationDeleted) {
+		if errors.Is(err, tenantstore.ErrDestinationDeleted) {
 			return nil, tenantstore.ErrDestinationNotFound
 		}
 		return nil, err
 	}
 	h.afterReenable(ctx, destination.TenantID, destination.ID, result, alertsReset)
-	return &updated, nil
+
+	current, err := h.tenantStore.RetrieveDestination(ctx, destination.TenantID, destination.ID)
+	if errors.Is(err, tenantstore.ErrDestinationDeleted) || (err == nil && current == nil) {
+		return nil, tenantstore.ErrDestinationNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return current, nil
 }
 
 // errMCPConflict reports a subscription that kept changing under concurrent

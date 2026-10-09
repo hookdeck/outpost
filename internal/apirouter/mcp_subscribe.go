@@ -76,6 +76,9 @@ type subscription struct {
 	// expiredDeleted is set once the request deleted an expired
 	// subscription with the same ID.
 	expiredDeleted bool
+	// brokenDeleted is set once the request ended a subscription with the
+	// same ID that a forced breaking change left behind.
+	brokenDeleted bool
 }
 
 // subscribeOutcome is a successful subscription write.
@@ -156,8 +159,16 @@ func (h *MCPHandlers) Subscribe(c *gin.Context) {
 		metadataSet: metadataSet,
 	}
 	outcome, err := h.subscribe(ctx, s)
-	if (err == nil && !outcome.refreshed) || s.expiredDeleted {
+	if (err == nil && !outcome.refreshed) || s.expiredDeleted || s.brokenDeleted {
 		h.emitTenantUpdate(ctx, tenant.ID, tenantSnapshotOf(tenant))
+	}
+	if s.brokenDeleted {
+		h.logger.Ctx(ctx).Audit("mcp subscription ended by a schema change",
+			zap.String("tenant_id", tenant.ID),
+			zap.String("destination_id", s.id),
+			zap.String("destination_type", models.DestinationTypeMCP),
+			zap.String("topic", params.Name),
+		)
 	}
 	if err != nil {
 		h.abortWithError(c, err)
@@ -251,8 +262,13 @@ func (h *MCPHandlers) subscribe(ctx context.Context, s *subscription) (*subscrib
 
 // lookupSubscription returns the live subscription with the request's ID, or
 // nil. An expired one is deleted (and reported) first, so the request
-// creates a new generation instead of extending it. Another destination type
-// with the ID is a conflict.
+// creates a new generation instead of extending it. One created against a
+// payload schema that a forced breaking change broke is deleted too, and the
+// request fails with schema_changed: refreshing it would record the current
+// schema hash on it and hide it from the mcp-subscriptions worker, while its
+// client still expects the old payloads. The client learns it from the
+// error, so no terminated envelope is sent; it re-reads events/list and
+// subscribes again. Another destination type with the ID is a conflict.
 func (h *MCPHandlers) lookupSubscription(ctx context.Context, s *subscription) (*models.Destination, error) {
 	for range 2 {
 		existing, err := h.tenantStore.RetrieveDestination(ctx, s.tenant.ID, s.id)
@@ -270,7 +286,26 @@ func (h *MCPHandlers) lookupSubscription(ctx context.Context, s *subscription) (
 		}
 		now := h.now()
 		if !existing.IsExpired(now) {
-			return existing, nil
+			if !h.schemaBroken(existing) {
+				return existing, nil
+			}
+			createdAt := existing.CreatedAt
+			result, err := h.tenantStore.DeleteDestinationIf(ctx, s.tenant.ID, s.id, tenantstore.DeleteCondition{
+				Type:              models.DestinationTypeMCP,
+				ExpectedCreatedAt: &createdAt,
+				Reason:            tenantstore.DeleteReasonTerminated,
+			})
+			if err != nil {
+				return nil, err
+			}
+			if result.Deleted {
+				s.brokenDeleted = true
+			}
+			if result.Deleted || result.Gone {
+				return nil, mcpevents.SchemaChanged()
+			}
+			// Changed since the read (refreshed or replaced): read it again.
+			continue
 		}
 		createdAt := existing.CreatedAt
 		result, err := h.tenantStore.DeleteDestinationIf(ctx, s.tenant.ID, s.id, tenantstore.DeleteCondition{
@@ -293,6 +328,18 @@ func (h *MCPHandlers) lookupSubscription(ctx context.Context, s *subscription) (
 		// Changed since the read (refreshed or replaced): read it again.
 	}
 	return nil, errMCPConflict
+}
+
+// schemaBroken reports whether d was created against a payload schema that a
+// forced breaking change broke. This instance's own schema never counts: an
+// instance running a rolled-back configuration keeps refreshing its
+// subscriptions, which the worker of the applied configuration ends.
+func (h *MCPHandlers) schemaBroken(d *models.Destination) bool {
+	if h.deps == nil || h.deps.BrokenSchemas == nil {
+		return false
+	}
+	event, hash := mcpEventName(d), d.Config[mcpConfigSchemaHash]
+	return hash != h.schemaHashes[event] && h.deps.BrokenSchemas.IsBroken(event, hash)
 }
 
 // buildSubscription builds the mcp destination of the request, without the

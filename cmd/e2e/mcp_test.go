@@ -75,6 +75,10 @@ func (s *mcpSuite) SetupSuite() {
 		configure: func(cfg *config.Config) {
 			withMCPTopics(cfg, orderCreatedSchema)
 			withMCPTestSettings(cfg)
+			// TestExpiry works with an expired subscription the sweep
+			// hasn't deleted yet: a 30s interval gives a 60s grace.
+			// TestE2E_MCP_ExpirySweep covers the sweep.
+			cfg.MCP.ExpirySweepInterval = config.Duration(30 * time.Second)
 			cfg.MCP.ServerURL = "https://mcp.example.com/mcp"
 			cfg.MaxMCPSubscriptionsPerPrincipal = mcpPrincipalLimit
 			cfg.RetryMaxLimit = globalRetryMaxLimit

@@ -35,6 +35,14 @@ type DeliveryStatusReader interface {
 	GetAttemptStatus(ctx context.Context, tenantID, destinationID string) (*deliverystatus.Status, error)
 }
 
+// BrokenSchemas reports the topic hashes a forced breaking change
+// (TOPICS_ALLOW_BREAKING_CHANGES) left behind: subscriptions created against
+// them must end. Satisfied by topicschema.BrokenSet, which app.PreRun reads
+// once after applying the topic schemas, the only time it changes.
+type BrokenSchemas interface {
+	IsBroken(topic, schemaHash string) bool
+}
+
 // MCPHandlerConfig holds the MCP Events settings of the MCP endpoints.
 type MCPHandlerConfig struct {
 	// TTL is the subscription lifetime policy (MCP_TTL_*,
@@ -70,7 +78,11 @@ type MCPDeps struct {
 	// StatusReader reads deliveryStatus for refreshes. Without it a refresh
 	// reports no delivery yet.
 	StatusReader DeliveryStatusReader
-	Config       MCPHandlerConfig
+	// BrokenSchemas makes a refresh of a subscription a forced breaking
+	// change left behind end it instead. Without it such a subscription is
+	// left to the mcp-subscriptions worker.
+	BrokenSchemas BrokenSchemas
+	Config        MCPHandlerConfig
 	// Now is the clock; nil is time.Now.
 	Now func() time.Time
 }

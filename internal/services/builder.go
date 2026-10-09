@@ -49,6 +49,21 @@ type ServiceBuilder struct {
 	// mcpNet is the MCP callback network stack, shared by every service of
 	// the process (see mcpNetwork).
 	mcpNet *mcpNetwork
+	// brokenSchemas are the topic hashes a forced breaking change left
+	// behind (WithBrokenSchemas), or nil.
+	brokenSchemas apirouter.BrokenSchemas
+}
+
+// BuilderOption configures a ServiceBuilder.
+type BuilderOption func(*ServiceBuilder)
+
+// WithBrokenSchemas gives the MCP subscribe handler the topic hashes a
+// forced breaking change left behind, which app.PreRun reads after applying
+// the topic schemas.
+func WithBrokenSchemas(broken apirouter.BrokenSchemas) BuilderOption {
+	return func(b *ServiceBuilder) {
+		b.brokenSchemas = broken
+	}
 }
 
 // serviceInstance represents a single service with its cleanup functions and common dependencies
@@ -71,8 +86,8 @@ type serviceInstance struct {
 }
 
 // NewServiceBuilder creates a new ServiceBuilder.
-func NewServiceBuilder(ctx context.Context, cfg *config.Config, logger *logging.Logger, telemetry telemetry.Telemetry) *ServiceBuilder {
-	return &ServiceBuilder{
+func NewServiceBuilder(ctx context.Context, cfg *config.Config, logger *logging.Logger, telemetry telemetry.Telemetry, opts ...BuilderOption) *ServiceBuilder {
+	b := &ServiceBuilder{
 		ctx:        ctx,
 		cfg:        cfg,
 		logger:     logger,
@@ -80,6 +95,10 @@ func NewServiceBuilder(ctx context.Context, cfg *config.Config, logger *logging.
 		supervisor: worker.NewWorkerSupervisor(logger),
 		services:   []*serviceInstance{},
 	}
+	for _, opt := range opts {
+		opt(b)
+	}
+	return b
 }
 
 // BuildWorkers builds workers based on the configured service type and returns the supervisor.
@@ -279,6 +298,7 @@ func (b *ServiceBuilder) BuildAPIWorkers(baseRouter *gin.Engine) error {
 		Resumer:       mcpResumer,
 		AlertResetter: alert.NewRedisAlertStore(svc.redisClient, b.cfg.DeploymentID),
 		StatusReader:  b.newDeliveryStatusStore(svc.redisClient),
+		BrokenSchemas: b.brokenSchemas,
 		Config: apirouter.MCPHandlerConfig{
 			TTL:                          b.cfg.MCPTTLConfig(),
 			CodeProfile:                  b.cfg.MCPCodeProfile(),

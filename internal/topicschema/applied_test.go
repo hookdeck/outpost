@@ -259,8 +259,21 @@ func runApplySuite(t *testing.T, rdb internalredis.Cmdable, fastForward func(tim
 		assert.False(t, a.IsBroken(appliedTopic, h3))
 		assert.False(t, a.IsBroken(otherTopic, h1))
 		assert.False(t, a.IsBroken(appliedTopic, ""))
+		set := a.BrokenSet()
+		assert.Equal(t, BrokenSet{appliedTopic: {h1: {}, h2: {}}}, set)
+		for _, hash := range []string{h1, h2, h3, ""} {
+			assert.Equal(t, a.IsBroken(appliedTopic, hash), set.IsBroken(appliedTopic, hash), hash)
+			assert.False(t, set.IsBroken(otherTopic, hash), hash)
+		}
 		assert.Equal(t, []string{h2, h1}, a.Superseded[appliedTopic])
 		assert.Len(t, e.history(t), 3)
+	})
+
+	t.Run("no broken hashes", func(t *testing.T) {
+		var none *Applied
+		assert.Nil(t, none.BrokenSet())
+		assert.False(t, none.BrokenSet().IsBroken(appliedTopic, "h"))
+		assert.Nil(t, (&Applied{}).BrokenSet())
 	})
 
 	t.Run("broken hashes accumulate, and an applied schema is never broken", func(t *testing.T) {

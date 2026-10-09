@@ -38,6 +38,11 @@ type App struct {
 	supervisor     *worker.WorkerSupervisor
 	otelShutdown   func(context.Context) error
 	installationID string
+
+	// brokenSchemas are the topic hashes of the applied topic schemas that
+	// a forced breaking change left behind (API service only; nil when
+	// none). They only change when schemas are applied, at startup.
+	brokenSchemas topicschema.BrokenSet
 }
 
 func New(cfg *config.Config) *App {
@@ -289,6 +294,14 @@ func (a *App) applyTopicSchemas(ctx context.Context) error {
 		a.logger.Error("failed to apply topic schemas", zap.Error(err))
 		return fmt.Errorf("topic schemas: %w", err)
 	}
+	// The subscribe handler ends a subscription a forced breaking change
+	// left behind when its client refreshes it.
+	applied, err := topicschema.ReadApplied(ctx, a.redisClient, a.config.DeploymentID)
+	if err != nil {
+		a.logger.Error("failed to read the applied topic schemas", zap.Error(err))
+		return err
+	}
+	a.brokenSchemas = applied.BrokenSet()
 	return nil
 }
 
@@ -332,7 +345,11 @@ func (a *App) setupOpenTelemetry(ctx context.Context) error {
 
 func (a *App) buildServices(ctx context.Context) error {
 	a.logger.Debug("building services")
-	builder := services.NewServiceBuilder(ctx, a.config, a.logger, a.telemetry)
+	var opts []services.BuilderOption
+	if a.brokenSchemas != nil {
+		opts = append(opts, services.WithBrokenSchemas(a.brokenSchemas))
+	}
+	builder := services.NewServiceBuilder(ctx, a.config, a.logger, a.telemetry, opts...)
 
 	supervisor, err := builder.BuildWorkers()
 	if err != nil {

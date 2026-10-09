@@ -510,3 +510,93 @@ func TestMCP_Subscribe_CatalogWithoutMCP(t *testing.T) {
 	resp := m.subscribe(subscribeBody("p", "order.created"))
 	requireMCPError(t, resp, "not_found", -32011, map[string]any{"kind": "event"})
 }
+
+// A refresh of a subscription that a forced breaking change left behind
+// ends it instead: the client is told in the response (schema_changed, no
+// terminated envelope), and its next subscribe creates a new subscription
+// against the current schema.
+func TestMCP_Subscribe_RefreshAfterBreakingChange(t *testing.T) {
+	const oldHash = "old_schema_hash"
+	broken := topicschema.BrokenSet{"order.created": {oldHash: {}}}
+
+	for _, tc := range []struct {
+		profile mcpevents.CodeProfile
+		code    int
+	}{
+		{"", -32014},
+		{mcpevents.CodeProfileSEP3415, -32026},
+	} {
+		t.Run("profile "+string(tc.profile), func(t *testing.T) {
+			m := newMCPTest(t, withMCPProfile(tc.profile), withMCPDeps(func(d *apirouter.MCPDeps) {
+				d.BrokenSchemas = broken
+			}))
+			body := subscribeBody("p1", "order.created")
+			id := m.mustSubscribe(body).ID
+			d := m.destination(id)
+			current := d.Config["schema_hash"]
+			require.NotEmpty(t, current)
+			// Created against the schema the forced change broke.
+			d.Config["schema_hash"] = oldHash
+			m.putDestination(*d)
+			validations := m.provider.validationCount()
+
+			resp := m.subscribe(body)
+			requireMCPError(t, resp, "unsupported", tc.code, map[string]any{"feature": "payloadSchema", "reason": "schema_changed"})
+			assert.Nil(t, m.destination(id), "deleted")
+			assert.Empty(t, m.notifier.sent(), "no terminated envelope: the response tells the client")
+			assert.Equal(t, validations, m.provider.validationCount(), "no verification")
+			require.Eventually(t, func() bool {
+				for _, ev := range m.emitter.byTopic(opevents.TopicTenantSubscriptionUpdated) {
+					data := ev.Data.(opevents.TenantSubscriptionUpdatedData)
+					if data.DestinationsCount == 0 && data.PreviousDestinationsCount == 1 {
+						return true
+					}
+				}
+				return false
+			}, time.Second, 5*time.Millisecond, "the tenant lost a subscription")
+
+			// A create in the delete's millisecond would count as revoked;
+			// a client re-reads events/list first.
+			time.Sleep(2 * time.Millisecond)
+			resp = m.subscribe(body)
+			require.Equal(t, http.StatusOK, resp.Code, resp.Body.String())
+			assert.Nil(t, rawField(t, resp.Body.Bytes(), "deliveryStatus"), "a new subscription, not a refresh")
+			assert.Equal(t, current, m.destination(id).Config["schema_hash"])
+
+			resp = m.subscribe(body)
+			require.Equal(t, http.StatusOK, resp.Code, resp.Body.String())
+			assert.NotNil(t, rawField(t, resp.Body.Bytes(), "deliveryStatus"), "and it refreshes")
+		})
+	}
+
+	// An instance running a rolled-back configuration serves a schema the
+	// applied one broke: its own subscriptions refresh (the
+	// mcp-subscriptions worker of the applied configuration ends them).
+	t.Run("the instance's own schema hash refreshes", func(t *testing.T) {
+		current := mcpCatalog(t).Snapshot().TopicHash("order.created")
+		m := newMCPTest(t, withMCPDeps(func(d *apirouter.MCPDeps) {
+			d.BrokenSchemas = topicschema.BrokenSet{"order.created": {current: {}}}
+		}))
+		body := subscribeBody("p1", "order.created")
+		id := m.mustSubscribe(body).ID
+		require.Equal(t, current, m.destination(id).Config["schema_hash"])
+
+		resp := m.subscribe(body)
+		require.Equal(t, http.StatusOK, resp.Code, resp.Body.String())
+		assert.NotNil(t, rawField(t, resp.Body.Bytes(), "deliveryStatus"))
+		assert.NotNil(t, m.destination(id))
+	})
+
+	t.Run("without broken schemas", func(t *testing.T) {
+		m := newMCPTest(t)
+		body := subscribeBody("p1", "order.created")
+		id := m.mustSubscribe(body).ID
+		d := m.destination(id)
+		d.Config["schema_hash"] = oldHash
+		m.putDestination(*d)
+
+		resp := m.subscribe(body)
+		require.Equal(t, http.StatusOK, resp.Code, resp.Body.String())
+		assert.NotNil(t, rawField(t, resp.Body.Bytes(), "deliveryStatus"), "refreshed")
+	})
+}

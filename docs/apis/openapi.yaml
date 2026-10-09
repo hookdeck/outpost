@@ -4314,7 +4314,7 @@ components:
             - `invalid_params`: `{field, reason, errors?}`. `field` names the request field, such as `arguments`, `delivery.url`, `delivery.secret`, `ttlMs`, `principal` or `cursor`. `reason` is a fixed code, such as `address_not_allowed`, `https_required` or `invalid_url` for `delivery.url`. `errors` lists argument validation errors as paths and messages, such as `arguments.total: must be number`, without the submitted values.
             - `not_found`: `{kind}`, where `kind` is `event`, `tenant` or `subscription`.
             - `resource_exhausted`: `{limit, max?, retryAfterMs?}`. `limit` is `subscriptions` (`MAX_MCP_SUBSCRIPTIONS_PER_TENANT`), `principal_subscriptions` (`MAX_MCP_SUBSCRIPTIONS_PER_PRINCIPAL`) or `verification_rate`.
-            - `unsupported`: `{feature, value}`, such as `{"feature": "deliveryMode", "value": "poll"}`.
+            - `unsupported`: `{feature, value}`, such as `{"feature": "deliveryMode", "value": "poll"}`, or `{"feature": "payloadSchema", "reason": "schema_changed"}` for a refresh of a subscription a forced breaking schema change ended.
             - `callback_endpoint_error`: `{reason}`, one of `connection_refused`, `timeout`, `tls_error`, `http_4xx`, `http_5xx` and `challenge_failed`.
           example:
             reason: "challenge_failed"
@@ -6747,7 +6747,7 @@ paths:
       description: |
         Enables a previously disabled destination.
 
-        This also works on an auto-disabled MCP Events subscription (type `mcp`), with the same effect as a refresh from the MCP client: Outpost resets its consecutive-failure count and resumes the automatic retries it held while the subscription was disabled. Use it for a subscription granted no expiry, whose client may never refresh.
+        This also works on an auto-disabled MCP Events subscription (type `mcp`), with the same effect as a refresh from the MCP client: Outpost resets its consecutive-failure count and resumes the automatic retries it held while the subscription was disabled. Only `disabled_at` changes, so a refresh from the client at the same time keeps its expiry and secret. Use it for a subscription granted no expiry, whose client may never refresh.
       operationId: enableTenantDestination
       responses:
         "200":
@@ -7235,7 +7235,7 @@ paths:
         3. Verifies the callback, unless verification for the same tenant, principal and URL passed within `MCP_VERIFICATION_TTL`: it POSTs a signed `{"type": "verification", "challenge": "<nonce>"}` envelope and requires a `2xx` response whose body is `{"challenge": "<nonce>"}`. Redirects are not followed. Each challenge counts toward `MCP_VERIFICATION_RATE_LIMIT` for the principal.
         4. Grants a TTL from `params.ttlMs`, then creates or updates the `mcp` destination with the subscription ID.
 
-        A new subscription counts toward `MAX_MCP_SUBSCRIPTIONS_PER_TENANT` and `MAX_MCP_SUBSCRIPTIONS_PER_PRINCIPAL`. A refresh extends the expiry and replaces the secret when it changed, signing with the previous one too for `MCP_SECRET_ROTATION_GRACE`. It also re-enables an auto-disabled subscription and resumes its pending retries, and returns `deliveryStatus`. A subscription past its `expires_at` is deleted, reported as `mcp.subscription.expired`, and replaced by a new one.
+        A new subscription counts toward `MAX_MCP_SUBSCRIPTIONS_PER_TENANT` and `MAX_MCP_SUBSCRIPTIONS_PER_PRINCIPAL`. A refresh extends the expiry and replaces the secret when it changed, signing with the previous one too for `MCP_SECRET_ROTATION_GRACE`. It also re-enables an auto-disabled subscription and resumes its pending retries, and returns `deliveryStatus`. A subscription past its `expires_at` is deleted, reported as `mcp.subscription.expired`, and replaced by a new one. A refresh of a subscription created against a payload schema that a breaking change applied with `TOPICS_ALLOW_BREAKING_CHANGES` replaced deletes it and fails with `unsupported` (`{"feature": "payloadSchema", "reason": "schema_changed"}`), without a `terminated` envelope; subscribing again creates a new subscription.
 
         The tenant must exist. A missing tenant fails with `not_found` (`{"kind": "tenant"}`). An existing destination with the subscription ID that isn't an MCP subscription fails with `invalid_params` (`{"field": "id", "reason": "conflict"}`).
 
@@ -7326,7 +7326,7 @@ paths:
       description: |
         Lists the tenant's MCP subscriptions, optionally narrowed to one principal or one event. For you, not for MCP clients. The list isn't paginated: it holds at most `MAX_MCP_SUBSCRIPTIONS_PER_TENANT` subscriptions.
 
-        A subscription past its `expires_at` stays listed until the background sweep deletes it, within about `MCP_EXPIRY_SWEEP_INTERVAL` plus 60 seconds. No delivery is attempted after `expires_at`.
+        A subscription past its `expires_at` stays listed until the background sweep deletes it: once it has been expired for twice `MCP_EXPIRY_SWEEP_INTERVAL`, between 5 and 60 seconds (60 seconds by default), at the next pass. No delivery is attempted after `expires_at`.
 
         API v2 only. Accepts a Tenant JWT.
       operationId: listMCPSubscriptions

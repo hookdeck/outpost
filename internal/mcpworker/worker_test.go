@@ -66,7 +66,7 @@ func TestNewValidates(t *testing.T) {
 	assert.Equal(t, Name, w.Name())
 	assert.Equal(t, "mcp-subscriptions", w.Name())
 	assert.Equal(t, DefaultInterval, w.cfg.Interval)
-	assert.Equal(t, DefaultGrace, w.cfg.Grace)
+	assert.Equal(t, 60*time.Second, w.cfg.Grace, "twice the default interval")
 	assert.Equal(t, DefaultTTLMax, w.cfg.TTLMax)
 	assert.Equal(t, topicschema.DefaultHeartbeatInterval, w.cfg.HeartbeatInterval)
 	assert.Equal(t, topicschema.DefaultHeartbeatTTL, w.cfg.HeartbeatTTL)
@@ -75,6 +75,30 @@ func TestNewValidates(t *testing.T) {
 	assert.Equal(t, DefaultPassBudget, w.cfg.PassBudget)
 	assert.Equal(t, DefaultNotifyWait, w.notifyWait)
 	assert.Nil(t, w.cfg.TenantUpdates, "no emitter, no tenant updates")
+}
+
+// The grace past expires_at is twice the sweep interval, at least 5s and at
+// most 60s, unless set.
+func TestGrace(t *testing.T) {
+	h := newHarness(t)
+	for interval, want := range map[time.Duration]time.Duration{
+		time.Second:      5 * time.Second,
+		2 * time.Second:  5 * time.Second,
+		3 * time.Second:  6 * time.Second,
+		10 * time.Second: 20 * time.Second,
+		30 * time.Second: 60 * time.Second,
+		45 * time.Second: 60 * time.Second,
+		time.Hour:        60 * time.Second,
+	} {
+		assert.Equal(t, want, GraceFor(interval), interval)
+		w, err := New(Config{Redis: h.rdb, Store: h.store, Notifier: h.notifier, Interval: interval})
+		require.NoError(t, err)
+		assert.Equal(t, want, w.cfg.Grace, interval)
+	}
+
+	w, err := New(Config{Redis: h.rdb, Store: h.store, Notifier: h.notifier, Interval: time.Second, Grace: time.Minute})
+	require.NoError(t, err)
+	assert.Equal(t, time.Minute, w.cfg.Grace, "an explicit grace is kept")
 }
 
 func TestKeys(t *testing.T) {

@@ -47,6 +47,14 @@ type TenantStore interface {
 	// nothing else. It returns changed=false when it was already disabled,
 	// ErrDestinationNotFound or ErrDestinationDeleted when it is not live.
 	DisableDestination(ctx context.Context, tenantID, destinationID string, at time.Time) (changed bool, err error)
+	// EnableDestination clears disabled_at on a live destination and touches
+	// nothing else, so a concurrent update (a refresh) is never reverted.
+	// UpdateResult.WasDisabled reports whether it was disabled. With
+	// WithResumeParkedRetries, the parked-retries set is renamed to a fresh
+	// resume set in the same step and UpdateResult.ResumeKey names it; other
+	// write options are refused. It returns ErrDestinationNotFound or
+	// ErrDestinationDeleted when the destination is not live.
+	EnableDestination(ctx context.Context, tenantID, destinationID string, opts ...WriteOption) (UpdateResult, error)
 	// DeleteDestinationIf tombstones a live destination only when it matches
 	// every set field of c, recording c.Reason. Deleting also leaves the
 	// destination's buckets and drops its parked retries.

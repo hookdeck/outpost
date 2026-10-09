@@ -1,11 +1,16 @@
 package mcpevents
 
 import (
+	"bufio"
 	"encoding/json"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/textproto"
 	"runtime"
+	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -183,4 +188,110 @@ func (l *countingLimiter) counts() (acquired, released, denied int) {
 
 func hostOf(rawURL string) string {
 	return strings.TrimPrefix(strings.TrimPrefix(rawURL, "http://"), "https://")
+}
+
+// rawRequest is one request as it came over the wire: header names keep
+// their spelling, which an http.Server would canonicalize.
+type rawRequest struct {
+	headerNames []string
+	header      http.Header
+	body        []byte
+}
+
+// deliveryHeaderNames returns the names of r's delivery headers (those
+// SetHeaders writes, matched case-insensitively) as spelled on the wire.
+func (r rawRequest) deliveryHeaderNames() []string {
+	var names []string
+	for _, name := range r.headerNames {
+		switch strings.ToLower(name) {
+		case "content-type", "webhook-id", "webhook-timestamp", "webhook-signature", "x-mcp-subscription-id":
+			names = append(names, name)
+		}
+	}
+	return names
+}
+
+// newRawReceiver serves HTTP/1.1 on 127.0.0.1 by hand, so the test sees the
+// header names as the client wrote them. respond returns the body of the 200
+// answering each request. It returns the base URL and the requests.
+func newRawReceiver(t *testing.T, respond func(body []byte) string) (string, <-chan rawRequest) {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { ln.Close() })
+	got := make(chan rawRequest, 16)
+	go func() {
+		for {
+			conn, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			go func() {
+				defer conn.Close()
+				reader := textproto.NewReader(bufio.NewReader(conn))
+				if _, err := reader.ReadLine(); err != nil {
+					return
+				}
+				req := rawRequest{header: http.Header{}}
+				for {
+					line, err := reader.ReadLine()
+					if err != nil || line == "" {
+						break
+					}
+					name, value, _ := strings.Cut(line, ":")
+					req.headerNames = append(req.headerNames, name)
+					req.header.Add(name, strings.TrimSpace(value))
+				}
+				n, _ := strconv.Atoi(req.header.Get("Content-Length"))
+				req.body = make([]byte, n)
+				_, _ = io.ReadFull(reader.R, req.body)
+				answer := ""
+				if respond != nil {
+					answer = respond(req.body)
+				}
+				_, _ = io.WriteString(conn, "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: "+
+					strconv.Itoa(len(answer))+"\r\nConnection: close\r\n\r\n"+answer)
+				got <- req
+			}()
+		}
+	}()
+	return "http://" + ln.Addr().String(), got
+}
+
+// receiveRaw returns the next request of a raw receiver.
+func receiveRaw(t *testing.T, got <-chan rawRequest) rawRequest {
+	t.Helper()
+	select {
+	case req := <-got:
+		return req
+	case <-time.After(5 * time.Second):
+		t.Fatal("no request received")
+		return rawRequest{}
+	}
+}
+
+// canonicalHeader returns h with canonical keys, the form http.Header.Get
+// and Standard Webhooks libraries read: SetHeaders writes the documented
+// spellings, which only a request parsed off the wire canonicalizes.
+func canonicalHeader(h http.Header) http.Header {
+	out := make(http.Header, len(h))
+	for name, values := range h {
+		for _, v := range values {
+			out.Add(name, v)
+		}
+	}
+	return out
+}
+
+// sortedLike orders delivery header names as SetHeaders documents them, so
+// a test compares spellings regardless of the order they were written in.
+func sortedLike(names []string) []string {
+	order := map[string]int{"content-type": 0, "webhook-id": 1, "webhook-timestamp": 2, "webhook-signature": 3, "x-mcp-subscription-id": 4}
+	out := slices.Clone(names)
+	slices.SortStableFunc(out, func(a, b string) int {
+		return order[strings.ToLower(a)] - order[strings.ToLower(b)]
+	})
+	return out
 }

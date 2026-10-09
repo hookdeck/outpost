@@ -2,6 +2,7 @@ package e2e_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"strings"
@@ -104,4 +105,74 @@ func TestE2E_MCP_BreakingChangeStartup(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, status)
 	status, body = fifth.do(http.MethodPut, "/tenants/"+tenantID+"/mcp/subscriptions", sub.body())
 	assert.Equal(t, http.StatusUnprocessableEntity, status, "order.created is no longer an MCP event: %s", body)
+}
+
+// TestE2E_MCP_BreakingChangeRefresh checks the refresh path after a forced
+// breaking change: a client refreshing a subscription created against the
+// old schema, before the mcp-subscriptions worker ends it, gets
+// schema_changed instead and the subscription is deleted without a
+// terminated envelope. The client's next subscribe creates a new
+// subscription against the new schema.
+func TestE2E_MCP_BreakingChangeRefresh(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.Skip("skipping e2e test")
+	}
+	testinfraCleanup := testinfra.Start(t)
+	defer testinfraCleanup()
+
+	receiver := newMCPReceiver()
+	defer receiver.Close()
+	redisConfig := testinfra.NewDragonflyStackConfig(t)
+
+	newConfig := func(orderCreated string, allowBreaking bool) config.Config {
+		cfg := configs.Basic(t, configs.BasicOpts{LogStorage: configs.LogStorageTypePostgres, RedisConfig: redisConfig})
+		withMCPTopics(&cfg, orderCreated)
+		withMCPTestSettings(&cfg)
+		// No worker pass during the test: the refresh gets there first.
+		cfg.MCP.ExpirySweepInterval = config.Duration(time.Hour)
+		cfg.TopicsAllowBreakingChanges = allowBreaking
+		return cfg
+	}
+	breaking := strings.Replace(orderCreatedSchema, `"total": {"type": "number"`, `"total": {"type": "string"`, 1)
+	require.NotEqual(t, orderCreatedSchema, breaking)
+
+	first := startStandaloneApp(t, newConfig(orderCreatedSchema, false))
+	tenantID := first.createTenant()
+	path, callbackURL := receiver.newPath()
+	sub := mcpSubscription{Principal: "user_1", Name: "order.created", URL: callbackURL, Secret: newStandardWebhooksSecret()}
+	status, body := first.do(http.MethodPut, "/tenants/"+tenantID+"/mcp/subscriptions", sub.body())
+	require.Equal(t, http.StatusOK, status, string(body))
+	subscriptionID := sub.id(t)
+	first.stop()
+
+	second := startStandaloneApp(t, newConfig(breaking, true))
+	status, body = second.do(http.MethodPut, "/tenants/"+tenantID+"/mcp/subscriptions", sub.body())
+	require.Equal(t, http.StatusUnprocessableEntity, status, string(body))
+	var mcpErr mcpErrorBody
+	require.NoError(t, json.Unmarshal(body, &mcpErr))
+	assert.Equal(t, "unsupported", mcpErr.MCPError.Kind)
+	assert.Equal(t, -32014, mcpErr.MCPError.Code)
+	assert.Equal(t, map[string]any{"feature": "payloadSchema", "reason": "schema_changed"}, mcpErr.MCPError.Data)
+	status, _ = second.do(http.MethodGet, "/tenants/"+tenantID+"/destinations/"+subscriptionID, nil)
+	assert.Equal(t, http.StatusNotFound, status, "the subscription is deleted")
+
+	// The client re-reads events/list and subscribes again (from a later
+	// millisecond than the delete: a tie counts as revoked).
+	time.Sleep(2 * time.Millisecond)
+	status, body = second.do(http.MethodPut, "/tenants/"+tenantID+"/mcp/subscriptions", sub.body())
+	require.Equal(t, http.StatusOK, status, string(body))
+	var result mcpSubscribeResult
+	require.NoError(t, json.Unmarshal(body, &result))
+	assert.Equal(t, subscriptionID, result.ID)
+	assert.Nil(t, result.DeliveryStatus, "a new subscription")
+
+	status, body = second.do(http.MethodPut, "/tenants/"+tenantID+"/mcp/subscriptions", sub.body())
+	require.Equal(t, http.StatusOK, status, string(body))
+	require.NoError(t, json.Unmarshal(body, &result))
+	assert.NotNil(t, result.DeliveryStatus, "which refreshes normally")
+
+	time.Sleep(500 * time.Millisecond)
+	assert.Empty(t, receiver.matching(path, isMCPTerminated), "no terminated envelope")
+	second.stop()
 }

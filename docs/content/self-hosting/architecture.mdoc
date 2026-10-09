@@ -27,7 +27,7 @@ Only the API Service loads topic schemas and applies them at startup, after migr
 
 The `mcp-subscriptions` worker runs in every API Service instance. Every `MCP_EXPIRY_SWEEP_INTERVAL` (30 seconds by default), one instance at a time, holding a Redis lock, runs a pass that:
 
-- Deletes subscriptions that expired more than 60 seconds ago and emits [`mcp.subscription.expired`](/docs/outpost/features/operator-events) for each. Delivery already stops at `expires_at`.
+- Deletes subscriptions that expired longer ago than twice `MCP_EXPIRY_SWEEP_INTERVAL`, between 5 and 60 seconds (60 seconds by default), and emits [`mcp.subscription.expired`](/docs/outpost/features/operator-events) for each. Delivery already stops at `expires_at`.
 - Ends subscriptions to topics that are no longer MCP-enabled, and those left from a breaking change applied with `TOPICS_ALLOW_BREAKING_CHANGES`, and sends each a `terminated` envelope. It only does so when the instance runs the last applied topic schemas, so instances on an older or rolled-back configuration never end subscriptions.
 
 Each instance also records the topic configuration it runs, every 20 seconds, so a rolling deploy can restart instances on the previous configuration without failing the breaking-change check.

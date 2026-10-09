@@ -32,7 +32,7 @@ func TestSign_VerifiesWithStandardWebhooksLibrary(t *testing.T) {
 	t.Run("single key", func(t *testing.T) {
 		h := http.Header{}
 		require.NoError(t, SetHeaders(h, "evt_1", "sub_x", now, body, [][]byte{current}))
-		assert.Equal(t, 1, strings.Count(h.Get(HeaderWebhookSignature), "v1,"))
+		assert.Equal(t, 1, strings.Count(canonicalHeader(h).Get(HeaderWebhookSignature), "v1,"))
 		verifyWith(t, current, body, h, true)
 		verifyWith(t, previous, body, h, false)
 	})
@@ -40,7 +40,7 @@ func TestSign_VerifiesWithStandardWebhooksLibrary(t *testing.T) {
 	t.Run("dual keys during rotation", func(t *testing.T) {
 		h := http.Header{}
 		require.NoError(t, SetHeaders(h, "evt_1", "sub_x", now, body, [][]byte{current, previous}))
-		sig := h.Get(HeaderWebhookSignature)
+		sig := canonicalHeader(h).Get(HeaderWebhookSignature)
 		parts := strings.Split(sig, " ")
 		require.Len(t, parts, 2, "space-separated")
 		for _, p := range parts {
@@ -63,7 +63,8 @@ func verifyWith(t *testing.T, key, body []byte, h http.Header, ok bool) {
 	t.Helper()
 	wh, err := standardwebhooks.NewWebhookRaw(key)
 	require.NoError(t, err)
-	err = wh.Verify(body, h)
+	// Verify reads canonical keys, as a receiver's parsed request has them.
+	err = wh.Verify(body, canonicalHeader(h))
 	if ok {
 		assert.NoError(t, err)
 	} else {
@@ -76,13 +77,29 @@ func TestSetHeaders(t *testing.T) {
 	h := http.Header{}
 	ts := time.Unix(1791576000, 999)
 	require.NoError(t, SetHeaders(h, "evt_1", "sub_3f1c", ts, []byte(`{}`), [][]byte{[]byte("k")}))
+	// The documented spellings, not http.Header's canonical ones: HTTP/1.1
+	// sends map keys as they are, so every request Outpost signs (deliveries,
+	// challenges, terminated envelopes) spells them the same way.
 	assert.Equal(t, http.Header{
 		"Content-Type":          {"application/json"},
-		"Webhook-Id":            {"evt_1"},
-		"Webhook-Timestamp":     {"1791576000"},
-		"Webhook-Signature":     {Sign("evt_1", ts, []byte(`{}`), [][]byte{[]byte("k")})},
-		"X-Mcp-Subscription-Id": {"sub_3f1c"},
+		"webhook-id":            {"evt_1"},
+		"webhook-timestamp":     {"1791576000"},
+		"webhook-signature":     {Sign("evt_1", ts, []byte(`{}`), [][]byte{[]byte("k")})},
+		"X-MCP-Subscription-Id": {"sub_3f1c"},
 	}, h)
+
+	t.Run("replaces canonical spellings", func(t *testing.T) {
+		t.Parallel()
+		h := http.Header{}
+		h.Set(HeaderWebhookID, "old")
+		h.Set(HeaderSubscriptionID, "old")
+		h.Set(HeaderContentType, "text/plain")
+		require.NoError(t, SetHeaders(h, "evt_1", "sub_3f1c", ts, []byte(`{}`), [][]byte{[]byte("k")}))
+		assert.Len(t, h, 5, "one entry per header: %v", h)
+		assert.Equal(t, []string{"evt_1"}, h[HeaderWebhookID])
+		assert.Equal(t, []string{"sub_3f1c"}, h[HeaderSubscriptionID])
+		assert.Equal(t, "application/json", h.Get(HeaderContentType))
+	})
 
 	assert.ErrorIs(t, SetHeaders(http.Header{}, "evt_1", "sub", ts, nil, nil), ErrNoSigningKey)
 	assert.Empty(t, Sign("evt_1", ts, nil, nil))

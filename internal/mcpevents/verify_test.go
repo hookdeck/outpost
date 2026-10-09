@@ -3,6 +3,7 @@ package mcpevents
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"io"
 	"net"
@@ -307,6 +308,26 @@ func TestVerifier_TLSAndConnectionErrors(t *testing.T) {
 	}))
 	t.Cleanup(reset.Close)
 	requireReason(t, f.v.Verify(context.Background(), f.request(reset.URL)), ReasonConnectionRefused)
+}
+
+// A verification challenge spells its headers as deliveries do on the wire.
+func TestVerifier_HeaderSpellingOnTheWire(t *testing.T) {
+	t.Parallel()
+	f := newVerifierFixture(t, nil)
+	url, got := newRawReceiver(t, func(body []byte) string {
+		var env struct {
+			Challenge string `json:"challenge"`
+		}
+		_ = json.Unmarshal(body, &env)
+		return `{"challenge":"` + env.Challenge + `"}`
+	})
+
+	require.NoError(t, f.v.Verify(context.Background(), f.request(url+"/hook")))
+	req := receiveRaw(t, got)
+	assert.Equal(t, []string{"Content-Type", "webhook-id", "webhook-timestamp", "webhook-signature", "X-MCP-Subscription-Id"},
+		sortedLike(req.deliveryHeaderNames()))
+	assert.Equal(t, "sub_0123456789abcdef0123456789abcdef", req.header.Get("X-MCP-Subscription-Id"))
+	verifyWith(t, f.key, req.body, req.header, true)
 }
 
 // addressNotAllowedError stands in for the address guard's typed error.

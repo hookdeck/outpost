@@ -357,6 +357,7 @@ type mcpTestConfig struct {
 	withoutMCPDeps  bool
 	extraAPIOptions []apiTestOption
 	mutateDeps      func(*apirouter.MCPDeps)
+	wrapStore       func(tenantstore.TenantStore) tenantstore.TenantStore
 }
 
 type mcpTestOption func(*mcpTestConfig)
@@ -387,6 +388,12 @@ func withoutMCPDeps() mcpTestOption {
 
 func withMCPAPIOptions(opts ...apiTestOption) mcpTestOption {
 	return func(c *mcpTestConfig) { c.extraAPIOptions = append(c.extraAPIOptions, opts...) }
+}
+
+// withMCPStoreWrapper puts a wrapper around the memory store the router
+// uses. The fakes keep the unwrapped store.
+func withMCPStoreWrapper(wrap func(tenantstore.TenantStore) tenantstore.TenantStore) mcpTestOption {
+	return func(c *mcpTestConfig) { c.wrapStore = wrap }
 }
 
 // withMCPDeps changes the MCP deps before the router is built.
@@ -448,8 +455,12 @@ func newMCPTest(t *testing.T, opts ...mcpTestOption) *mcpTest {
 	if cfg.withoutMCPDeps {
 		deps = nil
 	}
+	var routerStore tenantstore.TenantStore = store
+	if cfg.wrapStore != nil {
+		routerStore = cfg.wrapStore(store)
+	}
 	apiOpts := append([]apiTestOption{
-		withTenantStore(store),
+		withTenantStore(routerStore),
 		withTopics(mcpTopics),
 		withTopicCatalog(catalog),
 		withDestRegistry(newMCPRegistry(t, m.provider)),

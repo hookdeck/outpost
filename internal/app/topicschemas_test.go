@@ -78,10 +78,12 @@ func TestApplyTopicSchemas(t *testing.T) {
 	})
 
 	t.Run("first apply records the configuration", func(t *testing.T) {
-		require.NoError(t, newApp(t, "api", created, false).applyTopicSchemas(ctx))
+		a := newApp(t, "api", created, false)
+		require.NoError(t, a.applyTopicSchemas(ctx))
 		applied, err := topicschema.ReadApplied(ctx, redisClient, "")
 		require.NoError(t, err)
 		require.NotNil(t, applied)
+		assert.Nil(t, a.brokenSchemas, "nothing broken")
 	})
 
 	t.Run("breaking change without live subscriptions passes", func(t *testing.T) {
@@ -107,10 +109,29 @@ func TestApplyTopicSchemas(t *testing.T) {
 		assert.Contains(t, err.Error(), "order.created")
 	})
 
+	createdHash := newApp(t, "api", created, false).config.TopicCatalog().Snapshot().TopicHash("order.created")
+	breakingHash := newApp(t, "api", breaking, false).config.TopicCatalog().Snapshot().TopicHash("order.created")
+
 	t.Run("TOPICS_ALLOW_BREAKING_CHANGES applies it", func(t *testing.T) {
-		require.NoError(t, newApp(t, "api", breaking, true).applyTopicSchemas(ctx))
+		a := newApp(t, "api", breaking, true)
+		require.NoError(t, a.applyTopicSchemas(ctx))
 		applied, err := topicschema.ReadApplied(ctx, redisClient, "")
 		require.NoError(t, err)
 		assert.NotEmpty(t, applied.Broken["order.created"], "the forced change records the broken schema")
+
+		// For the subscribe handler: refreshes of subscriptions to the old
+		// schema end them.
+		assert.True(t, a.brokenSchemas.IsBroken("order.created", createdHash))
+		assert.False(t, a.brokenSchemas.IsBroken("order.created", breakingHash))
+	})
+
+	t.Run("later starts load the broken schemas too", func(t *testing.T) {
+		a := newApp(t, "all", breaking, false)
+		require.NoError(t, a.applyTopicSchemas(ctx))
+		assert.True(t, a.brokenSchemas.IsBroken("order.created", createdHash))
+
+		other := newApp(t, "delivery", breaking, false)
+		require.NoError(t, other.applyTopicSchemas(ctx))
+		assert.Nil(t, other.brokenSchemas, "the API service only")
 	})
 }

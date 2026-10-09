@@ -59,9 +59,9 @@ func WithFence(name string) WriteOption {
 	}
 }
 
-// WithResumeParkedRetries makes UpdateDestinationIfLive move the parked
-// retries of a destination it leaves enabled to a resume set, atomically with
-// the write.
+// WithResumeParkedRetries makes UpdateDestinationIfLive and
+// EnableDestination move the parked retries of a destination they leave
+// enabled to a resume set, atomically with the write.
 func WithResumeParkedRetries() WriteOption {
 	return func(o *WriteOptions) {
 		o.ResumeParked = true
@@ -95,6 +95,19 @@ func ResolveWriteOptions(opts []WriteOption) (WriteOptions, error) {
 	return o, nil
 }
 
+// ResolveEnableOptions applies the options of EnableDestination, which takes
+// WithResumeParkedRetries only.
+func ResolveEnableOptions(opts []WriteOption) (WriteOptions, error) {
+	o, err := ResolveWriteOptions(opts)
+	if err != nil {
+		return o, err
+	}
+	if len(o.Buckets) > 0 || len(o.Fences) > 0 || !o.NotDeletedSince.IsZero() {
+		return o, errors.New("enable destination takes no buckets, fences or WithNotDeletedSince")
+	}
+	return o, nil
+}
+
 // maxNameLength bounds bucket and fence names, which become key suffixes.
 const maxNameLength = 256
 
@@ -112,7 +125,7 @@ func ValidateName(name string) error {
 	return nil
 }
 
-// UpdateResult reports what UpdateDestinationIfLive did.
+// UpdateResult reports what UpdateDestinationIfLive or EnableDestination did.
 type UpdateResult struct {
 	// WasDisabled reports whether the destination was disabled just before
 	// the write.

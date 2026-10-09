@@ -45,10 +45,9 @@ const Name = "mcp-subscriptions"
 const (
 	// DefaultInterval is MCP_EXPIRY_SWEEP_INTERVAL's default.
 	DefaultInterval = 30 * time.Second
-	// DefaultGrace delays deleting an expired subscription, so an instance
-	// whose clock runs ahead doesn't delete it early. Delivery stops at
-	// expires_at regardless.
-	DefaultGrace = 60 * time.Second
+	// MinGrace and MaxGrace bound the grace (GraceFor).
+	MinGrace = 5 * time.Second
+	MaxGrace = 60 * time.Second
 	// DefaultTTLMax is MCP_TTL_MAX's default.
 	DefaultTTLMax      = 24 * time.Hour
 	DefaultConcurrency = 16
@@ -132,7 +131,7 @@ type Config struct {
 	Secrets func(d *models.Destination) []mcpevents.Secret
 
 	Interval          time.Duration // MCP_EXPIRY_SWEEP_INTERVAL; ±10% jitter
-	Grace             time.Duration
+	Grace             time.Duration // GraceFor(Interval) when zero
 	TTLMax            time.Duration // MCP_TTL_MAX
 	HeartbeatInterval time.Duration // topicschema.DefaultHeartbeatInterval
 	HeartbeatTTL      time.Duration // topicschema.DefaultHeartbeatTTL
@@ -164,7 +163,7 @@ func New(cfg Config) (*Worker, error) {
 		return nil, errors.New("mcpworker: Redis, Store and Notifier are required")
 	}
 	cfg.Interval = positiveOr(cfg.Interval, DefaultInterval)
-	cfg.Grace = positiveOr(cfg.Grace, DefaultGrace)
+	cfg.Grace = positiveOr(cfg.Grace, GraceFor(cfg.Interval))
 	cfg.TTLMax = positiveOr(cfg.TTLMax, DefaultTTLMax)
 	cfg.HeartbeatInterval = positiveOr(cfg.HeartbeatInterval, topicschema.DefaultHeartbeatInterval)
 	cfg.HeartbeatTTL = positiveOr(cfg.HeartbeatTTL, topicschema.DefaultHeartbeatTTL)
@@ -197,6 +196,15 @@ func New(cfg Config) (*Worker, error) {
 		notifyWait: min(cfg.NotifyWait, cfg.Interval),
 		jitter:     jitter,
 	}, nil
+}
+
+// GraceFor returns how long past expires_at the sweep waits before deleting
+// a subscription, for a sweep interval: twice the interval, within MinGrace
+// and MaxGrace (60s at the default 30s interval). The grace keeps an
+// instance whose clock runs ahead from deleting a subscription its client is
+// still refreshing on time. Delivery stops at expires_at regardless.
+func GraceFor(interval time.Duration) time.Duration {
+	return min(MaxGrace, max(MinGrace, 2*interval))
 }
 
 func positiveOr[T int | time.Duration](v, def T) T {

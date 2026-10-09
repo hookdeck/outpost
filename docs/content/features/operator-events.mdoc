@@ -274,7 +274,7 @@ Emitted when destination changes affect tenant-level subscribed topics or destin
 
 ### `mcp.subscription.expired`
 
-Emitted when Outpost deletes an MCP Events subscription that reached its `expires_at` without a refresh. Outpost stops delivering at `expires_at`. The API service deletes the subscription in a background pass, about 60 seconds later, or earlier when the client subscribes again with the same key, which then creates a new subscription.
+Emitted when Outpost deletes an MCP Events subscription that reached its `expires_at` without a refresh. Outpost stops delivering at `expires_at`. The API service deletes the subscription in a background pass once it has been expired for twice `MCP_EXPIRY_SWEEP_INTERVAL`, between 5 and 60 seconds (about 60 seconds by default), or earlier when the client subscribes again with the same key, which then creates a new subscription.
 
 Unsubscribing, revoking and ending a topic don't emit it.
 

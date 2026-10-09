@@ -290,3 +290,86 @@ func TestMCP_Race_Mixed(t *testing.T) {
 	}
 	wg.Wait()
 }
+
+// refreshingStore refreshes a destination right after each read of it while
+// armed: a refresh landing between a handler's read and its write.
+type refreshingStore struct {
+	tenantstore.TenantStore
+
+	mu      sync.Mutex
+	armed   bool
+	refresh int
+	// last is what the latest refresh wrote.
+	last models.Destination
+}
+
+func (s *refreshingStore) arm(armed bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.armed = armed
+}
+
+func (s *refreshingStore) RetrieveDestination(ctx context.Context, tenantID, destinationID string) (*models.Destination, error) {
+	d, err := s.TenantStore.RetrieveDestination(ctx, tenantID, destinationID)
+	if err != nil || d == nil {
+		return d, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.armed {
+		return d, err
+	}
+	// The refresh keeps the read's disabled_at: it renews the expiry and
+	// rotates the secret.
+	s.refresh++
+	refreshed := *d
+	expiresAt := time.Now().Add(time.Duration(s.refresh) * time.Hour).Truncate(time.Millisecond)
+	refreshed.ExpiresAt = &expiresAt
+	refreshed.Credentials = models.Credentials{"secret": testSecret(byte(10 + s.refresh))}
+	refreshed.UpdatedAt = time.Now()
+	if _, uerr := s.TenantStore.UpdateDestinationIfLive(ctx, refreshed, d.CreatedAt); uerr != nil {
+		return nil, uerr
+	}
+	s.last = refreshed
+	return d, err
+}
+
+// The generic PUT enable of an mcp destination clears disabled_at without
+// writing the rest of the destination: refreshes landing during the request
+// keep their expiry and secret.
+func TestMCPRace_EnableKeepsConcurrentRefresh(t *testing.T) {
+	var store *refreshingStore
+	m := newMCPTest(t, withMCPStoreWrapper(func(s tenantstore.TenantStore) tenantstore.TenantStore {
+		store = &refreshingStore{TenantStore: s}
+		return store
+	}))
+	ctx := t.Context()
+	body := subscribeBody("p1", "order.created")
+	id := m.mustSubscribe(body).ID
+	_, err := m.tenantStore.DisableDestination(ctx, mcpTenant, id, time.Now())
+	require.NoError(t, err)
+	_, err = m.tenantStore.ParkRetry(ctx, mcpTenant, id, "task-1", 1000, time.Now().Add(time.Hour))
+	require.NoError(t, err)
+
+	store.arm(true)
+	resp := m.do(m.withJWT(m.jsonReq(http.MethodPut, "/api/v2/tenants/"+mcpTenant+"/destinations/"+id+"/enable", nil), mcpTenant))
+	store.arm(false)
+	require.Equal(t, http.StatusOK, resp.Code, resp.Body.String())
+	require.Positive(t, store.refresh)
+
+	got := m.destination(id)
+	require.NotNil(t, got)
+	assert.Nil(t, got.DisabledAt, "enabled")
+	require.NotNil(t, got.ExpiresAt)
+	assert.Equal(t, store.last.ExpiresAt.UnixMilli(), got.ExpiresAt.UnixMilli(), "the latest refresh's expiry is kept")
+	assert.Equal(t, store.last.Credentials["secret"], got.Credentials["secret"], "the latest refresh's secret is kept")
+
+	resets, disabled := m.alerts.calls()
+	assert.Equal(t, []string{id}, resets)
+	assert.Equal(t, []bool{true}, disabled, "reset before re-enabling")
+	resumed := m.resumer.resumed()
+	require.Len(t, resumed, 1)
+	members, err := m.tenantStore.PopResumeMembers(ctx, mcpTenant, resumed[0].key, 10)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"task-1"}, members)
+}

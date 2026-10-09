@@ -62,6 +62,24 @@ func TestNotifier_Sends(t *testing.T) {
 	assert.Equal(t, NotifierStats{Sent: 1}, n.Stats())
 }
 
+// A terminated envelope spells its headers as deliveries do on the wire.
+func TestNotifier_HeaderSpellingOnTheWire(t *testing.T) {
+	t.Parallel()
+	_, key := secretOf(32, base64.StdEncoding)
+	url, got := newRawReceiver(t, nil)
+	n := newTestNotifier(t, nil)
+
+	term := testTermination(url+"/hook", key)
+	require.True(t, n.Enqueue(term))
+	req := receiveRaw(t, got)
+	require.NoError(t, n.Close())
+
+	assert.Equal(t, []string{"Content-Type", "webhook-id", "webhook-timestamp", "webhook-signature", "X-MCP-Subscription-Id"},
+		sortedLike(req.deliveryHeaderNames()))
+	assert.Equal(t, term.SubscriptionID, req.header.Get("X-MCP-Subscription-Id"))
+	verifyWith(t, key, req.body, req.header, true)
+}
+
 func TestNotifier_ProfileAndRotationEnd(t *testing.T) {
 	t.Parallel()
 	_, key := secretOf(32, base64.StdEncoding)

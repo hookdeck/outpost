@@ -11,9 +11,12 @@ import (
 )
 
 // Delivery headers. MCP deliveries, verification challenges and terminated
-// envelopes carry exactly these (plus the client's User-Agent); http.Header
-// canonicalizes the names on the wire, which receivers match
-// case-insensitively.
+// envelopes carry exactly these (plus the client's User-Agent), spelled as
+// here: SetHeaders writes them without http.Header's canonicalization
+// (Webhook-Id, X-Mcp-Subscription-Id), and HTTP/1.1 sends map keys as they
+// are. Receivers match header names case-insensitively, so http.Header.Get
+// works on a received request; on a header map SetHeaders filled, read
+// these keys directly.
 const (
 	HeaderContentType      = "Content-Type"
 	HeaderWebhookID        = "webhook-id"
@@ -76,15 +79,26 @@ func Sign(msgID string, ts time.Time, body []byte, keys [][]byte) string {
 
 // SetHeaders sets the delivery headers on h for body: Content-Type,
 // webhook-id, webhook-timestamp (ts, Unix seconds), webhook-signature (every
-// key) and X-MCP-Subscription-Id. It returns ErrNoSigningKey for no keys.
+// key) and X-MCP-Subscription-Id, under the exact keys of the Header*
+// constants, replacing any other spelling of them. It returns
+// ErrNoSigningKey for no keys.
 func SetHeaders(h http.Header, msgID, subscriptionID string, ts time.Time, body []byte, keys [][]byte) error {
 	if len(keys) == 0 {
 		return ErrNoSigningKey
 	}
-	h.Set(HeaderContentType, "application/json")
-	h.Set(HeaderWebhookID, msgID)
-	h.Set(HeaderWebhookTimestamp, strconv.FormatInt(ts.Unix(), 10))
-	h.Set(HeaderWebhookSignature, Sign(msgID, ts, body, keys))
-	h.Set(HeaderSubscriptionID, subscriptionID)
+	setExact(h, HeaderContentType, "application/json")
+	setExact(h, HeaderWebhookID, msgID)
+	setExact(h, HeaderWebhookTimestamp, strconv.FormatInt(ts.Unix(), 10))
+	setExact(h, HeaderWebhookSignature, Sign(msgID, ts, body, keys))
+	setExact(h, HeaderSubscriptionID, subscriptionID)
 	return nil
+}
+
+// setExact sets name to value under exactly that key, dropping the canonical
+// spelling a Set may have written before.
+func setExact(h http.Header, name, value string) {
+	if canonical := http.CanonicalHeaderKey(name); canonical != name {
+		delete(h, canonical)
+	}
+	h[name] = []string{value}
 }
