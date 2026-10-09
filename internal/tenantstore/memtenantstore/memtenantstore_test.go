@@ -18,6 +18,20 @@ func (h *memTenantStoreHarness) MakeDriverWithMaxDest(_ context.Context, maxDest
 	return New(WithMaxDestinationsPerTenant(maxDest)), nil
 }
 
+func (h *memTenantStoreHarness) MakeDriverWithOptions(_ context.Context, opts drivertest.DriverOptions) (driver.TenantStore, error) {
+	var options []Option
+	if opts.MaxDest > 0 {
+		options = append(options, WithMaxDestinationsPerTenant(opts.MaxDest))
+	}
+	if len(opts.TypeLimits) > 0 {
+		options = append(options, WithTypeLimits(opts.TypeLimits))
+	}
+	if len(opts.IndexedTypes) > 0 {
+		options = append(options, WithIndexedTypes(opts.IndexedTypes...))
+	}
+	return New(options...), nil
+}
+
 func (h *memTenantStoreHarness) MakeIsolatedDrivers(_ context.Context) (driver.TenantStore, driver.TenantStore, error) {
 	return New(), New(), nil
 }

@@ -8,12 +8,22 @@ import (
 	"github.com/hookdeck/outpost/internal/tenantstore/driver"
 )
 
+// DriverOptions configures MakeDriverWithOptions. Zero fields keep the
+// driver defaults.
+type DriverOptions struct {
+	MaxDest      int
+	TypeLimits   map[string]int
+	IndexedTypes []string
+}
+
 // Harness provides the test infrastructure for a tenantstore driver implementation.
 type Harness interface {
 	// MakeDriver creates a driver with default settings.
 	MakeDriver(ctx context.Context) (driver.TenantStore, error)
 	// MakeDriverWithMaxDest creates a driver with a specific max destinations limit.
 	MakeDriverWithMaxDest(ctx context.Context, maxDest int) (driver.TenantStore, error)
+	// MakeDriverWithOptions creates a driver with limits and indexes.
+	MakeDriverWithOptions(ctx context.Context, opts DriverOptions) (driver.TenantStore, error)
 	// MakeIsolatedDrivers creates two drivers that share the same backend
 	// but are isolated from each other (e.g., different deployment IDs).
 	MakeIsolatedDrivers(ctx context.Context) (store1, store2 driver.TenantStore, err error)
@@ -24,11 +34,15 @@ type Harness interface {
 type HarnessMaker func(ctx context.Context, t *testing.T) (Harness, error)
 
 // RunConformanceTests executes the core conformance test suite for a tenantstore driver.
-// The suite is organized into four parts:
+// The suite is organized into these parts:
 //   - CRUD: tenant and destination create/read/update/delete
 //   - List: destination listing and filtering operations
 //   - Match: event matching operations
 //   - Misc: max destinations, deployment isolation
+//   - Conditional: guarded writes and their races with deletes
+//   - Limits: type limits and buckets, under concurrency
+//   - Index: cross-tenant destination indexes
+//   - Parking: parked retries and resume sets
 func RunConformanceTests(t *testing.T, newHarness HarnessMaker) {
 	t.Helper()
 
@@ -43,9 +57,22 @@ func RunConformanceTests(t *testing.T, newHarness HarnessMaker) {
 	})
 	t.Run("Match", func(t *testing.T) {
 		testMatch(t, newHarness)
+		testMatchExpiryAndExactTopics(t, newHarness)
 	})
 	t.Run("Misc", func(t *testing.T) {
 		testMisc(t, newHarness)
+	})
+	t.Run("Conditional", func(t *testing.T) {
+		testConditional(t, newHarness)
+	})
+	t.Run("Limits", func(t *testing.T) {
+		testLimits(t, newHarness)
+	})
+	t.Run("Index", func(t *testing.T) {
+		testIndex(t, newHarness)
+	})
+	t.Run("Parking", func(t *testing.T) {
+		testParking(t, newHarness)
 	})
 }
 

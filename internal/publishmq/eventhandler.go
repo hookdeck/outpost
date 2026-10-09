@@ -69,9 +69,14 @@ type EventHandler interface {
 }
 
 type HandleResult struct {
-	EventID        string   `json:"id"`
-	Duplicate      bool     `json:"duplicate"`
+	EventID   string `json:"id"`
+	Duplicate bool   `json:"duplicate"`
+	// DestinationIDs lists every matched destination, MCP subscriptions
+	// included (unlike Event.MatchedDestinationIDs).
 	DestinationIDs []string `json:"destination_ids"`
+	// MatchedDestinationTypes holds the type of each DestinationIDs entry, at
+	// the same index, so API versions can hide types they don't expose.
+	MatchedDestinationTypes []string `json:"-"`
 }
 
 type eventHandler struct {
@@ -164,7 +169,7 @@ func (h *eventHandler) Handle(ctx context.Context, event *models.Event) (*Handle
 	// event.received line by the defer below.
 	var enqueuedMu sync.Mutex
 	var enqueued []string
-	var matched []string
+	var matched []tenantstore.MatchedDestination
 	var duplicate bool
 	var enqueueFailed bool
 	var matchFailed bool
@@ -175,12 +180,16 @@ func (h *eventHandler) Handle(ctx context.Context, event *models.Event) (*Handle
 		enqueuedCopy := append([]string{}, enqueued...)
 		enqueuedMu.Unlock()
 
+		matchedIDs := make([]string, len(matched))
+		for i, m := range matched {
+			matchedIDs[i] = m.ID
+		}
 		fields := []zap.Field{
 			zap.String("event_id", event.ID),
 			zap.String("tenant_id", event.TenantID),
 			zap.String("topic", event.Topic),
 			zap.Int("matched_destination_count", len(matched)),
-			zap.Strings("matched_destination_ids", matched),
+			zap.Strings("matched_destination_ids", matchedIDs),
 			zap.Int("enqueued_destination_count", len(enqueuedCopy)),
 			zap.Strings("enqueued_destination_ids", enqueuedCopy),
 			zap.Bool("duplicate", duplicate),
@@ -232,17 +241,27 @@ func (h *eventHandler) Handle(ctx context.Context, event *models.Event) (*Handle
 		}
 	}
 
-	if matched == nil {
-		matched = []string{}
-	}
-
+	ids := make([]string, len(matched))
+	types := make([]string, len(matched))
 	// Stamp matched destinations onto the event for downstream persistence.
-	event.MatchedDestinationIDs = matched
+	// MCP subscriptions are left out: the event is copied into every delivery
+	// task, so carrying a tenant's (many) subscriptions would grow the
+	// publish quadratically. Their deliveries show up as attempts.
+	stamped := make([]string, 0, len(matched))
+	for i, m := range matched {
+		ids[i] = m.ID
+		types[i] = m.Type
+		if m.Type != models.DestinationTypeMCP {
+			stamped = append(stamped, m.ID)
+		}
+	}
+	event.MatchedDestinationIDs = stamped
 
 	result := &HandleResult{
-		EventID:        event.ID,
-		Duplicate:      false,
-		DestinationIDs: matched,
+		EventID:                 event.ID,
+		Duplicate:               false,
+		DestinationIDs:          ids,
+		MatchedDestinationTypes: types,
 	}
 
 	if len(matched) == 0 {
@@ -253,7 +272,7 @@ func (h *eventHandler) Handle(ctx context.Context, event *models.Event) (*Handle
 	executed := false
 	err = h.idempotence.Exec(ctx, idempotencyKeyFromEvent(event), func(ctx context.Context) error {
 		executed = true
-		return h.doPublish(ctx, event, matched, &enqueuedMu, &enqueued)
+		return h.doPublish(ctx, event, ids, &enqueuedMu, &enqueued)
 	})
 
 	if err != nil {
@@ -357,8 +376,8 @@ func (h *eventHandler) doPublish(ctx context.Context, event *models.Event, match
 }
 
 // matchSpecificDestination handles the case where a specific destination_id is provided.
-// It retrieves the destination and validates it, returning the matched destination IDs.
-func (h *eventHandler) matchSpecificDestination(ctx context.Context, event *models.Event) ([]string, error) {
+// It retrieves the destination and validates it, returning the matched destination.
+func (h *eventHandler) matchSpecificDestination(ctx context.Context, event *models.Event) ([]tenantstore.MatchedDestination, error) {
 	destination, err := h.tenantStore.RetrieveDestination(ctx, event.TenantID, event.DestinationID)
 	if err != nil {
 		h.logger.Ctx(ctx).Warn("failed to retrieve destination",
@@ -366,18 +385,18 @@ func (h *eventHandler) matchSpecificDestination(ctx context.Context, event *mode
 			zap.String("event_id", event.ID),
 			zap.String("tenant_id", event.TenantID),
 			zap.String("destination_id", event.DestinationID))
-		return []string{}, nil
+		return nil, nil
 	}
 
 	if destination == nil {
-		return []string{}, nil
+		return nil, nil
 	}
 
 	if !destination.MatchEvent(*event, h.topicsAllowWildcards) {
-		return []string{}, nil
+		return nil, nil
 	}
 
-	return []string{destination.ID}, nil
+	return []tenantstore.MatchedDestination{{ID: destination.ID, Type: destination.Type}}, nil
 }
 
 func (h *eventHandler) enqueueDeliveryTask(ctx context.Context, task models.DeliveryTask) error {
