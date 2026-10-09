@@ -1,0 +1,97 @@
+---
+title: "Upgrade to API v2"
+description: "What changes between Outpost API v1 and API v2, and how to run both versions side by side."
+---
+
+API v2 is Outpost's first major API version. Self-hosted Outpost serves it under `/api/v2`, beside `/api/v1`, from the same instance. API v1 keeps working unchanged, so you can move clients to v2 one at a time.
+
+Managed Outpost doesn't serve API v2 yet. Every managed dated version, such as `2025-07-01`, keeps serving v1.
+
+| Change | Impact | Action Required |
+| --- | --- | --- |
+| [Topics are returned as objects](#topics-are-returned-as-objects) | Clients that call `GET /topics` on `/api/v2` | Read `name` from each topic object |
+| [Topic schema validation applies to v1 publishes](#topic-schema-validation-applies-to-v1-publishes) | Publishers to topics you set to `validation: enforce` | Run the topic with `warn` first |
+| [New database migrations](#new-database-migrations) | PostgreSQL and ClickHouse log storage | Run `outpost migrate apply --yes` before starting the new version |
+
+## Breaking Changes from v1 to v2
+
+| Endpoint | v1 | v2 |
+| --- | --- | --- |
+| `GET /topics` | Topic names as strings | Topic objects with `name`, `description`, `payload_schema`, `validation`, `mcp`, `deprecated` and `replaced_by` |
+
+### Topics are returned as objects
+
+`GET /topics` returns one object per topic instead of its name. The objects come in `TOPICS` order and carry the topic's [schema configuration](/docs/outpost/features/topics#topic-schemas):
+
+```json
+[
+  {
+    "name": "order.created",
+    "description": "Fires when a new order is placed.",
+    "payload_schema": {
+      "type": "object",
+      "properties": { "total": { "type": "number" } }
+    },
+    "validation": "enforce",
+    "mcp": { "enabled": true }
+  },
+  {
+    "name": "user.created",
+    "validation": "off",
+    "mcp": { "enabled": false }
+  }
+]
+```
+
+`description`, `payload_schema`, `deprecated` and `replaced_by` are omitted when they're not set, so without topic schemas each object has only `name`, `validation` and `mcp`. A client that only needs the names can map each object to its `name`.
+
+## Endpoints Unchanged So Far
+
+These endpoints behave the same in v1 and v2 for now. Later releases document their v2 changes in this section.
+
+### Destination types
+
+`GET /destination-types` and `GET /destination-types/{type}` return the same destination types, in the same shape, in v1 and v2.
+
+### Destinations
+
+The destination endpoints under `/tenants/{tenant_id}/destinations` behave the same in v1 and v2.
+
+### Events and attempts
+
+`GET /events`, `GET /attempts` and the tenant and destination variants of these endpoints return the same events and attempts in v1 and v2.
+
+## Publishing
+
+`POST /publish` takes the same request and returns the same response in v1 and v2.
+
+### Topic schema validation applies to v1 publishes
+
+Topic schemas are instance configuration, not part of the API version. When you set a topic's `validation` to `enforce`, a publish whose `data` fails the topic's schema gets `422` on `/api/v1/publish` as well, and a publish queue message is rejected. Nothing changes until you configure validation.
+
+Before you enforce, set the topic to `warn`: invalid events are still accepted, stored with `schema_valid: false` and counted in the `outpost.events.schema_invalid` [OpenTelemetry metric](/docs/outpost/features/opentelemetry). Switch to `enforce` once the metric stays at zero. See [Validation](/docs/outpost/features/topics#validation).
+
+Events carry the new `schema_valid` field in both versions. It's omitted for topics without validation, so v1 responses only change once you configure it.
+
+## Running v1 and v2 Side by Side
+
+Serving v2 needs no configuration:
+
+- **Same instance.** Every endpoint is served under both `/api/v1` and `/api/v2`, on the same port, including `/api/v2/healthz`. Unknown versions, such as `/api/v3`, return a JSON `404`. If an ingress or reverse proxy in front of Outpost only forwards `/api/v1`, add `/api/v2`.
+- **Same credentials.** The admin API key and tenant JWTs work on both versions. JWTs carry no version, so a token issued through v1 works on v2.
+- **Same data.** Both versions read and write the same tenants, destinations, events and attempts. Pagination cursors from one version work on the other.
+- **Tenant portal.** The portal is unaffected. It reads topics from the instance configuration, not from `GET /topics`.
+- **SDKs.** The published SDKs target API v1. Keep them on `/api/v1` or a managed dated URL: they expect `GET /topics` to return strings, so `topics.list()` fails against v2. SDK releases for API v2 follow once managed Outpost serves it.
+
+To move a client, change its base URL from `/api/v1` to `/api/v2` and handle the [breaking changes](#breaking-changes-from-v1-to-v2) above.
+
+## New Database Migrations
+
+The release that adds API v2 also adds PostgreSQL migration `000012` and ClickHouse migration `000005`. Both add a nullable `schema_valid` column to the events and attempts tables. Existing rows stay `NULL`, which the API omits.
+
+The server refuses to start with a pending migration, so run migrations before starting the new version:
+
+```bash
+outpost migrate apply --yes
+outpost serve
+```

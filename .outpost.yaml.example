@@ -56,6 +56,24 @@ topics: # List of topics to subscribe to
   - user.updated
   - user.deleted
 
+## Topic Schemas
+# Loaded by the API service at startup. Set topics_schemas or topics_schemas_file, not both.
+# topics_schemas: # Keyed by topic name; every key must be in topics
+#   user.created:
+#     description: "A user signed up."
+#     validation: warn # off (default), warn or enforce
+#     mcp:
+#       enabled: false
+#     payload_schema: # JSON Schema 2020-12 for the event data
+#       type: object
+#       properties:
+#         user_id: { type: string }
+#       required: [user_id]
+# topics_schemas_file: "config/outpost/topics-schemas.yaml" # YAML or JSON file with the same content
+# topics_schemas_openapi: "config/outpost/openapi.yaml" # OpenAPI 3.1 document (file path or URL) whose webhooks provide schemas
+# topics_schemas_openapi_sha256: "" # Hex SHA-256 pin for the OpenAPI document
+# topics_validation_max_bytes: 1048576 # Largest event data validated against its topic schema
+
 ## API
 api_port: 3333 # Default port for the API server
 api_key: "" # API key for authentication
