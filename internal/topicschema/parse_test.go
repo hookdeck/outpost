@@ -1027,3 +1027,31 @@ func BenchmarkParseOpenAPI(b *testing.B) {
 		})
 	}
 }
+
+func TestParseOpenAPIDropsDialectSchema(t *testing.T) {
+	doc := `{
+		"openapi": "3.1.0",
+		"info": {"title": "t", "version": "1"},
+		"webhooks": {
+			"order.created": {
+				"post": {
+					"summary": "Fires when an order is placed.",
+					"x-mcp-enabled": true,
+					"requestBody": {"content": {"application/json": {"schema": {
+						"$schema": "https://spec.openapis.org/oas/3.1/dialect/base",
+						"type": "object",
+						"properties": {"total": {"type": "number"}}
+					}}}}
+				}
+			}
+		}
+	}`
+	defs, err := ParseOpenAPI([]byte(doc))
+	require.NoError(t, err)
+	def := defs["order.created"]
+	assert.JSONEq(t, `{"type":"object","properties":{"total":{"type":"number"}}}`, string(def.PayloadSchema))
+
+	cat, err := NewCatalog([]string{"order.created"}, nil, WithImported(defs))
+	require.NoError(t, err)
+	assert.True(t, cat.MCPEnabled())
+}

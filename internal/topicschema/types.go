@@ -103,7 +103,8 @@ type Argument struct {
 	// Format is "date-time", "date" or empty. Only set for strings.
 	Format string
 	// Ranged reports whether an operator object ($gt, $gte, $lt, $lte) is
-	// accepted: numbers, and strings with a date or date-time format.
+	// accepted: numbers, and strings with a date format. Filters compare
+	// strings bytewise, so date-time strings get equality and lists only.
 	Ranged bool
 }
 

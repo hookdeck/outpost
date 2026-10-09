@@ -634,7 +634,7 @@ func (c *Catalog) ValidateData(topic string, data []byte) ValidationResult {
 	e, mode := &c.entries[i], c.topics[i].Validation
 	if len(data) > c.maxValidationBytes {
 		if mode == ValidationEnforce {
-			return ValidationResult{Mode: mode, Checked: true, Errors: []string{"data exceeds the schema validation size limit"}}
+			return ValidationResult{Mode: mode, Checked: true, Errors: []string{DataTooLargeError}}
 		}
 		return ValidationResult{Mode: mode, SkippedTooLarge: true}
 	}

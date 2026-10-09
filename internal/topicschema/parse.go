@@ -1356,6 +1356,10 @@ type openapiBundler struct {
 	queue []string
 }
 
+// openapiDialectBase is the default JSON Schema dialect of OpenAPI 3.1
+// documents. A payload schema root declaring it has the declaration dropped.
+const openapiDialectBase = "https://spec.openapis.org/oas/3.1/dialect/base"
+
 // bundle returns the standalone payload schema for the schema at path.
 func (d *openapiDoc) bundle(topic string, schema *parseNode, path []string) (json.RawMessage, error) {
 	root, path := d.schemaRoot(schema, path)
@@ -1389,6 +1393,11 @@ func (d *openapiDoc) bundle(topic string, schema *parseNode, path []string) (jso
 		if m == defs {
 			defsAt = len(segments)
 			segments = append(segments, nil)
+			continue
+		}
+		if m.key == "$schema" && m.kind == parseString && m.text == openapiDialectBase {
+			// The OAS 3.1 dialect is JSON Schema 2020-12 plus OpenAPI's own
+			// annotation keywords; payload schemas are plain 2020-12.
 			continue
 		}
 		seg, err := b.member(nil, m, openapiPath(path), true)

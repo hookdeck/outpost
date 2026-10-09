@@ -1356,15 +1356,15 @@ var constraintKeywords = func() map[string]bool {
 
 // Keywords whose values are subschemas, for canonical forms.
 var (
-	subschemaKeywords = map[string]bool{
+	canonSubschemaKeywords = map[string]bool{
 		"items": true, "additionalProperties": true, "additionalItems": true,
 		"contains": true, "not": true, "if": true, "then": true, "else": true,
 		"propertyNames": true, "unevaluatedProperties": true, "unevaluatedItems": true,
 	}
-	subschemaMapKeywords = map[string]bool{
+	canonSubschemaMapKeywords = map[string]bool{
 		"properties": true, "patternProperties": true, "dependentSchemas": true,
 	}
-	subschemaListKeywords = map[string]bool{
+	canonSubschemaListKeywords = map[string]bool{
 		"allOf": true, "anyOf": true, "oneOf": true, "prefixItems": true,
 	}
 )
@@ -1408,9 +1408,9 @@ func (w *canonWriter) keyword(b []byte, kw string, v any) []byte {
 		if ref, ok := v.(string); ok {
 			w.refs = append(w.refs, ref)
 		}
-	case subschemaKeywords[kw]:
+	case canonSubschemaKeywords[kw]:
 		return w.schema(b, v)
-	case subschemaMapKeywords[kw]:
+	case canonSubschemaMapKeywords[kw]:
 		if m, ok := v.(map[string]any); ok {
 			b = append(b, '{')
 			for i, name := range slices.Sorted(maps.Keys(m)) {
@@ -1423,7 +1423,7 @@ func (w *canonWriter) keyword(b []byte, kw string, v any) []byte {
 			}
 			return append(b, '}')
 		}
-	case subschemaListKeywords[kw]:
+	case canonSubschemaListKeywords[kw]:
 		if list, ok := v.([]any); ok {
 			b = append(b, '[')
 			for i, s := range list {
