@@ -23,7 +23,8 @@ const (
 	// MCP-enabled payload schema to MCP clients.
 	maxMCPPayloadSchemaBytes = 64 << 10
 	// defaultMaxValidationBytes is the WithMaxValidationBytes default.
-	defaultMaxValidationBytes = 1 << 20
+	// Validating takes up to a few hundred times the data size in memory.
+	defaultMaxValidationBytes = 256 << 10
 	// maxArgumentsBytes caps subscription arguments before they are parsed.
 	// Inferred inputSchemas accept far smaller values.
 	maxArgumentsBytes = 256 << 10
@@ -50,6 +51,7 @@ type Option func(*catalogOptions)
 type catalogOptions struct {
 	imported           Definitions
 	maxValidationBytes int
+	warnings           []string
 }
 
 // WithImported adds definitions from an import source such as an OpenAPI
@@ -61,7 +63,7 @@ func WithImported(defs Definitions) Option {
 
 // WithMaxValidationBytes caps the size of event data validated at publish.
 // Larger data fails validation in enforce mode and skips it in warn mode.
-// The default is 1 MiB.
+// The default is 256 KiB.
 func WithMaxValidationBytes(n int) Option {
 	return func(o *catalogOptions) { o.maxValidationBytes = n }
 }
@@ -109,6 +111,7 @@ func NewCatalog(topics []string, defs Definitions, opts ...Option) (*Catalog, er
 	if o.maxValidationBytes > 0 {
 		c.maxValidationBytes = o.maxValidationBytes
 	}
+	c.warnings = slices.Sorted(slices.Values(o.warnings))
 	if len(defs) == 0 && len(o.imported) == 0 {
 		return c, nil
 	}
@@ -775,4 +778,20 @@ func (c *Catalog) Snapshot() Snapshot {
 		}
 	}
 	return s
+}
+
+// WithWarnings adds warnings found before NewCatalog, such as those
+// ParseOpenAPI returns, to the catalog's Warnings.
+func WithWarnings(warnings []string) Option {
+	return func(o *catalogOptions) { o.warnings = append(o.warnings, warnings...) }
+}
+
+// MaxValidationBytes returns the size of the largest event data ValidateData
+// validates, set with WithMaxValidationBytes. It is 0 for a nil catalog,
+// which validates nothing.
+func (c *Catalog) MaxValidationBytes() int {
+	if c == nil {
+		return 0
+	}
+	return c.maxValidationBytes
 }

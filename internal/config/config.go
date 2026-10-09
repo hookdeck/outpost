@@ -76,7 +76,7 @@ type Config struct {
 	TopicsSchemasFile          string       `yaml:"topics_schemas_file" env:"TOPICS_SCHEMAS_FILE" desc:"Path to a YAML or JSON file (JSON when the name ends in .json) with topic schemas in the topics_schemas shape. Mutually exclusive with topics_schemas." required:"N"`
 	TopicsSchemasOpenAPI       string       `yaml:"topics_schemas_openapi" env:"TOPICS_SCHEMAS_OPENAPI" desc:"File path or http(s) URL of an OpenAPI 3.1 document (up to 4 MiB) whose webhooks provide topic schemas. Webhooks not in topics are skipped with a warning; a topics_schemas or topics_schemas_file entry replaces the imported one for its topic. A URL is fetched on every API startup." required:"N"`
 	TopicsSchemasOpenAPISHA256 string       `yaml:"topics_schemas_openapi_sha256" env:"TOPICS_SCHEMAS_OPENAPI_SHA256" desc:"Hex SHA-256 of the topics_schemas_openapi document. A document that doesn't match fails startup." required:"N"`
-	TopicsValidationMaxBytes   int          `yaml:"topics_validation_max_bytes" env:"TOPICS_VALIDATION_MAX_BYTES" desc:"Largest event data, in bytes, validated against its topic schema. Larger data is rejected when the topic's validation is enforce, and accepted without validation when it's warn." required:"N" default:"1048576"`
+	TopicsValidationMaxBytes   int          `yaml:"topics_validation_max_bytes" env:"TOPICS_VALIDATION_MAX_BYTES" desc:"Largest event data, in bytes, validated against its topic schema. Larger data is rejected when the topic's validation is enforce, and accepted without validation when it's warn." required:"N" default:"262144"`
 
 	// Infrastructure
 	Redis       RedisConfig      `yaml:"redis"`
@@ -215,7 +215,7 @@ func (c *Config) InitDefaults() {
 	c.DeliveryIdempotencyKeyTTL = 3600 // 1 hour
 	c.LogBatchThresholdSeconds = 10
 	c.LogBatchSize = 1000
-	c.TopicsValidationMaxBytes = 1 << 20 // 1 MiB
+	c.TopicsValidationMaxBytes = 256 << 10 // 256 KiB
 
 	// Set defaults for Destinations config
 	c.Destinations = DestinationsConfig{

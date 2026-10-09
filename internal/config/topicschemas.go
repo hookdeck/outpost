@@ -28,14 +28,17 @@ const (
 )
 
 // TopicSchemas holds TOPICS_SCHEMAS: topic definitions keyed by topic name,
-// as raw JSON. It is only parsed by LoadTopicCatalog, so a service that never
-// loads the catalog never fails on it.
+// as raw JSON. Only LoadTopicCatalog parses it and reports its errors, so a
+// service that never loads the catalog never fails on it.
 //
 // From the environment it is a JSON object. From YAML it is a mapping, kept
 // as JSON with YAML 1.2 core types (dates and timestamps stay strings), or a
-// string containing JSON.
+// string containing JSON. A mapping that can't be converted, for example
+// because it uses merge keys, keeps the error for LoadTopicCatalog.
 type TopicSchemas struct {
 	raw json.RawMessage
+	// err is why the YAML mapping couldn't be converted to JSON.
+	err error
 }
 
 // NewTopicSchemas returns TopicSchemas holding the given JSON. Intended for
@@ -46,9 +49,10 @@ func NewTopicSchemas(raw string) TopicSchemas {
 	return t
 }
 
-// IsSet reports whether a non-empty value was provided.
+// IsSet reports whether a non-empty value was provided, including a YAML
+// mapping that couldn't be converted.
 func (t TopicSchemas) IsSet() bool {
-	return len(t.raw) > 0
+	return len(t.raw) > 0 || t.err != nil
 }
 
 // Raw returns the JSON as provided. It must not be modified.
@@ -57,6 +61,7 @@ func (t TopicSchemas) Raw() json.RawMessage {
 }
 
 func (t *TopicSchemas) UnmarshalText(b []byte) error {
+	t.err = nil
 	b = bytes.TrimSpace(b)
 	if len(b) == 0 {
 		t.raw = nil
@@ -70,7 +75,7 @@ func (t *TopicSchemas) UnmarshalYAML(node *yaml.Node) error {
 	switch {
 	case node.Tag == "!!null":
 		// A bare `topics_schemas:` is unset, like an absent key.
-		t.raw = nil
+		t.raw, t.err = nil, nil
 		return nil
 	case node.Kind == yaml.ScalarNode:
 		var s string
@@ -79,11 +84,12 @@ func (t *TopicSchemas) UnmarshalYAML(node *yaml.Node) error {
 		}
 		return t.UnmarshalText([]byte(s))
 	default:
-		raw, err := topicschema.YAMLNodeToJSON(node)
-		if err != nil {
-			return invalidTopicSchemas(fmt.Errorf("topics_schemas: %w", err))
+		// The error is kept, not returned: returning it would fail parsing
+		// the config file for every service and command.
+		t.raw, t.err = topicschema.YAMLNodeToJSON(node)
+		if t.err != nil {
+			t.raw, t.err = nil, fmt.Errorf("topics_schemas: %w", t.err)
 		}
-		t.raw = raw
 		return nil
 	}
 }
@@ -131,18 +137,20 @@ func (c *Config) validateTopicSchemas() error {
 // I/O: TOPICS_SCHEMAS_FILE is read through the OSInterface the config was
 // parsed with, and a TOPICS_SCHEMAS_OPENAPI URL is fetched. Entries of
 // TOPICS_SCHEMAS or TOPICS_SCHEMAS_FILE replace imported OpenAPI entries per
-// topic. Errors match ErrInvalidTopicSchemas.
+// topic, and OpenAPI webhooks whose topic isn't in TOPICS are skipped with a
+// warning. Errors match ErrInvalidTopicSchemas.
 func (c *Config) LoadTopicCatalog(ctx context.Context) (*topicschema.Catalog, error) {
 	defs, err := c.loadTopicDefinitions()
 	if err != nil {
 		return nil, invalidTopicSchemas(err)
 	}
-	imported, digest, err := c.loadOpenAPIDefinitions(ctx)
+	imported, warnings, digest, err := c.loadOpenAPIDefinitions(ctx)
 	if err != nil {
 		return nil, invalidTopicSchemas(err)
 	}
 	catalog, err := topicschema.NewCatalog(c.Topics, defs,
 		topicschema.WithImported(imported),
+		topicschema.WithWarnings(warnings),
 		topicschema.WithMaxValidationBytes(c.TopicsValidationMaxBytes),
 	)
 	if err != nil {
@@ -185,6 +193,9 @@ func (c *Config) osOrDefault() OSInterface {
 // loadTopicDefinitions parses TOPICS_SCHEMAS or TOPICS_SCHEMAS_FILE. A file
 // ending in .json is JSON; any other is YAML.
 func (c *Config) loadTopicDefinitions() (topicschema.Definitions, error) {
+	if c.TopicsSchemas.err != nil {
+		return nil, c.TopicsSchemas.err
+	}
 	if c.TopicsSchemas.IsSet() {
 		return topicschema.ParseDefinitionsJSON(c.TopicsSchemas.Raw())
 	}
@@ -202,11 +213,12 @@ func (c *Config) loadTopicDefinitions() (topicschema.Definitions, error) {
 }
 
 // loadOpenAPIDefinitions imports TOPICS_SCHEMAS_OPENAPI and returns the
-// definitions and the hex SHA-256 of the document.
-func (c *Config) loadOpenAPIDefinitions(ctx context.Context) (topicschema.Definitions, string, error) {
+// definitions of the topics in TOPICS, warnings about the webhooks skipped,
+// and the hex SHA-256 of the document.
+func (c *Config) loadOpenAPIDefinitions(ctx context.Context) (topicschema.Definitions, []string, string, error) {
 	source := c.TopicsSchemasOpenAPI
 	if source == "" {
-		return nil, "", nil
+		return nil, nil, "", nil
 	}
 	var data []byte
 	var err error
@@ -219,19 +231,25 @@ func (c *Config) loadOpenAPIDefinitions(ctx context.Context) (topicschema.Defini
 		}
 	}
 	if err != nil {
-		return nil, "", fmt.Errorf("loading TOPICS_SCHEMAS_OPENAPI %s: %w", maskOpenAPISource(source), err)
+		return nil, nil, "", fmt.Errorf("loading TOPICS_SCHEMAS_OPENAPI %s: %w", maskOpenAPISource(source), err)
 	}
 	sum := sha256.Sum256(data)
 	digest := hex.EncodeToString(sum[:])
 	if pin := c.TopicsSchemasOpenAPISHA256; pin != "" && !strings.EqualFold(pin, digest) {
-		return nil, "", fmt.Errorf("TOPICS_SCHEMAS_OPENAPI %s has SHA-256 %s, but TOPICS_SCHEMAS_OPENAPI_SHA256 is %s",
+		return nil, nil, "", fmt.Errorf("TOPICS_SCHEMAS_OPENAPI %s has SHA-256 %s, but TOPICS_SCHEMAS_OPENAPI_SHA256 is %s",
 			maskOpenAPISource(source), digest, strings.ToLower(pin))
 	}
-	defs, err := topicschema.ParseOpenAPI(data)
-	if err != nil {
-		return nil, "", err
+	// An empty TOPICS allows any topic: everything is imported, and
+	// NewCatalog rejects definitions it can't check.
+	var opts []topicschema.OpenAPIOption
+	if len(c.Topics) > 0 {
+		opts = append(opts, topicschema.OpenAPITopics(c.Topics))
 	}
-	return defs, digest, nil
+	defs, warnings, err := topicschema.ParseOpenAPI(data, opts...)
+	if err != nil {
+		return nil, nil, "", err
+	}
+	return defs, warnings, digest, nil
 }
 
 // isURL reports whether source has a URL scheme rather than being a file

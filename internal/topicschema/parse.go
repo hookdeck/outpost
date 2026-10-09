@@ -35,6 +35,10 @@ const (
 	// OpenAPI document. Each webhook gets its own copy of the components it
 	// references, so the output can be much larger than the document.
 	openapiMaxBundledBytes = 64 << 20
+	// openapiMaxOverlaidMembers caps the members copied by $ref overlays in
+	// one OpenAPI document. Each copies the referenced object, so many
+	// references to one large object add up.
+	openapiMaxOverlaidMembers = 1 << 20
 )
 
 var utf8BOM = []byte("\xef\xbb\xbf")
@@ -130,13 +134,23 @@ func YAMLNodeToJSON(n *yaml.Node) (json.RawMessage, error) {
 // that sets x-mcp-enabled: true is an error instead, since the opt-in can't
 // be honoured.
 //
-// Every webhook is returned: NewCatalog skips those missing from TOPICS. A
-// document without a webhooks section is an error, as it is most likely not
+// Without options every webhook is returned, and NewCatalog skips those
+// missing from TOPICS. With OpenAPITopics, webhooks whose topic is not listed
+// are skipped here instead: they are not bundled, and are reported in the
+// returned warnings along with any problem found in them, which no longer
+// fails the import. A webhook's topic is what its x-outpost-topic and key
+// resolve to or, when a reference can't be resolved, the name known so far.
+//
+// A document without a webhooks section is an error, as it is most likely not
 // the intended one. Errors are a *ConfigError naming the topic and the JSON
 // pointer in the document of each problem.
-func ParseOpenAPI(data []byte) (Definitions, error) {
+func ParseOpenAPI(data []byte, opts ...OpenAPIOption) (Definitions, []string, error) {
+	var o openapiOptions
+	for _, opt := range opts {
+		opt(&o)
+	}
 	if len(data) > parseMaxInputBytes {
-		return nil, parseTooLarge("the OpenAPI document")
+		return nil, nil, parseTooLarge("the OpenAPI document")
 	}
 	data = bytes.TrimPrefix(data, utf8BOM)
 	raw := data
@@ -146,20 +160,20 @@ func ParseOpenAPI(data []byte) (Definitions, error) {
 	if trimmed := bytes.TrimLeft(data, " \t\r\n"); len(trimmed) == 0 || trimmed[0] != '{' {
 		var err error
 		if raw, err = parseYAMLDocument(data); err != nil {
-			return nil, parseConfigError(err.Error())
+			return nil, nil, parseConfigError(err.Error())
 		}
 	}
 	root, err := parseDecodeJSON(raw)
 	if err != nil {
-		return nil, parseConfigError(err.Error())
+		return nil, nil, parseConfigError(err.Error())
 	}
 	if root.kind != parseObject {
-		return nil, parseConfigError("the OpenAPI document must be an object")
+		return nil, nil, parseConfigError("the OpenAPI document must be an object")
 	}
 	if err := openapiCheckVersion(root); err != nil {
-		return nil, parseConfigError(err.Error())
+		return nil, nil, parseConfigError(err.Error())
 	}
-	doc := &openapiDoc{root: root, schemas: map[string]*parseNode{}}
+	doc := &openapiDoc{root: root, schemas: map[string]*parseNode{}, opts: o}
 	if schemas := root.get("components").get("schemas"); schemas != nil && schemas.kind == parseObject {
 		for i := range schemas.kids {
 			doc.schemas[schemas.kids[i].key] = &schemas.kids[i]
@@ -168,25 +182,34 @@ func ParseOpenAPI(data []byte) (Definitions, error) {
 
 	hooks := root.get("webhooks")
 	if hooks == nil {
-		return nil, parseConfigError((&parseError{path: []string{"webhooks"}, msg: "the document defines no webhooks to import"}).Error())
+		return nil, nil, parseConfigError((&parseError{path: []string{"webhooks"}, msg: "the document defines no webhooks to import"}).Error())
 	}
 	if hooks.kind != parseObject {
-		return nil, parseConfigError((&parseError{path: []string{"webhooks"}, msg: "must be an object"}).Error())
+		return nil, nil, parseConfigError((&parseError{path: []string{"webhooks"}, msg: "must be an object"}).Error())
 	}
 	defs := make(Definitions, len(hooks.kids))
 	sources := make(map[string]string, len(hooks.kids))
-	var problems []string
+	var problems, warnings []string
 	for i := range hooks.kids {
 		hook := &hooks.kids[i]
 		topic, def, ok, err := doc.webhook(hook)
-		if errors.Is(err, errOpenAPIBundleTooLarge) {
-			return nil, parseConfigError(err.Error())
+		if errors.Is(err, errOpenAPIBundleTooLarge) || errors.Is(err, errOpenAPIOverlayTooLarge) {
+			return nil, nil, parseConfigError(err.Error())
+		}
+		var pe *parseError
+		if errors.As(err, &pe) && !o.wants(pe.topic) {
+			warnings = append(warnings, o.skipped(pe.topic, pe))
+			continue
 		}
 		if err != nil {
 			problems = append(problems, err.Error())
 			continue
 		}
 		if !ok {
+			continue
+		}
+		if !o.wants(topic) {
+			warnings = append(warnings, o.skipped(topic, nil))
 			continue
 		}
 		at := parsePointer([]string{"webhooks", hook.key})
@@ -198,9 +221,57 @@ func ParseOpenAPI(data []byte) (Definitions, error) {
 		defs[topic] = def
 	}
 	if len(problems) > 0 {
-		return nil, parseConfigError(problems...)
+		return nil, nil, parseConfigError(problems...)
 	}
-	return defs, nil
+	slices.Sort(warnings)
+	return defs, slices.Compact(warnings), nil
+}
+
+// OpenAPIOption configures ParseOpenAPI.
+type OpenAPIOption func(*openapiOptions)
+
+type openapiOptions struct {
+	// topics lists the topics to import, and wanted holds them. A nil
+	// wanted imports every topic.
+	topics []string
+	wanted map[string]bool
+}
+
+// OpenAPITopics imports only the webhooks whose topic is one of topics, the
+// TOPICS list. An empty list skips every webhook.
+func OpenAPITopics(topics []string) OpenAPIOption {
+	return func(o *openapiOptions) {
+		o.topics = slices.Clone(topics)
+		o.wanted = make(map[string]bool, len(topics))
+		for _, t := range topics {
+			o.wanted[t] = true
+		}
+	}
+}
+
+// wants reports whether the webhooks of topic are imported.
+func (o *openapiOptions) wants(topic string) bool {
+	return o.wanted == nil || o.wanted[topic]
+}
+
+// skipped describes a webhook skipped because its topic is not wanted, with
+// the problem that would fail its import, if one was found.
+func (o *openapiOptions) skipped(topic string, problem *parseError) string {
+	msg := fmt.Sprintf("imported topic %q is not in TOPICS and was skipped", topic)
+	// TOPICS entries are used verbatim, so " a" and "a" differ.
+	trimmed := strings.TrimSpace(topic)
+	for _, t := range o.topics {
+		if t != topic && strings.TrimSpace(t) == trimmed {
+			msg += fmt.Sprintf(" (did you mean %q?)", t)
+			break
+		}
+	}
+	if problem != nil {
+		p := *problem
+		p.topic = ""
+		msg += "; it would fail to import: " + p.Error()
+	}
+	return msg
 }
 
 // Merge returns the definitions of base and override, where an override entry
@@ -380,10 +451,11 @@ func parseUnknownField(name string, known []string) string {
 }
 
 // parseKeySet detects duplicate object keys: a slice scan for small objects,
-// a map once an object grows.
+// a map once an object grows. The map holds each key's position, so it also
+// indexes the object's members.
 type parseKeySet struct {
 	list []string
-	set  map[string]struct{}
+	set  map[string]int
 }
 
 // add records key and reports false when it was already present.
@@ -392,7 +464,7 @@ func (s *parseKeySet) add(key string) bool {
 		if _, dup := s.set[key]; dup {
 			return false
 		}
-		s.set[key] = struct{}{}
+		s.set[key] = len(s.set)
 		return true
 	}
 	if slices.Contains(s.list, key) {
@@ -400,9 +472,9 @@ func (s *parseKeySet) add(key string) bool {
 	}
 	s.list = append(s.list, key)
 	if len(s.list) > 16 {
-		s.set = make(map[string]struct{}, 2*len(s.list))
-		for _, k := range s.list {
-			s.set[k] = struct{}{}
+		s.set = make(map[string]int, 2*len(s.list))
+		for i, k := range s.list {
+			s.set[k] = i
 		}
 		s.list = nil
 	}
@@ -749,20 +821,40 @@ type parseNode struct {
 	text string
 	// kids are the object members or array items.
 	kids []parseNode
+	// index maps member names to their position in kids. The decoder sets it
+	// on objects of more than 16 members, so many lookups into a large
+	// object, such as $refs into components, don't each scan it. Nodes built
+	// otherwise have none and are scanned.
+	index map[string]int
 }
 
 // get returns the member named key, or nil when n is not an object or has no
 // such member. It is nil-safe so lookups can be chained.
 func (n *parseNode) get(key string) *parseNode {
+	if i := n.find(key); i >= 0 {
+		return &n.kids[i]
+	}
+	return nil
+}
+
+// find returns the position in kids of the member named key, or -1 when n is
+// not an object or has no such member.
+func (n *parseNode) find(key string) int {
 	if n == nil || n.kind != parseObject {
-		return nil
+		return -1
+	}
+	if n.index != nil {
+		if i, ok := n.index[key]; ok {
+			return i
+		}
+		return -1
 	}
 	for i := range n.kids {
 		if n.kids[i].key == key {
-			return &n.kids[i]
+			return i
 		}
 	}
-	return nil
+	return -1
 }
 
 // appendJSON appends n as compact JSON without HTML escaping.
@@ -952,6 +1044,7 @@ func (b *parseTreeBuilder) object(depth int) (parseNode, error) {
 	if _, err := b.dec.Token(); err != nil {
 		return n, b.syntaxError(err)
 	}
+	n.index = keys.set
 	return n, nil
 }
 
@@ -980,6 +1073,10 @@ func (b *parseTreeBuilder) array(depth int) (parseNode, error) {
 // exceed openapiMaxBundledBytes.
 var errOpenAPIBundleTooLarge = fmt.Errorf("the payload schemas bundled from the OpenAPI document exceed %d MiB; reduce the components each webhook references", openapiMaxBundledBytes>>20)
 
+// errOpenAPIOverlayTooLarge aborts an import whose $ref overlays copy more
+// than openapiMaxOverlaidMembers members.
+var errOpenAPIOverlayTooLarge = fmt.Errorf("the $ref overlays of the OpenAPI document copy more than %d members; drop the members next to $refs to large objects", openapiMaxOverlaidMembers)
+
 // openapiCheckVersion accepts OpenAPI 3.1.x documents only: 3.0 schemas are
 // not JSON Schema 2020-12 (nullable, exclusiveMinimum as a boolean, ...).
 func openapiCheckVersion(root *parseNode) error {
@@ -1006,11 +1103,22 @@ type openapiDoc struct {
 	schemas map[string]*parseNode
 	// bundled counts the bytes of payload schemas produced so far.
 	bundled int
+	// overlaid counts the members copied by overlay so far.
+	overlaid int
+	// opts selects the topics to import.
+	opts openapiOptions
 }
 
-// webhook imports one webhook. ok is false when it is skipped.
+// webhook imports one webhook. ok is false when it is skipped. A webhook
+// whose topic is not wanted is checked but not bundled, and returned without
+// a payload schema.
 func (d *openapiDoc) webhook(hook *parseNode) (topic string, def Definition, ok bool, err error) {
 	topic = hook.key
+	// x-outpost-topic next to a path item $ref names the topic even when the
+	// reference doesn't resolve.
+	if t := hook.get("x-outpost-topic"); t != nil && t.kind == parseString && t.text != "" {
+		topic = t.text
+	}
 	item, path, err := d.follow(hook, []string{"webhooks", hook.key}, topic)
 	if err != nil {
 		return "", def, false, err
@@ -1064,6 +1172,9 @@ func (d *openapiDoc) webhook(hook *parseNode) (topic string, def Definition, ok 
 			return "", def, false, &parseError{topic: topic, path: openapiPath(opPath, "x-mcp-enabled"), msg: "needs a request body with a JSON schema (application/json or *+json)"}
 		}
 		return "", def, false, nil
+	}
+	if !d.opts.wants(topic) {
+		return topic, def, true, nil
 	}
 	if def.PayloadSchema, err = d.bundle(topic, schema, schemaPath); err != nil {
 		return "", def, false, err
@@ -1157,29 +1268,37 @@ func (d *openapiDoc) follow(n *parseNode, path []string, topic string) (*parseNo
 		if target == nil {
 			return nil, nil, &parseError{topic: topic, path: refPath, msg: fmt.Sprintf("$ref %q does not resolve", ref.text)}
 		}
-		n, path = openapiOverlay(target, n), tokens
+		if n, err = d.overlay(target, n); err != nil {
+			return nil, nil, err
+		}
+		path = tokens
 	}
 	return n, path, nil
 }
 
-// openapiOverlay returns target with the members of ref other than $ref set
-// on top of it. target is returned as is when ref has no other member.
-func openapiOverlay(target, ref *parseNode) *parseNode {
+// overlay returns target with the members of ref other than $ref set on top
+// of it. target is returned as is when ref has no other member.
+func (d *openapiDoc) overlay(target, ref *parseNode) (*parseNode, error) {
 	if len(ref.kids) == 1 || target.kind != parseObject {
-		return target
+		return target, nil
+	}
+	if d.overlaid += len(target.kids) + len(ref.kids); d.overlaid > openapiMaxOverlaidMembers {
+		return nil, errOpenAPIOverlayTooLarge
 	}
 	merged := &parseNode{kind: parseObject, key: target.key, kids: slices.Clone(target.kids)}
 	for _, m := range ref.kids {
 		if m.key == "$ref" {
 			continue
 		}
-		if i := slices.IndexFunc(merged.kids, func(k parseNode) bool { return k.key == m.key }); i >= 0 {
+		// Members of ref are unique, so only target's can be replaced, and
+		// target is a document node, indexed when large.
+		if i := target.find(m.key); i >= 0 {
 			merged.kids[i] = m
 		} else {
 			merged.kids = append(merged.kids, m)
 		}
 	}
-	return merged
+	return merged, nil
 }
 
 func openapiTopicName(n *parseNode, path []string, current string) (string, error) {
@@ -1362,7 +1481,10 @@ const openapiDialectBase = "https://spec.openapis.org/oas/3.1/dialect/base"
 
 // bundle returns the standalone payload schema for the schema at path.
 func (d *openapiDoc) bundle(topic string, schema *parseNode, path []string) (json.RawMessage, error) {
-	root, path := d.schemaRoot(schema, path)
+	root, path, err := d.schemaRoot(schema, path)
+	if err != nil {
+		return nil, err
+	}
 	if root.kind != parseObject {
 		// Boolean schemas hold no references.
 		return json.RawMessage(root.appendJSON(nil)), nil
@@ -1407,7 +1529,6 @@ func (d *openapiDoc) bundle(topic string, schema *parseNode, path []string) (jso
 		segments = append(segments, seg)
 	}
 	var body []byte
-	var err error
 	if defs != nil {
 		for i := range defs.kids {
 			k := &defs.kids[i]
@@ -1464,7 +1585,7 @@ func (d *openapiDoc) bundle(topic string, schema *parseNode, path []string) (jso
 // so that {$ref: '#/components/schemas/Order'} yields Order's root "type" and
 // "properties", which inference reads. The annotations replace the
 // component's.
-func (d *openapiDoc) schemaRoot(n *parseNode, path []string) (*parseNode, []string) {
+func (d *openapiDoc) schemaRoot(n *parseNode, path []string) (*parseNode, []string, error) {
 	var seen []string
 	for len(seen) < maxRefDepth && n.kind == parseObject {
 		ref := n.get("$ref")
@@ -1473,7 +1594,7 @@ func (d *openapiDoc) schemaRoot(n *parseNode, path []string) (*parseNode, []stri
 		}
 		for _, m := range n.kids {
 			if m.key != "$ref" && !openapiAnnotations[m.key] && !strings.HasPrefix(m.key, "x-") {
-				return n, path
+				return n, path, nil
 			}
 		}
 		tokens, pointer, err := openapiParseRef(ref.text)
@@ -1485,9 +1606,12 @@ func (d *openapiDoc) schemaRoot(n *parseNode, path []string) (*parseNode, []stri
 			break
 		}
 		seen = append(seen, ref.text)
-		n, path = openapiOverlay(target, n), tokens
+		if n, err = d.overlay(target, n); err != nil {
+			return nil, nil, err
+		}
+		path = tokens
 	}
-	return n, path
+	return n, path, nil
 }
 
 func (b *openapiBundler) errorf(path []string, format string, args ...any) error {

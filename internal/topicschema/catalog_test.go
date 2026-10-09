@@ -386,6 +386,24 @@ func TestNewCatalogImported(t *testing.T) {
 	}, c.Warnings())
 }
 
+func TestNewCatalogWithWarnings(t *testing.T) {
+	// Warnings found before NewCatalog, such as ParseOpenAPI's, are reported
+	// with the catalog's own, sorted.
+	parsed := []string{`imported topic "z" is not in TOPICS and was skipped`}
+	schema := `{"type":"object","properties":{"code":{"type":"string","pattern":"^(?!x)"}}}`
+	c, err := NewCatalog([]string{"a"}, Definitions{"a": schemaDef(schema)}, WithWarnings(parsed))
+	require.NoError(t, err)
+	warnings := c.Warnings()
+	require.Len(t, warnings, 2)
+	assert.Equal(t, parsed[0], warnings[0])
+	assert.Contains(t, warnings[1], `topic "a": payload_schema pattern "^(?!x)" is not supported`)
+
+	c, err = NewCatalog([]string{"a"}, nil, WithWarnings(parsed))
+	require.NoError(t, err)
+	assert.Equal(t, parsed, c.Warnings(), "kept without definitions")
+	assert.False(t, c.HasSchemas())
+}
+
 func TestCatalogAccessors(t *testing.T) {
 	object := json.RawMessage(`{"type":"object","properties":{"id":{"type":"string","x-mcp-filter":false}}}`)
 	c, err := NewCatalog([]string{"c", "a", "b", "d", "a"}, Definitions{
@@ -514,8 +532,9 @@ func TestValidateDataSizeLimit(t *testing.T) {
 	}
 
 	c := validationCatalog(t)
-	atLimit, overLimit := padded(1<<20), padded(1<<20+1)
-	assert.Equal(t, ValidationResult{Mode: ValidationEnforce, Checked: true, Valid: true}, c.ValidateData("enforced", atLimit), "1 MiB by default")
+	assert.Equal(t, 256<<10, c.MaxValidationBytes())
+	atLimit, overLimit := padded(256<<10), padded(256<<10+1)
+	assert.Equal(t, ValidationResult{Mode: ValidationEnforce, Checked: true, Valid: true}, c.ValidateData("enforced", atLimit), "256 KiB by default")
 	assert.Equal(t, ValidationResult{
 		Mode:    ValidationEnforce,
 		Checked: true,
@@ -525,6 +544,8 @@ func TestValidateDataSizeLimit(t *testing.T) {
 	assert.Equal(t, ValidationResult{Mode: ValidationOff}, c.ValidateData("off", overLimit))
 
 	c = validationCatalog(t, WithMaxValidationBytes(100))
+	assert.Equal(t, 100, c.MaxValidationBytes())
+	assert.Zero(t, (*Catalog)(nil).MaxValidationBytes())
 	assert.True(t, c.ValidateData("enforced", padded(100)).Valid)
 	assert.Equal(t, []string{"data exceeds the schema validation size limit"}, c.ValidateData("enforced", padded(101)).Errors)
 	assert.Equal(t, ValidationResult{Mode: ValidationWarn, SkippedTooLarge: true}, c.ValidateData("warned", padded(101)))
@@ -847,7 +868,7 @@ func BenchmarkValidateData(b *testing.B) {
 	c, err := NewCatalog([]string{"order.created"}, Definitions{"order.created": {
 		PayloadSchema: json.RawMessage(benchmarkSchema),
 		Validation:    ValidationEnforce,
-	}})
+	}}, WithMaxValidationBytes(1<<20))
 	require.NoError(b, err)
 	for _, bc := range []struct {
 		name    string
