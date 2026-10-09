@@ -1,0 +1,96 @@
+{
+  "category.updated": {
+    "description": "A category changed.",
+    "payload_schema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "parent": {
+          "$ref": "#"
+        },
+        "children": {
+          "type": "array",
+          "items": {
+            "$ref": "#"
+          }
+        }
+      },
+      "required": [
+        "name"
+      ]
+    },
+    "mcp": {
+      "enabled": true
+    }
+  },
+  "tree.changed": {
+    "description": "A tree changed.",
+    "payload_schema": {
+      "type": "object",
+      "properties": {
+        "tree": {
+          "$ref": "#/$defs/TreeNode"
+        },
+        "parentCategory": {
+          "$ref": "#/$defs/Category/properties/parent"
+        },
+        "changedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "$defs": {
+        "TreeNode": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "type": "string"
+            },
+            "branches": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Branch"
+              }
+            }
+          }
+        },
+        "Category": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "parent": {
+              "$ref": "#/$defs/Category"
+            },
+            "children": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Category"
+              }
+            }
+          },
+          "required": [
+            "name"
+          ]
+        },
+        "Branch": {
+          "type": "object",
+          "properties": {
+            "label": {
+              "type": "string"
+            },
+            "node": {
+              "$ref": "#/$defs/TreeNode"
+            }
+          }
+        }
+      }
+    },
+    "mcp": {
+      "enabled": false
+    }
+  }
+}
