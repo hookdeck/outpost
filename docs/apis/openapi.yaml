@@ -6460,8 +6460,8 @@ paths:
 
             - `data` is not a JSON object.
             - `topic` is missing while topics are configured, or is not one of them.
-            - The topic's `validation` is `enforce` and `data` fails its `payload_schema`. Each entry is a path from `data` and a message, such as `data.total: must be number`. Entries never contain published values. At most 20 are listed, followed by a final `... and N more` (or `... and more`) entry.
-            - The topic's `validation` is `enforce` and `data` is larger than the schema validation size limit (`TOPICS_VALIDATION_MAX_BYTES` on self-hosted Outpost, 1 MiB by default).
+            - The topic's `validation` is `enforce` and `data` fails its `payload_schema`, or repeats a key within an object. Each entry is a path from `data` and a message, such as `data.total: must be number`. Entries never contain published values. At most 20 are listed, sorted, followed by a final `... and N more` (or `... and more`) entry.
+            - The topic's `validation` is `enforce` and `data` is larger than the schema validation size limit (`TOPICS_VALIDATION_MAX_BYTES` on self-hosted Outpost, 256 KiB by default).
           content:
             application/json:
               schema:
@@ -6473,8 +6473,8 @@ paths:
                     status: 422
                     message: "validation error"
                     data:
-                      - 'data: missing required property "currency"'
                       - "data.total: must be number"
+                      - 'data: missing required property "currency"'
                 SchemaValidationTooLarge:
                   summary: Data over the validation size limit
                   value:

@@ -48,6 +48,7 @@ Publishing the release (not the tag push) also runs [update-compose-version.yml]
 Review and merge the **three pull requests** (Go, Python, TypeScript) opened by the SDK generate workflows. Merge order does not matter. See [sdks.md](sdks.md) for testing and review.
 
 - **SDK versions** are set by **Speakeasy detection** (breaking vs non-breaking), not by the Outpost tag. Exception: when you release **Outpost v1.0.0**, the workflow sets all three SDKs to **1.0.0**.
+- **API v2** — the generated SDKs must keep working against API v1 until managed Outpost serves API v2. See [API v2 and SDK regeneration](#api-v2-and-sdk-regeneration).
 
 ### 4. SDKs are released
 
@@ -69,6 +70,10 @@ When the SDK PRs are merged into main, the SDKs are released (published).
 5. **Merge the compose version PR** — opened by [update-compose-version.yml](../.github/workflows/update-compose-version.yml) when the release is published.
 
 For more detail on SDK generation, versioning, and lock files, see [contributing/sdks.md](sdks.md).
+
+## API v2 and SDK regeneration
+
+The OpenAPI spec describes API v2, but the SDKs' default server is managed Outpost, which serves only API v1 until it gets a v2 dated URL. That URL is a prerequisite for moving the SDKs to API v2. Until it exists and is listed in the spec's `servers`, the SDK PRs that a release tag opens must still work against API v1: [speakeasy-modifications-overlay.yaml](../sdks/schemas/speakeasy-modifications-overlay.yaml) makes the SDKs accept both versions' shape of every response that differs, today `GET /topics`. Before merging the SDK PRs, check that no other response the SDKs read changed shape between v1 and v2. See [SDKs – API v2 and SDK regeneration](sdks.md#api-v2-and-sdk-regeneration).
 
 ## Testing the tag-triggered SDK workflow
 

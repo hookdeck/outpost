@@ -98,7 +98,7 @@ The following variables are **mandatory** and must be set in your `.env` file:
 
 Optional variables:
 
-- `API_BASE_URL`: The base URL of the Outpost API (default: `http://localhost:3333/api/v1`). **Set this if you are targeting a remote instance.** The spec describes API v2, so CI sets `http://localhost:3333/api/v2`. Tests of v2-only behaviour, such as `GET /topics` returning topic objects, run against `/api/v2` on the same server even when this points at `/api/v1`, and are skipped when `GET /api/v2/healthz` returns 404 (releases before API v2). See `utils/api-version.ts`.
+- `API_BASE_URL`: The base URL of the Outpost API (default: `http://localhost:3333/api/v1`). **Set this if you are targeting a remote instance.** The spec describes API v2, so CI sets `http://localhost:3333/api/v2`. Tests of v2-only behaviour, such as `GET /topics` returning topic objects, run against `/api/v2` on the same server even when this points at `/api/v1`, and are skipped when `GET /api/v2/healthz` returns 404 (releases before API v2). See `utils/api-version.ts`. The SDK only reads the `GET /topics` shape it was generated for, so topic lookups that must work against either version, such as `listTopicNames()`, call the endpoint directly (`utils/topics.ts`).
 - `TENANT_ID`: The tenant ID to use for the tests (default: `default`).
 - `DEBUG_API_REQUESTS`: Set to `true` to enable detailed request logging (default: `false`).
 - `TEST_DELAY_MS`: Delay in milliseconds before each test (default: `0`). Set to e.g. `50` to reduce 429 (Too Many Requests) when running against rate-limited APIs.

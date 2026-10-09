@@ -70,6 +70,16 @@ All SDK generation (manual per-language and tag-triggered) goes through the same
 
 The full release process (creating the tag, what runs on tag push, merging SDK PRs, creating the GitHub Release) is described in the **[Release process](release.md)** guide. When you push a version tag (e.g. `v0.13.2`), [sdk-generate-on-release-dispatch.yml](../.github/workflows/sdk-generate-on-release-dispatch.yml) dispatches [sdk-generate-on-release.yml](../.github/workflows/sdk-generate-on-release.yml) **using that tag as the workflow ref**, so generation runs against the tagged commit. [speakeasy-workflow-executor-v15.yml](../.github/workflows/speakeasy-workflow-executor-v15.yml) is a thin vendor of Speakeasy’s executor (see file header) so pull requests still target `main`. The run opens **three pull requests** (one for each SDK). Review and merge them in any order; see [Step 3: Review Generated SDK Pull Requests](#step-3-review-generated-sdk-pull-requests) and [Step 4: Test the Generated SDKs](#step-4-test-the-generated-sdks) below for review and testing.
 
+### API v2 and SDK regeneration
+
+[openapi.yaml](../docs/apis/openapi.yaml) describes API v2, which self-hosted Outpost serves under `/api/v2`. The SDKs' default server is the first entry in `servers`, a managed dated URL, and managed Outpost serves only API v1 until it gets a v2 dated URL. That URL is a prerequisite for moving the SDKs to API v2. Until it exists and is listed in `servers`, SDKs generated from the spec must keep working against API v1, or every release tag would open SDK PRs that break against their default server.
+
+Where a response differs between v1 and v2, an action in [speakeasy-modifications-overlay.yaml](../sdks/schemas/speakeasy-modifications-overlay.yaml) makes the generated SDKs accept both shapes. Today that's `GET /topics`, which returns topic names in v1 and topic objects in v2: the overlay replaces its response schema with an `anyOf` of an array of strings and an array of `TopicSchema`, so `topics.list()` returns names from a v1 server and objects from a v2 server. The docs keep describing the v2 shape.
+
+- When a spec change makes another response differ between v1 and v2, add an overlay action like it before the next release tag.
+- Remove these actions, and point the SDKs at API v2, only once the managed v2 dated URL is listed in `servers`.
+- [spec-sdk-tests](../spec-sdk-tests/tests/topics.test.ts) checks that the SDK lists topic names from `/api/v1` and, when the SDK has the `TopicSchema` model, topic objects from `/api/v2`.
+
 ## Updating the OpenAPI Specification
 
 All SDK changes begin with updating the OpenAPI specification:

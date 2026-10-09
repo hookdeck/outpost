@@ -53,7 +53,8 @@ outpost:
 
   # Outpost YAML config
   config: {}
-  # Topic schemas go in the same config. Only the API pods load them, at startup.
+  # Topic schemas go in the same config. Only the API pods load them, at startup,
+  # so a problem in them only stops the API pods.
   # config:
   #   topics:
   #     - order.created
@@ -67,6 +68,8 @@ outpost:
   #           total: { type: number }
   #   # Or load them from a file mounted with extraVolumes and extraVolumeMounts:
   #   # topics_schemas_file: /schemas/topics-schemas.yaml
+  #   # Validation takes roughly 20-350x the data size in API pod memory:
+  #   # topics_validation_max_bytes: 262144
 
 ingress:
   enabled: false

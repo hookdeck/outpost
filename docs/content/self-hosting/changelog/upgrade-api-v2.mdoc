@@ -81,7 +81,7 @@ Serving v2 needs no configuration:
 - **Same credentials.** The admin API key and tenant JWTs work on both versions. JWTs carry no version, so a token issued through v1 works on v2.
 - **Same data.** Both versions read and write the same tenants, destinations, events and attempts. Pagination cursors from one version work on the other.
 - **Tenant portal.** The portal is unaffected. It reads topics from the instance configuration, not from `GET /topics`.
-- **SDKs.** The published SDKs target API v1. Keep them on `/api/v1` or a managed dated URL: they expect `GET /topics` to return strings, so `topics.list()` fails against v2. SDK releases for API v2 follow once managed Outpost serves it.
+- **SDKs.** The SDKs target API v1. Keep them on `/api/v1` or a managed dated URL: SDK versions released before API v2 expect `GET /topics` to return strings, so their `topics.list()` fails against v2. SDK releases for API v2 follow once managed Outpost serves it.
 
 To move a client, change its base URL from `/api/v1` to `/api/v2` and handle the [breaking changes](#breaking-changes-from-v1-to-v2) above.
 
