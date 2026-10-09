@@ -117,6 +117,15 @@ export class SdkClient {
   }
 
   /**
+   * List the instance's topic names. GET /topics returns names in API v1 and
+   * topic objects in API v2.
+   */
+  async listTopicNames(): Promise<string[]> {
+    const topics = (await this.sdk.topics.list()) as Array<string | { name: string }>;
+    return topics.map((t) => (typeof t === 'string' ? t : t.name));
+  }
+
+  /**
    * Get the current tenant ID
    */
   getTenantId(): string {
