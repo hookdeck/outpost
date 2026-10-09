@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"unicode/utf8"
 
 	"github.com/santhosh-tekuri/jsonschema/v6"
 	"github.com/santhosh-tekuri/jsonschema/v6/kind"
@@ -25,8 +26,9 @@ const (
 	// defaultMaxValidationBytes is the WithMaxValidationBytes default.
 	defaultMaxValidationBytes = 1 << 20
 	// maxArgumentsBytes caps subscription arguments before they are parsed.
-	// Inferred inputSchemas accept far smaller values.
-	maxArgumentsBytes = 256 << 10
+	// Subscriptions filter on far less, and it keeps parsing and the checks
+	// run before validation cheap.
+	maxArgumentsBytes = 16 << 10
 	// maxNumberScale bounds the length and the exponent of every number in a
 	// validated value. The validator turns numbers into exact rationals, and
 	// 1e999999 alone takes milliseconds, so a value with a larger number
@@ -41,8 +43,20 @@ const draft2020 = "https://json-schema.org/draft/2020-12/schema"
 // resolve against it, and loading them fails.
 const schemaURL = "https://outpost.invalid/schema.json"
 
-var largeNumberMessage = fmt.Sprintf("must be a number of at most %d characters with an exponent between -%d and %d",
-	maxNumberScale, maxNumberScale, maxNumberScale)
+var (
+	largeNumberMessage = fmt.Sprintf("must be a number of at most %d characters with an exponent between -%d and %d",
+		maxNumberScale, maxNumberScale, maxNumberScale)
+	// The inferred argument limits, worded as the validator's errors are.
+	longArgumentListMessage   = "must have at most " + countOf(maxArgumentListItems, "item", "items")
+	longArgumentStringMessage = "must be at most " + countOf(maxArgumentStringLength, "character", "characters")
+)
+
+// dataChecks and argumentChecks are what validateJSON checks before
+// validating event data and subscription arguments against their schema.
+var (
+	dataChecks     = valueChecks{duplicateKeys: true, reject: rejectLargeNumber}
+	argumentChecks = valueChecks{reject: rejectArgumentValue}
+)
 
 // Option configures NewCatalog.
 type Option func(*catalogOptions)
@@ -256,7 +270,7 @@ func (b *catalogBuilder) addSchema(t *Topic, e *entry, raw json.RawMessage) {
 		b.problem(name, "payload_schema is %d bytes; the limit%s is %d", len(compact), scope, limit)
 		return
 	}
-	if path, key, ok := duplicateKey(compact, "payload_schema"); ok {
+	if path, key, ok := duplicateKey(compact, "payload_schema", nil); ok {
 		b.problem(name, "%s has a duplicate key %s", path, quoteJSONString(key))
 		return
 	}
@@ -323,17 +337,43 @@ func (b *catalogBuilder) addSchema(t *Topic, e *entry, raw json.RawMessage) {
 }
 
 // checkSchemaObjects checks what the metaschema doesn't: $schema is the
-// 2020-12 dialect, references are local, and x-mcp-filter is a boolean.
+// 2020-12 dialect, references are local JSON pointers, $id and anchors are
+// only declared at the root, and x-mcp-filter is a boolean.
+//
+// Inference and the breaking-change diff resolve references with
+// resolveLocalRef, which follows JSON pointers from the root. The validator
+// also resolves anchors, and resolves the references below a nested $id
+// against it, so a schema using either would be validated against one
+// thing and inferred and diffed against another.
 func (b *catalogBuilder) checkSchemaObjects(name string, root map[string]any) bool {
+	const rootPath = "payload_schema"
 	before := len(b.problems)
-	visitSchemaObjects(root, "payload_schema", func(obj map[string]any, path string) {
+	visitSchemaObjects(root, rootPath, func(obj map[string]any, path string) {
 		if v, ok := obj["$schema"]; ok && v != draft2020 {
 			b.problem(name, "%s must be %q", appendPathKey(path, "$schema"), draft2020)
 		}
 		for _, kw := range []string{"$ref", "$dynamicRef"} {
-			if ref, ok := obj[kw].(string); ok && !strings.HasPrefix(ref, "#") {
+			ref, ok := obj[kw].(string)
+			switch {
+			case !ok:
+			case !strings.HasPrefix(ref, "#"):
 				b.problem(name, "%s %s is not a local reference; only references starting with # are allowed",
 					appendPathKey(path, kw), quoteJSONString(ref))
+			case !pointerRef(ref):
+				b.problem(name, `%s %s must be a JSON pointer such as "#/$defs/name"; anchors are not supported`,
+					appendPathKey(path, kw), quoteJSONString(ref))
+			}
+		}
+		if path != rootPath {
+			if _, ok := obj["$id"]; ok {
+				b.problem(name, "%s is only allowed at the payload_schema root, since it changes how references below it resolve",
+					appendPathKey(path, "$id"))
+			}
+			for _, kw := range []string{"$anchor", "$dynamicAnchor"} {
+				if _, ok := obj[kw]; ok {
+					b.problem(name, `%s is only allowed at the payload_schema root; reference subschemas with JSON pointers such as "#/$defs/name"`,
+						appendPathKey(path, kw))
+				}
 			}
 		}
 		if v, ok := obj["x-mcp-filter"]; ok {
@@ -445,6 +485,9 @@ type unsupportedRegexp string
 func (r unsupportedRegexp) String() string          { return string(r) }
 func (r unsupportedRegexp) MatchString(string) bool { return false }
 
+// assertedFormats are the formats validation checks.
+var assertedFormats = map[string]bool{"date": true, "date-time": true}
+
 // formatVocabulary asserts the date and date-time formats, which ranged
 // arguments rely on. JSON Schema 2020-12 makes format an annotation, and
 // every other format stays one: OpenAPI documents use formats such as uri or
@@ -452,9 +495,9 @@ func (r unsupportedRegexp) MatchString(string) bool { return false }
 // valid. The library can only assert all formats or none, hence a
 // vocabulary instead of Compiler.AssertFormat.
 var formatVocabulary = sync.OnceValue(func() *jsonschema.Vocabulary {
-	formats := map[string]*jsonschema.Format{
-		"date":      builtinFormat("date"),
-		"date-time": builtinFormat("date-time"),
+	formats := make(map[string]*jsonschema.Format, len(assertedFormats))
+	for name := range assertedFormats {
+		formats[name] = builtinFormat(name)
 	}
 	return &jsonschema.Vocabulary{
 		URL: "urn:outpost:vocab:format-assertion",
@@ -516,8 +559,9 @@ func (f formatAssertion) Validate(ctx *jsonschema.ValidatorContext, v any) {
 }
 
 // duplicateKey finds the first object in raw, valid JSON, that repeats a
-// key, and returns its dot path from root and the key.
-func duplicateKey(raw []byte, root string) (string, string, bool) {
+// key, and returns its dot path from root and the key. As in instancePath,
+// keys on the path show only when names is nil or holds them, else as "*".
+func duplicateKey(raw []byte, root string, names map[string]struct{}) (string, string, bool) {
 	type frame struct {
 		path string
 		// keys is nil for arrays.
@@ -550,7 +594,11 @@ func duplicateKey(raw []byte, root string) (string, string, bool) {
 		case json.Delim('{'), json.Delim('['):
 			path := root
 			if top != nil && top.keys != nil {
-				path = appendPathKey(top.path, top.key)
+				if _, named := names[top.key]; names == nil || named {
+					path = appendPathKey(top.path, top.key)
+				} else {
+					path = top.path + ".*"
+				}
 			} else if top != nil {
 				path = indexPath(top.path, top.index)
 			}
@@ -639,7 +687,7 @@ func (c *Catalog) ValidateData(topic string, data []byte) ValidationResult {
 		}
 		return ValidationResult{Mode: mode, SkippedTooLarge: true}
 	}
-	errs := validateJSON(e.validator, data, "data", e.dataNames)
+	errs := validateJSON(e.validator, data, "data", e.dataNames, dataChecks)
 	return ValidationResult{Mode: mode, Checked: true, Valid: len(errs) == 0, Errors: errs}
 }
 
@@ -661,19 +709,39 @@ func (c *Catalog) ValidateArguments(topic string, args []byte) []string {
 		args = []byte("{}")
 	}
 	e := &c.entries[i]
-	return validateJSON(e.input, args, "arguments", e.inputNames)
+	return validateJSON(e.input, args, "arguments", e.inputNames, argumentChecks)
+}
+
+// valueChecks are checked on a parsed value before it is validated. A value
+// failing one gets a single error and is never validated.
+type valueChecks struct {
+	// duplicateKeys rejects objects that repeat a key. The validator sees
+	// the last of the repeated values, but the bytes are kept as published,
+	// and some consumers read the first one.
+	duplicateKeys bool
+	// reject returns the message for a value too costly to validate, or "".
+	reject func(any) string
 }
 
 // validateJSON parses raw and validates it against schema. It returns the
 // rendered errors, or nil when raw is valid.
-func validateJSON(schema *jsonschema.Schema, raw []byte, root string, names map[string]struct{}) []string {
+func validateJSON(schema *jsonschema.Schema, raw []byte, root string, names map[string]struct{}, checks valueChecks) []string {
 	v, err := jsonschema.UnmarshalJSON(bytes.NewReader(raw))
 	if err != nil {
 		// Parse errors quote the offending input.
 		return []string{root + ": must be valid JSON"}
 	}
-	if path, ok := findLargeNumber(v); ok {
-		return []string{instancePath(root, path, v, names) + ": " + largeNumberMessage}
+	// Counting finds duplicates cheaply; only data that has some is scanned
+	// again to locate them.
+	if checks.duplicateKeys && objectMemberCount(raw) != treeMemberCount(v) {
+		path, _, ok := duplicateKey(raw, root, names)
+		if !ok {
+			path = root
+		}
+		return []string{path + ": has duplicate keys"}
+	}
+	if path, msg := findRejectedValue(v, checks.reject); msg != "" {
+		return []string{instancePath(root, path, v, names) + ": " + msg}
 	}
 	err = schema.Validate(v)
 	if err == nil {
@@ -686,34 +754,117 @@ func validateJSON(schema *jsonschema.Schema, raw []byte, root string, names map[
 	return renderValidationErrors(verr, root, v, names)
 }
 
-// findLargeNumber returns the location of a number in v, a tree from
-// jsonschema.UnmarshalJSON, that is too large to validate.
-func findLargeNumber(v any) ([]string, bool) {
-	rev, ok := largeNumberRev(v)
-	slices.Reverse(rev)
-	return rev, ok
+// objectMemberCount counts the members of every object in raw, valid JSON:
+// the colons outside strings.
+func objectMemberCount(raw []byte) int {
+	n, inString := 0, false
+	for i := 0; i < len(raw); i++ {
+		switch raw[i] {
+		case '\\':
+			// Only valid inside strings; skip the escaped byte.
+			i++
+		case '"':
+			inString = !inString
+		case ':':
+			if !inString {
+				n++
+			}
+		}
+	}
+	return n
 }
 
-// largeNumberRev returns the location of a large number with its tokens in
-// reverse, so only the path to a hit allocates.
-func largeNumberRev(v any) ([]string, bool) {
-	switch n := v.(type) {
-	case json.Number:
-		return nil, numberTooLarge(n)
+// treeMemberCount counts the members of every object in v, a tree from
+// jsonschema.UnmarshalJSON. It is less than objectMemberCount of the parsed
+// JSON exactly when an object repeats a key, since only the last is kept.
+func treeMemberCount(v any) int {
+	n := 0
+	switch x := v.(type) {
 	case map[string]any:
+		n = len(x)
+		for _, child := range x {
+			n += treeMemberCount(child)
+		}
+	case []any:
+		for _, child := range x {
+			n += treeMemberCount(child)
+		}
+	}
+	return n
+}
+
+// findRejectedValue returns the location of a value in v, a tree from
+// jsonschema.UnmarshalJSON, that reject refuses, and its message, or "" when
+// there is none. Values are checked before their children.
+func findRejectedValue(v any, reject func(any) string) ([]string, string) {
+	// Map order is random, but sorting every object's keys would cost every
+	// valid value. Only a hit is looked up again in key order, so the same
+	// input always reports the same location.
+	if _, msg := rejectedValueRev(v, reject, false); msg == "" {
+		return nil, ""
+	}
+	rev, msg := rejectedValueRev(v, reject, true)
+	slices.Reverse(rev)
+	return rev, msg
+}
+
+// rejectedValueRev returns the location of a rejected value with its tokens
+// in reverse, so only the path to a hit allocates. sorted visits object keys
+// in order.
+func rejectedValueRev(v any, reject func(any) string, sorted bool) ([]string, string) {
+	if msg := reject(v); msg != "" {
+		return nil, msg
+	}
+	switch n := v.(type) {
+	case map[string]any:
+		if sorted {
+			for _, key := range slices.Sorted(maps.Keys(n)) {
+				if rev, msg := rejectedValueRev(n[key], reject, sorted); msg != "" {
+					return append(rev, key), msg
+				}
+			}
+			return nil, ""
+		}
 		for key, child := range n {
-			if rev, ok := largeNumberRev(child); ok {
-				return append(rev, key), true
+			if rev, msg := rejectedValueRev(child, reject, sorted); msg != "" {
+				return append(rev, key), msg
 			}
 		}
 	case []any:
 		for i, child := range n {
-			if rev, ok := largeNumberRev(child); ok {
-				return append(rev, strconv.Itoa(i)), true
+			if rev, msg := rejectedValueRev(child, reject, sorted); msg != "" {
+				return append(rev, strconv.Itoa(i)), msg
 			}
 		}
 	}
-	return nil, false
+	return nil, ""
+}
+
+// rejectLargeNumber rejects numbers too large to validate.
+func rejectLargeNumber(v any) string {
+	if n, ok := v.(json.Number); ok && numberTooLarge(n) {
+		return largeNumberMessage
+	}
+	return ""
+}
+
+// rejectArgumentValue also rejects lists and strings longer than any
+// inferred argument accepts. The validator checks every item of a list
+// against an enum even past maxItems, comparing numbers as exact rationals,
+// so a long list could otherwise take seconds to reject.
+func rejectArgumentValue(v any) string {
+	switch x := v.(type) {
+	case []any:
+		if len(x) > maxArgumentListItems {
+			return longArgumentListMessage
+		}
+	case string:
+		// maxLength counts characters, not bytes.
+		if len(x) > maxArgumentStringLength && utf8.RuneCountInString(x) > maxArgumentStringLength {
+			return longArgumentStringMessage
+		}
+	}
+	return rejectLargeNumber(v)
 }
 
 func numberTooLarge(n json.Number) bool {

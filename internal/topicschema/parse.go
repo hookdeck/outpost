@@ -1333,11 +1333,13 @@ const (
 // suffix instead. References into the payload schema itself, including to the
 // component it was taken from, become "#..." pointers relative to its root.
 //
-// Other fragment references, such as "#/$defs/x" to the schema's own $defs or
-// anchors, are kept as written and resolve against the payload schema, which
-// is what JSON Schema authors expect. References to other parts of the
-// document (#/paths/..., #/components/parameters/...) and external references
-// are errors.
+// Other fragment references, such as "#/$defs/x" to the schema's own $defs,
+// are kept as written and resolve against the payload schema, which is what
+// JSON Schema authors expect. Anchor references such as "#node" are kept too,
+// for NewCatalog to reject: inference and the breaking-change diff only
+// follow JSON pointers. References to other parts of the document
+// (#/paths/..., #/components/parameters/...) and external references are
+// errors.
 //
 // Only schema keywords are walked, so a "$ref" inside enum, const, default,
 // examples or an extension is data and left alone. $id is only allowed at the

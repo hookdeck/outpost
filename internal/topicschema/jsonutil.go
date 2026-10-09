@@ -169,6 +169,18 @@ func resolveLocalRef(root any, ref string) (any, error) {
 	return cur, nil
 }
 
+// pointerRef reports whether ref is a fragment-only JSON pointer reference,
+// "#" or "#/..." once percent-decoded, the only kind resolveLocalRef
+// follows. JSON Schema reads any other fragment as an anchor.
+func pointerRef(ref string) bool {
+	fragment, ok := strings.CutPrefix(ref, "#")
+	if !ok {
+		return false
+	}
+	fragment, err := url.PathUnescape(fragment)
+	return err == nil && (fragment == "" || fragment[0] == '/')
+}
+
 // escapePointerToken escapes one JSON pointer reference token.
 func escapePointerToken(s string) string {
 	return strings.ReplaceAll(strings.ReplaceAll(s, "~", "~0"), "/", "~1")
