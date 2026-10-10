@@ -63,6 +63,11 @@ func (c *Config) LogConfigurationSummary() []zap.Field {
 		zap.Strings("topics", c.Topics),
 		zap.String("http_user_agent", c.HTTPUserAgent),
 
+		// Topic schemas (settings only: loading them does I/O, see LoadTopicCatalog)
+		zap.Bool("topics_schemas_configured", c.TopicsSchemas.IsSet()),
+		zap.String("topics_schemas_file", c.TopicsSchemasFile),
+		zap.Bool("topics_allow_breaking_changes", c.TopicsAllowBreakingChanges),
+
 		// API
 		zap.Int("api_port", c.APIPort),
 		zap.Bool("api_key_configured", c.APIKey != ""),

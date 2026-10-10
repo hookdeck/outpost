@@ -106,8 +106,13 @@ Choose one for event log persistence:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `TOPICS` | — | Comma-separated list of topics your instance supports |
+| `TOPICS` | — | Comma-separated list of topics your instance supports. When unset, any topic is accepted, unless topic schemas are configured: their keys are then the topics. |
 | `TOPICS_ALLOW_WILDCARDS` | `false` | Allow `*` inside destination topic subscriptions, such as `user.*`. When disabled, stored wildcard patterns are ignored but not deleted. |
+| `TOPICS_SCHEMAS` | — | [Topic schemas](/docs/outpost/features/topics#topic-schemas) keyed by topic name, as a JSON object. In YAML, also a mapping. When `TOPICS` is set, every key must be in it; when it isn't, the keys are the topics. Mutually exclusive with `TOPICS_SCHEMAS_FILE`. |
+| `TOPICS_SCHEMAS_FILE` | — | Path to a YAML or JSON file with topic schemas, in the `TOPICS_SCHEMAS` shape. Mutually exclusive with `TOPICS_SCHEMAS`. |
+| `TOPICS_ALLOW_BREAKING_CHANGES` | `false` | Apply topic schema changes that break MCP-enabled topics instead of failing startup. Set it for one deploy, then remove it: Outpost logs a warning while it's set. See [Breaking-change check](/docs/outpost/features/topics#breaking-change-check). |
+
+The YAML keys are `topics_schemas`, `topics_schemas_file` and `topics_allow_breaking_changes`. Only the API service loads topic schemas, at startup; the delivery and log services, `outpost migrate` and `outpost config list` don't, so a problem in the schemas only stops the API service.
 
 ## Portal
 
@@ -231,7 +236,11 @@ aes_encryption_secret: "your-secret-here"
 api_jwt_secret: "your-jwt-secret"
 api_key: "your-api-key"
 
-topics: "user.created,user.updated,order.placed"
+topics:
+  - user.created
+  - user.updated
+  - order.placed
+topics_schemas_file: "config/outpost/topics-schemas.yaml"
 
 redis:
   host: "127.0.0.1"

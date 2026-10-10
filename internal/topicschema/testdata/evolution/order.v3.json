@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "id": { "type": "string", "x-mcp-filter": false },
+    "note": { "type": "string" },
+    "total": { "type": "string", "description": "Total as a decimal string." },
+    "currency": { "$ref": "#/$defs/Currency" },
+    "status": { "type": "string", "enum": ["pending", "paid", "refunded", "cancelled"], "x-mcp-filter": false },
+    "created_at": { "type": "string", "format": "date" },
+    "customer": { "$ref": "#/$defs/Customer" },
+    "lines": { "type": "array", "items": { "$ref": "#/$defs/Line" }, "maxItems": 500 },
+    "shipping": { "anyOf": [{ "$ref": "#/$defs/Address" }, { "type": "null" }] }
+  },
+  "required": ["id", "total", "currency", "note"],
+  "$defs": {
+    "Currency": { "type": "string", "enum": ["USD", "CAD", "GBP"] },
+    "Party": {
+      "type": "object",
+      "properties": { "phone": { "type": "string" } }
+    },
+    "Customer": {
+      "allOf": [
+        { "$ref": "#/$defs/Party" },
+        {
+          "type": "object",
+          "properties": { "email": { "type": "string", "format": "email" }, "loyalty_id": { "type": "string" } },
+          "required": ["email"]
+        }
+      ]
+    },
+    "Line": {
+      "type": "object",
+      "properties": {
+        "sku": { "type": "string", "pattern": "^[A-Z]+$" },
+        "quantity": { "type": "integer", "minimum": 0, "maximum": 1000 },
+        "discount": { "type": "number" }
+      },
+      "required": ["sku", "quantity"]
+    },
+    "Address": {
+      "type": "object",
+      "properties": { "country": { "type": "string", "minLength": 2, "maxLength": 3 } }
+    }
+  }
+}

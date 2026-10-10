@@ -56,6 +56,21 @@ topics: # List of topics to subscribe to
   - user.updated
   - user.deleted
 
+## Topic Schemas
+# Loaded by the API service at startup. Set topics_schemas or topics_schemas_file, not both.
+# topics_schemas: # Keyed by topic name; every key must be in topics when topics is set, and the keys are the topics when it isn't
+#   user.created:
+#     description: "A user signed up."
+#     mcp:
+#       enabled: false
+#     payload_schema: # JSON Schema 2020-12 for the event data
+#       type: object
+#       properties:
+#         user_id: { type: string }
+#       required: [user_id]
+# topics_schemas_file: "config/outpost/topics-schemas.yaml" # YAML or JSON file with the same content
+# topics_allow_breaking_changes: false # Apply schema changes that break MCP-enabled topics. One deploy only.
+
 ## API
 api_port: 3333 # Default port for the API server
 api_key: "" # API key for authentication

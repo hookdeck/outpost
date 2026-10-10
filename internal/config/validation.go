@@ -48,6 +48,10 @@ func (c *Config) Validate(flags Flags) error {
 		return err
 	}
 
+	if err := c.validateTopicSchemas(); err != nil {
+		return err
+	}
+
 	if err := c.validateDeploymentID(); err != nil {
 		return err
 	}

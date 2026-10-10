@@ -29,7 +29,7 @@ Set the list of available topics using the `TOPICS` environment variable:
 TOPICS=user.created,user.updated,user.deleted,order.placed,order.shipped
 ```
 
-If `TOPICS` is not set, Outpost defaults to `*`, allowing any topic value.
+If `TOPICS` is not set, Outpost defaults to `*`, allowing any topic value, unless [topic schemas](#topic-schemas) are configured: their keys are then the topics.
 
 Wildcard topic subscriptions are disabled by default. Set `TOPICS_ALLOW_WILDCARDS=TRUE` to allow `*` inside destination topic strings.
 {% /tab %}
@@ -97,4 +97,133 @@ curl '{% $OUTPOST_API_BASE_URL %}/tenants/<TENANT_ID>' \
 ```
 
 You can also subscribe to the `tenant.subscription.updated` [Operator Events](/docs/outpost/features/operator-events) topic to receive an event when the tenant's subscribed topics change.
+
+## Topic Schemas
+
+A topic schema describes the events of one topic: what they represent, a JSON Schema for their `data`, and whether the topic is exposed to MCP Events clients. Schemas are optional and set per topic. A topic without one keeps working unchanged.
+
+### Topic Object
+
+```json
+{
+  "name": "order.created",
+  "description": "Fires when a new order is placed.",
+  "payload_schema": {
+    "type": "object",
+    "properties": {
+      "order_id": { "type": "string", "x-mcp-filter": false },
+      "total": { "type": "number", "description": "Order total in major units." },
+      "currency": { "type": "string", "description": "ISO 4217 currency code." },
+      "created_at": { "type": "string", "format": "date-time", "x-mcp-filter": false }
+    },
+    "required": ["order_id", "total", "currency"]
+  },
+  "mcp": { "enabled": true }
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `name` | Optional. When set, it must equal the topic name the schema is keyed by. |
+| `description` | What the topic's events represent. |
+| `payload_schema` | A JSON Schema 2020-12 object for the event `data`. See [Schema Support](#schema-support). |
+| `mcp.enabled` | Exposes the topic to MCP Events clients. Defaults to `false`. Needs a `payload_schema` whose root `type` is `object`. See [MCP Subscription Arguments](#mcp-subscription-arguments). |
+
+Unknown fields are rejected, so a typo such as `descripton` fails startup instead of being ignored.
+
+### Configuring Topic Schemas
+
+{% tabs tabGroup="deployment" %}
+{% tab label="Managed" %}
+
+Topic schemas aren't configurable on managed Outpost yet.
+
+{% /tab %}
+{% tab label="Self-Hosted" %}
+
+Schemas are keyed by topic name and come from these settings:
+
+| Variable | YAML key | Contents |
+|----------|----------|----------|
+| `TOPICS_SCHEMAS` | `topics_schemas` | Schemas as a JSON object. In a YAML config file, a mapping or a JSON string. |
+| `TOPICS_SCHEMAS_FILE` | `topics_schemas_file` | Path to a YAML or JSON file with the same content. |
+
+`TOPICS_SCHEMAS` and `TOPICS_SCHEMAS_FILE` are mutually exclusive.
+
+A file keeps schemas in your repository, next to the code that publishes the events:
+
+```yaml
+# topics-schemas.yaml
+order.created:
+  description: Fires when a new order is placed.
+  mcp:
+    enabled: true
+  payload_schema:
+    type: object
+    properties:
+      order_id: { type: string, x-mcp-filter: false }
+      total: { type: number, description: Order total in major units. }
+      currency: { type: string, description: ISO 4217 currency code. }
+    required: [order_id, total, currency]
+```
+
+```
+TOPICS_SCHEMAS_FILE=/config/outpost/topics-schemas.yaml
+```
+
+YAML is read with YAML 1.2 core types, and dates and timestamps stay strings, so `default: 2026-01-01` keeps its value. Docker Compose interpolates `$` in environment values: write `$$ref` and `$$defs` in a Compose file, or use `TOPICS_SCHEMAS_FILE`.
+
+Only the API service loads schemas, once at startup, including when a single process runs every service. The delivery and log services, `outpost migrate` and `outpost config list` don't load them, so in a split deployment only the API service needs the file, and a problem in the schemas, including in a `topics_schemas` mapping in the YAML config file, only stops the API service. Restart the API service to apply a change. If the configuration is invalid, the API service fails to start and lists the problems at once, up to 100. Startup warnings are listed the same way.
+
+{% /tab %}
+{% /tabs %}
+
+When `TOPICS` isn't set, the schema keys are the topics, in alphabetical order: Outpost accepts publishes and destination subscriptions for those topics only, and `GET /topics` lists them. A topic that needs no schema can still be listed with an empty entry, such as `"order.shipped": {}`. The API service logs the topics it derived at startup.
+
+When `TOPICS` is set, it stays the list of topics, and each schema key must match one of them exactly, so a misspelled key fails startup instead of adding a topic. A key that only differs by whitespace fails with a suggestion. Wildcard keys such as `*` or `user.*` aren't allowed.
+
+### Schema Support
+
+`payload_schema` is a [JSON Schema 2020-12](https://json-schema.org/draft/2020-12) object, with these rules:
+
+- `$schema` must be absent or `https://json-schema.org/draft/2020-12/schema`.
+- `$ref` and `$dynamicRef` must be JSON Pointers to a schema within `payload_schema`, such as `#/$defs/address`, and not into another value, such as an `x-` extension or a `default`. Anchor references, such as `#address`, aren't supported, and Outpost never fetches remote schemas.
+- `$id` is only allowed at the root of `payload_schema`, since a nested `$id` changes how references below it resolve.
+- `format` is an annotation, as JSON Schema 2020-12 specifies. `date` decides which [subscription arguments](#mcp-subscription-arguments) accept range operators.
+- Regular expressions in `pattern` and `patternProperties` use [RE2 syntax](https://github.com/google/re2/wiki/Syntax), which has no lookarounds or backreferences. A pattern RE2 can't compile fails startup when the topic's `mcp.enabled` is set. For other topics it's a startup warning, and the schema is kept.
+- A `payload_schema` can be up to 256 KiB, or 64 KiB when `mcp.enabled` is set.
+
+### MCP Subscription Arguments
+
+When `mcp.enabled` is set, each top-level property of `payload_schema` can be an optional subscription argument. An MCP Events client passes arguments when it subscribes, and only receives events whose `data` matches them.
+
+A property is an argument when its schema, after following local `$ref`s, has a scalar `type` (`string`, `number`, `integer` or `boolean`, optionally with `null`), or a scalar `enum` or `const`. Objects, arrays, and composite schemas without a scalar `type` aren't arguments.
+
+Each argument accepts:
+
+- A value, such as `"currency": "USD"`.
+- A list of 1 to 100 values, matching any of them, such as `"currency": ["USD", "EUR"]`.
+- For `number` and `integer` properties and strings with `format: date`, range operators: `$gt`, `$gte`, `$lt` and `$lte`, such as `"total": { "$gte": 100 }`.
+
+Strings with `format: date-time` accept values and lists but no range operators. Filters compare strings byte by byte, which doesn't order timestamps with offsets or fractional seconds correctly. String values are at most 256 characters, or the property's `maxLength` when it's lower.
+
+Hide a property from arguments with `"x-mcp-filter": false`, for example for IDs and timestamps that make poor filters. `x-mcp-filter` must be a boolean. Properties whose name starts with `$` are never arguments, since filters would read them as operators. MCP clients receive the payload schema without `x-mcp-filter`.
+
+### Breaking-Change Check
+
+An MCP subscription outlives the event list it was created from: the client refreshes it with the same arguments, and expects payloads that match the schema it saw. So the schema of an MCP-enabled topic can only change additively.
+
+When the API service starts with topic schemas that differ from the last applied ones, which it keeps in Redis, it compares each topic that is MCP-enabled in both. The check is as lenient as possible while existing subscriptions stay valid:
+
+- **Allowed:** new properties, required or not; changes to `required`; descriptions and other annotations, `format` included; widenings, such as `integer` to `number`, a new `enum` value or a removed `type`; relaxed constraints.
+- **Breaking:** a property removed or renamed, at any depth; a type narrowed, such as `number` to `integer`; an `enum` narrowed or added, or a `const` changed or added; a constraint tightened or added, such as a raised `minimum`, a lowered `maxLength`, a new or changed `pattern`, or `additionalProperties: false`; a top-level property that is no longer an argument, because of `x-mcp-filter: false`, a type that can't be filtered, or a lost `format: date` that took its range operators.
+- **Composites:** an `allOf` whose branches are all object schemas is compared as the union of their properties. Any change inside `anyOf`, `oneOf`, `not`, `if`, `then`, `else`, `dependentSchemas`, `patternProperties`, `prefixItems`, `contains` or `unevaluated*` is breaking.
+
+Topics without `mcp.enabled` aren't checked, and neither is a topic that stops being MCP-enabled. As a guard against a missing or empty schema configuration, though, the API service refuses a configuration that ends every MCP-enabled topic at once.
+
+On a breaking change, the API service fails to start and lists each change: the topic, a JSON pointer into its payload schema, and the kind of change (`property_removed`, `type_narrowed`, `enum_narrowed`, `const_changed`, `constraint_tightened`, `filter_hidden` or `composite_changed`).
+
+**Forcing a breaking change.** With `TOPICS_ALLOW_BREAKING_CHANGES=true`, the API service applies the change instead, and records the topic's old schema so the subscriptions created against it can be ended. Set the flag for one deploy, then remove it: Outpost logs a warning while it's set.
+
+**Rollouts and rollbacks.** Each API instance reports the topic configuration it runs to Redis every 20 seconds. A configuration that an instance has reported in the last 60 seconds is accepted without a check, and doesn't replace the last applied one, so during a rolling deploy, instances on the previous configuration can restart. Once no instance has reported the last applied configuration for 60 seconds, as when a rollback outlives it, the configuration that does run replaces it without a check when its next instance starts. A rollback to a configuration that no instance runs anymore is checked like any other change, and rolling back a widening is a narrowing.
 
