@@ -96,7 +96,6 @@ func NewCatalog(topics []string, defs Definitions) (*Catalog, error) {
 	for _, name := range slices.Sorted(maps.Keys(defs)) {
 		b.addDefinition(name, defs[name])
 	}
-	b.checkReplacements()
 	if len(b.problems) > 0 {
 		return nil, &ConfigError{Problems: limitMessages(b.problems)}
 	}
@@ -163,15 +162,10 @@ func (b *catalogBuilder) addDefinition(name string, def Definition) {
 		Name:        name,
 		Description: def.Description,
 		MCP:         def.MCP,
-		Deprecated:  def.Deprecated,
-		ReplacedBy:  def.ReplacedBy,
 	}
 	e := entry{defined: true}
 	if def.Name != "" && def.Name != name {
 		b.problem(name, "name %q must match the topic key", clip(def.Name))
-	}
-	if def.ReplacedBy != "" && !def.Deprecated {
-		b.problem(name, "replaced_by requires deprecated: true")
 	}
 
 	raw := bytes.TrimSpace(def.PayloadSchema)
@@ -335,25 +329,6 @@ func (b *catalogBuilder) checkSchemaObjects(name string, root map[string]any) bo
 		}
 	})
 	return len(b.problems) == before
-}
-
-// checkReplacements checks replaced_by across topics, once every topic's
-// MCP setting is known.
-func (b *catalogBuilder) checkReplacements() {
-	for i, t := range b.c.topics {
-		if !b.c.entries[i].defined || t.ReplacedBy == "" {
-			continue
-		}
-		j, ok := b.c.byName[t.ReplacedBy]
-		switch {
-		case t.ReplacedBy == t.Name:
-			b.problem(t.Name, "replaced_by can't name the topic itself")
-		case !ok:
-			b.problem(t.Name, "replaced_by %q is not in TOPICS%s", clip(t.ReplacedBy), b.c.didYouMean(t.ReplacedBy))
-		case t.Deprecated && t.MCP.Enabled && !b.c.topics[j].MCP.Enabled:
-			b.problem(t.Name, "replaced_by %q must be MCP-enabled because this topic is", clip(t.ReplacedBy))
-		}
-	}
 }
 
 // compileProblems renders a compile error as problem lines. Metaschema

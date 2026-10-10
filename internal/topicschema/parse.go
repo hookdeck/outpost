@@ -164,7 +164,7 @@ func parsePointer(tokens []string) string {
 // definitionFields and mcpFields are the fields accepted in a topic object
 // and in its mcp object.
 var (
-	definitionFields = []string{"name", "description", "payload_schema", "mcp", "deprecated", "replaced_by"}
+	definitionFields = []string{"name", "description", "payload_schema", "mcp"}
 	mcpFields        = []string{"enabled"}
 )
 
@@ -223,10 +223,6 @@ func parseDefinition(m *parseNode) (Definition, []string) {
 			str(f, &def.Name)
 		case "description":
 			str(f, &def.Description)
-		case "replaced_by":
-			str(f, &def.ReplacedBy)
-		case "deprecated":
-			boolean(f, &def.Deprecated, f.key)
 		case "payload_schema":
 			if f.kind != parseNull {
 				def.PayloadSchema = json.RawMessage(f.appendJSON(nil))
