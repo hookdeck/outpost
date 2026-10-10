@@ -60,6 +60,11 @@ type ListAttemptRequest struct {
 	Status           string     // optional: "success", "failed"
 	Topics           []string   // optional
 	SortOrder        string     // optional: "asc", "desc" (default: "desc")
+
+	// ExcludeDestinationTypes (optional) leaves out the attempts of these
+	// destination types. Attempts that recorded no type ("") are kept unless
+	// "" is listed.
+	ExcludeDestinationTypes []string
 }
 
 type ListAttemptResponse struct {

@@ -176,7 +176,6 @@ func NewRouter(cfg RouterConfig, deps RouterDeps) http.Handler {
 	destinationHandlers.mcp = mcpHandlers
 	publishHandlers := NewPublishHandlers(deps.Logger, deps.EventHandler)
 	logHandlers := NewLogHandlers(deps.Logger, deps.LogStore, deps.TenantStore, displayer)
-	logHandlers.v1AttemptTypes = newV1AttemptTypes(cfg.Registry)
 	retryHandlers := NewRetryHandlers(deps.Logger, deps.TenantStore, deps.LogStore, deps.DeliveryPublisher, cfg.TopicsAllowWildcards)
 	topicHandlers, err := NewTopicHandlers(deps.Logger, cfg.Topics, catalog)
 	if err != nil {
