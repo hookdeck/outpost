@@ -324,27 +324,6 @@ func TestNewCatalogRules(t *testing.T) {
 			},
 		},
 
-		// Deprecation.
-		{
-			name:   "replaced_by",
-			topics: []string{"a", "b", "c", "d", "e", "new"},
-			defs: Definitions{
-				"a":   {ReplacedBy: "new"},
-				"b":   {Deprecated: true, ReplacedBy: "missing"},
-				"c":   {Deprecated: true, ReplacedBy: "c"},
-				"d":   with(schemaDef(object), func(d *Definition) { d.MCP, d.Deprecated, d.ReplacedBy = mcp, true, "new" }),
-				"e":   with(schemaDef(object), func(d *Definition) { d.MCP, d.Deprecated, d.ReplacedBy = mcp, true, "f" }),
-				"new": schemaDef(object),
-			},
-			want: []string{
-				`topic "a": replaced_by requires deprecated: true`,
-				`topic "b": replaced_by "missing" is not in TOPICS`,
-				`topic "c": replaced_by can't name the topic itself`,
-				`topic "d": replaced_by "new" must be MCP-enabled because this topic is`,
-				`topic "e": replaced_by "f" is not in TOPICS`,
-			},
-		},
-
 		// Every problem is reported, sorted.
 		{
 			name:   "aggregated",
@@ -453,7 +432,7 @@ func TestCatalogAccessors(t *testing.T) {
 	c, err := NewCatalog([]string{"c", "a", "b", "d", "a"}, Definitions{
 		"a": {Description: "A", PayloadSchema: object, MCP: MCPSettings{Enabled: true}, Validation: ValidationWarn},
 		"b": {Description: "B"},
-		"c": {PayloadSchema: object, MCP: MCPSettings{Enabled: true}, Deprecated: true},
+		"c": {PayloadSchema: object, MCP: MCPSettings{Enabled: true}},
 	})
 	require.NoError(t, err)
 

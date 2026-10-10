@@ -56,11 +56,9 @@ func TestParseDefinitionsJSON(t *testing.T) {
 					"required": ["zeta"]
 				},
 				"validation": "enforce",
-				"mcp": {"enabled": true},
-				"deprecated": true,
-				"replaced_by": "order.created.v2"
+				"mcp": {"enabled": true}
 			},
-			"order.deleted": {"description": null, "payload_schema": null, "mcp": null, "deprecated": null},
+			"order.deleted": {"description": null, "payload_schema": null, "mcp": null},
 			"order.bare": {}
 		}`))
 		require.NoError(t, err)
@@ -71,8 +69,6 @@ func TestParseDefinitionsJSON(t *testing.T) {
 			PayloadSchema: json.RawMessage(`{"type":"object","properties":{"zeta":{"type":"integer","maximum":9007199254740993},"alpha":{"type":"number","multipleOf":0.10,"x-mcp-filter":false},"note":{"type":"string","pattern":"^é\\d+$"}},"required":["zeta"]}`),
 			Validation:    ValidationEnforce,
 			MCP:           MCPSettings{Enabled: true},
-			Deprecated:    true,
-			ReplacedBy:    "order.created.v2",
 		}, defs["order.created"])
 		assert.Equal(t, Definition{}, defs["order.deleted"])
 		assert.Equal(t, Definition{}, defs["order.bare"])
@@ -93,10 +89,13 @@ func TestParseDefinitionsJSON(t *testing.T) {
 		{name: "not an object", input: `["order.created"]`, want: []string{"topic schemas must be an object keyed by topic name"}},
 		{name: "topic not an object", input: `{"a": 1}`, want: []string{`topic "a": /a: must be an object`}},
 		{name: "unknown field", input: `{"a": {"validaton": "warn"}}`, want: []string{`topic "a": /a/validaton: unknown field "validaton"`}},
+		{name: "deprecation fields aren't supported", input: `{"a": {"deprecated": true, "replaced_by": "b"}}`, want: []string{
+			`topic "a": /a/deprecated: unknown field "deprecated"`,
+			`topic "a": /a/replaced_by: unknown field "replaced_by"`,
+		}},
 		{name: "unknown field hint", input: `{"a": {"payloadSchema": {}}}`, want: []string{`topic "a": /a/payloadSchema: unknown field "payloadSchema" (did you mean "payload_schema"?)`}},
 		{name: "unknown mcp field", input: `{"a": {"mcp": {"enable": true}}}`, want: []string{`topic "a": /a/mcp/enable: unknown field "enable"`}},
 		{name: "string type", input: `{"a": {"validation": 1}}`, want: []string{`topic "a": /a/validation: must be a string`}},
-		{name: "bool type", input: `{"a": {"deprecated": "yes"}}`, want: []string{`topic "a": /a/deprecated: must be a boolean`}},
 		{name: "mcp type", input: `{"a": {"mcp": true}}`, want: []string{`topic "a": /a/mcp: must be an object`}},
 		{name: "mcp enabled type", input: `{"a": {"mcp": {"enabled": "true"}}}`, want: []string{`topic "a": /a/mcp/enabled: must be a boolean`}},
 		{

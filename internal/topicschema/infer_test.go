@@ -230,30 +230,17 @@ func TestInferArgumentsWithoutProperties(t *testing.T) {
 func TestMCPDescription(t *testing.T) {
 	object := json.RawMessage(`{"type":"object"}`)
 	mcp := MCPSettings{Enabled: true}
-	c, err := NewCatalog([]string{"old", "bare", "silent", "plain", "nodesc", "order.created.v2"}, Definitions{
-		"old":              {Description: "Fires on orders.", PayloadSchema: object, MCP: mcp, Deprecated: true, ReplacedBy: "order.created.v2"},
-		"bare":             {Description: "Fires on orders.", PayloadSchema: object, MCP: mcp, Deprecated: true},
-		"silent":           {PayloadSchema: object, MCP: mcp, Deprecated: true, ReplacedBy: "order.created.v2"},
-		"plain":            {Description: "Fires on orders.", PayloadSchema: object, MCP: mcp},
-		"nodesc":           {PayloadSchema: object, MCP: mcp},
-		"order.created.v2": {PayloadSchema: object, MCP: mcp},
+	c, err := NewCatalog([]string{"plain", "nodesc"}, Definitions{
+		"plain":  {Description: "Fires on orders.", PayloadSchema: object, MCP: mcp},
+		"nodesc": {PayloadSchema: object, MCP: mcp},
 	})
 	require.NoError(t, err)
 
-	for name, want := range map[string]string{
-		"old":    "Deprecated: use order.created.v2. Fires on orders.",
-		"bare":   "Deprecated. Fires on orders.",
-		"silent": "Deprecated: use order.created.v2.",
-		"plain":  "Fires on orders.",
-		"nodesc": "",
-	} {
-		ev, ok := c.MCPEvent(name)
-		require.True(t, ok, name)
-		assert.Equal(t, want, ev.Description, name)
-		topic, _ := c.Topic(name)
-		assert.NotContains(t, topic.Description, "Deprecated", "the topic keeps its own description")
-	}
-	ev, _ := c.MCPEvent("nodesc")
+	ev, ok := c.MCPEvent("plain")
+	require.True(t, ok)
+	assert.Equal(t, "Fires on orders.", ev.Description)
+	ev, _ = c.MCPEvent("nodesc")
+	assert.Empty(t, ev.Description)
 	assert.Equal(t, `{"name":"nodesc","delivery":["webhook"],"inputSchema":{"type":"object","properties":{},"additionalProperties":false},"payloadSchema":{"type":"object"}}`, string(ev.JSON))
 }
 

@@ -384,22 +384,6 @@ func propertyMaxLength(root any, prop any) int {
 	return limit
 }
 
-// mcpDescription is the events/list description: the topic description,
-// prefixed for deprecated topics so agents pick the replacement.
-func mcpDescription(t Topic) string {
-	if !t.Deprecated {
-		return t.Description
-	}
-	prefix := "Deprecated."
-	if t.ReplacedBy != "" {
-		prefix = "Deprecated: use " + t.ReplacedBy + "."
-	}
-	if t.Description == "" {
-		return prefix
-	}
-	return prefix + " " + t.Description
-}
-
 // buildMCPEvent precomputes the events/list entry of an MCP-enabled topic.
 // raw is the compact payload schema and tree its decodeJSON form.
 func buildMCPEvent(t Topic, raw json.RawMessage, tree map[string]any) (*MCPEvent, []Argument, error) {
@@ -411,7 +395,7 @@ func buildMCPEvent(t Topic, raw json.RawMessage, tree map[string]any) (*MCPEvent
 	if err != nil {
 		return nil, nil, err
 	}
-	ev := &MCPEvent{Name: t.Name, Description: mcpDescription(t)}
+	ev := &MCPEvent{Name: t.Name, Description: t.Description}
 	name, err := marshalNoEscape(ev.Name)
 	if err != nil {
 		return nil, nil, err

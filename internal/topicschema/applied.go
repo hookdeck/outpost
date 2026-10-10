@@ -53,8 +53,8 @@ const (
 const ChangeTopicEnded = "topic_ended"
 
 const (
-	msgBreakingChanges = "topic schema changes break live MCP subscriptions: publish the new schema under a new topic, " +
-		"or set TOPICS_ALLOW_BREAKING_CHANGES=true for one deploy to apply it and end those subscriptions"
+	msgBreakingChanges = "topic schema changes break MCP-enabled topics: " +
+		"set TOPICS_ALLOW_BREAKING_CHANGES=true for one deploy to apply them"
 	msgAllTopicsEnded = "the topic schemas end every MCP-enabled topic, which would end every MCP subscription: " +
 		"check that they are configured, or set TOPICS_ALLOW_BREAKING_CHANGES=true for one deploy to apply them"
 )

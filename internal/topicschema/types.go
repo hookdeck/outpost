@@ -41,8 +41,6 @@ type Definition struct {
 	// Validation is empty or one of the ValidationMode values. Empty means off.
 	Validation ValidationMode `json:"validation,omitempty"`
 	MCP        MCPSettings    `json:"mcp"`
-	Deprecated bool           `json:"deprecated,omitempty"`
-	ReplacedBy string         `json:"replaced_by,omitempty"`
 }
 
 // Definitions maps topic name to its definition.
@@ -57,8 +55,6 @@ type Topic struct {
 	PayloadSchema json.RawMessage `json:"payload_schema,omitempty"`
 	Validation    ValidationMode  `json:"validation"`
 	MCP           MCPSettings     `json:"mcp"`
-	Deprecated    bool            `json:"deprecated,omitempty"`
-	ReplacedBy    string          `json:"replaced_by,omitempty"`
 }
 
 // ValidationResult is the outcome of validating event data against a topic's
@@ -77,9 +73,7 @@ type ValidationResult struct {
 
 // MCPEvent is one precomputed events/list entry.
 type MCPEvent struct {
-	Name string
-	// Description carries a "Deprecated: use <replaced_by>. " prefix when the
-	// topic is deprecated.
+	Name        string
 	Description string
 	InputSchema json.RawMessage
 	// PayloadSchema is the topic payload schema minus x-mcp-filter.
