@@ -40,9 +40,18 @@ type App struct {
 	installationID string
 
 	// brokenSchemas are the topic hashes of the applied topic schemas that
-	// a forced breaking change left behind (API service only; nil when
-	// none). They only change when schemas are applied, at startup.
+	// a breaking change left behind (API service only; nil when none).
+	// applyTopicSchemas sets them after the services are built and before
+	// they run; they only change when schemas are applied, at startup.
 	brokenSchemas topicschema.BrokenSet
+}
+
+// appBrokenSchemas gives the services the App's brokenSchemas, which are
+// set after the services are built.
+type appBrokenSchemas struct{ app *App }
+
+func (b appBrokenSchemas) IsBroken(topic, schemaHash string) bool {
+	return b.app.brokenSchemas.IsBroken(topic, schemaHash)
 }
 
 func New(cfg *config.Config) *App {
@@ -95,12 +104,8 @@ func (a *App) PreRun(ctx context.Context) (err error) {
 		return err
 	}
 
-	for _, warning := range a.config.MCPWarnings(a.config.TopicCatalog()) {
+	for _, warning := range a.config.MCPWarnings() {
 		a.logger.Warn(warning)
-	}
-
-	if err := a.applyTopicSchemas(ctx); err != nil {
-		return err
 	}
 
 	if err := a.applyLogRetentionTTL(ctx); err != nil {
@@ -120,6 +125,15 @@ func (a *App) PreRun(ctx context.Context) (err error) {
 	}
 
 	if err := a.buildServices(ctx); err != nil {
+		return err
+	}
+
+	// Last: the applied schemas are what later deploys are checked against,
+	// so a release that fails to start must not record its own.
+	if err := a.applyTopicSchemas(ctx); err != nil {
+		cleanupCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		a.builder.Cleanup(cleanupCtx)
 		return err
 	}
 
@@ -269,7 +283,7 @@ func (a *App) loadTopicCatalog(ctx context.Context) error {
 // one, refusing a breaking change to an MCP-enabled topic with live
 // subscriptions unless TOPICS_ALLOW_BREAKING_CHANGES is set. API service
 // only, like loadTopicCatalog: the mcp-subscriptions worker, also API only,
-// ends the subscriptions a forced change breaks.
+// ends the subscriptions a breaking change leaves behind.
 func (a *App) applyTopicSchemas(ctx context.Context) error {
 	service, err := a.config.GetService()
 	if err != nil {
@@ -294,7 +308,7 @@ func (a *App) applyTopicSchemas(ctx context.Context) error {
 		a.logger.Error("failed to apply topic schemas", zap.Error(err))
 		return fmt.Errorf("topic schemas: %w", err)
 	}
-	// The subscribe handler ends a subscription a forced breaking change
+	// The subscribe handler ends a subscription a breaking change
 	// left behind when its client refreshes it.
 	applied, err := topicschema.ReadApplied(ctx, a.redisClient, a.config.DeploymentID)
 	if err != nil {
@@ -345,11 +359,8 @@ func (a *App) setupOpenTelemetry(ctx context.Context) error {
 
 func (a *App) buildServices(ctx context.Context) error {
 	a.logger.Debug("building services")
-	var opts []services.BuilderOption
-	if a.brokenSchemas != nil {
-		opts = append(opts, services.WithBrokenSchemas(a.brokenSchemas))
-	}
-	builder := services.NewServiceBuilder(ctx, a.config, a.logger, a.telemetry, opts...)
+	builder := services.NewServiceBuilder(ctx, a.config, a.logger, a.telemetry,
+		services.WithBrokenSchemas(appBrokenSchemas{a}))
 
 	supervisor, err := builder.BuildWorkers()
 	if err != nil {

@@ -152,7 +152,7 @@ const envelope = wh.verify(rawBody, {
 | Concurrency per callback host | At most `MCP_MAX_INFLIGHT_PER_HOST` attempts in flight per host and port on each Outpost instance, 8 by default. An attempt over the limit waits for a slot, for up to 5 seconds of its 10 second timeout. If none frees up, it fails with code `throttled` and is retried on schedule. |
 | Outpost-side failures | `throttled`, `payload_too_large` and `invalid_event_id` attempts are Outpost's own refusals, not the endpoint's. They don't count toward the consecutive failures that alert on or disable the destination, and they never show as `deliveryStatus.lastError`. |
 | Expiry | No attempt or automatic retry after `expires_at`. Pending retries are dropped without an attempt, and a manual retry returns `400`. |
-| Auto-disable | The project's [alert settings](/docs/outpost/features/operator-events) apply. While the destination is disabled, Outpost holds its automatic retries, up to 1,000, until `expires_at` or for 24 hours. A refresh or `PUT .../enable` resumes them at up to 10 per second. |
+| Auto-disable | The project's [alert settings](/docs/outpost/features/operator-events) apply. While the destination is disabled, Outpost holds its automatic retries, up to 1,000, until `expires_at` or for 24 hours. A refresh or `PUT .../enable` resumes them at up to 10 per second. A new subscription starts with no consecutive failures and no exhausted-retries alert window, even when an earlier subscription that ended had the same ID. |
 | Response body | The first 4 KiB is stored on the attempt. |
 
 Attempt `code` is the HTTP status of the response, or one of these codes:
@@ -239,7 +239,7 @@ A `terminated` envelope carries the JSON-RPC error that ended the subscription:
 |-------|-----------|--------------------------------|--------|
 | You revoked the subscription or the principal | `Forbidden` | `-32012` / `-32024` | `{"reason": "access_revoked"}` |
 | The topic is no longer MCP-enabled | `NotFound` | `-32011` / `-32023` | `{"kind": "event"}` |
-| A breaking schema change applied with `TOPICS_ALLOW_BREAKING_CHANGES` | `Unsupported` | `-32014` / `-32026` | `{"feature": "payloadSchema", "reason": "schema_changed"}` |
+| A breaking change to the topic's payload schema | `Unsupported` | `-32014` / `-32026` | `{"feature": "payloadSchema", "reason": "schema_changed"}` |
 
 The codes follow `MCP_ERROR_CODES`. Expiry and unsubscribe send nothing, and neither does deleting the tenant. A subscription broken by a schema change that its client refreshes before the background pass ends it gets no envelope either: the refresh fails with the same `Unsupported` error and deletes it, and the client's next subscribe creates a new one.
 
@@ -270,4 +270,4 @@ Every MCP setting is listed in the [Configuration Reference](/docs/outpost/self-
 | `MCP_SECRET_ROTATION_GRACE` | `24h` | How long the previous secret keeps signing after a rotation. |
 | `MCP_SEND_TERMINATED` | `true` | Send `terminated` envelopes. |
 
-Each MCP delivery can hold a delivery slot for up to 10 seconds, and callback URLs are chosen by agents. Run the delivery service with `DELIVERY_MAX_CONCURRENCY` of at least 8 when MCP is on. Outpost warns at startup when it's lower.
+Each MCP delivery can hold a delivery slot for up to 10 seconds, and callback URLs are chosen by agents. Run the delivery service with `DELIVERY_MAX_CONCURRENCY` of at least 8 when MCP is on. The delivery service warns at startup when it's lower and topic schemas are configured in its environment (`TOPICS_SCHEMAS`, `TOPICS_SCHEMAS_FILE` or `TOPICS_SCHEMAS_OPENAPI`).

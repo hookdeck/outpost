@@ -4325,7 +4325,7 @@ components:
             - `invalid_params`: `{field, reason, errors?}`. `field` names the request field, such as `arguments`, `delivery.url`, `delivery.secret`, `ttlMs`, `principal` or `cursor`. `reason` is a fixed code, such as `address_not_allowed`, `https_required` or `invalid_url` for `delivery.url`. `errors` lists argument validation errors as paths and messages, such as `arguments.total: must be number`, without the submitted values.
             - `not_found`: `{kind}`, where `kind` is `event`, `tenant` or `subscription`.
             - `resource_exhausted`: `{limit, max?, retryAfterMs?}`. `limit` is `subscriptions` (`MAX_MCP_SUBSCRIPTIONS_PER_TENANT`), `principal_subscriptions` (`MAX_MCP_SUBSCRIPTIONS_PER_PRINCIPAL`), `verification_rate` (`MCP_VERIFICATION_RATE_LIMIT` challenges by the principal, or `MCP_VERIFICATION_FAILURE_LIMIT` failed challenges by the tenant to the callback host, this minute) or `callback_host_busy` (the callback host is at `MCP_MAX_INFLIGHT_PER_HOST` on this instance, or left 10 × `MCP_VERIFICATION_FAILURE_LIMIT` challenges unanswered this minute, whichever tenant asked).
-            - `unsupported`: `{feature, value}`, such as `{"feature": "deliveryMode", "value": "poll"}`, or `{"feature": "payloadSchema", "reason": "schema_changed"}` for a refresh of a subscription a forced breaking schema change ended.
+            - `unsupported`: `{feature, value}`, such as `{"feature": "deliveryMode", "value": "poll"}`, or `{"feature": "payloadSchema", "reason": "schema_changed"}` for a refresh of a subscription a breaking schema change ended.
             - `callback_endpoint_error`: `{reason}`, one of `connection_refused`, `timeout`, `tls_error`, `http_4xx`, `http_5xx` and `challenge_failed`.
           example:
             reason: "challenge_failed"
@@ -7246,7 +7246,7 @@ paths:
         3. Verifies the callback, unless verification for the same tenant, principal and URL passed within `MCP_VERIFICATION_TTL`: it POSTs a signed `{"type": "verification", "challenge": "<nonce>"}` envelope and requires a `2xx` response whose body is `{"challenge": "<nonce>"}`. Redirects are not followed. Each challenge counts toward `MCP_VERIFICATION_RATE_LIMIT` for the principal.
         4. Grants a TTL from `params.ttlMs`, then creates or updates the `mcp` destination with the subscription ID.
 
-        A new subscription counts toward `MAX_MCP_SUBSCRIPTIONS_PER_TENANT` and `MAX_MCP_SUBSCRIPTIONS_PER_PRINCIPAL`. A refresh extends the expiry and replaces the secret when it changed, signing with the previous one too for `MCP_SECRET_ROTATION_GRACE`. It also re-enables an auto-disabled subscription and resumes its pending retries, and returns `deliveryStatus`. A subscription past its `expires_at` is deleted, reported as `mcp.subscription.expired`, and replaced by a new one. A refresh of a subscription created against a payload schema that a breaking change applied with `TOPICS_ALLOW_BREAKING_CHANGES` replaced deletes it and fails with `unsupported` (`{"feature": "payloadSchema", "reason": "schema_changed"}`), without a `terminated` envelope; subscribing again creates a new subscription.
+        A new subscription counts toward `MAX_MCP_SUBSCRIPTIONS_PER_TENANT` and `MAX_MCP_SUBSCRIPTIONS_PER_PRINCIPAL`. A refresh extends the expiry and replaces the secret when it changed, signing with the previous one too for `MCP_SECRET_ROTATION_GRACE`. It also re-enables an auto-disabled subscription and resumes its pending retries, and returns `deliveryStatus`. A subscription past its `expires_at` is deleted, reported as `mcp.subscription.expired`, and replaced by a new one. A refresh of a subscription created against a payload schema that a breaking change replaced deletes it and fails with `unsupported` (`{"feature": "payloadSchema", "reason": "schema_changed"}`), without a `terminated` envelope; subscribing again creates a new subscription.
 
         The tenant must exist. A missing tenant fails with `not_found` (`{"kind": "tenant"}`). An existing destination with the subscription ID that isn't an MCP subscription fails with `invalid_params` (`{"field": "id", "reason": "conflict"}`).
 
@@ -7330,6 +7330,12 @@ paths:
           $ref: "#/components/responses/MCPError"
         "500":
           $ref: "#/components/responses/InternalServerError"
+        "503":
+          description: Outpost couldn't finish the call on its side, such as verifying the callback while its Redis is unavailable, or the call ran out of time. Answer the MCP request with an internal error, so the client retries.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APIErrorResponse"
     get:
       tags: [MCP]
       summary: List MCP Subscriptions

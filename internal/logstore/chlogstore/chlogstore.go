@@ -413,6 +413,11 @@ func buildAttemptQuery(table string, req driver.ListAttemptRequest, q pagination
 		args = append(args, req.DestinationTypes)
 	}
 
+	if len(req.ExcludeDestinationTypes) > 0 {
+		conditions = append(conditions, "destination_type NOT IN ?")
+		args = append(args, req.ExcludeDestinationTypes)
+	}
+
 	if req.Status != "" {
 		conditions = append(conditions, "status = ?")
 		args = append(args, req.Status)

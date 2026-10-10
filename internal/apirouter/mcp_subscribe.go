@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"maps"
 	"net/http"
 	"slices"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/hookdeck/outpost/internal/destregistry"
+	"github.com/hookdeck/outpost/internal/destregistry/providers/destmcp"
 	"github.com/hookdeck/outpost/internal/mcpevents"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/tenantstore"
@@ -77,7 +79,7 @@ type subscription struct {
 	// subscription with the same ID.
 	expiredDeleted bool
 	// brokenDeleted is set once the request ended a subscription with the
-	// same ID that a forced breaking change left behind.
+	// same ID that a breaking change left behind.
 	brokenDeleted bool
 }
 
@@ -125,7 +127,7 @@ func (h *MCPHandlers) Subscribe(c *gin.Context) {
 
 	tenant, err := h.retrieveTenant(ctx, c.Param("tenant_id"))
 	if err != nil {
-		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
+		h.abortWithError(c, err)
 		return
 	}
 	if tenant == nil {
@@ -184,6 +186,7 @@ func (h *MCPHandlers) Subscribe(c *gin.Context) {
 		action = "mcp subscription refreshed"
 		result.DeliveryStatus = h.deliveryStatus(ctx, &outcome.destination, outcome.update.WasDisabled)
 	} else {
+		h.resetNewAlerts(ctx, tenant.ID, s.id)
 		h.telemetry.DestinationCreated(ctx, models.DestinationTypeMCP)
 	}
 	h.logger.Ctx(ctx).Audit(action,
@@ -263,7 +266,7 @@ func (h *MCPHandlers) subscribe(ctx context.Context, s *subscription) (*subscrib
 // lookupSubscription returns the live subscription with the request's ID, or
 // nil. An expired one is deleted (and reported) first, so the request
 // creates a new generation instead of extending it. One created against a
-// payload schema that a forced breaking change broke is deleted too, and the
+// payload schema that a breaking change broke is deleted too, and the
 // request fails with schema_changed: refreshing it would record the current
 // schema hash on it and hide it from the mcp-subscriptions worker, while its
 // client still expects the old payloads. The client learns it from the
@@ -331,7 +334,7 @@ func (h *MCPHandlers) lookupSubscription(ctx context.Context, s *subscription) (
 }
 
 // schemaBroken reports whether d was created against a payload schema that a
-// forced breaking change broke. This instance's own schema never counts: an
+// breaking change broke. This instance's own schema never counts: an
 // instance running a rolled-back configuration keeps refreshing its
 // subscriptions, which the worker of the applied configuration ends.
 func (h *MCPHandlers) schemaBroken(d *models.Destination) bool {
@@ -507,11 +510,29 @@ func (h *MCPHandlers) Unsubscribe(c *gin.Context) {
 }
 
 // abortWithError answers an error of the MCP endpoints: an *mcpevents.Error
-// as mcp_error, anything else as an internal error.
+// as mcp_error; an outage the client can retry through (callback
+// verification that couldn't run, the call's deadline or cancellation) as
+// 503; anything else as an internal error.
 func (h *MCPHandlers) abortWithError(c *gin.Context, err error) {
 	var mcpErr *mcpevents.Error
 	if errors.As(err, &mcpErr) {
 		h.abortWithMCPError(c, mcpErr)
+		return
+	}
+	// The message of a validation error leaves out its details and cause,
+	// which the server error's log needs.
+	var validationErr *destregistry.ErrDestinationValidation
+	if errors.As(err, &validationErr) {
+		if validationErr.Cause != nil {
+			err = validationErr.Cause
+		} else {
+			err = fmt.Errorf("%w: %v", err, validationErr.Errors)
+		}
+	}
+	if errors.Is(err, destmcp.ErrVerificationUnavailable) ||
+		errors.Is(err, context.Canceled) ||
+		errors.Is(err, context.DeadlineExceeded) {
+		AbortWithError(c, http.StatusServiceUnavailable, NewErrServiceUnavailable(err))
 		return
 	}
 	AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))

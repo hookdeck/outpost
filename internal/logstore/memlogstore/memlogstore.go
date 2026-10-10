@@ -401,6 +401,10 @@ func (s *memLogStore) matchesAttemptFilter(a *models.Attempt, event *models.Even
 		return false
 	}
 
+	if slices.Contains(req.ExcludeDestinationTypes, a.DestinationType) {
+		return false
+	}
+
 	if req.Status != "" && a.Status != req.Status {
 		return false
 	}

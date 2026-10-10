@@ -8,6 +8,7 @@ import (
 
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/publishmq"
+	"github.com/hookdeck/outpost/internal/topicschema"
 	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -218,6 +219,42 @@ func TestMCPVisibility_Attempts(t *testing.T) {
 		assert.Equal(t, http.StatusNotFound, resp.code)
 		assert.Equal(t, http.StatusOK, v.get("v1", "/attempts/"+v.webhookAttempt+"?tenant_id="+mcpTenant).code)
 	})
+}
+
+// v1 hides attempts to mcp destinations only: attempts of any other type,
+// including those recorded before attempts had a destination type (""),
+// stay listed, whether or not a topic is MCP-enabled.
+func TestMCPVisibility_AttemptsWithoutType(t *testing.T) {
+	for name, opts := range map[string][]mcpTestOption{
+		"mcp topics":    nil,
+		"no mcp topics": {withMCPCatalog(topicschema.EmptyCatalog(mcpTopics))},
+	} {
+		t.Run(name, func(t *testing.T) {
+			m := newMCPTest(t, opts...)
+			m.putDestination(models.Destination{ID: "des_webhook", Type: "webhook", Topics: models.Topics{"*"}, Config: models.Config{"url": "https://example.com"}})
+			e1 := ef.AnyPointer(ef.WithID("e1"), ef.WithTenantID(mcpTenant), ef.WithTopic("order.created"), ef.WithMatchedDestinationIDs([]string{"des_webhook"}))
+			require.NoError(t, m.logStore.InsertMany(t.Context(), []*models.LogEntry{
+				{Event: e1, Attempt: attemptForEvent(e1, af.WithID("att_webhook"), af.WithDestinationID("des_webhook"), af.WithDestinationType("webhook"))},
+				{Event: e1, Attempt: attemptForEvent(e1, af.WithID("att_untyped"), af.WithDestinationID("des_webhook"), af.WithDestinationType(""), af.WithTime(time.Now().Add(-time.Second)))},
+				{Event: e1, Attempt: attemptForEvent(e1, af.WithID("att_mcp"), af.WithDestinationID("sub_1"), af.WithDestinationType(models.DestinationTypeMCP), af.WithTime(time.Now().Add(-2*time.Second)))},
+			}))
+			get := func(path string) []string {
+				t.Helper()
+				resp := m.do(m.withAPIKey(m.jsonReq(http.MethodGet, "/api/v1"+path, nil)))
+				return (&jsonResponse{code: resp.Code, body: resp.Body.Bytes()}).attemptIDs(t)
+			}
+
+			want := []string{"att_webhook", "att_untyped"}
+			assert.Equal(t, want, get("/attempts?tenant_id="+mcpTenant))
+			assert.Equal(t, want, get("/attempts?tenant_id="+mcpTenant+"&event_id=e1"))
+			assert.Equal(t, want, get("/attempts?tenant_id="+mcpTenant+"&destination_id=des_webhook"))
+			assert.Equal(t, want, get("/tenants/"+mcpTenant+"/destinations/des_webhook/attempts"))
+			assert.Empty(t, get("/attempts?tenant_id="+mcpTenant+"&destination_id=sub_1"))
+
+			resp := m.do(m.withJWT(m.jsonReq(http.MethodGet, "/api/v1/attempts", nil), mcpTenant))
+			assert.Equal(t, want, (&jsonResponse{code: resp.Code, body: resp.Body.Bytes()}).attemptIDs(t))
+		})
+	}
 }
 
 func TestMCPVisibility_Publish(t *testing.T) {

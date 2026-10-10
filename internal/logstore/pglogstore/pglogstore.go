@@ -346,6 +346,12 @@ func buildAttemptQuery(req driver.ListAttemptRequest, q pagination.QueryInput) (
 		argNum++
 	}
 
+	if len(req.ExcludeDestinationTypes) > 0 {
+		conditions = append(conditions, fmt.Sprintf("destination_type <> ALL($%d)", argNum))
+		args = append(args, req.ExcludeDestinationTypes)
+		argNum++
+	}
+
 	if req.Status != "" {
 		conditions = append(conditions, fmt.Sprintf("status = $%d", argNum))
 		args = append(args, req.Status)

@@ -21,11 +21,13 @@ import (
 
 // Termination reconciliation. It runs only on an instance whose topic
 // configuration is the applied one, so instances on an older or
-// rolled-back configuration never end subscriptions:
+// rolled-back configuration never end subscriptions. Once no instance has
+// reported the applied configuration for the heartbeat TTL, as after a
+// rollback that outlived it, an instance applies its own first:
 //   - topics indexed for mcp that are MCP-enabled neither here nor in the
 //     applied configuration have ended: every subscription to them is
 //     deleted and sent a terminated envelope (NotFound {kind: "event"});
-//   - topics with broken schema hashes (forced breaking changes) are scanned
+//   - topics with broken schema hashes (breaking changes) are scanned
 //     with ZSCAN, the cursor kept in StateKey across passes, and
 //     subscriptions whose config.schema_hash is broken are ended the same
 //     way (Unsupported {feature: "payloadSchema", reason:
@@ -73,8 +75,10 @@ func (p *pass) reconcile(ctx context.Context) {
 		return
 	}
 	if applied.Hash != p.w.localHash {
-		p.stats.terminationPaused.Store(true)
-		return
+		if applied = p.adoptLocal(ctx, applied); applied == nil {
+			p.stats.terminationPaused.Store(true)
+			return
+		}
 	}
 
 	budget := cfg.PassBudget
@@ -95,6 +99,49 @@ func (p *pass) reconcile(ctx context.Context) {
 		})
 	}
 	p.terminateBroken(ctx, applied, budget)
+}
+
+// adoptLocal applies this instance's configuration when no instance has
+// reported the applied one for longer than the heartbeat TTL, as after a
+// rollback that outlived it. Until then the applied configuration's broken
+// hashes can include this one's, which a later deploy would then end, and
+// later deploys are checked against a configuration nothing runs. It
+// returns the applied configuration once it is this instance's, else nil.
+func (p *pass) adoptLocal(ctx context.Context, applied *topicschema.Applied) *topicschema.Applied {
+	cfg := p.w.cfg
+	if p.now.Sub(applied.AppliedAt) <= cfg.HeartbeatTTL {
+		return nil // its instances may still be starting
+	}
+	live, err := topicschema.IsLive(ctx, cfg.Redis, cfg.DeploymentID, applied.Hash)
+	if err != nil {
+		p.warn(ctx, "checking whether the applied topic configuration runs failed", err)
+		return nil
+	}
+	if live {
+		return nil
+	}
+	// Reported first, so Apply accepts it as running, without a check.
+	if err := topicschema.Heartbeat(ctx, cfg.Redis, cfg.DeploymentID, p.w.localHash, cfg.HeartbeatTTL); err != nil {
+		p.warn(ctx, "reporting the topic configuration as live failed", err)
+		return nil
+	}
+	if _, err := topicschema.Apply(ctx, cfg.Redis, cfg.DeploymentID, cfg.Snapshot, topicschema.ApplyOptions{
+		Logger:       p.w.logger,
+		Now:          cfg.Now,
+		HeartbeatTTL: cfg.HeartbeatTTL,
+	}); err != nil {
+		p.warn(ctx, "applying the topic configuration failed", err)
+		return nil
+	}
+	applied, err = topicschema.ReadApplied(ctx, cfg.Redis, cfg.DeploymentID)
+	if err != nil {
+		p.warn(ctx, "reading the applied topic configuration failed", err)
+		return nil
+	}
+	if applied == nil || applied.Hash != p.w.localHash {
+		return nil
+	}
+	return applied
 }
 
 // terminate ends the subscription of ref, an entry of topic's index: every

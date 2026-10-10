@@ -3,8 +3,6 @@ package apirouter
 import (
 	"strings"
 	"testing"
-
-	"github.com/stretchr/testify/assert"
 )
 
 func TestRequestBodySanitizer_MCPParamsSecrets(t *testing.T) {
@@ -47,30 +45,4 @@ func TestRequestBodySanitizer_MCPParamsSecrets(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestV1AttemptTypes(t *testing.T) {
-	inactive := v1AttemptTypes{}
-	types, ok := inactive.filter(nil)
-	assert.True(t, ok)
-	assert.Nil(t, types)
-	types, ok = inactive.filter([]string{"mcp"})
-	assert.True(t, ok)
-	assert.Equal(t, []string{"mcp"}, types)
-
-	active := v1AttemptTypes{active: true, visible: []string{"webhook", "aws_sqs"}}
-	types, ok = active.filter(nil)
-	assert.True(t, ok)
-	assert.Equal(t, []string{"webhook", "aws_sqs"}, types)
-	_, ok = active.filter([]string{"mcp"})
-	assert.False(t, ok)
-	requested := []string{"mcp", "webhook"}
-	types, ok = active.filter(requested)
-	assert.True(t, ok)
-	assert.Equal(t, []string{"webhook"}, types)
-	assert.Equal(t, []string{"mcp", "webhook"}, requested, "the request isn't modified")
-
-	onlyHidden := v1AttemptTypes{active: true}
-	_, ok = onlyHidden.filter(nil)
-	assert.False(t, ok)
 }

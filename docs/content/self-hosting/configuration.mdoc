@@ -147,7 +147,7 @@ Durations accept Go duration strings, such as `90s`, `5m` or `24h`, or a number 
 | `MAX_MCP_SUBSCRIPTIONS_PER_TENANT` | `max_mcp_subscriptions_per_tenant` | `100` | MCP subscriptions each tenant may hold, from `1` to `10000`. They don't count toward `MAX_DESTINATIONS_PER_TENANT`. Every publish to a tenant is matched against all its destinations, so keep it as low as your product allows. |
 | `MAX_MCP_SUBSCRIPTIONS_PER_PRINCIPAL` | `max_mcp_subscriptions_per_principal` | `20` | MCP subscriptions each principal may hold within a tenant, so one agent can't use up the tenant's limit. `0` turns the limit off. |
 
-`MCP_TTL_MIN`, `MCP_TTL_DEFAULT` and `MCP_TTL_MAX` must be at least one second and in increasing order or equal, `MCP_EXPIRY_SWEEP_INTERVAL` at least one second, and `MCP_RETRY_SCHEDULE` must list at least one delay. Outpost logs a warning at startup when a topic has `mcp.enabled` set and `DELIVERY_MAX_CONCURRENCY` is below `8`: MCP attempts can take up to 10 seconds each, against URLs that agents choose.
+`MCP_TTL_MIN`, `MCP_TTL_DEFAULT` and `MCP_TTL_MAX` must be at least one second and in increasing order or equal, `MCP_EXPIRY_SWEEP_INTERVAL` at least one second, and `MCP_RETRY_SCHEDULE` must list at least one delay. The delivery service (`SERVICE` `delivery` or `all`) logs a warning at startup when `DELIVERY_MAX_CONCURRENCY` is below `8` and topic schemas are configured (`TOPICS_SCHEMAS`, `TOPICS_SCHEMAS_FILE` or `TOPICS_SCHEMAS_OPENAPI`): MCP attempts can take up to 10 seconds each, against URLs that agents choose. It doesn't load the schemas, so it warns whether or not a topic has `mcp.enabled` set.
 
 ## Portal
 

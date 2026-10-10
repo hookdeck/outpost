@@ -21,14 +21,14 @@ Running Outpost as individual services is optional. You can run it as a single b
 - **Delivery Service** delivers events to `mcp` destinations, with the [MCP delivery rules](/docs/outpost/destinations/mcp#delivery-rules).
 - **Log Service** keeps each subscription's delivery status in Redis as it records attempts, for the `deliveryStatus` a refresh returns.
 
-Only the API Service loads topic schemas and applies them at startup, after migrations. When the schemas change, it checks the change against the last applied ones and fails to start on a [breaking change](/docs/outpost/features/topics#schema-evolution-and-deprecation) to a topic with live subscriptions.
+Only the API Service loads topic schemas. It applies them as the last step of startup, so a release that fails earlier in startup isn't recorded as the applied one. When the schemas change, it checks the change against the last applied ones and fails to start on a [breaking change](/docs/outpost/features/topics#schema-evolution-and-deprecation) to a topic with live subscriptions.
 
 ### MCP subscriptions worker
 
 The `mcp-subscriptions` worker runs in every API Service instance. Every `MCP_EXPIRY_SWEEP_INTERVAL` (30 seconds by default), one instance at a time, holding a Redis lock, runs a pass that:
 
 - Deletes subscriptions that expired longer ago than twice `MCP_EXPIRY_SWEEP_INTERVAL`, between 5 and 60 seconds (60 seconds by default), and emits [`mcp.subscription.expired`](/docs/outpost/features/operator-events) for each. Delivery already stops at `expires_at`.
-- Ends subscriptions to topics that are no longer MCP-enabled, and those left from a breaking change applied with `TOPICS_ALLOW_BREAKING_CHANGES`, and sends each a `terminated` envelope. It only does so when the instance runs the last applied topic schemas, so instances on an older or rolled-back configuration never end subscriptions.
+- Ends subscriptions to topics that are no longer MCP-enabled, and those left from a breaking schema change, and sends each a `terminated` envelope. It only does so when the instance runs the last applied topic schemas, so instances on an older or rolled-back configuration never end subscriptions. Once no instance has reported the last applied schemas for 60 seconds, as when a rollback outlives them, the instance applies its own.
 
 Each instance also records the topic configuration it runs, every 20 seconds, so a rolling deploy can restart instances on the previous configuration without failing the breaking-change check.
 

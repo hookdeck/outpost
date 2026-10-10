@@ -114,7 +114,12 @@ func TestApplyTopicSchemas(t *testing.T) {
 
 	t.Run("TOPICS_ALLOW_BREAKING_CHANGES applies it", func(t *testing.T) {
 		a := newApp(t, "api", breaking, true)
+		// The services are built before the schemas are applied, last in
+		// PreRun: what they get answers from the apply on.
+		services := appBrokenSchemas{a}
+		assert.False(t, services.IsBroken("order.created", createdHash))
 		require.NoError(t, a.applyTopicSchemas(ctx))
+		assert.True(t, services.IsBroken("order.created", createdHash))
 		applied, err := topicschema.ReadApplied(ctx, redisClient, "")
 		require.NoError(t, err)
 		assert.NotEmpty(t, applied.Broken["order.created"], "the forced change records the broken schema")
