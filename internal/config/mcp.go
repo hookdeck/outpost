@@ -10,7 +10,6 @@ import (
 	"github.com/hookdeck/outpost/internal/backoff"
 	"github.com/hookdeck/outpost/internal/mcpevents"
 	"github.com/hookdeck/outpost/internal/netguard"
-	"github.com/hookdeck/outpost/internal/topicschema"
 )
 
 // MCPConfig configures MCP Events subscriptions and the mcp destination type.
@@ -269,15 +268,16 @@ func (c *Config) MCPVerificationLimits() (rateLimit, failureLimit int) {
 }
 
 // MCPWarnings returns startup warnings about the MCP settings: allowlist
-// entries opening non-global address space, insecure callbacks, and, when
-// catalog has MCP-enabled topics, a DELIVERY_MAX_CONCURRENCY too low for
-// MCP's 10 second attempts. catalog may be nil (services that don't load
-// it).
-func (c *Config) MCPWarnings(catalog *topicschema.Catalog) []string {
+// entries opening non-global address space, insecure callbacks, and a
+// DELIVERY_MAX_CONCURRENCY too low for MCP's 10 second attempts. The last
+// one is for the processes it sizes, delivery and all, when topic schemas
+// are configured: delivery processes don't load them, so whether a topic
+// has MCP enabled isn't known there.
+func (c *Config) MCPWarnings() []string {
 	var warnings []string
-	if catalog.MCPEnabled() && c.DeliveryMaxConcurrency < mcpMinDeliveryConcurrency {
+	if c.delivers() && c.topicSchemasConfigured() && c.DeliveryMaxConcurrency < mcpMinDeliveryConcurrency {
 		warnings = append(warnings, fmt.Sprintf(
-			"DELIVERY_MAX_CONCURRENCY is %d with MCP-enabled topics: each MCP delivery attempt can hold a delivery slot for up to 10 seconds against a URL an agent chose, so slow callbacks can delay every delivery. Set it to at least %d.",
+			"DELIVERY_MAX_CONCURRENCY is %d and topic schemas are configured: if a topic has MCP enabled, each MCP delivery attempt can hold a delivery slot for up to 10 seconds against a URL an agent chose, so slow callbacks can delay every delivery. Set it to at least %d.",
 			c.DeliveryMaxConcurrency, mcpMinDeliveryConcurrency))
 	}
 	allowlist, allowlistWarnings, err := c.MCPAllowlist()
@@ -294,4 +294,17 @@ func (c *Config) MCPWarnings(catalog *topicschema.Catalog) []string {
 		}
 	}
 	return warnings
+}
+
+// delivers reports whether this process runs the delivery service. An
+// invalid SERVICE doesn't (Validate rejects it).
+func (c *Config) delivers() bool {
+	service, err := c.GetService()
+	return err == nil && (service == ServiceTypeDelivery || service == ServiceTypeAll)
+}
+
+// topicSchemasConfigured reports whether a topic schema source is set:
+// TOPICS_SCHEMAS, TOPICS_SCHEMAS_FILE or TOPICS_SCHEMAS_OPENAPI.
+func (c *Config) topicSchemasConfigured() bool {
+	return c.TopicsSchemas.IsSet() || c.TopicsSchemasFile != "" || c.TopicsSchemasOpenAPI != ""
 }

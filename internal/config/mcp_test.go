@@ -9,7 +9,6 @@ import (
 	"github.com/hookdeck/outpost/internal/backoff"
 	"github.com/hookdeck/outpost/internal/config"
 	"github.com/hookdeck/outpost/internal/mcpevents"
-	"github.com/hookdeck/outpost/internal/topicschema"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zapcore"
@@ -462,49 +461,62 @@ func TestMCPConfig_VerificationLimits(t *testing.T) {
 	assert.Equal(t, -1, failure)
 }
 
-func mcpCatalog(t *testing.T, defs string) *topicschema.Catalog {
-	t.Helper()
-	parsed, err := topicschema.ParseDefinitionsJSON([]byte(defs))
-	require.NoError(t, err)
-	catalog, err := topicschema.NewCatalog([]string{"order.created", "order.updated"}, parsed)
-	require.NoError(t, err)
-	return catalog
-}
-
 func TestMCPConfig_Warnings(t *testing.T) {
-	mcpTopics := mcpCatalog(t, `{"order.created":{"mcp":{"enabled":true},"payload_schema":{"type":"object"}}}`)
-	noMCPTopics := mcpCatalog(t, `{"order.created":{"validation":"warn","payload_schema":{"type":"object"}}}`)
-	const concurrency = "DELIVERY_MAX_CONCURRENCY is 1 with MCP-enabled topics"
+	const concurrency = "DELIVERY_MAX_CONCURRENCY is 1 and topic schemas are configured"
+	withSchemas := func(c *config.Config) *config.Config {
+		c.TopicsSchemas = config.NewTopicSchemas(`{"order.created":{"mcp":{"enabled":true},"payload_schema":{"type":"object"}}}`)
+		return c
+	}
 
-	t.Run("defaults without catalog", func(t *testing.T) {
-		assert.Empty(t, validConfig().MCPWarnings(nil))
+	t.Run("defaults without topic schemas", func(t *testing.T) {
+		assert.Empty(t, validConfig().MCPWarnings())
 	})
 
-	t.Run("low delivery concurrency with MCP topics", func(t *testing.T) {
-		c := validConfig()
-		warnings := c.MCPWarnings(mcpTopics)
-		require.Len(t, warnings, 1)
-		assert.Contains(t, warnings[0], concurrency)
-		assert.Contains(t, warnings[0], "at least 8")
+	t.Run("low delivery concurrency with topic schemas", func(t *testing.T) {
+		// Delivery processes never load the schemas, so any source counts.
+		sources := map[string]func(*config.Config){
+			"TOPICS_SCHEMAS":         func(c *config.Config) { withSchemas(c) },
+			"TOPICS_SCHEMAS_FILE":    func(c *config.Config) { c.TopicsSchemasFile = "schemas.yaml" },
+			"TOPICS_SCHEMAS_OPENAPI": func(c *config.Config) { c.TopicsSchemasOpenAPI = "https://example.com/openapi.json" },
+		}
+		for name, set := range sources {
+			for _, service := range []string{"", "all", "delivery"} {
+				c := validConfig()
+				c.Service = service
+				set(c)
+				warnings := c.MCPWarnings()
+				require.Len(t, warnings, 1, "%s, service %q", name, service)
+				assert.Contains(t, warnings[0], concurrency)
+				assert.Contains(t, warnings[0], "at least 8")
+			}
+		}
 
+		c := withSchemas(validConfig())
 		c.DeliveryMaxConcurrency = 7
-		assert.Len(t, c.MCPWarnings(mcpTopics), 1)
+		assert.Len(t, c.MCPWarnings(), 1)
 		c.DeliveryMaxConcurrency = 8
-		assert.Empty(t, c.MCPWarnings(mcpTopics))
+		assert.Empty(t, c.MCPWarnings())
 	})
 
-	t.Run("low delivery concurrency without MCP topics", func(t *testing.T) {
+	t.Run("low delivery concurrency on a process that doesn't deliver", func(t *testing.T) {
+		for _, service := range []string{"api", "log"} {
+			c := withSchemas(validConfig())
+			c.Service = service
+			assert.Empty(t, c.MCPWarnings(), service)
+		}
+	})
+
+	t.Run("low delivery concurrency without topic schemas", func(t *testing.T) {
 		c := validConfig()
-		assert.Empty(t, c.MCPWarnings(noMCPTopics))
-		assert.Empty(t, c.MCPWarnings(topicschema.EmptyCatalog([]string{"order.created"})))
-		assert.Empty(t, c.MCPWarnings(nil))
+		c.Service = "delivery"
+		assert.Empty(t, c.MCPWarnings())
 	})
 
 	t.Run("allowlist", func(t *testing.T) {
-		c := validConfig()
+		c := withSchemas(validConfig())
 		c.DeliveryMaxConcurrency = 8
 		c.MCP.CallbackAllowlist = config.StringList{"localhost", "10.0.0.0/8", "8.8.8.8"}
-		warnings := c.MCPWarnings(mcpTopics)
+		warnings := c.MCPWarnings()
 		// localhost opens two ranges (127.0.0.0/8, ::1/128); 8.8.8.8 is global.
 		require.Len(t, warnings, 3)
 		for _, w := range warnings {
@@ -518,21 +530,21 @@ func TestMCPConfig_Warnings(t *testing.T) {
 	t.Run("insecure callbacks", func(t *testing.T) {
 		c := validConfig()
 		c.MCP.AllowInsecureCallbacks = true
-		warnings := c.MCPWarnings(nil)
+		warnings := c.MCPWarnings()
 		require.Len(t, warnings, 1)
 		assert.Contains(t, warnings[0], "MCP_ALLOW_INSECURE_CALLBACKS is true but MCP_CALLBACK_ALLOWLIST is empty")
 
 		c.MCP.CallbackAllowlist = config.StringList{"203.0.113.0/24"}
-		warnings = c.MCPWarnings(nil)
+		warnings = c.MCPWarnings()
 		require.Len(t, warnings, 2) // the documentation range is non-global
 		assert.Contains(t, warnings[1], "MCP_ALLOW_INSECURE_CALLBACKS is true: plain http callback URLs are accepted")
 	})
 
 	t.Run("everything", func(t *testing.T) {
-		c := validConfig()
+		c := withSchemas(validConfig())
 		c.MCP.AllowInsecureCallbacks = true
 		c.MCP.CallbackAllowlist = config.StringList{"127.0.0.1"}
-		warnings := c.MCPWarnings(mcpTopics)
+		warnings := c.MCPWarnings()
 		require.Len(t, warnings, 3)
 		assert.Contains(t, warnings[0], concurrency)
 		assert.Contains(t, warnings[1], "MCP_CALLBACK_ALLOWLIST: ")

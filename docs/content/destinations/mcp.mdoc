@@ -264,4 +264,4 @@ Every MCP setting is listed in the [Configuration Reference](/docs/outpost/self-
 | `MCP_SECRET_ROTATION_GRACE` | `24h` | How long the previous secret keeps signing after a rotation. |
 | `MCP_SEND_TERMINATED` | `true` | Send `terminated` envelopes. |
 
-Each MCP delivery can hold a delivery slot for up to 10 seconds, and callback URLs are chosen by agents. Run the delivery service with `DELIVERY_MAX_CONCURRENCY` of at least 8 when MCP is on. Outpost warns at startup when it's lower.
+Each MCP delivery can hold a delivery slot for up to 10 seconds, and callback URLs are chosen by agents. Run the delivery service with `DELIVERY_MAX_CONCURRENCY` of at least 8 when MCP is on. The delivery service warns at startup when it's lower and topic schemas are configured in its environment (`TOPICS_SCHEMAS`, `TOPICS_SCHEMAS_FILE` or `TOPICS_SCHEMAS_OPENAPI`).

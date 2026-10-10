@@ -104,7 +104,7 @@ func (a *App) PreRun(ctx context.Context) (err error) {
 		return err
 	}
 
-	for _, warning := range a.config.MCPWarnings(a.config.TopicCatalog()) {
+	for _, warning := range a.config.MCPWarnings() {
 		a.logger.Warn(warning)
 	}
 
