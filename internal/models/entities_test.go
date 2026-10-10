@@ -802,6 +802,7 @@ func TestMatchFilter(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			assert.Equal(t, tc.expected, models.MatchFilter(tc.filter, tc.event))
+			assert.Equal(t, tc.expected, models.MatchFilterInput(tc.filter, models.NewFilterInput(tc.event)))
 		})
 	}
 }

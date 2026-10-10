@@ -15,10 +15,14 @@ import (
 	"github.com/hookdeck/outpost/internal/infra"
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/logretention"
+	"github.com/hookdeck/outpost/internal/mcpworker"
+	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/otel"
 	"github.com/hookdeck/outpost/internal/redis"
 	"github.com/hookdeck/outpost/internal/services"
 	"github.com/hookdeck/outpost/internal/telemetry"
+	"github.com/hookdeck/outpost/internal/tenantstore"
+	"github.com/hookdeck/outpost/internal/topicschema"
 	"github.com/hookdeck/outpost/internal/worker"
 	"go.uber.org/zap"
 )
@@ -34,6 +38,20 @@ type App struct {
 	supervisor     *worker.WorkerSupervisor
 	otelShutdown   func(context.Context) error
 	installationID string
+
+	// brokenSchemas are the topic hashes of the applied topic schemas that
+	// a breaking change left behind (API service only; nil when none).
+	// applyTopicSchemas sets them after the services are built and before
+	// they run; they only change when schemas are applied, at startup.
+	brokenSchemas topicschema.BrokenSet
+}
+
+// appBrokenSchemas gives the services the App's brokenSchemas, which are
+// set after the services are built.
+type appBrokenSchemas struct{ app *App }
+
+func (b appBrokenSchemas) IsBroken(topic, schemaHash string) bool {
+	return b.app.brokenSchemas.IsBroken(topic, schemaHash)
 }
 
 func New(cfg *config.Config) *App {
@@ -86,6 +104,10 @@ func (a *App) PreRun(ctx context.Context) (err error) {
 		return err
 	}
 
+	for _, warning := range a.config.MCPWarnings() {
+		a.logger.Warn(warning)
+	}
+
 	if err := a.applyLogRetentionTTL(ctx); err != nil {
 		return err
 	}
@@ -103,6 +125,15 @@ func (a *App) PreRun(ctx context.Context) (err error) {
 	}
 
 	if err := a.buildServices(ctx); err != nil {
+		return err
+	}
+
+	// Last: the applied schemas are what later deploys are checked against,
+	// so a release that fails to start must not record its own.
+	if err := a.applyTopicSchemas(ctx); err != nil {
+		cleanupCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		a.builder.Cleanup(cleanupCtx)
 		return err
 	}
 
@@ -248,6 +279,46 @@ func (a *App) loadTopicCatalog(ctx context.Context) error {
 	return nil
 }
 
+// applyTopicSchemas records the loaded topic configuration as the applied
+// one, refusing a breaking change to an MCP-enabled topic with live
+// subscriptions unless TOPICS_ALLOW_BREAKING_CHANGES is set. API service
+// only, like loadTopicCatalog: the mcp-subscriptions worker, also API only,
+// ends the subscriptions a breaking change leaves behind.
+func (a *App) applyTopicSchemas(ctx context.Context) error {
+	service, err := a.config.GetService()
+	if err != nil {
+		return err
+	}
+	if service != config.ServiceTypeAPI && service != config.ServiceTypeAll {
+		return nil
+	}
+	// A topic is live while it has an unexpired subscription in the mcp
+	// index. Counting needs neither the encryption secret nor Init.
+	index := tenantstore.New(tenantstore.Config{
+		RedisClient:  a.redisClient,
+		DeploymentID: a.config.DeploymentID,
+		IndexedTypes: []string{models.DestinationTypeMCP},
+	})
+	_, err = topicschema.Apply(ctx, a.redisClient, a.config.DeploymentID, a.config.TopicCatalog().Snapshot(), topicschema.ApplyOptions{
+		AllowBreaking: a.config.TopicsAllowBreakingChanges,
+		LiveTopics:    mcpworker.LiveTopics(index, nil),
+		Logger:        a.logger,
+	})
+	if err != nil {
+		a.logger.Error("failed to apply topic schemas", zap.Error(err))
+		return fmt.Errorf("topic schemas: %w", err)
+	}
+	// The subscribe handler ends a subscription a breaking change
+	// left behind when its client refreshes it.
+	applied, err := topicschema.ReadApplied(ctx, a.redisClient, a.config.DeploymentID)
+	if err != nil {
+		a.logger.Error("failed to read the applied topic schemas", zap.Error(err))
+		return err
+	}
+	a.brokenSchemas = applied.BrokenSet()
+	return nil
+}
+
 func (a *App) initializeInfrastructure(ctx context.Context) error {
 	a.logger.Debug("initializing infrastructure")
 	if err := infra.Init(ctx, infra.Config{
@@ -288,7 +359,8 @@ func (a *App) setupOpenTelemetry(ctx context.Context) error {
 
 func (a *App) buildServices(ctx context.Context) error {
 	a.logger.Debug("building services")
-	builder := services.NewServiceBuilder(ctx, a.config, a.logger, a.telemetry)
+	builder := services.NewServiceBuilder(ctx, a.config, a.logger, a.telemetry,
+		services.WithBrokenSchemas(appBrokenSchemas{a}))
 
 	supervisor, err := builder.BuildWorkers()
 	if err != nil {

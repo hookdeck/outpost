@@ -81,6 +81,9 @@ cache := New[string, int](100, time.Hour, onEvict)
 
 2. **Thread Safety**:
    - Uses a single mutex for all operations
+   - Eviction callbacks run after the mutex is released, on the goroutine that
+     triggered the eviction (Add, Get or the cleanup loop), so a slow callback
+     never blocks other callers
    - Optimized for high concurrency (159.2 ns/op under contention)
    - Zero allocations for read operations
 

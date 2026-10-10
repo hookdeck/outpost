@@ -1,6 +1,9 @@
 package backoff
 
-import "time"
+import (
+	"math/rand/v2"
+	"time"
+)
 
 type Backoff interface {
 	// Duration returns the duration to wait before retrying the operation.
@@ -63,4 +66,28 @@ func (b *ScheduledBackoff) Duration(retries int) time.Duration {
 		return b.Schedule[len(b.Schedule)-1]
 	}
 	return b.Schedule[retries]
+}
+
+// JitteredBackoff spreads Backoff's delays uniformly by up to ±Jitter, a
+// fraction of the delay (0.2 for ±20%), so retries of failures that happened
+// together don't all come due together.
+type JitteredBackoff struct {
+	Backoff Backoff
+	Jitter  float64
+	// Rand returns a number in [0, 1); nil means math/rand/v2.Float64.
+	Rand func() float64
+}
+
+var _ Backoff = &JitteredBackoff{}
+
+func (b *JitteredBackoff) Duration(retries int) time.Duration {
+	d := b.Backoff.Duration(retries)
+	if b.Jitter <= 0 || d <= 0 {
+		return d
+	}
+	random := b.Rand
+	if random == nil {
+		random = rand.Float64
+	}
+	return time.Duration(float64(d) * (1 + b.Jitter*(2*random()-1)))
 }

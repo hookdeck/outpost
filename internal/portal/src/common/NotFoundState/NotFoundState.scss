@@ -1,0 +1,26 @@
+.not-found-state {
+  text-align: center;
+  padding: 2rem;
+  max-width: 500px;
+  margin: 0 auto;
+
+  &__title {
+    font-size: 2rem;
+    margin-bottom: 1rem;
+    color: #374151;
+  }
+
+  &__message {
+    font-size: 1rem;
+    margin-bottom: 2rem;
+    color: #6b7280;
+    overflow-wrap: anywhere;
+  }
+
+  &__link {
+    color: #3b82f6;
+    text-decoration: none;
+    font-size: 1rem;
+    font-weight: 500;
+  }
+}

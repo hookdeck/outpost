@@ -3,8 +3,10 @@ package alert_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/hookdeck/outpost/internal/alert"
+	"github.com/hookdeck/outpost/internal/logmq"
 	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -140,6 +142,44 @@ func TestAlertStoreTenantIsolation(t *testing.T) {
 	countB, err = store.IncrementConsecutiveFailureCount(context.Background(), tenantB, destinationID, "att_2")
 	require.NoError(t, err)
 	assert.Equal(t, 2, countB, "tenant B should be unaffected by tenant A reset")
+}
+
+func TestRedisAlertStore_ResetDestination(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	for _, deploymentID := range []string{"", "dp_test_001"} {
+		t.Run("deployment "+deploymentID, func(t *testing.T) {
+			redisClient := testutil.CreateTestRedisClient(t)
+			store := alert.NewRedisAlertStore(redisClient, deploymentID)
+			window := logmq.NewRedisSuppressionWindow(redisClient, deploymentID, time.Hour)
+			sent := 0
+			send := func(context.Context) error { sent++; return nil }
+
+			// The ID's previous generation failed and exhausted its retries,
+			// and so did another destination.
+			for _, dest := range []string{"dest_1", "dest_2"} {
+				_, err := store.IncrementConsecutiveFailureCount(ctx, "tenant_1", dest, "att_1")
+				require.NoError(t, err)
+				require.NoError(t, window.Exec(ctx, alert.ExhaustedRetriesKey("tenant_1", dest), send))
+			}
+			require.Equal(t, 2, sent)
+
+			require.NoError(t, store.ResetDestination(ctx, "tenant_1", "dest_1"))
+
+			count, err := store.IncrementConsecutiveFailureCount(ctx, "tenant_1", "dest_1", "att_2")
+			require.NoError(t, err)
+			assert.Equal(t, 1, count, "the failure streak starts over")
+			require.NoError(t, window.Exec(ctx, alert.ExhaustedRetriesKey("tenant_1", "dest_1"), send))
+			assert.Equal(t, 3, sent, "the next exhaustion alerts")
+
+			count, err = store.IncrementConsecutiveFailureCount(ctx, "tenant_1", "dest_2", "att_2")
+			require.NoError(t, err)
+			assert.Equal(t, 2, count, "other destinations keep theirs")
+			require.NoError(t, window.Exec(ctx, alert.ExhaustedRetriesKey("tenant_1", "dest_2"), send))
+			assert.Equal(t, 3, sent)
+		})
+	}
 }
 
 func TestAlertStoreIsolation(t *testing.T) {

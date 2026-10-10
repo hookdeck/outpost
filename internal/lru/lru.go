@@ -82,6 +82,7 @@ func New[K comparable, V any](size int, ttl time.Duration, onEvict func(key K, v
 }
 
 func (c *Cache[K, V]) deleteExpired() {
+	var evicted []*entry[K, V]
 	c.mu.Lock()
 	bucketIdx := c.nextBucket
 	now := time.Now()
@@ -90,6 +91,7 @@ func (c *Cache[K, V]) deleteExpired() {
 	for key, e := range c.buckets[bucketIdx].entries {
 		if now.After(e.expiresAt) {
 			c.remove(e)
+			evicted = append(evicted, e)
 		} else {
 			// Move to next bucket if not expired
 			delete(c.buckets[bucketIdx].entries, key)
@@ -106,11 +108,16 @@ func (c *Cache[K, V]) deleteExpired() {
 	for _, e := range c.items {
 		if now.After(e.expiresAt) {
 			c.remove(e)
+			evicted = append(evicted, e)
 		}
 	}
 
 	c.nextBucket = (c.nextBucket + 1) % numBuckets
 	c.mu.Unlock()
+
+	for _, e := range evicted {
+		c.evict(e)
+	}
 }
 
 func (c *Cache[K, V]) addToBucket(e *entry[K, V]) {
@@ -126,10 +133,11 @@ func (c *Cache[K, V]) removeFromBucket(e *entry[K, V]) {
 	delete(c.buckets[e.bucket].entries, e.key)
 }
 
-// Add adds a value to the cache, returns true if an eviction occurred
+// Add adds a value to the cache, returns true if an eviction occurred.
+// The eviction callback runs after the cache lock is released, so a slow
+// callback delays only this call, never other callers' Get/Add.
 func (c *Cache[K, V]) Add(key K, value V) bool {
 	c.mu.Lock()
-	defer c.mu.Unlock()
 
 	now := time.Now()
 	if e, ok := c.items[key]; ok {
@@ -140,6 +148,7 @@ func (c *Cache[K, V]) Add(key K, value V) bool {
 			c.addToBucket(e)
 		}
 		e.value = value
+		c.mu.Unlock()
 		return false
 	}
 
@@ -157,25 +166,33 @@ func (c *Cache[K, V]) Add(key K, value V) bool {
 		c.addToBucket(e)
 	}
 
-	evicted := false
-	if c.size > 0 && len(c.items) > c.size {
-		c.removeLRU()
-		evicted = true
+	var evicted *entry[K, V]
+	if c.size > 0 && len(c.items) > c.size && c.tail != nil {
+		evicted = c.tail
+		c.remove(evicted)
 	}
+	c.mu.Unlock()
 
-	return evicted
+	if evicted != nil {
+		c.evict(evicted)
+		return true
+	}
+	return false
 }
 
-// Get looks up a key's value from the cache, refreshing TTL if found
+// Get looks up a key's value from the cache, refreshing TTL if found.
+// An expired entry is evicted, with the callback run after the lock is
+// released.
 func (c *Cache[K, V]) Get(key K) (value V, ok bool) {
 	c.mu.Lock()
-	defer c.mu.Unlock()
 
 	if e, ok := c.items[key]; ok {
 		if c.ttl > 0 {
 			now := time.Now()
 			if now.After(e.expiresAt) {
 				c.remove(e)
+				c.mu.Unlock()
+				c.evict(e)
 				return value, false
 			}
 			c.removeFromBucket(e)
@@ -183,8 +200,11 @@ func (c *Cache[K, V]) Get(key K) (value V, ok bool) {
 			c.addToBucket(e)
 		}
 		c.moveToFront(e)
-		return e.value, true
+		v := e.value
+		c.mu.Unlock()
+		return v, true
 	}
+	c.mu.Unlock()
 	return value, false
 }
 
@@ -222,6 +242,11 @@ func (c *Cache[K, V]) removeFromList(e *entry[K, V]) {
 	e.next = nil
 }
 
+// remove unlinks e from the cache. The caller holds c.mu and must hand e to
+// evict once it has released the lock: callbacks never run under c.mu, so a
+// slow one (e.g. a publisher Close waiting on in-flight publishes) cannot
+// stall other callers. Once removed, e is unreachable from the cache, so its
+// key and value are safe to read without the lock.
 func (c *Cache[K, V]) remove(e *entry[K, V]) {
 	if e.prev != nil {
 		e.prev.next = e.next
@@ -233,18 +258,19 @@ func (c *Cache[K, V]) remove(e *entry[K, V]) {
 	} else {
 		c.tail = e.prev
 	}
+	e.prev = nil
+	e.next = nil
 	if c.ttl > 0 {
 		c.removeFromBucket(e)
 	}
 	delete(c.items, e.key)
-	if c.onEvict != nil {
-		c.onEvict(e.key, e.value)
-	}
 }
 
-func (c *Cache[K, V]) removeLRU() {
-	if c.tail != nil {
-		c.remove(c.tail)
+// evict runs the eviction callback for an entry already removed by remove.
+// Must be called without c.mu held.
+func (c *Cache[K, V]) evict(e *entry[K, V]) {
+	if c.onEvict != nil {
+		c.onEvict(e.key, e.value)
 	}
 }
 

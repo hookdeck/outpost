@@ -175,6 +175,52 @@
   }
 }
 
+.external-instructions {
+  margin-top: var(--spacing-6);
+  padding: var(--spacing-6);
+  border: 1px solid var(--colors-outline-neutral);
+  border-radius: var(--radius-m);
+  overflow-wrap: anywhere;
+
+  > :first-child {
+    margin-top: 0;
+  }
+
+  > :last-child {
+    margin-bottom: 0;
+  }
+
+  p,
+  li {
+    font-size: var(--font-size-m);
+    line-height: var(--line-height-m);
+    color: var(--colors-foreground-neutral-2);
+  }
+
+  ul,
+  ol {
+    padding-left: var(--spacing-4);
+  }
+
+  pre {
+    background-color: var(--colors-background-neutral-2);
+    color: var(--colors-foreground-neutral-2);
+    padding: var(--spacing-3);
+    border-radius: var(--radius-m);
+    white-space: pre-wrap;
+  }
+
+  code {
+    font-size: var(--font-size-s);
+    line-height: var(--line-height-s);
+    font-family: var(--font-family-monospace);
+  }
+
+  img {
+    max-width: 100%;
+  }
+}
+
 .filter-section {
   margin-top: var(--spacing-4);
   border-top: 1px solid var(--colors-outline-neutral);

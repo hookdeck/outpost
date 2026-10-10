@@ -62,6 +62,10 @@ type validationLimiter interface {
 	ValidationFactor(topic string) int
 }
 
+// maxConcurrentEnqueues bounds the delivery tasks one publish enqueues at
+// once.
+const maxConcurrentEnqueues = 32
+
 // validationBudgetFactor bounds the validations running at once to this many
 // times the validator's size limit, each weighing its data size times its
 // topic's ValidationFactor. Validating takes up to a few hundred times the
@@ -73,9 +77,14 @@ type EventHandler interface {
 }
 
 type HandleResult struct {
-	EventID        string   `json:"id"`
-	Duplicate      bool     `json:"duplicate"`
+	EventID   string `json:"id"`
+	Duplicate bool   `json:"duplicate"`
+	// DestinationIDs lists every matched destination, MCP subscriptions
+	// included (unlike Event.MatchedDestinationIDs).
 	DestinationIDs []string `json:"destination_ids"`
+	// MatchedDestinationTypes holds the type of each DestinationIDs entry, at
+	// the same index, so API versions can hide types they don't expose.
+	MatchedDestinationTypes []string `json:"-"`
 }
 
 type eventHandler struct {
@@ -94,6 +103,9 @@ type eventHandler struct {
 	validating       *semaphore.Weighted
 	validationBudget int64
 	limiter          validationLimiter
+	// mcpTopicEnabled, when set, reports whether a topic is MCP-enabled in
+	// this instance's configuration; MCP matches of other topics are dropped.
+	mcpTopicEnabled func(topic string) bool
 }
 
 // EventHandlerOption configures NewEventHandler.
@@ -116,6 +128,16 @@ func WithSchemaValidator(v SchemaValidator) EventHandlerOption {
 			}
 			h.validating = semaphore.NewWeighted(h.validationBudget)
 		}
+	}
+}
+
+// WithMCPTopicCheck drops matched MCP subscriptions (type mcp) when
+// enabled(event topic) is false, so a topic that is no longer MCP-enabled
+// stops reaching its subscriptions before they are ended. Dropped
+// subscriptions are neither enqueued nor listed in the result.
+func WithMCPTopicCheck(enabled func(topic string) bool) EventHandlerOption {
+	return func(h *eventHandler) {
+		h.mcpTopicEnabled = enabled
 	}
 }
 
@@ -171,10 +193,11 @@ func (h *eventHandler) Handle(ctx context.Context, event *models.Event) (*Handle
 	// event.received line by the defer below.
 	var enqueuedMu sync.Mutex
 	var enqueued []string
-	var matched []string
+	var matched []tenantstore.MatchedDestination
 	var duplicate bool
 	var enqueueFailed bool
 	var matchFailed bool
+	var mcpDropped int
 	var schema schemaOutcome
 
 	defer func() {
@@ -182,12 +205,16 @@ func (h *eventHandler) Handle(ctx context.Context, event *models.Event) (*Handle
 		enqueuedCopy := append([]string{}, enqueued...)
 		enqueuedMu.Unlock()
 
+		matchedIDs := make([]string, len(matched))
+		for i, m := range matched {
+			matchedIDs[i] = m.ID
+		}
 		fields := []zap.Field{
 			zap.String("event_id", event.ID),
 			zap.String("tenant_id", event.TenantID),
 			zap.String("topic", event.Topic),
 			zap.Int("matched_destination_count", len(matched)),
-			zap.Strings("matched_destination_ids", matched),
+			zap.Strings("matched_destination_ids", matchedIDs),
 			zap.Int("enqueued_destination_count", len(enqueuedCopy)),
 			zap.Strings("enqueued_destination_ids", enqueuedCopy),
 			zap.Bool("duplicate", duplicate),
@@ -199,6 +226,9 @@ func (h *eventHandler) Handle(ctx context.Context, event *models.Event) (*Handle
 		}
 		if matchFailed {
 			fields = append(fields, zap.Bool("match_failed", true))
+		}
+		if mcpDropped > 0 {
+			fields = append(fields, zap.Int("mcp_topic_disabled_count", mcpDropped))
 		}
 		if enqueueFailed {
 			fields = append(fields, zap.Bool("enqueue_failed", true))
@@ -238,18 +268,29 @@ func (h *eventHandler) Handle(ctx context.Context, event *models.Event) (*Handle
 			return nil, err
 		}
 	}
+	matched, mcpDropped = h.dropMCPOfDisabledTopic(event.Topic, matched)
 
-	if matched == nil {
-		matched = []string{}
-	}
-
+	ids := make([]string, len(matched))
+	types := make([]string, len(matched))
 	// Stamp matched destinations onto the event for downstream persistence.
-	event.MatchedDestinationIDs = matched
+	// MCP subscriptions are left out: the event is copied into every delivery
+	// task, so carrying a tenant's (many) subscriptions would grow the
+	// publish quadratically. Their deliveries show up as attempts.
+	stamped := make([]string, 0, len(matched))
+	for i, m := range matched {
+		ids[i] = m.ID
+		types[i] = m.Type
+		if m.Type != models.DestinationTypeMCP {
+			stamped = append(stamped, m.ID)
+		}
+	}
+	event.MatchedDestinationIDs = stamped
 
 	result := &HandleResult{
-		EventID:        event.ID,
-		Duplicate:      false,
-		DestinationIDs: matched,
+		EventID:                 event.ID,
+		Duplicate:               false,
+		DestinationIDs:          ids,
+		MatchedDestinationTypes: types,
 	}
 
 	if len(matched) == 0 {
@@ -260,7 +301,7 @@ func (h *eventHandler) Handle(ctx context.Context, event *models.Event) (*Handle
 	executed := false
 	err = h.idempotence.Exec(ctx, idempotencyKeyFromEvent(event), func(ctx context.Context) error {
 		executed = true
-		return h.doPublish(ctx, event, matched, &enqueuedMu, &enqueued)
+		return h.doPublish(ctx, event, ids, &enqueuedMu, &enqueued)
 	})
 
 	if err != nil {
@@ -360,7 +401,11 @@ func (h *eventHandler) doPublish(ctx context.Context, event *models.Event, match
 
 	h.emeter.EventEligbible(ctx, event)
 
+	// Bound the fan-out: a tenant can have hundreds of matching
+	// destinations (MCP subscriptions), and each enqueue holds a broker
+	// round trip.
 	var g errgroup.Group
+	g.SetLimit(maxConcurrentEnqueues)
 	for _, destID := range matchedDestinations {
 		g.Go(func() error {
 			if err := h.enqueueDeliveryTask(ctx, models.NewDeliveryTask(*event, destID)); err != nil {
@@ -379,9 +424,25 @@ func (h *eventHandler) doPublish(ctx context.Context, event *models.Event, match
 	return nil
 }
 
+// dropMCPOfDisabledTopic removes the MCP subscriptions from matched when the
+// topic is not MCP-enabled here (WithMCPTopicCheck), returning how many it
+// removed. MCP subscriptions only match their exact topic, so the event topic
+// is theirs.
+func (h *eventHandler) dropMCPOfDisabledTopic(topic string, matched []tenantstore.MatchedDestination) ([]tenantstore.MatchedDestination, int) {
+	if h.mcpTopicEnabled == nil || !slices.ContainsFunc(matched, isMCPMatch) || h.mcpTopicEnabled(topic) {
+		return matched, 0
+	}
+	kept := slices.DeleteFunc(slices.Clone(matched), isMCPMatch)
+	return kept, len(matched) - len(kept)
+}
+
+func isMCPMatch(m tenantstore.MatchedDestination) bool {
+	return m.Type == models.DestinationTypeMCP
+}
+
 // matchSpecificDestination handles the case where a specific destination_id is provided.
-// It retrieves the destination and validates it, returning the matched destination IDs.
-func (h *eventHandler) matchSpecificDestination(ctx context.Context, event *models.Event) ([]string, error) {
+// It retrieves the destination and validates it, returning the matched destination.
+func (h *eventHandler) matchSpecificDestination(ctx context.Context, event *models.Event) ([]tenantstore.MatchedDestination, error) {
 	destination, err := h.tenantStore.RetrieveDestination(ctx, event.TenantID, event.DestinationID)
 	if err != nil {
 		h.logger.Ctx(ctx).Warn("failed to retrieve destination",
@@ -389,18 +450,18 @@ func (h *eventHandler) matchSpecificDestination(ctx context.Context, event *mode
 			zap.String("event_id", event.ID),
 			zap.String("tenant_id", event.TenantID),
 			zap.String("destination_id", event.DestinationID))
-		return []string{}, nil
+		return nil, nil
 	}
 
 	if destination == nil {
-		return []string{}, nil
+		return nil, nil
 	}
 
 	if !destination.MatchEvent(*event, h.topicsAllowWildcards) {
-		return []string{}, nil
+		return nil, nil
 	}
 
-	return []string{destination.ID}, nil
+	return []tenantstore.MatchedDestination{{ID: destination.ID, Type: destination.Type}}, nil
 }
 
 func (h *eventHandler) enqueueDeliveryTask(ctx context.Context, task models.DeliveryTask) error {

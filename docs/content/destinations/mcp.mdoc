@@ -1,0 +1,273 @@
+---
+title: "MCP Events"
+description: "Deliver events to AI agents as MCP Events webhooks, through subscriptions that agents create with your MCP server."
+---
+
+The `mcp` destination type delivers events to AI agents as [MCP Events](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/3415) webhooks. Each `mcp` destination is one subscription that an MCP client, such as ChatGPT, created through your MCP server.
+
+Outpost wraps every matching event in the MCP event envelope, signs it with [Standard Webhooks](https://www.standardwebhooks.com/), adds the `X-MCP-Subscription-Id` header, and applies MCP retry and SSRF rules. Your webhook settings don't apply, so a project can serve classic webhooks and MCP Events side by side.
+
+You don't create `mcp` destinations yourself. Your MCP server forwards `events/subscribe` to Outpost's subscribe endpoint, which verifies the callback and creates or refreshes the destination. To set this up end to end, follow the [MCP Events guide](/docs/outpost/guides/mcp-events).
+
+{% callout %}
+MCP Events is available on self-hosted Outpost, through [API v2](/docs/outpost/self-hosting/changelog/upgrade-api-v2). Managed Outpost doesn't serve API v2 yet.
+{% /callout %}
+
+## Lifecycle
+
+A subscription is identified by its principal, callback URL, event name and arguments. Outpost derives the subscription ID from them, and uses it as the destination ID, so subscribing again with the same values refreshes the same destination.
+
+| Action | How | What happens |
+|--------|-----|--------------|
+| Subscribe | MCP client, through `PUT /tenants/{tenant_id}/mcp/subscriptions` | Creates the destination after verifying the callback. |
+| Refresh | MCP client, the same call before `refreshBefore` | Extends `expires_at`, rotates the secret if it changed, re-enables an auto-disabled destination and resumes its pending retries. |
+| Unsubscribe | MCP client, through `POST /tenants/{tenant_id}/mcp/subscriptions/unsubscribe` | Deletes the destination and drops its pending retries. |
+| Expire | Outpost, when `expires_at` passes without a refresh | Stops delivering at `expires_at`, deletes the destination in a background pass and emits the [`mcp.subscription.expired`](/docs/outpost/features/operator-events) operator event. |
+| Revoke | You, through `DELETE /tenants/{tenant_id}/mcp/subscriptions/{subscription_id}` or `DELETE /tenants/{tenant_id}/mcp/subscriptions?principal=` | Deletes the destination and sends a [`terminated` envelope](#control-envelopes). |
+| End a topic | You, by turning off `mcp.enabled` or removing the topic | Deletes the topic's subscriptions and sends each a `terminated` envelope. See [Schema evolution](/docs/outpost/features/topics#schema-evolution-and-deprecation). |
+
+`mcp` destinations are readable like any other type, in API v2, so logs, metrics, alerts and manual retries work unchanged. The generic destination endpoints can't change them:
+
+| Endpoint | `mcp` destinations |
+|----------|--------------------|
+| `POST /tenants/{tenant_id}/destinations` | `400` for `type: mcp`, in API v1 and v2. |
+| `GET /tenants/{tenant_id}/destinations` and `GET .../destinations/{id}` | Returned in API v2. API v1 leaves them out of the list and returns `404` for one. |
+| `PATCH`, `DELETE` and `PUT .../disable` | `400`. Use the MCP endpoints instead. |
+| `PUT .../enable` | Re-enables an auto-disabled subscription, like a refresh: the consecutive-failure count is reset and held retries resume. It changes nothing else, so a refresh that lands at the same time keeps its expiry and secret. |
+| Attempts endpoints | Return their attempts in API v2. API v1 leaves them out. |
+| `POST /retry` | Works as for other types. `400` with `destination_expired` once the subscription is past `expires_at`. |
+
+MCP subscriptions count toward their own limits, `MAX_MCP_SUBSCRIPTIONS_PER_TENANT` and `MAX_MCP_SUBSCRIPTIONS_PER_PRINCIPAL`, not `MAX_DESTINATIONS_PER_TENANT`. They are still included in the tenant's `destinations_count` and `topics`.
+
+## Destination object
+
+```json
+{
+  "id": "sub_1fa69bec3707ee16223ae5400f92f935",
+  "type": "mcp",
+  "topics": ["order.created"],
+  "filter": { "data": { "total": { "$gte": 100 }, "currency": "USD" } },
+  "disabled_at": null,
+  "expires_at": "2026-10-09T18:00:00.123Z",
+  "created_at": "2026-10-09T17:00:00Z",
+  "updated_at": "2026-10-09T17:00:00Z",
+  "config": {
+    "url": "https://receiver.example.com/mcp-events/abc123",
+    "subscription_id": "sub_1fa69bec3707ee16223ae5400f92f935",
+    "principal": "user_8f2c",
+    "event": "order.created",
+    "arguments": "{\"currency\":\"USD\",\"total\":{\"$gte\":100}}",
+    "schema_hash": "8bdecd62e9fd5024a655cfb867d4bfd67293264c9529691be1727e6057dd52d6"
+  },
+  "credentials": {
+    "secret": "whse**********************************************"
+  },
+  "metadata": { "plugin": "chatgpt" }
+}
+```
+
+| Field | Contents |
+|-------|----------|
+| `id`, `config.subscription_id` | The subscription ID: `sub_` and the first 32 hex characters of the SHA-256 of the canonical JSON of `{arguments, name, principal, url}`. Unique within the tenant. |
+| `topics` | The subscribed event name. |
+| `filter` | Generated from the subscription arguments, or the `filter` your MCP server passed on subscribe. |
+| `expires_at` | The granted expiry. Omitted when the subscription was granted no expiry. |
+| `config.url` | The normalized callback URL. |
+| `config.principal`, `config.event`, `config.arguments` | The subscription key, kept for listing and audit. `arguments` is canonical JSON. |
+| `config.schema_hash` | The SHA-256 of the topic's payload schema when the subscription was created or last refreshed. |
+| `credentials.secret`, `previous_secret`, `previous_secret_invalid_at` | The signing secret the MCP client supplied, and the previous one during rotation. Secrets are always masked, for admin keys and tenant JWTs alike. |
+| `metadata` | The `metadata` your MCP server passed on subscribe. |
+
+## Event format
+
+For each matching event, Outpost sends one POST to the callback URL:
+
+```
+POST /mcp-events/abc123 HTTP/1.1
+Host: receiver.example.com
+Content-Type: application/json
+webhook-id: evt_01J9ZK4Q0V
+webhook-timestamp: 1791576000
+webhook-signature: v1,K5oZfzN95Z9UVu1EsfQmfVNQhnkZ2pj9o9NDN/H/pI4=
+X-MCP-Subscription-Id: sub_1fa69bec3707ee16223ae5400f92f935
+User-Agent: Outpost/1.7.0
+
+{"eventId":"evt_01J9ZK4Q0V","name":"order.created","timestamp":"2026-10-09T16:58:12Z","data":{"order_id":"ord_42","total":180,"currency":"USD"},"cursor":null}
+```
+
+| Envelope field | Source |
+|----------------|--------|
+| `eventId` | The Outpost event `id`. Also sent as `webhook-id`, and unchanged across retries. |
+| `name` | The event `topic`. |
+| `timestamp` | The event `time`, in RFC 3339 format. |
+| `data` | The event `data`, byte for byte. |
+| `cursor` | Always `null`. Outpost doesn't replay events. |
+
+- The headers above are the only ones sent. Event `metadata`, `delivery_metadata`, custom headers, `DESTINATIONS_WEBHOOK_MODE`, the header prefix and every other `DESTINATIONS_WEBHOOK_*` setting don't apply to `mcp` destinations.
+- Over HTTP/1.1, header names are sent spelled as above, on events and [control envelopes](#control-envelopes) alike. Over HTTP/2 they are lowercase. Match them case-insensitively, as HTTP requires.
+- `User-Agent` is `HTTP_USER_AGENT`, `Outpost/<version>` by default.
+- The body is serialized once and signed over those exact bytes. Each attempt gets a fresh `webhook-timestamp` and signature.
+- Destination filters match the event, not the envelope, so a filter on the payload uses `data.*`, as for every other destination type.
+- The event `id` must be visible ASCII and at most 256 bytes, since it's sent as a header. Otherwise the attempt fails with code `invalid_event_id` and isn't retried.
+
+## Signatures
+
+Every request, including [control envelopes](#control-envelopes), is signed per the Standard Webhooks specification:
+
+```
+webhook-signature: v1,base64(HMAC-SHA256(key, "${webhook-id}.${webhook-timestamp}.${body}"))
+```
+
+`key` is the base64-decoded part of the subscription's `whsec_` secret. The MCP client generates the secret and sends it on subscribe, and Outpost never generates one.
+
+When a refresh brings a new secret, Outpost keeps the old one as `previous_secret` until `MCP_SECRET_ROTATION_GRACE` (24 hours by default) has passed. Until then, `webhook-signature` carries both signatures, current first, separated by a space:
+
+```
+webhook-signature: v1,<signature-from-current-secret> v1,<signature-from-previous-secret>
+```
+
+Any [Standard Webhooks library](https://github.com/standard-webhooks/standard-webhooks/tree/main/libraries) verifies these requests unchanged. This is the receiving side, which the MCP client owns. You need it only to test with your own receiver:
+
+```javascript
+import { Webhook } from "standardwebhooks";
+
+const wh = new Webhook(secret.slice("whsec_".length));
+// Throws on a bad signature or a timestamp more than 5 minutes off.
+const envelope = wh.verify(rawBody, {
+  "webhook-id": req.headers["webhook-id"],
+  "webhook-timestamp": req.headers["webhook-timestamp"],
+  "webhook-signature": req.headers["webhook-signature"],
+});
+```
+
+## Delivery rules
+
+| Rule | Behavior |
+|------|----------|
+| Success | Any `2xx` response. |
+| Retries | `MCP_RETRY_SCHEDULE`, by default `30,120,600` seconds: 4 attempts within about 12.5 minutes. Each delay varies by up to 20% either way, so subscriptions that failed together don't all retry together. `RETRY_SCHEDULE`, `RETRY_INTERVAL_SECONDS` and `MAX_RETRY_LIMIT` don't apply. |
+| Non-retryable | `410` and `413`: the attempt fails and the event isn't retried. A `410` doesn't count toward the consecutive failures that alert on or disable the destination. |
+| Body over 256 KiB | Not sent. Recorded as a failed, non-retryable attempt with code `payload_too_large`. |
+| Attempt timeout | 10 seconds, whatever `DELIVERY_TIMEOUT_SECONDS` is. The response headers must arrive within 8 seconds and fit in 64 KiB. |
+| Concurrency per callback host | At most `MCP_MAX_INFLIGHT_PER_HOST` attempts in flight per host and port on each Outpost instance, 8 by default. An attempt over the limit waits for a slot, for up to 5 seconds of its 10 second timeout. If none frees up, it fails with code `throttled` and is retried on schedule. |
+| Outpost-side failures | `throttled`, `payload_too_large` and `invalid_event_id` attempts are Outpost's own refusals, not the endpoint's. They don't count toward the consecutive failures that alert on or disable the destination, and they never show as `deliveryStatus.lastError`. |
+| Expiry | No attempt or automatic retry after `expires_at`. Pending retries are dropped without an attempt, and a manual retry returns `400`. |
+| Auto-disable | The project's [alert settings](/docs/outpost/features/operator-events) apply. While the destination is disabled, Outpost holds its automatic retries, up to 1,000, until `expires_at` or for 24 hours. A refresh or `PUT .../enable` resumes them at up to 10 per second. A new subscription starts with no consecutive failures and no exhausted-retries alert window, even when an earlier subscription that ended had the same ID. |
+| Response body | The first 4 KiB is stored on the attempt. |
+
+Attempt `code` is the HTTP status of the response, or one of these codes:
+
+| Code | Meaning |
+|------|---------|
+| `payload_too_large` | The envelope is over 256 KiB. Not retried. |
+| `invalid_event_id` | The event `id` can't be sent as a header. Not retried. |
+| `throttled` | The callback host stayed at `MCP_MAX_INFLIGHT_PER_HOST` attempts in flight for the whole wait. Retried. |
+| `address_not_allowed` | The callback host resolved to an address that isn't allowed. See [SSRF protection](#ssrf-protection). Retried. |
+| `timeout`, `connection_refused`, `dns_error` and other network codes | The same network codes as webhook destinations. Retried. |
+
+The MCP client sees the last attempt as `deliveryStatus.lastError` on its next refresh, reduced to a fixed category that never contains response content. Attempts that failed on Outpost's side (`throttled`, `payload_too_large` and `invalid_event_id`) are left out, so `lastError` describes the endpoint:
+
+| Attempt code | `lastError` |
+|--------------|-------------|
+| `5xx` | `http_5xx` |
+| `3xx`, `4xx` | `http_4xx` |
+| `timeout` | `timeout` |
+| `tls_error` | `tls_error` |
+| Any other code | `connection_refused` |
+
+`deliveryStatus.lastDeliveryAt` is the time of the last successful attempt, and `active` is `false` when the refresh re-enabled an auto-disabled destination. Outpost reads both from a status record the log service keeps per subscription, not from the log store, so refreshes stay cheap.
+
+## SSRF protection
+
+Callback URLs are chosen by MCP clients, not by you or your tenants, so the MCP type guards every outbound request, in the open source build:
+
+- **Resolve and check.** On every attempt, Outpost resolves the callback host and rejects it if any address isn't globally routable per the IANA [IPv4](https://www.iana.org/assignments/iana-ipv4-special-registry/) and [IPv6](https://www.iana.org/assignments/iana-ipv6-special-registry/) special-purpose address registries. That covers loopback, private, link-local, carrier-grade NAT, documentation and multicast ranges, and IPv4-mapped and NAT64 forms of them.
+- **Pin.** It connects to an address it checked, sending the original host name for TLS SNI and `Host`, and checks the connected address again. DNS rebinding between the check and the connection doesn't help an attacker.
+- **No redirects.** A `3xx` response is a failed attempt and is never followed.
+- **No proxy settings.** `HTTP_PROXY`, `HTTPS_PROXY` and `DESTINATIONS_PROXY_URL` don't apply. To send MCP traffic through a forward proxy, for example for a fixed egress IP, set `MCP_PROXY_URL`. Outpost still resolves and checks the host first, but the proxy makes the connection, so pinning the checked address is then the proxy's job.
+
+`MCP_CALLBACK_ALLOWLIST` is the only exception, for local development and tunnels. It takes IP addresses and CIDR ranges, plus `localhost` for `127.0.0.0/8` and `::1/128`. Host names and wildcards aren't accepted, and neither are `/0` ranges. Outpost logs a warning at startup when the allowlist includes private or loopback ranges.
+
+Callback URLs must use `https`. Plain `http` is accepted only when every address the host resolves to is allowlisted and either loopback or allowed by `MCP_ALLOW_INSECURE_CALLBACKS=true`. Outpost checks this when the client subscribes and again on every connection.
+
+The same rules apply to the verification challenge and to `terminated` envelopes, which the API service sends.
+
+## Callback verification
+
+Before it creates a subscription, Outpost confirms that the callback URL wants deliveries: anyone can name a URL, but only its owner can answer the challenge. Outpost POSTs a `verification` envelope, signed with the secret from the subscribe request:
+
+```
+POST /mcp-events/abc123 HTTP/1.1
+Content-Type: application/json
+webhook-id: msg_verification_3f9a0c2d4e6b8a1c5d7e9f0a
+webhook-timestamp: 1791576000
+webhook-signature: v1,...
+X-MCP-Subscription-Id: sub_1fa69bec3707ee16223ae5400f92f935
+
+{"type":"verification","challenge":"q4dXo0y3kH9ZQ7m2b8T1cV6nR5sL0wEu"}
+```
+
+The receiver passes by answering within 10 seconds with a `2xx` status and the body `{"challenge": "<the same value>"}`, at most 64 KiB, which Outpost compares in constant time. Redirects aren't followed. Otherwise subscribe fails with `callback_endpoint_error` and a `reason` of `challenge_failed`, `http_4xx`, `http_5xx`, `timeout`, `tls_error` or `connection_refused`.
+
+A passed challenge is cached per tenant, principal and callback URL for `MCP_VERIFICATION_TTL` (24 hours by default), so refreshes and subscriptions with other arguments skip it. Concurrent subscribes that all need the same challenge, such as a client subscribing to several events at once on connect, send it once: the others wait for it, across Outpost instances too, and share a pass.
+
+These limits protect callback hosts from being flooded through Outpost:
+
+- `MCP_VERIFICATION_RATE_LIMIT`: challenges per tenant and principal per minute, 10 by default. Past it, subscribe fails with `resource_exhausted` and `{"limit": "verification_rate", "retryAfterMs": ...}`.
+- `MCP_VERIFICATION_FAILURE_LIMIT`: failed challenges per tenant and callback host (host and port) per minute, 120 by default. Past it, the tenant's subscribes to that host fail with `resource_exhausted` and `{"limit": "verification_rate", "retryAfterMs": ...}`. Each tenant has its own budget, so failures in one tenant never block another's subscribes to a shared receiver such as ChatGPT's.
+- Ten times `MCP_VERIFICATION_FAILURE_LIMIT`, 1,200 by default: unanswered challenges (`timeout`, `connection_refused` or `tls_error`) per callback host per minute, across the deployment. Past it, subscribes to that host fail with `resource_exhausted` and `{"limit": "callback_host_busy", "retryAfterMs": ...}` until the minute ends, so a host that doesn't answer stops being contacted however many tenants ask. A host that answers, even with an error, never uses this budget.
+
+Successful challenges count toward neither failure budget, and allowlisted hosts are exempt from both. A challenge also shares the `MCP_MAX_INFLIGHT_PER_HOST` slots with deliveries: when the host has no free slot for 2 seconds, subscribe fails with `resource_exhausted` and `{"limit": "callback_host_busy", "retryAfterMs": 1000}`.
+
+## Control envelopes
+
+Control envelopes are signed and carry the same headers as events. Their body has a top-level `type` instead of `eventId`, and their `webhook-id` is `msg_<type>_<hex>`.
+
+| `type` | When Outpost sends it |
+|--------|-----------------------|
+| `verification` | On subscribe, before the destination exists, unless the callback was verified recently. See [Callback verification](#callback-verification). |
+| `terminated` | Once, best effort, when Outpost ends a subscription that the client can't otherwise detect. |
+| `gap` | Never, since Outpost doesn't replay events. |
+
+A `terminated` envelope carries the JSON-RPC error that ended the subscription:
+
+```json
+{"type":"terminated","error":{"code":-32012,"message":"Forbidden","data":{"reason":"access_revoked"}}}
+```
+
+| Cause | `message` | `code` (`sketch` / `sep-3415`) | `data` |
+|-------|-----------|--------------------------------|--------|
+| You revoked the subscription or the principal | `Forbidden` | `-32012` / `-32024` | `{"reason": "access_revoked"}` |
+| The topic is no longer MCP-enabled | `NotFound` | `-32011` / `-32023` | `{"kind": "event"}` |
+| A breaking change to the topic's payload schema | `Unsupported` | `-32014` / `-32026` | `{"feature": "payloadSchema", "reason": "schema_changed"}` |
+
+The codes follow `MCP_ERROR_CODES`. Expiry and unsubscribe send nothing, and neither does deleting the tenant. A subscription broken by a schema change that its client refreshes before the background pass ends it gets no envelope either: the refresh fails with the same `Unsupported` error and deletes it, and the client's next subscribe creates a new one.
+
+The `webhook-id` of a `terminated` envelope is derived from the subscription, so a receiver can deduplicate it. Outpost makes one attempt, with a 10 second timeout and no retries. Background terminations queue until they are sent, while a revoke request that finds the queue full skips the envelope, logs it and still deletes the subscription. ChatGPT doesn't process `terminated` envelopes yet: set `MCP_SEND_TERMINATED=false` to stop sending them.
+
+## Display in clients
+
+`mcp` is the first destination type that can't be created from a form: only an agent can create one, through your MCP server. Clients, such as the tenant portal or your own UI, learn this from the type metadata rather than a hard-coded type check.
+
+- **`create_mode`.** In API v2, `GET /destination-types` returns `create_mode` on every type: `form` for every existing type and `external` for `mcp`. Offer a create form only for `form`.
+- **Instructions.** An `external` type carries `instructions`, markdown to show in place of the form. For `mcp`, Outpost fills them in with `MCP_SERVER_URL` and the MCP-enabled topics: connect the server in ChatGPT or another MCP client, then ask the agent to subscribe.
+- **Read-only listing.** Show existing MCP subscriptions with their principal, event, arguments and expiry, plus a disconnect action that calls `DELETE /tenants/{tenant_id}/mcp/subscriptions/{subscription_id}`, which accepts a tenant JWT. Don't use the generic delete, which returns `400` for `mcp`.
+
+Two gates keep existing UIs unchanged. The `mcp` type appears in `GET /destination-types` only once a topic has `mcp.enabled` set, and only in API v2: API v1 leaves out the type, `mcp` destinations, their attempts and `create_mode`. Move a custom UI to API v2 when it handles `create_mode`. See [Upgrade to API v2](/docs/outpost/self-hosting/changelog/upgrade-api-v2).
+
+The [tenant portal](/docs/outpost/features/tenant-user-portal#mcp-subscriptions) does all of this. Set `PORTAL_SHOW_MCP_DESTINATIONS=false` to hide MCP subscriptions from it.
+
+## Configuration
+
+Every MCP setting is listed in the [Configuration Reference](/docs/outpost/self-hosting/configuration#mcp-events). The ones that shape delivery are:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `MCP_RETRY_SCHEDULE` | `30,120,600` | Retry delays in seconds, each with ±20% jitter. |
+| `MCP_CALLBACK_ALLOWLIST` | — | IPs and CIDR ranges exempt from the address check. |
+| `MCP_PROXY_URL` | — | Forward proxy for MCP traffic. |
+| `MCP_MAX_INFLIGHT_PER_HOST` | `8` | Attempts in flight per callback host on each instance. Others wait for a slot. |
+| `MCP_SECRET_ROTATION_GRACE` | `24h` | How long the previous secret keeps signing after a rotation. |
+| `MCP_SEND_TERMINATED` | `true` | Send `terminated` envelopes. |
+
+Each MCP delivery can hold a delivery slot for up to 10 seconds, and callback URLs are chosen by agents. Run the delivery service with `DELIVERY_MAX_CONCURRENCY` of at least 8 when MCP is on. The delivery service warns at startup when it's lower and topic schemas are configured in its environment (`TOPICS_SCHEMAS`, `TOPICS_SCHEMAS_FILE` or `TOPICS_SCHEMAS_OPENAPI`).

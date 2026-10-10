@@ -31,8 +31,10 @@ generation:
 python:
   version: 1.7.0
   additionalDependencies:
-    dev: {}
-    main: {}
+    dev:
+      pytest: '>=8.3'
+    main:
+      anyio: '>=4'
   allowedRedefinedBuiltins:
     - id
     - object

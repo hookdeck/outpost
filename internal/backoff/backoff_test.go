@@ -137,3 +137,40 @@ func TestBackoff_Scheduled(t *testing.T) {
 		testBackoff(t, "ScheduledBackoff{Single}", bo, testCases)
 	})
 }
+
+func TestBackoff_Jittered(t *testing.T) {
+	t.Parallel()
+	schedule := &backoff.ScheduledBackoff{Schedule: []time.Duration{30 * time.Second, 2 * time.Minute}}
+
+	t.Run("Bounds", func(t *testing.T) {
+		for _, tc := range []struct {
+			rand float64
+			want time.Duration
+		}{
+			{0, 24 * time.Second},
+			{0.5, 30 * time.Second},
+			{0.75, 33 * time.Second},
+		} {
+			bo := &backoff.JitteredBackoff{Backoff: schedule, Jitter: 0.2, Rand: func() float64 { return tc.rand }}
+			assert.Equal(t, tc.want, bo.Duration(0), "rand %v", tc.rand)
+			assert.Equal(t, 4*tc.want, bo.Duration(1), "the jitter scales with the delay")
+		}
+	})
+
+	t.Run("Spread", func(t *testing.T) {
+		bo := &backoff.JitteredBackoff{Backoff: schedule, Jitter: 0.2}
+		lo, hi := time.Duration(1<<62), time.Duration(0)
+		for range 1000 {
+			d := bo.Duration(0)
+			assert.GreaterOrEqual(t, d, 24*time.Second)
+			assert.LessOrEqual(t, d, 36*time.Second)
+			lo, hi = min(lo, d), max(hi, d)
+		}
+		assert.Less(t, lo, 27*time.Second, "delays spread below the schedule")
+		assert.Greater(t, hi, 33*time.Second, "and above it")
+	})
+
+	t.Run("NoJitter", func(t *testing.T) {
+		testBackoff(t, "JitteredBackoff{0}", &backoff.JitteredBackoff{Backoff: schedule}, []testCase{{0, 30 * time.Second}, {1, 2 * time.Minute}})
+	})
+}

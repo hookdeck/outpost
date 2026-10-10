@@ -75,6 +75,29 @@ func (h *redisTenantStoreHarness) MakeDriverWithMaxDest(ctx context.Context, max
 	return s, nil
 }
 
+func (h *redisTenantStoreHarness) MakeDriverWithOptions(ctx context.Context, opts drivertest.DriverOptions) (driver.TenantStore, error) {
+	client := h.factory(h.t)
+	options := []redistenantstore.Option{
+		redistenantstore.WithSecret("test-secret"),
+		redistenantstore.WithAvailableTopics(testutil.TestTopics),
+		redistenantstore.WithDeploymentID(h.deploymentID),
+	}
+	if opts.MaxDest > 0 {
+		options = append(options, redistenantstore.WithMaxDestinationsPerTenant(opts.MaxDest))
+	}
+	if len(opts.TypeLimits) > 0 {
+		options = append(options, redistenantstore.WithTypeLimits(opts.TypeLimits))
+	}
+	if len(opts.IndexedTypes) > 0 {
+		options = append(options, redistenantstore.WithIndexedTypes(opts.IndexedTypes...))
+	}
+	s := redistenantstore.New(client, options...)
+	if err := s.Init(ctx); err != nil {
+		return nil, err
+	}
+	return s, nil
+}
+
 func (h *redisTenantStoreHarness) MakeIsolatedDrivers(ctx context.Context) (driver.TenantStore, driver.TenantStore, error) {
 	client := h.factory(h.t)
 	s1 := redistenantstore.New(client,

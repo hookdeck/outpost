@@ -3,6 +3,7 @@ package redistenantstore
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"sort"
 	"strconv"
 	"time"
@@ -13,22 +14,37 @@ import (
 )
 
 // destinationSummary is a package-private summary used for Redis storage.
+// Every publish reads all of a tenant's summaries, so the filter stays raw
+// until a match needs it.
 type destinationSummary struct {
-	ID       string        `json:"id"`
-	Type     string        `json:"type"`
-	Topics   models.Topics `json:"topics"`
-	Filter   models.Filter `json:"filter,omitempty"`
-	Disabled bool          `json:"disabled"`
+	ID       string          `json:"id"`
+	Type     string          `json:"type"`
+	Topics   models.Topics   `json:"topics"`
+	Filter   json.RawMessage `json:"filter,omitempty"`
+	Disabled bool            `json:"disabled"`
+	// ExpiresAt is the expiry in Unix ms; absent means no expiry.
+	ExpiresAt *int64 `json:"expires_at,omitempty"`
 }
 
-func newDestinationSummary(d models.Destination) *destinationSummary {
-	return &destinationSummary{
+func newDestinationSummary(d *models.Destination) (*destinationSummary, error) {
+	ds := &destinationSummary{
 		ID:       d.ID,
 		Type:     d.Type,
 		Topics:   d.Topics,
-		Filter:   d.Filter,
 		Disabled: d.DisabledAt != nil,
 	}
+	if len(d.Filter) > 0 {
+		filter, err := json.Marshal(d.Filter)
+		if err != nil {
+			return nil, fmt.Errorf("invalid destination filter: %w", err)
+		}
+		ds.Filter = filter
+	}
+	if d.ExpiresAt != nil {
+		ms := d.ExpiresAt.UnixMilli()
+		ds.ExpiresAt = &ms
+	}
+	return ds, nil
 }
 
 func (ds *destinationSummary) MarshalBinary() ([]byte, error) {
@@ -37,6 +53,31 @@ func (ds *destinationSummary) MarshalBinary() ([]byte, error) {
 
 func (ds *destinationSummary) UnmarshalBinary(data []byte) error {
 	return json.Unmarshal(data, ds)
+}
+
+// filter decodes the destination filter.
+func (ds *destinationSummary) filter() (models.Filter, error) {
+	if len(ds.Filter) == 0 {
+		return nil, nil
+	}
+	var filter models.Filter
+	if err := json.Unmarshal(ds.Filter, &filter); err != nil {
+		return nil, err
+	}
+	return filter, nil
+}
+
+// expired reports whether the destination expired at or before nowMs.
+func (ds *destinationSummary) expired(nowMs int64) bool {
+	return ds.ExpiresAt != nil && nowMs >= *ds.ExpiresAt
+}
+
+// indexScore is the destination's index score.
+func (ds *destinationSummary) indexScore() int64 {
+	if ds.ExpiresAt == nil {
+		return driver.NoExpiryScore
+	}
+	return min(*ds.ExpiresAt, driver.NoExpiryScore)
 }
 
 // parseTenantHash parses a Redis hash map into a Tenant struct.
@@ -112,6 +153,15 @@ func parseDestinationHash(cmd *redis.MapStringStringCmd, tenantID string, cipher
 		if err == nil {
 			d.DisabledAt = &disabledAt
 		}
+	}
+
+	if expiresAtStr, exists := hash["expires_at"]; exists {
+		// Fail closed: an unreadable expiry must not mean "never expires".
+		expiresAt, err := parseTimestamp(expiresAtStr)
+		if err != nil {
+			expiresAt = time.UnixMilli(0).UTC()
+		}
+		d.ExpiresAt = &expiresAt
 	}
 
 	if err := d.Topics.UnmarshalBinary([]byte(hash["topics"])); err != nil {
@@ -291,6 +341,7 @@ func parseResp3SearchResult(resultMap map[interface{}]interface{}) ([]models.Ten
 // destinationFilter specifies criteria for filtering destinations (package-private).
 type destinationFilter struct {
 	Type           []string
+	ExcludeTypes   []string
 	Topics         []string
 	AllowWildcards bool
 }
@@ -350,6 +401,9 @@ func parseTenantTopics(destinationSummaryList []destinationSummary) []string {
 
 // matchDestinationFilter checks if a destination summary matches the given filter criteria.
 func matchDestinationFilter(filter *destinationFilter, summary destinationSummary) bool {
+	if slices.Contains(filter.ExcludeTypes, summary.Type) {
+		return false
+	}
 	if len(filter.Type) > 0 {
 		found := false
 		for _, t := range filter.Type {

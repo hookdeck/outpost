@@ -8,6 +8,10 @@ import (
 
 type ErrDestinationValidation struct {
 	Errors []ValidationErrorDetail `json:"errors"`
+	// Cause optionally carries a provider-specific error (e.g. a protocol
+	// error with its own wire shape) for callers that know how to render it.
+	// It never appears in the JSON form or in Error().
+	Cause error `json:"-"`
 }
 
 type ValidationErrorDetail struct {
@@ -19,14 +23,27 @@ func (e *ErrDestinationValidation) Error() string {
 	return fmt.Sprintf("validation failed")
 }
 
+// Unwrap exposes Cause to errors.Is/errors.As.
+func (e *ErrDestinationValidation) Unwrap() error {
+	return e.Cause
+}
+
 func NewErrDestinationValidation(errors []ValidationErrorDetail) error {
 	return &ErrDestinationValidation{Errors: errors}
 }
 
+// ErrDestinationPublishAttempt is a failed delivery attempt. It deliberately has
+// no Unwrap: the registry classifies publisher errors with errors.Is (canceled,
+// deadline exceeded), and unwrapping would let a wrapped sentinel reclassify a
+// failed attempt.
 type ErrDestinationPublishAttempt struct {
 	Err      error
 	Provider string
 	Data     map[string]interface{}
+	// NonRetryable marks a failure that retrying cannot fix (e.g. the receiver
+	// answered 410 Gone or 413, or the payload is over the provider's size
+	// limit). No automatic retry is scheduled for it.
+	NonRetryable bool
 }
 
 var _ error = &ErrDestinationPublishAttempt{}
@@ -37,6 +54,13 @@ func (e *ErrDestinationPublishAttempt) Error() string {
 
 func NewErrDestinationPublishAttempt(err error, provider string, data map[string]interface{}) error {
 	return &ErrDestinationPublishAttempt{Err: err, Provider: provider, Data: data}
+}
+
+// IsNonRetryable reports whether err carries an *ErrDestinationPublishAttempt
+// marked NonRetryable.
+func IsNonRetryable(err error) bool {
+	var pubErr *ErrDestinationPublishAttempt
+	return errors.As(err, &pubErr) && pubErr.NonRetryable
 }
 
 // NewFormatError returns the (*Delivery, error) a publisher should return when
@@ -52,12 +76,12 @@ func NewFormatError(provider, message string, err error) (*Delivery, error) {
 		message = "could not format event for delivery"
 	}
 	return &Delivery{
-			Status:   "failed",
-			Code:     "ERR",
-			Response: map[string]interface{}{"error": message},
-		}, NewErrDestinationPublishAttempt(err, provider, map[string]interface{}{
-			"error": "format_failed",
-		})
+		Status:   "failed",
+		Code:     "ERR",
+		Response: map[string]interface{}{"error": message},
+	}, NewErrDestinationPublishAttempt(err, provider, map[string]interface{}{
+		"error": "format_failed",
+	})
 }
 
 // NewErrPublishCanceled creates an error for when publish is canceled (e.g., service shutdown).

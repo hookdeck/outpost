@@ -70,6 +70,7 @@ type apiTestConfig struct {
 	topics               []string
 	topicsAllowWildcards bool
 	topicCatalog         *topicschema.Catalog
+	mcp                  *apirouter.MCPDeps
 }
 
 func withTenantStore(ts tenantstore.TenantStore) apiTestOption {
@@ -128,6 +129,14 @@ func withTopicCatalog(c *topicschema.Catalog) apiTestOption {
 	}
 }
 
+// withMCP sets the dependencies of the MCP endpoints. Without it they
+// answer 503.
+func withMCP(deps *apirouter.MCPDeps) apiTestOption {
+	return func(cfg *apiTestConfig) {
+		cfg.mcp = deps
+	}
+}
+
 func newAPITest(t *testing.T, opts ...apiTestOption) *apiTest {
 	t.Helper()
 
@@ -182,6 +191,7 @@ func newAPITest(t *testing.T, opts ...apiTestOption) *apiTest {
 			EventHandler:        eh,
 			Telemetry:           &telemetry.NoopTelemetry{},
 			SubscriptionEmitter: subEmitter,
+			MCP:                 cfg.mcp,
 		},
 	)
 

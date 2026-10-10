@@ -66,10 +66,11 @@ func unparseableBody(body []byte) []byte {
 	return []byte(fmt.Sprintf("[REQUEST_BODY_UNPARSEABLE: %d bytes]", len(body)))
 }
 
-// sanitizeRequest redacts credentials and sensitive config fields in a request
-// payload. credentials, type and config are matched case-insensitively, as
-// encoding/json does when the handlers decode the same body. Keys inside
-// config are matched the same way, which is broader than the decoder.
+// sanitizeRequest redacts credentials, sensitive config fields and MCP
+// secrets in a request payload. credentials, type, config and params are
+// matched case-insensitively, as encoding/json does when the handlers decode
+// the same body. Keys inside config and params are matched the same way,
+// which is broader than the decoders.
 func (s *RequestBodySanitizer) sanitizeRequest(data map[string]interface{}) map[string]interface{} {
 	sanitized := make(map[string]interface{}, len(data))
 	var configFields []metadata.FieldSchema
@@ -78,6 +79,10 @@ func (s *RequestBodySanitizer) sanitizeRequest(data map[string]interface{}) map[
 		switch {
 		case strings.EqualFold(k, "credentials"):
 			sanitized[k] = redactCredentials(v)
+		case strings.EqualFold(k, "params"):
+			// MCP subscribe and unsubscribe: params.delivery.secret is the
+			// MCP client's signing secret.
+			sanitized[k] = redactSecrets(v)
 		case strings.EqualFold(k, "type"):
 			sanitized[k] = v
 			if destinationType, ok := v.(string); ok {
@@ -115,6 +120,30 @@ func redactCredentials(value interface{}) interface{} {
 		redacted[k] = SensitiveFieldMask
 	}
 	return redacted
+}
+
+// redactSecrets returns value with every member named secret masked, at any
+// depth.
+func redactSecrets(value interface{}) interface{} {
+	switch v := value.(type) {
+	case map[string]interface{}:
+		redacted := make(map[string]interface{}, len(v))
+		for k, member := range v {
+			if strings.EqualFold(k, "secret") {
+				redacted[k] = SensitiveFieldMask
+				continue
+			}
+			redacted[k] = redactSecrets(member)
+		}
+		return redacted
+	case []interface{}:
+		redacted := make([]interface{}, len(v))
+		for i, item := range v {
+			redacted[i] = redactSecrets(item)
+		}
+		return redacted
+	}
+	return value
 }
 
 // sanitizeFieldsMap sanitizes a map based on field schemas

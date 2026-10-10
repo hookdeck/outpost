@@ -74,7 +74,7 @@ type countingStore struct {
 	matchCalls int
 }
 
-func (s *countingStore) MatchEvent(ctx context.Context, event models.Event, allowWildcards bool) ([]string, error) {
+func (s *countingStore) MatchEvent(ctx context.Context, event models.Event, allowWildcards bool) ([]tenantstore.MatchedDestination, error) {
 	s.matchCalls++
 	return s.TenantStore.MatchEvent(ctx, event, allowWildcards)
 }

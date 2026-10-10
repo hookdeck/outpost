@@ -484,6 +484,53 @@ func testCRUD(t *testing.T, newHarness HarnessMaker) {
 			require.Len(t, response.Data, 1)
 			assert.Equal(t, eventID, response.Data[0].Event.ID)
 		})
+
+		t.Run("ListAttempt by destination type", func(t *testing.T) {
+			// Isolated tenant: one attempt per type, including one written
+			// before attempts recorded their destination type ("").
+			dtTenantID := idgen.String()
+			var entries []*models.LogEntry
+			for i, typ := range []string{"webhook", "mcp", ""} {
+				event := testutil.EventFactory.AnyPointer(
+					testutil.EventFactory.WithID(fmt.Sprintf("dt_evt_%d", i)),
+					testutil.EventFactory.WithTenantID(dtTenantID),
+					testutil.EventFactory.WithTime(baseTime.Add(-time.Duration(40+i)*time.Minute)),
+				)
+				entries = append(entries, &models.LogEntry{Event: event, Attempt: testutil.AttemptFactory.AnyPointer(
+					testutil.AttemptFactory.WithID(fmt.Sprintf("dt_att_%d", i)),
+					testutil.AttemptFactory.WithTenantID(dtTenantID),
+					testutil.AttemptFactory.WithEventID(event.ID),
+					testutil.AttemptFactory.WithDestinationID(idgen.Destination()),
+					testutil.AttemptFactory.WithDestinationType(typ),
+					testutil.AttemptFactory.WithTime(event.Time.Add(time.Second)),
+				)})
+			}
+			require.NoError(t, logStore.InsertMany(ctx, entries))
+			require.NoError(t, h.FlushWrites(ctx))
+
+			list := func(include, exclude []string) []string {
+				t.Helper()
+				response, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
+					TenantIDs:               []string{dtTenantID},
+					DestinationTypes:        include,
+					ExcludeDestinationTypes: exclude,
+					Limit:                   100,
+					TimeFilter:              driver.TimeFilter{GTE: &startTime},
+				})
+				require.NoError(t, err)
+				types := []string{}
+				for _, r := range response.Data {
+					types = append(types, r.Attempt.DestinationType)
+				}
+				return types
+			}
+			assert.Equal(t, []string{"webhook", "mcp", ""}, list(nil, nil))
+			assert.Equal(t, []string{"webhook"}, list([]string{"webhook"}, nil))
+			assert.Equal(t, []string{"webhook", ""}, list(nil, []string{"mcp"}), "an exclusion keeps every other type, unrecorded ones too")
+			assert.Equal(t, []string{"webhook"}, list([]string{"webhook", "mcp"}, []string{"mcp"}))
+			assert.Empty(t, list([]string{"mcp"}, []string{"mcp"}))
+			assert.Equal(t, []string{"mcp"}, list(nil, []string{"webhook", ""}))
+		})
 	})
 
 	t.Run("retrieve", func(t *testing.T) {

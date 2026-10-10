@@ -36,6 +36,7 @@ Available topics:
 | `attempt.success` | Every successful delivery attempt |
 | `attempt.failed` | Every failed delivery attempt, including retries |
 | `tenant.subscription.updated` | Destination created/updated/deleted and tenant topics or destination count changed |
+| `mcp.subscription.expired` | An MCP Events subscription reached its `expires_at` without a refresh and Outpost deleted it |
 
 {% callout type="warning" %}
 The `attempt.success` and `attempt.failed` topics fire once per delivery attempt, so they dominate event volume — including under `*`. A wildcard subscriber receives operator events at the deployment's full delivery throughput. Subscribe to these topics deliberately and size your sink accordingly.
@@ -166,7 +167,7 @@ Emitted when a destination reaches 50%, 70%, 90%, or 100% of `ALERT_CONSECUTIVE_
 
 ### `alert.destination.disabled`
 
-Emitted when a destination is auto-disabled after reaching the 100% threshold (only when `ALERT_AUTO_DISABLE_DESTINATION=true`).
+Emitted when a destination is auto-disabled after reaching the 100% threshold (only when `ALERT_AUTO_DISABLE_DESTINATION=true`). It comes from the attempt that disabled the destination: attempts that were already in flight and fail afterwards report `alert.consecutive_failure` only, and a destination deleted in the meantime is left deleted, with no event.
 
 ```json
 {
@@ -269,9 +270,43 @@ Emitted when destination changes affect tenant-level subscribed topics or destin
 }
 ```
 
+[MCP Events](/docs/outpost/destinations/mcp) subscriptions count toward `topics` and `destinations_count`, so creating, expiring and ending them emit this event too. The background pass that deletes expired subscriptions emits at most one per tenant per pass.
+
+### `mcp.subscription.expired`
+
+Emitted when Outpost deletes an MCP Events subscription that reached its `expires_at` without a refresh. Outpost stops delivering at `expires_at`. The API service deletes the subscription in a background pass once it has been expired for twice `MCP_EXPIRY_SWEEP_INTERVAL`, between 5 and 60 seconds (about 60 seconds by default), or earlier when the client subscribes again with the same key, which then creates a new subscription.
+
+Unsubscribing, revoking and ending a topic don't emit it.
+
+```json
+{
+  "tenant_id": "tenant_123",
+  "subscription_id": "sub_1fa69bec3707ee16223ae5400f92f935",
+  "principal": "user_8f2c",
+  "topic": "order.created",
+  "url": "https://receiver.example.com/mcp-events/abc123",
+  "expires_at": "2026-10-09T18:00:00.123Z"
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `tenant_id` | Tenant the subscription belonged to |
+| `subscription_id` | The subscription ID, which was also its destination ID |
+| `principal` | The principal that subscribed |
+| `topic` | The subscribed event name |
+| `url` | The callback URL |
+| `expires_at` | When the subscription expired |
+
+A client that stops refreshing, for example because its user removed the plugin, shows up here. Use it to clean up anything you keep per subscription.
+
 ## Delivery Guarantees
 
 `alert.*` and `attempt.*` topics are delivered with an at-least-once guarantee. For other topics (e.g. `tenant.subscription.updated`), delivery is on a best-effort basis with up to 3 attempts. Consumers should deduplicate using the event `id`.
+
+`alert.destination.disabled` is the exception among `alert.*` topics: it is sent at most once per auto-disable. If sending it fails, the attempt is processed again and its other events are sent again, but the destination is already disabled by then, so no second `alert.destination.disabled` is sent.
+
+`mcp.subscription.expired` is best effort as well, with up to 3 attempts, and is emitted once per expired subscription. It goes through an in-memory queue of the API service, so it is lost if the process stops before sending it, and dropped if the queue is full during a large wave of expirations.
 
 ## Related Configuration
 

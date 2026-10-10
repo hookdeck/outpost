@@ -276,13 +276,22 @@ func (h *LogHandlers) listAttemptsInternal(c *gin.Context, tenantIDs []string, d
 		destinationIDs = ParseArrayQueryParam(c, "destination_id")
 	}
 
+	// v1 leaves out the attempts of the destination types it hides, and
+	// keeps every other one, including attempts that recorded no type. A
+	// destination's own listing needs no filter: v1 404s hidden ones.
+	var excludeDestinationTypes []string
+	if apiVersionFromContext(c) < apiV2 && destinationID == "" {
+		excludeDestinationTypes = v1HiddenDestinationTypes
+	}
+
 	req := logstore.ListAttemptRequest{
-		TenantIDs:        tenantIDs,
-		EventIDs:         ParseArrayQueryParam(c, "event_id"),
-		DestinationIDs:   destinationIDs,
-		DestinationTypes: ParseArrayQueryParam(c, "destination_type"),
-		Status:           c.Query("status"),
-		Topics:           ParseArrayQueryParam(c, "topic"),
+		TenantIDs:               tenantIDs,
+		EventIDs:                ParseArrayQueryParam(c, "event_id"),
+		DestinationIDs:          destinationIDs,
+		DestinationTypes:        ParseArrayQueryParam(c, "destination_type"),
+		ExcludeDestinationTypes: excludeDestinationTypes,
+		Status:                  c.Query("status"),
+		Topics:                  ParseArrayQueryParam(c, "topic"),
 		TimeFilter: logstore.TimeFilter{
 			GTE: attemptTimeFilter.GTE,
 			LTE: attemptTimeFilter.LTE,
@@ -421,7 +430,8 @@ func (h *LogHandlers) RetrieveAttempt(c *gin.Context) {
 	}
 	// Authz: when accessed via a destination-scoped route, verify the attempt
 	// belongs to the destination in the path.
-	if attemptRecord == nil || (pathDestination != nil && attemptRecord.Attempt.DestinationID != pathDestination.ID) {
+	if attemptRecord == nil || (pathDestination != nil && attemptRecord.Attempt.DestinationID != pathDestination.ID) ||
+		hiddenInRequest(c, attemptRecord.Attempt.DestinationType) {
 		AbortWithError(c, http.StatusNotFound, NewErrNotFound("attempt"))
 		return
 	}

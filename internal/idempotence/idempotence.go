@@ -43,14 +43,32 @@ type IdempotenceImpl struct {
 }
 
 type IdempotenceImplOptions struct {
-	Timeout       time.Duration
+	// Timeout is how long a concurrent duplicate waits for the in-flight
+	// claimant before giving up with ErrConflict. It is also the processing
+	// claim's TTL unless ProcessingTTL is set.
+	Timeout time.Duration
+	// ProcessingTTL is how long a "processing" claim lives before it expires
+	// and another caller may run the work. It must outlast the slowest exec,
+	// or a duplicate can run concurrently. Zero means Timeout.
+	ProcessingTTL time.Duration
 	SuccessfulTTL time.Duration
 	DeploymentID  string
 }
 
+// WithTimeout sets the duplicate wait (and, unless WithProcessingTTL is set,
+// the processing claim TTL).
 func WithTimeout(timeout time.Duration) func(opts *IdempotenceImplOptions) {
 	return func(opts *IdempotenceImplOptions) {
 		opts.Timeout = timeout
+	}
+}
+
+// WithProcessingTTL sets the processing claim TTL separately from the
+// duplicate wait, so a long exec can hold its claim without making every
+// duplicate wait as long.
+func WithProcessingTTL(ttl time.Duration) func(opts *IdempotenceImplOptions) {
+	return func(opts *IdempotenceImplOptions) {
+		opts.ProcessingTTL = ttl
 	}
 }
 
@@ -74,6 +92,9 @@ func New(redisClient redis.Cmdable, opts ...func(opts *IdempotenceImplOptions)) 
 
 	for _, opt := range opts {
 		opt(options)
+	}
+	if options.ProcessingTTL <= 0 {
+		options.ProcessingTTL = options.Timeout
 	}
 
 	return &IdempotenceImpl{
@@ -119,7 +140,15 @@ func (i *IdempotenceImpl) Exec(ctx context.Context, key string, exec func(contex
 			return nil
 		}
 		if processingStatus == StatusProcessing {
-			time.Sleep(i.options.Timeout)
+			// Wait for the in-flight claimant, but not past ctx: a duplicate
+			// must not hold its consumer slot (or shutdown) for the full wait.
+			wait := time.NewTimer(i.options.Timeout)
+			select {
+			case <-wait.C:
+			case <-ctx.Done():
+				wait.Stop()
+				return ctx.Err()
+			}
 			status, err := i.getIdempotencyStatus(ctx, prefixedKey)
 			if err != nil {
 				if err == redis.Nil {
@@ -140,12 +169,11 @@ func (i *IdempotenceImpl) Exec(ctx context.Context, key string, exec func(contex
 	execCtx, span := i.tracer.Start(ctx, "Idempotence.Exec")
 	err = exec(execCtx)
 	if err != nil {
-		// Known edge case: when exec failed because ctx itself was canceled,
-		// this clear fails too and the key lingers as "processing" until the
-		// claim TTL (options.Timeout) expires it — retries in that window get
-		// ErrConflict, then self-heal. Rare and bounded, so not worth the fix
-		// yet; if it bites, clear on context.WithoutCancel(ctx).
-		clearErr := i.clearIdempotency(ctx, prefixedKey)
+		// Clear on a non-canceled ctx: when exec failed because ctx itself was
+		// canceled (shutdown, deadline), clearing on ctx would fail too and
+		// leave the key "processing" for the whole claim TTL, so redeliveries
+		// in that window would get ErrConflict.
+		clearErr := i.clearIdempotency(context.WithoutCancel(ctx), prefixedKey)
 		if clearErr != nil {
 			finalErr := errors.Join(err, clearErr)
 			span.RecordError(finalErr)
@@ -186,7 +214,7 @@ func (i *IdempotenceImpl) MarkProcessed(ctx context.Context, key string) error {
 }
 
 func (i *IdempotenceImpl) checkIdempotency(ctx context.Context, idempotencyKey string) (bool, error) {
-	idempotentValue, err := i.redisClient.SetNX(ctx, idempotencyKey, StatusProcessing, i.options.Timeout).Result()
+	idempotentValue, err := i.redisClient.SetNX(ctx, idempotencyKey, StatusProcessing, i.options.ProcessingTTL).Result()
 	if err != nil {
 		return false, err
 	}

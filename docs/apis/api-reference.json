@@ -26,6 +26,12 @@
     ]
   },
   {
+    "label": "MCP Events",
+    "sections": [
+      { "type": "tag", "tag": "MCP", "label": "MCP Events", "schema": "MCPSubscription" }
+    ]
+  },
+  {
     "label": "Inspect",
     "sections": [
       { "type": "tag", "tag": "Events", "schema": "Event" },

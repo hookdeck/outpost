@@ -58,6 +58,9 @@ type RouterDeps struct {
 	EventHandler        eventHandler
 	Telemetry           telemetry.Telemetry
 	SubscriptionEmitter SubscriptionEmitter // optional — emits tenant.subscription.updated on destination mutations
+	// MCP holds the dependencies of the MCP Events endpoints. Optional: when
+	// nil, those endpoints are still routed in API v2 and answer 503.
+	MCP *MCPDeps
 }
 
 func (d RouterDeps) validate() error {
@@ -159,7 +162,18 @@ func NewRouter(cfg RouterConfig, deps RouterDeps) http.Handler {
 	displayer := newDestinationDisplayer(cfg.Registry, cfg.TopicsAllowWildcards)
 
 	tenantHandlers := NewTenantHandlers(deps.Logger, deps.Telemetry, cfg.JWTSecret, cfg.DeploymentID, deps.TenantStore, cfg.TopicsAllowWildcards)
+	mcpHandlers := NewMCPHandlers(deps.Logger, deps.Telemetry, deps.TenantStore, cfg.Registry, catalog, deps.MCP)
+	var mcpServerURL string
+	if deps.MCP != nil {
+		mcpServerURL = deps.MCP.Config.ServerURL
+	}
+	destinationTypes, err := newDestinationTypes(cfg.Registry, catalog, mcpServerURL)
+	if err != nil {
+		panic(fmt.Errorf("apirouter: %w", err))
+	}
 	destinationHandlers := NewDestinationHandlers(deps.Logger, deps.Telemetry, deps.TenantStore, deps.SubscriptionEmitter, cfg.Topics, cfg.TopicsAllowWildcards, cfg.Registry, displayer)
+	destinationHandlers.types = destinationTypes
+	destinationHandlers.mcp = mcpHandlers
 	publishHandlers := NewPublishHandlers(deps.Logger, deps.EventHandler)
 	logHandlers := NewLogHandlers(deps.Logger, deps.LogStore, deps.TenantStore, displayer)
 	retryHandlers := NewRetryHandlers(deps.Logger, deps.TenantStore, deps.LogStore, deps.DeliveryPublisher, cfg.TopicsAllowWildcards)
@@ -168,6 +182,7 @@ func NewRouter(cfg RouterConfig, deps RouterDeps) http.Handler {
 		panic(fmt.Errorf("apirouter: %w", err))
 	}
 	metricsHandlers := NewMetricsHandlers(deps.Logger, deps.LogStore)
+	mcpMiddlewares := []gin.HandlerFunc{mcpHandlers.RequireConfigured}
 
 	routes := []RouteDefinition{
 		// Schemas & Topics
@@ -209,6 +224,17 @@ func NewRouter(cfg RouterConfig, deps RouterDeps) http.Handler {
 		// Metrics
 		{Method: http.MethodGet, Path: "/metrics/events", Handler: metricsHandlers.MetricsEvents},
 		{Method: http.MethodGet, Path: "/metrics/attempts", Handler: metricsHandlers.MetricsAttempts},
+
+		// MCP Events. The first three serve an operator's MCP server, which
+		// passes its principal: admin only. Subscribe resolves the tenant
+		// itself, to answer a missing one with an mcp_error, and unsubscribe
+		// and the event list don't need it.
+		{Method: http.MethodGet, Path: "/tenants/:tenant_id/mcp/events", Handler: mcpHandlers.ListEvents, AdminOnly: true, Middlewares: mcpMiddlewares, MinVersion: apiV2},
+		{Method: http.MethodPut, Path: "/tenants/:tenant_id/mcp/subscriptions", Handler: mcpHandlers.Subscribe, AdminOnly: true, Middlewares: mcpMiddlewares, MinVersion: apiV2},
+		{Method: http.MethodPost, Path: "/tenants/:tenant_id/mcp/subscriptions/unsubscribe", Handler: mcpHandlers.Unsubscribe, AdminOnly: true, Middlewares: mcpMiddlewares, MinVersion: apiV2},
+		{Method: http.MethodGet, Path: "/tenants/:tenant_id/mcp/subscriptions", Handler: mcpHandlers.ListSubscriptions, RequireTenant: true, Middlewares: mcpMiddlewares, MinVersion: apiV2},
+		{Method: http.MethodDelete, Path: "/tenants/:tenant_id/mcp/subscriptions/:subscription_id", Handler: mcpHandlers.DeleteSubscription, RequireTenant: true, Middlewares: mcpMiddlewares, MinVersion: apiV2},
+		{Method: http.MethodDelete, Path: "/tenants/:tenant_id/mcp/subscriptions", Handler: mcpHandlers.DeleteSubscriptions, AdminOnly: true, RequireTenant: true, Middlewares: mcpMiddlewares, MinVersion: apiV2},
 	}
 
 	for _, v := range apiVersions {

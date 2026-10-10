@@ -1,0 +1,420 @@
+---
+title: "Add MCP Events to Your MCP Server"
+description: "Add MCP Events to your MCP server with Outpost: enable a topic, forward three methods, and test with ChatGPT."
+---
+
+MCP Events is a draft MCP extension, [SEP-3415](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/3415), that lets an AI agent subscribe to events your MCP server exposes, such as a new order or a failed build, and act on them without a user in the loop. ChatGPT is the first client that supports it, with webhook delivery only, as described in OpenAI's [MCP Events implementer guide](https://developers.openai.com/plugins/build/mcp-events).
+
+With Outpost, your MCP server forwards three MCP methods, `events/list`, `events/subscribe` and `events/unsubscribe`, to Outpost and keeps no subscription state. Outpost validates subscriptions, checks and verifies callback URLs, grants and enforces TTLs, and delivers each event as a signed MCP Events webhook, with retries, logs and alerts. You keep publishing events as you do today.
+
+{% callout %}
+MCP Events needs self-hosted Outpost and [API v2](/docs/outpost/self-hosting/changelog/upgrade-api-v2). Managed Outpost doesn't serve API v2 yet.
+{% /callout %}
+
+## How it works
+
+| Concern | Your MCP server | Outpost |
+|---------|-----------------|---------|
+| MCP transport, `server/discover` and the `events` capability | Yes | No |
+| Authenticating the request and resolving the principal | Yes | No |
+| Choosing the tenant, and which events a principal may use | Yes | No |
+| Event catalog | Forwards the result | Builds it from topic schemas |
+| Validation, URL checks, callback verification, subscription IDs, TTLs, storage | Forwards `params` | Yes |
+| Signing, delivery, retries, logs | No | Yes |
+| Publishing events | Calls `publish` as today | Yes |
+
+A subscription goes through these steps:
+
+1. The agent's client calls `events/subscribe` on your MCP server, with the event name, arguments such as `{"total": {"$gte": 100}}`, a callback URL and a signing secret.
+2. Your MCP server authenticates the request, resolves the principal and its tenant, and forwards the request to `PUT /tenants/{tenant_id}/mcp/subscriptions`.
+3. Outpost validates the request, checks the callback URL, and POSTs a signed challenge to it, which the client's receiver echoes.
+4. Outpost creates an `mcp` destination for the subscription and returns the `events/subscribe` result, which your MCP server returns to the client.
+5. When an order is placed, you publish one `order.created` event to the store's tenant.
+6. Outpost matches it against every subscription in the tenant, and POSTs the MCP event envelope to each matching callback URL, signed and retried.
+7. Before its TTL runs out, the client subscribes again. The same call refreshes the subscription, and re-enables it if failures had disabled it.
+
+## Prerequisites
+
+- **Self-hosted Outpost with MCP support on every service.** Upgrade the API, delivery and log services first, and turn on MCP topics in a later deploy. See [Two-phase rollout](/docs/outpost/self-hosting/changelog/upgrade-api-v2#two-phase-rollout-for-mcp-events).
+- **Outbound HTTPS from the API and delivery services.** The API service sends verification challenges, and the delivery service sends events, to callback URLs on the internet, such as ChatGPT's `https://connectors.api.openai.com/...`.
+- **An MCP server on the 2026-07-28 protocol revision,** which ChatGPT requires. In TypeScript, that's the v2 SDK, `@modelcontextprotocol/server`.
+- **Authentication on your MCP server,** such as OAuth, so each user is a distinct principal and you can revoke access. See OpenAI's [authentication guide](https://developers.openai.com/plugins/build/auth).
+
+## Step 1: Enable a topic for MCP
+
+A topic appears in `events/list` once its [topic schema](/docs/outpost/features/topics#topic-schemas) has `mcp.enabled` set. The schema's `payload_schema` describes the event `data`, and its top-level properties become the subscription arguments:
+
+```yaml
+# topics-schemas.yaml
+order.created:
+  description: Fires when a new order is placed.
+  mcp:
+    enabled: true
+  payload_schema:
+    type: object
+    properties:
+      order_id: { type: string, x-mcp-filter: false }
+      total: { type: number, description: Order total in major units. }
+      currency: { type: string, description: ISO 4217 currency code. }
+      created_at: { type: string, format: date-time, x-mcp-filter: false }
+    required: [order_id, total, currency]
+```
+
+```
+TOPICS=order.created,order.shipped
+TOPICS_SCHEMAS_FILE=/config/outpost/topics-schemas.yaml
+MCP_SERVER_URL=https://mcp.acme.com/mcp
+```
+
+`x-mcp-filter: false` hides a property from the arguments, as for IDs and timestamps that make poor filters. `MCP_SERVER_URL` is your MCP server's public URL, shown in the [tenant portal](/docs/outpost/features/tenant-user-portal#mcp-subscriptions) as setup instructions.
+
+Restart the API service, then check the event list. The tenant in the path doesn't need to exist:
+
+```sh
+curl 'http://localhost:3333/api/v2/tenants/store_42/mcp/events' \
+--header 'Authorization: Bearer <API_KEY>'
+```
+
+```json
+{
+  "events": [
+    {
+      "name": "order.created",
+      "description": "Fires when a new order is placed.",
+      "delivery": ["webhook"],
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "total": {
+            "description": "Order total in major units.",
+            "anyOf": [
+              { "type": "number" },
+              { "type": "array", "items": { "type": "number" }, "minItems": 1, "maxItems": 100 },
+              {
+                "type": "object",
+                "properties": {
+                  "$gt": { "type": "number" }, "$gte": { "type": "number" },
+                  "$lt": { "type": "number" }, "$lte": { "type": "number" }
+                },
+                "additionalProperties": false,
+                "minProperties": 1
+              }
+            ]
+          },
+          "currency": {
+            "description": "ISO 4217 currency code.",
+            "anyOf": [
+              { "type": "string", "maxLength": 256 },
+              { "type": "array", "items": { "type": "string", "maxLength": 256 }, "minItems": 1, "maxItems": 100 }
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "payloadSchema": {
+        "type": "object",
+        "properties": {
+          "order_id": { "type": "string" },
+          "total": { "type": "number", "description": "Order total in major units." },
+          "currency": { "type": "string", "description": "ISO 4217 currency code." },
+          "created_at": { "type": "string", "format": "date-time" }
+        },
+        "required": ["order_id", "total", "currency"]
+      }
+    }
+  ]
+}
+```
+
+On subscribe, Outpost turns the arguments into the subscription's [destination filter](/docs/outpost/features/filter): `{"total": {"$gte": 100}, "currency": ["USD", "CAD"]}` becomes `{"data": {"total": {"$gte": 100}, "currency": {"$in": ["USD", "CAD"]}}}`. See [MCP subscription arguments](/docs/outpost/features/topics#mcp-subscription-arguments) for the full rules.
+
+Once subscriptions exist, schema changes to the topic must be additive, or startup fails. Plan breaking changes as described in [Schema evolution and deprecation](/docs/outpost/features/topics#schema-evolution-and-deprecation).
+
+## Step 2: Map principals to tenants
+
+Every MCP call carries two identifiers:
+
+- **The tenant** is the account the events belong to, your customer, as for any Outpost destination. You publish an order once, to its store's tenant, and Outpost fans it out to every matching subscription in that tenant.
+- **The principal** is the authenticated subject of the MCP request, such as the OAuth `sub`. It's part of the subscription key, and it decides who can unsubscribe and whose access you revoke. It must identify one user within the tenant.
+
+Subscriptions belong to an existing tenant: subscribe fails with `not_found` (`{"kind": "tenant"}`) until you create it with `PUT /tenants/{tenant_id}`, for example when the account is created. If your data really is per user, use one tenant per user.
+
+## Step 3: Forward the MCP methods
+
+### With the TypeScript SDK
+
+The Outpost TypeScript SDK ships the three handlers. `registerMcpEvents` declares the `events` capability on your MCP server and registers `events/list`, `events/subscribe` and `events/unsubscribe`. Each handler resolves the principal and tenant, calls Outpost, returns the result unchanged, and rethrows Outpost's `mcp_error` as the JSON-RPC error the client expects.
+
+```typescript
+import { McpServer } from "@modelcontextprotocol/server";
+import { Outpost } from "@hookdeck/outpost-sdk";
+import { registerMcpEvents } from "@hookdeck/outpost-sdk/mcp-events/index.js";
+
+// API v1, where the generated SDK methods work. The MCP Events helpers
+// rewrite it to /api/v2 for their own calls.
+const outpost = new Outpost({
+  apiKey: process.env.OUTPOST_API_KEY,
+  serverURL: "https://outpost.acme.internal/api/v1",
+});
+
+export function buildMcpServer() {
+  const server = new McpServer({ name: "acme-store", version: "1.0.0" });
+  // ...your tools
+
+  // Call before the server connects: capabilities can't change afterward.
+  registerMcpEvents(outpost, server, {
+    // The authenticated subject of the request, from your auth layer.
+    resolvePrincipal: (ctx) => ctx.http?.authInfo?.extra?.["sub"] as string | undefined,
+    // The tenant the principal's events are published to.
+    resolveTenant: (principal) => accounts.tenantFor(principal),
+    // Optional: the events this principal may list and subscribe to.
+    allowedTopics: (principal) => accounts.topicsFor(principal),
+  });
+  return server;
+}
+```
+
+The handlers enforce what the server-side calls can't:
+
+- A request without a principal fails with `Forbidden`, before Outpost is called.
+- With `allowedTopics`, `events/list` only lists those events, and `events/subscribe` fails with `NotFound` for any other event, as if it didn't exist. An empty list returns no events without calling Outpost. `events/unsubscribe` is never filtered, so a client can always clean up.
+
+The Python and Go SDKs ship the same handlers, in `outpost_sdk.mcp_events` and the `mcpevents` package. See their READMEs for the wiring of each language's MCP SDK.
+
+Subscribe waits for the callback verification, which can take up to 10 seconds, and the whole call up to 20 seconds. Keep your HTTP client's timeout, and any proxy's, above 20 seconds.
+
+### Without the SDK
+
+Each handler is one HTTP call to Outpost. Forward the request `params` as they are, and return Outpost's response body as the result. On `422`, rethrow `mcp_error`:
+
+```typescript
+import { ProtocolError } from "@modelcontextprotocol/server";
+
+const OUTPOST = "https://outpost.acme.internal/api/v2";
+
+async function outpostMcp(method: string, path: string, body?: unknown) {
+  const res = await fetch(`${OUTPOST}${path}`, {
+    method,
+    headers: {
+      Authorization: `Bearer ${process.env.OUTPOST_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: body === undefined ? undefined : JSON.stringify(body),
+    signal: AbortSignal.timeout(25_000),
+  });
+  const json = await res.json();
+  if (res.status === 422 && json.mcp_error) {
+    const { code, message, data } = json.mcp_error;
+    throw new ProtocolError(code, message, data);
+  }
+  if (!res.ok) throw new Error(`Outpost returned ${res.status}`);
+  return json;
+}
+
+// events/list: pass the principal's allowed topics as a comma-separated list.
+const list = (tenant: string, params: { cursor?: string }, topics: string[]) => {
+  const query = new URLSearchParams({ topics: topics.join(",") });
+  if (params?.cursor) query.set("cursor", params.cursor);
+  return outpostMcp("GET", `/tenants/${encodeURIComponent(tenant)}/mcp/events?${query}`);
+};
+
+// events/subscribe and events/unsubscribe: forward params unchanged.
+const subscribe = (tenant: string, principal: string, params: unknown, allowedTopics: string[]) =>
+  outpostMcp("PUT", `/tenants/${encodeURIComponent(tenant)}/mcp/subscriptions`, {
+    principal,
+    params,
+    allowed_topics: allowedTopics,
+  });
+
+const unsubscribe = (tenant: string, principal: string, params: unknown) =>
+  outpostMcp("POST", `/tenants/${encodeURIComponent(tenant)}/mcp/subscriptions/unsubscribe`, {
+    principal,
+    params,
+  });
+```
+
+Register the three methods on the low-level server, declare the `events` capability (`capabilities: { events: {} }`) before connecting, and reject calls without an authenticated principal with `Forbidden` (`-32012`, or `-32024` with `MCP_ERROR_CODES=sep-3415`). `allowed_topics` makes Outpost reject events outside the list. A present but empty `topics` lists no events, while an omitted one lists them all.
+
+Two optional subscribe fields cover cases inference can't:
+
+- `filter` replaces the filter generated from the arguments. Send it on every subscribe call, since a refresh without it goes back to the generated filter.
+- `metadata` is stored on the subscription's destination, for example to record which plugin subscribed.
+
+The [API reference](/docs/outpost/api) documents every request and error.
+
+## Step 4: Publish events
+
+Publishing doesn't change. Publish each event once, to the tenant it belongs to, with the payload as `data`:
+
+```sh
+curl 'http://localhost:3333/api/v2/publish' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer <API_KEY>' \
+--data '{
+  "id": "evt_ord_42",
+  "tenant_id": "store_42",
+  "topic": "order.created",
+  "data": { "order_id": "ord_42", "total": 180, "currency": "USD", "created_at": "2026-10-09T16:58:12Z" }
+}'
+```
+
+Each matching subscription receives the MCP envelope, `{"eventId": "evt_ord_42", "name": "order.created", "timestamp": "...", "data": {...}, "cursor": null}`, as described in [MCP destination](/docs/outpost/destinations/mcp#event-format). The event `id` is the `eventId` and `webhook-id` that clients deduplicate on, so use your own stable IDs, such as the order ID.
+
+MCP subscriptions only match events published with their exact topic. An event published with the wildcard topic `*`, or without a topic, never reaches them.
+
+## Step 5: Revoke access
+
+OpenAI asks MCP servers to stop delivering when a user's access is revoked. Your MCP server owns that check, and acts on it with these endpoints:
+
+```sh
+# End every subscription of a principal, for example when the user disconnects.
+curl --request DELETE \
+'http://localhost:3333/api/v2/tenants/store_42/mcp/subscriptions?principal=user_8f2c' \
+--header 'Authorization: Bearer <API_KEY>'
+
+# End one subscription.
+curl --request DELETE \
+'http://localhost:3333/api/v2/tenants/store_42/mcp/subscriptions/sub_1fa69bec3707ee16223ae5400f92f935' \
+--header 'Authorization: Bearer <API_KEY>'
+```
+
+Revoking by principal also stops subscribe calls already in flight for that principal from creating a subscription afterward. Later calls aren't blocked: deny them in your MCP server, since the client will try to subscribe again on its next refresh. Each revoked subscription gets a `terminated` envelope, which ChatGPT doesn't process yet.
+
+To see who receives a tenant's events, list its subscriptions with `GET /tenants/{tenant_id}/mcp/subscriptions`, optionally narrowed with `?principal=` or `?topic=`.
+
+## Step 6: Test with ChatGPT
+
+ChatGPT connects to your MCP server from OpenAI's cloud, so the server needs a public `https` URL. Outpost only needs to reach ChatGPT, not the other way around. The labels below are ChatGPT's as of October 2026.
+
+1. Make your MCP server reachable, for example with a quick tunnel: `cloudflared tunnel --url http://localhost:3000`.
+2. In ChatGPT, turn on **Developer mode** (Plus or above). It's under **Settings > Security and login**, or **Settings > Plugins**.
+3. Go to [Plugins](https://chatgpt.com/plugins), choose **Add > Add custom MCP server**, paste your `/mcp` URL, pick your authentication, and select **Create as a plugin**.
+4. Start a **Work** chat (MCP Events don't run in plain chats), type `@`, pick the plugin, and ask it to subscribe: "Subscribe to new orders of 100 USD or more. When one arrives, summarize it in one sentence."
+5. Check the subscription in Outpost: `GET /api/v2/tenants/store_42/mcp/subscriptions`. ChatGPT sends no `ttlMs`, so it gets `MCP_TTL_DEFAULT` (1 hour) and refreshes shortly before it runs out.
+6. Publish an order of 150 USD and one of 20 USD. The first is delivered, and its attempt shows in `GET /api/v2/attempts?tenant_id=store_42`. The second matches no subscription and isn't sent. ChatGPT runs the task for the first order, under **Scheduled**.
+7. Delete the task in **Scheduled**. ChatGPT sends `events/unsubscribe`, and the subscription disappears from the list.
+
+### ChatGPT checklist
+
+OpenAI's implementer guide includes a checklist for testing an MCP server with ChatGPT. This is how each check is met:
+
+| Check | With Outpost |
+|-------|--------------|
+| `server/discover` advertises events | The SDK handlers declare `events: {}`. |
+| `events/list` returns only events the account may discover | `GET .../mcp/events` with `topics` from your authorization. |
+| Subscribing from a Work chat | `PUT .../mcp/subscriptions` validates the arguments against the event's `inputSchema`, derives the subscription ID and grants a TTL. |
+| Callback verification | Outpost sends the signed `verification` challenge before creating the subscription, and caches a pass for `MCP_VERIFICATION_TTL`. |
+| A matching event is delivered and gets a `2xx` | One publish. Outpost matches the subscription's filter and delivers the signed envelope. |
+| A non-matching event isn't delivered | The filter generated from the arguments excludes it. No attempt is made. |
+| Stop monitoring | `POST .../mcp/subscriptions/unsubscribe` deletes the subscription and returns `{}`, even when nothing matched. |
+| Refresh before `refreshBefore` | The same `PUT` extends the TTL without a new challenge. |
+| Subscriptions survive a server restart | Subscriptions and verification are stored in Outpost's Redis, not in your MCP server. |
+| Secret rotation on refresh | Outpost signs with both secrets for `MCP_SECRET_ROTATION_GRACE`. |
+| Duplicate deliveries | `webhook-id` and `eventId` are the event ID, unchanged across retries and manual retries. |
+| Delivery failures | 4 attempts over about 12.5 minutes (`MCP_RETRY_SCHEDULE`, with jitter), with `410` and `413` never retried. A refresh reports `deliveryStatus` and re-enables an auto-disabled subscription. |
+| The plugin is removed | ChatGPT stops refreshing without unsubscribing. Outpost stops delivering at `expires_at`, deletes the subscription and emits `mcp.subscription.expired`. |
+| Access is revoked | Your MCP server calls the revoke endpoints and denies later subscribe calls. |
+
+### Testing without ChatGPT
+
+To test against a receiver on your machine, allowlist loopback, which also allows `http` for loopback callbacks:
+
+```
+MCP_CALLBACK_ALLOWLIST=localhost
+```
+
+The receiver must answer the verification challenge. This one, in Node.js with the [`standardwebhooks`](https://www.npmjs.com/package/standardwebhooks) package, echoes it and prints events:
+
+```javascript
+import http from "node:http";
+import { randomBytes } from "node:crypto";
+import { Webhook } from "standardwebhooks";
+
+// whsec_ followed by the base64 of 24 to 64 random bytes.
+const secret = "whsec_" + randomBytes(32).toString("base64");
+const wh = new Webhook(secret.slice("whsec_".length));
+console.log("secret:", secret);
+
+http.createServer(async (req, res) => {
+  let body = "";
+  for await (const chunk of req) body += chunk;
+  let msg;
+  try {
+    msg = wh.verify(body, req.headers);
+  } catch {
+    return res.writeHead(401).end();
+  }
+  if (msg.type === "verification") {
+    res.writeHead(200, { "Content-Type": "application/json" });
+    return res.end(JSON.stringify({ challenge: msg.challenge }));
+  }
+  console.log(req.headers["x-mcp-subscription-id"], msg);
+  res.writeHead(200).end();
+}).listen(4000);
+```
+
+Then subscribe with that secret, as your MCP server would:
+
+```sh
+curl --request PUT 'http://localhost:3333/api/v2/tenants/store_42/mcp/subscriptions' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer <API_KEY>' \
+--data '{
+  "principal": "user_8f2c",
+  "params": {
+    "name": "order.created",
+    "arguments": { "total": { "$gte": 100 } },
+    "delivery": { "mode": "webhook", "url": "http://localhost:4000/hooks", "secret": "<SECRET>" },
+    "ttlMs": 600000
+  }
+}'
+```
+
+```json
+{ "id": "sub_...", "refreshBefore": "2026-10-09T17:10:00Z", "cursor": null, "truncated": false }
+```
+
+A shorter `MCP_TTL_MIN` and `MCP_RETRY_SCHEDULE` make expiry and retries quicker to observe. Remove the allowlist entry in production.
+
+## Operating MCP Events
+
+- **Limits.** Each tenant can hold `MAX_MCP_SUBSCRIPTIONS_PER_TENANT` subscriptions (100 by default), and each principal `MAX_MCP_SUBSCRIPTIONS_PER_PRINCIPAL` within a tenant (20 by default), separate from `MAX_DESTINATIONS_PER_TENANT`. Every publish to a tenant is matched against all its destinations, so keep the limits as low as your product allows.
+- **Delivery capacity.** Callback URLs are chosen by agents, and each MCP attempt can take up to 10 seconds. Run the delivery service with `DELIVERY_MAX_CONCURRENCY` of at least 8, and see [MCP destination](/docs/outpost/destinations/mcp#delivery-rules) for the per-host limits.
+- **Observability.** Deliveries to MCP subscriptions are attempts like any other, in the attempts API, metrics, the tenant portal and the `attempt.*` operator events. Events don't list MCP subscriptions in `matched_destination_ids`: look up deliveries by attempt. The [`mcp.subscription.expired`](/docs/outpost/features/operator-events) operator event reports expirations.
+- **Expiry.** Outpost stops delivering at `expires_at`, and the API service deletes expired subscriptions every `MCP_EXPIRY_SWEEP_INTERVAL` (30 seconds), once they have been expired for twice that interval, between 5 and 60 seconds (60 seconds by default). See [Architecture](/docs/outpost/self-hosting/architecture#mcp-subscriptions-worker).
+- **Schema changes.** Breaking changes to a topic with live subscriptions fail startup unless `TOPICS_ALLOW_BREAKING_CHANGES` is set, which ends those subscriptions. See [Schema evolution and deprecation](/docs/outpost/features/topics#schema-evolution-and-deprecation).
+
+## Migrating from webhook destinations
+
+If you followed the earlier approach of one webhook destination per subscription, created by your own MCP server, move to the MCP endpoints like this:
+
+1. **Upgrade Outpost**, in two phases, and enable your topics for MCP as in [Step 1](#step-1-enable-a-topic-for-mcp).
+2. **Delete the webhook destinations your MCP server created.** The MCP endpoints derive the same subscription IDs, so an existing webhook destination with the same ID in the same tenant makes subscribe fail with `invalid_params` (`{"field": "id", "reason": "conflict"}`).
+3. **Replace your handlers** with the ones in [Step 3](#step-3-forward-the-mcp-methods), and remove your verification, sweeper and subscription store.
+4. **Publish the payload, not the envelope.** Outpost wraps each event in the MCP envelope at delivery, and filters match `data.*` instead of `data.data.*`. If you used one tenant per principal, you can now publish once to the account's tenant.
+5. **Remove project-wide workarounds** such as `DESTINATIONS_WEBHOOK_MODE=standard` or a shortened `RETRY_SCHEDULE` if nothing else needs them. The `mcp` type always uses Standard Webhooks and its own retry schedule.
+
+Clients keep working: their next refresh creates the subscription in Outpost under the same ID, after a new verification challenge.
+
+## Troubleshooting
+
+Subscribe and list errors reach the client as JSON-RPC errors. The `kind` of Outpost's `mcp_error` tells you why:
+
+| Error | Cause |
+|-------|-------|
+| `invalid_params`, `field: "delivery.url"`, `reason: "address_not_allowed"` | The callback host doesn't resolve, or resolves to an address that isn't globally routable or allowlisted. For a local receiver, set `MCP_CALLBACK_ALLOWLIST`. |
+| `invalid_params`, `reason: "https_required"` | An `http` callback URL that isn't loopback and allowlisted. |
+| `invalid_params`, `field: "arguments"` | The arguments don't match the event's `inputSchema`. `errors` lists each problem. |
+| `invalid_params`, `field: "id"`, `reason: "conflict"` | Another destination in the tenant has the subscription ID. See [Migrating from webhook destinations](#migrating-from-webhook-destinations). |
+| `not_found`, `kind: "event"` | The event isn't an MCP-enabled topic, or isn't in `allowed_topics`. |
+| `not_found`, `kind: "tenant"` | Create the tenant first. |
+| `callback_endpoint_error` | The challenge failed. `reason` says how: `challenge_failed` for a `2xx` without the challenge, or `http_4xx`, `http_5xx`, `timeout`, `tls_error` or `connection_refused`. |
+| `resource_exhausted`, `limit: "subscriptions"` or `"principal_subscriptions"` | A subscription limit is reached. |
+| `resource_exhausted`, `limit: "verification_rate"` | The principal sent more than `MCP_VERIFICATION_RATE_LIMIT` challenges in a minute (`max` is that limit), or the tenant's challenges to this callback host failed `MCP_VERIFICATION_FAILURE_LIMIT` times in a minute. Retry after `retryAfterMs`. |
+| `resource_exhausted`, `limit: "callback_host_busy"` | The callback host can't take a challenge right now, whichever tenant asks: this Outpost instance already has `MCP_MAX_INFLIGHT_PER_HOST` requests in flight to it, or the host left 10 × `MCP_VERIFICATION_FAILURE_LIMIT` challenges unanswered (timeout, connection refused, TLS failure) this minute. Retry after `retryAfterMs`. |
+| `unsupported`, `feature: "deliveryMode"` | The client asked for a delivery mode other than `webhook`. |
+| `unsupported`, `feature: "payloadSchema"`, `reason: "schema_changed"` | A refresh of a subscription created against a payload schema that a breaking change replaced. Outpost deleted it; the client re-reads `events/list` and subscribes again. |
+
+Subscribe answers `503`, not an `mcp_error`, when Outpost couldn't verify the callback on its side, such as while its Redis is unavailable, or when the call ran out of time. The handlers turn it, like any other status but `422`, into a JSON-RPC internal error, so the client retries. Outpost logs these as server errors.
+
+If subscribed clients receive nothing, list the tenant's attempts. An attempt with code `address_not_allowed` means the callback host now resolves to an address that isn't allowed. A missing attempt means the event didn't match: check the tenant, the topic, and the subscription's `filter`.

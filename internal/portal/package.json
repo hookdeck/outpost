@@ -6,6 +6,7 @@
     "build": "vite build && touch dist/gitkeep",
     "lint": "eslint src",
     "lint:fix": "eslint src --fix",
+    "test": "node --test \"src/**/*.test.ts\"",
     "format": "prettier --write \"src/**/*.{ts,tsx,css,scss}\""
   },
   "dependencies": {

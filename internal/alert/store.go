@@ -22,6 +22,19 @@ type AlertStore interface {
 	// per attempt ID, so replays never double-count.
 	IncrementConsecutiveFailureCount(ctx context.Context, tenantID, destinationID, attemptID string) (int, error)
 	ResetConsecutiveFailureCount(ctx context.Context, tenantID, destinationID string) error
+	// ResetDestination clears every alert state of a destination: its
+	// consecutive-failure count and its exhausted-retries suppression window.
+	// For an ID that now names a new destination, such as a new generation
+	// of an MCP subscription, which must not inherit the previous one's.
+	ResetDestination(ctx context.Context, tenantID, destinationID string) error
+}
+
+// ExhaustedRetriesKey is the key, without the deployment prefix, of the
+// exhausted-retries alert suppression window of a destination, which logmq
+// opens when it sends alert.destination.exhausted_retries. Its format is
+// stable: changing it resets live windows.
+func ExhaustedRetriesKey(tenantID, destinationID string) string {
+	return "opevents:exhausted:" + tenantID + ":" + destinationID
 }
 
 type redisAlertStore struct {
@@ -63,6 +76,14 @@ func (s *redisAlertStore) IncrementConsecutiveFailureCount(ctx context.Context, 
 
 func (s *redisAlertStore) ResetConsecutiveFailureCount(ctx context.Context, tenantID, destinationID string) error {
 	return s.client.Del(ctx, s.getFailuresKey(tenantID, destinationID)).Err()
+}
+
+func (s *redisAlertStore) ResetDestination(ctx context.Context, tenantID, destinationID string) error {
+	if err := s.ResetConsecutiveFailureCount(ctx, tenantID, destinationID); err != nil {
+		return err
+	}
+	// A key of its own: in cluster mode it isn't in the failure count's slot.
+	return s.client.Del(ctx, s.deploymentPrefix()+ExhaustedRetriesKey(tenantID, destinationID)).Err()
 }
 
 func (s *redisAlertStore) deploymentPrefix() string {

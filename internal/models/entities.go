@@ -37,6 +37,27 @@ type Destination struct {
 	CreatedAt        time.Time        `json:"created_at" redis:"created_at"`
 	UpdatedAt        time.Time        `json:"updated_at" redis:"updated_at"`
 	DisabledAt       *time.Time       `json:"disabled_at" redis:"disabled_at"`
+	// ExpiresAt is when the destination stops receiving events. Nil means it
+	// never expires.
+	ExpiresAt *time.Time `json:"expires_at,omitempty" redis:"-"`
+}
+
+// DestinationTypeMCP is the type of MCP event subscriptions.
+const DestinationTypeMCP = "mcp"
+
+// ExactTopicTypes lists the destination types that only receive events
+// published to one of their own topics, spelled exactly: never a topic-less
+// or "*" publish, and neither "*" nor wildcard patterns in their topics match
+// anything. Read-only.
+var ExactTopicTypes = map[string]struct{}{
+	DestinationTypeMCP: {},
+}
+
+// IsExactTopicType reports whether destinations of type typ match topics
+// exactly (see ExactTopicTypes).
+func IsExactTopicType(typ string) bool {
+	_, ok := ExactTopicTypes[typ]
+	return ok
 }
 
 func (d *Destination) Validate(topics []string, allowWildcards bool) error {
@@ -46,27 +67,43 @@ func (d *Destination) Validate(topics []string, allowWildcards bool) error {
 	return nil
 }
 
+// IsExpired reports whether the destination has an expiry at or before now.
+func (d *Destination) IsExpired(now time.Time) bool {
+	return d.ExpiresAt != nil && !now.Before(*d.ExpiresAt)
+}
+
 // MatchEvent checks if the destination matches the given event.
-// Returns true if the destination is enabled, topic matches, and filter matches.
-// Embedded wildcard topic patterns are ignored when allowWildcards is false.
+// Returns true if the destination is enabled, not expired, topic matches, and
+// filter matches. Embedded wildcard topic patterns are ignored when
+// allowWildcards is false.
 func (d *Destination) MatchEvent(event Event, allowWildcards bool) bool {
-	if d.DisabledAt != nil {
+	if d.DisabledAt != nil || d.IsExpired(time.Now()) {
 		return false
 	}
-	if !d.Topics.MatchTopic(event.Topic, allowWildcards) {
+	if !MatchDestinationTopic(d.Type, d.Topics, event.Topic, allowWildcards) {
 		return false
 	}
 	return MatchFilter(d.Filter, event)
 }
 
-// MatchFilter checks if the given event matches the filter.
-// Returns true if no filter is set (nil or empty) or if the event matches the filter.
-func MatchFilter(filter Filter, event Event) bool {
-	if len(filter) == 0 {
-		return true
+// MatchDestinationTopic reports whether a destination of type typ subscribed
+// to topics receives an event published to eventTopic. Types listed in
+// ExactTopicTypes only match an exact, concrete topic.
+func MatchDestinationTopic(typ string, topics Topics, eventTopic string, allowWildcards bool) bool {
+	if IsExactTopicType(typ) {
+		return topics.MatchExactTopic(eventTopic)
 	}
-	// Build the filter input from the event
-	filterInput := map[string]any{
+	return topics.MatchTopic(eventTopic, allowWildcards)
+}
+
+// FilterInput is the document destination filters are evaluated against. It
+// is built once per event with NewFilterInput and shared by every filter
+// matched against that event; matching never modifies it.
+type FilterInput map[string]any
+
+// NewFilterInput builds the filter input for event, parsing its data once.
+func NewFilterInput(event Event) FilterInput {
+	input := FilterInput{
 		"id":       event.ID,
 		"topic":    event.Topic,
 		"time":     event.Time.Format("2006-01-02T15:04:05Z07:00"),
@@ -75,11 +112,11 @@ func MatchFilter(filter Filter, event Event) bool {
 	}
 	// Convert metadata to map[string]any
 	if event.Metadata != nil {
-		metadata := make(map[string]any)
+		metadata := make(map[string]any, len(event.Metadata))
 		for k, v := range event.Metadata {
 			metadata[k] = v
 		}
-		filterInput["metadata"] = metadata
+		input["metadata"] = metadata
 	}
 	// Parse data from raw JSON.
 	// ParsedData() should never fail here: ingestion validates that Data is a
@@ -87,9 +124,29 @@ func MatchFilter(filter Filter, event Event) bool {
 	// filter runs against no data fields (likely a no-match).
 	parsed, err := event.ParsedData()
 	if err == nil && parsed != nil {
-		filterInput["data"] = parsed
+		input["data"] = parsed
 	}
-	return simplejsonmatch.Match(filterInput, map[string]any(filter))
+	return input
+}
+
+// MatchFilterInput checks if the filter input matches the filter.
+// Returns true if no filter is set (nil or empty) or if the input matches.
+func MatchFilterInput(filter Filter, input FilterInput) bool {
+	if len(filter) == 0 {
+		return true
+	}
+	return simplejsonmatch.Match(map[string]any(input), map[string]any(filter))
+}
+
+// MatchFilter checks if the given event matches the filter.
+// Returns true if no filter is set (nil or empty) or if the event matches the filter.
+// To match several filters against one event, build the input once with
+// NewFilterInput and use MatchFilterInput.
+func MatchFilter(filter Filter, event Event) bool {
+	if len(filter) == 0 {
+		return true
+	}
+	return MatchFilterInput(filter, NewFilterInput(event))
 }
 
 type Event struct {
@@ -178,6 +235,16 @@ func (t *Topics) MatchTopic(eventTopic string, allowWildcards bool) bool {
 		}
 	}
 	return false
+}
+
+// MatchExactTopic reports whether eventTopic is a concrete topic (neither
+// empty nor "*") listed verbatim in this subscription. "*" and wildcard
+// patterns in the subscription match nothing.
+func (t *Topics) MatchExactTopic(eventTopic string) bool {
+	if eventTopic == "" || eventTopic == "*" {
+		return false
+	}
+	return slices.Contains(*t, eventTopic)
 }
 
 // WithoutWildcardPatterns returns the topics with embedded wildcard patterns

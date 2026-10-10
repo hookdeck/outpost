@@ -23,6 +23,11 @@ func ErrorHandlerMiddleware() gin.HandlerFunc {
 		if err == nil {
 			return
 		}
+		// The handler answered already and attached the error for the
+		// request log only (mcp_error bodies).
+		if c.Writer.Written() {
+			return
+		}
 
 		var errorResponse ErrorResponse
 		errorResponse.Parse(err.Err)
@@ -155,6 +160,16 @@ func NewErrInternalServer(err error) ErrorResponse {
 		Err:     pkgerrors.WithStack(err),
 		Code:    http.StatusInternalServerError,
 		Message: "internal server error",
+	}
+}
+
+// NewErrServiceUnavailable is a server error the client can retry: a
+// dependency was unavailable or the request ran out of time.
+func NewErrServiceUnavailable(err error) ErrorResponse {
+	return ErrorResponse{
+		Err:     pkgerrors.WithStack(err),
+		Code:    http.StatusServiceUnavailable,
+		Message: "service unavailable",
 	}
 }
 

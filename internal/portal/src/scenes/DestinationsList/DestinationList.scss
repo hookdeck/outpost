@@ -39,6 +39,18 @@
     }
   }
 
+  &__target {
+    display: flex;
+    gap: var(--spacing-2);
+    min-width: 0;
+
+    > span {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  }
+
   &__topics-tooltip {
     display: flex;
     flex-wrap: wrap;

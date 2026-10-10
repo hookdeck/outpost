@@ -609,6 +609,88 @@ This can be a convenient way to configure timeouts, cookies, proxies, custom hea
 
 <!-- Placeholder for Future Speakeasy SDK Sections -->
 
+# MCP Events
+
+Outpost runs [MCP Events](https://hookdeck.com/docs/outpost/guides/mcp-events) for your MCP server: the server answers `events/list`, `events/subscribe` and `events/unsubscribe` by forwarding them to three Outpost endpoints, and Outpost verifies callbacks, stores subscriptions and delivers events. Package `mcpevents` ships that glue, using only the standard library; package `mcpevents/mcpsdk` plugs it into the [official Go MCP SDK](https://github.com/modelcontextprotocol/go-sdk). The MCP endpoints exist in Outpost API v2 only: use a v2 base URL, such as `http://localhost:3333/api/v2` (a base URL ending in `/api/v1` is rewritten to `/api/v2`).
+
+## Drop-in registration
+
+`mcpsdk.Register` adds the three methods to an `*mcp.Server` and advertises the `events` capability (the design-sketch `events: {}` that ChatGPT reads and the SEP-3415 `extensions` entry). Call it before the server serves any request. The SDK serves the `2026-07-28` revision ChatGPT requires through a stateless `StreamableHTTPHandler`.
+
+`mcpsdk` is a module of its own, so only the applications that use it depend on the Go MCP SDK. Add it next to this SDK:
+
+```bash
+go get github.com/hookdeck/outpost/sdks/outpost-go/mcpevents/mcpsdk
+```
+
+```go
+import (
+	"context"
+	"net/http"
+	"os"
+
+	"github.com/hookdeck/outpost/sdks/outpost-go/mcpevents"
+	"github.com/hookdeck/outpost/sdks/outpost-go/mcpevents/mcpsdk"
+	"github.com/modelcontextprotocol/go-sdk/auth"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
+)
+
+client, err := mcpevents.NewClient(mcpevents.Config{
+	ServerURL: "http://localhost:3333/api/v2",
+	APIKey:    os.Getenv("OUTPOST_API_KEY"),
+})
+if err != nil {
+	return err
+}
+handlers, err := mcpevents.NewHandlers(client, mcpevents.Options{
+	ResolveTenant: func(ctx context.Context, principal string) (string, error) { return tenantFor(ctx, principal) },
+	AllowedTopics: func(ctx context.Context, principal string) ([]string, error) { return topicsFor(ctx, principal) }, // optional
+})
+if err != nil {
+	return err
+}
+
+server := mcp.NewServer(&mcp.Implementation{Name: "store", Version: "1.0.0"}, nil)
+err = mcpsdk.Register(server, handlers, mcpsdk.Options{
+	// The authenticated subject your TokenVerifier set. Never the OAuth client
+	// ID: every user of one MCP client shares it.
+	ResolvePrincipal: func(ctx context.Context, req mcp.Request) (string, error) {
+		if extra := req.GetExtra(); extra != nil && extra.TokenInfo != nil {
+			return extra.TokenInfo.UserID, nil
+		}
+		return "", nil
+	},
+})
+if err != nil {
+	return err
+}
+handler := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return server }, &mcp.StreamableHTTPOptions{Stateless: true})
+http.Handle("/mcp", auth.RequireBearerToken(verifyToken, nil)(handler))
+```
+
+- Requests without a principal, or whose principal has no tenant (`ResolveTenant` returns `""`), are rejected with `Forbidden`.
+- `AllowedTopics` is your authorization of event types. `events/list` only returns these topics; an empty (or nil) list answers `{"events":[]}` without calling Outpost. `events/subscribe` rejects any other name with `NotFound` (`data: {"kind":"event"}`), the same error as an unknown topic, and also sends the list to Outpost, which enforces it too. `events/unsubscribe` is never filtered, so cleanup always works.
+- Outpost's `mcp_error` (HTTP 422) is returned as the JSON-RPC error with its code, message and data. Any other failure (Outpost unreachable, an unexpected status, a resolver error) becomes a generic `Internal error`; set `Options.OnError` to see the details. Return an `*mcpevents.RPCError` from a resolver to answer with your own error.
+- `Options.Codes` (`mcpevents.CodesSketch`, the default, or `mcpevents.CodesSEP3415`) picks the numbers of the errors raised locally (`Forbidden`, `NotFound`). Match Outpost's `MCP_ERROR_CODES`; Outpost fills the code of its own errors.
+
+## Lower-level calls
+
+`(*mcpevents.Handlers).HandleList`, `HandleSubscribe` and `HandleUnsubscribe(ctx, principal, params)` (or `Handle(ctx, method, principal, params)`) work with any JSON-RPC layer: they take the raw params and return the MCP result as a `json.RawMessage`, ready to send verbatim, or an `*mcpevents.RPCError` with `Code`, `Message` and `Data`.
+
+`*mcpevents.Client` calls the endpoints directly and returns Outpost's JSON byte for byte:
+
+```go
+result, err := client.ListEvents(ctx, "store_123", mcpevents.ListEventsQuery{Cursor: cursor, Topics: []string{"order.created"}}) // GET  /tenants/{tenant_id}/mcp/events
+result, err = client.Subscribe(ctx, "store_123", mcpevents.SubscribeRequest{Principal: principal, Params: params})               // PUT  /tenants/{tenant_id}/mcp/subscriptions
+var mcpErr *mcpevents.MCPError
+if errors.As(err, &mcpErr) {
+	// mcpErr.Code, mcpErr.Message and mcpErr.Data are the JSON-RPC error to return.
+}
+result, err = client.Unsubscribe(ctx, "store_123", mcpevents.UnsubscribeRequest{Principal: principal, Params: params})           // POST /tenants/{tenant_id}/mcp/subscriptions/unsubscribe
+```
+
+Generated `Mcp` methods for these and the operator endpoints (listing and revoking subscriptions) arrive with the next SDK regeneration. The generated event list method drops an empty `Topics` slice from the query string, and Outpost then lists every MCP-enabled topic. For a principal allowed no topics, answer `{"events":[]}` yourself, or use the helpers above, which do.
+
 # Development
 
 ## Maturity

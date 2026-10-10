@@ -28,6 +28,7 @@ type RetryDeliveryMQSuite struct {
 	eventGetter          deliverymq.RetryEventGetter
 	logPublisher         deliverymq.LogPublisher
 	destGetter           deliverymq.DestinationGetter
+	handlerOpts          []deliverymq.MessageHandlerOption
 	deliveryMQ           *deliverymq.DeliveryMQ
 	teardown             func()
 }
@@ -71,6 +72,7 @@ func (s *RetryDeliveryMQSuite) SetupTest(t *testing.T) {
 		retryBackoff,
 		s.retryMaxCount,
 		idempotence.New(testutil.CreateTestRedisClient(t), idempotence.WithSuccessfulTTL(24*time.Hour)),
+		s.handlerOpts...,
 	)
 
 	// Setup message consumer
@@ -545,11 +547,16 @@ func TestRetryScheduler_EventFetchSuccess(t *testing.T) {
 	assert.Equal(t, 2, publisher.Current(), "should complete 2 delivery attempts (initial failure + successful retry)")
 
 	// Verify that the retry delivery had full event data by checking log entries
-	require.Len(t, logPublisher.entries, 2, "should have 2 delivery log entries")
+	// (the log entry is published after the attempt, so wait for it).
+	require.Eventually(t, func() bool {
+		return len(logPublisher.snapshot()) >= 2
+	}, 3*time.Second, 10*time.Millisecond, "should have 2 delivery log entries")
+	entries := logPublisher.snapshot()
+	require.Len(t, entries, 2, "should have 2 delivery log entries")
 
 	// Both log entries should have non-zero event Time (full event data)
-	assert.False(t, logPublisher.entries[0].Event.Time.IsZero(), "first delivery should have full event data")
-	assert.False(t, logPublisher.entries[1].Event.Time.IsZero(), "retry delivery should have full event data (fetched from logstore)")
+	assert.False(t, entries[0].Event.Time.IsZero(), "first delivery should have full event data")
+	assert.False(t, entries[1].Event.Time.IsZero(), "retry delivery should have full event data (fetched from logstore)")
 }
 
 // TestRetryScheduler_RaceCondition_EventNotYetPersisted verifies that retries are not

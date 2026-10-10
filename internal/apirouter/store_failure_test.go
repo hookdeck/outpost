@@ -65,11 +65,11 @@ func (s *failingTenantStore) RetrieveDestination(ctx context.Context, tenantID, 
 	return s.TenantStore.RetrieveDestination(ctx, tenantID, destinationID)
 }
 
-func (s *failingTenantStore) CreateDestination(ctx context.Context, destination models.Destination) error {
+func (s *failingTenantStore) CreateDestination(ctx context.Context, destination models.Destination, opts ...tenantstore.WriteOption) error {
 	if s.fail == "CreateDestination" {
 		return errStoreUnavailable
 	}
-	return s.TenantStore.CreateDestination(ctx, destination)
+	return s.TenantStore.CreateDestination(ctx, destination, opts...)
 }
 
 func (s *failingTenantStore) UpsertDestination(ctx context.Context, destination models.Destination) error {

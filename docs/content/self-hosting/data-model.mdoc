@@ -14,6 +14,8 @@ This page describes every table and key Outpost writes, so you can size, back up
 | Redis | Tenants, destinations and their credentials | Permanent until deleted | API service |
 | Redis | Retry schedule (RSMQ) | Until the retry runs | Delivery service schedules, API service runs |
 | Redis | Short-lived processing state | TTL-bound, minutes to a day | All services |
+| Redis | MCP Events subscription state: limits, indexes, verification, delivery status | Mostly TTL-bound or removed with the subscription | API, delivery and log services |
+| Redis | Applied topic schemas | Permanent | API service |
 | Redis | Installation, migration, and lock metadata | Permanent, except locks, which expire | All services, migration tool |
 | PostgreSQL or ClickHouse | Events and delivery attempts | Until retention removes them | Log service |
 
@@ -36,7 +38,7 @@ tenant:{<tenant_id>}:destination:<id> ◄──┘                              
 ```
 
 - A **tenant** owns many **destinations**. Both live in Redis under the same `{<tenant_id>}` hash tag.
-- An **event** belongs to one tenant and records the IDs of the destinations it matched when it was published.
+- An **event** belongs to one tenant and records the IDs of the destinations it matched when it was published, except [MCP Events subscriptions](/docs/outpost/destinations/mcp), which only appear in attempts.
 - A **delivery attempt** belongs to one event and one destination. A single event has one attempt per matched destination per try, including retries and manual retries.
 - Log rows reference tenants and destinations by ID only. Deleting a tenant or destination in Redis leaves its history in the log store until retention removes it.
 
@@ -58,12 +60,13 @@ One row per published event that matched at least one destination.
 |--------|------|-------------|
 | `id` | `text` | Event ID. |
 | `tenant_id` | `text` | Tenant the event was published for. |
-| `matched_destination_ids` | `text[]` | Destinations the event matched when it was published. |
+| `matched_destination_ids` | `text[]` | Destinations the event matched when it was published, except MCP Events subscriptions. |
 | `time` | `timestamptz` | Event time. Partition key. |
 | `topic` | `text` | Event topic. |
 | `eligible_for_retry` | `boolean` | Whether failed attempts are retried automatically. |
 | `data` | `text` | Event payload, stored as the raw JSON string so key order is preserved. |
 | `metadata` | `jsonb` | Event metadata. |
+| `schema_valid` | `boolean` | Result of [topic schema validation](/docs/outpost/features/topics#validation). `NULL` when the event wasn't validated. |
 
 Primary key: `(time, id)`.
 
@@ -97,6 +100,7 @@ One row per delivery attempt. Event fields are copied onto every attempt.
 | `eligible_for_retry` | `boolean` | Copied from the event. |
 | `event_data` | `text` | Event payload, copied from the event. |
 | `event_metadata` | `jsonb` | Event metadata, copied from the event. |
+| `schema_valid` | `boolean` | Copied from the event. |
 
 Primary key: `(time, id)`.
 
@@ -128,12 +132,13 @@ One row per published event that matched at least one destination.
 |--------|------|-------------|
 | `event_id` | `String` | Event ID. |
 | `tenant_id` | `String` | Tenant the event was published for. |
-| `matched_destination_ids` | `Array(String)` | Destinations the event matched when it was published. |
+| `matched_destination_ids` | `Array(String)` | Destinations the event matched when it was published, except MCP Events subscriptions. |
 | `topic` | `String` | Event topic. |
 | `eligible_for_retry` | `Bool` | Whether failed attempts are retried automatically. |
 | `event_time` | `DateTime64(3)` | Event time. |
 | `metadata` | `String` | Event metadata, as a JSON string. |
 | `data` | `String` | Event payload, as the raw JSON string. |
+| `schema_valid` | `Nullable(Bool)` | Result of topic schema validation. `NULL` when the event wasn't validated. |
 
 - Partition: `toYYYYMM(event_time)`
 - Order by: `(event_time, event_id)`
@@ -162,6 +167,7 @@ One row per delivery attempt. Event fields are copied onto every attempt.
 | `manual` | `Bool` | Whether the attempt was a manual retry. |
 | `attempt_number` | `UInt32` | Attempt number for this event and destination. |
 | `latency_ms` | `Nullable(UInt32)` | Time the destination took to respond. `NULL` for attempts written before v1.6. |
+| `schema_valid` | `Nullable(Bool)` | Copied from the event. |
 
 - Partition: `toYYYYMM(attempt_time)`
 - Order by: `(attempt_time, attempt_id)`
@@ -188,11 +194,11 @@ The `{<tenant_id>}` braces in tenant keys are a Redis Cluster hash tag. They pla
 
 **Tenant hash fields:** `id`, `entity` (always `tenant`), `created_at`, `updated_at`, `metadata` (JSON), and `deleted_at` once deleted. Timestamps are Unix milliseconds.
 
-**Destination hash fields:** `id`, `entity` (always `destination`), `type`, `topics` (JSON), `config` (JSON), `credentials`, `delivery_metadata`, `metadata` (JSON), `filter` (JSON), `created_at`, `updated_at`, `disabled_at` when disabled, and `deleted_at` once deleted. `credentials` and `delivery_metadata` are encrypted with `AES_ENCRYPTION_SECRET`.
+**Destination hash fields:** `id`, `entity` (always `destination`), `type`, `topics` (JSON), `config` (JSON), `credentials`, `delivery_metadata`, `metadata` (JSON), `filter` (JSON), `created_at`, `updated_at`, `disabled_at` when disabled, and `deleted_at` once deleted. `credentials` and `delivery_metadata` are encrypted with `AES_ENCRYPTION_SECRET`. MCP Events subscriptions also have `expires_at` unless they were granted no expiry, `buckets`, the JSON array of the [limit buckets](#mcp-events) they count toward, and `deleted_reason` once deleted: `unsubscribed`, `revoked`, `expired` or `terminated`. Timestamps are Unix milliseconds.
 
-**Destination summary hash:** each field is a destination ID and each value is a JSON object with the destination's `id`, `type`, `topics`, `filter`, and `disabled` flag. Outpost matches published events against this hash, so routing reads one key per tenant rather than one per destination. It's kept in sync with the destination hashes on every write.
+**Destination summary hash:** each field is a destination ID and each value is a JSON object with the destination's `id`, `type`, `topics`, `filter`, and `disabled` flag, plus `expires_at` when set. Outpost matches published events against this hash, so routing reads one key per tenant rather than one per destination. It's kept in sync with the destination hashes on every write.
 
-**Deletion is a soft delete.** Deleting a destination removes its field from the summary hash, sets `deleted_at` on the destination hash, and expires that hash after 7 days. Deleting a tenant does the same for every destination, removes the summary hash, and sets `deleted_at` with a 7 day expiry on the tenant hash. Recreating a tenant with the same ID within those 7 days clears `deleted_at` and the expiry.
+**Deletion is a soft delete.** Deleting a destination removes its field from the summary hash, sets `deleted_at` on the destination hash, removes its `config`, `credentials`, `delivery_metadata`, `metadata` and `filter`, and expires that hash after 7 days. Deleting a tenant does the same for every destination, removes the summary hash, and sets `deleted_at` with a 7 day expiry on the tenant hash. Creating a destination or MCP subscription in a deleted tenant fails, even when the request started before the tenant was deleted. Recreating a tenant with the same ID within those 7 days clears `deleted_at` and the expiry. Deleting an MCP subscription or its tenant also removes it from the limit buckets and indexes below, and deletes its held retries.
 
 **`tenant_idx`** is created at startup only when the Redis deployment supports RediSearch (`FT.*` commands). It indexes keys under the `tenant:` prefix whose `entity` field is `tenant`. Without it, the list tenants endpoint isn't available.
 
@@ -208,7 +214,7 @@ Scheduled retries are stored in an [RSMQ](https://github.com/smrchy/rsmq) queue 
 | `rsmq:deliverymq-retry-dlq` | Sorted set | Retries that failed to be processed after 5 receives. |
 | `rsmq:deliverymq-retry-dlq:Q` | Hash | Bodies for dead-lettered retries. |
 
-Each retry's ID is derived from its event ID and destination ID, so there is at most one pending retry per event and destination. Scheduling a new retry, or making a manual retry, replaces or cancels the pending one.
+Each retry's ID is derived from its event ID and destination ID, so there is at most one pending retry per event and destination. Scheduling a new retry, or making a manual retry, replaces or cancels the pending one. A retry held while an MCP subscription was disabled is rescheduled, once the subscription is re-enabled, under the same ID with `:r` appended, so it never replaces a retry scheduled since; a manual retry cancels it too.
 
 A retry body holds only the event ID, tenant ID, and destination ID. When the retry is due, Outpost loads the event and the previous attempt number from the log store's `attempts` table, then publishes a new delivery task. Dead-lettered retries aren't redriven automatically.
 
@@ -225,6 +231,45 @@ These keys are short-lived and self-expiring, and safe to lose. Losing an idempo
 | `logmq:processed:<attempt_id>` | String | 24 hours | Marks a failed attempt as processed for alerting, so a redelivered log message isn't counted twice. |
 | `opevents:exhausted:<tenant_id>:<destination_id>` | String | `ALERT_EXHAUSTED_RETRIES_WINDOW_SECONDS` (default 1 hour) | Limits exhausted-retries alerts to one per destination per window. |
 
+### MCP Events
+
+[MCP Events](/docs/outpost/destinations/mcp) subscriptions are destinations of type `mcp`, stored like any other destination. These keys hold the state around them. Like tenant keys, they start with `<deployment_id>:` when `DEPLOYMENT_ID` is set.
+
+The per-tenant keys share the tenant's `{<tenant_id>}` hash tag, so a subscription is created, refreshed, limited and deleted in one atomic script. None of them contain the `:destination:` infix used by destination hashes.
+
+| Key | Type | TTL | Contents |
+|-----|------|-----|----------|
+| `tenant:{<tenant_id>}:buckets` | Set | None | Names of the limit buckets the tenant's destinations count toward. A name is removed when the last destination leaves its bucket. |
+| `tenant:{<tenant_id>}:bucket:<bucket>` | Set | None | IDs of the destinations counted toward one limit. `type:mcp` counts toward `MAX_MCP_SUBSCRIPTIONS_PER_TENANT`, and `mcp_principal:<hash>` toward `MAX_MCP_SUBSCRIPTIONS_PER_PRINCIPAL`, where `<hash>` is the first 32 hex characters of the SHA-256 of the principal. |
+| `tenant:{<tenant_id>}:bucket_sweep:<bucket>` | String | 1 minute | Marks a full bucket recently checked for IDs of destinations that no longer exist. A create refused by a full bucket runs that check at most once a minute per bucket. |
+| `tenant:{<tenant_id>}:fence:mcp_revoked:<hash>` | String | 10 minutes | Time, in Unix milliseconds, a principal's subscriptions were last revoked, where `<hash>` is the SHA-256 of the principal. A subscribe call that started earlier can't create a subscription. |
+| `tenant:{<tenant_id>}:parked_retries:<destination_id>` | Set | Until `expires_at`, or 24 hours | Automatic retries held while a subscription is disabled, up to 1,000. |
+| `tenant:{<tenant_id>}:parked_retries:<destination_id>:resume:<ms>` | Set | Same as the held set | Held retries being rescheduled after a refresh or enable. Each is removed once scheduled, and the key once empty. |
+| `tenant:{<tenant_id>}:mcp_status:<destination_id>` | Hash | `MCP_TTL_MAX` plus 7 days | `last_attempt_at`, `last_success_at`, `last_status` and `last_code` of the subscription's latest attempts, written by the log service. Subscribe reads it to build `deliveryStatus`. Safe to lose: `deliveryStatus` then reports no delivery yet. |
+| `destination_index:mcp` | Sorted set | None | Every MCP subscription. Members are `["<tenant_id>","<destination_id>"]`, scored by `expires_at` in Unix milliseconds, or `253402300799999` for no expiry. The expiry sweep reads it. |
+| `destination_index:mcp:topic:<topic>` | Sorted set | None | The same, for one topic. Used to end a topic's subscriptions and to check whether a topic has live subscriptions. |
+| `destination_index:mcp:topics` | Set | None | Topics that have a per-topic index. |
+| `mcp:verified:<hash>` | String | `MCP_VERIFICATION_TTL` (default 24 hours) | Marks a passed callback verification, where `<hash>` is the SHA-256 of the tenant ID, principal and callback URL. |
+| `mcp:verifying:<hash>` | String | About 20 seconds | Held by the Outpost instance sending a verification challenge, with the same `<hash>` as `mcp:verified:`. Concurrent subscribes that need the same challenge wait for its result instead of sending their own. |
+| `mcp:challenge_rate:p:<hash>:<minute>` | String (counter) | 2 minutes | Verification challenges sent for one tenant and principal in one minute, counted against `MCP_VERIFICATION_RATE_LIMIT`. `<hash>` is the SHA-256 of the tenant ID and principal. |
+| `mcp:challenge_fail:t:<hash>:<minute>` | String (counter) | 2 minutes | Failed challenges of one tenant to one callback host and port in one minute, counted against `MCP_VERIFICATION_FAILURE_LIMIT`. `<hash>` is the SHA-256 of the tenant ID and `host:port`. |
+| `mcp:challenge_fail:h:<hash>:<minute>` | String (counter) | 2 minutes | Unanswered challenges (timeout, connection refused, TLS failure) to one callback host and port in one minute, from every tenant, counted against ten times `MCP_VERIFICATION_FAILURE_LIMIT`. `<hash>` is the SHA-256 of `host:port`. |
+
+The index entries are written before the subscription and removed after it, so the index always holds at least every live subscription. An entry left behind for a subscription that no longer exists is removed by the next sweep that reaches it.
+
+### Topic schemas
+
+The API service records the topic schemas it applied, to [check schema changes](/docs/outpost/features/topics#schema-evolution-and-deprecation) at the next startup. The keys in `{outpost:topic_schemas}` share that hash tag so they're written together. All the keys start with `<deployment_id>:` when `DEPLOYMENT_ID` is set.
+
+| Key | Type | TTL | Contents |
+|-----|------|-----|----------|
+| `{outpost:topic_schemas}:applied` | String | None | JSON with the last applied topic schemas (each topic's payload schema and MCP flag), their hash, when they were applied, each topic's earlier schema hashes (up to 16), and the old schema hashes of topics changed with `TOPICS_ALLOW_BREAKING_CHANGES`, whose subscriptions still need to end. |
+| `{outpost:topic_schemas}:history` | List | None | The last 50 applied schema hashes, with when each was applied. |
+| `{outpost:topic_schemas}:termination` | Hash | None | Progress of the [MCP subscriptions worker](/docs/outpost/self-hosting/architecture#mcp-subscriptions-worker) through the subscriptions of topics changed with `TOPICS_ALLOW_BREAKING_CHANGES` (a scan cursor per topic), and when an instance last ran an older configuration. |
+| `outpost:topic_schemas:live:<hash>` | String | 60 seconds | Marks a topic configuration that an API instance is running. Each instance refreshes its own every 20 seconds. |
+
+Losing these keys loses the baseline: the next startup applies its schemas without a breaking-change check.
+
 ### Deployment metadata
 
 | Key | Type | TTL | Purpose |
@@ -234,6 +279,8 @@ These keys are short-lived and self-expiring, and safe to lose. Losing an idempo
 | `outpost:migration:<name>` | Hash | None | Status of a Redis data migration: `status` (`applied` or `not_applicable`) and a timestamp. |
 | `.outpost:migration_lock` | String | 1 hour | Held while migrations run, so only one runner applies them. |
 | `outpost:lock` | String | 60 seconds | Held while message queue infrastructure is provisioned at startup. |
+| `outpost:lock:topic_schemas` | String | 10 seconds | Held while the API service applies topic schemas at startup. |
+| `outpost:lock:mcp_worker` | String | Twice `MCP_EXPIRY_SWEEP_INTERVAL` | Held during each pass of the [MCP subscriptions worker](/docs/outpost/self-hosting/architecture#mcp-subscriptions-worker), so only one API instance runs it at a time. |
 
 ## Lifecycle of an event across stores
 
@@ -245,3 +292,5 @@ Following one event through the system shows how the stores relate:
 4. **Retry.** When a retry is due, the API service, which runs the retry scheduler, reads the event and the latest attempt from `attempts`, then enqueues a new delivery task with the next attempt number, which returns to step 2.
 
 Because step 4 reads from the log store, a retry can only run once the previous attempt has been written there. A retry that finds no prior attempt waits and tries again.
+
+An event that matches MCP subscriptions follows the same steps, with three differences. Their IDs are left out of the event's `matched_destination_ids`. The delivery service drops tasks for a subscription past its `expires_at`, and holds automatic retries for a disabled subscription in `tenant:{<tenant_id>}:parked_retries:<destination_id>`. The log service also updates `tenant:{<tenant_id>}:mcp_status:<destination_id>`.

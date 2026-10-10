@@ -129,11 +129,19 @@ func NewRetryScheduler(deliverymq *DeliveryMQ, redisConfig *redis.RedisConfig, d
 
 // RetryTask contains the minimal info needed to retry a delivery.
 // The full Event data will be fetched from logstore when the retry executes.
+//
+// The original fields serialize under their Go names (no tags); fields added
+// since carry omitempty tags so tasks already queued, and tasks read by older
+// binaries during a rolling deploy, decode to their zero values.
 type RetryTask struct {
 	EventID       string
 	TenantID      string
 	DestinationID string
 	Telemetry     *models.DeliveryTelemetry
+	// DestinationCreatedAt is the destination generation the retry was
+	// scheduled for (see models.DeliveryTask.DestinationCreatedAt); 0 =
+	// unchecked.
+	DestinationCreatedAt int64 `json:"destination_created_at,omitempty"`
 }
 
 func (m *RetryTask) ToString() (string, error) {
@@ -150,18 +158,20 @@ func (m *RetryTask) FromString(str string) error {
 
 func (m *RetryTask) ToDeliveryTask(event models.Event, attemptNumber int) models.DeliveryTask {
 	return models.DeliveryTask{
-		Attempt:       attemptNumber,
-		DestinationID: m.DestinationID,
-		Event:         event,
-		Telemetry:     m.Telemetry,
+		Attempt:              attemptNumber,
+		DestinationID:        m.DestinationID,
+		Event:                event,
+		Telemetry:            m.Telemetry,
+		DestinationCreatedAt: m.DestinationCreatedAt,
 	}
 }
 
 func RetryTaskFromDeliveryTask(task models.DeliveryTask) RetryTask {
 	return RetryTask{
-		EventID:       task.Event.ID,
-		TenantID:      task.Event.TenantID,
-		DestinationID: task.DestinationID,
-		Telemetry:     task.Telemetry,
+		EventID:              task.Event.ID,
+		TenantID:             task.Event.TenantID,
+		DestinationID:        task.DestinationID,
+		Telemetry:            task.Telemetry,
+		DestinationCreatedAt: task.DestinationCreatedAt,
 	}
 }

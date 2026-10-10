@@ -49,6 +49,10 @@ type Registry interface {
 	// Provider management
 	RegisterProvider(destinationType string, provider Provider) error
 	ResolveProvider(destination *models.Destination) (Provider, error)
+	// ResolvePublisher returns the destination's cached publisher, creating it
+	// on a miss. For a provider that bypasses the cache (see
+	// PublisherCacheBypasser) it returns a fresh publisher the caller owns and
+	// must Close.
 	ResolvePublisher(ctx context.Context, destination *models.Destination) (Publisher, error)
 
 	// Metadata access
@@ -73,6 +77,23 @@ type Provider interface {
 	Preprocess(newDestination *models.Destination, originalDestination *models.Destination, opts *PreprocessDestinationOpts) error
 }
 
+// DeliveryTimeouter is an optional Provider interface for providers whose
+// attempts need a different bound than Config.DeliveryTimeout. A non-positive
+// value falls back to the global timeout.
+type DeliveryTimeouter interface {
+	DeliveryTimeout() time.Duration
+}
+
+// PublisherCacheBypasser is an optional Provider interface. A provider that
+// returns true gets a fresh publisher for every PublishEvent, closed right
+// after the attempt, instead of a cached one. It suits providers whose
+// publishers hold no resources and are cheap to build, where one cache entry
+// per destination would only churn the shared LRU and evict expensive
+// publishers (Kafka producers, cloud SDK clients).
+type PublisherCacheBypasser interface {
+	BypassPublisherCache() bool
+}
+
 type Delivery struct {
 	Status   string
 	Code     string
@@ -91,6 +112,7 @@ type registry struct {
 	providerList   []string
 	publishers     *lru.Cache[string, Publisher]
 	config         Config
+	logger         *logging.Logger
 }
 
 type Config struct {
@@ -112,17 +134,22 @@ func NewRegistry(cfg *Config, logger *logging.Logger) Registry {
 	}
 
 	onEvict := func(key string, p Publisher) {
-		if err := p.Close(); err != nil {
-			// TODO: consider how to get context for OTEL logging
-			// Log only the destination ID prefix, not the full key: the key now
-			// folds credentials and delivery metadata into an FNV hash, so the
-			// hash suffix is a secret-derived value that should stay out of logs.
-			destID, _, _ := strings.Cut(key, ".")
-			logger.Error("failed to close publisher on eviction",
-				zap.String("destination_id", destID),
-				zap.Error(err),
-			)
-		}
+		// Close off the evicting caller's goroutine: Close may wait for the
+		// publisher's in-flight publishes (BasePublisher), and the caller is an
+		// unrelated delivery that only needed a cache slot.
+		go func() {
+			if err := p.Close(); err != nil {
+				// TODO: consider how to get context for OTEL logging
+				// Log only the destination ID prefix, not the full key: the key now
+				// folds credentials and delivery metadata into an FNV hash, so the
+				// hash suffix is a secret-derived value that should stay out of logs.
+				destID, _, _ := strings.Cut(key, ".")
+				logger.Error("failed to close publisher on eviction",
+					zap.String("destination_id", destID),
+					zap.Error(err),
+				)
+			}
+		}()
 	}
 
 	cache := lru.New(cfg.PublisherCacheSize, cfg.PublisherTTL, onEvict)
@@ -133,6 +160,7 @@ func NewRegistry(cfg *Config, logger *logging.Logger) Registry {
 		providers:      make(map[string]Provider),
 		publishers:     cache,
 		config:         *cfg,
+		logger:         logger,
 	}
 }
 
@@ -142,6 +170,8 @@ func (r *registry) ValidateDestination(ctx context.Context, destination *models.
 		return err
 	}
 	if err := provider.Validate(ctx, destination); err != nil {
+		// Pass the provider's validation error through as is (same pointer), so
+		// its Errors and Cause reach the caller untouched.
 		var validateErr *ErrDestinationValidation
 		if errors.As(err, &validateErr) {
 			return validateErr
@@ -157,7 +187,7 @@ func (r *registry) ValidateDestination(ctx context.Context, destination *models.
 }
 
 func (r *registry) PublishEvent(ctx context.Context, destination *models.Destination, event *models.Event) (*models.Attempt, error) {
-	publisher, err := r.ResolvePublisher(ctx, destination)
+	publisher, cached, err := r.resolvePublisher(ctx, destination)
 	if err != nil {
 		// If the provider already signaled a delivery error, create a failed attempt
 		// so it's visible to the customer (instead of silently nacking into DLQ).
@@ -185,6 +215,9 @@ func (r *registry) PublishEvent(ctx context.Context, destination *models.Destina
 		}
 		return nil, err
 	}
+	if !cached {
+		defer r.closeUncachedPublisher(destination, publisher)
+	}
 
 	attempt := &models.Attempt{
 		ID:              idgen.Attempt(),
@@ -194,7 +227,8 @@ func (r *registry) PublishEvent(ctx context.Context, destination *models.Destina
 	}
 
 	// Create a new context with timeout
-	timeoutCtx, cancel := context.WithTimeout(ctx, r.config.DeliveryTimeout)
+	deliveryTimeout := r.deliveryTimeout(destination)
+	timeoutCtx, cancel := context.WithTimeout(ctx, deliveryTimeout)
 	defer cancel()
 
 	publishStart := time.Now()
@@ -226,8 +260,9 @@ func (r *registry) PublishEvent(ctx context.Context, destination *models.Destina
 					Provider: destination.Type,
 					Data: map[string]interface{}{
 						"error":   "timeout",
-						"timeout": r.config.DeliveryTimeout.String(),
+						"timeout": deliveryTimeout.String(),
 					},
+					NonRetryable: publishErr.NonRetryable,
 				}
 			}
 			return attempt, publishErr
@@ -239,7 +274,7 @@ func (r *registry) PublishEvent(ctx context.Context, destination *models.Destina
 				Provider: destination.Type,
 				Data: map[string]interface{}{
 					"error":   "timeout",
-					"timeout": r.config.DeliveryTimeout.String(),
+					"timeout": deliveryTimeout.String(),
 				},
 			}
 		}
@@ -313,24 +348,63 @@ func hashSortedMap(h hash.Hash64, m map[string]string) {
 }
 
 func (r *registry) ResolvePublisher(ctx context.Context, destination *models.Destination) (Publisher, error) {
+	publisher, _, err := r.resolvePublisher(ctx, destination)
+	return publisher, err
+}
+
+// resolvePublisher is ResolvePublisher that also reports whether the publisher
+// lives in the cache. An uncached publisher belongs to the caller, which must
+// Close it.
+func (r *registry) resolvePublisher(ctx context.Context, destination *models.Destination) (Publisher, bool, error) {
+	provider, err := r.ResolveProvider(destination)
+	if err != nil {
+		return nil, false, err
+	}
+
+	if bypasser, ok := provider.(PublisherCacheBypasser); ok && bypasser.BypassPublisherCache() {
+		publisher, err := provider.CreatePublisher(ctx, destination)
+		if err != nil {
+			return nil, false, fmt.Errorf("failed to create publisher: %w", err)
+		}
+		return publisher, false, nil
+	}
+
 	key := MakePublisherKey(destination)
 
 	if publisher, ok := r.publishers.Get(key); ok {
-		return publisher, nil
-	}
-
-	provider, err := r.ResolveProvider(destination)
-	if err != nil {
-		return nil, err
+		return publisher, true, nil
 	}
 
 	publisher, err := provider.CreatePublisher(ctx, destination)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create publisher: %w", err)
+		return nil, false, fmt.Errorf("failed to create publisher: %w", err)
 	}
 
 	r.publishers.Add(key, publisher)
-	return publisher, nil
+	return publisher, true, nil
+}
+
+func (r *registry) closeUncachedPublisher(destination *models.Destination, publisher Publisher) {
+	if err := publisher.Close(); err != nil && r.logger != nil {
+		r.logger.Error("failed to close uncached publisher",
+			zap.String("destination_id", destination.ID),
+			zap.String("destination_type", destination.Type),
+			zap.Error(err),
+		)
+	}
+}
+
+// deliveryTimeout bounds one attempt to the destination: the provider's own
+// timeout when it declares one, else Config.DeliveryTimeout.
+func (r *registry) deliveryTimeout(destination *models.Destination) time.Duration {
+	if provider, ok := r.providers[destination.Type]; ok {
+		if t, ok := provider.(DeliveryTimeouter); ok {
+			if d := t.DeliveryTimeout(); d > 0 {
+				return d
+			}
+		}
+	}
+	return r.config.DeliveryTimeout
 }
 
 func (r *registry) MetadataLoader() metadata.MetadataLoader {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/hookdeck/outpost/internal/logging"
@@ -118,6 +119,18 @@ func (h *RetryHandlers) Retry(c *gin.Context) {
 	}
 	if destination == nil {
 		AbortWithError(c, http.StatusNotFound, NewErrNotFound("destination"))
+		return
+	}
+	// Expired but not yet deleted (MCP subscriptions): no attempt is made
+	// after expires_at, retries included.
+	if destination.IsExpired(time.Now()) {
+		AbortWithError(c, http.StatusBadRequest, ErrorResponse{
+			Code:    http.StatusBadRequest,
+			Message: "Destination has expired",
+			Data: map[string]string{
+				"error": "destination_expired",
+			},
+		})
 		return
 	}
 	if destination.DisabledAt != nil {

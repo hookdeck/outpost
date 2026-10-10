@@ -68,6 +68,9 @@ func (l *FSMetadataLoader) mergeMetadata(base, override *ProviderMetadata) {
 		"type":              true,
 		"config_fields":     true,
 		"credential_fields": true,
+		// create_mode decides whether clients offer a create form; letting
+		// metadata files flip it would show a form that can only fail.
+		"create_mode": true,
 	}
 
 	// Use reflection to merge all non-core fields

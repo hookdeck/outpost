@@ -37,6 +37,11 @@ type DestinationHandlers struct {
 	topicsAllowWildcards bool
 	registry             destregistry.Registry
 	displayer            *destinationDisplayer
+	// types serves the destination types; nil serves the registry's
+	// metadata as is.
+	types *destinationTypes
+	// mcp re-enables mcp destinations; nil enables them like any other.
+	mcp *MCPHandlers
 }
 
 func NewDestinationHandlers(logger *logging.Logger, telemetry telemetry.Telemetry, tenantStore tenantstore.TenantStore, emitter SubscriptionEmitter, topics []string, topicsAllowWildcards bool, registry destregistry.Registry, displayer *destinationDisplayer) *DestinationHandlers {
@@ -55,12 +60,16 @@ func NewDestinationHandlers(logger *logging.Logger, telemetry telemetry.Telemetr
 func (h *DestinationHandlers) List(c *gin.Context) {
 	tenant := mustTenantFromContext(c)
 
-	destinations, err := h.tenantStore.ListDestination(c.Request.Context(), tenantstore.ListDestinationRequest{
+	req := tenantstore.ListDestinationRequest{
 		TenantID:       tenant.ID,
 		Type:           ParseArrayQueryParam(c, "type"),
 		Topics:         ParseArrayQueryParam(c, "topics"),
 		AllowWildcards: h.topicsAllowWildcards,
-	})
+	}
+	if apiVersionFromContext(c) < apiV2 {
+		req.ExcludeTypes = v1HiddenDestinationTypes
+	}
+	destinations, err := h.tenantStore.ListDestination(c.Request.Context(), req)
 	if err != nil {
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return
@@ -79,6 +88,12 @@ func (h *DestinationHandlers) Create(c *gin.Context) {
 	var input CreateDestinationRequest
 	if err := c.ShouldBindJSON(&input); err != nil {
 		AbortWithValidationError(c, err)
+		return
+	}
+	// mcp destinations are MCP Events subscriptions: only subscribe creates
+	// them, with their derived ID, callback verification and expiry.
+	if input.Type == models.DestinationTypeMCP {
+		AbortWithError(c, http.StatusBadRequest, NewErrBadRequest(errMCPCreate))
 		return
 	}
 	if mustRoleFromContext(c) != RoleAdmin && (input.CreatedAt != nil || input.UpdatedAt != nil) {
@@ -173,6 +188,10 @@ func (h *DestinationHandlers) Update(c *gin.Context) {
 	prev := h.snapshotTenant(tenant)
 	originalDestination := mustRetrieveDestination(c, h.tenantStore, tenant.ID, c.Param("destination_id"))
 	if originalDestination == nil {
+		return
+	}
+	if originalDestination.Type == models.DestinationTypeMCP {
+		AbortWithError(c, http.StatusBadRequest, NewErrBadRequest(errMCPUpdate))
 		return
 	}
 
@@ -339,6 +358,10 @@ func (h *DestinationHandlers) Delete(c *gin.Context) {
 	if destination == nil {
 		return
 	}
+	if destination.Type == models.DestinationTypeMCP {
+		AbortWithError(c, http.StatusBadRequest, NewErrBadRequest(errMCPDelete))
+		return
+	}
 	if err := h.tenantStore.DeleteDestination(c.Request.Context(), destination.TenantID, destination.ID); err != nil {
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return
@@ -362,11 +385,19 @@ func (h *DestinationHandlers) Enable(c *gin.Context) {
 }
 
 func (h *DestinationHandlers) ListProviderMetadata(c *gin.Context) {
+	if h.types != nil {
+		h.types.list(c)
+		return
+	}
 	metadata := h.registry.ListProviderMetadata()
 	c.JSON(http.StatusOK, metadata)
 }
 
 func (h *DestinationHandlers) RetrieveProviderMetadata(c *gin.Context) {
+	if h.types != nil {
+		h.types.retrieve(c)
+		return
+	}
 	providerType := c.Param("type")
 	metadata, err := h.registry.RetrieveProviderMetadata(providerType)
 	if err != nil {
@@ -381,6 +412,10 @@ func (h *DestinationHandlers) setDisabilityHandler(c *gin.Context, disabled bool
 	prev := h.snapshotTenant(tenant)
 	destination := mustRetrieveDestination(c, h.tenantStore, tenant.ID, c.Param("destination_id"))
 	if destination == nil {
+		return
+	}
+	if destination.Type == models.DestinationTypeMCP && h.mcp != nil {
+		h.setMCPDisability(c, tenant, prev, destination, disabled)
 		return
 	}
 	shouldUpdate := false
@@ -418,8 +453,53 @@ func (h *DestinationHandlers) setDisabilityHandler(c *gin.Context, disabled bool
 	c.JSON(http.StatusOK, display)
 }
 
+// setMCPDisability is enable and disable for an mcp destination. Only
+// auto-disable disables a subscription. Enabling one is a refresh's
+// re-enable: its consecutive failures are reset and its parked retries
+// resume.
+func (h *DestinationHandlers) setMCPDisability(c *gin.Context, tenant *models.Tenant, prev tenantSnapshot, destination *models.Destination, disabled bool) {
+	if disabled {
+		AbortWithError(c, http.StatusBadRequest, NewErrBadRequest(errMCPDisable))
+		return
+	}
+	wasDisabled := destination.DisabledAt != nil
+	updated, err := h.mcp.reenable(c.Request.Context(), destination)
+	if err != nil {
+		if errors.Is(err, tenantstore.ErrDestinationNotFound) {
+			AbortWithError(c, http.StatusNotFound, NewErrNotFound("destination"))
+			return
+		}
+		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
+		return
+	}
+	if wasDisabled {
+		h.emitSubscriptionUpdateIfChanged(c.Request.Context(), tenant.ID, prev)
+		h.logger.Ctx(c.Request.Context()).Audit("destination enabled",
+			zap.String("tenant_id", tenant.ID),
+			zap.String("destination_id", destination.ID),
+			zap.String("destination_type", destination.Type),
+		)
+	}
+	display, err := h.displayer.Display(updated)
+	if err != nil {
+		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
+		return
+	}
+	c.JSON(http.StatusOK, display)
+}
+
+// The generic endpoints don't change mcp destinations: the MCP endpoints own
+// them.
+var (
+	errMCPCreate  = errors.New("mcp destinations can't be created here: MCP clients subscribe through PUT /tenants/{tenant_id}/mcp/subscriptions")
+	errMCPUpdate  = errors.New("mcp destinations can't be updated: MCP clients change them by subscribing again")
+	errMCPDelete  = errors.New("mcp destinations can't be deleted here: use DELETE /tenants/{tenant_id}/mcp/subscriptions/{subscription_id}")
+	errMCPDisable = errors.New("mcp destinations can't be disabled: end them with DELETE /tenants/{tenant_id}/mcp/subscriptions/{subscription_id}")
+)
+
 // mustRetrieveDestination returns the tenant's destination, or answers the
-// request and returns nil: 404 when it is deleted or does not exist.
+// request and returns nil: 404 when it is deleted, does not exist or has a
+// type the request's API version hides.
 func mustRetrieveDestination(c *gin.Context, store tenantstore.TenantStore, tenantID, destinationID string) *models.Destination {
 	destination, err := store.RetrieveDestination(c.Request.Context(), tenantID, destinationID)
 	if err != nil {
@@ -430,7 +510,7 @@ func mustRetrieveDestination(c *gin.Context, store tenantstore.TenantStore, tena
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return nil
 	}
-	if destination == nil {
+	if destination == nil || hiddenInRequest(c, destination.Type) {
 		AbortWithError(c, http.StatusNotFound, NewErrNotFound("destination"))
 		return nil
 	}
@@ -448,6 +528,11 @@ func (h *DestinationHandlers) handleUpsertDestinationError(c *gin.Context, err e
 	}
 	if errors.Is(err, tenantstore.ErrMaxDestinationsPerTenantReached) {
 		AbortWithError(c, http.StatusBadRequest, NewErrBadRequest(err))
+		return
+	}
+	// The tenant was deleted after the request was authorized.
+	if errors.Is(err, tenantstore.ErrTenantDeleted) {
+		AbortWithError(c, http.StatusNotFound, NewErrNotFound("tenant"))
 		return
 	}
 	AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))

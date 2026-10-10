@@ -80,3 +80,32 @@ func TestLogEntry_ToMessage_FromMessage_PreservesKeyOrder(t *testing.T) {
 
 	assert.Equal(t, string(rawData), string(restored.Event.Data))
 }
+
+// TestDeliveryTask_DestinationCreatedAt_Wire pins the wire form of the retry
+// generation: omitted when unset (first attempts keep their exact bytes, old
+// consumers see nothing new), round-tripped when set, and absent in messages
+// from older producers decodes to 0 (unchecked).
+func TestDeliveryTask_DestinationCreatedAt_Wire(t *testing.T) {
+	t.Parallel()
+
+	event := testutil.EventFactory.Any()
+
+	unset := models.NewDeliveryTask(event, "dest_123")
+	msg, err := unset.ToMessage()
+	require.NoError(t, err)
+	assert.NotContains(t, string(msg.Body), "destination_created_at")
+
+	set := models.NewDeliveryTask(event, "dest_123")
+	set.DestinationCreatedAt = 1760000000123
+	msg, err = set.ToMessage()
+	require.NoError(t, err)
+	assert.Contains(t, string(msg.Body), `"destination_created_at":1760000000123`)
+	var restored models.DeliveryTask
+	require.NoError(t, restored.FromMessage(msg))
+	assert.Equal(t, int64(1760000000123), restored.DestinationCreatedAt)
+
+	var legacy models.DeliveryTask
+	require.NoError(t, json.Unmarshal([]byte(`{"event":{"id":"evt_1"},"destination_id":"dest_123","attempt":2,"manual":false}`), &legacy))
+	assert.Zero(t, legacy.DestinationCreatedAt)
+	assert.Equal(t, 2, legacy.Attempt)
+}

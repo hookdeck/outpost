@@ -1,0 +1,74 @@
+[
+  {
+    "principal": "user_8f2c",
+    "url": "https://receiver.example.com/mcp-events/abc123",
+    "name": "order.created",
+    "arguments": "{\"total\":{\"$gte\":100},\"currency\":\"USD\"}",
+    "canonical_key": "{\"arguments\":{\"currency\":\"USD\",\"total\":{\"$gte\":100}},\"name\":\"order.created\",\"principal\":\"user_8f2c\",\"url\":\"https://receiver.example.com/mcp-events/abc123\"}",
+    "id": "sub_1fa69bec3707ee16223ae5400f92f935"
+  },
+  {
+    "principal": "user_8f2c",
+    "url": "https://receiver.example.com/mcp-events/abc123",
+    "name": "order.created",
+    "arguments": "{\"currency\":\"USD\",\"total\":{\"$gte\":100}}",
+    "canonical_key": "{\"arguments\":{\"currency\":\"USD\",\"total\":{\"$gte\":100}},\"name\":\"order.created\",\"principal\":\"user_8f2c\",\"url\":\"https://receiver.example.com/mcp-events/abc123\"}",
+    "id": "sub_1fa69bec3707ee16223ae5400f92f935"
+  },
+  {
+    "principal": "user_8f2c",
+    "url": "https://receiver.example.com/mcp-events/abc123",
+    "name": "order.created",
+    "arguments": "{}",
+    "canonical_key": "{\"arguments\":{},\"name\":\"order.created\",\"principal\":\"user_8f2c\",\"url\":\"https://receiver.example.com/mcp-events/abc123\"}",
+    "id": "sub_a9706246dc14045d205e78a46261b0e3"
+  },
+  {
+    "principal": "user_8f2c",
+    "url": "https://receiver.example.com/mcp-events/abc123",
+    "name": "order.created",
+    "arguments": "{\"currency\":[\"EUR\",\"USD\"]}",
+    "canonical_key": "{\"arguments\":{\"currency\":[\"EUR\",\"USD\"]},\"name\":\"order.created\",\"principal\":\"user_8f2c\",\"url\":\"https://receiver.example.com/mcp-events/abc123\"}",
+    "id": "sub_80d4b932b3200c959eced052f7a5b385"
+  },
+  {
+    "principal": "user_8f2c",
+    "url": "https://connectors.api.openai.com/webhook/mcp-events/0123456789abcdef0123456789abcdef",
+    "name": "incident.created",
+    "arguments": "{\"severity\":\"P1\"}",
+    "canonical_key": "{\"arguments\":{\"severity\":\"P1\"},\"name\":\"incident.created\",\"principal\":\"user_8f2c\",\"url\":\"https://connectors.api.openai.com/webhook/mcp-events/0123456789abcdef0123456789abcdef\"}",
+    "id": "sub_c55e0052003255d463cd1f02bb97b637"
+  },
+  {
+    "principal": "auth0|5f7c8ec7c33c6c004bbafe82",
+    "url": "https://hooks.example.com/x?y=1",
+    "name": "order.created",
+    "arguments": "{\"total\":1e21,\"min\":5e-324}",
+    "canonical_key": "{\"arguments\":{\"min\":5e-324,\"total\":1e+21},\"name\":\"order.created\",\"principal\":\"auth0|5f7c8ec7c33c6c004bbafe82\",\"url\":\"https://hooks.example.com/x?y=1\"}",
+    "id": "sub_3eaa0cc176b746116c37c4abf2b3f31f"
+  },
+  {
+    "principal": "pr incipal \"quoted\" \\ é 😀",
+    "url": "https://xn--bcher-kva.de/p%C3%A9",
+    "name": "topic.é",
+    "arguments": "{\"k \":\"v\\u0001\",\"n\":-0}",
+    "canonical_key": "{\"arguments\":{\"k \":\"v\\u0001\",\"n\":0},\"name\":\"topic.é\",\"principal\":\"pr incipal \\\"quoted\\\" \\\\ é 😀\",\"url\":\"https://xn--bcher-kva.de/p%C3%A9\"}",
+    "id": "sub_fd38275d43d18650cc76789b4f44f82f"
+  },
+  {
+    "principal": "",
+    "url": "https://a.example/",
+    "name": "",
+    "arguments": "{}",
+    "canonical_key": "{\"arguments\":{},\"name\":\"\",\"principal\":\"\",\"url\":\"https://a.example/\"}",
+    "id": "sub_281e96ca35da5138147622b463f25654"
+  },
+  {
+    "principal": "tenant\u0000principal",
+    "url": "http://127.0.0.1:8080/hook",
+    "name": "a.b",
+    "arguments": "{\"x\":[1,2,3],\"y\":{\"$lt\":0.1}}",
+    "canonical_key": "{\"arguments\":{\"x\":[1,2,3],\"y\":{\"$lt\":0.1}},\"name\":\"a.b\",\"principal\":\"tenant\\u0000principal\",\"url\":\"http://127.0.0.1:8080/hook\"}",
+    "id": "sub_0819a6dae2cdbf88f2f36517ea433d11"
+  }
+]

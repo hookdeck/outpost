@@ -715,6 +715,67 @@ const sdk = new Outpost({ debugLogger: console });
 
 <!-- Placeholder for Future Speakeasy SDK Sections -->
 
+# MCP Events
+
+Outpost runs [MCP Events](https://hookdeck.com/docs/outpost/guides/mcp-events) for your MCP server: the server answers `events/list`, `events/subscribe` and `events/unsubscribe` by forwarding them to three Outpost endpoints, and Outpost verifies callbacks, stores subscriptions and delivers events. `@hookdeck/outpost-sdk/mcp-events/index.js` ships that glue. The MCP endpoints exist in Outpost API v2 only. Keep the `Outpost` instance you pass to the helpers on `/api/v1`: its generated methods target API v1 and fail against `/api/v2` (see [Upgrade to API v2](https://hookdeck.com/docs/outpost/self-hosting/changelog/upgrade-api-v2)), and the helpers rewrite a base URL ending in `/api/v1` to `/api/v2` for their own calls. Give a standalone `McpEventsClient` a v2 base URL, such as `http://localhost:3333/api/v2`.
+
+## Drop-in registration
+
+`registerMcpEvents` registers the three methods and declares the `events` capability (both the design-sketch `events: {}` that ChatGPT reads and the SEP-3415 `extensions` entry). It targets `@modelcontextprotocol/server` v2, which serves the `2026-07-28` revision ChatGPT requires, and also works with `@modelcontextprotocol/sdk` 1.x. Pass a low-level `Server` or an `McpServer`, and call it before `connect()` (capabilities can't change afterwards), or inside the per-request factory of `createMcpHandler`:
+
+```typescript
+import { createMcpHandler, McpServer, type ServerContext } from "@modelcontextprotocol/server";
+import { Outpost } from "@hookdeck/outpost-sdk";
+import { registerMcpEvents } from "@hookdeck/outpost-sdk/mcp-events/index.js";
+
+// API v1 for the generated methods; the MCP Events helpers call /api/v2.
+const outpost = new Outpost({ apiKey: process.env.OUTPOST_API_KEY, serverURL: "http://localhost:3333/api/v1" });
+
+const handler = createMcpHandler(() => {
+  const server = new McpServer({ name: "store", version: "1.0.0" });
+  registerMcpEvents(outpost, server, {
+    // The authenticated subject, e.g. the OAuth `sub` your token verifier put in authInfo.
+    // Never the OAuth client ID: every user of one MCP client shares it.
+    resolvePrincipal: (ctx: ServerContext) => ctx.http?.authInfo?.extra?.["sub"] as string | undefined,
+    resolveTenant: (principal) => tenantFor(principal),
+    allowedTopics: (principal) => topicsFor(principal), // optional
+  });
+  return server;
+});
+```
+
+- Requests without a principal, or whose principal has no tenant (`resolveTenant` returns `null`, `undefined` or `""`), are rejected with `Forbidden`.
+- `allowedTopics` is your authorization of event types. `events/list` only returns these topics; an empty list answers `{ events: [] }` without calling Outpost. `events/subscribe` rejects any other name with `NotFound` (`data: { kind: "event" }`), the same error as an unknown topic, and also sends the list to Outpost, which enforces it too. `events/unsubscribe` is never filtered, so cleanup always works.
+- Outpost's `mcp_error` (HTTP 422) is rethrown as the JSON-RPC error `{ code, message, data }`. Any other failure (Outpost unreachable, an unexpected status, a resolver error) becomes a generic `Internal error`; pass `onError: (error, { method }) => log(...)` to see the details.
+- `codes: "sketch" | "sep-3415"` picks the numbers of the errors raised locally (`Forbidden`, `NotFound`). Match Outpost's `MCP_ERROR_CODES`; Outpost fills the code of its own errors. The default is `"sketch"`.
+- With `@modelcontextprotocol/sdk` 1.x, `resolvePrincipal` receives the handler's `extra` (for example `extra.authInfo`).
+
+The first argument may be an `Outpost` instance (its server URL, API key, HTTP client and timeout are reused), a `{ serverURL, apiKey }` object, or an MCP Events client.
+
+## Lower-level calls
+
+`createMcpEventsHandlers(outpostOrConfig, { resolveTenant, allowedTopics?, codes?, onError? })` returns transport-agnostic `handleList`, `handleSubscribe` and `handleUnsubscribe(principal, params)` for any JSON-RPC layer. They resolve to the MCP result, ready to return verbatim, or reject with a `JSONRPCError` carrying `code`, `message` and `data`.
+
+`McpEventsClient` calls the endpoints directly and returns Outpost's JSON untouched:
+
+```typescript
+import { MCPError, McpEventsClient } from "@hookdeck/outpost-sdk/mcp-events/index.js";
+
+const client = new McpEventsClient({ serverURL: "http://localhost:3333/api/v2", apiKey: process.env.OUTPOST_API_KEY });
+
+await client.listEvents("store_123", { cursor, topics: ["order.created"] }); // GET  /tenants/{tenant_id}/mcp/events
+try {
+  await client.subscribe("store_123", { principal, params });              // PUT  /tenants/{tenant_id}/mcp/subscriptions
+} catch (err) {
+  if (err instanceof MCPError) {
+    // err.code, err.message and err.data are the JSON-RPC error to return.
+  }
+}
+await client.unsubscribe("store_123", { principal, params });              // POST /tenants/{tenant_id}/mcp/subscriptions/unsubscribe
+```
+
+Generated `outpost.mcp.*` methods for these and the operator endpoints (listing and revoking subscriptions) arrive with the next SDK regeneration. `outpost.mcp.listEvents` drops an empty `topics` array from the query string, and Outpost then lists every MCP-enabled topic. For a principal allowed no topics, answer `{ events: [] }` yourself, or use the helpers above, which do.
+
 # Development
 
 ## Maturity
