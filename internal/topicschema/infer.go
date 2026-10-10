@@ -56,8 +56,21 @@ var (
 // visitSchemaObjects calls fn for every schema object in node, a tree from
 // decodeJSON, with its dot path from root. Boolean schemas are skipped.
 func visitSchemaObjects(node any, path string, fn func(obj map[string]any, path string)) {
+	visitSchemas(node, path, func(schema any, path string) {
+		if obj, ok := schema.(map[string]any); ok {
+			fn(obj, path)
+		}
+	})
+}
+
+// visitSchemas calls fn for every schema in node, a tree from decodeJSON,
+// boolean schemas included, with its dot path from root.
+func visitSchemas(node any, path string, fn func(schema any, path string)) {
 	obj, ok := node.(map[string]any)
 	if !ok {
+		if _, ok := node.(bool); ok {
+			fn(node, path)
+		}
 		return
 	}
 	fn(obj, path)
@@ -68,20 +81,20 @@ func visitSchemaObjects(node any, path string, fn func(obj map[string]any, path 
 			// the metaschema rejects it, but walking it is harmless.
 			if list, ok := value.([]any); ok {
 				for i, v := range list {
-					visitSchemaObjects(v, indexPath(appendPathKey(path, key), i), fn)
+					visitSchemas(v, indexPath(appendPathKey(path, key), i), fn)
 				}
 				continue
 			}
-			visitSchemaObjects(value, appendPathKey(path, key), fn)
+			visitSchemas(value, appendPathKey(path, key), fn)
 		case subschemaListKeywords[key]:
 			list, _ := value.([]any)
 			for i, v := range list {
-				visitSchemaObjects(v, indexPath(appendPathKey(path, key), i), fn)
+				visitSchemas(v, indexPath(appendPathKey(path, key), i), fn)
 			}
 		case subschemaMapKeywords[key]:
 			m, _ := value.(map[string]any)
 			for name, v := range m {
-				visitSchemaObjects(v, appendPathKey(appendPathKey(path, key), name), fn)
+				visitSchemas(v, appendPathKey(appendPathKey(path, key), name), fn)
 			}
 		}
 	}

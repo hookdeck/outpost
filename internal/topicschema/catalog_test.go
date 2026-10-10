@@ -220,6 +220,31 @@ func TestNewCatalogRules(t *testing.T) {
 			},
 		},
 		{
+			// The validator compiles whatever a reference points to as a
+			// schema, so one into an extension or a default would bring in
+			// $id, anchors and references the checks above never see.
+			name:   "references to values that aren't schemas",
+			topics: []string{"a", "b", "c", "d", "ok"},
+			defs: Definitions{
+				"a": schemaDef(`{"type":"object","properties":{"a":{"$ref":"#/x-lib/A"}},
+					"x-lib":{"A":{"$id":"https://other.invalid/a.json","$defs":{"s":{"type":"string"}},"$ref":"#/$defs/s"}},
+					"$defs":{"s":{"type":"integer"}}}`),
+				"b": schemaDef(`{"$anchor":"root","properties":{"a":{"$ref":"#/x-lib/A/properties/b"}},
+					"x-lib":{"A":{"properties":{"b":{"$ref":"#root"}}}}}`),
+				"c": schemaDef(`{"properties":{"a":{"default":{"type":"string"}},"b":{"$dynamicRef":"#/properties/a/default"}}}`),
+				"d": schemaDef(`{"$defs":{"s":{"type":"string"}},"items":{"$ref":"#/$defs"}}`),
+				"ok": schemaDef(`{"type":"object","allOf":[{"type":"object"}],
+					"properties":{"a":{"$ref":"#/$defs/t"},"b":{"$ref":"#/allOf/0"},"c":{"$ref":"#/$defs/a~1b"},"d":{"$ref":"#/$defs/a%7E1b/not"},"e":{"$ref":"#"}},
+					"$defs":{"t":true,"a/b":{"not":{"type":"null"}}}}`),
+			},
+			want: []string{
+				`topic "a": payload_schema.properties.a.$ref "#/x-lib/A" must point to a schema, such as "#/$defs/name", not into another value such as an extension or a default`,
+				`topic "b": payload_schema.properties.a.$ref "#/x-lib/A/properties/b" must point to a schema, such as "#/$defs/name", not into another value such as an extension or a default`,
+				`topic "c": payload_schema.properties.b.$dynamicRef "#/properties/a/default" must point to a schema, such as "#/$defs/name", not into another value such as an extension or a default`,
+				`topic "d": payload_schema.items.$ref "#/$defs" must point to a schema, such as "#/$defs/name", not into another value such as an extension or a default`,
+			},
+		},
+		{
 			name:   "external references",
 			topics: []string{"a", "b", "c", "d", "e", "f"},
 			defs: Definitions{

@@ -216,7 +216,7 @@ We recommend vendoring the document: commit a copy next to your configuration an
 `payload_schema` is a [JSON Schema 2020-12](https://json-schema.org/draft/2020-12) object, with these rules:
 
 - `$schema` must be absent or `https://json-schema.org/draft/2020-12/schema`.
-- `$ref` and `$dynamicRef` must be JSON Pointers into the schema, such as `#/$defs/address`. Anchor references, such as `#address`, aren't supported, and Outpost never fetches remote schemas.
+- `$ref` and `$dynamicRef` must be JSON Pointers to a schema within `payload_schema`, such as `#/$defs/address`, and not into another value, such as an `x-` extension or a `default`. Anchor references, such as `#address`, aren't supported, and Outpost never fetches remote schemas.
 - `$id` is only allowed at the root of `payload_schema`, since a nested `$id` changes how references below it resolve.
 - `format` is checked for `date` and `date-time` only. Other formats, such as `email`, `uri` or `uuid`, are annotations and never fail validation.
 - Regular expressions in `pattern` and `patternProperties` use [RE2 syntax](https://github.com/google/re2/wiki/Syntax), which has no lookarounds or backreferences. A pattern RE2 can't compile fails startup when the topic's `validation` is `warn` or `enforce` or its `mcp.enabled` is set. For other topics it's a startup warning: the schema is still returned by `GET /topics` but never used for validation.

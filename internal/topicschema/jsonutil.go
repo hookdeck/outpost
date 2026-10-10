@@ -169,6 +169,38 @@ func resolveLocalRef(root any, ref string) (any, error) {
 	return cur, nil
 }
 
+// localRefPath returns the dot path from path, as visitSchemas writes them,
+// of the value a JSON pointer reference resolves to in root, a tree from
+// decodeJSON, following resolveLocalRef. It reports false when ref doesn't
+// resolve.
+func localRefPath(root any, ref, path string) (string, bool) {
+	fragment, err := url.PathUnescape(strings.TrimPrefix(ref, "#"))
+	if err != nil || (fragment != "" && fragment[0] != '/') {
+		return "", false
+	}
+	cur := root
+	for _, token := range strings.Split(fragment, "/")[1:] {
+		token = strings.ReplaceAll(strings.ReplaceAll(token, "~1", "/"), "~0", "~")
+		switch node := cur.(type) {
+		case map[string]any:
+			next, ok := node[token]
+			if !ok {
+				return "", false
+			}
+			cur, path = next, appendPathKey(path, token)
+		case []any:
+			i, err := strconv.Atoi(token)
+			if err != nil || i < 0 || i >= len(node) {
+				return "", false
+			}
+			cur, path = node[i], indexPath(path, i)
+		default:
+			return "", false
+		}
+	}
+	return path, true
+}
+
 // pointerRef reports whether ref is a fragment-only JSON pointer reference,
 // "#" or "#/..." once percent-decoded, the only kind resolveLocalRef
 // follows. JSON Schema reads any other fragment as an anchor.

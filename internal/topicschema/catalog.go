@@ -355,17 +355,21 @@ func (b *catalogBuilder) addSchema(t *Topic, e *entry, raw json.RawMessage) {
 }
 
 // checkSchemaObjects checks what the metaschema doesn't: $schema is the
-// 2020-12 dialect, references are local JSON pointers, $id and anchors are
-// only declared at the root, and x-mcp-filter is a boolean.
+// 2020-12 dialect, references are local JSON pointers to schemas, $id and
+// anchors are only declared at the root, and x-mcp-filter is a boolean.
 //
 // Inference and the breaking-change diff resolve references with
 // resolveLocalRef, which follows JSON pointers from the root. The validator
 // also resolves anchors, and resolves the references below a nested $id
 // against it, so a schema using either would be validated against one
-// thing and inferred and diffed against another.
+// thing and inferred and diffed against another. It also compiles whatever
+// a reference points to as a schema, so a reference into an extension or a
+// default would bring in an $id, anchors and references never checked here.
 func (b *catalogBuilder) checkSchemaObjects(name string, root map[string]any) bool {
 	const rootPath = "payload_schema"
 	before := len(b.problems)
+	schemas := map[string]bool{}
+	visitSchemas(root, rootPath, func(_ any, path string) { schemas[path] = true })
 	visitSchemaObjects(root, rootPath, func(obj map[string]any, path string) {
 		if v, ok := obj["$schema"]; ok && v != draft2020 {
 			b.problem(name, "%s must be %q", appendPathKey(path, "$schema"), draft2020)
@@ -380,6 +384,12 @@ func (b *catalogBuilder) checkSchemaObjects(name string, root map[string]any) bo
 			case !pointerRef(ref):
 				b.problem(name, `%s %s must be a JSON pointer such as "#/$defs/name"; anchors are not supported`,
 					appendPathKey(path, kw), quoteJSONString(ref))
+			default:
+				// One that doesn't resolve fails to compile.
+				if at, ok := localRefPath(root, ref, rootPath); ok && !schemas[at] {
+					b.problem(name, `%s %s must point to a schema, such as "#/$defs/name", not into another value such as an extension or a default`,
+						appendPathKey(path, kw), quoteJSONString(ref))
+				}
 			}
 		}
 		if path != rootPath {
