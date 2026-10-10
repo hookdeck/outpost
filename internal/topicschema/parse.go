@@ -139,7 +139,11 @@ func YAMLNodeToJSON(n *yaml.Node) (json.RawMessage, error) {
 // are skipped here instead: they are not bundled, and are reported in the
 // returned warnings along with any problem found in them, which no longer
 // fails the import. A webhook's topic is what its x-outpost-topic and key
-// resolve to or, when a reference can't be resolved, the name known so far.
+// resolve to. A problem that keeps the name from being read, such as an
+// invalid x-outpost-topic or a local path item or operation reference that
+// can't be followed, still fails the import, unless x-outpost-topic next to
+// the reference names the topic. The topic of a path item or operation in
+// another file is the name known so far.
 //
 // A document without a webhooks section is an error, as it is most likely not
 // the intended one. Errors are a *ConfigError naming the topic and the JSON
@@ -197,7 +201,7 @@ func ParseOpenAPI(data []byte, opts ...OpenAPIOption) (Definitions, []string, er
 			return nil, nil, parseConfigError(err.Error())
 		}
 		var pe *parseError
-		if errors.As(err, &pe) && !o.wants(pe.topic) {
+		if errors.As(err, &pe) && !pe.unnamed && !o.wants(pe.topic) {
 			warnings = append(warnings, o.skipped(pe.topic, pe))
 			continue
 		}
@@ -291,6 +295,10 @@ type parseError struct {
 	path  []string
 	line  int
 	msg   string
+	// unnamed reports a problem in an OpenAPI webhook that keeps its topic
+	// name from being read: topic is only the name known so far, so the
+	// webhook can't be skipped for not being in TOPICS.
+	unnamed bool
 }
 
 func (e *parseError) Error() string {
@@ -1114,12 +1122,14 @@ type openapiDoc struct {
 // a payload schema.
 func (d *openapiDoc) webhook(hook *parseNode) (topic string, def Definition, ok bool, err error) {
 	topic = hook.key
-	// x-outpost-topic next to a path item $ref names the topic even when the
-	// reference doesn't resolve.
-	if t := hook.get("x-outpost-topic"); t != nil && t.kind == parseString && t.text != "" {
-		topic = t.text
+	// Until the operation is read, the topic's name may still come from
+	// the path item or the operation, unless x-outpost-topic next to the
+	// reference names it.
+	name, named := openapiRefTopic(hook)
+	if named {
+		topic = name
 	}
-	item, path, err := d.follow(hook, []string{"webhooks", hook.key}, topic)
+	item, path, err := d.follow(hook, []string{"webhooks", hook.key}, topic, named)
 	if err != nil {
 		return "", def, false, err
 	}
@@ -1133,7 +1143,10 @@ func (d *openapiDoc) webhook(hook *parseNode) (topic string, def Definition, ok 
 	if post == nil {
 		return "", def, false, nil
 	}
-	op, opPath, err := d.follow(post, openapiPath(path, "post"), topic)
+	if name, named = openapiRefTopic(post); named {
+		topic = name
+	}
+	op, opPath, err := d.follow(post, openapiPath(path, "post"), topic, named)
 	if err != nil {
 		return "", def, false, err
 	}
@@ -1189,7 +1202,7 @@ func (d *openapiDoc) requestSchema(op *parseNode, opPath []string, topic string)
 	if body == nil {
 		return nil, nil, nil
 	}
-	body, path, err := d.follow(body, openapiPath(opPath, "requestBody"), topic)
+	body, path, err := d.follow(body, openapiPath(opPath, "requestBody"), topic, true)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1204,7 +1217,7 @@ func (d *openapiDoc) requestSchema(op *parseNode, opPath []string, topic string)
 	if media == nil {
 		return nil, nil, nil
 	}
-	media, path, err = d.follow(media, openapiPath(path, "content", media.key), topic)
+	media, path, err = d.follow(media, openapiPath(path, "content", media.key), topic, true)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1238,8 +1251,10 @@ func openapiJSONMediaType(content *parseNode) *parseNode {
 // follow resolves a $ref at path item, operation, request body or media type
 // level, to a local object. Fields next to $ref override the referenced
 // object's, as summary and description do on a Reference Object. path
-// becomes the location of the referenced object.
-func (d *openapiDoc) follow(n *parseNode, path []string, topic string) (*parseNode, []string, error) {
+// becomes the location of the referenced object. named reports whether the
+// topic's name is final; if not, a local reference that can't be followed
+// may hide the x-outpost-topic naming it, and its problem is unnamed.
+func (d *openapiDoc) follow(n *parseNode, path []string, topic string, named bool) (*parseNode, []string, error) {
 	var seen []string
 	for n.kind == parseObject {
 		ref := n.get("$ref")
@@ -1247,26 +1262,31 @@ func (d *openapiDoc) follow(n *parseNode, path []string, topic string) (*parseNo
 			break
 		}
 		refPath := openapiPath(path, "$ref")
+		fail := func(msg string) error {
+			return &parseError{topic: topic, path: refPath, msg: msg, unnamed: !named}
+		}
 		if ref.kind != parseString {
-			return nil, nil, &parseError{topic: topic, path: refPath, msg: "must be a string"}
+			return nil, nil, fail("must be a string")
 		}
 		if !strings.HasPrefix(ref.text, "#") {
+			// The object is in another file, which is never read, so the
+			// name known so far is final.
 			return nil, nil, &parseError{topic: topic, path: refPath, msg: fmt.Sprintf("external $ref %q is not supported; move the referenced object into the document", ref.text)}
 		}
 		if slices.Contains(seen, ref.text) {
-			return nil, nil, &parseError{topic: topic, path: refPath, msg: fmt.Sprintf("circular $ref %q", ref.text)}
+			return nil, nil, fail(fmt.Sprintf("circular $ref %q", ref.text))
 		}
 		if len(seen) >= maxRefDepth {
-			return nil, nil, &parseError{topic: topic, path: refPath, msg: fmt.Sprintf("$ref %q: more than %d chained references", ref.text, maxRefDepth)}
+			return nil, nil, fail(fmt.Sprintf("$ref %q: more than %d chained references", ref.text, maxRefDepth))
 		}
 		seen = append(seen, ref.text)
 		tokens, pointer, err := openapiParseRef(ref.text)
 		if err != nil || !pointer {
-			return nil, nil, &parseError{topic: topic, path: refPath, msg: fmt.Sprintf("invalid $ref %q", ref.text)}
+			return nil, nil, fail(fmt.Sprintf("invalid $ref %q", ref.text))
 		}
 		target := openapiResolve(d.root, tokens)
 		if target == nil {
-			return nil, nil, &parseError{topic: topic, path: refPath, msg: fmt.Sprintf("$ref %q does not resolve", ref.text)}
+			return nil, nil, fail(fmt.Sprintf("$ref %q does not resolve", ref.text))
 		}
 		if n, err = d.overlay(target, n); err != nil {
 			return nil, nil, err
@@ -1301,15 +1321,29 @@ func (d *openapiDoc) overlay(target, ref *parseNode) (*parseNode, error) {
 	return merged, nil
 }
 
+// openapiTopicName returns the topic a path item or operation names with
+// x-outpost-topic, or current when it names none.
 func openapiTopicName(n *parseNode, path []string, current string) (string, error) {
 	t := n.get("x-outpost-topic")
 	if t == nil {
 		return current, nil
 	}
 	if t.kind != parseString || t.text == "" {
-		return "", &parseError{topic: current, path: openapiPath(path, "x-outpost-topic"), msg: "must be a non-empty string"}
+		return "", &parseError{topic: current, path: openapiPath(path, "x-outpost-topic"), msg: "must be a non-empty string", unnamed: true}
 	}
 	return t.text, nil
+}
+
+// openapiRefTopic returns the topic n, a path item or operation that may be a
+// reference, names with x-outpost-topic next to its $ref. It wins over the
+// referenced object's, so it names the topic even when the reference can't
+// be followed.
+func openapiRefTopic(n *parseNode) (string, bool) {
+	t := n.get("x-outpost-topic")
+	if t == nil || t.kind != parseString || t.text == "" {
+		return "", false
+	}
+	return t.text, true
 }
 
 func openapiString(n *parseNode, key string, path []string, topic string) (string, error) {

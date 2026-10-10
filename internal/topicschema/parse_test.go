@@ -950,6 +950,70 @@ noBody:
 	})
 }
 
+func TestParseOpenAPITopicsUnknownName(t *testing.T) {
+	// A path item or operation that can't be read may hold the
+	// x-outpost-topic naming the webhook's topic, so a problem reading it
+	// fails the import even when the name known so far isn't listed.
+	doc := parseTestOpenAPI(`
+orderCreated:
+  $ref: '#/components/pathItems/OrderCreatd'
+orderUpdated:
+  post:
+    $ref: '#/components/ops/OrderUpdatd'
+orderPaid:
+  $ref: '#/components/pathItems/Loop'
+orderShipped:
+  x-outpost-topic: 5
+  post: {requestBody: {content: {application/json: {schema: {}}}}}
+orderRefunded:
+  post:
+    x-outpost-topic: ''
+    requestBody: {content: {application/json: {schema: {}}}}
+`, `
+pathItems:
+  OrderCreated: {x-outpost-topic: order.created, post: {requestBody: {content: {application/json: {schema: {}}}}}}
+  Loop: {$ref: '#/components/pathItems/Loop'}
+ops:
+  OrderUpdated: {x-outpost-topic: order.updated, requestBody: {content: {application/json: {schema: {}}}}}
+`)
+	defs, warnings, err := ParseOpenAPI(doc, OpenAPITopics([]string{"order.created", "order.updated"}))
+	assert.Nil(t, defs)
+	assert.Nil(t, warnings)
+	parseTestRequireProblems(t, err,
+		`topic "orderCreated": /webhooks/orderCreated/$ref: $ref "#/components/pathItems/OrderCreatd" does not resolve`,
+		`topic "orderPaid": /components/pathItems/Loop/$ref: circular $ref "#/components/pathItems/Loop"`,
+		`topic "orderRefunded": /webhooks/orderRefunded/post/x-outpost-topic: must be a non-empty string`,
+		`topic "orderShipped": /webhooks/orderShipped/x-outpost-topic: must be a non-empty string`,
+		`topic "orderUpdated": /webhooks/orderUpdated/post/$ref: $ref "#/components/ops/OrderUpdatd" does not resolve`,
+	)
+
+	// Once the name can't change, the webhook is skipped: x-outpost-topic
+	// next to the reference names the topic, and the target of a reference
+	// to another file can't be read anyway.
+	doc = parseTestOpenAPI(`
+k1:
+  $ref: '#/components/pathItems/Nope'
+  x-outpost-topic: refund.created
+k2:
+  post:
+    $ref: '#/components/ops/Nope'
+    x-outpost-topic: refund.updated
+k3:
+  $ref: './webhooks/k3.yaml'
+k4:
+  post: {requestBody: {$ref: '#/components/requestBodies/Nope'}}
+`, "")
+	defs, warnings, err = ParseOpenAPI(doc, OpenAPITopics([]string{"order.created"}))
+	require.NoError(t, err)
+	assert.Empty(t, defs)
+	assert.Equal(t, []string{
+		`imported topic "k3" is not in TOPICS and was skipped; it would fail to import: /webhooks/k3/$ref: external $ref "./webhooks/k3.yaml" is not supported; move the referenced object into the document`,
+		`imported topic "k4" is not in TOPICS and was skipped; it would fail to import: /webhooks/k4/post/requestBody/$ref: $ref "#/components/requestBodies/Nope" does not resolve`,
+		`imported topic "refund.created" is not in TOPICS and was skipped; it would fail to import: /webhooks/k1/$ref: $ref "#/components/pathItems/Nope" does not resolve`,
+		`imported topic "refund.updated" is not in TOPICS and was skipped; it would fail to import: /webhooks/k2/post/$ref: $ref "#/components/ops/Nope" does not resolve`,
+	}, warnings)
+}
+
 func TestParseOpenAPIErrors(t *testing.T) {
 	cases := []struct {
 		name string
