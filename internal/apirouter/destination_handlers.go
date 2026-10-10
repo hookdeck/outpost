@@ -530,6 +530,11 @@ func (h *DestinationHandlers) handleUpsertDestinationError(c *gin.Context, err e
 		AbortWithError(c, http.StatusBadRequest, NewErrBadRequest(err))
 		return
 	}
+	// The tenant was deleted after the request was authorized.
+	if errors.Is(err, tenantstore.ErrTenantDeleted) {
+		AbortWithError(c, http.StatusNotFound, NewErrNotFound("tenant"))
+		return
+	}
 	AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 }
 

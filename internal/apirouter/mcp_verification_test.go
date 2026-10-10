@@ -36,16 +36,20 @@ func (s fakeVerificationStore) MarkVerified(context.Context, string, string, str
 	return nil
 }
 
+func (s fakeVerificationStore) ClaimVerification(context.Context, string, string, string, time.Duration) (func(), bool, error) {
+	return func() {}, true, nil
+}
+
 func (s fakeVerificationStore) CountAttempt(context.Context, string, string, int64) (int64, error) {
 	return 1, s.countErr
 }
 
-func (s fakeVerificationStore) HostFailures(context.Context, string, int64) (int64, error) {
-	return 0, nil
+func (s fakeVerificationStore) FailureCounts(context.Context, string, string, int64) (int64, int64, error) {
+	return 0, 0, nil
 }
 
-func (s fakeVerificationStore) CountHostFailure(context.Context, string, int64) (int64, error) {
-	return 1, nil
+func (s fakeVerificationStore) CountFailure(context.Context, string, string, int64, bool) error {
+	return nil
 }
 
 // publicResolver resolves every host to a public address, so callbacks pass

@@ -157,7 +157,7 @@ Serving v2 needs no configuration:
 - **Same credentials.** The admin API key and tenant JWTs work on both versions. JWTs carry no version, so a token issued through v1 works on v2.
 - **Same data.** Both versions read and write the same tenants, destinations, events and attempts. Pagination cursors from one version work on the other.
 - **Tenant portal.** The portal calls API v2, so it needs `/api/v2` to be reachable wherever the portal is used. It shows MCP subscriptions read-only, with a disconnect action. See [Tenant Portal](/docs/outpost/features/tenant-user-portal#mcp-subscriptions).
-- **SDKs.** The published SDKs target API v1. Keep them on `/api/v1` or a managed dated URL: they expect `GET /topics` to return strings, so `topics.list()` fails against v2. SDK releases for API v2 follow once managed Outpost serves it. The SDKs' MCP Events handlers call the MCP endpoints themselves, so point them at your `/api/v2` URL.
+- **SDKs.** The published SDKs target API v1. Keep them on `/api/v1` or a managed dated URL: they expect `GET /topics` to return strings, so `topics.list()` fails against v2. SDK releases for API v2 follow once managed Outpost serves it. The SDKs' MCP Events helpers take the same SDK instance and call the MCP endpoints on `/api/v2` themselves, rewriting a `/api/v1` base URL, so keep that instance on `/api/v1`.
 
 To move a client, change its base URL from `/api/v1` to `/api/v2` and handle the [breaking changes](#breaking-changes-from-v1-to-v2) above.
 
