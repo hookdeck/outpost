@@ -2,6 +2,7 @@ package topicschema
 
 import (
 	"bytes"
+	"cmp"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -39,6 +40,12 @@ const (
 	// one OpenAPI document. Each copies the referenced object, so many
 	// references to one large object add up.
 	openapiMaxOverlaidMembers = 1 << 20
+	// openapiMaxRefBytes caps the length of a $ref in an OpenAPI document.
+	openapiMaxRefBytes = 4 << 10
+	// openapiMaxScanned caps the media types and $ref bytes read to resolve
+	// the webhooks of one OpenAPI document. Each object is read once,
+	// however many webhooks share it, so this only guards that.
+	openapiMaxScanned = 16 << 20
 )
 
 var utf8BOM = []byte("\xef\xbb\xbf")
@@ -177,7 +184,14 @@ func ParseOpenAPI(data []byte, opts ...OpenAPIOption) (Definitions, []string, er
 	if err := openapiCheckVersion(root); err != nil {
 		return nil, nil, parseConfigError(err.Error())
 	}
-	doc := &openapiDoc{root: root, schemas: map[string]*parseNode{}, opts: o}
+	doc := &openapiDoc{
+		root:      root,
+		schemas:   map[string]*parseNode{},
+		refs:      map[*parseNode]openapiRef{},
+		media:     map[*parseNode]int{},
+		scanLimit: cmp.Or(o.scanLimit, openapiMaxScanned),
+		opts:      o,
+	}
 	if schemas := root.get("components").get("schemas"); schemas != nil && schemas.kind == parseObject {
 		for i := range schemas.kids {
 			doc.schemas[schemas.kids[i].key] = &schemas.kids[i]
@@ -197,7 +211,8 @@ func ParseOpenAPI(data []byte, opts ...OpenAPIOption) (Definitions, []string, er
 	for i := range hooks.kids {
 		hook := &hooks.kids[i]
 		topic, def, ok, err := doc.webhook(hook)
-		if errors.Is(err, errOpenAPIBundleTooLarge) || errors.Is(err, errOpenAPIOverlayTooLarge) {
+		var scanErr *openapiScanError
+		if errors.Is(err, errOpenAPIBundleTooLarge) || errors.Is(err, errOpenAPIOverlayTooLarge) || errors.As(err, &scanErr) {
 			return nil, nil, parseConfigError(err.Error())
 		}
 		var pe *parseError
@@ -239,6 +254,13 @@ type openapiOptions struct {
 	// wanted imports every topic.
 	topics []string
 	wanted map[string]bool
+	// scanLimit replaces openapiMaxScanned when set.
+	scanLimit int
+}
+
+// openapiScanLimit replaces openapiMaxScanned, for tests.
+func openapiScanLimit(n int) OpenAPIOption {
+	return func(o *openapiOptions) { o.scanLimit = n }
 }
 
 // OpenAPITopics imports only the webhooks whose topic is one of topics, the
@@ -1085,6 +1107,14 @@ var errOpenAPIBundleTooLarge = fmt.Errorf("the payload schemas bundled from the 
 // than openapiMaxOverlaidMembers members.
 var errOpenAPIOverlayTooLarge = fmt.Errorf("the $ref overlays of the OpenAPI document copy more than %d members; drop the members next to $refs to large objects", openapiMaxOverlaidMembers)
 
+// openapiScanError aborts an import that reads more than limit media types
+// and $ref bytes to resolve its webhooks.
+type openapiScanError struct{ limit int }
+
+func (e *openapiScanError) Error() string {
+	return fmt.Sprintf("resolving the webhooks of the OpenAPI document reads more than %d media types and $ref bytes", e.limit)
+}
+
 // openapiCheckVersion accepts OpenAPI 3.1.x documents only: 3.0 schemas are
 // not JSON Schema 2020-12 (nullable, exclusiveMinimum as a boolean, ...).
 func openapiCheckVersion(root *parseNode) error {
@@ -1113,8 +1143,24 @@ type openapiDoc struct {
 	bundled int
 	// overlaid counts the members copied by overlay so far.
 	overlaid int
+	// refs and media memoize readRef and jsonMediaType, so an object many
+	// webhooks share is read once. Overlays copy objects by value, but not
+	// their members, so both are keyed by a member of the object.
+	refs  map[*parseNode]openapiRef
+	media map[*parseNode]int
+	// scanned counts the media types and $ref bytes read so far, up to
+	// scanLimit.
+	scanned, scanLimit int
 	// opts selects the topics to import.
 	opts openapiOptions
+}
+
+// scan charges n media types or $ref bytes against the document's limit.
+func (d *openapiDoc) scan(n int) error {
+	if d.scanned += n; d.scanned > d.scanLimit {
+		return &openapiScanError{limit: d.scanLimit}
+	}
+	return nil
 }
 
 // webhook imports one webhook. ok is false when it is skipped. A webhook
@@ -1213,9 +1259,9 @@ func (d *openapiDoc) requestSchema(op *parseNode, opPath []string, topic string)
 	if content.kind != parseObject {
 		return nil, nil, &parseError{topic: topic, path: openapiPath(path, "content"), msg: "must be an object"}
 	}
-	media := openapiJSONMediaType(content)
-	if media == nil {
-		return nil, nil, nil
+	media, err := d.jsonMediaType(content)
+	if media == nil || err != nil {
+		return nil, nil, err
 	}
 	media, path, err = d.follow(media, openapiPath(path, "content", media.key), topic, true)
 	if err != nil {
@@ -1228,21 +1274,42 @@ func (d *openapiDoc) requestSchema(op *parseNode, opPath []string, topic string)
 	return schema, openapiPath(path, "schema"), nil
 }
 
+// jsonMediaType returns the member of a content object openapiJSONMediaType
+// picks, or nil.
+func (d *openapiDoc) jsonMediaType(content *parseNode) (*parseNode, error) {
+	if len(content.kids) == 0 {
+		return nil, nil
+	}
+	key := &content.kids[0]
+	i, ok := d.media[key]
+	if !ok {
+		if err := d.scan(len(content.kids)); err != nil {
+			return nil, err
+		}
+		i = openapiJSONMediaType(content)
+		d.media[key] = i
+	}
+	if i < 0 {
+		return nil, nil
+	}
+	return &content.kids[i], nil
+}
+
 // openapiJSONMediaType picks application/json, with or without parameters,
-// else the first *+json media type in document order.
-func openapiJSONMediaType(content *parseNode) *parseNode {
-	var fallback *parseNode
+// else the first *+json media type in document order. It returns the
+// position of the media type in content, or -1.
+func openapiJSONMediaType(content *parseNode) int {
+	fallback := -1
 	for i := range content.kids {
-		m := &content.kids[i]
-		mt, _, err := mime.ParseMediaType(m.key)
+		mt, _, err := mime.ParseMediaType(content.kids[i].key)
 		if err != nil {
 			continue
 		}
 		if mt == "application/json" {
-			return m
+			return i
 		}
-		if fallback == nil && strings.HasSuffix(mt, "+json") {
-			fallback = m
+		if fallback < 0 && strings.HasSuffix(mt, "+json") {
+			fallback = i
 		}
 	}
 	return fallback
@@ -1255,9 +1322,13 @@ func openapiJSONMediaType(content *parseNode) *parseNode {
 // topic's name is final; if not, a local reference that can't be followed
 // may hide the x-outpost-topic naming it, and its problem is unnamed.
 func (d *openapiDoc) follow(n *parseNode, path []string, topic string, named bool) (*parseNode, []string, error) {
-	var seen []string
+	// src is the document object whose $ref is followed next: an overlay
+	// copies the referenced object's members, so its $ref is read from the
+	// object itself.
+	src := n
+	var seen []*parseNode
 	for n.kind == parseObject {
-		ref := n.get("$ref")
+		ref := src.get("$ref")
 		if ref == nil {
 			break
 		}
@@ -1273,27 +1344,54 @@ func (d *openapiDoc) follow(n *parseNode, path []string, topic string, named boo
 			// name known so far is final.
 			return nil, nil, &parseError{topic: topic, path: refPath, msg: fmt.Sprintf("external $ref %q is not supported; move the referenced object into the document", ref.text)}
 		}
-		if slices.Contains(seen, ref.text) {
-			return nil, nil, fail(fmt.Sprintf("circular $ref %q", ref.text))
+		if len(ref.text) > openapiMaxRefBytes {
+			return nil, nil, fail(fmt.Sprintf("$ref is longer than %d bytes", openapiMaxRefBytes))
 		}
-		if len(seen) >= maxRefDepth {
+		r, err := d.readRef(ref)
+		switch {
+		case err != nil:
+			return nil, nil, err
+		case r.problem != "":
+			return nil, nil, fail(r.problem)
+		case slices.Contains(seen, r.target):
+			return nil, nil, fail(fmt.Sprintf("circular $ref %q", ref.text))
+		case len(seen) >= maxRefDepth:
 			return nil, nil, fail(fmt.Sprintf("$ref %q: more than %d chained references", ref.text, maxRefDepth))
 		}
-		seen = append(seen, ref.text)
-		tokens, pointer, err := openapiParseRef(ref.text)
-		if err != nil || !pointer {
-			return nil, nil, fail(fmt.Sprintf("invalid $ref %q", ref.text))
-		}
-		target := openapiResolve(d.root, tokens)
-		if target == nil {
-			return nil, nil, fail(fmt.Sprintf("$ref %q does not resolve", ref.text))
-		}
-		if n, err = d.overlay(target, n); err != nil {
+		seen = append(seen, r.target)
+		if n, err = d.overlay(r.target, n); err != nil {
 			return nil, nil, err
 		}
-		path = tokens
+		src, path = r.target, r.tokens
 	}
 	return n, path, nil
+}
+
+// openapiRef is a local $ref read by readRef: the JSON pointer tokens of the
+// object it resolves to and the object, or the problem with it.
+type openapiRef struct {
+	tokens  []string
+	target  *parseNode
+	problem string
+}
+
+// readRef reads a local $ref member, once however many webhooks reach it.
+func (d *openapiDoc) readRef(ref *parseNode) (openapiRef, error) {
+	if r, ok := d.refs[ref]; ok {
+		return r, nil
+	}
+	if err := d.scan(len(ref.text)); err != nil {
+		return openapiRef{}, err
+	}
+	var r openapiRef
+	tokens, pointer, err := openapiParseRef(ref.text)
+	if err != nil || !pointer {
+		r.problem = fmt.Sprintf("invalid $ref %q", ref.text)
+	} else if r.tokens, r.target = tokens, openapiResolve(d.root, tokens); r.target == nil {
+		r.problem = fmt.Sprintf("$ref %q does not resolve", ref.text)
+	}
+	d.refs[ref] = r
+	return r, nil
 }
 
 // overlay returns target with the members of ref other than $ref set on top
@@ -1622,10 +1720,12 @@ func (d *openapiDoc) bundle(topic string, schema *parseNode, path []string) (jso
 // "properties", which inference reads. The annotations replace the
 // component's.
 func (d *openapiDoc) schemaRoot(n *parseNode, path []string) (*parseNode, []string, error) {
-	var seen []string
+	// As in follow, src is the document object whose $ref is followed next.
+	src := n
+	var seen []*parseNode
 	for len(seen) < maxRefDepth && n.kind == parseObject {
-		ref := n.get("$ref")
-		if ref == nil || ref.kind != parseString || slices.Contains(seen, ref.text) {
+		ref := src.get("$ref")
+		if ref == nil || ref.kind != parseString || !strings.HasPrefix(ref.text, "#") || len(ref.text) > openapiMaxRefBytes {
 			break
 		}
 		for _, m := range n.kids {
@@ -1633,19 +1733,18 @@ func (d *openapiDoc) schemaRoot(n *parseNode, path []string) (*parseNode, []stri
 				return n, path, nil
 			}
 		}
-		tokens, pointer, err := openapiParseRef(ref.text)
-		if err != nil || !pointer || len(tokens) < 3 || tokens[0] != "components" || tokens[1] != "schemas" {
-			break
-		}
-		target := openapiResolve(d.root, tokens)
-		if target == nil {
-			break
-		}
-		seen = append(seen, ref.text)
-		if n, err = d.overlay(target, n); err != nil {
+		r, err := d.readRef(ref)
+		if err != nil {
 			return nil, nil, err
 		}
-		path = tokens
+		if r.target == nil || len(r.tokens) < 3 || r.tokens[0] != "components" || r.tokens[1] != "schemas" || slices.Contains(seen, r.target) {
+			break
+		}
+		seen = append(seen, r.target)
+		if n, err = d.overlay(r.target, n); err != nil {
+			return nil, nil, err
+		}
+		src, path = r.target, r.tokens
 	}
 	return n, path, nil
 }
@@ -1777,6 +1876,9 @@ func (b *openapiBundler) discriminator(buf []byte, m *parseNode, path []string) 
 func (b *openapiBundler) ref(ref string, path []string) (string, error) {
 	if !strings.HasPrefix(ref, "#") {
 		return "", b.errorf(path, "external $ref %q is not supported; move the schema under #/components/schemas", ref)
+	}
+	if len(ref) > openapiMaxRefBytes {
+		return "", b.errorf(path, "$ref is longer than %d bytes", openapiMaxRefBytes)
 	}
 	tokens, pointer, err := openapiParseRef(ref)
 	if err != nil {

@@ -1065,6 +1065,21 @@ func TestParseOpenAPIErrors(t *testing.T) {
 			want: []string{`topic "a": /components/schemas/B/$id: $id is only supported at the payload schema root`},
 		},
 		{
+			name: "long path item ref",
+			doc:  parseTestOpenAPI("a:\n  $ref: '#/components/pathItems/"+strings.Repeat("x", 5000)+"'\n", ""),
+			want: []string{`topic "a": /webhooks/a/$ref: $ref is longer than 4096 bytes`},
+		},
+		{
+			name: "long schema refs",
+			doc: parseTestOpenAPI(
+				parseTestJSONBody("a", `{$ref: '#/components/schemas/`+strings.Repeat("x", 5000)+`'}`)+
+					parseTestJSONBody("b", `{properties: {c: {$ref: '#/components/schemas/`+strings.Repeat("x", 5000)+`'}}}`), ""),
+			want: []string{
+				`topic "a": /webhooks/a/post/requestBody/content/application~1json/schema/$ref: $ref is longer than 4096 bytes`,
+				`topic "b": /webhooks/b/post/requestBody/content/application~1json/schema/properties/c/$ref: $ref is longer than 4096 bytes`,
+			},
+		},
+		{
 			name: "missing request body",
 			doc:  parseTestOpenAPI("a:\n  post:\n    requestBody: {$ref: '#/components/requestBodies/Nope'}\n", ""),
 			want: []string{`topic "a": /webhooks/a/post/requestBody/$ref: $ref "#/components/requestBodies/Nope" does not resolve`},
@@ -1234,6 +1249,47 @@ func parseTestManyRefsDoc(refs, members int) []byte {
 	return []byte(sb.String())
 }
 
+// parseTestSharedContentDoc has hooks webhooks referencing one path item
+// whose request body lists media other media types before application/json.
+func parseTestSharedContentDoc(hooks, media int) []byte {
+	var sb strings.Builder
+	sb.WriteString(`{"openapi":"3.1.0","webhooks":{`)
+	for i := range hooks {
+		if i > 0 {
+			sb.WriteByte(',')
+		}
+		fmt.Fprintf(&sb, `"w%d":{"$ref":"#/components/pathItems/p"}`, i)
+	}
+	sb.WriteString(`},"components":{"pathItems":{"p":{"post":{"requestBody":{"content":{`)
+	for i := range media {
+		fmt.Fprintf(&sb, `"t/x%d":{},`, i)
+	}
+	sb.WriteString(`"application/json":{"schema":{"type":"object"}}}}}}}}}`)
+	return []byte(sb.String())
+}
+
+// parseTestLongRefsDoc has hooks webhooks referencing a path item that starts
+// a chain of refs references of about refBytes each.
+func parseTestLongRefsDoc(hooks, refs, refBytes int) []byte {
+	key := func(i int) string {
+		return fmt.Sprintf("p%d-%s", i, strings.Repeat("x", refBytes-len("#/components/pathItems/p00-")))
+	}
+	var sb strings.Builder
+	sb.WriteString(`{"openapi":"3.1.0","webhooks":{`)
+	for i := range hooks {
+		if i > 0 {
+			sb.WriteByte(',')
+		}
+		fmt.Fprintf(&sb, `"w%d":{"$ref":"#/components/pathItems/start"}`, i)
+	}
+	fmt.Fprintf(&sb, `},"components":{"pathItems":{"start":{"$ref":"#/components/pathItems/%s"},`, key(0))
+	for i := range refs - 2 {
+		fmt.Fprintf(&sb, `"%s":{"$ref":"#/components/pathItems/%s"},`, key(i), key(i+1))
+	}
+	fmt.Fprintf(&sb, `"%s":{"post":{"requestBody":{"content":{"application/json":{"schema":{"type":"object"}}}}}}}}}`, key(refs-2))
+	return []byte(sb.String())
+}
+
 // TestParseOpenAPILargeObjects checks that resolving references stays linear
 // in the size of the document, so a document under the input cap can't stall
 // startup.
@@ -1245,6 +1301,8 @@ func TestParseOpenAPILargeObjects(t *testing.T) {
 	}{
 		{name: "300k members next to a $ref", doc: parseTestOverlayDoc(300_000), want: 1},
 		{name: "20k references into 100k-member components", doc: parseTestManyRefsDoc(20_000, 100_000), want: 20_000},
+		{name: "20k webhooks sharing 20k media types", doc: parseTestSharedContentDoc(20_000, 20_000), want: 20_000},
+		{name: "20k webhooks following 30 4 KiB references", doc: parseTestLongRefsDoc(20_000, 30, 4<<10), want: 20_000},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1258,6 +1316,18 @@ func TestParseOpenAPILargeObjects(t *testing.T) {
 			assert.Less(t, elapsed, time.Second)
 		})
 	}
+}
+
+func TestParseOpenAPIScanBudget(t *testing.T) {
+	// Ten webhooks share a 101-member content object, read once, and each
+	// has its own 24-byte $ref: 341 in all.
+	doc := parseTestSharedContentDoc(10, 100)
+	defs, _, err := ParseOpenAPI(doc, openapiScanLimit(341))
+	require.NoError(t, err)
+	assert.Len(t, defs, 10)
+
+	_, _, err = ParseOpenAPI(doc, openapiScanLimit(340))
+	parseTestRequireProblems(t, err, "resolving the webhooks of the OpenAPI document reads more than 340 media types and $ref bytes")
 }
 
 func BenchmarkParseOpenAPILargeObjects(b *testing.B) {
