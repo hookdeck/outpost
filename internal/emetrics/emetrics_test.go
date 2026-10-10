@@ -25,9 +25,9 @@ func TestEventSchemaInvalid(t *testing.T) {
 	m, err := emetrics.New()
 	require.NoError(t, err)
 
-	m.EventSchemaInvalid(ctx, "order.created", "enforce", emetrics.SchemaInvalidReasonInvalid)
-	m.EventSchemaInvalid(ctx, "order.created", "enforce", emetrics.SchemaInvalidReasonInvalid)
-	m.EventSchemaInvalid(ctx, "order.created", "warn", emetrics.SchemaInvalidReasonTooLarge)
+	m.EventSchemaInvalid(ctx, "order.created", "enforce")
+	m.EventSchemaInvalid(ctx, "order.created", "enforce")
+	m.EventSchemaInvalid(ctx, "order.created", "warn")
 
 	var rm metricdata.ResourceMetrics
 	require.NoError(t, reader.Collect(ctx, &rm))
@@ -47,21 +47,19 @@ func TestEventSchemaInvalid(t *testing.T) {
 
 	got := map[attribute.Distinct]int64{}
 	for _, dp := range sum.DataPoints {
-		assert.Equal(t, 3, dp.Attributes.Len(), "only topic, mode and reason are recorded")
+		assert.Equal(t, 2, dp.Attributes.Len(), "only topic and mode are recorded")
 		got[dp.Attributes.Equivalent()] = dp.Value
 	}
-	invalid := attribute.NewSet(
+	enforce := attribute.NewSet(
 		attribute.String("topic", "order.created"),
 		attribute.String("mode", "enforce"),
-		attribute.String("reason", "invalid"),
 	)
-	tooLarge := attribute.NewSet(
+	warn := attribute.NewSet(
 		attribute.String("topic", "order.created"),
 		attribute.String("mode", "warn"),
-		attribute.String("reason", "too_large"),
 	)
 	assert.Equal(t, map[attribute.Distinct]int64{
-		invalid.Equivalent():  2,
-		tooLarge.Equivalent(): 1,
+		enforce.Equivalent(): 2,
+		warn.Equivalent():    1,
 	}, got)
 }

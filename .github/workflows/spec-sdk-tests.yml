@@ -40,8 +40,6 @@ on:
       - "internal/apirouter/**"
       - "internal/destregistry/**"
       - "internal/models/**"
-      - "internal/topicschema/**"
-      - "internal/services/health.go"
       - "cmd/outpost/**"
       - "cmd/outpost-server/**"
       - ".github/workflows/spec-sdk-tests.yml"
@@ -196,11 +194,10 @@ jobs:
         # doesn't work — use `npm install` instead.
         run: npm install
 
-      # The spec describes API v2, so the suite runs against v2.
       - name: Configure spec-sdk-tests .env
         run: |
           cat > spec-sdk-tests/.env <<EOF
-          API_BASE_URL=http://localhost:3333/api/v2
+          API_BASE_URL=http://localhost:3333/api/v1
           API_KEY=${OUTPOST_API_KEY}
           TENANT_ID=${OUTPOST_TEST_TENANT}
           TEST_TOPICS=${TEST_TOPICS}

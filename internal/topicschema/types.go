@@ -70,17 +70,10 @@ type ValidationResult struct {
 	Checked bool
 	// Valid is meaningful only when Checked.
 	Valid bool
-	// SkippedTooLarge reports that a warn-mode check was skipped because the
-	// data exceeds the validation size limit. Enforce mode rejects instead.
-	SkippedTooLarge bool
 	// Errors lists at most maxReportedErrors problems plus a trailing
 	// "... and N more" entry. Entries never contain instance values.
 	Errors []string
 }
-
-// DataTooLargeError is the only entry of ValidationResult.Errors when
-// enforce mode rejects data over the validation size limit.
-const DataTooLargeError = "data exceeds the schema validation size limit"
 
 // MCPEvent is one precomputed events/list entry.
 type MCPEvent struct {
@@ -157,10 +150,9 @@ func (e *ConfigError) Error() string {
 	return "invalid topic schemas:\n  - " + strings.Join(e.Problems, "\n  - ")
 }
 
-// Problems and warnings are bounded, since an OpenAPI document may come from
-// a URL someone else controls: at most maxReportedProblems of each are kept,
-// and values they quote from configuration, such as references and keys,
-// are clipped to maxQuotedBytes.
+// Problems and warnings are bounded: at most maxReportedProblems of each are
+// kept, and values they quote from configuration, such as references and
+// keys, are clipped to maxQuotedBytes.
 const (
 	maxReportedProblems = 100
 	maxQuotedBytes      = 200

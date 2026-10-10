@@ -21,10 +21,7 @@ import (
 	"github.com/hookdeck/outpost/internal/publishmq"
 	"github.com/hookdeck/outpost/internal/telemetry"
 	"github.com/hookdeck/outpost/internal/tenantstore"
-	"github.com/hookdeck/outpost/internal/topicschema"
 	"github.com/hookdeck/outpost/internal/util/testutil"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
 
@@ -69,7 +66,6 @@ type apiTestConfig struct {
 	apiKey               string
 	topics               []string
 	topicsAllowWildcards bool
-	topicCatalog         *topicschema.Catalog
 }
 
 func withTenantStore(ts tenantstore.TenantStore) apiTestOption {
@@ -120,14 +116,6 @@ func withTopicsAllowWildcards(allow bool) apiTestOption {
 	}
 }
 
-// withTopicCatalog sets the catalog served by v2 GET /topics. Without it the
-// router serves the configured topics without schemas.
-func withTopicCatalog(c *topicschema.Catalog) apiTestOption {
-	return func(cfg *apiTestConfig) {
-		cfg.topicCatalog = c
-	}
-}
-
 func newAPITest(t *testing.T, opts ...apiTestOption) *apiTest {
 	t.Helper()
 
@@ -170,7 +158,6 @@ func newAPITest(t *testing.T, opts ...apiTestOption) *apiTest {
 			JWTSecret:            testJWTSecret,
 			Topics:               cfg.topics,
 			TopicsAllowWildcards: cfg.topicsAllowWildcards,
-			TopicCatalog:         cfg.topicCatalog,
 			Registry:             registry,
 			PortalConfig:         portal.PortalConfig{},
 		},
@@ -238,55 +225,6 @@ func (a *apiTest) withJWT(req *http.Request, tenantID string) *http.Request {
 	}
 	req.Header.Set("Authorization", "Bearer "+token)
 	return req
-}
-
-// ---------------------------------------------------------------------------
-// API versions
-// ---------------------------------------------------------------------------
-
-// v2 serves every v1 route with the same auth; it only adds routes.
-func TestAPI_Versions(t *testing.T) {
-	t.Run("every v1 route is served in v2", func(t *testing.T) {
-		h := newAPITest(t)
-		engine, ok := h.router.(*gin.Engine)
-		require.True(t, ok, "the API router is no longer a *gin.Engine; list its routes another way")
-
-		routes := map[string][]string{}
-		for _, route := range engine.Routes() {
-			for _, base := range []string{"/api/v1", "/api/v2"} {
-				if path, ok := strings.CutPrefix(route.Path, base+"/"); ok {
-					routes[base] = append(routes[base], route.Method+" /"+path)
-				}
-			}
-		}
-		require.NotEmpty(t, routes["/api/v1"])
-		assert.Subset(t, routes["/api/v2"], routes["/api/v1"])
-	})
-
-	for _, base := range []string{"/api/v1", "/api/v2"} {
-		t.Run(base, func(t *testing.T) {
-			h := newAPITest(t)
-			require.NoError(t, h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t2"))))
-
-			resp := h.do(h.withAPIKey(h.jsonReq(http.MethodPut, base+"/tenants/t1", nil)))
-			require.Equal(t, http.StatusCreated, resp.Code)
-
-			resp = h.do(h.withJWT(h.jsonReq(http.MethodGet, base+"/tenants/t1", nil), "t1"))
-			require.Equal(t, http.StatusOK, resp.Code)
-
-			resp = h.do(h.withJWT(h.jsonReq(http.MethodGet, base+"/tenants/t2", nil), "t1"))
-			testutil.RequireErrorResponse(t, resp, http.StatusForbidden, "forbidden")
-
-			publishBody := map[string]any{"tenant_id": "t1", "topic": "user.created", "data": map[string]any{"a": 1}}
-			resp = h.do(h.withJWT(h.jsonReq(http.MethodPost, base+"/publish", publishBody), "t1"))
-			testutil.RequireErrorResponse(t, resp, http.StatusForbidden, "forbidden")
-
-			resp = h.do(h.withAPIKey(h.jsonReq(http.MethodPost, base+"/publish", publishBody)))
-			require.Equal(t, http.StatusAccepted, resp.Code)
-			require.Len(t, h.eventHandler.calls, 1)
-			assert.Equal(t, "t1", h.eventHandler.calls[0].TenantID)
-		})
-	}
 }
 
 // ---------------------------------------------------------------------------

@@ -279,30 +279,21 @@ func TestBreakingChanges(t *testing.T) {
 			next: `{"type":"object","properties":{"sku":{"type":"string","pattern":"^[A-Z]+$"}}}`,
 			want: []string{`[/properties/sku] constraint_tightened: pattern changed from "^[A-Z0-9]+$" to "^[A-Z]+$"`},
 		},
-		// Only date and date-time are asserted; other formats are annotations.
+		// Formats are annotations: changing one never fails a payload.
 		{
 			name: "format added",
 			prev: `{"type":"object","properties":{"o":{"type":"object","properties":{"at":{"type":"string"}}}}}`,
 			next: `{"type":"object","properties":{"o":{"type":"object","properties":{"at":{"type":"string","format":"date-time"}}}}}`,
-			want: []string{`[/properties/o/properties/at] constraint_tightened: format "date-time" added`},
 		},
 		{
 			name: "format changed",
-			prev: `{"type":"object","properties":{"at":{"type":"string","format":"date-time"}}}`,
-			next: `{"type":"object","properties":{"at":{"type":"string","format":"date"}}}`,
-			want: []string{`[/properties/at] constraint_tightened: format changed from "date-time" to "date"`},
-		},
-		{
-			name: "annotation format replaced by an asserted one",
-			prev: `{"type":"object","properties":{"o":{"type":"object","properties":{"at":{"type":"string","format":"email"}}}}}`,
+			prev: `{"type":"object","properties":{"o":{"type":"object","properties":{"at":{"type":"string","format":"date-time"}}}}}`,
 			next: `{"type":"object","properties":{"o":{"type":"object","properties":{"at":{"type":"string","format":"date"}}}}}`,
-			want: []string{`[/properties/o/properties/at] constraint_tightened: format changed from "email" to "date"`},
 		},
 		{
-			name: "items with an asserted format added",
+			name: "items with a format added",
 			prev: `{"type":"object","properties":{"days":{"type":"array"}}}`,
 			next: `{"type":"object","properties":{"days":{"type":"array","items":{"format":"date"}}}}`,
-			want: []string{"[/properties/days] constraint_tightened: array items now constrained"},
 		},
 		{
 			// Payloads only widen, but the argument loses its range operators.
@@ -583,10 +574,7 @@ func TestBreakingChanges(t *testing.T) {
 			name: "date to date-time",
 			prev: `{"type":"object","properties":{"d":{"type":"string","format":"date"}}}`,
 			next: `{"type":"object","properties":{"d":{"type":"string","format":"date-time"}}}`,
-			want: []string{
-				`[/properties/d] constraint_tightened: format changed from "date" to "date-time"`,
-				"[/properties/d] filter_hidden: property no longer accepts range operators",
-			},
+			want: []string{"[/properties/d] filter_hidden: property no longer accepts range operators"},
 		},
 		{
 			name: "removed filterable property is only reported as removed",
@@ -767,7 +755,6 @@ func TestBreakingChangesFixtures(t *testing.T) {
 			"[/$defs/Line/properties/quantity] constraint_tightened: maximum 1000 added",
 			`[/$defs/Line/properties/sku] constraint_tightened: pattern changed from "^[A-Z0-9-]+$" to "^[A-Z]+$"`,
 			"[/$defs/Party/properties/name] property_removed: property removed",
-			`[/properties/created_at] constraint_tightened: format changed from "date-time" to "date"`,
 			// Address only relaxed, but anyOf is compared by equality.
 			"[/properties/shipping] composite_changed: anyOf changed",
 			"[/properties/status] filter_hidden: property no longer filterable: x-mcp-filter is false",
@@ -836,7 +823,7 @@ func TestBreakingChangesDeterministic(t *testing.T) {
 	}
 
 	first := BreakingChanges(prev, next, topics)
-	require.Len(t, first, 50)
+	require.Len(t, first, 45)
 	for range 20 {
 		require.Equal(t, first, BreakingChanges(prev, next, topics))
 	}

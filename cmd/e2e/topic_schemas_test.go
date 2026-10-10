@@ -69,7 +69,8 @@ func withTopicSchemas(cfg *config.Config) {
 }
 
 // TestE2E_TopicSchemas boots Outpost with topic schemas and checks
-// publish-time validation, schema_valid in the logs and GET /topics.
+// publish-time validation, schema_valid in the logs and that GET /topics is
+// unchanged.
 func TestE2E_TopicSchemas(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
@@ -125,18 +126,16 @@ func (s *topicSchemasSuite) TestEnforce_InvalidPublishRejectedWithoutValues() {
 		// currency missing
 	}
 
-	for _, url := range []string{s.base.apiURL("/publish"), s.base.apiV2URL("/publish")} {
-		var resp validationErrorResponse
-		status := s.publishStatus(url, tenant.ID, "order.created", invalid, &resp)
-		s.Require().Equal(http.StatusUnprocessableEntity, status, url)
-		s.Equal("validation error", resp.Message)
-		s.Require().NotEmpty(resp.Data)
-		joined := strings.Join(resp.Data, "\n")
-		s.Contains(joined, "data.total")
-		s.Contains(joined, `"currency"`)
-		for _, e := range resp.Data {
-			s.NotContains(e, schemaSentinel, "validation errors must not echo payload values")
-		}
+	var resp validationErrorResponse
+	status := s.publishStatus(s.base.apiURL("/publish"), tenant.ID, "order.created", invalid, &resp)
+	s.Require().Equal(http.StatusUnprocessableEntity, status)
+	s.Equal("validation error", resp.Message)
+	s.Require().NotEmpty(resp.Data)
+	joined := strings.Join(resp.Data, "\n")
+	s.Contains(joined, "data.total")
+	s.Contains(joined, `"currency"`)
+	for _, e := range resp.Data {
+		s.NotContains(e, schemaSentinel, "validation errors must not echo payload values")
 	}
 }
 
@@ -159,7 +158,7 @@ func (s *topicSchemasSuite) TestEnforce_ValidPublishDelivered() {
 	s.Require().Len(events, 1)
 	s.Equal("o_1", events[0].Payload["orderId"])
 
-	got := s.waitForEventV2(event.ID)
+	got := s.waitForEvent(event.ID)
 	s.Require().NotNil(got.SchemaValid)
 	s.True(*got.SchemaValid)
 }
@@ -171,17 +170,11 @@ func (s *topicSchemasSuite) TestWarn_InvalidPublishAcceptedAndMarked() {
 	invalid := s.base.publish(tenant.ID, "order.updated", map[string]any{"orderId": "o_1", "status": schemaSentinel})
 	s.base.waitForNewMockServerEvents(dest.mockID, 1)
 
-	got := s.waitForEventV2(invalid.ID)
+	got := s.waitForEvent(invalid.ID)
 	s.Require().NotNil(got.SchemaValid, "warn mode records the verdict")
 	s.False(*got.SchemaValid)
 
-	// v1 exposes it too.
-	var v1 eventWithSchemaValid
-	s.Require().Equal(http.StatusOK, s.base.doJSON(http.MethodGet, s.base.apiURL("/events/"+invalid.ID), nil, &v1))
-	s.Require().NotNil(v1.SchemaValid)
-	s.False(*v1.SchemaValid)
-
-	attempt := s.waitForAttemptV2(tenant.ID, invalid.ID)
+	attempt := s.waitForAttempt(tenant.ID, invalid.ID)
 	s.Require().NotNil(attempt.Event.SchemaValid, "the attempt's event carries the verdict")
 	s.False(*attempt.Event.SchemaValid)
 	s.Equal("success", attempt.Status)
@@ -189,11 +182,11 @@ func (s *topicSchemasSuite) TestWarn_InvalidPublishAcceptedAndMarked() {
 	valid := s.base.publish(tenant.ID, "order.updated", map[string]any{"orderId": "o_1", "status": "paid"})
 	s.base.waitForNewMockServerEvents(dest.mockID, 2)
 
-	got = s.waitForEventV2(valid.ID)
+	got = s.waitForEvent(valid.ID)
 	s.Require().NotNil(got.SchemaValid)
 	s.True(*got.SchemaValid)
 
-	attempt = s.waitForAttemptV2(tenant.ID, valid.ID)
+	attempt = s.waitForAttempt(tenant.ID, valid.ID)
 	s.Require().NotNil(attempt.Event.SchemaValid)
 	s.True(*attempt.Event.SchemaValid)
 }
@@ -203,55 +196,16 @@ func (s *topicSchemasSuite) TestTopicsWithoutSchemaAreNotValidated() {
 	dest := s.base.createWebhookDestination(tenant.ID, "user.created", withSecret(testSecret))
 	event := s.base.publish(tenant.ID, "user.created", map[string]any{"anything": true})
 	s.base.waitForNewMockServerEvents(dest.mockID, 1)
-	got := s.waitForEventV2(event.ID)
+	got := s.waitForEvent(event.ID)
 	s.Nil(got.SchemaValid)
 }
 
-func (s *topicSchemasSuite) TestListTopics_V1ReturnsNames() {
+// GET /topics is unchanged: topic names, schemas or not.
+func (s *topicSchemasSuite) TestListTopics_ReturnsNames() {
 	var topics []string
 	status := s.base.doJSON(http.MethodGet, s.base.apiURL("/topics"), nil, &topics)
 	s.Require().Equal(http.StatusOK, status)
 	s.Equal(append(slices.Clone(testutil.TestTopics), "order.created", "order.updated"), topics)
-}
-
-func (s *topicSchemasSuite) TestListTopics_V2ReturnsObjects() {
-	var topics []struct {
-		Name          string          `json:"name"`
-		Description   string          `json:"description"`
-		PayloadSchema json.RawMessage `json:"payload_schema"`
-		Validation    string          `json:"validation"`
-		MCP           struct {
-			Enabled bool `json:"enabled"`
-		} `json:"mcp"`
-	}
-	status := s.base.doJSON(http.MethodGet, s.base.apiV2URL("/topics"), nil, &topics)
-	s.Require().Equal(http.StatusOK, status)
-
-	names := make([]string, len(topics))
-	for i, t := range topics {
-		names[i] = t.Name
-	}
-	s.Require().Equal(append(slices.Clone(testutil.TestTopics), "order.created", "order.updated"), names)
-
-	byName := map[string]int{}
-	for i, t := range topics {
-		byName[t.Name] = i
-	}
-	created := topics[byName["order.created"]]
-	s.Equal("Fires when a new order is placed.", created.Description)
-	s.Equal("enforce", created.Validation)
-	s.True(created.MCP.Enabled)
-	s.JSONEq(orderCreatedSchema, string(created.PayloadSchema))
-
-	updated := topics[byName["order.updated"]]
-	s.Equal("warn", updated.Validation)
-	s.False(updated.MCP.Enabled)
-	s.JSONEq(orderUpdatedSchema, string(updated.PayloadSchema))
-
-	plain := topics[byName["user.created"]]
-	s.Equal("off", plain.Validation)
-	s.Empty(plain.PayloadSchema)
-	s.False(plain.MCP.Enabled)
 }
 
 type eventWithSchemaValid struct {
@@ -266,13 +220,13 @@ type attemptWithEvent struct {
 	Event   eventWithSchemaValid `json:"event"`
 }
 
-// waitForEventV2 polls GET /api/v2/events/:id until the event is logged.
-func (s *topicSchemasSuite) waitForEventV2(eventID string) eventWithSchemaValid {
+// waitForEvent polls GET /events/:id until the event is logged.
+func (s *topicSchemasSuite) waitForEvent(eventID string) eventWithSchemaValid {
 	s.T().Helper()
 	deadline := time.Now().Add(attemptPollTimeout)
 	for time.Now().Before(deadline) {
 		var got eventWithSchemaValid
-		status, body := s.base.doRawGet(s.base.apiV2URL("/events/" + eventID))
+		status, body := s.base.doRawGet(s.base.apiURL("/events/" + eventID))
 		if status == http.StatusOK {
 			s.Require().NoError(json.Unmarshal(body, &got))
 			return got
@@ -283,15 +237,15 @@ func (s *topicSchemasSuite) waitForEventV2(eventID string) eventWithSchemaValid 
 	return eventWithSchemaValid{}
 }
 
-// waitForAttemptV2 polls GET /api/v2/attempts until the event has an attempt.
-func (s *topicSchemasSuite) waitForAttemptV2(tenantID, eventID string) attemptWithEvent {
+// waitForAttempt polls GET /attempts until the event has an attempt.
+func (s *topicSchemasSuite) waitForAttempt(tenantID, eventID string) attemptWithEvent {
 	s.T().Helper()
 	deadline := time.Now().Add(attemptPollTimeout)
 	for time.Now().Before(deadline) {
 		var resp struct {
 			Models []attemptWithEvent `json:"models"`
 		}
-		url := s.base.apiV2URL(fmt.Sprintf("/attempts?tenant_id=%s&event_id=%s&include=event", tenantID, eventID))
+		url := s.base.apiURL(fmt.Sprintf("/attempts?tenant_id=%s&event_id=%s&include=event", tenantID, eventID))
 		if s.base.doJSON(http.MethodGet, url, nil, &resp) == http.StatusOK && len(resp.Models) > 0 {
 			return resp.Models[0]
 		}

@@ -251,20 +251,6 @@ jobs:
         # spec-sdk-tests/.gitignore excludes package-lock.json.
         run: npm install
 
-      # Releases before API v2 return 404 on /api/v2/healthz. The suite stays on
-      # v1, which every release serves; v2-only tests run against the release's
-      # v2 when it has one and skip otherwise (spec-sdk-tests/utils/api-version.ts).
-      - name: Report API v2 support
-        env:
-          OUTPOST_TAG: ${{ steps.outpost-tag.outputs.tag }}
-        run: |
-          status=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3333/api/v2/healthz)
-          if [ "$status" = "404" ]; then
-            echo "::notice::Outpost $OUTPOST_TAG does not serve API v2; v2-only spec tests are skipped"
-          else
-            echo "Outpost $OUTPOST_TAG serves API v2 (GET /api/v2/healthz: $status)"
-          fi
-
       - name: Configure spec-sdk-tests .env
         run: |
           cat > spec-sdk-tests/.env <<EOF

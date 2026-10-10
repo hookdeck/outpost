@@ -102,8 +102,6 @@ You can also subscribe to the `tenant.subscription.updated` [Operator Events](/d
 
 A topic schema describes the events of one topic: what they represent, a JSON Schema for their `data`, whether Outpost validates published events against it, and whether the topic is exposed to MCP Events clients. Schemas are optional and set per topic. A topic without one keeps working unchanged.
 
-In API v2, [`GET /topics`](#listing-topics) returns each topic with its schema, so you can document your event types once and render them in your own UI.
-
 ### Topic Object
 
 ```json
@@ -153,9 +151,8 @@ Schemas are keyed by topic name and come from these settings:
 |----------|----------|----------|
 | `TOPICS_SCHEMAS` | `topics_schemas` | Schemas as a JSON object. In a YAML config file, a mapping or a JSON string. |
 | `TOPICS_SCHEMAS_FILE` | `topics_schemas_file` | Path to a YAML or JSON file with the same content. |
-| `TOPICS_SCHEMAS_OPENAPI` | `topics_schemas_openapi` | An OpenAPI 3.1 document to import schemas from, as a file path or URL. See [Importing from OpenAPI](#importing-from-openapi). |
 
-`TOPICS_SCHEMAS` and `TOPICS_SCHEMAS_FILE` are mutually exclusive. Either one can be combined with `TOPICS_SCHEMAS_OPENAPI`: its entry for a topic replaces the imported entry as a whole.
+`TOPICS_SCHEMAS` and `TOPICS_SCHEMAS_FILE` are mutually exclusive.
 
 A file keeps schemas in your repository, next to the code that publishes the events:
 
@@ -182,35 +179,12 @@ TOPICS_SCHEMAS_FILE=/config/outpost/topics-schemas.yaml
 
 YAML is read with YAML 1.2 core types, and dates and timestamps stay strings, so `default: 2026-01-01` keeps its value. Docker Compose interpolates `$` in environment values: write `$$ref` and `$$defs` in a Compose file, or use `TOPICS_SCHEMAS_FILE`.
 
-Only the API service loads schemas, once at startup, including when a single process runs every service. The delivery and log services, `outpost migrate` and `outpost config list` don't load them, so in a split deployment only the API service needs the file or URL, and a problem in the schemas, including in a `topics_schemas` mapping in the YAML config file, only stops the API service. Restart the API service to apply a change. If the configuration is invalid, the API service fails to start and lists the problems at once, up to 100. Startup warnings are listed the same way.
+Only the API service loads schemas, once at startup, including when a single process runs every service. The delivery and log services, `outpost migrate` and `outpost config list` don't load them, so in a split deployment only the API service needs the file, and a problem in the schemas, including in a `topics_schemas` mapping in the YAML config file, only stops the API service. Restart the API service to apply a change. If the configuration is invalid, the API service fails to start and lists the problems at once, up to 100. Startup warnings are listed the same way.
 
 {% /tab %}
 {% /tabs %}
 
 Each schema key must match a topic in `TOPICS` exactly. A key that only differs by whitespace fails with a suggestion. Wildcard keys such as `*` or `user.*` aren't allowed, and schemas need `TOPICS` to be set.
-
-### Importing from OpenAPI
-
-If an OpenAPI 3.1 document already describes your webhooks in its top-level `webhooks` section, Outpost can import schemas from it. The `post` operation of each entry becomes a topic:
-
-| OpenAPI | Topic field |
-|---------|-------------|
-| `x-outpost-topic` on the operation or path item, else the `webhooks` key | `name` |
-| The operation's `summary`, else its `description` | `description` |
-| The request body schema for `application/json`, else for the first `+json` media type | `payload_schema` |
-| `x-mcp-enabled: true` on the operation | `mcp.enabled` |
-| `deprecated: true` on the operation | `deprecated` |
-| `x-mcp-filter` on properties | Kept in `payload_schema` |
-
-- References into `#/components` are followed at the path item, operation, request body and media type levels. Schemas referenced from `#/components/schemas` are copied into the payload schema's `$defs`, so each payload schema stands alone. A reference to another file or URL fails startup for a topic in `TOPICS`. When the path item or operation itself is in another file, the topic is the `webhooks` key, or the `x-outpost-topic` next to the reference.
-- Imported topics have `validation: off`. To validate one, or to set its `replaced_by`, define it in `TOPICS_SCHEMAS` or `TOPICS_SCHEMAS_FILE`, which replaces the imported entry as a whole.
-- Webhooks whose topic isn't in `TOPICS` are skipped with a startup warning, even when Outpost couldn't import them, so the document can describe more webhooks than you send through Outpost. A problem that hides the topic name still fails startup: an invalid `x-outpost-topic`, or a reference to a path item or operation in the document that doesn't resolve, unless `x-outpost-topic` next to the reference names the topic. Keys in `TOPICS_SCHEMAS` and `TOPICS_SCHEMAS_FILE` must still be in `TOPICS`.
-- The document is JSON or YAML, up to 4 MiB and 1,000,000 values, with each `$ref` up to 4 KiB. OpenAPI 3.0 isn't supported.
-- A problem in an object that several webhooks reference is reported once, with the number of webhooks that reference it.
-
-`TOPICS_SCHEMAS_OPENAPI` can be an `http` or `https` URL. It's fetched on every API service startup, with a 10 second timeout and up to 3 redirects, never from HTTPS to HTTP. A change to the remote document then changes your topics on the next restart without a deploy, API instances that restart at different times can run different schemas, and an unreachable host stops the API service from starting.
-
-We recommend vendoring the document: commit a copy next to your configuration and set `TOPICS_SCHEMAS_OPENAPI` to its file path. If you use a URL, pin it with `TOPICS_SCHEMAS_OPENAPI_SHA256`, the hex SHA-256 of the document (for example, the output of `sha256sum openapi.yaml`). A document that doesn't match fails startup instead of changing your topics. Outpost logs the SHA-256 of the document it loads at startup.
 
 ### Schema Support
 
@@ -219,8 +193,8 @@ We recommend vendoring the document: commit a copy next to your configuration an
 - `$schema` must be absent or `https://json-schema.org/draft/2020-12/schema`.
 - `$ref` and `$dynamicRef` must be JSON Pointers to a schema within `payload_schema`, such as `#/$defs/address`, and not into another value, such as an `x-` extension or a `default`. Anchor references, such as `#address`, aren't supported, and Outpost never fetches remote schemas.
 - `$id` is only allowed at the root of `payload_schema`, since a nested `$id` changes how references below it resolve.
-- `format` is checked for `date` and `date-time` only. Other formats, such as `email`, `uri` or `uuid`, are annotations and never fail validation.
-- Regular expressions in `pattern` and `patternProperties` use [RE2 syntax](https://github.com/google/re2/wiki/Syntax), which has no lookarounds or backreferences. A pattern RE2 can't compile fails startup when the topic's `validation` is `warn` or `enforce` or its `mcp.enabled` is set. For other topics it's a startup warning: the schema is still returned by `GET /topics` but never used for validation.
+- `format` is an annotation, as JSON Schema 2020-12 specifies, and never fails validation, `date` and `date-time` included.
+- Regular expressions in `pattern` and `patternProperties` use [RE2 syntax](https://github.com/google/re2/wiki/Syntax), which has no lookarounds or backreferences. A pattern RE2 can't compile fails startup when the topic's `validation` is `warn` or `enforce` or its `mcp.enabled` is set. For other topics it's a startup warning: the schema is kept but never used for validation.
 - A `payload_schema` can be up to 256 KiB, or 64 KiB when `mcp.enabled` is set.
 
 ### Validation
@@ -234,8 +208,6 @@ We recommend vendoring the document: commit a copy next to your configuration an
 | `enforce` | Rejected and counted in the same metric. The Publish API returns `422` with the validation errors. |
 
 Validation runs before the event is matched to destinations, for events from the Publish API and from publish queues. It's instance configuration, not part of the API version, so `enforce` applies to API v1 publishes too.
-
-`data` that repeats a key within an object fails validation, whatever the schema, since JSON parsers disagree on which of the values counts.
 
 ```json
 {
@@ -252,11 +224,7 @@ Each error is a path from `data`, such as `data.items[2].sku`, and a message. Er
 
 Validated events carry a `schema_valid` field in API responses, including events embedded in attempts: `true` when `data` passed, `false` when it failed under `warn`. It's omitted when the event wasn't validated.
 
-Event `data` larger than the validation size limit isn't validated. The limit is 256 KiB by default, set with `TOPICS_VALIDATION_MAX_BYTES` on self-hosted Outpost. With `enforce`, the publish is rejected with `data exceeds the schema validation size limit`. With `warn`, the event is accepted without `schema_valid`. Both count in the metric with reason `too_large`.
-
-Validating `data` takes roughly 20 to 350 times its size in memory, the most for large arrays whose items fail the schema. Each `anyOf` or `oneOf` branch those items fail adds about 80 times more, since the errors of every branch are kept: with a 16-branch `anyOf`, 256 KiB of `data` can take about 330 MiB.
-
-Outpost caps the validations running at once, which keeps that memory bounded under concurrent publishes. Each validation counts the size of its `data` times one plus the branch count of the largest `anyOf` or `oneOf` in the topic's schema (at most 32), and they add up to at most four times the size limit, or about 350 MiB of memory with the default limit. A validation that counts for more than that runs alone, and can take more: about 600 MiB for 256 KiB of `data` against a 32-branch `anyOf`. Publishes to topics that aren't validated never wait. Raise the limit only with memory to match.
+Validating `data` takes roughly 20 to 350 times its size in memory, the most for large arrays whose items fail the schema. Each `anyOf` or `oneOf` branch those items fail adds about 80 times more, since the errors of every branch are kept. Size the API service's memory for the largest events you publish to validated topics.
 
 A publish queue message that fails `enforce` validation is treated as invalid: Outpost logs its event ID, topic and errors, and rejects it on RabbitMQ and Azure Service Bus. AWS SQS and GCP Pub/Sub have no reject, so the message is redelivered until `PUBLISH_MAX_REDELIVERIES` or the queue's own redelivery limit is reached. See the Failed messages section of [Publish from RabbitMQ](/docs/outpost/publishing/publish-from-rabbitmq#failed-messages).
 
@@ -276,47 +244,12 @@ Strings with `format: date-time` accept values and lists but no range operators.
 
 Hide a property from arguments with `"x-mcp-filter": false`, for example for IDs and timestamps that make poor filters. `x-mcp-filter` must be a boolean. Properties whose name starts with `$` are never arguments, since filters would read them as operators. MCP clients receive the payload schema without `x-mcp-filter`.
 
-### Listing Topics
-
-In API v2, `GET /topics` returns every topic in `TOPICS` order, with its schema configuration. A topic without a schema has only `name`, `validation: "off"` and `mcp.enabled: false`. API v1 keeps returning topic names; see [Upgrade to API v2](/docs/outpost/self-hosting/changelog/upgrade-api-v2).
-
-```sh
-curl 'http://localhost:3333/api/v2/topics' \
---header 'Authorization: Bearer <API_KEY>'
-```
-
-```json
-[
-  {
-    "name": "order.created",
-    "description": "Fires when a new order is placed.",
-    "payload_schema": {
-      "type": "object",
-      "properties": {
-        "order_id": { "type": "string", "x-mcp-filter": false },
-        "total": { "type": "number", "description": "Order total in major units." }
-      },
-      "required": ["order_id", "total"]
-    },
-    "validation": "enforce",
-    "mcp": { "enabled": true }
-  },
-  {
-    "name": "order.shipped",
-    "validation": "off",
-    "mcp": { "enabled": false }
-  }
-]
-```
-
-`payload_schema` is returned as configured, including `x-mcp-filter`.
-
 ### Schema Evolution and Deprecation
 
 To make a change that existing consumers can't handle, such as removing a field or changing its type, publish the new version under a new topic and deprecate the old one:
 
 1. Add the new topic, by convention with a version suffix such as `order.created.v2`, and publish to both topics during the overlap.
-2. Set `deprecated: true` and `replaced_by: "order.created.v2"` on the old topic. `GET /topics` returns both fields, and MCP clients see the old topic's description prefixed with `Deprecated: use order.created.v2.` Publishing to the old topic and its existing destinations keep working.
+2. Set `deprecated: true` and `replaced_by: "order.created.v2"` on the old topic. MCP clients see the old topic's description prefixed with `Deprecated: use order.created.v2.` Publishing to the old topic and its existing destinations keep working.
 3. Remove the old topic from `TOPICS` once its publishers and destinations have moved.
 
 `replaced_by` must name another topic in `TOPICS`. If the deprecated topic is MCP-enabled, its replacement must be MCP-enabled too.

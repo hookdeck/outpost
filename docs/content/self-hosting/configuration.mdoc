@@ -110,11 +110,8 @@ Choose one for event log persistence:
 | `TOPICS_ALLOW_WILDCARDS` | `false` | Allow `*` inside destination topic subscriptions, such as `user.*`. When disabled, stored wildcard patterns are ignored but not deleted. |
 | `TOPICS_SCHEMAS` | — | [Topic schemas](/docs/outpost/features/topics#topic-schemas) keyed by topic name, as a JSON object. In YAML, also a mapping. Every key must be in `TOPICS`. Mutually exclusive with `TOPICS_SCHEMAS_FILE`. |
 | `TOPICS_SCHEMAS_FILE` | — | Path to a YAML or JSON file with topic schemas, in the `TOPICS_SCHEMAS` shape. Mutually exclusive with `TOPICS_SCHEMAS`. |
-| `TOPICS_SCHEMAS_OPENAPI` | — | File path or `http(s)` URL of an OpenAPI 3.1 document (up to 4 MiB) whose `webhooks` provide topic schemas. Webhooks not in `TOPICS` are skipped with a warning, even when they can't be imported, unless the problem hides their topic name. An operation marked `deprecated: true` makes its topic deprecated. A `TOPICS_SCHEMAS` or `TOPICS_SCHEMAS_FILE` entry replaces the imported one for its topic. A URL is fetched on every API startup, so prefer a vendored file. See [Importing from OpenAPI](/docs/outpost/features/topics#importing-from-openapi). |
-| `TOPICS_SCHEMAS_OPENAPI_SHA256` | — | Hex SHA-256 of the `TOPICS_SCHEMAS_OPENAPI` document. A document that doesn't match fails startup. |
-| `TOPICS_VALIDATION_MAX_BYTES` | `262144` (256 KiB) | Largest event `data` validated against its topic schema. Larger `data` is rejected with `422` when the topic's `validation` is `enforce`, and accepted without validation when it's `warn`. Validation takes roughly 20 to 350 times the size of `data` in memory, plus about 80 times for each `anyOf` or `oneOf` branch the data fails, and the validations running at once are capped, so raise this only with API service memory to match. See [Validation](/docs/outpost/features/topics#validation). |
 
-The YAML keys are `topics_schemas`, `topics_schemas_file`, `topics_schemas_openapi`, `topics_schemas_openapi_sha256` and `topics_validation_max_bytes`. Only the API service loads topic schemas, at startup; the delivery and log services, `outpost migrate` and `outpost config list` don't, so a problem in the schemas only stops the API service.
+The YAML keys are `topics_schemas` and `topics_schemas_file`. Only the API service loads topic schemas, at startup; the delivery and log services, `outpost migrate` and `outpost config list` don't, so a problem in the schemas only stops the API service.
 
 ## Portal
 

@@ -37,7 +37,7 @@
     "label": "Resources",
     "sections": [
       { "type": "tag", "tag": "Schemas", "label": "Destination Types", "schema": "DestinationTypeSchema" },
-      { "type": "tag", "tag": "Topics", "schema": "TopicSchema" },
+      { "type": "tag", "tag": "Topics" },
       { "type": "tag", "tag": "Health" }
     ]
   }

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 	"slices"
 	"strings"
 	"sync"
@@ -20,7 +19,6 @@ import (
 	"github.com/hookdeck/outpost/internal/topicschema"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
-	"golang.org/x/sync/semaphore"
 )
 
 var (
@@ -53,21 +51,6 @@ type SchemaValidator interface {
 	ValidateData(topic string, data []byte) topicschema.ValidationResult
 }
 
-// validationLimiter is implemented by schema validators that parse data only
-// for some topics and up to a size, such as *topicschema.Catalog.
-type validationLimiter interface {
-	MaxValidationBytes() int
-	// ValidationFactor weighs a validation of the topic's data, as a
-	// multiple of its size. It is 0 when the topic's data is never parsed.
-	ValidationFactor(topic string) int
-}
-
-// validationBudgetFactor bounds the validations running at once to this many
-// times the validator's size limit, each weighing its data size times its
-// topic's ValidationFactor. Validating takes up to a few hundred times the
-// data size in memory, so concurrent publishes must not all validate at once.
-const validationBudgetFactor = 4
-
 type EventHandler interface {
 	Handle(ctx context.Context, event *models.Event) (*HandleResult, error)
 }
@@ -88,34 +71,16 @@ type eventHandler struct {
 	topics               []string
 	topicsAllowWildcards bool
 	schemaValidator      SchemaValidator
-	// validating bounds the weight of the validations running at once to
-	// validationBudget when the validator is a validationLimiter, limiter.
-	// It is nil otherwise.
-	validating       *semaphore.Weighted
-	validationBudget int64
-	limiter          validationLimiter
 }
 
 // EventHandlerOption configures NewEventHandler.
 type EventHandlerOption func(*eventHandler)
 
 // WithSchemaValidator validates event data at publish, as configured per
-// topic. Without it no event is validated and SchemaValid stays nil. When the
-// validator is a validationLimiter, publishes whose data it parses wait for
-// their turn once validations weighing validationBudgetFactor times its size
-// limit (MaxValidationBytes) are running. Other publishes never wait.
+// topic. Without it no event is validated and SchemaValid stays nil.
 func WithSchemaValidator(v SchemaValidator) EventHandlerOption {
 	return func(h *eventHandler) {
 		h.schemaValidator = v
-		h.validating, h.validationBudget, h.limiter = nil, 0, nil
-		if l, ok := v.(validationLimiter); ok && l.MaxValidationBytes() > 0 {
-			h.limiter = l
-			h.validationBudget = math.MaxInt64
-			if n := int64(l.MaxValidationBytes()); n <= h.validationBudget/validationBudgetFactor {
-				h.validationBudget = n * validationBudgetFactor
-			}
-			h.validating = semaphore.NewWeighted(h.validationBudget)
-		}
 	}
 }
 
@@ -281,7 +246,6 @@ const (
 	schemaStatusValid    = "valid"
 	schemaStatusInvalid  = "invalid"
 	schemaStatusRejected = "rejected"
-	schemaStatusTooLarge = "skipped_too_large"
 )
 
 // schemaOutcome is the schema check result reported on event.received.
@@ -301,17 +265,8 @@ func (h *eventHandler) validateSchema(ctx context.Context, event *models.Event) 
 		return schemaOutcome{}, nil
 	}
 
-	if weight := h.validationWeight(event); weight > 0 {
-		if err := h.validating.Acquire(ctx, weight); err != nil {
-			return schemaOutcome{}, err
-		}
-		defer h.validating.Release(weight)
-	}
 	result := h.schemaValidator.ValidateData(event.Topic, event.Data)
 	switch {
-	case result.SkippedTooLarge:
-		h.emeter.EventSchemaInvalid(ctx, event.Topic, string(result.Mode), emetrics.SchemaInvalidReasonTooLarge)
-		return schemaOutcome{status: schemaStatusTooLarge}, nil
 	case !result.Checked:
 		return schemaOutcome{}, nil
 	case result.Valid:
@@ -320,11 +275,7 @@ func (h *eventHandler) validateSchema(ctx context.Context, event *models.Event) 
 		return schemaOutcome{status: schemaStatusValid}, nil
 	}
 
-	reason := emetrics.SchemaInvalidReasonInvalid
-	if len(result.Errors) == 1 && result.Errors[0] == topicschema.DataTooLargeError {
-		reason = emetrics.SchemaInvalidReasonTooLarge
-	}
-	h.emeter.EventSchemaInvalid(ctx, event.Topic, string(result.Mode), reason)
+	h.emeter.EventSchemaInvalid(ctx, event.Topic, string(result.Mode))
 
 	if result.Mode == topicschema.ValidationEnforce {
 		return schemaOutcome{status: schemaStatusRejected, errors: result.Errors},
@@ -333,25 +284,6 @@ func (h *eventHandler) validateSchema(ctx context.Context, event *models.Event) 
 	valid := false
 	event.SchemaValid = &valid
 	return schemaOutcome{status: schemaStatusInvalid, errors: result.Errors}, nil
-}
-
-// validationWeight returns what validating the event's data takes from the
-// budget: its size times its topic's ValidationFactor, at most the whole
-// budget. It is 0, and the publish doesn't wait, when the data isn't parsed:
-// its topic isn't validated, or it's over the size limit and rejected or
-// skipped unparsed.
-func (h *eventHandler) validationWeight(event *models.Event) int64 {
-	if h.validating == nil || len(event.Data) > h.limiter.MaxValidationBytes() {
-		return 0
-	}
-	factor := int64(h.limiter.ValidationFactor(event.Topic))
-	if factor <= 0 {
-		return 0
-	}
-	if size := int64(len(event.Data)); size <= h.validationBudget/factor {
-		return size * factor
-	}
-	return h.validationBudget
 }
 
 func (h *eventHandler) doPublish(ctx context.Context, event *models.Event, matchedDestinations []string, enqueuedMu *sync.Mutex, enqueued *[]string) error {

@@ -41,39 +41,6 @@ func TestNewBaseRouter_Pprof(t *testing.T) {
 	})
 }
 
-func TestNewBaseRouter_HealthPaths(t *testing.T) {
-	logger, err := logging.NewLogger(logging.WithLogLevel("error"))
-	require.NoError(t, err)
-	supervisor := worker.NewWorkerSupervisor(logger)
-	supervisor.GetHealthTracker().MarkHealthy("http-server")
-	r := services.NewBaseRouter(supervisor, "test", false)
-
-	get := func(path string) *httptest.ResponseRecorder {
-		rec := httptest.NewRecorder()
-		r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
-		return rec
-	}
-
-	for _, path := range []string{"/healthz", "/api/v1/healthz", "/api/v2/healthz"} {
-		t.Run(path, func(t *testing.T) {
-			rec := get(path)
-			require.Equal(t, http.StatusOK, rec.Code)
-			assert.Equal(t, "application/json; charset=utf-8", rec.Header().Get("Content-Type"))
-			var body struct {
-				Status  string         `json:"status"`
-				Workers map[string]any `json:"workers"`
-			}
-			require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
-			assert.Equal(t, "healthy", body.Status)
-			assert.Contains(t, body.Workers, "http-server")
-		})
-	}
-
-	// Other paths are left to the API router, which the services mount as the
-	// base router's NoRoute handler.
-	assert.Equal(t, http.StatusNotFound, get("/api/v3/healthz").Code)
-}
-
 func TestHealthHandler_StatusCode(t *testing.T) {
 	logger, err := logging.NewLogger(logging.WithLogLevel("error"))
 	require.NoError(t, err)

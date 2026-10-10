@@ -6,8 +6,6 @@ info:
     The Outpost API is a REST-based JSON API for managing tenants, destinations, and publishing events.
 
     Outpost runs in two deployment models: **managed** (hosted by Hookdeck) and **self-hosted**. They differ in where the API is served and in which API key authenticates server-side calls. On managed Outpost, use a Hookdeck project API key from your Outpost project. On self-hosted Outpost, use the key set in the `API_KEY` environment variable. A few endpoints exist in one model only and say so in their description.
-
-    This reference describes API v2, which self-hosted Outpost serves under `/api/v2`. API v1, served under `/api/v1` and by every managed dated version, is the same except where an operation says otherwise.
   contact:
     name: Outpost Support
     email: support@hookdeck.com
@@ -20,8 +18,6 @@ servers:
     description: Managed Outpost, hosted by Hookdeck at `api.outpost.hookdeck.com`. The Hookdeck Event Gateway API at `api.hookdeck.com` is a separate API.
   - url: http://localhost:3333/api/v1
     description: Self-hosted Outpost, at its default local address. A deployed instance serves the same paths under its own host.
-  - url: http://localhost:3333/api/v2
-    description: Self-hosted Outpost API v2, at its default local address. The same instance serves it beside `/api/v1`. Managed Outpost doesn't serve API v2 yet; its dated URL will be listed here once it does, and the SDKs move to API v2 only then.
 components:
   securitySchemes:
     AdminApiKey:
@@ -3298,7 +3294,7 @@ components:
           example: true
         schema_valid:
           type: boolean
-          description: Result of publish-time validation of `data` against the topic's `payload_schema`. `true` when `data` passed, `false` when it failed in a topic whose `validation` is `warn`. Omitted when the event was not validated, because the topic's `validation` is `off` or `data` was over the validation size limit.
+          description: Result of publish-time validation of `data` against the topic's `payload_schema`. `true` when `data` passed, `false` when it failed in a topic whose `validation` is `warn`. Omitted when the event was not validated, because the topic's `validation` is `off`.
           example: true
         metadata:
           type: object
@@ -3474,7 +3470,7 @@ components:
           example: true
         schema_valid:
           type: boolean
-          description: Result of publish-time validation of `data` against the topic's `payload_schema`. `true` when `data` passed, `false` when it failed in a topic whose `validation` is `warn`. Omitted when the event was not validated, because the topic's `validation` is `off` or `data` was over the validation size limit.
+          description: Result of publish-time validation of `data` against the topic's `payload_schema`. `true` when `data` passed, `false` when it failed in a topic whose `validation` is `warn`. Omitted when the event was not validated, because the topic's `validation` is `off`.
           example: true
         metadata:
           type: object
@@ -3511,7 +3507,7 @@ components:
           example: true
         schema_valid:
           type: boolean
-          description: Result of publish-time validation of `data` against the topic's `payload_schema`. `true` when `data` passed, `false` when it failed in a topic whose `validation` is `warn`. Omitted when the event was not validated, because the topic's `validation` is `off` or `data` was over the validation size limit.
+          description: Result of publish-time validation of `data` against the topic's `payload_schema`. `true` when `data` passed, `false` when it failed in a topic whose `validation` is `warn`. Omitted when the event was not validated, because the topic's `validation` is `off`.
           example: true
         metadata:
           type: object
@@ -3671,60 +3667,6 @@ components:
               value:
                 type: string
                 example: "plain"
-
-    # Topic Schema (for Topics endpoint)
-    TopicSchema:
-      type: object
-      description: A topic configured on the Outpost instance, with its schema configuration. A topic without a schema has only `name`, `validation` set to `off` and `mcp.enabled` set to `false`.
-      required: [name, validation, mcp]
-      properties:
-        name:
-          type: string
-          description: The topic name, as listed in `TOPICS`.
-          example: "order.created"
-        description:
-          type: string
-          description: What the topic's events represent. Omitted when not configured.
-          example: "Fires when a new order is placed."
-        payload_schema:
-          type: object
-          additionalProperties: true
-          description: JSON Schema (draft 2020-12) for the event `data`, as configured, including any `x-mcp-filter` annotations. Schemas imported from OpenAPI carry their referenced component schemas in `$defs`. Omitted when the topic has no schema.
-          example:
-            type: object
-            properties:
-              order_id:
-                type: string
-                x-mcp-filter: false
-              total:
-                type: number
-                description: Order total in major units.
-              currency:
-                type: string
-                description: ISO 4217 currency code.
-            required: [order_id, total, currency]
-        validation:
-          type: string
-          enum: ["off", "warn", "enforce"]
-          description: Publish-time validation of event `data` against `payload_schema`. `off` skips it. `warn` accepts an invalid event and stores it with `schema_valid` set to `false`. `enforce` rejects it with `422`.
-          example: "enforce"
-        mcp:
-          type: object
-          description: The topic's MCP Events settings.
-          required: [enabled]
-          properties:
-            enabled:
-              type: boolean
-              description: Whether the topic is exposed to MCP Events clients.
-              example: true
-        deprecated:
-          type: boolean
-          description: Whether the topic is deprecated. Publishing to a deprecated topic still works. Omitted when `false`.
-          example: false
-        replaced_by:
-          type: string
-          description: The topic that replaces this deprecated topic. Omitted when not set.
-          example: "order.created.v2"
 
     MetricsDataPoint:
       type: object
@@ -4157,8 +4099,6 @@ tags:
   - name: Topics
     description: |
       Returns the list of topics configured for this Outpost deployment. Tenants subscribe their destinations to topics from this list. Topics are defined via your configuration file and not a specific Create Topic API.
-
-      In API v2, each topic comes with its schema configuration: a description, a JSON Schema for the event `data`, the publish-time validation mode and the MCP Events opt-in. See [Topics](https://hookdeck.com/docs/outpost/features/topics#topic-schemas).
   - name: Attempts
     description: |
       Attempts represent individual delivery attempts of events to destinations. The attempts API provides an attempt-centric view of event processing.
@@ -6413,7 +6353,7 @@ paths:
       description: |
         Publishes an event to the specified topic, potentially routed to a specific destination. Requires Admin API Key.
 
-        When the topic's schema `validation` is `enforce`, `data` must match the topic's `payload_schema`, or the request fails with `422`. This applies to API v1 and v2 alike.
+        When the topic's schema `validation` is `enforce`, `data` must match the topic's `payload_schema`, or the request fails with `422`.
       operationId: publishEvent
       security:
         - AdminApiKey: []
@@ -6460,8 +6400,7 @@ paths:
 
             - `data` is not a JSON object.
             - `topic` is missing while topics are configured, or is not one of them.
-            - The topic's `validation` is `enforce` and `data` fails its `payload_schema`, or repeats a key within an object. Each entry is a path from `data` and a message, such as `data.total: must be number`. Entries never contain published values. At most 20 are listed, sorted, followed by a final `... and N more` (or `... and more`) entry.
-            - The topic's `validation` is `enforce` and `data` is larger than the schema validation size limit (`TOPICS_VALIDATION_MAX_BYTES` on self-hosted Outpost, 256 KiB by default).
+            - The topic's `validation` is `enforce` and `data` fails its `payload_schema`. Each entry is a path from `data` and a message, such as `data.total: must be number`. Entries never contain published values. At most 20 are listed, sorted, followed by a final `... and N more` (or `... and more`) entry.
           content:
             application/json:
               schema:
@@ -6475,12 +6414,6 @@ paths:
                     data:
                       - "data.total: must be number"
                       - 'data: missing required property "currency"'
-                SchemaValidationTooLarge:
-                  summary: Data over the validation size limit
-                  value:
-                    status: 422
-                    message: "validation error"
-                    data: ["data exceeds the schema validation size limit"]
                 InvalidTopic:
                   summary: Topic not configured
                   value:
@@ -6763,59 +6696,26 @@ paths:
     get:
       tags: [Topics]
       summary: List Available Topics
-      description: |
-        Returns the topics configured in the Outpost instance, in `TOPICS` order, with their schema configuration.
-
-        In API v1 (`/api/v1` and every managed dated version), this endpoint returns the topic names only, as an array of strings such as `["user.created", "order.shipped"]`.
+      description: Returns a list of available event topics configured in the Outpost instance.
       operationId: listTopics
       responses:
         "200":
-          description: A list of topic objects.
+          description: A list of topic names.
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/TopicSchema"
+                  type: string
               examples:
-                TopicsListExample:
+                TopicsListExample: # Same as /{tenant_id}/topics example
                   value:
-                    - name: "order.created.v2"
-                      description: "Fires when a new order is placed."
-                      payload_schema:
-                        type: object
-                        properties:
-                          order_id:
-                            type: string
-                            x-mcp-filter: false
-                          total:
-                            type: number
-                            description: Order total in major units.
-                          currency:
-                            type: string
-                            description: ISO 4217 currency code.
-                        required: [order_id, total, currency]
-                      validation: "enforce"
-                      mcp:
-                        enabled: true
-                    - name: "order.created"
-                      description: "Fires when a new order is placed."
-                      payload_schema:
-                        type: object
-                        properties:
-                          order_id:
-                            type: string
-                          amount:
-                            type: integer
-                      validation: "warn"
-                      mcp:
-                        enabled: false
-                      deprecated: true
-                      replaced_by: "order.created.v2"
-                    - name: "user.created"
-                      validation: "off"
-                      mcp:
-                        enabled: false
+                    [
+                      "user.created",
+                      "user.updated",
+                      "order.shipped",
+                      "inventory.updated",
+                    ]
         "401":
           $ref: "#/components/responses/Unauthorized"
         "500":

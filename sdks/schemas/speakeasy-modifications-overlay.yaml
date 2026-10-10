@@ -343,28 +343,3 @@ actions:
       after: sdk.operatorEvents.retry()
       before: sdk.OperatorEvents.retryOperatorEvent()
       type: method-name
-  # GET /topics returns topic objects in API v2, which the spec describes, and
-  # topic names in API v1, which the SDKs' default server (managed Outpost)
-  # serves until managed Outpost serves API v2. Accept both, so SDKs generated
-  # from the spec keep working against v1 servers. anyOf rather than oneOf,
-  # since an empty list matches both. Remove these two actions when the SDKs
-  # move to API v2; see contributing/sdks.md#api-v2-and-sdk-regeneration.
-  - target: $["paths"]["/topics"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]
-    description: Drop the API v2 response schema of GET /topics.
-    remove: true
-  - target: $["paths"]["/topics"]["get"]["responses"]["200"]
-    description: Accept the GET /topics response of API v1 (topic names) and API v2 (topic objects).
-    update:
-      description: Topic names in API v1, topic objects in API v2.
-      content:
-        application/json:
-          schema:
-            anyOf:
-              - type: array
-                description: API v1 topic names.
-                items:
-                  type: string
-              - type: array
-                description: API v2 topic objects.
-                items:
-                  $ref: "#/components/schemas/TopicSchema"

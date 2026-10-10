@@ -3,7 +3,6 @@ package apirouter
 import (
 	"errors"
 	"net/http"
-	"slices"
 
 	"github.com/gin-gonic/gin"
 )
@@ -30,23 +29,12 @@ func RequestBodyLimitMiddleware() gin.HandlerFunc {
 	}
 }
 
-// publishRoutes holds the publish route of every API version.
-var publishRoutes = func() []string {
-	routes := make([]string, len(apiVersions))
-	for i, v := range apiVersions {
-		routes[i] = v.basePath() + publishPath
-	}
-	return routes
-}()
-
 // isBodyLimitedRequest reports whether the request is a write other than
 // publish. Those are the requests whose body is capped and, for a 5xx, logged.
-// Publish is matched on the exact route, so an ID that ends in "publish" is
-// limited like any other.
 func isBodyLimitedRequest(c *gin.Context) bool {
 	switch c.Request.Method {
 	case http.MethodPost, http.MethodPut, http.MethodPatch:
-		return !slices.Contains(publishRoutes, c.FullPath())
+		return c.FullPath() != apiBasePath+publishPath
 	}
 	return false
 }

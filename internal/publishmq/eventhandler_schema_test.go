@@ -4,9 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
-	"math"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -44,7 +41,7 @@ func (v *fakeValidator) ValidateData(topic string, data []byte) topicschema.Vali
 }
 
 type schemaInvalidCall struct {
-	topic, mode, reason string
+	topic, mode string
 }
 
 // fakeMetrics records EventSchemaInvalid and forwards everything else to the
@@ -61,10 +58,10 @@ func newFakeMetrics(t *testing.T) *fakeMetrics {
 	return &fakeMetrics{OutpostMetrics: m}
 }
 
-func (m *fakeMetrics) EventSchemaInvalid(_ context.Context, topic, mode, reason string) {
+func (m *fakeMetrics) EventSchemaInvalid(_ context.Context, topic, mode string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.calls = append(m.calls, schemaInvalidCall{topic, mode, reason})
+	m.calls = append(m.calls, schemaInvalidCall{topic, mode})
 }
 
 // countingStore counts MatchEvent calls to prove a rejected publish never
@@ -181,28 +178,13 @@ func TestEventHandler_SchemaValidation(t *testing.T) {
 		assert.Equal(t, []string{"user.created"}, v.topics)
 		assert.Equal(t, []string{`{"total":"12"}`}, v.datas)
 		assert.Zero(t, h.store.matchCalls, "a rejected publish must not be matched")
-		assert.Equal(t, []schemaInvalidCall{{"user.created", "enforce", "invalid"}}, h.metrics.calls)
+		assert.Equal(t, []schemaInvalidCall{{"user.created", "enforce"}}, h.metrics.calls)
 
 		fields := h.receivedLog(t)
 		assert.Equal(t, "evt_1", fields["event_id"])
 		assert.Equal(t, "user.created", fields["topic"])
 		assert.Equal(t, "rejected", fields["schema_validation"])
 		assert.Equal(t, []any{errs[0], errs[1]}, fields["schema_errors"])
-	})
-
-	t.Run("enforce rejects data over the size limit as too_large", func(t *testing.T) {
-		v := &fakeValidator{result: topicschema.ValidationResult{
-			Mode: topicschema.ValidationEnforce, Checked: true, Errors: []string{topicschema.DataTooLargeError},
-		}}
-		h := newSchemaHarness(t, publishmq.WithSchemaValidator(v))
-
-		_, err := h.handler.Handle(t.Context(), schemaEvent("evt_1"))
-
-		var schemaErr *publishmq.SchemaValidationError
-		require.ErrorAs(t, err, &schemaErr)
-		assert.Equal(t, []string{topicschema.DataTooLargeError}, schemaErr.Errors)
-		assert.Zero(t, h.store.matchCalls)
-		assert.Equal(t, []schemaInvalidCall{{"user.created", "enforce", "too_large"}}, h.metrics.calls)
 	})
 
 	t.Run("enforce rejection leaves the event ID free to retry", func(t *testing.T) {
@@ -239,7 +221,7 @@ func TestEventHandler_SchemaValidation(t *testing.T) {
 		assert.Equal(t, []string{"d1"}, result.DestinationIDs)
 		require.NotNil(t, event.SchemaValid)
 		assert.False(t, *event.SchemaValid)
-		assert.Equal(t, []schemaInvalidCall{{"user.created", "warn", "invalid"}}, h.metrics.calls)
+		assert.Equal(t, []schemaInvalidCall{{"user.created", "warn"}}, h.metrics.calls)
 
 		task := h.receiveTask(t)
 		assert.Equal(t, "d1", task.DestinationID)
@@ -250,23 +232,6 @@ func TestEventHandler_SchemaValidation(t *testing.T) {
 		fields := h.receivedLog(t)
 		assert.Equal(t, "invalid", fields["schema_validation"])
 		assert.Equal(t, []any{"data.total: must be number"}, fields["schema_errors"])
-	})
-
-	t.Run("warn skips data over the size limit and leaves it unchecked", func(t *testing.T) {
-		v := &fakeValidator{result: topicschema.ValidationResult{
-			Mode: topicschema.ValidationWarn, SkippedTooLarge: true,
-		}}
-		h := newSchemaHarness(t, publishmq.WithSchemaValidator(v))
-		event := schemaEvent("evt_large")
-
-		result, err := h.handler.Handle(t.Context(), event)
-
-		require.NoError(t, err)
-		assert.Equal(t, []string{"d1"}, result.DestinationIDs)
-		assert.Nil(t, event.SchemaValid)
-		assert.Equal(t, []schemaInvalidCall{{"user.created", "warn", "too_large"}}, h.metrics.calls)
-		assert.Nil(t, h.receiveTask(t).Event.SchemaValid)
-		assert.Equal(t, "skipped_too_large", h.receivedLog(t)["schema_validation"])
 	})
 
 	for _, mode := range []topicschema.ValidationMode{topicschema.ValidationWarn, topicschema.ValidationEnforce} {
@@ -355,191 +320,4 @@ func TestSchemaValidationError(t *testing.T) {
 	assert.Equal(t,
 		`event data does not match the topic schema: topic "order.created": data.total: must be number; data.id: must be string`,
 		err.Error())
-}
-
-// blockingValidator holds every validation until released, and caps the data
-// it validates like *topicschema.Catalog. A topic's ValidationFactor is
-// factors[topic], else 1.
-type blockingValidator struct {
-	maxBytes int
-	factors  map[string]int
-	// entered receives the size of each validation once it starts.
-	entered chan int
-	release chan struct{}
-	once    sync.Once
-}
-
-func newBlockingValidator(maxBytes int, factors map[string]int) *blockingValidator {
-	return &blockingValidator{maxBytes: maxBytes, factors: factors, entered: make(chan int, 16), release: make(chan struct{})}
-}
-
-func (v *blockingValidator) MaxValidationBytes() int { return v.maxBytes }
-
-func (v *blockingValidator) ValidationFactor(topic string) int {
-	if f, ok := v.factors[topic]; ok {
-		return f
-	}
-	return 1
-}
-
-// releaseAll lets every validation, current and future, finish.
-func (v *blockingValidator) releaseAll() { v.once.Do(func() { close(v.release) }) }
-
-func (v *blockingValidator) ValidateData(_ string, data []byte) topicschema.ValidationResult {
-	v.entered <- len(data)
-	<-v.release
-	return topicschema.ValidationResult{Mode: topicschema.ValidationOff}
-}
-
-// waitEntered returns the size of the next validation to start.
-func (v *blockingValidator) waitEntered(t *testing.T) int {
-	t.Helper()
-	select {
-	case n := <-v.entered:
-		return n
-	case <-time.After(2 * time.Second):
-		t.Fatal("a validation should have started")
-		return 0
-	}
-}
-
-// requireWaiting fails if a validation starts soon.
-func (v *blockingValidator) requireWaiting(t *testing.T) {
-	t.Helper()
-	select {
-	case n := <-v.entered:
-		t.Fatalf("a validation of %d bytes started; it should wait", n)
-	case <-time.After(50 * time.Millisecond):
-	}
-}
-
-func TestEventHandler_SchemaValidationBudget(t *testing.T) {
-	type publishFunc func(ctx context.Context, id, topic string, size int) <-chan error
-	// The validator caps data at 100 bytes, so validations weighing at most
-	// 400 run at once. user.created data weighs its size, user.updated data
-	// twice its size, and user.deleted data isn't validated.
-	setup := func(t *testing.T) (*blockingValidator, publishFunc) {
-		v := newBlockingValidator(100, map[string]int{"user.updated": 2, "user.deleted": 0})
-		handler := publishmq.NewEventHandler(
-			testutil.CreateTestLogger(t), nil, tenantstore.NewMemTenantStore(), nil,
-			testutil.TestTopics, false, nil,
-			publishmq.WithSchemaValidator(v),
-			publishmq.WithMetrics(newFakeMetrics(t)),
-		)
-		var running sync.WaitGroup
-		t.Cleanup(func() {
-			v.releaseAll()
-			running.Wait()
-		})
-		publish := func(ctx context.Context, id, topic string, size int) <-chan error {
-			event := schemaEvent(id)
-			event.Topic = topic
-			const prefix = `{"pad":"`
-			event.Data = json.RawMessage(prefix + strings.Repeat("x", size-len(prefix)-2) + `"}`)
-			done := make(chan error, 1)
-			running.Go(func() {
-				_, err := handler.Handle(ctx, event)
-				done <- err
-			})
-			return done
-		}
-		return v, publish
-	}
-	// fill starts four 100-byte validations, which take the whole budget.
-	fill := func(t *testing.T, v *blockingValidator, publish publishFunc) []<-chan error {
-		var done []<-chan error
-		for i := range 4 {
-			done = append(done, publish(t.Context(), fmt.Sprintf("evt_%d", i), "user.created", 100))
-			assert.Equal(t, 100, v.waitEntered(t))
-		}
-		return done
-	}
-	result := func(t *testing.T, done <-chan error) error {
-		t.Helper()
-		select {
-		case err := <-done:
-			return err
-		case <-time.After(2 * time.Second):
-			t.Fatal("the publish should have returned")
-			return nil
-		}
-	}
-
-	t.Run("validations beyond the budget wait", func(t *testing.T) {
-		v, publish := setup(t)
-		done := fill(t, v, publish)
-
-		next := publish(t.Context(), "evt_next", "user.created", 100)
-		v.requireWaiting(t)
-
-		v.release <- struct{}{}
-		assert.Equal(t, 100, v.waitEntered(t), "a finished validation lets the next one start")
-		v.releaseAll()
-		for _, d := range append(done, next) {
-			require.NoError(t, result(t, d))
-		}
-	})
-
-	t.Run("waiting ends with the context", func(t *testing.T) {
-		v, publish := setup(t)
-		fill(t, v, publish)
-
-		ctx, cancel := context.WithCancel(t.Context())
-		waiting := publish(ctx, "evt_cancelled", "user.created", 100)
-		v.requireWaiting(t)
-		cancel()
-		require.ErrorIs(t, result(t, waiting), context.Canceled)
-		v.requireWaiting(t)
-	})
-
-	t.Run("data over the size limit doesn't wait", func(t *testing.T) {
-		// The validator rejects or skips it without parsing it.
-		v, publish := setup(t)
-		fill(t, v, publish)
-
-		publish(t.Context(), "evt_large", "user.created", 101)
-		assert.Equal(t, 101, v.waitEntered(t))
-	})
-
-	t.Run("topics that aren't validated don't wait", func(t *testing.T) {
-		// Not even behind a validation waiting for the budget.
-		v, publish := setup(t)
-		fill(t, v, publish)
-		publish(t.Context(), "evt_queued", "user.created", 100)
-		v.requireWaiting(t)
-
-		publish(t.Context(), "evt_unvalidated", "user.deleted", 100)
-		assert.Equal(t, 100, v.waitEntered(t))
-	})
-
-	t.Run("validations weigh their topic's factor", func(t *testing.T) {
-		v, publish := setup(t)
-		for i := range 2 {
-			publish(t.Context(), fmt.Sprintf("evt_%d", i), "user.updated", 100)
-			assert.Equal(t, 100, v.waitEntered(t))
-		}
-		publish(t.Context(), "evt_next", "user.created", 10)
-		v.requireWaiting(t)
-	})
-
-	t.Run("a validation weighs at most the whole budget", func(t *testing.T) {
-		v := newBlockingValidator(100, map[string]int{"user.created": math.MaxInt})
-		handler := publishmq.NewEventHandler(
-			testutil.CreateTestLogger(t), nil, tenantstore.NewMemTenantStore(), nil,
-			testutil.TestTopics, false, nil,
-			publishmq.WithSchemaValidator(v),
-			publishmq.WithMetrics(newFakeMetrics(t)),
-		)
-		done := make(chan struct{})
-		t.Cleanup(func() {
-			v.releaseAll()
-			<-done
-		})
-		event := schemaEvent("evt_heavy")
-		go func() {
-			defer close(done)
-			_, _ = handler.Handle(t.Context(), event)
-		}()
-		assert.Equal(t, len(event.Data), v.waitEntered(t))
-	})
 }

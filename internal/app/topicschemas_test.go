@@ -1,7 +1,6 @@
 package app
 
 import (
-	"context"
 	"testing"
 
 	"github.com/hookdeck/outpost/internal/config"
@@ -26,12 +25,12 @@ func TestLoadTopicCatalog_OnlyForAPIService(t *testing.T) {
 	for _, service := range []string{"", "all", "api"} {
 		t.Run(service+" loads", func(t *testing.T) {
 			a := newApp(service, valid)
-			require.NoError(t, a.loadTopicCatalog(context.Background()))
+			require.NoError(t, a.loadTopicCatalog())
 			topic, ok := a.config.TopicCatalog().Topic("order.created")
 			require.True(t, ok)
 			assert.Equal(t, "warn", string(topic.Validation))
 
-			err := newApp(service, invalid).loadTopicCatalog(context.Background())
+			err := newApp(service, invalid).loadTopicCatalog()
 			assert.ErrorIs(t, err, config.ErrInvalidTopicSchemas)
 		})
 	}
@@ -39,7 +38,7 @@ func TestLoadTopicCatalog_OnlyForAPIService(t *testing.T) {
 	for _, service := range []string{"delivery", "log"} {
 		t.Run(service+" skips", func(t *testing.T) {
 			a := newApp(service, invalid)
-			require.NoError(t, a.loadTopicCatalog(context.Background()))
+			require.NoError(t, a.loadTopicCatalog())
 			assert.False(t, a.config.TopicCatalog().HasSchemas())
 		})
 	}

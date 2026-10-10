@@ -51,7 +51,6 @@ func TestRenderValidationErrors(t *testing.T) {
 		{"enum", `{"enum":["a","b"]}`, `"c"`, []string{"data: must be one of the allowed values"}},
 		{"const", `{"const":"a"}`, `"c"`, []string{"data: must equal the allowed value"}},
 		{"pattern", `{"pattern":"^a"}`, `"b"`, []string{"data: must match the required pattern"}},
-		{"format", `{"format":"date-time"}`, `"nope"`, []string{"data: must be a valid date-time"}},
 		{"additionalProperties", `{"properties":{"a":true},"additionalProperties":false}`, `{"a":1,"b":2}`, []string{
 			"data: has properties that are not allowed",
 		}},

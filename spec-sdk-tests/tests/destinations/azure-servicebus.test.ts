@@ -64,7 +64,8 @@ describe('Azure Service Bus Destinations - Contract Tests (SDK-based validation)
     });
 
     it('should create an Azure Service Bus destination with array of topics', async function () {
-      const instanceTopics = await client.listTopicNames();
+      const sdk = client.getSDK();
+      const instanceTopics = await sdk.topics.list();
       if (instanceTopics.length < 2) {
         this.skip();
         return;

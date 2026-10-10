@@ -73,11 +73,6 @@ func TestNewCatalogRules(t *testing.T) {
 			defs: Definitions{"a": {}},
 			want: []string{"topic schemas require TOPICS to list the topics"},
 		},
-		{
-			name:     "empty TOPICS with imported definitions",
-			imported: Definitions{"a": {}},
-			want:     []string{"topic schemas require TOPICS to list the topics"},
-		},
 
 		// Topic fields.
 		{
@@ -371,7 +366,7 @@ func TestNewCatalogRules(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			c, err := NewCatalog(tc.topics, tc.defs, WithImported(tc.imported))
+			c, err := NewCatalog(tc.topics, tc.defs)
 			if tc.want == nil {
 				require.NoError(t, err)
 				require.NotNil(t, c)
@@ -426,61 +421,6 @@ func TestCompilerRefusesExternalResources(t *testing.T) {
 	assert.Contains(t, sanitizeCompileError(err), `failing loading "https://outpost.invalid/other.json"`)
 }
 
-func TestNewCatalogImported(t *testing.T) {
-	object := json.RawMessage(`{"type":"object"}`)
-	c, err := NewCatalog([]string{"a", "b", " c"},
-		Definitions{"b": {Description: "explicit"}},
-		WithImported(Definitions{
-			"a": {Description: "imported", PayloadSchema: object, MCP: MCPSettings{Enabled: true}},
-			"b": {Description: "imported", PayloadSchema: object, MCP: MCPSettings{Enabled: true}},
-			"c": {Description: "imported"},
-			"z": {Description: "imported"},
-		}))
-	require.NoError(t, err)
-	a, _ := c.Topic("a")
-	assert.Equal(t, "imported", a.Description)
-	assert.True(t, a.MCP.Enabled)
-	b, _ := c.Topic("b")
-	assert.Equal(t, Topic{Name: "b", Description: "explicit", Validation: ValidationOff}, b, "explicit definitions replace the whole imported entry")
-	assert.Equal(t, []string{"a"}, c.MCPTopics())
-	assert.Equal(t, []string{
-		`imported topic "c" is not in TOPICS and was skipped (did you mean " c"?)`,
-		`imported topic "z" is not in TOPICS and was skipped`,
-	}, c.Warnings())
-}
-
-func TestNewCatalogImportedAnchors(t *testing.T) {
-	// ParseOpenAPI keeps schema-local anchors as written; the catalog then
-	// rejects them, naming the JSON pointer form to use instead.
-	doc := parseTestOpenAPI(parseTestJSONBody("a", `{type: object, properties: {price: {$ref: '#/components/schemas/Price'}, total: {$ref: '#money'}}}`),
-		"schemas:\n  Price: {$anchor: money, type: number}\n")
-	defs, _, err := ParseOpenAPI(doc)
-	require.NoError(t, err)
-	_, err = NewCatalog([]string{"a"}, nil, WithImported(defs))
-	assert.Equal(t, []string{
-		`topic "a": payload_schema.$defs.Price.$anchor is only allowed at the payload_schema root; reference subschemas with JSON pointers such as "#/$defs/name"`,
-		`topic "a": payload_schema.properties.total.$ref "#money" must be a JSON pointer such as "#/$defs/name"; anchors are not supported`,
-	}, configProblems(t, err))
-}
-
-func TestNewCatalogWithWarnings(t *testing.T) {
-	// Warnings found before NewCatalog, such as ParseOpenAPI's, are reported
-	// with the catalog's own, sorted.
-	parsed := []string{`imported topic "z" is not in TOPICS and was skipped`}
-	schema := `{"type":"object","properties":{"code":{"type":"string","pattern":"^(?!x)"}}}`
-	c, err := NewCatalog([]string{"a"}, Definitions{"a": schemaDef(schema)}, WithWarnings(parsed))
-	require.NoError(t, err)
-	warnings := c.Warnings()
-	require.Len(t, warnings, 2)
-	assert.Equal(t, parsed[0], warnings[0])
-	assert.Contains(t, warnings[1], `topic "a": payload_schema pattern "^(?!x)" is not supported`)
-
-	c, err = NewCatalog([]string{"a"}, nil, WithWarnings(parsed))
-	require.NoError(t, err)
-	assert.Equal(t, parsed, c.Warnings(), "kept without definitions")
-	assert.False(t, c.HasSchemas())
-}
-
 func TestNewCatalogBoundsProblems(t *testing.T) {
 	names := func(prefix string, n int) []string {
 		out := make([]string, n)
@@ -502,19 +442,6 @@ func TestNewCatalogBoundsProblems(t *testing.T) {
 	require.Len(t, problems, 101)
 	assert.Equal(t, `topic "p000" is not in TOPICS`, problems[0])
 	assert.Equal(t, "... and 50 more", problems[100])
-
-	// Warnings passed in, already bounded, count with the catalog's own.
-	parsed := make([]string, 0, 101)
-	for _, n := range names("w", 100) {
-		parsed = append(parsed, fmt.Sprintf("imported topic %q is not in TOPICS and was skipped", n))
-	}
-	parsed = append(parsed, "... and 50 more")
-	c, err := NewCatalog([]string{"a"}, nil, WithImported(defsOf(names("i", 10))), WithWarnings(parsed))
-	require.NoError(t, err)
-	warnings := c.Warnings()
-	require.Len(t, warnings, 101)
-	assert.Equal(t, `imported topic "i000" is not in TOPICS and was skipped`, warnings[0])
-	assert.Equal(t, "... and 60 more", warnings[100])
 
 	long := strings.Repeat("é", maxQuotedBytes)
 	_, err = NewCatalog([]string{"a"}, Definitions{long: {}})
@@ -604,7 +531,7 @@ const orderSchema = `{
 	"required": ["id", "total"]
 }`
 
-func validationCatalog(t *testing.T, opts ...Option) *Catalog {
+func validationCatalog(t *testing.T) *Catalog {
 	t.Helper()
 	def := func(mode ValidationMode) Definition {
 		return Definition{PayloadSchema: json.RawMessage(orderSchema), Validation: mode}
@@ -613,7 +540,7 @@ func validationCatalog(t *testing.T, opts ...Option) *Catalog {
 		"enforced": def(ValidationEnforce),
 		"warned":   def(ValidationWarn),
 		"off":      def(ValidationOff),
-	}, opts...)
+	})
 	require.NoError(t, err)
 	return c
 }
@@ -624,7 +551,6 @@ func TestValidateData(t *testing.T) {
 	invalid := []byte(`{"total":-1,"currency":"GBP","day":"2026-02-30"}`)
 	invalidErrors := []string{
 		"data.currency: must be one of the allowed values",
-		"data.day: must be a valid date",
 		"data.total: must be >= 0",
 		`data: missing required property "id"`,
 	}
@@ -640,68 +566,6 @@ func TestValidateData(t *testing.T) {
 	assert.Equal(t, []string{"data: must be valid JSON"}, c.ValidateData("enforced", []byte(`{"id":`)).Errors)
 	assert.Equal(t, []string{"data: must be valid JSON"}, c.ValidateData("enforced", []byte(`{} {}`)).Errors)
 	assert.Equal(t, []string{"data: must be object"}, c.ValidateData("enforced", []byte(`[]`)).Errors)
-}
-
-func TestValidateDataSizeLimit(t *testing.T) {
-	padded := func(size int) []byte {
-		prefix := `{"id":"o_1","total":1,"pad":"`
-		return []byte(prefix + strings.Repeat("x", size-len(prefix)-2) + `"}`)
-	}
-
-	c := validationCatalog(t)
-	assert.Equal(t, 256<<10, c.MaxValidationBytes())
-	atLimit, overLimit := padded(256<<10), padded(256<<10+1)
-	assert.Equal(t, ValidationResult{Mode: ValidationEnforce, Checked: true, Valid: true}, c.ValidateData("enforced", atLimit), "256 KiB by default")
-	assert.Equal(t, ValidationResult{
-		Mode:    ValidationEnforce,
-		Checked: true,
-		Errors:  []string{"data exceeds the schema validation size limit"},
-	}, c.ValidateData("enforced", overLimit))
-	assert.Equal(t, ValidationResult{Mode: ValidationWarn, SkippedTooLarge: true}, c.ValidateData("warned", overLimit))
-	assert.Equal(t, ValidationResult{Mode: ValidationOff}, c.ValidateData("off", overLimit))
-
-	c = validationCatalog(t, WithMaxValidationBytes(100))
-	assert.Equal(t, 100, c.MaxValidationBytes())
-	assert.Zero(t, (*Catalog)(nil).MaxValidationBytes())
-	assert.True(t, c.ValidateData("enforced", padded(100)).Valid)
-	assert.Equal(t, []string{"data exceeds the schema validation size limit"}, c.ValidateData("enforced", padded(101)).Errors)
-	assert.Equal(t, ValidationResult{Mode: ValidationWarn, SkippedTooLarge: true}, c.ValidateData("warned", padded(101)))
-}
-
-func TestValidationFactor(t *testing.T) {
-	branches := func(n int) string {
-		out := make([]string, n)
-		for i := range out {
-			out[i] = fmt.Sprintf(`{"required":["f%d"]}`, i)
-		}
-		return "[" + strings.Join(out, ",") + "]"
-	}
-	enforced := func(schema string) Definition {
-		return Definition{PayloadSchema: json.RawMessage(schema), Validation: ValidationEnforce}
-	}
-	c, err := NewCatalog([]string{"plain", "any", "one", "nested", "capped", "off", "none", "*"}, Definitions{
-		"plain":  enforced(orderSchema),
-		"any":    enforced(`{"type":"object","properties":{"a":{"type":"array","items":{"anyOf":` + branches(3) + `}}}}`),
-		"one":    {PayloadSchema: json.RawMessage(`{"oneOf":` + branches(2) + `,"anyOf":` + branches(1) + `}`), Validation: ValidationWarn},
-		"nested": enforced(`{"$ref":"#/$defs/item","$defs":{"item":{"oneOf":` + branches(16) + `}}}`),
-		"capped": enforced(`{"anyOf":` + branches(40) + `}`),
-		"off":    {PayloadSchema: json.RawMessage(`{"anyOf":` + branches(3) + `}`)},
-	})
-	require.NoError(t, err)
-
-	for topic, want := range map[string]int{
-		"plain":  1,
-		"any":    4,
-		"one":    3,
-		"nested": 17,
-		"capped": 32,
-		// Data of these is never parsed.
-		"off": 0, "none": 0, "*": 0, "": 0, "unknown": 0,
-	} {
-		assert.Equal(t, want, c.ValidationFactor(topic), topic)
-	}
-	assert.Zero(t, EmptyCatalog([]string{"a"}).ValidationFactor("a"))
-	assert.Zero(t, (*Catalog)(nil).ValidationFactor("a"))
 }
 
 func TestValidateDataLargeNumbers(t *testing.T) {
@@ -727,45 +591,12 @@ func TestValidateDataLargeNumbers(t *testing.T) {
 	}
 }
 
-func TestValidateDataDuplicateKeys(t *testing.T) {
-	// encoding/json keeps the last of duplicate keys, but the data is
-	// delivered as published, and some consumers read the first one.
-	c := validationCatalog(t)
-	for _, tc := range []struct {
-		data string
-		want string
-	}{
-		{`{"id":"o_1","total":"not-a-number","total":5}`, "data: has duplicate keys"},
-		{`{"id":"o_1","total":5,"total":5}`, "data: has duplicate keys"},
-		{`{"id":"o_1","total":5,"extra":{"a":[{"k":1,"k":2}]}}`, "data.*.*[0]: has duplicate keys"},
-		{`{"id":"o_1","total":5,"pad":"x","day":{"total":1,"total":2}}`, "data.day: has duplicate keys"},
-		{`{"id":"o_1","total":5,"extra":{"a":1},"extra":{"a":1}}`, "data: has duplicate keys"},
-	} {
-		assert.Equal(t, ValidationResult{Mode: ValidationEnforce, Checked: true, Errors: []string{tc.want}},
-			c.ValidateData("enforced", []byte(tc.data)), tc.data)
-		assert.Equal(t, ValidationResult{Mode: ValidationWarn, Checked: true, Errors: []string{tc.want}},
-			c.ValidateData("warned", []byte(tc.data)), tc.data)
-	}
-	assert.Equal(t, ValidationResult{Mode: ValidationOff}, c.ValidateData("off", []byte(`{"total":1,"total":2}`)))
-	// Keys that only look alike, and colons in strings, aren't duplicates.
-	assert.True(t, c.ValidateData("enforced", []byte(`{"id":"a:b\":","total":5,"Total":"x","extra":{"total":[{"total":1}]}}`)).Valid)
-
-	// The size limit still applies first.
-	c = validationCatalog(t, WithMaxValidationBytes(20))
-	assert.Equal(t, ValidationResult{Mode: ValidationWarn, SkippedTooLarge: true},
-		c.ValidateData("warned", []byte(`{"id":"o_1","id":"o_1"}`)))
-}
-
 func TestFormats(t *testing.T) {
-	// Only date and date-time are asserted; every other format is an
-	// annotation, as JSON Schema 2020-12 specifies.
-	formats := []string{
-		"email", "idn-email", "uri", "uri-reference", "iri", "iri-reference", "uri-template",
-		"hostname", "idn-hostname", "ipv4", "ipv6", "uuid", "regex", "time", "duration", "period",
-		"json-pointer", "relative-json-pointer", "semver", "unknown-format",
-	}
-	props := []string{`"day":{"type":"string","format":"date"}`, `"at":{"type":"string","format":"date-time"}`}
-	data := []string{`"day":"2026-10-09"`, `"at":"2026-10-09T10:00:00.5+02:00"`}
+	// Formats are annotations, as JSON Schema 2020-12 specifies: date and
+	// date-time too.
+	formats := []string{"date", "date-time", "email", "uri", "hostname", "ipv4", "uuid", "unknown-format"}
+	props := make([]string, 0, len(formats))
+	data := make([]string, 0, len(formats))
 	for _, f := range formats {
 		props = append(props, fmt.Sprintf(`%q:{"type":"string","format":%q}`, f, f))
 		data = append(data, fmt.Sprintf(`%q:"not-a-%s ((["`, f, f))
@@ -776,17 +607,7 @@ func TestFormats(t *testing.T) {
 
 	result := c.ValidateData("t", []byte(`{`+strings.Join(data, ",")+`}`))
 	assert.True(t, result.Valid, "%v", result.Errors)
-	assert.True(t, c.ValidateData("t", []byte(`{"email":"not-an-email"}`)).Valid)
-	assert.Equal(t, []string{"data.at: must be a valid date-time"}, c.ValidateData("t", []byte(`{"at":"nope"}`)).Errors)
-	assert.Equal(t, []string{"data.day: must be a valid date"}, c.ValidateData("t", []byte(`{"day":"2026-02-30"}`)).Errors)
-	assert.Equal(t, []string{"data.day: must be a valid date"}, c.ValidateData("t", []byte(`{"day":"2026-10-09T10:00:00Z"}`)).Errors)
-
-	untyped, err := NewCatalog([]string{"t"}, Definitions{"t": {
-		PayloadSchema: json.RawMessage(`{"properties":{"day":{"format":"date"},"at":{"format":"date-time"}}}`),
-		Validation:    ValidationEnforce,
-	}})
-	require.NoError(t, err)
-	assert.True(t, untyped.ValidateData("t", []byte(`{"day":5,"at":true}`)).Valid, "formats only apply to strings")
+	assert.True(t, c.ValidateData("t", []byte(`{"date":"2026-02-30"}`)).Valid)
 }
 
 // sentinel is planted in every failing value and key. It must never show up
@@ -1086,7 +907,7 @@ func TestCatalogConcurrentUse(t *testing.T) {
 	valid := []byte(`{"total":1,"currency":"USD","day":"2026-10-09","code":"ABC","items":[{"qty":2}]}`)
 	invalid := []byte(`{"total":-1.5,"currency":"GBP","day":"x","code":"abc","items":[{"qty":3},{}]}`)
 	wantErrors := c.ValidateData("t", invalid).Errors
-	require.Len(t, wantErrors, 6)
+	require.Len(t, wantErrors, 5)
 
 	var wg sync.WaitGroup
 	for g := range 16 {
@@ -1171,7 +992,7 @@ func BenchmarkValidateData(b *testing.B) {
 	c, err := NewCatalog([]string{"order.created"}, Definitions{"order.created": {
 		PayloadSchema: json.RawMessage(benchmarkSchema),
 		Validation:    ValidationEnforce,
-	}}, WithMaxValidationBytes(1<<20))
+	}})
 	require.NoError(b, err)
 	for _, bc := range []struct {
 		name    string

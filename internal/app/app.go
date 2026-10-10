@@ -82,7 +82,7 @@ func (a *App) PreRun(ctx context.Context) (err error) {
 		return err
 	}
 
-	if err := a.loadTopicCatalog(ctx); err != nil {
+	if err := a.loadTopicCatalog(); err != nil {
 		return err
 	}
 
@@ -220,9 +220,9 @@ func (a *App) checkPendingMigrations(ctx context.Context) error {
 
 // loadTopicCatalog loads the topic schemas when this process runs the API
 // service, the only one that uses them (publish-time validation and GET
-// /topics). Delivery and log services never load them, so they don't depend
-// on a TOPICS_SCHEMAS_OPENAPI URL or disagree with the API about the catalog.
-func (a *App) loadTopicCatalog(ctx context.Context) error {
+// /topics). Delivery and log services never load them, so a problem in the
+// schemas only stops the API service.
+func (a *App) loadTopicCatalog() error {
 	service, err := a.config.GetService()
 	if err != nil {
 		return err
@@ -231,16 +231,13 @@ func (a *App) loadTopicCatalog(ctx context.Context) error {
 		return nil
 	}
 	a.logger.Debug("loading topic schemas")
-	catalog, err := a.config.LoadTopicCatalog(ctx)
+	catalog, err := a.config.LoadTopicCatalog()
 	if err != nil {
 		a.logger.Error("failed to load topic schemas", zap.Error(err))
 		return err
 	}
 	for _, warning := range catalog.Warnings() {
 		a.logger.Warn(warning)
-	}
-	if digest := a.config.TopicsSchemasOpenAPIDigest(); digest != "" {
-		a.logger.Info("loaded topic schemas OpenAPI document", zap.String("topics_schemas_openapi_sha256", digest))
 	}
 	if catalog.HasSchemas() {
 		a.logger.Info("topic schemas loaded", zap.Strings("mcp_topics", catalog.MCPTopics()))

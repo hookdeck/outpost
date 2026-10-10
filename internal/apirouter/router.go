@@ -17,7 +17,6 @@ import (
 	"github.com/hookdeck/outpost/internal/portal"
 	"github.com/hookdeck/outpost/internal/telemetry"
 	"github.com/hookdeck/outpost/internal/tenantstore"
-	"github.com/hookdeck/outpost/internal/topicschema"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 )
 
@@ -28,12 +27,12 @@ type RouteDefinition struct {
 	AdminOnly     bool
 	RequireTenant bool
 	Middlewares   []gin.HandlerFunc
-	// MinVersion is the first API version serving the route. 0 serves it in
-	// every version.
-	MinVersion apiVersion
 }
 
-const publishPath = "/publish"
+const (
+	apiBasePath = "/api/v1"
+	publishPath = "/publish"
+)
 
 type RouterConfig struct {
 	ServiceName          string
@@ -42,12 +41,9 @@ type RouterConfig struct {
 	DeploymentID         string
 	Topics               []string
 	TopicsAllowWildcards bool
-	// TopicCatalog describes the topics in v2. Nil serves Topics without
-	// schemas.
-	TopicCatalog *topicschema.Catalog
-	Registry     destregistry.Registry
-	PortalConfig portal.PortalConfig
-	GinMode      string
+	Registry             destregistry.Registry
+	PortalConfig         portal.PortalConfig
+	GinMode              string
 }
 
 type RouterDeps struct {
@@ -82,12 +78,9 @@ func (d RouterDeps) validate() error {
 	return nil
 }
 
-// registerRoutes registers the routes served in version v to the version's group
-func registerRoutes(router *gin.RouterGroup, v apiVersion, cfg RouterConfig, tenantRetriever TenantRetriever, routes []RouteDefinition) {
+// registerRoutes registers routes to the given router based on route definitions and config
+func registerRoutes(router *gin.RouterGroup, cfg RouterConfig, tenantRetriever TenantRetriever, routes []RouteDefinition) {
 	for _, route := range routes {
-		if route.MinVersion > v {
-			continue
-		}
 		handlers := buildMiddlewareChain(cfg, tenantRetriever, route)
 		router.Handle(route.Method, route.Path, handlers...)
 	}
@@ -151,10 +144,7 @@ func NewRouter(cfg RouterConfig, deps RouterDeps) http.Handler {
 		AbortWithError(c, http.StatusNotFound, ErrorResponse{Code: http.StatusNotFound, Message: "not found"})
 	})
 
-	catalog := cfg.TopicCatalog
-	if catalog == nil {
-		catalog = topicschema.EmptyCatalog(cfg.Topics)
-	}
+	apiRouter := r.Group(apiBasePath)
 
 	displayer := newDestinationDisplayer(cfg.Registry, cfg.TopicsAllowWildcards)
 
@@ -163,10 +153,7 @@ func NewRouter(cfg RouterConfig, deps RouterDeps) http.Handler {
 	publishHandlers := NewPublishHandlers(deps.Logger, deps.EventHandler)
 	logHandlers := NewLogHandlers(deps.Logger, deps.LogStore, deps.TenantStore, displayer)
 	retryHandlers := NewRetryHandlers(deps.Logger, deps.TenantStore, deps.LogStore, deps.DeliveryPublisher, cfg.TopicsAllowWildcards)
-	topicHandlers, err := NewTopicHandlers(deps.Logger, cfg.Topics, catalog)
-	if err != nil {
-		panic(fmt.Errorf("apirouter: %w", err))
-	}
+	topicHandlers := NewTopicHandlers(deps.Logger, cfg.Topics)
 	metricsHandlers := NewMetricsHandlers(deps.Logger, deps.LogStore)
 
 	routes := []RouteDefinition{
@@ -211,16 +198,11 @@ func NewRouter(cfg RouterConfig, deps RouterDeps) http.Handler {
 		{Method: http.MethodGet, Path: "/metrics/attempts", Handler: metricsHandlers.MetricsAttempts},
 	}
 
-	for _, v := range apiVersions {
-		// The version middleware is given to Group, so every route registered
-		// on the group runs it.
-		apiRouter := r.Group(v.basePath(), apiVersionMiddleware(v))
-		registerRoutes(apiRouter, v, cfg, deps.TenantStore, routes)
+	registerRoutes(apiRouter, cfg, deps.TenantStore, routes)
 
-		// Register dev routes
-		if v == apiV1 && gin.Mode() == gin.DebugMode {
-			registerDevRoutes(apiRouter)
-		}
+	// Register dev routes
+	if gin.Mode() == gin.DebugMode {
+		registerDevRoutes(apiRouter)
 	}
 
 	return r

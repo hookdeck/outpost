@@ -66,9 +66,6 @@ func (c *Config) LogConfigurationSummary() []zap.Field {
 		// Topic schemas (settings only: loading them does I/O, see LoadTopicCatalog)
 		zap.Bool("topics_schemas_configured", c.TopicsSchemas.IsSet()),
 		zap.String("topics_schemas_file", c.TopicsSchemasFile),
-		zap.String("topics_schemas_openapi", maskOpenAPISource(c.TopicsSchemasOpenAPI)),
-		zap.Bool("topics_schemas_openapi_sha256_configured", c.TopicsSchemasOpenAPISHA256 != ""),
-		zap.Int("topics_validation_max_bytes", c.TopicsValidationMaxBytes),
 
 		// API
 		zap.Int("api_port", c.APIPort),

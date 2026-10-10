@@ -20,17 +20,8 @@ type OutpostMetrics interface {
 	DeliveryConnection(ctx context.Context, reused bool, destinationType string)
 	WorkerRunFailed(ctx context.Context, worker, phase string)
 	WorkerStatus(ctx context.Context, worker, status string)
-	EventSchemaInvalid(ctx context.Context, topic, mode, reason string)
+	EventSchemaInvalid(ctx context.Context, topic, mode string)
 }
-
-// EventSchemaInvalid reasons.
-const (
-	// SchemaInvalidReasonInvalid: the data failed the topic payload schema.
-	SchemaInvalidReasonInvalid = "invalid"
-	// SchemaInvalidReasonTooLarge: the data exceeds the validation size limit,
-	// so it was rejected (enforce) or left unchecked (warn).
-	SchemaInvalidReasonTooLarge = "too_large"
-)
 
 type DeliveryLatencyOpts struct {
 	Type string
@@ -128,7 +119,7 @@ func New() (OutpostMetrics, error) {
 	}
 
 	if impl.schemaInvalidCounter, err = meter.Int64Counter("outpost.events.schema_invalid",
-		metric.WithDescription("Published events whose data failed the topic payload schema or exceeded the validation size limit, by topic, validation mode and reason"),
+		metric.WithDescription("Published events whose data failed the topic payload schema, by topic and validation mode"),
 	); err != nil {
 		return nil, err
 	}
@@ -205,13 +196,11 @@ func (e *emetricsImpl) WorkerStatus(ctx context.Context, worker, status string) 
 }
 
 // EventSchemaInvalid counts one publish that failed its topic's payload schema
-// check. Every attribute is bounded: topic by TOPICS, mode by the validation
-// modes and reason by the SchemaInvalidReason constants. Never add the tenant
-// or the validation errors.
-func (e *emetricsImpl) EventSchemaInvalid(ctx context.Context, topic, mode, reason string) {
+// check. Every attribute is bounded: topic by TOPICS and mode by the
+// validation modes. Never add the tenant or the validation errors.
+func (e *emetricsImpl) EventSchemaInvalid(ctx context.Context, topic, mode string) {
 	e.schemaInvalidCounter.Add(ctx, 1, metric.WithAttributes(
 		attribute.String("topic", topic),
 		attribute.String("mode", mode),
-		attribute.String("reason", reason),
 	))
 }

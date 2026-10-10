@@ -166,8 +166,6 @@ func leafMessage(k jsonschema.ErrorKind) string {
 		return "must equal the allowed value"
 	case *kind.Pattern:
 		return "must match the required pattern"
-	case *kind.Format:
-		return "must be a valid " + k.Want
 	case *kind.AdditionalProperties:
 		return "has properties that are not allowed"
 	case *kind.FalseSchema:

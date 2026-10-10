@@ -10,11 +10,9 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"sync"
 	"unicode/utf8"
 
 	"github.com/santhosh-tekuri/jsonschema/v6"
-	"github.com/santhosh-tekuri/jsonschema/v6/kind"
 )
 
 const (
@@ -23,12 +21,6 @@ const (
 	// maxMCPPayloadSchemaBytes is lower because events/list returns every
 	// MCP-enabled payload schema to MCP clients.
 	maxMCPPayloadSchemaBytes = 64 << 10
-	// defaultMaxValidationBytes is the WithMaxValidationBytes default.
-	// Validating takes up to a few hundred times the data size in memory,
-	// more with anyOf and oneOf (see ValidationFactor).
-	defaultMaxValidationBytes = 256 << 10
-	// maxValidationFactor caps ValidationFactor.
-	maxValidationFactor = 32
 	// maxArgumentsBytes caps subscription arguments before they are parsed.
 	// Subscriptions filter on far less, and it keeps parsing and the checks
 	// run before validation cheap.
@@ -58,32 +50,9 @@ var (
 // dataChecks and argumentChecks are what validateJSON checks before
 // validating event data and subscription arguments against their schema.
 var (
-	dataChecks     = valueChecks{duplicateKeys: true, reject: rejectLargeNumber}
+	dataChecks     = valueChecks{reject: rejectLargeNumber}
 	argumentChecks = valueChecks{reject: rejectArgumentValue}
 )
-
-// Option configures NewCatalog.
-type Option func(*catalogOptions)
-
-type catalogOptions struct {
-	imported           Definitions
-	maxValidationBytes int
-	warnings           []string
-}
-
-// WithImported adds definitions from an import source such as an OpenAPI
-// document. Entries for topics missing from TOPICS are skipped with a warning
-// instead of failing, and explicit definitions win per topic.
-func WithImported(defs Definitions) Option {
-	return func(o *catalogOptions) { o.imported = defs }
-}
-
-// WithMaxValidationBytes caps the size of event data validated at publish.
-// Larger data fails validation in enforce mode and skips it in warn mode.
-// The default is 256 KiB.
-func WithMaxValidationBytes(n int) Option {
-	return func(o *catalogOptions) { o.maxValidationBytes = n }
-}
 
 // Catalog is the immutable, compiled set of topics and their schemas. It is
 // safe for concurrent use: nothing in it changes after NewCatalog returns,
@@ -94,12 +63,11 @@ type Catalog struct {
 	topics []Topic
 	byName map[string]int
 	// entries holds the compiled state of each topic, by topics index.
-	entries            []entry
-	warnings           []string
-	hasSchemas         bool
-	mcpTopics          []string
-	mcpEvents          []*MCPEvent
-	maxValidationBytes int
+	entries    []entry
+	warnings   []string
+	hasSchemas bool
+	mcpTopics  []string
+	mcpEvents  []*MCPEvent
 }
 
 type entry struct {
@@ -107,8 +75,6 @@ type entry struct {
 	// validator is the compiled payload schema, set only for topics with
 	// validation warn or enforce.
 	validator *jsonschema.Schema
-	// factor is ValidationFactor, set with validator.
-	factor int
 	// dataNames holds the property names the payload schema declares, which
 	// error paths may show.
 	dataNames map[string]struct{}
@@ -124,17 +90,9 @@ type entry struct {
 // NewCatalog validates defs against topics, the TOPICS list, and compiles
 // their schemas. The problems found are reported at once in a *ConfigError,
 // up to 100 of them, as are warnings.
-func NewCatalog(topics []string, defs Definitions, opts ...Option) (*Catalog, error) {
-	var o catalogOptions
-	for _, opt := range opts {
-		opt(&o)
-	}
+func NewCatalog(topics []string, defs Definitions) (*Catalog, error) {
 	c := EmptyCatalog(topics)
-	if o.maxValidationBytes > 0 {
-		c.maxValidationBytes = o.maxValidationBytes
-	}
-	c.warnings = limitMessages(o.warnings)
-	if len(defs) == 0 && len(o.imported) == 0 {
+	if len(defs) == 0 {
 		return c, nil
 	}
 	if len(c.topics) == 0 {
@@ -144,17 +102,8 @@ func NewCatalog(topics []string, defs Definitions, opts ...Option) (*Catalog, er
 	}
 
 	b := catalogBuilder{c: c}
-	merged := make(Definitions, len(defs)+len(o.imported))
-	for name, def := range o.imported {
-		if _, ok := c.byName[name]; !ok {
-			b.c.warnings = append(b.c.warnings, fmt.Sprintf("imported topic %q is not in TOPICS and was skipped%s", clip(name), c.didYouMean(name)))
-			continue
-		}
-		merged[name] = def
-	}
-	maps.Copy(merged, defs)
-	for _, name := range slices.Sorted(maps.Keys(merged)) {
-		b.addDefinition(name, merged[name])
+	for _, name := range slices.Sorted(maps.Keys(defs)) {
+		b.addDefinition(name, defs[name])
 	}
 	b.checkReplacements()
 	if len(b.problems) > 0 {
@@ -175,7 +124,7 @@ func NewCatalog(topics []string, defs Definitions, opts ...Option) (*Catalog, er
 
 // EmptyCatalog returns a catalog of schema-less topics.
 func EmptyCatalog(topics []string) *Catalog {
-	c := &Catalog{byName: make(map[string]int, len(topics)), maxValidationBytes: defaultMaxValidationBytes}
+	c := &Catalog{byName: make(map[string]int, len(topics))}
 	for _, name := range topics {
 		if _, dup := c.byName[name]; dup {
 			continue
@@ -320,7 +269,6 @@ func (b *catalogBuilder) addSchema(t *Topic, e *entry, raw json.RawMessage) {
 	}
 	if t.Validation != ValidationOff {
 		e.validator = schema
-		e.factor = validationFactor(root)
 		e.dataNames = propertyNameSet(root)
 	}
 	if !t.MCP.Enabled || !isObject {
@@ -488,8 +436,6 @@ func compileSchema(doc any) (*jsonschema.Schema, []string, error) {
 	c.DefaultDraft(jsonschema.Draft2020)
 	c.UseLoader(refuseLoader{})
 	c.UseRegexpEngine(engine)
-	c.RegisterVocabulary(formatVocabulary())
-	c.AssertVocabs()
 	if err := c.AddResource(schemaURL, doc); err != nil {
 		return nil, nil, err
 	}
@@ -512,79 +458,6 @@ type unsupportedRegexp string
 
 func (r unsupportedRegexp) String() string          { return string(r) }
 func (r unsupportedRegexp) MatchString(string) bool { return false }
-
-// assertedFormats are the formats validation checks.
-var assertedFormats = map[string]bool{"date": true, "date-time": true}
-
-// formatVocabulary asserts the date and date-time formats, which ranged
-// arguments rely on. JSON Schema 2020-12 makes format an annotation, and
-// every other format stays one: OpenAPI documents use formats such as uri or
-// email loosely, so asserting them would reject events publishers consider
-// valid. The library can only assert all formats or none, hence a
-// vocabulary instead of Compiler.AssertFormat.
-var formatVocabulary = sync.OnceValue(func() *jsonschema.Vocabulary {
-	formats := make(map[string]*jsonschema.Format, len(assertedFormats))
-	for name := range assertedFormats {
-		formats[name] = builtinFormat(name)
-	}
-	return &jsonschema.Vocabulary{
-		URL: "urn:outpost:vocab:format-assertion",
-		// Once a vocabulary is registered, the library checks schemas only
-		// against the metaschemas of the active vocabularies, leaving out
-		// meta-data, format-annotation and content. Adding them here keeps
-		// the full 2020-12 metaschema check.
-		Schema: annotationMetaschema(),
-		Compile: func(_ *jsonschema.CompilerContext, obj map[string]any) (jsonschema.SchemaExt, error) {
-			name, _ := obj["format"].(string)
-			if f := formats[name]; f != nil {
-				return formatAssertion{f}, nil
-			}
-			return nil, nil
-		},
-	}
-})
-
-// builtinFormat returns the library's validator for a format, which it
-// exposes only on compiled schemas.
-func builtinFormat(name string) *jsonschema.Format {
-	c := jsonschema.NewCompiler()
-	c.AssertFormat()
-	c.UseLoader(refuseLoader{})
-	if err := c.AddResource(schemaURL, map[string]any{"format": name}); err != nil {
-		panic(err)
-	}
-	f := c.MustCompile(schemaURL).Format
-	if f == nil {
-		panic("jsonschema: no built-in format " + name)
-	}
-	return f
-}
-
-// annotationMetaschema compiles the 2020-12 vocabulary metaschemas that a
-// registered vocabulary drops from the metaschema check.
-func annotationMetaschema() *jsonschema.Schema {
-	const base = "https://json-schema.org/draft/2020-12/meta/"
-	c := jsonschema.NewCompiler()
-	c.UseLoader(refuseLoader{})
-	doc := map[string]any{"allOf": []any{
-		map[string]any{"$ref": base + "meta-data"},
-		map[string]any{"$ref": base + "format-annotation"},
-		map[string]any{"$ref": base + "content"},
-	}}
-	if err := c.AddResource("urn:outpost:metaschema", doc); err != nil {
-		panic(err)
-	}
-	return c.MustCompile("urn:outpost:metaschema")
-}
-
-// formatAssertion is the compiled form of the format vocabulary.
-type formatAssertion struct{ format *jsonschema.Format }
-
-func (f formatAssertion) Validate(ctx *jsonschema.ValidatorContext, v any) {
-	if err := f.format.Validate(v); err != nil {
-		ctx.AddError(&kind.Format{Got: v, Want: f.format.Name, Err: err})
-	}
-}
 
 // duplicateKey finds the first object in raw, valid JSON, that repeats a
 // key, and returns its dot path from root and the key. As in instancePath,
@@ -709,12 +582,6 @@ func (c *Catalog) ValidateData(topic string, data []byte) ValidationResult {
 		return ValidationResult{Mode: ValidationOff}
 	}
 	e, mode := &c.entries[i], c.topics[i].Validation
-	if len(data) > c.maxValidationBytes {
-		if mode == ValidationEnforce {
-			return ValidationResult{Mode: mode, Checked: true, Errors: []string{DataTooLargeError}}
-		}
-		return ValidationResult{Mode: mode, SkippedTooLarge: true}
-	}
 	errs := validateJSON(e.validator, data, "data", e.dataNames, dataChecks)
 	return ValidationResult{Mode: mode, Checked: true, Valid: len(errs) == 0, Errors: errs}
 }
@@ -745,10 +612,6 @@ func (c *Catalog) ValidateArguments(topic string, args []byte) []string {
 // valueChecks are checked on a parsed value before it is validated. A value
 // failing one gets a single error and is never validated.
 type valueChecks struct {
-	// duplicateKeys rejects objects that repeat a key. The validator sees
-	// the last of the repeated values, but the bytes are kept as published,
-	// and some consumers read the first one.
-	duplicateKeys bool
 	// reject returns the message for a value too costly to validate, or "".
 	reject func(any) string
 	// accepted, when set, returns the errors of a value the schema accepts,
@@ -763,15 +626,6 @@ func validateJSON(schema *jsonschema.Schema, raw []byte, root string, names map[
 	if err != nil {
 		// Parse errors quote the offending input.
 		return []string{root + ": must be valid JSON"}
-	}
-	// Counting finds duplicates cheaply; only data that has some is scanned
-	// again to locate them.
-	if checks.duplicateKeys && objectMemberCount(raw) != treeMemberCount(v) {
-		path, _, ok := duplicateKey(raw, root, names)
-		if !ok {
-			path = root
-		}
-		return []string{path + ": has duplicate keys"}
 	}
 	if path, msg := findRejectedValue(v, checks.reject); msg != "" {
 		return []string{instancePath(root, path, v, names) + ": " + msg}
@@ -788,45 +642,6 @@ func validateJSON(schema *jsonschema.Schema, raw []byte, root string, names map[
 		return []string{root + ": does not satisfy the schema"}
 	}
 	return renderValidationErrors(verr, root, v, names)
-}
-
-// objectMemberCount counts the members of every object in raw, valid JSON:
-// the colons outside strings.
-func objectMemberCount(raw []byte) int {
-	n, inString := 0, false
-	for i := 0; i < len(raw); i++ {
-		switch raw[i] {
-		case '\\':
-			// Only valid inside strings; skip the escaped byte.
-			i++
-		case '"':
-			inString = !inString
-		case ':':
-			if !inString {
-				n++
-			}
-		}
-	}
-	return n
-}
-
-// treeMemberCount counts the members of every object in v, a tree from
-// jsonschema.UnmarshalJSON. It is less than objectMemberCount of the parsed
-// JSON exactly when an object repeats a key, since only the last is kept.
-func treeMemberCount(v any) int {
-	n := 0
-	switch x := v.(type) {
-	case map[string]any:
-		n = len(x)
-		for _, child := range x {
-			n += treeMemberCount(child)
-		}
-	case []any:
-		for _, child := range x {
-			n += treeMemberCount(child)
-		}
-	}
-	return n
 }
 
 // findRejectedValue returns the location of a value in v, a tree from
@@ -1056,51 +871,4 @@ func (c *Catalog) Snapshot() Snapshot {
 		}
 	}
 	return s
-}
-
-// WithWarnings adds warnings found before NewCatalog, such as those
-// ParseOpenAPI returns, to the catalog's Warnings.
-func WithWarnings(warnings []string) Option {
-	return func(o *catalogOptions) { o.warnings = append(o.warnings, warnings...) }
-}
-
-// MaxValidationBytes returns the size of the largest event data ValidateData
-// validates, set with WithMaxValidationBytes. It is 0 for a nil catalog,
-// which validates nothing.
-func (c *Catalog) MaxValidationBytes() int {
-	if c == nil {
-		return 0
-	}
-	return c.maxValidationBytes
-}
-
-// ValidationFactor estimates the memory validating the topic's data takes,
-// relative to a schema without anyOf or oneOf: 1 plus the branch count of the
-// largest anyOf or oneOf in the payload schema, at most 32. The validator
-// keeps the errors of every failing branch, so memory grows with it. It is 0
-// when ValidateData never parses the topic's data: for "", "*", unknown
-// topics, and topics without a schema or with validation off.
-func (c *Catalog) ValidationFactor(topic string) int {
-	if c == nil {
-		return 0
-	}
-	i, ok := c.byName[topic]
-	if !ok {
-		return 0
-	}
-	return c.entries[i].factor
-}
-
-// validationFactor computes ValidationFactor for a payload schema, a tree
-// from decodeJSON. Every schema object counts, reached through a $ref or not.
-func validationFactor(root any) int {
-	branches := 0
-	visitSchemaObjects(root, "", func(obj map[string]any, _ string) {
-		for _, kw := range []string{"anyOf", "oneOf"} {
-			if list, ok := obj[kw].([]any); ok {
-				branches = max(branches, len(list))
-			}
-		}
-	})
-	return min(1+branches, maxValidationFactor)
 }

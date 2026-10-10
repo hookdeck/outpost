@@ -593,7 +593,6 @@ func (d *differ) compare(t diffTask, queue []diffTask) []diffTask {
 	}
 	d.checkUniqueItems(pv, nv)
 	d.checkStringKeyword(pv, nv, "pattern")
-	d.checkStringKeyword(pv, nv, "format")
 	d.checkMultipleOf(pv, nv)
 	d.checkComposites(pv, nv)
 
@@ -708,9 +707,6 @@ func (d *differ) constrains(s docSide, entries []schemaEntry) bool {
 		}
 		for k, v := range n {
 			if constraintKeywords[k] || (k == "uniqueItems" && v == true) {
-				return true
-			}
-			if s, ok := v.(string); ok && k == "format" && assertedFormats[s] {
 				return true
 			}
 		}
@@ -1075,10 +1071,10 @@ func (d *differ) checkUniqueItems(pv, nv schemaView) {
 	}
 }
 
-// checkStringKeyword reports pattern or format values next adds that prev
-// didn't have. Formats other than date and date-time are annotations that
-// any string satisfies, so only asserted formats count; checkFilters reports
-// a lost date format taking an argument's range operators with it.
+// checkStringKeyword reports values of a string keyword, such as pattern,
+// that next adds and prev didn't have. format isn't checked: formats are
+// annotations that any string satisfies, and checkFilters reports a lost
+// date format taking an argument's range operators with it.
 func (d *differ) checkStringKeyword(pv, nv schemaView, kw string) {
 	var prev []string
 	var at *schemaPointer
@@ -1092,7 +1088,7 @@ func (d *differ) checkStringKeyword(pv, nv schemaView, kw string) {
 	}
 	for _, f := range nv.frags {
 		s, ok := f.m[kw].(string)
-		if !ok || slices.Contains(prev, s) || (kw == "format" && !assertedFormats[s]) {
+		if !ok || slices.Contains(prev, s) {
 			continue
 		}
 		if len(prev) == 0 {
@@ -1331,8 +1327,8 @@ func isAnnotation(kw string) bool {
 
 // constraintKeywords reject values by themselves. Subschema keywords that
 // constrains walks into ($ref, allOf, properties, items,
-// additionalProperties) aren't listed, nor is format, which only rejects
-// values for the asserted formats.
+// additionalProperties) aren't listed, nor is format, which is an
+// annotation.
 var constraintKeywords = func() map[string]bool {
 	m := map[string]bool{
 		"type": true, "enum": true, "const": true,
