@@ -126,6 +126,111 @@ func testConditional(t *testing.T, newHarness HarnessMaker) {
 		})
 	})
 
+	// A create that started before its tenant was deleted (a subscribe
+	// verifying its callback) must not bring a destination into it.
+	t.Run("CreateIntoDeletedTenant", func(t *testing.T) {
+		ctx, store := newStore(t)
+		tenant := testutil.TenantFactory.Any()
+		require.NoError(t, store.UpsertTenant(ctx, tenant))
+		startedAt := time.Now().Add(-time.Second)
+		require.NoError(t, store.DeleteTenant(ctx, tenant.ID))
+
+		for name, opts := range map[string][]driver.WriteOption{
+			"unguarded": nil,
+			"guarded":   {driver.WithNotDeletedSince(startedAt)},
+			"bucketed":  {driver.WithBuckets(driver.Bucket{Name: "mcp_principal:alice", Max: 5})},
+		} {
+			t.Run(name, func(t *testing.T) {
+				for _, d := range []models.Destination{
+					newMCPDestination(tenant.ID),
+					testutil.DestinationFactory.Any(testutil.DestinationFactory.WithTenantID(tenant.ID)),
+				} {
+					require.ErrorIs(t, store.CreateDestination(ctx, d, opts...), driver.ErrTenantDeleted)
+					got, err := store.RetrieveDestination(ctx, tenant.ID, d.ID)
+					require.NoError(t, err)
+					assert.Nil(t, got, "nothing written")
+				}
+				list, err := store.ListDestination(ctx, driver.ListDestinationRequest{TenantID: tenant.ID})
+				require.NoError(t, err)
+				assert.Empty(t, list)
+				matched, err := store.MatchEvent(ctx, testutil.EventFactory.Any(
+					testutil.EventFactory.WithTenantID(tenant.ID),
+					testutil.EventFactory.WithTopic("order.created"),
+				), true)
+				require.NoError(t, err)
+				assert.Empty(t, matched)
+			})
+		}
+
+		t.Run("tenant never created", func(t *testing.T) {
+			require.NoError(t, store.CreateDestination(ctx, newMCPDestination(idgen.String())))
+		})
+
+		t.Run("tenant created again", func(t *testing.T) {
+			require.NoError(t, store.UpsertTenant(ctx, tenant))
+			require.NoError(t, store.CreateDestination(ctx, newMCPDestination(tenant.ID)))
+		})
+	})
+
+	// Every create racing DeleteTenant is either refused or deleted with
+	// the tenant.
+	t.Run("DeleteTenantRacingCreates", func(t *testing.T) {
+		// Fewer than the optimistic retries of a driver that has them (each
+		// takes a create landing in its window), so DeleteTenant succeeds.
+		const creators = 6
+		ctx := context.Background()
+		h, err := newHarness(ctx, t)
+		require.NoError(t, err)
+		t.Cleanup(h.Close)
+		store, err := h.MakeDriverWithOptions(ctx, DriverOptions{TypeLimits: map[string]int{"mcp": 1000}})
+		require.NoError(t, err)
+		principal := driver.WithBuckets(driver.Bucket{Name: "mcp_principal:alice", Max: 1000})
+
+		for round := range 10 {
+			tenant := testutil.TenantFactory.Any()
+			require.NoError(t, store.UpsertTenant(ctx, tenant))
+			require.NoError(t, store.CreateDestination(ctx, newMCPDestination(tenant.ID), principal))
+
+			var mu sync.Mutex
+			var created []models.Destination
+			var wg sync.WaitGroup
+			start := make(chan struct{})
+			for range creators {
+				wg.Go(func() {
+					<-start
+					d := newMCPDestination(tenant.ID)
+					err := store.CreateDestination(ctx, d, principal)
+					if err == nil {
+						mu.Lock()
+						created = append(created, d)
+						mu.Unlock()
+						return
+					}
+					assert.ErrorIs(t, err, driver.ErrTenantDeleted, "round %d", round)
+				})
+			}
+			wg.Go(func() {
+				<-start
+				assert.NoError(t, store.DeleteTenant(ctx, tenant.ID), "round %d", round)
+			})
+			close(start)
+			wg.Wait()
+
+			for _, d := range created {
+				_, err := store.RetrieveDestination(ctx, tenant.ID, d.ID)
+				assert.ErrorIs(t, err, driver.ErrDestinationDeleted, "round %d: a create that succeeded is deleted with its tenant", round)
+			}
+			list, err := store.ListDestination(ctx, driver.ListDestinationRequest{TenantID: tenant.ID})
+			require.NoError(t, err)
+			assert.Empty(t, list, "round %d", round)
+
+			// The buckets went with the tenant.
+			require.NoError(t, store.UpsertTenant(ctx, tenant))
+			one := driver.WithBuckets(driver.Bucket{Name: "mcp_principal:alice", Max: 1})
+			require.NoError(t, store.CreateDestination(ctx, newMCPDestination(tenant.ID), one), "round %d", round)
+		}
+	})
+
 	t.Run("Fence", func(t *testing.T) {
 		ctx, store := newStore(t)
 		tenantID := idgen.String()

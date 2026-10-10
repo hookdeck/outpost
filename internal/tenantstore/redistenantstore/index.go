@@ -15,9 +15,10 @@ import (
 // a global ZSET per type and a ZSET per type and topic (plus the SET of those
 // topics), scored by expiry. They live outside any tenant's hash slot, so
 // they are written around the tenant writes rather than atomically with
-// them: added before a write, removed (comparing scores) after a delete. An
-// entry may thus outlive its destination, but a live destination is never
-// missing; the destination hash stays the source of truth.
+// them: added before a write, removed (comparing scores, then checking the
+// destination) after a delete. An entry may thus outlive its destination,
+// but a live destination is never missing; the destination hash stays the
+// source of truth.
 
 func (s *store) isIndexed(typ string) bool {
 	_, ok := s.indexedTypes[typ]
@@ -47,23 +48,56 @@ func (s *store) indexKeys(typ string, topics []string) []string {
 	return keys
 }
 
-// addIndexed adds (or rescores) the destination in its indexes.
-func (s *store) addIndexed(ctx context.Context, d *models.Destination) error {
-	z := goredis.Z{
+// indexEntry is the index entry of a destination.
+func indexEntry(d *models.Destination) goredis.Z {
+	return goredis.Z{
 		Score:  float64(driver.IndexScore(d.ExpiresAt)),
 		Member: driver.IndexMember(d.TenantID, d.ID),
 	}
+}
+
+// addIndexed adds (or rescores) the destination in its indexes.
+func (s *store) addIndexed(ctx context.Context, d *models.Destination) error {
+	return s.indexAdd(ctx, d.Type, d.Topics, indexEntry(d), false)
+}
+
+// indexAdd writes z to the global index of typ and the index of each topic,
+// only where it is missing when onlyMissing is set.
+func (s *store) indexAdd(ctx context.Context, typ string, topics []string, z goredis.Z, onlyMissing bool) error {
 	pipe := s.redisClient.Pipeline()
-	pipe.ZAdd(ctx, s.indexKey(d.Type, ""), z)
-	for _, topic := range d.Topics {
+	add := pipe.ZAdd
+	if onlyMissing {
+		add = pipe.ZAddNX
+	}
+	add(ctx, s.indexKey(typ, ""), z)
+	for _, topic := range topics {
 		if topic == "" {
 			continue
 		}
-		pipe.SAdd(ctx, s.indexTopicsKey(d.Type), topic)
-		pipe.ZAdd(ctx, s.indexKey(d.Type, topic), z)
+		pipe.SAdd(ctx, s.indexTopicsKey(typ), topic)
+		add(ctx, s.indexKey(typ, topic), z)
 	}
 	_, err := pipe.Exec(ctx)
 	return err
+}
+
+// restoreIndexed adds a live destination of typ back to its indexes where
+// it is missing, with its stored expiry.
+func (s *store) restoreIndexed(ctx context.Context, typ, tenantID, destinationID string) error {
+	f, err := s.redisClient.HMGet(ctx, s.redisDestinationID(destinationID, tenantID), "deleted_at", "type", "topics", "expires_at").Result()
+	if err != nil {
+		return err
+	}
+	if storedType, _ := f[1].(string); f[0] != nil || storedType != typ {
+		return nil
+	}
+	topics, _ := f[2].(string)
+	expiresAt, _ := f[3].(string)
+	z := goredis.Z{
+		Score:  float64(scoreFromHash(expiresAt)),
+		Member: driver.IndexMember(tenantID, destinationID),
+	}
+	return s.indexAdd(ctx, typ, models.TopicsFromString(topics), z, true)
 }
 
 // repairIndexed undoes addIndexed after a refused write: it restores the
@@ -158,9 +192,22 @@ func (s *store) RescoreIndexedDestination(ctx context.Context, typ string, topic
 func (s *store) RemoveIndexedDestination(ctx context.Context, typ string, topics []string, ref driver.IndexedDestination) error {
 	member := driver.IndexMember(ref.TenantID, ref.DestinationID)
 	var firstErr error
+	removed := false
 	for _, key := range s.indexKeys(typ, topics) {
-		err := removeIndexedScript.Run(ctx, s.redisClient, []string{key}, member, ref.Score).Err()
-		if err != nil && firstErr == nil {
+		n, err := removeIndexedScript.Run(ctx, s.redisClient, []string{key}, member, ref.Score).Int()
+		if err != nil {
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
+		}
+		removed = removed || n > 0
+	}
+	// Every generation of a destination without expiry has the same member
+	// and score, so the entry removed may be that of a destination created
+	// again meanwhile: put it back while the destination is live.
+	if removed {
+		if err := s.restoreIndexed(ctx, typ, ref.TenantID, ref.DestinationID); err != nil && firstErr == nil {
 			firstErr = err
 		}
 	}

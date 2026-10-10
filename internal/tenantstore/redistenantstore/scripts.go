@@ -17,24 +17,26 @@ import (
 //   - unpack is table.unpack on Lua 5.4.
 
 // scriptCreateDestination creates a destination unless a live one has the
-// same ID, a revocation guard or a limit rejects it.
+// same ID, a revocation guard, a deleted tenant or a limit rejects it. A
+// missing tenant hash doesn't: destinations may be written without one.
 //
 // KEYS[1] destination hash, KEYS[2] summary hash, KEYS[3] bucket registry,
-// KEYS[4 .. 3+nb] buckets the destination joins,
-// KEYS[4+nb .. 3+nb+ng] buckets of the separately-limited types,
-// KEYS[4+nb+ng ..] fences.
+// KEYS[4] tenant hash, KEYS[5 .. 4+nb] buckets the destination joins,
+// KEYS[5+nb .. 4+2nb] their sweep markers,
+// KEYS[5+2nb .. 4+2nb+ng] buckets of the separately-limited types,
+// KEYS[5+2nb+ng ..] fences.
 //
 // ARGV[1] destination ID, ARGV[2] summary JSON, ARGV[3] recorded buckets JSON
 // ("" for none), ARGV[4] not-deleted-since ms ("" when unchecked), ARGV[5]
 // general limit ("" when the type has its own limit), ARGV[6] nb, ARGV[7] ng,
-// ARGV[8] nset, ARGV[9] ndel, then nb bucket limits, nb bucket names, nset
-// field/value arguments and ndel field names.
+// ARGV[8] nset, ARGV[9] ndel, ARGV[10] sweep interval ms, then nb bucket
+// limits, nb bucket names, nset field/value arguments and ndel field names.
 //
-// Returns {"ok"}, {"duplicate", expires_at}, {"revoked"}, {"limit", i} (i-th
-// bucket) or {"max"}.
+// Returns {"ok"}, {"duplicate", expires_at}, {"revoked"},
+// {"tenant_deleted"}, {"limit", i} (i-th bucket) or {"max"}.
 const scriptCreateDestination = `
 local unpack = unpack or table.unpack
-local dest, summary, registry = KEYS[1], KEYS[2], KEYS[3]
+local dest, summary, registry, tenant = KEYS[1], KEYS[2], KEYS[3], KEYS[4]
 local id = ARGV[1]
 local nb, ng = tonumber(ARGV[6]), tonumber(ARGV[7])
 local nset, ndel = tonumber(ARGV[8]), tonumber(ARGV[9])
@@ -52,7 +54,7 @@ if since then
 			return {'revoked'}
 		end
 	end
-	for i = 4 + nb + ng, #KEYS do
+	for i = 5 + 2 * nb + ng, #KEYS do
 		local fence = redis.call('GET', KEYS[i])
 		if fence and (tonumber(fence) == nil or tonumber(fence) >= since) then
 			return {'revoked'}
@@ -60,23 +62,28 @@ if since then
 	end
 end
 
+if redis.call('HEXISTS', tenant, 'deleted_at') == 1 then
+	return {'tenant_deleted'}
+end
+
 for i = 1, nb do
-	local max = tonumber(ARGV[9 + i])
-	local bucket = KEYS[3 + i]
+	local max = tonumber(ARGV[10 + i])
+	local bucket = KEYS[4 + i]
 	if max and max > 0 and redis.call('SISMEMBER', bucket, id) == 0 then
 		local n = redis.call('SCARD', bucket)
-		if n >= max then
-			-- Drop members no longer listed (left by an interrupted cleanup)
-			-- before refusing.
+		-- Drop members no longer listed (left by an interrupted cleanup)
+		-- before refusing, at most once per interval: the sweep reads the
+		-- whole bucket and almost never finds any.
+		if n >= max and redis.call('SET', KEYS[4 + nb + i], '1', 'PX', ARGV[10], 'NX') then
 			for _, member in ipairs(redis.call('SMEMBERS', bucket)) do
 				if redis.call('HEXISTS', summary, member) == 0 then
 					redis.call('SREM', bucket, member)
 					n = n - 1
 				end
 			end
-			if n >= max then
-				return {'limit', tostring(i)}
-			end
+		end
+		if n >= max then
+			return {'limit', tostring(i)}
 		end
 	end
 end
@@ -85,14 +92,14 @@ local generalMax = tonumber(ARGV[5])
 if generalMax then
 	local n = redis.call('HLEN', summary) - redis.call('HEXISTS', summary, id)
 	for i = 1, ng do
-		n = n - redis.call('SCARD', KEYS[3 + nb + i])
+		n = n - redis.call('SCARD', KEYS[4 + 2 * nb + i])
 	end
 	if n >= generalMax then
 		return {'max'}
 	end
 end
 
-local base = 10 + 2 * nb
+local base = 11 + 2 * nb
 redis.call('PERSIST', dest)
 redis.call('HDEL', dest, 'deleted_at', 'deleted_reason', 'buckets')
 if nset > 0 then
@@ -106,8 +113,8 @@ if ARGV[3] ~= '' then
 end
 redis.call('HSET', summary, id, ARGV[2])
 for i = 1, nb do
-	redis.call('SADD', KEYS[3 + i], id)
-	redis.call('SADD', registry, ARGV[9 + nb + i])
+	redis.call('SADD', KEYS[4 + i], id)
+	redis.call('SADD', registry, ARGV[10 + nb + i])
 end
 return {'ok'}
 `
@@ -247,16 +254,20 @@ return {'ok', wasDisabled, resumed}
 `
 
 // scriptDeleteDestinationIf tombstones a live destination matching the
-// condition, removes it from the summary and its buckets and drops its parked
-// retries.
+// condition, removes it from the summary and its buckets (and the names of
+// the buckets it empties from the registry) and drops its parked retries.
+// The tombstone keeps what the deleted checks read, not the configuration,
+// secrets, filter or metadata.
 //
 // KEYS[1] destination hash, KEYS[2] summary hash, KEYS[3] parked retries,
-// KEYS[4 ..] the buckets recorded on the destination as read by the caller.
+// KEYS[4] bucket registry, KEYS[5 ..] the buckets recorded on the
+// destination as read by the caller.
 //
 // ARGV[1] destination ID, ARGV[2] deleted_at ms, ARGV[3] tombstone TTL in
 // seconds, ARGV[4] reason, ARGV[5] required type, ARGV[6] expected created_at
 // ms, ARGV[7] expired-before ms (each "" when unchecked), ARGV[8] the recorded
-// buckets as read by the caller ("" when absent).
+// buckets as read by the caller ("" when absent), then the names of the
+// buckets of KEYS[5 ..].
 //
 // Returns {status, type, topics, expires_at} with status "deleted", "live",
 // "gone" (tombstone) or "missing", or {"retry"} when the recorded buckets
@@ -303,12 +314,68 @@ if ARGV[4] ~= '' then
 else
 	redis.call('HDEL', dest, 'deleted_reason')
 end
+redis.call('HDEL', dest, 'config', 'credentials', 'delivery_metadata', 'metadata', 'filter')
 redis.call('EXPIRE', dest, ARGV[3])
-for i = 4, #KEYS do
+for i = 5, #KEYS do
 	redis.call('SREM', KEYS[i], ARGV[1])
+	if redis.call('SCARD', KEYS[i]) == 0 then
+		redis.call('SREM', KEYS[4], ARGV[4 + i])
+	end
 end
 redis.call('DEL', KEYS[3])
 return {'deleted', typ, topics, expiresAt}
+`
+
+// scriptDeleteTenant tombstones a tenant and the destinations of its summary
+// as read by the caller (keeping what scriptDeleteDestinationIf keeps), and
+// drops the summary, the buckets, the registry and the parked retries.
+//
+// KEYS[1] tenant hash, KEYS[2] summary hash, KEYS[3] bucket registry,
+// KEYS[4 .. 3+nd] destination hashes, KEYS[4+nd .. 3+2nd] their parked
+// retries, KEYS[4+2nd ..] the buckets of the registry.
+//
+// ARGV[1] deleted_at ms, ARGV[2] tombstone TTL in seconds, ARGV[3]
+// destinations' deleted_reason, ARGV[4] nd, then nd destination IDs and the
+// bucket names of KEYS[4+2nd ..].
+//
+// Returns "deleted", "not_found", or "retry" when the summary or the registry
+// changed since the caller read them.
+const scriptDeleteTenant = `
+local tenant, summary, registry = KEYS[1], KEYS[2], KEYS[3]
+local nd = tonumber(ARGV[4])
+local nb = #KEYS - 3 - 2 * nd
+
+if redis.call('EXISTS', tenant) == 0 then
+	return 'not_found'
+end
+if redis.call('HLEN', summary) ~= nd or redis.call('SCARD', registry) ~= nb then
+	return 'retry'
+end
+for i = 1, nd do
+	if redis.call('HEXISTS', summary, ARGV[4 + i]) == 0 then
+		return 'retry'
+	end
+end
+for i = 1, nb do
+	if redis.call('SISMEMBER', registry, ARGV[4 + nd + i]) == 0 then
+		return 'retry'
+	end
+end
+
+for i = 1, nd do
+	local dest = KEYS[3 + i]
+	redis.call('HSET', dest, 'deleted_at', ARGV[1], 'deleted_reason', ARGV[3])
+	redis.call('HDEL', dest, 'config', 'credentials', 'delivery_metadata', 'metadata', 'filter')
+	redis.call('EXPIRE', dest, ARGV[2])
+	redis.call('DEL', KEYS[3 + nd + i])
+end
+for i = 4 + 2 * nd, #KEYS do
+	redis.call('DEL', KEYS[i])
+end
+redis.call('DEL', registry, summary)
+redis.call('HSET', tenant, 'deleted_at', ARGV[1])
+redis.call('EXPIRE', tenant, ARGV[2])
+return 'deleted'
 `
 
 // scriptWriteFence moves a fence forward.
@@ -375,6 +442,7 @@ var (
 	disableDestinationScript      = goredis.NewScript(scriptDisableDestination)
 	enableDestinationScript       = goredis.NewScript(scriptEnableDestination)
 	deleteDestinationIfScript     = goredis.NewScript(scriptDeleteDestinationIf)
+	deleteTenantScript            = goredis.NewScript(scriptDeleteTenant)
 	writeFenceScript              = goredis.NewScript(scriptWriteFence)
 	parkRetryScript               = goredis.NewScript(scriptParkRetry)
 	removeIndexedScript           = goredis.NewScript(scriptRemoveIndexed)

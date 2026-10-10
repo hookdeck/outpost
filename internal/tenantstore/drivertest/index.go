@@ -117,6 +117,15 @@ func testIndex(t *testing.T, newHarness HarnessMaker) {
 		for _, e := range list(t, ctx, store, topic) {
 			assert.NotEqual(t, gone.ID, e.DestinationID, "a refused update is not indexed")
 		}
+
+		deleted := testutil.TenantFactory.Any()
+		require.NoError(t, store.UpsertTenant(ctx, deleted))
+		require.NoError(t, store.DeleteTenant(ctx, deleted.ID))
+		orphan := expiring(deleted.ID, 7*time.Hour)
+		require.ErrorIs(t, store.CreateDestination(ctx, orphan), driver.ErrTenantDeleted)
+		for _, e := range list(t, ctx, store, "") {
+			assert.NotEqual(t, orphan.ID, e.DestinationID, "a create into a deleted tenant is not indexed")
+		}
 	})
 
 	t.Run("ListOrderAndLimit", func(t *testing.T) {
@@ -199,6 +208,12 @@ func testIndex(t *testing.T, newHarness HarnessMaker) {
 		require.NoError(t, store.CreateDestination(ctx, d))
 		require.NoError(t, store.CreateDestination(ctx, forever))
 		topics := []string{topic}
+		// Their entries outlive them as "mcp" destinations: a live one keeps
+		// its entries (see RemoveKeepsLiveDestinations).
+		for _, retyped := range []models.Destination{d, forever} {
+			retyped.Type = "webhook"
+			require.NoError(t, store.UpsertDestination(ctx, retyped))
+		}
 
 		stale := ref(d)
 		stale.Score--
@@ -220,6 +235,43 @@ func testIndex(t *testing.T, newHarness HarnessMaker) {
 		assert.Empty(t, list(t, ctx, store, topic))
 
 		require.NoError(t, store.RemoveIndexedDestination(ctx, "mcp", topics, ref(forever)), "removing a missing entry is a no-op")
+	})
+
+	// Every generation of a destination without expiry has the same member
+	// and score, so a removal for one generation can't tell it from the
+	// next: the entries of a live destination stay.
+	t.Run("RemoveKeepsLiveDestinations", func(t *testing.T) {
+		ctx, store := newStore(t)
+		forever := newMCPDestination(idgen.String())
+		require.NoError(t, store.CreateDestination(ctx, forever))
+		res, err := store.DeleteDestinationIf(ctx, forever.TenantID, forever.ID, driver.DeleteCondition{Reason: driver.DeleteReasonUnsubscribed})
+		require.NoError(t, err)
+		require.True(t, res.Deleted)
+
+		// Subscribed again before the first generation's removal ran.
+		require.NoError(t, store.CreateDestination(ctx, forever))
+		require.NoError(t, store.RemoveIndexedDestination(ctx, "mcp", forever.Topics, ref(forever)))
+		assert.Equal(t, []driver.IndexedDestination{ref(forever)}, list(t, ctx, store, ""))
+		assert.Equal(t, []driver.IndexedDestination{ref(forever)}, list(t, ctx, store, topic))
+
+		t.Run("with its own score, in every index", func(t *testing.T) {
+			d := expiring(idgen.String(), time.Hour)
+			require.NoError(t, store.CreateDestination(ctx, d))
+			require.NoError(t, store.RemoveIndexedDestination(ctx, "mcp", nil, ref(d)))
+			assert.Contains(t, list(t, ctx, store, ""), ref(d))
+			assert.Contains(t, list(t, ctx, store, topic), ref(d))
+		})
+
+		t.Run("not once deleted", func(t *testing.T) {
+			res, err := store.DeleteDestinationIf(ctx, forever.TenantID, forever.ID, driver.DeleteCondition{})
+			require.NoError(t, err)
+			require.True(t, res.Deleted)
+			for _, topic := range []string{"", topic} {
+				for _, e := range list(t, ctx, store, topic) {
+					assert.NotEqual(t, forever.ID, e.DestinationID)
+				}
+			}
+		})
 	})
 
 	t.Run("CompareScoreRescore", func(t *testing.T) {

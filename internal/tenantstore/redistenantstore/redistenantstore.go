@@ -23,6 +23,10 @@ const defaultMaxDestinationsPerTenant = 20
 // readable as deleted.
 const destinationTombstoneTTL = 7 * 24 * time.Hour
 
+// bucketSweepInterval is how often at most a create refused by a full bucket
+// sweeps it for members no longer listed.
+const bucketSweepInterval = time.Minute
+
 const (
 	defaultListTenantLimit = 20
 	maxListTenantLimit     = 100
@@ -161,10 +165,16 @@ func (s *store) redisBucketKey(tenantID, bucket string) string {
 	return s.tenantScopedPrefix(tenantID) + "bucket:" + bucket
 }
 
-// redisBucketRegistryKey is the set of the tenant's bucket names, so that
-// DeleteTenant can drop them.
+// redisBucketRegistryKey is the set of the names of the tenant's non-empty
+// buckets, so that DeleteTenant can drop them.
 func (s *store) redisBucketRegistryKey(tenantID string) string {
 	return s.tenantScopedPrefix(tenantID) + "buckets"
+}
+
+// redisBucketSweepKey marks a full bucket swept for stale members within the
+// last bucketSweepInterval.
+func (s *store) redisBucketSweepKey(tenantID, bucket string) string {
+	return s.tenantScopedPrefix(tenantID) + "bucket_sweep:" + bucket
 }
 
 // redisFenceKey holds a fence time (Unix ms) of the tenant.
@@ -303,55 +313,16 @@ func (s *store) UpsertTenant(ctx context.Context, tenant models.Tenant) error {
 }
 
 func (s *store) DeleteTenant(ctx context.Context, tenantID string) error {
-	if exists, err := s.redisClient.Exists(ctx, s.redisTenantID(tenantID)).Result(); err != nil {
-		return err
-	} else if exists == 0 {
-		return driver.ErrTenantNotFound
-	}
-
-	pipe := s.redisClient.Pipeline()
-	summariesCmd := pipe.HGetAll(ctx, s.redisTenantDestinationSummaryKey(tenantID))
-	bucketsCmd := pipe.SMembers(ctx, s.redisBucketRegistryKey(tenantID))
-	if _, err := pipe.Exec(ctx); err != nil && err != redis.Nil {
-		return err
-	}
-	summaries, err := summariesCmd.Result()
-	if err != nil && err != redis.Nil {
-		return err
-	}
-	buckets, err := bucketsCmd.Result()
-	if err != nil && err != redis.Nil {
-		return err
-	}
-
-	_, err = s.redisClient.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
-		nowUnixMilli := time.Now().UnixMilli()
-
-		for destinationID := range summaries {
-			destKey := s.redisDestinationID(destinationID, tenantID)
-			pipe.HSet(ctx, destKey, "deleted_at", nowUnixMilli, "deleted_reason", driver.DeleteReasonTenantDeleted)
-			pipe.Expire(ctx, destKey, destinationTombstoneTTL)
-			pipe.Del(ctx, s.redisParkedRetriesKey(tenantID, destinationID))
-		}
-		for _, bucket := range buckets {
-			pipe.Del(ctx, s.redisBucketKey(tenantID, bucket))
-		}
-		pipe.Del(ctx, s.redisBucketRegistryKey(tenantID))
-
-		pipe.Del(ctx, s.redisTenantDestinationSummaryKey(tenantID))
-		pipe.HSet(ctx, s.redisTenantID(tenantID), "deleted_at", nowUnixMilli)
-		pipe.Expire(ctx, s.redisTenantID(tenantID), destinationTombstoneTTL)
-
-		return nil
-	})
+	summaries, err := s.deleteTenant(ctx, tenantID)
 	if err != nil {
 		return err
 	}
 
 	// The indexes live outside the tenant's hash slot, so they are cleaned
-	// after the transaction, comparing scores so that a destination created
-	// again meanwhile keeps its entry. Best effort: an entry left behind is
-	// removed by whoever next finds its destination gone.
+	// after the script, comparing scores and checking the destination so
+	// that one created again meanwhile keeps its entry. Best effort: an
+	// entry left behind is removed by whoever next finds its destination
+	// gone.
 	for destinationID, raw := range summaries {
 		var ds destinationSummary
 		if err := ds.UnmarshalBinary([]byte(raw)); err != nil || !s.isIndexed(ds.Type) {
@@ -362,6 +333,69 @@ func (s *store) DeleteTenant(ctx context.Context, tenantID string) error {
 	}
 
 	return nil
+}
+
+// deleteTenant runs scriptDeleteTenant and returns the summary entries of
+// the destinations it deleted. The script must be given every key it
+// touches, so the summary and the bucket registry are read first; the script
+// retries if a write (a create) changed them meanwhile.
+func (s *store) deleteTenant(ctx context.Context, tenantID string) (map[string]string, error) {
+	summaryKey := s.redisTenantDestinationSummaryKey(tenantID)
+	registryKey := s.redisBucketRegistryKey(tenantID)
+	for range maxScriptAttempts {
+		pipe := s.redisClient.Pipeline()
+		summariesCmd := pipe.HGetAll(ctx, summaryKey)
+		bucketsCmd := pipe.SMembers(ctx, registryKey)
+		if _, err := pipe.Exec(ctx); err != nil && err != redis.Nil {
+			return nil, err
+		}
+		summaries, err := summariesCmd.Result()
+		if err != nil && err != redis.Nil {
+			return nil, err
+		}
+		buckets, err := bucketsCmd.Result()
+		if err != nil && err != redis.Nil {
+			return nil, err
+		}
+
+		ids := make([]string, 0, len(summaries))
+		for id := range summaries {
+			ids = append(ids, id)
+		}
+		keys := make([]string, 0, 3+2*len(ids)+len(buckets))
+		keys = append(keys, s.redisTenantID(tenantID), summaryKey, registryKey)
+		for _, id := range ids {
+			keys = append(keys, s.redisDestinationID(id, tenantID))
+		}
+		for _, id := range ids {
+			keys = append(keys, s.redisParkedRetriesKey(tenantID, id))
+		}
+		args := make([]any, 0, 4+len(ids)+len(buckets))
+		args = append(args, time.Now().UnixMilli(), int64(destinationTombstoneTTL/time.Second), driver.DeleteReasonTenantDeleted, len(ids))
+		for _, id := range ids {
+			args = append(args, id)
+		}
+		for _, bucket := range buckets {
+			keys = append(keys, s.redisBucketKey(tenantID, bucket))
+			args = append(args, bucket)
+		}
+
+		status, err := deleteTenantScript.Run(ctx, s.redisClient, keys, args...).Text()
+		if err != nil {
+			return nil, err
+		}
+		switch status {
+		case "deleted":
+			return summaries, nil
+		case "not_found":
+			return nil, driver.ErrTenantNotFound
+		case "retry":
+			continue
+		default:
+			return nil, fmt.Errorf("unexpected delete tenant script reply %q", status)
+		}
+	}
+	return nil, errScriptContention
 }
 
 func (s *store) ListTenant(ctx context.Context, req driver.ListTenantRequest) (*driver.TenantPaginatedResult, error) {

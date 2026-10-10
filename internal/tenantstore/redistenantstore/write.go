@@ -195,9 +195,13 @@ func (s *store) CreateDestination(ctx context.Context, destination models.Destin
 		s.redisDestinationID(destination.ID, tenantID),
 		s.redisTenantDestinationSummaryKey(tenantID),
 		s.redisBucketRegistryKey(tenantID),
+		s.redisTenantID(tenantID),
 	}
 	for _, b := range buckets {
 		keys = append(keys, s.redisBucketKey(tenantID, b.Name))
+	}
+	for _, b := range buckets {
+		keys = append(keys, s.redisBucketSweepKey(tenantID, b.Name))
 	}
 	// Types with their own limit don't count toward the general one.
 	generalMax := ""
@@ -213,7 +217,7 @@ func (s *store) CreateDestination(ctx context.Context, destination models.Destin
 
 	args := []any{
 		destination.ID, w.summary, recorded, msArg(o.NotDeletedSince), generalMax,
-		len(buckets), len(generalKeys), len(w.set), len(w.del),
+		len(buckets), len(generalKeys), len(w.set), len(w.del), bucketSweepInterval.Milliseconds(),
 	}
 	for _, b := range buckets {
 		args = append(args, b.Max)
@@ -235,6 +239,13 @@ func (s *store) CreateDestination(ctx context.Context, destination models.Destin
 		return err
 	}
 	if res[0] == "ok" {
+		if indexed {
+			// The removal of an earlier generation with the same score can
+			// take the entry written above while the destination is still
+			// deleted (see RemoveIndexedDestination): add it back where
+			// missing. Best effort, like that removal.
+			_ = s.indexAdd(ctx, destination.Type, destination.Topics, indexEntry(&destination), true)
+		}
 		return nil
 	}
 
@@ -253,6 +264,8 @@ func (s *store) CreateDestination(ctx context.Context, destination models.Destin
 		return driver.ErrDuplicateDestination
 	case "revoked":
 		return driver.ErrDestinationRevoked
+	case "tenant_deleted":
+		return driver.ErrTenantDeleted
 	case "max":
 		return driver.ErrMaxDestinationsPerTenantReached
 	case "limit":
@@ -491,12 +504,7 @@ func (s *store) deleteDestinationIf(ctx context.Context, tenantID, destinationID
 			destKey,
 			s.redisTenantDestinationSummaryKey(tenantID),
 			s.redisParkedRetriesKey(tenantID, destinationID),
-		}
-		var names []string
-		if recorded != "" && json.Unmarshal([]byte(recorded), &names) == nil {
-			for _, name := range names {
-				keys = append(keys, s.redisBucketKey(tenantID, name))
-			}
+			s.redisBucketRegistryKey(tenantID),
 		}
 		args := []any{
 			destinationID,
@@ -507,6 +515,13 @@ func (s *store) deleteDestinationIf(ctx context.Context, tenantID, destinationID
 			expectedCreatedAt,
 			expiredBefore,
 			recorded,
+		}
+		var names []string
+		if recorded != "" && json.Unmarshal([]byte(recorded), &names) == nil {
+			for _, name := range names {
+				keys = append(keys, s.redisBucketKey(tenantID, name))
+				args = append(args, name)
+			}
 		}
 
 		res, err := scriptReply(deleteDestinationIfScript.Run(ctx, s.redisClient, keys, args...))
