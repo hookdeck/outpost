@@ -309,7 +309,7 @@ OpenAI's implementer guide includes a checklist for testing an MCP server with C
 | Subscriptions survive a server restart | Subscriptions and verification are stored in Outpost's Redis, not in your MCP server. |
 | Secret rotation on refresh | Outpost signs with both secrets for `MCP_SECRET_ROTATION_GRACE`. |
 | Duplicate deliveries | `webhook-id` and `eventId` are the event ID, unchanged across retries and manual retries. |
-| Delivery failures | 4 attempts over about 12.5 minutes (`MCP_RETRY_SCHEDULE`), with `410` and `413` never retried. A refresh reports `deliveryStatus` and re-enables an auto-disabled subscription. |
+| Delivery failures | 4 attempts over about 12.5 minutes (`MCP_RETRY_SCHEDULE`, with jitter), with `410` and `413` never retried. A refresh reports `deliveryStatus` and re-enables an auto-disabled subscription. |
 | The plugin is removed | ChatGPT stops refreshing without unsubscribing. Outpost stops delivering at `expires_at`, deletes the subscription and emits `mcp.subscription.expired`. |
 | Access is revoked | Your MCP server calls the revoke endpoints and denies later subscribe calls. |
 
@@ -408,7 +408,8 @@ Subscribe and list errors reach the client as JSON-RPC errors. The `kind` of Out
 | `not_found`, `kind: "tenant"` | Create the tenant first. |
 | `callback_endpoint_error` | The challenge failed. `reason` says how: `challenge_failed` for a `2xx` without the challenge, or `http_4xx`, `http_5xx`, `timeout`, `tls_error` or `connection_refused`. |
 | `resource_exhausted`, `limit: "subscriptions"` or `"principal_subscriptions"` | A subscription limit is reached. |
-| `resource_exhausted`, `limit: "verification_rate"` | The principal sent more than `MCP_VERIFICATION_RATE_LIMIT` challenges in a minute. Retry after `retryAfterMs`. |
+| `resource_exhausted`, `limit: "verification_rate"` | The principal sent more than `MCP_VERIFICATION_RATE_LIMIT` challenges in a minute (`max` is that limit), or the tenant's challenges to this callback host failed `MCP_VERIFICATION_FAILURE_LIMIT` times in a minute. Retry after `retryAfterMs`. |
+| `resource_exhausted`, `limit: "callback_host_busy"` | The callback host can't take a challenge right now, whichever tenant asks: this Outpost instance already has `MCP_MAX_INFLIGHT_PER_HOST` requests in flight to it, or the host left 10 × `MCP_VERIFICATION_FAILURE_LIMIT` challenges unanswered (timeout, connection refused, TLS failure) this minute. Retry after `retryAfterMs`. |
 | `unsupported`, `feature: "deliveryMode"` | The client asked for a delivery mode other than `webhook`. |
 | `unsupported`, `feature: "payloadSchema"`, `reason: "schema_changed"` | A refresh of a subscription created against a payload schema that a breaking change applied with `TOPICS_ALLOW_BREAKING_CHANGES` replaced. Outpost deleted it; the client re-reads `events/list` and subscribes again. |
 

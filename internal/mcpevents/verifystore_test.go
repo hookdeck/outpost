@@ -74,36 +74,84 @@ func runVerificationStoreSuite(t *testing.T, client internalredis.Cmdable, deplo
 		assert.LessOrEqual(t, ttl, counterTTL)
 	})
 
-	t.Run("host failure counters", func(t *testing.T) {
-		n, err := s.HostFailures(ctx, "receiver.example.com:443", 2000)
-		require.NoError(t, err)
-		assert.Zero(t, n)
-		for want := int64(1); want <= 2; want++ {
-			n, err := s.CountHostFailure(ctx, "receiver.example.com:443", 2000)
+	t.Run("failure counters", func(t *testing.T) {
+		const host = "receiver.example.com:443"
+		counts := func(tenantID, hostport string, window int64) (int64, int64) {
+			t.Helper()
+			tenant, unanswered, err := s.FailureCounts(ctx, tenantID, hostport, window)
 			require.NoError(t, err)
-			assert.Equal(t, want, n)
+			return tenant, unanswered
 		}
-		n, err = s.HostFailures(ctx, "receiver.example.com:443", 2000)
-		require.NoError(t, err)
-		assert.Equal(t, int64(2), n)
-		n, err = s.HostFailures(ctx, "receiver.example.com:8443", 2000)
-		require.NoError(t, err)
-		assert.Zero(t, n)
-		n, err = s.HostFailures(ctx, "receiver.example.com:443", 2001)
-		require.NoError(t, err)
-		assert.Zero(t, n)
+		tenant, unanswered := counts("t1", host, 2000)
+		assert.Zero(t, tenant)
+		assert.Zero(t, unanswered)
 
-		ttl, err := client.TTL(ctx, s.failureKey("receiver.example.com:443", 2000)).Result()
+		// An answered failure counts for the tenant only; an unanswered
+		// one for the tenant and the host.
+		require.NoError(t, s.CountFailure(ctx, "t1", host, 2000, false))
+		require.NoError(t, s.CountFailure(ctx, "t1", host, 2000, true))
+		require.NoError(t, s.CountFailure(ctx, "t2", host, 2000, true))
+		tenant, unanswered = counts("t1", host, 2000)
+		assert.Equal(t, int64(2), tenant)
+		assert.Equal(t, int64(2), unanswered, "unanswered challenges from every tenant")
+		tenant, _ = counts("t2", host, 2000)
+		assert.Equal(t, int64(1), tenant)
+		tenant, unanswered = counts("t3", host, 2000)
+		assert.Zero(t, tenant, "another tenant")
+		assert.Equal(t, int64(2), unanswered)
+		tenant, unanswered = counts("t1", "receiver.example.com:8443", 2000)
+		assert.Zero(t, tenant, "another port")
+		assert.Zero(t, unanswered)
+		tenant, unanswered = counts("t1", host, 2001)
+		assert.Zero(t, tenant, "a new window")
+		assert.Zero(t, unanswered)
+
+		for _, key := range []string{s.tenantFailureKey("t1", host, 2000), s.hostFailureKey(host, 2000)} {
+			ttl, err := client.TTL(ctx, key).Result()
+			require.NoError(t, err)
+			assert.Greater(t, ttl, time.Duration(0))
+			assert.LessOrEqual(t, ttl, counterTTL)
+		}
+	})
+
+	t.Run("verifying claim", func(t *testing.T) {
+		release, ok, err := s.ClaimVerification(ctx, "t1", "p1", url, 2*time.Second)
 		require.NoError(t, err)
-		assert.Greater(t, ttl, time.Duration(0))
+		require.True(t, ok)
+		_, ok, err = s.ClaimVerification(ctx, "t1", "p1", url, 2*time.Second)
+		require.NoError(t, err)
+		assert.False(t, ok, "held")
+		otherRelease, ok, err := s.ClaimVerification(ctx, "t1", "p2", url, 2*time.Second)
+		require.NoError(t, err)
+		assert.True(t, ok, "keyed on the whole (tenant, principal, url)")
+		otherRelease()
+
+		release()
+		release2, ok, err := s.ClaimVerification(ctx, "t1", "p1", url, time.Second)
+		require.NoError(t, err)
+		require.True(t, ok, "released")
+
+		// A claim that outlived its TTL and was taken over is not
+		// released by its first holder.
+		fastForward(2 * time.Second)
+		release3, ok, err := s.ClaimVerification(ctx, "t1", "p1", url, 2*time.Second)
+		require.NoError(t, err)
+		require.True(t, ok, "expired")
+		release2()
+		_, ok, err = s.ClaimVerification(ctx, "t1", "p1", url, 2*time.Second)
+		require.NoError(t, err)
+		assert.False(t, ok, "still held by the new holder")
+		release3()
 	})
 
 	t.Run("key names", func(t *testing.T) {
 		require.NoError(t, s.MarkVerified(ctx, "tenant_secret", "principal_secret", url, time.Minute))
 		_, err := s.CountAttempt(ctx, "tenant_secret", "principal_secret", 3000)
 		require.NoError(t, err)
-		_, err = s.CountHostFailure(ctx, "receiver.example.com:443", 3000)
+		require.NoError(t, s.CountFailure(ctx, "tenant_secret", "receiver.example.com:443", 3000, true))
+		_, ok, err := s.ClaimVerification(ctx, "tenant_secret", "principal_secret", url, time.Minute)
 		require.NoError(t, err)
+		require.True(t, ok)
 
 		keys, err := client.Keys(ctx, "*").Result()
 		require.NoError(t, err)

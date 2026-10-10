@@ -1,8 +1,8 @@
 package logmq_test
 
 // Per-destination-type behaviour of the post-persist pipeline: retry limits
-// carried to the evaluator, MCP 410s kept out of the failure streak, and the
-// attempt status recorder.
+// carried to the evaluator, MCP 410s and Outpost-side refusals kept out of
+// the failure streak, and the attempt status recorder.
 
 import (
 	"context"
@@ -77,6 +77,10 @@ func TestPerType_AttemptFields(t *testing.T) {
 		typedEntry(mcpType, "d1", "t", "mcp_500", models.AttemptStatusFailed, "500", 1),
 		typedEntry(mcpType, "d1", "t", "mcp_410", models.AttemptStatusFailed, "410", 1),
 		typedEntry(mcpType, "d1", "t", "mcp_ok", models.AttemptStatusSuccess, "200", 1),
+		typedEntry(mcpType, "d1", "t", "mcp_throttled", models.AttemptStatusFailed, "throttled", 1),
+		typedEntry(mcpType, "d1", "t", "mcp_too_large", models.AttemptStatusFailed, "payload_too_large", 1),
+		typedEntry(mcpType, "d1", "t", "mcp_bad_id", models.AttemptStatusFailed, "invalid_event_id", 1),
+		typedEntry(mcpType, "d1", "t", "mcp_refused", models.AttemptStatusFailed, "connection_refused", 1),
 		typedEntry("webhook", "d2", "t", "hook_410", models.AttemptStatusFailed, "410", 1),
 		typedEntry("kafka", "d3", "t", "kafka_err", models.AttemptStatusFailed, "ERR", 1),
 	}
@@ -97,6 +101,11 @@ func TestPerType_AttemptFields(t *testing.T) {
 	assert.False(t, got["mcp_500"].SkipConsecutiveFailure)
 	assert.True(t, got["mcp_410"].SkipConsecutiveFailure, "an MCP 410 leaves the streak alone")
 	assert.False(t, got["mcp_ok"].SkipConsecutiveFailure, "a success always resets")
+	// Outpost's own refusals say nothing about the receiver's health.
+	assert.True(t, got["mcp_throttled"].SkipConsecutiveFailure, "local back-pressure")
+	assert.True(t, got["mcp_too_large"].SkipConsecutiveFailure, "an event Outpost can't send")
+	assert.True(t, got["mcp_bad_id"].SkipConsecutiveFailure, "an event Outpost can't send")
+	assert.False(t, got["mcp_refused"].SkipConsecutiveFailure, "the receiver didn't answer")
 	assert.False(t, got["hook_410"].SkipConsecutiveFailure, "only MCP gives 410 this meaning")
 	assert.Zero(t, got["hook_410"].MaxRetries, "types without their own limit use the evaluator default")
 	assert.Equal(t, -1, got["kafka_err"].MaxRetries, "a type limit of 0 means no retries")
@@ -201,6 +210,51 @@ func TestStatusRecorder_OnlyConfiguredTypes(t *testing.T) {
 	require.Eventually(t, func() bool { return len(recorder.attemptIDs()) == 2 }, 2*time.Second, 5*time.Millisecond)
 	assert.ElementsMatch(t, []string{"mcp_1", "mcp_2"}, recorder.attemptIDs())
 	assert.Len(t, h.listAttempt("d1"), 1, "recorded entries were persisted first")
+}
+
+// Outpost-side refusals of MCP attempts (local throttling, an event it can't
+// send) never reach the status record, so deliveryStatus.lastError keeps
+// describing the receiver.
+func TestStatusRecorder_SkipsOutpostRefusals(t *testing.T) {
+	t.Parallel()
+	recorder := &fakeRecorder{}
+	h := newHarness(t, harnessConfig{
+		batcher: batcherConfig{itemCount: 5},
+		bpOpts:  []logmq.BatchProcessorOption{logmq.WithAttemptStatusRecorder(recorder, mcpType)},
+	})
+
+	var msgs []*countingMessage
+	for _, e := range []models.LogEntry{
+		typedEntry(mcpType, "d1", "t", "mcp_ok", models.AttemptStatusSuccess, "200", 1),
+		typedEntry(mcpType, "d1", "t", "mcp_throttled", models.AttemptStatusFailed, "throttled", 2),
+		typedEntry(mcpType, "d1", "t", "mcp_too_large", models.AttemptStatusFailed, "payload_too_large", 1),
+		typedEntry(mcpType, "d1", "t", "mcp_bad_id", models.AttemptStatusFailed, "invalid_event_id", 1),
+		typedEntry(mcpType, "d1", "t", "mcp_503", models.AttemptStatusFailed, "503", 1),
+	} {
+		cm, msg := newCountingMessage(e)
+		msgs = append(msgs, cm)
+		h.add(msg)
+	}
+	h.waitTerminal(msgs)
+	require.Eventually(t, func() bool { return len(recorder.attemptIDs()) == 2 }, 2*time.Second, 5*time.Millisecond)
+	assert.ElementsMatch(t, []string{"mcp_ok", "mcp_503"}, recorder.attemptIDs())
+}
+
+// Throttled attempts never auto-disable a healthy MCP subscription.
+func TestMCPThrottled_SkipsConsecutiveFailureUpdate(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t, harnessConfig{
+		batcher: batcherConfig{itemCount: 1},
+		alert:   alertConfig{withDisabler: true, autoDisableCount: 3},
+	})
+	for i := range 5 {
+		cm, msg := newCountingMessage(typedEntry(mcpType, "dest_thr", "tenant_thr", fmt.Sprintf("thr_%d", i), models.AttemptStatusFailed, "throttled", 1))
+		h.add(msg)
+		h.waitTerminal([]*countingMessage{cm})
+		cm.requireAcked(t)
+	}
+	assert.Empty(t, h.disabler.snapshot(), "throttled attempts never auto-disable")
+	assert.Empty(t, forTopic(h.sink.forDest("dest_thr"), topicDisabled))
 }
 
 func TestStatusRecorder_ErrorIsBestEffort(t *testing.T) {

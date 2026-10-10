@@ -195,9 +195,6 @@ const (
 	resumePerSecond    = 10
 	resumeTimeout      = time.Minute
 	resumeDrainTimeout = 5 * time.Second
-	// resumedRetrySuffix makes a resumed retry's task ID differ from the
-	// automatic retry ID, so it never replaces a retry scheduled since.
-	resumedRetrySuffix = ":r"
 )
 
 // resumeStore is the tenant store surface parkedRetryResumer uses.
@@ -329,7 +326,8 @@ func (r *parkedRetryResumer) resume(job resumeJob) {
 var errForeignRetry = errors.New("parked retry belongs to another destination")
 
 // schedule schedules the n-th resumed retry of a destination, spread over
-// whole seconds.
+// whole seconds, under its ResumedRetryID: it never replaces an automatic
+// retry scheduled since, and a manual retry cancels it.
 func (r *parkedRetryResumer) schedule(ctx context.Context, job resumeJob, member string, n int) error {
 	var task deliverymq.RetryTask
 	if err := task.FromString(member); err != nil {
@@ -339,7 +337,7 @@ func (r *parkedRetryResumer) schedule(ctx context.Context, job resumeJob, member
 		return errForeignRetry
 	}
 	delay := time.Duration(n/resumePerSecond) * time.Second
-	id := models.RetryID(task.EventID, task.DestinationID) + resumedRetrySuffix
+	id := deliverymq.ResumedRetryID(task.EventID, task.DestinationID)
 	return r.scheduler.Schedule(ctx, member, delay, scheduler.WithTaskID(id))
 }
 

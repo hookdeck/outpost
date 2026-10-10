@@ -346,7 +346,8 @@ func (h *messageHandler) doHandle(ctx context.Context, task models.DeliveryTask,
 			// atomically replaces the existing entry (both timing and payload). This
 			// means manual retries automatically override any pending automatic retry
 			// without needing an explicit cancel — the new tier's delay takes effect
-			// and the old scheduled retry is gone in a single operation.
+			// and the old scheduled retry is gone in a single operation. A resumed
+			// parked retry has its own ID, so a manual retry cancels it.
 			backoff, retryErr := h.scheduleRetry(ctx, task, destination)
 			retry.backoff = backoff
 			if retryErr != nil {
@@ -354,11 +355,16 @@ func (h *messageHandler) doHandle(ctx context.Context, task models.DeliveryTask,
 				return h.logDeliveryResult(ctx, &task, destination, attempt, attemptStart, attemptDuration, retry, errors.Join(err, retryErr))
 			}
 			retry.scheduled = true
+			if task.Manual && h.parkedRetryTypes[destination.Type] {
+				if cancelErr := h.retryScheduler.Cancel(ctx, ResumedRetryID(task.Event.ID, task.DestinationID)); cancelErr != nil {
+					retry.cancelFailed = true
+				}
+			}
 		} else if task.Manual {
 			// Budget exhausted, not eligible or non-retryable — cancel any lingering scheduled retry.
 			// Unlike the case above, there's no new retry to schedule so we must
 			// explicitly cancel to prevent a stale automatic retry from firing.
-			if cancelErr := h.retryScheduler.Cancel(ctx, models.RetryID(task.Event.ID, task.DestinationID)); cancelErr == nil {
+			if cancelErr := h.cancelPendingRetries(ctx, task, destination); cancelErr == nil {
 				retry.canceled = true
 			} else {
 				retry.cancelFailed = true
@@ -374,7 +380,7 @@ func (h *messageHandler) doHandle(ctx context.Context, task models.DeliveryTask,
 
 	// Handle successful delivery
 	if task.Manual {
-		if cancelErr := h.retryScheduler.Cancel(ctx, models.RetryID(task.Event.ID, task.DestinationID)); cancelErr != nil {
+		if cancelErr := h.cancelPendingRetries(ctx, task, destination); cancelErr != nil {
 			retry.cancelFailed = true
 			h.logger.Ctx(ctx).Error("failed to cancel scheduled retry",
 				zap.Error(cancelErr),
@@ -389,6 +395,25 @@ func (h *messageHandler) doHandle(ctx context.Context, task models.DeliveryTask,
 		retry.canceled = true
 	}
 	return h.logDeliveryResult(ctx, &task, destination, attempt, attemptStart, attemptDuration, retry, nil)
+}
+
+// ResumedRetryID is the scheduler task ID of a parked retry resumed after its
+// destination was re-enabled. It differs from models.RetryID so a resume
+// never replaces an automatic retry scheduled since; a manual retry cancels
+// both.
+func ResumedRetryID(eventID, destinationID string) string {
+	return models.RetryID(eventID, destinationID) + ":r"
+}
+
+// cancelPendingRetries cancels the automatic retries a manual attempt
+// supersedes: the pending retry and, for parked types, a resumed parked
+// retry.
+func (h *messageHandler) cancelPendingRetries(ctx context.Context, task models.DeliveryTask, destination *models.Destination) error {
+	err := h.retryScheduler.Cancel(ctx, models.RetryID(task.Event.ID, task.DestinationID))
+	if h.parkedRetryTypes[destination.Type] {
+		err = errors.Join(err, h.retryScheduler.Cancel(ctx, ResumedRetryID(task.Event.ID, task.DestinationID)))
+	}
+	return err
 }
 
 func (h *messageHandler) logDeliveryResult(ctx context.Context, task *models.DeliveryTask, destination *models.Destination, attempt *models.Attempt, attemptStart time.Time, attemptDuration time.Duration, retry retryOutcome, err error) error {

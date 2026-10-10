@@ -14,9 +14,12 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/hookdeck/outpost/internal/netguard"
+	standardwebhooks "github.com/standard-webhooks/standard-webhooks/libraries/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -463,43 +466,129 @@ func TestVerifier_CacheHitsDontCount(t *testing.T) {
 	assert.Len(t, rc.Requests(), 1)
 }
 
-func TestVerifier_HostFailureBudget(t *testing.T) {
+// A shared receiver such as ChatGPT's: one host:port, answering 404 on
+// unknown paths and the challenge on /hook.
+func sharedReceiver(t *testing.T, key []byte) *receiver {
+	return newReceiver(t, key, func(w http.ResponseWriter, r receivedRequest) {
+		if r.Header.Get("X-MCP-Subscription-Id") == "sub_unknown" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		echo(w, r)
+	})
+}
+
+// MCP_VERIFICATION_FAILURE_LIMIT is a budget per (tenant, host:port): failed
+// challenges in one tenant never block another tenant's challenges to the
+// same host.
+func TestVerifier_TenantHostFailureBudget(t *testing.T) {
 	t.Parallel()
 	f := newVerifierFixture(t, func(c *VerifierConfig) {
 		c.RateLimit = -1
 		c.FailureLimit = 2
 	})
-	failing := newReceiver(t, f.key, func(w http.ResponseWriter, r receivedRequest) { w.WriteHeader(http.StatusNotFound) })
-	healthy := newReceiver(t, f.key, echo)
+	rc := sharedReceiver(t, f.key)
 	ctx := context.Background()
-
-	for i := range 2 {
-		req := f.request(failing.URL)
-		req.Principal = "attacker_" + string(rune('a'+i))
-		requireReason(t, f.v.Verify(ctx, req), ReasonHTTP4xx)
+	failing := func(tenantID, principal, rawURL string) VerifyRequest {
+		req := f.request(rawURL)
+		req.TenantID, req.Principal, req.SubscriptionID = tenantID, principal, "sub_unknown"
+		return req
 	}
-	// Spelling variants of the same host:port share the bucket.
-	_, port, _ := net.SplitHostPort(hostOf(failing.URL))
-	req := f.request("http://127.0.0.1.:00" + port + "/x")
-	req.Principal = "victim"
-	err := f.v.Verify(ctx, req)
-	var mcpErr *Error
-	require.ErrorAs(t, err, &mcpErr)
-	assert.Equal(t, KindResourceExhausted, mcpErr.Kind)
-	assert.Equal(t, LimitVerificationRate, mcpErr.Data["limit"])
-	assert.NotContains(t, mcpErr.Data, "max")
-	assert.Len(t, failing.Requests(), 2, "an exhausted host is not contacted")
 
-	// A host that answers is never limited by its successes.
+	// Two principals of tenant "evil" use up its budget for the host.
+	for i := range 2 {
+		requireReason(t, f.v.Verify(ctx, failing("evil", "attacker_"+strconv.Itoa(i), rc.URL+"/x"+strconv.Itoa(i))), ReasonHTTP4xx)
+	}
+	// Spelling variants of the same host:port share the budget.
+	_, port, _ := net.SplitHostPort(hostOf(rc.URL))
+	err := f.v.Verify(ctx, failing("evil", "attacker_2", "http://127.0.0.1.:00"+port+"/x"))
+	requireMCPError(t, err, KindResourceExhausted, map[string]any{"limit": LimitVerificationRate, "retryAfterMs": int64(30000)})
+	// Even a challenge that would pass: the budget counts failures, and is
+	// spent.
+	good := f.request(rc.URL + "/hook")
+	good.TenantID = "evil"
+	requireMCPError(t, f.v.Verify(ctx, good), KindResourceExhausted, map[string]any{"limit": LimitVerificationRate, "retryAfterMs": int64(30000)})
+	assert.Len(t, rc.Requests(), 2, "an exhausted budget sends nothing")
+
+	// Tenant "victim" verifies against the same host as usual.
+	victim := f.request(rc.URL + "/hook")
+	victim.TenantID = "victim"
+	require.NoError(t, f.v.Verify(ctx, victim))
+	assert.Len(t, rc.Requests(), 3)
+
+	// Successes never use the budget.
 	for i := range 5 {
-		req := f.request(healthy.URL)
-		req.Principal = "user_" + string(rune('a'+i))
+		req := f.request(rc.URL + "/hook")
+		req.TenantID, req.Principal = "victim", "user_"+strconv.Itoa(i)
 		require.NoError(t, f.v.Verify(ctx, req))
 	}
 
 	// The budget is per minute.
 	f.clock.Advance(time.Minute)
-	requireReason(t, f.v.Verify(ctx, req), ReasonHTTP4xx)
+	requireReason(t, f.v.Verify(ctx, failing("evil", "attacker_3", rc.URL+"/y")), ReasonHTTP4xx)
+}
+
+// roundTripFunc is an http.RoundTripper.
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+
+// Unanswered challenges to a host also count toward a deployment-wide budget
+// of 10 × MCP_VERIFICATION_FAILURE_LIMIT, which stops probing of a host that
+// doesn't answer however many tenants ask; answered failures don't, so they
+// can't lock other tenants out of a responsive host.
+func TestVerifier_HostUnansweredBudget(t *testing.T) {
+	t.Parallel()
+	var sent atomic.Int64
+	refused := &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+		sent.Add(1)
+		return nil, errors.New("dial tcp: connect: connection refused")
+	})}
+	f := newVerifierFixture(t, func(c *VerifierConfig) {
+		c.Client = refused
+		c.RateLimit = -1
+		c.FailureLimit = 1
+	})
+	ctx := context.Background()
+	const dead = "https://dead.example.com/hook"
+
+	// Ten tenants, one unanswered challenge each, fill the host budget.
+	for i := range 10 {
+		req := f.request(dead)
+		req.TenantID = "tenant_" + strconv.Itoa(i)
+		requireReason(t, f.v.Verify(ctx, req), ReasonConnectionRefused)
+	}
+	req := f.request(dead)
+	req.TenantID = "tenant_new"
+	requireMCPError(t, f.v.Verify(ctx, req), KindResourceExhausted, map[string]any{"limit": LimitCallbackHostBusy, "retryAfterMs": int64(30000)})
+	assert.Equal(t, int64(10), sent.Load(), "a host that doesn't answer is not contacted")
+
+	// Another host:port has its own budget.
+	other := f.request("https://dead.example.com:8443/hook")
+	other.TenantID = "tenant_new"
+	requireReason(t, f.v.Verify(ctx, other), ReasonConnectionRefused)
+
+	f.clock.Advance(time.Minute)
+	requireReason(t, f.v.Verify(ctx, req), ReasonConnectionRefused)
+}
+
+func TestVerifier_AnsweredFailuresDontBlockTheHost(t *testing.T) {
+	t.Parallel()
+	f := newVerifierFixture(t, func(c *VerifierConfig) {
+		c.RateLimit = -1
+		c.FailureLimit = 1
+	})
+	rc := sharedReceiver(t, f.key)
+	ctx := context.Background()
+	// Far more 4xx answers than the host budget, from many tenants.
+	for i := range 25 {
+		req := f.request(rc.URL + "/x")
+		req.TenantID, req.SubscriptionID = "tenant_"+strconv.Itoa(i), "sub_unknown"
+		requireReason(t, f.v.Verify(ctx, req), ReasonHTTP4xx)
+	}
+	victim := f.request(rc.URL + "/hook")
+	victim.TenantID = "victim"
+	require.NoError(t, f.v.Verify(ctx, victim))
 }
 
 func TestVerifier_ExemptHost(t *testing.T) {
@@ -565,15 +654,57 @@ func TestVerifier_HostLimiter(t *testing.T) {
 	assert.Equal(t, 1, acquired)
 	assert.Equal(t, 1, released)
 
-	// Host at its limit (a delivery holds the slot).
+	// Host at its limit (a delivery holds the slot) for longer than the
+	// challenge waits for one.
+	f.v.hostWait = 50 * time.Millisecond
 	hold, ok := limiter.TryAcquire(HostPort(mustURL(t, rc.URL)))
 	require.True(t, ok)
 	err := f.v.Verify(context.Background(), f.request(rc.URL+"/other"))
-	requireMCPError(t, err, KindResourceExhausted, map[string]any{"limit": LimitVerificationRate, "retryAfterMs": int64(1000)})
-	hold()
+	requireMCPError(t, err, KindResourceExhausted, map[string]any{"limit": LimitCallbackHostBusy, "retryAfterMs": int64(1000)})
 	assert.Len(t, rc.Requests(), 1)
 	// The process-wide slot was returned too.
 	assert.Empty(t, f.v.inFlight)
+
+	// A slot that frees up within the wait is taken.
+	f.v.hostWait = 5 * time.Second
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+		hold()
+	}()
+	require.NoError(t, f.v.Verify(context.Background(), f.request(rc.URL+"/other")))
+	assert.Len(t, rc.Requests(), 2)
+}
+
+// The host limiter shared with deliveries: a challenge waits for a slot
+// instead of failing while deliveries hold them all.
+func TestVerifier_WaitsForHostSlot(t *testing.T) {
+	t.Parallel()
+	limiter := netguard.NewHostLimiter(2)
+	f := newVerifierFixture(t, func(c *VerifierConfig) { c.HostLimiter = limiter })
+	rc := newReceiver(t, f.key, echo)
+	hostport := HostPort(mustURL(t, rc.URL))
+
+	var holds []func()
+	for range 2 {
+		hold, ok := limiter.TryAcquire(hostport)
+		require.True(t, ok)
+		holds = append(holds, hold)
+	}
+	done := make(chan error, 1)
+	go func() { done <- f.v.Verify(context.Background(), f.request(rc.URL)) }()
+	select {
+	case err := <-done:
+		t.Fatalf("verified without a host slot: %v", err)
+	case <-time.After(50 * time.Millisecond):
+	}
+	holds[0]()
+	require.NoError(t, <-done)
+	holds[1]()
+	// Every slot was returned.
+	for range 2 {
+		_, ok := limiter.TryAcquire(hostport)
+		assert.True(t, ok)
+	}
 }
 
 func mustURL(t *testing.T, raw string) *url.URL {
@@ -594,9 +725,10 @@ func TestVerifier_CallerCanceled(t *testing.T) {
 	assert.ErrorIs(t, f.v.Verify(ctx, f.request(rc.URL)), context.Canceled)
 
 	// Not counted against the host.
-	n, err := f.store.HostFailures(context.Background(), HostPort(mustURL(t, rc.URL)), f.clock.Now().Unix()/60)
+	tenant, host, err := f.store.FailureCounts(context.Background(), "tenant_1", HostPort(mustURL(t, rc.URL)), f.clock.Now().Unix()/60)
 	require.NoError(t, err)
-	assert.Zero(t, n)
+	assert.Zero(t, tenant)
+	assert.Zero(t, host)
 }
 
 // failingStore fails every call.
@@ -641,3 +773,207 @@ type timeoutErr struct{}
 func (timeoutErr) Error() string   { return "i/o timeout" }
 func (timeoutErr) Timeout() bool   { return true }
 func (timeoutErr) Temporary() bool { return true }
+
+// echoAny answers the challenge when the signature verifies with any of
+// keys, like a receiver holding per-subscription secrets not yet tied to an
+// id, after delay. It records the peak number of challenges in flight.
+type echoAny struct {
+	keys    [][]byte
+	delay   time.Duration
+	current atomic.Int32
+	peak    atomic.Int32
+}
+
+func (e *echoAny) respond(w http.ResponseWriter, r receivedRequest) {
+	n := e.current.Add(1)
+	defer e.current.Add(-1)
+	for p := e.peak.Load(); n > p && !e.peak.CompareAndSwap(p, n); p = e.peak.Load() {
+	}
+	time.Sleep(e.delay)
+	for _, k := range e.keys {
+		wh, err := standardwebhooks.NewWebhookRaw(k)
+		if err == nil && wh.VerifyIgnoringTimestamp(r.Body, r.Header) == nil {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = io.WriteString(w, `{"challenge":"`+r.Challenge+`"}`)
+			return
+		}
+	}
+	http.Error(w, "bad signature", http.StatusUnauthorized)
+}
+
+func distinctKeys(n int) [][]byte {
+	keys := make([][]byte, n)
+	for i := range keys {
+		keys[i] = []byte(strings.Repeat(string(rune('A'+i)), 32))
+	}
+	return keys
+}
+
+// verifyAll runs one Verify per request at once, request i on verifier(i),
+// and returns the results in order.
+func verifyAll(verifier func(int) *Verifier, reqs []VerifyRequest) []error {
+	errs := make([]error, len(reqs))
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	for i, req := range reqs {
+		wg.Go(func() {
+			<-start
+			errs[i] = verifier(i).Verify(context.Background(), req)
+		})
+	}
+	close(start)
+	wg.Wait()
+	return errs
+}
+
+// A client that subscribes to 12 events at once on connect, each with its
+// own secret, sends one challenge: the others wait for it and share the
+// cached pass, without using the principal's rate limit.
+func TestVerifier_CoalescesConcurrentVerifications(t *testing.T) {
+	t.Parallel()
+	f := newVerifierFixture(t, nil) // MCP_VERIFICATION_RATE_LIMIT 10
+	keys := distinctKeys(12)
+	rx := &echoAny{keys: keys, delay: 100 * time.Millisecond}
+	rc := newReceiver(t, keys[0], rx.respond)
+
+	reqs := make([]VerifyRequest, len(keys))
+	for i, k := range keys {
+		reqs[i] = f.request(rc.URL + "/hook")
+		reqs[i].SubscriptionID = "sub_" + strconv.Itoa(i)
+		reqs[i].Secrets = []Secret{{Key: k}}
+	}
+	for i, err := range verifyAll(func(int) *Verifier { return f.v }, reqs) {
+		assert.NoError(t, err, "request %d", i)
+	}
+	assert.Len(t, rc.Requests(), 1)
+	assert.Empty(t, f.v.flights)
+}
+
+// The same across API replicas sharing Redis: one holds the verifying claim,
+// the others wait for its result.
+func TestVerifier_CoalescesAcrossReplicas(t *testing.T) {
+	t.Parallel()
+	mr, client := newMiniredis(t)
+	store := NewRedisVerificationStore(client, "dep")
+	clock := newFakeClock()
+	replicas := make([]*Verifier, 3)
+	for i := range replicas {
+		v, err := NewVerifier(VerifierConfig{Client: guardedLikeClient(t), Store: store, Timeout: 2 * time.Second, Now: clock.Now})
+		require.NoError(t, err)
+		v.claimPoll = 5 * time.Millisecond
+		replicas[i] = v
+	}
+	keys := distinctKeys(12)
+	rx := &echoAny{keys: keys, delay: 100 * time.Millisecond}
+	rc := newReceiver(t, keys[0], rx.respond)
+
+	reqs := make([]VerifyRequest, len(keys))
+	for i, k := range keys {
+		reqs[i] = VerifyRequest{TenantID: "tenant_1", Principal: "user_1", URL: rc.URL + "/hook", SubscriptionID: "sub_" + strconv.Itoa(i), Secrets: []Secret{{Key: k}}}
+	}
+	for i, err := range verifyAll(func(i int) *Verifier { return replicas[i%len(replicas)] }, reqs) {
+		assert.NoError(t, err, "request %d", i)
+	}
+	assert.Len(t, rc.Requests(), 1)
+	for _, k := range mr.Keys() {
+		assert.NotContains(t, k, ":verifying:", "the claim is released")
+	}
+}
+
+// A failure that may come from the leader's own secret isn't shared with a
+// waiter signing with another: the waiter sends its own challenge once the
+// leader's is done.
+func TestVerifier_CoalescedWaiterRetriesWithItsOwnSecret(t *testing.T) {
+	t.Parallel()
+	f := newVerifierFixture(t, nil)
+	keys := distinctKeys(2)
+	rx := &echoAny{keys: keys[1:], delay: 100 * time.Millisecond} // only knows the second secret
+	entered := make(chan struct{}, 2)
+	rc := newReceiver(t, keys[1], func(w http.ResponseWriter, r receivedRequest) {
+		entered <- struct{}{}
+		rx.respond(w, r)
+	})
+	req := func(i int) VerifyRequest {
+		r := f.request(rc.URL + "/hook")
+		r.Secrets = []Secret{{Key: keys[i]}}
+		return r
+	}
+
+	first := make(chan error, 1)
+	go func() { first <- f.v.Verify(context.Background(), req(0)) }()
+	<-entered
+	second := make(chan error, 1)
+	go func() { second <- f.v.Verify(context.Background(), req(1)) }()
+
+	requireReason(t, <-first, ReasonHTTP4xx)
+	require.NoError(t, <-second)
+	assert.Len(t, rc.Requests(), 2)
+	assert.Equal(t, int32(1), rx.peak.Load(), "the second challenge waited for the first")
+}
+
+// A failure the waiter's own request would get too is shared: the same
+// secrets, or no answer at all.
+func TestVerifier_CoalescedFailuresShared(t *testing.T) {
+	t.Parallel()
+	t.Run("same secret", func(t *testing.T) {
+		t.Parallel()
+		f := newVerifierFixture(t, nil)
+		rc := newReceiver(t, f.key, func(w http.ResponseWriter, r receivedRequest) {
+			time.Sleep(100 * time.Millisecond)
+			w.WriteHeader(http.StatusNotFound)
+		})
+		reqs := make([]VerifyRequest, 5)
+		for i := range reqs {
+			reqs[i] = f.request(rc.URL)
+			reqs[i].SubscriptionID = "sub_" + strconv.Itoa(i)
+		}
+		for _, err := range verifyAll(func(int) *Verifier { return f.v }, reqs) {
+			requireReason(t, err, ReasonHTTP4xx)
+		}
+		assert.Len(t, rc.Requests(), 1)
+	})
+	t.Run("unanswered", func(t *testing.T) {
+		t.Parallel()
+		var sent atomic.Int64
+		f := newVerifierFixture(t, func(c *VerifierConfig) {
+			c.Client = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+				sent.Add(1)
+				time.Sleep(100 * time.Millisecond)
+				return nil, errors.New("dial tcp: connect: connection refused")
+			})}
+		})
+		keys := distinctKeys(5)
+		reqs := make([]VerifyRequest, len(keys))
+		for i, k := range keys {
+			reqs[i] = f.request("https://dead.example.com/hook")
+			reqs[i].Secrets = []Secret{{Key: k}}
+		}
+		for _, err := range verifyAll(func(int) *Verifier { return f.v }, reqs) {
+			requireReason(t, err, ReasonConnectionRefused)
+		}
+		assert.Equal(t, int64(1), sent.Load())
+	})
+}
+
+// A leader whose caller gave up doesn't end its waiters' verifications.
+func TestVerifier_CoalescedLeaderCanceled(t *testing.T) {
+	t.Parallel()
+	f := newVerifierFixture(t, nil)
+	entered := make(chan struct{}, 2)
+	rc := newReceiver(t, f.key, func(w http.ResponseWriter, r receivedRequest) {
+		entered <- struct{}{}
+		time.Sleep(50 * time.Millisecond)
+		echo(w, r)
+	})
+	ctx, cancel := context.WithCancel(context.Background())
+	first := make(chan error, 1)
+	go func() { first <- f.v.Verify(ctx, f.request(rc.URL)) }()
+	<-entered
+	second := make(chan error, 1)
+	go func() { second <- f.v.Verify(context.Background(), f.request(rc.URL)) }()
+	time.Sleep(10 * time.Millisecond)
+	cancel()
+
+	assert.ErrorIs(t, <-first, context.Canceled)
+	require.NoError(t, <-second)
+}

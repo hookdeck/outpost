@@ -120,6 +120,33 @@ const (
 	mcpRejectedCode    = "410"
 )
 
+// mcpOutpostRefusals are the codes of MCP attempts Outpost failed on its own
+// side: the callback host was at Outpost's in-flight limit (throttled), or
+// the event can't be sent as an envelope. They say nothing about the
+// receiver, so they never touch the consecutive-failure streak and never
+// reach the status record behind deliveryStatus.lastError.
+var mcpOutpostRefusals = map[string]bool{
+	"throttled":         true,
+	"payload_too_large": true,
+	"invalid_event_id":  true,
+}
+
+// isMCPOutpostRefusal reports whether entry is a failed MCP attempt that
+// Outpost refused on its own side.
+func isMCPOutpostRefusal(entry *models.LogEntry) bool {
+	return entry.Attempt.Status != models.AttemptStatusSuccess &&
+		entryDestinationType(entry) == mcpDestinationType &&
+		mcpOutpostRefusals[entry.Attempt.Code]
+}
+
+// entryDestinationType is the destination type of entry's attempt.
+func entryDestinationType(entry *models.LogEntry) string {
+	if entry.Attempt.DestinationType != "" || entry.Destination == nil {
+		return entry.Attempt.DestinationType
+	}
+	return entry.Destination.Type
+}
+
 // BatchProcessorOption configures optional batch processor behaviour.
 type BatchProcessorOption func(*BatchProcessor)
 
@@ -399,7 +426,7 @@ func (bp *BatchProcessor) processEntry(ctx context.Context, entry *models.LogEnt
 	}
 	attempt.SkipConsecutiveFailure = !attempt.Success &&
 		entry.Destination.Type == mcpDestinationType &&
-		entry.Attempt.Code == mcpRejectedCode
+		(entry.Attempt.Code == mcpRejectedCode || mcpOutpostRefusals[entry.Attempt.Code])
 
 	if attempt.Success {
 		if _, err := bp.alerts.Evaluator.Evaluate(ctx, attempt); err != nil {
@@ -628,19 +655,16 @@ func (bp *BatchProcessor) maxRetriesFor(destinationType string) int {
 
 // recordStatus hands the batch's persisted entries of the recorded
 // destination types to the status recorder on a tracked goroutine, so the
-// batch loop never waits on it. Best effort: a failure is logged and the
-// messages' fate is unaffected.
+// batch loop never waits on it, leaving out MCP attempts Outpost refused on
+// its own side. Best effort: a failure is logged and the messages' fate is
+// unaffected.
 func (bp *BatchProcessor) recordStatus(entries []*models.LogEntry) {
 	if bp.statusRecorder == nil {
 		return
 	}
 	var recorded []*models.LogEntry
 	for _, entry := range entries {
-		destinationType := entry.Attempt.DestinationType
-		if destinationType == "" && entry.Destination != nil {
-			destinationType = entry.Destination.Type
-		}
-		if bp.statusTypes[destinationType] {
+		if bp.statusTypes[entryDestinationType(entry)] && !isMCPOutpostRefusal(entry) {
 			recorded = append(recorded, entry)
 		}
 	}

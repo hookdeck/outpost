@@ -145,11 +145,12 @@ const envelope = wh.verify(rawBody, {
 | Rule | Behavior |
 |------|----------|
 | Success | Any `2xx` response. |
-| Retries | `MCP_RETRY_SCHEDULE`, by default `30,120,600` seconds: 4 attempts within about 12.5 minutes. `RETRY_SCHEDULE`, `RETRY_INTERVAL_SECONDS` and `MAX_RETRY_LIMIT` don't apply. |
+| Retries | `MCP_RETRY_SCHEDULE`, by default `30,120,600` seconds: 4 attempts within about 12.5 minutes. Each delay varies by up to 20% either way, so subscriptions that failed together don't all retry together. `RETRY_SCHEDULE`, `RETRY_INTERVAL_SECONDS` and `MAX_RETRY_LIMIT` don't apply. |
 | Non-retryable | `410` and `413`: the attempt fails and the event isn't retried. A `410` doesn't count toward the consecutive failures that alert on or disable the destination. |
 | Body over 256 KiB | Not sent. Recorded as a failed, non-retryable attempt with code `payload_too_large`. |
 | Attempt timeout | 10 seconds, whatever `DELIVERY_TIMEOUT_SECONDS` is. The response headers must arrive within 8 seconds and fit in 64 KiB. |
-| Concurrency per callback host | At most `MCP_MAX_INFLIGHT_PER_HOST` attempts in flight per host and port on each Outpost instance, 8 by default. An attempt over the limit fails at once with code `throttled` and is retried on schedule. |
+| Concurrency per callback host | At most `MCP_MAX_INFLIGHT_PER_HOST` attempts in flight per host and port on each Outpost instance, 8 by default. An attempt over the limit waits for a slot, for up to 5 seconds of its 10 second timeout. If none frees up, it fails with code `throttled` and is retried on schedule. |
+| Outpost-side failures | `throttled`, `payload_too_large` and `invalid_event_id` attempts are Outpost's own refusals, not the endpoint's. They don't count toward the consecutive failures that alert on or disable the destination, and they never show as `deliveryStatus.lastError`. |
 | Expiry | No attempt or automatic retry after `expires_at`. Pending retries are dropped without an attempt, and a manual retry returns `400`. |
 | Auto-disable | The project's [alert settings](/docs/outpost/features/operator-events) apply. While the destination is disabled, Outpost holds its automatic retries, up to 1,000, until `expires_at` or for 24 hours. A refresh or `PUT .../enable` resumes them at up to 10 per second. |
 | Response body | The first 4 KiB is stored on the attempt. |
@@ -160,16 +161,16 @@ Attempt `code` is the HTTP status of the response, or one of these codes:
 |------|---------|
 | `payload_too_large` | The envelope is over 256 KiB. Not retried. |
 | `invalid_event_id` | The event `id` can't be sent as a header. Not retried. |
-| `throttled` | Too many attempts in flight to the callback host. Retried. |
+| `throttled` | The callback host stayed at `MCP_MAX_INFLIGHT_PER_HOST` attempts in flight for the whole wait. Retried. |
 | `address_not_allowed` | The callback host resolved to an address that isn't allowed. See [SSRF protection](#ssrf-protection). Retried. |
 | `timeout`, `connection_refused`, `dns_error` and other network codes | The same network codes as webhook destinations. Retried. |
 
-The MCP client sees the last attempt as `deliveryStatus.lastError` on its next refresh, reduced to a fixed category that never contains response content:
+The MCP client sees the last attempt as `deliveryStatus.lastError` on its next refresh, reduced to a fixed category that never contains response content. Attempts that failed on Outpost's side (`throttled`, `payload_too_large` and `invalid_event_id`) are left out, so `lastError` describes the endpoint:
 
 | Attempt code | `lastError` |
 |--------------|-------------|
 | `5xx` | `http_5xx` |
-| `3xx`, `4xx`, `payload_too_large` | `http_4xx` |
+| `3xx`, `4xx` | `http_4xx` |
 | `timeout` | `timeout` |
 | `tls_error` | `tls_error` |
 | Any other code | `connection_refused` |
@@ -208,10 +209,15 @@ X-MCP-Subscription-Id: sub_1fa69bec3707ee16223ae5400f92f935
 
 The receiver passes by answering within 10 seconds with a `2xx` status and the body `{"challenge": "<the same value>"}`, at most 64 KiB, which Outpost compares in constant time. Redirects aren't followed. Otherwise subscribe fails with `callback_endpoint_error` and a `reason` of `challenge_failed`, `http_4xx`, `http_5xx`, `timeout`, `tls_error` or `connection_refused`.
 
-A passed challenge is cached per tenant, principal and callback URL for `MCP_VERIFICATION_TTL` (24 hours by default), so refreshes and subscriptions with other arguments skip it. Two limits protect callback hosts from being flooded through Outpost:
+A passed challenge is cached per tenant, principal and callback URL for `MCP_VERIFICATION_TTL` (24 hours by default), so refreshes and subscriptions with other arguments skip it. Concurrent subscribes that all need the same challenge, such as a client subscribing to several events at once on connect, send it once: the others wait for it, across Outpost instances too, and share a pass.
+
+These limits protect callback hosts from being flooded through Outpost:
 
 - `MCP_VERIFICATION_RATE_LIMIT`: challenges per tenant and principal per minute, 10 by default. Past it, subscribe fails with `resource_exhausted` and `{"limit": "verification_rate", "retryAfterMs": ...}`.
-- `MCP_VERIFICATION_FAILURE_LIMIT`: failed or unanswered challenges per callback host per minute, across the deployment, 120 by default. Successful challenges don't count, so a busy shared receiver such as ChatGPT's isn't throttled by its own traffic. Allowlisted hosts are exempt.
+- `MCP_VERIFICATION_FAILURE_LIMIT`: failed challenges per tenant and callback host (host and port) per minute, 120 by default. Past it, the tenant's subscribes to that host fail with `resource_exhausted` and `{"limit": "verification_rate", "retryAfterMs": ...}`. Each tenant has its own budget, so failures in one tenant never block another's subscribes to a shared receiver such as ChatGPT's.
+- Ten times `MCP_VERIFICATION_FAILURE_LIMIT`, 1,200 by default: unanswered challenges (`timeout`, `connection_refused` or `tls_error`) per callback host per minute, across the deployment. Past it, subscribes to that host fail with `resource_exhausted` and `{"limit": "callback_host_busy", "retryAfterMs": ...}` until the minute ends, so a host that doesn't answer stops being contacted however many tenants ask. A host that answers, even with an error, never uses this budget.
+
+Successful challenges count toward neither failure budget, and allowlisted hosts are exempt from both. A challenge also shares the `MCP_MAX_INFLIGHT_PER_HOST` slots with deliveries: when the host has no free slot for 2 seconds, subscribe fails with `resource_exhausted` and `{"limit": "callback_host_busy", "retryAfterMs": 1000}`.
 
 ## Control envelopes
 
@@ -257,10 +263,10 @@ Every MCP setting is listed in the [Configuration Reference](/docs/outpost/self-
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `MCP_RETRY_SCHEDULE` | `30,120,600` | Retry delays in seconds. |
+| `MCP_RETRY_SCHEDULE` | `30,120,600` | Retry delays in seconds, each with ±20% jitter. |
 | `MCP_CALLBACK_ALLOWLIST` | — | IPs and CIDR ranges exempt from the address check. |
 | `MCP_PROXY_URL` | — | Forward proxy for MCP traffic. |
-| `MCP_MAX_INFLIGHT_PER_HOST` | `8` | Attempts in flight per callback host on each instance. |
+| `MCP_MAX_INFLIGHT_PER_HOST` | `8` | Attempts in flight per callback host on each instance. Others wait for a slot. |
 | `MCP_SECRET_ROTATION_GRACE` | `24h` | How long the previous secret keeps signing after a rotation. |
 | `MCP_SEND_TERMINATED` | `true` | Send `terminated` envelopes. |
 

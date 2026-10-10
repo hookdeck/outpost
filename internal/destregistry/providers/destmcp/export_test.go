@@ -13,6 +13,12 @@ func SetDeliveryTimeout(p *Provider, d time.Duration) {
 	p.deliveryTimeout = d
 }
 
+// SetHostWait replaces how long an attempt waits for a callback host slot
+// (at most half the attempt's remaining time either way).
+func SetHostWait(p *Provider, d time.Duration) {
+	p.hostWait = d
+}
+
 // CodeSpan exposes codeSpan.
 var CodeSpan = codeSpan
 

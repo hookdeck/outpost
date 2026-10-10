@@ -43,7 +43,8 @@ type NotifierConfig struct {
 	HostLimiter HostLimiter
 	// Profile selects the error codes in the envelope (MCP_ERROR_CODES).
 	Profile CodeProfile
-	// Disabled turns every enqueue into a no-op (MCP_SEND_TERMINATED=false).
+	// Disabled turns every enqueue into a no-op that reports success
+	// (MCP_SEND_TERMINATED=false).
 	Disabled     bool
 	QueueSize    int
 	Workers      int
@@ -138,10 +139,14 @@ func (n *Notifier) Enabled() bool {
 }
 
 // Enqueue queues t without blocking. It returns false when t was not queued:
-// the notifier is disabled or closed, t is invalid, or the queue is full (a
-// counted, logged drop).
+// t is invalid, or the notifier is closed or its queue full (a counted,
+// logged drop). Disabled, it returns true: sending nothing is intended, like
+// EnqueueWait's nil.
 func (n *Notifier) Enqueue(t Termination) bool {
-	if n.q == nil || !validTermination(t) {
+	if n.q == nil {
+		return true
+	}
+	if !validTermination(t) {
 		return false
 	}
 	if !n.q.tryPush(termination{Termination: t}) {
@@ -238,27 +243,16 @@ func (n *Notifier) handle(ctx context.Context, t termination) {
 	}
 }
 
-// acquireHost takes a host slot, polling for up to n.hostWait.
+// acquireHost takes a host slot, waiting for up to n.hostWait in line with
+// deliveries and challenges.
 func (n *Notifier) acquireHost(ctx context.Context, hostport string) (func(), bool) {
 	if n.hostLimiter == nil {
 		return func() {}, true
 	}
-	deadline := time.Now().Add(n.hostWait)
-	backoff := 25 * time.Millisecond
-	for {
-		if release, ok := n.hostLimiter.TryAcquire(hostport); ok {
-			return release, true
-		}
-		if time.Now().Add(backoff).After(deadline) {
-			return nil, false
-		}
-		select {
-		case <-ctx.Done():
-			return nil, false
-		case <-time.After(backoff):
-		}
-		backoff *= 2
-	}
+	waitCtx, cancel := context.WithTimeout(ctx, n.hostWait)
+	defer cancel()
+	release, err := n.hostLimiter.Acquire(waitCtx, hostport)
+	return release, err == nil
 }
 
 // send POSTs the envelope with delivery headers and returns the status.

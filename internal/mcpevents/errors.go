@@ -108,6 +108,10 @@ const (
 	LimitSubscriptions          = "subscriptions"
 	LimitPrincipalSubscriptions = "principal_subscriptions"
 	LimitVerificationRate       = "verification_rate"
+	// LimitCallbackHostBusy: the callback host can't take a challenge now,
+	// whoever asks: this process has MCP_MAX_INFLIGHT_PER_HOST requests in
+	// flight to it, or it left too many challenges unanswered this minute.
+	LimitCallbackHostBusy = "callback_host_busy"
 )
 
 // Error is an MCP-level failure, rendered as {"mcp_error":{...}} (HTTP 422)
@@ -251,7 +255,10 @@ func (e Error) MarshalJSON() ([]byte, error) {
 // LastErrorCategory maps an attempt code to the fixed lastError categories
 // (deliveryStatus.lastError): 5xx → http_5xx; 3xx, 4xx and payload_too_large →
 // http_4xx; timeout → timeout; tls_error → tls_error; anything else
-// (connection errors, address_not_allowed, throttled, ...) → connection_refused.
+// (connection errors, address_not_allowed, ...) → connection_refused. The log
+// service keeps attempts Outpost refused on its own side (throttled,
+// payload_too_large, invalid_event_id) out of the status record, so they
+// never reach lastError.
 func LastErrorCategory(code string) string {
 	switch code {
 	case "payload_too_large":

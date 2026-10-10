@@ -489,13 +489,17 @@ func TestPublish_Throttled(t *testing.T) {
 	rec := newRecorder(t, nil)
 	limiter := netguard.NewHostLimiter(1)
 	p := localProvider(t, func(c *destmcp.Config) { c.HostLimiter = limiter })
+	destmcp.SetHostWait(p, 50*time.Millisecond)
 	d := localSubscription(t, p, rec.URL+"/hook")
 
-	// Another attempt (or a challenge) holds the host's only slot.
+	// Another attempt (or a challenge) holds the host's only slot for
+	// longer than an attempt waits for one.
 	release, ok := limiter.TryAcquire(mcpevents.HostPort(mustURL(t, rec.URL)))
 	require.True(t, ok)
 
+	start := time.Now()
 	delivery, err := publish(t, p, d, testEvent())
+	assert.GreaterOrEqual(t, time.Since(start), 50*time.Millisecond, "waited for a slot")
 	require.NotNil(t, delivery)
 	assert.Equal(t, models.AttemptStatusFailed, delivery.Status)
 	assert.Equal(t, destmcp.CodeThrottled, delivery.Code)
@@ -511,6 +515,125 @@ func TestPublish_Throttled(t *testing.T) {
 	assert.Equal(t, "200", delivery.Code)
 }
 
+// A full host is back-pressure, not a failure: the attempt waits for a slot
+// and is then delivered.
+func TestPublish_WaitsForHostSlot(t *testing.T) {
+	t.Parallel()
+	rec := newRecorder(t, nil)
+	limiter := netguard.NewHostLimiter(1)
+	p := localProvider(t, func(c *destmcp.Config) { c.HostLimiter = limiter })
+	d := localSubscription(t, p, rec.URL+"/hook")
+
+	release, ok := limiter.TryAcquire(mcpevents.HostPort(mustURL(t, rec.URL)))
+	require.True(t, ok)
+	time.AfterFunc(100*time.Millisecond, release)
+
+	delivery, err := publish(t, p, d, testEvent())
+	require.NoError(t, err)
+	assert.Equal(t, "200", delivery.Code)
+	assert.Len(t, rec.Requests(), 1)
+}
+
+// The wait never takes more than half of the time left for the attempt, so
+// the request keeps the rest.
+func TestPublish_HostWaitBoundedByAttemptDeadline(t *testing.T) {
+	t.Parallel()
+	rec := newRecorder(t, nil)
+	limiter := netguard.NewHostLimiter(1)
+	p := localProvider(t, func(c *destmcp.Config) { c.HostLimiter = limiter })
+	release, ok := limiter.TryAcquire(mcpevents.HostPort(mustURL(t, rec.URL)))
+	require.True(t, ok)
+	defer release()
+
+	pub, err := p.CreatePublisher(context.Background(), localSubscription(t, p, rec.URL+"/hook"))
+	require.NoError(t, err)
+	ctx, cancel := context.WithTimeout(context.Background(), 400*time.Millisecond)
+	defer cancel()
+	start := time.Now()
+	delivery, err := pub.Publish(ctx, testEvent())
+	elapsed := time.Since(start)
+	require.NotNil(t, delivery)
+	assert.Equal(t, destmcp.CodeThrottled, delivery.Code)
+	requirePublishErr(t, err)
+	assert.GreaterOrEqual(t, elapsed, 150*time.Millisecond)
+	assert.Less(t, elapsed, 350*time.Millisecond)
+}
+
+// Shutdown while waiting for a slot requeues the message.
+func TestPublish_CanceledWhileWaitingForHost(t *testing.T) {
+	t.Parallel()
+	rec := newRecorder(t, nil)
+	limiter := netguard.NewHostLimiter(1)
+	p := localProvider(t, func(c *destmcp.Config) { c.HostLimiter = limiter })
+	release, ok := limiter.TryAcquire(mcpevents.HostPort(mustURL(t, rec.URL)))
+	require.True(t, ok)
+	defer release()
+
+	pub, err := p.CreatePublisher(context.Background(), localSubscription(t, p, rec.URL+"/hook"))
+	require.NoError(t, err)
+	ctx, cancel := context.WithCancel(context.Background())
+	time.AfterFunc(20*time.Millisecond, cancel)
+	delivery, err := pub.Publish(ctx, testEvent())
+	assert.Nil(t, delivery)
+	assert.ErrorIs(t, err, context.Canceled)
+}
+
+// One event fanned out to more subscriptions on one healthy host than
+// MCP_MAX_INFLIGHT_PER_HOST, with more delivery workers than slots (as with
+// DELIVERY_MAX_CONCURRENCY above the cap): every subscription is delivered
+// on its first attempt, and the host never sees more than the cap at once.
+func TestPublish_FanOutToOneHost(t *testing.T) {
+	t.Parallel()
+	const (
+		subscriptions = 60
+		workers       = 32
+	)
+	var current, peak atomic.Int32
+	rec := newRecorder(t, func(w http.ResponseWriter, r *http.Request) {
+		n := current.Add(1)
+		defer current.Add(-1)
+		for p := peak.Load(); n > p && !peak.CompareAndSwap(p, n); p = peak.Load() {
+		}
+		time.Sleep(40 * time.Millisecond)
+	})
+	cfg := localConfig(t)
+	cfg.HostLimiter = netguard.NewHostLimiter(destmcp.DefaultMaxInflightPerHost)
+	reg := newRegistry(t, cfg)
+	p := mcpProvider(t, reg)
+
+	tasks := make(chan *models.Destination, subscriptions)
+	for i := range subscriptions {
+		tasks <- localSubscription(t, p, rec.URL+"/hook/"+strconv.Itoa(i))
+	}
+	close(tasks)
+	codes := make(chan string, subscriptions)
+	var wg sync.WaitGroup
+	for range workers {
+		wg.Go(func() {
+			for d := range tasks {
+				attempt, err := reg.PublishEvent(context.Background(), d, testEvent())
+				assert.NoError(t, err)
+				if attempt != nil {
+					codes <- attempt.Code
+				}
+			}
+		})
+	}
+	wg.Wait()
+	close(codes)
+
+	delivered := 0
+	for code := range codes {
+		assert.Equal(t, "200", code)
+		if code == "200" {
+			delivered++
+		}
+	}
+	assert.Equal(t, subscriptions, delivered)
+	assert.Equal(t, subscriptions, len(rec.Requests()))
+	assert.LessOrEqual(t, peak.Load(), int32(destmcp.DefaultMaxInflightPerHost))
+}
+
 // The limiter counts attempts in flight, across publishers of one host.
 func TestPublish_ThrottledWhileInFlight(t *testing.T) {
 	t.Parallel()
@@ -523,6 +646,7 @@ func TestPublish_ThrottledWhileInFlight(t *testing.T) {
 		<-unblock
 	})
 	p := localProvider(t, func(c *destmcp.Config) { c.HostLimiter = netguard.NewHostLimiter(1) })
+	destmcp.SetHostWait(p, 50*time.Millisecond)
 	first := localSubscription(t, p, rec.URL+"/first")
 	second := localSubscription(t, p, rec.URL+"/second")
 

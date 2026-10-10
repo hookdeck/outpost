@@ -806,6 +806,95 @@ func (g *deletedOnSecondRead) RetrieveDestination(ctx context.Context, tenantID,
 	return nil, tenantstore.ErrDestinationDeleted
 }
 
+// A manual retry replaces any pending automatic retry of its event and
+// destination, including a parked retry the resumer scheduled under
+// ResumedRetryID: otherwise that one fires later and delivers the event
+// again, or retries it on a second chain.
+func TestMessageHandler_ManualRetryCancelsResumedRetry(t *testing.T) {
+	t.Parallel()
+	parkedOpts := []deliverymq.MessageHandlerOption{
+		deliverymq.WithRetryPolicy(mcpType, mcpSchedule(), 3),
+		deliverymq.WithRetryParker(&fakeParker{}),
+		deliverymq.WithParkedRetryTypes(mcpType),
+	}
+	for _, tt := range []struct {
+		name         string
+		destType     string
+		opts         []deliverymq.MessageHandlerOption
+		publishErr   error
+		wantCanceled func(event, dest string) []string
+		wantRetry    bool
+	}{
+		{
+			name: "success", destType: mcpType, opts: parkedOpts,
+			wantCanceled: func(e, d string) []string { return []string{models.RetryID(e, d), deliverymq.ResumedRetryID(e, d)} },
+		},
+		{
+			name: "non-retryable failure", destType: mcpType, opts: parkedOpts, publishErr: failure(true),
+			wantCanceled: func(e, d string) []string { return []string{models.RetryID(e, d), deliverymq.ResumedRetryID(e, d)} },
+		},
+		{
+			name: "retryable failure: the new retry replaces the pending one", destType: mcpType, opts: parkedOpts, publishErr: failure(false),
+			wantCanceled: func(e, d string) []string { return []string{deliverymq.ResumedRetryID(e, d)} },
+			wantRetry:    true,
+		},
+		{
+			name: "types that don't park have no resumed retries", destType: "webhook", opts: parkedOpts,
+			wantCanceled: func(e, d string) []string { return []string{models.RetryID(e, d)} },
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			dest := testutil.DestinationFactory.Any(testutil.DestinationFactory.WithType(tt.destType))
+			scheduler := newMockRetryScheduler()
+			h := newPerTypeHandler(t, handlerDeps{
+				getter:    &mockDestinationGetter{dest: &dest},
+				publisher: newMockPublisher([]error{tt.publishErr}),
+				scheduler: scheduler,
+				opts:      tt.opts,
+			})
+			event := retryEvent(dest.TenantID, dest.ID)
+
+			mockMsg, err := handle(t, h, models.NewManualDeliveryTask(event, dest.ID, 2))
+			require.NoError(t, err)
+			assert.True(t, mockMsg.acked)
+			assert.Equal(t, tt.wantCanceled(event.ID, dest.ID), scheduler.canceled)
+			if tt.wantRetry {
+				assert.Equal(t, []string{models.RetryID(event.ID, dest.ID)}, scheduler.taskIDs)
+			} else {
+				assert.Empty(t, scheduler.schedules)
+			}
+		})
+	}
+}
+
+func TestMessageHandler_ManualRetryResumedCancelFails(t *testing.T) {
+	t.Parallel()
+	dest := testutil.DestinationFactory.Any(testutil.DestinationFactory.WithType(mcpType))
+	scheduler := newMockRetryScheduler()
+	scheduler.cancelResp = []error{nil, errors.New("redis down")}
+	h := newPerTypeHandler(t, handlerDeps{
+		getter:    &mockDestinationGetter{dest: &dest},
+		publisher: newMockPublisher([]error{nil}),
+		scheduler: scheduler,
+		opts: []deliverymq.MessageHandlerOption{
+			deliverymq.WithRetryParker(&fakeParker{}),
+			deliverymq.WithParkedRetryTypes(mcpType),
+		},
+	})
+	event := retryEvent(dest.TenantID, dest.ID)
+
+	mockMsg, err := handle(t, h, models.NewManualDeliveryTask(event, dest.ID, 2))
+	require.Error(t, err, "like a failed cancel of the pending retry")
+	assert.True(t, mockMsg.nacked)
+}
+
+func TestResumedRetryID(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, "evt_1:des_1:r", deliverymq.ResumedRetryID("evt_1", "des_1"))
+	assert.NotEqual(t, models.RetryID("evt_1", "des_1"), deliverymq.ResumedRetryID("evt_1", "des_1"))
+}
+
 // ============================== Credentials ==============================
 
 func TestMessageHandler_LogEntryWithoutCredentials(t *testing.T) {
