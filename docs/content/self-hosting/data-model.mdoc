@@ -198,7 +198,7 @@ The `{<tenant_id>}` braces in tenant keys are a Redis Cluster hash tag. They pla
 
 **Destination summary hash:** each field is a destination ID and each value is a JSON object with the destination's `id`, `type`, `topics`, `filter`, and `disabled` flag, plus `expires_at` when set. Outpost matches published events against this hash, so routing reads one key per tenant rather than one per destination. It's kept in sync with the destination hashes on every write.
 
-**Deletion is a soft delete.** Deleting a destination removes its field from the summary hash, sets `deleted_at` on the destination hash, and expires that hash after 7 days. Deleting a tenant does the same for every destination, removes the summary hash, and sets `deleted_at` with a 7 day expiry on the tenant hash. Recreating a tenant with the same ID within those 7 days clears `deleted_at` and the expiry. Deleting an MCP subscription or its tenant also removes it from the limit buckets and indexes below, and deletes its held retries.
+**Deletion is a soft delete.** Deleting a destination removes its field from the summary hash, sets `deleted_at` on the destination hash, removes its `config`, `credentials`, `delivery_metadata`, `metadata` and `filter`, and expires that hash after 7 days. Deleting a tenant does the same for every destination, removes the summary hash, and sets `deleted_at` with a 7 day expiry on the tenant hash. Creating a destination or MCP subscription in a deleted tenant fails, even when the request started before the tenant was deleted. Recreating a tenant with the same ID within those 7 days clears `deleted_at` and the expiry. Deleting an MCP subscription or its tenant also removes it from the limit buckets and indexes below, and deletes its held retries.
 
 **`tenant_idx`** is created at startup only when the Redis deployment supports RediSearch (`FT.*` commands). It indexes keys under the `tenant:` prefix whose `entity` field is `tenant`. Without it, the list tenants endpoint isn't available.
 
@@ -239,8 +239,9 @@ The per-tenant keys share the tenant's `{<tenant_id>}` hash tag, so a subscripti
 
 | Key | Type | TTL | Contents |
 |-----|------|-----|----------|
-| `tenant:{<tenant_id>}:buckets` | Set | None | Names of the limit buckets the tenant's destinations count toward. |
+| `tenant:{<tenant_id>}:buckets` | Set | None | Names of the limit buckets the tenant's destinations count toward. A name is removed when the last destination leaves its bucket. |
 | `tenant:{<tenant_id>}:bucket:<bucket>` | Set | None | IDs of the destinations counted toward one limit. `type:mcp` counts toward `MAX_MCP_SUBSCRIPTIONS_PER_TENANT`, and `mcp_principal:<hash>` toward `MAX_MCP_SUBSCRIPTIONS_PER_PRINCIPAL`, where `<hash>` is the first 32 hex characters of the SHA-256 of the principal. |
+| `tenant:{<tenant_id>}:bucket_sweep:<bucket>` | String | 1 minute | Marks a full bucket recently checked for IDs of destinations that no longer exist. A create refused by a full bucket runs that check at most once a minute per bucket. |
 | `tenant:{<tenant_id>}:mcp_revoked:<hash>` | String | 10 minutes | Time, in Unix milliseconds, a principal's subscriptions were last revoked, where `<hash>` is the SHA-256 of the principal. A subscribe call that started earlier can't create a subscription. |
 | `tenant:{<tenant_id>}:parked_retries:<destination_id>` | Set | Until `expires_at`, or 24 hours | Automatic retries held while a subscription is disabled, up to 1,000. |
 | `tenant:{<tenant_id>}:parked_retries:<destination_id>:resume:<ms>` | Set | Same as the held set | Held retries being rescheduled after a refresh or enable. Each is removed once scheduled, and the key once empty. |

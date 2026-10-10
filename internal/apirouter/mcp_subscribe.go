@@ -520,6 +520,9 @@ func (h *MCPHandlers) abortWithError(c *gin.Context, err error) {
 // mcpWriteError maps a failed subscription write to its mcp_error when it
 // has one.
 func mcpWriteError(err error) error {
+	if errors.Is(err, tenantstore.ErrTenantDeleted) {
+		return mcpevents.NotFound(mcpevents.NotFoundTenant)
+	}
 	if mcpErr := mcpStoreError(err); mcpErr != nil {
 		return mcpErr
 	}

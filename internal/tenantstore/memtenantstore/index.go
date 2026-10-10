@@ -148,10 +148,17 @@ func (s *store) RemoveIndexedDestination(_ context.Context, typ string, topics [
 	defer s.mu.Unlock()
 
 	member := driver.IndexMember(ref.TenantID, ref.DestinationID)
+	removed := false
 	for _, key := range indexKeys(typ, topics) {
 		if cur, ok := s.index[key][member]; ok && cur == ref.Score {
 			delete(s.index[key], member)
+			removed = true
 		}
+	}
+	// As in redistenantstore: a live destination of typ keeps its entries.
+	if drec, ok := s.destinations[destKey(ref.TenantID, ref.DestinationID)]; removed && ok &&
+		drec.deletedAt == nil && drec.destination.Type == typ {
+		s.addIndexedLocked(&drec.destination)
 	}
 	return nil
 }

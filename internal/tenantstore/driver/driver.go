@@ -21,10 +21,11 @@ type TenantStore interface {
 	ListDestination(ctx context.Context, req ListDestinationRequest) ([]models.Destination, error)
 	RetrieveDestination(ctx context.Context, tenantID, destinationID string) (*models.Destination, error)
 	// CreateDestination atomically checks that no live destination has the
-	// same ID, the tenant's limits (MaxDestinationsPerTenant for types without
-	// their own limit, TypeLimits and the buckets of WithBuckets) and the
-	// revocation guards of WithNotDeletedSince and WithFence, then writes the
-	// destination. It may replace a tombstone.
+	// same ID, the revocation guards of WithNotDeletedSince and WithFence,
+	// that the tenant wasn't deleted (ErrTenantDeleted; a tenant that doesn't
+	// exist is no obstacle) and the tenant's limits (MaxDestinationsPerTenant
+	// for types without their own limit, TypeLimits and the buckets of
+	// WithBuckets), then writes the destination. It may replace a tombstone.
 	CreateDestination(ctx context.Context, destination models.Destination, opts ...WriteOption) error
 	// UpsertDestination writes the destination unconditionally, replacing a
 	// tombstone. Prefer UpdateDestinationIfLive for read-modify-write updates.
@@ -78,7 +79,10 @@ type TenantStore interface {
 	// still equals ref.Score.
 	RescoreIndexedDestination(ctx context.Context, typ string, topics []string, ref IndexedDestination, newScore int64) error
 	// RemoveIndexedDestination removes ref from the global index of typ and
-	// the index of each topic, wherever its score still equals ref.Score.
+	// the index of each topic, wherever its score still equals ref.Score. A
+	// live destination of typ keeps its entries: generations of a
+	// destination may share a score (no expiry), so the removal of an
+	// earlier one must not take a later one's.
 	RemoveIndexedDestination(ctx context.Context, typ string, topics []string, ref IndexedDestination) error
 	// CountIndexed counts the members of an index (topic "" for the global
 	// index) with a score >= minScore.

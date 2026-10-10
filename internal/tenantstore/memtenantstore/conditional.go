@@ -58,6 +58,11 @@ func (s *store) CreateDestination(_ context.Context, destination models.Destinat
 		}
 	}
 
+	// A tenant that doesn't exist is no obstacle, as in redistenantstore.
+	if rec, ok := s.tenants[tenantID]; ok && rec.deletedAt != nil {
+		return driver.ErrTenantDeleted
+	}
+
 	var buckets []driver.Bucket
 	typeMax, typeLimited := s.typeLimits[destination.Type]
 	if typeLimited {
