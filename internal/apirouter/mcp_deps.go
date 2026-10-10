@@ -40,10 +40,10 @@ type DeliveryStatusReader interface {
 	GetAttemptStatus(ctx context.Context, tenantID, destinationID string) (*deliverystatus.Status, error)
 }
 
-// BrokenSchemas reports the topic hashes a forced breaking change
-// (TOPICS_ALLOW_BREAKING_CHANGES) left behind: subscriptions created against
-// them must end. Satisfied by topicschema.BrokenSet, which app.PreRun reads
-// once after applying the topic schemas, the only time it changes.
+// BrokenSchemas reports the topic hashes a breaking change left behind:
+// subscriptions created against them must end. Satisfied by
+// topicschema.BrokenSet, which app.PreRun reads once after applying the
+// topic schemas, the only time it changes, before the router serves.
 type BrokenSchemas interface {
 	IsBroken(topic, schemaHash string) bool
 }

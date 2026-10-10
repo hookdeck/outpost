@@ -21,7 +21,7 @@ Running Outpost as individual services is optional. You can run it as a single b
 - **Delivery Service** delivers events to `mcp` destinations, with the [MCP delivery rules](/docs/outpost/destinations/mcp#delivery-rules).
 - **Log Service** keeps each subscription's delivery status in Redis as it records attempts, for the `deliveryStatus` a refresh returns.
 
-Only the API Service loads topic schemas and applies them at startup, after migrations. When the schemas change, it checks the change against the last applied ones and fails to start on a [breaking change](/docs/outpost/features/topics#schema-evolution-and-deprecation) to a topic with live subscriptions.
+Only the API Service loads topic schemas. It applies them as the last step of startup, so a release that fails earlier in startup isn't recorded as the applied one. When the schemas change, it checks the change against the last applied ones and fails to start on a [breaking change](/docs/outpost/features/topics#schema-evolution-and-deprecation) to a topic with live subscriptions.
 
 ### MCP subscriptions worker
 

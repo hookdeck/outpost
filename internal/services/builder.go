@@ -49,7 +49,7 @@ type ServiceBuilder struct {
 	// mcpNet is the MCP callback network stack, shared by every service of
 	// the process (see mcpNetwork).
 	mcpNet *mcpNetwork
-	// brokenSchemas are the topic hashes a forced breaking change left
+	// brokenSchemas are the topic hashes a breaking change left
 	// behind (WithBrokenSchemas), or nil.
 	brokenSchemas apirouter.BrokenSchemas
 }
@@ -58,8 +58,8 @@ type ServiceBuilder struct {
 type BuilderOption func(*ServiceBuilder)
 
 // WithBrokenSchemas gives the MCP subscribe handler the topic hashes a
-// forced breaking change left behind, which app.PreRun reads after applying
-// the topic schemas.
+// breaking change left behind. app.PreRun applies the topic schemas after
+// building the services, so broken only answers once they run.
 func WithBrokenSchemas(broken apirouter.BrokenSchemas) BuilderOption {
 	return func(b *ServiceBuilder) {
 		b.brokenSchemas = broken
