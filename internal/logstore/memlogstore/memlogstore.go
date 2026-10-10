@@ -462,10 +462,6 @@ func copyEvent(e *models.Event) *models.Event {
 		copied.Data = make([]byte, len(e.Data))
 		copy(copied.Data, e.Data)
 	}
-	if e.SchemaValid != nil {
-		v := *e.SchemaValid
-		copied.SchemaValid = &v
-	}
 
 	return copied
 }

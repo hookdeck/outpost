@@ -54,15 +54,7 @@ func (h *PublishHandlers) Ingest(c *gin.Context) {
 	event := publishedEvent.toEvent()
 	result, err := h.eventHandler.Handle(c.Request.Context(), &event)
 	if err != nil {
-		var schemaErr *publishmq.SchemaValidationError
-		if errors.As(err, &schemaErr) {
-			AbortWithValidationError(c, ErrorResponse{
-				Code:    http.StatusUnprocessableEntity,
-				Message: "validation error",
-				Err:     err,
-				Data:    schemaErrorData(schemaErr.Errors),
-			})
-		} else if errors.Is(err, idempotence.ErrConflict) {
+		if errors.Is(err, idempotence.ErrConflict) {
 			AbortWithError(c, http.StatusConflict, ErrorResponse{
 				Code:    http.StatusConflict,
 				Message: "event conflict, retry later",
@@ -87,15 +79,6 @@ func (h *PublishHandlers) Ingest(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusAccepted, result)
-}
-
-// schemaErrorData keeps data a JSON array, as for every other validation
-// error, even if the validator reported no detail.
-func schemaErrorData(errs []string) []string {
-	if len(errs) == 0 {
-		return []string{publishmq.ErrSchemaValidation.Error()}
-	}
-	return errs
 }
 
 type PublishedEvent struct {

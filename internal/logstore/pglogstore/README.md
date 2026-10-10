@@ -344,7 +344,6 @@ Denormalization trades storage for query performance:
 |-------|--------------|
 | event_time | Every attempt |
 | eligible_for_retry | Every attempt |
-| schema_valid | Every attempt |
 | event_data (jsonb) | Every attempt |
 | event_metadata (jsonb) | Every attempt |
 

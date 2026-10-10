@@ -58,16 +58,10 @@ func (h *messageHandler) Handle(ctx context.Context, msg *mqs.Message) error {
 	event := publishedEvent.toEvent()
 	_, err := h.eventHandler.Handle(ctx, &event)
 	if err != nil {
-		// A missing topic or data that fails an enforced schema never
-		// succeeds. Other errors, including ErrInvalidTopic, are redelivered:
-		// adding the topic to TOPICS fixes it.
+		// A missing topic never succeeds. Other errors, including
+		// ErrInvalidTopic, are redelivered: adding the topic to TOPICS fixes it.
 		if errors.Is(err, ErrRequiredTopic) {
 			return h.reject(ctx, msg, err)
-		}
-		if errors.Is(err, ErrSchemaValidation) {
-			// The consumer logs the returned error: name the event next to
-			// the topic and validation errors it already carries.
-			return h.reject(ctx, msg, fmt.Errorf("event %s: %w", event.ID, err))
 		}
 		return h.nack(ctx, msg, err)
 	}

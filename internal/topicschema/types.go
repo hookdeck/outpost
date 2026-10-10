@@ -1,6 +1,5 @@
 // Package topicschema holds topic schema configuration: each topic's
-// description, payload JSON Schema, publish-time validation mode and MCP
-// opt-in. A Catalog is built once at startup from TOPICS and the schema
+// description, payload JSON Schema and MCP opt-in. A Catalog is built once at startup from TOPICS and the schema
 // sources, and is immutable afterwards, so it is safe for concurrent reads.
 package topicschema
 
@@ -11,19 +10,6 @@ import (
 	"strconv"
 	"strings"
 	"unicode/utf8"
-)
-
-// ValidationMode controls publish-time validation of event data against the
-// topic's payload schema.
-type ValidationMode string
-
-const (
-	// ValidationOff skips validation. It is the default.
-	ValidationOff ValidationMode = "off"
-	// ValidationWarn accepts invalid events and marks them schema_valid: false.
-	ValidationWarn ValidationMode = "warn"
-	// ValidationEnforce rejects invalid events with 422.
-	ValidationEnforce ValidationMode = "enforce"
 )
 
 // MCPSettings is a topic's MCP opt-in.
@@ -38,41 +24,23 @@ type Definition struct {
 	Description string `json:"description,omitempty"`
 	// PayloadSchema is a JSON Schema 2020-12 document for the event data.
 	PayloadSchema json.RawMessage `json:"payload_schema,omitempty"`
-	// Validation is empty or one of the ValidationMode values. Empty means off.
-	Validation ValidationMode `json:"validation,omitempty"`
-	MCP        MCPSettings    `json:"mcp"`
-	Deprecated bool           `json:"deprecated,omitempty"`
-	ReplacedBy string         `json:"replaced_by,omitempty"`
-}
-
-// Definitions maps topic name to its definition.
-type Definitions map[string]Definition
-
-// Topic is the resolved, public view of one topic, as returned by
-// GET /topics in API v2.
-type Topic struct {
-	Name        string `json:"name"`
-	Description string `json:"description,omitempty"`
-	// PayloadSchema is the schema as configured, x-mcp-filter included.
-	PayloadSchema json.RawMessage `json:"payload_schema,omitempty"`
-	Validation    ValidationMode  `json:"validation"`
 	MCP           MCPSettings     `json:"mcp"`
 	Deprecated    bool            `json:"deprecated,omitempty"`
 	ReplacedBy    string          `json:"replaced_by,omitempty"`
 }
 
-// ValidationResult is the outcome of validating event data against a topic's
-// payload schema.
-type ValidationResult struct {
-	// Mode is the effective mode: off when the topic has no schema.
-	Mode ValidationMode
-	// Checked reports whether a schema check ran (mode warn or enforce).
-	Checked bool
-	// Valid is meaningful only when Checked.
-	Valid bool
-	// Errors lists at most maxReportedErrors problems plus a trailing
-	// "... and N more" entry. Entries never contain instance values.
-	Errors []string
+// Definitions maps topic name to its definition.
+type Definitions map[string]Definition
+
+// Topic is the resolved view of one topic.
+type Topic struct {
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+	// PayloadSchema is the schema as configured, x-mcp-filter included.
+	PayloadSchema json.RawMessage `json:"payload_schema,omitempty"`
+	MCP           MCPSettings     `json:"mcp"`
+	Deprecated    bool            `json:"deprecated,omitempty"`
+	ReplacedBy    string          `json:"replaced_by,omitempty"`
 }
 
 // MCPEvent is one precomputed events/list entry.

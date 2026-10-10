@@ -103,7 +103,6 @@ type APIEventSummary struct {
 	Topic                 string            `json:"topic"`
 	Time                  time.Time         `json:"time"`
 	EligibleForRetry      bool              `json:"eligible_for_retry"`
-	SchemaValid           *bool             `json:"schema_valid,omitempty"`
 	Metadata              map[string]string `json:"metadata,omitempty"`
 }
 
@@ -115,7 +114,6 @@ type APIEventFull struct {
 	Topic                 string            `json:"topic"`
 	Time                  time.Time         `json:"time"`
 	EligibleForRetry      bool              `json:"eligible_for_retry"`
-	SchemaValid           *bool             `json:"schema_valid,omitempty"`
 	Metadata              map[string]string `json:"metadata,omitempty"`
 	Data                  json.RawMessage   `json:"data,omitempty"`
 }
@@ -128,7 +126,6 @@ type APIEvent struct {
 	Topic                 string            `json:"topic"`
 	Time                  time.Time         `json:"time"`
 	EligibleForRetry      bool              `json:"eligible_for_retry"`
-	SchemaValid           *bool             `json:"schema_valid,omitempty"`
 	Metadata              map[string]string `json:"metadata,omitempty"`
 	Data                  json.RawMessage   `json:"data,omitempty"`
 }
@@ -176,7 +173,6 @@ func toAPIAttempt(ar *logstore.AttemptRecord, opts IncludeOptions, destDisplay *
 				Topic:                 ar.Event.Topic,
 				Time:                  ar.Event.Time,
 				EligibleForRetry:      ar.Event.EligibleForRetry,
-				SchemaValid:           ar.Event.SchemaValid,
 				Metadata:              ar.Event.Metadata,
 				Data:                  ar.Event.Data,
 			}
@@ -188,7 +184,6 @@ func toAPIAttempt(ar *logstore.AttemptRecord, opts IncludeOptions, destDisplay *
 				Topic:                 ar.Event.Topic,
 				Time:                  ar.Event.Time,
 				EligibleForRetry:      ar.Event.EligibleForRetry,
-				SchemaValid:           ar.Event.SchemaValid,
 				Metadata:              ar.Event.Metadata,
 			}
 		}
@@ -387,7 +382,6 @@ func (h *LogHandlers) RetrieveEvent(c *gin.Context) {
 		Topic:                 event.Topic,
 		Time:                  event.Time,
 		EligibleForRetry:      event.EligibleForRetry,
-		SchemaValid:           event.SchemaValid,
 		Metadata:              event.Metadata,
 		Data:                  event.Data,
 	})
@@ -546,7 +540,6 @@ func (h *LogHandlers) listEventsInternal(c *gin.Context, tenantIDs []string) {
 			Topic:                 e.Topic,
 			Time:                  e.Time,
 			EligibleForRetry:      e.EligibleForRetry,
-			SchemaValid:           e.SchemaValid,
 			Metadata:              e.Metadata,
 			Data:                  e.Data,
 		}

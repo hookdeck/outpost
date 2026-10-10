@@ -81,26 +81,6 @@ func TestNewCatalogRules(t *testing.T) {
 			defs:   Definitions{"a": {Name: "b"}},
 			want:   []string{`topic "a": name "b" must match the topic key`},
 		},
-		{
-			name:   "unknown validation mode",
-			topics: []string{"a"},
-			defs:   Definitions{"a": with(schemaDef(object), func(d *Definition) { d.Validation = "strict" })},
-			want:   []string{`topic "a": validation "strict" must be "off", "warn" or "enforce"`},
-		},
-		{
-			name:   "validation without payload_schema",
-			topics: []string{"a", "b", "c"},
-			defs: Definitions{
-				"a": {Validation: ValidationWarn},
-				"b": {Validation: ValidationEnforce, PayloadSchema: json.RawMessage(`null`)},
-				"c": {Validation: ValidationOff},
-			},
-			want: []string{
-				`topic "a": validation "warn" requires payload_schema`,
-				`topic "b": validation "enforce" requires payload_schema`,
-			},
-		},
-
 		// payload_schema shape and size.
 		{
 			name:   "payload_schema not an object",
@@ -275,19 +255,15 @@ func TestNewCatalogRules(t *testing.T) {
 			},
 		},
 		{
-			name:   "patterns RE2 can't compile in topics that use the schema",
-			topics: []string{"warn", "enforce", "mcp", "props"},
+			name:   "patterns RE2 can't compile in MCP-enabled topics",
+			topics: []string{"mcp", "props"},
 			defs: Definitions{
-				"warn":    with(schemaDef(`{"pattern":"(?=x)"}`), func(d *Definition) { d.Validation = ValidationWarn }),
-				"enforce": with(schemaDef(`{"properties":{"a":{"pattern":"(?=x)"}}}`), func(d *Definition) { d.Validation = ValidationEnforce }),
-				"mcp":     with(schemaDef(`{"type":"object","properties":{"a":{"pattern":"(?=x)"}}}`), func(d *Definition) { d.MCP = mcp }),
-				"props":   with(schemaDef(`{"patternProperties":{"(?=x)":true}}`), func(d *Definition) { d.Validation = ValidationWarn }),
+				"mcp":   with(schemaDef(`{"type":"object","properties":{"a":{"pattern":"(?=x)"}}}`), func(d *Definition) { d.MCP = mcp }),
+				"props": with(schemaDef(`{"type":"object","patternProperties":{"(?=x)":true}}`), func(d *Definition) { d.MCP = mcp }),
 			},
 			want: []string{
-				`topic "enforce": payload_schema pattern "(?=x)" is not supported by Go's RE2 syntax: ` + re2,
 				`topic "mcp": payload_schema pattern "(?=x)" is not supported by Go's RE2 syntax: ` + re2,
 				`topic "props": payload_schema pattern "(?=x)" is not supported by Go's RE2 syntax: ` + re2,
-				`topic "warn": payload_schema pattern "(?=x)" is not supported by Go's RE2 syntax: ` + re2,
 			},
 		},
 
@@ -350,7 +326,7 @@ func TestNewCatalogRules(t *testing.T) {
 			name:   "aggregated",
 			topics: []string{"a", "b"},
 			defs: Definitions{
-				"b": {Name: "x", Validation: ValidationWarn, MCP: mcp},
+				"b": {Name: "x", MCP: mcp},
 				"a": schemaDef(`{"type":1}`),
 				"z": {},
 			},
@@ -359,7 +335,6 @@ func TestNewCatalogRules(t *testing.T) {
 				`topic "a": payload_schema.type: must be one of the allowed values`,
 				`topic "b": mcp.enabled requires payload_schema`,
 				`topic "b": name "x" must match the topic key`,
-				`topic "b": validation "warn" requires payload_schema`,
 				`topic "z" is not in TOPICS`,
 			},
 		},
@@ -385,18 +360,17 @@ func TestConfigErrorMessage(t *testing.T) {
 	assert.EqualError(t, err, "invalid topic schemas:\n  - topic \"b\" is not in TOPICS\n  - topic \"c\" is not in TOPICS")
 }
 
-func TestUnsupportedPatternInOffTopicIsAWarning(t *testing.T) {
+func TestUnsupportedPatternOutsideMCPIsAWarning(t *testing.T) {
 	schema := `{"type":"object","properties":{"code":{"type":"string","pattern":"^(?!x)"}}}`
 	c, err := NewCatalog([]string{"a"}, Definitions{"a": schemaDef(schema)})
 	require.NoError(t, err)
 	assert.Equal(t, []string{
 		`topic "a": payload_schema pattern "^(?!x)" is not supported by Go's RE2 syntax: ` +
 			"error parsing regexp: invalid or unsupported Perl syntax: `(?!`" +
-			"; validation is off, so the schema is kept but can't be used to validate",
+			"; the topic isn't MCP-enabled, so the schema is kept",
 	}, c.Warnings())
 	topic, _ := c.Topic("a")
 	assert.JSONEq(t, schema, string(topic.PayloadSchema), "the schema is kept")
-	assert.Equal(t, ValidationResult{Mode: ValidationOff}, c.ValidateData("a", []byte(`{"code":"x"}`)))
 	assert.Contains(t, c.Snapshot().Topics, "a")
 }
 
@@ -451,7 +425,7 @@ func TestNewCatalogBoundsProblems(t *testing.T) {
 func TestCatalogAccessors(t *testing.T) {
 	object := json.RawMessage(`{"type":"object","properties":{"id":{"type":"string","x-mcp-filter":false}}}`)
 	c, err := NewCatalog([]string{"c", "a", "b", "d", "a"}, Definitions{
-		"a": {Description: "A", PayloadSchema: object, MCP: MCPSettings{Enabled: true}, Validation: ValidationWarn},
+		"a": {Description: "A", PayloadSchema: object, MCP: MCPSettings{Enabled: true}},
 		"b": {Description: "B"},
 		"c": {PayloadSchema: object, MCP: MCPSettings{Enabled: true}, Deprecated: true},
 	})
@@ -460,10 +434,10 @@ func TestCatalogAccessors(t *testing.T) {
 	topics := c.Topics()
 	require.Len(t, topics, 4, "TOPICS order, duplicates dropped")
 	assert.Equal(t, []string{"c", "a", "b", "d"}, []string{topics[0].Name, topics[1].Name, topics[2].Name, topics[3].Name})
-	assert.Equal(t, Topic{Name: "a", Description: "A", PayloadSchema: object, Validation: ValidationWarn, MCP: MCPSettings{Enabled: true}}, topics[1])
+	assert.Equal(t, Topic{Name: "a", Description: "A", PayloadSchema: object, MCP: MCPSettings{Enabled: true}}, topics[1])
 	d, err := json.Marshal(topics[3])
 	require.NoError(t, err)
-	assert.JSONEq(t, `{"name":"d","validation":"off","mcp":{"enabled":false}}`, string(d))
+	assert.JSONEq(t, `{"name":"d","mcp":{"enabled":false}}`, string(d))
 	topics[0].Name = "changed"
 	assert.Equal(t, "c", c.Topics()[0].Name, "Topics returns a copy")
 
@@ -501,13 +475,12 @@ func TestEmptyAndNilCatalogs(t *testing.T) {
 			assert.Empty(t, c.Warnings())
 			assert.Empty(t, c.Arguments("a"))
 			assert.Equal(t, Snapshot{Topics: map[string]SnapshotTopic{}}, c.Snapshot())
-			assert.Equal(t, ValidationResult{Mode: ValidationOff}, c.ValidateData("a", []byte(`{}`)))
 			assert.Equal(t, []string{"arguments: topic is not MCP-enabled"}, c.ValidateArguments("a", []byte(`{}`)))
 			_, ok := c.MCPEvent("a")
 			assert.False(t, ok)
 		})
 	}
-	assert.Equal(t, []Topic{{Name: "a", Validation: ValidationOff}}, EmptyCatalog([]string{"a"}).Topics())
+	assert.Equal(t, []Topic{{Name: "a"}}, EmptyCatalog([]string{"a"}).Topics())
 	assert.Equal(t, []Topic{}, (*Catalog)(nil).Topics())
 	assert.Equal(t, []Topic{}, EmptyCatalog(nil).Topics(), "never nil, so it encodes as []")
 
@@ -519,166 +492,12 @@ func TestEmptyAndNilCatalogs(t *testing.T) {
 	assert.Empty(t, c.Topics())
 }
 
-const orderSchema = `{
-	"type": "object",
-	"properties": {
-		"id": {"type": "string", "x-mcp-filter": false},
-		"total": {"type": "number", "minimum": 0},
-		"currency": {"type": "string", "enum": ["USD", "EUR"]},
-		"day": {"type": "string", "format": "date"},
-		"pad": {"type": "string"}
-	},
-	"required": ["id", "total"]
-}`
-
-func validationCatalog(t *testing.T) *Catalog {
-	t.Helper()
-	def := func(mode ValidationMode) Definition {
-		return Definition{PayloadSchema: json.RawMessage(orderSchema), Validation: mode}
-	}
-	c, err := NewCatalog([]string{"enforced", "warned", "off", "plain", "*"}, Definitions{
-		"enforced": def(ValidationEnforce),
-		"warned":   def(ValidationWarn),
-		"off":      def(ValidationOff),
-	})
-	require.NoError(t, err)
-	return c
-}
-
-func TestValidateData(t *testing.T) {
-	c := validationCatalog(t)
-	valid := []byte(`{"id":"o_1","total":12.5,"currency":"USD","day":"2026-10-09"}`)
-	invalid := []byte(`{"total":-1,"currency":"GBP","day":"2026-02-30"}`)
-	invalidErrors := []string{
-		"data.currency: must be one of the allowed values",
-		"data.total: must be >= 0",
-		`data: missing required property "id"`,
-	}
-
-	for _, topic := range []string{"", "*", "unknown", "plain", "off"} {
-		assert.Equal(t, ValidationResult{Mode: ValidationOff}, c.ValidateData(topic, invalid), topic)
-	}
-	assert.Equal(t, ValidationResult{Mode: ValidationEnforce, Checked: true, Valid: true}, c.ValidateData("enforced", valid))
-	assert.Equal(t, ValidationResult{Mode: ValidationWarn, Checked: true, Valid: true}, c.ValidateData("warned", valid))
-	assert.Equal(t, ValidationResult{Mode: ValidationEnforce, Checked: true, Errors: invalidErrors}, c.ValidateData("enforced", invalid))
-	assert.Equal(t, ValidationResult{Mode: ValidationWarn, Checked: true, Errors: invalidErrors}, c.ValidateData("warned", invalid))
-
-	assert.Equal(t, []string{"data: must be valid JSON"}, c.ValidateData("enforced", []byte(`{"id":`)).Errors)
-	assert.Equal(t, []string{"data: must be valid JSON"}, c.ValidateData("enforced", []byte(`{} {}`)).Errors)
-	assert.Equal(t, []string{"data: must be object"}, c.ValidateData("enforced", []byte(`[]`)).Errors)
-}
-
-func TestValidateDataLargeNumbers(t *testing.T) {
-	// Exact rational arithmetic on numbers like 1e999999 takes milliseconds
-	// each, so they fail validation instead of being checked.
-	c := validationCatalog(t)
-	want := []string{"data.total: must be a number of at most 1000 characters with an exponent between -1000 and 1000"}
-	for _, n := range []string{"1e1001", "1E-1001", "1e+99999999999999999999", "1" + strings.Repeat("0", 1000)} {
-		assert.Equal(t, want, c.ValidateData("enforced", []byte(`{"id":"x","total":`+n+`}`)).Errors, n)
-	}
-	for _, n := range []string{"1e1000", "1.5e-1000", "1" + strings.Repeat("0", 999)} {
-		assert.True(t, c.ValidateData("enforced", []byte(`{"id":"x","total":`+n+`}`)).Valid, n)
-	}
-	// Anywhere in the value, schema or not.
-	assert.Equal(t, []string{"data.*[1]: must be a number of at most 1000 characters with an exponent between -1000 and 1000"},
-		c.ValidateData("enforced", []byte(`{"id":"x","total":1,"extra":[1,1e5000]}`)).Errors)
-
-	// With several, the first in key order is reported, every time.
-	several := []byte(`{"total":1e5000,"pad":"x","id":1e5000,"day":1e5000,"currency":1e5000}`)
-	for range 100 {
-		require.Equal(t, []string{"data.currency: must be a number of at most 1000 characters with an exponent between -1000 and 1000"},
-			c.ValidateData("enforced", several).Errors)
-	}
-}
-
-func TestFormats(t *testing.T) {
-	// Formats are annotations, as JSON Schema 2020-12 specifies: date and
-	// date-time too.
-	formats := []string{"date", "date-time", "email", "uri", "hostname", "ipv4", "uuid", "unknown-format"}
-	props := make([]string, 0, len(formats))
-	data := make([]string, 0, len(formats))
-	for _, f := range formats {
-		props = append(props, fmt.Sprintf(`%q:{"type":"string","format":%q}`, f, f))
-		data = append(data, fmt.Sprintf(`%q:"not-a-%s ((["`, f, f))
-	}
-	schema := `{"type":"object","properties":{` + strings.Join(props, ",") + `}}`
-	c, err := NewCatalog([]string{"t"}, Definitions{"t": {PayloadSchema: json.RawMessage(schema), Validation: ValidationEnforce}})
-	require.NoError(t, err)
-
-	result := c.ValidateData("t", []byte(`{`+strings.Join(data, ",")+`}`))
-	assert.True(t, result.Valid, "%v", result.Errors)
-	assert.True(t, c.ValidateData("t", []byte(`{"date":"2026-02-30"}`)).Valid)
-}
-
 // sentinel is planted in every failing value and key. It must never show up
-// in validation errors, which are returned in 422 bodies and logged.
+// in validation errors, which are returned to MCP clients and logged.
 const sentinel = "s3cr3t-PII-c4n4ry"
 
-func TestValidationErrorsNeverContainValues(t *testing.T) {
-	schema := `{
-		"type": "object",
-		"properties": {
-			"pattern": {"type": "string", "pattern": "^[0-9]+$"},
-			"format": {"type": "string", "format": "date-time"},
-			"day": {"type": "string", "format": "date"},
-			"enum": {"enum": ["a", "b"]},
-			"const": {"const": "a"},
-			"minLength": {"type": "string", "minLength": 100},
-			"maxLength": {"type": "string", "maxLength": 3},
-			"type": {"type": "integer"},
-			"number": {"type": "number", "minimum": 1e10, "multipleOf": 7},
-			"strict": {"type": "object", "properties": {"a": {}}, "additionalProperties": false},
-			"loose": {"type": "object", "additionalProperties": {"type": "integer"}},
-			"patterned": {"type": "object", "patternProperties": {"^s": {"type": "integer"}}},
-			"names": {"type": "object", "propertyNames": {"maxLength": 3}},
-			"unevaluated": {"type": "object", "unevaluatedProperties": {"type": "integer"}},
-			"list": {"type": "array", "items": {"type": "integer"}, "uniqueItems": true},
-			"nested": {"type": "array", "items": {"$ref": "#/$defs/item"}},
-			"choice": {"oneOf": [{"type": "integer"}, {"type": "boolean"}]},
-			"negated": {"not": {"type": "string"}}
-		},
-		"$defs": {"item": {"type": "object", "properties": {"sku": {"type": "string", "pattern": "^[A-Z]{3}$"}}, "additionalProperties": false}}
-	}`
+func TestArgumentErrorsNeverContainValues(t *testing.T) {
 	s := sentinel
-	data := `{
-		"pattern": "` + s + `",
-		"format": "` + s + `",
-		"day": "` + s + `",
-		"enum": "` + s + `",
-		"const": "` + s + `",
-		"minLength": "` + s + `",
-		"maxLength": "` + s + `",
-		"type": "` + s + `",
-		"number": 987654321,
-		"strict": {"` + s + `": "` + s + `"},
-		"loose": {"` + s + `": "` + s + `"},
-		"patterned": {"s` + s + `": "` + s + `"},
-		"names": {"` + s + `": 1},
-		"unevaluated": {"` + s + `": "` + s + `"},
-		"list": ["` + s + `", "` + s + `"],
-		"nested": [{"sku": "` + s + `", "` + s + `": 1}],
-		"choice": "` + s + `",
-		"negated": "` + s + `",
-		"` + s + `": "` + s + `"
-	}`
-	for _, mode := range []ValidationMode{ValidationWarn, ValidationEnforce} {
-		c, err := NewCatalog([]string{"t"}, Definitions{"t": {PayloadSchema: json.RawMessage(schema), Validation: mode}})
-		require.NoError(t, err)
-		result := c.ValidateData("t", []byte(data))
-		require.True(t, result.Checked)
-		require.False(t, result.Valid)
-		require.Len(t, result.Errors, maxReportedErrors+1, "every planted failure is reported")
-		for _, line := range result.Errors {
-			assert.NotContains(t, line, sentinel)
-			assert.NotContains(t, line, "987654321")
-		}
-		for _, bad := range []string{`{"pattern": ` + s + `}`, `{"pattern": "` + s + `"` + s + `}`} {
-			for _, line := range c.ValidateData("t", []byte(bad)).Errors {
-				assert.NotContains(t, line, sentinel, "parse errors quote input")
-			}
-		}
-	}
-
 	c := orderCreatedCatalog(t)
 	for _, args := range []string{
 		`{"` + s + `": 1}`,
@@ -888,8 +707,8 @@ func TestValidateArgumentsLargeEnum(t *testing.T) {
 }
 
 func TestCatalogConcurrentUse(t *testing.T) {
-	// Run with -race: the catalog is shared by every publish and MCP request
-	// without locks.
+	// Run with -race: the catalog is shared by every MCP request without
+	// locks.
 	schema := `{"type":"object","properties":{
 		"total":{"type":"number","minimum":0},
 		"currency":{"type":"string","enum":["USD","EUR"]},
@@ -899,27 +718,16 @@ func TestCatalogConcurrentUse(t *testing.T) {
 		"$defs":{"item":{"type":"object","properties":{"qty":{"type":"integer","multipleOf":2}},"required":["qty"]}}}`
 	c, err := NewCatalog([]string{"t"}, Definitions{"t": {
 		PayloadSchema: json.RawMessage(schema),
-		Validation:    ValidationEnforce,
 		MCP:           MCPSettings{Enabled: true},
 	}})
 	require.NoError(t, err)
 
-	valid := []byte(`{"total":1,"currency":"USD","day":"2026-10-09","code":"ABC","items":[{"qty":2}]}`)
-	invalid := []byte(`{"total":-1.5,"currency":"GBP","day":"x","code":"abc","items":[{"qty":3},{}]}`)
-	wantErrors := c.ValidateData("t", invalid).Errors
-	require.Len(t, wantErrors, 5)
-
 	var wg sync.WaitGroup
-	for g := range 16 {
+	for range 16 {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			for i := range 200 {
-				if (g+i)%2 == 0 {
-					assert.True(t, c.ValidateData("t", valid).Valid)
-				} else {
-					assert.Equal(t, wantErrors, c.ValidateData("t", invalid).Errors)
-				}
+			for range 200 {
 				assert.Nil(t, c.ValidateArguments("t", []byte(`{"total":{"$gte":1},"currency":["USD"],"day":{"$lt":"2027-01-01"}}`)))
 				assert.Len(t, c.ValidateArguments("t", []byte(`{"total":"x","code":1}`)), 5)
 				assert.Len(t, c.MCPEvents(), 1)
@@ -930,90 +738,4 @@ func TestCatalogConcurrentUse(t *testing.T) {
 		}()
 	}
 	wg.Wait()
-}
-
-// benchmarkSchema resembles a typical order payload schema.
-const benchmarkSchema = `{
-	"type": "object",
-	"properties": {
-		"id": {"type": "string", "pattern": "^ord_[a-z0-9]+$"},
-		"createdAt": {"type": "string", "format": "date-time"},
-		"currency": {"type": "string", "enum": ["USD", "EUR", "GBP"]},
-		"total": {"type": "number", "minimum": 0},
-		"customer": {
-			"type": "object",
-			"properties": {
-				"id": {"type": "string"},
-				"email": {"type": "string", "format": "email"},
-				"name": {"type": "string", "maxLength": 200}
-			},
-			"required": ["id"]
-		},
-		"items": {"type": "array", "items": {"$ref": "#/$defs/item"}}
-	},
-	"required": ["id", "createdAt", "currency", "total", "items"],
-	"$defs": {
-		"item": {
-			"type": "object",
-			"properties": {
-				"sku": {"type": "string", "pattern": "^[A-Z]{3}-[0-9]{4}$"},
-				"name": {"type": "string"},
-				"quantity": {"type": "integer", "minimum": 1},
-				"price": {"type": "number", "minimum": 0},
-				"tags": {"type": "array", "items": {"type": "string"}}
-			},
-			"required": ["sku", "quantity", "price"],
-			"additionalProperties": false
-		}
-	}
-}`
-
-// benchmarkPayload returns an order of about size bytes, with every item
-// invalid when invalid is set.
-func benchmarkPayload(size int, invalid bool) []byte {
-	var b strings.Builder
-	b.WriteString(`{"id":"ord_123abc","createdAt":"2026-10-09T10:00:00Z","currency":"USD","total":1234.5,` +
-		`"customer":{"id":"cus_1","email":"jane@example.com","name":"Jane Doe"},"items":[`)
-	for i := 0; b.Len() < size-2; i++ {
-		if i > 0 {
-			b.WriteByte(',')
-		}
-		if invalid {
-			fmt.Fprintf(&b, `{"sku":"bad-%d","name":"Item %d","quantity":0,"price":-1,"tags":[1]}`, i, i)
-		} else {
-			fmt.Fprintf(&b, `{"sku":"ABC-%04d","name":"Item %d","quantity":%d,"price":9.99,"tags":["a","b"]}`, i%10000, i, i%5+1)
-		}
-	}
-	b.WriteString(`]}`)
-	return []byte(b.String())
-}
-
-func BenchmarkValidateData(b *testing.B) {
-	c, err := NewCatalog([]string{"order.created"}, Definitions{"order.created": {
-		PayloadSchema: json.RawMessage(benchmarkSchema),
-		Validation:    ValidationEnforce,
-	}})
-	require.NoError(b, err)
-	for _, bc := range []struct {
-		name    string
-		size    int
-		invalid bool
-	}{
-		{"10KB", 10 << 10, false},
-		{"500KB", 500 << 10, false},
-		{"10KB_invalid", 10 << 10, true},
-		{"500KB_invalid", 500 << 10, true},
-	} {
-		data := benchmarkPayload(bc.size, bc.invalid)
-		result := c.ValidateData("order.created", data)
-		require.True(b, result.Checked)
-		require.Equal(b, !bc.invalid, result.Valid, "%v", result.Errors)
-		b.Run(bc.name, func(b *testing.B) {
-			b.SetBytes(int64(len(data)))
-			b.ReportAllocs()
-			for b.Loop() {
-				c.ValidateData("order.created", data)
-			}
-		})
-	}
 }

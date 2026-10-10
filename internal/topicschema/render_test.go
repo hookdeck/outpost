@@ -10,8 +10,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// validateAgainst compiles schema and validates data with it, as ValidateData
-// does.
+// validateAgainst compiles schema and validates data with it, rendering
+// errors from a root named data.
 func validateAgainst(t *testing.T, schema, data string) []string {
 	t.Helper()
 	tree, err := decodeJSON([]byte(schema))
@@ -19,7 +19,7 @@ func validateAgainst(t *testing.T, schema, data string) []string {
 	compiled, unsupported, err := compileSchema(tree)
 	require.NoError(t, err)
 	require.Empty(t, unsupported)
-	return validateJSON(compiled, []byte(data), "data", propertyNameSet(tree), dataChecks)
+	return validateJSON(compiled, []byte(data), "data", propertyNameSet(tree), valueChecks{reject: rejectLargeNumber})
 }
 
 func TestRenderValidationErrors(t *testing.T) {
