@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 )
@@ -185,10 +186,11 @@ func limitMessages(msgs []string) []string {
 	more := 0
 	out := make([]string, 0, len(msgs))
 	for _, m := range msgs {
-		var n int
-		if _, err := fmt.Sscanf(m, "... and %d more", &n); err == nil && m == moreMessage(n) {
-			more += n
-			continue
+		if rest, ok := strings.CutPrefix(m, "... and "); ok {
+			if n, err := strconv.Atoi(strings.TrimSuffix(rest, " more")); err == nil && m == moreMessage(n) {
+				more += n
+				continue
+			}
 		}
 		out = append(out, m)
 	}

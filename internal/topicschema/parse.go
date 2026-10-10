@@ -285,18 +285,21 @@ func (r *openapiReport) add(pe *parseError, skipped bool) {
 // messages returns every problem and warning collected.
 func (r *openapiReport) messages() (problems, warnings []string) {
 	for _, f := range r.found {
-		at := *f.first
-		at.topic = ""
 		switch {
 		case f.count == 1 && f.skipped:
 			r.warnings = append(r.warnings, r.opts.skipped(f.first.topic, f.first))
 		case f.count == 1:
 			r.problems = append(r.problems, f.first.Error())
-		case f.skipped:
-			r.warnings = append(r.warnings, fmt.Sprintf("imported topics such as %q are not in TOPICS and were skipped; they would fail to import: %s (referenced by %d webhooks)",
-				clip(f.first.topic), at.Error(), f.count))
 		default:
-			r.problems = append(r.problems, fmt.Sprintf("%s (referenced by %d webhooks)", at.Error(), f.count))
+			// The location names the shared object rather than a webhook.
+			at := *f.first
+			at.topic = ""
+			if f.skipped {
+				r.warnings = append(r.warnings, fmt.Sprintf("imported topics such as %q are not in TOPICS and were skipped; they would fail to import: %s (referenced by %d webhooks)",
+					clip(f.first.topic), at.Error(), f.count))
+			} else {
+				r.problems = append(r.problems, fmt.Sprintf("%s (referenced by %d webhooks)", at.Error(), f.count))
+			}
 		}
 	}
 	return r.problems, r.warnings
