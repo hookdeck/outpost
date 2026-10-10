@@ -163,6 +163,16 @@ func NewErrInternalServer(err error) ErrorResponse {
 	}
 }
 
+// NewErrServiceUnavailable is a server error the client can retry: a
+// dependency was unavailable or the request ran out of time.
+func NewErrServiceUnavailable(err error) ErrorResponse {
+	return ErrorResponse{
+		Err:     pkgerrors.WithStack(err),
+		Code:    http.StatusServiceUnavailable,
+		Message: "service unavailable",
+	}
+}
+
 func NewErrBadRequest(err error) ErrorResponse {
 	return ErrorResponse{
 		Err:     err,

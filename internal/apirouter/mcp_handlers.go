@@ -798,44 +798,18 @@ func mcpStoreError(err error) *mcpevents.Error {
 	return nil
 }
 
-// unknownValidationError is the detail ValidateDestination reports for a
-// provider error that isn't a validation error.
-var unknownValidationError = destregistry.ValidationErrorDetail{Field: "root", Type: "unknown"}
-
-// mcpValidationFields maps the destination fields of a provider validation
-// error to the request fields they come from.
-var mcpValidationFields = map[string]string{
-	"config.url":         mcpevents.FieldDeliveryURL,
-	"credentials.secret": mcpevents.FieldDeliverySecret,
-	"config.arguments":   mcpevents.FieldArguments,
-	"config.event":       mcpevents.FieldName,
-	"topics":             mcpevents.FieldName,
-}
-
-// mcpValidationError maps an error of ValidateDestination or
-// PreprocessDestination to its mcp_error: the provider's own when it carries
-// one, else invalid_params from the first field error. Other errors are
-// internal and return nil: no provider, and the root error the registry
+// mcpValidationError returns the mcp_error an error of ValidateDestination or
+// PreprocessDestination carries, or nil. The mcp provider gives every failure
+// the MCP client can cause one (destmcp.Provider.Validate). The others are
+// not the client's to fix and return nil: verification that couldn't run
+// (destmcp.ErrVerificationUnavailable, answered 503 by abortWithError),
+// inconsistencies only a caller bug can produce (subscription_id,
+// schema_hash, topics), no provider, and the root error the registry
 // substitutes for a provider error that isn't a validation error.
 func mcpValidationError(err error) *mcpevents.Error {
 	var mcpErr *mcpevents.Error
 	if errors.As(err, &mcpErr) {
 		return mcpErr
-	}
-	var validationErr *destregistry.ErrDestinationValidation
-	if errors.As(err, &validationErr) {
-		if len(validationErr.Errors) == 1 && validationErr.Errors[0] == unknownValidationError {
-			return nil
-		}
-		field, reason := mcpevents.FieldParams, mcpevents.ReasonInvalid
-		if len(validationErr.Errors) > 0 {
-			detail := validationErr.Errors[0]
-			field, reason = detail.Field, detail.Type
-			if mapped, ok := mcpValidationFields[field]; ok {
-				field = mapped
-			}
-		}
-		return mcpevents.InvalidParams(field, reason)
 	}
 	return nil
 }

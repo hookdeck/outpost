@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"maps"
 	"net/http"
 	"slices"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/hookdeck/outpost/internal/destregistry"
+	"github.com/hookdeck/outpost/internal/destregistry/providers/destmcp"
 	"github.com/hookdeck/outpost/internal/mcpevents"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/tenantstore"
@@ -125,7 +127,7 @@ func (h *MCPHandlers) Subscribe(c *gin.Context) {
 
 	tenant, err := h.retrieveTenant(ctx, c.Param("tenant_id"))
 	if err != nil {
-		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
+		h.abortWithError(c, err)
 		return
 	}
 	if tenant == nil {
@@ -507,11 +509,29 @@ func (h *MCPHandlers) Unsubscribe(c *gin.Context) {
 }
 
 // abortWithError answers an error of the MCP endpoints: an *mcpevents.Error
-// as mcp_error, anything else as an internal error.
+// as mcp_error; an outage the client can retry through (callback
+// verification that couldn't run, the call's deadline or cancellation) as
+// 503; anything else as an internal error.
 func (h *MCPHandlers) abortWithError(c *gin.Context, err error) {
 	var mcpErr *mcpevents.Error
 	if errors.As(err, &mcpErr) {
 		h.abortWithMCPError(c, mcpErr)
+		return
+	}
+	// The message of a validation error leaves out its details and cause,
+	// which the server error's log needs.
+	var validationErr *destregistry.ErrDestinationValidation
+	if errors.As(err, &validationErr) {
+		if validationErr.Cause != nil {
+			err = validationErr.Cause
+		} else {
+			err = fmt.Errorf("%w: %v", err, validationErr.Errors)
+		}
+	}
+	if errors.Is(err, destmcp.ErrVerificationUnavailable) ||
+		errors.Is(err, context.Canceled) ||
+		errors.Is(err, context.DeadlineExceeded) {
+		AbortWithError(c, http.StatusServiceUnavailable, NewErrServiceUnavailable(err))
 		return
 	}
 	AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))

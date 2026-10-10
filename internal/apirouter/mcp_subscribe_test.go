@@ -412,13 +412,15 @@ func TestMCP_Subscribe_Errors(t *testing.T) {
 		requireMCPError(t, resp, "callback_endpoint_error", -32015, map[string]any{"reason": "challenge_failed"})
 	})
 
-	t.Run("a validation error without an mcp_error is invalid_params", func(t *testing.T) {
+	t.Run("a validation error without an mcp_error is internal", func(t *testing.T) {
+		// The provider gives every error the client can cause an mcp_error;
+		// the others are caller bugs (subscription_id, schema_hash, topics).
 		m.provider.setVerify(func(context.Context, *models.Destination) error {
-			return destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{{Field: "config.url", Type: "pattern"}})
+			return destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{{Field: "config.subscription_id", Type: "invalid"}})
 		})
 		defer m.provider.setVerify(nil)
 		resp := m.subscribe(subscribeBody("p", "order.created"))
-		requireMCPError(t, resp, "invalid_params", invalidParams, map[string]any{"field": "delivery.url", "reason": "pattern"})
+		testutil.RequireErrorResponse(t, resp, http.StatusInternalServerError, "internal server error")
 	})
 
 	t.Run("a provider error that isn't a validation error is internal", func(t *testing.T) {

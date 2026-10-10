@@ -7319,6 +7319,12 @@ paths:
           $ref: "#/components/responses/MCPError"
         "500":
           $ref: "#/components/responses/InternalServerError"
+        "503":
+          description: Outpost couldn't finish the call on its side, such as verifying the callback while its Redis is unavailable, or the call ran out of time. Answer the MCP request with an internal error, so the client retries.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APIErrorResponse"
     get:
       tags: [MCP]
       summary: List MCP Subscriptions
