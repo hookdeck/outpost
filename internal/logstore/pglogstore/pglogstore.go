@@ -175,7 +175,8 @@ func buildEventQuery(req driver.ListEventRequest, q pagination.QueryInput) (stri
 			topic,
 			eligible_for_retry,
 			data,
-			metadata
+			metadata,
+			schema_valid
 		FROM events
 		WHERE %s
 		%s
@@ -214,6 +215,7 @@ func scanEvents(rows pgx.Rows) ([]eventWithPosition, error) {
 			eligibleForRetry      bool
 			data                  string
 			metadata              map[string]string
+			schemaValid           *bool
 		)
 
 		if err := rows.Scan(
@@ -225,6 +227,7 @@ func scanEvents(rows pgx.Rows) ([]eventWithPosition, error) {
 			&eligibleForRetry,
 			&data,
 			&metadata,
+			&schemaValid,
 		); err != nil {
 			return nil, fmt.Errorf("scan failed: %w", err)
 		}
@@ -246,6 +249,7 @@ func scanEvents(rows pgx.Rows) ([]eventWithPosition, error) {
 				Time:                  eventTime,
 				Data:                  []byte(data),
 				Metadata:              metadata,
+				SchemaValid:           schemaValid,
 			},
 			eventTime: eventTime,
 		})
@@ -411,7 +415,8 @@ func buildAttemptQuery(req driver.ListAttemptRequest, q pagination.QueryInput) (
 			eligible_for_retry,
 			event_data,
 			event_metadata,
-			latency_ms
+			latency_ms,
+			schema_valid
 		FROM attempts
 		WHERE %s
 		%s
@@ -459,6 +464,7 @@ func scanAttemptRecords(rows pgx.Rows) ([]attemptRecordWithPosition, error) {
 			eventData        string
 			eventMetadata    map[string]string
 			latencyMs        *int64
+			schemaValid      *bool
 		)
 
 		if err := rows.Scan(
@@ -479,6 +485,7 @@ func scanAttemptRecords(rows pgx.Rows) ([]attemptRecordWithPosition, error) {
 			&eventData,
 			&eventMetadata,
 			&latencyMs,
+			&schemaValid,
 		); err != nil {
 			return nil, fmt.Errorf("scan failed: %w", err)
 		}
@@ -519,6 +526,7 @@ func scanAttemptRecords(rows pgx.Rows) ([]attemptRecordWithPosition, error) {
 					Time:             eventTime,
 					Data:             []byte(eventData),
 					Metadata:         eventMetadata,
+					SchemaValid:      schemaValid,
 				},
 			},
 			attemptTime: attemptTime,
@@ -557,7 +565,8 @@ func (s *logStore) RetrieveEvent(ctx context.Context, req driver.RetrieveEventRe
 			eligible_for_retry,
 			time,
 			metadata,
-			data
+			data,
+			schema_valid
 		FROM events
 		WHERE %s
 		LIMIT 1`, whereClause)
@@ -575,6 +584,7 @@ func (s *logStore) RetrieveEvent(ctx context.Context, req driver.RetrieveEventRe
 		&event.Time,
 		&event.Metadata,
 		&dataStr,
+		&event.SchemaValid,
 	)
 	if err == pgx.ErrNoRows {
 		return nil, nil
@@ -625,7 +635,8 @@ func (s *logStore) RetrieveAttempt(ctx context.Context, req driver.RetrieveAttem
 			eligible_for_retry,
 			event_data,
 			event_metadata,
-			latency_ms
+			latency_ms,
+			schema_valid
 		FROM attempts
 		WHERE %s
 		LIMIT 1`, whereClause)
@@ -650,6 +661,7 @@ func (s *logStore) RetrieveAttempt(ctx context.Context, req driver.RetrieveAttem
 		eventData        string
 		eventMetadata    map[string]string
 		latencyMs        *int64
+		schemaValid      *bool
 	)
 
 	err := row.Scan(
@@ -670,6 +682,7 @@ func (s *logStore) RetrieveAttempt(ctx context.Context, req driver.RetrieveAttem
 		&eventData,
 		&eventMetadata,
 		&latencyMs,
+		&schemaValid,
 	)
 	if err == pgx.ErrNoRows {
 		return nil, nil
@@ -713,6 +726,7 @@ func (s *logStore) RetrieveAttempt(ctx context.Context, req driver.RetrieveAttem
 			Time:             eventTime,
 			Data:             []byte(eventData),
 			Metadata:         eventMetadata,
+			SchemaValid:      schemaValid,
 		},
 	}, nil
 }
@@ -752,15 +766,16 @@ func (s *logStore) InsertMany(ctx context.Context, entries []*models.LogEntry) e
 	// and cast to text[] per row, because PostgreSQL's unnest flattens 2D text arrays.
 	if len(events) > 0 {
 		_, err = tx.Exec(ctx, `
-			INSERT INTO events (id, tenant_id, matched_destination_ids, time, topic, eligible_for_retry, data, metadata)
+			INSERT INTO events (id, tenant_id, matched_destination_ids, time, topic, eligible_for_retry, data, metadata, schema_valid)
 			SELECT
 				u.id, u.tenant_id,
 				ARRAY(SELECT jsonb_array_elements_text(u.matched_dest_json)),
-				u.time, u.topic, u.eligible_for_retry, u.data, u.metadata
+				u.time, u.topic, u.eligible_for_retry, u.data, u.metadata, u.schema_valid
 			FROM unnest(
 				$1::text[], $2::text[], $3::jsonb[],
-				$4::timestamptz[], $5::text[], $6::boolean[], $7::text[], $8::jsonb[]
-			) AS u(id, tenant_id, matched_dest_json, time, topic, eligible_for_retry, data, metadata)
+				$4::timestamptz[], $5::text[], $6::boolean[], $7::text[], $8::jsonb[],
+				$9::boolean[]
+			) AS u(id, tenant_id, matched_dest_json, time, topic, eligible_for_retry, data, metadata, schema_valid)
 			ON CONFLICT (time, id) DO NOTHING
 		`, eventArrays(events)...)
 		if err != nil {
@@ -775,13 +790,13 @@ func (s *logStore) InsertMany(ctx context.Context, entries []*models.LogEntry) e
 				id, event_id, tenant_id, destination_id, destination_type, topic, status,
 				time, attempt_number, manual, code, response_data,
 				event_time, eligible_for_retry, event_data, event_metadata,
-				latency_ms
+				latency_ms, schema_valid
 			)
 			SELECT * FROM unnest(
 				$1::text[], $2::text[], $3::text[], $4::text[], $5::text[], $6::text[], $7::text[],
 				$8::timestamptz[], $9::integer[], $10::boolean[], $11::text[], $12::text[],
 				$13::timestamptz[], $14::boolean[], $15::text[], $16::jsonb[],
-				$17::integer[]
+				$17::integer[], $18::boolean[]
 			)
 			ON CONFLICT (time, id) DO UPDATE SET
 				status = EXCLUDED.status,
@@ -806,6 +821,7 @@ func eventArrays(events []*models.Event) []any {
 	eligibleForRetries := make([]bool, len(events))
 	datas := make([]string, len(events))
 	metadatas := make([]map[string]string, len(events))
+	schemaValids := make([]*bool, len(events))
 
 	for i, e := range events {
 		ids[i] = e.ID
@@ -827,6 +843,7 @@ func eventArrays(events []*models.Event) []any {
 			metadata = map[string]string{}
 		}
 		metadatas[i] = metadata
+		schemaValids[i] = e.SchemaValid
 	}
 
 	return []any{
@@ -838,6 +855,7 @@ func eventArrays(events []*models.Event) []any {
 		eligibleForRetries,
 		datas,
 		metadatas,
+		schemaValids,
 	}
 }
 
@@ -862,6 +880,7 @@ func attemptArrays(entries []*models.LogEntry) []any {
 	eventDatas := make([]string, n)
 	eventMetadatas := make([]map[string]string, n)
 	latencies := make([]*int64, n)
+	schemaValids := make([]*bool, n)
 
 	for i, entry := range entries {
 		a := entry.Attempt
@@ -890,6 +909,7 @@ func attemptArrays(entries []*models.LogEntry) []any {
 		}
 		eventMetadatas[i] = eventMetadata
 		latencies[i] = a.LatencyMs
+		schemaValids[i] = e.SchemaValid
 	}
 
 	return []any{
@@ -910,5 +930,6 @@ func attemptArrays(entries []*models.LogEntry) []any {
 		eventDatas,
 		eventMetadatas,
 		latencies,
+		schemaValids,
 	}
 }

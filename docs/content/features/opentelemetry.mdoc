@@ -76,6 +76,8 @@ The standard OpenTelemetry variables — the per-signal exporter and protocol va
 
 ## Available Metrics
 
+Metric names are exported with an `outpost.` prefix, for example `outpost.delivery_latency`.
+
 ### `delivery_latency`
 
 Latency from event publication to successful delivery at the destination.
@@ -119,6 +121,15 @@ Number of published events that matched at least one destination.
 | Dimension | Description |
 |-----------|-------------|
 | `topic` | Event topic |
+
+### `events.schema_invalid`
+
+Number of published events that failed [topic schema validation](/docs/outpost/features/topics#validation) in topics whose `validation` is `warn` or `enforce`. Counts events from the Publish API and from publish queues, before they're matched to destinations.
+
+| Dimension | Description |
+|-----------|-------------|
+| `topic` | Event topic |
+| `mode` | The topic's validation mode: `warn` (the event was accepted) or `enforce` (the event was rejected) |
 
 ### `api_response_latency`
 

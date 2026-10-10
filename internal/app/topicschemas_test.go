@@ -18,7 +18,7 @@ func TestLoadTopicCatalog_OnlyForAPIService(t *testing.T) {
 		cfg.TopicsSchemas = config.NewTopicSchemas(schemas)
 		return &App{config: cfg, logger: testutil.CreateTestLogger(t)}
 	}
-	const valid = `{"order.created":{"description":"An order was placed.","payload_schema":{"type":"object"}}}`
+	const valid = `{"order.created":{"validation":"warn","payload_schema":{"type":"object"}}}`
 	// Invalid: mcp.enabled needs payload_schema.
 	const invalid = `{"order.created":{"mcp":{"enabled":true}}}`
 
@@ -28,7 +28,7 @@ func TestLoadTopicCatalog_OnlyForAPIService(t *testing.T) {
 			require.NoError(t, a.loadTopicCatalog())
 			topic, ok := a.config.TopicCatalog().Topic("order.created")
 			require.True(t, ok)
-			assert.Equal(t, "An order was placed.", topic.Description)
+			assert.Equal(t, "warn", string(topic.Validation))
 
 			err := newApp(service, invalid).loadTopicCatalog()
 			assert.ErrorIs(t, err, config.ErrInvalidTopicSchemas)

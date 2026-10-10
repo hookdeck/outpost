@@ -100,7 +100,7 @@ You can also subscribe to the `tenant.subscription.updated` [Operator Events](/d
 
 ## Topic Schemas
 
-A topic schema describes the events of one topic: what they represent, a JSON Schema for their `data`, and whether the topic is exposed to MCP Events clients. Schemas are optional and set per topic. A topic without one keeps working unchanged.
+A topic schema describes the events of one topic: what they represent, a JSON Schema for their `data`, whether Outpost validates published events against it, and whether the topic is exposed to MCP Events clients. Schemas are optional and set per topic. A topic without one keeps working unchanged.
 
 ### Topic Object
 
@@ -118,6 +118,7 @@ A topic schema describes the events of one topic: what they represent, a JSON Sc
     },
     "required": ["order_id", "total", "currency"]
   },
+  "validation": "enforce",
   "mcp": { "enabled": true }
 }
 ```
@@ -127,11 +128,12 @@ A topic schema describes the events of one topic: what they represent, a JSON Sc
 | `name` | Optional. When set, it must equal the topic name the schema is keyed by. |
 | `description` | What the topic's events represent. |
 | `payload_schema` | A JSON Schema 2020-12 object for the event `data`. See [Schema Support](#schema-support). |
+| `validation` | `off` (the default), `warn` or `enforce`. `warn` and `enforce` need a `payload_schema`. See [Validation](#validation). |
 | `mcp.enabled` | Exposes the topic to MCP Events clients. Defaults to `false`. Needs a `payload_schema` whose root `type` is `object`. See [MCP Subscription Arguments](#mcp-subscription-arguments). |
 | `deprecated` | Marks the topic as deprecated. See [Schema Evolution and Deprecation](#schema-evolution-and-deprecation). |
 | `replaced_by` | The topic that replaces a deprecated topic. Needs `deprecated: true`. |
 
-Unknown fields are rejected, so a typo such as `descripton` fails startup instead of being ignored.
+Unknown fields are rejected, so a typo such as `validaton` fails startup instead of being ignored.
 
 ### Configuring Topic Schemas
 
@@ -158,6 +160,7 @@ A file keeps schemas in your repository, next to the code that publishes the eve
 # topics-schemas.yaml
 order.created:
   description: Fires when a new order is placed.
+  validation: enforce
   mcp:
     enabled: true
   payload_schema:
@@ -190,9 +193,40 @@ Each schema key must match a topic in `TOPICS` exactly. A key that only differs 
 - `$schema` must be absent or `https://json-schema.org/draft/2020-12/schema`.
 - `$ref` and `$dynamicRef` must be JSON Pointers to a schema within `payload_schema`, such as `#/$defs/address`, and not into another value, such as an `x-` extension or a `default`. Anchor references, such as `#address`, aren't supported, and Outpost never fetches remote schemas.
 - `$id` is only allowed at the root of `payload_schema`, since a nested `$id` changes how references below it resolve.
-- `format` is an annotation, as JSON Schema 2020-12 specifies. `date` decides which [subscription arguments](#mcp-subscription-arguments) accept range operators.
-- Regular expressions in `pattern` and `patternProperties` use [RE2 syntax](https://github.com/google/re2/wiki/Syntax), which has no lookarounds or backreferences. A pattern RE2 can't compile fails startup when the topic's `mcp.enabled` is set. For other topics it's a startup warning, and the schema is kept.
+- `format` is an annotation, as JSON Schema 2020-12 specifies, and never fails validation, `date` and `date-time` included.
+- Regular expressions in `pattern` and `patternProperties` use [RE2 syntax](https://github.com/google/re2/wiki/Syntax), which has no lookarounds or backreferences. A pattern RE2 can't compile fails startup when the topic's `validation` is `warn` or `enforce` or its `mcp.enabled` is set. For other topics it's a startup warning: the schema is kept but never used for validation.
 - A `payload_schema` can be up to 256 KiB, or 64 KiB when `mcp.enabled` is set.
+
+### Validation
+
+`validation` decides what happens to a published event whose `data` doesn't match `payload_schema`:
+
+| Mode | Invalid `data` |
+|------|----------------|
+| `off` | Not checked. The default. |
+| `warn` | Accepted. The event is stored with `schema_valid: false` and counted in the `outpost.events.schema_invalid` [OpenTelemetry metric](/docs/outpost/features/opentelemetry). Use it to find failing publishers before you enforce. |
+| `enforce` | Rejected and counted in the same metric. The Publish API returns `422` with the validation errors. |
+
+Validation runs before the event is matched to destinations, for events from the Publish API and from publish queues. It's instance configuration, not part of the API version, so `enforce` applies to API v1 publishes too.
+
+```json
+{
+  "status": 422,
+  "message": "validation error",
+  "data": [
+    "data.total: must be number",
+    "data: missing required property \"currency\""
+  ]
+}
+```
+
+Each error is a path from `data`, such as `data.items[2].sku`, and a message. Errors never include published values. At most 20 are listed, sorted, followed by `... and N more`.
+
+Validated events carry a `schema_valid` field in API responses, including events embedded in attempts: `true` when `data` passed, `false` when it failed under `warn`. It's omitted when the event wasn't validated.
+
+Validating `data` takes roughly 20 to 350 times its size in memory, the most for large arrays whose items fail the schema. Each `anyOf` or `oneOf` branch those items fail adds about 80 times more, since the errors of every branch are kept. Size the API service's memory for the largest events you publish to validated topics.
+
+A publish queue message that fails `enforce` validation is treated as invalid: Outpost logs its event ID, topic and errors, and rejects it on RabbitMQ and Azure Service Bus. AWS SQS and GCP Pub/Sub have no reject, so the message is redelivered until `PUBLISH_MAX_REDELIVERIES` or the queue's own redelivery limit is reached. See the Failed messages section of [Publish from RabbitMQ](/docs/outpost/publishing/publish-from-rabbitmq#failed-messages).
 
 ### MCP Subscription Arguments
 

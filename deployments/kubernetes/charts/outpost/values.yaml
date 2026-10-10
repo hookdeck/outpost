@@ -61,6 +61,7 @@ outpost:
   #   topics_schemas:
   #     order.created:
   #       description: "Fires when a new order is placed."
+  #       validation: warn # off (default), warn or enforce
   #       payload_schema:
   #         type: object
   #         properties:

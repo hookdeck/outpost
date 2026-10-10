@@ -255,6 +255,123 @@ func testCRUD(t *testing.T, newHarness HarnessMaker) {
 			require.Len(t, dupResponse.Data, 1)
 			assert.Equal(t, delivery.ID, dupResponse.Data[0].Attempt.ID)
 		})
+
+		t.Run("schema_valid round-trips", func(t *testing.T) {
+			// Publish-time validation stamps true, false (warn mode) or
+			// nothing (unchecked), and each must come back as written from
+			// events and attempts alike: retries rebuild the event from the
+			// latest attempt row. Isolated tenant so shared counts stay intact.
+			svTenantID := idgen.String()
+			destID := idgen.Destination()
+			valid, invalid := true, false
+			cases := []struct {
+				eventID string
+				want    *bool
+			}{
+				{"sv_true_evt", &valid},
+				{"sv_false_evt", &invalid},
+				{"sv_nil_evt", nil},
+			}
+			wantByEvent := map[string]*bool{}
+			wantByAttempt := map[string]*bool{}
+
+			var entries []*models.LogEntry
+			var retryEvent *models.Event
+			for i, tc := range cases {
+				opts := []func(*models.Event){
+					testutil.EventFactory.WithID(tc.eventID),
+					testutil.EventFactory.WithTenantID(svTenantID),
+					testutil.EventFactory.WithDestinationID(destID),
+					testutil.EventFactory.WithMatchedDestinationIDs([]string{destID}),
+					testutil.EventFactory.WithTime(baseTime.Add(-time.Duration(20+i) * time.Minute)),
+				}
+				if tc.want != nil {
+					opts = append(opts, testutil.EventFactory.WithSchemaValid(*tc.want))
+				}
+				event := testutil.EventFactory.AnyPointer(opts...)
+				attemptID := tc.eventID + "_att_1"
+				entries = append(entries, &models.LogEntry{Event: event, Attempt: testutil.AttemptFactory.AnyPointer(
+					testutil.AttemptFactory.WithID(attemptID),
+					testutil.AttemptFactory.WithTenantID(svTenantID),
+					testutil.AttemptFactory.WithEventID(event.ID),
+					testutil.AttemptFactory.WithDestinationID(destID),
+					testutil.AttemptFactory.WithStatus("failed"),
+					testutil.AttemptFactory.WithTime(event.Time.Add(time.Second)),
+				)})
+				wantByEvent[tc.eventID] = tc.want
+				wantByAttempt[attemptID] = tc.want
+				if tc.want == &invalid {
+					retryEvent = event
+				}
+			}
+			// A retry writes only an attempts row, which must carry the flag.
+			entries = append(entries, &models.LogEntry{Event: retryEvent, Attempt: testutil.AttemptFactory.AnyPointer(
+				testutil.AttemptFactory.WithID("sv_false_evt_att_2"),
+				testutil.AttemptFactory.WithTenantID(svTenantID),
+				testutil.AttemptFactory.WithEventID(retryEvent.ID),
+				testutil.AttemptFactory.WithDestinationID(destID),
+				testutil.AttemptFactory.WithAttemptNumber(2),
+				testutil.AttemptFactory.WithStatus("success"),
+				testutil.AttemptFactory.WithTime(retryEvent.Time.Add(time.Minute)),
+			)})
+			wantByAttempt["sv_false_evt_att_2"] = &invalid
+
+			require.NoError(t, logStore.InsertMany(ctx, entries))
+			require.NoError(t, h.FlushWrites(ctx))
+
+			assertSchemaValid := func(t *testing.T, want, got *bool, msgAndArgs ...any) {
+				t.Helper()
+				if want == nil {
+					assert.Nil(t, got, msgAndArgs...)
+					return
+				}
+				if assert.NotNil(t, got, msgAndArgs...) {
+					assert.Equal(t, *want, *got, msgAndArgs...)
+				}
+			}
+
+			events, err := logStore.ListEvent(ctx, driver.ListEventRequest{
+				TenantIDs:  []string{svTenantID},
+				Limit:      10,
+				TimeFilter: driver.TimeFilter{GTE: &startTime},
+			})
+			require.NoError(t, err)
+			require.Len(t, events.Data, len(wantByEvent))
+			for _, e := range events.Data {
+				assertSchemaValid(t, wantByEvent[e.ID], e.SchemaValid, "ListEvent %s", e.ID)
+			}
+
+			for eventID, want := range wantByEvent {
+				retrieved, err := logStore.RetrieveEvent(ctx, driver.RetrieveEventRequest{
+					TenantID: svTenantID,
+					EventID:  eventID,
+				})
+				require.NoError(t, err)
+				require.NotNil(t, retrieved)
+				assertSchemaValid(t, want, retrieved.SchemaValid, "RetrieveEvent %s", eventID)
+			}
+
+			attempts, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
+				TenantIDs:  []string{svTenantID},
+				Limit:      10,
+				TimeFilter: driver.TimeFilter{GTE: &startTime},
+			})
+			require.NoError(t, err)
+			require.Len(t, attempts.Data, len(wantByAttempt))
+			for _, r := range attempts.Data {
+				assertSchemaValid(t, wantByAttempt[r.Attempt.ID], r.Event.SchemaValid, "ListAttempt %s", r.Attempt.ID)
+			}
+
+			for attemptID, want := range wantByAttempt {
+				retrieved, err := logStore.RetrieveAttempt(ctx, driver.RetrieveAttemptRequest{
+					TenantID:  svTenantID,
+					AttemptID: attemptID,
+				})
+				require.NoError(t, err)
+				require.NotNil(t, retrieved)
+				assertSchemaValid(t, want, retrieved.Event.SchemaValid, "RetrieveAttempt %s", attemptID)
+			}
+		})
 	})
 
 	t.Run("list filters", func(t *testing.T) {

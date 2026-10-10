@@ -186,6 +186,9 @@ func (b *ServiceBuilder) BuildAPIWorkers(baseRouter *gin.Engine) error {
 
 	// Initialize event handler and create API router
 	b.logger.Debug("creating event handler and API router")
+	// The catalog app.PreRun loaded, or schema-less TOPICS when nothing was
+	// loaded, for publish-time validation.
+	topicCatalog := b.cfg.TopicCatalog()
 	publishIdempotence := idempotence.New(svc.redisClient,
 		idempotence.WithTimeout(5*time.Second),
 		idempotence.WithSuccessfulTTL(time.Duration(b.cfg.PublishIdempotencyKeyTTL)*time.Second),
@@ -199,6 +202,7 @@ func (b *ServiceBuilder) BuildAPIWorkers(baseRouter *gin.Engine) error {
 		b.cfg.Topics,
 		b.cfg.TopicsAllowWildcards,
 		publishIdempotence,
+		publishmq.WithSchemaValidator(topicCatalog),
 	)
 
 	// Create operator events emitter for subscription updates

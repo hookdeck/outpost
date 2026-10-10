@@ -1,0 +1,6 @@
+BEGIN;
+
+ALTER TABLE attempts DROP COLUMN IF EXISTS schema_valid;
+ALTER TABLE events DROP COLUMN IF EXISTS schema_valid;
+
+COMMIT;

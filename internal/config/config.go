@@ -71,7 +71,7 @@ type Config struct {
 	HTTPUserAgent        string   `yaml:"http_user_agent" env:"HTTP_USER_AGENT" desc:"Custom HTTP User-Agent string for outgoing webhook deliveries. If unset, defaults to 'Outpost/{version}'." required:"N"`
 
 	// Topic schemas, loaded by the API service at startup (LoadTopicCatalog)
-	TopicsSchemas     TopicSchemas `yaml:"topics_schemas" env:"TOPICS_SCHEMAS" desc:"Topic schemas keyed by topic name, as a JSON object (in YAML, also a mapping): description, payload_schema (JSON Schema 2020-12 for the event data), mcp, deprecated and replaced_by. Every key must be in topics. Mutually exclusive with topics_schemas_file." required:"N"`
+	TopicsSchemas     TopicSchemas `yaml:"topics_schemas" env:"TOPICS_SCHEMAS" desc:"Topic schemas keyed by topic name, as a JSON object (in YAML, also a mapping): description, payload_schema (JSON Schema 2020-12 for the event data), validation (off, warn or enforce), mcp, deprecated and replaced_by. Every key must be in topics. Mutually exclusive with topics_schemas_file." required:"N"`
 	TopicsSchemasFile string       `yaml:"topics_schemas_file" env:"TOPICS_SCHEMAS_FILE" desc:"Path to a YAML or JSON file (JSON when the name ends in .json) with topic schemas in the topics_schemas shape. Mutually exclusive with topics_schemas." required:"N"`
 
 	// Infrastructure

@@ -3,17 +3,25 @@ package apirouter_test
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/gin-gonic/gin"
+	"github.com/hookdeck/outpost/internal/apirouter"
 	"github.com/hookdeck/outpost/internal/idempotence"
+	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/publishmq"
+	"github.com/hookdeck/outpost/internal/tenantstore"
+	"github.com/hookdeck/outpost/internal/topicschema"
 	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 func TestAPI_Publish(t *testing.T) {
@@ -198,6 +206,54 @@ func TestAPI_Publish(t *testing.T) {
 			data, ok := body["data"].([]any)
 			require.True(t, ok)
 			assert.Contains(t, data, "topic is invalid")
+		})
+
+		t.Run("schema validation error returns 422 with the errors", func(t *testing.T) {
+			schemaErr := &publishmq.SchemaValidationError{
+				Topic:  "user.created",
+				Errors: []string{"data.total: must be number", `data: missing required property "currency"`},
+			}
+			for name, err := range map[string]error{
+				"typed":   schemaErr,
+				"wrapped": fmt.Errorf("publish: %w", schemaErr),
+			} {
+				t.Run(name, func(t *testing.T) {
+					h := newAPITest(t)
+					h.eventHandler.err = err
+
+					req := h.jsonReq(http.MethodPost, "/api/v1/publish", map[string]any{
+						"tenant_id": "t1",
+						"topic":     "user.created",
+						"data":      map[string]any{"total": "12"},
+					})
+					resp := h.do(h.withAPIKey(req))
+
+					require.Equal(t, http.StatusUnprocessableEntity, resp.Code)
+					assert.JSONEq(t, `{
+						"status": 422,
+						"message": "validation error",
+						"data": ["data.total: must be number", "data: missing required property \"currency\""]
+					}`, resp.Body.String())
+				})
+			}
+		})
+
+		t.Run("schema validation error without detail keeps data an array", func(t *testing.T) {
+			h := newAPITest(t)
+			h.eventHandler.err = &publishmq.SchemaValidationError{Topic: "user.created"}
+
+			req := h.jsonReq(http.MethodPost, "/api/v1/publish", map[string]any{
+				"tenant_id": "t1",
+				"data":      map[string]any{"key": "value"},
+			})
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusUnprocessableEntity, resp.Code)
+			assert.JSONEq(t, `{
+				"status": 422,
+				"message": "validation error",
+				"data": ["event data does not match the topic schema"]
+			}`, resp.Body.String())
 		})
 
 		t.Run("internal error returns 500", func(t *testing.T) {
@@ -437,6 +493,22 @@ func TestAPI_Publish(t *testing.T) {
 			require.Equal(t, http.StatusUnprocessableEntity, resp.Code)
 		})
 
+		t.Run("ignores schema_valid", func(t *testing.T) {
+			// The verdict is Outpost's own; publishers cannot set it.
+			h := newAPITest(t)
+
+			req := h.jsonReq(http.MethodPost, "/api/v1/publish", map[string]any{
+				"tenant_id":    "t1",
+				"schema_valid": true,
+				"data":         map[string]any{"key": "value"},
+			})
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusAccepted, resp.Code)
+			require.Len(t, h.eventHandler.calls, 1)
+			assert.Nil(t, h.eventHandler.calls[0].SchemaValid)
+		})
+
 		t.Run("preserves data", func(t *testing.T) {
 			h := newAPITest(t)
 
@@ -451,4 +523,48 @@ func TestAPI_Publish(t *testing.T) {
 			assert.JSONEq(t, `{"foo":"bar"}`, string(h.eventHandler.calls[0].Data))
 		})
 	})
+}
+
+// enforcingValidator rejects every event of its topic.
+type enforcingValidator struct {
+	topic  string
+	errors []string
+}
+
+func (v enforcingValidator) ValidateData(topic string, _ []byte) topicschema.ValidationResult {
+	if topic != v.topic {
+		return topicschema.ValidationResult{Mode: topicschema.ValidationOff}
+	}
+	return topicschema.ValidationResult{Mode: topicschema.ValidationEnforce, Checked: true, Errors: v.errors}
+}
+
+// The real publish event handler, not the mock: its enforce-mode rejection
+// must surface as the 422 validation error.
+func TestAPI_PublishSchemaEnforcement(t *testing.T) {
+	logger := logging.NewTestLogger(zap.NewNop())
+	eventHandler := publishmq.NewEventHandler(
+		logger, nil, tenantstore.NewMemTenantStore(), nil,
+		testutil.TestTopics, false, nil,
+		publishmq.WithSchemaValidator(enforcingValidator{
+			topic:  "user.created",
+			errors: []string{"data.total: must be number"},
+		}),
+	)
+	r := gin.New()
+	r.Use(apirouter.ErrorHandlerMiddleware())
+	r.POST("/publish", apirouter.NewPublishHandlers(logger, eventHandler).Ingest)
+
+	req := httptest.NewRequest(http.MethodPost, "/publish",
+		strings.NewReader(`{"tenant_id":"t1","topic":"user.created","data":{"total":"secret-12"}}`))
+	req.Header.Set("Content-Type", "application/json")
+	resp := httptest.NewRecorder()
+	r.ServeHTTP(resp, req)
+
+	require.Equal(t, http.StatusUnprocessableEntity, resp.Code)
+	assert.JSONEq(t, `{
+		"status": 422,
+		"message": "validation error",
+		"data": ["data.total: must be number"]
+	}`, resp.Body.String())
+	assert.NotContains(t, resp.Body.String(), "secret-12")
 }

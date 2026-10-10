@@ -55,6 +55,7 @@ func TestParseDefinitionsJSON(t *testing.T) {
 					},
 					"required": ["zeta"]
 				},
+				"validation": "enforce",
 				"mcp": {"enabled": true},
 				"deprecated": true,
 				"replaced_by": "order.created.v2"
@@ -68,6 +69,7 @@ func TestParseDefinitionsJSON(t *testing.T) {
 			Name:          "order.created",
 			Description:   "Fires when <an order> & more.",
 			PayloadSchema: json.RawMessage(`{"type":"object","properties":{"zeta":{"type":"integer","maximum":9007199254740993},"alpha":{"type":"number","multipleOf":0.10,"x-mcp-filter":false},"note":{"type":"string","pattern":"^é\\d+$"}},"required":["zeta"]}`),
+			Validation:    ValidationEnforce,
 			MCP:           MCPSettings{Enabled: true},
 			Deprecated:    true,
 			ReplacedBy:    "order.created.v2",
@@ -93,16 +95,16 @@ func TestParseDefinitionsJSON(t *testing.T) {
 		{name: "unknown field", input: `{"a": {"validaton": "warn"}}`, want: []string{`topic "a": /a/validaton: unknown field "validaton"`}},
 		{name: "unknown field hint", input: `{"a": {"payloadSchema": {}}}`, want: []string{`topic "a": /a/payloadSchema: unknown field "payloadSchema" (did you mean "payload_schema"?)`}},
 		{name: "unknown mcp field", input: `{"a": {"mcp": {"enable": true}}}`, want: []string{`topic "a": /a/mcp/enable: unknown field "enable"`}},
-		{name: "string type", input: `{"a": {"description": 1}}`, want: []string{`topic "a": /a/description: must be a string`}},
+		{name: "string type", input: `{"a": {"validation": 1}}`, want: []string{`topic "a": /a/validation: must be a string`}},
 		{name: "bool type", input: `{"a": {"deprecated": "yes"}}`, want: []string{`topic "a": /a/deprecated: must be a boolean`}},
 		{name: "mcp type", input: `{"a": {"mcp": true}}`, want: []string{`topic "a": /a/mcp: must be an object`}},
 		{name: "mcp enabled type", input: `{"a": {"mcp": {"enabled": "true"}}}`, want: []string{`topic "a": /a/mcp/enabled: must be a boolean`}},
 		{
 			name:  "every problem reported, sorted",
-			input: `{"b": {"nmae": "b"}, "a": {"description": [], "mcp": {"on": true}}}`,
+			input: `{"b": {"nmae": "b"}, "a": {"validation": [], "mcp": {"on": true}}}`,
 			want: []string{
-				`topic "a": /a/description: must be a string`,
 				`topic "a": /a/mcp/on: unknown field "on"`,
+				`topic "a": /a/validation: must be a string`,
 				`topic "b": /b/nmae: unknown field "nmae"`,
 			},
 		},
@@ -165,6 +167,7 @@ order.created:
         default: 2026-10-09
         examples: [2026-10-09T16:58:12Z, 2026-10-09 16:58:12.5 -5]
     required: [zeta]
+  validation: enforce
   mcp:
     enabled: true
 order.bare: {}
@@ -179,6 +182,7 @@ order.bare: {}
 					"placedOn": {"type": "string", "format": "date", "default": "2026-10-09",
 						"examples": ["2026-10-09T16:58:12Z", "2026-10-09 16:58:12.5 -5"]}
 				}, "required": ["zeta"]},
+				"validation": "enforce",
 				"mcp": {"enabled": true}
 			},
 			"order.bare": {}

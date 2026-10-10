@@ -102,6 +102,11 @@ type Event struct {
 	Time                  time.Time `json:"time"`
 	Metadata              Metadata  `json:"metadata"`
 	Data                  Data      `json:"data"`
+	// SchemaValid is the publish-time payload schema verdict: true or false
+	// when the topic validates its data (false only in warn mode, as enforce
+	// rejects the publish), nil when unchecked. Outpost sets it; it is never
+	// bound from publish input.
+	SchemaValid *bool `json:"schema_valid,omitempty"`
 
 	// Telemetry data, must exist to properly trace events between publish receiver & delivery handler
 	Telemetry *EventTelemetry `json:"telemetry,omitempty"`
