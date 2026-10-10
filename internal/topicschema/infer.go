@@ -56,8 +56,21 @@ var (
 // visitSchemaObjects calls fn for every schema object in node, a tree from
 // decodeJSON, with its dot path from root. Boolean schemas are skipped.
 func visitSchemaObjects(node any, path string, fn func(obj map[string]any, path string)) {
+	visitSchemas(node, path, func(schema any, path string) {
+		if obj, ok := schema.(map[string]any); ok {
+			fn(obj, path)
+		}
+	})
+}
+
+// visitSchemas calls fn for every schema in node, a tree from decodeJSON,
+// boolean schemas included, with its dot path from root.
+func visitSchemas(node any, path string, fn func(schema any, path string)) {
 	obj, ok := node.(map[string]any)
 	if !ok {
+		if _, ok := node.(bool); ok {
+			fn(node, path)
+		}
 		return
 	}
 	fn(obj, path)
@@ -68,20 +81,20 @@ func visitSchemaObjects(node any, path string, fn func(obj map[string]any, path 
 			// the metaschema rejects it, but walking it is harmless.
 			if list, ok := value.([]any); ok {
 				for i, v := range list {
-					visitSchemaObjects(v, indexPath(appendPathKey(path, key), i), fn)
+					visitSchemas(v, indexPath(appendPathKey(path, key), i), fn)
 				}
 				continue
 			}
-			visitSchemaObjects(value, appendPathKey(path, key), fn)
+			visitSchemas(value, appendPathKey(path, key), fn)
 		case subschemaListKeywords[key]:
 			list, _ := value.([]any)
 			for i, v := range list {
-				visitSchemaObjects(v, indexPath(appendPathKey(path, key), i), fn)
+				visitSchemas(v, indexPath(appendPathKey(path, key), i), fn)
 			}
 		case subschemaMapKeywords[key]:
 			m, _ := value.(map[string]any)
 			for name, v := range m {
-				visitSchemaObjects(v, appendPathKey(appendPathKey(path, key), name), fn)
+				visitSchemas(v, appendPathKey(appendPathKey(path, key), name), fn)
 			}
 		}
 	}
@@ -199,8 +212,9 @@ func isJSONObject(raw []byte) bool {
 //
 // Each argument accepts a value, a list of values (an $in filter), and for
 // ranged arguments an operator object. Strings are capped at 256 characters
-// and lists at 100 items, so stored filters stay small.
-func inferArguments(raw json.RawMessage, tree map[string]any) ([]Argument, json.RawMessage, error) {
+// and lists at 100 items, so stored filters stay small. Without withEnums,
+// the inputSchema leaves out the arguments' enums.
+func inferArguments(raw json.RawMessage, tree map[string]any, withEnums bool) ([]Argument, json.RawMessage, error) {
 	properties := orderedObject{}
 	var args []Argument
 	root, err := objectMembers(raw)
@@ -219,7 +233,7 @@ func inferArguments(raw json.RawMessage, tree map[string]any) ([]Argument, json.
 			if !ok {
 				continue
 			}
-			schema, err := argumentSchema(arg, propertyDescription(tree, prop), propertyMaxLength(tree, prop))
+			schema, err := argumentSchema(arg, propertyDescription(tree, prop), propertyMaxLength(tree, prop), withEnums)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -244,9 +258,10 @@ func inferArguments(raw json.RawMessage, tree map[string]any) ([]Argument, json.
 
 // argumentSchema returns the inputSchema entry for arg: anyOf a value, a list
 // of values and, for ranged arguments, an operator object. maxLength is the
-// property's own maxLength, or -1 when it has none.
-func argumentSchema(arg Argument, description string, maxLength int) (json.RawMessage, error) {
-	value, err := argumentValueSchema(arg, maxLength, true)
+// property's own maxLength, or -1 when it has none. withEnum keeps the enum
+// of values and list items.
+func argumentSchema(arg Argument, description string, maxLength int, withEnum bool) (json.RawMessage, error) {
+	value, err := argumentValueSchema(arg, maxLength, withEnum)
 	if err != nil {
 		return nil, err
 	}
@@ -388,7 +403,7 @@ func mcpDescription(t Topic) string {
 // buildMCPEvent precomputes the events/list entry of an MCP-enabled topic.
 // raw is the compact payload schema and tree its decodeJSON form.
 func buildMCPEvent(t Topic, raw json.RawMessage, tree map[string]any) (*MCPEvent, []Argument, error) {
-	args, input, err := inferArguments(raw, tree)
+	args, input, err := inferArguments(raw, tree, true)
 	if err != nil {
 		return nil, nil, err
 	}

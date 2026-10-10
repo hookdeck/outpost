@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -462,6 +463,55 @@ e: [*d, *d, *d, *d, *d, *d, *d, *d, *d]
 		require.NoError(t, err)
 		var v map[string]any
 		require.NoError(t, json.Unmarshal(got, &v))
+	})
+}
+
+func TestParseNodeBudget(t *testing.T) {
+	zeros := func(n int) string { return strings.TrimSuffix(strings.Repeat("0,", n), ",") }
+	// allocated returns the bytes f allocates.
+	allocated := func(f func()) uint64 {
+		var before, after runtime.MemStats
+		runtime.GC()
+		runtime.ReadMemStats(&before)
+		f()
+		runtime.ReadMemStats(&after)
+		return after.TotalAlloc - before.TotalAlloc
+	}
+
+	t.Run("JSON", func(t *testing.T) {
+		// The root and the array are values too.
+		_, err := ParseDefinitionsJSON([]byte(`{"a":[` + zeros(parseMaxNodes-2) + `]}`))
+		parseTestRequireProblems(t, err, `topic "a": /a: must be an object`)
+
+		_, err = ParseDefinitionsJSON([]byte(`{"a":[` + zeros(parseMaxNodes-1) + `]}`))
+		parseTestRequireProblems(t, err, "the JSON document has more than 1000000 values")
+		_, _, err = ParseOpenAPI([]byte(`{"openapi":"3.1.0","x":[` + zeros(parseMaxNodes) + `]}`))
+		parseTestRequireProblems(t, err, "/x/999997: the JSON document has more than 1000000 values")
+	})
+
+	t.Run("YAML is checked before it is decoded", func(t *testing.T) {
+		// A flow sequence of 500k items would take yaml.v3 about 100 MiB.
+		data := []byte("a: [" + zeros(parseMaxNodes/2) + "]\n")
+		var err error
+		alloc := allocated(func() { _, err = ParseDefinitionsYAML(data) })
+		parseTestRequireProblems(t, err, "the YAML document may have more than 1000000 nodes")
+		assert.Less(t, alloc, uint64(1<<20))
+
+		_, _, err = ParseOpenAPI(append([]byte("openapi: 3.1.0\nx:\n"), bytes.Repeat([]byte("- 0\n"), parseMaxNodes/2)...))
+		parseTestRequireProblems(t, err, "the YAML document may have more than 1000000 nodes")
+
+		// Real documents hold far fewer: under 0.1 per byte.
+		yamlDoc := parseTestReadFile(t, "openapi", "components.yaml")
+		assert.Less(t, yamlPotentialNodes(yamlDoc), len(yamlDoc)/10)
+	})
+
+	t.Run("without aliases the converter doesn't blame them", func(t *testing.T) {
+		item := &yaml.Node{Kind: yaml.ScalarNode, Value: "0"}
+		seq := &yaml.Node{Kind: yaml.SequenceNode, Content: slices.Repeat([]*yaml.Node{item}, parseMaxNodes)}
+		_, err := YAMLNodeToJSON(seq)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "the document has more than 1000000 nodes")
+		assert.NotContains(t, err.Error(), "alias")
 	})
 }
 
@@ -946,8 +996,135 @@ noBody:
 		require.NoError(t, err)
 		assert.Len(t, defs, 1)
 		assert.Contains(t, defs, "w0")
-		assert.Len(t, warnings, 399)
+		// The first 100 of the 399 warnings.
+		assert.Len(t, warnings, 101)
+		assert.Equal(t, "... and 299 more", warnings[100])
 	})
+}
+
+func TestParseOpenAPIBoundsProblems(t *testing.T) {
+	long := strings.Repeat("x", 64<<10)
+	clipped := strings.Repeat("x", maxQuotedBytes-len("ext/")) + "..."
+	sharedDoc := func(ref string) []byte {
+		var hooks strings.Builder
+		for i := range 4000 {
+			fmt.Fprintf(&hooks, "w%d: {$ref: '#/components/pathItems/P'}\n", i)
+		}
+		return parseTestOpenAPI(hooks.String(), "pathItems:\n  P: {$ref: '"+ref+"'}\n")
+	}
+
+	t.Run("a problem in an object many webhooks share is reported once", func(t *testing.T) {
+		_, _, err := ParseOpenAPI(sharedDoc("ext/" + long))
+		var cfgErr *ConfigError
+		require.ErrorAs(t, err, &cfgErr)
+		assert.Equal(t, []string{
+			`/components/pathItems/P/$ref: external $ref "ext/` + clipped + `" is not supported; move the referenced object into the document (referenced by 4000 webhooks)`,
+		}, cfgErr.Problems)
+
+		defs, warnings, err := ParseOpenAPI(sharedDoc("ext/"+long), OpenAPITopics([]string{"a"}))
+		require.NoError(t, err)
+		assert.Empty(t, defs)
+		assert.Equal(t, []string{
+			`imported topics such as "w0" are not in TOPICS and were skipped; they would fail to import: /components/pathItems/P/$ref: external $ref "ext/` + clipped + `" is not supported; move the referenced object into the document (referenced by 4000 webhooks)`,
+		}, warnings)
+
+		// A local reference that doesn't resolve may hide the topic names,
+		// so it fails the import whatever the topics.
+		_, _, err = ParseOpenAPI(sharedDoc("#/"+long[:4000]), OpenAPITopics([]string{"a"}))
+		parseTestRequireProblems(t, err, `/components/pathItems/P/$ref: $ref "#/xxx`)
+		assert.Less(t, len(err.Error()), 1024)
+		assert.Contains(t, err.Error(), `..." does not resolve (referenced by 4000 webhooks)`)
+	})
+
+	t.Run("at most 100 problems and warnings", func(t *testing.T) {
+		var hooks strings.Builder
+		for i := range 150 {
+			fmt.Fprintf(&hooks, "w%03d: {post: {summary: [s]}}\n", i)
+		}
+		_, _, err := ParseOpenAPI(parseTestOpenAPI(hooks.String(), ""))
+		var cfgErr *ConfigError
+		require.ErrorAs(t, err, &cfgErr)
+		require.Len(t, cfgErr.Problems, 101)
+		assert.Equal(t, `topic "w000": /webhooks/w000/post/summary: must be a string`, cfgErr.Problems[0])
+		assert.Equal(t, `topic "w099": /webhooks/w099/post/summary: must be a string`, cfgErr.Problems[99])
+		assert.Equal(t, "... and 50 more", cfgErr.Problems[100])
+
+		_, warnings, err := ParseOpenAPI(parseTestOpenAPI(hooks.String(), ""), OpenAPITopics(nil))
+		require.NoError(t, err)
+		require.Len(t, warnings, 101)
+		assert.Equal(t, "... and 50 more", warnings[100])
+	})
+
+	t.Run("quoted values are clipped", func(t *testing.T) {
+		key := strings.Repeat("k", 1000)
+		_, _, err := ParseOpenAPI(parseTestOpenAPI(key+": {x-outpost-topic: '"+long+"', post: {summary: [s]}}\n", ""))
+		parseTestRequireProblems(t, err,
+			`topic "`+strings.Repeat("x", maxQuotedBytes)+`...": /webhooks/`+strings.Repeat("k", maxQuotedBytes)+`.../post/summary: must be a string`)
+	})
+}
+
+func TestParseOpenAPITopicsUnknownName(t *testing.T) {
+	// A path item or operation that can't be read may hold the
+	// x-outpost-topic naming the webhook's topic, so a problem reading it
+	// fails the import even when the name known so far isn't listed.
+	doc := parseTestOpenAPI(`
+orderCreated:
+  $ref: '#/components/pathItems/OrderCreatd'
+orderUpdated:
+  post:
+    $ref: '#/components/ops/OrderUpdatd'
+orderPaid:
+  $ref: '#/components/pathItems/Loop'
+orderShipped:
+  x-outpost-topic: 5
+  post: {requestBody: {content: {application/json: {schema: {}}}}}
+orderRefunded:
+  post:
+    x-outpost-topic: ''
+    requestBody: {content: {application/json: {schema: {}}}}
+`, `
+pathItems:
+  OrderCreated: {x-outpost-topic: order.created, post: {requestBody: {content: {application/json: {schema: {}}}}}}
+  Loop: {$ref: '#/components/pathItems/Loop'}
+ops:
+  OrderUpdated: {x-outpost-topic: order.updated, requestBody: {content: {application/json: {schema: {}}}}}
+`)
+	defs, warnings, err := ParseOpenAPI(doc, OpenAPITopics([]string{"order.created", "order.updated"}))
+	assert.Nil(t, defs)
+	assert.Nil(t, warnings)
+	parseTestRequireProblems(t, err,
+		`topic "orderCreated": /webhooks/orderCreated/$ref: $ref "#/components/pathItems/OrderCreatd" does not resolve`,
+		`topic "orderPaid": /components/pathItems/Loop/$ref: circular $ref "#/components/pathItems/Loop"`,
+		`topic "orderRefunded": /webhooks/orderRefunded/post/x-outpost-topic: must be a non-empty string`,
+		`topic "orderShipped": /webhooks/orderShipped/x-outpost-topic: must be a non-empty string`,
+		`topic "orderUpdated": /webhooks/orderUpdated/post/$ref: $ref "#/components/ops/OrderUpdatd" does not resolve`,
+	)
+
+	// Once the name can't change, the webhook is skipped: x-outpost-topic
+	// next to the reference names the topic, and the target of a reference
+	// to another file can't be read anyway.
+	doc = parseTestOpenAPI(`
+k1:
+  $ref: '#/components/pathItems/Nope'
+  x-outpost-topic: refund.created
+k2:
+  post:
+    $ref: '#/components/ops/Nope'
+    x-outpost-topic: refund.updated
+k3:
+  $ref: './webhooks/k3.yaml'
+k4:
+  post: {requestBody: {$ref: '#/components/requestBodies/Nope'}}
+`, "")
+	defs, warnings, err = ParseOpenAPI(doc, OpenAPITopics([]string{"order.created"}))
+	require.NoError(t, err)
+	assert.Empty(t, defs)
+	assert.Equal(t, []string{
+		`imported topic "k3" is not in TOPICS and was skipped; it would fail to import: /webhooks/k3/$ref: external $ref "./webhooks/k3.yaml" is not supported; move the referenced object into the document`,
+		`imported topic "k4" is not in TOPICS and was skipped; it would fail to import: /webhooks/k4/post/requestBody/$ref: $ref "#/components/requestBodies/Nope" does not resolve`,
+		`imported topic "refund.created" is not in TOPICS and was skipped; it would fail to import: /webhooks/k1/$ref: $ref "#/components/pathItems/Nope" does not resolve`,
+		`imported topic "refund.updated" is not in TOPICS and was skipped; it would fail to import: /webhooks/k2/post/$ref: $ref "#/components/ops/Nope" does not resolve`,
+	}, warnings)
 }
 
 func TestParseOpenAPIErrors(t *testing.T) {
@@ -999,6 +1176,21 @@ func TestParseOpenAPIErrors(t *testing.T) {
 			name: "nested $id",
 			doc:  parseTestOpenAPI(parseTestJSONBody("a", `{properties: {b: {$ref: '#/components/schemas/B'}}}`), "schemas:\n  B: {$id: 'https://example.com/b', type: string}\n"),
 			want: []string{`topic "a": /components/schemas/B/$id: $id is only supported at the payload schema root`},
+		},
+		{
+			name: "long path item ref",
+			doc:  parseTestOpenAPI("a:\n  $ref: '#/components/pathItems/"+strings.Repeat("x", 5000)+"'\n", ""),
+			want: []string{`topic "a": /webhooks/a/$ref: $ref is longer than 4096 bytes`},
+		},
+		{
+			name: "long schema refs",
+			doc: parseTestOpenAPI(
+				parseTestJSONBody("a", `{$ref: '#/components/schemas/`+strings.Repeat("x", 5000)+`'}`)+
+					parseTestJSONBody("b", `{properties: {c: {$ref: '#/components/schemas/`+strings.Repeat("x", 5000)+`'}}}`), ""),
+			want: []string{
+				`topic "a": /webhooks/a/post/requestBody/content/application~1json/schema/$ref: $ref is longer than 4096 bytes`,
+				`topic "b": /webhooks/b/post/requestBody/content/application~1json/schema/properties/c/$ref: $ref is longer than 4096 bytes`,
+			},
 		},
 		{
 			name: "missing request body",
@@ -1170,6 +1362,47 @@ func parseTestManyRefsDoc(refs, members int) []byte {
 	return []byte(sb.String())
 }
 
+// parseTestSharedContentDoc has hooks webhooks referencing one path item
+// whose request body lists media other media types before application/json.
+func parseTestSharedContentDoc(hooks, media int) []byte {
+	var sb strings.Builder
+	sb.WriteString(`{"openapi":"3.1.0","webhooks":{`)
+	for i := range hooks {
+		if i > 0 {
+			sb.WriteByte(',')
+		}
+		fmt.Fprintf(&sb, `"w%d":{"$ref":"#/components/pathItems/p"}`, i)
+	}
+	sb.WriteString(`},"components":{"pathItems":{"p":{"post":{"requestBody":{"content":{`)
+	for i := range media {
+		fmt.Fprintf(&sb, `"t/x%d":{},`, i)
+	}
+	sb.WriteString(`"application/json":{"schema":{"type":"object"}}}}}}}}}`)
+	return []byte(sb.String())
+}
+
+// parseTestLongRefsDoc has hooks webhooks referencing a path item that starts
+// a chain of refs references of about refBytes each.
+func parseTestLongRefsDoc(hooks, refs, refBytes int) []byte {
+	key := func(i int) string {
+		return fmt.Sprintf("p%d-%s", i, strings.Repeat("x", refBytes-len("#/components/pathItems/p00-")))
+	}
+	var sb strings.Builder
+	sb.WriteString(`{"openapi":"3.1.0","webhooks":{`)
+	for i := range hooks {
+		if i > 0 {
+			sb.WriteByte(',')
+		}
+		fmt.Fprintf(&sb, `"w%d":{"$ref":"#/components/pathItems/start"}`, i)
+	}
+	fmt.Fprintf(&sb, `},"components":{"pathItems":{"start":{"$ref":"#/components/pathItems/%s"},`, key(0))
+	for i := range refs - 2 {
+		fmt.Fprintf(&sb, `"%s":{"$ref":"#/components/pathItems/%s"},`, key(i), key(i+1))
+	}
+	fmt.Fprintf(&sb, `"%s":{"post":{"requestBody":{"content":{"application/json":{"schema":{"type":"object"}}}}}}}}}`, key(refs-2))
+	return []byte(sb.String())
+}
+
 // TestParseOpenAPILargeObjects checks that resolving references stays linear
 // in the size of the document, so a document under the input cap can't stall
 // startup.
@@ -1181,6 +1414,8 @@ func TestParseOpenAPILargeObjects(t *testing.T) {
 	}{
 		{name: "300k members next to a $ref", doc: parseTestOverlayDoc(300_000), want: 1},
 		{name: "20k references into 100k-member components", doc: parseTestManyRefsDoc(20_000, 100_000), want: 20_000},
+		{name: "20k webhooks sharing 20k media types", doc: parseTestSharedContentDoc(20_000, 20_000), want: 20_000},
+		{name: "20k webhooks following 30 4 KiB references", doc: parseTestLongRefsDoc(20_000, 30, 4<<10), want: 20_000},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1194,6 +1429,18 @@ func TestParseOpenAPILargeObjects(t *testing.T) {
 			assert.Less(t, elapsed, time.Second)
 		})
 	}
+}
+
+func TestParseOpenAPIScanBudget(t *testing.T) {
+	// Ten webhooks share a 101-member content object, read once, and each
+	// has its own 24-byte $ref: 341 in all.
+	doc := parseTestSharedContentDoc(10, 100)
+	defs, _, err := ParseOpenAPI(doc, openapiScanLimit(341))
+	require.NoError(t, err)
+	assert.Len(t, defs, 10)
+
+	_, _, err = ParseOpenAPI(doc, openapiScanLimit(340))
+	parseTestRequireProblems(t, err, "resolving the webhooks of the OpenAPI document reads more than 340 media types and $ref bytes")
 }
 
 func BenchmarkParseOpenAPILargeObjects(b *testing.B) {

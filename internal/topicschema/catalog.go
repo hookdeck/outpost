@@ -24,8 +24,11 @@ const (
 	// MCP-enabled payload schema to MCP clients.
 	maxMCPPayloadSchemaBytes = 64 << 10
 	// defaultMaxValidationBytes is the WithMaxValidationBytes default.
-	// Validating takes up to a few hundred times the data size in memory.
+	// Validating takes up to a few hundred times the data size in memory,
+	// more with anyOf and oneOf (see ValidationFactor).
 	defaultMaxValidationBytes = 256 << 10
+	// maxValidationFactor caps ValidationFactor.
+	maxValidationFactor = 32
 	// maxArgumentsBytes caps subscription arguments before they are parsed.
 	// Subscriptions filter on far less, and it keeps parsing and the checks
 	// run before validation cheap.
@@ -104,18 +107,23 @@ type entry struct {
 	// validator is the compiled payload schema, set only for topics with
 	// validation warn or enforce.
 	validator *jsonschema.Schema
+	// factor is ValidationFactor, set with validator.
+	factor int
 	// dataNames holds the property names the payload schema declares, which
 	// error paths may show.
 	dataNames map[string]struct{}
-	// The rest is set only for MCP-enabled topics.
+	// The rest is set only for MCP-enabled topics. input is the inputSchema
+	// without enums, which enums holds instead.
 	args       []Argument
 	event      *MCPEvent
 	input      *jsonschema.Schema
 	inputNames map[string]struct{}
+	enums      argumentEnums
 }
 
 // NewCatalog validates defs against topics, the TOPICS list, and compiles
-// their schemas. Every problem found is reported at once in a *ConfigError.
+// their schemas. The problems found are reported at once in a *ConfigError,
+// up to 100 of them, as are warnings.
 func NewCatalog(topics []string, defs Definitions, opts ...Option) (*Catalog, error) {
 	var o catalogOptions
 	for _, opt := range opts {
@@ -125,7 +133,7 @@ func NewCatalog(topics []string, defs Definitions, opts ...Option) (*Catalog, er
 	if o.maxValidationBytes > 0 {
 		c.maxValidationBytes = o.maxValidationBytes
 	}
-	c.warnings = slices.Sorted(slices.Values(o.warnings))
+	c.warnings = limitMessages(o.warnings)
 	if len(defs) == 0 && len(o.imported) == 0 {
 		return c, nil
 	}
@@ -139,7 +147,7 @@ func NewCatalog(topics []string, defs Definitions, opts ...Option) (*Catalog, er
 	merged := make(Definitions, len(defs)+len(o.imported))
 	for name, def := range o.imported {
 		if _, ok := c.byName[name]; !ok {
-			b.c.warnings = append(b.c.warnings, fmt.Sprintf("imported topic %q is not in TOPICS and was skipped%s", name, c.didYouMean(name)))
+			b.c.warnings = append(b.c.warnings, fmt.Sprintf("imported topic %q is not in TOPICS and was skipped%s", clip(name), c.didYouMean(name)))
 			continue
 		}
 		merged[name] = def
@@ -150,8 +158,7 @@ func NewCatalog(topics []string, defs Definitions, opts ...Option) (*Catalog, er
 	}
 	b.checkReplacements()
 	if len(b.problems) > 0 {
-		slices.Sort(b.problems)
-		return nil, &ConfigError{Problems: slices.Compact(b.problems)}
+		return nil, &ConfigError{Problems: limitMessages(b.problems)}
 	}
 
 	for i, t := range c.topics {
@@ -162,7 +169,7 @@ func NewCatalog(topics []string, defs Definitions, opts ...Option) (*Catalog, er
 			c.mcpEvents = append(c.mcpEvents, e.event)
 		}
 	}
-	slices.Sort(c.warnings)
+	c.warnings = limitMessages(c.warnings)
 	return c, nil
 }
 
@@ -186,7 +193,7 @@ func (c *Catalog) didYouMean(name string) string {
 	trimmed := strings.TrimSpace(name)
 	for _, t := range c.topics {
 		if t.Name != name && strings.TrimSpace(t.Name) == trimmed {
-			return fmt.Sprintf(" (did you mean %q?)", t.Name)
+			return fmt.Sprintf(" (did you mean %q?)", clip(t.Name))
 		}
 	}
 	return ""
@@ -199,7 +206,7 @@ type catalogBuilder struct {
 }
 
 func (b *catalogBuilder) problem(topic, format string, args ...any) {
-	b.problems = append(b.problems, fmt.Sprintf("topic %q: ", topic)+fmt.Sprintf(format, args...))
+	b.problems = append(b.problems, fmt.Sprintf("topic %q: ", clip(topic))+fmt.Sprintf(format, args...))
 }
 
 func (b *catalogBuilder) addDefinition(name string, def Definition) {
@@ -209,7 +216,7 @@ func (b *catalogBuilder) addDefinition(name string, def Definition) {
 	}
 	i, ok := b.c.byName[name]
 	if !ok {
-		b.problems = append(b.problems, fmt.Sprintf("topic %q is not in TOPICS%s", name, b.c.didYouMean(name)))
+		b.problems = append(b.problems, fmt.Sprintf("topic %q is not in TOPICS%s", clip(name), b.c.didYouMean(name)))
 		return
 	}
 	t := Topic{
@@ -222,14 +229,14 @@ func (b *catalogBuilder) addDefinition(name string, def Definition) {
 	}
 	e := entry{defined: true}
 	if def.Name != "" && def.Name != name {
-		b.problem(name, "name %q must match the topic key", def.Name)
+		b.problem(name, "name %q must match the topic key", clip(def.Name))
 	}
 	switch def.Validation {
 	case "", ValidationOff:
 	case ValidationWarn, ValidationEnforce:
 		t.Validation = def.Validation
 	default:
-		b.problem(name, `validation %q must be "off", "warn" or "enforce"`, def.Validation)
+		b.problem(name, `validation %q must be "off", "warn" or "enforce"`, clip(string(def.Validation)))
 	}
 	if def.ReplacedBy != "" && !def.Deprecated {
 		b.problem(name, "replaced_by requires deprecated: true")
@@ -274,7 +281,7 @@ func (b *catalogBuilder) addSchema(t *Topic, e *entry, raw json.RawMessage) {
 		return
 	}
 	if path, key, ok := duplicateKey(compact, "payload_schema", nil); ok {
-		b.problem(name, "%s has a duplicate key %s", path, quoteJSONString(key))
+		b.problem(name, "%s has a duplicate key %s", path, quoteJSONString(clip(key)))
 		return
 	}
 	tree, err := decodeJSON(compact)
@@ -305,7 +312,7 @@ func (b *catalogBuilder) addSchema(t *Topic, e *entry, raw json.RawMessage) {
 		if t.Validation != ValidationOff || t.MCP.Enabled {
 			b.problem(name, "payload_schema %s", msg)
 		} else {
-			b.c.warnings = append(b.c.warnings, fmt.Sprintf("topic %q: payload_schema %s; validation is off, so the schema is kept but can't be used to validate", name, msg))
+			b.c.warnings = append(b.c.warnings, fmt.Sprintf("topic %q: payload_schema %s; validation is off, so the schema is kept but can't be used to validate", clip(name), msg))
 		}
 	}
 	if err != nil || len(unsupported) > 0 {
@@ -313,6 +320,7 @@ func (b *catalogBuilder) addSchema(t *Topic, e *entry, raw json.RawMessage) {
 	}
 	if t.Validation != ValidationOff {
 		e.validator = schema
+		e.factor = validationFactor(root)
 		e.dataNames = propertyNameSet(root)
 	}
 	if !t.MCP.Enabled || !isObject {
@@ -324,7 +332,14 @@ func (b *catalogBuilder) addSchema(t *Topic, e *entry, raw json.RawMessage) {
 		b.problem(name, "can't infer the MCP inputSchema: %v", err)
 		return
 	}
-	inputTree, err := decodeJSON(ev.InputSchema)
+	// The validator compares a value with every enum value, numbers as
+	// exact rationals, so it gets the inputSchema without enums, and
+	// ValidateArguments checks them against sets.
+	_, checked, err := inferArguments(compact, root, false)
+	var inputTree any
+	if err == nil {
+		inputTree, err = decodeJSON(checked)
+	}
 	if err == nil {
 		var bad []string
 		e.input, bad, err = compileSchema(inputTree)
@@ -336,21 +351,25 @@ func (b *catalogBuilder) addSchema(t *Topic, e *entry, raw json.RawMessage) {
 		b.problem(name, "the inferred MCP inputSchema doesn't compile: %s", sanitizeCompileError(err))
 		return
 	}
-	e.event, e.args, e.inputNames = ev, args, propertyNameSet(inputTree)
+	e.event, e.args, e.inputNames, e.enums = ev, args, propertyNameSet(inputTree), newArgumentEnums(args)
 }
 
 // checkSchemaObjects checks what the metaschema doesn't: $schema is the
-// 2020-12 dialect, references are local JSON pointers, $id and anchors are
-// only declared at the root, and x-mcp-filter is a boolean.
+// 2020-12 dialect, references are local JSON pointers to schemas, $id and
+// anchors are only declared at the root, and x-mcp-filter is a boolean.
 //
 // Inference and the breaking-change diff resolve references with
 // resolveLocalRef, which follows JSON pointers from the root. The validator
 // also resolves anchors, and resolves the references below a nested $id
 // against it, so a schema using either would be validated against one
-// thing and inferred and diffed against another.
+// thing and inferred and diffed against another. It also compiles whatever
+// a reference points to as a schema, so a reference into an extension or a
+// default would bring in an $id, anchors and references never checked here.
 func (b *catalogBuilder) checkSchemaObjects(name string, root map[string]any) bool {
 	const rootPath = "payload_schema"
 	before := len(b.problems)
+	schemas := map[string]bool{}
+	visitSchemas(root, rootPath, func(_ any, path string) { schemas[path] = true })
 	visitSchemaObjects(root, rootPath, func(obj map[string]any, path string) {
 		if v, ok := obj["$schema"]; ok && v != draft2020 {
 			b.problem(name, "%s must be %q", appendPathKey(path, "$schema"), draft2020)
@@ -361,10 +380,16 @@ func (b *catalogBuilder) checkSchemaObjects(name string, root map[string]any) bo
 			case !ok:
 			case !strings.HasPrefix(ref, "#"):
 				b.problem(name, "%s %s is not a local reference; only references starting with # are allowed",
-					appendPathKey(path, kw), quoteJSONString(ref))
+					appendPathKey(path, kw), quoteJSONString(clip(ref)))
 			case !pointerRef(ref):
 				b.problem(name, `%s %s must be a JSON pointer such as "#/$defs/name"; anchors are not supported`,
-					appendPathKey(path, kw), quoteJSONString(ref))
+					appendPathKey(path, kw), quoteJSONString(clip(ref)))
+			default:
+				// One that doesn't resolve fails to compile.
+				if at, ok := localRefPath(root, ref, rootPath); ok && !schemas[at] {
+					b.problem(name, `%s %s must point to a schema, such as "#/$defs/name", not into another value such as an extension or a default`,
+						appendPathKey(path, kw), quoteJSONString(clip(ref)))
+				}
 			}
 		}
 		if path != rootPath {
@@ -400,9 +425,9 @@ func (b *catalogBuilder) checkReplacements() {
 		case t.ReplacedBy == t.Name:
 			b.problem(t.Name, "replaced_by can't name the topic itself")
 		case !ok:
-			b.problem(t.Name, "replaced_by %q is not in TOPICS%s", t.ReplacedBy, b.c.didYouMean(t.ReplacedBy))
+			b.problem(t.Name, "replaced_by %q is not in TOPICS%s", clip(t.ReplacedBy), b.c.didYouMean(t.ReplacedBy))
 		case t.Deprecated && t.MCP.Enabled && !b.c.topics[j].MCP.Enabled:
-			b.problem(t.Name, "replaced_by %q must be MCP-enabled because this topic is", t.ReplacedBy)
+			b.problem(t.Name, "replaced_by %q must be MCP-enabled because this topic is", clip(t.ReplacedBy))
 		}
 	}
 }
@@ -451,7 +476,7 @@ func compileSchema(doc any) (*jsonschema.Schema, []string, error) {
 	engine := func(pattern string) (jsonschema.Regexp, error) {
 		re, err := regexp.Compile(pattern)
 		if err != nil {
-			msg := fmt.Sprintf("pattern %s is not supported by Go's RE2 syntax: %v", quoteJSONString(pattern), err)
+			msg := fmt.Sprintf("pattern %s is not supported by Go's RE2 syntax: %v", quoteJSONString(clip(pattern)), clip(err.Error()))
 			if !slices.Contains(unsupported, msg) {
 				unsupported = append(unsupported, msg)
 			}
@@ -712,7 +737,9 @@ func (c *Catalog) ValidateArguments(topic string, args []byte) []string {
 		args = []byte("{}")
 	}
 	e := &c.entries[i]
-	return validateJSON(e.input, args, "arguments", e.inputNames, argumentChecks)
+	checks := argumentChecks
+	checks.accepted = e.enums.errors
+	return validateJSON(e.input, args, "arguments", e.inputNames, checks)
 }
 
 // valueChecks are checked on a parsed value before it is validated. A value
@@ -724,6 +751,9 @@ type valueChecks struct {
 	duplicateKeys bool
 	// reject returns the message for a value too costly to validate, or "".
 	reject func(any) string
+	// accepted, when set, returns the errors of a value the schema accepts,
+	// rendered from root, or nil.
+	accepted func(v any, root string) []string
 }
 
 // validateJSON parses raw and validates it against schema. It returns the
@@ -748,6 +778,9 @@ func validateJSON(schema *jsonschema.Schema, raw []byte, root string, names map[
 	}
 	err = schema.Validate(v)
 	if err == nil {
+		if checks.accepted != nil {
+			return checks.accepted(v, root)
+		}
 		return nil
 	}
 	var verr *jsonschema.ValidationError
@@ -870,6 +903,100 @@ func rejectArgumentValue(v any) string {
 	return rejectLargeNumber(v)
 }
 
+// argumentEnums maps each argument with an enum to the enumKey of its
+// values. Checking values against these sets costs the same whatever the
+// enum's size.
+type argumentEnums map[string]map[string]struct{}
+
+func newArgumentEnums(args []Argument) argumentEnums {
+	var enums argumentEnums
+	for _, arg := range args {
+		if arg.Enum == nil {
+			continue
+		}
+		set := make(map[string]struct{}, len(arg.Enum))
+		for _, raw := range arg.Enum {
+			v, err := decodeJSON(raw)
+			if err != nil {
+				continue
+			}
+			// Values without a key, such as objects, can't equal a
+			// scalar argument value.
+			if key := enumKey(v); key != "" {
+				set[key] = struct{}{}
+			}
+		}
+		if enums == nil {
+			enums = argumentEnums{}
+		}
+		enums[arg.Name] = set
+	}
+	return enums
+}
+
+// errors checks the arguments in v, which the inputSchema accepts, against
+// their enums: a value, or each item of a list. Range operator operands
+// compare rather than match, and have none. Errors are rendered from root
+// like validation errors.
+func (a argumentEnums) errors(v any, root string) []string {
+	args, _ := v.(map[string]any)
+	var out []string
+	more := 0
+	check := func(set map[string]struct{}, path string, value any) {
+		if _, ok := set[enumKey(value)]; ok {
+			return
+		}
+		if len(out) == maxReportedErrors {
+			more++
+			return
+		}
+		out = append(out, path+": "+enumMessage)
+	}
+	for _, name := range slices.Sorted(maps.Keys(args)) {
+		set, ok := a[name]
+		if !ok {
+			continue
+		}
+		path := appendPathKey(root, name)
+		switch x := args[name].(type) {
+		case []any:
+			for i, item := range x {
+				check(set, indexPath(path, i), item)
+			}
+		case map[string]any:
+			// Range operators.
+		default:
+			check(set, path, x)
+		}
+	}
+	slices.Sort(out)
+	if more > 0 {
+		out = append(out, moreMessage(more))
+	}
+	return out
+}
+
+// enumKey returns a form of a scalar decoded JSON value that equals
+// another's exactly when JSON Schema considers the values equal, so 1, 1.0
+// and 10e-1 share one. It is "" for other values, and for numbers too large
+// for any accepted argument value to equal.
+func enumKey(v any) string {
+	switch x := v.(type) {
+	case string:
+		return "s" + x
+	case bool:
+		if x {
+			return "true"
+		}
+		return "false"
+	case json.Number:
+		if n, ok := canonicalNumber(string(x)); ok {
+			return "n" + n
+		}
+	}
+	return ""
+}
+
 func numberTooLarge(n json.Number) bool {
 	s := string(n)
 	if len(s) > maxNumberScale {
@@ -945,4 +1072,35 @@ func (c *Catalog) MaxValidationBytes() int {
 		return 0
 	}
 	return c.maxValidationBytes
+}
+
+// ValidationFactor estimates the memory validating the topic's data takes,
+// relative to a schema without anyOf or oneOf: 1 plus the branch count of the
+// largest anyOf or oneOf in the payload schema, at most 32. The validator
+// keeps the errors of every failing branch, so memory grows with it. It is 0
+// when ValidateData never parses the topic's data: for "", "*", unknown
+// topics, and topics without a schema or with validation off.
+func (c *Catalog) ValidationFactor(topic string) int {
+	if c == nil {
+		return 0
+	}
+	i, ok := c.byName[topic]
+	if !ok {
+		return 0
+	}
+	return c.entries[i].factor
+}
+
+// validationFactor computes ValidationFactor for a payload schema, a tree
+// from decodeJSON. Every schema object counts, reached through a $ref or not.
+func validationFactor(root any) int {
+	branches := 0
+	visitSchemaObjects(root, "", func(obj map[string]any, _ string) {
+		for _, kw := range []string{"anyOf", "oneOf"} {
+			if list, ok := obj[kw].([]any); ok {
+				branches = max(branches, len(list))
+			}
+		}
+	})
+	return min(1+branches, maxValidationFactor)
 }

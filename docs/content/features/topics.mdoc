@@ -182,7 +182,7 @@ TOPICS_SCHEMAS_FILE=/config/outpost/topics-schemas.yaml
 
 YAML is read with YAML 1.2 core types, and dates and timestamps stay strings, so `default: 2026-01-01` keeps its value. Docker Compose interpolates `$` in environment values: write `$$ref` and `$$defs` in a Compose file, or use `TOPICS_SCHEMAS_FILE`.
 
-Only the API service loads schemas, once at startup, including when a single process runs every service. The delivery and log services, `outpost migrate` and `outpost config list` don't load them, so in a split deployment only the API service needs the file or URL, and a problem in the schemas, including in a `topics_schemas` mapping in the YAML config file, only stops the API service. Restart the API service to apply a change. If the configuration is invalid, the API service fails to start and lists every problem at once.
+Only the API service loads schemas, once at startup, including when a single process runs every service. The delivery and log services, `outpost migrate` and `outpost config list` don't load them, so in a split deployment only the API service needs the file or URL, and a problem in the schemas, including in a `topics_schemas` mapping in the YAML config file, only stops the API service. Restart the API service to apply a change. If the configuration is invalid, the API service fails to start and lists the problems at once, up to 100. Startup warnings are listed the same way.
 
 {% /tab %}
 {% /tabs %}
@@ -202,10 +202,11 @@ If an OpenAPI 3.1 document already describes your webhooks in its top-level `web
 | `deprecated: true` on the operation | `deprecated` |
 | `x-mcp-filter` on properties | Kept in `payload_schema` |
 
-- References into `#/components` are followed at the path item, operation, request body and media type levels. Schemas referenced from `#/components/schemas` are copied into the payload schema's `$defs`, so each payload schema stands alone. A reference to another file or URL fails startup for a topic in `TOPICS`.
+- References into `#/components` are followed at the path item, operation, request body and media type levels. Schemas referenced from `#/components/schemas` are copied into the payload schema's `$defs`, so each payload schema stands alone. A reference to another file or URL fails startup for a topic in `TOPICS`. When the path item or operation itself is in another file, the topic is the `webhooks` key, or the `x-outpost-topic` next to the reference.
 - Imported topics have `validation: off`. To validate one, or to set its `replaced_by`, define it in `TOPICS_SCHEMAS` or `TOPICS_SCHEMAS_FILE`, which replaces the imported entry as a whole.
-- Webhooks whose topic isn't in `TOPICS` are skipped with a startup warning, even when Outpost couldn't import them, so the document can describe more webhooks than you send through Outpost. Keys in `TOPICS_SCHEMAS` and `TOPICS_SCHEMAS_FILE` must still be in `TOPICS`.
-- The document is JSON or YAML, up to 4 MiB. OpenAPI 3.0 isn't supported.
+- Webhooks whose topic isn't in `TOPICS` are skipped with a startup warning, even when Outpost couldn't import them, so the document can describe more webhooks than you send through Outpost. A problem that hides the topic name still fails startup: an invalid `x-outpost-topic`, or a reference to a path item or operation in the document that doesn't resolve, unless `x-outpost-topic` next to the reference names the topic. Keys in `TOPICS_SCHEMAS` and `TOPICS_SCHEMAS_FILE` must still be in `TOPICS`.
+- The document is JSON or YAML, up to 4 MiB and 1,000,000 values, with each `$ref` up to 4 KiB. OpenAPI 3.0 isn't supported.
+- A problem in an object that several webhooks reference is reported once, with the number of webhooks that reference it.
 
 `TOPICS_SCHEMAS_OPENAPI` can be an `http` or `https` URL. It's fetched on every API service startup, with a 10 second timeout and up to 3 redirects, never from HTTPS to HTTP. A change to the remote document then changes your topics on the next restart without a deploy, API instances that restart at different times can run different schemas, and an unreachable host stops the API service from starting.
 
@@ -216,7 +217,7 @@ We recommend vendoring the document: commit a copy next to your configuration an
 `payload_schema` is a [JSON Schema 2020-12](https://json-schema.org/draft/2020-12) object, with these rules:
 
 - `$schema` must be absent or `https://json-schema.org/draft/2020-12/schema`.
-- `$ref` and `$dynamicRef` must be JSON Pointers into the schema, such as `#/$defs/address`. Anchor references, such as `#address`, aren't supported, and Outpost never fetches remote schemas.
+- `$ref` and `$dynamicRef` must be JSON Pointers to a schema within `payload_schema`, such as `#/$defs/address`, and not into another value, such as an `x-` extension or a `default`. Anchor references, such as `#address`, aren't supported, and Outpost never fetches remote schemas.
 - `$id` is only allowed at the root of `payload_schema`, since a nested `$id` changes how references below it resolve.
 - `format` is checked for `date` and `date-time` only. Other formats, such as `email`, `uri` or `uuid`, are annotations and never fail validation.
 - Regular expressions in `pattern` and `patternProperties` use [RE2 syntax](https://github.com/google/re2/wiki/Syntax), which has no lookarounds or backreferences. A pattern RE2 can't compile fails startup when the topic's `validation` is `warn` or `enforce` or its `mcp.enabled` is set. For other topics it's a startup warning: the schema is still returned by `GET /topics` but never used for validation.
@@ -253,7 +254,9 @@ Validated events carry a `schema_valid` field in API responses, including events
 
 Event `data` larger than the validation size limit isn't validated. The limit is 256 KiB by default, set with `TOPICS_VALIDATION_MAX_BYTES` on self-hosted Outpost. With `enforce`, the publish is rejected with `data exceeds the schema validation size limit`. With `warn`, the event is accepted without `schema_valid`. Both count in the metric with reason `too_large`.
 
-Validating `data` takes roughly 20 to 350 times its size in memory, the most for large arrays whose items fail the schema. Outpost caps the total size of `data` it validates at once, which keeps that memory bounded under concurrent publishes. Raise the limit only with memory to match.
+Validating `data` takes roughly 20 to 350 times its size in memory, the most for large arrays whose items fail the schema. Each `anyOf` or `oneOf` branch those items fail adds about 80 times more, since the errors of every branch are kept: with a 16-branch `anyOf`, 256 KiB of `data` can take about 330 MiB.
+
+Outpost caps the validations running at once, which keeps that memory bounded under concurrent publishes. Each validation counts the size of its `data` times one plus the branch count of the largest `anyOf` or `oneOf` in the topic's schema (at most 32), and they add up to at most four times the size limit, or about 350 MiB of memory with the default limit. A validation that counts for more than that runs alone, and can take more: about 600 MiB for 256 KiB of `data` against a 32-branch `anyOf`. Publishes to topics that aren't validated never wait. Raise the limit only with memory to match.
 
 A publish queue message that fails `enforce` validation is treated as invalid: Outpost logs its event ID, topic and errors, and rejects it on RabbitMQ and Azure Service Bus. AWS SQS and GCP Pub/Sub have no reject, so the message is redelivered until `PUBLISH_MAX_REDELIVERIES` or the queue's own redelivery limit is reached. See the Failed messages section of [Publish from RabbitMQ](/docs/outpost/publishing/publish-from-rabbitmq#failed-messages).
 

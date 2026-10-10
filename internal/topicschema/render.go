@@ -1,7 +1,6 @@
 package topicschema
 
 import (
-	"fmt"
 	"math/big"
 	"slices"
 	"strconv"
@@ -17,6 +16,9 @@ const maxReportedErrors = 20
 // maxCountedErrors bounds the error nodes walked past maxReportedErrors to
 // count the rest. Beyond it the summary reads "... and more".
 const maxCountedErrors = 10000
+
+// enumMessage is the message of a value outside its enum.
+const enumMessage = "must be one of the allowed values"
 
 // renderValidationErrors flattens a validation error tree into at most
 // maxReportedErrors entries of the form "<path>: <message>", plus a trailing
@@ -39,7 +41,7 @@ func renderValidationErrors(verr *jsonschema.ValidationError, root string, insta
 	case r.truncated:
 		r.out = append(r.out, "... and more")
 	case r.more > 0:
-		r.out = append(r.out, fmt.Sprintf("... and %d more", r.more))
+		r.out = append(r.out, moreMessage(r.more))
 	}
 	return r.out
 }
@@ -159,7 +161,7 @@ func leafMessage(k jsonschema.ErrorKind) string {
 	case *kind.MaxProperties:
 		return "must have at most " + countOf(k.Want, "property", "properties")
 	case *kind.Enum:
-		return "must be one of the allowed values"
+		return enumMessage
 	case *kind.Const:
 		return "must equal the allowed value"
 	case *kind.Pattern:

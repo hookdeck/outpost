@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -216,6 +217,31 @@ func TestNewCatalogRules(t *testing.T) {
 				`topic "a": payload_schema.properties.code.$id is only allowed at the payload_schema root, since it changes how references below it resolve`,
 				`topic "b": payload_schema.$defs.n.$anchor is only allowed at the payload_schema root; reference subschemas with JSON pointers such as "#/$defs/name"`,
 				`topic "c": payload_schema.items.$dynamicAnchor is only allowed at the payload_schema root; reference subschemas with JSON pointers such as "#/$defs/name"`,
+			},
+		},
+		{
+			// The validator compiles whatever a reference points to as a
+			// schema, so one into an extension or a default would bring in
+			// $id, anchors and references the checks above never see.
+			name:   "references to values that aren't schemas",
+			topics: []string{"a", "b", "c", "d", "ok"},
+			defs: Definitions{
+				"a": schemaDef(`{"type":"object","properties":{"a":{"$ref":"#/x-lib/A"}},
+					"x-lib":{"A":{"$id":"https://other.invalid/a.json","$defs":{"s":{"type":"string"}},"$ref":"#/$defs/s"}},
+					"$defs":{"s":{"type":"integer"}}}`),
+				"b": schemaDef(`{"$anchor":"root","properties":{"a":{"$ref":"#/x-lib/A/properties/b"}},
+					"x-lib":{"A":{"properties":{"b":{"$ref":"#root"}}}}}`),
+				"c": schemaDef(`{"properties":{"a":{"default":{"type":"string"}},"b":{"$dynamicRef":"#/properties/a/default"}}}`),
+				"d": schemaDef(`{"$defs":{"s":{"type":"string"}},"items":{"$ref":"#/$defs"}}`),
+				"ok": schemaDef(`{"type":"object","allOf":[{"type":"object"}],
+					"properties":{"a":{"$ref":"#/$defs/t"},"b":{"$ref":"#/allOf/0"},"c":{"$ref":"#/$defs/a~1b"},"d":{"$ref":"#/$defs/a%7E1b/not"},"e":{"$ref":"#"}},
+					"$defs":{"t":true,"a/b":{"not":{"type":"null"}}}}`),
+			},
+			want: []string{
+				`topic "a": payload_schema.properties.a.$ref "#/x-lib/A" must point to a schema, such as "#/$defs/name", not into another value such as an extension or a default`,
+				`topic "b": payload_schema.properties.a.$ref "#/x-lib/A/properties/b" must point to a schema, such as "#/$defs/name", not into another value such as an extension or a default`,
+				`topic "c": payload_schema.properties.b.$dynamicRef "#/properties/a/default" must point to a schema, such as "#/$defs/name", not into another value such as an extension or a default`,
+				`topic "d": payload_schema.items.$ref "#/$defs" must point to a schema, such as "#/$defs/name", not into another value such as an extension or a default`,
 			},
 		},
 		{
@@ -455,6 +481,46 @@ func TestNewCatalogWithWarnings(t *testing.T) {
 	assert.False(t, c.HasSchemas())
 }
 
+func TestNewCatalogBoundsProblems(t *testing.T) {
+	names := func(prefix string, n int) []string {
+		out := make([]string, n)
+		for i := range out {
+			out[i] = fmt.Sprintf("%s%03d", prefix, i)
+		}
+		return out
+	}
+	defsOf := func(names []string) Definitions {
+		defs := Definitions{}
+		for _, n := range names {
+			defs[n] = Definition{}
+		}
+		return defs
+	}
+
+	_, err := NewCatalog([]string{"a"}, defsOf(names("p", 150)))
+	problems := configProblems(t, err)
+	require.Len(t, problems, 101)
+	assert.Equal(t, `topic "p000" is not in TOPICS`, problems[0])
+	assert.Equal(t, "... and 50 more", problems[100])
+
+	// Warnings passed in, already bounded, count with the catalog's own.
+	parsed := make([]string, 0, 101)
+	for _, n := range names("w", 100) {
+		parsed = append(parsed, fmt.Sprintf("imported topic %q is not in TOPICS and was skipped", n))
+	}
+	parsed = append(parsed, "... and 50 more")
+	c, err := NewCatalog([]string{"a"}, nil, WithImported(defsOf(names("i", 10))), WithWarnings(parsed))
+	require.NoError(t, err)
+	warnings := c.Warnings()
+	require.Len(t, warnings, 101)
+	assert.Equal(t, `imported topic "i000" is not in TOPICS and was skipped`, warnings[0])
+	assert.Equal(t, "... and 60 more", warnings[100])
+
+	long := strings.Repeat("é", maxQuotedBytes)
+	_, err = NewCatalog([]string{"a"}, Definitions{long: {}})
+	assert.Equal(t, []string{`topic "` + strings.Repeat("é", maxQuotedBytes/2) + `..." is not in TOPICS`}, configProblems(t, err))
+}
+
 func TestCatalogAccessors(t *testing.T) {
 	object := json.RawMessage(`{"type":"object","properties":{"id":{"type":"string","x-mcp-filter":false}}}`)
 	c, err := NewCatalog([]string{"c", "a", "b", "d", "a"}, Definitions{
@@ -600,6 +666,42 @@ func TestValidateDataSizeLimit(t *testing.T) {
 	assert.True(t, c.ValidateData("enforced", padded(100)).Valid)
 	assert.Equal(t, []string{"data exceeds the schema validation size limit"}, c.ValidateData("enforced", padded(101)).Errors)
 	assert.Equal(t, ValidationResult{Mode: ValidationWarn, SkippedTooLarge: true}, c.ValidateData("warned", padded(101)))
+}
+
+func TestValidationFactor(t *testing.T) {
+	branches := func(n int) string {
+		out := make([]string, n)
+		for i := range out {
+			out[i] = fmt.Sprintf(`{"required":["f%d"]}`, i)
+		}
+		return "[" + strings.Join(out, ",") + "]"
+	}
+	enforced := func(schema string) Definition {
+		return Definition{PayloadSchema: json.RawMessage(schema), Validation: ValidationEnforce}
+	}
+	c, err := NewCatalog([]string{"plain", "any", "one", "nested", "capped", "off", "none", "*"}, Definitions{
+		"plain":  enforced(orderSchema),
+		"any":    enforced(`{"type":"object","properties":{"a":{"type":"array","items":{"anyOf":` + branches(3) + `}}}}`),
+		"one":    {PayloadSchema: json.RawMessage(`{"oneOf":` + branches(2) + `,"anyOf":` + branches(1) + `}`), Validation: ValidationWarn},
+		"nested": enforced(`{"$ref":"#/$defs/item","$defs":{"item":{"oneOf":` + branches(16) + `}}}`),
+		"capped": enforced(`{"anyOf":` + branches(40) + `}`),
+		"off":    {PayloadSchema: json.RawMessage(`{"anyOf":` + branches(3) + `}`)},
+	})
+	require.NoError(t, err)
+
+	for topic, want := range map[string]int{
+		"plain":  1,
+		"any":    4,
+		"one":    3,
+		"nested": 17,
+		"capped": 32,
+		// Data of these is never parsed.
+		"off": 0, "none": 0, "*": 0, "": 0, "unknown": 0,
+	} {
+		assert.Equal(t, want, c.ValidationFactor(topic), topic)
+	}
+	assert.Zero(t, EmptyCatalog([]string{"a"}).ValidationFactor("a"))
+	assert.Zero(t, (*Catalog)(nil).ValidationFactor("a"))
 }
 
 func TestValidateDataLargeNumbers(t *testing.T) {
@@ -872,6 +974,96 @@ func TestValidateArgumentsBoundsWork(t *testing.T) {
 	assert.Equal(t, []string{"arguments.status: must have at most 100 items"}, c.ValidateArguments("t", args))
 	assert.Less(t, time.Since(start), time.Second)
 	assert.Nil(t, c.ValidateArguments("t", []byte(`{"status":[`+strings.TrimSuffix(strings.Repeat("1000,", 100), ",")+`]}`)))
+}
+
+func TestValidateArgumentsEnums(t *testing.T) {
+	schema := `{"type":"object","properties":{
+		"status":{"type":"integer","enum":[1,2,30,null]},
+		"ratio":{"enum":[0.5,1e2]},
+		"code":{"type":"string","enum":["A","B"]},
+		"flag":{"const":true},
+		"open":{"type":"string"}}}`
+	c, err := NewCatalog([]string{"t"}, Definitions{"t": {PayloadSchema: json.RawMessage(schema), MCP: MCPSettings{Enabled: true}}})
+	require.NoError(t, err)
+
+	ev, ok := c.MCPEvent("t")
+	require.True(t, ok)
+	assert.Contains(t, string(ev.InputSchema), `"enum":[1,2,30]`, "the inputSchema still lists the enums")
+	assert.Contains(t, string(ev.InputSchema), `"enum":["A","B"]`)
+
+	for _, args := range []string{
+		`{"status":2}`,
+		`{"status":[1,30]}`,
+		// Numbers match by value.
+		`{"status":[2.0,20e-1,0.2E1,3e1,300e-1]}`,
+		`{"ratio":[0.50,5e-1,100,1e+2,0.1e3]}`,
+		`{"status":{"$gte":4,"$lt":1000}}`,
+		`{"code":["A","B"],"flag":true,"open":"anything"}`,
+	} {
+		assert.Nil(t, c.ValidateArguments("t", []byte(args)), args)
+	}
+
+	for _, tc := range []struct {
+		args string
+		want []string
+	}{
+		{`{"status":4}`, []string{"arguments.status: must be one of the allowed values"}},
+		{`{"status":[1,4,30,0]}`, []string{
+			"arguments.status[1]: must be one of the allowed values",
+			"arguments.status[3]: must be one of the allowed values",
+		}},
+		{`{"ratio":0.05,"code":["A","a"],"flag":false}`, []string{
+			"arguments.code[1]: must be one of the allowed values",
+			"arguments.flag: must be one of the allowed values",
+			"arguments.ratio: must be one of the allowed values",
+		}},
+		// The schema is checked first.
+		{`{"code":5,"status":4}`, []string{"arguments.code: must be array", "arguments.code: must be string"}},
+		{`{"status":null}`, []string{
+			"arguments.status: must be array",
+			"arguments.status: must be integer",
+			"arguments.status: must be object",
+		}},
+	} {
+		assert.Equal(t, tc.want, c.ValidateArguments("t", []byte(tc.args)), tc.args)
+	}
+
+	enum := make([]string, 30)
+	for i := range enum {
+		enum[i] = strconv.Itoa(i)
+	}
+	many, err := NewCatalog([]string{"t"}, Definitions{"t": {
+		PayloadSchema: json.RawMessage(`{"type":"object","properties":{"a":{"enum":[` + strings.Join(enum, ",") + `]},"b":{"enum":[0]}}}`),
+		MCP:           MCPSettings{Enabled: true},
+	}})
+	require.NoError(t, err)
+	errs := many.ValidateArguments("t", []byte(`{"a":[`+strings.Join(enum, ",")+`],"b":[`+strings.Join(enum, ",")+`]}`))
+	require.Len(t, errs, 21)
+	assert.Equal(t, "arguments.b[10]: must be one of the allowed values", errs[0])
+	assert.Equal(t, "... and 9 more", errs[20])
+}
+
+func TestValidateArgumentsLargeEnum(t *testing.T) {
+	// The validator compares a value with every enum value, numbers as
+	// exact rationals, so enums are checked against a set instead.
+	enum := make([]string, 12_000)
+	for i := range enum {
+		enum[i] = strconv.Itoa(1000 + i)
+	}
+	schema := `{"type":"object","properties":{"p":{"type":"integer","enum":[` + strings.Join(enum, ",") + `]}}}`
+	require.Less(t, len(schema), maxMCPPayloadSchemaBytes)
+	c, err := NewCatalog([]string{"t"}, Definitions{"t": {PayloadSchema: json.RawMessage(schema), MCP: MCPSettings{Enabled: true}}})
+	require.NoError(t, err)
+
+	list := func(v string) []byte {
+		return []byte(`{"p":[` + strings.TrimSuffix(strings.Repeat(v+",", maxArgumentListItems), ",") + `]}`)
+	}
+	start := time.Now()
+	for range 10 {
+		assert.Nil(t, c.ValidateArguments("t", list("12999")))
+		assert.Len(t, c.ValidateArguments("t", list("1")), 21)
+	}
+	assert.Less(t, time.Since(start), 200*time.Millisecond, "20 calls")
 }
 
 func TestCatalogConcurrentUse(t *testing.T) {

@@ -6,7 +6,11 @@ package topicschema
 
 import (
 	"encoding/json"
+	"fmt"
+	"slices"
+	"strconv"
 	"strings"
+	"unicode/utf8"
 )
 
 // ValidationMode controls publish-time validation of event data against the
@@ -151,4 +155,61 @@ func (e *ConfigError) Error() string {
 		return "invalid topic schemas: " + e.Problems[0]
 	}
 	return "invalid topic schemas:\n  - " + strings.Join(e.Problems, "\n  - ")
+}
+
+// Problems and warnings are bounded, since an OpenAPI document may come from
+// a URL someone else controls: at most maxReportedProblems of each are kept,
+// and values they quote from configuration, such as references and keys,
+// are clipped to maxQuotedBytes.
+const (
+	maxReportedProblems = 100
+	maxQuotedBytes      = 200
+)
+
+// clip shortens s to maxQuotedBytes at a character boundary, marking the cut
+// with "...".
+func clip(s string) string {
+	if len(s) <= maxQuotedBytes {
+		return s
+	}
+	cut := maxQuotedBytes
+	for cut > 0 && !utf8.RuneStart(s[cut]) {
+		cut--
+	}
+	return s[:cut] + "..."
+}
+
+// limitMessages sorts msgs, drops duplicates and keeps the first
+// maxReportedProblems, followed by "... and N more" when some were left out.
+// Such a line already in msgs, from an earlier limitMessages, adds its count.
+func limitMessages(msgs []string) []string {
+	more := 0
+	out := make([]string, 0, len(msgs))
+	for _, m := range msgs {
+		if rest, ok := strings.CutPrefix(m, "... and "); ok {
+			if n, err := strconv.Atoi(strings.TrimSuffix(rest, " more")); err == nil && m == moreMessage(n) {
+				more += n
+				continue
+			}
+		}
+		out = append(out, m)
+	}
+	slices.Sort(out)
+	out = slices.Compact(out)
+	if len(out) > maxReportedProblems {
+		more += len(out) - maxReportedProblems
+		out = out[:maxReportedProblems]
+	}
+	if more > 0 {
+		out = append(out, moreMessage(more))
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	// Drop the spare capacity: a catalog keeps its warnings.
+	return slices.Clone(out)
+}
+
+func moreMessage(n int) string {
+	return fmt.Sprintf("... and %d more", n)
 }
