@@ -292,6 +292,21 @@ type fakeAlertResetter struct {
 	mu            sync.Mutex
 	resets        []string
 	disabledAtRun []bool
+	// generations records ResetDestination calls.
+	generations []string
+}
+
+func (r *fakeAlertResetter) ResetDestination(_ context.Context, _, destinationID string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.generations = append(r.generations, destinationID)
+	return nil
+}
+
+func (r *fakeAlertResetter) generationResets() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]string(nil), r.generations...)
 }
 
 func (r *fakeAlertResetter) ResetConsecutiveFailureCount(ctx context.Context, tenantID, destinationID string) error {

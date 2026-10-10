@@ -706,6 +706,25 @@ func (h *MCPHandlers) emitExpired(ctx context.Context, d *models.Destination) {
 	})
 }
 
+// resetNewAlerts clears, after the response, the alert state a new
+// subscription's ID may hold from an earlier generation: subscription IDs
+// are deterministic, and that generation's failure streak would disable the
+// new one at its first failure, its exhausted-retries window suppress the
+// new one's first alert.
+func (h *MCPHandlers) resetNewAlerts(ctx context.Context, tenantID, destinationID string) {
+	if h.deps == nil || h.deps.AlertResetter == nil {
+		return
+	}
+	h.goAsync(ctx, "mcp alert reset", func(ctx context.Context) {
+		if err := h.deps.AlertResetter.ResetDestination(ctx, tenantID, destinationID); err != nil {
+			h.logger.Ctx(ctx).Error("failed to reset the alerts of a new mcp subscription",
+				zap.String("tenant_id", tenantID),
+				zap.String("destination_id", destinationID),
+				zap.Error(err))
+		}
+	})
+}
+
 // resetAlerts resets the consecutive-failure count of a destination being
 // re-enabled, so that its next failure doesn't disable it again. It reports
 // whether the count was reset.

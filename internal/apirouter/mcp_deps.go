@@ -23,10 +23,15 @@ type ParkedRetryResumer interface {
 	Resume(ctx context.Context, tenantID, destinationID, resumeKey string)
 }
 
-// AlertResetter clears a destination's consecutive-failure count. Satisfied
-// by alert.AlertStore.
+// AlertResetter clears a destination's alert state. Satisfied by
+// alert.AlertStore.
 type AlertResetter interface {
+	// ResetConsecutiveFailureCount clears the consecutive-failure count, for
+	// a re-enabled subscription.
 	ResetConsecutiveFailureCount(ctx context.Context, tenantID, destinationID string) error
+	// ResetDestination also ends the exhausted-retries alert window, for a
+	// new generation of a subscription ID.
+	ResetDestination(ctx context.Context, tenantID, destinationID string) error
 }
 
 // DeliveryStatusReader reads the latest delivery outcome of a destination,
@@ -73,7 +78,7 @@ type MCPDeps struct {
 	// Resumer resumes the parked retries of a re-enabled subscription.
 	Resumer ParkedRetryResumer
 	// AlertResetter resets the consecutive-failure count of a re-enabled
-	// subscription.
+	// subscription, and the alert state of a new one.
 	AlertResetter AlertResetter
 	// StatusReader reads deliveryStatus for refreshes. Without it a refresh
 	// reports no delivery yet.

@@ -151,7 +151,7 @@ const envelope = wh.verify(rawBody, {
 | Attempt timeout | 10 seconds, whatever `DELIVERY_TIMEOUT_SECONDS` is. The response headers must arrive within 8 seconds and fit in 64 KiB. |
 | Concurrency per callback host | At most `MCP_MAX_INFLIGHT_PER_HOST` attempts in flight per host and port on each Outpost instance, 8 by default. An attempt over the limit fails at once with code `throttled` and is retried on schedule. |
 | Expiry | No attempt or automatic retry after `expires_at`. Pending retries are dropped without an attempt, and a manual retry returns `400`. |
-| Auto-disable | The project's [alert settings](/docs/outpost/features/operator-events) apply. While the destination is disabled, Outpost holds its automatic retries, up to 1,000, until `expires_at` or for 24 hours. A refresh or `PUT .../enable` resumes them at up to 10 per second. |
+| Auto-disable | The project's [alert settings](/docs/outpost/features/operator-events) apply. While the destination is disabled, Outpost holds its automatic retries, up to 1,000, until `expires_at` or for 24 hours. A refresh or `PUT .../enable` resumes them at up to 10 per second. A new subscription starts with no consecutive failures and no exhausted-retries alert window, even when an earlier subscription that ended had the same ID. |
 | Response body | The first 4 KiB is stored on the attempt. |
 
 Attempt `code` is the HTTP status of the response, or one of these codes:

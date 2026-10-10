@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -322,6 +323,44 @@ func TestMCP_Subscribe_ExpiredIsReplaced(t *testing.T) {
 		URL:            testCallbackURL,
 		ExpiresAt:      past.UTC(),
 	}, event.Data)
+}
+
+// Subscription IDs are deterministic, so a new generation of an ID must not
+// inherit the alert state of the previous one: a failure streak that would
+// auto-disable it at its first failure, or an exhausted-retries alert
+// window that would suppress its first alert.
+func TestMCP_Subscribe_NewGenerationResetsAlerts(t *testing.T) {
+	m := newMCPTest(t)
+	body := subscribeBody("p1", "order.created")
+	id := subscriptionID(t, body)
+	generationResets := func(n int) {
+		t.Helper()
+		require.Eventually(t, func() bool { return len(m.alerts.generationResets()) >= n }, time.Second, 5*time.Millisecond)
+		assert.Equal(t, slices.Repeat([]string{id}, n), m.alerts.generationResets())
+	}
+
+	m.mustSubscribe(body)
+	generationResets(1)
+
+	m.mustSubscribe(body)
+	time.Sleep(20 * time.Millisecond)
+	generationResets(1) // a refresh is the same generation
+
+	resp := m.unsubscribe(mcpTenant, map[string]any{"principal": "p1", "params": body["params"]})
+	require.Equal(t, http.StatusOK, resp.Code, resp.Body.String())
+	time.Sleep(2 * time.Millisecond) // the delete fence is inclusive, in milliseconds
+	m.mustSubscribe(body)
+	generationResets(2)
+
+	expired := *m.destination(id)
+	past := time.Now().Add(-time.Minute)
+	expired.ExpiresAt = &past
+	m.putDestination(expired)
+	m.mustSubscribe(body)
+	generationResets(3)
+
+	resets, _ := m.alerts.calls()
+	assert.Empty(t, resets, "no re-enable")
 }
 
 func TestMCP_Subscribe_Errors(t *testing.T) {

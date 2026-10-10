@@ -186,6 +186,7 @@ func (h *MCPHandlers) Subscribe(c *gin.Context) {
 		action = "mcp subscription refreshed"
 		result.DeliveryStatus = h.deliveryStatus(ctx, &outcome.destination, outcome.update.WasDisabled)
 	} else {
+		h.resetNewAlerts(ctx, tenant.ID, s.id)
 		h.telemetry.DestinationCreated(ctx, models.DestinationTypeMCP)
 	}
 	h.logger.Ctx(ctx).Audit(action,
