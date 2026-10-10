@@ -122,7 +122,8 @@ type entry struct {
 }
 
 // NewCatalog validates defs against topics, the TOPICS list, and compiles
-// their schemas. Every problem found is reported at once in a *ConfigError.
+// their schemas. The problems found are reported at once in a *ConfigError,
+// up to 100 of them, as are warnings.
 func NewCatalog(topics []string, defs Definitions, opts ...Option) (*Catalog, error) {
 	var o catalogOptions
 	for _, opt := range opts {
@@ -132,7 +133,7 @@ func NewCatalog(topics []string, defs Definitions, opts ...Option) (*Catalog, er
 	if o.maxValidationBytes > 0 {
 		c.maxValidationBytes = o.maxValidationBytes
 	}
-	c.warnings = slices.Sorted(slices.Values(o.warnings))
+	c.warnings = limitMessages(o.warnings)
 	if len(defs) == 0 && len(o.imported) == 0 {
 		return c, nil
 	}
@@ -146,7 +147,7 @@ func NewCatalog(topics []string, defs Definitions, opts ...Option) (*Catalog, er
 	merged := make(Definitions, len(defs)+len(o.imported))
 	for name, def := range o.imported {
 		if _, ok := c.byName[name]; !ok {
-			b.c.warnings = append(b.c.warnings, fmt.Sprintf("imported topic %q is not in TOPICS and was skipped%s", name, c.didYouMean(name)))
+			b.c.warnings = append(b.c.warnings, fmt.Sprintf("imported topic %q is not in TOPICS and was skipped%s", clip(name), c.didYouMean(name)))
 			continue
 		}
 		merged[name] = def
@@ -157,8 +158,7 @@ func NewCatalog(topics []string, defs Definitions, opts ...Option) (*Catalog, er
 	}
 	b.checkReplacements()
 	if len(b.problems) > 0 {
-		slices.Sort(b.problems)
-		return nil, &ConfigError{Problems: slices.Compact(b.problems)}
+		return nil, &ConfigError{Problems: limitMessages(b.problems)}
 	}
 
 	for i, t := range c.topics {
@@ -169,7 +169,7 @@ func NewCatalog(topics []string, defs Definitions, opts ...Option) (*Catalog, er
 			c.mcpEvents = append(c.mcpEvents, e.event)
 		}
 	}
-	slices.Sort(c.warnings)
+	c.warnings = limitMessages(c.warnings)
 	return c, nil
 }
 
@@ -193,7 +193,7 @@ func (c *Catalog) didYouMean(name string) string {
 	trimmed := strings.TrimSpace(name)
 	for _, t := range c.topics {
 		if t.Name != name && strings.TrimSpace(t.Name) == trimmed {
-			return fmt.Sprintf(" (did you mean %q?)", t.Name)
+			return fmt.Sprintf(" (did you mean %q?)", clip(t.Name))
 		}
 	}
 	return ""
@@ -206,7 +206,7 @@ type catalogBuilder struct {
 }
 
 func (b *catalogBuilder) problem(topic, format string, args ...any) {
-	b.problems = append(b.problems, fmt.Sprintf("topic %q: ", topic)+fmt.Sprintf(format, args...))
+	b.problems = append(b.problems, fmt.Sprintf("topic %q: ", clip(topic))+fmt.Sprintf(format, args...))
 }
 
 func (b *catalogBuilder) addDefinition(name string, def Definition) {
@@ -216,7 +216,7 @@ func (b *catalogBuilder) addDefinition(name string, def Definition) {
 	}
 	i, ok := b.c.byName[name]
 	if !ok {
-		b.problems = append(b.problems, fmt.Sprintf("topic %q is not in TOPICS%s", name, b.c.didYouMean(name)))
+		b.problems = append(b.problems, fmt.Sprintf("topic %q is not in TOPICS%s", clip(name), b.c.didYouMean(name)))
 		return
 	}
 	t := Topic{
@@ -229,14 +229,14 @@ func (b *catalogBuilder) addDefinition(name string, def Definition) {
 	}
 	e := entry{defined: true}
 	if def.Name != "" && def.Name != name {
-		b.problem(name, "name %q must match the topic key", def.Name)
+		b.problem(name, "name %q must match the topic key", clip(def.Name))
 	}
 	switch def.Validation {
 	case "", ValidationOff:
 	case ValidationWarn, ValidationEnforce:
 		t.Validation = def.Validation
 	default:
-		b.problem(name, `validation %q must be "off", "warn" or "enforce"`, def.Validation)
+		b.problem(name, `validation %q must be "off", "warn" or "enforce"`, clip(string(def.Validation)))
 	}
 	if def.ReplacedBy != "" && !def.Deprecated {
 		b.problem(name, "replaced_by requires deprecated: true")
@@ -281,7 +281,7 @@ func (b *catalogBuilder) addSchema(t *Topic, e *entry, raw json.RawMessage) {
 		return
 	}
 	if path, key, ok := duplicateKey(compact, "payload_schema", nil); ok {
-		b.problem(name, "%s has a duplicate key %s", path, quoteJSONString(key))
+		b.problem(name, "%s has a duplicate key %s", path, quoteJSONString(clip(key)))
 		return
 	}
 	tree, err := decodeJSON(compact)
@@ -312,7 +312,7 @@ func (b *catalogBuilder) addSchema(t *Topic, e *entry, raw json.RawMessage) {
 		if t.Validation != ValidationOff || t.MCP.Enabled {
 			b.problem(name, "payload_schema %s", msg)
 		} else {
-			b.c.warnings = append(b.c.warnings, fmt.Sprintf("topic %q: payload_schema %s; validation is off, so the schema is kept but can't be used to validate", name, msg))
+			b.c.warnings = append(b.c.warnings, fmt.Sprintf("topic %q: payload_schema %s; validation is off, so the schema is kept but can't be used to validate", clip(name), msg))
 		}
 	}
 	if err != nil || len(unsupported) > 0 {
@@ -380,15 +380,15 @@ func (b *catalogBuilder) checkSchemaObjects(name string, root map[string]any) bo
 			case !ok:
 			case !strings.HasPrefix(ref, "#"):
 				b.problem(name, "%s %s is not a local reference; only references starting with # are allowed",
-					appendPathKey(path, kw), quoteJSONString(ref))
+					appendPathKey(path, kw), quoteJSONString(clip(ref)))
 			case !pointerRef(ref):
 				b.problem(name, `%s %s must be a JSON pointer such as "#/$defs/name"; anchors are not supported`,
-					appendPathKey(path, kw), quoteJSONString(ref))
+					appendPathKey(path, kw), quoteJSONString(clip(ref)))
 			default:
 				// One that doesn't resolve fails to compile.
 				if at, ok := localRefPath(root, ref, rootPath); ok && !schemas[at] {
 					b.problem(name, `%s %s must point to a schema, such as "#/$defs/name", not into another value such as an extension or a default`,
-						appendPathKey(path, kw), quoteJSONString(ref))
+						appendPathKey(path, kw), quoteJSONString(clip(ref)))
 				}
 			}
 		}
@@ -425,9 +425,9 @@ func (b *catalogBuilder) checkReplacements() {
 		case t.ReplacedBy == t.Name:
 			b.problem(t.Name, "replaced_by can't name the topic itself")
 		case !ok:
-			b.problem(t.Name, "replaced_by %q is not in TOPICS%s", t.ReplacedBy, b.c.didYouMean(t.ReplacedBy))
+			b.problem(t.Name, "replaced_by %q is not in TOPICS%s", clip(t.ReplacedBy), b.c.didYouMean(t.ReplacedBy))
 		case t.Deprecated && t.MCP.Enabled && !b.c.topics[j].MCP.Enabled:
-			b.problem(t.Name, "replaced_by %q must be MCP-enabled because this topic is", t.ReplacedBy)
+			b.problem(t.Name, "replaced_by %q must be MCP-enabled because this topic is", clip(t.ReplacedBy))
 		}
 	}
 }
@@ -476,7 +476,7 @@ func compileSchema(doc any) (*jsonschema.Schema, []string, error) {
 	engine := func(pattern string) (jsonschema.Regexp, error) {
 		re, err := regexp.Compile(pattern)
 		if err != nil {
-			msg := fmt.Sprintf("pattern %s is not supported by Go's RE2 syntax: %v", quoteJSONString(pattern), err)
+			msg := fmt.Sprintf("pattern %s is not supported by Go's RE2 syntax: %v", quoteJSONString(clip(pattern)), clip(err.Error()))
 			if !slices.Contains(unsupported, msg) {
 				unsupported = append(unsupported, msg)
 			}
@@ -971,7 +971,7 @@ func (a argumentEnums) errors(v any, root string) []string {
 	}
 	slices.Sort(out)
 	if more > 0 {
-		out = append(out, fmt.Sprintf("... and %d more", more))
+		out = append(out, moreMessage(more))
 	}
 	return out
 }

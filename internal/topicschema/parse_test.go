@@ -946,7 +946,70 @@ noBody:
 		require.NoError(t, err)
 		assert.Len(t, defs, 1)
 		assert.Contains(t, defs, "w0")
-		assert.Len(t, warnings, 399)
+		// The first 100 of the 399 warnings.
+		assert.Len(t, warnings, 101)
+		assert.Equal(t, "... and 299 more", warnings[100])
+	})
+}
+
+func TestParseOpenAPIBoundsProblems(t *testing.T) {
+	long := strings.Repeat("x", 64<<10)
+	clipped := strings.Repeat("x", maxQuotedBytes-len("ext/")) + "..."
+	sharedDoc := func(ref string) []byte {
+		var hooks strings.Builder
+		for i := range 4000 {
+			fmt.Fprintf(&hooks, "w%d: {$ref: '#/components/pathItems/P'}\n", i)
+		}
+		return parseTestOpenAPI(hooks.String(), "pathItems:\n  P: {$ref: '"+ref+"'}\n")
+	}
+
+	t.Run("a problem in an object many webhooks share is reported once", func(t *testing.T) {
+		_, _, err := ParseOpenAPI(sharedDoc("ext/" + long))
+		var cfgErr *ConfigError
+		require.ErrorAs(t, err, &cfgErr)
+		assert.Equal(t, []string{
+			`/components/pathItems/P/$ref: external $ref "ext/` + clipped + `" is not supported; move the referenced object into the document (referenced by 4000 webhooks)`,
+		}, cfgErr.Problems)
+
+		defs, warnings, err := ParseOpenAPI(sharedDoc("ext/"+long), OpenAPITopics([]string{"a"}))
+		require.NoError(t, err)
+		assert.Empty(t, defs)
+		assert.Equal(t, []string{
+			`imported topics such as "w0" are not in TOPICS and were skipped; they would fail to import: /components/pathItems/P/$ref: external $ref "ext/` + clipped + `" is not supported; move the referenced object into the document (referenced by 4000 webhooks)`,
+		}, warnings)
+
+		// A local reference that doesn't resolve may hide the topic names,
+		// so it fails the import whatever the topics.
+		_, _, err = ParseOpenAPI(sharedDoc("#/"+long[:4000]), OpenAPITopics([]string{"a"}))
+		parseTestRequireProblems(t, err, `/components/pathItems/P/$ref: $ref "#/xxx`)
+		assert.Less(t, len(err.Error()), 1024)
+		assert.Contains(t, err.Error(), `..." does not resolve (referenced by 4000 webhooks)`)
+	})
+
+	t.Run("at most 100 problems and warnings", func(t *testing.T) {
+		var hooks strings.Builder
+		for i := range 150 {
+			fmt.Fprintf(&hooks, "w%03d: {post: {summary: [s]}}\n", i)
+		}
+		_, _, err := ParseOpenAPI(parseTestOpenAPI(hooks.String(), ""))
+		var cfgErr *ConfigError
+		require.ErrorAs(t, err, &cfgErr)
+		require.Len(t, cfgErr.Problems, 101)
+		assert.Equal(t, `topic "w000": /webhooks/w000/post/summary: must be a string`, cfgErr.Problems[0])
+		assert.Equal(t, `topic "w099": /webhooks/w099/post/summary: must be a string`, cfgErr.Problems[99])
+		assert.Equal(t, "... and 50 more", cfgErr.Problems[100])
+
+		_, warnings, err := ParseOpenAPI(parseTestOpenAPI(hooks.String(), ""), OpenAPITopics(nil))
+		require.NoError(t, err)
+		require.Len(t, warnings, 101)
+		assert.Equal(t, "... and 50 more", warnings[100])
+	})
+
+	t.Run("quoted values are clipped", func(t *testing.T) {
+		key := strings.Repeat("k", 1000)
+		_, _, err := ParseOpenAPI(parseTestOpenAPI(key+": {x-outpost-topic: '"+long+"', post: {summary: [s]}}\n", ""))
+		parseTestRequireProblems(t, err,
+			`topic "`+strings.Repeat("x", maxQuotedBytes)+`...": /webhooks/`+strings.Repeat("k", maxQuotedBytes)+`.../post/summary: must be a string`)
 	})
 }
 

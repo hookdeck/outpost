@@ -1,7 +1,6 @@
 package topicschema
 
 import (
-	"fmt"
 	"math/big"
 	"slices"
 	"strconv"
@@ -42,7 +41,7 @@ func renderValidationErrors(verr *jsonschema.ValidationError, root string, insta
 	case r.truncated:
 		r.out = append(r.out, "... and more")
 	case r.more > 0:
-		r.out = append(r.out, fmt.Sprintf("... and %d more", r.more))
+		r.out = append(r.out, moreMessage(r.more))
 	}
 	return r.out
 }

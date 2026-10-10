@@ -12,7 +12,6 @@ import (
 	"mime"
 	"net/url"
 	"slices"
-	"sort"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -207,7 +206,7 @@ func ParseOpenAPI(data []byte, opts ...OpenAPIOption) (Definitions, []string, er
 	}
 	defs := make(Definitions, len(hooks.kids))
 	sources := make(map[string]string, len(hooks.kids))
-	var problems, warnings []string
+	report := openapiReport{opts: &o, shared: map[string]int{}}
 	for i := range hooks.kids {
 		hook := &hooks.kids[i]
 		topic, def, ok, err := doc.webhook(hook)
@@ -216,34 +215,88 @@ func ParseOpenAPI(data []byte, opts ...OpenAPIOption) (Definitions, []string, er
 			return nil, nil, parseConfigError(err.Error())
 		}
 		var pe *parseError
-		if errors.As(err, &pe) && !pe.unnamed && !o.wants(pe.topic) {
-			warnings = append(warnings, o.skipped(pe.topic, pe))
+		if errors.As(err, &pe) {
+			report.add(pe, !pe.unnamed && !o.wants(pe.topic))
 			continue
 		}
 		if err != nil {
-			problems = append(problems, err.Error())
+			report.problems = append(report.problems, err.Error())
 			continue
 		}
 		if !ok {
 			continue
 		}
 		if !o.wants(topic) {
-			warnings = append(warnings, o.skipped(topic, nil))
+			report.warnings = append(report.warnings, o.skipped(topic, nil))
 			continue
 		}
 		at := parsePointer([]string{"webhooks", hook.key})
 		if prev, dup := sources[topic]; dup {
-			problems = append(problems, (&parseError{topic: topic, path: []string{"webhooks", hook.key}, msg: "duplicate topic, also defined by " + prev}).Error())
+			report.problems = append(report.problems, (&parseError{topic: topic, path: []string{"webhooks", hook.key}, msg: "duplicate topic, also defined by " + prev}).Error())
 			continue
 		}
 		sources[topic] = at
 		defs[topic] = def
 	}
+	problems, warnings := report.messages()
 	if len(problems) > 0 {
 		return nil, nil, parseConfigError(problems...)
 	}
-	slices.Sort(warnings)
-	return defs, slices.Compact(warnings), nil
+	return defs, limitMessages(warnings), nil
+}
+
+// openapiReport collects the problems and warnings of an import. A problem
+// in an object several webhooks reference is found for each of them, and is
+// reported once, with their count.
+type openapiReport struct {
+	opts               *openapiOptions
+	problems, warnings []string
+	// found holds the webhook problems in the order found, and shared
+	// indexes them by location, message and whether the webhook is skipped.
+	found  []openapiFound
+	shared map[string]int
+}
+
+type openapiFound struct {
+	first   *parseError
+	skipped bool
+	count   int
+}
+
+// add records the problem of a webhook, reported as a warning when the
+// webhook is skipped.
+func (r *openapiReport) add(pe *parseError, skipped bool) {
+	var key strings.Builder
+	for _, t := range pe.path {
+		key.WriteString("/" + escapePointerToken(t))
+	}
+	fmt.Fprintf(&key, "\x00%d\x00%t\x00%s", pe.line, skipped, pe.msg)
+	if i, ok := r.shared[key.String()]; ok {
+		r.found[i].count++
+		return
+	}
+	r.shared[key.String()] = len(r.found)
+	r.found = append(r.found, openapiFound{first: pe, skipped: skipped, count: 1})
+}
+
+// messages returns every problem and warning collected.
+func (r *openapiReport) messages() (problems, warnings []string) {
+	for _, f := range r.found {
+		at := *f.first
+		at.topic = ""
+		switch {
+		case f.count == 1 && f.skipped:
+			r.warnings = append(r.warnings, r.opts.skipped(f.first.topic, f.first))
+		case f.count == 1:
+			r.problems = append(r.problems, f.first.Error())
+		case f.skipped:
+			r.warnings = append(r.warnings, fmt.Sprintf("imported topics such as %q are not in TOPICS and were skipped; they would fail to import: %s (referenced by %d webhooks)",
+				clip(f.first.topic), at.Error(), f.count))
+		default:
+			r.problems = append(r.problems, fmt.Sprintf("%s (referenced by %d webhooks)", at.Error(), f.count))
+		}
+	}
+	return r.problems, r.warnings
 }
 
 // OpenAPIOption configures ParseOpenAPI.
@@ -283,12 +336,12 @@ func (o *openapiOptions) wants(topic string) bool {
 // skipped describes a webhook skipped because its topic is not wanted, with
 // the problem that would fail its import, if one was found.
 func (o *openapiOptions) skipped(topic string, problem *parseError) string {
-	msg := fmt.Sprintf("imported topic %q is not in TOPICS and was skipped", topic)
+	msg := fmt.Sprintf("imported topic %q is not in TOPICS and was skipped", clip(topic))
 	// TOPICS entries are used verbatim, so " a" and "a" differ.
 	trimmed := strings.TrimSpace(topic)
 	for _, t := range o.topics {
 		if t != topic && strings.TrimSpace(t) == trimmed {
-			msg += fmt.Sprintf(" (did you mean %q?)", t)
+			msg += fmt.Sprintf(" (did you mean %q?)", clip(t))
 			break
 		}
 	}
@@ -326,7 +379,7 @@ type parseError struct {
 func (e *parseError) Error() string {
 	var sb strings.Builder
 	if e.topic != "" {
-		fmt.Fprintf(&sb, "topic %q: ", e.topic)
+		fmt.Fprintf(&sb, "topic %q: ", clip(e.topic))
 	}
 	switch {
 	case len(e.path) > 0 && e.line > 0:
@@ -341,8 +394,7 @@ func (e *parseError) Error() string {
 }
 
 func parseConfigError(problems ...string) error {
-	sort.Strings(problems)
-	return &ConfigError{Problems: problems}
+	return &ConfigError{Problems: limitMessages(problems)}
 }
 
 func parseTooLarge(what string) error {
@@ -359,12 +411,13 @@ func parseDefinitionsError(err error) error {
 	return parseConfigError(err.Error())
 }
 
-// parsePointer renders JSON pointer tokens as a pointer string.
+// parsePointer renders JSON pointer tokens as a pointer string for messages,
+// with each token clipped.
 func parsePointer(tokens []string) string {
 	var sb strings.Builder
 	for _, t := range tokens {
 		sb.WriteByte('/')
-		sb.WriteString(escapePointerToken(t))
+		sb.WriteString(escapePointerToken(clip(t)))
 	}
 	return sb.String()
 }
@@ -474,10 +527,10 @@ func parseUnknownField(name string, known []string) string {
 	}
 	for _, k := range known {
 		if norm(k) == norm(name) {
-			return fmt.Sprintf("unknown field %q (did you mean %q?)", name, k)
+			return fmt.Sprintf("unknown field %q (did you mean %q?)", clip(name), k)
 		}
 	}
-	return fmt.Sprintf("unknown field %q", name)
+	return fmt.Sprintf("unknown field %q", clip(name))
 }
 
 // parseKeySet detects duplicate object keys: a slice scan for small objects,
@@ -580,10 +633,10 @@ func (c *yamlConverter) value(n *yaml.Node, depth int) error {
 	case yaml.AliasNode:
 		target := n.Alias
 		if target == nil {
-			return c.errorf(n, "unknown anchor %q", n.Value)
+			return c.errorf(n, "unknown anchor %q", clip(n.Value))
 		}
 		if slices.Contains(c.stack, target) {
-			return c.errorf(n, "alias *%s refers to a node that contains it", n.Value)
+			return c.errorf(n, "alias *%s refers to a node that contains it", clip(n.Value))
 		}
 		return c.value(target, depth)
 	case yaml.MappingNode:
@@ -600,7 +653,7 @@ func (c *yamlConverter) value(n *yaml.Node, depth int) error {
 				return err
 			}
 			if !keys.add(key) {
-				return c.errorf(k, "duplicate key %q", key)
+				return c.errorf(k, "duplicate key %q", clip(key))
 			}
 			if i > 0 {
 				c.buf = append(c.buf, ',')
@@ -684,7 +737,7 @@ func yamlScalar(n *yaml.Node) (parseKind, string, error) {
 				ok = kind == parseNumber
 			}
 			if !ok {
-				return 0, "", fmt.Errorf("%q is not a valid %s value", n.Value, tag)
+				return 0, "", fmt.Errorf("%q is not a valid %s value", clip(n.Value), tag)
 			}
 			return kind, text, nil
 		}
@@ -709,7 +762,7 @@ func yamlCoreScalar(s string) (parseKind, string, error) {
 	case "false", "False", "FALSE":
 		return parseBool, "false", nil
 	case ".inf", ".Inf", ".INF", "+.inf", "+.Inf", "+.INF", "-.inf", "-.Inf", "-.INF", ".nan", ".NaN", ".NAN":
-		return 0, "", fmt.Errorf("%q is infinite or NaN, which JSON can't represent; quote it to keep it as a string", s)
+		return 0, "", fmt.Errorf("%q is infinite or NaN, which JSON can't represent; quote it to keep it as a string", clip(s))
 	}
 	if text, ok := yamlCoreInt(s); ok {
 		return parseNumber, text, nil
@@ -1057,7 +1110,7 @@ func (b *parseTreeBuilder) object(depth int) (parseNode, error) {
 			return n, b.errorf("expected an object key")
 		}
 		if !keys.add(key) {
-			return n, b.errorf("duplicate key %q", key)
+			return n, b.errorf("duplicate key %q", clip(key))
 		}
 		b.path = append(b.path, key)
 		if tok, err = b.dec.Token(); err != nil {
@@ -1129,7 +1182,7 @@ func openapiCheckVersion(root *parseNode) error {
 		return &parseError{path: []string{"openapi"}, msg: `must be a version string such as "3.1.0"`}
 	}
 	if patch, ok := strings.CutPrefix(v.text, "3.1."); !ok || patch == "" || !parseAllDigits(patch) {
-		return &parseError{path: []string{"openapi"}, msg: fmt.Sprintf("version %q is not supported; only OpenAPI 3.1.x documents can be imported", v.text)}
+		return &parseError{path: []string{"openapi"}, msg: fmt.Sprintf("version %q is not supported; only OpenAPI 3.1.x documents can be imported", clip(v.text))}
 	}
 	return nil
 }
@@ -1342,7 +1395,7 @@ func (d *openapiDoc) follow(n *parseNode, path []string, topic string, named boo
 		if !strings.HasPrefix(ref.text, "#") {
 			// The object is in another file, which is never read, so the
 			// name known so far is final.
-			return nil, nil, &parseError{topic: topic, path: refPath, msg: fmt.Sprintf("external $ref %q is not supported; move the referenced object into the document", ref.text)}
+			return nil, nil, &parseError{topic: topic, path: refPath, msg: fmt.Sprintf("external $ref %q is not supported; move the referenced object into the document", clip(ref.text))}
 		}
 		if len(ref.text) > openapiMaxRefBytes {
 			return nil, nil, fail(fmt.Sprintf("$ref is longer than %d bytes", openapiMaxRefBytes))
@@ -1354,9 +1407,9 @@ func (d *openapiDoc) follow(n *parseNode, path []string, topic string, named boo
 		case r.problem != "":
 			return nil, nil, fail(r.problem)
 		case slices.Contains(seen, r.target):
-			return nil, nil, fail(fmt.Sprintf("circular $ref %q", ref.text))
+			return nil, nil, fail(fmt.Sprintf("circular $ref %q", clip(ref.text)))
 		case len(seen) >= maxRefDepth:
-			return nil, nil, fail(fmt.Sprintf("$ref %q: more than %d chained references", ref.text, maxRefDepth))
+			return nil, nil, fail(fmt.Sprintf("$ref %q: more than %d chained references", clip(ref.text), maxRefDepth))
 		}
 		seen = append(seen, r.target)
 		if n, err = d.overlay(r.target, n); err != nil {
@@ -1386,9 +1439,9 @@ func (d *openapiDoc) readRef(ref *parseNode) (openapiRef, error) {
 	var r openapiRef
 	tokens, pointer, err := openapiParseRef(ref.text)
 	if err != nil || !pointer {
-		r.problem = fmt.Sprintf("invalid $ref %q", ref.text)
+		r.problem = fmt.Sprintf("invalid $ref %q", clip(ref.text))
 	} else if r.tokens, r.target = tokens, openapiResolve(d.root, tokens); r.target == nil {
-		r.problem = fmt.Sprintf("$ref %q does not resolve", ref.text)
+		r.problem = fmt.Sprintf("$ref %q does not resolve", clip(ref.text))
 	}
 	d.refs[ref] = r
 	return r, nil
@@ -1875,14 +1928,14 @@ func (b *openapiBundler) discriminator(buf []byte, m *parseNode, path []string) 
 // ref rewrites one reference found at path. See openapiBundler.
 func (b *openapiBundler) ref(ref string, path []string) (string, error) {
 	if !strings.HasPrefix(ref, "#") {
-		return "", b.errorf(path, "external $ref %q is not supported; move the schema under #/components/schemas", ref)
+		return "", b.errorf(path, "external $ref %q is not supported; move the schema under #/components/schemas", clip(ref))
 	}
 	if len(ref) > openapiMaxRefBytes {
 		return "", b.errorf(path, "$ref is longer than %d bytes", openapiMaxRefBytes)
 	}
 	tokens, pointer, err := openapiParseRef(ref)
 	if err != nil {
-		return "", b.errorf(path, "invalid $ref %q", ref)
+		return "", b.errorf(path, "invalid $ref %q", clip(ref))
 	}
 	if !pointer {
 		return ref, nil
@@ -1893,12 +1946,12 @@ func (b *openapiBundler) ref(ref string, path []string) (string, error) {
 	if len(tokens) >= 3 && tokens[0] == "components" && tokens[1] == "schemas" {
 		component, ok := b.doc.schemas[tokens[2]]
 		if !ok || openapiResolve(component, tokens[3:]) == nil {
-			return "", b.errorf(path, "$ref %q does not resolve", ref)
+			return "", b.errorf(path, "$ref %q does not resolve", clip(ref))
 		}
 		return openapiFragment(append([]string{"$defs", b.defName(tokens[2])}, tokens[3:]...)), nil
 	}
 	if len(tokens) > 0 && b.doc.root.get(tokens[0]) != nil {
-		return "", b.errorf(path, "unsupported $ref %q: only #/components/schemas references can be bundled into a payload schema", ref)
+		return "", b.errorf(path, "unsupported $ref %q: only #/components/schemas references can be bundled into a payload schema", clip(ref))
 	}
 	return ref, nil
 }

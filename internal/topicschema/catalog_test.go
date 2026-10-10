@@ -481,6 +481,46 @@ func TestNewCatalogWithWarnings(t *testing.T) {
 	assert.False(t, c.HasSchemas())
 }
 
+func TestNewCatalogBoundsProblems(t *testing.T) {
+	names := func(prefix string, n int) []string {
+		out := make([]string, n)
+		for i := range out {
+			out[i] = fmt.Sprintf("%s%03d", prefix, i)
+		}
+		return out
+	}
+	defsOf := func(names []string) Definitions {
+		defs := Definitions{}
+		for _, n := range names {
+			defs[n] = Definition{}
+		}
+		return defs
+	}
+
+	_, err := NewCatalog([]string{"a"}, defsOf(names("p", 150)))
+	problems := configProblems(t, err)
+	require.Len(t, problems, 101)
+	assert.Equal(t, `topic "p000" is not in TOPICS`, problems[0])
+	assert.Equal(t, "... and 50 more", problems[100])
+
+	// Warnings passed in, already bounded, count with the catalog's own.
+	parsed := make([]string, 0, 101)
+	for _, n := range names("w", 100) {
+		parsed = append(parsed, fmt.Sprintf("imported topic %q is not in TOPICS and was skipped", n))
+	}
+	parsed = append(parsed, "... and 50 more")
+	c, err := NewCatalog([]string{"a"}, nil, WithImported(defsOf(names("i", 10))), WithWarnings(parsed))
+	require.NoError(t, err)
+	warnings := c.Warnings()
+	require.Len(t, warnings, 101)
+	assert.Equal(t, `imported topic "i000" is not in TOPICS and was skipped`, warnings[0])
+	assert.Equal(t, "... and 60 more", warnings[100])
+
+	long := strings.Repeat("é", maxQuotedBytes)
+	_, err = NewCatalog([]string{"a"}, Definitions{long: {}})
+	assert.Equal(t, []string{`topic "` + strings.Repeat("é", maxQuotedBytes/2) + `..." is not in TOPICS`}, configProblems(t, err))
+}
+
 func TestCatalogAccessors(t *testing.T) {
 	object := json.RawMessage(`{"type":"object","properties":{"id":{"type":"string","x-mcp-filter":false}}}`)
 	c, err := NewCatalog([]string{"c", "a", "b", "d", "a"}, Definitions{
