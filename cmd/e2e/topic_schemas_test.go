@@ -2,6 +2,7 @@ package e2e_test
 
 import (
 	"context"
+	"net/http"
 	"slices"
 	"testing"
 	"time"
@@ -12,6 +13,7 @@ import (
 	"github.com/hookdeck/outpost/internal/config"
 	"github.com/hookdeck/outpost/internal/util/testinfra"
 	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/suite"
 )
 
 // TestE2E_TopicSchemas_InvalidConfigFailsStartup checks that a schema problem
@@ -66,4 +68,78 @@ func TestE2E_TopicSchemas_InvalidConfigFailsStartup(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestE2E_TopicSchemas_TopicsFromSchemaKeys boots Outpost with topic schemas
+// and no TOPICS: the schema keys become the topics, for GET /topics,
+// publishing and destination topics alike.
+func TestE2E_TopicSchemas_TopicsFromSchemaKeys(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.Skip("skipping e2e test")
+	}
+	suite.Run(t, &topicsFromSchemasSuite{})
+}
+
+type topicsFromSchemasSuite struct {
+	suite.Suite
+	base *basicSuite
+}
+
+func (s *topicsFromSchemasSuite) SetupSuite() {
+	s.base = &basicSuite{
+		logStorageType: configs.LogStorageTypePostgres,
+		redisConfig:    testinfra.NewDragonflyStackConfig(s.T()),
+		configure: func(cfg *config.Config) {
+			cfg.Topics = nil
+			cfg.TopicsSchemas = config.NewTopicSchemas(`{
+				"order.updated": {},
+				"order.created": {
+					"description": "Fires when a new order is placed.",
+					"mcp": {"enabled": true},
+					"payload_schema": {"type": "object", "properties": {"total": {"type": "number"}}}
+				}
+			}`)
+		},
+	}
+	s.base.SetT(s.T())
+	s.base.SetupSuite()
+}
+
+func (s *topicsFromSchemasSuite) SetupTest() {
+	s.base.SetT(s.T())
+}
+
+func (s *topicsFromSchemasSuite) TearDownSuite() {
+	s.base.TearDownSuite()
+}
+
+func (s *topicsFromSchemasSuite) TestListTopicsReturnsTheSchemaKeys() {
+	var topics []string
+	s.Require().Equal(http.StatusOK, s.base.doJSON(http.MethodGet, s.base.apiURL("/topics"), nil, &topics))
+	s.Equal([]string{"order.created", "order.updated"}, topics)
+}
+
+func (s *topicsFromSchemasSuite) TestPublishAcceptsOnlyTheSchemaKeys() {
+	tenant := s.base.createTenant()
+	dest := s.base.createWebhookDestination(tenant.ID, "order.created", withSecret(testSecret))
+	s.base.publish(tenant.ID, "order.created", map[string]any{"total": 1})
+	s.Len(s.base.waitForNewMockServerEvents(dest.mockID, 1), 1)
+
+	status := s.base.doJSON(http.MethodPost, s.base.apiURL("/publish"), map[string]any{
+		"tenant_id": tenant.ID,
+		"topic":     "user.created",
+		"data":      map[string]any{},
+	}, nil)
+	s.Equal(http.StatusUnprocessableEntity, status, "a topic without a schema key isn't a topic")
+}
+
+func (s *topicsFromSchemasSuite) TestDestinationsTakeOnlyTheSchemaKeys() {
+	tenant := s.base.createTenant()
+	status := s.base.doJSON(http.MethodPost, s.base.apiURL("/tenants/"+tenant.ID+"/destinations"), map[string]any{
+		"type":   "webhook",
+		"topics": []string{"user.created"},
+		"config": map[string]any{"url": "https://example.com/hook"},
+	}, nil)
+	s.Equal(http.StatusUnprocessableEntity, status)
 }

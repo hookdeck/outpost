@@ -29,7 +29,7 @@ Set the list of available topics using the `TOPICS` environment variable:
 TOPICS=user.created,user.updated,user.deleted,order.placed,order.shipped
 ```
 
-If `TOPICS` is not set, Outpost defaults to `*`, allowing any topic value.
+If `TOPICS` is not set, Outpost defaults to `*`, allowing any topic value, unless [topic schemas](#topic-schemas) are configured: their keys are then the topics.
 
 Wildcard topic subscriptions are disabled by default. Set `TOPICS_ALLOW_WILDCARDS=TRUE` to allow `*` inside destination topic strings.
 {% /tab %}
@@ -170,7 +170,6 @@ order.created:
 ```
 
 ```
-TOPICS=order.created,order.shipped
 TOPICS_SCHEMAS_FILE=/config/outpost/topics-schemas.yaml
 ```
 
@@ -181,7 +180,9 @@ Only the API service loads schemas, once at startup, including when a single pro
 {% /tab %}
 {% /tabs %}
 
-Each schema key must match a topic in `TOPICS` exactly. A key that only differs by whitespace fails with a suggestion. Wildcard keys such as `*` or `user.*` aren't allowed, and schemas need `TOPICS` to be set.
+When `TOPICS` isn't set, the schema keys are the topics, in alphabetical order: Outpost accepts publishes and destination subscriptions for those topics only, and `GET /topics` lists them. A topic that needs no schema can still be listed with an empty entry, such as `"order.shipped": {}`. The API service logs the topics it derived at startup.
+
+When `TOPICS` is set, it stays the list of topics, and each schema key must match one of them exactly, so a misspelled key fails startup instead of adding a topic. A key that only differs by whitespace fails with a suggestion. Wildcard keys such as `*` or `user.*` aren't allowed.
 
 ### Schema Support
 
@@ -218,7 +219,7 @@ To make a change that existing consumers can't handle, such as removing a field 
 2. Set `deprecated: true` and `replaced_by: "order.created.v2"` on the old topic. MCP clients see the old topic's description prefixed with `Deprecated: use order.created.v2.` Publishing to the old topic and its existing destinations keep working.
 3. Remove the old topic from `TOPICS` once its publishers and destinations have moved.
 
-`replaced_by` must name another topic in `TOPICS`. If the deprecated topic is MCP-enabled, its replacement must be MCP-enabled too.
+`replaced_by` must name another topic. If the deprecated topic is MCP-enabled, its replacement must be MCP-enabled too.
 
 Outpost doesn't check schema changes for compatibility yet. Breaking-change checks for topics with live MCP subscriptions arrive with MCP subscriptions.
 

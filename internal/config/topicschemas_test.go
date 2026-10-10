@@ -377,3 +377,74 @@ func indent(s, prefix string) string {
 	}
 	return strings.Join(lines, "\n") + "\n"
 }
+
+func TestTopicSchemas_TopicsFromSchemaKeys(t *testing.T) {
+	topicNames := func(c *topicschema.Catalog) []string {
+		var names []string
+		for _, topic := range c.Topics() {
+			names = append(names, topic.Name)
+		}
+		return names
+	}
+	withoutTopics := func(env map[string]string, files map[string]string) *config.Config {
+		osi := newTopicsOS(env, files)
+		if _, ok := env["TOPICS"]; !ok {
+			delete(osi.envVars, "TOPICS")
+		}
+		cfg, err := config.ParseWithoutValidation(config.Flags{}, osi)
+		require.NoError(t, err)
+		return cfg
+	}
+	const schemas = `{"order.updated":{},"order.created":{"description":"An order was placed."}}`
+
+	t.Run("TOPICS unset uses the schema keys, sorted", func(t *testing.T) {
+		cfg := withoutTopics(map[string]string{"TOPICS_SCHEMAS": schemas}, nil)
+		require.Empty(t, cfg.Topics)
+		catalog := loadCatalog(t, cfg)
+		assert.Equal(t, []string{"order.created", "order.updated"}, cfg.Topics)
+		assert.Equal(t, []string{"order.created", "order.updated"}, topicNames(catalog))
+	})
+
+	t.Run("from a schemas file", func(t *testing.T) {
+		cfg := withoutTopics(map[string]string{"TOPICS_SCHEMAS_FILE": "topics.yaml"}, map[string]string{"topics.yaml": orderSchemasYAML})
+		requireOrderCreated(t, loadCatalog(t, cfg))
+		assert.Equal(t, []string{"order.created"}, cfg.Topics)
+	})
+
+	t.Run("whitespace-only TOPICS counts as unset", func(t *testing.T) {
+		cfg := withoutTopics(map[string]string{"TOPICS": " , ", "TOPICS_SCHEMAS": schemas}, nil)
+		loadCatalog(t, cfg)
+		assert.Equal(t, []string{"order.created", "order.updated"}, cfg.Topics)
+	})
+
+	t.Run("TOPICS set stays authoritative", func(t *testing.T) {
+		cfg := withoutTopics(map[string]string{"TOPICS": "order.created", "TOPICS_SCHEMAS": schemas}, nil)
+		_, err := cfg.LoadTopicCatalog()
+		require.ErrorIs(t, err, config.ErrInvalidTopicSchemas)
+		assert.Contains(t, err.Error(), `topic "order.updated" is not in TOPICS`)
+		assert.Equal(t, []string{"order.created"}, cfg.Topics)
+	})
+
+	t.Run("invalid schemas leave TOPICS unset", func(t *testing.T) {
+		for _, bad := range []string{
+			`{"user.*":{}}`,
+			`{"order.created":{"mcp":{"enabled":true}}}`,
+			`{"order.created":{"descripton":"typo"}}`,
+		} {
+			cfg := withoutTopics(map[string]string{"TOPICS_SCHEMAS": bad}, nil)
+			_, err := cfg.LoadTopicCatalog()
+			require.ErrorIs(t, err, config.ErrInvalidTopicSchemas, bad)
+			assert.Empty(t, cfg.Topics, bad)
+		}
+		cfg := withoutTopics(map[string]string{"TOPICS_SCHEMAS": `{"user.*":{}}`}, nil)
+		_, err := cfg.LoadTopicCatalog()
+		assert.Contains(t, err.Error(), "wildcard topics can't have schemas")
+	})
+
+	t.Run("no schemas keep TOPICS unset, so any topic is accepted", func(t *testing.T) {
+		cfg := withoutTopics(nil, nil)
+		catalog := loadCatalog(t, cfg)
+		assert.Empty(t, cfg.Topics)
+		assert.Empty(t, catalog.Topics())
+	})
+}

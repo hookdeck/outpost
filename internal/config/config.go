@@ -66,12 +66,12 @@ type Config struct {
 	// Application
 	DeploymentID         string   `yaml:"deployment_id" env:"DEPLOYMENT_ID" desc:"Optional deployment identifier for multi-tenancy. Enables multiple deployments to share the same infrastructure while maintaining data isolation." required:"N"`
 	AESEncryptionSecret  string   `yaml:"aes_encryption_secret" env:"AES_ENCRYPTION_SECRET" desc:"A 16, 24, or 32 byte secret key used for AES encryption of sensitive data at rest." required:"Y"`
-	Topics               []string `yaml:"topics" env:"TOPICS" envSeparator:"," desc:"Comma-separated list of topics that this Outpost instance should subscribe to for event processing." required:"N"`
+	Topics               []string `yaml:"topics" env:"TOPICS" envSeparator:"," desc:"Comma-separated list of topics that this Outpost instance should subscribe to for event processing. When unset, any topic is accepted, unless topic schemas are configured: the API service then uses their keys." required:"N"`
 	TopicsAllowWildcards bool     `yaml:"topics_allow_wildcards" env:"TOPICS_ALLOW_WILDCARDS" desc:"If true, destination topic subscriptions can use '*' inside topic strings as a wildcard pattern. If false, stored wildcard patterns are ignored without being deleted." required:"N" default:"false"`
 	HTTPUserAgent        string   `yaml:"http_user_agent" env:"HTTP_USER_AGENT" desc:"Custom HTTP User-Agent string for outgoing webhook deliveries. If unset, defaults to 'Outpost/{version}'." required:"N"`
 
 	// Topic schemas, loaded by the API service at startup (LoadTopicCatalog)
-	TopicsSchemas     TopicSchemas `yaml:"topics_schemas" env:"TOPICS_SCHEMAS" desc:"Topic schemas keyed by topic name, as a JSON object (in YAML, also a mapping): description, payload_schema (JSON Schema 2020-12 for the event data), mcp, deprecated and replaced_by. Every key must be in topics. Mutually exclusive with topics_schemas_file." required:"N"`
+	TopicsSchemas     TopicSchemas `yaml:"topics_schemas" env:"TOPICS_SCHEMAS" desc:"Topic schemas keyed by topic name, as a JSON object (in YAML, also a mapping): description, payload_schema (JSON Schema 2020-12 for the event data), mcp, deprecated and replaced_by. When topics is set, every key must be in it; when it isn't, the keys are the topics. Mutually exclusive with topics_schemas_file." required:"N"`
 	TopicsSchemasFile string       `yaml:"topics_schemas_file" env:"TOPICS_SCHEMAS_FILE" desc:"Path to a YAML or JSON file (JSON when the name ends in .json) with topic schemas in the topics_schemas shape. Mutually exclusive with topics_schemas." required:"N"`
 
 	// Infrastructure

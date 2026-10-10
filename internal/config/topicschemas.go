@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/hookdeck/outpost/internal/topicschema"
@@ -110,15 +112,24 @@ func (c *Config) validateTopicSchemas() error {
 // catalog for TopicCatalog. It is the only topic schema step that does I/O:
 // TOPICS_SCHEMAS_FILE is read through the OSInterface the config was parsed
 // with. Errors match ErrInvalidTopicSchemas.
+//
+// When TOPICS is unset, the schema keys become the topics, sorted, so a
+// deployment whose topics all have schemas lists them once. When TOPICS is
+// set, every schema key must be in it.
 func (c *Config) LoadTopicCatalog() (*topicschema.Catalog, error) {
 	defs, err := c.loadTopicDefinitions()
 	if err != nil {
 		return nil, invalidTopicSchemas(err)
 	}
-	catalog, err := topicschema.NewCatalog(c.Topics, defs)
+	topics := c.Topics
+	if len(topics) == 0 && len(defs) > 0 {
+		topics = slices.Sorted(maps.Keys(defs))
+	}
+	catalog, err := topicschema.NewCatalog(topics, defs)
 	if err != nil {
 		return nil, invalidTopicSchemas(err)
 	}
+	c.Topics = topics
 	c.SetTopicCatalog(catalog)
 	return catalog, nil
 }
