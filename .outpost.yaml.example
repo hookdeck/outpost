@@ -70,6 +70,7 @@ topics: # List of topics to subscribe to
 #         user_id: { type: string }
 #       required: [user_id]
 # topics_schemas_file: "config/outpost/topics-schemas.yaml" # YAML or JSON file with the same content
+# topics_allow_breaking_changes: false # Apply schema changes that break MCP-enabled topics. One deploy only.
 
 ## API
 api_port: 3333 # Default port for the API server

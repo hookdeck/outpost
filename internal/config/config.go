@@ -71,8 +71,9 @@ type Config struct {
 	HTTPUserAgent        string   `yaml:"http_user_agent" env:"HTTP_USER_AGENT" desc:"Custom HTTP User-Agent string for outgoing webhook deliveries. If unset, defaults to 'Outpost/{version}'." required:"N"`
 
 	// Topic schemas, loaded by the API service at startup (LoadTopicCatalog)
-	TopicsSchemas     TopicSchemas `yaml:"topics_schemas" env:"TOPICS_SCHEMAS" desc:"Topic schemas keyed by topic name, as a JSON object (in YAML, also a mapping): description, payload_schema (JSON Schema 2020-12 for the event data), validation (off, warn or enforce), mcp, deprecated and replaced_by. When topics is set, every key must be in it; when it isn't, the keys are the topics. Mutually exclusive with topics_schemas_file." required:"N"`
-	TopicsSchemasFile string       `yaml:"topics_schemas_file" env:"TOPICS_SCHEMAS_FILE" desc:"Path to a YAML or JSON file (JSON when the name ends in .json) with topic schemas in the topics_schemas shape. Mutually exclusive with topics_schemas." required:"N"`
+	TopicsSchemas              TopicSchemas `yaml:"topics_schemas" env:"TOPICS_SCHEMAS" desc:"Topic schemas keyed by topic name, as a JSON object (in YAML, also a mapping): description, payload_schema (JSON Schema 2020-12 for the event data), validation (off, warn or enforce), mcp, deprecated and replaced_by. When topics is set, every key must be in it; when it isn't, the keys are the topics. Mutually exclusive with topics_schemas_file." required:"N"`
+	TopicsSchemasFile          string       `yaml:"topics_schemas_file" env:"TOPICS_SCHEMAS_FILE" desc:"Path to a YAML or JSON file (JSON when the name ends in .json) with topic schemas in the topics_schemas shape. Mutually exclusive with topics_schemas." required:"N"`
+	TopicsAllowBreakingChanges bool         `yaml:"topics_allow_breaking_changes" env:"TOPICS_ALLOW_BREAKING_CHANGES" desc:"If true, the API service applies breaking topic schema changes to MCP-enabled topics instead of failing startup. Set it for one deploy, then remove it: a warning is logged while it's set." required:"N" default:"false"`
 
 	// Infrastructure
 	Redis       RedisConfig      `yaml:"redis"`
@@ -634,9 +635,14 @@ func resolveAlertCount(raw OptionalString, defaultValue, min int) (resolvedAlert
 }
 
 // DeprecationWarnings returns human-readable warnings for config options that
-// are set but deprecated or ignored, so callers can surface them at startup.
+// are set but deprecated or ignored, or meant to be removed after one deploy,
+// so callers can surface them at startup.
 func (c *Config) DeprecationWarnings() []string {
-	return append(c.Destinations.Webhook.deprecationWarnings(), c.Destinations.Webhook.standardModeWarnings()...)
+	warnings := append(c.Destinations.Webhook.deprecationWarnings(), c.Destinations.Webhook.standardModeWarnings()...)
+	if c.TopicsAllowBreakingChanges {
+		warnings = append(warnings, "TOPICS_ALLOW_BREAKING_CHANGES is set: the API service applies breaking topic schema changes to MCP-enabled topics. Remove it after this deploy.")
+	}
+	return warnings
 }
 
 // ConfigFilePath returns the path of the config file that was used

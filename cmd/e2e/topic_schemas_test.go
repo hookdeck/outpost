@@ -14,6 +14,8 @@ import (
 	"github.com/hookdeck/outpost/cmd/e2e/configs"
 	"github.com/hookdeck/outpost/internal/app"
 	"github.com/hookdeck/outpost/internal/config"
+	internalredis "github.com/hookdeck/outpost/internal/redis"
+	"github.com/hookdeck/outpost/internal/topicschema"
 	"github.com/hookdeck/outpost/internal/util/testinfra"
 	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/require"
@@ -381,4 +383,67 @@ func (s *topicsFromSchemasSuite) TestDestinationsTakeOnlyTheSchemaKeys() {
 		"config": map[string]any{"url": "https://example.com/hook"},
 	}, nil)
 	s.Equal(http.StatusUnprocessableEntity, status)
+}
+
+// TestE2E_TopicSchemas_BreakingChangeAtStartup runs Outpost several times
+// against one Redis. A breaking change to an MCP-enabled topic fails startup
+// with the list of changes; TOPICS_ALLOW_BREAKING_CHANGES applies it, after
+// which the new configuration starts without the flag.
+func TestE2E_TopicSchemas_BreakingChangeAtStartup(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.Skip("skipping e2e test")
+	}
+	testinfraCleanup := testinfra.Start(t)
+	defer testinfraCleanup()
+	gin.SetMode(gin.TestMode)
+	redisConfig := testinfra.NewDragonflyStackConfig(t)
+
+	const original = `{"type":"object","properties":{"total":{"type":"number"},"currency":{"type":"string"}}}`
+	// total narrows from number to string: not a widening.
+	const breaking = `{"type":"object","properties":{"total":{"type":"string"},"currency":{"type":"string"}}}`
+	newConfig := func(schema string, allowBreaking bool) config.Config {
+		cfg := configs.Basic(t, configs.BasicOpts{LogStorage: configs.LogStorageTypePostgres, RedisConfig: redisConfig})
+		cfg.Topics = nil
+		cfg.TopicsSchemas = config.NewTopicSchemas(`{"order.created":{"mcp":{"enabled":true},"payload_schema":` + schema + `}}`)
+		cfg.TopicsAllowBreakingChanges = allowBreaking
+		return cfg
+	}
+
+	// 1. The first start records the configuration.
+	startStandaloneApp(t, newConfig(original, false)).stop()
+
+	// 2. The breaking change fails startup, listing the change.
+	t.Run("breaking change refused", func(t *testing.T) {
+		cfg := newConfig(breaking, false)
+		prepareStandaloneConfig(t, &cfg)
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		err := app.New(&cfg).Run(ctx)
+		var breakingErr *topicschema.BreakingChangeError
+		require.ErrorAs(t, err, &breakingErr)
+		require.Contains(t, err.Error(), "order.created /properties/total")
+		require.Contains(t, err.Error(), "TOPICS_ALLOW_BREAKING_CHANGES")
+	})
+
+	// 3. TOPICS_ALLOW_BREAKING_CHANGES applies it. The running instance
+	// reports its configuration as live.
+	forced := newConfig(breaking, true)
+	running := startStandaloneApp(t, forced)
+	rdb, err := internalredis.New(context.Background(), redisConfig)
+	require.NoError(t, err)
+	defer rdb.Close()
+	applied, err := topicschema.ReadApplied(context.Background(), rdb, "")
+	require.NoError(t, err)
+	require.NotNil(t, applied)
+	require.NotEmpty(t, applied.Broken["order.created"], "the old schema is recorded as broken")
+	require.Eventually(t, func() bool {
+		live, err := topicschema.IsLive(context.Background(), rdb, "", applied.Hash)
+		return err == nil && live
+	}, 10*time.Second, 100*time.Millisecond, "the heartbeat reports the running configuration")
+	running.stop()
+
+	// 4. The forced configuration is now the applied one: it starts without
+	// the flag.
+	startStandaloneApp(t, newConfig(breaking, false)).stop()
 }

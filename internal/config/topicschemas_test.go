@@ -447,3 +447,29 @@ func TestTopicSchemas_TopicsFromSchemaKeys(t *testing.T) {
 		assert.Empty(t, catalog.Topics())
 	})
 }
+
+func TestTopicSchemas_AllowBreakingChanges(t *testing.T) {
+	hasWarning := func(c *config.Config) bool {
+		for _, w := range c.DeprecationWarnings() {
+			if strings.Contains(w, "TOPICS_ALLOW_BREAKING_CHANGES is set") {
+				return true
+			}
+		}
+		return false
+	}
+
+	cfg, _ := parseTopicsConfig(t, nil, nil, "")
+	assert.False(t, cfg.TopicsAllowBreakingChanges)
+	assert.False(t, hasWarning(cfg))
+
+	cfg, _ = parseTopicsConfig(t, map[string]string{"TOPICS_ALLOW_BREAKING_CHANGES": "true"}, nil, "")
+	assert.True(t, cfg.TopicsAllowBreakingChanges)
+	assert.True(t, hasWarning(cfg), "warned while set: it's meant for one deploy")
+
+	cfg, _ = parseTopicsConfig(t, nil, nil, "topics_allow_breaking_changes: true\n")
+	assert.True(t, cfg.TopicsAllowBreakingChanges)
+
+	cfg, _ = parseTopicsConfig(t, map[string]string{"TOPICS_ALLOW_BREAKING_CHANGES": "false"}, nil, "topics_allow_breaking_changes: true\n")
+	assert.False(t, cfg.TopicsAllowBreakingChanges, "the environment wins")
+	assert.False(t, hasWarning(cfg))
+}

@@ -26,6 +26,7 @@ import (
 	"github.com/hookdeck/outpost/internal/scheduler"
 	"github.com/hookdeck/outpost/internal/telemetry"
 	"github.com/hookdeck/outpost/internal/tenantstore"
+	"github.com/hookdeck/outpost/internal/topicschema"
 	"github.com/hookdeck/outpost/internal/worker"
 	"go.uber.org/zap"
 )
@@ -148,7 +149,8 @@ func (b *ServiceBuilder) Cleanup(ctx context.Context) {
 // BuildAPIWorkers creates the API router and registers workers for the API service.
 // This sets up the infrastructure, creates the API router, and registers workers:
 // 1. Retry scheduler
-// 2. PublishMQ consumer (optional)
+// 2. Topic schema heartbeat
+// 3. PublishMQ consumer (optional)
 // The baseRouter parameter is extended with API routes (apirouter already has health check)
 func (b *ServiceBuilder) BuildAPIWorkers(baseRouter *gin.Engine) error {
 	b.logger.Debug("building API service workers")
@@ -246,7 +248,12 @@ func (b *ServiceBuilder) BuildAPIWorkers(baseRouter *gin.Engine) error {
 	_, retryRegisterOpts := restartOptions(b.cfg, config.SupervisorWorkerRetryMQ)
 	b.supervisor.Register(retryWorker, retryRegisterOpts...)
 
-	// Worker 2: PublishMQ Consumer (optional)
+	// Worker 2: topic schema heartbeat, so rolling deploys and rollbacks
+	// pass the breaking-change check app.PreRun runs (topicschema.Apply).
+	b.supervisor.Register(NewTopicSchemasHeartbeatWorker(svc.redisClient, b.cfg.DeploymentID,
+		b.cfg.TopicCatalog().Snapshot().Hash(), topicschema.DefaultHeartbeatInterval, topicschema.DefaultHeartbeatTTL, b.logger))
+
+	// Worker 3: PublishMQ Consumer (optional)
 	if publishQueueConfig := b.cfg.PublishMQ.GetQueueConfig(); publishQueueConfig != nil {
 		if b.cfg.PublishMQ.ProxyIgnored() {
 			b.logger.Info("PUBLISH_PROXY_URL is ignored: only the RabbitMQ publish queue connects through a proxy",

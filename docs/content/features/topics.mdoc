@@ -251,9 +251,25 @@ To make a change that existing consumers can't handle, such as removing a field 
 
 1. Add the new topic, by convention with a version suffix such as `order.created.v2`, and publish to both topics during the overlap.
 2. Set `deprecated: true` and `replaced_by: "order.created.v2"` on the old topic. MCP clients see the old topic's description prefixed with `Deprecated: use order.created.v2.` Publishing to the old topic and its existing destinations keep working.
-3. Remove the old topic from `TOPICS` once its publishers and destinations have moved.
+3. Remove the old topic, from `TOPICS` or from your schemas, once its publishers and destinations have moved.
 
 `replaced_by` must name another topic. If the deprecated topic is MCP-enabled, its replacement must be MCP-enabled too.
 
-Outpost doesn't check schema changes for compatibility yet. Breaking-change checks for topics with live MCP subscriptions arrive with MCP subscriptions.
+#### Breaking-change check
+
+An MCP subscription outlives the event list it was created from: the client refreshes it with the same arguments, and expects payloads that match the schema it saw. So the schema of an MCP-enabled topic can only change additively.
+
+When the API service starts with topic schemas that differ from the last applied ones, which it keeps in Redis, it compares each topic that is MCP-enabled in both. The check is as lenient as possible while existing subscriptions stay valid:
+
+- **Allowed:** new properties, required or not; changes to `required`; descriptions and other annotations, `format` included; widenings, such as `integer` to `number`, a new `enum` value or a removed `type`; relaxed constraints.
+- **Breaking:** a property removed or renamed, at any depth; a type narrowed, such as `number` to `integer`; an `enum` narrowed or added, or a `const` changed or added; a constraint tightened or added, such as a raised `minimum`, a lowered `maxLength`, a new or changed `pattern`, or `additionalProperties: false`; a top-level property that is no longer an argument, because of `x-mcp-filter: false`, a type that can't be filtered, or a lost `format: date` that took its range operators.
+- **Composites:** an `allOf` whose branches are all object schemas is compared as the union of their properties. Any change inside `anyOf`, `oneOf`, `not`, `if`, `then`, `else`, `dependentSchemas`, `patternProperties`, `prefixItems`, `contains` or `unevaluated*` is breaking.
+
+Topics without `mcp.enabled` aren't checked, and neither is a topic that stops being MCP-enabled. As a guard against a missing or empty schema configuration, though, the API service refuses a configuration that ends every MCP-enabled topic at once.
+
+On a breaking change, the API service fails to start and lists each change: the topic, a JSON pointer into its payload schema, and the kind of change (`property_removed`, `type_narrowed`, `enum_narrowed`, `const_changed`, `constraint_tightened`, `filter_hidden` or `composite_changed`). The supported fix is the new-topic path above.
+
+**Forcing a breaking change.** With `TOPICS_ALLOW_BREAKING_CHANGES=true`, the API service applies the change instead, and records the topic's old schema so the subscriptions created against it can be ended. Set the flag for one deploy, then remove it: Outpost logs a warning while it's set.
+
+**Rollouts and rollbacks.** Each API instance reports the topic configuration it runs to Redis every 20 seconds. A configuration that an instance has reported in the last 60 seconds is accepted without a check, and doesn't replace the last applied one, so during a rolling deploy, instances on the previous configuration can restart. Once no instance has reported the last applied configuration for 60 seconds, as when a rollback outlives it, the configuration that does run replaces it without a check when its next instance starts. A rollback to a configuration that no instance runs anymore is checked like any other change, and rolling back a widening is a narrowing.
 
