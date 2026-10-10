@@ -615,7 +615,13 @@ Outpost runs [MCP Events](https://hookdeck.com/docs/outpost/guides/mcp-events) f
 
 ## Drop-in registration
 
-`mcpsdk.Register` adds the three methods to an `*mcp.Server` and advertises the `events` capability (the design-sketch `events: {}` that ChatGPT reads and the SEP-3415 `extensions` entry). Call it before the server serves any request. The SDK serves the `2026-07-28` revision ChatGPT requires through a stateless `StreamableHTTPHandler`:
+`mcpsdk.Register` adds the three methods to an `*mcp.Server` and advertises the `events` capability (the design-sketch `events: {}` that ChatGPT reads and the SEP-3415 `extensions` entry). Call it before the server serves any request. The SDK serves the `2026-07-28` revision ChatGPT requires through a stateless `StreamableHTTPHandler`.
+
+`mcpsdk` is a module of its own, so only the applications that use it depend on the Go MCP SDK. Add it next to this SDK:
+
+```bash
+go get github.com/hookdeck/outpost/sdks/outpost-go/mcpevents/mcpsdk
+```
 
 ```go
 import (
@@ -683,7 +689,7 @@ if errors.As(err, &mcpErr) {
 result, err = client.Unsubscribe(ctx, "store_123", mcpevents.UnsubscribeRequest{Principal: principal, Params: params})           // POST /tenants/{tenant_id}/mcp/subscriptions/unsubscribe
 ```
 
-Generated `Mcp` methods for these and the operator endpoints (listing and revoking subscriptions) arrive with the next SDK regeneration.
+Generated `Mcp` methods for these and the operator endpoints (listing and revoking subscriptions) arrive with the next SDK regeneration. The generated event list method drops an empty `Topics` slice from the query string, and Outpost then lists every MCP-enabled topic. For a principal allowed no topics, answer `{"events":[]}` yourself, or use the helpers above, which do.
 
 # Development
 

@@ -1,0 +1,118 @@
+name: MCP Clients
+
+# The tenant portal and the SDKs' MCP Events helpers are outside the root Go
+# module, so unit-tests.yml doesn't cover them. OUTPOST_REQUIRE_MCP_SDKS makes
+# the suites against the real MCP SDKs fail, instead of skipping, when those
+# SDKs are missing.
+
+on:
+  pull_request:
+    paths:
+      - "internal/portal/**"
+      - "sdks/**"
+      - ".github/workflows/mcp-clients.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  portal:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: internal/portal
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: internal/portal/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type-check
+        run: npx tsc --noEmit
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test
+
+  sdk-go:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.27.1"
+          cache-dependency-path: |
+            sdks/outpost-go/go.sum
+            sdks/outpost-go/mcpevents/mcpsdk/go.sum
+
+      - name: Test mcpevents
+        working-directory: sdks/outpost-go
+        run: go test -race -short ./mcpevents/...
+
+      # A module of its own, so that only its users depend on the Go MCP SDK.
+      - name: Test mcpevents/mcpsdk
+        working-directory: sdks/outpost-go/mcpevents/mcpsdk
+        run: go test -race -short ./...
+
+  sdk-typescript:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: sdks/outpost-typescript
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: sdks/outpost-typescript/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Not dependencies of the SDK: registerMcpEvents targets them.
+      - name: Install the MCP SDK v2 packages
+        run: npm install --no-save @modelcontextprotocol/server@^2 @modelcontextprotocol/client@^2
+
+      - name: Test
+        run: npm test
+        env:
+          OUTPOST_REQUIRE_MCP_SDKS: "1"
+
+  sdk-python:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: sdks/outpost-python
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -e . pytest "mcp>=2"
+
+      - name: Test
+        run: pytest tests/test_mcp_events.py tests/test_mcp_events_register.py
+        env:
+          OUTPOST_REQUIRE_MCP_SDKS: "1"

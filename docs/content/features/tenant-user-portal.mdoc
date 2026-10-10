@@ -11,7 +11,7 @@ Outpost includes a built-in self-service portal that your customers can use to m
 - View event history with request and response details
 - Filter events by status and destination
 - Manually retry failed delivery attempts
-- See which AI agents receive the tenant's events through [MCP Events](#mcp-subscriptions), and disconnect them
+- See which AI agents receive the tenant's events through [MCP Events](#mcp-subscriptions), and disconnect their subscriptions
 
 ## Accessing the Portal
 
@@ -42,7 +42,7 @@ Your Outpost API must be accessible from the public internet for the portal to f
 When your MCP server offers [MCP Events](/docs/outpost/guides/mcp-events), AI agents subscribe to a tenant's events through it, and each subscription is an `mcp` destination of the tenant. The portal shows them so your customers can see which agents receive their data, and cut them off. MCP Events is available on self-hosted Outpost.
 
 - **Read-only listing.** MCP subscriptions appear in the destination list and detail pages, with their principal, event, arguments and expiry, and their event deliveries like any other destination. They can't be edited, disabled or deleted, since the agent's client owns them.
-- **Disconnect.** The detail page's **Disconnect** action ends the subscription with `DELETE /tenants/{tenant_id}/mcp/subscriptions/{subscription_id}` and sends the agent's client a `terminated` envelope. If the principal still has access in your MCP server, the agent can subscribe again: revoke the access there to keep it out.
+- **Disconnect.** The detail page's **Disconnect** action ends that subscription, one event to one callback URL, with `DELETE /tenants/{tenant_id}/mcp/subscriptions/{subscription_id}` and sends the agent's client a `terminated` envelope. The agent's other subscriptions keep receiving events: disconnect each of them. If the principal still has access in your MCP server, the agent can subscribe again: revoke the access there to keep it out.
 - **Setup instructions instead of a form.** Picking the MCP type when adding a destination shows its instructions, how to connect your MCP server and which events agents can subscribe to, in place of a create form. The instructions use `MCP_SERVER_URL`.
 
 The MCP type and subscriptions only show once a topic has `mcp.enabled` set. Set `PORTAL_SHOW_MCP_DESTINATIONS=false` to hide them from the portal. That only hides them in the portal: the API still returns them to the tenant's JWT.

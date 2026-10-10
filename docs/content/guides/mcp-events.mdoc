@@ -150,9 +150,11 @@ import { McpServer } from "@modelcontextprotocol/server";
 import { Outpost } from "@hookdeck/outpost-sdk";
 import { registerMcpEvents } from "@hookdeck/outpost-sdk/mcp-events/index.js";
 
+// API v1, where the generated SDK methods work. The MCP Events helpers
+// rewrite it to /api/v2 for their own calls.
 const outpost = new Outpost({
   apiKey: process.env.OUTPOST_API_KEY,
-  serverURL: "https://outpost.acme.internal/api/v2",
+  serverURL: "https://outpost.acme.internal/api/v1",
 });
 
 export function buildMcpServer() {

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import gc
 import json
 from typing import Any, Optional
 
@@ -282,6 +283,56 @@ class TestCreateClient:
         )
         run(create_client(outpost).unsubscribe("t", {"principal": "p", "params": {}}))
         assert rec.requests[0].headers["authorization"] == "Bearer rotating"
+
+    @staticmethod
+    def mock_default_async_client(monkeypatch: pytest.MonkeyPatch, rec: Recorder) -> None:
+        """Makes every httpx.AsyncClient built without a transport, the
+        Outpost's own included, answer through `rec`."""
+
+        class MockAsyncClient(httpx.AsyncClient):
+            def __init__(self, **kwargs: Any) -> None:
+                kwargs.setdefault("transport", httpx.MockTransport(rec.handle))
+                super().__init__(**kwargs)
+
+        monkeypatch.setattr(httpx, "AsyncClient", MockAsyncClient)
+
+    def test_outlives_a_collected_outpost(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        rec = Recorder(lambda r: json_response(200, {"events": []}))
+        self.mock_default_async_client(monkeypatch, rec)
+
+        async def go() -> None:
+            # Nothing else holds the Outpost: its finalizer closes the HTTP
+            # client it owns once it is collected.
+            h = MCPEventsHandlers(Outpost(api_key="k", server_url="http://localhost:3333/api/v1"), resolve_tenant=tenant_of)
+            gc.collect()
+            # Let the aclose() the finalizer scheduled on this loop run.
+            for _ in range(3):
+                await asyncio.sleep(0)
+            assert await h.handle_list("u1", {}) == {"events": []}
+
+        run(go())
+        assert str(rec.requests[0].url) == "http://localhost:3333/api/v2/tenants/tenant_of_u1/mcp/events"
+        assert rec.requests[0].headers["authorization"] == "Bearer k"
+
+    def test_falls_back_when_the_outpost_client_is_closed(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        rec = Recorder(lambda r: json_response(200, {"events": []}))
+        self.mock_default_async_client(monkeypatch, rec)
+
+        async def go() -> None:
+            async with Outpost(api_key="k", server_url="http://localhost:3333/api/v2") as outpost:
+                client = MCPEventsClient.from_outpost(outpost)
+                shared = outpost.sdk_configuration.async_client
+                assert await client.list_events("t") == {"events": []}
+            # Leaving the block closed the Outpost's client and unset it.
+            assert shared.is_closed and outpost.sdk_configuration.async_client is None
+            assert await client.list_events("t") == {"events": []}
+            # A closed client still set on the Outpost is skipped too.
+            outpost.sdk_configuration.async_client = shared
+            assert await client.list_events("t") == {"events": []}
+            await client.aclose()
+
+        run(go())
+        assert len(rec.requests) == 3
 
     def test_from_mapping_and_passthrough(self) -> None:
         client = create_client({"server_url": "http://h/api/v2", "api_key": "k"})

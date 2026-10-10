@@ -7123,6 +7123,8 @@ paths:
             The event names the principal may discover. Comma-separated (`topics=order.created,order.shipped`), repeated (`topics=order.created&topics=order.shipped`) or both. Names that aren't MCP-enabled topics are ignored.
 
             Present but empty (`topics=`) lists no events. Omit it to list every MCP-enabled topic.
+
+            Generated SDK methods drop an empty array from the query string, which lists every MCP-enabled topic. For a principal allowed no topics, answer `{"events": []}` without calling this endpoint, or use the SDKs' MCP Events helpers, which do.
         - name: limit
           in: query
           required: false

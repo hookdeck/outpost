@@ -1,6 +1,7 @@
 import { useContext, useMemo } from "react";
 import useSWR from "swr";
 import { ApiContext } from "../../app";
+import { chunkDestinationIds, groupByDestination } from "../../utils/metrics";
 
 export type Timeframe = "1h" | "24h" | "7d" | "30d";
 
@@ -161,58 +162,56 @@ export function useBatchedMetrics({
     : "";
   const idsKey = [...destinationIds].sort().join(",");
 
-  const url = useMemo(() => {
+  // One request per chunk of IDs keeps each URL bounded however many
+  // destinations (MCP subscriptions included) the tenant has.
+  const urls = useMemo(() => {
     if (destinationIds.length === 0) return null;
 
     const { start, end } = getDateRange(timeframe);
-    const params = new URLSearchParams();
-    params.set("time[start]", start);
-    params.set("time[end]", end);
+    return chunkDestinationIds(destinationIds).map((ids) => {
+      const params = new URLSearchParams();
+      params.set("time[start]", start);
+      params.set("time[end]", end);
 
-    for (const m of measures) {
-      params.append("measures[]", m);
-    }
-
-    const sortedIds = [...destinationIds].sort();
-    for (const id of sortedIds) {
-      params.append("filters[destination_id][]", id);
-    }
-
-    params.append("dimensions[]", "destination_id");
-
-    if (filters) {
-      for (const [k, v] of Object.entries(filters)) {
-        params.set(`filters[${k}]`, v);
+      for (const m of measures) {
+        params.append("measures[]", m);
       }
-    }
 
-    params.set("granularity", granularityOverride ?? getGranularity(timeframe));
+      for (const id of ids) {
+        params.append("filters[destination_id][]", id);
+      }
 
-    return `metrics/attempts?${params.toString()}`;
+      params.append("dimensions[]", "destination_id");
+
+      if (filters) {
+        for (const [k, v] of Object.entries(filters)) {
+          params.set(`filters[${k}]`, v);
+        }
+      }
+
+      params.set(
+        "granularity",
+        granularityOverride ?? getGranularity(timeframe),
+      );
+
+      return `metrics/attempts?${params.toString()}`;
+    });
   }, [idsKey, measuresKey, filtersKey, granularityOverride, timeframe]);
 
-  const { data, error, isLoading } = useSWR<MetricsResponse>(
-    url,
-    (path: string) => apiClient.fetchRoot(path),
+  const { data, error, isLoading } = useSWR<MetricsResponse[]>(
+    urls,
+    (paths: string[]) =>
+      Promise.all(paths.map((path) => apiClient.fetchRoot(path))),
     {
       refreshInterval: 60_000,
       revalidateOnFocus: false,
     },
   );
 
-  const grouped = useMemo(() => {
-    if (!data) return undefined;
-
-    const result: Record<string, MetricsDataPoint[]> = {};
-    for (const point of data.data) {
-      const destId = point.dimensions.destination_id;
-      if (!result[destId]) {
-        result[destId] = [];
-      }
-      result[destId].push(point);
-    }
-    return result;
-  }, [data]);
+  const grouped = useMemo(
+    () => (data ? groupByDestination<MetricsDataPoint>(data) : undefined),
+    [data],
+  );
 
   return { data: grouped, error, isLoading };
 }

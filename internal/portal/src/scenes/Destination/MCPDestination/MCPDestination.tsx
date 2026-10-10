@@ -14,14 +14,19 @@ import JSONViewer from "../../../common/JSONViewer/JSONViewer";
 import { showToast } from "../../../common/Toast/Toast";
 import { useTopicDeprecations } from "../../../topic-deprecations";
 import type { Destination } from "../../../typings/Destination";
-import { configString, parseArguments } from "../../../utils/destinationTypes";
+import {
+  configString,
+  mcpDeliveries,
+  parseArguments,
+} from "../../../utils/destinationTypes";
 import { deprecationLabel } from "../../../utils/topics";
 import DestinationMetrics from "../DestinationMetrics";
 
 // MCP destinations are subscriptions an agent created through the operator's
 // MCP server. The portal shows them read-only: settings, secret rotation,
 // enable/disable and filter editing don't apply, and the only action is
-// Disconnect, which revokes the subscription.
+// Disconnect, which revokes this one subscription (one event to one callback
+// URL), not the agent's other subscriptions.
 
 const TRUNCATION_LENGTH = 48;
 
@@ -147,10 +152,11 @@ export function MCPDestinationSettings({
   const apiClient = useContext(ApiContext);
   const navigate = useNavigate();
   const [isDisconnecting, setIsDisconnecting] = useState(false);
+  const deliveries = mcpDeliveries(destination);
 
   const handleDisconnect = () => {
     const confirmed = window.confirm(
-      "Are you sure you want to disconnect this agent? It will stop receiving events and will have to subscribe again.",
+      `Are you sure you want to disconnect this subscription? Deliveries of ${deliveries} will stop, and the agent will have to subscribe again to receive them.`,
     );
     if (!confirmed) return;
 
@@ -171,10 +177,10 @@ export function MCPDestinationSettings({
       .fetch(`mcp/subscriptions/${encodeURIComponent(destination.id)}`, {
         method: "DELETE",
       })
-      .then(() => done("Agent disconnected"))
+      .then(() => done("Subscription disconnected"))
       .catch((error) => {
         if (error instanceof ApiError && error.status === 404) {
-          done("Agent already disconnected");
+          done("Subscription already disconnected");
           return;
         }
         showToast("error", formatError(error));
@@ -187,11 +193,11 @@ export function MCPDestinationSettings({
   return (
     <div className="destination-settings">
       <div className="destination-settings__actions">
-        <h2 className="title-l">Disconnect agent</h2>
+        <h2 className="title-l">Disconnect subscription</h2>
         <p className="body-m muted">
-          This destination was created by an agent through an MCP client and
-          can't be edited here. Disconnecting it stops all deliveries to the
-          agent immediately.
+          This subscription was created by an agent through an MCP client and
+          can't be edited here. Disconnecting it immediately stops deliveries of{" "}
+          {deliveries}. The agent's other subscriptions keep receiving events.
         </p>
         <Button onClick={handleDisconnect} loading={isDisconnecting} danger>
           <DeleteIcon />

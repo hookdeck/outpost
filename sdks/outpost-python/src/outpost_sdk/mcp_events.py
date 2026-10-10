@@ -235,6 +235,9 @@ class MCPEventsClient:
         self._api_key = api_key
         self._client = async_client
         self._owns_client = async_client is None
+        # Set by from_outpost without an async_client: the Outpost whose
+        # async client the calls use.
+        self._outpost: Any = None
         self._timeout = (timeout_ms if timeout_ms and timeout_ms > 0 else DEFAULT_TIMEOUT_MS) / 1000
         self._max_response_bytes = (
             max_response_bytes if max_response_bytes and max_response_bytes > 0 else DEFAULT_MAX_RESPONSE_BYTES
@@ -243,7 +246,13 @@ class MCPEventsClient:
     @classmethod
     def from_outpost(cls, outpost: Any, **kwargs: Any) -> MCPEventsClient:
         """Builds a client from an ``outpost_sdk.Outpost`` instance: its server
-        URL, API key, async HTTP client and timeout."""
+        URL, API key, async HTTP client and timeout.
+
+        The client keeps the Outpost alive (collecting it closes the HTTP
+        client it owns) and reads its async client on each call. Once the
+        Outpost has closed or unset that client, for example after
+        ``async with Outpost(...)``, calls go through a client of its own,
+        closed by ``aclose()``."""
         config = outpost.sdk_configuration
         server_url, _ = config.get_server_details()
         security = config.security
@@ -252,9 +261,11 @@ class MCPEventsClient:
             sec = security() if callable(security) else security
             return getattr(sec, "api_key", None)
 
-        kwargs.setdefault("async_client", config.async_client)
         kwargs.setdefault("timeout_ms", config.timeout_ms)
-        return cls(server_url, api_key if security is not None else None, **kwargs)
+        client = cls(server_url, api_key if security is not None else None, **kwargs)
+        if client._client is None:
+            client._outpost = outpost
+        return client
 
     @property
     def base_url(self) -> str:
@@ -331,9 +342,7 @@ class MCPEventsClient:
             except (TypeError, ValueError) as err:
                 raise MCPEventsRequestError("request body is not JSON serializable") from err
 
-        if self._client is None:
-            self._client = httpx.AsyncClient()
-        client = self._client
+        client = self._http_client()
         try:
             with anyio.fail_after(self._timeout):
                 request = client.build_request(
@@ -352,6 +361,16 @@ class MCPEventsClient:
         except httpx.HTTPError as err:
             raise MCPEventsRequestError("Outpost request failed") from err
         return _parse_response(response.status_code, text)
+
+    def _http_client(self) -> Any:
+        # Read on each call: the Outpost closes or unsets its client on exit.
+        if self._outpost is not None:
+            shared = self._outpost.sdk_configuration.async_client
+            if shared is not None and not getattr(shared, "is_closed", False):
+                return shared
+        if self._client is None:
+            self._client = httpx.AsyncClient()
+        return self._client
 
 
 def create_client(source: Any) -> MCPEventsAPI:

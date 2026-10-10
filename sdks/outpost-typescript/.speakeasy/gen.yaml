@@ -37,7 +37,7 @@ typescript:
     peerDependencies: {}
   additionalPackageJSON: {}
   additionalScripts:
-    test: bun test src/__tests__
+    test: bun test ./__tests__
   alwaysIncludeInboundAndOutbound: false
   apiPromiseHelpers: false
   author: Speakeasy

@@ -30,8 +30,7 @@ generation:
     skipResponseBodyAssertions: false
 go:
   version: 1.7.0
-  additionalDependencies:
-    github.com/modelcontextprotocol/go-sdk: v1.8.0
+  additionalDependencies: {}
   allowUnknownFieldsInWeakUnions: false
   baseErrorName: OutpostError
   clientServerStatusCodesAsErrors: true

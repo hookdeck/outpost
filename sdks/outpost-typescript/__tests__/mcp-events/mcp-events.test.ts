@@ -1,11 +1,11 @@
 /// <reference types="bun-types" />
 /*
  * Tests for the hand-written MCP Events helpers (src/mcp-events). Run with
- * `bun test src/__tests__`.
+ * `bun test ./__tests__`.
  */
 
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { Outpost } from "../index.js";
+import { Outpost } from "../../src/index.js";
 import {
   createMcpEventsClient,
   createMcpEventsHandlers,
@@ -16,7 +16,7 @@ import {
   McpEventsRequestError,
   mcpErrorFrom,
   McpResult,
-} from "../mcp-events/index.js";
+} from "../../src/mcp-events/index.js";
 
 type Recorded = { method: string; url: URL; headers: Headers; body: string };
 
