@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 	"sync"
 	"testing"
@@ -357,20 +358,29 @@ func TestSchemaValidationError(t *testing.T) {
 }
 
 // blockingValidator holds every validation until released, and caps the data
-// it validates like *topicschema.Catalog.
+// it validates like *topicschema.Catalog. A topic's ValidationFactor is
+// factors[topic], else 1.
 type blockingValidator struct {
 	maxBytes int
+	factors  map[string]int
 	// entered receives the size of each validation once it starts.
 	entered chan int
 	release chan struct{}
 	once    sync.Once
 }
 
-func newBlockingValidator(maxBytes int) *blockingValidator {
-	return &blockingValidator{maxBytes: maxBytes, entered: make(chan int, 16), release: make(chan struct{})}
+func newBlockingValidator(maxBytes int, factors map[string]int) *blockingValidator {
+	return &blockingValidator{maxBytes: maxBytes, factors: factors, entered: make(chan int, 16), release: make(chan struct{})}
 }
 
 func (v *blockingValidator) MaxValidationBytes() int { return v.maxBytes }
+
+func (v *blockingValidator) ValidationFactor(topic string) int {
+	if f, ok := v.factors[topic]; ok {
+		return f
+	}
+	return 1
+}
 
 // releaseAll lets every validation, current and future, finish.
 func (v *blockingValidator) releaseAll() { v.once.Do(func() { close(v.release) }) }
@@ -404,11 +414,12 @@ func (v *blockingValidator) requireWaiting(t *testing.T) {
 }
 
 func TestEventHandler_SchemaValidationBudget(t *testing.T) {
-	type publishFunc func(ctx context.Context, id string, size int) <-chan error
-	// The validator caps data at 100 bytes, so at most 400 bytes are
-	// validated at once.
+	type publishFunc func(ctx context.Context, id, topic string, size int) <-chan error
+	// The validator caps data at 100 bytes, so validations weighing at most
+	// 400 run at once. user.created data weighs its size, user.updated data
+	// twice its size, and user.deleted data isn't validated.
 	setup := func(t *testing.T) (*blockingValidator, publishFunc) {
-		v := newBlockingValidator(100)
+		v := newBlockingValidator(100, map[string]int{"user.updated": 2, "user.deleted": 0})
 		handler := publishmq.NewEventHandler(
 			testutil.CreateTestLogger(t), nil, tenantstore.NewMemTenantStore(), nil,
 			testutil.TestTopics, false, nil,
@@ -420,8 +431,9 @@ func TestEventHandler_SchemaValidationBudget(t *testing.T) {
 			v.releaseAll()
 			running.Wait()
 		})
-		publish := func(ctx context.Context, id string, size int) <-chan error {
+		publish := func(ctx context.Context, id, topic string, size int) <-chan error {
 			event := schemaEvent(id)
+			event.Topic = topic
 			const prefix = `{"pad":"`
 			event.Data = json.RawMessage(prefix + strings.Repeat("x", size-len(prefix)-2) + `"}`)
 			done := make(chan error, 1)
@@ -437,7 +449,7 @@ func TestEventHandler_SchemaValidationBudget(t *testing.T) {
 	fill := func(t *testing.T, v *blockingValidator, publish publishFunc) []<-chan error {
 		var done []<-chan error
 		for i := range 4 {
-			done = append(done, publish(t.Context(), fmt.Sprintf("evt_%d", i), 100))
+			done = append(done, publish(t.Context(), fmt.Sprintf("evt_%d", i), "user.created", 100))
 			assert.Equal(t, 100, v.waitEntered(t))
 		}
 		return done
@@ -457,7 +469,7 @@ func TestEventHandler_SchemaValidationBudget(t *testing.T) {
 		v, publish := setup(t)
 		done := fill(t, v, publish)
 
-		next := publish(t.Context(), "evt_next", 100)
+		next := publish(t.Context(), "evt_next", "user.created", 100)
 		v.requireWaiting(t)
 
 		v.release <- struct{}{}
@@ -473,7 +485,7 @@ func TestEventHandler_SchemaValidationBudget(t *testing.T) {
 		fill(t, v, publish)
 
 		ctx, cancel := context.WithCancel(t.Context())
-		waiting := publish(ctx, "evt_cancelled", 100)
+		waiting := publish(ctx, "evt_cancelled", "user.created", 100)
 		v.requireWaiting(t)
 		cancel()
 		require.ErrorIs(t, result(t, waiting), context.Canceled)
@@ -485,7 +497,49 @@ func TestEventHandler_SchemaValidationBudget(t *testing.T) {
 		v, publish := setup(t)
 		fill(t, v, publish)
 
-		publish(t.Context(), "evt_large", 101)
+		publish(t.Context(), "evt_large", "user.created", 101)
 		assert.Equal(t, 101, v.waitEntered(t))
+	})
+
+	t.Run("topics that aren't validated don't wait", func(t *testing.T) {
+		// Not even behind a validation waiting for the budget.
+		v, publish := setup(t)
+		fill(t, v, publish)
+		publish(t.Context(), "evt_queued", "user.created", 100)
+		v.requireWaiting(t)
+
+		publish(t.Context(), "evt_unvalidated", "user.deleted", 100)
+		assert.Equal(t, 100, v.waitEntered(t))
+	})
+
+	t.Run("validations weigh their topic's factor", func(t *testing.T) {
+		v, publish := setup(t)
+		for i := range 2 {
+			publish(t.Context(), fmt.Sprintf("evt_%d", i), "user.updated", 100)
+			assert.Equal(t, 100, v.waitEntered(t))
+		}
+		publish(t.Context(), "evt_next", "user.created", 10)
+		v.requireWaiting(t)
+	})
+
+	t.Run("a validation weighs at most the whole budget", func(t *testing.T) {
+		v := newBlockingValidator(100, map[string]int{"user.created": math.MaxInt})
+		handler := publishmq.NewEventHandler(
+			testutil.CreateTestLogger(t), nil, tenantstore.NewMemTenantStore(), nil,
+			testutil.TestTopics, false, nil,
+			publishmq.WithSchemaValidator(v),
+			publishmq.WithMetrics(newFakeMetrics(t)),
+		)
+		done := make(chan struct{})
+		t.Cleanup(func() {
+			v.releaseAll()
+			<-done
+		})
+		event := schemaEvent("evt_heavy")
+		go func() {
+			defer close(done)
+			_, _ = handler.Handle(t.Context(), event)
+		}()
+		assert.Equal(t, len(event.Data), v.waitEntered(t))
 	})
 }

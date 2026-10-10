@@ -68,7 +68,8 @@ outpost:
   #           total: { type: number }
   #   # Or load them from a file mounted with extraVolumes and extraVolumeMounts:
   #   # topics_schemas_file: /schemas/topics-schemas.yaml
-  #   # Validation takes roughly 20-350x the data size in API pod memory:
+  #   # Validation takes roughly 20-350x the data size in API pod memory,
+  #   # plus ~80x per anyOf/oneOf branch the data fails:
   #   # topics_validation_max_bytes: 262144
 
 ingress:

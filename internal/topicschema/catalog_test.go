@@ -602,6 +602,42 @@ func TestValidateDataSizeLimit(t *testing.T) {
 	assert.Equal(t, ValidationResult{Mode: ValidationWarn, SkippedTooLarge: true}, c.ValidateData("warned", padded(101)))
 }
 
+func TestValidationFactor(t *testing.T) {
+	branches := func(n int) string {
+		out := make([]string, n)
+		for i := range out {
+			out[i] = fmt.Sprintf(`{"required":["f%d"]}`, i)
+		}
+		return "[" + strings.Join(out, ",") + "]"
+	}
+	enforced := func(schema string) Definition {
+		return Definition{PayloadSchema: json.RawMessage(schema), Validation: ValidationEnforce}
+	}
+	c, err := NewCatalog([]string{"plain", "any", "one", "nested", "capped", "off", "none", "*"}, Definitions{
+		"plain":  enforced(orderSchema),
+		"any":    enforced(`{"type":"object","properties":{"a":{"type":"array","items":{"anyOf":` + branches(3) + `}}}}`),
+		"one":    {PayloadSchema: json.RawMessage(`{"oneOf":` + branches(2) + `,"anyOf":` + branches(1) + `}`), Validation: ValidationWarn},
+		"nested": enforced(`{"$ref":"#/$defs/item","$defs":{"item":{"oneOf":` + branches(16) + `}}}`),
+		"capped": enforced(`{"anyOf":` + branches(40) + `}`),
+		"off":    {PayloadSchema: json.RawMessage(`{"anyOf":` + branches(3) + `}`)},
+	})
+	require.NoError(t, err)
+
+	for topic, want := range map[string]int{
+		"plain":  1,
+		"any":    4,
+		"one":    3,
+		"nested": 17,
+		"capped": 32,
+		// Data of these is never parsed.
+		"off": 0, "none": 0, "*": 0, "": 0, "unknown": 0,
+	} {
+		assert.Equal(t, want, c.ValidationFactor(topic), topic)
+	}
+	assert.Zero(t, EmptyCatalog([]string{"a"}).ValidationFactor("a"))
+	assert.Zero(t, (*Catalog)(nil).ValidationFactor("a"))
+}
+
 func TestValidateDataLargeNumbers(t *testing.T) {
 	// Exact rational arithmetic on numbers like 1e999999 takes milliseconds
 	// each, so they fail validation instead of being checked.

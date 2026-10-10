@@ -24,8 +24,11 @@ const (
 	// MCP-enabled payload schema to MCP clients.
 	maxMCPPayloadSchemaBytes = 64 << 10
 	// defaultMaxValidationBytes is the WithMaxValidationBytes default.
-	// Validating takes up to a few hundred times the data size in memory.
+	// Validating takes up to a few hundred times the data size in memory,
+	// more with anyOf and oneOf (see ValidationFactor).
 	defaultMaxValidationBytes = 256 << 10
+	// maxValidationFactor caps ValidationFactor.
+	maxValidationFactor = 32
 	// maxArgumentsBytes caps subscription arguments before they are parsed.
 	// Subscriptions filter on far less, and it keeps parsing and the checks
 	// run before validation cheap.
@@ -104,6 +107,8 @@ type entry struct {
 	// validator is the compiled payload schema, set only for topics with
 	// validation warn or enforce.
 	validator *jsonschema.Schema
+	// factor is ValidationFactor, set with validator.
+	factor int
 	// dataNames holds the property names the payload schema declares, which
 	// error paths may show.
 	dataNames map[string]struct{}
@@ -313,6 +318,7 @@ func (b *catalogBuilder) addSchema(t *Topic, e *entry, raw json.RawMessage) {
 	}
 	if t.Validation != ValidationOff {
 		e.validator = schema
+		e.factor = validationFactor(root)
 		e.dataNames = propertyNameSet(root)
 	}
 	if !t.MCP.Enabled || !isObject {
@@ -945,4 +951,35 @@ func (c *Catalog) MaxValidationBytes() int {
 		return 0
 	}
 	return c.maxValidationBytes
+}
+
+// ValidationFactor estimates the memory validating the topic's data takes,
+// relative to a schema without anyOf or oneOf: 1 plus the branch count of the
+// largest anyOf or oneOf in the payload schema, at most 32. The validator
+// keeps the errors of every failing branch, so memory grows with it. It is 0
+// when ValidateData never parses the topic's data: for "", "*", unknown
+// topics, and topics without a schema or with validation off.
+func (c *Catalog) ValidationFactor(topic string) int {
+	if c == nil {
+		return 0
+	}
+	i, ok := c.byName[topic]
+	if !ok {
+		return 0
+	}
+	return c.entries[i].factor
+}
+
+// validationFactor computes ValidationFactor for a payload schema, a tree
+// from decodeJSON. Every schema object counts, reached through a $ref or not.
+func validationFactor(root any) int {
+	branches := 0
+	visitSchemaObjects(root, "", func(obj map[string]any, _ string) {
+		for _, kw := range []string{"anyOf", "oneOf"} {
+			if list, ok := obj[kw].([]any); ok {
+				branches = max(branches, len(list))
+			}
+		}
+	})
+	return min(1+branches, maxValidationFactor)
 }
