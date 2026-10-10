@@ -106,9 +106,9 @@ Choose one for event log persistence:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `TOPICS` | — | Comma-separated list of topics your instance supports |
+| `TOPICS` | — | Comma-separated list of topics your instance supports. When unset, any topic is accepted, unless topic schemas are configured: their keys are then the topics. |
 | `TOPICS_ALLOW_WILDCARDS` | `false` | Allow `*` inside destination topic subscriptions, such as `user.*`. When disabled, stored wildcard patterns are ignored but not deleted. |
-| `TOPICS_SCHEMAS` | — | [Topic schemas](/docs/outpost/features/topics#topic-schemas) keyed by topic name, as a JSON object. In YAML, also a mapping. Every key must be in `TOPICS`. Mutually exclusive with `TOPICS_SCHEMAS_FILE`. |
+| `TOPICS_SCHEMAS` | — | [Topic schemas](/docs/outpost/features/topics#topic-schemas) keyed by topic name, as a JSON object. In YAML, also a mapping. When `TOPICS` is set, every key must be in it; when it isn't, the keys are the topics. Mutually exclusive with `TOPICS_SCHEMAS_FILE`. |
 | `TOPICS_SCHEMAS_FILE` | — | Path to a YAML or JSON file with topic schemas, in the `TOPICS_SCHEMAS` shape. Mutually exclusive with `TOPICS_SCHEMAS`. |
 
 The YAML keys are `topics_schemas` and `topics_schemas_file`. Only the API service loads topic schemas, at startup; the delivery and log services, `outpost migrate` and `outpost config list` don't, so a problem in the schemas only stops the API service.

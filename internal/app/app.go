@@ -231,10 +231,14 @@ func (a *App) loadTopicCatalog() error {
 		return nil
 	}
 	a.logger.Debug("loading topic schemas")
+	topicsSet := len(a.config.Topics) > 0
 	catalog, err := a.config.LoadTopicCatalog()
 	if err != nil {
 		a.logger.Error("failed to load topic schemas", zap.Error(err))
 		return err
+	}
+	if !topicsSet && len(a.config.Topics) > 0 {
+		a.logger.Info("TOPICS is not set; using the topic schema keys as topics", zap.Strings("topics", a.config.Topics))
 	}
 	for _, warning := range catalog.Warnings() {
 		a.logger.Warn(warning)
