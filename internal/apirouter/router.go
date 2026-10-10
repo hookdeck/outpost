@@ -94,6 +94,8 @@ func buildMiddlewareChain(cfg RouterConfig, tenantRetriever TenantRetriever, def
 		RequireTenant: def.RequireTenant,
 	}))
 
+	chain = append(chain, TextParamsMiddleware())
+
 	// Add custom middlewares
 	chain = append(chain, def.Middlewares...)
 

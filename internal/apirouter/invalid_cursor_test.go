@@ -50,6 +50,8 @@ func TestAPI_InvalidCursorReturns400(t *testing.T) {
 				{"not a cursor", "abc123", invalidCursor},
 				{"cursor of another list", cursor.Encode(list.other, 1, "1700000000000"), invalidCursor},
 				{"cursor of another version", cursor.Encode(list.resource, 2, "1700000000000"), versionMismatch},
+				{"position with a NUL byte", cursor.Encode(list.resource, 1, "1700000000000\x00"), invalidCursor},
+				{"position with invalid UTF-8", cursor.Encode(list.resource, 1, "1700000000000\xff"), invalidCursor},
 			}
 			if list.resource == "tnt" {
 				cases = append(cases,
