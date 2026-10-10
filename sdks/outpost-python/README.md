@@ -675,7 +675,7 @@ s = Outpost(debug_logger=logging.getLogger("outpost_sdk"))
 
 # MCP Events
 
-Outpost runs [MCP Events](https://hookdeck.com/docs/outpost/guides/mcp-events) for your MCP server: the server answers `events/list`, `events/subscribe` and `events/unsubscribe` by forwarding them to three Outpost endpoints, and Outpost verifies callbacks, stores subscriptions and delivers events. `outpost_sdk.mcp_events` ships that glue. The MCP endpoints exist in Outpost API v2 only: point the SDK at a v2 base URL, such as `http://localhost:3333/api/v2` (a base URL ending in `/api/v1` is rewritten to `/api/v2` for these calls).
+Outpost runs [MCP Events](https://hookdeck.com/docs/outpost/guides/mcp-events) for your MCP server: the server answers `events/list`, `events/subscribe` and `events/unsubscribe` by forwarding them to three Outpost endpoints, and Outpost verifies callbacks, stores subscriptions and delivers events. `outpost_sdk.mcp_events` ships that glue. The MCP endpoints exist in Outpost API v2 only. Keep the `Outpost` instance you pass to the helpers on `/api/v1`: its generated methods target API v1 and fail against `/api/v2` (see [Upgrade to API v2](https://hookdeck.com/docs/outpost/self-hosting/changelog/upgrade-api-v2)), and the helpers rewrite a base URL ending in `/api/v1` to `/api/v2` for their own calls. Give a standalone `MCPEventsClient` a v2 base URL, such as `http://localhost:3333/api/v2`.
 
 ## Drop-in registration
 
@@ -689,7 +689,8 @@ from mcp.server.mcpserver import MCPServer
 from outpost_sdk import Outpost
 from outpost_sdk import mcp_events
 
-outpost = Outpost(api_key=os.environ["OUTPOST_API_KEY"], server_url="http://localhost:3333/api/v2")
+# API v1 for the generated methods; the MCP Events helpers call /api/v2.
+outpost = Outpost(api_key=os.environ["OUTPOST_API_KEY"], server_url="http://localhost:3333/api/v1")
 server = MCPServer("store")
 
 
@@ -715,7 +716,7 @@ mcp_events.register(
 - `codes="sketch"` (default) or `"sep-3415"` picks the numbers of the errors raised locally (`Forbidden`, `NotFound`). Match Outpost's `MCP_ERROR_CODES`; Outpost fills the code of its own errors.
 - Resolvers may be plain functions or coroutines. Raise `mcp_events.JSONRPCError` from one to answer with your own error.
 
-The first argument may be an `Outpost` instance (its server URL, API key, async HTTP client and timeout are reused), a `{"server_url": ..., "api_key": ...}` mapping, or an MCP Events client.
+The first argument may be an `Outpost` instance (its server URL, API key, async HTTP client and timeout are reused), a `{"server_url": ..., "api_key": ...}` mapping, or an MCP Events client. The helpers keep that `Outpost` instance alive, and once it has closed its async client, for example after `async with Outpost(...)`, they use one of their own.
 
 ## Lower-level calls
 
@@ -735,7 +736,7 @@ async with MCPEventsClient("http://localhost:3333/api/v2", os.environ["OUTPOST_A
     await client.unsubscribe("store_123", {"principal": principal, "params": params})  # POST /tenants/{tenant_id}/mcp/subscriptions/unsubscribe
 ```
 
-Generated `outpost.mcp.*` methods for these and the operator endpoints (listing and revoking subscriptions) arrive with the next SDK regeneration.
+Generated `outpost.mcp.*` methods for these and the operator endpoints (listing and revoking subscriptions) arrive with the next SDK regeneration. `outpost.mcp.list_events` drops an empty `topics` list from the query string, and Outpost then lists every MCP-enabled topic. For a principal allowed no topics, answer `{"events": []}` yourself, or use the helpers above, which do.
 
 # Development
 

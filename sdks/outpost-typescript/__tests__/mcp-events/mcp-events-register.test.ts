@@ -17,7 +17,7 @@ import {
   McpEventsApi,
   McpResult,
   registerMcpEvents,
-} from "../mcp-events/index.js";
+} from "../../src/mcp-events/index.js";
 
 type Call = { method: string; tenantId: string; arg: unknown };
 
@@ -301,8 +301,9 @@ class McpServerShim {
 }
 
 // The v2 packages are not dependencies of this SDK; these tests run when they
-// are installed (npm i --no-save @modelcontextprotocol/server @modelcontextprotocol/client).
-// No top-level await: tshy also compiles this file as CommonJS.
+// are installed (npm i --no-save @modelcontextprotocol/server@^2 @modelcontextprotocol/client@^2).
+// With OUTPOST_REQUIRE_MCP_SDKS=1 (set in CI) they fail instead of skipping
+// when the packages are missing.
 function resolvable(name: string): boolean {
   try {
     Bun.resolveSync(name, process.cwd());
@@ -314,12 +315,19 @@ function resolvable(name: string): boolean {
 
 const V2_SERVER = "@modelcontextprotocol/server";
 const V2_CLIENT = "@modelcontextprotocol/client";
+const V2_INSTALLED = resolvable(V2_SERVER) && resolvable(V2_CLIENT);
+const V2_REQUIRED = process.env["OUTPOST_REQUIRE_MCP_SDKS"] === "1";
 
-describe.skipIf(!resolvable(V2_SERVER) || !resolvable(V2_CLIENT))("registerMcpEvents with @modelcontextprotocol/server v2", () => {
+describe.skipIf(!V2_INSTALLED && !V2_REQUIRED)("registerMcpEvents with @modelcontextprotocol/server v2", () => {
   let v2Server: any;
   let v2Client: any;
 
+  test("the v2 packages are installed", () => {
+    expect(V2_INSTALLED).toBe(true);
+  });
+
   beforeAll(async () => {
+    if (!V2_INSTALLED) return;
     v2Server = await import(V2_SERVER);
     v2Client = await import(V2_CLIENT);
   });

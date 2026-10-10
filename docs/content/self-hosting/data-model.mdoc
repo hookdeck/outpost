@@ -241,7 +241,7 @@ The per-tenant keys share the tenant's `{<tenant_id>}` hash tag, so a subscripti
 |-----|------|-----|----------|
 | `tenant:{<tenant_id>}:buckets` | Set | None | Names of the limit buckets the tenant's destinations count toward. |
 | `tenant:{<tenant_id>}:bucket:<bucket>` | Set | None | IDs of the destinations counted toward one limit. `type:mcp` counts toward `MAX_MCP_SUBSCRIPTIONS_PER_TENANT`, and `mcp_principal:<hash>` toward `MAX_MCP_SUBSCRIPTIONS_PER_PRINCIPAL`, where `<hash>` is the first 32 hex characters of the SHA-256 of the principal. |
-| `tenant:{<tenant_id>}:mcp_revoked:<hash>` | String | 10 minutes | Time, in Unix milliseconds, a principal's subscriptions were last revoked, where `<hash>` is the SHA-256 of the principal. A subscribe call that started earlier can't create a subscription. |
+| `tenant:{<tenant_id>}:fence:mcp_revoked:<hash>` | String | 10 minutes | Time, in Unix milliseconds, a principal's subscriptions were last revoked, where `<hash>` is the SHA-256 of the principal. A subscribe call that started earlier can't create a subscription. |
 | `tenant:{<tenant_id>}:parked_retries:<destination_id>` | Set | Until `expires_at`, or 24 hours | Automatic retries held while a subscription is disabled, up to 1,000. |
 | `tenant:{<tenant_id>}:parked_retries:<destination_id>:resume:<ms>` | Set | Same as the held set | Held retries being rescheduled after a refresh or enable. Each is removed once scheduled, and the key once empty. |
 | `tenant:{<tenant_id>}:mcp_status:<destination_id>` | Hash | `MCP_TTL_MAX` plus 7 days | `last_attempt_at`, `last_success_at`, `last_status` and `last_code` of the subscription's latest attempts, written by the log service. Subscribe reads it to build `deliveryStatus`. Safe to lose: `deliveryStatus` then reports no delivery yet. |
@@ -249,8 +249,8 @@ The per-tenant keys share the tenant's `{<tenant_id>}` hash tag, so a subscripti
 | `destination_index:mcp:topic:<topic>` | Sorted set | None | The same, for one topic. Used to end a topic's subscriptions and to check whether a topic has live subscriptions. |
 | `destination_index:mcp:topics` | Set | None | Topics that have a per-topic index. |
 | `mcp:verified:<hash>` | String | `MCP_VERIFICATION_TTL` (default 24 hours) | Marks a passed callback verification, where `<hash>` is the SHA-256 of the tenant ID, principal and callback URL. |
-| `mcp:verification_attempts:<hash>:<minute>` | String (counter) | 2 minutes | Verification challenges sent for one tenant and principal in one minute, counted against `MCP_VERIFICATION_RATE_LIMIT`. |
-| `mcp:verification_failures:<hash>:<minute>` | String (counter) | 2 minutes | Failed or unanswered challenges to one callback host in one minute, counted against `MCP_VERIFICATION_FAILURE_LIMIT`. |
+| `mcp:challenge_rate:p:<hash>:<minute>` | String (counter) | 2 minutes | Verification challenges sent for one tenant and principal in one minute, counted against `MCP_VERIFICATION_RATE_LIMIT`, where `<hash>` is the SHA-256 of the tenant ID and principal. |
+| `mcp:challenge_fail:h:<hash>:<minute>` | String (counter) | 2 minutes | Failed or unanswered challenges to one callback host and port in one minute, counted against `MCP_VERIFICATION_FAILURE_LIMIT`, where `<hash>` is the SHA-256 of `<host>:<port>`. |
 
 The index entries are written before the subscription and removed after it, so the index always holds at least every live subscription. An entry left behind for a subscription that no longer exists is removed by the next sweep that reaches it.
 

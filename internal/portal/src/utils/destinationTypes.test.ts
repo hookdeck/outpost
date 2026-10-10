@@ -11,6 +11,7 @@ import {
   isFormType,
   isMCPDestinationType,
   lookupType,
+  mcpDeliveries,
   parseArguments,
   parseShowMCPDestinations,
   typeLabel,
@@ -251,6 +252,32 @@ describe("configString", () => {
         "url",
       ),
       undefined,
+    );
+  });
+});
+
+describe("mcpDeliveries", () => {
+  it("names the event and the callback URL of the subscription", () => {
+    assert.equal(
+      mcpDeliveries({
+        config: { event: "order.created", url: "https://agent.example/cb" },
+        topics: ["order.created"],
+      }),
+      "order.created events to https://agent.example/cb",
+    );
+  });
+
+  it("falls back to the topic, then to no event or URL", () => {
+    assert.equal(
+      mcpDeliveries({ config: {}, topics: ["order.updated"] }),
+      "order.updated events",
+    );
+    assert.equal(
+      mcpDeliveries({
+        config: { url: "https://agent.example/cb" },
+        topics: [],
+      }),
+      "events to https://agent.example/cb",
     );
   });
 });

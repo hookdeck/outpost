@@ -1,20 +1,25 @@
 """Tests for outpost_sdk.mcp_events.register() against the real ``mcp`` package.
 
 Skipped unless ``mcp`` version 2 or later is installed (it is not an SDK
-dependency): pip install "mcp>=2".
+dependency): pip install "mcp>=2". With OUTPOST_REQUIRE_MCP_SDKS=1 (set in CI)
+they fail instead.
 """
 
 from __future__ import annotations
 
 import asyncio
 import importlib.metadata
+import os
 from typing import Any, Optional
 
 import pytest
 
-pytest.importorskip("mcp")
-if int(importlib.metadata.version("mcp").split(".")[0]) < 2:
-    pytest.skip("register() needs mcp 2 or later", allow_module_level=True)
+if os.environ.get("OUTPOST_REQUIRE_MCP_SDKS") == "1":
+    assert int(importlib.metadata.version("mcp").split(".")[0]) >= 2, "register() needs mcp 2 or later"
+else:
+    pytest.importorskip("mcp")
+    if int(importlib.metadata.version("mcp").split(".")[0]) < 2:
+        pytest.skip("register() needs mcp 2 or later", allow_module_level=True)
 
 # pylint: disable=wrong-import-position
 import mcp_types as types  # noqa: E402

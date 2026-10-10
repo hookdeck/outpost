@@ -160,6 +160,18 @@ export function configString(
   return typeof value === "string" ? value : undefined;
 }
 
+// mcpDeliveries names what an MCP destination delivers, "<event> events to
+// <callback URL>". Disconnecting it stops only these: an agent usually holds
+// one subscription per event, and the others keep receiving events.
+export function mcpDeliveries(
+  destination: Pick<Destination, "config" | "topics">,
+): string {
+  const event = configString(destination, "event") ?? destination.topics?.[0];
+  const url = configString(destination, "url");
+  const events = event ? `${event} events` : "events";
+  return url ? `${events} to ${url}` : events;
+}
+
 export type ParsedArguments =
   | { ok: true; value: unknown }
   | { ok: false; raw: string };

@@ -717,7 +717,7 @@ const sdk = new Outpost({ debugLogger: console });
 
 # MCP Events
 
-Outpost runs [MCP Events](https://hookdeck.com/docs/outpost/guides/mcp-events) for your MCP server: the server answers `events/list`, `events/subscribe` and `events/unsubscribe` by forwarding them to three Outpost endpoints, and Outpost verifies callbacks, stores subscriptions and delivers events. `@hookdeck/outpost-sdk/mcp-events/index.js` ships that glue. The MCP endpoints exist in Outpost API v2 only: point the SDK at a v2 base URL, such as `http://localhost:3333/api/v2` (a base URL ending in `/api/v1` is rewritten to `/api/v2` for these calls).
+Outpost runs [MCP Events](https://hookdeck.com/docs/outpost/guides/mcp-events) for your MCP server: the server answers `events/list`, `events/subscribe` and `events/unsubscribe` by forwarding them to three Outpost endpoints, and Outpost verifies callbacks, stores subscriptions and delivers events. `@hookdeck/outpost-sdk/mcp-events/index.js` ships that glue. The MCP endpoints exist in Outpost API v2 only. Keep the `Outpost` instance you pass to the helpers on `/api/v1`: its generated methods target API v1 and fail against `/api/v2` (see [Upgrade to API v2](https://hookdeck.com/docs/outpost/self-hosting/changelog/upgrade-api-v2)), and the helpers rewrite a base URL ending in `/api/v1` to `/api/v2` for their own calls. Give a standalone `McpEventsClient` a v2 base URL, such as `http://localhost:3333/api/v2`.
 
 ## Drop-in registration
 
@@ -728,7 +728,8 @@ import { createMcpHandler, McpServer, type ServerContext } from "@modelcontextpr
 import { Outpost } from "@hookdeck/outpost-sdk";
 import { registerMcpEvents } from "@hookdeck/outpost-sdk/mcp-events/index.js";
 
-const outpost = new Outpost({ apiKey: process.env.OUTPOST_API_KEY, serverURL: "http://localhost:3333/api/v2" });
+// API v1 for the generated methods; the MCP Events helpers call /api/v2.
+const outpost = new Outpost({ apiKey: process.env.OUTPOST_API_KEY, serverURL: "http://localhost:3333/api/v1" });
 
 const handler = createMcpHandler(() => {
   const server = new McpServer({ name: "store", version: "1.0.0" });
@@ -773,7 +774,7 @@ try {
 await client.unsubscribe("store_123", { principal, params });              // POST /tenants/{tenant_id}/mcp/subscriptions/unsubscribe
 ```
 
-Generated `outpost.mcp.*` methods for these and the operator endpoints (listing and revoking subscriptions) arrive with the next SDK regeneration.
+Generated `outpost.mcp.*` methods for these and the operator endpoints (listing and revoking subscriptions) arrive with the next SDK regeneration. `outpost.mcp.listEvents` drops an empty `topics` array from the query string, and Outpost then lists every MCP-enabled topic. For a principal allowed no topics, answer `{ events: [] }` yourself, or use the helpers above, which do.
 
 # Development
 
