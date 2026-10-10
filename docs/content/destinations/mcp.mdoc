@@ -233,7 +233,7 @@ A `terminated` envelope carries the JSON-RPC error that ended the subscription:
 |-------|-----------|--------------------------------|--------|
 | You revoked the subscription or the principal | `Forbidden` | `-32012` / `-32024` | `{"reason": "access_revoked"}` |
 | The topic is no longer MCP-enabled | `NotFound` | `-32011` / `-32023` | `{"kind": "event"}` |
-| A breaking schema change applied with `TOPICS_ALLOW_BREAKING_CHANGES` | `Unsupported` | `-32014` / `-32026` | `{"feature": "payloadSchema", "reason": "schema_changed"}` |
+| A breaking change to the topic's payload schema | `Unsupported` | `-32014` / `-32026` | `{"feature": "payloadSchema", "reason": "schema_changed"}` |
 
 The codes follow `MCP_ERROR_CODES`. Expiry and unsubscribe send nothing, and neither does deleting the tenant. A subscription broken by a schema change that its client refreshes before the background pass ends it gets no envelope either: the refresh fails with the same `Unsupported` error and deletes it, and the client's next subscribe creates a new one.
 

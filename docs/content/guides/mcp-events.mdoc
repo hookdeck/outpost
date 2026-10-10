@@ -410,7 +410,7 @@ Subscribe and list errors reach the client as JSON-RPC errors. The `kind` of Out
 | `resource_exhausted`, `limit: "subscriptions"` or `"principal_subscriptions"` | A subscription limit is reached. |
 | `resource_exhausted`, `limit: "verification_rate"` | The principal sent more than `MCP_VERIFICATION_RATE_LIMIT` challenges in a minute. Retry after `retryAfterMs`. |
 | `unsupported`, `feature: "deliveryMode"` | The client asked for a delivery mode other than `webhook`. |
-| `unsupported`, `feature: "payloadSchema"`, `reason: "schema_changed"` | A refresh of a subscription created against a payload schema that a breaking change applied with `TOPICS_ALLOW_BREAKING_CHANGES` replaced. Outpost deleted it; the client re-reads `events/list` and subscribes again. |
+| `unsupported`, `feature: "payloadSchema"`, `reason: "schema_changed"` | A refresh of a subscription created against a payload schema that a breaking change replaced. Outpost deleted it; the client re-reads `events/list` and subscribes again. |
 
 Subscribe answers `503`, not an `mcp_error`, when Outpost couldn't verify the callback on its side, such as while its Redis is unavailable, or when the call ran out of time. The handlers turn it, like any other status but `422`, into a JSON-RPC internal error, so the client retries. Outpost logs these as server errors.
 

@@ -4,9 +4,10 @@
 //   - deletes MCP subscriptions expired for longer than a grace period and
 //     emits mcp.subscription.expired for each;
 //   - ends, with a terminated envelope, subscriptions to topics that are no
-//     longer MCP-enabled and those a forced breaking change left behind, but
-//     only on an instance running the applied topic configuration, so
-//     instances on an older or rolled-back configuration never end any;
+//     longer MCP-enabled and those a breaking change left behind, but only
+//     on an instance running the applied topic configuration, so instances
+//     on an older or rolled-back configuration never end any. Once no
+//     instance runs the applied configuration, an instance applies its own;
 //   - emits one tenant.subscription.updated per tenant it changed.
 //
 // Every instance also reports the topic configuration it runs

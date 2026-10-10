@@ -274,6 +274,84 @@ func TestBrokenHashesRetire(t *testing.T) {
 	assert.Equal(t, v2.Hash(), a.Hash)
 }
 
+// A breaking change to a topic without live subscriptions needs no
+// TOPICS_ALLOW_BREAKING_CHANGES, but subscriptions an instance still on the
+// old schema creates during the rollout end all the same.
+func TestBrokenSchemaWithoutLiveSubscriptionsIsTerminated(t *testing.T) {
+	ctx := context.Background()
+	v1 := snapshotOf(map[string]string{topicA: schemaV1, topicB: schemaV1})
+	v2 := snapshotOf(map[string]string{topicA: schemaV2, topicB: schemaV1})
+	h := newHarness(t, func(c *Config) { c.Snapshot = v2 })
+	h.apply(t, v1, false)
+	res, err := topicschema.Apply(ctx, h.rdb, "", v2, topicschema.ApplyOptions{
+		Now:        h.clock.Now,
+		LiveTopics: func(context.Context, string) (bool, error) { return false, nil },
+	})
+	require.NoError(t, err)
+	require.False(t, res.Forced)
+
+	h.sub(t, "t1", "sub_rollout", topicA, nil, withSchemaHash(v1.TopicHash(topicA)))
+	h.sub(t, "t1", "sub_new", topicA, nil)
+	assert.Equal(t, PassStats{SchemaChanged: 1}, h.pass(t))
+	assert.False(t, h.live(t, "t1", "sub_rollout"))
+	assert.True(t, h.live(t, "t1", "sub_new"))
+}
+
+// rolledBackHarness runs the local configuration v1 after a rollback: v2,
+// which removes topicA's total, was forced in at the harness's start, and
+// then rolled back while it ran, so it stayed applied.
+func rolledBackHarness(t *testing.T) (*harness, topicschema.Snapshot, topicschema.Snapshot) {
+	t.Helper()
+	v1 := snapshotOf(map[string]string{topicA: schemaV1, topicB: schemaV1})
+	v2 := snapshotOf(map[string]string{topicA: schemaV2, topicB: schemaV1})
+	h := newHarness(t, func(c *Config) { c.Snapshot = v1 })
+	h.apply(t, v1, false)
+	h.apply(t, v2, true)
+	h.w.heartbeat(context.Background())
+	h.sub(t, "t1", "sub_a", topicA, nil) // v1's schema
+	return h, v1, v2
+}
+
+func TestRolledBackConfigurationBecomesApplied(t *testing.T) {
+	ctx := context.Background()
+	applied := func(h *harness) *topicschema.Applied {
+		a, err := topicschema.ReadApplied(ctx, h.rdb, "")
+		require.NoError(t, err)
+		return a
+	}
+
+	t.Run("while the applied configuration runs, terminations pause", func(t *testing.T) {
+		h, _, v2 := rolledBackHarness(t)
+		require.NoError(t, topicschema.Heartbeat(ctx, h.rdb, "", v2.Hash(), time.Hour))
+		h.clock.Add(time.Hour)
+		assert.Equal(t, PassStats{TerminationPaused: true}, h.pass(t))
+		assert.Equal(t, v2.Hash(), applied(h).Hash)
+		assert.True(t, h.live(t, "t1", "sub_a"))
+	})
+
+	t.Run("a just-applied configuration may not run yet", func(t *testing.T) {
+		h, _, v2 := rolledBackHarness(t)
+		h.clock.Add(topicschema.DefaultHeartbeatTTL)
+		assert.Equal(t, PassStats{TerminationPaused: true}, h.pass(t))
+		assert.Equal(t, v2.Hash(), applied(h).Hash)
+	})
+
+	t.Run("once nothing runs it, the local configuration is applied", func(t *testing.T) {
+		h, v1, _ := rolledBackHarness(t)
+		h.clock.Add(topicschema.DefaultHeartbeatTTL + time.Second)
+		assert.Equal(t, PassStats{}, h.pass(t), "nothing ends: v1 runs, its subscriptions are valid")
+		a := applied(h)
+		assert.Equal(t, v1.Hash(), a.Hash)
+		assert.Nil(t, a.Broken)
+		assert.True(t, h.live(t, "t1", "sub_a"))
+
+		// A later additive deploy ends nothing either.
+		v3 := snapshotOf(map[string]string{topicA: `{"type":"object","properties":{"id":{"type":"string"},"total":{"type":"number"},"note":{"type":"string"}}}`, topicB: schemaV1})
+		h.apply(t, v3, false)
+		assert.Nil(t, applied(h).Broken)
+	})
+}
+
 func TestDestinationSecrets(t *testing.T) {
 	invalidAt := time.Date(2026, 10, 10, 0, 0, 0, 0, time.UTC)
 	for name, tc := range map[string]struct {

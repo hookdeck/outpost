@@ -79,7 +79,7 @@ type subscription struct {
 	// subscription with the same ID.
 	expiredDeleted bool
 	// brokenDeleted is set once the request ended a subscription with the
-	// same ID that a forced breaking change left behind.
+	// same ID that a breaking change left behind.
 	brokenDeleted bool
 }
 
@@ -266,7 +266,7 @@ func (h *MCPHandlers) subscribe(ctx context.Context, s *subscription) (*subscrib
 // lookupSubscription returns the live subscription with the request's ID, or
 // nil. An expired one is deleted (and reported) first, so the request
 // creates a new generation instead of extending it. One created against a
-// payload schema that a forced breaking change broke is deleted too, and the
+// payload schema that a breaking change broke is deleted too, and the
 // request fails with schema_changed: refreshing it would record the current
 // schema hash on it and hide it from the mcp-subscriptions worker, while its
 // client still expects the old payloads. The client learns it from the
@@ -334,7 +334,7 @@ func (h *MCPHandlers) lookupSubscription(ctx context.Context, s *subscription) (
 }
 
 // schemaBroken reports whether d was created against a payload schema that a
-// forced breaking change broke. This instance's own schema never counts: an
+// breaking change broke. This instance's own schema never counts: an
 // instance running a rolled-back configuration keeps refreshing its
 // subscriptions, which the worker of the applied configuration ends.
 func (h *MCPHandlers) schemaBroken(d *models.Destination) bool {

@@ -21,7 +21,7 @@ import (
 // configuration it applied (its Snapshot) in Redis and, at the next startup
 // with a different configuration, checks the change against it: breaking
 // changes to topics with live MCP subscriptions are refused unless forced,
-// and forced ones record the old topic hashes whose subscriptions the MCP
+// and applied ones record the old topic hashes whose subscriptions the MCP
 // subscriptions worker then ends. Running instances mark their
 // configuration live with Heartbeat, so a rolling deploy can restart
 // instances on the previous configuration without a check.
@@ -93,12 +93,12 @@ type Applied struct {
 	Hash      string    `json:"hash"`
 	AppliedAt time.Time `json:"applied_at"`
 	// Broken lists, per topic, the topic hashes (Snapshot.TopicHash) a
-	// forced breaking change left behind: MCP subscriptions whose
+	// breaking change left behind: MCP subscriptions whose
 	// config.schema_hash is one of them must end. Entries are retired by
 	// the MCP subscriptions worker.
 	Broken map[string][]BrokenHash `json:"broken,omitempty"`
 	// Superseded lists, per topic of Snapshot, its earlier topic hashes,
-	// most recent first (at most 16), so a forced change also ends
+	// most recent first (at most 16), so a breaking change also ends
 	// subscriptions created against schemas older than the last applied
 	// one.
 	Superseded map[string][]string `json:"superseded,omitempty"`
@@ -206,6 +206,11 @@ type ApplyOptions struct {
 	// LockWait bounds the wait for the apply lock; 0 means 15 seconds, which
 	// outlasts the 10 second lock of an instance that died holding it.
 	LockWait time.Duration
+	// HeartbeatTTL is how long a Heartbeat lasts; 0 means
+	// DefaultHeartbeatTTL. An applied configuration that no instance
+	// reported within it, and that wasn't applied within it, no longer
+	// runs.
+	HeartbeatTTL time.Duration
 }
 
 // ApplyResult reports what Apply did, or Plan would do.
@@ -217,15 +222,23 @@ type ApplyResult struct {
 	// Initial: nothing was applied yet; it is recorded without a check.
 	Initial bool
 	// KnownConfig: a running instance reported it (see Heartbeat), so it is
-	// accepted without a check and the applied configuration is kept.
-	// Changes and Ended then compare it with the applied configuration, for
-	// logging only.
+	// accepted without a check and the applied configuration is kept, unless
+	// Adopted. Changes and Ended then compare it with the applied
+	// configuration, for logging only.
 	KnownConfig bool
+	// Adopted: KnownConfig, and no instance runs the applied configuration
+	// anymore (see ApplyOptions.HeartbeatTTL), as after a rollback that
+	// outlived it, so it replaced the applied configuration, without a
+	// check. Its topic hashes are no longer broken or superseded.
+	Adopted bool
 	// Changes lists the breaking changes to topics MCP-enabled in both
-	// configurations with live subscriptions.
+	// configurations. Those to topics with live subscriptions need
+	// AllowBreaking; every one records the topic's old hashes in
+	// Applied.Broken.
 	Changes []Change
-	// Forced: Changes, or the end of every MCP-enabled topic, are applied
-	// because AllowBreaking is set.
+	// Forced: breaking changes to topics with live subscriptions, or the
+	// end of every MCP-enabled topic, are applied because AllowBreaking is
+	// set.
 	Forced bool
 	// Ended lists the topics MCP-enabled in the applied configuration and
 	// not in this one. The MCP subscriptions worker ends their
@@ -286,11 +299,13 @@ func (e BreakingChangeError) MarshalJSON() ([]byte, error) {
 //   - the applied hash equals current's: nothing to do (no lock taken);
 //   - nothing applied yet: current is recorded;
 //   - a running instance reports current live: it is accepted without a
-//     check, and the applied configuration is kept;
+//     check, and the applied configuration is kept while an instance may
+//     still run it; once none does, current replaces it (Adopted);
 //   - otherwise breaking changes to topics MCP-enabled in both with live
 //     subscriptions (LiveTopics), and a current that ends every
 //     MCP-enabled topic, fail with *BreakingChangeError unless
-//     AllowBreaking; forced changes record the topics' old hashes in
+//     AllowBreaking. Every applied breaking change, forced or to a topic
+//     without live subscriptions, records the topic's old hashes in
 //     Applied.Broken.
 //
 // Writes happen under a lock and as one compare-and-set of the applied
@@ -504,6 +519,9 @@ func newApplier(rdb redis.Cmdable, deploymentID string, current Snapshot, opts A
 	if opts.LockWait <= 0 {
 		opts.LockWait = defaultApplyLockWait
 	}
+	if opts.HeartbeatTTL <= 0 {
+		opts.HeartbeatTTL = DefaultHeartbeatTTL
+	}
 	a := &applier{
 		rdb:         rdb,
 		dep:         deploymentID,
@@ -541,46 +559,54 @@ func (a *applier) plan(ctx context.Context, prev *Applied) (ApplyResult, *Applie
 		return res, nil, nil
 	}
 	res.Ended = EndedTopics(prev.Snapshot, a.current)
+	res.Changes = a.breakingChanges(prev.Snapshot)
 
 	live, err := IsLive(ctx, a.rdb, a.dep, a.hash)
 	if err != nil {
 		return res, nil, err
 	}
-	changes, err := a.breakingChanges(ctx, prev.Snapshot)
 	if live {
-		// Another instance runs it: accepted as is. The diff is only
-		// informative, so failing to compute it doesn't matter.
+		// Another instance runs it: accepted as is, the diff only logged.
 		res.KnownConfig = true
-		if err == nil {
-			res.Changes = changes
+		running, err := a.appliedRunning(ctx, prev, now)
+		if err != nil || running {
+			return res, nil, err
 		}
-		return res, nil, nil
+		// Nothing runs the applied configuration anymore (a rollback
+		// outlived it): current becomes the baseline, so its topic hashes
+		// stop counting as broken, and later changes are checked against
+		// what runs.
+		res.Adopted = true
+		return res, a.next(prev, now, nil), nil
 	}
+
+	refused, err := a.liveChanges(ctx, res.Changes)
 	if err != nil {
 		return res, nil, err
 	}
-	res.Changes = changes
-
 	allEnded := endsEveryTopic(prev.Snapshot, res.Ended)
 	if !a.opts.AllowBreaking {
-		if len(changes) > 0 {
-			return res, nil, &BreakingChangeError{Message: msgBreakingChanges, Changes: changes}
+		if len(refused) > 0 {
+			return res, nil, &BreakingChangeError{Message: msgBreakingChanges, Changes: refused}
 		}
 		if allEnded {
 			return res, nil, &BreakingChangeError{Message: msgAllTopicsEnded, Changes: endedChanges(res.Ended)}
 		}
 	}
-	res.Forced = len(changes) > 0 || allEnded
-	var forced []string
-	for _, c := range changes {
-		forced = append(forced, c.Topic)
+	res.Forced = len(refused) > 0 || allEnded
+	// Every topic with a breaking change records its old hashes, live
+	// subscriptions or not: instances still running the old configuration
+	// can create subscriptions to it until the rollout ends.
+	var changed []string
+	for _, c := range res.Changes {
+		changed = append(changed, c.Topic)
 	}
-	return res, a.next(prev, now, forced), nil
+	return res, a.next(prev, now, changed), nil
 }
 
 // breakingChanges diffs the topics MCP-enabled in both prev and current
-// whose schema changed and that have live subscriptions.
-func (a *applier) breakingChanges(ctx context.Context, prev Snapshot) ([]Change, error) {
+// whose schema changed.
+func (a *applier) breakingChanges(prev Snapshot) []Change {
 	var topics []string
 	for _, name := range slices.Sorted(maps.Keys(prev.Topics)) {
 		if !prev.MCPServed(name) || !a.current.MCPServed(name) {
@@ -589,21 +615,46 @@ func (a *applier) breakingChanges(ctx context.Context, prev Snapshot) ([]Change,
 		if prev.TopicHash(name) == a.topicHashes[name] {
 			continue
 		}
-		if a.opts.LiveTopics != nil {
-			live, err := a.opts.LiveTopics(ctx, name)
-			if err != nil {
-				return nil, fmt.Errorf("topic schemas: check live subscriptions of %q: %w", name, err)
-			}
-			if !live {
-				continue
-			}
-		}
 		topics = append(topics, name)
 	}
 	if len(topics) == 0 {
-		return nil, nil
+		return nil
 	}
-	return BreakingChanges(prev, a.current, topics), nil
+	return BreakingChanges(prev, a.current, topics)
+}
+
+// liveChanges returns the changes to topics with live subscriptions
+// (LiveTopics), which only AllowBreaking applies.
+func (a *applier) liveChanges(ctx context.Context, changes []Change) ([]Change, error) {
+	if a.opts.LiveTopics == nil {
+		return changes, nil
+	}
+	live := make(map[string]bool)
+	var out []Change
+	for _, c := range changes {
+		isLive, ok := live[c.Topic]
+		if !ok {
+			var err error
+			if isLive, err = a.opts.LiveTopics(ctx, c.Topic); err != nil {
+				return nil, fmt.Errorf("topic schemas: check live subscriptions of %q: %w", c.Topic, err)
+			}
+			live[c.Topic] = isLive
+		}
+		if isLive {
+			out = append(out, c)
+		}
+	}
+	return out, nil
+}
+
+// appliedRunning reports whether an instance may still run the applied
+// configuration prev: one reported it within the heartbeat TTL, or it was
+// applied within it, so its instances may not have reported it yet.
+func (a *applier) appliedRunning(ctx context.Context, prev *Applied, now time.Time) (bool, error) {
+	if now.Sub(prev.AppliedAt) <= a.opts.HeartbeatTTL {
+		return true, nil
+	}
+	return IsLive(ctx, a.rdb, a.dep, prev.Hash)
 }
 
 // endsEveryTopic reports whether ended covers every MCP-enabled topic of
@@ -627,8 +678,9 @@ func endedChanges(ended []string) []Change {
 }
 
 // next builds the configuration to record: current, the broken hashes of
-// prev plus those of the forced topics, and the topic hash lineage.
-func (a *applier) next(prev *Applied, now time.Time, forced []string) *Applied {
+// prev plus those of the topics with breaking changes, and the topic hash
+// lineage.
+func (a *applier) next(prev *Applied, now time.Time, changed []string) *Applied {
 	n := &Applied{Snapshot: a.current, Hash: a.hash, AppliedAt: now}
 	if prev == nil {
 		return n
@@ -654,7 +706,7 @@ func (a *applier) next(prev *Applied, now time.Time, forced []string) *Applied {
 	for topic, entries := range prev.Broken {
 		broken[topic] = slices.Clone(entries)
 	}
-	for _, topic := range slices.Compact(slices.Sorted(slices.Values(forced))) {
+	for _, topic := range slices.Compact(slices.Sorted(slices.Values(changed))) {
 		// The applied hash and every earlier one: subscriptions not
 		// refreshed since an earlier additive change still carry those.
 		hashes := append([]string{prev.Snapshot.TopicHash(topic)}, prev.Superseded[topic]...)
@@ -742,6 +794,8 @@ func (a *applier) log(res ApplyResult, err error) {
 		a.opts.Logger.Debug("topic schemas unchanged", fields...)
 	case res.Initial:
 		a.opts.Logger.Info("topic schemas applied (first time)", fields...)
+	case res.Adopted:
+		a.opts.Logger.Info("topic schemas applied without a check: a running instance uses them, and none runs the applied ones anymore", fields...)
 	case res.KnownConfig:
 		a.opts.Logger.Info("topic schemas accepted without a check: a running instance uses them; the applied ones are kept", fields...)
 	case res.Forced:

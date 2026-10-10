@@ -155,7 +155,7 @@ func runApplySuite(t *testing.T, rdb internalredis.Cmdable, fastForward func(tim
 		e.mustApply(t, v1, false)
 		res := e.mustApply(t, v2, false)
 		assert.Equal(t, ApplyResult{Hash: v2.Hash()}, res)
-		assert.EqualValues(t, 1, e.liveCalls.Load())
+		assert.Zero(t, e.liveCalls.Load(), "only topics with breaking changes are checked for live subscriptions")
 
 		a := e.applied(t)
 		assert.Equal(t, v2.Hash(), a.Hash)
@@ -205,14 +205,39 @@ func runApplySuite(t *testing.T, rdb internalredis.Cmdable, fastForward func(tim
 		require.ErrorAs(t, err, &bce)
 	})
 
-	t.Run("topics without live subscriptions are not checked", func(t *testing.T) {
+	t.Run("topics without live subscriptions are not checked, but their old schemas break", func(t *testing.T) {
 		e := newEnv()
 		e.live = map[string]bool{}
+		e.mustApply(t, v1, false)
 		e.mustApply(t, v2, false)
 		res := e.mustApply(t, v3, false)
-		assert.Equal(t, ApplyResult{Hash: v3.Hash()}, res)
+		assert.Equal(t, ApplyResult{Hash: v3.Hash(), Changes: []Change{removedTotal}}, res)
 		assert.EqualValues(t, 1, e.liveCalls.Load())
-		assert.Nil(t, e.applied(t).Broken)
+		// Instances still running v2 can create subscriptions to it until
+		// the rollout ends: they end like those of a forced change.
+		assert.Equal(t, []string{v2.TopicHash(appliedTopic), v1.TopicHash(appliedTopic)}, e.applied(t).BrokenHashes(appliedTopic))
+	})
+
+	t.Run("only topics with live subscriptions refuse a breaking change", func(t *testing.T) {
+		e := newEnv()
+		e.live = map[string]bool{otherTopic: true}
+		both := func(schema string) Snapshot {
+			return mcpTopics(map[string]string{appliedTopic: schema, otherTopic: schema})
+		}
+		before, after := both(schemaV2), both(schemaV3)
+		e.mustApply(t, before, false)
+
+		_, err := e.apply(t, after, false)
+		var bce *BreakingChangeError
+		require.ErrorAs(t, err, &bce)
+		assert.Equal(t, []Change{{Topic: otherTopic, Path: "/properties/total", Kind: ChangePropertyRemoved, Detail: "property removed"}}, bce.Changes)
+
+		res := e.mustApply(t, after, true)
+		assert.True(t, res.Forced)
+		assert.Len(t, res.Changes, 2)
+		a := e.applied(t)
+		assert.Equal(t, []string{before.TopicHash(appliedTopic)}, a.BrokenHashes(appliedTopic))
+		assert.Equal(t, []string{before.TopicHash(otherTopic)}, a.BrokenHashes(otherTopic))
 	})
 
 	t.Run("topics not MCP-enabled on both sides are not checked", func(t *testing.T) {
@@ -301,9 +326,12 @@ func runApplySuite(t *testing.T, rdb internalredis.Cmdable, fastForward func(tim
 		require.NoError(t, Heartbeat(ctx, rdb, e.dep, v1.Hash(), time.Second))
 		raw := e.rawApplied(t)
 
-		// v2 -> v1 removes currency, but an instance runs v1.
+		// v2 -> v1 removes currency, but an instance runs v1. No instance
+		// reported v2 yet, but it was just applied: its instances may still
+		// be starting.
 		res := e.mustApply(t, v1, false)
 		assert.True(t, res.KnownConfig)
+		assert.False(t, res.Adopted)
 		assert.False(t, res.Forced)
 		assert.Equal(t, []Change{{Topic: appliedTopic, Path: "/properties/currency", Kind: ChangePropertyRemoved, Detail: "property removed"}},
 			res.Changes, "the diff is reported for logging")
@@ -322,6 +350,65 @@ func runApplySuite(t *testing.T, rdb internalredis.Cmdable, fastForward func(tim
 		require.NoError(t, Heartbeat(ctx, rdb, e.dep, v1.Hash(), time.Minute))
 		_, err = other.apply(t, v1, false)
 		require.ErrorAs(t, err, &bce)
+	})
+
+	t.Run("a rollback that outlives the applied configuration becomes the baseline", func(t *testing.T) {
+		e := newEnv()
+		now := appliedNow
+		apply := func(s Snapshot, allowBreaking bool) ApplyResult {
+			t.Helper()
+			opts := e.opts(allowBreaking)
+			opts.Now = func() time.Time { return now }
+			opts.HeartbeatTTL = time.Second
+			res, err := Apply(ctx, rdb, e.dep, s, opts)
+			require.NoError(t, err)
+			return res
+		}
+		heartbeat := func(s Snapshot) {
+			t.Helper()
+			require.NoError(t, Heartbeat(ctx, rdb, e.dep, s.Hash(), time.Second))
+		}
+		a, b := v2, v3 // b removes total
+		hashA := a.TopicHash(appliedTopic)
+
+		// a runs; b is forced in, and its first instance starts.
+		apply(a, false)
+		heartbeat(a)
+		apply(b, true)
+		heartbeat(b)
+		require.Equal(t, []string{hashA}, e.applied(t).BrokenHashes(appliedTopic))
+
+		// Rolled back while b still runs: a is accepted, b stays applied.
+		now = now.Add(2 * time.Second)
+		heartbeat(a)
+		heartbeat(b)
+		res := apply(a, false)
+		assert.True(t, res.KnownConfig)
+		assert.False(t, res.Adopted)
+		assert.Equal(t, b.Hash(), e.applied(t).Hash)
+
+		// b's instances are gone. Once no instance has reported b for the
+		// heartbeat TTL, a, which runs, replaces it without a check, and
+		// its schema is no longer broken.
+		fastForward(1100 * time.Millisecond)
+		heartbeat(a)
+		res = apply(a, false)
+		assert.True(t, res.KnownConfig)
+		assert.True(t, res.Adopted)
+		assert.False(t, res.Forced)
+		got := e.applied(t)
+		assert.Equal(t, a.Hash(), got.Hash)
+		assert.Nil(t, got.Broken)
+		assert.Equal(t, []string{b.TopicHash(appliedTopic)}, got.Superseded[appliedTopic])
+		assert.Equal(t, a.Hash(), e.history(t)[0].Hash)
+		assert.True(t, apply(a, false).Unchanged)
+
+		// c adds a property to a: applied as additive, nothing ends.
+		c := oneTopic(`{"type":"object","properties":{"id":{"type":"string"},"total":{"type":"number"},"currency":{"type":"string"},"note":{"type":"string"}}}`)
+		res = apply(c, false)
+		assert.False(t, res.Forced)
+		assert.Empty(t, res.Changes)
+		assert.Nil(t, e.applied(t).Broken)
 	})
 
 	t.Run("ending every MCP-enabled topic is refused unless forced", func(t *testing.T) {
