@@ -12,12 +12,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const orderSchemasJSON = `{"order.created":{"description":"An order was placed.","mcp":{"enabled":true},"payload_schema":{"type":"object","properties":{"total":{"type":"number"}},"required":["total"]}}}`
+const orderSchemasJSON = `{"order.created":{"description":"An order was placed.","validation":"enforce","payload_schema":{"type":"object","properties":{"total":{"type":"number"}},"required":["total"]}}}`
 
 const orderSchemasYAML = `order.created:
   description: An order was placed.
-  mcp:
-    enabled: true
+  validation: enforce
   payload_schema:
     type: object
     properties:
@@ -75,7 +74,7 @@ func requireOrderCreated(t *testing.T, catalog *topicschema.Catalog) topicschema
 	t.Helper()
 	topic, ok := catalog.Topic("order.created")
 	require.True(t, ok)
-	assert.True(t, topic.MCP.Enabled)
+	assert.Equal(t, topicschema.ValidationEnforce, topic.Validation)
 	assert.Equal(t, "An order was placed.", topic.Description)
 	assert.JSONEq(t, `{"type":"object","properties":{"total":{"type":"number"}},"required":["total"]}`, string(topic.PayloadSchema))
 	return topic
@@ -308,7 +307,7 @@ func TestTopicSchemas_TopicCatalogBeforeLoad(t *testing.T) {
 	c := &config.Config{}
 	c.InitDefaults()
 	c.Topics = []string{"a", "b"}
-	c.TopicsSchemas = config.NewTopicSchemas(`{"a":{"bogus":true}}`)
+	c.TopicsSchemas = config.NewTopicSchemas(`{"a":{"validation":"bogus"}}`)
 
 	catalog := c.TopicCatalog()
 	require.NotNil(t, catalog)

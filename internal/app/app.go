@@ -229,8 +229,9 @@ func (a *App) checkPendingMigrations(ctx context.Context) error {
 }
 
 // loadTopicCatalog loads the topic schemas when this process runs the API
-// service, the only one that uses them. Delivery and log services never load
-// them, so a problem in the schemas only stops the API service.
+// service, the only one that uses them (publish-time validation and GET
+// /topics). Delivery and log services never load them, so a problem in the
+// schemas only stops the API service.
 func (a *App) loadTopicCatalog() error {
 	service, err := a.config.GetService()
 	if err != nil {

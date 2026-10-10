@@ -61,6 +61,7 @@ topics: # List of topics to subscribe to
 # topics_schemas: # Keyed by topic name; every key must be in topics when topics is set, and the keys are the topics when it isn't
 #   user.created:
 #     description: "A user signed up."
+#     validation: warn # off (default), warn or enforce
 #     mcp:
 #       enabled: false
 #     payload_schema: # JSON Schema 2020-12 for the event data

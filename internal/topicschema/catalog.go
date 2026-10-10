@@ -25,9 +25,9 @@ const (
 	// Subscriptions filter on far less, and it keeps parsing and the checks
 	// run before validation cheap.
 	maxArgumentsBytes = 16 << 10
-	// maxNumberScale bounds the length and the exponent of every number in
-	// validated arguments. The validator turns numbers into exact rationals,
-	// and 1e999999 alone takes milliseconds, so a value with a larger number
+	// maxNumberScale bounds the length and the exponent of every number in a
+	// validated value. The validator turns numbers into exact rationals, and
+	// 1e999999 alone takes milliseconds, so a value with a larger number
 	// fails validation instead of being checked.
 	maxNumberScale = 1000
 )
@@ -47,9 +47,12 @@ var (
 	longArgumentStringMessage = "must be at most " + countOf(maxArgumentStringLength, "character", "characters")
 )
 
-// argumentChecks are what validateJSON checks before validating
-// subscription arguments against their schema.
-var argumentChecks = valueChecks{reject: rejectArgumentValue}
+// dataChecks and argumentChecks are what validateJSON checks before
+// validating event data and subscription arguments against their schema.
+var (
+	dataChecks     = valueChecks{reject: rejectLargeNumber}
+	argumentChecks = valueChecks{reject: rejectArgumentValue}
+)
 
 // Catalog is the immutable, compiled set of topics and their schemas. It is
 // safe for concurrent use: nothing in it changes after NewCatalog returns,
@@ -69,6 +72,12 @@ type Catalog struct {
 
 type entry struct {
 	defined bool
+	// validator is the compiled payload schema, set only for topics with
+	// validation warn or enforce.
+	validator *jsonschema.Schema
+	// dataNames holds the property names the payload schema declares, which
+	// error paths may show.
+	dataNames map[string]struct{}
 	// The rest is set only for MCP-enabled topics. input is the inputSchema
 	// without enums, which enums holds instead.
 	args       []Argument
@@ -120,7 +129,7 @@ func EmptyCatalog(topics []string) *Catalog {
 			continue
 		}
 		c.byName[name] = len(c.topics)
-		c.topics = append(c.topics, Topic{Name: name})
+		c.topics = append(c.topics, Topic{Name: name, Validation: ValidationOff})
 	}
 	c.entries = make([]entry, len(c.topics))
 	return c
@@ -161,15 +170,26 @@ func (b *catalogBuilder) addDefinition(name string, def Definition) {
 	t := Topic{
 		Name:        name,
 		Description: def.Description,
+		Validation:  ValidationOff,
 		MCP:         def.MCP,
 	}
 	e := entry{defined: true}
 	if def.Name != "" && def.Name != name {
 		b.problem(name, "name %q must match the topic key", clip(def.Name))
 	}
+	switch def.Validation {
+	case "", ValidationOff:
+	case ValidationWarn, ValidationEnforce:
+		t.Validation = def.Validation
+	default:
+		b.problem(name, `validation %q must be "off", "warn" or "enforce"`, clip(string(def.Validation)))
+	}
 
 	raw := bytes.TrimSpace(def.PayloadSchema)
 	if len(raw) == 0 || string(raw) == "null" {
+		if t.Validation != ValidationOff {
+			b.problem(name, "validation %q requires payload_schema", t.Validation)
+		}
 		if t.MCP.Enabled {
 			b.problem(name, "mcp.enabled requires payload_schema")
 		}
@@ -181,7 +201,7 @@ func (b *catalogBuilder) addDefinition(name string, def Definition) {
 }
 
 // addSchema checks and compiles a topic's payload schema, and precomputes
-// what MCP needs.
+// what validation and MCP need.
 func (b *catalogBuilder) addSchema(t *Topic, e *entry, raw json.RawMessage) {
 	name := t.Name
 	var buf bytes.Buffer
@@ -222,24 +242,28 @@ func (b *catalogBuilder) addSchema(t *Topic, e *entry, raw json.RawMessage) {
 		b.problem(name, `mcp.enabled requires a payload_schema with "type": "object"`)
 	}
 
-	_, unsupported, err := compileSchema(tree)
+	schema, unsupported, err := compileSchema(tree)
 	if err != nil {
 		for _, p := range compileProblems(err, tree) {
 			b.problem(name, "%s", p)
 		}
 	}
 	// Go's RE2 engine rejects some ECMAScript patterns, such as lookaheads.
-	// A topic shown to MCP clients can't use them; another keeps its schema
-	// for documentation.
+	// A topic that validates or is shown to MCP clients can't use them; one
+	// that does neither keeps its schema for documentation.
 	for _, msg := range unsupported {
-		if t.MCP.Enabled {
+		if t.Validation != ValidationOff || t.MCP.Enabled {
 			b.problem(name, "payload_schema %s", msg)
 		} else {
-			b.c.warnings = append(b.c.warnings, fmt.Sprintf("topic %q: payload_schema %s; the topic isn't MCP-enabled, so the schema is kept", clip(name), msg))
+			b.c.warnings = append(b.c.warnings, fmt.Sprintf("topic %q: payload_schema %s; validation is off, so the schema is kept but can't be used to validate", clip(name), msg))
 		}
 	}
 	if err != nil || len(unsupported) > 0 {
 		return
+	}
+	if t.Validation != ValidationOff {
+		e.validator = schema
+		e.dataNames = propertyNameSet(root)
 	}
 	if !t.MCP.Enabled || !isObject {
 		return
@@ -519,6 +543,22 @@ func (c *Catalog) Warnings() []string {
 		return nil
 	}
 	return slices.Clone(c.warnings)
+}
+
+// ValidateData validates event data against the topic's payload schema. The
+// mode is off, and nothing is checked, for "", "*", unknown topics and
+// topics without a schema or with validation off.
+func (c *Catalog) ValidateData(topic string, data []byte) ValidationResult {
+	if c == nil || topic == "" || topic == "*" {
+		return ValidationResult{Mode: ValidationOff}
+	}
+	i, ok := c.byName[topic]
+	if !ok || c.entries[i].validator == nil {
+		return ValidationResult{Mode: ValidationOff}
+	}
+	e, mode := &c.entries[i], c.topics[i].Validation
+	errs := validateJSON(e.validator, data, "data", e.dataNames, dataChecks)
+	return ValidationResult{Mode: mode, Checked: true, Valid: len(errs) == 0, Errors: errs}
 }
 
 // ValidateArguments validates subscription arguments against the topic's

@@ -8,6 +8,9 @@ import (
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/mqs"
 	"github.com/hookdeck/outpost/internal/publishmq"
+	"github.com/hookdeck/outpost/internal/tenantstore"
+	"github.com/hookdeck/outpost/internal/topicschema"
+	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -116,6 +119,7 @@ func TestMessageHandler_EventHandlerError(t *testing.T) {
 	}{
 		{"invalid topic", publishmq.ErrInvalidTopic, false},
 		{"required topic", publishmq.ErrRequiredTopic, true},
+		{"schema validation", &publishmq.SchemaValidationError{Topic: "user.created", Errors: []string{"data.key: must be number"}}, true},
 		{"transient error", errors.New("redis: connection refused"), false},
 	}
 
@@ -138,6 +142,51 @@ func TestMessageHandler_EventHandlerError(t *testing.T) {
 			assert.False(t, qm.acked, "message should not be acked")
 		})
 	}
+}
+
+func TestMessageHandler_SchemaValidationError(t *testing.T) {
+	body := []byte(`{"id":"evt_1","tenant_id":"t1","topic":"user.created","data":{"total":"12"}}`)
+	validator := &fakeValidator{result: topicschema.ValidationResult{
+		Mode: topicschema.ValidationEnforce, Checked: true, Errors: []string{"data.total: must be number"},
+	}}
+	eventHandler := publishmq.NewEventHandler(
+		testutil.CreateTestLogger(t), nil, tenantstore.NewMemTenantStore(), nil,
+		testutil.TestTopics, false, nil,
+		publishmq.WithSchemaValidator(validator),
+		publishmq.WithMetrics(newFakeMetrics(t)),
+	)
+	// The data never becomes valid by itself, so it is not counted towards
+	// redelivery either.
+	counter := &fakeRedeliveryCounter{err: errors.New("must not be called")}
+	handler := publishmq.NewMessageHandler(eventHandler, publishmq.WithMaxRedeliveries(5, counter))
+
+	qm := &mockQueueMessage{}
+	err := handler.Handle(context.Background(), &mqs.Message{QueueMessage: qm, ID: "msg_1", LoggableID: "msg_1", Body: body})
+
+	require.ErrorIs(t, err, publishmq.ErrSchemaValidation)
+	assert.True(t, qm.rejected, "message should be rejected")
+	assert.False(t, qm.nacked, "message should never be nacked")
+	assert.False(t, qm.acked)
+	assert.Empty(t, counter.counts)
+
+	// The consumer logs the returned error; it must identify the message,
+	// the event, the topic and the errors.
+	for _, want := range []string{"msg_1", "event evt_1", `topic "user.created"`, "data.total: must be number"} {
+		assert.Contains(t, err.Error(), want)
+	}
+}
+
+func TestMessageHandler_IgnoresSchemaValidInput(t *testing.T) {
+	eh := &mockEventHandler{}
+	handler := publishmq.NewMessageHandler(eh)
+
+	qm := &mockQueueMessage{}
+	require.NoError(t, handler.Handle(context.Background(), &mqs.Message{
+		QueueMessage: qm,
+		Body:         []byte(`{"tenant_id":"t1","topic":"user.created","schema_valid":true,"data":{}}`),
+	}))
+	require.Len(t, eh.calls, 1)
+	assert.Nil(t, eh.calls[0].SchemaValid, "publishers must not set the schema verdict")
 }
 
 func TestMessageHandler_RejectFallsBackToNack(t *testing.T) {
