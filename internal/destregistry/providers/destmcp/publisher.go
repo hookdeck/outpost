@@ -37,6 +37,7 @@ const maxDrainBytes = 64 << 10
 type Publisher struct {
 	client               *http.Client
 	hostLimiter          *netguard.HostLimiter
+	hostWait             time.Duration
 	url                  string
 	hostPort             string
 	subscriptionID       string
@@ -59,16 +60,20 @@ func (p *Publisher) Close() error {
 // redirects are never followed, fails with the status as its code, and 410
 // and 413 are not retried; an envelope over 256 KiB or an event ID that
 // can't be a header fails without a request and is not retried; a callback
-// host at its in-flight limit fails at once as "throttled", and a request the
-// address guard refuses as "address_not_allowed", both retried.
+// host at its in-flight limit is waited for (see acquireHost), then fails as
+// "throttled", and a request the address guard refuses fails as
+// "address_not_allowed", both retried.
 func (p *Publisher) Publish(ctx context.Context, event *models.Event) (*destregistry.Delivery, error) {
 	body, err := mcpevents.EventEnvelope(event)
 	if err != nil {
 		return envelopeFailure(err)
 	}
 
-	release, ok := p.hostLimiter.TryAcquire(p.hostPort)
-	if !ok {
+	release, err := p.acquireHost(ctx)
+	if err != nil {
+		if errors.Is(ctx.Err(), context.Canceled) {
+			return nil, ctx.Err()
+		}
 		return failure(CodeThrottled, "too many attempts in flight to the callback host", errors.New("destmcp: callback host at its in-flight limit"), false)
 	}
 	defer release()
@@ -95,6 +100,20 @@ func (p *Publisher) Publish(ctx context.Context, event *models.Event) (*destregi
 			}
 	}
 	return p.handleResponse(resp)
+}
+
+// acquireHost takes a slot of the callback host. A full host is Outpost's
+// own back-pressure, not a receiver failure, so the attempt waits for a slot:
+// up to hostWait, and at most half the time left for the attempt so the
+// request keeps the rest.
+func (p *Publisher) acquireHost(ctx context.Context) (func(), error) {
+	wait := p.hostWait
+	if deadline, ok := ctx.Deadline(); ok {
+		wait = min(wait, time.Until(deadline)/2)
+	}
+	waitCtx, cancel := context.WithTimeout(ctx, wait)
+	defer cancel()
+	return p.hostLimiter.Acquire(waitCtx, p.hostPort)
 }
 
 // setHeaders sets the delivery headers, signed with every key valid now (both

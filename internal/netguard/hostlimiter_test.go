@@ -1,10 +1,12 @@
 package netguard_test
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/hookdeck/outpost/internal/netguard"
 	"github.com/stretchr/testify/assert"
@@ -115,4 +117,123 @@ func TestHostLimiter_Concurrent(t *testing.T) {
 		release()
 	}
 	assert.Zero(t, netguard.HostLimiterEntries(l))
+}
+
+func TestHostLimiter_AcquireWaitsForASlot(t *testing.T) {
+	t.Parallel()
+	l := netguard.NewHostLimiter(1)
+	held, ok := l.TryAcquire("a.example:443")
+	require.True(t, ok)
+
+	// Waiters are served in arrival order as slots free up.
+	order := make(chan int, 2)
+	releases := make(chan func(), 2)
+	for i := range 2 {
+		go func() {
+			release, err := l.Acquire(context.Background(), "a.example:443")
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			order <- i
+			releases <- release
+		}()
+		require.Eventually(t, func() bool { return netguard.HostLimiterWaiters(l, "a.example:443") == i+1 }, time.Second, time.Millisecond)
+	}
+	select {
+	case <-order:
+		t.Fatal("acquired a slot of a full host")
+	case <-time.After(20 * time.Millisecond):
+	}
+	_, ok = l.TryAcquire("a.example:443")
+	assert.False(t, ok, "a caller that doesn't wait doesn't jump the queue")
+
+	held()
+	assert.Equal(t, 0, <-order)
+	(<-releases)()
+	assert.Equal(t, 1, <-order)
+	(<-releases)()
+	assert.Zero(t, netguard.HostLimiterEntries(l), "idle hosts are forgotten")
+}
+
+func TestHostLimiter_AcquireCanceled(t *testing.T) {
+	t.Parallel()
+	l := netguard.NewHostLimiter(1)
+	held, ok := l.TryAcquire("a.example:443")
+	require.True(t, ok)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	release, err := l.Acquire(ctx, "a.example:443")
+	assert.ErrorIs(t, err, context.DeadlineExceeded)
+	require.NotNil(t, release)
+	release() // a no-op
+	assert.Zero(t, netguard.HostLimiterWaiters(l, "a.example:443"), "a canceled waiter leaves the queue")
+
+	held()
+	assert.Zero(t, netguard.HostLimiterEntries(l))
+
+	// A done context never takes a slot, even a free one.
+	done, cancelDone := context.WithCancel(context.Background())
+	cancelDone()
+	_, err = l.Acquire(done, "a.example:443")
+	assert.ErrorIs(t, err, context.Canceled)
+	assert.Zero(t, netguard.HostLimiterEntries(l))
+}
+
+func TestHostLimiter_AcquireUnlimited(t *testing.T) {
+	t.Parallel()
+	for _, l := range []*netguard.HostLimiter{nil, netguard.NewHostLimiter(0)} {
+		for range 10 {
+			release, err := l.Acquire(context.Background(), "a.example:443")
+			require.NoError(t, err)
+			release()
+		}
+	}
+}
+
+// Run with -race: waiters that give up while slots are handed over never
+// leak a slot or exceed the cap.
+func TestHostLimiter_AcquireConcurrent(t *testing.T) {
+	t.Parallel()
+	const (
+		maxPerHost = 2
+		workers    = 32
+		iterations = 200
+	)
+	l := netguard.NewHostLimiter(maxPerHost)
+	var current, peak atomic.Int32
+	var acquired, gaveUp atomic.Int64
+
+	var wg sync.WaitGroup
+	for w := range workers {
+		wg.Go(func() {
+			for i := range iterations {
+				// Some waiters give up at once, racing the handoff.
+				ctx, cancel := context.WithTimeout(context.Background(), time.Duration((w+i)%3)*time.Millisecond)
+				release, err := l.Acquire(ctx, "a.example:443")
+				cancel()
+				if err != nil {
+					gaveUp.Add(1)
+					continue
+				}
+				acquired.Add(1)
+				n := current.Add(1)
+				for {
+					p := peak.Load()
+					if n <= p || peak.CompareAndSwap(p, n) {
+						break
+					}
+				}
+				current.Add(-1)
+				release()
+			}
+		})
+	}
+	wg.Wait()
+
+	assert.LessOrEqual(t, peak.Load(), int32(maxPerHost))
+	assert.Equal(t, int64(workers*iterations), acquired.Load()+gaveUp.Load())
+	assert.Positive(t, acquired.Load())
+	assert.Zero(t, netguard.HostLimiterEntries(l), "no slot leaked")
 }

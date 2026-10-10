@@ -25,17 +25,17 @@ type MCPConfig struct {
 	ProxyURL                 string     `yaml:"proxy_url" env:"MCP_PROXY_URL" desc:"Forward proxy (http, https, socks5 or socks5h URL) for MCP deliveries, verification challenges and terminated envelopes. Outpost still resolves and checks the callback host first, but the proxy connects, so pinning the checked address is its job. DESTINATIONS_PROXY_URL, HTTP_PROXY and HTTPS_PROXY never apply to MCP traffic." required:"N"`
 	VerificationTTL          Duration   `yaml:"verification_ttl" env:"MCP_VERIFICATION_TTL" desc:"How long a passed callback verification challenge is cached per tenant, principal and callback URL. A Go duration (e.g. '24h') or a number of seconds." required:"N" default:"24h"`
 	VerificationRateLimit    int        `yaml:"verification_rate_limit" env:"MCP_VERIFICATION_RATE_LIMIT" desc:"Verification challenges per tenant and principal per minute; over it, subscribe fails with resource_exhausted. Cached verifications don't count. 0 turns the limit off." required:"N" default:"10"`
-	VerificationFailureLimit int        `yaml:"verification_failure_limit" env:"MCP_VERIFICATION_FAILURE_LIMIT" desc:"Failed or unanswered verification challenges per callback host per minute, across the deployment. Successful challenges don't count, and allowlisted hosts are exempt. 0 turns the limit off." required:"N" default:"120"`
+	VerificationFailureLimit int        `yaml:"verification_failure_limit" env:"MCP_VERIFICATION_FAILURE_LIMIT" desc:"Failed verification challenges per tenant and callback host per minute; over it, the tenant's challenges to the host fail with resource_exhausted (verification_rate). Ten times it caps unanswered challenges (timeout, connection refused, TLS failure) per callback host per minute across the deployment (callback_host_busy). Successful challenges don't count, and allowlisted hosts are exempt. 0 turns both limits off." required:"N" default:"120"`
 	SecretRotationGrace      Duration   `yaml:"secret_rotation_grace" env:"MCP_SECRET_ROTATION_GRACE" desc:"How long Outpost keeps signing with the previous secret after a client rotates it. A Go duration or a number of seconds." required:"N" default:"24h"`
 	TTLDefault               Duration   `yaml:"ttl_default" env:"MCP_TTL_DEFAULT" desc:"Subscription lifetime granted when the client suggests none. Between MCP_TTL_MIN and MCP_TTL_MAX. A Go duration or a number of seconds." required:"N" default:"1h"`
 	TTLMin                   Duration   `yaml:"ttl_min" env:"MCP_TTL_MIN" desc:"Shortest subscription lifetime granted; shorter suggestions are raised to it. At least 1s. A Go duration or a number of seconds." required:"N" default:"5m"`
 	TTLMax                   Duration   `yaml:"ttl_max" env:"MCP_TTL_MAX" desc:"Longest subscription lifetime granted; longer suggestions are lowered to it. A Go duration or a number of seconds." required:"N" default:"24h"`
 	AllowNoExpiry            bool       `yaml:"allow_no_expiry" env:"MCP_ALLOW_NO_EXPIRY" desc:"If true, a client asking for no expiry (ttlMs: null) gets a subscription that never expires. Otherwise it gets MCP_TTL_MAX." required:"N" default:"false"`
-	RetrySchedule            []int      `yaml:"retry_schedule" env:"MCP_RETRY_SCHEDULE" envSeparator:"," desc:"Comma-separated retry delays in seconds for MCP deliveries (in YAML, a list). Its length is the number of retries. RETRY_SCHEDULE, RETRY_INTERVAL_SECONDS and MAX_RETRY_LIMIT don't apply to MCP." required:"N" default:"30,120,600"`
+	RetrySchedule            []int      `yaml:"retry_schedule" env:"MCP_RETRY_SCHEDULE" envSeparator:"," desc:"Comma-separated retry delays in seconds for MCP deliveries (in YAML, a list), each spread by ±20% jitter. Its length is the number of retries. RETRY_SCHEDULE, RETRY_INTERVAL_SECONDS and MAX_RETRY_LIMIT don't apply to MCP." required:"N" default:"30,120,600"`
 	ErrorCodes               string     `yaml:"error_codes" env:"MCP_ERROR_CODES" desc:"JSON-RPC error codes in mcp_error and terminated envelopes: 'sketch' (the numbers ChatGPT follows) or 'sep-3415' (SEP-3415's provisional numbers)." required:"N" default:"sketch"`
 	SendTerminated           bool       `yaml:"send_terminated" env:"MCP_SEND_TERMINATED" desc:"If true, sends a terminated envelope when Outpost ends a subscription: revocation, topic removal or a forced breaking change." required:"N" default:"true"`
 	ExpirySweepInterval      Duration   `yaml:"expiry_sweep_interval" env:"MCP_EXPIRY_SWEEP_INTERVAL" desc:"How often the API service deletes expired subscriptions and ends subscriptions to topics that are no longer MCP-enabled, with 10% jitter. Subscriptions are deleted once expired for twice the interval, 5s to 60s. At least 1s. A Go duration or a number of seconds." required:"N" default:"30s"`
-	MaxInFlightPerHost       int        `yaml:"max_inflight_per_host" env:"MCP_MAX_INFLIGHT_PER_HOST" desc:"Delivery attempts, challenges and terminated envelopes in flight per callback host and port, per Outpost process. An attempt over it fails with code throttled and is retried. 0 means no limit." required:"N" default:"8"`
+	MaxInFlightPerHost       int        `yaml:"max_inflight_per_host" env:"MCP_MAX_INFLIGHT_PER_HOST" desc:"Delivery attempts, challenges and terminated envelopes in flight per callback host and port, per Outpost process. Over it, an attempt waits up to 5 seconds for a slot, then fails with code throttled and is retried; a challenge waits up to 2 seconds, then subscribe fails with resource_exhausted (callback_host_busy). 0 means no limit." required:"N" default:"8"`
 }
 
 // MCP subscription limits (MAX_MCP_SUBSCRIPTIONS_PER_TENANT).
@@ -184,15 +184,21 @@ func parseMCPCodeProfile(s string) (mcpevents.CodeProfile, error) {
 	return mcpevents.ParseCodeProfile(strings.ToLower(strings.TrimSpace(s)))
 }
 
+// mcpRetryJitter spreads each MCP retry delay by ±20%: subscriptions on one
+// callback host (ChatGPT's) that failed together, a throttled burst for
+// one, don't all retry together.
+const mcpRetryJitter = 0.2
+
 // MCPRetryBackoff returns the retry policy for MCP deliveries: a scheduled
-// backoff over MCP_RETRY_SCHEDULE, and the schedule length as the max number
-// of retries. Wire it with deliverymq.WithRetryPolicy("mcp", ...).
+// backoff over MCP_RETRY_SCHEDULE with ±20% jitter, and the schedule length
+// as the max number of retries. Wire it with
+// deliverymq.WithRetryPolicy("mcp", ...).
 func (c *Config) MCPRetryBackoff() (backoff.Backoff, int) {
 	schedule := make([]time.Duration, len(c.MCP.RetrySchedule))
 	for i, seconds := range c.MCP.RetrySchedule {
 		schedule[i] = time.Duration(seconds) * time.Second
 	}
-	return &backoff.ScheduledBackoff{Schedule: schedule}, len(schedule)
+	return &backoff.JitteredBackoff{Backoff: &backoff.ScheduledBackoff{Schedule: schedule}, Jitter: mcpRetryJitter}, len(schedule)
 }
 
 // MCPTTLConfig returns the subscription lifetime settings for

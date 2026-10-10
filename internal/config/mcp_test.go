@@ -367,14 +367,21 @@ func TestMCPConfig_RetryBackoff(t *testing.T) {
 	c := validConfig()
 	b, maxLimit := c.MCPRetryBackoff()
 	assert.Equal(t, 3, maxLimit)
-	assert.Equal(t, &backoff.ScheduledBackoff{Schedule: []time.Duration{30 * time.Second, 2 * time.Minute, 10 * time.Minute}}, b)
-	assert.Equal(t, 30*time.Second, b.Duration(0))
-	assert.Equal(t, 10*time.Minute, b.Duration(2))
+	// ±20% jitter, so attempts that failed together (a throttled burst to
+	// one host) don't all retry together.
+	require.IsType(t, &backoff.JitteredBackoff{}, b)
+	jittered := b.(*backoff.JitteredBackoff)
+	assert.Equal(t, &backoff.ScheduledBackoff{Schedule: []time.Duration{30 * time.Second, 2 * time.Minute, 10 * time.Minute}}, jittered.Backoff)
+	assert.Equal(t, 0.2, jittered.Jitter)
+	for range 100 {
+		assert.InDelta(t, float64(30*time.Second), float64(b.Duration(0)), float64(6*time.Second))
+		assert.InDelta(t, float64(10*time.Minute), float64(b.Duration(2)), float64(2*time.Minute))
+	}
 
 	c.MCP.RetrySchedule = []int{1, 1, 1, 1, 1}
 	b, maxLimit = c.MCPRetryBackoff()
 	assert.Equal(t, 5, maxLimit)
-	assert.Equal(t, time.Second, b.Duration(4))
+	assert.InDelta(t, float64(time.Second), float64(b.Duration(4)), float64(200*time.Millisecond))
 
 	// The MCP schedule is separate from the global retry settings.
 	c.RetrySchedule = []int{5, 10}

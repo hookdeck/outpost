@@ -2,6 +2,7 @@ package mcpevents
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"io"
 	"net"
@@ -178,6 +179,20 @@ func (l *countingLimiter) TryAcquire(hostport string) (func(), bool) {
 			l.released++
 		})
 	}, true
+}
+
+// Acquire polls TryAcquire until ctx is done.
+func (l *countingLimiter) Acquire(ctx context.Context, hostport string) (func(), error) {
+	for {
+		if release, ok := l.TryAcquire(hostport); ok {
+			return release, nil
+		}
+		select {
+		case <-ctx.Done():
+			return func() {}, ctx.Err()
+		case <-time.After(time.Millisecond):
+		}
+	}
 }
 
 func (l *countingLimiter) counts() (acquired, released, denied int) {

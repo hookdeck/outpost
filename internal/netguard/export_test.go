@@ -25,6 +25,16 @@ func HostLimiterEntries(l *HostLimiter) int {
 	return len(l.inflight)
 }
 
+// HostLimiterWaiters is the number of Acquire calls waiting for hostport.
+func HostLimiterWaiters(l *HostLimiter, hostport string) int {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if h := l.inflight[hostport]; h != nil {
+		return h.waiters.Len()
+	}
+	return 0
+}
+
 // RegistryTable returns the embedded registry rows as prefix → global.
 func RegistryTable(v6 bool) map[netip.Prefix]bool {
 	blocks := ipv4Special

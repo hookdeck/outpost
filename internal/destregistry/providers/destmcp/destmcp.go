@@ -60,6 +60,10 @@ const (
 	// DefaultMaxInflightPerHost caps attempts in flight per callback
 	// host:port when no HostLimiter is given (MCP_MAX_INFLIGHT_PER_HOST).
 	DefaultMaxInflightPerHost = 8
+	// MaxHostWait is how long an attempt waits for a slot of a callback
+	// host at its in-flight limit, and never more than half the attempt's
+	// remaining time, before it fails as throttled.
+	MaxHostWait = 5 * time.Second
 	// MaxPrincipalBytes caps config.principal, as the subscribe endpoint does.
 	MaxPrincipalBytes = 512
 
@@ -141,6 +145,7 @@ type Provider struct {
 	maxResponseBodyBytes int
 	userAgent            string
 	deliveryTimeout      time.Duration
+	hostWait             time.Duration
 	instructions         *template.Template
 	now                  func() time.Time
 }
@@ -180,6 +185,7 @@ func New(loader metadata.MetadataLoader, cfg Config) (*Provider, error) {
 		maxResponseBodyBytes: cfg.MaxResponseBodyBytes,
 		userAgent:            cfg.UserAgent,
 		deliveryTimeout:      DefaultDeliveryTimeout,
+		hostWait:             MaxHostWait,
 		instructions:         instructions,
 		now:                  time.Now,
 	}
@@ -528,6 +534,7 @@ func (p *Provider) CreatePublisher(ctx context.Context, destination *models.Dest
 	return &Publisher{
 		client:               p.client,
 		hostLimiter:          p.hostLimiter,
+		hostWait:             p.hostWait,
 		url:                  urlString,
 		hostPort:             mcpevents.HostPort(u),
 		subscriptionID:       subscriptionID,

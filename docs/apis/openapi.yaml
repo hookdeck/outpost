@@ -175,7 +175,18 @@ components:
                   message: "ResourceExhausted"
                   data:
                     limit: "verification_rate"
+                    max: 10
                     retryAfterMs: 42000
+            CallbackHostBusy:
+              summary: The callback host is at MCP_MAX_INFLIGHT_PER_HOST, or isn't answering challenges
+              value:
+                mcp_error:
+                  kind: "resource_exhausted"
+                  code: -32013
+                  message: "ResourceExhausted"
+                  data:
+                    limit: "callback_host_busy"
+                    retryAfterMs: 1000
             UnsupportedDeliveryMode:
               summary: delivery.mode other than webhook
               value:
@@ -4201,7 +4212,7 @@ components:
 
             - `active`: `false` when the subscription had been auto-disabled after repeated failures. The refresh that returns it has re-enabled the subscription and resumed its pending retries.
             - `lastDeliveryAt`: when the last successful delivery was made, as an RFC 3339 UTC timestamp, or `null`.
-            - `lastError`: when the last attempt failed, its category: `connection_refused`, `timeout`, `tls_error`, `http_4xx` or `http_5xx`. Otherwise `null`. It never contains response content.
+            - `lastError`: when the last attempt failed, its category: `connection_refused`, `timeout`, `tls_error`, `http_4xx` or `http_5xx`. Otherwise `null`. It never contains response content. Attempts Outpost refused on its own side (codes `throttled`, `payload_too_large` and `invalid_event_id`) don't count as the last attempt.
           example:
             active: true
             lastDeliveryAt: "2026-10-09T16:58:12Z"
@@ -4313,7 +4324,7 @@ components:
 
             - `invalid_params`: `{field, reason, errors?}`. `field` names the request field, such as `arguments`, `delivery.url`, `delivery.secret`, `ttlMs`, `principal` or `cursor`. `reason` is a fixed code, such as `address_not_allowed`, `https_required` or `invalid_url` for `delivery.url`. `errors` lists argument validation errors as paths and messages, such as `arguments.total: must be number`, without the submitted values.
             - `not_found`: `{kind}`, where `kind` is `event`, `tenant` or `subscription`.
-            - `resource_exhausted`: `{limit, max?, retryAfterMs?}`. `limit` is `subscriptions` (`MAX_MCP_SUBSCRIPTIONS_PER_TENANT`), `principal_subscriptions` (`MAX_MCP_SUBSCRIPTIONS_PER_PRINCIPAL`) or `verification_rate`.
+            - `resource_exhausted`: `{limit, max?, retryAfterMs?}`. `limit` is `subscriptions` (`MAX_MCP_SUBSCRIPTIONS_PER_TENANT`), `principal_subscriptions` (`MAX_MCP_SUBSCRIPTIONS_PER_PRINCIPAL`), `verification_rate` (`MCP_VERIFICATION_RATE_LIMIT` challenges by the principal, or `MCP_VERIFICATION_FAILURE_LIMIT` failed challenges by the tenant to the callback host, this minute) or `callback_host_busy` (the callback host is at `MCP_MAX_INFLIGHT_PER_HOST` on this instance, or left 10 × `MCP_VERIFICATION_FAILURE_LIMIT` challenges unanswered this minute, whichever tenant asked).
             - `unsupported`: `{feature, value}`, such as `{"feature": "deliveryMode", "value": "poll"}`, or `{"feature": "payloadSchema", "reason": "schema_changed"}` for a refresh of a subscription a forced breaking schema change ended.
             - `callback_endpoint_error`: `{reason}`, one of `connection_refused`, `timeout`, `tls_error`, `http_4xx`, `http_5xx` and `challenge_failed`.
           example:
@@ -4767,7 +4778,7 @@ tags:
       |--------|-----------|--------------------------------|---------------------|--------|
       | `invalid_params` | `InvalidParams` | `-32602` | `-32602` | `{field, reason, errors?}` |
       | `not_found` | `NotFound` | `-32011` | `-32023` | `{kind: "event" \| "tenant" \| "subscription"}` |
-      | `resource_exhausted` | `ResourceExhausted` | `-32013` | `-32025` | `{limit: "subscriptions" \| "principal_subscriptions" \| "verification_rate", max?, retryAfterMs?}` |
+      | `resource_exhausted` | `ResourceExhausted` | `-32013` | `-32025` | `{limit: "subscriptions" \| "principal_subscriptions" \| "verification_rate" \| "callback_host_busy", max?, retryAfterMs?}` |
       | `unsupported` | `Unsupported` | `-32014` | `-32026` | `{feature, value}` |
       | `callback_endpoint_error` | `CallbackEndpointError` | `-32015` | `-32027` | `{reason}`: `connection_refused`, `timeout`, `tls_error`, `http_4xx`, `http_5xx` or `challenge_failed` |
 

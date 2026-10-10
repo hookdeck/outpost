@@ -85,17 +85,17 @@ topics: # List of topics to subscribe to
 #   proxy_url: "" # Forward proxy for MCP deliveries, challenges and terminated envelopes
 #   verification_ttl: 24h # How long a passed callback challenge is cached
 #   verification_rate_limit: 10 # Challenges per tenant and principal per minute
-#   verification_failure_limit: 120 # Failed challenges per callback host per minute
+#   verification_failure_limit: 120 # Failed challenges per tenant and callback host per minute (10x it: unanswered challenges per host, deployment-wide)
 #   secret_rotation_grace: 24h # How long the previous secret keeps signing after a rotation
 #   ttl_default: 1h # Lifetime granted when the client suggests none
 #   ttl_min: 5m
 #   ttl_max: 24h
 #   allow_no_expiry: false # Grant no expiry when a client asks for it
-#   retry_schedule: [30, 120, 600] # Retry delays in seconds
+#   retry_schedule: [30, 120, 600] # Retry delays in seconds, each with ±20% jitter
 #   error_codes: sketch # sketch or sep-3415
 #   send_terminated: true # Send terminated envelopes when Outpost ends a subscription
 #   expiry_sweep_interval: 30s # How often expired subscriptions are deleted
-#   max_inflight_per_host: 8 # Attempts in flight per callback host, per process
+#   max_inflight_per_host: 8 # Attempts in flight per callback host, per process; more wait for a slot
 # max_mcp_subscriptions_per_tenant: 100 # MCP subscriptions per tenant, separate from max_destinations_per_tenant
 # max_mcp_subscriptions_per_principal: 20 # MCP subscriptions per principal within a tenant (0 = no limit)
 

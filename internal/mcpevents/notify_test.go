@@ -324,11 +324,12 @@ type selectiveLimiter struct {
 	inner HostLimiter
 }
 
-func (l *selectiveLimiter) TryAcquire(hostport string) (func(), bool) {
+func (l *selectiveLimiter) Acquire(ctx context.Context, hostport string) (func(), error) {
 	if hostport == l.deny {
-		return nil, false
+		<-ctx.Done()
+		return func() {}, ctx.Err()
 	}
-	return l.inner.TryAcquire(hostport)
+	return l.inner.Acquire(ctx, hostport)
 }
 
 func TestNotifier_Disabled(t *testing.T) {
@@ -336,7 +337,8 @@ func TestNotifier_Disabled(t *testing.T) {
 	n, err := NewNotifier(NotifierConfig{Disabled: true})
 	require.NoError(t, err)
 	assert.False(t, n.Enabled())
-	assert.False(t, n.Enqueue(testTermination("https://a.example/", []byte("k"))))
+	assert.True(t, n.Enqueue(testTermination("https://a.example/", []byte("k"))), "a no-op, not a drop: MCP_SEND_TERMINATED=false is intended")
+	assert.True(t, n.Enqueue(Termination{}), "nothing is checked when nothing is sent")
 	assert.NoError(t, n.EnqueueWait(context.Background(), testTermination("https://a.example/", []byte("k"))))
 	assert.Zero(t, n.Stats())
 	assert.NoError(t, n.Close())

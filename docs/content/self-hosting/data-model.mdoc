@@ -214,7 +214,7 @@ Scheduled retries are stored in an [RSMQ](https://github.com/smrchy/rsmq) queue 
 | `rsmq:deliverymq-retry-dlq` | Sorted set | Retries that failed to be processed after 5 receives. |
 | `rsmq:deliverymq-retry-dlq:Q` | Hash | Bodies for dead-lettered retries. |
 
-Each retry's ID is derived from its event ID and destination ID, so there is at most one pending retry per event and destination. Scheduling a new retry, or making a manual retry, replaces or cancels the pending one.
+Each retry's ID is derived from its event ID and destination ID, so there is at most one pending retry per event and destination. Scheduling a new retry, or making a manual retry, replaces or cancels the pending one. A retry held while an MCP subscription was disabled is rescheduled, once the subscription is re-enabled, under the same ID with `:r` appended, so it never replaces a retry scheduled since; a manual retry cancels it too.
 
 A retry body holds only the event ID, tenant ID, and destination ID. When the retry is due, Outpost loads the event and the previous attempt number from the log store's `attempts` table, then publishes a new delivery task. Dead-lettered retries aren't redriven automatically.
 
@@ -250,8 +250,10 @@ The per-tenant keys share the tenant's `{<tenant_id>}` hash tag, so a subscripti
 | `destination_index:mcp:topic:<topic>` | Sorted set | None | The same, for one topic. Used to end a topic's subscriptions and to check whether a topic has live subscriptions. |
 | `destination_index:mcp:topics` | Set | None | Topics that have a per-topic index. |
 | `mcp:verified:<hash>` | String | `MCP_VERIFICATION_TTL` (default 24 hours) | Marks a passed callback verification, where `<hash>` is the SHA-256 of the tenant ID, principal and callback URL. |
-| `mcp:verification_attempts:<hash>:<minute>` | String (counter) | 2 minutes | Verification challenges sent for one tenant and principal in one minute, counted against `MCP_VERIFICATION_RATE_LIMIT`. |
-| `mcp:verification_failures:<hash>:<minute>` | String (counter) | 2 minutes | Failed or unanswered challenges to one callback host in one minute, counted against `MCP_VERIFICATION_FAILURE_LIMIT`. |
+| `mcp:verifying:<hash>` | String | About 20 seconds | Held by the Outpost instance sending a verification challenge, with the same `<hash>` as `mcp:verified:`. Concurrent subscribes that need the same challenge wait for its result instead of sending their own. |
+| `mcp:challenge_rate:p:<hash>:<minute>` | String (counter) | 2 minutes | Verification challenges sent for one tenant and principal in one minute, counted against `MCP_VERIFICATION_RATE_LIMIT`. `<hash>` is the SHA-256 of the tenant ID and principal. |
+| `mcp:challenge_fail:t:<hash>:<minute>` | String (counter) | 2 minutes | Failed challenges of one tenant to one callback host and port in one minute, counted against `MCP_VERIFICATION_FAILURE_LIMIT`. `<hash>` is the SHA-256 of the tenant ID and `host:port`. |
+| `mcp:challenge_fail:h:<hash>:<minute>` | String (counter) | 2 minutes | Unanswered challenges (timeout, connection refused, TLS failure) to one callback host and port in one minute, from every tenant, counted against ten times `MCP_VERIFICATION_FAILURE_LIMIT`. `<hash>` is the SHA-256 of `host:port`. |
 
 The index entries are written before the subscription and removed after it, so the index always holds at least every live subscription. An entry left behind for a subscription that no longer exists is removed by the next sweep that reaches it.
 
