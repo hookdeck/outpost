@@ -1755,6 +1755,13 @@ components:
           $ref: "#/components/schemas/MCPConfig"
         credentials:
           $ref: "#/components/schemas/MCPCredentials"
+        delivery_metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Not used by MCP subscriptions, so always omitted. Listed so that every destination type has the same fields.
+          example: null
         metadata:
           type: object
           additionalProperties:
