@@ -54,9 +54,6 @@ func (e *AttemptError) Unwrap() error {
 
 type PostDeliveryError struct {
 	err error
-	// logUnpublished is set when the attempt log could not be published to
-	// logmq. The message must be nacked so redelivery can publish it.
-	logUnpublished bool
 }
 
 func (e *PostDeliveryError) Error() string {
@@ -325,9 +322,9 @@ func (h *messageHandler) logDeliveryResult(ctx context.Context, task *models.Del
 			zap.String("destination_id", destination.ID),
 			zap.String("destination_type", destination.Type))
 		if err != nil {
-			return &PostDeliveryError{err: errors.Join(err, logErr), logUnpublished: true}
+			return &PostDeliveryError{err: errors.Join(err, logErr)}
 		}
-		return &PostDeliveryError{err: logErr, logUnpublished: true}
+		return &PostDeliveryError{err: logErr}
 	}
 
 	// If we have an AttemptError, return it as is
@@ -367,11 +364,11 @@ func (h *messageHandler) shouldNackError(err error) bool {
 		return false // Success case, always ack
 	}
 
-	// Nack whenever the attempt log was not published, regardless of the
-	// delivery outcome. Checked first because a wrapped AttemptError would
-	// otherwise match below and ack.
-	var logErr *PostDeliveryError
-	if errors.As(err, &logErr) && logErr.logUnpublished {
+	// Post-delivery errors always nack: the attempt log was not published, or
+	// retry scheduling or cancellation failed. Checked first because a
+	// PostDeliveryError can wrap an AttemptError, which would otherwise ack.
+	var postErr *PostDeliveryError
+	if errors.As(err, &postErr) {
 		return true
 	}
 
@@ -389,17 +386,6 @@ func (h *messageHandler) shouldNackError(err error) bool {
 	var atmErr *AttemptError
 	if errors.As(err, &atmErr) {
 		return h.shouldNackDeliveryError(atmErr.err)
-	}
-
-	// Handle post-delivery errors
-	var postErr *PostDeliveryError
-	if errors.As(err, &postErr) {
-		// Check if this wraps a delivery error
-		var atmErr2 *AttemptError
-		if errors.As(postErr.err, &atmErr2) {
-			return h.shouldNackDeliveryError(atmErr2.err)
-		}
-		return true // Nack other post-delivery errors
 	}
 
 	// For any other error type, nack for safety
