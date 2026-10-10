@@ -18,6 +18,9 @@ const maxReportedErrors = 20
 // count the rest. Beyond it the summary reads "... and more".
 const maxCountedErrors = 10000
 
+// enumMessage is the message of a value outside its enum.
+const enumMessage = "must be one of the allowed values"
+
 // renderValidationErrors flattens a validation error tree into at most
 // maxReportedErrors entries of the form "<path>: <message>", plus a trailing
 // "... and N more" when some were left out.
@@ -159,7 +162,7 @@ func leafMessage(k jsonschema.ErrorKind) string {
 	case *kind.MaxProperties:
 		return "must have at most " + countOf(k.Want, "property", "properties")
 	case *kind.Enum:
-		return "must be one of the allowed values"
+		return enumMessage
 	case *kind.Const:
 		return "must equal the allowed value"
 	case *kind.Pattern:

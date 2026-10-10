@@ -199,8 +199,9 @@ func isJSONObject(raw []byte) bool {
 //
 // Each argument accepts a value, a list of values (an $in filter), and for
 // ranged arguments an operator object. Strings are capped at 256 characters
-// and lists at 100 items, so stored filters stay small.
-func inferArguments(raw json.RawMessage, tree map[string]any) ([]Argument, json.RawMessage, error) {
+// and lists at 100 items, so stored filters stay small. Without withEnums,
+// the inputSchema leaves out the arguments' enums.
+func inferArguments(raw json.RawMessage, tree map[string]any, withEnums bool) ([]Argument, json.RawMessage, error) {
 	properties := orderedObject{}
 	var args []Argument
 	root, err := objectMembers(raw)
@@ -219,7 +220,7 @@ func inferArguments(raw json.RawMessage, tree map[string]any) ([]Argument, json.
 			if !ok {
 				continue
 			}
-			schema, err := argumentSchema(arg, propertyDescription(tree, prop), propertyMaxLength(tree, prop))
+			schema, err := argumentSchema(arg, propertyDescription(tree, prop), propertyMaxLength(tree, prop), withEnums)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -244,9 +245,10 @@ func inferArguments(raw json.RawMessage, tree map[string]any) ([]Argument, json.
 
 // argumentSchema returns the inputSchema entry for arg: anyOf a value, a list
 // of values and, for ranged arguments, an operator object. maxLength is the
-// property's own maxLength, or -1 when it has none.
-func argumentSchema(arg Argument, description string, maxLength int) (json.RawMessage, error) {
-	value, err := argumentValueSchema(arg, maxLength, true)
+// property's own maxLength, or -1 when it has none. withEnum keeps the enum
+// of values and list items.
+func argumentSchema(arg Argument, description string, maxLength int, withEnum bool) (json.RawMessage, error) {
+	value, err := argumentValueSchema(arg, maxLength, withEnum)
 	if err != nil {
 		return nil, err
 	}
@@ -388,7 +390,7 @@ func mcpDescription(t Topic) string {
 // buildMCPEvent precomputes the events/list entry of an MCP-enabled topic.
 // raw is the compact payload schema and tree its decodeJSON form.
 func buildMCPEvent(t Topic, raw json.RawMessage, tree map[string]any) (*MCPEvent, []Argument, error) {
-	args, input, err := inferArguments(raw, tree)
+	args, input, err := inferArguments(raw, tree, true)
 	if err != nil {
 		return nil, nil, err
 	}

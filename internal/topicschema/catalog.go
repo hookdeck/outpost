@@ -112,11 +112,13 @@ type entry struct {
 	// dataNames holds the property names the payload schema declares, which
 	// error paths may show.
 	dataNames map[string]struct{}
-	// The rest is set only for MCP-enabled topics.
+	// The rest is set only for MCP-enabled topics. input is the inputSchema
+	// without enums, which enums holds instead.
 	args       []Argument
 	event      *MCPEvent
 	input      *jsonschema.Schema
 	inputNames map[string]struct{}
+	enums      argumentEnums
 }
 
 // NewCatalog validates defs against topics, the TOPICS list, and compiles
@@ -330,7 +332,14 @@ func (b *catalogBuilder) addSchema(t *Topic, e *entry, raw json.RawMessage) {
 		b.problem(name, "can't infer the MCP inputSchema: %v", err)
 		return
 	}
-	inputTree, err := decodeJSON(ev.InputSchema)
+	// The validator compares a value with every enum value, numbers as
+	// exact rationals, so it gets the inputSchema without enums, and
+	// ValidateArguments checks them against sets.
+	_, checked, err := inferArguments(compact, root, false)
+	var inputTree any
+	if err == nil {
+		inputTree, err = decodeJSON(checked)
+	}
 	if err == nil {
 		var bad []string
 		e.input, bad, err = compileSchema(inputTree)
@@ -342,7 +351,7 @@ func (b *catalogBuilder) addSchema(t *Topic, e *entry, raw json.RawMessage) {
 		b.problem(name, "the inferred MCP inputSchema doesn't compile: %s", sanitizeCompileError(err))
 		return
 	}
-	e.event, e.args, e.inputNames = ev, args, propertyNameSet(inputTree)
+	e.event, e.args, e.inputNames, e.enums = ev, args, propertyNameSet(inputTree), newArgumentEnums(args)
 }
 
 // checkSchemaObjects checks what the metaschema doesn't: $schema is the
@@ -718,7 +727,9 @@ func (c *Catalog) ValidateArguments(topic string, args []byte) []string {
 		args = []byte("{}")
 	}
 	e := &c.entries[i]
-	return validateJSON(e.input, args, "arguments", e.inputNames, argumentChecks)
+	checks := argumentChecks
+	checks.accepted = e.enums.errors
+	return validateJSON(e.input, args, "arguments", e.inputNames, checks)
 }
 
 // valueChecks are checked on a parsed value before it is validated. A value
@@ -730,6 +741,9 @@ type valueChecks struct {
 	duplicateKeys bool
 	// reject returns the message for a value too costly to validate, or "".
 	reject func(any) string
+	// accepted, when set, returns the errors of a value the schema accepts,
+	// rendered from root, or nil.
+	accepted func(v any, root string) []string
 }
 
 // validateJSON parses raw and validates it against schema. It returns the
@@ -754,6 +768,9 @@ func validateJSON(schema *jsonschema.Schema, raw []byte, root string, names map[
 	}
 	err = schema.Validate(v)
 	if err == nil {
+		if checks.accepted != nil {
+			return checks.accepted(v, root)
+		}
 		return nil
 	}
 	var verr *jsonschema.ValidationError
@@ -874,6 +891,100 @@ func rejectArgumentValue(v any) string {
 		}
 	}
 	return rejectLargeNumber(v)
+}
+
+// argumentEnums maps each argument with an enum to the enumKey of its
+// values. Checking values against these sets costs the same whatever the
+// enum's size.
+type argumentEnums map[string]map[string]struct{}
+
+func newArgumentEnums(args []Argument) argumentEnums {
+	var enums argumentEnums
+	for _, arg := range args {
+		if arg.Enum == nil {
+			continue
+		}
+		set := make(map[string]struct{}, len(arg.Enum))
+		for _, raw := range arg.Enum {
+			v, err := decodeJSON(raw)
+			if err != nil {
+				continue
+			}
+			// Values without a key, such as objects, can't equal a
+			// scalar argument value.
+			if key := enumKey(v); key != "" {
+				set[key] = struct{}{}
+			}
+		}
+		if enums == nil {
+			enums = argumentEnums{}
+		}
+		enums[arg.Name] = set
+	}
+	return enums
+}
+
+// errors checks the arguments in v, which the inputSchema accepts, against
+// their enums: a value, or each item of a list. Range operator operands
+// compare rather than match, and have none. Errors are rendered from root
+// like validation errors.
+func (a argumentEnums) errors(v any, root string) []string {
+	args, _ := v.(map[string]any)
+	var out []string
+	more := 0
+	check := func(set map[string]struct{}, path string, value any) {
+		if _, ok := set[enumKey(value)]; ok {
+			return
+		}
+		if len(out) == maxReportedErrors {
+			more++
+			return
+		}
+		out = append(out, path+": "+enumMessage)
+	}
+	for _, name := range slices.Sorted(maps.Keys(args)) {
+		set, ok := a[name]
+		if !ok {
+			continue
+		}
+		path := appendPathKey(root, name)
+		switch x := args[name].(type) {
+		case []any:
+			for i, item := range x {
+				check(set, indexPath(path, i), item)
+			}
+		case map[string]any:
+			// Range operators.
+		default:
+			check(set, path, x)
+		}
+	}
+	slices.Sort(out)
+	if more > 0 {
+		out = append(out, fmt.Sprintf("... and %d more", more))
+	}
+	return out
+}
+
+// enumKey returns a form of a scalar decoded JSON value that equals
+// another's exactly when JSON Schema considers the values equal, so 1, 1.0
+// and 10e-1 share one. It is "" for other values, and for numbers too large
+// for any accepted argument value to equal.
+func enumKey(v any) string {
+	switch x := v.(type) {
+	case string:
+		return "s" + x
+	case bool:
+		if x {
+			return "true"
+		}
+		return "false"
+	case json.Number:
+		if n, ok := canonicalNumber(string(x)); ok {
+			return "n" + n
+		}
+	}
+	return ""
 }
 
 func numberTooLarge(n json.Number) bool {

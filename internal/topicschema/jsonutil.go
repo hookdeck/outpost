@@ -181,6 +181,33 @@ func pointerRef(ref string) bool {
 	return err == nil && (fragment == "" || fragment[0] == '/')
 }
 
+// canonicalNumber rewrites a JSON number literal as its significant digits
+// and a decimal exponent, so literals of equal value, such as 30, 30.0,
+// 3e1 and 300e-1, are equal ("3e1"). It reports false when the exponent is
+// too large to handle.
+func canonicalNumber(s string) (string, bool) {
+	sign := ""
+	if rest, ok := strings.CutPrefix(s, "-"); ok {
+		sign, s = "-", rest
+	}
+	exp := 0
+	if i := strings.IndexAny(s, "eE"); i >= 0 {
+		e, err := strconv.Atoi(s[i+1:])
+		if err != nil || e > 1<<30 || e < -1<<30 {
+			return "", false
+		}
+		exp, s = e, s[:i]
+	}
+	whole, frac, _ := strings.Cut(s, ".")
+	digits := strings.TrimLeft(whole+frac, "0")
+	if digits == "" {
+		return "0", true
+	}
+	significant := strings.TrimRight(digits, "0")
+	exp += len(digits) - len(significant) - len(frac)
+	return sign + significant + "e" + strconv.Itoa(exp), true
+}
+
 // escapePointerToken escapes one JSON pointer reference token.
 func escapePointerToken(s string) string {
 	return strings.ReplaceAll(strings.ReplaceAll(s, "~", "~0"), "/", "~1")

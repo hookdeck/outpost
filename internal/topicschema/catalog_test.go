@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -908,6 +909,96 @@ func TestValidateArgumentsBoundsWork(t *testing.T) {
 	assert.Equal(t, []string{"arguments.status: must have at most 100 items"}, c.ValidateArguments("t", args))
 	assert.Less(t, time.Since(start), time.Second)
 	assert.Nil(t, c.ValidateArguments("t", []byte(`{"status":[`+strings.TrimSuffix(strings.Repeat("1000,", 100), ",")+`]}`)))
+}
+
+func TestValidateArgumentsEnums(t *testing.T) {
+	schema := `{"type":"object","properties":{
+		"status":{"type":"integer","enum":[1,2,30,null]},
+		"ratio":{"enum":[0.5,1e2]},
+		"code":{"type":"string","enum":["A","B"]},
+		"flag":{"const":true},
+		"open":{"type":"string"}}}`
+	c, err := NewCatalog([]string{"t"}, Definitions{"t": {PayloadSchema: json.RawMessage(schema), MCP: MCPSettings{Enabled: true}}})
+	require.NoError(t, err)
+
+	ev, ok := c.MCPEvent("t")
+	require.True(t, ok)
+	assert.Contains(t, string(ev.InputSchema), `"enum":[1,2,30]`, "the inputSchema still lists the enums")
+	assert.Contains(t, string(ev.InputSchema), `"enum":["A","B"]`)
+
+	for _, args := range []string{
+		`{"status":2}`,
+		`{"status":[1,30]}`,
+		// Numbers match by value.
+		`{"status":[2.0,20e-1,0.2E1,3e1,300e-1]}`,
+		`{"ratio":[0.50,5e-1,100,1e+2,0.1e3]}`,
+		`{"status":{"$gte":4,"$lt":1000}}`,
+		`{"code":["A","B"],"flag":true,"open":"anything"}`,
+	} {
+		assert.Nil(t, c.ValidateArguments("t", []byte(args)), args)
+	}
+
+	for _, tc := range []struct {
+		args string
+		want []string
+	}{
+		{`{"status":4}`, []string{"arguments.status: must be one of the allowed values"}},
+		{`{"status":[1,4,30,0]}`, []string{
+			"arguments.status[1]: must be one of the allowed values",
+			"arguments.status[3]: must be one of the allowed values",
+		}},
+		{`{"ratio":0.05,"code":["A","a"],"flag":false}`, []string{
+			"arguments.code[1]: must be one of the allowed values",
+			"arguments.flag: must be one of the allowed values",
+			"arguments.ratio: must be one of the allowed values",
+		}},
+		// The schema is checked first.
+		{`{"code":5,"status":4}`, []string{"arguments.code: must be array", "arguments.code: must be string"}},
+		{`{"status":null}`, []string{
+			"arguments.status: must be array",
+			"arguments.status: must be integer",
+			"arguments.status: must be object",
+		}},
+	} {
+		assert.Equal(t, tc.want, c.ValidateArguments("t", []byte(tc.args)), tc.args)
+	}
+
+	enum := make([]string, 30)
+	for i := range enum {
+		enum[i] = strconv.Itoa(i)
+	}
+	many, err := NewCatalog([]string{"t"}, Definitions{"t": {
+		PayloadSchema: json.RawMessage(`{"type":"object","properties":{"a":{"enum":[` + strings.Join(enum, ",") + `]},"b":{"enum":[0]}}}`),
+		MCP:           MCPSettings{Enabled: true},
+	}})
+	require.NoError(t, err)
+	errs := many.ValidateArguments("t", []byte(`{"a":[`+strings.Join(enum, ",")+`],"b":[`+strings.Join(enum, ",")+`]}`))
+	require.Len(t, errs, 21)
+	assert.Equal(t, "arguments.b[10]: must be one of the allowed values", errs[0])
+	assert.Equal(t, "... and 9 more", errs[20])
+}
+
+func TestValidateArgumentsLargeEnum(t *testing.T) {
+	// The validator compares a value with every enum value, numbers as
+	// exact rationals, so enums are checked against a set instead.
+	enum := make([]string, 12_000)
+	for i := range enum {
+		enum[i] = strconv.Itoa(1000 + i)
+	}
+	schema := `{"type":"object","properties":{"p":{"type":"integer","enum":[` + strings.Join(enum, ",") + `]}}}`
+	require.Less(t, len(schema), maxMCPPayloadSchemaBytes)
+	c, err := NewCatalog([]string{"t"}, Definitions{"t": {PayloadSchema: json.RawMessage(schema), MCP: MCPSettings{Enabled: true}}})
+	require.NoError(t, err)
+
+	list := func(v string) []byte {
+		return []byte(`{"p":[` + strings.TrimSuffix(strings.Repeat(v+",", maxArgumentListItems), ",") + `]}`)
+	}
+	start := time.Now()
+	for range 10 {
+		assert.Nil(t, c.ValidateArguments("t", list("12999")))
+		assert.Len(t, c.ValidateArguments("t", list("1")), 21)
+	}
+	assert.Less(t, time.Since(start), 200*time.Millisecond, "20 calls")
 }
 
 func TestCatalogConcurrentUse(t *testing.T) {
