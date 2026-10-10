@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -462,6 +463,55 @@ e: [*d, *d, *d, *d, *d, *d, *d, *d, *d]
 		require.NoError(t, err)
 		var v map[string]any
 		require.NoError(t, json.Unmarshal(got, &v))
+	})
+}
+
+func TestParseNodeBudget(t *testing.T) {
+	zeros := func(n int) string { return strings.TrimSuffix(strings.Repeat("0,", n), ",") }
+	// allocated returns the bytes f allocates.
+	allocated := func(f func()) uint64 {
+		var before, after runtime.MemStats
+		runtime.GC()
+		runtime.ReadMemStats(&before)
+		f()
+		runtime.ReadMemStats(&after)
+		return after.TotalAlloc - before.TotalAlloc
+	}
+
+	t.Run("JSON", func(t *testing.T) {
+		// The root and the array are values too.
+		_, err := ParseDefinitionsJSON([]byte(`{"a":[` + zeros(parseMaxNodes-2) + `]}`))
+		parseTestRequireProblems(t, err, `topic "a": /a: must be an object`)
+
+		_, err = ParseDefinitionsJSON([]byte(`{"a":[` + zeros(parseMaxNodes-1) + `]}`))
+		parseTestRequireProblems(t, err, "the JSON document has more than 1000000 values")
+		_, _, err = ParseOpenAPI([]byte(`{"openapi":"3.1.0","x":[` + zeros(parseMaxNodes) + `]}`))
+		parseTestRequireProblems(t, err, "/x/999997: the JSON document has more than 1000000 values")
+	})
+
+	t.Run("YAML is checked before it is decoded", func(t *testing.T) {
+		// A flow sequence of 500k items would take yaml.v3 about 100 MiB.
+		data := []byte("a: [" + zeros(parseMaxNodes/2) + "]\n")
+		var err error
+		alloc := allocated(func() { _, err = ParseDefinitionsYAML(data) })
+		parseTestRequireProblems(t, err, "the YAML document may have more than 1000000 nodes")
+		assert.Less(t, alloc, uint64(1<<20))
+
+		_, _, err = ParseOpenAPI(append([]byte("openapi: 3.1.0\nx:\n"), bytes.Repeat([]byte("- 0\n"), parseMaxNodes/2)...))
+		parseTestRequireProblems(t, err, "the YAML document may have more than 1000000 nodes")
+
+		// Real documents hold far fewer: under 0.1 per byte.
+		yamlDoc := parseTestReadFile(t, "openapi", "components.yaml")
+		assert.Less(t, yamlPotentialNodes(yamlDoc), len(yamlDoc)/10)
+	})
+
+	t.Run("without aliases the converter doesn't blame them", func(t *testing.T) {
+		item := &yaml.Node{Kind: yaml.ScalarNode, Value: "0"}
+		seq := &yaml.Node{Kind: yaml.SequenceNode, Content: slices.Repeat([]*yaml.Node{item}, parseMaxNodes)}
+		_, err := YAMLNodeToJSON(seq)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "the document has more than 1000000 nodes")
+		assert.NotContains(t, err.Error(), "alias")
 	})
 }
 

@@ -27,9 +27,12 @@ const (
 	parseMaxInputBytes = 4 << 20
 	// parseMaxDepth caps JSON and YAML nesting, which also bounds recursion.
 	parseMaxDepth = 128
-	// yamlMaxNodes and yamlMaxOutputBytes bound alias expansion: a few
-	// hundred bytes of nested anchors otherwise expand to billions of nodes.
-	yamlMaxNodes       = 1_000_000
+	// parseMaxNodes caps the values of a JSON document and the nodes of a
+	// YAML document, which each take about a hundred bytes or more once
+	// decoded. With yamlMaxOutputBytes, it also bounds alias expansion: a
+	// few hundred bytes of nested anchors otherwise expand to billions of
+	// nodes.
+	parseMaxNodes      = 1_000_000
 	yamlMaxOutputBytes = 16 << 20
 	// openapiMaxBundledBytes caps the payload schemas bundled from one
 	// OpenAPI document. Each webhook gets its own copy of the components it
@@ -98,7 +101,7 @@ func ParseDefinitionsYAML(data []byte) (Definitions, error) {
 // Mapping keys must be scalars and are used as written, so 200: becomes
 // "200". Null keys, merge keys (<<) and duplicate keys are errors.
 //
-// Aliases are expanded in place, within a budget of yamlMaxNodes nodes,
+// Aliases are expanded in place, within a budget of parseMaxNodes nodes,
 // yamlMaxOutputBytes of output and parseMaxDepth levels of nesting, and an
 // alias to a node that contains it is an error.
 func YAMLNodeToJSON(n *yaml.Node) (json.RawMessage, error) {
@@ -116,7 +119,7 @@ func YAMLNodeToJSON(n *yaml.Node) (json.RawMessage, error) {
 		return nil, err
 	}
 	if len(c.buf) > yamlMaxOutputBytes {
-		return nil, c.errorf(n, "the document expands to more than %d MiB of JSON; check for nested aliases", yamlMaxOutputBytes>>20)
+		return nil, c.tooLarge(n)
 	}
 	return json.RawMessage(c.buf), nil
 }
@@ -555,7 +558,9 @@ func (s *parseKeySet) add(key string) bool {
 	}
 	s.list = append(s.list, key)
 	if len(s.list) > 16 {
-		s.set = make(map[string]int, 2*len(s.list))
+		// Sized for what it holds: the decoder keeps it as the object's
+		// index, and most objects stop growing soon.
+		s.set = make(map[string]int, len(s.list))
 		for i, k := range s.list {
 			s.set[k] = i
 		}
@@ -566,6 +571,11 @@ func (s *parseKeySet) add(key string) bool {
 
 // parseYAMLDocument converts a single-document YAML stream to JSON.
 func parseYAMLDocument(data []byte) (json.RawMessage, error) {
+	// yaml.v3 builds the whole node tree before YAMLNodeToJSON can count
+	// it, at a few hundred bytes a node.
+	if yamlPotentialNodes(data) > parseMaxNodes {
+		return nil, &parseError{msg: fmt.Sprintf("the YAML document may have more than %d nodes", parseMaxNodes)}
+	}
 	dec := yaml.NewDecoder(bytes.NewReader(data))
 	var doc yaml.Node
 	if err := dec.Decode(&doc); err != nil {
@@ -584,11 +594,36 @@ func parseYAMLDocument(data []byte) (json.RawMessage, error) {
 	return YAMLNodeToJSON(&doc)
 }
 
+// yamlPotentialNodes bounds the nodes yaml.v3 builds for data, without
+// decoding it. A node starts after a line break, a colon, a comma, an
+// opening bracket or brace, or a block sequence entry or explicit key
+// indicator. In flow collections, an entry can make two: a key and an
+// implicit null value, or a single-pair mapping and its key.
+func yamlPotentialNodes(data []byte) int {
+	n := 2 // the document and its root
+	for i, b := range data {
+		switch b {
+		case '\n', ':':
+			n++
+		case ',', '[', '{':
+			n += 2
+		case '-', '?':
+			if i+1 == len(data) || data[i+1] == ' ' || data[i+1] == '\t' || data[i+1] == '\r' || data[i+1] == '\n' {
+				n++
+			}
+		}
+	}
+	return n
+}
+
 // yamlConverter writes a YAML node tree as JSON, counting nodes across alias
 // expansions.
 type yamlConverter struct {
 	buf   []byte
 	nodes int
+	// aliased reports that an alias was expanded, which can make a small
+	// document large.
+	aliased bool
 	// stack holds the mappings and sequences being written, to detect an
 	// alias to a node that contains it.
 	stack []*yaml.Node
@@ -599,16 +634,27 @@ func (c *yamlConverter) errorf(n *yaml.Node, format string, args ...any) error {
 	return &parseError{path: slices.Clone(c.path), line: n.Line, msg: fmt.Sprintf(format, args...)}
 }
 
-// count charges one node against the expansion budget.
+// count charges one node against the budget.
 func (c *yamlConverter) count(n *yaml.Node) error {
 	c.nodes++
-	if c.nodes > yamlMaxNodes {
-		return c.errorf(n, "the document expands to more than %d nodes; check for nested aliases", yamlMaxNodes)
+	if c.nodes > parseMaxNodes {
+		if c.aliased {
+			return c.errorf(n, "the document expands to more than %d nodes; check for nested aliases", parseMaxNodes)
+		}
+		return c.errorf(n, "the document has more than %d nodes", parseMaxNodes)
 	}
 	if len(c.buf) > yamlMaxOutputBytes {
-		return c.errorf(n, "the document expands to more than %d MiB of JSON; check for nested aliases", yamlMaxOutputBytes>>20)
+		return c.tooLarge(n)
 	}
 	return nil
+}
+
+// tooLarge reports output past yamlMaxOutputBytes.
+func (c *yamlConverter) tooLarge(n *yaml.Node) error {
+	if c.aliased {
+		return c.errorf(n, "the document expands to more than %d MiB of JSON; check for nested aliases", yamlMaxOutputBytes>>20)
+	}
+	return c.errorf(n, "the document is more than %d MiB as JSON", yamlMaxOutputBytes>>20)
 }
 
 func (c *yamlConverter) value(n *yaml.Node, depth int) error {
@@ -638,6 +684,7 @@ func (c *yamlConverter) value(n *yaml.Node, depth int) error {
 		if slices.Contains(c.stack, target) {
 			return c.errorf(n, "alias *%s refers to a node that contains it", clip(n.Value))
 		}
+		c.aliased = true
 		return c.value(target, depth)
 	case yaml.MappingNode:
 		if depth >= parseMaxDepth {
@@ -1055,6 +1102,8 @@ func parseDecodeJSON(data []byte) (*parseNode, error) {
 type parseTreeBuilder struct {
 	dec  *json.Decoder
 	path []string
+	// values counts the values decoded, up to parseMaxNodes.
+	values int
 }
 
 func (b *parseTreeBuilder) errorf(format string, args ...any) error {
@@ -1073,6 +1122,9 @@ func (b *parseTreeBuilder) syntaxError(err error) error {
 }
 
 func (b *parseTreeBuilder) value(tok json.Token, depth int) (parseNode, error) {
+	if b.values++; b.values > parseMaxNodes {
+		return parseNode{}, b.errorf("the JSON document has more than %d values", parseMaxNodes)
+	}
 	switch t := tok.(type) {
 	case json.Delim:
 		if depth >= parseMaxDepth {
