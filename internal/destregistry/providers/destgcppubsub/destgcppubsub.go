@@ -54,7 +54,7 @@ type GCPPubSubDestination struct {
 	stsTokenURL       string
 	iamCredentialsURL string
 	tokenHTTPClient   *http.Client
-	// clientOptions are appended to every Pub/Sub client's options (tests).
+	// clientOptions are extra Pub/Sub client options; set by tests to target a fake server.
 	clientOptions []option.ClientOption
 }
 

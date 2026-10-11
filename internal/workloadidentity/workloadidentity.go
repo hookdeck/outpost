@@ -57,13 +57,12 @@ type Config struct {
 
 // Issuer mints tokens and describes itself for discovery.
 type Issuer struct {
-	url     string
-	signer  crypto.Signer
-	method  jwt.SigningMethod
-	kid     string
-	keys    []JWK
-	algs    []string
-	nowFunc func() time.Time
+	url    string
+	signer crypto.Signer
+	method jwt.SigningMethod
+	kid    string
+	keys   []JWK
+	algs   []string
 }
 
 // New validates the config and returns an Issuer.
@@ -90,9 +89,8 @@ func New(cfg Config) (*Issuer, error) {
 	}
 
 	issuer := &Issuer{
-		url:     cfg.Issuer,
-		signer:  signer,
-		nowFunc: time.Now,
+		url:    cfg.Issuer,
+		signer: signer,
 	}
 
 	seen := map[string]bool{}
@@ -131,7 +129,7 @@ func (i *Issuer) Mint(subject, audience string) (string, error) {
 	if subject == "" || audience == "" {
 		return "", errors.New("workloadidentity: subject and audience are required")
 	}
-	now := i.nowFunc()
+	now := time.Now()
 	token := jwt.NewWithClaims(i.method, jwt.RegisteredClaims{
 		Issuer:    i.url,
 		Subject:   subject,

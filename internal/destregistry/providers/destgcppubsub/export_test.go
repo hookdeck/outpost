@@ -17,8 +17,8 @@ func WithGoogleEndpoints(stsTokenURL, iamCredentialsURL string) Option {
 	}
 }
 
-// WithClientOptions appends options to the Pub/Sub client, e.g. to point it
-// at a fake server.
+// WithClientOptions sets extra Pub/Sub client options, e.g. to point the
+// client at a fake server.
 func WithClientOptions(opts ...option.ClientOption) Option {
 	return func(d *GCPPubSubDestination) {
 		d.clientOptions = opts
