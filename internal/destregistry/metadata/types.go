@@ -43,4 +43,15 @@ type FieldSchema struct {
 	MaxLength   *int          `json:"maxlength,omitempty"` // Maximum length for text fields
 	Pattern     *string       `json:"pattern,omitempty"`   // Regular expression pattern for text fields
 	Options     []FieldOption `json:"options,omitempty"`   // Options for select fields
+	// VisibleWhen shows the field only while another field (config or
+	// credential) holds one of the given values. A hidden field is not
+	// required and must not carry a value.
+	VisibleWhen *FieldCondition `json:"visible_when,omitempty"`
+}
+
+// FieldCondition matches when the field Key holds one of Values. An empty
+// value is evaluated as that field's default.
+type FieldCondition struct {
+	Key    string   `json:"key"`
+	Values []string `json:"values"`
 }

@@ -3,43 +3,106 @@ package destgcppubsub
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"net/http"
+	"net/url"
+	"regexp"
+	"strings"
 	"time"
 
 	"cloud.google.com/go/pubsub"
 	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/hookdeck/outpost/internal/destregistry/metadata"
 	"github.com/hookdeck/outpost/internal/models"
+	"github.com/hookdeck/outpost/internal/workloadidentity"
+	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/google/externalaccount"
 	"google.golang.org/api/option"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
 
+const (
+	AuthMethodServiceAccountKey = "service_account_key"
+	AuthMethodWorkloadIdentity  = "workload_identity"
+
+	defaultSTSTokenURL        = "https://sts.googleapis.com/v1/token"
+	defaultIAMCredentialsURL  = "https://iamcredentials.googleapis.com"
+	cloudPlatformScope        = "https://www.googleapis.com/auth/cloud-platform"
+	jwtSubjectTokenType       = "urn:ietf:params:oauth:token-type:jwt"
+	workloadIdentityAudPrefix = "//iam.googleapis.com/"
+	// Google limits the mapped google.subject attribute to 127 bytes.
+	maxSubjectBytes = 127
+)
+
+// subjectTenantIDPattern limits tenant IDs used in a workload identity
+// subject to characters that are safe in an IAM principal identifier and in a
+// quoted attribute condition.
+var subjectTenantIDPattern = regexp.MustCompile(`^[A-Za-z0-9._:@-]+$`)
+
+// TokenIssuer mints the OIDC token a workload identity pool exchanges for
+// Google credentials.
+type TokenIssuer interface {
+	Mint(subject, audience string) (string, error)
+}
+
 type GCPPubSubDestination struct {
 	*destregistry.BaseProvider
+
+	tokenIssuer       TokenIssuer
+	stsTokenURL       string
+	iamCredentialsURL string
+	tokenHTTPClient   *http.Client
+	// clientOptions are extra Pub/Sub client options; set by tests to target a fake server.
+	clientOptions []option.ClientOption
 }
 
 type GCPPubSubDestinationConfig struct {
-	ProjectID string
-	Topic     string
-	Endpoint  string // For emulator support
+	ProjectID  string
+	Topic      string
+	Endpoint   string // For emulator support
+	AuthMethod string
 }
 
 type GCPPubSubDestinationCredentials struct {
-	ServiceAccountJSON string
+	ServiceAccountJSON       string
+	WorkloadIdentityProvider string
+	ServiceAccountEmail      string
 }
 
 var _ destregistry.Provider = (*GCPPubSubDestination)(nil)
 
-func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePublisherOption) (*GCPPubSubDestination, error) {
+type Option func(*GCPPubSubDestination)
+
+// WithWorkloadIdentity enables the workload_identity auth method: tokens
+// minted by issuer, with the destination's tenant as subject, are exchanged
+// for Google credentials. Without it the auth method is not offered.
+func WithWorkloadIdentity(issuer TokenIssuer) Option {
+	return func(d *GCPPubSubDestination) {
+		d.tokenIssuer = issuer
+	}
+}
+
+func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePublisherOption, opts ...Option) (*GCPPubSubDestination, error) {
 	base, err := destregistry.NewBaseProvider(loader, "gcp_pubsub", basePublisherOpts...)
 	if err != nil {
 		return nil, err
 	}
 
-	return &GCPPubSubDestination{
-		BaseProvider: base,
-	}, nil
+	d := &GCPPubSubDestination{
+		BaseProvider:      base,
+		stsTokenURL:       defaultSTSTokenURL,
+		iamCredentialsURL: defaultIAMCredentialsURL,
+		tokenHTTPClient:   &http.Client{Timeout: 10 * time.Second},
+	}
+	for _, opt := range opts {
+		opt(d)
+	}
+	if d.tokenIssuer == nil {
+		base.RemoveFieldOption("auth_method", AuthMethodWorkloadIdentity)
+	}
+	return d, nil
 }
 
 func (d *GCPPubSubDestination) Validate(ctx context.Context, destination *models.Destination) error {
@@ -69,10 +132,21 @@ func (d *GCPPubSubDestination) CreatePublisher(ctx context.Context, destination 
 			option.WithoutAuthentication(),
 			option.WithGRPCDialOption(grpc.WithTransportCredentials(insecure.NewCredentials())),
 		)
+	} else if cfg.AuthMethod == AuthMethodWorkloadIdentity {
+		ts, err := d.workloadIdentityTokenSource(destination.TenantID, creds)
+		if err != nil {
+			return nil, destregistry.NewErrDestinationPublishAttempt(err, "gcp_pubsub", map[string]interface{}{
+				"error":   "client_creation_failed",
+				"message": err.Error(),
+			})
+		}
+		opts = append(opts, option.WithTokenSource(ts))
 	} else if creds.ServiceAccountJSON != "" {
 		// Use service account credentials for production
 		opts = append(opts, option.WithCredentialsJSON([]byte(creds.ServiceAccountJSON)))
 	}
+
+	opts = append(opts, d.clientOptions...)
 
 	// Create the client
 	client, err := pubsub.NewClient(ctx, cfg.ProjectID, opts...)
@@ -97,6 +171,30 @@ func (d *GCPPubSubDestination) CreatePublisher(ctx context.Context, destination 
 func (d *GCPPubSubDestination) resolveMetadata(ctx context.Context, destination *models.Destination) (*GCPPubSubDestinationConfig, *GCPPubSubDestinationCredentials, error) {
 	if err := d.BaseProvider.Validate(ctx, destination); err != nil {
 		return nil, nil, err
+	}
+
+	authMethod := destination.Config["auth_method"]
+	if authMethod == "" {
+		authMethod = AuthMethodServiceAccountKey
+	}
+
+	if authMethod == AuthMethodWorkloadIdentity {
+		if len(workloadidentity.TenantSubject(destination.TenantID)) > maxSubjectBytes {
+			return nil, nil, destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{
+				{
+					Field: "tenant_id",
+					Type:  "maxlength",
+				},
+			})
+		}
+		if !subjectTenantIDPattern.MatchString(destination.TenantID) {
+			return nil, nil, destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{
+				{
+					Field: "tenant_id",
+					Type:  "pattern",
+				},
+			})
+		}
 	}
 
 	// Validate service_account_json is valid JSON (if not using emulator endpoint)
@@ -126,12 +224,64 @@ func (d *GCPPubSubDestination) resolveMetadata(ctx context.Context, destination 
 	}
 
 	return &GCPPubSubDestinationConfig{
-			ProjectID: destination.Config["project_id"],
-			Topic:     destination.Config["topic"],
-			Endpoint:  destination.Config["endpoint"], // For testing
+			ProjectID:  destination.Config["project_id"],
+			Topic:      destination.Config["topic"],
+			Endpoint:   destination.Config["endpoint"], // For testing
+			AuthMethod: authMethod,
 		}, &GCPPubSubDestinationCredentials{
-			ServiceAccountJSON: destination.Credentials["service_account_json"],
+			ServiceAccountJSON:       destination.Credentials["service_account_json"],
+			WorkloadIdentityProvider: destination.Credentials["workload_identity_provider"],
+			ServiceAccountEmail:      destination.Credentials["service_account_email"],
 		}, nil
+}
+
+// workloadIdentityTokenSource exchanges tokens minted for the tenant at
+// Google STS, then impersonates the service account if one is set.
+func (d *GCPPubSubDestination) workloadIdentityTokenSource(tenantID string, creds *GCPPubSubDestinationCredentials) (oauth2.TokenSource, error) {
+	if d.tokenIssuer == nil {
+		return nil, errors.New("workload identity is not enabled")
+	}
+	audience := workloadIdentityAudPrefix + strings.TrimPrefix(creds.WorkloadIdentityProvider, workloadIdentityAudPrefix)
+	conf := externalaccount.Config{
+		Audience:         audience,
+		SubjectTokenType: jwtSubjectTokenType,
+		TokenURL:         d.stsTokenURL,
+		Scopes:           []string{cloudPlatformScope},
+		SubjectTokenSupplier: subjectTokenSupplier{
+			issuer:   d.tokenIssuer,
+			subject:  workloadidentity.TenantSubject(tenantID),
+			audience: audience,
+		},
+	}
+	if creds.ServiceAccountEmail != "" {
+		conf.ServiceAccountImpersonationURL = fmt.Sprintf("%s/v1/projects/-/serviceAccounts/%s:generateAccessToken",
+			d.iamCredentialsURL, url.PathEscape(creds.ServiceAccountEmail))
+	}
+	// The token source outlives the request that creates the publisher, so it
+	// gets its own context; the client bounds each token request.
+	ctx := context.WithValue(context.Background(), oauth2.HTTPClient, d.tokenHTTPClient)
+	return externalaccount.NewTokenSource(ctx, conf)
+}
+
+type subjectTokenSupplier struct {
+	issuer   TokenIssuer
+	subject  string
+	audience string
+}
+
+func (s subjectTokenSupplier) SubjectToken(ctx context.Context, opts externalaccount.SupplierOptions) (string, error) {
+	return s.issuer.Mint(s.subject, s.audience)
+}
+
+// ObfuscateDestination always returns service_account_json, empty for
+// workload_identity destinations, so clients that expect the field keep
+// parsing them.
+func (d *GCPPubSubDestination) ObfuscateDestination(destination *models.Destination) *models.Destination {
+	result := d.BaseProvider.ObfuscateDestination(destination)
+	if _, ok := result.Credentials["service_account_json"]; !ok {
+		result.Credentials["service_account_json"] = ""
+	}
+	return result
 }
 
 func (d *GCPPubSubDestination) ComputeTarget(destination *models.Destination) destregistry.DestinationTarget {

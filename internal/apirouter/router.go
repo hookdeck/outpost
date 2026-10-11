@@ -17,6 +17,7 @@ import (
 	"github.com/hookdeck/outpost/internal/portal"
 	"github.com/hookdeck/outpost/internal/telemetry"
 	"github.com/hookdeck/outpost/internal/tenantstore"
+	"github.com/hookdeck/outpost/internal/workloadidentity"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 )
 
@@ -44,6 +45,9 @@ type RouterConfig struct {
 	Registry             destregistry.Registry
 	PortalConfig         portal.PortalConfig
 	GinMode              string
+	// WorkloadIdentity, when set, serves the issuer endpoints and the
+	// tenant workload identity route.
+	WorkloadIdentity *workloadidentity.Issuer
 }
 
 type RouterDeps struct {
@@ -140,6 +144,14 @@ func NewRouter(cfg RouterConfig, deps RouterDeps) http.Handler {
 		})
 	}
 
+	var workloadIdentityHandlers *WorkloadIdentityHandlers
+	if cfg.WorkloadIdentity != nil {
+		workloadIdentityHandlers = NewWorkloadIdentityHandlers(cfg.WorkloadIdentity)
+		// Registered before the portal so its catch-all doesn't serve them.
+		r.GET(workloadIdentityPath+workloadidentity.DiscoveryPath, workloadIdentityHandlers.Discovery)
+		r.GET(workloadIdentityPath+workloadidentity.JWKSPath, workloadIdentityHandlers.JWKS)
+	}
+
 	portal.AddRoutes(r, cfg.PortalConfig, func(c *gin.Context) {
 		AbortWithError(c, http.StatusNotFound, ErrorResponse{Code: http.StatusNotFound, Message: "not found"})
 	})
@@ -196,6 +208,10 @@ func NewRouter(cfg RouterConfig, deps RouterDeps) http.Handler {
 		// Metrics
 		{Method: http.MethodGet, Path: "/metrics/events", Handler: metricsHandlers.MetricsEvents},
 		{Method: http.MethodGet, Path: "/metrics/attempts", Handler: metricsHandlers.MetricsAttempts},
+	}
+
+	if workloadIdentityHandlers != nil {
+		routes = append(routes, RouteDefinition{Method: http.MethodGet, Path: "/tenants/:tenant_id/workload-identity", Handler: workloadIdentityHandlers.RetrieveTenant, RequireTenant: true})
 	}
 
 	registerRoutes(apiRouter, cfg, deps.TenantStore, routes)

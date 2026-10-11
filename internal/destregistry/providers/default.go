@@ -19,6 +19,7 @@ import (
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destwebhook"
 	"github.com/hookdeck/outpost/internal/emetrics"
 	"github.com/hookdeck/outpost/internal/proxychain"
+	"github.com/hookdeck/outpost/internal/workloadidentity"
 )
 
 // WebhookHeaderConfig is the resolved directive for a single webhook system
@@ -70,6 +71,10 @@ type RegisterDefaultDestinationOptions struct {
 	Webhook        *DestWebhookConfig
 	AWSKinesis     *DestAWSKinesisConfig
 	AWSEventBridge *DestAWSEventBridgeConfig
+
+	// WorkloadIdentity, when set, lets destinations authenticate to cloud
+	// providers with tokens it issues instead of stored keys.
+	WorkloadIdentity *workloadidentity.Issuer
 
 	// DeliveryMaxConcurrency is the delivery worker pool size. It bounds how
 	// many deliveries can be in flight, and therefore how many connections a
@@ -195,7 +200,11 @@ func RegisterDefault(registry destregistry.Registry, opts RegisterDefaultDestina
 	}
 	registry.RegisterProvider("aws_s3", awsS3)
 
-	gcpPubSub, err := destgcppubsub.New(loader, basePublisherOpts)
+	var gcpPubSubOpts []destgcppubsub.Option
+	if opts.WorkloadIdentity != nil {
+		gcpPubSubOpts = append(gcpPubSubOpts, destgcppubsub.WithWorkloadIdentity(opts.WorkloadIdentity))
+	}
+	gcpPubSub, err := destgcppubsub.New(loader, basePublisherOpts, gcpPubSubOpts...)
 	if err != nil {
 		return err
 	}

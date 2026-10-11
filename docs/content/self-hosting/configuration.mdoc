@@ -172,6 +172,24 @@ Choose one for event log persistence:
 The `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_EVENT_ID_HEADER`, `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_SIGNATURE_HEADER`, `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_TIMESTAMP_HEADER`, and `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_TOPIC_HEADER` flags are deprecated and will be removed in a future version. Disable a header by setting its corresponding `*_HEADER_NAME` variable to an empty string instead. A set `*_HEADER_NAME` always takes precedence over the matching deprecated flag.
 {% /callout %}
 
+## Workload Identity
+
+Lets destinations authenticate to a cloud provider without stored keys: Outpost signs a short-lived token for the tenant and the provider exchanges it for credentials. Off unless `WORKLOAD_IDENTITY_ISSUER` and a signing key are set; setting only some of these variables fails startup. Supported by [GCP Pub/Sub](/docs/outpost/destinations/gcp-pubsub#workload-identity-federation) destinations.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `WORKLOAD_IDENTITY_ISSUER` | — | Public HTTPS URL of the issuer, without a trailing slash. Outpost serves `/.well-known/openid-configuration` and `/jwks.json` under `/workload-identity` on the API port, so this is usually `https://<api-host>/workload-identity`. `http` is only accepted for `localhost`. |
+| `WORKLOAD_IDENTITY_SIGNING_KEY` | — | PEM private key that signs the tokens: RSA (2048 bits or more, `RS256`) or EC P-256 (`ES256`). PKCS#8, PKCS#1 and SEC 1 encodings are accepted; `\n` sequences can stand for newlines. |
+| `WORKLOAD_IDENTITY_SIGNING_KEY_FILE` | — | Path to the signing key, instead of `WORKLOAD_IDENTITY_SIGNING_KEY`. |
+| `WORKLOAD_IDENTITY_VERIFICATION_KEYS` | — | More PEM keys, public or private, published in the JWKS next to the signing key. Used for key rotation. |
+| `WORKLOAD_IDENTITY_VERIFICATION_KEYS_FILE` | — | Path to the verification keys, instead of `WORKLOAD_IDENTITY_VERIFICATION_KEYS`. |
+
+Generate a key with `openssl ecparam -name prime256v1 -genkey -noout -out signing-key.pem`. Each key's `kid` is its RFC 7638 thumbprint.
+
+To rotate the key: add the new key to `WORKLOAD_IDENTITY_VERIFICATION_KEYS` and wait for providers to refetch the JWKS (Outpost serves it with a 5-minute cache lifetime; providers may cache longer), then make it the signing key and move the old key to `WORKLOAD_IDENTITY_VERIFICATION_KEYS`. Remove the old key once tokens signed with it have expired (5 minutes).
+
+Removing the workload identity configuration stops destinations that use it from delivering: their deliveries fail until they are switched to another authentication method.
+
 ## Supervisor
 
 The supervisor can restart a worker whose run fails, such as a queue consumer losing its connection to the broker. Restarts are off by default: a worker is reported `failed` on its first failure and `/healthz` returns HTTP 503 until the process restarts.
