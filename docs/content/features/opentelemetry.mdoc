@@ -74,19 +74,6 @@ Accepted values are `grpc`, `http`, and `http/protobuf` (`http` and `http/protob
 The standard OpenTelemetry variables — the per-signal exporter and protocol variables and all endpoint variables — are read from the process environment, matching how the OpenTelemetry SDK reads them. Set them as real environment variables, not in an Outpost config file. Outpost's own `OTEL_EXPORTER` and `OTEL_PROTOCOL` variables and the YAML `traces:`, `metrics:`, and `logs:` sections work in config files as usual.
 {% /callout %}
 
-## Third-party instrumentation
-
-By default Outpost exports its own telemetry and the API's HTTP server spans and metrics. Instrumentation from the libraries Outpost uses is off; list the ones to turn on in `OTEL_ENABLED_INSTRUMENTATIONS` (YAML: `otel.enabled_instrumentations`):
-
-| Value | Exports |
-|-------|---------|
-| `redis` | A span per Redis command |
-| `mq` | Spans and metrics from the internal message queue client (for example `Topic.Send` spans and the `gocloud.dev/pubsub/latency` histogram), and the gRPC client spans and metrics of the GCP Pub/Sub client |
-
-```
-OTEL_ENABLED_INSTRUMENTATIONS=redis,mq
-```
-
 ## Available Metrics
 
 ### `delivery_latency`

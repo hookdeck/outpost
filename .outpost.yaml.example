@@ -116,4 +116,3 @@ destinations:
 # - OTEL_SERVICE_NAME: Service name (if provided, OpenTelemetry will be enabled)
 # - OTEL_EXPORTER_OTLP_ENDPOINT: OpenTelemetry collector endpoint
 # - OTEL_EXPORTER_OTLP_PROTOCOL: Protocol (grpc or http)
-# - OTEL_ENABLED_INSTRUMENTATIONS: Third-party instrumentation to export, e.g. "redis,mq" (off by default)

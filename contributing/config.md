@@ -165,6 +165,4 @@ Protocol resolution per signal, first match wins:
 
 `http` and the specification's `http/protobuf` are the same value; both are accepted.
 
-Third-party instrumentation (Redis, the internal MQ clients) is off by default; `OTEL_ENABLED_INSTRUMENTATIONS` (e.g. `redis,mq`) turns it on. Each key maps to instrumentation scope names in `internal/otel/instrumentation.go`; tracers and meters for the scopes of keys that are off record nothing.
-
 Currently, we only support `otlp` exporter. If you have specific needs for other exporter configuration (like Prometheus), you must set up your own OTEL collector and configure it accordingly.
