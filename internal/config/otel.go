@@ -3,6 +3,8 @@ package config
 import (
 	"errors"
 	"fmt"
+	"slices"
+	"strings"
 
 	"github.com/hookdeck/outpost/internal/otel"
 )
@@ -17,6 +19,8 @@ type OpenTelemetryConfig struct {
 	Traces      OpenTelemetryTypeConfig `yaml:"traces" desc:"OpenTelemetry configuration specific to traces."`
 	Metrics     OpenTelemetryTypeConfig `yaml:"metrics" desc:"OpenTelemetry configuration specific to metrics."`
 	Logs        OpenTelemetryTypeConfig `yaml:"logs" desc:"OpenTelemetry configuration specific to logs."`
+
+	EnabledInstrumentations []string `yaml:"enabled_instrumentations" env:"OTEL_ENABLED_INSTRUMENTATIONS" envSeparator:"," desc:"Comma-separated list of third-party instrumentation to export alongside Outpost's own telemetry and the HTTP server's. 'redis': Redis command spans. 'mq': internal message queue client spans and metrics. Off by default." required:"N"`
 }
 
 const (
@@ -149,9 +153,17 @@ func (c *OpenTelemetryConfig) resolveOTelEnv(osInterface OSInterface) {
 	}
 }
 
+var ErrInvalidOTelInstrumentation = fmt.Errorf("config validation error: invalid OpenTelemetry instrumentation, must be one of: %s", strings.Join(otel.Instrumentations, ", "))
+
 func (c *OpenTelemetryConfig) Validate() error {
 	if c.ServiceName == "" {
 		return nil // OpenTelemetry is optional
+	}
+
+	for _, key := range c.enabledInstrumentations() {
+		if !slices.Contains(otel.Instrumentations, key) {
+			return fmt.Errorf("%w (got %q)", ErrInvalidOTelInstrumentation, key)
+		}
 	}
 
 	if err := validateOTelProtocol(c.Traces.Protocol); err != nil {
@@ -203,7 +215,18 @@ func (c *OpenTelemetryConfig) ToConfig() *otel.OpenTelemetryConfig {
 			Exporter: c.Logs.Exporter,
 			Protocol: getProtocolWithDefault(c.Logs.Protocol),
 		},
+		EnabledInstrumentations: c.enabledInstrumentations(),
 	}
+}
+
+func (c *OpenTelemetryConfig) enabledInstrumentations() []string {
+	var keys []string
+	for _, key := range c.EnabledInstrumentations {
+		if key = strings.ToLower(strings.TrimSpace(key)); key != "" {
+			keys = append(keys, key)
+		}
+	}
+	return keys
 }
 
 func (c *OpenTelemetryConfig) GetServiceName() string {

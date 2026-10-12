@@ -11,4 +11,7 @@ type OpenTelemetryConfig struct {
 	Traces  *OpenTelemetryTypeConfig
 	Metrics *OpenTelemetryTypeConfig
 	Logs    *OpenTelemetryTypeConfig
+	// EnabledInstrumentations turns on third-party instrumentation, see
+	// Instrumentations.
+	EnabledInstrumentations []string
 }

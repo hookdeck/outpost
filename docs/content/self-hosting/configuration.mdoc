@@ -219,6 +219,7 @@ Setting a listed worker's four limits to `-1` keeps its failures from ever faili
 | Variable | Description |
 |----------|-------------|
 | `OTEL_SERVICE_NAME` | Enables OpenTelemetry when set. All three signals (traces, metrics, and logs) are exported by default; see [OpenTelemetry](/docs/outpost/features/opentelemetry) for per-signal control |
+| `OTEL_ENABLED_INSTRUMENTATIONS` | Comma-separated third-party instrumentation to export: `redis`, `mq`. Off by default; see [OpenTelemetry](/docs/outpost/features/opentelemetry#third-party-instrumentation) |
 | `LOG_LEVEL` | Log verbosity: `trace`, `debug`, `info`, `warn`, `error` (default: `info`) |
 | `DISABLE_TELEMETRY` | Set to `true` to disable anonymous usage telemetry to Hookdeck |
 
