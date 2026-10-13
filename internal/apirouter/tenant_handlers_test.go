@@ -550,6 +550,38 @@ func TestAPI_Tenants(t *testing.T) {
 			assert.Equal(t, "t1", claims.TenantID)
 		})
 
+		t.Run("token with deployment id is accepted only by the deployment that issued it", func(t *testing.T) {
+			ts := tenantstore.NewMemTenantStore()
+			require.NoError(t, ts.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1"))))
+			issuer := newAPITest(t, withTenantStore(ts), withDeploymentID("dp_a"))
+			other := newAPITest(t, withTenantStore(ts), withDeploymentID("dp_b"))
+
+			tokenReq := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1/token", nil)
+			resp := issuer.do(issuer.withAPIKey(tokenReq))
+			require.Equal(t, http.StatusOK, resp.Code)
+
+			var body map[string]string
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &body))
+
+			claims, err := apirouter.JWT.Extract(testJWTSecret, body["token"])
+			require.NoError(t, err)
+			assert.Equal(t, "dp_a", claims.DeploymentID)
+
+			retrieveTenant := func(h *apiTest) int {
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1", nil)
+				req.Header.Set("Authorization", "Bearer "+body["token"])
+				return h.do(req).Code
+			}
+
+			t.Run("issuing deployment returns 200", func(t *testing.T) {
+				assert.Equal(t, http.StatusOK, retrieveTenant(issuer))
+			})
+
+			t.Run("other deployment returns 401", func(t *testing.T) {
+				assert.Equal(t, http.StatusUnauthorized, retrieveTenant(other))
+			})
+		})
+
 		t.Run("nonexistent tenant returns 404", func(t *testing.T) {
 			h := newAPITest(t)
 
