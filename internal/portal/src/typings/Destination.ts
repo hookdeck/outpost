@@ -15,6 +15,7 @@ interface ConfigField {
   options?: Array<{ label: string; value: string }>;
   key_placeholder?: string;
   value_placeholder?: string;
+  visible_when?: { key: string; values: string[] };
 }
 
 interface CredentialField extends ConfigField {

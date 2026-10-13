@@ -207,6 +207,18 @@ components:
           type: string
           description: The ID of the tenant this token is scoped to.
           example: "tenant_123"
+    TenantWorkloadIdentity:
+      type: object
+      required: [issuer, subject]
+      properties:
+        issuer:
+          type: string
+          description: Issuer URL of the tokens, the `iss` claim.
+          example: "https://outpost.example.com/workload-identity"
+        subject:
+          type: string
+          description: Subject of the tenant's tokens, the `sub` claim.
+          example: "tenant:tenant_123"
     SuccessResponse:
       type: object
       properties:
@@ -550,14 +562,29 @@ components:
           type: string
           description: Optional. Custom endpoint URL (e.g., localhost:8085 for emulator).
           example: "pubsub.googleapis.com:443"
+        auth_method:
+          type: string
+          enum: [service_account_key, workload_identity]
+          x-speakeasy-unknown-values: allow
+          description: Optional. How Outpost authenticates to Google Cloud. Omitted means `service_account_key`. `workload_identity` is only accepted when the Outpost instance has workload identity configured.
+          example: "service_account_key"
     GCPPubSubCredentials:
       type: object
       required: [service_account_json]
+      description: Set the credentials of the selected `auth_method` only.
       properties:
         service_account_json:
           type: string
-          description: Service account key JSON. The entire JSON key file content as a string.
+          description: Service account key JSON. The entire JSON key file content as a string. Empty string when `auth_method` is `workload_identity`.
           example: '{"type":"service_account","project_id":"my-project","private_key_id":"key123","private_key":"-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n","client_email":"my-service@my-project.iam.gserviceaccount.com"}'
+        workload_identity_provider:
+          type: string
+          description: Full resource name of the workload identity pool provider. Required for the `workload_identity` auth method.
+          example: "projects/123456789/locations/global/workloadIdentityPools/outpost/providers/outpost"
+        service_account_email:
+          type: string
+          description: Optional, `workload_identity` auth method only. Service account Outpost impersonates instead of using the federated identity directly.
+          example: "publisher@my-project.iam.gserviceaccount.com"
     KafkaConfig:
       type: object
       required: [brokers, topic, sasl_mechanism]
@@ -2479,6 +2506,11 @@ components:
         endpoint:
           type: string
           description: Optional. Custom endpoint URL (e.g., localhost:8085 for emulator).
+        auth_method:
+          type: string
+          enum: [service_account_key, workload_identity]
+          x-speakeasy-unknown-values: allow
+          description: How Outpost authenticates to Google Cloud. When switching, set the previous method's credentials to `null` or an empty string in the same request.
     GCPPubSubCredentialsUpdate:
       type: object
       description: Partial GCP Pub/Sub credentials for PATCH updates (RFC 7396 merge-patch).
@@ -2486,6 +2518,12 @@ components:
         service_account_json:
           type: string
           description: Service account key JSON. The entire JSON key file content as a string.
+        workload_identity_provider:
+          type: string
+          description: Full resource name of the workload identity pool provider.
+        service_account_email:
+          type: string
+          description: Service account to impersonate.
     KafkaConfigUpdate:
       type: object
       description: Partial Kafka config for PATCH updates (RFC 7396 merge-patch).
@@ -3655,6 +3693,22 @@ components:
               value:
                 type: string
                 example: "plain"
+        visible_when:
+          type: object
+          description: >-
+            The field only applies while another field (`key`, in `config` or `credentials`) holds one of
+            `values`; an unset field counts as its `default`. A field that doesn't apply is not required and
+            must not be sent with a value. Fields without `visible_when` always apply.
+          required: [key, values]
+          properties:
+            key:
+              type: string
+              example: "auth_method"
+            values:
+              type: array
+              items:
+                type: string
+              example: ["workload_identity"]
 
     MetricsDataPoint:
       type: object
@@ -5717,6 +5771,43 @@ paths:
                   value:
                     token: "SOME_JWT_TOKEN"
                     tenant_id: "tenant_123"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /tenants/{tenant_id}/workload-identity:
+    parameters:
+      - name: tenant_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The ID of the tenant. Required when using AdminApiKey authentication.
+    get:
+      tags: [Tenants]
+      summary: Get Tenant Workload Identity
+      description: |
+        Returns the issuer and subject of the tokens Outpost uses to authenticate the tenant's destinations through workload identity federation. The tenant trusts them in its cloud provider.
+
+        Only available when the instance has workload identity configured (`WORKLOAD_IDENTITY_ISSUER`); returns `404` otherwise.
+      operationId: getTenantWorkloadIdentity
+      responses:
+        "200":
+          description: Workload identity values for the tenant.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TenantWorkloadIdentity"
+              examples:
+                TenantWorkloadIdentityExample:
+                  value:
+                    issuer: "https://outpost.example.com/workload-identity"
+                    subject: "tenant:tenant_123"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":

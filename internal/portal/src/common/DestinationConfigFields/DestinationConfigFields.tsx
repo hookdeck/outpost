@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { Fragment, useState, useRef, useEffect } from "react";
 import type {
   Destination,
   DestinationTypeReference,
@@ -12,7 +12,11 @@ import { ConfigurationGuide } from "../ConfigurationGuide/ConfigurationGuide";
 import { Checkbox } from "../Checkbox/Checkbox";
 import KeyValueMapField from "../KeyValueMapField/KeyValueMapField";
 import { isCheckedValue } from "../../utils/formHelper";
+import { controllerKeys, isFieldVisible } from "../../utils/fieldVisibility";
 import CONFIGS from "../../config";
+import WorkloadIdentityInfo, {
+  isWorkloadIdentityField,
+} from "../WorkloadIdentityInfo/WorkloadIdentityInfo";
 
 const DestinationConfigFields = ({
   destination,
@@ -32,6 +36,44 @@ const DestinationConfigFields = ({
   const sidebar = useSidebar();
 
   const inputRefs = useRef<Record<string, HTMLInputElement>>({});
+
+  // Current values of the selects other fields' visibility depends on.
+  const controllers = controllerKeys(type);
+  const [controllerValues, setControllerValues] = useState<
+    Record<string, string>
+  >(() =>
+    Object.fromEntries(
+      controllers.map((key) => [
+        key,
+        destination?.config[key] || destination?.credentials[key] || "",
+      ]),
+    ),
+  );
+
+  // Fields mount and unmount when a controller changes: let the parent
+  // re-check the form once the DOM reflects it.
+  const controllersChanged = useRef(false);
+  useEffect(() => {
+    if (controllersChanged.current) {
+      onChange?.();
+    }
+  }, [controllerValues]);
+
+  const visibleFields = [...type.config_fields, ...type.credential_fields]
+    .filter((field) => {
+      // Filter out custom_headers if the feature flag is not enabled
+      if (
+        field.key === "custom_headers" &&
+        CONFIGS.ENABLE_WEBHOOK_CUSTOM_HEADERS !== "true"
+      ) {
+        return false;
+      }
+      return true;
+    })
+    .filter((field) => isFieldVisible(type, field, controllerValues));
+  const workloadIdentityInfoBefore = visibleFields.find(
+    isWorkloadIdentityField,
+  );
 
   const unlockSensitiveField = (key: string) => {
     setUnlockedSensitiveFields((prev) => ({
@@ -91,19 +133,10 @@ const DestinationConfigFields = ({
           </a>
         </div>
       )}
-      {[...type.config_fields, ...type.credential_fields]
-        .filter((field) => {
-          // Filter out custom_headers if the feature flag is not enabled
-          if (
-            field.key === "custom_headers" &&
-            CONFIGS.ENABLE_WEBHOOK_CUSTOM_HEADERS !== "true"
-          ) {
-            return false;
-          }
-          return true;
-        })
-        .map((field) => (
-          <div key={field.key} className="destination-config-field">
+      {visibleFields.map((field) => (
+        <Fragment key={field.key}>
+          {field === workloadIdentityInfoBefore && <WorkloadIdentityInfo />}
+          <div className="destination-config-field">
             <label htmlFor={field.key}>
               {field.label}
               {field.required && <span className="required">*</span>}
@@ -184,7 +217,16 @@ const DestinationConfigFields = ({
                 }
                 disabled={field.disabled}
                 required={field.required}
-                onChange={onChange}
+                onChange={(e) => {
+                  if (controllers.includes(field.key)) {
+                    controllersChanged.current = true;
+                    setControllerValues((prev) => ({
+                      ...prev,
+                      [field.key]: e.target.value,
+                    }));
+                  }
+                  onChange?.();
+                }}
               >
                 {field.options?.map((option) => (
                   <option key={option.value} value={option.value}>
@@ -242,7 +284,8 @@ const DestinationConfigFields = ({
               />
             )}
           </div>
-        ))}
+        </Fragment>
+      ))}
     </>
   );
 };

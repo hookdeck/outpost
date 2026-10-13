@@ -21,6 +21,18 @@
       "label": "Endpoint",
       "description": "Custom endpoint URL (e.g., localhost:8085 for emulator)",
       "required": false
+    },
+    {
+      "key": "auth_method",
+      "type": "select",
+      "label": "Authentication",
+      "description": "How Outpost authenticates to Google Cloud",
+      "required": false,
+      "default": "service_account_key",
+      "options": [
+        { "label": "Service account key", "value": "service_account_key" },
+        { "label": "Workload Identity Federation", "value": "workload_identity" }
+      ]
     }
   ],
   "credential_fields": [
@@ -30,7 +42,26 @@
       "label": "Service Account JSON",
       "description": "Service account key JSON",
       "required": true,
-      "sensitive": true
+      "sensitive": true,
+      "visible_when": { "key": "auth_method", "values": ["service_account_key"] }
+    },
+    {
+      "key": "workload_identity_provider",
+      "type": "text",
+      "label": "Workload Identity Provider",
+      "description": "Full resource name of the workload identity pool provider",
+      "required": true,
+      "pattern": "^(//iam\\.googleapis\\.com/)?projects/[0-9]+/locations/global/workloadIdentityPools/[a-z0-9\\-]+/providers/[a-z0-9\\-]+$",
+      "visible_when": { "key": "auth_method", "values": ["workload_identity"] }
+    },
+    {
+      "key": "service_account_email",
+      "type": "text",
+      "label": "Service Account Email",
+      "description": "Optional. Service account to impersonate",
+      "required": false,
+      "pattern": "^[a-z0-9\\-]+@[a-z0-9.\\-]+\\.gserviceaccount\\.com$",
+      "visible_when": { "key": "auth_method", "values": ["workload_identity"] }
     }
   ],
   "label": "GCP Pub/Sub",
