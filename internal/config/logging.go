@@ -124,6 +124,8 @@ func (c *Config) LogConfigurationSummary() []zap.Field {
 
 		// Telemetry
 		zap.Bool("telemetry_disabled", c.Telemetry.Disabled || c.DisableTelemetry),
+		zap.Bool("otel_enabled", c.OpenTelemetry.ServiceName != ""),
+		zap.Strings("otel_enabled_instrumentations", c.OpenTelemetry.enabledInstrumentations()),
 
 		// Alert
 		zap.Bool("alert_consecutive_failure_enabled", alertSettings.ConsecutiveFailure.Enabled),

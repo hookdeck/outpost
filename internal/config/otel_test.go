@@ -276,3 +276,45 @@ otel:
 	assert.Equal(t, "", cfg.OpenTelemetry.Metrics.Exporter)
 	assert.Equal(t, "none", cfg.OpenTelemetry.Logs.Exporter)
 }
+
+func TestOTelEnabledInstrumentations(t *testing.T) {
+	t.Parallel()
+
+	t.Run("default is none", func(t *testing.T) {
+		t.Parallel()
+		otelCfg := parseOTelConfig(t, map[string]string{})
+		require.NoError(t, otelCfg.Validate())
+		assert.Empty(t, otelCfg.ToConfig().EnabledInstrumentations)
+	})
+
+	t.Run("env list", func(t *testing.T) {
+		t.Parallel()
+		otelCfg := parseOTelConfig(t, map[string]string{"OTEL_ENABLED_INSTRUMENTATIONS": "redis, MQ"})
+		require.NoError(t, otelCfg.Validate())
+		assert.Equal(t, []string{"redis", "mq"}, otelCfg.ToConfig().EnabledInstrumentations)
+	})
+
+	t.Run("yaml list", func(t *testing.T) {
+		t.Parallel()
+		yaml := []byte(`
+otel:
+  service_name: outpost
+  enabled_instrumentations: [mq]
+`)
+		cfg, err := config.ParseWithoutValidation(config.Flags{Config: "config.yaml"}, &mockOS{
+			files:   map[string][]byte{"config.yaml": yaml},
+			envVars: map[string]string{},
+		})
+		require.NoError(t, err)
+		require.NoError(t, cfg.OpenTelemetry.Validate())
+		assert.Equal(t, []string{"mq"}, cfg.OpenTelemetry.ToConfig().EnabledInstrumentations)
+	})
+
+	t.Run("unknown key", func(t *testing.T) {
+		t.Parallel()
+		otelCfg := parseOTelConfig(t, map[string]string{"OTEL_ENABLED_INSTRUMENTATIONS": "redis,kafka"})
+		err := otelCfg.Validate()
+		assert.ErrorIs(t, err, config.ErrInvalidOTelInstrumentation)
+		assert.ErrorContains(t, err, `"kafka"`)
+	})
+}
