@@ -19,6 +19,7 @@ import (
 	"github.com/hookdeck/outpost/internal/redis"
 	"github.com/hookdeck/outpost/internal/services"
 	"github.com/hookdeck/outpost/internal/telemetry"
+	"github.com/hookdeck/outpost/internal/topicschema"
 	"github.com/hookdeck/outpost/internal/worker"
 	"go.uber.org/zap"
 )
@@ -82,6 +83,10 @@ func (a *App) PreRun(ctx context.Context) (err error) {
 		return err
 	}
 
+	if err := a.loadTopicCatalog(); err != nil {
+		return err
+	}
+
 	if err := a.applyLogRetentionTTL(ctx); err != nil {
 		return err
 	}
@@ -99,6 +104,15 @@ func (a *App) PreRun(ctx context.Context) (err error) {
 	}
 
 	if err := a.buildServices(ctx); err != nil {
+		return err
+	}
+
+	// Last: the applied schemas are what later deploys are checked against,
+	// so a release that fails to start must not record its own.
+	if err := a.applyTopicSchemas(ctx); err != nil {
+		cleanupCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		a.builder.Cleanup(cleanupCtx)
 		return err
 	}
 
@@ -212,6 +226,59 @@ func (a *App) checkPendingMigrations(ctx context.Context) error {
 		return fmt.Errorf("redis client does not implement full Client interface")
 	}
 	return checkPendingMigrations(ctx, a.config, client, a.logger)
+}
+
+// loadTopicCatalog loads the topic schemas when this process runs the API
+// service, the only one that uses them. Delivery and log services never load
+// them, so a problem in the schemas only stops the API service.
+func (a *App) loadTopicCatalog() error {
+	service, err := a.config.GetService()
+	if err != nil {
+		return err
+	}
+	if service != config.ServiceTypeAPI && service != config.ServiceTypeAll {
+		return nil
+	}
+	a.logger.Debug("loading topic schemas")
+	topicsSet := len(a.config.Topics) > 0
+	catalog, err := a.config.LoadTopicCatalog()
+	if err != nil {
+		a.logger.Error("failed to load topic schemas", zap.Error(err))
+		return err
+	}
+	if !topicsSet && len(a.config.Topics) > 0 {
+		a.logger.Info("TOPICS is not set; using the topic schema keys as topics", zap.Strings("topics", a.config.Topics))
+	}
+	for _, warning := range catalog.Warnings() {
+		a.logger.Warn(warning)
+	}
+	if catalog.HasSchemas() {
+		a.logger.Info("topic schemas loaded", zap.Strings("mcp_topics", catalog.MCPTopics()))
+	}
+	return nil
+}
+
+// applyTopicSchemas records the loaded topic configuration as the applied
+// one, refusing a breaking change to an MCP-enabled topic unless
+// TOPICS_ALLOW_BREAKING_CHANGES is set. API service only, like
+// loadTopicCatalog.
+func (a *App) applyTopicSchemas(ctx context.Context) error {
+	service, err := a.config.GetService()
+	if err != nil {
+		return err
+	}
+	if service != config.ServiceTypeAPI && service != config.ServiceTypeAll {
+		return nil
+	}
+	_, err = topicschema.Apply(ctx, a.redisClient, a.config.DeploymentID, a.config.TopicCatalog().Snapshot(), topicschema.ApplyOptions{
+		AllowBreaking: a.config.TopicsAllowBreakingChanges,
+		Logger:        a.logger,
+	})
+	if err != nil {
+		a.logger.Error("failed to apply topic schemas", zap.Error(err))
+		return fmt.Errorf("topic schemas: %w", err)
+	}
+	return nil
 }
 
 func (a *App) initializeInfrastructure(ctx context.Context) error {

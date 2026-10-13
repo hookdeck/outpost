@@ -225,6 +225,18 @@ These keys are short-lived and self-expiring, and safe to lose. Losing an idempo
 | `logmq:processed:<attempt_id>` | String | 24 hours | Marks a failed attempt as processed for alerting, so a redelivered log message isn't counted twice. |
 | `opevents:exhausted:<tenant_id>:<destination_id>` | String | `ALERT_EXHAUSTED_RETRIES_WINDOW_SECONDS` (default 1 hour) | Limits exhausted-retries alerts to one per destination per window. |
 
+### Topic schemas
+
+The API service records the topic schemas it applied, to [check schema changes](/docs/outpost/features/topics#breaking-change-check) at the next startup. The keys in `{outpost:topic_schemas}` share that hash tag so they're written together. All the keys start with `<deployment_id>:` when `DEPLOYMENT_ID` is set.
+
+| Key | Type | TTL | Contents |
+|-----|------|-----|----------|
+| `{outpost:topic_schemas}:applied` | String | None | JSON with the last applied topic schemas (each topic's payload schema and MCP flag), their hash, when they were applied, each topic's earlier schema hashes (up to 16), and the old schema hashes of topics changed with `TOPICS_ALLOW_BREAKING_CHANGES`, whose subscriptions still need to end. |
+| `{outpost:topic_schemas}:history` | List | None | The last 50 applied schema hashes, with when each was applied. |
+| `outpost:topic_schemas:live:<hash>` | String | 60 seconds | Marks a topic configuration that an API instance is running. Each instance refreshes its own every 20 seconds. |
+
+Losing these keys loses the baseline: the next startup applies its schemas without a breaking-change check.
+
 ### Deployment metadata
 
 | Key | Type | TTL | Purpose |
@@ -234,6 +246,7 @@ These keys are short-lived and self-expiring, and safe to lose. Losing an idempo
 | `outpost:migration:<name>` | Hash | None | Status of a Redis data migration: `status` (`applied` or `not_applicable`) and a timestamp. |
 | `.outpost:migration_lock` | String | 1 hour | Held while migrations run, so only one runner applies them. |
 | `outpost:lock` | String | 60 seconds | Held while message queue infrastructure is provisioned at startup. |
+| `outpost:lock:topic_schemas` | String | 10 seconds | Held while the API service applies topic schemas at startup. |
 
 ## Lifecycle of an event across stores
 
