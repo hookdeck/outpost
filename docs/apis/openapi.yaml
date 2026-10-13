@@ -3724,20 +3724,20 @@ components:
         Self-hosted deployments configure these values using environment variables.
       properties:
         ALERT_AUTO_DISABLE_DESTINATION:
-          type: string
+          type: [string, "null"]
           description: >-
             If "true", automatically disables a destination once
             ALERT_CONSECUTIVE_FAILURE_COUNT is reached. Has no effect when
             consecutive-failure alerting is disabled.
         ALERT_CONSECUTIVE_FAILURE_COUNT:
-          type: string
+          type: [string, "null"]
           description: >-
             Consecutive delivery failures before alerting on a destination (and
             disabling it when ALERT_AUTO_DISABLE_DESTINATION is "true"). Omit for
             the default of 100; set to an empty string to disable
             consecutive-failure alerting entirely.
         ALERT_EXHAUSTED_RETRIES_WINDOW_SECONDS:
-          type: string
+          type: [string, "null"]
           description: >-
             Suppression window in seconds for exhausted_retries alerts: the first
             exhaustion per destination alerts and subsequent ones within the
@@ -3745,202 +3745,202 @@ components:
             3600; set to an empty string to disable exhausted_retries alerting
             entirely.
         DELIVERY_TIMEOUT_SECONDS:
-          type: string
+          type: [string, "null"]
         DESTINATIONS_AWS_KINESIS_METADATA_IN_PAYLOAD:
-          type: string
+          type: [string, "null"]
         DESTINATIONS_INCLUDE_MILLISECOND_TIMESTAMP:
-          type: string
+          type: [string, "null"]
         DESTINATIONS_WEBHOOK_COMPAT_HEADERS:
-          type: string
+          type: [string, "null"]
           description: >-
             Additional headers sent with the compat signature, as comma-separated
             "name=template" pairs. Available variables: {{.EventID}}, {{.Topic}},
             {{.Timestamp}}. Use "\," for a literal comma in a template.
         DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_ALGORITHM:
-          type: string
+          type: [string, "null"]
           description: >-
             Algorithm for the compat signature. Defaults to "hmac-sha256".
         DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_CONTENT_TEMPLATE:
-          type: string
+          type: [string, "null"]
           description: >-
             Go template for the content signed by the compat signature. Same
             variables as DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE.
             Defaults to "{{.Body}}".
         DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_ENCODING:
-          type: string
+          type: [string, "null"]
           description: >-
             Encoding for the compat signature ("hex" or "base64"). Defaults to
             "hex".
         DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_HEADER_NAME:
-          type: string
+          type: [string, "null"]
           description: >-
             Complete name of the compat signature header. Setting it sends a
             second signature, in a previous scheme, alongside the primary one.
         DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_HEADER_TEMPLATE:
-          type: string
+          type: [string, "null"]
           description: >-
             Go template for the value of the compat signature header. Same
             variables as DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE.
             Defaults to "v0={{.Signatures | join ","}}".
         DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_SECRET_ENCODING:
-          type: string
+          type: [string, "null"]
           description: >-
             How the compat signature derives its HMAC key from the destination
             secret: "raw", "base64" or "hex". Defaults to "raw". A destination
             whose secret can't be decoded doesn't receive the compat signature.
         DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_SECRET_PREFIX:
-          type: string
+          type: [string, "null"]
           description: >-
             Prefix stripped from the destination secret before decoding for the
             compat signature (e.g., "whsec_").
         DESTINATIONS_WEBHOOK_EVENT_ID_HEADER_NAME:
-          type: string
+          type: [string, "null"]
           description: >-
             Complete name of the event ID header. Unset uses the default
             "<prefix>event-id"; an explicit value pins that exact name; an empty
             string disables the header. Only applies to "default" mode.
         DESTINATIONS_WEBHOOK_HEADER_PREFIX:
-          type: string
+          type: [string, "null"]
         DESTINATIONS_WEBHOOK_MODE:
-          type: string
+          type: [string, "null"]
         DESTINATIONS_WEBHOOK_PROXY_URL:
-          type: string
+          type: [string, "null"]
         DESTINATIONS_WEBHOOK_SIGNATURE_ALGORITHM:
-          type: string
+          type: [string, "null"]
         DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE:
-          type: string
+          type: [string, "null"]
         DESTINATIONS_WEBHOOK_SIGNATURE_ENCODING:
-          type: string
+          type: [string, "null"]
         DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_NAME:
-          type: string
+          type: [string, "null"]
           description: >-
             Complete name of the signature header. Unset uses the default
             "<prefix>signature"; an explicit value pins that exact name; an
             empty string disables the header. Only applies to "default" mode.
         DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE:
-          type: string
+          type: [string, "null"]
         DESTINATIONS_WEBHOOK_SIGNATURE_SECRET_ENCODING:
-          type: string
+          type: [string, "null"]
           description: >-
             How the signature derives its HMAC key from the destination secret:
             "raw" uses the secret as-is, "base64" and "hex" decode it. Defaults
             to "raw". DESTINATIONS_WEBHOOK_SIGNING_SECRET_TEMPLATE must generate
             secrets this encoding can decode. Only applies to "default" mode.
         DESTINATIONS_WEBHOOK_SIGNATURE_SECRET_PREFIX:
-          type: string
+          type: [string, "null"]
           description: >-
             Prefix stripped from the destination secret before decoding (e.g.,
             "whsec_"). Ignored when DESTINATIONS_WEBHOOK_SIGNATURE_SECRET_ENCODING
             is "raw". Only applies to "default" mode.
         DESTINATIONS_WEBHOOK_SIGNING_SECRET_TEMPLATE:
-          type: string
+          type: [string, "null"]
         DESTINATIONS_WEBHOOK_TIMESTAMP_FORMAT:
-          type: string
+          type: [string, "null"]
           description: >-
             Format of the timestamp header: "rfc3339", "unix" (seconds since the
             epoch) or "iso8601_milli_no_offset" (UTC with milliseconds and no
             offset, e.g. "2026-10-05T15:02:25.447"). Defaults to "rfc3339".
             Only applies to "default" mode.
         DESTINATIONS_WEBHOOK_TIMESTAMP_HEADER_NAME:
-          type: string
+          type: [string, "null"]
           description: >-
             Complete name of the timestamp header. Unset uses the default
             "<prefix>timestamp"; an explicit value pins that exact name; an
             empty string disables the header. Only applies to "default" mode.
         DESTINATIONS_WEBHOOK_TOPIC_HEADER_NAME:
-          type: string
+          type: [string, "null"]
           description: >-
             Complete name of the topic header. Unset uses the default
             "<prefix>topic"; an explicit value pins that exact name; an empty
             string disables the header. Only applies to "default" mode.
         HTTP_USER_AGENT:
-          type: string
+          type: [string, "null"]
         IDGEN_ATTEMPT_PREFIX:
-          type: string
+          type: [string, "null"]
         IDGEN_DESTINATION_PREFIX:
-          type: string
+          type: [string, "null"]
         IDGEN_EVENT_PREFIX:
-          type: string
+          type: [string, "null"]
         IDGEN_TYPE:
-          type: string
+          type: [string, "null"]
         MAX_DESTINATIONS_PER_TENANT:
-          type: string
+          type: [string, "null"]
         PORTAL_BRAND_COLOR:
-          type: string
+          type: [string, "null"]
         PORTAL_DISABLE_OUTPOST_BRANDING:
-          type: string
+          type: [string, "null"]
         PORTAL_FAVICON_URL:
-          type: string
+          type: [string, "null"]
         PORTAL_FORCE_THEME:
-          type: string
+          type: [string, "null"]
         PORTAL_LOGO:
-          type: string
+          type: [string, "null"]
         PORTAL_LOGO_DARK:
-          type: string
+          type: [string, "null"]
         PORTAL_ORGANIZATION_NAME:
-          type: string
+          type: [string, "null"]
         PORTAL_REFERER_URL:
-          type: string
+          type: [string, "null"]
         PORTAL_REFRESH_URL:
-          type: string
+          type: [string, "null"]
         PORTAL_ENABLE_DESTINATION_FILTER:
-          type: string
+          type: [string, "null"]
         PORTAL_ENABLE_WEBHOOK_CUSTOM_HEADERS:
-          type: string
+          type: [string, "null"]
         RETRY_INTERVAL_SECONDS:
-          type: string
+          type: [string, "null"]
         MAX_RETRY_LIMIT:
-          type: string
+          type: [string, "null"]
         RETRY_SCHEDULE:
-          type: string
+          type: [string, "null"]
         OTEL_EXPORTER_OTLP_ENDPOINT:
-          type: string
+          type: [string, "null"]
         OTEL_EXPORTER_OTLP_HEADERS:
-          type: string
+          type: [string, "null"]
         OTEL_EXPORTER_OTLP_PROTOCOL:
-          type: string
+          type: [string, "null"]
         OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:
-          type: string
+          type: [string, "null"]
         OTEL_EXPORTER_OTLP_METRICS_ENDPOINT:
-          type: string
+          type: [string, "null"]
         OTEL_EXPORTER_OTLP_LOGS_ENDPOINT:
-          type: string
+          type: [string, "null"]
         OTEL_SERVICE_NAME:
-          type: string
+          type: [string, "null"]
         PUBLISH_AWS_SQS_ACCESS_KEY_ID:
-          type: string
+          type: [string, "null"]
         PUBLISH_AWS_SQS_ENDPOINT:
-          type: string
+          type: [string, "null"]
         PUBLISH_AWS_SQS_QUEUE:
-          type: string
+          type: [string, "null"]
         PUBLISH_AWS_SQS_REGION:
-          type: string
+          type: [string, "null"]
         PUBLISH_AWS_SQS_SECRET_ACCESS_KEY:
-          type: string
+          type: [string, "null"]
         PUBLISH_AZURE_SERVICEBUS_CONNECTION_STRING:
-          type: string
+          type: [string, "null"]
         PUBLISH_AZURE_SERVICEBUS_SUBSCRIPTION:
-          type: string
+          type: [string, "null"]
         PUBLISH_AZURE_SERVICEBUS_TOPIC:
-          type: string
+          type: [string, "null"]
         PUBLISH_GCP_PUBSUB_PROJECT:
-          type: string
+          type: [string, "null"]
         PUBLISH_GCP_PUBSUB_SERVICE_ACCOUNT_CREDENTIALS:
-          type: string
+          type: [string, "null"]
         PUBLISH_GCP_PUBSUB_SUBSCRIPTION:
-          type: string
+          type: [string, "null"]
         PUBLISH_GCP_PUBSUB_TOPIC:
-          type: string
+          type: [string, "null"]
         PUBLISH_RABBITMQ_EXCHANGE:
-          type: string
+          type: [string, "null"]
         PUBLISH_RABBITMQ_QUEUE:
-          type: string
+          type: [string, "null"]
         PUBLISH_RABBITMQ_SERVER_URL:
-          type: string
+          type: [string, "null"]
         TOPICS:
-          type: string
+          type: [string, "null"]
         TOPICS_ALLOW_WILDCARDS:
-          type: string
+          type: [string, "null"]
       additionalProperties: false
       example:
         TOPICS: "user.created,user.updated"
