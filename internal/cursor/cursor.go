@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 var (
@@ -95,5 +96,12 @@ func Decode(encoded string, resource string, version int) (string, error) {
 		return "", ErrInvalidCursor
 	}
 
-	return raw[len(expectedPrefix):], nil
+	// A position is text the API wrote. A hand-built one with a NUL byte or
+	// invalid UTF-8 matches no record, and PostgreSQL refuses it in a text
+	// parameter, so it is malformed on every log store.
+	data := raw[len(expectedPrefix):]
+	if strings.ContainsRune(data, 0) || !utf8.ValidString(data) {
+		return "", ErrInvalidCursor
+	}
+	return data, nil
 }

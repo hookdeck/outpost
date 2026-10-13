@@ -153,6 +153,14 @@ func TestDecode(t *testing.T) {
 		assert.True(t, errors.Is(err, cursor.ErrInvalidCursor))
 	})
 
+	t.Run("NUL byte or invalid UTF-8 in the data returns ErrInvalidCursor", func(t *testing.T) {
+		for _, data := range []string{"1700000000000::evt\x00", "1700000000000::\xff\xfe", "\x00"} {
+			_, err := cursor.Decode(cursor.Encode("evt", 1, data), "evt", 1)
+			require.Error(t, err, "data %q", data)
+			assert.True(t, errors.Is(err, cursor.ErrInvalidCursor))
+		}
+	})
+
 	t.Run("completely malformed cursor returns ErrInvalidCursor", func(t *testing.T) {
 		// Encode something that doesn't follow the format at all
 		encoded := cursor.Base62Encode("garbage")
