@@ -364,6 +364,14 @@ func (h *messageHandler) shouldNackError(err error) bool {
 		return false // Success case, always ack
 	}
 
+	// Post-delivery errors always nack: the attempt log was not published, or
+	// retry scheduling or cancellation failed. Checked first because a
+	// PostDeliveryError can wrap an AttemptError, which would otherwise ack.
+	var postErr *PostDeliveryError
+	if errors.As(err, &postErr) {
+		return true
+	}
+
 	// Handle pre-delivery errors (system errors)
 	var preErr *PreDeliveryError
 	if errors.As(err, &preErr) {
@@ -378,17 +386,6 @@ func (h *messageHandler) shouldNackError(err error) bool {
 	var atmErr *AttemptError
 	if errors.As(err, &atmErr) {
 		return h.shouldNackDeliveryError(atmErr.err)
-	}
-
-	// Handle post-delivery errors
-	var postErr *PostDeliveryError
-	if errors.As(err, &postErr) {
-		// Check if this wraps a delivery error
-		var atmErr2 *AttemptError
-		if errors.As(postErr.err, &atmErr2) {
-			return h.shouldNackDeliveryError(atmErr2.err)
-		}
-		return true // Nack other post-delivery errors
 	}
 
 	// For any other error type, nack for safety
