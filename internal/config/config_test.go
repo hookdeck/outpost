@@ -619,6 +619,34 @@ func TestDestinationWebhookTimestampFormat(t *testing.T) {
 	assert.Equal(t, "unix", cfg.Destinations.ToConfig(cfg).Webhook.TimestampFormat)
 }
 
+func TestDestinationCloudAllowedCIDRs(t *testing.T) {
+	for _, tt := range []struct {
+		name    string
+		envVars map[string]string
+		yaml    string
+		want    string
+	}{
+		{name: "public only by default"},
+		{name: "environment", envVars: map[string]string{"DESTINATIONS_CLOUD_ALLOWED_CIDRS": "10.1.2.0/24,::1/128"}, want: "10.1.2.0/24,::1/128"},
+		{name: "yaml", yaml: "destinations:\n  cloud_allowed_cidrs: 10.1.2.0/24\n", want: "10.1.2.0/24"},
+		{name: "environment overrides yaml", envVars: map[string]string{"DESTINATIONS_CLOUD_ALLOWED_CIDRS": "127.0.0.1/32"}, yaml: "destinations:\n  cloud_allowed_cidrs: 10.1.2.0/24\n", want: "127.0.0.1/32"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			os := &mockOS{files: map[string][]byte{}, envVars: map[string]string{}}
+			for k, v := range tt.envVars {
+				os.envVars[k] = v
+			}
+			if tt.yaml != "" {
+				os.files["config.yaml"] = []byte(tt.yaml)
+				os.envVars["CONFIG"] = "config.yaml"
+			}
+			cfg, err := config.ParseWithoutValidation(config.Flags{}, os)
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, cfg.Destinations.ToConfig(cfg).CloudAllowedCIDRs)
+		})
+	}
+}
+
 func TestDestinationAWSEventBridgeSource(t *testing.T) {
 	t.Run("defaults to outpost", func(t *testing.T) {
 		cfg, err := config.ParseWithoutValidation(config.Flags{}, &mockOS{files: map[string][]byte{}, envVars: map[string]string{}})

@@ -43,18 +43,30 @@ type AWSS3Credentials struct {
 // AWSS3Provider is the S3 Provider implementation
 type AWSS3Provider struct {
 	*destregistry.BaseProvider
+	endpointPolicy *destregistry.CloudEndpointPolicy
+}
+
+type Option func(*AWSS3Provider)
+
+// WithEndpointPolicy permits deployment-approved private cloud endpoints.
+func WithEndpointPolicy(policy *destregistry.CloudEndpointPolicy) Option {
+	return func(p *AWSS3Provider) { p.endpointPolicy = policy }
 }
 
 var _ destregistry.Provider = (*AWSS3Provider)(nil)
 
 // New creates a new AWSS3Provider
-func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePublisherOption) (*AWSS3Provider, error) {
+func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePublisherOption, opts ...Option) (*AWSS3Provider, error) {
 	base, err := destregistry.NewBaseProvider(loader, "aws_s3", basePublisherOpts...)
 	if err != nil {
 		return nil, err
 	}
 
-	return &AWSS3Provider{BaseProvider: base}, nil
+	provider := &AWSS3Provider{BaseProvider: base}
+	for _, opt := range opts {
+		opt(provider)
+	}
+	return provider, nil
 }
 
 // Validate checks if the destination configuration is valid
@@ -66,6 +78,7 @@ func (p *AWSS3Provider) Validate(ctx context.Context, destination *models.Destin
 // createS3Client creates a new S3 client using the provided configuration and credentials.
 func (p *AWSS3Provider) createS3Client(ctx context.Context, cfg *AWSS3Config, creds *AWSS3Credentials) (*s3.Client, error) {
 	sdkConfig, err := awsconfig.LoadDefaultConfig(ctx,
+		awsconfig.WithHTTPClient(p.endpointPolicy.AWSHTTPClient()),
 		awsconfig.WithCredentialsProvider(awscreds.NewStaticCredentialsProvider(
 			creds.Key,
 			creds.Secret,
@@ -113,6 +126,12 @@ func (p *AWSS3Provider) CreatePublisher(ctx context.Context, destination *models
 func (p *AWSS3Provider) resolveConfig(ctx context.Context, destination *models.Destination) (*AWSS3Config, *AWSS3Credentials, error) {
 	if err := p.BaseProvider.Validate(ctx, destination); err != nil {
 		return nil, nil, err
+	}
+
+	if endpoint := destination.Config["endpoint"]; endpoint != "" {
+		if err := p.endpointPolicy.ValidateHTTPURL(endpoint, "config.endpoint"); err != nil {
+			return nil, nil, err
+		}
 	}
 
 	sc := destination.Config["storage_class"]

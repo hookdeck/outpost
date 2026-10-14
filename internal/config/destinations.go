@@ -11,6 +11,7 @@ import (
 
 // DestinationsConfig is the main configuration for all destination types
 type DestinationsConfig struct {
+	CloudAllowedCIDRs           string                          `yaml:"cloud_allowed_cidrs" env:"DESTINATIONS_CLOUD_ALLOWED_CIDRS" desc:"Comma-separated CIDRs for operator-approved private AWS and GCP Pub/Sub destination endpoints. Empty permits public addresses only. Applies to connections and redirects; do not expose this setting to untrusted tenants." required:"N"`
 	MetadataPath                string                          `yaml:"metadata_path" env:"DESTINATIONS_METADATA_PATH" desc:"Path to the directory containing custom destination type definitions." required:"N"`
 	IncludeMillisecondTimestamp bool                            `yaml:"include_millisecond_timestamp" env:"DESTINATIONS_INCLUDE_MILLISECOND_TIMESTAMP" desc:"If true, includes a 'timestamp-ms' field with millisecond precision in destination metadata. Useful for load testing and debugging." required:"N"`
 	ProxyURL                    string                          `yaml:"proxy_url" env:"DESTINATIONS_PROXY_URL" desc:"HTTP CONNECT forward proxy for destination connections, e.g. 'http://user:pass@proxy:10000'. Multiple whitespace-separated URLs are tunneled in order, nearest first. Applies to webhook, RabbitMQ and Kafka destinations; other types connect directly. DESTINATIONS_WEBHOOK_PROXY_URL, when set, takes precedence for webhooks; webhooks can't opt out while this is set." required:"N"`
@@ -34,6 +35,7 @@ func (c *DestinationsConfig) ToConfig(cfg *Config) destregistrydefault.RegisterD
 		UserAgent:                   userAgent,
 		IncludeMillisecondTimestamp: c.IncludeMillisecondTimestamp,
 		ProxyURL:                    c.ProxyURL,
+		CloudAllowedCIDRs:           c.CloudAllowedCIDRs,
 		Webhook:                     webhook,
 		AWSKinesis:                  c.AWSKinesis.toConfig(),
 		AWSEventBridge:              c.AWSEventBridge.toConfig(),

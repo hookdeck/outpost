@@ -8,6 +8,17 @@ import (
 	"go.uber.org/zap"
 )
 
+// PrivateCloudCIDRs permits the local emulator networks used by integration tests.
+const PrivateCloudCIDRs = "127.0.0.0/8,::1/128,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
+
+func PrivateCloudEndpointPolicy() *destregistry.CloudEndpointPolicy {
+	policy, err := destregistry.NewCloudEndpointPolicy(PrivateCloudCIDRs)
+	if err != nil {
+		panic(err)
+	}
+	return policy
+}
+
 var Registry destregistry.Registry
 
 func init() {
@@ -15,6 +26,7 @@ func init() {
 		DestinationMetadataPath: "",
 	}, logging.NewTestLogger(zap.NewNop()))
 	err := destregistrydefault.RegisterDefault(Registry, destregistrydefault.RegisterDefaultDestinationOptions{
+		CloudAllowedCIDRs: PrivateCloudCIDRs,
 		Webhook: &destregistrydefault.DestWebhookConfig{
 			HeaderPrefix:             destwebhook.DefaultHeaderPrefix,
 			SignatureContentTemplate: destwebhook.DefaultSignatureContentTmpl,

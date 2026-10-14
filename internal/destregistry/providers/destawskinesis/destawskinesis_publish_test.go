@@ -305,7 +305,7 @@ func (s *AWSKinesisSuite) SetupSuite() {
 		o.BaseEndpoint = aws.String(s.localstackEndpoint)
 	})
 
-	s.provider, err = destawskinesis.New(testutil.Registry.MetadataLoader(), nil)
+	s.provider, err = destawskinesis.New(testutil.Registry.MetadataLoader(), nil, destawskinesis.WithEndpointPolicy(testutil.PrivateCloudEndpointPolicy()))
 	require.NoError(t, err)
 }
 
