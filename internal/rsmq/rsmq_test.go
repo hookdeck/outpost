@@ -898,3 +898,53 @@ func (s *RSMQSuite) TestSendMessageWithCustomID() {
 		}
 	})
 }
+
+func (s *RSMQSuite) TestQueueKeysHashTagged() {
+	t := s.T()
+	qname := "que"
+
+	assert.NoError(t, s.rsmq.CreateQueue(qname, UnsetVt, UnsetDelay, UnsetMaxsize))
+	_, err := s.rsmq.SendMessage(qname, "msg", 0)
+	assert.NoError(t, err)
+
+	n, err := s.client.Exists("test:{que}", "test:{que}:Q").Result()
+	assert.NoError(t, err)
+	assert.Equal(t, int64(2), n)
+	n, err = s.client.Exists("test:que", "test:que:Q").Result()
+	assert.NoError(t, err)
+	assert.Equal(t, int64(0), n)
+
+	t.Run("untagged client uses the legacy layout", func(t *testing.T) {
+		legacy := NewRedisSMQ(s.client, "test", WithUntaggedKeys())
+		assert.NoError(t, legacy.CreateQueue(qname, UnsetVt, UnsetDelay, UnsetMaxsize))
+		_, err := legacy.SendMessage(qname, "legacy", 0)
+		assert.NoError(t, err)
+
+		n, err := s.client.Exists("test:que", "test:que:Q").Result()
+		assert.NoError(t, err)
+		assert.Equal(t, int64(2), n)
+
+		msg, err := legacy.ReceiveMessage(qname, UnsetVt)
+		assert.NoError(t, err)
+		if assert.NotNil(t, msg) {
+			assert.Equal(t, "legacy", msg.Message)
+		}
+	})
+
+	t.Run("hash tag prefix goes inside the tag", func(t *testing.T) {
+		prefixed := NewRedisSMQ(s.client, "dp_1:test", WithHashTagPrefix("dp_1:"))
+		assert.NoError(t, prefixed.CreateQueue(qname, UnsetVt, UnsetDelay, UnsetMaxsize))
+		_, err := prefixed.SendMessage(qname, "prefixed", 0)
+		assert.NoError(t, err)
+
+		n, err := s.client.Exists("dp_1:test:{dp_1:que}", "dp_1:test:{dp_1:que}:Q").Result()
+		assert.NoError(t, err)
+		assert.Equal(t, int64(2), n)
+
+		msg, err := prefixed.ReceiveMessage(qname, UnsetVt)
+		assert.NoError(t, err)
+		if assert.NotNil(t, msg) {
+			assert.Equal(t, "prefixed", msg.Message)
+		}
+	})
+}

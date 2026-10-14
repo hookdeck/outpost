@@ -120,6 +120,20 @@ This performs spot-checks on a sample of migrated data to ensure integrity. Addi
 - Verify critical workflows
 - Monitor for any errors
 
+#### Step 4: Clean Up (when a migration has a cleanup step)
+
+Some Redis migrations leave old data in place so instances still running the previous version keep working during a rolling upgrade. Once no instance of the previous version is left, remove it:
+
+```bash
+# List applied migrations with data to clean up
+docker run --rm hookdeck/outpost migrate cleanup
+
+# Clean up one migration
+docker run --rm -it hookdeck/outpost migrate cleanup 004_rsmq_hash_tags
+```
+
+Cleanup deletes data and cannot be undone. Add `--yes` to skip the confirmation. Each migration's release notes say whether it needs a cleanup and when to run it.
+
 
 ## Safety Features
 

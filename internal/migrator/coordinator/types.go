@@ -133,3 +133,14 @@ type RedisVerifyResult struct {
 	Issues       []string
 	VerifiedAt   time.Time
 }
+
+// RedisCleanupPlan describes old data an applied Redis migration can remove.
+type RedisCleanupPlan struct {
+	Name        string
+	Description string
+	// Items is the migration's own count of what Cleanup removes (e.g. keys).
+	Items int
+	// NotApplicableReason is set when the migration is not applicable for
+	// this configuration, so there is nothing to clean up.
+	NotApplicableReason string
+}

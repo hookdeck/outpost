@@ -2,8 +2,10 @@ package coordinator
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/hookdeck/outpost/internal/logging"
@@ -21,6 +23,14 @@ const (
 	// redisLockTTL matches the existing behaviour: the lock expires
 	// after an hour if the process holding it dies.
 	redisLockTTL = time.Hour
+)
+
+var (
+	// ErrUnknownMigration is returned for a migration name that doesn't exist.
+	ErrUnknownMigration = errors.New("unknown migration")
+	// ErrNotApplied is returned when cleaning up a migration that hasn't been
+	// applied yet.
+	ErrNotApplied = errors.New("migration not applied yet; run 'outpost migrate apply' first")
 )
 
 // Coordinator unifies the SQL and Redis migration subsystems behind a
@@ -359,6 +369,96 @@ func (c *Coordinator) Verify(ctx context.Context) (*VerificationReport, error) {
 	}
 
 	return report, nil
+}
+
+// PlanCleanup lists the applied Redis migrations that have old data left
+// to clean up.
+func (c *Coordinator) PlanCleanup(ctx context.Context) ([]RedisCleanupPlan, error) {
+	if c.redisClient == nil {
+		return nil, nil
+	}
+	var out []RedisCleanupPlan
+	for _, rm := range c.migrations {
+		if !c.isRedisApplied(ctx, rm.Name()) {
+			continue
+		}
+		items, err := rm.PlanCleanup(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("plan cleanup %s: %w", rm.Name(), err)
+		}
+		if items > 0 {
+			out = append(out, RedisCleanupPlan{Name: rm.Name(), Description: rm.Description(), Items: items})
+		}
+	}
+	return out, nil
+}
+
+// PlanCleanupFor returns the cleanup plan of one Redis migration. A
+// migration that is not applicable has nothing to clean up (Items 0); one
+// that is not applied yet returns ErrNotApplied.
+func (c *Coordinator) PlanCleanupFor(ctx context.Context, name string) (RedisCleanupPlan, error) {
+	rm, err := c.findRedisMigration(name)
+	if err != nil {
+		return RedisCleanupPlan{}, err
+	}
+	plan := RedisCleanupPlan{Name: rm.Name(), Description: rm.Description()}
+	status, reason := c.redisStatus(ctx, rm.Name())
+	switch status {
+	case StatusNotApplicable:
+		plan.NotApplicableReason = reason
+		return plan, nil
+	case StatusApplied:
+	default:
+		return plan, fmt.Errorf("redis/%s: %w", rm.Name(), ErrNotApplied)
+	}
+	items, err := rm.PlanCleanup(ctx)
+	if err != nil {
+		return plan, fmt.Errorf("plan cleanup %s: %w", rm.Name(), err)
+	}
+	plan.Items = items
+	return plan, nil
+}
+
+// Cleanup runs the Cleanup of one applied Redis migration under the Redis
+// migration lock.
+func (c *Coordinator) Cleanup(ctx context.Context, name string) error {
+	rm, err := c.findRedisMigration(name)
+	if err != nil {
+		return err
+	}
+	if !c.isRedisApplied(ctx, rm.Name()) {
+		return fmt.Errorf("redis/%s: %w", rm.Name(), ErrNotApplied)
+	}
+
+	lock := c.newRedisLock()
+	ok, err := lock.AttemptLock(ctx)
+	if err != nil {
+		return fmt.Errorf("acquire redis migration lock: %w", err)
+	}
+	if !ok {
+		return fmt.Errorf("acquire redis migration lock: lock already held")
+	}
+	defer func() {
+		if _, err := lock.Unlock(ctx); err != nil {
+			c.logger.Warn("failed to release redis migration lock", zap.Error(err))
+		}
+	}()
+
+	if err := rm.Cleanup(ctx, &migratorredis.State{MigrationName: rm.Name(), Phase: "applied"}); err != nil {
+		return fmt.Errorf("cleanup %s: %w", rm.Name(), err)
+	}
+	c.logger.Info("redis migration cleaned up", zap.String("migration", rm.Name()))
+	return nil
+}
+
+func (c *Coordinator) findRedisMigration(name string) (migratorredis.Migration, error) {
+	name = strings.TrimPrefix(name, "redis/")
+	for _, rm := range c.migrations {
+		if rm.Name() == name {
+			return rm, nil
+		}
+	}
+	return nil, fmt.Errorf("redis/%s: %w", name, ErrUnknownMigration)
 }
 
 // Unlock force-clears the Redis migration lock. SQL migrations use
