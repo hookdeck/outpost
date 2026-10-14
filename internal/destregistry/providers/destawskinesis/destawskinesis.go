@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/url"
 	"strings"
 	"time"
 
@@ -35,7 +34,13 @@ type AWSKinesisCredentials struct {
 // Provider implementation
 type AWSKinesisProvider struct {
 	*destregistry.BaseProvider
+	endpointPolicy    *destregistry.CloudEndpointPolicy
 	metadataInPayload bool
+}
+
+// WithEndpointPolicy permits deployment-approved private cloud endpoints.
+func WithEndpointPolicy(policy *destregistry.CloudEndpointPolicy) Option {
+	return func(p *AWSKinesisProvider) { p.endpointPolicy = policy }
 }
 
 var _ destregistry.Provider = (*AWSKinesisProvider)(nil) // Ensure interface compliance
@@ -83,6 +88,7 @@ func (p *AWSKinesisProvider) CreatePublisher(ctx context.Context, destination *m
 
 	// Configure AWS SDK
 	sdkConfig, err := awsconfig.LoadDefaultConfig(ctx,
+		awsconfig.WithHTTPClient(p.endpointPolicy.AWSHTTPClient()),
 		awsconfig.WithCredentialsProvider(awscreds.NewStaticCredentialsProvider(
 			credentials.Key,
 			credentials.Secret,
@@ -119,14 +125,8 @@ func (p *AWSKinesisProvider) resolveConfig(ctx context.Context, destination *mod
 
 	// Validate endpoint if provided
 	if endpoint := destination.Config["endpoint"]; endpoint != "" {
-		parsedURL, err := url.Parse(endpoint)
-		if err != nil || !parsedURL.IsAbs() || (parsedURL.Scheme != "http" && parsedURL.Scheme != "https") {
-			return nil, nil, destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{
-				{
-					Field: "config.endpoint",
-					Type:  "pattern",
-				},
-			})
+		if err := p.endpointPolicy.ValidateHTTPURL(endpoint, "config.endpoint"); err != nil {
+			return nil, nil, err
 		}
 	}
 

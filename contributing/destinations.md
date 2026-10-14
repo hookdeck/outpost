@@ -4,6 +4,8 @@
 
 `make up/dest` starts the brokers Outpost delivers to: RabbitMQ, LocalStack (AWS), the Pub/Sub emulator and Kafka (`make up/dest DEST="rabbitmq aws"` for some of them). The services of `make up` reach them by name (`dest-rabbitmq:5672`, `http://dest-aws:4566`, ...); from your machine they're on `localhost` (`15672`, `14566`, ...). See [Destination stack](test.md#destination-stack) for the full list.
 
+Cloud destinations block private network addresses by default. Before using local AWS or Pub/Sub emulators, set `DESTINATIONS_CLOUD_ALLOWED_CIDRS` in `.env` to the emulator's Docker subnet and restart the API and delivery services. You can inspect the subnet with `docker network inspect outpost-dest`; use the smallest required CIDRs. When running Outpost on your host, allow `127.0.0.1/32,::1/128` for loopback emulators instead.
+
 The helpers in `cmd/destinations` create a queue, topic or bucket on that stack and print what arrives. Their defaults match the stack; environment variables at the top of each `main.go` change addresses and names (`DEST_`-prefixed, for example `DEST_SQS_QUEUE`, `DEST_RABBITMQ_QUEUE`), e.g. when two checkouts share one stack.
 
 The examples below use the API of `make up` at `localhost:3333` with the API key `apikey`.

@@ -104,7 +104,7 @@ func TestValidate(t *testing.T) {
 			config: map[string]string{
 				"project_id": "my-project",
 				"topic":      "my-topic",
-				"endpoint":   "http://localhost:8085",
+				"endpoint":   "localhost:8085",
 			},
 			credentials: map[string]string{
 				"service_account_json": `{"type":"service_account"}`,
@@ -172,7 +172,7 @@ func TestValidate(t *testing.T) {
 			config: map[string]string{
 				"project_id": "my-project",
 				"topic":      "my-topic",
-				"endpoint":   "http://localhost:8085",
+				"endpoint":   "localhost:8085",
 			},
 			credentials: map[string]string{
 				"service_account_json": "not-valid-json",
@@ -196,7 +196,7 @@ func TestValidate(t *testing.T) {
 			config: map[string]string{
 				"project_id": "my-project",
 				"topic":      "my-topic",
-				"endpoint":   "http://localhost:8085",
+				"endpoint":   "localhost:8085",
 			},
 			credentials: map[string]string{
 				"service_account_json": `{"project_id":"my-project"}`,
@@ -230,7 +230,7 @@ func TestValidate(t *testing.T) {
 			config: map[string]string{
 				"project_id": "my-project",
 				"topic":      "my-topic",
-				"endpoint":   "https://pubsub.googleapis.com",
+				"endpoint":   "pubsub.googleapis.com:443",
 			},
 			credentials: map[string]string{
 				"service_account_json": `{"type":"service_account","project_id":"my-project"}`,

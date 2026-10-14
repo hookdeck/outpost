@@ -17,7 +17,7 @@ import (
 // publishTo publishes one event to an EventBridge endpoint at the given URL.
 func publishTo(t *testing.T, ctx context.Context, endpoint string) (*destregistry.Delivery, error) {
 	t.Helper()
-	provider, err := destawseventbridge.New(testutil.Registry.MetadataLoader(), nil, destawseventbridge.WithSource("outpost"))
+	provider, err := destawseventbridge.New(testutil.Registry.MetadataLoader(), nil, destawseventbridge.WithEndpointPolicy(testutil.PrivateCloudEndpointPolicy()), destawseventbridge.WithSource("outpost"))
 	require.NoError(t, err)
 
 	destination := testutil.DestinationFactory.Any(

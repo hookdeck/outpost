@@ -41,7 +41,13 @@ type AWSEventBridgeCredentials struct {
 // Provider implementation
 type AWSEventBridgeProvider struct {
 	*destregistry.BaseProvider
-	source string
+	endpointPolicy *destregistry.CloudEndpointPolicy
+	source         string
+}
+
+// WithEndpointPolicy permits deployment-approved private cloud endpoints.
+func WithEndpointPolicy(policy *destregistry.CloudEndpointPolicy) Option {
+	return func(p *AWSEventBridgeProvider) { p.endpointPolicy = policy }
 }
 
 var _ destregistry.Provider = (*AWSEventBridgeProvider)(nil)
@@ -89,6 +95,7 @@ func (p *AWSEventBridgeProvider) CreatePublisher(ctx context.Context, destinatio
 	}
 
 	sdkConfig, err := awsconfig.LoadDefaultConfig(ctx,
+		awsconfig.WithHTTPClient(p.endpointPolicy.AWSHTTPClient()),
 		awsconfig.WithCredentialsProvider(awscreds.NewStaticCredentialsProvider(
 			creds.Key,
 			creds.Secret,
@@ -120,14 +127,8 @@ func (p *AWSEventBridgeProvider) resolveConfig(ctx context.Context, destination 
 	}
 
 	if endpoint := destination.Config["endpoint"]; endpoint != "" {
-		parsedURL, err := url.Parse(endpoint)
-		if err != nil || !parsedURL.IsAbs() || (parsedURL.Scheme != "http" && parsedURL.Scheme != "https") {
-			return nil, nil, destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{
-				{
-					Field: "config.endpoint",
-					Type:  "pattern",
-				},
-			})
+		if err := p.endpointPolicy.ValidateHTTPURL(endpoint, "config.endpoint"); err != nil {
+			return nil, nil, err
 		}
 	}
 

@@ -215,7 +215,7 @@ func (s *AWSEventBridgeSuite) SetupSuite() {
 	s.fixture = newEventBridgeFixture(t)
 
 	var err error
-	s.provider, err = destawseventbridge.New(testutil.Registry.MetadataLoader(), nil, destawseventbridge.WithSource(testSource))
+	s.provider, err = destawseventbridge.New(testutil.Registry.MetadataLoader(), nil, destawseventbridge.WithEndpointPolicy(testutil.PrivateCloudEndpointPolicy()), destawseventbridge.WithSource(testSource))
 	require.NoError(t, err)
 }
 
@@ -263,7 +263,7 @@ func publishAndReceive(t *testing.T, busName string, event models.Event) eventBr
 	consumer := NewSQSTargetConsumer(f.sqs, f.routeToQueue(t, busName, source))
 	defer consumer.Close()
 
-	provider, err := destawseventbridge.New(testutil.Registry.MetadataLoader(), nil, destawseventbridge.WithSource(source))
+	provider, err := destawseventbridge.New(testutil.Registry.MetadataLoader(), nil, destawseventbridge.WithEndpointPolicy(testutil.PrivateCloudEndpointPolicy()), destawseventbridge.WithSource(source))
 	require.NoError(t, err)
 	config := map[string]string{"endpoint": f.endpoint, "region": "us-east-1"}
 	if busName != "" {

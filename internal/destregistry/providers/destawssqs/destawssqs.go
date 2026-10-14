@@ -21,6 +21,7 @@ import (
 
 type AWSSQSDestination struct {
 	*destregistry.BaseProvider
+	endpointPolicy *destregistry.CloudEndpointPolicy
 }
 
 type AWSSQSDestinationConfig struct {
@@ -34,17 +35,26 @@ type AWSSQSDestinationCredentials struct {
 	Session string // optional
 }
 
+type Option func(*AWSSQSDestination)
+
+// WithEndpointPolicy permits deployment-approved private cloud endpoints.
+func WithEndpointPolicy(policy *destregistry.CloudEndpointPolicy) Option {
+	return func(p *AWSSQSDestination) { p.endpointPolicy = policy }
+}
+
 var _ destregistry.Provider = (*AWSSQSDestination)(nil)
 
-func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePublisherOption) (*AWSSQSDestination, error) {
+func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePublisherOption, opts ...Option) (*AWSSQSDestination, error) {
 	base, err := destregistry.NewBaseProvider(loader, "aws_sqs", basePublisherOpts...)
 	if err != nil {
 		return nil, err
 	}
 
-	return &AWSSQSDestination{
-		BaseProvider: base,
-	}, nil
+	provider := &AWSSQSDestination{BaseProvider: base}
+	for _, opt := range opts {
+		opt(provider)
+	}
+	return provider, nil
 }
 
 func (d *AWSSQSDestination) Validate(ctx context.Context, destination *models.Destination) error {
@@ -62,6 +72,7 @@ func (p *AWSSQSDestination) CreatePublisher(ctx context.Context, destination *mo
 	}
 
 	sdkConfig, err := config.LoadDefaultConfig(ctx,
+		config.WithHTTPClient(p.endpointPolicy.AWSHTTPClient()),
 		config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(
 			creds.Key,
 			creds.Secret,
@@ -102,14 +113,13 @@ func (d *AWSSQSDestination) resolveMetadata(ctx context.Context, destination *mo
 	}
 
 	if endpoint := destination.Config["endpoint"]; endpoint != "" {
-		parsedURL, err := url.Parse(endpoint)
-		if err != nil || !parsedURL.IsAbs() || (parsedURL.Scheme != "http" && parsedURL.Scheme != "https") {
-			return nil, nil, destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{
-				{
-					Field: "config.endpoint",
-					Type:  "pattern",
-				},
-			})
+		if err := d.endpointPolicy.ValidateHTTPURL(endpoint, "config.endpoint"); err != nil {
+			return nil, nil, err
+		}
+	}
+	if destination.Config["endpoint"] == "" {
+		if err := d.endpointPolicy.ValidateHTTPURL(destination.Config["queue_url"], "config.queue_url"); err != nil {
+			return nil, nil, err
 		}
 	}
 

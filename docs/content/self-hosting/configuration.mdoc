@@ -91,6 +91,16 @@ Choose one for event log persistence:
 | `CLICKHOUSE_ADDR` | ClickHouse address (e.g., `localhost:9000`) |
 | `CLICKHOUSE_LOG_RETENTION_TTL_DAYS` | Days to retain event and delivery logs in ClickHouse (default: `0`, retained indefinitely). No PostgreSQL equivalent; see the [Event & Delivery Log](/docs/outpost/self-hosting/guides/event-delivery-log) guide. |
 
+## Cloud destination network access
+
+AWS EventBridge, Kinesis, SQS, S3, and GCP Pub/Sub destinations connect to public addresses by default. Connections to loopback, private, link-local, metadata, and reserved addresses are blocked, including when a hostname resolves to one of those addresses or an AWS endpoint redirects there.
+
+For a self-hosted VPC endpoint or emulator, set `DESTINATIONS_CLOUD_ALLOWED_CIDRS` to the smallest required comma-separated IP ranges on both the API and delivery services. For example, `127.0.0.1/32,::1/128` permits local emulators, and `10.20.30.0/24` permits a specific VPC subnet. Existing private destinations also require this configuration after upgrading. Destination configuration cannot override this deployment policy.
+
+These cloud destination connections do not use `HTTP_PROXY`, `HTTPS_PROXY`, or `ALL_PROXY`: resolving the target at a proxy would bypass the connection address check. `DESTINATIONS_PROXY_URL` continues to apply only to the destination types listed in its configuration reference. Retain network egress controls as an additional boundary.
+
+GCP Pub/Sub emulator endpoints must use `host:port` syntax, such as `localhost:8085`; URL and Unix socket resolver schemes are rejected. Public custom endpoints remain supported.
+
 ## Delivery
 
 | Variable | Default | Description |

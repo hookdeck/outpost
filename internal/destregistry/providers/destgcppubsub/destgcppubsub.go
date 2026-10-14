@@ -17,6 +17,7 @@ import (
 
 type GCPPubSubDestination struct {
 	*destregistry.BaseProvider
+	endpointPolicy *destregistry.CloudEndpointPolicy
 }
 
 type GCPPubSubDestinationConfig struct {
@@ -29,17 +30,26 @@ type GCPPubSubDestinationCredentials struct {
 	ServiceAccountJSON string
 }
 
+type Option func(*GCPPubSubDestination)
+
+// WithEndpointPolicy permits deployment-approved private cloud endpoints.
+func WithEndpointPolicy(policy *destregistry.CloudEndpointPolicy) Option {
+	return func(p *GCPPubSubDestination) { p.endpointPolicy = policy }
+}
+
 var _ destregistry.Provider = (*GCPPubSubDestination)(nil)
 
-func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePublisherOption) (*GCPPubSubDestination, error) {
+func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePublisherOption, opts ...Option) (*GCPPubSubDestination, error) {
 	base, err := destregistry.NewBaseProvider(loader, "gcp_pubsub", basePublisherOpts...)
 	if err != nil {
 		return nil, err
 	}
 
-	return &GCPPubSubDestination{
-		BaseProvider: base,
-	}, nil
+	provider := &GCPPubSubDestination{BaseProvider: base}
+	for _, opt := range opts {
+		opt(provider)
+	}
+	return provider, nil
 }
 
 func (d *GCPPubSubDestination) Validate(ctx context.Context, destination *models.Destination) error {
@@ -60,7 +70,7 @@ func (d *GCPPubSubDestination) CreatePublisher(ctx context.Context, destination 
 	}
 
 	// Create Pub/Sub client options
-	var opts []option.ClientOption
+	opts := []option.ClientOption{option.WithGRPCDialOption(grpc.WithContextDialer(d.endpointPolicy.DialContext))}
 
 	// Check for emulator endpoint (for testing)
 	if cfg.Endpoint != "" {
@@ -102,6 +112,11 @@ func (d *GCPPubSubDestination) resolveMetadata(ctx context.Context, destination 
 	// Validate service_account_json is valid JSON (if not using emulator endpoint)
 	serviceAccountJSON := destination.Credentials["service_account_json"]
 	endpoint := destination.Config["endpoint"]
+	if endpoint != "" {
+		if err := d.endpointPolicy.ValidateGRPCTarget(endpoint, "config.endpoint"); err != nil {
+			return nil, nil, err
+		}
+	}
 
 	// Only validate JSON if we're not using an emulator endpoint and service_account_json is provided
 	if endpoint == "" && serviceAccountJSON != "" {

@@ -61,6 +61,7 @@ type DestAWSEventBridgeConfig struct {
 }
 
 type RegisterDefaultDestinationOptions struct {
+	CloudAllowedCIDRs           string
 	UserAgent                   string
 	IncludeMillisecondTimestamp bool
 	// ProxyURL is the forward proxy chain for RabbitMQ and Kafka. Webhooks
@@ -82,6 +83,10 @@ type RegisterDefaultDestinationOptions struct {
 // returned when listing providers.
 func RegisterDefault(registry destregistry.Registry, opts RegisterDefaultDestinationOptions) error {
 	loader := registry.MetadataLoader()
+	endpointPolicy, err := destregistry.NewCloudEndpointPolicy(opts.CloudAllowedCIDRs)
+	if err != nil {
+		return err
+	}
 
 	// Build base publisher options that apply to all providers
 	basePublisherOpts := []destregistry.BasePublisherOption{}
@@ -159,13 +164,13 @@ func RegisterDefault(registry destregistry.Registry, opts RegisterDefaultDestina
 	}
 	registry.RegisterProvider("hookdeck", hookdeck)
 
-	awsSQS, err := destawssqs.New(loader, basePublisherOpts)
+	awsSQS, err := destawssqs.New(loader, basePublisherOpts, destawssqs.WithEndpointPolicy(endpointPolicy))
 	if err != nil {
 		return err
 	}
 	registry.RegisterProvider("aws_sqs", awsSQS)
 
-	awsEventBridgeOpts := []destawseventbridge.Option{}
+	awsEventBridgeOpts := []destawseventbridge.Option{destawseventbridge.WithEndpointPolicy(endpointPolicy)}
 	if opts.AWSEventBridge != nil {
 		awsEventBridgeOpts = append(awsEventBridgeOpts,
 			destawseventbridge.WithSource(opts.AWSEventBridge.Source),
@@ -177,7 +182,7 @@ func RegisterDefault(registry destregistry.Registry, opts RegisterDefaultDestina
 	}
 	registry.RegisterProvider("aws_eventbridge", awsEventBridge)
 
-	awsKinesisOpts := []destawskinesis.Option{}
+	awsKinesisOpts := []destawskinesis.Option{destawskinesis.WithEndpointPolicy(endpointPolicy)}
 	if opts.AWSKinesis != nil {
 		awsKinesisOpts = append(awsKinesisOpts,
 			destawskinesis.WithMetadataInPayload(opts.AWSKinesis.MetadataInPayload),
@@ -189,13 +194,13 @@ func RegisterDefault(registry destregistry.Registry, opts RegisterDefaultDestina
 	}
 	registry.RegisterProvider("aws_kinesis", awsKinesis)
 
-	awsS3, err := destawss3.New(loader, basePublisherOpts)
+	awsS3, err := destawss3.New(loader, basePublisherOpts, destawss3.WithEndpointPolicy(endpointPolicy))
 	if err != nil {
 		return err
 	}
 	registry.RegisterProvider("aws_s3", awsS3)
 
-	gcpPubSub, err := destgcppubsub.New(loader, basePublisherOpts)
+	gcpPubSub, err := destgcppubsub.New(loader, basePublisherOpts, destgcppubsub.WithEndpointPolicy(endpointPolicy))
 	if err != nil {
 		return err
 	}
