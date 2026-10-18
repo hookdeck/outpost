@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/rand/v2"
 	"time"
 
 	"github.com/hookdeck/outpost/internal/logging"
@@ -57,6 +58,7 @@ type config struct {
 	maxReceiveCount      uint64
 	maxExecBackoff       time.Duration
 	maxConcurrency       int
+	rand                 func() float64
 	logger               *logging.Logger
 }
 
@@ -144,6 +146,7 @@ func New(name string, rsmqClient rsmq.Client, exec func(context.Context, string)
 		maxConsecutiveErrors: 10,
 		maxErrorBackoff:      15 * time.Second,
 		maxExecBackoff:       15 * time.Minute,
+		rand:                 rand.Float64,
 	}
 	for _, opt := range opts {
 		opt(config)
@@ -365,7 +368,7 @@ func (s *schedulerImpl) backoffMessage(ctx context.Context, msg *rsmq.QueueMessa
 	if base == rsmq.UnsetVt {
 		base = rsmq.DefaultVt
 	}
-	backoff := calculateExecBackoff(time.Duration(base)*time.Second, msg.Rc, s.config.maxExecBackoff)
+	backoff := jitterBackoff(calculateExecBackoff(time.Duration(base)*time.Second, msg.Rc, s.config.maxExecBackoff), s.config.maxExecBackoff, s.config.rand())
 	if err := s.rsmqClient.ChangeMessageVisibilityWithReceipt(s.name, msg.ID, msg.Receipt, uint(backoff/time.Second)); err != nil && !isSuperseded(err) {
 		s.config.logger.Ctx(ctx).Warn("failed to extend backoff for failed task",
 			zap.Error(err),
@@ -373,6 +376,22 @@ func (s *schedulerImpl) backoffMessage(ctx context.Context, msg *rsmq.QueueMessa
 			zap.String("message_id", msg.ID),
 			zap.Uint64("receive_count", msg.Rc))
 	}
+}
+
+// jitterBackoff scales d by a factor in [0.75, 1.25) chosen by r in [0, 1), so
+// tasks that failed together do not all come back at the same moment. At the
+// cap only the lower half applies, so capped tasks still spread. The result is
+// whole seconds (the queue's resolution) and at least 1s.
+func jitterBackoff(d, maxBackoff time.Duration, r float64) time.Duration {
+	if d <= 0 {
+		return 0
+	}
+	factor := 0.75 + 0.5*r
+	if d >= maxBackoff {
+		factor = 0.75 + 0.25*r
+	}
+	jittered := time.Duration(float64(d) * factor).Round(time.Second)
+	return max(min(jittered, maxBackoff), time.Second)
 }
 
 func calculateExecBackoff(base time.Duration, receiveCount uint64, maxBackoff time.Duration) time.Duration {
