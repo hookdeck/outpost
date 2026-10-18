@@ -105,8 +105,10 @@ func (m *mockMultiDestinationGetter) RetrieveDestination(ctx context.Context, te
 }
 
 type mockEventGetter struct {
-	records []*logstore.AttemptRecord // tracks logged attempts with event data
-	err     error
+	records  []*logstore.AttemptRecord // tracks logged attempts with event data
+	err      error
+	mu       sync.Mutex
+	requests []logstore.ListAttemptRequest
 }
 
 func newMockEventGetter() *mockEventGetter {
@@ -120,6 +122,9 @@ func (m *mockEventGetter) addRecord(attempt *models.Attempt, event *models.Event
 }
 
 func (m *mockEventGetter) ListAttempt(ctx context.Context, req logstore.ListAttemptRequest) (logstore.ListAttemptResponse, error) {
+	m.mu.Lock()
+	m.requests = append(m.requests, req)
+	m.mu.Unlock()
 	if m.err != nil {
 		return logstore.ListAttemptResponse{}, m.err
 	}
@@ -130,6 +135,9 @@ func (m *mockEventGetter) ListAttempt(ctx context.Context, req logstore.ListAtte
 			continue
 		}
 		if len(req.DestinationIDs) > 0 && !contains(req.DestinationIDs, r.Attempt.DestinationID) {
+			continue
+		}
+		if req.TimeFilter.GTE != nil && r.Attempt.Time.Before(*req.TimeFilter.GTE) {
 			continue
 		}
 		matched = append(matched, r)

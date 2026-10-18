@@ -227,7 +227,7 @@ func (h *messageHandler) doHandle(ctx context.Context, task models.DeliveryTask,
 			// means manual retries automatically override any pending automatic retry
 			// without needing an explicit cancel — the new tier's delay takes effect
 			// and the old scheduled retry is gone in a single operation.
-			backoff, retryErr := h.scheduleRetry(ctx, task)
+			backoff, retryErr := h.scheduleRetry(ctx, task, attempt.Time)
 			retry.backoff = backoff
 			if retryErr != nil {
 				retry.scheduleFailed = true
@@ -401,12 +401,12 @@ func (h *messageHandler) shouldNackDeliveryError(err error) bool {
 	return true // Nack other delivery errors
 }
 
-func (h *messageHandler) scheduleRetry(ctx context.Context, task models.DeliveryTask) (time.Duration, error) {
+func (h *messageHandler) scheduleRetry(ctx context.Context, task models.DeliveryTask, attemptTime time.Time) (time.Duration, error) {
 	// Attempt is 1-indexed; backoff schedule is 0-indexed.
 	// Clamp to 0 to safely handle any leftover Attempt=0 in-flight tasks.
 	backoffDuration := h.retryBackoff.Duration(max(task.Attempt-1, 0))
 
-	retryTask := RetryTaskFromDeliveryTask(task)
+	retryTask := RetryTaskFromDeliveryTask(task, attemptTime)
 	retryTaskStr, err := retryTask.ToString()
 	if err != nil {
 		return backoffDuration, err
