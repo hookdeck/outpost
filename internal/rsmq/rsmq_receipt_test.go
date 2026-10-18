@@ -148,3 +148,44 @@ func (s *RSMQSuite) TestReceiptClearedByDeletePathsAndResend() {
 	assert.Empty(t, popped.Receipt)
 	assert.Nil(t, s.hashField(qname, plain+":rt"))
 }
+
+func (s *RSMQSuite) TestRequeueMessage() {
+	t := s.T()
+	qname := "que"
+	id := receiptTestID
+	r1 := s.receiptFixture(qname, id)
+
+	require.NoError(t, s.rsmq.RequeueMessage(qname, id, r1, 0))
+	assert.Equal(t, ErrReceiptMismatch, s.rsmq.RequeueMessage(qname, id, r1, 0), "receipt is spent")
+
+	msg, err := s.rsmq.ReceiveMessage(qname, UnsetVt)
+	require.NoError(t, err)
+	require.NotNil(t, msg)
+	assert.EqualValues(t, 1, msg.Rc, "requeue does not count the receive")
+	assert.NotEqual(t, r1, msg.Receipt)
+
+	t.Run("hidden for the delay", func(t *testing.T) {
+		require.NoError(t, s.rsmq.RequeueMessage(qname, id, msg.Receipt, 60))
+		next, err := s.rsmq.ReceiveMessage(qname, UnsetVt)
+		require.NoError(t, err)
+		assert.Nil(t, next)
+	})
+
+	t.Run("receipt mismatch is a no-op", func(t *testing.T) {
+		_, err := s.rsmq.SendMessage(qname, "new", 0, WithMessageID(id))
+		require.NoError(t, err)
+		assert.Equal(t, ErrReceiptMismatch, s.rsmq.RequeueMessage(qname, id, msg.Receipt, 60))
+
+		got, err := s.rsmq.ReceiveMessage(qname, UnsetVt)
+		require.NoError(t, err)
+		require.NotNil(t, got, "new message stays visible")
+		assert.Equal(t, "new", got.Message)
+		assert.EqualValues(t, 1, got.Rc)
+	})
+
+	t.Run("not found and empty receipt", func(t *testing.T) {
+		other := "0000000000abcdefghijklmnopqrst13"
+		assert.Equal(t, ErrMessageNotFound, s.rsmq.RequeueMessage(qname, other, "1", 0))
+		assert.Equal(t, ErrReceiptMismatch, s.rsmq.RequeueMessage(qname, id, "", 0))
+	})
+}
