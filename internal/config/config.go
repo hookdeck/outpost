@@ -153,7 +153,9 @@ func (c *Config) InitDefaults() {
 		Port: 6379,
 	}
 	c.ClickHouse = ClickHouseConfig{
-		Database: "outpost",
+		Database:           "outpost",
+		DialTimeoutSeconds: 10,
+		ReadTimeoutSeconds: 30,
 	}
 	c.MQs = &MQsConfig{
 		RabbitMQ: RabbitMQConfig{
@@ -482,6 +484,10 @@ type ClickHouseConfig struct {
 	Password   string `yaml:"password" env:"CLICKHOUSE_PASSWORD" desc:"Password for ClickHouse authentication." required:"N"`
 	Database   string `yaml:"database" env:"CLICKHOUSE_DATABASE" desc:"Database name in ClickHouse to use." required:"N"`
 	TLSEnabled bool   `yaml:"tls_enabled" env:"CLICKHOUSE_TLS_ENABLED" desc:"Enable TLS for ClickHouse connection." required:"N"`
+
+	MaxOpenConns       int `yaml:"max_open_conns" env:"CLICKHOUSE_MAX_OPEN_CONNS" desc:"Maximum number of open connections in the ClickHouse connection pool. 0 uses the client default (10)." required:"N"`
+	DialTimeoutSeconds int `yaml:"dial_timeout_seconds" env:"CLICKHOUSE_DIAL_TIMEOUT_SECONDS" desc:"Seconds to wait when opening a ClickHouse connection or waiting for a free one from the pool. Default: 10" required:"N"`
+	ReadTimeoutSeconds int `yaml:"read_timeout_seconds" env:"CLICKHOUSE_READ_TIMEOUT_SECONDS" desc:"Seconds to wait for a ClickHouse query's response. Default: 30" required:"N"`
 }
 
 func (c *ClickHouseConfig) ToConfig() *clickhouse.ClickHouseConfig {
@@ -494,6 +500,10 @@ func (c *ClickHouseConfig) ToConfig() *clickhouse.ClickHouseConfig {
 		Password:   c.Password,
 		Database:   c.Database,
 		TLSEnabled: c.TLSEnabled,
+
+		MaxOpenConns: c.MaxOpenConns,
+		DialTimeout:  time.Duration(c.DialTimeoutSeconds) * time.Second,
+		ReadTimeout:  time.Duration(c.ReadTimeoutSeconds) * time.Second,
 	}
 }
 

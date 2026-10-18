@@ -124,6 +124,17 @@ func (c *Config) validateLogStorage() error {
 	if c.ClickHouse.Addr == "" && c.PostgresURL == "" {
 		return ErrMissingLogStorage
 	}
+	if c.ClickHouse.Addr != "" {
+		if c.ClickHouse.MaxOpenConns < 0 {
+			return fmt.Errorf("config validation error: clickhouse.max_open_conns must not be negative, got %d", c.ClickHouse.MaxOpenConns)
+		}
+		if c.ClickHouse.DialTimeoutSeconds < 1 {
+			return fmt.Errorf("config validation error: clickhouse.dial_timeout_seconds must be at least 1, got %d", c.ClickHouse.DialTimeoutSeconds)
+		}
+		if c.ClickHouse.ReadTimeoutSeconds < 1 {
+			return fmt.Errorf("config validation error: clickhouse.read_timeout_seconds must be at least 1, got %d", c.ClickHouse.ReadTimeoutSeconds)
+		}
+	}
 	return nil
 }
 

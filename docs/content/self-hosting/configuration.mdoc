@@ -89,6 +89,9 @@ Choose one for event log persistence:
 |----------|-------------|
 | `POSTGRES_URL` | PostgreSQL connection URL |
 | `CLICKHOUSE_ADDR` | ClickHouse address (e.g., `localhost:9000`) |
+| `CLICKHOUSE_MAX_OPEN_CONNS` | Max open connections in the ClickHouse pool (default: `0`, the client default of `10`) |
+| `CLICKHOUSE_DIAL_TIMEOUT_SECONDS` | Seconds to wait to open a ClickHouse connection or to get a free one from the pool (default: `10`) |
+| `CLICKHOUSE_READ_TIMEOUT_SECONDS` | Seconds to wait for a ClickHouse query's response (default: `30`) |
 | `CLICKHOUSE_LOG_RETENTION_TTL_DAYS` | Days to retain event and delivery logs in ClickHouse (default: `0`, retained indefinitely). No PostgreSQL equivalent; see the [Event & Delivery Log](/docs/outpost/self-hosting/guides/event-delivery-log) guide. |
 
 ## Delivery
