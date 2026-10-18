@@ -239,6 +239,9 @@ func (c *Config) validateRetryConfiguration() error {
 	if c.RetryPollBackoffMs < 0 {
 		return fmt.Errorf("config validation error: retry_poll_backoff_ms must not be negative, got %d", c.RetryPollBackoffMs)
 	}
+	if c.RetryMaxConcurrency < 0 {
+		return fmt.Errorf("config validation error: retry_max_concurrency must not be negative, got %d", c.RetryMaxConcurrency)
+	}
 	// If retry_schedule is provided, override retry_max_limit to match schedule length
 	if len(c.RetrySchedule) > 0 {
 		c.RetryMaxLimit = len(c.RetrySchedule)

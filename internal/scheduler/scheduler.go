@@ -37,6 +37,8 @@ type schedulerImpl struct {
 	config     *config
 	name       string
 	exec       func(context.Context, string) error
+	// slots bounds concurrent executions; nil means unbounded.
+	slots chan struct{}
 }
 
 const (
@@ -54,6 +56,7 @@ type config struct {
 	maxErrorBackoff      time.Duration
 	maxReceiveCount      uint64
 	maxExecBackoff       time.Duration
+	maxConcurrency       int
 	logger               *logging.Logger
 }
 
@@ -93,6 +96,15 @@ func WithMaxReceiveCount(n uint64) Option {
 func WithMaxExecBackoff(d time.Duration) Option {
 	return func(c *config) {
 		c.maxExecBackoff = d
+	}
+}
+
+// WithMaxConcurrency bounds the number of tasks executing at once. The monitor
+// stops receiving while at the limit, so tasks wait in the queue instead of
+// holding a visibility timeout. 0 means unbounded.
+func WithMaxConcurrency(n int) Option {
+	return func(c *config) {
+		c.maxConcurrency = n
 	}
 }
 
@@ -137,11 +149,35 @@ func New(name string, rsmqClient rsmq.Client, exec func(context.Context, string)
 		opt(config)
 	}
 
-	return &schedulerImpl{
+	s := &schedulerImpl{
 		rsmqClient: rsmqClient,
 		config:     config,
 		name:       name,
 		exec:       exec,
+	}
+	if config.maxConcurrency > 0 {
+		s.slots = make(chan struct{}, config.maxConcurrency)
+	}
+	return s
+}
+
+// acquire takes an execution slot, blocking while at the limit. It returns
+// false if ctx is done first.
+func (s *schedulerImpl) acquire(ctx context.Context) bool {
+	if s.slots == nil {
+		return true
+	}
+	select {
+	case s.slots <- struct{}{}:
+		return true
+	case <-ctx.Done():
+		return false
+	}
+}
+
+func (s *schedulerImpl) release() {
+	if s.slots != nil {
+		<-s.slots
 	}
 }
 
@@ -190,8 +226,14 @@ func (s *schedulerImpl) Monitor(ctx context.Context) error {
 		case <-ctx.Done():
 			return nil
 		default:
+			// The slot is taken before receiving so a message is only received
+			// when it can run now.
+			if !s.acquire(ctx) {
+				return nil
+			}
 			res, err := s.rsmqClient.ReceiveMessagePoll(s.name, rsmq.UnsetVt)
 			if err != nil {
+				s.release()
 				consecutiveErrors++
 				if consecutiveErrors >= s.config.maxConsecutiveErrors {
 					return fmt.Errorf("max consecutive errors reached: %w", err)
@@ -212,6 +254,7 @@ func (s *schedulerImpl) Monitor(ctx context.Context) error {
 			worker.Ready(ctx)
 			msg := res.Message
 			if msg == nil {
+				s.release()
 				select {
 				case <-ctx.Done():
 					return nil
@@ -221,10 +264,13 @@ func (s *schedulerImpl) Monitor(ctx context.Context) error {
 			}
 			if s.config.maxReceiveCount > 0 && msg.Rc > s.config.maxReceiveCount {
 				s.moveToDLQ(ctx, msg)
+				s.release()
 				continue
 			}
-			// TODO: consider using a worker pool to limit the number of concurrent executions
-			go s.handle(ctx, msg)
+			go func() {
+				defer s.release()
+				s.handle(ctx, msg)
+			}()
 		}
 	}
 }

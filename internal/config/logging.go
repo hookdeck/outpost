@@ -106,6 +106,7 @@ func (c *Config) LogConfigurationSummary() []zap.Field {
 		zap.Ints("retry_schedule", c.RetrySchedule),
 		zap.Int("retry_interval_seconds", c.RetryIntervalSeconds),
 		zap.Int("retry_max_limit", c.RetryMaxLimit),
+		zap.Int("retry_max_concurrency", c.RetryMaxConcurrency),
 		zap.Int("retry_poll_backoff_ms", int(c.GetRetryPollBackoff().Milliseconds())),
 
 		// Event Delivery

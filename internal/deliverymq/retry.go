@@ -30,6 +30,15 @@ type RetrySchedulerOption func(*retrySchedulerConfig)
 
 type retrySchedulerConfig struct {
 	visibilityTimeout uint
+	maxConcurrency    int
+}
+
+// WithRetryMaxConcurrency bounds concurrent retry executions per process.
+// 0 means unbounded.
+func WithRetryMaxConcurrency(n int) RetrySchedulerOption {
+	return func(c *retrySchedulerConfig) {
+		c.maxConcurrency = n
+	}
 }
 
 // WithRetryVisibilityTimeout sets the visibility timeout for the retry scheduler queue.
@@ -114,6 +123,7 @@ func NewRetryScheduler(deliverymq *DeliveryMQ, redisConfig *redis.RedisConfig, d
 		scheduler.WithPollBackoff(pollBackoff),
 		scheduler.WithLogger(logger),
 		scheduler.WithMaxReceiveCount(retryMaxReceiveCount),
+		scheduler.WithMaxConcurrency(cfg.maxConcurrency),
 	}
 	if cfg.visibilityTimeout > 0 {
 		schedulerOpts = append(schedulerOpts, scheduler.WithVisibilityTimeout(cfg.visibilityTimeout))

@@ -6,7 +6,44 @@ import (
 
 	"github.com/hookdeck/outpost/internal/config"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
+
+// parseConfig parses a config from env vars and an optional YAML document,
+// without validation.
+func parseConfig(t *testing.T, env map[string]string, yaml string) *config.Config {
+	t.Helper()
+	mockOS := &mockOS{files: map[string][]byte{}, envVars: map[string]string{}}
+	for k, v := range env {
+		mockOS.envVars[k] = v
+	}
+	if yaml != "" {
+		mockOS.files["config.yaml"] = []byte(yaml)
+		mockOS.envVars["CONFIG"] = "config.yaml"
+	}
+	cfg, err := config.ParseWithoutValidation(config.Flags{}, mockOS)
+	require.NoError(t, err)
+	return cfg
+}
+
+func TestRetryMaxConcurrency(t *testing.T) {
+	tests := []struct {
+		name string
+		env  map[string]string
+		yaml string
+		want int
+	}{
+		{name: "unset", want: 100},
+		{name: "env 0", env: map[string]string{"RETRY_MAX_CONCURRENCY": "0"}, want: 0},
+		{name: "env 25", env: map[string]string{"RETRY_MAX_CONCURRENCY": "25"}, want: 25},
+		{name: "yaml 7", yaml: "retry_max_concurrency: 7\n", want: 7},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, parseConfig(t, tt.env, tt.yaml).RetryMaxConcurrency)
+		})
+	}
+}
 
 func TestRetrySchedule(t *testing.T) {
 	tests := []struct {
@@ -190,6 +227,11 @@ func TestRetryConfigurationValidation(t *testing.T) {
 			name:    "negative retry_poll_backoff_ms rejected",
 			yaml:    "retry_poll_backoff_ms: -1\n",
 			wantErr: "retry_poll_backoff_ms must not be negative",
+		},
+		{
+			name:    "negative retry_max_concurrency rejected",
+			yaml:    "retry_max_concurrency: -1\n",
+			wantErr: "retry_max_concurrency must not be negative",
 		},
 	}
 
