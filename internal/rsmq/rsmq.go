@@ -167,6 +167,12 @@ type Client interface {
 	SendMessage(qname string, message string, delay uint, opts ...SendMessageOption) (string, error)
 	ChangeMessageVisibility(qname string, id string, vt uint) error
 	DeleteMessage(qname string, id string) error
+	// DeleteMessageWithReceipt deletes the message only if it was not
+	// re-created or re-received since the receive that returned receipt.
+	DeleteMessageWithReceipt(qname string, id string, receipt string) error
+	// ChangeMessageVisibilityWithReceipt is ChangeMessageVisibility under the
+	// same condition.
+	ChangeMessageVisibilityWithReceipt(qname string, id string, receipt string, vt uint) error
 	Quit() error
 }
 

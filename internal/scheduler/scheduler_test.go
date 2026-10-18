@@ -13,6 +13,7 @@ import (
 	"github.com/hookdeck/outpost/internal/rsmq"
 	"github.com/hookdeck/outpost/internal/scheduler"
 	"github.com/hookdeck/outpost/internal/util/testutil"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -48,6 +49,14 @@ func (m *mockRSMQ) DeleteMessage(qname string, id string) error {
 	return m.inner.DeleteMessage(qname, id)
 }
 
+func (m *mockRSMQ) DeleteMessageWithReceipt(qname string, id string, receipt string) error {
+	return m.inner.DeleteMessageWithReceipt(qname, id, receipt)
+}
+
+func (m *mockRSMQ) ChangeMessageVisibilityWithReceipt(qname string, id string, receipt string, vt uint) error {
+	return m.inner.ChangeMessageVisibilityWithReceipt(qname, id, receipt, vt)
+}
+
 func (m *mockRSMQ) Quit() error {
 	return m.inner.Quit()
 }
@@ -59,9 +68,9 @@ type immediateVisibilityRSMQ struct {
 	visibilityTimeouts chan uint
 }
 
-func (m *immediateVisibilityRSMQ) ChangeMessageVisibility(qname string, id string, vt uint) error {
+func (m *immediateVisibilityRSMQ) ChangeMessageVisibilityWithReceipt(qname string, id string, receipt string, vt uint) error {
 	m.visibilityTimeouts <- vt
-	return m.Client.ChangeMessageVisibility(qname, id, 0)
+	return m.Client.ChangeMessageVisibilityWithReceipt(qname, id, receipt, 0)
 }
 
 // alwaysFailRSMQ is a test double that always fails ReceiveMessagePoll.
@@ -76,9 +85,13 @@ func (m *alwaysFailRSMQ) ReceiveMessagePoll(string, uint) (rsmq.PollResult, erro
 func (m *alwaysFailRSMQ) SendMessage(string, string, uint, ...rsmq.SendMessageOption) (string, error) {
 	return "", nil
 }
-func (m *alwaysFailRSMQ) ChangeMessageVisibility(string, string, uint) error { return nil }
-func (m *alwaysFailRSMQ) DeleteMessage(string, string) error                 { return nil }
-func (m *alwaysFailRSMQ) Quit() error                                        { return nil }
+func (m *alwaysFailRSMQ) ChangeMessageVisibility(string, string, uint) error    { return nil }
+func (m *alwaysFailRSMQ) DeleteMessage(string, string) error                    { return nil }
+func (m *alwaysFailRSMQ) DeleteMessageWithReceipt(string, string, string) error { return nil }
+func (m *alwaysFailRSMQ) ChangeMessageVisibilityWithReceipt(string, string, string, uint) error {
+	return nil
+}
+func (m *alwaysFailRSMQ) Quit() error { return nil }
 
 // msgLog records messages appended by executor callbacks. The scheduler runs
 // exec on the monitor's goroutines, so test-side reads race with appends
@@ -515,6 +528,73 @@ func TestScheduler_MaxReceiveCountMovesToDLQ(t *testing.T) {
 	msg, err := rsmqClient.ReceiveMessage("scheduler", rsmq.UnsetVt)
 	require.NoError(t, err)
 	require.Nil(t, msg, "main queue should be empty after DLQ routing")
+}
+
+func TestScheduler_RescheduleDuringExecSurvives(t *testing.T) {
+	t.Parallel()
+
+	redisConfig := testutil.CreateTestRedisConfig(t)
+	rsmqClient := createRSMQClient(t, redisConfig)
+	logger := testutil.CreateTestLogger(t)
+
+	var msgs msgLog
+	var s scheduler.Scheduler
+	ctx, cancel := context.WithCancel(context.Background())
+	exec := func(_ context.Context, task string) error {
+		msgs.append(task)
+		if task == "first" {
+			assert.NoError(t, s.Schedule(ctx, "second", 0, scheduler.WithTaskID("task")))
+		}
+		return nil
+	}
+	s = scheduler.New(idgen.String(), rsmqClient, exec,
+		scheduler.WithPollBackoff(10*time.Millisecond),
+		scheduler.WithLogger(logger))
+	require.NoError(t, s.Init(ctx))
+	waitMonitor := startMonitor(ctx, s)
+	defer func() { cancel(); waitMonitor(); s.Shutdown() }()
+
+	require.NoError(t, s.Schedule(ctx, "first", 0, scheduler.WithTaskID("task")))
+
+	require.Eventually(t, func() bool {
+		return len(msgs.snapshot()) == 2
+	}, 5*time.Second, 20*time.Millisecond, "task rescheduled during exec should still run")
+	require.Equal(t, []string{"first", "second"}, msgs.snapshot())
+}
+
+func TestScheduler_RescheduleDuringFailedExecKeepsDelay(t *testing.T) {
+	t.Parallel()
+
+	redisConfig := testutil.CreateTestRedisConfig(t)
+	rsmqClient := createRSMQClient(t, redisConfig)
+	logger := testutil.CreateTestLogger(t)
+
+	var msgs msgLog
+	var s scheduler.Scheduler
+	ctx, cancel := context.WithCancel(context.Background())
+	exec := func(_ context.Context, task string) error {
+		msgs.append(task)
+		if task == "first" {
+			assert.NoError(t, s.Schedule(ctx, "second", 0, scheduler.WithTaskID("task")))
+			return errors.New("failure")
+		}
+		return nil
+	}
+	s = scheduler.New(idgen.String(), rsmqClient, exec,
+		scheduler.WithVisibilityTimeout(60),
+		scheduler.WithPollBackoff(10*time.Millisecond),
+		scheduler.WithMaxReceiveCount(5),
+		scheduler.WithLogger(logger))
+	require.NoError(t, s.Init(ctx))
+	waitMonitor := startMonitor(ctx, s)
+	defer func() { cancel(); waitMonitor(); s.Shutdown() }()
+
+	require.NoError(t, s.Schedule(ctx, "first", 0, scheduler.WithTaskID("task")))
+
+	require.Eventually(t, func() bool {
+		return len(msgs.snapshot()) == 2
+	}, 3*time.Second, 20*time.Millisecond, "backoff of the failed run must not delay the rescheduled task")
+	require.Equal(t, []string{"first", "second"}, msgs.snapshot())
 }
 
 func TestScheduler_MonitorRetriesTransientErrors(t *testing.T) {
