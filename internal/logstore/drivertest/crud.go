@@ -369,6 +369,85 @@ func testCRUD(t *testing.T, newHarness HarnessMaker) {
 		})
 	})
 
+	// The retry scheduler's attempt lookup relies on this bound
+	// (deliverymq RetryTask.attemptLookupRequest).
+	t.Run("ListAttempt attempt time lower bound", func(t *testing.T) {
+		boundTenantID := idgen.String()
+		destID := idgen.Destination()
+		t0 := baseTime.Add(-20*time.Minute + 123456789*time.Nanosecond)
+		event := testutil.EventFactory.AnyPointer(
+			testutil.EventFactory.WithID("bound_evt"),
+			testutil.EventFactory.WithTenantID(boundTenantID),
+			testutil.EventFactory.WithDestinationID(destID),
+			testutil.EventFactory.WithMatchedDestinationIDs([]string{destID}),
+			testutil.EventFactory.WithTime(t0),
+		)
+		otherEvent := testutil.EventFactory.AnyPointer(
+			testutil.EventFactory.WithID("bound_evt_other"),
+			testutil.EventFactory.WithTenantID(boundTenantID),
+			testutil.EventFactory.WithDestinationID(destID),
+			testutil.EventFactory.WithMatchedDestinationIDs([]string{destID}),
+			testutil.EventFactory.WithTime(t0),
+		)
+		var entries []*models.LogEntry
+		for i := 0; i < 3; i++ {
+			entries = append(entries, &models.LogEntry{
+				Event: event,
+				Attempt: testutil.AttemptFactory.AnyPointer(
+					testutil.AttemptFactory.WithID(fmt.Sprintf("bound_del_%d", i)),
+					testutil.AttemptFactory.WithTenantID(boundTenantID),
+					testutil.AttemptFactory.WithEventID(event.ID),
+					testutil.AttemptFactory.WithDestinationID(destID),
+					testutil.AttemptFactory.WithAttemptNumber(i+1),
+					testutil.AttemptFactory.WithStatus("failed"),
+					testutil.AttemptFactory.WithTime(t0.Add(time.Duration(i)*time.Minute)),
+				),
+			})
+		}
+		entries = append(entries, &models.LogEntry{
+			Event: otherEvent,
+			Attempt: testutil.AttemptFactory.AnyPointer(
+				testutil.AttemptFactory.WithID("bound_del_other"),
+				testutil.AttemptFactory.WithTenantID(boundTenantID),
+				testutil.AttemptFactory.WithEventID(otherEvent.ID),
+				testutil.AttemptFactory.WithDestinationID(destID),
+				testutil.AttemptFactory.WithStatus("failed"),
+				testutil.AttemptFactory.WithTime(t0.Add(10*time.Minute)),
+			),
+		})
+		require.NoError(t, logStore.InsertMany(ctx, entries))
+		require.NoError(t, h.FlushWrites(ctx))
+
+		latest := func(gte time.Time) []*driver.AttemptRecord {
+			resp, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
+				TenantIDs:      []string{boundTenantID},
+				EventIDs:       []string{event.ID},
+				DestinationIDs: []string{destID},
+				Limit:          1,
+				SortOrder:      "desc",
+				TimeFilter:     driver.TimeFilter{GTE: &gte},
+			})
+			require.NoError(t, err)
+			return resp.Data
+		}
+
+		t.Run("newer attempt than the bound is found", func(t *testing.T) {
+			data := latest(t0.Add(time.Minute - time.Second))
+			require.Len(t, data, 1)
+			assert.Equal(t, "bound_del_2", data[0].Attempt.ID)
+		})
+
+		t.Run("bound at the latest attempt time minus skew finds it", func(t *testing.T) {
+			data := latest(t0.Add(2*time.Minute - time.Second))
+			require.Len(t, data, 1)
+			assert.Equal(t, "bound_del_2", data[0].Attempt.ID)
+		})
+
+		t.Run("older attempts are excluded", func(t *testing.T) {
+			assert.Empty(t, latest(t0.Add(3*time.Minute)))
+		})
+	})
+
 	t.Run("retrieve", func(t *testing.T) {
 		// Use one of our batch events for retrieve tests
 		knownEventID := "batch_evt_00"
