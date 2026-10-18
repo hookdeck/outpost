@@ -77,6 +77,7 @@ func TestDefaultValues(t *testing.T) {
 	assert.Equal(t, 30, cfg.RetryIntervalSeconds)
 	assert.Equal(t, 10, cfg.RetryMaxLimit)
 	assert.Equal(t, 100, cfg.RetryMaxConcurrency)
+	assert.Equal(t, 5, cfg.RetryMaxReceiveCount)
 	assert.Equal(t, 20, cfg.MaxDestinationsPerTenant)
 	assert.Equal(t, 5, cfg.DeliveryTimeoutSeconds)
 	assert.Equal(t, "config/outpost/destinations", cfg.Destinations.MetadataPath)

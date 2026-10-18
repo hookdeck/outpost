@@ -45,6 +45,24 @@ func TestRetryMaxConcurrency(t *testing.T) {
 	}
 }
 
+func TestRetryMaxReceiveCount(t *testing.T) {
+	tests := []struct {
+		name string
+		env  map[string]string
+		yaml string
+		want int
+	}{
+		{name: "unset", want: 5},
+		{name: "env 3", env: map[string]string{"RETRY_MAX_RECEIVE_COUNT": "3"}, want: 3},
+		{name: "yaml 8", yaml: "retry_max_receive_count: 8\n", want: 8},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, parseConfig(t, tt.env, tt.yaml).RetryMaxReceiveCount)
+		})
+	}
+}
+
 func TestRetrySchedule(t *testing.T) {
 	tests := []struct {
 		name         string
@@ -232,6 +250,11 @@ func TestRetryConfigurationValidation(t *testing.T) {
 			name:    "negative retry_max_concurrency rejected",
 			yaml:    "retry_max_concurrency: -1\n",
 			wantErr: "retry_max_concurrency must not be negative",
+		},
+		{
+			name:    "zero retry_max_receive_count rejected",
+			yaml:    "retry_max_receive_count: 0\n",
+			wantErr: "retry_max_receive_count must be at least 1",
 		},
 	}
 

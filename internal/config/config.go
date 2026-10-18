@@ -84,7 +84,8 @@ type Config struct {
 	RetryIntervalSeconds          int   `yaml:"retry_interval_seconds" env:"RETRY_INTERVAL_SECONDS" desc:"Interval in seconds for exponential backoff retry strategy (base 2). Ignored if retry_schedule is provided." required:"N"`
 	RetryMaxLimit                 int   `yaml:"retry_max_limit" env:"MAX_RETRY_LIMIT" desc:"Maximum number of retry attempts for a single event delivery before giving up. Ignored if retry_schedule is provided." required:"N"`
 	RetryPollBackoffMs            int   `yaml:"retry_poll_backoff_ms" env:"RETRY_POLL_BACKOFF_MS" desc:"Maximum time in milliseconds the retry monitor waits between polls while idle. When a retry is scheduled but not yet due, the monitor instead waits until it comes due. 0 or unset means auto: sleep until the next due message, at most min(30s, shortest configured retry delay), so retries are never late and idle cost is about one Redis command per interval. An explicit positive value is honored as-is as a fixed maximum idle sleep, which may add up to that much latency for retries scheduled while the monitor sleeps. When a retry message is found, the monitor immediately polls for the next message without delay. Default: 0 (auto)" required:"N"`
-	RetryMaxConcurrency           int   `yaml:"retry_max_concurrency" env:"RETRY_MAX_CONCURRENCY" desc:"Maximum number of retry tasks executing at once per process. The retry monitor stops receiving tasks while at the limit; they wait in the queue. 0 means unbounded. Default: 100" required:"N"`
+	RetryMaxConcurrency           int   `yaml:"retry_max_concurrency" env:"RETRY_MAX_CONCURRENCY" desc:"Maximum number of retries starting at once per process. 0 means unbounded. Default: 100" required:"N"`
+	RetryMaxReceiveCount          int   `yaml:"retry_max_receive_count" env:"RETRY_MAX_RECEIVE_COUNT" desc:"Number of times starting a retry (attempt lookup and publish) may fail before the task moves to the dead-letter queue. Separate from MAX_RETRY_LIMIT. Must be at least 1. Default: 5" required:"N"`
 	RetryVisibilityTimeoutSeconds int   `yaml:"retry_visibility_timeout_seconds" env:"RETRY_VISIBILITY_TIMEOUT_SECONDS" desc:"Time in seconds a retry message is hidden after being received before becoming visible again for reprocessing. This applies when event data is temporarily unavailable (e.g., race condition with log persistence). Default: 30" required:"N"`
 
 	// Event Delivery
@@ -196,6 +197,7 @@ func (c *Config) InitDefaults() {
 	c.RetryPollBackoffMs = 0 // 0 = auto: min(30s, shortest configured retry delay)
 	c.RetryVisibilityTimeoutSeconds = 30
 	c.RetryMaxConcurrency = 100
+	c.RetryMaxReceiveCount = 5
 	c.MaxDestinationsPerTenant = 20
 	c.DeliveryTimeoutSeconds = 5
 	c.PublishIdempotencyKeyTTL = 3600  // 1 hour
