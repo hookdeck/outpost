@@ -387,3 +387,55 @@ func setupClickHouseConnectionWithDeploymentID(t *testing.T, deploymentID string
 
 	return chDB
 }
+
+func TestListLatestAttempts_DuplicateRowsDoNotDropKeys(t *testing.T) {
+	testutil.CheckIntegrationTest(t)
+
+	chDB := setupClickHouseConnection(t)
+	ctx := context.Background()
+	stopMerges(t, chDB, "attempts")
+	store := NewLogStore(chDB, "")
+
+	tenantID, destID := "dup_tenant", "dup_dest"
+	t0 := time.Now().Truncate(time.Second).Add(-10 * time.Minute)
+	entry := func(eventID, attemptID string, at time.Time) *models.LogEntry {
+		return &models.LogEntry{
+			Event: testutil.EventFactory.AnyPointer(
+				testutil.EventFactory.WithID(eventID),
+				testutil.EventFactory.WithTenantID(tenantID),
+				testutil.EventFactory.WithDestinationID(destID),
+				testutil.EventFactory.WithTime(t0),
+			),
+			Attempt: testutil.AttemptFactory.AnyPointer(
+				testutil.AttemptFactory.WithID(attemptID),
+				testutil.AttemptFactory.WithTenantID(tenantID),
+				testutil.AttemptFactory.WithEventID(eventID),
+				testutil.AttemptFactory.WithDestinationID(destID),
+				testutil.AttemptFactory.WithStatus("failed"),
+				testutil.AttemptFactory.WithTime(at),
+			),
+		}
+	}
+
+	// The newest row of key A sits in five parts, filling the query's row
+	// limit (2 keys x 2) ahead of key B's older row.
+	for range 5 {
+		require.NoError(t, store.InsertMany(ctx, []*models.LogEntry{entry("dup_evt_a", "dup_att_a", t0.Add(2*time.Minute))}))
+	}
+	require.NoError(t, store.InsertMany(ctx, []*models.LogEntry{entry("dup_evt_b", "dup_att_b", t0)}))
+
+	var rows uint64
+	require.NoError(t, chDB.QueryRow(ctx, "SELECT count() FROM attempts WHERE attempt_id = 'dup_att_a'").Scan(&rows))
+	require.Equal(t, uint64(5), rows, "duplicates must stay unmerged")
+
+	keyA := driver.AttemptKey{TenantID: tenantID, EventID: "dup_evt_a", DestinationID: destID}
+	keyB := driver.AttemptKey{TenantID: tenantID, EventID: "dup_evt_b", DestinationID: destID}
+	got, err := store.ListLatestAttempts(ctx, []driver.LatestAttemptLookup{
+		{Key: keyA, NotBefore: t0.Add(-time.Second)},
+		{Key: keyB, NotBefore: t0.Add(-time.Second)},
+	})
+	require.NoError(t, err)
+	require.Len(t, got, 2)
+	assert.Equal(t, "dup_att_a", got[keyA].Attempt.ID)
+	assert.Equal(t, "dup_att_b", got[keyB].Attempt.ID)
+}

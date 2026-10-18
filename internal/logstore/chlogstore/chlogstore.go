@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"math"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/hookdeck/outpost/internal/clickhouse"
@@ -27,6 +28,8 @@ type logStoreImpl struct {
 	chDB          clickhouse.DB
 	eventsTable   string
 	attemptsTable string
+	// noLazySetting is set once the server rejected the lazy materialization setting.
+	noLazySetting atomic.Bool
 }
 
 var _ driver.LogStore = (*logStoreImpl)(nil)

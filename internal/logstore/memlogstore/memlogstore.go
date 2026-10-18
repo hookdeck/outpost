@@ -337,6 +337,40 @@ func (s *memLogStore) ListAttempt(ctx context.Context, req driver.ListAttemptReq
 	}, nil
 }
 
+func (s *memLogStore) ListLatestAttempts(ctx context.Context, lookups []driver.LatestAttemptLookup) (map[driver.AttemptKey]*driver.AttemptRecord, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	notBefore := make(map[driver.AttemptKey]time.Time, len(lookups))
+	for _, l := range lookups {
+		if prev, ok := notBefore[l.Key]; !ok || l.NotBefore.Before(prev) {
+			notBefore[l.Key] = l.NotBefore
+		}
+	}
+
+	latest := make(map[driver.AttemptKey]*models.Attempt, len(notBefore))
+	for _, a := range s.attempts {
+		event := s.events[a.EventID]
+		if event == nil {
+			continue
+		}
+		key := driver.AttemptKey{TenantID: event.TenantID, EventID: a.EventID, DestinationID: a.DestinationID}
+		bound, ok := notBefore[key]
+		if !ok || a.Time.Before(bound) {
+			continue
+		}
+		if cur := latest[key]; cur == nil || makeTimeID(a.Time, a.ID) > makeTimeID(cur.Time, cur.ID) {
+			latest[key] = a
+		}
+	}
+
+	result := make(map[driver.AttemptKey]*driver.AttemptRecord, len(latest))
+	for key, a := range latest {
+		result[key] = &driver.AttemptRecord{Attempt: copyAttempt(a), Event: copyEvent(s.events[a.EventID])}
+	}
+	return result, nil
+}
+
 func (s *memLogStore) RetrieveEvent(ctx context.Context, req driver.RetrieveEventRequest) (*models.Event, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
