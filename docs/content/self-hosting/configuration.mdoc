@@ -105,6 +105,8 @@ Choose one for event log persistence:
 | `RETRY_SCHEDULE` | — | Comma-separated retry delays in seconds (overrides interval/limit). Delays shorter than `LOG_BATCH_THRESHOLD_SECONDS` are raised to it. |
 | `RETRY_MAX_CONCURRENCY` | `100` | Max retries starting at once per process. `0` is unbounded. |
 | `RETRY_MAX_RECEIVE_COUNT` | `5` | Times starting a retry (attempt lookup and publish) may fail before the task moves to the dead-letter queue. Separate from `MAX_RETRY_LIMIT`. Minimum `1`. |
+| `RETRY_LOOKUP_BATCH_SIZE` | `0` | Max retry attempt lookups combined into one log store query. `0` or `1` looks each retry up on its own. Maximum `100`, capped at `RETRY_MAX_CONCURRENCY`. Most efficient on ClickHouse 25.x and later. |
+| `RETRY_LOOKUP_BATCH_WAIT_MS` | `50` | Milliseconds a retry lookup waits for others to join its batch. Applies when `RETRY_LOOKUP_BATCH_SIZE` is above `1`. Minimum `1`. |
 | `RETRY_POLL_BACKOFF_MS` | `0` (auto) | Maximum time the retry monitor sleeps between polls while idle. `0` sleeps until the next retry comes due, capped at the shorter of 30 seconds and your shortest configured retry delay, so a retry is never late. An explicit positive value is honored as a fixed maximum, which can delay a retry scheduled while the monitor is already sleeping by up to that much. |
 
 ## Topics

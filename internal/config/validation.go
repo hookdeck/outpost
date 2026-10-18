@@ -256,6 +256,12 @@ func (c *Config) validateRetryConfiguration() error {
 	if c.RetryMaxReceiveCount < 1 {
 		return fmt.Errorf("config validation error: retry_max_receive_count must be at least 1, got %d", c.RetryMaxReceiveCount)
 	}
+	if c.RetryLookupBatchSize < 0 || c.RetryLookupBatchSize > 100 {
+		return fmt.Errorf("config validation error: retry_lookup_batch_size must be between 0 and 100, got %d", c.RetryLookupBatchSize)
+	}
+	if c.RetryLookupBatchSize > 1 && c.RetryLookupBatchWaitMs < 1 {
+		return fmt.Errorf("config validation error: retry_lookup_batch_wait_ms must be at least 1, got %d", c.RetryLookupBatchWaitMs)
+	}
 	// If retry_schedule is provided, override retry_max_limit to match schedule length
 	if len(c.RetrySchedule) > 0 {
 		c.RetryMaxLimit = len(c.RetrySchedule)

@@ -63,6 +63,20 @@ func TestRetryMaxReceiveCount(t *testing.T) {
 	}
 }
 
+func TestRetryLookupBatchConfig(t *testing.T) {
+	cfg := parseConfig(t, nil, "")
+	assert.Equal(t, 0, cfg.RetryLookupBatchSize)
+	assert.Equal(t, 50, cfg.RetryLookupBatchWaitMs)
+
+	cfg = parseConfig(t, map[string]string{"RETRY_LOOKUP_BATCH_SIZE": "50", "RETRY_LOOKUP_BATCH_WAIT_MS": "20"}, "")
+	assert.Equal(t, 50, cfg.RetryLookupBatchSize)
+	assert.Equal(t, 20, cfg.RetryLookupBatchWaitMs)
+
+	cfg = parseConfig(t, nil, "retry_lookup_batch_size: 10\nretry_lookup_batch_wait_ms: 5\n")
+	assert.Equal(t, 10, cfg.RetryLookupBatchSize)
+	assert.Equal(t, 5, cfg.RetryLookupBatchWaitMs)
+}
+
 func TestClickHousePoolConfig(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -278,6 +292,16 @@ func TestRetryConfigurationValidation(t *testing.T) {
 			name:    "zero retry_max_receive_count rejected",
 			yaml:    "retry_max_receive_count: 0\n",
 			wantErr: "retry_max_receive_count must be at least 1",
+		},
+		{
+			name:    "retry_lookup_batch_size over 100 rejected",
+			yaml:    "retry_lookup_batch_size: 101\n",
+			wantErr: "retry_lookup_batch_size must be between 0 and 100",
+		},
+		{
+			name:    "zero retry_lookup_batch_wait_ms rejected",
+			yaml:    "retry_lookup_batch_size: 10\nretry_lookup_batch_wait_ms: 0\n",
+			wantErr: "retry_lookup_batch_wait_ms must be at least 1",
 		},
 		{
 			name:    "negative clickhouse max_open_conns rejected",
