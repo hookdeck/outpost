@@ -640,6 +640,7 @@ func (s *serviceInstance) initRetryScheduler(ctx context.Context, cfg *config.Co
 	retrySchedulerOpts := []deliverymq.RetrySchedulerOption{
 		deliverymq.WithRetryMaxConcurrency(cfg.RetryMaxConcurrency),
 		deliverymq.WithRetryMaxReceiveCount(uint64(cfg.RetryMaxReceiveCount)),
+		deliverymq.WithRetryNotReadyDelay(time.Duration(cfg.LogBatchThresholdSeconds) * time.Second),
 	}
 	if cfg.RetryVisibilityTimeoutSeconds > 0 {
 		retrySchedulerOpts = append(retrySchedulerOpts, deliverymq.WithRetryVisibilityTimeout(uint(cfg.RetryVisibilityTimeoutSeconds)))

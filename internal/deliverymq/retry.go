@@ -3,6 +3,7 @@ package deliverymq
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -26,6 +27,18 @@ type RetryEventGetter interface {
 // max limit.
 const defaultRetryMaxReceiveCount = 5
 
+// defaultRetryNotReadyDelay matches the default log flush interval.
+const defaultRetryNotReadyDelay = 10 * time.Second
+
+// maxAttemptWriteLag is how long an attempt's log write may lag before the
+// retry stops waiting for it.
+const maxAttemptWriteLag = 15 * time.Minute
+
+// maxNotReadyDelay caps the wait between lookups for an attempt not stored yet.
+const maxNotReadyDelay = 5 * time.Minute
+
+var errNoPriorAttempt = errors.New("no prior attempt found in logstore")
+
 // RetrySchedulerOption is a functional option for configuring the retry scheduler.
 type RetrySchedulerOption func(*retrySchedulerConfig)
 
@@ -33,6 +46,15 @@ type retrySchedulerConfig struct {
 	visibilityTimeout uint
 	maxConcurrency    int
 	maxReceiveCount   uint64
+	notReadyDelay     time.Duration
+}
+
+// WithRetryNotReadyDelay sets how long a retry waits when the attempt that
+// triggered it is not in the log store yet; set it to the log flush interval.
+func WithRetryNotReadyDelay(d time.Duration) RetrySchedulerOption {
+	return func(c *retrySchedulerConfig) {
+		c.notReadyDelay = d
+	}
 }
 
 // WithRetryMaxReceiveCount sets how many times a retry task is received before
@@ -61,7 +83,7 @@ func WithRetryVisibilityTimeout(vt uint) RetrySchedulerOption {
 }
 
 func NewRetryScheduler(deliverymq *DeliveryMQ, redisConfig *redis.RedisConfig, deploymentID string, pollBackoff time.Duration, logger *logging.Logger, eventGetter RetryEventGetter, opts ...RetrySchedulerOption) (scheduler.Scheduler, error) {
-	cfg := &retrySchedulerConfig{maxReceiveCount: defaultRetryMaxReceiveCount}
+	cfg := &retrySchedulerConfig{maxReceiveCount: defaultRetryMaxReceiveCount, notReadyDelay: defaultRetryNotReadyDelay}
 	for _, opt := range opts {
 		opt(cfg)
 	}
@@ -110,15 +132,7 @@ func NewRetryScheduler(deliverymq *DeliveryMQ, redisConfig *redis.RedisConfig, d
 			return err
 		}
 		if len(attemptResp.Data) == 0 {
-			// No prior attempt found — may be race condition with logmq batching delay.
-			// Return error so scheduler retries later.
-			if logger != nil {
-				logger.Ctx(ctx).Warn("no prior attempt found in logstore, will retry",
-					zap.String("event_id", retryTask.EventID),
-					zap.String("tenant_id", retryTask.TenantID),
-					zap.String("destination_id", retryTask.DestinationID))
-			}
-			return fmt.Errorf("no prior attempt found in logstore")
+			return noAttemptResult(ctx, logger, retryTask, cfg.notReadyDelay)
 		}
 
 		record := attemptResp.Data[0]
@@ -139,6 +153,66 @@ func NewRetryScheduler(deliverymq *DeliveryMQ, redisConfig *redis.RedisConfig, d
 		schedulerOpts = append(schedulerOpts, scheduler.WithVisibilityTimeout(cfg.visibilityTimeout))
 	}
 	return scheduler.New("deliverymq-retry", rsmqClient, exec, schedulerOpts...), nil
+}
+
+// noAttemptResult handles a lookup that finds no attempt.
+//
+// Known race, accepted: attempts reach the log store in batches, and nothing
+// orders the retry after that write, so a retry due before the flush runs
+// before its attempt is stored:
+//
+//	delivery handler          retry scheduler            log store
+//	----------------          ---------------            ---------
+//	attempt fails
+//	logmq.Publish(attempt) -------------------------->  batched
+//	Schedule(retry, 1s) --->  receive retry
+//	                          ListAttempt: not found
+//	                          requeue, not counted
+//	                                                     flush (up to
+//	                                                     LOG_BATCH_THRESHOLD_SECONDS)
+//	                          receive retry
+//	                          ListAttempt: found, publish
+//
+// The task is requeued without counting the receive until a grace window
+// since the attempt passes; after that it is a counted error with the normal
+// backoff. Tasks scheduled by v1.6.0 and earlier carry no AttemptTime and are
+// always a counted error.
+func noAttemptResult(ctx context.Context, logger *logging.Logger, task RetryTask, notReadyDelay time.Duration) error {
+	if task.AttemptTime.IsZero() {
+		if logger != nil {
+			logger.Ctx(ctx).Warn("no prior attempt found in logstore, will retry",
+				zap.String("event_id", task.EventID),
+				zap.String("tenant_id", task.TenantID),
+				zap.String("destination_id", task.DestinationID))
+		}
+		return errNoPriorAttempt
+	}
+	grace := max(maxAttemptWriteLag, 3*notReadyDelay)
+	age := time.Since(task.AttemptTime)
+	if age > grace {
+		if logger != nil {
+			logger.Ctx(ctx).Error("no prior attempt found in logstore within grace window",
+				zap.String("event_id", task.EventID),
+				zap.String("tenant_id", task.TenantID),
+				zap.String("destination_id", task.DestinationID),
+				zap.Time("attempt_time", task.AttemptTime),
+				zap.Duration("grace", grace))
+		}
+		return errNoPriorAttempt
+	}
+	if logger != nil {
+		logger.Ctx(ctx).Debug("prior attempt not in logstore yet, requeueing",
+			zap.String("event_id", task.EventID),
+			zap.String("tenant_id", task.TenantID),
+			zap.String("destination_id", task.DestinationID))
+	}
+	return scheduler.RetryLater(notReadyRequeueDelay(age, notReadyDelay), errNoPriorAttempt)
+}
+
+// notReadyRequeueDelay waits about half the attempt's age: a short lag
+// resolves on the first requeue, a long one costs a few lookups.
+func notReadyRequeueDelay(age, notReadyDelay time.Duration) time.Duration {
+	return min(max(notReadyDelay, age/2, time.Second), maxNotReadyDelay)
 }
 
 // RetryTask contains the minimal info needed to retry a delivery.
