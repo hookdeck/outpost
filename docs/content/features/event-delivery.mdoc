@@ -51,7 +51,7 @@ RETRY_SCHEDULE=30,60,300,900,3600
 A retry delay is a minimum: the retry runs no earlier than its delay, and sometimes later.
 
 - **Delays have a floor.** A delay shorter than `LOG_BATCH_THRESHOLD_SECONDS` is raised to it. For example, with a threshold of `10` and `RETRY_SCHEDULE=1,5,30`, the retries run about 10, 10 and 30 seconds after each failed attempt. Outpost logs a warning at startup listing the delays it raises.
-- **Retries can run late.** A retry can start several seconds after its delay, for example when many retries come due at once.
+- **Retries can run late.** A retry can start several seconds after its delay, for example when many retries come due at once. With retry lookup batching on (`RETRY_LOOKUP_BATCH_SIZE` above `1`), each retry can also wait up to `RETRY_LOOKUP_BATCH_WAIT_MS` for others to join its batch.
 
 `LOG_BATCH_THRESHOLD_SECONDS` is how long Outpost buffers delivery attempts before writing them to the log store. A lower value allows shorter retries in exchange for more frequent, smaller writes; `0` removes the floor and writes each attempt right away.
 
