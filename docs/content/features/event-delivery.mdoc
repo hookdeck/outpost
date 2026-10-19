@@ -48,19 +48,12 @@ RETRY_SCHEDULE=30,60,300,900,3600
 
 ## Retry Timing
 
-Retry delays are approximate. Outpost stores delivery attempts in batches, and a retry reads the attempt that triggered it, so a retry does not run before that attempt is stored. A delay shorter than `LOG_BATCH_THRESHOLD_SECONDS` (default `10`) is raised to it. Outpost logs a warning at startup listing the configured delays that are raised.
+A retry delay is a minimum: the retry runs no earlier than its delay, and sometimes later.
 
-The effective delay of a retry is about:
+- **Shortest delay: 10 seconds by default.** Delays shorter than `LOG_BATCH_THRESHOLD_SECONDS` (default `10`) are raised to it. With `RETRY_SCHEDULE=1,5,30`, the retries run about 10, 10 and 30 seconds after each failed attempt. Outpost logs a warning at startup listing the delays it raises.
+- **Retries can run late.** A retry can start several seconds after its delay, for example when many retries come due at once.
 
-- the larger of the configured delay and `LOG_BATCH_THRESHOLD_SECONDS`
-- plus up to `RETRY_POLL_BACKOFF_MS` when you set it explicitly (the default, `0`, wakes the retry monitor when the next retry is due)
-- plus up to `RETRY_LOOKUP_BATCH_WAIT_MS` when `RETRY_LOOKUP_BATCH_SIZE` is above `1`
-
-If the attempt is still not stored when the retry runs, the retry waits about `LOG_BATCH_THRESHOLD_SECONDS` again (varied by up to 25%) and looks again.
-
-For example, with `RETRY_SCHEDULE=1,5,10`, the defaults and `RETRY_LOOKUP_BATCH_SIZE=50`, each of the three retries runs about 10 seconds after its failed attempt, plus up to 50 ms for batching. With `RETRY_SCHEDULE=1,5,30` the third retry keeps its 30 seconds.
-
-For tighter timing, set `RETRY_LOOKUP_BATCH_SIZE=0` and lower `LOG_BATCH_THRESHOLD_SECONDS`. A lower threshold flushes logs more often, which means more log store writes. Batching lookups helps high-volume deployments; at low volume, or on PostgreSQL, leave it disabled.
+Self-hosted deployments can lower `LOG_BATCH_THRESHOLD_SECONDS` for shorter retries. The threshold also sets how often Outpost writes delivery attempts to the log store, so a lower value means more frequent, smaller writes.
 
 ## Manual Retries
 
