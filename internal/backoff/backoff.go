@@ -64,3 +64,15 @@ func (b *ScheduledBackoff) Duration(retries int) time.Duration {
 	}
 	return b.Schedule[retries]
 }
+
+// MinimumBackoff raises every delay of Backoff to at least Min.
+type MinimumBackoff struct {
+	Backoff Backoff
+	Min     time.Duration
+}
+
+var _ Backoff = &MinimumBackoff{}
+
+func (b *MinimumBackoff) Duration(retries int) time.Duration {
+	return max(b.Backoff.Duration(retries), b.Min)
+}
