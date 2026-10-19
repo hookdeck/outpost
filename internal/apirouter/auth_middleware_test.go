@@ -37,7 +37,7 @@ func TestAuthMiddleware(t *testing.T) {
 	t.Run("VPC mode", func(t *testing.T) {
 		t.Run("grants admin without auth header", func(t *testing.T) {
 			r := gin.New()
-			r.GET("/test", apirouter.AuthMiddleware("", testJWTSecret, store, apirouter.AuthOptions{}), okHandler)
+			r.GET("/test", apirouter.AuthMiddleware("", testJWTSecret, "", store, apirouter.AuthOptions{}), okHandler)
 
 			req := httptest.NewRequest(http.MethodGet, "/test", nil)
 			w := httptest.NewRecorder()
@@ -48,7 +48,7 @@ func TestAuthMiddleware(t *testing.T) {
 
 		t.Run("grants admin ignores auth header", func(t *testing.T) {
 			r := gin.New()
-			r.GET("/test", apirouter.AuthMiddleware("", testJWTSecret, store, apirouter.AuthOptions{}), okHandler)
+			r.GET("/test", apirouter.AuthMiddleware("", testJWTSecret, "", store, apirouter.AuthOptions{}), okHandler)
 
 			req := httptest.NewRequest(http.MethodGet, "/test", nil)
 			req.Header.Set("Authorization", "Bearer wrong-key")
@@ -60,7 +60,7 @@ func TestAuthMiddleware(t *testing.T) {
 
 		t.Run("resolves tenant when RequireTenant", func(t *testing.T) {
 			r := gin.New()
-			r.GET("/test/:tenant_id", apirouter.AuthMiddleware("", testJWTSecret, store, apirouter.AuthOptions{RequireTenant: true}), okHandler)
+			r.GET("/test/:tenant_id", apirouter.AuthMiddleware("", testJWTSecret, "", store, apirouter.AuthOptions{RequireTenant: true}), okHandler)
 
 			req := httptest.NewRequest(http.MethodGet, "/test/t1", nil)
 			w := httptest.NewRecorder()
@@ -72,7 +72,7 @@ func TestAuthMiddleware(t *testing.T) {
 
 	t.Run("missing auth header returns 401", func(t *testing.T) {
 		r := gin.New()
-		r.GET("/test", apirouter.AuthMiddleware(testAPIKey, testJWTSecret, store, apirouter.AuthOptions{}), okHandler)
+		r.GET("/test", apirouter.AuthMiddleware(testAPIKey, testJWTSecret, "", store, apirouter.AuthOptions{}), okHandler)
 
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		w := httptest.NewRecorder()
@@ -83,7 +83,7 @@ func TestAuthMiddleware(t *testing.T) {
 
 	t.Run("malformed bearer prefix returns 401", func(t *testing.T) {
 		r := gin.New()
-		r.GET("/test", apirouter.AuthMiddleware(testAPIKey, testJWTSecret, store, apirouter.AuthOptions{}), okHandler)
+		r.GET("/test", apirouter.AuthMiddleware(testAPIKey, testJWTSecret, "", store, apirouter.AuthOptions{}), okHandler)
 
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		req.Header.Set("Authorization", "Basic "+testAPIKey)
@@ -95,7 +95,7 @@ func TestAuthMiddleware(t *testing.T) {
 
 	t.Run("empty bearer token returns 401", func(t *testing.T) {
 		r := gin.New()
-		r.GET("/test", apirouter.AuthMiddleware(testAPIKey, testJWTSecret, store, apirouter.AuthOptions{}), okHandler)
+		r.GET("/test", apirouter.AuthMiddleware(testAPIKey, testJWTSecret, "", store, apirouter.AuthOptions{}), okHandler)
 
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		req.Header.Set("Authorization", "Bearer ")
@@ -107,7 +107,7 @@ func TestAuthMiddleware(t *testing.T) {
 
 	t.Run("valid API key returns 200", func(t *testing.T) {
 		r := gin.New()
-		r.GET("/test", apirouter.AuthMiddleware(testAPIKey, testJWTSecret, store, apirouter.AuthOptions{}), okHandler)
+		r.GET("/test", apirouter.AuthMiddleware(testAPIKey, testJWTSecret, "", store, apirouter.AuthOptions{}), okHandler)
 
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		req.Header.Set("Authorization", "Bearer "+testAPIKey)
@@ -119,7 +119,7 @@ func TestAuthMiddleware(t *testing.T) {
 
 	t.Run("invalid token not API key not valid JWT returns 401", func(t *testing.T) {
 		r := gin.New()
-		r.GET("/test", apirouter.AuthMiddleware(testAPIKey, testJWTSecret, store, apirouter.AuthOptions{}), okHandler)
+		r.GET("/test", apirouter.AuthMiddleware(testAPIKey, testJWTSecret, "", store, apirouter.AuthOptions{}), okHandler)
 
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		req.Header.Set("Authorization", "Bearer not-a-valid-token")
@@ -131,7 +131,7 @@ func TestAuthMiddleware(t *testing.T) {
 
 	t.Run("valid JWT returns 200", func(t *testing.T) {
 		r := gin.New()
-		r.GET("/test", apirouter.AuthMiddleware(testAPIKey, testJWTSecret, store, apirouter.AuthOptions{}), okHandler)
+		r.GET("/test", apirouter.AuthMiddleware(testAPIKey, testJWTSecret, "", store, apirouter.AuthOptions{}), okHandler)
 
 		token, err := apirouter.JWT.New(testJWTSecret, apirouter.JWTClaims{TenantID: "t1"})
 		require.NoError(t, err)
@@ -146,7 +146,7 @@ func TestAuthMiddleware(t *testing.T) {
 
 	t.Run("valid JWT on AdminOnly route returns 403", func(t *testing.T) {
 		r := gin.New()
-		r.GET("/test", apirouter.AuthMiddleware(testAPIKey, testJWTSecret, store, apirouter.AuthOptions{AdminOnly: true}), okHandler)
+		r.GET("/test", apirouter.AuthMiddleware(testAPIKey, testJWTSecret, "", store, apirouter.AuthOptions{AdminOnly: true}), okHandler)
 
 		token, err := apirouter.JWT.New(testJWTSecret, apirouter.JWTClaims{TenantID: "t1"})
 		require.NoError(t, err)
@@ -161,7 +161,7 @@ func TestAuthMiddleware(t *testing.T) {
 
 	t.Run("JWT wrong tenant param returns 403", func(t *testing.T) {
 		r := gin.New()
-		r.GET("/test/:tenant_id", apirouter.AuthMiddleware(testAPIKey, testJWTSecret, store, apirouter.AuthOptions{}), okHandler)
+		r.GET("/test/:tenant_id", apirouter.AuthMiddleware(testAPIKey, testJWTSecret, "", store, apirouter.AuthOptions{}), okHandler)
 
 		token, err := apirouter.JWT.New(testJWTSecret, apirouter.JWTClaims{TenantID: "t1"})
 		require.NoError(t, err)
@@ -177,7 +177,7 @@ func TestAuthMiddleware(t *testing.T) {
 	t.Run("JWT deleted tenant returns 401", func(t *testing.T) {
 		deletedStore := &mockTenantRetriever{err: tenantstore.ErrTenantDeleted}
 		r := gin.New()
-		r.GET("/test", apirouter.AuthMiddleware(testAPIKey, testJWTSecret, deletedStore, apirouter.AuthOptions{}), okHandler)
+		r.GET("/test", apirouter.AuthMiddleware(testAPIKey, testJWTSecret, "", deletedStore, apirouter.AuthOptions{}), okHandler)
 
 		token, err := apirouter.JWT.New(testJWTSecret, apirouter.JWTClaims{TenantID: "t1"})
 		require.NoError(t, err)
@@ -193,7 +193,7 @@ func TestAuthMiddleware(t *testing.T) {
 	t.Run("JWT missing tenant returns 401", func(t *testing.T) {
 		nilStore := &mockTenantRetriever{tenant: nil}
 		r := gin.New()
-		r.GET("/test", apirouter.AuthMiddleware(testAPIKey, testJWTSecret, nilStore, apirouter.AuthOptions{}), okHandler)
+		r.GET("/test", apirouter.AuthMiddleware(testAPIKey, testJWTSecret, "", nilStore, apirouter.AuthOptions{}), okHandler)
 
 		token, err := apirouter.JWT.New(testJWTSecret, apirouter.JWTClaims{TenantID: "t1"})
 		require.NoError(t, err)
@@ -210,7 +210,7 @@ func TestAuthMiddleware(t *testing.T) {
 		nilStore := &mockTenantRetriever{tenant: nil}
 		r := gin.New()
 		r.Use(apirouter.ErrorHandlerMiddleware())
-		r.GET("/test/:tenant_id", apirouter.AuthMiddleware(testAPIKey, testJWTSecret, nilStore, apirouter.AuthOptions{RequireTenant: true}), okHandler)
+		r.GET("/test/:tenant_id", apirouter.AuthMiddleware(testAPIKey, testJWTSecret, "", nilStore, apirouter.AuthOptions{RequireTenant: true}), okHandler)
 
 		req := httptest.NewRequest(http.MethodGet, "/test/t1", nil)
 		req.Header.Set("Authorization", "Bearer "+testAPIKey)
@@ -224,7 +224,7 @@ func TestAuthMiddleware(t *testing.T) {
 		errStore := &mockTenantRetriever{err: errors.New("database connection failed")}
 		r := gin.New()
 		r.Use(apirouter.ErrorHandlerMiddleware())
-		r.GET("/test/:tenant_id", apirouter.AuthMiddleware(testAPIKey, testJWTSecret, errStore, apirouter.AuthOptions{RequireTenant: true}), okHandler)
+		r.GET("/test/:tenant_id", apirouter.AuthMiddleware(testAPIKey, testJWTSecret, "", errStore, apirouter.AuthOptions{RequireTenant: true}), okHandler)
 
 		req := httptest.NewRequest(http.MethodGet, "/test/t1", nil)
 		req.Header.Set("Authorization", "Bearer "+testAPIKey)
@@ -232,5 +232,105 @@ func TestAuthMiddleware(t *testing.T) {
 		r.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusInternalServerError, w.Code)
+	})
+
+	t.Run("deployment ID", func(t *testing.T) {
+		jwtFor := func(t *testing.T, deploymentID string) string {
+			t.Helper()
+			token, err := apirouter.JWT.New(testJWTSecret, apirouter.JWTClaims{TenantID: "t1", DeploymentID: deploymentID})
+			require.NoError(t, err)
+			return token
+		}
+
+		tests := []struct {
+			name         string
+			deploymentID string // deployment the middleware runs as
+			token        func(t *testing.T) string
+			opts         apirouter.AuthOptions
+			want         int
+		}{
+			{
+				name:         "JWT claim matches deployment returns 200",
+				deploymentID: "dp_a",
+				token:        func(t *testing.T) string { return jwtFor(t, "dp_a") },
+				want:         http.StatusOK,
+			},
+			{
+				name:         "JWT claim for another deployment returns 401",
+				deploymentID: "dp_a",
+				token:        func(t *testing.T) string { return jwtFor(t, "dp_b") },
+				want:         http.StatusUnauthorized,
+			},
+			{
+				name:         "JWT claim for another deployment on AdminOnly route returns 401",
+				deploymentID: "dp_a",
+				token:        func(t *testing.T) string { return jwtFor(t, "dp_b") },
+				opts:         apirouter.AuthOptions{AdminOnly: true},
+				want:         http.StatusUnauthorized,
+			},
+			{
+				name:         "JWT claim matches deployment on AdminOnly route returns 403",
+				deploymentID: "dp_a",
+				token:        func(t *testing.T) string { return jwtFor(t, "dp_a") },
+				opts:         apirouter.AuthOptions{AdminOnly: true},
+				want:         http.StatusForbidden,
+			},
+			{
+				name:         "JWT without claim on deployment with id returns 200",
+				deploymentID: "dp_a",
+				token:        func(t *testing.T) string { return jwtFor(t, "") },
+				want:         http.StatusOK,
+			},
+			{
+				name:         "JWT without claim on deployment without id returns 200",
+				deploymentID: "",
+				token:        func(t *testing.T) string { return jwtFor(t, "") },
+				want:         http.StatusOK,
+			},
+			{
+				name:         "JWT with claim on deployment without id returns 401",
+				deploymentID: "",
+				token:        func(t *testing.T) string { return jwtFor(t, "dp_a") },
+				want:         http.StatusUnauthorized,
+			},
+			{
+				name:         "API key on deployment with id returns 200",
+				deploymentID: "dp_a",
+				token:        func(t *testing.T) string { return testAPIKey },
+				want:         http.StatusOK,
+			},
+			{
+				name:         "API key on deployment without id returns 200",
+				deploymentID: "",
+				token:        func(t *testing.T) string { return testAPIKey },
+				want:         http.StatusOK,
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				r := gin.New()
+				r.GET("/test", apirouter.AuthMiddleware(testAPIKey, testJWTSecret, tt.deploymentID, store, tt.opts), okHandler)
+
+				req := httptest.NewRequest(http.MethodGet, "/test", nil)
+				req.Header.Set("Authorization", "Bearer "+tt.token(t))
+				w := httptest.NewRecorder()
+				r.ServeHTTP(w, req)
+
+				assert.Equal(t, tt.want, w.Code)
+			})
+		}
+
+		t.Run("VPC mode ignores JWT claim for another deployment", func(t *testing.T) {
+			r := gin.New()
+			r.GET("/test", apirouter.AuthMiddleware("", testJWTSecret, "dp_a", store, apirouter.AuthOptions{}), okHandler)
+
+			req := httptest.NewRequest(http.MethodGet, "/test", nil)
+			req.Header.Set("Authorization", "Bearer "+jwtFor(t, "dp_b"))
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusOK, w.Code)
+		})
 	})
 }
