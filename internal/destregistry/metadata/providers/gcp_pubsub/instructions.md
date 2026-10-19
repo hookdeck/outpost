@@ -18,7 +18,7 @@ To follow these steps you will need a Google Cloud project and the [gcloud CLI](
     gcloud pubsub topics create TOPIC --project=PROJECT_ID
     ```
 
-3. Give Outpost access to the topic as shown below for your authentication method, then configure your GCP Pub/Sub event destination with the Project ID and Topic.
+3. Give Outpost access to the topic with the steps below, then configure your GCP Pub/Sub event destination with the Project ID and Topic. IAM changes can take a few minutes to apply; a delivery before then fails with 403.
 
 ### Service account key
 

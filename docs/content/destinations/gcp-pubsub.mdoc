@@ -101,9 +101,8 @@ The token's claims:
 | `iss` | The issuer, `WORKLOAD_IDENTITY_ISSUER` |
 | `sub` | `tenant:<TENANT_ID>` |
 | `aud` | `//iam.googleapis.com/` followed by the destination's `workload_identity_provider` |
-| `iat`, `exp` | Valid for 5 minutes |
 
-It is signed with `RS256` or `ES256`, and its `kid` header names the key in the issuer's JWKS. A token is only ever issued for the destination's own tenant, so a provider whose attribute condition pins one subject rejects every other tenant. The tenant ID must be at most 120 bytes (Google limits the subject to 127 bytes) and contain only letters, digits and `.`, `_`, `-`, `:`, `@`, so the subject is usable in an IAM principal and an attribute condition.
+A token is only ever issued for the destination's own tenant, so a provider whose attribute condition pins one subject rejects every other tenant. The tenant ID must be at most 120 bytes (Google limits the subject to 127 bytes) and contain only letters, digits and `.`, `_`, `-`, `:`, `@`, so the subject is usable in an IAM principal and an attribute condition.
 
 `GET /tenants/<TENANT_ID>/workload-identity` returns the issuer and subject for a tenant. The portal shows them when Workload Identity Federation is selected.
 
@@ -123,6 +122,8 @@ gcloud pubsub topics add-iam-policy-binding TOPIC --project=PROJECT_ID \
   --member="principal://iam.googleapis.com/projects/$PROJECT_NUMBER/locations/global/workloadIdentityPools/POOL/subject/SUBJECT" \
   --role="roles/pubsub.publisher"
 ```
+
+IAM changes can take a few minutes to apply. Until then, deliveries fail with a 403.
 
 Then create the destination:
 

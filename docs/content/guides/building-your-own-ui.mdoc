@@ -111,13 +111,13 @@ Each entry typically includes (confirm names and optionality in OpenAPI):
 
 - `type` — Stable identifier (e.g. `webhook`). Matches `destination.type` on list rows; not named `id` on the type object.
 - `label`, `description`, `icon` — Display metadata; `icon` is often an SVG string (some older code used the name `svg`). Sanitize if you render inline HTML.
-- `config_fields`, `credential_fields` — Field definitions for the config step (snake_case in JSON). Include every field from both arrays on create and edit.
+- `config_fields`, `credential_fields` — Field definitions for the config step (snake_case in JSON). Render the fields from both arrays; fields with `visible_when` only while their condition holds.
 - `instructions` — Markdown for complex setup (for example cloud resources).
 - `setup_link` — Optional object (`href` + `cta`) for an external setup flow before or instead of inline fields.
 
 ### Dynamic field shape (for forms)
 
-Field objects are fully described in OpenAPI (`DestinationSchemaField`), including **`key`** (where to place the value in `config` / `credentials` on create/update). Each field has `label`, `type` (text vs checkbox vs select vs key-value map), `required`, optional `description`, validation (`minlength`, `maxlength`, `pattern`), `default`, `disabled`, and `sensitive` (password-style; values may be masked after create—clear to edit). On submit, map each value to the **`key`** Outpost expects inside `config` / `credentials`, regardless of how property names were transformed earlier in your stack—see [Wire JSON, SDK responses, and your UI](#wire-json-sdk-responses-and-your-ui).
+Field objects are fully described in OpenAPI (`DestinationSchemaField`), including **`key`** (where to place the value in `config` / `credentials` on create/update). Each field has `label`, `type` (text vs checkbox vs select vs key-value map), `required`, optional `description`, validation (`minlength`, `maxlength`, `pattern`), `default`, `disabled`, `sensitive` (password-style; values may be masked after create—clear to edit), and optional `visible_when` (`{key, values[]}`): the field applies only while the field `key` holds one of `values` (for example `auth_method`). Hidden fields are not required and must not be sent with a value; Outpost rejects one. Workload identity forms also need the issuer and subject from `GET /tenants/:tenant_id/workload-identity`. On submit, map each value to the **`key`** Outpost expects inside `config` / `credentials`, regardless of how property names were transformed earlier in your stack—see [Wire JSON, SDK responses, and your UI](#wire-json-sdk-responses-and-your-ui).
 
 **Reference:** [DestinationConfigFields.tsx](https://github.com/hookdeck/outpost/blob/main/internal/portal/src/common/DestinationConfigFields/DestinationConfigFields.tsx) maps schema fields to inputs.
 
@@ -215,6 +215,7 @@ For **customer-facing** destination and delivery UI, work through **Planning and
 - [ ] Server-side Outpost calls use an **official SDK** when Hookdeck ships one for your language; raw HTTP or generated OpenAPI clients are fine when they fit better.
 - [ ] You chose an auth approach (browser JWT, server-side proxy/BFF, or mix) and use the matching OpenAPI operations and headers consistently.
 - [ ] Dynamic destination UI (labels, icons, form fields) is driven by `GET /destination-types`, not copied field lists from examples.
+- [ ] Fields with `visible_when` are shown, required and submitted only while their condition holds; values for hidden fields are never sent.
 
 ### Destinations experience
 
