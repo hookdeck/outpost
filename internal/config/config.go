@@ -670,7 +670,13 @@ func (c *Config) RetryTimingWarnings() []string {
 	}
 	var raised []string
 	for i := 0; i < steps; i++ {
-		if d := b.Duration(i); d < floor {
+		d := b.Duration(i)
+		// Exponential delays only grow (a non-positive value is overflow), so
+		// the first delay at or above the floor ends the scan.
+		if len(c.RetrySchedule) == 0 && (d >= floor || d <= 0) {
+			break
+		}
+		if d < floor {
 			raised = append(raised, d.String())
 		}
 	}

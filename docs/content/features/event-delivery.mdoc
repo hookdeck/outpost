@@ -11,7 +11,7 @@ When a delivery attempt fails — because the destination is unavailable, miscon
 
 By default, retries use an **exponential backoff** algorithm with a base of `2`, or you can define a custom retry schedule.
 
-A retry delay is a minimum: a retry runs no earlier than its delay, and can run a few seconds later when many retries come due at once.
+A retry delay is a minimum: a retry runs no earlier than its delay and can run some seconds later.
 
 {% tabs tabGroup="deployment" %}
 {% tab label="Managed" %}

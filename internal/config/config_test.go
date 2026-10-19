@@ -1116,6 +1116,8 @@ func TestRetryTimingWarnings(t *testing.T) {
 	}{
 		{"defaults raise the first exponential steps only", map[string]string{"RETRY_INTERVAL_SECONDS": "3"}, []string{"retry delays below LOG_BATCH_THRESHOLD_SECONDS (10s) are raised to it: 3s, 6s"}},
 		{"schedule lists the steps below the floor", map[string]string{"RETRY_SCHEDULE": "1,5,10,60"}, []string{"retry delays below LOG_BATCH_THRESHOLD_SECONDS (10s) are raised to it: 1s, 5s"}},
+		{"huge retry limit stops at the floor", map[string]string{"RETRY_INTERVAL_SECONDS": "3", "MAX_RETRY_LIMIT": "1000000"}, []string{"retry delays below LOG_BATCH_THRESHOLD_SECONDS (10s) are raised to it: 3s, 6s"}},
+		{"long exponential run ignores overflow", map[string]string{"RETRY_INTERVAL_SECONDS": "1", "MAX_RETRY_LIMIT": "70"}, []string{"retry delays below LOG_BATCH_THRESHOLD_SECONDS (10s) are raised to it: 1s, 2s, 4s, 8s"}},
 		{"nothing below the floor", map[string]string{"RETRY_SCHEDULE": "10,60"}, nil},
 		{"default config", map[string]string{}, nil},
 		{"floor disabled", map[string]string{"RETRY_SCHEDULE": "1,5", "LOG_BATCH_THRESHOLD_SECONDS": "0"}, nil},
