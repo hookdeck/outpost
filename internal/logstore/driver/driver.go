@@ -2,6 +2,7 @@ package driver
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/hookdeck/outpost/internal/models"
@@ -20,7 +21,9 @@ type Records interface {
 	ListEvent(context.Context, ListEventRequest) (ListEventResponse, error)
 	ListAttempt(context.Context, ListAttemptRequest) (ListAttemptResponse, error)
 	// ListLatestAttempts returns the latest attempt of each key, not older than the
-	// key's NotBefore. Keys without a match are absent from the result.
+	// key's NotBefore. Keys without a match are absent from the result. When some
+	// keys' attempts can't be read, it returns the other keys' results with a
+	// KeyErrors error.
 	ListLatestAttempts(context.Context, []LatestAttemptLookup) (map[AttemptKey]*AttemptRecord, error)
 	RetrieveEvent(ctx context.Context, request RetrieveEventRequest) (*models.Event, error)
 	RetrieveAttempt(ctx context.Context, request RetrieveAttemptRequest) (*AttemptRecord, error)
@@ -76,6 +79,16 @@ type AttemptKey struct {
 	TenantID      string
 	EventID       string
 	DestinationID string
+}
+
+// KeyErrors holds the error of each key whose attempt couldn't be read.
+type KeyErrors map[AttemptKey]error
+
+func (e KeyErrors) Error() string {
+	for key, err := range e {
+		return fmt.Sprintf("%d keys failed, event %s destination %s: %v", len(e), key.EventID, key.DestinationID, err)
+	}
+	return "no keys failed"
 }
 
 // LatestAttemptLookup asks for the latest attempt of Key. A zero NotBefore

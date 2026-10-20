@@ -73,7 +73,8 @@ type lookupWaiter struct {
 // attemptLookupBatcher coalesces the attempt lookups of concurrently executing
 // retries into one log store query. It flushes when size lookups are pending or
 // wait has passed since the first one. Each caller gets its own result; a query
-// error is returned to every caller of that query.
+// error is returned to every caller of that query, a key's read error only to
+// that key's callers.
 type attemptLookupBatcher struct {
 	single RetryEventGetter
 	batch  retryAttemptBatchGetter
@@ -244,9 +245,17 @@ func (b *attemptLookupBatcher) executeGroup(group []*lookupWaiter) {
 	}
 
 	found, err := b.batch.ListLatestAttempts(ctx, lookups)
+	var keyErrs logstore.KeyErrors
+	if errors.As(err, &keyErrs) {
+		err = nil
+	}
 	for _, w := range group {
 		if err != nil {
 			w.done <- lookupResult{err: err}
+			continue
+		}
+		if keyErr, ok := keyErrs[lookupKey(w.task)]; ok {
+			w.done <- lookupResult{err: keyErr}
 			continue
 		}
 		record := found[lookupKey(w.task)]

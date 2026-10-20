@@ -20,6 +20,7 @@ type fakeLookupStore struct {
 	singleCalls []logstore.ListAttemptRequest
 	batchCalls  [][]logstore.LatestAttemptLookup
 	records     map[logstore.AttemptKey]*logstore.AttemptRecord
+	keyErrs     map[logstore.AttemptKey]error
 	err         error
 	block       chan struct{}
 }
@@ -62,10 +63,21 @@ func (f *fakeLookupStore) ListLatestAttempts(ctx context.Context, lookups []logs
 		return nil, f.err
 	}
 	out := map[logstore.AttemptKey]*logstore.AttemptRecord{}
+	var keyErrs logstore.KeyErrors
 	for _, l := range lookups {
+		if err, ok := f.keyErrs[l.Key]; ok {
+			if keyErrs == nil {
+				keyErrs = logstore.KeyErrors{}
+			}
+			keyErrs[l.Key] = err
+			continue
+		}
 		if r, ok := f.records[l.Key]; ok && !r.Attempt.Time.Before(l.NotBefore) {
 			out[l.Key] = r
 		}
+	}
+	if keyErrs != nil {
+		return out, keyErrs
 	}
 	return out, nil
 }
@@ -272,6 +284,25 @@ func TestLookupBatcher_ErrorFailsEveryCaller(t *testing.T) {
 		assert.ErrorIs(t, o.err, boom)
 		assert.Nil(t, o.record)
 	}
+}
+
+func TestLookupBatcher_KeyErrorFailsOnlyThatKey(t *testing.T) {
+	bad := errors.New("bad row")
+	store := &fakeLookupStore{keyErrs: map[logstore.AttemptKey]error{{TenantID: "t", EventID: "e1", DestinationID: "d"}: bad}}
+	now := time.Now()
+	store.record("e0", now)
+	store.record("e2", now)
+	b := newAttemptLookupBatcher(store, store, 3, time.Minute)
+	defer b.Close()
+
+	out := lookupAll(context.Background(), b, lookupTask("e0", now), lookupTask("e1", now), lookupTask("e2", now))
+
+	require.NoError(t, out[0].err)
+	assert.Equal(t, "att_e0", out[0].record.Attempt.ID)
+	assert.ErrorIs(t, out[1].err, bad)
+	assert.Nil(t, out[1].record)
+	require.NoError(t, out[2].err)
+	assert.Equal(t, "att_e2", out[2].record.Attempt.ID)
 }
 
 func TestLookupBatcher_CallerCancelDoesNotAffectOthers(t *testing.T) {

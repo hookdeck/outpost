@@ -439,3 +439,49 @@ func TestListLatestAttempts_DuplicateRowsDoNotDropKeys(t *testing.T) {
 	assert.Equal(t, "dup_att_a", got[keyA].Attempt.ID)
 	assert.Equal(t, "dup_att_b", got[keyB].Attempt.ID)
 }
+
+func TestListLatestAttempts_UndecodableRowFailsOwnKey(t *testing.T) {
+	testutil.CheckIntegrationTest(t)
+
+	chDB := setupClickHouseConnection(t)
+	ctx := context.Background()
+	store := NewLogStore(chDB, "")
+
+	tenantID, destID := "bad_tenant", "bad_dest"
+	t0 := time.Now().Truncate(time.Second).Add(-10 * time.Minute)
+	var entries []*models.LogEntry
+	for _, id := range []string{"bad_evt_ok", "bad_evt_bad"} {
+		entries = append(entries, &models.LogEntry{
+			Event: testutil.EventFactory.AnyPointer(
+				testutil.EventFactory.WithID(id),
+				testutil.EventFactory.WithTenantID(tenantID),
+				testutil.EventFactory.WithDestinationID(destID),
+				testutil.EventFactory.WithTime(t0),
+			),
+			Attempt: testutil.AttemptFactory.AnyPointer(
+				testutil.AttemptFactory.WithID("att_"+id),
+				testutil.AttemptFactory.WithTenantID(tenantID),
+				testutil.AttemptFactory.WithEventID(id),
+				testutil.AttemptFactory.WithDestinationID(destID),
+				testutil.AttemptFactory.WithStatus("failed"),
+				testutil.AttemptFactory.WithTime(t0),
+			),
+		})
+	}
+	require.NoError(t, store.InsertMany(ctx, entries))
+	require.NoError(t, chDB.Exec(ctx, `ALTER TABLE attempts UPDATE metadata = '{"n":1}' WHERE event_id = 'bad_evt_bad' SETTINGS mutations_sync = 2`))
+
+	keyOK := driver.AttemptKey{TenantID: tenantID, EventID: "bad_evt_ok", DestinationID: destID}
+	keyBad := driver.AttemptKey{TenantID: tenantID, EventID: "bad_evt_bad", DestinationID: destID}
+	got, err := store.ListLatestAttempts(ctx, []driver.LatestAttemptLookup{
+		{Key: keyOK, NotBefore: t0.Add(-time.Second)},
+		{Key: keyBad, NotBefore: t0.Add(-time.Second)},
+	})
+
+	var keyErrs driver.KeyErrors
+	require.ErrorAs(t, err, &keyErrs)
+	require.Len(t, keyErrs, 1)
+	assert.ErrorContains(t, keyErrs[keyBad], "metadata")
+	require.Len(t, got, 1)
+	assert.Equal(t, "att_bad_evt_ok", got[keyOK].Attempt.ID)
+}

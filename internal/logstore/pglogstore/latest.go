@@ -8,7 +8,8 @@ import (
 	"github.com/hookdeck/outpost/internal/logstore/driver"
 )
 
-// ListLatestAttempts probes the (event_id, time) index once per key.
+// ListLatestAttempts probes the (event_id, time) index once per key. A latest
+// row that can't be decoded fails its own key only.
 func (s *logStore) ListLatestAttempts(ctx context.Context, lookups []driver.LatestAttemptLookup) (map[driver.AttemptKey]*driver.AttemptRecord, error) {
 	if len(lookups) == 0 {
 		return map[driver.AttemptKey]*driver.AttemptRecord{}, nil
@@ -44,9 +45,20 @@ func (s *logStore) ListLatestAttempts(ctx context.Context, lookups []driver.Late
 	}
 
 	result := make(map[driver.AttemptKey]*driver.AttemptRecord, len(records))
+	var keyErrs driver.KeyErrors
 	for _, r := range records {
 		key := driver.AttemptKey{TenantID: r.Attempt.TenantID, EventID: r.Attempt.EventID, DestinationID: r.Attempt.DestinationID}
+		if r.err != nil {
+			if keyErrs == nil {
+				keyErrs = driver.KeyErrors{}
+			}
+			keyErrs[key] = r.err
+			continue
+		}
 		result[key] = r.AttemptRecord
+	}
+	if keyErrs != nil {
+		return result, keyErrs
 	}
 	return result, nil
 }

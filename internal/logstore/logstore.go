@@ -20,6 +20,7 @@ type ListAttemptRequest = driver.ListAttemptRequest
 type ListAttemptResponse = driver.ListAttemptResponse
 type AttemptKey = driver.AttemptKey
 type LatestAttemptLookup = driver.LatestAttemptLookup
+type KeyErrors = driver.KeyErrors
 type RetrieveEventRequest = driver.RetrieveEventRequest
 type RetrieveAttemptRequest = driver.RetrieveAttemptRequest
 type AttemptRecord = driver.AttemptRecord

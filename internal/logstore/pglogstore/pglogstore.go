@@ -38,9 +38,12 @@ type eventWithPosition struct {
 }
 
 // attemptRecordWithPosition wraps an attempt record with its cursor position data.
+// A row whose JSON columns can't be decoded has err set and only the attempt's
+// identity and time.
 type attemptRecordWithPosition struct {
 	*driver.AttemptRecord
 	attemptTime time.Time
+	err         error
 }
 
 func (s *logStore) ListEvent(ctx context.Context, req driver.ListEventRequest) (driver.ListEventResponse, error) {
@@ -284,7 +287,16 @@ func (s *logStore) ListAttempt(ctx context.Context, req driver.ListAttemptReques
 				return nil, fmt.Errorf("query failed: %w", err)
 			}
 			defer rows.Close()
-			return scanAttemptRecords(rows)
+			records, err := scanAttemptRecords(rows)
+			if err != nil {
+				return nil, err
+			}
+			for _, r := range records {
+				if r.err != nil {
+					return nil, r.err
+				}
+			}
+			return records, nil
 		},
 		Cursor: pagination.Cursor[attemptRecordWithPosition]{
 			Encode: func(ar attemptRecordWithPosition) string {
@@ -438,6 +450,7 @@ func buildAttemptCursorCondition(compare, position string, argOffset int) (strin
 	return condition, []any{attemptTimeMs, attemptTimeMs, attemptID}, nil
 }
 
+// scanAttemptRecords returns rows whose JSON columns can't be decoded with err set.
 func scanAttemptRecords(rows pgx.Rows) ([]attemptRecordWithPosition, error) {
 	var results []attemptRecordWithPosition
 	for rows.Next() {
@@ -457,7 +470,7 @@ func scanAttemptRecords(rows pgx.Rows) ([]attemptRecordWithPosition, error) {
 			eventTime        time.Time
 			eligibleForRetry bool
 			eventData        string
-			eventMetadata    map[string]string
+			eventMetadataRaw []byte
 			latencyMs        *int64
 		)
 
@@ -477,22 +490,45 @@ func scanAttemptRecords(rows pgx.Rows) ([]attemptRecordWithPosition, error) {
 			&eventTime,
 			&eligibleForRetry,
 			&eventData,
-			&eventMetadata,
+			&eventMetadataRaw,
 			&latencyMs,
 		); err != nil {
 			return nil, fmt.Errorf("scan failed: %w", err)
 		}
 
-		var responseData map[string]any
-		if responseDataStr != "" {
-			if err := json.Unmarshal([]byte(responseDataStr), &responseData); err != nil {
-				return nil, fmt.Errorf("failed to unmarshal response_data: %w", err)
-			}
-		}
-
 		// Normalize to UTC for consistent behavior across backends.
 		attemptTime = attemptTime.UTC()
 		eventTime = eventTime.UTC()
+
+		var eventMetadata map[string]string
+		var responseData map[string]any
+		var decodeErr error
+		if len(eventMetadataRaw) > 0 {
+			if err := json.Unmarshal(eventMetadataRaw, &eventMetadata); err != nil {
+				decodeErr = fmt.Errorf("failed to unmarshal metadata: %w", err)
+			}
+		}
+		if decodeErr == nil && responseDataStr != "" {
+			if err := json.Unmarshal([]byte(responseDataStr), &responseData); err != nil {
+				decodeErr = fmt.Errorf("failed to unmarshal response_data: %w", err)
+			}
+		}
+		if decodeErr != nil {
+			results = append(results, attemptRecordWithPosition{
+				AttemptRecord: &driver.AttemptRecord{
+					Attempt: &models.Attempt{
+						ID:            id,
+						TenantID:      tenantID,
+						EventID:       eventID,
+						DestinationID: destinationID,
+						Time:          attemptTime,
+					},
+				},
+				attemptTime: attemptTime,
+				err:         decodeErr,
+			})
+			continue
+		}
 
 		results = append(results, attemptRecordWithPosition{
 			AttemptRecord: &driver.AttemptRecord{

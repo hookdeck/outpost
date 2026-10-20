@@ -330,9 +330,12 @@ func buildEventCursorCondition(compare, position string) (string, []any, error) 
 }
 
 // attemptRecordWithPosition wraps an attempt record with its cursor position data.
+// A row whose JSON columns can't be decoded has err set and only the attempt's
+// identity and time.
 type attemptRecordWithPosition struct {
 	*driver.AttemptRecord
 	attemptTime time.Time
+	err         error
 }
 
 func (ar attemptRecordWithPosition) cursorPosition() string {
@@ -484,6 +487,7 @@ func buildAttemptQuery(table string, req driver.ListAttemptRequest, q pagination
 	return query, args, nil
 }
 
+// scanAttemptRecords returns rows whose JSON columns can't be decoded with err set.
 func scanAttemptRecords(rows clickhouse.Rows) ([]attemptRecordWithPosition, error) {
 	var results []attemptRecordWithPosition
 	for rows.Next() {
@@ -532,16 +536,33 @@ func scanAttemptRecords(rows clickhouse.Rows) ([]attemptRecordWithPosition, erro
 
 		var metadata map[string]string
 		var responseData map[string]any
+		var decodeErr error
 
 		if metadataStr != "" {
 			if err := json.Unmarshal([]byte(metadataStr), &metadata); err != nil {
-				return nil, fmt.Errorf("failed to unmarshal metadata: %w", err)
+				decodeErr = fmt.Errorf("failed to unmarshal metadata: %w", err)
 			}
 		}
-		if responseDataStr != "" {
+		if decodeErr == nil && responseDataStr != "" {
 			if err := json.Unmarshal([]byte(responseDataStr), &responseData); err != nil {
-				return nil, fmt.Errorf("failed to unmarshal response_data: %w", err)
+				decodeErr = fmt.Errorf("failed to unmarshal response_data: %w", err)
 			}
+		}
+		if decodeErr != nil {
+			results = append(results, attemptRecordWithPosition{
+				AttemptRecord: &driver.AttemptRecord{
+					Attempt: &models.Attempt{
+						ID:            attemptID,
+						TenantID:      tenantID,
+						EventID:       eventID,
+						DestinationID: destinationID,
+						Time:          attemptTime,
+					},
+				},
+				attemptTime: attemptTime,
+				err:         decodeErr,
+			})
+			continue
 		}
 
 		results = append(results, attemptRecordWithPosition{
