@@ -41,7 +41,7 @@ type eventWithPosition struct {
 type attemptRecordWithPosition struct {
 	*driver.AttemptRecord
 	attemptTime time.Time
-	err         error
+	err         error // row couldn't be decoded; only the attempt's key fields and time are set
 }
 
 func (s *logStore) ListEvent(ctx context.Context, req driver.ListEventRequest) (driver.ListEventResponse, error) {
@@ -285,16 +285,7 @@ func (s *logStore) ListAttempt(ctx context.Context, req driver.ListAttemptReques
 				return nil, fmt.Errorf("query failed: %w", err)
 			}
 			defer rows.Close()
-			records, err := scanAttemptRecords(rows)
-			if err != nil {
-				return nil, err
-			}
-			for _, r := range records {
-				if r.err != nil {
-					return nil, r.err
-				}
-			}
-			return records, nil
+			return scanListedAttemptRecords(rows)
 		},
 		Cursor: pagination.Cursor[attemptRecordWithPosition]{
 			Encode: func(ar attemptRecordWithPosition) string {
@@ -446,6 +437,20 @@ func buildAttemptCursorCondition(compare, position string, argOffset int) (strin
 	)`, compare, argOffset, argOffset+1, compare, argOffset+2)
 
 	return condition, []any{attemptTimeMs, attemptTimeMs, attemptID}, nil
+}
+
+// scanListedAttemptRecords fails on the first row that can't be decoded.
+func scanListedAttemptRecords(rows pgx.Rows) ([]attemptRecordWithPosition, error) {
+	records, err := scanAttemptRecords(rows)
+	if err != nil {
+		return nil, err
+	}
+	for _, r := range records {
+		if r.err != nil {
+			return nil, r.err
+		}
+	}
+	return records, nil
 }
 
 func scanAttemptRecords(rows pgx.Rows) ([]attemptRecordWithPosition, error) {

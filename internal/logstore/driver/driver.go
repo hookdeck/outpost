@@ -86,7 +86,7 @@ type KeyErrors map[AttemptKey]error
 
 func (e KeyErrors) Error() string {
 	for key, err := range e {
-		return fmt.Sprintf("%d keys failed, event %s destination %s: %v", len(e), key.EventID, key.DestinationID, err)
+		return fmt.Sprintf("%d attempt reads failed, e.g. event %s destination %s: %v", len(e), key.EventID, key.DestinationID, err)
 	}
 	return "no keys failed"
 }
