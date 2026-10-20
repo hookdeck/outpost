@@ -130,6 +130,14 @@ func (s *logStoreImpl) ListLatestAttempts(ctx context.Context, lookups []driver.
 				req.TimeFilter.GTE = &nb
 			}
 			resp, err := s.ListAttempt(ctx, req)
+			var decodeErr *decodeError
+			if errors.As(err, &decodeErr) {
+				if keyErrs == nil {
+					keyErrs = driver.KeyErrors{}
+				}
+				keyErrs[key] = err
+				continue
+			}
 			if err != nil {
 				return nil, err
 			}

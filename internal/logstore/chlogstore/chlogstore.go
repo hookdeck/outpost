@@ -333,8 +333,14 @@ func buildEventCursorCondition(compare, position string) (string, []any, error) 
 type attemptRecordWithPosition struct {
 	*driver.AttemptRecord
 	attemptTime time.Time
-	err         error
+	err         error // row couldn't be decoded; only the attempt's key fields and time are set
 }
+
+// decodeError is a row that was read but couldn't be decoded.
+type decodeError struct{ err error }
+
+func (e *decodeError) Error() string { return e.err.Error() }
+func (e *decodeError) Unwrap() error { return e.err }
 
 func (ar attemptRecordWithPosition) cursorPosition() string {
 	return fmt.Sprintf("%d::%s", ar.attemptTime.UnixMilli(), ar.Attempt.ID)
@@ -485,6 +491,7 @@ func buildAttemptQuery(table string, req driver.ListAttemptRequest, q pagination
 	return query, args, nil
 }
 
+// scanListedAttemptRecords fails on the first row that can't be decoded.
 func scanListedAttemptRecords(rows clickhouse.Rows) ([]attemptRecordWithPosition, error) {
 	records, err := scanAttemptRecords(rows)
 	if err != nil {
@@ -550,12 +557,12 @@ func scanAttemptRecords(rows clickhouse.Rows) ([]attemptRecordWithPosition, erro
 
 		if metadataStr != "" {
 			if err := json.Unmarshal([]byte(metadataStr), &metadata); err != nil {
-				decodeErr = fmt.Errorf("failed to unmarshal metadata: %w", err)
+				decodeErr = &decodeError{fmt.Errorf("failed to unmarshal metadata: %w", err)}
 			}
 		}
 		if decodeErr == nil && responseDataStr != "" {
 			if err := json.Unmarshal([]byte(responseDataStr), &responseData); err != nil {
-				decodeErr = fmt.Errorf("failed to unmarshal response_data: %w", err)
+				decodeErr = &decodeError{fmt.Errorf("failed to unmarshal response_data: %w", err)}
 			}
 		}
 		if decodeErr != nil {

@@ -2,6 +2,7 @@ package chlogstore
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -515,4 +516,56 @@ func TestListAttempt_UndecodableRowFails(t *testing.T) {
 
 	_, err := store.ListAttempt(ctx, driver.ListAttemptRequest{TenantIDs: []string{tenantID}})
 	assert.ErrorContains(t, err, "metadata")
+}
+
+func TestListLatestAttempts_UndecodableRowPushedOutFailsOwnKey(t *testing.T) {
+	testutil.CheckIntegrationTest(t)
+
+	chDB := setupClickHouseConnection(t)
+	ctx := context.Background()
+	stopMerges(t, chDB, "attempts")
+	store := NewLogStore(chDB, "")
+
+	tenantID, destID := "dup_bad_tenant", "dup_bad_dest"
+	t0 := time.Now().Truncate(time.Second).Add(-10 * time.Minute)
+	entry := &models.LogEntry{
+		Event: testutil.EventFactory.AnyPointer(
+			testutil.EventFactory.WithID("dup_bad_evt_a"),
+			testutil.EventFactory.WithTenantID(tenantID),
+			testutil.EventFactory.WithDestinationID(destID),
+			testutil.EventFactory.WithTime(t0),
+		),
+		Attempt: testutil.AttemptFactory.AnyPointer(
+			testutil.AttemptFactory.WithID("dup_bad_att_a"),
+			testutil.AttemptFactory.WithTenantID(tenantID),
+			testutil.AttemptFactory.WithEventID("dup_bad_evt_a"),
+			testutil.AttemptFactory.WithDestinationID(destID),
+			testutil.AttemptFactory.WithStatus("failed"),
+			testutil.AttemptFactory.WithTime(t0.Add(2*time.Minute)),
+		),
+	}
+
+	// Key A's newest row sits in five parts and fills the row limit, so key B
+	// is looked up alone, and key B's only row has undecodable metadata.
+	for range 5 {
+		require.NoError(t, store.InsertMany(ctx, []*models.LogEntry{entry}))
+	}
+	require.NoError(t, chDB.Exec(ctx, fmt.Sprintf(`
+		INSERT INTO attempts
+		SELECT * REPLACE ('dup_bad_evt_b' AS event_id, 'dup_bad_att_b' AS attempt_id, '{"n":1}' AS metadata, fromUnixTimestamp64Milli(%d) AS attempt_time)
+		FROM attempts WHERE attempt_id = 'dup_bad_att_a' LIMIT 1`, t0.UnixMilli())))
+
+	keyA := driver.AttemptKey{TenantID: tenantID, EventID: "dup_bad_evt_a", DestinationID: destID}
+	keyB := driver.AttemptKey{TenantID: tenantID, EventID: "dup_bad_evt_b", DestinationID: destID}
+	got, err := store.ListLatestAttempts(ctx, []driver.LatestAttemptLookup{
+		{Key: keyA, NotBefore: t0.Add(-time.Second)},
+		{Key: keyB, NotBefore: t0.Add(-time.Second)},
+	})
+
+	var keyErrs driver.KeyErrors
+	require.ErrorAs(t, err, &keyErrs)
+	require.Len(t, keyErrs, 1)
+	assert.ErrorContains(t, keyErrs[keyB], "metadata")
+	require.Len(t, got, 1)
+	assert.Equal(t, "dup_bad_att_a", got[keyA].Attempt.ID)
 }
