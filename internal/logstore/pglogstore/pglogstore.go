@@ -38,8 +38,6 @@ type eventWithPosition struct {
 }
 
 // attemptRecordWithPosition wraps an attempt record with its cursor position data.
-// A row whose JSON columns can't be decoded has err set and only the attempt's
-// identity and time.
 type attemptRecordWithPosition struct {
 	*driver.AttemptRecord
 	attemptTime time.Time
@@ -450,7 +448,6 @@ func buildAttemptCursorCondition(compare, position string, argOffset int) (strin
 	return condition, []any{attemptTimeMs, attemptTimeMs, attemptID}, nil
 }
 
-// scanAttemptRecords returns rows whose JSON columns can't be decoded with err set.
 func scanAttemptRecords(rows pgx.Rows) ([]attemptRecordWithPosition, error) {
 	var results []attemptRecordWithPosition
 	for rows.Next() {

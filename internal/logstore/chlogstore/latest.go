@@ -16,7 +16,6 @@ import (
 // ListLatestAttempts runs one query for all keys. The ClickHouse time bound is the
 // oldest of the keys' bounds; each key's own bound is applied to the result.
 // Lazy materialization lets the payload be read only for the returned rows.
-// A latest row that can't be decoded fails its own key only.
 func (s *logStoreImpl) ListLatestAttempts(ctx context.Context, lookups []driver.LatestAttemptLookup) (map[driver.AttemptKey]*driver.AttemptRecord, error) {
 	notBefore := make(map[driver.AttemptKey]time.Time, len(lookups))
 	for _, l := range lookups {

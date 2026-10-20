@@ -485,3 +485,34 @@ func TestListLatestAttempts_UndecodableRowFailsOwnKey(t *testing.T) {
 	require.Len(t, got, 1)
 	assert.Equal(t, "att_bad_evt_ok", got[keyOK].Attempt.ID)
 }
+
+func TestListAttempt_UndecodableRowFails(t *testing.T) {
+	testutil.CheckIntegrationTest(t)
+
+	chDB := setupClickHouseConnection(t)
+	ctx := context.Background()
+	store := NewLogStore(chDB, "")
+
+	tenantID, destID, eventID := "list_bad_tenant", "list_bad_dest", "list_bad_evt"
+	t0 := time.Now().Truncate(time.Second).Add(-10 * time.Minute)
+	require.NoError(t, store.InsertMany(ctx, []*models.LogEntry{{
+		Event: testutil.EventFactory.AnyPointer(
+			testutil.EventFactory.WithID(eventID),
+			testutil.EventFactory.WithTenantID(tenantID),
+			testutil.EventFactory.WithDestinationID(destID),
+			testutil.EventFactory.WithTime(t0),
+		),
+		Attempt: testutil.AttemptFactory.AnyPointer(
+			testutil.AttemptFactory.WithID("att_"+eventID),
+			testutil.AttemptFactory.WithTenantID(tenantID),
+			testutil.AttemptFactory.WithEventID(eventID),
+			testutil.AttemptFactory.WithDestinationID(destID),
+			testutil.AttemptFactory.WithStatus("failed"),
+			testutil.AttemptFactory.WithTime(t0),
+		),
+	}}))
+	require.NoError(t, chDB.Exec(ctx, `ALTER TABLE attempts UPDATE metadata = '{"n":1}' WHERE event_id = 'list_bad_evt' SETTINGS mutations_sync = 2`))
+
+	_, err := store.ListAttempt(ctx, driver.ListAttemptRequest{TenantIDs: []string{tenantID}})
+	assert.ErrorContains(t, err, "metadata")
+}

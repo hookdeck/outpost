@@ -330,8 +330,6 @@ func buildEventCursorCondition(compare, position string) (string, []any, error) 
 }
 
 // attemptRecordWithPosition wraps an attempt record with its cursor position data.
-// A row whose JSON columns can't be decoded has err set and only the attempt's
-// identity and time.
 type attemptRecordWithPosition struct {
 	*driver.AttemptRecord
 	attemptTime time.Time
@@ -361,7 +359,7 @@ func (s *logStoreImpl) ListAttempt(ctx context.Context, req driver.ListAttemptRe
 		Fetch: func(ctx context.Context, q pagination.QueryInput) ([]attemptRecordWithPosition, error) {
 			return fetchAndDedup(ctx, s.chDB, q, func(qi pagination.QueryInput) (string, []any, error) {
 				return buildAttemptQuery(s.attemptsTable, req, qi)
-			}, scanAttemptRecords, func(ar attemptRecordWithPosition) string {
+			}, scanListedAttemptRecords, func(ar attemptRecordWithPosition) string {
 				return ar.Attempt.ID
 			}, attemptRecordWithPosition.cursorPosition)
 		},
@@ -487,7 +485,19 @@ func buildAttemptQuery(table string, req driver.ListAttemptRequest, q pagination
 	return query, args, nil
 }
 
-// scanAttemptRecords returns rows whose JSON columns can't be decoded with err set.
+func scanListedAttemptRecords(rows clickhouse.Rows) ([]attemptRecordWithPosition, error) {
+	records, err := scanAttemptRecords(rows)
+	if err != nil {
+		return nil, err
+	}
+	for _, r := range records {
+		if r.err != nil {
+			return nil, r.err
+		}
+	}
+	return records, nil
+}
+
 func scanAttemptRecords(rows clickhouse.Rows) ([]attemptRecordWithPosition, error) {
 	var results []attemptRecordWithPosition
 	for rows.Next() {
