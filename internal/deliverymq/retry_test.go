@@ -550,6 +550,14 @@ func TestRetryScheduler_EventFetchSuccess(t *testing.T) {
 	// Both log entries should have non-zero event Time (full event data)
 	assert.False(t, logPublisher.entries[0].Event.Time.IsZero(), "first delivery should have full event data")
 	assert.False(t, logPublisher.entries[1].Event.Time.IsZero(), "retry delivery should have full event data (fetched from logstore)")
+
+	eventGetter.mu.Lock()
+	defer eventGetter.mu.Unlock()
+	require.NotEmpty(t, eventGetter.requests)
+	for _, req := range eventGetter.requests {
+		require.NotNil(t, req.TimeFilter.GTE, "retry lookup should be time bounded")
+		assert.True(t, req.TimeFilter.GTE.Before(logPublisher.entries[0].Attempt.Time))
+	}
 }
 
 // TestRetryScheduler_RaceCondition_EventNotYetPersisted verifies that retries are not

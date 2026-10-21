@@ -79,13 +79,7 @@ func NewRetryScheduler(deliverymq *DeliveryMQ, redisConfig *redis.RedisConfig, d
 		// Fetch prior attempt from logstore (single source of truth for both
 		// event data and attempt number). A retry always has at least one prior
 		// attempt — the one that failed and triggered this retry.
-		attemptResp, err := eventGetter.ListAttempt(ctx, logstore.ListAttemptRequest{
-			TenantIDs:      []string{retryTask.TenantID},
-			EventIDs:       []string{retryTask.EventID},
-			DestinationIDs: []string{retryTask.DestinationID},
-			Limit:          1,
-			SortOrder:      "desc",
-		})
+		attemptResp, err := eventGetter.ListAttempt(ctx, retryTask.attemptLookupRequest())
 		if err != nil {
 			if logger != nil {
 				logger.Ctx(ctx).Error("failed to list attempts for retry",
@@ -134,6 +128,29 @@ type RetryTask struct {
 	TenantID      string
 	DestinationID string
 	Telemetry     *models.DeliveryTelemetry
+	// AttemptTime bounds the log store lookup; zero for tasks queued before
+	// it was added.
+	AttemptTime time.Time `json:",omitzero"`
+}
+
+// retryLookupSkew absorbs the precision lost when the attempt time is stored.
+const retryLookupSkew = time.Second
+
+func (m *RetryTask) attemptLookupRequest() logstore.ListAttemptRequest {
+	req := logstore.ListAttemptRequest{
+		TenantIDs:      []string{m.TenantID},
+		EventIDs:       []string{m.EventID},
+		DestinationIDs: []string{m.DestinationID},
+		Limit:          1,
+		SortOrder:      "desc",
+	}
+	// Tasks scheduled by v1.6.0 and earlier carry no AttemptTime; look them up
+	// unbounded.
+	if !m.AttemptTime.IsZero() {
+		gte := m.AttemptTime.Add(-retryLookupSkew)
+		req.TimeFilter.GTE = &gte
+	}
+	return req
 }
 
 func (m *RetryTask) ToString() (string, error) {
@@ -157,8 +174,9 @@ func (m *RetryTask) ToDeliveryTask(event models.Event, attemptNumber int) models
 	}
 }
 
-func RetryTaskFromDeliveryTask(task models.DeliveryTask) RetryTask {
+func RetryTaskFromDeliveryTask(task models.DeliveryTask, attemptTime time.Time) RetryTask {
 	return RetryTask{
+		AttemptTime:   attemptTime,
 		EventID:       task.Event.ID,
 		TenantID:      task.Event.TenantID,
 		DestinationID: task.DestinationID,

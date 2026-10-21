@@ -243,6 +243,9 @@ func TestMessageHandler_PublishError_EligibleForRetry(t *testing.T) {
 	assert.Equal(t, models.RetryID(task.Event.ID, task.DestinationID), retryScheduler.taskIDs[0],
 		"should use GetRetryID for task ID")
 	require.Len(t, logPublisher.entries, 1, "should have one delivery")
+	var scheduled deliverymq.RetryTask
+	require.NoError(t, scheduled.FromString(retryScheduler.schedules[0]))
+	assert.True(t, logPublisher.entries[0].Attempt.Time.Equal(scheduled.AttemptTime))
 	assert.Equal(t, models.AttemptStatusFailed, logPublisher.entries[0].Attempt.Status, "delivery status should be Failed")
 }
 
