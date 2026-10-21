@@ -14,6 +14,7 @@ import (
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type failingSuppressionWindow struct {
@@ -268,6 +269,9 @@ func TestDelivery_ExhaustedRetries_LoserAcksWhileWinnerInFlight(t *testing.T) {
 	h.add(msg2)
 	h.waitTerminal([]*countingMessage{cm2})
 	cm2.requireAcked(t)
+	require.Eventually(t, func() bool {
+		return len(forTopic(h.sink.forDest(dest), topicFailed)) == 2
+	}, 2*time.Second, 5*time.Millisecond, "winner's attempt.failed send runs concurrently with its parked alert")
 	assert.ElementsMatch(t, []string{topicFailed, topicFailed}, topics(h.sink.forDest(dest)),
 		"loser acked before the winner's alert went out")
 
