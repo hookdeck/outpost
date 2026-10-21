@@ -20,9 +20,33 @@ type ClickHouseConfig struct {
 	Password   string
 	Database   string
 	TLSEnabled bool
+	// MaxOpenConns sizes the connection pool; 0 uses the client default.
+	MaxOpenConns int
+	// DialTimeout bounds opening a connection and waiting for a free pooled
+	// one; 0 means 10s.
+	DialTimeout time.Duration
+	// ReadTimeout bounds waiting for a query's response; 0 means 30s.
+	ReadTimeout time.Duration
 }
 
+const (
+	defaultDialTimeout = 10 * time.Second
+	defaultReadTimeout = 30 * time.Second
+)
+
 func New(config *ClickHouseConfig) (DB, error) {
+	return clickhouse.Open(options(config))
+}
+
+func options(config *ClickHouseConfig) *clickhouse.Options {
+	dialTimeout := config.DialTimeout
+	if dialTimeout <= 0 {
+		dialTimeout = defaultDialTimeout
+	}
+	readTimeout := config.ReadTimeout
+	if readTimeout <= 0 {
+		readTimeout = defaultReadTimeout
+	}
 	opts := &clickhouse.Options{
 		Addr: []string{config.Addr},
 		Auth: clickhouse.Auth{
@@ -30,8 +54,8 @@ func New(config *ClickHouseConfig) (DB, error) {
 			Username: config.Username,
 			Password: config.Password,
 		},
-		DialTimeout: 10 * time.Second,
-		ReadTimeout: 30 * time.Second,
+		DialTimeout: dialTimeout,
+		ReadTimeout: readTimeout,
 		Compression: &clickhouse.Compression{
 			Method: clickhouse.CompressionLZ4,
 		},
@@ -46,6 +70,10 @@ func New(config *ClickHouseConfig) (DB, error) {
 		opts.TLS = &tls.Config{}
 	}
 
-	conn, err := clickhouse.Open(opts)
-	return conn, err
+	if config.MaxOpenConns > 0 {
+		opts.MaxOpenConns = config.MaxOpenConns
+		opts.MaxIdleConns = max(1, config.MaxOpenConns/2)
+	}
+
+	return opts
 }

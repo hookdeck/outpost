@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/rand/v2"
 	"time"
 
 	"github.com/hookdeck/outpost/internal/logging"
@@ -37,6 +38,8 @@ type schedulerImpl struct {
 	config     *config
 	name       string
 	exec       func(context.Context, string) error
+	// slots bounds concurrent executions; nil means unbounded.
+	slots chan struct{}
 }
 
 const (
@@ -54,6 +57,8 @@ type config struct {
 	maxErrorBackoff      time.Duration
 	maxReceiveCount      uint64
 	maxExecBackoff       time.Duration
+	maxConcurrency       int
+	rand                 func() float64
 	logger               *logging.Logger
 }
 
@@ -96,6 +101,15 @@ func WithMaxExecBackoff(d time.Duration) Option {
 	}
 }
 
+// WithMaxConcurrency bounds the number of tasks executing at once. The monitor
+// stops receiving while at the limit, so tasks wait in the queue instead of
+// holding a visibility timeout. 0 means unbounded.
+func WithMaxConcurrency(n int) Option {
+	return func(c *config) {
+		c.maxConcurrency = n
+	}
+}
+
 func WithLogger(logger *logging.Logger) Option {
 	return func(c *config) {
 		c.logger = logger
@@ -132,16 +146,41 @@ func New(name string, rsmqClient rsmq.Client, exec func(context.Context, string)
 		maxConsecutiveErrors: 10,
 		maxErrorBackoff:      15 * time.Second,
 		maxExecBackoff:       15 * time.Minute,
+		rand:                 rand.Float64,
 	}
 	for _, opt := range opts {
 		opt(config)
 	}
 
-	return &schedulerImpl{
+	s := &schedulerImpl{
 		rsmqClient: rsmqClient,
 		config:     config,
 		name:       name,
 		exec:       exec,
+	}
+	if config.maxConcurrency > 0 {
+		s.slots = make(chan struct{}, config.maxConcurrency)
+	}
+	return s
+}
+
+// acquire takes an execution slot, blocking while at the limit. It returns
+// false if ctx is done first.
+func (s *schedulerImpl) acquire(ctx context.Context) bool {
+	if s.slots == nil {
+		return true
+	}
+	select {
+	case s.slots <- struct{}{}:
+		return true
+	case <-ctx.Done():
+		return false
+	}
+}
+
+func (s *schedulerImpl) release() {
+	if s.slots != nil {
+		<-s.slots
 	}
 }
 
@@ -190,8 +229,14 @@ func (s *schedulerImpl) Monitor(ctx context.Context) error {
 		case <-ctx.Done():
 			return nil
 		default:
+			// The slot is taken before receiving so a message is only received
+			// when it can run now.
+			if !s.acquire(ctx) {
+				return nil
+			}
 			res, err := s.rsmqClient.ReceiveMessagePoll(s.name, rsmq.UnsetVt)
 			if err != nil {
+				s.release()
 				consecutiveErrors++
 				if consecutiveErrors >= s.config.maxConsecutiveErrors {
 					return fmt.Errorf("max consecutive errors reached: %w", err)
@@ -212,6 +257,7 @@ func (s *schedulerImpl) Monitor(ctx context.Context) error {
 			worker.Ready(ctx)
 			msg := res.Message
 			if msg == nil {
+				s.release()
 				select {
 				case <-ctx.Done():
 					return nil
@@ -221,10 +267,13 @@ func (s *schedulerImpl) Monitor(ctx context.Context) error {
 			}
 			if s.config.maxReceiveCount > 0 && msg.Rc > s.config.maxReceiveCount {
 				s.moveToDLQ(ctx, msg)
+				s.release()
 				continue
 			}
-			// TODO: consider using a worker pool to limit the number of concurrent executions
-			go s.handle(ctx, msg)
+			go func() {
+				defer s.release()
+				s.handle(ctx, msg)
+			}()
 		}
 	}
 }
@@ -319,7 +368,7 @@ func (s *schedulerImpl) backoffMessage(ctx context.Context, msg *rsmq.QueueMessa
 	if base == rsmq.UnsetVt {
 		base = rsmq.DefaultVt
 	}
-	backoff := calculateExecBackoff(time.Duration(base)*time.Second, msg.Rc, s.config.maxExecBackoff)
+	backoff := jitterBackoff(calculateExecBackoff(time.Duration(base)*time.Second, msg.Rc, s.config.maxExecBackoff), s.config.maxExecBackoff, s.config.rand())
 	if err := s.rsmqClient.ChangeMessageVisibilityWithReceipt(s.name, msg.ID, msg.Receipt, uint(backoff/time.Second)); err != nil && !isSuperseded(err) {
 		s.config.logger.Ctx(ctx).Warn("failed to extend backoff for failed task",
 			zap.Error(err),
@@ -327,6 +376,22 @@ func (s *schedulerImpl) backoffMessage(ctx context.Context, msg *rsmq.QueueMessa
 			zap.String("message_id", msg.ID),
 			zap.Uint64("receive_count", msg.Rc))
 	}
+}
+
+// jitterBackoff scales d by a factor in [0.75, 1.25) chosen by r in [0, 1), so
+// tasks that failed together do not all come back at the same moment. At the
+// cap only the lower half applies, so capped tasks still spread. The result is
+// whole seconds (the queue's resolution) and at least 1s.
+func jitterBackoff(d, maxBackoff time.Duration, r float64) time.Duration {
+	if d <= 0 {
+		return 0
+	}
+	factor := 0.75 + 0.5*r
+	if d >= maxBackoff {
+		factor = 0.75 + 0.25*r
+	}
+	jittered := time.Duration(float64(d) * factor).Round(time.Second)
+	return max(min(jittered, maxBackoff), time.Second)
 }
 
 func calculateExecBackoff(base time.Duration, receiveCount uint64, maxBackoff time.Duration) time.Duration {

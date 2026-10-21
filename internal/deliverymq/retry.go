@@ -21,15 +21,34 @@ type RetryEventGetter interface {
 	ListAttempt(ctx context.Context, request logstore.ListAttemptRequest) (logstore.ListAttemptResponse, error)
 }
 
-// retryMaxReceiveCount bounds receives of a retry task before it is moved to
-// the "deliverymq-retry-dlq" queue; separate from the delivery retry max limit.
-const retryMaxReceiveCount = 5
+// defaultRetryMaxReceiveCount bounds receives of a retry task before it is
+// moved to the "deliverymq-retry-dlq" queue; separate from the delivery retry
+// max limit.
+const defaultRetryMaxReceiveCount = 5
 
 // RetrySchedulerOption is a functional option for configuring the retry scheduler.
 type RetrySchedulerOption func(*retrySchedulerConfig)
 
 type retrySchedulerConfig struct {
 	visibilityTimeout uint
+	maxConcurrency    int
+	maxReceiveCount   uint64
+}
+
+// WithRetryMaxReceiveCount sets how many times a retry task is received before
+// it is moved to the dead-letter queue.
+func WithRetryMaxReceiveCount(n uint64) RetrySchedulerOption {
+	return func(c *retrySchedulerConfig) {
+		c.maxReceiveCount = n
+	}
+}
+
+// WithRetryMaxConcurrency bounds concurrent retry executions per process.
+// 0 means unbounded.
+func WithRetryMaxConcurrency(n int) RetrySchedulerOption {
+	return func(c *retrySchedulerConfig) {
+		c.maxConcurrency = n
+	}
 }
 
 // WithRetryVisibilityTimeout sets the visibility timeout for the retry scheduler queue.
@@ -42,7 +61,7 @@ func WithRetryVisibilityTimeout(vt uint) RetrySchedulerOption {
 }
 
 func NewRetryScheduler(deliverymq *DeliveryMQ, redisConfig *redis.RedisConfig, deploymentID string, pollBackoff time.Duration, logger *logging.Logger, eventGetter RetryEventGetter, opts ...RetrySchedulerOption) (scheduler.Scheduler, error) {
-	cfg := &retrySchedulerConfig{}
+	cfg := &retrySchedulerConfig{maxReceiveCount: defaultRetryMaxReceiveCount}
 	for _, opt := range opts {
 		opt(cfg)
 	}
@@ -113,7 +132,8 @@ func NewRetryScheduler(deliverymq *DeliveryMQ, redisConfig *redis.RedisConfig, d
 	schedulerOpts := []scheduler.Option{
 		scheduler.WithPollBackoff(pollBackoff),
 		scheduler.WithLogger(logger),
-		scheduler.WithMaxReceiveCount(retryMaxReceiveCount),
+		scheduler.WithMaxReceiveCount(cfg.maxReceiveCount),
+		scheduler.WithMaxConcurrency(cfg.maxConcurrency),
 	}
 	if cfg.visibilityTimeout > 0 {
 		schedulerOpts = append(schedulerOpts, scheduler.WithVisibilityTimeout(cfg.visibilityTimeout))

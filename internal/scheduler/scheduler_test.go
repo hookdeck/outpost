@@ -502,6 +502,7 @@ func TestScheduler_MaxReceiveCountMovesToDLQ(t *testing.T) {
 		scheduler.WithVisibilityTimeout(1),
 		scheduler.WithPollBackoff(10*time.Millisecond),
 		scheduler.WithMaxReceiveCount(2),
+		scheduler.WithRandForTest(func() float64 { return 0.5 }),
 		scheduler.WithLogger(logger))
 	require.NoError(t, s.Init(ctx))
 	waitMonitor := startMonitor(ctx, s)

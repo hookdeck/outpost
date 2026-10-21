@@ -124,6 +124,17 @@ func (c *Config) validateLogStorage() error {
 	if c.ClickHouse.Addr == "" && c.PostgresURL == "" {
 		return ErrMissingLogStorage
 	}
+	if c.ClickHouse.Addr != "" {
+		if c.ClickHouse.MaxOpenConns < 0 {
+			return fmt.Errorf("config validation error: clickhouse.max_open_conns must not be negative, got %d", c.ClickHouse.MaxOpenConns)
+		}
+		if c.ClickHouse.DialTimeoutSeconds < 1 {
+			return fmt.Errorf("config validation error: clickhouse.dial_timeout_seconds must be at least 1, got %d", c.ClickHouse.DialTimeoutSeconds)
+		}
+		if c.ClickHouse.ReadTimeoutSeconds < 1 {
+			return fmt.Errorf("config validation error: clickhouse.read_timeout_seconds must be at least 1, got %d", c.ClickHouse.ReadTimeoutSeconds)
+		}
+	}
 	return nil
 }
 
@@ -238,6 +249,12 @@ func (c *Config) validateRetryConfiguration() error {
 	}
 	if c.RetryPollBackoffMs < 0 {
 		return fmt.Errorf("config validation error: retry_poll_backoff_ms must not be negative, got %d", c.RetryPollBackoffMs)
+	}
+	if c.RetryMaxConcurrency < 0 {
+		return fmt.Errorf("config validation error: retry_max_concurrency must not be negative, got %d", c.RetryMaxConcurrency)
+	}
+	if c.RetryMaxReceiveCount < 1 {
+		return fmt.Errorf("config validation error: retry_max_receive_count must be at least 1, got %d", c.RetryMaxReceiveCount)
 	}
 	// If retry_schedule is provided, override retry_max_limit to match schedule length
 	if len(c.RetrySchedule) > 0 {

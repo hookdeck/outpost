@@ -92,6 +92,9 @@ func (c *Config) LogConfigurationSummary() []zap.Field {
 		zap.String("clickhouse_database", c.ClickHouse.Database),
 		zap.Bool("clickhouse_password_configured", c.ClickHouse.Password != ""),
 		zap.Bool("clickhouse_tls_enabled", c.ClickHouse.TLSEnabled),
+		zap.Int("clickhouse_max_open_conns", c.ClickHouse.MaxOpenConns),
+		zap.Int("clickhouse_dial_timeout_seconds", c.ClickHouse.DialTimeoutSeconds),
+		zap.Int("clickhouse_read_timeout_seconds", c.ClickHouse.ReadTimeoutSeconds),
 
 		// Message Queue
 		zap.String("mq_type", c.MQs.GetInfraType()),
@@ -106,6 +109,8 @@ func (c *Config) LogConfigurationSummary() []zap.Field {
 		zap.Ints("retry_schedule", c.RetrySchedule),
 		zap.Int("retry_interval_seconds", c.RetryIntervalSeconds),
 		zap.Int("retry_max_limit", c.RetryMaxLimit),
+		zap.Int("retry_max_concurrency", c.RetryMaxConcurrency),
+		zap.Int("retry_max_receive_count", c.RetryMaxReceiveCount),
 		zap.Int("retry_poll_backoff_ms", int(c.GetRetryPollBackoff().Milliseconds())),
 
 		// Event Delivery
