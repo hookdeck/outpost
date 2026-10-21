@@ -59,8 +59,7 @@ func (d *GCPPubSubDestination) CreatePublisher(ctx context.Context, destination 
 		})
 	}
 
-	// Create Pub/Sub client options
-	var opts []option.ClientOption
+	opts := []option.ClientOption{option.WithTelemetryDisabled()}
 
 	// Check for emulator endpoint (for testing)
 	if cfg.Endpoint != "" {
