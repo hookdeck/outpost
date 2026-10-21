@@ -191,6 +191,12 @@ func (m *mockDelayedEventGetter) ListAttempt(ctx context.Context, req logstore.L
 	return logstore.ListAttemptResponse{Data: []*logstore.AttemptRecord{m.record}}, nil
 }
 
+func (m *mockDelayedEventGetter) calls() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.callCount
+}
+
 func contains(slice []string, s string) bool {
 	for _, v := range slice {
 		if v == s {

@@ -25,6 +25,23 @@ func WithTaskID(id string) ScheduleOption {
 	}
 }
 
+type retryLaterError struct {
+	delay time.Duration
+	err   error
+}
+
+func (e *retryLaterError) Error() string { return e.err.Error() }
+func (e *retryLaterError) Unwrap() error { return e.err }
+
+// RetryLater marks an exec error as "not ready yet": the task comes back after
+// delay and this receive does not count toward the max receive count.
+func RetryLater(delay time.Duration, err error) error {
+	if err == nil {
+		return nil
+	}
+	return &retryLaterError{delay: delay, err: err}
+}
+
 type Scheduler interface {
 	Init(context.Context) error
 	Schedule(context.Context, string, time.Duration, ...ScheduleOption) error
@@ -283,6 +300,11 @@ func (s *schedulerImpl) Monitor(ctx context.Context) error {
 // task was rescheduled under the same ID while it ran, the new message stays.
 func (s *schedulerImpl) handle(ctx context.Context, msg *rsmq.QueueMessage) {
 	if err := s.exec(ctx, msg.Message); err != nil {
+		var later *retryLaterError
+		if errors.As(err, &later) {
+			s.requeueMessage(ctx, msg, later.delay)
+			return
+		}
 		if s.config.maxReceiveCount > 0 {
 			s.backoffMessage(ctx, msg)
 		}
@@ -375,6 +397,19 @@ func (s *schedulerImpl) backoffMessage(ctx context.Context, msg *rsmq.QueueMessa
 			zap.String("queue", s.name),
 			zap.String("message_id", msg.ID),
 			zap.Uint64("receive_count", msg.Rc))
+	}
+}
+
+// requeueMessage makes a not-ready task visible after a jittered delay,
+// rounded up to whole seconds, without counting this receive.
+func (s *schedulerImpl) requeueMessage(ctx context.Context, msg *rsmq.QueueMessage, delay time.Duration) {
+	delay = jitterBackoff(delay, 2*delay, s.config.rand())
+	seconds := uint((delay + time.Second - 1) / time.Second)
+	if err := s.rsmqClient.RequeueMessage(s.name, msg.ID, msg.Receipt, seconds); err != nil && !isSuperseded(err) {
+		s.config.logger.Ctx(ctx).Warn("failed to requeue task",
+			zap.Error(err),
+			zap.String("queue", s.name),
+			zap.String("message_id", msg.ID))
 	}
 }
 

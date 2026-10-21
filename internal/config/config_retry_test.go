@@ -314,3 +314,15 @@ func TestRetryConfigurationValidation(t *testing.T) {
 		})
 	}
 }
+
+func TestRetryBackoffWaitsAtLeastOneLogFlush(t *testing.T) {
+	cfg := parseConfig(t, map[string]string{"RETRY_SCHEDULE": "1,5,60"}, "")
+	b, _ := cfg.GetRetryBackoff()
+	assert.Equal(t, 10*time.Second, b.Duration(0))
+	assert.Equal(t, 10*time.Second, b.Duration(1))
+	assert.Equal(t, time.Minute, b.Duration(2))
+
+	cfg = parseConfig(t, map[string]string{"RETRY_SCHEDULE": "1", "LOG_BATCH_THRESHOLD_SECONDS": "2"}, "")
+	b, _ = cfg.GetRetryBackoff()
+	assert.Equal(t, 2*time.Second, b.Duration(0))
+}

@@ -57,6 +57,10 @@ func (m *mockRSMQ) ChangeMessageVisibilityWithReceipt(qname string, id string, r
 	return m.inner.ChangeMessageVisibilityWithReceipt(qname, id, receipt, vt)
 }
 
+func (m *mockRSMQ) RequeueMessage(qname string, id string, receipt string, delay uint) error {
+	return m.inner.RequeueMessage(qname, id, receipt, delay)
+}
+
 func (m *mockRSMQ) Quit() error {
 	return m.inner.Quit()
 }
@@ -91,7 +95,8 @@ func (m *alwaysFailRSMQ) DeleteMessageWithReceipt(string, string, string) error 
 func (m *alwaysFailRSMQ) ChangeMessageVisibilityWithReceipt(string, string, string, uint) error {
 	return nil
 }
-func (m *alwaysFailRSMQ) Quit() error { return nil }
+func (m *alwaysFailRSMQ) RequeueMessage(string, string, string, uint) error { return nil }
+func (m *alwaysFailRSMQ) Quit() error                                       { return nil }
 
 // msgLog records messages appended by executor callbacks. The scheduler runs
 // exec on the monitor's goroutines, so test-side reads race with appends
@@ -725,4 +730,37 @@ func TestScheduler_MonitorRerunAfterError(t *testing.T) {
 	require.Eventually(t, func() bool { return len(msgs.snapshot()) == 2 }, 5*time.Second, 10*time.Millisecond)
 	time.Sleep(300 * time.Millisecond)
 	require.ElementsMatch(t, ids, msgs.snapshot(), "each message runs once")
+}
+
+func TestScheduler_RetryLaterDoesNotCountReceives(t *testing.T) {
+	t.Parallel()
+
+	redisConfig := testutil.CreateTestRedisConfig(t)
+	rsmqClient := createRSMQClient(t, redisConfig)
+	logger := testutil.CreateTestLogger(t)
+
+	var execCount atomic.Int64
+	exec := func(_ context.Context, _ string) error {
+		if execCount.Add(1) <= 4 {
+			return scheduler.RetryLater(0, errors.New("not ready"))
+		}
+		return nil
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	s := scheduler.New("scheduler", rsmqClient, exec,
+		scheduler.WithVisibilityTimeout(1),
+		scheduler.WithPollBackoff(10*time.Millisecond),
+		scheduler.WithMaxReceiveCount(2),
+		scheduler.WithLogger(logger))
+	require.NoError(t, s.Init(ctx))
+	waitMonitor := startMonitor(ctx, s)
+	defer func() { cancel(); waitMonitor(); s.Shutdown() }()
+
+	require.NoError(t, s.Schedule(ctx, "task", 0))
+
+	require.Eventually(t, func() bool { return execCount.Load() == 5 }, 10*time.Second, 50*time.Millisecond)
+	dlqMsg, err := rsmqClient.ReceiveMessage("scheduler-dlq", rsmq.UnsetVt)
+	require.NoError(t, err)
+	require.Nil(t, dlqMsg, "not-ready receives must not reach the DLQ")
 }

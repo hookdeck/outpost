@@ -80,13 +80,13 @@ type Config struct {
 	LogMaxConcurrency      int `yaml:"log_max_concurrency" env:"LOG_MAX_CONCURRENCY" desc:"Maximum number of log writing operations to process concurrently." required:"N"`
 
 	// Delivery Retry
-	RetrySchedule                 []int `yaml:"retry_schedule" env:"RETRY_SCHEDULE" envSeparator:"," desc:"Comma-separated list of retry delays in seconds. If provided, overrides retry_interval_seconds and retry_max_limit. Schedule length defines the max number of retries. Example: '5,60,600,3600,7200' for 5 retries at 5s, 1m, 10m, 1h, 2h." required:"N"`
+	RetrySchedule                 []int `yaml:"retry_schedule" env:"RETRY_SCHEDULE" envSeparator:"," desc:"Comma-separated list of retry delays in seconds. If provided, overrides retry_interval_seconds and retry_max_limit. Schedule length defines the max number of retries. Example: '5,60,600,3600,7200' for 5 retries at 5s, 1m, 10m, 1h, 2h. Delays shorter than log_batch_threshold_seconds are raised to it." required:"N"`
 	RetryIntervalSeconds          int   `yaml:"retry_interval_seconds" env:"RETRY_INTERVAL_SECONDS" desc:"Interval in seconds for exponential backoff retry strategy (base 2). Ignored if retry_schedule is provided." required:"N"`
 	RetryMaxLimit                 int   `yaml:"retry_max_limit" env:"MAX_RETRY_LIMIT" desc:"Maximum number of retry attempts for a single event delivery before giving up. Ignored if retry_schedule is provided." required:"N"`
 	RetryPollBackoffMs            int   `yaml:"retry_poll_backoff_ms" env:"RETRY_POLL_BACKOFF_MS" desc:"Maximum time in milliseconds the retry monitor waits between polls while idle. When a retry is scheduled but not yet due, the monitor instead waits until it comes due. 0 or unset means auto: sleep until the next due message, at most min(30s, shortest configured retry delay), so retries are never late and idle cost is about one Redis command per interval. An explicit positive value is honored as-is as a fixed maximum idle sleep, which may add up to that much latency for retries scheduled while the monitor sleeps. When a retry message is found, the monitor immediately polls for the next message without delay. Default: 0 (auto)" required:"N"`
 	RetryMaxConcurrency           int   `yaml:"retry_max_concurrency" env:"RETRY_MAX_CONCURRENCY" desc:"Maximum number of retries starting at once per process. 0 means unbounded. Default: 100" required:"N"`
 	RetryMaxReceiveCount          int   `yaml:"retry_max_receive_count" env:"RETRY_MAX_RECEIVE_COUNT" desc:"Number of times starting a retry (attempt lookup and publish) may fail before the task moves to the dead-letter queue. Separate from MAX_RETRY_LIMIT. Must be at least 1. Default: 5" required:"N"`
-	RetryVisibilityTimeoutSeconds int   `yaml:"retry_visibility_timeout_seconds" env:"RETRY_VISIBILITY_TIMEOUT_SECONDS" desc:"Time in seconds a retry message is hidden after being received before becoming visible again for reprocessing. This applies when event data is temporarily unavailable (e.g., race condition with log persistence). Default: 30" required:"N"`
+	RetryVisibilityTimeoutSeconds int   `yaml:"retry_visibility_timeout_seconds" env:"RETRY_VISIBILITY_TIMEOUT_SECONDS" desc:"Time in seconds a retry message is hidden after being received before becoming visible again for reprocessing, for example when the task fails or the process stops mid-execution. Default: 30" required:"N"`
 
 	// Event Delivery
 	MaxDestinationsPerTenant int `yaml:"max_destinations_per_tenant" env:"MAX_DESTINATIONS_PER_TENANT" desc:"Maximum number of destinations allowed per tenant/organization." required:"N"`
@@ -644,8 +644,15 @@ func (c *Config) ConfigFilePath() string {
 	return c.configPath
 }
 
-// GetRetryBackoff returns the configured backoff strategy based on retry configuration
+// GetRetryBackoff returns the configured backoff strategy based on retry
+// configuration. Every delay is at least one log flush, so the attempt a retry
+// looks up is usually stored by then.
 func (c *Config) GetRetryBackoff() (backoff.Backoff, int) {
+	b, limit := c.retryBackoff()
+	return &backoff.MinimumBackoff{Backoff: b, Min: time.Duration(c.LogBatchThresholdSeconds) * time.Second}, limit
+}
+
+func (c *Config) retryBackoff() (backoff.Backoff, int) {
 	if len(c.RetrySchedule) > 0 {
 		// Use scheduled backoff if retry_schedule is provided
 		schedule := make([]time.Duration, len(c.RetrySchedule))

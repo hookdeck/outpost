@@ -43,3 +43,11 @@ func TestRetryTask_LookupBoundedByAttemptTime(t *testing.T) {
 	require.NotNil(t, req.TimeFilter.GTE)
 	assert.True(t, req.TimeFilter.GTE.Equal(time.Date(2026, 1, 2, 3, 4, 4, 0, time.UTC)))
 }
+
+func TestNotReadyRequeueDelay(t *testing.T) {
+	flush := 10 * time.Second
+	assert.Equal(t, flush, notReadyRequeueDelay(2*time.Second, flush))
+	assert.Equal(t, time.Minute, notReadyRequeueDelay(2*time.Minute, flush))
+	assert.Equal(t, maxNotReadyDelay, notReadyRequeueDelay(14*time.Minute, flush))
+	assert.Equal(t, time.Second, notReadyRequeueDelay(0, 0))
+}

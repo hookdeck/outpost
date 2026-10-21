@@ -137,3 +137,13 @@ func TestBackoff_Scheduled(t *testing.T) {
 		testBackoff(t, "ScheduledBackoff{Single}", bo, testCases)
 	})
 }
+
+func TestBackoff_Minimum(t *testing.T) {
+	b := &backoff.MinimumBackoff{
+		Backoff: &backoff.ScheduledBackoff{Schedule: []time.Duration{time.Second, 5 * time.Second, time.Minute}},
+		Min:     10 * time.Second,
+	}
+	assert.Equal(t, 10*time.Second, b.Duration(0))
+	assert.Equal(t, 10*time.Second, b.Duration(1))
+	assert.Equal(t, time.Minute, b.Duration(2))
+}

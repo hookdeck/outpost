@@ -62,6 +62,7 @@ var (
 
 	deleteMessageReceiptScript           = redis.NewScript(scriptDeleteMessageReceipt)
 	changeMessageVisibilityReceiptScript = redis.NewScript(scriptChangeMessageVisibilityReceipt)
+	requeueMessageScript                 = redis.NewScript(scriptRequeueMessage)
 )
 
 // Pipeliner interface defines the pipeline operations needed by RSMQ
@@ -173,6 +174,9 @@ type Client interface {
 	// ChangeMessageVisibilityWithReceipt is ChangeMessageVisibility under the
 	// same condition.
 	ChangeMessageVisibilityWithReceipt(qname string, id string, receipt string, vt uint) error
+	// RequeueMessage makes the received message visible after delay without
+	// counting that receive, under the same condition.
+	RequeueMessage(qname string, id string, receipt string, delay uint) error
 	Quit() error
 }
 
@@ -815,6 +819,31 @@ func (rsmq *RedisSMQ) ChangeMessageVisibilityWithReceipt(qname string, id string
 	key := rsmq.ns + qname
 	vtArg := strconv.FormatUint(uint64(vt), 10)
 	return receiptResult(rsmq.client.RunScript(changeMessageVisibilityReceiptScript, []string{key, key + q}, id, receipt, vtArg))
+}
+
+// RequeueMessage makes the message visible after delay seconds and undoes the
+// receive count of the receive that returned receipt. It returns
+// ErrReceiptMismatch if the message was re-created or received again since.
+func (rsmq *RedisSMQ) RequeueMessage(qname string, id string, receipt string, delay uint) error {
+	if err := validateQname(qname); err != nil {
+		return err
+	}
+	if err := validateID(id); err != nil {
+		return err
+	}
+	if receipt == "" {
+		return ErrReceiptMismatch
+	}
+	if _, err := rsmq.getQueue(qname, false); err != nil {
+		return err
+	}
+	if err := validateDelay(delay); err != nil {
+		return err
+	}
+
+	key := rsmq.ns + qname
+	delayArg := strconv.FormatUint(uint64(delay), 10)
+	return receiptResult(rsmq.client.RunScript(requeueMessageScript, []string{key, key + q}, id, receipt, delayArg))
 }
 
 func receiptResult(cmd *redis.Cmd) error {

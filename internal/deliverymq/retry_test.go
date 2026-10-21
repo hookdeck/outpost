@@ -606,8 +606,7 @@ func TestRetryScheduler_RaceCondition_EventNotYetPersisted(t *testing.T) {
 	require.NoError(t, err)
 	defer cleanup()
 
-	// Setup retry scheduler with short visibility timeout for faster test
-	// When event is not found, the message will be retried after 1 second
+	// Setup retry scheduler; when the event is not found the task is requeued after 1-2 seconds
 	retryScheduler, err := deliverymq.NewRetryScheduler(
 		deliveryMQ,
 		testutil.CreateTestRedisConfig(t),
@@ -615,7 +614,7 @@ func TestRetryScheduler_RaceCondition_EventNotYetPersisted(t *testing.T) {
 		10*time.Millisecond, // Fast polling
 		testutil.CreateTestLogger(t),
 		eventGetter,
-		deliverymq.WithRetryVisibilityTimeout(1), // 1 second visibility timeout
+		deliverymq.WithRetryNotReadyDelay(0),
 	)
 	require.NoError(t, err)
 	require.NoError(t, retryScheduler.Init(ctx))
@@ -665,11 +664,10 @@ func TestRetryScheduler_RaceCondition_EventNotYetPersisted(t *testing.T) {
 
 	// Wait for retry to be processed:
 	// - First retry attempt: event not found, message returns to queue
-	// - After 1s visibility timeout: message becomes visible again
+	// - After the not-ready delay (1-2s): message becomes visible again
 	// - Second retry attempt: event now available, delivery succeeds
-	time.Sleep(2 * time.Second)
-
-	// Should have 2 publish attempts: initial failure + successful retry
-	assert.Equal(t, 2, publisher.Current(),
+	require.Eventually(t, func() bool {
+		return publisher.Current() == 2
+	}, 5*time.Second, 50*time.Millisecond,
 		"expected 2 delivery attempts (initial + retry after event becomes available)")
 }

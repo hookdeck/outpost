@@ -177,3 +177,34 @@ local t = redis.call("TIME")
 local now = tonumber(t[1]) * 1000 + math.floor(tonumber(t[2]) / 1000)
 redis.call("ZADD", KEYS[1], string.format("%d", now + tonumber(ARGV[3]) * 1000), ARGV[1])
 return 1`
+
+// The requeueMessage LUA Script
+//
+// Makes a received message visible again after a delay without counting the
+// receive: like changeMessageVisibilityReceipt, plus the receive count is
+// decremented and the receipt cleared, so the next receive counts as if this
+// one had not happened.
+//
+// Parameters:
+//
+// KEYS[1]: the zset key
+// KEYS[2]: the hash key (zset key + ":Q")
+// ARGV[1]: the message id
+// ARGV[2]: the receipt
+// ARGV[3]: the delay in seconds
+//
+// Returns:
+//
+// -1 message not found, 0 receipt mismatch, 1 requeued
+const scriptRequeueMessage = `if not redis.call("ZSCORE", KEYS[1], ARGV[1]) then
+	return -1
+end
+if redis.call("HGET", KEYS[2], ARGV[1] .. ":rt") ~= ARGV[2] then
+	return 0
+end
+local t = redis.call("TIME")
+local now = tonumber(t[1]) * 1000 + math.floor(tonumber(t[2]) / 1000)
+redis.call("ZADD", KEYS[1], string.format("%d", now + tonumber(ARGV[3]) * 1000), ARGV[1])
+redis.call("HINCRBY", KEYS[2], ARGV[1] .. ":rc", -1)
+redis.call("HDEL", KEYS[2], ARGV[1] .. ":rt")
+return 1`
