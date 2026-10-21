@@ -1107,3 +1107,26 @@ func TestDestinationsProxyURL(t *testing.T) {
 		})
 	}
 }
+
+func TestRetryTimingWarnings(t *testing.T) {
+	tests := []struct {
+		name string
+		env  map[string]string
+		want []string
+	}{
+		{"defaults raise the first exponential steps only", map[string]string{"RETRY_INTERVAL_SECONDS": "3"}, []string{"retry delays below LOG_BATCH_THRESHOLD_SECONDS (10s) are raised to it: 3s, 6s"}},
+		{"schedule lists the steps below the floor", map[string]string{"RETRY_SCHEDULE": "1,5,10,60"}, []string{"retry delays below LOG_BATCH_THRESHOLD_SECONDS (10s) are raised to it: 1s, 5s"}},
+		{"huge retry limit stops at the floor", map[string]string{"RETRY_INTERVAL_SECONDS": "3", "MAX_RETRY_LIMIT": "1000000"}, []string{"retry delays below LOG_BATCH_THRESHOLD_SECONDS (10s) are raised to it: 3s, 6s"}},
+		{"long exponential run ignores overflow", map[string]string{"RETRY_INTERVAL_SECONDS": "1", "MAX_RETRY_LIMIT": "70"}, []string{"retry delays below LOG_BATCH_THRESHOLD_SECONDS (10s) are raised to it: 1s, 2s, 4s, 8s"}},
+		{"nothing below the floor", map[string]string{"RETRY_SCHEDULE": "10,60"}, nil},
+		{"default config", map[string]string{}, nil},
+		{"floor disabled", map[string]string{"RETRY_SCHEDULE": "1,5", "LOG_BATCH_THRESHOLD_SECONDS": "0"}, nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg, err := config.ParseWithoutValidation(config.Flags{}, &mockOS{files: map[string][]byte{}, envVars: tt.env})
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, cfg.RetryTimingWarnings())
+		})
+	}
+}

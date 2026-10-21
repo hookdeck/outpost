@@ -655,6 +655,37 @@ func (c *Config) GetRetryBackoff() (backoff.Backoff, int) {
 	return &backoff.MinimumBackoff{Backoff: b, Min: time.Duration(c.LogBatchThresholdSeconds) * time.Second}, limit
 }
 
+// RetryTimingWarnings returns a warning when configured retry delays are below
+// LOG_BATCH_THRESHOLD_SECONDS and so are raised to it. The configuration stays
+// valid: existing schedules keep working, with the raised delays.
+func (c *Config) RetryTimingWarnings() []string {
+	floor := time.Duration(c.LogBatchThresholdSeconds) * time.Second
+	if floor <= 0 {
+		return nil
+	}
+	b, limit := c.retryBackoff()
+	steps := limit
+	if len(c.RetrySchedule) > 0 {
+		steps = len(c.RetrySchedule)
+	}
+	var raised []string
+	for i := 0; i < steps; i++ {
+		d := b.Duration(i)
+		// Exponential delays only grow (a non-positive value is overflow), so
+		// the first delay at or above the floor ends the scan.
+		if len(c.RetrySchedule) == 0 && (d >= floor || d <= 0) {
+			break
+		}
+		if d < floor {
+			raised = append(raised, d.String())
+		}
+	}
+	if len(raised) == 0 {
+		return nil
+	}
+	return []string{fmt.Sprintf("retry delays below LOG_BATCH_THRESHOLD_SECONDS (%s) are raised to it: %s", floor, strings.Join(raised, ", "))}
+}
+
 func (c *Config) retryBackoff() (backoff.Backoff, int) {
 	if len(c.RetrySchedule) > 0 {
 		// Use scheduled backoff if retry_schedule is provided

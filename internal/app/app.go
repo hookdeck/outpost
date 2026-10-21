@@ -66,7 +66,7 @@ func (a *App) PreRun(ctx context.Context) (err error) {
 
 	a.logger.Info("starting outpost", a.config.LogConfigurationSummary()...)
 
-	for _, warning := range a.config.DeprecationWarnings() {
+	for _, warning := range append(a.config.DeprecationWarnings(), a.config.RetryTimingWarnings()...) {
 		a.logger.Warn(warning)
 	}
 
