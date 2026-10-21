@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -223,19 +224,41 @@ func (s *schedulerImpl) Monitor(ctx context.Context) error {
 				continue
 			}
 			// TODO: consider using a worker pool to limit the number of concurrent executions
-			go func() {
-				if err := s.exec(ctx, msg.Message); err != nil {
-					if s.config.maxReceiveCount > 0 {
-						s.backoffMessage(ctx, msg)
-					}
-					return
-				}
-				if err := s.rsmqClient.DeleteMessage(s.name, msg.ID); err != nil {
-					return
-				}
-			}()
+			go s.handle(ctx, msg)
 		}
 	}
+}
+
+// handle runs a received task and then deletes it, or backs it off on error.
+// The delete and the backoff are conditional on the message's receipt: if the
+// task was rescheduled under the same ID while it ran, the new message stays.
+func (s *schedulerImpl) handle(ctx context.Context, msg *rsmq.QueueMessage) {
+	if err := s.exec(ctx, msg.Message); err != nil {
+		if s.config.maxReceiveCount > 0 {
+			s.backoffMessage(ctx, msg)
+		}
+		return
+	}
+	err := s.rsmqClient.DeleteMessageWithReceipt(s.name, msg.ID, msg.Receipt)
+	switch {
+	case err == nil:
+	case errors.Is(err, rsmq.ErrReceiptMismatch):
+		s.config.logger.Ctx(ctx).Debug("task changed during execution (rescheduled or received again), not deleted",
+			zap.String("queue", s.name),
+			zap.String("message_id", msg.ID))
+	case errors.Is(err, rsmq.ErrMessageNotFound):
+	default:
+		s.config.logger.Ctx(ctx).Warn("failed to delete executed task",
+			zap.Error(err),
+			zap.String("queue", s.name),
+			zap.String("message_id", msg.ID))
+	}
+}
+
+// isSuperseded reports that the message is gone or was re-created or received
+// again since the receipt was issued.
+func isSuperseded(err error) bool {
+	return errors.Is(err, rsmq.ErrReceiptMismatch) || errors.Is(err, rsmq.ErrMessageNotFound)
 }
 
 // idleSleep returns how long to wait before the next poll when nothing was
@@ -265,7 +288,16 @@ func (s *schedulerImpl) moveToDLQ(ctx context.Context, msg *rsmq.QueueMessage) {
 			zap.Uint64("receive_count", msg.Rc))
 		return
 	}
-	if err := s.rsmqClient.DeleteMessage(s.name, msg.ID); err != nil && err != rsmq.ErrMessageNotFound {
+	if err := s.rsmqClient.DeleteMessageWithReceipt(s.name, msg.ID, msg.Receipt); err != nil {
+		if errors.Is(err, rsmq.ErrReceiptMismatch) {
+			logger.Warn("task changed before delete; copy added to dead-letter queue, original kept",
+				zap.String("queue", s.name),
+				zap.String("message_id", msg.ID))
+			return
+		}
+		if errors.Is(err, rsmq.ErrMessageNotFound) {
+			return
+		}
 		logger.Error("failed to delete task after moving to dead-letter queue",
 			zap.Error(err),
 			zap.String("queue", s.name),
@@ -288,7 +320,7 @@ func (s *schedulerImpl) backoffMessage(ctx context.Context, msg *rsmq.QueueMessa
 		base = rsmq.DefaultVt
 	}
 	backoff := calculateExecBackoff(time.Duration(base)*time.Second, msg.Rc, s.config.maxExecBackoff)
-	if err := s.rsmqClient.ChangeMessageVisibility(s.name, msg.ID, uint(backoff/time.Second)); err != nil && err != rsmq.ErrMessageNotFound {
+	if err := s.rsmqClient.ChangeMessageVisibilityWithReceipt(s.name, msg.ID, msg.Receipt, uint(backoff/time.Second)); err != nil && !isSuperseded(err) {
 		s.config.logger.Ctx(ctx).Warn("failed to extend backoff for failed task",
 			zap.Error(err),
 			zap.String("queue", s.name),

@@ -32,7 +32,7 @@ else
 	table.insert(o, fr)
 end
 redis.call("ZREM", KEYS[1], msg[1])
-redis.call("HDEL", KEYS[2], msg[1], msg[1] .. ":rc", msg[1] .. ":fr")
+redis.call("HDEL", KEYS[2], msg[1], msg[1] .. ":rc", msg[1] .. ":fr", msg[1] .. ":rt")
 return o`
 
 // The receiveMessage LUA Script
@@ -58,11 +58,12 @@ return o`
 //
 // Returns one of:
 //
-// {"m", id, message, rc, fr}  a message was received
-// {"e", hasNext, msUntilNext} nothing is due; hasNext is 0 for an empty
-// .                           queue, otherwise msUntilNext is the time until
-// .                           the earliest score in the zset
-// {"n"}                       the queue does not exist
+// {"m", id, message, rc, fr, rt} a message was received; rt is the receipt,
+// .                              unique per receive
+// {"e", hasNext, msUntilNext}    nothing is due; hasNext is 0 for an empty
+// .                              queue, otherwise msUntilNext is the time until
+// .                              the earliest score in the zset
+// {"n"}                          the queue does not exist
 //
 // The zset holds both not-yet-due messages and in-flight messages hidden by vt
 // (a receive re-ZADDs at now+vt rather than removing), so the earliest score is
@@ -90,7 +91,8 @@ if #msg == 0 then
 	return {"e", 1, d}
 end
 redis.call("ZADD", KEYS[1], string.format("%d", now + tonumber(vt) * 1000), msg[1])
-redis.call("HINCRBY", KEYS[2], "totalrecv", 1)
+local rt = redis.call("HINCRBY", KEYS[2], "totalrecv", 1)
+redis.call("HSET", KEYS[2], msg[1] .. ":rt", rt)
 local mbody = redis.call("HGET", KEYS[2], msg[1])
 local rc = redis.call("HINCRBY", KEYS[2], msg[1] .. ":rc", 1)
 local o = {"m", msg[1], mbody, rc}
@@ -101,6 +103,7 @@ else
 	local fr = redis.call("HGET", KEYS[2], msg[1] .. ":fr")
 	table.insert(o, fr)
 end
+table.insert(o, tostring(rt))
 return o`
 
 // The changeMessageVisibility LUA Script
@@ -121,4 +124,56 @@ if not msg then
 	return 0
 end
 redis.call("ZADD", KEYS[1], ARGV[2], ARGV[1])
+return 1`
+
+// The deleteMessageReceipt LUA Script
+//
+// Deletes a message only if it was not re-created or re-received since the
+// caller received it: the receipt (<id>:rt) must still match.
+//
+// Parameters:
+//
+// KEYS[1]: the zset key
+// KEYS[2]: the hash key (zset key + ":Q")
+// ARGV[1]: the message id
+// ARGV[2]: the receipt
+//
+// Returns:
+//
+// -1 message not found, 0 receipt mismatch, 1 deleted
+const scriptDeleteMessageReceipt = `if not redis.call("ZSCORE", KEYS[1], ARGV[1]) then
+	return -1
+end
+if redis.call("HGET", KEYS[2], ARGV[1] .. ":rt") ~= ARGV[2] then
+	return 0
+end
+redis.call("ZREM", KEYS[1], ARGV[1])
+redis.call("HDEL", KEYS[2], ARGV[1], ARGV[1] .. ":rc", ARGV[1] .. ":fr", ARGV[1] .. ":rt")
+return 1`
+
+// The changeMessageVisibilityReceipt LUA Script
+//
+// Like changeMessageVisibility, but only if the receipt still matches. The
+// receipt stays valid, so the same receive can still delete the message.
+//
+// Parameters:
+//
+// KEYS[1]: the zset key
+// KEYS[2]: the hash key (zset key + ":Q")
+// ARGV[1]: the message id
+// ARGV[2]: the receipt
+// ARGV[3]: the vt in seconds
+//
+// Returns:
+//
+// -1 message not found, 0 receipt mismatch, 1 updated
+const scriptChangeMessageVisibilityReceipt = `if not redis.call("ZSCORE", KEYS[1], ARGV[1]) then
+	return -1
+end
+if redis.call("HGET", KEYS[2], ARGV[1] .. ":rt") ~= ARGV[2] then
+	return 0
+end
+local t = redis.call("TIME")
+local now = tonumber(t[1]) * 1000 + math.floor(tonumber(t[2]) / 1000)
+redis.call("ZADD", KEYS[1], string.format("%d", now + tonumber(ARGV[3]) * 1000), ARGV[1])
 return 1`
