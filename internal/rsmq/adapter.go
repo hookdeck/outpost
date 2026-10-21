@@ -135,12 +135,10 @@ func (r *RedisAdapter) SRem(key string, members ...interface{}) *redis.IntCmd {
 	return r.client.SRem(r.ctx, key, members...)
 }
 
-func (r *RedisAdapter) EvalSha(sha1 string, keys []string, args ...interface{}) *redis.Cmd {
-	return r.client.EvalSha(r.ctx, sha1, keys, args...)
-}
-
-func (r *RedisAdapter) ScriptLoad(script string) *redis.StringCmd {
-	return r.client.ScriptLoad(r.ctx, script)
+// RunScript runs the script by hash and falls back to sending its source when
+// the server's script cache doesn't have it (e.g. after a Redis restart).
+func (r *RedisAdapter) RunScript(script *redis.Script, keys []string, args ...interface{}) *redis.Cmd {
+	return script.Run(r.ctx, r.client, keys, args...)
 }
 
 func (r *RedisAdapter) TxPipeline() Pipeliner {

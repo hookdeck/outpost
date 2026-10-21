@@ -55,9 +55,9 @@ var (
 )
 
 var (
-	hashPopMessage              = redis.NewScript(scriptPopMessage).Hash()
-	hashReceiveMessage          = redis.NewScript(scriptReceiveMessage).Hash()
-	hashChangeMessageVisibility = redis.NewScript(scriptChangeMessageVisibility).Hash()
+	popMessageScript              = redis.NewScript(scriptPopMessage)
+	receiveMessageScript          = redis.NewScript(scriptReceiveMessage)
+	changeMessageVisibilityScript = redis.NewScript(scriptChangeMessageVisibility)
 )
 
 // Pipeliner interface defines the pipeline operations needed by RSMQ
@@ -96,8 +96,7 @@ type RedisClient interface {
 	HDel(key string, fields ...string) *redis.IntCmd
 	ZRem(key string, members ...interface{}) *redis.IntCmd
 	SRem(key string, members ...interface{}) *redis.IntCmd
-	EvalSha(sha1 string, keys []string, args ...interface{}) *redis.Cmd
-	ScriptLoad(script string) *redis.StringCmd
+	RunScript(script *redis.Script, keys []string, args ...interface{}) *redis.Cmd
 	TxPipeline() Pipeliner
 	Exists(keys ...string) *redis.IntCmd
 	Type(key string) *redis.StatusCmd
@@ -190,10 +189,6 @@ func NewRedisSMQ(client RedisClient, ns string, logger ...*logging.Logger) *Redi
 		ns:     ns,
 		logger: l,
 	}
-
-	client.ScriptLoad(scriptPopMessage)
-	client.ScriptLoad(scriptReceiveMessage)
-	client.ScriptLoad(scriptChangeMessageVisibility)
 
 	return rsmq
 }
@@ -563,7 +558,7 @@ func (rsmq *RedisSMQ) ReceiveMessagePoll(qname string, vt uint) (PollResult, err
 	key := rsmq.ns + qname
 	hashKey := key + q // key + ":Q"
 
-	evalCmd := rsmq.client.EvalSha(hashReceiveMessage, []string{key, hashKey}, vtArg)
+	evalCmd := rsmq.client.RunScript(receiveMessageScript, []string{key, hashKey}, vtArg)
 	return rsmq.createPollResult(evalCmd)
 }
 
@@ -629,7 +624,7 @@ func (rsmq *RedisSMQ) PopMessage(qname string) (*QueueMessage, error) {
 
 	t := strconv.FormatUint(queue.ts, 10)
 
-	evalCmd := rsmq.client.EvalSha(hashPopMessage, []string{key, hashKey}, t)
+	evalCmd := rsmq.client.RunScript(popMessageScript, []string{key, hashKey}, t)
 	return rsmq.createQueueMessage(evalCmd)
 }
 
@@ -714,7 +709,7 @@ func (rsmq *RedisSMQ) ChangeMessageVisibility(qname string, id string, vt uint) 
 	key := rsmq.ns + qname
 	t := strconv.FormatUint(queue.ts+uint64(vt)*1000, 10)
 
-	evalCmd := rsmq.client.EvalSha(hashChangeMessageVisibility, []string{key}, id, t)
+	evalCmd := rsmq.client.RunScript(changeMessageVisibilityScript, []string{key}, id, t)
 	if e, err := evalCmd.Bool(); err != nil {
 		return err
 	} else if !e {

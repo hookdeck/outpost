@@ -898,3 +898,40 @@ func (s *RSMQSuite) TestSendMessageWithCustomID() {
 		}
 	})
 }
+
+// TestScriptCacheFlushed covers a Redis/Dragonfly restart, which empties the
+// server's script cache: script-backed operations must keep working.
+func (s *RSMQSuite) TestScriptCacheFlushed() {
+	t := s.T()
+	qname := "que"
+
+	flushClient, err := redis.New(context.Background(), s.cfg)
+	s.Require().NoError(err)
+	defer flushClient.Close()
+	flushScripts := func() {
+		s.Require().NoError(flushClient.ScriptFlush(context.Background()).Err())
+	}
+
+	s.Require().NoError(s.rsmq.CreateQueue(qname, UnsetVt, UnsetDelay, UnsetMaxsize))
+	id1, err := s.rsmq.SendMessage(qname, "message-1", UnsetDelay)
+	s.Require().NoError(err)
+	id2, err := s.rsmq.SendMessage(qname, "message-2", UnsetDelay)
+	s.Require().NoError(err)
+
+	flushScripts()
+	queMsg, err := s.rsmq.ReceiveMessage(qname, UnsetVt)
+	assert.NoError(t, err, "receive after script flush")
+	if assert.NotNil(t, queMsg) {
+		assert.Equal(t, id1, queMsg.ID)
+	}
+
+	flushScripts()
+	assert.NoError(t, s.rsmq.ChangeMessageVisibility(qname, id1, 0), "change visibility after script flush")
+
+	flushScripts()
+	queMsg, err = s.rsmq.PopMessage(qname)
+	assert.NoError(t, err, "pop after script flush")
+	if assert.NotNil(t, queMsg) {
+		assert.Contains(t, []string{id1, id2}, queMsg.ID)
+	}
+}
