@@ -12,7 +12,6 @@ import (
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/mqs"
 	"github.com/hookdeck/outpost/internal/opevents"
-	"github.com/mikestefanello/batcher"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 )
@@ -116,7 +115,7 @@ type BatchProcessor struct {
 	logger      *logging.Logger
 	logStore    LogStore
 	alerts      AlertPipeline
-	batcher     *batcher.Batcher[*mqs.Message]
+	batcher     *batcher
 	emitTimeout time.Duration
 	// alertsEnabled and emitsAttemptEvents are derived once from the pipeline's
 	// static config. alertsEnabled=false skips the replay gate on the failed
@@ -154,13 +153,7 @@ func NewBatchProcessor(ctx context.Context, logger *logging.Logger, logStore Log
 	bp.emitsAttemptEvents = alerts.Emitter.Enabled(opevents.TopicAttemptSuccess) ||
 		alerts.Emitter.Enabled(opevents.TopicAttemptFailed)
 
-	b, err := batcher.NewBatcher(batcher.Config[*mqs.Message]{
-		GroupCountThreshold: 2,
-		ItemCountThreshold:  cfg.ItemCountThreshold,
-		DelayThreshold:      cfg.DelayThreshold,
-		NumGoroutines:       1,
-		Processor:           bp.processBatch,
-	})
+	b, err := newBatcher(cfg.ItemCountThreshold, cfg.DelayThreshold, bp.processBatch)
 	if err != nil {
 		return nil, err
 	}
@@ -171,8 +164,7 @@ func NewBatchProcessor(ctx context.Context, logger *logging.Logger, logStore Log
 
 // Add adds a message to the batch.
 func (bp *BatchProcessor) Add(ctx context.Context, msg *mqs.Message) error {
-	bp.batcher.Add("", msg)
-	return nil
+	return bp.batcher.add(msg)
 }
 
 // Shutdown gracefully shuts down the batch processor: the batcher first
@@ -182,13 +174,13 @@ func (bp *BatchProcessor) Add(ctx context.Context, msg *mqs.Message) error {
 // Idempotent.
 func (bp *BatchProcessor) Shutdown() {
 	bp.shutdownOnce.Do(func() {
-		bp.batcher.Shutdown()
+		bp.batcher.shutdown()
 		bp.inflight.Wait()
 	})
 }
 
 // processBatch processes a batch of messages.
-func (bp *BatchProcessor) processBatch(_ string, msgs []*mqs.Message) {
+func (bp *BatchProcessor) processBatch(msgs []*mqs.Message) {
 	logger := bp.logger.Ctx(bp.ctx)
 	logger.Debug("processing batch", zap.Int("message_count", len(msgs)))
 

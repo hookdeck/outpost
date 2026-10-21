@@ -34,7 +34,6 @@ require (
 	github.com/jmespath/go-jmespath v0.4.0
 	github.com/joho/godotenv v1.5.1
 	github.com/matoous/go-nanoid/v2 v2.1.0
-	github.com/mikestefanello/batcher v0.1.0
 	github.com/moby/moby/api v1.55.0
 	github.com/nats-io/nats.go v1.53.1
 	github.com/pkg/errors v0.9.1
