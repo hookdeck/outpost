@@ -111,6 +111,8 @@ func (c *Config) LogConfigurationSummary() []zap.Field {
 		zap.Int("retry_max_limit", c.RetryMaxLimit),
 		zap.Int("retry_max_concurrency", c.RetryMaxConcurrency),
 		zap.Int("retry_max_receive_count", c.RetryMaxReceiveCount),
+		zap.Int("retry_lookup_batch_size", c.RetryLookupBatchSize),
+		zap.Int("retry_lookup_batch_wait_ms", c.RetryLookupBatchWaitMs),
 		zap.Int("retry_poll_backoff_ms", int(c.GetRetryPollBackoff().Milliseconds())),
 
 		// Event Delivery

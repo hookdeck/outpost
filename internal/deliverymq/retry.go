@@ -47,6 +47,19 @@ type retrySchedulerConfig struct {
 	maxConcurrency    int
 	maxReceiveCount   uint64
 	notReadyDelay     time.Duration
+	lookupBatchSize   int
+	lookupBatchWait   time.Duration
+}
+
+// WithRetryLookupBatch batches the attempt lookups of retries executing at the
+// same time into one log store query: it flushes at size lookups or wait after
+// the first one. A size below 2 disables batching, as does a log store without
+// batch support.
+func WithRetryLookupBatch(size int, wait time.Duration) RetrySchedulerOption {
+	return func(c *retrySchedulerConfig) {
+		c.lookupBatchSize = size
+		c.lookupBatchWait = wait
+	}
 }
 
 // WithRetryNotReadyDelay sets how long a retry waits when the attempt that
@@ -111,6 +124,8 @@ func NewRetryScheduler(deliverymq *DeliveryMQ, redisConfig *redis.RedisConfig, d
 		rsmqClient = rsmq.NewRedisSMQ(adapter, namespace)
 	}
 
+	lookup, batcher := newRetryLookup(eventGetter, effectiveLookupBatchSize(cfg.lookupBatchSize, cfg.maxConcurrency), cfg.lookupBatchWait)
+
 	exec := func(ctx context.Context, msg string) error {
 		retryTask := RetryTask{}
 		if err := retryTask.FromString(msg); err != nil {
@@ -120,7 +135,7 @@ func NewRetryScheduler(deliverymq *DeliveryMQ, redisConfig *redis.RedisConfig, d
 		// Fetch prior attempt from logstore (single source of truth for both
 		// event data and attempt number). A retry always has at least one prior
 		// attempt — the one that failed and triggered this retry.
-		attemptResp, err := eventGetter.ListAttempt(ctx, retryTask.attemptLookupRequest())
+		record, err := lookup(ctx, retryTask)
 		if err != nil {
 			if logger != nil {
 				logger.Ctx(ctx).Error("failed to list attempts for retry",
@@ -131,11 +146,10 @@ func NewRetryScheduler(deliverymq *DeliveryMQ, redisConfig *redis.RedisConfig, d
 			}
 			return err
 		}
-		if len(attemptResp.Data) == 0 {
+		if record == nil {
 			return noAttemptResult(ctx, logger, retryTask, cfg.notReadyDelay)
 		}
 
-		record := attemptResp.Data[0]
 		deliveryTask := retryTask.ToDeliveryTask(*record.Event, record.Attempt.AttemptNumber+1)
 		if err := deliverymq.Publish(ctx, deliveryTask); err != nil {
 			return err
@@ -152,7 +166,11 @@ func NewRetryScheduler(deliverymq *DeliveryMQ, redisConfig *redis.RedisConfig, d
 	if cfg.visibilityTimeout > 0 {
 		schedulerOpts = append(schedulerOpts, scheduler.WithVisibilityTimeout(cfg.visibilityTimeout))
 	}
-	return scheduler.New("deliverymq-retry", rsmqClient, exec, schedulerOpts...), nil
+	retryScheduler := scheduler.New("deliverymq-retry", rsmqClient, exec, schedulerOpts...)
+	if batcher != nil {
+		return batchingScheduler{Scheduler: retryScheduler, batcher: batcher}, nil
+	}
+	return retryScheduler, nil
 }
 
 // noAttemptResult handles a lookup that finds no attempt.

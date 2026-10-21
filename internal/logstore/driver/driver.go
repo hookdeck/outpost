@@ -19,6 +19,9 @@ type TimeFilter struct {
 type Records interface {
 	ListEvent(context.Context, ListEventRequest) (ListEventResponse, error)
 	ListAttempt(context.Context, ListAttemptRequest) (ListAttemptResponse, error)
+	// ListLatestAttempts returns the latest attempt of each key, not older than the
+	// key's NotBefore. Keys without a match are absent from the result.
+	ListLatestAttempts(context.Context, []LatestAttemptLookup) (map[AttemptKey]*AttemptRecord, error)
 	RetrieveEvent(ctx context.Context, request RetrieveEventRequest) (*models.Event, error)
 	RetrieveAttempt(ctx context.Context, request RetrieveAttemptRequest) (*AttemptRecord, error)
 	InsertMany(context.Context, []*models.LogEntry) error
@@ -66,6 +69,20 @@ type ListAttemptResponse struct {
 	Data []*AttemptRecord
 	Next string
 	Prev string
+}
+
+// AttemptKey identifies the attempts of one event delivered to one destination.
+type AttemptKey struct {
+	TenantID      string
+	EventID       string
+	DestinationID string
+}
+
+// LatestAttemptLookup asks for the latest attempt of Key. A zero NotBefore
+// means no lower bound on the attempt time.
+type LatestAttemptLookup struct {
+	Key       AttemptKey
+	NotBefore time.Time
 }
 
 type RetrieveEventRequest struct {
