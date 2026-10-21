@@ -44,9 +44,20 @@ func (s *logStore) ListLatestAttempts(ctx context.Context, lookups []driver.Late
 	}
 
 	result := make(map[driver.AttemptKey]*driver.AttemptRecord, len(records))
+	var keyErrs driver.KeyErrors
 	for _, r := range records {
 		key := driver.AttemptKey{TenantID: r.Attempt.TenantID, EventID: r.Attempt.EventID, DestinationID: r.Attempt.DestinationID}
+		if r.err != nil {
+			if keyErrs == nil {
+				keyErrs = driver.KeyErrors{}
+			}
+			keyErrs[key] = r.err
+			continue
+		}
 		result[key] = r.AttemptRecord
+	}
+	if keyErrs != nil {
+		return result, keyErrs
 	}
 	return result, nil
 }

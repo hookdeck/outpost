@@ -88,13 +88,26 @@ func (s *logStoreImpl) ListLatestAttempts(ctx context.Context, lookups []driver.
 		return nil, err
 	}
 
-	result := make(map[driver.AttemptKey]*driver.AttemptRecord, len(records))
+	latest := make(map[driver.AttemptKey]attemptRecordWithPosition, len(records))
 	for _, r := range records {
 		key := driver.AttemptKey{TenantID: r.Attempt.TenantID, EventID: r.Attempt.EventID, DestinationID: r.Attempt.DestinationID}
 		if r.Attempt.Time.Before(notBefore[key]) {
 			continue
 		}
-		if cur, ok := result[key]; ok && !newerAttempt(r.Attempt, cur.Attempt) {
+		if cur, ok := latest[key]; ok && !newerAttempt(r.Attempt, cur.Attempt) {
+			continue
+		}
+		latest[key] = r
+	}
+
+	result := make(map[driver.AttemptKey]*driver.AttemptRecord, len(latest))
+	var keyErrs driver.KeyErrors
+	for key, r := range latest {
+		if r.err != nil {
+			if keyErrs == nil {
+				keyErrs = driver.KeyErrors{}
+			}
+			keyErrs[key] = r.err
 			continue
 		}
 		result[key] = r.AttemptRecord
@@ -103,7 +116,7 @@ func (s *logStoreImpl) ListLatestAttempts(ctx context.Context, lookups []driver.
 	// A full result may have lost keys to duplicate rows; look those up alone.
 	if len(records) >= 2*len(notBefore) {
 		for key, nb := range notBefore {
-			if _, ok := result[key]; ok {
+			if _, ok := latest[key]; ok {
 				continue
 			}
 			req := driver.ListAttemptRequest{
@@ -117,6 +130,14 @@ func (s *logStoreImpl) ListLatestAttempts(ctx context.Context, lookups []driver.
 				req.TimeFilter.GTE = &nb
 			}
 			resp, err := s.ListAttempt(ctx, req)
+			var decodeErr *decodeError
+			if errors.As(err, &decodeErr) {
+				if keyErrs == nil {
+					keyErrs = driver.KeyErrors{}
+				}
+				keyErrs[key] = err
+				continue
+			}
 			if err != nil {
 				return nil, err
 			}
@@ -124,6 +145,9 @@ func (s *logStoreImpl) ListLatestAttempts(ctx context.Context, lookups []driver.
 				result[key] = resp.Data[0]
 			}
 		}
+	}
+	if keyErrs != nil {
+		return result, keyErrs
 	}
 	return result, nil
 }

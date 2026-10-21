@@ -333,7 +333,14 @@ func buildEventCursorCondition(compare, position string) (string, []any, error) 
 type attemptRecordWithPosition struct {
 	*driver.AttemptRecord
 	attemptTime time.Time
+	err         error // row couldn't be decoded; only the attempt's key fields and time are set
 }
+
+// decodeError is a row that was read but couldn't be decoded.
+type decodeError struct{ err error }
+
+func (e *decodeError) Error() string { return e.err.Error() }
+func (e *decodeError) Unwrap() error { return e.err }
 
 func (ar attemptRecordWithPosition) cursorPosition() string {
 	return fmt.Sprintf("%d::%s", ar.attemptTime.UnixMilli(), ar.Attempt.ID)
@@ -358,7 +365,7 @@ func (s *logStoreImpl) ListAttempt(ctx context.Context, req driver.ListAttemptRe
 		Fetch: func(ctx context.Context, q pagination.QueryInput) ([]attemptRecordWithPosition, error) {
 			return fetchAndDedup(ctx, s.chDB, q, func(qi pagination.QueryInput) (string, []any, error) {
 				return buildAttemptQuery(s.attemptsTable, req, qi)
-			}, scanAttemptRecords, func(ar attemptRecordWithPosition) string {
+			}, scanListedAttemptRecords, func(ar attemptRecordWithPosition) string {
 				return ar.Attempt.ID
 			}, attemptRecordWithPosition.cursorPosition)
 		},
@@ -484,6 +491,20 @@ func buildAttemptQuery(table string, req driver.ListAttemptRequest, q pagination
 	return query, args, nil
 }
 
+// scanListedAttemptRecords fails on the first row that can't be decoded.
+func scanListedAttemptRecords(rows clickhouse.Rows) ([]attemptRecordWithPosition, error) {
+	records, err := scanAttemptRecords(rows)
+	if err != nil {
+		return nil, err
+	}
+	for _, r := range records {
+		if r.err != nil {
+			return nil, r.err
+		}
+	}
+	return records, nil
+}
+
 func scanAttemptRecords(rows clickhouse.Rows) ([]attemptRecordWithPosition, error) {
 	var results []attemptRecordWithPosition
 	for rows.Next() {
@@ -532,16 +553,33 @@ func scanAttemptRecords(rows clickhouse.Rows) ([]attemptRecordWithPosition, erro
 
 		var metadata map[string]string
 		var responseData map[string]any
+		var decodeErr error
 
 		if metadataStr != "" {
 			if err := json.Unmarshal([]byte(metadataStr), &metadata); err != nil {
-				return nil, fmt.Errorf("failed to unmarshal metadata: %w", err)
+				decodeErr = &decodeError{fmt.Errorf("failed to unmarshal metadata: %w", err)}
 			}
 		}
-		if responseDataStr != "" {
+		if decodeErr == nil && responseDataStr != "" {
 			if err := json.Unmarshal([]byte(responseDataStr), &responseData); err != nil {
-				return nil, fmt.Errorf("failed to unmarshal response_data: %w", err)
+				decodeErr = &decodeError{fmt.Errorf("failed to unmarshal response_data: %w", err)}
 			}
+		}
+		if decodeErr != nil {
+			results = append(results, attemptRecordWithPosition{
+				AttemptRecord: &driver.AttemptRecord{
+					Attempt: &models.Attempt{
+						ID:            attemptID,
+						TenantID:      tenantID,
+						EventID:       eventID,
+						DestinationID: destinationID,
+						Time:          attemptTime,
+					},
+				},
+				attemptTime: attemptTime,
+				err:         decodeErr,
+			})
+			continue
 		}
 
 		results = append(results, attemptRecordWithPosition{
