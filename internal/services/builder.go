@@ -298,6 +298,20 @@ func newSupervisedConsumerWorker(
 	return w, registerOpts
 }
 
+// NewDeliveryConsumerWorker builds the delivery queue's consumer worker and
+// how the supervisor runs it, with handler as the delivery logic. The
+// delivery service uses it; so does the queue consumer validation harness
+// (cmd/mqcheck), so both run the same consumer.
+func NewDeliveryConsumerWorker(
+	cfg *config.Config,
+	subscribe func(ctx context.Context, opts ...mqs.SubscribeOption) (mqs.Subscription, error),
+	handler consumer.MessageHandler,
+	logger *logging.Logger,
+) (worker.Worker, []worker.RegisterOption) {
+	return newSupervisedConsumerWorker(cfg, config.SupervisorWorkerDeliveryMQ,
+		"deliverymq-consumer", subscribe, handler, cfg.DeliveryMaxConcurrency, logger)
+}
+
 // BuildDeliveryWorker creates and registers the delivery worker.
 func (b *ServiceBuilder) BuildDeliveryWorker(baseRouter *gin.Engine) error {
 	b.logger.Debug("building delivery service worker")
@@ -359,8 +373,7 @@ func (b *ServiceBuilder) BuildDeliveryWorker(baseRouter *gin.Engine) error {
 	svc.router = baseRouter
 
 	// Create DeliveryMQ worker
-	deliveryWorker, deliveryRegisterOpts := newSupervisedConsumerWorker(b.cfg, config.SupervisorWorkerDeliveryMQ,
-		"deliverymq-consumer", svc.deliveryMQ.Subscribe, handler, b.cfg.DeliveryMaxConcurrency, b.logger)
+	deliveryWorker, deliveryRegisterOpts := NewDeliveryConsumerWorker(b.cfg, svc.deliveryMQ.Subscribe, handler, b.logger)
 	b.supervisor.Register(deliveryWorker, deliveryRegisterOpts...)
 
 	b.logger.Info("delivery service worker built successfully")
