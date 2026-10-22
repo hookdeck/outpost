@@ -27,6 +27,7 @@ import (
 	"github.com/hookdeck/outpost/internal/telemetry"
 	"github.com/hookdeck/outpost/internal/tenantstore"
 	"github.com/hookdeck/outpost/internal/worker"
+	"github.com/hookdeck/outpost/internal/workloadidentity"
 	"go.uber.org/zap"
 )
 
@@ -56,6 +57,9 @@ type serviceInstance struct {
 	deliveryMQ     *deliverymq.DeliveryMQ
 	logMQ          *logmq.LogMQ
 	retryScheduler scheduler.Scheduler
+
+	// Nil unless workload identity is configured.
+	workloadIdentity *workloadidentity.Issuer
 
 	// HTTP server and router
 	router http.Handler
@@ -220,6 +224,7 @@ func (b *ServiceBuilder) BuildAPIWorkers(baseRouter *gin.Engine) error {
 			Registry:             svc.destRegistry,
 			PortalConfig:         b.cfg.GetPortalConfig(),
 			GinMode:              b.cfg.GinMode,
+			WorkloadIdentity:     svc.workloadIdentity,
 		},
 		apirouter.RouterDeps{
 			TenantStore:         svc.tenantStore,
@@ -570,11 +575,18 @@ func (s *serviceInstance) initDestRegistry(cfg *config.Config, logger *logging.L
 		DestinationMetadataPath: cfg.Destinations.MetadataPath,
 		DeliveryTimeout:         time.Duration(cfg.DeliveryTimeoutSeconds) * time.Second,
 	}, logger)
-	if err := destregistrydefault.RegisterDefault(registry, cfg.Destinations.ToConfig(cfg)); err != nil {
+	issuer, err := cfg.WorkloadIdentity.Build()
+	if err != nil {
+		return err
+	}
+	opts := cfg.Destinations.ToConfig(cfg)
+	opts.WorkloadIdentity = issuer
+	if err := destregistrydefault.RegisterDefault(registry, opts); err != nil {
 		logger.Error("destination registry setup failed", zap.String("service", s.name), zap.Error(err))
 		return err
 	}
 	s.destRegistry = registry
+	s.workloadIdentity = issuer
 	return nil
 }
 
