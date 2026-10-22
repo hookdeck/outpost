@@ -73,7 +73,6 @@ go test ./... -run "Integration"  # Integration tests
 | `TESTCOMPAT` | Set to `1` to run the alternative backend tests, and the destination tests (see [Test groups](#test-groups)) | (none) |
 | `TESTDEST` | Set to `1` to run the destination provider tests (see [Test groups](#test-groups)) | (none) |
 | `TESTAZURE` | Set to `1` to run the Azure Service Bus tests (see [Test groups](#test-groups)) | (none) |
-| `TESTREDISCLUSTER` | Set to `1` to enable Redis cluster tests | (none) |
 | `RUNNER` | Force test runner: `gotestsum` or `go` | auto-detect |
 
 ### Examples
