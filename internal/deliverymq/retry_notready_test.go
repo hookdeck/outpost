@@ -44,6 +44,7 @@ func startNotReadyScheduler(t *testing.T, getter deliverymq.RetryEventGetter, op
 }
 
 func TestRetryScheduler_AttemptNotPersistedYetIsNotCounted(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		event := testutil.EventFactory.Any(
 			testutil.EventFactory.WithDestinationID("dest_1"),
@@ -68,6 +69,7 @@ func TestRetryScheduler_AttemptNotPersistedYetIsNotCounted(t *testing.T) {
 }
 
 func TestRetryScheduler_AttemptMissingPastGraceIsCounted(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		getter := &countingEventGetter{}
 		client, schedule := startNotReadyScheduler(t, getter,
@@ -83,6 +85,7 @@ func TestRetryScheduler_AttemptMissingPastGraceIsCounted(t *testing.T) {
 }
 
 func TestRetryScheduler_MissingAttemptWithoutAttemptTimeIsCounted(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		getter := &countingEventGetter{}
 		client, schedule := startNotReadyScheduler(t, getter,
