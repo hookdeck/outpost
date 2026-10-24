@@ -135,6 +135,7 @@ func (suite *RetryDeliveryMQSuite) TeardownTest(t *testing.T) {
 }
 
 func TestDeliveryMQRetry_EligibleForRetryFalse(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		// Test scenario:
 		// - Event is not eligible for retry
@@ -191,6 +192,7 @@ func TestDeliveryMQRetry_EligibleForRetryFalse(t *testing.T) {
 }
 
 func TestDeliveryMQRetry_EligibleForRetryTrue(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		// Test scenario:
 		// - Event is eligible for retry
@@ -257,6 +259,7 @@ func TestDeliveryMQRetry_EligibleForRetryTrue(t *testing.T) {
 }
 
 func TestDeliveryMQRetry_SystemError(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		// Test scenario:
 		// - Event is NOT eligible for retry
@@ -309,6 +312,7 @@ func TestDeliveryMQRetry_SystemError(t *testing.T) {
 }
 
 func TestDeliveryMQRetry_RetryMaxCount(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		// Test scenario:
 		// - Event is eligible for retry
@@ -384,6 +388,7 @@ func TestDeliveryMQRetry_RetryMaxCount(t *testing.T) {
 }
 
 func TestRetryScheduler_EventNotFound(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		// Test scenario:
 		// - Initial delivery fails and schedules a retry
@@ -450,6 +455,7 @@ func TestRetryScheduler_EventNotFound(t *testing.T) {
 }
 
 func TestRetryScheduler_EventFetchError(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		// Test scenario:
 		// - Initial delivery fails and schedules a retry
@@ -521,6 +527,7 @@ func TestRetryScheduler_EventFetchError(t *testing.T) {
 }
 
 func TestRetryScheduler_EventFetchSuccess(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		// Test scenario:
 		// - Initial delivery fails and schedules a retry
@@ -608,6 +615,7 @@ func TestRetryScheduler_EventFetchSuccess(t *testing.T) {
 //  4. Retry should remain in queue and be reprocessed later
 //  5. Once event is available, retry succeeds
 func TestRetryScheduler_RaceCondition_EventNotYetPersisted(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()

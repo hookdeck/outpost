@@ -39,6 +39,7 @@ func receiveDLQ(t *testing.T, client iredis.Client) *rsmq.QueueMessage {
 }
 
 func TestRetryScheduler_MaxReceiveCountHonored(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		eventGetter := &countingEventGetter{err: errors.New("log store unavailable")}
 		client, schedule := startNotReadyScheduler(t, eventGetter,
