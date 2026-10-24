@@ -2,8 +2,10 @@ package scheduler_test
 
 import (
 	"context"
+	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/hookdeck/outpost/internal/idgen"
@@ -14,53 +16,63 @@ import (
 
 func TestScheduler_MaxConcurrencyBoundsReceives(t *testing.T) {
 	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		const limit, total = 3, 10
 
-	const limit, total = 3, 10
+		rsmqClient := createRSMQClient(t)
+		logger := testutil.CreateTestLogger(t)
 
-	redisConfig := testutil.CreateTestRedisConfig(t)
-	rsmqClient := createRSMQClient(t, redisConfig)
-	logger := testutil.CreateTestLogger(t)
-
-	var inFlight, maxInFlight, executed atomic.Int64
-	release := make(chan struct{})
-	exec := func(_ context.Context, _ string) error {
-		n := inFlight.Add(1)
-		for {
-			m := maxInFlight.Load()
-			if n <= m || maxInFlight.CompareAndSwap(m, n) {
-				break
+		var inFlight, maxInFlight, executed atomic.Int64
+		release := make(chan struct{})
+		var releaseOnce sync.Once
+		unblock := func() { releaseOnce.Do(func() { close(release) }) }
+		exec := func(_ context.Context, _ string) error {
+			n := inFlight.Add(1)
+			for {
+				m := maxInFlight.Load()
+				if n <= m || maxInFlight.CompareAndSwap(m, n) {
+					break
+				}
 			}
+			<-release
+			inFlight.Add(-1)
+			executed.Add(1)
+			return nil
 		}
-		<-release
-		inFlight.Add(-1)
-		executed.Add(1)
-		return nil
-	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	s := scheduler.New("scheduler", rsmqClient, exec,
-		scheduler.WithPollBackoff(10*time.Millisecond),
-		scheduler.WithMaxConcurrency(limit),
-		scheduler.WithLogger(logger))
-	require.NoError(t, s.Init(ctx))
-	// Two monitors share the one limit.
-	wait1 := startMonitor(ctx, s)
-	wait2 := startMonitor(ctx, s)
-	defer func() { cancel(); wait1(); wait2(); s.Shutdown() }()
+		ctx, cancel := context.WithCancel(context.Background())
+		s := scheduler.New("scheduler", rsmqClient, exec,
+			scheduler.WithPollBackoff(10*time.Millisecond),
+			scheduler.WithMaxConcurrency(limit),
+			scheduler.WithLogger(logger))
+		require.NoError(t, s.Init(ctx))
+		// Two monitors share the one limit.
+		wait1 := startMonitor(ctx, s)
+		wait2 := startMonitor(ctx, s)
+		defer func() {
+			unblock()
+			synctest.Wait()
+			cancel()
+			wait1()
+			wait2()
+			s.Shutdown()
+		}()
 
-	for i := 0; i < total; i++ {
-		require.NoError(t, s.Schedule(ctx, idgen.String(), 0))
-	}
+		for i := 0; i < total; i++ {
+			require.NoError(t, s.Schedule(ctx, idgen.String(), 0))
+		}
 
-	require.Eventually(t, func() bool { return inFlight.Load() == limit }, 5*time.Second, 10*time.Millisecond)
-	// With the executions blocked, nothing beyond the limit may be received.
-	time.Sleep(300 * time.Millisecond)
-	attrs, err := rsmqClient.GetQueueAttributes("scheduler")
-	require.NoError(t, err)
-	require.EqualValues(t, limit, attrs.TotalRecv)
-	require.EqualValues(t, limit, inFlight.Load())
+		synctest.Wait()
+		// With the executions blocked, nothing beyond the limit may be received.
+		advance(300 * time.Millisecond)
+		attrs, err := rsmqClient.GetQueueAttributes("scheduler")
+		require.NoError(t, err)
+		require.EqualValues(t, limit, attrs.TotalRecv)
+		require.EqualValues(t, limit, inFlight.Load())
 
-	close(release)
-	require.Eventually(t, func() bool { return executed.Load() == total }, 5*time.Second, 10*time.Millisecond)
-	require.EqualValues(t, limit, maxInFlight.Load())
+		unblock()
+		synctest.Wait()
+		require.EqualValues(t, total, executed.Load())
+		require.EqualValues(t, limit, maxInFlight.Load())
+	})
 }
