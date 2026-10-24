@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/hookdeck/outpost/internal/alert"
+	"github.com/hookdeck/outpost/internal/batcher"
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/mqs"
@@ -115,7 +116,7 @@ type BatchProcessor struct {
 	logger      *logging.Logger
 	logStore    LogStore
 	alerts      AlertPipeline
-	batcher     *batcher
+	batcher     *batcher.Batcher[*mqs.Message]
 	emitTimeout time.Duration
 	// alertsEnabled and emitsAttemptEvents are derived once from the pipeline's
 	// static config. alertsEnabled=false skips the replay gate on the failed
@@ -153,7 +154,13 @@ func NewBatchProcessor(ctx context.Context, logger *logging.Logger, logStore Log
 	bp.emitsAttemptEvents = alerts.Emitter.Enabled(opevents.TopicAttemptSuccess) ||
 		alerts.Emitter.Enabled(opevents.TopicAttemptFailed)
 
-	b, err := newBatcher(cfg.ItemCountThreshold, cfg.DelayThreshold, bp.processBatch)
+	// One flush at a time: an Add that fills a batch waits for the previous
+	// write, which holds back the consumer while the log store is slow.
+	b, err := batcher.New(batcher.Config{
+		MaxItems:    max(cfg.ItemCountThreshold, 0), // negative: no count limit, as before
+		MaxWait:     cfg.DelayThreshold,
+		MaxInFlight: 1,
+	}, func(_ context.Context, msgs []*mqs.Message) { bp.processBatch(msgs) })
 	if err != nil {
 		return nil, err
 	}
@@ -164,7 +171,7 @@ func NewBatchProcessor(ctx context.Context, logger *logging.Logger, logStore Log
 
 // Add adds a message to the batch.
 func (bp *BatchProcessor) Add(ctx context.Context, msg *mqs.Message) error {
-	return bp.batcher.add(msg)
+	return bp.batcher.Add(ctx, msg)
 }
 
 // Shutdown gracefully shuts down the batch processor: the batcher first
@@ -174,7 +181,7 @@ func (bp *BatchProcessor) Add(ctx context.Context, msg *mqs.Message) error {
 // Idempotent.
 func (bp *BatchProcessor) Shutdown() {
 	bp.shutdownOnce.Do(func() {
-		bp.batcher.shutdown()
+		bp.batcher.Close()
 		bp.inflight.Wait()
 	})
 }
