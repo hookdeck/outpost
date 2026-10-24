@@ -3,7 +3,9 @@ package consumer_test
 import (
 	"context"
 	"log"
+	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/hookdeck/outpost/internal/consumer"
@@ -277,4 +279,43 @@ var _ consumer.MessageHandler = &handlerImpl{}
 
 func (h *handlerImpl) Handle(ctx context.Context, msg *mqs.Message) error {
 	return h.handle(ctx, msg)
+}
+
+// With every handler busy, the consumer must not receive another message: it
+// would wait for a slot with its visibility timeout running, and be dropped
+// unacked on shutdown.
+func TestConsumer_ReceivesOnlyWithFreeSlot(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		ctx, cancel := context.WithCancel(t.Context())
+
+		var receives atomic.Int32
+		sub := &fakeSubscription{
+			receive: func(ctx context.Context) (*mqs.Message, error) {
+				receives.Add(1)
+				return &mqs.Message{Body: []byte("m")}, nil
+			},
+		}
+		release := make(chan struct{})
+		handler := &handlerImpl{
+			handle: func(ctx context.Context, msg *mqs.Message) error {
+				<-release
+				return nil
+			},
+		}
+
+		done := make(chan error)
+		go func() { done <- consumer.New(sub, handler, consumer.WithConcurrency(2)).Run(ctx) }()
+		synctest.Wait()
+		assert.Equal(t, int32(2), receives.Load(), "one receive per free slot")
+
+		release <- struct{}{}
+		synctest.Wait()
+		assert.Equal(t, int32(3), receives.Load(), "a freed slot allows one more receive")
+
+		cancel()
+		close(release)
+		assert.NoError(t, <-done)
+		assert.Equal(t, int32(3), receives.Load(), "nothing received after shutdown")
+	})
 }
