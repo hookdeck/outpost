@@ -6,13 +6,12 @@ import (
 	"fmt"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
-	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
 // Mock worker for testing
@@ -151,174 +150,186 @@ func TestWorkerSupervisor_RegisterDuplicateWorker(t *testing.T) {
 }
 
 func TestWorkerSupervisor_Run_HealthyWorkers(t *testing.T) {
-	logger := testutil.CreateTestLogger(t)
-	supervisor := NewWorkerSupervisor(logger)
+	synctest.Test(t, func(t *testing.T) {
+		logger := testutil.CreateTestLogger(t)
+		supervisor := NewWorkerSupervisor(logger)
 
-	worker1 := newMockWorker("worker-1", func(ctx context.Context) error {
-		<-ctx.Done()
-		return nil
+		worker1 := newMockWorker("worker-1", func(ctx context.Context) error {
+			<-ctx.Done()
+			return nil
+		})
+		worker2 := newMockWorker("worker-2", func(ctx context.Context) error {
+			<-ctx.Done()
+			return nil
+		})
+
+		supervisor.Register(worker1)
+		supervisor.Register(worker2)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		errChan := make(chan error, 1)
+		go func() {
+			errChan <- supervisor.Run(ctx)
+		}()
+		synctest.Wait()
+
+		// Verify workers started
+		assert.True(t, worker1.WasStarted())
+		assert.True(t, worker2.WasStarted())
+
+		// Verify health while workers are running
+		tracker := supervisor.GetHealthTracker()
+		assert.True(t, tracker.IsHealthy(), "all workers should be healthy while running")
+
+		status := tracker.GetStatus()
+		assert.Equal(t, "healthy", status["status"])
+
+		workers := status["workers"].(map[string]WorkerHealth)
+		assert.Len(t, workers, 2, "should have 2 workers in health status")
+		assert.Equal(t, WorkerStatusHealthy, workers["worker-1"].Status, "worker-1 should be healthy")
+		assert.Equal(t, WorkerStatusHealthy, workers["worker-2"].Status, "worker-2 should be healthy")
+		assert.NotZero(t, status["timestamp"], "should have timestamp field")
+
+		// Cancel context and verify graceful shutdown
+		cancel()
+
+		err := <-errChan
+		assert.ErrorIs(t, err, context.Canceled)
 	})
-	worker2 := newMockWorker("worker-2", func(ctx context.Context) error {
-		<-ctx.Done()
-		return nil
-	})
-
-	supervisor.Register(worker1)
-	supervisor.Register(worker2)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	errChan := make(chan error, 1)
-	go func() {
-		errChan <- supervisor.Run(ctx)
-	}()
-
-	// Give workers time to start
-	time.Sleep(50 * time.Millisecond)
-
-	// Verify workers started
-	assert.True(t, worker1.WasStarted())
-	assert.True(t, worker2.WasStarted())
-
-	// Verify health while workers are running
-	tracker := supervisor.GetHealthTracker()
-	assert.True(t, tracker.IsHealthy(), "all workers should be healthy while running")
-
-	status := tracker.GetStatus()
-	assert.Equal(t, "healthy", status["status"])
-
-	workers := status["workers"].(map[string]WorkerHealth)
-	assert.Len(t, workers, 2, "should have 2 workers in health status")
-	assert.Equal(t, WorkerStatusHealthy, workers["worker-1"].Status, "worker-1 should be healthy")
-	assert.Equal(t, WorkerStatusHealthy, workers["worker-2"].Status, "worker-2 should be healthy")
-	assert.NotZero(t, status["timestamp"], "should have timestamp field")
-
-	// Cancel context and verify graceful shutdown
-	cancel()
-
-	err := <-errChan
-	assert.ErrorIs(t, err, context.Canceled)
 }
 
 func TestWorkerSupervisor_Run_FailedWorker(t *testing.T) {
-	logger := testutil.CreateTestLogger(t)
-	supervisor := NewWorkerSupervisor(logger)
+	synctest.Test(t, func(t *testing.T) {
+		logger := testutil.CreateTestLogger(t)
+		supervisor := NewWorkerSupervisor(logger)
 
-	healthyWorker := newMockWorker("healthy", func(ctx context.Context) error {
-		<-ctx.Done()
-		return nil
+		healthyWorker := newMockWorker("healthy", func(ctx context.Context) error {
+			<-ctx.Done()
+			return nil
+		})
+
+		failingWorker := newMockWorker("failing", func(ctx context.Context) error {
+			time.Sleep(50 * time.Millisecond)
+			return errors.New("worker failed")
+		})
+
+		supervisor.Register(healthyWorker)
+		supervisor.Register(failingWorker)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		errChan := make(chan error, 1)
+		go func() {
+			errChan <- supervisor.Run(ctx)
+		}()
+
+		// The failing worker has not failed yet
+		advance(49 * time.Millisecond)
+		assert.True(t, supervisor.GetHealthTracker().IsHealthy())
+
+		// Wait for failing worker to fail
+		advance(time.Millisecond)
+
+		// Verify health reflects failure while supervisor is still running
+		assert.False(t, supervisor.GetHealthTracker().IsHealthy())
+
+		status := supervisor.GetHealthTracker().GetStatus()
+		assert.Equal(t, "failed", status["status"])
+
+		workers := status["workers"].(map[string]WorkerHealth)
+		assert.Equal(t, WorkerStatusFailed, workers["failing"].Status)
+
+		// Verify that supervisor is still blocking (hasn't returned yet)
+		advance(time.Hour)
+		select {
+		case <-errChan:
+			t.Fatal("supervisor.Run() returned early - should keep running until context cancelled")
+		default:
+			// Good - still blocking
+		}
+
+		// Now cancel context and verify graceful shutdown
+		cancel()
+		err := <-errChan
+		assert.ErrorIs(t, err, context.Canceled) // Graceful shutdown should return context.Canceled from ctx.Err()
 	})
-
-	failingWorker := newMockWorker("failing", func(ctx context.Context) error {
-		time.Sleep(50 * time.Millisecond)
-		return errors.New("worker failed")
-	})
-
-	supervisor.Register(healthyWorker)
-	supervisor.Register(failingWorker)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	errChan := make(chan error, 1)
-	go func() {
-		errChan <- supervisor.Run(ctx)
-	}()
-
-	// Wait for failing worker to fail
-	time.Sleep(100 * time.Millisecond)
-
-	// Verify health reflects failure while supervisor is still running
-	assert.False(t, supervisor.GetHealthTracker().IsHealthy())
-
-	status := supervisor.GetHealthTracker().GetStatus()
-	assert.Equal(t, "failed", status["status"])
-
-	workers := status["workers"].(map[string]WorkerHealth)
-	assert.Equal(t, WorkerStatusFailed, workers["failing"].Status)
-
-	// Verify that supervisor is still blocking (hasn't returned yet)
-	select {
-	case <-errChan:
-		t.Fatal("supervisor.Run() returned early - should keep running until context cancelled")
-	default:
-		// Good - still blocking
-	}
-
-	// Now cancel context and verify graceful shutdown
-	cancel()
-	err := <-errChan
-	assert.ErrorIs(t, err, context.Canceled) // Graceful shutdown should return context.Canceled from ctx.Err()
 }
 
 func TestWorkerSupervisor_Run_AllWorkersExit(t *testing.T) {
-	logger := testutil.CreateTestLogger(t)
-	supervisor := NewWorkerSupervisor(logger)
+	synctest.Test(t, func(t *testing.T) {
+		logger := testutil.CreateTestLogger(t)
+		supervisor := NewWorkerSupervisor(logger)
 
-	// Both workers exit on their own (not from context cancellation)
-	worker1 := newMockWorker("worker-1", func(ctx context.Context) error {
-		time.Sleep(50 * time.Millisecond)
-		return errors.New("worker 1 failed")
+		// Both workers exit on their own (not from context cancellation)
+		worker1 := newMockWorker("worker-1", func(ctx context.Context) error {
+			time.Sleep(50 * time.Millisecond)
+			return errors.New("worker 1 failed")
+		})
+
+		worker2 := newMockWorker("worker-2", func(ctx context.Context) error {
+			time.Sleep(100 * time.Millisecond)
+			return errors.New("worker 2 failed")
+		})
+
+		supervisor.Register(worker1)
+		supervisor.Register(worker2)
+
+		ctx := context.Background()
+
+		errChan := make(chan error, 1)
+		start := time.Now()
+		go func() {
+			errChan <- supervisor.Run(ctx)
+		}()
+
+		// Wait for both workers to exit
+		err := <-errChan
+		assert.Error(t, err) // Should return error when all workers exit unexpectedly
+		assert.Contains(t, err.Error(), "all workers have exited unexpectedly")
+		assert.Equal(t, 100*time.Millisecond, time.Since(start), "should return when the last worker exits")
+
+		// Verify both workers are marked as failed
+		assert.False(t, supervisor.GetHealthTracker().IsHealthy())
+
+		status := supervisor.GetHealthTracker().GetStatus()
+		assert.Equal(t, "failed", status["status"])
+
+		workers := status["workers"].(map[string]WorkerHealth)
+		assert.Equal(t, WorkerStatusFailed, workers["worker-1"].Status)
+		assert.Equal(t, WorkerStatusFailed, workers["worker-2"].Status)
 	})
-
-	worker2 := newMockWorker("worker-2", func(ctx context.Context) error {
-		time.Sleep(100 * time.Millisecond)
-		return errors.New("worker 2 failed")
-	})
-
-	supervisor.Register(worker1)
-	supervisor.Register(worker2)
-
-	ctx := context.Background()
-
-	errChan := make(chan error, 1)
-	go func() {
-		errChan <- supervisor.Run(ctx)
-	}()
-
-	// Wait for both workers to exit
-	err := <-errChan
-	assert.Error(t, err) // Should return error when all workers exit unexpectedly
-	assert.Contains(t, err.Error(), "all workers have exited unexpectedly")
-
-	// Verify both workers are marked as failed
-	assert.False(t, supervisor.GetHealthTracker().IsHealthy())
-
-	status := supervisor.GetHealthTracker().GetStatus()
-	assert.Equal(t, "failed", status["status"])
-
-	workers := status["workers"].(map[string]WorkerHealth)
-	assert.Equal(t, WorkerStatusFailed, workers["worker-1"].Status)
-	assert.Equal(t, WorkerStatusFailed, workers["worker-2"].Status)
 }
 
 func TestWorkerSupervisor_Run_ContextCanceled(t *testing.T) {
-	logger := testutil.CreateTestLogger(t)
-	supervisor := NewWorkerSupervisor(logger)
+	synctest.Test(t, func(t *testing.T) {
+		logger := testutil.CreateTestLogger(t)
+		supervisor := NewWorkerSupervisor(logger)
 
-	worker := newMockWorker("worker-1", func(ctx context.Context) error {
-		<-ctx.Done()
-		return context.Canceled
+		worker := newMockWorker("worker-1", func(ctx context.Context) error {
+			<-ctx.Done()
+			return context.Canceled
+		})
+
+		supervisor.Register(worker)
+
+		ctx, cancel := context.WithCancel(context.Background())
+
+		errChan := make(chan error, 1)
+		go func() {
+			errChan <- supervisor.Run(ctx)
+		}()
+		synctest.Wait()
+		assert.True(t, worker.WasStarted())
+
+		// Cancel context
+		cancel()
+
+		err := <-errChan
+		assert.ErrorIs(t, err, context.Canceled) // Should return context.Canceled
 	})
-
-	supervisor.Register(worker)
-
-	ctx, cancel := context.WithCancel(context.Background())
-
-	errChan := make(chan error, 1)
-	go func() {
-		errChan <- supervisor.Run(ctx)
-	}()
-
-	// Give worker time to start
-	time.Sleep(50 * time.Millisecond)
-
-	// Cancel context
-	cancel()
-
-	err := <-errChan
-	assert.ErrorIs(t, err, context.Canceled) // Should return context.Canceled
 }
 
 func TestWorkerSupervisor_Run_NoWorkers(t *testing.T) {
@@ -373,234 +384,222 @@ func TestHealthTracker_ConcurrentAccess(t *testing.T) {
 }
 
 func TestWorkerSupervisor_Run_VariableShutdownTiming(t *testing.T) {
-	logger := testutil.CreateTestLogger(t)
-	supervisor := NewWorkerSupervisor(logger)
+	synctest.Test(t, func(t *testing.T) {
+		logger := testutil.CreateTestLogger(t)
+		supervisor := NewWorkerSupervisor(logger)
 
-	// Worker that shuts down quickly (50ms)
-	fastWorker := newMockWorker("fast", func(ctx context.Context) error {
-		<-ctx.Done()
-		time.Sleep(50 * time.Millisecond)
-		return nil
+		// Worker that shuts down quickly (50ms)
+		fastWorker := newMockWorker("fast", func(ctx context.Context) error {
+			<-ctx.Done()
+			time.Sleep(50 * time.Millisecond)
+			return nil
+		})
+
+		// Worker that shuts down slowly (200ms)
+		slowWorker := newMockWorker("slow", func(ctx context.Context) error {
+			<-ctx.Done()
+			time.Sleep(200 * time.Millisecond)
+			return nil
+		})
+
+		// Worker that shuts down instantly
+		instantWorker := newMockWorker("instant", func(ctx context.Context) error {
+			<-ctx.Done()
+			return nil
+		})
+
+		supervisor.Register(fastWorker)
+		supervisor.Register(slowWorker)
+		supervisor.Register(instantWorker)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		errChan := make(chan error, 1)
+		go func() {
+			errChan <- supervisor.Run(ctx)
+		}()
+		synctest.Wait()
+
+		// Cancel context and verify graceful shutdown
+		cancelAt := time.Now()
+		cancel()
+
+		err := <-errChan
+
+		assert.ErrorIs(t, err, context.Canceled)
+
+		// Supervisor waits for exactly the slowest worker
+		assert.Equal(t, 200*time.Millisecond, time.Since(cancelAt))
 	})
-
-	// Worker that shuts down slowly (200ms)
-	slowWorker := newMockWorker("slow", func(ctx context.Context) error {
-		<-ctx.Done()
-		time.Sleep(200 * time.Millisecond)
-		return nil
-	})
-
-	// Worker that shuts down instantly
-	instantWorker := newMockWorker("instant", func(ctx context.Context) error {
-		<-ctx.Done()
-		return nil
-	})
-
-	supervisor.Register(fastWorker)
-	supervisor.Register(slowWorker)
-	supervisor.Register(instantWorker)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	errChan := make(chan error, 1)
-	start := time.Now()
-	go func() {
-		errChan <- supervisor.Run(ctx)
-	}()
-
-	// Give workers time to start
-	time.Sleep(50 * time.Millisecond)
-
-	// Cancel context and verify graceful shutdown
-	cancel()
-
-	err := <-errChan
-	elapsed := time.Since(start)
-
-	assert.ErrorIs(t, err, context.Canceled)
-
-	// Supervisor should wait for the slowest worker (200ms)
-	// Total time should be at least 200ms (slow worker) + some overhead
-	assert.True(t, elapsed >= 200*time.Millisecond,
-		"expected shutdown to take at least 200ms (slowest worker), got %v", elapsed)
-
-	// But not too much longer (should complete within 300ms)
-	assert.True(t, elapsed < 300*time.Millisecond,
-		"shutdown took too long: %v", elapsed)
 }
 
 func TestWorkerSupervisor_Run_VerySlowShutdown_NoTimeout(t *testing.T) {
-	logger := testutil.CreateTestLogger(t)
-	supervisor := NewWorkerSupervisor(logger) // No timeout
+	synctest.Test(t, func(t *testing.T) {
+		logger := testutil.CreateTestLogger(t)
+		supervisor := NewWorkerSupervisor(logger) // No timeout
 
-	// Worker that takes a very long time to shutdown (2 seconds)
-	verySlowWorker := newMockWorker("very-slow", func(ctx context.Context) error {
-		<-ctx.Done()
-		time.Sleep(2 * time.Second)
-		return nil
-	})
+		// Worker that takes a very long time to shutdown (2 seconds)
+		verySlowWorker := newMockWorker("very-slow", func(ctx context.Context) error {
+			<-ctx.Done()
+			time.Sleep(2 * time.Second)
+			return nil
+		})
 
-	supervisor.Register(verySlowWorker)
+		supervisor.Register(verySlowWorker)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
 
-	errChan := make(chan error, 1)
-	start := time.Now()
-	go func() {
-		errChan <- supervisor.Run(ctx)
-	}()
+		errChan := make(chan error, 1)
+		go func() {
+			errChan <- supervisor.Run(ctx)
+		}()
+		synctest.Wait()
 
-	// Give worker time to start
-	time.Sleep(50 * time.Millisecond)
+		cancelAt := time.Now()
+		cancel()
 
-	// Cancel context
-	cancel()
+		// Still waiting just before the worker finishes
+		advance(2*time.Second - time.Millisecond)
+		select {
+		case <-errChan:
+			t.Fatal("Supervisor.Run() returned before the worker finished shutting down")
+		default:
+		}
 
-	// Wait for shutdown with timeout
-	select {
-	case err := <-errChan:
-		elapsed := time.Since(start)
+		err := <-errChan
 		assert.ErrorIs(t, err, context.Canceled)
-
-		// Should wait the full 2 seconds for worker to finish
-		assert.True(t, elapsed >= 2*time.Second,
-			"expected to wait at least 2s for slow worker, got %v", elapsed)
-
-		t.Logf("Supervisor waited %v for slow worker to shutdown gracefully (no timeout)", elapsed)
-
-	case <-time.After(3 * time.Second):
-		t.Fatal("Supervisor.Run() blocked for more than 3 seconds")
-	}
+		assert.Equal(t, 2*time.Second, time.Since(cancelAt), "should wait the full 2s for the slow worker")
+	})
 }
 
 func TestWorkerSupervisor_Run_ShutdownTimeout(t *testing.T) {
-	// The worker outlives the test and logs when it stops, so the logger
-	// can't be tied to t.
-	logger := logging.NewTestLogger(zap.NewNop())
-	// Set shutdown timeout to 500ms
-	supervisor := NewWorkerSupervisor(logger, WithShutdownTimeout(500*time.Millisecond))
+	synctest.Test(t, func(t *testing.T) {
+		logger := testutil.CreateTestLogger(t)
+		// Set shutdown timeout to 500ms
+		supervisor := NewWorkerSupervisor(logger, WithShutdownTimeout(500*time.Millisecond))
 
-	// Worker that takes 2 seconds to shutdown (longer than timeout)
-	slowWorker := newMockWorker("slow", func(ctx context.Context) error {
-		<-ctx.Done()
-		time.Sleep(2 * time.Second)
-		return nil
+		// Worker that takes 2 seconds to shutdown (longer than timeout)
+		slowWorker := newMockWorker("slow", func(ctx context.Context) error {
+			<-ctx.Done()
+			time.Sleep(2 * time.Second)
+			return nil
+		})
+
+		supervisor.Register(slowWorker)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		errChan := make(chan error, 1)
+		go func() {
+			errChan <- supervisor.Run(ctx)
+		}()
+		synctest.Wait()
+
+		cancelAt := time.Now()
+		cancel()
+
+		err := <-errChan
+
+		// Should return timeout error
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "shutdown timeout exceeded")
+
+		// Should return at the timeout, not when the worker finishes (2s)
+		assert.Equal(t, 500*time.Millisecond, time.Since(cancelAt))
+
+		// Let the worker finish so nothing outlives the bubble
+		advance(2 * time.Second)
 	})
-
-	supervisor.Register(slowWorker)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	errChan := make(chan error, 1)
-	start := time.Now()
-	go func() {
-		errChan <- supervisor.Run(ctx)
-	}()
-
-	// Give worker time to start
-	time.Sleep(50 * time.Millisecond)
-
-	// Cancel context
-	cancel()
-
-	err := <-errChan
-	elapsed := time.Since(start)
-
-	// Should return timeout error
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "shutdown timeout exceeded")
-
-	// Should return after ~500ms (timeout), not 2s (worker shutdown time)
-	assert.True(t, elapsed >= 500*time.Millisecond,
-		"expected to wait at least 500ms (timeout), got %v", elapsed)
-	assert.True(t, elapsed < 1*time.Second,
-		"expected to timeout before 1s, got %v", elapsed)
-
-	t.Logf("Supervisor timed out after %v (expected ~500ms)", elapsed)
 }
 
 func TestWorkerSupervisor_Run_ShutdownTimeout_FastWorkers(t *testing.T) {
-	logger := testutil.CreateTestLogger(t)
-	// Set shutdown timeout to 2s
-	supervisor := NewWorkerSupervisor(logger, WithShutdownTimeout(2*time.Second))
+	synctest.Test(t, func(t *testing.T) {
+		logger := testutil.CreateTestLogger(t)
+		// Set shutdown timeout to 2s
+		supervisor := NewWorkerSupervisor(logger, WithShutdownTimeout(2*time.Second))
 
-	// Workers that shutdown quickly (100ms)
-	fastWorker := newMockWorker("fast", func(ctx context.Context) error {
-		<-ctx.Done()
-		time.Sleep(100 * time.Millisecond)
-		return nil
+		// Workers that shutdown quickly (100ms)
+		fastWorker := newMockWorker("fast", func(ctx context.Context) error {
+			<-ctx.Done()
+			time.Sleep(100 * time.Millisecond)
+			return nil
+		})
+
+		supervisor.Register(fastWorker)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		errChan := make(chan error, 1)
+		go func() {
+			errChan <- supervisor.Run(ctx)
+		}()
+		synctest.Wait()
+
+		cancelAt := time.Now()
+		cancel()
+
+		err := <-errChan
+
+		// Should NOT timeout since worker finishes quickly (returns nil when timeout configured but not exceeded)
+		assert.NoError(t, err)
+
+		// Should return when the worker finishes (100ms), not at the timeout (2s)
+		assert.Equal(t, 100*time.Millisecond, time.Since(cancelAt))
 	})
-
-	supervisor.Register(fastWorker)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	errChan := make(chan error, 1)
-	start := time.Now()
-	go func() {
-		errChan <- supervisor.Run(ctx)
-	}()
-
-	// Give worker time to start
-	time.Sleep(50 * time.Millisecond)
-
-	// Cancel context
-	cancel()
-
-	err := <-errChan
-	elapsed := time.Since(start)
-
-	// Should NOT timeout since worker finishes quickly (returns nil when timeout configured but not exceeded)
-	assert.NoError(t, err)
-
-	// Should return after ~100ms (worker shutdown time), not 2s (timeout)
-	assert.True(t, elapsed >= 100*time.Millisecond,
-		"expected to wait at least 100ms, got %v", elapsed)
-	assert.True(t, elapsed < 500*time.Millisecond,
-		"shutdown took too long: %v", elapsed)
-
-	t.Logf("Supervisor shutdown in %v (workers finished before timeout)", elapsed)
 }
 
 func TestWorkerSupervisor_Run_StuckWorker(t *testing.T) {
-	logger := testutil.CreateTestLogger(t)
-	supervisor := NewWorkerSupervisor(logger)
+	synctest.Test(t, func(t *testing.T) {
+		logger := testutil.CreateTestLogger(t)
+		supervisor := NewWorkerSupervisor(logger)
 
-	// Worker that never shuts down (ignores context cancellation)
-	stuckWorker := newMockWorker("stuck", func(ctx context.Context) error {
-		// Ignores context, blocks forever
-		select {}
+		// Worker that never shuts down on its own (ignores context
+		// cancellation); the test releases it at the end so the bubble can exit.
+		release := make(chan struct{})
+		unblock := sync.OnceFunc(func() { close(release) })
+		defer unblock()
+		stuckWorker := newMockWorker("stuck", func(ctx context.Context) error {
+			<-release
+			return nil
+		})
+
+		supervisor.Register(stuckWorker)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		errChan := make(chan error, 1)
+		go func() {
+			errChan <- supervisor.Run(ctx)
+		}()
+		synctest.Wait()
+
+		// Cancel context
+		cancel()
+
+		// Verify that supervisor keeps waiting for the stuck worker
+		advance(24 * time.Hour)
+		select {
+		case <-errChan:
+			t.Fatal("Supervisor.Run() returned but worker is stuck - should block until the worker exits")
+		default:
+		}
+
+		// Once the worker exits, the supervisor returns
+		unblock()
+		synctest.Wait()
+		select {
+		case err := <-errChan:
+			assert.ErrorIs(t, err, context.Canceled)
+		default:
+			t.Fatal("Supervisor.Run() did not return after the worker exited")
+		}
+
+		// Note: In production, this is why orchestrators need timeouts for pod termination
+		// Kubernetes will forcefully kill pods that don't shutdown within terminationGracePeriodSeconds
 	})
-
-	supervisor.Register(stuckWorker)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	errChan := make(chan error, 1)
-	go func() {
-		errChan <- supervisor.Run(ctx)
-	}()
-
-	// Give worker time to start
-	time.Sleep(50 * time.Millisecond)
-
-	// Cancel context
-	cancel()
-
-	// Verify that supervisor blocks indefinitely waiting for stuck worker
-	select {
-	case <-errChan:
-		t.Fatal("Supervisor.Run() returned but worker is stuck - should block forever")
-	case <-time.After(500 * time.Millisecond):
-		// Expected: supervisor is still waiting for stuck worker
-		t.Log("Supervisor correctly blocks waiting for stuck worker (this is expected behavior)")
-	}
-
-	// Note: In production, this is why orchestrators need timeouts for pod termination
-	// Kubernetes will forcefully kill pods that don't shutdown within terminationGracePeriodSeconds
 }
