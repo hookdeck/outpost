@@ -4,10 +4,18 @@ import (
 	"math/rand"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 )
+
+// advance moves the fake clock forward by d and lets every goroutine in the
+// bubble settle.
+func advance(d time.Duration) {
+	time.Sleep(d)
+	synctest.Wait()
+}
 
 func TestBasicOperations(t *testing.T) {
 	c := New[string, int](3, 0, nil)
@@ -66,83 +74,84 @@ func TestSizeEviction(t *testing.T) {
 
 func TestTTL(t *testing.T) {
 	t.Run("basic expiration", func(t *testing.T) {
-		var mu sync.Mutex
-		var evicted []string
-		onEvict := func(k string, v int) {
+		synctest.Test(t, func(t *testing.T) {
+			var mu sync.Mutex
+			var evicted []string
+			onEvict := func(k string, v int) {
+				mu.Lock()
+				evicted = append(evicted, k)
+				mu.Unlock()
+			}
+			c := New[string, int](0, 50*time.Millisecond, onEvict)
+			defer c.Close()
+
+			c.Add("a", 1)
+
+			if v, ok := c.Get("a"); !ok || v != 1 {
+				t.Error("Get(a) = false, want true")
+			}
+
+			advance(51 * time.Millisecond)
+
+			if _, ok := c.Get("a"); ok {
+				t.Error("Get(a) = true, want false (should be expired)")
+			}
+
 			mu.Lock()
-			evicted = append(evicted, k)
+			if len(evicted) != 1 || evicted[0] != "a" {
+				t.Errorf("evicted = %v, want [a]", evicted)
+			}
 			mu.Unlock()
-		}
-		c := New[string, int](0, 50*time.Millisecond, onEvict)
-		defer c.Close()
-
-		c.Add("a", 1)
-
-		if v, ok := c.Get("a"); !ok || v != 1 {
-			t.Error("Get(a) = false, want true")
-		}
-
-		time.Sleep(60 * time.Millisecond)
-
-		if _, ok := c.Get("a"); ok {
-			t.Error("Get(a) = true, want false (should be expired)")
-		}
-
-		time.Sleep(10 * time.Millisecond) // Give cleanup time to run
-		mu.Lock()
-		if len(evicted) != 1 || evicted[0] != "a" {
-			t.Errorf("evicted = %v, want [a]", evicted)
-		}
-		mu.Unlock()
+		})
 	})
 
 	t.Run("refresh on access", func(t *testing.T) {
-		var mu sync.Mutex
-		var evicted []string
-		onEvict := func(k string, v int) {
+		synctest.Test(t, func(t *testing.T) {
+			var mu sync.Mutex
+			var evicted []string
+			onEvict := func(k string, v int) {
+				mu.Lock()
+				evicted = append(evicted, k)
+				mu.Unlock()
+			}
+			c := New[string, int](0, 50*time.Millisecond, onEvict)
+			defer c.Close()
+
+			c.Add("a", 1)
+			c.Add("b", 2)
+
+			time.Sleep(49 * time.Millisecond)
+
+			if v, ok := c.Get("a"); !ok || v != 1 {
+				t.Error("Get(a) = false, want true after 49ms")
+			}
+
+			advance(49 * time.Millisecond)
+
+			if _, ok := c.Get("b"); ok {
+				t.Error("Get(b) = true, want false (should have expired)")
+			}
+			if v, ok := c.Get("a"); !ok || v != 1 {
+				t.Error("Get(a) = false, want true (should be refreshed)")
+			}
+
 			mu.Lock()
-			evicted = append(evicted, k)
+			if len(evicted) != 1 || evicted[0] != "b" {
+				t.Errorf("evicted = %v, want [b]", evicted)
+			}
 			mu.Unlock()
-		}
-		c := New[string, int](0, 50*time.Millisecond, onEvict)
-		defer c.Close()
 
-		c.Add("a", 1)
-		c.Add("b", 2)
+			advance(51 * time.Millisecond)
+			if _, ok := c.Get("a"); ok {
+				t.Error("Get(a) = true, want false (should have expired)")
+			}
 
-		time.Sleep(30 * time.Millisecond)
-
-		if v, ok := c.Get("a"); !ok || v != 1 {
-			t.Error("Get(a) = false, want true after 30ms")
-		}
-
-		time.Sleep(30 * time.Millisecond)
-
-		if _, ok := c.Get("b"); ok {
-			t.Error("Get(b) = true, want false (should have expired)")
-		}
-		if v, ok := c.Get("a"); !ok || v != 1 {
-			t.Error("Get(a) = false, want true (should be refreshed)")
-		}
-
-		time.Sleep(10 * time.Millisecond) // Give cleanup time to run
-		mu.Lock()
-		if len(evicted) != 1 || evicted[0] != "b" {
-			t.Errorf("evicted = %v, want [b]", evicted)
-		}
-		mu.Unlock()
-
-		time.Sleep(60 * time.Millisecond)
-		if _, ok := c.Get("a"); ok {
-			t.Error("Get(a) = true, want false (should have expired)")
-		}
-
-		time.Sleep(10 * time.Millisecond) // Give cleanup time to run
-		mu.Lock()
-		if len(evicted) != 2 || evicted[1] != "a" {
-			t.Errorf("evicted = %v, want [b, a]", evicted)
-		}
-		mu.Unlock()
+			mu.Lock()
+			if len(evicted) != 2 || evicted[1] != "a" {
+				t.Errorf("evicted = %v, want [b, a]", evicted)
+			}
+			mu.Unlock()
+		})
 	})
 }
 
@@ -168,41 +177,49 @@ func TestConcurrentAccess(t *testing.T) {
 }
 
 func TestCleanupBehavior(t *testing.T) {
-	ttl := 100 * time.Millisecond
-	var evicted []string
-	c := New[string, int](0, ttl, func(k string, v int) {
-		evicted = append(evicted, k)
-	})
-	defer c.Close()
+	synctest.Test(t, func(t *testing.T) {
+		ttl := 100 * time.Millisecond
+		tick := ttl / numBuckets
+		var mu sync.Mutex
+		var evicted []string
+		c := New[string, int](0, ttl, func(k string, v int) {
+			mu.Lock()
+			evicted = append(evicted, k)
+			mu.Unlock()
+		})
+		defer c.Close()
 
-	// Add items with staggered times
-	c.Add("a", 1)
-	time.Sleep(40 * time.Millisecond)
-	c.Add("b", 2)
-	time.Sleep(40 * time.Millisecond)
-	c.Add("c", 3)
-
-	// Wait for cleanup to run
-	time.Sleep(ttl)
-
-	// All items should be evicted by cleanup goroutine
-	// without explicitly calling Get
-	time.Sleep(20 * time.Millisecond) // Give cleanup goroutine time to work
-
-	if c.Len() != 0 {
-		t.Errorf("Len() = %v, want 0 (all items should be cleaned up)", c.Len())
-	}
-
-	// Verify eviction order
-	if len(evicted) != 3 {
-		t.Errorf("got %v evictions, want 3", len(evicted))
-	}
-	// a should be evicted first, then b, then c
-	for i, want := range []string{"a", "b", "c"} {
-		if i >= len(evicted) || evicted[i] != want {
-			t.Errorf("evicted[%d] = %v, want %v", i, evicted[i], want)
+		snapshot := func() []string {
+			synctest.Wait()
+			mu.Lock()
+			defer mu.Unlock()
+			return append([]string(nil), evicted...)
 		}
-	}
+
+		// Items are evicted by the cleanup goroutine without calling Get.
+		c.Add("a", 1)
+		time.Sleep(40 * time.Millisecond)
+		c.Add("b", 2)
+		time.Sleep(40 * time.Millisecond)
+		c.Add("c", 3)
+
+		time.Sleep(20*time.Millisecond + tick)
+		if got := snapshot(); !assert.Equal(t, []string{"a"}, got) {
+			return
+		}
+		if l := c.Len(); l != 2 {
+			t.Errorf("Len() = %v, want 2", l)
+		}
+
+		time.Sleep(40 * time.Millisecond)
+		assert.Equal(t, []string{"a", "b"}, snapshot())
+
+		time.Sleep(40 * time.Millisecond)
+		assert.Equal(t, []string{"a", "b", "c"}, snapshot())
+		if l := c.Len(); l != 0 {
+			t.Errorf("Len() = %v, want 0 (all items should be cleaned up)", l)
+		}
+	})
 }
 
 func TestEvictionCallback(t *testing.T) {
@@ -226,100 +243,80 @@ func TestEvictionCallback(t *testing.T) {
 
 		c.Add("c", 3)
 
-		time.Sleep(10 * time.Millisecond) // Give eviction time to complete
 		mu.Lock()
 		assert.Equal(t, []string{"a"}, evicted, "Should evict oldest item")
 		mu.Unlock()
 
 		c.Add("b", 20)
 
-		time.Sleep(10 * time.Millisecond)
 		mu.Lock()
 		assert.Equal(t, []string{"a"}, evicted, "Update should not trigger eviction")
 		mu.Unlock()
 	})
 
 	t.Run("TTL-based eviction", func(t *testing.T) {
-		var mu sync.Mutex
-		var evicted []string
-		onEvict := func(k string, v int) {
+		synctest.Test(t, func(t *testing.T) {
+			var mu sync.Mutex
+			var evicted []string
+			onEvict := func(k string, v int) {
+				mu.Lock()
+				evicted = append(evicted, k)
+				mu.Unlock()
+			}
+			c := New[string, int](0, 50*time.Millisecond, onEvict)
+			defer c.Close()
+
+			c.Add("a", 1)
+			c.Add("b", 2)
+
 			mu.Lock()
-			evicted = append(evicted, k)
+			assert.Empty(t, evicted, "No eviction should occur before TTL")
 			mu.Unlock()
-		}
-		c := New[string, int](0, 50*time.Millisecond, onEvict)
-		defer c.Close()
 
-		c.Add("a", 1)
-		c.Add("b", 2)
+			time.Sleep(51 * time.Millisecond)
+			c.Get("a") // Trigger cleanup
+			synctest.Wait()
 
-		mu.Lock()
-		assert.Empty(t, evicted, "No eviction should occur before TTL")
-		mu.Unlock()
-
-		time.Sleep(60 * time.Millisecond)
-		c.Get("a") // Trigger cleanup
-
-		time.Sleep(10 * time.Millisecond) // Give cleanup time to run
-		mu.Lock()
-		assert.ElementsMatch(t, []string{"a", "b"}, evicted, "Both items should be evicted after TTL")
-		mu.Unlock()
+			mu.Lock()
+			assert.ElementsMatch(t, []string{"a", "b"}, evicted, "Both items should be evicted after TTL")
+			mu.Unlock()
+		})
 	})
 
 	t.Run("cleanup goroutine eviction", func(t *testing.T) {
-		var mu sync.Mutex
-		var evicted []string
-		onEvict := func(k string, v int) {
-			mu.Lock()
-			evicted = append(evicted, k)
-			mu.Unlock()
-		}
-		c := New[string, int](0, 100*time.Millisecond, onEvict)
-		defer c.Close()
-
-		c.Add("a", 1)
-		time.Sleep(40 * time.Millisecond)
-		c.Add("b", 2)
-		time.Sleep(40 * time.Millisecond)
-		c.Add("c", 3)
-
-		// Wait for first batch to expire and be cleaned up
-		time.Sleep(100 * time.Millisecond)
-
-		// Check eviction (with retry since cleanup is async)
-		deadline := time.Now().Add(200 * time.Millisecond)
-		for time.Now().Before(deadline) {
-			mu.Lock()
-			evictedCopy := make([]string, len(evicted))
-			copy(evictedCopy, evicted)
-			mu.Unlock()
-
-			if len(evictedCopy) >= 2 {
-				assert.Subset(t, evictedCopy, []string{"a", "b"},
-					"First two items should be evicted")
-				break
+		synctest.Test(t, func(t *testing.T) {
+			var mu sync.Mutex
+			var evicted []string
+			onEvict := func(k string, v int) {
+				mu.Lock()
+				evicted = append(evicted, k)
+				mu.Unlock()
 			}
-			time.Sleep(10 * time.Millisecond)
-		}
+			ttl := 100 * time.Millisecond
+			tick := ttl / numBuckets
+			c := New[string, int](0, ttl, onEvict)
+			defer c.Close()
 
-		// Wait for last item to expire
-		time.Sleep(100 * time.Millisecond)
-
-		// Check final eviction (with retry)
-		deadline = time.Now().Add(200 * time.Millisecond)
-		for time.Now().Before(deadline) {
-			mu.Lock()
-			evictedCopy := make([]string, len(evicted))
-			copy(evictedCopy, evicted)
-			mu.Unlock()
-
-			if len(evictedCopy) == 3 {
-				assert.ElementsMatch(t, []string{"a", "b", "c"}, evictedCopy,
-					"All items should eventually be evicted")
-				break
+			snapshot := func() []string {
+				synctest.Wait()
+				mu.Lock()
+				defer mu.Unlock()
+				return append([]string(nil), evicted...)
 			}
-			time.Sleep(10 * time.Millisecond)
-		}
+
+			c.Add("a", 1)
+			time.Sleep(40 * time.Millisecond)
+			c.Add("b", 2)
+			time.Sleep(40 * time.Millisecond)
+			c.Add("c", 3)
+
+			// First two items have expired; c expires exactly now.
+			time.Sleep(100 * time.Millisecond)
+			assert.Equal(t, []string{"a", "b"}, snapshot(), "First two items should be evicted")
+
+			time.Sleep(tick)
+			assert.Equal(t, []string{"a", "b", "c"}, snapshot(), "All items should eventually be evicted")
+		})
 	})
 
 	t.Run("close with items", func(t *testing.T) {
