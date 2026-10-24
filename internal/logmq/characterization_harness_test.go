@@ -36,6 +36,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/hookdeck/outpost/internal/alert"
@@ -46,6 +47,7 @@ import (
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/mqs"
 	"github.com/hookdeck/outpost/internal/opevents"
+	internalredis "github.com/hookdeck/outpost/internal/redis"
 	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -132,10 +134,11 @@ func (s *recordingSink) release() {
 	s.releaseOnce.Do(func() { close(s.blockCh) })
 }
 
-// waitBlocked waits until at least one send is parked on the block.
+// waitBlocked returns once at least one send is parked on the block.
 func (s *recordingSink) waitBlocked(t *testing.T) {
 	t.Helper()
-	require.Eventually(t, func() bool { return s.blocked.Load() > 0 }, 2*time.Second, 5*time.Millisecond)
+	synctest.Wait()
+	require.Positive(t, s.blocked.Load())
 }
 
 func (s *recordingSink) inflightSends() int32    { return s.inflight.Load() }
@@ -191,7 +194,7 @@ func (e *blockingEvaluator) blockedEvals() int32 { return e.blocked.Load() }
 func (e *blockingEvaluator) enteredEvals() int32 { return e.entered.Load() }
 
 // shutdownGrace bounds bp.Shutdown in tests. Nothing here legitimately takes
-// this long — the whole package runs in a few seconds.
+// this long; on the fake clock it elapses only when everything is blocked.
 const shutdownGrace = 30 * time.Second
 
 // shutdownBounded calls bp.Shutdown and fails the test if it does not return
@@ -356,7 +359,7 @@ func newHarness(t *testing.T, cfg harnessConfig) *harness {
 	t.Helper()
 	ctx := context.Background()
 	logger := testutil.CreateTestLogger(t)
-	redisClient := testutil.CreateTestRedisClient(t)
+	redisClient := synctestRedis(t)
 
 	sink := &recordingSink{failOn: cfg.doubles.sinkFailOn, blockOn: cfg.doubles.sinkBlockOn}
 	if sink.blockOn != nil {
@@ -498,17 +501,34 @@ func (h *harness) add(msg *mqs.Message) {
 	require.NoError(h.t, h.bp.Add(h.ctx, msg))
 }
 
-// waitTerminal blocks until every message has reached exactly one terminal state.
+// waitTerminal steps the fake clock until every message has reached a terminal
+// state, so batch delays and emit timeouts elapse without real waiting.
 func (h *harness) waitTerminal(msgs []*countingMessage) {
 	h.t.Helper()
-	require.Eventually(h.t, func() bool {
+	terminal := func() bool {
 		for _, m := range msgs {
 			if m.acks()+m.nacks() == 0 {
 				return false
 			}
 		}
 		return true
-	}, 5*time.Second, 5*time.Millisecond, "all messages should reach a terminal state")
+	}
+	synctest.Wait()
+	for range 5000 {
+		if terminal() {
+			return
+		}
+		time.Sleep(time.Millisecond)
+		synctest.Wait()
+	}
+	require.True(h.t, terminal(), "all messages should reach a terminal state")
+}
+
+// synctestRedis is an in-memory Redis whose TTLs follow the bubble's clock.
+func synctestRedis(t *testing.T) internalredis.Client {
+	t.Helper()
+	_, _, client := testutil.NewSynctestRedis(t)
+	return client
 }
 
 // listAttempt returns the persisted attempt records for a destination.

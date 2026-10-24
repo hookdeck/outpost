@@ -352,11 +352,10 @@ func (m *mockAlertEvaluator) getCalls() []alert.Attempt {
 // noop-sink emitter and a real (miniredis-backed) processed gate.
 func testAlertPipeline(t *testing.T, evaluator logmq.AlertEvaluator) logmq.AlertPipeline {
 	t.Helper()
-	_, _, redisClient := testutil.NewSynctestRedis(t)
 	return logmq.AlertPipeline{
 		Evaluator:      evaluator,
 		Emitter:        opevents.NewEmitter(&opevents.NoopSink{}, "test-deploy", []string{"*"}, testutil.CreateTestLogger(t)),
-		ProcessedIdemp: idempotence.New(redisClient),
+		ProcessedIdemp: idempotence.New(synctestRedis(t)),
 	}
 }
 
