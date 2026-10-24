@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 	"sort"
-	"sync"
 	"time"
 
+	"github.com/hookdeck/outpost/internal/batcher"
 	"github.com/hookdeck/outpost/internal/logstore"
 	"github.com/hookdeck/outpost/internal/scheduler"
 )
@@ -49,14 +49,17 @@ func effectiveLookupBatchSize(size, maxConcurrency int) int {
 
 // newRetryLookup returns the lookup the retry executor uses, with its batcher
 // when batching is enabled and the getter supports it.
-func newRetryLookup(getter RetryEventGetter, batchSize int, batchWait time.Duration) (func(context.Context, RetryTask) (*logstore.AttemptRecord, error), *attemptLookupBatcher) {
+func newRetryLookup(getter RetryEventGetter, batchSize int, batchWait time.Duration) (func(context.Context, RetryTask) (*logstore.AttemptRecord, error), *attemptLookupBatcher, error) {
 	if batchGetter, ok := getter.(retryAttemptBatchGetter); ok && batchSize > 1 {
-		batcher := newAttemptLookupBatcher(getter, batchGetter, batchSize, batchWait)
-		return batcher.Lookup, batcher
+		b, err := newAttemptLookupBatcher(getter, batchGetter, batchSize, batchWait)
+		if err != nil {
+			return nil, nil, err
+		}
+		return b.Lookup, b, nil
 	}
 	return func(ctx context.Context, task RetryTask) (*logstore.AttemptRecord, error) {
 		return lookupAttempt(ctx, getter, task)
-	}, nil
+	}, nil, nil
 }
 
 type lookupResult struct {
@@ -76,32 +79,24 @@ type lookupWaiter struct {
 // error is returned to every caller of that query, a key's read error only to
 // that key's callers.
 type attemptLookupBatcher struct {
-	single RetryEventGetter
-	batch  retryAttemptBatchGetter
-	size   int
-	wait   time.Duration
-
-	ctx    context.Context
-	cancel context.CancelFunc
-	wg     sync.WaitGroup
-
-	mu      sync.Mutex
-	pending []*lookupWaiter
-	timer   *time.Timer
-	gen     uint64
-	closed  bool
+	single  RetryEventGetter
+	batch   retryAttemptBatchGetter
+	batcher *batcher.Batcher[*lookupWaiter]
 }
 
-func newAttemptLookupBatcher(single RetryEventGetter, batch retryAttemptBatchGetter, size int, wait time.Duration) *attemptLookupBatcher {
-	ctx, cancel := context.WithCancel(context.Background())
-	return &attemptLookupBatcher{
-		single: single,
-		batch:  batch,
-		size:   min(size, maxRetryLookupBatchSize),
-		wait:   wait,
-		ctx:    ctx,
-		cancel: cancel,
+func newAttemptLookupBatcher(single RetryEventGetter, batch retryAttemptBatchGetter, size int, wait time.Duration) (*attemptLookupBatcher, error) {
+	b := &attemptLookupBatcher{single: single, batch: batch}
+	// Queries run concurrently; the scheduler's max concurrency bounds how
+	// many lookups can be waiting.
+	bt, err := batcher.New(batcher.Config{
+		MaxItems: min(size, maxRetryLookupBatchSize),
+		MaxWait:  wait,
+	}, b.execute)
+	if err != nil {
+		return nil, err
 	}
+	b.batcher = bt
+	return b, nil
 }
 
 // Lookup returns the latest attempt of the task, or nil when there is none.
@@ -111,7 +106,9 @@ func (b *attemptLookupBatcher) Lookup(ctx context.Context, task RetryTask) (*log
 		return lookupAttempt(ctx, b.single, task)
 	}
 	w := &lookupWaiter{ctx: ctx, task: task, done: make(chan lookupResult, 1)}
-	b.add(w)
+	if err := b.batcher.Add(ctx, w); err != nil {
+		return nil, errLookupBatcherClosed
+	}
 	select {
 	case res := <-w.done:
 		return res.record, res.err
@@ -120,72 +117,21 @@ func (b *attemptLookupBatcher) Lookup(ctx context.Context, task RetryTask) (*log
 	}
 }
 
-func (b *attemptLookupBatcher) add(w *lookupWaiter) {
-	b.mu.Lock()
-	if b.closed {
-		b.mu.Unlock()
-		w.done <- lookupResult{err: errLookupBatcherClosed}
-		return
-	}
-	b.pending = append(b.pending, w)
-	if len(b.pending) >= b.size {
-		batch := b.take()
-		b.mu.Unlock()
-		go b.execute(batch)
-		return
-	}
-	if len(b.pending) == 1 {
-		gen := b.gen
-		b.timer = time.AfterFunc(b.wait, func() { b.flush(gen) })
-	}
-	b.mu.Unlock()
-}
-
-func (b *attemptLookupBatcher) flush(gen uint64) {
-	b.mu.Lock()
-	if gen != b.gen || len(b.pending) == 0 {
-		b.mu.Unlock()
-		return
-	}
-	batch := b.take()
-	b.mu.Unlock()
-	b.execute(batch)
-}
-
-// take empties the pending list; the caller holds mu and must call execute.
-func (b *attemptLookupBatcher) take() []*lookupWaiter {
-	batch := b.pending
-	b.pending = nil
-	b.gen++
-	if b.timer != nil {
-		b.timer.Stop()
-		b.timer = nil
-	}
-	b.wg.Add(1)
-	return batch
-}
-
-// Close fails the pending lookups, cancels the running query and waits for it.
+// Close fails the pending lookups, cancels the running queries and waits for
+// them.
 func (b *attemptLookupBatcher) Close() {
-	b.mu.Lock()
-	b.closed = true
-	var batch []*lookupWaiter
-	if len(b.pending) > 0 {
-		batch = b.take()
-	}
-	b.mu.Unlock()
-	b.cancel()
-	if batch != nil {
+	b.batcher.Close()
+}
+
+// execute runs the queries of one batch. ctx is canceled when the batcher
+// closes; a batch flushed by Close fails without a query.
+func (b *attemptLookupBatcher) execute(ctx context.Context, batch []*lookupWaiter) {
+	if ctx.Err() != nil {
 		for _, w := range batch {
 			w.done <- lookupResult{err: errLookupBatcherClosed}
 		}
-		b.wg.Done()
+		return
 	}
-	b.wg.Wait()
-}
-
-func (b *attemptLookupBatcher) execute(batch []*lookupWaiter) {
-	defer b.wg.Done()
 
 	live := batch[:0]
 	for _, w := range batch {
@@ -199,15 +145,15 @@ func (b *attemptLookupBatcher) execute(batch []*lookupWaiter) {
 		for end < len(live) && live[end].task.AttemptTime.Sub(live[start].task.AttemptTime) <= retryLookupBatchSpan {
 			end++
 		}
-		b.executeGroup(live[start:end])
+		b.executeGroup(ctx, live[start:end])
 		start = end
 	}
 }
 
 // queryContext keeps the values of the first caller's context (logger, trace)
 // and its deadline, but not its cancellation: the query serves the whole group.
-// It ends when the batcher closes.
-func (b *attemptLookupBatcher) queryContext(first context.Context) (context.Context, context.CancelFunc) {
+// It ends when closed is canceled.
+func queryContext(first, closed context.Context) (context.Context, context.CancelFunc) {
 	ctx := context.WithoutCancel(first)
 	var cancel context.CancelFunc
 	if deadline, ok := first.Deadline(); ok {
@@ -215,15 +161,15 @@ func (b *attemptLookupBatcher) queryContext(first context.Context) (context.Cont
 	} else {
 		ctx, cancel = context.WithCancel(ctx)
 	}
-	stop := context.AfterFunc(b.ctx, cancel)
+	stop := context.AfterFunc(closed, cancel)
 	return ctx, func() {
 		stop()
 		cancel()
 	}
 }
 
-func (b *attemptLookupBatcher) executeGroup(group []*lookupWaiter) {
-	ctx, cancel := b.queryContext(group[0].ctx)
+func (b *attemptLookupBatcher) executeGroup(closed context.Context, group []*lookupWaiter) {
+	ctx, cancel := queryContext(group[0].ctx, closed)
 	defer cancel()
 	if len(group) == 1 {
 		record, err := lookupAttempt(ctx, b.single, group[0].task)
