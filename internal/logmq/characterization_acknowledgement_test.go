@@ -6,6 +6,7 @@ package logmq_test
 
 import (
 	"testing"
+	"testing/synctest"
 
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/mqs"
@@ -19,85 +20,89 @@ import (
 // disturb the others' acks.
 func TestCharacterization_MixedBatchAccounting(t *testing.T) {
 	t.Parallel()
-	// 6 messages total: success, alert-failure, dup(x2), unparseable, emit-fail.
-	// thresholds[50,100] with max=2 so a single failure (count 1) emits a cf alert.
-	emitFailAttemptID := "att_emit_fail"
-	h := newHarness(t, harnessConfig{
-		batcher: batcherConfig{itemCount: 6},
-		alert: alertConfig{
-			autoDisableCount: 2,
-			thresholds:       []int{50, 100},
-		},
-		doubles: doublesConfig{
-			sinkFailOn: map[string]bool{emitFailAttemptID: true},
-		},
+	synctest.Test(t, func(t *testing.T) {
+		// 6 messages total: success, alert-failure, dup(x2), unparseable, emit-fail.
+		// thresholds[50,100] with max=2 so a single failure (count 1) emits a cf alert.
+		emitFailAttemptID := "att_emit_fail"
+		h := newHarness(t, harnessConfig{
+			batcher: batcherConfig{itemCount: 6},
+			alert: alertConfig{
+				autoDisableCount: 2,
+				thresholds:       []int{50, 100},
+			},
+			doubles: doublesConfig{
+				sinkFailOn: map[string]bool{emitFailAttemptID: true},
+			},
+		})
+
+		tenant := "tenant_c1"
+		destSuccess := "dest_c1_success"
+		destAlert := "dest_c1_alert"
+		destDup := "dest_c1_dup"
+		destFail := "dest_c1_fail"
+
+		// 1. success
+		cmSuccess, msgSuccess := newCountingMessage(makeEntry(destSuccess, tenant, "att_success", models.AttemptStatusSuccess))
+		// 2. failure that alerts (count 1 = 50%)
+		cmAlert, msgAlert := newCountingMessage(makeEntry(destAlert, tenant, "att_alert", models.AttemptStatusFailed))
+		// 3. in-batch duplicate (byte-identical, success → no alert)
+		dupEntry := makeEntry(destDup, tenant, "att_dup", models.AttemptStatusSuccess)
+		cmDupKeep, msgDupKeep := newCountingMessage(dupEntry)
+		cmDupCopy, msgDupCopy := newCountingMessage(dupEntry)
+		// 4. unparseable body
+		cmInvalid, msgInvalid := newRawMessage([]byte("not valid json"))
+		// 5. emit-fail entry (failure → cf emit injected to fail)
+		cmEmitFail, msgEmitFail := newCountingMessage(makeEntry(destFail, tenant, emitFailAttemptID, models.AttemptStatusFailed))
+
+		for _, msg := range []*mqs.Message{msgSuccess, msgAlert, msgDupKeep, msgDupCopy, msgInvalid, msgEmitFail} {
+			h.add(msg)
+		}
+		all := []*countingMessage{cmSuccess, cmAlert, cmDupKeep, cmDupCopy, cmInvalid, cmEmitFail}
+		h.waitTerminal(all)
+
+		// Exactly one terminal state per message.
+		for _, m := range all {
+			m.requireTerminalOnce(t)
+		}
+
+		// Success / dup(both) / alert → ack.
+		cmSuccess.requireAcked(t)
+		cmAlert.requireAcked(t)
+		cmDupKeep.requireAcked(t)
+		cmDupCopy.requireAcked(t)
+		// Invalid / emit-fail → nack.
+		cmInvalid.requireNacked(t)
+		cmEmitFail.requireNacked(t)
+
+		// Successful records: one attempt event per processed attempt (the dup's
+		// kept copy included), plus the cf alert. The emit-fail destination
+		// recorded nothing — its sends all fail.
+		assert.ElementsMatch(t, []string{topicFailed, topicCF}, topics(h.sink.forDest(destAlert)))
+		assert.Equal(t, []string{topicSuccess}, topics(h.sink.forDest(destSuccess)))
+		assert.Equal(t, []string{topicSuccess}, topics(h.sink.forDest(destDup)), "the dup's kept copy emitted once")
+		assert.Empty(t, h.sink.forDest(destFail), "emit-fail destination produced no recorded event")
+		assert.Len(t, h.sink.snapshot(), 4, "no records beyond the four accounted for")
 	})
-
-	tenant := "tenant_c1"
-	destSuccess := "dest_c1_success"
-	destAlert := "dest_c1_alert"
-	destDup := "dest_c1_dup"
-	destFail := "dest_c1_fail"
-
-	// 1. success
-	cmSuccess, msgSuccess := newCountingMessage(makeEntry(destSuccess, tenant, "att_success", models.AttemptStatusSuccess))
-	// 2. failure that alerts (count 1 = 50%)
-	cmAlert, msgAlert := newCountingMessage(makeEntry(destAlert, tenant, "att_alert", models.AttemptStatusFailed))
-	// 3. in-batch duplicate (byte-identical, success → no alert)
-	dupEntry := makeEntry(destDup, tenant, "att_dup", models.AttemptStatusSuccess)
-	cmDupKeep, msgDupKeep := newCountingMessage(dupEntry)
-	cmDupCopy, msgDupCopy := newCountingMessage(dupEntry)
-	// 4. unparseable body
-	cmInvalid, msgInvalid := newRawMessage([]byte("not valid json"))
-	// 5. emit-fail entry (failure → cf emit injected to fail)
-	cmEmitFail, msgEmitFail := newCountingMessage(makeEntry(destFail, tenant, emitFailAttemptID, models.AttemptStatusFailed))
-
-	for _, msg := range []*mqs.Message{msgSuccess, msgAlert, msgDupKeep, msgDupCopy, msgInvalid, msgEmitFail} {
-		h.add(msg)
-	}
-	all := []*countingMessage{cmSuccess, cmAlert, cmDupKeep, cmDupCopy, cmInvalid, cmEmitFail}
-	h.waitTerminal(all)
-
-	// Exactly one terminal state per message.
-	for _, m := range all {
-		m.requireTerminalOnce(t)
-	}
-
-	// Success / dup(both) / alert → ack.
-	cmSuccess.requireAcked(t)
-	cmAlert.requireAcked(t)
-	cmDupKeep.requireAcked(t)
-	cmDupCopy.requireAcked(t)
-	// Invalid / emit-fail → nack.
-	cmInvalid.requireNacked(t)
-	cmEmitFail.requireNacked(t)
-
-	// Successful records: one attempt event per processed attempt (the dup's
-	// kept copy included), plus the cf alert. The emit-fail destination
-	// recorded nothing — its sends all fail.
-	assert.ElementsMatch(t, []string{topicFailed, topicCF}, topics(h.sink.forDest(destAlert)))
-	assert.Equal(t, []string{topicSuccess}, topics(h.sink.forDest(destSuccess)))
-	assert.Equal(t, []string{topicSuccess}, topics(h.sink.forDest(destDup)), "the dup's kept copy emitted once")
-	assert.Empty(t, h.sink.forDest(destFail), "emit-fail destination produced no recorded event")
-	assert.Len(t, h.sink.snapshot(), 4, "no records beyond the four accounted for")
 }
 
 // A single failed attempt below any threshold (count 1) → persisted, acked,
 // and only the attempt.failed event delivered — no alert topics.
 func TestCharacterization_BelowThresholdNoAlert(t *testing.T) {
 	t.Parallel()
-	h := newHarness(t, harnessConfig{
-		batcher: batcherConfig{itemCount: 1},
-		alert:   alertConfig{withDisabler: true},
+	synctest.Test(t, func(t *testing.T) {
+		h := newHarness(t, harnessConfig{
+			batcher: batcherConfig{itemCount: 1},
+			alert:   alertConfig{withDisabler: true},
+		})
+
+		destA, tenant := "dest_c2", "tenant_c2"
+		cm, msg := newCountingMessage(makeEntry(destA, tenant, "att_1", models.AttemptStatusFailed))
+		h.add(msg)
+		h.waitTerminal([]*countingMessage{cm})
+
+		cm.requireAcked(t)
+		assert.Equal(t, []string{topicFailed}, topics(h.sink.snapshot()),
+			"count 1 is below the 50%% threshold (5): only the attempt event, no alert")
+		require.Len(t, h.listAttempt(destA), 1, "attempt persisted")
 	})
-
-	destA, tenant := "dest_c2", "tenant_c2"
-	cm, msg := newCountingMessage(makeEntry(destA, tenant, "att_1", models.AttemptStatusFailed))
-	h.add(msg)
-	h.waitTerminal([]*countingMessage{cm})
-
-	cm.requireAcked(t)
-	assert.Equal(t, []string{topicFailed}, topics(h.sink.snapshot()),
-		"count 1 is below the 50%% threshold (5): only the attempt event, no alert")
-	require.Len(t, h.listAttempt(destA), 1, "attempt persisted")
 }

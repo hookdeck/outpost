@@ -8,6 +8,7 @@ import (
 	"context"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/hookdeck/outpost/internal/logmq"
@@ -62,49 +63,53 @@ func exhaustedAlertConfig() alertConfig {
 // (the replay case); distinct events are covered by PerDestination.
 func TestDelivery_ExhaustedRetries_WindowSuppression(t *testing.T) {
 	t.Parallel()
-	idemp := logmq.NewRedisSuppressionWindow(testutil.CreateTestRedisClient(t), "", 10*time.Second)
-	h := newHarness(t, harnessConfig{
-		batcher: batcherConfig{itemCount: 1},
-		alert:   exhaustedAlertConfig(),
-		doubles: doublesConfig{idemp: idemp},
+	synctest.Test(t, func(t *testing.T) {
+		idemp := logmq.NewRedisSuppressionWindow(synctestRedis(t), "", 10*time.Second)
+		h := newHarness(t, harnessConfig{
+			batcher: batcherConfig{itemCount: 1},
+			alert:   exhaustedAlertConfig(),
+			doubles: doublesConfig{idemp: idemp},
+		})
+
+		// Paced one at a time so the first exhaustion is the one that delivers.
+		dest, tenant, eventID := "dest_ws", "tenant_ws", "evt_ws"
+		cm1, msg1 := newCountingMessage(makeExhaustedEntry(dest, tenant, eventID, "att_ws_1", 4))
+		cm2, msg2 := newCountingMessage(makeExhaustedEntry(dest, tenant, eventID, "att_ws_2", 5))
+		h.add(msg1)
+		h.waitTerminal([]*countingMessage{cm1})
+		h.add(msg2)
+		h.waitTerminal([]*countingMessage{cm2})
+
+		cm1.requireAcked(t)
+		cm2.requireAcked(t)
+		assert.ElementsMatch(t, []string{topicFailed, topicFailed, topicExhaust}, topics(h.sink.forDest(dest)),
+			"second exhaustion on the same destination is suppressed within the window")
 	})
-
-	// Paced one at a time so the first exhaustion is the one that delivers.
-	dest, tenant, eventID := "dest_ws", "tenant_ws", "evt_ws"
-	cm1, msg1 := newCountingMessage(makeExhaustedEntry(dest, tenant, eventID, "att_ws_1", 4))
-	cm2, msg2 := newCountingMessage(makeExhaustedEntry(dest, tenant, eventID, "att_ws_2", 5))
-	h.add(msg1)
-	h.waitTerminal([]*countingMessage{cm1})
-	h.add(msg2)
-	h.waitTerminal([]*countingMessage{cm2})
-
-	cm1.requireAcked(t)
-	cm2.requireAcked(t)
-	assert.ElementsMatch(t, []string{topicFailed, topicFailed, topicExhaust}, topics(h.sink.forDest(dest)),
-		"second exhaustion on the same destination is suppressed within the window")
 }
 
 // With no suppression window (idemp nil == WindowSeconds 0), every exhaustion
 // delivers — the key is present but there's no window to enforce it.
 func TestDelivery_ExhaustedRetries_NoWindowEmitsEvery(t *testing.T) {
 	t.Parallel()
-	h := newHarness(t, harnessConfig{
-		batcher: batcherConfig{itemCount: 2},
-		alert:   exhaustedAlertConfig(),
-		// doubles.idemp left nil → no suppression window.
+	synctest.Test(t, func(t *testing.T) {
+		h := newHarness(t, harnessConfig{
+			batcher: batcherConfig{itemCount: 2},
+			alert:   exhaustedAlertConfig(),
+			// doubles.idemp left nil → no suppression window.
+		})
+
+		dest, tenant, eventID := "dest_nw", "tenant_nw", "evt_nw"
+		cm1, msg1 := newCountingMessage(makeExhaustedEntry(dest, tenant, eventID, "att_nw_1", 4))
+		cm2, msg2 := newCountingMessage(makeExhaustedEntry(dest, tenant, eventID, "att_nw_2", 5))
+		h.add(msg1)
+		h.add(msg2)
+		h.waitTerminal([]*countingMessage{cm1, cm2})
+
+		cm1.requireAcked(t)
+		cm2.requireAcked(t)
+		assert.ElementsMatch(t, []string{topicFailed, topicFailed, topicExhaust, topicExhaust}, topics(h.sink.forDest(dest)),
+			"with no window, every exhaustion delivers")
 	})
-
-	dest, tenant, eventID := "dest_nw", "tenant_nw", "evt_nw"
-	cm1, msg1 := newCountingMessage(makeExhaustedEntry(dest, tenant, eventID, "att_nw_1", 4))
-	cm2, msg2 := newCountingMessage(makeExhaustedEntry(dest, tenant, eventID, "att_nw_2", 5))
-	h.add(msg1)
-	h.add(msg2)
-	h.waitTerminal([]*countingMessage{cm1, cm2})
-
-	cm1.requireAcked(t)
-	cm2.requireAcked(t)
-	assert.ElementsMatch(t, []string{topicFailed, topicFailed, topicExhaust, topicExhaust}, topics(h.sink.forDest(dest)),
-		"with no window, every exhaustion delivers")
 }
 
 // An exhausted-retries event that is not subscribed must be filtered before
@@ -113,136 +118,146 @@ func TestDelivery_ExhaustedRetries_NoWindowEmitsEvery(t *testing.T) {
 // as an operator-event delivery failure.
 func TestDelivery_ExhaustedRetries_UnsubscribedSkipsSuppression(t *testing.T) {
 	t.Parallel()
-	window := &failingSuppressionWindow{}
-	h := newHarness(t, harnessConfig{
-		batcher: batcherConfig{itemCount: 1},
-		alert: alertConfig{
-			thresholds:       []int{100},
-			autoDisableCount: 1,
-			retryMaxLimit:    3,
-			withDisabler:     true,
-			opeventTopics:    []string{topicDisabled},
-		},
-		doubles: doublesConfig{idemp: window},
+	synctest.Test(t, func(t *testing.T) {
+		window := &failingSuppressionWindow{}
+		h := newHarness(t, harnessConfig{
+			batcher: batcherConfig{itemCount: 1},
+			alert: alertConfig{
+				thresholds:       []int{100},
+				autoDisableCount: 1,
+				retryMaxLimit:    3,
+				withDisabler:     true,
+				opeventTopics:    []string{topicDisabled},
+			},
+			doubles: doublesConfig{idemp: window},
+		})
+
+		dest, tenant := "dest_unsub", "tenant_unsub"
+		cm, msg := newCountingMessage(makeExhaustedEntry(dest, tenant, "evt_unsub", "att_unsub", 4))
+		h.add(msg)
+		h.waitTerminal([]*countingMessage{cm})
+
+		cm.requireAcked(t)
+		assert.Zero(t, window.calls.Load(), "unsubscribed exhausted-retries must not touch its suppression window")
+		assert.Equal(t, []string{topicDisabled}, topics(h.sink.forDest(dest)))
 	})
-
-	dest, tenant := "dest_unsub", "tenant_unsub"
-	cm, msg := newCountingMessage(makeExhaustedEntry(dest, tenant, "evt_unsub", "att_unsub", 4))
-	h.add(msg)
-	h.waitTerminal([]*countingMessage{cm})
-
-	cm.requireAcked(t)
-	assert.Zero(t, window.calls.Load(), "unsubscribed exhausted-retries must not touch its suppression window")
-	assert.Equal(t, []string{topicDisabled}, topics(h.sink.forDest(dest)))
 }
 
 // Distinct events exhausting on the same destination share the window key →
 // at most one alert per destination within the window.
 func TestDelivery_ExhaustedRetries_PerDestination(t *testing.T) {
 	t.Parallel()
-	idemp := logmq.NewRedisSuppressionWindow(testutil.CreateTestRedisClient(t), "", 10*time.Second)
-	h := newHarness(t, harnessConfig{
-		batcher: batcherConfig{itemCount: 1},
-		alert:   exhaustedAlertConfig(),
-		doubles: doublesConfig{idemp: idemp},
+	synctest.Test(t, func(t *testing.T) {
+		idemp := logmq.NewRedisSuppressionWindow(synctestRedis(t), "", 10*time.Second)
+		h := newHarness(t, harnessConfig{
+			batcher: batcherConfig{itemCount: 1},
+			alert:   exhaustedAlertConfig(),
+			doubles: doublesConfig{idemp: idemp},
+		})
+
+		// Paced one at a time so the first exhaustion is the one that delivers.
+		dest, tenant := "dest_pd", "tenant_pd"
+		cm1, msg1 := newCountingMessage(makeExhaustedEntry(dest, tenant, "evt_pd_1", "att_pd_1", 4))
+		cm2, msg2 := newCountingMessage(makeExhaustedEntry(dest, tenant, "evt_pd_2", "att_pd_2", 4))
+		h.add(msg1)
+		h.waitTerminal([]*countingMessage{cm1})
+		h.add(msg2)
+		h.waitTerminal([]*countingMessage{cm2})
+
+		cm1.requireAcked(t)
+		cm2.requireAcked(t)
+		assert.ElementsMatch(t, []string{topicFailed, topicFailed, topicExhaust}, topics(h.sink.forDest(dest)),
+			"a second event exhausting on the same destination within the window is suppressed")
 	})
-
-	// Paced one at a time so the first exhaustion is the one that delivers.
-	dest, tenant := "dest_pd", "tenant_pd"
-	cm1, msg1 := newCountingMessage(makeExhaustedEntry(dest, tenant, "evt_pd_1", "att_pd_1", 4))
-	cm2, msg2 := newCountingMessage(makeExhaustedEntry(dest, tenant, "evt_pd_2", "att_pd_2", 4))
-	h.add(msg1)
-	h.waitTerminal([]*countingMessage{cm1})
-	h.add(msg2)
-	h.waitTerminal([]*countingMessage{cm2})
-
-	cm1.requireAcked(t)
-	cm2.requireAcked(t)
-	assert.ElementsMatch(t, []string{topicFailed, topicFailed, topicExhaust}, topics(h.sink.forDest(dest)),
-		"a second event exhausting on the same destination within the window is suppressed")
 }
 
 // The window key is tenant-scoped: the same destination ID under two tenants
 // gets independent windows, so one tenant's alert never suppresses another's.
 func TestDelivery_ExhaustedRetries_TenantIsolation(t *testing.T) {
 	t.Parallel()
-	idemp := logmq.NewRedisSuppressionWindow(testutil.CreateTestRedisClient(t), "", 10*time.Second)
-	h := newHarness(t, harnessConfig{
-		batcher: batcherConfig{itemCount: 1},
-		alert:   exhaustedAlertConfig(),
-		doubles: doublesConfig{idemp: idemp},
+	synctest.Test(t, func(t *testing.T) {
+		idemp := logmq.NewRedisSuppressionWindow(synctestRedis(t), "", 10*time.Second)
+		h := newHarness(t, harnessConfig{
+			batcher: batcherConfig{itemCount: 1},
+			alert:   exhaustedAlertConfig(),
+			doubles: doublesConfig{idemp: idemp},
+		})
+
+		dest := "dest_ti"
+		cm1, msg1 := newCountingMessage(makeExhaustedEntry(dest, "tenant_ti_a", "evt_ti_a", "att_ti_a", 4))
+		cm2, msg2 := newCountingMessage(makeExhaustedEntry(dest, "tenant_ti_b", "evt_ti_b", "att_ti_b", 4))
+		h.add(msg1)
+		h.waitTerminal([]*countingMessage{cm1})
+		h.add(msg2)
+		h.waitTerminal([]*countingMessage{cm2})
+
+		cm1.requireAcked(t)
+		cm2.requireAcked(t)
+		assert.ElementsMatch(t, []string{topicFailed, topicFailed, topicExhaust, topicExhaust}, topics(h.sink.forDest(dest)),
+			"tenants with the same destination ID alert independently")
 	})
-
-	dest := "dest_ti"
-	cm1, msg1 := newCountingMessage(makeExhaustedEntry(dest, "tenant_ti_a", "evt_ti_a", "att_ti_a", 4))
-	cm2, msg2 := newCountingMessage(makeExhaustedEntry(dest, "tenant_ti_b", "evt_ti_b", "att_ti_b", 4))
-	h.add(msg1)
-	h.waitTerminal([]*countingMessage{cm1})
-	h.add(msg2)
-	h.waitTerminal([]*countingMessage{cm2})
-
-	cm1.requireAcked(t)
-	cm2.requireAcked(t)
-	assert.ElementsMatch(t, []string{topicFailed, topicFailed, topicExhaust, topicExhaust}, topics(h.sink.forDest(dest)),
-		"tenants with the same destination ID alert independently")
 }
 
 // Two events exhausting concurrently on one destination race on the shared
 // window key: exactly one alert delivers and the loser acks.
 func TestDelivery_ExhaustedRetries_ConcurrentConflictAcks(t *testing.T) {
 	t.Parallel()
-	idemp := logmq.NewRedisSuppressionWindow(testutil.CreateTestRedisClient(t), "", 10*time.Second)
-	h := newHarness(t, harnessConfig{
-		batcher: batcherConfig{itemCount: 2},
-		alert:   exhaustedAlertConfig(),
-		doubles: doublesConfig{idemp: idemp},
+	synctest.Test(t, func(t *testing.T) {
+		idemp := logmq.NewRedisSuppressionWindow(synctestRedis(t), "", 10*time.Second)
+		h := newHarness(t, harnessConfig{
+			batcher: batcherConfig{itemCount: 2},
+			alert:   exhaustedAlertConfig(),
+			doubles: doublesConfig{idemp: idemp},
+		})
+
+		dest, tenant := "dest_cc", "tenant_cc"
+		cm1, msg1 := newCountingMessage(makeExhaustedEntry(dest, tenant, "evt_cc_1", "att_cc_1", 4))
+		cm2, msg2 := newCountingMessage(makeExhaustedEntry(dest, tenant, "evt_cc_2", "att_cc_2", 4))
+		h.add(msg1)
+		h.add(msg2)
+		h.waitTerminal([]*countingMessage{cm1, cm2})
+
+		cm1.requireAcked(t)
+		cm2.requireAcked(t)
+		assert.ElementsMatch(t, []string{topicFailed, topicFailed, topicExhaust}, topics(h.sink.forDest(dest)),
+			"concurrent exhaustions on one destination deliver exactly one alert")
 	})
-
-	dest, tenant := "dest_cc", "tenant_cc"
-	cm1, msg1 := newCountingMessage(makeExhaustedEntry(dest, tenant, "evt_cc_1", "att_cc_1", 4))
-	cm2, msg2 := newCountingMessage(makeExhaustedEntry(dest, tenant, "evt_cc_2", "att_cc_2", 4))
-	h.add(msg1)
-	h.add(msg2)
-	h.waitTerminal([]*countingMessage{cm1, cm2})
-
-	cm1.requireAcked(t)
-	cm2.requireAcked(t)
-	assert.ElementsMatch(t, []string{topicFailed, topicFailed, topicExhaust}, topics(h.sink.forDest(dest)),
-		"concurrent exhaustions on one destination deliver exactly one alert")
 }
 
 // Emit failure clears the window key, so a later exhaustion on the same
 // destination re-delivers instead of being suppressed.
 func TestDelivery_ExhaustedRetries_EmitFailureClearsWindow(t *testing.T) {
 	t.Parallel()
-	idemp := logmq.NewRedisSuppressionWindow(testutil.CreateTestRedisClient(t), "", 10*time.Second)
-	h := newHarness(t, harnessConfig{
-		batcher: batcherConfig{itemCount: 1},
-		alert:   exhaustedAlertConfig(),
-		doubles: doublesConfig{
-			idemp: idemp,
-			// Only the exhausted send fails — att_fail's attempt.failed must
-			// deliver, or its errgroup sibling cancels the exhausted Exec
-			// mid-flight instead of exercising the clear-on-failure path.
-			sinkFailOn: map[string]bool{"att_fail/" + topicExhaust: true},
-		},
+	synctest.Test(t, func(t *testing.T) {
+		idemp := logmq.NewRedisSuppressionWindow(synctestRedis(t), "", 10*time.Second)
+		h := newHarness(t, harnessConfig{
+			batcher: batcherConfig{itemCount: 1},
+			alert:   exhaustedAlertConfig(),
+			doubles: doublesConfig{
+				idemp: idemp,
+				// Only the exhausted send fails — att_fail's attempt.failed must
+				// deliver, or its errgroup sibling cancels the exhausted Exec
+				// mid-flight instead of exercising the clear-on-failure path.
+				sinkFailOn: map[string]bool{"att_fail/" + topicExhaust: true},
+			},
+		})
+
+		// Paced one at a time: the fail-then-retry sequence on one window key
+		// needs deterministic delivery order.
+		dest, tenant, eventID := "dest_ef", "tenant_ef", "evt_ef"
+		cmFail, msgFail := newCountingMessage(makeExhaustedEntry(dest, tenant, eventID, "att_fail", 4))
+		cmOK, msgOK := newCountingMessage(makeExhaustedEntry(dest, tenant, eventID, "att_ok", 5))
+		h.add(msgFail)
+		h.waitTerminal([]*countingMessage{cmFail})
+		h.add(msgOK)
+		h.waitTerminal([]*countingMessage{cmOK})
+
+		// The failed emit nacks; the retry (key cleared on failure) delivers and acks.
+		cmFail.requireNacked(t)
+		cmOK.requireAcked(t)
+		assert.ElementsMatch(t, []string{topicFailed, topicFailed, topicExhaust}, topics(h.sink.forDest(dest)),
+			"retry after emit failure re-delivers because the window key was cleared")
 	})
-
-	// Paced one at a time: the fail-then-retry sequence on one window key
-	// needs deterministic delivery order.
-	dest, tenant, eventID := "dest_ef", "tenant_ef", "evt_ef"
-	cmFail, msgFail := newCountingMessage(makeExhaustedEntry(dest, tenant, eventID, "att_fail", 4))
-	cmOK, msgOK := newCountingMessage(makeExhaustedEntry(dest, tenant, eventID, "att_ok", 5))
-	h.add(msgFail)
-	h.waitTerminal([]*countingMessage{cmFail})
-	h.add(msgOK)
-	h.waitTerminal([]*countingMessage{cmOK})
-
-	// The failed emit nacks; the retry (key cleared on failure) delivers and acks.
-	cmFail.requireNacked(t)
-	cmOK.requireAcked(t)
-	assert.ElementsMatch(t, []string{topicFailed, topicFailed, topicExhaust}, topics(h.sink.forDest(dest)),
-		"retry after emit failure re-delivers because the window key was cleared")
 }
 
 // The window loser acks while the winner's emit is still in flight. Before
@@ -250,33 +265,34 @@ func TestDelivery_ExhaustedRetries_EmitFailureClearsWindow(t *testing.T) {
 // long as the emit budget and nacked on the expired ctx instead.
 func TestDelivery_ExhaustedRetries_LoserAcksWhileWinnerInFlight(t *testing.T) {
 	t.Parallel()
-	idemp := logmq.NewRedisSuppressionWindow(testutil.CreateTestRedisClient(t), "", 10*time.Second)
-	h := newHarness(t, harnessConfig{
-		batcher: batcherConfig{itemCount: 1},
-		alert:   exhaustedAlertConfig(),
-		doubles: doublesConfig{
-			idemp:       idemp,
-			sinkBlockOn: map[string]bool{topicExhaust: true},
-		},
+	synctest.Test(t, func(t *testing.T) {
+		idemp := logmq.NewRedisSuppressionWindow(synctestRedis(t), "", 10*time.Second)
+		h := newHarness(t, harnessConfig{
+			batcher: batcherConfig{itemCount: 1},
+			alert:   exhaustedAlertConfig(),
+			doubles: doublesConfig{
+				idemp:       idemp,
+				sinkBlockOn: map[string]bool{topicExhaust: true},
+			},
+		})
+
+		dest, tenant := "dest_if", "tenant_if"
+		cm1, msg1 := newCountingMessage(makeExhaustedEntry(dest, tenant, "evt_if_1", "att_if_1", 4))
+		cm2, msg2 := newCountingMessage(makeExhaustedEntry(dest, tenant, "evt_if_2", "att_if_2", 4))
+		h.add(msg1)
+		// msg1's exhausted emit is parked on the sink with the claim held.
+		h.sink.waitBlocked(t)
+		h.add(msg2)
+		h.waitTerminal([]*countingMessage{cm2})
+		cm2.requireAcked(t)
+		synctest.Wait()
+		require.Len(t, forTopic(h.sink.forDest(dest), topicFailed), 2, "winner's attempt.failed send runs concurrently with its parked alert")
+		assert.ElementsMatch(t, []string{topicFailed, topicFailed}, topics(h.sink.forDest(dest)),
+			"loser acked before the winner's alert went out")
+
+		h.sink.release()
+		h.waitTerminal([]*countingMessage{cm1})
+		cm1.requireAcked(t)
+		assert.ElementsMatch(t, []string{topicFailed, topicFailed, topicExhaust}, topics(h.sink.forDest(dest)))
 	})
-
-	dest, tenant := "dest_if", "tenant_if"
-	cm1, msg1 := newCountingMessage(makeExhaustedEntry(dest, tenant, "evt_if_1", "att_if_1", 4))
-	cm2, msg2 := newCountingMessage(makeExhaustedEntry(dest, tenant, "evt_if_2", "att_if_2", 4))
-	h.add(msg1)
-	// msg1's exhausted emit is parked on the sink with the claim held.
-	h.sink.waitBlocked(t)
-	h.add(msg2)
-	h.waitTerminal([]*countingMessage{cm2})
-	cm2.requireAcked(t)
-	require.Eventually(t, func() bool {
-		return len(forTopic(h.sink.forDest(dest), topicFailed)) == 2
-	}, 2*time.Second, 5*time.Millisecond, "winner's attempt.failed send runs concurrently with its parked alert")
-	assert.ElementsMatch(t, []string{topicFailed, topicFailed}, topics(h.sink.forDest(dest)),
-		"loser acked before the winner's alert went out")
-
-	h.sink.release()
-	h.waitTerminal([]*countingMessage{cm1})
-	cm1.requireAcked(t)
-	assert.ElementsMatch(t, []string{topicFailed, topicFailed, topicExhaust}, topics(h.sink.forDest(dest)))
 }

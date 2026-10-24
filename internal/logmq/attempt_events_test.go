@@ -7,6 +7,7 @@ package logmq_test
 
 import (
 	"testing"
+	"testing/synctest"
 
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/stretchr/testify/assert"
@@ -15,20 +16,22 @@ import (
 // A successful attempt emits exactly one attempt.success and acks.
 func TestAttemptEvents_SuccessEmits(t *testing.T) {
 	t.Parallel()
-	h := newHarness(t, harnessConfig{
-		batcher: batcherConfig{itemCount: 1},
-		alert:   alertConfig{autoDisableCount: 2, thresholds: []int{50, 100}},
+	synctest.Test(t, func(t *testing.T) {
+		h := newHarness(t, harnessConfig{
+			batcher: batcherConfig{itemCount: 1},
+			alert:   alertConfig{autoDisableCount: 2, thresholds: []int{50, 100}},
+		})
+
+		dest, tenant := "dest_ae1", "tenant_ae1"
+		cm, msg := newCountingMessage(makeEntry(dest, tenant, "att_ok", models.AttemptStatusSuccess))
+		h.add(msg)
+		h.waitTerminal([]*countingMessage{cm})
+
+		cm.requireAcked(t)
+		recs := h.sink.forDest(dest)
+		assert.Equal(t, []string{topicSuccess}, topics(recs))
+		assert.Equal(t, []string{"att_ok"}, attemptIDs(recs))
 	})
-
-	dest, tenant := "dest_ae1", "tenant_ae1"
-	cm, msg := newCountingMessage(makeEntry(dest, tenant, "att_ok", models.AttemptStatusSuccess))
-	h.add(msg)
-	h.waitTerminal([]*countingMessage{cm})
-
-	cm.requireAcked(t)
-	recs := h.sink.forDest(dest)
-	assert.Equal(t, []string{topicSuccess}, topics(recs))
-	assert.Equal(t, []string{"att_ok"}, attemptIDs(recs))
 }
 
 // A failed attempt.success send nacks the message: the success path owes its
@@ -36,19 +39,21 @@ func TestAttemptEvents_SuccessEmits(t *testing.T) {
 // re-runs the reset — idempotent — and re-sends).
 func TestAttemptEvents_SuccessEmitFailure_Nacks(t *testing.T) {
 	t.Parallel()
-	h := newHarness(t, harnessConfig{
-		batcher: batcherConfig{itemCount: 1},
-		alert:   alertConfig{autoDisableCount: 2, thresholds: []int{50, 100}},
-		doubles: doublesConfig{
-			sinkFailOn: map[string]bool{topicSuccess: true},
-		},
+	synctest.Test(t, func(t *testing.T) {
+		h := newHarness(t, harnessConfig{
+			batcher: batcherConfig{itemCount: 1},
+			alert:   alertConfig{autoDisableCount: 2, thresholds: []int{50, 100}},
+			doubles: doublesConfig{
+				sinkFailOn: map[string]bool{topicSuccess: true},
+			},
+		})
+
+		dest, tenant := "dest_ae2", "tenant_ae2"
+		cm, msg := newCountingMessage(makeEntry(dest, tenant, "att_ok", models.AttemptStatusSuccess))
+		h.add(msg)
+		h.waitTerminal([]*countingMessage{cm})
+
+		cm.requireNacked(t)
+		assert.Empty(t, h.sink.forDest(dest), "the failed send recorded nothing")
 	})
-
-	dest, tenant := "dest_ae2", "tenant_ae2"
-	cm, msg := newCountingMessage(makeEntry(dest, tenant, "att_ok", models.AttemptStatusSuccess))
-	h.add(msg)
-	h.waitTerminal([]*countingMessage{cm})
-
-	cm.requireNacked(t)
-	assert.Empty(t, h.sink.forDest(dest), "the failed send recorded nothing")
 }
