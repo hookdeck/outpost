@@ -1,0 +1,14 @@
+# Under 1 KiB of nested anchors that expand to 9^9 (about 387 million)
+# scalars. The converter must give up after its node budget instead of
+# expanding it.
+order.created:
+  payload_schema:
+    a: &a ["lol", "lol", "lol", "lol", "lol", "lol", "lol", "lol", "lol"]
+    b: &b [*a, *a, *a, *a, *a, *a, *a, *a, *a]
+    c: &c [*b, *b, *b, *b, *b, *b, *b, *b, *b]
+    d: &d [*c, *c, *c, *c, *c, *c, *c, *c, *c]
+    e: &e [*d, *d, *d, *d, *d, *d, *d, *d, *d]
+    f: &f [*e, *e, *e, *e, *e, *e, *e, *e, *e]
+    g: &g [*f, *f, *f, *f, *f, *f, *f, *f, *f]
+    h: &h [*g, *g, *g, *g, *g, *g, *g, *g, *g]
+    i: &i [*h, *h, *h, *h, *h, *h, *h, *h, *h]

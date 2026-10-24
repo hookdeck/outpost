@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "id": { "type": "string", "x-mcp-filter": false },
+    "total": { "type": "integer", "minimum": 0, "description": "Total in minor units." },
+    "currency": { "$ref": "#/$defs/Currency" },
+    "status": { "type": "string", "enum": ["pending", "paid", "refunded"] },
+    "created_at": { "type": "string", "format": "date-time" },
+    "customer": { "$ref": "#/$defs/Customer" },
+    "lines": { "type": "array", "items": { "$ref": "#/$defs/Line" }, "maxItems": 100 },
+    "shipping": { "anyOf": [{ "$ref": "#/$defs/Address" }, { "type": "null" }] }
+  },
+  "required": ["id", "total", "currency", "status"],
+  "$defs": {
+    "Currency": { "type": "string", "enum": ["USD", "EUR", "CAD"], "description": "ISO 4217 code." },
+    "Party": {
+      "type": "object",
+      "properties": { "name": { "type": "string", "maxLength": 200 } }
+    },
+    "Customer": {
+      "allOf": [
+        { "$ref": "#/$defs/Party" },
+        {
+          "type": "object",
+          "properties": { "email": { "type": "string", "format": "email" } },
+          "required": ["email"]
+        }
+      ]
+    },
+    "Line": {
+      "type": "object",
+      "properties": {
+        "sku": { "type": "string", "pattern": "^[A-Z0-9-]+$" },
+        "quantity": { "type": "integer", "minimum": 1 }
+      },
+      "required": ["sku", "quantity"]
+    },
+    "Address": {
+      "type": "object",
+      "properties": { "country": { "type": "string", "minLength": 2, "maxLength": 2 } }
+    }
+  }
+}
