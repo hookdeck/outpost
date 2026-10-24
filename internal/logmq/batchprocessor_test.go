@@ -452,3 +452,24 @@ func TestBatchProcessor_AlertEvaluator_Error(t *testing.T) {
 	events, _ := logStore.getInserted()
 	assert.Len(t, events, 1, "log entry should still be persisted despite alert failure")
 }
+
+func TestMessageHandler_NacksAfterShutdown(t *testing.T) {
+	ctx := context.Background()
+	logger := testutil.CreateTestLogger(t)
+
+	bp, err := logmq.NewBatchProcessor(ctx, logger, &mockLogStore{}, testAlertPipeline(t, &mockAlertEvaluator{}), logmq.BatchProcessorConfig{
+		ItemCountThreshold: 10,
+		DelayThreshold:     time.Second,
+	})
+	require.NoError(t, err)
+	shutdownBounded(t, bp)
+
+	event := testutil.EventFactory.Any()
+	attempt := testutil.AttemptFactory.Any()
+	mock, msg := newMockMessage(models.LogEntry{Event: &event, Attempt: &attempt})
+
+	err = logmq.NewMessageHandler(logger, bp).Handle(ctx, msg)
+	assert.Error(t, err)
+	assert.True(t, mock.nacked.Load(), "a message the batcher no longer accepts is nacked")
+	assert.False(t, mock.acked.Load())
+}

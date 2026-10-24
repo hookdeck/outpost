@@ -196,12 +196,6 @@ const shutdownGrace = 30 * time.Second
 
 // shutdownBounded calls bp.Shutdown and fails the test if it does not return
 // within shutdownGrace, instead of riding the 10m package timeout.
-//
-// batcher.Shutdown (mikestefanello/batcher@v0.1.0) can deadlock: it stops the
-// ticker, then calls processQueue, whose defer restarts it. A tick landing
-// between the processingMutex acquisition and the send on its shutdown channel
-// strands the ticker goroutine on that mutex, leaving the send with no
-// receiver. Rare, but it takes the whole package down with it when it happens.
 func shutdownBounded(t *testing.T, bp *logmq.BatchProcessor) {
 	t.Helper()
 

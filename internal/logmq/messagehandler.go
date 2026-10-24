@@ -32,6 +32,9 @@ func (h *messageHandler) Handle(ctx context.Context, msg *mqs.Message) error {
 	logger := h.logger.Ctx(ctx)
 	logger.Debug("logmq handler",
 		zap.String("message_id", msg.LoggableID))
-	h.batchAdder.Add(ctx, msg)
+	if err := h.batchAdder.Add(ctx, msg); err != nil {
+		msg.Nack()
+		return err
+	}
 	return nil
 }

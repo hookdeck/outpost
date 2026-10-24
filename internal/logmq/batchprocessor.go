@@ -8,11 +8,11 @@ import (
 	"time"
 
 	"github.com/hookdeck/outpost/internal/alert"
+	"github.com/hookdeck/outpost/internal/batcher"
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/mqs"
 	"github.com/hookdeck/outpost/internal/opevents"
-	"github.com/mikestefanello/batcher"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 )
@@ -154,13 +154,13 @@ func NewBatchProcessor(ctx context.Context, logger *logging.Logger, logStore Log
 	bp.emitsAttemptEvents = alerts.Emitter.Enabled(opevents.TopicAttemptSuccess) ||
 		alerts.Emitter.Enabled(opevents.TopicAttemptFailed)
 
-	b, err := batcher.NewBatcher(batcher.Config[*mqs.Message]{
-		GroupCountThreshold: 2,
-		ItemCountThreshold:  cfg.ItemCountThreshold,
-		DelayThreshold:      cfg.DelayThreshold,
-		NumGoroutines:       1,
-		Processor:           bp.processBatch,
-	})
+	// One flush at a time: an Add that fills a batch waits for the previous
+	// write, which holds back the consumer while the log store is slow.
+	b, err := batcher.New(batcher.Config{
+		MaxItems:    max(cfg.ItemCountThreshold, 0), // negative: no count limit, as before
+		MaxWait:     cfg.DelayThreshold,
+		MaxInFlight: 1,
+	}, func(_ context.Context, msgs []*mqs.Message) { bp.processBatch(msgs) })
 	if err != nil {
 		return nil, err
 	}
@@ -171,8 +171,7 @@ func NewBatchProcessor(ctx context.Context, logger *logging.Logger, logStore Log
 
 // Add adds a message to the batch.
 func (bp *BatchProcessor) Add(ctx context.Context, msg *mqs.Message) error {
-	bp.batcher.Add("", msg)
-	return nil
+	return bp.batcher.Add(ctx, msg)
 }
 
 // Shutdown gracefully shuts down the batch processor: the batcher first
@@ -182,13 +181,13 @@ func (bp *BatchProcessor) Add(ctx context.Context, msg *mqs.Message) error {
 // Idempotent.
 func (bp *BatchProcessor) Shutdown() {
 	bp.shutdownOnce.Do(func() {
-		bp.batcher.Shutdown()
+		bp.batcher.Close()
 		bp.inflight.Wait()
 	})
 }
 
 // processBatch processes a batch of messages.
-func (bp *BatchProcessor) processBatch(_ string, msgs []*mqs.Message) {
+func (bp *BatchProcessor) processBatch(msgs []*mqs.Message) {
 	logger := bp.logger.Ctx(bp.ctx)
 	logger.Debug("processing batch", zap.Int("message_count", len(msgs)))
 
