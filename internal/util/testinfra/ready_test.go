@@ -1,9 +1,10 @@
 package testinfra
 
 import (
+	"errors"
 	"net"
+	"sync/atomic"
 	"testing"
-	"time"
 )
 
 // An external endpoint that refuses connections while its service boots, as
@@ -18,13 +19,23 @@ func TestServiceWaitsForExternalEndpointThatStartsLate(t *testing.T) {
 	ln.Close()
 
 	lateCh := make(chan net.Listener, 1)
+	stop := make(chan struct{})
 	t.Cleanup(func() {
+		close(stop)
 		if late := <-lateCh; late != nil {
 			late.Close()
 		}
 	})
+	refusals := make(chan struct{}, 2)
 	go func() {
-		time.Sleep(3 * time.Second)
+		for range 2 {
+			select {
+			case <-refusals:
+			case <-stop:
+				lateCh <- nil
+				return
+			}
+		}
 		late, err := net.Listen("tcp", addr)
 		lateCh <- late
 		if err != nil {
@@ -40,12 +51,37 @@ func TestServiceWaitsForExternalEndpointThatStartsLate(t *testing.T) {
 	}()
 
 	s := &service{name: "late", startHint: hintTest}
-	start := time.Now()
-	got := s.ensure(t, addr, nil, dialTCP)
+	var probes atomic.Int32
+	got := s.ensure(t, addr, nil, func(endpoint string) error {
+		err := dialRefusingSelfConnect(endpoint)
+		probes.Add(1)
+		if err != nil {
+			select {
+			case refusals <- struct{}{}:
+			default:
+			}
+		}
+		return err
+	})
 	if got != addr {
 		t.Fatalf("endpoint = %q, want %q", got, addr)
 	}
-	if elapsed := time.Since(start); elapsed < 3*time.Second {
-		t.Fatalf("returned after %s, before the service listened", elapsed)
+	if n := probes.Load(); n < 3 {
+		t.Fatalf("returned after %d probes, before the service listened", n)
 	}
+}
+
+// dialRefusingSelfConnect is dialTCP, except a dial that connected the client
+// to itself counts as a failure. Linux does that when the target port is in
+// the ephemeral range and nothing listens there.
+func dialRefusingSelfConnect(endpoint string) error {
+	conn, err := net.Dial("tcp", endpoint)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+	if conn.LocalAddr().String() == conn.RemoteAddr().String() {
+		return errors.New("connected to itself")
+	}
+	return nil
 }
