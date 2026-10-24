@@ -8,6 +8,7 @@ import (
 
 	"github.com/redis/go-redis/extra/redisotel/v9"
 	r "github.com/redis/go-redis/v9"
+	"github.com/redis/go-redis/v9/maintnotifications"
 )
 
 // Reexport go-redis's Nil constant for DX purposes.
@@ -115,6 +116,15 @@ func createRegularClient(ctx context.Context, config *RedisConfig) (Client, erro
 		options.TLSConfig = &tls.Config{
 			MinVersion:         tls.VersionTLS12,
 			InsecureSkipVerify: !config.TLSVerify,
+		}
+	}
+
+	if config.Dialer != nil {
+		options.Dialer = config.Dialer
+		// Maintenance notifications look up the address themselves, bypassing Dialer.
+		options.MaintNotificationsConfig = &maintnotifications.Config{
+			Mode:         maintnotifications.ModeDisabled,
+			EndpointType: maintnotifications.EndpointTypeNone,
 		}
 	}
 

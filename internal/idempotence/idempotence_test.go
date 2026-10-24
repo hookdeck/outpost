@@ -6,6 +6,7 @@ import (
 	"log"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/hookdeck/outpost/internal/idempotence"
@@ -16,6 +17,21 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// newIdempotence builds an Idempotence on an in-memory Redis. Call it inside a
+// synctest bubble.
+func newIdempotence(t *testing.T, opts ...func(*idempotence.IdempotenceImplOptions)) idempotence.Idempotence {
+	_, _, client := testutil.NewSynctestRedis(t)
+	return idempotence.New(client, opts...)
+}
+
+// runInBubble runs fn as a parallel subtest on a fake clock.
+func runInBubble(t *testing.T, name string, fn func(t *testing.T)) {
+	t.Run(name, func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, fn)
+	})
+}
 
 // The counter is atomic: countexec increments it from its own goroutine while
 // the test body reads it.
@@ -48,71 +64,67 @@ func setupCountExec(_ *testing.T, ctx context.Context, timeout time.Duration, ex
 func TestIdempotence_Success(t *testing.T) {
 	t.Parallel()
 
-	i := idempotence.New(testutil.CreateTestRedisClient(t),
-		idempotence.WithTimeout(1*time.Second), // Short timeout for unit tests
-		idempotence.WithSuccessfulTTL(24*time.Hour),
-	)
+	opts := []func(*idempotence.IdempotenceImplOptions){
+		idempotence.WithTimeout(1 * time.Second),
+		idempotence.WithSuccessfulTTL(24 * time.Hour),
+	}
 
-	t.Run("on separate keys", func(t *testing.T) {
-		t.Parallel()
-		// Arange
-		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	runInBubble(t, "on separate keys", func(t *testing.T) {
+		i := newIdempotence(t, opts...)
+		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		exec, countexec, cleanup := setupCountExec(t, ctx, 0, func() error { return nil })
 		defer cleanup()
-		// Act
 		go func() {
-			i.Exec(ctx, "1", exec) // 1st exec
+			i.Exec(ctx, "1", exec)
 		}()
 		go func() {
-			i.Exec(ctx, "2", exec) // 2nd exec
+			i.Exec(ctx, "2", exec)
 		}()
-		// Assert
 		var count atomic.Int64
 		go countexec(&count)
-		<-ctx.Done()
+		synctest.Wait()
 		assert.EqualValues(t, 2, count.Load(), "should execute twice")
+		cancel()
 	})
 
-	t.Run("when 2nd exec is within processing window", func(t *testing.T) {
-		t.Parallel()
-		// Arrange
-		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	runInBubble(t, "when 2nd exec is within processing window", func(t *testing.T) {
+		i := newIdempotence(t, opts...)
+		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		exec, countexec, cleanup := setupCountExec(t, ctx, 200*time.Millisecond, func() error { return nil })
 		defer cleanup()
-		// Act
 		key := testutil.RandomString(5)
 		go func() {
 			i.Exec(ctx, key, exec) // 1st exec
 		}()
+		synctest.Wait() // 1st exec is running
 		errchan := make(chan error, 1)
 		go func() {
 			time.Sleep(100 * time.Millisecond)
+			// A concurrent claim makes Exec wait the full Timeout (1s) before checking status.
 			errchan <- i.Exec(ctx, key, exec) // 2nd exec
 		}()
-		// Assert - wait for 2nd exec to complete
-		// Note: idempotence waits for full timeout (1s) when it detects a concurrent operation
 		var count atomic.Int64
 		go countexec(&count)
+		var err error
 		select {
-		case err := <-errchan:
-			time.Sleep(50 * time.Millisecond) // let countexec collect
-			assert.Nil(t, err, "should not return error")
-			assert.EqualValues(t, 1, count.Load(), "should execute once")
+		case err = <-errchan:
 		case <-time.After(2 * time.Second):
 			require.Fail(t, "timeout waiting for 2nd exec")
 		}
+		synctest.Wait()
+		assert.Nil(t, err, "should not return error")
+		assert.EqualValues(t, 1, count.Load(), "should execute once")
+		cancel()
 	})
 
-	t.Run("when 2nd exec is after processed", func(t *testing.T) {
-		t.Parallel()
-		// Arrange
-		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	runInBubble(t, "when 2nd exec is after processed", func(t *testing.T) {
+		i := newIdempotence(t, opts...)
+		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		exec, countexec, cleanup := setupCountExec(t, ctx, 200*time.Millisecond, func() error { return nil })
 		defer cleanup()
-		// Act
 		key := testutil.RandomString(5)
 		go func() {
 			i.Exec(ctx, key, exec) // 1st exec
@@ -122,31 +134,32 @@ func TestIdempotence_Success(t *testing.T) {
 			time.Sleep(500 * time.Millisecond) // wait for 1st exec to finish
 			errchan <- i.Exec(ctx, key, exec)  // 2nd exec
 		}()
-		// Assert - wait for 2nd exec to complete
 		var count atomic.Int64
 		go countexec(&count)
+		var err error
 		select {
-		case err := <-errchan:
-			time.Sleep(50 * time.Millisecond) // let countexec collect
-			assert.Nil(t, err, "should not return error")
-			assert.EqualValues(t, 1, count.Load(), "should execute once")
+		case err = <-errchan:
 		case <-time.After(2 * time.Second):
 			require.Fail(t, "timeout waiting for 2nd exec")
 		}
+		synctest.Wait()
+		assert.Nil(t, err, "should not return error")
+		assert.EqualValues(t, 1, count.Load(), "should execute once")
+		cancel()
 	})
 }
 
 func TestIdempotence_WithDeploymentID(t *testing.T) {
 	t.Parallel()
 
-	i := idempotence.New(testutil.CreateTestRedisClient(t),
-		idempotence.WithTimeout(1*time.Second),
-		idempotence.WithSuccessfulTTL(24*time.Hour),
+	opts := []func(*idempotence.IdempotenceImplOptions){
+		idempotence.WithTimeout(1 * time.Second),
+		idempotence.WithSuccessfulTTL(24 * time.Hour),
 		idempotence.WithDeploymentID("dp_test_001"),
-	)
+	}
 
-	t.Run("executes successfully with deployment prefix", func(t *testing.T) {
-		t.Parallel()
+	runInBubble(t, "executes successfully with deployment prefix", func(t *testing.T) {
+		i := newIdempotence(t, opts...)
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()
 
@@ -160,8 +173,8 @@ func TestIdempotence_WithDeploymentID(t *testing.T) {
 		assert.True(t, executed, "function should have been executed")
 	})
 
-	t.Run("returns nil on duplicate execution with deployment prefix", func(t *testing.T) {
-		t.Parallel()
+	runInBubble(t, "returns nil on duplicate execution with deployment prefix", func(t *testing.T) {
+		i := newIdempotence(t, opts...)
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()
 
@@ -188,13 +201,13 @@ func TestIdempotence_WithDeploymentID(t *testing.T) {
 func TestIdempotence_SplitPhase(t *testing.T) {
 	t.Parallel()
 
-	i := idempotence.New(testutil.CreateTestRedisClient(t),
-		idempotence.WithTimeout(1*time.Second),
-		idempotence.WithSuccessfulTTL(24*time.Hour),
-	)
+	opts := []func(*idempotence.IdempotenceImplOptions){
+		idempotence.WithTimeout(1 * time.Second),
+		idempotence.WithSuccessfulTTL(24 * time.Hour),
+	}
 
-	t.Run("unseen key is not processed", func(t *testing.T) {
-		t.Parallel()
+	runInBubble(t, "unseen key is not processed", func(t *testing.T) {
+		i := newIdempotence(t, opts...)
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()
 
@@ -203,8 +216,8 @@ func TestIdempotence_SplitPhase(t *testing.T) {
 		assert.False(t, processed)
 	})
 
-	t.Run("MarkProcessed makes the key processed", func(t *testing.T) {
-		t.Parallel()
+	runInBubble(t, "MarkProcessed makes the key processed", func(t *testing.T) {
+		i := newIdempotence(t, opts...)
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()
 
@@ -216,8 +229,8 @@ func TestIdempotence_SplitPhase(t *testing.T) {
 		assert.True(t, processed)
 	})
 
-	t.Run("successful Exec marks the key processed", func(t *testing.T) {
-		t.Parallel()
+	runInBubble(t, "successful Exec marks the key processed", func(t *testing.T) {
+		i := newIdempotence(t, opts...)
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()
 
@@ -229,8 +242,8 @@ func TestIdempotence_SplitPhase(t *testing.T) {
 		assert.True(t, processed)
 	})
 
-	t.Run("MarkProcessed makes Exec skip", func(t *testing.T) {
-		t.Parallel()
+	runInBubble(t, "MarkProcessed makes Exec skip", func(t *testing.T) {
+		i := newIdempotence(t, opts...)
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()
 
@@ -245,8 +258,8 @@ func TestIdempotence_SplitPhase(t *testing.T) {
 		assert.False(t, executed, "Exec should skip a key marked processed")
 	})
 
-	t.Run("in-flight Exec claim does not count as processed", func(t *testing.T) {
-		t.Parallel()
+	runInBubble(t, "in-flight Exec claim does not count as processed", func(t *testing.T) {
+		i := newIdempotence(t, opts...)
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
@@ -271,12 +284,11 @@ func TestIdempotence_SplitPhase(t *testing.T) {
 		require.NoError(t, <-done)
 	})
 
-	t.Run("deployment IDs scope split-phase keys", func(t *testing.T) {
-		t.Parallel()
+	runInBubble(t, "deployment IDs scope split-phase keys", func(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()
 
-		redisClient := testutil.CreateTestRedisClient(t)
+		_, _, redisClient := testutil.NewSynctestRedis(t)
 		iA := idempotence.New(redisClient, idempotence.WithDeploymentID("dp_a"))
 		iB := idempotence.New(redisClient, idempotence.WithDeploymentID("dp_b"))
 
@@ -295,61 +307,62 @@ func TestIdempotence_SplitPhase(t *testing.T) {
 
 func TestIdempotenceIsolation(t *testing.T) {
 	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		_, _, redisClient := testutil.NewSynctestRedis(t)
 
-	redisClient := testutil.CreateTestRedisClient(t)
+		// Create two idempotence instances with different deployment IDs
+		i1 := idempotence.New(redisClient,
+			idempotence.WithTimeout(1*time.Second),
+			idempotence.WithSuccessfulTTL(24*time.Hour),
+			idempotence.WithDeploymentID("dp_001"),
+		)
+		i2 := idempotence.New(redisClient,
+			idempotence.WithTimeout(1*time.Second),
+			idempotence.WithSuccessfulTTL(24*time.Hour),
+			idempotence.WithDeploymentID("dp_002"),
+		)
 
-	// Create two idempotence instances with different deployment IDs
-	i1 := idempotence.New(redisClient,
-		idempotence.WithTimeout(1*time.Second),
-		idempotence.WithSuccessfulTTL(24*time.Hour),
-		idempotence.WithDeploymentID("dp_001"),
-	)
-	i2 := idempotence.New(redisClient,
-		idempotence.WithTimeout(1*time.Second),
-		idempotence.WithSuccessfulTTL(24*time.Hour),
-		idempotence.WithDeploymentID("dp_002"),
-	)
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
+		// Use the same key for both
+		sharedKey := "shared-idempotency-key"
 
-	// Use the same key for both
-	sharedKey := "shared-idempotency-key"
+		exec1Count := 0
+		exec2Count := 0
 
-	exec1Count := 0
-	exec2Count := 0
+		// Execute on instance 1
+		err := i1.Exec(ctx, sharedKey, func(ctx context.Context) error {
+			exec1Count++
+			return nil
+		})
+		require.NoError(t, err)
+		assert.Equal(t, 1, exec1Count)
 
-	// Execute on instance 1
-	err := i1.Exec(ctx, sharedKey, func(ctx context.Context) error {
-		exec1Count++
-		return nil
+		// Execute on instance 2 with same key - should execute (different deployment)
+		err = i2.Exec(ctx, sharedKey, func(ctx context.Context) error {
+			exec2Count++
+			return nil
+		})
+		require.NoError(t, err)
+		assert.Equal(t, 1, exec2Count, "Instance 2 should execute independently")
+
+		// Execute on instance 1 again - should be idempotent
+		err = i1.Exec(ctx, sharedKey, func(ctx context.Context) error {
+			exec1Count++
+			return nil
+		})
+		require.NoError(t, err)
+		assert.Equal(t, 1, exec1Count, "Instance 1 should remain idempotent")
+
+		// Execute on instance 2 again - should be idempotent
+		err = i2.Exec(ctx, sharedKey, func(ctx context.Context) error {
+			exec2Count++
+			return nil
+		})
+		require.NoError(t, err)
+		assert.Equal(t, 1, exec2Count, "Instance 2 should remain idempotent")
 	})
-	require.NoError(t, err)
-	assert.Equal(t, 1, exec1Count)
-
-	// Execute on instance 2 with same key - should execute (different deployment)
-	err = i2.Exec(ctx, sharedKey, func(ctx context.Context) error {
-		exec2Count++
-		return nil
-	})
-	require.NoError(t, err)
-	assert.Equal(t, 1, exec2Count, "Instance 2 should execute independently")
-
-	// Execute on instance 1 again - should be idempotent
-	err = i1.Exec(ctx, sharedKey, func(ctx context.Context) error {
-		exec1Count++
-		return nil
-	})
-	require.NoError(t, err)
-	assert.Equal(t, 1, exec1Count, "Instance 1 should remain idempotent")
-
-	// Execute on instance 2 again - should be idempotent
-	err = i2.Exec(ctx, sharedKey, func(ctx context.Context) error {
-		exec2Count++
-		return nil
-	})
-	require.NoError(t, err)
-	assert.Equal(t, 1, exec2Count, "Instance 2 should remain idempotent")
 }
 
 func TestIdempotence_Failure(t *testing.T) {
@@ -357,32 +370,29 @@ func TestIdempotence_Failure(t *testing.T) {
 
 	errExec := errors.New("exec error")
 
-	i := idempotence.New(testutil.CreateTestRedisClient(t),
-		idempotence.WithTimeout(1*time.Second), // Short timeout for unit tests
-		idempotence.WithSuccessfulTTL(24*time.Hour),
-	)
+	opts := []func(*idempotence.IdempotenceImplOptions){
+		idempotence.WithTimeout(1 * time.Second),
+		idempotence.WithSuccessfulTTL(24 * time.Hour),
+	}
 
-	t.Run("when 2nd exec is within processing window", func(t *testing.T) {
-		t.Parallel()
-		// Arrange
-		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	runInBubble(t, "when 2nd exec is within processing window", func(t *testing.T) {
+		i := newIdempotence(t, opts...)
+		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		exec, countexec, cleanup := setupCountExec(t, ctx, 200*time.Millisecond, func() error { return errExec })
 		defer cleanup()
 
-		// Act
 		key := testutil.RandomString(5)
 		err1chan := make(chan error, 1)
 		err2chan := make(chan error, 1)
 		go func() {
 			err1chan <- i.Exec(ctx, key, exec) // 1st exec
 		}()
+		synctest.Wait() // 1st exec is running
 		go func() {
-			time.Sleep(50 * time.Millisecond)  // wait to make sure 1st exec has started
 			err2chan <- i.Exec(ctx, key, exec) // 2nd exec
 		}()
 
-		// Assert - wait for both to complete with timeout
 		var err1, err2 error
 		select {
 		case err1 = <-err1chan:
@@ -396,47 +406,26 @@ func TestIdempotence_Failure(t *testing.T) {
 		}
 		var count atomic.Int64
 		go countexec(&count)
-		time.Sleep(50 * time.Millisecond) // let countexec collect
-		cancel()                          // stop countexec
+		synctest.Wait()
+		cancel()
 		assert.Equal(t, errExec, err1, "first execution should return exec error")
 		assert.Equal(t, idempotence.ErrConflict, err2, "second execution should return conflict error")
 		assert.EqualValues(t, 1, count.Load(), "should execute once")
 	})
 
-	t.Run("when 2nd exec is after 1st exec completion", func(t *testing.T) {
-		t.Parallel()
-		// Arrange
-		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	runInBubble(t, "when 2nd exec is after 1st exec completion", func(t *testing.T) {
+		i := newIdempotence(t, opts...)
+		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		exec, countexec, cleanup := setupCountExec(t, ctx, 100*time.Millisecond, func() error { return errExec })
 		defer cleanup()
-		// Act
 		key := testutil.RandomString(5)
-		err1chan := make(chan error, 1)
-		err2chan := make(chan error, 1)
-		go func() {
-			err1chan <- i.Exec(ctx, key, exec) // 1st exec
-		}()
-		// Wait for 1st exec to complete with timeout
-		var err1, err2 error
-		select {
-		case err1 = <-err1chan:
-		case <-time.After(2 * time.Second):
-			require.Fail(t, "timeout waiting for err1")
-		}
-		go func() {
-			err2chan <- i.Exec(ctx, key, exec) // 2nd exec (after 1st completed)
-		}()
-		select {
-		case err2 = <-err2chan:
-		case <-time.After(2 * time.Second):
-			require.Fail(t, "timeout waiting for err2")
-		}
-		// Assert
+		err1 := i.Exec(ctx, key, exec) // 1st exec
+		err2 := i.Exec(ctx, key, exec) // 2nd exec (after 1st completed)
 		var count atomic.Int64
 		go countexec(&count)
-		time.Sleep(50 * time.Millisecond) // let countexec collect
-		cancel()                          // stop countexec
+		synctest.Wait()
+		cancel()
 		assert.Equal(t, errExec, err1, "first execution should return exec error")
 		assert.Equal(t, errExec, err2, "second execution should return exec error")
 		assert.EqualValues(t, 2, count.Load(), "should execute twice")

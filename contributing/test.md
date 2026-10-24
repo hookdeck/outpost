@@ -227,3 +227,17 @@ func TestIntegrationMyDestinationTest(t *testing.T) {
   // ...
 }
 ```
+
+## Timing in tests
+
+Don't sleep to wait for state. Pick by what the test talks to:
+
+- **In-process code** (timers, TTLs, backoff, retries): run the test inside [`testing/synctest`](https://pkg.go.dev/testing/synctest). `time.Sleep(d)` advances the fake clock for free, and `synctest.Wait()` returns once every goroutine in the bubble is blocked. For Redis, use `testutil.NewSynctestRedis(t)`: an in-memory miniredis with no listener whose TTLs follow the fake clock. Its config works with `redis.New`.
+- **Real services** (testinfra, HTTP servers, e2e): use `require.Eventually` for a condition and `require.Never` for "nothing happens", with the window derived from the code under test.
+
+Inside a bubble:
+
+- Create everything in the bubble. Avoid network I/O; `t.Run` and `t.Parallel` aren't available. For parallel subtests, call `t.Run` and `t.Parallel` outside, then `synctest.Test` inside each subtest.
+- Stop every goroutine (Shutdown, cancel, drain) before the test function returns. A goroutine left blocked fails the test with a deadlock panic.
+
+Keep each package under 2 s in `go test -short -p 1 ./...`. A package over that is worth a look for real-time waits.
