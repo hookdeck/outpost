@@ -124,7 +124,10 @@ func NewRetryScheduler(deliverymq *DeliveryMQ, redisConfig *redis.RedisConfig, d
 		rsmqClient = rsmq.NewRedisSMQ(adapter, namespace)
 	}
 
-	lookup, batcher := newRetryLookup(eventGetter, effectiveLookupBatchSize(cfg.lookupBatchSize, cfg.maxConcurrency), cfg.lookupBatchWait)
+	lookup, batcher, err := newRetryLookup(eventGetter, effectiveLookupBatchSize(cfg.lookupBatchSize, cfg.maxConcurrency), cfg.lookupBatchWait)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create retry lookup batcher: %w", err)
+	}
 
 	exec := func(ctx context.Context, msg string) error {
 		retryTask := RetryTask{}
