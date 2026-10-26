@@ -1,0 +1,46 @@
+{
+  "name": "order.created",
+  "description": "Fires when a new order is placed.",
+  "delivery": ["webhook"],
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "total": {
+        "description": "Order total in major units.",
+        "anyOf": [
+          { "type": "number" },
+          { "type": "array", "items": { "type": "number" }, "minItems": 1, "maxItems": 100 },
+          {
+            "type": "object",
+            "properties": {
+              "$gt": { "type": "number" },
+              "$gte": { "type": "number" },
+              "$lt": { "type": "number" },
+              "$lte": { "type": "number" }
+            },
+            "additionalProperties": false,
+            "minProperties": 1
+          }
+        ]
+      },
+      "currency": {
+        "description": "ISO 4217 currency code.",
+        "anyOf": [
+          { "type": "string", "maxLength": 256 },
+          { "type": "array", "items": { "type": "string", "maxLength": 256 }, "minItems": 1, "maxItems": 100 }
+        ]
+      }
+    },
+    "additionalProperties": false
+  },
+  "payloadSchema": {
+    "type": "object",
+    "properties": {
+      "orderId": { "type": "string" },
+      "total": { "type": "number", "description": "Order total in major units." },
+      "currency": { "type": "string", "description": "ISO 4217 currency code." },
+      "createdAt": { "type": "string", "format": "date-time" }
+    },
+    "required": ["orderId", "total", "currency"]
+  }
+}
