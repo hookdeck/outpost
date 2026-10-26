@@ -65,6 +65,7 @@ func (b *ServiceBuilder) mcpProvider(redisClient redis.Client) (*destmcp.Config,
 	cfg := &destmcp.Config{
 		Client:            n.client,
 		Guard:             n.guard,
+		Catalog:           b.cfg.MCPCatalog(),
 		UserAgent:         b.cfg.Destinations.ToConfig(b.cfg).UserAgent,
 		AllowInsecureHTTP: b.cfg.MCP.AllowInsecureCallbacks,
 		RetryBackoff:      retryBackoff,
