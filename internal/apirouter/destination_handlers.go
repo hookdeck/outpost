@@ -132,6 +132,14 @@ func (h *DestinationHandlers) Create(c *gin.Context) {
 	if destination.Type == models.DestinationTypeMCP && !h.canCreateDestination(c, &destination) {
 		return
 	}
+	if provider, err := h.registry.ResolveProvider(&destination); err == nil {
+		if v, ok := provider.(destregistry.CreateValidator); ok {
+			if err := v.ValidateCreate(&destination); err != nil {
+				AbortWithValidationError(c, err)
+				return
+			}
+		}
+	}
 	if err := h.registry.ValidateDestination(c.Request.Context(), &destination); err != nil {
 		AbortWithValidationError(c, err)
 		return
