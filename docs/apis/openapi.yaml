@@ -359,8 +359,10 @@ components:
           type: string
           maxLength: 4096
           description: >-
-            Subscription arguments as canonical JSON (sorted keys, no whitespace). Stored with the
-            destination; not used to filter events. Immutable.
+            Subscription arguments as canonical JSON (sorted keys, no whitespace). Immutable. With
+            event definitions configured (`MCP_EVENTS_FILE` or `mcp.events`), they must satisfy the event's
+            `inputSchema` from `GET /mcp/events`, and Outpost derives the destination's `filter`
+            from them.
           example: '{"status":"paid"}'
     MCPCredentials:
       type: object
@@ -7048,6 +7050,87 @@ paths:
                     ]
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /mcp/events:
+    get:
+      tags: [Topics]
+      summary: List MCP Events
+      x-speakeasy-ignore: true
+      description: |
+        **Experimental.** Returns the event definitions configured with `MCP_EVENTS_FILE` or
+        `mcp.events`, in the shape of an MCP `events/list` result. Admin API key only. Returns 404
+        when MCP is not enabled or no events are defined.
+      operationId: listMCPEvents
+      parameters:
+        - name: topics
+          in: query
+          description: Comma-separated event names; only these are returned.
+          schema:
+            type: string
+          example: "order.created,order.refunded"
+        - name: cursor
+          in: query
+          description: The `nextCursor` of the previous page.
+          schema:
+            type: string
+        - name: limit
+          in: query
+          description: Maximum events per page.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+      responses:
+        "200":
+          description: A page of event definitions, ordered by name.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [resultType, events]
+                properties:
+                  resultType:
+                    type: string
+                    enum: [complete]
+                  events:
+                    type: array
+                    items:
+                      type: object
+                      required: [name, inputSchema, payloadSchema, delivery]
+                      properties:
+                        name:
+                          type: string
+                          example: "order.created"
+                        description:
+                          type: string
+                          example: "An order was placed."
+                        inputSchema:
+                          type: object
+                          additionalProperties: true
+                          description: JSON Schema of the `arguments` a subscription accepts, derived from `payloadSchema`.
+                        payloadSchema:
+                          type: object
+                          additionalProperties: true
+                          description: JSON Schema of the event data.
+                        delivery:
+                          type: array
+                          items:
+                            type: string
+                          example: ["webhook"]
+                  nextCursor:
+                    type: string
+                    description: Present when there are more events.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
         "500":
           $ref: "#/components/responses/InternalServerError"
 

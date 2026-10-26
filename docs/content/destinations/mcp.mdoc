@@ -42,13 +42,19 @@ Verification is limited to 10 challenges per tenant and principal per minute, an
 | `topics` | string[] | Yes | Exactly one topic. `*` is not accepted. |
 | `config.url` | string | Yes | Callback URL. `https`, in normalized form (lowercase host, no default port, no credentials); `http` only for loopback addresses in `DESTINATIONS_PRIVATE_ADDRESS_ALLOWLIST` (any allowlisted address with `MCP_ALLOW_INSECURE_CALLBACKS`). Must resolve to a public address, unless allowed by `DESTINATIONS_PRIVATE_ADDRESS_ALLOWLIST`. |
 | `config.principal` | string | No | The subject the subscription belongs to, up to 512 bytes. Verification is cached per tenant, principal and URL. |
-| `config.arguments` | string | No | Canonical JSON object, up to 4 KiB. Stored with the destination. |
+| `config.arguments` | string | No | Canonical JSON object, up to 4 KiB. Stored with the destination. With event definitions configured, it must satisfy the event's `inputSchema`. |
 | `credentials.secret` | string | Yes | `whsec_` followed by base64 of 24 to 64 bytes. |
 | `expires_at` | string | No | RFC 3339 time in the future. From then on the subscription matches no events and receives no deliveries. `null` on update clears it. |
 
 `config.url`, `config.principal`, `config.arguments` and `topics` cannot change after creation. To rotate the secret, update `credentials.secret`: the old secret keeps signing for 24 hours alongside the new one.
 
 Each subscription counts toward `MAX_DESTINATIONS_PER_TENANT`. When a tenant is at the limit, creating a subscription first removes the tenant's expired ones.
+
+## Event Definitions and Arguments
+
+With [`MCP_EVENTS_FILE` or `mcp.events`](/docs/outpost/self-hosting/configuration#mcp-events-experimental) set, the configured events form a catalog. A subscription must then target an event in the catalog (`422` with `topics` / `not_found` otherwise), and `config.arguments` is checked against the event's `inputSchema`, which Outpost derives from its `payload_schema`: each top-level property with a scalar type becomes an optional argument that takes a value, a list of values, or, for numbers and `format: date` strings, an operator object (`$gt`, `$gte`, `$lt`, `$lte`). Set `x-mcp-filter: false` on a property to leave it out. Outpost turns the arguments into the destination's `filter`, so only matching events are delivered; `filter` can't be set on these subscriptions. Checks against the catalog run when a subscription is created. Subscriptions created before event definitions were configured keep delivering unfiltered until they are recreated.
+
+`GET /mcp/events` (Admin API key) returns the catalog in the shape of an MCP `events/list` result (`resultType: "complete"`): `name`, `description`, `inputSchema`, `payloadSchema` and `delivery` per event, `nextCursor` when there are more. `topics=a,b` restricts the list to those events, and `limit` and `cursor` page through it. Without MCP enabled or any events configured, the route returns `404`.
 
 ## Delivery
 
