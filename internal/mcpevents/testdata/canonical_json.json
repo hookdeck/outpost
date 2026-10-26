@@ -1,0 +1,272 @@
+[
+  {
+    "name": "empty object",
+    "input": "{}",
+    "canonical": "{}"
+  },
+  {
+    "name": "empty array",
+    "input": "[]",
+    "canonical": "[]"
+  },
+  {
+    "name": "null",
+    "input": "null",
+    "canonical": "null"
+  },
+  {
+    "name": "true",
+    "input": "true",
+    "canonical": "true"
+  },
+  {
+    "name": "false",
+    "input": "false",
+    "canonical": "false"
+  },
+  {
+    "name": "empty string",
+    "input": "\"\"",
+    "canonical": "\"\""
+  },
+  {
+    "name": "key order",
+    "input": "{\"b\":1,\"a\":2,\"c\":{\"z\":1,\"y\":[3,2,1],\"x\":{}}}",
+    "canonical": "{\"a\":2,\"b\":1,\"c\":{\"x\":{},\"y\":[3,2,1],\"z\":1}}"
+  },
+  {
+    "name": "integer-like keys",
+    "input": "{\"10\":1,\"9\":2,\"1\":3,\"a\":4,\"\":5,\"_\":6,\"A\":7}",
+    "canonical": "{\"\":5,\"1\":3,\"10\":1,\"9\":2,\"A\":7,\"_\":6,\"a\":4}"
+  },
+  {
+    "name": "utf16 key order",
+    "input": "{\"！\":1,\"😀\":2,\"é\":3,\"e\":4,\" \":5,\"z\":6}",
+    "canonical": "{\"e\":4,\"z\":6,\"é\":3,\" \":5,\"😀\":2,\"！\":1}"
+  },
+  {
+    "name": "proto key",
+    "input": "{\"__proto__\":{\"a\":1},\"constructor\":2}",
+    "canonical": "{\"__proto__\":{\"a\":1},\"constructor\":2}"
+  },
+  {
+    "name": "nested arrays",
+    "input": "[[[]],[[1,[2,[3]]]],{\"a\":[{\"c\":1,\"b\":2}]}]",
+    "canonical": "[[[]],[[1,[2,[3]]]],{\"a\":[{\"b\":2,\"c\":1}]}]"
+  },
+  {
+    "name": "escapes",
+    "input": "\"quote\\\" backslash\\\\ slash/ tab\\t nl\\n cr\\r bs\\b ff\\f\"",
+    "canonical": "\"quote\\\" backslash\\\\ slash/ tab\\t nl\\n cr\\r bs\\b ff\\f\""
+  },
+  {
+    "name": "controls",
+    "input": "\"\\u0000\\u0001\\u0007\\u000b\\u000e\\u001f\\u0020\\u007f\"",
+    "canonical": "\"\\u0000\\u0001\\u0007\\u000b\\u000e\\u001f \""
+  },
+  {
+    "name": "line separators raw",
+    "input": "\"a\\u2028b\\u2029c\"",
+    "canonical": "\"a b c\""
+  },
+  {
+    "name": "html chars",
+    "input": "\"<script>&amp;'</script>\"",
+    "canonical": "\"<script>&amp;'</script>\""
+  },
+  {
+    "name": "unicode",
+    "input": "\"caf\\u00e9 \\u65e5\\u672c \\ud83d\\ude00 \\ufeff \\ufffd\"",
+    "canonical": "\"café 日本 😀 ﻿ �\""
+  },
+  {
+    "name": "unicode raw",
+    "input": "\"café 日本 😀\"",
+    "canonical": "\"café 日本 😀\""
+  },
+  {
+    "name": "escaped slash",
+    "input": "\"\\/\"",
+    "canonical": "\"/\""
+  },
+  {
+    "name": "zero",
+    "input": "0",
+    "canonical": "0"
+  },
+  {
+    "name": "negative zero",
+    "input": "-0",
+    "canonical": "0"
+  },
+  {
+    "name": "negative zero float",
+    "input": "-0.0",
+    "canonical": "0"
+  },
+  {
+    "name": "one",
+    "input": "1",
+    "canonical": "1"
+  },
+  {
+    "name": "negative",
+    "input": "-1",
+    "canonical": "-1"
+  },
+  {
+    "name": "fraction",
+    "input": "0.1",
+    "canonical": "0.1"
+  },
+  {
+    "name": "half",
+    "input": "0.5",
+    "canonical": "0.5"
+  },
+  {
+    "name": "float sum",
+    "input": "0.30000000000000004",
+    "canonical": "0.30000000000000004"
+  },
+  {
+    "name": "4.35",
+    "input": "4.35",
+    "canonical": "4.35"
+  },
+  {
+    "name": "third",
+    "input": "0.3333333333333333",
+    "canonical": "0.3333333333333333"
+  },
+  {
+    "name": "exponent upper",
+    "input": "1E2",
+    "canonical": "100"
+  },
+  {
+    "name": "exponent plus",
+    "input": "1e+2",
+    "canonical": "100"
+  },
+  {
+    "name": "trailing zeros",
+    "input": "1.50000",
+    "canonical": "1.5"
+  },
+  {
+    "name": "1e20",
+    "input": "1e20",
+    "canonical": "100000000000000000000"
+  },
+  {
+    "name": "1e21",
+    "input": "1e21",
+    "canonical": "1e+21"
+  },
+  {
+    "name": "123e20",
+    "input": "123e20",
+    "canonical": "1.23e+22"
+  },
+  {
+    "name": "1.5e300",
+    "input": "1.5e300",
+    "canonical": "1.5e+300"
+  },
+  {
+    "name": "max float",
+    "input": "1.7976931348623157e308",
+    "canonical": "1.7976931348623157e+308"
+  },
+  {
+    "name": "min subnormal",
+    "input": "5e-324",
+    "canonical": "5e-324"
+  },
+  {
+    "name": "min normal",
+    "input": "2.2250738585072014e-308",
+    "canonical": "2.2250738585072014e-308"
+  },
+  {
+    "name": "1e-6",
+    "input": "1e-6",
+    "canonical": "0.000001"
+  },
+  {
+    "name": "0.000001",
+    "input": "0.000001",
+    "canonical": "0.000001"
+  },
+  {
+    "name": "1e-7",
+    "input": "1e-7",
+    "canonical": "1e-7"
+  },
+  {
+    "name": "1.234e-7",
+    "input": "1.234e-7",
+    "canonical": "1.234e-7"
+  },
+  {
+    "name": "0.000001234",
+    "input": "0.000001234",
+    "canonical": "0.000001234"
+  },
+  {
+    "name": "-1.5e-10",
+    "input": "-1.5e-10",
+    "canonical": "-1.5e-10"
+  },
+  {
+    "name": "2^53",
+    "input": "9007199254740992",
+    "canonical": "9007199254740992"
+  },
+  {
+    "name": "2^53+1",
+    "input": "9007199254740993",
+    "canonical": "9007199254740992"
+  },
+  {
+    "name": "big integer",
+    "input": "123456789012345678901",
+    "canonical": "123456789012345680000"
+  },
+  {
+    "name": "bigger integer",
+    "input": "12345678901234567890123456789",
+    "canonical": "1.2345678901234568e+28"
+  },
+  {
+    "name": "999999999999999999999",
+    "input": "999999999999999999999",
+    "canonical": "1e+21"
+  },
+  {
+    "name": "100000000000000000000",
+    "input": "100000000000000000000",
+    "canonical": "100000000000000000000"
+  },
+  {
+    "name": "1e-400 underflow",
+    "input": "1e-400",
+    "canonical": "0"
+  },
+  {
+    "name": "mixed object",
+    "input": "{\"total\":{\"$gte\":100},\"currency\":\"USD\",\"tags\":[\"a\",\"b\"],\"flag\":true,\"none\":null}",
+    "canonical": "{\"currency\":\"USD\",\"flag\":true,\"none\":null,\"tags\":[\"a\",\"b\"],\"total\":{\"$gte\":100}}"
+  },
+  {
+    "name": "deep",
+    "input": "{\"a\":{\"b\":{\"c\":{\"d\":{\"e\":{\"f\":[1,{\"g\":\"h\"}]}}}}}}",
+    "canonical": "{\"a\":{\"b\":{\"c\":{\"d\":{\"e\":{\"f\":[1,{\"g\":\"h\"}]}}}}}}"
+  },
+  {
+    "name": "whitespace",
+    "input": " { \"b\" : [ 1 , 2 ] ,\n\t\"a\" : \"x\" } ",
+    "canonical": "{\"a\":\"x\",\"b\":[1,2]}"
+  }
+]
