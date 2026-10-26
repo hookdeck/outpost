@@ -235,6 +235,7 @@ Off by default. When `MCP_ENABLED` is `true`, the experimental [`mcp` destinatio
 | `MCP_ALLOW_INSECURE_CALLBACKS` | `false` | Allows `http` callback URLs whose addresses are all in `DESTINATIONS_PRIVATE_ADDRESS_ALLOWLIST`. Without it, `http` is only allowed for loopback addresses in the allowlist. Development only. |
 | `MCP_RETRY_SCHEDULE` | `30,120,600` | Comma-separated retry delays in seconds for `mcp` deliveries. Its length is the number of retries. `RETRY_SCHEDULE`, `RETRY_INTERVAL_SECONDS` and `MAX_RETRY_LIMIT` don't apply to `mcp`. Delays shorter than `LOG_BATCH_THRESHOLD_SECONDS` are raised to it. |
 | `MCP_VERIFICATION_TTL_SECONDS` | `86400` | How long, in seconds, a passed callback verification is cached per tenant, principal and callback URL. |
+| `MCP_EVENTS_FILE` | — | Path to a YAML or JSON file defining the events MCP subscriptions can target, keyed by topic: an optional `description` and a `payload_schema` (JSON Schema 2020-12 for the event data, an object). The same mapping can be set inline as `mcp.events` in the YAML config; the file takes precedence. With events defined, an `mcp` destination must subscribe to one of them and its `config.arguments` are checked against the schema inferred from `payload_schema`. Every key must be in `TOPICS` when `TOPICS` is set. An invalid definition fails startup. |
 
 `mcp` destinations always refuse non-public addresses that aren't in `DESTINATIONS_PRIVATE_ADDRESS_ALLOWLIST`.
 

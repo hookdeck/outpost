@@ -12,10 +12,12 @@ import (
 const maxDurationSeconds = math.MaxInt64 / int64(time.Second)
 
 type MCPConfig struct {
-	Enabled                bool  `yaml:"enabled" env:"MCP_ENABLED" desc:"If true, registers the experimental 'mcp' destination type (MCP Events webhook subscriptions). Admin API key only. Delete mcp destinations before turning it off; while it is off, they stay listed and each event fails once without retries." required:"N" default:"false"`
-	AllowInsecureCallbacks bool  `yaml:"allow_insecure_callbacks" env:"MCP_ALLOW_INSECURE_CALLBACKS" desc:"If true, allows http callback URLs whose addresses are all in DESTINATIONS_PRIVATE_ADDRESS_ALLOWLIST. Without it, http is only allowed for loopback addresses in the allowlist. Development only." required:"N" default:"false"`
-	RetrySchedule          []int `yaml:"retry_schedule" env:"MCP_RETRY_SCHEDULE" envSeparator:"," desc:"Comma-separated retry delays in seconds for mcp deliveries (in YAML, a list). Its length is the number of retries. RETRY_SCHEDULE, RETRY_INTERVAL_SECONDS and MAX_RETRY_LIMIT don't apply to mcp. Delays shorter than LOG_BATCH_THRESHOLD_SECONDS are raised to it." required:"N" default:"30,120,600"`
-	VerificationTTLSeconds int   `yaml:"verification_ttl_seconds" env:"MCP_VERIFICATION_TTL_SECONDS" desc:"How long, in seconds, a passed callback verification challenge is cached per tenant, principal and callback URL." required:"N" default:"86400"`
+	Enabled                bool      `yaml:"enabled" env:"MCP_ENABLED" desc:"If true, registers the experimental 'mcp' destination type (MCP Events webhook subscriptions). Admin API key only. Delete mcp destinations before turning it off; while it is off, they stay listed and each event fails once without retries." required:"N" default:"false"`
+	AllowInsecureCallbacks bool      `yaml:"allow_insecure_callbacks" env:"MCP_ALLOW_INSECURE_CALLBACKS" desc:"If true, allows http callback URLs whose addresses are all in DESTINATIONS_PRIVATE_ADDRESS_ALLOWLIST. Without it, http is only allowed for loopback addresses in the allowlist. Development only." required:"N" default:"false"`
+	RetrySchedule          []int     `yaml:"retry_schedule" env:"MCP_RETRY_SCHEDULE" envSeparator:"," desc:"Comma-separated retry delays in seconds for mcp deliveries (in YAML, a list). Its length is the number of retries. RETRY_SCHEDULE, RETRY_INTERVAL_SECONDS and MAX_RETRY_LIMIT don't apply to mcp. Delays shorter than LOG_BATCH_THRESHOLD_SECONDS are raised to it." required:"N" default:"30,120,600"`
+	VerificationTTLSeconds int       `yaml:"verification_ttl_seconds" env:"MCP_VERIFICATION_TTL_SECONDS" desc:"How long, in seconds, a passed callback verification challenge is cached per tenant, principal and callback URL." required:"N" default:"86400"`
+	Events                 MCPEvents `yaml:"events" desc:"Event definitions keyed by topic name (a YAML mapping): an optional description and a payload_schema (JSON Schema 2020-12 for the event data, an object). Subscriptions must target a defined event; their arguments are checked against the inputSchema inferred from the schema. Every key must be in TOPICS when TOPICS is set. Ignored when MCP_EVENTS_FILE is set." required:"N"`
+	EventsFile             string    `yaml:"events_file" env:"MCP_EVENTS_FILE" desc:"Path to a YAML or JSON file (JSON when the name ends in .json) with event definitions in the mcp.events shape. Takes precedence over mcp.events." required:"N"`
 }
 
 func (c *MCPConfig) initDefaults() {
@@ -32,6 +34,7 @@ func invalidMCP(format string, args ...any) error {
 func (c *Config) validateMCP() error {
 	m := &c.MCP
 	if !m.Enabled {
+		c.mcpCatalog = nil
 		return nil
 	}
 	if m.VerificationTTLSeconds < 1 || int64(m.VerificationTTLSeconds) > maxDurationSeconds {
@@ -48,7 +51,7 @@ func (c *Config) validateMCP() error {
 			return invalidMCP("MCP_RETRY_SCHEDULE (mcp.retry_schedule) entry %d at index %d is too large", seconds, i)
 		}
 	}
-	return nil
+	return c.validateMCPEvents()
 }
 
 func (c *Config) MCPRetryBackoff() (backoff.Backoff, int) {

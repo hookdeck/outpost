@@ -117,6 +117,14 @@ destinations:
 #   allow_insecure_callbacks: false
 #   retry_schedule: [30, 120, 600]
 #   verification_ttl_seconds: 86400
+#   events:
+#     user.created:
+#       description: A user was created.
+#       payload_schema:
+#         type: object
+#         properties:
+#           plan: {type: string, enum: [free, pro]}
+#           credits: {type: number, x-mcp-filter: false}
 
 # Note: OpenTelemetry Configuration
 # It is recommended to configure OpenTelemetry using environment variables as they are better supported by the SDK.
