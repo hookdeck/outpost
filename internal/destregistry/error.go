@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 )
 
 type ErrDestinationValidation struct {
@@ -21,6 +22,25 @@ func (e *ErrDestinationValidation) Error() string {
 
 func NewErrDestinationValidation(errors []ValidationErrorDetail) error {
 	return &ErrDestinationValidation{Errors: errors}
+}
+
+// ErrDestinationRateLimited: a limit on Outpost's side stopped validation.
+type ErrDestinationRateLimited struct {
+	Code       string
+	RetryAfter time.Duration
+}
+
+func (e *ErrDestinationRateLimited) Error() string {
+	return "rate limited: " + e.Code
+}
+
+// ErrDestinationUnavailable: validation could not run on Outpost's side.
+type ErrDestinationUnavailable struct {
+	Code string
+}
+
+func (e *ErrDestinationUnavailable) Error() string {
+	return "unavailable: " + e.Code
 }
 
 type ErrDestinationPublishAttempt struct {
