@@ -54,7 +54,7 @@ Retry delays shorter than `LOG_BATCH_THRESHOLD_SECONDS` are raised to it, and Ou
 
 ## Manual Retries
 
-Any failed delivery attempt can be manually retried via the [Retry API](/docs/outpost/api#retry-event-delivery), the tenant portal or Admin UI. Manual retries are available for attempts that have exhausted automatic retries or were skipped due to the destination being disabled.
+Any failed delivery attempt can be manually retried via the [Retry API](/docs/outpost/api#retryevent), the tenant portal or Admin UI. Manual retries are available for attempts that have exhausted automatic retries or were skipped due to the destination being disabled.
 
 ## Disabled Destinations
 
@@ -70,6 +70,6 @@ Each delivery attempt records:
 
 Access delivery attempts via the [API Reference](/docs/outpost/api#attempts), the tenant portal, or Admin UI.
 
-Attempts of a deleted destination stay in the event log: list them with the `destination_id` filter on [list attempts](/docs/outpost/api/attempts#list-attempts). The deleted destination's own endpoints, including its attempts endpoints, return `404`.
+Attempts of a deleted destination stay in the event log: list them with the `destination_id` filter on [list attempts](/docs/outpost/api#listattempts). The deleted destination's own endpoints, including its attempts endpoints, return `404`.
 
 To receive attempts as they happen, subscribe to the `attempt.success` and `attempt.failed` [operator events](/docs/outpost/features/operator-events). They fire once per delivery attempt.
