@@ -106,6 +106,7 @@ func buildMiddlewareChain(cfg RouterConfig, tenantRetriever TenantRetriever, def
 	return chain
 }
 
+// gin's binding.Validator is shared by the process: register the tag name func once.
 var validatorTagNameOnce sync.Once
 
 func NewRouter(cfg RouterConfig, deps RouterDeps) http.Handler {
