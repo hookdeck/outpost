@@ -50,6 +50,10 @@ type Registry interface {
 	// Provider management
 	RegisterProvider(destinationType string, provider Provider) error
 	ResolveProvider(destination *models.Destination) (Provider, error)
+	// ResolvePublisher returns the destination's cached publisher, creating it
+	// on a miss. For a provider that bypasses the cache (see
+	// PublisherCacheBypasser) it returns a fresh publisher the caller owns and
+	// must Close.
 	ResolvePublisher(ctx context.Context, destination *models.Destination) (Publisher, error)
 
 	// Metadata access
@@ -85,6 +89,15 @@ type Provider interface {
 	Preprocess(newDestination *models.Destination, originalDestination *models.Destination, opts *PreprocessDestinationOpts) error
 }
 
+// PublisherCacheBypasser is an optional Provider interface. A provider that
+// returns true gets a fresh publisher for every PublishEvent, closed right
+// after the attempt, instead of a cached one. It suits providers whose
+// publishers hold no resources, where one cache entry per destination would
+// only evict expensive publishers.
+type PublisherCacheBypasser interface {
+	BypassPublisherCache() bool
+}
+
 type Delivery struct {
 	Status   string
 	Code     string
@@ -103,6 +116,7 @@ type registry struct {
 	providerList   []string
 	publishers     *lru.Cache[string, Publisher]
 	config         Config
+	logger         *logging.Logger
 }
 
 type Config struct {
@@ -145,6 +159,7 @@ func NewRegistry(cfg *Config, logger *logging.Logger) Registry {
 		providers:      make(map[string]Provider),
 		publishers:     cache,
 		config:         *cfg,
+		logger:         logger,
 	}
 }
 
@@ -169,7 +184,7 @@ func (r *registry) ValidateDestination(ctx context.Context, destination *models.
 }
 
 func (r *registry) PublishEvent(ctx context.Context, destination *models.Destination, event *models.Event) (*models.Attempt, error) {
-	publisher, err := r.ResolvePublisher(ctx, destination)
+	publisher, cached, err := r.resolvePublisher(ctx, destination)
 	if err != nil {
 		// If the provider already signaled a delivery error, create a failed attempt
 		// so it's visible to the customer (instead of silently nacking into DLQ).
@@ -196,6 +211,9 @@ func (r *registry) PublishEvent(ctx context.Context, destination *models.Destina
 			}
 		}
 		return nil, err
+	}
+	if !cached {
+		defer r.closeUncachedPublisher(destination, publisher)
 	}
 
 	attempt := &models.Attempt{
@@ -332,24 +350,48 @@ func hashSortedMap(h hash.Hash64, m map[string]string) {
 }
 
 func (r *registry) ResolvePublisher(ctx context.Context, destination *models.Destination) (Publisher, error) {
-	key := MakePublisherKey(destination)
+	publisher, _, err := r.resolvePublisher(ctx, destination)
+	return publisher, err
+}
 
-	if publisher, ok := r.publishers.Get(key); ok {
-		return publisher, nil
-	}
-
+// resolvePublisher is ResolvePublisher that also reports whether the publisher
+// lives in the cache. An uncached publisher belongs to the caller, which must
+// Close it.
+func (r *registry) resolvePublisher(ctx context.Context, destination *models.Destination) (Publisher, bool, error) {
 	provider, err := r.ResolveProvider(destination)
 	if err != nil {
-		return nil, err
+		return nil, false, err
+	}
+
+	if bypasser, ok := provider.(PublisherCacheBypasser); ok && bypasser.BypassPublisherCache() {
+		publisher, err := provider.CreatePublisher(ctx, destination)
+		if err != nil {
+			return nil, false, fmt.Errorf("failed to create publisher: %w", err)
+		}
+		return publisher, false, nil
+	}
+
+	key := MakePublisherKey(destination)
+	if publisher, ok := r.publishers.Get(key); ok {
+		return publisher, true, nil
 	}
 
 	publisher, err := provider.CreatePublisher(ctx, destination)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create publisher: %w", err)
+		return nil, false, fmt.Errorf("failed to create publisher: %w", err)
 	}
 
 	r.publishers.Add(key, publisher)
-	return publisher, nil
+	return publisher, true, nil
+}
+
+func (r *registry) closeUncachedPublisher(destination *models.Destination, publisher Publisher) {
+	if err := publisher.Close(); err != nil {
+		r.logger.Error("failed to close publisher",
+			zap.String("destination_id", destination.ID),
+			zap.Error(err),
+		)
+	}
 }
 
 func (r *registry) MetadataLoader() metadata.MetadataLoader {
