@@ -50,10 +50,10 @@ For list events and list attempts, reuse the same endpoints everywhere: vary que
 
 | Example route | What it does | Spec |
 | ------------- | ------------ | ---- |
-| `…/destinations` or `…/integrations` | Hub: list destinations; create or drill down | [Listing destinations](#listing-configured-destinations) · [List destinations](/docs/outpost/api/destinations#list-destinations) |
+| `…/destinations` or `…/integrations` | Hub: list destinations; create or drill down | [Listing destinations](#listing-configured-destinations) · [List destinations](/docs/outpost/api#listtenantdestinations) |
 | `…/destinations/new` (or wizard) | Create destination: choose type ([types](/docs/outpost/overview#supported-destinations); `GET /destination-types` in [OpenAPI](/docs/outpost/api)), then topics and config | [Creating a destination](#creating-a-destination) |
 | `…/destinations/:destinationId` | Detail: edit config, enable/disable, topics | [OpenAPI](/docs/outpost/api) — Destinations |
-| `…/destinations/:destinationId/activity` | Activity for this destination: events, attempts, retry | [Events, attempts, and retries](#events-attempts-and-retries) · [List events](/docs/outpost/api/events#list-events) · [List attempts](/docs/outpost/api/attempts#list-attempts) |
+| `…/destinations/:destinationId/activity` | Activity for this destination: events, attempts, retry | [Events, attempts, and retries](#events-attempts-and-retries) · [List events](/docs/outpost/api#listevents) · [List attempts](/docs/outpost/api#listattempts) |
 | `…/activity` (optional) | Tenant-wide activity; optional filter by `destination_id` | Same list-events operation with different query params ([OpenAPI](/docs/outpost/api)) |
 
 For the conceptual model, see [Outpost Concepts](/docs/outpost/concepts), especially “How this fits your product.”
@@ -62,13 +62,13 @@ For the conceptual model, see [Outpost Concepts](/docs/outpost/concepts), especi
 
 | Goal | OpenAPI entry point | In the UI |
 | ---- | ------------------- | --------- |
-| Types, labels, icons, dynamic form defs | [Destination types / schema](/docs/outpost/api#destination-types) — `GET /destination-types` | Type picker; join list rows on `destination.type` (the type id is `type`, not a separate `id` on the type object). |
-| Topics for subscriptions | [Topics](/docs/outpost/api/topics#list-topics) — `GET /topics` | Checkboxes or multi-select on create/update. |
-| List destinations | [List destinations](/docs/outpost/api/destinations#list-destinations) | Main table; show `target` / `target_url` per schema. |
-| Create destination | [Create destination](/docs/outpost/api/destinations#create-destination) | Body: `type`, `topics`, type-specific `config` / credentials per spec. |
+| Types, labels, icons, dynamic form defs | [Destination types / schema](/docs/outpost/api#schemas) — `GET /destination-types` | Type picker; join list rows on `destination.type` (the type id is `type`, not a separate `id` on the type object). |
+| Topics for subscriptions | [Topics](/docs/outpost/api#listtopics) — `GET /topics` | Checkboxes or multi-select on create/update. |
+| List destinations | [List destinations](/docs/outpost/api#listtenantdestinations) | Main table; show `target` / `target_url` per schema. |
+| Create destination | [Create destination](/docs/outpost/api#createtenantdestination) | Body: `type`, `topics`, type-specific `config` / credentials per spec. |
 | Get / update / delete | [OpenAPI](/docs/outpost/api) — Destinations | Detail and edit flows. |
-| Tenant JWT (optional browser calls) | [Tenant JWT](/docs/outpost/api/tenants#get-tenant-jwt-token) | Short-lived token; BFF is often simpler if you need to hide capabilities. |
-| Events, attempts, retry | [Events](/docs/outpost/api/events#list-events), [Attempts](/docs/outpost/api/attempts#list-attempts), [Retry](/docs/outpost/api/attempts#retry-attempt) | Activity and recovery; see below. |
+| Tenant JWT (optional browser calls) | [Tenant JWT](/docs/outpost/api#gettenanttoken) | Short-lived token; BFF is often simpler if you need to hide capabilities. |
+| Events, attempts, retry | [Events](/docs/outpost/api#listevents), [Attempts](/docs/outpost/api#listattempts), [Retry](/docs/outpost/api#retryevent) | Activity and recovery; see below. |
 
 ## Authentication
 
@@ -93,7 +93,7 @@ In your product, treat the base URL like any other external service: load it fro
 
 ### Generating a JWT Token (Optional)
 
-See the [Tenant JWT Token API](/docs/outpost/api/tenants#get-tenant-jwt-token).
+See the [Tenant JWT Token API](/docs/outpost/api#gettenanttoken).
 
 ```bash
 export OUTPOST_API_BASE_URL="https://api.outpost.hookdeck.com/2025-07-01"   # or your self-hosted root, e.g. …/api/v1
@@ -105,7 +105,7 @@ curl --request GET "$OUTPOST_API_BASE_URL/tenants/$TENANT_ID/token" \
 
 ## Destination type metadata and dynamic config
 
-`GET /destination-types` returns everything needed to render type pickers and config forms. See the [Destination Types Schema API](/docs/outpost/api#destination-types).
+`GET /destination-types` returns everything needed to render type pickers and config forms. See the [Destination Types Schema API](/docs/outpost/api#schemas).
 
 Each entry typically includes (confirm names and optionality in OpenAPI):
 
@@ -143,7 +143,7 @@ Render `instructions` as markdown when the destination type needs context beyond
 
 ## Listing configured destinations
 
-Use the [List Destinations API](/docs/outpost/api/destinations#list-destinations). OpenAPI describes variants for admin API key (tenant in path or query) versus tenant JWT (tenant inferred from the token); choose the operations that match how you authenticate.
+Use the [List Destinations API](/docs/outpost/api#listtenantdestinations). OpenAPI describes variants for admin API key (tenant in path or query) versus tenant JWT (tenant inferred from the token); choose the operations that match how you authenticate.
 
 - Call list and render `type`, `target`, `target_url` when present, and subscribed topics.
 - Optionally fetch `GET /destination-types` in parallel and map `type` string → schema row for `label` and `icon`.
@@ -153,18 +153,18 @@ Use the [List Destinations API](/docs/outpost/api/destinations#list-destinations
 
 ## Creating a destination
 
-The product flow is three steps; the API is typically one [create destination](/docs/outpost/api/destinations#create-destination) request once you have `type`, `topics`, and `config` (plus credentials if required). OpenAPI defines the body.
+The product flow is three steps; the API is typically one [create destination](/docs/outpost/api#createtenantdestination) request once you have `type`, `topics`, and `config` (plus credentials if required). OpenAPI defines the body.
 
 ### Step 1 — Choose destination type
 
-- Data: `GET /destination-types` ([schemas](/docs/outpost/api#destination-types)).
+- Data: `GET /destination-types` ([schemas](/docs/outpost/api#schemas)).
 - Show each type’s `label`, `description`, and `icon`; store the chosen `type` string.
 
 **Reference:** [CreateDestination.tsx](https://github.com/hookdeck/outpost/blob/main/internal/portal/src/scenes/CreateDestination/CreateDestination.tsx)
 
 ### Step 2 — Select topics
 
-- Data: `GET /topics` ([list topics](/docs/outpost/api/topics#list-topics)).
+- Data: `GET /topics` ([list topics](/docs/outpost/api#listtopics)).
 - Collect topic strings, or `*` for all topics, as allowed by the create schema.
 
 **Reference:** [TopicPicker.tsx](https://github.com/hookdeck/outpost/blob/main/internal/portal/src/common/TopicPicker/TopicPicker.tsx)
@@ -173,7 +173,7 @@ The product flow is three steps; the API is typically one [create destination](/
 
 - Read `config_fields` and `credential_fields` for the selected type from `GET /destination-types` (or a single-type endpoint if you use one—see OpenAPI).
 - If `setup_link` is set, consider that flow first.
-- Otherwise render fields per [Dynamic field shape](#dynamic-field-shape-for-forms) and submit via [Create destination](/docs/outpost/api/destinations#create-destination).
+- Otherwise render fields per [Dynamic field shape](#dynamic-field-shape-for-forms) and submit via [Create destination](/docs/outpost/api#createtenantdestination).
 
 **Reference:** [DestinationConfigFields.tsx](https://github.com/hookdeck/outpost/blob/main/internal/portal/src/common/DestinationConfigFields/DestinationConfigFields.tsx)
 
@@ -184,9 +184,9 @@ This section connects what your customers see (what was delivered, what failed, 
 ### How the pieces fit
 
 1. **Destinations list** — Each row is a subscription. By default, link into destination-scoped activity ([Default information architecture](#default-information-architecture-multi-destination-products)). An optional tenant-wide activity route should still call the same list endpoints with different query parameters, not a separate unofficial API contract.
-2. **Events** — Your backend published each event (topic + payload). [List events](/docs/outpost/api/events#list-events) is paginated. Common filters: `destination_id` for a per-destination screen; `topic`, time ranges, and `limit` / `next` / `prev` for broader views. With a tenant JWT, results are limited to that tenant; with an admin key, supply `tenant_id` (your backend usually injects it for the signed-in account).
-3. **Attempts** — One row per delivery try (status, HTTP code, timing, optional response). Tie attempts to events with `event_id` and `destination_id`. Tenant-wide: [list attempts](/docs/outpost/api/attempts#list-attempts). Destination-scoped routes are under [OpenAPI](/docs/outpost/api) (tenant destination attempts).
-4. **Retry** — Outpost [retries automatically](/docs/outpost/features/event-delivery) with backoff. [Manual retry](/docs/outpost/api/attempts#retry-attempt) is `POST /retry` with `event_id` and `destination_id` after the customer fixes their endpoint. The destination must be enabled and subscribed to the event’s topic.
+2. **Events** — Your backend published each event (topic + payload). [List events](/docs/outpost/api#listevents) is paginated. Common filters: `destination_id` for a per-destination screen; `topic`, time ranges, and `limit` / `next` / `prev` for broader views. With a tenant JWT, results are limited to that tenant; with an admin key, supply `tenant_id` (your backend usually injects it for the signed-in account).
+3. **Attempts** — One row per delivery try (status, HTTP code, timing, optional response). Tie attempts to events with `event_id` and `destination_id`. Tenant-wide: [list attempts](/docs/outpost/api#listattempts). Destination-scoped routes are under [OpenAPI](/docs/outpost/api) (tenant destination attempts).
+4. **Retry** — Outpost [retries automatically](/docs/outpost/features/event-delivery) with backoff. [Manual retry](/docs/outpost/api#retryevent) is `POST /retry` with `event_id` and `destination_id` after the customer fixes their endpoint. The destination must be enabled and subscribed to the event’s topic.
 
 ### What to expose in your dashboard UI
 
