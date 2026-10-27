@@ -66,7 +66,7 @@ var ipv6Special = []specialBlock{
 	{netip.MustParsePrefix("100::/64"), false},       // Discard-Only Address Block
 	{netip.MustParsePrefix("100:0:0:1::/64"), false}, // Dummy IPv6 Prefix
 	{netip.MustParsePrefix("2001::/23"), false},      // IETF Protocol Assignments
-	{netip.MustParsePrefix("2001::/32"), false},      // TEREDO // "N/A"
+	{netip.MustParsePrefix("2001::/32"), false},      // TEREDO ("N/A")
 	{netip.MustParsePrefix("2001:1::1/128"), true},   // Port Control Protocol Anycast
 	{netip.MustParsePrefix("2001:1::2/128"), true},   // Traversal Using Relays around NAT Anycast
 	{netip.MustParsePrefix("2001:1::3/128"), true},   // DNS-SD Service Registration Protocol Anycast
