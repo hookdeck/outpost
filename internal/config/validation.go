@@ -69,6 +69,10 @@ func (c *Config) Validate(flags Flags) error {
 		return err
 	}
 
+	if err := c.validateMCP(); err != nil {
+		return err
+	}
+
 	// Mark as validated if we get here
 	c.validated = true
 	return nil

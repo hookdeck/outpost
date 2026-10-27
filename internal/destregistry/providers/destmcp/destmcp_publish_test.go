@@ -39,8 +39,7 @@ func testEvent() *models.Event {
 	}
 }
 
-// localProvider delivers to loopback receivers, as with
-// MCP_CALLBACK_ALLOWLIST=localhost.
+// localProvider delivers to loopback receivers.
 func localProvider(t *testing.T, opts ...providerOption) *destmcp.Provider {
 	t.Helper()
 	guard := loopbackGuard(t)

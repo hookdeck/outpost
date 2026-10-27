@@ -122,6 +122,9 @@ type Config struct {
 	// ID Generation
 	IDGen IDGenConfig `yaml:"idgen"`
 
+	// MCP Events (experimental)
+	MCP MCPConfig `yaml:"mcp"`
+
 	// Retention
 	ClickHouseLogRetentionTTLDays int `yaml:"clickhouse_log_retention_ttl_days" env:"CLICKHOUSE_LOG_RETENTION_TTL_DAYS" desc:"Days to retain logs in ClickHouse. 0 = unlimited." required:"N"`
 }
@@ -144,6 +147,7 @@ var (
 	ErrInvalidPublishMaxRedeliveries  = errors.New("config validation error: publish_max_redeliveries must be >= -1")
 	ErrInvalidSupervisorLimit         = errors.New("config validation error: invalid supervisor limit")
 	ErrInvalidSupervisorWorker        = errors.New("config validation error: invalid supervisor restart worker")
+	ErrInvalidMCPConfig               = errors.New("config validation error: invalid mcp config")
 )
 
 func (c *Config) InitDefaults() {
@@ -254,6 +258,8 @@ func (c *Config) InitDefaults() {
 	}
 
 	c.ClickHouseLogRetentionTTLDays = 0 // Unlimited by default
+
+	c.MCP.initDefaults()
 }
 
 func (c *Config) parseConfigFile(flagPath string, osInterface OSInterface) error {
@@ -653,7 +659,11 @@ func (c *Config) ConfigFilePath() string {
 // looks up is usually stored by then.
 func (c *Config) GetRetryBackoff() (backoff.Backoff, int) {
 	b, limit := c.retryBackoff()
-	return &backoff.MinimumBackoff{Backoff: b, Min: time.Duration(c.LogBatchThresholdSeconds) * time.Second}, limit
+	return c.floorBackoff(b), limit
+}
+
+func (c *Config) floorBackoff(b backoff.Backoff) backoff.Backoff {
+	return &backoff.MinimumBackoff{Backoff: b, Min: time.Duration(c.LogBatchThresholdSeconds) * time.Second}
 }
 
 // RetryTimingWarnings returns a warning when configured retry delays are below
@@ -720,6 +730,9 @@ func (c *Config) GetRetryPollBackoff() time.Duration {
 	shortest := time.Duration(c.RetryIntervalSeconds) * time.Second
 	if len(c.RetrySchedule) > 0 {
 		shortest = time.Duration(slices.Min(c.RetrySchedule)) * time.Second
+	}
+	if c.MCP.Enabled && len(c.MCP.RetrySchedule) > 0 {
+		shortest = min(shortest, max(time.Duration(slices.Min(c.MCP.RetrySchedule))*time.Second, time.Duration(c.LogBatchThresholdSeconds)*time.Second))
 	}
 	if shortest > 0 && shortest < defaultRetryPollBackoff {
 		return shortest

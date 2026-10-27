@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"slices"
 	"syscall"
 	"time"
 
@@ -66,7 +67,7 @@ func (a *App) PreRun(ctx context.Context) (err error) {
 
 	a.logger.Info("starting outpost", a.config.LogConfigurationSummary()...)
 
-	for _, warning := range append(a.config.DeprecationWarnings(), a.config.RetryTimingWarnings()...) {
+	for _, warning := range slices.Concat(a.config.DeprecationWarnings(), a.config.RetryTimingWarnings(), a.config.MCPWarnings()) {
 		a.logger.Warn(warning)
 	}
 

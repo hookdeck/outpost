@@ -110,6 +110,14 @@ destinations:
     # signature_encoding: hex
     # signature_algorithm: hmac-sha256
 
+## MCP Events
+# Experimental. Registers the "mcp" destination type.
+# mcp:
+#   enabled: true
+#   allow_insecure_callbacks: false
+#   retry_schedule: [30, 120, 600]
+#   verification_ttl_seconds: 86400
+
 # Note: OpenTelemetry Configuration
 # It is recommended to configure OpenTelemetry using environment variables as they are better supported by the SDK.
 # Example environment variables:
