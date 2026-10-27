@@ -89,6 +89,12 @@ func (f *mockDestinationFactory) WithDisabledAt(disabledAt time.Time) func(*mode
 	}
 }
 
+func (f *mockDestinationFactory) WithExpiresAt(expiresAt time.Time) func(*models.Destination) {
+	return func(destination *models.Destination) {
+		destination.ExpiresAt = &expiresAt
+	}
+}
+
 func (f *mockDestinationFactory) WithDeliveryMetadata(deliveryMetadata map[string]string) func(*models.Destination) {
 	return func(destination *models.Destination) {
 		destination.DeliveryMetadata = deliveryMetadata

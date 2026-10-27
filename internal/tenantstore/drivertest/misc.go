@@ -114,6 +114,70 @@ func testMisc(t *testing.T, newHarness HarnessMaker) {
 		}
 	})
 
+	t.Run("MaxDestinationsPerTenantPurgesExpired", func(t *testing.T) {
+		ctx := context.Background()
+		h, err := newHarness(ctx, t)
+		require.NoError(t, err)
+		t.Cleanup(h.Close)
+
+		store, err := h.MakeDriverWithMaxDest(ctx, 2)
+		require.NoError(t, err)
+
+		tenant := models.Tenant{ID: idgen.String(), CreatedAt: time.Now()}
+		require.NoError(t, store.UpsertTenant(ctx, tenant))
+		live := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithTenantID(tenant.ID),
+			testutil.DestinationFactory.WithExpiresAt(time.Now().Add(time.Hour)),
+		)
+		expired := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithTenantID(tenant.ID),
+			testutil.DestinationFactory.WithExpiresAt(time.Now().Add(-time.Minute)),
+		)
+		require.NoError(t, store.CreateDestination(ctx, live))
+		require.NoError(t, store.CreateDestination(ctx, expired))
+
+		fresh := testutil.DestinationFactory.Any(testutil.DestinationFactory.WithTenantID(tenant.ID))
+		require.NoError(t, store.CreateDestination(ctx, fresh))
+
+		_, err = store.RetrieveDestination(ctx, tenant.ID, expired.ID)
+		require.ErrorIs(t, err, driver.ErrDestinationDeleted)
+		listed, err := store.ListDestination(ctx, driver.ListDestinationRequest{TenantID: tenant.ID})
+		require.NoError(t, err)
+		ids := make([]string, len(listed))
+		for i, d := range listed {
+			ids[i] = d.ID
+		}
+		assert.ElementsMatch(t, []string{live.ID, fresh.ID}, ids)
+
+		err = store.CreateDestination(ctx, testutil.DestinationFactory.Any(testutil.DestinationFactory.WithTenantID(tenant.ID)))
+		require.ErrorIs(t, err, driver.ErrMaxDestinationsPerTenantReached)
+	})
+
+	t.Run("MaxDestinationsPerTenantKeepsExtendedExpiry", func(t *testing.T) {
+		ctx := context.Background()
+		h, err := newHarness(ctx, t)
+		require.NoError(t, err)
+		t.Cleanup(h.Close)
+
+		store, err := h.MakeDriverWithMaxDest(ctx, 1)
+		require.NoError(t, err)
+
+		tenant := models.Tenant{ID: idgen.String(), CreatedAt: time.Now()}
+		require.NoError(t, store.UpsertTenant(ctx, tenant))
+		d := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithTenantID(tenant.ID),
+			testutil.DestinationFactory.WithExpiresAt(time.Now().Add(-time.Minute)),
+		)
+		require.NoError(t, store.CreateDestination(ctx, d))
+		d.ExpiresAt = ptr(time.Now().Add(time.Hour))
+		require.NoError(t, store.UpsertDestination(ctx, d))
+
+		err = store.CreateDestination(ctx, testutil.DestinationFactory.Any(testutil.DestinationFactory.WithTenantID(tenant.ID)))
+		require.ErrorIs(t, err, driver.ErrMaxDestinationsPerTenantReached)
+		_, err = store.RetrieveDestination(ctx, tenant.ID, d.ID)
+		require.NoError(t, err)
+	})
+
 	t.Run("DeploymentIsolation", func(t *testing.T) {
 		ctx := context.Background()
 		h, err := newHarness(ctx, t)
