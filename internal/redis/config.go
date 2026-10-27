@@ -26,7 +26,7 @@ type RedisConfig struct {
 	DevClusterHostOverride bool
 
 	// Dialer overrides how the regular (non-cluster) client opens connections.
-	// Tests use it to reach an in-memory server; it is never set from config.
+	// Not loaded from yaml/env; tests set it to reach an in-memory server.
 	// Setting it also disables maintenance notifications.
 	Dialer func(ctx context.Context, network, addr string) (net.Conn, error)
 }
