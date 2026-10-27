@@ -20,7 +20,10 @@ import (
 	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/hookdeck/outpost/internal/destregistry/metadata"
 	"github.com/hookdeck/outpost/internal/models"
+	"github.com/hookdeck/outpost/internal/netguard"
 )
+
+const checkURLTimeout = 5 * time.Second
 
 const (
 	DefaultEncoding             = "hex"
@@ -111,6 +114,7 @@ type WebhookDestination struct {
 	headerPrefix             string
 	userAgent                string
 	proxy                    []*url.URL
+	guard                    *netguard.Guard
 	signatureContentTemplate string
 	signatureHeaderTemplate  string
 	eventIDHeader            headerConfig
@@ -202,6 +206,16 @@ func WithMetadataName(name string) Option {
 func WithProxy(hops []*url.URL) Option {
 	return func(w *WebhookDestination) {
 		w.proxy = hops
+	}
+}
+
+// WithAddressGuard limits webhooks to addresses the guard allows: the URL is
+// checked when a destination is created or updated, and every connection is
+// checked on delivery. HTTP_PROXY/HTTPS_PROXY are then ignored. See
+// destregistry.HTTPClientConfig.Guard for forward proxies.
+func WithAddressGuard(g *netguard.Guard) Option {
+	return func(w *WebhookDestination) {
+		w.guard = g
 	}
 }
 
@@ -418,6 +432,7 @@ func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePu
 	httpClient, err := destregistry.NewHTTPClient(destregistry.HTTPClientConfig{
 		UserAgent:     &destination.userAgent,
 		Proxy:         destination.proxy,
+		Guard:         destination.guard,
 		WrapTransport: WrapTransport,
 		Pool:          destination.pool,
 		OnConnection:  destination.onConnection,
@@ -477,7 +492,7 @@ func (d *WebhookDestination) ObfuscateDestination(destination *models.Destinatio
 }
 
 func (d *WebhookDestination) Validate(ctx context.Context, destination *models.Destination) error {
-	_, creds, err := d.resolveConfig(ctx, destination)
+	config, creds, err := d.resolveConfig(ctx, destination)
 	if err != nil {
 		return err
 	}
@@ -494,6 +509,31 @@ func (d *WebhookDestination) Validate(ctx context.Context, destination *models.D
 				Type:  "invalid",
 			}})
 		}
+	}
+	return d.checkURL(ctx, config.URL)
+}
+
+// checkURL refuses a URL whose host resolves to an address the guard blocks.
+// Every failure, resolver errors included, gives the same error, so the check
+// can't be used to probe internal DNS.
+func (d *WebhookDestination) checkURL(ctx context.Context, rawURL string) error {
+	if d.guard == nil {
+		return nil
+	}
+	fail := func(errType string) error {
+		return destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{{
+			Field: "config.url",
+			Type:  errType,
+		}})
+	}
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return fail("invalid")
+	}
+	ctx, cancel := context.WithTimeout(ctx, checkURLTimeout)
+	defer cancel()
+	if err := d.guard.CheckURL(ctx, u); err != nil {
+		return fail("address_not_allowed")
 	}
 	return nil
 }

@@ -159,6 +159,8 @@ func (c *Config) LogConfigurationSummary() []zap.Field {
 		zap.Bool("publish_proxy_url_configured", strings.TrimSpace(c.PublishMQ.ProxyURL) != ""),
 		zap.Bool("destinations_proxy_url_configured", strings.TrimSpace(c.Destinations.ProxyURL) != ""),
 		zap.Bool("destinations_webhook_proxied", strings.TrimSpace(webhookCfg.ProxyURL) != ""),
+		zap.Bool("destinations_webhook_block_private_addresses", webhookCfg.BlockPrivateAddresses),
+		zap.Int("destinations_private_address_allowlist_entries", len(c.Destinations.PrivateAddressAllowlist)),
 
 		// Destinations - Webhook (effective header directives after resolving the
 		// three-state name configs and deprecated DISABLE_* flags)
