@@ -102,6 +102,20 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/APIErrorResponse"
+    TooManyRequests:
+      description: |
+        An `mcp` destination's callback verification hit a limit. `data.code` is `rate_limited`. The `Retry-After` response header gives the seconds to wait before retrying.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/APIErrorResponse"
+    ServiceUnavailable:
+      description: |
+        An `mcp` destination's callback verification could not run. `data.code` is `verification_unavailable`.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/APIErrorResponse"
   schemas:
     # Shared Query Schemas
     Operator:
@@ -320,6 +334,53 @@ components:
           type: string
           format: date-time
           description: ISO timestamp when the previous secret becomes invalid. Read-only.
+          example: "2024-01-02T00:00:00Z"
+    MCPConfig:
+      type: object
+      description: "**Experimental.** Configuration for an MCP Events webhook subscription."
+      required: [url]
+      properties:
+        url:
+          type: string
+          format: url
+          description: >-
+            Callback URL events are delivered to. Must be https (plain http only on servers that allow
+            insecure callbacks, for allowlisted addresses) and in normalized form, and must pass a verification challenge when the
+            destination is created. Immutable.
+          example: "https://agent.example.com/mcp-events/abc123"
+        principal:
+          type: string
+          maxLength: 512
+          description: >-
+            The authenticated subject the subscription belongs to. Callback verification is
+            cached per tenant, principal and URL. Immutable.
+          example: "user-123"
+        arguments:
+          type: string
+          maxLength: 4096
+          description: >-
+            Subscription arguments as canonical JSON (sorted keys, no whitespace). Stored with the
+            destination; not used to filter events. Immutable.
+          example: '{"status":"paid"}'
+    MCPCredentials:
+      type: object
+      description: "**Experimental.** Signing credentials for an MCP Events webhook subscription."
+      required: [secret]
+      properties:
+        secret:
+          type: string
+          description: >-
+            Signing secret: `whsec_` followed by base64 of 24 to 64 bytes. Sending a new secret
+            on update rotates it; the previous one keeps signing for 24 hours.
+          example: "whsec_MfKQ9r8GKYqrTwjUPD8ILPZIo2LaLaSw"
+        previous_secret:
+          type: string
+          description: The previous secret during a rotation. Read-only.
+          example: "whsec_cHJldmlvdXMtc2VjcmV0LWJ5dGVzLTAxMjM0NTY3ODk="
+        previous_secret_invalid_at:
+          type: string
+          format: date-time
+          description: ISO timestamp when the previous secret stops signing. Read-only.
           example: "2024-01-02T00:00:00Z"
     AWSSQSConfig:
       type: object
@@ -1546,6 +1607,105 @@ components:
           key: "AKIAIOSFODNN7EXAMPLE"
           secret: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
 
+    DestinationMCP:
+      type: object
+      x-docs-type: "MCP Events"
+      description: >-
+        **Experimental.** An MCP Events webhook subscription. Requires `EXPERIMENTAL_MCP_ENABLED`; created and
+        updated with the Admin API key only.
+      # Properties duplicated from DestinationBase
+      required:
+        [
+          id,
+          type,
+          topics,
+          config,
+          credentials,
+          created_at,
+          updated_at,
+          disabled_at,
+        ]
+      properties:
+        id:
+          type: string
+          pattern: "^[A-Za-z0-9_-]{1,128}$"
+          description: Subscription ID, sent to the receiver as `X-MCP-Subscription-Id`.
+          example: "sub_12345"
+        type:
+          type: string
+          description: Type of the destination.
+          enum: [mcp]
+          example: "mcp"
+        topics:
+          $ref: "#/components/schemas/Topics"
+        filter:
+          $ref: "#/components/schemas/Filter"
+        disabled_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: ISO Date when the destination was disabled, or null if enabled.
+          example: null
+        expires_at:
+          type: string
+          format: date-time
+          description: ISO Date at which the subscription ends. From then on it matches no events and receives no deliveries. Omitted when the subscription has no end.
+          example: "2030-01-01T00:00:00Z"
+        created_at:
+          type: string
+          format: date-time
+          description: ISO Date when the destination was created.
+          example: "2024-01-01T00:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: ISO Date when the destination was last updated.
+          example: "2024-01-01T00:00:00Z"
+        config:
+          $ref: "#/components/schemas/MCPConfig"
+        credentials:
+          $ref: "#/components/schemas/MCPCredentials"
+        delivery_metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Static key-value pairs merged into event metadata on every attempt.
+          example: { "app-id": "my-app", "region": "us-east-1" }
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Arbitrary contextual information stored with the destination.
+          example: { "internal-id": "123", "team": "platform" }
+        target:
+          type: string
+          description: The callback URL. Read-only.
+          readOnly: true
+          example: "https://agent.example.com/mcp-events/abc123"
+        target_url:
+          type: string
+          format: url
+          nullable: true
+          description: A URL link to the destination target. Read-only.
+          readOnly: true
+          example: null
+      example:
+        id: "sub_12345"
+        type: "mcp"
+        topics: ["order.created"]
+        disabled_at: null
+        expires_at: "2030-01-01T00:00:00Z"
+        created_at: "2024-01-01T00:00:00Z"
+        updated_at: "2024-01-01T00:00:00Z"
+        config:
+          url: "https://agent.example.com/mcp-events/abc123"
+          principal: "user-123"
+          arguments: '{"status":"paid"}'
+        credentials:
+          secret: "whsec_Mfky*************"
+
     # Polymorphic Destination Schema (for Responses)
     Destination:
       oneOf:
@@ -1560,6 +1720,7 @@ components:
         - $ref: "#/components/schemas/DestinationKafka"
         - $ref: "#/components/schemas/DestinationCloudflareQueues"
         - $ref: "#/components/schemas/DestinationAWSEventBridge"
+        - $ref: "#/components/schemas/DestinationMCP"
       discriminator:
         propertyName: type
         mapping:
@@ -1574,6 +1735,7 @@ components:
           kafka: "#/components/schemas/DestinationKafka"
           cloudflare_queues: "#/components/schemas/DestinationCloudflareQueues"
           aws_eventbridge: "#/components/schemas/DestinationAWSEventBridge"
+          mcp: "#/components/schemas/DestinationMCP"
 
     DestinationCreateWebhook:
       type: object
@@ -2271,6 +2433,80 @@ components:
             timestamp. Must not be in the future. Defaults to null (enabled).
           example: null
 
+    DestinationCreateMCP:
+      type: object
+      x-docs-type: "MCP Events"
+      description: >-
+        **Experimental.** Creates an MCP Events webhook subscription. Requires `EXPERIMENTAL_MCP_ENABLED` and
+        the Admin API key; JWT auth returns 403. The callback URL receives a verification
+        challenge before the destination is stored. Takes exactly one topic (`*` is not
+        accepted). Each subscription counts toward `MAX_DESTINATIONS_PER_TENANT`.
+      required: [type, topics, config, credentials]
+      properties:
+        id:
+          type: string
+          pattern: "^[A-Za-z0-9_-]{1,128}$"
+          description: >-
+            Optional user-provided ID, sent to the receiver as `X-MCP-Subscription-Id`. An ID
+            will be generated if empty.
+          example: "sub_12345"
+        type:
+          type: string
+          description: Type of the destination. Must be 'mcp'.
+          enum: [mcp]
+        topics:
+          $ref: "#/components/schemas/Topics"
+        filter:
+          $ref: "#/components/schemas/Filter"
+        config:
+          $ref: "#/components/schemas/MCPConfig"
+        credentials:
+          $ref: "#/components/schemas/MCPCredentials"
+        expires_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: ISO Date at which the subscription ends. Must be in the future.
+          example: "2030-01-01T00:00:00Z"
+        delivery_metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Static key-value pairs merged into event metadata on every attempt.
+          example: { "app-id": "my-app", "region": "us-east-1" }
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Arbitrary contextual information stored with the destination.
+          example: { "internal-id": "123", "team": "platform" }
+        created_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            Optional override for the creation timestamp. Must not be in the future.
+            Defaults to the current time when omitted.
+          example: "2024-02-15T10:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            Optional override for the last-updated timestamp. Must not be in the future.
+            Defaults to created_at when omitted.
+          example: "2024-02-15T10:00:00Z"
+        disabled_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            If set, the destination is created in a disabled state with this
+            timestamp. Must not be in the future. Defaults to null (enabled).
+          example: null
+
     # Polymorphic Destination Creation Schema (for Request Bodies)
     DestinationCreate:
       oneOf:
@@ -2285,6 +2521,7 @@ components:
         - $ref: "#/components/schemas/DestinationCreateKafka"
         - $ref: "#/components/schemas/DestinationCreateCloudflareQueues"
         - $ref: "#/components/schemas/DestinationCreateAWSEventBridge"
+        - $ref: "#/components/schemas/DestinationCreateMCP"
       discriminator:
         propertyName: type
         mapping:
@@ -2299,6 +2536,7 @@ components:
           kafka: "#/components/schemas/DestinationCreateKafka"
           cloudflare_queues: "#/components/schemas/DestinationCreateCloudflareQueues"
           aws_eventbridge: "#/components/schemas/DestinationCreateAWSEventBridge"
+          mcp: "#/components/schemas/DestinationCreateMCP"
 
     # Type-Specific Destination Update Schemas (for Request Bodies)
     # Type-Specific Partial Schemas for PATCH Request Bodies
@@ -2536,6 +2774,29 @@ components:
         api_token:
           type: string
           description: Cloudflare API Token with the Account > Queues > Edit (Queues Write) permission, scoped to the target account.
+    MCPConfigUpdate:
+      type: object
+      description: >-
+        Partial MCP config for PATCH updates (RFC 7396 merge-patch). `url`, `principal` and
+        `arguments` are immutable: a different value returns 422 with type `immutable`.
+      properties:
+        url:
+          type: string
+          format: url
+          description: Immutable. Repeating the stored value is accepted.
+        principal:
+          type: string
+          description: Immutable. Repeating the stored value is accepted.
+        arguments:
+          type: string
+          description: Immutable. Repeating the stored value is accepted.
+    MCPCredentialsUpdate:
+      type: object
+      description: Partial MCP credentials for PATCH updates (RFC 7396 merge-patch).
+      properties:
+        secret:
+          type: string
+          description: A new secret rotates it; the previous one keeps signing for 24 hours.
     AWSEventBridgeConfigUpdate:
       type: object
       description: Partial AWS EventBridge config for PATCH updates (RFC 7396 merge-patch).
@@ -3159,6 +3420,72 @@ components:
             to leave unchanged.
           example: null
 
+    DestinationUpdateMCP:
+      type: object
+      x-docs-type: "MCP Events"
+      description: >-
+        **Experimental.** Updates an MCP Events subscription. Admin API key only; JWT auth
+        returns 403. `topics`, `config.url`, `config.principal` and `config.arguments` are
+        immutable.
+      required: [type]
+      properties:
+        type:
+          type: string
+          enum: [mcp]
+          description: Destination type discriminator. Must equal the existing destination's type — type itself cannot be changed via PATCH.
+          example: "mcp"
+        topics:
+          $ref: "#/components/schemas/Topics"
+        filter:
+          $ref: "#/components/schemas/Filter"
+        config:
+          $ref: "#/components/schemas/MCPConfigUpdate"
+        credentials:
+          $ref: "#/components/schemas/MCPCredentialsUpdate"
+        expires_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            Set the instant the subscription ends (must be in the future), or null to
+            clear it. Omit to leave unchanged.
+          example: "2030-01-01T00:00:00Z"
+        delivery_metadata:
+          type: object
+          additionalProperties:
+            oneOf:
+              - type: string
+              - type: "null"
+          nullable: true
+          description: >-
+            Static key-value pairs merged into event metadata on every attempt.
+            Uses JSON merge-patch semantics (RFC 7396): send keys to add/update,
+            null values to delete keys, null for entire field to clear all.
+            Omit or send {} for no change.
+          example: { "app-id": "my-app", "region": "us-east-1" }
+        metadata:
+          type: object
+          additionalProperties:
+            oneOf:
+              - type: string
+              - type: "null"
+          nullable: true
+          description: >-
+            Arbitrary contextual information stored with the destination.
+            Uses JSON merge-patch semantics (RFC 7396): send keys to add/update,
+            null values to delete keys, null for entire field to clear all.
+            Omit or send {} for no change.
+          example: { "internal-id": "123", "team": "platform" }
+        disabled_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            Update the disabled state of the destination. Send a timestamp
+            (must not be in the future) to disable, null to enable, or omit
+            to leave unchanged.
+          example: null
+
     # Polymorphic Destination Update Schema (for Request Bodies)
     DestinationUpdate:
       oneOf:
@@ -3173,6 +3500,7 @@ components:
         - $ref: "#/components/schemas/DestinationUpdateKafka"
         - $ref: "#/components/schemas/DestinationUpdateCloudflareQueues"
         - $ref: "#/components/schemas/DestinationUpdateAWSEventBridge"
+        - $ref: "#/components/schemas/DestinationUpdateMCP"
       discriminator:
         propertyName: type
         mapping:
@@ -3187,6 +3515,7 @@ components:
           kafka: "#/components/schemas/DestinationUpdateKafka"
           cloudflare_queues: "#/components/schemas/DestinationUpdateCloudflareQueues"
           aws_eventbridge: "#/components/schemas/DestinationUpdateAWSEventBridge"
+          mcp: "#/components/schemas/DestinationUpdateMCP"
     # Event Schemas
     PublishRequest:
       type: object
@@ -3546,6 +3875,7 @@ components:
         - kafka
         - cloudflare_queues
         - aws_eventbridge
+        - mcp
       description: Type of destination.
       example: "webhook"
     DestinationTypeSchema:
@@ -5886,6 +6216,10 @@ paths:
           $ref: "#/components/responses/RequestBodyTooLarge"
         "422":
           $ref: "#/components/responses/ValidationError"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
         "500":
           $ref: "#/components/responses/InternalServerError"
 
@@ -5996,6 +6330,10 @@ paths:
           $ref: "#/components/responses/RequestBodyTooLarge"
         "422":
           $ref: "#/components/responses/ValidationError"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
         "500":
           $ref: "#/components/responses/InternalServerError"
     delete:
@@ -6634,7 +6972,7 @@ paths:
         required: true
         schema:
           type: string
-          enum: [webhook, aws_sqs, rabbitmq, hookdeck, aws_kinesis, azure_servicebus, aws_s3, gcp_pubsub, kafka, cloudflare_queues, aws_eventbridge]
+          enum: [webhook, aws_sqs, rabbitmq, hookdeck, aws_kinesis, azure_servicebus, aws_s3, gcp_pubsub, kafka, cloudflare_queues, aws_eventbridge, mcp]
         description: The type of the destination.
     get:
       tags: [Schemas]
