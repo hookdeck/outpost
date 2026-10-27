@@ -360,3 +360,36 @@ func TestEvaluator_RetriesExhausted_NonRetryable(t *testing.T) {
 		})
 	}
 }
+
+func TestEvaluator_RetriesExhausted_AttemptMaxOverridesLimit(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	redisClient := testutil.CreateTestRedisClient(t)
+
+	e := alert.NewEvaluator(
+		alert.NewRedisAlertStore(redisClient, ""),
+		10,
+		alert.WithAutoDisableFailureCount(100),
+	)
+
+	tests := []struct {
+		name       string
+		number     int
+		attemptMax int
+		want       bool
+	}{
+		{"before the final attempt", 2, 3, false},
+		{"final allowed attempt", 3, 3, true},
+		{"unset uses evaluator limit", 3, 0, false},
+		{"unset final attempt", 11, 0, true},
+	}
+	for _, tc := range tests {
+		a := failedAttempt("dest_am", "tenant_am", "att_"+tc.name)
+		a.Number = tc.number
+		a.AttemptMax = tc.attemptMax
+		a.EligibleForRetry = true
+		eval, err := e.Evaluate(ctx, a)
+		require.NoError(t, err)
+		assert.Equal(t, tc.want, eval.RetriesExhausted, tc.name)
+	}
+}

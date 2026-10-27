@@ -46,15 +46,18 @@ func TestLogEntry_AlertFieldsJSON(t *testing.T) {
 
 	body, err := json.Marshal(entry)
 	require.NoError(t, err)
+	assert.NotContains(t, string(body), "attempt_max")
 	assert.NotContains(t, string(body), "non_retryable")
 	assert.NotContains(t, string(body), "skip_failure_count")
 
+	entry.AttemptMax = 3
 	entry.NonRetryable = true
 	entry.SkipFailureCount = true
 	body, err = json.Marshal(entry)
 	require.NoError(t, err)
 	var got models.LogEntry
 	require.NoError(t, json.Unmarshal(body, &got))
+	assert.Equal(t, 3, got.AttemptMax)
 	assert.True(t, got.NonRetryable)
 	assert.True(t, got.SkipFailureCount)
 }
@@ -80,5 +83,30 @@ func TestNonRetryableFailure_RaisesExhaustedRetries(t *testing.T) {
 
 		recs := h.sink.forDest(dest)
 		assert.Equal(t, []string{"att_nrx_flagged"}, attemptIDs(forTopic(recs, topicExhaust)))
+	})
+}
+
+// AttemptMax replaces the evaluator's retry limit for the entry's attempt.
+func TestAttemptMax_SetsExhaustedRetriesLimit(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		h := newHarness(t, harnessConfig{
+			batcher: batcherConfig{itemCount: 1},
+			alert:   alertConfig{autoDisableCount: 100, thresholds: []int{100}},
+		})
+
+		dest, tenant := "dest_amx", "tenant_amx"
+		early := makeEntryFull(dest, tenant, "att_amx_early", models.AttemptStatusFailed, 2, true)
+		early.AttemptMax = 3
+		final := makeEntryFull(dest, tenant, "att_amx_final", models.AttemptStatusFailed, 3, true)
+		final.AttemptMax = 3
+		cmEarly, msgEarly := newCountingMessage(early)
+		cmFinal, msgFinal := newCountingMessage(final)
+		h.add(msgEarly)
+		h.add(msgFinal)
+		h.waitTerminal([]*countingMessage{cmEarly, cmFinal})
+
+		recs := h.sink.forDest(dest)
+		assert.Equal(t, []string{"att_amx_final"}, attemptIDs(forTopic(recs, topicExhaust)))
 	})
 }

@@ -19,6 +19,9 @@ type Attempt struct {
 	Number           int // 1-indexed attempt number
 	Success          bool
 	EligibleForRetry bool
+	// AttemptMax is the attempt count the delivery was allowed (retries + 1);
+	// 0 uses the evaluator's retry limit.
+	AttemptMax int
 	// NonRetryable: no further automatic retry follows this failed attempt.
 	NonRetryable bool
 	// SkipFailureCount keeps a failed attempt out of the consecutive-failure
@@ -151,11 +154,15 @@ func (e *Evaluator) Evaluate(ctx context.Context, attempt Attempt) (Evaluation, 
 	}
 
 	// Exhausted retries check (independent of consecutive failure thresholds).
-	// Attempt is 1-indexed: with retryMaxLimit=10, attempt 11 is the final one.
-	// A non-retryable failure ends the retry chain early, so it counts as exhausted.
-	// Skip if retryMaxLimit=0 (retries disabled — no exhausted state to report)
+	// Attempt is 1-indexed: with a limit of 10 retries, attempt 11 is the final one.
+	// A non-retryable failure ends the retries early, so it counts as exhausted.
+	// Skip if the limit is 0 (retries disabled — no exhausted state to report)
 	// or if the exhausted-retries signal is disabled.
-	if e.exhaustedRetriesEnabled && e.retryMaxLimit > 0 && attempt.EligibleForRetry && (attempt.NonRetryable || attempt.Number > e.retryMaxLimit) {
+	limit := e.retryMaxLimit
+	if attempt.AttemptMax > 0 {
+		limit = attempt.AttemptMax - 1
+	}
+	if e.exhaustedRetriesEnabled && limit > 0 && attempt.EligibleForRetry && (attempt.NonRetryable || attempt.Number > limit) {
 		eval.RetriesExhausted = true
 	}
 

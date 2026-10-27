@@ -13,6 +13,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/hookdeck/outpost/internal/apirouter"
+	"github.com/hookdeck/outpost/internal/backoff"
 	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/hookdeck/outpost/internal/destregistry/metadata"
 	"github.com/hookdeck/outpost/internal/logging"
@@ -91,6 +92,10 @@ func (r *mockRegistry) ListProviderMetadata() []*metadata.ProviderMetadata {
 		metadataList = append(metadataList, meta)
 	}
 	return metadataList
+}
+
+func (r *mockRegistry) RetryPolicy(string) (backoff.Backoff, int, bool) {
+	return nil, 0, false
 }
 
 // setupTestEnvironment creates a test environment with logger middleware and sanitizer
