@@ -45,7 +45,7 @@ type Destination struct {
 	// part of the API; UpdateDestination uses it to detect concurrent writes.
 	Version int64 `json:"-" redis:"-"`
 
-	// ExpiresAt is not exposed in the API. Once past, the destination receives no events.
+	// ExpiresAt is exposed in the API for mcp destinations only. Once past, the destination receives no events.
 	ExpiresAt *time.Time `json:"-" redis:"expires_at"`
 }
 

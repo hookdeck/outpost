@@ -1,6 +1,8 @@
 package destregistry
 
 import (
+	"time"
+
 	"github.com/hookdeck/outpost/internal/models"
 )
 
@@ -8,6 +10,8 @@ import (
 type DestinationDisplay struct {
 	*models.Destination
 	DestinationTarget
+	// ExpiresAt is set for destination types whose API exposes it.
+	ExpiresAt *time.Time `json:"expires_at,omitempty"`
 }
 
 type DestinationTarget struct {

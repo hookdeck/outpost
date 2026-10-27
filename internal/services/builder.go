@@ -15,6 +15,7 @@ import (
 	"github.com/hookdeck/outpost/internal/deliverymq"
 	"github.com/hookdeck/outpost/internal/destregistry"
 	destregistrydefault "github.com/hookdeck/outpost/internal/destregistry/providers"
+	"github.com/hookdeck/outpost/internal/destregistry/providers/destmcp"
 	"github.com/hookdeck/outpost/internal/eventtracer"
 	"github.com/hookdeck/outpost/internal/idempotence"
 	"github.com/hookdeck/outpost/internal/logging"
@@ -42,6 +43,10 @@ type ServiceBuilder struct {
 
 	// Track service instances for cleanup
 	services []*serviceInstance
+
+	// mcpNet is the MCP callback network stack, shared by the services of
+	// the process; nil until built, and while MCP is disabled.
+	mcpNet *mcpNetwork
 }
 
 // serviceInstance represents a single service with its cleanup functions and common dependencies
@@ -161,14 +166,18 @@ func (b *ServiceBuilder) BuildAPIWorkers(baseRouter *gin.Engine) error {
 	}
 	b.services = append(b.services, svc)
 
-	// Initialize common infrastructure
-	if err := svc.initDestRegistry(b.cfg, b.logger); err != nil {
+	// Redis comes first: the mcp verifier caches in it.
+	if err := svc.initRedis(b.ctx, b.cfg, b.logger); err != nil {
+		return err
+	}
+	mcpProvider, mcpVerifier, err := b.mcpProvider(svc.redisClient)
+	if err != nil {
+		return err
+	}
+	if err := svc.initDestRegistry(b.cfg, b.logger, mcpProvider); err != nil {
 		return err
 	}
 	if err := svc.initDeliveryMQ(b.ctx, b.cfg, b.logger); err != nil {
-		return err
-	}
-	if err := svc.initRedis(b.ctx, b.cfg, b.logger); err != nil {
 		return err
 	}
 	if err := svc.initLogStore(b.ctx, b.cfg, b.logger); err != nil {
@@ -211,6 +220,11 @@ func (b *ServiceBuilder) BuildAPIWorkers(baseRouter *gin.Engine) error {
 	}
 	subscriptionEmitter := opevents.NewEmitter(oeSink, b.cfg.DeploymentID, oeCfg.Topics, b.logger)
 
+	var routerMCPVerifier apirouter.MCPVerifier
+	if mcpVerifier != nil {
+		routerMCPVerifier = mcpVerifier
+	}
+
 	apiHandler := apirouter.NewRouter(
 		apirouter.RouterConfig{
 			ServiceName:          b.cfg.OpenTelemetry.GetServiceName(),
@@ -222,6 +236,8 @@ func (b *ServiceBuilder) BuildAPIWorkers(baseRouter *gin.Engine) error {
 			Registry:             svc.destRegistry,
 			PortalConfig:         b.cfg.GetPortalConfig(),
 			GinMode:              b.cfg.GinMode,
+
+			MaxDestinationsPerTenant: b.cfg.MaxDestinationsPerTenant,
 		},
 		apirouter.RouterDeps{
 			TenantStore:         svc.tenantStore,
@@ -231,6 +247,7 @@ func (b *ServiceBuilder) BuildAPIWorkers(baseRouter *gin.Engine) error {
 			EventHandler:        eventHandler,
 			Telemetry:           b.telemetry,
 			SubscriptionEmitter: subscriptionEmitter,
+			MCPVerifier:         routerMCPVerifier,
 		},
 	)
 
@@ -320,7 +337,11 @@ func (b *ServiceBuilder) BuildDeliveryWorker(baseRouter *gin.Engine) error {
 	if err := svc.initDeliveryMQ(b.ctx, b.cfg, b.logger); err != nil {
 		return err
 	}
-	if err := svc.initDestRegistry(b.cfg, b.logger); err != nil {
+	mcpProvider, _, err := b.mcpProvider(nil)
+	if err != nil {
+		return err
+	}
+	if err := svc.initDestRegistry(b.cfg, b.logger, mcpProvider); err != nil {
 		return err
 	}
 	if err := svc.initEventTracer(b.cfg, b.logger); err != nil {
@@ -424,12 +445,18 @@ func (b *ServiceBuilder) BuildLogWorker(baseRouter *gin.Engine) error {
 			time.Duration(alertSettings.ExhaustedRetries.WindowSeconds)*time.Second)
 	}
 	_, retryMaxLimit := b.cfg.GetRetryBackoff()
-	alertEvaluator := alert.NewEvaluator(
-		alert.NewRedisAlertStore(svc.redisClient, b.cfg.DeploymentID),
-		retryMaxLimit,
+	alertOpts := []alert.Option{
 		alert.WithConsecutiveFailureEnabled(alertSettings.ConsecutiveFailure.Enabled),
 		alert.WithAutoDisableFailureCount(alertSettings.ConsecutiveFailure.Count),
 		alert.WithExhaustedRetriesEnabled(alertSettings.ExhaustedRetries.Enabled),
+	}
+	if b.cfg.Experimental.MCP.Enabled {
+		alertOpts = append(alertOpts, alert.WithPerAttemptRetryLimits())
+	}
+	alertEvaluator := alert.NewEvaluator(
+		alert.NewRedisAlertStore(svc.redisClient, b.cfg.DeploymentID),
+		retryMaxLimit,
+		alertOpts...,
 	)
 
 	// Create batcher for batching log writes
@@ -581,13 +608,14 @@ func (s *serviceInstance) initTenantStore(ctx context.Context, cfg *config.Confi
 	return nil
 }
 
-func (s *serviceInstance) initDestRegistry(cfg *config.Config, logger *logging.Logger) error {
+func (s *serviceInstance) initDestRegistry(cfg *config.Config, logger *logging.Logger, mcp *destmcp.Config) error {
 	logger.Debug("initializing destination registry", zap.String("service", s.name))
 	registry := destregistry.NewRegistry(&destregistry.Config{
 		DestinationMetadataPath: cfg.Destinations.MetadataPath,
 		DeliveryTimeout:         time.Duration(cfg.DeliveryTimeoutSeconds) * time.Second,
 	}, logger)
 	destCfg := cfg.Destinations.ToConfig(cfg)
+	destCfg.MCP = mcp
 	if destregistrydefault.WebhookEnvProxyIgnored(destCfg) {
 		logger.Warn("HTTP_PROXY/HTTPS_PROXY are ignored for webhook destinations while DESTINATIONS_BLOCK_PRIVATE_ADDRESSES is on; set DESTINATIONS_PROXY_URL to deliver through a proxy (the proxy must then refuse private addresses)", zap.String("service", s.name))
 	}

@@ -183,6 +183,15 @@ func TestEvaluator_RetriesExhausted(t *testing.T) {
 	assert.True(t, eval.RetriesExhausted)
 }
 
+func TestEvaluator_SignalsEnabled(t *testing.T) {
+	t.Parallel()
+	off := []alert.Option{alert.WithConsecutiveFailureEnabled(false)}
+	assert.False(t, alert.NewEvaluator(nil, 0, off...).SignalsEnabled())
+	assert.True(t, alert.NewEvaluator(nil, 3, off...).SignalsEnabled())
+	assert.True(t, alert.NewEvaluator(nil, 0, append(off, alert.WithPerAttemptRetryLimits())...).SignalsEnabled())
+	assert.False(t, alert.NewEvaluator(nil, 0, append(off, alert.WithPerAttemptRetryLimits(), alert.WithExhaustedRetriesEnabled(false))...).SignalsEnabled())
+}
+
 func TestEvaluator_RetriesExhausted_NotEligible(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()

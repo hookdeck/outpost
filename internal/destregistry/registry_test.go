@@ -1206,3 +1206,29 @@ func TestPreprocessDestination(t *testing.T) {
 		})
 	}
 }
+
+func TestPublishEventUnregisteredType(t *testing.T) {
+	registry := destregistry.NewRegistry(&destregistry.Config{
+		DeliveryTimeout: time.Second,
+	}, testutil.CreateTestLogger(t))
+	destination := &models.Destination{ID: "des_1", Type: "mcp"}
+	event := &models.Event{ID: "evt_1"}
+
+	attempt, err := registry.PublishEvent(context.Background(), destination, event)
+
+	require.NotNil(t, attempt)
+	assert.Equal(t, "failed", attempt.Status)
+	assert.Equal(t, "des_1", attempt.DestinationID)
+	assert.Equal(t, "evt_1", attempt.EventID)
+	require.Error(t, err)
+	var publishErr *destregistry.ErrDestinationPublishAttempt
+	require.ErrorAs(t, err, &publishErr)
+	assert.ErrorIs(t, publishErr.Err, destregistry.ErrNoProvider)
+	assert.True(t, publishErr.NonRetryable)
+	assert.True(t, publishErr.SkipFailureCount)
+
+	err = registry.ValidateDestination(context.Background(), destination)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, destregistry.ErrNoProvider)
+	assert.Contains(t, err.Error(), "no provider registered for destination type: mcp")
+}
