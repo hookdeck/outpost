@@ -101,7 +101,9 @@ type LogEntry struct {
 	Attempt     *Attempt     `json:"attempt"`
 	Destination *Destination `json:"destination,omitempty"` // carried for alert evaluation in logmq; ignored by logstore
 
-	// Inputs to alert evaluation; not stored.
+	// Inputs to alert evaluation; not stored. AttemptMax is the attempt count
+	// the delivery was allowed (retries + 1); 0 = unknown.
+	AttemptMax       int  `json:"attempt_max,omitempty"`
 	NonRetryable     bool `json:"non_retryable,omitempty"`
 	SkipFailureCount bool `json:"skip_failure_count,omitempty"`
 }
