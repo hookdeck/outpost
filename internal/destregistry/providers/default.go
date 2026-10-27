@@ -18,6 +18,7 @@ import (
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destrabbitmq"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destwebhook"
 	"github.com/hookdeck/outpost/internal/emetrics"
+	"github.com/hookdeck/outpost/internal/netguard"
 	"github.com/hookdeck/outpost/internal/proxychain"
 )
 
@@ -49,6 +50,7 @@ type DestWebhookConfig struct {
 	MaxResponseBodyBytes     int
 	SignatureSecretEncoding  string
 	SignatureSecretPrefix    string
+	BlockPrivateAddresses    bool
 	Compat                   *destwebhook.CompatSignatureConfig
 }
 
@@ -70,6 +72,8 @@ type RegisterDefaultDestinationOptions struct {
 	Webhook        *DestWebhookConfig
 	AWSKinesis     *DestAWSKinesisConfig
 	AWSEventBridge *DestAWSEventBridgeConfig
+
+	PrivateAddressAllowlist []string
 
 	// DeliveryMaxConcurrency is the delivery worker pool size. It bounds how
 	// many deliveries can be in flight, and therefore how many connections a
@@ -140,6 +144,13 @@ func RegisterDefault(registry destregistry.Registry, opts RegisterDefaultDestina
 			destwebhook.WithSecretEncoding(opts.Webhook.SignatureSecretEncoding, opts.Webhook.SignatureSecretPrefix),
 			destwebhook.WithCompatSignature(opts.Webhook.Compat),
 		)
+		if opts.Webhook.BlockPrivateAddresses {
+			allowlist, err := netguard.ParseAllowlist(opts.PrivateAddressAllowlist)
+			if err != nil {
+				return fmt.Errorf("private address allowlist: %w", err)
+			}
+			webhookOpts = append(webhookOpts, destwebhook.WithAddressGuard(&netguard.Guard{Allowlist: allowlist}))
+		}
 		if opts.Webhook.MetadataName != "" {
 			webhookOpts = append(webhookOpts, destwebhook.WithMetadataName(opts.Webhook.MetadataName))
 		}

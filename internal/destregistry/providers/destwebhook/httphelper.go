@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/hookdeck/outpost/internal/destregistry"
+	"github.com/hookdeck/outpost/internal/netguard"
 )
 
 // HTTPRequestResult contains the result of an HTTP request execution.
@@ -133,6 +134,7 @@ func ExecuteHTTPRequest(ctx context.Context, client *http.Client, req *http.Requ
 // All errors classified here are destination-level failures (DeliveryError → ack + retry).
 //
 // Error codes and their meanings:
+//   - address_not_allowed: Destination address is blocked by the address guard
 //   - dns_error:          Domain doesn't exist or DNS lookup failed
 //   - connection_refused: Server not running or rejecting connections
 //   - connection_reset:   Connection was dropped by the server
@@ -144,6 +146,10 @@ func ExecuteHTTPRequest(ctx context.Context, client *http.Client, req *http.Requ
 func ClassifyNetworkError(err error) string {
 	if err == nil {
 		return "unknown"
+	}
+
+	if netguard.IsAddressNotAllowed(err) {
+		return "address_not_allowed"
 	}
 
 	errStr := err.Error()
