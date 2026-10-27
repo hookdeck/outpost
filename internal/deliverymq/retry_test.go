@@ -119,7 +119,8 @@ func stopRetryStack(subscription mqs.Subscription, consumerDone <-chan struct{},
 	<-monitorDone
 	s.Shutdown()
 	cleanup()
-	// mempubsub's receive loop sleeps 250ms between polls and ignores ctx; wait for it to exit before the bubble ends.
+	// mempubsub's receive loop sleeps 250ms between polls and ignores ctx;
+	// wait for it to exit before the bubble ends.
 	advance(time.Second)
 }
 
@@ -239,7 +240,7 @@ func TestDeliveryMQRetry_EligibleForRetryTrue(t *testing.T) {
 			logPublisher:  logPublisher,
 			destGetter:    &mockDestinationGetter{dest: &destination},
 			retryMaxCount: 10,
-			// Longer than the retry lookup skew, so a retry never matches the previous attempt.
+			// Over retryLookupSkew: a shorter backoff lets the retry's lookup find the previous attempt.
 			retryBackoff:         &backoff.ConstantBackoff{Interval: 2 * time.Second},
 			schedulerPollBackoff: 10 * time.Millisecond,
 		}
@@ -366,7 +367,7 @@ func TestDeliveryMQRetry_RetryMaxCount(t *testing.T) {
 			logPublisher:  logPublisher,
 			destGetter:    &mockDestinationGetter{dest: &destination},
 			retryMaxCount: 2, // 1 initial + 2 retries = 3 total attempts
-			// Longer than the retry lookup skew, so a retry never matches the previous attempt.
+			// Over retryLookupSkew: a shorter backoff lets the retry's lookup find the previous attempt.
 			retryBackoff:         &backoff.ConstantBackoff{Interval: 2 * time.Second},
 			schedulerPollBackoff: 10 * time.Millisecond,
 		}
@@ -380,7 +381,7 @@ func TestDeliveryMQRetry_RetryMaxCount(t *testing.T) {
 		}
 		require.NoError(t, suite.deliveryMQ.Publish(ctx, task))
 
-		// 2s backoff: initial + 2s + retry + 2s + retry = ~4s of fake time minimum
+		// Three attempts take 4s of fake time; 10s also covers a 4th that must not happen.
 		advance(10 * time.Second)
 
 		assert.Equal(t, 3, publisher.Current(), "should stop after max retries (1 initial + 2 retries = 3 total attempts)")
