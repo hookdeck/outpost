@@ -29,7 +29,7 @@ curl '{% $OUTPOST_API_BASE_URL %}/tenants/<TENANT_ID>/destinations' \
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `config.url` | string | Yes | The URL to send events to |
+| `config.url` | string | Yes | The URL to send events to. Outpost doesn't follow redirects; use the endpoint's final URL |
 | `config.custom_headers` | string | No | JSON object of custom HTTP headers to include |
 
 ### Credentials
