@@ -9,6 +9,7 @@ import (
 
 // BasePublisher provides common publisher functionality
 type BasePublisher struct {
+	// mu makes the closed check and active.Add one step with respect to StartClose.
 	mu                          sync.RWMutex
 	active                      sync.WaitGroup
 	closed                      bool
