@@ -86,8 +86,8 @@ func ExecuteHTTPRequest(ctx context.Context, client *http.Client, req *http.Requ
 		}
 	}
 
-	// HTTP error response (4xx, 5xx)
-	if resp.StatusCode >= 400 {
+	// Non-2xx fails the attempt. Redirects aren't followed, so a 3xx lands here too.
+	if resp.StatusCode >= 300 {
 		delivery := &destregistry.Delivery{
 			Status: "failed",
 			Code:   fmt.Sprintf("%d", resp.StatusCode),
@@ -139,7 +139,6 @@ func ExecuteHTTPRequest(ctx context.Context, client *http.Client, req *http.Requ
 //   - network_unreachable: Network path to destination is unavailable
 //   - timeout:            Request took too long (I/O timeout or context deadline)
 //   - tls_error:          TLS/SSL certificate or handshake failure
-//   - redirect_error:     Too many redirects
 //   - network_error:      Other network-related failures (catch-all)
 func ClassifyNetworkError(err error) string {
 	if err == nil {
@@ -163,8 +162,6 @@ func ClassifyNetworkError(err error) string {
 		return "timeout"
 	case strings.Contains(errStr, "tls:") || strings.Contains(errStr, "x509:"):
 		return "tls_error"
-	case strings.Contains(errStr, "too many redirects") || strings.Contains(errStr, "stopped after"):
-		return "redirect_error"
 	default:
 		return "network_error"
 	}

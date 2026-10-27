@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -1234,5 +1235,62 @@ func TestWebhookPublisher_SignatureTemplates(t *testing.T) {
 				},
 			), "signature should verify with expected content")
 		})
+	}
+}
+
+func TestWebhookPublisher_DoesNotFollowRedirects(t *testing.T) {
+	t.Parallel()
+
+	modes := map[string][]destwebhook.Option{
+		"default":  nil,
+		"standard": standardOptions(destwebhook.StandardHeaderPrefix),
+	}
+	secrets := map[string]string{"default": "test-secret", "standard": standardSecret}
+
+	for mode, opts := range modes {
+		for _, code := range []int{301, 302, 303, 307, 308} {
+			t.Run(fmt.Sprintf("%s/%d", mode, code), func(t *testing.T) {
+				t.Parallel()
+
+				var targetHits atomic.Int32
+				target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					targetHits.Add(1)
+					w.WriteHeader(http.StatusOK)
+				}))
+				defer target.Close()
+
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					http.Redirect(w, r, target.URL, code)
+				}))
+				defer server.Close()
+
+				provider := NewTestProvider(t, opts...)
+				destination := testutil.DestinationFactory.Any(
+					testutil.DestinationFactory.WithType("webhook"),
+					testutil.DestinationFactory.WithConfig(map[string]string{
+						"url": server.URL + "/webhook",
+					}),
+					testutil.DestinationFactory.WithCredentials(map[string]string{
+						"secret": secrets[mode],
+					}),
+				)
+
+				publisher, err := provider.CreatePublisher(context.Background(), &destination)
+				require.NoError(t, err)
+				defer publisher.Close()
+
+				event := testutil.EventFactory.Any(
+					testutil.EventFactory.WithDataMap(map[string]interface{}{"key": "value"}),
+				)
+
+				delivery, err := publisher.Publish(context.Background(), &event)
+
+				require.Error(t, err)
+				require.NotNil(t, delivery)
+				assert.Equal(t, "failed", delivery.Status)
+				assert.Equal(t, fmt.Sprintf("%d", code), delivery.Code)
+				assert.Zero(t, targetHits.Load())
+			})
+		}
 	}
 }
