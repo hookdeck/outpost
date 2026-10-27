@@ -281,9 +281,7 @@ func (h *handlerImpl) Handle(ctx context.Context, msg *mqs.Message) error {
 	return h.handle(ctx, msg)
 }
 
-// With every handler busy, the consumer must not receive another message: it
-// would wait for a slot with its visibility timeout running, and be dropped
-// unacked on shutdown.
+// The consumer receives only when a handler slot is free.
 func TestConsumer_ReceivesOnlyWithFreeSlot(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {

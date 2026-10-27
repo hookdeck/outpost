@@ -206,8 +206,8 @@ recvLoop:
 }
 
 // runWithSemaphore limits concurrency via a channel-based semaphore. The slot
-// is taken before receiving, so a message is only received when a handler can
-// run it now.
+// is taken before receiving: a received message must not wait for a handler
+// while its visibility timeout runs.
 func (c *consumerImpl) runWithSemaphore(ctx context.Context) error {
 	tracer := otel.GetTracerProvider().Tracer("github.com/hookdeck/outpost/internal/consumer")
 
