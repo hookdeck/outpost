@@ -517,48 +517,98 @@ func (s *store) RetrieveDestination(ctx context.Context, tenantID, destinationID
 	return destination, nil
 }
 
-func (s *store) CreateDestination(ctx context.Context, destination models.Destination) error {
-	key := s.redisDestinationID(destination.ID, destination.TenantID)
-	if fields, err := s.redisClient.HGetAll(ctx, key).Result(); err != nil {
-		return err
-	} else if len(fields) > 0 {
-		if _, isDeleted := fields["deleted_at"]; !isDeleted {
-			return driver.ErrDuplicateDestination
-		}
-	}
+const (
+	writeDestinationOK           = 0
+	writeDestinationDuplicate    = 1
+	writeDestinationLimitReached = 2
+)
 
-	count, err := s.redisClient.HLen(ctx, s.redisTenantDestinationSummaryKey(destination.TenantID)).Result()
-	if err != nil {
+// writeDestinationScript writes a destination and its tenant summary entry in one step,
+// first rejecting a live destination with the same ID or a full tenant when check is 1.
+// KEYS: destination hash, tenant summary hash.
+// ARGV: check, limit, summary, id, number of fields to unset, those fields,
+// then field/value pairs to set.
+// Returns writeDestinationOK, writeDestinationDuplicate or writeDestinationLimitReached.
+var writeDestinationScript = redis.NewScript(`
+local check, limit, summary, id, nunset = tonumber(ARGV[1]), tonumber(ARGV[2]), ARGV[3], ARGV[4], tonumber(ARGV[5])
+if check == 1 then
+	if redis.call('EXISTS', KEYS[1]) == 1 and redis.call('HEXISTS', KEYS[1], 'deleted_at') == 0 then
+		return 1
+	end
+	if redis.call('HLEN', KEYS[2]) >= limit then
+		return 2
+	end
+end
+redis.call('PERSIST', KEYS[1])
+for i = 1, nunset do
+	redis.call('HDEL', KEYS[1], ARGV[5 + i])
+end
+for i = 6 + nunset, #ARGV, 2 do
+	redis.call('HSET', KEYS[1], ARGV[i], ARGV[i + 1])
+end
+redis.call('HSET', KEYS[2], id, summary)
+return 0
+`)
+
+func (s *store) CreateDestination(ctx context.Context, destination models.Destination) error {
+	switch code, err := s.writeDestination(ctx, destination, true); {
+	case err != nil:
 		return err
-	}
-	if count >= int64(s.maxDestinationsPerTenant) {
+	case code == writeDestinationDuplicate:
+		return driver.ErrDuplicateDestination
+	case code == writeDestinationLimitReached:
 		return driver.ErrMaxDestinationsPerTenantReached
 	}
-
-	return s.UpsertDestination(ctx, destination)
+	return nil
 }
 
 func (s *store) UpsertDestination(ctx context.Context, destination models.Destination) error {
-	key := s.redisDestinationID(destination.ID, destination.TenantID)
+	_, err := s.writeDestination(ctx, destination, false)
+	return err
+}
 
+func (s *store) writeDestination(ctx context.Context, destination models.Destination, check bool) (int, error) {
+	fields, unset, err := s.prepareDestinationFields(&destination)
+	if err != nil {
+		return 0, err
+	}
+
+	checkArg := 0
+	if check {
+		checkArg = 1
+	}
+	args := []interface{}{checkArg, s.maxDestinationsPerTenant, newDestinationSummary(destination), destination.ID, len(unset)}
+	for _, f := range unset {
+		args = append(args, f)
+	}
+	args = append(args, fields...)
+
+	keys := []string{
+		s.redisDestinationID(destination.ID, destination.TenantID),
+		s.redisTenantDestinationSummaryKey(destination.TenantID),
+	}
+	return writeDestinationScript.Run(ctx, s.redisClient, keys, args...).Int()
+}
+
+func (s *store) prepareDestinationFields(destination *models.Destination) (fields []interface{}, unset []string, err error) {
 	credentialsBytes, err := destination.Credentials.MarshalBinary()
 	if err != nil {
-		return fmt.Errorf("invalid destination credentials: %w", err)
+		return nil, nil, fmt.Errorf("invalid destination credentials: %w", err)
 	}
 	encryptedCredentials, err := s.cipher.encrypt(credentialsBytes)
 	if err != nil {
-		return fmt.Errorf("failed to encrypt destination credentials: %w", err)
+		return nil, nil, fmt.Errorf("failed to encrypt destination credentials: %w", err)
 	}
 
 	var encryptedDeliveryMetadata []byte
 	if destination.DeliveryMetadata != nil {
 		deliveryMetadataBytes, err := destination.DeliveryMetadata.MarshalBinary()
 		if err != nil {
-			return fmt.Errorf("invalid destination delivery_metadata: %w", err)
+			return nil, nil, fmt.Errorf("invalid destination delivery_metadata: %w", err)
 		}
 		encryptedDeliveryMetadata, err = s.cipher.encrypt(deliveryMetadataBytes)
 		if err != nil {
-			return fmt.Errorf("failed to encrypt destination delivery_metadata: %w", err)
+			return nil, nil, fmt.Errorf("failed to encrypt destination delivery_metadata: %w", err)
 		}
 	}
 
@@ -570,50 +620,43 @@ func (s *store) UpsertDestination(ctx context.Context, destination models.Destin
 		destination.UpdatedAt = now
 	}
 
-	summaryKey := s.redisTenantDestinationSummaryKey(destination.TenantID)
+	unset = []string{"deleted_at"}
+	fields = []interface{}{
+		"id", destination.ID,
+		"entity", "destination",
+		"type", destination.Type,
+		"topics", &destination.Topics,
+		"config", &destination.Config,
+		"credentials", encryptedCredentials,
+		"created_at", destination.CreatedAt.UnixMilli(),
+		"updated_at", destination.UpdatedAt.UnixMilli(),
+	}
 
-	_, err = s.redisClient.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
-		pipe.Persist(ctx, key)
-		pipe.HDel(ctx, key, "deleted_at")
+	if destination.DisabledAt != nil {
+		fields = append(fields, "disabled_at", destination.DisabledAt.UnixMilli())
+	} else {
+		unset = append(unset, "disabled_at")
+	}
 
-		pipe.HSet(ctx, key, "id", destination.ID)
-		pipe.HSet(ctx, key, "entity", "destination")
-		pipe.HSet(ctx, key, "type", destination.Type)
-		pipe.HSet(ctx, key, "topics", &destination.Topics)
-		pipe.HSet(ctx, key, "config", &destination.Config)
-		pipe.HSet(ctx, key, "credentials", encryptedCredentials)
-		pipe.HSet(ctx, key, "created_at", destination.CreatedAt.UnixMilli())
-		pipe.HSet(ctx, key, "updated_at", destination.UpdatedAt.UnixMilli())
+	if destination.DeliveryMetadata != nil {
+		fields = append(fields, "delivery_metadata", encryptedDeliveryMetadata)
+	} else {
+		unset = append(unset, "delivery_metadata")
+	}
 
-		if destination.DisabledAt != nil {
-			pipe.HSet(ctx, key, "disabled_at", destination.DisabledAt.UnixMilli())
-		} else {
-			pipe.HDel(ctx, key, "disabled_at")
-		}
+	if destination.Metadata != nil {
+		fields = append(fields, "metadata", &destination.Metadata)
+	} else {
+		unset = append(unset, "metadata")
+	}
 
-		if destination.DeliveryMetadata != nil {
-			pipe.HSet(ctx, key, "delivery_metadata", encryptedDeliveryMetadata)
-		} else {
-			pipe.HDel(ctx, key, "delivery_metadata")
-		}
+	if len(destination.Filter) > 0 {
+		fields = append(fields, "filter", &destination.Filter)
+	} else {
+		unset = append(unset, "filter")
+	}
 
-		if destination.Metadata != nil {
-			pipe.HSet(ctx, key, "metadata", &destination.Metadata)
-		} else {
-			pipe.HDel(ctx, key, "metadata")
-		}
-
-		if len(destination.Filter) > 0 {
-			pipe.HSet(ctx, key, "filter", &destination.Filter)
-		} else {
-			pipe.HDel(ctx, key, "filter")
-		}
-
-		pipe.HSet(ctx, summaryKey, destination.ID, newDestinationSummary(destination))
-		return nil
-	})
-
-	return err
+	return fields, unset, nil
 }
 
 func (s *store) DeleteDestination(ctx context.Context, tenantID, destinationID string) error {

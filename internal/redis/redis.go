@@ -41,6 +41,8 @@ const (
 	TxFailedErr = r.TxFailedErr
 )
 
+var NewScript = r.NewScript
+
 func New(ctx context.Context, config *RedisConfig) (Client, error) {
 	var client Client
 	var err error
