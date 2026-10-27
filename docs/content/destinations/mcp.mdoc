@@ -1,0 +1,78 @@
+---
+title: "MCP Events"
+description: "Experimental. Deliver events to MCP Events webhook subscriptions, signed with Standard Webhooks."
+---
+
+{% callout type="warning" %}
+Experimental. This destination type and its behavior may change without notice. It is off unless [`MCP_ENABLED`](/docs/outpost/self-hosting/configuration#mcp-events-experimental) is `true`, and is created and updated with the Admin API key only. Delete `mcp` destinations before turning it off; while it is off, they stay listed and each event fails once without retries.
+{% /callout %}
+
+An `mcp` destination is one MCP Events webhook subscription: a callback URL that receives one topic's events, wrapped in the MCP Events envelope and signed with [Standard Webhooks](https://www.standardwebhooks.com/). Your MCP server creates it on behalf of an agent and refreshes or deletes it as the agent subscribes, renews and unsubscribes.
+
+## Creating an MCP Destination
+
+```sh
+curl '{% $OUTPOST_API_BASE_URL %}/tenants/<TENANT_ID>/destinations' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer <API_KEY>' \
+--data '{
+  "id": "sub_12345",
+  "type": "mcp",
+  "topics": ["order.created"],
+  "config": {
+    "url": "https://agent.example.com/mcp-events/abc123",
+    "principal": "user-123"
+  },
+  "credentials": {
+    "secret": "whsec_MfKQ9r8GKYqrTwjUPD8ILPZIo2LaLaSw"
+  },
+  "expires_at": "2030-01-01T00:00:00Z"
+}'
+```
+
+Before the destination is stored, Outpost sends a verification challenge to the callback URL. If the callback fails it, the request returns `422` with the reason as the validation type: `challenge_failed`, `connection_refused`, `timeout`, `tls_error`, `http_4xx`, `http_5xx` or `https_required`. If Outpost hits a verification limit, the request returns `429` with a `Retry-After` header and `data.code` of `rate_limited`. If verification can't run, it returns `503` with `data.code` of `verification_unavailable`. A callback that resolves to a non-public address returns `config.url must resolve to a public address`. A callback that was already verified for the same tenant, principal and URL is not challenged again for `MCP_VERIFICATION_TTL_SECONDS`.
+
+Verification is limited to 10 challenges per tenant and principal per minute, and 120 failed challenges per tenant and callback host per minute. Subscriptions without a principal share the tenant's budget.
+
+## Configuration
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `id` | string | No | Subscription ID, sent as `X-MCP-Subscription-Id`. 1 to 128 characters of `A-Z a-z 0-9 _ -`. |
+| `topics` | string[] | Yes | Exactly one topic. `*` is not accepted. |
+| `config.url` | string | Yes | Callback URL. `https`, in normalized form (lowercase host, no default port, no credentials); `http` only for loopback addresses in `DESTINATIONS_PRIVATE_ADDRESS_ALLOWLIST` (any allowlisted address with `MCP_ALLOW_INSECURE_CALLBACKS`). Must resolve to a public address, unless allowed by `DESTINATIONS_PRIVATE_ADDRESS_ALLOWLIST`. |
+| `config.principal` | string | No | The subject the subscription belongs to, up to 512 bytes. Verification is cached per tenant, principal and URL. |
+| `config.arguments` | string | No | Canonical JSON object, up to 4 KiB. Stored with the destination. |
+| `credentials.secret` | string | Yes | `whsec_` followed by base64 of 24 to 64 bytes. |
+| `expires_at` | string | No | RFC 3339 time in the future. From then on the subscription matches no events and receives no deliveries. `null` on update clears it. |
+
+`config.url`, `config.principal`, `config.arguments` and `topics` cannot change after creation. To rotate the secret, update `credentials.secret`: the old secret keeps signing for 24 hours alongside the new one.
+
+Each subscription counts toward `MAX_DESTINATIONS_PER_TENANT`. When a tenant is at the limit, creating a subscription first removes the tenant's expired ones.
+
+## Delivery
+
+Each event is sent as an HTTP POST:
+
+```
+POST /mcp-events/abc123 HTTP/1.1
+Content-Type: application/json
+webhook-id: msg_x1yQ3o8mT5vZk2cJ0aNwXg
+webhook-timestamp: 1790000000
+webhook-signature: v1,K5oZfzN95Z9UVu1EsfQmfVNQhnkZ2/d+...
+X-MCP-Subscription-Id: sub_12345
+
+{"eventId":"evt_123","name":"order.created","timestamp":"2026-10-27T12:00:00Z","data":{"order_id":"ord_42"},"cursor":null}
+```
+
+- `cursor` is always `null`: there is no replay, and Outpost doesn't send `gap` or `terminated` envelopes.
+- `webhook-id` identifies the message. It is the same on every retry and redelivery of an event to a subscription, and differs for each subscription and event, so an event matched by several subscriptions has a different ID on each. Dedupe on it per subscription.
+- `webhook-timestamp` and `webhook-signature` are computed again on every attempt. During a secret rotation, the signature header carries one signature per valid secret.
+- Redirects are never followed.
+- Deliveries and verification challenges connect directly. `DESTINATIONS_PROXY_URL` and `HTTP_PROXY`/`HTTPS_PROXY` don't apply, so the address check covers the address actually connected to.
+
+## Retries
+
+A `2xx` response is a success. Any other response, a network error or a refused address is a failed attempt and is retried on `MCP_RETRY_SCHEDULE` (`RETRY_SCHEDULE` and `MAX_RETRY_LIMIT` don't apply to `mcp`). A `3xx` is a failure with its status as the attempt code.
+
+These are not retried, and don't count toward auto-disabling the destination: a `410` or `413` response, and an event whose envelope exceeds 256 KiB (attempt code `payload_too_large`, no request sent).

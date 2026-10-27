@@ -72,7 +72,8 @@
           },
           { "slug": "destinations/rabbitmq", "title": "RabbitMQ" },
           { "slug": "destinations/kafka", "title": "Apache Kafka" },
-          { "slug": "destinations/cloudflare-queues", "title": "Cloudflare Queues" }
+          { "slug": "destinations/cloudflare-queues", "title": "Cloudflare Queues" },
+          { "slug": "destinations/mcp", "title": "MCP Events (Experimental)" }
         ]
       ]
     },
