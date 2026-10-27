@@ -100,6 +100,10 @@ type LogEntry struct {
 	Event       *Event       `json:"event"`
 	Attempt     *Attempt     `json:"attempt"`
 	Destination *Destination `json:"destination,omitempty"` // carried for alert evaluation in logmq; ignored by logstore
+
+	// Inputs to alert evaluation; not stored.
+	NonRetryable     bool `json:"non_retryable,omitempty"`
+	SkipFailureCount bool `json:"skip_failure_count,omitempty"`
 }
 
 var _ mqs.IncomingMessage = &LogEntry{}

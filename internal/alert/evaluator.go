@@ -19,6 +19,11 @@ type Attempt struct {
 	Number           int // 1-indexed attempt number
 	Success          bool
 	EligibleForRetry bool
+	// NonRetryable: no further automatic retry follows this failed attempt.
+	NonRetryable bool
+	// SkipFailureCount keeps a failed attempt out of the consecutive-failure
+	// count: it neither increments nor resets it.
+	SkipFailureCount bool
 }
 
 // Evaluation is the tracker's verdict on one attempt: one field per signal
@@ -131,7 +136,7 @@ func (e *Evaluator) Evaluate(ctx context.Context, attempt Attempt) (Evaluation, 
 
 	var eval Evaluation
 
-	if e.consecutiveFailureEnabled {
+	if e.consecutiveFailureEnabled && !attempt.SkipFailureCount {
 		count, err := e.store.IncrementConsecutiveFailureCount(ctx, attempt.TenantID, attempt.DestinationID, attempt.AttemptID)
 		if err != nil {
 			return Evaluation{}, fmt.Errorf("failed to track consecutive failures: %w", err)
@@ -147,9 +152,10 @@ func (e *Evaluator) Evaluate(ctx context.Context, attempt Attempt) (Evaluation, 
 
 	// Exhausted retries check (independent of consecutive failure thresholds).
 	// Attempt is 1-indexed: with retryMaxLimit=10, attempt 11 is the final one.
+	// A non-retryable failure ends the retry chain early, so it counts as exhausted.
 	// Skip if retryMaxLimit=0 (retries disabled — no exhausted state to report)
 	// or if the exhausted-retries signal is disabled.
-	if e.exhaustedRetriesEnabled && e.retryMaxLimit > 0 && attempt.EligibleForRetry && attempt.Number > e.retryMaxLimit {
+	if e.exhaustedRetriesEnabled && e.retryMaxLimit > 0 && attempt.EligibleForRetry && (attempt.NonRetryable || attempt.Number > e.retryMaxLimit) {
 		eval.RetriesExhausted = true
 	}
 
