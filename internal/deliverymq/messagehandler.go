@@ -194,6 +194,9 @@ type retryOutcome struct {
 	scheduleFailed bool
 	canceled       bool
 	cancelFailed   bool
+
+	nonRetryable     bool
+	skipFailureCount bool
 }
 
 func (h *messageHandler) doHandle(ctx context.Context, task models.DeliveryTask, destination *models.Destination) error {
@@ -220,7 +223,13 @@ func (h *messageHandler) doHandle(ctx context.Context, task models.DeliveryTask,
 
 		attemptErr := &AttemptError{err: err}
 
-		if h.shouldScheduleRetry(task, err) {
+		var pubErr *destregistry.ErrDestinationPublishAttempt
+		if errors.As(err, &pubErr) {
+			retry.nonRetryable = pubErr.NonRetryable
+			retry.skipFailureCount = pubErr.SkipFailureCount
+		}
+
+		if h.shouldScheduleRetry(task, pubErr) {
 			// scheduleRetry uses RetryID (event_id:destination_id) as the scheduler
 			// task ID. The scheduler has upsert semantics: scheduling with the same ID
 			// atomically replaces the existing entry (both timing and payload). This
@@ -235,7 +244,7 @@ func (h *messageHandler) doHandle(ctx context.Context, task models.DeliveryTask,
 			}
 			retry.scheduled = true
 		} else if task.Manual {
-			// Budget exhausted or not eligible — cancel any lingering scheduled retry.
+			// Budget exhausted, not eligible or non-retryable — cancel any lingering scheduled retry.
 			// Unlike the case above, there's no new retry to schedule so we must
 			// explicitly cancel to prevent a stale automatic retry from firing.
 			if cancelErr := h.retryScheduler.Cancel(ctx, models.RetryID(task.Event.ID, task.DestinationID)); cancelErr == nil {
@@ -306,12 +315,18 @@ func (h *messageHandler) logDeliveryResult(ctx context.Context, task *models.Del
 	if retry.cancelFailed {
 		fields = append(fields, zap.Bool("retry_cancel_failed", true))
 	}
+	if retry.nonRetryable {
+		fields = append(fields, zap.Bool("non_retryable", true))
+	}
 	logger.Info("delivery.attempted", fields...)
 
 	logEntry := models.LogEntry{
 		Event:       &task.Event,
 		Attempt:     attempt,
 		Destination: destination,
+
+		NonRetryable:     retry.nonRetryable,
+		SkipFailureCount: retry.skipFailureCount,
 	}
 	if logErr := h.logMQ.Publish(ctx, logEntry); logErr != nil {
 		logger.Error("failed to publish attempt log",
@@ -347,12 +362,11 @@ func (h *messageHandler) logDeliveryResult(ctx context.Context, task *models.Del
 	return nil
 }
 
-func (h *messageHandler) shouldScheduleRetry(task models.DeliveryTask, err error) bool {
+func (h *messageHandler) shouldScheduleRetry(task models.DeliveryTask, pubErr *destregistry.ErrDestinationPublishAttempt) bool {
 	if !task.Event.EligibleForRetry {
 		return false
 	}
-	var pubErr *destregistry.ErrDestinationPublishAttempt
-	if !errors.As(err, &pubErr) {
+	if pubErr == nil || pubErr.NonRetryable {
 		return false
 	}
 	// Attempt is 1-indexed: max attempts = 1 (initial) + retryMaxLimit (retries)

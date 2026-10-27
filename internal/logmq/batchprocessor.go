@@ -329,6 +329,9 @@ func (bp *BatchProcessor) processEntry(ctx context.Context, entry *models.LogEnt
 		Number:           entry.Attempt.AttemptNumber,
 		Success:          entry.Attempt.Status == models.AttemptStatusSuccess,
 		EligibleForRetry: entry.Event.EligibleForRetry,
+
+		NonRetryable:     entry.NonRetryable,
+		SkipFailureCount: entry.SkipFailureCount,
 	}
 
 	if attempt.Success {
