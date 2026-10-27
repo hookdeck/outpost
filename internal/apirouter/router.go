@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"reflect"
 	"strings"
+	"sync"
 
 	"fmt"
 
@@ -105,6 +106,8 @@ func buildMiddlewareChain(cfg RouterConfig, tenantRetriever TenantRetriever, def
 	return chain
 }
 
+var validatorTagNameOnce sync.Once
+
 func NewRouter(cfg RouterConfig, deps RouterDeps) http.Handler {
 	if err := deps.validate(); err != nil {
 		panic(err)
@@ -132,15 +135,17 @@ func NewRouter(cfg RouterConfig, deps RouterDeps) http.Handler {
 	r.Use(ErrorHandlerMiddleware())
 	r.Use(RequestBodyLimitMiddleware())
 
-	if v, ok := binding.Validator.Engine().(*validator.Validate); ok {
-		v.RegisterTagNameFunc(func(fld reflect.StructField) string {
-			name := strings.SplitN(fld.Tag.Get("json"), ",", 2)[0]
-			if name == "-" {
-				return ""
-			}
-			return name
-		})
-	}
+	validatorTagNameOnce.Do(func() {
+		if v, ok := binding.Validator.Engine().(*validator.Validate); ok {
+			v.RegisterTagNameFunc(func(fld reflect.StructField) string {
+				name := strings.SplitN(fld.Tag.Get("json"), ",", 2)[0]
+				if name == "-" {
+					return ""
+				}
+				return name
+			})
+		}
+	})
 
 	portal.AddRoutes(r, cfg.PortalConfig, func(c *gin.Context) {
 		AbortWithError(c, http.StatusNotFound, ErrorResponse{Code: http.StatusNotFound, Message: "not found"})
