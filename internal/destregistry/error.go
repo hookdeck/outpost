@@ -27,6 +27,10 @@ type ErrDestinationPublishAttempt struct {
 	Err      error
 	Provider string
 	Data     map[string]interface{}
+	// NonRetryable: no automatic retry is scheduled for this failure.
+	NonRetryable bool
+	// SkipFailureCount: the failure is left out of the consecutive-failure count.
+	SkipFailureCount bool
 }
 
 var _ error = &ErrDestinationPublishAttempt{}
