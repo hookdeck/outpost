@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/util/testutil"
@@ -989,4 +990,16 @@ func TestEvent_ParsedData_NilData_ReturnsNil(t *testing.T) {
 	parsed, err := event.ParsedData()
 	assert.NoError(t, err)
 	assert.Nil(t, parsed)
+}
+
+func TestDestination_IsExpired(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now()
+	at := func(d time.Duration) *time.Time { t := now.Add(d); return &t }
+
+	assert.False(t, (&models.Destination{}).IsExpired(now))
+	assert.False(t, (&models.Destination{ExpiresAt: at(time.Second)}).IsExpired(now))
+	assert.True(t, (&models.Destination{ExpiresAt: at(0)}).IsExpired(now))
+	assert.True(t, (&models.Destination{ExpiresAt: at(-time.Second)}).IsExpired(now))
 }
