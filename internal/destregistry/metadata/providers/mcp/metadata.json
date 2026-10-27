@@ -1,0 +1,58 @@
+{
+  "type": "mcp",
+  "config_fields": [
+    {
+      "key": "url",
+      "type": "text",
+      "label": "Callback URL",
+      "description": "The HTTPS URL events are delivered to. It must answer a verification challenge before the subscription is created.",
+      "required": true
+    },
+    {
+      "key": "principal",
+      "type": "text",
+      "label": "Principal",
+      "description": "The authenticated subject the subscription belongs to. Callback verification is cached per principal and URL.",
+      "required": false,
+      "maxlength": 512
+    },
+    {
+      "key": "arguments",
+      "type": "text",
+      "label": "Arguments",
+      "description": "The subscription arguments, as canonical JSON. Stored with the subscription.",
+      "required": false,
+      "maxlength": 4096
+    }
+  ],
+  "credential_fields": [
+    {
+      "key": "secret",
+      "type": "text",
+      "label": "Secret",
+      "description": "Standard Webhooks signing secret: whsec_ followed by base64 of 24 to 64 bytes.",
+      "required": true,
+      "sensitive": true
+    },
+    {
+      "key": "previous_secret",
+      "type": "text",
+      "label": "Previous Secret",
+      "description": "The secret rotated away from. Deliveries are also signed with it for 24 hours.",
+      "required": false,
+      "disabled": true,
+      "sensitive": true
+    },
+    {
+      "key": "previous_secret_invalid_at",
+      "type": "text",
+      "label": "Previous Secret Expires At",
+      "description": "When the previous secret stops signing deliveries, in RFC 3339 format.",
+      "required": false,
+      "disabled": true
+    }
+  ],
+  "label": "MCP Events",
+  "description": "Experimental. Deliver events to MCP Events webhook subscriptions.",
+  "icon": "<svg width=\"16\" height=\"16\" viewBox=\"0 0 16 16\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M2.5 7.8L8 2.3a2 2 0 0 1 2.8 2.8L6.6 9.3\" stroke=\"#7A786E\" stroke-width=\"1.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/><path d=\"M6.7 9.2L11 4.9a2 2 0 0 1 2.8 2.8l-5 5a.6.6 0 0 0 0 .85l1 1\" stroke=\"#7A786E\" stroke-width=\"1.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/><path d=\"M9.4 3.5L5.2 7.7a2 2 0 0 0 2.8 2.8l4.2-4.2\" stroke=\"#7A786E\" stroke-width=\"1.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg>"
+}
