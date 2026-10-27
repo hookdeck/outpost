@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/hookdeck/outpost/internal/netguard"
 	"github.com/hookdeck/outpost/internal/proxychain"
 )
 
@@ -34,12 +35,18 @@ type HTTPClientConfig struct {
 	// underlying connection was reused. This is the signal that the pool
 	// ceiling is binding.
 	OnConnection func(reused bool)
+
+	// Guard, if set, limits connections to addresses it allows and ignores
+	// HTTP_PROXY/HTTPS_PROXY. Through a forward proxy only the target URL is
+	// checked, so the proxy must refuse private addresses itself.
+	Guard *netguard.Guard
 }
 
 func (c HTTPClientConfig) needsTransport() bool {
 	return len(c.Proxy) > 0 ||
 		c.UserAgent != nil ||
 		c.OnConnection != nil ||
+		c.Guard != nil ||
 		c.Pool.MaxIdleConns > 0 ||
 		c.Pool.MaxIdleConnsPerHost > 0
 }
@@ -65,6 +72,11 @@ func NewHTTPClient(config HTTPClientConfig) (*http.Client, error) {
 		transport.MaxIdleConnsPerHost = config.Pool.MaxIdleConnsPerHost
 	}
 
+	if config.Guard != nil && len(config.Proxy) == 0 {
+		transport.Proxy = nil
+		transport.DialContext = config.Guard.DialContext
+	}
+
 	var rt http.RoundTripper = transport
 
 	if n := len(config.Proxy); n > 0 {
@@ -78,6 +90,10 @@ func NewHTTPClient(config HTTPClientConfig) (*http.Client, error) {
 		if config.WrapTransport != nil {
 			rt = config.WrapTransport(transport, last)
 		}
+	}
+
+	if config.Guard != nil && len(config.Proxy) > 0 {
+		rt = config.Guard.WrapTransport(rt)
 	}
 
 	if config.UserAgent != nil {
