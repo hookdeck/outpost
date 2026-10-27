@@ -1,10 +1,12 @@
 package destregistrydefault_test
 
 import (
+	"net/http"
 	"testing"
 
 	"github.com/hookdeck/outpost/internal/destregistry"
 	destregistrydefault "github.com/hookdeck/outpost/internal/destregistry/providers"
+	"github.com/hookdeck/outpost/internal/destregistry/providers/destmcp"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destwebhook"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/util/testutil"
@@ -134,4 +136,33 @@ func TestWebhookEnvProxyIgnored(t *testing.T) {
 	off := on("")
 	off.BlockPrivateAddresses = false
 	assert.False(t, destregistrydefault.WebhookEnvProxyIgnored(off))
+}
+
+func TestRegisterDefault_MCPIsOptIn(t *testing.T) {
+	types := func(r destregistry.Registry) []string {
+		var out []string
+		for _, m := range r.ListProviderMetadata() {
+			out = append(out, m.Type)
+		}
+		return out
+	}
+
+	webhook := &destregistrydefault.DestWebhookConfig{
+		HeaderPrefix:             destwebhook.DefaultHeaderPrefix,
+		SignatureContentTemplate: destwebhook.DefaultSignatureContentTmpl,
+		SignatureHeaderTemplate:  destwebhook.DefaultSignatureHeaderTmpl,
+		SignatureEncoding:        destwebhook.DefaultEncoding,
+		SignatureAlgorithm:       destwebhook.DefaultAlgorithm,
+		SigningSecretTemplate:    destwebhook.DefaultSigningSecretTmpl,
+	}
+	off := destregistry.NewRegistry(&destregistry.Config{}, testutil.CreateTestLogger(t))
+	require.NoError(t, destregistrydefault.RegisterDefault(off, destregistrydefault.RegisterDefaultDestinationOptions{Webhook: webhook, AWSEventBridge: &destregistrydefault.DestAWSEventBridgeConfig{Source: "outpost"}}))
+	assert.NotContains(t, types(off), "mcp")
+	_, err := off.ResolveProvider(&models.Destination{Type: "mcp"})
+	assert.Error(t, err)
+
+	on := destregistry.NewRegistry(&destregistry.Config{}, testutil.CreateTestLogger(t))
+	require.NoError(t, destregistrydefault.RegisterDefault(on, destregistrydefault.RegisterDefaultDestinationOptions{Webhook: webhook, AWSEventBridge: &destregistrydefault.DestAWSEventBridgeConfig{Source: "outpost"}, MCP: &destmcp.Config{Client: &http.Client{}}}))
+	assert.Contains(t, types(on), "mcp")
+	assert.Equal(t, types(off), types(on)[:len(types(off))], "mcp is listed last")
 }

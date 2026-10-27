@@ -84,6 +84,15 @@ func WithExhaustedRetriesEnabled(enabled bool) Option {
 	}
 }
 
+// WithPerAttemptRetryLimits declares that attempts carry their own retry limit
+// (Attempt.AttemptMax), so exhausted retries can fire even when the global
+// retry limit is 0.
+func WithPerAttemptRetryLimits() Option {
+	return func(e *Evaluator) {
+		e.perAttemptRetryLimits = true
+	}
+}
+
 // Evaluator evaluates delivery attempts against the destination's failure
 // history and returns the resulting signals as data.
 type Evaluator struct {
@@ -96,6 +105,7 @@ type Evaluator struct {
 
 	consecutiveFailureEnabled bool
 	exhaustedRetriesEnabled   bool
+	perAttemptRetryLimits     bool
 }
 
 // NewEvaluator creates a new alert evaluator on the given store.
@@ -118,10 +128,11 @@ func NewEvaluator(store AlertStore, retryMaxLimit int, opts ...Option) *Evaluato
 }
 
 // SignalsEnabled reports whether any signal can ever fire: consecutive-failure
-// tracking, or exhausted-retries with a positive retry limit. When false,
+// tracking, or exhausted-retries with a positive retry limit (global, or per
+// attempt). When false,
 // Evaluate never touches the store and always returns an empty verdict.
 func (e *Evaluator) SignalsEnabled() bool {
-	return e.consecutiveFailureEnabled || (e.exhaustedRetriesEnabled && e.retryMaxLimit > 0)
+	return e.consecutiveFailureEnabled || (e.exhaustedRetriesEnabled && (e.retryMaxLimit > 0 || e.perAttemptRetryLimits))
 }
 
 func (e *Evaluator) Evaluate(ctx context.Context, attempt Attempt) (Evaluation, error) {
