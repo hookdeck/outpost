@@ -22,6 +22,7 @@ import (
 	"github.com/hookdeck/outpost/internal/telemetry"
 	"github.com/hookdeck/outpost/internal/tenantstore"
 	"github.com/hookdeck/outpost/internal/util/testutil"
+	"github.com/hookdeck/outpost/internal/workloadidentity"
 	"go.uber.org/zap"
 )
 
@@ -66,6 +67,7 @@ type apiTestConfig struct {
 	apiKey               string
 	topics               []string
 	topicsAllowWildcards bool
+	workloadIdentity     *workloadidentity.Issuer
 	deploymentID         string
 }
 
@@ -114,6 +116,12 @@ func withTopics(topics []string) apiTestOption {
 func withTopicsAllowWildcards(allow bool) apiTestOption {
 	return func(cfg *apiTestConfig) {
 		cfg.topicsAllowWildcards = allow
+	}
+}
+
+func withWorkloadIdentity(issuer *workloadidentity.Issuer) apiTestOption {
+	return func(cfg *apiTestConfig) {
+		cfg.workloadIdentity = issuer
 	}
 }
 
@@ -168,6 +176,7 @@ func newAPITest(t *testing.T, opts ...apiTestOption) *apiTest {
 			TopicsAllowWildcards: cfg.topicsAllowWildcards,
 			Registry:             registry,
 			PortalConfig:         portal.PortalConfig{},
+			WorkloadIdentity:     cfg.workloadIdentity,
 		},
 		apirouter.RouterDeps{
 			TenantStore:         ts,

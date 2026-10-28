@@ -39,6 +39,7 @@ const handleCopy = (value: string) => {
 export const CopyButton = ({ value }: CopyButtonProps) => {
   return (
     <button
+      type="button"
       onClick={() => handleCopy(value)}
       className="unstyled-button"
       aria-label="Copy to clipboard"
