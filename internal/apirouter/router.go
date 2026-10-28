@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"reflect"
 	"strings"
-	"sync"
 
 	"fmt"
 
@@ -106,8 +105,18 @@ func buildMiddlewareChain(cfg RouterConfig, tenantRetriever TenantRetriever, def
 	return chain
 }
 
-// gin's binding.Validator is shared by the process: register the tag name func once.
-var validatorTagNameOnce sync.Once
+// gin's binding.Validator is shared by the process, so its tag name func is set once here, not per router.
+func init() {
+	if v, ok := binding.Validator.Engine().(*validator.Validate); ok {
+		v.RegisterTagNameFunc(func(fld reflect.StructField) string {
+			name := strings.SplitN(fld.Tag.Get("json"), ",", 2)[0]
+			if name == "-" {
+				return ""
+			}
+			return name
+		})
+	}
+}
 
 func NewRouter(cfg RouterConfig, deps RouterDeps) http.Handler {
 	if err := deps.validate(); err != nil {
@@ -135,18 +144,6 @@ func NewRouter(cfg RouterConfig, deps RouterDeps) http.Handler {
 	// Application logic
 	r.Use(ErrorHandlerMiddleware())
 	r.Use(RequestBodyLimitMiddleware())
-
-	validatorTagNameOnce.Do(func() {
-		if v, ok := binding.Validator.Engine().(*validator.Validate); ok {
-			v.RegisterTagNameFunc(func(fld reflect.StructField) string {
-				name := strings.SplitN(fld.Tag.Get("json"), ",", 2)[0]
-				if name == "-" {
-					return ""
-				}
-				return name
-			})
-		}
-	})
 
 	portal.AddRoutes(r, cfg.PortalConfig, func(c *gin.Context) {
 		AbortWithError(c, http.StatusNotFound, ErrorResponse{Code: http.StatusNotFound, Message: "not found"})
