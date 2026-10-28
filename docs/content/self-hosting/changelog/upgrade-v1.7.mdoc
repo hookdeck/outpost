@@ -1,0 +1,42 @@
+---
+title: "Upgrade to v1.7"
+description: "Breaking changes and behavior changes when upgrading Outpost from v1.6 to v1.7."
+---
+
+This guide covers what changes when upgrading from v1.6 to v1.7. There is one breaking change and four behavior changes to review before upgrading.
+
+There are no new PostgreSQL or ClickHouse migrations. Upgrade by replacing the image in place, with no extra steps. Retries scheduled by v1.6 run normally on v1.7, and you can roll back to v1.6.0 the same way.
+
+| Change | Impact | Action Required |
+| --- | --- | --- |
+| [Redis and message queue OpenTelemetry instrumentation is off by default](#redis-and-message-queue-opentelemetry-instrumentation-is-off-by-default) | Deployments that export OpenTelemetry traces or metrics | Set `OTEL_ENABLED_INSTRUMENTATIONS=redis,mq` to keep them |
+
+For new features and fixes, see the [v1.7.0 release notes](https://github.com/hookdeck/outpost/releases/tag/v1.7.0).
+
+## Breaking Changes
+
+### Redis and message queue OpenTelemetry instrumentation is off by default
+
+With OpenTelemetry enabled, Outpost no longer exports Redis command spans or internal message queue client spans and metrics. Outpost's own traces and metrics, and the HTTP server spans, are unchanged. Without `OTEL_SERVICE_NAME` set, nothing changes.
+
+To export them again, set `OTEL_ENABLED_INSTRUMENTATIONS=redis,mq`, or only one of the two values, for example `OTEL_ENABLED_INSTRUMENTATIONS=redis`. Any other value fails startup. See [Observability](/docs/outpost/self-hosting/configuration#observability).
+
+The GCP Pub/Sub destination's gRPC spans and metrics are no longer exported either, and no setting turns them back on.
+
+## Behavior Changes
+
+- Retry delays shorter than `LOG_BATCH_THRESHOLD_SECONDS` (default `10`) are raised to it. This affects `RETRY_SCHEDULE` steps and a `RETRY_INTERVAL_SECONDS` below it; the default retry timing (`RETRY_INTERVAL_SECONDS=30`) is unchanged. Outpost logs a warning at startup that lists the affected delays. See [Automatic retries](/docs/outpost/features/event-delivery#automatic-retries).
+- At most `RETRY_MAX_CONCURRENCY` retries (default `100`) start at once per process. v1.6 had no limit; set it to `0` to keep it that way.
+- A tenant JWT whose `deployment_id` claim doesn't match `DEPLOYMENT_ID` is rejected with `401`. Tokens issued by Outpost and tokens without the claim keep working.
+- A path or query parameter containing a NUL character or invalid UTF-8 returns `400`, where the PostgreSQL log store returned `500`.
+
+## New Configuration
+
+See the [configuration reference](/docs/outpost/self-hosting/configuration) for defaults and details.
+
+- [`RETRY_MAX_CONCURRENCY`](/docs/outpost/self-hosting/configuration#delivery): limit concurrent retry starts.
+- [`RETRY_MAX_RECEIVE_COUNT`](/docs/outpost/self-hosting/configuration#delivery): failed retry starts before the retry moves to the dead-letter queue. v1.6 fixed this at `5`, which stays the default.
+- [`RETRY_LOOKUP_BATCH_SIZE`](/docs/outpost/self-hosting/configuration#delivery) and `RETRY_LOOKUP_BATCH_WAIT_MS`: combine retry lookups into fewer log store queries. Off by default.
+- [`CLICKHOUSE_MAX_OPEN_CONNS`](/docs/outpost/self-hosting/configuration#log-storage), `CLICKHOUSE_DIAL_TIMEOUT_SECONDS` and `CLICKHOUSE_READ_TIMEOUT_SECONDS`: ClickHouse connection pool size and timeouts. The defaults match v1.6.
+- [`OTEL_ENABLED_INSTRUMENTATIONS`](/docs/outpost/self-hosting/configuration#observability): opt in to Redis and message queue instrumentation.
+- [`DESTINATIONS_WEBHOOK_TIMESTAMP_FORMAT`](/docs/outpost/self-hosting/configuration#webhook-behavior) accepts `iso8601_milli_no_offset`.

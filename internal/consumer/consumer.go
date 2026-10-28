@@ -205,7 +205,9 @@ recvLoop:
 	return subscriptionErr
 }
 
-// runWithSemaphore limits concurrency via a channel-based semaphore.
+// runWithSemaphore limits concurrency via a channel-based semaphore. The slot
+// is taken before receiving: a received message must not wait for a handler
+// while its visibility timeout runs.
 func (c *consumerImpl) runWithSemaphore(ctx context.Context) error {
 	tracer := otel.GetTracerProvider().Tracer("github.com/hookdeck/outpost/internal/consumer")
 
@@ -215,15 +217,16 @@ func (c *consumerImpl) runWithSemaphore(ctx context.Context) error {
 	sem := make(chan struct{}, c.concurrency)
 recvLoop:
 	for {
-		msg, err := c.receiveWithRetry(ctx, &consecutiveErrors)
-		if err != nil {
-			subscriptionErr = err
-			break recvLoop
-		}
-
 		select {
 		case sem <- struct{}{}:
 		case <-ctx.Done():
+			break recvLoop
+		}
+
+		msg, err := c.receiveWithRetry(ctx, &consecutiveErrors)
+		if err != nil {
+			<-sem
+			subscriptionErr = err
 			break recvLoop
 		}
 

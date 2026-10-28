@@ -8,6 +8,7 @@ import (
 
 	"github.com/hookdeck/outpost/internal/mqs"
 	"github.com/hookdeck/outpost/internal/opevents"
+	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -19,7 +20,9 @@ func TestMQSink_Send(t *testing.T) {
 		t.Parallel()
 		ctx := context.Background()
 
-		queue := mqs.NewInMemoryQueue(&mqs.InMemoryConfig{Name: "opevents-test-send"})
+		// mempubsub topics are process-global and Close shuts this one down,
+		// so a fixed name breaks the next run in the same process (-count, -cpu).
+		queue := mqs.NewInMemoryQueue(&mqs.InMemoryConfig{Name: "opevents-test-" + testutil.RandomString(16)})
 		sink := opevents.NewMQSink(queue)
 
 		require.NoError(t, sink.Init(ctx))

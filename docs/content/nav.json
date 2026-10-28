@@ -244,6 +244,10 @@
         "sections": [
           [
             {
+              "slug": "self-hosting/changelog/upgrade-v1.7",
+              "title": "Upgrade to v1.7"
+            },
+            {
               "slug": "self-hosting/changelog/upgrade-v1.6",
               "title": "Upgrade to v1.6"
             },
