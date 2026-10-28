@@ -36,7 +36,7 @@ func TestCharacterization_SlowEvalDoesNotBlockPersistence(t *testing.T) {
 		cmSlow, msgSlow := newCountingMessage(makeEntry(dest, tenant, "att_pp1_1", models.AttemptStatusFailed))
 		h.add(msgSlow)
 		synctest.Wait()
-		require.True(t, h.eval.blockedEvals() >= 1)
+		require.GreaterOrEqual(t, h.eval.blockedEvals(), int32(1), "the slow eval should reach the block")
 
 		// Batch 2: same destination — persists AND acks while batch 1's eval hangs.
 		cmNext, msgNext := newCountingMessage(makeEntry(dest, tenant, "att_pp1_2", models.AttemptStatusSuccess))
@@ -74,7 +74,7 @@ func TestCharacterization_SameDestEvalsRunIndependently(t *testing.T) {
 		cm1, msg1 := newCountingMessage(makeEntry(dest, tenant, "att_pp3_1", models.AttemptStatusFailed))
 		h.add(msg1)
 		synctest.Wait()
-		require.True(t, h.eval.blockedEvals() >= 1)
+		require.GreaterOrEqual(t, h.eval.blockedEvals(), int32(1))
 
 		// The same destination's next attempt does not wait for the blocked eval:
 		// it counts 1 (50%), alerts, and acks.
@@ -110,7 +110,7 @@ func TestCharacterization_ShutdownDrainsPostprocess(t *testing.T) {
 		cm, msg := newCountingMessage(makeEntry("dest_pp4", "tenant_pp4", "att_pp4", models.AttemptStatusFailed))
 		h.add(msg)
 		synctest.Wait()
-		require.True(t, h.eval.blockedEvals() >= 1)
+		require.GreaterOrEqual(t, h.eval.blockedEvals(), int32(1))
 
 		// Release while Shutdown is waiting on the drain.
 		go func() {

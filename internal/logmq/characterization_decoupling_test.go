@@ -37,7 +37,7 @@ func TestCharacterization_SlowDeliveryDoesNotBlockPersistence(t *testing.T) {
 
 		// Wait until the delivery is actually blocked inside the sink.
 		synctest.Wait()
-		require.True(t, h.sink.inflightSends() >= 1)
+		require.GreaterOrEqual(t, h.sink.inflightSends(), int32(1), "the slow delivery should reach the sink")
 
 		// Batch 2: a plain success — persists and acks while batch 1's send hangs.
 		cmOK, msgOK := newCountingMessage(makeEntry("dest_d1_ok", tenant, "att_ok", models.AttemptStatusSuccess))
@@ -85,7 +85,7 @@ func TestCharacterization_HotDestinationDeliversInParallel(t *testing.T) {
 		// All three sends block in the sink AT THE SAME TIME — same destination,
 		// different goroutines.
 		synctest.Wait()
-		require.True(t, h.sink.inflightSends() >= 3)
+		require.GreaterOrEqual(t, h.sink.inflightSends(), int32(3), "the destination's deliveries should run concurrently")
 
 		h.sink.release()
 		h.waitTerminal(msgs)
@@ -114,7 +114,7 @@ func TestCharacterization_ShutdownDrainsDeliveries(t *testing.T) {
 		cm, msg := newCountingMessage(makeEntry("dest_d3", "tenant_d3", "att_drain", models.AttemptStatusFailed))
 		h.add(msg)
 		synctest.Wait()
-		require.True(t, h.sink.inflightSends() >= 1)
+		require.GreaterOrEqual(t, h.sink.inflightSends(), int32(1))
 
 		// Release while Shutdown is waiting on the drain.
 		go func() {
