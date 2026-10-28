@@ -3,14 +3,10 @@ package apirouter
 import (
 	"errors"
 	"net/http"
-	"reflect"
-	"strings"
 
 	"fmt"
 
 	"github.com/gin-gonic/gin"
-	"github.com/gin-gonic/gin/binding"
-	"github.com/go-playground/validator/v10"
 	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/logstore"
@@ -131,16 +127,6 @@ func NewRouter(cfg RouterConfig, deps RouterDeps) http.Handler {
 	// Application logic
 	r.Use(ErrorHandlerMiddleware())
 	r.Use(RequestBodyLimitMiddleware())
-
-	if v, ok := binding.Validator.Engine().(*validator.Validate); ok {
-		v.RegisterTagNameFunc(func(fld reflect.StructField) string {
-			name := strings.SplitN(fld.Tag.Get("json"), ",", 2)[0]
-			if name == "-" {
-				return ""
-			}
-			return name
-		})
-	}
 
 	portal.AddRoutes(r, cfg.PortalConfig, func(c *gin.Context) {
 		AbortWithError(c, http.StatusNotFound, ErrorResponse{Code: http.StatusNotFound, Message: "not found"})
