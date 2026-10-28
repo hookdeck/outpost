@@ -3,14 +3,10 @@ package apirouter
 import (
 	"errors"
 	"net/http"
-	"reflect"
-	"strings"
 
 	"fmt"
 
 	"github.com/gin-gonic/gin"
-	"github.com/gin-gonic/gin/binding"
-	"github.com/go-playground/validator/v10"
 	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/logstore"
@@ -103,19 +99,6 @@ func buildMiddlewareChain(cfg RouterConfig, tenantRetriever TenantRetriever, def
 	chain = append(chain, def.Handler)
 
 	return chain
-}
-
-// gin's binding.Validator is shared by the process, so its tag name func is set once here, not per router.
-func init() {
-	if v, ok := binding.Validator.Engine().(*validator.Validate); ok {
-		v.RegisterTagNameFunc(func(fld reflect.StructField) string {
-			name := strings.SplitN(fld.Tag.Get("json"), ",", 2)[0]
-			if name == "-" {
-				return ""
-			}
-			return name
-		})
-	}
 }
 
 func NewRouter(cfg RouterConfig, deps RouterDeps) http.Handler {
