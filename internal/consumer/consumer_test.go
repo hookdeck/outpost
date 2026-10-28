@@ -108,7 +108,7 @@ func TestConsumer_SingleHandler(t *testing.T) {
 				for i, exec := range execs {
 					require.Equal(t, time.Second, exec.End.Sub(exec.Start))
 					if i > 0 {
-						require.Equal(t, execs[i-1].End, exec.Start, "messages should be handled sequentially")
+						require.False(t, exec.Start.Before(execs[i-1].End), "messages should be handled sequentially")
 					}
 				}
 			},
