@@ -75,7 +75,9 @@ func (c *consumerTest) run(t *testing.T) {
 	err := <-errchan
 	execs := <-consumerExecchan
 	cleanup()
-	// mempubsub's receive loop sleeps 250ms between polls and ignores ctx; wait for it to exit before the bubble ends.
+	// Wait for cleanup: mempubsub's receive loop sleeps 250ms between polls and ignores ctx,
+	// and synctest stops advancing time once this function returns, so it would never exit.
+	// The sleep costs no real time: it only advances the bubble's fake clock.
 	time.Sleep(time.Second)
 
 	c.assert(t, c.ctx, execs, err)
