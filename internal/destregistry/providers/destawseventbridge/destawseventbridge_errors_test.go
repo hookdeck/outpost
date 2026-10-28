@@ -37,6 +37,16 @@ func publishTo(t *testing.T, ctx context.Context, endpoint string) (*destregistr
 	return publisher.Publish(ctx, &event)
 }
 
+func assertFailed(t *testing.T, delivery *destregistry.Delivery, err error) {
+	t.Helper()
+	var publishErr *destregistry.ErrDestinationPublishAttempt
+	require.ErrorAs(t, err, &publishErr)
+	assert.Equal(t, "aws_eventbridge", publishErr.Provider)
+	require.NotNil(t, delivery)
+	assert.Equal(t, "failed", delivery.Status)
+	assert.Equal(t, "ERR", delivery.Code)
+}
+
 func TestAWSEventBridgePublisher_Errors(t *testing.T) {
 	t.Parallel()
 
@@ -49,16 +59,6 @@ func TestAWSEventBridgePublisher_Errors(t *testing.T) {
 		}))
 		t.Cleanup(server.Close)
 		return server.URL
-	}
-
-	assertFailed := func(t *testing.T, delivery *destregistry.Delivery, err error) {
-		t.Helper()
-		var publishErr *destregistry.ErrDestinationPublishAttempt
-		require.ErrorAs(t, err, &publishErr)
-		assert.Equal(t, "aws_eventbridge", publishErr.Provider)
-		require.NotNil(t, delivery)
-		assert.Equal(t, "failed", delivery.Status)
-		assert.Equal(t, "ERR", delivery.Code)
 	}
 
 	// AWS spells the message key of an error body "message" or "Message"
@@ -110,15 +110,6 @@ func TestAWSEventBridgePublisher_Errors(t *testing.T) {
 		assert.Contains(t, delivery.Response["error"], "entry rejected")
 	})
 
-	t.Run("unreachable endpoint reports the connection error", func(t *testing.T) {
-		t.Parallel()
-		delivery, err := publishTo(t, context.Background(), "http://127.0.0.1:1")
-
-		assertFailed(t, delivery, err)
-		assert.NotContains(t, delivery.Response, "error_code")
-		assert.Contains(t, delivery.Response["error"], "connection refused")
-	})
-
 	t.Run("timeout reports the deadline", func(t *testing.T) {
 		t.Parallel()
 		release := make(chan struct{})
@@ -136,4 +127,15 @@ func TestAWSEventBridgePublisher_Errors(t *testing.T) {
 		assert.NotContains(t, delivery.Response, "error_code")
 		assert.Contains(t, delivery.Response["error"], "context deadline exceeded")
 	})
+}
+
+// AWS_MAX_ATTEMPTS=1 skips the SDK's retry backoff on connection refused;
+// t.Setenv rules out t.Parallel.
+func TestAWSEventBridgePublisher_UnreachableEndpoint(t *testing.T) {
+	t.Setenv("AWS_MAX_ATTEMPTS", "1")
+	delivery, err := publishTo(t, context.Background(), "http://127.0.0.1:1")
+
+	assertFailed(t, delivery, err)
+	assert.NotContains(t, delivery.Response, "error_code")
+	assert.Contains(t, delivery.Response["error"], "connection refused")
 }
