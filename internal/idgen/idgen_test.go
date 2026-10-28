@@ -10,8 +10,8 @@ import (
 // restoreGenerator puts the package-global generator back after a test that
 // calls Configure, so tests don't depend on the order they run in.
 func restoreGenerator(tb testing.TB) {
-	prev := globalGenerator
-	tb.Cleanup(func() { globalGenerator = prev })
+	prev := globalGenerator.Load()
+	tb.Cleanup(func() { globalGenerator.Store(prev) })
 }
 
 func TestConfigure(t *testing.T) {
