@@ -1300,6 +1300,11 @@ func TestWebhookPublisher_DoesNotFollowRedirects(t *testing.T) {
 				assert.Equal(t, "failed", delivery.Status)
 				assert.Equal(t, fmt.Sprintf("%d", code), delivery.Code)
 				assert.Zero(t, targetHits.Load())
+				if tc.withLocation {
+					assert.Equal(t, target.URL, delivery.Response["location"])
+				} else {
+					assert.NotContains(t, delivery.Response, "location")
+				}
 			})
 		}
 	}

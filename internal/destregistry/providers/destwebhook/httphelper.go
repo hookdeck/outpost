@@ -11,6 +11,8 @@ import (
 	"github.com/hookdeck/outpost/internal/destregistry"
 )
 
+const maxLocationBytes = 2048
+
 // HTTPRequestResult contains the result of an HTTP request execution.
 type HTTPRequestResult struct {
 	// Delivery is the delivery result.
@@ -194,5 +196,13 @@ func ParseHTTPResponse(delivery *destregistry.Delivery, resp *http.Response, max
 	delivery.Response = map[string]interface{}{
 		"status": resp.StatusCode,
 		"body":   body,
+	}
+	if resp.StatusCode >= 300 && resp.StatusCode < 400 {
+		if loc := resp.Header.Get("Location"); loc != "" {
+			if len(loc) > maxLocationBytes {
+				loc = loc[:maxLocationBytes]
+			}
+			delivery.Response["location"] = loc
+		}
 	}
 }

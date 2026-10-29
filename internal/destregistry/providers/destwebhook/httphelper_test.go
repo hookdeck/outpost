@@ -97,3 +97,39 @@ func TestExecuteHTTPRequest_RedirectIsFailure(t *testing.T) {
 		})
 	}
 }
+
+func TestParseHTTPResponse_Location(t *testing.T) {
+	t.Parallel()
+
+	long := "https://example.com/" + strings.Repeat("a", 5000)
+	tests := []struct {
+		name     string
+		status   int
+		location string
+		want     any
+	}{
+		{"3xx with location", 302, "https://example.com/new", "https://example.com/new"},
+		{"3xx without location", 300, "", nil},
+		{"3xx location is capped", 301, long, long[:2048]},
+		{"2xx ignores location", 200, "https://example.com/new", nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			header := http.Header{}
+			if tt.location != "" {
+				header.Set("Location", tt.location)
+			}
+			resp := &http.Response{StatusCode: tt.status, Header: header, Body: io.NopCloser(strings.NewReader(""))}
+			delivery := &destregistry.Delivery{}
+			destwebhook.ParseHTTPResponse(delivery, resp, 0)
+
+			if tt.want == nil {
+				assert.NotContains(t, delivery.Response, "location")
+				return
+			}
+			assert.Equal(t, tt.want, delivery.Response["location"])
+		})
+	}
+}
