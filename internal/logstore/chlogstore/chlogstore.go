@@ -843,6 +843,7 @@ func (s *logStoreImpl) InsertMany(ctx context.Context, entries []*models.LogEntr
 		if err != nil {
 			return fmt.Errorf("prepare events batch failed: %w", err)
 		}
+		defer eventBatch.Close()
 
 		for _, e := range eventMap {
 			// Normalize nil metadata to an empty object so it round-trips as
@@ -888,6 +889,7 @@ func (s *logStoreImpl) InsertMany(ctx context.Context, entries []*models.LogEntr
 	if err != nil {
 		return fmt.Errorf("prepare attempts batch failed: %w", err)
 	}
+	defer attemptBatch.Close()
 
 	for _, entry := range entries {
 		event := entry.Event
