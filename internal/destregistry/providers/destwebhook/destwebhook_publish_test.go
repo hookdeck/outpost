@@ -1248,8 +1248,15 @@ func TestWebhookPublisher_DoesNotFollowRedirects(t *testing.T) {
 	secrets := map[string]string{"default": "test-secret", "standard": standardSecret}
 
 	for mode, opts := range modes {
-		for _, code := range []int{301, 302, 303, 307, 308} {
-			t.Run(fmt.Sprintf("%s/%d", mode, code), func(t *testing.T) {
+		for _, tc := range []struct {
+			code         int
+			withLocation bool
+		}{
+			{300, true}, {301, true}, {302, true}, {303, true}, {304, true}, {307, true}, {308, true},
+			{300, false}, {302, false}, {304, false},
+		} {
+			code := tc.code
+			t.Run(fmt.Sprintf("%s/%d/location=%t", mode, code, tc.withLocation), func(t *testing.T) {
 				t.Parallel()
 
 				var targetHits atomic.Int32
@@ -1260,7 +1267,10 @@ func TestWebhookPublisher_DoesNotFollowRedirects(t *testing.T) {
 				defer target.Close()
 
 				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					http.Redirect(w, r, target.URL, code)
+					if tc.withLocation {
+						w.Header().Set("Location", target.URL)
+					}
+					w.WriteHeader(code)
 				}))
 				defer server.Close()
 
