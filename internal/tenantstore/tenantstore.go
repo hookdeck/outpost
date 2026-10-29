@@ -30,6 +30,9 @@ var (
 	ErrConflictingCursors              = driver.ErrConflictingCursors
 )
 
+// MaxDestinationWriteAttempts bounds read-modify-write retries on UpdateDestination conflicts.
+const MaxDestinationWriteAttempts = 3
+
 // Config holds the configuration for creating a TenantStore.
 type Config struct {
 	RedisClient              redis.Cmdable

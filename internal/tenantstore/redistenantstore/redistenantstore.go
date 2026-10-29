@@ -237,7 +237,7 @@ const (
 	deleteTenantRetry    = 1
 	deleteTenantNotFound = 4
 
-	maxDeleteTenantAttempts = 5
+	maxDeleteTenantAttempts = 10
 )
 
 // deleteTenantScript marks the tenant and its destinations deleted and drops the
@@ -728,11 +728,16 @@ func (s *store) prepareDestinationFields(destination *models.Destination) (field
 	return fields, unset, nil
 }
 
+const (
+	deleteDestinationOK       = 0
+	deleteDestinationNotFound = 4
+)
+
 // deleteDestinationScript marks a destination deleted, bumps its version and
 // drops it from the tenant summary.
 // KEYS: destination hash, tenant summary hash.
 // ARGV: destination ID, deleted_at, expiry in seconds.
-// Returns 0, or 4 when the destination does not exist.
+// Returns deleteDestinationOK, or deleteDestinationNotFound when it does not exist.
 var deleteDestinationScript = redis.NewScript(`
 if redis.call('EXISTS', KEYS[1]) == 0 then
 	return 4
@@ -754,7 +759,7 @@ func (s *store) DeleteDestination(ctx context.Context, tenantID, destinationID s
 	if err != nil {
 		return err
 	}
-	if code == writeDestinationNotFound {
+	if code == deleteDestinationNotFound {
 		return driver.ErrDestinationNotFound
 	}
 	return nil

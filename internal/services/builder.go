@@ -488,10 +488,6 @@ func (b *ServiceBuilder) BuildLogWorker(baseRouter *gin.Engine) error {
 	return nil
 }
 
-// maxDisableAttempts bounds the read-modify-write retries when the destination
-// is written concurrently.
-const maxDisableAttempts = 3
-
 // destinationDisabler implements logmq.DestinationDisabler by setting DisabledAt on the destination.
 type destinationDisabler struct {
 	tenantStore tenantstore.TenantStore
@@ -503,7 +499,7 @@ func newDestinationDisabler(tenantStore tenantstore.TenantStore) logmq.Destinati
 
 func (d *destinationDisabler) DisableDestination(ctx context.Context, tenantID, destinationID string) error {
 	var err error
-	for attempt := 0; attempt < maxDisableAttempts; attempt++ {
+	for attempt := 0; attempt < tenantstore.MaxDestinationWriteAttempts; attempt++ {
 		var destination *models.Destination
 		destination, err = d.tenantStore.RetrieveDestination(ctx, tenantID, destinationID)
 		if errors.Is(err, tenantstore.ErrDestinationDeleted) || (err == nil && destination == nil) {

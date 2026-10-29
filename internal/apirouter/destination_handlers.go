@@ -22,10 +22,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// maxDestinationWriteAttempts bounds the read-modify-write retries when a
-// destination is written concurrently.
-const maxDestinationWriteAttempts = 3
-
 // SubscriptionEmitter emits operator events for subscription changes.
 // Satisfied by opevents.Emitter.
 type SubscriptionEmitter interface {
@@ -130,7 +126,7 @@ func (h *DestinationHandlers) Create(c *gin.Context) {
 		return
 	}
 	if err := h.tenantStore.CreateDestination(c.Request.Context(), destination); err != nil {
-		h.handleUpsertDestinationError(c, err)
+		h.handleDestinationWriteError(c, err)
 		return
 	}
 	h.telemetry.DestinationCreated(c.Request.Context(), destination.Type)
@@ -192,10 +188,10 @@ func (h *DestinationHandlers) Update(c *gin.Context) {
 		if err == nil {
 			break
 		}
-		if errors.Is(err, tenantstore.ErrDestinationConflict) && attempt+1 < maxDestinationWriteAttempts {
+		if errors.Is(err, tenantstore.ErrDestinationConflict) && attempt+1 < tenantstore.MaxDestinationWriteAttempts {
 			continue
 		}
-		h.handleUpsertDestinationError(c, err)
+		h.handleDestinationWriteError(c, err)
 		return
 	}
 	h.emitSubscriptionUpdateIfChanged(c.Request.Context(), tenant.ID, prev)
@@ -427,10 +423,10 @@ func (h *DestinationHandlers) setDisabilityHandler(c *gin.Context, disabled bool
 			written = true
 			break
 		}
-		if errors.Is(err, tenantstore.ErrDestinationConflict) && attempt+1 < maxDestinationWriteAttempts {
+		if errors.Is(err, tenantstore.ErrDestinationConflict) && attempt+1 < tenantstore.MaxDestinationWriteAttempts {
 			continue
 		}
-		h.handleUpsertDestinationError(c, err)
+		h.handleDestinationWriteError(c, err)
 		return
 	}
 	if written {
@@ -473,7 +469,7 @@ func mustRetrieveDestination(c *gin.Context, store tenantstore.TenantStore, tena
 	return destination
 }
 
-func (h *DestinationHandlers) handleUpsertDestinationError(c *gin.Context, err error) {
+func (h *DestinationHandlers) handleDestinationWriteError(c *gin.Context, err error) {
 	if strings.Contains(err.Error(), "validation failed") {
 		AbortWithValidationError(c, err)
 		return

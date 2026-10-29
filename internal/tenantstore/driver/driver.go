@@ -19,6 +19,8 @@ type TenantStore interface {
 	ListDestination(ctx context.Context, req ListDestinationRequest) ([]models.Destination, error)
 	RetrieveDestination(ctx context.Context, tenantID, destinationID string) (*models.Destination, error)
 	CreateDestination(ctx context.Context, destination models.Destination) error
+	// UpsertDestination writes unconditionally, skipping the tenant, duplicate,
+	// limit and version checks. It is for seeding and tests.
 	UpsertDestination(ctx context.Context, destination models.Destination) error
 	// UpdateDestination writes a destination retrieved earlier, only if it still
 	// exists and is unchanged since that read. It returns ErrDestinationNotFound

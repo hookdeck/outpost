@@ -449,8 +449,7 @@ func (bp *BatchProcessor) plan(ctx context.Context, eval alert.Evaluation, entry
 
 	if cf := eval.ConsecutiveFailure; cf != nil {
 		if cf.Level == 100 && bp.alerts.Disabler != nil {
-			// Disable converges on replay: re-disabling rewrites DisabledAt,
-			// but the end state is the same.
+			// Disable is idempotent: an already-disabled destination keeps its DisabledAt.
 			if err := bp.alerts.Disabler.DisableDestination(ctx, dest.TenantID, dest.ID); err != nil {
 				return nil, fmt.Errorf("failed to disable destination: %w", err)
 			}
