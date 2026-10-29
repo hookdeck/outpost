@@ -402,3 +402,32 @@ func TestTenantUpsertRacingDeleteKeepsExpiryConsistent(t *testing.T) {
 		}
 	}
 }
+
+func TestDeleteTenantRetriesOnStaleDestinationList(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	store := redistenantstore.New(miniredisFactory(t), redistenantstore.WithSecret("test-secret"))
+
+	tenant := testutil.TenantFactory.Any()
+	require.NoError(t, store.UpsertTenant(ctx, tenant))
+	first := testutil.DestinationFactory.Any(testutil.DestinationFactory.WithTenantID(tenant.ID))
+	require.NoError(t, store.CreateDestination(ctx, first))
+	stale := []string{first.ID}
+
+	// A destination created after the list was read.
+	second := testutil.DestinationFactory.Any(testutil.DestinationFactory.WithTenantID(tenant.ID))
+	require.NoError(t, store.CreateDestination(ctx, second))
+
+	retry, err := redistenantstore.DeleteTenantOnce(ctx, store, tenant.ID, stale)
+	require.NoError(t, err)
+	assert.True(t, retry)
+	live, err := store.RetrieveTenant(ctx, tenant.ID)
+	require.NoError(t, err)
+	assert.Equal(t, 2, live.DestinationsCount, "a stale attempt must change nothing")
+
+	require.NoError(t, store.DeleteTenant(ctx, tenant.ID))
+	for _, id := range []string{first.ID, second.ID} {
+		_, err := store.RetrieveDestination(ctx, tenant.ID, id)
+		assert.ErrorIs(t, err, driver.ErrDestinationDeleted)
+	}
+}

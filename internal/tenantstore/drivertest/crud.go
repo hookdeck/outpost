@@ -218,6 +218,8 @@ func testCRUD(t *testing.T, newHarness HarnessMaker) {
 			assert.Nil(t, actual)
 		})
 
+		require.NoError(t, store.UpsertTenant(ctx, models.Tenant{ID: input.TenantID}))
+
 		t.Run("sets", func(t *testing.T) {
 			err := store.CreateDestination(ctx, input)
 			require.NoError(t, err)
@@ -272,6 +274,7 @@ func testCRUD(t *testing.T, newHarness HarnessMaker) {
 		t.Run("one of concurrent creates wins", func(t *testing.T) {
 			for round := 0; round < 20; round++ {
 				destination := testutil.DestinationFactory.Any()
+				require.NoError(t, store.UpsertTenant(ctx, models.Tenant{ID: destination.TenantID}))
 				errs := make([]error, 8)
 				var wg sync.WaitGroup
 				for i := range errs {
@@ -399,6 +402,7 @@ func testCRUD(t *testing.T, newHarness HarnessMaker) {
 		require.NoError(t, err)
 
 		destination := testutil.DestinationFactory.Any()
+		require.NoError(t, store.UpsertTenant(ctx, models.Tenant{ID: destination.TenantID}))
 		require.NoError(t, store.CreateDestination(ctx, destination))
 
 		t.Run("no error when deleting existing", func(t *testing.T) {

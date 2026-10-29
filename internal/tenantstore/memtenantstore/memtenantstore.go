@@ -347,6 +347,10 @@ func (s *store) CreateDestination(_ context.Context, destination models.Destinat
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	if rec, ok := s.tenants[destination.TenantID]; !ok || rec.deletedAt != nil {
+		return driver.ErrTenantNotFound
+	}
+
 	key := destKey(destination.TenantID, destination.ID)
 
 	// Check for existing non-deleted destination

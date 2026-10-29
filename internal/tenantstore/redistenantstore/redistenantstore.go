@@ -200,17 +200,22 @@ func (s *store) RetrieveTenant(ctx context.Context, tenantID string) (*models.Te
 	return tenant, nil
 }
 
+// upsertTenantScript replaces a tenant's fields and revives it if deleted, in one step.
+// KEYS: tenant hash.
+// ARGV: id, created_at, updated_at, has metadata (0 or 1), metadata.
+var upsertTenantScript = redis.NewScript(`
+redis.call('PERSIST', KEYS[1])
+redis.call('HDEL', KEYS[1], 'deleted_at')
+redis.call('HSET', KEYS[1], 'id', ARGV[1], 'entity', 'tenant', 'created_at', ARGV[2], 'updated_at', ARGV[3])
+if ARGV[4] == '1' then
+	redis.call('HSET', KEYS[1], 'metadata', ARGV[5])
+else
+	redis.call('HDEL', KEYS[1], 'metadata')
+end
+return 0
+`)
+
 func (s *store) UpsertTenant(ctx context.Context, tenant models.Tenant) error {
-	key := s.redisTenantID(tenant.ID)
-
-	if err := s.redisClient.Persist(ctx, key).Err(); err != nil && err != redis.Nil {
-		return err
-	}
-
-	if err := s.redisClient.HDel(ctx, key, "deleted_at").Err(); err != nil && err != redis.Nil {
-		return err
-	}
-
 	now := time.Now()
 	if tenant.CreatedAt.IsZero() {
 		tenant.CreatedAt = now
@@ -219,57 +224,83 @@ func (s *store) UpsertTenant(ctx context.Context, tenant models.Tenant) error {
 		tenant.UpdatedAt = now
 	}
 
-	if err := s.redisClient.HSet(ctx, key,
-		"id", tenant.ID,
-		"entity", "tenant",
-		"created_at", tenant.CreatedAt.UnixMilli(),
-		"updated_at", tenant.UpdatedAt.UnixMilli(),
-	).Err(); err != nil {
-		return err
-	}
-
+	hasMetadata, metadata := 0, interface{}("")
 	if tenant.Metadata != nil {
-		if err := s.redisClient.HSet(ctx, key, "metadata", &tenant.Metadata).Err(); err != nil {
-			return err
-		}
-	} else {
-		if err := s.redisClient.HDel(ctx, key, "metadata").Err(); err != nil && err != redis.Nil {
-			return err
-		}
+		hasMetadata, metadata = 1, &tenant.Metadata
 	}
-
-	return nil
+	return upsertTenantScript.Run(ctx, s.redisClient, []string{s.redisTenantID(tenant.ID)},
+		tenant.ID, tenant.CreatedAt.UnixMilli(), tenant.UpdatedAt.UnixMilli(), hasMetadata, metadata).Err()
 }
 
+const (
+	deleteTenantOK       = 0
+	deleteTenantRetry    = 1
+	deleteTenantNotFound = 4
+
+	maxDeleteTenantAttempts = 5
+)
+
+// deleteTenantScript marks the tenant and its destinations deleted and drops the
+// summary, provided the summary still lists exactly the destinations the caller
+// saw; otherwise it changes nothing and the caller retries with a fresh list.
+// KEYS: tenant hash, tenant summary hash, then one destination hash per ID.
+// ARGV: deleted_at, expiry in seconds, number of destinations, then their IDs.
+// Returns deleteTenantOK, deleteTenantRetry or deleteTenantNotFound.
+var deleteTenantScript = redis.NewScript(`
+if redis.call('EXISTS', KEYS[1]) == 0 then
+	return 4
+end
+local n = tonumber(ARGV[3])
+local want = {}
+for i = 1, n do
+	want[ARGV[3 + i]] = true
+end
+local ids = redis.call('HKEYS', KEYS[2])
+if #ids ~= n then
+	return 1
+end
+for _, id in ipairs(ids) do
+	if not want[id] then
+		return 1
+	end
+end
+for i = 1, n do
+	redis.call('HSET', KEYS[2 + i], 'deleted_at', ARGV[1])
+	redis.call('HINCRBY', KEYS[2 + i], 'version', 1)
+	redis.call('EXPIRE', KEYS[2 + i], ARGV[2])
+end
+redis.call('DEL', KEYS[2])
+redis.call('HSET', KEYS[1], 'deleted_at', ARGV[1])
+redis.call('EXPIRE', KEYS[1], ARGV[2])
+return 0
+`)
+
 func (s *store) DeleteTenant(ctx context.Context, tenantID string) error {
-	if exists, err := s.redisClient.Exists(ctx, s.redisTenantID(tenantID)).Result(); err != nil {
-		return err
-	} else if exists == 0 {
-		return driver.ErrTenantNotFound
-	}
-
-	destinationIDs, err := s.redisClient.HKeys(ctx, s.redisTenantDestinationSummaryKey(tenantID)).Result()
-	if err != nil {
-		return err
-	}
-
-	_, err = s.redisClient.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
-		nowUnixMilli := time.Now().UnixMilli()
-
-		for _, destinationID := range destinationIDs {
-			destKey := s.redisDestinationID(destinationID, tenantID)
-			pipe.HSet(ctx, destKey, "deleted_at", nowUnixMilli)
-			pipe.Expire(ctx, destKey, 7*24*time.Hour)
+	for attempt := 0; attempt < maxDeleteTenantAttempts; attempt++ {
+		destinationIDs, err := s.redisClient.HKeys(ctx, s.redisTenantDestinationSummaryKey(tenantID)).Result()
+		if err != nil {
+			return err
 		}
+		switch code, err := s.deleteTenantOnce(ctx, tenantID, destinationIDs); {
+		case err != nil:
+			return err
+		case code == deleteTenantNotFound:
+			return driver.ErrTenantNotFound
+		case code == deleteTenantOK:
+			return nil
+		}
+	}
+	return fmt.Errorf("tenant %q destinations kept changing while deleting", tenantID)
+}
 
-		pipe.Del(ctx, s.redisTenantDestinationSummaryKey(tenantID))
-		pipe.HSet(ctx, s.redisTenantID(tenantID), "deleted_at", nowUnixMilli)
-		pipe.Expire(ctx, s.redisTenantID(tenantID), 7*24*time.Hour)
-
-		return nil
-	})
-
-	return err
+func (s *store) deleteTenantOnce(ctx context.Context, tenantID string, destinationIDs []string) (int, error) {
+	keys := []string{s.redisTenantID(tenantID), s.redisTenantDestinationSummaryKey(tenantID)}
+	args := []interface{}{time.Now().UnixMilli(), int(deletedRecordTTL.Seconds()), len(destinationIDs)}
+	for _, id := range destinationIDs {
+		keys = append(keys, s.redisDestinationID(id, tenantID))
+		args = append(args, id)
+	}
+	return deleteTenantScript.Run(ctx, s.redisClient, keys, args...).Int()
 }
 
 func (s *store) ListTenant(ctx context.Context, req driver.ListTenantRequest) (*driver.TenantPaginatedResult, error) {
@@ -524,6 +555,7 @@ const (
 	writeDestinationOK           = 0
 	writeDestinationDuplicate    = 1
 	writeDestinationLimitReached = 2
+	writeDestinationNoTenant     = 3
 	writeDestinationNotFound     = 4
 	writeDestinationConflict     = 5
 )
@@ -536,16 +568,20 @@ const (
 
 // writeDestinationScript writes a destination and its tenant summary entry in one
 // step and bumps the destination's version. Depending on mode it first rejects:
-//   - create: a live destination with the same ID, or a full tenant;
+//   - create: a missing or deleted tenant, a live destination with the same ID,
+//     or a full tenant;
 //   - update: a missing or deleted destination, or one whose version differs
 //     from the expected one (a missing version counts as 0).
 //
-// KEYS: destination hash, tenant summary hash.
+// KEYS: destination hash, tenant summary hash, tenant hash.
 // ARGV: mode, limit, summary, id, expected version, number of fields to unset,
 // those fields, then field/value pairs to set.
 var writeDestinationScript = redis.NewScript(`
 local mode, limit, summary, id, version, nunset = tonumber(ARGV[1]), tonumber(ARGV[2]), ARGV[3], ARGV[4], tonumber(ARGV[5]), tonumber(ARGV[6])
 if mode == 1 then
+	if redis.call('EXISTS', KEYS[3]) == 0 or redis.call('HEXISTS', KEYS[3], 'deleted_at') == 1 then
+		return 3
+	end
 	if redis.call('EXISTS', KEYS[1]) == 1 and redis.call('HEXISTS', KEYS[1], 'deleted_at') == 0 then
 		return 1
 	end
@@ -589,6 +625,8 @@ func destinationWriteError(code int, err error) error {
 		return err
 	}
 	switch code {
+	case writeDestinationNoTenant:
+		return driver.ErrTenantNotFound
 	case writeDestinationDuplicate:
 		return driver.ErrDuplicateDestination
 	case writeDestinationLimitReached:
@@ -616,6 +654,7 @@ func (s *store) writeDestination(ctx context.Context, destination models.Destina
 	keys := []string{
 		s.redisDestinationID(destination.ID, destination.TenantID),
 		s.redisTenantDestinationSummaryKey(destination.TenantID),
+		s.redisTenantID(destination.TenantID),
 	}
 	return writeDestinationScript.Run(ctx, s.redisClient, keys, args...).Int()
 }
