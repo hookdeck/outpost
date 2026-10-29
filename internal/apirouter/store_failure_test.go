@@ -79,6 +79,13 @@ func (s *failingTenantStore) UpsertDestination(ctx context.Context, destination 
 	return s.TenantStore.UpsertDestination(ctx, destination)
 }
 
+func (s *failingTenantStore) UpdateDestination(ctx context.Context, destination models.Destination) error {
+	if s.fail == "UpdateDestination" {
+		return errStoreUnavailable
+	}
+	return s.TenantStore.UpdateDestination(ctx, destination)
+}
+
 func (s *failingTenantStore) DeleteDestination(ctx context.Context, tenantID, destinationID string) error {
 	if s.fail == "DeleteDestination" {
 		return errStoreUnavailable
@@ -171,10 +178,10 @@ func TestAPI_StoreFailuresReturn500(t *testing.T) {
 		{name: "create destination", tenantFail: "CreateDestination", method: http.MethodPost, path: "/tenants/t1/destinations", body: destinationBody},
 		{name: "retrieve destination", tenantFail: "RetrieveDestination", method: http.MethodGet, path: "/tenants/t1/destinations/d1"},
 		{name: "update destination: lookup", tenantFail: "RetrieveDestination", method: http.MethodPatch, path: "/tenants/t1/destinations/d1", body: map[string]any{"topics": []string{"user.created"}}},
-		{name: "update destination: write", tenantFail: "UpsertDestination", method: http.MethodPatch, path: "/tenants/t1/destinations/d1", body: map[string]any{"topics": []string{"user.created"}}},
+		{name: "update destination: write", tenantFail: "UpdateDestination", method: http.MethodPatch, path: "/tenants/t1/destinations/d1", body: map[string]any{"topics": []string{"user.created"}}},
 		{name: "delete destination", tenantFail: "DeleteDestination", method: http.MethodDelete, path: "/tenants/t1/destinations/d1"},
-		{name: "disable destination", tenantFail: "UpsertDestination", method: http.MethodPut, path: "/tenants/t1/destinations/d1/disable"},
-		{name: "enable destination", tenantFail: "UpsertDestination", method: http.MethodPut, path: "/tenants/t1/destinations/disabled/enable"},
+		{name: "disable destination", tenantFail: "UpdateDestination", method: http.MethodPut, path: "/tenants/t1/destinations/d1/disable"},
+		{name: "enable destination", tenantFail: "UpdateDestination", method: http.MethodPut, path: "/tenants/t1/destinations/disabled/enable"},
 
 		// log_handlers.go
 		{name: "list events", logFail: "ListEvent", method: http.MethodGet, path: "/events"},

@@ -22,6 +22,10 @@ import (
 	"go.uber.org/zap"
 )
 
+// maxDestinationWriteAttempts bounds the read-modify-write retries when a
+// destination is written concurrently.
+const maxDestinationWriteAttempts = 3
+
 // SubscriptionEmitter emits operator events for subscription changes.
 // Satisfied by opevents.Emitter.
 type SubscriptionEmitter interface {
@@ -168,141 +172,29 @@ func (h *DestinationHandlers) Update(c *gin.Context) {
 		return
 	}
 
-	// Retrieve destination.
+	// Retrieve, apply and write; retry from a fresh read when another write
+	// landed in between.
 	tenant := mustTenantFromContext(c)
 	prev := h.snapshotTenant(tenant)
-	originalDestination := mustRetrieveDestination(c, h.tenantStore, tenant.ID, c.Param("destination_id"))
-	if originalDestination == nil {
-		return
-	}
-
-	updatedDestination := *originalDestination
-
-	// Validate.
-	if input.Topics != nil {
-		updatedDestination.Topics = input.Topics
-		if err := updatedDestination.Validate(h.topics, h.topicsAllowWildcards); err != nil {
-			AbortWithValidationError(c, err)
-			return
-		}
-		updatedDestination.Topics = updatedDestination.Topics.Normalize()
-	}
-	shouldRevalidate := false
-	if input.Type != "" && input.Type != originalDestination.Type {
-		AbortWithValidationError(c, errors.New("type cannot be updated"))
-		return
-	}
-
-	// Config (merge-patch)
-	configResult, configRequest, configChanged, err := applyMergePatchStringMap(originalDestination.Config, input.Config)
-	if err != nil {
-		AbortWithValidationError(c, fmt.Errorf("invalid config: %w", err))
-		return
-	}
-	if configChanged {
-		shouldRevalidate = true
-		updatedDestination.Config = configResult
-	}
-
-	// Credentials (merge-patch)
-	credsResult, credsRequest, credsChanged, err := applyMergePatchStringMap(originalDestination.Credentials, input.Credentials)
-	if err != nil {
-		AbortWithValidationError(c, fmt.Errorf("invalid credentials: %w", err))
-		return
-	}
-	if credsChanged {
-		shouldRevalidate = true
-		updatedDestination.Credentials = credsResult
-	}
-
-	// Filter (full replacement)
-	if input.Filter != nil {
-		if isJSONNull(input.Filter) {
-			updatedDestination.Filter = nil
-		} else {
-			var filter models.Filter
-			if err := json.Unmarshal(input.Filter, &filter); err != nil {
-				AbortWithValidationError(c, fmt.Errorf("invalid filter: %w", err))
-				return
-			}
-			updatedDestination.Filter = filter
-		}
-	}
-
-	// DeliveryMetadata (merge-patch)
-	dmResult, _, dmChanged, err := applyMergePatchStringMap(originalDestination.DeliveryMetadata, input.DeliveryMetadata)
-	if err != nil {
-		AbortWithValidationError(c, fmt.Errorf("invalid delivery_metadata: %w", err))
-		return
-	}
-	if dmChanged {
-		updatedDestination.DeliveryMetadata = dmResult
-	}
-
-	// Metadata (merge-patch)
-	metaResult, _, metaChanged, err := applyMergePatchStringMap(originalDestination.Metadata, input.Metadata)
-	if err != nil {
-		AbortWithValidationError(c, fmt.Errorf("invalid metadata: %w", err))
-		return
-	}
-	if metaChanged {
-		updatedDestination.Metadata = metaResult
-	}
-
-	// DisabledAt
-	//   omitted: leave alone
-	//   null:    enable (clear)
-	//   <ts>:    disable at that time
+	var updatedDestination *models.Destination
 	disabilityChanged := false
-	if input.DisabledAt != nil {
-		if isJSONNull(input.DisabledAt) {
-			if updatedDestination.DisabledAt != nil {
-				updatedDestination.DisabledAt = nil
-				disabilityChanged = true
-			}
-		} else {
-			var ts time.Time
-			if err := json.Unmarshal(input.DisabledAt, &ts); err != nil {
-				var parseErr *time.ParseError
-				if errors.As(err, &parseErr) {
-					err = errors.New(expectedRFC3339)
-				}
-				AbortWithValidationError(c, fmt.Errorf("invalid disabled_at: %w", err))
-				return
-			}
-			if ts.After(time.Now()) {
-				AbortWithValidationError(c, errors.New("disabled_at cannot be in the future"))
-				return
-			}
-			if updatedDestination.DisabledAt == nil || !updatedDestination.DisabledAt.Equal(ts) {
-				updatedDestination.DisabledAt = &ts
-				disabilityChanged = true
-			}
-		}
-	}
-
-	// Always preprocess before updating
-	if err := h.registry.PreprocessDestination(&updatedDestination, originalDestination, &destregistry.PreprocessDestinationOpts{
-		Role: mustRoleFromContext(c),
-		Request: destregistry.PreprocessRequest{
-			Config:      configRequest,
-			Credentials: credsRequest,
-		},
-	}); err != nil {
-		AbortWithValidationError(c, err)
-		return
-	}
-
-	if shouldRevalidate {
-		if err := h.registry.ValidateDestination(c.Request.Context(), &updatedDestination); err != nil {
-			AbortWithValidationError(c, err)
+	for attempt := 0; ; attempt++ {
+		originalDestination := mustRetrieveDestination(c, h.tenantStore, tenant.ID, c.Param("destination_id"))
+		if originalDestination == nil {
 			return
 		}
-	}
-
-	// Update destination.
-	updatedDestination.UpdatedAt = time.Now()
-	if err := h.tenantStore.UpsertDestination(c.Request.Context(), updatedDestination); err != nil {
+		var ok bool
+		updatedDestination, disabilityChanged, ok = h.applyDestinationUpdate(c, input, originalDestination)
+		if !ok {
+			return
+		}
+		err := h.tenantStore.UpdateDestination(c.Request.Context(), *updatedDestination)
+		if err == nil {
+			break
+		}
+		if errors.Is(err, tenantstore.ErrDestinationConflict) && attempt+1 < maxDestinationWriteAttempts {
+			continue
+		}
 		h.handleUpsertDestinationError(c, err)
 		return
 	}
@@ -324,12 +216,144 @@ func (h *DestinationHandlers) Update(c *gin.Context) {
 		)
 	}
 
-	display, err := h.displayer.Display(&updatedDestination)
+	display, err := h.displayer.Display(updatedDestination)
 	if err != nil {
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return
 	}
 	c.JSON(http.StatusOK, display)
+}
+
+// applyDestinationUpdate applies the PATCH input to the destination as it
+// stands now. It answers the request and returns ok=false when the input is
+// invalid for that destination.
+func (h *DestinationHandlers) applyDestinationUpdate(c *gin.Context, input UpdateDestinationRequest, originalDestination *models.Destination) (updated *models.Destination, disabilityChanged bool, ok bool) {
+	updatedDestination := *originalDestination
+
+	// Validate.
+	if input.Topics != nil {
+		updatedDestination.Topics = input.Topics
+		if err := updatedDestination.Validate(h.topics, h.topicsAllowWildcards); err != nil {
+			AbortWithValidationError(c, err)
+			return nil, false, false
+		}
+		updatedDestination.Topics = updatedDestination.Topics.Normalize()
+	}
+	shouldRevalidate := false
+	if input.Type != "" && input.Type != originalDestination.Type {
+		AbortWithValidationError(c, errors.New("type cannot be updated"))
+		return nil, false, false
+	}
+
+	// Config (merge-patch)
+	configResult, configRequest, configChanged, err := applyMergePatchStringMap(originalDestination.Config, input.Config)
+	if err != nil {
+		AbortWithValidationError(c, fmt.Errorf("invalid config: %w", err))
+		return nil, false, false
+	}
+	if configChanged {
+		shouldRevalidate = true
+		updatedDestination.Config = configResult
+	}
+
+	// Credentials (merge-patch)
+	credsResult, credsRequest, credsChanged, err := applyMergePatchStringMap(originalDestination.Credentials, input.Credentials)
+	if err != nil {
+		AbortWithValidationError(c, fmt.Errorf("invalid credentials: %w", err))
+		return nil, false, false
+	}
+	if credsChanged {
+		shouldRevalidate = true
+		updatedDestination.Credentials = credsResult
+	}
+
+	// Filter (full replacement)
+	if input.Filter != nil {
+		if isJSONNull(input.Filter) {
+			updatedDestination.Filter = nil
+		} else {
+			var filter models.Filter
+			if err := json.Unmarshal(input.Filter, &filter); err != nil {
+				AbortWithValidationError(c, fmt.Errorf("invalid filter: %w", err))
+				return nil, false, false
+			}
+			updatedDestination.Filter = filter
+		}
+	}
+
+	// DeliveryMetadata (merge-patch)
+	dmResult, _, dmChanged, err := applyMergePatchStringMap(originalDestination.DeliveryMetadata, input.DeliveryMetadata)
+	if err != nil {
+		AbortWithValidationError(c, fmt.Errorf("invalid delivery_metadata: %w", err))
+		return nil, false, false
+	}
+	if dmChanged {
+		updatedDestination.DeliveryMetadata = dmResult
+	}
+
+	// Metadata (merge-patch)
+	metaResult, _, metaChanged, err := applyMergePatchStringMap(originalDestination.Metadata, input.Metadata)
+	if err != nil {
+		AbortWithValidationError(c, fmt.Errorf("invalid metadata: %w", err))
+		return nil, false, false
+	}
+	if metaChanged {
+		updatedDestination.Metadata = metaResult
+	}
+
+	// DisabledAt
+	//   omitted: leave alone
+	//   null:    enable (clear)
+	//   <ts>:    disable at that time
+	disabilityChanged = false
+	if input.DisabledAt != nil {
+		if isJSONNull(input.DisabledAt) {
+			if updatedDestination.DisabledAt != nil {
+				updatedDestination.DisabledAt = nil
+				disabilityChanged = true
+			}
+		} else {
+			var ts time.Time
+			if err := json.Unmarshal(input.DisabledAt, &ts); err != nil {
+				var parseErr *time.ParseError
+				if errors.As(err, &parseErr) {
+					err = errors.New(expectedRFC3339)
+				}
+				AbortWithValidationError(c, fmt.Errorf("invalid disabled_at: %w", err))
+				return nil, false, false
+			}
+			if ts.After(time.Now()) {
+				AbortWithValidationError(c, errors.New("disabled_at cannot be in the future"))
+				return nil, false, false
+			}
+			if updatedDestination.DisabledAt == nil || !updatedDestination.DisabledAt.Equal(ts) {
+				updatedDestination.DisabledAt = &ts
+				disabilityChanged = true
+			}
+		}
+	}
+
+	// Always preprocess before updating
+	if err := h.registry.PreprocessDestination(&updatedDestination, originalDestination, &destregistry.PreprocessDestinationOpts{
+		Role: mustRoleFromContext(c),
+		Request: destregistry.PreprocessRequest{
+			Config:      configRequest,
+			Credentials: credsRequest,
+		},
+	}); err != nil {
+		AbortWithValidationError(c, err)
+		return nil, false, false
+	}
+
+	if shouldRevalidate {
+		if err := h.registry.ValidateDestination(c.Request.Context(), &updatedDestination); err != nil {
+			AbortWithValidationError(c, err)
+			return nil, false, false
+		}
+	}
+
+	updatedDestination.UpdatedAt = time.Now()
+	return &updatedDestination, disabilityChanged, true
 }
 
 func (h *DestinationHandlers) Delete(c *gin.Context) {
@@ -340,6 +364,10 @@ func (h *DestinationHandlers) Delete(c *gin.Context) {
 		return
 	}
 	if err := h.tenantStore.DeleteDestination(c.Request.Context(), destination.TenantID, destination.ID); err != nil {
+		if errors.Is(err, tenantstore.ErrDestinationNotFound) {
+			AbortWithError(c, http.StatusNotFound, NewErrNotFound("destination"))
+			return
+		}
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return
 	}
@@ -379,25 +407,33 @@ func (h *DestinationHandlers) RetrieveProviderMetadata(c *gin.Context) {
 func (h *DestinationHandlers) setDisabilityHandler(c *gin.Context, disabled bool) {
 	tenant := mustTenantFromContext(c)
 	prev := h.snapshotTenant(tenant)
-	destination := mustRetrieveDestination(c, h.tenantStore, tenant.ID, c.Param("destination_id"))
-	if destination == nil {
-		return
-	}
-	shouldUpdate := false
-	if disabled && destination.DisabledAt == nil {
-		shouldUpdate = true
-		now := time.Now()
-		destination.DisabledAt = &now
-	}
-	if !disabled && destination.DisabledAt != nil {
-		shouldUpdate = true
-		destination.DisabledAt = nil
-	}
-	if shouldUpdate {
-		if err := h.tenantStore.UpsertDestination(c.Request.Context(), *destination); err != nil {
-			h.handleUpsertDestinationError(c, err)
+	var destination *models.Destination
+	written := false
+	for attempt := 0; ; attempt++ {
+		destination = mustRetrieveDestination(c, h.tenantStore, tenant.ID, c.Param("destination_id"))
+		if destination == nil {
 			return
 		}
+		if disabled && destination.DisabledAt == nil {
+			now := time.Now()
+			destination.DisabledAt = &now
+		} else if !disabled && destination.DisabledAt != nil {
+			destination.DisabledAt = nil
+		} else {
+			break
+		}
+		err := h.tenantStore.UpdateDestination(c.Request.Context(), *destination)
+		if err == nil {
+			written = true
+			break
+		}
+		if errors.Is(err, tenantstore.ErrDestinationConflict) && attempt+1 < maxDestinationWriteAttempts {
+			continue
+		}
+		h.handleUpsertDestinationError(c, err)
+		return
+	}
+	if written {
 		h.emitSubscriptionUpdateIfChanged(c.Request.Context(), tenant.ID, prev)
 		action := "destination enabled"
 		if disabled {
@@ -440,6 +476,18 @@ func mustRetrieveDestination(c *gin.Context, store tenantstore.TenantStore, tena
 func (h *DestinationHandlers) handleUpsertDestinationError(c *gin.Context, err error) {
 	if strings.Contains(err.Error(), "validation failed") {
 		AbortWithValidationError(c, err)
+		return
+	}
+	if errors.Is(err, tenantstore.ErrDestinationNotFound) {
+		AbortWithError(c, http.StatusNotFound, NewErrNotFound("destination"))
+		return
+	}
+	if errors.Is(err, tenantstore.ErrTenantNotFound) {
+		AbortWithError(c, http.StatusNotFound, NewErrNotFound("tenant"))
+		return
+	}
+	if errors.Is(err, tenantstore.ErrDestinationConflict) {
+		AbortWithError(c, http.StatusConflict, NewErrConflict("destination was modified by another request, retry"))
 		return
 	}
 	if errors.Is(err, tenantstore.ErrDuplicateDestination) {
