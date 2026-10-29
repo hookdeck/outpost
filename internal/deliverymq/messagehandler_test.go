@@ -19,6 +19,7 @@ import (
 )
 
 func TestMessageHandler_DestinationGetterError(t *testing.T) {
+	t.Parallel()
 	// Test scenario:
 	// - Event is NOT eligible for retry
 	// - Destination lookup fails with error (system error in destination getter)
@@ -74,6 +75,7 @@ func TestMessageHandler_DestinationGetterError(t *testing.T) {
 }
 
 func TestMessageHandler_DestinationNotFound(t *testing.T) {
+	t.Parallel()
 	// Test scenario:
 	// - Destination lookup returns nil, nil (not found)
 	// - Should return error
@@ -128,6 +130,7 @@ func TestMessageHandler_DestinationNotFound(t *testing.T) {
 }
 
 func TestMessageHandler_DestinationDeleted(t *testing.T) {
+	t.Parallel()
 	// Test scenario:
 	// - Destination lookup returns ErrDestinationDeleted
 	// - Should return error but ack message (no retry needed)
@@ -181,6 +184,7 @@ func TestMessageHandler_DestinationDeleted(t *testing.T) {
 }
 
 func TestMessageHandler_PublishError_EligibleForRetry(t *testing.T) {
+	t.Parallel()
 	// Test scenario:
 	// - Publish fails with a publish error
 	// - Event is eligible for retry and under max attempts
@@ -250,6 +254,7 @@ func TestMessageHandler_PublishError_EligibleForRetry(t *testing.T) {
 }
 
 func TestMessageHandler_PublishError_NotEligible(t *testing.T) {
+	t.Parallel()
 	// Test scenario:
 	// - Publish returns ErrDestinationPublishAttempt
 	// - Event is NOT eligible for retry
@@ -315,6 +320,7 @@ func TestMessageHandler_PublishError_NotEligible(t *testing.T) {
 }
 
 func TestMessageHandler_RetryFlow(t *testing.T) {
+	t.Parallel()
 	// Test scenario:
 	// - Message is a retry attempt (Attempt > 1)
 	// - DeliveryTask contains full event data (populated by retry scheduler from logstore)
@@ -373,6 +379,7 @@ func TestMessageHandler_RetryFlow(t *testing.T) {
 }
 
 func TestMessageHandler_Idempotency(t *testing.T) {
+	t.Parallel()
 	// Test scenario:
 	// - Message with same ID is processed twice
 	// - Second attempt should be idempotent
@@ -433,6 +440,7 @@ func TestMessageHandler_Idempotency(t *testing.T) {
 }
 
 func TestMessageHandler_IdempotencyWithSystemError(t *testing.T) {
+	t.Parallel()
 	// Test scenario:
 	// - First attempt fails with system error (destination getter error)
 	// - Second attempt with same message ID succeeds after error is cleared
@@ -500,6 +508,7 @@ func TestMessageHandler_IdempotencyWithSystemError(t *testing.T) {
 }
 
 func TestMessageHandler_DestinationDisabled(t *testing.T) {
+	t.Parallel()
 	// Test scenario:
 	// - Destination is disabled
 	// - Should be treated as a destination error (not system error)
@@ -558,6 +567,7 @@ func TestMessageHandler_DestinationDisabled(t *testing.T) {
 }
 
 func TestMessageHandler_LogPublisherError(t *testing.T) {
+	t.Parallel()
 	// Test scenario:
 	// - Publish succeeds but log publisher fails
 	// - Should be treated as system error
@@ -613,6 +623,7 @@ func TestMessageHandler_LogPublisherError(t *testing.T) {
 }
 
 func TestMessageHandler_PublishAndLogError(t *testing.T) {
+	t.Parallel()
 	// Test scenario:
 	// - Both publish and log publisher fail
 	// - Should join both errors
@@ -670,6 +681,7 @@ func TestMessageHandler_PublishAndLogError(t *testing.T) {
 }
 
 func TestMessageHandler_PublishAttemptErrorAndLogError_Nacks(t *testing.T) {
+	t.Parallel()
 	// Test scenario:
 	// - Publish fails with a publish attempt error (eligible for retry)
 	// - Log publisher also fails, so the attempt log is not published
@@ -747,6 +759,7 @@ func TestMessageHandler_PublishAttemptErrorAndLogError_Nacks(t *testing.T) {
 }
 
 func TestMessageHandler_AttemptErrorWithoutRetryAndLogError_Nacks(t *testing.T) {
+	t.Parallel()
 	// Test scenario:
 	// - Publish fails with a publish attempt error that won't be retried
 	//   (event not eligible for retry, or out of retries)
@@ -828,6 +841,7 @@ func TestMessageHandler_AttemptErrorWithoutRetryAndLogError_Nacks(t *testing.T) 
 }
 
 func TestMessageHandler_ScheduleRetryError_Nacks(t *testing.T) {
+	t.Parallel()
 	// Test scenario:
 	// - Publish fails with a publish attempt error (eligible for retry)
 	// - Scheduling the retry fails
@@ -896,6 +910,7 @@ func TestMessageHandler_ScheduleRetryError_Nacks(t *testing.T) {
 }
 
 func TestManualDelivery_Success(t *testing.T) {
+	t.Parallel()
 	// Test scenario:
 	// - Automatic delivery fails and schedules a retry
 	// - Manual retry succeeds and cancels the pending retry
@@ -970,6 +985,7 @@ func TestManualDelivery_Success(t *testing.T) {
 }
 
 func TestManualDelivery_PublishError(t *testing.T) {
+	t.Parallel()
 	// Test scenario:
 	// - A pending automatic retry exists at tier 0 (1s delay)
 	// - Manual delivery (attempt 2) fails with publish error
@@ -1055,6 +1071,7 @@ func TestManualDelivery_PublishError(t *testing.T) {
 }
 
 func TestManualDelivery_PublishError_BudgetExhausted(t *testing.T) {
+	t.Parallel()
 	// Test scenario:
 	// - A pending automatic retry exists (lingering from a previous tier)
 	// - Manual delivery fails with publish error but retry budget is exhausted
@@ -1127,6 +1144,7 @@ func TestManualDelivery_PublishError_BudgetExhausted(t *testing.T) {
 }
 
 func TestManualDelivery_CancelError(t *testing.T) {
+	t.Parallel()
 	// Test scenario:
 	// - Manual delivery succeeds but retry cancellation fails
 	// - Should be treated as post-delivery error
@@ -1187,6 +1205,7 @@ func TestManualDelivery_CancelError(t *testing.T) {
 }
 
 func TestManualDelivery_DestinationDisabled(t *testing.T) {
+	t.Parallel()
 	// Test scenario:
 	// - Manual delivery to disabled destination
 	// - Should be treated as pre-delivery error
@@ -1245,6 +1264,7 @@ func TestManualDelivery_DestinationDisabled(t *testing.T) {
 }
 
 func TestMessageHandler_PublishSuccess(t *testing.T) {
+	t.Parallel()
 	// Test scenario:
 	// - Publish succeeds
 
@@ -1295,6 +1315,7 @@ func TestMessageHandler_PublishSuccess(t *testing.T) {
 }
 
 func TestManualDelivery_DuplicateRetry(t *testing.T) {
+	t.Parallel()
 	// Test scenario:
 	// - First manual retry for event+destination succeeds
 	// - Second manual retry for same event+destination is requested
@@ -1353,6 +1374,7 @@ func TestManualDelivery_DuplicateRetry(t *testing.T) {
 }
 
 func TestMessageHandler_RetryID_MultipleDestinations(t *testing.T) {
+	t.Parallel()
 	// Test scenario:
 	// - One event is delivered to TWO different destinations
 	// - Both deliveries fail with retryable errors

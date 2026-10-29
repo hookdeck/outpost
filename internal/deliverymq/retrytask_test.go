@@ -9,6 +9,7 @@ import (
 )
 
 func TestRetryTask_OldPayloadFallsBackToUnboundedLookup(t *testing.T) {
+	t.Parallel()
 	var task RetryTask
 	require.NoError(t, task.FromString(`{"EventID":"e","TenantID":"t","DestinationID":"d","Telemetry":null}`))
 
@@ -19,6 +20,7 @@ func TestRetryTask_OldPayloadFallsBackToUnboundedLookup(t *testing.T) {
 }
 
 func TestRetryTask_RoundTripKeepsAttemptTime(t *testing.T) {
+	t.Parallel()
 	attemptTime := time.Date(2026, 1, 2, 3, 4, 5, 123456789, time.UTC)
 	in := RetryTask{EventID: "e", TenantID: "t", DestinationID: "d", AttemptTime: attemptTime}
 
@@ -31,12 +33,14 @@ func TestRetryTask_RoundTripKeepsAttemptTime(t *testing.T) {
 }
 
 func TestRetryTask_ZeroAttemptTimeOmitted(t *testing.T) {
+	t.Parallel()
 	str, err := (&RetryTask{EventID: "e", TenantID: "t", DestinationID: "d"}).ToString()
 	require.NoError(t, err)
 	assert.NotContains(t, str, "AttemptTime")
 }
 
 func TestRetryTask_LookupBoundedByAttemptTime(t *testing.T) {
+	t.Parallel()
 	task := RetryTask{EventID: "e", TenantID: "t", DestinationID: "d", AttemptTime: time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)}
 
 	req := task.attemptLookupRequest()
@@ -45,6 +49,7 @@ func TestRetryTask_LookupBoundedByAttemptTime(t *testing.T) {
 }
 
 func TestNotReadyRequeueDelay(t *testing.T) {
+	t.Parallel()
 	flush := 10 * time.Second
 	assert.Equal(t, flush, notReadyRequeueDelay(2*time.Second, flush))
 	assert.Equal(t, time.Minute, notReadyRequeueDelay(2*time.Minute, flush))
