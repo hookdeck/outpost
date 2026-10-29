@@ -3,6 +3,7 @@ package memtenantstore
 
 import (
 	"context"
+	"errors"
 	"slices"
 	"sort"
 	"strconv"
@@ -366,6 +367,10 @@ func (s *store) UpsertDestination(_ context.Context, destination models.Destinat
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.upsertDestinationLocked(destination)
+}
+
+func (s *store) UpdateDestination(_ context.Context, destination models.Destination) error {
+	return errors.New("not implemented")
 }
 
 func (s *store) upsertDestinationLocked(destination models.Destination) error {

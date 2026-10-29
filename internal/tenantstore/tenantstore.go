@@ -22,6 +22,7 @@ var (
 	ErrDuplicateDestination            = driver.ErrDuplicateDestination
 	ErrDestinationNotFound             = driver.ErrDestinationNotFound
 	ErrDestinationDeleted              = driver.ErrDestinationDeleted
+	ErrDestinationConflict             = driver.ErrDestinationConflict
 	ErrMaxDestinationsPerTenantReached = driver.ErrMaxDestinationsPerTenantReached
 	ErrListTenantNotSupported          = driver.ErrListTenantNotSupported
 	ErrInvalidCursor                   = driver.ErrInvalidCursor

@@ -567,6 +567,10 @@ func (s *store) UpsertDestination(ctx context.Context, destination models.Destin
 	return err
 }
 
+func (s *store) UpdateDestination(ctx context.Context, destination models.Destination) error {
+	return errors.New("not implemented")
+}
+
 func (s *store) writeDestination(ctx context.Context, destination models.Destination, check bool) (int, error) {
 	fields, unset, err := s.prepareDestinationFields(&destination)
 	if err != nil {
