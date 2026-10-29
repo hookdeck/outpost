@@ -158,6 +158,7 @@ func (c *Config) InitDefaults() {
 		Database:           "outpost",
 		DialTimeoutSeconds: 10,
 		ReadTimeoutSeconds: 30,
+		IdleCloseSeconds:   300,
 	}
 	c.MQs = &MQsConfig{
 		RabbitMQ: RabbitMQConfig{
@@ -491,6 +492,7 @@ type ClickHouseConfig struct {
 	MaxOpenConns       int `yaml:"max_open_conns" env:"CLICKHOUSE_MAX_OPEN_CONNS" desc:"Maximum number of open connections in the ClickHouse connection pool. 0 uses the client default (10)." required:"N"`
 	DialTimeoutSeconds int `yaml:"dial_timeout_seconds" env:"CLICKHOUSE_DIAL_TIMEOUT_SECONDS" desc:"Seconds to wait when opening a ClickHouse connection or waiting for a free one from the pool. Default: 10" required:"N"`
 	ReadTimeoutSeconds int `yaml:"read_timeout_seconds" env:"CLICKHOUSE_READ_TIMEOUT_SECONDS" desc:"Seconds to wait for a ClickHouse query's response. Default: 30" required:"N"`
+	IdleCloseSeconds   int `yaml:"idle_close_seconds" env:"CLICKHOUSE_IDLE_CLOSE_SECONDS" desc:"Seconds without any ClickHouse call after which the connection pool is closed. The next call reconnects. Default: 300" required:"N"`
 }
 
 func (c *ClickHouseConfig) ToConfig() *clickhouse.ClickHouseConfig {
@@ -507,6 +509,7 @@ func (c *ClickHouseConfig) ToConfig() *clickhouse.ClickHouseConfig {
 		MaxOpenConns: c.MaxOpenConns,
 		DialTimeout:  time.Duration(c.DialTimeoutSeconds) * time.Second,
 		ReadTimeout:  time.Duration(c.ReadTimeoutSeconds) * time.Second,
+		IdleClose:    time.Duration(c.IdleCloseSeconds) * time.Second,
 	}
 }
 

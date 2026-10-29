@@ -85,10 +85,11 @@ func TestClickHousePoolConfig(t *testing.T) {
 		wantConns   int
 		wantTimeout int
 		wantRead    int
+		wantIdle    int
 	}{
-		{name: "defaults", wantConns: 0, wantTimeout: 10, wantRead: 30},
-		{name: "env", env: map[string]string{"CLICKHOUSE_MAX_OPEN_CONNS": "40", "CLICKHOUSE_DIAL_TIMEOUT_SECONDS": "3", "CLICKHOUSE_READ_TIMEOUT_SECONDS": "12"}, wantConns: 40, wantTimeout: 3, wantRead: 12},
-		{name: "yaml", yaml: "clickhouse:\n  max_open_conns: 25\n  dial_timeout_seconds: 7\n  read_timeout_seconds: 45\n", wantConns: 25, wantTimeout: 7, wantRead: 45},
+		{name: "defaults", wantConns: 0, wantTimeout: 10, wantRead: 30, wantIdle: 300},
+		{name: "env", env: map[string]string{"CLICKHOUSE_MAX_OPEN_CONNS": "40", "CLICKHOUSE_DIAL_TIMEOUT_SECONDS": "3", "CLICKHOUSE_READ_TIMEOUT_SECONDS": "12", "CLICKHOUSE_IDLE_CLOSE_SECONDS": "60"}, wantConns: 40, wantTimeout: 3, wantRead: 12, wantIdle: 60},
+		{name: "yaml", yaml: "clickhouse:\n  max_open_conns: 25\n  dial_timeout_seconds: 7\n  read_timeout_seconds: 45\n  idle_close_seconds: 90\n", wantConns: 25, wantTimeout: 7, wantRead: 45, wantIdle: 90},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -96,6 +97,7 @@ func TestClickHousePoolConfig(t *testing.T) {
 			assert.Equal(t, tt.wantConns, cfg.ClickHouse.MaxOpenConns)
 			assert.Equal(t, tt.wantTimeout, cfg.ClickHouse.DialTimeoutSeconds)
 			assert.Equal(t, tt.wantRead, cfg.ClickHouse.ReadTimeoutSeconds)
+			assert.Equal(t, tt.wantIdle, cfg.ClickHouse.IdleCloseSeconds)
 		})
 	}
 }
@@ -317,6 +319,11 @@ func TestRetryConfigurationValidation(t *testing.T) {
 			name:    "zero clickhouse read_timeout_seconds rejected",
 			yaml:    "clickhouse:\n  addr: localhost:9000\n  read_timeout_seconds: 0\n",
 			wantErr: "clickhouse.read_timeout_seconds must be at least 1",
+		},
+		{
+			name:    "zero clickhouse idle_close_seconds rejected",
+			yaml:    "clickhouse:\n  addr: localhost:9000\n  idle_close_seconds: 0\n",
+			wantErr: "clickhouse.idle_close_seconds must be at least 1",
 		},
 	}
 
