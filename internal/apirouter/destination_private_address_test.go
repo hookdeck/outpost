@@ -24,8 +24,8 @@ func webhookRegistry(t *testing.T, block bool, allowlist ...string) destregistry
 			SignatureEncoding:        destwebhook.DefaultEncoding,
 			SignatureAlgorithm:       destwebhook.DefaultAlgorithm,
 			SigningSecretTemplate:    destwebhook.DefaultSigningSecretTmpl,
-			BlockPrivateAddresses:    block,
 		},
+		BlockPrivateAddresses:   block,
 		PrivateAddressAllowlist: allowlist,
 		AWSEventBridge:          &destregistrydefault.DestAWSEventBridgeConfig{Source: "outpost"},
 	})

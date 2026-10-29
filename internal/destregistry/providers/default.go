@@ -50,7 +50,6 @@ type DestWebhookConfig struct {
 	MaxResponseBodyBytes     int
 	SignatureSecretEncoding  string
 	SignatureSecretPrefix    string
-	BlockPrivateAddresses    bool
 	Compat                   *destwebhook.CompatSignatureConfig
 }
 
@@ -73,6 +72,7 @@ type RegisterDefaultDestinationOptions struct {
 	AWSKinesis     *DestAWSKinesisConfig
 	AWSEventBridge *DestAWSEventBridgeConfig
 
+	BlockPrivateAddresses   bool
 	PrivateAddressAllowlist []string
 
 	// DeliveryMaxConcurrency is the delivery worker pool size. It bounds how
@@ -144,7 +144,7 @@ func RegisterDefault(registry destregistry.Registry, opts RegisterDefaultDestina
 			destwebhook.WithSecretEncoding(opts.Webhook.SignatureSecretEncoding, opts.Webhook.SignatureSecretPrefix),
 			destwebhook.WithCompatSignature(opts.Webhook.Compat),
 		)
-		if opts.Webhook.BlockPrivateAddresses {
+		if opts.BlockPrivateAddresses {
 			allowlist, err := netguard.ParseAllowlist(opts.PrivateAddressAllowlist)
 			if err != nil {
 				return fmt.Errorf("private address allowlist: %w", err)

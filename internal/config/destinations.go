@@ -14,7 +14,8 @@ type DestinationsConfig struct {
 	MetadataPath                string                          `yaml:"metadata_path" env:"DESTINATIONS_METADATA_PATH" desc:"Path to the directory containing custom destination type definitions." required:"N"`
 	IncludeMillisecondTimestamp bool                            `yaml:"include_millisecond_timestamp" env:"DESTINATIONS_INCLUDE_MILLISECOND_TIMESTAMP" desc:"If true, includes a 'timestamp-ms' field with millisecond precision in destination metadata. Useful for load testing and debugging." required:"N"`
 	ProxyURL                    string                          `yaml:"proxy_url" env:"DESTINATIONS_PROXY_URL" desc:"HTTP CONNECT forward proxy for destination connections, e.g. 'http://user:pass@proxy:10000'. Multiple whitespace-separated URLs are tunneled in order, nearest first. Applies to webhook, RabbitMQ and Kafka destinations; other types connect directly. DESTINATIONS_WEBHOOK_PROXY_URL, when set, takes precedence for webhooks; webhooks can't opt out while this is set." required:"N"`
-	PrivateAddressAllowlist     []string                        `yaml:"private_address_allowlist" env:"DESTINATIONS_PRIVATE_ADDRESS_ALLOWLIST" envSeparator:"," desc:"Comma-separated IP addresses and CIDR ranges that webhooks may still reach while DESTINATIONS_WEBHOOK_BLOCK_PRIVATE_ADDRESSES is on (in YAML, a list). 'localhost' stands for 127.0.0.0/8 and ::1. Host names, /0 ranges and ranges with host bits set fail startup, also while blocking is off." required:"N"`
+	PrivateAddressAllowlist     []string                        `yaml:"private_address_allowlist" env:"DESTINATIONS_PRIVATE_ADDRESS_ALLOWLIST" envSeparator:"," desc:"Comma-separated IP addresses and CIDR ranges that webhooks may still reach while DESTINATIONS_BLOCK_PRIVATE_ADDRESSES is on (in YAML, a list). 'localhost' stands for 127.0.0.0/8 and ::1. Host names, /0 ranges and ranges with host bits set fail startup, also while blocking is off." required:"N"`
+	BlockPrivateAddresses       bool                            `yaml:"block_private_addresses" env:"DESTINATIONS_BLOCK_PRIVATE_ADDRESSES" desc:"Currently applies to webhook destinations. If true, destinations connect only to publicly routable addresses (IANA special-purpose registries) or to addresses in DESTINATIONS_PRIVATE_ADDRESS_ALLOWLIST. URLs are checked on create/update and on every connection. Host names are resolved as given, without DNS search domains. With a forward proxy, Outpost checks the target before each request but the proxy resolves it again; configure the proxy to refuse private addresses too. HTTP_PROXY/HTTPS_PROXY are ignored for destinations while this is on. Defaults to false." required:"N"`
 	Webhook                     DestinationWebhookConfig        `yaml:"webhook" desc:"Configuration specific to webhook destinations."`
 	AWSKinesis                  DestinationAWSKinesisConfig     `yaml:"aws_kinesis" desc:"Configuration specific to AWS Kinesis destinations."`
 	AWSEventBridge              DestinationAWSEventBridgeConfig `yaml:"aws_eventbridge" desc:"Configuration specific to AWS EventBridge destinations."`
@@ -36,6 +37,7 @@ func (c *DestinationsConfig) ToConfig(cfg *Config) destregistrydefault.RegisterD
 		IncludeMillisecondTimestamp: c.IncludeMillisecondTimestamp,
 		ProxyURL:                    c.ProxyURL,
 		Webhook:                     webhook,
+		BlockPrivateAddresses:       c.BlockPrivateAddresses,
 		PrivateAddressAllowlist:     c.PrivateAddressAllowlist,
 		AWSKinesis:                  c.AWSKinesis.toConfig(),
 		AWSEventBridge:              c.AWSEventBridge.toConfig(),
@@ -95,8 +97,6 @@ type DestinationWebhookConfig struct {
 	SignatureSecretPrefix    string `yaml:"signature_secret_prefix" env:"DESTINATIONS_WEBHOOK_SIGNATURE_SECRET_PREFIX" desc:"Prefix stripped from the destination secret before decoding (e.g., 'whsec_'). Ignored when DESTINATIONS_WEBHOOK_SIGNATURE_SECRET_ENCODING is 'raw'. Only applies to 'default' mode." required:"N"`
 	SigningSecretTemplate    string `yaml:"signing_secret_template" env:"DESTINATIONS_WEBHOOK_SIGNING_SECRET_TEMPLATE" desc:"Go template for generating webhook signing secrets. Available variables: {{.RandomHex}} (64-char hex), {{.RandomBase64}} (base64-encoded), {{.RandomAlphanumeric}} (32-char alphanumeric). Defaults to 'whsec_{{.RandomHex}}'. Only applies to 'default' mode." required:"N"`
 	MaxResponseBodyBytes     int    `yaml:"max_response_body_bytes" env:"DESTINATIONS_WEBHOOK_MAX_RESPONSE_BODY_BYTES" desc:"Maximum size in bytes of a destination's response body stored on the delivery attempt. Responses larger than this are replaced with a placeholder so the attempt log stays under the event queue's per-message size limit (oversized log messages fail to publish and retry indefinitely). Default: 131072 (128 KiB). Set to 0 to disable the cap." required:"N"`
-
-	BlockPrivateAddresses bool `yaml:"block_private_addresses" env:"DESTINATIONS_WEBHOOK_BLOCK_PRIVATE_ADDRESSES" desc:"If true, webhooks connect only to publicly routable addresses (IANA special-purpose registries) or to addresses in DESTINATIONS_PRIVATE_ADDRESS_ALLOWLIST. URLs are checked on create/update and on every connection. Host names are resolved as given, without DNS search domains. With a forward proxy, Outpost checks the target before each request but the proxy resolves it again; configure the proxy to refuse private addresses too. HTTP_PROXY/HTTPS_PROXY are ignored for webhooks while this is on. Defaults to false." required:"N"`
 
 	Compat DestinationWebhookCompatConfig `yaml:"compat" desc:"A second signature sent alongside the primary one, so receivers verifying an older scheme keep working while they migrate."`
 }
@@ -184,7 +184,6 @@ func (c *DestinationWebhookConfig) toConfig() *destregistrydefault.DestWebhookCo
 		SignatureAlgorithm:       c.SignatureAlgorithm,
 		SigningSecretTemplate:    c.SigningSecretTemplate,
 		MaxResponseBodyBytes:     c.MaxResponseBodyBytes,
-		BlockPrivateAddresses:    c.BlockPrivateAddresses,
 	}
 	if c.Mode == "standard" {
 		applyStandardWebhooks(cfg)

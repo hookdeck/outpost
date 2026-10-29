@@ -98,7 +98,7 @@ func TestRegisterDefault_WebhookCompatSignature(t *testing.T) {
 	})
 }
 
-func TestRegisterDefault_WebhookBlockPrivateAddresses_BadAllowlist(t *testing.T) {
+func TestRegisterDefault_BlockPrivateAddresses_BadAllowlist(t *testing.T) {
 	registry := destregistry.NewRegistry(&destregistry.Config{}, testutil.CreateTestLogger(t))
 	err := destregistrydefault.RegisterDefault(registry, destregistrydefault.RegisterDefaultDestinationOptions{
 		Webhook: &destregistrydefault.DestWebhookConfig{
@@ -108,8 +108,8 @@ func TestRegisterDefault_WebhookBlockPrivateAddresses_BadAllowlist(t *testing.T)
 			SignatureEncoding:        destwebhook.DefaultEncoding,
 			SignatureAlgorithm:       destwebhook.DefaultAlgorithm,
 			SigningSecretTemplate:    destwebhook.DefaultSigningSecretTmpl,
-			BlockPrivateAddresses:    true,
 		},
+		BlockPrivateAddresses:   true,
 		PrivateAddressAllowlist: []string{"internal.example"},
 	})
 	assert.ErrorContains(t, err, "private address allowlist")
