@@ -926,7 +926,27 @@ func (p *WebhookPublisher) Format(ctx context.Context, event *models.Event) (*ht
 		return nil, err
 	}
 
+	markReplayable(req)
+
 	return req, nil
+}
+
+// markReplayable lets net/http resend the request on another connection when
+// a reused keep-alive connection fails before any response byte arrives (for
+// example, the destination closed it while idle). Without this, Go only
+// retries a POST if none of it had been written yet.
+//
+// A nil Idempotency-Key value marks the request as replayable without sending
+// the header (see the net/http Transport docs). A value the user configured
+// is left as is, since it already makes the request replayable.
+func markReplayable(req *http.Request) {
+	if _, ok := req.Header["Idempotency-Key"]; ok {
+		return
+	}
+	if _, ok := req.Header["X-Idempotency-Key"]; ok {
+		return
+	}
+	req.Header["Idempotency-Key"] = nil
 }
 
 // resolveMetadataHeaderName returns the header name to use for a metadata key
