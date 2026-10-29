@@ -1,12 +1,15 @@
 package testutil
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	mathrand "math/rand"
+	"net"
 	"os"
 	"strconv"
+	"sync"
 	"testing"
 
 	"github.com/alicebob/miniredis/v2"
@@ -79,6 +82,45 @@ func CreateTestRedisConfig(t *testing.T) *internalredis.RedisConfig {
 		Password: "",
 		Database: 0,
 	}
+}
+
+// NewSynctestRedis returns an in-memory Redis for tests inside a synctest
+// bubble: no listener, and TTLs follow the fake clock. The config's Dialer
+// connects to it, so redis.New(ctx, cfg) works in a bubble too.
+func NewSynctestRedis(t *testing.T) (*miniredis.Miniredis, *internalredis.RedisConfig, internalredis.Client) {
+	t.Helper()
+	mr := miniredis.NewMiniRedis()
+	mr.ClockTTL(true)
+
+	// go-redis can finish a background dial after the client closes; the
+	// lock keeps that dial from racing with mr.Close.
+	var mu sync.Mutex
+	closed := false
+	t.Cleanup(func() {
+		mu.Lock()
+		defer mu.Unlock()
+		closed = true
+		mr.Close()
+	})
+
+	cfg := &internalredis.RedisConfig{
+		Host: "127.0.0.1",
+		Port: 6379,
+		Dialer: func(context.Context, string, string) (net.Conn, error) {
+			mu.Lock()
+			defer mu.Unlock()
+			if closed {
+				return nil, net.ErrClosed
+			}
+			return mr.Dial()
+		},
+	}
+	client, err := internalredis.New(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("create synctest redis client: %v", err)
+	}
+	t.Cleanup(func() { client.Close() })
+	return mr, cfg, client
 }
 
 func CreateTestRedisClient(t *testing.T) internalredis.Client {

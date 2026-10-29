@@ -1,5 +1,10 @@
 package redis
 
+import (
+	"context"
+	"net"
+)
+
 type RedisConfig struct {
 	Host           string
 	Port           int
@@ -19,4 +24,10 @@ type RedisConfig struct {
 	// setting for Docker environments where nodes announce unreachable IPs.
 	// DO NOT use in production.
 	DevClusterHostOverride bool
+
+	// Dialer overrides how the regular (non-cluster) client opens connections.
+	// Not loaded from yaml/env; tests set it to reach an in-memory server.
+	// Setting it also disables maintenance notifications, and TLSEnabled no
+	// longer applies: go-redis adds TLS only in its built-in dialer.
+	Dialer func(ctx context.Context, network, addr string) (net.Conn, error)
 }
