@@ -1,0 +1,8 @@
+# An alias inside the node it refers to. yaml.v3 parses it into a node graph
+# with a cycle; a naive converter would recurse until the stack overflows.
+order.created:
+  payload_schema:
+    type: object
+    properties: &props
+      self:
+        properties: *props

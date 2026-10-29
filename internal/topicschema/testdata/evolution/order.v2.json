@@ -1,0 +1,53 @@
+{
+  "$defs": {
+    "Address": {
+      "description": "A postal address.",
+      "properties": { "country": { "maxLength": 2, "minLength": 2, "type": "string", "title": "Country" } },
+      "type": "object"
+    },
+    "Line": {
+      "required": ["sku", "quantity"],
+      "properties": {
+        "discount": { "type": "number" },
+        "quantity": { "minimum": 0, "type": "integer" },
+        "sku": { "pattern": "^[A-Z0-9-]+$", "type": "string" }
+      },
+      "type": "object"
+    },
+    "Customer": {
+      "allOf": [
+        {
+          "properties": {
+            "loyalty_id": { "type": "string" },
+            "email": { "format": "email", "type": "string" }
+          },
+          "required": ["email"],
+          "type": "object"
+        },
+        { "$ref": "#/$defs/Party" }
+      ]
+    },
+    "Party": {
+      "properties": {
+        "phone": { "type": "string" },
+        "name": { "maxLength": 200, "type": "string" }
+      },
+      "type": "object"
+    },
+    "Currency": { "enum": ["USD", "EUR", "CAD", "GBP"], "type": "string", "description": "ISO 4217 currency code." }
+  },
+  "required": ["id", "total", "currency", "note"],
+  "properties": {
+    "note": { "type": "string" },
+    "shipping": { "anyOf": [{ "$ref": "#/$defs/Address" }, { "type": "null" }] },
+    "lines": { "maxItems": 500, "items": { "$ref": "#/$defs/Line" }, "type": "array" },
+    "customer": { "$ref": "#/$defs/Customer" },
+    "created_at": { "format": "date-time", "type": "string" },
+    "status": { "enum": ["pending", "paid", "refunded", "cancelled"], "type": "string" },
+    "currency": { "$ref": "#/$defs/Currency" },
+    "total": { "description": "Total in major units.", "minimum": 0, "type": "number" },
+    "id": { "x-mcp-filter": false, "type": "string" }
+  },
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}
