@@ -6,6 +6,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"errors"
@@ -79,239 +80,245 @@ func newMockMessageFromBytes(body []byte) (*mockQueueMessage, *mqs.Message) {
 }
 
 func TestBatchProcessor_ValidEntry(t *testing.T) {
-	ctx := context.Background()
-	logger := testutil.CreateTestLogger(t)
-	logStore := &mockLogStore{}
+	synctest.Test(t, func(t *testing.T) {
+		ctx := context.Background()
+		logger := testutil.CreateTestLogger(t)
+		logStore := &mockLogStore{}
 
-	bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, testAlertPipeline(t, &mockAlertEvaluator{}), logmq.BatchProcessorConfig{
-		ItemCountThreshold: 1,
-		DelayThreshold:     1 * time.Second,
+		bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, testAlertPipeline(t, &mockAlertEvaluator{}), logmq.BatchProcessorConfig{
+			ItemCountThreshold: 1,
+			DelayThreshold:     1 * time.Second,
+		})
+		require.NoError(t, err)
+		defer shutdownBounded(t, bp)
+
+		event := testutil.EventFactory.Any()
+		attempt := testutil.AttemptFactory.Any()
+		entry := models.LogEntry{
+			Event:   &event,
+			Attempt: &attempt,
+		}
+
+		mock, msg := newMockMessage(entry)
+		err = bp.Add(ctx, msg)
+		require.NoError(t, err)
+
+		synctest.Wait()
+
+		assert.True(t, mock.acked.Load(), "valid message should be acked")
+		assert.False(t, mock.nacked.Load(), "valid message should not be nacked")
+
+		events, attempts := logStore.getInserted()
+		assert.Len(t, events, 1)
+		assert.Len(t, attempts, 1)
 	})
-	require.NoError(t, err)
-	defer shutdownBounded(t, bp)
-
-	event := testutil.EventFactory.Any()
-	attempt := testutil.AttemptFactory.Any()
-	entry := models.LogEntry{
-		Event:   &event,
-		Attempt: &attempt,
-	}
-
-	mock, msg := newMockMessage(entry)
-	err = bp.Add(ctx, msg)
-	require.NoError(t, err)
-
-	// Wait for batch to process
-	time.Sleep(200 * time.Millisecond)
-
-	assert.True(t, mock.acked.Load(), "valid message should be acked")
-	assert.False(t, mock.nacked.Load(), "valid message should not be nacked")
-
-	events, attempts := logStore.getInserted()
-	assert.Len(t, events, 1)
-	assert.Len(t, attempts, 1)
 }
 
 func TestBatchProcessor_InvalidEntry_MissingEvent(t *testing.T) {
-	ctx := context.Background()
-	logger := testutil.CreateTestLogger(t)
-	logStore := &mockLogStore{}
+	synctest.Test(t, func(t *testing.T) {
+		ctx := context.Background()
+		logger := testutil.CreateTestLogger(t)
+		logStore := &mockLogStore{}
 
-	bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, testAlertPipeline(t, &mockAlertEvaluator{}), logmq.BatchProcessorConfig{
-		ItemCountThreshold: 1,
-		DelayThreshold:     1 * time.Second,
+		bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, testAlertPipeline(t, &mockAlertEvaluator{}), logmq.BatchProcessorConfig{
+			ItemCountThreshold: 1,
+			DelayThreshold:     1 * time.Second,
+		})
+		require.NoError(t, err)
+		defer shutdownBounded(t, bp)
+
+		attempt := testutil.AttemptFactory.Any()
+		entry := models.LogEntry{
+			Event:   nil, // Missing event
+			Attempt: &attempt,
+		}
+
+		mock, msg := newMockMessage(entry)
+		err = bp.Add(ctx, msg)
+		require.NoError(t, err)
+
+		synctest.Wait()
+
+		assert.False(t, mock.acked.Load(), "invalid message should not be acked")
+		assert.True(t, mock.nacked.Load(), "invalid message should be nacked")
+
+		events, attempts := logStore.getInserted()
+		assert.Empty(t, events, "no events should be inserted for invalid entry")
+		assert.Empty(t, attempts, "no attempts should be inserted for invalid entry")
 	})
-	require.NoError(t, err)
-	defer shutdownBounded(t, bp)
-
-	attempt := testutil.AttemptFactory.Any()
-	entry := models.LogEntry{
-		Event:   nil, // Missing event
-		Attempt: &attempt,
-	}
-
-	mock, msg := newMockMessage(entry)
-	err = bp.Add(ctx, msg)
-	require.NoError(t, err)
-
-	// Wait for batch to process
-	time.Sleep(200 * time.Millisecond)
-
-	assert.False(t, mock.acked.Load(), "invalid message should not be acked")
-	assert.True(t, mock.nacked.Load(), "invalid message should be nacked")
-
-	events, attempts := logStore.getInserted()
-	assert.Empty(t, events, "no events should be inserted for invalid entry")
-	assert.Empty(t, attempts, "no attempts should be inserted for invalid entry")
 }
 
 func TestBatchProcessor_InvalidEntry_MissingAttempt(t *testing.T) {
-	ctx := context.Background()
-	logger := testutil.CreateTestLogger(t)
-	logStore := &mockLogStore{}
+	synctest.Test(t, func(t *testing.T) {
+		ctx := context.Background()
+		logger := testutil.CreateTestLogger(t)
+		logStore := &mockLogStore{}
 
-	bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, testAlertPipeline(t, &mockAlertEvaluator{}), logmq.BatchProcessorConfig{
-		ItemCountThreshold: 1,
-		DelayThreshold:     1 * time.Second,
+		bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, testAlertPipeline(t, &mockAlertEvaluator{}), logmq.BatchProcessorConfig{
+			ItemCountThreshold: 1,
+			DelayThreshold:     1 * time.Second,
+		})
+		require.NoError(t, err)
+		defer shutdownBounded(t, bp)
+
+		event := testutil.EventFactory.Any()
+		entry := models.LogEntry{
+			Event:   &event,
+			Attempt: nil, // Missing attempt
+		}
+
+		mock, msg := newMockMessage(entry)
+		err = bp.Add(ctx, msg)
+		require.NoError(t, err)
+
+		synctest.Wait()
+
+		assert.False(t, mock.acked.Load(), "invalid message should not be acked")
+		assert.True(t, mock.nacked.Load(), "invalid message should be nacked")
+
+		events, attempts := logStore.getInserted()
+		assert.Empty(t, events, "no events should be inserted for invalid entry")
+		assert.Empty(t, attempts, "no attempts should be inserted for invalid entry")
 	})
-	require.NoError(t, err)
-	defer shutdownBounded(t, bp)
-
-	event := testutil.EventFactory.Any()
-	entry := models.LogEntry{
-		Event:   &event,
-		Attempt: nil, // Missing attempt
-	}
-
-	mock, msg := newMockMessage(entry)
-	err = bp.Add(ctx, msg)
-	require.NoError(t, err)
-
-	// Wait for batch to process
-	time.Sleep(200 * time.Millisecond)
-
-	assert.False(t, mock.acked.Load(), "invalid message should not be acked")
-	assert.True(t, mock.nacked.Load(), "invalid message should be nacked")
-
-	events, attempts := logStore.getInserted()
-	assert.Empty(t, events, "no events should be inserted for invalid entry")
-	assert.Empty(t, attempts, "no attempts should be inserted for invalid entry")
 }
 
 func TestBatchProcessor_InvalidEntry_DoesNotBlockBatch(t *testing.T) {
-	ctx := context.Background()
-	logger := testutil.CreateTestLogger(t)
-	logStore := &mockLogStore{}
+	synctest.Test(t, func(t *testing.T) {
+		ctx := context.Background()
+		logger := testutil.CreateTestLogger(t)
+		logStore := &mockLogStore{}
 
-	bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, testAlertPipeline(t, &mockAlertEvaluator{}), logmq.BatchProcessorConfig{
-		ItemCountThreshold: 3, // Wait for 3 messages before processing
-		DelayThreshold:     1 * time.Second,
+		bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, testAlertPipeline(t, &mockAlertEvaluator{}), logmq.BatchProcessorConfig{
+			ItemCountThreshold: 3, // Wait for 3 messages before processing
+			DelayThreshold:     1 * time.Second,
+		})
+		require.NoError(t, err)
+		defer shutdownBounded(t, bp)
+
+		// Create valid entry 1
+		event1 := testutil.EventFactory.Any()
+		attempt1 := testutil.AttemptFactory.Any()
+		validEntry1 := models.LogEntry{Event: &event1, Attempt: &attempt1}
+		mock1, msg1 := newMockMessage(validEntry1)
+
+		// Create invalid entry (missing event)
+		attempt2 := testutil.AttemptFactory.Any()
+		invalidEntry := models.LogEntry{Event: nil, Attempt: &attempt2}
+		mock2, msg2 := newMockMessage(invalidEntry)
+
+		// Create valid entry 2
+		event3 := testutil.EventFactory.Any()
+		attempt3 := testutil.AttemptFactory.Any()
+		validEntry2 := models.LogEntry{Event: &event3, Attempt: &attempt3}
+		mock3, msg3 := newMockMessage(validEntry2)
+
+		// Add all messages
+		require.NoError(t, bp.Add(ctx, msg1))
+		require.NoError(t, bp.Add(ctx, msg2))
+		require.NoError(t, bp.Add(ctx, msg3))
+
+		synctest.Wait()
+
+		// Valid messages should be acked
+		assert.True(t, mock1.acked.Load(), "valid message 1 should be acked")
+		assert.False(t, mock1.nacked.Load(), "valid message 1 should not be nacked")
+
+		// Invalid message should be nacked
+		assert.False(t, mock2.acked.Load(), "invalid message should not be acked")
+		assert.True(t, mock2.nacked.Load(), "invalid message should be nacked")
+
+		// Valid message 2 should be acked (not blocked by invalid message)
+		assert.True(t, mock3.acked.Load(), "valid message 2 should be acked")
+		assert.False(t, mock3.nacked.Load(), "valid message 2 should not be nacked")
+
+		// Only valid entries should be inserted
+		events, attempts := logStore.getInserted()
+		assert.Len(t, events, 2, "only 2 valid events should be inserted")
+		assert.Len(t, attempts, 2, "only 2 valid attempts should be inserted")
 	})
-	require.NoError(t, err)
-	defer shutdownBounded(t, bp)
-
-	// Create valid entry 1
-	event1 := testutil.EventFactory.Any()
-	attempt1 := testutil.AttemptFactory.Any()
-	validEntry1 := models.LogEntry{Event: &event1, Attempt: &attempt1}
-	mock1, msg1 := newMockMessage(validEntry1)
-
-	// Create invalid entry (missing event)
-	attempt2 := testutil.AttemptFactory.Any()
-	invalidEntry := models.LogEntry{Event: nil, Attempt: &attempt2}
-	mock2, msg2 := newMockMessage(invalidEntry)
-
-	// Create valid entry 2
-	event3 := testutil.EventFactory.Any()
-	attempt3 := testutil.AttemptFactory.Any()
-	validEntry2 := models.LogEntry{Event: &event3, Attempt: &attempt3}
-	mock3, msg3 := newMockMessage(validEntry2)
-
-	// Add all messages
-	require.NoError(t, bp.Add(ctx, msg1))
-	require.NoError(t, bp.Add(ctx, msg2))
-	require.NoError(t, bp.Add(ctx, msg3))
-
-	// Wait for batch to process
-	time.Sleep(200 * time.Millisecond)
-
-	// Valid messages should be acked
-	assert.True(t, mock1.acked.Load(), "valid message 1 should be acked")
-	assert.False(t, mock1.nacked.Load(), "valid message 1 should not be nacked")
-
-	// Invalid message should be nacked
-	assert.False(t, mock2.acked.Load(), "invalid message should not be acked")
-	assert.True(t, mock2.nacked.Load(), "invalid message should be nacked")
-
-	// Valid message 2 should be acked (not blocked by invalid message)
-	assert.True(t, mock3.acked.Load(), "valid message 2 should be acked")
-	assert.False(t, mock3.nacked.Load(), "valid message 2 should not be nacked")
-
-	// Only valid entries should be inserted
-	events, attempts := logStore.getInserted()
-	assert.Len(t, events, 2, "only 2 valid events should be inserted")
-	assert.Len(t, attempts, 2, "only 2 valid attempts should be inserted")
 }
 
 func TestBatchProcessor_DuplicateMessages(t *testing.T) {
-	ctx := context.Background()
-	logger := testutil.CreateTestLogger(t)
-	logStore := &mockLogStore{}
-	alertMon := &mockAlertEvaluator{}
+	synctest.Test(t, func(t *testing.T) {
+		ctx := context.Background()
+		logger := testutil.CreateTestLogger(t)
+		logStore := &mockLogStore{}
+		alertMon := &mockAlertEvaluator{}
 
-	bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, testAlertPipeline(t, alertMon), logmq.BatchProcessorConfig{
-		ItemCountThreshold: 3, // Wait for 3 messages before processing
-		DelayThreshold:     1 * time.Second,
+		bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, testAlertPipeline(t, alertMon), logmq.BatchProcessorConfig{
+			ItemCountThreshold: 3, // Wait for 3 messages before processing
+			DelayThreshold:     1 * time.Second,
+		})
+		require.NoError(t, err)
+		defer shutdownBounded(t, bp)
+
+		// Two byte-identical copies of the same entry (redelivery / re-publish)
+		event := testutil.EventFactory.Any()
+		attempt := testutil.AttemptFactory.Any()
+		dest := testutil.DestinationFactory.Any()
+		entry := models.LogEntry{Event: &event, Attempt: &attempt, Destination: &dest}
+		mock1, msg1 := newMockMessage(entry)
+		mock2, msg2 := newMockMessage(entry)
+
+		// One distinct entry
+		otherEvent := testutil.EventFactory.Any()
+		otherAttempt := testutil.AttemptFactory.Any()
+		otherDest := testutil.DestinationFactory.Any()
+		otherEntry := models.LogEntry{Event: &otherEvent, Attempt: &otherAttempt, Destination: &otherDest}
+		mock3, msg3 := newMockMessage(otherEntry)
+
+		require.NoError(t, bp.Add(ctx, msg1))
+		require.NoError(t, bp.Add(ctx, msg2))
+		require.NoError(t, bp.Add(ctx, msg3))
+
+		synctest.Wait()
+
+		// All copies acked, none nacked
+		assert.True(t, mock1.acked.Load(), "kept copy should be acked")
+		assert.False(t, mock1.nacked.Load())
+		assert.True(t, mock2.acked.Load(), "duplicate copy should be acked")
+		assert.False(t, mock2.nacked.Load())
+		assert.True(t, mock3.acked.Load(), "distinct message should be acked")
+		assert.False(t, mock3.nacked.Load())
+
+		// Duplicate inserted once
+		_, attempts := logStore.getInserted()
+		require.Len(t, attempts, 2, "duplicate should be inserted once")
+		attemptIDs := []string{attempts[0].ID, attempts[1].ID}
+		assert.ElementsMatch(t, []string{attempt.ID, otherAttempt.ID}, attemptIDs)
+
+		// Alert eval once per unique attempt
+		calls := alertMon.getCalls()
+		require.Len(t, calls, 2, "alert eval should run once per unique attempt")
 	})
-	require.NoError(t, err)
-	defer shutdownBounded(t, bp)
-
-	// Two byte-identical copies of the same entry (redelivery / re-publish)
-	event := testutil.EventFactory.Any()
-	attempt := testutil.AttemptFactory.Any()
-	dest := testutil.DestinationFactory.Any()
-	entry := models.LogEntry{Event: &event, Attempt: &attempt, Destination: &dest}
-	mock1, msg1 := newMockMessage(entry)
-	mock2, msg2 := newMockMessage(entry)
-
-	// One distinct entry
-	otherEvent := testutil.EventFactory.Any()
-	otherAttempt := testutil.AttemptFactory.Any()
-	otherDest := testutil.DestinationFactory.Any()
-	otherEntry := models.LogEntry{Event: &otherEvent, Attempt: &otherAttempt, Destination: &otherDest}
-	mock3, msg3 := newMockMessage(otherEntry)
-
-	require.NoError(t, bp.Add(ctx, msg1))
-	require.NoError(t, bp.Add(ctx, msg2))
-	require.NoError(t, bp.Add(ctx, msg3))
-
-	// Wait for batch to process
-	time.Sleep(200 * time.Millisecond)
-
-	// All copies acked, none nacked
-	assert.True(t, mock1.acked.Load(), "kept copy should be acked")
-	assert.False(t, mock1.nacked.Load())
-	assert.True(t, mock2.acked.Load(), "duplicate copy should be acked")
-	assert.False(t, mock2.nacked.Load())
-	assert.True(t, mock3.acked.Load(), "distinct message should be acked")
-	assert.False(t, mock3.nacked.Load())
-
-	// Duplicate inserted once
-	_, attempts := logStore.getInserted()
-	require.Len(t, attempts, 2, "duplicate should be inserted once")
-	attemptIDs := []string{attempts[0].ID, attempts[1].ID}
-	assert.ElementsMatch(t, []string{attempt.ID, otherAttempt.ID}, attemptIDs)
-
-	// Alert eval once per unique attempt
-	calls := alertMon.getCalls()
-	require.Len(t, calls, 2, "alert eval should run once per unique attempt")
 }
 
 func TestBatchProcessor_MalformedJSON(t *testing.T) {
-	ctx := context.Background()
-	logger := testutil.CreateTestLogger(t)
-	logStore := &mockLogStore{}
+	synctest.Test(t, func(t *testing.T) {
+		ctx := context.Background()
+		logger := testutil.CreateTestLogger(t)
+		logStore := &mockLogStore{}
 
-	bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, testAlertPipeline(t, &mockAlertEvaluator{}), logmq.BatchProcessorConfig{
-		ItemCountThreshold: 1,
-		DelayThreshold:     1 * time.Second,
+		bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, testAlertPipeline(t, &mockAlertEvaluator{}), logmq.BatchProcessorConfig{
+			ItemCountThreshold: 1,
+			DelayThreshold:     1 * time.Second,
+		})
+		require.NoError(t, err)
+		defer shutdownBounded(t, bp)
+
+		mock, msg := newMockMessageFromBytes([]byte("not valid json"))
+		err = bp.Add(ctx, msg)
+		require.NoError(t, err)
+
+		synctest.Wait()
+
+		assert.False(t, mock.acked.Load(), "malformed message should not be acked")
+		assert.True(t, mock.nacked.Load(), "malformed message should be nacked")
+
+		events, attempts := logStore.getInserted()
+		assert.Empty(t, events)
+		assert.Empty(t, attempts)
 	})
-	require.NoError(t, err)
-	defer shutdownBounded(t, bp)
-
-	mock, msg := newMockMessageFromBytes([]byte("not valid json"))
-	err = bp.Add(ctx, msg)
-	require.NoError(t, err)
-
-	// Wait for batch to process
-	time.Sleep(200 * time.Millisecond)
-
-	assert.False(t, mock.acked.Load(), "malformed message should not be acked")
-	assert.True(t, mock.nacked.Load(), "malformed message should be nacked")
-
-	events, attempts := logStore.getInserted()
-	assert.Empty(t, events)
-	assert.Empty(t, attempts)
 }
 
 // mockAlertEvaluator records Evaluate calls and returns a configurable error.
@@ -348,109 +355,115 @@ func testAlertPipeline(t *testing.T, evaluator logmq.AlertEvaluator) logmq.Alert
 	return logmq.AlertPipeline{
 		Evaluator:      evaluator,
 		Emitter:        opevents.NewEmitter(&opevents.NoopSink{}, "test-deploy", []string{"*"}, testutil.CreateTestLogger(t)),
-		ProcessedIdemp: idempotence.New(testutil.CreateTestRedisClient(t)),
+		ProcessedIdemp: idempotence.New(synctestRedis(t)),
 	}
 }
 
 func TestBatchProcessor_AlertEvaluator_WithDestination(t *testing.T) {
-	ctx := context.Background()
-	logger := testutil.CreateTestLogger(t)
-	logStore := &mockLogStore{}
-	alertMon := &mockAlertEvaluator{}
+	synctest.Test(t, func(t *testing.T) {
+		ctx := context.Background()
+		logger := testutil.CreateTestLogger(t)
+		logStore := &mockLogStore{}
+		alertMon := &mockAlertEvaluator{}
 
-	bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, testAlertPipeline(t, alertMon), logmq.BatchProcessorConfig{
-		ItemCountThreshold: 1,
-		DelayThreshold:     1 * time.Second,
+		bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, testAlertPipeline(t, alertMon), logmq.BatchProcessorConfig{
+			ItemCountThreshold: 1,
+			DelayThreshold:     1 * time.Second,
+		})
+		require.NoError(t, err)
+		defer shutdownBounded(t, bp)
+
+		event := testutil.EventFactory.Any()
+		attempt := testutil.AttemptFactory.Any()
+		dest := testutil.DestinationFactory.Any()
+		entry := models.LogEntry{
+			Event:       &event,
+			Attempt:     &attempt,
+			Destination: &dest,
+		}
+
+		mock, msg := newMockMessage(entry)
+		require.NoError(t, bp.Add(ctx, msg))
+
+		synctest.Wait()
+
+		assert.True(t, mock.acked.Load(), "should be acked when alert evaluation succeeds")
+		assert.False(t, mock.nacked.Load())
+
+		calls := alertMon.getCalls()
+		require.Len(t, calls, 1, "alert evaluator should have been called once")
+		assert.Equal(t, dest.ID, calls[0].DestinationID)
 	})
-	require.NoError(t, err)
-	defer shutdownBounded(t, bp)
-
-	event := testutil.EventFactory.Any()
-	attempt := testutil.AttemptFactory.Any()
-	dest := testutil.DestinationFactory.Any()
-	entry := models.LogEntry{
-		Event:       &event,
-		Attempt:     &attempt,
-		Destination: &dest,
-	}
-
-	mock, msg := newMockMessage(entry)
-	require.NoError(t, bp.Add(ctx, msg))
-
-	time.Sleep(200 * time.Millisecond)
-
-	assert.True(t, mock.acked.Load(), "should be acked when alert evaluation succeeds")
-	assert.False(t, mock.nacked.Load())
-
-	calls := alertMon.getCalls()
-	require.Len(t, calls, 1, "alert evaluator should have been called once")
-	assert.Equal(t, dest.ID, calls[0].DestinationID)
 }
 
 func TestBatchProcessor_AlertEvaluator_NilDestination(t *testing.T) {
-	ctx := context.Background()
-	logger := testutil.CreateTestLogger(t)
-	logStore := &mockLogStore{}
-	alertMon := &mockAlertEvaluator{}
+	synctest.Test(t, func(t *testing.T) {
+		ctx := context.Background()
+		logger := testutil.CreateTestLogger(t)
+		logStore := &mockLogStore{}
+		alertMon := &mockAlertEvaluator{}
 
-	bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, testAlertPipeline(t, alertMon), logmq.BatchProcessorConfig{
-		ItemCountThreshold: 1,
-		DelayThreshold:     1 * time.Second,
+		bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, testAlertPipeline(t, alertMon), logmq.BatchProcessorConfig{
+			ItemCountThreshold: 1,
+			DelayThreshold:     1 * time.Second,
+		})
+		require.NoError(t, err)
+		defer shutdownBounded(t, bp)
+
+		event := testutil.EventFactory.Any()
+		attempt := testutil.AttemptFactory.Any()
+		entry := models.LogEntry{
+			Event:       &event,
+			Attempt:     &attempt,
+			Destination: nil, // migration case
+		}
+
+		mock, msg := newMockMessage(entry)
+		require.NoError(t, bp.Add(ctx, msg))
+
+		synctest.Wait()
+
+		assert.True(t, mock.acked.Load(), "should be acked even without destination (migration grace)")
+		assert.False(t, mock.nacked.Load())
+		assert.Empty(t, alertMon.getCalls(), "alert evaluator should not be called without destination")
 	})
-	require.NoError(t, err)
-	defer shutdownBounded(t, bp)
-
-	event := testutil.EventFactory.Any()
-	attempt := testutil.AttemptFactory.Any()
-	entry := models.LogEntry{
-		Event:       &event,
-		Attempt:     &attempt,
-		Destination: nil, // migration case
-	}
-
-	mock, msg := newMockMessage(entry)
-	require.NoError(t, bp.Add(ctx, msg))
-
-	time.Sleep(200 * time.Millisecond)
-
-	assert.True(t, mock.acked.Load(), "should be acked even without destination (migration grace)")
-	assert.False(t, mock.nacked.Load())
-	assert.Empty(t, alertMon.getCalls(), "alert evaluator should not be called without destination")
 }
 
 func TestBatchProcessor_AlertEvaluator_Error(t *testing.T) {
-	ctx := context.Background()
-	logger := testutil.CreateTestLogger(t)
-	logStore := &mockLogStore{}
-	alertMon := &mockAlertEvaluator{returnErr: errors.New("alert failed")}
+	synctest.Test(t, func(t *testing.T) {
+		ctx := context.Background()
+		logger := testutil.CreateTestLogger(t)
+		logStore := &mockLogStore{}
+		alertMon := &mockAlertEvaluator{returnErr: errors.New("alert failed")}
 
-	bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, testAlertPipeline(t, alertMon), logmq.BatchProcessorConfig{
-		ItemCountThreshold: 1,
-		DelayThreshold:     1 * time.Second,
+		bp, err := logmq.NewBatchProcessor(ctx, logger, logStore, testAlertPipeline(t, alertMon), logmq.BatchProcessorConfig{
+			ItemCountThreshold: 1,
+			DelayThreshold:     1 * time.Second,
+		})
+		require.NoError(t, err)
+		defer shutdownBounded(t, bp)
+
+		event := testutil.EventFactory.Any()
+		attempt := testutil.AttemptFactory.Any()
+		dest := testutil.DestinationFactory.Any()
+		entry := models.LogEntry{
+			Event:       &event,
+			Attempt:     &attempt,
+			Destination: &dest,
+		}
+
+		mock, msg := newMockMessage(entry)
+		require.NoError(t, bp.Add(ctx, msg))
+
+		synctest.Wait()
+
+		assert.False(t, mock.acked.Load(), "should not be acked when alert evaluation fails")
+		assert.True(t, mock.nacked.Load(), "should be nacked when alert evaluation fails")
+
+		// Entry was still persisted to logstore
+		events, _ := logStore.getInserted()
+		assert.Len(t, events, 1, "log entry should still be persisted despite alert failure")
 	})
-	require.NoError(t, err)
-	defer shutdownBounded(t, bp)
-
-	event := testutil.EventFactory.Any()
-	attempt := testutil.AttemptFactory.Any()
-	dest := testutil.DestinationFactory.Any()
-	entry := models.LogEntry{
-		Event:       &event,
-		Attempt:     &attempt,
-		Destination: &dest,
-	}
-
-	mock, msg := newMockMessage(entry)
-	require.NoError(t, bp.Add(ctx, msg))
-
-	time.Sleep(200 * time.Millisecond)
-
-	assert.False(t, mock.acked.Load(), "should not be acked when alert evaluation fails")
-	assert.True(t, mock.nacked.Load(), "should be nacked when alert evaluation fails")
-
-	// Entry was still persisted to logstore
-	events, _ := logStore.getInserted()
-	assert.Len(t, events, 1, "log entry should still be persisted despite alert failure")
 }
 
 func TestMessageHandler_NacksAfterShutdown(t *testing.T) {
