@@ -20,6 +20,10 @@ type TenantStore interface {
 	RetrieveDestination(ctx context.Context, tenantID, destinationID string) (*models.Destination, error)
 	CreateDestination(ctx context.Context, destination models.Destination) error
 	UpsertDestination(ctx context.Context, destination models.Destination) error
+	// UpdateDestination writes a destination retrieved earlier, only if it still
+	// exists and is unchanged since that read. It returns ErrDestinationNotFound
+	// when the destination is gone or deleted and ErrDestinationConflict when it
+	// was written meanwhile.
 	UpdateDestination(ctx context.Context, destination models.Destination) error
 	DeleteDestination(ctx context.Context, tenantID, destinationID string) error
 	MatchEvent(ctx context.Context, event models.Event, allowWildcards bool) ([]string, error)

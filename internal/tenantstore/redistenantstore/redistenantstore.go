@@ -19,6 +19,9 @@ import (
 
 const defaultMaxDestinationsPerTenant = 20
 
+// deletedRecordTTL is how long deleted tenants and destinations stay readable.
+const deletedRecordTTL = 7 * 24 * time.Hour
+
 const (
 	defaultListTenantLimit = 20
 	maxListTenantLimit     = 100
@@ -521,67 +524,90 @@ const (
 	writeDestinationOK           = 0
 	writeDestinationDuplicate    = 1
 	writeDestinationLimitReached = 2
+	writeDestinationNotFound     = 4
+	writeDestinationConflict     = 5
 )
 
-// writeDestinationScript writes a destination and its tenant summary entry in one step,
-// first rejecting a live destination with the same ID or a full tenant when check is 1.
+const (
+	writeModeUpsert = 0
+	writeModeCreate = 1
+	writeModeUpdate = 2
+)
+
+// writeDestinationScript writes a destination and its tenant summary entry in one
+// step and bumps the destination's version. Depending on mode it first rejects:
+//   - create: a live destination with the same ID, or a full tenant;
+//   - update: a missing or deleted destination, or one whose version differs
+//     from the expected one (a missing version counts as 0).
+//
 // KEYS: destination hash, tenant summary hash.
-// ARGV: check, limit, summary, id, number of fields to unset, those fields,
-// then field/value pairs to set.
-// Returns writeDestinationOK, writeDestinationDuplicate or writeDestinationLimitReached.
+// ARGV: mode, limit, summary, id, expected version, number of fields to unset,
+// those fields, then field/value pairs to set.
 var writeDestinationScript = redis.NewScript(`
-local check, limit, summary, id, nunset = tonumber(ARGV[1]), tonumber(ARGV[2]), ARGV[3], ARGV[4], tonumber(ARGV[5])
-if check == 1 then
+local mode, limit, summary, id, version, nunset = tonumber(ARGV[1]), tonumber(ARGV[2]), ARGV[3], ARGV[4], tonumber(ARGV[5]), tonumber(ARGV[6])
+if mode == 1 then
 	if redis.call('EXISTS', KEYS[1]) == 1 and redis.call('HEXISTS', KEYS[1], 'deleted_at') == 0 then
 		return 1
 	end
 	if redis.call('HLEN', KEYS[2]) >= limit then
 		return 2
 	end
+elseif mode == 2 then
+	if redis.call('EXISTS', KEYS[1]) == 0 or redis.call('HEXISTS', KEYS[1], 'deleted_at') == 1 then
+		return 4
+	end
+	if tonumber(redis.call('HGET', KEYS[1], 'version') or 0) ~= version then
+		return 5
+	end
 end
 redis.call('PERSIST', KEYS[1])
 for i = 1, nunset do
-	redis.call('HDEL', KEYS[1], ARGV[5 + i])
+	redis.call('HDEL', KEYS[1], ARGV[6 + i])
 end
-for i = 6 + nunset, #ARGV, 2 do
+for i = 7 + nunset, #ARGV, 2 do
 	redis.call('HSET', KEYS[1], ARGV[i], ARGV[i + 1])
 end
+redis.call('HINCRBY', KEYS[1], 'version', 1)
 redis.call('HSET', KEYS[2], id, summary)
 return 0
 `)
 
 func (s *store) CreateDestination(ctx context.Context, destination models.Destination) error {
-	switch code, err := s.writeDestination(ctx, destination, true); {
-	case err != nil:
+	return destinationWriteError(s.writeDestination(ctx, destination, writeModeCreate))
+}
+
+func (s *store) UpsertDestination(ctx context.Context, destination models.Destination) error {
+	return destinationWriteError(s.writeDestination(ctx, destination, writeModeUpsert))
+}
+
+func (s *store) UpdateDestination(ctx context.Context, destination models.Destination) error {
+	return destinationWriteError(s.writeDestination(ctx, destination, writeModeUpdate))
+}
+
+func destinationWriteError(code int, err error) error {
+	if err != nil {
 		return err
-	case code == writeDestinationDuplicate:
+	}
+	switch code {
+	case writeDestinationDuplicate:
 		return driver.ErrDuplicateDestination
-	case code == writeDestinationLimitReached:
+	case writeDestinationLimitReached:
 		return driver.ErrMaxDestinationsPerTenantReached
+	case writeDestinationNotFound:
+		return driver.ErrDestinationNotFound
+	case writeDestinationConflict:
+		return driver.ErrDestinationConflict
 	}
 	return nil
 }
 
-func (s *store) UpsertDestination(ctx context.Context, destination models.Destination) error {
-	_, err := s.writeDestination(ctx, destination, false)
-	return err
-}
-
-func (s *store) UpdateDestination(ctx context.Context, destination models.Destination) error {
-	return errors.New("not implemented")
-}
-
-func (s *store) writeDestination(ctx context.Context, destination models.Destination, check bool) (int, error) {
+func (s *store) writeDestination(ctx context.Context, destination models.Destination, mode int) (int, error) {
 	fields, unset, err := s.prepareDestinationFields(&destination)
 	if err != nil {
 		return 0, err
 	}
 
-	checkArg := 0
-	if check {
-		checkArg = 1
-	}
-	args := []interface{}{checkArg, s.maxDestinationsPerTenant, newDestinationSummary(destination), destination.ID, len(unset)}
+	args := []interface{}{mode, s.maxDestinationsPerTenant, newDestinationSummary(destination), destination.ID, destination.Version, len(unset)}
 	for _, f := range unset {
 		args = append(args, f)
 	}
@@ -663,27 +689,36 @@ func (s *store) prepareDestinationFields(destination *models.Destination) (field
 	return fields, unset, nil
 }
 
-func (s *store) DeleteDestination(ctx context.Context, tenantID, destinationID string) error {
-	key := s.redisDestinationID(destinationID, tenantID)
-	summaryKey := s.redisTenantDestinationSummaryKey(tenantID)
+// deleteDestinationScript marks a destination deleted, bumps its version and
+// drops it from the tenant summary.
+// KEYS: destination hash, tenant summary hash.
+// ARGV: destination ID, deleted_at, expiry in seconds.
+// Returns 0, or 4 when the destination does not exist.
+var deleteDestinationScript = redis.NewScript(`
+if redis.call('EXISTS', KEYS[1]) == 0 then
+	return 4
+end
+redis.call('HDEL', KEYS[2], ARGV[1])
+redis.call('HSET', KEYS[1], 'deleted_at', ARGV[2])
+redis.call('HINCRBY', KEYS[1], 'version', 1)
+redis.call('EXPIRE', KEYS[1], ARGV[3])
+return 0
+`)
 
-	if exists, err := s.redisClient.Exists(ctx, key).Result(); err != nil {
+func (s *store) DeleteDestination(ctx context.Context, tenantID, destinationID string) error {
+	keys := []string{
+		s.redisDestinationID(destinationID, tenantID),
+		s.redisTenantDestinationSummaryKey(tenantID),
+	}
+	code, err := deleteDestinationScript.Run(ctx, s.redisClient, keys,
+		destinationID, time.Now().UnixMilli(), int(deletedRecordTTL.Seconds())).Int()
+	if err != nil {
 		return err
-	} else if exists == 0 {
+	}
+	if code == writeDestinationNotFound {
 		return driver.ErrDestinationNotFound
 	}
-
-	_, err := s.redisClient.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
-		nowUnixMilli := time.Now().UnixMilli()
-
-		pipe.HDel(ctx, summaryKey, destinationID)
-		pipe.HSet(ctx, key, "deleted_at", nowUnixMilli)
-		pipe.Expire(ctx, key, 7*24*time.Hour)
-
-		return nil
-	})
-
-	return err
+	return nil
 }
 
 func (s *store) MatchEvent(ctx context.Context, event models.Event, allowWildcards bool) ([]string, error) {

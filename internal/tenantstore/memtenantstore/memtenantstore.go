@@ -3,7 +3,6 @@ package memtenantstore
 
 import (
 	"context"
-	"errors"
 	"slices"
 	"sort"
 	"strconv"
@@ -129,6 +128,7 @@ func (s *store) DeleteTenant(_ context.Context, tenantID string) error {
 		for destID := range destIDs {
 			if drec, ok := s.destinations[destKey(tenantID, destID)]; ok {
 				drec.deletedAt = &now
+				drec.destination.Version++
 			}
 		}
 		delete(s.destsByTenant, tenantID)
@@ -370,7 +370,17 @@ func (s *store) UpsertDestination(_ context.Context, destination models.Destinat
 }
 
 func (s *store) UpdateDestination(_ context.Context, destination models.Destination) error {
-	return errors.New("not implemented")
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	drec, ok := s.destinations[destKey(destination.TenantID, destination.ID)]
+	if !ok || drec.deletedAt != nil {
+		return driver.ErrDestinationNotFound
+	}
+	if drec.destination.Version != destination.Version {
+		return driver.ErrDestinationConflict
+	}
+	return s.upsertDestinationLocked(destination)
 }
 
 func (s *store) upsertDestinationLocked(destination models.Destination) error {
@@ -383,6 +393,10 @@ func (s *store) upsertDestinationLocked(destination models.Destination) error {
 	}
 
 	key := destKey(destination.TenantID, destination.ID)
+	destination.Version = 1
+	if prev, ok := s.destinations[key]; ok {
+		destination.Version = prev.destination.Version + 1
+	}
 	s.destinations[key] = &destinationRecord{destination: destination}
 
 	// Update destsByTenant index
@@ -405,6 +419,7 @@ func (s *store) DeleteDestination(_ context.Context, tenantID, destinationID str
 	// Already deleted is OK (idempotent)
 	now := time.Now()
 	drec.deletedAt = &now
+	drec.destination.Version++
 
 	// Remove from destsByTenant index
 	if destIDs, ok := s.destsByTenant[tenantID]; ok {
