@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math/rand/v2"
+	"sync"
 	"time"
 
 	"github.com/hookdeck/outpost/internal/logging"
@@ -75,6 +76,7 @@ type config struct {
 	maxReceiveCount      uint64
 	maxExecBackoff       time.Duration
 	maxConcurrency       int
+	shutdownGrace        time.Duration
 	rand                 func() float64
 	logger               *logging.Logger
 }
@@ -127,6 +129,15 @@ func WithMaxConcurrency(n int) Option {
 	}
 }
 
+// WithShutdownGrace sets how long Monitor waits for running tasks after its
+// context is cancelled. Tasks still running then are cancelled and handled
+// like any failed task.
+func WithShutdownGrace(d time.Duration) Option {
+	return func(c *config) {
+		c.shutdownGrace = d
+	}
+}
+
 func WithLogger(logger *logging.Logger) Option {
 	return func(c *config) {
 		c.logger = logger
@@ -163,6 +174,7 @@ func New(name string, rsmqClient rsmq.Client, exec func(context.Context, string)
 		maxConsecutiveErrors: 10,
 		maxErrorBackoff:      15 * time.Second,
 		maxExecBackoff:       15 * time.Minute,
+		shutdownGrace:        5 * time.Second,
 		rand:                 rand.Float64,
 	}
 	for _, opt := range opts {
@@ -240,6 +252,12 @@ func (s *schedulerImpl) Schedule(ctx context.Context, task string, delay time.Du
 }
 
 func (s *schedulerImpl) Monitor(ctx context.Context) error {
+	// Tasks run on a context that shutdown doesn't cancel, so a received task
+	// finishes instead of being redelivered; drain bounds the wait.
+	taskCtx, cancelTasks := context.WithCancel(context.WithoutCancel(ctx))
+	defer cancelTasks()
+	var inflight sync.WaitGroup
+	defer s.drain(&inflight, cancelTasks)
 	consecutiveErrors := 0
 	for {
 		select {
@@ -287,11 +305,29 @@ func (s *schedulerImpl) Monitor(ctx context.Context) error {
 				s.release()
 				continue
 			}
+			inflight.Add(1)
 			go func() {
+				defer inflight.Done()
 				defer s.release()
-				s.handle(ctx, msg)
+				s.handle(taskCtx, msg)
 			}()
 		}
+	}
+}
+
+// drain waits for running tasks, cancelling them once the shutdown grace has
+// passed.
+func (s *schedulerImpl) drain(inflight *sync.WaitGroup, cancelTasks context.CancelFunc) {
+	done := make(chan struct{})
+	go func() {
+		inflight.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(s.config.shutdownGrace):
+		cancelTasks()
+		<-done
 	}
 }
 
