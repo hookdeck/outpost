@@ -241,7 +241,7 @@ type RetryTask struct {
 	DestinationID string
 	Telemetry     *models.DeliveryTelemetry
 	// MessageID is the delivery's identifier, carried to every retry; empty
-	// for tasks queued before it was added.
+	// for retry tasks scheduled before the field existed.
 	MessageID string `json:",omitempty"`
 	// AttemptTime bounds the log store lookup; zero for tasks queued before
 	// it was added.
