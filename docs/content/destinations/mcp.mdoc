@@ -79,6 +79,15 @@ A subscription must target a defined event: `422` with `topics` / `not_found` ot
 
 `GET /mcp/events` (Admin API key) returns the configured list in order as an MCP `events/list` result (`resultType: "complete"`), with `delivery` set to `["webhook"]` on each event and `nextCursor` when there are more. `topics=a,b` restricts the list to those events, and `limit` and `cursor` page through it. Without MCP enabled or any events configured, the route returns `404`.
 
+## Subscribe Endpoints for an MCP Server
+
+An MCP server that exposes `events/subscribe` and `events/unsubscribe` can forward them to Outpost instead of creating destinations itself. With MCP enabled, the Admin API key can call `POST /tenants/<TENANT_ID>/mcp/subscribe` and `POST /tenants/<TENANT_ID>/mcp/unsubscribe` with `{"principal": ..., "params": ...}`, where `params` are the MCP request's params as received. The answer is the MCP result, or a `422` with an `mcp_error` (`code`, `message`, and `data` where the MCP Events spec defines it) to return as the JSON-RPC error.
+
+- A new subscription runs the same checks and verification challenge as creating an `mcp` destination. Subscribing creates the tenant if it does not exist, even when the subscribe then fails.
+- `allowed_topics` on the subscribe call restricts the principal's events: omitted allows every event, an empty list allows none. A subscription to a refused event answers `Forbidden`.
+- Subscribing again with the same principal, event, arguments and callback URL refreshes the subscription: same `id`, new expiry, the new secret, re-enabled if it was suspended. Once a subscription has expired, subscribing starts a new one.
+- The lifetime follows the agent's `ttlMs`, within `EXPERIMENTAL_MCP_SUBSCRIPTION_TTL_MIN_SECONDS` and `EXPERIMENTAL_MCP_SUBSCRIPTION_TTL_MAX_SECONDS`. No `ttlMs` gets `EXPERIMENTAL_MCP_SUBSCRIPTION_TTL_DEFAULT_SECONDS`; `null` gets the maximum.
+
 ## Delivery
 
 Each event is sent as an HTTP POST:

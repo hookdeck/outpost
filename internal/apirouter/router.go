@@ -10,6 +10,7 @@ import (
 	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/logstore"
+	"github.com/hookdeck/outpost/internal/mcpevents"
 	"github.com/hookdeck/outpost/internal/portal"
 	"github.com/hookdeck/outpost/internal/telemetry"
 	"github.com/hookdeck/outpost/internal/tenantstore"
@@ -44,6 +45,10 @@ type RouterConfig struct {
 
 	// MaxDestinationsPerTenant mirrors the tenant store's limit (0: unknown).
 	MaxDestinationsPerTenant int
+
+	// MCPSubscriptionTTL holds the lifetime rules of the MCP subscribe
+	// endpoints; they answer 404 while it is nil.
+	MCPSubscriptionTTL *mcpevents.TTLConfig
 }
 
 type RouterDeps struct {
@@ -150,6 +155,7 @@ func NewRouter(cfg RouterConfig, deps RouterDeps) http.Handler {
 	topicHandlers := NewTopicHandlers(deps.Logger, cfg.Topics)
 	metricsHandlers := NewMetricsHandlers(deps.Logger, deps.LogStore)
 	mcpEventsHandlers := NewMCPEventsHandlers(deps.Logger, deps.MCPCatalog)
+	mcpSubscribeHandlers := NewMCPSubscribeHandlers(destinationHandlers, tenantHandlers, cfg.MCPSubscriptionTTL)
 
 	routes := []RouteDefinition{
 		// Schemas & Topics
@@ -180,6 +186,10 @@ func NewRouter(cfg RouterConfig, deps RouterDeps) http.Handler {
 		{Method: http.MethodPut, Path: "/tenants/:tenant_id/destinations/:destination_id/disable", Handler: destinationHandlers.Disable, RequireTenant: true},
 		{Method: http.MethodGet, Path: "/tenants/:tenant_id/destinations/:destination_id/attempts", Handler: logHandlers.ListDestinationAttempts, RequireTenant: true},
 		{Method: http.MethodGet, Path: "/tenants/:tenant_id/destinations/:destination_id/attempts/:attempt_id", Handler: logHandlers.RetrieveAttempt, RequireTenant: true},
+
+		// MCP subscribe endpoints
+		{Method: http.MethodPost, Path: "/tenants/:tenant_id/mcp/subscribe", Handler: mcpSubscribeHandlers.Subscribe, AdminOnly: true},
+		{Method: http.MethodPost, Path: "/tenants/:tenant_id/mcp/unsubscribe", Handler: mcpSubscribeHandlers.Unsubscribe, AdminOnly: true},
 
 		// Events
 		{Method: http.MethodGet, Path: "/events", Handler: logHandlers.ListEvents},
