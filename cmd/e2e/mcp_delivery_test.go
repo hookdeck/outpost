@@ -299,7 +299,8 @@ func (s *mcpSuite) TestRetryResigns() {
 	s.check(
 		events[0].Header.Get("webhook-id") != "" &&
 			events[0].Header.Get("webhook-id") == events[1].Header.Get("webhook-id") &&
-			events[1].Header.Get("webhook-id") == events[2].Header.Get("webhook-id"),
+			events[1].Header.Get("webhook-id") == events[2].Header.Get("webhook-id") &&
+			!strings.Contains(events[0].Header.Get("webhook-id"), events[0].Envelope().EventID),
 		"webhook-ids %q %q %q", events[0].Header.Get("webhook-id"), events[1].Header.Get("webhook-id"), events[2].Header.Get("webhook-id"))
 	time.Sleep(mcpRetryWait)
 	s.Len(s.r.Events(p.path), 3, "success on the third stops the retries")

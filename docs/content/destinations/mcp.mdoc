@@ -95,7 +95,7 @@ X-MCP-Subscription-Id: sub_12345
 ```
 
 - `cursor` is always `null`: there is no replay, and Outpost doesn't send `gap` or `terminated` envelopes.
-- `webhook-id` is random, set when the event is matched to the subscription, and the same on every automatic retry. A manual retry sends a new one. Dedupe on it per subscription.
+- `webhook-id` is random, set when the event is matched to the subscription, and the same on every automatic retry. A manual retry sends a new one. Dedupe on `eventId`.
 - `webhook-timestamp` and `webhook-signature` are computed again on every attempt. During a secret rotation, the signature header carries one signature per valid secret.
 - Redirects are never followed.
 - Deliveries and verification challenges connect directly. `DESTINATIONS_PROXY_URL` and `HTTP_PROXY`/`HTTPS_PROXY` don't apply, so the address check covers the address actually connected to.
