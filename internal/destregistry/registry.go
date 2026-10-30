@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hookdeck/outpost/internal/backoff"
 	"github.com/hookdeck/outpost/internal/destregistry/metadata"
 	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/logging"
@@ -55,6 +56,17 @@ type Registry interface {
 	MetadataLoader() metadata.MetadataLoader
 	RetrieveProviderMetadata(providerType string) (*metadata.ProviderMetadata, error)
 	ListProviderMetadata() []*metadata.ProviderMetadata
+
+	// RetryPolicy returns the retry policy of a destination type's provider;
+	// ok is false when the type has none and the global policy applies.
+	RetryPolicy(destinationType string) (b backoff.Backoff, maxRetries int, ok bool)
+}
+
+// RetryPolicyProvider is implemented by providers whose destinations retry on
+// their own schedule. maxRetries is the number of retries after the first
+// attempt. ok=false falls back to the global policy.
+type RetryPolicyProvider interface {
+	RetryPolicy() (b backoff.Backoff, maxRetries int, ok bool)
 }
 
 // Provider interface handles validation and publisher creation
@@ -280,6 +292,13 @@ func (r *registry) RegisterProvider(destinationType string, provider Provider) e
 	r.metadata[destinationType] = provider.Metadata()
 	r.providerList = append(r.providerList, destinationType)
 	return nil
+}
+
+func (r *registry) RetryPolicy(destinationType string) (backoff.Backoff, int, bool) {
+	if rp, ok := r.providers[destinationType].(RetryPolicyProvider); ok {
+		return rp.RetryPolicy()
+	}
+	return nil, 0, false
 }
 
 func (r *registry) ResolveProvider(destination *models.Destination) (Provider, error) {
