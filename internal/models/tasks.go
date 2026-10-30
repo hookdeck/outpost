@@ -35,9 +35,9 @@ func (e *Event) ToMessage() (*mqs.Message, error) {
 
 // DeliveryTask represents a task to deliver an event to a destination.
 // This is a message type used by: publishmq -> deliverymq, retry -> deliverymq
-// MessageID identifies the event's delivery to the destination across
-// automatic retries.
 type DeliveryTask struct {
+	// MessageID identifies the event's delivery to the destination across
+	// automatic retries; a manual retry gets a new one.
 	MessageID     string             `json:"message_id,omitempty"`
 	Event         Event              `json:"event"`
 	DestinationID string             `json:"destination_id"`
