@@ -23,6 +23,7 @@ import (
 	"github.com/hookdeck/outpost/internal/publishmq"
 	"github.com/hookdeck/outpost/internal/telemetry"
 	"github.com/hookdeck/outpost/internal/tenantstore"
+	"github.com/hookdeck/outpost/internal/topicschema"
 	"github.com/hookdeck/outpost/internal/util/testutil"
 	"go.uber.org/zap"
 )
@@ -71,11 +72,18 @@ type apiTestConfig struct {
 	deploymentID         string
 	mcpVerifier          apirouter.MCPVerifier
 	maxDestinations      int
+	mcpCatalog           *topicschema.Catalog
 }
 
 func withMaxDestinations(n int) apiTestOption {
 	return func(cfg *apiTestConfig) {
 		cfg.maxDestinations = n
+	}
+}
+
+func withMCPCatalog(c *topicschema.Catalog) apiTestOption {
+	return func(cfg *apiTestConfig) {
+		cfg.mcpCatalog = c
 	}
 }
 
@@ -196,6 +204,7 @@ func newAPITest(t *testing.T, opts ...apiTestOption) *apiTest {
 			Telemetry:           &telemetry.NoopTelemetry{},
 			SubscriptionEmitter: subEmitter,
 			MCPVerifier:         cfg.mcpVerifier,
+			MCPCatalog:          cfg.mcpCatalog,
 		},
 	)
 

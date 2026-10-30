@@ -42,13 +42,42 @@ Verification is limited to 10 challenges per tenant and principal per minute, an
 | `topics` | string[] | Yes | Exactly one topic. `*` is not accepted. |
 | `config.url` | string | Yes | Callback URL. `https`, in normalized form (lowercase host, no default port, no credentials); `http` only with `EXPERIMENTAL_MCP_ALLOW_INSECURE_CALLBACKS`, for addresses in `DESTINATIONS_PRIVATE_ADDRESS_ALLOWLIST`, for development. Must resolve to a public address, unless allowed by `DESTINATIONS_PRIVATE_ADDRESS_ALLOWLIST`. |
 | `config.principal` | string | No | The subject the subscription belongs to, up to 512 bytes. Verification is cached per tenant, principal and URL. |
-| `config.arguments` | string | No | Canonical JSON object, up to 4 KiB. Stored with the destination. |
+| `config.arguments` | string | No | Canonical JSON object, up to 4 KiB. Stored with the destination. Must satisfy the event's `inputSchema`. |
 | `credentials.secret` | string | Yes | `whsec_` followed by base64 of 24 to 64 bytes. |
 | `expires_at` | string | No | RFC 3339 time in the future. From then on the subscription matches no events and receives no deliveries. `null` on update clears it. |
 
 `config.url`, `config.principal`, `config.arguments` and `topics` cannot change after creation. To rotate the secret, update `credentials.secret`: the old secret keeps signing for 24 hours alongside the new one.
 
 Each subscription counts toward `MAX_DESTINATIONS_PER_TENANT`. When a tenant is at the limit, creating a subscription first removes the tenant's expired ones.
+
+## Event Definitions and Arguments
+
+Event definitions use the format of an MCP `events/list` result, set with [`EXPERIMENTAL_MCP_EVENTS_SCHEMA`](/docs/outpost/self-hosting/configuration#mcp-events-experimental) (`experimental.mcp.events_schema` in YAML):
+
+```json
+{
+  "events": [
+    {
+      "name": "order.created",
+      "description": "A new order was placed.",
+      "inputSchema": {
+        "type": "object",
+        "properties": { "status": { "type": "string", "enum": ["paid", "pending"] } }
+      },
+      "payloadSchema": {
+        "type": "object",
+        "properties": { "status": { "type": "string" }, "total": { "type": "number" } }
+      }
+    }
+  ]
+}
+```
+
+An `events/list` result from another MCP server loads as is if its arguments fit the rules below. `description`, `delivery` (when set, it must include `webhook`) and `_meta` are optional; `_meta` is passed through.
+
+A subscription must target a defined event: `422` with `topics` / `not_found` otherwise, so with no definitions every subscription is refused. `config.arguments` must satisfy the event's `inputSchema`, and an argument that isn't listed under its `properties` is refused. Outpost matches each argument against the top-level `data` field of the same name by equality, and an event is delivered only if all arguments match; `filter` can't be set on these subscriptions. Each argument must be a string, number, integer or boolean with no `default`, naming a payload property of a compatible type, and `additionalProperties` must be `false` or absent. Use `{"type": "object", "properties": {}}` for an event without arguments. Other shapes fail startup. Checks run when a subscription is created.
+
+`GET /mcp/events` (Admin API key) returns the configured list in order as an MCP `events/list` result (`resultType: "complete"`), with `delivery` set to `["webhook"]` on each event and `nextCursor` when there are more. `topics=a,b` restricts the list to those events, and `limit` and `cursor` page through it. Without MCP enabled or any events configured, the route returns `404`.
 
 ## Delivery
 

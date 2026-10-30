@@ -13,6 +13,7 @@ import (
 	"github.com/hookdeck/outpost/internal/portal"
 	"github.com/hookdeck/outpost/internal/telemetry"
 	"github.com/hookdeck/outpost/internal/tenantstore"
+	"github.com/hookdeck/outpost/internal/topicschema"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 )
 
@@ -52,8 +53,9 @@ type RouterDeps struct {
 	DeliveryPublisher   deliveryPublisher
 	EventHandler        eventHandler
 	Telemetry           telemetry.Telemetry
-	SubscriptionEmitter SubscriptionEmitter // optional — emits tenant.subscription.updated on destination mutations
-	MCPVerifier         MCPVerifier         // optional — set when the mcp destination type is enabled; purged on tenant delete
+	SubscriptionEmitter SubscriptionEmitter  // optional — emits tenant.subscription.updated on destination mutations
+	MCPVerifier         MCPVerifier          // optional — set when the mcp destination type is enabled; purged on tenant delete
+	MCPCatalog          *topicschema.Catalog // optional — event definitions served by GET /mcp/events
 }
 
 func (d RouterDeps) validate() error {
@@ -147,12 +149,14 @@ func NewRouter(cfg RouterConfig, deps RouterDeps) http.Handler {
 	retryHandlers := NewRetryHandlers(deps.Logger, deps.TenantStore, deps.LogStore, deps.DeliveryPublisher, cfg.TopicsAllowWildcards)
 	topicHandlers := NewTopicHandlers(deps.Logger, cfg.Topics)
 	metricsHandlers := NewMetricsHandlers(deps.Logger, deps.LogStore)
+	mcpEventsHandlers := NewMCPEventsHandlers(deps.Logger, deps.MCPCatalog)
 
 	routes := []RouteDefinition{
 		// Schemas & Topics
 		{Method: http.MethodGet, Path: "/destination-types", Handler: destinationHandlers.ListProviderMetadata},
 		{Method: http.MethodGet, Path: "/destination-types/:type", Handler: destinationHandlers.RetrieveProviderMetadata},
 		{Method: http.MethodGet, Path: "/topics", Handler: topicHandlers.List},
+		{Method: http.MethodGet, Path: "/mcp/events", Handler: mcpEventsHandlers.List, AdminOnly: true},
 
 		// Publish / Retry
 		{Method: http.MethodPost, Path: publishPath, Handler: publishHandlers.Ingest, AdminOnly: true},
