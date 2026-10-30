@@ -79,6 +79,10 @@ func TestHTTPClientGuard_IgnoresEnvironmentProxy(t *testing.T) {
 	_, port, _ := net.SplitHostPort(dest.Listener.Addr().String())
 	res := netguardtest.NewDNS(t).Set("hooks.example.com", []string{"127.0.0.1"}).Resolver
 	client := newGuardedClient(t, destregistry.HTTPClientConfig{Guard: guardAllowing(t, res, "localhost")})
+	// Go caches the proxy environment per process, so also check the setting.
+	tr, ok := client.Transport.(*http.Transport)
+	require.True(t, ok)
+	assert.Nil(t, tr.Proxy)
 	body, err := getBody(t, client, "http://hooks.example.com:"+port+"/")
 	require.NoError(t, err)
 	assert.Equal(t, "ok", body)

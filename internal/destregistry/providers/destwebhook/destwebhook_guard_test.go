@@ -53,7 +53,7 @@ func TestWebhookDestination_Validate_AddressGuard(t *testing.T) {
 		d := webhookTo(u)
 		requireURLError(t, guarded.Validate(context.Background(), &d), "address_not_allowed")
 	}
-	// The schema rejects the second before the guard runs.
+	// "http://" fails the schema's pattern before the guard runs.
 	for u, errType := range map[string]string{"http://[::1": "invalid", "http://": "pattern"} {
 		d := webhookTo(u)
 		requireURLError(t, guarded.Validate(context.Background(), &d), errType)
@@ -112,6 +112,7 @@ func TestWebhookPublisher_AddressGuard(t *testing.T) {
 		assert.Equal(t, "address_not_allowed", delivery.Code)
 		assert.Zero(t, hits.Load())
 	})
+
 	t.Run("forward proxy: the delivery is not checked", func(t *testing.T) {
 		var proxied atomic.Int32
 		proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
