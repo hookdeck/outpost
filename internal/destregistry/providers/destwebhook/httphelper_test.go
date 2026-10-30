@@ -133,3 +133,25 @@ func TestParseHTTPResponse_Location(t *testing.T) {
 		})
 	}
 }
+
+func TestExecuteHTTPRequest_ServerClosesBeforeResponse(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.Copy(io.Discard, r.Body)
+		conn, _, err := w.(http.Hijacker).Hijack()
+		require.NoError(t, err)
+		conn.Close()
+	}))
+	defer server.Close()
+
+	req, err := http.NewRequest(http.MethodPost, server.URL, strings.NewReader("{}"))
+	require.NoError(t, err)
+
+	result := destwebhook.ExecuteHTTPRequest(context.Background(), server.Client(), req, "webhook", 0)
+
+	require.NotNil(t, result.Delivery)
+	assert.Equal(t, "failed", result.Delivery.Status)
+	assert.Equal(t, "connection_reset", result.Delivery.Code)
+	assert.Error(t, result.Error)
+}
