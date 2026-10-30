@@ -59,6 +59,15 @@ func (r Request) VerifiedWith(secrets ...string) []bool {
 	return out
 }
 
+func (r Request) verified(secrets []string) bool {
+	for _, ok := range r.VerifiedWith(secrets...) {
+		if ok {
+			return r.TimestampWithinSkew()
+		}
+	}
+	return false
+}
+
 // TimestampWithinSkew reports whether webhook-timestamp is within five
 // minutes of the receipt time.
 func (r Request) TimestampWithinSkew() bool {
