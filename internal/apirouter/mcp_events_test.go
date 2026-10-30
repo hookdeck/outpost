@@ -17,14 +17,18 @@ import (
 func mcpEventsCatalog(t *testing.T) *topicschema.Catalog {
 	t.Helper()
 	c, err := topicschema.NewCatalog(testutil.TestTopics, topicschema.Definitions{
-		"user.created": {
+		{
+			Name:        "user.created",
 			Description: "A user signed up.",
+			InputSchema: json.RawMessage(`{"type":"object","properties":{"status":{"type":"string","enum":["paid","pending"]}}}`),
 			PayloadSchema: json.RawMessage(`{"type":"object","properties":{
 				"status":{"type":"string","enum":["paid","pending"]},
-				"total":{"type":"number","x-mcp-filter":false}
+				"total":{"type":"number"}
 			}}`),
 		},
-		"user.updated": {
+		{
+			Name:          "user.updated",
+			InputSchema:   json.RawMessage(`{"type":"object","properties":{}}`),
 			PayloadSchema: json.RawMessage(`{"type":"object","properties":{"plan":{"type":"string"}}}`),
 		},
 	})
@@ -92,12 +96,7 @@ func TestAPI_MCPEvents(t *testing.T) {
 		assert.Equal(t, "A user signed up.", ev.Description)
 		assert.Equal(t, []string{"webhook"}, ev.Delivery)
 		assert.JSONEq(t, `{"type":"object","properties":{"status":{"type":"string","enum":["paid","pending"]},"total":{"type":"number"}}}`, string(ev.PayloadSchema))
-		var input struct {
-			Properties map[string]json.RawMessage `json:"properties"`
-		}
-		require.NoError(t, json.Unmarshal(ev.InputSchema, &input))
-		assert.Contains(t, input.Properties, "status")
-		assert.NotContains(t, input.Properties, "total", "x-mcp-filter: false hides the property")
+		assert.JSONEq(t, `{"type":"object","properties":{"status":{"type":"string","enum":["paid","pending"]}}}`, string(ev.InputSchema))
 		assert.Equal(t, "user.updated", out.Events[1].Name)
 	})
 
@@ -201,7 +200,7 @@ func TestAPI_MCPDestinationsWithCatalog(t *testing.T) {
 		raw = createMCP(t, h, mcpDestination(func(d map[string]any) {
 			d["config"] = map[string]string{"url": mcpCallbackURL, "arguments": `{"total":1}`}
 		}))
-		requireValidation422(t, raw, "config.arguments failed invalid validation")
+		requireValidation422(t, raw, "config.arguments.* failed invalid validation")
 	})
 
 	t.Run("filter must be absent", func(t *testing.T) {
@@ -233,7 +232,7 @@ func TestAPI_MCPDestinationsWithCatalog(t *testing.T) {
 		require.Equal(t, http.StatusCreated, resp.Code, resp.Body)
 
 		changed, err := topicschema.NewCatalog(testutil.TestTopics, topicschema.Definitions{
-			"user.updated": {PayloadSchema: json.RawMessage(`{"type":"object","properties":{"plan":{"type":"string"}}}`)},
+			{Name: "user.updated", InputSchema: json.RawMessage(`{"type":"object","properties":{}}`), PayloadSchema: json.RawMessage(`{"type":"object","properties":{"plan":{"type":"string"}}}`)},
 		})
 		require.NoError(t, err)
 		h2, _ := newMCPCatalogAPITestWithVerifier(t, changed, withTenantStore(h.tenantStore))

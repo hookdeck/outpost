@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"slices"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -65,10 +66,17 @@ func (h *MCPEventsHandlers) List(c *gin.Context) {
 
 	resp := mcpEventsResponse{ResultType: "complete", Events: []json.RawMessage{}}
 	last := ""
-	for _, ev := range h.catalog.Events() {
-		if after != "" && ev.Name <= after {
-			continue
+	events := h.catalog.Events()
+	start := 0
+	if after != "" {
+		i := slices.IndexFunc(events, func(ev *topicschema.Event) bool { return ev.Name == after })
+		if i < 0 {
+			AbortWithError(c, http.StatusBadRequest, NewErrBadRequest(errors.New("invalid cursor")))
+			return
 		}
+		start = i + 1
+	}
+	for _, ev := range events[start:] {
 		if allowed != nil && !allowed[ev.Name] {
 			continue
 		}

@@ -203,9 +203,6 @@ func (p *Provider) Validate(ctx context.Context, destination *models.Destination
 // before Validate verifies its callback. Updates are not checked again, so a
 // later change to the definitions doesn't block a subscription's rotation.
 func (p *Provider) ValidateCreate(destination *models.Destination) error {
-	if p.catalog == nil {
-		return nil
-	}
 	if _, err := p.parse(destination); err != nil {
 		return err
 	}
@@ -399,17 +396,15 @@ func parseSecrets(credentials map[string]string) ([]mcpevents.Secret, string, er
 }
 
 func (p *Provider) Preprocess(newDestination *models.Destination, originalDestination *models.Destination, opts *destregistry.PreprocessDestinationOpts) error {
-	// With event definitions, the filter is derived from the arguments on create and can't change after.
-	if p.catalog != nil {
-		if originalDestination == nil || originalDestination.Type != Type {
-			filter, err := filterFromArguments(newDestination.Config[ConfigArguments])
-			if err != nil {
-				return invalid("config."+ConfigArguments, "invalid")
-			}
-			newDestination.Filter = filter
-		} else if !sameFilter(newDestination.Filter, originalDestination.Filter) {
-			return invalid("filter", "immutable")
+	// The filter is derived from the arguments on create and can't change after.
+	if originalDestination == nil || originalDestination.Type != Type {
+		filter, err := filterFromArguments(newDestination.Config[ConfigArguments])
+		if err != nil {
+			return invalid("config."+ConfigArguments, "invalid")
 		}
+		newDestination.Filter = filter
+	} else if !sameFilter(newDestination.Filter, originalDestination.Filter) {
+		return invalid("filter", "immutable")
 	}
 	secret := newDestination.Credentials[CredentialSecret]
 	credentials := make(map[string]string, 3)

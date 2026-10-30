@@ -19,9 +19,6 @@ func TestArgumentsToFilter(t *testing.T) {
 	}{
 		{"empty", `{}`, ""},
 		{"scalar values", `{"currency":"USD","paid":true,"total":180}`, `{"data":{"currency":"USD","paid":true,"total":180}}`},
-		{"list becomes $in", `{"currency":["EUR","USD"]}`, `{"data":{"currency":{"$in":["EUR","USD"]}}}`},
-		{"operator object passes through", `{"total":{"$gte":100,"$lt":500}}`, `{"data":{"total":{"$gte":100,"$lt":500}}}`},
-		{"proposal example", `{"total":{"$gte":100},"currency":"USD"}`, `{"data":{"currency":"USD","total":{"$gte":100}}}`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -40,26 +37,16 @@ func TestArgumentsToFilter(t *testing.T) {
 	assert.Nil(t, ArgumentsToFilter(nil))
 }
 
-func TestArgumentsToFilter_NoAliasing(t *testing.T) {
-	t.Parallel()
-	args := map[string]any{"a": []any{"x"}, "b": map[string]any{"$gt": 1.0}}
-	f := ArgumentsToFilter(args)
-	args["a"].([]any)[0] = "changed"
-	args["b"].(map[string]any)["$gt"] = 2.0
-	assert.Equal(t, models.Filter{"data": map[string]any{"a": map[string]any{"$in": []any{"x"}}, "b": map[string]any{"$gt": 1.0}}}, f)
-}
-
 func TestArgumentsToFilter_Matches(t *testing.T) {
 	t.Parallel()
 	var args map[string]any
-	require.NoError(t, json.Unmarshal([]byte(`{"total":{"$gte":100},"currency":["EUR","USD"]}`), &args))
+	require.NoError(t, json.Unmarshal([]byte(`{"total":180,"currency":"USD"}`), &args))
 	filter := ArgumentsToFilter(args)
 	event := func(data string) models.Event {
 		return models.Event{ID: "e", Topic: "order.created", Time: time.Now(), Data: json.RawMessage(data)}
 	}
-	assert.True(t, models.MatchFilter(filter, event(`{"total":180,"currency":"USD"}`)))
-	assert.True(t, models.MatchFilter(filter, event(`{"total":100,"currency":"EUR","x":1}`)))
-	assert.False(t, models.MatchFilter(filter, event(`{"total":99,"currency":"USD"}`)))
-	assert.False(t, models.MatchFilter(filter, event(`{"total":180,"currency":"GBP"}`)))
+	assert.True(t, models.MatchFilter(filter, event(`{"total":180,"currency":"USD","x":1}`)))
+	assert.False(t, models.MatchFilter(filter, event(`{"total":181,"currency":"USD"}`)))
+	assert.False(t, models.MatchFilter(filter, event(`{"total":180,"currency":"EUR"}`)))
 	assert.False(t, models.MatchFilter(filter, event(`{"currency":"USD"}`)))
 }

@@ -77,7 +77,7 @@ func TestValidate_FieldErrors(t *testing.T) {
 		{"arguments not JSON", func(d *models.Destination) { d.Config[destmcp.ConfigArguments] = "{nope" }, "config.arguments", "invalid"},
 		{"arguments not an object", func(d *models.Destination) { d.Config[destmcp.ConfigArguments] = `["USD"]` }, "config.arguments", "invalid"},
 		{"arguments not canonical", func(d *models.Destination) {
-			d.Config[destmcp.ConfigArguments] = `{"total":{"$gte":100},"currency":"USD"}`
+			d.Config[destmcp.ConfigArguments] = `{"total":100,"currency":"USD"}`
 		}, "config.arguments", "invalid"},
 		{"arguments with duplicate keys", func(d *models.Destination) {
 			d.Config[destmcp.ConfigArguments] = `{"currency":"USD","currency":"EUR"}`

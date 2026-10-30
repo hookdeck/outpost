@@ -15,15 +15,18 @@ import (
 
 func orderCatalog(t *testing.T) *topicschema.Catalog {
 	t.Helper()
-	c, err := topicschema.NewCatalog([]string{topicOrderCreated, "order.updated"}, topicschema.Definitions{
-		topicOrderCreated: {
-			Description: "An order was placed.",
-			PayloadSchema: json.RawMessage(`{"type":"object","properties":{
-				"currency":{"type":"string","enum":["USD","EUR"]},
-				"total":{"type":"number"}
-			}}`),
-		},
-	})
+	c, err := topicschema.NewCatalog([]string{topicOrderCreated, "order.updated"}, topicschema.Definitions{{
+		Name:        topicOrderCreated,
+		Description: "An order was placed.",
+		InputSchema: json.RawMessage(`{"type":"object","properties":{
+			"currency":{"type":"string","enum":["USD","EUR"]},
+			"total":{"type":"number"}
+		}}`),
+		PayloadSchema: json.RawMessage(`{"type":"object","properties":{
+			"currency":{"type":"string"},
+			"total":{"type":"number"}
+		}}`),
+	}})
 	require.NoError(t, err)
 	return c
 }
@@ -70,7 +73,7 @@ func TestCatalog_ArgumentsAreChecked(t *testing.T) {
 	err = p.ValidateCreate(newSubscription(t, func(d *models.Destination) {
 		d.Config[destmcp.ConfigArguments] = `{"orderId":"o_1"}`
 	}))
-	requireValidationError(t, err, "config.arguments", "invalid")
+	requireValidationError(t, err, "config.arguments.*", "invalid")
 }
 
 func TestCatalog_FilterMustBeAbsent(t *testing.T) {
@@ -99,7 +102,7 @@ func TestCatalog_PreprocessDerivesFilter(t *testing.T) {
 	require.NoError(t, p.Preprocess(d, nil, nil))
 	raw, err := json.Marshal(d.Filter)
 	require.NoError(t, err)
-	assert.JSONEq(t, `{"data":{"currency":"USD","total":{"$gte":100}}}`, string(raw))
+	assert.JSONEq(t, `{"data":{"currency":"USD","total":100}}`, string(raw))
 	require.NoError(t, p.Validate(context.Background(), d))
 
 	none := newSubscription(t, func(d *models.Destination) { delete(d.Config, destmcp.ConfigArguments) })
@@ -135,16 +138,17 @@ func TestCatalog_PreprocessKeepsFilterOnUpdate(t *testing.T) {
 	assert.Nil(t, update.Filter)
 }
 
-func TestNoCatalog_ArgumentsAndFilterNotChecked(t *testing.T) {
+func TestNoCatalog_EverySubscriptionIsRefused(t *testing.T) {
 	t.Parallel()
 	p := newProvider(t)
-	d := newSubscription(t, func(d *models.Destination) {
-		d.Topics = models.Topics{"anything"}
-		d.Config[destmcp.ConfigArguments] = `{"whatever":1}`
+	requireValidationError(t, p.ValidateCreate(newSubscription(t)), "topics", "not_found")
+
+	withFilter := newSubscription(t, func(d *models.Destination) {
 		d.Filter = models.Filter{"data": map[string]any{"x": 1}}
 	})
-	require.NoError(t, p.ValidateCreate(d))
-	require.NoError(t, p.Validate(context.Background(), d))
-	require.NoError(t, p.Preprocess(d, nil, nil))
-	assert.Equal(t, models.Filter{"data": map[string]any{"x": 1}}, d.Filter)
+	requireValidationError(t, p.ValidateCreate(withFilter), "filter", "invalid")
+
+	d := newSubscription(t)
+	require.NoError(t, p.Preprocess(d, nil, nil), "the filter is still derived and locked")
+	assert.NotNil(t, d.Filter)
 }

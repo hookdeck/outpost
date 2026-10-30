@@ -146,7 +146,7 @@ func newProvider(t *testing.T, opts ...providerOption) *destmcp.Provider {
 // provider.
 func newSubscription(t *testing.T, mutate ...func(*models.Destination)) *models.Destination {
 	t.Helper()
-	d := subscriptionFor(testPrincipal, publicURL, `{"currency":"USD","total":{"$gte":100}}`, testSecret(1))
+	d := subscriptionFor(testPrincipal, publicURL, `{"currency":"USD","total":100}`, testSecret(1))
 	for _, m := range mutate {
 		m(d)
 	}

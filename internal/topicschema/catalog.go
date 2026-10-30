@@ -10,7 +10,6 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"unicode/utf8"
 
 	"github.com/santhosh-tekuri/jsonschema/v6"
 )
@@ -19,6 +18,8 @@ const (
 	// maxPayloadSchemaBytes caps a payload schema, measured compact, because
 	// events/list returns every payload schema to MCP clients.
 	maxPayloadSchemaBytes = 64 << 10
+	// maxInputSchemaBytes caps an input schema, measured compact.
+	maxInputSchemaBytes = 64 << 10
 	// maxArgumentsBytes caps subscription arguments before they are parsed,
 	// as the API caps config.arguments.
 	maxArgumentsBytes = 4 << 10
@@ -36,17 +37,8 @@ const draft2020 = "https://json-schema.org/draft/2020-12/schema"
 // resolve against it, and loading them fails.
 const schemaURL = "https://outpost.invalid/schema.json"
 
-var (
-	largeNumberMessage = fmt.Sprintf("must be a number of at most %d characters with an exponent between -%d and %d",
-		maxNumberScale, maxNumberScale, maxNumberScale)
-	// The inferred argument limits, worded as the validator's errors are.
-	longArgumentListMessage   = "must have at most " + countOf(maxArgumentListItems, "item", "items")
-	longArgumentStringMessage = "must be at most " + countOf(maxArgumentStringLength, "character", "characters")
-)
-
-// argumentChecks are what validateJSON checks before validating
-// subscription arguments against their schema.
-var argumentChecks = valueChecks{reject: rejectArgumentValue}
+var largeNumberMessage = fmt.Sprintf("must be a number of at most %d characters with an exponent between -%d and %d",
+	maxNumberScale, maxNumberScale, maxNumberScale)
 
 // Catalog is the immutable, compiled set of event definitions. It is safe
 // for concurrent use: nothing in it changes after NewCatalog returns, and
@@ -56,18 +48,19 @@ type Catalog struct {
 	// topics is the TOPICS list, empty when any topic is allowed.
 	topics []string
 	byName map[string]*entry
-	// events are the events/list entries in name order.
+	// events are the events/list entries in configured order.
 	events []*Event
 }
 
-// entry is the compiled state of one event. input is the inputSchema without
-// enums, which enums holds instead.
+// entry is the compiled state of one event.
 type entry struct {
-	event      *Event
-	args       []Argument
-	input      *jsonschema.Schema
+	event *Event
+	args  []Argument
+	input *jsonschema.Schema
+	// inputNames are the property names declared anywhere in the
+	// inputSchema, and argNames the arguments it accepts.
 	inputNames map[string]struct{}
-	enums      argumentEnums
+	argNames   map[string]struct{}
 }
 
 // NewCatalog validates defs and compiles their schemas. When topics, the
@@ -76,14 +69,20 @@ type entry struct {
 func NewCatalog(topics []string, defs Definitions) (*Catalog, error) {
 	c := &Catalog{topics: topics, byName: make(map[string]*entry, len(defs))}
 	b := catalogBuilder{c: c}
-	for _, name := range slices.Sorted(maps.Keys(defs)) {
-		b.addDefinition(name, defs[name])
+	first := make(map[string]int, len(defs))
+	for i, def := range defs {
+		if j, dup := first[def.Name]; dup {
+			b.problems = append(b.problems, fmt.Sprintf("events[%d]: duplicate name %q, already defined at events[%d]", i, clip(def.Name), j))
+			continue
+		}
+		first[def.Name] = i
+		b.addDefinition(def)
 	}
 	if len(b.problems) > 0 {
 		return nil, &ConfigError{Problems: limitMessages(b.problems)}
 	}
-	for _, name := range slices.Sorted(maps.Keys(c.byName)) {
-		c.events = append(c.events, c.byName[name].event)
+	for _, def := range defs {
+		c.events = append(c.events, c.byName[def.Name].event)
 	}
 	return c, nil
 }
@@ -106,107 +105,132 @@ type catalogBuilder struct {
 	problems []string
 }
 
-func (b *catalogBuilder) problem(topic, format string, args ...any) {
-	b.problems = append(b.problems, fmt.Sprintf("topic %q: ", clip(topic))+fmt.Sprintf(format, args...))
+func (b *catalogBuilder) problem(name, format string, args ...any) {
+	b.problems = append(b.problems, fmt.Sprintf("event %q: ", clip(name))+fmt.Sprintf(format, args...))
 }
 
-func (b *catalogBuilder) addDefinition(name string, def Definition) {
+func (b *catalogBuilder) addDefinition(def Definition) {
+	name := def.Name
 	if strings.Contains(name, "*") {
 		b.problem(name, "wildcard topics can't have event definitions")
 		return
 	}
 	if len(b.c.topics) > 0 && !slices.Contains(b.c.topics, name) {
-		b.problems = append(b.problems, fmt.Sprintf("topic %q is not in TOPICS%s", clip(name), b.c.didYouMean(name)))
+		b.problems = append(b.problems, fmt.Sprintf("event %q is not in TOPICS%s", clip(name), b.c.didYouMean(name)))
 		return
 	}
-	raw := bytes.TrimSpace(def.PayloadSchema)
-	if len(raw) == 0 || string(raw) == "null" {
-		b.problem(name, "payload_schema is required")
+	input, payload := bytes.TrimSpace(def.InputSchema), bytes.TrimSpace(def.PayloadSchema)
+	ok := true
+	if len(input) == 0 || string(input) == "null" {
+		b.problem(name, `inputSchema is required; use {"type": "object", "properties": {}} for an event without arguments`)
+		ok = false
+	}
+	if len(payload) == 0 || string(payload) == "null" {
+		b.problem(name, "payloadSchema is required")
+		ok = false
+	}
+	if !ok {
 		return
 	}
-	if e := b.compile(name, def.Description, raw); e != nil {
+	if e := b.compile(def, input, payload); e != nil {
 		b.c.byName[name] = e
 	}
 }
 
-// compile checks and compiles an event's payload schema, and precomputes what
-// MCP needs. It returns nil after reporting a problem.
-func (b *catalogBuilder) compile(name, description string, raw json.RawMessage) *entry {
+// compactObject compacts raw, a schema named field, and reports a problem
+// when it isn't a JSON object within limit bytes.
+func (b *catalogBuilder) compactObject(name, field string, raw json.RawMessage, limit int) (json.RawMessage, map[string]any) {
 	var buf bytes.Buffer
 	if err := json.Compact(&buf, raw); err != nil {
-		b.problem(name, "payload_schema is not valid JSON: %v", err)
-		return nil
+		b.problem(name, "%s is not valid JSON: %v", field, err)
+		return nil, nil
 	}
 	// Clone to drop the buffer's spare capacity: the catalog keeps this.
 	compact := bytes.Clone(buf.Bytes())
 	if compact[0] != '{' {
-		b.problem(name, "payload_schema must be a JSON object")
-		return nil
+		b.problem(name, "%s must be a JSON object", field)
+		return nil, nil
 	}
-	if len(compact) > maxPayloadSchemaBytes {
-		b.problem(name, "payload_schema is %d bytes; the limit is %d", len(compact), maxPayloadSchemaBytes)
-		return nil
+	if len(compact) > limit {
+		b.problem(name, "%s is %d bytes; the limit is %d", field, len(compact), limit)
+		return nil, nil
 	}
 	tree, err := decodeJSON(compact)
 	if err != nil {
-		b.problem(name, "payload_schema is not valid JSON: %v", err)
+		b.problem(name, "%s is not valid JSON: %v", field, err)
+		return nil, nil
+	}
+	return compact, tree.(map[string]any)
+}
+
+// compile checks and compiles an event's schemas, and precomputes what MCP
+// needs. It returns nil after reporting a problem.
+func (b *catalogBuilder) compile(def Definition, rawInput, rawPayload json.RawMessage) *entry {
+	name := def.Name
+	payload, root := b.compactObject(name, "payloadSchema", rawPayload, maxPayloadSchemaBytes)
+	input, inRoot := b.compactObject(name, "inputSchema", rawInput, maxInputSchemaBytes)
+	if root == nil || inRoot == nil {
 		return nil
 	}
-	root := tree.(map[string]any)
-	if !b.checkSchemaObjects(name, root) {
-		return nil
+	ok := b.checkSchemaObjects(name, "payloadSchema", root) && b.checkSchemaObjects(name, "inputSchema", inRoot)
+	for _, f := range []struct {
+		field string
+		tree  map[string]any
+	}{{"payloadSchema", root}, {"inputSchema", inRoot}} {
+		if f.tree["type"] != "object" {
+			b.problem(name, `%s must have "type": "object"`, f.field)
+			ok = false
+		}
 	}
-	isObject := root["type"] == "object"
-	if !isObject {
-		b.problem(name, `payload_schema must have "type": "object"`)
+	if !ok {
+		return nil
 	}
 
-	_, unsupported, err := compileSchema(tree, false)
-	if err != nil {
-		for _, p := range compileProblems(err, tree) {
+	_, unsupported, perr := compileSchema(root, false)
+	if perr != nil {
+		for _, p := range compileProblems(perr, root, "payloadSchema") {
 			b.problem(name, "%s", p)
 		}
 	}
 	// Go's RE2 engine rejects some ECMAScript patterns, such as lookaheads.
 	for _, msg := range unsupported {
-		b.problem(name, "payload_schema %s", msg)
+		b.problem(name, "payloadSchema %s", msg)
 	}
-	if err != nil || len(unsupported) > 0 || !isObject {
+	compiled, inUnsupported, ierr := compileSchema(inRoot, true)
+	if ierr != nil {
+		for _, p := range compileProblems(ierr, inRoot, "inputSchema") {
+			b.problem(name, "%s", p)
+		}
+	}
+	for _, msg := range inUnsupported {
+		b.problem(name, "inputSchema %s", msg)
+	}
+	if perr != nil || ierr != nil || len(unsupported) > 0 || len(inUnsupported) > 0 {
 		return nil
 	}
 
-	ev, args, err := buildEvent(name, description, compact, root)
-	if err != nil {
-		b.problem(name, "can't infer the MCP inputSchema: %v", err)
+	args, problems := checkInputSchema(inRoot, root)
+	for _, p := range problems {
+		b.problem(name, "%s", p)
+	}
+	if len(problems) > 0 {
 		return nil
 	}
-	// The validator compares a value with every enum value, numbers as
-	// exact rationals, so it gets the inputSchema without enums, and
-	// ValidateArguments checks them against sets.
-	_, checked, err := inferArguments(compact, root, false)
-	e := &entry{event: ev}
-	var inputTree any
-	if err == nil {
-		inputTree, err = decodeJSON(checked)
-	}
-	if err == nil {
-		var bad []string
-		e.input, bad, err = compileSchema(inputTree, true)
-		if err == nil && len(bad) > 0 {
-			err = errors.New(bad[0])
-		}
-	}
+	ev, err := buildEvent(def, input, payload)
 	if err != nil {
-		b.problem(name, "the inferred MCP inputSchema doesn't compile: %s", sanitizeCompileError(err))
+		b.problem(name, "can't build the events/list entry: %v", err)
 		return nil
 	}
-	e.args, e.inputNames, e.enums = args, propertyNameSet(inputTree), newArgumentEnums(args)
+	e := &entry{event: ev, args: args, input: compiled, inputNames: propertyNameSet(inRoot), argNames: map[string]struct{}{}}
+	for _, a := range args {
+		e.argNames[a.Name] = struct{}{}
+	}
 	return e
 }
 
 // checkSchemaObjects checks what the metaschema doesn't: $schema is the
 // 2020-12 dialect, references are local JSON pointers to schemas, $id and
-// anchors are only declared at the root, and x-mcp-filter is a boolean.
+// and anchors are only declared at the root.
 //
 // Inference resolves references with resolveLocalRef, which follows JSON
 // pointers from the root. The validator also resolves anchors, and resolves
@@ -215,8 +239,7 @@ func (b *catalogBuilder) compile(name, description string, raw json.RawMessage) 
 // compiles whatever a reference points to as a schema, so a reference into an
 // extension or a default would bring in an $id, anchors and references never
 // checked here.
-func (b *catalogBuilder) checkSchemaObjects(name string, root map[string]any) bool {
-	const rootPath = "payload_schema"
+func (b *catalogBuilder) checkSchemaObjects(name, rootPath string, root map[string]any) bool {
 	before := len(b.problems)
 	schemas := map[string]bool{}
 	visitSchemas(root, rootPath, func(_ any, path string) { schemas[path] = true })
@@ -244,19 +267,14 @@ func (b *catalogBuilder) checkSchemaObjects(name string, root map[string]any) bo
 		}
 		if path != rootPath {
 			if _, ok := obj["$id"]; ok {
-				b.problem(name, "%s is only allowed at the payload_schema root, since it changes how references below it resolve",
-					appendPathKey(path, "$id"))
+				b.problem(name, "%s is only allowed at the %s root, since it changes how references below it resolve",
+					appendPathKey(path, "$id"), rootPath)
 			}
 			for _, kw := range []string{"$anchor", "$dynamicAnchor"} {
 				if _, ok := obj[kw]; ok {
-					b.problem(name, `%s is only allowed at the payload_schema root; reference subschemas with JSON pointers such as "#/$defs/name"`,
-						appendPathKey(path, kw))
+					b.problem(name, `%s is only allowed at the %s root; reference subschemas with JSON pointers such as "#/$defs/name"`,
+						appendPathKey(path, kw), rootPath)
 				}
-			}
-		}
-		if v, ok := obj["x-mcp-filter"]; ok {
-			if _, isBool := v.(bool); !isBool {
-				b.problem(name, "%s must be a boolean", appendPathKey(path, "x-mcp-filter"))
 			}
 		}
 	})
@@ -266,15 +284,15 @@ func (b *catalogBuilder) checkSchemaObjects(name string, root map[string]any) bo
 // compileProblems renders a compile error as problem lines. Metaschema
 // violations are rendered like validation errors, with full paths, since a
 // schema is configuration rather than event data.
-func compileProblems(err error, tree any) []string {
+func compileProblems(err error, tree any, rootName string) []string {
 	var sve *jsonschema.SchemaValidationError
 	var verr *jsonschema.ValidationError
 	if !errors.As(err, &sve) || !errors.As(sve.Err, &verr) {
-		return []string{"payload_schema: " + sanitizeCompileError(err)}
+		return []string{rootName + ": " + sanitizeCompileError(err)}
 	}
 	// The library checks subschemas reached only through $ref separately;
 	// URL then points at the subschema.
-	root, instance := "payload_schema", tree
+	root, instance := rootName, tree
 	if _, frag, ok := strings.Cut(sve.URL, "#"); ok && frag != "" {
 		if node, err := resolveLocalRef(tree, "#"+frag); err == nil {
 			var tokens []string
@@ -345,7 +363,7 @@ type unsupportedRegexp string
 func (r unsupportedRegexp) String() string          { return string(r) }
 func (r unsupportedRegexp) MatchString(string) bool { return false }
 
-// Events returns the events/list entries in name order.
+// Events returns the events/list entries in configured order.
 func (c *Catalog) Events() []*Event {
 	if c == nil {
 		return nil
@@ -366,8 +384,8 @@ func (c *Catalog) Event(name string) (*Event, bool) {
 }
 
 // ValidateArguments validates subscription arguments against the event's
-// inferred inputSchema. It returns nil when they are valid. Empty args mean
-// no arguments.
+// inputSchema, and refuses any argument it doesn't list. It returns nil when
+// they are valid. Empty args mean no arguments.
 func (c *Catalog) ValidateArguments(name string, args []byte) []string {
 	var e *entry
 	if c != nil {
@@ -382,9 +400,22 @@ func (c *Catalog) ValidateArguments(name string, args []byte) []string {
 	if len(bytes.TrimSpace(args)) == 0 {
 		args = []byte("{}")
 	}
-	checks := argumentChecks
-	checks.accepted = e.enums.errors
+	checks := valueChecks{reject: rejectLargeNumber, accepted: e.unlisted}
 	return validateJSON(e.input, args, "arguments", e.inputNames, checks)
+}
+
+// unlisted reports the keys of v, arguments the inputSchema accepts, that it
+// doesn't list under properties. Keys are never echoed, so an unlisted one
+// shows as "*".
+func (e *entry) unlisted(v any, root string) []string {
+	args, _ := v.(map[string]any)
+	var out []string
+	for _, key := range slices.Sorted(maps.Keys(args)) {
+		if _, ok := e.argNames[key]; !ok {
+			out = append(out, instancePath(root, []string{key}, v, e.inputNames)+": is not an argument of this event")
+		}
+	}
+	return slices.Compact(out)
 }
 
 // valueChecks are checked on a parsed value before it is validated. A value
@@ -473,119 +504,6 @@ func rejectedValueRev(v any, reject func(any) string, sorted bool) ([]string, st
 func rejectLargeNumber(v any) string {
 	if n, ok := v.(json.Number); ok && numberTooLarge(n) {
 		return largeNumberMessage
-	}
-	return ""
-}
-
-// rejectArgumentValue also rejects lists and strings longer than any
-// inferred argument accepts. The validator checks every item of a list
-// against an enum even past maxItems, comparing numbers as exact rationals,
-// so a long list could otherwise take seconds to reject.
-func rejectArgumentValue(v any) string {
-	switch x := v.(type) {
-	case []any:
-		if len(x) > maxArgumentListItems {
-			return longArgumentListMessage
-		}
-	case string:
-		// maxLength counts characters, not bytes.
-		if len(x) > maxArgumentStringLength && utf8.RuneCountInString(x) > maxArgumentStringLength {
-			return longArgumentStringMessage
-		}
-	}
-	return rejectLargeNumber(v)
-}
-
-// argumentEnums maps each argument with an enum to the enumKey of its
-// values. Checking values against these sets costs the same whatever the
-// enum's size.
-type argumentEnums map[string]map[string]struct{}
-
-func newArgumentEnums(args []Argument) argumentEnums {
-	var enums argumentEnums
-	for _, arg := range args {
-		if arg.Enum == nil {
-			continue
-		}
-		set := make(map[string]struct{}, len(arg.Enum))
-		for _, raw := range arg.Enum {
-			v, err := decodeJSON(raw)
-			if err != nil {
-				continue
-			}
-			// Values without a key, such as objects, can't equal a
-			// scalar argument value.
-			if key := enumKey(v); key != "" {
-				set[key] = struct{}{}
-			}
-		}
-		if enums == nil {
-			enums = argumentEnums{}
-		}
-		enums[arg.Name] = set
-	}
-	return enums
-}
-
-// errors checks the arguments in v, which the inputSchema accepts, against
-// their enums: a value, or each item of a list. Range operator operands
-// compare rather than match, and have none. Errors are rendered from root
-// like validation errors.
-func (a argumentEnums) errors(v any, root string) []string {
-	args, _ := v.(map[string]any)
-	var out []string
-	more := 0
-	check := func(set map[string]struct{}, path string, value any) {
-		if _, ok := set[enumKey(value)]; ok {
-			return
-		}
-		if len(out) == maxReportedErrors {
-			more++
-			return
-		}
-		out = append(out, path+": "+enumMessage)
-	}
-	for _, name := range slices.Sorted(maps.Keys(args)) {
-		set, ok := a[name]
-		if !ok {
-			continue
-		}
-		path := appendPathKey(root, name)
-		switch x := args[name].(type) {
-		case []any:
-			for i, item := range x {
-				check(set, indexPath(path, i), item)
-			}
-		case map[string]any:
-			// Range operators.
-		default:
-			check(set, path, x)
-		}
-	}
-	slices.Sort(out)
-	if more > 0 {
-		out = append(out, moreMessage(more))
-	}
-	return out
-}
-
-// enumKey returns a form of a scalar decoded JSON value that equals
-// another's exactly when JSON Schema considers the values equal, so 1, 1.0
-// and 10e-1 share one. It is "" for other values, and for numbers too large
-// for any accepted argument value to equal.
-func enumKey(v any) string {
-	switch x := v.(type) {
-	case string:
-		return "s" + x
-	case bool:
-		if x {
-			return "true"
-		}
-		return "false"
-	case json.Number:
-		if n, ok := canonicalNumber(string(x)); ok {
-			return "n" + n
-		}
 	}
 	return ""
 }

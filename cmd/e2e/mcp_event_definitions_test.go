@@ -2,6 +2,7 @@ package e2e_test
 
 import (
 	"encoding/json"
+	"gopkg.in/yaml.v3"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -25,21 +26,29 @@ func TestMCP_EventDefinitions(t *testing.T) {
 	suite.Run(t, &mcpEventDefinitionsSuite{})
 }
 
+// mcpEventsYAML lists user.updated first to show the configured order is kept.
 const mcpEventsYAML = `
-user.created:
-  description: A user was created.
-  payload_schema:
-    type: object
-    properties:
-      status: {type: string, enum: [paid, pending]}
-      total: {type: number, x-mcp-filter: false}
-      amount: {type: number}
-user.updated:
-  description: A user was updated.
-  payload_schema:
-    type: object
-    properties:
-      id: {type: string}
+events:
+  - name: user.updated
+    description: A user was updated.
+    inputSchema: {type: object, properties: {}}
+    payloadSchema:
+      type: object
+      properties:
+        id: {type: string}
+  - name: user.created
+    description: A user was created.
+    inputSchema:
+      type: object
+      properties:
+        status: {type: string, enum: [paid, pending]}
+        amount: {type: number}
+    payloadSchema:
+      type: object
+      properties:
+        status: {type: string, enum: [paid, pending]}
+        total: {type: number}
+        amount: {type: number}
 `
 
 type mcpEventDefinitionsSuite struct {
@@ -53,7 +62,7 @@ func (s *mcpEventDefinitionsSuite) SetupSuite() {
 	s.m = &mcpSuite{configure: func(cfg *config.Config) {
 		withMCPDelivery(cfg)
 		cfg.Topics = testutil.TestTopics
-		cfg.MCP.EventsFile = file
+		s.Require().NoError(cfg.MCP.EventsSchema.UnmarshalText([]byte(file)))
 	}}
 	s.m.SetT(s.T())
 	s.m.SetupSuite()
@@ -87,32 +96,26 @@ func (s *mcpEventDefinitionsSuite) catalog(query string) (int, catalogPage) {
 	return status, page
 }
 
-func properties(schema map[string]any) map[string]any {
-	props, _ := schema["properties"].(map[string]any)
-	return props
-}
-
 func (s *mcpEventDefinitionsSuite) TestEventCatalog() {
+	var want struct {
+		Events []map[string]any `json:"events"`
+	}
+	s.Require().NoError(yaml.Unmarshal([]byte(mcpEventsYAML), &want))
+	for _, ev := range want.Events {
+		ev["delivery"] = []any{"webhook"}
+	}
+
 	status, page := s.catalog("")
 	s.Require().Equal(http.StatusOK, status)
 	s.Equal("complete", page.ResultType)
 	s.Require().Len(page.Events, 2)
-	created, updated := page.Events[0], page.Events[1]
-	s.Equal("user.created", created.Name)
-	s.Equal("user.updated", updated.Name)
-	s.Equal("A user was created.", created.Description)
-	s.NotEmpty(created.Delivery)
-
-	in := properties(created.InputSchema)
-	_, hasStatus := in["status"]
-	_, hasAmount := in["amount"]
-	_, hasTotal := in["total"]
-	payload := properties(created.PayloadSchema)
-	_, payloadHasTotal := payload["total"]
-	_, payloadHasStatus := payload["status"]
-	_, updatedHasID := properties(updated.InputSchema)["id"]
-	ok := hasStatus && hasAmount && !hasTotal && payloadHasTotal && payloadHasStatus && updatedHasID && created.InputSchema["type"] == "object"
-	s.m.check(ok, "inputSchema props %v, payloadSchema props %v", keys(in), keys(payload))
+	got, err := json.Marshal(map[string]any{"events": page.Events})
+	s.Require().NoError(err)
+	wantJSON, err := json.Marshal(want)
+	s.Require().NoError(err)
+	s.JSONEq(string(wantJSON), string(got))
+	s.Equal("user.updated", page.Events[0].Name, "configured order")
+	s.Equal("user.created", page.Events[1].Name)
 
 	status, page = s.catalog("?topics=user.updated")
 	s.Require().Equal(http.StatusOK, status)
@@ -126,12 +129,12 @@ func (s *mcpEventDefinitionsSuite) TestEventCatalog() {
 	status, page = s.catalog("?limit=1")
 	s.Require().Equal(http.StatusOK, status)
 	s.Require().Len(page.Events, 1)
-	s.Equal("user.created", page.Events[0].Name)
+	s.Equal("user.updated", page.Events[0].Name)
 	s.Require().NotEmpty(page.NextCursor)
 	status, page = s.catalog("?limit=1&cursor=" + page.NextCursor)
 	s.Require().Equal(http.StatusOK, status)
 	s.Require().Len(page.Events, 1)
-	s.Equal("user.updated", page.Events[0].Name)
+	s.Equal("user.created", page.Events[0].Name)
 	s.Empty(page.NextCursor)
 
 	tenant := s.m.base.createTenant().ID
@@ -141,14 +144,6 @@ func (s *mcpEventDefinitionsSuite) TestEventCatalog() {
 		{name: "limit too high", method: http.MethodGet, path: "/mcp/events?limit=1000", auth: s.m.base.adminAuth(), status: http.StatusBadRequest, message: "invalid limit: must be between 1 and 100"},
 		{name: "bad cursor", method: http.MethodGet, path: "/mcp/events?cursor=%25%25", auth: s.m.base.adminAuth(), status: http.StatusBadRequest, message: "invalid cursor"},
 	})
-}
-
-func keys(m map[string]any) []string {
-	out := make([]string, 0, len(m))
-	for k := range m {
-		out = append(out, k)
-	}
-	return out
 }
 
 func (s *mcpEventDefinitionsSuite) TestArgumentsFilterDeliveries() {
@@ -171,6 +166,8 @@ func (s *mcpEventDefinitionsSuite) TestArgumentsFilterDeliveries() {
 	s.Equal(matching.ID, events[0].Envelope().EventID)
 
 	other := s.m.publishMCP(tenant, map[string]any{"status": "pending"})
+	unrelated := s.m.publishMCP(tenant, map[string]any{"total": 10})
+	s.Empty(unrelated.DestinationIDs, "the argument must match")
 	time.Sleep(mcpRetryWait)
 	got := s.m.r.Events(p.path)
 	attempts := s.m.attempts(tenant, p.destID)
@@ -185,6 +182,19 @@ func (s *mcpEventDefinitionsSuite) TestArgumentsFilterDeliveries() {
 	s.Equal(http.StatusOK, s.m.base.doJSON(http.MethodGet, s.m.destURL(tenant, "/"+p.destID), nil, &stored))
 	s.Equal(`{"status":"paid"}`, stored.Config["arguments"])
 	s.Equal(created.Filter, stored.Filter)
+}
+
+func (s *mcpEventDefinitionsSuite) TestNumericArgumentMatchesByEquality() {
+	tenant := s.m.base.createTenant().ID
+	p := s.m.newPath(mcpreceiver.PathConfig{})
+	body := p.body(mcpDestOpts{})
+	body["config"].(map[string]any)["arguments"] = `{"amount":10}`
+	status, raw := s.m.create(tenant, body)
+	s.Require().Equal(http.StatusCreated, status, "%s", raw)
+
+	hit := s.m.publishMCP(tenant, map[string]any{"amount": 10})
+	miss := s.m.publishMCP(tenant, map[string]any{"amount": 11})
+	s.m.check(len(hit.DestinationIDs) == 1 && len(miss.DestinationIDs) == 0, "amount 10 matched %v, amount 11 matched %v", hit.DestinationIDs, miss.DestinationIDs)
 }
 
 func (s *mcpEventDefinitionsSuite) TestErrorResponses_MCPEventDefinitions() {
@@ -211,7 +221,23 @@ func (s *mcpEventDefinitionsSuite) TestErrorResponses_MCPEventDefinitions() {
 			body: with(func(b map[string]any) {
 				b["config"].(map[string]any)["arguments"] = `{"total":10}`
 			}),
-			status: http.StatusUnprocessableEntity, message: validationError, detail: "config.arguments"},
+			status: http.StatusUnprocessableEntity, message: validationError, detail: "config.arguments.* failed invalid validation"},
+		{name: "list value", method: http.MethodPost, path: dest, auth: admin,
+			body: with(func(b map[string]any) {
+				b["config"].(map[string]any)["arguments"] = `{"status":["paid"]}`
+			}),
+			status: http.StatusUnprocessableEntity, message: validationError, detail: "config.arguments.status failed invalid validation"},
+		{name: "operator object", method: http.MethodPost, path: dest, auth: admin,
+			body: with(func(b map[string]any) {
+				b["config"].(map[string]any)["arguments"] = `{"amount":{"$gt":1}}`
+			}),
+			status: http.StatusUnprocessableEntity, message: validationError, detail: "config.arguments.amount failed invalid validation"},
+		{name: "arguments on a no-argument event", method: http.MethodPost, path: dest, auth: admin,
+			body: with(func(b map[string]any) {
+				b["topics"] = []string{"user.updated"}
+				b["config"].(map[string]any)["arguments"] = `{"id":"x"}`
+			}),
+			status: http.StatusUnprocessableEntity, message: validationError, detail: "config.arguments.* failed invalid validation"},
 		{name: "arguments not an object", method: http.MethodPost, path: dest, auth: admin,
 			body: with(func(b map[string]any) {
 				b["config"].(map[string]any)["arguments"] = `["paid"]`

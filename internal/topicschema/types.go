@@ -1,6 +1,6 @@
-// Package topicschema holds MCP event definitions and the inputSchemas
-// inferred from them. A Catalog is built once at startup from the
-// definitions, and is immutable afterwards, so it is safe for concurrent reads.
+// Package topicschema holds MCP event definitions, in the MCP events/list
+// format. A Catalog is built once at startup from the definitions, and is
+// immutable afterwards, so it is safe for concurrent reads.
 package topicschema
 
 import (
@@ -11,42 +11,41 @@ import (
 	"unicode/utf8"
 )
 
-// Definition is one event's definition.
+// Definition is one event's definition, as an entry of an events/list result.
 type Definition struct {
+	Name        string `json:"name"`
 	Description string `json:"description,omitempty"`
+	// InputSchema is a JSON Schema 2020-12 object describing the
+	// subscription arguments.
+	InputSchema json.RawMessage `json:"inputSchema,omitempty"`
 	// PayloadSchema is a JSON Schema 2020-12 document for the event data.
-	PayloadSchema json.RawMessage `json:"payload_schema,omitempty"`
+	PayloadSchema json.RawMessage `json:"payloadSchema,omitempty"`
+	// Delivery lists the delivery modes; empty means unspecified.
+	Delivery []string        `json:"delivery,omitempty"`
+	Meta     json.RawMessage `json:"_meta,omitempty"`
 }
 
-// Definitions maps event name to its definition.
-type Definitions map[string]Definition
+// Definitions are the event definitions in configured order.
+type Definitions []Definition
 
 // Event is one precomputed events/list entry.
 type Event struct {
 	Name        string
 	Description string
 	InputSchema json.RawMessage
-	// PayloadSchema is the topic payload schema minus x-mcp-filter.
+	// PayloadSchema is the payload schema as configured.
 	PayloadSchema json.RawMessage
-	// JSON is the full entry: name, description, delivery, inputSchema and
-	// payloadSchema.
+	// JSON is the full entry: name, description, delivery, inputSchema,
+	// payloadSchema and _meta.
 	JSON json.RawMessage
 }
 
-// Argument describes one filterable payload property: one optional
-// subscription argument in the inferred inputSchema.
+// Argument describes one subscription argument: a top-level payload property
+// matched by equality.
 type Argument struct {
 	Name string
 	// Types is a sorted, non-empty subset of string, number, integer, boolean.
 	Types []string
-	// Enum lists the allowed values, or is nil when unconstrained.
-	Enum []json.RawMessage
-	// Format is "date-time", "date" or empty. Only set for strings.
-	Format string
-	// Ranged reports whether an operator object ($gt, $gte, $lt, $lte) is
-	// accepted: numbers, and strings with a date format. Filters compare
-	// strings bytewise, so date-time strings get equality and lists only.
-	Ranged bool
 }
 
 // ConfigError aggregates every problem found in event definition configuration,

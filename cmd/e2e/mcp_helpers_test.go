@@ -2,6 +2,7 @@ package e2e_test
 
 import (
 	"context"
+	"gopkg.in/yaml.v3"
 	"testing"
 	"time"
 
@@ -23,11 +24,22 @@ const (
 // retry config, which the webhook comparison keeps at its default.
 var mcpRetrySchedule = []int{1, 1}
 
+// mcpDeliveryEvents defines the one event the delivery suite subscribes to.
+const mcpDeliveryEvents = `
+events:
+  - name: user.created
+    inputSchema: {type: object, properties: {}}
+    payloadSchema: {type: object}
+`
+
 // withMCPDelivery enables MCP with the settings the delivery suite needs.
 func withMCPDelivery(cfg *config.Config) {
 	cfg.MCP.Enabled = true
 	cfg.Destinations.PrivateAddressAllowlist = []string{"127.0.0.2/32"}
 	cfg.MCP.AllowInsecureCallbacks = true
+	if err := yaml.Unmarshal([]byte(mcpDeliveryEvents), &cfg.MCP.EventsSchema); err != nil {
+		panic(err)
+	}
 	cfg.MCP.RetrySchedule = mcpRetrySchedule
 	cfg.DeliveryTimeoutSeconds = mcpDeliveryTimeoutSeconds
 	cfg.RetryPollBackoffMs = 50

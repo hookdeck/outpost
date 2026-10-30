@@ -84,6 +84,7 @@ func newMCPAPITest(t *testing.T, verifier *stubVerifier, extra ...apiTestOption)
 			Client:   client,
 			Guard:    guard,
 			Verifier: verifier,
+			Catalog:  mcpEventsCatalog(t),
 		})
 		require.NoError(t, err)
 		require.NoError(t, registry.RegisterProvider(destmcp.Type, p))

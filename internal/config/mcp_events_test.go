@@ -10,22 +10,31 @@ import (
 
 const eventsYAML = `mcp:
   enabled: true
-  events:
-    order.created:
-      description: From YAML.
-      payload_schema:
-        type: object
-        properties:
-          status: {type: string, enum: [paid, pending]}
+  events_schema:
+    events:
+      - name: order.created
+        description: From YAML.
+        inputSchema:
+          type: object
+          properties:
+            status: {type: string, enum: [paid, pending]}
+        payloadSchema:
+          type: object
+          properties:
+            status: {type: string, enum: [paid, pending]}
 `
 
-const eventsFile = `order.created:
-  description: From file.
-  payload_schema:
-    type: object
-    properties:
-      total: {type: number}
+const eventsFile = `events:
+  - name: order.created
+    description: From file.
+    inputSchema: {type: object, properties: {}}
+    payloadSchema:
+      type: object
+      properties:
+        total: {type: number}
 `
+
+const eventsJSON = `{"events":[{"name":"order.created","description":"From JSON.","inputSchema":{"type":"object","properties":{}},"payloadSchema":{"type":"object"}}]}`
 
 func catalogDescription(t *testing.T, cfg *config.Config, topic string) string {
 	t.Helper()
@@ -41,33 +50,56 @@ func TestMCPEvents_LoadFromYAML(t *testing.T) {
 	assert.Empty(t, cfg.Topics, "TOPICS stays unset")
 }
 
-func TestMCPEvents_FileWinsOverYAML(t *testing.T) {
-	cfg, err := parseMCPErr(map[string]string{"MCP_EVENTS_FILE": "events.yaml"}, eventsYAML, map[string]string{"events.yaml": eventsFile})
+func TestMCPEvents_YAMLPath(t *testing.T) {
+	for file, doc := range map[string]string{"events.yaml": eventsFile, "EVENTS.JSON": eventsJSON} {
+		cfg, err := parseMCPErr(nil, "mcp:\n  enabled: true\n  events_schema: "+file+"\n", map[string]string{file: doc})
+		require.NoError(t, err, file)
+		assert.Contains(t, []string{"From file.", "From JSON."}, catalogDescription(t, cfg, "order.created"))
+	}
+}
+
+func TestMCPEvents_EnvPathWinsOverYAML(t *testing.T) {
+	cfg, err := parseMCPErr(map[string]string{"MCP_EVENTS_SCHEMA": "events.yaml"}, eventsYAML, map[string]string{"events.yaml": eventsFile})
 	require.NoError(t, err)
 	assert.Equal(t, "From file.", catalogDescription(t, cfg, "order.created"))
 }
 
 func TestMCPEvents_JSONFile(t *testing.T) {
-	cfg, err := parseMCPErr(map[string]string{"MCP_ENABLED": "true", "MCP_EVENTS_FILE": "events.json"}, "", map[string]string{
-		"events.json": `{"order.created":{"description":"From JSON.","payload_schema":{"type":"object"}}}`,
-	})
+	cfg, err := parseMCPErr(map[string]string{"MCP_ENABLED": "true", "MCP_EVENTS_SCHEMA": "events.json"}, "", map[string]string{"events.json": eventsJSON})
 	require.NoError(t, err)
 	assert.Equal(t, "From JSON.", catalogDescription(t, cfg, "order.created"))
-}
 
-func TestMCPEvents_JSONFileUsesJSONRules(t *testing.T) {
-	env := map[string]string{"MCP_ENABLED": "true", "MCP_EVENTS_FILE": "events.json"}
-	doc := `{"order.created":{"description":"\ud83d\ude00 a\/b","payload_schema":{"type":"object"}}}`
-	cfg, err := parseMCPErr(env, "", map[string]string{"events.json": doc})
+	_, err = parseMCPErr(map[string]string{"MCP_ENABLED": "true", "MCP_EVENTS_SCHEMA": "events.json"}, "", map[string]string{
+		"events.json": "{\n\t\"events\": [{\"name\": \"a\", \"description\": \"caf\\u00e9\", \"inputSchema\": {\"type\": \"object\", \"properties\": {}}, \"payloadSchema\": {\"type\": \"object\"}}]\n}",
+	})
 	require.NoError(t, err)
-	assert.Equal(t, "\U0001F600 a/b", catalogDescription(t, cfg, "order.created"))
-
-	env["MCP_EVENTS_FILE"] = "events.yaml"
-	_, err = parseMCPErr(env, "", map[string]string{"events.yaml": doc})
-	require.ErrorIs(t, err, config.ErrInvalidMCPConfig, "other extensions are YAML")
 }
 
-func TestMCPEvents_KeysMustBeInTopics(t *testing.T) {
+func TestMCPEvents_UnsetForms(t *testing.T) {
+	for name, tc := range map[string]struct {
+		env  map[string]string
+		yaml string
+	}{
+		"absent":     {},
+		"empty env":  {env: map[string]string{"MCP_EVENTS_SCHEMA": ""}},
+		"blank env":  {env: map[string]string{"MCP_EVENTS_SCHEMA": "   "}},
+		"yaml null":  {yaml: "mcp:\n  events_schema: null\n"},
+		"yaml empty": {yaml: "mcp:\n  events_schema: ''\n"},
+		"no events":  {yaml: "mcp:\n  events_schema: {events: []}\n"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			env := map[string]string{"MCP_ENABLED": "true"}
+			for k, v := range tc.env {
+				env[k] = v
+			}
+			cfg := parseMCP(t, env, tc.yaml)
+			assert.Nil(t, cfg.MCPCatalog())
+			assert.Contains(t, cfg.MCPWarnings(), "MCP_ENABLED is true but MCP_EVENTS_SCHEMA (mcp.events_schema) defines no events: every mcp subscription is refused.")
+		})
+	}
+}
+
+func TestMCPEvents_NamesMustBeInTopics(t *testing.T) {
 	_, err := parseMCPErr(map[string]string{"TOPICS": "order.updated"}, eventsYAML, nil)
 	require.ErrorIs(t, err, config.ErrInvalidMCPConfig)
 	assert.Contains(t, err.Error(), "order.created")
@@ -76,52 +108,56 @@ func TestMCPEvents_KeysMustBeInTopics(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []string{"order.created", "order.updated"}, cfg.Topics)
 	require.Len(t, cfg.MCPCatalog().Events(), 1)
+	assert.NotContains(t, cfg.MCPWarnings(), "defines no events")
 }
 
-func TestMCPEvents_InvalidDefinitionsFailStartup(t *testing.T) {
-	for name, tc := range map[string]struct {
+func TestMCPEvents_Errors(t *testing.T) {
+	enabled := map[string]string{"MCP_ENABLED": "true"}
+	cases := []struct {
+		name  string
+		env   map[string]string
 		yaml  string
 		files map[string]string
-		env   map[string]string
+		want  string
 	}{
-		"schema is not valid JSON Schema": {yaml: "mcp:\n  enabled: true\n  events:\n    a:\n      payload_schema: {type: nope}\n"},
-		"schema is not an object":         {yaml: "mcp:\n  enabled: true\n  events:\n    a:\n      payload_schema: {type: string}\n"},
-		"missing schema":                  {yaml: "mcp:\n  enabled: true\n  events:\n    a:\n      description: x\n"},
-		"unknown field":                   {yaml: "mcp:\n  enabled: true\n  events:\n    a:\n      payload_schema: {type: object}\n      desciption: x\n"},
-		"mcp key":                         {yaml: "mcp:\n  enabled: true\n  events:\n    a:\n      payload_schema: {type: object}\n      mcp: {enabled: false}\n"},
-		"name key":                        {yaml: "mcp:\n  enabled: true\n  events:\n    a:\n      payload_schema: {type: object}\n      name: a\n"},
-		"merge key":                       {yaml: "mcp:\n  enabled: true\n  events:\n    a: &a\n      payload_schema: {type: object}\n    b:\n      <<: *a\n"},
-		"missing file":                    {yaml: "mcp:\n  enabled: true\n", env: map[string]string{"MCP_EVENTS_FILE": "missing.yaml"}},
-		"bad file":                        {yaml: "mcp:\n  enabled: true\n", env: map[string]string{"MCP_EVENTS_FILE": "bad.json"}, files: map[string]string{"bad.json": "{"}},
-	} {
-		t.Run(name, func(t *testing.T) {
-			_, err := parseMCPErr(tc.env, tc.yaml, tc.files)
-			require.ErrorIs(t, err, config.ErrInvalidMCPConfig)
+		{"url in env", map[string]string{"MCP_EVENTS_SCHEMA": " HTTPS://example.com/e.json"}, "", nil,
+			"MCP_EVENTS_SCHEMA: URLs are not supported; set a file path or inline definitions"},
+		{"url in yaml", nil, "mcp:\n  events_schema: http://example.com/e.json\n", nil,
+			"mcp.events_schema: URLs are not supported; set a file path or inline definitions"},
+		{"missing file", map[string]string{"MCP_EVENTS_SCHEMA": "missing.yaml"}, "", nil,
+			`MCP_EVENTS_SCHEMA: reading "missing.yaml": `},
+		{"bad file", map[string]string{"MCP_EVENTS_SCHEMA": "bad.json"}, "", map[string]string{"bad.json": "{"},
+			`MCP_EVENTS_SCHEMA "bad.json": invalid mcp events: invalid JSON`},
+		{"old format", map[string]string{"MCP_EVENTS_SCHEMA": "old.yaml"}, "", map[string]string{"old.yaml": "a:\n  payload_schema: {type: object}\n"},
+			`MCP_EVENTS_SCHEMA "old.yaml": invalid mcp events:`},
+		{"no events key", nil, "mcp:\n  events_schema: {}\n", nil,
+			`mcp.events_schema: invalid mcp events: must be an object with an "events" list`},
+		{"invalid event", nil, "mcp:\n  events_schema:\n    events:\n      - name: a\n", nil,
+			`mcp.events_schema: invalid mcp events:`},
+		{"list", nil, "mcp:\n  events_schema: [a]\n", nil, `mcp.events_schema must be a mapping or a file path`},
+		{"number", nil, "mcp:\n  events_schema: 3\n", nil, `mcp.events_schema must be a mapping or a file path`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			env := map[string]string{}
+			for k, v := range enabled {
+				env[k] = v
+			}
+			for k, v := range tc.env {
+				env[k] = v
+			}
+			_, err := parseMCPErr(env, tc.yaml, tc.files)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tc.want)
 		})
 	}
-}
-
-func TestMCPEvents_ErrorsNameEventDefinitions(t *testing.T) {
-	_, err := parseMCPErr(nil, "mcp:\n  enabled: true\n  events:\n    a:\n      description: x\n", nil)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "invalid mcp events")
-	assert.Contains(t, err.Error(), "payload_schema is required")
+	_, err := parseMCPErr(map[string]string{"MCP_ENABLED": "true"}, "mcp:\n  events_schema:\n    events:\n      - name: a\n", nil)
+	assert.ErrorIs(t, err, config.ErrInvalidMCPConfig)
+	assert.Contains(t, err.Error(), `event "a": inputSchema is required`)
 }
 
 func TestMCPEvents_IgnoredWhenMCPDisabled(t *testing.T) {
-	cfg := parseMCP(t, map[string]string{"MCP_EVENTS_FILE": "missing.yaml"}, "mcp:\n  events:\n    a:\n      payload_schema: {type: nope}\n")
+	cfg := parseMCP(t, map[string]string{"MCP_EVENTS_SCHEMA": "missing.yaml"}, "")
 	assert.Nil(t, cfg.MCPCatalog())
-}
-
-func TestMCPEvents_JSONFileWithTabsAndEscapes(t *testing.T) {
-	cfg, err := parseMCPErr(map[string]string{"MCP_ENABLED": "true", "MCP_EVENTS_FILE": "events.json"}, "", map[string]string{
-		"events.json": "{\n\t\"order.created\": {\n\t\t\"description\": \"caf\\u00e9\",\n\t\t\"payload_schema\": {\"type\": \"object\"}\n\t}\n}",
-	})
-	require.NoError(t, err)
-	assert.Equal(t, "café", catalogDescription(t, cfg, "order.created"))
-}
-
-func TestMCPEvents_NoneConfigured(t *testing.T) {
-	cfg := parseMCP(t, map[string]string{"MCP_ENABLED": "true"}, "")
-	assert.Nil(t, cfg.MCPCatalog())
+	assert.Empty(t, cfg.MCPWarnings())
 }

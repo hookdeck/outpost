@@ -128,6 +128,17 @@ func TestMCPConfig_RetryBackoff(t *testing.T) {
 	assert.Equal(t, cfg.RetryMaxLimit, global, "the global policy is unchanged")
 }
 
+// otherWarnings drops the warning about missing event definitions.
+func otherWarnings(cfg *config.Config) []string {
+	var out []string
+	for _, w := range cfg.MCPWarnings() {
+		if !strings.Contains(w, "defines no events") {
+			out = append(out, w)
+		}
+	}
+	return out
+}
+
 func TestMCPConfig_Warnings(t *testing.T) {
 	cfg := parseMCP(t, map[string]string{"MCP_ENABLED": "true", "DESTINATIONS_PRIVATE_ADDRESS_ALLOWLIST": "localhost", "MCP_ALLOW_INSECURE_CALLBACKS": "true"}, "")
 	warnings := strings.Join(cfg.MCPWarnings(), "\n")
@@ -138,10 +149,10 @@ func TestMCPConfig_Warnings(t *testing.T) {
 	assert.Contains(t, strings.Join(cfg.MCPWarnings(), "\n"), "has no effect")
 
 	cfg = parseMCP(t, map[string]string{"MCP_ENABLED": "true", "MCP_RETRY_SCHEDULE": "1,5,60"}, "")
-	assert.Equal(t, []string{"MCP_RETRY_SCHEDULE: delays below LOG_BATCH_THRESHOLD_SECONDS (10s) are raised to it: 1s, 5s"}, cfg.MCPWarnings())
+	assert.Equal(t, []string{"MCP_RETRY_SCHEDULE: delays below LOG_BATCH_THRESHOLD_SECONDS (10s) are raised to it: 1s, 5s"}, otherWarnings(cfg))
 
 	cfg = parseMCP(t, map[string]string{"MCP_ENABLED": "true", "MCP_RETRY_SCHEDULE": "1,5", "LOG_BATCH_THRESHOLD_SECONDS": "0"}, "")
-	assert.Empty(t, cfg.MCPWarnings())
+	assert.Empty(t, otherWarnings(cfg))
 
 	cfg = parseMCP(t, map[string]string{"MCP_ALLOW_INSECURE_CALLBACKS": "true"}, "")
 	assert.Empty(t, cfg.MCPWarnings(), "nothing to warn about while MCP is off")
@@ -226,11 +237,12 @@ func TestMCPConfig_MatchesEnvExample(t *testing.T) {
 		assert.Contains(t, env, name, "%s is in .env.example", name)
 	}
 
-	cfg, err := parseMCPErr(env, "", map[string]string{env["MCP_EVENTS_FILE"]: "user.created:\n  payload_schema: {type: object}\n"})
+	cfg, err := parseMCPErr(env, "", map[string]string{env["MCP_EVENTS_SCHEMA"]: "events:\n  - name: user.created\n    inputSchema: {type: object, properties: {}}\n    payloadSchema: {type: object}\n"})
 	require.NoError(t, err)
 	want := defaultMCPConfig()
 	want.Enabled = true
-	want.EventsFile = env["MCP_EVENTS_FILE"]
+	require.NotNil(t, cfg.MCPCatalog())
+	cfg.MCP.EventsSchema = config.MCPEventsSchema{}
 	assert.Equal(t, want, cfg.MCP)
 }
 
@@ -242,7 +254,7 @@ func TestMCPConfig_MatchesYAMLExample(t *testing.T) {
 	section, _, _ = strings.Cut(section, "\n\n")
 
 	// Uncomment the commented-out keys, leaving prose comments out.
-	key := regexp.MustCompile(`^# (\s*[a-z0-9_.]+:.*)$`)
+	key := regexp.MustCompile(`^# (\s*(?:- )?[A-Za-z0-9_.]+:.*)$`)
 	var doc strings.Builder
 	for _, l := range strings.Split(section, "\n") {
 		if m := key.FindStringSubmatch(l); m != nil {
@@ -259,7 +271,7 @@ func TestMCPConfig_MatchesYAMLExample(t *testing.T) {
 
 	cfg := parseMCP(t, nil, doc.String())
 	require.NotNil(t, cfg.MCPCatalog())
-	cfg.MCP.Events = config.MCPEvents{}
+	cfg.MCP.EventsSchema = config.MCPEventsSchema{}
 	want := defaultMCPConfig()
 	want.Enabled = true
 	assert.Equal(t, want, cfg.MCP)

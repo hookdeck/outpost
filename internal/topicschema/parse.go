@@ -27,12 +27,15 @@ const (
 var utf8BOM = []byte("\xef\xbb\xbf")
 
 // definitionFields are the fields accepted in an event definition.
-var definitionFields = []string{"description", "payload_schema"}
+var definitionFields = []string{"name", "description", "inputSchema", "payloadSchema", "delivery", "_meta"}
 
-// ParseDefinitions parses event definitions, a YAML or JSON mapping keyed by
-// event name, from a file. Unknown fields and duplicate keys are errors.
-// payload_schema is kept as compact JSON in document order. Errors are a
-// *ConfigError naming the event and the JSON pointer of each problem.
+var deliveryModes = []string{"poll", "push", "webhook"}
+
+// ParseDefinitions parses event definitions in the MCP events/list format, a
+// YAML or JSON object with an events list, from a file. Unknown fields and
+// duplicate keys are errors. Schemas are kept as compact JSON in document
+// order. Errors are a *ConfigError naming the event and the JSON pointer of
+// each problem.
 func ParseDefinitions(data []byte) (Definitions, error) {
 	if len(data) > maxInputBytes {
 		return nil, configError(fmt.Sprintf("the event definitions document is larger than the %d MiB limit", maxInputBytes>>20))
@@ -141,22 +144,44 @@ func ParseDefinitionsNode(n *yaml.Node) (Definitions, error) {
 	if n != nil && n.Kind == yaml.DocumentNode && len(n.Content) > 0 {
 		n = unalias(n.Content[0])
 	}
+	const shape = `must be an object with an "events" list`
 	if n == nil || n.Kind != yaml.MappingNode {
-		return nil, configError("event definitions must be a mapping keyed by event name")
+		return nil, configError(shape)
 	}
-	defs := Definitions{}
+	var list *yaml.Node
 	var problems []string
-	keys := map[string]struct{}{}
 	c := &converter{}
+	keys := map[string]struct{}{}
 	for i := 0; i+1 < len(n.Content); i += 2 {
-		c.path = nil
-		name, err := c.uniqueKey(keys, n.Content[i])
+		key, err := c.uniqueKey(keys, n.Content[i])
 		if err != nil {
 			problems = append(problems, err.Error())
 			continue
 		}
-		c.path = []string{name}
-		def, err := c.definition(name, unalias(n.Content[i+1]))
+		v := unalias(n.Content[i+1])
+		switch key {
+		case "events":
+			list = v
+		case "resultType":
+			if kind, text, err := scalar(v); v.Kind != yaml.ScalarNode || err != nil || kind != kindString || text != "complete" {
+				problems = append(problems, `resultType must be "complete"`)
+			}
+		case "nextCursor":
+			if v.Kind != yaml.ScalarNode || v.ShortTag() != "!!null" {
+				problems = append(problems, "nextCursor is set: the list must be complete; merge every page into events")
+			}
+		default:
+			problems = append(problems, fmt.Sprintf("unknown field %q", clip(key)))
+		}
+	}
+	if list == nil || list.Kind != yaml.SequenceNode {
+		problems = append(problems, shape)
+		return nil, configError(problems...)
+	}
+	defs := make(Definitions, 0, len(list.Content))
+	for i, item := range list.Content {
+		c.scope, c.path = fmt.Sprintf("events[%d]", i), nil
+		def, err := c.definition(unalias(item))
 		if err != nil {
 			var ce *ConfigError
 			if errors.As(err, &ce) {
@@ -169,7 +194,7 @@ func ParseDefinitionsNode(n *yaml.Node) (Definitions, error) {
 			}
 			continue
 		}
-		defs[name] = def
+		defs = append(defs, def)
 	}
 	if len(problems) > 0 {
 		return nil, configError(problems...)
@@ -188,23 +213,27 @@ func unalias(n *yaml.Node) *yaml.Node {
 	return n
 }
 
-// parseError is one problem found while parsing, located by the JSON pointer
-// of the value and, when known, the source line.
+// parseError is one problem found while parsing, located by the event, the
+// JSON pointer of the value and, when known, the source line.
 type parseError struct {
-	path []string
-	line int
-	msg  string
+	scope string
+	path  []string
+	line  int
+	msg   string
 }
 
 func (e *parseError) Error() string {
 	var sb strings.Builder
-	if len(e.path) > 0 {
-		fmt.Fprintf(&sb, "event %q: ", clip(e.path[0]))
-		for _, t := range e.path {
-			sb.WriteString("/" + escapePointerToken(clip(t)))
-		}
-		if e.line > 0 {
-			fmt.Fprintf(&sb, " (line %d)", e.line)
+	if e.scope != "" {
+		sb.WriteString(e.scope)
+		if len(e.path) > 0 {
+			sb.WriteString(": ")
+			for _, t := range e.path {
+				sb.WriteString("/" + escapePointerToken(clip(t)))
+			}
+			if e.line > 0 {
+				fmt.Fprintf(&sb, " (line %d)", e.line)
+			}
 		}
 		sb.WriteString(": ")
 	} else if e.line > 0 {
@@ -220,67 +249,122 @@ type converter struct {
 	// written is the size of the schemas already written, for the document
 	// budget.
 	written int
-	path    []string
+	// scope names the event being read: events[i] until its name is known.
+	scope string
+	path  []string
 	// stack holds the collections being written, to detect an alias to a
 	// node that contains it.
 	stack []*yaml.Node
 }
 
 func (c *converter) errorf(n *yaml.Node, format string, args ...any) error {
-	return &parseError{path: slices.Clone(c.path), line: n.Line, msg: fmt.Sprintf(format, args...)}
+	return &parseError{scope: c.scope, path: slices.Clone(c.path), line: n.Line, msg: fmt.Sprintf(format, args...)}
 }
 
 // definition reads one event definition. null fields count as absent.
-func (c *converter) definition(name string, n *yaml.Node) (Definition, error) {
+func (c *converter) definition(n *yaml.Node) (Definition, error) {
 	var def Definition
 	if n.Kind != yaml.MappingNode {
 		return def, c.errorf(n, "must be an object")
 	}
 	var problems []string
+	add := func(msg string) { problems = append(problems, msg) }
 	seen := map[string]struct{}{}
+	fields := map[string]*yaml.Node{}
+	var unknown []string
 	for i := 0; i+1 < len(n.Content); i += 2 {
 		field, err := c.uniqueKey(seen, n.Content[i])
 		if err != nil {
-			problems = append(problems, err.Error())
+			add(err.Error())
 			continue
 		}
-		v := unalias(n.Content[i+1])
-		c.path = []string{name, field}
-		switch field {
-		case "description":
-			kind, text, err := scalar(v)
-			switch {
-			case v.Kind == yaml.ScalarNode && err == nil && kind == kindString:
-				def.Description = text
-			case v.Kind == yaml.ScalarNode && err == nil && kind == kindNull:
-			default:
-				problems = append(problems, c.errorf(v, "must be a string").Error())
-			}
-		case "payload_schema":
-			if v.Kind == yaml.ScalarNode && v.ShortTag() == "!!null" {
-				break
-			}
-			c.buf = c.buf[:0]
-			err := c.value(v, 0)
-			c.written += len(c.buf)
-			if err != nil {
-				problems = append(problems, err.Error())
-				break
-			}
-			def.PayloadSchema = json.RawMessage(bytes.Clone(c.buf))
-		default:
-			problems = append(problems, c.errorf(n.Content[i], "%s", unknownField(field)).Error())
+		if !slices.Contains(definitionFields, field) {
+			unknown = append(unknown, field)
+			continue
+		}
+		if v := unalias(n.Content[i+1]); !(v.Kind == yaml.ScalarNode && v.ShortTag() == "!!null") {
+			fields[field] = v
 		}
 	}
+	if v, ok := fields["name"]; !ok {
+		add(c.errorf(n, "name is required").Error())
+	} else if kind, text, err := scalar(v); v.Kind != yaml.ScalarNode || err != nil || kind != kindString || text == "" {
+		add(c.errorf(v, "name must be a non-empty string").Error())
+	} else {
+		def.Name = text
+		c.scope = fmt.Sprintf("event %q", clip(text))
+	}
+	for _, field := range unknown {
+		add(c.errorf(n, "%s", unknownField(field)).Error())
+	}
+	if v, ok := fields["description"]; ok {
+		if kind, text, err := scalar(v); v.Kind == yaml.ScalarNode && err == nil && kind == kindString {
+			def.Description = text
+		} else {
+			add(c.errorf(v, "description must be a string").Error())
+		}
+	}
+	if v, ok := fields["delivery"]; ok {
+		def.Delivery = c.delivery(v, &problems)
+	}
+	if v, ok := fields["_meta"]; ok && v.Kind != yaml.MappingNode {
+		add(c.errorf(v, "_meta must be an object").Error())
+		delete(fields, "_meta")
+	}
+	for _, f := range []struct {
+		name string
+		dst  *json.RawMessage
+	}{{"inputSchema", &def.InputSchema}, {"payloadSchema", &def.PayloadSchema}, {"_meta", &def.Meta}} {
+		v, ok := fields[f.name]
+		if !ok {
+			continue
+		}
+		c.path = []string{f.name}
+		c.buf = c.buf[:0]
+		err := c.value(v, 0)
+		c.written += len(c.buf)
+		if err != nil {
+			add(err.Error())
+			continue
+		}
+		*f.dst = json.RawMessage(bytes.Clone(c.buf))
+	}
+	c.path = nil
 	if len(problems) > 0 {
 		return def, &ConfigError{Problems: problems}
 	}
 	return def, nil
 }
 
+func (c *converter) delivery(v *yaml.Node, problems *[]string) []string {
+	const shape = `delivery must be a non-empty list of "poll", "push" and "webhook"`
+	var modes []string
+	ok := v.Kind == yaml.SequenceNode && len(v.Content) > 0
+	if ok {
+		for _, item := range v.Content {
+			item = unalias(item)
+			kind, text, err := scalar(item)
+			if item.Kind != yaml.ScalarNode || err != nil || kind != kindString || !slices.Contains(deliveryModes, text) || slices.Contains(modes, text) {
+				ok = false
+				break
+			}
+			modes = append(modes, text)
+		}
+	}
+	switch {
+	case !ok:
+		*problems = append(*problems, c.errorf(v, "%s", shape).Error())
+	case !slices.Contains(modes, "webhook"):
+		*problems = append(*problems, c.errorf(v, `delivery must include "webhook"; Outpost delivers by webhook only`).Error())
+	default:
+		return modes
+	}
+	return nil
+}
+
 // unknownField describes an unknown field, suggesting the known field it
-// most likely meant: "payloadSchema" and "Payload-Schema" both suggest
-// "payload_schema".
+// most likely meant: "payload_schema" and "Payload-Schema" both suggest
+// "payloadSchema".
 func unknownField(name string) string {
 	norm := func(s string) string {
 		return strings.NewReplacer("_", "", "-", "", " ", "").Replace(strings.ToLower(s))
