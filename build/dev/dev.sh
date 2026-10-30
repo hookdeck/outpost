@@ -61,6 +61,7 @@ fi
 [ "${LOCAL_DEV_GRAFANA:-}" = "1" ] && files+=(-f build/dev/grafana/compose.yml)
 [ "${LOCAL_DEV_UPTRACE:-}" = "1" ] && files+=(-f build/dev/uptrace/compose.yml)
 [ "${LOCAL_DEV_AZURE:-}" = "1" ] && files+=(-f build/dev/azure/compose.yml)
+[ "${LOCAL_DEV_MCP:-}" = "1" ] && files+=(-f build/dev/mcp/compose.yml)
 
 # grafana and uptrace both define otel-collector and overlap on OTLP ports.
 # Enabling both at once is almost always a misconfiguration.

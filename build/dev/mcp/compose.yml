@@ -1,0 +1,33 @@
+name: "outpost"
+
+# MCP Events add-on (LOCAL_DEV_MCP=1, `make up/mcp`): turns MCP Events on
+# (EXPERIMENTAL_MCP_ENABLED) with the sample events of cmd/mcp-dev, allows http
+# callbacks to the host (where mcp-dev receives), shortens retries, and creates
+# the tenant `demo`.
+# TOPICS replaces the list in .outpost.yaml while this add-on is on: the
+# sample event names must be topics. `API_KEY` must be the key in use (the
+# default is apikey); if it only lives in .outpost.yaml the tenant is created
+# by the first subscribe instead.
+x-mcp: &mcp
+  entrypoint: ["sh", "./build/dev/mcp/entrypoint.sh"]
+  environment:
+    EXPERIMENTAL_MCP_ENABLED: "true"
+    EXPERIMENTAL_MCP_EVENTS_SCHEMA: /app/cmd/mcp-dev/samples/events.json
+    EXPERIMENTAL_MCP_ALLOW_INSECURE_CALLBACKS: "true"
+    EXPERIMENTAL_MCP_RETRY_SCHEDULE: "1,2,5"
+    # Retry delays are floored to this value (default 10).
+    LOG_BATCH_THRESHOLD_SECONDS: "1"
+    # The sample events plus the dev defaults.
+    TOPICS: user.created,user.updated,user.deleted,incident.created,incident.resolved,order.created,invoice.paid
+
+services:
+  api: *mcp
+  delivery: *mcp
+  log: *mcp
+
+  mcp-demo-tenant:
+    image: curlimages/curl:8.11.1
+    command: ["-fsS", "-X", "PUT", "http://api:3333/api/v1/tenants/demo", "-H", "Authorization: Bearer ${API_KEY:-apikey}"]
+    depends_on:
+      api: { condition: service_healthy }
+    restart: "no"

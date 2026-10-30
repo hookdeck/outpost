@@ -55,6 +55,11 @@ smoke:
 up/portal:
 	cd internal/portal && npm install && npm run dev
 
+# Like `make up` with MCP Events on (EXPERIMENTAL_MCP_ENABLED) and the sample
+# events of cmd/mcp-dev loaded. `make up` turns it off again.
+up/mcp:
+	LOCAL_DEV_MCP=1 ./build/dev/dev.sh up
+
 # Test infrastructure for TESTINFRA=1 runs: the services the default test run
 # needs. With TESTDEST=1 or TESTCOMPAT=1 it also starts the destination stack.
 # --env-file supplies the image pins; see the comment at the top of compose.yml.
@@ -158,6 +163,9 @@ migrate:
 
 redis/debug:
 	go run cmd/redis-debug/main.go $(ARGS)
+
+mcp/dev:
+	go run ./cmd/mcp-dev $(ARGS)
 
 logs:
 	docker logs $$(docker ps -f name=outpost-${SERVICE} --format "{{.ID}}") -f $(ARGS)
