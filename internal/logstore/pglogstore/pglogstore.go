@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -394,6 +395,13 @@ func buildAttemptQuery(req driver.ListAttemptRequest, q pagination.QueryInput) (
 	orderByClause := fmt.Sprintf("ORDER BY time %s, id %s",
 		strings.ToUpper(q.SortDir), strings.ToUpper(q.SortDir))
 
+	payloadColumn := func(column, empty string, field driver.Field) string {
+		if !slices.Contains(req.Include, field) {
+			return empty
+		}
+		return column
+	}
+
 	query := fmt.Sprintf(`
 		SELECT
 			id,
@@ -407,17 +415,21 @@ func buildAttemptQuery(req driver.ListAttemptRequest, q pagination.QueryInput) (
 			attempt_number,
 			manual,
 			code,
-			response_data,
+			%s,
 			event_time,
 			eligible_for_retry,
-			event_data,
-			event_metadata,
+			%s,
+			%s,
 			latency_ms
 		FROM attempts
 		WHERE %s
 		%s
 		LIMIT $%d
-	`, whereClause, orderByClause, argNum)
+	`,
+		payloadColumn("response_data", "''::text", driver.FieldResponseData),
+		payloadColumn("event_data", "''::text", driver.FieldEventData),
+		payloadColumn("event_metadata", "NULL::jsonb", driver.FieldEventMetadata),
+		whereClause, orderByClause, argNum)
 
 	args = append(args, q.Limit)
 

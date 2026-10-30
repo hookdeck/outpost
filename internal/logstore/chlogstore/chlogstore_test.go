@@ -514,7 +514,7 @@ func TestListAttempt_UndecodableRowFails(t *testing.T) {
 	}}))
 	require.NoError(t, chDB.Exec(ctx, `ALTER TABLE attempts UPDATE metadata = '{"n":1}' WHERE event_id = 'list_bad_evt' SETTINGS mutations_sync = 2`))
 
-	_, err := store.ListAttempt(ctx, driver.ListAttemptRequest{TenantIDs: []string{tenantID}})
+	_, err := store.ListAttempt(ctx, driver.ListAttemptRequest{TenantIDs: []string{tenantID}, Include: driver.AllFields})
 	assert.ErrorContains(t, err, "metadata")
 }
 

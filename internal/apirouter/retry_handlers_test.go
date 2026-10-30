@@ -49,7 +49,7 @@ func TestAPI_Retry(t *testing.T) {
 		h := newAPITest(t, opts...)
 		h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
 		h.tenantStore.UpsertDestination(t.Context(), df.Any(df.WithID("d1"), df.WithTenantID("t1"), df.WithTopics([]string{"*"})))
-		e := ef.AnyPointer(ef.WithID("e1"), ef.WithTenantID("t1"), ef.WithTopic("user.created"))
+		e := ef.AnyPointer(ef.WithID("e1"), ef.WithTenantID("t1"), ef.WithTopic("user.created"), ef.WithData(json.RawMessage(`{"order":"o1"}`)))
 		require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
 			{Event: e, Attempt: attemptForEvent(e, af.WithDestinationID("d1"))},
 		}))
@@ -469,6 +469,7 @@ func TestAPI_Retry(t *testing.T) {
 			assert.True(t, task.Manual)
 			assert.Equal(t, "e1", task.Event.ID)
 			assert.Equal(t, "t1", task.Event.TenantID)
+			assert.JSONEq(t, `{"order":"o1"}`, string(task.Event.Data))
 			assert.Equal(t, "d1", task.DestinationID)
 			assert.Equal(t, 2, task.Attempt, "should derive attempt_number=2 from 1 prior attempt")
 		})

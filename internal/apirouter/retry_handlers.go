@@ -65,6 +65,7 @@ func (h *RetryHandlers) Retry(c *gin.Context) {
 		DestinationIDs: []string{req.DestinationID},
 		Limit:          1,
 		SortOrder:      "desc",
+		Include:        logstore.AllFields,
 	}
 	if tenantID != "" {
 		listReq.TenantIDs = []string{tenantID}
