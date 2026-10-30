@@ -2,7 +2,6 @@ package e2e_test
 
 import (
 	"encoding/json"
-	"gopkg.in/yaml.v3"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -14,6 +13,7 @@ import (
 	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/suite"
+	"gopkg.in/yaml.v3"
 )
 
 // TestMCP_EventDefinitions runs the MCP event definitions end to end: the catalog

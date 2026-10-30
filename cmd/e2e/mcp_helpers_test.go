@@ -2,7 +2,6 @@ package e2e_test
 
 import (
 	"context"
-	"gopkg.in/yaml.v3"
 	"testing"
 	"time"
 
@@ -11,6 +10,7 @@ import (
 	"github.com/hookdeck/outpost/internal/redis"
 	"github.com/hookdeck/outpost/internal/tenantstore"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v3"
 )
 
 const (
