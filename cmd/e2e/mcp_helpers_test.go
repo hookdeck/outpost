@@ -27,6 +27,7 @@ var mcpRetrySchedule = []int{1, 1}
 func withMCPDelivery(cfg *config.Config) {
 	cfg.MCP.Enabled = true
 	cfg.Destinations.PrivateAddressAllowlist = []string{"127.0.0.2/32"}
+	cfg.MCP.AllowInsecureCallbacks = true
 	cfg.MCP.RetrySchedule = mcpRetrySchedule
 	cfg.DeliveryTimeoutSeconds = mcpDeliveryTimeoutSeconds
 	cfg.RetryPollBackoffMs = 50

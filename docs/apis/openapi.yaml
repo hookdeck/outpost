@@ -344,8 +344,8 @@ components:
           type: string
           format: url
           description: >-
-            Callback URL events are delivered to. Must be https (plain http only for allowlisted
-            addresses) and in normalized form, and must pass a verification challenge when the
+            Callback URL events are delivered to. Must be https (plain http only on servers that allow
+            insecure callbacks, for allowlisted addresses) and in normalized form, and must pass a verification challenge when the
             destination is created. Immutable.
           example: "https://agent.example.com/mcp-events/abc123"
         principal:

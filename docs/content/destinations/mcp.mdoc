@@ -40,7 +40,7 @@ Verification is limited to 10 challenges per tenant and principal per minute, an
 |-------|------|----------|-------------|
 | `id` | string | No | Subscription ID, sent as `X-MCP-Subscription-Id`. 1 to 128 characters of `A-Z a-z 0-9 _ -`. |
 | `topics` | string[] | Yes | Exactly one topic. `*` is not accepted. |
-| `config.url` | string | Yes | Callback URL. `https`, in normalized form (lowercase host, no default port, no credentials); `http` only for loopback addresses in `DESTINATIONS_PRIVATE_ADDRESS_ALLOWLIST` (any allowlisted address with `MCP_ALLOW_INSECURE_CALLBACKS`). Must resolve to a public address, unless allowed by `DESTINATIONS_PRIVATE_ADDRESS_ALLOWLIST`. |
+| `config.url` | string | Yes | Callback URL. `https`, in normalized form (lowercase host, no default port, no credentials); `http` only with `MCP_ALLOW_INSECURE_CALLBACKS`, for addresses in `DESTINATIONS_PRIVATE_ADDRESS_ALLOWLIST`, for development. Must resolve to a public address, unless allowed by `DESTINATIONS_PRIVATE_ADDRESS_ALLOWLIST`. |
 | `config.principal` | string | No | The subject the subscription belongs to, up to 512 bytes. Verification is cached per tenant, principal and URL. |
 | `config.arguments` | string | No | Canonical JSON object, up to 4 KiB. Stored with the destination. |
 | `credentials.secret` | string | Yes | `whsec_` followed by base64 of 24 to 64 bytes. |
