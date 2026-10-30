@@ -290,6 +290,11 @@ func (s *mcpSuite) TestRetryResigns() {
 	s.publishMCP(tenant, map[string]any{"n": 1})
 	events := s.r.WaitFor(p.path, 3, mcpreceiver.Request.IsEvent, 15*time.Second)
 	s.Len(events, 3, "1 attempt + 2 retries")
+	s.check(
+		events[0].Header.Get("webhook-id") != "" &&
+			events[0].Header.Get("webhook-id") == events[1].Header.Get("webhook-id") &&
+			events[1].Header.Get("webhook-id") == events[2].Header.Get("webhook-id"),
+		"webhook-ids %q %q %q", events[0].Header.Get("webhook-id"), events[1].Header.Get("webhook-id"), events[2].Header.Get("webhook-id"))
 	time.Sleep(mcpRetryWait)
 	s.Len(s.r.Events(p.path), 3, "success on the third stops the retries")
 }

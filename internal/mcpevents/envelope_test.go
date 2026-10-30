@@ -2,8 +2,6 @@ package mcpevents
 
 import (
 	"bytes"
-	"crypto/sha256"
-	"encoding/base64"
 	"encoding/json"
 	"regexp"
 	"strings"
@@ -109,27 +107,6 @@ func TestMessageIDs(t *testing.T) {
 	a, b := MessageID(EnvelopeVerification), MessageID(EnvelopeVerification)
 	assert.Regexp(t, re, a)
 	assert.NotEqual(t, a, b)
-}
-
-func TestDeliveryMessageID(t *testing.T) {
-	t.Parallel()
-	id := DeliveryMessageID("t1", "sub_1", "evt_1")
-	assert.Regexp(t, `^msg_[A-Za-z0-9_-]{22}$`, id)
-	assert.Equal(t, id, DeliveryMessageID("t1", "sub_1", "evt_1"), "stable across attempts")
-	assert.NotEqual(t, id, DeliveryMessageID("t2", "sub_1", "evt_1"), "per tenant")
-	assert.NotEqual(t, id, DeliveryMessageID("t1", "sub_2", "evt_1"), "per destination")
-	assert.NotEqual(t, id, DeliveryMessageID("t1", "sub_1", "evt_2"), "per event")
-	assert.NotContains(t, id, "evt_1")
-
-	// The separator keeps (a, bc) and (ab, c) apart.
-	assert.NotEqual(t, DeliveryMessageID("t", "a", "bc"), DeliveryMessageID("t", "ab", "c"))
-	assert.NotEqual(t, DeliveryMessageID("a", "bc", "e"), DeliveryMessageID("ab", "c", "e"))
-
-	sum := sha256.Sum256([]byte("t1\x00sub_1\x00evt_1"))
-	assert.Equal(t, "msg_"+base64.RawURLEncoding.EncodeToString(sum[:])[:22], id)
-
-	// Any event ID, including ones that aren't header-safe, yields a header-safe ID.
-	assert.Regexp(t, `^msg_[A-Za-z0-9_-]{22}$`, DeliveryMessageID("t1", "sub_1", "evt 1\r\nX: y\x00é"))
 }
 
 func TestValidSubscriptionID(t *testing.T) {

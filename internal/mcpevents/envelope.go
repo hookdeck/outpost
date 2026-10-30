@@ -3,8 +3,6 @@ package mcpevents
 import (
 	"bytes"
 	"crypto/rand"
-	"crypto/sha256"
-	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -96,20 +94,4 @@ func MessageID(envelopeType string) string {
 	var r [12]byte
 	_, _ = rand.Read(r[:]) // never fails
 	return "msg_" + envelopeType + "_" + hex.EncodeToString(r[:])
-}
-
-// DeliveryMessageID returns the webhook-id of an event delivered to a
-// destination: "msg_" + 22 base64url characters of
-// sha256(tenantID NUL destinationID NUL eventID), unkeyed.
-//   - The tenant is an input because destination IDs can be client-supplied
-//     and are only unique per tenant; the destination is an input so one event
-//     matched by several subscriptions gets a different ID on each.
-//   - It is server-generated and high-entropy: a digest, never the event ID.
-//   - It uses only ASCII letters, digits, "_" and "-", so it is header-safe.
-//   - It has no key because the subscription secret rotates, and a keyed ID
-//     would change mid-retry. It is the same on every retry and redelivery
-//     without stored state.
-func DeliveryMessageID(tenantID, destinationID, eventID string) string {
-	sum := sha256.Sum256([]byte(tenantID + "\x00" + destinationID + "\x00" + eventID))
-	return "msg_" + base64.RawURLEncoding.EncodeToString(sum[:])[:22]
 }

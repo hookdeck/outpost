@@ -14,6 +14,7 @@ import (
 
 	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destwebhook"
+	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/mcpevents"
 	"github.com/hookdeck/outpost/internal/models"
 )
@@ -49,7 +50,7 @@ func (p *Publisher) Publish(ctx context.Context, event *models.Event) (*destregi
 	if err != nil {
 		return failure("ERR", "could not build the request", err, true, false)
 	}
-	if err := p.setHeaders(req.Header, event.ID, body); err != nil {
+	if err := p.setHeaders(ctx, req.Header, body); err != nil {
 		return failure("ERR", "no valid signing secret", err, true, false)
 	}
 
@@ -69,9 +70,12 @@ func (p *Publisher) Publish(ctx context.Context, event *models.Event) (*destregi
 	return p.handleResponse(resp)
 }
 
-func (p *Publisher) setHeaders(h http.Header, eventID string, body []byte) error {
+func (p *Publisher) setHeaders(ctx context.Context, h http.Header, body []byte) error {
 	now := p.now()
-	msgID := mcpevents.DeliveryMessageID(p.tenantID, p.destinationID, eventID)
+	msgID := destregistry.MessageIDFrom(ctx)
+	if msgID == "" {
+		msgID = idgen.Message()
+	}
 	if err := mcpevents.SetHeaders(h, msgID, p.destinationID, now, body, mcpevents.ActiveKeys(p.secrets, now)); err != nil {
 		return err
 	}
