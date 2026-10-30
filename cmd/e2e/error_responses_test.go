@@ -144,6 +144,7 @@ var apiRoutes = []apiRoute{
 	{method: http.MethodGet, path: "/destination-types"},
 	{method: http.MethodGet, path: "/destination-types/:type"},
 	{method: http.MethodGet, path: "/topics"},
+	{method: http.MethodGet, path: "/mcp/events", adminOnly: true},
 
 	{method: http.MethodPost, path: "/publish", adminOnly: true},
 	{method: http.MethodPost, path: "/retry"},
