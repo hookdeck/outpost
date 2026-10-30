@@ -128,7 +128,7 @@ func (s *mockStore) ReceiveEvent(ctx context.Context, destinationID string, rawB
 	}
 
 	// Check if should_err is set
-	if metadata["should_err"] == "true" {
+	if metadata["should_err"] == "true" || metadata["respond_status"] != "" {
 		event.Success = false
 	}
 
