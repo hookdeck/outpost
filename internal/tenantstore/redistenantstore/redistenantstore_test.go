@@ -332,3 +332,102 @@ func TestDeploymentIsolation(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "dp_002", retrieved2Again.Config["deployment"])
 }
+
+// =============================================================================
+// Standalone: mutation safety
+// =============================================================================
+
+func TestDestinationWithoutVersionIsUpdatable(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	client := miniredisFactory(t)
+	store := redistenantstore.New(client, redistenantstore.WithSecret("test-secret"))
+
+	tenant := testutil.TenantFactory.Any()
+	require.NoError(t, store.UpsertTenant(ctx, tenant))
+	destination := testutil.DestinationFactory.Any(testutil.DestinationFactory.WithTenantID(tenant.ID))
+	require.NoError(t, store.CreateDestination(ctx, destination))
+
+	key := fmt.Sprintf("tenant:{%s}:destination:%s", tenant.ID, destination.ID)
+	require.NoError(t, client.HDel(ctx, key, "version").Err())
+
+	read, err := store.RetrieveDestination(ctx, tenant.ID, destination.ID)
+	require.NoError(t, err)
+	read.Metadata = map[string]string{"k": "v"}
+	require.NoError(t, store.UpdateDestination(ctx, *read))
+
+	read, err = store.RetrieveDestination(ctx, tenant.ID, destination.ID)
+	require.NoError(t, err)
+	assert.Equal(t, models.Metadata{"k": "v"}, read.Metadata)
+}
+
+func TestTenantUpsertRacingDeleteKeepsExpiryConsistent(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	client := miniredisFactory(t)
+	store := redistenantstore.New(client, redistenantstore.WithSecret("test-secret"))
+
+	for round := 0; round < 100; round++ {
+		tenant := testutil.TenantFactory.Any()
+		require.NoError(t, store.UpsertTenant(ctx, tenant))
+
+		start := make(chan struct{})
+		done := make(chan struct{}, 3)
+		for i := 0; i < 2; i++ {
+			go func() {
+				<-start
+				_ = store.UpsertTenant(ctx, tenant)
+				done <- struct{}{}
+			}()
+		}
+		go func() {
+			<-start
+			_ = store.DeleteTenant(ctx, tenant.ID)
+			done <- struct{}{}
+		}()
+		close(start)
+		for i := 0; i < 3; i++ {
+			<-done
+		}
+
+		key := fmt.Sprintf("tenant:{%s}:tenant", tenant.ID)
+		deleted, err := client.HExists(ctx, key, "deleted_at").Result()
+		require.NoError(t, err)
+		ttl, err := client.TTL(ctx, key).Result()
+		require.NoError(t, err)
+		if deleted {
+			assert.Greater(t, ttl, time.Duration(0), "round %d: deleted tenant must expire", round)
+		} else {
+			assert.Less(t, ttl, time.Duration(0), "round %d: live tenant must not expire", round)
+		}
+	}
+}
+
+func TestDeleteTenantRetriesOnStaleDestinationList(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	store := redistenantstore.New(miniredisFactory(t), redistenantstore.WithSecret("test-secret"))
+
+	tenant := testutil.TenantFactory.Any()
+	require.NoError(t, store.UpsertTenant(ctx, tenant))
+	first := testutil.DestinationFactory.Any(testutil.DestinationFactory.WithTenantID(tenant.ID))
+	require.NoError(t, store.CreateDestination(ctx, first))
+	stale := []string{first.ID}
+
+	// A destination created after the list was read.
+	second := testutil.DestinationFactory.Any(testutil.DestinationFactory.WithTenantID(tenant.ID))
+	require.NoError(t, store.CreateDestination(ctx, second))
+
+	retry, err := redistenantstore.DeleteTenantOnce(ctx, store, tenant.ID, stale)
+	require.NoError(t, err)
+	assert.True(t, retry)
+	live, err := store.RetrieveTenant(ctx, tenant.ID)
+	require.NoError(t, err)
+	assert.Equal(t, 2, live.DestinationsCount, "a stale attempt must change nothing")
+
+	require.NoError(t, store.DeleteTenant(ctx, tenant.ID))
+	for _, id := range []string{first.ID, second.ID} {
+		_, err := store.RetrieveDestination(ctx, tenant.ID, id)
+		assert.ErrorIs(t, err, driver.ErrDestinationDeleted)
+	}
+}

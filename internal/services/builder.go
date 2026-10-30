@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -19,6 +20,7 @@ import (
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/logmq"
 	"github.com/hookdeck/outpost/internal/logstore"
+	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/mqs"
 	"github.com/hookdeck/outpost/internal/opevents"
 	"github.com/hookdeck/outpost/internal/publishmq"
@@ -496,16 +498,30 @@ func newDestinationDisabler(tenantStore tenantstore.TenantStore) logmq.Destinati
 }
 
 func (d *destinationDisabler) DisableDestination(ctx context.Context, tenantID, destinationID string) error {
-	destination, err := d.tenantStore.RetrieveDestination(ctx, tenantID, destinationID)
-	if err != nil {
-		return err
+	var err error
+	for attempt := 0; attempt < tenantstore.MaxDestinationWriteAttempts; attempt++ {
+		var destination *models.Destination
+		destination, err = d.tenantStore.RetrieveDestination(ctx, tenantID, destinationID)
+		if errors.Is(err, tenantstore.ErrDestinationDeleted) || (err == nil && destination == nil) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		if destination.DisabledAt != nil {
+			return nil
+		}
+		now := time.Now()
+		destination.DisabledAt = &now
+		err = d.tenantStore.UpdateDestination(ctx, *destination)
+		if !errors.Is(err, tenantstore.ErrDestinationConflict) {
+			break
+		}
 	}
-	if destination == nil {
+	if errors.Is(err, tenantstore.ErrDestinationNotFound) {
 		return nil
 	}
-	now := time.Now()
-	destination.DisabledAt = &now
-	return d.tenantStore.UpsertDestination(ctx, *destination)
+	return err
 }
 
 // Helper methods for serviceInstance to initialize common dependencies

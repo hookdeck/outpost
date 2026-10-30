@@ -5986,6 +5986,12 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
+        "409":
+          description: The destination was modified by another request at the same time. Retry the request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APIErrorResponse"
         "413":
           $ref: "#/components/responses/RequestBodyTooLarge"
         "422":
@@ -6064,6 +6070,12 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
+        "409":
+          description: The destination was modified by another request at the same time. Retry the request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APIErrorResponse"
         "500":
           $ref: "#/components/responses/InternalServerError"
 
@@ -6114,6 +6126,12 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
+        "409":
+          description: The destination was modified by another request at the same time. Retry the request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APIErrorResponse"
         "500":
           $ref: "#/components/responses/InternalServerError"
 

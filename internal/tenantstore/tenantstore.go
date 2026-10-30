@@ -22,12 +22,16 @@ var (
 	ErrDuplicateDestination            = driver.ErrDuplicateDestination
 	ErrDestinationNotFound             = driver.ErrDestinationNotFound
 	ErrDestinationDeleted              = driver.ErrDestinationDeleted
+	ErrDestinationConflict             = driver.ErrDestinationConflict
 	ErrMaxDestinationsPerTenantReached = driver.ErrMaxDestinationsPerTenantReached
 	ErrListTenantNotSupported          = driver.ErrListTenantNotSupported
 	ErrInvalidCursor                   = driver.ErrInvalidCursor
 	ErrInvalidOrder                    = driver.ErrInvalidOrder
 	ErrConflictingCursors              = driver.ErrConflictingCursors
 )
+
+// MaxDestinationWriteAttempts bounds read-modify-write retries on UpdateDestination conflicts.
+const MaxDestinationWriteAttempts = 3
 
 // Config holds the configuration for creating a TenantStore.
 type Config struct {

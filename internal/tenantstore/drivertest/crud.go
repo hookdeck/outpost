@@ -2,6 +2,7 @@ package drivertest
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -217,6 +218,8 @@ func testCRUD(t *testing.T, newHarness HarnessMaker) {
 			assert.Nil(t, actual)
 		})
 
+		require.NoError(t, store.UpsertTenant(ctx, models.Tenant{ID: input.TenantID}))
+
 		t.Run("sets", func(t *testing.T) {
 			err := store.CreateDestination(ctx, input)
 			require.NoError(t, err)
@@ -266,6 +269,34 @@ func testCRUD(t *testing.T, newHarness HarnessMaker) {
 		t.Run("err when creates duplicate", func(t *testing.T) {
 			assert.ErrorIs(t, store.CreateDestination(ctx, input), driver.ErrDuplicateDestination)
 			require.NoError(t, store.DeleteDestination(ctx, input.TenantID, input.ID))
+		})
+
+		t.Run("one of concurrent creates wins", func(t *testing.T) {
+			for round := 0; round < 20; round++ {
+				destination := testutil.DestinationFactory.Any()
+				require.NoError(t, store.UpsertTenant(ctx, models.Tenant{ID: destination.TenantID}))
+				errs := make([]error, 8)
+				var wg sync.WaitGroup
+				for i := range errs {
+					wg.Add(1)
+					go func() {
+						defer wg.Done()
+						errs[i] = store.CreateDestination(ctx, destination)
+					}()
+				}
+				wg.Wait()
+
+				created := 0
+				for _, err := range errs {
+					if err == nil {
+						created++
+					} else {
+						assert.ErrorIs(t, err, driver.ErrDuplicateDestination)
+					}
+				}
+				assert.Equal(t, 1, created)
+				require.NoError(t, store.DeleteDestination(ctx, destination.TenantID, destination.ID))
+			}
 		})
 
 		t.Run("handles nil delivery_metadata and metadata", func(t *testing.T) {
@@ -371,6 +402,7 @@ func testCRUD(t *testing.T, newHarness HarnessMaker) {
 		require.NoError(t, err)
 
 		destination := testutil.DestinationFactory.Any()
+		require.NoError(t, store.UpsertTenant(ctx, models.Tenant{ID: destination.TenantID}))
 		require.NoError(t, store.CreateDestination(ctx, destination))
 
 		t.Run("no error when deleting existing", func(t *testing.T) {
