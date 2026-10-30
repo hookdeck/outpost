@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -64,9 +65,18 @@ func (g *checkResult) bad(format string, args ...any) {
 
 // Violations checks every recorded request against the delivery rules and
 // returns the rules that were broken.
-func (r *Receiver) Violations() []Violation {
+func (r *Receiver) Violations() []Violation { return r.ViolationsOn() }
+
+// ViolationsOn is Violations restricted to requests on the given paths (all
+// paths when none is given).
+func (r *Receiver) ViolationsOn(only ...string) []Violation {
 	r.mu.Lock()
-	reqs := append([]Request(nil), r.requests...)
+	reqs := make([]Request, 0, len(r.requests))
+	for _, q := range r.requests {
+		if len(only) == 0 || slices.Contains(only, q.Path) {
+			reqs = append(reqs, q)
+		}
+	}
 	paths := make(map[string]PathConfig, len(r.paths))
 	for k, v := range r.paths {
 		paths[k] = v.cfg

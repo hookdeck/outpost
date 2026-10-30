@@ -14,6 +14,7 @@ type ListResult struct {
 type Event struct {
 	Name          string         `json:"name"`
 	Description   string         `json:"description"`
+	Delivery      []string       `json:"delivery"`
 	InputSchema   map[string]any `json:"inputSchema"`
 	PayloadSchema map[string]any `json:"payloadSchema"`
 }
