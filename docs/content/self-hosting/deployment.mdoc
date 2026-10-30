@@ -52,7 +52,7 @@ Each of these will need to be provisioned and allocated sufficient resources bas
 
 ## Outbound Network Access
 
-Tenants choose where their destinations point, and Outpost stores the response to each webhook delivery. If your tenants are outside your organization, a tenant could point a destination at a service on your internal network, such as an internal API or your cloud provider's metadata endpoint, and read the response in its delivery logs. If only your own team creates destinations, you can skip this section.
+Tenants choose where their destinations point, and Outpost stores the response to each webhook delivery. If your tenants are outside your organization, this exposes you to [server-side request forgery (SSRF)](https://owasp.org/www-community/attacks/Server_Side_Request_Forgery): a tenant could point a destination at an internal service, such as your cloud provider's metadata endpoint, and read the response in its delivery logs. If only your own team creates destinations, you can skip this section.
 
 When tenants are outside your organization, we recommend both of the following.
 
