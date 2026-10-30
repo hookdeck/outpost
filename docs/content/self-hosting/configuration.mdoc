@@ -150,6 +150,8 @@ Choose one for event log persistence:
 | `DESTINATIONS_PROXY_URL` | — | HTTP `CONNECT` forward proxy for destination connections, e.g. `http://user:pass@proxy:8080`. Multiple whitespace-separated URLs are tunneled in order. Applies to webhook, RabbitMQ and Kafka destinations; other destination types connect directly. The deprecated `DESTINATIONS_WEBHOOK_PROXY_URL`, when set, takes precedence for webhooks; there is no way to proxy RabbitMQ and Kafka without also proxying webhooks. See [Webhook Forward Proxy](/docs/outpost/self-hosting/guides/webhook-proxy#other-destination-types). |
 | `DESTINATIONS_METADATA_PATH` | — | Optional. Filesystem path to a directory of [custom destination metadata](https://github.com/hookdeck/outpost/tree/main/internal/destregistry/metadata/providers) (per-type `metadata.json` and `instructions.md`). Non-core fields such as `label`, `description`, `icon`, and `instructions` can be customized; `config_fields` and `credential_fields` cannot be overridden. |
 | `DESTINATIONS_AWS_EVENTBRIDGE_SOURCE` | `outpost` | `Source` set on every event published by [AWS EventBridge](/docs/outpost/destinations/aws-eventbridge) destinations. Must not be empty or start with `aws.`. |
+| `DESTINATIONS_BLOCK_PRIVATE_ADDRESSES` | `false` | If `true`, webhook destinations only connect to public addresses and those in `DESTINATIONS_PRIVATE_ADDRESS_ALLOWLIST`. See [Outbound Network Access](/docs/outpost/self-hosting/deployment#outbound-network-access). |
+| `DESTINATIONS_PRIVATE_ADDRESS_ALLOWLIST` | — | Comma-separated IPs and CIDR ranges destinations may still reach while `DESTINATIONS_BLOCK_PRIVATE_ADDRESSES` is on, e.g. `10.0.0.0/8,192.168.1.5`. |
 
 ## Webhook Behavior
 
