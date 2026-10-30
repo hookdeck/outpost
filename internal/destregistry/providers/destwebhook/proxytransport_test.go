@@ -1,11 +1,13 @@
 package destwebhook_test
 
 import (
+	"context"
 	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/hookdeck/outpost/internal/destregistry"
@@ -286,6 +288,44 @@ func TestProxyTransport_EnvoySynthesizedResponse_UC_ReturnsConnectionReset(t *te
 	assert.Equal(t, "connection_reset", destErr.Code)
 	assert.Equal(t, "UC", destErr.Diagnostics["envoy_flag"])
 	assert.Equal(t, "upstream_reset_after_response_started{connection_termination}", destErr.Diagnostics["envoy_details"])
+}
+
+// newTunnelClosingProxy accepts CONNECT, then closes the tunnel once the client
+// sends anything, the way a forward proxy closes its side when the upstream
+// drops the connection.
+func newTunnelClosingProxy(t *testing.T) *httptest.Server {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodConnect {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+		conn, buf, err := w.(http.Hijacker).Hijack()
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		_, _ = conn.Write([]byte("HTTP/1.1 200 Connection established\r\n\r\n"))
+		_, _ = buf.ReadByte()
+	}))
+	t.Cleanup(srv.Close)
+	return srv
+}
+
+func TestProxyTransport_TunnelClosedBeforeResponse_ReturnsConnectionReset(t *testing.T) {
+	t.Parallel()
+
+	proxy := newTunnelClosingProxy(t)
+	client := makeProxiedClient(t, proxy.URL)
+
+	req, err := http.NewRequest(http.MethodPost, "https://example.invalid/hook", strings.NewReader("{}"))
+	require.NoError(t, err)
+
+	result := destwebhook.ExecuteHTTPRequest(context.Background(), client, req, "webhook", 0)
+
+	require.NotNil(t, result.Delivery, "a closed tunnel is a destination failure, not proxy infra")
+	assert.Equal(t, "failed", result.Delivery.Status)
+	assert.Equal(t, "connection_reset", result.Delivery.Code)
 }
 
 func TestProxyTransport_EnvoyPlaceholderFlag_PassesResponseThrough(t *testing.T) {
