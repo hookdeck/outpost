@@ -114,3 +114,24 @@ func TestRegisterDefault_BlockPrivateAddresses_BadAllowlist(t *testing.T) {
 	})
 	assert.ErrorContains(t, err, "private address allowlist")
 }
+
+func TestWebhookEnvProxyIgnored(t *testing.T) {
+	on := func(proxyURL string) destregistrydefault.RegisterDefaultDestinationOptions {
+		return destregistrydefault.RegisterDefaultDestinationOptions{
+			BlockPrivateAddresses: true,
+			Webhook:               &destregistrydefault.DestWebhookConfig{ProxyURL: proxyURL},
+		}
+	}
+	for _, k := range []string{"HTTP_PROXY", "http_proxy", "HTTPS_PROXY", "https_proxy"} {
+		t.Setenv(k, "")
+	}
+	assert.False(t, destregistrydefault.WebhookEnvProxyIgnored(on("")))
+
+	t.Setenv("https_proxy", "http://proxy:3128")
+	assert.True(t, destregistrydefault.WebhookEnvProxyIgnored(on("")))
+	assert.False(t, destregistrydefault.WebhookEnvProxyIgnored(on("http://proxy:3128")))
+
+	off := on("")
+	off.BlockPrivateAddresses = false
+	assert.False(t, destregistrydefault.WebhookEnvProxyIgnored(off))
+}
