@@ -128,6 +128,7 @@ LOCAL_DEV_NATS=1
 | `LOCAL_DEV_GRAFANA=1` | OTel collector + Prometheus + Grafana |
 | `LOCAL_DEV_UPTRACE=1` | Uptrace observability (alternative to Grafana — cannot be combined) |
 | `LOCAL_DEV_AZURE=1` | Azure Service Bus + SQL Edge emulators |
+| `LOCAL_DEV_MCP=1` | MCP Events on (`EXPERIMENTAL_MCP_ENABLED`) with sample events (`make up/mcp`) |
 
 After changing `.env`, reconcile the stack:
 

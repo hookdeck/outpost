@@ -38,6 +38,7 @@ Leftover blocks of queues Outpost doesn't select are ignored.
 | `grafana/` | otel-collector + Prometheus + Grafana | `LOCAL_DEV_GRAFANA=1` |
 | `uptrace/` | otel-collector + Uptrace (alternative to grafana) | `LOCAL_DEV_UPTRACE=1` |
 | `azure/` | Azure Service Bus + SQL Edge emulators | `LOCAL_DEV_AZURE=1` |
+| `mcp/` | MCP Events on (`EXPERIMENTAL_MCP_ENABLED`) with sample events (`make up/mcp`) | `LOCAL_DEV_MCP=1` |
 
 Add-ons are file-level: the file is only loaded when its flag is set. This
 avoids cross-file service-name collisions (e.g. `otel-collector` exists in
