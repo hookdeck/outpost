@@ -162,3 +162,35 @@ func TestMCPEvents_IgnoredWhenMCPDisabled(t *testing.T) {
 	assert.Nil(t, cfg.MCPCatalog())
 	assert.Empty(t, cfg.MCPWarnings())
 }
+
+func TestMCPEvents_InlineJSONInEnv(t *testing.T) {
+	for name, value := range map[string]string{"plain": eventsJSON, "leading space": "  \n" + eventsJSON} {
+		t.Run(name, func(t *testing.T) {
+			cfg := parseMCP(t, map[string]string{"EXPERIMENTAL_MCP_ENABLED": "true", "EXPERIMENTAL_MCP_EVENTS_SCHEMA": value}, "")
+			assert.Equal(t, "From JSON.", catalogDescription(t, cfg, "order.created"))
+		})
+	}
+
+	t.Run("wins over YAML", func(t *testing.T) {
+		cfg := parseMCP(t, map[string]string{"EXPERIMENTAL_MCP_EVENTS_SCHEMA": eventsJSON}, eventsYAML)
+		assert.Equal(t, "From JSON.", catalogDescription(t, cfg, "order.created"))
+	})
+
+	t.Run("invalid JSON names the setting", func(t *testing.T) {
+		_, err := parseMCPErr(map[string]string{"EXPERIMENTAL_MCP_ENABLED": "true", "EXPERIMENTAL_MCP_EVENTS_SCHEMA": `{"events":`}, "", nil)
+		require.ErrorIs(t, err, config.ErrInvalidMCPConfig)
+		assert.Contains(t, err.Error(), "EXPERIMENTAL_MCP_EVENTS_SCHEMA: invalid mcp events: invalid JSON")
+	})
+
+	t.Run("no events", func(t *testing.T) {
+		cfg := parseMCP(t, map[string]string{"EXPERIMENTAL_MCP_ENABLED": "true", "EXPERIMENTAL_MCP_EVENTS_SCHEMA": `{"events":[]}`}, "")
+		assert.Nil(t, cfg.MCPCatalog())
+		assert.Contains(t, cfg.MCPWarnings()[len(cfg.MCPWarnings())-1], "defines no events")
+	})
+
+	t.Run("missing events list", func(t *testing.T) {
+		_, err := parseMCPErr(map[string]string{"EXPERIMENTAL_MCP_ENABLED": "true", "EXPERIMENTAL_MCP_EVENTS_SCHEMA": `{}`}, "", nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), `EXPERIMENTAL_MCP_EVENTS_SCHEMA: invalid mcp events: must be an object with an "events" list`)
+	})
+}

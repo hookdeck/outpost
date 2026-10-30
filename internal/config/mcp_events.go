@@ -16,11 +16,12 @@ import (
 type MCPEventsSchema struct {
 	node    *yaml.Node
 	path    string
+	inline  string
 	fromEnv bool
 }
 
 func (e MCPEventsSchema) isSet() bool {
-	return e.node != nil || e.path != ""
+	return e.node != nil || e.path != "" || e.inline != ""
 }
 
 // key names the setting as the user wrote it.
@@ -46,7 +47,13 @@ func (e *MCPEventsSchema) UnmarshalYAML(node *yaml.Node) error {
 }
 
 func (e *MCPEventsSchema) UnmarshalText(text []byte) error {
-	*e = MCPEventsSchema{path: strings.TrimSpace(string(text)), fromEnv: true}
+	value := strings.TrimSpace(string(text))
+	*e = MCPEventsSchema{fromEnv: true}
+	if strings.HasPrefix(value, "{") {
+		e.inline = value
+	} else {
+		e.path = value
+	}
 	return nil
 }
 
@@ -82,6 +89,10 @@ func (c *Config) loadMCPEventDefinitions() (topicschema.Definitions, string, err
 	}
 	if e.node != nil {
 		defs, err := topicschema.ParseDefinitionsNode(e.node)
+		return defs, e.key(), err
+	}
+	if e.inline != "" {
+		defs, err := topicschema.ParseDefinitionsJSON([]byte(e.inline))
 		return defs, e.key(), err
 	}
 	lower := strings.ToLower(e.path)
