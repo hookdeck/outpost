@@ -57,31 +57,31 @@ func parseMCPErr(env map[string]string, yamlDoc string, files map[string]string)
 
 func TestMCPConfig_Defaults(t *testing.T) {
 	cfg := parseMCP(t, nil, "")
-	assert.Equal(t, defaultMCPConfig(), cfg.MCP)
-	assert.False(t, cfg.MCP.Enabled)
+	assert.Equal(t, defaultMCPConfig(), cfg.Experimental.MCP)
+	assert.False(t, cfg.Experimental.MCP.Enabled)
 	assert.Empty(t, cfg.MCPWarnings())
 }
 
 func TestMCPConfig_EnvAndYAML(t *testing.T) {
 	cfg := parseMCP(t, map[string]string{
-		"MCP_ENABLED":                  "true",
-		"MCP_ALLOW_INSECURE_CALLBACKS": "true",
-		"MCP_RETRY_SCHEDULE":           "5,10",
-		"MCP_VERIFICATION_TTL_SECONDS": "5400",
+		"EXPERIMENTAL_MCP_ENABLED":                  "true",
+		"EXPERIMENTAL_MCP_ALLOW_INSECURE_CALLBACKS": "true",
+		"EXPERIMENTAL_MCP_RETRY_SCHEDULE":           "5,10",
+		"EXPERIMENTAL_MCP_VERIFICATION_TTL_SECONDS": "5400",
 	}, "")
 	assert.Equal(t, config.MCPConfig{
 		Enabled:                true,
 		AllowInsecureCallbacks: true,
 		RetrySchedule:          []int{5, 10},
 		VerificationTTLSeconds: 5400,
-	}, cfg.MCP)
+	}, cfg.Experimental.MCP)
 
-	cfg = parseMCP(t, nil, "mcp:\n  enabled: true\n  retry_schedule: [7]\n  verification_ttl_seconds: 3600\n")
+	cfg = parseMCP(t, nil, "experimental:\n  mcp:\n    enabled: true\n    retry_schedule: [7]\n    verification_ttl_seconds: 3600\n")
 	assert.Equal(t, config.MCPConfig{
 		Enabled:                true,
 		RetrySchedule:          []int{7},
 		VerificationTTLSeconds: 3600,
-	}, cfg.MCP)
+	}, cfg.Experimental.MCP)
 }
 
 func TestMCPConfig_Validation(t *testing.T) {
@@ -90,9 +90,9 @@ func TestMCPConfig_Validation(t *testing.T) {
 		env  map[string]string
 		want string
 	}{
-		{"zero schedule entry", map[string]string{"MCP_RETRY_SCHEDULE": "30,0"}, "MCP_RETRY_SCHEDULE"},
-		{"negative schedule entry", map[string]string{"MCP_RETRY_SCHEDULE": "-1"}, "MCP_RETRY_SCHEDULE"},
-		{"zero ttl", map[string]string{"MCP_VERIFICATION_TTL_SECONDS": "0"}, "MCP_VERIFICATION_TTL_SECONDS"},
+		{"zero schedule entry", map[string]string{"EXPERIMENTAL_MCP_RETRY_SCHEDULE": "30,0"}, "EXPERIMENTAL_MCP_RETRY_SCHEDULE"},
+		{"negative schedule entry", map[string]string{"EXPERIMENTAL_MCP_RETRY_SCHEDULE": "-1"}, "EXPERIMENTAL_MCP_RETRY_SCHEDULE"},
+		{"zero ttl", map[string]string{"EXPERIMENTAL_MCP_VERIFICATION_TTL_SECONDS": "0"}, "EXPERIMENTAL_MCP_VERIFICATION_TTL_SECONDS"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -103,13 +103,13 @@ func TestMCPConfig_Validation(t *testing.T) {
 			for k, v := range tt.env {
 				all[k] = v
 			}
-			all["MCP_ENABLED"] = "true"
+			all["EXPERIMENTAL_MCP_ENABLED"] = "true"
 			_, err := config.ParseWithOS(config.Flags{}, &mockOS{files: map[string][]byte{}, envVars: all})
 			require.Error(t, err)
 			assert.ErrorIs(t, err, config.ErrInvalidMCPConfig)
 			assert.Contains(t, err.Error(), tt.want)
 
-			delete(all, "MCP_ENABLED")
+			delete(all, "EXPERIMENTAL_MCP_ENABLED")
 			_, err = config.ParseWithOS(config.Flags{}, &mockOS{files: map[string][]byte{}, envVars: all})
 			assert.NoError(t, err, "keys are not validated while MCP is off")
 		})
@@ -117,7 +117,7 @@ func TestMCPConfig_Validation(t *testing.T) {
 }
 
 func TestMCPConfig_RetryBackoff(t *testing.T) {
-	cfg := parseMCP(t, map[string]string{"MCP_RETRY_SCHEDULE": "5,15,60"}, "")
+	cfg := parseMCP(t, map[string]string{"EXPERIMENTAL_MCP_RETRY_SCHEDULE": "5,15,60"}, "")
 	b, limit := cfg.MCPRetryBackoff()
 	assert.Equal(t, 3, limit)
 	assert.Equal(t, time.Duration(cfg.LogBatchThresholdSeconds)*time.Second, b.Duration(0), "raised to one log flush")
@@ -140,21 +140,21 @@ func otherWarnings(cfg *config.Config) []string {
 }
 
 func TestMCPConfig_Warnings(t *testing.T) {
-	cfg := parseMCP(t, map[string]string{"MCP_ENABLED": "true", "DESTINATIONS_PRIVATE_ADDRESS_ALLOWLIST": "localhost", "MCP_ALLOW_INSECURE_CALLBACKS": "true"}, "")
+	cfg := parseMCP(t, map[string]string{"EXPERIMENTAL_MCP_ENABLED": "true", "DESTINATIONS_PRIVATE_ADDRESS_ALLOWLIST": "localhost", "EXPERIMENTAL_MCP_ALLOW_INSECURE_CALLBACKS": "true"}, "")
 	warnings := strings.Join(cfg.MCPWarnings(), "\n")
-	assert.Contains(t, warnings, "MCP_ALLOW_INSECURE_CALLBACKS")
+	assert.Contains(t, warnings, "EXPERIMENTAL_MCP_ALLOW_INSECURE_CALLBACKS")
 	assert.NotContains(t, warnings, "has no effect")
 
-	cfg = parseMCP(t, map[string]string{"MCP_ENABLED": "true", "MCP_ALLOW_INSECURE_CALLBACKS": "true"}, "")
+	cfg = parseMCP(t, map[string]string{"EXPERIMENTAL_MCP_ENABLED": "true", "EXPERIMENTAL_MCP_ALLOW_INSECURE_CALLBACKS": "true"}, "")
 	assert.Contains(t, strings.Join(cfg.MCPWarnings(), "\n"), "has no effect")
 
-	cfg = parseMCP(t, map[string]string{"MCP_ENABLED": "true", "MCP_RETRY_SCHEDULE": "1,5,60"}, "")
-	assert.Equal(t, []string{"MCP_RETRY_SCHEDULE: delays below LOG_BATCH_THRESHOLD_SECONDS (10s) are raised to it: 1s, 5s"}, otherWarnings(cfg))
+	cfg = parseMCP(t, map[string]string{"EXPERIMENTAL_MCP_ENABLED": "true", "EXPERIMENTAL_MCP_RETRY_SCHEDULE": "1,5,60"}, "")
+	assert.Equal(t, []string{"EXPERIMENTAL_MCP_RETRY_SCHEDULE: delays below LOG_BATCH_THRESHOLD_SECONDS (10s) are raised to it: 1s, 5s"}, otherWarnings(cfg))
 
-	cfg = parseMCP(t, map[string]string{"MCP_ENABLED": "true", "MCP_RETRY_SCHEDULE": "1,5", "LOG_BATCH_THRESHOLD_SECONDS": "0"}, "")
+	cfg = parseMCP(t, map[string]string{"EXPERIMENTAL_MCP_ENABLED": "true", "EXPERIMENTAL_MCP_RETRY_SCHEDULE": "1,5", "LOG_BATCH_THRESHOLD_SECONDS": "0"}, "")
 	assert.Empty(t, otherWarnings(cfg))
 
-	cfg = parseMCP(t, map[string]string{"MCP_ALLOW_INSECURE_CALLBACKS": "true"}, "")
+	cfg = parseMCP(t, map[string]string{"EXPERIMENTAL_MCP_ALLOW_INSECURE_CALLBACKS": "true"}, "")
 	assert.Empty(t, cfg.MCPWarnings(), "nothing to warn about while MCP is off")
 }
 
@@ -190,7 +190,7 @@ func mcpEnvNames() map[string]string {
 	envByYAMLPath(reflect.TypeOf(config.Config{}), "", "", byYAML)
 	out := map[string]string{}
 	for path, env := range byYAML {
-		if strings.HasPrefix(env, "MCP_") {
+		if strings.HasPrefix(env, "EXPERIMENTAL_MCP_") {
 			out[env] = path
 		}
 	}
@@ -216,7 +216,7 @@ func TestMCPConfig_MatchesConfigurationReference(t *testing.T) {
 		}
 		// Setting the documented default changes nothing.
 		cfg := parseMCP(t, map[string]string{env: def}, "")
-		assert.Equal(t, defaults.MCP, cfg.MCP, "documented default of %s", env)
+		assert.Equal(t, defaults.Experimental.MCP, cfg.Experimental.MCP, "documented default of %s", env)
 	}
 	for env := range mcpEnvNames() {
 		assert.True(t, documented[env], "%s is documented in the MCP Events table", env)
@@ -227,7 +227,7 @@ func TestMCPConfig_MatchesEnvExample(t *testing.T) {
 	data, err := os.ReadFile("../../.env.example")
 	require.NoError(t, err)
 
-	line := regexp.MustCompile(`(?m)^# (MCP_[A-Z0-9_]+)="([^"]*)"$`)
+	line := regexp.MustCompile(`(?m)^# (EXPERIMENTAL_MCP_[A-Z0-9_]+)="([^"]*)"$`)
 	env := map[string]string{}
 	for _, m := range line.FindAllStringSubmatch(string(data), -1) {
 		assert.Contains(t, mcpEnvNames(), m[1], "%s in .env.example is a config env var", m[1])
@@ -237,13 +237,13 @@ func TestMCPConfig_MatchesEnvExample(t *testing.T) {
 		assert.Contains(t, env, name, "%s is in .env.example", name)
 	}
 
-	cfg, err := parseMCPErr(env, "", map[string]string{env["MCP_EVENTS_SCHEMA"]: "events:\n  - name: user.created\n    inputSchema: {type: object, properties: {}}\n    payloadSchema: {type: object}\n"})
+	cfg, err := parseMCPErr(env, "", map[string]string{env["EXPERIMENTAL_MCP_EVENTS_SCHEMA"]: "events:\n  - name: user.created\n    inputSchema: {type: object, properties: {}}\n    payloadSchema: {type: object}\n"})
 	require.NoError(t, err)
 	want := defaultMCPConfig()
 	want.Enabled = true
 	require.NotNil(t, cfg.MCPCatalog())
-	cfg.MCP.EventsSchema = config.MCPEventsSchema{}
-	assert.Equal(t, want, cfg.MCP)
+	cfg.Experimental.MCP.EventsSchema = config.MCPEventsSchema{}
+	assert.Equal(t, want, cfg.Experimental.MCP)
 }
 
 func TestMCPConfig_MatchesYAMLExample(t *testing.T) {
@@ -261,7 +261,7 @@ func TestMCPConfig_MatchesYAMLExample(t *testing.T) {
 			doc.WriteString(m[1] + "\n")
 		}
 	}
-	require.Contains(t, doc.String(), "mcp:\n")
+	require.Contains(t, doc.String(), "experimental:\n  mcp:\n")
 
 	// Every key is a config key.
 	dec := yaml.NewDecoder(bytes.NewReader([]byte(doc.String())))
@@ -271,16 +271,16 @@ func TestMCPConfig_MatchesYAMLExample(t *testing.T) {
 
 	cfg := parseMCP(t, nil, doc.String())
 	require.NotNil(t, cfg.MCPCatalog())
-	cfg.MCP.EventsSchema = config.MCPEventsSchema{}
+	cfg.Experimental.MCP.EventsSchema = config.MCPEventsSchema{}
 	want := defaultMCPConfig()
 	want.Enabled = true
-	assert.Equal(t, want, cfg.MCP)
+	assert.Equal(t, want, cfg.Experimental.MCP)
 }
 
 func TestMCPConfig_RetryPollBackoff(t *testing.T) {
 	assert.Equal(t, 30*time.Second, parseMCP(t, nil, "").GetRetryPollBackoff())
-	assert.Equal(t, 30*time.Second, parseMCP(t, map[string]string{"MCP_RETRY_SCHEDULE": "2"}, "").GetRetryPollBackoff(), "ignored while MCP is off")
-	assert.Equal(t, 10*time.Second, parseMCP(t, map[string]string{"MCP_ENABLED": "true", "MCP_RETRY_SCHEDULE": "2,60"}, "").GetRetryPollBackoff(), "raised to one log flush")
-	assert.Equal(t, 2*time.Second, parseMCP(t, map[string]string{"MCP_ENABLED": "true", "MCP_RETRY_SCHEDULE": "2,60", "LOG_BATCH_THRESHOLD_SECONDS": "0"}, "").GetRetryPollBackoff())
-	assert.Equal(t, 15*time.Second, parseMCP(t, map[string]string{"MCP_ENABLED": "true", "MCP_RETRY_SCHEDULE": "15,60"}, "").GetRetryPollBackoff())
+	assert.Equal(t, 30*time.Second, parseMCP(t, map[string]string{"EXPERIMENTAL_MCP_RETRY_SCHEDULE": "2"}, "").GetRetryPollBackoff(), "ignored while MCP is off")
+	assert.Equal(t, 10*time.Second, parseMCP(t, map[string]string{"EXPERIMENTAL_MCP_ENABLED": "true", "EXPERIMENTAL_MCP_RETRY_SCHEDULE": "2,60"}, "").GetRetryPollBackoff(), "raised to one log flush")
+	assert.Equal(t, 2*time.Second, parseMCP(t, map[string]string{"EXPERIMENTAL_MCP_ENABLED": "true", "EXPERIMENTAL_MCP_RETRY_SCHEDULE": "2,60", "LOG_BATCH_THRESHOLD_SECONDS": "0"}, "").GetRetryPollBackoff())
+	assert.Equal(t, 15*time.Second, parseMCP(t, map[string]string{"EXPERIMENTAL_MCP_ENABLED": "true", "EXPERIMENTAL_MCP_RETRY_SCHEDULE": "15,60"}, "").GetRetryPollBackoff())
 }

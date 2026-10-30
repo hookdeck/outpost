@@ -360,7 +360,7 @@ components:
           maxLength: 4096
           description: >-
             Subscription arguments as canonical JSON (sorted keys, no whitespace). Immutable. With
-            event definitions configured (`MCP_EVENTS_SCHEMA`), they must satisfy the event's
+            event definitions configured (`EXPERIMENTAL_MCP_EVENTS_SCHEMA`), they must satisfy the event's
             `inputSchema` from `GET /mcp/events`, and Outpost derives the destination's `filter`
             from them.
           example: '{"status":"paid"}'
@@ -1613,7 +1613,7 @@ components:
       type: object
       x-docs-type: "MCP Events"
       description: >-
-        **Experimental.** An MCP Events webhook subscription. Requires `MCP_ENABLED`; created and
+        **Experimental.** An MCP Events webhook subscription. Requires `EXPERIMENTAL_MCP_ENABLED`; created and
         updated with the Admin API key only.
       # Properties duplicated from DestinationBase
       required:
@@ -2439,7 +2439,7 @@ components:
       type: object
       x-docs-type: "MCP Events"
       description: >-
-        **Experimental.** Creates an MCP Events webhook subscription. Requires `MCP_ENABLED` and
+        **Experimental.** Creates an MCP Events webhook subscription. Requires `EXPERIMENTAL_MCP_ENABLED` and
         the Admin API key; JWT auth returns 403. The callback URL receives a verification
         challenge before the destination is stored. Takes exactly one topic (`*` is not
         accepted). Each subscription counts toward `MAX_DESTINATIONS_PER_TENANT`.
@@ -7059,7 +7059,7 @@ paths:
       summary: List MCP Events
       x-speakeasy-ignore: true
       description: |
-        **Experimental.** Returns the event definitions configured with `MCP_EVENTS_FILE` or
+        **Experimental.** Returns the event definitions configured with `EXPERIMENTAL_MCP_EVENTS_SCHEMA` or
         `mcp.events`, in the shape of an MCP `events/list` result. Admin API key only. Returns 404
         when MCP is not enabled or no events are defined.
       operationId: listMCPEvents

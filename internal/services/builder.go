@@ -451,7 +451,7 @@ func (b *ServiceBuilder) BuildLogWorker(baseRouter *gin.Engine) error {
 		alert.WithAutoDisableFailureCount(alertSettings.ConsecutiveFailure.Count),
 		alert.WithExhaustedRetriesEnabled(alertSettings.ExhaustedRetries.Enabled),
 	}
-	if b.cfg.MCP.Enabled {
+	if b.cfg.Experimental.MCP.Enabled {
 		alertOpts = append(alertOpts, alert.WithPerAttemptRetryLimits())
 	}
 	alertEvaluator := alert.NewEvaluator(

@@ -20,7 +20,7 @@ const (
 	mcpAutoDisableCount = "5"
 )
 
-// mcpRetrySchedule is MCP_RETRY_SCHEDULE: two retries, unlike the global
+// mcpRetrySchedule is EXPERIMENTAL_MCP_RETRY_SCHEDULE: two retries, unlike the global
 // retry config, which the webhook comparison keeps at its default.
 var mcpRetrySchedule = []int{1, 1}
 
@@ -34,13 +34,13 @@ events:
 
 // withMCPDelivery enables MCP with the settings the delivery suite needs.
 func withMCPDelivery(cfg *config.Config) {
-	cfg.MCP.Enabled = true
+	cfg.Experimental.MCP.Enabled = true
 	cfg.Destinations.PrivateAddressAllowlist = []string{"127.0.0.2/32"}
-	cfg.MCP.AllowInsecureCallbacks = true
-	if err := yaml.Unmarshal([]byte(mcpDeliveryEvents), &cfg.MCP.EventsSchema); err != nil {
+	cfg.Experimental.MCP.AllowInsecureCallbacks = true
+	if err := yaml.Unmarshal([]byte(mcpDeliveryEvents), &cfg.Experimental.MCP.EventsSchema); err != nil {
 		panic(err)
 	}
-	cfg.MCP.RetrySchedule = mcpRetrySchedule
+	cfg.Experimental.MCP.RetrySchedule = mcpRetrySchedule
 	cfg.DeliveryTimeoutSeconds = mcpDeliveryTimeoutSeconds
 	cfg.RetryPollBackoffMs = 50
 	cfg.Alert.ConsecutiveFailureCount = config.NewOptionalString(mcpAutoDisableCount)
@@ -48,7 +48,7 @@ func withMCPDelivery(cfg *config.Config) {
 
 // withMCPDisabled turns MCP off explicitly.
 func withMCPDisabled(cfg *config.Config) {
-	cfg.MCP.Enabled = false
+	cfg.Experimental.MCP.Enabled = false
 }
 
 // writeDestinationToStore saves a destination straight into the tenant

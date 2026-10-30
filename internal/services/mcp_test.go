@@ -37,9 +37,9 @@ func TestMCPDisabledBuildsNothing(t *testing.T) {
 
 func TestMCPEnabledWiring(t *testing.T) {
 	b := newTestBuilder(t, func(c *config.Config) {
-		c.MCP.Enabled = true
-		c.MCP.RetrySchedule = []int{15, 60}
-		c.MCP.AllowInsecureCallbacks = true
+		c.Experimental.MCP.Enabled = true
+		c.Experimental.MCP.RetrySchedule = []int{15, 60}
+		c.Experimental.MCP.AllowInsecureCallbacks = true
 		c.Destinations.PrivateAddressAllowlist = []string{"localhost"}
 	})
 

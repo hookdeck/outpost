@@ -62,7 +62,7 @@ func (s *mcpEventDefinitionsSuite) SetupSuite() {
 	s.m = &mcpSuite{configure: func(cfg *config.Config) {
 		withMCPDelivery(cfg)
 		cfg.Topics = testutil.TestTopics
-		s.Require().NoError(cfg.MCP.EventsSchema.UnmarshalText([]byte(file)))
+		s.Require().NoError(cfg.Experimental.MCP.EventsSchema.UnmarshalText([]byte(file)))
 	}}
 	s.m.SetT(s.T())
 	s.m.SetupSuite()

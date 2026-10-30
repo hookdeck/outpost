@@ -4,7 +4,7 @@ description: "Experimental. Deliver events to MCP Events webhook subscriptions, 
 ---
 
 {% callout type="warning" %}
-Experimental. This destination type and its behavior may change without notice. It is off unless [`MCP_ENABLED`](/docs/outpost/self-hosting/configuration#mcp-events-experimental) is `true`, and is created and updated with the Admin API key only. Delete `mcp` destinations before turning it off; while it is off, they stay listed and each event fails once without retries.
+Experimental. This destination type and its behavior may change without notice. It is off unless [`EXPERIMENTAL_MCP_ENABLED`](/docs/outpost/self-hosting/configuration#mcp-events-experimental) is `true`, and is created and updated with the Admin API key only. Delete `mcp` destinations before turning it off; while it is off, they stay listed and each event fails once without retries.
 {% /callout %}
 
 An `mcp` destination is one MCP Events webhook subscription: a callback URL that receives one topic's events, wrapped in the MCP Events envelope and signed with [Standard Webhooks](https://www.standardwebhooks.com/). Your MCP server creates it on behalf of an agent and refreshes or deletes it as the agent subscribes, renews and unsubscribes.
@@ -30,7 +30,7 @@ curl '{% $OUTPOST_API_BASE_URL %}/tenants/<TENANT_ID>/destinations' \
 }'
 ```
 
-Before the destination is stored, Outpost sends a verification challenge to the callback URL. If the callback fails it, the request returns `422` with the reason as the validation type: `challenge_failed`, `connection_refused`, `timeout`, `tls_error`, `http_4xx`, `http_5xx` or `https_required`. If Outpost hits a verification limit, the request returns `429` with a `Retry-After` header and `data.code` of `rate_limited`. If verification can't run, it returns `503` with `data.code` of `verification_unavailable`. A callback that resolves to a non-public address returns `config.url must resolve to a public address`. A callback that was already verified for the same tenant, principal and URL is not challenged again for `MCP_VERIFICATION_TTL_SECONDS`.
+Before the destination is stored, Outpost sends a verification challenge to the callback URL. If the callback fails it, the request returns `422` with the reason as the validation type: `challenge_failed`, `connection_refused`, `timeout`, `tls_error`, `http_4xx`, `http_5xx` or `https_required`. If Outpost hits a verification limit, the request returns `429` with a `Retry-After` header and `data.code` of `rate_limited`. If verification can't run, it returns `503` with `data.code` of `verification_unavailable`. A callback that resolves to a non-public address returns `config.url must resolve to a public address`. A callback that was already verified for the same tenant, principal and URL is not challenged again for `EXPERIMENTAL_MCP_VERIFICATION_TTL_SECONDS`.
 
 Verification is limited to 10 challenges per tenant and principal per minute, and 120 failed challenges per tenant and callback host per minute. Subscriptions without a principal share the tenant's budget.
 
@@ -40,7 +40,7 @@ Verification is limited to 10 challenges per tenant and principal per minute, an
 |-------|------|----------|-------------|
 | `id` | string | No | Subscription ID, sent as `X-MCP-Subscription-Id`. 1 to 128 characters of `A-Z a-z 0-9 _ -`. |
 | `topics` | string[] | Yes | Exactly one topic. `*` is not accepted. |
-| `config.url` | string | Yes | Callback URL. `https`, in normalized form (lowercase host, no default port, no credentials); `http` only with `MCP_ALLOW_INSECURE_CALLBACKS`, for addresses in `DESTINATIONS_PRIVATE_ADDRESS_ALLOWLIST`, for development. Must resolve to a public address, unless allowed by `DESTINATIONS_PRIVATE_ADDRESS_ALLOWLIST`. |
+| `config.url` | string | Yes | Callback URL. `https`, in normalized form (lowercase host, no default port, no credentials); `http` only with `EXPERIMENTAL_MCP_ALLOW_INSECURE_CALLBACKS`, for addresses in `DESTINATIONS_PRIVATE_ADDRESS_ALLOWLIST`, for development. Must resolve to a public address, unless allowed by `DESTINATIONS_PRIVATE_ADDRESS_ALLOWLIST`. |
 | `config.principal` | string | No | The subject the subscription belongs to, up to 512 bytes. Verification is cached per tenant, principal and URL. |
 | `config.arguments` | string | No | Canonical JSON object, up to 4 KiB. Stored with the destination. With event definitions configured, it must satisfy the event's `inputSchema`. |
 | `credentials.secret` | string | Yes | `whsec_` followed by base64 of 24 to 64 bytes. |
@@ -52,7 +52,7 @@ Each subscription counts toward `MAX_DESTINATIONS_PER_TENANT`. When a tenant is 
 
 ## Event Definitions and Arguments
 
-Event definitions use the format of an MCP `events/list` result, set with [`MCP_EVENTS_SCHEMA`](/docs/outpost/self-hosting/configuration#mcp-events-experimental) (`mcp.events_schema` in YAML):
+Event definitions use the format of an MCP `events/list` result, set with [`EXPERIMENTAL_MCP_EVENTS_SCHEMA`](/docs/outpost/self-hosting/configuration#mcp-events-experimental) (`experimental.mcp.events_schema` in YAML):
 
 ```json
 {
@@ -102,6 +102,6 @@ X-MCP-Subscription-Id: sub_12345
 
 ## Retries
 
-A `2xx` response is a success. Any other response, a network error or a refused address is a failed attempt and is retried on `MCP_RETRY_SCHEDULE` (`RETRY_SCHEDULE` and `MAX_RETRY_LIMIT` don't apply to `mcp`). A `3xx` is a failure with its status as the attempt code.
+A `2xx` response is a success. Any other response, a network error or a refused address is a failed attempt and is retried on `EXPERIMENTAL_MCP_RETRY_SCHEDULE` (`RETRY_SCHEDULE` and `MAX_RETRY_LIMIT` don't apply to `mcp`). A `3xx` is a failure with its status as the attempt code.
 
 These are not retried, and don't count toward auto-disabling the destination: a `410` or `413` response, and an event whose envelope exceeds 256 KiB (attempt code `payload_too_large`, no request sent).

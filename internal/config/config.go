@@ -125,8 +125,8 @@ type Config struct {
 	// ID Generation
 	IDGen IDGenConfig `yaml:"idgen"`
 
-	// MCP Events (experimental)
-	MCP MCPConfig `yaml:"mcp"`
+	// Experimental features
+	Experimental ExperimentalConfig `yaml:"experimental"`
 
 	// Retention
 	ClickHouseLogRetentionTTLDays int `yaml:"clickhouse_log_retention_ttl_days" env:"CLICKHOUSE_LOG_RETENTION_TTL_DAYS" desc:"Days to retain logs in ClickHouse. 0 = unlimited." required:"N"`
@@ -262,7 +262,7 @@ func (c *Config) InitDefaults() {
 
 	c.ClickHouseLogRetentionTTLDays = 0 // Unlimited by default
 
-	c.MCP.initDefaults()
+	c.Experimental.MCP.initDefaults()
 }
 
 func (c *Config) parseConfigFile(flagPath string, osInterface OSInterface) error {
@@ -735,8 +735,8 @@ func (c *Config) GetRetryPollBackoff() time.Duration {
 	if len(c.RetrySchedule) > 0 {
 		shortest = time.Duration(slices.Min(c.RetrySchedule)) * time.Second
 	}
-	if c.MCP.Enabled && len(c.MCP.RetrySchedule) > 0 {
-		shortest = min(shortest, max(time.Duration(slices.Min(c.MCP.RetrySchedule))*time.Second, time.Duration(c.LogBatchThresholdSeconds)*time.Second))
+	if c.Experimental.MCP.Enabled && len(c.Experimental.MCP.RetrySchedule) > 0 {
+		shortest = min(shortest, max(time.Duration(slices.Min(c.Experimental.MCP.RetrySchedule))*time.Second, time.Duration(c.LogBatchThresholdSeconds)*time.Second))
 	}
 	if shortest > 0 && shortest < defaultRetryPollBackoff {
 		return shortest

@@ -9,7 +9,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// MCPEventsSchema holds mcp.events_schema: event definitions in the MCP
+// MCPEventsSchema holds experimental.mcp.events_schema: event definitions in the MCP
 // events/list format, as a YAML mapping, or the path of a JSON or YAML file
 // with them. It is parsed at validation, so a bad value doesn't fail loading
 // the config file for every command.
@@ -26,9 +26,9 @@ func (e MCPEventsSchema) isSet() bool {
 // key names the setting as the user wrote it.
 func (e MCPEventsSchema) key() string {
 	if e.fromEnv {
-		return "MCP_EVENTS_SCHEMA"
+		return "EXPERIMENTAL_MCP_EVENTS_SCHEMA"
 	}
-	return "mcp.events_schema"
+	return "experimental.mcp.events_schema"
 }
 
 func (e *MCPEventsSchema) UnmarshalYAML(node *yaml.Node) error {
@@ -40,7 +40,7 @@ func (e *MCPEventsSchema) UnmarshalYAML(node *yaml.Node) error {
 	case node.Kind == yaml.ScalarNode && node.Tag == "!!str":
 		e.path = strings.TrimSpace(node.Value)
 	default:
-		return errors.New("mcp.events_schema must be a mapping or a file path")
+		return errors.New("experimental.mcp.events_schema must be a mapping or a file path")
 	}
 	return nil
 }
@@ -76,7 +76,7 @@ func (c *Config) MCPCatalog() *topicschema.Catalog {
 // loadMCPEventDefinitions returns the configured definitions and the source
 // to name in errors: the setting, and the file when there is one.
 func (c *Config) loadMCPEventDefinitions() (topicschema.Definitions, string, error) {
-	e := c.MCP.EventsSchema
+	e := c.Experimental.MCP.EventsSchema
 	if !e.isSet() {
 		return nil, "", nil
 	}
