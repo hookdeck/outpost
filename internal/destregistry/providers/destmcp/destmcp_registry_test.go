@@ -45,10 +45,11 @@ func localConfig(t *testing.T) destmcp.Config {
 	t.Helper()
 	guard := loopbackGuard(t)
 	return destmcp.Config{
-		Guard:     guard,
-		Client:    newClient(t, guard, destregistry.HTTPClientConfig{}),
-		Verifier:  &fakeVerifier{},
-		UserAgent: testUserAgent,
+		Guard:             guard,
+		Client:            newClient(t, guard, destregistry.HTTPClientConfig{}),
+		Verifier:          &fakeVerifier{},
+		UserAgent:         testUserAgent,
+		AllowInsecureHTTP: true,
 	}
 }
 

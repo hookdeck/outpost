@@ -235,7 +235,7 @@ func (h *messageHandler) doHandle(ctx context.Context, task models.DeliveryTask,
 	defer span.End()
 
 	attemptStart := time.Now()
-	attempt, err := h.publisher.PublishEvent(ctx, destination, &task.Event)
+	attempt, err := h.publisher.PublishEvent(destregistry.WithMessageID(ctx, task.MessageID), destination, &task.Event)
 	attemptDuration := time.Since(attemptStart)
 
 	var retry retryOutcome

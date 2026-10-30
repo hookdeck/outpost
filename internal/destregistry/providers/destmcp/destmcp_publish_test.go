@@ -175,7 +175,7 @@ func TestPublish_RequestOnTheWire(t *testing.T) {
 		"Content-Type", "webhook-id", "webhook-timestamp", "webhook-signature", "X-MCP-Subscription-Id",
 	}, req.headerNames, "exactly the documented headers, in the documented spelling")
 	assert.Equal(t, "application/json", req.header.Get("Content-Type"))
-	assert.Equal(t, mcpevents.DeliveryMessageID(d.TenantID, d.ID, event.ID), req.header.Get("webhook-id"))
+	assert.Regexp(t, `^msg_[A-Za-z0-9_-]{22}$`, req.header.Get("webhook-id"))
 	assert.Equal(t, strconv.FormatInt(now.Unix(), 10), req.header.Get("webhook-timestamp"))
 	assert.Equal(t, d.ID, req.header.Get("X-MCP-Subscription-Id"))
 	assert.Equal(t, testUserAgent, req.header.Get("User-Agent"))
@@ -381,29 +381,32 @@ func TestPublish_WebhookID(t *testing.T) {
 	now.Store(time.Date(2026, 10, 9, 17, 0, 0, 0, time.UTC).Unix())
 	destmcp.SetNow(p, func() time.Time { return time.Unix(now.Load(), 0) })
 	d := localSubscription(t, p, rec.URL+"/hook")
-	other := localSubscription(t, p, rec.URL+"/hook", func(d *models.Destination) { d.ID = "sub_other" })
 	event := testEvent()
+	pub, err := p.CreatePublisher(context.Background(), d)
+	require.NoError(t, err)
+	defer pub.Close()
 
-	for range 2 {
-		_, err := publish(t, p, d, event)
+	send := func(ctx context.Context) {
+		t.Helper()
+		_, err := pub.Publish(ctx, event)
 		require.NoError(t, err)
 		now.Add(5)
 	}
-	_, err := publish(t, p, other, event)
-	require.NoError(t, err)
-	next := testEvent()
-	next.ID = "evt_next"
-	_, err = publish(t, p, d, next)
-	require.NoError(t, err)
+	ctx := destregistry.WithMessageID(context.Background(), "msg_fixed")
+	send(ctx)
+	send(ctx)
+	send(context.Background())
+	send(context.Background())
 
 	reqs := rec.Requests()
 	require.Len(t, reqs, 4)
-	id := reqs[0].Header.Get("webhook-id")
-	assert.Equal(t, id, reqs[1].Header.Get("webhook-id"), "stable across attempts")
+	assert.Equal(t, "msg_fixed", reqs[0].Header.Get("webhook-id"), "the delivery's id")
+	assert.Equal(t, "msg_fixed", reqs[1].Header.Get("webhook-id"), "stable across attempts")
 	assert.NotEqual(t, reqs[0].Header.Get("webhook-timestamp"), reqs[1].Header.Get("webhook-timestamp"), "fresh timestamp per attempt")
 	assert.NotEqual(t, reqs[0].Header.Get("webhook-signature"), reqs[1].Header.Get("webhook-signature"), "fresh signature per attempt")
-	assert.NotEqual(t, id, reqs[2].Header.Get("webhook-id"), "unique per subscription")
-	assert.NotEqual(t, id, reqs[3].Header.Get("webhook-id"), "unique per event")
-	assert.NotContains(t, id, event.ID)
-	assert.Regexp(t, `^[A-Za-z0-9_-]+$`, id)
+	for _, r := range reqs[2:] {
+		assert.Regexp(t, `^msg_[A-Za-z0-9_-]{22}$`, r.Header.Get("webhook-id"), "minted when the task carries none")
+		assert.NotContains(t, r.Header.Get("webhook-id"), event.ID)
+	}
+	assert.NotEqual(t, reqs[2].Header.Get("webhook-id"), reqs[3].Header.Get("webhook-id"))
 }

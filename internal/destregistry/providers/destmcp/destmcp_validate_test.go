@@ -202,11 +202,25 @@ func TestValidate_AddressCheck(t *testing.T) {
 		require.NoError(t, relaxed.Validate(context.Background(), d))
 	})
 
-	t.Run("allowlisted loopback over http", func(t *testing.T) {
+	t.Run("allowlisted loopback over http needs AllowInsecureHTTP", func(t *testing.T) {
 		t.Parallel()
-		p := newProvider(t, func(c *destmcp.Config) { c.Guard = loopbackGuard(t) })
 		d := newSubscription(t, func(d *models.Destination) { d.Config[destmcp.ConfigURL] = "http://127.0.0.1:8080/hook" })
-		require.NoError(t, p.Validate(context.Background(), d))
+
+		strict := newProvider(t, func(c *destmcp.Config) { c.Guard = loopbackGuard(t) })
+		requireValidationError(t, strict.Validate(context.Background(), d), "config.url", "https_required")
+
+		relaxed := newProvider(t, func(c *destmcp.Config) {
+			c.Guard = loopbackGuard(t)
+			c.AllowInsecureHTTP = true
+		})
+		require.NoError(t, relaxed.Validate(context.Background(), d))
+	})
+
+	t.Run("insecure http to a non-allowlisted address", func(t *testing.T) {
+		t.Parallel()
+		p := newProvider(t, func(c *destmcp.Config) { c.AllowInsecureHTTP = true })
+		d := newSubscription(t, func(d *models.Destination) { d.Config[destmcp.ConfigURL] = "http://127.0.0.1:8080/hook" })
+		requireValidationError(t, p.Validate(context.Background(), d), "config.url", "https_required")
 	})
 }
 

@@ -60,9 +60,8 @@ type Config struct {
 	Catalog              *topicschema.Catalog
 	MaxResponseBodyBytes int
 	UserAgent            string
-	// AllowInsecureHTTP lets http callbacks reach allowlisted non-loopback
-	// addresses. Loopback addresses are always allowed over http when
-	// allowlisted.
+	// AllowInsecureHTTP lets http callbacks reach hosts whose addresses are
+	// all allowlisted. Without it only https callbacks are accepted.
 	AllowInsecureHTTP bool
 	// RetryBackoff and RetryMaxRetries are the retry schedule for mcp
 	// destinations. A nil RetryBackoff leaves the global policy in place.
@@ -320,13 +319,16 @@ func checkArguments(raw string) error {
 	return nil
 }
 
-// checkScheme accepts https, and http only when every address the host
-// resolves to is allowlisted and either loopback or covered by
-// AllowInsecureHTTP. Every failure, DNS errors included, gives the same
-// answer, so the result doesn't reveal what a host resolves to.
+// checkScheme accepts https, and http only with AllowInsecureHTTP when every
+// address the host resolves to is allowlisted. Every failure, DNS errors
+// included, gives the same answer, so the result doesn't reveal what a host
+// resolves to.
 func (p *Provider) checkScheme(ctx context.Context, u *url.URL) error {
 	if u.Scheme == "https" {
 		return nil
+	}
+	if !p.allowInsecureHTTP {
+		return invalid("config."+ConfigURL, mcpevents.ReasonHTTPSRequired)
 	}
 	ctx, cancel := context.WithTimeout(ctx, checkURLTimeout)
 	defer cancel()
@@ -353,7 +355,7 @@ func (p *Provider) httpAllowed(ctx context.Context, host string) bool {
 	}
 	for _, addr := range addrs {
 		addr = addr.Unmap()
-		if !p.guard.Allowlist.Contains(addr) || !(p.allowInsecureHTTP || addr.IsLoopback()) {
+		if !p.guard.Allowlist.Contains(addr) {
 			return false
 		}
 	}

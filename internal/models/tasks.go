@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"strconv"
 
+	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/mqs"
 )
 
@@ -33,8 +34,11 @@ func (e *Event) ToMessage() (*mqs.Message, error) {
 }
 
 // DeliveryTask represents a task to deliver an event to a destination.
-// This is a message type (no ID) used by: publishmq -> deliverymq, retry -> deliverymq
+// This is a message type used by: publishmq -> deliverymq, retry -> deliverymq
+// MessageID identifies the event's delivery to the destination across
+// automatic retries.
 type DeliveryTask struct {
+	MessageID     string             `json:"message_id,omitempty"`
 	Event         Event              `json:"event"`
 	DestinationID string             `json:"destination_id"`
 	Attempt       int                `json:"attempt"`
@@ -74,6 +78,7 @@ func RetryID(eventID, destinationID string) string {
 // NewDeliveryTask creates a new DeliveryTask for an event and destination.
 func NewDeliveryTask(event Event, destinationID string) DeliveryTask {
 	return DeliveryTask{
+		MessageID:     idgen.Message(),
 		Event:         event,
 		DestinationID: destinationID,
 		Attempt:       1,
@@ -84,6 +89,7 @@ func NewDeliveryTask(event Event, destinationID string) DeliveryTask {
 // attemptNumber is the 1-indexed attempt number derived from the count of prior attempts.
 func NewManualDeliveryTask(event Event, destinationID string, attemptNumber int) DeliveryTask {
 	return DeliveryTask{
+		MessageID:     idgen.Message(),
 		Event:         event,
 		DestinationID: destinationID,
 		Attempt:       attemptNumber,
