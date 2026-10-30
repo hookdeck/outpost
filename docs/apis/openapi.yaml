@@ -84,6 +84,35 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/APIErrorResponse"
+    MCPError:
+      description: >-
+        The MCP request failed. `mcp_error` is a JSON-RPC error object with `data` only where the
+        MCP Events spec defines it: `-32602` invalid params (a malformed request body also answers
+        this) and `-32024` forbidden (no principal, or an event outside `allowed_topics`) have no
+        `data`, `-32023` not found (`data.kind` is `event` or `subscription`), `-32025` resource
+        exhausted (`data.limit`, and `data.max` when there is one), `-32026` unsupported
+        (`data.feature` and `data.value`, such as a delivery mode other than `webhook`), `-32027`
+        callback endpoint error (`data.reason` names the failure category).
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [mcp_error]
+            properties:
+              mcp_error:
+                type: object
+                required: [code, message]
+                properties:
+                  code:
+                    type: integer
+                    example: -32023
+                  message:
+                    type: string
+                    example: "NotFound"
+                  data:
+                    type: object
+                    additionalProperties: true
+                    example: { kind: "event" }
     RequestBodyTooLarge:
       description: Request body is larger than 1 MiB.
       content:
@@ -7130,6 +7159,169 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /tenants/{tenant_id}/mcp/subscribe:
+    parameters:
+      - name: tenant_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The ID of the tenant the principal belongs to.
+    post:
+      tags: [Destinations]
+      summary: Subscribe (MCP Events)
+      x-speakeasy-ignore: true
+      description: |
+        **Experimental.** Serves the MCP Events `events/subscribe` method for an MCP server that
+        forwards its `params` and the authenticated principal. Creates an `mcp` destination, or
+        refreshes it when the principal already holds the same subscription: the same principal,
+        event, arguments and callback URL always give the same `id`. A new subscription is
+        verified with a challenge to its callback URL before it is stored; one that has expired is
+        replaced by a new one. The tenant is created if it does not exist, even when the subscribe then fails. Admin API key only;
+        answers `404` while MCP is not enabled (`EXPERIMENTAL_MCP_ENABLED`).
+
+        Failures answer `422` with an `mcp_error` the MCP server returns as its JSON-RPC error.
+      operationId: subscribeMCPEvents
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [principal, params]
+              properties:
+                principal:
+                  type: string
+                  description: The authenticated principal on whose behalf the subscription is made.
+                  example: "user-1"
+                allowed_topics:
+                  type: array
+                  items:
+                    type: string
+                  description: Events the principal may subscribe to. Omit to allow every event; an empty list allows none.
+                  example: ["order.created"]
+                params:
+                  type: object
+                  additionalProperties: true
+                  description: The `events/subscribe` params, forwarded as received.
+                  example:
+                    name: "order.created"
+                    arguments: { status: "paid" }
+                    delivery:
+                      mode: "webhook"
+                      url: "https://example.com/mcp-events/abc123"
+                      secret: "whsec_MfKQ9r8GKYqrTwjUPD8ILPZIo2LaLaSw"
+                    ttlMs: 3600000
+      responses:
+        "200":
+          description: The `events/subscribe` result.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [resultType, id, refreshBefore, cursor, truncated]
+                properties:
+                  resultType:
+                    type: string
+                    enum: [complete]
+                  id:
+                    type: string
+                    example: "sub_3f1c2a9e5b7d4c6a8e0f1b2c3d4e5f60"
+                  refreshBefore:
+                    type: string
+                    format: date-time
+                    description: Subscribe again before this time to keep the subscription.
+                  cursor:
+                    type: [string, "null"]
+                    description: Always null; events are not replayed.
+                  truncated:
+                    type: boolean
+                    description: Always false; events are not replayed.
+                  deliveryStatus:
+                    type: object
+                    description: Present when an existing subscription was refreshed.
+                    required: [active]
+                    properties:
+                      active:
+                        type: boolean
+                        description: False when the subscription was suspended before this refresh. The refresh re-enables it.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/RequestBodyTooLarge"
+        "422":
+          $ref: "#/components/responses/MCPError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /tenants/{tenant_id}/mcp/unsubscribe:
+    parameters:
+      - name: tenant_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The ID of the tenant the principal belongs to.
+    post:
+      tags: [Destinations]
+      summary: Unsubscribe (MCP Events)
+      x-speakeasy-ignore: true
+      description: |
+        **Experimental.** Serves the MCP Events `events/unsubscribe` method: deletes the principal's
+        subscription for the event, arguments and callback URL in `params`. Answers `422` with a
+        `NotFound` `mcp_error` when there is none, including when the tenant does not exist.
+        Admin API key only; answers `404` while MCP is not enabled (`EXPERIMENTAL_MCP_ENABLED`).
+      operationId: unsubscribeMCPEvents
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [principal, params]
+              properties:
+                principal:
+                  type: string
+                  description: The authenticated principal on whose behalf the subscription is deleted.
+                  example: "user-1"
+                params:
+                  type: object
+                  additionalProperties: true
+                  description: The `events/unsubscribe` params, forwarded as received.
+                  example:
+                    name: "order.created"
+                    arguments: { status: "paid" }
+                    delivery:
+                      url: "https://example.com/mcp-events/abc123"
+      responses:
+        "200":
+          description: The subscription was deleted. The `events/unsubscribe` result.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [resultType]
+                properties:
+                  resultType:
+                    type: string
+                    enum: ["complete"]
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/RequestBodyTooLarge"
+        "422":
+          $ref: "#/components/responses/MCPError"
         "500":
           $ref: "#/components/responses/InternalServerError"
 
