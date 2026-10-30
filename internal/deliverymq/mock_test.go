@@ -118,13 +118,15 @@ func newMockEventGetter() *mockEventGetter {
 }
 
 func (m *mockEventGetter) addRecord(attempt *models.Attempt, event *models.Event) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.records = append(m.records, &logstore.AttemptRecord{Attempt: attempt, Event: event})
 }
 
 func (m *mockEventGetter) ListAttempt(ctx context.Context, req logstore.ListAttemptRequest) (logstore.ListAttemptResponse, error) {
 	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.requests = append(m.requests, req)
-	m.mu.Unlock()
 	if m.err != nil {
 		return logstore.ListAttemptResponse{}, m.err
 	}

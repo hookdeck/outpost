@@ -92,6 +92,12 @@ func parseDestinationHash(cmd *redis.MapStringStringCmd, tenantID string, cipher
 	d := &models.Destination{TenantID: tenantID}
 	d.ID = hash["id"]
 	d.Type = hash["type"]
+	if hash["version"] != "" {
+		d.Version, err = strconv.ParseInt(hash["version"], 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("invalid version: %w", err)
+		}
+	}
 
 	d.CreatedAt, err = parseTimestamp(hash["created_at"])
 	if err != nil {

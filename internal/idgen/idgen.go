@@ -2,23 +2,23 @@ package idgen
 
 import (
 	"fmt"
+	"sync/atomic"
 
 	"github.com/google/uuid"
 	gonanoid "github.com/matoous/go-nanoid/v2"
 )
 
-var (
-	globalGenerator *IDGenerator
-)
+// Atomic because every app in the process calls Configure, and tests run several apps at once.
+var globalGenerator atomic.Pointer[IDGenerator]
 
 func init() {
 	// Initialize with default UUID v4 generator
-	globalGenerator = &IDGenerator{
+	globalGenerator.Store(&IDGenerator{
 		generator:         &uuidv4Generator{},
 		eventPrefix:       "",
 		destinationPrefix: "",
 		attemptPrefix:     "",
-	}
+	})
 }
 
 type idGenerator interface {
@@ -118,32 +118,32 @@ func Configure(cfg IDGenConfig) error {
 		return fmt.Errorf("failed to configure ID generator: %w", err)
 	}
 
-	globalGenerator = &IDGenerator{
+	globalGenerator.Store(&IDGenerator{
 		generator:         gen,
 		eventPrefix:       cfg.EventPrefix,
 		destinationPrefix: cfg.DestinationPrefix,
 		attemptPrefix:     cfg.AttemptPrefix,
-	}
+	})
 
 	return nil
 }
 
 func Event() string {
-	return globalGenerator.Event()
+	return globalGenerator.Load().Event()
 }
 
 func Destination() string {
-	return globalGenerator.Destination()
+	return globalGenerator.Load().Destination()
 }
 
 func Attempt() string {
-	return globalGenerator.Attempt()
+	return globalGenerator.Load().Attempt()
 }
 
 func Installation() string {
-	return globalGenerator.Installation()
+	return globalGenerator.Load().Installation()
 }
 
 func String() string {
-	return globalGenerator.generate("")
+	return globalGenerator.Load().generate("")
 }

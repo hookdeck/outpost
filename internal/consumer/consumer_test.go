@@ -3,7 +3,9 @@ package consumer_test
 import (
 	"context"
 	"log"
+	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/hookdeck/outpost/internal/consumer"
@@ -28,11 +30,10 @@ type consumerTest struct {
 
 func (c *consumerTest) run(t *testing.T) {
 	cleanup, _ := c.mq.Init(c.ctx)
-	defer cleanup()
 	subscription, _ := c.mq.Subscribe(c.ctx)
 
 	consumerExecchan := make(chan []execTimestamps)
-	execchan := make(chan execTimestamps)
+	execchan := make(chan execTimestamps, 16)
 
 	handler := struct{ handlerImpl }{}
 	handler.handle = func(ctx context.Context, msg *mqs.Message) error {
@@ -58,186 +59,192 @@ func (c *consumerTest) run(t *testing.T) {
 				execs = append(execs, exec)
 			case <-c.ctx.Done():
 				consumerExecchan <- execs
+				return
 			}
 		}
 	}()
 
 	csm := c.makeConsumer(&handler, subscription)
-	errchan := make(chan error)
+	errchan := make(chan error, 1)
 	go func() {
 		errchan <- csm.Run(c.ctx)
 	}()
 
 	c.act(t, c.ctx)
 
-	var err error
-	select {
-	case err = <-errchan:
-	case <-c.ctx.Done():
-	}
+	<-c.ctx.Done()
+	err := <-errchan
+	execs := <-consumerExecchan
+	cleanup()
+	// Wait for cleanup: mempubsub's receive loop sleeps 250ms between polls and ignores ctx,
+	// and synctest stops advancing time once this function returns, so it would never exit.
+	// The sleep costs no real time: it only advances the bubble's fake clock.
+	time.Sleep(time.Second)
 
-	c.assert(t, c.ctx, <-consumerExecchan, err)
+	c.assert(t, c.ctx, execs, err)
 }
 
 func TestConsumer_SingleHandler(t *testing.T) {
 	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
+		mq := mqs.NewQueue(&mqs.QueueConfig{InMemory: &mqs.InMemoryConfig{Name: testutil.RandomString(16)}})
 
-	mq := mqs.NewQueue(&mqs.QueueConfig{InMemory: &mqs.InMemoryConfig{Name: testutil.RandomString(5)}})
-
-	test := consumerTest{
-		ctx: ctx,
-		mq:  mq,
-		makeConsumer: func(handler consumer.MessageHandler, subscription mqs.Subscription) consumer.Consumer {
-			return consumer.New(subscription, handler, consumer.WithConcurrency(1))
-		},
-		act: func(t *testing.T, ctx context.Context) {
-			mq.Publish(ctx, &Message{ID: "1"})
-			mq.Publish(ctx, &Message{ID: "2"})
-			mq.Publish(ctx, &Message{ID: "3"})
-		},
-		assert: func(t *testing.T, ctx context.Context, execs []execTimestamps, err error) {
-			require.Nil(t, err)
-			require.Len(t, execs, 3)
-			var timestamp time.Time
-			for i, exec := range execs {
-				if i == 0 {
-					timestamp = exec.End
-					continue
+		test := consumerTest{
+			ctx: ctx,
+			mq:  mq,
+			makeConsumer: func(handler consumer.MessageHandler, subscription mqs.Subscription) consumer.Consumer {
+				return consumer.New(subscription, handler, consumer.WithConcurrency(1))
+			},
+			act: func(t *testing.T, ctx context.Context) {
+				mq.Publish(ctx, &Message{ID: "1"})
+				mq.Publish(ctx, &Message{ID: "2"})
+				mq.Publish(ctx, &Message{ID: "3"})
+			},
+			assert: func(t *testing.T, ctx context.Context, execs []execTimestamps, err error) {
+				require.ErrorIs(t, err, context.DeadlineExceeded)
+				require.Len(t, execs, 3)
+				for i, exec := range execs {
+					require.Equal(t, time.Second, exec.End.Sub(exec.Start))
+					if i > 0 {
+						require.False(t, exec.Start.Before(execs[i-1].End), "messages should be handled sequentially")
+					}
 				}
-				require.True(t, exec.Start.After(timestamp), "messages should be handled sequentially")
-			}
-		},
-	}
+			},
+		}
 
-	test.run(t)
+		test.run(t)
+	})
 }
 
 func TestConsumer_ConcurrentHandler(t *testing.T) {
 	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
+		mq := mqs.NewQueue(&mqs.QueueConfig{InMemory: &mqs.InMemoryConfig{Name: testutil.RandomString(16)}})
 
-	mq := mqs.NewQueue(&mqs.QueueConfig{InMemory: &mqs.InMemoryConfig{Name: testutil.RandomString(5)}})
+		test := consumerTest{
+			ctx: ctx,
+			mq:  mq,
+			makeConsumer: func(handler consumer.MessageHandler, subscription mqs.Subscription) consumer.Consumer {
+				return consumer.New(subscription, handler, consumer.WithConcurrency(2))
+			},
+			act: func(t *testing.T, ctx context.Context) {
+				mq.Publish(ctx, &Message{ID: "1"})
+				mq.Publish(ctx, &Message{ID: "2"})
+				mq.Publish(ctx, &Message{ID: "3"})
+				mq.Publish(ctx, &Message{ID: "4"})
+				mq.Publish(ctx, &Message{ID: "5"})
+			},
+			assert: func(t *testing.T, ctx context.Context, execs []execTimestamps, err error) {
+				require.ErrorIs(t, err, context.DeadlineExceeded)
+				require.Len(t, execs, 5)
+				assert.True(t,
+					execs[0].Start.Before(execs[1].End) && execs[1].Start.Before(execs[0].End),
+					"2 first messages should be handled in parallel",
+				)
+				assert.True(t,
+					!execs[2].Start.Before(execs[0].End) || !execs[2].Start.Before(execs[1].End),
+					"the 3rd message should be handled after the 1st and 2nd messages",
+				)
+				assert.True(t,
+					execs[2].Start.Before(execs[3].End) && execs[3].Start.Before(execs[2].End),
+					"the 3rd and 4th message should be handled in parallel",
+				)
+				assert.True(t,
+					!execs[4].Start.Before(execs[2].End) || !execs[4].Start.Before(execs[3].End),
+					"the 5th message should be handled after the 3rd and 4th messages",
+				)
+			},
+		}
 
-	test := consumerTest{
-		ctx: ctx,
-		mq:  mq,
-		makeConsumer: func(handler consumer.MessageHandler, subscription mqs.Subscription) consumer.Consumer {
-			return consumer.New(subscription, handler, consumer.WithConcurrency(2))
-		},
-		act: func(t *testing.T, ctx context.Context) {
-			mq.Publish(ctx, &Message{ID: "1"})
-			mq.Publish(ctx, &Message{ID: "2"})
-			mq.Publish(ctx, &Message{ID: "3"})
-			mq.Publish(ctx, &Message{ID: "4"})
-			mq.Publish(ctx, &Message{ID: "5"})
-		},
-		assert: func(t *testing.T, ctx context.Context, execs []execTimestamps, err error) {
-			require.Nil(t, err)
-			require.Len(t, execs, 5)
-			assert.True(t,
-				execs[0].Start.Before(execs[1].End) && execs[1].Start.Before(execs[0].End),
-				"2 first messages should be handled in parallel",
-			)
-			assert.True(t,
-				execs[2].Start.After(execs[0].End) || execs[2].Start.After(execs[1].End),
-				"the 3rd message should be handled after the 1st and 2nd messages",
-			)
-			assert.True(t,
-				execs[2].Start.Before(execs[3].End) && execs[3].Start.Before(execs[2].End),
-				"the 3rd and 4th message should be handled in parallel",
-			)
-			assert.True(t,
-				execs[4].Start.After(execs[2].End) || execs[4].Start.After(execs[3].End),
-				"the 5th message should be handled after the 3rd and 4th messages",
-			)
-		},
-	}
-
-	test.run(t)
+		test.run(t)
+	})
 }
 
 func TestConsumer_RetryTransientReceiveError(t *testing.T) {
 	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
+		// Create a subscription that fails twice then succeeds.
+		errorCount := 0
+		messagesDelivered := 0
+		sub := &fakeSubscription{
+			receive: func(ctx context.Context) (*mqs.Message, error) {
+				if errorCount < 2 {
+					errorCount++
+					return nil, assert.AnError
+				}
+				if messagesDelivered >= 1 {
+					// Block until context is cancelled (no more messages).
+					<-ctx.Done()
+					return nil, ctx.Err()
+				}
+				messagesDelivered++
+				return &mqs.Message{Body: []byte("ok")}, nil
+			},
+		}
 
-	// Create a subscription that fails twice then succeeds.
-	errorCount := 0
-	messagesDelivered := 0
-	sub := &fakeSubscription{
-		receive: func(ctx context.Context) (*mqs.Message, error) {
-			if errorCount < 2 {
-				errorCount++
-				return nil, assert.AnError
-			}
-			if messagesDelivered >= 1 {
-				// Block until context is cancelled (no more messages).
-				<-ctx.Done()
-				return nil, ctx.Err()
-			}
-			messagesDelivered++
-			return &mqs.Message{Body: []byte("ok")}, nil
-		},
-	}
+		handled := make(chan string, 1)
+		handler := &handlerImpl{
+			handle: func(ctx context.Context, msg *mqs.Message) error {
+				handled <- string(msg.Body)
+				return nil
+			},
+		}
 
-	handled := make(chan string, 1)
-	handler := &handlerImpl{
-		handle: func(ctx context.Context, msg *mqs.Message) error {
-			handled <- string(msg.Body)
-			return nil
-		},
-	}
+		csm := consumer.New(sub, handler,
+			consumer.WithConcurrency(1),
+			consumer.WithMaxConsecutiveErrors(5),
+			consumer.WithInitialBackoff(10*time.Millisecond),
+			consumer.WithMaxBackoff(50*time.Millisecond),
+		)
 
-	csm := consumer.New(sub, handler,
-		consumer.WithConcurrency(1),
-		consumer.WithMaxConsecutiveErrors(5),
-		consumer.WithInitialBackoff(10*time.Millisecond),
-		consumer.WithMaxBackoff(50*time.Millisecond),
-	)
+		go csm.Run(ctx)
 
-	go csm.Run(ctx)
-
-	select {
-	case body := <-handled:
-		assert.Equal(t, "ok", body)
-		assert.Equal(t, 2, errorCount, "should have retried through 2 transient errors")
-	case <-ctx.Done():
-		t.Fatal("timed out waiting for message to be handled")
-	}
+		select {
+		case body := <-handled:
+			assert.Equal(t, "ok", body)
+			assert.Equal(t, 2, errorCount, "should have retried through 2 transient errors")
+		case <-ctx.Done():
+			t.Fatal("timed out waiting for message to be handled")
+		}
+	})
 }
 
 func TestConsumer_ExhaustsRetriesOnPersistentError(t *testing.T) {
 	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		sub := &fakeSubscription{
+			receive: func(ctx context.Context) (*mqs.Message, error) {
+				return nil, assert.AnError
+			},
+		}
 
-	sub := &fakeSubscription{
-		receive: func(ctx context.Context) (*mqs.Message, error) {
-			return nil, assert.AnError
-		},
-	}
+		handler := &handlerImpl{
+			handle: func(ctx context.Context, msg *mqs.Message) error {
+				t.Fatal("handler should not be called")
+				return nil
+			},
+		}
 
-	handler := &handlerImpl{
-		handle: func(ctx context.Context, msg *mqs.Message) error {
-			t.Fatal("handler should not be called")
-			return nil
-		},
-	}
+		csm := consumer.New(sub, handler,
+			consumer.WithConcurrency(1),
+			consumer.WithMaxConsecutiveErrors(3),
+			consumer.WithInitialBackoff(10*time.Millisecond),
+			consumer.WithMaxBackoff(50*time.Millisecond),
+		)
 
-	csm := consumer.New(sub, handler,
-		consumer.WithConcurrency(1),
-		consumer.WithMaxConsecutiveErrors(3),
-		consumer.WithInitialBackoff(10*time.Millisecond),
-		consumer.WithMaxBackoff(50*time.Millisecond),
-	)
-
-	err := csm.Run(context.Background())
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "max consecutive receive errors reached (3)")
+		err := csm.Run(context.Background())
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "max consecutive receive errors reached (3)")
+	})
 }
 
 // ==================================== Mock ====================================
@@ -277,4 +284,41 @@ var _ consumer.MessageHandler = &handlerImpl{}
 
 func (h *handlerImpl) Handle(ctx context.Context, msg *mqs.Message) error {
 	return h.handle(ctx, msg)
+}
+
+// The consumer receives only when a handler slot is free.
+func TestConsumer_ReceivesOnlyWithFreeSlot(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		ctx, cancel := context.WithCancel(t.Context())
+
+		var receives atomic.Int32
+		sub := &fakeSubscription{
+			receive: func(ctx context.Context) (*mqs.Message, error) {
+				receives.Add(1)
+				return &mqs.Message{Body: []byte("m")}, nil
+			},
+		}
+		release := make(chan struct{})
+		handler := &handlerImpl{
+			handle: func(ctx context.Context, msg *mqs.Message) error {
+				<-release
+				return nil
+			},
+		}
+
+		done := make(chan error)
+		go func() { done <- consumer.New(sub, handler, consumer.WithConcurrency(2)).Run(ctx) }()
+		synctest.Wait()
+		assert.Equal(t, int32(2), receives.Load(), "one receive per free slot")
+
+		release <- struct{}{}
+		synctest.Wait()
+		assert.Equal(t, int32(3), receives.Load(), "a freed slot allows one more receive")
+
+		cancel()
+		close(release)
+		assert.NoError(t, <-done)
+		assert.Equal(t, int32(3), receives.Load(), "nothing received after shutdown")
+	})
 }

@@ -195,3 +195,10 @@ func NewErrNotFound(resource string) ErrorResponse {
 		Message: fmt.Sprintf("%s not found", resource),
 	}
 }
+
+func NewErrConflict(message string) ErrorResponse {
+	return ErrorResponse{
+		Code:    http.StatusConflict,
+		Message: message,
+	}
+}

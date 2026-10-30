@@ -7,7 +7,16 @@ import (
 	"github.com/google/uuid"
 )
 
+// restoreGenerator puts the package-global generator back after a test that
+// calls Configure, so tests don't depend on the order they run in.
+func restoreGenerator(tb testing.TB) {
+	prev := globalGenerator.Load()
+	tb.Cleanup(func() { globalGenerator.Store(prev) })
+}
+
 func TestConfigure(t *testing.T) {
+	restoreGenerator(t)
+
 	tests := []struct {
 		name        string
 		idType      string
@@ -60,6 +69,8 @@ func TestConfigure(t *testing.T) {
 }
 
 func TestEvent_Generate(t *testing.T) {
+	restoreGenerator(t)
+
 	tests := []struct {
 		name     string
 		idType   string
@@ -149,6 +160,8 @@ func TestEvent_Generate(t *testing.T) {
 }
 
 func TestEvent_Uniqueness(t *testing.T) {
+	restoreGenerator(t)
+
 	err := Configure(IDGenConfig{
 		Type:        "uuidv4",
 		EventPrefix: "",
@@ -169,6 +182,8 @@ func TestEvent_Uniqueness(t *testing.T) {
 }
 
 func TestEvent(t *testing.T) {
+	restoreGenerator(t)
+
 	t.Run("generates UUID v4 by default", func(t *testing.T) {
 		id := Event()
 		if id == "" {
@@ -196,6 +211,7 @@ func TestEvent(t *testing.T) {
 }
 
 func BenchmarkEvent_UUIDv4(b *testing.B) {
+	restoreGenerator(b)
 	Configure(IDGenConfig{Type: "uuidv4", EventPrefix: ""})
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -204,6 +220,7 @@ func BenchmarkEvent_UUIDv4(b *testing.B) {
 }
 
 func BenchmarkEvent_UUIDv7(b *testing.B) {
+	restoreGenerator(b)
 	Configure(IDGenConfig{Type: "uuidv7", EventPrefix: ""})
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -212,6 +229,7 @@ func BenchmarkEvent_UUIDv7(b *testing.B) {
 }
 
 func BenchmarkEvent_Nanoid(b *testing.B) {
+	restoreGenerator(b)
 	Configure(IDGenConfig{Type: "nanoid", EventPrefix: ""})
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {

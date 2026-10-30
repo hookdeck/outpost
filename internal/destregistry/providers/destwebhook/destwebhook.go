@@ -438,6 +438,9 @@ func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePu
 	if err != nil {
 		return nil, err
 	}
+	httpClient.CheckRedirect = func(*http.Request, []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
 	destination.httpClient = httpClient
 
 	return destination, nil

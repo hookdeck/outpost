@@ -8,6 +8,7 @@ package logmq_test
 
 import (
 	"testing"
+	"testing/synctest"
 
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/stretchr/testify/assert"
@@ -19,54 +20,58 @@ import (
 // fire and nothing is disabled, no matter how many failures accumulate.
 func TestDisabledSignals_FailedEmitsUngated(t *testing.T) {
 	t.Parallel()
-	h := newHarness(t, harnessConfig{
-		batcher: batcherConfig{itemCount: 1},
-		alert:   alertConfig{autoDisableCount: 2, thresholds: []int{50, 100}, withDisabler: true, signalsOff: true},
+	synctest.Test(t, func(t *testing.T) {
+		h := newHarness(t, harnessConfig{
+			batcher: batcherConfig{itemCount: 1},
+			alert:   alertConfig{autoDisableCount: 2, thresholds: []int{50, 100}, withDisabler: true, signalsOff: true},
+		})
+
+		dest, tenant := "dest_ds1", "tenant_ds1"
+		cm1, msg1 := newCountingMessage(makeEntry(dest, tenant, "att_ds_1", models.AttemptStatusFailed))
+		cm2, msg2 := newCountingMessage(makeEntry(dest, tenant, "att_ds_2", models.AttemptStatusFailed))
+		cmOK, msgOK := newCountingMessage(makeEntry(dest, tenant, "att_ds_ok", models.AttemptStatusSuccess))
+		// Paced: the replay below needs att_ds_1 terminal before its copy arrives.
+		h.add(msg1)
+		h.waitTerminal([]*countingMessage{cm1})
+		cmReplay, msgReplay := newCountingMessage(makeEntry(dest, tenant, "att_ds_1", models.AttemptStatusFailed))
+		h.add(msgReplay)
+		h.add(msg2)
+		h.add(msgOK)
+		h.waitTerminal([]*countingMessage{cm2, cmOK, cmReplay})
+
+		cm1.requireAcked(t)
+		cm2.requireAcked(t)
+		cmOK.requireAcked(t)
+		cmReplay.requireAcked(t)
+
+		recs := h.sink.forDest(dest)
+		assert.ElementsMatch(t, []string{topicFailed, topicFailed, topicFailed, topicSuccess}, topics(recs),
+			"every failed copy emits (no gate), success emits, no alert topics fire")
+		assert.ElementsMatch(t, []string{"att_ds_1", "att_ds_1", "att_ds_2"}, attemptIDs(forTopic(recs, topicFailed)),
+			"the replayed attempt emits twice — ungated")
+		assert.Empty(t, h.disabler.snapshot(), "signals off never disables, past any threshold")
 	})
-
-	dest, tenant := "dest_ds1", "tenant_ds1"
-	cm1, msg1 := newCountingMessage(makeEntry(dest, tenant, "att_ds_1", models.AttemptStatusFailed))
-	cm2, msg2 := newCountingMessage(makeEntry(dest, tenant, "att_ds_2", models.AttemptStatusFailed))
-	cmOK, msgOK := newCountingMessage(makeEntry(dest, tenant, "att_ds_ok", models.AttemptStatusSuccess))
-	// Paced: the replay below needs att_ds_1 terminal before its copy arrives.
-	h.add(msg1)
-	h.waitTerminal([]*countingMessage{cm1})
-	cmReplay, msgReplay := newCountingMessage(makeEntry(dest, tenant, "att_ds_1", models.AttemptStatusFailed))
-	h.add(msgReplay)
-	h.add(msg2)
-	h.add(msgOK)
-	h.waitTerminal([]*countingMessage{cm2, cmOK, cmReplay})
-
-	cm1.requireAcked(t)
-	cm2.requireAcked(t)
-	cmOK.requireAcked(t)
-	cmReplay.requireAcked(t)
-
-	recs := h.sink.forDest(dest)
-	assert.ElementsMatch(t, []string{topicFailed, topicFailed, topicFailed, topicSuccess}, topics(recs),
-		"every failed copy emits (no gate), success emits, no alert topics fire")
-	assert.ElementsMatch(t, []string{"att_ds_1", "att_ds_1", "att_ds_2"}, attemptIDs(forTopic(recs, topicFailed)),
-		"the replayed attempt emits twice — ungated")
-	assert.Empty(t, h.disabler.snapshot(), "signals off never disables, past any threshold")
 }
 
 // With alert signals off, a failed attempt.failed send still nacks for
 // redelivery — the early-out skips the gate, not the delivery guarantee.
 func TestDisabledSignals_FailedEmitFailure_Nacks(t *testing.T) {
 	t.Parallel()
-	h := newHarness(t, harnessConfig{
-		batcher: batcherConfig{itemCount: 1},
-		alert:   alertConfig{signalsOff: true},
-		doubles: doublesConfig{sinkFailOn: map[string]bool{topicFailed: true}},
+	synctest.Test(t, func(t *testing.T) {
+		h := newHarness(t, harnessConfig{
+			batcher: batcherConfig{itemCount: 1},
+			alert:   alertConfig{signalsOff: true},
+			doubles: doublesConfig{sinkFailOn: map[string]bool{topicFailed: true}},
+		})
+
+		dest, tenant := "dest_ds2", "tenant_ds2"
+		cm, msg := newCountingMessage(makeEntry(dest, tenant, "att_ds_f", models.AttemptStatusFailed))
+		h.add(msg)
+		h.waitTerminal([]*countingMessage{cm})
+
+		cm.requireNacked(t)
+		assert.Empty(t, h.sink.forDest(dest))
 	})
-
-	dest, tenant := "dest_ds2", "tenant_ds2"
-	cm, msg := newCountingMessage(makeEntry(dest, tenant, "att_ds_f", models.AttemptStatusFailed))
-	h.add(msg)
-	h.waitTerminal([]*countingMessage{cm})
-
-	cm.requireNacked(t)
-	assert.Empty(t, h.sink.forDest(dest))
 }
 
 // Signals off AND no attempt topic subscribed: the pipeline can't produce
@@ -74,20 +79,22 @@ func TestDisabledSignals_FailedEmitFailure_Nacks(t *testing.T) {
 // Redis, no sink traffic.
 func TestDisabledSignals_NothingEnabled_AcksAfterPersist(t *testing.T) {
 	t.Parallel()
-	h := newHarness(t, harnessConfig{
-		batcher: batcherConfig{itemCount: 2},
-		alert:   alertConfig{signalsOff: true, opeventTopics: []string{topicCF}},
+	synctest.Test(t, func(t *testing.T) {
+		h := newHarness(t, harnessConfig{
+			batcher: batcherConfig{itemCount: 2},
+			alert:   alertConfig{signalsOff: true, opeventTopics: []string{topicCF}},
+		})
+
+		dest, tenant := "dest_ds3", "tenant_ds3"
+		cmFail, msgFail := newCountingMessage(makeEntry(dest, tenant, "att_ds_n1", models.AttemptStatusFailed))
+		cmOK, msgOK := newCountingMessage(makeEntry(dest, tenant, "att_ds_n2", models.AttemptStatusSuccess))
+		h.add(msgFail)
+		h.add(msgOK)
+		h.waitTerminal([]*countingMessage{cmFail, cmOK})
+
+		cmFail.requireAcked(t)
+		cmOK.requireAcked(t)
+		assert.Empty(t, h.sink.snapshot(), "nothing enabled, nothing emitted")
+		assert.Len(t, h.listAttempt(dest), 2, "persistence is unaffected by the early-out")
 	})
-
-	dest, tenant := "dest_ds3", "tenant_ds3"
-	cmFail, msgFail := newCountingMessage(makeEntry(dest, tenant, "att_ds_n1", models.AttemptStatusFailed))
-	cmOK, msgOK := newCountingMessage(makeEntry(dest, tenant, "att_ds_n2", models.AttemptStatusSuccess))
-	h.add(msgFail)
-	h.add(msgOK)
-	h.waitTerminal([]*countingMessage{cmFail, cmOK})
-
-	cmFail.requireAcked(t)
-	cmOK.requireAcked(t)
-	assert.Empty(t, h.sink.snapshot(), "nothing enabled, nothing emitted")
-	assert.Len(t, h.listAttempt(dest), 2, "persistence is unaffected by the early-out")
 }

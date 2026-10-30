@@ -37,6 +37,10 @@ type Destination struct {
 	CreatedAt        time.Time        `json:"created_at" redis:"created_at"`
 	UpdatedAt        time.Time        `json:"updated_at" redis:"updated_at"`
 	DisabledAt       *time.Time       `json:"disabled_at" redis:"disabled_at"`
+
+	// Version is the store's write counter at the time of the read. It is not
+	// part of the API; UpdateDestination uses it to detect concurrent writes.
+	Version int64 `json:"-" redis:"-"`
 }
 
 func (d *Destination) Validate(topics []string, allowWildcards bool) error {

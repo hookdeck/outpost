@@ -19,7 +19,14 @@ type TenantStore interface {
 	ListDestination(ctx context.Context, req ListDestinationRequest) ([]models.Destination, error)
 	RetrieveDestination(ctx context.Context, tenantID, destinationID string) (*models.Destination, error)
 	CreateDestination(ctx context.Context, destination models.Destination) error
+	// UpsertDestination writes unconditionally, skipping the tenant, duplicate,
+	// limit and version checks. It is for seeding and tests.
 	UpsertDestination(ctx context.Context, destination models.Destination) error
+	// UpdateDestination writes a destination retrieved earlier, only if it still
+	// exists and is unchanged since that read. It returns ErrDestinationNotFound
+	// when the destination is gone or deleted and ErrDestinationConflict when it
+	// was written meanwhile.
+	UpdateDestination(ctx context.Context, destination models.Destination) error
 	DeleteDestination(ctx context.Context, tenantID, destinationID string) error
 	MatchEvent(ctx context.Context, event models.Event, allowWildcards bool) ([]string, error)
 }
@@ -30,6 +37,7 @@ var (
 	ErrDuplicateDestination            = errors.New("destination already exists")
 	ErrDestinationNotFound             = errors.New("destination does not exist")
 	ErrDestinationDeleted              = errors.New("destination has been deleted")
+	ErrDestinationConflict             = errors.New("destination was modified concurrently")
 	ErrMaxDestinationsPerTenantReached = errors.New("maximum number of destinations per tenant reached")
 	ErrListTenantNotSupported          = errors.New("list tenant feature is not enabled")
 	ErrInvalidCursor                   = cursor.ErrInvalidCursor

@@ -113,6 +113,7 @@ func lookupAll(ctx context.Context, b *attemptLookupBatcher, tasks ...RetryTask)
 }
 
 func TestLookupBatcher_FlushesAtSize(t *testing.T) {
+	t.Parallel()
 	store := &fakeLookupStore{}
 	now := time.Now()
 	for i := range 3 {
@@ -134,6 +135,7 @@ func TestLookupBatcher_FlushesAtSize(t *testing.T) {
 }
 
 func TestLookupBatcher_FlushesAfterWait(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		store := &fakeLookupStore{}
 		now := time.Now()
@@ -165,6 +167,7 @@ func TestLookupBatcher_FlushesAfterWait(t *testing.T) {
 }
 
 func TestLookupBatcher_BoundIsCarriedTimeMinusSkew(t *testing.T) {
+	t.Parallel()
 	store := &fakeLookupStore{}
 	now := time.Now()
 	b := newAttemptLookupBatcher(store, store, 2, time.Minute)
@@ -183,6 +186,7 @@ func TestLookupBatcher_BoundIsCarriedTimeMinusSkew(t *testing.T) {
 }
 
 func TestLookupBatcher_SplitsBySpan(t *testing.T) {
+	t.Parallel()
 	store := &fakeLookupStore{}
 	now := time.Now()
 	b := newAttemptLookupBatcher(store, store, 5, time.Minute)
@@ -204,6 +208,7 @@ func TestLookupBatcher_SplitsBySpan(t *testing.T) {
 }
 
 func TestLookupBatcher_BatchOfOneUsesSingleLookup(t *testing.T) {
+	t.Parallel()
 	store := &fakeLookupStore{}
 	now := time.Now()
 	store.record("e0", now)
@@ -221,6 +226,7 @@ func TestLookupBatcher_BatchOfOneUsesSingleLookup(t *testing.T) {
 }
 
 func TestLookupBatcher_TaskWithoutAttemptTimeIsNotBatched(t *testing.T) {
+	t.Parallel()
 	store := &fakeLookupStore{}
 	store.record("e0", time.Now())
 	b := newAttemptLookupBatcher(store, store, 50, time.Minute)
@@ -236,6 +242,7 @@ func TestLookupBatcher_TaskWithoutAttemptTimeIsNotBatched(t *testing.T) {
 }
 
 func TestLookupBatcher_MissingKeyIsNoRecord(t *testing.T) {
+	t.Parallel()
 	store := &fakeLookupStore{}
 	now := time.Now()
 	store.record("e0", now)
@@ -251,6 +258,7 @@ func TestLookupBatcher_MissingKeyIsNoRecord(t *testing.T) {
 }
 
 func TestLookupBatcher_RecordOlderThanOwnBoundIsNoRecord(t *testing.T) {
+	t.Parallel()
 	store := &fakeLookupStore{}
 	now := time.Now()
 	store.record("e0", now.Add(-time.Hour))
@@ -272,6 +280,7 @@ func TestLookupBatcher_RecordOlderThanOwnBoundIsNoRecord(t *testing.T) {
 }
 
 func TestLookupBatcher_ErrorFailsEveryCaller(t *testing.T) {
+	t.Parallel()
 	boom := errors.New("boom")
 	store := &fakeLookupStore{err: boom}
 	now := time.Now()
@@ -287,6 +296,7 @@ func TestLookupBatcher_ErrorFailsEveryCaller(t *testing.T) {
 }
 
 func TestLookupBatcher_KeyErrorFailsOnlyThatKey(t *testing.T) {
+	t.Parallel()
 	bad := errors.New("bad row")
 	store := &fakeLookupStore{keyErrs: map[logstore.AttemptKey]error{{TenantID: "t", EventID: "e1", DestinationID: "d"}: bad}}
 	now := time.Now()
@@ -306,6 +316,7 @@ func TestLookupBatcher_KeyErrorFailsOnlyThatKey(t *testing.T) {
 }
 
 func TestLookupBatcher_CallerCancelDoesNotAffectOthers(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		store := &fakeLookupStore{}
 		now := time.Now()
@@ -337,6 +348,7 @@ func TestLookupBatcher_CallerCancelDoesNotAffectOthers(t *testing.T) {
 }
 
 func TestLookupBatcher_CloseFailsPendingAndStopsQueries(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		store := &fakeLookupStore{block: make(chan struct{})}
 		now := time.Now()
@@ -365,6 +377,7 @@ func TestLookupBatcher_CloseFailsPendingAndStopsQueries(t *testing.T) {
 }
 
 func TestLookupBatcher_QueryKeepsFirstCallerValuesAndDeadline(t *testing.T) {
+	t.Parallel()
 	type ctxKey struct{}
 	store := &ctxCapturingStore{fakeLookupStore: &fakeLookupStore{}}
 	now := time.Now()
@@ -392,6 +405,7 @@ func (s *ctxCapturingStore) ListLatestAttempts(ctx context.Context, lookups []lo
 }
 
 func TestNewRetryLookup_BatchingEnabledOnlyWhenConfiguredAndSupported(t *testing.T) {
+	t.Parallel()
 	store := &fakeLookupStore{}
 	for _, size := range []int{0, 1} {
 		_, batcher := newRetryLookup(store, size, time.Millisecond)
@@ -406,6 +420,7 @@ func TestNewRetryLookup_BatchingEnabledOnlyWhenConfiguredAndSupported(t *testing
 }
 
 func TestEffectiveLookupBatchSize(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		size, maxConcurrency, want int
 	}{

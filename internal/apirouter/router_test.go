@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -313,4 +314,18 @@ func (r *stubRegistry) RetrieveProviderMetadata(string) (*metadata.ProviderMetad
 }
 func (r *stubRegistry) ListProviderMetadata() []*metadata.ProviderMetadata {
 	return []*metadata.ProviderMetadata{}
+}
+
+// Fails under -race if NewRouter writes shared state without synchronization.
+func TestNewRouter_ConcurrentBuild(t *testing.T) {
+	const n = 8
+	var wg sync.WaitGroup
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			newAPITest(t)
+		}()
+	}
+	wg.Wait()
 }

@@ -210,7 +210,7 @@ const DestinationMetrics: React.FC<DestinationMetricsProps> = ({
               barColor={(code) => {
                 const n = Number(code);
                 if (n >= 200 && n < 300) return "success";
-                if (n >= 400) return "error";
+                if (n >= 300) return "error";
                 return undefined;
               }}
             />
