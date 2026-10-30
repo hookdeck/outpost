@@ -17,7 +17,7 @@ type ExperimentalConfig struct {
 
 type MCPConfig struct {
 	Enabled                bool  `yaml:"enabled" env:"EXPERIMENTAL_MCP_ENABLED" desc:"If true, registers the experimental 'mcp' destination type (MCP Events webhook subscriptions). Admin API key only. Delete mcp destinations before turning it off; while it is off, they stay listed and each event fails once without retries." required:"N" default:"false"`
-	AllowInsecureCallbacks bool  `yaml:"allow_insecure_callbacks" env:"EXPERIMENTAL_MCP_ALLOW_INSECURE_CALLBACKS" desc:"If true, allows http callback URLs whose addresses are all in DESTINATIONS_PRIVATE_ADDRESS_ALLOWLIST. Development only." required:"N" default:"false"`
+	AllowInsecureCallbacks bool  `yaml:"allow_insecure_callbacks" env:"EXPERIMENTAL_MCP_ALLOW_INSECURE_CALLBACKS" desc:"The MCP Events spec requires https callback URLs. If true, http is also accepted for addresses that are all in DESTINATIONS_PRIVATE_ADDRESS_ALLOWLIST: an exception outside the spec, for development only." required:"N" default:"false"`
 	RetrySchedule          []int `yaml:"retry_schedule" env:"EXPERIMENTAL_MCP_RETRY_SCHEDULE" envSeparator:"," desc:"Comma-separated retry delays in seconds for mcp deliveries (in YAML, a list). Its length is the number of retries. RETRY_SCHEDULE, RETRY_INTERVAL_SECONDS and MAX_RETRY_LIMIT don't apply to mcp. Delays shorter than LOG_BATCH_THRESHOLD_SECONDS are raised to it." required:"N" default:"30,120,600"`
 	VerificationTTLSeconds int   `yaml:"verification_ttl_seconds" env:"EXPERIMENTAL_MCP_VERIFICATION_TTL_SECONDS" desc:"How long, in seconds, a passed callback verification challenge is cached per tenant, principal and callback URL." required:"N" default:"86400"`
 }
