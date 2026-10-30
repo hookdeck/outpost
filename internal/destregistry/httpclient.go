@@ -37,8 +37,9 @@ type HTTPClientConfig struct {
 	OnConnection func(reused bool)
 
 	// Guard, if set, limits connections to addresses it allows and ignores
-	// HTTP_PROXY/HTTPS_PROXY. Through a forward proxy only the target URL is
-	// checked, so the proxy must refuse private addresses itself.
+	// HTTP_PROXY/HTTPS_PROXY. With a forward proxy, connections go to the
+	// proxy and are not checked: the proxy resolves the target and must
+	// refuse private addresses itself.
 	Guard *netguard.Guard
 }
 
@@ -90,10 +91,6 @@ func NewHTTPClient(config HTTPClientConfig) (*http.Client, error) {
 		if config.WrapTransport != nil {
 			rt = config.WrapTransport(transport, last)
 		}
-	}
-
-	if config.Guard != nil && len(config.Proxy) > 0 {
-		rt = config.Guard.WrapTransport(rt)
 	}
 
 	if config.UserAgent != nil {
