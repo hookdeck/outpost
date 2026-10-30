@@ -134,6 +134,9 @@ func (c *Config) validateLogStorage() error {
 		if c.ClickHouse.ReadTimeoutSeconds < 1 {
 			return fmt.Errorf("config validation error: clickhouse.read_timeout_seconds must be at least 1, got %d", c.ClickHouse.ReadTimeoutSeconds)
 		}
+		if c.ClickHouse.IdleCloseSeconds < 1 {
+			return fmt.Errorf("config validation error: clickhouse.idle_close_seconds must be at least 1, got %d", c.ClickHouse.IdleCloseSeconds)
+		}
 	}
 	return nil
 }

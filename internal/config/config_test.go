@@ -81,6 +81,7 @@ func TestDefaultValues(t *testing.T) {
 	assert.Equal(t, 0, cfg.ClickHouse.MaxOpenConns)
 	assert.Equal(t, 10, cfg.ClickHouse.DialTimeoutSeconds)
 	assert.Equal(t, 30, cfg.ClickHouse.ReadTimeoutSeconds)
+	assert.Equal(t, 300, cfg.ClickHouse.IdleCloseSeconds)
 	assert.Equal(t, 20, cfg.MaxDestinationsPerTenant)
 	assert.Equal(t, 5, cfg.DeliveryTimeoutSeconds)
 	assert.Equal(t, "config/outpost/destinations", cfg.Destinations.MetadataPath)

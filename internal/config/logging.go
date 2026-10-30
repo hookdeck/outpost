@@ -95,6 +95,7 @@ func (c *Config) LogConfigurationSummary() []zap.Field {
 		zap.Int("clickhouse_max_open_conns", c.ClickHouse.MaxOpenConns),
 		zap.Int("clickhouse_dial_timeout_seconds", c.ClickHouse.DialTimeoutSeconds),
 		zap.Int("clickhouse_read_timeout_seconds", c.ClickHouse.ReadTimeoutSeconds),
+		zap.Int("clickhouse_idle_close_seconds", c.ClickHouse.IdleCloseSeconds),
 
 		// Message Queue
 		zap.String("mq_type", c.MQs.GetInfraType()),
