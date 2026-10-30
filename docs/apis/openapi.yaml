@@ -1611,7 +1611,7 @@ components:
       type: object
       x-docs-type: "MCP Events"
       description: >-
-        **Experimental.** An MCP Events webhook subscription. Requires `MCP_ENABLED`; created and
+        **Experimental.** An MCP Events webhook subscription. Requires `EXPERIMENTAL_MCP_ENABLED`; created and
         updated with the Admin API key only.
       # Properties duplicated from DestinationBase
       required:
@@ -2437,7 +2437,7 @@ components:
       type: object
       x-docs-type: "MCP Events"
       description: >-
-        **Experimental.** Creates an MCP Events webhook subscription. Requires `MCP_ENABLED` and
+        **Experimental.** Creates an MCP Events webhook subscription. Requires `EXPERIMENTAL_MCP_ENABLED` and
         the Admin API key; JWT auth returns 403. The callback URL receives a verification
         challenge before the destination is stored. Takes exactly one topic (`*` is not
         accepted). Each subscription counts toward `MAX_DESTINATIONS_PER_TENANT`.

@@ -23,7 +23,7 @@ type mcpNetwork struct {
 }
 
 func (b *ServiceBuilder) mcpNetwork() (*mcpNetwork, error) {
-	if !b.cfg.MCP.Enabled {
+	if !b.cfg.Experimental.MCP.Enabled {
 		return nil, nil
 	}
 	if b.mcpNet != nil {
@@ -66,7 +66,7 @@ func (b *ServiceBuilder) mcpProvider(redisClient redis.Client) (*destmcp.Config,
 		Client:            n.client,
 		Guard:             n.guard,
 		UserAgent:         b.cfg.Destinations.ToConfig(b.cfg).UserAgent,
-		AllowInsecureHTTP: b.cfg.MCP.AllowInsecureCallbacks,
+		AllowInsecureHTTP: b.cfg.Experimental.MCP.AllowInsecureCallbacks,
 		RetryBackoff:      retryBackoff,
 		RetryMaxRetries:   retryMaxRetries,
 	}
@@ -76,7 +76,7 @@ func (b *ServiceBuilder) mcpProvider(redisClient redis.Client) (*destmcp.Config,
 	verifier, err := mcpevents.NewVerifier(mcpevents.VerifierConfig{
 		Client: n.client,
 		Store:  mcpevents.NewRedisVerificationStore(redisClient, b.cfg.DeploymentID),
-		TTL:    time.Duration(b.cfg.MCP.VerificationTTLSeconds) * time.Second,
+		TTL:    time.Duration(b.cfg.Experimental.MCP.VerificationTTLSeconds) * time.Second,
 		Exempt: allowlistExempt(n.allowlist),
 		Logger: b.logger,
 	})
