@@ -1,10 +1,11 @@
 services:
   clickhouse:
-    image: clickhouse/clickhouse-server:24
+    image: clickhouse/clickhouse-server:26.8
     environment:
       CLICKHOUSE_DB: bench
       CLICKHOUSE_USER: default
       CLICKHOUSE_PASSWORD: ""
+      CLICKHOUSE_SKIP_USER_SETUP: "1"
     ports:
       - "9009:9000"   # native protocol
       - "8124:8123"   # HTTP
