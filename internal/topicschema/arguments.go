@@ -30,6 +30,14 @@ func checkInputSchema(input, payload map[string]any) ([]Argument, []string) {
 		problems = append(problems, "inputSchema additionalProperties must be false or absent; Outpost accepts only the arguments listed in properties")
 	}
 	props, _ := input["properties"].(map[string]any)
+	required, _ := input["required"].([]any)
+	for _, r := range required {
+		if name, ok := r.(string); ok {
+			if _, listed := props[name]; !listed {
+				problems = append(problems, fmt.Sprintf("inputSchema required lists %s, which is not under properties", quoteJSONString(clip(name))))
+			}
+		}
+	}
 	payloadProps, _ := payload["properties"].(map[string]any)
 	var args []Argument
 	for _, name := range sortedKeys(props) {

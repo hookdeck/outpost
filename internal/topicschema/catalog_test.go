@@ -119,6 +119,11 @@ func TestNewCatalogRules(t *testing.T) {
 			want: []string{`event "a": inputSchema additionalProperties must be false or absent; Outpost accepts only the arguments listed in properties`},
 		},
 		{
+			name: "required without property",
+			defs: Definitions{def("a", `{"type":"object","properties":{"status":{"type":"string"}},"required":["stauts","status"]}`, orderPayload)},
+			want: []string{`event "a": inputSchema required lists "stauts", which is not under properties`},
+		},
+		{
 			name: "dollar name",
 			defs: Definitions{def("a", in(`"$gt":{"type":"number"}`), `{"type":"object","properties":{"$gt":{"type":"number"}}}`)},
 			want: []string{`event "a": argument "$gt": names can't start with "$"`},
@@ -246,7 +251,7 @@ func TestEventGolden(t *testing.T) {
 }
 
 func TestSpecExampleList(t *testing.T) {
-	// Arguments of the proposal's examples that Outpost can't map fail with
+	// Arguments of the draft's examples that Outpost can't map fail with
 	// the expected texts; the rest of the shape is accepted.
 	doc := `{"resultType":"complete","events":[{
 		"name":"email.received","description":"New mail",

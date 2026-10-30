@@ -230,15 +230,10 @@ func (b *catalogBuilder) compile(def Definition, rawInput, rawPayload json.RawMe
 
 // checkSchemaObjects checks what the metaschema doesn't: $schema is the
 // 2020-12 dialect, references are local JSON pointers to schemas, $id and
-// and anchors are only declared at the root.
+// anchors are only declared at the root.
 //
-// Inference resolves references with resolveLocalRef, which follows JSON
-// pointers from the root. The validator also resolves anchors, and resolves
-// the references below a nested $id against it, so a schema using either
-// would be validated against one thing and inferred against another. It also
-// compiles whatever a reference points to as a schema, so a reference into an
-// extension or a default would bring in an $id, anchors and references never
-// checked here.
+// References are resolved as JSON pointers from the root only, so the
+// validator and the argument checks read the same schema.
 func (b *catalogBuilder) checkSchemaObjects(name, rootPath string, root map[string]any) bool {
 	before := len(b.problems)
 	schemas := map[string]bool{}
