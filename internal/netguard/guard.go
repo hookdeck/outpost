@@ -3,8 +3,8 @@
 // and again on every new connection (Guard.DialContext): every address a
 // connection is about to be made to must be globally reachable per the IANA
 // special-purpose registries or allowlisted, so a DNS answer that changes in
-// between (rebinding) can't send it to a blocked address. Non-ASCII host names must be given
-// in punycode.
+// between (rebinding) can't send it to a blocked address. Non-ASCII host
+// names must be given in punycode.
 package netguard
 
 import (
