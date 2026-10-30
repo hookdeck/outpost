@@ -4,10 +4,13 @@ Experimental. A toolkit for developing and testing MCP Events (draft SEP-3415) s
 
 ## Try it
 
+Needs Go on the host. Stop any other Outpost dev stack first: `make up/mcp` uses the same ports.
+
 ```sh
-cp .env.dev .env        # if you don't have a .env yet
+cp .env.dev .env                        # if you don't have them yet
+cp .outpost.yaml.dev .outpost.yaml
 make up/mcp
-make mcp/dev ARGS=tour
+make mcp/dev ARGS=tour                  # the first run compiles mcp-dev
 ```
 
 `tour` runs in one terminal: it lists the events, subscribes with an argument, publishes a matching and a non-matching event (only one arrives, with a valid signature), refreshes, unsubscribes and publishes once more (nothing arrives). Each step prints the JSON-RPC call next to what the receiver got.
@@ -37,7 +40,7 @@ export MCP_PRINCIPAL=alice
 make mcp/dev ARGS="client discover"
 make mcp/dev ARGS="client list"
 make mcp/dev ARGS="client subscribe --event incident.created --arguments '{\"severity\":\"P1\"}' \
-  --url http://host.docker.internal:4501/hook --secret <secret from terminal 2>"
+  --url http://host.docker.internal:4501/hook --secret <whsec_... secret printed in terminal 2>"
 curl -s localhost:3333/api/v1/publish -H 'Authorization: Bearer apikey' -H 'Content-Type: application/json' \
   -d '{"tenant_id":"demo","topic":"incident.created","data":{"id":"inc_1","service":"checkout","severity":"P1"}}'
 ```
