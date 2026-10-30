@@ -63,7 +63,10 @@ func serve(ctx context.Context, cmd *cli.Command) error {
 		Header:        c.Header,
 		Logf:          stderrf,
 	})
-	srv := &http.Server{Addr: cmd.String("listen"), Handler: handler, ReadHeaderTimeout: 10 * time.Second}
+	mux := http.NewServeMux()
+	mux.Handle("GET /samples/events.json", samplesHandler())
+	mux.Handle("/", handler)
+	srv := &http.Server{Addr: cmd.String("listen"), Handler: mux, ReadHeaderTimeout: 10 * time.Second}
 	ctx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 	go func() {
@@ -71,6 +74,7 @@ func serve(ctx context.Context, cmd *cli.Command) error {
 		_ = srv.Close()
 	}()
 	stderrf("serving MCP Events on http://%s/ (Outpost %s)", srv.Addr, c.URL)
+	stderrf("sample events on http://%s/samples/events.json", srv.Addr)
 	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}

@@ -64,9 +64,25 @@ A server that accepts the receiver's http callback (as `make up/mcp` does for th
 
 `check --help` lists what isn't covered (poll and stream delivery, verification without a challenge, cursor replay, SSRF rules and more).
 
+## Publish, diff and samples
+
+```sh
+make mcp/dev ARGS="publish --tenant demo --count 3 --sink"
+```
+
+publishes `--count` events per event name, with data built from each `payloadSchema`. Events come from the embedded sample, `--file` (an `events/list` result) or `--server`; `--event` limits the names, `--dry-run` prints the data. Outpost stores an event only when a destination matches it, so `--sink` creates a temporary webhook destination that accepts everything (`--sink-listen`, `--sink-url`) and deletes it at the end. Without a match `publish` warns.
+
+```sh
+make mcp/dev ARGS="diff exported.json --server http://127.0.0.1:4500/"
+```
+
+compares an exported `events/list` file with a server's list (or `diff FILE FILE2`), by event name. Exit status 0 means equal, 1 differences, printed with their path. `delivery` is ignored; `--ignore FIELD` replaces that list (repeat it, and include `delivery` to keep ignoring it).
+
+`samples --out DIR` writes the sample `events/list` result (`events.json`); while `serve` runs it is also at `http://127.0.0.1:4500/samples/events.json`.
+
 ## Connecting to Outpost
 
-`serve`, `check` and `tour` reach Outpost with `--outpost-url` (`OUTPOST_URL`, default `http://localhost:3333/api/v1`), `--api-key` (`OUTPOST_API_KEY`, default `apikey`) and `--outpost-header 'Name: value'` (`OUTPOST_HEADERS`, repeatable; sent on every request, for a proxy in front of Outpost).
+`serve`, `check`, `tour` and `publish` reach Outpost with `--outpost-url` (`OUTPOST_URL`, default `http://localhost:3333/api/v1`), `--api-key` (`OUTPOST_API_KEY`, default `apikey`) and `--outpost-header 'Name: value'` (`OUTPOST_HEADERS`, repeatable; sent on every request, for a proxy in front of Outpost).
 
 ## Troubleshooting
 
