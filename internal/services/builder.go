@@ -238,6 +238,7 @@ func (b *ServiceBuilder) BuildAPIWorkers(baseRouter *gin.Engine) error {
 			GinMode:              b.cfg.GinMode,
 
 			MaxDestinationsPerTenant: b.cfg.MaxDestinationsPerTenant,
+			MCPSubscriptionTTL:       b.cfg.MCPSubscriptionTTL(),
 		},
 		apirouter.RouterDeps{
 			TenantStore:         svc.tenantStore,
