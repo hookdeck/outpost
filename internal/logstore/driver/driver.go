@@ -54,6 +54,18 @@ type ListEventResponse struct {
 	Prev string
 }
 
+// Field names a payload field that a read may include.
+type Field string
+
+const (
+	FieldEventData     Field = "event.data"
+	FieldEventMetadata Field = "event.metadata"
+	FieldResponseData  Field = "response_data"
+)
+
+// AllFields reads the full record.
+var AllFields = []Field{FieldEventData, FieldEventMetadata, FieldResponseData}
+
 type ListAttemptRequest struct {
 	Next             string
 	Prev             string
@@ -66,6 +78,7 @@ type ListAttemptRequest struct {
 	Status           string     // optional: "success", "failed"
 	Topics           []string   // optional
 	SortOrder        string     // optional: "asc", "desc" (default: "desc")
+	Include          []Field    // optional - payload fields to read; nil reads none of them, so callers that need event data/metadata or response data must ask
 }
 
 type ListAttemptResponse struct {

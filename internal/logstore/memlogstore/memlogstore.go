@@ -328,6 +328,15 @@ func (s *memLogStore) ListAttempt(ctx context.Context, req driver.ListAttemptReq
 	data := make([]*driver.AttemptRecord, len(res.Items))
 	for i, item := range res.Items {
 		data[i] = item.record
+		if !slices.Contains(req.Include, driver.FieldEventData) {
+			data[i].Event.Data = nil
+		}
+		if !slices.Contains(req.Include, driver.FieldEventMetadata) {
+			data[i].Event.Metadata = nil
+		}
+		if !slices.Contains(req.Include, driver.FieldResponseData) {
+			data[i].Attempt.ResponseData = nil
+		}
 	}
 
 	return driver.ListAttemptResponse{

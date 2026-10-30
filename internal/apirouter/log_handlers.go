@@ -67,6 +67,20 @@ func parseIncludeOptions(c *gin.Context) IncludeOptions {
 	return opts
 }
 
+func (o IncludeOptions) payloadFields() []logstore.Field {
+	var fields []logstore.Field
+	if o.EventData {
+		fields = append(fields, logstore.FieldEventData)
+	}
+	if o.Event {
+		fields = append(fields, logstore.FieldEventMetadata)
+	}
+	if o.ResponseData {
+		fields = append(fields, logstore.FieldResponseData)
+	}
+	return fields
+}
+
 // API Response types
 
 // APIAttempt is the API response for an attempt
@@ -248,6 +262,8 @@ func (h *LogHandlers) listAttemptsInternal(c *gin.Context, tenantIDs []string, d
 	// Note: order_by is informational only for now - store always sorts by time
 	_ = orderBy
 
+	includeOpts := parseIncludeOptions(c)
+
 	// Parse time date filters
 	attemptTimeFilter, errResp := ParseDateFilter(c, "time")
 	if errResp != nil {
@@ -288,6 +304,7 @@ func (h *LogHandlers) listAttemptsInternal(c *gin.Context, tenantIDs []string, d
 		Next:      cursors.Next,
 		Prev:      cursors.Prev,
 		SortOrder: dir,
+		Include:   includeOpts.payloadFields(),
 	}
 
 	response, err := h.logStore.ListAttempt(c.Request.Context(), req)
@@ -299,8 +316,6 @@ func (h *LogHandlers) listAttemptsInternal(c *gin.Context, tenantIDs []string, d
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return
 	}
-
-	includeOpts := parseIncludeOptions(c)
 
 	// Batch-fetch destinations when include=destination is requested.
 	destDisplayMap := map[string]*destregistry.DestinationDisplay{}
