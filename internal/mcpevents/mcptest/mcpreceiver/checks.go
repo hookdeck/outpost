@@ -1,6 +1,7 @@
 package mcpreceiver
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"regexp"
@@ -25,15 +26,31 @@ const (
 	CheckWebhookIDPerMsg  = "webhook-id is stable per message and unique across messages"
 	CheckRetryResigns     = "retries carry a fresh timestamp and signature"
 	CheckEnvelopeShape    = "event envelope shape"
-	CheckTypeDiscrim      = "only verification envelopes carry a type"
-	CheckControlSigned    = "verification requests are signed like events"
+	CheckTypeDiscrim      = "only control envelopes carry a type"
+	CheckControlSigned    = "control envelopes are signed like events"
 	CheckVerifyFirst      = "verification precedes the first event"
 )
+
+// CheckOrder lists the checks in report order.
+var CheckOrder = []string{
+	CheckPostJSON, CheckHeaders, CheckSubscriptionID, CheckSignatureFormula,
+	CheckWebhookIDFormat, CheckWebhookIDPerMsg, CheckRetryResigns,
+	CheckEnvelopeShape, CheckTypeDiscrim, CheckControlSigned, CheckVerifyFirst,
+}
 
 var (
 	headerSafe     = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
 	eventMessageID = regexp.MustCompile(`^msg_[A-Za-z0-9_-]{22}$`)
 )
+
+func isJSONString(raw json.RawMessage) bool {
+	return len(raw) > 0 && raw[0] == '"' && json.Valid(raw)
+}
+
+func isJSONObject(raw json.RawMessage) bool {
+	raw = bytes.TrimSpace(raw)
+	return len(raw) > 0 && raw[0] == '{' && json.Valid(raw)
+}
 
 type checkResult struct {
 	fail string
@@ -57,11 +74,7 @@ func (r *Receiver) Violations() []Violation {
 	r.mu.Unlock()
 
 	g := map[string]*checkResult{}
-	for _, id := range []string{
-		CheckPostJSON, CheckHeaders, CheckSubscriptionID, CheckSignatureFormula,
-		CheckWebhookIDFormat, CheckWebhookIDPerMsg, CheckRetryResigns,
-		CheckEnvelopeShape, CheckTypeDiscrim, CheckControlSigned, CheckVerifyFirst,
-	} {
+	for _, id := range CheckOrder {
 		g[id] = &checkResult{}
 	}
 
@@ -76,7 +89,8 @@ func (r *Receiver) Violations() []Violation {
 			continue
 		}
 		env := q.Envelope()
-		challenge := env.Type == "verification"
+		kind := q.Kind()
+		control := kind != "event" && kind != "invalid"
 		where := q.Path
 
 		if !(q.Method == "POST" && strings.HasPrefix(strings.ToLower(q.Header.Get("Content-Type")), "application/json")) {
@@ -84,8 +98,9 @@ func (r *Receiver) Violations() []Violation {
 		}
 
 		id, ts := q.Header.Get("webhook-id"), q.Header.Get("webhook-timestamp")
-		if id == "" || ts == "" || len(SignatureValues(q.Header)) == 0 {
-			g[CheckHeaders].bad("%s: webhook-id=%q webhook-timestamp=%q signatures=%d", where, id, ts, len(SignatureValues(q.Header)))
+		sub := q.Header.Get("X-MCP-Subscription-Id")
+		if id == "" || ts == "" || len(SignatureValues(q.Header)) == 0 || sub == "" {
+			g[CheckHeaders].bad("%s: webhook-id=%q webhook-timestamp=%q signatures=%d X-MCP-Subscription-Id=%q", where, id, ts, len(SignatureValues(q.Header)), sub)
 		}
 
 		if cfg.SubscriptionID != "" {
@@ -96,7 +111,7 @@ func (r *Receiver) Violations() []Violation {
 
 		if len(cfg.Secrets) > 0 {
 			target := g[CheckSignatureFormula]
-			if challenge {
+			if control {
 				target = g[CheckControlSigned]
 			}
 			matched := false
@@ -111,44 +126,62 @@ func (r *Receiver) Violations() []Violation {
 			}
 		}
 
-		if challenge {
-			if !strings.HasPrefix(id, "msg_verification_") || !headerSafe.MatchString(id) {
-				g[CheckWebhookIDFormat].bad("%s: verification webhook-id %q", where, id)
+		if control {
+			if prefix := "msg_" + env.Type + "_"; !strings.HasPrefix(id, prefix) || !headerSafe.MatchString(id) {
+				g[CheckWebhookIDFormat].bad("%s: %s webhook-id %q, want %s<random>", where, kind, id, prefix)
 			}
-			if env.Challenge == "" {
-				g[CheckTypeDiscrim].bad("%s: verification envelope without challenge", where)
+			switch kind {
+			case "verification":
+				if env.Challenge == "" {
+					g[CheckTypeDiscrim].bad("%s: verification envelope without challenge", where)
+				}
+				firstSeen[q.Path] = true
+			case "gap":
+				if !isJSONString(env.Cursor) {
+					g[CheckEnvelopeShape].bad("%s: gap cursor %s, want a string", where, env.Cursor)
+				}
+			case "terminated":
+				var e struct {
+					Code    *int    `json:"code"`
+					Message *string `json:"message"`
+				}
+				if json.Unmarshal(env.Error, &e) != nil || e.Code == nil || e.Message == nil {
+					g[CheckEnvelopeShape].bad("%s: terminated error %s, want {code, message}", where, env.Error)
+				}
 			}
-			firstSeen[q.Path] = true
+			if env.EventID != "" || env.Data != nil {
+				g[CheckTypeDiscrim].bad("%s: %s envelope carries eventId or data", where, kind)
+			}
 			continue
 		}
 
 		if env.EventID == "" {
-			g[CheckEnvelopeShape].bad("%s: body is not an event or verification envelope: %.80s", where, q.Body)
+			g[CheckEnvelopeShape].bad("%s: body is not an event or control envelope: %.80s", where, q.Body)
 			continue
 		}
 		if !firstSeen[q.Path] {
 			firstSeen[q.Path] = true
-			g[CheckVerifyFirst].bad("%s: first request is an event, not a challenge", where)
+			if r.opts.Profile == ProfileOutpost {
+				g[CheckVerifyFirst].bad("%s: first request is an event, not a challenge", where)
+			}
 		}
 
+		idPattern := headerSafe
+		if r.opts.Profile == ProfileOutpost {
+			idPattern = eventMessageID
+		}
 		switch {
-		case !eventMessageID.MatchString(id):
-			g[CheckWebhookIDFormat].bad("%s: webhook-id %q is not msg_ + 22 url-safe chars", where, id)
+		case !idPattern.MatchString(id):
+			g[CheckWebhookIDFormat].bad("%s: webhook-id %q does not match %s", where, id, idPattern)
 		case id == env.EventID:
 			g[CheckWebhookIDFormat].bad("%s: webhook-id equals eventId %q", where, id)
 		}
 
-		if _, err := time.Parse(time.RFC3339, env.Timestamp); err != nil || env.Name == "" || env.Data == nil {
-			g[CheckEnvelopeShape].bad("%s: eventId=%q name=%q timestamp=%q data=%v", where, env.EventID, env.Name, env.Timestamp, env.Data != nil)
-		} else if c := strings.TrimSpace(string(env.Cursor)); c != "" && c != "null" {
-			g[CheckEnvelopeShape].bad("%s: cursor %s, want null or absent", where, c)
+		if _, err := time.Parse(time.RFC3339, env.Timestamp); err != nil || env.Name == "" || !isJSONObject(env.Data) {
+			g[CheckEnvelopeShape].bad("%s: eventId=%q name=%q timestamp=%q data=%.40s", where, env.EventID, env.Name, env.Timestamp, env.Data)
+		} else if c := strings.TrimSpace(string(env.Cursor)); c != "" && c != "null" && (r.opts.Profile == ProfileOutpost || !isJSONString(env.Cursor)) {
+			g[CheckEnvelopeShape].bad("%s: cursor %s, want %s", where, c, map[bool]string{true: "null or absent", false: "a string, null or absent"}[r.opts.Profile == ProfileOutpost])
 		}
-		var raw map[string]json.RawMessage
-		_ = json.Unmarshal(q.Body, &raw)
-		if _, has := raw["type"]; has {
-			g[CheckTypeDiscrim].bad("%s: event envelope has a type field", where)
-		}
-
 		k := msgKey{q.Path, env.EventID, q.Header.Get("X-MCP-Subscription-Id")}
 		byMsg[k] = append(byMsg[k], q)
 		if owner, seen := idOwner[id]; seen && owner != k {
