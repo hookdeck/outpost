@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -276,4 +277,27 @@ func TestDeliveryStatusDecodesAllFields(t *testing.T) {
 	assert.True(t, *ds.Throttled)
 	assert.EqualValues(t, 3000, *ds.RetryAfterMs)
 	assert.Contains(t, LastErrorCategories, *ds.LastError)
+}
+
+func TestStatelessKeepsRawParamsAndCallerMeta(t *testing.T) {
+	var raw []byte
+	var name string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		raw, _ = io.ReadAll(r.Body)
+		name = r.Header.Get(HeaderName)
+		reply(w, 1, map[string]any{})
+	}))
+	defer srv.Close()
+	c := New(srv.URL, "alice", Stateless())
+	params := json.RawMessage(`{"name":"x","big":12345678901234567890,"dup":1,"dup":2,"_meta":{"keep":true,"` + MetaProtocolVersion + `":"custom"}}`)
+	_, err := c.Call(context.Background(), "events/list", params)
+	require.NoError(t, err)
+
+	s := string(raw)
+	assert.Contains(t, s, `"big":12345678901234567890`)
+	assert.Contains(t, s, `"dup":1,"dup":2`)
+	assert.Contains(t, s, `"keep":true`)
+	assert.Contains(t, s, `"`+MetaProtocolVersion+`":"custom"`)
+	assert.Contains(t, s, MetaClientInfo)
+	assert.Empty(t, name, "raw params get no Mcp-Name")
 }
