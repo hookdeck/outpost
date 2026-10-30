@@ -12,6 +12,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/hookdeck/outpost/internal/apirouter"
+	"github.com/hookdeck/outpost/internal/backoff"
 	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/hookdeck/outpost/internal/destregistry/metadata"
 	"github.com/hookdeck/outpost/internal/logging"
@@ -68,6 +69,20 @@ type apiTestConfig struct {
 	topics               []string
 	topicsAllowWildcards bool
 	deploymentID         string
+	mcpVerifier          apirouter.MCPVerifier
+	maxDestinations      int
+}
+
+func withMaxDestinations(n int) apiTestOption {
+	return func(cfg *apiTestConfig) {
+		cfg.maxDestinations = n
+	}
+}
+
+func withMCPVerifier(v apirouter.MCPVerifier) apiTestOption {
+	return func(cfg *apiTestConfig) {
+		cfg.mcpVerifier = v
+	}
 }
 
 func withTenantStore(ts tenantstore.TenantStore) apiTestOption {
@@ -169,6 +184,8 @@ func newAPITest(t *testing.T, opts ...apiTestOption) *apiTest {
 			TopicsAllowWildcards: cfg.topicsAllowWildcards,
 			Registry:             registry,
 			PortalConfig:         portal.PortalConfig{},
+
+			MaxDestinationsPerTenant: cfg.maxDestinations,
 		},
 		apirouter.RouterDeps{
 			TenantStore:         ts,
@@ -178,6 +195,7 @@ func newAPITest(t *testing.T, opts ...apiTestOption) *apiTest {
 			EventHandler:        eh,
 			Telemetry:           &telemetry.NoopTelemetry{},
 			SubscriptionEmitter: subEmitter,
+			MCPVerifier:         cfg.mcpVerifier,
 		},
 	)
 
@@ -314,6 +332,10 @@ func (r *stubRegistry) RetrieveProviderMetadata(string) (*metadata.ProviderMetad
 }
 func (r *stubRegistry) ListProviderMetadata() []*metadata.ProviderMetadata {
 	return []*metadata.ProviderMetadata{}
+}
+
+func (r *stubRegistry) RetryPolicy(string) (backoff.Backoff, int, bool) {
+	return nil, 0, false
 }
 
 // Fails under -race if NewRouter writes shared state without synchronization.

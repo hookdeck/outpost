@@ -382,6 +382,27 @@ func TestAPI_Destinations(t *testing.T) {
 			assert.Equal(t, "d1", dest.ID)
 		})
 
+		t.Run("expires_at is not in the response", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+			require.NoError(t, h.tenantStore.CreateDestination(t.Context(), df.Any(df.WithID("d1"), df.WithTenantID("t1"), df.WithExpiresAt(time.Now().Add(time.Hour)))))
+
+			get := func(path string) []byte {
+				resp := h.do(h.withAPIKey(httptest.NewRequest(http.MethodGet, path, nil)))
+				require.Equal(t, http.StatusOK, resp.Code)
+				return resp.Body.Bytes()
+			}
+
+			var one map[string]any
+			require.NoError(t, json.Unmarshal(get("/api/v1/tenants/t1/destinations/d1"), &one))
+			assert.NotContains(t, one, "expires_at")
+
+			var list []map[string]any
+			require.NoError(t, json.Unmarshal(get("/api/v1/tenants/t1/destinations"), &list))
+			require.Len(t, list, 1)
+			assert.NotContains(t, list[0], "expires_at")
+		})
+
 		t.Run("wildcard patterns are hidden when disabled without changing storage", func(t *testing.T) {
 			store := tenantstore.NewMemTenantStore()
 			h := newAPITest(t, withTenantStore(store))

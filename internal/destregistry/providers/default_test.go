@@ -1,10 +1,12 @@
 package destregistrydefault_test
 
 import (
+	"net/http"
 	"testing"
 
 	"github.com/hookdeck/outpost/internal/destregistry"
 	destregistrydefault "github.com/hookdeck/outpost/internal/destregistry/providers"
+	"github.com/hookdeck/outpost/internal/destregistry/providers/destmcp"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destwebhook"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/util/testutil"
@@ -96,4 +98,71 @@ func TestRegisterDefault_WebhookCompatSignature(t *testing.T) {
 		})
 		assert.ErrorContains(t, err, "compat signature")
 	})
+}
+
+func TestRegisterDefault_BlockPrivateAddresses_BadAllowlist(t *testing.T) {
+	registry := destregistry.NewRegistry(&destregistry.Config{}, testutil.CreateTestLogger(t))
+	err := destregistrydefault.RegisterDefault(registry, destregistrydefault.RegisterDefaultDestinationOptions{
+		Webhook: &destregistrydefault.DestWebhookConfig{
+			HeaderPrefix:             destwebhook.DefaultHeaderPrefix,
+			SignatureContentTemplate: destwebhook.DefaultSignatureContentTmpl,
+			SignatureHeaderTemplate:  destwebhook.DefaultSignatureHeaderTmpl,
+			SignatureEncoding:        destwebhook.DefaultEncoding,
+			SignatureAlgorithm:       destwebhook.DefaultAlgorithm,
+			SigningSecretTemplate:    destwebhook.DefaultSigningSecretTmpl,
+		},
+		BlockPrivateAddresses:   true,
+		PrivateAddressAllowlist: []string{"internal.example"},
+	})
+	assert.ErrorContains(t, err, "private address allowlist")
+}
+
+func TestWebhookEnvProxyIgnored(t *testing.T) {
+	on := func(proxyURL string) destregistrydefault.RegisterDefaultDestinationOptions {
+		return destregistrydefault.RegisterDefaultDestinationOptions{
+			BlockPrivateAddresses: true,
+			Webhook:               &destregistrydefault.DestWebhookConfig{ProxyURL: proxyURL},
+		}
+	}
+	for _, k := range []string{"HTTP_PROXY", "http_proxy", "HTTPS_PROXY", "https_proxy"} {
+		t.Setenv(k, "")
+	}
+	assert.False(t, destregistrydefault.WebhookEnvProxyIgnored(on("")))
+
+	t.Setenv("https_proxy", "http://proxy:3128")
+	assert.True(t, destregistrydefault.WebhookEnvProxyIgnored(on("")))
+	assert.False(t, destregistrydefault.WebhookEnvProxyIgnored(on("http://proxy:3128")))
+
+	off := on("")
+	off.BlockPrivateAddresses = false
+	assert.False(t, destregistrydefault.WebhookEnvProxyIgnored(off))
+}
+
+func TestRegisterDefault_MCPIsOptIn(t *testing.T) {
+	types := func(r destregistry.Registry) []string {
+		var out []string
+		for _, m := range r.ListProviderMetadata() {
+			out = append(out, m.Type)
+		}
+		return out
+	}
+
+	webhook := &destregistrydefault.DestWebhookConfig{
+		HeaderPrefix:             destwebhook.DefaultHeaderPrefix,
+		SignatureContentTemplate: destwebhook.DefaultSignatureContentTmpl,
+		SignatureHeaderTemplate:  destwebhook.DefaultSignatureHeaderTmpl,
+		SignatureEncoding:        destwebhook.DefaultEncoding,
+		SignatureAlgorithm:       destwebhook.DefaultAlgorithm,
+		SigningSecretTemplate:    destwebhook.DefaultSigningSecretTmpl,
+	}
+	off := destregistry.NewRegistry(&destregistry.Config{}, testutil.CreateTestLogger(t))
+	require.NoError(t, destregistrydefault.RegisterDefault(off, destregistrydefault.RegisterDefaultDestinationOptions{Webhook: webhook, AWSEventBridge: &destregistrydefault.DestAWSEventBridgeConfig{Source: "outpost"}}))
+	assert.NotContains(t, types(off), "mcp")
+	_, err := off.ResolveProvider(&models.Destination{Type: "mcp"})
+	assert.Error(t, err)
+
+	on := destregistry.NewRegistry(&destregistry.Config{}, testutil.CreateTestLogger(t))
+	require.NoError(t, destregistrydefault.RegisterDefault(on, destregistrydefault.RegisterDefaultDestinationOptions{Webhook: webhook, AWSEventBridge: &destregistrydefault.DestAWSEventBridgeConfig{Source: "outpost"}, MCP: &destmcp.Config{Client: &http.Client{}}}))
+	assert.Contains(t, types(on), "mcp")
+	assert.Equal(t, types(off), types(on)[:len(types(off))], "mcp is listed last")
 }

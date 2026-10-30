@@ -122,27 +122,32 @@ type Config struct {
 	// ID Generation
 	IDGen IDGenConfig `yaml:"idgen"`
 
+	// Experimental features
+	Experimental ExperimentalConfig `yaml:"experimental"`
+
 	// Retention
 	ClickHouseLogRetentionTTLDays int `yaml:"clickhouse_log_retention_ttl_days" env:"CLICKHOUSE_LOG_RETENTION_TTL_DAYS" desc:"Days to retain logs in ClickHouse. 0 = unlimited." required:"N"`
 }
 
 var (
-	ErrMismatchedServiceType         = errors.New("config validation error: service type mismatch")
-	ErrInvalidServiceType            = errors.New("config validation error: invalid service type")
-	ErrMissingRedis                  = errors.New("config validation error: redis configuration is required")
-	ErrMissingLogStorage             = errors.New("config validation error: log storage must be provided")
-	ErrMissingMQs                    = errors.New("config validation error: message queue configuration is required")
-	ErrMissingAESSecret              = errors.New("config validation error: AES encryption secret is required")
-	ErrInvalidPortalProxyURL         = errors.New("config validation error: invalid portal proxy url")
-	ErrInvalidWebhookProxyURL        = errors.New("config validation error: invalid webhook proxy url")
-	ErrInvalidAWSEventBridgeSource   = errors.New("config validation error: invalid aws eventbridge source")
-	ErrInvalidDestinationsProxyURL   = errors.New("config validation error: invalid destinations proxy url")
-	ErrInvalidPublishProxyURL        = errors.New("config validation error: invalid publish proxy url")
-	ErrInvalidDeploymentID           = errors.New("config validation error: deployment_id must contain only alphanumeric characters, hyphens, and underscores (max 64 characters)")
-	ErrInvalidRedisPoolSize          = errors.New("config validation error: redis pool_size must be >= 0")
-	ErrInvalidPublishMaxRedeliveries = errors.New("config validation error: publish_max_redeliveries must be >= -1")
-	ErrInvalidSupervisorLimit        = errors.New("config validation error: invalid supervisor limit")
-	ErrInvalidSupervisorWorker       = errors.New("config validation error: invalid supervisor restart worker")
+	ErrMismatchedServiceType          = errors.New("config validation error: service type mismatch")
+	ErrInvalidServiceType             = errors.New("config validation error: invalid service type")
+	ErrMissingRedis                   = errors.New("config validation error: redis configuration is required")
+	ErrMissingLogStorage              = errors.New("config validation error: log storage must be provided")
+	ErrMissingMQs                     = errors.New("config validation error: message queue configuration is required")
+	ErrMissingAESSecret               = errors.New("config validation error: AES encryption secret is required")
+	ErrInvalidPortalProxyURL          = errors.New("config validation error: invalid portal proxy url")
+	ErrInvalidWebhookProxyURL         = errors.New("config validation error: invalid webhook proxy url")
+	ErrInvalidAWSEventBridgeSource    = errors.New("config validation error: invalid aws eventbridge source")
+	ErrInvalidDestinationsProxyURL    = errors.New("config validation error: invalid destinations proxy url")
+	ErrInvalidPrivateAddressAllowlist = errors.New("config validation error: invalid private address allowlist")
+	ErrInvalidPublishProxyURL         = errors.New("config validation error: invalid publish proxy url")
+	ErrInvalidDeploymentID            = errors.New("config validation error: deployment_id must contain only alphanumeric characters, hyphens, and underscores (max 64 characters)")
+	ErrInvalidRedisPoolSize           = errors.New("config validation error: redis pool_size must be >= 0")
+	ErrInvalidPublishMaxRedeliveries  = errors.New("config validation error: publish_max_redeliveries must be >= -1")
+	ErrInvalidSupervisorLimit         = errors.New("config validation error: invalid supervisor limit")
+	ErrInvalidSupervisorWorker        = errors.New("config validation error: invalid supervisor restart worker")
+	ErrInvalidMCPConfig               = errors.New("config validation error: invalid mcp config")
 )
 
 func (c *Config) InitDefaults() {
@@ -253,6 +258,8 @@ func (c *Config) InitDefaults() {
 	}
 
 	c.ClickHouseLogRetentionTTLDays = 0 // Unlimited by default
+
+	c.Experimental.MCP.initDefaults()
 }
 
 func (c *Config) parseConfigFile(flagPath string, osInterface OSInterface) error {
@@ -652,7 +659,11 @@ func (c *Config) ConfigFilePath() string {
 // looks up is usually stored by then.
 func (c *Config) GetRetryBackoff() (backoff.Backoff, int) {
 	b, limit := c.retryBackoff()
-	return &backoff.MinimumBackoff{Backoff: b, Min: time.Duration(c.LogBatchThresholdSeconds) * time.Second}, limit
+	return c.floorBackoff(b), limit
+}
+
+func (c *Config) floorBackoff(b backoff.Backoff) backoff.Backoff {
+	return &backoff.MinimumBackoff{Backoff: b, Min: time.Duration(c.LogBatchThresholdSeconds) * time.Second}
 }
 
 // RetryTimingWarnings returns a warning when configured retry delays are below
@@ -719,6 +730,9 @@ func (c *Config) GetRetryPollBackoff() time.Duration {
 	shortest := time.Duration(c.RetryIntervalSeconds) * time.Second
 	if len(c.RetrySchedule) > 0 {
 		shortest = time.Duration(slices.Min(c.RetrySchedule)) * time.Second
+	}
+	if c.Experimental.MCP.Enabled && len(c.Experimental.MCP.RetrySchedule) > 0 {
+		shortest = min(shortest, max(time.Duration(slices.Min(c.Experimental.MCP.RetrySchedule))*time.Second, time.Duration(c.LogBatchThresholdSeconds)*time.Second))
 	}
 	if shortest > 0 && shortest < defaultRetryPollBackoff {
 		return shortest

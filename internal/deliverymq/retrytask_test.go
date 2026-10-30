@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hookdeck/outpost/internal/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -55,4 +56,20 @@ func TestNotReadyRequeueDelay(t *testing.T) {
 	assert.Equal(t, time.Minute, notReadyRequeueDelay(2*time.Minute, flush))
 	assert.Equal(t, maxNotReadyDelay, notReadyRequeueDelay(14*time.Minute, flush))
 	assert.Equal(t, time.Second, notReadyRequeueDelay(0, 0))
+}
+
+func TestRetryTask_KeepsMessageID(t *testing.T) {
+	t.Parallel()
+	task := models.DeliveryTask{MessageID: "msg_x", DestinationID: "d", Event: models.Event{ID: "e", TenantID: "t"}}
+	retry := RetryTaskFromDeliveryTask(task, time.Now())
+
+	str, err := retry.ToString()
+	require.NoError(t, err)
+	var out RetryTask
+	require.NoError(t, out.FromString(str))
+	assert.Equal(t, "msg_x", out.ToDeliveryTask(task.Event, 2).MessageID)
+
+	var old RetryTask
+	require.NoError(t, old.FromString(`{"EventID":"e","TenantID":"t","DestinationID":"d"}`))
+	assert.Empty(t, old.MessageID)
 }

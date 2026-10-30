@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -38,6 +40,8 @@ type ErrorResponse struct {
 	Status  int         `json:"status"`
 	Message string      `json:"message"`
 	Data    interface{} `json:"data,omitempty"`
+	// RetryAfter sets the Retry-After header, in whole seconds (at least 1).
+	RetryAfter time.Duration `json:"-"`
 }
 
 func (e ErrorResponse) Error() string {
@@ -112,6 +116,8 @@ func formatValidationError(field, tag, param string) string {
 		return fmt.Sprintf("%s must be at most %s characters", field, param)
 	case "email":
 		return fmt.Sprintf("%s must be a valid email address", field)
+	case "address_not_allowed":
+		return fmt.Sprintf("%s must resolve to a public address", field)
 	case "url":
 		return fmt.Sprintf("%s must be a valid URL", field)
 	case "oneof":
@@ -147,6 +153,10 @@ func isInvalidJSON(err error) bool {
 
 func handleErrorResponse(c *gin.Context, response ErrorResponse) {
 	response.Status = response.Code
+	if response.RetryAfter > 0 {
+		seconds := max(1, int64(math.Ceil(response.RetryAfter.Seconds())))
+		c.Header("Retry-After", strconv.FormatInt(seconds, 10))
+	}
 	c.JSON(response.Code, response)
 }
 

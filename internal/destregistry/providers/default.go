@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"os"
+	"strings"
 
 	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destawseventbridge"
@@ -15,9 +17,11 @@ import (
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destgcppubsub"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/desthookdeck"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destkafka"
+	"github.com/hookdeck/outpost/internal/destregistry/providers/destmcp"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destrabbitmq"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destwebhook"
 	"github.com/hookdeck/outpost/internal/emetrics"
+	"github.com/hookdeck/outpost/internal/netguard"
 	"github.com/hookdeck/outpost/internal/proxychain"
 )
 
@@ -70,11 +74,29 @@ type RegisterDefaultDestinationOptions struct {
 	Webhook        *DestWebhookConfig
 	AWSKinesis     *DestAWSKinesisConfig
 	AWSEventBridge *DestAWSEventBridgeConfig
+	MCP            *destmcp.Config
+
+	BlockPrivateAddresses   bool
+	PrivateAddressAllowlist []string
 
 	// DeliveryMaxConcurrency is the delivery worker pool size. It bounds how
 	// many deliveries can be in flight, and therefore how many connections a
 	// single destination could need. 0 leaves Go's per-host default in place.
 	DeliveryMaxConcurrency int
+}
+
+// WebhookEnvProxyIgnored reports whether HTTP_PROXY/HTTPS_PROXY are set but
+// ignored for webhooks: the address guard is on and no webhook proxy is set.
+func WebhookEnvProxyIgnored(opts RegisterDefaultDestinationOptions) bool {
+	if !opts.BlockPrivateAddresses || opts.Webhook == nil || strings.TrimSpace(opts.Webhook.ProxyURL) != "" {
+		return false
+	}
+	for _, k := range []string{"HTTP_PROXY", "http_proxy", "HTTPS_PROXY", "https_proxy"} {
+		if os.Getenv(k) != "" {
+			return true
+		}
+	}
+	return false
 }
 
 // RegisterDefault registers the default destination providers with the registry.
@@ -140,6 +162,13 @@ func RegisterDefault(registry destregistry.Registry, opts RegisterDefaultDestina
 			destwebhook.WithSecretEncoding(opts.Webhook.SignatureSecretEncoding, opts.Webhook.SignatureSecretPrefix),
 			destwebhook.WithCompatSignature(opts.Webhook.Compat),
 		)
+		if opts.BlockPrivateAddresses {
+			allowlist, err := netguard.ParseAllowlist(opts.PrivateAddressAllowlist)
+			if err != nil {
+				return fmt.Errorf("private address allowlist: %w", err)
+			}
+			webhookOpts = append(webhookOpts, destwebhook.WithAddressGuard(&netguard.Guard{Allowlist: allowlist}))
+		}
 		if opts.Webhook.MetadataName != "" {
 			webhookOpts = append(webhookOpts, destwebhook.WithMetadataName(opts.Webhook.MetadataName))
 		}
@@ -227,6 +256,14 @@ func RegisterDefault(registry destregistry.Registry, opts RegisterDefaultDestina
 		return err
 	}
 	registry.RegisterProvider("cloudflare_queues", cloudflareQueues)
+
+	if opts.MCP != nil {
+		mcp, err := destmcp.New(loader, *opts.MCP)
+		if err != nil {
+			return err
+		}
+		registry.RegisterProvider(destmcp.Type, mcp)
+	}
 
 	return nil
 }

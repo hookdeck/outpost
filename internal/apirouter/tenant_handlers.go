@@ -21,6 +21,7 @@ type TenantHandlers struct {
 	deploymentID         string
 	tenantStore          tenantstore.TenantStore
 	topicsAllowWildcards bool
+	mcpVerifier          MCPVerifier
 }
 
 func NewTenantHandlers(
@@ -30,6 +31,7 @@ func NewTenantHandlers(
 	deploymentID string,
 	tenantStore tenantstore.TenantStore,
 	topicsAllowWildcards bool,
+	mcpVerifier MCPVerifier,
 ) *TenantHandlers {
 	return &TenantHandlers{
 		logger:               logger,
@@ -38,6 +40,7 @@ func NewTenantHandlers(
 		deploymentID:         deploymentID,
 		tenantStore:          tenantStore,
 		topicsAllowWildcards: topicsAllowWildcards,
+		mcpVerifier:          mcpVerifier,
 	}
 }
 
@@ -213,6 +216,12 @@ func (h *TenantHandlers) Delete(c *gin.Context) {
 		}
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return
+	}
+	if h.mcpVerifier != nil {
+		// A recreated tenant must not inherit the deleted one's verified callbacks.
+		if err := h.mcpVerifier.PurgeTenant(c.Request.Context(), tenant.ID); err != nil {
+			h.logger.Ctx(c.Request.Context()).Error("failed to purge callback verifications", zap.String("tenant_id", tenant.ID), zap.Error(err))
+		}
 	}
 	h.logger.Ctx(c.Request.Context()).Audit("tenant deleted",
 		zap.String("tenant_id", tenant.ID),

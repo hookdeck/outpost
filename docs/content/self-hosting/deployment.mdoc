@@ -49,3 +49,23 @@ Outpost requires the following dependencies:
   - Publish queue (optional)
 
 Each of these will need to be provisioned and allocated sufficient resources based on expected usage and load.
+
+## Outbound Network Access
+
+Tenants choose where their destinations point, and Outpost stores the response to each webhook delivery. If your tenants are outside your organization, this exposes you to [server-side request forgery (SSRF)](https://community.owasp.org/attacks/Server_Side_Request_Forgery): a tenant could point a destination at an internal service, such as your cloud provider's metadata endpoint, and read the response in its delivery logs. If only your own team creates destinations, you can skip this section.
+
+When tenants are outside your organization, we recommend both of the following.
+
+### Restrict outbound traffic
+
+Limit where Outpost can connect at the network level: allow the public internet and Outpost's own dependencies (Redis, the database and the message queues), and deny private ranges (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `fc00::/7`) and link-local ranges (`169.254.0.0/16`, which includes the cloud metadata endpoint, and `fe80::/10`). On Kubernetes, use a NetworkPolicy on the Outpost pods; elsewhere, use your cloud provider's firewall or security groups. This covers every destination type.
+
+Network rules don't apply to connections to the same machine or pod (`localhost`), so also enable the setting below.
+
+### Block private addresses in Outpost
+
+Set `DESTINATIONS_BLOCK_PRIVATE_ADDRESSES=true`. Outpost then rejects webhook destination URLs that point to a private address when they are created or updated, and fails deliveries to a private address with the error code `address_not_allowed`, including when the host name's DNS changes after the destination was created.
+
+To let tenants reach specific internal services, list their IPs or ranges in `DESTINATIONS_PRIVATE_ADDRESS_ALLOWLIST`. See [Configuration](/docs/outpost/self-hosting/configuration) for both settings.
+
+`mcp` destinations always apply this check, whatever the setting.

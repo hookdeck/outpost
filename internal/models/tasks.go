@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"strconv"
 
+	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/mqs"
 )
 
@@ -33,8 +34,11 @@ func (e *Event) ToMessage() (*mqs.Message, error) {
 }
 
 // DeliveryTask represents a task to deliver an event to a destination.
-// This is a message type (no ID) used by: publishmq -> deliverymq, retry -> deliverymq
+// This is a message type used by: publishmq -> deliverymq, retry -> deliverymq
 type DeliveryTask struct {
+	// MessageID identifies the event's delivery to the destination across
+	// automatic retries; a manual retry gets a new one.
+	MessageID     string             `json:"message_id,omitempty"`
 	Event         Event              `json:"event"`
 	DestinationID string             `json:"destination_id"`
 	Attempt       int                `json:"attempt"`
@@ -74,6 +78,7 @@ func RetryID(eventID, destinationID string) string {
 // NewDeliveryTask creates a new DeliveryTask for an event and destination.
 func NewDeliveryTask(event Event, destinationID string) DeliveryTask {
 	return DeliveryTask{
+		MessageID:     idgen.Message(),
 		Event:         event,
 		DestinationID: destinationID,
 		Attempt:       1,
@@ -84,6 +89,7 @@ func NewDeliveryTask(event Event, destinationID string) DeliveryTask {
 // attemptNumber is the 1-indexed attempt number derived from the count of prior attempts.
 func NewManualDeliveryTask(event Event, destinationID string, attemptNumber int) DeliveryTask {
 	return DeliveryTask{
+		MessageID:     idgen.Message(),
 		Event:         event,
 		DestinationID: destinationID,
 		Attempt:       attemptNumber,
@@ -100,6 +106,12 @@ type LogEntry struct {
 	Event       *Event       `json:"event"`
 	Attempt     *Attempt     `json:"attempt"`
 	Destination *Destination `json:"destination,omitempty"` // carried for alert evaluation in logmq; ignored by logstore
+
+	// Inputs to alert evaluation; not stored. AttemptMax is the attempt count
+	// the delivery was allowed (retries + 1); 0 = unknown.
+	AttemptMax       int  `json:"attempt_max,omitempty"`
+	NonRetryable     bool `json:"non_retryable,omitempty"`
+	SkipFailureCount bool `json:"skip_failure_count,omitempty"`
 }
 
 var _ mqs.IncomingMessage = &LogEntry{}

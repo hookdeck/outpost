@@ -14,6 +14,8 @@ type DestinationsConfig struct {
 	MetadataPath                string                          `yaml:"metadata_path" env:"DESTINATIONS_METADATA_PATH" desc:"Path to the directory containing custom destination type definitions." required:"N"`
 	IncludeMillisecondTimestamp bool                            `yaml:"include_millisecond_timestamp" env:"DESTINATIONS_INCLUDE_MILLISECOND_TIMESTAMP" desc:"If true, includes a 'timestamp-ms' field with millisecond precision in destination metadata. Useful for load testing and debugging." required:"N"`
 	ProxyURL                    string                          `yaml:"proxy_url" env:"DESTINATIONS_PROXY_URL" desc:"HTTP CONNECT forward proxy for destination connections, e.g. 'http://user:pass@proxy:10000'. Multiple whitespace-separated URLs are tunneled in order, nearest first. Applies to webhook, RabbitMQ and Kafka destinations; other types connect directly. DESTINATIONS_WEBHOOK_PROXY_URL, when set, takes precedence for webhooks; webhooks can't opt out while this is set." required:"N"`
+	PrivateAddressAllowlist     []string                        `yaml:"private_address_allowlist" env:"DESTINATIONS_PRIVATE_ADDRESS_ALLOWLIST" envSeparator:"," desc:"Comma-separated IP addresses and CIDR ranges that destinations may still reach while DESTINATIONS_BLOCK_PRIVATE_ADDRESSES is on; mcp destinations always apply it (in YAML, a list). 'localhost' stands for 127.0.0.0/8 and ::1. Host names, /0 ranges and ranges with host bits set fail startup, also while blocking is off." required:"N"`
+	BlockPrivateAddresses       bool                            `yaml:"block_private_addresses" env:"DESTINATIONS_BLOCK_PRIVATE_ADDRESSES" desc:"Currently applies to webhook destinations. If true, destinations connect only to publicly routable addresses (IANA special-purpose registries) or to addresses in DESTINATIONS_PRIVATE_ADDRESS_ALLOWLIST. URLs are checked on create/update and on every direct connection. Host names are resolved as given, without DNS search domains. With a forward proxy (DESTINATIONS_PROXY_URL), only the create/update check applies, since the proxy resolves and connects to the target; configure the proxy to refuse private addresses. HTTP_PROXY/HTTPS_PROXY are ignored for destinations while this is on (a warning is logged at startup). Defaults to false." required:"N"`
 	Webhook                     DestinationWebhookConfig        `yaml:"webhook" desc:"Configuration specific to webhook destinations."`
 	AWSKinesis                  DestinationAWSKinesisConfig     `yaml:"aws_kinesis" desc:"Configuration specific to AWS Kinesis destinations."`
 	AWSEventBridge              DestinationAWSEventBridgeConfig `yaml:"aws_eventbridge" desc:"Configuration specific to AWS EventBridge destinations."`
@@ -35,6 +37,8 @@ func (c *DestinationsConfig) ToConfig(cfg *Config) destregistrydefault.RegisterD
 		IncludeMillisecondTimestamp: c.IncludeMillisecondTimestamp,
 		ProxyURL:                    c.ProxyURL,
 		Webhook:                     webhook,
+		BlockPrivateAddresses:       c.BlockPrivateAddresses,
+		PrivateAddressAllowlist:     c.PrivateAddressAllowlist,
 		AWSKinesis:                  c.AWSKinesis.toConfig(),
 		AWSEventBridge:              c.AWSEventBridge.toConfig(),
 		DeliveryMaxConcurrency:      cfg.DeliveryMaxConcurrency,

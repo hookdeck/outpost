@@ -14,21 +14,31 @@ import (
 
 // destinationSummary is a package-private summary used for Redis storage.
 type destinationSummary struct {
-	ID       string        `json:"id"`
-	Type     string        `json:"type"`
-	Topics   models.Topics `json:"topics"`
-	Filter   models.Filter `json:"filter,omitempty"`
-	Disabled bool          `json:"disabled"`
+	ID        string        `json:"id"`
+	Type      string        `json:"type"`
+	Topics    models.Topics `json:"topics"`
+	Filter    models.Filter `json:"filter,omitempty"`
+	Disabled  bool          `json:"disabled"`
+	ExpiresAt *int64        `json:"expires_at,omitempty"`
+}
+
+func (ds *destinationSummary) expired(now time.Time) bool {
+	return ds.ExpiresAt != nil && now.UnixMilli() >= *ds.ExpiresAt
 }
 
 func newDestinationSummary(d models.Destination) *destinationSummary {
-	return &destinationSummary{
+	ds := &destinationSummary{
 		ID:       d.ID,
 		Type:     d.Type,
 		Topics:   d.Topics,
 		Filter:   d.Filter,
 		Disabled: d.DisabledAt != nil,
 	}
+	if d.ExpiresAt != nil {
+		ms := d.ExpiresAt.UnixMilli()
+		ds.ExpiresAt = &ms
+	}
+	return ds
 }
 
 func (ds *destinationSummary) MarshalBinary() ([]byte, error) {
@@ -117,6 +127,13 @@ func parseDestinationHash(cmd *redis.MapStringStringCmd, tenantID string, cipher
 		disabledAt, err := parseTimestamp(hash["disabled_at"])
 		if err == nil {
 			d.DisabledAt = &disabledAt
+		}
+	}
+
+	if hash["expires_at"] != "" {
+		expiresAt, err := parseTimestamp(hash["expires_at"])
+		if err == nil {
+			d.ExpiresAt = &expiresAt
 		}
 	}
 

@@ -3,6 +3,7 @@ package drivertest
 import (
 	"context"
 	"encoding/json"
+	"slices"
 	"testing"
 	"time"
 
@@ -372,6 +373,62 @@ func testMatch(t *testing.T, newHarness HarnessMaker) {
 			matched, err := store.MatchEvent(ctx, event, true)
 			require.NoError(t, err)
 			require.Len(t, matched, 2)
+		})
+	})
+
+	t.Run("ExpireAndMatch", func(t *testing.T) {
+		ctx := context.Background()
+		h, err := newHarness(ctx, t)
+		require.NoError(t, err)
+		t.Cleanup(h.Close)
+
+		store, err := h.MakeDriver(ctx)
+		require.NoError(t, err)
+
+		tenant := models.Tenant{ID: idgen.String(), CreatedAt: time.Now()}
+		require.NoError(t, store.UpsertTenant(ctx, tenant))
+		create := func(opts ...func(*models.Destination)) models.Destination {
+			opts = append([]func(*models.Destination){
+				testutil.DestinationFactory.WithTenantID(tenant.ID),
+				testutil.DestinationFactory.WithTopics([]string{"user.created"}),
+			}, opts...)
+			d := testutil.DestinationFactory.Any(opts...)
+			require.NoError(t, store.CreateDestination(ctx, d))
+			return d
+		}
+		plain := create()
+		future := create(testutil.DestinationFactory.WithExpiresAt(time.Now().Add(time.Hour)))
+		past := create(testutil.DestinationFactory.WithExpiresAt(time.Now().Add(-time.Hour)))
+
+		event := testutil.EventFactory.Any(
+			testutil.EventFactory.WithTenantID(tenant.ID),
+			testutil.EventFactory.WithTopic("user.created"),
+		)
+		matched, err := store.MatchEvent(ctx, event, true)
+		require.NoError(t, err)
+		assert.ElementsMatch(t, []string{plain.ID, future.ID}, matched)
+		assert.NotContains(t, matched, past.ID)
+
+		t.Run("matches again once expires_at is cleared", func(t *testing.T) {
+			past.ExpiresAt = nil
+			require.NoError(t, store.UpsertDestination(ctx, past))
+			matched, err := store.MatchEvent(ctx, event, true)
+			require.NoError(t, err)
+			assert.ElementsMatch(t, []string{plain.ID, future.ID, past.ID}, matched)
+		})
+
+		t.Run("expires without any write", func(t *testing.T) {
+			expiresAt := time.Now().Add(500 * time.Millisecond).Truncate(time.Millisecond)
+			soon := create(testutil.DestinationFactory.WithExpiresAt(expiresAt))
+			matched, err := store.MatchEvent(ctx, event, true)
+			require.NoError(t, err)
+			if time.Now().Before(expiresAt) {
+				assert.Contains(t, matched, soon.ID)
+			}
+			require.Eventually(t, func() bool {
+				matched, err := store.MatchEvent(ctx, event, true)
+				return err == nil && !slices.Contains(matched, soon.ID)
+			}, 5*time.Second, 50*time.Millisecond)
 		})
 	})
 

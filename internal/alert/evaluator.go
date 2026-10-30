@@ -19,6 +19,14 @@ type Attempt struct {
 	Number           int // 1-indexed attempt number
 	Success          bool
 	EligibleForRetry bool
+	// AttemptMax is the attempt count the delivery was allowed (retries + 1);
+	// 0 uses the evaluator's retry limit.
+	AttemptMax int
+	// NonRetryable: no further automatic retry follows this failed attempt.
+	NonRetryable bool
+	// SkipFailureCount keeps a failed attempt out of the consecutive-failure
+	// count: it neither increments nor resets it.
+	SkipFailureCount bool
 }
 
 // Evaluation is the tracker's verdict on one attempt: one field per signal
@@ -76,6 +84,15 @@ func WithExhaustedRetriesEnabled(enabled bool) Option {
 	}
 }
 
+// WithPerAttemptRetryLimits declares that attempts carry their own retry limit
+// (Attempt.AttemptMax), so exhausted retries can fire even when the global
+// retry limit is 0.
+func WithPerAttemptRetryLimits() Option {
+	return func(e *Evaluator) {
+		e.perAttemptRetryLimits = true
+	}
+}
+
 // Evaluator evaluates delivery attempts against the destination's failure
 // history and returns the resulting signals as data.
 type Evaluator struct {
@@ -88,6 +105,7 @@ type Evaluator struct {
 
 	consecutiveFailureEnabled bool
 	exhaustedRetriesEnabled   bool
+	perAttemptRetryLimits     bool
 }
 
 // NewEvaluator creates a new alert evaluator on the given store.
@@ -110,10 +128,11 @@ func NewEvaluator(store AlertStore, retryMaxLimit int, opts ...Option) *Evaluato
 }
 
 // SignalsEnabled reports whether any signal can ever fire: consecutive-failure
-// tracking, or exhausted-retries with a positive retry limit. When false,
+// tracking, or exhausted-retries with a positive retry limit (global, or per
+// attempt). When false,
 // Evaluate never touches the store and always returns an empty verdict.
 func (e *Evaluator) SignalsEnabled() bool {
-	return e.consecutiveFailureEnabled || (e.exhaustedRetriesEnabled && e.retryMaxLimit > 0)
+	return e.consecutiveFailureEnabled || (e.exhaustedRetriesEnabled && (e.retryMaxLimit > 0 || e.perAttemptRetryLimits))
 }
 
 func (e *Evaluator) Evaluate(ctx context.Context, attempt Attempt) (Evaluation, error) {
@@ -131,7 +150,7 @@ func (e *Evaluator) Evaluate(ctx context.Context, attempt Attempt) (Evaluation, 
 
 	var eval Evaluation
 
-	if e.consecutiveFailureEnabled {
+	if e.consecutiveFailureEnabled && !attempt.SkipFailureCount {
 		count, err := e.store.IncrementConsecutiveFailureCount(ctx, attempt.TenantID, attempt.DestinationID, attempt.AttemptID)
 		if err != nil {
 			return Evaluation{}, fmt.Errorf("failed to track consecutive failures: %w", err)
@@ -146,10 +165,15 @@ func (e *Evaluator) Evaluate(ctx context.Context, attempt Attempt) (Evaluation, 
 	}
 
 	// Exhausted retries check (independent of consecutive failure thresholds).
-	// Attempt is 1-indexed: with retryMaxLimit=10, attempt 11 is the final one.
-	// Skip if retryMaxLimit=0 (retries disabled — no exhausted state to report)
+	// Attempt is 1-indexed: with a limit of 10 retries, attempt 11 is the final one.
+	// A non-retryable failure ends the retries early, so it counts as exhausted.
+	// Skip if the limit is 0 (retries disabled — no exhausted state to report)
 	// or if the exhausted-retries signal is disabled.
-	if e.exhaustedRetriesEnabled && e.retryMaxLimit > 0 && attempt.EligibleForRetry && attempt.Number > e.retryMaxLimit {
+	limit := e.retryMaxLimit
+	if attempt.AttemptMax > 0 {
+		limit = attempt.AttemptMax - 1
+	}
+	if e.exhaustedRetriesEnabled && limit > 0 && attempt.EligibleForRetry && (attempt.NonRetryable || attempt.Number > limit) {
 		eval.RetriesExhausted = true
 	}
 
