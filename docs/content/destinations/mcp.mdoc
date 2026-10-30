@@ -52,9 +52,32 @@ Each subscription counts toward `MAX_DESTINATIONS_PER_TENANT`. When a tenant is 
 
 ## Event Definitions and Arguments
 
-With [`MCP_EVENTS_FILE` or `mcp.events`](/docs/outpost/self-hosting/configuration#mcp-events-experimental) set, the configured events form a catalog. A subscription must then target an event in the catalog (`422` with `topics` / `not_found` otherwise), and `config.arguments` is checked against the event's `inputSchema`, which Outpost derives from its `payload_schema`: each top-level property with a scalar type becomes an optional argument that takes a value, a list of values, or, for numbers and `format: date` strings, an operator object (`$gt`, `$gte`, `$lt`, `$lte`). Set `x-mcp-filter: false` on a property to leave it out. Outpost turns the arguments into the destination's `filter`, so only matching events are delivered; `filter` can't be set on these subscriptions. Checks against the catalog run when a subscription is created. Subscriptions created before event definitions were configured keep delivering unfiltered until they are recreated.
+Event definitions use the format of an MCP `events/list` result, set with [`MCP_EVENTS_SCHEMA`](/docs/outpost/self-hosting/configuration#mcp-events-experimental) (`mcp.events_schema` in YAML):
 
-`GET /mcp/events` (Admin API key) returns the catalog in the shape of an MCP `events/list` result (`resultType: "complete"`): `name`, `description`, `inputSchema`, `payloadSchema` and `delivery` per event, `nextCursor` when there are more. `topics=a,b` restricts the list to those events, and `limit` and `cursor` page through it. Without MCP enabled or any events configured, the route returns `404`.
+```json
+{
+  "events": [
+    {
+      "name": "order.created",
+      "description": "A new order was placed.",
+      "inputSchema": {
+        "type": "object",
+        "properties": { "status": { "type": "string", "enum": ["paid", "pending"] } }
+      },
+      "payloadSchema": {
+        "type": "object",
+        "properties": { "status": { "type": "string" }, "total": { "type": "number" } }
+      }
+    }
+  ]
+}
+```
+
+An `events/list` result from another MCP server loads as is if its arguments fit the rules below. `description`, `delivery` (when set, it must include `webhook`) and `_meta` are optional; `_meta` is passed through.
+
+A subscription must target a defined event: `422` with `topics` / `not_found` otherwise, so with no definitions every subscription is refused. `config.arguments` must satisfy the event's `inputSchema`, and an argument that isn't listed under its `properties` is refused. Outpost matches each argument against the top-level `data` field of the same name by equality, and an event is delivered only if all arguments match; `filter` can't be set on these subscriptions. Each argument must be a string, number, integer or boolean with no `default`, naming a payload property of a compatible type, and `additionalProperties` must be `false` or absent. Use `{"type": "object", "properties": {}}` for an event without arguments. Other shapes fail startup. Checks run when a subscription is created.
+
+`GET /mcp/events` (Admin API key) returns the configured list in order as an MCP `events/list` result (`resultType: "complete"`), with `delivery` set to `["webhook"]` on each event and `nextCursor` when there are more. `topics=a,b` restricts the list to those events, and `limit` and `cursor` page through it. Without MCP enabled or any events configured, the route returns `404`.
 
 ## Delivery
 

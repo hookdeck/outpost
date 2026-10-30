@@ -360,7 +360,7 @@ components:
           maxLength: 4096
           description: >-
             Subscription arguments as canonical JSON (sorted keys, no whitespace). Immutable. With
-            event definitions configured (`MCP_EVENTS_FILE` or `mcp.events`), they must satisfy the event's
+            event definitions configured (`MCP_EVENTS_SCHEMA`), they must satisfy the event's
             `inputSchema` from `GET /mcp/events`, and Outpost derives the destination's `filter`
             from them.
           example: '{"status":"paid"}'
@@ -7110,7 +7110,7 @@ paths:
                         inputSchema:
                           type: object
                           additionalProperties: true
-                          description: JSON Schema of the `arguments` a subscription accepts, derived from `payloadSchema`.
+                          description: JSON Schema of the `arguments` a subscription accepts, as defined in the event definitions.
                         payloadSchema:
                           type: object
                           additionalProperties: true
