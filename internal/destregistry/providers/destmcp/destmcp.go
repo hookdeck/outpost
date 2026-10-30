@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/netip"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/hookdeck/outpost/internal/backoff"
@@ -17,6 +18,7 @@ import (
 	"github.com/hookdeck/outpost/internal/mcpevents"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/netguard"
+	"github.com/hookdeck/outpost/internal/topicschema"
 )
 
 const Type = models.DestinationTypeMCP
@@ -54,6 +56,7 @@ type Config struct {
 	Client               *http.Client
 	Guard                *netguard.Guard
 	Verifier             Verifier
+	Catalog              *topicschema.Catalog
 	MaxResponseBodyBytes int
 	UserAgent            string
 	// AllowInsecureHTTP lets http callbacks reach hosts whose addresses are
@@ -70,6 +73,7 @@ type Provider struct {
 	client               *http.Client
 	guard                *netguard.Guard
 	verifier             Verifier
+	catalog              *topicschema.Catalog
 	maxResponseBodyBytes int
 	userAgent            string
 	allowInsecureHTTP    bool
@@ -94,6 +98,7 @@ func New(loader metadata.MetadataLoader, cfg Config) (*Provider, error) {
 		guard:                cfg.Guard,
 		client:               cfg.Client,
 		verifier:             cfg.Verifier,
+		catalog:              cfg.Catalog,
 		maxResponseBodyBytes: cfg.MaxResponseBodyBytes,
 		userAgent:            cfg.UserAgent,
 		allowInsecureHTTP:    cfg.AllowInsecureHTTP,
@@ -191,6 +196,47 @@ func (p *Provider) Validate(ctx context.Context, destination *models.Destination
 		return invalid(fieldOf(mcpErr), typeOf(mcpErr))
 	}
 	return &destregistry.ErrDestinationUnavailable{Code: ErrTypeVerificationUnavailable}
+}
+
+// ValidateCreate checks a new subscription against the event definitions
+// before Validate verifies its callback. Updates are not checked again, so a
+// later change to the definitions doesn't block a subscription's rotation.
+func (p *Provider) ValidateCreate(destination *models.Destination) error {
+	if _, err := p.parse(destination); err != nil {
+		return err
+	}
+	if len(destination.Filter) > 0 {
+		return invalid("filter", "invalid")
+	}
+	topic := destination.Topics[0]
+	if _, ok := p.catalog.Event(topic); !ok {
+		return invalid("topics", "not_found")
+	}
+	if errs := p.catalog.ValidateArguments(topic, []byte(destination.Config[ConfigArguments])); len(errs) > 0 {
+		return argumentErrors(errs)
+	}
+	return nil
+}
+
+func argumentErrors(errs []string) error {
+	var details []destregistry.ValidationErrorDetail
+	seen := map[string]bool{}
+	for _, e := range errs {
+		path, _, ok := strings.Cut(e, ": ")
+		if !ok {
+			continue
+		}
+		field := "config." + path
+		if seen[field] {
+			continue
+		}
+		seen[field] = true
+		details = append(details, destregistry.ValidationErrorDetail{Field: field, Type: "invalid"})
+	}
+	if len(details) == 0 {
+		details = []destregistry.ValidationErrorDetail{{Field: "config." + ConfigArguments, Type: "invalid"}}
+	}
+	return destregistry.NewErrDestinationValidation(details)
 }
 
 func (p *Provider) parse(destination *models.Destination) (*subscription, error) {

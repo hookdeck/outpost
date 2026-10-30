@@ -13,6 +13,7 @@ import (
 
 	"github.com/hookdeck/outpost/cmd/e2e/configs"
 	"github.com/hookdeck/outpost/cmd/e2e/mcpreceiver"
+	"github.com/hookdeck/outpost/internal/config"
 	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/util/testinfra"
@@ -43,6 +44,8 @@ type mcpSuite struct {
 	suite.Suite
 	base *basicSuite
 	r    *mcpreceiver.Receiver
+	// configure overrides the delivery config; nil means withMCPDelivery.
+	configure func(*config.Config)
 }
 
 func (s *mcpSuite) SetupSuite() {
@@ -56,6 +59,9 @@ func (s *mcpSuite) SetupSuite() {
 		logStorageType: configs.LogStorageTypeClickHouse,
 		redisConfig:    testinfra.NewDragonflyStackConfig(s.T()),
 		configure:      withMCPDelivery,
+	}
+	if s.configure != nil {
+		s.base.configure = s.configure
 	}
 	s.base.SetT(s.T())
 	s.base.SetupSuite()
