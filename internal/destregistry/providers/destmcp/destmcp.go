@@ -3,6 +3,7 @@ package destmcp
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -239,6 +240,23 @@ func argumentErrors(errs []string) error {
 	return destregistry.NewErrDestinationValidation(details)
 }
 
+func filterFromArguments(raw string) (models.Filter, error) {
+	if strings.TrimSpace(raw) == "" {
+		return nil, nil
+	}
+	var args map[string]any
+	if err := json.Unmarshal([]byte(raw), &args); err != nil {
+		return nil, err
+	}
+	return mcpevents.ArgumentsToFilter(args), nil
+}
+
+func sameFilter(a, b models.Filter) bool {
+	x, errA := json.Marshal(a)
+	y, errB := json.Marshal(b)
+	return errA == nil && errB == nil && bytes.Equal(x, y)
+}
+
 func (p *Provider) parse(destination *models.Destination) (*subscription, error) {
 	config := destination.Config
 	if !mcpevents.ValidSubscriptionID(destination.ID) {
@@ -378,6 +396,16 @@ func parseSecrets(credentials map[string]string) ([]mcpevents.Secret, string, er
 }
 
 func (p *Provider) Preprocess(newDestination *models.Destination, originalDestination *models.Destination, opts *destregistry.PreprocessDestinationOpts) error {
+	// The filter is derived from the arguments on create and can't change after.
+	if originalDestination == nil || originalDestination.Type != Type {
+		filter, err := filterFromArguments(newDestination.Config[ConfigArguments])
+		if err != nil {
+			return invalid("config."+ConfigArguments, "invalid")
+		}
+		newDestination.Filter = filter
+	} else if !sameFilter(newDestination.Filter, originalDestination.Filter) {
+		return invalid("filter", "immutable")
+	}
 	secret := newDestination.Credentials[CredentialSecret]
 	credentials := make(map[string]string, 3)
 	if originalDestination == nil || originalDestination.Type != Type {
