@@ -164,6 +164,9 @@ migrate:
 redis/debug:
 	go run cmd/redis-debug/main.go $(ARGS)
 
+mcp/dev:
+	go run ./cmd/mcp-dev $(ARGS)
+
 logs:
 	docker logs $$(docker ps -f name=outpost-${SERVICE} --format "{{.ID}}") -f $(ARGS)
 
