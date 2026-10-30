@@ -587,7 +587,11 @@ func (s *serviceInstance) initDestRegistry(cfg *config.Config, logger *logging.L
 		DestinationMetadataPath: cfg.Destinations.MetadataPath,
 		DeliveryTimeout:         time.Duration(cfg.DeliveryTimeoutSeconds) * time.Second,
 	}, logger)
-	if err := destregistrydefault.RegisterDefault(registry, cfg.Destinations.ToConfig(cfg)); err != nil {
+	destCfg := cfg.Destinations.ToConfig(cfg)
+	if destregistrydefault.WebhookEnvProxyIgnored(destCfg) {
+		logger.Warn("HTTP_PROXY/HTTPS_PROXY are ignored for webhook destinations while DESTINATIONS_BLOCK_PRIVATE_ADDRESSES is on; set DESTINATIONS_PROXY_URL to deliver through a proxy", zap.String("service", s.name))
+	}
+	if err := destregistrydefault.RegisterDefault(registry, destCfg); err != nil {
 		logger.Error("destination registry setup failed", zap.String("service", s.name), zap.Error(err))
 		return err
 	}

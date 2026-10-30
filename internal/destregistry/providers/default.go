@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"os"
+	"strings"
 
 	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destawseventbridge"
@@ -79,6 +81,20 @@ type RegisterDefaultDestinationOptions struct {
 	// many deliveries can be in flight, and therefore how many connections a
 	// single destination could need. 0 leaves Go's per-host default in place.
 	DeliveryMaxConcurrency int
+}
+
+// WebhookEnvProxyIgnored reports whether HTTP_PROXY/HTTPS_PROXY are set but
+// ignored for webhooks: the address guard is on and no webhook proxy is set.
+func WebhookEnvProxyIgnored(opts RegisterDefaultDestinationOptions) bool {
+	if !opts.BlockPrivateAddresses || opts.Webhook == nil || strings.TrimSpace(opts.Webhook.ProxyURL) != "" {
+		return false
+	}
+	for _, k := range []string{"HTTP_PROXY", "http_proxy", "HTTPS_PROXY", "https_proxy"} {
+		if os.Getenv(k) != "" {
+			return true
+		}
+	}
+	return false
 }
 
 // RegisterDefault registers the default destination providers with the registry.
