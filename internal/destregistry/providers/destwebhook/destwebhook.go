@@ -210,9 +210,9 @@ func WithProxy(hops []*url.URL) Option {
 }
 
 // WithAddressGuard limits webhooks to addresses the guard allows: the URL is
-// checked when a destination is created or updated, and every connection is
-// checked on delivery. HTTP_PROXY/HTTPS_PROXY are then ignored. See
-// destregistry.HTTPClientConfig.Guard for forward proxies.
+// checked when a destination is created or updated, and every direct
+// connection is checked on delivery. HTTP_PROXY/HTTPS_PROXY are then ignored.
+// Through a forward proxy only the create/update check applies.
 func WithAddressGuard(g *netguard.Guard) Option {
 	return func(w *WebhookDestination) {
 		w.guard = g

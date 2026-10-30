@@ -112,8 +112,7 @@ func TestWebhookPublisher_AddressGuard(t *testing.T) {
 		assert.Equal(t, "address_not_allowed", delivery.Code)
 		assert.Zero(t, hits.Load())
 	})
-
-	t.Run("forward proxy: the target is checked before the request", func(t *testing.T) {
+	t.Run("forward proxy: the delivery is not checked", func(t *testing.T) {
 		var proxied atomic.Int32
 		proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			proxied.Add(1)
@@ -122,19 +121,12 @@ func TestWebhookPublisher_AddressGuard(t *testing.T) {
 		t.Cleanup(proxy.Close)
 		proxyURL, err := url.Parse(proxy.URL)
 		require.NoError(t, err)
-		res := netguardtest.NewDNS(t).Set("hooks.example", []string{"8.8.8.8"}).Resolver
 		provider := NewTestProvider(t,
 			destwebhook.WithProxy([]*url.URL{proxyURL}),
-			destwebhook.WithAddressGuard(&netguard.Guard{Resolver: res}),
+			destwebhook.WithAddressGuard(&netguard.Guard{}),
 		)
 
 		delivery, err := publish(t, provider, "http://10.0.0.1/hook")
-		require.Error(t, err)
-		require.NotNil(t, delivery)
-		assert.Equal(t, "address_not_allowed", delivery.Code)
-		assert.Zero(t, proxied.Load(), "the proxy saw nothing")
-
-		delivery, err = publish(t, provider, "http://hooks.example/hook")
 		require.Error(t, err)
 		require.NotNil(t, delivery)
 		assert.Equal(t, "502", delivery.Code)

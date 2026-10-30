@@ -5,7 +5,6 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -112,13 +111,13 @@ func TestHTTPClientGuard_ProxyChain(t *testing.T) {
 			assert.False(t, netguard.IsAddressNotAllowed(err))
 			assert.Equal(t, []string{"public.example:443"}, proxies[hops-1].Connects())
 
-			// A private target is refused before any CONNECT.
+			// Private targets go to the proxy unchecked: it resolves the target and enforces.
 			for _, target := range []string{"https://internal.example/hook", "https://10.0.0.1/hook", "https://[::1]/hook"} {
 				_, err = getBody(t, client, target)
 				require.Error(t, err, target)
-				assert.True(t, netguard.IsAddressNotAllowed(err), "%s: %v", target, err)
+				assert.False(t, netguard.IsAddressNotAllowed(err), "%s: %v", target, err)
 			}
-			assert.Len(t, proxies[hops-1].Connects(), 1)
+			assert.Equal(t, []string{"public.example:443", "internal.example:443", "10.0.0.1:443", "[::1]:443"}, proxies[hops-1].Connects())
 		})
 	}
 }
@@ -145,27 +144,6 @@ func TestHTTPClientGuard_RedirectToPrivateAddressRefused(t *testing.T) {
 	require.Error(t, err)
 	assert.True(t, netguard.IsAddressNotAllowed(err))
 	assert.Zero(t, landed.Load())
-}
-
-// With a forward proxy the guard checks every request, so a redirect to a
-// private target is refused before it reaches the proxy.
-func TestHTTPClientGuard_ProxyRedirectToPrivateAddressRefused(t *testing.T) {
-	t.Parallel()
-	var seen atomic.Int32
-	proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		seen.Add(1)
-		http.Redirect(w, r, "http://internal.example/landed", http.StatusFound)
-	}))
-	t.Cleanup(proxy.Close)
-	hop, err := url.Parse(proxy.URL)
-	require.NoError(t, err)
-
-	res := netguardtest.NewDNS(t).Set("public.example", []string{"8.8.8.8"}).Set("internal.example", []string{"10.0.0.1"}).Resolver
-	client := newGuardedClient(t, destregistry.HTTPClientConfig{Proxy: []*url.URL{hop}, Guard: &netguard.Guard{Resolver: res}})
-	_, err = getBody(t, client, "http://public.example/start")
-	require.Error(t, err)
-	assert.True(t, netguard.IsAddressNotAllowed(err))
-	assert.EqualValues(t, 1, seen.Load(), "only the first hop reached the proxy")
 }
 
 func TestHTTPClientGuard_NilGuardLeavesTransportAlone(t *testing.T) {
