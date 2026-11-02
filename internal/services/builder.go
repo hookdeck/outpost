@@ -209,6 +209,13 @@ func (b *ServiceBuilder) BuildAPIWorkers(baseRouter *gin.Engine) error {
 	if err != nil {
 		return fmt.Errorf("failed to create operator events sink: %w", err)
 	}
+	err = oeSink.Init(b.ctx)
+	if err != nil {
+		return fmt.Errorf("failed to initialize operator events sink: %w", err)
+	}
+	svc.cleanupFuncs = append(svc.cleanupFuncs, func(ctx context.Context, logger *logging.LoggerWithCtx) {
+		oeSink.Close()
+	})
 	subscriptionEmitter := opevents.NewEmitter(oeSink, b.cfg.DeploymentID, oeCfg.Topics, b.logger)
 
 	apiHandler := apirouter.NewRouter(
@@ -396,6 +403,13 @@ func (b *ServiceBuilder) BuildLogWorker(baseRouter *gin.Engine) error {
 	if err != nil {
 		return fmt.Errorf("failed to create operator events sink: %w", err)
 	}
+	err = sink.Init(b.ctx)
+	if err != nil {
+		return fmt.Errorf("failed to initialize operator events sink: %w", err)
+	}
+	svc.cleanupFuncs = append(svc.cleanupFuncs, func(ctx context.Context, logger *logging.LoggerWithCtx) {
+		sink.Close()
+	})
 	emitter := opevents.NewEmitter(sink, b.cfg.DeploymentID, oeCfg.Topics, b.logger)
 
 	alertSettings, err := b.cfg.Alert.ToConfig()
