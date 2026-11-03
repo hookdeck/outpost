@@ -26,7 +26,10 @@ type Config struct {
 	// DefaultTenant makes any other non-empty bearer token a principal of
 	// this tenant. Empty = unknown tokens are Forbidden.
 	DefaultTenant string
-	HTTPClient    *http.Client // nil = 30 s timeout
+	HTTPClient    *http.Client // nil = 40 s timeout
+	// Header is set on every Outpost request after Authorization and
+	// Content-Type, so it can replace them.
+	Header http.Header
 	// Logf receives one line per request.
 	Logf func(format string, args ...any)
 }
@@ -34,7 +37,7 @@ type Config struct {
 // New returns the MCP endpoint handler.
 func New(cfg Config) http.Handler {
 	if cfg.HTTPClient == nil {
-		cfg.HTTPClient = &http.Client{Timeout: 30 * time.Second}
+		cfg.HTTPClient = &http.Client{Timeout: 40 * time.Second}
 	}
 	return &server{cfg: cfg}
 }
@@ -48,7 +51,7 @@ func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	rec := &recorder{ResponseWriter: w}
 	s.serve(rec, r)
-	s.cfg.Logf("%s %s -> %s", rec.method, strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer "), rec.outcome())
+	s.cfg.Logf("%s %s -> %s", rec.method, mask(strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")), rec.outcome())
 }
 
 type recorder struct {
@@ -149,8 +152,9 @@ func (s *server) serve(w http.ResponseWriter, r *http.Request) {
 		if len(q) > 0 {
 			query = "?" + q.Encode()
 		}
-		status, body := s.outpost(http.MethodGet, "/mcp/events"+query, nil)
-		forward(w, req.ID, status, body)
+		path := "/mcp/events" + query
+		status, body := s.outpost(http.MethodGet, path, nil)
+		s.forward(w, req.ID, http.MethodGet, path, status, body)
 	case "events/subscribe", "events/unsubscribe":
 		var params struct {
 			Name string `json:"name"`
@@ -165,8 +169,9 @@ func (s *server) serve(w http.ResponseWriter, r *http.Request) {
 		if action == "subscribe" && len(user.AllowedTopics) > 0 {
 			body["allowed_topics"] = user.AllowedTopics
 		}
-		status, out := s.outpost(http.MethodPost, "/tenants/"+user.Tenant+"/mcp/"+action, body)
-		forward(w, req.ID, status, out)
+		path := "/tenants/" + user.Tenant + "/mcp/" + action
+		status, out := s.outpost(http.MethodPost, path, body)
+		s.forward(w, req.ID, http.MethodPost, path, status, out)
 	default:
 		rpcFail(w, http.StatusOK, req.ID, -32601, "MethodNotFound", nil)
 	}
@@ -178,11 +183,22 @@ func (s *server) outpost(method, path string, body any) (int, []byte) {
 		b, _ := json.Marshal(body)
 		in = bytes.NewReader(b)
 	}
-	req, _ := http.NewRequest(method, s.cfg.OutpostURL+path, in)
+	req, err := http.NewRequest(method, s.cfg.OutpostURL+path, in)
+	if err != nil {
+		s.logf("outpost %s %s -> %v", method, path, err)
+		return 0, []byte(err.Error())
+	}
 	req.Header.Set("Authorization", "Bearer "+s.cfg.APIKey)
 	req.Header.Set("Content-Type", "application/json")
+	for k, vs := range s.cfg.Header {
+		req.Header.Del(k)
+		for _, v := range vs {
+			req.Header.Add(k, v)
+		}
+	}
 	resp, err := s.cfg.HTTPClient.Do(req)
 	if err != nil {
+		s.logf("outpost %s %s -> %v", method, path, err)
 		return 0, []byte(err.Error())
 	}
 	defer resp.Body.Close()
@@ -190,8 +206,21 @@ func (s *server) outpost(method, path string, body any) (int, []byte) {
 	return resp.StatusCode, out
 }
 
+func (s *server) logf(format string, args ...any) {
+	if s.cfg.Logf != nil {
+		s.cfg.Logf(format, args...)
+	}
+}
+
+func clip(b []byte, n int) string {
+	if len(b) > n {
+		return string(b[:n]) + "..."
+	}
+	return string(b)
+}
+
 // forward answers with Outpost's result, or rethrows its mcp_error.
-func forward(w http.ResponseWriter, id json.RawMessage, status int, body []byte) {
+func (s *server) forward(w http.ResponseWriter, id json.RawMessage, method, path string, status int, body []byte) {
 	var failure struct {
 		Error *json.RawMessage `json:"mcp_error"`
 	}
@@ -201,6 +230,9 @@ func forward(w http.ResponseWriter, id json.RawMessage, status int, body []byte)
 	case json.Unmarshal(body, &failure) == nil && failure.Error != nil:
 		writeRPC(w, http.StatusOK, fmt.Sprintf(`{"jsonrpc":"2.0","id":%s,"error":%s}`, id, *failure.Error))
 	default:
+		if status != 0 {
+			s.logf("outpost %s %s -> http %d: %s", method, path, status, clip(body, 512))
+		}
 		rpcFail(w, http.StatusOK, id, -32603, "InternalError", nil)
 	}
 }
@@ -225,4 +257,13 @@ func writeRPC(w http.ResponseWriter, status int, body string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_, _ = io.WriteString(w, body)
+}
+
+// mask keeps the start of a bearer token so log lines tell principals apart
+// without exposing the credential.
+func mask(token string) string {
+	if token == "" {
+		return "-"
+	}
+	return token[:min(4, len(token)/2)] + "..."
 }

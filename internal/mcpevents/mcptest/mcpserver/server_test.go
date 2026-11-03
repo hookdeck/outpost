@@ -154,8 +154,8 @@ func TestDefaultTenant(t *testing.T) {
 	assert.Equal(t, -32024, r.Error.Code)
 
 	assert.Equal(t, []string{
-		"events/subscribe anyone -> ok",
-		"events/list  -> error -32024 Forbidden",
+		"events/subscribe any... -> ok",
+		"events/list - -> error -32024 Forbidden",
 	}, lines)
 }
 
@@ -252,4 +252,70 @@ func TestUnknownMethodAndNotification(t *testing.T) {
 	status, _, raw := call(t, url, "", `{"jsonrpc":"2.0","method":"notifications/initialized"}`, nil)
 	assert.Equal(t, 202, status)
 	assert.Empty(t, raw)
+}
+
+func TestLogMasksBearerToken(t *testing.T) {
+	var mu sync.Mutex
+	var lines []string
+	srv := httptest.NewServer(mcpserver.New(mcpserver.Config{
+		DefaultTenant: "t1",
+		Logf: func(format string, args ...any) {
+			mu.Lock()
+			lines = append(lines, fmt.Sprintf(format, args...))
+			mu.Unlock()
+		},
+	}))
+	defer srv.Close()
+	call(t, srv.URL, "supersecrettoken", `{"jsonrpc":"2.0","id":1,"method":"server/discover","params":{}}`, nil)
+	mu.Lock()
+	defer mu.Unlock()
+	require.Len(t, lines, 1)
+	assert.NotContains(t, lines[0], "supersecrettoken")
+	assert.Contains(t, lines[0], "supe...")
+}
+
+func TestExtraHeadersSentToOutpost(t *testing.T) {
+	var got http.Header
+	up := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got = r.Header.Clone()
+		_, _ = io.WriteString(w, `{"events":[]}`)
+	}))
+	defer up.Close()
+	srv := httptest.NewServer(mcpserver.New(mcpserver.Config{
+		OutpostURL:    up.URL,
+		APIKey:        "key",
+		DefaultTenant: "t1",
+		Header:        http.Header{"X-Debug": {"1"}, "Authorization": {"Bearer other"}},
+	}))
+	defer srv.Close()
+	call(t, srv.URL, "alice", `{"jsonrpc":"2.0","id":1,"method":"events/list","params":{}}`, nil)
+	assert.Equal(t, "1", got.Get("X-Debug"))
+	assert.Equal(t, "Bearer other", got.Get("Authorization"))
+}
+
+func TestOutpostFailureLogged(t *testing.T) {
+	up := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadGateway)
+		_, _ = io.WriteString(w, "upstream down")
+	}))
+	defer up.Close()
+	var mu sync.Mutex
+	var lines []string
+	srv := httptest.NewServer(mcpserver.New(mcpserver.Config{
+		OutpostURL:    up.URL,
+		DefaultTenant: "t1",
+		Logf: func(format string, args ...any) {
+			mu.Lock()
+			lines = append(lines, fmt.Sprintf(format, args...))
+			mu.Unlock()
+		},
+	}))
+	defer srv.Close()
+	_, r, _ := call(t, srv.URL, "alice", `{"jsonrpc":"2.0","id":1,"method":"events/list","params":{}}`, nil)
+	require.NotNil(t, r.Error)
+	assert.Equal(t, -32603, r.Error.Code)
+	mu.Lock()
+	defer mu.Unlock()
+	joined := strings.Join(lines, "\n")
+	assert.Contains(t, joined, "http 502: upstream down")
 }

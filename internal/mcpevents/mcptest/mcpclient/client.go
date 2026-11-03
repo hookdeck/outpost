@@ -182,6 +182,7 @@ func (c *Client) Initialize(ctx context.Context) (InitializeResult, *Response, e
 func (c *Client) Call(ctx context.Context, method string, params any, opts ...CallOption) (*Response, error) {
 	id := c.nextID.Add(1)
 	msg := map[string]any{"jsonrpc": "2.0", "id": id, "method": method}
+	name := paramsName(params)
 	if c.stateless {
 		p, err := c.withMeta(params)
 		if err != nil {
@@ -206,7 +207,7 @@ func (c *Client) Call(ctx context.Context, method string, params any, opts ...Ca
 	case cfg.setName:
 		hdr.Set(HeaderName, cfg.name)
 	default:
-		if name := paramsName(params); name != "" {
+		if name != "" {
 			hdr.Set(HeaderName, name)
 		}
 	}
@@ -220,29 +221,81 @@ func (c *Client) Call(ctx context.Context, method string, params any, opts ...Ca
 	return resp, nil
 }
 
-// withMeta returns params as a map with the per-request _meta set.
-func (c *Client) withMeta(params any) (map[string]any, error) {
-	m := map[string]any{}
+type member struct {
+	key string
+	val json.RawMessage
+}
+
+// withMeta returns params with the per-request _meta added. Every other
+// member is kept byte for byte, in order, and a _meta the caller set keeps
+// its keys; only the missing ones are added.
+func (c *Client) withMeta(params any) (json.RawMessage, error) {
+	raw := []byte("{}")
 	if params != nil {
-		raw, err := json.Marshal(params)
+		var err error
+		if raw, err = json.Marshal(params); err != nil {
+			return nil, err
+		}
+	}
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	if tok, err := dec.Token(); err != nil || tok != json.Delim('{') {
+		return nil, fmt.Errorf("params must be a JSON object: %.80s", raw)
+	}
+	var members []member
+	for dec.More() {
+		tok, err := dec.Token()
 		if err != nil {
 			return nil, err
 		}
-		if err := json.Unmarshal(raw, &m); err != nil {
+		var v json.RawMessage
+		if err := dec.Decode(&v); err != nil {
 			return nil, err
 		}
-		if m == nil {
-			m = map[string]any{}
+		members = append(members, member{tok.(string), v})
+	}
+	meta := map[string]json.RawMessage{}
+	metaAt := -1
+	for i, m := range members {
+		if m.key == "_meta" {
+			metaAt = i
+			_ = json.Unmarshal(m.val, &meta)
 		}
 	}
-	m["_meta"] = map[string]any{
+	add := map[string]any{
 		MetaProtocolVersion: c.ProtocolVersion,
 		MetaClientCapabilities: map[string]any{
 			"extensions": map[string]any{ExtensionID: map[string]any{}},
 		},
 		MetaClientInfo: map[string]any{"name": c.ClientInfoName, "version": "0"},
 	}
-	return m, nil
+	for k, v := range add {
+		if _, set := meta[k]; !set {
+			b, _ := json.Marshal(v)
+			meta[k] = b
+		}
+	}
+	mb, err := json.Marshal(meta)
+	if err != nil {
+		return nil, err
+	}
+	if metaAt >= 0 {
+		members[metaAt].val = mb
+	} else {
+		members = append(members, member{"_meta", mb})
+	}
+	var out bytes.Buffer
+	out.WriteByte('{')
+	for i, m := range members {
+		if i > 0 {
+			out.WriteByte(',')
+		}
+		k, _ := json.Marshal(m.key)
+		out.Write(k)
+		out.WriteByte(':')
+		out.Write(m.val)
+	}
+	out.WriteByte('}')
+	return out.Bytes(), nil
 }
 
 func (c *Client) notify(ctx context.Context, method string) (*Response, error) {
