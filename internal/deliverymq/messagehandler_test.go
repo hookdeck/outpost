@@ -253,6 +253,45 @@ func TestMessageHandler_PublishError_EligibleForRetry(t *testing.T) {
 	assert.Equal(t, models.AttemptStatusFailed, logPublisher.entries[0].Attempt.Status, "delivery status should be Failed")
 }
 
+func TestMessageHandler_MessageIDReachesPublisherAndRetry(t *testing.T) {
+	t.Parallel()
+	destination := testutil.DestinationFactory.Any(testutil.DestinationFactory.WithType("webhook"))
+	event := testutil.EventFactory.Any(
+		testutil.EventFactory.WithTenantID(destination.TenantID),
+		testutil.EventFactory.WithDestinationID(destination.ID),
+		testutil.EventFactory.WithEligibleForRetry(true),
+	)
+	retryScheduler := newMockRetryScheduler()
+	publisher := newMockPublisher([]error{&destregistry.ErrDestinationPublishAttempt{
+		Err:      errors.New("webhook returned 500"),
+		Provider: "webhook",
+		Data:     map[string]interface{}{"error": "publish_failed"},
+	}})
+	handler := deliverymq.NewMessageHandler(
+		testutil.CreateTestLogger(t),
+		newMockLogPublisher(nil),
+		&mockDestinationGetter{dest: &destination},
+		publisher,
+		testutil.NewMockEventTracer(nil),
+		retryScheduler,
+		&backoff.ConstantBackoff{Interval: 1 * time.Second},
+		10,
+		idempotence.New(testutil.CreateTestRedisClient(t), idempotence.WithSuccessfulTTL(24*time.Hour)),
+	)
+
+	task := models.NewDeliveryTask(event, destination.ID)
+	_, msg := newDeliveryMockMessage(task)
+	require.NoError(t, handler.Handle(context.Background(), msg))
+
+	require.Len(t, publisher.messageIDs, 1)
+	assert.NotEmpty(t, task.MessageID)
+	assert.Equal(t, task.MessageID, publisher.messageIDs[0])
+	require.Len(t, retryScheduler.schedules, 1)
+	var scheduled deliverymq.RetryTask
+	require.NoError(t, scheduled.FromString(retryScheduler.schedules[0]))
+	assert.Equal(t, task.MessageID, scheduled.ToDeliveryTask(event, 2).MessageID)
+}
+
 func TestMessageHandler_PublishError_NotEligible(t *testing.T) {
 	t.Parallel()
 	// Test scenario:
