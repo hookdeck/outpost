@@ -240,6 +240,9 @@ type RetryTask struct {
 	TenantID      string
 	DestinationID string
 	Telemetry     *models.DeliveryTelemetry
+	// MessageID is the delivery's identifier, carried to every retry; empty
+	// for retry tasks scheduled before the field existed.
+	MessageID string `json:",omitempty"`
 	// AttemptTime bounds the log store lookup; zero for tasks queued before
 	// it was added.
 	AttemptTime time.Time `json:",omitzero"`
@@ -284,6 +287,7 @@ func (m *RetryTask) ToDeliveryTask(event models.Event, attemptNumber int) models
 		DestinationID: m.DestinationID,
 		Event:         event,
 		Telemetry:     m.Telemetry,
+		MessageID:     m.MessageID,
 	}
 }
 
@@ -294,5 +298,6 @@ func RetryTaskFromDeliveryTask(task models.DeliveryTask, attemptTime time.Time) 
 		TenantID:      task.Event.TenantID,
 		DestinationID: task.DestinationID,
 		Telemetry:     task.Telemetry,
+		MessageID:     task.MessageID,
 	}
 }
