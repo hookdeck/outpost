@@ -173,6 +173,11 @@ func (r *registry) ValidateDestination(ctx context.Context, destination *models.
 		if errors.As(err, &validateErr) {
 			return validateErr
 		}
+		var rateLimited *ErrDestinationRateLimited
+		var unavailable *ErrDestinationUnavailable
+		if errors.As(err, &rateLimited) || errors.As(err, &unavailable) {
+			return err
+		}
 		return NewErrDestinationValidation([]ValidationErrorDetail{
 			{
 				Field: "root",

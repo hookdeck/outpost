@@ -24,6 +24,9 @@ type Tenant struct {
 	UpdatedAt         time.Time `json:"updated_at" redis:"updated_at"`
 }
 
+// DestinationTypeMCP is the experimental MCP Events destination type.
+const DestinationTypeMCP = "mcp"
+
 type Destination struct {
 	ID               string           `json:"id" redis:"id"`
 	TenantID         string           `json:"tenant_id" redis:"-"`
