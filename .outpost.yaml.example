@@ -117,6 +117,9 @@ destinations:
 #     enabled: true
 #     allow_insecure_callbacks: false
 #     verification_ttl_seconds: 86400
+#     subscription_ttl_default_seconds: 3600
+#     subscription_ttl_min_seconds: 300
+#     subscription_ttl_max_seconds: 86400
 #     events_schema: # or a path to a JSON or YAML file
 #       events:
 #         - name: user.created
