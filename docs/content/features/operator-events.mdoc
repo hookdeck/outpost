@@ -144,6 +144,8 @@ All operator events share this envelope:
 
 Emitted when a destination reaches 50%, 70%, 90%, or 100% of `ALERT_CONSECUTIVE_FAILURE_COUNT`.
 
+Each threshold is emitted once per failure streak. A streak continues as long as each failed delivery comes within 24 hours of the previous one, and ends at the first successful delivery or after 24 hours without a failed one; the next failure starts the count again from 1. Failures spaced more than 24 hours apart never add up: each one starts the count again from 1.
+
 ```json
 {
   "tenant_id": "tenant_123",
