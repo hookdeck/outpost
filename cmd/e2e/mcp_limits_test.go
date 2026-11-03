@@ -4,9 +4,9 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/hookdeck/outpost/cmd/e2e/mcpreceiver"
 	"github.com/hookdeck/outpost/internal/config"
 	"github.com/hookdeck/outpost/internal/idgen"
+	"github.com/hookdeck/outpost/internal/mcpevents/mcptest/mcpreceiver"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/stretchr/testify/suite"
 )
