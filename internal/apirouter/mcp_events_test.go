@@ -69,6 +69,21 @@ func TestAPI_MCPDestinationsWithCatalog(t *testing.T) {
 		return &stubResponse{Code: resp.Code, Body: resp.Body.String()}, body
 	}
 
+	t.Run("derives the filter from the arguments", func(t *testing.T) {
+		h := newMCPCatalogAPITest(t, mcpEventsCatalog(t))
+		resp, _ := create(t, h)
+		require.Equal(t, http.StatusCreated, resp.Code, resp.Body)
+		var created struct {
+			Filter json.RawMessage `json:"filter"`
+		}
+		require.NoError(t, json.Unmarshal([]byte(resp.Body), &created))
+		assert.JSONEq(t, `{"data":{"status":"paid"}}`, string(created.Filter))
+
+		stored, err := h.tenantStore.RetrieveDestination(t.Context(), "t1", "sub_1")
+		require.NoError(t, err)
+		assert.Equal(t, map[string]any{"data": map[string]any{"status": "paid"}}, map[string]any(stored.Filter))
+	})
+
 	t.Run("no arguments, no filter", func(t *testing.T) {
 		h := newMCPCatalogAPITest(t, mcpEventsCatalog(t))
 		resp, _ := create(t, h, func(d map[string]any) {
@@ -137,6 +152,17 @@ func TestAPI_MCPDestinationsWithCatalog(t *testing.T) {
 		assert.Equal(t, http.StatusOK, raw.Code, raw.Body.String())
 	})
 
+	t.Run("filter is immutable on update", func(t *testing.T) {
+		h := newMCPCatalogAPITest(t, mcpEventsCatalog(t))
+		resp, _ := create(t, h)
+		require.Equal(t, http.StatusCreated, resp.Code, resp.Body)
+
+		raw := patchMCP(t, h, map[string]any{"filter": map[string]any{"data": map[string]any{"status": "pending"}}}, false)
+		requireValidation422(t, raw, "filter failed immutable validation")
+
+		raw = patchMCP(t, h, map[string]any{"credentials": map[string]string{"secret": mcpSecret(2)}}, false)
+		require.Equal(t, http.StatusOK, raw.Code, raw.Body.String())
+	})
 }
 
 type stubResponse struct {
