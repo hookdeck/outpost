@@ -330,3 +330,48 @@ func TestMessageHandler_SuccessSkipsCounter(t *testing.T) {
 	}))
 	assert.True(t, qm.acked)
 }
+
+func TestMessageHandler_MaxEventSize(t *testing.T) {
+	body := []byte(`{"tenant_id":"t1","topic":"user.created","data":{}}`)
+	size := len(body)
+
+	t.Run("over the limit on a rejectable broker", func(t *testing.T) {
+		eh := &mockEventHandler{}
+		handler := publishmq.NewMessageHandler(eh, publishmq.WithMaxEventSize(size-1))
+		qm := &mockQueueMessage{}
+		err := handler.Handle(context.Background(), &mqs.Message{QueueMessage: qm, ID: "msg_1", Body: body})
+		require.ErrorIs(t, err, publishmq.ErrEventTooLarge)
+		assert.True(t, qm.rejected)
+		assert.False(t, qm.acked)
+		assert.False(t, qm.nacked)
+		assert.Empty(t, eh.calls)
+	})
+
+	t.Run("over the limit on a broker that cannot reject", func(t *testing.T) {
+		eh := &mockEventHandler{}
+		handler := publishmq.NewMessageHandler(eh, publishmq.WithMaxEventSize(size-1))
+		qm := &nackOnlyQueueMessage{}
+		err := handler.Handle(context.Background(), &mqs.Message{QueueMessage: qm, ID: "msg_1", Body: body})
+		require.ErrorIs(t, err, publishmq.ErrEventTooLarge)
+		assert.True(t, qm.acked)
+		assert.False(t, qm.nacked)
+		assert.Empty(t, eh.calls)
+	})
+
+	t.Run("at the limit", func(t *testing.T) {
+		eh := &mockEventHandler{}
+		handler := publishmq.NewMessageHandler(eh, publishmq.WithMaxEventSize(size))
+		qm := &mockQueueMessage{}
+		require.NoError(t, handler.Handle(context.Background(), &mqs.Message{QueueMessage: qm, ID: "msg_1", Body: body}))
+		assert.True(t, qm.acked)
+		assert.Len(t, eh.calls, 1)
+	})
+
+	t.Run("zero is no cap", func(t *testing.T) {
+		eh := &mockEventHandler{}
+		handler := publishmq.NewMessageHandler(eh, publishmq.WithMaxEventSize(0))
+		qm := &mockQueueMessage{}
+		require.NoError(t, handler.Handle(context.Background(), &mqs.Message{QueueMessage: qm, ID: "msg_1", Body: body}))
+		assert.Len(t, eh.calls, 1)
+	})
+}

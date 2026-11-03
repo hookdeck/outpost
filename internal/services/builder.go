@@ -244,8 +244,8 @@ func (b *ServiceBuilder) BuildAPIWorkers(baseRouter *gin.Engine) error {
 			PortalConfig:         b.cfg.GetPortalConfig(),
 			GinMode:              b.cfg.GinMode,
 
-			MCPSubscribe:        b.cfg.Experimental.MCP.Enabled,
-			MaxPublishBodyBytes: int64(b.cfg.APIMaxPublishBodyBytes),
+			MCPSubscribe:      b.cfg.Experimental.MCP.Enabled,
+			MaxEventSizeBytes: int64(b.cfg.MaxEventSizeBytes),
 		},
 		apirouter.RouterDeps{
 			TenantStore:         svc.tenantStore,
@@ -278,7 +278,7 @@ func (b *ServiceBuilder) BuildAPIWorkers(baseRouter *gin.Engine) error {
 				zap.String("publishmq_type", b.cfg.PublishMQ.GetInfraType()))
 		}
 		publishMQ := publishmq.New(publishmq.WithQueue(publishQueueConfig))
-		var messageHandlerOpts []publishmq.MessageHandlerOption
+		messageHandlerOpts := []publishmq.MessageHandlerOption{publishmq.WithMaxEventSize(b.cfg.MaxEventSizeBytes)}
 		if b.cfg.PublishMaxRedeliveries >= 0 {
 			messageHandlerOpts = append(messageHandlerOpts, publishmq.WithMaxRedeliveries(
 				b.cfg.PublishMaxRedeliveries,

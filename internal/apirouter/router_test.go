@@ -74,7 +74,7 @@ type apiTestConfig struct {
 	mcpCatalog           *topicschema.Catalog
 	mcpEventsErr         error
 	mcpSubscribe         bool
-	maxPublishBodyBytes  int64
+	maxEventSizeBytes    int64
 }
 
 func withMCPSubscribe() apiTestOption {
@@ -149,9 +149,9 @@ func withTopicsAllowWildcards(allow bool) apiTestOption {
 	}
 }
 
-func withMaxPublishBodyBytes(n int64) apiTestOption {
+func withMaxEventSizeBytes(n int64) apiTestOption {
 	return func(cfg *apiTestConfig) {
-		cfg.maxPublishBodyBytes = n
+		cfg.maxEventSizeBytes = n
 	}
 }
 
@@ -207,8 +207,8 @@ func newAPITest(t *testing.T, opts ...apiTestOption) *apiTest {
 			Registry:             registry,
 			PortalConfig:         portal.PortalConfig{},
 
-			MCPSubscribe:        cfg.mcpSubscribe,
-			MaxPublishBodyBytes: cfg.maxPublishBodyBytes,
+			MCPSubscribe:      cfg.mcpSubscribe,
+			MaxEventSizeBytes: cfg.maxEventSizeBytes,
 		},
 		apirouter.RouterDeps{
 			TenantStore:         ts,
