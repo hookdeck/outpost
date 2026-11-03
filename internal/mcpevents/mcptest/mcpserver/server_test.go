@@ -2,6 +2,7 @@ package mcpserver_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -109,6 +110,53 @@ func TestInitializeAnswer(t *testing.T) {
 	assert.Equal(t, "2026-07-28", res["protocolVersion"])
 	caps := res["capabilities"].(map[string]any)
 	assert.Contains(t, caps["extensions"], "io.modelcontextprotocol/events")
+	assert.NotContains(t, caps, "events")
+}
+
+func TestDiscover(t *testing.T) {
+	up, url := setup(t)
+	status, r, _ := call(t, url, "", `{"jsonrpc":"2.0","id":1,"method":"server/discover","params":{}}`, nil)
+	require.Equal(t, 200, status)
+	assert.JSONEq(t, `{"resultType":"complete","ttlMs":0,"cacheScope":"public","supportedVersions":["2026-07-28"],
+		"capabilities":{"extensions":{"io.modelcontextprotocol/events":{}}}}`, string(r.Result))
+	up.mu.Lock()
+	assert.Empty(t, up.calls)
+	up.mu.Unlock()
+}
+
+func TestListForwardsCursor(t *testing.T) {
+	up, url := setup(t)
+	_, _, _ = call(t, url, "bob", `{"jsonrpc":"2.0","id":1,"method":"events/list","params":{"cursor":"c 1"}}`, nil)
+	assert.Equal(t, "cursor=c+1&topics=a%2Cb", up.last(t).Query)
+	_, _, _ = call(t, url, "alice", `{"jsonrpc":"2.0","id":2,"method":"events/list","params":{"cursor":"x"}}`, nil)
+	assert.Equal(t, "cursor=x", up.last(t).Query)
+}
+
+func TestDefaultTenant(t *testing.T) {
+	up := newFakeOutpost(t)
+	var lines []string
+	srv := httptest.NewServer(mcpserver.New(mcpserver.Config{
+		OutpostURL:    up.URL + "/api/v1",
+		APIKey:        "key",
+		DefaultTenant: "demo",
+		Logf:          func(f string, a ...any) { lines = append(lines, fmt.Sprintf(f, a...)) },
+	}))
+	t.Cleanup(srv.Close)
+
+	h := map[string]string{"Mcp-Method": "events/subscribe", "Mcp-Name": "a"}
+	_, _, _ = call(t, srv.URL, "anyone", `{"jsonrpc":"2.0","id":1,"method":"events/subscribe","params":{"name":"a"}}`, h)
+	c := up.last(t)
+	assert.Equal(t, "/api/v1/tenants/demo/mcp/subscribe", c.Path)
+	assert.Equal(t, "anyone", c.Body["principal"])
+
+	_, r, _ := call(t, srv.URL, "", `{"jsonrpc":"2.0","id":2,"method":"events/list"}`, nil)
+	require.NotNil(t, r.Error)
+	assert.Equal(t, -32024, r.Error.Code)
+
+	assert.Equal(t, []string{
+		"events/subscribe anyone -> ok",
+		"events/list  -> error -32024 Forbidden",
+	}, lines)
 }
 
 func TestUnknownPrincipalForbidden(t *testing.T) {

@@ -264,7 +264,15 @@ func (s *mcpSubscriptionsSuite) TestInitializeAdvertisesEventsCapability() {
 	res, _, err := c.Initialize(s.ctx())
 	s.Require().NoError(err)
 	s.Contains(res.Capabilities.Extensions, mcpclient.ExtensionID)
-	s.NotEmpty(res.Capabilities.Events, "top-level events capability")
+}
+
+func (s *mcpSubscriptionsSuite) TestDiscoverAdvertisesEventsExtension() {
+	c := mcpclient.New(s.server.URL(), "", mcpclient.Stateless())
+	res, _, err := c.Discover(s.ctx())
+	s.Require().NoError(err)
+	s.Equal("complete", res.ResultType)
+	s.Contains(res.SupportedVersions, mcpclient.DefaultProtocolVersion)
+	s.Contains(res.Capabilities.Extensions, mcpclient.ExtensionID)
 }
 
 func (s *mcpSubscriptionsSuite) TestEventsListShowsAllowedTopics() {

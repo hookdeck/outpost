@@ -25,6 +25,10 @@ const (
 	HeaderProtocolVersion = "MCP-Protocol-Version"
 
 	ExtensionID = "io.modelcontextprotocol/events"
+
+	MetaProtocolVersion    = "io.modelcontextprotocol/protocolVersion"
+	MetaClientCapabilities = "io.modelcontextprotocol/clientCapabilities"
+	MetaClientInfo         = "io.modelcontextprotocol/clientInfo"
 )
 
 var TTLNull = json.RawMessage("null")
@@ -76,7 +80,9 @@ type Client struct {
 	Principal       string
 	ProtocolVersion string
 	HTTP            *http.Client
+	ClientInfoName  string
 
+	stateless bool
 	sessionID string
 	nextID    atomic.Int64
 }
@@ -89,12 +95,19 @@ func WithHTTPClient(h *http.Client) Option { return func(c *Client) { c.HTTP = h
 
 func WithProtocolVersion(v string) Option { return func(c *Client) { c.ProtocolVersion = v } }
 
+// Stateless sends no session: every request carries its protocol version,
+// client capabilities and client info in params._meta.
+func Stateless() Option { return func(c *Client) { c.stateless = true } }
+
+func WithClientInfoName(n string) Option { return func(c *Client) { c.ClientInfoName = n } }
+
 func New(url, principal string, opts ...Option) *Client {
 	c := &Client{
 		URL:             url,
 		Principal:       principal,
 		ProtocolVersion: DefaultProtocolVersion,
 		HTTP:            &http.Client{Timeout: 30 * time.Second},
+		ClientInfoName:  "outpost-e2e",
 	}
 	for _, o := range opts {
 		o(c)
@@ -129,12 +142,27 @@ type Capabilities struct {
 	Extensions map[string]json.RawMessage `json:"extensions"`
 }
 
+type DiscoverResult struct {
+	ResultType        string       `json:"resultType"`
+	SupportedVersions []string     `json:"supportedVersions"`
+	Capabilities      Capabilities `json:"capabilities"`
+}
+
+func (c *Client) Discover(ctx context.Context) (DiscoverResult, *Response, error) {
+	var res DiscoverResult
+	resp, err := c.Call(ctx, "server/discover", map[string]any{})
+	if err != nil {
+		return res, resp, err
+	}
+	return res, resp, resp.Decode(&res)
+}
+
 func (c *Client) Initialize(ctx context.Context) (InitializeResult, *Response, error) {
 	var res InitializeResult
 	resp, err := c.Call(ctx, "initialize", map[string]any{
 		"protocolVersion": c.ProtocolVersion,
 		"capabilities":    map[string]any{},
-		"clientInfo":      map[string]any{"name": "outpost-e2e", "version": "0"},
+		"clientInfo":      map[string]any{"name": c.ClientInfoName, "version": "0"},
 	})
 	if err != nil {
 		return res, resp, err
@@ -154,6 +182,13 @@ func (c *Client) Initialize(ctx context.Context) (InitializeResult, *Response, e
 func (c *Client) Call(ctx context.Context, method string, params any, opts ...CallOption) (*Response, error) {
 	id := c.nextID.Add(1)
 	msg := map[string]any{"jsonrpc": "2.0", "id": id, "method": method}
+	if c.stateless {
+		p, err := c.withMeta(params)
+		if err != nil {
+			return nil, err
+		}
+		params = p
+	}
 	if params != nil {
 		msg["params"] = params
 	}
@@ -185,6 +220,31 @@ func (c *Client) Call(ctx context.Context, method string, params any, opts ...Ca
 	return resp, nil
 }
 
+// withMeta returns params as a map with the per-request _meta set.
+func (c *Client) withMeta(params any) (map[string]any, error) {
+	m := map[string]any{}
+	if params != nil {
+		raw, err := json.Marshal(params)
+		if err != nil {
+			return nil, err
+		}
+		if err := json.Unmarshal(raw, &m); err != nil {
+			return nil, err
+		}
+		if m == nil {
+			m = map[string]any{}
+		}
+	}
+	m["_meta"] = map[string]any{
+		MetaProtocolVersion: c.ProtocolVersion,
+		MetaClientCapabilities: map[string]any{
+			"extensions": map[string]any{ExtensionID: map[string]any{}},
+		},
+		MetaClientInfo: map[string]any{"name": c.ClientInfoName, "version": "0"},
+	}
+	return m, nil
+}
+
 func (c *Client) notify(ctx context.Context, method string) (*Response, error) {
 	body, _ := json.Marshal(map[string]any{"jsonrpc": "2.0", "method": method})
 	resp, err := c.post(ctx, body, http.Header{HeaderMethod: {method}})
@@ -209,6 +269,8 @@ func (c *Client) post(ctx context.Context, body []byte, extra http.Header) (*Res
 	}
 	if c.sessionID != "" {
 		req.Header.Set(HeaderSessionID, c.sessionID)
+	}
+	if c.sessionID != "" || c.stateless {
 		req.Header.Set(HeaderProtocolVersion, c.ProtocolVersion)
 	}
 	for k, vs := range extra {
