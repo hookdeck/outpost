@@ -148,7 +148,7 @@ Choose one for event log persistence:
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `MAX_DESTINATIONS_PER_TENANT` | `20` | Maximum destinations each tenant may create. Set as low as is practical for your product to limit abuse and load; lowering this value later does **not** remove destinations that already exist. |
-| `DESTINATIONS_PROXY_URL` | — | HTTP `CONNECT` forward proxy for destination connections, e.g. `http://user:pass@proxy:8080`. Multiple whitespace-separated URLs are tunneled in order. Applies to webhook, RabbitMQ and Kafka destinations; other destination types connect directly. The deprecated `DESTINATIONS_WEBHOOK_PROXY_URL`, when set, takes precedence for webhooks; there is no way to proxy RabbitMQ and Kafka without also proxying webhooks. See [Webhook Forward Proxy](/docs/outpost/self-hosting/guides/webhook-proxy#other-destination-types). |
+| `DESTINATIONS_PROXY_URL` | — | HTTP `CONNECT` forward proxy for destination connections, e.g. `http://user:pass@proxy:8080`. Multiple whitespace-separated URLs are tunneled in order. Applies to webhook, RabbitMQ, Kafka and MCP Events subscriptions; other destination types connect directly. The proxy must refuse private addresses itself. The deprecated `DESTINATIONS_WEBHOOK_PROXY_URL`, when set, takes precedence for webhooks; there is no way to proxy RabbitMQ, Kafka and MCP Events without also proxying webhooks. See [Webhook Forward Proxy](/docs/outpost/self-hosting/guides/webhook-proxy#other-destination-types). |
 | `DESTINATIONS_METADATA_PATH` | — | Optional. Filesystem path to a directory of [custom destination metadata](https://github.com/hookdeck/outpost/tree/main/internal/destregistry/metadata/providers) (per-type `metadata.json` and `instructions.md`). Non-core fields such as `label`, `description`, `icon`, and `instructions` can be customized; `config_fields` and `credential_fields` cannot be overridden. |
 | `DESTINATIONS_AWS_EVENTBRIDGE_SOURCE` | `outpost` | `Source` set on every event published by [AWS EventBridge](/docs/outpost/destinations/aws-eventbridge) destinations. Must not be empty or start with `aws.`. |
 | `DESTINATIONS_BLOCK_PRIVATE_ADDRESSES` | `false` | If `true`, webhook destinations only connect to public addresses and those in `DESTINATIONS_PRIVATE_ADDRESS_ALLOWLIST`. See [Outbound Network Access](/docs/outpost/self-hosting/deployment#outbound-network-access). |
@@ -232,11 +232,11 @@ Off by default. When `EXPERIMENTAL_MCP_ENABLED` is `true`, the experimental [`mc
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `EXPERIMENTAL_MCP_ENABLED` | `false` | Registers the `mcp` destination type. Without it, `mcp` is rejected like any unknown destination type. Delete `mcp` destinations before turning it off; while it is off, they stay listed and each event fails once without retries. |
+| `EXPERIMENTAL_MCP_ENABLED` | `false` | Registers the `mcp` destination type. Without it, `mcp` is rejected like any unknown destination type. While it is off, stored `mcp` destinations receive no events and lapse at their expiry. |
 | `EXPERIMENTAL_MCP_ALLOW_INSECURE_CALLBACKS` | `false` | The MCP Events spec requires `https` callback URLs. When `true`, `http` is also accepted for addresses that are all in `DESTINATIONS_PRIVATE_ADDRESS_ALLOWLIST`: an exception outside the spec, for development only. |
 | `EXPERIMENTAL_MCP_VERIFICATION_TTL_SECONDS` | `86400` | How long, in seconds, a passed callback verification is cached per tenant, principal and callback URL. |
 
-`mcp` destinations always refuse non-public addresses that aren't in `DESTINATIONS_PRIVATE_ADDRESS_ALLOWLIST`.
+MCP Events subscriptions always refuse non-public addresses that aren't in `DESTINATIONS_PRIVATE_ADDRESS_ALLOWLIST`. With `DESTINATIONS_PROXY_URL` set, connections are not checked and the proxy must refuse them.
 
 ## Observability
 
