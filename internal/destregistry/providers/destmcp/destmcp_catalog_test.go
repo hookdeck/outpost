@@ -95,6 +95,49 @@ func TestCatalog_ValidationDoesNotRecheckTheCatalog(t *testing.T) {
 	require.NoError(t, p.Validate(context.Background(), stale), "a rotation after the definitions changed")
 }
 
+func TestCatalog_PreprocessDerivesFilter(t *testing.T) {
+	t.Parallel()
+	p := withCatalog(t)
+	d := newSubscription(t)
+	require.NoError(t, p.Preprocess(d, nil, nil))
+	raw, err := json.Marshal(d.Filter)
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"data":{"currency":"USD","total":100}}`, string(raw))
+	require.NoError(t, p.Validate(context.Background(), d))
+
+	none := newSubscription(t, func(d *models.Destination) { delete(d.Config, destmcp.ConfigArguments) })
+	require.NoError(t, p.Preprocess(none, nil, nil))
+	assert.Nil(t, none.Filter)
+}
+
+func TestCatalog_PreprocessKeepsFilterOnUpdate(t *testing.T) {
+	t.Parallel()
+	p := withCatalog(t)
+	original := newSubscription(t)
+	require.NoError(t, p.Preprocess(original, nil, nil))
+
+	refresh := newSubscription(t, func(d *models.Destination) { d.Credentials[destmcp.CredentialSecret] = testSecret(9) })
+	refresh.Filter = original.Filter
+	require.NoError(t, p.Preprocess(refresh, original, nil))
+	require.NoError(t, p.Validate(context.Background(), refresh))
+
+	edited := newSubscription(t)
+	edited.Filter = models.Filter{"data": map[string]any{"currency": "EUR"}}
+	requireValidationError(t, p.Preprocess(edited, original, nil), "filter", "immutable")
+
+	createdWithoutCatalog := newSubscription(t)
+	createdWithoutCatalog.Filter = models.Filter{"data": map[string]any{"x": 1}}
+	rotated := newSubscription(t, func(d *models.Destination) { d.Credentials[destmcp.CredentialSecret] = testSecret(9) })
+	rotated.Filter = createdWithoutCatalog.Filter
+	require.NoError(t, p.Preprocess(rotated, createdWithoutCatalog, nil))
+	require.NoError(t, p.Validate(context.Background(), rotated))
+
+	noFilter := newSubscription(t)
+	update := newSubscription(t)
+	require.NoError(t, p.Preprocess(update, noFilter, nil), "a destination stored without a derived filter keeps none")
+	assert.Nil(t, update.Filter)
+}
+
 func TestNoCatalog_EverySubscriptionIsRefused(t *testing.T) {
 	t.Parallel()
 	p := newProvider(t)
@@ -104,4 +147,8 @@ func TestNoCatalog_EverySubscriptionIsRefused(t *testing.T) {
 		d.Filter = models.Filter{"data": map[string]any{"x": 1}}
 	})
 	requireValidationError(t, p.ValidateCreate(withFilter), "filter", "invalid")
+
+	d := newSubscription(t)
+	require.NoError(t, p.Preprocess(d, nil, nil), "the filter is still derived and locked")
+	assert.NotNil(t, d.Filter)
 }
