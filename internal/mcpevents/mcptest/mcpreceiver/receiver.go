@@ -264,6 +264,9 @@ func (r *Receiver) Close() {
 	}
 }
 
+// Profile is the rule profile the receiver checks against.
+func (r *Receiver) Profile() Profile { return r.opts.Profile }
+
 // Addr is host:port of the receiver.
 func (r *Receiver) Addr() string { return r.ln.Addr().String() }
 
