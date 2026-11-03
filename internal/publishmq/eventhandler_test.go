@@ -50,6 +50,33 @@ func TestEventHandler_DisabledWildcardTopics(t *testing.T) {
 	}
 }
 
+func TestEventHandler_ExcludedDestinationType(t *testing.T) {
+	ctx := t.Context()
+	store := tenantstore.NewMemTenantStore()
+	require.NoError(t, store.UpsertTenant(ctx, testutil.TenantFactory.Any(testutil.TenantFactory.WithID("tenant_1"))))
+	require.NoError(t, store.UpsertDestination(ctx, testutil.DestinationFactory.Any(
+		testutil.DestinationFactory.WithID("destination_1"),
+		testutil.DestinationFactory.WithTenantID("tenant_1"),
+		testutil.DestinationFactory.WithType("mcp"),
+		testutil.DestinationFactory.WithTopics([]string{"*"}),
+	)))
+
+	newHandler := func(opts ...publishmq.EventHandlerOption) publishmq.EventHandler {
+		return publishmq.NewEventHandler(testutil.CreateTestLogger(t), nil, store, nil, testutil.TestTopics, false, nil, opts...)
+	}
+	event := func() *models.Event {
+		return testutil.EventFactory.AnyPointer(
+			testutil.EventFactory.WithTenantID("tenant_1"),
+			testutil.EventFactory.WithDestinationID("destination_1"),
+			testutil.EventFactory.WithTopic("user.created"),
+		)
+	}
+
+	result, err := newHandler(publishmq.WithExcludedDestinationTypes("mcp")).Handle(ctx, event())
+	require.NoError(t, err)
+	require.Empty(t, result.DestinationIDs)
+}
+
 func TestIntegrationPublishMQEventHandler_Concurrency(t *testing.T) {
 	t.Cleanup(testinfra.Start(t))
 

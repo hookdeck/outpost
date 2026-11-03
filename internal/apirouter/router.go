@@ -43,6 +43,10 @@ type RouterConfig struct {
 
 	// MaxDestinationsPerTenant mirrors the tenant store's limit (0: unknown).
 	MaxDestinationsPerTenant int
+
+	// ExcludedDestinationTypes lists destination types that manual retries
+	// refuse.
+	ExcludedDestinationTypes []string
 }
 
 type RouterDeps struct {
@@ -144,7 +148,7 @@ func NewRouter(cfg RouterConfig, deps RouterDeps) http.Handler {
 	destinationHandlers := NewDestinationHandlers(deps.Logger, deps.Telemetry, deps.TenantStore, deps.SubscriptionEmitter, cfg.Topics, cfg.TopicsAllowWildcards, cfg.Registry, displayer, cfg.MaxDestinationsPerTenant)
 	publishHandlers := NewPublishHandlers(deps.Logger, deps.EventHandler)
 	logHandlers := NewLogHandlers(deps.Logger, deps.LogStore, deps.TenantStore, displayer)
-	retryHandlers := NewRetryHandlers(deps.Logger, deps.TenantStore, deps.LogStore, deps.DeliveryPublisher, cfg.TopicsAllowWildcards)
+	retryHandlers := NewRetryHandlers(deps.Logger, deps.TenantStore, deps.LogStore, deps.DeliveryPublisher, cfg.TopicsAllowWildcards, cfg.ExcludedDestinationTypes)
 	topicHandlers := NewTopicHandlers(deps.Logger, cfg.Topics)
 	metricsHandlers := NewMetricsHandlers(deps.Logger, deps.LogStore)
 

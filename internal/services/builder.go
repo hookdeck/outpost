@@ -210,6 +210,7 @@ func (b *ServiceBuilder) BuildAPIWorkers(baseRouter *gin.Engine) error {
 		b.cfg.Topics,
 		b.cfg.TopicsAllowWildcards,
 		publishIdempotence,
+		publishmq.WithExcludedDestinationTypes(excludedDestinationTypes(b.cfg)...),
 	)
 
 	// Create operator events emitter for subscription updates
@@ -245,6 +246,7 @@ func (b *ServiceBuilder) BuildAPIWorkers(baseRouter *gin.Engine) error {
 			GinMode:              b.cfg.GinMode,
 
 			MaxDestinationsPerTenant: b.cfg.MaxDestinationsPerTenant,
+			ExcludedDestinationTypes: excludedDestinationTypes(b.cfg),
 		},
 		apirouter.RouterDeps{
 			TenantStore:         svc.tenantStore,
@@ -385,6 +387,7 @@ func (b *ServiceBuilder) BuildDeliveryWorker(baseRouter *gin.Engine) error {
 		retryMaxLimit,
 		deliveryIdempotence,
 		deliverymq.WithRetryPolicyResolver(svc.destRegistry),
+		deliverymq.WithExcludedDestinationTypes(excludedDestinationTypes(b.cfg)...),
 	)
 
 	svc.router = baseRouter
@@ -615,6 +618,7 @@ func (s *serviceInstance) initTenantStore(ctx context.Context, cfg *config.Confi
 		AvailableTopics:          cfg.Topics,
 		MaxDestinationsPerTenant: cfg.MaxDestinationsPerTenant,
 		DeploymentID:             cfg.DeploymentID,
+		ExcludedTypes:            excludedDestinationTypes(cfg),
 	})
 	if err := s.tenantStore.Init(ctx); err != nil {
 		return fmt.Errorf("failed to initialize tenant store: %w", err)
@@ -724,4 +728,11 @@ func (s *serviceInstance) initRetryScheduler(ctx context.Context, cfg *config.Co
 	})
 	s.retryScheduler = retryScheduler
 	return nil
+}
+
+func excludedDestinationTypes(cfg *config.Config) []string {
+	if cfg.Experimental.MCP.Enabled {
+		return nil
+	}
+	return []string{models.DestinationTypeMCP}
 }

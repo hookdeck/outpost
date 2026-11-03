@@ -431,3 +431,18 @@ func TestDeleteTenantRetriesOnStaleDestinationList(t *testing.T) {
 		assert.ErrorIs(t, err, driver.ErrDestinationDeleted)
 	}
 }
+
+func TestRedisTenantStoreExcludedTypes(t *testing.T) {
+	drivertest.RunExcludedTypesTests(t, func(t *testing.T, excludeMCP bool) driver.TenantStore {
+		opts := []redistenantstore.Option{
+			redistenantstore.WithSecret("test-secret"),
+			redistenantstore.WithAvailableTopics(testutil.TestTopics),
+		}
+		if excludeMCP {
+			opts = append(opts, redistenantstore.WithExcludedTypes(models.DestinationTypeMCP))
+		}
+		s := redistenantstore.New(miniredisFactory(t), opts...)
+		require.NoError(t, s.Init(context.Background()))
+		return s
+	})
+}

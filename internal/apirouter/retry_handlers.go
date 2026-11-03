@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"slices"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -24,6 +25,7 @@ type RetryHandlers struct {
 	logStore             logstore.LogStore
 	deliveryPublisher    deliveryPublisher
 	topicsAllowWildcards bool
+	excludedTypes        []string
 }
 
 func NewRetryHandlers(
@@ -32,6 +34,7 @@ func NewRetryHandlers(
 	logStore logstore.LogStore,
 	deliveryPublisher deliveryPublisher,
 	topicsAllowWildcards bool,
+	excludedTypes []string,
 ) *RetryHandlers {
 	return &RetryHandlers{
 		logger:               logger,
@@ -39,6 +42,7 @@ func NewRetryHandlers(
 		logStore:             logStore,
 		deliveryPublisher:    deliveryPublisher,
 		topicsAllowWildcards: topicsAllowWildcards,
+		excludedTypes:        excludedTypes,
 	}
 }
 
@@ -139,6 +143,17 @@ func (h *RetryHandlers) Retry(c *gin.Context) {
 			Message: "Destination is expired",
 			Data: map[string]string{
 				"error": "destination_expired",
+			},
+		})
+		return
+	}
+
+	if slices.Contains(h.excludedTypes, destination.Type) {
+		AbortWithError(c, http.StatusBadRequest, ErrorResponse{
+			Code:    http.StatusBadRequest,
+			Message: "Destination type is disabled",
+			Data: map[string]string{
+				"error": "destination_type_disabled",
 			},
 		})
 		return

@@ -17,8 +17,8 @@ import (
 )
 
 // TestMCP_Disabled checks the behavior with MCP off: type "mcp" is rejected
-// like any unknown type and is not listed, and a stored mcp destination fails
-// each event once without retries.
+// like any unknown type and is not listed, and a stored mcp destination gets
+// no events and no attempts.
 func TestMCP_Disabled(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
@@ -83,9 +83,9 @@ func (s *mcpDisabledSuite) attempts(tenantID, destID string) []mcpAttempt {
 	return resp.Models
 }
 
-// A destination created while MCP was on gets one failed attempt per event
-// and no retries once MCP is off.
-func (s *mcpDisabledSuite) TestExistingDestinationFailsWithoutRetry() {
+// A destination created while MCP was on gets no events and no attempts
+// once MCP is off.
+func (s *mcpDisabledSuite) TestExistingDestinationReceivesNothing() {
 	tenant := s.base.createTenant().ID
 	destID := idgen.Destination()
 	writeDestinationToStore(s.T(), s.base.config, models.Destination{
@@ -98,16 +98,59 @@ func (s *mcpDisabledSuite) TestExistingDestinationFailsWithoutRetry() {
 	})
 	s.base.publish(tenant, mcpTopic, map[string]any{"n": 1}, withRetry())
 
-	deadline := time.Now().Add(attemptPollTimeout)
-	var got []mcpAttempt
-	for len(got) < 1 && time.Now().Before(deadline) {
-		got = s.attempts(tenant, destID)
-		time.Sleep(100 * time.Millisecond)
-	}
-	s.Require().Len(got, 1)
-	s.Equal("failed", got[0].Status)
-
-	time.Sleep(2 * time.Second)
-	s.Len(s.attempts(tenant, destID), 1)
+	time.Sleep(3 * time.Second)
+	s.Empty(s.attempts(tenant, destID))
 	s.Nil(s.base.getDestination(tenant, destID).DisabledAt)
+}
+
+func (s *mcpDisabledSuite) publishTo(tenantID, destID string, eventID string) (int, publishResponse) {
+	var resp publishResponse
+	status := s.base.doJSON(http.MethodPost, s.base.apiURL("/publish"), map[string]any{
+		"id":             eventID,
+		"tenant_id":      tenantID,
+		"topic":          mcpTopic,
+		"destination_id": destID,
+		"data":           map[string]any{"n": 1},
+	}, &resp)
+	return status, resp
+}
+
+// Publishing to a stored mcp destination matches nothing, like a disabled
+// one, and a manual retry to it is refused.
+func (s *mcpDisabledSuite) TestPublishAndRetryRefused() {
+	tenant := s.base.createTenant().ID
+	destID := idgen.Destination()
+	writeDestinationToStore(s.T(), s.base.config, models.Destination{
+		ID:          destID,
+		TenantID:    tenant,
+		Type:        "mcp",
+		Topics:      models.Topics{mcpTopic},
+		Config:      models.Config{"url": "https://203.0.113.10/"},
+		Credentials: models.Credentials{"secret": newWhsec()},
+	})
+
+	status, resp := s.publishTo(tenant, destID, idgen.Event())
+	s.Equal(http.StatusAccepted, status)
+	s.Empty(resp.DestinationIDs)
+
+	writeDestinationToStore(s.T(), s.base.config, models.Destination{
+		ID:       idgen.Destination(),
+		TenantID: tenant,
+		Type:     "webhook",
+		Topics:   models.Topics{mcpTopic},
+		Config:   models.Config{"url": s.base.opeventsServer.GetURL()},
+	})
+	pub := s.base.publish(tenant, mcpTopic, map[string]any{"n": 2}, withRetry())
+	s.base.waitForEventInLogstore(pub.ID)
+
+	var body struct {
+		Data map[string]string `json:"data"`
+	}
+	status = s.base.doJSON(http.MethodPost, s.base.apiURL("/retry"), map[string]any{
+		"event_id": pub.ID, "destination_id": destID,
+	}, &body)
+	s.Equal(http.StatusBadRequest, status)
+	s.Equal("destination_type_disabled", body.Data["error"])
+	time.Sleep(2 * time.Second)
+	s.Empty(s.attempts(tenant, destID))
 }

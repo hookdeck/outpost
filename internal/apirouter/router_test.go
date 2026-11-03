@@ -59,7 +59,14 @@ type apiTest struct {
 
 type apiTestOption func(*apiTestConfig)
 
+func withExcludedTypes(types ...string) apiTestOption {
+	return func(cfg *apiTestConfig) {
+		cfg.excludedTypes = types
+	}
+}
+
 type apiTestConfig struct {
+	excludedTypes        []string
 	tenantStore          tenantstore.TenantStore
 	logStore             logstore.LogStore
 	destRegistry         destregistry.Registry
@@ -186,6 +193,7 @@ func newAPITest(t *testing.T, opts ...apiTestOption) *apiTest {
 			PortalConfig:         portal.PortalConfig{},
 
 			MaxDestinationsPerTenant: cfg.maxDestinations,
+			ExcludedDestinationTypes: cfg.excludedTypes,
 		},
 		apirouter.RouterDeps{
 			TenantStore:         ts,

@@ -69,6 +69,35 @@ func TestAPI_Retry(t *testing.T) {
 			require.Equal(t, http.StatusUnauthorized, resp.Code)
 		})
 
+		t.Run("other destination types succeed while a type is excluded", func(t *testing.T) {
+			h := setup(t, withExcludedTypes("mcp"))
+
+			req := h.jsonReq(http.MethodPost, "/api/v1/retry", map[string]any{
+				"event_id":       "e1",
+				"destination_id": "d1",
+			})
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusAccepted, resp.Code)
+		})
+
+		t.Run("mcp destination succeeds when no type is excluded", func(t *testing.T) {
+			h := setup(t)
+			require.NoError(t, h.tenantStore.UpsertDestination(t.Context(), df.Any(df.WithID("d2"), df.WithTenantID("t1"), df.WithType("mcp"), df.WithTopics([]string{"*"}))))
+			e := ef.AnyPointer(ef.WithID("e2"), ef.WithTenantID("t1"), ef.WithTopic("user.created"))
+			require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
+				{Event: e, Attempt: attemptForEvent(e, af.WithDestinationID("d2"))},
+			}))
+
+			req := h.jsonReq(http.MethodPost, "/api/v1/retry", map[string]any{
+				"event_id":       "e2",
+				"destination_id": "d2",
+			})
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusAccepted, resp.Code)
+		})
+
 		t.Run("api key succeeds", func(t *testing.T) {
 			h := setup(t)
 
@@ -414,6 +443,21 @@ func TestAPI_Retry(t *testing.T) {
 			}
 			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &body))
 			assert.Equal(t, "destination_expired", body.Data["error"])
+		})
+
+		t.Run("excluded destination type returns 400", func(t *testing.T) {
+			h := setup(t, withExcludedTypes("mcp"))
+			require.NoError(t, h.tenantStore.UpsertDestination(t.Context(), df.Any(df.WithID("d2"), df.WithTenantID("t1"), df.WithType("mcp"), df.WithTopics([]string{"*"}))))
+
+			resp := h.do(h.withAPIKey(retry(h, "e1", "d2")))
+
+			testutil.RequireErrorResponse(t, resp, http.StatusBadRequest, "Destination type is disabled")
+			var body struct {
+				Data map[string]string `json:"data"`
+			}
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &body))
+			assert.Equal(t, "destination_type_disabled", body.Data["error"])
+			assert.Empty(t, h.deliveryPub.calls)
 		})
 
 		t.Run("topic mismatch returns 400", func(t *testing.T) {

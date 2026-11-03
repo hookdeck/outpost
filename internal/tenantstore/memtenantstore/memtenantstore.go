@@ -40,6 +40,7 @@ type store struct {
 	destsByTenant map[string]map[string]struct{} // tenantID -> set of destIDs
 
 	maxDestinationsPerTenant int
+	excludedTypes            map[string]struct{}
 }
 
 var _ driver.TenantStore = (*store)(nil)
@@ -51,6 +52,16 @@ type Option func(*store)
 func WithMaxDestinationsPerTenant(max int) Option {
 	return func(s *store) {
 		s.maxDestinationsPerTenant = max
+	}
+}
+
+// WithExcludedTypes makes MatchEvent skip destinations of the given types.
+func WithExcludedTypes(types ...string) Option {
+	return func(s *store) {
+		s.excludedTypes = make(map[string]struct{}, len(types))
+		for _, t := range types {
+			s.excludedTypes[t] = struct{}{}
+		}
 	}
 }
 
@@ -457,6 +468,9 @@ func (s *store) MatchEvent(_ context.Context, event models.Event, allowWildcards
 	for destID := range destIDs {
 		drec, ok := s.destinations[destKey(event.TenantID, destID)]
 		if !ok || drec.deletedAt != nil {
+			continue
+		}
+		if _, excluded := s.excludedTypes[drec.destination.Type]; excluded {
 			continue
 		}
 		if drec.destination.MatchEvent(event, allowWildcards) {

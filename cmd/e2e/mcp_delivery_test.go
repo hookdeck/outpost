@@ -279,6 +279,22 @@ func (s *mcpSuite) TestDeliveryBasics() {
 	s.Equal("user.created", events[0].Envelope().Name)
 }
 
+// With MCP on, publishing to an mcp destination by ID delivers.
+func (s *mcpSuite) TestPublishByID() {
+	tenant := s.base.createTenant().ID
+	p := s.newPath(mcpreceiver.PathConfig{})
+	s.mustCreate(tenant, p, mcpDestOpts{})
+
+	var pub publishResponse
+	status := s.base.doJSON(http.MethodPost, s.base.apiURL("/publish"), map[string]any{
+		"tenant_id": tenant, "topic": mcpTopic, "destination_id": p.destID,
+		"data": map[string]any{"n": 1},
+	}, &pub)
+	s.Equal(http.StatusAccepted, status)
+	s.Equal([]string{p.destID}, pub.DestinationIDs)
+	s.Require().Len(s.r.WaitFor(p.path, 1, mcpreceiver.Request.IsEvent, mockServerPollTimeout), 1)
+}
+
 // =============================================================================
 // Retries re-sign
 // =============================================================================
