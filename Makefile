@@ -164,8 +164,12 @@ migrate:
 redis/debug:
 	go run cmd/redis-debug/main.go $(ARGS)
 
+# Runs cmd/mcp-dev in a container on the `make up/mcp` network; Docker is all it needs.
+# Each container is named mcp-dev-<subcommand>, the name Outpost and the other
+# mcp-dev containers reach it by (MCP_DEV_HOST). `serve` also publishes 127.0.0.1:4500.
+MCP_DEV_CMD = $(or $(firstword $(filter-out -%,$(ARGS))),help)
 mcp/dev:
-	go run ./cmd/mcp-dev $(ARGS)
+	LOCAL_DEV_MCP=1 ./build/dev/dev.sh run --rm --no-deps --name mcp-dev-$(MCP_DEV_CMD) -e MCP_DEV_HOST=mcp-dev-$(MCP_DEV_CMD) $(if $(filter serve,$(MCP_DEV_CMD)),--service-ports) mcp-dev $(ARGS)
 
 logs:
 	docker logs $$(docker ps -f name=outpost-${SERVICE} --format "{{.ID}}") -f $(ARGS)

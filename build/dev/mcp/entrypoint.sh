@@ -1,13 +1,18 @@
 #!/bin/sh
-# Allow http callbacks to the host (mcp-dev receive/tour/check) only:
-# every address host.docker.internal resolves to, as /32 or /128.
+# Allow http callbacks to the compose network only, where the mcp-dev
+# containers run: the subnet of the network `redis` (or its Dragonfly alias)
+# is on.
 set -e
-ips=$(getent ahosts host.docker.internal 2>/dev/null | awk '{print $1}' | sort -u)
-[ -n "$ips" ] || ips=$(awk '$2 == "host.docker.internal" {print $1}' /etc/hosts | sort -u)
-for ip in $ips; do
-  case "$ip" in *:*) cidr="$ip/128" ;; *) cidr="$ip/32" ;; esac
+peer=$(getent hosts redis 2>/dev/null | awk 'NR == 1 {print $1}')
+cidr=""
+if [ -n "$peer" ]; then
+  dev=$(ip -4 route get "$peer" 2>/dev/null | awk '{for (i = 1; i < NF; i++) if ($i == "dev") {print $(i + 1); exit}}')
+  [ -n "$dev" ] && cidr=$(ip -4 -o route show dev "$dev" scope link 2>/dev/null | awk 'NR == 1 {print $1}')
+fi
+if [ -n "$cidr" ]; then
   DESTINATIONS_PRIVATE_ADDRESS_ALLOWLIST="${DESTINATIONS_PRIVATE_ADDRESS_ALLOWLIST:+$DESTINATIONS_PRIVATE_ADDRESS_ALLOWLIST,}$cidr"
-done
-[ -n "$ips" ] || echo "warning: host.docker.internal doesn't resolve; http callbacks to the host will be refused" >&2
+else
+  echo "warning: can't find the compose network; http callbacks to mcp-dev will be refused" >&2
+fi
 export DESTINATIONS_PRIVATE_ADDRESS_ALLOWLIST
 exec sh ./build/dev/entrypoint.sh

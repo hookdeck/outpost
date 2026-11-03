@@ -20,7 +20,7 @@ func receiveCommand() *cli.Command {
 		Usage: "Run a webhook receiver that verifies MCP Events deliveries",
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "listen", Value: ":4501", Usage: "listen address (all interfaces so Docker can reach it)"},
-			&cli.StringFlag{Name: "public-url", Value: "http://host.docker.internal:4501", Usage: "base URL the server reaches this receiver at"},
+			&cli.StringFlag{Name: "public-url", Value: callbackURL("4501"), Usage: "base URL the server reaches this receiver at"},
 			&cli.StringFlag{Name: "path", Value: "/hook", Usage: "callback path"},
 			&cli.StringSliceFlag{Name: "secret", Sources: cli.EnvVars("MCP_SECRET"), Usage: "signing secret, repeatable (generated when absent)"},
 			&cli.IntFlag{Name: "event-status", Value: 200, Usage: "HTTP status for event deliveries, e.g. 500 to watch retries"},

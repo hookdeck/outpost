@@ -7,11 +7,23 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
 	"github.com/urfave/cli/v3"
 )
+
+// callbackURL is the default base URL Outpost reaches a listener of this
+// process at: the container name in MCP_DEV_HOST (set by `make mcp/dev`), else
+// the host as seen from Outpost's containers.
+func callbackURL(port string) string {
+	host := os.Getenv("MCP_DEV_HOST")
+	if host == "" {
+		host = "host.docker.internal"
+	}
+	return "http://" + host + ":" + port
+}
 
 // conn is the connection to the Outpost API shared by serve, check and tour.
 type conn struct {
