@@ -13,6 +13,7 @@ import (
 	"github.com/hookdeck/outpost/internal/emetrics"
 	"github.com/hookdeck/outpost/internal/mcpevents"
 	"github.com/hookdeck/outpost/internal/netguard"
+	"github.com/hookdeck/outpost/internal/proxychain"
 	"github.com/hookdeck/outpost/internal/redis"
 )
 
@@ -45,6 +46,11 @@ func (b *ServiceBuilder) mcpNetwork() (*mcpNetwork, error) {
 			emeter.DeliveryConnection(context.Background(), reused, destmcp.Type)
 		},
 	}
+	proxy, err := proxychain.Parse(b.cfg.Destinations.ProxyURL)
+	if err != nil {
+		return nil, fmt.Errorf("mcp destinations proxy: %w", err)
+	}
+	clientCfg.Proxy = proxy
 	if ua := b.cfg.Destinations.ToConfig(b.cfg).UserAgent; ua != "" {
 		clientCfg.UserAgent = &ua
 	}

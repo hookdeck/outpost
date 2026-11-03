@@ -21,6 +21,8 @@ import (
 	"github.com/hookdeck/outpost/internal/mcpevents"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/netguard"
+	"github.com/hookdeck/outpost/internal/proxychain"
+	"github.com/hookdeck/outpost/internal/proxychain/proxychaintest"
 	standardwebhooks "github.com/standard-webhooks/standard-webhooks/libraries/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -90,16 +92,20 @@ func newRecorder(t *testing.T, respond http.HandlerFunc) *recorder {
 	t.Helper()
 	rec := &recorder{}
 	rec.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		body, _ := io.ReadAll(r.Body)
-		rec.mu.Lock()
-		rec.requests = append(rec.requests, capturedRequest{Header: r.Header.Clone(), Body: body})
-		rec.mu.Unlock()
+		rec.record(r)
 		if respond != nil {
 			respond(w, r)
 		}
 	}))
 	t.Cleanup(rec.Close)
 	return rec
+}
+
+func (r *recorder) record(req *http.Request) {
+	body, _ := io.ReadAll(req.Body)
+	r.mu.Lock()
+	r.requests = append(r.requests, capturedRequest{Header: req.Header.Clone(), Body: body})
+	r.mu.Unlock()
 }
 
 func (r *recorder) Requests() []capturedRequest {
@@ -409,4 +415,23 @@ func TestPublish_WebhookID(t *testing.T) {
 		assert.NotContains(t, r.Header.Get("webhook-id"), event.ID)
 	}
 	assert.NotEqual(t, reqs[2].Header.Get("webhook-id"), reqs[3].Header.Get("webhook-id"))
+}
+
+func TestPublish_ThroughForwardProxy(t *testing.T) {
+	t.Parallel()
+	proxy := proxychaintest.New(t, false)
+	rec := newTLSRecorder(t)
+	hops, err := proxychain.Parse(proxy.URL)
+	require.NoError(t, err)
+	guard := &netguard.Guard{}
+	p := newProvider(t, func(c *destmcp.Config) {
+		c.Guard = guard
+		c.Client = newClient(t, guard, destregistry.HTTPClientConfig{Proxy: hops, WrapTransport: trustServer(rec.Server)})
+	})
+
+	delivery, err := publish(t, p, localSubscription(t, p, rec.URL+"/hook"), testEvent())
+	require.NoError(t, err)
+	assert.Equal(t, "success", delivery.Status)
+	assert.Len(t, rec.Requests(), 1)
+	assert.Equal(t, []string{proxychaintest.HostOf(rec.URL)}, proxy.Connects())
 }
