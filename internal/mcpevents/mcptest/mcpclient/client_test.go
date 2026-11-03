@@ -180,3 +180,100 @@ func TestNewSecret(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, key, 32)
 }
+
+func TestStatelessSendsMetaAndVersionOnEveryRequest(t *testing.T) {
+	srv, log := newServer(t, func(w http.ResponseWriter, method string, id any, _ map[string]any) {
+		reply(w, id, map[string]any{
+			"resultType":        "complete",
+			"supportedVersions": []string{DefaultProtocolVersion},
+			"capabilities":      map[string]any{"extensions": map[string]any{ExtensionID: map[string]any{}}},
+		})
+	})
+	c := New(srv.URL, "alice", Stateless(), WithClientInfoName("tester"))
+
+	res, _, err := c.Discover(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, "complete", res.ResultType)
+	assert.Equal(t, []string{DefaultProtocolVersion}, res.SupportedVersions)
+	assert.Contains(t, res.Capabilities.Extensions, ExtensionID)
+
+	_, err = c.Subscribe(context.Background(), SubscribeParams{Name: "a", URL: "https://x", Secret: "s"})
+	require.NoError(t, err)
+
+	reqs := log()
+	require.Len(t, reqs, 2)
+	assert.Empty(t, c.SessionID())
+	for _, r := range reqs {
+		assert.Equal(t, DefaultProtocolVersion, r.Header.Get(HeaderProtocolVersion))
+		assert.Empty(t, r.Header.Get(HeaderSessionID))
+		meta := r.Body["params"].(map[string]any)["_meta"].(map[string]any)
+		assert.Equal(t, DefaultProtocolVersion, meta[MetaProtocolVersion])
+		assert.Equal(t, map[string]any{"name": "tester", "version": "0"}, meta[MetaClientInfo])
+		caps := meta[MetaClientCapabilities].(map[string]any)
+		assert.Contains(t, caps["extensions"], ExtensionID)
+	}
+	assert.Equal(t, "a", reqs[1].Body["params"].(map[string]any)["name"])
+	assert.Equal(t, "a", reqs[1].Header.Get(HeaderName))
+}
+
+func TestStatefulRequestsHaveNoMeta(t *testing.T) {
+	srv, log := newServer(t, func(w http.ResponseWriter, method string, id any, _ map[string]any) {
+		reply(w, id, map[string]any{"resultType": "complete", "events": []any{}})
+	})
+	_, err := New(srv.URL, "alice").EventsList(context.Background())
+	require.NoError(t, err)
+	assert.NotContains(t, log()[0].Body["params"], "_meta")
+	assert.Empty(t, log()[0].Header.Get(HeaderProtocolVersion))
+}
+
+func TestEventsListPageCursor(t *testing.T) {
+	srv, log := newServer(t, func(w http.ResponseWriter, method string, id any, _ map[string]any) {
+		reply(w, id, map[string]any{"resultType": "complete", "events": []any{}})
+	})
+	c := New(srv.URL, "alice")
+	_, err := c.EventsListPage(context.Background(), "")
+	require.NoError(t, err)
+	_, err = c.EventsListPage(context.Background(), "p2")
+	require.NoError(t, err)
+	reqs := log()
+	assert.NotContains(t, reqs[0].Body["params"], "cursor")
+	assert.Equal(t, "p2", reqs[1].Body["params"].(map[string]any)["cursor"])
+}
+
+func TestSubscribeParamsCursorAndMaxAge(t *testing.T) {
+	marshal := func(p SubscribeParams) map[string]any {
+		raw, err := json.Marshal(p)
+		require.NoError(t, err)
+		var m map[string]any
+		require.NoError(t, json.Unmarshal(raw, &m))
+		return m
+	}
+	m := marshal(SubscribeParams{Name: "a"})
+	assert.NotContains(t, m, "cursor")
+	assert.NotContains(t, m, "maxAgeMs")
+
+	m = marshal(SubscribeParams{Name: "a", Cursor: json.RawMessage("null"), MaxAgeMs: json.RawMessage("null")})
+	assert.Contains(t, m, "cursor")
+	assert.Nil(t, m["cursor"])
+	assert.Contains(t, m, "maxAgeMs")
+	assert.Nil(t, m["maxAgeMs"])
+
+	m = marshal(SubscribeParams{Name: "a", Cursor: "c1", MaxAgeMs: 5000})
+	assert.Equal(t, "c1", m["cursor"])
+	assert.EqualValues(t, 5000, m["maxAgeMs"])
+}
+
+func TestDeliveryStatusDecodesAllFields(t *testing.T) {
+	var res SubscribeResult
+	require.NoError(t, json.Unmarshal([]byte(`{"resultType":"complete","id":"s","deliveryStatus":{
+		"active":false,"lastDeliveryAt":"2026-02-19T15:45:00Z","lastError":"http_5xx",
+		"failedSince":"2026-02-19T15:50:00Z","throttled":true,"retryAfterMs":3000}}`), &res))
+	ds := res.DeliveryStatus
+	require.NotNil(t, ds)
+	assert.False(t, ds.Active)
+	assert.Equal(t, "http_5xx", *ds.LastError)
+	assert.Equal(t, "2026-02-19T15:50:00Z", *ds.FailedSince)
+	assert.True(t, *ds.Throttled)
+	assert.EqualValues(t, 3000, *ds.RetryAfterMs)
+	assert.Contains(t, LastErrorCategories, *ds.LastError)
+}
