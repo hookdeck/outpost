@@ -10,8 +10,10 @@ import (
 
 const maxResponseHeaderBytes = 64 << 10
 
-// NewHTTPClient returns a client that connects only to addresses guard allows,
-// ignores proxy environment variables and never follows redirects.
+// NewHTTPClient returns a client that ignores proxy environment variables and
+// never follows redirects. Without cfg.Proxy it connects only to addresses
+// guard allows; with one it connects to the proxy, which must refuse private
+// addresses itself.
 func NewHTTPClient(guard *netguard.Guard, cfg destregistry.HTTPClientConfig) (*http.Client, error) {
 	if guard == nil {
 		return nil, errors.New("destmcp: guard is required")

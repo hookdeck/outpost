@@ -12,6 +12,8 @@ import (
 	"github.com/hookdeck/outpost/internal/mcpevents"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/netguard"
+	"github.com/hookdeck/outpost/internal/proxychain"
+	"github.com/hookdeck/outpost/internal/proxychain/proxychaintest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -366,4 +368,23 @@ func requireUnavailable(t *testing.T, err error) {
 	var ue *destregistry.ErrDestinationUnavailable
 	require.ErrorAs(t, err, &ue)
 	assert.Equal(t, "verification_unavailable", ue.Code)
+}
+
+func TestValidate_AddressCheckAppliesWithForwardProxy(t *testing.T) {
+	t.Parallel()
+	proxy := proxychaintest.New(t, false)
+	hops, err := proxychain.Parse(proxy.URL)
+	require.NoError(t, err)
+	verifier := &fakeVerifier{}
+	guard := &netguard.Guard{Resolver: newResolver()}
+	p := newProvider(t, func(c *destmcp.Config) {
+		c.Verifier = verifier
+		c.Guard = guard
+		c.Client = newClient(t, guard, destregistry.HTTPClientConfig{Proxy: hops})
+	})
+	d := newSubscription(t, func(d *models.Destination) { d.Config[destmcp.ConfigURL] = "https://internal.example.com/hook" })
+
+	requireValidationError(t, p.Validate(context.Background(), d), "config.url", "address_not_allowed")
+	assert.Empty(t, verifier.VerifyCalls())
+	assert.Empty(t, proxy.Connects())
 }
