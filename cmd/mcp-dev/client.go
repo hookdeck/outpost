@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/hookdeck/outpost/internal/mcpevents/mcptest/mcpcatalog"
 	"github.com/hookdeck/outpost/internal/mcpevents/mcptest/mcpclient"
 	"github.com/urfave/cli/v3"
 )
@@ -110,35 +111,17 @@ func discover(ctx context.Context, cmd *cli.Command, c *mcpclient.Client) error 
 }
 
 func list(ctx context.Context, cmd *cli.Command, c *mcpclient.Client) error {
-	cursor := cmd.String("cursor")
 	if !cmd.Bool("all") {
+		cursor := cmd.String("cursor")
 		resp, err := c.EventsListPage(ctx, cursor)
 		if err != nil {
 			return fail(err)
 		}
 		return show(cmd, resp)
 	}
-	var all []json.RawMessage
-	for page := 0; page < 100; page++ {
-		resp, err := c.EventsListPage(ctx, cursor)
-		if err != nil {
-			return fail(err)
-		}
-		if resp.Error != nil || resp.Status != 200 {
-			return show(cmd, resp)
-		}
-		var res struct {
-			Events     []json.RawMessage `json:"events"`
-			NextCursor *string           `json:"nextCursor"`
-		}
-		if err := json.Unmarshal(resp.Result, &res); err != nil {
-			return fail(err)
-		}
-		all = append(all, res.Events...)
-		if res.NextCursor == nil || *res.NextCursor == "" {
-			break
-		}
-		cursor = *res.NextCursor
+	all, err := mcpcatalog.FromServer(ctx, c)
+	if err != nil {
+		return fail(err)
 	}
 	out, _ := json.MarshalIndent(map[string]any{"resultType": "complete", "events": all}, "", "  ")
 	fmt.Println(string(out))

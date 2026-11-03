@@ -1,5 +1,5 @@
-// Package mcpcatalog builds sample payloads from the schemas of MCP Events
-// event catalogs.
+// Package mcpcatalog reads, samples and compares event catalogs:
+// the events/list result of an MCP Events server or a file holding one.
 package mcpcatalog
 
 import (

@@ -38,6 +38,9 @@ func newApp() *cli.Command {
 			receiveCommand(),
 			checkCommand(),
 			tourCommand(),
+			samplesCommand(),
+			publishCommand(),
+			diffCommand(),
 		},
 	})
 }
