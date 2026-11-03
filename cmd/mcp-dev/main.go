@@ -37,6 +37,7 @@ func newApp() *cli.Command {
 			clientCommand(),
 			receiveCommand(),
 			checkCommand(),
+			tourCommand(),
 		},
 	})
 }
