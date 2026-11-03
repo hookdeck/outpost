@@ -72,6 +72,12 @@ Whichever way you authenticate, the principal needs these actions on the Outpost
 | `AZURE_SERVICEBUS_CLIENT_ID` | Service principal client ID |
 | `AZURE_SERVICEBUS_CLIENT_SECRET` | Service principal client secret |
 
+## API
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `API_MAX_PUBLISH_BODY_BYTES` | `1048576` (1 MiB) | Maximum size in bytes of a publish request body; larger requests get a `413`. Keep it well under your message queue's per-message size limit. Set to `0` for no limit. |
+
 ## Publish Queue
 
 Optional. Configures the queue Outpost consumes published events from; see [Publishing Events](/docs/outpost/publishing/events) for each provider's variables.

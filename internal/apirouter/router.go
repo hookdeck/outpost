@@ -45,6 +45,8 @@ type RouterConfig struct {
 	// MCPSubscribe turns the MCP subscribe endpoints on; they answer 404
 	// while it is false.
 	MCPSubscribe bool
+	// MaxPublishBodyBytes caps a publish request body; 0 means no cap.
+	MaxPublishBodyBytes int64
 }
 
 type RouterDeps struct {
@@ -134,7 +136,7 @@ func NewRouter(cfg RouterConfig, deps RouterDeps) http.Handler {
 
 	// Application logic
 	r.Use(ErrorHandlerMiddleware())
-	r.Use(RequestBodyLimitMiddleware())
+	r.Use(RequestBodyLimitMiddleware(cfg.MaxPublishBodyBytes))
 
 	portal.AddRoutes(r, cfg.PortalConfig, func(c *gin.Context) {
 		AbortWithError(c, http.StatusNotFound, ErrorResponse{Code: http.StatusNotFound, Message: "not found"})
