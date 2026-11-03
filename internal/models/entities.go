@@ -27,6 +27,18 @@ type Tenant struct {
 // DestinationTypeMCP is the experimental MCP Events destination type.
 const DestinationTypeMCP = "mcp"
 
+// InternalDestinationTypes lists the destination types that Outpost manages
+// itself, not tenants.
+func InternalDestinationTypes() []string {
+	return []string{DestinationTypeMCP}
+}
+
+// IsInternalDestinationType reports whether destinations of the type are
+// managed by Outpost itself, not by tenants.
+func IsInternalDestinationType(destinationType string) bool {
+	return slices.Contains(InternalDestinationTypes(), destinationType)
+}
+
 type Destination struct {
 	ID               string           `json:"id" redis:"id"`
 	TenantID         string           `json:"tenant_id" redis:"-"`

@@ -17,6 +17,7 @@ import (
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destgcppubsub"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/desthookdeck"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destkafka"
+	"github.com/hookdeck/outpost/internal/destregistry/providers/destmcp"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destrabbitmq"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destwebhook"
 	"github.com/hookdeck/outpost/internal/emetrics"
@@ -73,6 +74,7 @@ type RegisterDefaultDestinationOptions struct {
 	Webhook        *DestWebhookConfig
 	AWSKinesis     *DestAWSKinesisConfig
 	AWSEventBridge *DestAWSEventBridgeConfig
+	MCP            *destmcp.Config
 
 	BlockPrivateAddresses   bool
 	PrivateAddressAllowlist []string
@@ -254,6 +256,14 @@ func RegisterDefault(registry destregistry.Registry, opts RegisterDefaultDestina
 		return err
 	}
 	registry.RegisterProvider("cloudflare_queues", cloudflareQueues)
+
+	if opts.MCP != nil {
+		mcp, err := destmcp.New(loader, *opts.MCP)
+		if err != nil {
+			return err
+		}
+		registry.RegisterProvider(destmcp.Type, mcp)
+	}
 
 	return nil
 }
