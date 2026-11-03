@@ -65,7 +65,6 @@ func (c *Config) LogConfigurationSummary() []zap.Field {
 
 		// API
 		zap.Int("api_port", c.APIPort),
-		zap.Int("api_max_publish_body_bytes", c.APIMaxPublishBodyBytes),
 		zap.Bool("api_key_configured", c.APIKey != ""),
 		zap.Bool("api_jwt_secret_configured", c.APIJWTSecret != ""),
 		zap.String("gin_mode", c.GinMode),
@@ -118,6 +117,7 @@ func (c *Config) LogConfigurationSummary() []zap.Field {
 
 		// Event Delivery
 		zap.Int("max_destinations_per_tenant", c.MaxDestinationsPerTenant),
+		zap.Int("max_event_size_bytes", c.MaxEventSizeBytes),
 		zap.Int("delivery_timeout_seconds", c.DeliveryTimeoutSeconds),
 		zap.Int("delivery_max_idle_conns", fanOutPool.MaxIdleConns),
 		zap.Int("delivery_max_idle_conns_per_host", fanOutPool.MaxIdleConnsPerHost),

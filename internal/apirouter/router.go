@@ -40,8 +40,8 @@ type RouterConfig struct {
 	Registry             destregistry.Registry
 	PortalConfig         portal.PortalConfig
 	GinMode              string
-	// MaxPublishBodyBytes caps a publish request body; 0 means no cap.
-	MaxPublishBodyBytes int64
+	// MaxEventSizeBytes caps the size of a publish request body; 0 means no cap.
+	MaxEventSizeBytes int64
 }
 
 type RouterDeps struct {
@@ -128,7 +128,7 @@ func NewRouter(cfg RouterConfig, deps RouterDeps) http.Handler {
 
 	// Application logic
 	r.Use(ErrorHandlerMiddleware())
-	r.Use(RequestBodyLimitMiddleware(cfg.MaxPublishBodyBytes))
+	r.Use(RequestBodyLimitMiddleware(cfg.MaxEventSizeBytes))
 
 	portal.AddRoutes(r, cfg.PortalConfig, func(c *gin.Context) {
 		AbortWithError(c, http.StatusNotFound, ErrorResponse{Code: http.StatusNotFound, Message: "not found"})

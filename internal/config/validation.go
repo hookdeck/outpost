@@ -56,7 +56,7 @@ func (c *Config) Validate(flags Flags) error {
 		return err
 	}
 
-	if err := c.validateAPI(); err != nil {
+	if err := c.validateMaxEventSize(); err != nil {
 		return err
 	}
 
@@ -273,9 +273,9 @@ func (c *Config) validateRetryConfiguration() error {
 	return nil
 }
 
-func (c *Config) validateAPI() error {
-	if c.APIMaxPublishBodyBytes < 0 {
-		return fmt.Errorf("config validation error: api_max_publish_body_bytes must not be negative, got %d", c.APIMaxPublishBodyBytes)
+func (c *Config) validateMaxEventSize() error {
+	if c.MaxEventSizeBytes < 0 {
+		return fmt.Errorf("config validation error: max_event_size_bytes must not be negative, got %d", c.MaxEventSizeBytes)
 	}
 	return nil
 }

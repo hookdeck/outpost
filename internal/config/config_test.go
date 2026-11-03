@@ -1131,7 +1131,7 @@ func TestRetryTimingWarnings(t *testing.T) {
 	}
 }
 
-func TestAPIMaxPublishBodyBytes(t *testing.T) {
+func TestMaxEventSizeBytes(t *testing.T) {
 	tests := []struct {
 		name    string
 		files   map[string][]byte
@@ -1142,18 +1142,18 @@ func TestAPIMaxPublishBodyBytes(t *testing.T) {
 			name:    "default is 1 MiB",
 			files:   map[string][]byte{},
 			envVars: map[string]string{},
-			want:    config.DefaultAPIMaxPublishBodyBytes,
+			want:    config.DefaultMaxEventSizeBytes,
 		},
 		{
 			name:    "explicit 0 disables the cap",
 			files:   map[string][]byte{},
-			envVars: map[string]string{"API_MAX_PUBLISH_BODY_BYTES": "0"},
+			envVars: map[string]string{"MAX_EVENT_SIZE_BYTES": "0"},
 			want:    0,
 		},
 		{
 			name: "yaml config",
 			files: map[string][]byte{
-				"config.yaml": []byte("api_max_publish_body_bytes: 2097152\n"),
+				"config.yaml": []byte("max_event_size_bytes: 2097152\n"),
 			},
 			envVars: map[string]string{"CONFIG": "config.yaml"},
 			want:    2097152,
@@ -1161,7 +1161,7 @@ func TestAPIMaxPublishBodyBytes(t *testing.T) {
 		{
 			name:    "env config",
 			files:   map[string][]byte{},
-			envVars: map[string]string{"API_MAX_PUBLISH_BODY_BYTES": "524288"},
+			envVars: map[string]string{"MAX_EVENT_SIZE_BYTES": "524288"},
 			want:    524288,
 		},
 	}
@@ -1172,14 +1172,14 @@ func TestAPIMaxPublishBodyBytes(t *testing.T) {
 
 			cfg, err := config.ParseWithoutValidation(config.Flags{}, mockOS)
 			assert.NoError(t, err)
-			assert.Equal(t, tt.want, cfg.APIMaxPublishBodyBytes)
+			assert.Equal(t, tt.want, cfg.MaxEventSizeBytes)
 		})
 	}
 }
 
-func TestAPIMaxPublishBodyBytesValidation(t *testing.T) {
+func TestMaxEventSizeBytesValidation(t *testing.T) {
 	mockOS := &mockOS{
-		files: map[string][]byte{"config.yaml": []byte("api_max_publish_body_bytes: -1\n")},
+		files: map[string][]byte{"config.yaml": []byte("max_event_size_bytes: -1\n")},
 		envVars: map[string]string{
 			"CONFIG":                "config.yaml",
 			"API_KEY":               "test-key",
@@ -1191,5 +1191,5 @@ func TestAPIMaxPublishBodyBytesValidation(t *testing.T) {
 	}
 
 	_, err := config.ParseWithOS(config.Flags{}, mockOS)
-	assert.ErrorContains(t, err, "api_max_publish_body_bytes must not be negative")
+	assert.ErrorContains(t, err, "max_event_size_bytes must not be negative")
 }

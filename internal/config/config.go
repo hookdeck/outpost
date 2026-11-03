@@ -25,8 +25,8 @@ const (
 	Namespace = "Outpost"
 )
 
-// DefaultAPIMaxPublishBodyBytes is the default cap on a publish request body: 1 MiB.
-const DefaultAPIMaxPublishBodyBytes = 1 << 20
+// DefaultMaxEventSizeBytes is the default maximum event size: 1 MiB.
+const DefaultMaxEventSizeBytes = 1 << 20
 
 func getConfigLocations() []string {
 	return []string{
@@ -54,12 +54,11 @@ type Config struct {
 	Telemetry     TelemetryConfig     `yaml:"telemetry"`
 
 	// API
-	APIPort                int    `yaml:"api_port" env:"API_PORT" desc:"Port number for the API server to listen on." required:"N"`
-	APIMaxPublishBodyBytes int    `yaml:"api_max_publish_body_bytes" env:"API_MAX_PUBLISH_BODY_BYTES" desc:"Maximum size in bytes of a publish request body. Larger requests are rejected with 413. Keep it well under your message queue's per-message size limit. Default: 1048576 (1 MiB). Set to 0 for no limit." required:"N"`
-	APIKey                 string `yaml:"api_key" env:"API_KEY" desc:"API key for authenticating requests to the Outpost API." required:"Y"`
-	APIJWTSecret           string `yaml:"api_jwt_secret" env:"API_JWT_SECRET" desc:"Secret key for signing and verifying JWTs if JWT authentication is used for the API." required:"Y"`
-	GinMode                string `yaml:"gin_mode" env:"GIN_MODE" desc:"Sets the Gin framework mode (e.g., 'debug', 'release', 'test'). See Gin documentation for details." required:"N"`
-	PprofEnabled           bool   `yaml:"pprof_enabled" env:"PPROF_ENABLED" desc:"If true, exposes Go pprof profiling endpoints under /debug/pprof/ on the service's HTTP port (every service type). Unauthenticated; enable only when the port is not publicly reachable." required:"N" default:"false"`
+	APIPort      int    `yaml:"api_port" env:"API_PORT" desc:"Port number for the API server to listen on." required:"N"`
+	APIKey       string `yaml:"api_key" env:"API_KEY" desc:"API key for authenticating requests to the Outpost API." required:"Y"`
+	APIJWTSecret string `yaml:"api_jwt_secret" env:"API_JWT_SECRET" desc:"Secret key for signing and verifying JWTs if JWT authentication is used for the API." required:"Y"`
+	GinMode      string `yaml:"gin_mode" env:"GIN_MODE" desc:"Sets the Gin framework mode (e.g., 'debug', 'release', 'test'). See Gin documentation for details." required:"N"`
+	PprofEnabled bool   `yaml:"pprof_enabled" env:"PPROF_ENABLED" desc:"If true, exposes Go pprof profiling endpoints under /debug/pprof/ on the service's HTTP port (every service type). Unauthenticated; enable only when the port is not publicly reachable." required:"N" default:"false"`
 
 	// Application
 	DeploymentID         string   `yaml:"deployment_id" env:"DEPLOYMENT_ID" desc:"Optional deployment identifier for multi-tenancy. Enables multiple deployments to share the same infrastructure while maintaining data isolation." required:"N"`
@@ -96,6 +95,7 @@ type Config struct {
 
 	// Event Delivery
 	MaxDestinationsPerTenant int `yaml:"max_destinations_per_tenant" env:"MAX_DESTINATIONS_PER_TENANT" desc:"Maximum number of destinations allowed per tenant/organization." required:"N"`
+	MaxEventSizeBytes        int `yaml:"max_event_size_bytes" env:"MAX_EVENT_SIZE_BYTES" desc:"Maximum size in bytes of an event, applied to API publish requests (rejected with 413) and publish queue messages (dropped). Keep it well under your message queue's per-message size limit. Default: 1048576 (1 MiB). Set to 0 for no limit." required:"N"`
 	DeliveryTimeoutSeconds   int `yaml:"delivery_timeout_seconds" env:"DELIVERY_TIMEOUT_SECONDS" desc:"Timeout in seconds for HTTP requests made during event delivery to webhook destinations." required:"N"`
 
 	// Idempotency
@@ -195,7 +195,7 @@ func (c *Config) InitDefaults() {
 			LogSubject:      "outpost.log",
 		},
 	}
-	c.APIMaxPublishBodyBytes = DefaultAPIMaxPublishBodyBytes
+	c.MaxEventSizeBytes = DefaultMaxEventSizeBytes
 	c.PublishMaxConcurrency = 1
 	c.PublishMaxRedeliveries = -1
 	c.DeliveryMaxConcurrency = 1

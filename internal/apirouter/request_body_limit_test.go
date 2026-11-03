@@ -204,7 +204,7 @@ func TestAPI_PublishBodyLimit(t *testing.T) {
 		return req
 	}
 	setup := func(t *testing.T, publishLimit int64) *apiTest {
-		h := newAPITest(t, withMaxPublishBodyBytes(publishLimit))
+		h := newAPITest(t, withMaxEventSizeBytes(publishLimit))
 		require.NoError(t, h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1"))))
 		return h
 	}
@@ -286,7 +286,7 @@ func TestAPI_PublishBodyLimit(t *testing.T) {
 func TestAPI_RequestBodyLimit_DeclaredLengthIsNotRead(t *testing.T) {
 	core, logs := observer.New(zap.InfoLevel)
 	const publishLimit = 2 * apirouter.MaxRequestBodyBytes
-	h := newAPITest(t, withLogger(logging.NewTestLogger(zap.New(core))), withMaxPublishBodyBytes(publishLimit))
+	h := newAPITest(t, withLogger(logging.NewTestLogger(zap.New(core))), withMaxEventSizeBytes(publishLimit))
 	require.NoError(t, h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1"))))
 	server := httptest.NewServer(h.router)
 	defer server.Close()

@@ -11,13 +11,13 @@ import (
 const MaxRequestBodyBytes = 1 << 20
 
 // RequestBodyLimitMiddleware rejects request bodies over the limit on write
-// requests: maxPublishBodyBytes for publish (0 means no cap),
+// requests: maxEventSizeBytes for publish (0 means no cap),
 // MaxRequestBodyBytes for the rest. A declared length over the limit is
 // answered without reading the body. Otherwise reading stops at the limit and
 // the handler's bind error is turned into the same response.
-func RequestBodyLimitMiddleware(maxPublishBodyBytes int64) gin.HandlerFunc {
+func RequestBodyLimitMiddleware(maxEventSizeBytes int64) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		limit := requestBodyLimit(c, maxPublishBodyBytes)
+		limit := requestBodyLimit(c, maxEventSizeBytes)
 		if limit <= 0 || c.Request.Body == nil {
 			c.Next()
 			return
@@ -43,12 +43,12 @@ func isPublishRequest(c *gin.Context) bool {
 	return c.FullPath() == apiBasePath+publishPath
 }
 
-func requestBodyLimit(c *gin.Context, maxPublishBodyBytes int64) int64 {
+func requestBodyLimit(c *gin.Context, maxEventSizeBytes int64) int64 {
 	if !isWriteRequest(c) {
 		return 0
 	}
 	if isPublishRequest(c) {
-		return maxPublishBodyBytes
+		return maxEventSizeBytes
 	}
 	return MaxRequestBodyBytes
 }
