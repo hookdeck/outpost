@@ -165,6 +165,8 @@ var apiRoutes = []apiRoute{
 	{method: http.MethodPut, path: "/tenants/:tenant_id/destinations/:destination_id/disable", requireTenant: true},
 	{method: http.MethodGet, path: "/tenants/:tenant_id/destinations/:destination_id/attempts", requireTenant: true},
 	{method: http.MethodGet, path: "/tenants/:tenant_id/destinations/:destination_id/attempts/:attempt_id", requireTenant: true},
+	{method: http.MethodPost, path: "/tenants/:tenant_id/mcp/subscribe", adminOnly: true},
+	{method: http.MethodPost, path: "/tenants/:tenant_id/mcp/unsubscribe", adminOnly: true},
 
 	{method: http.MethodGet, path: "/events"},
 	{method: http.MethodGet, path: "/events/:event_id"},
