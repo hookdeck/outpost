@@ -70,6 +70,9 @@ func (a *App) PreRun(ctx context.Context) (err error) {
 	for _, warning := range slices.Concat(a.config.DeprecationWarnings(), a.config.RetryTimingWarnings(), a.config.MCPWarnings()) {
 		a.logger.Warn(warning)
 	}
+	if err := a.config.MCPEventsError(); err != nil {
+		a.logger.Error("MCP Events is unavailable: invalid event definitions", zap.Error(err))
+	}
 
 	if err := a.configureIDGenerators(); err != nil {
 		return err
