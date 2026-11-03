@@ -331,7 +331,7 @@ func TestAPI_MCPSubscribeErrors(t *testing.T) {
 		{"verification rate limited", subscribeBody("u", subscribeParams()), mcpevents.ResourceExhausted(mcpevents.LimitVerificationRate, 10, time.Second),
 			-32025, "ResourceExhausted", map[string]any{"limit": "verification_rate"}},
 	}
-	for _, category := range []string{"challenge_failed", "connection_refused", "timeout", "tls_error", "http_4xx", "http_5xx"} {
+	for _, category := range []string{"challenge_failed", "connection_refused", "timeout", "tls_error"} {
 		tests = append(tests, struct {
 			name    string
 			body    map[string]any

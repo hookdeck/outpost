@@ -59,8 +59,6 @@ const (
 	ReasonConnectionRefused = "connection_refused"
 	ReasonTimeout           = "timeout"
 	ReasonTLSError          = "tls_error"
-	ReasonHTTP4xx           = "http_4xx"
-	ReasonHTTP5xx           = "http_5xx"
 	ReasonChallengeFailed   = "challenge_failed"
 
 	// not_found kinds.

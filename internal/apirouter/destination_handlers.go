@@ -109,15 +109,13 @@ func (h *DestinationHandlers) Create(c *gin.Context) {
 		return
 	}
 
-	if input.Type == models.DestinationTypeMCP && h.mcpEnabled() && mustRoleFromContext(c) != RoleAdmin {
-		abortMCPAdminOnly(c)
+	if input.Type == models.DestinationTypeMCP && h.mcpEnabled() {
+		abortMCPUseSubscribe(c)
 		return
 	}
 	if input.ExpiresAt != nil {
-		if err := validateExpiresAt(input.Type, *input.ExpiresAt, now); err != nil {
-			AbortWithValidationError(c, err)
-			return
-		}
+		AbortWithValidationError(c, errExpiresAtUnsupported)
+		return
 	}
 
 	tenant := mustTenantFromContext(c)
@@ -312,8 +310,8 @@ func (h *DestinationHandlers) Update(c *gin.Context) {
 // stands now. It answers the request and returns ok=false when the input is
 // invalid for that destination.
 func (h *DestinationHandlers) applyDestinationUpdate(c *gin.Context, input UpdateDestinationRequest, originalDestination *models.Destination) (updated *models.Destination, disabilityChanged bool, ok bool) {
-	if originalDestination.Type == models.DestinationTypeMCP && mustRoleFromContext(c) != RoleAdmin {
-		abortMCPAdminOnly(c)
+	if originalDestination.Type == models.DestinationTypeMCP {
+		abortMCPUseSubscribe(c)
 		return nil, false, false
 	}
 
@@ -439,17 +437,7 @@ func (h *DestinationHandlers) applyDestinationUpdate(c *gin.Context, input Updat
 				AbortWithValidationError(c, fmt.Errorf("invalid expires_at: %w", err))
 				return nil, false, false
 			}
-			if err := validateExpiresAt(originalDestination.Type, ts, time.Now()); err != nil {
-				AbortWithValidationError(c, err)
-				return nil, false, false
-			}
-			updatedDestination.ExpiresAt = &ts
-		}
-	}
-
-	if originalDestination.Type == models.DestinationTypeMCP {
-		if err := checkMCPImmutable(originalDestination, &updatedDestination); err != nil {
-			AbortWithValidationError(c, err)
+			AbortWithValidationError(c, errExpiresAtUnsupported)
 			return nil, false, false
 		}
 	}

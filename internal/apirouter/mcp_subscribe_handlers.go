@@ -381,7 +381,7 @@ func mapMCPValidationError(err error) error {
 func isCallbackFailure(typ string) bool {
 	switch typ {
 	case mcpevents.ReasonConnectionRefused, mcpevents.ReasonTimeout, mcpevents.ReasonTLSError,
-		mcpevents.ReasonHTTP4xx, mcpevents.ReasonHTTP5xx, mcpevents.ReasonChallengeFailed:
+		mcpevents.ReasonChallengeFailed:
 		return true
 	}
 	return false

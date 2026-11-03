@@ -10,7 +10,6 @@ import (
 
 	"github.com/hookdeck/outpost/cmd/e2e/mcpreceiver"
 	"github.com/hookdeck/outpost/internal/config"
-	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/suite"
 	"gopkg.in/yaml.v3"
@@ -151,17 +150,8 @@ func (s *mcpEventDefinitionsSuite) TestEventCatalog() {
 
 func (s *mcpEventDefinitionsSuite) TestArgumentsFilterDeliveries() {
 	tenant := s.m.base.createTenant().ID
-	p := s.m.newPath(mcpreceiver.PathConfig{})
-	body := p.body(mcpDestOpts{})
-	body["config"].(map[string]any)["arguments"] = `{"status":"paid"}`
-	status, raw := s.m.create(tenant, body)
-	s.Require().Equal(http.StatusCreated, status, "%s", raw)
-
-	var created struct {
-		Filter map[string]any `json:"filter"`
-	}
-	s.Require().NoError(json.Unmarshal(raw, &created))
-	s.NotEmpty(created.Filter, "arguments derive a filter")
+	p := s.m.withArguments(s.m.newPath(mcpreceiver.PathConfig{}), `{"status":"paid"}`)
+	s.m.mustSubscribe(tenant, p, mcpSubscribeOpts{})
 
 	matching := s.m.publishMCP(tenant, map[string]any{"status": "paid", "total": 10})
 	events := s.m.r.WaitFor(p.path, 1, mcpreceiver.Request.IsEvent, mockServerPollTimeout)
@@ -184,87 +174,51 @@ func (s *mcpEventDefinitionsSuite) TestArgumentsFilterDeliveries() {
 	}
 	s.Equal(http.StatusOK, s.m.base.doJSON(http.MethodGet, s.m.destURL(tenant, "/"+p.destID), nil, &stored))
 	s.Equal(`{"status":"paid"}`, stored.Config["arguments"])
-	s.Equal(created.Filter, stored.Filter)
+	s.Equal(map[string]any{"data": map[string]any{"status": "paid"}}, stored.Filter, "arguments derive a filter")
 }
 
 func (s *mcpEventDefinitionsSuite) TestNumericArgumentMatchesByEquality() {
 	tenant := s.m.base.createTenant().ID
-	p := s.m.newPath(mcpreceiver.PathConfig{})
-	body := p.body(mcpDestOpts{})
-	body["config"].(map[string]any)["arguments"] = `{"amount":10}`
-	status, raw := s.m.create(tenant, body)
-	s.Require().Equal(http.StatusCreated, status, "%s", raw)
+	p := s.m.withArguments(s.m.newPath(mcpreceiver.PathConfig{}), `{"amount":10}`)
+	s.m.mustSubscribe(tenant, p, mcpSubscribeOpts{})
 
 	hit := s.m.publishMCP(tenant, map[string]any{"amount": 10})
 	miss := s.m.publishMCP(tenant, map[string]any{"amount": 11})
 	s.m.check(len(hit.DestinationIDs) == 1 && len(miss.DestinationIDs) == 0, "amount 10 matched %v, amount 11 matched %v", hit.DestinationIDs, miss.DestinationIDs)
 }
 
-func (s *mcpEventDefinitionsSuite) TestErrorResponses_MCPEventDefinitions() {
+func (s *mcpEventDefinitionsSuite) TestSubscribeErrors_MCPEventDefinitions() {
 	tenant := s.m.base.createTenant().ID
-	p := s.m.newPath(mcpreceiver.PathConfig{})
-	dest := "/tenants/" + tenant + "/destinations"
-	admin := s.m.base.adminAuth()
-
-	with := func(mutate func(body map[string]any)) map[string]any {
-		body := p.body(mcpDestOpts{destID: idgen.Destination()})
-		mutate(body)
-		return body
+	cases := []struct {
+		name    string
+		topic   string
+		args    string
+		code    int
+		message string
+	}{
+		{"event not in the definitions", "user.deleted", ``, -32023, "NotFound"},
+		{"argument value outside enum", "user.created", `{"status":"bogus"}`, -32602, "InvalidParams"},
+		{"argument not in inputSchema", "user.created", `{"total":10}`, -32602, "InvalidParams"},
+		{"list value", "user.created", `{"status":["paid"]}`, -32602, "InvalidParams"},
+		{"operator object", "user.created", `{"amount":{"$gt":1}}`, -32602, "InvalidParams"},
+		{"arguments on a no-argument event", "user.updated", `{"id":"x"}`, -32602, "InvalidParams"},
+		{"arguments not an object", "user.created", `["paid"]`, -32602, "InvalidParams"},
 	}
-	cases := []errorCase{
-		{name: "topic not in catalog", method: http.MethodPost, path: dest, auth: admin,
-			body:   with(func(b map[string]any) { b["topics"] = []string{"user.deleted"} }),
-			status: http.StatusUnprocessableEntity, message: validationError, detail: "topics failed not_found validation"},
-		{name: "argument value outside enum", method: http.MethodPost, path: dest, auth: admin,
-			body: with(func(b map[string]any) {
-				b["config"].(map[string]any)["arguments"] = `{"status":"bogus"}`
-			}),
-			status: http.StatusUnprocessableEntity, message: validationError, detail: "config.arguments.status failed invalid validation"},
-		{name: "argument not in inputSchema", method: http.MethodPost, path: dest, auth: admin,
-			body: with(func(b map[string]any) {
-				b["config"].(map[string]any)["arguments"] = `{"total":10}`
-			}),
-			status: http.StatusUnprocessableEntity, message: validationError, detail: "config.arguments.* failed invalid validation"},
-		{name: "list value", method: http.MethodPost, path: dest, auth: admin,
-			body: with(func(b map[string]any) {
-				b["config"].(map[string]any)["arguments"] = `{"status":["paid"]}`
-			}),
-			status: http.StatusUnprocessableEntity, message: validationError, detail: "config.arguments.status failed invalid validation"},
-		{name: "operator object", method: http.MethodPost, path: dest, auth: admin,
-			body: with(func(b map[string]any) {
-				b["config"].(map[string]any)["arguments"] = `{"amount":{"$gt":1}}`
-			}),
-			status: http.StatusUnprocessableEntity, message: validationError, detail: "config.arguments.amount failed invalid validation"},
-		{name: "arguments on a no-argument event", method: http.MethodPost, path: dest, auth: admin,
-			body: with(func(b map[string]any) {
-				b["topics"] = []string{"user.updated"}
-				b["config"].(map[string]any)["arguments"] = `{"id":"x"}`
-			}),
-			status: http.StatusUnprocessableEntity, message: validationError, detail: "config.arguments.* failed invalid validation"},
-		{name: "arguments not an object", method: http.MethodPost, path: dest, auth: admin,
-			body: with(func(b map[string]any) {
-				b["config"].(map[string]any)["arguments"] = `["paid"]`
-			}),
-			status: http.StatusUnprocessableEntity, message: validationError, detail: "config.arguments"},
-		{name: "filter with a catalog", method: http.MethodPost, path: dest, auth: admin,
-			body: with(func(b map[string]any) {
-				b["filter"] = map[string]any{"data": map[string]any{"status": "paid"}}
-			}),
-			status: http.StatusUnprocessableEntity, message: validationError, detail: "filter failed invalid validation"},
+	for _, c := range cases {
+		p := s.m.newPath(mcpreceiver.PathConfig{})
+		params := map[string]any{
+			"name":     c.topic,
+			"delivery": map[string]any{"mode": "webhook", "url": p.url, "secret": p.secret},
+		}
+		if c.args != "" {
+			params["arguments"] = json.RawMessage(c.args)
+		}
+		var raw json.RawMessage
+		status := s.m.base.doJSON(http.MethodPost, s.m.base.apiURL("/tenants/"+tenant+"/mcp/subscribe"),
+			map[string]any{"principal": p.principal, "params": params}, &raw)
+		failure := parseMCPError(raw)
+		s.m.check(status == http.StatusUnprocessableEntity && failure.MCPError.Code == c.code && failure.MCPError.Message == c.message,
+			"%s: status %d body %s", c.name, status, raw)
+		s.Empty(s.m.r.Challenges(p.path), "%s: no challenge for a refused subscription", c.name)
 	}
-
-	armed := p.body(mcpDestOpts{})
-	armed["config"].(map[string]any)["arguments"] = `{"status":"paid"}`
-	status, raw := s.m.create(tenant, armed)
-	s.Require().Equal(http.StatusCreated, status, "%s", raw)
-	cases = append(cases,
-		errorCase{name: "arguments are immutable", method: http.MethodPatch, path: dest + "/" + p.destID, auth: admin,
-			body:   map[string]any{"config": map[string]any{"arguments": `{"status":"pending"}`}},
-			status: http.StatusUnprocessableEntity, message: validationError, detail: "config.arguments failed immutable validation"},
-		errorCase{name: "filter is immutable", method: http.MethodPatch, path: dest + "/" + p.destID, auth: admin,
-			body:   map[string]any{"filter": map[string]any{"data": map[string]any{"status": "pending"}}},
-			status: http.StatusUnprocessableEntity, message: validationError, detail: "filter failed immutable validation"},
-	)
-
-	s.m.base.runErrorCases(cases)
 }

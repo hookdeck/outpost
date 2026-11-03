@@ -15,6 +15,7 @@ import (
 	"github.com/hookdeck/outpost/cmd/e2e/mcpreceiver"
 	"github.com/hookdeck/outpost/internal/config"
 	"github.com/hookdeck/outpost/internal/idgen"
+	"github.com/hookdeck/outpost/internal/mcpevents"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/util/testinfra"
 	"github.com/stretchr/testify/suite"
@@ -93,9 +94,16 @@ func (s *mcpSuite) check(ok bool, format string, args ...any) {
 // Fixtures
 // =============================================================================
 
-// mcpPath is one callback path with the destination ID and secret used on it.
+// mcpDefaultPrincipal is the principal subscriptions are made for unless a
+// test picks another.
+const mcpDefaultPrincipal = "e2e"
+
+// mcpPath is one callback path with the secret used on it and the ID a
+// subscription of principal gets.
 type mcpPath struct {
-	path, url, destID, secret string
+	path, url, destID, secret, principal string
+	// args is the canonical JSON of the subscription's arguments; empty for none.
+	args string
 }
 
 func newWhsec() string {
@@ -104,94 +112,109 @@ func newWhsec() string {
 	return "whsec_" + base64.StdEncoding.EncodeToString(key)
 }
 
-// newPath registers a callback path answering as cfg says; the receiver
-// checks its requests against the returned secret and destination ID.
-func (s *mcpSuite) newPath(cfg mcpreceiver.PathConfig) mcpPath {
-	p := mcpPath{destID: idgen.Destination(), secret: newWhsec()}
-	cfg.Secrets = []string{p.secret}
-	cfg.SubscriptionID = p.destID
-	p.path, p.url = s.r.Register(cfg)
+// subscriptionID is the ID the subscribe route derives for a subscription to
+// mcpTopic.
+func subscriptionID(principal, callbackURL, args string) string {
+	_, normalized, err := mcpevents.NormalizeCallbackURL(callbackURL)
+	if err != nil {
+		return ""
+	}
+	return mcpevents.DeriveSubscriptionID(principal, normalized, mcpTopic, json.RawMessage(args))
+}
+
+// forPrincipal returns the path as seen by another principal's subscription.
+func (p mcpPath) forPrincipal(principal string) mcpPath {
+	p.principal = principal
+	p.destID = subscriptionID(principal, p.url, p.args)
 	return p
 }
 
-type mcpDestOpts struct {
-	principal string
-	expiresAt *time.Time
-	destID    string
-	secret    string
-	url       string
+// withArguments returns the path as seen by a subscription with the given
+// canonical JSON arguments, and makes the receiver expect its ID.
+func (s *mcpSuite) withArguments(p mcpPath, args string) mcpPath {
+	p.args = args
+	p.destID = subscriptionID(p.principal, p.url, p.args)
+	s.r.Set(p.path, mcpreceiver.PathConfig{Secrets: []string{p.secret}, SubscriptionID: p.destID})
+	return p
 }
 
-func (p mcpPath) body(o mcpDestOpts) map[string]any {
-	id, secret, url := p.destID, p.secret, p.url
-	if o.destID != "" {
-		id = o.destID
-	}
-	if o.secret != "" {
-		secret = o.secret
-	}
-	if o.url != "" {
-		url = o.url
-	}
-	cfg := map[string]any{"url": url}
-	if o.principal != "" {
-		cfg["principal"] = o.principal
-	}
-	body := map[string]any{
-		"id":          id,
-		"type":        "mcp",
-		"topics":      []string{mcpTopic},
-		"config":      cfg,
-		"credentials": map[string]any{"secret": secret},
-	}
-	if o.expiresAt != nil {
-		body["expires_at"] = o.expiresAt.UTC().Format(time.RFC3339Nano)
-	}
-	return body
+// newPath registers a callback path answering as cfg says; the receiver
+// checks its requests against the returned secret and the ID of the default
+// principal's subscription.
+func (s *mcpSuite) newPath(cfg mcpreceiver.PathConfig) mcpPath {
+	p := mcpPath{secret: newWhsec(), principal: mcpDefaultPrincipal}
+	cfg.Secrets = []string{p.secret}
+	p.path, p.url = s.r.Register(cfg)
+	p.destID = subscriptionID(p.principal, p.url, "")
+	cfg.SubscriptionID = p.destID
+	s.r.Set(p.path, cfg)
+	return p
+}
+
+// mcpSubscribeOpts overrides what subscribe sends for a path.
+type mcpSubscribeOpts struct {
+	secret    string
+	ttlMillis int64
 }
 
 func (s *mcpSuite) destURL(tenantID string, parts ...string) string {
 	return s.base.apiURL("/tenants/" + tenantID + "/destinations" + strings.Join(parts, "/"))
 }
 
-// create posts a destination and returns the status and raw body.
-func (s *mcpSuite) create(tenantID string, body map[string]any) (int, json.RawMessage) {
+// mcpErrorBody is the failure of a subscribe call.
+type mcpErrorBody struct {
+	MCPError struct {
+		Code    int            `json:"code"`
+		Message string         `json:"message"`
+		Data    map[string]any `json:"data"`
+	} `json:"mcp_error"`
+}
+
+func (b mcpErrorBody) reason() string {
+	reason, _ := b.MCPError.Data["reason"].(string)
+	return reason
+}
+
+func parseMCPError(raw json.RawMessage) mcpErrorBody {
+	var b mcpErrorBody
+	_ = json.Unmarshal(raw, &b)
+	return b
+}
+
+// subscribe posts the subscribe call of p's principal and returns the status
+// and raw body.
+func (s *mcpSuite) subscribe(tenantID string, p mcpPath, o mcpSubscribeOpts) (int, json.RawMessage) {
 	s.T().Helper()
+	secret := p.secret
+	if o.secret != "" {
+		secret = o.secret
+	}
+	params := map[string]any{
+		"name":     mcpTopic,
+		"delivery": map[string]any{"mode": "webhook", "url": p.url, "secret": secret},
+	}
+	if o.ttlMillis != 0 {
+		params["ttlMs"] = o.ttlMillis
+	}
+	if p.args != "" {
+		params["arguments"] = json.RawMessage(p.args)
+	}
 	var raw json.RawMessage
-	status := s.base.doJSON(http.MethodPost, s.destURL(tenantID), body, &raw)
+	status := s.base.doJSON(http.MethodPost, s.base.apiURL("/tenants/"+tenantID+"/mcp/subscribe"),
+		map[string]any{"principal": p.principal, "params": params}, &raw)
 	return status, raw
 }
 
-func (s *mcpSuite) mustCreate(tenantID string, p mcpPath, o mcpDestOpts) {
+// mustSubscribe subscribes and checks the subscription got the ID of p.
+func (s *mcpSuite) mustSubscribe(tenantID string, p mcpPath, o mcpSubscribeOpts) {
 	s.T().Helper()
-	status, raw := s.create(tenantID, p.body(o))
-	s.Require().Equal(http.StatusCreated, status, "create %s: %s", p.destID, raw)
-}
-
-// errorOf returns the field and type of the first detail of a 422 body
-// ("<field> failed <type> validation").
-func errorOf(raw json.RawMessage) (field, typ string) {
-	var e struct {
-		Data []string `json:"data"`
+	status, raw := s.subscribe(tenantID, p, o)
+	s.Require().Equal(http.StatusOK, status, "subscribe %s: %s", p.destID, raw)
+	var res struct {
+		ID string `json:"id"`
 	}
-	if json.Unmarshal(raw, &e) != nil || len(e.Data) == 0 {
-		return "", ""
-	}
-	parts := strings.Fields(e.Data[0])
-	if len(parts) >= 3 && parts[1] == "failed" {
-		return parts[0], parts[2]
-	}
-	return "", ""
-}
-
-func messageOf(raw json.RawMessage) string {
-	var e struct {
-		Data []string `json:"data"`
-	}
-	if json.Unmarshal(raw, &e) != nil || len(e.Data) == 0 {
-		return ""
-	}
-	return e.Data[0]
+	s.Require().NoError(json.Unmarshal(raw, &res))
+	s.Require().Equal(p.destID, res.ID)
 }
 
 func (s *mcpSuite) publishMCP(tenantID string, data any) publishResponse {
@@ -269,10 +292,10 @@ func (s *mcpSuite) sentinelURLs() (v4, v6 string) {
 func (s *mcpSuite) TestDeliveryBasics() {
 	tenant := s.base.createTenant().ID
 	p := s.newPath(mcpreceiver.PathConfig{})
-	s.mustCreate(tenant, p, mcpDestOpts{principal: "user-1"})
+	s.mustSubscribe(tenant, p, mcpSubscribeOpts{})
 
 	challenges := s.r.Challenges(p.path)
-	s.check(len(challenges) == 1, "challenges received at create: %d", len(challenges))
+	s.check(len(challenges) == 1, "challenges received at subscribe: %d", len(challenges))
 	s.Require().Empty(s.r.Events(p.path), "no event before the first publish")
 
 	pub1 := s.publishMCP(tenant, map[string]any{"n": 1})
@@ -289,7 +312,7 @@ func (s *mcpSuite) TestDeliveryBasics() {
 func (s *mcpSuite) TestPublishByID() {
 	tenant := s.base.createTenant().ID
 	p := s.newPath(mcpreceiver.PathConfig{})
-	s.mustCreate(tenant, p, mcpDestOpts{})
+	s.mustSubscribe(tenant, p, mcpSubscribeOpts{})
 
 	var pub publishResponse
 	status := s.base.doJSON(http.MethodPost, s.base.apiURL("/publish"), map[string]any{
@@ -308,7 +331,7 @@ func (s *mcpSuite) TestPublishByID() {
 func (s *mcpSuite) TestRetryResigns() {
 	tenant := s.base.createTenant().ID
 	p := s.newPath(mcpreceiver.PathConfig{Event: mcpreceiver.Sequence(500, 500)})
-	s.mustCreate(tenant, p, mcpDestOpts{})
+	s.mustSubscribe(tenant, p, mcpSubscribeOpts{})
 	s.publishMCP(tenant, map[string]any{"n": 1})
 	events := s.r.WaitFor(p.path, 3, mcpreceiver.Request.IsEvent, 15*time.Second)
 	s.Len(events, 3, "1 attempt + 2 retries")
@@ -343,14 +366,15 @@ func (s *mcpSuite) TestVerificationFailures() {
 	}
 	for _, c := range cases {
 		p := s.newPath(c.cfg)
-		status, raw := s.create(tenant, p.body(mcpDestOpts{}))
-		field, typ := errorOf(raw)
-		okType := typ == c.wantTyp
+		status, raw := s.subscribe(tenant, p, mcpSubscribeOpts{})
+		failure := parseMCPError(raw)
+		reason := failure.reason()
+		okReason := reason == c.wantTyp
 		if c.wantTyp == "" {
-			okType = contains(challengeCategories, typ)
+			okReason = contains(challengeCategories, reason)
 		}
-		s.check(status == http.StatusUnprocessableEntity && field == "config.url" && okType,
-			"%s: status %d field %q type %q, body %s", c.name, status, field, typ, raw)
+		s.check(status == http.StatusUnprocessableEntity && failure.MCPError.Code == -32027 && failure.MCPError.Message == "CallbackEndpointError" && okReason,
+			"%s: status %d error %+v, body %s", c.name, status, failure.MCPError, raw)
 		s.check(!strings.Contains(string(raw), mcpreceiver.MarkerText) && !strings.Contains(string(raw), p.url),
 			"%s: response body %s", c.name, raw)
 
@@ -365,21 +389,18 @@ func (s *mcpSuite) TestVerificationCache() {
 	tenant := s.base.createTenant().ID
 	first := s.newPath(mcpreceiver.PathConfig{})
 	s.r.Set(first.path, mcpreceiver.PathConfig{Secrets: []string{first.secret}})
-	s.mustCreate(tenant, first, mcpDestOpts{principal: "alice"})
+	alice := first.forPrincipal("alice")
+	s.mustSubscribe(tenant, alice, mcpSubscribeOpts{})
 	s.Len(s.r.Challenges(first.path), 1)
 
-	sameKey := first
-	sameKey.destID = idgen.Destination()
-	s.mustCreate(tenant, sameKey, mcpDestOpts{principal: "alice"})
+	s.mustSubscribe(tenant, alice, mcpSubscribeOpts{})
 	cached := len(s.r.Challenges(first.path)) == 1
 
-	otherPrincipal := first
-	otherPrincipal.destID = idgen.Destination()
-	s.mustCreate(tenant, otherPrincipal, mcpDestOpts{principal: "bob"})
+	s.mustSubscribe(tenant, first.forPrincipal("bob"), mcpSubscribeOpts{})
 	reverified := len(s.r.Challenges(first.path)) == 2
 
 	s.check(cached && reverified,
-		"challenges after same (principal,url): cached=%v; after other principal: %d total", cached, len(s.r.Challenges(first.path)))
+		"challenges after the same principal and URL: cached=%v; after other principal: %d total", cached, len(s.r.Challenges(first.path)))
 }
 
 // =============================================================================
@@ -390,7 +411,7 @@ func (s *mcpSuite) TestDeliveryRedirectNotFollowed() {
 	tenant := s.base.createTenant().ID
 	target := "/redirect-target/" + idgen.String()
 	p := s.newPath(mcpreceiver.PathConfig{Event: mcpreceiver.Redirect(target)})
-	s.mustCreate(tenant, p, mcpDestOpts{})
+	s.mustSubscribe(tenant, p, mcpSubscribeOpts{})
 	s.publishMCP(tenant, map[string]any{"n": 1})
 	attempts := s.waitAttempts(tenant, p.destID, 1, attemptPollTimeout)
 	time.Sleep(500 * time.Millisecond)
@@ -417,9 +438,10 @@ func (s *mcpSuite) TestRejectedCallbackURLs() {
 			s.T().Logf("skipping %s: [::1] is not available on this host", name)
 			continue
 		}
-		p := mcpPath{destID: idgen.Destination(), secret: newWhsec(), url: url}
-		status, raw := s.create(tenant, p.body(mcpDestOpts{}))
-		s.check(status == http.StatusUnprocessableEntity && messageOf(raw) == "config.url must resolve to a public address",
+		p := mcpPath{secret: newWhsec(), url: url, principal: mcpDefaultPrincipal}
+		status, raw := s.subscribe(tenant, p, mcpSubscribeOpts{})
+		failure := parseMCPError(raw)
+		s.check(status == http.StatusUnprocessableEntity && failure.MCPError.Code == -32602 && failure.MCPError.Message == "InvalidParams",
 			"%s %s: status %d body %s", name, url, status, raw)
 	}
 	time.Sleep(300 * time.Millisecond)
@@ -448,11 +470,11 @@ func (s *mcpSuite) TestAddressCheckedAtDeliveryTime() {
 
 func (s *mcpSuite) TestHTTPSRequired() {
 	tenant := s.base.createTenant().ID
-	p := mcpPath{destID: idgen.Destination(), secret: newWhsec(), url: "http://93.184.215.14/x"}
-	status, raw := s.create(tenant, p.body(mcpDestOpts{}))
-	field, typ := errorOf(raw)
-	s.check(status == http.StatusUnprocessableEntity && field == "config.url" && typ == "https_required",
-		"status %d field %q type %q", status, field, typ)
+	p := mcpPath{secret: newWhsec(), url: "http://93.184.215.14/x", principal: mcpDefaultPrincipal}
+	status, raw := s.subscribe(tenant, p, mcpSubscribeOpts{})
+	failure := parseMCPError(raw)
+	s.check(status == http.StatusUnprocessableEntity && failure.MCPError.Code == -32602 && failure.MCPError.Message == "InvalidParams",
+		"status %d body %s", status, raw)
 }
 
 // =============================================================================
@@ -465,7 +487,7 @@ func (s *mcpSuite) TestHTTPSRequired() {
 func (s *mcpSuite) nonRetryable(status int) {
 	tenant := s.base.createTenant().ID
 	p := s.newPath(mcpreceiver.PathConfig{Event: mcpreceiver.Status(status)})
-	s.mustCreate(tenant, p, mcpDestOpts{})
+	s.mustSubscribe(tenant, p, mcpSubscribeOpts{})
 	const events = 6
 	for i := range events {
 		s.publishMCP(tenant, map[string]any{"n": i})
@@ -486,7 +508,7 @@ func (s *mcpSuite) nonRetryable(status int) {
 func (s *mcpSuite) TestRepeatedServerErrorsDisableDestination() {
 	tenant := s.base.createTenant().ID
 	p := s.newPath(mcpreceiver.PathConfig{Event: mcpreceiver.Status(http.StatusInternalServerError)})
-	s.mustCreate(tenant, p, mcpDestOpts{})
+	s.mustSubscribe(tenant, p, mcpSubscribeOpts{})
 	for i := range 6 {
 		s.publishMCP(tenant, map[string]any{"n": i})
 	}
@@ -510,7 +532,7 @@ func (s *mcpSuite) TestPayloadTooLargeStatus() {
 func (s *mcpSuite) TestOversizeEnvelope() {
 	tenant := s.base.createTenant().ID
 	p := s.newPath(mcpreceiver.PathConfig{})
-	s.mustCreate(tenant, p, mcpDestOpts{})
+	s.mustSubscribe(tenant, p, mcpSubscribeOpts{})
 	s.publishMCP(tenant, map[string]any{"blob": strings.Repeat("a", 300*1024)})
 	attempts := s.waitAttempts(tenant, p.destID, 1, attemptPollTimeout)
 	time.Sleep(mcpRetryWait)
@@ -526,7 +548,7 @@ func (s *mcpSuite) TestOversizeEnvelope() {
 func (s *mcpSuite) TestRetriesBounded() {
 	tenant := s.base.createTenant().ID
 	p := s.newPath(mcpreceiver.PathConfig{Event: mcpreceiver.Status(500)})
-	s.mustCreate(tenant, p, mcpDestOpts{})
+	s.mustSubscribe(tenant, p, mcpSubscribeOpts{})
 	s.publishMCP(tenant, map[string]any{"n": 1})
 	want := 1 + len(mcpRetrySchedule)
 	s.waitAttempts(tenant, p.destID, want, 15*time.Second)
@@ -557,7 +579,7 @@ func (s *mcpSuite) TestRetriesBounded() {
 func (s *mcpSuite) TestTimeout() {
 	tenant := s.base.createTenant().ID
 	p := s.newPath(mcpreceiver.PathConfig{Event: mcpreceiver.Sleep(mcpDeliveryTimeoutSeconds*time.Second + time.Second)})
-	s.mustCreate(tenant, p, mcpDestOpts{})
+	s.mustSubscribe(tenant, p, mcpSubscribeOpts{})
 	s.publishMCP(tenant, map[string]any{"n": 1})
 	attempts := s.waitAttempts(tenant, p.destID, 2, 20*time.Second)
 	s.check(len(attempts) >= 2 && allCode(attempts, "timeout"), "attempt codes %v", codes(attempts))
@@ -570,13 +592,10 @@ func (s *mcpSuite) TestTimeout() {
 func (s *mcpSuite) TestDualSignOnRotation() {
 	tenant := s.base.createTenant().ID
 	p := s.newPath(mcpreceiver.PathConfig{})
-	s.mustCreate(tenant, p, mcpDestOpts{})
+	s.mustSubscribe(tenant, p, mcpSubscribeOpts{})
 	newSecret := newWhsec()
 
-	status := s.base.doJSON(http.MethodPatch, s.destURL(tenant, "/"+p.destID), map[string]any{
-		"credentials": map[string]any{"secret": newSecret},
-	}, nil)
-	s.Require().Equal(http.StatusOK, status)
+	s.mustSubscribe(tenant, p, mcpSubscribeOpts{secret: newSecret})
 	s.r.SetSecrets(p.path, p.secret, newSecret)
 
 	s.publishMCP(tenant, map[string]any{"n": 1})
@@ -595,8 +614,9 @@ func (s *mcpSuite) TestDualSignOnRotation() {
 func (s *mcpSuite) TestExpiry() {
 	tenant := s.base.createTenant().ID
 	p := s.newPath(mcpreceiver.PathConfig{Event: mcpreceiver.Status(500)})
-	expires := time.Now().Add(2 * time.Second)
-	s.mustCreate(tenant, p, mcpDestOpts{expiresAt: &expires})
+	subscribed := time.Now()
+	s.mustSubscribe(tenant, p, mcpSubscribeOpts{ttlMillis: 2000})
+	expires := subscribed.Add(2 * time.Second)
 
 	before := s.publishMCP(tenant, map[string]any{"n": "before"})
 	first := s.r.WaitFor(p.path, 1, mcpreceiver.Request.IsEvent, 5*time.Second)
@@ -635,15 +655,12 @@ func (s *mcpSuite) TestExpiry() {
 
 func (s *mcpSuite) TestEventIDPerSubscription() {
 	tenant := s.base.createTenant().ID
-	a := s.newPath(mcpreceiver.PathConfig{})
-	a.destID = idgen.Destination()
-	cfg := mcpreceiver.PathConfig{Secrets: []string{a.secret}}
-	a.path, a.url = s.r.Register(cfg)
-	b := a
-	b.destID = idgen.Destination()
+	base := s.newPath(mcpreceiver.PathConfig{})
+	s.r.Set(base.path, mcpreceiver.PathConfig{Secrets: []string{base.secret}})
+	a, b := base.forPrincipal("u1"), base.forPrincipal("u2")
 
-	s.mustCreate(tenant, a, mcpDestOpts{principal: "u"})
-	s.mustCreate(tenant, b, mcpDestOpts{principal: "u"})
+	s.mustSubscribe(tenant, a, mcpSubscribeOpts{})
+	s.mustSubscribe(tenant, b, mcpSubscribeOpts{})
 	pub := s.publishMCP(tenant, map[string]any{"n": 1})
 	events := s.r.WaitFor(a.path, 2, mcpreceiver.Request.IsEvent, mockServerPollTimeout)
 	s.Require().Len(events, 2)
@@ -661,35 +678,61 @@ func (s *mcpSuite) TestEventIDPerSubscription() {
 func (s *mcpSuite) TestErrorResponses_MCP() {
 	tenant := s.base.createTenant().ID
 	p := s.newPath(mcpreceiver.PathConfig{})
-	s.mustCreate(tenant, p, mcpDestOpts{principal: "u"})
-	past := time.Now().Add(-time.Hour)
-	create := p.body(mcpDestOpts{destID: idgen.Destination()})
-	pastBody := p.body(mcpDestOpts{destID: idgen.Destination(), expiresAt: &past})
+	s.mustSubscribe(tenant, p, mcpSubscribeOpts{})
+	create := map[string]any{
+		"id": idgen.Destination(), "type": "mcp", "topics": []string{mcpTopic},
+		"config": map[string]any{"url": p.url}, "credentials": map[string]any{"secret": p.secret},
+	}
 	webhookWithExpiry := map[string]any{
 		"type": "webhook", "topics": []string{mcpTopic}, "config": map[string]any{"url": "https://203.0.113.10/"},
 		"expires_at": time.Now().Add(time.Hour).UTC().Format(time.RFC3339),
 	}
 	dest := "/tenants/" + tenant + "/destinations"
 	admin := s.base.adminAuth()
+	useSubscribe := "mcp destinations can't be created or updated here; use POST /tenants/" + tenant + "/mcp/subscribe"
 
 	s.base.runErrorCases([]errorCase{
+		{name: "admin creates mcp", method: http.MethodPost, path: dest, auth: admin, body: create,
+			status: http.StatusUnprocessableEntity, message: useSubscribe},
 		{name: "tenant token creates mcp", method: http.MethodPost, path: dest, auth: s.base.tenantAuth(tenant), body: create,
-			status: http.StatusForbidden, message: "mcp destinations can only be created and updated with API key authentication"},
-		{name: "tenant token updates mcp", method: http.MethodPatch, path: dest + "/" + p.destID, auth: s.base.tenantAuth(tenant), body: map[string]any{"expires_at": nil},
-			status: http.StatusForbidden, message: "mcp destinations can only be created and updated with API key authentication"},
-		{name: "expires_at in the past", method: http.MethodPost, path: dest, auth: admin, body: pastBody,
-			status: http.StatusUnprocessableEntity, message: "expires_at must be in the future"},
+			status: http.StatusUnprocessableEntity, message: useSubscribe},
+		{name: "admin updates mcp", method: http.MethodPatch, path: dest + "/" + p.destID, auth: admin,
+			body:   map[string]any{"credentials": map[string]any{"secret": newWhsec()}},
+			status: http.StatusUnprocessableEntity, message: useSubscribe},
+		{name: "tenant token updates mcp", method: http.MethodPatch, path: dest + "/" + p.destID, auth: s.base.tenantAuth(tenant),
+			body:   map[string]any{"expires_at": nil},
+			status: http.StatusUnprocessableEntity, message: useSubscribe},
 		{name: "expires_at on a webhook", method: http.MethodPost, path: dest, auth: admin, body: webhookWithExpiry,
 			status: http.StatusUnprocessableEntity, message: "expires_at is not supported for this destination type"},
-		{name: "url is immutable", method: http.MethodPatch, path: dest + "/" + p.destID, auth: admin,
-			body:   map[string]any{"config": map[string]any{"url": "https://203.0.113.10/"}},
-			status: http.StatusUnprocessableEntity, message: validationError, detail: "config.url failed immutable validation"},
-		{name: "topics are immutable", method: http.MethodPatch, path: dest + "/" + p.destID, auth: admin,
-			body:   map[string]any{"topics": []string{"user.deleted"}},
-			status: http.StatusUnprocessableEntity, message: validationError, detail: "topics failed immutable validation"},
 		{name: "mcp type hidden from tenants", method: http.MethodGet, path: "/destination-types/mcp", auth: s.base.tenantAuth(tenant),
 			status: http.StatusNotFound, message: "destination type not found"},
 	})
+}
+
+// TestDestinationsAPIReadsAndDeletes checks that a subscription is listed,
+// retrieved and deleted like any destination.
+func (s *mcpSuite) TestDestinationsAPIReadsAndDeletes() {
+	tenant := s.base.createTenant().ID
+	p := s.newPath(mcpreceiver.PathConfig{})
+	s.mustSubscribe(tenant, p, mcpSubscribeOpts{})
+
+	var got struct {
+		ID        string `json:"id"`
+		Type      string `json:"type"`
+		ExpiresAt string `json:"expires_at"`
+	}
+	s.Require().Equal(http.StatusOK, s.base.doJSON(http.MethodGet, s.destURL(tenant, "/"+p.destID), nil, &got))
+	s.Equal("mcp", got.Type)
+	s.NotEmpty(got.ExpiresAt)
+	var list []struct {
+		ID string `json:"id"`
+	}
+	s.Require().Equal(http.StatusOK, s.base.doJSON(http.MethodGet, s.destURL(tenant), nil, &list))
+	s.Require().Len(list, 1)
+	s.Equal(p.destID, list[0].ID)
+
+	s.Equal(http.StatusOK, s.base.doJSON(http.MethodDelete, s.destURL(tenant, "/"+p.destID), nil, nil))
+	s.Equal(http.StatusNotFound, s.base.doJSON(http.MethodGet, s.destURL(tenant, "/"+p.destID), nil, nil))
 }
 
 func contains(list []string, v string) bool {
