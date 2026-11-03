@@ -31,3 +31,22 @@ func TestErrors(t *testing.T) {
 		})
 	}
 }
+
+func TestErrorKindsHaveSEPCodes(t *testing.T) {
+	t.Parallel()
+	for k, code := range map[Kind]int{
+		KindInvalidParams:         -32602,
+		KindNotFound:              -32023,
+		KindForbidden:             -32024,
+		KindResourceExhausted:     -32025,
+		KindUnsupported:           -32026,
+		KindCallbackEndpointError: -32027,
+	} {
+		assert.Equal(t, code, (&Error{Kind: k}).Code(), k)
+		assert.NotEmpty(t, kinds[k].message, k)
+	}
+	assert.Equal(t, -32603, (&Error{Kind: "other"}).Code())
+	assert.Equal(t, -32023, NotFound(NotFoundSubscription).Code())
+	assert.Equal(t, map[string]any{"kind": "subscription"}, NotFound(NotFoundSubscription).Data)
+	assert.Equal(t, "NotFound", NotFound(NotFoundEvent).Message)
+}
