@@ -17,6 +17,7 @@ import (
 	"github.com/hookdeck/outpost/internal/destregistry/metadata"
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/logstore"
+	"github.com/hookdeck/outpost/internal/mcpevents"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/opevents"
 	"github.com/hookdeck/outpost/internal/portal"
@@ -81,6 +82,13 @@ type apiTestConfig struct {
 	maxDestinations      int
 	mcpCatalog           *topicschema.Catalog
 	mcpEventsErr         error
+	mcpSubscriptionTTL   *mcpevents.TTLConfig
+}
+
+func withMCPSubscribe(ttl mcpevents.TTLConfig) apiTestOption {
+	return func(cfg *apiTestConfig) {
+		cfg.mcpSubscriptionTTL = &ttl
+	}
 }
 
 func withMaxDestinations(n int) apiTestOption {
@@ -209,6 +217,7 @@ func newAPITest(t *testing.T, opts ...apiTestOption) *apiTest {
 
 			MaxDestinationsPerTenant: cfg.maxDestinations,
 			ExcludedDestinationTypes: cfg.excludedTypes,
+			MCPSubscriptionTTL:       cfg.mcpSubscriptionTTL,
 		},
 		apirouter.RouterDeps{
 			TenantStore:         ts,
