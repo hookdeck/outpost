@@ -19,6 +19,7 @@ type MCPConfig struct {
 	AllowInsecureCallbacks bool            `yaml:"allow_insecure_callbacks" env:"EXPERIMENTAL_MCP_ALLOW_INSECURE_CALLBACKS" desc:"The MCP Events spec requires https callback URLs. If true, http is also accepted for addresses that are all in DESTINATIONS_PRIVATE_ADDRESS_ALLOWLIST: an exception outside the spec, for development only." required:"N" default:"false"`
 	RetryDelays            []time.Duration `yaml:"-"`
 	VerificationTTLSeconds int             `yaml:"verification_ttl_seconds" env:"EXPERIMENTAL_MCP_VERIFICATION_TTL_SECONDS" desc:"How long, in seconds, a passed callback verification challenge is cached per tenant, principal and callback URL." required:"N" default:"86400"`
+	EventsSchema           MCPEventsSchema `yaml:"events_schema" env:"EXPERIMENTAL_MCP_EVENTS_SCHEMA" desc:"Event definitions for MCP subscriptions in the MCP events/list format: {\"events\": [...]}, each with a name, an inputSchema and a payloadSchema (JSON Schema 2020-12 objects). In YAML a mapping (inline definitions) or a path to a JSON or YAML file (a string is always a path); in the environment inline JSON (a value starting with {) or a file path. Every name must be in TOPICS when TOPICS is set. Invalid definitions don't stop Outpost: it logs the error and MCP Events answers 503." required:"N"`
 }
 
 func (c *MCPConfig) initDefaults() {
@@ -34,11 +35,14 @@ func invalidMCP(format string, args ...any) error {
 func (c *Config) validateMCP() error {
 	m := &c.Experimental.MCP
 	if !m.Enabled {
+		c.mcpCatalog = nil
+		c.mcpEventsErr = nil
 		return nil
 	}
 	if m.VerificationTTLSeconds < 1 || int64(m.VerificationTTLSeconds) > maxDurationSeconds {
 		return invalidMCP("EXPERIMENTAL_MCP_VERIFICATION_TTL_SECONDS (experimental.mcp.verification_ttl_seconds) must be between 1 and %d, got %d", maxDurationSeconds, m.VerificationTTLSeconds)
 	}
+	c.validateMCPEvents()
 	return nil
 }
 
@@ -69,6 +73,9 @@ func (c *Config) MCPWarnings() []string {
 		} else {
 			warnings = append(warnings, "EXPERIMENTAL_MCP_ALLOW_INSECURE_CALLBACKS is true: plain http callback URLs are accepted for allowlisted addresses, sending event payloads unencrypted. Use it for development only.")
 		}
+	}
+	if c.mcpCatalog == nil && c.mcpEventsErr == nil {
+		warnings = append(warnings, "EXPERIMENTAL_MCP_ENABLED is true but EXPERIMENTAL_MCP_EVENTS_SCHEMA (experimental.mcp.events_schema) defines no events: every mcp subscription is refused.")
 	}
 	return warnings
 }

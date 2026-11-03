@@ -30,6 +30,12 @@ func defaultMCPConfig() config.MCPConfig {
 
 func parseMCP(t *testing.T, env map[string]string, yamlDoc string) *config.Config {
 	t.Helper()
+	cfg, err := parseMCPErr(env, yamlDoc, nil)
+	require.NoError(t, err)
+	return cfg
+}
+
+func parseMCPErr(env map[string]string, yamlDoc string, files map[string]string) (*config.Config, error) {
 	all := map[string]string{}
 	for k, v := range requiredEnv {
 		all[k] = v
@@ -38,13 +44,14 @@ func parseMCP(t *testing.T, env map[string]string, yamlDoc string) *config.Confi
 		all[k] = v
 	}
 	m := &mockOS{files: map[string][]byte{}, envVars: all}
+	for name, content := range files {
+		m.files[name] = []byte(content)
+	}
 	if yamlDoc != "" {
 		m.files["config.yaml"] = []byte(yamlDoc)
 		m.envVars["CONFIG"] = "config.yaml"
 	}
-	cfg, err := config.ParseWithOS(config.Flags{}, m)
-	require.NoError(t, err)
-	return cfg
+	return config.ParseWithOS(config.Flags{}, m)
 }
 
 func TestMCPConfig_Defaults(t *testing.T) {
@@ -219,9 +226,12 @@ func TestMCPConfig_MatchesEnvExample(t *testing.T) {
 		assert.Contains(t, env, name, "%s is in .env.example", name)
 	}
 
-	cfg := parseMCP(t, env, "")
+	cfg, err := parseMCPErr(env, "", map[string]string{env["EXPERIMENTAL_MCP_EVENTS_SCHEMA"]: "events:\n  - name: user.created\n    inputSchema: {type: object, properties: {}}\n    payloadSchema: {type: object}\n"})
+	require.NoError(t, err)
 	want := defaultMCPConfig()
 	want.Enabled = true
+	require.NotNil(t, cfg.MCPCatalog())
+	cfg.Experimental.MCP.EventsSchema = config.MCPEventsSchema{}
 	assert.Equal(t, want, cfg.Experimental.MCP)
 }
 
@@ -233,14 +243,14 @@ func TestMCPConfig_MatchesYAMLExample(t *testing.T) {
 	section, _, _ = strings.Cut(section, "\n\n")
 
 	// Uncomment the commented-out keys, leaving prose comments out.
-	key := regexp.MustCompile(`^# (\s*[a-z0-9_]+:.*)$`)
+	key := regexp.MustCompile(`^# (\s*(?:- )?[A-Za-z0-9_.]+:.*)$`)
 	var doc strings.Builder
 	for _, l := range strings.Split(section, "\n") {
 		if m := key.FindStringSubmatch(l); m != nil {
 			doc.WriteString(m[1] + "\n")
 		}
 	}
-	require.Contains(t, doc.String(), "experimental:\n")
+	require.Contains(t, doc.String(), "experimental:\n  mcp:\n")
 
 	// Every key is a config key.
 	dec := yaml.NewDecoder(bytes.NewReader([]byte(doc.String())))
@@ -249,6 +259,8 @@ func TestMCPConfig_MatchesYAMLExample(t *testing.T) {
 	require.NoError(t, dec.Decode(&strict))
 
 	cfg := parseMCP(t, nil, doc.String())
+	require.NotNil(t, cfg.MCPCatalog())
+	cfg.Experimental.MCP.EventsSchema = config.MCPEventsSchema{}
 	want := defaultMCPConfig()
 	want.Enabled = true
 	assert.Equal(t, want, cfg.Experimental.MCP)
