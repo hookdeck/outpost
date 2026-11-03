@@ -97,11 +97,11 @@ const DestinationList: React.FC = () => {
             <div
               style={{ minWidth: "16px", width: "16px", display: "flex" }}
               dangerouslySetInnerHTML={{
-                __html: destination_types[destination.type].icon as string,
+                __html: (destination_types[destination.type]?.icon ?? "") as string,
               }}
             />
             <span className="subtitle-m">
-              {destination_types[destination.type].label}
+              {destination_types[destination.type]?.label ?? destination.type}
             </span>
           </>,
           <span className="muted-variant">{destination.target}</span>,

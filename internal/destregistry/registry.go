@@ -191,11 +191,11 @@ func (r *registry) ValidateDestination(ctx context.Context, destination *models.
 func (r *registry) PublishEvent(ctx context.Context, destination *models.Destination, event *models.Event) (*models.Attempt, error) {
 	publisher, cached, err := r.resolvePublisher(ctx, destination)
 	if err != nil {
-		// If the provider already signaled a delivery error, create a failed attempt
-		// so it's visible to the customer (instead of silently nacking into DLQ).
+		// A delivery error from the provider, a validation error or an unregistered type
+		// becomes a failed attempt, so it's visible instead of nacking into the DLQ.
 		var pubErr *ErrDestinationPublishAttempt
 		var valErr *ErrDestinationValidation
-		if errors.As(err, &pubErr) || errors.As(err, &valErr) {
+		if errors.As(err, &pubErr) || errors.As(err, &valErr) || errors.Is(err, ErrNoProvider) {
 			attempt := &models.Attempt{
 				ID:              idgen.Attempt(),
 				DestinationID:   destination.ID,
@@ -208,6 +208,15 @@ func (r *registry) PublishEvent(ctx context.Context, destination *models.Destina
 			}
 			if pubErr != nil {
 				return attempt, pubErr
+			}
+			if errors.Is(err, ErrNoProvider) {
+				return attempt, &ErrDestinationPublishAttempt{
+					Err:              err,
+					Provider:         destination.Type,
+					Data:             map[string]interface{}{"error": "unsupported_destination_type"},
+					NonRetryable:     true,
+					SkipFailureCount: true,
+				}
 			}
 			return attempt, &ErrDestinationPublishAttempt{
 				Err:      err,
@@ -324,10 +333,13 @@ func (r *registry) RetryPolicy(destinationType string) (backoff.Backoff, int, bo
 	return nil, 0, false
 }
 
+// ErrNoProvider means no provider is registered for the destination's type.
+var ErrNoProvider = errors.New("no provider registered for destination type")
+
 func (r *registry) ResolveProvider(destination *models.Destination) (Provider, error) {
 	provider, exists := r.providers[destination.Type]
 	if !exists {
-		return nil, fmt.Errorf("no provider registered for destination type: %s", destination.Type)
+		return nil, fmt.Errorf("%w: %s", ErrNoProvider, destination.Type)
 	}
 	return provider, nil
 }
@@ -430,9 +442,12 @@ func (r *registry) ObfuscateDestination(destination *models.Destination) (*model
 }
 
 func (r *registry) DisplayDestination(destination *models.Destination) (*DestinationDisplay, error) {
-	provider, err := r.ResolveProvider(destination)
-	if err != nil {
-		return nil, err
+	provider, exists := r.providers[destination.Type]
+	if !exists {
+		// Credentials can't be obfuscated without the provider, so drop them.
+		shown := *destination
+		shown.Credentials = models.Credentials{}
+		return &DestinationDisplay{Destination: &shown}, nil
 	}
 
 	// First obfuscate the destination
