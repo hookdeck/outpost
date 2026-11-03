@@ -385,6 +385,7 @@ func (b *ServiceBuilder) BuildDeliveryWorker(baseRouter *gin.Engine) error {
 		retryMaxLimit,
 		deliveryIdempotence,
 		deliverymq.WithRetryPolicyResolver(svc.destRegistry),
+		deliverymq.WithExcludedDestinationTypes(excludedDestinationTypes(b.cfg)...),
 	)
 
 	svc.router = baseRouter
@@ -615,6 +616,7 @@ func (s *serviceInstance) initTenantStore(ctx context.Context, cfg *config.Confi
 		AvailableTopics:          cfg.Topics,
 		MaxDestinationsPerTenant: cfg.MaxDestinationsPerTenant,
 		DeploymentID:             cfg.DeploymentID,
+		ExcludedTypes:            excludedDestinationTypes(cfg),
 	})
 	if err := s.tenantStore.Init(ctx); err != nil {
 		return fmt.Errorf("failed to initialize tenant store: %w", err)
@@ -724,4 +726,11 @@ func (s *serviceInstance) initRetryScheduler(ctx context.Context, cfg *config.Co
 	})
 	s.retryScheduler = retryScheduler
 	return nil
+}
+
+func excludedDestinationTypes(cfg *config.Config) []string {
+	if cfg.Experimental.MCP.Enabled {
+		return nil
+	}
+	return []string{models.DestinationTypeMCP}
 }
