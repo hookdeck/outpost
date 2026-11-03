@@ -121,3 +121,10 @@ func TestCompact(t *testing.T) {
 	assert.Contains(t, out, `"a":"short"`)
 	assert.Contains(t, out, "…")
 }
+
+func TestCallbackURL(t *testing.T) {
+	t.Setenv("MCP_DEV_HOST", "")
+	assert.Equal(t, "http://host.docker.internal:4501", callbackURL("4501"))
+	t.Setenv("MCP_DEV_HOST", "mcp-dev-receive")
+	assert.Equal(t, "http://mcp-dev-receive:4501", callbackURL("4501"))
+}

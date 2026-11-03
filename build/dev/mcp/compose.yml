@@ -2,7 +2,8 @@ name: "outpost"
 
 # MCP Events add-on (LOCAL_DEV_MCP=1, `make up/mcp`): turns MCP Events on
 # (EXPERIMENTAL_MCP_ENABLED) with the sample events of cmd/mcp-dev, allows http
-# callbacks to the host (where mcp-dev receives), and creates the tenant `demo`.
+# callbacks to the compose network (where the mcp-dev containers receive),
+# and creates the tenant `demo`.
 # TOPICS replaces the list in .outpost.yaml while this add-on is on: the
 # sample event names must be topics. `API_KEY` must be the key in use (the
 # default is apikey); if it only lives in .outpost.yaml the tenant is created
@@ -28,4 +29,28 @@ services:
     command: ["-fsS", "-X", "PUT", "http://api:3333/api/v1/tenants/demo", "-H", "Authorization: Bearer ${API_KEY:-apikey}"]
     depends_on:
       api: { condition: service_healthy }
+    restart: "no"
+
+  # `make mcp/dev` runs this with `docker compose run`. The Makefile names each
+  # container mcp-dev-<subcommand> and sets MCP_DEV_HOST to that name, which is
+  # what Outpost and the other mcp-dev containers reach it by.
+  mcp-dev:
+    profiles: [mcp-dev]
+    image: outpost
+    build:
+      context: ../../
+      dockerfile: ./build/dev/Dockerfile
+    entrypoint: ["sh", "-c", "go build -o /tmp/mcp-dev ./cmd/mcp-dev && exec /tmp/mcp-dev \"$$@\"", "mcp-dev"]
+    volumes:
+      - ../../:/app
+      - go_mod_cache:/go/pkg
+      - go_build_cache:/root/.cache/go-build
+    environment:
+      OUTPOST_URL: http://api:3333/api/v1
+      OUTPOST_API_KEY: ${API_KEY:-apikey}
+      MCP_SERVER_URL: http://mcp-dev-serve:4500
+      MCP_DEV_LISTEN: 0.0.0.0:4500
+      MCP_TOKEN: ${MCP_TOKEN:-}
+    ports:
+      - "127.0.0.1:4500:4500" # published for `serve` only (--service-ports)
     restart: "no"

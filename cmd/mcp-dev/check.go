@@ -47,7 +47,7 @@ func checkCommand() *cli.Command {
 			&cli.StringFlag{Name: "other-data", Usage: "payload that doesn't match, a JSON object"},
 			&cli.IntFlag{Name: "ttl-ms", Value: 600000, Usage: "suggested subscription lifetime in ms"},
 			&cli.StringFlag{Name: "listen", Value: ":4501", Usage: "receiver listen address (all interfaces so Docker can reach it)"},
-			&cli.StringFlag{Name: "public-url", Value: "http://host.docker.internal:4501", Usage: "base URL the server reaches the receiver at"},
+			&cli.StringFlag{Name: "public-url", Value: callbackURL("4501"), Usage: "base URL the server reaches the receiver at"},
 			&cli.DurationFlag{Name: "wait", Value: 30 * time.Second, Usage: "wait per expected delivery"},
 			&cli.StringFlag{Name: "profile", Value: "spec", Usage: "rules to check: spec or outpost"},
 			&cli.StringFlag{Name: "publish-tenant", Usage: "publish to this Outpost tenant (turns publish mode on)"},

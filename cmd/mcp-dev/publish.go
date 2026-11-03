@@ -33,7 +33,7 @@ The events come from the embedded sample, --file (an events/list result) or
 			&cli.BoolFlag{Name: "dry-run", Usage: "print the data without publishing"},
 			&cli.BoolFlag{Name: "sink", Usage: "create a temporary webhook destination that accepts everything, and delete it afterwards"},
 			&cli.StringFlag{Name: "sink-listen", Value: ":4502", Usage: "address the sink listens on"},
-			&cli.StringFlag{Name: "sink-url", Value: "http://host.docker.internal:4502", Usage: "URL Outpost uses to reach the sink"},
+			&cli.StringFlag{Name: "sink-url", Value: callbackURL("4502"), Usage: "URL Outpost uses to reach the sink"},
 		}, outpostFlags()...),
 		Action: publishAction,
 	}

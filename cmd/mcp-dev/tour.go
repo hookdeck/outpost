@@ -30,7 +30,7 @@ func tourCommand() *cli.Command {
 			&cli.StringFlag{Name: "tenant", Value: "demo", Usage: "Outpost tenant"},
 			&cli.StringFlag{Name: "token", Value: "alice", Usage: "bearer token of the subscriber"},
 			&cli.StringFlag{Name: "listen", Value: ":4501", Usage: "receiver listen address (all interfaces so Docker can reach it)"},
-			&cli.StringFlag{Name: "public-url", Value: "http://host.docker.internal:4501", Usage: "base URL Outpost reaches the receiver at"},
+			&cli.StringFlag{Name: "public-url", Value: callbackURL("4501"), Usage: "base URL Outpost reaches the receiver at"},
 			&cli.StringFlag{Name: "event", Usage: "event to subscribe to (default: the first webhook event with a scalar argument)"},
 			&cli.StringFlag{Name: "arguments", Usage: "subscription arguments, a JSON object"},
 			&cli.StringFlag{Name: "data", Usage: "payload that matches the arguments, a JSON object"},
