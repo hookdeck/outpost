@@ -151,13 +151,6 @@ func TestAPI_RequestBodyLimit(t *testing.T) {
 		}
 	})
 
-	t.Run("publish is not limited", func(t *testing.T) {
-		h := setup(t)
-		body := `{"tenant_id":"t1","topic":"user.created","data":{"pad":"` + strings.Repeat("a", 2*limit) + `"}}`
-		resp := h.do(h.withAPIKey(newReq(http.MethodPost, "/api/v1/publish", body)))
-		require.Equal(t, http.StatusAccepted, resp.Code)
-	})
-
 	t.Run("publish with a trailing slash is still redirected", func(t *testing.T) {
 		h := setup(t)
 		body := `{"tenant_id":"t1","topic":"user.created","data":{"pad":"` + strings.Repeat("a", 2*limit) + `"}}`
@@ -199,21 +192,115 @@ func TestAPI_RequestBodyLimit(t *testing.T) {
 	})
 }
 
+func TestAPI_PublishBodyLimit(t *testing.T) {
+	const limit = 4096
+
+	publishBody := func(t *testing.T, size int) string {
+		return paddedBody(t, `"tenant_id":"t1","topic":"user.created","data":{},`, size)
+	}
+	newReq := func(body string) *http.Request {
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/publish", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		return req
+	}
+	setup := func(t *testing.T, publishLimit int64) *apiTest {
+		h := newAPITest(t, withMaxPublishBodyBytes(publishLimit))
+		require.NoError(t, h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1"))))
+		return h
+	}
+
+	t.Run("at the limit", func(t *testing.T) {
+		h := setup(t, limit)
+		resp := h.do(h.withAPIKey(newReq(publishBody(t, limit))))
+		require.Equal(t, http.StatusAccepted, resp.Code)
+		assert.Len(t, h.eventHandler.calls, 1)
+	})
+
+	t.Run("over the limit", func(t *testing.T) {
+		for _, contentLength := range []int64{limit + 1, -1} {
+			h := setup(t, limit)
+			req := newReq(publishBody(t, limit+1))
+			req.ContentLength = contentLength
+			resp := h.do(h.withAPIKey(req))
+			testutil.RequireErrorResponse(t, resp, http.StatusRequestEntityTooLarge, tooLargeMessage)
+			assert.Empty(t, h.eventHandler.calls)
+		}
+	})
+
+	t.Run("chunked body over HTTP", func(t *testing.T) {
+		h := setup(t, limit)
+		server := httptest.NewServer(h.router)
+		defer server.Close()
+
+		send := func(size int) (int, string) {
+			body := io.MultiReader(strings.NewReader(publishBody(t, size)))
+			req, err := http.NewRequest(http.MethodPost, server.URL+"/api/v1/publish", body)
+			require.NoError(t, err)
+			req.Header.Set("Content-Type", "application/json")
+			resp, err := http.DefaultClient.Do(h.withAPIKey(req))
+			require.NoError(t, err)
+			defer resp.Body.Close()
+			respBody, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+			return resp.StatusCode, string(respBody)
+		}
+
+		status, _ := send(limit)
+		require.Equal(t, http.StatusAccepted, status)
+
+		for _, size := range []int{limit + 1, 8 * limit} {
+			status, body := send(size)
+			require.Equal(t, http.StatusRequestEntityTooLarge, status)
+			assert.JSONEq(t, tooLargeBody, body)
+		}
+	})
+
+	t.Run("no cap", func(t *testing.T) {
+		h := setup(t, 0)
+		resp := h.do(h.withAPIKey(newReq(publishBody(t, 2*apirouter.MaxRequestBodyBytes))))
+		require.Equal(t, http.StatusAccepted, resp.Code)
+	})
+
+	t.Run("the publish limit does not change other routes", func(t *testing.T) {
+		h := setup(t, 2*apirouter.MaxRequestBodyBytes)
+		resp := h.do(h.withAPIKey(newReq(publishBody(t, apirouter.MaxRequestBodyBytes+apirouter.MaxRequestBodyBytes/2))))
+		require.Equal(t, http.StatusAccepted, resp.Code)
+
+		upsert := httptest.NewRequest(http.MethodPut, "/api/v1/tenants/t1", strings.NewReader(paddedBody(t, "", apirouter.MaxRequestBodyBytes+1)))
+		upsert.Header.Set("Content-Type", "application/json")
+		resp = h.do(h.withAPIKey(upsert))
+		testutil.RequireErrorResponse(t, resp, http.StatusRequestEntityTooLarge, tooLargeMessage)
+	})
+
+	t.Run("a small publish limit does not cap other routes", func(t *testing.T) {
+		h := setup(t, 512)
+		upsert := httptest.NewRequest(http.MethodPut, "/api/v1/tenants/t1", strings.NewReader(paddedBody(t, "", 1024)))
+		upsert.Header.Set("Content-Type", "application/json")
+		resp := h.do(h.withAPIKey(upsert))
+		require.Equal(t, http.StatusOK, resp.Code)
+	})
+}
+
 // A body whose declared length is over the limit is answered without reading
 // any of it, so the client is not asked to send it.
 func TestAPI_RequestBodyLimit_DeclaredLengthIsNotRead(t *testing.T) {
 	core, logs := observer.New(zap.InfoLevel)
-	h := newAPITest(t, withLogger(logging.NewTestLogger(zap.New(core))))
+	const publishLimit = 2 * apirouter.MaxRequestBodyBytes
+	h := newAPITest(t, withLogger(logging.NewTestLogger(zap.New(core))), withMaxPublishBodyBytes(publishLimit))
 	require.NoError(t, h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1"))))
 	server := httptest.NewServer(h.router)
 	defer server.Close()
 
 	tests := []struct {
-		name   string
-		expect string
+		name          string
+		request       string
+		contentLength int
+		expect        string
 	}{
-		{"headers only", ""},
-		{"expect 100-continue", "Expect: 100-continue\r\n"},
+		{"headers only", "PUT /api/v1/tenants/t1", apirouter.MaxRequestBodyBytes + 1, ""},
+		{"expect 100-continue", "PUT /api/v1/tenants/t1", apirouter.MaxRequestBodyBytes + 1, "Expect: 100-continue\r\n"},
+		{"publish headers only", "POST /api/v1/publish", publishLimit + 1, ""},
+		{"publish expect 100-continue", "POST /api/v1/publish", publishLimit + 1, "Expect: 100-continue\r\n"},
 	}
 
 	for _, tt := range tests {
@@ -224,8 +311,8 @@ func TestAPI_RequestBodyLimit_DeclaredLengthIsNotRead(t *testing.T) {
 			require.NoError(t, err)
 			defer conn.Close()
 
-			_, err = fmt.Fprintf(conn, "PUT /api/v1/tenants/t1 HTTP/1.1\r\nHost: outpost\r\nAuthorization: Bearer %s\r\nContent-Type: application/json\r\nContent-Length: %d\r\n%s\r\n",
-				testAPIKey, apirouter.MaxRequestBodyBytes+1, tt.expect)
+			_, err = fmt.Fprintf(conn, "%s HTTP/1.1\r\nHost: outpost\r\nAuthorization: Bearer %s\r\nContent-Type: application/json\r\nContent-Length: %d\r\n%s\r\n",
+				tt.request, testAPIKey, tt.contentLength, tt.expect)
 			require.NoError(t, err)
 
 			require.NoError(t, conn.SetReadDeadline(time.Now().Add(5*time.Second)))

@@ -65,6 +65,7 @@ func (c *Config) LogConfigurationSummary() []zap.Field {
 
 		// API
 		zap.Int("api_port", c.APIPort),
+		zap.Int("api_max_publish_body_bytes", c.APIMaxPublishBodyBytes),
 		zap.Bool("api_key_configured", c.APIKey != ""),
 		zap.Bool("api_jwt_secret_configured", c.APIJWTSecret != ""),
 		zap.String("gin_mode", c.GinMode),

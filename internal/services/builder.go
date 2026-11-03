@@ -222,6 +222,7 @@ func (b *ServiceBuilder) BuildAPIWorkers(baseRouter *gin.Engine) error {
 			Registry:             svc.destRegistry,
 			PortalConfig:         b.cfg.GetPortalConfig(),
 			GinMode:              b.cfg.GinMode,
+			MaxPublishBodyBytes:  int64(b.cfg.APIMaxPublishBodyBytes),
 		},
 		apirouter.RouterDeps{
 			TenantStore:         svc.tenantStore,

@@ -1130,3 +1130,66 @@ func TestRetryTimingWarnings(t *testing.T) {
 		})
 	}
 }
+
+func TestAPIMaxPublishBodyBytes(t *testing.T) {
+	tests := []struct {
+		name    string
+		files   map[string][]byte
+		envVars map[string]string
+		want    int
+	}{
+		{
+			name:    "default is 1 MiB",
+			files:   map[string][]byte{},
+			envVars: map[string]string{},
+			want:    config.DefaultAPIMaxPublishBodyBytes,
+		},
+		{
+			name:    "explicit 0 disables the cap",
+			files:   map[string][]byte{},
+			envVars: map[string]string{"API_MAX_PUBLISH_BODY_BYTES": "0"},
+			want:    0,
+		},
+		{
+			name: "yaml config",
+			files: map[string][]byte{
+				"config.yaml": []byte("api_max_publish_body_bytes: 2097152\n"),
+			},
+			envVars: map[string]string{"CONFIG": "config.yaml"},
+			want:    2097152,
+		},
+		{
+			name:    "env config",
+			files:   map[string][]byte{},
+			envVars: map[string]string{"API_MAX_PUBLISH_BODY_BYTES": "524288"},
+			want:    524288,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockOS := &mockOS{files: tt.files, envVars: tt.envVars}
+
+			cfg, err := config.ParseWithoutValidation(config.Flags{}, mockOS)
+			assert.NoError(t, err)
+			assert.Equal(t, tt.want, cfg.APIMaxPublishBodyBytes)
+		})
+	}
+}
+
+func TestAPIMaxPublishBodyBytesValidation(t *testing.T) {
+	mockOS := &mockOS{
+		files: map[string][]byte{"config.yaml": []byte("api_max_publish_body_bytes: -1\n")},
+		envVars: map[string]string{
+			"CONFIG":                "config.yaml",
+			"API_KEY":               "test-key",
+			"API_JWT_SECRET":        "test-jwt-secret",
+			"AES_ENCRYPTION_SECRET": "test-aes-secret-16b",
+			"POSTGRES_URL":          "postgres://localhost:5432/test",
+			"RABBITMQ_SERVER_URL":   "amqp://localhost:5672",
+		},
+	}
+
+	_, err := config.ParseWithOS(config.Flags{}, mockOS)
+	assert.ErrorContains(t, err, "api_max_publish_body_bytes must not be negative")
+}

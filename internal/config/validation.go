@@ -56,6 +56,10 @@ func (c *Config) Validate(flags Flags) error {
 		return err
 	}
 
+	if err := c.validateAPI(); err != nil {
+		return err
+	}
+
 	if err := c.validateRetryConfiguration(); err != nil {
 		return err
 	}
@@ -265,6 +269,13 @@ func (c *Config) validateRetryConfiguration() error {
 	// If retry_schedule is provided, override retry_max_limit to match schedule length
 	if len(c.RetrySchedule) > 0 {
 		c.RetryMaxLimit = len(c.RetrySchedule)
+	}
+	return nil
+}
+
+func (c *Config) validateAPI() error {
+	if c.APIMaxPublishBodyBytes < 0 {
+		return fmt.Errorf("config validation error: api_max_publish_body_bytes must not be negative, got %d", c.APIMaxPublishBodyBytes)
 	}
 	return nil
 }
