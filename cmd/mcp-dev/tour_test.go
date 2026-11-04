@@ -62,11 +62,11 @@ func (f *fakeOutpost) serve(w http.ResponseWriter, r *http.Request) {
 	raw, _ := io.ReadAll(r.Body)
 	w.Header().Set("Content-Type", "application/json")
 	switch {
-	case r.URL.Path == "/mcp/events":
+	case r.URL.Path == "/mcp/events/list":
 		_, _ = io.WriteString(w, `{"resultType":"complete","events":[{"name":"incident.created","delivery":["webhook"],
 			"inputSchema":{"type":"object","properties":{"severity":{"type":"string","enum":["P1","P2","P3"]}}},
 			"payloadSchema":{"type":"object","examples":[{"id":"inc_1"}]}}]}`)
-	case strings.HasSuffix(r.URL.Path, "/mcp/subscribe"):
+	case strings.HasSuffix(r.URL.Path, "/mcp/events/subscribe"):
 		var req struct {
 			Params struct {
 				Arguments map[string]any `json:"arguments"`
@@ -86,7 +86,7 @@ func (f *fakeOutpost) serve(w http.ResponseWriter, r *http.Request) {
 			f.mu.Unlock()
 		}
 		_, _ = io.WriteString(w, `{"resultType":"complete","id":"sub_1","refreshBefore":"2026-10-31T15:14:05Z","truncated":false}`)
-	case strings.HasSuffix(r.URL.Path, "/mcp/unsubscribe"):
+	case strings.HasSuffix(r.URL.Path, "/mcp/events/unsubscribe"):
 		f.mu.Lock()
 		f.subs = nil
 		f.mu.Unlock()
