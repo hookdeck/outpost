@@ -77,7 +77,7 @@ type mcpEventsResult struct {
 
 func listMCPEvents(t *testing.T, h *apiTest, query string) (*mcpEventsResult, int) {
 	t.Helper()
-	resp := h.do(h.withAPIKey(h.jsonReq(http.MethodGet, "/api/v1/mcp/events"+query, nil)))
+	resp := h.do(h.withAPIKey(h.jsonReq(http.MethodGet, "/api/v1/mcp/events/list"+query, nil)))
 	var out mcpEventsResult
 	if resp.Code == http.StatusOK {
 		require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &out))
@@ -88,7 +88,7 @@ func listMCPEvents(t *testing.T, h *apiTest, query string) (*mcpEventsResult, in
 func TestAPI_MCPEvents_Unavailable(t *testing.T) {
 	h, _ := newMCPCatalogAPITestWithVerifier(t, nil, withMCPEventsError(errors.New("EXPERIMENTAL_MCP_EVENTS_SCHEMA: invalid mcp events: invalid JSON")))
 
-	resp := h.do(h.withAPIKey(h.jsonReq(http.MethodGet, "/api/v1/mcp/events", nil)))
+	resp := h.do(h.withAPIKey(h.jsonReq(http.MethodGet, "/api/v1/mcp/events/list", nil)))
 	require.Equal(t, http.StatusServiceUnavailable, resp.Code)
 	var body struct {
 		Message string `json:"message"`
@@ -101,7 +101,7 @@ func TestAPI_MCPEvents_Unavailable(t *testing.T) {
 		h, _ := newMCPCatalogAPITestWithVerifier(t, nil,
 			withMCPEventsError(errors.New("EXPERIMENTAL_MCP_EVENTS_SCHEMA: invalid mcp events: invalid JSON")),
 			withLogger(logging.NewTestLogger(zap.New(core))))
-		resp := h.do(h.withAPIKey(h.jsonReq(http.MethodGet, "/api/v1/mcp/events", nil)))
+		resp := h.do(h.withAPIKey(h.jsonReq(http.MethodGet, "/api/v1/mcp/events/list", nil)))
 		require.Equal(t, http.StatusServiceUnavailable, resp.Code)
 
 		entries := logs.FilterMessage("request completed").All()
@@ -168,9 +168,9 @@ func TestAPI_MCPEvents(t *testing.T) {
 	})
 
 	t.Run("admin only", func(t *testing.T) {
-		resp := h.do(h.jsonReq(http.MethodGet, "/api/v1/mcp/events", nil))
+		resp := h.do(h.jsonReq(http.MethodGet, "/api/v1/mcp/events/list", nil))
 		assert.Equal(t, http.StatusUnauthorized, resp.Code)
-		resp = h.do(h.withJWT(h.jsonReq(http.MethodGet, "/api/v1/mcp/events", nil), "t1"))
+		resp = h.do(h.withJWT(h.jsonReq(http.MethodGet, "/api/v1/mcp/events/list", nil), "t1"))
 		assert.Equal(t, http.StatusForbidden, resp.Code)
 	})
 

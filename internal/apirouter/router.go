@@ -59,7 +59,7 @@ type RouterDeps struct {
 	Telemetry           telemetry.Telemetry
 	SubscriptionEmitter SubscriptionEmitter  // optional — emits tenant.subscription.updated on destination mutations
 	MCPVerifier         MCPVerifier          // optional — set when the mcp destination type is enabled; purged on tenant delete
-	MCPCatalog          *topicschema.Catalog // optional — event definitions served by GET /mcp/events
+	MCPCatalog          *topicschema.Catalog // optional — event definitions served by GET /mcp/events/list
 	MCPEventsError      error                // optional — why the event definitions are unusable; MCP routes answer 503
 }
 
@@ -161,7 +161,7 @@ func NewRouter(cfg RouterConfig, deps RouterDeps) http.Handler {
 		{Method: http.MethodGet, Path: "/destination-types", Handler: destinationHandlers.ListProviderMetadata},
 		{Method: http.MethodGet, Path: "/destination-types/:type", Handler: destinationHandlers.RetrieveProviderMetadata},
 		{Method: http.MethodGet, Path: "/topics", Handler: topicHandlers.List},
-		{Method: http.MethodGet, Path: "/mcp/events", Handler: mcpEventsHandlers.List, AdminOnly: true},
+		{Method: http.MethodGet, Path: "/mcp/events/list", Handler: mcpEventsHandlers.List, AdminOnly: true},
 
 		// Publish / Retry
 		{Method: http.MethodPost, Path: publishPath, Handler: publishHandlers.Ingest, AdminOnly: true},

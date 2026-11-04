@@ -51,7 +51,7 @@ func (s *mcpInvalidEventsSuite) TestServiceRunsAndMCPEventsIsUnavailable() {
 	var resp struct {
 		Message string `json:"message"`
 	}
-	status := base.doJSON(http.MethodGet, base.apiURL("/mcp/events"), nil, &resp)
+	status := base.doJSON(http.MethodGet, base.apiURL("/mcp/events/list"), nil, &resp)
 	s.Equal(http.StatusServiceUnavailable, status)
 	s.Equal("MCP Events unavailable", resp.Message)
 
