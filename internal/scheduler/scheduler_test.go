@@ -134,10 +134,9 @@ func advance(d time.Duration) {
 }
 
 // startMonitor runs s.Monitor on ctx in a goroutine and returns a wait
-// function that blocks until it has exited. Teardown order: synctest.Wait() so
-// in-flight handlers finish before ctx is canceled, cancel ctx, wait, then
-// Shutdown — otherwise the monitor can log through the test logger after the
-// test has finished, which the race detector flags.
+// function that blocks until it has exited. Teardown order: cancel ctx, wait,
+// then Shutdown — otherwise the monitor can log through the test logger after
+// the test has finished, which the race detector flags.
 func startMonitor(ctx context.Context, s scheduler.Scheduler) (wait func()) {
 	done := make(chan struct{})
 	go func() {
@@ -163,7 +162,7 @@ func TestScheduler_Basic(t *testing.T) {
 		s := scheduler.New("scheduler", rsmqClient, exec, scheduler.WithLogger(logger))
 		require.NoError(t, s.Init(ctx))
 		waitMonitor := startMonitor(ctx, s)
-		defer func() { synctest.Wait(); cancel(); waitMonitor(); s.Shutdown() }()
+		defer func() { cancel(); waitMonitor(); s.Shutdown() }()
 
 		// Act
 		ids := []string{
@@ -215,7 +214,7 @@ func TestScheduler_IdleSleepWakesOnDueMessage(t *testing.T) {
 			scheduler.WithLogger(logger))
 		require.NoError(t, s.Init(ctx))
 		monitorDone := make(chan struct{})
-		defer func() { synctest.Wait(); cancel(); <-monitorDone; s.Shutdown() }()
+		defer func() { cancel(); <-monitorDone; s.Shutdown() }()
 
 		// Schedule before the monitor starts so its first poll finds the message
 		// pending and has to compute the sleep from the message's due time.
@@ -256,7 +255,6 @@ func TestScheduler_ParallelMonitor(t *testing.T) {
 		wait2 := startMonitor(ctx, s)
 		wait3 := startMonitor(ctx, s)
 		defer func() {
-			synctest.Wait()
 			cancel()
 			wait1()
 			wait2()
@@ -310,7 +308,7 @@ func TestScheduler_VisibilityTimeout(t *testing.T) {
 		s := scheduler.New("scheduler", rsmqClient, exec, scheduler.WithVisibilityTimeout(1), scheduler.WithLogger(logger))
 		require.NoError(t, s.Init(ctx))
 		waitMonitor := startMonitor(ctx, s)
-		defer func() { synctest.Wait(); cancel(); waitMonitor(); s.Shutdown() }()
+		defer func() { cancel(); waitMonitor(); s.Shutdown() }()
 
 		id := idgen.String()
 		s.Schedule(ctx, id, 1*time.Second)
@@ -343,7 +341,6 @@ func setupTestScheduler(t *testing.T) (scheduler.Scheduler, *msgLog) {
 	waitMonitor := startMonitor(monitorCtx, s)
 
 	t.Cleanup(func() {
-		synctest.Wait()
 		cancelMonitor()
 		waitMonitor()
 		s.Shutdown()
@@ -515,7 +512,7 @@ func TestScheduler_MaxReceiveCountMovesToDLQ(t *testing.T) {
 			scheduler.WithLogger(logger))
 		require.NoError(t, s.Init(ctx))
 		waitMonitor := startMonitor(ctx, s)
-		defer func() { synctest.Wait(); cancel(); waitMonitor(); s.Shutdown() }()
+		defer func() { cancel(); waitMonitor(); s.Shutdown() }()
 
 		require.NoError(t, s.Schedule(ctx, task, 0))
 
@@ -556,7 +553,7 @@ func TestScheduler_RescheduleDuringExecSurvives(t *testing.T) {
 			scheduler.WithLogger(logger))
 		require.NoError(t, s.Init(ctx))
 		waitMonitor := startMonitor(ctx, s)
-		defer func() { synctest.Wait(); cancel(); waitMonitor(); s.Shutdown() }()
+		defer func() { cancel(); waitMonitor(); s.Shutdown() }()
 
 		require.NoError(t, s.Schedule(ctx, "first", 0, scheduler.WithTaskID("task")))
 
@@ -589,7 +586,7 @@ func TestScheduler_RescheduleDuringFailedExecKeepsDelay(t *testing.T) {
 			scheduler.WithLogger(logger))
 		require.NoError(t, s.Init(ctx))
 		waitMonitor := startMonitor(ctx, s)
-		defer func() { synctest.Wait(); cancel(); waitMonitor(); s.Shutdown() }()
+		defer func() { cancel(); waitMonitor(); s.Shutdown() }()
 
 		require.NoError(t, s.Schedule(ctx, "first", 0, scheduler.WithTaskID("task")))
 
@@ -625,7 +622,7 @@ func TestScheduler_MonitorRetriesTransientErrors(t *testing.T) {
 		)
 		require.NoError(t, s.Init(ctx))
 		waitMonitor := startMonitor(ctx, s)
-		defer func() { synctest.Wait(); cancel(); waitMonitor(); s.Shutdown() }()
+		defer func() { cancel(); waitMonitor(); s.Shutdown() }()
 
 		// Schedule a message — Monitor should recover after 3 transient errors and process it
 		id := idgen.String()
@@ -723,7 +720,7 @@ func TestScheduler_MonitorRerunAfterError(t *testing.T) {
 		require.Empty(t, msgs.snapshot())
 
 		waitMonitor := startMonitor(ctx, s)
-		defer func() { synctest.Wait(); cancel(); waitMonitor(); s.Shutdown() }()
+		defer func() { cancel(); waitMonitor(); s.Shutdown() }()
 		require.NoError(t, s.Schedule(ctx, ids[1], 0))
 
 		advance(time.Second)
@@ -756,7 +753,7 @@ func TestScheduler_RetryLaterDoesNotCountReceives(t *testing.T) {
 			scheduler.WithLogger(logger))
 		require.NoError(t, s.Init(ctx))
 		waitMonitor := startMonitor(ctx, s)
-		defer func() { synctest.Wait(); cancel(); waitMonitor(); s.Shutdown() }()
+		defer func() { cancel(); waitMonitor(); s.Shutdown() }()
 
 		require.NoError(t, s.Schedule(ctx, "task", 0))
 
@@ -765,5 +762,98 @@ func TestScheduler_RetryLaterDoesNotCountReceives(t *testing.T) {
 		dlqMsg, err := rsmqClient.ReceiveMessage("scheduler-dlq", rsmq.UnsetVt)
 		require.NoError(t, err)
 		require.Nil(t, dlqMsg, "not-ready receives must not reach the DLQ")
+	})
+}
+
+func TestScheduler_MonitorDrainsRunningTasksOnShutdown(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		rsmqClient := createRSMQClient(t)
+		logger := testutil.CreateTestLogger(t)
+
+		started := make(chan struct{})
+		release := make(chan struct{})
+		var finished, ctxLive atomic.Bool
+		exec := func(ctx context.Context, _ string) error {
+			close(started)
+			<-release
+			ctxLive.Store(ctx.Err() == nil)
+			finished.Store(true)
+			return nil
+		}
+
+		name := idgen.String()
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		s := scheduler.New(name, rsmqClient, exec, scheduler.WithLogger(logger))
+		require.NoError(t, s.Init(ctx))
+		monitorDone := make(chan struct{})
+		go func() {
+			defer close(monitorDone)
+			s.Monitor(ctx)
+		}()
+		defer s.Shutdown()
+
+		require.NoError(t, s.Schedule(ctx, "task", 0))
+		advance(time.Second)
+		<-started
+		cancel()
+		synctest.Wait()
+
+		select {
+		case <-monitorDone:
+			t.Fatal("monitor returned while a task was still running")
+		default:
+		}
+
+		close(release)
+		<-monitorDone
+		require.True(t, finished.Load())
+		require.True(t, ctxLive.Load(), "running task should not see the shutdown cancellation")
+
+		attrs, err := rsmqClient.GetQueueAttributes(name)
+		require.NoError(t, err)
+		require.Equal(t, uint64(0), attrs.Msgs, "finished task should be deleted")
+	})
+}
+
+func TestScheduler_MonitorCancelsTasksAfterShutdownGrace(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		rsmqClient := createRSMQClient(t)
+		logger := testutil.CreateTestLogger(t)
+
+		started := make(chan struct{})
+		exec := func(ctx context.Context, _ string) error {
+			close(started)
+			<-ctx.Done()
+			return ctx.Err()
+		}
+
+		name := idgen.String()
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		s := scheduler.New(name, rsmqClient, exec,
+			scheduler.WithLogger(logger),
+			scheduler.WithShutdownGrace(2*time.Second))
+		require.NoError(t, s.Init(ctx))
+		monitorDone := make(chan struct{})
+		go func() {
+			defer close(monitorDone)
+			s.Monitor(ctx)
+		}()
+		defer s.Shutdown()
+
+		require.NoError(t, s.Schedule(ctx, "task", 0))
+		advance(time.Second)
+		<-started
+		cancel()
+		stopped := time.Now()
+		<-monitorDone
+		require.Equal(t, 2*time.Second, time.Since(stopped), "monitor should wait out the grace, then cancel the task")
+
+		attrs, err := rsmqClient.GetQueueAttributes(name)
+		require.NoError(t, err)
+		require.Equal(t, uint64(1), attrs.Msgs, "cancelled task should stay queued")
 	})
 }
