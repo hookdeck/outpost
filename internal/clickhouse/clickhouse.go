@@ -27,15 +27,24 @@ type ClickHouseConfig struct {
 	DialTimeout time.Duration
 	// ReadTimeout bounds waiting for a query's response; 0 means 30s.
 	ReadTimeout time.Duration
+	// IdleClose closes the connection pool after this long with no calls, so a
+	// quiet process doesn't keep connections that may have been dropped; the next
+	// call reconnects. 0 means 5m.
+	IdleClose time.Duration
 }
 
 const (
 	defaultDialTimeout = 10 * time.Second
 	defaultReadTimeout = 30 * time.Second
+	defaultIdleClose   = 5 * time.Minute
 )
 
 func New(config *ClickHouseConfig) (DB, error) {
-	return clickhouse.Open(options(config))
+	idle := config.IdleClose
+	if idle <= 0 {
+		idle = defaultIdleClose
+	}
+	return newConn(func() (driver.Conn, error) { return clickhouse.Open(options(config)) }, idle)
 }
 
 func options(config *ClickHouseConfig) *clickhouse.Options {
