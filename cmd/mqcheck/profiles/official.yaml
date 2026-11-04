@@ -1,0 +1,44 @@
+# Official tier: every case judged, plus the capacity envelope at production
+# settings. Run before calling a queue change done; 30-60 minutes.
+name: official
+tier: official
+cases: [all]
+parallel: 1
+queue:
+  visibility_timeout: 10s
+  max_attempts: 5
+grace_period: 30s
+limits:
+  count: 50
+payloads:
+  small: json-2KB
+  large: rand-1MB
+thresholds:
+  wait_p99: 1s
+  wait_max_fraction: 0.10
+  held_beyond_limit: 1
+  hand_back: 5s
+  first_after_restart: 5s
+  error_within: 90s
+worker:
+  log_level: warn
+  count_env: DELIVERY_MAX_CONCURRENCY
+  bytes_env: DELIVERY_MAX_CONCURRENCY_BYTES
+  env:
+    GOMEMLIMIT: 800MiB
+capacity:
+  enabled: true
+  limits: {count: 1000, bytes: 100MiB}
+  handler: {latency: 20ms, jitter: 10ms}
+  payload: json-6KB
+  rate_steps: [250, 500, 1000, 2000, 4000, 8000]
+  warmup: 10s
+  step_hold: 60s
+  targets:
+    min_rate: 1000
+    queue_latency_p50: 25ms
+    queue_latency_p99: 100ms
+  large:
+    - {payload: json-1MB, count: 200}
+    - {payload: rand-1MB, count: 200}
+    - {payload: json-8MB, count: 40}

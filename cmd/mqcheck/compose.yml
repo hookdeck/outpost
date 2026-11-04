@@ -1,0 +1,35 @@
+# Local brokers for mqcheck. Own compose project and ports, so it runs next to
+# the dev stack (`make up`) and the test stack (`make up/test`).
+# Start with `make up` in this directory; images are pinned in .env.test.
+
+name: "mqcheck"
+
+services:
+  localstack:
+    image: ${TEST_IMAGE_LOCALSTACK:?run via `make up`, which passes --env-file ../../.env.test}
+    environment:
+      - SERVICES=sqs
+    ports:
+      - 44566:4566
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:4566/_localstack/health"]
+      interval: 2s
+      retries: 60
+  gcp-pubsub:
+    image: ${TEST_IMAGE_GCP:?run via `make up`, which passes --env-file ../../.env.test}
+    command:
+      [
+        "gcloud",
+        "beta",
+        "emulators",
+        "pubsub",
+        "start",
+        "--host-port=0.0.0.0:8085",
+        "--project=mqcheck",
+      ]
+    ports:
+      - 48085:8085
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:8085"]
+      interval: 2s
+      retries: 60
