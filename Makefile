@@ -141,7 +141,7 @@ test/e2e/rediscluster:
 		echo "Error: test-runner container not running. Run 'make up/test/rediscluster' first."; \
 		exit 1; \
 	fi
-	@docker exec test-runner sh -c "cd /app && go test ./cmd/e2e -v -run TestRedisClusterBasicSuite"
+	@docker exec test-runner sh -c "cd /app && go test ./cmd/e2e -v -run TestE2E_Compat_RedisCluster"
 	@echo "Redis cluster e2e tests completed."
 
 test/race:
