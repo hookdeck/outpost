@@ -25,6 +25,7 @@ type (
 	Pipeliner          = r.Pipeliner
 	Tx                 = r.Tx
 	Cmd                = r.Cmd
+	Z                  = r.Z
 )
 
 type Client interface {

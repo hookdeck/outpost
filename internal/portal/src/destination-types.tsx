@@ -33,5 +33,15 @@ export function useDestinationType(
     return undefined;
   }
 
-  return destination_types[type];
+  return (
+    destination_types[type] ?? {
+      type,
+      label: type,
+      icon: "",
+      description: "",
+      instructions: "",
+      config_fields: [],
+      credential_fields: [],
+    }
+  );
 }

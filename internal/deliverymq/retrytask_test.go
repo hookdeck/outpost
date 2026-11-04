@@ -88,3 +88,19 @@ func TestRetryTask_LookupReadsPayload(t *testing.T) {
 	assert.Equal(t, event.Metadata, record.Event.Metadata)
 	assert.Equal(t, attempt.ResponseData, record.Attempt.ResponseData)
 }
+
+func TestRetryTask_KeepsMessageID(t *testing.T) {
+	t.Parallel()
+	task := models.DeliveryTask{MessageID: "msg_x", DestinationID: "d", Event: models.Event{ID: "e", TenantID: "t"}}
+	retry := RetryTaskFromDeliveryTask(task, time.Now())
+
+	str, err := retry.ToString()
+	require.NoError(t, err)
+	var out RetryTask
+	require.NoError(t, out.FromString(str))
+	assert.Equal(t, "msg_x", out.ToDeliveryTask(task.Event, 2).MessageID)
+
+	var old RetryTask
+	require.NoError(t, old.FromString(`{"EventID":"e","TenantID":"t","DestinationID":"d"}`))
+	assert.Empty(t, old.MessageID)
+}

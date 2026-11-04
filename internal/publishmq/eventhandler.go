@@ -43,6 +43,20 @@ type eventHandler struct {
 	tenantStore          tenantstore.TenantStore
 	topics               []string
 	topicsAllowWildcards bool
+	excludedTypes        map[string]struct{}
+}
+
+type EventHandlerOption func(*eventHandler)
+
+// WithExcludedDestinationTypes makes a publish that targets a destination of
+// one of the given types match nothing.
+func WithExcludedDestinationTypes(types ...string) EventHandlerOption {
+	return func(h *eventHandler) {
+		h.excludedTypes = make(map[string]struct{}, len(types))
+		for _, t := range types {
+			h.excludedTypes[t] = struct{}{}
+		}
+	}
 }
 
 func NewEventHandler(
@@ -53,6 +67,7 @@ func NewEventHandler(
 	topics []string,
 	topicsAllowWildcards bool,
 	idempotence idempotence.Idempotence,
+	opts ...EventHandlerOption,
 ) EventHandler {
 	emeter, _ := emetrics.New()
 	eventHandler := &eventHandler{
@@ -64,6 +79,9 @@ func NewEventHandler(
 		topics:               topics,
 		topicsAllowWildcards: topicsAllowWildcards,
 		emeter:               emeter,
+	}
+	for _, opt := range opts {
+		opt(eventHandler)
 	}
 	return eventHandler
 }
@@ -215,6 +233,10 @@ func (h *eventHandler) matchSpecificDestination(ctx context.Context, event *mode
 	}
 
 	if destination == nil {
+		return []string{}, nil
+	}
+
+	if _, excluded := h.excludedTypes[destination.Type]; excluded {
 		return []string{}, nil
 	}
 

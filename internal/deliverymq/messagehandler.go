@@ -25,6 +25,8 @@ func idempotencyKeyFromDeliveryTask(task models.DeliveryTask) string {
 
 var (
 	errDestinationDisabled = errors.New("destination disabled")
+	errDestinationExpired  = errors.New("destination expired")
+	errDestinationTypeOff  = errors.New("destination type excluded")
 )
 
 // Error types to distinguish between different stages of delivery
@@ -75,6 +77,7 @@ type messageHandler struct {
 	idempotence    idempotence.Idempotence
 	publisher      Publisher
 	retryResolver  RetryPolicyResolver
+	excludedTypes  map[string]struct{}
 }
 
 // RetryPolicyResolver gives a destination type its own retry policy; ok=false
@@ -89,6 +92,17 @@ type MessageHandlerOption func(*messageHandler)
 // WithRetryPolicyResolver lets destination types override the global retry policy.
 func WithRetryPolicyResolver(r RetryPolicyResolver) MessageHandlerOption {
 	return func(h *messageHandler) { h.retryResolver = r }
+}
+
+// WithExcludedDestinationTypes drops deliveries to destinations of the given
+// types, without an attempt.
+func WithExcludedDestinationTypes(types ...string) MessageHandlerOption {
+	return func(h *messageHandler) {
+		h.excludedTypes = make(map[string]struct{}, len(types))
+		for _, t := range types {
+			h.excludedTypes[t] = struct{}{}
+		}
+	}
 }
 
 func (h *messageHandler) retryPolicy(destinationType string) (backoff.Backoff, int) {
@@ -197,7 +211,7 @@ func (h *messageHandler) handleError(msg *mqs.Message, err error) error {
 	// Don't return error for expected cases
 	var preErr *PreDeliveryError
 	if errors.As(err, &preErr) {
-		if errors.Is(preErr.err, tenantstore.ErrDestinationDeleted) || errors.Is(preErr.err, errDestinationDisabled) {
+		if errors.Is(preErr.err, tenantstore.ErrDestinationDeleted) || errors.Is(preErr.err, errDestinationDisabled) || errors.Is(preErr.err, errDestinationExpired) || errors.Is(preErr.err, errDestinationTypeOff) {
 			return nil
 		}
 	}
@@ -234,7 +248,7 @@ func (h *messageHandler) doHandle(ctx context.Context, task models.DeliveryTask,
 	defer span.End()
 
 	attemptStart := time.Now()
-	attempt, err := h.publisher.PublishEvent(ctx, destination, &task.Event)
+	attempt, err := h.publisher.PublishEvent(destregistry.WithMessageID(ctx, task.MessageID), destination, &task.Event)
 	attemptDuration := time.Since(attemptStart)
 
 	var retry retryOutcome
@@ -423,7 +437,7 @@ func (h *messageHandler) shouldNackError(err error) bool {
 	var preErr *PreDeliveryError
 	if errors.As(err, &preErr) {
 		// Don't nack if it's a permanent error
-		if errors.Is(preErr.err, tenantstore.ErrDestinationDeleted) || errors.Is(preErr.err, errDestinationDisabled) {
+		if errors.Is(preErr.err, tenantstore.ErrDestinationDeleted) || errors.Is(preErr.err, errDestinationDisabled) || errors.Is(preErr.err, errDestinationExpired) || errors.Is(preErr.err, errDestinationTypeOff) {
 			return false
 		}
 		return true // Nack other pre-delivery errors
@@ -510,6 +524,23 @@ func (h *messageHandler) ensurePublishableDestination(ctx context.Context, task 
 			zap.String("destination_type", destination.Type),
 			zap.Time("disabled_at", *destination.DisabledAt))
 		return nil, errDestinationDisabled
+	}
+	if destination.IsExpired(time.Now()) {
+		h.logger.Ctx(ctx).Debug("skipping expired destination",
+			zap.String("event_id", task.Event.ID),
+			zap.String("tenant_id", task.Event.TenantID),
+			zap.String("destination_id", destination.ID),
+			zap.String("destination_type", destination.Type),
+			zap.Time("expires_at", *destination.ExpiresAt))
+		return nil, errDestinationExpired
+	}
+	if _, excluded := h.excludedTypes[destination.Type]; excluded {
+		h.logger.Ctx(ctx).Debug("skipping excluded destination type",
+			zap.String("event_id", task.Event.ID),
+			zap.String("tenant_id", task.Event.TenantID),
+			zap.String("destination_id", destination.ID),
+			zap.String("destination_type", destination.Type))
+		return nil, errDestinationTypeOff
 	}
 	return destination, nil
 }

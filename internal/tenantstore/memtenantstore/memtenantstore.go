@@ -40,6 +40,7 @@ type store struct {
 	destsByTenant map[string]map[string]struct{} // tenantID -> set of destIDs
 
 	maxDestinationsPerTenant int
+	excludedTypes            map[string]struct{}
 }
 
 var _ driver.TenantStore = (*store)(nil)
@@ -51,6 +52,16 @@ type Option func(*store)
 func WithMaxDestinationsPerTenant(max int) Option {
 	return func(s *store) {
 		s.maxDestinationsPerTenant = max
+	}
+}
+
+// WithExcludedTypes makes MatchEvent skip destinations of the given types.
+func WithExcludedTypes(types ...string) Option {
+	return func(s *store) {
+		s.excludedTypes = make(map[string]struct{}, len(types))
+		for _, t := range types {
+			s.excludedTypes[t] = struct{}{}
+		}
 	}
 }
 
@@ -358,13 +369,28 @@ func (s *store) CreateDestination(_ context.Context, destination models.Destinat
 		return driver.ErrDuplicateDestination
 	}
 
-	// Check max destinations
-	destIDs := s.destsByTenant[destination.TenantID]
-	if len(destIDs) >= s.maxDestinationsPerTenant {
-		return driver.ErrMaxDestinationsPerTenantReached
+	// Check max destinations; expired destinations are deleted to free a slot.
+	if len(s.destsByTenant[destination.TenantID]) >= s.maxDestinationsPerTenant {
+		s.deleteExpiredLocked(destination.TenantID)
+		if len(s.destsByTenant[destination.TenantID]) >= s.maxDestinationsPerTenant {
+			return driver.ErrMaxDestinationsPerTenantReached
+		}
 	}
 
 	return s.upsertDestinationLocked(destination)
+}
+
+func (s *store) deleteExpiredLocked(tenantID string) {
+	now := time.Now()
+	for destID := range s.destsByTenant[tenantID] {
+		drec, ok := s.destinations[destKey(tenantID, destID)]
+		if !ok || !drec.destination.IsExpired(now) {
+			continue
+		}
+		drec.deletedAt = &now
+		drec.destination.Version++
+		delete(s.destsByTenant[tenantID], destID)
+	}
 }
 
 func (s *store) UpsertDestination(_ context.Context, destination models.Destination) error {
@@ -442,6 +468,9 @@ func (s *store) MatchEvent(_ context.Context, event models.Event, allowWildcards
 	for destID := range destIDs {
 		drec, ok := s.destinations[destKey(event.TenantID, destID)]
 		if !ok || drec.deletedAt != nil {
+			continue
+		}
+		if _, excluded := s.excludedTypes[drec.destination.Type]; excluded {
 			continue
 		}
 		if drec.destination.MatchEvent(event, allowWildcards) {

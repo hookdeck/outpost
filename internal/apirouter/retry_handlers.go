@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"slices"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/hookdeck/outpost/internal/logging"
@@ -23,6 +25,7 @@ type RetryHandlers struct {
 	logStore             logstore.LogStore
 	deliveryPublisher    deliveryPublisher
 	topicsAllowWildcards bool
+	excludedTypes        []string
 }
 
 func NewRetryHandlers(
@@ -31,6 +34,7 @@ func NewRetryHandlers(
 	logStore logstore.LogStore,
 	deliveryPublisher deliveryPublisher,
 	topicsAllowWildcards bool,
+	excludedTypes []string,
 ) *RetryHandlers {
 	return &RetryHandlers{
 		logger:               logger,
@@ -38,6 +42,7 @@ func NewRetryHandlers(
 		logStore:             logStore,
 		deliveryPublisher:    deliveryPublisher,
 		topicsAllowWildcards: topicsAllowWildcards,
+		excludedTypes:        excludedTypes,
 	}
 }
 
@@ -107,7 +112,7 @@ func (h *RetryHandlers) Retry(c *gin.Context) {
 		}
 	}
 
-	// 2. Check destination exists and is enabled
+	// 2. Check destination exists, is enabled and not expired
 	destination, err := h.tenantStore.RetrieveDestination(c.Request.Context(), event.TenantID, req.DestinationID)
 	if err != nil {
 		if errors.Is(err, tenantstore.ErrDestinationDeleted) {
@@ -127,6 +132,28 @@ func (h *RetryHandlers) Retry(c *gin.Context) {
 			Message: "Destination is disabled",
 			Data: map[string]string{
 				"error": "destination_disabled",
+			},
+		})
+		return
+	}
+
+	if destination.IsExpired(time.Now()) {
+		AbortWithError(c, http.StatusBadRequest, ErrorResponse{
+			Code:    http.StatusBadRequest,
+			Message: "Destination is expired",
+			Data: map[string]string{
+				"error": "destination_expired",
+			},
+		})
+		return
+	}
+
+	if slices.Contains(h.excludedTypes, destination.Type) {
+		AbortWithError(c, http.StatusBadRequest, ErrorResponse{
+			Code:    http.StatusBadRequest,
+			Message: "Destination type is disabled",
+			Data: map[string]string{
+				"error": "destination_type_disabled",
 			},
 		})
 		return

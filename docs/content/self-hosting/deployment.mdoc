@@ -67,3 +67,5 @@ Network rules don't apply to connections to the same machine or pod (`localhost`
 Set `DESTINATIONS_BLOCK_PRIVATE_ADDRESSES=true`. Outpost then rejects webhook destination URLs that point to a private address when they are created or updated, and fails deliveries to a private address with the error code `address_not_allowed`, including when the host name's DNS changes after the destination was created.
 
 To let tenants reach specific internal services, list their IPs or ranges in `DESTINATIONS_PRIVATE_ADDRESS_ALLOWLIST`. See [Configuration](/docs/outpost/self-hosting/configuration) for both settings.
+
+`mcp` destinations always apply this check, whatever the setting.

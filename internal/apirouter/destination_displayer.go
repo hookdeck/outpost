@@ -28,6 +28,10 @@ func (d *destinationDisplayer) Display(dest *models.Destination) (*destregistry.
 		display.Destination = &displayDestination
 	}
 
+	if dest.Type == models.DestinationTypeMCP {
+		display.ExpiresAt = dest.ExpiresAt
+	}
+
 	return display, nil
 }
 
