@@ -71,7 +71,8 @@ func (e thresholdEvaluator) shouldAlert(failures int) (int, bool) {
 		threshold := e.thresholds[i]
 
 		// For the 100% threshold (auto-disable), use >= to ensure we don't miss it
-		// if concurrent processing causes us to skip over the exact count.
+		// if concurrent processing causes us to skip over the exact count; the
+		// store's max-failure holder keeps it to one alert per failure streak.
 		// For other thresholds, use exact match to avoid duplicate alerts.
 		if threshold.percentage == 100 {
 			if failures >= threshold.failures {

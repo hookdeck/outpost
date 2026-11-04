@@ -221,7 +221,7 @@ These keys are short-lived and self-expiring, and safe to lose. Losing an idempo
 | `idempotency:publishmq:<event_id>` | String | `PUBLISH_IDEMPOTENCY_KEY_TTL` (default 1 hour) | Deduplicates published events. Holds `processing` during work, then `processed`. |
 | `idempotency:deliverymq:<event_id>:<destination_id>:<attempt>` | String | `DELIVERY_IDEMPOTENCY_KEY_TTL` (default 1 hour) | Deduplicates delivery tasks, so each attempt is made once. |
 | `publishmq:failures:<message_id>` | String (counter) | 24 hours | Counts failed receives of a message from the publish queue. |
-| `alert:<tenant_id>:<destination_id>:cf` | Set | 24 hours | IDs of consecutive failed attempts for a destination. Its size is the consecutive failure count; a successful attempt deletes it. |
+| `alert:<tenant_id>:<destination_id>:cf` | Set | 24 hours | IDs of consecutive failed attempts for a destination, plus two markers (`~max`, `~max:<attempt_id>`) recording which attempt sent the 100% alert. Its size, minus the markers, is the consecutive failure count; a successful attempt deletes it. |
 | `logmq:processed:<attempt_id>` | String | 24 hours | Marks a failed attempt as processed for alerting, so a redelivered log message isn't counted twice. |
 | `opevents:exhausted:<tenant_id>:<destination_id>` | String | `ALERT_EXHAUSTED_RETRIES_WINDOW_SECONDS` (default 1 hour) | Limits exhausted-retries alerts to one per destination per window. |
 

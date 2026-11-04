@@ -189,3 +189,41 @@ func TestCharacterization_CountContinuesAcrossBatches(t *testing.T) {
 		}
 	})
 }
+
+// 25 concurrent failed attempts with max=10: counts past 10 stay in the same
+// streak, so each threshold (5, 7, 9, 10) alerts once and the destination is
+// disabled once.
+func TestCharacterization_PastMaxAlertsOnce(t *testing.T) {
+	t.Parallel()
+	for _, withDisabler := range []bool{false, true} {
+		t.Run(fmt.Sprintf("disabler=%t", withDisabler), func(t *testing.T) {
+			t.Parallel()
+			synctest.Test(t, func(t *testing.T) {
+				h := newHarness(t, harnessConfig{
+					batcher: batcherConfig{itemCount: 25},
+					alert:   alertConfig{withDisabler: withDisabler},
+				})
+
+				destA, tenant := "dest_a6", "tenant_a6"
+				msgs := make([]*countingMessage, 0, 25)
+				for i := 1; i <= 25; i++ {
+					cm, msg := newCountingMessage(makeEntry(destA, tenant, fmt.Sprintf("att_%d", i), models.AttemptStatusFailed))
+					msgs = append(msgs, cm)
+					h.add(msg)
+				}
+				h.waitTerminal(msgs)
+
+				want := repeatTopic(topicFailed, 25, topicCF, topicCF, topicCF, topicCF)
+				if withDisabler {
+					want = append(want, topicDisabled)
+					require.Len(t, h.disabler.snapshot(), 1)
+				}
+				require.ElementsMatch(t, want, topics(h.sink.forDest(destA)))
+
+				for _, m := range msgs {
+					m.requireAcked(t)
+				}
+			})
+		})
+	}
+}

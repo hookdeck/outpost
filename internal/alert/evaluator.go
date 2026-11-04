@@ -27,7 +27,8 @@ type Attempt struct {
 // failure that crossed no threshold and exhausted no retries).
 type Evaluation struct {
 	// ConsecutiveFailure is non-nil when this attempt's consecutive-failure
-	// count crossed an alert threshold.
+	// count crossed an alert threshold. Each threshold is reported once per
+	// failure streak.
 	ConsecutiveFailure *ConsecutiveFailureSignal
 	// RetriesExhausted reports that this attempt exceeded the retry budget for
 	// a retry-eligible event.
@@ -132,11 +133,17 @@ func (e *Evaluator) Evaluate(ctx context.Context, attempt Attempt) (Evaluation, 
 	var eval Evaluation
 
 	if e.consecutiveFailureEnabled {
-		count, err := e.store.IncrementConsecutiveFailureCount(ctx, attempt.TenantID, attempt.DestinationID, attempt.AttemptID)
+		count, isMaxHolder, err := e.store.RecordConsecutiveFailure(ctx, attempt.TenantID, attempt.DestinationID, attempt.AttemptID, e.autoDisableFailureCount)
 		if err != nil {
 			return Evaluation{}, fmt.Errorf("failed to track consecutive failures: %w", err)
 		}
-		if level, crossed := e.thresholds.shouldAlert(count); crossed {
+		level, crossed := e.thresholds.shouldAlert(count)
+		// Every failure at or past the 100% count crosses it; only the
+		// streak's max-failure holder reports it.
+		if crossed && level == 100 && !isMaxHolder {
+			crossed = false
+		}
+		if crossed {
 			eval.ConsecutiveFailure = &ConsecutiveFailureSignal{
 				Failures: count,
 				Max:      e.autoDisableFailureCount,

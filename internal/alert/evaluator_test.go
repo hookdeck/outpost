@@ -3,6 +3,8 @@ package alert_test
 import (
 	"context"
 	"fmt"
+	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -63,9 +65,9 @@ func TestEvaluator_ThresholdCrossings(t *testing.T) {
 	assert.Equal(t, []int{50, 66, 90, 100}, levels, "each configured threshold crosses exactly once on the way to 100%")
 }
 
-func TestEvaluator_AboveMaxKeepsCrossing(t *testing.T) {
-	// Past the 100% count, every further failure reports the 100% threshold
-	// (>= match), so the caller keeps disabling/alerting.
+func TestEvaluator_AboveMaxCrossesOnce(t *testing.T) {
+	// Failures past the 100% count stay in the same streak, so the 100%
+	// threshold is not reported again.
 	t.Parallel()
 	ctx := context.Background()
 	redisClient := testutil.CreateTestRedisClient(t)
@@ -78,7 +80,89 @@ func TestEvaluator_AboveMaxKeepsCrossing(t *testing.T) {
 	)
 
 	levels := crossedLevels(t, ctx, e, "dest_above", "tenant_above", 1, 25)
-	assert.Equal(t, []int{50, 70, 90, 100, 100, 100, 100, 100, 100}, levels)
+	assert.Equal(t, []int{50, 70, 90, 100}, levels)
+}
+
+func TestEvaluator_ConcurrentFailuresPastMaxCrossOnce(t *testing.T) {
+	// Concurrent attempts can observe counts past the 100% count without one
+	// of them observing it exactly; exactly one of them reports 100%.
+	t.Parallel()
+	ctx := context.Background()
+	redisClient := testutil.CreateTestRedisClient(t)
+
+	e := alert.NewEvaluator(
+		alert.NewRedisAlertStore(redisClient, ""),
+		10,
+		alert.WithAutoDisableFailureCount(10),
+		alert.WithAlertThresholds([]int{100}),
+	)
+
+	var (
+		wg      sync.WaitGroup
+		crossed atomic.Int32
+	)
+	for i := 1; i <= 50; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			eval, err := e.Evaluate(ctx, failedAttempt("dest_conc", "tenant_conc", fmt.Sprintf("att_%d", i)))
+			assert.NoError(t, err)
+			if eval.ConsecutiveFailure != nil {
+				assert.Equal(t, 100, eval.ConsecutiveFailure.Level)
+				crossed.Add(1)
+			}
+		}()
+	}
+	wg.Wait()
+	assert.Equal(t, int32(1), crossed.Load())
+}
+
+func TestEvaluator_MaxReplayReportsAgain(t *testing.T) {
+	// The attempt that reported 100% reports it again on replay, so a caller
+	// that failed to act on it (disable, alert delivery) can retry. Other
+	// attempts in the streak still report nothing.
+	t.Parallel()
+	ctx := context.Background()
+	redisClient := testutil.CreateTestRedisClient(t)
+
+	e := alert.NewEvaluator(
+		alert.NewRedisAlertStore(redisClient, ""),
+		10,
+		alert.WithAutoDisableFailureCount(2),
+		alert.WithAlertThresholds([]int{100}),
+	)
+
+	require.Empty(t, crossedLevels(t, ctx, e, "dest_mr", "tenant_mr", 1, 1))
+	first, err := e.Evaluate(ctx, failedAttempt("dest_mr", "tenant_mr", "att_2"))
+	require.NoError(t, err)
+	require.NotNil(t, first.ConsecutiveFailure)
+
+	assert.Empty(t, crossedLevels(t, ctx, e, "dest_mr", "tenant_mr", 3, 4))
+
+	replay, err := e.Evaluate(ctx, failedAttempt("dest_mr", "tenant_mr", "att_2"))
+	require.NoError(t, err)
+	assert.Equal(t, alert.ConsecutiveFailureSignal{Failures: 4, Max: 2, Level: 100}, *replay.ConsecutiveFailure)
+}
+
+func TestEvaluator_SuccessResetsMax(t *testing.T) {
+	// A success ends the streak, so the next streak reports 100% again.
+	t.Parallel()
+	ctx := context.Background()
+	redisClient := testutil.CreateTestRedisClient(t)
+
+	e := alert.NewEvaluator(
+		alert.NewRedisAlertStore(redisClient, ""),
+		10,
+		alert.WithAutoDisableFailureCount(4),
+		alert.WithAlertThresholds([]int{50, 100}),
+	)
+
+	require.Equal(t, []int{50, 100}, crossedLevels(t, ctx, e, "dest_rm", "tenant_rm", 1, 8))
+
+	_, err := e.Evaluate(ctx, successAttempt("dest_rm", "tenant_rm"))
+	require.NoError(t, err)
+
+	assert.Equal(t, []int{50, 100}, crossedLevels(t, ctx, e, "dest_rm", "tenant_rm", 9, 16))
 }
 
 func TestEvaluator_CountAndMaxFailures(t *testing.T) {
