@@ -40,6 +40,7 @@ func testMisc(t *testing.T, newHarness HarnessMaker) {
 		testCursorValidation(t, ctx, logStore, h)
 	})
 	testListLatestAttempts(t, ctx, logStore, h)
+	testListAttemptInclude(t, ctx, logStore, h)
 }
 
 func testIsolation(t *testing.T, ctx context.Context, logStore driver.LogStore, h Harness) {

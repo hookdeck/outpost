@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -463,6 +464,14 @@ func buildAttemptQuery(table string, req driver.ListAttemptRequest, q pagination
 	orderByClause := fmt.Sprintf("ORDER BY attempt_time %s, attempt_id %s",
 		strings.ToUpper(q.SortDir), strings.ToUpper(q.SortDir))
 
+	// Unaliased: a ClickHouse alias is visible in WHERE and would shadow the column.
+	payloadColumn := func(column string, field driver.Field) string {
+		if !slices.Contains(req.Include, field) {
+			return "''"
+		}
+		return column
+	}
+
 	query := fmt.Sprintf(`
 		SELECT
 			event_id,
@@ -472,13 +481,13 @@ func buildAttemptQuery(table string, req driver.ListAttemptRequest, q pagination
 			topic,
 			eligible_for_retry,
 			event_time,
-			metadata,
-			data,
+			%s,
+			%s,
 			attempt_id,
 			status,
 			attempt_time,
 			code,
-			response_data,
+			%s,
 			manual,
 			attempt_number,
 			latency_ms
@@ -486,7 +495,11 @@ func buildAttemptQuery(table string, req driver.ListAttemptRequest, q pagination
 		WHERE %s
 		%s
 		LIMIT %d
-	`, table, whereClause, orderByClause, q.Limit)
+	`,
+		payloadColumn("metadata", driver.FieldEventMetadata),
+		payloadColumn("data", driver.FieldEventData),
+		payloadColumn("response_data", driver.FieldResponseData),
+		table, whereClause, orderByClause, q.Limit)
 
 	return query, args, nil
 }

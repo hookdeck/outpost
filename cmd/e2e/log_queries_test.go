@@ -48,7 +48,7 @@ func (s *basicSuite) setupLogQueryData() logQuerySetup {
 		eventTime := baseTime.Add(time.Duration(i) * time.Second)
 		s.publish(tenant.ID, "user.created", map[string]any{
 			"index": i,
-		}, withEventID(eventID), withTime(eventTime))
+		}, withEventID(eventID), withTime(eventTime), withPublishMetadata(map[string]string{"source": "e2e"}))
 	}
 
 	// Wait for all attempts
@@ -81,6 +81,8 @@ func (s *basicSuite) TestLogQueries_Attempts() {
 		s.NotEmpty(first["status"])
 		s.NotEmpty(first["time"])
 		s.Equal(float64(1), first["attempt_number"])
+		s.Nil(first["event"])
+		s.Nil(first["response_data"])
 	})
 
 	s.Run("filter by destination_id", func() {
@@ -114,6 +116,7 @@ func (s *basicSuite) TestLogQueries_Attempts() {
 		s.NotEmpty(event["topic"])
 		s.NotEmpty(event["time"])
 		s.Nil(event["data"]) // include=event should NOT include data
+		s.Equal(map[string]any{"source": "e2e"}, event["metadata"])
 	})
 
 	s.Run("include=event.data returns event object with data", func() {
@@ -127,6 +130,21 @@ func (s *basicSuite) TestLogQueries_Attempts() {
 		event := resp.Models[0]["event"].(map[string]any)
 		s.NotEmpty(event["id"])
 		s.NotNil(event["data"]) // include=event.data SHOULD include data
+		s.Equal(map[string]any{"source": "e2e"}, event["metadata"])
+	})
+
+	s.Run("include=event and response_data returns metadata and response data without event data", func() {
+		var resp struct {
+			Models []map[string]any `json:"models"`
+		}
+		status := s.doJSON(http.MethodGet, s.apiURL("/attempts?tenant_id="+setup.tenantID+"&include=event&include=response_data&limit=1"), nil, &resp)
+		s.Require().Equal(http.StatusOK, status)
+		s.Require().Len(resp.Models, 1)
+
+		event := resp.Models[0]["event"].(map[string]any)
+		s.Equal(map[string]any{"source": "e2e"}, event["metadata"])
+		s.Nil(event["data"])
+		s.NotNil(resp.Models[0]["response_data"])
 	})
 
 	s.Run("include=response_data returns response data", func() {

@@ -255,6 +255,7 @@ func (m *RetryTask) attemptLookupRequest() logstore.ListAttemptRequest {
 		DestinationIDs: []string{m.DestinationID},
 		Limit:          1,
 		SortOrder:      "desc",
+		Include:        logstore.AllFields,
 	}
 	// Tasks scheduled by v1.6.0 and earlier carry no AttemptTime; look them up
 	// unbounded.

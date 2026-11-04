@@ -1,9 +1,13 @@
 package deliverymq
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 
+	"github.com/hookdeck/outpost/internal/logstore"
+	"github.com/hookdeck/outpost/internal/models"
+	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -55,4 +59,32 @@ func TestNotReadyRequeueDelay(t *testing.T) {
 	assert.Equal(t, time.Minute, notReadyRequeueDelay(2*time.Minute, flush))
 	assert.Equal(t, maxNotReadyDelay, notReadyRequeueDelay(14*time.Minute, flush))
 	assert.Equal(t, time.Second, notReadyRequeueDelay(0, 0))
+}
+
+func TestRetryTask_LookupReadsPayload(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	store := logstore.NewMemLogStore()
+
+	event := testutil.EventFactory.AnyPointer(
+		testutil.EventFactory.WithID("e1"),
+		testutil.EventFactory.WithTenantID("t1"),
+		testutil.EventFactory.WithDestinationID("d1"),
+		testutil.EventFactory.WithMetadata(map[string]string{"k": "v"}),
+		testutil.EventFactory.WithData(json.RawMessage(`{"a":"b"}`)),
+	)
+	attempt := testutil.AttemptFactory.AnyPointer(
+		testutil.AttemptFactory.WithTenantID("t1"),
+		testutil.AttemptFactory.WithEventID("e1"),
+		testutil.AttemptFactory.WithDestinationID("d1"),
+	)
+	attempt.ResponseData = map[string]interface{}{"body": "oops"}
+	require.NoError(t, store.InsertMany(ctx, []*models.LogEntry{{Event: event, Attempt: attempt}}))
+
+	record, err := lookupAttempt(ctx, store, RetryTask{EventID: "e1", TenantID: "t1", DestinationID: "d1"})
+	require.NoError(t, err)
+	require.NotNil(t, record)
+	assert.JSONEq(t, `{"a":"b"}`, string(record.Event.Data))
+	assert.Equal(t, event.Metadata, record.Event.Metadata)
+	assert.Equal(t, attempt.ResponseData, record.Attempt.ResponseData)
 }

@@ -104,8 +104,10 @@ type Event struct {
 	Topic                 string    `json:"topic"`
 	EligibleForRetry      bool      `json:"eligible_for_retry"`
 	Time                  time.Time `json:"time"`
-	Metadata              Metadata  `json:"metadata"`
-	Data                  Data      `json:"data"`
+	// Nil when read from the log store without it (see logstore.ListAttemptRequest.Include).
+	Metadata Metadata `json:"metadata"`
+	// Empty when read from the log store without it (see logstore.ListAttemptRequest.Include).
+	Data Data `json:"data"`
 
 	// Telemetry data, must exist to properly trace events between publish receiver & delivery handler
 	Telemetry *EventTelemetry `json:"telemetry,omitempty"`
@@ -131,17 +133,18 @@ const (
 )
 
 type Attempt struct {
-	ID              string                 `json:"id"`
-	TenantID        string                 `json:"tenant_id"`
-	EventID         string                 `json:"event_id"`
-	DestinationID   string                 `json:"destination_id"`
-	DestinationType string                 `json:"destination_type"`
-	AttemptNumber   int                    `json:"attempt_number"`
-	Manual          bool                   `json:"manual"`
-	Status          string                 `json:"status"`
-	Time            time.Time              `json:"time"`
-	Code            string                 `json:"code"`
-	ResponseData    map[string]interface{} `json:"response_data"`
+	ID              string    `json:"id"`
+	TenantID        string    `json:"tenant_id"`
+	EventID         string    `json:"event_id"`
+	DestinationID   string    `json:"destination_id"`
+	DestinationType string    `json:"destination_type"`
+	AttemptNumber   int       `json:"attempt_number"`
+	Manual          bool      `json:"manual"`
+	Status          string    `json:"status"`
+	Time            time.Time `json:"time"`
+	Code            string    `json:"code"`
+	// Nil when read from the log store without it (see logstore.ListAttemptRequest.Include).
+	ResponseData map[string]interface{} `json:"response_data"`
 	// Provider response time in ms, measured around Publish. Nil when the
 	// attempt never reached the provider or predates latency tracking.
 	LatencyMs *int64 `json:"latency_ms"`

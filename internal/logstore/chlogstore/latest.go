@@ -125,6 +125,7 @@ func (s *logStoreImpl) ListLatestAttempts(ctx context.Context, lookups []driver.
 				DestinationIDs: []string{key.DestinationID},
 				Limit:          1,
 				SortOrder:      "desc",
+				Include:        driver.AllFields,
 			}
 			if !nb.IsZero() {
 				req.TimeFilter.GTE = &nb

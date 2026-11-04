@@ -25,6 +25,15 @@ type RetrieveEventRequest = driver.RetrieveEventRequest
 type RetrieveAttemptRequest = driver.RetrieveAttemptRequest
 type AttemptRecord = driver.AttemptRecord
 type LogEntry = models.LogEntry
+type Field = driver.Field
+
+const (
+	FieldEventData     = driver.FieldEventData
+	FieldEventMetadata = driver.FieldEventMetadata
+	FieldResponseData  = driver.FieldResponseData
+)
+
+var AllFields = driver.AllFields
 
 type MetricsRequest = driver.MetricsRequest
 type MetricsMetadata = driver.MetricsMetadata
