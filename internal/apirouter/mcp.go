@@ -28,6 +28,16 @@ func abortMCPAdminOnly(c *gin.Context) {
 	})
 }
 
+// abortMCPUnavailable answers 503 while the configured event definitions are
+// unusable; the reason goes to the request log only.
+func abortMCPUnavailable(c *gin.Context, cause error) {
+	AbortWithError(c, http.StatusServiceUnavailable, ErrorResponse{
+		Code:    http.StatusServiceUnavailable,
+		Message: "MCP Events unavailable",
+		Err:     cause,
+	})
+}
+
 func validateExpiresAt(destType string, expiresAt, now time.Time) error {
 	if destType != models.DestinationTypeMCP {
 		return errors.New("expires_at is not supported for this destination type")

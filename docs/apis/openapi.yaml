@@ -111,7 +111,7 @@ components:
             $ref: "#/components/schemas/APIErrorResponse"
     ServiceUnavailable:
       description: |
-        An `mcp` destination's callback verification could not run. `data.code` is `verification_unavailable`.
+        An `mcp` destination's callback verification could not run (`data.code` is `verification_unavailable`), or the MCP event definitions are invalid (the reason is in the server log).
       content:
         application/json:
           schema:
@@ -359,8 +359,9 @@ components:
           type: string
           maxLength: 4096
           description: >-
-            Subscription arguments as canonical JSON (sorted keys, no whitespace). Stored with the
-            destination; not used to filter events. Immutable.
+            Subscription arguments as canonical JSON (sorted keys, no whitespace). Immutable. They
+            must satisfy the event's `inputSchema` from `GET /mcp/events/list`, and Outpost derives the
+            destination's `filter` from them.
           example: '{"status":"paid"}'
     MCPCredentials:
       type: object
@@ -4198,6 +4199,8 @@ components:
             string disables the header. Only applies to "default" mode.
         EXPERIMENTAL_MCP_ENABLED:
           type: [string, "null"]
+        EXPERIMENTAL_MCP_EVENTS_SCHEMA:
+          type: [string, "null"]
         EXPERIMENTAL_MCP_RETRY_SCHEDULE:
           type: [string, "null"]
         HTTP_USER_AGENT:
@@ -7055,6 +7058,89 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "500":
           $ref: "#/components/responses/InternalServerError"
+
+  /mcp/events/list:
+    get:
+      tags: [Topics]
+      summary: List MCP Events
+      x-speakeasy-ignore: true
+      description: |
+        **Experimental.** Returns the event definitions configured with `EXPERIMENTAL_MCP_EVENTS_SCHEMA`
+        (`experimental.mcp.events_schema` in YAML), in the shape of an MCP `events/list` result. Admin API key only. Returns 404
+        when MCP is not enabled or no events are defined, and 503 when the definitions are invalid.
+      operationId: listMCPEvents
+      parameters:
+        - name: topics
+          in: query
+          description: Comma-separated event names; only these are returned.
+          schema:
+            type: string
+          example: "order.created,order.refunded"
+        - name: cursor
+          in: query
+          description: The `nextCursor` of the previous page.
+          schema:
+            type: string
+        - name: limit
+          in: query
+          description: Maximum events per page.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+      responses:
+        "200":
+          description: A page of event definitions, in the configured order.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [resultType, events]
+                properties:
+                  resultType:
+                    type: string
+                    enum: [complete]
+                  events:
+                    type: array
+                    items:
+                      type: object
+                      required: [name, inputSchema, payloadSchema, delivery]
+                      properties:
+                        name:
+                          type: string
+                          example: "order.created"
+                        description:
+                          type: string
+                          example: "An order was placed."
+                        inputSchema:
+                          type: object
+                          additionalProperties: true
+                          description: JSON Schema of the `arguments` a subscription accepts, as defined in the event definitions.
+                        payloadSchema:
+                          type: object
+                          additionalProperties: true
+                          description: JSON Schema of the event data.
+                        delivery:
+                          type: array
+                          items:
+                            type: string
+                          example: ["webhook"]
+                  nextCursor:
+                    type: string
+                    description: Present when there are more events.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
 
   /metrics/events:
     get:

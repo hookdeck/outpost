@@ -42,13 +42,80 @@ Verification is limited to 10 challenges per tenant and principal per minute, an
 | `topics` | string[] | Yes | Exactly one topic. `*` is not accepted. |
 | `config.url` | string | Yes | Callback URL. `https`, in normalized form (lowercase host, no default port, no credentials); `http` only with `EXPERIMENTAL_MCP_ALLOW_INSECURE_CALLBACKS`, for addresses in `DESTINATIONS_PRIVATE_ADDRESS_ALLOWLIST`, for development. Must resolve to a public address, unless allowed by `DESTINATIONS_PRIVATE_ADDRESS_ALLOWLIST`. |
 | `config.principal` | string | No | The subject the subscription belongs to, up to 512 bytes. Verification is cached per tenant, principal and URL. |
-| `config.arguments` | string | No | Canonical JSON object, up to 4 KiB. Stored with the destination. |
+| `config.arguments` | string | No | Canonical JSON object, up to 4 KiB. Stored with the destination. Must satisfy the event's `inputSchema`. |
 | `credentials.secret` | string | Yes | `whsec_` followed by base64 of 24 to 64 bytes. |
 | `expires_at` | string | No | RFC 3339 time in the future. From then on the subscription matches no events and receives no deliveries. `null` on update clears it. |
 
 `config.url`, `config.principal`, `config.arguments` and `topics` cannot change after creation. To rotate the secret, update `credentials.secret`: the old secret keeps signing for 24 hours alongside the new one.
 
 Each subscription counts toward `MAX_DESTINATIONS_PER_TENANT`. When a tenant is at the limit, creating a subscription first removes the tenant's expired ones.
+
+## Event Definitions
+
+Event definitions list the events an MCP server can offer and the arguments an agent can filter each one by. They use the format of an MCP `events/list` result:
+
+```json
+{
+  "events": [
+    {
+      "name": "order.created",
+      "description": "A new order was placed.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "status": { "type": "string", "enum": ["paid", "pending"] }
+        }
+      },
+      "payloadSchema": {
+        "type": "object",
+        "properties": {
+          "order_id": { "type": "string" },
+          "status": { "type": "string" },
+          "total": { "type": "number" }
+        }
+      }
+    },
+    {
+      "name": "order.shipped",
+      "description": "An order left the warehouse.",
+      "payloadSchema": {
+        "type": "object",
+        "properties": {
+          "order_id": { "type": "string" },
+          "carrier": { "type": "string" }
+        }
+      }
+    }
+  ]
+}
+```
+
+An agent subscribing to `order.created` can pass `{"status": "paid"}` and receives only the orders whose `status` is `paid`. `order.shipped` takes no arguments.
+
+- `name` is a topic and is unique in the list. With `TOPICS` set, it must be one of them. Wildcards aren't allowed.
+- `payloadSchema` is a required JSON Schema object that describes the event's `data`.
+- `inputSchema` is an optional JSON Schema object that lists the arguments under `properties`. Without it the event takes no arguments, and `GET /mcp/events/list` returns `{"type": "object", "properties": {}}`.
+- Each argument is a string, number, integer or boolean, and names a top-level field of the payload with a compatible type. Outpost delivers an event only if every argument equals the field of the same name. `additionalProperties` must be `false` or absent, and an argument has no `default`.
+- `description`, `delivery` and `_meta` are optional. When `delivery` is set it must include `webhook`.
+
+Invalid definitions are reported with the event and the field.
+
+{% tabs tabGroup="deployment" %}
+{% tab label="Managed" %}
+
+Import the JSON (or YAML) in [Hookdeck MCP Events settings](https://dashboard.hookdeck.com/settings/project/mcp-events), or edit the events there. The same format is what Export produces.
+
+{% /tab %}
+{% tab label="Self-Hosted" %}
+
+Set the JSON in [`EXPERIMENTAL_MCP_EVENTS_SCHEMA`](/docs/outpost/self-hosting/configuration#mcp-events-experimental), inline or as the path of a JSON or YAML file. In the YAML config, `experimental.mcp.events_schema` takes the mapping inline or a file path.
+
+{% /tab %}
+{% /tabs %}
+
+A subscription must target a defined event: `422` with `topics` / `not_found` otherwise, so with no definitions every subscription is refused. `config.arguments` must satisfy the event's `inputSchema`, and an argument that isn't listed under its `properties` is refused. `filter` can't be set on these subscriptions. Checks run when a subscription is created.
+
+`GET /mcp/events/list` (Admin API key) returns the configured list in order as an MCP `events/list` result (`resultType: "complete"`), with `delivery` set to `["webhook"]` on each event and `nextCursor` when there are more. `topics=a,b` restricts the list to those events, and `limit` and `cursor` page through it. Without MCP enabled or any events configured, the route returns `404`.
 
 ## Delivery
 
