@@ -152,7 +152,7 @@ func (s *server) serve(w http.ResponseWriter, r *http.Request) {
 		if len(q) > 0 {
 			query = "?" + q.Encode()
 		}
-		path := "/mcp/events" + query
+		path := "/mcp/" + req.Method + query
 		status, body := s.outpost(http.MethodGet, path, nil)
 		s.forward(w, req.ID, http.MethodGet, path, status, body)
 	case "events/subscribe", "events/unsubscribe":
@@ -164,8 +164,7 @@ func (s *server) serve(w http.ResponseWriter, r *http.Request) {
 			rpcFail(w, http.StatusBadRequest, req.ID, -32020, "HeaderMismatch", nil)
 			return
 		}
-		action := strings.TrimPrefix(req.Method, "events/")
-		path := "/tenants/" + user.Tenant + "/mcp/" + action
+		path := "/tenants/" + user.Tenant + "/mcp/" + req.Method
 		status, out := s.outpost(http.MethodPost, path, req.Params)
 		s.forward(w, req.ID, http.MethodPost, path, status, out)
 	default:
