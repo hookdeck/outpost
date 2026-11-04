@@ -82,9 +82,7 @@ func TestNewCatalogRules(t *testing.T) {
 			name: "required schemas",
 			defs: Definitions{def("a", "", ""), def("b", "", objPayload), def("c", emptyInput, "")},
 			want: []string{
-				`event "a": inputSchema is required; use {"type": "object", "properties": {}} for an event without arguments`,
 				`event "a": payloadSchema is required`,
-				`event "b": inputSchema is required; use {"type": "object", "properties": {}} for an event without arguments`,
 				`event "c": payloadSchema is required`,
 			},
 		},
@@ -284,7 +282,7 @@ func TestCatalogAccessors(t *testing.T) {
 
 func TestNewCatalogBoundsProblems(t *testing.T) {
 	var defs Definitions
-	for i := range 150 {
+	for i := range 300 {
 		defs = append(defs, def(fmt.Sprintf("e%03d", i), "", ""))
 	}
 	_, err := NewCatalog(nil, defs)
@@ -358,4 +356,20 @@ func TestCatalogConcurrentUse(t *testing.T) {
 		}()
 	}
 	wg.Wait()
+}
+
+func TestOmittedInputSchemaTakesNoArguments(t *testing.T) {
+	for _, input := range []string{"", "null"} {
+		c, err := NewCatalog(nil, Definitions{def("a", input, orderPayload)})
+		require.NoError(t, err, input)
+		ev, ok := c.Event("a")
+		require.True(t, ok)
+		var out struct {
+			InputSchema json.RawMessage `json:"inputSchema"`
+		}
+		require.NoError(t, json.Unmarshal(ev.JSON, &out))
+		assert.JSONEq(t, `{"type":"object","properties":{}}`, string(out.InputSchema))
+		assert.Empty(t, c.ValidateArguments("a", []byte(`{}`)))
+		assert.NotEmpty(t, c.ValidateArguments("a", []byte(`{"status":"paid"}`)), "an argument the event doesn't list is refused")
+	}
 }

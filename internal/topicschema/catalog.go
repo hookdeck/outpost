@@ -122,8 +122,7 @@ func (b *catalogBuilder) addDefinition(def Definition) {
 	input, payload := bytes.TrimSpace(def.InputSchema), bytes.TrimSpace(def.PayloadSchema)
 	ok := true
 	if len(input) == 0 || string(input) == "null" {
-		b.problem(name, `inputSchema is required; use {"type": "object", "properties": {}} for an event without arguments`)
-		ok = false
+		input = []byte(`{"type":"object","properties":{}}`)
 	}
 	if len(payload) == 0 || string(payload) == "null" {
 		b.problem(name, "payloadSchema is required")

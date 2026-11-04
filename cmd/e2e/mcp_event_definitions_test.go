@@ -26,12 +26,12 @@ func TestMCP_EventDefinitions(t *testing.T) {
 	suite.Run(t, &mcpEventDefinitionsSuite{})
 }
 
-// mcpEventsYAML lists user.updated first to show the configured order is kept.
+// mcpEventsYAML lists user.updated first to show the configured order is kept;
+// it omits inputSchema, so the event takes no arguments.
 const mcpEventsYAML = `
 events:
   - name: user.updated
     description: A user was updated.
-    inputSchema: {type: object, properties: {}}
     payloadSchema:
       type: object
       properties:
@@ -103,6 +103,9 @@ func (s *mcpEventDefinitionsSuite) TestEventCatalog() {
 	s.Require().NoError(yaml.Unmarshal([]byte(mcpEventsYAML), &want))
 	for _, ev := range want.Events {
 		ev["delivery"] = []any{"webhook"}
+		if _, ok := ev["inputSchema"]; !ok {
+			ev["inputSchema"] = map[string]any{"type": "object", "properties": map[string]any{}}
+		}
 	}
 
 	status, page := s.catalog("")
