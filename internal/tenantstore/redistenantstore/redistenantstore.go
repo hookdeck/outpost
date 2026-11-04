@@ -609,7 +609,51 @@ return 0
 `)
 
 func (s *store) CreateDestination(ctx context.Context, destination models.Destination) error {
-	return destinationWriteError(s.writeDestination(ctx, destination, writeModeCreate))
+	code, err := s.writeDestination(ctx, destination, writeModeCreate)
+	if err == nil && code == writeDestinationLimitReached {
+		// Expired destinations are deleted to free a slot.
+		if err := s.deleteExpiredDestinations(ctx, destination.TenantID); err != nil {
+			return err
+		}
+		code, err = s.writeDestination(ctx, destination, writeModeCreate)
+	}
+	return destinationWriteError(code, err)
+}
+
+// Re-reads expires_at so a destination extended since the summary was read is kept.
+var deleteIfExpiredScript = redis.NewScript(`
+local expires = redis.call('HGET', KEYS[1], 'expires_at')
+if not expires or redis.call('HEXISTS', KEYS[1], 'deleted_at') == 1 then
+  return 0
+end
+if tonumber(expires) > tonumber(ARGV[1]) then
+  return 0
+end
+redis.call('HDEL', KEYS[2], ARGV[2])
+redis.call('HSET', KEYS[1], 'deleted_at', ARGV[1])
+redis.call('HINCRBY', KEYS[1], 'version', 1)
+redis.call('EXPIRE', KEYS[1], ARGV[3])
+return 1
+`)
+
+func (s *store) deleteExpiredDestinations(ctx context.Context, tenantID string) error {
+	summaries, err := s.listDestinationSummaryByTenant(ctx, tenantID, nil)
+	if err != nil {
+		return err
+	}
+	now := time.Now()
+	for _, ds := range summaries {
+		if !ds.expired(now) {
+			continue
+		}
+		err := deleteIfExpiredScript.Run(ctx, s.redisClient,
+			[]string{s.redisDestinationID(ds.ID, tenantID), s.redisTenantDestinationSummaryKey(tenantID)},
+			now.UnixMilli(), ds.ID, int64(deletedRecordTTL.Seconds())).Err()
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *store) UpsertDestination(ctx context.Context, destination models.Destination) error {
@@ -707,6 +751,12 @@ func (s *store) prepareDestinationFields(destination *models.Destination) (field
 		unset = append(unset, "disabled_at")
 	}
 
+	if destination.ExpiresAt != nil {
+		fields = append(fields, "expires_at", destination.ExpiresAt.UnixMilli())
+	} else {
+		unset = append(unset, "expires_at")
+	}
+
 	if destination.DeliveryMetadata != nil {
 		fields = append(fields, "delivery_metadata", encryptedDeliveryMetadata)
 	} else {
@@ -772,9 +822,10 @@ func (s *store) MatchEvent(ctx context.Context, event models.Event, allowWildcar
 	}
 
 	var matched []string
+	now := time.Now()
 
 	for _, ds := range destinationSummaryList {
-		if ds.Disabled {
+		if ds.Disabled || ds.expired(now) {
 			continue
 		}
 		if event.Topic != "" && !ds.Topics.MatchTopic(event.Topic, allowWildcards) {

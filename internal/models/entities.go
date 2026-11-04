@@ -41,6 +41,13 @@ type Destination struct {
 	// Version is the store's write counter at the time of the read. It is not
 	// part of the API; UpdateDestination uses it to detect concurrent writes.
 	Version int64 `json:"-" redis:"-"`
+
+	// ExpiresAt is not exposed in the API. Once past, the destination receives no events.
+	ExpiresAt *time.Time `json:"-" redis:"expires_at"`
+}
+
+func (d *Destination) IsExpired(now time.Time) bool {
+	return d.ExpiresAt != nil && !now.Before(*d.ExpiresAt)
 }
 
 func (d *Destination) Validate(topics []string, allowWildcards bool) error {
@@ -51,10 +58,11 @@ func (d *Destination) Validate(topics []string, allowWildcards bool) error {
 }
 
 // MatchEvent checks if the destination matches the given event.
-// Returns true if the destination is enabled, topic matches, and filter matches.
+// Returns true if the destination is enabled and not expired, topic matches,
+// and filter matches.
 // Embedded wildcard topic patterns are ignored when allowWildcards is false.
 func (d *Destination) MatchEvent(event Event, allowWildcards bool) bool {
-	if d.DisabledAt != nil {
+	if d.DisabledAt != nil || d.IsExpired(time.Now()) {
 		return false
 	}
 	if !d.Topics.MatchTopic(event.Topic, allowWildcards) {

@@ -25,6 +25,7 @@ func idempotencyKeyFromDeliveryTask(task models.DeliveryTask) string {
 
 var (
 	errDestinationDisabled = errors.New("destination disabled")
+	errDestinationExpired  = errors.New("destination expired")
 )
 
 // Error types to distinguish between different stages of delivery
@@ -168,7 +169,7 @@ func (h *messageHandler) handleError(msg *mqs.Message, err error) error {
 	// Don't return error for expected cases
 	var preErr *PreDeliveryError
 	if errors.As(err, &preErr) {
-		if errors.Is(preErr.err, tenantstore.ErrDestinationDeleted) || errors.Is(preErr.err, errDestinationDisabled) {
+		if errors.Is(preErr.err, tenantstore.ErrDestinationDeleted) || errors.Is(preErr.err, errDestinationDisabled) || errors.Is(preErr.err, errDestinationExpired) {
 			return nil
 		}
 	}
@@ -376,7 +377,7 @@ func (h *messageHandler) shouldNackError(err error) bool {
 	var preErr *PreDeliveryError
 	if errors.As(err, &preErr) {
 		// Don't nack if it's a permanent error
-		if errors.Is(preErr.err, tenantstore.ErrDestinationDeleted) || errors.Is(preErr.err, errDestinationDisabled) {
+		if errors.Is(preErr.err, tenantstore.ErrDestinationDeleted) || errors.Is(preErr.err, errDestinationDisabled) || errors.Is(preErr.err, errDestinationExpired) {
 			return false
 		}
 		return true // Nack other pre-delivery errors
@@ -463,6 +464,15 @@ func (h *messageHandler) ensurePublishableDestination(ctx context.Context, task 
 			zap.String("destination_type", destination.Type),
 			zap.Time("disabled_at", *destination.DisabledAt))
 		return nil, errDestinationDisabled
+	}
+	if destination.IsExpired(time.Now()) {
+		h.logger.Ctx(ctx).Debug("skipping expired destination",
+			zap.String("event_id", task.Event.ID),
+			zap.String("tenant_id", task.Event.TenantID),
+			zap.String("destination_id", destination.ID),
+			zap.String("destination_type", destination.Type),
+			zap.Time("expires_at", *destination.ExpiresAt))
+		return nil, errDestinationExpired
 	}
 	return destination, nil
 }
