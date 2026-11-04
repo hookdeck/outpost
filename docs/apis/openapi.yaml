@@ -6781,7 +6781,7 @@ paths:
                         inputSchema:
                           type: object
                           additionalProperties: true
-                          description: JSON Schema of the `arguments` a subscription accepts, as defined in the event definitions.
+                          description: JSON Schema of the `arguments` a subscription accepts, as defined in the event definitions. Derived from `payloadSchema` when the definition has no `inputSchema`.
                         payloadSchema:
                           type: object
                           additionalProperties: true

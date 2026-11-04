@@ -16,6 +16,73 @@ var inputRootKeywords = map[string]bool{
 	"maxProperties": true,
 }
 
+// derivedProperty is one property of a derived inputSchema.
+type derivedProperty struct {
+	Type        any    `json:"type"`
+	Description string `json:"description,omitempty"`
+	Enum        []any  `json:"enum,omitempty"`
+}
+
+// derivedInputSchema is the inputSchema of an event that declares none.
+type derivedInputSchema struct {
+	Type                 string                     `json:"type"`
+	Properties           map[string]derivedProperty `json:"properties"`
+	AdditionalProperties bool                       `json:"additionalProperties"`
+}
+
+// deriveInputSchema returns the inputSchema of an event without one: every
+// top-level payload property that is a string, number, integer or boolean
+// becomes an optional argument carrying the property's type, scalar enum and
+// description. Other properties are left out. payload is a tree from
+// decodeJSON.
+func deriveInputSchema(payload map[string]any) ([]byte, error) {
+	schema := derivedInputSchema{Type: "object", Properties: map[string]derivedProperty{}}
+	props, _ := payload["properties"].(map[string]any)
+	for _, name := range sortedKeys(props) {
+		// Arguments become a filter, where "$" keys are operators.
+		if strings.HasPrefix(name, "$") {
+			continue
+		}
+		node, ok := typedNode(payload, props[name])
+		if !ok {
+			continue
+		}
+		types, ok := scalarArgumentTypes(node, true)
+		if !ok {
+			continue
+		}
+		var prop derivedProperty
+		prop.Type = types[0]
+		if len(types) > 1 {
+			prop.Type = types
+		}
+		if p, ok := props[name].(map[string]any); ok {
+			prop.Description, _ = p["description"].(string)
+		}
+		prop.Enum = scalarEnum(node, types)
+		schema.Properties[name] = prop
+	}
+	return marshalNoEscape(schema)
+}
+
+// scalarEnum returns the enum of a typedNode when every value besides null is
+// of one of types, and nil otherwise.
+func scalarEnum(node map[string]any, types []string) []any {
+	enum, _ := node["enum"].([]any)
+	var out []any
+	for _, v := range enum {
+		t := jsonTypeOf(v)
+		if t == "null" {
+			continue
+		}
+		if !compatibleTypes([]string{t}, types) {
+			return nil
+		}
+		out = append(out, v)
+	}
+	return out
+}
+
 // checkInputSchema checks a compiled inputSchema against the payload schema
 // and describes its arguments. Both are trees from decodeJSON. It returns the
 // problems found, which are worded without the event prefix.

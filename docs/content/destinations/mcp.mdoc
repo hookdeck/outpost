@@ -76,7 +76,6 @@ Event definitions list the events an MCP server can offer and the arguments an a
     {
       "name": "order.shipped",
       "description": "An order left the warehouse.",
-      "inputSchema": { "type": "object", "properties": {} },
       "payloadSchema": {
         "type": "object",
         "properties": {
@@ -89,10 +88,11 @@ Event definitions list the events an MCP server can offer and the arguments an a
 }
 ```
 
-An agent subscribing to `order.created` can pass `{"status": "paid"}` and receives only the orders whose `status` is `paid`. `order.shipped` takes no arguments.
+An agent subscribing to `order.created` can pass `{"status": "paid"}` and receives only the orders whose `status` is `paid`. `order.shipped` has no `inputSchema`, so an agent can filter it by `order_id` or `carrier`.
 
 - `name` is a topic and is unique in the list. With `TOPICS` set, it must be one of them. Wildcards aren't allowed.
-- `inputSchema` and `payloadSchema` are required JSON Schema objects. `inputSchema` lists the arguments under `properties`; use `{"type": "object", "properties": {}}` for an event without arguments. `payloadSchema` describes the event's `data`.
+- `payloadSchema` is a required JSON Schema object that describes the event's `data`.
+- `inputSchema` is an optional JSON Schema object that lists the arguments under `properties`. Without it, every top-level `payloadSchema` property that is a string, number, integer or boolean is an optional argument, with its type, `enum` and `description`; other properties can't be filtered on and are left out. `GET /mcp/events/list` returns this derived `inputSchema`. Use `{"type": "object", "properties": {}}` for an event without arguments.
 - Each argument is a string, number, integer or boolean, and names a top-level field of the payload with a compatible type. Outpost delivers an event only if every argument equals the field of the same name. `additionalProperties` must be `false` or absent, and an argument has no `default`.
 - `description`, `delivery` and `_meta` are optional. When `delivery` is set it must include `webhook`.
 

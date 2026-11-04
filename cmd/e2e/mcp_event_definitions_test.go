@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 
@@ -27,6 +28,7 @@ func TestMCP_EventDefinitions(t *testing.T) {
 }
 
 // mcpEventsYAML lists user.updated first to show the configured order is kept.
+// user.updated declares no arguments.
 const mcpEventsYAML = `
 events:
   - name: user.updated
@@ -51,6 +53,20 @@ events:
         amount: {type: number}
 `
 
+// mcpEventsWithDerivedYAML adds user.deleted, which omits inputSchema: its
+// scalar fields are the arguments.
+const mcpEventsWithDerivedYAML = mcpEventsYAML + `
+  - name: user.deleted
+    description: A user was deleted.
+    payloadSchema:
+      type: object
+      properties:
+        id: {type: string}
+        active: {type: boolean, description: Whether the user was active.}
+        tags: {type: array, items: {type: string}}
+        profile: {type: object}
+`
+
 type mcpEventDefinitionsSuite struct {
 	suite.Suite
 	m *mcpSuite
@@ -58,10 +74,10 @@ type mcpEventDefinitionsSuite struct {
 
 func (s *mcpEventDefinitionsSuite) SetupSuite() {
 	file := filepath.Join(s.T().TempDir(), "events.yaml")
-	s.Require().NoError(os.WriteFile(file, []byte(mcpEventsYAML), 0o600))
+	s.Require().NoError(os.WriteFile(file, []byte(mcpEventsWithDerivedYAML), 0o600))
 	s.m = &mcpSuite{configure: func(cfg *config.Config) {
 		withMCPDelivery(cfg)
-		cfg.Topics = testutil.TestTopics
+		cfg.Topics = append(slices.Clone(testutil.TestTopics), "user.archived")
 		s.Require().NoError(cfg.Experimental.MCP.EventsSchema.UnmarshalText([]byte(file)))
 	}}
 	s.m.SetT(s.T())
@@ -100,15 +116,25 @@ func (s *mcpEventDefinitionsSuite) TestEventCatalog() {
 	var want struct {
 		Events []map[string]any `json:"events"`
 	}
-	s.Require().NoError(yaml.Unmarshal([]byte(mcpEventsYAML), &want))
+	s.Require().NoError(yaml.Unmarshal([]byte(mcpEventsWithDerivedYAML), &want))
 	for _, ev := range want.Events {
 		ev["delivery"] = []any{"webhook"}
+		if _, ok := ev["inputSchema"]; !ok {
+			ev["inputSchema"] = map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"id":     map[string]any{"type": "string"},
+					"active": map[string]any{"type": "boolean", "description": "Whether the user was active."},
+				},
+				"additionalProperties": false,
+			}
+		}
 	}
 
 	status, page := s.catalog("")
 	s.Require().Equal(http.StatusOK, status)
 	s.Equal("complete", page.ResultType)
-	s.Require().Len(page.Events, 2)
+	s.Require().Len(page.Events, 3)
 	got, err := json.Marshal(map[string]any{"events": page.Events})
 	s.Require().NoError(err)
 	wantJSON, err := json.Marshal(want)
@@ -116,13 +142,14 @@ func (s *mcpEventDefinitionsSuite) TestEventCatalog() {
 	s.JSONEq(string(wantJSON), string(got))
 	s.Equal("user.updated", page.Events[0].Name, "configured order")
 	s.Equal("user.created", page.Events[1].Name)
+	s.Equal("user.deleted", page.Events[2].Name)
 
 	status, page = s.catalog("?topics=user.updated")
 	s.Require().Equal(http.StatusOK, status)
 	s.Require().Len(page.Events, 1)
 	s.Equal("user.updated", page.Events[0].Name)
 
-	status, page = s.catalog("?topics=user.deleted")
+	status, page = s.catalog("?topics=user.archived")
 	s.Require().Equal(http.StatusOK, status)
 	s.Empty(page.Events)
 
@@ -135,6 +162,10 @@ func (s *mcpEventDefinitionsSuite) TestEventCatalog() {
 	s.Require().Equal(http.StatusOK, status)
 	s.Require().Len(page.Events, 1)
 	s.Equal("user.created", page.Events[0].Name)
+	status, page = s.catalog("?limit=1&cursor=" + page.NextCursor)
+	s.Require().Equal(http.StatusOK, status)
+	s.Require().Len(page.Events, 1)
+	s.Equal("user.deleted", page.Events[0].Name)
 	s.Empty(page.NextCursor)
 
 	tenant := s.m.base.createTenant().ID
@@ -184,6 +215,29 @@ func (s *mcpEventDefinitionsSuite) TestArgumentsFilterDeliveries() {
 	s.Equal(created.Filter, stored.Filter)
 }
 
+// An event without inputSchema takes every scalar field as an argument.
+func (s *mcpEventDefinitionsSuite) TestDerivedArgumentsFilterDeliveries() {
+	tenant := s.m.base.createTenant().ID
+	p := s.m.newPath(mcpreceiver.PathConfig{})
+	body := p.body(mcpDestOpts{})
+	body["topics"] = []string{"user.deleted"}
+	body["config"].(map[string]any)["arguments"] = `{"active":true,"id":"u1"}`
+	status, raw := s.m.create(tenant, body)
+	s.Require().Equal(http.StatusCreated, status, "%s", raw)
+
+	publish := func(data map[string]any) publishResponse {
+		return s.m.base.publish(tenant, "user.deleted", data, withRetry())
+	}
+	hit := publish(map[string]any{"id": "u1", "active": true, "tags": []string{"a"}})
+	events := s.m.r.WaitFor(p.path, 1, mcpreceiver.Request.IsEvent, mockServerPollTimeout)
+	s.Require().Len(events, 1)
+	s.Equal(hit.ID, events[0].Envelope().EventID)
+	otherID := publish(map[string]any{"id": "u2", "active": true})
+	inactive := publish(map[string]any{"id": "u1", "active": false})
+	s.m.check(len(hit.DestinationIDs) == 1 && len(otherID.DestinationIDs) == 0 && len(inactive.DestinationIDs) == 0,
+		"matched: id u1 active %v, id u2 %v, inactive %v", hit.DestinationIDs, otherID.DestinationIDs, inactive.DestinationIDs)
+}
+
 func (s *mcpEventDefinitionsSuite) TestNumericArgumentMatchesByEquality() {
 	tenant := s.m.base.createTenant().ID
 	p := s.m.newPath(mcpreceiver.PathConfig{})
@@ -210,7 +264,7 @@ func (s *mcpEventDefinitionsSuite) TestErrorResponses_MCPEventDefinitions() {
 	}
 	cases := []errorCase{
 		{name: "topic not in catalog", method: http.MethodPost, path: dest, auth: admin,
-			body:   with(func(b map[string]any) { b["topics"] = []string{"user.deleted"} }),
+			body:   with(func(b map[string]any) { b["topics"] = []string{"user.archived"} }),
 			status: http.StatusUnprocessableEntity, message: validationError, detail: "topics failed not_found validation"},
 		{name: "argument value outside enum", method: http.MethodPost, path: dest, auth: admin,
 			body: with(func(b map[string]any) {
@@ -238,6 +292,18 @@ func (s *mcpEventDefinitionsSuite) TestErrorResponses_MCPEventDefinitions() {
 				b["config"].(map[string]any)["arguments"] = `{"id":"x"}`
 			}),
 			status: http.StatusUnprocessableEntity, message: validationError, detail: "config.arguments.* failed invalid validation"},
+		{name: "derived argument of the wrong type", method: http.MethodPost, path: dest, auth: admin,
+			body: with(func(b map[string]any) {
+				b["topics"] = []string{"user.deleted"}
+				b["config"].(map[string]any)["arguments"] = `{"active":"yes"}`
+			}),
+			status: http.StatusUnprocessableEntity, message: validationError, detail: "config.arguments.active failed invalid validation"},
+		{name: "non-scalar field is not a derived argument", method: http.MethodPost, path: dest, auth: admin,
+			body: with(func(b map[string]any) {
+				b["topics"] = []string{"user.deleted"}
+				b["config"].(map[string]any)["arguments"] = `{"tags":["a"]}`
+			}),
+			status: http.StatusUnprocessableEntity, message: validationError, detail: "config.arguments failed invalid validation"},
 		{name: "arguments not an object", method: http.MethodPost, path: dest, auth: admin,
 			body: with(func(b map[string]any) {
 				b["config"].(map[string]any)["arguments"] = `["paid"]`

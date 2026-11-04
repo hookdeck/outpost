@@ -82,9 +82,7 @@ func TestNewCatalogRules(t *testing.T) {
 			name: "required schemas",
 			defs: Definitions{def("a", "", ""), def("b", "", objPayload), def("c", emptyInput, "")},
 			want: []string{
-				`event "a": inputSchema is required; use {"type": "object", "properties": {}} for an event without arguments`,
 				`event "a": payloadSchema is required`,
-				`event "b": inputSchema is required; use {"type": "object", "properties": {}} for an event without arguments`,
 				`event "c": payloadSchema is required`,
 			},
 		},
@@ -284,7 +282,7 @@ func TestCatalogAccessors(t *testing.T) {
 
 func TestNewCatalogBoundsProblems(t *testing.T) {
 	var defs Definitions
-	for i := range 150 {
+	for i := range 300 {
 		defs = append(defs, def(fmt.Sprintf("e%03d", i), "", ""))
 	}
 	_, err := NewCatalog(nil, defs)
@@ -358,4 +356,86 @@ func TestCatalogConcurrentUse(t *testing.T) {
 		}()
 	}
 	wg.Wait()
+}
+
+func inputSchemaOf(t *testing.T, c *Catalog, name string) string {
+	t.Helper()
+	ev, ok := c.Event(name)
+	require.True(t, ok)
+	var out struct {
+		InputSchema json.RawMessage `json:"inputSchema"`
+	}
+	require.NoError(t, json.Unmarshal(ev.JSON, &out))
+	assert.JSONEq(t, string(ev.InputSchema), string(out.InputSchema))
+	return string(out.InputSchema)
+}
+
+func TestOmittedInputSchemaIsDerived(t *testing.T) {
+	cases := []struct{ name, payload, want string }{
+		{"no properties", objPayload, `{"type":"object","properties":{},"additionalProperties":false}`},
+		{
+			"scalars only",
+			orderPayload,
+			`{"type":"object","properties":{"count":{"type":"integer"},"deep":{"type":"boolean"},"id":{"type":"string"},"status":{"type":"string","enum":["paid","pending"]},"total":{"type":"number"}},"additionalProperties":false}`,
+		},
+		{
+			"description and several types",
+			`{"type":"object","properties":{"a":{"type":["string","integer","null"],"description":"d <&>"}}}`,
+			`{"type":"object","properties":{"a":{"type":["integer","string"],"description":"d <&>"}},"additionalProperties":false}`,
+		},
+		{
+			"scalar enum without type",
+			`{"type":"object","properties":{"a":{"enum":["x","y"]},"b":{"const":1},"c":{"type":["string","null"],"enum":["x",null]}}}`,
+			`{"type":"object","properties":{"a":{"type":"string","enum":["x","y"]},"b":{"type":"integer"},"c":{"type":"string","enum":["x"]}},"additionalProperties":false}`,
+		},
+		{
+			"enum that does not fit its type is dropped",
+			`{"type":"object","properties":{"a":{"type":"string","enum":[1,2]}}}`,
+			`{"type":"object","properties":{"a":{"type":"string"}},"additionalProperties":false}`,
+		},
+		{
+			"fields that can't be an equality filter are left out",
+			`{"type":"object","properties":{"$gt":{"type":"number"},"ok":{"type":"number"},"n":{"type":"null"},"o":{"type":"object"},"l":{"type":"array"},"m":{"type":["object","string"]},"u":{}}}`,
+			`{"type":"object","properties":{"ok":{"type":"number"}},"additionalProperties":false}`,
+		},
+	}
+	for _, c := range cases {
+		for _, input := range []string{"", "null"} {
+			t.Run(c.name+"/"+input, func(t *testing.T) {
+				c2, err := NewCatalog(nil, Definitions{def("a", input, c.payload)})
+				require.NoError(t, err)
+				assert.JSONEq(t, c.want, inputSchemaOf(t, c2, "a"))
+			})
+		}
+	}
+}
+
+func TestDerivedArguments(t *testing.T) {
+	c, err := NewCatalog(nil, Definitions{def("a", "", orderPayload)})
+	require.NoError(t, err)
+
+	assert.Empty(t, c.ValidateArguments("a", nil), "every argument is optional")
+	assert.Empty(t, c.ValidateArguments("a", []byte(`{"status":"paid","total":1.5,"count":3,"deep":true,"id":"x"}`)))
+	assert.NotEmpty(t, c.ValidateArguments("a", []byte(`{"status":"shipped"}`)), "the payload enum restricts the value")
+	assert.NotEmpty(t, c.ValidateArguments("a", []byte(`{"total":"1"}`)), "the type applies")
+	assert.NotEmpty(t, c.ValidateArguments("a", []byte(`{"tags":["x"]}`)), "a field that isn't scalar isn't an argument")
+	assert.NotEmpty(t, c.ValidateArguments("a", []byte(`{"other":1}`)), "an unknown name isn't an argument")
+}
+
+func TestEmptyInputSchemaAllowsNoArguments(t *testing.T) {
+	c, err := NewCatalog(nil, Definitions{def("a", emptyInput, orderPayload)})
+	require.NoError(t, err)
+	assert.JSONEq(t, emptyInput, inputSchemaOf(t, c, "a"))
+	assert.Empty(t, c.ValidateArguments("a", []byte(`{}`)))
+	assert.NotEmpty(t, c.ValidateArguments("a", []byte(`{"status":"paid"}`)), "an argument the event doesn't list is refused")
+}
+
+func TestDeclaredInputSchemaStillRestricts(t *testing.T) {
+	_, err := NewCatalog(nil, Definitions{def("a", `{"type":"object","properties":{"tags":{"type":"array"}}}`, orderPayload)})
+	requireProblems(t, err, `event "a": argument "tags" must be a string, number, integer or boolean; arguments match a payload field by equality`)
+
+	c, err := NewCatalog(nil, Definitions{def("a", `{"type":"object","properties":{"status":{"type":"string"}}}`, orderPayload)})
+	require.NoError(t, err)
+	assert.Empty(t, c.ValidateArguments("a", []byte(`{"status":"paid"}`)))
+	assert.NotEmpty(t, c.ValidateArguments("a", []byte(`{"total":1}`)), "only the declared arguments")
 }

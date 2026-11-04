@@ -162,7 +162,7 @@ func TestMCPEvents_Errors(t *testing.T) {
 	cfg, err := parseMCPErr(map[string]string{"EXPERIMENTAL_MCP_ENABLED": "true"}, "experimental:\n  mcp:\n    events_schema:\n      events:\n        - name: a\n", nil)
 	require.NoError(t, err)
 	require.Error(t, cfg.MCPEventsError())
-	assert.Contains(t, cfg.MCPEventsError().Error(), `event "a": inputSchema is required`)
+	assert.Contains(t, cfg.MCPEventsError().Error(), `event "a": payloadSchema is required`)
 }
 
 func TestMCPEvents_OtherKeysStillFailStartup(t *testing.T) {

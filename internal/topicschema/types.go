@@ -16,7 +16,8 @@ type Definition struct {
 	Name        string `json:"name"`
 	Description string `json:"description,omitempty"`
 	// InputSchema is a JSON Schema 2020-12 object describing the
-	// subscription arguments.
+	// subscription arguments. Empty means every scalar top-level payload
+	// property is an optional argument.
 	InputSchema json.RawMessage `json:"inputSchema,omitempty"`
 	// PayloadSchema is a JSON Schema 2020-12 document for the event data.
 	PayloadSchema json.RawMessage `json:"payloadSchema,omitempty"`

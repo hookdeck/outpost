@@ -121,9 +121,8 @@ func (b *catalogBuilder) addDefinition(def Definition) {
 	}
 	input, payload := bytes.TrimSpace(def.InputSchema), bytes.TrimSpace(def.PayloadSchema)
 	ok := true
-	if len(input) == 0 || string(input) == "null" {
-		b.problem(name, `inputSchema is required; use {"type": "object", "properties": {}} for an event without arguments`)
-		ok = false
+	if string(input) == "null" {
+		input = nil
 	}
 	if len(payload) == 0 || string(payload) == "null" {
 		b.problem(name, "payloadSchema is required")
@@ -168,6 +167,17 @@ func (b *catalogBuilder) compactObject(name, field string, raw json.RawMessage, 
 func (b *catalogBuilder) compile(def Definition, rawInput, rawPayload json.RawMessage) *entry {
 	name := def.Name
 	payload, root := b.compactObject(name, "payloadSchema", rawPayload, maxPayloadSchemaBytes)
+	if len(rawInput) == 0 {
+		if root == nil {
+			return nil
+		}
+		derived, err := deriveInputSchema(root)
+		if err != nil {
+			b.problem(name, "can't derive inputSchema from payloadSchema: %v", err)
+			return nil
+		}
+		rawInput = derived
+	}
 	input, inRoot := b.compactObject(name, "inputSchema", rawInput, maxInputSchemaBytes)
 	if root == nil || inRoot == nil {
 		return nil
