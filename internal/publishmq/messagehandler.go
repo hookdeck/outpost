@@ -19,6 +19,7 @@ type messageHandler struct {
 	eventHandler      EventHandler
 	maxRedeliveries   int
 	redeliveryCounter RedeliveryCounter
+	maxEventSize      int
 }
 
 type MessageHandlerOption func(*messageHandler)
@@ -30,6 +31,13 @@ func WithMaxRedeliveries(maxRedeliveries int, counter RedeliveryCounter) Message
 	return func(h *messageHandler) {
 		h.maxRedeliveries = maxRedeliveries
 		h.redeliveryCounter = counter
+	}
+}
+
+// WithMaxEventSize drops messages larger than maxEventSize bytes. 0 means no cap.
+func WithMaxEventSize(maxEventSize int) MessageHandlerOption {
+	return func(h *messageHandler) {
+		h.maxEventSize = maxEventSize
 	}
 }
 
@@ -46,6 +54,9 @@ func NewMessageHandler(eventHandler EventHandler, opts ...MessageHandlerOption) 
 var _ consumer.MessageHandler = (*messageHandler)(nil)
 
 func (h *messageHandler) Handle(ctx context.Context, msg *mqs.Message) error {
+	if h.maxEventSize > 0 && len(msg.Body) > h.maxEventSize {
+		return h.drop(msg, fmt.Errorf("%w: %d bytes, limit %d", ErrEventTooLarge, len(msg.Body), h.maxEventSize))
+	}
 	var publishedEvent PublishedEvent
 	if err := json.Unmarshal(msg.Body, &publishedEvent); err != nil {
 		return h.reject(ctx, msg, err)
@@ -105,6 +116,17 @@ func (h *messageHandler) reject(ctx context.Context, msg *mqs.Message, err error
 	}
 	msg.Reject()
 	return fmt.Errorf("rejected message %s: %w", msg.LoggableID, err)
+}
+
+// drop ends a message that can never succeed: rejected where the broker
+// supports it, otherwise acked. It is never redelivered.
+func (h *messageHandler) drop(msg *mqs.Message, err error) error {
+	if msg.Rejectable() {
+		msg.Reject()
+		return fmt.Errorf("rejected message %s: %w", msg.LoggableID, err)
+	}
+	msg.Ack()
+	return fmt.Errorf("dropped message %s: %w", msg.LoggableID, err)
 }
 
 // messageKey falls back to a body hash for brokers or publishers that set no

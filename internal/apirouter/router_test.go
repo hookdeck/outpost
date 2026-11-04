@@ -69,6 +69,7 @@ type apiTestConfig struct {
 	topics               []string
 	topicsAllowWildcards bool
 	deploymentID         string
+	maxEventSizeBytes    int64
 }
 
 func withTenantStore(ts tenantstore.TenantStore) apiTestOption {
@@ -116,6 +117,12 @@ func withTopics(topics []string) apiTestOption {
 func withTopicsAllowWildcards(allow bool) apiTestOption {
 	return func(cfg *apiTestConfig) {
 		cfg.topicsAllowWildcards = allow
+	}
+}
+
+func withMaxEventSizeBytes(n int64) apiTestOption {
+	return func(cfg *apiTestConfig) {
+		cfg.maxEventSizeBytes = n
 	}
 }
 
@@ -170,6 +177,7 @@ func newAPITest(t *testing.T, opts ...apiTestOption) *apiTest {
 			TopicsAllowWildcards: cfg.topicsAllowWildcards,
 			Registry:             registry,
 			PortalConfig:         portal.PortalConfig{},
+			MaxEventSizeBytes:    cfg.maxEventSizeBytes,
 		},
 		apirouter.RouterDeps{
 			TenantStore:         ts,

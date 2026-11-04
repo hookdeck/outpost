@@ -118,6 +118,7 @@ func (c *Config) LogConfigurationSummary() []zap.Field {
 
 		// Event Delivery
 		zap.Int("max_destinations_per_tenant", c.MaxDestinationsPerTenant),
+		zap.Int("max_event_size_bytes", c.MaxEventSizeBytes),
 		zap.Int("delivery_timeout_seconds", c.DeliveryTimeoutSeconds),
 		zap.Int("delivery_max_idle_conns", fanOutPool.MaxIdleConns),
 		zap.Int("delivery_max_idle_conns_per_host", fanOutPool.MaxIdleConnsPerHost),
