@@ -146,7 +146,7 @@ func TestDefaultTenant(t *testing.T) {
 	h := map[string]string{"Mcp-Method": "events/subscribe", "Mcp-Name": "a"}
 	_, _, _ = call(t, srv.URL, "anyone", `{"jsonrpc":"2.0","id":1,"method":"events/subscribe","params":{"name":"a"}}`, h)
 	c := up.last(t)
-	assert.Equal(t, "/api/v1/tenants/demo/mcp/subscribe", c.Path)
+	assert.Equal(t, "/api/v1/tenants/demo/mcp/events/subscribe", c.Path)
 	assert.Equal(t, "anyone", c.Body["principal"])
 
 	_, r, _ := call(t, srv.URL, "", `{"jsonrpc":"2.0","id":2,"method":"events/list"}`, nil)
@@ -192,7 +192,7 @@ func TestListForwardsTopics(t *testing.T) {
 	up, url := setup(t)
 	_, _, _ = call(t, url, "alice", `{"jsonrpc":"2.0","id":1,"method":"events/list"}`, nil)
 	c := up.last(t)
-	assert.Equal(t, "/api/v1/mcp/events", c.Path)
+	assert.Equal(t, "/api/v1/mcp/events/list", c.Path)
 	assert.Equal(t, "Bearer key", c.Auth)
 	assert.Empty(t, c.Query)
 
@@ -210,20 +210,20 @@ func TestSubscribeForwardsPrincipalAndParams(t *testing.T) {
 	_, _, _ = call(t, url, "alice", body, h)
 	c := up.last(t)
 	assert.Equal(t, http.MethodPost, c.Method)
-	assert.Equal(t, "/api/v1/tenants/t1/mcp/subscribe", c.Path)
+	assert.Equal(t, "/api/v1/tenants/t1/mcp/events/subscribe", c.Path)
 	assert.Equal(t, "alice", c.Body["principal"])
 	assert.Equal(t, "a", c.Body["params"].(map[string]any)["name"])
 	assert.NotContains(t, c.Body, "allowed_topics")
 
 	_, _, _ = call(t, url, "bob", body, h)
 	c = up.last(t)
-	assert.Equal(t, "/api/v1/tenants/t2/mcp/subscribe", c.Path)
+	assert.Equal(t, "/api/v1/tenants/t2/mcp/events/subscribe", c.Path)
 	assert.Equal(t, []any{"a", "b"}, c.Body["allowed_topics"])
 
 	h = map[string]string{"Mcp-Method": "events/unsubscribe", "Mcp-Name": "a"}
 	_, _, _ = call(t, url, "bob", `{"jsonrpc":"2.0","id":1,"method":"events/unsubscribe","params":{"name":"a"}}`, h)
 	c = up.last(t)
-	assert.Equal(t, "/api/v1/tenants/t2/mcp/unsubscribe", c.Path)
+	assert.Equal(t, "/api/v1/tenants/t2/mcp/events/unsubscribe", c.Path)
 	assert.NotContains(t, c.Body, "allowed_topics")
 }
 

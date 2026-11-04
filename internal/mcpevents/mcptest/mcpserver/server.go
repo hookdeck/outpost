@@ -152,7 +152,7 @@ func (s *server) serve(w http.ResponseWriter, r *http.Request) {
 		if len(q) > 0 {
 			query = "?" + q.Encode()
 		}
-		path := "/mcp/events" + query
+		path := "/mcp/" + req.Method + query
 		status, body := s.outpost(http.MethodGet, path, nil)
 		s.forward(w, req.ID, http.MethodGet, path, status, body)
 	case "events/subscribe", "events/unsubscribe":
@@ -169,7 +169,7 @@ func (s *server) serve(w http.ResponseWriter, r *http.Request) {
 		if action == "subscribe" && len(user.AllowedTopics) > 0 {
 			body["allowed_topics"] = user.AllowedTopics
 		}
-		path := "/tenants/" + user.Tenant + "/mcp/" + action
+		path := "/tenants/" + user.Tenant + "/mcp/" + req.Method
 		status, out := s.outpost(http.MethodPost, path, body)
 		s.forward(w, req.ID, http.MethodPost, path, status, out)
 	default:
