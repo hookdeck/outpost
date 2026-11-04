@@ -25,6 +25,10 @@ const (
 	HeaderProtocolVersion = "MCP-Protocol-Version"
 
 	ExtensionID = "io.modelcontextprotocol/events"
+
+	MetaProtocolVersion    = "io.modelcontextprotocol/protocolVersion"
+	MetaClientCapabilities = "io.modelcontextprotocol/clientCapabilities"
+	MetaClientInfo         = "io.modelcontextprotocol/clientInfo"
 )
 
 var TTLNull = json.RawMessage("null")
@@ -76,7 +80,9 @@ type Client struct {
 	Principal       string
 	ProtocolVersion string
 	HTTP            *http.Client
+	ClientInfoName  string
 
+	stateless bool
 	sessionID string
 	nextID    atomic.Int64
 }
@@ -89,12 +95,19 @@ func WithHTTPClient(h *http.Client) Option { return func(c *Client) { c.HTTP = h
 
 func WithProtocolVersion(v string) Option { return func(c *Client) { c.ProtocolVersion = v } }
 
+// Stateless sends no session: every request carries its protocol version,
+// client capabilities and client info in params._meta.
+func Stateless() Option { return func(c *Client) { c.stateless = true } }
+
+func WithClientInfoName(n string) Option { return func(c *Client) { c.ClientInfoName = n } }
+
 func New(url, principal string, opts ...Option) *Client {
 	c := &Client{
 		URL:             url,
 		Principal:       principal,
 		ProtocolVersion: DefaultProtocolVersion,
 		HTTP:            &http.Client{Timeout: 30 * time.Second},
+		ClientInfoName:  "outpost-e2e",
 	}
 	for _, o := range opts {
 		o(c)
@@ -129,12 +142,27 @@ type Capabilities struct {
 	Extensions map[string]json.RawMessage `json:"extensions"`
 }
 
+type DiscoverResult struct {
+	ResultType        string       `json:"resultType"`
+	SupportedVersions []string     `json:"supportedVersions"`
+	Capabilities      Capabilities `json:"capabilities"`
+}
+
+func (c *Client) Discover(ctx context.Context) (DiscoverResult, *Response, error) {
+	var res DiscoverResult
+	resp, err := c.Call(ctx, "server/discover", map[string]any{})
+	if err != nil {
+		return res, resp, err
+	}
+	return res, resp, resp.Decode(&res)
+}
+
 func (c *Client) Initialize(ctx context.Context) (InitializeResult, *Response, error) {
 	var res InitializeResult
 	resp, err := c.Call(ctx, "initialize", map[string]any{
 		"protocolVersion": c.ProtocolVersion,
 		"capabilities":    map[string]any{},
-		"clientInfo":      map[string]any{"name": "outpost-e2e", "version": "0"},
+		"clientInfo":      map[string]any{"name": c.ClientInfoName, "version": "0"},
 	})
 	if err != nil {
 		return res, resp, err
@@ -154,6 +182,14 @@ func (c *Client) Initialize(ctx context.Context) (InitializeResult, *Response, e
 func (c *Client) Call(ctx context.Context, method string, params any, opts ...CallOption) (*Response, error) {
 	id := c.nextID.Add(1)
 	msg := map[string]any{"jsonrpc": "2.0", "id": id, "method": method}
+	name := paramsName(params)
+	if c.stateless {
+		p, err := c.withMeta(params)
+		if err != nil {
+			return nil, err
+		}
+		params = p
+	}
 	if params != nil {
 		msg["params"] = params
 	}
@@ -171,7 +207,7 @@ func (c *Client) Call(ctx context.Context, method string, params any, opts ...Ca
 	case cfg.setName:
 		hdr.Set(HeaderName, cfg.name)
 	default:
-		if name := paramsName(params); name != "" {
+		if name != "" {
 			hdr.Set(HeaderName, name)
 		}
 	}
@@ -183,6 +219,83 @@ func (c *Client) Call(ctx context.Context, method string, params any, opts ...Ca
 		return resp, err
 	}
 	return resp, nil
+}
+
+type member struct {
+	key string
+	val json.RawMessage
+}
+
+// withMeta returns params with the per-request _meta added. Every other
+// member is kept byte for byte, in order, and a _meta the caller set keeps
+// its keys; only the missing ones are added.
+func (c *Client) withMeta(params any) (json.RawMessage, error) {
+	raw := []byte("{}")
+	if params != nil {
+		var err error
+		if raw, err = json.Marshal(params); err != nil {
+			return nil, err
+		}
+	}
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	if tok, err := dec.Token(); err != nil || tok != json.Delim('{') {
+		return nil, fmt.Errorf("params must be a JSON object: %.80s", raw)
+	}
+	var members []member
+	for dec.More() {
+		tok, err := dec.Token()
+		if err != nil {
+			return nil, err
+		}
+		var v json.RawMessage
+		if err := dec.Decode(&v); err != nil {
+			return nil, err
+		}
+		members = append(members, member{tok.(string), v})
+	}
+	meta := map[string]json.RawMessage{}
+	metaAt := -1
+	for i, m := range members {
+		if m.key == "_meta" {
+			metaAt = i
+			_ = json.Unmarshal(m.val, &meta)
+		}
+	}
+	add := map[string]any{
+		MetaProtocolVersion: c.ProtocolVersion,
+		MetaClientCapabilities: map[string]any{
+			"extensions": map[string]any{ExtensionID: map[string]any{}},
+		},
+		MetaClientInfo: map[string]any{"name": c.ClientInfoName, "version": "0"},
+	}
+	for k, v := range add {
+		if _, set := meta[k]; !set {
+			b, _ := json.Marshal(v)
+			meta[k] = b
+		}
+	}
+	mb, err := json.Marshal(meta)
+	if err != nil {
+		return nil, err
+	}
+	if metaAt >= 0 {
+		members[metaAt].val = mb
+	} else {
+		members = append(members, member{"_meta", mb})
+	}
+	var out bytes.Buffer
+	out.WriteByte('{')
+	for i, m := range members {
+		if i > 0 {
+			out.WriteByte(',')
+		}
+		k, _ := json.Marshal(m.key)
+		out.Write(k)
+		out.WriteByte(':')
+		out.Write(m.val)
+	}
+	out.WriteByte('}')
+	return out.Bytes(), nil
 }
 
 func (c *Client) notify(ctx context.Context, method string) (*Response, error) {
@@ -209,6 +322,8 @@ func (c *Client) post(ctx context.Context, body []byte, extra http.Header) (*Res
 	}
 	if c.sessionID != "" {
 		req.Header.Set(HeaderSessionID, c.sessionID)
+	}
+	if c.sessionID != "" || c.stateless {
 		req.Header.Set(HeaderProtocolVersion, c.ProtocolVersion)
 	}
 	for k, vs := range extra {

@@ -12,6 +12,7 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -85,6 +86,14 @@ type PathConfig struct {
 	// Unchecked keeps the path out of the delivery-rule checks (a path used
 	// by a non-MCP destination).
 	Unchecked bool
+	// RejectUnverified answers 401, without echoing a challenge, to requests
+	// that no configured secret verifies within the timestamp window. It
+	// applies only when Secrets is set.
+	RejectUnverified bool
+	// FailFirst answers the first FailFirst attempts of each event message
+	// (by webhook-id) with FailStatus (default 500) before Event applies.
+	FailFirst  int
+	FailStatus int
 }
 
 // Request is one request the receiver got.
@@ -105,6 +114,7 @@ type Envelope struct {
 	Timestamp string          `json:"timestamp"`
 	Data      json.RawMessage `json:"data"`
 	Cursor    json.RawMessage `json:"cursor"`
+	Error     json.RawMessage `json:"error"`
 }
 
 // Envelope decodes the body; a body that isn't a JSON object yields the
@@ -115,20 +125,71 @@ func (r Request) Envelope() Envelope {
 	return e
 }
 
-func (r Request) IsChallenge() bool { return r.Envelope().Type == "verification" }
-func (r Request) IsEvent() bool     { return r.Envelope().EventID != "" }
+// Kind classifies the body: "verification", "gap", "terminated", "event",
+// "control" (any other type) or "invalid".
+func (r Request) Kind() string {
+	var raw map[string]json.RawMessage
+	if json.Unmarshal(r.Body, &raw) != nil || raw == nil {
+		return "invalid"
+	}
+	env := r.Envelope()
+	switch {
+	case env.Type == "verification", env.Type == "gap", env.Type == "terminated":
+		return env.Type
+	case env.Type != "" || raw["type"] != nil:
+		return "control"
+	case env.EventID != "":
+		return "event"
+	}
+	return "invalid"
+}
+
+func (r Request) IsChallenge() bool { return r.Kind() == "verification" }
+func (r Request) IsEvent() bool     { return r.Kind() == "event" }
 
 type path struct {
-	cfg  PathConfig
-	seq  []int
-	init bool
+	cfg      PathConfig
+	seq      []int
+	init     bool
+	attempts map[string]int
+}
+
+// Profile selects the delivery rules the receiver checks.
+type Profile int
+
+const (
+	// ProfileOutpost adds Outpost's own choices to the spec rules: event
+	// webhook-id is msg_ + 22 chars, cursor is null, verification comes
+	// first.
+	ProfileOutpost Profile = iota
+	// ProfileSpec checks only what SEP-3415 requires.
+	ProfileSpec
+)
+
+// Options configures Listen.
+type Options struct {
+	// Addr is the listen address (default 127.0.0.1:0).
+	Addr string
+	// PublicURL is the base URL Register hands out (default http://Addr).
+	PublicURL string
+	// Sentinels starts listeners on 127.0.0.1 and [::1].
+	Sentinels bool
+	Profile   Profile
+	// Fallback configures paths that were never Set or Registered; nil
+	// leaves them unchecked and answering the default.
+	Fallback *PathConfig
+	// OnRequest is called for every request after it is recorded, outside
+	// the receiver's lock.
+	OnRequest func(Request)
 }
 
 // Receiver is the HTTP receiver plus its sentinel listeners.
 type Receiver struct {
-	ln       net.Listener
-	server   *http.Server
-	sentinel []*sentinel
+	ln        net.Listener
+	server    *http.Server
+	sentinel  []*sentinel
+	opts      Options
+	publicURL string
 
 	mu       sync.Mutex
 	paths    map[string]*path
@@ -141,23 +202,41 @@ type sentinel struct {
 	accepts atomic.Int64
 }
 
-// New starts a receiver on BindAddr and the sentinel listeners on
-// 127.0.0.1 and [::1]. A sentinel that can't bind is left out (its port
-// reads 0).
+// New starts a receiver on BindAddr with the outpost profile and the
+// sentinel listeners on 127.0.0.1 and [::1].
 func New() (*Receiver, error) {
-	ln, err := net.Listen("tcp4", BindAddr)
+	r, err := Listen(Options{Addr: BindAddr, Sentinels: true, Profile: ProfileOutpost})
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrCannotBind, err)
 	}
-	r := &Receiver{ln: ln, paths: map[string]*path{}}
-	for _, addr := range []string{"tcp4:127.0.0.1:0", "tcp6:[::1]:0"} {
-		network, address := addr[:4], addr[5:]
-		s := &sentinel{}
-		if sl, err := net.Listen(network, address); err == nil {
-			s.ln = sl
-			go s.run()
+	return r, nil
+}
+
+// Listen starts a receiver. Sentinels that can't bind are left out (their
+// ports read 0).
+func Listen(o Options) (*Receiver, error) {
+	if o.Addr == "" {
+		o.Addr = "127.0.0.1:0"
+	}
+	ln, err := net.Listen("tcp", o.Addr)
+	if err != nil {
+		return nil, err
+	}
+	r := &Receiver{ln: ln, opts: o, paths: map[string]*path{}}
+	r.publicURL = strings.TrimRight(o.PublicURL, "/")
+	if r.publicURL == "" {
+		r.publicURL = "http://" + r.Addr()
+	}
+	if o.Sentinels {
+		for _, addr := range []string{"tcp4:127.0.0.1:0", "tcp6:[::1]:0"} {
+			network, address := addr[:4], addr[5:]
+			s := &sentinel{}
+			if sl, err := net.Listen(network, address); err == nil {
+				s.ln = sl
+				go s.run()
+			}
+			r.sentinel = append(r.sentinel, s)
 		}
-		r.sentinel = append(r.sentinel, s)
 	}
 	r.server = &http.Server{Handler: http.HandlerFunc(r.serve), ReadHeaderTimeout: 10 * time.Second}
 	go func() { _ = r.server.Serve(ln) }()
@@ -185,14 +264,17 @@ func (r *Receiver) Close() {
 	}
 }
 
+// Profile is the rule profile the receiver checks against.
+func (r *Receiver) Profile() Profile { return r.opts.Profile }
+
 // Addr is host:port of the receiver.
 func (r *Receiver) Addr() string { return r.ln.Addr().String() }
 
-// BaseURL is http://host:port.
-func (r *Receiver) BaseURL() string { return "http://" + r.Addr() }
+// BaseURL is the URL Register hands out: PublicURL, else http://host:port.
+func (r *Receiver) BaseURL() string { return r.publicURL }
 
 func (r *Receiver) sentinelPort(i int) int {
-	if r.sentinel[i].ln == nil {
+	if i >= len(r.sentinel) || r.sentinel[i].ln == nil {
 		return 0
 	}
 	return r.sentinel[i].ln.Addr().(*net.TCPAddr).Port
@@ -245,16 +327,39 @@ func (r *Receiver) serve(w http.ResponseWriter, req *http.Request) {
 	}
 	rec := Request{Path: req.URL.Path, Method: req.Method, Header: req.Header.Clone(), Body: body, Received: time.Now()}
 	env := rec.Envelope()
-	challenge := env.Type == "verification"
+	kind := rec.Kind()
+	challenge := kind == "verification"
 
 	r.mu.Lock()
 	r.requests = append(r.requests, rec)
 	p := r.paths[req.URL.Path]
+	if p == nil && r.opts.Fallback != nil {
+		p = &path{cfg: *r.opts.Fallback}
+		r.paths[req.URL.Path] = p
+	}
 	var b Behavior
+	rejected := false
 	if p != nil {
+		rejected = p.cfg.RejectUnverified && len(p.cfg.Secrets) > 0 && !rec.verified(p.cfg.Secrets)
+	}
+	if p != nil && !rejected {
 		b = p.cfg.Event
 		if challenge {
 			b = p.cfg.Challenge
+		}
+		if kind == "event" && p.cfg.FailFirst > 0 {
+			if p.attempts == nil {
+				p.attempts = map[string]int{}
+			}
+			id := rec.Header.Get("webhook-id")
+			p.attempts[id]++
+			if p.attempts[id] <= p.cfg.FailFirst {
+				status := p.cfg.FailStatus
+				if status == 0 {
+					status = http.StatusInternalServerError
+				}
+				b = Behavior{kind: kindStatus, status: status}
+			}
 		}
 		if b.kind == kindSequence && !challenge {
 			if !p.init {
@@ -269,6 +374,14 @@ func (r *Receiver) serve(w http.ResponseWriter, req *http.Request) {
 		}
 	}
 	r.mu.Unlock()
+
+	if r.opts.OnRequest != nil {
+		r.opts.OnRequest(rec)
+	}
+	if rejected {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
 
 	switch b.kind {
 	case kindStatus:
@@ -294,6 +407,13 @@ func (r *Receiver) serve(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusOK)
+}
+
+// AllRequests returns every request, in arrival order.
+func (r *Receiver) AllRequests() []Request {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]Request(nil), r.requests...)
 }
 
 // Requests returns the requests to path, in arrival order. It also works

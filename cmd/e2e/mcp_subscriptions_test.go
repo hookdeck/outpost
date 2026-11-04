@@ -10,11 +10,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hookdeck/outpost/cmd/e2e/mcpclient"
-	"github.com/hookdeck/outpost/cmd/e2e/mcpreceiver"
 	"github.com/hookdeck/outpost/internal/config"
 	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/mcpevents"
+	"github.com/hookdeck/outpost/internal/mcpevents/mcptest/mcpclient"
+	"github.com/hookdeck/outpost/internal/mcpevents/mcptest/mcpreceiver"
 	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/suite"
 )
@@ -264,7 +264,15 @@ func (s *mcpSubscriptionsSuite) TestInitializeAdvertisesEventsCapability() {
 	res, _, err := c.Initialize(s.ctx())
 	s.Require().NoError(err)
 	s.Contains(res.Capabilities.Extensions, mcpclient.ExtensionID)
-	s.NotEmpty(res.Capabilities.Events, "top-level events capability")
+}
+
+func (s *mcpSubscriptionsSuite) TestDiscoverAdvertisesEventsExtension() {
+	c := mcpclient.New(s.server.URL(), "", mcpclient.Stateless())
+	res, _, err := c.Discover(s.ctx())
+	s.Require().NoError(err)
+	s.Equal("complete", res.ResultType)
+	s.Contains(res.SupportedVersions, mcpclient.DefaultProtocolVersion)
+	s.Contains(res.Capabilities.Extensions, mcpclient.ExtensionID)
 }
 
 func (s *mcpSubscriptionsSuite) TestEventsListShowsAllowedTopics() {
