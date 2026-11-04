@@ -18,7 +18,7 @@ import (
 func init() { registerMCPFixture(endpointsFixture{}) }
 
 // endpointsFixture is an MCP server that forwards events/subscribe and
-// events/unsubscribe to Outpost's /mcp/subscribe and /mcp/unsubscribe.
+// events/unsubscribe to Outpost's /mcp/events/subscribe and /mcp/events/unsubscribe.
 type endpointsFixture struct{}
 
 func (endpointsFixture) Name() string { return "endpoints" }
@@ -79,7 +79,7 @@ func (s *endpointsServer) serve(w http.ResponseWriter, r *http.Request) {
 		if len(user.AllowedTopics) > 0 {
 			query = "?topics=" + url.QueryEscape(strings.Join(user.AllowedTopics, ","))
 		}
-		status, body := s.outpost(http.MethodGet, "/mcp/events"+query, nil)
+		status, body := s.outpost(http.MethodGet, "/mcp/"+req.Method+query, nil)
 		forward(w, req.ID, status, body)
 	case "events/subscribe", "events/unsubscribe":
 		var params struct {
@@ -95,7 +95,7 @@ func (s *endpointsServer) serve(w http.ResponseWriter, r *http.Request) {
 		if action == "subscribe" && len(user.AllowedTopics) > 0 {
 			body["allowed_topics"] = user.AllowedTopics
 		}
-		status, out := s.outpost(http.MethodPost, "/tenants/"+user.Tenant+"/mcp/"+action, body)
+		status, out := s.outpost(http.MethodPost, "/tenants/"+user.Tenant+"/mcp/"+req.Method, body)
 		forward(w, req.ID, status, out)
 	default:
 		rpcFail(w, http.StatusOK, req.ID, -32601, "MethodNotFound", nil)

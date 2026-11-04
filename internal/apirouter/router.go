@@ -188,8 +188,8 @@ func NewRouter(cfg RouterConfig, deps RouterDeps) http.Handler {
 		{Method: http.MethodGet, Path: "/tenants/:tenant_id/destinations/:destination_id/attempts/:attempt_id", Handler: logHandlers.RetrieveAttempt, RequireTenant: true},
 
 		// MCP subscribe endpoints
-		{Method: http.MethodPost, Path: "/tenants/:tenant_id/mcp/subscribe", Handler: mcpSubscribeHandlers.Subscribe, AdminOnly: true},
-		{Method: http.MethodPost, Path: "/tenants/:tenant_id/mcp/unsubscribe", Handler: mcpSubscribeHandlers.Unsubscribe, AdminOnly: true},
+		{Method: http.MethodPost, Path: "/tenants/:tenant_id/mcp/events/subscribe", Handler: mcpSubscribeHandlers.Subscribe, AdminOnly: true},
+		{Method: http.MethodPost, Path: "/tenants/:tenant_id/mcp/events/unsubscribe", Handler: mcpSubscribeHandlers.Unsubscribe, AdminOnly: true},
 
 		// Events
 		{Method: http.MethodGet, Path: "/events", Handler: logHandlers.ListEvents},

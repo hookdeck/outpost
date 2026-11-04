@@ -6842,7 +6842,7 @@ paths:
         "503":
           $ref: "#/components/responses/ServiceUnavailable"
 
-  /tenants/{tenant_id}/mcp/subscribe:
+  /tenants/{tenant_id}/mcp/events/subscribe:
     parameters:
       - name: tenant_id
         in: path
@@ -6943,7 +6943,7 @@ paths:
         "503":
           $ref: "#/components/responses/ServiceUnavailable"
 
-  /tenants/{tenant_id}/mcp/unsubscribe:
+  /tenants/{tenant_id}/mcp/events/unsubscribe:
     parameters:
       - name: tenant_id
         in: path

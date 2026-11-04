@@ -27,8 +27,8 @@ import (
 var mcpTTLRules = mcpevents.TTLConfig{Default: time.Hour, Min: 5 * time.Minute, Max: 24 * time.Hour}
 
 const (
-	mcpSubscribePath   = "/api/v1/tenants/t1/mcp/subscribe"
-	mcpUnsubscribePath = "/api/v1/tenants/t1/mcp/unsubscribe"
+	mcpSubscribePath   = "/api/v1/tenants/t1/mcp/events/subscribe"
+	mcpUnsubscribePath = "/api/v1/tenants/t1/mcp/events/unsubscribe"
 )
 
 func newSubscribeTest(t *testing.T, verifier *stubVerifier, extra ...apiTestOption) *apiTest {
@@ -510,7 +510,7 @@ func TestAPI_MCPSubscribeAccess(t *testing.T) {
 
 	t.Run("unknown tenant", func(t *testing.T) {
 		h := newSubscribeTest(t, &stubVerifier{})
-		unsubscribe := h.do(h.withAPIKey(h.jsonReq(http.MethodPost, "/api/v1/tenants/missing/mcp/unsubscribe", map[string]any{
+		unsubscribe := h.do(h.withAPIKey(h.jsonReq(http.MethodPost, "/api/v1/tenants/missing/mcp/events/unsubscribe", map[string]any{
 			"principal": "u", "params": map[string]any{"name": "user.created", "delivery": map[string]any{"url": mcpCallbackURL}},
 		})))
 		requireMCPError(t, unsubscribe, -32023, "NotFound", map[string]any{"kind": "subscription"})
@@ -521,7 +521,7 @@ func TestAPI_MCPSubscribeAccess(t *testing.T) {
 
 	t.Run("subscribing creates a missing tenant", func(t *testing.T) {
 		h := newSubscribeTest(t, &stubVerifier{})
-		resp := h.do(h.withAPIKey(h.jsonReq(http.MethodPost, "/api/v1/tenants/fresh/mcp/subscribe", subscribeBody("u", subscribeParams()))))
+		resp := h.do(h.withAPIKey(h.jsonReq(http.MethodPost, "/api/v1/tenants/fresh/mcp/events/subscribe", subscribeBody("u", subscribeParams()))))
 		requireSubscribed(t, resp)
 		tenant, err := h.tenantStore.RetrieveTenant(t.Context(), "fresh")
 		require.NoError(t, err)

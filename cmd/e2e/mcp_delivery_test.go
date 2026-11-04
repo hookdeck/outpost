@@ -200,7 +200,7 @@ func (s *mcpSuite) subscribe(tenantID string, p mcpPath, o mcpSubscribeOpts) (in
 		params["arguments"] = json.RawMessage(p.args)
 	}
 	var raw json.RawMessage
-	status := s.base.doJSON(http.MethodPost, s.base.apiURL("/tenants/"+tenantID+"/mcp/subscribe"),
+	status := s.base.doJSON(http.MethodPost, s.base.apiURL("/tenants/"+tenantID+"/mcp/events/subscribe"),
 		map[string]any{"principal": p.principal, "params": params}, &raw)
 	return status, raw
 }
@@ -224,7 +224,7 @@ func (s *mcpSuite) unsubscribe(tenantID string, p mcpPath) (int, json.RawMessage
 		params["arguments"] = json.RawMessage(p.args)
 	}
 	var raw json.RawMessage
-	status := s.base.doJSON(http.MethodPost, s.base.apiURL("/tenants/"+tenantID+"/mcp/unsubscribe"),
+	status := s.base.doJSON(http.MethodPost, s.base.apiURL("/tenants/"+tenantID+"/mcp/events/unsubscribe"),
 		map[string]any{"principal": p.principal, "params": params}, &raw)
 	return status, raw
 }

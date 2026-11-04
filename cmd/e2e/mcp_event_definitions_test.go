@@ -215,7 +215,7 @@ func (s *mcpEventDefinitionsSuite) TestDerivedArgumentsFilterDeliveries() {
 	s.m.r.Set(p.path, mcpreceiver.PathConfig{Secrets: []string{p.secret}, SubscriptionID: id})
 
 	var raw json.RawMessage
-	status := s.m.base.doJSON(http.MethodPost, s.m.base.apiURL("/tenants/"+tenant+"/mcp/subscribe"), map[string]any{
+	status := s.m.base.doJSON(http.MethodPost, s.m.base.apiURL("/tenants/"+tenant+"/mcp/events/subscribe"), map[string]any{
 		"principal": p.principal,
 		"params": map[string]any{
 			"name":      topic,
@@ -277,7 +277,7 @@ func (s *mcpEventDefinitionsSuite) TestSubscribeErrors_MCPEventDefinitions() {
 			params["arguments"] = json.RawMessage(c.args)
 		}
 		var raw json.RawMessage
-		status := s.m.base.doJSON(http.MethodPost, s.m.base.apiURL("/tenants/"+tenant+"/mcp/subscribe"),
+		status := s.m.base.doJSON(http.MethodPost, s.m.base.apiURL("/tenants/"+tenant+"/mcp/events/subscribe"),
 			map[string]any{"principal": p.principal, "params": params}, &raw)
 		failure := parseMCPError(raw)
 		s.m.check(status == http.StatusUnprocessableEntity && failure.MCPError.Code == c.code && failure.MCPError.Message == c.message,
