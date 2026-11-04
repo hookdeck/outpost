@@ -20,6 +20,8 @@ The proxy applies to every webhook destination served by the deployment.
 
 When set, Outpost installs an HTTP proxy on the webhook publisher's transport. HTTPS destinations use the standard `CONNECT` tunneling flow; HTTP destinations are forwarded request-by-request.
 
+Since the proxy connects to destinations, Outpost can't check delivery addresses while it is set. If your tenants are outside your organization, configure the proxy to refuse private addresses (see [Outbound Network Access](/docs/outpost/self-hosting/deployment#outbound-network-access)).
+
 ## Failure attribution
 
 Outpost separates failures the proxy is responsible for from failures the destination is responsible for:

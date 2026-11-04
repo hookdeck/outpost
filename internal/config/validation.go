@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/hookdeck/outpost/internal/netguard"
 	"github.com/hookdeck/outpost/internal/proxychain"
 )
 
@@ -201,6 +202,9 @@ func (c *Config) validateDestinations() error {
 	}
 	if _, err := proxychain.Parse(c.Destinations.Webhook.ProxyURL); err != nil {
 		return fmt.Errorf("%w: %w", ErrInvalidWebhookProxyURL, err)
+	}
+	if _, err := netguard.ParseAllowlist(c.Destinations.PrivateAddressAllowlist); err != nil {
+		return fmt.Errorf("%w: %w", ErrInvalidPrivateAddressAllowlist, err)
 	}
 	switch source := c.Destinations.AWSEventBridge.Source; {
 	case source == "":

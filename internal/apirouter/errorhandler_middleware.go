@@ -112,6 +112,8 @@ func formatValidationError(field, tag, param string) string {
 		return fmt.Sprintf("%s must be at most %s characters", field, param)
 	case "email":
 		return fmt.Sprintf("%s must be a valid email address", field)
+	case "address_not_allowed":
+		return fmt.Sprintf("%s must resolve to a public address", field)
 	case "url":
 		return fmt.Sprintf("%s must be a valid URL", field)
 	case "oneof":
