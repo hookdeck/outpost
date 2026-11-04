@@ -92,7 +92,7 @@ type catalogPage struct {
 func (s *mcpEventDefinitionsSuite) catalog(query string) (int, catalogPage) {
 	s.T().Helper()
 	var page catalogPage
-	status := s.m.base.doJSON(http.MethodGet, s.m.base.apiURL("/mcp/events"+query), nil, &page)
+	status := s.m.base.doJSON(http.MethodGet, s.m.base.apiURL("/mcp/events/list"+query), nil, &page)
 	return status, page
 }
 
@@ -139,10 +139,10 @@ func (s *mcpEventDefinitionsSuite) TestEventCatalog() {
 
 	tenant := s.m.base.createTenant().ID
 	s.m.base.runErrorCases([]errorCase{
-		{name: "no auth", method: http.MethodGet, path: "/mcp/events", status: http.StatusUnauthorized, message: "unauthorized"},
-		{name: "tenant token", method: http.MethodGet, path: "/mcp/events", auth: s.m.base.tenantAuth(tenant), status: http.StatusForbidden, message: "forbidden"},
-		{name: "limit too high", method: http.MethodGet, path: "/mcp/events?limit=1000", auth: s.m.base.adminAuth(), status: http.StatusBadRequest, message: "invalid limit: must be between 1 and 100"},
-		{name: "bad cursor", method: http.MethodGet, path: "/mcp/events?cursor=%25%25", auth: s.m.base.adminAuth(), status: http.StatusBadRequest, message: "invalid cursor"},
+		{name: "no auth", method: http.MethodGet, path: "/mcp/events/list", status: http.StatusUnauthorized, message: "unauthorized"},
+		{name: "tenant token", method: http.MethodGet, path: "/mcp/events/list", auth: s.m.base.tenantAuth(tenant), status: http.StatusForbidden, message: "forbidden"},
+		{name: "limit too high", method: http.MethodGet, path: "/mcp/events/list?limit=1000", auth: s.m.base.adminAuth(), status: http.StatusBadRequest, message: "invalid limit: must be between 1 and 100"},
+		{name: "bad cursor", method: http.MethodGet, path: "/mcp/events/list?cursor=%25%25", auth: s.m.base.adminAuth(), status: http.StatusBadRequest, message: "invalid cursor"},
 	})
 }
 

@@ -6724,7 +6724,7 @@ paths:
         "500":
           $ref: "#/components/responses/InternalServerError"
 
-  /mcp/events:
+  /mcp/events/list:
     get:
       tags: [Topics]
       summary: List MCP Events
