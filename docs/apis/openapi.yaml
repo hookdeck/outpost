@@ -1635,7 +1635,7 @@ components:
       x-docs-type: "MCP Events"
       description: >-
         **Experimental.** An MCP Events webhook subscription. Requires `EXPERIMENTAL_MCP_ENABLED`. Created by
-        `POST /tenants/{tenant_id}/mcp/subscribe`; it cannot be created or updated through the destinations
+        `POST /tenants/{tenant_id}/mcp/events/subscribe`; it cannot be created or updated through the destinations
         endpoints, which answer 422 for `type: mcp`.
       # Properties duplicated from DestinationBase
       required:
@@ -6035,7 +6035,7 @@ paths:
     post:
       tags: [Destinations]
       summary: Create Destination
-      description: Creates a new destination for the tenant. The request body structure depends on the `type`. The `mcp` type is refused with 422; use `POST /tenants/{tenant_id}/mcp/subscribe`.
+      description: Creates a new destination for the tenant. The request body structure depends on the `type`. The `mcp` type is refused with 422; use `POST /tenants/{tenant_id}/mcp/events/subscribe`.
       operationId: createTenantDestination
       requestBody:
         required: true
@@ -6996,7 +6996,7 @@ paths:
         "503":
           $ref: "#/components/responses/ServiceUnavailable"
 
-  /tenants/{tenant_id}/mcp/subscribe:
+  /tenants/{tenant_id}/mcp/events/subscribe:
     parameters:
       - name: tenant_id
         in: path
@@ -7097,7 +7097,7 @@ paths:
         "503":
           $ref: "#/components/responses/ServiceUnavailable"
 
-  /tenants/{tenant_id}/mcp/unsubscribe:
+  /tenants/{tenant_id}/mcp/events/unsubscribe:
     parameters:
       - name: tenant_id
         in: path

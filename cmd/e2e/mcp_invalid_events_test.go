@@ -61,7 +61,7 @@ func (s *mcpInvalidEventsSuite) TestServiceRunsAndMCPEventsIsUnavailable() {
 	p := s.m.newPath(mcpreceiver.PathConfig{})
 	for _, action := range []string{"subscribe", "unsubscribe"} {
 		resp.Message = ""
-		status := base.doJSON(http.MethodPost, base.apiURL("/tenants/"+tenant+"/mcp/"+action),
+		status := base.doJSON(http.MethodPost, base.apiURL("/tenants/"+tenant+"/mcp/events/"+action),
 			map[string]any{"principal": p.principal, "params": map[string]any{"name": mcpTopic, "delivery": map[string]any{"mode": "webhook", "url": p.url, "secret": p.secret}}}, &resp)
 		s.Equal(http.StatusServiceUnavailable, status, action)
 		s.Equal("MCP Events unavailable", resp.Message, action)

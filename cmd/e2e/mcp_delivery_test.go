@@ -200,7 +200,7 @@ func (s *mcpSuite) subscribe(tenantID string, p mcpPath, o mcpSubscribeOpts) (in
 		params["arguments"] = json.RawMessage(p.args)
 	}
 	var raw json.RawMessage
-	status := s.base.doJSON(http.MethodPost, s.base.apiURL("/tenants/"+tenantID+"/mcp/subscribe"),
+	status := s.base.doJSON(http.MethodPost, s.base.apiURL("/tenants/"+tenantID+"/mcp/events/subscribe"),
 		map[string]any{"principal": p.principal, "params": params}, &raw)
 	return status, raw
 }
@@ -689,7 +689,7 @@ func (s *mcpSuite) TestErrorResponses_MCP() {
 	}
 	dest := "/tenants/" + tenant + "/destinations"
 	admin := s.base.adminAuth()
-	useSubscribe := "mcp destinations can't be created or updated here; use POST /tenants/" + tenant + "/mcp/subscribe"
+	useSubscribe := "mcp destinations can't be created or updated here; use POST /tenants/" + tenant + "/mcp/events/subscribe"
 
 	s.base.runErrorCases([]errorCase{
 		{name: "admin creates mcp", method: http.MethodPost, path: dest, auth: admin, body: create,

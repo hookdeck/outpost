@@ -166,7 +166,7 @@ func TestAPI_MCPDestinations(t *testing.T) {
 				"jwt":     h.do(h.withJWT(h.jsonReq(http.MethodPost, "/api/v1/tenants/t1/destinations", mcpDestination()), "t1")),
 			} {
 				require.Equal(t, http.StatusUnprocessableEntity, resp.Code, name+": "+resp.Body.String())
-				assert.Contains(t, responseBody(t, resp)["message"], "POST /tenants/t1/mcp/subscribe", name)
+				assert.Contains(t, responseBody(t, resp)["message"], "POST /tenants/t1/mcp/events/subscribe", name)
 			}
 			assert.Empty(t, v.Requests(), "nothing is sent")
 			assert.Zero(t, mcpDestinationCount(t, h))
@@ -214,7 +214,7 @@ func TestAPI_MCPDestinations(t *testing.T) {
 				} {
 					resp := patchMCP(t, h, patch, jwt)
 					require.Equal(t, http.StatusUnprocessableEntity, resp.Code, name+": "+resp.Body.String())
-					assert.Contains(t, responseBody(t, resp)["message"], "POST /tenants/t1/mcp/subscribe", name)
+					assert.Contains(t, responseBody(t, resp)["message"], "POST /tenants/t1/mcp/events/subscribe", name)
 				}
 			}
 			got, err := h.tenantStore.RetrieveDestination(t.Context(), "t1", "sub_1")

@@ -23,7 +23,7 @@ func (h *DestinationHandlers) mcpEnabled() bool {
 func abortMCPUseSubscribe(c *gin.Context) {
 	AbortWithError(c, http.StatusUnprocessableEntity, ErrorResponse{
 		Code:    http.StatusUnprocessableEntity,
-		Message: "mcp destinations can't be created or updated here; use POST /tenants/" + c.Param("tenant_id") + "/mcp/subscribe",
+		Message: "mcp destinations can't be created or updated here; use POST /tenants/" + c.Param("tenant_id") + "/mcp/events/subscribe",
 	})
 }
 
