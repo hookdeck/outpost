@@ -109,62 +109,26 @@ func (h *DestinationHandlers) Create(c *gin.Context) {
 		return
 	}
 
-	if input.Type == models.DestinationTypeMCP && h.mcpEnabled() && mustRoleFromContext(c) != RoleAdmin {
-		abortMCPAdminOnly(c)
+	if input.Type == models.DestinationTypeMCP && h.mcpEnabled() {
+		abortMCPUseSubscribe(c)
 		return
 	}
 	if input.ExpiresAt != nil {
-		if err := validateExpiresAt(input.Type, *input.ExpiresAt, now); err != nil {
-			AbortWithValidationError(c, err)
-			return
-		}
+		AbortWithValidationError(c, errExpiresAtUnsupported)
+		return
 	}
 
 	tenant := mustTenantFromContext(c)
-	prev := h.snapshotTenant(tenant)
-
 	destination := input.ToDestination(tenant.ID)
-	if err := destination.Validate(h.topics, h.topicsAllowWildcards); err != nil {
-		AbortWithValidationError(c, err)
-		return
-	}
-	destination.Topics = destination.Topics.Normalize()
-	if destination.Type == models.DestinationTypeMCP && !h.canCreateDestination(c, &destination) {
-		return
-	}
-	if provider, err := h.registry.ResolveProvider(&destination); err == nil {
-		if v, ok := provider.(destregistry.CreateValidator); ok {
-			if err := v.ValidateCreate(&destination); err != nil {
-				AbortWithValidationError(c, err)
-				return
-			}
+	if err := h.createDestination(c.Request.Context(), tenant, &destination, mustRoleFromContext(c), false); err != nil {
+		var storeErr *destinationStoreError
+		if errors.As(err, &storeErr) {
+			h.handleDestinationWriteError(c, storeErr.err)
+		} else {
+			AbortWithValidationError(c, err)
 		}
-	}
-	if err := h.registry.ValidateDestination(c.Request.Context(), &destination); err != nil {
-		AbortWithValidationError(c, err)
 		return
 	}
-	if err := h.registry.PreprocessDestination(&destination, nil, &destregistry.PreprocessDestinationOpts{
-		Role: mustRoleFromContext(c),
-		Request: destregistry.PreprocessRequest{
-			Config:      destination.Config,
-			Credentials: destination.Credentials,
-		},
-	}); err != nil {
-		AbortWithValidationError(c, err)
-		return
-	}
-	if err := h.tenantStore.CreateDestination(c.Request.Context(), destination); err != nil {
-		h.handleDestinationWriteError(c, err)
-		return
-	}
-	h.telemetry.DestinationCreated(c.Request.Context(), destination.Type)
-	h.emitSubscriptionUpdateIfChanged(c.Request.Context(), tenant.ID, prev)
-	h.logger.Ctx(c.Request.Context()).Audit("destination created",
-		zap.String("tenant_id", tenant.ID),
-		zap.String("destination_id", destination.ID),
-		zap.String("destination_type", destination.Type),
-	)
 
 	display, err := h.displayer.Display(&destination)
 	if err != nil {
@@ -174,22 +138,88 @@ func (h *DestinationHandlers) Create(c *gin.Context) {
 	c.JSON(http.StatusCreated, display)
 }
 
-// canCreateDestination refuses a duplicate ID or a full tenant before the
-// create sends a verification challenge to a caller-chosen URL. It writes the
-// error response and returns false when the create cannot succeed. The store
-// still enforces both atomically.
-func (h *DestinationHandlers) canCreateDestination(c *gin.Context, destination *models.Destination) bool {
-	ctx := c.Request.Context()
-	if existing, err := h.tenantStore.RetrieveDestination(ctx, destination.TenantID, destination.ID); err == nil && existing != nil {
-		h.handleDestinationWriteError(c, tenantstore.ErrDuplicateDestination)
+// destinationStoreError marks a createDestination failure that comes from the
+// store, or from the checks that run ahead of it.
+type destinationStoreError struct{ err error }
+
+func (e *destinationStoreError) Error() string { return e.err.Error() }
+func (e *destinationStoreError) Unwrap() error { return e.err }
+
+// createDestination validates, verifies and stores a new destination of the
+// tenant, then reports the change. With replace, it overwrites a record that
+// already exists (an expired one, with destination.Version set from the read)
+// instead of refusing it as a duplicate; a write that landed in between fails
+// with ErrDestinationConflict, or ErrDestinationNotFound if it deleted the record.
+// Store failures are wrapped in *destinationStoreError.
+func (h *DestinationHandlers) createDestination(ctx context.Context, tenant *models.Tenant, destination *models.Destination, role string, replace bool) error {
+	prev := h.snapshotTenant(tenant)
+	if err := destination.Validate(h.topics, h.topicsAllowWildcards); err != nil {
+		return err
+	}
+	destination.Topics = destination.Topics.Normalize()
+	if destination.Type == models.DestinationTypeMCP {
+		if err := h.checkCanCreate(ctx, destination, replace); err != nil {
+			return &destinationStoreError{err}
+		}
+	}
+	if provider, err := h.registry.ResolveProvider(destination); err == nil {
+		if v, ok := provider.(destregistry.CreateValidator); ok {
+			if err := v.ValidateCreate(destination); err != nil {
+				return err
+			}
+		}
+	}
+	if err := h.registry.ValidateDestination(ctx, destination); err != nil {
+		return err
+	}
+	if err := h.registry.PreprocessDestination(destination, nil, &destregistry.PreprocessDestinationOpts{
+		Role: role,
+		Request: destregistry.PreprocessRequest{
+			Config:      destination.Config,
+			Credentials: destination.Credentials,
+		},
+	}); err != nil {
+		return err
+	}
+	store := h.tenantStore.CreateDestination
+	if replace {
+		store = h.tenantStore.UpdateDestination
+	}
+	if err := store(ctx, *destination); err != nil {
+		return &destinationStoreError{err}
+	}
+	h.telemetry.DestinationCreated(ctx, destination.Type)
+	h.emitSubscriptionUpdateIfChanged(ctx, tenant.ID, prev)
+	h.logger.Ctx(ctx).Audit("destination created",
+		zap.String("tenant_id", tenant.ID),
+		zap.String("destination_id", destination.ID),
+		zap.String("destination_type", destination.Type),
+	)
+	return nil
+}
+
+// checkCanCreate refuses a duplicate ID or a full tenant before the create
+// sends a verification challenge to a caller-chosen URL. A plain create is
+// checked again by the store; replacing an expired subscription reuses its slot.
+func (h *DestinationHandlers) checkCanCreate(ctx context.Context, destination *models.Destination, replace bool) error {
+	if !replace {
+		if existing, err := h.tenantStore.RetrieveDestination(ctx, destination.TenantID, destination.ID); err == nil && existing != nil {
+			return tenantstore.ErrDuplicateDestination
+		}
+	}
+	if h.destinationsFull(ctx, destination.TenantID) {
+		return tenantstore.ErrMaxDestinationsPerTenantReached
+	}
+	return nil
+}
+
+func (h *DestinationHandlers) destinationsFull(ctx context.Context, tenantID string) bool {
+	if h.maxDestinationsPerTenant <= 0 {
 		return false
 	}
-	if h.maxDestinationsPerTenant <= 0 {
-		return true
-	}
-	destinations, err := h.tenantStore.ListDestination(ctx, tenantstore.ListDestinationRequest{TenantID: destination.TenantID})
+	destinations, err := h.tenantStore.ListDestination(ctx, tenantstore.ListDestinationRequest{TenantID: tenantID})
 	if err != nil {
-		return true
+		return false
 	}
 	now := time.Now()
 	active := 0
@@ -198,11 +228,7 @@ func (h *DestinationHandlers) canCreateDestination(c *gin.Context, destination *
 			active++
 		}
 	}
-	if active >= h.maxDestinationsPerTenant {
-		h.handleDestinationWriteError(c, tenantstore.ErrMaxDestinationsPerTenantReached)
-		return false
-	}
-	return true
+	return active >= h.maxDestinationsPerTenant
 }
 
 func (h *DestinationHandlers) Retrieve(c *gin.Context) {
@@ -284,8 +310,8 @@ func (h *DestinationHandlers) Update(c *gin.Context) {
 // stands now. It answers the request and returns ok=false when the input is
 // invalid for that destination.
 func (h *DestinationHandlers) applyDestinationUpdate(c *gin.Context, input UpdateDestinationRequest, originalDestination *models.Destination) (updated *models.Destination, disabilityChanged bool, ok bool) {
-	if originalDestination.Type == models.DestinationTypeMCP && mustRoleFromContext(c) != RoleAdmin {
-		abortMCPAdminOnly(c)
+	if originalDestination.Type == models.DestinationTypeMCP {
+		abortMCPUseSubscribe(c)
 		return nil, false, false
 	}
 
@@ -411,17 +437,7 @@ func (h *DestinationHandlers) applyDestinationUpdate(c *gin.Context, input Updat
 				AbortWithValidationError(c, fmt.Errorf("invalid expires_at: %w", err))
 				return nil, false, false
 			}
-			if err := validateExpiresAt(originalDestination.Type, ts, time.Now()); err != nil {
-				AbortWithValidationError(c, err)
-				return nil, false, false
-			}
-			updatedDestination.ExpiresAt = &ts
-		}
-	}
-
-	if originalDestination.Type == models.DestinationTypeMCP {
-		if err := checkMCPImmutable(originalDestination, &updatedDestination); err != nil {
-			AbortWithValidationError(c, err)
+			AbortWithValidationError(c, errExpiresAtUnsupported)
 			return nil, false, false
 		}
 	}

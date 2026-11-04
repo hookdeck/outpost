@@ -247,6 +247,7 @@ func (b *ServiceBuilder) BuildAPIWorkers(baseRouter *gin.Engine) error {
 
 			MaxDestinationsPerTenant: b.cfg.MaxDestinationsPerTenant,
 			ExcludedDestinationTypes: excludedDestinationTypes(b.cfg),
+			MCPSubscriptionTTL:       b.cfg.MCPSubscriptionTTL(),
 		},
 		apirouter.RouterDeps{
 			TenantStore:         svc.tenantStore,

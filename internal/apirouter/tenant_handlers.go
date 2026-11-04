@@ -1,6 +1,7 @@
 package apirouter
 
 import (
+	"context"
 	"errors"
 	"io"
 	"net/http"
@@ -107,23 +108,31 @@ func (h *TenantHandlers) Upsert(c *gin.Context) {
 	}
 
 	// Create new tenant.
+	tenant, err := h.createTenant(c.Request.Context(), tenantID, input.Metadata)
+	if err != nil {
+		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
+		return
+	}
+	c.JSON(http.StatusCreated, h.postprocessTenant(*tenant))
+}
+
+func (h *TenantHandlers) createTenant(ctx context.Context, tenantID string, metadata models.Metadata) (*models.Tenant, error) {
 	now := time.Now()
 	tenant := &models.Tenant{
 		ID:        tenantID,
 		Topics:    []string{},
-		Metadata:  input.Metadata,
+		Metadata:  metadata,
 		CreatedAt: now,
 		UpdatedAt: now,
 	}
-	if err := h.tenantStore.UpsertTenant(c.Request.Context(), *tenant); err != nil {
-		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
-		return
+	if err := h.tenantStore.UpsertTenant(ctx, *tenant); err != nil {
+		return nil, err
 	}
-	h.telemetry.TenantCreated(c.Request.Context())
-	h.logger.Ctx(c.Request.Context()).Audit("tenant created",
+	h.telemetry.TenantCreated(ctx)
+	h.logger.Ctx(ctx).Audit("tenant created",
 		zap.String("tenant_id", tenantID),
 	)
-	c.JSON(http.StatusCreated, h.postprocessTenant(*tenant))
+	return tenant, nil
 }
 
 func (h *TenantHandlers) Retrieve(c *gin.Context) {

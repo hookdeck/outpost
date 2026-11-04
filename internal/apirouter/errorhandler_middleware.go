@@ -22,7 +22,7 @@ func ErrorHandlerMiddleware() gin.HandlerFunc {
 		c.Next()
 
 		err := c.Errors.Last()
-		if err == nil {
+		if err == nil || c.Writer.Written() {
 			return
 		}
 
