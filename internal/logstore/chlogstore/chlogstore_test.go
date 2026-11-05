@@ -553,7 +553,7 @@ func TestListLatestAttempts_UndecodableRowPushedOutFailsOwnKey(t *testing.T) {
 	require.NoError(t, chDB.Exec(ctx, fmt.Sprintf(`
 		INSERT INTO attempts
 		SELECT * REPLACE ('dup_bad_evt_b' AS event_id, 'dup_bad_att_b' AS attempt_id, '{"n":1}' AS metadata, fromUnixTimestamp64Milli(%d) AS attempt_time)
-		FROM attempts WHERE attempt_id = 'dup_bad_att_a' LIMIT 1`, t0.UnixMilli())))
+		FROM (SELECT * FROM attempts WHERE attempt_id = 'dup_bad_att_a' LIMIT 1)`, t0.UnixMilli())))
 
 	keyA := driver.AttemptKey{TenantID: tenantID, EventID: "dup_bad_evt_a", DestinationID: destID}
 	keyB := driver.AttemptKey{TenantID: tenantID, EventID: "dup_bad_evt_b", DestinationID: destID}
