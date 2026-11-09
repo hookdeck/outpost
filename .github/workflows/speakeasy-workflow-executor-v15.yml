@@ -1,7 +1,10 @@
 # Vendored from speakeasy-api/sdk-generation-action (.github/workflows/workflow-executor.yaml, tag v15).
 # Outpost patch: workflow_call input `pr_base_is_main` and job `env` on `run-workflow` so Speakeasy’s
 # Go code sees GITHUB_REF=refs/heads/main for PR base while actions/checkout still uses the workflow ref (tag).
-# When upgrading Speakeasy, re-copy this file from upstream and re-apply the three marked patches.
+# Outpost patch: `ci_app_client_id` input, `ci_app_private_key` secret, the HAS_CI_APP_PRIVATE_KEY job env,
+# and the GitHub App token steps, so PRs are opened with the hookdeck-ci App (via Speakeasy's pr_creation_pat).
+# When upgrading Speakeasy, re-copy this file from upstream and re-apply every block marked "Outpost patch".
+# Also re-check that Speakeasy still uses PR_CREATION_PAT only to open or edit the PR (internal/git/git.go).
 name: Speakeasy SDK Generation Workflow
 on:
   workflow_call:
@@ -271,10 +274,15 @@ jobs:
       # The org doesn't let GITHUB_TOKEN create pull requests. When the caller passes the
       # hookdeck-ci App credentials, mint a short-lived App token and hand it to Speakeasy as
       # pr_creation_pat, which it uses only to open the PR. Pushes still use github_access_token.
+      - name: Check GitHub App configuration
+        if: ${{ steps.check-label.outputs.short_circuit_label_trigger != 'true' && env.HAS_CI_APP_PRIVATE_KEY == 'true' && inputs.ci_app_client_id == '' }}
+        run: |
+          echo "::error::ci_app_private_key was passed but ci_app_client_id is empty. Set the CI_APP_CLIENT_ID org variable for this repo; without it the PR would be opened with GITHUB_TOKEN, which the org doesn't allow."
+          exit 1
       - name: Create GitHub App token
         id: app-token
         if: ${{ steps.check-label.outputs.short_circuit_label_trigger != 'true' && env.HAS_CI_APP_PRIVATE_KEY == 'true' && inputs.ci_app_client_id != '' }}
-        uses: actions/create-github-app-token@v3
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
           client-id: ${{ inputs.ci_app_client_id }}
           private-key: ${{ secrets.ci_app_private_key }}
