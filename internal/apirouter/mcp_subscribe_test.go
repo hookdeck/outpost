@@ -289,6 +289,19 @@ func TestAPI_MCPSubscribe(t *testing.T) {
 	})
 }
 
+func TestAPI_MCPSubscribeEmitsNoTenantSubscriptionUpdate(t *testing.T) {
+	h := newSubscribeTest(t, &stubVerifier{})
+	body := subscribeBody("user-1", subscribeParams())
+	requireSubscribed(t, postMCP(h, mcpSubscribePath, body))
+	requireSubscribed(t, postMCP(h, mcpSubscribePath, body))
+	resp := postMCP(h, mcpUnsubscribePath, map[string]any{"principal": "user-1", "params": map[string]any{
+		"name": "user.created", "arguments": map[string]any{"status": "paid"}, "delivery": map[string]any{"url": mcpCallbackURL},
+	}})
+	require.Equal(t, http.StatusOK, resp.Code, resp.Body.String())
+
+	assert.Empty(t, h.subscriptionEmitter.calls)
+}
+
 func TestAPI_MCPSubscribeErrors(t *testing.T) {
 	url := func(u string) func(map[string]any) {
 		return func(p map[string]any) { p["delivery"] = deliveryParams(u, mcpSecret(1)) }
@@ -513,7 +526,10 @@ func TestAPI_MCPSubscribeAccess(t *testing.T) {
 		tenant, err := h.tenantStore.RetrieveTenant(t.Context(), "fresh")
 		require.NoError(t, err)
 		require.NotNil(t, tenant)
-		assert.Equal(t, 1, tenant.DestinationsCount)
+		assert.Zero(t, tenant.DestinationsCount)
+		stored, err := h.tenantStore.ListDestination(t.Context(), tenantstore.ListDestinationRequest{TenantID: "fresh"})
+		require.NoError(t, err)
+		assert.Len(t, stored, 1)
 	})
 
 	t.Run("routes answer 503 without the reason while the event definitions are invalid", func(t *testing.T) {

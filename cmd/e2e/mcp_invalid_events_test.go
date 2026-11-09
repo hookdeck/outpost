@@ -57,6 +57,16 @@ func (s *mcpInvalidEventsSuite) TestServiceRunsAndMCPEventsIsUnavailable() {
 
 	tenant := base.createTenant().ID
 	s.NotEmpty(tenant)
+
+	p := s.m.newPath(mcpreceiver.PathConfig{})
+	for _, action := range []string{"subscribe", "unsubscribe"} {
+		resp.Message = ""
+		status := base.doJSON(http.MethodPost, base.apiURL("/tenants/"+tenant+"/mcp/"+action),
+			map[string]any{"principal": p.principal, "params": map[string]any{"name": mcpTopic, "delivery": map[string]any{"mode": "webhook", "url": p.url, "secret": p.secret}}}, &resp)
+		s.Equal(http.StatusServiceUnavailable, status, action)
+		s.Equal("MCP Events unavailable", resp.Message, action)
+	}
+	s.Empty(s.m.r.Challenges(p.path), "nothing is verified")
 }
 
 func (s *mcpInvalidEventsSuite) TestExistingDestinationKeepsDelivering() {

@@ -99,7 +99,6 @@ func (s *mcpSubscriptionsSuite) SetupSuite() {
 		withMCPDelivery(cfg)
 		cfg.Topics = testutil.TestTopics
 		s.Require().NoError(cfg.Experimental.MCP.EventsSchema.UnmarshalText([]byte(file)))
-		cfg.MaxDestinationsPerTenant = 100
 		s.fx.ConfigureOutpost(cfg)
 	}}
 	s.m.SetT(s.T())
@@ -243,9 +242,14 @@ func (s *mcpSubscriptionsSuite) publish(tenant string, data map[string]any) publ
 	return s.m.publishMCP(tenant, data)
 }
 
+// destinationStatus answers 200 while the subscription is stored and 404
+// after it is gone.
 func (s *mcpSubscriptionsSuite) destinationStatus(tenant, id string) int {
 	s.T().Helper()
-	return s.m.base.doJSON(http.MethodGet, s.m.destURL(tenant, "/"+id), nil, nil)
+	if readDestinationFromStore(s.T(), s.m.base.config, tenant, id) == nil {
+		return http.StatusNotFound
+	}
+	return http.StatusOK
 }
 
 func (s *mcpSubscriptionsSuite) requireEventsAfterWait(sub *mcpSub, n int) {
@@ -432,7 +436,7 @@ func (s *mcpSubscriptionsSuite) TestRefreshReportsAndReenablesSuspendedSubscript
 	sub := s.newSub(user, "user.created", nil, mcpreceiver.Echo())
 	s.mustSubscribe(c, sub, nil)
 
-	s.m.base.disableDestination(s.tenantMain, sub.id)
+	disableDestinationInStore(s.T(), s.m.base.config, s.tenantMain, sub.id)
 	paused := s.publish(s.tenantMain, map[string]any{"n": 1})
 	s.NotContains(paused.DestinationIDs, sub.id)
 	s.requireEventsAfterWait(sub, 0)

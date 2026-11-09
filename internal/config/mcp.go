@@ -16,7 +16,7 @@ type ExperimentalConfig struct {
 }
 
 type MCPConfig struct {
-	Enabled                       bool            `yaml:"enabled" env:"EXPERIMENTAL_MCP_ENABLED" desc:"If true, registers the experimental 'mcp' destination type (MCP Events webhook subscriptions). Admin API key only. While it is off, stored mcp destinations receive no events and lapse at their expiry." required:"N" default:"false"`
+	Enabled                       bool            `yaml:"enabled" env:"EXPERIMENTAL_MCP_ENABLED" desc:"If true, enables the experimental MCP Events subscribe endpoints (MCP Events webhook subscriptions), with the Admin API key. While it is off, stored subscriptions receive no events and lapse at their expiry." required:"N" default:"false"`
 	AllowInsecureCallbacks        bool            `yaml:"allow_insecure_callbacks" env:"EXPERIMENTAL_MCP_ALLOW_INSECURE_CALLBACKS" desc:"The MCP Events spec requires https callback URLs. If true, http is also accepted for addresses that are all in DESTINATIONS_PRIVATE_ADDRESS_ALLOWLIST: an exception outside the spec, for development only." required:"N" default:"false"`
 	RetryDelays                   []time.Duration `yaml:"-"`
 	VerificationTTLSeconds        int             `yaml:"verification_ttl_seconds" env:"EXPERIMENTAL_MCP_VERIFICATION_TTL_SECONDS" desc:"How long, in seconds, a passed callback verification challenge is cached per tenant, principal and callback URL." required:"N" default:"86400"`

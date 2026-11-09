@@ -431,6 +431,36 @@ func testListTenant(t *testing.T, newHarness HarnessMaker) {
 		})
 	})
 
+	t.Run("ExcludesInternalDestinations", func(t *testing.T) {
+		ctx := context.Background()
+		h, err := newHarness(ctx, t)
+		require.NoError(t, err)
+		t.Cleanup(h.Close)
+
+		store, err := h.MakeDriver(ctx)
+		require.NoError(t, err)
+		require.NoError(t, store.Init(ctx))
+
+		tenant := testutil.TenantFactory.Any()
+		require.NoError(t, store.UpsertTenant(ctx, tenant))
+		require.NoError(t, store.CreateDestination(ctx, testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithTenantID(tenant.ID),
+			testutil.DestinationFactory.WithType("webhook"),
+			testutil.DestinationFactory.WithTopics([]string{"user.created"}),
+		)))
+		require.NoError(t, store.CreateDestination(ctx, testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithTenantID(tenant.ID),
+			testutil.DestinationFactory.WithType(models.DestinationTypeMCP),
+			testutil.DestinationFactory.WithTopics([]string{"user.deleted"}),
+		)))
+
+		resp, err := store.ListTenant(ctx, driver.ListTenantRequest{ID: []string{tenant.ID}})
+		require.NoError(t, err)
+		require.Len(t, resp.Models, 1)
+		assert.Equal(t, 1, resp.Models[0].DestinationsCount)
+		assert.Equal(t, []string{"user.created"}, resp.Models[0].Topics)
+	})
+
 	t.Run("ExcludesDeleted", func(t *testing.T) {
 		ctx := context.Background()
 		h, err := newHarness(ctx, t)

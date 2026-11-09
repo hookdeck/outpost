@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
@@ -14,11 +13,12 @@ import (
 	"time"
 
 	"github.com/hookdeck/outpost/internal/destregistry"
+	destregistrydefault "github.com/hookdeck/outpost/internal/destregistry/providers"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destmcp"
+	"github.com/hookdeck/outpost/internal/destregistry/providers/destwebhook"
 	"github.com/hookdeck/outpost/internal/mcpevents"
+	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/netguard"
-	"github.com/hookdeck/outpost/internal/tenantstore"
-	"github.com/hookdeck/outpost/internal/tenantstore/memtenantstore"
 	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -74,6 +74,17 @@ func mcpSecret(b byte) string {
 func newMCPAPITest(t *testing.T, verifier *stubVerifier, extra ...apiTestOption) *apiTest {
 	t.Helper()
 	registry := destregistry.NewRegistry(&destregistry.Config{}, testutil.CreateTestLogger(t))
+	require.NoError(t, destregistrydefault.RegisterDefault(registry, destregistrydefault.RegisterDefaultDestinationOptions{
+		Webhook: &destregistrydefault.DestWebhookConfig{
+			HeaderPrefix:             destwebhook.DefaultHeaderPrefix,
+			SignatureContentTemplate: destwebhook.DefaultSignatureContentTmpl,
+			SignatureHeaderTemplate:  destwebhook.DefaultSignatureHeaderTmpl,
+			SignatureEncoding:        destwebhook.DefaultEncoding,
+			SignatureAlgorithm:       destwebhook.DefaultAlgorithm,
+			SigningSecretTemplate:    destwebhook.DefaultSigningSecretTmpl,
+		},
+		AWSEventBridge: &destregistrydefault.DestAWSEventBridgeConfig{Source: "outpost"},
+	}))
 	opts := []apiTestOption{withDestRegistry(registry)}
 	if verifier != nil {
 		guard := &netguard.Guard{Resolver: publicResolver{}}
@@ -142,281 +153,102 @@ func requireValidation422(t *testing.T, resp *httptest.ResponseRecorder, want ..
 	assert.Equal(t, want, data)
 }
 
+// seedMCP stores an mcp destination directly: the destinations API doesn't
+// create them.
+func seedMCP(t *testing.T, h *apiTest, mutate ...func(*models.Destination)) {
+	t.Helper()
+	d := df.Any(
+		df.WithID("sub_1"), df.WithTenantID("t1"), df.WithType("mcp"),
+		df.WithTopics([]string{"user.created"}),
+		df.WithConfig(map[string]string{"url": mcpCallbackURL, "principal": "user-1"}),
+		df.WithCredentials(map[string]string{"secret": mcpSecret(1)}),
+	)
+	for _, m := range mutate {
+		m(&d)
+	}
+	require.NoError(t, h.tenantStore.CreateDestination(t.Context(), d))
+}
+
 func TestAPI_MCPDestinations(t *testing.T) {
 	t.Run("Create", func(t *testing.T) {
-		t.Run("api key creates a subscription with an expiry", func(t *testing.T) {
-			v := &stubVerifier{}
-			h := newMCPAPITest(t, v)
-			expires := time.Now().Add(time.Hour).UTC().Truncate(time.Second)
+		t.Run("answers like an unknown type, with MCP on and off", func(t *testing.T) {
+			for name, verifier := range map[string]*stubVerifier{"on": {}, "off": nil} {
+				h := newMCPAPITest(t, verifier)
+				for label, mutate := range map[string]func(map[string]any){
+					"valid":         func(map[string]any) {},
+					"invalid topic": func(d map[string]any) { d["topics"] = []string{"nope.topic"} },
+				} {
+					mcpResp := createMCP(t, h, mcpDestination(mutate))
+					unknownResp := createMCP(t, h, mcpDestination(mutate, func(d map[string]any) { d["type"] = "nope" }))
+					require.Equal(t, http.StatusUnprocessableEntity, mcpResp.Code, name+" "+label+": "+mcpResp.Body.String())
+					assert.Equal(t, strings.ReplaceAll(unknownResp.Body.String(), "nope", "mcp"), mcpResp.Body.String(), name+" "+label)
+				}
 
-			resp := createMCP(t, h, mcpDestination(func(d map[string]any) { d["expires_at"] = expires.Format(time.RFC3339) }))
-
-			require.Equal(t, http.StatusCreated, resp.Code, resp.Body.String())
-			body := responseBody(t, resp)
-			assert.Equal(t, "sub_1", body["id"])
-			assert.Equal(t, "mcp", body["type"])
-			assert.Equal(t, mcpCallbackURL, body["target"])
-			assert.NotContains(t, resp.Body.String(), mcpSecret(1), "the secret is masked")
-			reqs := v.Requests()
-			require.Len(t, reqs, 1)
-			assert.Equal(t, "t1", reqs[0].TenantID)
-			assert.Equal(t, "sub_1", reqs[0].SubscriptionID)
-			assert.Equal(t, "user-1", reqs[0].Principal)
-
-			got, err := h.tenantStore.RetrieveDestination(t.Context(), "t1", "sub_1")
-			require.NoError(t, err)
-			require.NotNil(t, got.ExpiresAt)
-			assert.True(t, got.ExpiresAt.Equal(expires))
-		})
-
-		t.Run("tenant jwt gets 403", func(t *testing.T) {
-			v := &stubVerifier{}
-			h := newMCPAPITest(t, v)
-
-			resp := h.do(h.withJWT(h.jsonReq(http.MethodPost, "/api/v1/tenants/t1/destinations", mcpDestination()), "t1"))
-
-			require.Equal(t, http.StatusForbidden, resp.Code)
-			assert.Empty(t, v.Requests(), "nothing is sent for a tenant")
-			dests, err := h.tenantStore.ListDestination(t.Context(), tenantstore.ListDestinationRequest{TenantID: "t1"})
-			require.NoError(t, err)
-			assert.Empty(t, dests)
-		})
-
-		t.Run("past expires_at returns 422", func(t *testing.T) {
-			h := newMCPAPITest(t, &stubVerifier{})
-			resp := createMCP(t, h, mcpDestination(func(d map[string]any) {
-				d["expires_at"] = time.Now().Add(-time.Minute).UTC().Format(time.RFC3339)
-			}))
-			require.Equal(t, http.StatusUnprocessableEntity, resp.Code)
-			assert.Contains(t, resp.Body.String(), "expires_at must be in the future")
-		})
-
-		t.Run("expires_at on a webhook returns 422", func(t *testing.T) {
-			h := newAPITest(t)
-			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
-			payload := validDestination()
-			payload["expires_at"] = time.Now().Add(time.Hour).UTC().Format(time.RFC3339)
-
-			resp := createMCP(t, h, payload)
-
-			require.Equal(t, http.StatusUnprocessableEntity, resp.Code)
-			assert.Contains(t, resp.Body.String(), "expires_at is not supported for this destination type")
-		})
-
-		t.Run("challenge failures return the validation shape", func(t *testing.T) {
-			for _, tt := range []struct {
-				name string
-				err  error
-				typ  string
-			}{
-				{"challenge_failed", mcpevents.CallbackEndpointError(mcpevents.ReasonChallengeFailed), "challenge_failed"},
-				{"connection_refused", mcpevents.CallbackEndpointError(mcpevents.ReasonConnectionRefused), "connection_refused"},
-				{"timeout", mcpevents.CallbackEndpointError(mcpevents.ReasonTimeout), "timeout"},
-				{"tls_error", mcpevents.CallbackEndpointError(mcpevents.ReasonTLSError), "tls_error"},
-			} {
-				t.Run(tt.name, func(t *testing.T) {
-					h := newMCPAPITest(t, &stubVerifier{err: tt.err})
-					resp := createMCP(t, h, mcpDestination())
-					requireValidation422(t, resp, "config.url failed "+tt.typ+" validation")
-					dests, err := h.tenantStore.ListDestination(t.Context(), tenantstore.ListDestinationRequest{TenantID: "t1"})
-					require.NoError(t, err)
-					assert.Empty(t, dests, "nothing is stored")
-				})
+				jwtResp := h.do(h.withJWT(h.jsonReq(http.MethodPost, "/api/v1/tenants/t1/destinations", mcpDestination()), "t1"))
+				assert.Equal(t, http.StatusUnprocessableEntity, jwtResp.Code, name+": a tenant gets the same answer")
+				assert.Zero(t, mcpDestinationCount(t, h), name)
 			}
-		})
-
-		t.Run("a verification limit returns 429 with Retry-After", func(t *testing.T) {
-			h := newMCPAPITest(t, &stubVerifier{err: mcpevents.ResourceExhausted(mcpevents.LimitVerificationRate, 10, 1500*time.Millisecond)})
-			resp := createMCP(t, h, mcpDestination())
-			require.Equal(t, http.StatusTooManyRequests, resp.Code, resp.Body.String())
-			assert.Equal(t, "2", resp.Header().Get("Retry-After"))
-			body := responseBody(t, resp)
-			assert.Equal(t, map[string]any{"code": "rate_limited"}, body["data"])
-			dests, err := h.tenantStore.ListDestination(t.Context(), tenantstore.ListDestinationRequest{TenantID: "t1"})
-			require.NoError(t, err)
-			assert.Empty(t, dests)
-		})
-
-		t.Run("an unavailable verification store returns 503", func(t *testing.T) {
-			h := newMCPAPITest(t, &stubVerifier{err: errors.New("redis: connection refused")})
-			resp := createMCP(t, h, mcpDestination())
-			require.Equal(t, http.StatusServiceUnavailable, resp.Code, resp.Body.String())
-			assert.Empty(t, resp.Header().Get("Retry-After"))
-			assert.Equal(t, map[string]any{"code": "verification_unavailable"}, responseBody(t, resp)["data"])
-			assert.NotContains(t, resp.Body.String(), "redis")
-		})
-
-		t.Run("refused addresses and schemes", func(t *testing.T) {
-			h := newMCPAPITest(t, &stubVerifier{})
-			resp := createMCP(t, h, mcpDestination(func(d map[string]any) {
-				d["config"] = map[string]string{"url": "http://receiver.example.com/hook"}
-			}))
-			requireValidation422(t, resp, "config.url failed https_required validation")
-
-			resp = createMCP(t, h, mcpDestination(func(d map[string]any) {
-				d["config"] = map[string]string{"url": "https://127.0.0.1/hook"}
-			}))
-			requireValidation422(t, resp, "config.url must resolve to a public address")
-		})
-
-		t.Run("each subscription counts toward the tenant limit", func(t *testing.T) {
-			h := newMCPAPITest(t, &stubVerifier{})
-			require.Equal(t, http.StatusCreated, createMCP(t, h, mcpDestination()).Code)
-			resp := createMCP(t, h, mcpDestination(func(d map[string]any) { d["id"] = "sub_2" }))
-			require.Equal(t, http.StatusCreated, resp.Code)
-		})
-
-		t.Run("a duplicate id sends no challenge", func(t *testing.T) {
-			verifier := &stubVerifier{}
-			h := newMCPAPITest(t, verifier)
-			require.Equal(t, http.StatusCreated, createMCP(t, h, mcpDestination()).Code)
-			require.Len(t, verifier.Requests(), 1)
-
-			resp := createMCP(t, h, mcpDestination())
-
-			require.Equal(t, http.StatusBadRequest, resp.Code)
-			assert.Equal(t, "destination already exists", responseBody(t, resp)["message"])
-			assert.Len(t, verifier.Requests(), 1)
-		})
-
-		t.Run("a full tenant sends no challenge", func(t *testing.T) {
-			verifier := &stubVerifier{}
-			h := newMCPAPITest(t, verifier,
-				withTenantStore(memtenantstore.New(memtenantstore.WithMaxDestinationsPerTenant(1))),
-				withMaxDestinations(1))
-			require.Equal(t, http.StatusCreated, createMCP(t, h, mcpDestination()).Code)
-			require.Len(t, verifier.Requests(), 1)
-
-			resp := createMCP(t, h, mcpDestination(func(d map[string]any) { d["id"] = "sub_2" }))
-
-			require.Equal(t, http.StatusBadRequest, resp.Code)
-			assert.Equal(t, "maximum number of destinations per tenant reached", responseBody(t, resp)["message"])
-			assert.Len(t, verifier.Requests(), 1)
-		})
-
-		t.Run("disabled: rejected like an unknown type", func(t *testing.T) {
-			h := newMCPAPITest(t, nil)
-			mcpResp := createMCP(t, h, mcpDestination())
-			unknownResp := createMCP(t, h, mcpDestination(func(d map[string]any) { d["type"] = "nope" }))
-			require.Equal(t, http.StatusUnprocessableEntity, mcpResp.Code)
-			assert.Equal(t, strings.ReplaceAll(unknownResp.Body.String(), "nope", "mcp"), mcpResp.Body.String())
-
-			tenantResp := h.do(h.withJWT(h.jsonReq(http.MethodPost, "/api/v1/tenants/t1/destinations", mcpDestination()), "t1"))
-			assert.Equal(t, http.StatusUnprocessableEntity, tenantResp.Code, "a tenant gets the unknown-type answer too")
 		})
 	})
 
 	t.Run("Update", func(t *testing.T) {
-		setup := func(t *testing.T) (*apiTest, *stubVerifier) {
-			v := &stubVerifier{}
-			h := newMCPAPITest(t, v)
-			require.Equal(t, http.StatusCreated, createMCP(t, h, mcpDestination()).Code)
-			return h, v
-		}
-
-		t.Run("sets and clears expires_at", func(t *testing.T) {
-			h, _ := setup(t)
-			expires := time.Now().Add(2 * time.Hour).UTC().Truncate(time.Second)
-
-			resp := patchMCP(t, h, map[string]any{"expires_at": expires.Format(time.RFC3339)}, false)
-			require.Equal(t, http.StatusOK, resp.Code, resp.Body.String())
-			got, err := h.tenantStore.RetrieveDestination(t.Context(), "t1", "sub_1")
-			require.NoError(t, err)
-			require.NotNil(t, got.ExpiresAt)
-			assert.True(t, got.ExpiresAt.Equal(expires))
-
-			resp = patchMCP(t, h, map[string]any{"expires_at": nil}, false)
-			require.Equal(t, http.StatusOK, resp.Code, resp.Body.String())
-
-			got, err = h.tenantStore.RetrieveDestination(t.Context(), "t1", "sub_1")
-			require.NoError(t, err)
-			assert.Nil(t, got.ExpiresAt)
-		})
-
-		t.Run("past expires_at returns 422", func(t *testing.T) {
-			h, _ := setup(t)
-			resp := patchMCP(t, h, map[string]any{"expires_at": time.Now().Add(-time.Second).UTC().Format(time.RFC3339)}, false)
-			require.Equal(t, http.StatusUnprocessableEntity, resp.Code)
-			assert.Contains(t, resp.Body.String(), "expires_at must be in the future")
-		})
-
-		t.Run("expires_at on a webhook returns 422", func(t *testing.T) {
-			h := newAPITest(t)
-			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
-			require.Equal(t, http.StatusCreated, createMCP(t, h, map[string]any{
-				"id": "sub_1", "type": "webhook", "topics": []string{"user.created"}, "config": map[string]string{"url": "https://example.com/hook"},
-			}).Code)
-
-			resp := patchMCP(t, h, map[string]any{"expires_at": time.Now().Add(time.Hour).UTC().Format(time.RFC3339)}, false)
-
-			require.Equal(t, http.StatusUnprocessableEntity, resp.Code)
-			assert.Contains(t, resp.Body.String(), "expires_at is not supported for this destination type")
-		})
-
-		t.Run("immutable fields return 422", func(t *testing.T) {
-			h, _ := setup(t)
-			for _, tt := range []struct {
-				name  string
-				patch map[string]any
-				want  string
-			}{
-				{"url", map[string]any{"config": map[string]string{"url": "https://other.example.com/hook"}}, "config.url failed immutable validation"},
-				{"principal", map[string]any{"config": map[string]string{"principal": "user-2"}}, "config.principal failed immutable validation"},
-				{"arguments", map[string]any{"config": map[string]string{"arguments": `{"status":"open"}`}}, "config.arguments failed immutable validation"},
-				{"topics", map[string]any{"topics": []string{"user.deleted"}}, "topics failed immutable validation"},
-				{"config cleared", map[string]any{"config": nil}, "config.url failed immutable validation"},
-			} {
-				t.Run(tt.name, func(t *testing.T) {
-					resp := patchMCP(t, h, tt.patch, false)
-					require.Equal(t, http.StatusUnprocessableEntity, resp.Code, resp.Body.String())
-					assert.Contains(t, resp.Body.String(), tt.want)
-				})
+		t.Run("answers 404 and changes nothing", func(t *testing.T) {
+			h := newMCPAPITest(t, &stubVerifier{})
+			seedMCP(t, h)
+			for name, jwt := range map[string]bool{"api key": false, "jwt": true} {
+				for _, patch := range []map[string]any{
+					{"credentials": map[string]string{"secret": mcpSecret(2)}},
+					{"config": map[string]string{"url": "https://other.example.com/hook"}},
+					{"topics": []string{"user.updated"}},
+					{"disabled_at": time.Now().UTC().Format(time.RFC3339)},
+				} {
+					resp := patchMCP(t, h, patch, jwt)
+					require.Equal(t, http.StatusNotFound, resp.Code, name+": "+resp.Body.String())
+				}
 			}
 			got, err := h.tenantStore.RetrieveDestination(t.Context(), "t1", "sub_1")
 			require.NoError(t, err)
 			assert.Equal(t, mcpCallbackURL, got.Config["url"])
+			assert.Equal(t, mcpSecret(1), got.Credentials["secret"])
+			assert.Equal(t, models.Topics{"user.created"}, got.Topics)
+			assert.Nil(t, got.DisabledAt)
 		})
+	})
 
-		t.Run("repeating immutable values is accepted", func(t *testing.T) {
-			h, _ := setup(t)
-			resp := patchMCP(t, h, map[string]any{
-				"topics": []string{"user.created"},
-				"config": map[string]string{"url": mcpCallbackURL, "principal": "user-1"},
-			}, false)
-			require.Equal(t, http.StatusOK, resp.Code, resp.Body.String())
-		})
+	t.Run("Hidden", func(t *testing.T) {
+		for name, verifier := range map[string]*stubVerifier{"on": {}, "off": nil} {
+			t.Run("MCP "+name, func(t *testing.T) {
+				h := newMCPAPITest(t, verifier)
+				seedMCP(t, h)
+				require.NoError(t, h.tenantStore.CreateDestination(t.Context(), df.Any(
+					df.WithID("hook_1"), df.WithTenantID("t1"), df.WithType("webhook"),
+					df.WithTopics([]string{"user.created"}),
+				)))
 
-		t.Run("a new secret rotates", func(t *testing.T) {
-			h, _ := setup(t)
-			resp := patchMCP(t, h, map[string]any{"credentials": map[string]string{"secret": mcpSecret(2)}}, false)
-			require.Equal(t, http.StatusOK, resp.Code, resp.Body.String())
-			got, err := h.tenantStore.RetrieveDestination(t.Context(), "t1", "sub_1")
-			require.NoError(t, err)
-			assert.Equal(t, mcpSecret(2), got.Credentials["secret"])
-			assert.Equal(t, mcpSecret(1), got.Credentials["previous_secret"])
-			assert.NotEmpty(t, got.Credentials["previous_secret_invalid_at"])
-		})
+				for role, auth := range map[string]func(*http.Request) *http.Request{
+					"api key": h.withAPIKey,
+					"jwt":     func(r *http.Request) *http.Request { return h.withJWT(r, "t1") },
+				} {
+					list := h.do(auth(httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1/destinations", nil)))
+					require.Equal(t, http.StatusOK, list.Code, list.Body.String())
+					assert.NotContains(t, list.Body.String(), "sub_1", role)
+					assert.Contains(t, list.Body.String(), "hook_1", role)
 
-		t.Run("a refresh covered by the cache sends no challenge", func(t *testing.T) {
-			v := &stubVerifier{verified: true}
-			h := newMCPAPITest(t, v)
-			require.Equal(t, http.StatusCreated, createMCP(t, h, mcpDestination()).Code)
-			resp := patchMCP(t, h, map[string]any{"credentials": map[string]string{"secret": mcpSecret(2)}}, false)
-			require.Equal(t, http.StatusOK, resp.Code)
-			assert.Empty(t, v.Requests())
-		})
-
-		t.Run("tenant jwt gets 403", func(t *testing.T) {
-			h, _ := setup(t)
-			resp := patchMCP(t, h, map[string]any{"expires_at": time.Now().Add(time.Hour).UTC().Format(time.RFC3339)}, true)
-			require.Equal(t, http.StatusForbidden, resp.Code)
-		})
-
-		t.Run("tenant jwt can still delete", func(t *testing.T) {
-			h, _ := setup(t)
-			resp := h.do(h.withJWT(h.jsonReq(http.MethodDelete, "/api/v1/tenants/t1/destinations/sub_1", nil), "t1"))
-			require.Equal(t, http.StatusOK, resp.Code)
-		})
+					for _, route := range []struct{ method, path string }{
+						{http.MethodGet, "/api/v1/tenants/t1/destinations/sub_1"},
+						{http.MethodDelete, "/api/v1/tenants/t1/destinations/sub_1"},
+						{http.MethodPut, "/api/v1/tenants/t1/destinations/sub_1/enable"},
+						{http.MethodPut, "/api/v1/tenants/t1/destinations/sub_1/disable"},
+						{http.MethodGet, "/api/v1/tenants/t1/destinations/sub_1/attempts"},
+						{http.MethodGet, "/api/v1/tenants/t1/destinations/sub_1/attempts/att_1"},
+					} {
+						resp := h.do(auth(httptest.NewRequest(route.method, route.path, nil)))
+						assert.Equal(t, http.StatusNotFound, resp.Code, role+" "+route.method+" "+route.path)
+					}
+				}
+				assert.Equal(t, 1, mcpDestinationCount(t, h), "the subscription is still stored")
+			})
+		}
 	})
 
 	t.Run("DestinationTypes", func(t *testing.T) {

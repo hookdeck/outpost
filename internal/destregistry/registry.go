@@ -330,10 +330,14 @@ func (r *registry) RetryPolicy(destinationType string) (backoff.Backoff, int, bo
 	return nil, 0, false
 }
 
+func NewErrNoProvider(destinationType string) error {
+	return fmt.Errorf("no provider registered for destination type: %s", destinationType)
+}
+
 func (r *registry) ResolveProvider(destination *models.Destination) (Provider, error) {
 	provider, exists := r.providers[destination.Type]
 	if !exists {
-		return nil, fmt.Errorf("no provider registered for destination type: %s", destination.Type)
+		return nil, NewErrNoProvider(destination.Type)
 	}
 	return provider, nil
 }

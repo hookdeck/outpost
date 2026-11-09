@@ -43,9 +43,6 @@ type RouterConfig struct {
 	PortalConfig         portal.PortalConfig
 	GinMode              string
 
-	// MaxDestinationsPerTenant mirrors the tenant store's limit (0: unknown).
-	MaxDestinationsPerTenant int
-
 	// MCPSubscriptionTTL holds the lifetime rules of the MCP subscribe
 	// endpoints; they answer 404 while it is nil.
 	MCPSubscriptionTTL *mcpevents.TTLConfig
@@ -149,10 +146,12 @@ func NewRouter(cfg RouterConfig, deps RouterDeps) http.Handler {
 	displayer := newDestinationDisplayer(cfg.Registry, cfg.TopicsAllowWildcards)
 
 	tenantHandlers := NewTenantHandlers(deps.Logger, deps.Telemetry, cfg.JWTSecret, cfg.DeploymentID, deps.TenantStore, cfg.TopicsAllowWildcards, deps.MCPVerifier)
-	destinationHandlers := NewDestinationHandlers(deps.Logger, deps.Telemetry, deps.TenantStore, deps.SubscriptionEmitter, cfg.Topics, cfg.TopicsAllowWildcards, cfg.Registry, displayer, cfg.MaxDestinationsPerTenant)
+	// Destinations of internal types stay out of the destinations API.
+	publicStore := tenantstore.NewPublicStore(deps.TenantStore)
+	destinationHandlers := NewDestinationHandlers(deps.Logger, deps.Telemetry, publicStore, deps.SubscriptionEmitter, cfg.Topics, cfg.TopicsAllowWildcards, cfg.Registry, displayer)
 	publishHandlers := NewPublishHandlers(deps.Logger, deps.EventHandler)
-	logHandlers := NewLogHandlers(deps.Logger, deps.LogStore, deps.TenantStore, displayer)
-	retryHandlers := NewRetryHandlers(deps.Logger, deps.TenantStore, deps.LogStore, deps.DeliveryPublisher, cfg.TopicsAllowWildcards)
+	logHandlers := NewLogHandlers(deps.Logger, deps.LogStore, publicStore, displayer)
+	retryHandlers := NewRetryHandlers(deps.Logger, publicStore, deps.LogStore, deps.DeliveryPublisher, cfg.TopicsAllowWildcards)
 	topicHandlers := NewTopicHandlers(deps.Logger, cfg.Topics)
 	metricsHandlers := NewMetricsHandlers(deps.Logger, deps.LogStore)
 	mcpEventsHandlers := NewMCPEventsHandlers(deps.Logger, deps.MCPCatalog, deps.MCPEventsError)

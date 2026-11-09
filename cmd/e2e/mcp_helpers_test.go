@@ -42,6 +42,7 @@ func withMCPDelivery(cfg *config.Config) {
 		panic(err)
 	}
 	cfg.Experimental.MCP.RetryDelays = mcpRetrySchedule
+	cfg.Experimental.MCP.SubscriptionTTLMinSeconds = 1
 	cfg.DeliveryTimeoutSeconds = mcpDeliveryTimeoutSeconds
 	cfg.RetryPollBackoffMs = 50
 	cfg.Alert.ConsecutiveFailureCount = config.NewOptionalString(mcpAutoDisableCount)
@@ -75,8 +76,9 @@ func writeDestinationToStore(t *testing.T, cfg config.Config, d models.Destinati
 	require.NoError(t, newTestTenantStore(t, cfg).CreateDestination(context.Background(), d))
 }
 
-// readDestinationFromStore reads a destination straight from the tenant
-// store. It returns nil when the destination does not exist or was deleted.
+// readDestinationFromStore reads a destination from the tenant store, which
+// the destinations API does not return for a subscription. It returns nil
+// when the destination does not exist or was deleted.
 func readDestinationFromStore(t *testing.T, cfg config.Config, tenantID, destID string) *models.Destination {
 	t.Helper()
 	d, err := newTestTenantStore(t, cfg).RetrieveDestination(context.Background(), tenantID, destID)
@@ -84,4 +86,17 @@ func readDestinationFromStore(t *testing.T, cfg config.Config, tenantID, destID 
 		require.NoError(t, err)
 	}
 	return d
+}
+
+// disableDestinationInStore suspends a destination straight in the tenant
+// store, as auto-disable does.
+func disableDestinationInStore(t *testing.T, cfg config.Config, tenantID, destID string) {
+	t.Helper()
+	store := newTestTenantStore(t, cfg)
+	d, err := store.RetrieveDestination(context.Background(), tenantID, destID)
+	require.NoError(t, err)
+	require.NotNil(t, d)
+	now := time.Now()
+	d.DisabledAt = &now
+	require.NoError(t, store.UpdateDestination(context.Background(), *d))
 }

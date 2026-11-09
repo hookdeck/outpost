@@ -201,7 +201,7 @@ func (s *store) RetrieveTenant(ctx context.Context, tenantID string) (*models.Te
 		return nil, err
 	}
 
-	destinationSummaryList, err := parseListDestinationSummaryByTenantCmd(destinationListCmd, nil)
+	destinationSummaryList, err := parseListDestinationSummaryByTenantCmd(destinationListCmd, &destinationFilter{ExcludeInternal: true})
 	if err != nil {
 		return nil, err
 	}
@@ -383,7 +383,7 @@ func (s *store) ListTenant(ctx context.Context, req driver.ListTenantRequest) (*
 		}
 
 		for i := range tenants {
-			destinationSummaryList, err := parseListDestinationSummaryByTenantCmd(cmds[i], nil)
+			destinationSummaryList, err := parseListDestinationSummaryByTenantCmd(cmds[i], &destinationFilter{ExcludeInternal: true})
 			if err != nil {
 				return nil, err
 			}
@@ -469,12 +469,13 @@ func (s *store) listDestinationSummaryByTenant(ctx context.Context, tenantID str
 
 func (s *store) ListDestination(ctx context.Context, req driver.ListDestinationRequest) ([]models.Destination, error) {
 	var filter *destinationFilter
-	hasFilter := len(req.Type) > 0 || len(req.Topics) > 0
+	hasFilter := len(req.Type) > 0 || len(req.Topics) > 0 || req.ExcludeInternal
 	if hasFilter {
 		filter = &destinationFilter{
-			Type:           req.Type,
-			Topics:         req.Topics,
-			AllowWildcards: req.AllowWildcards,
+			Type:            req.Type,
+			Topics:          req.Topics,
+			AllowWildcards:  req.AllowWildcards,
+			ExcludeInternal: req.ExcludeInternal,
 		}
 	}
 
@@ -580,13 +581,15 @@ const (
 // writeDestinationScript writes a destination and its tenant summary entry in one
 // step and bumps the destination's version. Depending on mode it first rejects:
 //   - create: a missing or deleted tenant, a live destination with the same ID,
-//     or a full tenant;
+//     or a full tenant (skipped for destinations of an internal type, which
+//     don't count toward the limit);
 //   - update: a missing or deleted destination, or one whose version differs
 //     from the expected one (a missing version counts as 0).
 //
 // KEYS: destination hash, tenant summary hash, tenant hash.
 // ARGV: mode, limit, summary, id, expected version, number of fields to unset,
-// those fields, then field/value pairs to set.
+// 1 to skip the limit check, comma-separated internal destination types, those
+// fields, then field/value pairs to set.
 var writeDestinationScript = redis.NewScript(`
 local mode, limit, summary, id, version, nunset = tonumber(ARGV[1]), tonumber(ARGV[2]), ARGV[3], ARGV[4], tonumber(ARGV[5]), tonumber(ARGV[6])
 if mode == 1 then
@@ -596,8 +599,21 @@ if mode == 1 then
 	if redis.call('EXISTS', KEYS[1]) == 1 and redis.call('HEXISTS', KEYS[1], 'deleted_at') == 0 then
 		return 1
 	end
-	if redis.call('HLEN', KEYS[2]) >= limit then
-		return 2
+	if ARGV[7] == '0' and redis.call('HLEN', KEYS[2]) >= limit then
+		local internal = {}
+		for t in string.gmatch(ARGV[8], '[^,]+') do
+			internal[t] = true
+		end
+		local used = 0
+		for _, v in ipairs(redis.call('HVALS', KEYS[2])) do
+			local ok, d = pcall(cjson.decode, v)
+			if not ok or type(d) ~= 'table' or not internal[d.type] then
+				used = used + 1
+			end
+		end
+		if used >= limit then
+			return 2
+		end
 	end
 elseif mode == 2 then
 	if redis.call('EXISTS', KEYS[1]) == 0 or redis.call('HEXISTS', KEYS[1], 'deleted_at') == 1 then
@@ -609,9 +625,9 @@ elseif mode == 2 then
 end
 redis.call('PERSIST', KEYS[1])
 for i = 1, nunset do
-	redis.call('HDEL', KEYS[1], ARGV[6 + i])
+	redis.call('HDEL', KEYS[1], ARGV[8 + i])
 end
-for i = 7 + nunset, #ARGV, 2 do
+for i = 9 + nunset, #ARGV, 2 do
 	redis.call('HSET', KEYS[1], ARGV[i], ARGV[i + 1])
 end
 redis.call('HINCRBY', KEYS[1], 'version', 1)
@@ -620,15 +636,12 @@ return 0
 `)
 
 func (s *store) CreateDestination(ctx context.Context, destination models.Destination) error {
-	code, err := s.writeDestination(ctx, destination, writeModeCreate)
-	if err == nil && code == writeDestinationLimitReached {
-		// Expired destinations are deleted to free a slot.
-		if err := s.deleteExpiredDestinations(ctx, destination.TenantID); err != nil {
-			return err
-		}
-		code, err = s.writeDestination(ctx, destination, writeModeCreate)
+	if models.IsInternalDestinationType(destination.Type) {
+		// Nothing else deletes expired internal destinations: they never reach the limit.
+		// The sweep is best-effort and bounded; a later create continues it.
+		_ = s.deleteExpiredDestinations(ctx, destination.TenantID, maxSweepPerCreate)
 	}
-	return destinationWriteError(code, err)
+	return destinationWriteError(s.writeDestination(ctx, destination, writeModeCreate))
 }
 
 // Re-reads expires_at so a destination extended since the summary was read is kept.
@@ -647,16 +660,25 @@ redis.call('EXPIRE', KEYS[1], ARGV[3])
 return 1
 `)
 
-func (s *store) deleteExpiredDestinations(ctx context.Context, tenantID string) error {
+// maxSweepPerCreate bounds the expired internal destinations one create deletes.
+const maxSweepPerCreate = 100
+
+// deleteExpiredDestinations deletes up to max expired destinations of the tenant.
+func (s *store) deleteExpiredDestinations(ctx context.Context, tenantID string, max int) error {
 	summaries, err := s.listDestinationSummaryByTenant(ctx, tenantID, nil)
 	if err != nil {
 		return err
 	}
 	now := time.Now()
+	deleted := 0
 	for _, ds := range summaries {
 		if !ds.expired(now) {
 			continue
 		}
+		if deleted == max {
+			break
+		}
+		deleted++
 		err := deleteIfExpiredScript.Run(ctx, s.redisClient,
 			[]string{s.redisDestinationID(ds.ID, tenantID), s.redisTenantDestinationSummaryKey(tenantID)},
 			now.UnixMilli(), ds.ID, int64(deletedRecordTTL.Seconds())).Err()
@@ -700,7 +722,11 @@ func (s *store) writeDestination(ctx context.Context, destination models.Destina
 		return 0, err
 	}
 
-	args := []interface{}{mode, s.maxDestinationsPerTenant, newDestinationSummary(destination), destination.ID, destination.Version, len(unset)}
+	skipLimit := 0
+	if models.IsInternalDestinationType(destination.Type) {
+		skipLimit = 1
+	}
+	args := []interface{}{mode, s.maxDestinationsPerTenant, newDestinationSummary(destination), destination.ID, destination.Version, len(unset), skipLimit, strings.Join(models.InternalDestinationTypes(), ",")}
 	for _, f := range unset {
 		args = append(args, f)
 	}
