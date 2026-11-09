@@ -404,23 +404,20 @@ func (p *HookdeckPublisher) Publish(ctx context.Context, event *models.Event) (*
 	}
 	responseData["headers"] = headers
 
-	// A non-2xx response is a failed attempt and must return an error, so
-	// the delivery handler schedules a retry instead of treating the
-	// delivery as a success. Every other HTTP provider does this; returning
-	// (failed, nil) here silently dropped retries for Hookdeck destinations.
+	// A non-2xx response must return an error so the delivery handler schedules a retry.
 	if status == "failed" {
 		return &destregistry.Delivery{
-			Status:   status,
-			Code:     fmt.Sprintf("%d", resp.StatusCode),
-			Response: responseData,
-		}, destregistry.NewErrDestinationPublishAttempt(
-			fmt.Errorf("request failed with status %d", resp.StatusCode),
-			"hookdeck",
-			map[string]interface{}{
-				"status": resp.StatusCode,
-				"body":   string(respBody),
-			},
-		)
+				Status:   status,
+				Code:     fmt.Sprintf("%d", resp.StatusCode),
+				Response: responseData,
+			}, destregistry.NewErrDestinationPublishAttempt(
+				fmt.Errorf("request failed with status %d", resp.StatusCode),
+				"hookdeck",
+				map[string]interface{}{
+					"status": resp.StatusCode,
+					"body":   string(respBody),
+				},
+			)
 	}
 
 	return &destregistry.Delivery{

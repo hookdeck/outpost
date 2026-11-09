@@ -348,9 +348,6 @@ func TestHookdeckPublisher_TokenInvalidation(t *testing.T) {
 	publisher.Close()
 }
 
-// A Hookdeck gateway returning 500 must make Publish return a non-nil error
-// so deliverymq schedules a retry. Before the fix it returned
-// (Delivery{Status:"failed"}, nil) and the delivery was silently dropped.
 func TestHookdeckPublish_Non2xxReturnsError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -383,6 +380,5 @@ func TestHookdeckPublish_Non2xxReturnsError(t *testing.T) {
 	require.NotNil(t, delivery)
 	assert.Equal(t, "failed", delivery.Status)
 	assert.Equal(t, "500", delivery.Code)
-	// This assertion fails before the fix (err == nil) and passes after.
 	assert.Error(t, err, "Publish must return an error on HTTP 500 so deliverymq retries")
 }
