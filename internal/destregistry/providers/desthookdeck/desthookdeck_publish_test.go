@@ -347,3 +347,42 @@ func TestHookdeckPublisher_TokenInvalidation(t *testing.T) {
 	// Clean up
 	publisher.Close()
 }
+
+// A Hookdeck gateway returning 500 must make Publish return a non-nil error
+// so deliverymq schedules a retry. Before the fix it returned
+// (Delivery{Status:"failed"}, nil) and the delivery was silently dropped.
+func TestHookdeckPublish_Non2xxReturnsError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(`{"error":"gateway exploded"}`))
+	}))
+	defer server.Close()
+
+	tokenString := base64.StdEncoding.EncodeToString([]byte("123:test-source:signing-key"))
+	provider, err := desthookdeck.New(
+		testutil.Registry.MetadataLoader(),
+		nil,
+		desthookdeck.WithHTTPClient(createCustomClient(server.URL)),
+	)
+	require.NoError(t, err)
+
+	dest := testutil.DestinationFactory.Any(
+		testutil.DestinationFactory.WithType("hookdeck"),
+		testutil.DestinationFactory.WithCredentials(map[string]string{"token": tokenString}),
+	)
+	publisher, err := provider.CreatePublisher(context.Background(), &dest)
+	require.NoError(t, err)
+	defer publisher.Close()
+
+	event := testutil.EventFactory.Any(
+		testutil.EventFactory.WithID("event500"),
+		testutil.EventFactory.WithTopic("order.created"),
+		testutil.EventFactory.WithDataMap(map[string]interface{}{"order_id": "test123"}),
+	)
+	delivery, err := publisher.Publish(context.Background(), &event)
+	require.NotNil(t, delivery)
+	assert.Equal(t, "failed", delivery.Status)
+	assert.Equal(t, "500", delivery.Code)
+	// This assertion fails before the fix (err == nil) and passes after.
+	assert.Error(t, err, "Publish must return an error on HTTP 500 so deliverymq retries")
+}
