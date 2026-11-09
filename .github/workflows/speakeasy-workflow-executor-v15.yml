@@ -125,7 +125,17 @@ on:
         required: false
         type: boolean
         default: false
+      # --- Outpost patch (keep when re-vendoring): open PRs with the hookdeck-ci GitHub App ---
+      ci_app_client_id:
+        description: "hookdeck-ci GitHub App client ID. With the ci_app_private_key secret, PRs are opened with an App token instead of github_access_token."
+        required: false
+        type: string
+        default: ""
     secrets:
+      # --- Outpost patch (keep when re-vendoring) ---
+      ci_app_private_key:
+        description: "hookdeck-ci GitHub App private key. Optional: without it, PR creation is unchanged."
+        required: false
       github_access_token:
         description: A GitHub access token with write access to the repo
         required: true
@@ -185,6 +195,8 @@ jobs:
     env:
       GITHUB_REF: ${{ inputs.pr_base_is_main == true && 'refs/heads/main' || github.ref }}
       GITHUB_REF_NAME: ${{ inputs.pr_base_is_main == true && 'main' || github.ref_name }}
+      # --- Outpost patch (keep when re-vendoring): secrets can't be used in a step's `if` ---
+      HAS_CI_APP_PRIVATE_KEY: ${{ secrets.ci_app_private_key != '' }}
     outputs:
       commit_hash: ${{ steps.run-workflow.outputs.commit_hash }}
       publish_python: ${{ steps.run-workflow.outputs.publish_python }}
@@ -255,6 +267,19 @@ jobs:
           repository: speakeasy-api/sdk-generation-action
           ref: 6cd5ba5c0f635337847068ad8410ca9a8651e175
           path: _speakeasy
+      # --- Outpost patch (keep when re-vendoring) ---
+      # The org doesn't let GITHUB_TOKEN create pull requests. When the caller passes the
+      # hookdeck-ci App credentials, mint a short-lived App token and hand it to Speakeasy as
+      # pr_creation_pat, which it uses only to open the PR. Pushes still use github_access_token.
+      - name: Create GitHub App token
+        id: app-token
+        if: ${{ steps.check-label.outputs.short_circuit_label_trigger != 'true' && env.HAS_CI_APP_PRIVATE_KEY == 'true' && inputs.ci_app_client_id != '' }}
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ inputs.ci_app_client_id }}
+          private-key: ${{ secrets.ci_app_private_key }}
+          permission-contents: write
+          permission-pull-requests: write
       - id: run-workflow
         name: Run Generation Workflow
         if: ${{ steps.check-label.outputs.short_circuit_label_trigger != 'true' }}
@@ -266,7 +291,8 @@ jobs:
           force: ${{ inputs.force }}
           signed_commits: ${{ inputs.signed_commits }}
           speakeasy_api_key: ${{ secrets.speakeasy_api_key }}
-          pr_creation_pat: ${{ secrets.pr_creation_pat }}
+          # --- Outpost patch (keep when re-vendoring): App token when available ---
+          pr_creation_pat: ${{ steps.app-token.outputs.token || secrets.pr_creation_pat }}
           speakeasy_server_url: ${{ inputs.speakeasy_server_url }}
           working_directory: ${{ inputs.working_directory }}
           openapi_doc_auth_token: ${{ secrets.openapi_doc_auth_token }}

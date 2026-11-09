@@ -33,6 +33,10 @@ on:
         required: false
       npm_token:
         required: false
+      # Optional: with it, PRs are opened with a hookdeck-ci GitHub App token
+      # (the org doesn't let GITHUB_TOKEN create pull requests)
+      ci_app_private_key:
+        required: false
 
 jobs:
   generate:
@@ -49,8 +53,10 @@ jobs:
       target: ${{ inputs.target }}
       set_version: ${{ inputs.set_version || '' }}
       pr_base_is_main: ${{ inputs.pr_base_is_main }}
+      ci_app_client_id: ${{ vars.CI_APP_CLIENT_ID }}
     secrets:
       github_access_token: ${{ secrets.github_access_token }}
       speakeasy_api_key: ${{ secrets.speakeasy_api_key }}
       pypi_token: ${{ secrets.pypi_token }}
       npm_token: ${{ secrets.npm_token }}
+      ci_app_private_key: ${{ secrets.ci_app_private_key }}
