@@ -88,6 +88,7 @@ func ExecuteHTTPRequest(ctx context.Context, client *http.Client, req *http.Requ
 			Response: nil,
 		}
 	}
+	defer resp.Body.Close()
 
 	// Non-2xx fails the attempt. Redirects aren't followed, so a 3xx lands here too.
 	if resp.StatusCode >= 300 {
