@@ -4,49 +4,53 @@ description: "Experimental. Deliver events to MCP Events webhook subscriptions, 
 ---
 
 {% callout type="warning" %}
-Experimental. This destination type and its behavior may change without notice. It is off unless [`EXPERIMENTAL_MCP_ENABLED`](/docs/outpost/self-hosting/configuration#mcp-events-experimental) is `true`, and is created and updated with the Admin API key only. While it is off, stored `mcp` destinations receive no events and lapse at their expiry.
+Experimental. MCP Events and its behavior may change without notice. It is off by default, and subscriptions are created and refreshed only through the [subscribe endpoints](#subscribe-endpoints-for-an-mcp-server), with the Admin API key.
 {% /callout %}
 
-This implements MCP Events (draft [SEP-3415](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/3415)), an MCP extension for subscribing to events. An `mcp` destination is one MCP Events webhook subscription: a callback URL that receives one topic's events, wrapped in the MCP Events envelope and signed with [Standard Webhooks](https://www.standardwebhooks.com/). Your MCP server creates it on behalf of an agent and refreshes or deletes it as the agent subscribes, renews and unsubscribes.
+This implements MCP Events (draft [SEP-3415](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/3415)), an MCP extension for subscribing to events. A subscription is one MCP Events webhook subscription: a callback URL that receives one topic's events, wrapped in the MCP Events envelope and signed with [Standard Webhooks](https://www.standardwebhooks.com/). Your MCP server creates it on behalf of an agent through the subscribe endpoints, and refreshes or removes it as the agent renews and unsubscribes.
 
-## Creating an MCP Destination
+## Enabling MCP Events
 
-```sh
-curl '{% $OUTPOST_API_BASE_URL %}/tenants/<TENANT_ID>/destinations' \
---header 'Content-Type: application/json' \
---header 'Authorization: Bearer <API_KEY>' \
---data '{
-  "id": "sub_12345",
-  "type": "mcp",
-  "topics": ["order.created"],
-  "config": {
-    "url": "https://agent.example.com/mcp-events/abc123",
-    "principal": "user-123"
-  },
-  "credentials": {
-    "secret": "whsec_MfKQ9r8GKYqrTwjUPD8ILPZIo2LaLaSw"
-  },
-  "expires_at": "2030-01-01T00:00:00Z"
-}'
-```
+{% tabs tabGroup="deployment" %}
+{% tab label="Managed" %}
 
-Before the destination is stored, Outpost sends a verification challenge to the callback URL. If the callback fails it, including with a non-2xx reply, the request returns `422` with the reason as the validation type: `challenge_failed`, `connection_refused`, `timeout`, `tls_error`, `https_required` or `address_not_allowed`. If Outpost hits a verification limit, the request returns `429` with a `Retry-After` header and `data.code` of `rate_limited`. If verification can't run, it returns `503` with `data.code` of `verification_unavailable`. A callback that resolves to a non-public address returns `config.url must resolve to a public address`. A callback that was already verified for the same tenant, principal and URL is not challenged again for `EXPERIMENTAL_MCP_VERIFICATION_TTL_SECONDS`.
+Turn on MCP Events and define the events in [Hookdeck MCP Events settings](https://dashboard.hookdeck.com/settings/project/mcp-events), or set `EXPERIMENTAL_MCP_ENABLED` and `EXPERIMENTAL_MCP_EVENTS_SCHEMA` through the Config API. Your MCP server calls the subscribe endpoints through the Outpost API with the API key.
 
-Verification is limited to 10 challenges per tenant and principal per minute, and 120 failed challenges per tenant and callback host per minute. Subscriptions without a principal share the tenant's budget.
+{% /tab %}
+{% tab label="Self-Hosted" %}
 
-## Configuration
+Set [`EXPERIMENTAL_MCP_ENABLED`](/docs/outpost/self-hosting/configuration#mcp-events-experimental) to `true`, and define the events with `EXPERIMENTAL_MCP_EVENTS_SCHEMA`.
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `id` | string | No | Subscription ID, sent as `X-MCP-Subscription-Id`. 1 to 128 characters of `A-Z a-z 0-9 _ -`. |
-| `topics` | string[] | Yes | Exactly one topic. `*` is not accepted. |
-| `config.url` | string | Yes | Callback URL. `https`, in normalized form (lowercase host, no default port, no credentials); `http` only with `EXPERIMENTAL_MCP_ALLOW_INSECURE_CALLBACKS`, for addresses in `DESTINATIONS_PRIVATE_ADDRESS_ALLOWLIST`, for development. Must resolve to a public address, unless allowed by `DESTINATIONS_PRIVATE_ADDRESS_ALLOWLIST`. |
-| `config.principal` | string | No | The subject the subscription belongs to, up to 512 bytes. Verification is cached per tenant, principal and URL. |
-| `config.arguments` | string | No | Canonical JSON object, up to 4 KiB. Stored with the destination. Must satisfy the event's `inputSchema`. |
-| `credentials.secret` | string | Yes | `whsec_` followed by base64 of 24 to 64 bytes. |
-| `expires_at` | string | No | RFC 3339 time in the future. From then on the subscription matches no events and receives no deliveries. `null` on update clears it. |
+{% /tab %}
+{% /tabs %}
 
-`config.url`, `config.principal`, `config.arguments` and `topics` cannot change after creation. To rotate the secret, update `credentials.secret`: the old secret keeps signing for 24 hours alongside the new one.
+## Subscriptions
+
+Outpost stores subscriptions itself. The destinations API never returns them: they are not listed, `GET`, `PATCH` and `DELETE` on one answer `404`, and they can't be created there. They don't count toward `MAX_DESTINATIONS_PER_TENANT`, a tenant's `destinations_count` or its `topics`. `topics` covers destinations only, not MCP Events subscriptions: if you use MCP Events, don't skip publishing based on it. Operator events include the subscription, for example `alert.destination.disabled` when `ALERT_AUTO_DISABLE_DESTINATION` is on; only a refresh re-enables it.
+
+Attempts and events keep the subscription's `id` as `destination_id`. A manual retry (`POST /retry`) of a subscription's attempt answers `404`, and publishing to a subscription by `destination_id` matches nothing. Automatic retries continue.
+
+Before a subscription is stored, Outpost sends a verification challenge to the callback URL. If the callback fails it, including with a non-2xx reply, subscribing answers with a `CallbackEndpointError` whose `reason` is `challenge_failed`, `connection_refused`, `timeout` or `tls_error`. A callback that is not `https` (unless allowed below) or that resolves to a non-public address answers `InvalidParams`. If Outpost hits a verification limit, the answer is `ResourceExhausted`. A callback that was already verified for the same tenant, principal and URL is not challenged again for `EXPERIMENTAL_MCP_VERIFICATION_TTL_SECONDS`.
+
+Verification is limited to 10 challenges per tenant and principal per minute, and 120 failed challenges per tenant and callback host per minute.
+
+## Subscribe Fields
+
+A subscribe sends these fields:
+
+| Field | Description |
+|-------|-------------|
+| `principal` | The subject the subscription belongs to, up to 512 bytes. Verification is cached per tenant, principal and URL. |
+| `params.name` | The subscribed event. |
+| `params.arguments` | A JSON object, up to 4 KiB. Must satisfy the event's `inputSchema`. |
+| `params.delivery.mode` | Optional. Only `webhook`; any other value answers `Unsupported`. |
+| `params.delivery.url` | Callback URL. `https`, in normalized form (lowercase host, no default port, no credentials); `http` only with `EXPERIMENTAL_MCP_ALLOW_INSECURE_CALLBACKS`, for addresses in `DESTINATIONS_PRIVATE_ADDRESS_ALLOWLIST`, for development. Must resolve to a public address, unless allowed by `DESTINATIONS_PRIVATE_ADDRESS_ALLOWLIST`. |
+| `params.delivery.secret` | `whsec_` followed by base64 of 24 to 64 bytes. |
+| `params.ttlMs` | The requested lifetime. Once it has passed, the subscription matches no events and receives no deliveries. |
+
+The subscription `id` is derived from the principal, callback URL, event and arguments, and sent as `X-MCP-Subscription-Id`.
+
+Subscribing again with a new secret rotates it: the old secret keeps signing for 24 hours alongside the new one.
 
 ## Event Definitions
 
@@ -111,9 +115,20 @@ Set the JSON in [`EXPERIMENTAL_MCP_EVENTS_SCHEMA`](/docs/outpost/self-hosting/co
 {% /tab %}
 {% /tabs %}
 
-A subscription must target a defined event: `422` with `topics` / `not_found` otherwise, so with no definitions every subscription is refused. `config.arguments` must satisfy the event's `inputSchema`, and an argument that isn't listed under its `properties` is refused. `filter` can't be set on these subscriptions. Checks run when a subscription is created.
+A subscription must target a defined event: `NotFound` otherwise, so with no definitions every subscription is refused. `params.arguments` must satisfy the event's `inputSchema`, and an argument that isn't listed under its `properties` is refused. Checks run when a subscription is created.
 
-`GET /mcp/events/list` (Admin API key) returns the configured list in order as an MCP `events/list` result (`resultType: "complete"`), with `delivery` set to `["webhook"]` on each event and `nextCursor` when there are more. `topics=a,b` restricts the list to those events, and `limit` and `cursor` page through it. Without MCP enabled or any events configured, the route returns `404`.
+`GET /mcp/events/list` (Admin API key) returns the configured list in order as an MCP `events/list` result (`resultType: "complete"`), with `delivery` set to `["webhook"]` on each event and `nextCursor` when there are more. `topics=a,b` restricts the list to those events, and `limit` and `cursor` page through it. Without MCP enabled or any events configured, the route returns `404`. If the definitions are invalid, Outpost still starts and logs the error; this route and the subscribe endpoints answer `503` and the reason is logged, and existing subscriptions keep delivering.
+
+## Subscribe Endpoints for an MCP Server
+
+An MCP server that exposes `events/subscribe` and `events/unsubscribe` forwards them to Outpost, which creates and removes the subscriptions. With MCP enabled, the Admin API key can call `POST /tenants/<TENANT_ID>/mcp/subscribe` and `POST /tenants/<TENANT_ID>/mcp/unsubscribe` with `{"principal": ..., "params": ...}`, where `params` are the MCP request's params as received. The answer is the MCP result, or a `422` with an `mcp_error` (`code`, `message`, and `data` where the MCP Events spec defines it) to return as the JSON-RPC error.
+
+The MCP server authenticates its users and sends each user's `principal`. Outpost does not authenticate the principal: it trusts the caller holding the Admin API key, takes the tenant from the path, and creates it if missing. Subscriptions are scoped by tenant and principal: only the principal that created a subscription can refresh or remove it, and callback verification is cached per tenant and principal. Before forwarding a subscribe, the MCP server checks that the principal may receive that event with those arguments, as the spec requires; Outpost enforces only `allowed_topics`. The MCP server also handles the MCP transport: advertising the events extension and checking the `Mcp-Name` header.
+
+- A new subscription is checked against the event definitions and verified as described in [Subscriptions](#subscriptions). Subscribing creates the tenant if it does not exist, even when the subscribe then fails.
+- `allowed_topics` on the subscribe call restricts the principal's events: omitted allows every event, an empty list allows none. A subscription to a refused event answers `Forbidden`.
+- Subscribing again with the same principal, event, arguments and callback URL refreshes the subscription: same `id`, new expiry, the new secret, re-enabled if it was suspended. Once a subscription has expired, subscribing starts a new one.
+- The lifetime follows the agent's `ttlMs`, within `EXPERIMENTAL_MCP_SUBSCRIPTION_TTL_MIN_SECONDS` and `EXPERIMENTAL_MCP_SUBSCRIPTION_TTL_MAX_SECONDS`. No `ttlMs` gets `EXPERIMENTAL_MCP_SUBSCRIPTION_TTL_DEFAULT_SECONDS`; `null` gets the maximum.
 
 ## Delivery
 
@@ -141,3 +156,7 @@ X-MCP-Subscription-Id: sub_12345
 A `2xx` response is a success. Any other response, a network error or a refused address is a failed attempt and is retried 1, 3, 5 and 5 minutes after the previous attempt: up to 5 attempts within 14 minutes of the first (`RETRY_SCHEDULE` and `MAX_RETRY_LIMIT` don't apply to `mcp`). A `3xx` is a failure with its status as the attempt code.
 
 These are not retried, and don't count toward auto-disabling the subscription: a `410` or `413` response, and an event whose envelope exceeds 256 KiB (attempt code `payload_too_large`, no request sent).
+
+## Downgrading
+
+While MCP Events is off, stored subscriptions receive no events and lapse at their expiry. An expired subscription stays stored until the next new subscription of its tenant removes it. Before downgrading to an Outpost version without MCP support, remove every subscription with `unsubscribe`, or delete the tenant: the destinations API can't remove them. Older versions don't know `expires_at`, so expired subscriptions still match events; their deliveries fail and are redelivered, and listing that tenant's destinations returns an error.

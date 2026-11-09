@@ -228,11 +228,11 @@ Setting a listed worker's four limits to `-1` keeps its failures from ever faili
 
 ## MCP Events (Experimental)
 
-Off by default. When `EXPERIMENTAL_MCP_ENABLED` is `true`, the experimental [`mcp` destination type](/docs/outpost/destinations/mcp) is available to the Admin API key. In YAML, these options sit under `experimental.mcp` (for example `experimental.mcp.enabled`).
+Off by default. When `EXPERIMENTAL_MCP_ENABLED` is `true`, the experimental [MCP Events subscribe endpoints](/docs/outpost/destinations/mcp#subscribe-endpoints-for-an-mcp-server) are available, with the Admin API key. In YAML, these options sit under `experimental.mcp` (for example `experimental.mcp.enabled`).
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `EXPERIMENTAL_MCP_ENABLED` | `false` | Registers the `mcp` destination type. Without it, `mcp` is rejected like any unknown destination type. While it is off, stored `mcp` destinations receive no events and lapse at their expiry. |
+| `EXPERIMENTAL_MCP_ENABLED` | `false` | Enables the MCP subscribe endpoints. See [Downgrading](/docs/outpost/destinations/mcp#downgrading) before turning it off for good. |
 | `EXPERIMENTAL_MCP_ALLOW_INSECURE_CALLBACKS` | `false` | The MCP Events spec requires `https` callback URLs. When `true`, `http` is also accepted for addresses that are all in `DESTINATIONS_PRIVATE_ADDRESS_ALLOWLIST`: an exception outside the spec, for development only. |
 | `EXPERIMENTAL_MCP_VERIFICATION_TTL_SECONDS` | `86400` | How long, in seconds, a passed callback verification is cached per tenant, principal and callback URL. |
 | `EXPERIMENTAL_MCP_SUBSCRIPTION_TTL_DEFAULT_SECONDS` | `3600` | Lifetime, in seconds, of a subscription made through the [MCP subscribe endpoint](/docs/outpost/destinations/mcp#subscribe-endpoints-for-an-mcp-server) when the request has no `ttlMs`. Must be between the min and max. |
