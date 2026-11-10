@@ -27,7 +27,7 @@ func newProxiedKafkaTopicPublisher(t *testing.T, chain, brokers, topic, useTLS s
 	t.Helper()
 	hops, err := proxychain.Parse(chain)
 	require.NoError(t, err)
-	provider, err := destkafka.New(testutil.Registry.MetadataLoader(), nil, destkafka.WithProxy(hops))
+	provider, err := destkafka.New(testutil.Registry.MetadataLoader(), nil, destkafka.WithProxy(hops, 0))
 	require.NoError(t, err)
 	destination := testutil.DestinationFactory.Any(
 		testutil.DestinationFactory.WithType("kafka"),

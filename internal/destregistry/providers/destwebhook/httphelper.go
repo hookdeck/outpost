@@ -46,10 +46,7 @@ func ExecuteHTTPRequest(ctx context.Context, client *http.Client, req *http.Requ
 		if errors.As(err, &infraErr) {
 			return &HTTPRequestResult{
 				Delivery: nil,
-				Error: destregistry.NewErrDestinationPublishAttempt(err, provider, map[string]interface{}{
-					"error":   "proxy_infrastructure",
-					"message": infraErr.Error(),
-				}),
+				Error:    destregistry.NewErrDestinationPublishAttempt(err, provider, destregistry.ProxyInfraData(infraErr)),
 				Response: nil,
 			}
 		}

@@ -200,6 +200,9 @@ func (c *Config) validatePortal() error {
 // never reaches the delivery path, and on an EventBridge source that AWS
 // would reject on every publish.
 func (c *Config) validateDestinations() error {
+	if c.Destinations.ProxyExternalHops < 0 {
+		return ErrInvalidProxyExternalHops
+	}
 	if _, err := proxychain.Parse(c.Destinations.ProxyURL); err != nil {
 		return fmt.Errorf("%w: %w", ErrInvalidDestinationsProxyURL, err)
 	}

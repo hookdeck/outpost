@@ -1131,3 +1131,20 @@ func TestRetryTimingWarnings(t *testing.T) {
 		})
 	}
 }
+
+func TestDestinationsProxyExternalHops(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		env  map[string]string
+		want int
+	}{
+		{"default", map[string]string{}, 0},
+		{"set", map[string]string{"DESTINATIONS_PROXY_EXTERNAL_HOPS": "2"}, 2},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg, err := config.ParseWithoutValidation(config.Flags{}, &mockOS{files: map[string][]byte{}, envVars: tt.env})
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, cfg.Destinations.ToConfig(cfg).ProxyExternalHops)
+		})
+	}
+}

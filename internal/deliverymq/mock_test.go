@@ -334,3 +334,9 @@ func (m *mockMessage) Data() []byte {
 }
 
 func (m *mockMessage) SetData([]byte) {}
+
+type nilAttemptPublisher struct{ err error }
+
+func (p nilAttemptPublisher) PublishEvent(context.Context, *models.Destination, *models.Event) (*models.Attempt, error) {
+	return nil, p.err
+}

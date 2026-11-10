@@ -5,17 +5,26 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/url"
 	"sort"
+	"strconv"
 	"strings"
+
+	"github.com/hookdeck/outpost/internal/proxychain"
 )
 
 // ErrProxyInfra signals that a delivery failed at the proxy layer
 // (proxy auth misconfiguration, proxy unreachable, etc.). The delivery result
 // is nacked so the underlying message queue redelivers without recording a
 // customer-visible failed attempt.
+//
+// HopIndex and Hop (redacted scheme://host:port) locate the failing hop for
+// operator diagnostics; they are never part of Error().
 type ErrProxyInfra struct {
 	Underlying error
 	DestHost   string
+	HopIndex   int
+	Hop        string
 }
 
 func (e *ErrProxyInfra) Error() string {
@@ -128,8 +137,8 @@ func MapEnvoyResponseFlag(flag string) string {
 
 // ClassifyProxyConnectResponse maps a non-200 CONNECT response from a proxy
 // hop into ErrProxyInfra or ErrProxyDestination. target is the host:port the
-// CONNECT was for.
-func ClassifyProxyConnectResponse(status int, header http.Header, underlying error, target string) error {
+// CONNECT was for; hopIndex and hop identify the hop that answered.
+func ClassifyProxyConnectResponse(status int, header http.Header, underlying error, target string, hopIndex int, hop string) error {
 	destHost := hostOnly(target)
 	flag := EnvoyResponseFlag(header)
 	details := EnvoyResponseDetails(header)
@@ -153,6 +162,8 @@ func ClassifyProxyConnectResponse(status int, header http.Header, underlying err
 		return &ErrProxyInfra{
 			Underlying: underlying,
 			DestHost:   destHost,
+			HopIndex:   hopIndex,
+			Hop:        hop,
 		}
 	}
 
@@ -169,6 +180,97 @@ func ClassifyProxyConnectResponse(status int, header http.Header, underlying err
 		DestHost:    destHost,
 		Diagnostics: EnvoyDiagnostics(flag, details),
 	}
+}
+
+// ProxyErrorCode is the attempt code for a failure at an external proxy hop.
+const ProxyErrorCode = "proxy_error"
+
+// ProxyHopPolicy decides which proxy-hop failures are charged to the
+// destination. The last ExternalHops hops of the chain are not run by the
+// operator: a failure at one of them is a failed attempt (ProxyErrorCode)
+// instead of an ErrProxyInfra nack. The zero value changes nothing.
+type ProxyHopPolicy struct {
+	hops  []string
+	first int
+}
+
+// NewProxyHopPolicy returns the policy for a chain whose last externalHops
+// hops are external. externalHops is clamped to the chain length.
+func NewProxyHopPolicy(hops []*url.URL, externalHops int) ProxyHopPolicy {
+	if externalHops <= 0 || len(hops) == 0 {
+		return ProxyHopPolicy{}
+	}
+	if externalHops > len(hops) {
+		externalHops = len(hops)
+	}
+	addrs := make([]string, len(hops))
+	for i, h := range hops {
+		addrs[i] = proxychain.Redact(h)
+	}
+	return ProxyHopPolicy{hops: addrs, first: len(hops) - externalHops}
+}
+
+func (p ProxyHopPolicy) external(i int) bool {
+	return len(p.hops) > 0 && i >= p.first
+}
+
+// Apply converts an ErrProxyInfra located at an external hop into an
+// ErrProxyDestination. Any other error is returned unchanged.
+func (p ProxyHopPolicy) Apply(err error) error {
+	var infra *ErrProxyInfra
+	if !errors.As(err, &infra) || !p.external(infra.HopIndex) {
+		return err
+	}
+	return &ErrProxyDestination{
+		Underlying:  infra.Underlying,
+		Code:        ProxyErrorCode,
+		DestHost:    infra.DestHost,
+		Diagnostics: map[string]string{"proxy_hop": strconv.Itoa(infra.HopIndex), "proxy": infra.Hop},
+	}
+}
+
+// ClassifyConnect is ClassifyProxyConnectResponse with the policy applied.
+// A non-auth refusal from hop i of a CONNECT to hop i+1 means hop i+1 could
+// not be reached, which is charged to hop i+1.
+func (p ProxyHopPolicy) ClassifyConnect(status int, header http.Header, underlying error, target string, hopIndex int, hop string) error {
+	err := ClassifyProxyConnectResponse(status, header, underlying, target, hopIndex, hop)
+	if len(p.hops) == 0 {
+		return err
+	}
+	switch status {
+	case http.StatusProxyAuthRequired, http.StatusUnauthorized, http.StatusForbidden:
+		return p.Apply(err)
+	}
+	next := hopIndex + 1
+	var dest *ErrProxyDestination
+	if next >= len(p.hops) || !p.external(next) || !errors.As(err, &dest) {
+		return err
+	}
+	diag := map[string]string{"proxy_hop": strconv.Itoa(next), "proxy": p.hops[next]}
+	for k, v := range dest.Diagnostics {
+		diag[k] = v
+	}
+	return &ErrProxyDestination{
+		Underlying:  dest.Underlying,
+		Code:        ProxyErrorCode,
+		DestHost:    dest.DestHost,
+		Diagnostics: diag,
+	}
+}
+
+// ProxyInfraData is the publish-attempt error data for an ErrProxyInfra:
+// operator-side only, the hop address is redacted.
+func ProxyInfraData(infra *ErrProxyInfra) map[string]interface{} {
+	data := map[string]interface{}{
+		"error":     "proxy_infrastructure",
+		"message":   infra.Error(),
+		"proxy_hop": strconv.Itoa(infra.HopIndex),
+		"proxy":     infra.Hop,
+	}
+	if infra.Underlying != nil {
+		data["proxy_error"] = infra.Underlying.Error()
+	}
+	return data
 }
 
 func hostOnly(hostport string) string {
@@ -232,10 +334,7 @@ func IsProxyError(err error) bool {
 func ProxyPublishResult(err error, provider string) (*Delivery, error) {
 	var infraErr *ErrProxyInfra
 	if errors.As(err, &infraErr) {
-		return nil, NewErrDestinationPublishAttempt(err, provider, map[string]interface{}{
-			"error":   "proxy_infrastructure",
-			"message": infraErr.Error(),
-		})
+		return nil, NewErrDestinationPublishAttempt(err, provider, ProxyInfraData(infraErr))
 	}
 	var destErr *ErrProxyDestination
 	if !errors.As(err, &destErr) {

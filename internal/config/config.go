@@ -136,6 +136,7 @@ var (
 	ErrInvalidPortalProxyURL          = errors.New("config validation error: invalid portal proxy url")
 	ErrInvalidWebhookProxyURL         = errors.New("config validation error: invalid webhook proxy url")
 	ErrInvalidAWSEventBridgeSource    = errors.New("config validation error: invalid aws eventbridge source")
+	ErrInvalidProxyExternalHops       = errors.New("config validation error: destinations proxy external hops must not be negative")
 	ErrInvalidDestinationsProxyURL    = errors.New("config validation error: invalid destinations proxy url")
 	ErrInvalidPrivateAddressAllowlist = errors.New("config validation error: invalid private address allowlist")
 	ErrInvalidPublishProxyURL         = errors.New("config validation error: invalid publish proxy url")

@@ -48,10 +48,11 @@ var _ destregistry.Provider = (*KafkaDestination)(nil)
 type Option func(*KafkaDestination)
 
 // WithProxy connects to brokers through the given forward proxies, nearest
-// hop first. TLS runs end to end through the tunnel.
-func WithProxy(hops []*url.URL) Option {
+// hop first. The last externalHops hops are not run by the operator (see
+// destregistry.ProxyHopPolicy). TLS runs end to end through the tunnel.
+func WithProxy(hops []*url.URL, externalHops int) Option {
 	return func(d *KafkaDestination) {
-		d.proxyDial = destregistry.ProxyDialFunc(hops)
+		d.proxyDial = destregistry.ProxyDialFunc(hops, externalHops)
 	}
 }
 

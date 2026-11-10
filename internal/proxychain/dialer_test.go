@@ -110,7 +110,56 @@ func TestDialer_AuthRejected(t *testing.T) {
 	assert.Equal(t, http.StatusProxyAuthRequired, connectErr.Status)
 	assert.Equal(t, "http://"+proxychaintest.HostOf(hop1.URL), connectErr.Hop)
 	assert.Equal(t, target, connectErr.Next)
+	assert.Equal(t, 1, connectErr.Index)
 	assert.NotContains(t, err.Error(), "topsecret")
+}
+
+func TestDialer_HopErrorIndex(t *testing.T) {
+	t.Parallel()
+	target := newEchoServer(t)
+
+	t.Run("first hop unreachable", func(t *testing.T) {
+		t.Parallel()
+		_, err := dialThrough(t, "http://127.0.0.1:1", target)
+		var hopErr *proxychain.HopError
+		require.True(t, errors.As(err, &hopErr), "got %v", err)
+		assert.Equal(t, 0, hopErr.Index)
+		assert.Equal(t, "http://127.0.0.1:1", hopErr.Hop)
+	})
+
+	t.Run("TLS to second hop fails", func(t *testing.T) {
+		t.Parallel()
+		hop0 := proxychaintest.New(t, false)
+		hop1 := proxychaintest.New(t, true)
+		// Test certificate is not trusted.
+		_, err := dialThrough(t, hop0.URL+" "+hop1.URL, target)
+		var hopErr *proxychain.HopError
+		require.True(t, errors.As(err, &hopErr), "got %v", err)
+		assert.True(t, hopErr.Handshake)
+		assert.Equal(t, 1, hopErr.Index)
+	})
+
+	t.Run("second hop answers CONNECT with 407", func(t *testing.T) {
+		t.Parallel()
+		hop0 := proxychaintest.New(t, false)
+		hop1 := proxychaintest.New(t, false)
+		hop1.Reject = func(string) (int, http.Header) { return http.StatusProxyAuthRequired, nil }
+		_, err := dialThrough(t, hop0.URL+" "+hop1.URL, target)
+		var connectErr *proxychain.ConnectError
+		require.True(t, errors.As(err, &connectErr), "got %v", err)
+		assert.Equal(t, 1, connectErr.Index)
+	})
+
+	t.Run("first hop refuses CONNECT to second", func(t *testing.T) {
+		t.Parallel()
+		hop0 := proxychaintest.New(t, false)
+		hop0.Reject = func(string) (int, http.Header) { return http.StatusServiceUnavailable, nil }
+		hop1 := proxychaintest.New(t, false)
+		_, err := dialThrough(t, hop0.URL+" "+hop1.URL, target)
+		var connectErr *proxychain.ConnectError
+		require.True(t, errors.As(err, &connectErr), "got %v", err)
+		assert.Equal(t, 0, connectErr.Index)
+	})
 }
 
 func TestDialer_CancelWhileCONNECTUnanswered(t *testing.T) {

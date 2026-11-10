@@ -14,13 +14,15 @@ import (
 	"github.com/hookdeck/outpost/internal/proxychain"
 )
 
-// WrapTransport is the destregistry.HTTPClientConfig.WrapTransport hook for
-// webhook destinations. It installs OnProxyConnectResponse on the underlying
-// transport and wraps it in proxyTransport so request- and response-time
-// proxy failures get translated into ErrProxyInfra / ErrProxyDestination.
-func WrapTransport(transport *http.Transport, proxyURL *url.URL) http.RoundTripper {
-	transport.OnProxyConnectResponse = onProxyConnectResponse
-	return newProxyTransport(transport, proxyURL)
+// NewWrapTransport returns the HTTPClientConfig.WrapTransport hook for webhooks
+// proxied through hops; failures at the last externalHops hops are failed
+// attempts (see destregistry.ProxyHopPolicy).
+func NewWrapTransport(hops []*url.URL, externalHops int) func(*http.Transport, *url.URL) http.RoundTripper {
+	return func(transport *http.Transport, proxyURL *url.URL) http.RoundTripper {
+		t := newProxyTransport(transport, proxyURL).withChain(hops, externalHops)
+		transport.OnProxyConnectResponse = t.onProxyConnectResponse
+		return t
+	}
 }
 
 // proxyTransport wraps an http.RoundTripper to translate proxy-originated
@@ -55,17 +57,32 @@ func WrapTransport(transport *http.Transport, proxyURL *url.URL) http.RoundTripp
 type proxyTransport struct {
 	base     http.RoundTripper
 	proxyURL *url.URL
+	// lastIndex and lastHop are the chain's last hop, the one net/http sends its own CONNECT to.
+	lastIndex int
+	lastHop   string
+	policy    destregistry.ProxyHopPolicy
 }
 
 func newProxyTransport(base http.RoundTripper, proxyURL *url.URL) *proxyTransport {
-	return &proxyTransport{base: base, proxyURL: proxyURL}
+	return &proxyTransport{base: base, proxyURL: proxyURL, lastHop: proxychain.Redact(proxyURL)}
+}
+
+func (t *proxyTransport) withChain(hops []*url.URL, externalHops int) *proxyTransport {
+	if len(hops) > 0 {
+		t.lastIndex = len(hops) - 1
+		t.policy = destregistry.NewProxyHopPolicy(hops, externalHops)
+	}
+	return t
 }
 
 func (t *proxyTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	resp, err := t.base.RoundTrip(req)
 	if err != nil {
 		if mapped := t.classifyTransportError(err, req); mapped != nil {
-			return nil, mapped
+			if errors.Is(err, context.Canceled) {
+				return nil, mapped
+			}
+			return nil, t.policy.Apply(mapped)
 		}
 		return nil, err
 	}
@@ -156,13 +173,10 @@ func (t *proxyTransport) classifyTransportError(err error, req *http.Request) er
 	// failure, so this has to run before the substring check below.
 	var connectErr *proxychain.ConnectError
 	if errors.As(err, &connectErr) {
-		return destregistry.ClassifyProxyConnectResponse(connectErr.Status, connectErr.Header, err, connectErr.Next)
+		return t.policy.ClassifyConnect(connectErr.Status, connectErr.Header, err, destHostFromRequest(req), connectErr.Index, connectErr.Hop)
 	}
 
-	destHost := ""
-	if req != nil && req.URL != nil {
-		destHost = req.URL.Host
-	}
+	destHost := destHostFromRequest(req)
 
 	// Dial-to-proxy failure: Go wraps these in &net.OpError{Op: "proxyconnect"}
 	// even in current versions. The wrap is the most reliable signal that the
@@ -171,7 +185,12 @@ func (t *proxyTransport) classifyTransportError(err error, req *http.Request) er
 	// pinned by TestProxyTransport_PinProxyconnectWording in
 	// proxytransport_pin_test.go — update both together if it ever changes.
 	if strings.Contains(err.Error(), "proxyconnect") {
-		return &destregistry.ErrProxyInfra{Underlying: err, DestHost: destHost}
+		infra := &destregistry.ErrProxyInfra{Underlying: err, DestHost: destHost, HopIndex: t.lastIndex, Hop: t.lastHop}
+		var hopErr *proxychain.HopError
+		if errors.As(err, &hopErr) {
+			infra.HopIndex, infra.Hop = hopErr.Index, hopErr.Hop
+		}
+		return infra
 	}
 
 	return nil
@@ -182,7 +201,7 @@ func (t *proxyTransport) classifyTransportError(err error, req *http.Request) er
 // translated into the appropriate sentinel here, where the full response
 // (status code + headers, including x-envoy-response-flags) is still
 // available.
-func onProxyConnectResponse(ctx context.Context, proxyURL *url.URL, connectReq *http.Request, resp *http.Response) error {
+func (t *proxyTransport) onProxyConnectResponse(ctx context.Context, proxyURL *url.URL, connectReq *http.Request, resp *http.Response) error {
 	if resp.StatusCode == http.StatusOK {
 		return nil
 	}
@@ -199,7 +218,7 @@ func onProxyConnectResponse(ctx context.Context, proxyURL *url.URL, connectReq *
 			destHost = connectReq.URL.Host
 		}
 	}
-	return destregistry.ClassifyProxyConnectResponse(resp.StatusCode, resp.Header, fmt.Errorf("proxy returned %s", resp.Status), destHost)
+	return t.policy.ClassifyConnect(resp.StatusCode, resp.Header, fmt.Errorf("proxy returned %s", resp.Status), destHost, t.lastIndex, t.lastHop)
 }
 
 // synthesizedErr builds the underlying error wrapped inside ErrProxyDestination

@@ -114,6 +114,7 @@ type WebhookDestination struct {
 	headerPrefix             string
 	userAgent                string
 	proxy                    []*url.URL
+	proxyExternalHops        int
 	guard                    *netguard.Guard
 	signatureContentTemplate string
 	signatureHeaderTemplate  string
@@ -206,6 +207,14 @@ func WithMetadataName(name string) Option {
 func WithProxy(hops []*url.URL) Option {
 	return func(w *WebhookDestination) {
 		w.proxy = hops
+	}
+}
+
+// WithProxyExternalHops sets how many hops at the end of the proxy chain the
+// operator doesn't run. See destregistry.ProxyHopPolicy.
+func WithProxyExternalHops(n int) Option {
+	return func(w *WebhookDestination) {
+		w.proxyExternalHops = n
 	}
 }
 
@@ -431,7 +440,7 @@ func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePu
 		UserAgent:     &destination.userAgent,
 		Proxy:         destination.proxy,
 		Guard:         destination.guard,
-		WrapTransport: WrapTransport,
+		WrapTransport: NewWrapTransport(destination.proxy, destination.proxyExternalHops),
 		Pool:          destination.pool,
 		OnConnection:  destination.onConnection,
 	})

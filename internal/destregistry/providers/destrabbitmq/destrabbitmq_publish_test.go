@@ -179,7 +179,7 @@ func (s *RabbitMQPublishSuite) SetupSuite() {
 	if s.proxied {
 		hops, err := proxychain.Parse(proxychaintest.New(t, false).URL + " " + proxychaintest.New(t, false).URL)
 		require.NoError(t, err)
-		opts = append(opts, destrabbitmq.WithProxy(hops))
+		opts = append(opts, destrabbitmq.WithProxy(hops, 0))
 	}
 	provider, err := destrabbitmq.New(testutil.Registry.MetadataLoader(), nil, opts...)
 	require.NoError(t, err)

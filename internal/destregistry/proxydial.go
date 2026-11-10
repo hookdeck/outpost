@@ -12,18 +12,22 @@ import (
 
 // ProxyDialFunc returns a dial func that tunnels through hops, nearest first,
 // or nil when hops is empty. A hop refusing the CONNECT is classified by
-// ClassifyProxyConnectResponse. A CONNECT timing out passes through as a
+// ProxyHopPolicy.ClassifyConnect. A CONNECT timing out passes through as a
 // timeout, and cancellation passes through unchanged. Any other failure (a
-// hop unreachable, TLS to a hop, a hop hanging up) is ErrProxyInfra.
-func ProxyDialFunc(hops []*url.URL) proxychain.DialFunc {
+// hop unreachable, TLS to a hop, a hop hanging up) is ErrProxyInfra, except
+// at the last externalHops hops, where it is a failed attempt (see
+// ProxyHopPolicy).
+func ProxyDialFunc(hops []*url.URL, externalHops int) proxychain.DialFunc {
 	if len(hops) == 0 {
 		return nil
 	}
+	policy := NewProxyHopPolicy(hops, externalHops)
+	firstHop := proxychain.Redact(hops[0])
 	base := &net.Dialer{Timeout: 30 * time.Second, KeepAlive: 30 * time.Second}
 	dialer := proxychain.NewDialer(hops, func(ctx context.Context, network, addr string) (net.Conn, error) {
 		conn, err := base.DialContext(ctx, network, addr)
 		if err != nil {
-			return nil, &ErrProxyInfra{Underlying: err}
+			return nil, &ErrProxyInfra{Underlying: err, Hop: firstHop}
 		}
 		return conn, nil
 	}, nil)
@@ -35,11 +39,14 @@ func ProxyDialFunc(hops []*url.URL) proxychain.DialFunc {
 		var infraErr *ErrProxyInfra
 		if errors.As(err, &infraErr) {
 			infraErr.DestHost = hostOnly(addr)
-			return nil, infraErr
+			if errors.Is(err, context.Canceled) {
+				return nil, infraErr
+			}
+			return nil, policy.Apply(infraErr)
 		}
 		var connectErr *proxychain.ConnectError
 		if errors.As(err, &connectErr) {
-			return nil, ClassifyProxyConnectResponse(connectErr.Status, connectErr.Header, err, connectErr.Next)
+			return nil, policy.ClassifyConnect(connectErr.Status, connectErr.Header, err, addr, connectErr.Index, connectErr.Hop)
 		}
 		if errors.Is(err, context.Canceled) {
 			return nil, err
@@ -52,6 +59,10 @@ func ProxyDialFunc(hops []*url.URL) proxychain.DialFunc {
 		if !(errors.As(err, &hopErr) && hopErr.Handshake) && errors.As(err, &netErr) && netErr.Timeout() {
 			return nil, err
 		}
-		return nil, &ErrProxyInfra{Underlying: err, DestHost: hostOnly(addr)}
+		infra := &ErrProxyInfra{Underlying: err, DestHost: hostOnly(addr)}
+		if hopErr != nil {
+			infra.HopIndex, infra.Hop = hopErr.Index, hopErr.Hop
+		}
+		return nil, policy.Apply(infra)
 	}
 }

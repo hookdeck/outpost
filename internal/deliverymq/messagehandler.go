@@ -245,6 +245,20 @@ func (h *messageHandler) doHandle(ctx context.Context, task models.DeliveryTask,
 		// If attempt is nil, it means no attempt was made.
 		// This is an unexpected error and considered a pre-delivery error.
 		if attempt == nil {
+			var proxyErr *destregistry.ErrProxyInfra
+			var nackErr *destregistry.ErrDestinationPublishAttempt
+			if errors.As(err, &nackErr) && errors.As(nackErr.Err, &proxyErr) {
+				fields := []zap.Field{zap.Int("proxy_hop", proxyErr.HopIndex), zap.String("proxy", proxyErr.Hop)}
+				if proxyErr.Underlying != nil {
+					fields = append(fields, zap.String("proxy_error", proxyErr.Underlying.Error()))
+				}
+				fields = append(fields,
+					zap.String("event_id", task.Event.ID),
+					zap.String("tenant_id", task.Event.TenantID),
+					zap.String("destination_id", destination.ID),
+					zap.Int("attempt", task.Attempt))
+				h.logger.Ctx(ctx).Warn("proxy error, message will be redelivered", fields...)
+			}
 			return &PreDeliveryError{err: err}
 		}
 

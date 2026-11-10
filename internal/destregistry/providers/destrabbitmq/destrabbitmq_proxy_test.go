@@ -20,7 +20,7 @@ func newProxiedPublisher(t *testing.T, chain, serverURL, useTLS string) destregi
 	t.Helper()
 	hops, err := proxychain.Parse(chain)
 	require.NoError(t, err)
-	provider, err := destrabbitmq.New(testutil.Registry.MetadataLoader(), nil, destrabbitmq.WithProxy(hops))
+	provider, err := destrabbitmq.New(testutil.Registry.MetadataLoader(), nil, destrabbitmq.WithProxy(hops, 0))
 	require.NoError(t, err)
 	destination := testutil.DestinationFactory.Any(
 		testutil.DestinationFactory.WithType("rabbitmq"),

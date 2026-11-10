@@ -56,8 +56,10 @@ func Redact(u *url.URL) string {
 
 // ConnectError is returned by the dialer when a hop answers a CONNECT with anything but 200. Hop and Next are redacted
 // scheme://host:port strings; Header carries the hop's response headers so
-// the caller can classify (for Envoy, x-envoy-response-flags).
+// the caller can classify (for Envoy, x-envoy-response-flags). Index is the
+// 0-based position of the hop that answered.
 type ConnectError struct {
+	Index  int
 	Hop    string
 	Next   string
 	Status int
@@ -70,8 +72,10 @@ func (e *ConnectError) Error() string {
 
 // HopError is a failure talking to a proxy hop other than a refused
 // CONNECT. Handshake reports a failed TLS handshake with the hop; otherwise
-// a CONNECT through the hop failed or went unanswered.
+// a CONNECT through the hop failed or went unanswered. Index is the hop's
+// 0-based position.
 type HopError struct {
+	Index     int
 	Hop       string
 	Handshake bool
 	Err       error
@@ -112,11 +116,11 @@ func (d *Dialer) DialContext(ctx context.Context, network, addr string) (net.Con
 	first := d.hops[0]
 	conn, err := d.dial(ctx, network, proxyHostPort(first))
 	if err != nil {
-		return nil, err
+		return nil, &HopError{Index: 0, Hop: Redact(first), Err: err}
 	}
 	if first.Scheme == "https" {
 		if conn, err = d.wrapTLS(ctx, conn, first.Hostname()); err != nil {
-			return nil, &HopError{Hop: Redact(first), Handshake: true, Err: err}
+			return nil, &HopError{Index: 0, Hop: Redact(first), Handshake: true, Err: err}
 		}
 	}
 
@@ -127,17 +131,17 @@ func (d *Dialer) DialContext(ctx context.Context, network, addr string) (net.Con
 			next = d.hops[i+1]
 			nextAddr = proxyHostPort(next)
 		}
-		if err := connectThrough(ctx, conn, hop, nextAddr); err != nil {
+		if err := connectThrough(ctx, conn, i, hop, nextAddr); err != nil {
 			conn.Close()
 			var connectErr *ConnectError
 			if errors.As(err, &connectErr) {
 				return nil, err
 			}
-			return nil, &HopError{Hop: Redact(hop), Err: err}
+			return nil, &HopError{Index: i, Hop: Redact(hop), Err: err}
 		}
 		if next != nil && next.Scheme == "https" {
 			if conn, err = d.wrapTLS(ctx, conn, next.Hostname()); err != nil {
-				return nil, &HopError{Hop: Redact(next), Handshake: true, Err: err}
+				return nil, &HopError{Index: i + 1, Hop: Redact(next), Handshake: true, Err: err}
 			}
 		}
 	}
@@ -169,7 +173,7 @@ func (d *Dialer) wrapTLS(ctx context.Context, conn net.Conn, serverName string) 
 // connectThrough sends one CONNECT for target over conn, which is already
 // connected to hop, and requires a 200. Mirrors the transport's own CONNECT:
 // nothing after the status line and headers is consumed.
-func connectThrough(ctx context.Context, conn net.Conn, hop *url.URL, target string) error {
+func connectThrough(ctx context.Context, conn net.Conn, index int, hop *url.URL, target string) error {
 	req := &http.Request{
 		Method: http.MethodConnect,
 		URL:    &url.URL{Opaque: target},
@@ -196,6 +200,7 @@ func connectThrough(ctx context.Context, conn net.Conn, hop *url.URL, target str
 	if resp.StatusCode != http.StatusOK {
 		_ = resp.Body.Close()
 		return &ConnectError{
+			Index:  index,
 			Hop:    Redact(hop),
 			Next:   target,
 			Status: resp.StatusCode,

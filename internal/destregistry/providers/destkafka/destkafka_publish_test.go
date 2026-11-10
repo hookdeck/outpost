@@ -148,7 +148,7 @@ func (s *KafkaPublishSuite) SetupSuite() {
 	if s.proxied {
 		hops, err := proxychain.Parse(proxychaintest.New(t, false).URL + " " + proxychaintest.New(t, false).URL)
 		require.NoError(t, err)
-		opts = append(opts, destkafka.WithProxy(hops))
+		opts = append(opts, destkafka.WithProxy(hops, 0))
 	}
 	provider, err := destkafka.New(testutil.Registry.MetadataLoader(), nil, opts...)
 	require.NoError(t, err)

@@ -46,11 +46,16 @@ func newCONNECTRejectingProxyWithHeaders(t *testing.T, status int, headers map[s
 // the proxyTransport wrapper, matching the NewHTTPClient flow.
 func makeProxiedClient(t *testing.T, proxyURL string) *http.Client {
 	t.Helper()
+	return makeProxiedClientExternal(t, proxyURL, 0)
+}
+
+func makeProxiedClientExternal(t *testing.T, proxyURL string, externalHops int) *http.Client {
+	t.Helper()
 	proxy, err := proxychain.Parse(proxyURL)
 	require.NoError(t, err)
 	client, err := destregistry.NewHTTPClient(destregistry.HTTPClientConfig{
 		Proxy:         proxy,
-		WrapTransport: destwebhook.WrapTransport,
+		WrapTransport: destwebhook.NewWrapTransport(proxy, externalHops),
 	})
 	require.NoError(t, err)
 	return client
@@ -447,7 +452,7 @@ func TestProxyTransport_Chain_IntermediateHopAuthFailure_ReturnsInfraError(t *te
 
 	var infraErr *destregistry.ErrProxyInfra
 	require.True(t, errors.As(err, &infraErr), "got %v", err)
-	assert.Equal(t, "next-hop.invalid", infraErr.DestHost)
+	assert.Equal(t, "example.invalid", infraErr.DestHost)
 }
 
 func TestProxyTransport_Chain_IntermediateHopUpstreamFailure_ReturnsDestinationError(t *testing.T) {
@@ -464,7 +469,8 @@ func TestProxyTransport_Chain_IntermediateHopUpstreamFailure_ReturnsDestinationE
 	var destErr *destregistry.ErrProxyDestination
 	require.True(t, errors.As(err, &destErr), "got %v", err)
 	assert.Equal(t, "connection_refused", destErr.Code)
-	assert.Equal(t, "next-hop.invalid", destErr.DestHost, "attributed to the hop that could not be reached")
+	assert.Equal(t, "example.invalid", destErr.DestHost, "names the target, not the hop")
+	assert.NotContains(t, destErr.DestHost, "next-hop")
 	assert.Equal(t, "UF", destErr.Diagnostics["envoy_flag"])
 }
 
@@ -490,7 +496,7 @@ func TestProxyTransport_ConnectRBACDenied_ReturnsNetworkUnreachable(t *testing.T
 		dest  string
 	}{
 		{"last hop", func(h string) string { return h }, "example.invalid"},
-		{"intermediate hop", func(h string) string { return h + " http://" + nextHopHost }, "next-hop.invalid"},
+		{"intermediate hop", func(h string) string { return h + " http://" + nextHopHost }, "example.invalid"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

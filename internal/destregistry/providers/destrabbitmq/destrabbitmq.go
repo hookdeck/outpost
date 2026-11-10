@@ -37,10 +37,11 @@ var _ destregistry.Provider = (*RabbitMQDestination)(nil)
 type Option func(*RabbitMQDestination)
 
 // WithProxy connects to brokers through the given forward proxies, nearest
-// hop first. amqps TLS runs end to end through the tunnel.
-func WithProxy(hops []*url.URL) Option {
+// hop first. The last externalHops hops are not run by the operator (see
+// destregistry.ProxyHopPolicy). amqps TLS runs end to end through the tunnel.
+func WithProxy(hops []*url.URL, externalHops int) Option {
 	return func(d *RabbitMQDestination) {
-		d.proxyDial = destregistry.ProxyDialFunc(hops)
+		d.proxyDial = destregistry.ProxyDialFunc(hops, externalHops)
 	}
 }
 

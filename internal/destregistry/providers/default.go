@@ -69,10 +69,13 @@ type RegisterDefaultDestinationOptions struct {
 	// ProxyURL is the forward proxy chain for RabbitMQ and Kafka. Webhooks
 	// use Webhook.ProxyURL only; the config layer resolves its fallback to
 	// this value.
-	ProxyURL       string
-	Webhook        *DestWebhookConfig
-	AWSKinesis     *DestAWSKinesisConfig
-	AWSEventBridge *DestAWSEventBridgeConfig
+	ProxyURL string
+	// ProxyExternalHops is how many hops at the end of the chain (webhook
+	// or general) the operator does not run.
+	ProxyExternalHops int
+	Webhook           *DestWebhookConfig
+	AWSKinesis        *DestAWSKinesisConfig
+	AWSEventBridge    *DestAWSEventBridgeConfig
 
 	BlockPrivateAddresses   bool
 	PrivateAddressAllowlist []string
@@ -145,6 +148,7 @@ func RegisterDefault(registry destregistry.Registry, opts RegisterDefaultDestina
 	if opts.Webhook != nil {
 		webhookOpts = append(webhookOpts,
 			destwebhook.WithProxy(webhookProxy),
+			destwebhook.WithProxyExternalHops(opts.ProxyExternalHops),
 			destwebhook.WithHeaderPrefix(opts.Webhook.HeaderPrefix),
 			destwebhook.WithEventIDHeader(opts.Webhook.EventIDHeader.Name, opts.Webhook.EventIDHeader.Disabled),
 			destwebhook.WithSignatureHeader(opts.Webhook.SignatureHeader.Name, opts.Webhook.SignatureHeader.Disabled),
@@ -234,13 +238,13 @@ func RegisterDefault(registry destregistry.Registry, opts RegisterDefaultDestina
 	}
 	registry.RegisterProvider("azure_servicebus", azureServiceBus)
 
-	rabbitmq, err := destrabbitmq.New(loader, basePublisherOpts, destrabbitmq.WithProxy(proxy))
+	rabbitmq, err := destrabbitmq.New(loader, basePublisherOpts, destrabbitmq.WithProxy(proxy, opts.ProxyExternalHops))
 	if err != nil {
 		return err
 	}
 	registry.RegisterProvider("rabbitmq", rabbitmq)
 
-	kafkaDest, err := destkafka.New(loader, basePublisherOpts, destkafka.WithProxy(proxy))
+	kafkaDest, err := destkafka.New(loader, basePublisherOpts, destkafka.WithProxy(proxy, opts.ProxyExternalHops))
 	if err != nil {
 		return err
 	}

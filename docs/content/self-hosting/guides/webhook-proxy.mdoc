@@ -26,7 +26,7 @@ Since the proxy connects to destinations, Outpost can't check delivery addresses
 
 Outpost separates failures the proxy is responsible for from failures the destination is responsible for:
 
-- **Proxy-side failures** (proxy unreachable, proxy auth rejected) are not charged to the destination. The message is redelivered by the queue, so a short proxy outage is transparent to the destination.
+- **Proxy-side failures** (proxy unreachable, proxy auth rejected) are not charged to the destination. The message is redelivered by the queue, so a short proxy outage is transparent to the destination. Failures at the last hops marked external with `DESTINATIONS_PROXY_EXTERNAL_HOPS` are the exception: they are recorded as failed attempts with the code `proxy_error`.
 - **Destination-side failures reported via the proxy** (DNS failure, connection refused, upstream timeout) are recorded as a normal delivery attempt with the matching network error code, the same as if no proxy were in path.
 
 If you expect proxy outages longer than your queue's redelivery window, raise `MinRetryBackoff`, `MaxRetryBackoff`, and `RetryLimit` in your queue configuration so the redelivery window covers the worst case. See [Configuration](/docs/outpost/self-hosting/configuration).

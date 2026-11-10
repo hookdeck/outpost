@@ -11,11 +11,14 @@ import (
 	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/hookdeck/outpost/internal/idempotence"
 	"github.com/hookdeck/outpost/internal/idgen"
+	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/tenantstore"
 	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest/observer"
 )
 
 func TestMessageHandler_DestinationGetterError(t *testing.T) {
@@ -1449,4 +1452,55 @@ func TestMessageHandler_RetryID_MultipleDestinations(t *testing.T) {
 	assert.NotEqual(t, retryScheduler.taskIDs[0], retryScheduler.taskIDs[1],
 		"BUG: retry task IDs should be unique per destination, but both are: %s",
 		retryScheduler.taskIDs[0])
+}
+
+func TestMessageHandler_ProxyInfraError_NacksAndLogsHop(t *testing.T) {
+	t.Parallel()
+
+	tenant := models.Tenant{ID: idgen.String()}
+	destination := testutil.DestinationFactory.Any(
+		testutil.DestinationFactory.WithType("webhook"),
+		testutil.DestinationFactory.WithTenantID(tenant.ID),
+	)
+	event := testutil.EventFactory.Any(
+		testutil.EventFactory.WithTenantID(tenant.ID),
+		testutil.EventFactory.WithDestinationID(destination.ID),
+		testutil.EventFactory.WithEligibleForRetry(true),
+	)
+
+	core, logs := observer.New(zap.WarnLevel)
+	proxyErr := &destregistry.ErrProxyInfra{
+		Underlying: errors.New("dial tcp 10.0.0.9:3128: connect: connection refused"),
+		DestHost:   "example.com",
+		HopIndex:   1,
+		Hop:        "http://10.0.0.9:3128",
+	}
+	retryScheduler := newMockRetryScheduler()
+	handler := deliverymq.NewMessageHandler(
+		logging.NewTestLogger(zap.New(core)),
+		newMockLogPublisher(nil),
+		&mockDestinationGetter{dest: &destination},
+		nilAttemptPublisher{err: destregistry.NewErrDestinationPublishAttempt(proxyErr, "webhook", map[string]interface{}{"error": "timeout", "timeout": "5s"})},
+		testutil.NewMockEventTracer(nil),
+		retryScheduler,
+		&backoff.ConstantBackoff{Interval: 1 * time.Second},
+		10,
+		idempotence.New(testutil.CreateTestRedisClient(t), idempotence.WithSuccessfulTTL(24*time.Hour)),
+	)
+
+	task := models.DeliveryTask{Event: event, DestinationID: destination.ID}
+	mockMsg, msg := newDeliveryMockMessage(task)
+	require.Error(t, handler.Handle(context.Background(), msg))
+
+	assert.True(t, mockMsg.nacked)
+	assert.Empty(t, retryScheduler.schedules)
+
+	entries := logs.FilterMessage("proxy error, message will be redelivered").All()
+	require.Len(t, entries, 1)
+	fields := entries[0].ContextMap()
+	assert.Equal(t, event.ID, fields["event_id"])
+	assert.Equal(t, destination.ID, fields["destination_id"])
+	assert.EqualValues(t, 1, fields["proxy_hop"])
+	assert.Equal(t, "http://10.0.0.9:3128", fields["proxy"])
+	assert.Contains(t, fields["proxy_error"], "connection refused")
 }

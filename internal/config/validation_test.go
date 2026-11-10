@@ -352,6 +352,15 @@ func TestMisc(t *testing.T) {
 			wantErr: nil,
 		},
 		{
+			name: "negative proxy external hops",
+			config: func() *config.Config {
+				c := validConfig()
+				c.Destinations.ProxyExternalHops = -1
+				return c
+			}(),
+			wantErr: config.ErrInvalidProxyExternalHops,
+		},
+		{
 			name: "invalid destinations proxy url",
 			config: func() *config.Config {
 				c := validConfig()
