@@ -15,6 +15,12 @@ type RateLimitedError struct {
 var _ error = &RateLimitedError{}
 
 func (e *RateLimitedError) Error() string {
+	if e != nil {
+		if e.Message != nil {
+			return *e.Message
+		}
+	}
+
 	data, _ := json.Marshal(e)
 	return string(data)
 }
