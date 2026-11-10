@@ -431,7 +431,7 @@ func testListTenant(t *testing.T, newHarness HarnessMaker) {
 		})
 	})
 
-	t.Run("ExcludesInternalDestinations", func(t *testing.T) {
+	t.Run("CountsInternalTopicsNotDestinations", func(t *testing.T) {
 		ctx := context.Background()
 		h, err := newHarness(ctx, t)
 		require.NoError(t, err)
@@ -458,7 +458,7 @@ func testListTenant(t *testing.T, newHarness HarnessMaker) {
 		require.NoError(t, err)
 		require.Len(t, resp.Models, 1)
 		assert.Equal(t, 1, resp.Models[0].DestinationsCount)
-		assert.Equal(t, []string{"user.created"}, resp.Models[0].Topics)
+		assert.Equal(t, []string{"user.created", "user.deleted"}, resp.Models[0].Topics)
 	})
 
 	t.Run("ExcludesDeleted", func(t *testing.T) {

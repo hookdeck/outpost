@@ -73,7 +73,7 @@ func testInternal(t *testing.T, newHarness HarnessMaker) {
 		assert.Equal(t, []string{sub.ID}, ids(byID))
 	})
 
-	t.Run("tenant count and topics exclude internal destinations", func(t *testing.T) {
+	t.Run("tenant count excludes internal destinations, topics include them", func(t *testing.T) {
 		ctx, store, tenant := setup(t, 20)
 		require.NoError(t, store.CreateDestination(ctx, webhook(tenant.ID, testutil.DestinationFactory.WithTopics([]string{"user.created"}))))
 		require.NoError(t, store.CreateDestination(ctx, internal(tenant.ID, testutil.DestinationFactory.WithTopics([]string{"user.deleted"}))))
@@ -81,7 +81,7 @@ func testInternal(t *testing.T, newHarness HarnessMaker) {
 		got, err := store.RetrieveTenant(ctx, tenant.ID)
 		require.NoError(t, err)
 		assert.Equal(t, 1, got.DestinationsCount)
-		assert.Equal(t, []string{"user.created"}, got.Topics)
+		assert.Equal(t, []string{"user.created", "user.deleted"}, got.Topics)
 
 		other := models.Tenant{ID: idgen.String(), CreatedAt: time.Now(), UpdatedAt: time.Now()}
 		require.NoError(t, store.UpsertTenant(ctx, other))
@@ -89,6 +89,17 @@ func testInternal(t *testing.T, newHarness HarnessMaker) {
 		got, err = store.RetrieveTenant(ctx, other.ID)
 		require.NoError(t, err)
 		assert.Zero(t, got.DestinationsCount)
+		assert.Equal(t, []string{"user.deleted"}, got.Topics)
+	})
+
+	t.Run("topics skip expired internal destinations", func(t *testing.T) {
+		ctx, store, tenant := setup(t, 20)
+		require.NoError(t, store.UpsertDestination(ctx, internal(tenant.ID,
+			testutil.DestinationFactory.WithTopics([]string{"user.deleted"}),
+			testutil.DestinationFactory.WithExpiresAt(time.Now().Add(-time.Minute)),
+		)))
+		got, err := store.RetrieveTenant(ctx, tenant.ID)
+		require.NoError(t, err)
 		assert.Empty(t, got.Topics)
 	})
 

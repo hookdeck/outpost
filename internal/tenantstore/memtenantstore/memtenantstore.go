@@ -504,9 +504,10 @@ func (s *store) computeTenantTopics(tenantID string) []string {
 	destIDs := s.destsByTenant[tenantID]
 	all := false
 	topicsSet := make(map[string]struct{})
+	now := time.Now()
 	for destID := range destIDs {
 		drec, ok := s.destinations[destKey(tenantID, destID)]
-		if !ok || drec.deletedAt != nil || models.IsInternalDestinationType(drec.destination.Type) {
+		if !ok || drec.deletedAt != nil || drec.destination.IsExpired(now) {
 			continue
 		}
 		for _, topic := range drec.destination.Topics {

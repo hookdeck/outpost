@@ -48,8 +48,8 @@ func (s *mcpLimitsSuite) tenant(id string) models.Tenant {
 	return got
 }
 
-// Subscriptions don't count toward the limit, the tenant's destination count
-// or its topics.
+// Subscriptions count toward the tenant's topics, not toward the limit or the
+// tenant's destination count.
 func (s *mcpLimitsSuite) TestSubscriptionsDoNotCount() {
 	tenant := s.m.base.createTenant().ID
 	base := s.m.newPath(mcpreceiver.PathConfig{})
@@ -59,7 +59,7 @@ func (s *mcpLimitsSuite) TestSubscriptionsDoNotCount() {
 	}
 	got := s.tenant(tenant)
 	s.Zero(got.DestinationsCount)
-	s.Empty(got.Topics)
+	s.Equal([]string{mcpTopic}, got.Topics)
 
 	for range mcpLimitsMaxDestinations {
 		_, url := s.m.r.Register(mcpreceiver.PathConfig{Unchecked: true})

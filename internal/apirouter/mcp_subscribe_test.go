@@ -289,17 +289,30 @@ func TestAPI_MCPSubscribe(t *testing.T) {
 	})
 }
 
-func TestAPI_MCPSubscribeEmitsNoTenantSubscriptionUpdate(t *testing.T) {
+func TestAPI_MCPSubscribeEmitsTenantSubscriptionUpdate(t *testing.T) {
 	h := newSubscribeTest(t, &stubVerifier{})
 	body := subscribeBody("user-1", subscribeParams())
 	requireSubscribed(t, postMCP(h, mcpSubscribePath, body))
+
+	require.Len(t, h.subscriptionEmitter.calls, 1)
+	data := h.subscriptionEmitter.calls[0].data.(opevents.TenantSubscriptionUpdatedData)
+	assert.Equal(t, []string{"user.created"}, data.Topics)
+	assert.Empty(t, data.PreviousTopics)
+	assert.Zero(t, data.DestinationsCount)
+	assert.Zero(t, data.PreviousDestinationsCount)
+
 	requireSubscribed(t, postMCP(h, mcpSubscribePath, body))
+	assert.Len(t, h.subscriptionEmitter.calls, 1, "a refresh changes no topics")
+
 	resp := postMCP(h, mcpUnsubscribePath, map[string]any{"principal": "user-1", "params": map[string]any{
 		"name": "user.created", "arguments": map[string]any{"status": "paid"}, "delivery": map[string]any{"url": mcpCallbackURL},
 	}})
 	require.Equal(t, http.StatusOK, resp.Code, resp.Body.String())
 
-	assert.Empty(t, h.subscriptionEmitter.calls)
+	require.Len(t, h.subscriptionEmitter.calls, 2)
+	data = h.subscriptionEmitter.calls[1].data.(opevents.TenantSubscriptionUpdatedData)
+	assert.Empty(t, data.Topics)
+	assert.Equal(t, []string{"user.created"}, data.PreviousTopics)
 }
 
 func TestAPI_MCPSubscribeErrors(t *testing.T) {

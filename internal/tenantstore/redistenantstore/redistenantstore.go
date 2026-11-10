@@ -201,12 +201,11 @@ func (s *store) RetrieveTenant(ctx context.Context, tenantID string) (*models.Te
 		return nil, err
 	}
 
-	destinationSummaryList, err := parseListDestinationSummaryByTenantCmd(destinationListCmd, &destinationFilter{ExcludeInternal: true})
+	destinationSummaryList, err := parseListDestinationSummaryByTenantCmd(destinationListCmd, nil)
 	if err != nil {
 		return nil, err
 	}
-	tenant.DestinationsCount = len(destinationSummaryList)
-	tenant.Topics = parseTenantTopics(destinationSummaryList)
+	tenant.DestinationsCount, tenant.Topics = tenantDestinationStats(destinationSummaryList, time.Now())
 
 	return tenant, nil
 }
@@ -383,12 +382,11 @@ func (s *store) ListTenant(ctx context.Context, req driver.ListTenantRequest) (*
 		}
 
 		for i := range tenants {
-			destinationSummaryList, err := parseListDestinationSummaryByTenantCmd(cmds[i], &destinationFilter{ExcludeInternal: true})
+			destinationSummaryList, err := parseListDestinationSummaryByTenantCmd(cmds[i], nil)
 			if err != nil {
 				return nil, err
 			}
-			tenants[i].DestinationsCount = len(destinationSummaryList)
-			tenants[i].Topics = parseTenantTopics(destinationSummaryList)
+			tenants[i].DestinationsCount, tenants[i].Topics = tenantDestinationStats(destinationSummaryList, time.Now())
 		}
 	}
 

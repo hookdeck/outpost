@@ -83,8 +83,6 @@ A single published event is independently delivered to every destination that ma
 The tenant object's `topics` array lists all topics currently in use. 
 This is useful for keeping track of the complete set of topics a tenant is subscribed to across all their destinations, and can help you avoid unnecessary event publishing.
 
-`topics` covers destinations only, not [MCP Events](/docs/outpost/destinations/mcp) subscriptions. If you use MCP Events, don't skip publishing based on it.
-
 ```sh
 curl '{% $OUTPOST_API_BASE_URL %}/tenants/<TENANT_ID>' \
 --header 'Authorization: Bearer <API_KEY>'

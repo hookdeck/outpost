@@ -345,6 +345,22 @@ func parseListDestinationSummaryByTenantCmd(cmd *redis.MapStringStringCmd, filte
 	return destinationSummaryList, nil
 }
 
+// tenantDestinationStats returns the count of destinations of non-internal
+// types and the topics of every live destination, internal ones included.
+func tenantDestinationStats(summaries []destinationSummary, now time.Time) (int, []string) {
+	count := 0
+	live := make([]destinationSummary, 0, len(summaries))
+	for _, ds := range summaries {
+		if !models.IsInternalDestinationType(ds.Type) {
+			count++
+		}
+		if !ds.expired(now) {
+			live = append(live, ds)
+		}
+	}
+	return count, parseTenantTopics(live)
+}
+
 // parseTenantTopics extracts and deduplicates topics from a list of destination summaries.
 func parseTenantTopics(destinationSummaryList []destinationSummary) []string {
 	all := false

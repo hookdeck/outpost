@@ -167,6 +167,7 @@ func (h *MCPSubscribeHandlers) subscribe(ctx context.Context, tenantID string, r
 		}
 	}
 
+	prev := h.dest.snapshotTenant(tenant)
 	id := mcpevents.DeriveSubscriptionID(req.Principal, params.URL, params.Name, params.Arguments)
 	expiresAt := mcpevents.GrantTTL(params.TTL, *h.ttl, time.Now())
 
@@ -186,6 +187,9 @@ func (h *MCPSubscribeHandlers) subscribe(ctx context.Context, tenantID string, r
 			if isDestinationWriteRace(err) {
 				continue
 			}
+			if err == nil {
+				h.dest.emitSubscriptionUpdateIfChanged(ctx, tenant.ID, prev)
+			}
 			return result, err
 		}
 
@@ -203,6 +207,7 @@ func (h *MCPSubscribeHandlers) subscribe(ctx context.Context, tenantID string, r
 				zap.String("tenant_id", tenant.ID),
 				zap.String("destination_id", destination.ID),
 			)
+			h.dest.emitSubscriptionUpdateIfChanged(ctx, tenant.ID, prev)
 			return &mcpSubscribeResult{ResultType: "complete", ID: id, RefreshBefore: mcpevents.FormatRefreshBefore(expiresAt)}, nil
 		case errors.Is(err, tenantstore.ErrDuplicateDestination) || isDestinationWriteRace(err):
 			continue
@@ -354,6 +359,7 @@ func (h *MCPSubscribeHandlers) Unsubscribe(c *gin.Context) {
 		abortMCPError(c, mcpevents.NotFound(mcpevents.NotFoundSubscription))
 		return
 	}
+	prev := h.dest.snapshotTenant(tenant)
 	if err := h.store.DeleteDestination(ctx, tenant.ID, id); err != nil {
 		if errors.Is(err, tenantstore.ErrDestinationNotFound) {
 			abortMCPError(c, mcpevents.NotFound(mcpevents.NotFoundSubscription))
@@ -366,6 +372,7 @@ func (h *MCPSubscribeHandlers) Unsubscribe(c *gin.Context) {
 		zap.String("tenant_id", tenant.ID),
 		zap.String("destination_id", id),
 	)
+	h.dest.emitSubscriptionUpdateIfChanged(ctx, tenant.ID, prev)
 	c.JSON(http.StatusOK, gin.H{"resultType": "complete"})
 }
 

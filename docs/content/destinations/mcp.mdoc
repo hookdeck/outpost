@@ -26,7 +26,7 @@ Set [`EXPERIMENTAL_MCP_ENABLED`](/docs/outpost/self-hosting/configuration#mcp-ev
 
 ## Subscriptions
 
-Outpost stores subscriptions itself. The destinations API never returns them: they are not listed, `GET`, `PATCH` and `DELETE` on one answer `404`, and they can't be created there. They don't count toward `MAX_DESTINATIONS_PER_TENANT`, a tenant's `destinations_count` or its `topics`. `topics` covers destinations only, not MCP Events subscriptions: if you use MCP Events, don't skip publishing based on it. Operator events include the subscription, for example `alert.destination.disabled` when `ALERT_AUTO_DISABLE_DESTINATION` is on; only a refresh re-enables it.
+Outpost stores subscriptions itself. The destinations API never returns them: they are not listed, `GET`, `PATCH` and `DELETE` on one answer `404`, and they can't be created there. They don't count toward `MAX_DESTINATIONS_PER_TENANT` or a tenant's `destinations_count`, but their events are part of the tenant's `topics`. Operator events include the subscription, for example `alert.destination.disabled` when `ALERT_AUTO_DISABLE_DESTINATION` is on; only a refresh re-enables it.
 
 Attempts and events keep the subscription's `id` as `destination_id`. A manual retry (`POST /retry`) of a subscription's attempt answers `404`, and publishing to a subscription by `destination_id` matches nothing. Automatic retries continue.
 
