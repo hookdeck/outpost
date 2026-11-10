@@ -1,6 +1,4 @@
 # Vendored from speakeasy-api/sdk-generation-action (.github/workflows/workflow-executor.yaml, tag v15).
-# Outpost patch: workflow_call input `pr_base_is_main` and job `env` on `run-workflow` so Speakeasy’s
-# Go code sees GITHUB_REF=refs/heads/main for PR base while actions/checkout still uses the workflow ref (tag).
 # Outpost patch: `ci_app_client_id` input, `ci_app_private_key` secret, the HAS_CI_APP_PRIVATE_KEY job env,
 # and the GitHub App token steps, so PRs are opened with the hookdeck-ci App (via Speakeasy's pr_creation_pat).
 # When upgrading Speakeasy, re-copy this file from upstream and re-apply every block marked "Outpost patch".
@@ -122,12 +120,6 @@ on:
         description: "Custom npm dist-tag to use instead of 'latest' for non-prerelease versions"
         required: false
         type: string
-      # --- Outpost patch (keep when re-vendoring) ---
-      pr_base_is_main:
-        description: "If true, force GITHUB_REF to main for Speakeasy PR creation (checkout ref unchanged)."
-        required: false
-        type: boolean
-        default: false
       # --- Outpost patch (keep when re-vendoring): open PRs with the hookdeck-ci GitHub App ---
       ci_app_client_id:
         description: "hookdeck-ci GitHub App client ID. With the ci_app_private_key secret, PRs are opened with an App token instead of github_access_token."
@@ -194,10 +186,7 @@ jobs:
   run-workflow:
     name: Generate Target
     runs-on: ${{ ((startsWith(inputs.runs-on, '[') || startsWith(inputs.runs-on, '{') || startsWith(inputs.runs-on, '"')) && fromJSON(inputs.runs-on)) || inputs.runs-on }}
-    # --- Outpost patch (keep when re-vendoring): tag-triggered runs need PR base main ---
     env:
-      GITHUB_REF: ${{ inputs.pr_base_is_main == true && 'refs/heads/main' || github.ref }}
-      GITHUB_REF_NAME: ${{ inputs.pr_base_is_main == true && 'main' || github.ref_name }}
       # --- Outpost patch (keep when re-vendoring): secrets can't be used in a step's `if` ---
       HAS_CI_APP_PRIVATE_KEY: ${{ secrets.ci_app_private_key != '' }}
     outputs:
@@ -259,8 +248,6 @@ jobs:
         if: ${{ steps.check-label.outputs.short_circuit_label_trigger != 'true' }}
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
-          # --- Outpost patch (keep when re-vendoring): explicit ref so the env override doesn't redirect checkout ---
-          ref: ${{ github.ref }}
           fetch-depth: 0
           token: ${{ secrets.github_access_token }}
       - name: Checkout sdk-generation-action repository

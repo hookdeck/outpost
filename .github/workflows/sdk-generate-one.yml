@@ -19,11 +19,6 @@ on:
         required: false
         type: boolean
         default: false
-      pr_base_is_main:
-        description: "Speakeasy reads GITHUB_REF for PR base; set true when checkout is a tag so PRs still target main"
-        required: false
-        type: boolean
-        default: false
     secrets:
       github_access_token:
         required: true
@@ -52,7 +47,6 @@ jobs:
       mode: pr
       target: ${{ inputs.target }}
       set_version: ${{ inputs.set_version || '' }}
-      pr_base_is_main: ${{ inputs.pr_base_is_main }}
       ci_app_client_id: ${{ vars.CI_APP_CLIENT_ID }}
     secrets:
       github_access_token: ${{ secrets.github_access_token }}
