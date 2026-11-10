@@ -21,6 +21,13 @@ jobs:
         with:
           script: |
             const tag = context.ref.replace('refs/tags/', '');
+            // Prerelease and test tags (v1.9.0-rc.1, v0.0.0-sdk-gen-test) don't get SDK PRs,
+            // matching update-compose-version.yml, which skips prereleases. To generate SDKs for
+            // one anyway, run "SDK generate on release tag" by hand from main.
+            if (tag.includes('-')) {
+              core.notice(`Skipping SDK generation for prerelease/test tag ${tag}`);
+              return;
+            }
             await github.rest.actions.createWorkflowDispatch({
               owner: context.repo.owner,
               repo: context.repo.repo,

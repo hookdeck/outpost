@@ -80,15 +80,13 @@ To verify that the SDK release workflows ([sdk-generate-on-release-dispatch.yml]
    git tag v0.0.0-sdk-gen-test   # or e.g. v99.99.99-test
    git push origin v0.0.0-sdk-gen-test
    ```
-   - In the repo **Actions** tab, you should see **SDK generate on release tag — dispatch** (quick) then **SDK generate on release tag** with all three jobs (generate-go, generate-python, generate-ts) in order and PRs opened against `main`.
+   - The dispatcher skips tags containing `-` (prereleases and test tags), so with a test tag like this you'll see **SDK generate on release tag — dispatch** finish with a "Skipping SDK generation" notice and nothing else. To exercise generation itself, use Option B with the test tag.
    - To remove the tag after testing (optional):
      ```bash
      git tag -d v0.0.0-sdk-gen-test
      git push origin --delete v0.0.0-sdk-gen-test
      ```
-   **Note:** This opens real SDK pull requests against `main` (close them and delete their branches after testing).
-
    **Note:** Pushing a tag also triggers [release.yml](../.github/workflows/release.yml) (Outpost build/release). If you use a test tag, consider using a clearly non-release value (e.g. `v0.0.0-sdk-gen-test`) and skip creating a GitHub Release for it.
 
 2. **Option B — Manual run from Actions**  
-   Go to **Actions → SDK generate on release tag**, click **Run workflow**. Under **Use workflow from**, select **main**, and enter the tag in **release_tag** (e.g. `v0.0.0-sdk-gen-test`). The first job fails fast if the run isn't on `main`, or the tag doesn't exist or isn't on `main`. Note: the workflow sets all SDKs to `1.0.0` only when **release_tag** is exactly `v1.0.0`; otherwise Speakeasy detection applies.
+   Go to **Actions → SDK generate on release tag**, click **Run workflow**. Under **Use workflow from**, select **main**, and enter the tag in **release_tag** (e.g. `v0.0.0-sdk-gen-test`). The first job fails fast if the run isn't on `main`, or the tag doesn't exist or isn't on `main`. **This opens real SDK pull requests against `main`**; close them and delete their branches after testing. Note: the workflow sets all SDKs to `1.0.0` only when **release_tag** is exactly `v1.0.0`; otherwise Speakeasy detection applies.
