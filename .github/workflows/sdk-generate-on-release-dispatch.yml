@@ -25,7 +25,8 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               workflow_id: 'sdk-generate-on-release.yml',
-              ref: context.payload.repository.default_branch,
+              // Must match the main-only check in sdk-generate-on-release.yml
+              ref: 'main',
               inputs: {
                 release_tag: tag
               }

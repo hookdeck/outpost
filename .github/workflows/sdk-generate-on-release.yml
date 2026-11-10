@@ -18,6 +18,12 @@ on:
         required: true
         type: string
 
+# Two runs at once (tags pushed close together, or a manual run during a release) would race on
+# .speakeasy/workflow.lock and on Speakeasy's PR branches. Queue them instead.
+concurrency:
+  group: sdk-generate-on-release
+  cancel-in-progress: false
+
 jobs:
   ensure-release-tag-on-main:
     runs-on: ubuntu-latest
@@ -38,7 +44,11 @@ jobs:
         env:
           TAG: ${{ github.event.inputs.release_tag }}
         run: |
-          git fetch --force --tags origin
+          # Only plain version tags: rules out newlines (workflow commands) and rev syntax like ~1 or ^{}
+          if ! [[ "$TAG" =~ ^v[0-9A-Za-z.+-]+$ ]]; then
+            echo "::error::release_tag must look like v1.2.3 (got an invalid value)."
+            exit 1
+          fi
           if ! git rev-parse -q --verify "refs/tags/${TAG}" > /dev/null; then
             echo "::error::Tag ${TAG} doesn't exist."
             exit 1
