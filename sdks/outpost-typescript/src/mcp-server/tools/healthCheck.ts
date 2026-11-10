@@ -25,7 +25,7 @@ Note: Error details are not exposed for security reasons. Check application logs
   tool: async (client, ctx) => {
     const [result, apiCall] = await healthCheck(
       client,
-      { fetchOptions: { signal: ctx.signal } },
+      { fetchOptions: { signal: ctx.mcpReq.signal } },
     ).$inspect();
 
     if (!result.ok) {

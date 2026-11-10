@@ -29,7 +29,7 @@ When authenticated with Admin API Key, attempts from any tenant can be accessed.
       args.attemptId,
       args.tenantId,
       args.include,
-      { fetchOptions: { signal: ctx.signal } },
+      { fetchOptions: { signal: ctx.mcpReq.signal } },
     ).$inspect();
 
     if (!result.ok) {

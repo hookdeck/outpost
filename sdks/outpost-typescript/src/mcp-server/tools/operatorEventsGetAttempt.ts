@@ -23,7 +23,7 @@ This endpoint is only available on managed Outpost.
     const [result, apiCall] = await operatorEventsGetAttempt(
       client,
       args.attemptId,
-      { fetchOptions: { signal: ctx.signal } },
+      { fetchOptions: { signal: ctx.mcpReq.signal } },
     ).$inspect();
 
     if (!result.ok) {
