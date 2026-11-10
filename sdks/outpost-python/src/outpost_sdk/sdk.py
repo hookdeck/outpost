@@ -650,7 +650,7 @@ class Outpost(BaseSDK):
         if utils.match_response(http_res, "404", "application/json"):
             response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
             raise errors.NotFoundError(response_data, http_res)
-        if utils.match_response(http_res, "422", "application/json"):
+        if utils.match_response(http_res, ["413", "422"], "application/json"):
             response_data = unmarshal_json_response(
                 errors.APIErrorResponseData, http_res
             )
@@ -762,7 +762,7 @@ class Outpost(BaseSDK):
         if utils.match_response(http_res, "404", "application/json"):
             response_data = unmarshal_json_response(errors.NotFoundErrorData, http_res)
             raise errors.NotFoundError(response_data, http_res)
-        if utils.match_response(http_res, "422", "application/json"):
+        if utils.match_response(http_res, ["413", "422"], "application/json"):
             response_data = unmarshal_json_response(
                 errors.APIErrorResponseData, http_res
             )

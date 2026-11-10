@@ -48,7 +48,7 @@ with Outpost(
 | Parameter                                                                                                                                    | Type                                                                                                                                         | Required                                                                                                                                     | Description                                                                                                                                  |
 | -------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
 | `tenant_id`                                                                                                                                  | *str*                                                                                                                                        | :heavy_check_mark:                                                                                                                           | The ID of the tenant. Required when using AdminApiKey authentication.                                                                        |
-| `type`                                                                                                                                       | [Optional[models.ListTenantDestinationsType]](../../models/listtenantdestinationstype.md)                                                    | :heavy_minus_sign:                                                                                                                           | Filter destinations by type(s). Use bracket notation for multiple values (e.g., `type[0]=webhook&type[1]=aws_sqs`).                          |
+| `type_`                                                                                                                                      | [Optional[models.ListTenantDestinationsType]](../../models/listtenantdestinationstype.md)                                                    | :heavy_minus_sign:                                                                                                                           | Filter destinations by type(s). Use bracket notation for multiple values (e.g., `type[0]=webhook&type[1]=aws_sqs`).                          |
 | `topics`                                                                                                                                     | [Optional[models.ListTenantDestinationsTopics]](../../models/listtenantdestinationstopics.md)                                                | :heavy_minus_sign:                                                                                                                           | Filter destinations by supported topic(s). Use bracket notation for multiple values (e.g., `topics[0]=user.created&topics[1]=user.deleted`). |
 | `retries`                                                                                                                                    | [Optional[utils.RetryConfig]](../../models/utils/retryconfig.md)                                                                             | :heavy_minus_sign:                                                                                                                           | Configuration to override the default retry behavior of the client.                                                                          |
 
@@ -146,7 +146,7 @@ with Outpost(
 | errors.BadRequestError     | 400                        | application/json           |
 | errors.UnauthorizedError   | 401                        | application/json           |
 | errors.NotFoundError       | 404                        | application/json           |
-| errors.APIErrorResponse    | 403, 422                   | application/json           |
+| errors.APIErrorResponse    | 403, 413, 422              | application/json           |
 | errors.InternalServerError | 500                        | application/json           |
 | errors.APIError            | 4XX, 5XX                   | \*/\*                      |
 
@@ -256,7 +256,7 @@ with Outpost(
 | -------------------------- | -------------------------- | -------------------------- |
 | errors.UnauthorizedError   | 401                        | application/json           |
 | errors.NotFoundError       | 404                        | application/json           |
-| errors.APIErrorResponse    | 403, 422                   | application/json           |
+| errors.APIErrorResponse    | 403, 409, 413, 422         | application/json           |
 | errors.InternalServerError | 500                        | application/json           |
 | errors.APIError            | 4XX, 5XX                   | \*/\*                      |
 
@@ -343,8 +343,8 @@ with Outpost(
 | Error Type                 | Status Code                | Content Type               |
 | -------------------------- | -------------------------- | -------------------------- |
 | errors.UnauthorizedError   | 401                        | application/json           |
-| errors.APIErrorResponse    | 403                        | application/json           |
 | errors.NotFoundError       | 404                        | application/json           |
+| errors.APIErrorResponse    | 403, 409                   | application/json           |
 | errors.InternalServerError | 500                        | application/json           |
 | errors.APIError            | 4XX, 5XX                   | \*/\*                      |
 
@@ -387,8 +387,8 @@ with Outpost(
 | Error Type                 | Status Code                | Content Type               |
 | -------------------------- | -------------------------- | -------------------------- |
 | errors.UnauthorizedError   | 401                        | application/json           |
-| errors.APIErrorResponse    | 403                        | application/json           |
 | errors.NotFoundError       | 404                        | application/json           |
+| errors.APIErrorResponse    | 403, 409                   | application/json           |
 | errors.InternalServerError | 500                        | application/json           |
 | errors.APIError            | 4XX, 5XX                   | \*/\*                      |
 

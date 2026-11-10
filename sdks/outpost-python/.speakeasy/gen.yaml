@@ -15,6 +15,7 @@ generation:
     sharedErrorComponentsApr2025: false
     sharedNestedComponentsJan2026: false
     nameOverrideFeb2026: false
+    openSingleValueEnumsOct2026: false
   auth:
     oAuth2ClientCredentialsEnabled: true
     oAuth2PasswordEnabled: true
@@ -29,7 +30,7 @@ generation:
     generateNewTests: false
     skipResponseBodyAssertions: false
 python:
-  version: 1.7.0
+  version: 1.8.0
   additionalDependencies:
     dev: {}
     main: {}
@@ -78,6 +79,7 @@ python:
   methodArguments: require-security-and-request
   methodTimeoutArgument: timeout-ms
   methodTimeoutUnits: milliseconds
+  modelSerializationMethods: false
   moduleName: ""
   multipartArrayFormat: legacy
   optionalDependencies: {}
@@ -85,6 +87,7 @@ python:
   packageManager: poetry
   packageName: outpost_sdk
   preApplyUnionDiscriminators: false
+  preserveUnknownFields: false
   pytestFilterWarnings: []
   pytestTimeout: 0
   rawResponseHelpers: false
