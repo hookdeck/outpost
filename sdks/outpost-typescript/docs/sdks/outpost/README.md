@@ -197,6 +197,6 @@ run();
 | -------------------------- | -------------------------- | -------------------------- |
 | errors.UnauthorizedError   | 401                        | application/json           |
 | errors.NotFoundError       | 404                        | application/json           |
-| errors.APIErrorResponse    | 422                        | application/json           |
+| errors.APIErrorResponse    | 413, 422                   | application/json           |
 | errors.InternalServerError | 500                        | application/json           |
 | errors.APIError            | 4XX, 5XX                   | \*/\*                      |

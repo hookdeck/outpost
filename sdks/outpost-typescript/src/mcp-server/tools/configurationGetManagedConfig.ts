@@ -17,7 +17,7 @@ In self-hosted deployments, configuration is controlled through environment vari
   tool: async (client, ctx) => {
     const [result, apiCall] = await configurationGetManagedConfig(
       client,
-      { fetchOptions: { signal: ctx.signal } },
+      { fetchOptions: { signal: ctx.mcpReq.signal } },
     ).$inspect();
 
     if (!result.ok) {

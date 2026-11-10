@@ -25,7 +25,7 @@ Updates the configuration of an existing destination. The request body structure
       args.tenantId,
       args.destinationId,
       args.body,
-      { fetchOptions: { signal: ctx.signal } },
+      { fetchOptions: { signal: ctx.mcpReq.signal } },
     ).$inspect();
 
     if (!result.ok) {

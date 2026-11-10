@@ -26,7 +26,7 @@ When authenticated with a Tenant JWT, returns only the authenticated tenant.
     const [result, apiCall] = await tenantsList(
       client,
       args.request,
-      { fetchOptions: { signal: ctx.signal } },
+      { fetchOptions: { signal: ctx.mcpReq.signal } },
     ).$inspect();
 
     if (!result.ok) {

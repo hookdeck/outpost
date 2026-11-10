@@ -34,7 +34,7 @@ with no such attempts, rather than \`0\`.
     const [result, apiCall] = await metricsGetAttemptMetrics(
       client,
       args.request,
-      { fetchOptions: { signal: ctx.signal } },
+      { fetchOptions: { signal: ctx.mcpReq.signal } },
     ).$inspect();
 
     if (!result.ok) {

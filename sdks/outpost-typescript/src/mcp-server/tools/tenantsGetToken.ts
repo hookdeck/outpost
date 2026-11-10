@@ -20,7 +20,7 @@ Returns a JWT token scoped to the tenant for safe browser API calls. Requires Ad
     const [result, apiCall] = await tenantsGetToken(
       client,
       args.tenantId,
-      { fetchOptions: { signal: ctx.signal } },
+      { fetchOptions: { signal: ctx.mcpReq.signal } },
     ).$inspect();
 
     if (!result.ok) {

@@ -23,7 +23,7 @@ Idempotently creates or updates a tenant. Required before associating destinatio
       client,
       args.tenantId,
       args.body,
-      { fetchOptions: { signal: ctx.signal } },
+      { fetchOptions: { signal: ctx.mcpReq.signal } },
     ).$inspect();
 
     if (!result.ok) {
