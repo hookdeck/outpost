@@ -19,7 +19,7 @@ func serveCommand() *cli.Command {
 		Usage: "Run a reference MCP Events server in front of Outpost's /mcp routes",
 		Flags: append([]cli.Flag{
 			&cli.StringFlag{Name: "listen", Value: "127.0.0.1:4500", Sources: cli.EnvVars("MCP_DEV_LISTEN"), Usage: "listen address"},
-			&cli.StringSliceFlag{Name: "user", Usage: "NAME=TENANT[:TOPIC,...]: bearer token NAME acts for TENANT, limited to the topics; repeatable. Any other bearer token is the ID of its own tenant"},
+			&cli.StringSliceFlag{Name: "user", Usage: "NAME=TENANT[:TOPIC,...]: bearer token NAME acts for TENANT, and its events/list is limited to the topics; repeatable. Any other bearer token is the ID of its own tenant"},
 		}, outpostFlags()...),
 		Action: serve,
 	}

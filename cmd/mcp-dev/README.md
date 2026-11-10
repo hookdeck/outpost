@@ -49,7 +49,7 @@ curl -s localhost:3333/api/v1/publish -H 'Authorization: Bearer apikey' -H 'Cont
 
 `client refresh` and `client unsubscribe` take the same flags. Terminal 2 prints the verification, then the event, each with its signature check. The verification appears only the first time a tenant subscribes to a callback URL within `EXPERIMENTAL_MCP_VERIFICATION_TTL_SECONDS` (24 h by default): Outpost caches the passed challenge in Redis, and the cache survives `make up`. To see it again, subscribe with another `MCP_TOKEN` or another `--url`. `receive --event-status 500` answers deliveries with an error to show retries; stopping it with Ctrl-C prints a summary and exits 1 if a delivery broke a rule.
 
-Without `--principal`, any bearer token acts for the tenant given to `serve --tenant` (default `demo`). `--principal NAME=TENANT[:TOPIC,...]` limits a token to a tenant and topics.
+`serve` treats a bearer token as the ID of the tenant it acts for, so `MCP_TOKEN=demo` subscribes in tenant `demo`. `--user NAME=TENANT[:TOPIC,...]` ties a token to a tenant instead and limits the `events/list` it sees to the topics.
 
 `client` works against any MCP Events server: `--server` (`MCP_SERVER_URL`) takes its URL, `--token` (`MCP_TOKEN`) is sent as the bearer token, `--json` prints the raw response.
 
