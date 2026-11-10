@@ -88,7 +88,7 @@ components:
       description: >-
         The MCP request failed. `mcp_error` is a JSON-RPC error object with `data` only where the
         MCP Events spec defines it: `-32602` invalid params (a malformed request body also answers
-        this) and `-32024` forbidden (no principal, or an event outside `allowed_topics`) have no
+        this) and `-32024` forbidden (no principal) have no
         `data`, `-32023` not found (`data.kind` is `event` or `subscription`), `-32025` resource
         exhausted (`data.limit`, and `data.max` when there is one), `-32026` unsupported
         (`data.feature` and `data.value`, such as a delivery mode other than `webhook`), `-32027`
@@ -6877,12 +6877,6 @@ paths:
                   type: string
                   description: The authenticated principal on whose behalf the subscription is made.
                   example: "user-1"
-                allowed_topics:
-                  type: array
-                  items:
-                    type: string
-                  description: Events the principal may subscribe to. Omit to allow every event; an empty list allows none.
-                  example: ["order.created"]
                 params:
                   type: object
                   additionalProperties: true

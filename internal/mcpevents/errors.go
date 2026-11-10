@@ -53,7 +53,6 @@ const (
 
 	// forbidden reasons.
 	ReasonUnauthenticated = "unauthenticated"
-	ReasonTopicNotAllowed = "topic_not_allowed"
 
 	// callback_endpoint_error reasons: the fixed lastError categories.
 	ReasonConnectionRefused = "connection_refused"

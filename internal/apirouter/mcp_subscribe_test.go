@@ -56,11 +56,8 @@ func subscribeParams(mutate ...func(map[string]any)) map[string]any {
 	return p
 }
 
-func subscribeBody(principal string, params map[string]any, allowed ...string) map[string]any {
+func subscribeBody(principal string, params map[string]any) map[string]any {
 	b := map[string]any{"principal": principal, "params": params}
-	if allowed != nil {
-		b["allowed_topics"] = allowed
-	}
 	return b
 }
 
@@ -348,10 +345,6 @@ func TestAPI_MCPSubscribeErrors(t *testing.T) {
 			-32023, "NotFound", map[string]any{"kind": "event"}},
 		{"wildcard event", subscribeBody("u", subscribeParams(func(p map[string]any) { p["name"] = "user.*" })), nil,
 			-32023, "NotFound", map[string]any{"kind": "event"}},
-		{"event outside the allowed topics", subscribeBody("u", subscribeParams(), "user.updated"), nil,
-			-32024, "Forbidden", nil},
-		{"no allowed topics", subscribeBody("u", subscribeParams(), []string{}...), nil,
-			-32024, "Forbidden", nil},
 		{"no principal", subscribeBody("", subscribeParams()), nil,
 			-32024, "Forbidden", nil},
 		{"verification rate limited", subscribeBody("u", subscribeParams()), mcpevents.ResourceExhausted(mcpevents.LimitVerificationRate, 10, time.Second),
@@ -420,7 +413,7 @@ func TestAPI_MCPSubscribeErrors(t *testing.T) {
 
 	t.Run("a malformed body answers InvalidParams", func(t *testing.T) {
 		h := newSubscribeTest(t, &stubVerifier{})
-		for _, body := range []string{`not json`, `{"principal":1}`, `{"principal":"u","allowed_topics":"x"}`} {
+		for _, body := range []string{`not json`, `{"principal":1}`, `{"principal":"u","params":"x"}`} {
 			req := h.withAPIKey(httptest.NewRequest(http.MethodPost, mcpSubscribePath, strings.NewReader(body)))
 			req.Header.Set("Content-Type", "application/json")
 			requireMCPError(t, h.do(req), -32602, "InvalidParams", nil)

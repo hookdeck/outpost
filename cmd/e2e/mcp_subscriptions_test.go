@@ -495,8 +495,6 @@ func (s *mcpSubscriptionsSuite) TestSubscribeErrors() {
 			func(p *mcpclient.SubscribeParams) { p.Mode = "poll" }, mcpCodeUnsupported},
 		{"unknown event", s.alice, func() *mcpSub { return mk(s.alice, "order.unknown", mcpreceiver.Echo()) },
 			nil, mcpCodeNotFound},
-		{"event outside the principal's topics", s.limited, func() *mcpSub { return mk(s.limited, "user.created", mcpreceiver.Echo()) },
-			nil, mcpCodeForbidden},
 		{"argument not in the inputSchema", s.alice, func() *mcpSub { return mk(s.alice, "user.created", mcpreceiver.Echo()) },
 			func(p *mcpclient.SubscribeParams) { p.Arguments = map[string]any{"total": 10} }, mcpCodeInvalidParams},
 		{"argument outside the enum", s.alice, func() *mcpSub { return mk(s.alice, "user.created", mcpreceiver.Echo()) },

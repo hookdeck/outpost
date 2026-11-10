@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"slices"
 	"strings"
 	"time"
 
@@ -35,9 +34,8 @@ func NewMCPSubscribeHandlers(store tenantstore.TenantStore, dest *DestinationHan
 }
 
 type mcpSubscribeRequest struct {
-	Principal     string          `json:"principal"`
-	AllowedTopics []string        `json:"allowed_topics"`
-	Params        json.RawMessage `json:"params"`
+	Principal string          `json:"principal"`
+	Params    json.RawMessage `json:"params"`
 }
 
 type mcpSubscribeResult struct {
@@ -152,9 +150,6 @@ func (h *MCPSubscribeHandlers) subscribe(ctx context.Context, tenantID string, r
 	}
 	if strings.Contains(params.Name, "*") {
 		return nil, mcpevents.NotFound(mcpevents.NotFoundEvent)
-	}
-	if req.AllowedTopics != nil && !slices.Contains(req.AllowedTopics, params.Name) {
-		return nil, mcpevents.Forbidden(mcpevents.ReasonTopicNotAllowed)
 	}
 
 	tenant, err := h.tenant(ctx, tenantID)

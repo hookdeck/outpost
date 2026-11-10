@@ -90,11 +90,7 @@ func (s *endpointsServer) serve(w http.ResponseWriter, r *http.Request) {
 			rpcFail(w, http.StatusBadRequest, req.ID, -32020, "HeaderMismatch", nil)
 			return
 		}
-		action := strings.TrimPrefix(req.Method, "events/")
 		body := map[string]any{"principal": principal, "params": req.Params}
-		if action == "subscribe" && len(user.AllowedTopics) > 0 {
-			body["allowed_topics"] = user.AllowedTopics
-		}
 		status, out := s.outpost(http.MethodPost, "/tenants/"+user.Tenant+"/mcp/"+req.Method, body)
 		forward(w, req.ID, status, out)
 	default:
