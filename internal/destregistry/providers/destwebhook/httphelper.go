@@ -88,6 +88,7 @@ func ExecuteHTTPRequest(ctx context.Context, client *http.Client, req *http.Requ
 			Response: nil,
 		}
 	}
+	defer resp.Body.Close()
 
 	// Non-2xx fails the attempt. Redirects aren't followed, so a 3xx lands here too.
 	if resp.StatusCode >= 300 {
@@ -139,7 +140,7 @@ func ExecuteHTTPRequest(ctx context.Context, client *http.Client, req *http.Requ
 //   - address_not_allowed: Address is private and not allowlisted
 //   - dns_error:           Domain doesn't exist or DNS lookup failed
 //   - connection_refused:  Server not running or rejecting connections
-//   - connection_reset:    Connection was dropped by the server
+//   - connection_reset:    Connection was dropped by the server (reset, or closed before a response)
 //   - network_unreachable: Network path to destination is unavailable
 //   - timeout:             Request took too long (I/O timeout or context deadline)
 //   - tls_error:           TLS/SSL certificate or handshake failure
@@ -151,6 +152,13 @@ func ClassifyNetworkError(err error) string {
 
 	if netguard.IsAddressNotAllowed(err) {
 		return "address_not_allowed"
+	}
+
+	// A peer that closes the connection before responding surfaces as a bare
+	// EOF rather than "connection reset". Through a forward proxy an upstream
+	// reset also arrives this way, since the proxy closes its side of the tunnel.
+	if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+		return "connection_reset"
 	}
 
 	errStr := err.Error()

@@ -133,3 +133,88 @@ func TestParseHTTPResponse_Location(t *testing.T) {
 		})
 	}
 }
+
+func TestExecuteHTTPRequest_ServerClosesBeforeResponse(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.Copy(io.Discard, r.Body)
+		conn, _, err := w.(http.Hijacker).Hijack()
+		require.NoError(t, err)
+		conn.Close()
+	}))
+	defer server.Close()
+
+	req, err := http.NewRequest(http.MethodPost, server.URL, strings.NewReader("{}"))
+	require.NoError(t, err)
+
+	result := destwebhook.ExecuteHTTPRequest(context.Background(), server.Client(), req, "webhook", 0)
+
+	require.NotNil(t, result.Delivery)
+	assert.Equal(t, "failed", result.Delivery.Status)
+	assert.Equal(t, "connection_reset", result.Delivery.Code)
+	assert.Error(t, result.Error)
+}
+
+type closeTrackingBody struct {
+	io.ReadCloser
+	closed *bool
+}
+
+func (b closeTrackingBody) Close() error {
+	*b.closed = true
+	return b.ReadCloser.Close()
+}
+
+type closeTrackingTransport struct {
+	base   http.RoundTripper
+	closed *bool
+}
+
+func (t closeTrackingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	resp, err := t.base.RoundTrip(req)
+	if err != nil {
+		return nil, err
+	}
+	resp.Body = closeTrackingBody{ReadCloser: resp.Body, closed: t.closed}
+	return resp, nil
+}
+
+func TestExecuteHTTPRequest_ClosesResponseBody(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		status   int
+		bodySize int
+		maxBytes int
+	}{
+		{"success under limit", http.StatusOK, 8, 1024},
+		{"success over limit", http.StatusOK, 2048, 1024},
+		{"success no limit", http.StatusOK, 2048, 0},
+		{"failure under limit", http.StatusInternalServerError, 8, 1024},
+		{"failure over limit", http.StatusInternalServerError, 2048, 1024},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(tt.status)
+				_, _ = w.Write([]byte(strings.Repeat("x", tt.bodySize)))
+			}))
+			defer server.Close()
+
+			req, err := http.NewRequest(http.MethodPost, server.URL, strings.NewReader("{}"))
+			require.NoError(t, err)
+
+			var closed bool
+			client := &http.Client{Transport: closeTrackingTransport{base: server.Client().Transport, closed: &closed}}
+			result := destwebhook.ExecuteHTTPRequest(context.Background(), client, req, "webhook", tt.maxBytes)
+
+			require.NotNil(t, result.Delivery)
+			assert.True(t, closed, "response body should be closed")
+		})
+	}
+}

@@ -101,10 +101,21 @@ jobs:
           echo "Updated $SHIELDS_FILE content:"
           cat "$SHIELDS_FILE"
 
+      # The org doesn't let GITHUB_TOKEN create pull requests, so the PR is opened
+      # with a short-lived token from the hookdeck-ci GitHub App.
+      - name: Create GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.CI_APP_CLIENT_ID }}
+          private-key: ${{ secrets.CI_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+
       - name: Create Pull Request for shields.json update
         env:
           NEW_VERSION: ${{ steps.get_version.outputs.sdk_version }} # This will be like "0.2.1"
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
