@@ -42,6 +42,7 @@ jobs:
     secrets:
       github_access_token: ${{ secrets.GITHUB_TOKEN }}
       speakeasy_api_key: ${{ secrets.SPEAKEASY_API_KEY }}
+      ci_app_private_key: ${{ secrets.CI_APP_PRIVATE_KEY }}
 
   generate-python:
     needs: generate-go
@@ -55,6 +56,7 @@ jobs:
       github_access_token: ${{ secrets.GITHUB_TOKEN }}
       speakeasy_api_key: ${{ secrets.SPEAKEASY_API_KEY }}
       pypi_token: ${{ secrets.PYPI_TOKEN }}
+      ci_app_private_key: ${{ secrets.CI_APP_PRIVATE_KEY }}
 
   generate-ts:
     needs: generate-python
