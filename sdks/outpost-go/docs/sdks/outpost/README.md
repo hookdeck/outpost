@@ -148,6 +148,6 @@ func main() {
 | ----------------------------- | ----------------------------- | ----------------------------- |
 | apierrors.UnauthorizedError   | 401                           | application/json              |
 | apierrors.NotFoundError       | 404                           | application/json              |
-| apierrors.APIErrorResponse    | 422                           | application/json              |
+| apierrors.APIErrorResponse    | 413, 422                      | application/json              |
 | apierrors.InternalServerError | 500                           | application/json              |
 | apierrors.APIError            | 4XX, 5XX                      | \*/\*                         |

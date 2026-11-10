@@ -2,7 +2,7 @@
 
 package outpostgo
 
-// Generated from OpenAPI doc version 0.0.1 and generator version 2.943.0
+// Generated from OpenAPI doc version 0.0.1 and generator version 2.960.8
 
 import (
 	"bytes"
@@ -194,11 +194,11 @@ func WithTimeout(timeout time.Duration) SDKOption {
 // New creates a new instance of the SDK with the provided options
 func New(opts ...SDKOption) *Outpost {
 	sdk := &Outpost{
-		SDKVersion: "1.7.0",
+		SDKVersion: "1.8.0",
 		sdkConfiguration: config.SDKConfiguration{
-			UserAgent:         "speakeasy-sdk/go 1.7.0 2.943.0 0.0.1 github.com/hookdeck/outpost/sdks/outpost-go",
-			SDKVersion:        "1.7.0",
-			GenVersion:        "2.943.0",
+			UserAgent:         "speakeasy-sdk/go 1.8.0 2.960.8 0.0.1 github.com/hookdeck/outpost/sdks/outpost-go",
+			SDKVersion:        "1.8.0",
+			GenVersion:        "2.960.8",
 			OpenAPIDocVersion: "0.0.1",
 			ServerList:        ServerList,
 		},
@@ -940,6 +940,8 @@ func (s *Outpost) Retry(ctx context.Context, request components.RetryRequest, op
 			}
 			return nil, apierrors.NewAPIError(fmt.Sprintf("unknown content-type received: %s", httpRes.Header.Get("Content-Type")), httpRes.StatusCode, string(rawBody), httpRes)
 		}
+	case httpRes.StatusCode == 413:
+		fallthrough
 	case httpRes.StatusCode == 422:
 		switch {
 		case utils.MatchContentType(httpRes.Header.Get("Content-Type"), `application/json`):
