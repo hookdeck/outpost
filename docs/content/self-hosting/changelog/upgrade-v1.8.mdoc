@@ -1,0 +1,36 @@
+---
+title: "Upgrade to v1.8"
+description: "Breaking changes, migration steps and behavior changes when upgrading Outpost from v1.7 to v1.8."
+---
+
+This guide covers what changes when upgrading from v1.7 to v1.8. There is one breaking change, one ClickHouse migration and four behavior changes to review before upgrading.
+
+With the ClickHouse log store, run `outpost migrate apply --yes` before starting v1.8: the server refuses to start while a migration is pending. There is no new PostgreSQL migration. Retries scheduled by v1.7 run normally on v1.8, and you can roll back to v1.7.0 without reverting the migration.
+
+| Change | Impact | Action Required |
+| --- | --- | --- |
+| [Webhook deliveries no longer follow redirects](#webhook-deliveries-no-longer-follow-redirects) | Webhook destinations whose URL answers with a redirect | Update the destination URL to the final address |
+
+For new features and fixes, see the [v1.8.0 release notes](https://github.com/hookdeck/outpost/releases/tag/v1.8.0).
+
+## Breaking Changes
+
+### Webhook deliveries no longer follow redirects
+
+A 3xx response is now a failed attempt with its status code, retried like any other failure and, when enabled, counted toward auto-disable. v1.7 followed up to 10 redirects. On a 301, 302 or 303 it re-sent the request as a `GET` without the body, so the new URL never received the event, yet the attempt was recorded as a success.
+
+Common causes are an `http://` URL redirected to `https://` and a missing or extra trailing slash. The failed attempt's response data includes the redirect target in `location`, so you can see the URL to switch to. The `redirect_error` error code is removed, as it can no longer occur. See [Webhook](/docs/outpost/destinations/webhook#configuration).
+
+## Behavior Changes
+
+- With `CLICKHOUSE_LOG_RETENTION_TTL_DAYS` set, ClickHouse removes expired logs a whole part at a time instead of rewriting parts to delete expired rows. Tables are partitioned by month, so logs can stay queryable and on disk for up to about a month after their retention ends. With a short retention, plan for the extra disk.
+- Hookdeck destinations retry a failed delivery. v1.7 recorded a non-2xx response from Hookdeck as failed but never retried it, and treated a 3xx as a success. Each retry is a new failed attempt, so a failing Hookdeck destination reaches consecutive failure alerts and auto-disable sooner, and can now send `alert.attempt.exhausted_retries`.
+- A receiver that closes the connection before responding is recorded as `connection_reset`. v1.7 recorded it as `network_error`, which happened most often through a forward proxy (`DESTINATIONS_PROXY_URL`).
+- With auto-disable off, the 100% [`alert.destination.consecutive_failure`](/docs/outpost/features/operator-events#alertdestinationconsecutive_failure) alert is sent once per failure streak. v1.7 sent it again on every failure past the threshold.
+
+## New Configuration
+
+See the [configuration reference](/docs/outpost/self-hosting/configuration) for defaults and details.
+
+- [`DESTINATIONS_BLOCK_PRIVATE_ADDRESSES`](/docs/outpost/self-hosting/deployment#block-private-addresses-in-outpost) and `DESTINATIONS_PRIVATE_ADDRESS_ALLOWLIST`: stop webhook destinations from reaching private addresses. Off by default.
+- [`CLICKHOUSE_IDLE_CLOSE_SECONDS`](/docs/outpost/self-hosting/configuration#log-storage): close the ClickHouse connection pool after this many seconds without a call (default `300`); the next call reconnects.
