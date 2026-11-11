@@ -47,6 +47,7 @@
             "title": "Operator Events & Alerts"
           },
           { "slug": "features/tenant-user-portal", "title": "Tenant Portal" },
+          { "slug": "features/mcp-events", "title": "MCP Events (Experimental)" },
           { "slug": "features/metrics", "title": "Metrics" },
           { "slug": "features/opentelemetry", "title": "OpenTelemetry" }
         ]
@@ -73,7 +74,7 @@
           { "slug": "destinations/rabbitmq", "title": "RabbitMQ" },
           { "slug": "destinations/kafka", "title": "Apache Kafka" },
           { "slug": "destinations/cloudflare-queues", "title": "Cloudflare Queues" },
-          { "slug": "destinations/mcp", "title": "MCP Events (Experimental)" }
+          { "slug": "destinations/mcp", "title": "MCP Events Delivery (Experimental)" }
         ]
       ]
     },
