@@ -5,36 +5,46 @@ import (
 	"time"
 )
 
-// TTLConfig holds the subscription lifetime rules; Min <= Default <= Max.
-type TTLConfig struct {
-	Default time.Duration
-	Min     time.Duration
-	Max     time.Duration
-}
+// DefaultSubscriptionTTL is the lifetime granted when a request has no ttlMs.
+const DefaultSubscriptionTTL = 24 * time.Hour
+
+// maxExpiry is the latest expiry granted: the last instant RFC 3339 can write.
+var maxExpiry = time.Date(9999, 12, 31, 23, 59, 59, 0, time.UTC)
 
 // GrantTTL returns the expiry granted for a requested ttlMs, truncated to
-// milliseconds:
-//   - absent: now + Default;
-//   - a number: floored to whole milliseconds and clamped to [Min, Max];
-//   - null: now + Max (a request for no expiry still gets a finite grant).
-func GrantTTL(req TTLRequest, cfg TTLConfig, now time.Time) time.Time {
-	var ttl time.Duration
+// milliseconds, or nil for no expiry:
+//   - absent: now + DefaultSubscriptionTTL;
+//   - a number: exactly that many whole milliseconds from now; zero or less
+//     expires now;
+//   - null: no expiry.
+//
+// A number beyond the year 9999 is granted until then.
+func GrantTTL(req TTLRequest, now time.Time) *time.Time {
+	var expiresAt time.Time
 	switch req.Kind {
 	case TTLNull:
-		ttl = cfg.Max
+		return nil
 	case TTLFinite:
-		ms := math.Floor(req.Ms)
-		ms = math.Max(ms, float64(cfg.Min.Milliseconds()))
-		ms = math.Min(ms, float64(cfg.Max.Milliseconds()))
-		ttl = time.Duration(ms) * time.Millisecond
+		ms := math.Max(math.Floor(req.Ms), 0)
+		// Duration saturates after 292 years, so add in milliseconds since the epoch.
+		if limit := float64(maxExpiry.Unix()-now.Unix()) * 1000; ms > limit {
+			expiresAt = maxExpiry
+			break
+		}
+		expiresAt = time.UnixMilli(now.UnixMilli() + int64(ms))
 	default:
-		ttl = cfg.Default
+		expiresAt = now.Add(DefaultSubscriptionTTL)
 	}
-	return now.Add(ttl).UTC().Truncate(time.Millisecond)
+	expiresAt = expiresAt.UTC().Truncate(time.Millisecond)
+	return &expiresAt
 }
 
 // FormatRefreshBefore renders a grant as RFC 3339 UTC truncated to seconds,
-// never later than the real expiry.
-func FormatRefreshBefore(expiresAt time.Time) string {
-	return expiresAt.UTC().Truncate(time.Second).Format(time.RFC3339)
+// never later than the real expiry, or nil for no expiry.
+func FormatRefreshBefore(expiresAt *time.Time) *string {
+	if expiresAt == nil {
+		return nil
+	}
+	s := expiresAt.UTC().Truncate(time.Second).Format(time.RFC3339)
+	return &s
 }

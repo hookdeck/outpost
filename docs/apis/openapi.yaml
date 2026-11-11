@@ -3906,12 +3906,6 @@ components:
           type: [string, "null"]
         EXPERIMENTAL_MCP_EVENTS_SCHEMA:
           type: [string, "null"]
-        EXPERIMENTAL_MCP_SUBSCRIPTION_TTL_DEFAULT_SECONDS:
-          type: [string, "null"]
-        EXPERIMENTAL_MCP_SUBSCRIPTION_TTL_MAX_SECONDS:
-          type: [string, "null"]
-        EXPERIMENTAL_MCP_SUBSCRIPTION_TTL_MIN_SECONDS:
-          type: [string, "null"]
         HTTP_USER_AGENT:
           type: [string, "null"]
         IDGEN_ATTEMPT_PREFIX:
@@ -6897,9 +6891,11 @@ paths:
                     type: string
                     example: "sub_3f1c2a9e5b7d4c6a8e0f1b2c3d4e5f60"
                   refreshBefore:
-                    type: string
+                    type: [string, "null"]
                     format: date-time
-                    description: Subscribe again before this time to keep the subscription.
+                    description: >-
+                      Subscribe again before this time to keep the subscription. Null only when the
+                      request sent `ttlMs: null`, which means the subscription does not expire.
                   cursor:
                     type: [string, "null"]
                     description: Always null; events are not replayed.

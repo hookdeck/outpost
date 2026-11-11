@@ -33,13 +33,8 @@ type mcpFixtureServer interface {
 type mcpFixtureEnv struct {
 	OutpostURL string
 	APIKey     string
-	TTL        mcpTTLRules
 	// Users maps a bearer token to the tenant the MCP server resolves it to.
 	Users map[string]mcpUser
-}
-
-type mcpTTLRules struct {
-	Default, Min, Max time.Duration
 }
 
 type mcpUser struct {
@@ -51,7 +46,8 @@ var mcpFixtures []mcpFixture
 
 func registerMCPFixture(f mcpFixture) { mcpFixtures = append(mcpFixtures, f) }
 
-var mcpTTL = mcpTTLRules{Default: 5 * time.Second, Min: 2 * time.Second, Max: 8 * time.Second}
+// mcpShortTTL is a lifetime short enough to let a test wait it out.
+const mcpShortTTL = 2 * time.Second
 
 const (
 	mcpCodeInvalidParams = -32602
@@ -121,7 +117,6 @@ func (s *mcpSubscriptionsSuite) SetupSuite() {
 	s.server = s.fx.Start(s.T(), mcpFixtureEnv{
 		OutpostURL: s.m.base.apiURL(""),
 		APIKey:     s.m.base.config.APIKey,
-		TTL:        mcpTTL,
 		Users:      s.users,
 	})
 }
@@ -309,7 +304,7 @@ func (s *mcpSubscriptionsSuite) TestSubscribeVerifiesCallbackAndReturnsDerivedID
 	s.Len(res.ID, len("sub_")+32)
 	s.Nil(res.Cursor)
 	s.False(res.Truncated)
-	s.requireGrant(res, before, after, mcpTTL.Default)
+	s.requireGrant(res, before, after, mcpevents.DefaultSubscriptionTTL)
 	s.Equal(http.StatusOK, s.destinationStatus(s.tenantOf(user), sub.id), "stored under the derived ID")
 }
 
@@ -376,11 +371,10 @@ func (s *mcpSubscriptionsSuite) TestTTLGrants() {
 		ttl  any
 		want time.Duration
 	}{
-		{"omitted gets the default", nil, mcpTTL.Default},
-		{"below the minimum gets the minimum", 1, mcpTTL.Min},
-		{"above the maximum gets the maximum", int(time.Hour / time.Millisecond), mcpTTL.Max},
-		{"within bounds is kept", 6500, 6500 * time.Millisecond},
-		{"null gets a finite grant", mcpclient.TTLNull, mcpTTL.Max},
+		{"omitted gets 24 hours", nil, mcpevents.DefaultSubscriptionTTL},
+		{"a number is kept", 6500, 6500 * time.Millisecond},
+		{"a number above a day is kept", int(48 * time.Hour / time.Millisecond), 48 * time.Hour},
+		{"zero expires now", 0, 0},
 	}
 	for _, tc := range cases {
 		s.Run(tc.name, func() {
@@ -392,17 +386,42 @@ func (s *mcpSubscriptionsSuite) TestTTLGrants() {
 	}
 }
 
+func (s *mcpSubscriptionsSuite) TestNullTTLNeverExpires() {
+	user := s.fresh()
+	tenant := s.tenantOf(user)
+	c := s.session(user)
+	sub := s.newSub(user, "user.created", nil, mcpreceiver.Echo())
+
+	res := s.mustSubscribe(c, sub, mcpclient.TTLNull)
+	s.Nil(res.RefreshBefore, "refreshBefore is null when the client sent null")
+	stored := readDestinationFromStore(s.T(), s.m.base.config, tenant, sub.id)
+	s.Require().NotNil(stored)
+	s.Nil(stored.ExpiresAt)
+
+	s.publish(tenant, map[string]any{"n": 1})
+	s.Require().Len(s.m.r.WaitFor(sub.path, 1, mcpreceiver.Request.IsEvent, mockServerPollTimeout), 1)
+
+	res = s.mustSubscribe(c, sub, int(mcpShortTTL/time.Millisecond))
+	s.NotNil(res.RefreshBefore, "a refresh with a number gets an expiry")
+	res = s.mustSubscribe(c, sub, mcpclient.TTLNull)
+	s.Nil(res.RefreshBefore)
+
+	resp := s.unsubscribe(c, sub)
+	s.Nil(resp.Error, "%s", resp.Raw)
+	s.Equal(http.StatusNotFound, s.destinationStatus(tenant, sub.id))
+}
+
 func (s *mcpSubscriptionsSuite) TestSubscriptionStopsDeliveringAfterExpiry() {
 	user := s.fresh()
 	c := s.session(user)
 	sub := s.newSub(user, "user.created", nil, mcpreceiver.Echo())
 	before := time.Now()
-	s.mustSubscribe(c, sub, int(mcpTTL.Min/time.Millisecond))
+	s.mustSubscribe(c, sub, int(mcpShortTTL/time.Millisecond))
 
 	s.publish(s.tenantOf(user), map[string]any{"n": 1})
 	s.Require().Len(s.m.r.WaitFor(sub.path, 1, mcpreceiver.Request.IsEvent, mockServerPollTimeout), 1)
 
-	time.Sleep(time.Until(before.Add(mcpTTL.Min + time.Second)))
+	time.Sleep(time.Until(before.Add(mcpShortTTL + time.Second)))
 	late := s.publish(s.tenantOf(user), map[string]any{"n": 2})
 	s.NotContains(late.DestinationIDs, sub.id)
 	s.requireEventsAfterWait(sub, 1)
@@ -418,8 +437,8 @@ func (s *mcpSubscriptionsSuite) TestResubscribeAfterExpiryWithNewSecretIsFresh()
 	c := s.session(user)
 	sub := s.newSub(user, "user.created", nil, mcpreceiver.Echo())
 	before := time.Now()
-	s.mustSubscribe(c, sub, int(mcpTTL.Min/time.Millisecond))
-	time.Sleep(time.Until(before.Add(mcpTTL.Min + time.Second)))
+	s.mustSubscribe(c, sub, int(mcpShortTTL/time.Millisecond))
+	time.Sleep(time.Until(before.Add(mcpShortTTL + time.Second)))
 
 	old := sub.secret
 	sub.secret = mcpclient.NewSecret()

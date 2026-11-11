@@ -244,7 +244,7 @@ func (b *ServiceBuilder) BuildAPIWorkers(baseRouter *gin.Engine) error {
 			PortalConfig:         b.cfg.GetPortalConfig(),
 			GinMode:              b.cfg.GinMode,
 
-			MCPSubscriptionTTL: b.cfg.MCPSubscriptionTTL(),
+			MCPSubscribe: b.cfg.Experimental.MCP.Enabled,
 		},
 		apirouter.RouterDeps{
 			TenantStore:         svc.tenantStore,

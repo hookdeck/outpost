@@ -23,11 +23,7 @@ type endpointsFixture struct{}
 
 func (endpointsFixture) Name() string { return "endpoints" }
 
-func (endpointsFixture) ConfigureOutpost(cfg *config.Config) {
-	cfg.Experimental.MCP.SubscriptionTTLDefaultSeconds = int(mcpTTL.Default / time.Second)
-	cfg.Experimental.MCP.SubscriptionTTLMinSeconds = int(mcpTTL.Min / time.Second)
-	cfg.Experimental.MCP.SubscriptionTTLMaxSeconds = int(mcpTTL.Max / time.Second)
-}
+func (endpointsFixture) ConfigureOutpost(cfg *config.Config) {}
 
 func (endpointsFixture) Start(t *testing.T, env mcpFixtureEnv) mcpFixtureServer {
 	s := &endpointsServer{env: env}

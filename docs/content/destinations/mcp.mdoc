@@ -115,7 +115,7 @@ curl -X POST '{% $OUTPOST_API_BASE_URL %}/tenants/<TENANT_ID>/mcp/events/subscri
 
 On success, the answer is the MCP result to return to the agent. On failure, it is a `422` with an `mcp_error` (`code`, `message`, and `data` where the spec defines it) for your MCP server to return as the JSON-RPC error. See the [API reference](/docs/outpost/api) for the full request and responses.
 
-Subscribing again with the same tenant, event, arguments and callback URL refreshes the subscription: the same `id`, a new expiry and the new secret, which signs alongside the old one for 24 hours. The lifetime follows `ttlMs`, within the limits set in [configuration](/docs/outpost/self-hosting/configuration#mcp-events-experimental). Once it has passed, the subscription receives no events.
+Subscribing again with the same tenant, event, arguments and callback URL refreshes the subscription: the same `id`, a new expiry and the new secret, which signs alongside the old one for 24 hours. Outpost grants the `ttlMs` your MCP server forwards: `null` means no expiry and omitted means 24 hours. To enforce limits, change `ttlMs` before forwarding. Once the subscription has expired, it receives no events.
 
 Unsubscribing takes the `params` of the original subscribe, and answers `{"resultType": "complete"}`.
 

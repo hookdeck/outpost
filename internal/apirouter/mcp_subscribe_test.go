@@ -24,8 +24,6 @@ import (
 	"go.uber.org/zap/zaptest/observer"
 )
 
-var mcpTTLRules = mcpevents.TTLConfig{Default: time.Hour, Min: 5 * time.Minute, Max: 24 * time.Hour}
-
 const (
 	mcpSubscribePath   = "/api/v1/tenants/t1/mcp/events/subscribe"
 	mcpUnsubscribePath = "/api/v1/tenants/t1/mcp/events/unsubscribe"
@@ -33,7 +31,7 @@ const (
 
 func newSubscribeTest(t *testing.T, verifier *stubVerifier, extra ...apiTestOption) *apiTest {
 	t.Helper()
-	return newMCPAPITest(t, verifier, append([]apiTestOption{withMCPSubscribe(mcpTTLRules)}, extra...)...)
+	return newMCPAPITest(t, verifier, append([]apiTestOption{withMCPSubscribe()}, extra...)...)
 }
 
 type discardEmitter struct{}
@@ -63,7 +61,7 @@ func postMCP(h *apiTest, path string, body any) *httptest.ResponseRecorder {
 type subscribeResult struct {
 	ResultType     string  `json:"resultType"`
 	ID             string  `json:"id"`
-	RefreshBefore  string  `json:"refreshBefore"`
+	RefreshBefore  *string `json:"refreshBefore"`
 	Cursor         *string `json:"cursor"`
 	Truncated      bool    `json:"truncated"`
 	DeliveryStatus *struct {
@@ -128,9 +126,10 @@ func TestAPI_MCPSubscribe(t *testing.T) {
 		assert.Nil(t, r.Cursor)
 		assert.False(t, r.Truncated)
 		assert.Nil(t, r.DeliveryStatus, "only a refresh reports delivery status")
-		refresh, err := time.Parse(time.RFC3339, r.RefreshBefore)
+		require.NotNil(t, r.RefreshBefore)
+		refresh, err := time.Parse(time.RFC3339, *r.RefreshBefore)
 		require.NoError(t, err)
-		assert.WithinDuration(t, before.Add(time.Hour), refresh, 2*time.Second)
+		assert.WithinDuration(t, before.Add(mcpevents.DefaultSubscriptionTTL), refresh, 2*time.Second)
 
 		d := storedSubscription(t, h, r.ID)
 		require.NotNil(t, d)
@@ -218,11 +217,12 @@ func TestAPI_MCPSubscribe(t *testing.T) {
 			omit bool
 			want time.Duration
 		}{
-			{"omitted", nil, true, time.Hour},
-			{"below min", 1, false, 5 * time.Minute},
-			{"above max", int64(7 * 24 * 3600 * 1000), false, 24 * time.Hour},
+			{"omitted", nil, true, mcpevents.DefaultSubscriptionTTL},
+			{"small", 1, false, time.Millisecond},
 			{"kept", 900_000, false, 15 * time.Minute},
-			{"null", nil, false, 24 * time.Hour},
+			{"beyond a day", int64(7 * 24 * 3600 * 1000), false, 7 * 24 * time.Hour},
+			{"zero", 0, false, 0},
+			{"negative", -5000, false, 0},
 		}
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
@@ -233,9 +233,74 @@ func TestAPI_MCPSubscribe(t *testing.T) {
 						p["ttlMs"] = tt.ttl
 					}
 				})))
-				assert.WithinDuration(t, before.Add(tt.want), *storedSubscription(t, h, r.ID).ExpiresAt, 2*time.Second)
+				require.NotNil(t, r.RefreshBefore)
+				d := storedSubscription(t, h, r.ID)
+				require.NotNil(t, d.ExpiresAt)
+				assert.WithinDuration(t, before.Add(tt.want), *d.ExpiresAt, 2*time.Second)
 			})
 		}
+	})
+
+	t.Run("a null ttl grants no expiry, end to end", func(t *testing.T) {
+		h := newSubscribeTest(t, &stubVerifier{}, withSubscriptionEmitter(discardEmitter{}))
+		null := func(p map[string]any) { p["ttlMs"] = nil }
+
+		first := requireSubscribed(t, postMCP(h, mcpSubscribePath, subscribeParams(null)))
+		assert.Nil(t, first.RefreshBefore)
+		assert.Contains(t, h.do(h.withAPIKey(h.jsonReq(http.MethodPost, mcpSubscribePath, subscribeParams(null)))).Body.String(), `"refreshBefore":null`)
+		d := storedSubscription(t, h, first.ID)
+		require.NotNil(t, d)
+		assert.Nil(t, d.ExpiresAt)
+		assert.False(t, d.IsExpired(time.Now().Add(100*365*24*time.Hour)))
+
+		tenant, err := h.tenantStore.RetrieveTenant(t.Context(), "t1")
+		require.NoError(t, err)
+		assert.Equal(t, []string{"user.created"}, []string(tenant.Topics))
+
+		// Another subscribe sweeps expired subscriptions and leaves this one.
+		requireSubscribed(t, postMCP(h, mcpSubscribePath, subscribeParams(func(p map[string]any) {
+			p["arguments"] = map[string]any{"status": "pending"}
+		})))
+		assert.NotNil(t, storedSubscription(t, h, first.ID))
+
+		resp := postMCP(h, mcpUnsubscribePath, map[string]any{
+			"name": "user.created", "arguments": map[string]any{"status": "paid"}, "delivery": map[string]any{"url": mcpCallbackURL},
+		})
+		require.Equal(t, http.StatusOK, resp.Code, resp.Body.String())
+		assert.Nil(t, storedSubscription(t, h, first.ID))
+	})
+
+	t.Run("a refresh switches between finite and no expiry", func(t *testing.T) {
+		h := newSubscribeTest(t, &stubVerifier{})
+		withTTL := func(ttl any) map[string]any {
+			return subscribeParams(func(p map[string]any) { p["ttlMs"] = ttl })
+		}
+
+		first := requireSubscribed(t, postMCP(h, mcpSubscribePath, withTTL(600_000)))
+		require.NotNil(t, first.RefreshBefore)
+		require.NotNil(t, storedSubscription(t, h, first.ID).ExpiresAt)
+
+		none := requireSubscribed(t, postMCP(h, mcpSubscribePath, withTTL(nil)))
+		assert.Equal(t, first.ID, none.ID)
+		assert.Nil(t, none.RefreshBefore)
+		assert.Nil(t, storedSubscription(t, h, first.ID).ExpiresAt)
+
+		again := requireSubscribed(t, postMCP(h, mcpSubscribePath, withTTL(nil)))
+		assert.Nil(t, again.RefreshBefore)
+		assert.Nil(t, storedSubscription(t, h, first.ID).ExpiresAt)
+
+		finite := requireSubscribed(t, postMCP(h, mcpSubscribePath, withTTL(900_000)))
+		require.NotNil(t, finite.RefreshBefore)
+		require.NotNil(t, storedSubscription(t, h, first.ID).ExpiresAt)
+		assert.Equal(t, 1, mcpDestinationCount(t, h))
+	})
+
+	t.Run("a zero ttl expires the subscription at once", func(t *testing.T) {
+		h := newSubscribeTest(t, &stubVerifier{})
+		r := requireSubscribed(t, postMCP(h, mcpSubscribePath, subscribeParams(func(p map[string]any) { p["ttlMs"] = 0 })))
+		d := storedSubscription(t, h, r.ID)
+		require.NotNil(t, d.ExpiresAt)
+		assert.True(t, d.IsExpired(time.Now().Add(time.Millisecond)))
 	})
 
 	t.Run("a cached verification is not repeated", func(t *testing.T) {
@@ -368,14 +433,14 @@ func TestAPI_MCPSubscribeErrors(t *testing.T) {
 	}
 
 	t.Run("event missing from the definitions", func(t *testing.T) {
-		h, v := newMCPCatalogAPITestWithVerifier(t, mcpEventsCatalog(t), withMCPSubscribe(mcpTTLRules))
+		h, v := newMCPCatalogAPITestWithVerifier(t, mcpEventsCatalog(t), withMCPSubscribe())
 		resp := postMCP(h, mcpSubscribePath, subscribeParams(func(p map[string]any) { p["name"] = "user.deleted" }))
 		requireMCPError(t, resp, -32023, "NotFound", map[string]any{"kind": "event"})
 		assert.Empty(t, v.Requests())
 	})
 
 	t.Run("arguments rejected by the event schema", func(t *testing.T) {
-		h, v := newMCPCatalogAPITestWithVerifier(t, mcpEventsCatalog(t), withMCPSubscribe(mcpTTLRules))
+		h, v := newMCPCatalogAPITestWithVerifier(t, mcpEventsCatalog(t), withMCPSubscribe())
 		resp := postMCP(h, mcpSubscribePath, subscribeParams(func(p map[string]any) {
 			p["arguments"] = map[string]any{"status": "refunded"}
 		}))
@@ -385,7 +450,7 @@ func TestAPI_MCPSubscribeErrors(t *testing.T) {
 
 	t.Run("a 422 is logged with its details and the body stays the MCP error", func(t *testing.T) {
 		core, logs := observer.New(zap.InfoLevel)
-		h, _ := newMCPCatalogAPITestWithVerifier(t, mcpEventsCatalog(t), withMCPSubscribe(mcpTTLRules), withLogger(logging.NewTestLogger(zap.New(core))))
+		h, _ := newMCPCatalogAPITestWithVerifier(t, mcpEventsCatalog(t), withMCPSubscribe(), withLogger(logging.NewTestLogger(zap.New(core))))
 		resp := postMCP(h, mcpSubscribePath, subscribeParams(func(p map[string]any) { p["name"] = "user.deleted" }))
 		requireMCPError(t, resp, -32023, "NotFound", map[string]any{"kind": "event"})
 

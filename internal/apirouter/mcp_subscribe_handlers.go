@@ -23,20 +23,20 @@ type MCPSubscribeHandlers struct {
 	store   tenantstore.TenantStore
 	dest    *DestinationHandlers
 	tenants *TenantHandlers
-	// ttl is nil while MCP is off; the routes then answer 404.
-	ttl *mcpevents.TTLConfig
+	// on is false while MCP is off; the routes then answer 404.
+	on bool
 	// unavailable is why the event definitions are unusable; the routes then answer 503.
 	unavailable error
 }
 
-func NewMCPSubscribeHandlers(store tenantstore.TenantStore, dest *DestinationHandlers, tenants *TenantHandlers, ttl *mcpevents.TTLConfig, unavailable error) *MCPSubscribeHandlers {
-	return &MCPSubscribeHandlers{store: store, dest: dest, tenants: tenants, ttl: ttl, unavailable: unavailable}
+func NewMCPSubscribeHandlers(store tenantstore.TenantStore, dest *DestinationHandlers, tenants *TenantHandlers, on bool, unavailable error) *MCPSubscribeHandlers {
+	return &MCPSubscribeHandlers{store: store, dest: dest, tenants: tenants, on: on, unavailable: unavailable}
 }
 
 type mcpSubscribeResult struct {
 	ResultType     string                 `json:"resultType"`
 	ID             string                 `json:"id"`
-	RefreshBefore  string                 `json:"refreshBefore"`
+	RefreshBefore  *string                `json:"refreshBefore"`
 	Cursor         *string                `json:"cursor"`
 	Truncated      bool                   `json:"truncated"`
 	DeliveryStatus *mcpDeliveryStatusInfo `json:"deliveryStatus,omitempty"`
@@ -96,7 +96,7 @@ func bindMCPRequest(c *gin.Context, req any) bool {
 // enabled answers 404 while MCP is off and 503 while its event definitions
 // are invalid.
 func (h *MCPSubscribeHandlers) enabled(c *gin.Context) bool {
-	if h.ttl == nil {
+	if !h.on {
 		AbortWithError(c, http.StatusNotFound, ErrorResponse{Code: http.StatusNotFound, Message: "not found"})
 		return false
 	}
@@ -156,7 +156,7 @@ func (h *MCPSubscribeHandlers) subscribe(ctx context.Context, tenantID string, r
 
 	prev := h.dest.snapshotTenant(tenant)
 	id := mcpevents.DeriveSubscriptionID(tenant.ID, params.URL, params.Name, params.Arguments)
-	expiresAt := mcpevents.GrantTTL(params.TTL, *h.ttl, time.Now())
+	expiresAt := mcpevents.GrantTTL(params.TTL, time.Now())
 
 	// A create that loses a race to another subscribe of the same key retries
 	// as a refresh.
@@ -182,7 +182,7 @@ func (h *MCPSubscribeHandlers) subscribe(ctx context.Context, tenantID string, r
 
 		// A missing or expired subscription starts fresh.
 		destination := h.newDestination(tenant.ID, id, params)
-		destination.ExpiresAt = &expiresAt
+		destination.ExpiresAt = expiresAt
 		if expired {
 			destination.Version = existing.Version
 		}
@@ -208,12 +208,12 @@ func (h *MCPSubscribeHandlers) subscribe(ctx context.Context, tenantID string, r
 }
 
 // refresh renews a live subscription: same id, a new secret that rotates in
-// next to the old one, a new expiry, and re-enabled if it was suspended.
-func (h *MCPSubscribeHandlers) refresh(ctx context.Context, tenant *models.Tenant, existing *models.Destination, secret string, expiresAt time.Time) (*mcpSubscribeResult, error) {
+// next to the old one, a new expiry (or none), and re-enabled if it was suspended.
+func (h *MCPSubscribeHandlers) refresh(ctx context.Context, tenant *models.Tenant, existing *models.Destination, secret string, expiresAt *time.Time) (*mcpSubscribeResult, error) {
 	destination := *existing
 	destination.Credentials = map[string]string{destmcp.CredentialSecret: secret}
 	destination.DisabledAt = nil
-	destination.ExpiresAt = &expiresAt
+	destination.ExpiresAt = expiresAt
 	destination.UpdatedAt = time.Now()
 
 	if err := h.write(ctx, &destination, existing, true); err != nil {

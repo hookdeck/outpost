@@ -10,7 +10,6 @@ import (
 	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/logstore"
-	"github.com/hookdeck/outpost/internal/mcpevents"
 	"github.com/hookdeck/outpost/internal/portal"
 	"github.com/hookdeck/outpost/internal/telemetry"
 	"github.com/hookdeck/outpost/internal/tenantstore"
@@ -43,9 +42,9 @@ type RouterConfig struct {
 	PortalConfig         portal.PortalConfig
 	GinMode              string
 
-	// MCPSubscriptionTTL holds the lifetime rules of the MCP subscribe
-	// endpoints; they answer 404 while it is nil.
-	MCPSubscriptionTTL *mcpevents.TTLConfig
+	// MCPSubscribe turns the MCP subscribe endpoints on; they answer 404
+	// while it is false.
+	MCPSubscribe bool
 }
 
 type RouterDeps struct {
@@ -155,7 +154,7 @@ func NewRouter(cfg RouterConfig, deps RouterDeps) http.Handler {
 	topicHandlers := NewTopicHandlers(deps.Logger, cfg.Topics)
 	metricsHandlers := NewMetricsHandlers(deps.Logger, deps.LogStore)
 	mcpEventsHandlers := NewMCPEventsHandlers(deps.Logger, deps.MCPCatalog, deps.MCPEventsError)
-	mcpSubscribeHandlers := NewMCPSubscribeHandlers(deps.TenantStore, destinationHandlers, tenantHandlers, cfg.MCPSubscriptionTTL, deps.MCPEventsError)
+	mcpSubscribeHandlers := NewMCPSubscribeHandlers(deps.TenantStore, destinationHandlers, tenantHandlers, cfg.MCPSubscribe, deps.MCPEventsError)
 
 	routes := []RouteDefinition{
 		// Schemas & Topics

@@ -17,7 +17,6 @@ import (
 	"github.com/hookdeck/outpost/internal/destregistry/metadata"
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/logstore"
-	"github.com/hookdeck/outpost/internal/mcpevents"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/opevents"
 	"github.com/hookdeck/outpost/internal/portal"
@@ -74,12 +73,12 @@ type apiTestConfig struct {
 	mcpVerifier          apirouter.MCPVerifier
 	mcpCatalog           *topicschema.Catalog
 	mcpEventsErr         error
-	mcpSubscriptionTTL   *mcpevents.TTLConfig
+	mcpSubscribe         bool
 }
 
-func withMCPSubscribe(ttl mcpevents.TTLConfig) apiTestOption {
+func withMCPSubscribe() apiTestOption {
 	return func(cfg *apiTestConfig) {
-		cfg.mcpSubscriptionTTL = &ttl
+		cfg.mcpSubscribe = true
 	}
 }
 
@@ -201,7 +200,7 @@ func newAPITest(t *testing.T, opts ...apiTestOption) *apiTest {
 			Registry:             registry,
 			PortalConfig:         portal.PortalConfig{},
 
-			MCPSubscriptionTTL: cfg.mcpSubscriptionTTL,
+			MCPSubscribe: cfg.mcpSubscribe,
 		},
 		apirouter.RouterDeps{
 			TenantStore:         ts,

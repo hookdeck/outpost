@@ -184,7 +184,7 @@ func TestAPI_MCPEvents(t *testing.T) {
 func TestAPI_MCPSubscribeWithCatalog(t *testing.T) {
 	newHarness := func(t *testing.T) *apiTest {
 		t.Helper()
-		h, _ := newMCPCatalogAPITestWithVerifier(t, mcpEventsCatalog(t), withMCPSubscribe(mcpTTLRules))
+		h, _ := newMCPCatalogAPITestWithVerifier(t, mcpEventsCatalog(t), withMCPSubscribe())
 		return h
 	}
 
@@ -214,7 +214,7 @@ func TestAPI_MCPSubscribeWithCatalog(t *testing.T) {
 			{Name: "user.updated", InputSchema: json.RawMessage(`{"type":"object","properties":{}}`), PayloadSchema: json.RawMessage(`{"type":"object","properties":{"plan":{"type":"string"}}}`)},
 		})
 		require.NoError(t, err)
-		h2, _ := newMCPCatalogAPITestWithVerifier(t, changed, withTenantStore(h.tenantStore), withMCPSubscribe(mcpTTLRules))
+		h2, _ := newMCPCatalogAPITestWithVerifier(t, changed, withTenantStore(h.tenantStore), withMCPSubscribe())
 
 		refreshed := requireSubscribed(t, postMCP(h2, mcpSubscribePath, subscribeParams(func(p map[string]any) {
 			p["delivery"] = deliveryParams(mcpCallbackURL, mcpSecret(2))

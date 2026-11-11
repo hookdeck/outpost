@@ -108,17 +108,32 @@ func TestParseUnsubscribeParams(t *testing.T) {
 
 func TestGrantTTL(t *testing.T) {
 	t.Parallel()
-	cfg := TTLConfig{Default: time.Hour, Min: 5 * time.Minute, Max: 24 * time.Hour}
 	now := time.Date(2026, 1, 2, 3, 4, 5, 678_901_234, time.UTC)
-	grant := func(req TTLRequest) time.Duration { return GrantTTL(req, cfg, now).Sub(now.Truncate(time.Millisecond)) }
+	grant := func(req TTLRequest) time.Duration {
+		got := GrantTTL(req, now)
+		require.NotNil(t, got)
+		return got.Sub(now.Truncate(time.Millisecond))
+	}
 
-	assert.Equal(t, time.Hour, grant(TTLRequest{Kind: TTLAbsent}))
-	assert.Equal(t, 5*time.Minute, grant(TTLRequest{Kind: TTLFinite, Ms: 1}))
-	assert.Equal(t, 5*time.Minute, grant(TTLRequest{Kind: TTLFinite, Ms: -1e9}))
-	assert.Equal(t, 24*time.Hour, grant(TTLRequest{Kind: TTLFinite, Ms: math.MaxFloat64}))
+	assert.Equal(t, DefaultSubscriptionTTL, grant(TTLRequest{Kind: TTLAbsent}))
+	assert.Equal(t, 24*time.Hour, DefaultSubscriptionTTL)
+	assert.Equal(t, time.Millisecond, grant(TTLRequest{Kind: TTLFinite, Ms: 1}))
 	assert.Equal(t, 10*time.Minute+500*time.Millisecond, grant(TTLRequest{Kind: TTLFinite, Ms: 600_500.9}))
-	assert.Equal(t, 24*time.Hour, grant(TTLRequest{Kind: TTLNull}), "no expiry still gets a finite grant")
-	assert.Equal(t, "2026-01-02T04:04:05Z", FormatRefreshBefore(GrantTTL(TTLRequest{}, cfg, now)))
+	assert.Equal(t, 30*24*time.Hour, grant(TTLRequest{Kind: TTLFinite, Ms: float64(30 * 24 * time.Hour / time.Millisecond)}), "no upper bound")
+	assert.Zero(t, grant(TTLRequest{Kind: TTLFinite, Ms: 0}), "zero expires now")
+	assert.Zero(t, grant(TTLRequest{Kind: TTLFinite, Ms: -1e9}), "negative expires now")
+	assert.Nil(t, GrantTTL(TTLRequest{Kind: TTLNull}, now), "null is no expiry")
+
+	long := GrantTTL(TTLRequest{Kind: TTLFinite, Ms: 500 * 365 * 24 * 3600 * 1000}, now)
+	require.NotNil(t, long)
+	assert.Equal(t, 2525, long.Year(), "500 years are granted as asked")
+
+	far := GrantTTL(TTLRequest{Kind: TTLFinite, Ms: math.MaxFloat64}, now)
+	require.NotNil(t, far)
+	assert.Equal(t, 9999, far.Year(), "a number beyond RFC 3339 is granted until its last year")
+
+	assert.Equal(t, "2026-01-02T04:04:05Z", *FormatRefreshBefore(GrantTTL(TTLRequest{Kind: TTLFinite, Ms: 3_600_000}, now)))
+	assert.Nil(t, FormatRefreshBefore(nil))
 }
 
 func TestErrorRPCError(t *testing.T) {
