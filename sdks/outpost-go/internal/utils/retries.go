@@ -3,6 +3,7 @@
 package utils
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -16,6 +17,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 )
@@ -125,6 +127,7 @@ func Retry(ctx context.Context, r Retries, operation func() (*http.Response, err
 					s := res.StatusCode / 100
 
 					if s >= codeRange && s < codeRange+1 {
+						bufferResponseBody(ctx, res)
 						return retry.TemporaryFromResponse("request failed", res)
 					}
 				} else {
@@ -134,6 +137,7 @@ func Retry(ctx context.Context, r Retries, operation func() (*http.Response, err
 					}
 
 					if res.StatusCode == parsedCode {
+						bufferResponseBody(ctx, res)
 						return retry.TemporaryFromResponse("request failed", res)
 					}
 				}
@@ -192,7 +196,7 @@ func retryWithBackoff(ctx context.Context, s *retry.BackoffStrategy, operation f
 		}
 
 		if ctxErr := ctx.Err(); ctxErr != nil {
-			return ctxErr
+			return lastResponseOnDeadline(ctxErr, err)
 		}
 
 		if time.Since(start) >= maxElapsedTime {
@@ -218,12 +222,80 @@ func retryWithBackoff(ctx context.Context, s *retry.BackoffStrategy, operation f
 
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return lastResponseOnDeadline(ctx.Err(), err)
 		case <-timer.C():
 		}
 
 		attempt += 1
 	}
+}
+
+func lastResponseOnDeadline(ctxErr error, err error) error {
+	var temporary *retry.TemporaryError
+	if errors.Is(ctxErr, context.DeadlineExceeded) && errors.As(err, &temporary) {
+		return err
+	}
+	return ctxErr
+}
+
+func bufferResponseBody(ctx context.Context, res *http.Response) {
+	if _, ok := ctx.Deadline(); !ok {
+		return
+	}
+
+	buffered := &bufferedBody{body: res.Body, done: make(chan struct{})}
+	go func() {
+		buffered.data, buffered.err = io.ReadAll(io.LimitReader(buffered.body, maxBufferedResponseBody+1))
+		if buffered.err == nil && len(buffered.data) > maxBufferedResponseBody {
+			buffered.data = buffered.data[:maxBufferedResponseBody]
+			buffered.err = fmt.Errorf("retryable response body exceeded %d bytes and was not retained", maxBufferedResponseBody)
+		}
+		buffered.closeBody()
+		close(buffered.done)
+	}()
+	res.Body = buffered
+}
+
+const maxBufferedResponseBody = 1 << 20
+
+type bufferedBody struct {
+	body      io.ReadCloser
+	done      chan struct{}
+	data      []byte
+	err       error
+	reader    io.Reader
+	closeOnce sync.Once
+	closeErr  error
+}
+
+func (b *bufferedBody) closeBody() error {
+	b.closeOnce.Do(func() {
+		b.closeErr = b.body.Close()
+	})
+	return b.closeErr
+}
+
+func (b *bufferedBody) Read(p []byte) (int, error) {
+	<-b.done
+	if b.reader == nil {
+		b.reader = bytes.NewReader(b.data)
+		if b.err != nil {
+			b.reader = io.MultiReader(b.reader, failedBodyReader{err: b.err})
+		}
+	}
+	return b.reader.Read(p)
+}
+
+func (b *bufferedBody) Close() error {
+	return b.closeBody()
+}
+
+type failedBodyReader struct {
+	err error
+}
+
+func (r failedBodyReader) Read([]byte) (int, error) {
+	return 0, r.err
 }
 
 type Timer interface {

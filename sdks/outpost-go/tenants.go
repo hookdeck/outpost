@@ -579,6 +579,8 @@ func (s *Tenants) Upsert(ctx context.Context, tenantID string, body *components.
 		}
 	case httpRes.StatusCode == 403:
 		fallthrough
+	case httpRes.StatusCode == 413:
+		fallthrough
 	case httpRes.StatusCode == 422:
 		switch {
 		case utils.MatchContentType(httpRes.Header.Get("Content-Type"), `application/json`):

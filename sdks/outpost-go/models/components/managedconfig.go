@@ -2,608 +2,624 @@
 
 package components
 
+import (
+	"github.com/hookdeck/outpost/sdks/outpost-go/optionalnullable"
+)
+
 // ManagedConfig - Configuration values for managed Outpost.
 // This API is only available on managed Outpost.
 // Self-hosted deployments configure these values using environment variables.
 type ManagedConfig struct {
 	// If "true", automatically disables a destination once ALERT_CONSECUTIVE_FAILURE_COUNT is reached. Has no effect when consecutive-failure alerting is disabled.
-	AlertAutoDisableDestination *string `json:"ALERT_AUTO_DISABLE_DESTINATION,omitempty"`
+	AlertAutoDisableDestination optionalnullable.OptionalNullable[string] `json:"ALERT_AUTO_DISABLE_DESTINATION,omitempty"`
 	// Consecutive delivery failures before alerting on a destination (and disabling it when ALERT_AUTO_DISABLE_DESTINATION is "true"). Omit for the default of 100; set to an empty string to disable consecutive-failure alerting entirely.
-	AlertConsecutiveFailureCount *string `json:"ALERT_CONSECUTIVE_FAILURE_COUNT,omitempty"`
+	AlertConsecutiveFailureCount optionalnullable.OptionalNullable[string] `json:"ALERT_CONSECUTIVE_FAILURE_COUNT,omitempty"`
 	// Suppression window in seconds for exhausted_retries alerts: the first exhaustion per destination alerts and subsequent ones within the window are suppressed ("0" = no suppression). Omit for the default of 3600; set to an empty string to disable exhausted_retries alerting entirely.
-	AlertExhaustedRetriesWindowSeconds      *string `json:"ALERT_EXHAUSTED_RETRIES_WINDOW_SECONDS,omitempty"`
-	DeliveryTimeoutSeconds                  *string `json:"DELIVERY_TIMEOUT_SECONDS,omitempty"`
-	DestinationsAwsKinesisMetadataInPayload *string `json:"DESTINATIONS_AWS_KINESIS_METADATA_IN_PAYLOAD,omitempty"`
-	DestinationsIncludeMillisecondTimestamp *string `json:"DESTINATIONS_INCLUDE_MILLISECOND_TIMESTAMP,omitempty"`
+	AlertExhaustedRetriesWindowSeconds      optionalnullable.OptionalNullable[string] `json:"ALERT_EXHAUSTED_RETRIES_WINDOW_SECONDS,omitempty"`
+	DeliveryTimeoutSeconds                  optionalnullable.OptionalNullable[string] `json:"DELIVERY_TIMEOUT_SECONDS,omitempty"`
+	DestinationsAwsKinesisMetadataInPayload optionalnullable.OptionalNullable[string] `json:"DESTINATIONS_AWS_KINESIS_METADATA_IN_PAYLOAD,omitempty"`
+	DestinationsIncludeMillisecondTimestamp optionalnullable.OptionalNullable[string] `json:"DESTINATIONS_INCLUDE_MILLISECOND_TIMESTAMP,omitempty"`
+	// HTTP forward proxy for webhook, RabbitMQ and Kafka destinations, as a single http(s) URL (e.g., "http://user:pass@proxy.example.com:8080"). RabbitMQ and Kafka connections are tunneled with CONNECT, so the proxy must allow CONNECT to the broker ports. Set to an empty string to remove the proxy.
+	DestinationsProxyURL optionalnullable.OptionalNullable[string] `json:"DESTINATIONS_PROXY_URL,omitempty"`
 	// Additional headers sent with the compat signature, as comma-separated "name=template" pairs. Available variables: {{.EventID}}, {{.Topic}}, {{.Timestamp}}. Use "\," for a literal comma in a template.
-	DestinationsWebhookCompatHeaders *string `json:"DESTINATIONS_WEBHOOK_COMPAT_HEADERS,omitempty"`
+	DestinationsWebhookCompatHeaders optionalnullable.OptionalNullable[string] `json:"DESTINATIONS_WEBHOOK_COMPAT_HEADERS,omitempty"`
 	// Algorithm for the compat signature. Defaults to "hmac-sha256".
-	DestinationsWebhookCompatSignatureAlgorithm *string `json:"DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_ALGORITHM,omitempty"`
+	DestinationsWebhookCompatSignatureAlgorithm optionalnullable.OptionalNullable[string] `json:"DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_ALGORITHM,omitempty"`
 	// Go template for the content signed by the compat signature. Same variables as DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE. Defaults to "{{.Body}}".
-	DestinationsWebhookCompatSignatureContentTemplate *string `json:"DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_CONTENT_TEMPLATE,omitempty"`
+	DestinationsWebhookCompatSignatureContentTemplate optionalnullable.OptionalNullable[string] `json:"DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_CONTENT_TEMPLATE,omitempty"`
 	// Encoding for the compat signature ("hex" or "base64"). Defaults to "hex".
-	DestinationsWebhookCompatSignatureEncoding *string `json:"DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_ENCODING,omitempty"`
+	DestinationsWebhookCompatSignatureEncoding optionalnullable.OptionalNullable[string] `json:"DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_ENCODING,omitempty"`
 	// Complete name of the compat signature header. Setting it sends a second signature, in a previous scheme, alongside the primary one.
-	DestinationsWebhookCompatSignatureHeaderName *string `json:"DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_HEADER_NAME,omitempty"`
+	DestinationsWebhookCompatSignatureHeaderName optionalnullable.OptionalNullable[string] `json:"DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_HEADER_NAME,omitempty"`
 	// Go template for the value of the compat signature header. Same variables as DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE. Defaults to "v0={{.Signatures | join ","}}".
-	DestinationsWebhookCompatSignatureHeaderTemplate *string `json:"DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_HEADER_TEMPLATE,omitempty"`
+	DestinationsWebhookCompatSignatureHeaderTemplate optionalnullable.OptionalNullable[string] `json:"DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_HEADER_TEMPLATE,omitempty"`
 	// How the compat signature derives its HMAC key from the destination secret: "raw", "base64" or "hex". Defaults to "raw". A destination whose secret can't be decoded doesn't receive the compat signature.
-	DestinationsWebhookCompatSignatureSecretEncoding *string `json:"DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_SECRET_ENCODING,omitempty"`
+	DestinationsWebhookCompatSignatureSecretEncoding optionalnullable.OptionalNullable[string] `json:"DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_SECRET_ENCODING,omitempty"`
 	// Prefix stripped from the destination secret before decoding for the compat signature (e.g., "whsec_").
-	DestinationsWebhookCompatSignatureSecretPrefix *string `json:"DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_SECRET_PREFIX,omitempty"`
+	DestinationsWebhookCompatSignatureSecretPrefix optionalnullable.OptionalNullable[string] `json:"DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_SECRET_PREFIX,omitempty"`
 	// Complete name of the event ID header. Unset uses the default "<prefix>event-id"; an explicit value pins that exact name; an empty string disables the header. Only applies to "default" mode.
-	DestinationsWebhookEventIDHeaderName        *string `json:"DESTINATIONS_WEBHOOK_EVENT_ID_HEADER_NAME,omitempty"`
-	DestinationsWebhookHeaderPrefix             *string `json:"DESTINATIONS_WEBHOOK_HEADER_PREFIX,omitempty"`
-	DestinationsWebhookMode                     *string `json:"DESTINATIONS_WEBHOOK_MODE,omitempty"`
-	DestinationsWebhookProxyURL                 *string `json:"DESTINATIONS_WEBHOOK_PROXY_URL,omitempty"`
-	DestinationsWebhookSignatureAlgorithm       *string `json:"DESTINATIONS_WEBHOOK_SIGNATURE_ALGORITHM,omitempty"`
-	DestinationsWebhookSignatureContentTemplate *string `json:"DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE,omitempty"`
-	DestinationsWebhookSignatureEncoding        *string `json:"DESTINATIONS_WEBHOOK_SIGNATURE_ENCODING,omitempty"`
+	DestinationsWebhookEventIDHeaderName optionalnullable.OptionalNullable[string] `json:"DESTINATIONS_WEBHOOK_EVENT_ID_HEADER_NAME,omitempty"`
+	DestinationsWebhookHeaderPrefix      optionalnullable.OptionalNullable[string] `json:"DESTINATIONS_WEBHOOK_HEADER_PREFIX,omitempty"`
+	DestinationsWebhookMode              optionalnullable.OptionalNullable[string] `json:"DESTINATIONS_WEBHOOK_MODE,omitempty"`
+	// Deprecated alias of DESTINATIONS_PROXY_URL: reads return the same value and writes set DESTINATIONS_PROXY_URL. A request that changes both keys to different values is rejected.
+	//
+	// Deprecated: This will be removed in a future release, please migrate away from it as soon as possible.
+	DestinationsWebhookProxyURL                 optionalnullable.OptionalNullable[string] `json:"DESTINATIONS_WEBHOOK_PROXY_URL,omitempty"`
+	DestinationsWebhookSignatureAlgorithm       optionalnullable.OptionalNullable[string] `json:"DESTINATIONS_WEBHOOK_SIGNATURE_ALGORITHM,omitempty"`
+	DestinationsWebhookSignatureContentTemplate optionalnullable.OptionalNullable[string] `json:"DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE,omitempty"`
+	DestinationsWebhookSignatureEncoding        optionalnullable.OptionalNullable[string] `json:"DESTINATIONS_WEBHOOK_SIGNATURE_ENCODING,omitempty"`
 	// Complete name of the signature header. Unset uses the default "<prefix>signature"; an explicit value pins that exact name; an empty string disables the header. Only applies to "default" mode.
-	DestinationsWebhookSignatureHeaderName     *string `json:"DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_NAME,omitempty"`
-	DestinationsWebhookSignatureHeaderTemplate *string `json:"DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE,omitempty"`
+	DestinationsWebhookSignatureHeaderName     optionalnullable.OptionalNullable[string] `json:"DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_NAME,omitempty"`
+	DestinationsWebhookSignatureHeaderTemplate optionalnullable.OptionalNullable[string] `json:"DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE,omitempty"`
 	// How the signature derives its HMAC key from the destination secret: "raw" uses the secret as-is, "base64" and "hex" decode it. Defaults to "raw". DESTINATIONS_WEBHOOK_SIGNING_SECRET_TEMPLATE must generate secrets this encoding can decode. Only applies to "default" mode.
-	DestinationsWebhookSignatureSecretEncoding *string `json:"DESTINATIONS_WEBHOOK_SIGNATURE_SECRET_ENCODING,omitempty"`
+	DestinationsWebhookSignatureSecretEncoding optionalnullable.OptionalNullable[string] `json:"DESTINATIONS_WEBHOOK_SIGNATURE_SECRET_ENCODING,omitempty"`
 	// Prefix stripped from the destination secret before decoding (e.g., "whsec_"). Ignored when DESTINATIONS_WEBHOOK_SIGNATURE_SECRET_ENCODING is "raw". Only applies to "default" mode.
-	DestinationsWebhookSignatureSecretPrefix *string `json:"DESTINATIONS_WEBHOOK_SIGNATURE_SECRET_PREFIX,omitempty"`
-	DestinationsWebhookSigningSecretTemplate *string `json:"DESTINATIONS_WEBHOOK_SIGNING_SECRET_TEMPLATE,omitempty"`
-	// Format of the timestamp header: "rfc3339" or "unix". Defaults to "rfc3339". Only applies to "default" mode.
-	DestinationsWebhookTimestampFormat *string `json:"DESTINATIONS_WEBHOOK_TIMESTAMP_FORMAT,omitempty"`
+	DestinationsWebhookSignatureSecretPrefix optionalnullable.OptionalNullable[string] `json:"DESTINATIONS_WEBHOOK_SIGNATURE_SECRET_PREFIX,omitempty"`
+	DestinationsWebhookSigningSecretTemplate optionalnullable.OptionalNullable[string] `json:"DESTINATIONS_WEBHOOK_SIGNING_SECRET_TEMPLATE,omitempty"`
+	// Format of the timestamp header: "rfc3339", "unix" (seconds since the epoch) or "iso8601_milli_no_offset" (UTC with milliseconds and no offset, e.g. "2026-10-05T15:02:25.447"). Defaults to "rfc3339". Only applies to "default" mode.
+	DestinationsWebhookTimestampFormat optionalnullable.OptionalNullable[string] `json:"DESTINATIONS_WEBHOOK_TIMESTAMP_FORMAT,omitempty"`
 	// Complete name of the timestamp header. Unset uses the default "<prefix>timestamp"; an explicit value pins that exact name; an empty string disables the header. Only applies to "default" mode.
-	DestinationsWebhookTimestampHeaderName *string `json:"DESTINATIONS_WEBHOOK_TIMESTAMP_HEADER_NAME,omitempty"`
+	DestinationsWebhookTimestampHeaderName optionalnullable.OptionalNullable[string] `json:"DESTINATIONS_WEBHOOK_TIMESTAMP_HEADER_NAME,omitempty"`
 	// Complete name of the topic header. Unset uses the default "<prefix>topic"; an explicit value pins that exact name; an empty string disables the header. Only applies to "default" mode.
-	DestinationsWebhookTopicHeaderName        *string `json:"DESTINATIONS_WEBHOOK_TOPIC_HEADER_NAME,omitempty"`
-	HTTPUserAgent                             *string `json:"HTTP_USER_AGENT,omitempty"`
-	IdgenAttemptPrefix                        *string `json:"IDGEN_ATTEMPT_PREFIX,omitempty"`
-	IdgenDestinationPrefix                    *string `json:"IDGEN_DESTINATION_PREFIX,omitempty"`
-	IdgenEventPrefix                          *string `json:"IDGEN_EVENT_PREFIX,omitempty"`
-	IdgenType                                 *string `json:"IDGEN_TYPE,omitempty"`
-	MaxDestinationsPerTenant                  *string `json:"MAX_DESTINATIONS_PER_TENANT,omitempty"`
-	PortalBrandColor                          *string `json:"PORTAL_BRAND_COLOR,omitempty"`
-	PortalDisableOutpostBranding              *string `json:"PORTAL_DISABLE_OUTPOST_BRANDING,omitempty"`
-	PortalFaviconURL                          *string `json:"PORTAL_FAVICON_URL,omitempty"`
-	PortalForceTheme                          *string `json:"PORTAL_FORCE_THEME,omitempty"`
-	PortalLogo                                *string `json:"PORTAL_LOGO,omitempty"`
-	PortalLogoDark                            *string `json:"PORTAL_LOGO_DARK,omitempty"`
-	PortalOrganizationName                    *string `json:"PORTAL_ORGANIZATION_NAME,omitempty"`
-	PortalRefererURL                          *string `json:"PORTAL_REFERER_URL,omitempty"`
-	PortalRefreshURL                          *string `json:"PORTAL_REFRESH_URL,omitempty"`
-	PortalEnableDestinationFilter             *string `json:"PORTAL_ENABLE_DESTINATION_FILTER,omitempty"`
-	PortalEnableWebhookCustomHeaders          *string `json:"PORTAL_ENABLE_WEBHOOK_CUSTOM_HEADERS,omitempty"`
-	RetryIntervalSeconds                      *string `json:"RETRY_INTERVAL_SECONDS,omitempty"`
-	MaxRetryLimit                             *string `json:"MAX_RETRY_LIMIT,omitempty"`
-	RetrySchedule                             *string `json:"RETRY_SCHEDULE,omitempty"`
-	OtelExporterOtlpEndpoint                  *string `json:"OTEL_EXPORTER_OTLP_ENDPOINT,omitempty"`
-	OtelExporterOtlpHeaders                   *string `json:"OTEL_EXPORTER_OTLP_HEADERS,omitempty"`
-	OtelExporterOtlpProtocol                  *string `json:"OTEL_EXPORTER_OTLP_PROTOCOL,omitempty"`
-	OtelExporterOtlpTracesEndpoint            *string `json:"OTEL_EXPORTER_OTLP_TRACES_ENDPOINT,omitempty"`
-	OtelExporterOtlpMetricsEndpoint           *string `json:"OTEL_EXPORTER_OTLP_METRICS_ENDPOINT,omitempty"`
-	OtelExporterOtlpLogsEndpoint              *string `json:"OTEL_EXPORTER_OTLP_LOGS_ENDPOINT,omitempty"`
-	OtelServiceName                           *string `json:"OTEL_SERVICE_NAME,omitempty"`
-	PublishAwsSqsAccessKeyID                  *string `json:"PUBLISH_AWS_SQS_ACCESS_KEY_ID,omitempty"`
-	PublishAwsSqsEndpoint                     *string `json:"PUBLISH_AWS_SQS_ENDPOINT,omitempty"`
-	PublishAwsSqsQueue                        *string `json:"PUBLISH_AWS_SQS_QUEUE,omitempty"`
-	PublishAwsSqsRegion                       *string `json:"PUBLISH_AWS_SQS_REGION,omitempty"`
-	PublishAwsSqsSecretAccessKey              *string `json:"PUBLISH_AWS_SQS_SECRET_ACCESS_KEY,omitempty"`
-	PublishAzureServicebusConnectionString    *string `json:"PUBLISH_AZURE_SERVICEBUS_CONNECTION_STRING,omitempty"`
-	PublishAzureServicebusSubscription        *string `json:"PUBLISH_AZURE_SERVICEBUS_SUBSCRIPTION,omitempty"`
-	PublishAzureServicebusTopic               *string `json:"PUBLISH_AZURE_SERVICEBUS_TOPIC,omitempty"`
-	PublishGcpPubsubProject                   *string `json:"PUBLISH_GCP_PUBSUB_PROJECT,omitempty"`
-	PublishGcpPubsubServiceAccountCredentials *string `json:"PUBLISH_GCP_PUBSUB_SERVICE_ACCOUNT_CREDENTIALS,omitempty"`
-	PublishGcpPubsubSubscription              *string `json:"PUBLISH_GCP_PUBSUB_SUBSCRIPTION,omitempty"`
-	PublishGcpPubsubTopic                     *string `json:"PUBLISH_GCP_PUBSUB_TOPIC,omitempty"`
-	PublishRabbitmqExchange                   *string `json:"PUBLISH_RABBITMQ_EXCHANGE,omitempty"`
-	PublishRabbitmqQueue                      *string `json:"PUBLISH_RABBITMQ_QUEUE,omitempty"`
-	PublishRabbitmqServerURL                  *string `json:"PUBLISH_RABBITMQ_SERVER_URL,omitempty"`
-	Topics                                    *string `json:"TOPICS,omitempty"`
-	TopicsAllowWildcards                      *string `json:"TOPICS_ALLOW_WILDCARDS,omitempty"`
+	DestinationsWebhookTopicHeaderName        optionalnullable.OptionalNullable[string] `json:"DESTINATIONS_WEBHOOK_TOPIC_HEADER_NAME,omitempty"`
+	HTTPUserAgent                             optionalnullable.OptionalNullable[string] `json:"HTTP_USER_AGENT,omitempty"`
+	IdgenAttemptPrefix                        optionalnullable.OptionalNullable[string] `json:"IDGEN_ATTEMPT_PREFIX,omitempty"`
+	IdgenDestinationPrefix                    optionalnullable.OptionalNullable[string] `json:"IDGEN_DESTINATION_PREFIX,omitempty"`
+	IdgenEventPrefix                          optionalnullable.OptionalNullable[string] `json:"IDGEN_EVENT_PREFIX,omitempty"`
+	IdgenType                                 optionalnullable.OptionalNullable[string] `json:"IDGEN_TYPE,omitempty"`
+	MaxDestinationsPerTenant                  optionalnullable.OptionalNullable[string] `json:"MAX_DESTINATIONS_PER_TENANT,omitempty"`
+	PortalBrandColor                          optionalnullable.OptionalNullable[string] `json:"PORTAL_BRAND_COLOR,omitempty"`
+	PortalDisableOutpostBranding              optionalnullable.OptionalNullable[string] `json:"PORTAL_DISABLE_OUTPOST_BRANDING,omitempty"`
+	PortalFaviconURL                          optionalnullable.OptionalNullable[string] `json:"PORTAL_FAVICON_URL,omitempty"`
+	PortalForceTheme                          optionalnullable.OptionalNullable[string] `json:"PORTAL_FORCE_THEME,omitempty"`
+	PortalLogo                                optionalnullable.OptionalNullable[string] `json:"PORTAL_LOGO,omitempty"`
+	PortalLogoDark                            optionalnullable.OptionalNullable[string] `json:"PORTAL_LOGO_DARK,omitempty"`
+	PortalOrganizationName                    optionalnullable.OptionalNullable[string] `json:"PORTAL_ORGANIZATION_NAME,omitempty"`
+	PortalRefererURL                          optionalnullable.OptionalNullable[string] `json:"PORTAL_REFERER_URL,omitempty"`
+	PortalRefreshURL                          optionalnullable.OptionalNullable[string] `json:"PORTAL_REFRESH_URL,omitempty"`
+	PortalEnableDestinationFilter             optionalnullable.OptionalNullable[string] `json:"PORTAL_ENABLE_DESTINATION_FILTER,omitempty"`
+	PortalEnableWebhookCustomHeaders          optionalnullable.OptionalNullable[string] `json:"PORTAL_ENABLE_WEBHOOK_CUSTOM_HEADERS,omitempty"`
+	RetryIntervalSeconds                      optionalnullable.OptionalNullable[string] `json:"RETRY_INTERVAL_SECONDS,omitempty"`
+	MaxRetryLimit                             optionalnullable.OptionalNullable[string] `json:"MAX_RETRY_LIMIT,omitempty"`
+	RetrySchedule                             optionalnullable.OptionalNullable[string] `json:"RETRY_SCHEDULE,omitempty"`
+	OtelExporterOtlpEndpoint                  optionalnullable.OptionalNullable[string] `json:"OTEL_EXPORTER_OTLP_ENDPOINT,omitempty"`
+	OtelExporterOtlpHeaders                   optionalnullable.OptionalNullable[string] `json:"OTEL_EXPORTER_OTLP_HEADERS,omitempty"`
+	OtelExporterOtlpProtocol                  optionalnullable.OptionalNullable[string] `json:"OTEL_EXPORTER_OTLP_PROTOCOL,omitempty"`
+	OtelExporterOtlpTracesEndpoint            optionalnullable.OptionalNullable[string] `json:"OTEL_EXPORTER_OTLP_TRACES_ENDPOINT,omitempty"`
+	OtelExporterOtlpMetricsEndpoint           optionalnullable.OptionalNullable[string] `json:"OTEL_EXPORTER_OTLP_METRICS_ENDPOINT,omitempty"`
+	OtelExporterOtlpLogsEndpoint              optionalnullable.OptionalNullable[string] `json:"OTEL_EXPORTER_OTLP_LOGS_ENDPOINT,omitempty"`
+	OtelServiceName                           optionalnullable.OptionalNullable[string] `json:"OTEL_SERVICE_NAME,omitempty"`
+	PublishAwsSqsAccessKeyID                  optionalnullable.OptionalNullable[string] `json:"PUBLISH_AWS_SQS_ACCESS_KEY_ID,omitempty"`
+	PublishAwsSqsEndpoint                     optionalnullable.OptionalNullable[string] `json:"PUBLISH_AWS_SQS_ENDPOINT,omitempty"`
+	PublishAwsSqsQueue                        optionalnullable.OptionalNullable[string] `json:"PUBLISH_AWS_SQS_QUEUE,omitempty"`
+	PublishAwsSqsRegion                       optionalnullable.OptionalNullable[string] `json:"PUBLISH_AWS_SQS_REGION,omitempty"`
+	PublishAwsSqsSecretAccessKey              optionalnullable.OptionalNullable[string] `json:"PUBLISH_AWS_SQS_SECRET_ACCESS_KEY,omitempty"`
+	PublishAzureServicebusConnectionString    optionalnullable.OptionalNullable[string] `json:"PUBLISH_AZURE_SERVICEBUS_CONNECTION_STRING,omitempty"`
+	PublishAzureServicebusSubscription        optionalnullable.OptionalNullable[string] `json:"PUBLISH_AZURE_SERVICEBUS_SUBSCRIPTION,omitempty"`
+	PublishAzureServicebusTopic               optionalnullable.OptionalNullable[string] `json:"PUBLISH_AZURE_SERVICEBUS_TOPIC,omitempty"`
+	PublishGcpPubsubProject                   optionalnullable.OptionalNullable[string] `json:"PUBLISH_GCP_PUBSUB_PROJECT,omitempty"`
+	PublishGcpPubsubServiceAccountCredentials optionalnullable.OptionalNullable[string] `json:"PUBLISH_GCP_PUBSUB_SERVICE_ACCOUNT_CREDENTIALS,omitempty"`
+	PublishGcpPubsubSubscription              optionalnullable.OptionalNullable[string] `json:"PUBLISH_GCP_PUBSUB_SUBSCRIPTION,omitempty"`
+	PublishGcpPubsubTopic                     optionalnullable.OptionalNullable[string] `json:"PUBLISH_GCP_PUBSUB_TOPIC,omitempty"`
+	PublishRabbitmqExchange                   optionalnullable.OptionalNullable[string] `json:"PUBLISH_RABBITMQ_EXCHANGE,omitempty"`
+	PublishRabbitmqQueue                      optionalnullable.OptionalNullable[string] `json:"PUBLISH_RABBITMQ_QUEUE,omitempty"`
+	PublishRabbitmqServerURL                  optionalnullable.OptionalNullable[string] `json:"PUBLISH_RABBITMQ_SERVER_URL,omitempty"`
+	Topics                                    optionalnullable.OptionalNullable[string] `json:"TOPICS,omitempty"`
+	TopicsAllowWildcards                      optionalnullable.OptionalNullable[string] `json:"TOPICS_ALLOW_WILDCARDS,omitempty"`
 }
 
-func (m *ManagedConfig) GetAlertAutoDisableDestination() *string {
+func (m *ManagedConfig) GetAlertAutoDisableDestination() optionalnullable.OptionalNullable[string] {
 	if m == nil {
 		return nil
 	}
 	return m.AlertAutoDisableDestination
 }
 
-func (m *ManagedConfig) GetAlertConsecutiveFailureCount() *string {
+func (m *ManagedConfig) GetAlertConsecutiveFailureCount() optionalnullable.OptionalNullable[string] {
 	if m == nil {
 		return nil
 	}
 	return m.AlertConsecutiveFailureCount
 }
 
-func (m *ManagedConfig) GetAlertExhaustedRetriesWindowSeconds() *string {
+func (m *ManagedConfig) GetAlertExhaustedRetriesWindowSeconds() optionalnullable.OptionalNullable[string] {
 	if m == nil {
 		return nil
 	}
 	return m.AlertExhaustedRetriesWindowSeconds
 }
 
-func (m *ManagedConfig) GetDeliveryTimeoutSeconds() *string {
+func (m *ManagedConfig) GetDeliveryTimeoutSeconds() optionalnullable.OptionalNullable[string] {
 	if m == nil {
 		return nil
 	}
 	return m.DeliveryTimeoutSeconds
 }
 
-func (m *ManagedConfig) GetDestinationsAwsKinesisMetadataInPayload() *string {
+func (m *ManagedConfig) GetDestinationsAwsKinesisMetadataInPayload() optionalnullable.OptionalNullable[string] {
 	if m == nil {
 		return nil
 	}
 	return m.DestinationsAwsKinesisMetadataInPayload
 }
 
-func (m *ManagedConfig) GetDestinationsIncludeMillisecondTimestamp() *string {
+func (m *ManagedConfig) GetDestinationsIncludeMillisecondTimestamp() optionalnullable.OptionalNullable[string] {
 	if m == nil {
 		return nil
 	}
 	return m.DestinationsIncludeMillisecondTimestamp
 }
 
-func (m *ManagedConfig) GetDestinationsWebhookCompatHeaders() *string {
+func (m *ManagedConfig) GetDestinationsProxyURL() optionalnullable.OptionalNullable[string] {
+	if m == nil {
+		return nil
+	}
+	return m.DestinationsProxyURL
+}
+
+func (m *ManagedConfig) GetDestinationsWebhookCompatHeaders() optionalnullable.OptionalNullable[string] {
 	if m == nil {
 		return nil
 	}
 	return m.DestinationsWebhookCompatHeaders
 }
 
-func (m *ManagedConfig) GetDestinationsWebhookCompatSignatureAlgorithm() *string {
+func (m *ManagedConfig) GetDestinationsWebhookCompatSignatureAlgorithm() optionalnullable.OptionalNullable[string] {
 	if m == nil {
 		return nil
 	}
 	return m.DestinationsWebhookCompatSignatureAlgorithm
 }
 
-func (m *ManagedConfig) GetDestinationsWebhookCompatSignatureContentTemplate() *string {
+func (m *ManagedConfig) GetDestinationsWebhookCompatSignatureContentTemplate() optionalnullable.OptionalNullable[string] {
 	if m == nil {
 		return nil
 	}
 	return m.DestinationsWebhookCompatSignatureContentTemplate
 }
 
-func (m *ManagedConfig) GetDestinationsWebhookCompatSignatureEncoding() *string {
+func (m *ManagedConfig) GetDestinationsWebhookCompatSignatureEncoding() optionalnullable.OptionalNullable[string] {
 	if m == nil {
 		return nil
 	}
 	return m.DestinationsWebhookCompatSignatureEncoding
 }
 
-func (m *ManagedConfig) GetDestinationsWebhookCompatSignatureHeaderName() *string {
+func (m *ManagedConfig) GetDestinationsWebhookCompatSignatureHeaderName() optionalnullable.OptionalNullable[string] {
 	if m == nil {
 		return nil
 	}
 	return m.DestinationsWebhookCompatSignatureHeaderName
 }
 
-func (m *ManagedConfig) GetDestinationsWebhookCompatSignatureHeaderTemplate() *string {
+func (m *ManagedConfig) GetDestinationsWebhookCompatSignatureHeaderTemplate() optionalnullable.OptionalNullable[string] {
 	if m == nil {
 		return nil
 	}
 	return m.DestinationsWebhookCompatSignatureHeaderTemplate
 }
 
-func (m *ManagedConfig) GetDestinationsWebhookCompatSignatureSecretEncoding() *string {
+func (m *ManagedConfig) GetDestinationsWebhookCompatSignatureSecretEncoding() optionalnullable.OptionalNullable[string] {
 	if m == nil {
 		return nil
 	}
 	return m.DestinationsWebhookCompatSignatureSecretEncoding
 }
 
-func (m *ManagedConfig) GetDestinationsWebhookCompatSignatureSecretPrefix() *string {
+func (m *ManagedConfig) GetDestinationsWebhookCompatSignatureSecretPrefix() optionalnullable.OptionalNullable[string] {
 	if m == nil {
 		return nil
 	}
 	return m.DestinationsWebhookCompatSignatureSecretPrefix
 }
 
-func (m *ManagedConfig) GetDestinationsWebhookEventIDHeaderName() *string {
+func (m *ManagedConfig) GetDestinationsWebhookEventIDHeaderName() optionalnullable.OptionalNullable[string] {
 	if m == nil {
 		return nil
 	}
 	return m.DestinationsWebhookEventIDHeaderName
 }
 
-func (m *ManagedConfig) GetDestinationsWebhookHeaderPrefix() *string {
+func (m *ManagedConfig) GetDestinationsWebhookHeaderPrefix() optionalnullable.OptionalNullable[string] {
 	if m == nil {
 		return nil
 	}
 	return m.DestinationsWebhookHeaderPrefix
 }
 
-func (m *ManagedConfig) GetDestinationsWebhookMode() *string {
+func (m *ManagedConfig) GetDestinationsWebhookMode() optionalnullable.OptionalNullable[string] {
 	if m == nil {
 		return nil
 	}
 	return m.DestinationsWebhookMode
 }
 
-func (m *ManagedConfig) GetDestinationsWebhookProxyURL() *string {
+func (m *ManagedConfig) GetDestinationsWebhookProxyURL() optionalnullable.OptionalNullable[string] {
 	if m == nil {
 		return nil
 	}
 	return m.DestinationsWebhookProxyURL
 }
 
-func (m *ManagedConfig) GetDestinationsWebhookSignatureAlgorithm() *string {
+func (m *ManagedConfig) GetDestinationsWebhookSignatureAlgorithm() optionalnullable.OptionalNullable[string] {
 	if m == nil {
 		return nil
 	}
 	return m.DestinationsWebhookSignatureAlgorithm
 }
 
-func (m *ManagedConfig) GetDestinationsWebhookSignatureContentTemplate() *string {
+func (m *ManagedConfig) GetDestinationsWebhookSignatureContentTemplate() optionalnullable.OptionalNullable[string] {
 	if m == nil {
 		return nil
 	}
 	return m.DestinationsWebhookSignatureContentTemplate
 }
 
-func (m *ManagedConfig) GetDestinationsWebhookSignatureEncoding() *string {
+func (m *ManagedConfig) GetDestinationsWebhookSignatureEncoding() optionalnullable.OptionalNullable[string] {
 	if m == nil {
 		return nil
 	}
 	return m.DestinationsWebhookSignatureEncoding
 }
 
-func (m *ManagedConfig) GetDestinationsWebhookSignatureHeaderName() *string {
+func (m *ManagedConfig) GetDestinationsWebhookSignatureHeaderName() optionalnullable.OptionalNullable[string] {
 	if m == nil {
 		return nil
 	}
 	return m.DestinationsWebhookSignatureHeaderName
 }
 
-func (m *ManagedConfig) GetDestinationsWebhookSignatureHeaderTemplate() *string {
+func (m *ManagedConfig) GetDestinationsWebhookSignatureHeaderTemplate() optionalnullable.OptionalNullable[string] {
 	if m == nil {
 		return nil
 	}
 	return m.DestinationsWebhookSignatureHeaderTemplate
 }
 
-func (m *ManagedConfig) GetDestinationsWebhookSignatureSecretEncoding() *string {
+func (m *ManagedConfig) GetDestinationsWebhookSignatureSecretEncoding() optionalnullable.OptionalNullable[string] {
 	if m == nil {
 		return nil
 	}
 	return m.DestinationsWebhookSignatureSecretEncoding
 }
 
-func (m *ManagedConfig) GetDestinationsWebhookSignatureSecretPrefix() *string {
+func (m *ManagedConfig) GetDestinationsWebhookSignatureSecretPrefix() optionalnullable.OptionalNullable[string] {
 	if m == nil {
 		return nil
 	}
 	return m.DestinationsWebhookSignatureSecretPrefix
 }
 
-func (m *ManagedConfig) GetDestinationsWebhookSigningSecretTemplate() *string {
+func (m *ManagedConfig) GetDestinationsWebhookSigningSecretTemplate() optionalnullable.OptionalNullable[string] {
 	if m == nil {
 		return nil
 	}
 	return m.DestinationsWebhookSigningSecretTemplate
 }
 
-func (m *ManagedConfig) GetDestinationsWebhookTimestampFormat() *string {
+func (m *ManagedConfig) GetDestinationsWebhookTimestampFormat() optionalnullable.OptionalNullable[string] {
 	if m == nil {
 		return nil
 	}
 	return m.DestinationsWebhookTimestampFormat
 }
 
-func (m *ManagedConfig) GetDestinationsWebhookTimestampHeaderName() *string {
+func (m *ManagedConfig) GetDestinationsWebhookTimestampHeaderName() optionalnullable.OptionalNullable[string] {
 	if m == nil {
 		return nil
 	}
 	return m.DestinationsWebhookTimestampHeaderName
 }
 
-func (m *ManagedConfig) GetDestinationsWebhookTopicHeaderName() *string {
+func (m *ManagedConfig) GetDestinationsWebhookTopicHeaderName() optionalnullable.OptionalNullable[string] {
 	if m == nil {
 		return nil
 	}
 	return m.DestinationsWebhookTopicHeaderName
 }
 
-func (m *ManagedConfig) GetHTTPUserAgent() *string {
+func (m *ManagedConfig) GetHTTPUserAgent() optionalnullable.OptionalNullable[string] {
 	if m == nil {
 		return nil
 	}
 	return m.HTTPUserAgent
 }
 
-func (m *ManagedConfig) GetIdgenAttemptPrefix() *string {
+func (m *ManagedConfig) GetIdgenAttemptPrefix() optionalnullable.OptionalNullable[string] {
 	if m == nil {
 		return nil
 	}
 	return m.IdgenAttemptPrefix
 }
 
-func (m *ManagedConfig) GetIdgenDestinationPrefix() *string {
+func (m *ManagedConfig) GetIdgenDestinationPrefix() optionalnullable.OptionalNullable[string] {
 	if m == nil {
 		return nil
 	}
 	return m.IdgenDestinationPrefix
 }
 
-func (m *ManagedConfig) GetIdgenEventPrefix() *string {
+func (m *ManagedConfig) GetIdgenEventPrefix() optionalnullable.OptionalNullable[string] {
 	if m == nil {
 		return nil
 	}
 	return m.IdgenEventPrefix
 }
 
-func (m *ManagedConfig) GetIdgenType() *string {
+func (m *ManagedConfig) GetIdgenType() optionalnullable.OptionalNullable[string] {
 	if m == nil {
 		return nil
 	}
 	return m.IdgenType
 }
 
-func (m *ManagedConfig) GetMaxDestinationsPerTenant() *string {
+func (m *ManagedConfig) GetMaxDestinationsPerTenant() optionalnullable.OptionalNullable[string] {
 	if m == nil {
 		return nil
 	}
 	return m.MaxDestinationsPerTenant
 }
 
-func (m *ManagedConfig) GetPortalBrandColor() *string {
+func (m *ManagedConfig) GetPortalBrandColor() optionalnullable.OptionalNullable[string] {
 	if m == nil {
 		return nil
 	}
 	return m.PortalBrandColor
 }
 
-func (m *ManagedConfig) GetPortalDisableOutpostBranding() *string {
+func (m *ManagedConfig) GetPortalDisableOutpostBranding() optionalnullable.OptionalNullable[string] {
 	if m == nil {
 		return nil
 	}
 	return m.PortalDisableOutpostBranding
 }
 
-func (m *ManagedConfig) GetPortalFaviconURL() *string {
+func (m *ManagedConfig) GetPortalFaviconURL() optionalnullable.OptionalNullable[string] {
 	if m == nil {
 		return nil
 	}
 	return m.PortalFaviconURL
 }
 
-func (m *ManagedConfig) GetPortalForceTheme() *string {
+func (m *ManagedConfig) GetPortalForceTheme() optionalnullable.OptionalNullable[string] {
 	if m == nil {
 		return nil
 	}
 	return m.PortalForceTheme
 }
 
-func (m *ManagedConfig) GetPortalLogo() *string {
+func (m *ManagedConfig) GetPortalLogo() optionalnullable.OptionalNullable[string] {
 	if m == nil {
 		return nil
 	}
 	return m.PortalLogo
 }
 
-func (m *ManagedConfig) GetPortalLogoDark() *string {
+func (m *ManagedConfig) GetPortalLogoDark() optionalnullable.OptionalNullable[string] {
 	if m == nil {
 		return nil
 	}
 	return m.PortalLogoDark
 }
 
-func (m *ManagedConfig) GetPortalOrganizationName() *string {
+func (m *ManagedConfig) GetPortalOrganizationName() optionalnullable.OptionalNullable[string] {
 	if m == nil {
 		return nil
 	}
 	return m.PortalOrganizationName
 }
 
-func (m *ManagedConfig) GetPortalRefererURL() *string {
+func (m *ManagedConfig) GetPortalRefererURL() optionalnullable.OptionalNullable[string] {
 	if m == nil {
 		return nil
 	}
 	return m.PortalRefererURL
 }
 
-func (m *ManagedConfig) GetPortalRefreshURL() *string {
+func (m *ManagedConfig) GetPortalRefreshURL() optionalnullable.OptionalNullable[string] {
 	if m == nil {
 		return nil
 	}
 	return m.PortalRefreshURL
 }
 
-func (m *ManagedConfig) GetPortalEnableDestinationFilter() *string {
+func (m *ManagedConfig) GetPortalEnableDestinationFilter() optionalnullable.OptionalNullable[string] {
 	if m == nil {
 		return nil
 	}
 	return m.PortalEnableDestinationFilter
 }
 
-func (m *ManagedConfig) GetPortalEnableWebhookCustomHeaders() *string {
+func (m *ManagedConfig) GetPortalEnableWebhookCustomHeaders() optionalnullable.OptionalNullable[string] {
 	if m == nil {
 		return nil
 	}
 	return m.PortalEnableWebhookCustomHeaders
 }
 
-func (m *ManagedConfig) GetRetryIntervalSeconds() *string {
+func (m *ManagedConfig) GetRetryIntervalSeconds() optionalnullable.OptionalNullable[string] {
 	if m == nil {
 		return nil
 	}
 	return m.RetryIntervalSeconds
 }
 
-func (m *ManagedConfig) GetMaxRetryLimit() *string {
+func (m *ManagedConfig) GetMaxRetryLimit() optionalnullable.OptionalNullable[string] {
 	if m == nil {
 		return nil
 	}
 	return m.MaxRetryLimit
 }
 
-func (m *ManagedConfig) GetRetrySchedule() *string {
+func (m *ManagedConfig) GetRetrySchedule() optionalnullable.OptionalNullable[string] {
 	if m == nil {
 		return nil
 	}
 	return m.RetrySchedule
 }
 
-func (m *ManagedConfig) GetOtelExporterOtlpEndpoint() *string {
+func (m *ManagedConfig) GetOtelExporterOtlpEndpoint() optionalnullable.OptionalNullable[string] {
 	if m == nil {
 		return nil
 	}
 	return m.OtelExporterOtlpEndpoint
 }
 
-func (m *ManagedConfig) GetOtelExporterOtlpHeaders() *string {
+func (m *ManagedConfig) GetOtelExporterOtlpHeaders() optionalnullable.OptionalNullable[string] {
 	if m == nil {
 		return nil
 	}
 	return m.OtelExporterOtlpHeaders
 }
 
-func (m *ManagedConfig) GetOtelExporterOtlpProtocol() *string {
+func (m *ManagedConfig) GetOtelExporterOtlpProtocol() optionalnullable.OptionalNullable[string] {
 	if m == nil {
 		return nil
 	}
 	return m.OtelExporterOtlpProtocol
 }
 
-func (m *ManagedConfig) GetOtelExporterOtlpTracesEndpoint() *string {
+func (m *ManagedConfig) GetOtelExporterOtlpTracesEndpoint() optionalnullable.OptionalNullable[string] {
 	if m == nil {
 		return nil
 	}
 	return m.OtelExporterOtlpTracesEndpoint
 }
 
-func (m *ManagedConfig) GetOtelExporterOtlpMetricsEndpoint() *string {
+func (m *ManagedConfig) GetOtelExporterOtlpMetricsEndpoint() optionalnullable.OptionalNullable[string] {
 	if m == nil {
 		return nil
 	}
 	return m.OtelExporterOtlpMetricsEndpoint
 }
 
-func (m *ManagedConfig) GetOtelExporterOtlpLogsEndpoint() *string {
+func (m *ManagedConfig) GetOtelExporterOtlpLogsEndpoint() optionalnullable.OptionalNullable[string] {
 	if m == nil {
 		return nil
 	}
 	return m.OtelExporterOtlpLogsEndpoint
 }
 
-func (m *ManagedConfig) GetOtelServiceName() *string {
+func (m *ManagedConfig) GetOtelServiceName() optionalnullable.OptionalNullable[string] {
 	if m == nil {
 		return nil
 	}
 	return m.OtelServiceName
 }
 
-func (m *ManagedConfig) GetPublishAwsSqsAccessKeyID() *string {
+func (m *ManagedConfig) GetPublishAwsSqsAccessKeyID() optionalnullable.OptionalNullable[string] {
 	if m == nil {
 		return nil
 	}
 	return m.PublishAwsSqsAccessKeyID
 }
 
-func (m *ManagedConfig) GetPublishAwsSqsEndpoint() *string {
+func (m *ManagedConfig) GetPublishAwsSqsEndpoint() optionalnullable.OptionalNullable[string] {
 	if m == nil {
 		return nil
 	}
 	return m.PublishAwsSqsEndpoint
 }
 
-func (m *ManagedConfig) GetPublishAwsSqsQueue() *string {
+func (m *ManagedConfig) GetPublishAwsSqsQueue() optionalnullable.OptionalNullable[string] {
 	if m == nil {
 		return nil
 	}
 	return m.PublishAwsSqsQueue
 }
 
-func (m *ManagedConfig) GetPublishAwsSqsRegion() *string {
+func (m *ManagedConfig) GetPublishAwsSqsRegion() optionalnullable.OptionalNullable[string] {
 	if m == nil {
 		return nil
 	}
 	return m.PublishAwsSqsRegion
 }
 
-func (m *ManagedConfig) GetPublishAwsSqsSecretAccessKey() *string {
+func (m *ManagedConfig) GetPublishAwsSqsSecretAccessKey() optionalnullable.OptionalNullable[string] {
 	if m == nil {
 		return nil
 	}
 	return m.PublishAwsSqsSecretAccessKey
 }
 
-func (m *ManagedConfig) GetPublishAzureServicebusConnectionString() *string {
+func (m *ManagedConfig) GetPublishAzureServicebusConnectionString() optionalnullable.OptionalNullable[string] {
 	if m == nil {
 		return nil
 	}
 	return m.PublishAzureServicebusConnectionString
 }
 
-func (m *ManagedConfig) GetPublishAzureServicebusSubscription() *string {
+func (m *ManagedConfig) GetPublishAzureServicebusSubscription() optionalnullable.OptionalNullable[string] {
 	if m == nil {
 		return nil
 	}
 	return m.PublishAzureServicebusSubscription
 }
 
-func (m *ManagedConfig) GetPublishAzureServicebusTopic() *string {
+func (m *ManagedConfig) GetPublishAzureServicebusTopic() optionalnullable.OptionalNullable[string] {
 	if m == nil {
 		return nil
 	}
 	return m.PublishAzureServicebusTopic
 }
 
-func (m *ManagedConfig) GetPublishGcpPubsubProject() *string {
+func (m *ManagedConfig) GetPublishGcpPubsubProject() optionalnullable.OptionalNullable[string] {
 	if m == nil {
 		return nil
 	}
 	return m.PublishGcpPubsubProject
 }
 
-func (m *ManagedConfig) GetPublishGcpPubsubServiceAccountCredentials() *string {
+func (m *ManagedConfig) GetPublishGcpPubsubServiceAccountCredentials() optionalnullable.OptionalNullable[string] {
 	if m == nil {
 		return nil
 	}
 	return m.PublishGcpPubsubServiceAccountCredentials
 }
 
-func (m *ManagedConfig) GetPublishGcpPubsubSubscription() *string {
+func (m *ManagedConfig) GetPublishGcpPubsubSubscription() optionalnullable.OptionalNullable[string] {
 	if m == nil {
 		return nil
 	}
 	return m.PublishGcpPubsubSubscription
 }
 
-func (m *ManagedConfig) GetPublishGcpPubsubTopic() *string {
+func (m *ManagedConfig) GetPublishGcpPubsubTopic() optionalnullable.OptionalNullable[string] {
 	if m == nil {
 		return nil
 	}
 	return m.PublishGcpPubsubTopic
 }
 
-func (m *ManagedConfig) GetPublishRabbitmqExchange() *string {
+func (m *ManagedConfig) GetPublishRabbitmqExchange() optionalnullable.OptionalNullable[string] {
 	if m == nil {
 		return nil
 	}
 	return m.PublishRabbitmqExchange
 }
 
-func (m *ManagedConfig) GetPublishRabbitmqQueue() *string {
+func (m *ManagedConfig) GetPublishRabbitmqQueue() optionalnullable.OptionalNullable[string] {
 	if m == nil {
 		return nil
 	}
 	return m.PublishRabbitmqQueue
 }
 
-func (m *ManagedConfig) GetPublishRabbitmqServerURL() *string {
+func (m *ManagedConfig) GetPublishRabbitmqServerURL() optionalnullable.OptionalNullable[string] {
 	if m == nil {
 		return nil
 	}
 	return m.PublishRabbitmqServerURL
 }
 
-func (m *ManagedConfig) GetTopics() *string {
+func (m *ManagedConfig) GetTopics() optionalnullable.OptionalNullable[string] {
 	if m == nil {
 		return nil
 	}
 	return m.Topics
 }
 
-func (m *ManagedConfig) GetTopicsAllowWildcards() *string {
+func (m *ManagedConfig) GetTopicsAllowWildcards() optionalnullable.OptionalNullable[string] {
 	if m == nil {
 		return nil
 	}

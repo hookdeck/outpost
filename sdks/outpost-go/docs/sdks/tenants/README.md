@@ -130,7 +130,7 @@ func main() {
 | Error Type                    | Status Code                   | Content Type                  |
 | ----------------------------- | ----------------------------- | ----------------------------- |
 | apierrors.UnauthorizedError   | 401                           | application/json              |
-| apierrors.APIErrorResponse    | 403, 422                      | application/json              |
+| apierrors.APIErrorResponse    | 403, 413, 422                 | application/json              |
 | apierrors.InternalServerError | 500                           | application/json              |
 | apierrors.APIError            | 4XX, 5XX                      | \*/\*                         |
 

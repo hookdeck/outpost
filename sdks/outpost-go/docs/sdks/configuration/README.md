@@ -85,6 +85,7 @@ package main
 import(
 	"context"
 	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
+	"github.com/hookdeck/outpost/sdks/outpost-go/optionalnullable"
 	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
 	"log"
 )
@@ -97,9 +98,9 @@ func main() {
     )
 
     res, err := s.Configuration.UpdateManagedConfig(ctx, components.ManagedConfig{
-        DestinationsWebhookMode: outpostgo.Pointer("default"),
-        Topics: outpostgo.Pointer("user.created,user.updated"),
-        TopicsAllowWildcards: outpostgo.Pointer("false"),
+        DestinationsWebhookMode: optionalnullable.From(outpostgo.Pointer("default")),
+        Topics: optionalnullable.From(outpostgo.Pointer("user.created,user.updated")),
+        TopicsAllowWildcards: optionalnullable.From(outpostgo.Pointer("false")),
     })
     if err != nil {
         log.Fatal(err)
