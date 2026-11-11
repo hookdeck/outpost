@@ -332,10 +332,11 @@ func (h *MCPSubscribeHandlers) Unsubscribe(c *gin.Context) {
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return
 	}
-	if destination == nil || destination.Type != models.DestinationTypeMCP || destination.IsExpired(time.Now()) {
+	if destination == nil || destination.Type != models.DestinationTypeMCP {
 		abortMCPError(c, mcpevents.NotFound(mcpevents.NotFoundSubscription))
 		return
 	}
+	expired := destination.IsExpired(time.Now())
 	prev := h.dest.snapshotTenant(tenant)
 	if err := h.store.DeleteDestination(ctx, tenant.ID, id); err != nil {
 		if errors.Is(err, tenantstore.ErrDestinationNotFound) {
@@ -343,6 +344,10 @@ func (h *MCPSubscribeHandlers) Unsubscribe(c *gin.Context) {
 			return
 		}
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
+		return
+	}
+	if expired {
+		abortMCPError(c, mcpevents.NotFound(mcpevents.NotFoundSubscription))
 		return
 	}
 	h.dest.logger.Ctx(ctx).Audit("mcp subscription deleted",

@@ -528,7 +528,7 @@ func TestAPI_MCPUnsubscribe(t *testing.T) {
 		assert.NotNil(t, storedSubscription(t, h, r.ID))
 	})
 
-	t.Run("an expired subscription is not found", func(t *testing.T) {
+	t.Run("an expired subscription is not found and is deleted", func(t *testing.T) {
 		h := newSubscribeTest(t, &stubVerifier{})
 		r := requireSubscribed(t, postMCP(h, mcpSubscribePath, subscribeParams()))
 		d := storedSubscription(t, h, r.ID)
@@ -539,6 +539,7 @@ func TestAPI_MCPUnsubscribe(t *testing.T) {
 			"name": "user.created", "arguments": map[string]any{"status": "paid"}, "delivery": map[string]any{"url": mcpCallbackURL},
 		})
 		requireMCPError(t, resp, -32023, "NotFound", map[string]any{"kind": "subscription"})
+		assert.Nil(t, storedSubscription(t, h, r.ID))
 	})
 
 	t.Run("invalid params", func(t *testing.T) {
