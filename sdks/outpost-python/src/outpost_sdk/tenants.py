@@ -344,7 +344,7 @@ class Tenants(BaseSDK):
                 errors.UnauthorizedErrorData, http_res
             )
             raise errors.UnauthorizedError(response_data, http_res)
-        if utils.match_response(http_res, ["403", "422"], "application/json"):
+        if utils.match_response(http_res, ["403", "413", "422"], "application/json"):
             response_data = unmarshal_json_response(
                 errors.APIErrorResponseData, http_res
             )
@@ -454,7 +454,7 @@ class Tenants(BaseSDK):
                 errors.UnauthorizedErrorData, http_res
             )
             raise errors.UnauthorizedError(response_data, http_res)
-        if utils.match_response(http_res, ["403", "422"], "application/json"):
+        if utils.match_response(http_res, ["403", "413", "422"], "application/json"):
             response_data = unmarshal_json_response(
                 errors.APIErrorResponseData, http_res
             )

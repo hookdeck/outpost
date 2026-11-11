@@ -84,7 +84,7 @@ with Outpost(
 
 | Parameter                                                                           | Type                                                                                | Required                                                                            | Description                                                                         |
 | ----------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| `type`                                                                              | [models.GetDestinationTypeSchemaType](../../models/getdestinationtypeschematype.md) | :heavy_check_mark:                                                                  | The type of the destination.                                                        |
+| `type_`                                                                             | [models.GetDestinationTypeSchemaType](../../models/getdestinationtypeschematype.md) | :heavy_check_mark:                                                                  | The type of the destination.                                                        |
 | `retries`                                                                           | [Optional[utils.RetryConfig]](../../models/utils/retryconfig.md)                    | :heavy_minus_sign:                                                                  | Configuration to override the default retry behavior of the client.                 |
 
 ### Response

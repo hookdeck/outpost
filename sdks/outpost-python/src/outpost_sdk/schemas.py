@@ -272,7 +272,7 @@ class Schemas(BaseSDK):
 
         Returns the input schema for a specific destination type.
 
-        :param type: The type of the destination.
+        :param type_: The type of the destination.
         :param retries: Override the default retry configuration for this method
         :param server_url: Override the default server URL for this method
         :param timeout_ms: Override the default request timeout configuration for this method in milliseconds
@@ -403,7 +403,7 @@ class Schemas(BaseSDK):
 
         Returns the input schema for a specific destination type.
 
-        :param type: The type of the destination.
+        :param type_: The type of the destination.
         :param retries: Override the default retry configuration for this method
         :param server_url: Override the default server URL for this method
         :param timeout_ms: Override the default request timeout configuration for this method in milliseconds

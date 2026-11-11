@@ -3,22 +3,26 @@
 from .base64fileinput import Base64EncodedString, Base64FileInput
 from .basemodel import (
     BaseModel,
+    current_exclude_none,
     Nullable,
     OptionalNullable,
     UnrecognizedInt,
     UnrecognizedStr,
     UNSET,
     UNSET_SENTINEL,
+    serialize_with_info,
 )
 
 __all__ = [
     "Base64EncodedString",
     "Base64FileInput",
     "BaseModel",
+    "current_exclude_none",
     "Nullable",
     "OptionalNullable",
     "UnrecognizedInt",
     "UnrecognizedStr",
     "UNSET",
     "UNSET_SENTINEL",
+    "serialize_with_info",
 ]

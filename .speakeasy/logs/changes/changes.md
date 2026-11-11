@@ -1,235 +1,235 @@
-## Go SDK Changes:
-* `Outpost.Configuration.GetManagedConfig()`: `response` **Changed** (Breaking ⚠️)
-    - `AlertAutoDisableDestination` **Changed** (Breaking ⚠️)
-    - `AlertConsecutiveFailureCount` **Changed** (Breaking ⚠️)
-    - `AlertExhaustedRetriesWindowSeconds` **Changed** (Breaking ⚠️)
-    - `DeliveryTimeoutSeconds` **Changed** (Breaking ⚠️)
-    - `DestinationsAwsKinesisMetadataInPayload` **Changed** (Breaking ⚠️)
-    - `DestinationsIncludeMillisecondTimestamp` **Changed** (Breaking ⚠️)
-    - `DestinationsProxyUrl` **Added**
-    - `DestinationsWebhookCompatHeaders` **Changed** (Breaking ⚠️)
-    - `DestinationsWebhookCompatSignatureAlgorithm` **Changed** (Breaking ⚠️)
-    - `DestinationsWebhookCompatSignatureContentTemplate` **Changed** (Breaking ⚠️)
-    - `DestinationsWebhookCompatSignatureEncoding` **Changed** (Breaking ⚠️)
-    - `DestinationsWebhookCompatSignatureHeaderName` **Changed** (Breaking ⚠️)
-    - `DestinationsWebhookCompatSignatureHeaderTemplate` **Changed** (Breaking ⚠️)
-    - `DestinationsWebhookCompatSignatureSecretEncoding` **Changed** (Breaking ⚠️)
-    - `DestinationsWebhookCompatSignatureSecretPrefix` **Changed** (Breaking ⚠️)
-    - `DestinationsWebhookEventIdHeaderName` **Changed** (Breaking ⚠️)
-    - `DestinationsWebhookHeaderPrefix` **Changed** (Breaking ⚠️)
-    - `DestinationsWebhookMode` **Changed** (Breaking ⚠️)
-    - `DestinationsWebhookProxyUrl` **Changed** (Breaking ⚠️)
-    - `DestinationsWebhookSignatureAlgorithm` **Changed** (Breaking ⚠️)
-    - `DestinationsWebhookSignatureContentTemplate` **Changed** (Breaking ⚠️)
-    - `DestinationsWebhookSignatureEncoding` **Changed** (Breaking ⚠️)
-    - `DestinationsWebhookSignatureHeaderName` **Changed** (Breaking ⚠️)
-    - `DestinationsWebhookSignatureHeaderTemplate` **Changed** (Breaking ⚠️)
-    - `DestinationsWebhookSignatureSecretEncoding` **Changed** (Breaking ⚠️)
-    - `DestinationsWebhookSignatureSecretPrefix` **Changed** (Breaking ⚠️)
-    - `DestinationsWebhookSigningSecretTemplate` **Changed** (Breaking ⚠️)
-    - `DestinationsWebhookTimestampFormat` **Changed** (Breaking ⚠️)
-    - `DestinationsWebhookTimestampHeaderName` **Changed** (Breaking ⚠️)
-    - `DestinationsWebhookTopicHeaderName` **Changed** (Breaking ⚠️)
-    - `HttpUserAgent` **Changed** (Breaking ⚠️)
-    - `IdgenAttemptPrefix` **Changed** (Breaking ⚠️)
-    - `IdgenDestinationPrefix` **Changed** (Breaking ⚠️)
-    - `IdgenEventPrefix` **Changed** (Breaking ⚠️)
-    - `IdgenType` **Changed** (Breaking ⚠️)
-    - `MaxDestinationsPerTenant` **Changed** (Breaking ⚠️)
-    - `MaxRetryLimit` **Changed** (Breaking ⚠️)
-    - `OtelExporterOtlpEndpoint` **Changed** (Breaking ⚠️)
-    - `OtelExporterOtlpHeaders` **Changed** (Breaking ⚠️)
-    - `OtelExporterOtlpLogsEndpoint` **Changed** (Breaking ⚠️)
-    - `OtelExporterOtlpMetricsEndpoint` **Changed** (Breaking ⚠️)
-    - `OtelExporterOtlpProtocol` **Changed** (Breaking ⚠️)
-    - `OtelExporterOtlpTracesEndpoint` **Changed** (Breaking ⚠️)
-    - `OtelServiceName` **Changed** (Breaking ⚠️)
-    - `PortalBrandColor` **Changed** (Breaking ⚠️)
-    - `PortalDisableOutpostBranding` **Changed** (Breaking ⚠️)
-    - `PortalEnableDestinationFilter` **Changed** (Breaking ⚠️)
-    - `PortalEnableWebhookCustomHeaders` **Changed** (Breaking ⚠️)
-    - `PortalFaviconUrl` **Changed** (Breaking ⚠️)
-    - `PortalForceTheme` **Changed** (Breaking ⚠️)
-    - `PortalLogoDark` **Changed** (Breaking ⚠️)
-    - `PortalLogo` **Changed** (Breaking ⚠️)
-    - `PortalOrganizationName` **Changed** (Breaking ⚠️)
-    - `PortalRefererUrl` **Changed** (Breaking ⚠️)
-    - `PortalRefreshUrl` **Changed** (Breaking ⚠️)
-    - `PublishAwsSqsAccessKeyId` **Changed** (Breaking ⚠️)
-    - `PublishAwsSqsEndpoint` **Changed** (Breaking ⚠️)
-    - `PublishAwsSqsQueue` **Changed** (Breaking ⚠️)
-    - `PublishAwsSqsRegion` **Changed** (Breaking ⚠️)
-    - `PublishAwsSqsSecretAccessKey` **Changed** (Breaking ⚠️)
-    - `PublishAzureServicebusConnectionString` **Changed** (Breaking ⚠️)
-    - `PublishAzureServicebusSubscription` **Changed** (Breaking ⚠️)
-    - `PublishAzureServicebusTopic` **Changed** (Breaking ⚠️)
-    - `PublishGcpPubsubProject` **Changed** (Breaking ⚠️)
-    - `PublishGcpPubsubServiceAccountCredentials` **Changed** (Breaking ⚠️)
-    - `PublishGcpPubsubSubscription` **Changed** (Breaking ⚠️)
-    - `PublishGcpPubsubTopic` **Changed** (Breaking ⚠️)
-    - `PublishRabbitmqExchange` **Changed** (Breaking ⚠️)
-    - `PublishRabbitmqQueue` **Changed** (Breaking ⚠️)
-    - `PublishRabbitmqServerUrl` **Changed** (Breaking ⚠️)
-    - `RetryIntervalSeconds` **Changed** (Breaking ⚠️)
-    - `RetrySchedule` **Changed** (Breaking ⚠️)
-    - `TopicsAllowWildcards` **Changed** (Breaking ⚠️)
-    - `Topics` **Changed** (Breaking ⚠️)
-* `Outpost.Configuration.UpdateManagedConfig()`: 
-  * `request.Request` **Changed**
-    - `AlertAutoDisableDestination` **Changed**
-    - `AlertConsecutiveFailureCount` **Changed**
-    - `AlertExhaustedRetriesWindowSeconds` **Changed**
-    - `DeliveryTimeoutSeconds` **Changed**
-    - `DestinationsAwsKinesisMetadataInPayload` **Changed**
-    - `DestinationsIncludeMillisecondTimestamp` **Changed**
-    - `DestinationsProxyUrl` **Added**
-    - `DestinationsWebhookCompatHeaders` **Changed**
-    - `DestinationsWebhookCompatSignatureAlgorithm` **Changed**
-    - `DestinationsWebhookCompatSignatureContentTemplate` **Changed**
-    - `DestinationsWebhookCompatSignatureEncoding` **Changed**
-    - `DestinationsWebhookCompatSignatureHeaderName` **Changed**
-    - `DestinationsWebhookCompatSignatureHeaderTemplate` **Changed**
-    - `DestinationsWebhookCompatSignatureSecretEncoding` **Changed**
-    - `DestinationsWebhookCompatSignatureSecretPrefix` **Changed**
-    - `DestinationsWebhookEventIdHeaderName` **Changed**
-    - `DestinationsWebhookHeaderPrefix` **Changed**
-    - `DestinationsWebhookMode` **Changed**
-    - `DestinationsWebhookProxyUrl` **Changed**
-    - `DestinationsWebhookSignatureAlgorithm` **Changed**
-    - `DestinationsWebhookSignatureContentTemplate` **Changed**
-    - `DestinationsWebhookSignatureEncoding` **Changed**
-    - `DestinationsWebhookSignatureHeaderName` **Changed**
-    - `DestinationsWebhookSignatureHeaderTemplate` **Changed**
-    - `DestinationsWebhookSignatureSecretEncoding` **Changed**
-    - `DestinationsWebhookSignatureSecretPrefix` **Changed**
-    - `DestinationsWebhookSigningSecretTemplate` **Changed**
-    - `DestinationsWebhookTimestampFormat` **Changed**
-    - `DestinationsWebhookTimestampHeaderName` **Changed**
-    - `DestinationsWebhookTopicHeaderName` **Changed**
-    - `HttpUserAgent` **Changed**
-    - `IdgenAttemptPrefix` **Changed**
-    - `IdgenDestinationPrefix` **Changed**
-    - `IdgenEventPrefix` **Changed**
-    - `IdgenType` **Changed**
-    - `MaxDestinationsPerTenant` **Changed**
-    - `MaxRetryLimit` **Changed**
-    - `OtelExporterOtlpEndpoint` **Changed**
-    - `OtelExporterOtlpHeaders` **Changed**
-    - `OtelExporterOtlpLogsEndpoint` **Changed**
-    - `OtelExporterOtlpMetricsEndpoint` **Changed**
-    - `OtelExporterOtlpProtocol` **Changed**
-    - `OtelExporterOtlpTracesEndpoint` **Changed**
-    - `OtelServiceName` **Changed**
-    - `PortalBrandColor` **Changed**
-    - `PortalDisableOutpostBranding` **Changed**
-    - `PortalEnableDestinationFilter` **Changed**
-    - `PortalEnableWebhookCustomHeaders` **Changed**
-    - `PortalFaviconUrl` **Changed**
-    - `PortalForceTheme` **Changed**
-    - `PortalLogoDark` **Changed**
-    - `PortalLogo` **Changed**
-    - `PortalOrganizationName` **Changed**
-    - `PortalRefererUrl` **Changed**
-    - `PortalRefreshUrl` **Changed**
-    - `PublishAwsSqsAccessKeyId` **Changed**
-    - `PublishAwsSqsEndpoint` **Changed**
-    - `PublishAwsSqsQueue` **Changed**
-    - `PublishAwsSqsRegion` **Changed**
-    - `PublishAwsSqsSecretAccessKey` **Changed**
-    - `PublishAzureServicebusConnectionString` **Changed**
-    - `PublishAzureServicebusSubscription` **Changed**
-    - `PublishAzureServicebusTopic` **Changed**
-    - `PublishGcpPubsubProject` **Changed**
-    - `PublishGcpPubsubServiceAccountCredentials` **Changed**
-    - `PublishGcpPubsubSubscription` **Changed**
-    - `PublishGcpPubsubTopic` **Changed**
-    - `PublishRabbitmqExchange` **Changed**
-    - `PublishRabbitmqQueue` **Changed**
-    - `PublishRabbitmqServerUrl` **Changed**
-    - `RetryIntervalSeconds` **Changed**
-    - `RetrySchedule` **Changed**
-    - `TopicsAllowWildcards` **Changed**
-    - `Topics` **Changed**
+## Python SDK Changes:
+* `outpost.configuration.get_managed_config()`: `response` **Changed** (Breaking ⚠️)
+    - `alert_auto_disable_destination` **Changed** (Breaking ⚠️)
+    - `alert_consecutive_failure_count` **Changed** (Breaking ⚠️)
+    - `alert_exhausted_retries_window_seconds` **Changed** (Breaking ⚠️)
+    - `delivery_timeout_seconds` **Changed** (Breaking ⚠️)
+    - `destinations_aws_kinesis_metadata_in_payload` **Changed** (Breaking ⚠️)
+    - `destinations_include_millisecond_timestamp` **Changed** (Breaking ⚠️)
+    - `destinations_proxy_url` **Added**
+    - `destinations_webhook_compat_headers` **Changed** (Breaking ⚠️)
+    - `destinations_webhook_compat_signature_algorithm` **Changed** (Breaking ⚠️)
+    - `destinations_webhook_compat_signature_content_template` **Changed** (Breaking ⚠️)
+    - `destinations_webhook_compat_signature_encoding` **Changed** (Breaking ⚠️)
+    - `destinations_webhook_compat_signature_header_name` **Changed** (Breaking ⚠️)
+    - `destinations_webhook_compat_signature_header_template` **Changed** (Breaking ⚠️)
+    - `destinations_webhook_compat_signature_secret_encoding` **Changed** (Breaking ⚠️)
+    - `destinations_webhook_compat_signature_secret_prefix` **Changed** (Breaking ⚠️)
+    - `destinations_webhook_event_id_header_name` **Changed** (Breaking ⚠️)
+    - `destinations_webhook_header_prefix` **Changed** (Breaking ⚠️)
+    - `destinations_webhook_mode` **Changed** (Breaking ⚠️)
+    - `destinations_webhook_proxy_url` **Changed** (Breaking ⚠️)
+    - `destinations_webhook_signature_algorithm` **Changed** (Breaking ⚠️)
+    - `destinations_webhook_signature_content_template` **Changed** (Breaking ⚠️)
+    - `destinations_webhook_signature_encoding` **Changed** (Breaking ⚠️)
+    - `destinations_webhook_signature_header_name` **Changed** (Breaking ⚠️)
+    - `destinations_webhook_signature_header_template` **Changed** (Breaking ⚠️)
+    - `destinations_webhook_signature_secret_encoding` **Changed** (Breaking ⚠️)
+    - `destinations_webhook_signature_secret_prefix` **Changed** (Breaking ⚠️)
+    - `destinations_webhook_signing_secret_template` **Changed** (Breaking ⚠️)
+    - `destinations_webhook_timestamp_format` **Changed** (Breaking ⚠️)
+    - `destinations_webhook_timestamp_header_name` **Changed** (Breaking ⚠️)
+    - `destinations_webhook_topic_header_name` **Changed** (Breaking ⚠️)
+    - `http_user_agent` **Changed** (Breaking ⚠️)
+    - `idgen_attempt_prefix` **Changed** (Breaking ⚠️)
+    - `idgen_destination_prefix` **Changed** (Breaking ⚠️)
+    - `idgen_event_prefix` **Changed** (Breaking ⚠️)
+    - `idgen_type` **Changed** (Breaking ⚠️)
+    - `max_destinations_per_tenant` **Changed** (Breaking ⚠️)
+    - `max_retry_limit` **Changed** (Breaking ⚠️)
+    - `otel_exporter_otlp_endpoint` **Changed** (Breaking ⚠️)
+    - `otel_exporter_otlp_headers` **Changed** (Breaking ⚠️)
+    - `otel_exporter_otlp_logs_endpoint` **Changed** (Breaking ⚠️)
+    - `otel_exporter_otlp_metrics_endpoint` **Changed** (Breaking ⚠️)
+    - `otel_exporter_otlp_protocol` **Changed** (Breaking ⚠️)
+    - `otel_exporter_otlp_traces_endpoint` **Changed** (Breaking ⚠️)
+    - `otel_service_name` **Changed** (Breaking ⚠️)
+    - `portal_brand_color` **Changed** (Breaking ⚠️)
+    - `portal_disable_outpost_branding` **Changed** (Breaking ⚠️)
+    - `portal_enable_destination_filter` **Changed** (Breaking ⚠️)
+    - `portal_enable_webhook_custom_headers` **Changed** (Breaking ⚠️)
+    - `portal_favicon_url` **Changed** (Breaking ⚠️)
+    - `portal_force_theme` **Changed** (Breaking ⚠️)
+    - `portal_logo_dark` **Changed** (Breaking ⚠️)
+    - `portal_logo` **Changed** (Breaking ⚠️)
+    - `portal_organization_name` **Changed** (Breaking ⚠️)
+    - `portal_referer_url` **Changed** (Breaking ⚠️)
+    - `portal_refresh_url` **Changed** (Breaking ⚠️)
+    - `publish_aws_sqs_access_key_id` **Changed** (Breaking ⚠️)
+    - `publish_aws_sqs_endpoint` **Changed** (Breaking ⚠️)
+    - `publish_aws_sqs_queue` **Changed** (Breaking ⚠️)
+    - `publish_aws_sqs_region` **Changed** (Breaking ⚠️)
+    - `publish_aws_sqs_secret_access_key` **Changed** (Breaking ⚠️)
+    - `publish_azure_servicebus_connection_string` **Changed** (Breaking ⚠️)
+    - `publish_azure_servicebus_subscription` **Changed** (Breaking ⚠️)
+    - `publish_azure_servicebus_topic` **Changed** (Breaking ⚠️)
+    - `publish_gcp_pubsub_project` **Changed** (Breaking ⚠️)
+    - `publish_gcp_pubsub_service_account_credentials` **Changed** (Breaking ⚠️)
+    - `publish_gcp_pubsub_subscription` **Changed** (Breaking ⚠️)
+    - `publish_gcp_pubsub_topic` **Changed** (Breaking ⚠️)
+    - `publish_rabbitmq_exchange` **Changed** (Breaking ⚠️)
+    - `publish_rabbitmq_queue` **Changed** (Breaking ⚠️)
+    - `publish_rabbitmq_server_url` **Changed** (Breaking ⚠️)
+    - `retry_interval_seconds` **Changed** (Breaking ⚠️)
+    - `retry_schedule` **Changed** (Breaking ⚠️)
+    - `topics_allow_wildcards` **Changed** (Breaking ⚠️)
+    - `topics` **Changed** (Breaking ⚠️)
+* `outpost.configuration.update_managed_config()`: 
+  * `request` **Changed**
+    - `alert_auto_disable_destination` **Changed**
+    - `alert_consecutive_failure_count` **Changed**
+    - `alert_exhausted_retries_window_seconds` **Changed**
+    - `delivery_timeout_seconds` **Changed**
+    - `destinations_aws_kinesis_metadata_in_payload` **Changed**
+    - `destinations_include_millisecond_timestamp` **Changed**
+    - `destinations_proxy_url` **Added**
+    - `destinations_webhook_compat_headers` **Changed**
+    - `destinations_webhook_compat_signature_algorithm` **Changed**
+    - `destinations_webhook_compat_signature_content_template` **Changed**
+    - `destinations_webhook_compat_signature_encoding` **Changed**
+    - `destinations_webhook_compat_signature_header_name` **Changed**
+    - `destinations_webhook_compat_signature_header_template` **Changed**
+    - `destinations_webhook_compat_signature_secret_encoding` **Changed**
+    - `destinations_webhook_compat_signature_secret_prefix` **Changed**
+    - `destinations_webhook_event_id_header_name` **Changed**
+    - `destinations_webhook_header_prefix` **Changed**
+    - `destinations_webhook_mode` **Changed**
+    - `destinations_webhook_proxy_url` **Changed**
+    - `destinations_webhook_signature_algorithm` **Changed**
+    - `destinations_webhook_signature_content_template` **Changed**
+    - `destinations_webhook_signature_encoding` **Changed**
+    - `destinations_webhook_signature_header_name` **Changed**
+    - `destinations_webhook_signature_header_template` **Changed**
+    - `destinations_webhook_signature_secret_encoding` **Changed**
+    - `destinations_webhook_signature_secret_prefix` **Changed**
+    - `destinations_webhook_signing_secret_template` **Changed**
+    - `destinations_webhook_timestamp_format` **Changed**
+    - `destinations_webhook_timestamp_header_name` **Changed**
+    - `destinations_webhook_topic_header_name` **Changed**
+    - `http_user_agent` **Changed**
+    - `idgen_attempt_prefix` **Changed**
+    - `idgen_destination_prefix` **Changed**
+    - `idgen_event_prefix` **Changed**
+    - `idgen_type` **Changed**
+    - `max_destinations_per_tenant` **Changed**
+    - `max_retry_limit` **Changed**
+    - `otel_exporter_otlp_endpoint` **Changed**
+    - `otel_exporter_otlp_headers` **Changed**
+    - `otel_exporter_otlp_logs_endpoint` **Changed**
+    - `otel_exporter_otlp_metrics_endpoint` **Changed**
+    - `otel_exporter_otlp_protocol` **Changed**
+    - `otel_exporter_otlp_traces_endpoint` **Changed**
+    - `otel_service_name` **Changed**
+    - `portal_brand_color` **Changed**
+    - `portal_disable_outpost_branding` **Changed**
+    - `portal_enable_destination_filter` **Changed**
+    - `portal_enable_webhook_custom_headers` **Changed**
+    - `portal_favicon_url` **Changed**
+    - `portal_force_theme` **Changed**
+    - `portal_logo_dark` **Changed**
+    - `portal_logo` **Changed**
+    - `portal_organization_name` **Changed**
+    - `portal_referer_url` **Changed**
+    - `portal_refresh_url` **Changed**
+    - `publish_aws_sqs_access_key_id` **Changed**
+    - `publish_aws_sqs_endpoint` **Changed**
+    - `publish_aws_sqs_queue` **Changed**
+    - `publish_aws_sqs_region` **Changed**
+    - `publish_aws_sqs_secret_access_key` **Changed**
+    - `publish_azure_servicebus_connection_string` **Changed**
+    - `publish_azure_servicebus_subscription` **Changed**
+    - `publish_azure_servicebus_topic` **Changed**
+    - `publish_gcp_pubsub_project` **Changed**
+    - `publish_gcp_pubsub_service_account_credentials` **Changed**
+    - `publish_gcp_pubsub_subscription` **Changed**
+    - `publish_gcp_pubsub_topic` **Changed**
+    - `publish_rabbitmq_exchange` **Changed**
+    - `publish_rabbitmq_queue` **Changed**
+    - `publish_rabbitmq_server_url` **Changed**
+    - `retry_interval_seconds` **Changed**
+    - `retry_schedule` **Changed**
+    - `topics_allow_wildcards` **Changed**
+    - `topics` **Changed**
   * `response` **Changed** (Breaking ⚠️)
-    - `AlertAutoDisableDestination` **Changed** (Breaking ⚠️)
-    - `AlertConsecutiveFailureCount` **Changed** (Breaking ⚠️)
-    - `AlertExhaustedRetriesWindowSeconds` **Changed** (Breaking ⚠️)
-    - `DeliveryTimeoutSeconds` **Changed** (Breaking ⚠️)
-    - `DestinationsAwsKinesisMetadataInPayload` **Changed** (Breaking ⚠️)
-    - `DestinationsIncludeMillisecondTimestamp` **Changed** (Breaking ⚠️)
-    - `DestinationsProxyUrl` **Added**
-    - `DestinationsWebhookCompatHeaders` **Changed** (Breaking ⚠️)
-    - `DestinationsWebhookCompatSignatureAlgorithm` **Changed** (Breaking ⚠️)
-    - `DestinationsWebhookCompatSignatureContentTemplate` **Changed** (Breaking ⚠️)
-    - `DestinationsWebhookCompatSignatureEncoding` **Changed** (Breaking ⚠️)
-    - `DestinationsWebhookCompatSignatureHeaderName` **Changed** (Breaking ⚠️)
-    - `DestinationsWebhookCompatSignatureHeaderTemplate` **Changed** (Breaking ⚠️)
-    - `DestinationsWebhookCompatSignatureSecretEncoding` **Changed** (Breaking ⚠️)
-    - `DestinationsWebhookCompatSignatureSecretPrefix` **Changed** (Breaking ⚠️)
-    - `DestinationsWebhookEventIdHeaderName` **Changed** (Breaking ⚠️)
-    - `DestinationsWebhookHeaderPrefix` **Changed** (Breaking ⚠️)
-    - `DestinationsWebhookMode` **Changed** (Breaking ⚠️)
-    - `DestinationsWebhookProxyUrl` **Changed** (Breaking ⚠️)
-    - `DestinationsWebhookSignatureAlgorithm` **Changed** (Breaking ⚠️)
-    - `DestinationsWebhookSignatureContentTemplate` **Changed** (Breaking ⚠️)
-    - `DestinationsWebhookSignatureEncoding` **Changed** (Breaking ⚠️)
-    - `DestinationsWebhookSignatureHeaderName` **Changed** (Breaking ⚠️)
-    - `DestinationsWebhookSignatureHeaderTemplate` **Changed** (Breaking ⚠️)
-    - `DestinationsWebhookSignatureSecretEncoding` **Changed** (Breaking ⚠️)
-    - `DestinationsWebhookSignatureSecretPrefix` **Changed** (Breaking ⚠️)
-    - `DestinationsWebhookSigningSecretTemplate` **Changed** (Breaking ⚠️)
-    - `DestinationsWebhookTimestampFormat` **Changed** (Breaking ⚠️)
-    - `DestinationsWebhookTimestampHeaderName` **Changed** (Breaking ⚠️)
-    - `DestinationsWebhookTopicHeaderName` **Changed** (Breaking ⚠️)
-    - `HttpUserAgent` **Changed** (Breaking ⚠️)
-    - `IdgenAttemptPrefix` **Changed** (Breaking ⚠️)
-    - `IdgenDestinationPrefix` **Changed** (Breaking ⚠️)
-    - `IdgenEventPrefix` **Changed** (Breaking ⚠️)
-    - `IdgenType` **Changed** (Breaking ⚠️)
-    - `MaxDestinationsPerTenant` **Changed** (Breaking ⚠️)
-    - `MaxRetryLimit` **Changed** (Breaking ⚠️)
-    - `OtelExporterOtlpEndpoint` **Changed** (Breaking ⚠️)
-    - `OtelExporterOtlpHeaders` **Changed** (Breaking ⚠️)
-    - `OtelExporterOtlpLogsEndpoint` **Changed** (Breaking ⚠️)
-    - `OtelExporterOtlpMetricsEndpoint` **Changed** (Breaking ⚠️)
-    - `OtelExporterOtlpProtocol` **Changed** (Breaking ⚠️)
-    - `OtelExporterOtlpTracesEndpoint` **Changed** (Breaking ⚠️)
-    - `OtelServiceName` **Changed** (Breaking ⚠️)
-    - `PortalBrandColor` **Changed** (Breaking ⚠️)
-    - `PortalDisableOutpostBranding` **Changed** (Breaking ⚠️)
-    - `PortalEnableDestinationFilter` **Changed** (Breaking ⚠️)
-    - `PortalEnableWebhookCustomHeaders` **Changed** (Breaking ⚠️)
-    - `PortalFaviconUrl` **Changed** (Breaking ⚠️)
-    - `PortalForceTheme` **Changed** (Breaking ⚠️)
-    - `PortalLogoDark` **Changed** (Breaking ⚠️)
-    - `PortalLogo` **Changed** (Breaking ⚠️)
-    - `PortalOrganizationName` **Changed** (Breaking ⚠️)
-    - `PortalRefererUrl` **Changed** (Breaking ⚠️)
-    - `PortalRefreshUrl` **Changed** (Breaking ⚠️)
-    - `PublishAwsSqsAccessKeyId` **Changed** (Breaking ⚠️)
-    - `PublishAwsSqsEndpoint` **Changed** (Breaking ⚠️)
-    - `PublishAwsSqsQueue` **Changed** (Breaking ⚠️)
-    - `PublishAwsSqsRegion` **Changed** (Breaking ⚠️)
-    - `PublishAwsSqsSecretAccessKey` **Changed** (Breaking ⚠️)
-    - `PublishAzureServicebusConnectionString` **Changed** (Breaking ⚠️)
-    - `PublishAzureServicebusSubscription` **Changed** (Breaking ⚠️)
-    - `PublishAzureServicebusTopic` **Changed** (Breaking ⚠️)
-    - `PublishGcpPubsubProject` **Changed** (Breaking ⚠️)
-    - `PublishGcpPubsubServiceAccountCredentials` **Changed** (Breaking ⚠️)
-    - `PublishGcpPubsubSubscription` **Changed** (Breaking ⚠️)
-    - `PublishGcpPubsubTopic` **Changed** (Breaking ⚠️)
-    - `PublishRabbitmqExchange` **Changed** (Breaking ⚠️)
-    - `PublishRabbitmqQueue` **Changed** (Breaking ⚠️)
-    - `PublishRabbitmqServerUrl` **Changed** (Breaking ⚠️)
-    - `RetryIntervalSeconds` **Changed** (Breaking ⚠️)
-    - `RetrySchedule` **Changed** (Breaking ⚠️)
-    - `TopicsAllowWildcards` **Changed** (Breaking ⚠️)
-    - `Topics` **Changed** (Breaking ⚠️)
-* `Outpost.Retry()`:  `error.status[413]` **Added**
-* `Outpost.Tenants.Upsert()`:  `error.status[413]` **Added**
-* `Outpost.Destinations.Create()`:  `error.status[413]` **Added**
-* `Outpost.Destinations.Update()`: `error` **Changed**
-    - `Status[409]` **Added**
-    - `Status[413]` **Added**
-* `Outpost.Destinations.Enable()`:  `error.status[409]` **Added**
-* `Outpost.Destinations.Disable()`:  `error.status[409]` **Added**
+    - `alert_auto_disable_destination` **Changed** (Breaking ⚠️)
+    - `alert_consecutive_failure_count` **Changed** (Breaking ⚠️)
+    - `alert_exhausted_retries_window_seconds` **Changed** (Breaking ⚠️)
+    - `delivery_timeout_seconds` **Changed** (Breaking ⚠️)
+    - `destinations_aws_kinesis_metadata_in_payload` **Changed** (Breaking ⚠️)
+    - `destinations_include_millisecond_timestamp` **Changed** (Breaking ⚠️)
+    - `destinations_proxy_url` **Added**
+    - `destinations_webhook_compat_headers` **Changed** (Breaking ⚠️)
+    - `destinations_webhook_compat_signature_algorithm` **Changed** (Breaking ⚠️)
+    - `destinations_webhook_compat_signature_content_template` **Changed** (Breaking ⚠️)
+    - `destinations_webhook_compat_signature_encoding` **Changed** (Breaking ⚠️)
+    - `destinations_webhook_compat_signature_header_name` **Changed** (Breaking ⚠️)
+    - `destinations_webhook_compat_signature_header_template` **Changed** (Breaking ⚠️)
+    - `destinations_webhook_compat_signature_secret_encoding` **Changed** (Breaking ⚠️)
+    - `destinations_webhook_compat_signature_secret_prefix` **Changed** (Breaking ⚠️)
+    - `destinations_webhook_event_id_header_name` **Changed** (Breaking ⚠️)
+    - `destinations_webhook_header_prefix` **Changed** (Breaking ⚠️)
+    - `destinations_webhook_mode` **Changed** (Breaking ⚠️)
+    - `destinations_webhook_proxy_url` **Changed** (Breaking ⚠️)
+    - `destinations_webhook_signature_algorithm` **Changed** (Breaking ⚠️)
+    - `destinations_webhook_signature_content_template` **Changed** (Breaking ⚠️)
+    - `destinations_webhook_signature_encoding` **Changed** (Breaking ⚠️)
+    - `destinations_webhook_signature_header_name` **Changed** (Breaking ⚠️)
+    - `destinations_webhook_signature_header_template` **Changed** (Breaking ⚠️)
+    - `destinations_webhook_signature_secret_encoding` **Changed** (Breaking ⚠️)
+    - `destinations_webhook_signature_secret_prefix` **Changed** (Breaking ⚠️)
+    - `destinations_webhook_signing_secret_template` **Changed** (Breaking ⚠️)
+    - `destinations_webhook_timestamp_format` **Changed** (Breaking ⚠️)
+    - `destinations_webhook_timestamp_header_name` **Changed** (Breaking ⚠️)
+    - `destinations_webhook_topic_header_name` **Changed** (Breaking ⚠️)
+    - `http_user_agent` **Changed** (Breaking ⚠️)
+    - `idgen_attempt_prefix` **Changed** (Breaking ⚠️)
+    - `idgen_destination_prefix` **Changed** (Breaking ⚠️)
+    - `idgen_event_prefix` **Changed** (Breaking ⚠️)
+    - `idgen_type` **Changed** (Breaking ⚠️)
+    - `max_destinations_per_tenant` **Changed** (Breaking ⚠️)
+    - `max_retry_limit` **Changed** (Breaking ⚠️)
+    - `otel_exporter_otlp_endpoint` **Changed** (Breaking ⚠️)
+    - `otel_exporter_otlp_headers` **Changed** (Breaking ⚠️)
+    - `otel_exporter_otlp_logs_endpoint` **Changed** (Breaking ⚠️)
+    - `otel_exporter_otlp_metrics_endpoint` **Changed** (Breaking ⚠️)
+    - `otel_exporter_otlp_protocol` **Changed** (Breaking ⚠️)
+    - `otel_exporter_otlp_traces_endpoint` **Changed** (Breaking ⚠️)
+    - `otel_service_name` **Changed** (Breaking ⚠️)
+    - `portal_brand_color` **Changed** (Breaking ⚠️)
+    - `portal_disable_outpost_branding` **Changed** (Breaking ⚠️)
+    - `portal_enable_destination_filter` **Changed** (Breaking ⚠️)
+    - `portal_enable_webhook_custom_headers` **Changed** (Breaking ⚠️)
+    - `portal_favicon_url` **Changed** (Breaking ⚠️)
+    - `portal_force_theme` **Changed** (Breaking ⚠️)
+    - `portal_logo_dark` **Changed** (Breaking ⚠️)
+    - `portal_logo` **Changed** (Breaking ⚠️)
+    - `portal_organization_name` **Changed** (Breaking ⚠️)
+    - `portal_referer_url` **Changed** (Breaking ⚠️)
+    - `portal_refresh_url` **Changed** (Breaking ⚠️)
+    - `publish_aws_sqs_access_key_id` **Changed** (Breaking ⚠️)
+    - `publish_aws_sqs_endpoint` **Changed** (Breaking ⚠️)
+    - `publish_aws_sqs_queue` **Changed** (Breaking ⚠️)
+    - `publish_aws_sqs_region` **Changed** (Breaking ⚠️)
+    - `publish_aws_sqs_secret_access_key` **Changed** (Breaking ⚠️)
+    - `publish_azure_servicebus_connection_string` **Changed** (Breaking ⚠️)
+    - `publish_azure_servicebus_subscription` **Changed** (Breaking ⚠️)
+    - `publish_azure_servicebus_topic` **Changed** (Breaking ⚠️)
+    - `publish_gcp_pubsub_project` **Changed** (Breaking ⚠️)
+    - `publish_gcp_pubsub_service_account_credentials` **Changed** (Breaking ⚠️)
+    - `publish_gcp_pubsub_subscription` **Changed** (Breaking ⚠️)
+    - `publish_gcp_pubsub_topic` **Changed** (Breaking ⚠️)
+    - `publish_rabbitmq_exchange` **Changed** (Breaking ⚠️)
+    - `publish_rabbitmq_queue` **Changed** (Breaking ⚠️)
+    - `publish_rabbitmq_server_url` **Changed** (Breaking ⚠️)
+    - `retry_interval_seconds` **Changed** (Breaking ⚠️)
+    - `retry_schedule` **Changed** (Breaking ⚠️)
+    - `topics_allow_wildcards` **Changed** (Breaking ⚠️)
+    - `topics` **Changed** (Breaking ⚠️)
+* `outpost.retry()`:  `error.status[413]` **Added**
+* `outpost.tenants.upsert()`:  `error.status[413]` **Added**
+* `outpost.destinations.create()`:  `error.status[413]` **Added**
+* `outpost.destinations.update()`: `error` **Changed**
+    - `status[409]` **Added**
+    - `status[413]` **Added**
+* `outpost.destinations.enable()`:  `error.status[409]` **Added**
+* `outpost.destinations.disable()`:  `error.status[409]` **Added**
