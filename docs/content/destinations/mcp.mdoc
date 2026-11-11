@@ -80,29 +80,26 @@ Invalid definitions are reported with the event and the field. Outpost still sta
 
 ## Connect your MCP server
 
-Your MCP server calls Outpost with the Admin API key, on behalf of a user it has authenticated:
+Your MCP server authenticates the request and resolves the tenant from it, then calls Outpost with the Admin API key:
 
 - `POST /tenants/<TENANT_ID>/mcp/events/subscribe`
 - `POST /tenants/<TENANT_ID>/mcp/events/unsubscribe`
 
-The body is `{"principal": ..., "params": ...}`: `principal` identifies the user, and `params` are the MCP request's params as received. Outpost trusts the `principal` and creates the tenant if it is missing. Checking that the user may receive an event with those arguments is up to your MCP server, as the spec requires.
+The body is the MCP request's `params` as received. The tenant in the path is the subscriber: Outpost trusts it and creates the tenant if it is missing. Checking that the user may receive an event with those arguments is up to your MCP server, as the spec requires.
 
 ```sh
 curl -X POST '{% $OUTPOST_API_BASE_URL %}/tenants/<TENANT_ID>/mcp/events/subscribe' \
 --header 'Authorization: Bearer <API_KEY>' \
 --header 'Content-Type: application/json' \
 --data '{
-  "principal": "user_42",
-  "params": {
-    "name": "order.created",
-    "arguments": { "status": "paid" },
-    "delivery": {
-      "mode": "webhook",
-      "url": "https://agent.example.com/hooks/orders",
-      "secret": "whsec_C2FVsBQIhrscChlQIMV+b5sSYspob7oD"
-    },
-    "ttlMs": 3600000
-  }
+  "name": "order.created",
+  "arguments": { "status": "paid" },
+  "delivery": {
+    "mode": "webhook",
+    "url": "https://agent.example.com/hooks/orders",
+    "secret": "whsec_C2FVsBQIhrscChlQIMV+b5sSYspob7oD"
+  },
+  "ttlMs": 3600000
 }'
 ```
 
@@ -118,15 +115,15 @@ curl -X POST '{% $OUTPOST_API_BASE_URL %}/tenants/<TENANT_ID>/mcp/events/subscri
 
 On success, the answer is the MCP result to return to the agent. On failure, it is a `422` with an `mcp_error` (`code`, `message`, and `data` where the spec defines it) for your MCP server to return as the JSON-RPC error. See the [API reference](/docs/outpost/api) for the full request and responses.
 
-Subscribing again with the same principal, event, arguments and callback URL refreshes the subscription: the same `id`, a new expiry and the new secret, which signs alongside the old one for 24 hours. The lifetime follows `ttlMs`, within the limits set in [configuration](/docs/outpost/self-hosting/configuration#mcp-events-experimental). Once it has passed, the subscription receives no events.
+Subscribing again with the same tenant, event, arguments and callback URL refreshes the subscription: the same `id`, a new expiry and the new secret, which signs alongside the old one for 24 hours. The lifetime follows `ttlMs`, within the limits set in [configuration](/docs/outpost/self-hosting/configuration#mcp-events-experimental). Once it has passed, the subscription receives no events.
 
-Unsubscribing takes the same `principal` and the `params` of the original subscribe, and answers `{"resultType": "complete"}`.
+Unsubscribing takes the `params` of the original subscribe, and answers `{"resultType": "complete"}`.
 
 ## How subscriptions differ from destinations
 
 - The destinations API never returns them. They are not listed, and can't be created, read, updated or deleted there; only the subscribe endpoints manage them.
 - They don't count toward `MAX_DESTINATIONS_PER_TENANT` or a tenant's `destinations_count`. Their events are part of the tenant's `topics`, and changes to them emit `tenant.subscription.updated`.
 - Deliveries are retried automatically: up to 5 attempts within 15 minutes. `RETRY_SCHEDULE` and `MAX_RETRY_LIMIT` don't apply, and a manual retry of a subscription's attempt answers `404`. A `410` or `413` response is not retried.
-- A subscription is bound to its principal: only that principal can refresh or remove it.
+- A subscription belongs to its tenant: only requests under that tenant's path can refresh or remove it.
 - Attempts and events keep the subscription's `id` as `destination_id`. Publishing to a subscription by `destination_id` matches nothing.
 - Each delivery carries `X-MCP-Subscription-Id`. The envelope's `cursor` is always `null`: there is no replay.

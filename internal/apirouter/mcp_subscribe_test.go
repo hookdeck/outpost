@@ -56,11 +56,6 @@ func subscribeParams(mutate ...func(map[string]any)) map[string]any {
 	return p
 }
 
-func subscribeBody(principal string, params map[string]any) map[string]any {
-	b := map[string]any{"principal": principal, "params": params}
-	return b
-}
-
 func postMCP(h *apiTest, path string, body any) *httptest.ResponseRecorder {
 	return h.do(h.withAPIKey(h.jsonReq(http.MethodPost, path, body)))
 }
@@ -125,11 +120,11 @@ func TestAPI_MCPSubscribe(t *testing.T) {
 		h := newSubscribeTest(t, v)
 		before := time.Now()
 
-		r := requireSubscribed(t, postMCP(h, mcpSubscribePath, subscribeBody("user-1", subscribeParams())))
+		r := requireSubscribed(t, postMCP(h, mcpSubscribePath, subscribeParams()))
 
 		_, normalized, err := mcpevents.NormalizeCallbackURL(mcpCallbackURL)
 		require.NoError(t, err)
-		assert.Equal(t, mcpevents.DeriveSubscriptionID("user-1", normalized, "user.created", json.RawMessage(`{"status":"paid"}`)), r.ID)
+		assert.Equal(t, mcpevents.DeriveSubscriptionID("t1", normalized, "user.created", json.RawMessage(`{"status":"paid"}`)), r.ID)
 		assert.Nil(t, r.Cursor)
 		assert.False(t, r.Truncated)
 		assert.Nil(t, r.DeliveryStatus, "only a refresh reports delivery status")
@@ -141,32 +136,32 @@ func TestAPI_MCPSubscribe(t *testing.T) {
 		require.NotNil(t, d)
 		assert.Equal(t, "mcp", d.Type)
 		assert.Equal(t, models.Topics{"user.created"}, d.Topics)
-		assert.Equal(t, map[string]string{"url": mcpCallbackURL, "principal": "user-1", "arguments": `{"status":"paid"}`}, map[string]string(d.Config))
+		assert.Equal(t, map[string]string{"url": mcpCallbackURL, "arguments": `{"status":"paid"}`}, map[string]string(d.Config))
 		assert.Equal(t, mcpSecret(1), d.Credentials["secret"])
 		require.NotNil(t, d.ExpiresAt)
 		assert.False(t, d.ExpiresAt.Before(refresh), "refreshBefore is never later than the expiry")
 		assert.Nil(t, d.DisabledAt)
 		require.Len(t, v.Requests(), 1)
 		assert.Equal(t, r.ID, v.Requests()[0].SubscriptionID)
-		assert.Equal(t, "user-1", v.Requests()[0].Principal)
+		assert.Equal(t, "t1", v.Requests()[0].TenantID)
 	})
 
 	t.Run("without arguments", func(t *testing.T) {
 		h := newSubscribeTest(t, &stubVerifier{})
-		r := requireSubscribed(t, postMCP(h, mcpSubscribePath, subscribeBody("user-1", subscribeParams(func(p map[string]any) { delete(p, "arguments") }))))
+		r := requireSubscribed(t, postMCP(h, mcpSubscribePath, subscribeParams(func(p map[string]any) { delete(p, "arguments") })))
 		assert.NotContains(t, storedSubscription(t, h, r.ID).Config, "arguments")
 	})
 
 	t.Run("refresh keeps the id, rotates the secret and extends the expiry", func(t *testing.T) {
 		v := &stubVerifier{}
 		h := newSubscribeTest(t, v)
-		first := requireSubscribed(t, postMCP(h, mcpSubscribePath, subscribeBody("user-1", subscribeParams(func(p map[string]any) { p["ttlMs"] = 600_000 }))))
+		first := requireSubscribed(t, postMCP(h, mcpSubscribePath, subscribeParams(func(p map[string]any) { p["ttlMs"] = 600_000 })))
 		firstExpiry := *storedSubscription(t, h, first.ID).ExpiresAt
 
 		params := subscribeParams(func(p map[string]any) {
 			p["delivery"] = deliveryParams(mcpCallbackURL, mcpSecret(2))
 		})
-		second := requireSubscribed(t, postMCP(h, mcpSubscribePath, subscribeBody("user-1", params)))
+		second := requireSubscribed(t, postMCP(h, mcpSubscribePath, params))
 
 		assert.Equal(t, first.ID, second.ID)
 		require.NotNil(t, second.DeliveryStatus)
@@ -180,15 +175,15 @@ func TestAPI_MCPSubscribe(t *testing.T) {
 
 	t.Run("subscribing after expiry starts a fresh subscription", func(t *testing.T) {
 		h := newSubscribeTest(t, &stubVerifier{})
-		first := requireSubscribed(t, postMCP(h, mcpSubscribePath, subscribeBody("user-1", subscribeParams())))
+		first := requireSubscribed(t, postMCP(h, mcpSubscribePath, subscribeParams()))
 		expired := storedSubscription(t, h, first.ID)
 		past := time.Now().Add(-time.Minute)
 		expired.ExpiresAt = &past
 		require.NoError(t, h.tenantStore.UpsertDestination(t.Context(), *expired))
 
-		second := requireSubscribed(t, postMCP(h, mcpSubscribePath, subscribeBody("user-1", subscribeParams(func(p map[string]any) {
+		second := requireSubscribed(t, postMCP(h, mcpSubscribePath, subscribeParams(func(p map[string]any) {
 			p["delivery"] = deliveryParams(mcpCallbackURL, mcpSecret(2))
-		}))))
+		})))
 
 		assert.Equal(t, first.ID, second.ID)
 		assert.Nil(t, second.DeliveryStatus)
@@ -201,18 +196,18 @@ func TestAPI_MCPSubscribe(t *testing.T) {
 
 	t.Run("refresh reports a disabled subscription and re-enables it", func(t *testing.T) {
 		h := newSubscribeTest(t, &stubVerifier{})
-		first := requireSubscribed(t, postMCP(h, mcpSubscribePath, subscribeBody("user-1", subscribeParams())))
+		first := requireSubscribed(t, postMCP(h, mcpSubscribePath, subscribeParams()))
 		disabled := storedSubscription(t, h, first.ID)
 		now := time.Now()
 		disabled.DisabledAt = &now
 		require.NoError(t, h.tenantStore.UpsertDestination(t.Context(), *disabled))
 
-		second := requireSubscribed(t, postMCP(h, mcpSubscribePath, subscribeBody("user-1", subscribeParams())))
+		second := requireSubscribed(t, postMCP(h, mcpSubscribePath, subscribeParams()))
 		require.NotNil(t, second.DeliveryStatus)
 		assert.False(t, second.DeliveryStatus.Active)
 		assert.Nil(t, storedSubscription(t, h, first.ID).DisabledAt)
 
-		third := requireSubscribed(t, postMCP(h, mcpSubscribePath, subscribeBody("user-1", subscribeParams())))
+		third := requireSubscribed(t, postMCP(h, mcpSubscribePath, subscribeParams()))
 		assert.True(t, third.DeliveryStatus.Active)
 	})
 
@@ -233,11 +228,11 @@ func TestAPI_MCPSubscribe(t *testing.T) {
 			t.Run(tt.name, func(t *testing.T) {
 				h := newSubscribeTest(t, &stubVerifier{})
 				before := time.Now()
-				r := requireSubscribed(t, postMCP(h, mcpSubscribePath, subscribeBody("user-1", subscribeParams(func(p map[string]any) {
+				r := requireSubscribed(t, postMCP(h, mcpSubscribePath, subscribeParams(func(p map[string]any) {
 					if !tt.omit {
 						p["ttlMs"] = tt.ttl
 					}
-				}))))
+				})))
 				assert.WithinDuration(t, before.Add(tt.want), *storedSubscription(t, h, r.ID).ExpiresAt, 2*time.Second)
 			})
 		}
@@ -246,7 +241,7 @@ func TestAPI_MCPSubscribe(t *testing.T) {
 	t.Run("a cached verification is not repeated", func(t *testing.T) {
 		v := &stubVerifier{verified: true}
 		h := newSubscribeTest(t, v)
-		requireSubscribed(t, postMCP(h, mcpSubscribePath, subscribeBody("user-1", subscribeParams())))
+		requireSubscribed(t, postMCP(h, mcpSubscribePath, subscribeParams()))
 		assert.Empty(t, v.Requests())
 	})
 
@@ -260,7 +255,7 @@ func TestAPI_MCPSubscribe(t *testing.T) {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				resp := postMCP(h, mcpSubscribePath, subscribeBody("user-1", subscribeParams()))
+				resp := postMCP(h, mcpSubscribePath, subscribeParams())
 				codes[i] = resp.Code
 				var r subscribeResult
 				_ = json.Unmarshal(resp.Body.Bytes(), &r)
@@ -277,18 +272,18 @@ func TestAPI_MCPSubscribe(t *testing.T) {
 		}
 	})
 
-	t.Run("different principals get different subscriptions", func(t *testing.T) {
+	t.Run("different tenants get different subscriptions", func(t *testing.T) {
 		h := newSubscribeTest(t, &stubVerifier{})
-		a := requireSubscribed(t, postMCP(h, mcpSubscribePath, subscribeBody("user-1", subscribeParams())))
-		b := requireSubscribed(t, postMCP(h, mcpSubscribePath, subscribeBody("user-2", subscribeParams())))
+		a := requireSubscribed(t, postMCP(h, mcpSubscribePath, subscribeParams()))
+		b := requireSubscribed(t, postMCP(h, "/api/v1/tenants/t2/mcp/events/subscribe", subscribeParams()))
 		assert.NotEqual(t, a.ID, b.ID)
-		assert.Equal(t, 2, mcpDestinationCount(t, h))
+		assert.Equal(t, 1, mcpDestinationCount(t, h), "one subscription per tenant")
 	})
 }
 
 func TestAPI_MCPSubscribeEmitsTenantSubscriptionUpdate(t *testing.T) {
 	h := newSubscribeTest(t, &stubVerifier{})
-	body := subscribeBody("user-1", subscribeParams())
+	body := subscribeParams()
 	requireSubscribed(t, postMCP(h, mcpSubscribePath, body))
 
 	require.Len(t, h.subscriptionEmitter.calls, 1)
@@ -301,9 +296,9 @@ func TestAPI_MCPSubscribeEmitsTenantSubscriptionUpdate(t *testing.T) {
 	requireSubscribed(t, postMCP(h, mcpSubscribePath, body))
 	assert.Len(t, h.subscriptionEmitter.calls, 1, "a refresh changes no topics")
 
-	resp := postMCP(h, mcpUnsubscribePath, map[string]any{"principal": "user-1", "params": map[string]any{
+	resp := postMCP(h, mcpUnsubscribePath, map[string]any{
 		"name": "user.created", "arguments": map[string]any{"status": "paid"}, "delivery": map[string]any{"url": mcpCallbackURL},
-	}})
+	})
 	require.Equal(t, http.StatusOK, resp.Code, resp.Body.String())
 
 	require.Len(t, h.subscriptionEmitter.calls, 2)
@@ -324,30 +319,28 @@ func TestAPI_MCPSubscribeErrors(t *testing.T) {
 		message string
 		data    map[string]any
 	}{
-		{"plain http to a public address", subscribeBody("u", subscribeParams(url("http://93.184.215.14/x"))), nil,
+		{"plain http to a public address", subscribeParams(url("http://93.184.215.14/x")), nil,
 			-32602, "InvalidParams", nil},
-		{"link-local address", subscribeBody("u", subscribeParams(url("https://169.254.169.254/x"))), nil,
+		{"link-local address", subscribeParams(url("https://169.254.169.254/x")), nil,
 			-32602, "InvalidParams", nil},
-		{"secret without prefix", subscribeBody("u", subscribeParams(func(p map[string]any) {
+		{"secret without prefix", subscribeParams(func(p map[string]any) {
 			p["delivery"] = deliveryParams(mcpCallbackURL, "abc")
-		})), nil, -32602, "InvalidParams", nil},
-		{"poll mode", subscribeBody("u", subscribeParams(func(p map[string]any) {
+		}), nil, -32602, "InvalidParams", nil},
+		{"poll mode", subscribeParams(func(p map[string]any) {
 			p["delivery"] = map[string]any{"mode": "poll", "url": mcpCallbackURL, "secret": mcpSecret(1)}
-		})), nil, -32026, "Unsupported", map[string]any{"feature": "deliveryMode", "value": "poll"}},
-		{"oversized arguments", subscribeBody("u", subscribeParams(func(p map[string]any) {
+		}), nil, -32026, "Unsupported", map[string]any{"feature": "deliveryMode", "value": "poll"}},
+		{"oversized arguments", subscribeParams(func(p map[string]any) {
 			p["arguments"] = map[string]any{"status": strings.Repeat("a", 5<<10)}
-		})), nil, -32602, "InvalidParams", nil},
-		{"missing name", subscribeBody("u", subscribeParams(func(p map[string]any) { delete(p, "name") })), nil,
+		}), nil, -32602, "InvalidParams", nil},
+		{"missing name", subscribeParams(func(p map[string]any) { delete(p, "name") }), nil,
 			-32602, "InvalidParams", nil},
-		{"missing params", map[string]any{"principal": "u"}, nil,
+		{"empty params", map[string]any{}, nil,
 			-32602, "InvalidParams", nil},
-		{"unknown event", subscribeBody("u", subscribeParams(func(p map[string]any) { p["name"] = "order.unknown" })), nil,
+		{"unknown event", subscribeParams(func(p map[string]any) { p["name"] = "order.unknown" }), nil,
 			-32023, "NotFound", map[string]any{"kind": "event"}},
-		{"wildcard event", subscribeBody("u", subscribeParams(func(p map[string]any) { p["name"] = "user.*" })), nil,
+		{"wildcard event", subscribeParams(func(p map[string]any) { p["name"] = "user.*" }), nil,
 			-32023, "NotFound", map[string]any{"kind": "event"}},
-		{"no principal", subscribeBody("", subscribeParams()), nil,
-			-32024, "Forbidden", nil},
-		{"verification rate limited", subscribeBody("u", subscribeParams()), mcpevents.ResourceExhausted(mcpevents.LimitVerificationRate, 10, time.Second),
+		{"verification rate limited", subscribeParams(), mcpevents.ResourceExhausted(mcpevents.LimitVerificationRate, 10, time.Second),
 			-32025, "ResourceExhausted", map[string]any{"limit": "verification_rate"}},
 	}
 	for _, category := range []string{"challenge_failed", "connection_refused", "timeout", "tls_error"} {
@@ -358,7 +351,7 @@ func TestAPI_MCPSubscribeErrors(t *testing.T) {
 			code    int
 			message string
 			data    map[string]any
-		}{"verification " + category, subscribeBody("u", subscribeParams()), mcpevents.CallbackEndpointError(category),
+		}{"verification " + category, subscribeParams(), mcpevents.CallbackEndpointError(category),
 			-32027, "CallbackEndpointError", map[string]any{"reason": category}})
 	}
 
@@ -376,16 +369,16 @@ func TestAPI_MCPSubscribeErrors(t *testing.T) {
 
 	t.Run("event missing from the definitions", func(t *testing.T) {
 		h, v := newMCPCatalogAPITestWithVerifier(t, mcpEventsCatalog(t), withMCPSubscribe(mcpTTLRules))
-		resp := postMCP(h, mcpSubscribePath, subscribeBody("u", subscribeParams(func(p map[string]any) { p["name"] = "user.deleted" })))
+		resp := postMCP(h, mcpSubscribePath, subscribeParams(func(p map[string]any) { p["name"] = "user.deleted" }))
 		requireMCPError(t, resp, -32023, "NotFound", map[string]any{"kind": "event"})
 		assert.Empty(t, v.Requests())
 	})
 
 	t.Run("arguments rejected by the event schema", func(t *testing.T) {
 		h, v := newMCPCatalogAPITestWithVerifier(t, mcpEventsCatalog(t), withMCPSubscribe(mcpTTLRules))
-		resp := postMCP(h, mcpSubscribePath, subscribeBody("u", subscribeParams(func(p map[string]any) {
+		resp := postMCP(h, mcpSubscribePath, subscribeParams(func(p map[string]any) {
 			p["arguments"] = map[string]any{"status": "refunded"}
-		})))
+		}))
 		requireMCPError(t, resp, -32602, "InvalidParams", nil)
 		assert.Empty(t, v.Requests())
 	})
@@ -393,7 +386,7 @@ func TestAPI_MCPSubscribeErrors(t *testing.T) {
 	t.Run("a 422 is logged with its details and the body stays the MCP error", func(t *testing.T) {
 		core, logs := observer.New(zap.InfoLevel)
 		h, _ := newMCPCatalogAPITestWithVerifier(t, mcpEventsCatalog(t), withMCPSubscribe(mcpTTLRules), withLogger(logging.NewTestLogger(zap.New(core))))
-		resp := postMCP(h, mcpSubscribePath, subscribeBody("u", subscribeParams(func(p map[string]any) { p["name"] = "user.deleted" })))
+		resp := postMCP(h, mcpSubscribePath, subscribeParams(func(p map[string]any) { p["name"] = "user.deleted" }))
 		requireMCPError(t, resp, -32023, "NotFound", map[string]any{"kind": "event"})
 
 		entries := logs.FilterMessage("request completed").All()
@@ -403,7 +396,7 @@ func TestAPI_MCPSubscribeErrors(t *testing.T) {
 
 	t.Run("a verification store outage answers 503 and keeps its details out of the answer", func(t *testing.T) {
 		h := newSubscribeTest(t, &stubVerifier{err: errors.New("endpoint said: SECRET-MARKER at 10.1.2.3")})
-		resp := postMCP(h, mcpSubscribePath, subscribeBody("u", subscribeParams()))
+		resp := postMCP(h, mcpSubscribePath, subscribeParams())
 		assert.Equal(t, http.StatusServiceUnavailable, resp.Code)
 		assert.Contains(t, resp.Body.String(), destmcp.ErrTypeVerificationUnavailable)
 		assert.NotContains(t, resp.Body.String(), "SECRET-MARKER")
@@ -413,26 +406,20 @@ func TestAPI_MCPSubscribeErrors(t *testing.T) {
 
 	t.Run("a malformed body answers InvalidParams", func(t *testing.T) {
 		h := newSubscribeTest(t, &stubVerifier{})
-		for _, body := range []string{`not json`, `{"principal":1}`, `{"principal":"u","params":"x"}`} {
+		for _, body := range []string{`not json`, `"x"`, `[]`, `null`} {
 			req := h.withAPIKey(httptest.NewRequest(http.MethodPost, mcpSubscribePath, strings.NewReader(body)))
 			req.Header.Set("Content-Type", "application/json")
 			requireMCPError(t, h.do(req), -32602, "InvalidParams", nil)
 		}
 	})
 
-	t.Run("a missing principal wins over invalid params", func(t *testing.T) {
-		h := newSubscribeTest(t, &stubVerifier{})
-		resp := postMCP(h, mcpSubscribePath, map[string]any{"params": map[string]any{"name": 1}})
-		requireMCPError(t, resp, -32024, "Forbidden", nil)
-	})
-
 	t.Run("an id held by a destination of another type answers InvalidParams", func(t *testing.T) {
 		v := &stubVerifier{}
 		h := newSubscribeTest(t, v)
-		id := mcpevents.DeriveSubscriptionID("u", mcpCallbackURL, "user.created", json.RawMessage(`{"status":"paid"}`))
+		id := mcpevents.DeriveSubscriptionID("t1", mcpCallbackURL, "user.created", json.RawMessage(`{"status":"paid"}`))
 		require.NoError(t, h.tenantStore.CreateDestination(t.Context(), df.Any(df.WithID(id), df.WithTenantID("t1"))))
 
-		resp := postMCP(h, mcpSubscribePath, subscribeBody("u", subscribeParams()))
+		resp := postMCP(h, mcpSubscribePath, subscribeParams())
 
 		requireMCPError(t, resp, -32602, "InvalidParams", nil)
 		assert.Empty(t, v.Requests())
@@ -441,7 +428,7 @@ func TestAPI_MCPSubscribeErrors(t *testing.T) {
 	t.Run("a failed verification stores nothing", func(t *testing.T) {
 		v := &stubVerifier{err: mcpevents.CallbackEndpointError(mcpevents.ReasonChallengeFailed)}
 		h := newSubscribeTest(t, v)
-		postMCP(h, mcpSubscribePath, subscribeBody("u", subscribeParams()))
+		postMCP(h, mcpSubscribePath, subscribeParams())
 		assert.Len(t, v.Requests(), 1)
 		assert.Zero(t, mcpDestinationCount(t, h))
 	})
@@ -450,10 +437,10 @@ func TestAPI_MCPSubscribeErrors(t *testing.T) {
 func TestAPI_MCPUnsubscribe(t *testing.T) {
 	t.Run("deletes the subscription, then reports it missing", func(t *testing.T) {
 		h := newSubscribeTest(t, &stubVerifier{})
-		r := requireSubscribed(t, postMCP(h, mcpSubscribePath, subscribeBody("user-1", subscribeParams())))
-		body := map[string]any{"principal": "user-1", "params": map[string]any{
+		r := requireSubscribed(t, postMCP(h, mcpSubscribePath, subscribeParams()))
+		body := map[string]any{
 			"name": "user.created", "arguments": map[string]any{"status": "paid"}, "delivery": map[string]any{"url": mcpCallbackURL},
-		}}
+		}
 
 		resp := postMCP(h, mcpUnsubscribePath, body)
 
@@ -465,37 +452,34 @@ func TestAPI_MCPUnsubscribe(t *testing.T) {
 		requireMCPError(t, again, -32023, "NotFound", map[string]any{"kind": "subscription"})
 	})
 
-	t.Run("another principal's subscription is not found", func(t *testing.T) {
+	t.Run("another tenant's subscription is not found", func(t *testing.T) {
 		h := newSubscribeTest(t, &stubVerifier{})
-		r := requireSubscribed(t, postMCP(h, mcpSubscribePath, subscribeBody("user-1", subscribeParams())))
-		resp := postMCP(h, mcpUnsubscribePath, map[string]any{"principal": "user-2", "params": map[string]any{
+		r := requireSubscribed(t, postMCP(h, mcpSubscribePath, subscribeParams()))
+		requireSubscribed(t, postMCP(h, "/api/v1/tenants/t2/mcp/events/subscribe", subscribeParams(func(p map[string]any) { p["arguments"] = map[string]any{"status": "pending"} })))
+		resp := postMCP(h, "/api/v1/tenants/t2/mcp/events/unsubscribe", map[string]any{
 			"name": "user.created", "arguments": map[string]any{"status": "paid"}, "delivery": map[string]any{"url": mcpCallbackURL},
-		}})
+		})
 		requireMCPError(t, resp, -32023, "NotFound", map[string]any{"kind": "subscription"})
 		assert.NotNil(t, storedSubscription(t, h, r.ID))
 	})
 
 	t.Run("an expired subscription is not found", func(t *testing.T) {
 		h := newSubscribeTest(t, &stubVerifier{})
-		r := requireSubscribed(t, postMCP(h, mcpSubscribePath, subscribeBody("user-1", subscribeParams())))
+		r := requireSubscribed(t, postMCP(h, mcpSubscribePath, subscribeParams()))
 		d := storedSubscription(t, h, r.ID)
 		past := time.Now().Add(-time.Minute)
 		d.ExpiresAt = &past
 		require.NoError(t, h.tenantStore.UpsertDestination(t.Context(), *d))
-		resp := postMCP(h, mcpUnsubscribePath, map[string]any{"principal": "user-1", "params": map[string]any{
+		resp := postMCP(h, mcpUnsubscribePath, map[string]any{
 			"name": "user.created", "arguments": map[string]any{"status": "paid"}, "delivery": map[string]any{"url": mcpCallbackURL},
-		}})
+		})
 		requireMCPError(t, resp, -32023, "NotFound", map[string]any{"kind": "subscription"})
 	})
 
-	t.Run("invalid params and missing principal", func(t *testing.T) {
+	t.Run("invalid params", func(t *testing.T) {
 		h := newSubscribeTest(t, &stubVerifier{})
-		resp := postMCP(h, mcpUnsubscribePath, map[string]any{"principal": "u", "params": map[string]any{"name": "user.created"}})
+		resp := postMCP(h, mcpUnsubscribePath, map[string]any{"name": "user.created"})
 		requireMCPError(t, resp, -32602, "InvalidParams", nil)
-		resp = postMCP(h, mcpUnsubscribePath, map[string]any{"params": map[string]any{
-			"name": "user.created", "delivery": map[string]any{"url": mcpCallbackURL},
-		}})
-		requireMCPError(t, resp, -32024, "Forbidden", nil)
 	})
 }
 
@@ -508,7 +492,7 @@ func TestAPI_MCPSubscribeAccess(t *testing.T) {
 	t.Run("admin only", func(t *testing.T) {
 		h := newSubscribeTest(t, &stubVerifier{})
 		for _, p := range paths {
-			body := subscribeBody("u", subscribeParams())
+			body := subscribeParams()
 			assert.Equal(t, http.StatusUnauthorized, h.do(h.jsonReq(p.method, p.path, body)).Code, p.path)
 			assert.Equal(t, http.StatusForbidden, h.do(h.withJWT(h.jsonReq(p.method, p.path, body), "t1")).Code, p.path)
 		}
@@ -517,7 +501,7 @@ func TestAPI_MCPSubscribeAccess(t *testing.T) {
 	t.Run("unknown tenant", func(t *testing.T) {
 		h := newSubscribeTest(t, &stubVerifier{})
 		unsubscribe := h.do(h.withAPIKey(h.jsonReq(http.MethodPost, "/api/v1/tenants/missing/mcp/events/unsubscribe", map[string]any{
-			"principal": "u", "params": map[string]any{"name": "user.created", "delivery": map[string]any{"url": mcpCallbackURL}},
+			"name": "user.created", "delivery": map[string]any{"url": mcpCallbackURL},
 		})))
 		requireMCPError(t, unsubscribe, -32023, "NotFound", map[string]any{"kind": "subscription"})
 		tenant, err := h.tenantStore.RetrieveTenant(t.Context(), "missing")
@@ -527,7 +511,7 @@ func TestAPI_MCPSubscribeAccess(t *testing.T) {
 
 	t.Run("subscribing creates a missing tenant", func(t *testing.T) {
 		h := newSubscribeTest(t, &stubVerifier{})
-		resp := h.do(h.withAPIKey(h.jsonReq(http.MethodPost, "/api/v1/tenants/fresh/mcp/events/subscribe", subscribeBody("u", subscribeParams()))))
+		resp := h.do(h.withAPIKey(h.jsonReq(http.MethodPost, "/api/v1/tenants/fresh/mcp/events/subscribe", subscribeParams())))
 		requireSubscribed(t, resp)
 		tenant, err := h.tenantStore.RetrieveTenant(t.Context(), "fresh")
 		require.NoError(t, err)
@@ -541,7 +525,7 @@ func TestAPI_MCPSubscribeAccess(t *testing.T) {
 	t.Run("routes answer 503 without the reason while the event definitions are invalid", func(t *testing.T) {
 		h := newSubscribeTest(t, &stubVerifier{}, withMCPEventsError(errors.New("EXPERIMENTAL_MCP_EVENTS_SCHEMA: invalid mcp events: invalid JSON")))
 		for _, path := range []string{mcpSubscribePath, mcpUnsubscribePath} {
-			resp := postMCP(h, path, subscribeBody("u", subscribeParams()))
+			resp := postMCP(h, path, subscribeParams())
 			require.Equal(t, http.StatusServiceUnavailable, resp.Code, resp.Body.String())
 			assert.Equal(t, "MCP Events unavailable", responseBody(t, resp)["message"])
 		}
@@ -552,7 +536,7 @@ func TestAPI_MCPSubscribeAccess(t *testing.T) {
 		h := newAPITest(t)
 		require.NoError(t, h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1"))))
 		for _, p := range paths {
-			resp := h.do(h.withAPIKey(h.jsonReq(p.method, p.path, subscribeBody("u", subscribeParams()))))
+			resp := h.do(h.withAPIKey(h.jsonReq(p.method, p.path, subscribeParams())))
 			assert.Equal(t, http.StatusNotFound, resp.Code, p.path)
 		}
 	})
@@ -580,10 +564,10 @@ func TestAPI_MCPSubscribeRaces(t *testing.T) {
 
 	t.Run("a refresh that loses a write re-reads and succeeds", func(t *testing.T) {
 		h, rs := newRacing(t)
-		first := requireSubscribed(t, postMCP(h, mcpSubscribePath, subscribeBody("user-1", subscribeParams())))
+		first := requireSubscribed(t, postMCP(h, mcpSubscribePath, subscribeParams()))
 		rs.afterRetrieve = once(func() { renewed(t, rs, first.ID, time.Now().Add(2*time.Hour)) })
 
-		second := requireSubscribed(t, postMCP(h, mcpSubscribePath, subscribeBody("user-1", subscribeParams())))
+		second := requireSubscribed(t, postMCP(h, mcpSubscribePath, subscribeParams()))
 
 		assert.Equal(t, first.ID, second.ID)
 		assert.Equal(t, 1, mcpDestinationCount(t, h))
@@ -591,11 +575,11 @@ func TestAPI_MCPSubscribeRaces(t *testing.T) {
 
 	t.Run("replacing an expired subscription that was renewed meanwhile refreshes it", func(t *testing.T) {
 		h, rs := newRacing(t)
-		first := requireSubscribed(t, postMCP(h, mcpSubscribePath, subscribeBody("user-1", subscribeParams())))
+		first := requireSubscribed(t, postMCP(h, mcpSubscribePath, subscribeParams()))
 		renewed(t, rs, first.ID, time.Now().Add(-time.Minute))
 		rs.afterRetrieve = once(func() { renewed(t, rs, first.ID, time.Now().Add(2*time.Hour)) })
 
-		second := requireSubscribed(t, postMCP(h, mcpSubscribePath, subscribeBody("user-1", subscribeParams())))
+		second := requireSubscribed(t, postMCP(h, mcpSubscribePath, subscribeParams()))
 
 		assert.Equal(t, first.ID, second.ID)
 		require.NotNil(t, second.DeliveryStatus, "the second pass refreshed a live subscription")
@@ -604,11 +588,11 @@ func TestAPI_MCPSubscribeRaces(t *testing.T) {
 
 	t.Run("replacing an expired subscription that was purged meanwhile creates it", func(t *testing.T) {
 		h, rs := newRacing(t)
-		first := requireSubscribed(t, postMCP(h, mcpSubscribePath, subscribeBody("user-1", subscribeParams())))
+		first := requireSubscribed(t, postMCP(h, mcpSubscribePath, subscribeParams()))
 		renewed(t, rs, first.ID, time.Now().Add(-time.Minute))
 		rs.afterRetrieve = once(func() { require.NoError(t, rs.TenantStore.DeleteDestination(t.Context(), "t1", first.ID)) })
 
-		second := requireSubscribed(t, postMCP(h, mcpSubscribePath, subscribeBody("user-1", subscribeParams())))
+		second := requireSubscribed(t, postMCP(h, mcpSubscribePath, subscribeParams()))
 
 		assert.Equal(t, first.ID, second.ID)
 		assert.Nil(t, second.DeliveryStatus)
@@ -617,16 +601,16 @@ func TestAPI_MCPSubscribeRaces(t *testing.T) {
 
 	t.Run("a subscribe that keeps losing answers 503 with Retry-After and a retry succeeds", func(t *testing.T) {
 		h, rs := newRacing(t)
-		first := requireSubscribed(t, postMCP(h, mcpSubscribePath, subscribeBody("user-1", subscribeParams())))
+		first := requireSubscribed(t, postMCP(h, mcpSubscribePath, subscribeParams()))
 		rs.afterRetrieve = func(int) { renewed(t, rs, first.ID, time.Now().Add(2*time.Hour)) }
 
-		resp := postMCP(h, mcpSubscribePath, subscribeBody("user-1", subscribeParams()))
+		resp := postMCP(h, mcpSubscribePath, subscribeParams())
 		assert.Equal(t, http.StatusServiceUnavailable, resp.Code)
 		assert.Equal(t, "1", resp.Header().Get("Retry-After"))
 		assert.Equal(t, 1, mcpDestinationCount(t, h))
 
 		rs.stopRacing()
-		second := requireSubscribed(t, postMCP(h, mcpSubscribePath, subscribeBody("user-1", subscribeParams())))
+		second := requireSubscribed(t, postMCP(h, mcpSubscribePath, subscribeParams()))
 		assert.Equal(t, first.ID, second.ID)
 	})
 
@@ -634,11 +618,11 @@ func TestAPI_MCPSubscribeRaces(t *testing.T) {
 		h, rs := newRacing(t)
 		rs.afterRetrieve = once(func() { require.NoError(t, rs.TenantStore.DeleteTenant(t.Context(), "t1")) })
 
-		resp := postMCP(h, mcpSubscribePath, subscribeBody("user-1", subscribeParams()))
+		resp := postMCP(h, mcpSubscribePath, subscribeParams())
 		assert.Equal(t, http.StatusServiceUnavailable, resp.Code)
 		assert.Equal(t, 0, mcpDestinationCount(t, h))
 
-		requireSubscribed(t, postMCP(h, mcpSubscribePath, subscribeBody("user-1", subscribeParams())))
+		requireSubscribed(t, postMCP(h, mcpSubscribePath, subscribeParams()))
 		assert.Equal(t, 1, mcpDestinationCount(t, h))
 	})
 }

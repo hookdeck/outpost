@@ -66,8 +66,8 @@ func (s *endpointsServer) serve(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	principal := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
-	user, known := s.env.Principals[principal]
+	token := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+	user, known := s.env.Users[token]
 	if !known {
 		rpcFail(w, http.StatusOK, req.ID, -32024, "Forbidden", nil)
 		return
@@ -90,8 +90,7 @@ func (s *endpointsServer) serve(w http.ResponseWriter, r *http.Request) {
 			rpcFail(w, http.StatusBadRequest, req.ID, -32020, "HeaderMismatch", nil)
 			return
 		}
-		body := map[string]any{"principal": principal, "params": req.Params}
-		status, out := s.outpost(http.MethodPost, "/tenants/"+user.Tenant+"/mcp/"+req.Method, body)
+		status, out := s.outpost(http.MethodPost, "/tenants/"+user.Tenant+"/mcp/"+req.Method, req.Params)
 		forward(w, req.ID, status, out)
 	default:
 		rpcFail(w, http.StatusOK, req.ID, -32601, "MethodNotFound", nil)

@@ -52,10 +52,8 @@ func (s *mcpLimitsSuite) tenant(id string) models.Tenant {
 // tenant's destination count.
 func (s *mcpLimitsSuite) TestSubscriptionsDoNotCount() {
 	tenant := s.m.base.createTenant().ID
-	base := s.m.newPath(mcpreceiver.PathConfig{})
-	s.m.r.Set(base.path, mcpreceiver.PathConfig{Secrets: []string{base.secret}})
-	for _, principal := range []string{"u1", "u2", "u3"} {
-		s.m.mustSubscribe(tenant, base.forPrincipal(principal), mcpSubscribeOpts{})
+	for range 3 {
+		s.m.mustSubscribe(tenant, s.m.newPath(tenant, mcpreceiver.PathConfig{}), mcpSubscribeOpts{})
 	}
 	got := s.tenant(tenant)
 	s.Zero(got.DestinationsCount)
@@ -76,5 +74,5 @@ func (s *mcpLimitsSuite) TestSubscriptionsDoNotCount() {
 	s.Equal(mcpLimitsMaxDestinations, got.DestinationsCount)
 	s.Equal([]string{mcpTopic}, got.Topics)
 
-	s.m.mustSubscribe(tenant, base.forPrincipal("u4"), mcpSubscribeOpts{})
+	s.m.mustSubscribe(tenant, s.m.newPath(tenant, mcpreceiver.PathConfig{}), mcpSubscribeOpts{})
 }

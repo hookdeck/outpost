@@ -26,7 +26,6 @@ const Type = models.DestinationTypeMCP
 
 const (
 	ConfigURL       = "url"
-	ConfigPrincipal = "principal"
 	ConfigArguments = "arguments"
 
 	CredentialSecret                  = "secret"
@@ -42,7 +41,6 @@ const (
 const (
 	DefaultMaxResponseBodyBytes = 4096
 	SecretRotationGrace         = 24 * time.Hour
-	MaxPrincipalBytes           = 512
 	MaxArgumentsBytes           = 4 << 10
 
 	checkURLTimeout = 5 * time.Second
@@ -50,7 +48,7 @@ const (
 
 type Verifier interface {
 	Verify(ctx context.Context, req mcpevents.VerifyRequest) error
-	Verified(ctx context.Context, tenantID, principal, rawURL string) (bool, error)
+	Verified(ctx context.Context, tenantID, rawURL string) (bool, error)
 }
 
 type Config struct {
@@ -149,7 +147,6 @@ func (p *Provider) ObfuscateDestination(destination *models.Destination) *models
 type subscription struct {
 	url       *url.URL
 	urlString string
-	principal string
 	secrets   []mcpevents.Secret
 }
 
@@ -171,7 +168,7 @@ func (p *Provider) Validate(ctx context.Context, destination *models.Destination
 
 	// The delivery-time dialer checks the address on every connection, so a
 	// cached verification can skip the create-time address check.
-	cached, err := p.verifier.Verified(ctx, destination.TenantID, sub.principal, sub.urlString)
+	cached, err := p.verifier.Verified(ctx, destination.TenantID, sub.urlString)
 	if err == nil && cached {
 		return nil
 	}
@@ -180,7 +177,6 @@ func (p *Provider) Validate(ctx context.Context, destination *models.Destination
 	}
 	err = p.verifier.Verify(ctx, mcpevents.VerifyRequest{
 		TenantID:       destination.TenantID,
-		Principal:      sub.principal,
 		URL:            sub.urlString,
 		SubscriptionID: destination.ID,
 		Secrets:        sub.secrets,
@@ -266,10 +262,6 @@ func (p *Provider) parse(destination *models.Destination) (*subscription, error)
 		return nil, invalid("topics", "invalid")
 	}
 
-	principal := config[ConfigPrincipal]
-	if len(principal) > MaxPrincipalBytes {
-		return nil, invalid("config."+ConfigPrincipal, "maxlength")
-	}
 	if raw, ok := config[ConfigArguments]; ok && raw != "" {
 		if err := checkArguments(raw); err != nil {
 			return nil, err
@@ -296,7 +288,7 @@ func (p *Provider) parse(destination *models.Destination) (*subscription, error)
 		}
 		return nil, invalid(field, "invalid")
 	}
-	return &subscription{url: u, urlString: urlString, principal: principal, secrets: secrets}, nil
+	return &subscription{url: u, urlString: urlString, secrets: secrets}, nil
 }
 
 func checkArguments(raw string) error {

@@ -30,21 +30,20 @@ func TestVerifier_Cache(t *testing.T) {
 	_, key := secretOf(32, base64.StdEncoding)
 	rc := newReceiver(t, key, echo)
 	ctx := context.Background()
-	req := VerifyRequest{TenantID: "t1", Principal: "p1", URL: rc.URL + "/hook", SubscriptionID: "sub_1", Secrets: []Secret{{Key: key}}}
+	req := VerifyRequest{TenantID: "t1", URL: rc.URL + "/hook", SubscriptionID: "sub_1", Secrets: []Secret{{Key: key}}}
 
 	require.NoError(t, v.Verify(ctx, req))
 	require.Len(t, rc.Requests(), 1)
 
-	// Hit: same (tenant, principal, url), whatever the arguments or spelling.
+	// Hit: same (tenant, url), whatever the arguments or spelling.
 	again := req
 	again.SubscriptionID = "sub_2"
 	again.URL = strings.Replace(rc.URL, "127.0.0.1:", "127.0.0.1.:000", 1) + "/x/../hook"
 	require.NoError(t, v.Verify(ctx, again))
 	assert.Len(t, rc.Requests(), 1)
 
-	// Miss: another principal, tenant or URL.
+	// Miss: another tenant or URL.
 	for _, other := range []func(r *VerifyRequest){
-		func(r *VerifyRequest) { r.Principal = "p2" },
 		func(r *VerifyRequest) { r.TenantID = "t2" },
 		func(r *VerifyRequest) { r.URL = rc.URL + "/other" },
 	} {
@@ -52,15 +51,15 @@ func TestVerifier_Cache(t *testing.T) {
 		other(&r)
 		require.NoError(t, v.Verify(ctx, r))
 	}
-	assert.Len(t, rc.Requests(), 4)
+	assert.Len(t, rc.Requests(), 3)
 
 	// Expiry.
 	mr.FastForward(time.Hour + time.Second)
 	require.NoError(t, v.Verify(ctx, req))
-	assert.Len(t, rc.Requests(), 5)
+	assert.Len(t, rc.Requests(), 4)
 }
 
-func TestVerifier_PrincipalRateLimit(t *testing.T) {
+func TestVerifier_TenantRateLimit(t *testing.T) {
 	t.Parallel()
 	f := newVerifierFixture(t, func(c *VerifierConfig) {
 		c.RateLimit = 3
@@ -83,11 +82,8 @@ func TestVerifier_PrincipalRateLimit(t *testing.T) {
 	assert.Equal(t, int64(30000), mcpErr.Data["retryAfterMs"], "until the minute ends")
 	assert.Len(t, rc.Requests(), 3, "the limited attempt sends nothing")
 
-	// Another principal or tenant has its own budget.
+	// Another tenant has its own budget.
 	other := f.request(rc.URL)
-	other.Principal = "user_2"
-	requireReason(t, f.v.Verify(ctx, other), ReasonChallengeFailed)
-	other = f.request(rc.URL)
 	other.TenantID = "tenant_2"
 	requireReason(t, f.v.Verify(ctx, other), ReasonChallengeFailed)
 
@@ -128,19 +124,19 @@ func TestVerifier_TenantHostFailureBudget(t *testing.T) {
 	})
 	rc := sharedReceiver(t, f.key)
 	ctx := context.Background()
-	failing := func(tenantID, principal, rawURL string) VerifyRequest {
+	failing := func(tenantID, rawURL string) VerifyRequest {
 		req := f.request(rawURL)
-		req.TenantID, req.Principal, req.SubscriptionID = tenantID, principal, "sub_unknown"
+		req.TenantID, req.SubscriptionID = tenantID, "sub_unknown"
 		return req
 	}
 
-	// Two principals of tenant "evil" use up its budget for the host.
+	// Tenant "evil" uses up its budget for the host.
 	for i := range 2 {
-		requireReason(t, f.v.Verify(ctx, failing("evil", "attacker_"+strconv.Itoa(i), rc.URL+"/x"+strconv.Itoa(i))), ReasonChallengeFailed)
+		requireReason(t, f.v.Verify(ctx, failing("evil", rc.URL+"/x"+strconv.Itoa(i))), ReasonChallengeFailed)
 	}
 	// Spelling variants of the same host:port share the budget.
 	_, port, _ := net.SplitHostPort(hostOf(rc.URL))
-	err := f.v.Verify(ctx, failing("evil", "attacker_2", "http://127.0.0.1.:00"+port+"/x"))
+	err := f.v.Verify(ctx, failing("evil", "http://127.0.0.1.:00"+port+"/x"))
 	requireMCPError(t, err, KindResourceExhausted, map[string]any{"limit": LimitVerificationRate, "retryAfterMs": int64(30000)})
 	// Even a challenge that would pass: the budget counts failures, and is
 	// spent.
@@ -158,13 +154,14 @@ func TestVerifier_TenantHostFailureBudget(t *testing.T) {
 	// Successes never use the budget.
 	for i := range 5 {
 		req := f.request(rc.URL + "/hook")
-		req.TenantID, req.Principal = "victim", "user_"+strconv.Itoa(i)
+		req.TenantID = "victim"
+		req.SubscriptionID = "sub_" + strconv.Itoa(i)
 		require.NoError(t, f.v.Verify(ctx, req))
 	}
 
 	// The budget is per minute.
 	f.clock.Advance(time.Minute)
-	requireReason(t, f.v.Verify(ctx, failing("evil", "attacker_3", rc.URL+"/y")), ReasonChallengeFailed)
+	requireReason(t, f.v.Verify(ctx, failing("evil", rc.URL+"/y")), ReasonChallengeFailed)
 }
 
 func TestVerifier_ExemptHost(t *testing.T) {
@@ -233,10 +230,10 @@ func TestVerifier_PurgeTenant(t *testing.T) {
 	assert.Len(t, rc.Requests(), 2)
 
 	require.NoError(t, f.v.PurgeTenant(ctx, "tenant_1"))
-	ok, err := f.v.Verified(ctx, "tenant_1", req.Principal, rc.URL)
+	ok, err := f.v.Verified(ctx, "tenant_1", rc.URL)
 	require.NoError(t, err)
 	assert.False(t, ok)
-	ok, err = f.v.Verified(ctx, "tenant_2", req.Principal, rc.URL)
+	ok, err = f.v.Verified(ctx, "tenant_2", rc.URL)
 	require.NoError(t, err)
 	assert.True(t, ok)
 
@@ -247,7 +244,7 @@ func TestVerifier_PurgeTenant(t *testing.T) {
 // failingStore fails every call.
 type failingStore struct{ VerificationStore }
 
-func (failingStore) Verified(context.Context, string, string, string) (bool, error) {
+func (failingStore) Verified(context.Context, string, string) (bool, error) {
 	return false, errStore
 }
 
@@ -257,7 +254,7 @@ func TestVerifier_StoreErrors(t *testing.T) {
 	rc := newReceiver(t, key, echo)
 	v, err := NewVerifier(VerifierConfig{Client: guardedLikeClient(t), Store: failingStore{}})
 	require.NoError(t, err)
-	err = v.Verify(context.Background(), VerifyRequest{TenantID: "t", Principal: "p", URL: rc.URL, SubscriptionID: "sub", Secrets: []Secret{{Key: key}}})
+	err = v.Verify(context.Background(), VerifyRequest{TenantID: "t", URL: rc.URL, SubscriptionID: "sub", Secrets: []Secret{{Key: key}}})
 	assert.ErrorIs(t, err, errStore)
 	var mcpErr *Error
 	assert.False(t, errors.As(err, &mcpErr), "infrastructure errors are not MCP errors")

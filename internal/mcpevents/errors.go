@@ -124,7 +124,7 @@ func CallbackEndpointError(reason string) *Error {
 	return newError(KindCallbackEndpointError, map[string]any{"reason": reason})
 }
 
-// Forbidden reports a request the principal may not make: data {reason}.
+// Forbidden reports a request the caller may not make: data {reason}.
 func Forbidden(reason string) *Error {
 	return newError(KindForbidden, map[string]any{"reason": reason})
 }

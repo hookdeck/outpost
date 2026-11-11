@@ -53,7 +53,6 @@ func newVerifierFixture(t *testing.T, mutate func(*VerifierConfig)) *verifierFix
 func (f *verifierFixture) request(url string) VerifyRequest {
 	return VerifyRequest{
 		TenantID:       "tenant_1",
-		Principal:      "user_1",
 		URL:            url,
 		SubscriptionID: "sub_0123456789abcdef0123456789abcdef",
 		Secrets:        []Secret{{Key: f.key}},
@@ -85,7 +84,7 @@ func TestVerifier_Success(t *testing.T) {
 	assert.Len(t, raw, 24)
 	assert.Equal(t, strconv.FormatInt(f.clock.Now().Unix(), 10), r.Header.Get("webhook-timestamp"))
 
-	ok, err := f.v.Verified(context.Background(), "tenant_1", "user_1", rc.URL+"/hook")
+	ok, err := f.v.Verified(context.Background(), "tenant_1", rc.URL+"/hook")
 	require.NoError(t, err)
 	assert.True(t, ok)
 }
@@ -174,7 +173,7 @@ func TestVerifier_Failures(t *testing.T) {
 			assert.Len(t, rc.Requests(), 1, "never follows redirects or retries")
 
 			// Not cached.
-			ok, err := f.v.Verified(context.Background(), "tenant_1", "user_1", rc.URL)
+			ok, err := f.v.Verified(context.Background(), "tenant_1", rc.URL)
 			require.NoError(t, err)
 			assert.False(t, ok)
 

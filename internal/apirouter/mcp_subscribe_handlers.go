@@ -33,11 +33,6 @@ func NewMCPSubscribeHandlers(store tenantstore.TenantStore, dest *DestinationHan
 	return &MCPSubscribeHandlers{store: store, dest: dest, tenants: tenants, ttl: ttl, unavailable: unavailable}
 }
 
-type mcpSubscribeRequest struct {
-	Principal string          `json:"principal"`
-	Params    json.RawMessage `json:"params"`
-}
-
 type mcpSubscribeResult struct {
 	ResultType     string                 `json:"resultType"`
 	ID             string                 `json:"id"`
@@ -125,11 +120,11 @@ func (h *MCPSubscribeHandlers) Subscribe(c *gin.Context) {
 	if !h.enabled(c) {
 		return
 	}
-	var req mcpSubscribeRequest
-	if !bindMCPRequest(c, &req) {
+	var body json.RawMessage
+	if !bindMCPRequest(c, &body) {
 		return
 	}
-	result, err := h.subscribe(c.Request.Context(), c.Param("tenant_id"), req)
+	result, err := h.subscribe(c.Request.Context(), c.Param("tenant_id"), body)
 	if err != nil {
 		abortMCPFailure(c, err)
 		return
@@ -137,14 +132,11 @@ func (h *MCPSubscribeHandlers) Subscribe(c *gin.Context) {
 	c.JSON(http.StatusOK, result)
 }
 
-// subscribe creates the subscription, or refreshes it when the same principal
+// subscribe creates the subscription, or refreshes it when the same tenant
 // already holds a live one for the same event, arguments and callback URL.
 // The tenant is created when missing.
-func (h *MCPSubscribeHandlers) subscribe(ctx context.Context, tenantID string, req mcpSubscribeRequest) (*mcpSubscribeResult, error) {
-	if req.Principal == "" {
-		return nil, mcpevents.Forbidden(mcpevents.ReasonUnauthenticated)
-	}
-	params, err := mcpevents.ParseSubscribeParams(req.Params)
+func (h *MCPSubscribeHandlers) subscribe(ctx context.Context, tenantID string, rawParams json.RawMessage) (*mcpSubscribeResult, error) {
+	params, err := mcpevents.ParseSubscribeParams(rawParams)
 	if err != nil {
 		return nil, err
 	}
@@ -163,7 +155,7 @@ func (h *MCPSubscribeHandlers) subscribe(ctx context.Context, tenantID string, r
 	}
 
 	prev := h.dest.snapshotTenant(tenant)
-	id := mcpevents.DeriveSubscriptionID(req.Principal, params.URL, params.Name, params.Arguments)
+	id := mcpevents.DeriveSubscriptionID(tenant.ID, params.URL, params.Name, params.Arguments)
 	expiresAt := mcpevents.GrantTTL(params.TTL, *h.ttl, time.Now())
 
 	// A create that loses a race to another subscribe of the same key retries
@@ -189,7 +181,7 @@ func (h *MCPSubscribeHandlers) subscribe(ctx context.Context, tenantID string, r
 		}
 
 		// A missing or expired subscription starts fresh.
-		destination := h.newDestination(tenant.ID, id, req.Principal, params)
+		destination := h.newDestination(tenant.ID, id, params)
 		destination.ExpiresAt = &expiresAt
 		if expired {
 			destination.Version = existing.Version
@@ -291,10 +283,9 @@ func isDestinationWriteRace(err error) bool {
 	return errors.Is(err, tenantstore.ErrDestinationConflict) || errors.Is(err, tenantstore.ErrDestinationNotFound)
 }
 
-func (h *MCPSubscribeHandlers) newDestination(tenantID, id, principal string, params *mcpevents.SubscribeParams) models.Destination {
+func (h *MCPSubscribeHandlers) newDestination(tenantID, id string, params *mcpevents.SubscribeParams) models.Destination {
 	config := map[string]string{
-		destmcp.ConfigURL:       params.URL,
-		destmcp.ConfigPrincipal: principal,
+		destmcp.ConfigURL: params.URL,
 	}
 	if string(params.Arguments) != "{}" {
 		config[destmcp.ConfigArguments] = string(params.Arguments)
@@ -312,24 +303,15 @@ func (h *MCPSubscribeHandlers) newDestination(tenantID, id, principal string, pa
 	}
 }
 
-type mcpUnsubscribeRequest struct {
-	Principal string          `json:"principal"`
-	Params    json.RawMessage `json:"params"`
-}
-
 func (h *MCPSubscribeHandlers) Unsubscribe(c *gin.Context) {
 	if !h.enabled(c) {
 		return
 	}
-	var req mcpUnsubscribeRequest
-	if !bindMCPRequest(c, &req) {
+	var body json.RawMessage
+	if !bindMCPRequest(c, &body) {
 		return
 	}
-	if req.Principal == "" {
-		abortMCPError(c, mcpevents.Forbidden(mcpevents.ReasonUnauthenticated))
-		return
-	}
-	params, err := mcpevents.ParseUnsubscribeParams(req.Params)
+	params, err := mcpevents.ParseUnsubscribeParams(body)
 	if err != nil {
 		abortMCPFailure(c, err)
 		return
@@ -344,7 +326,7 @@ func (h *MCPSubscribeHandlers) Unsubscribe(c *gin.Context) {
 		abortMCPError(c, mcpevents.NotFound(mcpevents.NotFoundSubscription))
 		return
 	}
-	id := mcpevents.DeriveSubscriptionID(req.Principal, params.URL, params.Name, params.Arguments)
+	id := mcpevents.DeriveSubscriptionID(tenant.ID, params.URL, params.Name, params.Arguments)
 	destination, err := h.store.RetrieveDestination(ctx, tenant.ID, id)
 	if err != nil && !errors.Is(err, tenantstore.ErrDestinationDeleted) {
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))

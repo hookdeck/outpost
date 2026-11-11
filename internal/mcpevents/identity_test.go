@@ -14,7 +14,7 @@ import (
 func TestDeriveSubscriptionID_GoldenVectors(t *testing.T) {
 	t.Parallel()
 	type vector struct {
-		Principal    string `json:"principal"`
+		TenantID     string `json:"tenant"`
 		URL          string `json:"url"`
 		Name         string `json:"name"`
 		Arguments    string `json:"arguments"`
@@ -24,11 +24,11 @@ func TestDeriveSubscriptionID_GoldenVectors(t *testing.T) {
 	for _, v := range loadVectors[vector](t, "subscription_ids.json") {
 		args, err := CanonicalizeJSON([]byte(v.Arguments))
 		require.NoError(t, err)
-		assert.Equal(t, v.ID, DeriveSubscriptionID(v.Principal, v.URL, v.Name, args), "principal %q", v.Principal)
+		assert.Equal(t, v.ID, DeriveSubscriptionID(v.TenantID, v.URL, v.Name, args), "tenant %q", v.TenantID)
 
 		var parsedArgs any
 		require.NoError(t, json.Unmarshal([]byte(v.Arguments), &parsedArgs))
-		key, err := CanonicalJSON(map[string]any{"principal": v.Principal, "url": v.URL, "name": v.Name, "arguments": parsedArgs})
+		key, err := CanonicalJSON(map[string]any{"tenant": v.TenantID, "url": v.URL, "name": v.Name, "arguments": parsedArgs})
 		require.NoError(t, err)
 		assert.Equal(t, v.CanonicalKey, string(key))
 
@@ -39,15 +39,15 @@ func TestDeriveSubscriptionID_GoldenVectors(t *testing.T) {
 
 func TestDeriveSubscriptionID(t *testing.T) {
 	t.Parallel()
-	id := DeriveSubscriptionID("p", "https://a.example/", "t", json.RawMessage(`{}`))
-	assert.Equal(t, id, DeriveSubscriptionID("p", "https://a.example/", "t", nil), "nil arguments mean {}")
+	id := DeriveSubscriptionID("t1", "https://a.example/", "t", json.RawMessage(`{}`))
+	assert.Equal(t, id, DeriveSubscriptionID("t1", "https://a.example/", "t", nil), "nil arguments mean {}")
 	assert.Len(t, id, len("sub_")+32)
 	assert.True(t, strings.HasPrefix(id, "sub_"))
 	for _, other := range []string{
-		DeriveSubscriptionID("q", "https://a.example/", "t", nil),
-		DeriveSubscriptionID("p", "https://b.example/", "t", nil),
-		DeriveSubscriptionID("p", "https://a.example/", "u", nil),
-		DeriveSubscriptionID("p", "https://a.example/", "t", json.RawMessage(`{"a":1}`)),
+		DeriveSubscriptionID("t2", "https://a.example/", "t", nil),
+		DeriveSubscriptionID("t1", "https://b.example/", "t", nil),
+		DeriveSubscriptionID("t1", "https://a.example/", "u", nil),
+		DeriveSubscriptionID("t1", "https://a.example/", "t", json.RawMessage(`{"a":1}`)),
 	} {
 		assert.NotEqual(t, id, other)
 	}

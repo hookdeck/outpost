@@ -94,14 +94,10 @@ func (s *mcpSuite) check(ok bool, format string, args ...any) {
 // Fixtures
 // =============================================================================
 
-// mcpDefaultPrincipal is the principal subscriptions are made for unless a
-// test picks another.
-const mcpDefaultPrincipal = "e2e"
-
 // mcpPath is one callback path with the secret used on it and the ID a
-// subscription of principal gets.
+// subscription of tenant gets.
 type mcpPath struct {
-	path, url, destID, secret, principal string
+	path, url, destID, secret, tenant string
 	// args is the canonical JSON of the subscription's arguments; empty for none.
 	args string
 }
@@ -114,18 +110,18 @@ func newWhsec() string {
 
 // subscriptionID is the ID the subscribe route derives for a subscription to
 // mcpTopic.
-func subscriptionID(principal, callbackURL, args string) string {
+func subscriptionID(tenantID, callbackURL, args string) string {
 	_, normalized, err := mcpevents.NormalizeCallbackURL(callbackURL)
 	if err != nil {
 		return ""
 	}
-	return mcpevents.DeriveSubscriptionID(principal, normalized, mcpTopic, json.RawMessage(args))
+	return mcpevents.DeriveSubscriptionID(tenantID, normalized, mcpTopic, json.RawMessage(args))
 }
 
-// forPrincipal returns the path as seen by another principal's subscription.
-func (p mcpPath) forPrincipal(principal string) mcpPath {
-	p.principal = principal
-	p.destID = subscriptionID(principal, p.url, p.args)
+// forTenant returns the path as seen by another tenant's subscription.
+func (p mcpPath) forTenant(tenantID string) mcpPath {
+	p.tenant = tenantID
+	p.destID = subscriptionID(tenantID, p.url, p.args)
 	return p
 }
 
@@ -133,19 +129,19 @@ func (p mcpPath) forPrincipal(principal string) mcpPath {
 // canonical JSON arguments, and makes the receiver expect its ID.
 func (s *mcpSuite) withArguments(p mcpPath, args string) mcpPath {
 	p.args = args
-	p.destID = subscriptionID(p.principal, p.url, p.args)
+	p.destID = subscriptionID(p.tenant, p.url, p.args)
 	s.r.Set(p.path, mcpreceiver.PathConfig{Secrets: []string{p.secret}, SubscriptionID: p.destID})
 	return p
 }
 
 // newPath registers a callback path answering as cfg says; the receiver
-// checks its requests against the returned secret and the ID of the default
-// principal's subscription.
-func (s *mcpSuite) newPath(cfg mcpreceiver.PathConfig) mcpPath {
-	p := mcpPath{secret: newWhsec(), principal: mcpDefaultPrincipal}
+// checks its requests against the returned secret and the ID of the tenant's
+// subscription.
+func (s *mcpSuite) newPath(tenantID string, cfg mcpreceiver.PathConfig) mcpPath {
+	p := mcpPath{secret: newWhsec(), tenant: tenantID}
 	cfg.Secrets = []string{p.secret}
 	p.path, p.url = s.r.Register(cfg)
-	p.destID = subscriptionID(p.principal, p.url, "")
+	p.destID = subscriptionID(p.tenant, p.url, "")
 	cfg.SubscriptionID = p.destID
 	s.r.Set(p.path, cfg)
 	return p
@@ -181,7 +177,7 @@ func parseMCPError(raw json.RawMessage) mcpErrorBody {
 	return b
 }
 
-// subscribe posts the subscribe call of p's principal and returns the status
+// subscribe posts the subscribe call of tenantID and returns the status
 // and raw body.
 func (s *mcpSuite) subscribe(tenantID string, p mcpPath, o mcpSubscribeOpts) (int, json.RawMessage) {
 	s.T().Helper()
@@ -201,7 +197,7 @@ func (s *mcpSuite) subscribe(tenantID string, p mcpPath, o mcpSubscribeOpts) (in
 	}
 	var raw json.RawMessage
 	status := s.base.doJSON(http.MethodPost, s.base.apiURL("/tenants/"+tenantID+"/mcp/events/subscribe"),
-		map[string]any{"principal": p.principal, "params": params}, &raw)
+		params, &raw)
 	return status, raw
 }
 
@@ -225,7 +221,7 @@ func (s *mcpSuite) unsubscribe(tenantID string, p mcpPath) (int, json.RawMessage
 	}
 	var raw json.RawMessage
 	status := s.base.doJSON(http.MethodPost, s.base.apiURL("/tenants/"+tenantID+"/mcp/events/unsubscribe"),
-		map[string]any{"principal": p.principal, "params": params}, &raw)
+		params, &raw)
 	return status, raw
 }
 
@@ -305,7 +301,7 @@ func (s *mcpSuite) sentinelURLs() (v4, v6 string) {
 
 func (s *mcpSuite) TestDeliveryBasics() {
 	tenant := s.base.createTenant().ID
-	p := s.newPath(mcpreceiver.PathConfig{})
+	p := s.newPath(tenant, mcpreceiver.PathConfig{})
 	s.mustSubscribe(tenant, p, mcpSubscribeOpts{})
 
 	challenges := s.r.Challenges(p.path)
@@ -326,7 +322,7 @@ func (s *mcpSuite) TestDeliveryBasics() {
 // destination.
 func (s *mcpSuite) TestPublishByIDMatchesNothing() {
 	tenant := s.base.createTenant().ID
-	p := s.newPath(mcpreceiver.PathConfig{})
+	p := s.newPath(tenant, mcpreceiver.PathConfig{})
 	s.mustSubscribe(tenant, p, mcpSubscribeOpts{})
 
 	var pub publishResponse
@@ -346,7 +342,7 @@ func (s *mcpSuite) TestPublishByIDMatchesNothing() {
 
 func (s *mcpSuite) TestRetryResigns() {
 	tenant := s.base.createTenant().ID
-	p := s.newPath(mcpreceiver.PathConfig{Event: mcpreceiver.Sequence(500, 500)})
+	p := s.newPath(tenant, mcpreceiver.PathConfig{Event: mcpreceiver.Sequence(500, 500)})
 	s.mustSubscribe(tenant, p, mcpSubscribeOpts{})
 	s.publishMCP(tenant, map[string]any{"n": 1})
 	events := s.r.WaitFor(p.path, 3, mcpreceiver.Request.IsEvent, 15*time.Second)
@@ -381,7 +377,7 @@ func (s *mcpSuite) TestVerificationFailures() {
 		{"marker", mcpreceiver.PathConfig{Challenge: mcpreceiver.Marker()}, "challenge_failed"},
 	}
 	for _, c := range cases {
-		p := s.newPath(c.cfg)
+		p := s.newPath(tenant, c.cfg)
 		status, raw := s.subscribe(tenant, p, mcpSubscribeOpts{})
 		failure := parseMCPError(raw)
 		reason := failure.reason()
@@ -402,21 +398,21 @@ func (s *mcpSuite) TestVerificationFailures() {
 }
 
 func (s *mcpSuite) TestVerificationCache() {
-	tenant := s.base.createTenant().ID
-	first := s.newPath(mcpreceiver.PathConfig{})
+	tenantA := s.base.createTenant().ID
+	tenantB := s.base.createTenant().ID
+	first := s.newPath(tenantA, mcpreceiver.PathConfig{})
 	s.r.Set(first.path, mcpreceiver.PathConfig{Secrets: []string{first.secret}})
-	alice := first.forPrincipal("alice")
-	s.mustSubscribe(tenant, alice, mcpSubscribeOpts{})
+	s.mustSubscribe(tenantA, first, mcpSubscribeOpts{})
 	s.Len(s.r.Challenges(first.path), 1)
 
-	s.mustSubscribe(tenant, alice, mcpSubscribeOpts{})
+	s.mustSubscribe(tenantA, first, mcpSubscribeOpts{})
 	cached := len(s.r.Challenges(first.path)) == 1
 
-	s.mustSubscribe(tenant, first.forPrincipal("bob"), mcpSubscribeOpts{})
+	s.mustSubscribe(tenantB, first.forTenant(tenantB), mcpSubscribeOpts{})
 	reverified := len(s.r.Challenges(first.path)) == 2
 
 	s.check(cached && reverified,
-		"challenges after the same principal and URL: cached=%v; after other principal: %d total", cached, len(s.r.Challenges(first.path)))
+		"challenges after the same tenant and URL: cached=%v; after another tenant: %d total", cached, len(s.r.Challenges(first.path)))
 }
 
 // =============================================================================
@@ -426,7 +422,7 @@ func (s *mcpSuite) TestVerificationCache() {
 func (s *mcpSuite) TestDeliveryRedirectNotFollowed() {
 	tenant := s.base.createTenant().ID
 	target := "/redirect-target/" + idgen.String()
-	p := s.newPath(mcpreceiver.PathConfig{Event: mcpreceiver.Redirect(target)})
+	p := s.newPath(tenant, mcpreceiver.PathConfig{Event: mcpreceiver.Redirect(target)})
 	s.mustSubscribe(tenant, p, mcpSubscribeOpts{})
 	s.publishMCP(tenant, map[string]any{"n": 1})
 	attempts := s.waitAttempts(tenant, p.destID, 1, attemptPollTimeout)
@@ -454,7 +450,7 @@ func (s *mcpSuite) TestRejectedCallbackURLs() {
 			s.T().Logf("skipping %s: [::1] is not available on this host", name)
 			continue
 		}
-		p := mcpPath{secret: newWhsec(), url: url, principal: mcpDefaultPrincipal}
+		p := mcpPath{secret: newWhsec(), url: url, tenant: tenant}
 		status, raw := s.subscribe(tenant, p, mcpSubscribeOpts{})
 		failure := parseMCPError(raw)
 		s.check(status == http.StatusUnprocessableEntity && failure.MCPError.Code == -32602 && failure.MCPError.Message == "InvalidParams",
@@ -486,7 +482,7 @@ func (s *mcpSuite) TestAddressCheckedAtDeliveryTime() {
 
 func (s *mcpSuite) TestHTTPSRequired() {
 	tenant := s.base.createTenant().ID
-	p := mcpPath{secret: newWhsec(), url: "http://93.184.215.14/x", principal: mcpDefaultPrincipal}
+	p := mcpPath{secret: newWhsec(), url: "http://93.184.215.14/x", tenant: tenant}
 	status, raw := s.subscribe(tenant, p, mcpSubscribeOpts{})
 	failure := parseMCPError(raw)
 	s.check(status == http.StatusUnprocessableEntity && failure.MCPError.Code == -32602 && failure.MCPError.Message == "InvalidParams",
@@ -502,7 +498,7 @@ func (s *mcpSuite) TestHTTPSRequired() {
 // enabled destination.
 func (s *mcpSuite) nonRetryable(status int) {
 	tenant := s.base.createTenant().ID
-	p := s.newPath(mcpreceiver.PathConfig{Event: mcpreceiver.Status(status)})
+	p := s.newPath(tenant, mcpreceiver.PathConfig{Event: mcpreceiver.Status(status)})
 	s.mustSubscribe(tenant, p, mcpSubscribeOpts{})
 	const events = 6
 	for i := range events {
@@ -523,7 +519,7 @@ func (s *mcpSuite) nonRetryable(status int) {
 // non-retryable tests: with the same failure threshold, 500s do disable.
 func (s *mcpSuite) TestRepeatedServerErrorsDisableDestination() {
 	tenant := s.base.createTenant().ID
-	p := s.newPath(mcpreceiver.PathConfig{Event: mcpreceiver.Status(http.StatusInternalServerError)})
+	p := s.newPath(tenant, mcpreceiver.PathConfig{Event: mcpreceiver.Status(http.StatusInternalServerError)})
 	s.mustSubscribe(tenant, p, mcpSubscribeOpts{})
 	for i := range 6 {
 		s.publishMCP(tenant, map[string]any{"n": i})
@@ -547,7 +543,7 @@ func (s *mcpSuite) TestPayloadTooLargeStatus() {
 
 func (s *mcpSuite) TestOversizeEnvelope() {
 	tenant := s.base.createTenant().ID
-	p := s.newPath(mcpreceiver.PathConfig{})
+	p := s.newPath(tenant, mcpreceiver.PathConfig{})
 	s.mustSubscribe(tenant, p, mcpSubscribeOpts{})
 	s.publishMCP(tenant, map[string]any{"blob": strings.Repeat("a", 300*1024)})
 	attempts := s.waitAttempts(tenant, p.destID, 1, attemptPollTimeout)
@@ -563,7 +559,7 @@ func (s *mcpSuite) TestOversizeEnvelope() {
 
 func (s *mcpSuite) TestRetriesBounded() {
 	tenant := s.base.createTenant().ID
-	p := s.newPath(mcpreceiver.PathConfig{Event: mcpreceiver.Status(500)})
+	p := s.newPath(tenant, mcpreceiver.PathConfig{Event: mcpreceiver.Status(500)})
 	s.mustSubscribe(tenant, p, mcpSubscribeOpts{})
 	s.publishMCP(tenant, map[string]any{"n": 1})
 	want := 1 + len(mcpRetrySchedule)
@@ -594,7 +590,7 @@ func (s *mcpSuite) TestRetriesBounded() {
 
 func (s *mcpSuite) TestTimeout() {
 	tenant := s.base.createTenant().ID
-	p := s.newPath(mcpreceiver.PathConfig{Event: mcpreceiver.Sleep(mcpDeliveryTimeoutSeconds*time.Second + time.Second)})
+	p := s.newPath(tenant, mcpreceiver.PathConfig{Event: mcpreceiver.Sleep(mcpDeliveryTimeoutSeconds*time.Second + time.Second)})
 	s.mustSubscribe(tenant, p, mcpSubscribeOpts{})
 	s.publishMCP(tenant, map[string]any{"n": 1})
 	attempts := s.waitAttempts(tenant, p.destID, 2, 20*time.Second)
@@ -607,7 +603,7 @@ func (s *mcpSuite) TestTimeout() {
 
 func (s *mcpSuite) TestDualSignOnRotation() {
 	tenant := s.base.createTenant().ID
-	p := s.newPath(mcpreceiver.PathConfig{})
+	p := s.newPath(tenant, mcpreceiver.PathConfig{})
 	s.mustSubscribe(tenant, p, mcpSubscribeOpts{})
 	newSecret := newWhsec()
 
@@ -629,7 +625,7 @@ func (s *mcpSuite) TestDualSignOnRotation() {
 
 func (s *mcpSuite) TestExpiry() {
 	tenant := s.base.createTenant().ID
-	p := s.newPath(mcpreceiver.PathConfig{Event: mcpreceiver.Status(500)})
+	p := s.newPath(tenant, mcpreceiver.PathConfig{Event: mcpreceiver.Status(500)})
 	subscribed := time.Now()
 	s.mustSubscribe(tenant, p, mcpSubscribeOpts{ttlMillis: 2000})
 	expires := subscribed.Add(2 * time.Second)
@@ -671,28 +667,28 @@ func (s *mcpSuite) TestExpiry() {
 
 func (s *mcpSuite) TestEventIDPerSubscription() {
 	tenant := s.base.createTenant().ID
-	base := s.newPath(mcpreceiver.PathConfig{})
-	s.r.Set(base.path, mcpreceiver.PathConfig{Secrets: []string{base.secret}})
-	a, b := base.forPrincipal("u1"), base.forPrincipal("u2")
+	a, b := s.newPath(tenant, mcpreceiver.PathConfig{}), s.newPath(tenant, mcpreceiver.PathConfig{})
 
 	s.mustSubscribe(tenant, a, mcpSubscribeOpts{})
 	s.mustSubscribe(tenant, b, mcpSubscribeOpts{})
 	pub := s.publishMCP(tenant, map[string]any{"n": 1})
-	events := s.r.WaitFor(a.path, 2, mcpreceiver.Request.IsEvent, mockServerPollTimeout)
-	s.Require().Len(events, 2)
-	e0, e1 := events[0], events[1]
-	subs := map[string]bool{e0.Header.Get("X-MCP-Subscription-Id"): true, e1.Header.Get("X-MCP-Subscription-Id"): true}
+	e0 := s.r.WaitFor(a.path, 1, mcpreceiver.Request.IsEvent, mockServerPollTimeout)
+	e1 := s.r.WaitFor(b.path, 1, mcpreceiver.Request.IsEvent, mockServerPollTimeout)
+	s.Require().Len(e0, 1)
+	s.Require().Len(e1, 1)
 	s.check(
-		e0.Envelope().EventID == pub.ID && e1.Envelope().EventID == pub.ID &&
-			e0.Header.Get("webhook-id") != e1.Header.Get("webhook-id") && subs[a.destID] && subs[b.destID],
-		"eventIds %q %q, webhook-ids %q %q, subscription ids %v",
-		e0.Envelope().EventID, e1.Envelope().EventID, e0.Header.Get("webhook-id"), e1.Header.Get("webhook-id"), subs)
+		e0[0].Envelope().EventID == pub.ID && e1[0].Envelope().EventID == pub.ID &&
+			e0[0].Header.Get("webhook-id") != e1[0].Header.Get("webhook-id") &&
+			e0[0].Header.Get("X-MCP-Subscription-Id") == a.destID && e1[0].Header.Get("X-MCP-Subscription-Id") == b.destID,
+		"eventIds %q %q, webhook-ids %q %q, subscription ids %q %q",
+		e0[0].Envelope().EventID, e1[0].Envelope().EventID, e0[0].Header.Get("webhook-id"), e1[0].Header.Get("webhook-id"),
+		e0[0].Header.Get("X-MCP-Subscription-Id"), e1[0].Header.Get("X-MCP-Subscription-Id"))
 }
 
 // TestErrorResponses_MCP pins the error responses specific to subscriptions.
 func (s *mcpSuite) TestErrorResponses_MCP() {
 	tenant := s.base.createTenant().ID
-	p := s.newPath(mcpreceiver.PathConfig{})
+	p := s.newPath(tenant, mcpreceiver.PathConfig{})
 	s.mustSubscribe(tenant, p, mcpSubscribeOpts{})
 	create := func(overrides map[string]any) map[string]any {
 		body := map[string]any{
@@ -734,7 +730,7 @@ func (s *mcpSuite) TestErrorResponses_MCP() {
 // keep working.
 func (s *mcpSuite) TestSubscriptionHiddenFromDestinationsAPI() {
 	tenant := s.base.createTenant().ID
-	p := s.newPath(mcpreceiver.PathConfig{})
+	p := s.newPath(tenant, mcpreceiver.PathConfig{})
 	s.mustSubscribe(tenant, p, mcpSubscribeOpts{})
 	s.publishMCP(tenant, map[string]any{"n": 1})
 	attempts := s.waitAttempts(tenant, p.destID, 1, mockServerPollTimeout)
@@ -787,7 +783,7 @@ func (s *mcpSuite) TestSubscriptionHiddenFromDestinationsAPI() {
 // attempt includes keep working for a subscription's ID.
 func (s *mcpSuite) TestAttemptsKeepSubscriptionID() {
 	tenant := s.base.createTenant().ID
-	p := s.newPath(mcpreceiver.PathConfig{})
+	p := s.newPath(tenant, mcpreceiver.PathConfig{})
 	s.mustSubscribe(tenant, p, mcpSubscribeOpts{})
 	pub := s.publishMCP(tenant, map[string]any{"n": 1})
 	attempts := s.waitAttempts(tenant, p.destID, 1, mockServerPollTimeout)
@@ -825,7 +821,7 @@ func (s *mcpSuite) TestAttemptsKeepSubscriptionID() {
 // automatic retry still reaches the subscription.
 func (s *mcpSuite) TestManualRetryRefusedLikeUnknown() {
 	tenant := s.base.createTenant().ID
-	p := s.newPath(mcpreceiver.PathConfig{Event: mcpreceiver.Sequence(500, 200)})
+	p := s.newPath(tenant, mcpreceiver.PathConfig{Event: mcpreceiver.Sequence(500, 200)})
 	s.mustSubscribe(tenant, p, mcpSubscribeOpts{})
 	pub := s.publishMCP(tenant, map[string]any{"n": 1})
 	s.Require().Len(s.r.WaitFor(p.path, 2, mcpreceiver.Request.IsEvent, 15*time.Second), 2, "the automatic retry reached the subscription")

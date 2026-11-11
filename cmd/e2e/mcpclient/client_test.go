@@ -162,11 +162,11 @@ func TestEventStreamReply(t *testing.T) {
 	assert.Equal(t, "a", list.Events[0].Name)
 }
 
-func TestWithoutPrincipalSendsNoAuthorization(t *testing.T) {
+func TestWithoutTokenSendsNoAuthorization(t *testing.T) {
 	srv, log := newServer(t, func(w http.ResponseWriter, _ string, id any, _ map[string]any) {
 		reply(w, id, map[string]any{"events": []any{}})
 	})
-	_, err := New(srv.URL, "alice", WithoutPrincipal()).EventsList(context.Background())
+	_, err := New(srv.URL, "alice", WithoutToken()).EventsList(context.Background())
 	require.NoError(t, err)
 	assert.Empty(t, log()[0].Header.Get("Authorization"))
 }

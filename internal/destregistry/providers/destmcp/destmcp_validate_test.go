@@ -30,12 +30,11 @@ func TestValidate_Valid(t *testing.T) {
 
 	require.NoError(t, p.Validate(context.Background(), d))
 
-	assert.Equal(t, [][3]string{{testTenantID, testPrincipal, publicURL}}, verifier.VerifiedCalls())
+	assert.Equal(t, [][2]string{{testTenantID, publicURL}}, verifier.VerifiedCalls())
 	assert.Equal(t, []string{publicHost + "."}, resolver.Calls(), "the address is checked when the callback isn't verified yet")
 	calls := verifier.VerifyCalls()
 	require.Len(t, calls, 1)
 	assert.Equal(t, testTenantID, calls[0].TenantID)
-	assert.Equal(t, testPrincipal, calls[0].Principal)
 	assert.Equal(t, publicURL, calls[0].URL)
 	assert.Equal(t, d.ID, calls[0].SubscriptionID)
 	require.Len(t, calls[0].Secrets, 1)
@@ -47,11 +46,11 @@ func TestValidate_OptionalFields(t *testing.T) {
 	t.Parallel()
 	p := newProvider(t)
 	for name, mutate := range map[string]func(*models.Destination){
-		"no principal":    func(d *models.Destination) { delete(d.Config, destmcp.ConfigPrincipal) },
-		"no arguments":    func(d *models.Destination) { delete(d.Config, destmcp.ConfigArguments) },
-		"empty arguments": func(d *models.Destination) { d.Config[destmcp.ConfigArguments] = "" },
-		"empty object":    func(d *models.Destination) { d.Config[destmcp.ConfigArguments] = "{}" },
-		"any filter":      func(d *models.Destination) { d.Filter = models.Filter{"data": map[string]any{"x": 1}} },
+		"stored principal": func(d *models.Destination) { d.Config["principal"] = "user_1" },
+		"no arguments":     func(d *models.Destination) { delete(d.Config, destmcp.ConfigArguments) },
+		"empty arguments":  func(d *models.Destination) { d.Config[destmcp.ConfigArguments] = "" },
+		"empty object":     func(d *models.Destination) { d.Config[destmcp.ConfigArguments] = "{}" },
+		"any filter":       func(d *models.Destination) { d.Filter = models.Filter{"data": map[string]any{"x": 1}} },
 	} {
 		t.Run(name, func(t *testing.T) {
 			require.NoError(t, p.Validate(context.Background(), newSubscription(t, mutate)))
@@ -73,9 +72,6 @@ func TestValidate_FieldErrors(t *testing.T) {
 		{"no topics", func(d *models.Destination) { d.Topics = nil }, "topics", "invalid"},
 		{"two topics", func(d *models.Destination) { d.Topics = models.Topics{"a", "b"} }, "topics", "invalid"},
 		{"wildcard topic", func(d *models.Destination) { d.Topics = models.Topics{"*"} }, "topics", "invalid"},
-		{"principal too long", func(d *models.Destination) {
-			d.Config[destmcp.ConfigPrincipal] = strings.Repeat("p", destmcp.MaxPrincipalBytes+1)
-		}, "config.principal", "maxlength"},
 		{"arguments not JSON", func(d *models.Destination) { d.Config[destmcp.ConfigArguments] = "{nope" }, "config.arguments", "invalid"},
 		{"arguments not an object", func(d *models.Destination) { d.Config[destmcp.ConfigArguments] = `["USD"]` }, "config.arguments", "invalid"},
 		{"arguments not canonical", func(d *models.Destination) {
@@ -239,7 +235,7 @@ func TestValidate_CachedVerificationSkipsAddressCheck(t *testing.T) {
 	d := newSubscription(t, func(d *models.Destination) { d.Config[destmcp.ConfigURL] = "https://internal.example.com/hook" })
 
 	require.NoError(t, p.Validate(context.Background(), d))
-	assert.Equal(t, [][3]string{{testTenantID, testPrincipal, "https://internal.example.com/hook"}}, verifier.VerifiedCalls())
+	assert.Equal(t, [][2]string{{testTenantID, "https://internal.example.com/hook"}}, verifier.VerifiedCalls())
 	assert.Empty(t, resolver.Calls(), "a cached verification skips the address check")
 	assert.Empty(t, verifier.VerifyCalls())
 }

@@ -34,14 +34,15 @@ type mcpFixtureEnv struct {
 	OutpostURL string
 	APIKey     string
 	TTL        mcpTTLRules
-	Principals map[string]mcpPrincipal
+	// Users maps a bearer token to the tenant the MCP server resolves it to.
+	Users map[string]mcpUser
 }
 
 type mcpTTLRules struct {
 	Default, Min, Max time.Duration
 }
 
-type mcpPrincipal struct {
+type mcpUser struct {
 	Tenant        string
 	AllowedTopics []string
 }
@@ -85,11 +86,12 @@ type mcpSubscriptionsSuite struct {
 	tenantMain     string
 	alice, limited string
 	pool           []string
+	users          map[string]mcpUser
 	next           int
 }
 
-// poolSize bounds the tests in the suite: each one takes its own principal,
-// because verification is rate limited per principal.
+// poolSize bounds the tests in the suite: each one takes its own tenant,
+// because verification is rate limited per tenant.
 const poolSize = 24
 
 func (s *mcpSubscriptionsSuite) SetupSuite() {
@@ -107,20 +109,20 @@ func (s *mcpSubscriptionsSuite) SetupSuite() {
 	s.tenantMain = s.m.base.createTenant().ID
 	suffix := idgen.String()
 	s.alice, s.limited = "alice-"+suffix, "limited-"+suffix
-	principals := map[string]mcpPrincipal{
+	s.users = map[string]mcpUser{
 		s.alice:   {Tenant: s.tenantMain},
 		s.limited: {Tenant: s.tenantMain, AllowedTopics: []string{"user.updated"}},
 	}
 	for i := 0; i < poolSize; i++ {
 		name := fmt.Sprintf("user-%d-%s", i, suffix)
 		s.pool = append(s.pool, name)
-		principals[name] = mcpPrincipal{Tenant: s.tenantMain}
+		s.users[name] = mcpUser{Tenant: "tenant-" + name}
 	}
 	s.server = s.fx.Start(s.T(), mcpFixtureEnv{
 		OutpostURL: s.m.base.apiURL(""),
 		APIKey:     s.m.base.config.APIKey,
 		TTL:        mcpTTL,
-		Principals: principals,
+		Users:      s.users,
 	})
 }
 
@@ -149,22 +151,25 @@ func (s *mcpSubscriptionsSuite) ctx() context.Context {
 }
 
 func (s *mcpSubscriptionsSuite) fresh() string {
-	s.Require().Less(s.next, len(s.pool), "principal pool exhausted")
+	s.Require().Less(s.next, len(s.pool), "user pool exhausted")
 	p := s.pool[s.next]
 	s.next++
 	return p
 }
 
-func (s *mcpSubscriptionsSuite) session(principal string) *mcpclient.Client {
+// tenantOf is the tenant the MCP server resolves token to.
+func (s *mcpSubscriptionsSuite) tenantOf(token string) string { return s.users[token].Tenant }
+
+func (s *mcpSubscriptionsSuite) session(token string) *mcpclient.Client {
 	s.T().Helper()
-	c := mcpclient.New(s.server.URL(), principal)
+	c := mcpclient.New(s.server.URL(), token)
 	_, _, err := c.Initialize(s.ctx())
 	s.Require().NoError(err)
 	return c
 }
 
 type mcpSub struct {
-	principal string
+	tenant    string
 	name      string
 	args      map[string]any
 	path, url string
@@ -172,9 +177,9 @@ type mcpSub struct {
 	id        string
 }
 
-func (s *mcpSubscriptionsSuite) newSub(principal, name string, args map[string]any, challenge mcpreceiver.Behavior) *mcpSub {
+func (s *mcpSubscriptionsSuite) newSub(token, name string, args map[string]any, challenge mcpreceiver.Behavior) *mcpSub {
 	s.T().Helper()
-	sub := &mcpSub{principal: principal, name: name, args: args, secret: mcpclient.NewSecret()}
+	sub := &mcpSub{tenant: s.tenantOf(token), name: name, args: args, secret: mcpclient.NewSecret()}
 	sub.path, sub.url = s.m.r.Register(mcpreceiver.PathConfig{})
 	_, normalized, err := mcpevents.NormalizeCallbackURL(sub.url)
 	s.Require().NoError(err)
@@ -183,7 +188,7 @@ func (s *mcpSubscriptionsSuite) newSub(principal, name string, args map[string]a
 		canonical, err = mcpevents.CanonicalJSON(args)
 		s.Require().NoError(err)
 	}
-	sub.id = mcpevents.DeriveSubscriptionID(principal, normalized, name, canonical)
+	sub.id = mcpevents.DeriveSubscriptionID(sub.tenant, normalized, name, canonical)
 	s.m.r.Set(sub.path, mcpreceiver.PathConfig{Secrets: []string{sub.secret}, SubscriptionID: sub.id, Challenge: challenge})
 	return sub
 }
@@ -272,8 +277,8 @@ func (s *mcpSubscriptionsSuite) TestInitializeAdvertisesEventsCapability() {
 }
 
 func (s *mcpSubscriptionsSuite) TestEventsListShowsAllowedTopics() {
-	names := func(principal string) []string {
-		resp, err := s.session(principal).EventsList(s.ctx())
+	names := func(token string) []string {
+		resp, err := s.session(token).EventsList(s.ctx())
 		s.Require().NoError(err)
 		var list mcpclient.ListResult
 		s.Require().NoError(resp.Decode(&list), "%s", resp.Raw)
@@ -305,7 +310,7 @@ func (s *mcpSubscriptionsSuite) TestSubscribeVerifiesCallbackAndReturnsDerivedID
 	s.Nil(res.Cursor)
 	s.False(res.Truncated)
 	s.requireGrant(res, before, after, mcpTTL.Default)
-	s.Equal(http.StatusOK, s.destinationStatus(s.tenantMain, sub.id), "stored under the derived ID")
+	s.Equal(http.StatusOK, s.destinationStatus(s.tenantOf(user), sub.id), "stored under the derived ID")
 }
 
 func (s *mcpSubscriptionsSuite) TestSubscribeWithoutDeliveryModeIsWebhook() {
@@ -317,7 +322,7 @@ func (s *mcpSubscriptionsSuite) TestSubscribeWithoutDeliveryModeIsWebhook() {
 	resp, err := c.Subscribe(s.ctx(), p)
 	s.Require().NoError(err)
 	s.Require().Nil(resp.Error, "%s", resp.Raw)
-	s.Equal(http.StatusOK, s.destinationStatus(s.tenantMain, sub.id))
+	s.Equal(http.StatusOK, s.destinationStatus(s.tenantOf(user), sub.id))
 }
 
 func (s *mcpSubscriptionsSuite) TestSubscribedEventsAreDeliveredWhenArgumentsMatch() {
@@ -326,14 +331,14 @@ func (s *mcpSubscriptionsSuite) TestSubscribedEventsAreDeliveredWhenArgumentsMat
 	sub := s.newSub(user, "user.created", map[string]any{"status": "paid"}, mcpreceiver.Echo())
 	s.mustSubscribe(c, sub, nil)
 
-	matching := s.publish(s.tenantMain, map[string]any{"status": "paid", "total": 10})
+	matching := s.publish(s.tenantOf(user), map[string]any{"status": "paid", "total": 10})
 	events := s.m.r.WaitFor(sub.path, 1, mcpreceiver.Request.IsEvent, mockServerPollTimeout)
 	s.Require().Len(events, 1)
 	s.Equal(matching.ID, events[0].Envelope().EventID)
 	s.Equal("user.created", events[0].Envelope().Name)
 	s.Contains(matching.DestinationIDs, sub.id)
 
-	other := s.publish(s.tenantMain, map[string]any{"status": "pending"})
+	other := s.publish(s.tenantOf(user), map[string]any{"status": "pending"})
 	s.NotContains(other.DestinationIDs, sub.id)
 	s.requireEventsAfterWait(sub, 1)
 }
@@ -352,11 +357,11 @@ func (s *mcpSubscriptionsSuite) TestRefreshKeepsIDAndRotatesSecret() {
 
 	s.Equal(first.ID, second.ID)
 	s.True(s.refreshBefore(second).After(s.refreshBefore(first)), "refreshBefore moves forward")
-	s.Len(s.m.r.Challenges(sub.path), 1, "no new challenge for the same principal and URL")
+	s.Len(s.m.r.Challenges(sub.path), 1, "no new challenge for the same tenant and URL")
 	s.Require().NotNil(second.DeliveryStatus)
 	s.True(second.DeliveryStatus.Active)
 
-	s.publish(s.tenantMain, map[string]any{"n": 1})
+	s.publish(s.tenantOf(user), map[string]any{"n": 1})
 	events := s.m.r.WaitFor(sub.path, 1, mcpreceiver.Request.IsEvent, mockServerPollTimeout)
 	s.Require().Len(events, 1)
 	s.Len(mcpreceiver.SignatureValues(events[0].Header), 2, "signed with both secrets")
@@ -394,17 +399,17 @@ func (s *mcpSubscriptionsSuite) TestSubscriptionStopsDeliveringAfterExpiry() {
 	before := time.Now()
 	s.mustSubscribe(c, sub, int(mcpTTL.Min/time.Millisecond))
 
-	s.publish(s.tenantMain, map[string]any{"n": 1})
+	s.publish(s.tenantOf(user), map[string]any{"n": 1})
 	s.Require().Len(s.m.r.WaitFor(sub.path, 1, mcpreceiver.Request.IsEvent, mockServerPollTimeout), 1)
 
 	time.Sleep(time.Until(before.Add(mcpTTL.Min + time.Second)))
-	late := s.publish(s.tenantMain, map[string]any{"n": 2})
+	late := s.publish(s.tenantOf(user), map[string]any{"n": 2})
 	s.NotContains(late.DestinationIDs, sub.id)
 	s.requireEventsAfterWait(sub, 1)
-	s.Len(s.m.attempts(s.tenantMain, sub.id), 1)
+	s.Len(s.m.attempts(s.tenantOf(user), sub.id), 1)
 
 	s.mustSubscribe(c, sub, nil)
-	s.publish(s.tenantMain, map[string]any{"n": 3})
+	s.publish(s.tenantOf(user), map[string]any{"n": 3})
 	s.Len(s.m.r.WaitFor(sub.path, 2, mcpreceiver.Request.IsEvent, mockServerPollTimeout), 2, "refresh after expiry delivers again")
 }
 
@@ -423,7 +428,7 @@ func (s *mcpSubscriptionsSuite) TestResubscribeAfterExpiryWithNewSecretIsFresh()
 
 	s.Nil(res.DeliveryStatus, "a new subscription has no refresh status")
 
-	s.publish(s.tenantMain, map[string]any{"n": 1})
+	s.publish(s.tenantOf(user), map[string]any{"n": 1})
 	events := s.m.r.WaitFor(sub.path, 1, mcpreceiver.Request.IsEvent, mockServerPollTimeout)
 	s.Require().Len(events, 1)
 	s.Len(mcpreceiver.SignatureValues(events[0].Header), 1, "signed with the new secret only")
@@ -436,8 +441,8 @@ func (s *mcpSubscriptionsSuite) TestRefreshReportsAndReenablesSuspendedSubscript
 	sub := s.newSub(user, "user.created", nil, mcpreceiver.Echo())
 	s.mustSubscribe(c, sub, nil)
 
-	disableDestinationInStore(s.T(), s.m.base.config, s.tenantMain, sub.id)
-	paused := s.publish(s.tenantMain, map[string]any{"n": 1})
+	disableDestinationInStore(s.T(), s.m.base.config, s.tenantOf(user), sub.id)
+	paused := s.publish(s.tenantOf(user), map[string]any{"n": 1})
 	s.NotContains(paused.DestinationIDs, sub.id)
 	s.requireEventsAfterWait(sub, 0)
 
@@ -445,7 +450,7 @@ func (s *mcpSubscriptionsSuite) TestRefreshReportsAndReenablesSuspendedSubscript
 	s.Require().NotNil(res.DeliveryStatus)
 	s.False(res.DeliveryStatus.Active, "reports that it was suspended")
 
-	s.publish(s.tenantMain, map[string]any{"n": 2})
+	s.publish(s.tenantOf(user), map[string]any{"n": 2})
 	s.Len(s.m.r.WaitFor(sub.path, 1, mcpreceiver.Request.IsEvent, mockServerPollTimeout), 1, "delivery resumes")
 
 	res = s.mustSubscribe(c, sub, nil)
@@ -462,9 +467,9 @@ func (s *mcpSubscriptionsSuite) TestUnsubscribeStopsDeliveryAndIsNotIdempotent()
 	resp := s.unsubscribe(c, sub)
 	s.Require().Nil(resp.Error, "%s", resp.Raw)
 	s.JSONEq(`{"resultType":"complete"}`, string(resp.Result))
-	s.Equal(http.StatusNotFound, s.destinationStatus(s.tenantMain, sub.id))
+	s.Equal(http.StatusNotFound, s.destinationStatus(s.tenantOf(user), sub.id))
 
-	gone := s.publish(s.tenantMain, map[string]any{"n": 1})
+	gone := s.publish(s.tenantOf(user), map[string]any{"n": 1})
 	s.NotContains(gone.DestinationIDs, sub.id)
 	s.requireEventsAfterWait(sub, 0)
 
@@ -475,15 +480,15 @@ func (s *mcpSubscriptionsSuite) TestUnsubscribeStopsDeliveryAndIsNotIdempotent()
 }
 
 func (s *mcpSubscriptionsSuite) TestSubscribeErrors() {
-	mk := func(principal, name string, challenge mcpreceiver.Behavior) *mcpSub {
-		return s.newSub(principal, name, nil, challenge)
+	mk := func(token, name string, challenge mcpreceiver.Behavior) *mcpSub {
+		return s.newSub(token, name, nil, challenge)
 	}
 	cases := []struct {
-		name      string
-		principal string
-		sub       func() *mcpSub
-		mutate    func(*mcpclient.SubscribeParams)
-		code      int
+		name   string
+		token  string
+		sub    func() *mcpSub
+		mutate func(*mcpclient.SubscribeParams)
+		code   int
 	}{
 		{"plain http to a public address", s.alice, func() *mcpSub { return mk(s.alice, "user.created", mcpreceiver.Echo()) },
 			func(p *mcpclient.SubscribeParams) { p.URL = "http://93.184.215.14/x" }, mcpCodeInvalidParams},
@@ -505,13 +510,13 @@ func (s *mcpSubscriptionsSuite) TestSubscribeErrors() {
 			func(p *mcpclient.SubscribeParams) { p.Arguments = map[string]any{"amount": map[string]any{"$gt": 1}} }, mcpCodeInvalidParams},
 		{"arguments on a no-argument event", s.alice, func() *mcpSub { return mk(s.alice, "user.updated", mcpreceiver.Echo()) },
 			func(p *mcpclient.SubscribeParams) { p.Arguments = map[string]any{"id": "x"} }, mcpCodeInvalidParams},
-		{"no principal", "", func() *mcpSub { return mk("", "user.created", mcpreceiver.Echo()) },
+		{"unauthenticated at the MCP server", "", func() *mcpSub { return mk("", "user.created", mcpreceiver.Echo()) },
 			nil, mcpCodeForbidden},
 	}
 	for _, tc := range cases {
 		s.Run(tc.name, func() {
 			sub := tc.sub()
-			c := mcpclient.New(s.server.URL(), tc.principal)
+			c := mcpclient.New(s.server.URL(), tc.token)
 			_, _, err := c.Initialize(s.ctx())
 			s.Require().NoError(err)
 			p := sub.subscribeParams(nil)
@@ -538,7 +543,7 @@ func (s *mcpSubscriptionsSuite) TestSubscribeErrors() {
 		s.Equal(mcpCodeCallback, resp.Error.Code)
 		s.Equal(map[string]any{"reason": "challenge_failed"}, resp.Error.DataMap())
 		s.NotContains(string(resp.Raw), mcpreceiver.MarkerText)
-		s.Equal(http.StatusNotFound, s.destinationStatus(s.tenantMain, sub.id))
+		s.Equal(http.StatusNotFound, s.destinationStatus(s.tenantOf(user), sub.id))
 	})
 }
 
@@ -557,7 +562,7 @@ func (s *mcpSubscriptionsSuite) TestNameHeaderMustMatchParams() {
 			s.Require().NotNil(resp.Error, "%s", resp.Raw)
 			s.Equal(mcpCodeHeader, resp.Error.Code)
 			s.Empty(s.m.r.Challenges(sub.path))
-			s.Equal(http.StatusNotFound, s.destinationStatus(s.tenantMain, sub.id))
+			s.Equal(http.StatusNotFound, s.destinationStatus(s.tenantOf(user), sub.id))
 		})
 	}
 }

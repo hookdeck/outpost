@@ -25,7 +25,6 @@ import (
 const (
 	topicOrderCreated = "order.created"
 	testTenantID      = "tenant_1"
-	testPrincipal     = "user_8f2c"
 	testSubscription  = "sub_8f2c-A1"
 	publicHost        = "receiver.example.com"
 	publicURL         = "https://receiver.example.com/mcp-events/abc123"
@@ -95,7 +94,7 @@ type fakeVerifier struct {
 	verified    bool
 	verifiedErr error
 	verifyErr   error
-	verifiedReq [][3]string
+	verifiedReq [][2]string
 	verifyReqs  []mcpevents.VerifyRequest
 }
 
@@ -106,10 +105,10 @@ func (v *fakeVerifier) Verify(ctx context.Context, req mcpevents.VerifyRequest) 
 	return v.verifyErr
 }
 
-func (v *fakeVerifier) Verified(ctx context.Context, tenantID, principal, rawURL string) (bool, error) {
+func (v *fakeVerifier) Verified(ctx context.Context, tenantID, rawURL string) (bool, error) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
-	v.verifiedReq = append(v.verifiedReq, [3]string{tenantID, principal, rawURL})
+	v.verifiedReq = append(v.verifiedReq, [2]string{tenantID, rawURL})
 	return v.verified, v.verifiedErr
 }
 
@@ -119,10 +118,10 @@ func (v *fakeVerifier) VerifyCalls() []mcpevents.VerifyRequest {
 	return append([]mcpevents.VerifyRequest(nil), v.verifyReqs...)
 }
 
-func (v *fakeVerifier) VerifiedCalls() [][3]string {
+func (v *fakeVerifier) VerifiedCalls() [][2]string {
 	v.mu.Lock()
 	defer v.mu.Unlock()
-	return append([][3]string(nil), v.verifiedReq...)
+	return append([][2]string(nil), v.verifiedReq...)
 }
 
 type providerOption func(*destmcp.Config)
@@ -146,14 +145,14 @@ func newProvider(t *testing.T, opts ...providerOption) *destmcp.Provider {
 // provider.
 func newSubscription(t *testing.T, mutate ...func(*models.Destination)) *models.Destination {
 	t.Helper()
-	d := subscriptionFor(testPrincipal, publicURL, `{"currency":"USD","total":100}`, testSecret(1))
+	d := subscriptionFor(publicURL, `{"currency":"USD","total":100}`, testSecret(1))
 	for _, m := range mutate {
 		m(d)
 	}
 	return d
 }
 
-func subscriptionFor(principal, callbackURL, args, secret string) *models.Destination {
+func subscriptionFor(callbackURL, args, secret string) *models.Destination {
 	return &models.Destination{
 		ID:       testSubscription,
 		TenantID: testTenantID,
@@ -161,7 +160,6 @@ func subscriptionFor(principal, callbackURL, args, secret string) *models.Destin
 		Topics:   models.Topics{topicOrderCreated},
 		Config: models.Config{
 			destmcp.ConfigURL:       callbackURL,
-			destmcp.ConfigPrincipal: principal,
 			destmcp.ConfigArguments: args,
 		},
 		Credentials: models.Credentials{destmcp.CredentialSecret: secret},

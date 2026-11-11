@@ -23,7 +23,7 @@ import (
 // Verifier defaults.
 const (
 	DefaultVerificationTTL          = 24 * time.Hour
-	DefaultVerificationRateLimit    = 10  // uncached attempts per (tenant, principal) per minute
+	DefaultVerificationRateLimit    = 10  // uncached attempts per tenant per minute
 	DefaultVerificationFailureLimit = 120 // failed challenges per (tenant, host) per minute
 	DefaultVerificationMaxInFlight  = 64  // concurrent challenges per process
 	DefaultVerificationTimeout      = 10 * time.Second
@@ -44,7 +44,7 @@ type VerifierConfig struct {
 	Store  VerificationStore
 	// TTL is how long a passed challenge is cached.
 	TTL time.Duration
-	// RateLimit caps uncached attempts per (tenant, principal) per minute.
+	// RateLimit caps uncached attempts per tenant per minute.
 	RateLimit int
 	// FailureLimit caps failed challenges per (tenant, host:port) per minute,
 	// so a tenant can't use Outpost to probe a host.
@@ -61,10 +61,9 @@ type VerifierConfig struct {
 	Now func() time.Time
 }
 
-// VerifyRequest identifies the (tenant, principal, url) to verify.
+// VerifyRequest identifies the (tenant, url) to verify.
 type VerifyRequest struct {
-	TenantID  string
-	Principal string
+	TenantID string
 	// URL is the callback URL; it is normalized again here, so cache and
 	// rate-limit keys never depend on the caller's spelling.
 	URL string
@@ -78,7 +77,7 @@ var errInvalidSubscriptionID = errors.New("mcpevents: subscription id is not a v
 
 // Verifier runs MCP Events endpoint verification: a signed verification
 // envelope whose challenge the endpoint must echo, cached per (tenant,
-// principal, url).
+// url).
 type Verifier struct {
 	client       *http.Client
 	store        VerificationStore
@@ -148,14 +147,14 @@ func zapLogger(l *logging.Logger) *zap.Logger {
 	return l.Logger
 }
 
-// Verified reports whether (tenant, principal, url) is in the verification
+// Verified reports whether (tenant, url) is in the verification
 // cache, without sending anything.
-func (v *Verifier) Verified(ctx context.Context, tenantID, principal, rawURL string) (bool, error) {
+func (v *Verifier) Verified(ctx context.Context, tenantID, rawURL string) (bool, error) {
 	_, key, err := NormalizeCallbackURL(rawURL)
 	if err != nil {
 		return false, err
 	}
-	return v.store.Verified(ctx, tenantID, principal, key)
+	return v.store.Verified(ctx, tenantID, key)
 }
 
 // PurgeTenant drops everything the verifier cached for tenantID.
@@ -163,7 +162,7 @@ func (v *Verifier) PurgeTenant(ctx context.Context, tenantID string) error {
 	return v.store.PurgeTenant(ctx, tenantID)
 }
 
-// Verify returns nil when (tenant, principal, url) passed a challenge within
+// Verify returns nil when (tenant, url) passed a challenge within
 // the TTL or passes one now. Limits are checked before anything is sent.
 // Errors are *Error (invalid_params, resource_exhausted,
 // callback_endpoint_error) except store failures, a done ctx and a malformed
@@ -181,7 +180,7 @@ func (v *Verifier) Verify(ctx context.Context, req VerifyRequest) error {
 		return InvalidParams(FieldSecret, ReasonInvalidSecret)
 	}
 
-	ok, err := v.store.Verified(ctx, req.TenantID, req.Principal, key)
+	ok, err := v.store.Verified(ctx, req.TenantID, key)
 	if err != nil {
 		return err
 	}
@@ -192,7 +191,7 @@ func (v *Verifier) Verify(ctx context.Context, req VerifyRequest) error {
 	now := v.now()
 	window, retryAfter := rateWindowAt(now)
 	if v.rateLimit > 0 {
-		n, err := v.store.CountAttempt(ctx, req.TenantID, req.Principal, window)
+		n, err := v.store.CountAttempt(ctx, req.TenantID, window)
 		if err != nil {
 			return err
 		}
@@ -226,7 +225,7 @@ func (v *Verifier) Verify(ctx context.Context, req VerifyRequest) error {
 	}
 	log := v.logger.With(zap.String("tenant_id", req.TenantID), zap.String("subscription_id", req.SubscriptionID), zap.String("host", hostport))
 	if reason == "" {
-		if err := v.store.MarkVerified(ctx, req.TenantID, req.Principal, key, v.ttl); err != nil {
+		if err := v.store.MarkVerified(ctx, req.TenantID, key, v.ttl); err != nil {
 			// The challenge passed; the next refresh just verifies again.
 			log.Warn("mcp verification passed but could not be cached", zap.Error(err))
 		}

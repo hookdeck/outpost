@@ -88,7 +88,7 @@ components:
       description: >-
         The MCP request failed. `mcp_error` is a JSON-RPC error object with `data` only where the
         MCP Events spec defines it: `-32602` invalid params (a malformed request body also answers
-        this) and `-32024` forbidden (no principal) have no
+        this) has no
         `data`, `-32023` not found (`data.kind` is `event` or `subscription`), `-32025` resource
         exhausted (`data.limit`, and `data.max` when there is one), `-32026` unsupported
         (`data.feature` and `data.value`, such as a delivery mode other than `webhook`), `-32027`
@@ -6849,16 +6849,16 @@ paths:
         required: true
         schema:
           type: string
-        description: The ID of the tenant the principal belongs to.
+        description: The ID of the tenant that holds the subscription. It identifies the subscriber.
     post:
       tags: [Destinations]
       summary: Subscribe (MCP Events)
       x-speakeasy-ignore: true
       description: |
         **Experimental.** Serves the MCP Events `events/subscribe` method for an MCP server that
-        forwards its `params` and the authenticated principal. Creates a subscription, or
-        refreshes it when the principal already holds the same subscription: the same principal,
-        event, arguments and callback URL always give the same `id`. A new subscription is
+        forwards the request `params` as the body. Creates a subscription, or refreshes it when
+        the tenant already holds the same subscription: the same tenant, event, arguments and
+        callback URL always give the same `id`. A new subscription is
         verified with a challenge to its callback URL before it is stored; one that has expired is
         replaced by a new one. The tenant is created if it does not exist, even when the subscribe then fails. Admin API key only;
         answers `404` while MCP is not enabled (`EXPERIMENTAL_MCP_ENABLED`).
@@ -6871,24 +6871,16 @@ paths:
           application/json:
             schema:
               type: object
-              required: [principal, params]
-              properties:
-                principal:
-                  type: string
-                  description: The authenticated principal on whose behalf the subscription is made.
-                  example: "user-1"
-                params:
-                  type: object
-                  additionalProperties: true
-                  description: The `events/subscribe` params, forwarded as received.
-                  example:
-                    name: "order.created"
-                    arguments: { status: "paid" }
-                    delivery:
-                      mode: "webhook"
-                      url: "https://example.com/mcp-events/abc123"
-                      secret: "whsec_MfKQ9r8GKYqrTwjUPD8ILPZIo2LaLaSw"
-                    ttlMs: 3600000
+              additionalProperties: true
+              description: The `events/subscribe` params, forwarded as received.
+              example:
+                name: "order.created"
+                arguments: { status: "paid" }
+                delivery:
+                  mode: "webhook"
+                  url: "https://example.com/mcp-events/abc123"
+                  secret: "whsec_MfKQ9r8GKYqrTwjUPD8ILPZIo2LaLaSw"
+                ttlMs: 3600000
       responses:
         "200":
           description: The `events/subscribe` result.
@@ -6944,14 +6936,14 @@ paths:
         required: true
         schema:
           type: string
-        description: The ID of the tenant the principal belongs to.
+        description: The ID of the tenant that holds the subscription. It identifies the subscriber.
     post:
       tags: [Destinations]
       summary: Unsubscribe (MCP Events)
       x-speakeasy-ignore: true
       description: |
-        **Experimental.** Serves the MCP Events `events/unsubscribe` method: deletes the principal's
-        subscription for the event, arguments and callback URL in `params`. Answers `422` with a
+        **Experimental.** Serves the MCP Events `events/unsubscribe` method: deletes the tenant's
+        subscription for the event, arguments and callback URL in the request body, the `events/unsubscribe` params. Answers `422` with a
         `NotFound` `mcp_error` when there is none, including when the tenant does not exist.
         Admin API key only; answers `404` while MCP is not enabled (`EXPERIMENTAL_MCP_ENABLED`).
       operationId: unsubscribeMCPEvents
@@ -6961,21 +6953,13 @@ paths:
           application/json:
             schema:
               type: object
-              required: [principal, params]
-              properties:
-                principal:
-                  type: string
-                  description: The authenticated principal on whose behalf the subscription is deleted.
-                  example: "user-1"
-                params:
-                  type: object
-                  additionalProperties: true
-                  description: The `events/unsubscribe` params, forwarded as received.
-                  example:
-                    name: "order.created"
-                    arguments: { status: "paid" }
-                    delivery:
-                      url: "https://example.com/mcp-events/abc123"
+              additionalProperties: true
+              description: The `events/unsubscribe` params, forwarded as received.
+              example:
+                name: "order.created"
+                arguments: { status: "paid" }
+                delivery:
+                  url: "https://example.com/mcp-events/abc123"
       responses:
         "200":
           description: The subscription was deleted. The `events/unsubscribe` result.

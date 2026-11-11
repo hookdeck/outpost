@@ -48,7 +48,7 @@ func (v *stubVerifier) Verify(_ context.Context, req mcpevents.VerifyRequest) er
 	return v.err
 }
 
-func (v *stubVerifier) Verified(context.Context, string, string, string) (bool, error) {
+func (v *stubVerifier) Verified(context.Context, string, string) (bool, error) {
 	return v.verified, nil
 }
 
@@ -111,7 +111,7 @@ func mcpDestination(mutate ...func(map[string]any)) map[string]any {
 		"id":          "sub_1",
 		"type":        "mcp",
 		"topics":      []string{"user.created"},
-		"config":      map[string]string{"url": mcpCallbackURL, "principal": "user-1", "arguments": `{"status":"paid"}`},
+		"config":      map[string]string{"url": mcpCallbackURL, "arguments": `{"status":"paid"}`},
 		"credentials": map[string]string{"secret": mcpSecret(1)},
 	}
 	for _, m := range mutate {
@@ -160,7 +160,7 @@ func seedMCP(t *testing.T, h *apiTest, mutate ...func(*models.Destination)) {
 	d := df.Any(
 		df.WithID("sub_1"), df.WithTenantID("t1"), df.WithType("mcp"),
 		df.WithTopics([]string{"user.created"}),
-		df.WithConfig(map[string]string{"url": mcpCallbackURL, "principal": "user-1"}),
+		df.WithConfig(map[string]string{"url": mcpCallbackURL}),
 		df.WithCredentials(map[string]string{"secret": mcpSecret(1)}),
 	)
 	for _, m := range mutate {

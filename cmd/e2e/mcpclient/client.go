@@ -73,7 +73,7 @@ func (r *Response) Decode(v any) error {
 
 type Client struct {
 	URL             string
-	Principal       string
+	Token           string
 	ProtocolVersion string
 	HTTP            *http.Client
 
@@ -83,16 +83,16 @@ type Client struct {
 
 type Option func(*Client)
 
-func WithoutPrincipal() Option { return func(c *Client) { c.Principal = "" } }
+func WithoutToken() Option { return func(c *Client) { c.Token = "" } }
 
 func WithHTTPClient(h *http.Client) Option { return func(c *Client) { c.HTTP = h } }
 
 func WithProtocolVersion(v string) Option { return func(c *Client) { c.ProtocolVersion = v } }
 
-func New(url, principal string, opts ...Option) *Client {
+func New(url, token string, opts ...Option) *Client {
 	c := &Client{
 		URL:             url,
-		Principal:       principal,
+		Token:           token,
 		ProtocolVersion: DefaultProtocolVersion,
 		HTTP:            &http.Client{Timeout: 30 * time.Second},
 	}
@@ -204,8 +204,8 @@ func (c *Client) post(ctx context.Context, body []byte, extra http.Header) (*Res
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json, text/event-stream")
-	if c.Principal != "" {
-		req.Header.Set("Authorization", "Bearer "+c.Principal)
+	if c.Token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.Token)
 	}
 	if c.sessionID != "" {
 		req.Header.Set(HeaderSessionID, c.sessionID)

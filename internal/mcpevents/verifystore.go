@@ -13,19 +13,19 @@ import (
 )
 
 // VerificationStore holds verification state shared by every API replica:
-// the per-(tenant, principal, url) cache and the per-minute counters behind
+// the per-(tenant, url) cache and the per-minute counters behind
 // the verification limits. Windows are Unix minutes.
 type VerificationStore interface {
-	// Verified reports whether (tenant, principal, url) passed a challenge
+	// Verified reports whether (tenant, url) passed a challenge
 	// within the cache TTL.
-	Verified(ctx context.Context, tenantID, principal, url string) (bool, error)
+	Verified(ctx context.Context, tenantID, url string) (bool, error)
 	// MarkVerified caches a passed challenge for ttl.
-	MarkVerified(ctx context.Context, tenantID, principal, url string, ttl time.Duration) error
+	MarkVerified(ctx context.Context, tenantID, url string, ttl time.Duration) error
 	// PurgeTenant drops every cache entry of tenantID.
 	PurgeTenant(ctx context.Context, tenantID string) error
-	// CountAttempt counts one uncached verification attempt by (tenant,
-	// principal) in window and returns the window's total.
-	CountAttempt(ctx context.Context, tenantID, principal string, window int64) (int64, error)
+	// CountAttempt counts one uncached verification attempt by tenantID
+	// in window and returns the window's total.
+	CountAttempt(ctx context.Context, tenantID string, window int64) (int64, error)
 	// FailureCount returns the failed challenges of tenantID to hostport in
 	// window.
 	FailureCount(ctx context.Context, tenantID, hostport string, window int64) (int64, error)
@@ -41,9 +41,9 @@ const counterTTL = 2 * time.Minute
 // RedisVerificationStore is the Redis VerificationStore. Every key is
 // single-key (cluster safe) and carries the deployment prefix:
 //
-//	[<dep>:]mcp:verified:<sha256(tenant, principal, url)>                (TTL: cache TTL)
+//	[<dep>:]mcp:verified:<sha256(tenant, url)>                           (TTL: cache TTL)
 //	[<dep>:]mcp:verified_index:<sha256(tenant)>                          (zset of verified keys by expiry)
-//	[<dep>:]mcp:challenge_rate:<sha256(tenant, principal)>:<minute>      (TTL: 2m)
+//	[<dep>:]mcp:challenge_rate:<sha256(tenant)>:<minute>                 (TTL: 2m)
 //	[<dep>:]mcp:challenge_fail:<sha256(tenant, host:port)>:<minute>      (TTL: 2m)
 //
 // Hashing (of length-prefixed parts) keeps attacker-chosen strings out of
@@ -65,8 +65,8 @@ func NewRedisVerificationStore(client redis.Cmdable, deploymentID string) *Redis
 	return &RedisVerificationStore{client: client, prefix: prefix}
 }
 
-// hashParts hashes length-prefixed parts, so no choice of tenant, principal
-// or URL bytes (NUL included) can make two tuples collide.
+// hashParts hashes length-prefixed parts, so no choice of tenant or
+// URL bytes (NUL included) can make two tuples collide.
 func hashParts(parts ...string) string {
 	h := sha256.New()
 	var n [8]byte
@@ -78,32 +78,32 @@ func hashParts(parts ...string) string {
 	return hex.EncodeToString(h.Sum(nil))
 }
 
-func (s *RedisVerificationStore) verifiedKey(tenantID, principal, url string) string {
-	return s.prefix + "mcp:verified:" + hashParts(tenantID, principal, url)
+func (s *RedisVerificationStore) verifiedKey(tenantID, url string) string {
+	return s.prefix + "mcp:verified:" + hashParts(tenantID, url)
 }
 
 func (s *RedisVerificationStore) indexKey(tenantID string) string {
 	return s.prefix + "mcp:verified_index:" + hashParts(tenantID)
 }
 
-func (s *RedisVerificationStore) attemptKey(tenantID, principal string, window int64) string {
-	return s.prefix + "mcp:challenge_rate:" + hashParts(tenantID, principal) + ":" + strconv.FormatInt(window, 10)
+func (s *RedisVerificationStore) attemptKey(tenantID string, window int64) string {
+	return s.prefix + "mcp:challenge_rate:" + hashParts(tenantID) + ":" + strconv.FormatInt(window, 10)
 }
 
 func (s *RedisVerificationStore) tenantFailureKey(tenantID, hostport string, window int64) string {
 	return s.prefix + "mcp:challenge_fail:" + hashParts(tenantID, hostport) + ":" + strconv.FormatInt(window, 10)
 }
 
-func (s *RedisVerificationStore) Verified(ctx context.Context, tenantID, principal, url string) (bool, error) {
-	n, err := s.client.Exists(ctx, s.verifiedKey(tenantID, principal, url)).Result()
+func (s *RedisVerificationStore) Verified(ctx context.Context, tenantID, url string) (bool, error) {
+	n, err := s.client.Exists(ctx, s.verifiedKey(tenantID, url)).Result()
 	if err != nil {
 		return false, fmt.Errorf("mcpevents: read verification cache: %w", err)
 	}
 	return n > 0, nil
 }
 
-func (s *RedisVerificationStore) MarkVerified(ctx context.Context, tenantID, principal, url string, ttl time.Duration) error {
-	key := s.verifiedKey(tenantID, principal, url)
+func (s *RedisVerificationStore) MarkVerified(ctx context.Context, tenantID, url string, ttl time.Duration) error {
+	key := s.verifiedKey(tenantID, url)
 	now := time.Now()
 	// The value records when the challenge passed, for debugging.
 	if err := s.client.Set(ctx, key, strconv.FormatInt(now.UnixMilli(), 10), ttl).Err(); err != nil {
@@ -140,8 +140,8 @@ func (s *RedisVerificationStore) PurgeTenant(ctx context.Context, tenantID strin
 	return nil
 }
 
-func (s *RedisVerificationStore) CountAttempt(ctx context.Context, tenantID, principal string, window int64) (int64, error) {
-	return s.incr(ctx, s.attemptKey(tenantID, principal, window))
+func (s *RedisVerificationStore) CountAttempt(ctx context.Context, tenantID string, window int64) (int64, error) {
+	return s.incr(ctx, s.attemptKey(tenantID, window))
 }
 
 func (s *RedisVerificationStore) FailureCount(ctx context.Context, tenantID, hostport string, window int64) (int64, error) {

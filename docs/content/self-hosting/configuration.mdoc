@@ -234,7 +234,7 @@ Off by default. When `EXPERIMENTAL_MCP_ENABLED` is `true`, the experimental [MCP
 |----------|---------|-------------|
 | `EXPERIMENTAL_MCP_ENABLED` | `false` | Enables the MCP subscribe endpoints. See [Downgrading](/docs/outpost/destinations/mcp#how-subscriptions-differ-from-destinations) before turning it off for good. |
 | `EXPERIMENTAL_MCP_ALLOW_INSECURE_CALLBACKS` | `false` | The MCP Events spec requires `https` callback URLs. When `true`, `http` is also accepted for addresses that are all in `DESTINATIONS_PRIVATE_ADDRESS_ALLOWLIST`: an exception outside the spec, for development only. |
-| `EXPERIMENTAL_MCP_VERIFICATION_TTL_SECONDS` | `86400` | How long, in seconds, a passed callback verification is cached per tenant, principal and callback URL. |
+| `EXPERIMENTAL_MCP_VERIFICATION_TTL_SECONDS` | `86400` | How long, in seconds, a passed callback verification is cached per tenant and callback URL. |
 | `EXPERIMENTAL_MCP_SUBSCRIPTION_TTL_DEFAULT_SECONDS` | `3600` | Lifetime, in seconds, of a subscription made through the [MCP subscribe endpoint](/docs/outpost/destinations/mcp#connect-your-mcp-server) when the request has no `ttlMs`. Must be between the min and max. |
 | `EXPERIMENTAL_MCP_SUBSCRIPTION_TTL_MIN_SECONDS` | `300` | Shortest lifetime, in seconds, granted through the MCP subscribe endpoint; shorter requests are raised to it. |
 | `EXPERIMENTAL_MCP_SUBSCRIPTION_TTL_MAX_SECONDS` | `86400` | Longest lifetime, in seconds, granted through the MCP subscribe endpoint; longer requests and a `null` `ttlMs` get this. |

@@ -180,7 +180,7 @@ func (s *mcpEventDefinitionsSuite) TestEventCatalog() {
 
 func (s *mcpEventDefinitionsSuite) TestArgumentsFilterDeliveries() {
 	tenant := s.m.base.createTenant().ID
-	p := s.m.withArguments(s.m.newPath(mcpreceiver.PathConfig{}), `{"status":"paid"}`)
+	p := s.m.withArguments(s.m.newPath(tenant, mcpreceiver.PathConfig{}), `{"status":"paid"}`)
 	s.m.mustSubscribe(tenant, p, mcpSubscribeOpts{})
 
 	matching := s.m.publishMCP(tenant, map[string]any{"status": "paid", "total": 10})
@@ -208,20 +208,17 @@ func (s *mcpEventDefinitionsSuite) TestArgumentsFilterDeliveries() {
 func (s *mcpEventDefinitionsSuite) TestDerivedArgumentsFilterDeliveries() {
 	const topic, args = "user.deleted", `{"active":true,"id":"u1"}`
 	tenant := s.m.base.createTenant().ID
-	p := s.m.newPath(mcpreceiver.PathConfig{})
+	p := s.m.newPath(tenant, mcpreceiver.PathConfig{})
 	_, normalized, err := mcpevents.NormalizeCallbackURL(p.url)
 	s.Require().NoError(err)
-	id := mcpevents.DeriveSubscriptionID(p.principal, normalized, topic, json.RawMessage(args))
+	id := mcpevents.DeriveSubscriptionID(tenant, normalized, topic, json.RawMessage(args))
 	s.m.r.Set(p.path, mcpreceiver.PathConfig{Secrets: []string{p.secret}, SubscriptionID: id})
 
 	var raw json.RawMessage
 	status := s.m.base.doJSON(http.MethodPost, s.m.base.apiURL("/tenants/"+tenant+"/mcp/events/subscribe"), map[string]any{
-		"principal": p.principal,
-		"params": map[string]any{
-			"name":      topic,
-			"arguments": json.RawMessage(args),
-			"delivery":  map[string]any{"mode": "webhook", "url": p.url, "secret": p.secret},
-		},
+		"name":      topic,
+		"arguments": json.RawMessage(args),
+		"delivery":  map[string]any{"mode": "webhook", "url": p.url, "secret": p.secret},
 	}, &raw)
 	s.Require().Equal(http.StatusOK, status, "%s", raw)
 
@@ -240,7 +237,7 @@ func (s *mcpEventDefinitionsSuite) TestDerivedArgumentsFilterDeliveries() {
 
 func (s *mcpEventDefinitionsSuite) TestNumericArgumentMatchesByEquality() {
 	tenant := s.m.base.createTenant().ID
-	p := s.m.withArguments(s.m.newPath(mcpreceiver.PathConfig{}), `{"amount":10}`)
+	p := s.m.withArguments(s.m.newPath(tenant, mcpreceiver.PathConfig{}), `{"amount":10}`)
 	s.m.mustSubscribe(tenant, p, mcpSubscribeOpts{})
 
 	hit := s.m.publishMCP(tenant, map[string]any{"amount": 10})
@@ -268,7 +265,7 @@ func (s *mcpEventDefinitionsSuite) TestSubscribeErrors_MCPEventDefinitions() {
 		{"arguments not an object", "user.created", `["paid"]`, -32602, "InvalidParams"},
 	}
 	for _, c := range cases {
-		p := s.m.newPath(mcpreceiver.PathConfig{})
+		p := s.m.newPath(tenant, mcpreceiver.PathConfig{})
 		params := map[string]any{
 			"name":     c.topic,
 			"delivery": map[string]any{"mode": "webhook", "url": p.url, "secret": p.secret},
@@ -278,7 +275,7 @@ func (s *mcpEventDefinitionsSuite) TestSubscribeErrors_MCPEventDefinitions() {
 		}
 		var raw json.RawMessage
 		status := s.m.base.doJSON(http.MethodPost, s.m.base.apiURL("/tenants/"+tenant+"/mcp/events/subscribe"),
-			map[string]any{"principal": p.principal, "params": params}, &raw)
+			params, &raw)
 		failure := parseMCPError(raw)
 		s.m.check(status == http.StatusUnprocessableEntity && failure.MCPError.Code == c.code && failure.MCPError.Message == c.message,
 			"%s: status %d body %s", c.name, status, raw)

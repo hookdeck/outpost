@@ -190,7 +190,7 @@ func TestAPI_MCPSubscribeWithCatalog(t *testing.T) {
 
 	t.Run("derives the filter from the arguments", func(t *testing.T) {
 		h := newHarness(t)
-		r := requireSubscribed(t, postMCP(h, mcpSubscribePath, subscribeBody("user-1", subscribeParams())))
+		r := requireSubscribed(t, postMCP(h, mcpSubscribePath, subscribeParams()))
 
 		stored := storedSubscription(t, h, r.ID)
 		require.NotNil(t, stored)
@@ -199,7 +199,7 @@ func TestAPI_MCPSubscribeWithCatalog(t *testing.T) {
 
 	t.Run("no arguments, no filter", func(t *testing.T) {
 		h := newHarness(t)
-		r := requireSubscribed(t, postMCP(h, mcpSubscribePath, subscribeBody("user-1", subscribeParams(func(p map[string]any) { delete(p, "arguments") }))))
+		r := requireSubscribed(t, postMCP(h, mcpSubscribePath, subscribeParams(func(p map[string]any) { delete(p, "arguments") })))
 
 		stored := storedSubscription(t, h, r.ID)
 		require.NotNil(t, stored)
@@ -208,7 +208,7 @@ func TestAPI_MCPSubscribeWithCatalog(t *testing.T) {
 
 	t.Run("a refresh after the definitions changed", func(t *testing.T) {
 		h := newHarness(t)
-		r := requireSubscribed(t, postMCP(h, mcpSubscribePath, subscribeBody("user-1", subscribeParams())))
+		r := requireSubscribed(t, postMCP(h, mcpSubscribePath, subscribeParams()))
 
 		changed, err := topicschema.NewCatalog(testutil.TestTopics, topicschema.Definitions{
 			{Name: "user.updated", InputSchema: json.RawMessage(`{"type":"object","properties":{}}`), PayloadSchema: json.RawMessage(`{"type":"object","properties":{"plan":{"type":"string"}}}`)},
@@ -216,9 +216,9 @@ func TestAPI_MCPSubscribeWithCatalog(t *testing.T) {
 		require.NoError(t, err)
 		h2, _ := newMCPCatalogAPITestWithVerifier(t, changed, withTenantStore(h.tenantStore), withMCPSubscribe(mcpTTLRules))
 
-		refreshed := requireSubscribed(t, postMCP(h2, mcpSubscribePath, subscribeBody("user-1", subscribeParams(func(p map[string]any) {
+		refreshed := requireSubscribed(t, postMCP(h2, mcpSubscribePath, subscribeParams(func(p map[string]any) {
 			p["delivery"] = deliveryParams(mcpCallbackURL, mcpSecret(2))
-		}))))
+		})))
 
 		assert.Equal(t, r.ID, refreshed.ID)
 		assert.Equal(t, mcpSecret(2), storedSubscription(t, h2, r.ID).Credentials["secret"])
