@@ -140,7 +140,6 @@ func TestErrorRPCError(t *testing.T) {
 	t.Parallel()
 	assert.Equal(t, map[string]any{"code": -32027, "message": "CallbackEndpointError", "data": map[string]any{"reason": "timeout"}},
 		CallbackEndpointError(ReasonTimeout).RPCError())
-	assert.Equal(t, map[string]any{"code": -32024, "message": "Forbidden"}, Forbidden(ReasonUnauthenticated).RPCError())
 	assert.Equal(t, map[string]any{"code": -32602, "message": "InvalidParams"}, InvalidParams(FieldURL, ReasonHTTPSRequired).RPCError())
 	assert.Equal(t, map[string]any{"code": -32023, "message": "NotFound", "data": map[string]any{"kind": "event"}}, NotFound(NotFoundEvent).RPCError())
 	assert.Equal(t, map[string]any{"code": -32026, "message": "Unsupported", "data": map[string]any{"feature": "deliveryMode", "value": "poll"}},

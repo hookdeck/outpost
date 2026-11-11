@@ -10,7 +10,7 @@ Experimental. The MCP Events spec ([SEP-3415](https://github.com/modelcontextpro
 MCP Events lets an agent subscribe to your events through your MCP server. The agent calls `events/subscribe` on your MCP server with a callback URL. Your MCP server forwards the request to Outpost, which verifies the callback, stores the subscription and delivers matching events straight to the callback, signed with [Standard Webhooks](https://www.standardwebhooks.com/). Deliveries don't pass through your MCP server.
 
 ```
-agent  ──events/subscribe──▶  your MCP server  ──POST /mcp/events/subscribe──▶  Outpost
+agent  ──events/subscribe──▶  your MCP server  ──POST /tenants/<TENANT_ID>/mcp/events/subscribe──▶  Outpost
 agent  ◀──────────── signed POST to the callback URL ────────────────────────────  Outpost
 ```
 
@@ -130,16 +130,16 @@ curl -X POST '{% $OUTPOST_API_BASE_URL %}/tenants/acme/mcp/events/subscribe' \
 
 Your MCP server returns that JSON as the result of `events/subscribe`. `refreshBefore` is the expiry Outpost granted, or `null` for none.
 
-`events/unsubscribe` takes the `params` of the original subscribe the same way and answers `{"resultType": "complete"}`.
+`events/unsubscribe` takes its own `params` (`name`, `arguments` and `delivery.url`) the same way and answers `{"resultType": "complete"}`.
 
 `events/list` returns the events you defined, as an MCP `events/list` result. Pass the request's `cursor` and `limit` as query parameters; `topics=a,b` restricts the result to those events, for example to the events the tenant may see. It is a `GET` with no tenant.
 
-See the [API reference](/docs/outpost/api) for every request and response.
+The subscribe and unsubscribe calls answer `404` while MCP Events is off, and `503` while your event definitions are invalid or verification is temporarily unavailable. See the [API reference](/docs/outpost/api) for every request and response.
 
 ## Reference
 
 - **Refresh.** Subscribing again with the same tenant, event, arguments and callback URL refreshes the subscription: the same `id`, a new expiry, and the new `secret`, which signs alongside the old one for 24 hours.
-- **Lifetime.** Outpost grants the `ttlMs` your MCP server forwards, exactly: omitted means 24 hours, `null` means no expiry (`refreshBefore` is `null`), and `0` or less expires immediately. To enforce limits, such as a maximum lifetime, change `ttlMs` before forwarding. An expired subscription receives no events.
+- **Lifetime.** Outpost grants the `ttlMs` your MCP server forwards, exactly: omitted means 24 hours, `null` means no expiry (`refreshBefore` is `null`), and `0` or less expires immediately. To enforce limits, such as a maximum lifetime, change `ttlMs` before forwarding. An expired subscription receives no events. A no-expiry subscription lasts until it is unsubscribed or its tenant is deleted. A callback that keeps failing is auto-disabled when you turn on auto-disable (`ALERT_AUTO_DISABLE_DESTINATION`), and a subscribe re-enables it.
 - **Topics and operator events.** A subscription's event counts toward the tenant's `topics`. A subscribe or unsubscribe that changes the tenant's `topics` emits [`tenant.subscription.updated`](/docs/outpost/features/operator-events).
 - **Not a regular destination.** The destinations API never returns subscriptions, and they don't count toward `MAX_DESTINATIONS_PER_TENANT` or a tenant's `destinations_count`. Only the subscribe endpoints manage them.
 - **Attempts.** Attempts and events for a subscription show `destination_type` `mcp`, with the subscription's `id` as the destination ID. See [MCP Events Delivery](/docs/outpost/destinations/mcp) for the delivery format, signing and retries.

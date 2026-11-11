@@ -11,17 +11,15 @@ Delivers one topic's events to an agent's HTTPS callback URL, signed with [Stand
 
 ## Fields
 
-A subscription appears in attempts, events and operator events with these fields:
+Attempts and events identify a subscription by `destination_id` (the subscription ID, also sent as `X-MCP-Subscription-Id`) and `destination_type` (`mcp`). Operator events that carry the destination, such as alerts, show it with these fields. Credentials never appear in them.
 
 | Field | Description |
 |-------|-------------|
 | `type` | `mcp` |
-| `id` | The subscription ID, sent as `X-MCP-Subscription-Id` |
+| `id` | The subscription ID |
 | `topics` | The one event the subscription is for |
 | `config.url` | The callback URL |
 | `config.arguments` | The subscription's arguments, as canonical JSON. Omitted when empty |
-| `credentials.secret` | The signing secret |
-| `credentials.previous_secret`, `credentials.previous_secret_invalid_at` | After a refresh with a new secret: the old secret and when it stops signing |
 
 ## Event Format
 

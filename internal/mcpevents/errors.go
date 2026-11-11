@@ -51,9 +51,6 @@ const (
 	ReasonInvalid           = "invalid"
 	ReasonTooLarge          = "too_large"
 
-	// forbidden reasons.
-	ReasonUnauthenticated = "unauthenticated"
-
 	// callback_endpoint_error reasons: the fixed lastError categories.
 	ReasonConnectionRefused = "connection_refused"
 	ReasonTimeout           = "timeout"
@@ -122,11 +119,6 @@ func ResourceExhausted(limit string, max int, retryAfter time.Duration) *Error {
 // the fixed lastError categories.
 func CallbackEndpointError(reason string) *Error {
 	return newError(KindCallbackEndpointError, map[string]any{"reason": reason})
-}
-
-// Forbidden reports a request the caller may not make: data {reason}.
-func Forbidden(reason string) *Error {
-	return newError(KindForbidden, map[string]any{"reason": reason})
 }
 
 // RPCError returns the JSON-RPC error object: code, message and, when the kind
