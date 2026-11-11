@@ -14,11 +14,11 @@ import (
 // Options configures Run.
 type Options struct {
 	ServerURL string
-	// Principal is the bearer token of the main subscriber.
-	Principal string
-	// SecondPrincipal is the other subscriber of the isolation check
-	// (default Principal + "-2").
-	SecondPrincipal string
+	// Token is the bearer token of the main subscriber.
+	Token string
+	// SecondToken is the bearer token of the other subscriber of the
+	// isolation check (default Token + "-2").
+	SecondToken string
 	// Event is the event to subscribe to (default: the first listed webhook
 	// event with a scalar argument, else the first webhook event).
 	Event string
@@ -35,6 +35,9 @@ type Options struct {
 	// unknown). Nil means wait mode: wait for an upstream event instead,
 	// and skip the checks that need to control what is published.
 	Publish func(ctx context.Context, event string, data map[string]any) (eventID string, err error)
+	// PublishSecond publishes where the second subscriber receives events,
+	// when that is not where Publish publishes (nil = the same place).
+	PublishSecond func(ctx context.Context, event string, data map[string]any) (eventID string, err error)
 	// Wait is how long to wait for each expected delivery (default 30 s).
 	Wait time.Duration
 	// Quiet is the window in which an unwanted delivery would show
@@ -142,8 +145,8 @@ func Run(ctx context.Context, o Options) Report {
 	if o.TTL <= 0 {
 		o.TTL = 10 * time.Minute
 	}
-	if o.SecondPrincipal == "" {
-		o.SecondPrincipal = o.Principal + "-2"
+	if o.SecondToken == "" {
+		o.SecondToken = o.Token + "-2"
 	}
 	if o.Logf == nil {
 		o.Logf = func(string, ...any) {}
@@ -152,12 +155,12 @@ func Run(ctx context.Context, o Options) Report {
 	if hc == nil {
 		hc = &http.Client{Timeout: 60 * time.Second}
 	}
-	mk := func(principal string) *mcpclient.Client {
-		return mcpclient.New(o.ServerURL, principal, mcpclient.Stateless(),
+	mk := func(token string) *mcpclient.Client {
+		return mcpclient.New(o.ServerURL, token, mcpclient.Stateless(),
 			mcpclient.WithClientInfoName(clientName), mcpclient.WithHTTPClient(hc))
 	}
 	r := &runner{o: o, ctx: ctx, rcv: o.Receiver, results: map[string]Result{}, ttlMs: o.TTL.Milliseconds(),
-		c: mk(o.Principal), c2: mk(o.SecondPrincipal), anon: mk("")}
+		c: mk(o.Token), c2: mk(o.SecondToken), anon: mk("")}
 	r.flow()
 	return r.report()
 }

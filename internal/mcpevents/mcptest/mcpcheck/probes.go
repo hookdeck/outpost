@@ -139,7 +139,7 @@ func (r *runner) probes() {
 func (r *runner) httpsProbe() {
 	id := "subscribe.https-required"
 	hc := &http.Client{Timeout: probeTimeout}
-	c := mcpclient.New(r.o.ServerURL, r.o.Principal, mcpclient.Stateless(), mcpclient.WithClientInfoName(clientName), mcpclient.WithHTTPClient(hc))
+	c := mcpclient.New(r.o.ServerURL, r.o.Token, mcpclient.Stateless(), mcpclient.WithClientInfoName(clientName), mcpclient.WithHTTPClient(hc))
 	resp, err := c.Subscribe(r.ctx, r.params(httpProbeURL, mcpclient.NewSecret(), r.o.Arguments))
 	switch {
 	case err != nil:

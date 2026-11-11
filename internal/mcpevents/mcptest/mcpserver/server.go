@@ -13,8 +13,8 @@ import (
 	"time"
 )
 
-// Principal is the identity behind a bearer token.
-type Principal struct {
+// User is what the server resolves a bearer token to.
+type User struct {
 	Tenant        string
 	AllowedTopics []string
 }
@@ -22,10 +22,10 @@ type Principal struct {
 type Config struct {
 	OutpostURL string // API base including /api/v1
 	APIKey     string // admin key
-	Principals map[string]Principal
-	// DefaultTenant makes any other non-empty bearer token a principal of
-	// this tenant. Empty = unknown tokens are Forbidden.
-	DefaultTenant string
+	Users      map[string]User
+	// TokenIsTenant makes any other non-empty bearer token the ID of its own
+	// tenant. False = unknown tokens are Forbidden.
+	TokenIsTenant bool
 	HTTPClient    *http.Client // nil = 40 s timeout
 	// Header is set on every Outpost request after Authorization and
 	// Content-Type, so it can replace them.
@@ -87,14 +87,14 @@ func (r *recorder) outcome() string {
 	return fmt.Sprintf("http %d", r.status)
 }
 
-func (s *server) principal(token string) (Principal, bool) {
-	if p, ok := s.cfg.Principals[token]; ok {
-		return p, true
+func (s *server) user(token string) (User, bool) {
+	if u, ok := s.cfg.Users[token]; ok {
+		return u, true
 	}
-	if token != "" && s.cfg.DefaultTenant != "" {
-		return Principal{Tenant: s.cfg.DefaultTenant}, true
+	if token != "" && s.cfg.TokenIsTenant {
+		return User{Tenant: token}, true
 	}
-	return Principal{}, false
+	return User{}, false
 }
 
 type rpcRequest struct {
@@ -128,8 +128,8 @@ func (s *server) serve(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	principal := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
-	user, known := s.principal(principal)
+	token := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+	user, known := s.user(token)
 	if !known {
 		rpcFail(w, http.StatusOK, req.ID, -32024, "Forbidden", nil)
 		return
@@ -164,7 +164,7 @@ func (s *server) serve(w http.ResponseWriter, r *http.Request) {
 			rpcFail(w, http.StatusBadRequest, req.ID, -32020, "HeaderMismatch", nil)
 			return
 		}
-		path := "/tenants/" + user.Tenant + "/mcp/" + req.Method
+		path := "/tenants/" + url.PathEscape(user.Tenant) + "/mcp/" + req.Method
 		status, out := s.outpost(http.MethodPost, path, req.Params)
 		s.forward(w, req.ID, http.MethodPost, path, status, out)
 	default:
@@ -254,7 +254,7 @@ func writeRPC(w http.ResponseWriter, status int, body string) {
 	_, _ = io.WriteString(w, body)
 }
 
-// mask keeps the start of a bearer token so log lines tell principals apart
+// mask keeps the start of a bearer token so log lines tell callers apart
 // without exposing the credential.
 func mask(token string) string {
 	if token == "" {

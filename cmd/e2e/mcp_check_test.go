@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/hookdeck/outpost/internal/config"
-	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/mcpevents/mcptest/mcpcheck"
 	"github.com/hookdeck/outpost/internal/mcpevents/mcptest/mcpserver"
 	"github.com/hookdeck/outpost/internal/util/testutil"
@@ -31,6 +30,7 @@ type mcpCheckSuite struct {
 	m      *mcpSuite
 	server *httptest.Server
 	tenant string
+	second string
 }
 
 func (s *mcpCheckSuite) SetupSuite() {
@@ -44,10 +44,11 @@ func (s *mcpCheckSuite) SetupSuite() {
 	s.m.SetT(s.T())
 	s.m.SetupSuite()
 	s.tenant = s.m.base.createTenant().ID
+	s.second = s.m.base.createTenant().ID
 	s.server = httptest.NewServer(mcpserver.New(mcpserver.Config{
 		OutpostURL:    s.m.base.apiURL(""),
 		APIKey:        s.m.base.config.APIKey,
-		DefaultTenant: s.tenant,
+		TokenIsTenant: true,
 	}))
 }
 
@@ -67,11 +68,15 @@ func (s *mcpCheckSuite) TearDownSuite() {
 
 func (s *mcpCheckSuite) TestCheck() {
 	report := mcpcheck.Run(context.Background(), mcpcheck.Options{
-		ServerURL: s.server.URL,
-		Principal: "check-" + idgen.String(),
-		Receiver:  s.m.r,
+		ServerURL:   s.server.URL,
+		Token:       s.tenant,
+		SecondToken: s.second,
+		Receiver:    s.m.r,
 		Publish: func(_ context.Context, event string, data map[string]any) (string, error) {
 			return s.m.base.publish(s.tenant, event, data, withRetry()).ID, nil
+		},
+		PublishSecond: func(_ context.Context, event string, data map[string]any) (string, error) {
+			return s.m.base.publish(s.second, event, data, withRetry()).ID, nil
 		},
 		Wait:  30 * time.Second,
 		Quiet: 3 * time.Second,

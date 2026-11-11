@@ -74,13 +74,13 @@ func (r *runner) filterPhase() {
 	resp2, err := r.c2.Subscribe(r.ctx, r.params(url, s2, r.fc.Other))
 	switch {
 	case err != nil:
-		r.skip("subscribe.isolation", "second principal: %v", err)
+		r.skip("subscribe.isolation", "second subscriber: %v", err)
 		secondOK = false
 	case resp2.Error != nil && resp2.Error.Code == mcpclient.CodeForbidden:
-		r.skip("subscribe.isolation", "second principal refused: pass --second-principal")
+		r.skip("subscribe.isolation", "second subscriber refused: pass --second-token")
 		secondOK = false
 	case resp2.Error != nil || resp2.Status != http.StatusOK:
-		r.fail("subscribe.isolation", "second principal's subscribe failed: http %d %s", resp2.Status, snippet(resp2.Raw))
+		r.fail("subscribe.isolation", "second subscriber's subscribe failed: http %d %s", resp2.Status, snippet(resp2.Raw))
 		secondOK = false
 	default:
 		_ = json.Unmarshal(resp2.Result, &res2)
@@ -88,10 +88,14 @@ func (r *runner) filterPhase() {
 
 	hit, err := r.o.Publish(r.ctx, r.event.Name, r.fc.Data)
 	miss, err2 := r.o.Publish(r.ctx, r.event.Name, r.fc.OtherData)
-	if err != nil || err2 != nil || hit == "" || miss == "" {
+	missSecond, err3 := miss, error(nil)
+	if r.o.PublishSecond != nil && secondOK {
+		missSecond, err3 = r.o.PublishSecond(r.ctx, r.event.Name, r.fc.OtherData)
+	}
+	if err != nil || err2 != nil || err3 != nil || hit == "" || miss == "" || missSecond == "" {
 		why := "publish hook returned no event id"
-		if err != nil || err2 != nil {
-			why = fmt.Sprintf("publish: %v %v", err, err2)
+		if err != nil || err2 != nil || err3 != nil {
+			why = fmt.Sprintf("publish: %v %v %v", err, err2, err3)
 		}
 		r.skipAll(why, "filter.match", "filter.no-match")
 		if secondOK {
@@ -107,7 +111,7 @@ func (r *runner) filterPhase() {
 	}
 	deadline := time.Now().Add(r.o.Wait)
 	for time.Now().Before(deadline) && r.ctx.Err() == nil {
-		if len(byEvent(hit, res1.ID)) > 0 && (!secondOK || len(byEvent(miss, res2.ID)) > 0) {
+		if len(byEvent(hit, res1.ID)) > 0 && (!secondOK || len(byEvent(missSecond, res2.ID)) > 0) {
 			break
 		}
 		time.Sleep(50 * time.Millisecond)
@@ -129,15 +133,15 @@ func (r *runner) filterPhase() {
 		r.pass("filter.no-match", "")
 	}
 	if secondOK {
-		r.isolation(path, res1.ID, res2.ID, hit, miss, s1, s2, byEvent)
+		r.isolation(path, res1.ID, res2.ID, hit, missSecond, s1, s2, byEvent)
 	}
 }
 
-func (r *runner) isolation(path, id1, id2, hit, miss, s1, s2 string, byEvent func(id, sub string) []mcpreceiver.Request) {
+func (r *runner) isolation(path, id1, id2, hit, ownEvent, s1, s2 string, byEvent func(id, sub string) []mcpreceiver.Request) {
 	const id = "subscribe.isolation"
 	var probs []string
 	if id1 == id2 {
-		r.fail(id, "both principals got subscription id %q", id1)
+		r.fail(id, "both subscribers got subscription id %q", id1)
 		return
 	}
 	chal := map[string]int{}
@@ -147,20 +151,20 @@ func (r *runner) isolation(path, id1, id2, hit, miss, s1, s2 string, byEvent fun
 	warn := ""
 	switch {
 	case chal[id2] == 0 && chal[id1] > 0:
-		probs = append(probs, "the second principal's subscribe got no challenge although the first one's did: one principal's verification must not waive another's")
+		probs = append(probs, "the second subscriber's subscribe got no challenge although the first one's did: one subscriber's verification must not waive another's")
 	case chal[id2] == 0:
-		warn = "no challenge for either principal: the server verified another way"
+		warn = "no challenge for either subscriber: the server verified another way"
 	}
 	if n := len(byEvent(hit, id2)); n > 0 {
-		probs = append(probs, "the second principal received the first one's event")
+		probs = append(probs, "the second subscriber received the first one's event")
 	}
-	got := byEvent(miss, id2)
+	got := byEvent(ownEvent, id2)
 	switch {
 	case len(got) != 1:
-		probs = append(probs, fmt.Sprintf("the second principal received %d deliveries of its event, want 1", len(got)))
+		probs = append(probs, fmt.Sprintf("the second subscriber received %d deliveries of its event, want 1", len(got)))
 	default:
 		if v := got[0].VerifiedWith(s1, s2); v[0] || !v[1] {
-			probs = append(probs, "the second principal's delivery must verify with its own secret only")
+			probs = append(probs, "the second subscriber's delivery must verify with its own secret only")
 		}
 	}
 	switch {

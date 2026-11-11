@@ -16,8 +16,8 @@ import (
 )
 
 type upstreamCall struct {
-	Method, Path, Query, Auth string
-	Body                      map[string]any
+	Method, Path, RawPath, Query, Auth string
+	Body                               map[string]any
 }
 
 type fakeOutpost struct {
@@ -32,7 +32,7 @@ func newFakeOutpost(t *testing.T) *fakeOutpost {
 	f := &fakeOutpost{status: http.StatusOK, reply: `{"ok":true}`}
 	f.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		raw, _ := io.ReadAll(r.Body)
-		c := upstreamCall{Method: r.Method, Path: r.URL.Path, Query: r.URL.RawQuery, Auth: r.Header.Get("Authorization")}
+		c := upstreamCall{Method: r.Method, Path: r.URL.Path, RawPath: r.URL.EscapedPath(), Query: r.URL.RawQuery, Auth: r.Header.Get("Authorization")}
 		if len(raw) > 0 {
 			_ = json.Unmarshal(raw, &c.Body)
 		}
@@ -73,7 +73,7 @@ func setup(t *testing.T) (*fakeOutpost, string) {
 	srv := httptest.NewServer(mcpserver.New(mcpserver.Config{
 		OutpostURL: up.URL + "/api/v1",
 		APIKey:     "key",
-		Principals: map[string]mcpserver.Principal{
+		Users: map[string]mcpserver.User{
 			"alice": {Tenant: "t1"},
 			"bob":   {Tenant: "t2", AllowedTopics: []string{"a", "b"}},
 		},
@@ -132,13 +132,13 @@ func TestListForwardsCursor(t *testing.T) {
 	assert.Equal(t, "cursor=x", up.last(t).Query)
 }
 
-func TestDefaultTenant(t *testing.T) {
+func TestTokenIsTenant(t *testing.T) {
 	up := newFakeOutpost(t)
 	var lines []string
 	srv := httptest.NewServer(mcpserver.New(mcpserver.Config{
 		OutpostURL:    up.URL + "/api/v1",
 		APIKey:        "key",
-		DefaultTenant: "demo",
+		TokenIsTenant: true,
 		Logf:          func(f string, a ...any) { lines = append(lines, fmt.Sprintf(f, a...)) },
 	}))
 	t.Cleanup(srv.Close)
@@ -146,7 +146,7 @@ func TestDefaultTenant(t *testing.T) {
 	h := map[string]string{"Mcp-Method": "events/subscribe", "Mcp-Name": "a"}
 	_, _, _ = call(t, srv.URL, "anyone", `{"jsonrpc":"2.0","id":1,"method":"events/subscribe","params":{"name":"a"}}`, h)
 	c := up.last(t)
-	assert.Equal(t, "/api/v1/tenants/demo/mcp/events/subscribe", c.Path)
+	assert.Equal(t, "/api/v1/tenants/anyone/mcp/events/subscribe", c.Path)
 	assert.Equal(t, "a", c.Body["name"])
 
 	_, r, _ := call(t, srv.URL, "", `{"jsonrpc":"2.0","id":2,"method":"events/list"}`, nil)
@@ -159,7 +159,7 @@ func TestDefaultTenant(t *testing.T) {
 	}, lines)
 }
 
-func TestUnknownPrincipalForbidden(t *testing.T) {
+func TestUnknownTokenForbidden(t *testing.T) {
 	_, url := setup(t)
 	for _, token := range []string{"", "mallory"} {
 		status, r, _ := call(t, url, token, `{"jsonrpc":"2.0","id":1,"method":"events/list"}`, nil)
@@ -202,7 +202,7 @@ func TestListForwardsTopics(t *testing.T) {
 	assert.JSONEq(t, `{"ok":true}`, string(r.Result))
 }
 
-func TestSubscribeForwardsPrincipalAndParams(t *testing.T) {
+func TestSubscribeForwardsParams(t *testing.T) {
 	up, url := setup(t)
 	h := map[string]string{"Mcp-Method": "events/subscribe", "Mcp-Name": "a"}
 	body := `{"jsonrpc":"2.0","id":1,"method":"events/subscribe","params":{"name":"a","delivery":{"url":"https://x"}}}`
@@ -212,8 +212,9 @@ func TestSubscribeForwardsPrincipalAndParams(t *testing.T) {
 	assert.Equal(t, http.MethodPost, c.Method)
 	assert.Equal(t, "/api/v1/tenants/t1/mcp/events/subscribe", c.Path)
 	assert.Equal(t, "a", c.Body["name"])
-	assert.NotContains(t, c.Body, "params")
+	assert.Equal(t, map[string]any{"url": "https://x"}, c.Body["delivery"])
 	assert.NotContains(t, c.Body, "allowed_topics")
+	assert.NotContains(t, c.Body, "params")
 
 	_, _, _ = call(t, url, "bob", body, h)
 	c = up.last(t)
@@ -258,7 +259,7 @@ func TestLogMasksBearerToken(t *testing.T) {
 	var mu sync.Mutex
 	var lines []string
 	srv := httptest.NewServer(mcpserver.New(mcpserver.Config{
-		DefaultTenant: "t1",
+		TokenIsTenant: true,
 		Logf: func(format string, args ...any) {
 			mu.Lock()
 			lines = append(lines, fmt.Sprintf(format, args...))
@@ -284,7 +285,7 @@ func TestExtraHeadersSentToOutpost(t *testing.T) {
 	srv := httptest.NewServer(mcpserver.New(mcpserver.Config{
 		OutpostURL:    up.URL,
 		APIKey:        "key",
-		DefaultTenant: "t1",
+		TokenIsTenant: true,
 		Header:        http.Header{"X-Debug": {"1"}, "Authorization": {"Bearer other"}},
 	}))
 	defer srv.Close()
@@ -303,7 +304,7 @@ func TestOutpostFailureLogged(t *testing.T) {
 	var lines []string
 	srv := httptest.NewServer(mcpserver.New(mcpserver.Config{
 		OutpostURL:    up.URL,
-		DefaultTenant: "t1",
+		TokenIsTenant: true,
 		Logf: func(format string, args ...any) {
 			mu.Lock()
 			lines = append(lines, fmt.Sprintf(format, args...))
@@ -318,4 +319,13 @@ func TestOutpostFailureLogged(t *testing.T) {
 	defer mu.Unlock()
 	joined := strings.Join(lines, "\n")
 	assert.Contains(t, joined, "http 502: upstream down")
+}
+
+func TestTokenTenantIsPathEscaped(t *testing.T) {
+	up := newFakeOutpost(t)
+	srv := httptest.NewServer(mcpserver.New(mcpserver.Config{OutpostURL: up.URL + "/api/v1", APIKey: "key", TokenIsTenant: true}))
+	t.Cleanup(srv.Close)
+	h := map[string]string{"Mcp-Method": "events/subscribe", "Mcp-Name": "a"}
+	_, _, _ = call(t, srv.URL, "a/b c", `{"jsonrpc":"2.0","id":1,"method":"events/subscribe","params":{"name":"a"}}`, h)
+	assert.Equal(t, "/api/v1/tenants/a%2Fb%20c/mcp/events/subscribe", up.last(t).RawPath)
 }

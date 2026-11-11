@@ -39,9 +39,9 @@ type faults struct {
 }
 
 type sub struct {
-	id, principal, name, url string
-	args                     map[string]any
-	secrets                  []string
+	id, caller, name, url string
+	args                  map[string]any
+	secrets               []string
 }
 
 // fakeServer is a small conforming MCP Events server with webhook delivery.
@@ -107,8 +107,8 @@ func (s *fakeServer) serve(w http.ResponseWriter, r *http.Request) {
 			"capabilities": map[string]any{"extensions": map[string]any{"io.modelcontextprotocol/events": map[string]any{}}}}, 0, nil)
 		return
 	}
-	principal := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
-	if principal == "" {
+	caller := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+	if caller == "" {
 		rpc(w, 200, req.ID, nil, -32024, nil)
 		return
 	}
@@ -128,23 +128,23 @@ func (s *fakeServer) serve(w http.ResponseWriter, r *http.Request) {
 			rpc(w, 200, req.ID, nil, -32023, map[string]any{"kind": "event"})
 			return
 		}
-		s.subscription(w, r, req.ID, req.Method == "events/subscribe", principal, req.Params.Name, req.Params.Arguments, req.Params.Delivery.URL, req.Params.Delivery.Secret)
+		s.subscription(w, r, req.ID, req.Method == "events/subscribe", caller, req.Params.Name, req.Params.Arguments, req.Params.Delivery.URL, req.Params.Delivery.Secret)
 	default:
 		rpc(w, 200, req.ID, nil, -32601, nil)
 	}
 }
 
-func (s *fakeServer) key(principal, name string, args map[string]any, u string) string {
+func (s *fakeServer) key(caller, name string, args map[string]any, u string) string {
 	if s.f.idIgnoresCaller {
-		principal, args = "", nil
+		caller, args = "", nil
 	}
-	b, _ := json.Marshal([]any{principal, name, args, u})
+	b, _ := json.Marshal([]any{caller, name, args, u})
 	sum := sha256.Sum256(b)
 	return "sub_" + hex.EncodeToString(sum[:8])
 }
 
-func (s *fakeServer) subscription(w http.ResponseWriter, r *http.Request, id json.RawMessage, subscribe bool, principal, name string, args map[string]any, u, secret string) {
-	key := s.key(principal, name, args, u)
+func (s *fakeServer) subscription(w http.ResponseWriter, r *http.Request, id json.RawMessage, subscribe bool, caller, name string, args map[string]any, u, secret string) {
+	key := s.key(caller, name, args, u)
 	s.mu.Lock()
 	existing := s.subs[key]
 	s.mu.Unlock()
@@ -172,7 +172,7 @@ func (s *fakeServer) subscription(w http.ResponseWriter, r *http.Request, id jso
 		}
 		return
 	}
-	n := &sub{id: key, principal: principal, name: name, url: u, args: args, secrets: []string{secret}}
+	n := &sub{id: key, caller: caller, name: name, url: u, args: args, secrets: []string{secret}}
 	if existing != nil && existing.secrets[0] != secret {
 		n.secrets = append(n.secrets, existing.secrets[0])
 	}
@@ -279,7 +279,7 @@ func runCheck(t *testing.T, s *fakeServer, mutate func(*Options)) Report {
 	require.NoError(t, err)
 	t.Cleanup(rcv.Close)
 	o := Options{
-		ServerURL: s.URL, Principal: "alice", Receiver: rcv,
+		ServerURL: s.URL, Token: "alice", Receiver: rcv,
 		Publish: func(_ context.Context, ev string, data map[string]any) (string, error) {
 			return s.publish(ev, data), nil
 		},

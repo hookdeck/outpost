@@ -19,14 +19,14 @@ func (endpointsFixture) Name() string { return "endpoints" }
 func (endpointsFixture) ConfigureOutpost(cfg *config.Config) {}
 
 func (endpointsFixture) Start(t *testing.T, env mcpFixtureEnv) mcpFixtureServer {
-	principals := make(map[string]mcpserver.Principal, len(env.Users))
-	for token, p := range env.Users {
-		principals[token] = mcpserver.Principal{Tenant: p.Tenant, AllowedTopics: p.AllowedTopics}
+	users := make(map[string]mcpserver.User, len(env.Users))
+	for token, u := range env.Users {
+		users[token] = mcpserver.User{Tenant: u.Tenant, AllowedTopics: u.AllowedTopics}
 	}
 	return &endpointsServer{Server: httptest.NewServer(mcpserver.New(mcpserver.Config{
 		OutpostURL: env.OutpostURL,
 		APIKey:     env.APIKey,
-		Principals: principals,
+		Users:      users,
 	}))}
 }
 
