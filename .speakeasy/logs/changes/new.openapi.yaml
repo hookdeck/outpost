@@ -242,13 +242,11 @@ components:
           nullable: true
           description: Cursor for the next page of results. Null if no more results.
           example: "MTcwNDA2NzIwMA=="
-          x-speakeasy-name-override: "next_cursor"
         prev:
           type: string
           nullable: true
           description: Cursor for the previous page of results. Null if on first page.
           example: null
-          x-speakeasy-name-override: "prev_cursor"
     APIErrorResponse:
       type: object
       description: Standard error response format.
@@ -4727,21 +4725,18 @@ paths:
             enum: [asc, desc]
             default: desc
           description: Sort direction.
-          x-speakeasy-name-override: "direction"
         - name: next
           in: query
           required: false
           schema:
             type: string
           description: Cursor for the next page of results. Mutually exclusive with `prev`.
-          x-speakeasy-name-override: "next_cursor"
         - name: prev
           in: query
           required: false
           schema:
             type: string
           description: Cursor for the previous page of results. Mutually exclusive with `next`.
-          x-speakeasy-name-override: "prev_cursor"
       responses:
         "200":
           description: List of tenants.
@@ -4983,14 +4978,12 @@ paths:
           schema:
             type: string
           description: Cursor for the next page of results, from `pagination.next` of a previous response. Mutually exclusive with `prev`. A cursor that cannot be read returns a 400.
-          x-speakeasy-name-override: "next_cursor"
         - name: prev
           in: query
           required: false
           schema:
             type: string
           description: Cursor for the previous page of results, from `pagination.prev` of a previous response. Mutually exclusive with `next`. A cursor that cannot be read returns a 400.
-          x-speakeasy-name-override: "prev_cursor"
         - name: order_by
           in: query
           required: false
@@ -5007,7 +5000,6 @@ paths:
             enum: [asc, desc]
             default: desc
           description: Sort direction.
-          x-speakeasy-name-override: "direction"
       responses:
         "200":
           description: A paginated list of events.
@@ -5194,14 +5186,12 @@ paths:
           schema:
             type: string
           description: Cursor for the next page of results, from `pagination.next` of a previous response. Mutually exclusive with `prev`. A cursor that cannot be read returns a 400.
-          x-speakeasy-name-override: "next_cursor"
         - name: prev
           in: query
           required: false
           schema:
             type: string
           description: Cursor for the previous page of results, from `pagination.prev` of a previous response. Mutually exclusive with `next`. A cursor that cannot be read returns a 400.
-          x-speakeasy-name-override: "prev_cursor"
         - name: include
           in: query
           required: false
@@ -5233,7 +5223,6 @@ paths:
             enum: [asc, desc]
             default: desc
           description: Sort direction.
-          x-speakeasy-name-override: "direction"
       responses:
         "200":
           description: A paginated list of attempts.
@@ -5943,14 +5932,12 @@ paths:
           schema:
             type: string
           description: Cursor for the next page of results, from `pagination.next` of a previous response. Mutually exclusive with `prev`. A cursor that cannot be read returns a 400.
-          x-speakeasy-name-override: "next_cursor"
         - name: prev
           in: query
           required: false
           schema:
             type: string
           description: Cursor for the previous page of results, from `pagination.prev` of a previous response. Mutually exclusive with `next`. A cursor that cannot be read returns a 400.
-          x-speakeasy-name-override: "prev_cursor"
         - name: include
           in: query
           required: false
@@ -5982,7 +5969,6 @@ paths:
             enum: [asc, desc]
             default: desc
           description: Sort direction.
-          x-speakeasy-name-override: "direction"
       responses:
         "200":
           description: A paginated list of attempts for the destination.

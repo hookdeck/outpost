@@ -31,7 +31,7 @@ Returns \`404\` if the destination does not exist or has been deleted, or if the
       args.destinationId,
       args.attemptId,
       args.include,
-      { fetchOptions: { signal: ctx.signal } },
+      { fetchOptions: { signal: ctx.mcpReq.signal } },
     ).$inspect();
 
     if (!result.ok) {

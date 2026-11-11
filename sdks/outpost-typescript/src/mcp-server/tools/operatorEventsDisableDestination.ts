@@ -29,7 +29,7 @@ This endpoint is only available on managed Outpost.
     const [result, apiCall] = await operatorEventsDisableDestination(
       client,
       args.destinationId,
-      { fetchOptions: { signal: ctx.signal } },
+      { fetchOptions: { signal: ctx.mcpReq.signal } },
     ).$inspect();
 
     if (!result.ok) {
