@@ -23,7 +23,7 @@ Returns \`404\` if the destination does not exist or has been deleted. The attem
     const [result, apiCall] = await destinationsListAttempts(
       client,
       args.request,
-      { fetchOptions: { signal: ctx.signal } },
+      { fetchOptions: { signal: ctx.mcpReq.signal } },
     ).$inspect();
 
     if (!result.ok) {

@@ -20,7 +20,7 @@ Publishes an event to the specified topic, potentially routed to a specific dest
     const [result, apiCall] = await publish(
       client,
       args.request,
-      { fetchOptions: { signal: ctx.signal } },
+      { fetchOptions: { signal: ctx.mcpReq.signal } },
     ).$inspect();
 
     if (!result.ok) {

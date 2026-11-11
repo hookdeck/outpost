@@ -19,130 +19,139 @@ export type ManagedConfig = {
   /**
    * If "true", automatically disables a destination once ALERT_CONSECUTIVE_FAILURE_COUNT is reached. Has no effect when consecutive-failure alerting is disabled.
    */
-  alertAutoDisableDestination?: string | undefined;
+  alertAutoDisableDestination?: string | null | undefined;
   /**
    * Consecutive delivery failures before alerting on a destination (and disabling it when ALERT_AUTO_DISABLE_DESTINATION is "true"). Omit for the default of 100; set to an empty string to disable consecutive-failure alerting entirely.
    */
-  alertConsecutiveFailureCount?: string | undefined;
+  alertConsecutiveFailureCount?: string | null | undefined;
   /**
    * Suppression window in seconds for exhausted_retries alerts: the first exhaustion per destination alerts and subsequent ones within the window are suppressed ("0" = no suppression). Omit for the default of 3600; set to an empty string to disable exhausted_retries alerting entirely.
    */
-  alertExhaustedRetriesWindowSeconds?: string | undefined;
-  deliveryTimeoutSeconds?: string | undefined;
-  destinationsAwsKinesisMetadataInPayload?: string | undefined;
-  destinationsIncludeMillisecondTimestamp?: string | undefined;
+  alertExhaustedRetriesWindowSeconds?: string | null | undefined;
+  deliveryTimeoutSeconds?: string | null | undefined;
+  destinationsAwsKinesisMetadataInPayload?: string | null | undefined;
+  destinationsIncludeMillisecondTimestamp?: string | null | undefined;
+  /**
+   * HTTP forward proxy for webhook, RabbitMQ and Kafka destinations, as a single http(s) URL (e.g., "http://user:pass@proxy.example.com:8080"). RabbitMQ and Kafka connections are tunneled with CONNECT, so the proxy must allow CONNECT to the broker ports. Set to an empty string to remove the proxy.
+   */
+  destinationsProxyUrl?: string | null | undefined;
   /**
    * Additional headers sent with the compat signature, as comma-separated "name=template" pairs. Available variables: {{.EventID}}, {{.Topic}}, {{.Timestamp}}. Use "\," for a literal comma in a template.
    */
-  destinationsWebhookCompatHeaders?: string | undefined;
+  destinationsWebhookCompatHeaders?: string | null | undefined;
   /**
    * Algorithm for the compat signature. Defaults to "hmac-sha256".
    */
-  destinationsWebhookCompatSignatureAlgorithm?: string | undefined;
+  destinationsWebhookCompatSignatureAlgorithm?: string | null | undefined;
   /**
    * Go template for the content signed by the compat signature. Same variables as DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE. Defaults to "{{.Body}}".
    */
-  destinationsWebhookCompatSignatureContentTemplate?: string | undefined;
+  destinationsWebhookCompatSignatureContentTemplate?: string | null | undefined;
   /**
    * Encoding for the compat signature ("hex" or "base64"). Defaults to "hex".
    */
-  destinationsWebhookCompatSignatureEncoding?: string | undefined;
+  destinationsWebhookCompatSignatureEncoding?: string | null | undefined;
   /**
    * Complete name of the compat signature header. Setting it sends a second signature, in a previous scheme, alongside the primary one.
    */
-  destinationsWebhookCompatSignatureHeaderName?: string | undefined;
+  destinationsWebhookCompatSignatureHeaderName?: string | null | undefined;
   /**
    * Go template for the value of the compat signature header. Same variables as DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE. Defaults to "v0={{.Signatures | join ","}}".
    */
-  destinationsWebhookCompatSignatureHeaderTemplate?: string | undefined;
+  destinationsWebhookCompatSignatureHeaderTemplate?: string | null | undefined;
   /**
    * How the compat signature derives its HMAC key from the destination secret: "raw", "base64" or "hex". Defaults to "raw". A destination whose secret can't be decoded doesn't receive the compat signature.
    */
-  destinationsWebhookCompatSignatureSecretEncoding?: string | undefined;
+  destinationsWebhookCompatSignatureSecretEncoding?: string | null | undefined;
   /**
    * Prefix stripped from the destination secret before decoding for the compat signature (e.g., "whsec_").
    */
-  destinationsWebhookCompatSignatureSecretPrefix?: string | undefined;
+  destinationsWebhookCompatSignatureSecretPrefix?: string | null | undefined;
   /**
    * Complete name of the event ID header. Unset uses the default "<prefix>event-id"; an explicit value pins that exact name; an empty string disables the header. Only applies to "default" mode.
    */
-  destinationsWebhookEventIdHeaderName?: string | undefined;
-  destinationsWebhookHeaderPrefix?: string | undefined;
-  destinationsWebhookMode?: string | undefined;
-  destinationsWebhookProxyUrl?: string | undefined;
-  destinationsWebhookSignatureAlgorithm?: string | undefined;
-  destinationsWebhookSignatureContentTemplate?: string | undefined;
-  destinationsWebhookSignatureEncoding?: string | undefined;
+  destinationsWebhookEventIdHeaderName?: string | null | undefined;
+  destinationsWebhookHeaderPrefix?: string | null | undefined;
+  destinationsWebhookMode?: string | null | undefined;
+  /**
+   * Deprecated alias of DESTINATIONS_PROXY_URL: reads return the same value and writes set DESTINATIONS_PROXY_URL. A request that changes both keys to different values is rejected.
+   *
+   * @deprecated field: This will be removed in a future release, please migrate away from it as soon as possible.
+   */
+  destinationsWebhookProxyUrl?: string | null | undefined;
+  destinationsWebhookSignatureAlgorithm?: string | null | undefined;
+  destinationsWebhookSignatureContentTemplate?: string | null | undefined;
+  destinationsWebhookSignatureEncoding?: string | null | undefined;
   /**
    * Complete name of the signature header. Unset uses the default "<prefix>signature"; an explicit value pins that exact name; an empty string disables the header. Only applies to "default" mode.
    */
-  destinationsWebhookSignatureHeaderName?: string | undefined;
-  destinationsWebhookSignatureHeaderTemplate?: string | undefined;
+  destinationsWebhookSignatureHeaderName?: string | null | undefined;
+  destinationsWebhookSignatureHeaderTemplate?: string | null | undefined;
   /**
    * How the signature derives its HMAC key from the destination secret: "raw" uses the secret as-is, "base64" and "hex" decode it. Defaults to "raw". DESTINATIONS_WEBHOOK_SIGNING_SECRET_TEMPLATE must generate secrets this encoding can decode. Only applies to "default" mode.
    */
-  destinationsWebhookSignatureSecretEncoding?: string | undefined;
+  destinationsWebhookSignatureSecretEncoding?: string | null | undefined;
   /**
    * Prefix stripped from the destination secret before decoding (e.g., "whsec_"). Ignored when DESTINATIONS_WEBHOOK_SIGNATURE_SECRET_ENCODING is "raw". Only applies to "default" mode.
    */
-  destinationsWebhookSignatureSecretPrefix?: string | undefined;
-  destinationsWebhookSigningSecretTemplate?: string | undefined;
+  destinationsWebhookSignatureSecretPrefix?: string | null | undefined;
+  destinationsWebhookSigningSecretTemplate?: string | null | undefined;
   /**
-   * Format of the timestamp header: "rfc3339" or "unix". Defaults to "rfc3339". Only applies to "default" mode.
+   * Format of the timestamp header: "rfc3339", "unix" (seconds since the epoch) or "iso8601_milli_no_offset" (UTC with milliseconds and no offset, e.g. "2026-10-05T15:02:25.447"). Defaults to "rfc3339". Only applies to "default" mode.
    */
-  destinationsWebhookTimestampFormat?: string | undefined;
+  destinationsWebhookTimestampFormat?: string | null | undefined;
   /**
    * Complete name of the timestamp header. Unset uses the default "<prefix>timestamp"; an explicit value pins that exact name; an empty string disables the header. Only applies to "default" mode.
    */
-  destinationsWebhookTimestampHeaderName?: string | undefined;
+  destinationsWebhookTimestampHeaderName?: string | null | undefined;
   /**
    * Complete name of the topic header. Unset uses the default "<prefix>topic"; an explicit value pins that exact name; an empty string disables the header. Only applies to "default" mode.
    */
-  destinationsWebhookTopicHeaderName?: string | undefined;
-  httpUserAgent?: string | undefined;
-  idgenAttemptPrefix?: string | undefined;
-  idgenDestinationPrefix?: string | undefined;
-  idgenEventPrefix?: string | undefined;
-  idgenType?: string | undefined;
-  maxDestinationsPerTenant?: string | undefined;
-  portalBrandColor?: string | undefined;
-  portalDisableOutpostBranding?: string | undefined;
-  portalFaviconUrl?: string | undefined;
-  portalForceTheme?: string | undefined;
-  portalLogo?: string | undefined;
-  portalLogoDark?: string | undefined;
-  portalOrganizationName?: string | undefined;
-  portalRefererUrl?: string | undefined;
-  portalRefreshUrl?: string | undefined;
-  portalEnableDestinationFilter?: string | undefined;
-  portalEnableWebhookCustomHeaders?: string | undefined;
-  retryIntervalSeconds?: string | undefined;
-  maxRetryLimit?: string | undefined;
-  retrySchedule?: string | undefined;
-  otelExporterOtlpEndpoint?: string | undefined;
-  otelExporterOtlpHeaders?: string | undefined;
-  otelExporterOtlpProtocol?: string | undefined;
-  otelExporterOtlpTracesEndpoint?: string | undefined;
-  otelExporterOtlpMetricsEndpoint?: string | undefined;
-  otelExporterOtlpLogsEndpoint?: string | undefined;
-  otelServiceName?: string | undefined;
-  publishAwsSqsAccessKeyId?: string | undefined;
-  publishAwsSqsEndpoint?: string | undefined;
-  publishAwsSqsQueue?: string | undefined;
-  publishAwsSqsRegion?: string | undefined;
-  publishAwsSqsSecretAccessKey?: string | undefined;
-  publishAzureServicebusConnectionString?: string | undefined;
-  publishAzureServicebusSubscription?: string | undefined;
-  publishAzureServicebusTopic?: string | undefined;
-  publishGcpPubsubProject?: string | undefined;
-  publishGcpPubsubServiceAccountCredentials?: string | undefined;
-  publishGcpPubsubSubscription?: string | undefined;
-  publishGcpPubsubTopic?: string | undefined;
-  publishRabbitmqExchange?: string | undefined;
-  publishRabbitmqQueue?: string | undefined;
-  publishRabbitmqServerUrl?: string | undefined;
-  topics?: string | undefined;
-  topicsAllowWildcards?: string | undefined;
+  destinationsWebhookTopicHeaderName?: string | null | undefined;
+  httpUserAgent?: string | null | undefined;
+  idgenAttemptPrefix?: string | null | undefined;
+  idgenDestinationPrefix?: string | null | undefined;
+  idgenEventPrefix?: string | null | undefined;
+  idgenType?: string | null | undefined;
+  maxDestinationsPerTenant?: string | null | undefined;
+  portalBrandColor?: string | null | undefined;
+  portalDisableOutpostBranding?: string | null | undefined;
+  portalFaviconUrl?: string | null | undefined;
+  portalForceTheme?: string | null | undefined;
+  portalLogo?: string | null | undefined;
+  portalLogoDark?: string | null | undefined;
+  portalOrganizationName?: string | null | undefined;
+  portalRefererUrl?: string | null | undefined;
+  portalRefreshUrl?: string | null | undefined;
+  portalEnableDestinationFilter?: string | null | undefined;
+  portalEnableWebhookCustomHeaders?: string | null | undefined;
+  retryIntervalSeconds?: string | null | undefined;
+  maxRetryLimit?: string | null | undefined;
+  retrySchedule?: string | null | undefined;
+  otelExporterOtlpEndpoint?: string | null | undefined;
+  otelExporterOtlpHeaders?: string | null | undefined;
+  otelExporterOtlpProtocol?: string | null | undefined;
+  otelExporterOtlpTracesEndpoint?: string | null | undefined;
+  otelExporterOtlpMetricsEndpoint?: string | null | undefined;
+  otelExporterOtlpLogsEndpoint?: string | null | undefined;
+  otelServiceName?: string | null | undefined;
+  publishAwsSqsAccessKeyId?: string | null | undefined;
+  publishAwsSqsEndpoint?: string | null | undefined;
+  publishAwsSqsQueue?: string | null | undefined;
+  publishAwsSqsRegion?: string | null | undefined;
+  publishAwsSqsSecretAccessKey?: string | null | undefined;
+  publishAzureServicebusConnectionString?: string | null | undefined;
+  publishAzureServicebusSubscription?: string | null | undefined;
+  publishAzureServicebusTopic?: string | null | undefined;
+  publishGcpPubsubProject?: string | null | undefined;
+  publishGcpPubsubServiceAccountCredentials?: string | null | undefined;
+  publishGcpPubsubSubscription?: string | null | undefined;
+  publishGcpPubsubTopic?: string | null | undefined;
+  publishRabbitmqExchange?: string | null | undefined;
+  publishRabbitmqQueue?: string | null | undefined;
+  publishRabbitmqServerUrl?: string | null | undefined;
+  topics?: string | null | undefined;
+  topicsAllowWildcards?: string | null | undefined;
 };
 
 /** @internal */
@@ -151,79 +160,94 @@ export const ManagedConfig$inboundSchema: z.ZodType<
   z.ZodTypeDef,
   unknown
 > = z.object({
-  ALERT_AUTO_DISABLE_DESTINATION: z.string().optional(),
-  ALERT_CONSECUTIVE_FAILURE_COUNT: z.string().optional(),
-  ALERT_EXHAUSTED_RETRIES_WINDOW_SECONDS: z.string().optional(),
-  DELIVERY_TIMEOUT_SECONDS: z.string().optional(),
-  DESTINATIONS_AWS_KINESIS_METADATA_IN_PAYLOAD: z.string().optional(),
-  DESTINATIONS_INCLUDE_MILLISECOND_TIMESTAMP: z.string().optional(),
-  DESTINATIONS_WEBHOOK_COMPAT_HEADERS: z.string().optional(),
-  DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_ALGORITHM: z.string().optional(),
-  DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_CONTENT_TEMPLATE: z.string().optional(),
-  DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_ENCODING: z.string().optional(),
-  DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_HEADER_NAME: z.string().optional(),
-  DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_HEADER_TEMPLATE: z.string().optional(),
-  DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_SECRET_ENCODING: z.string().optional(),
-  DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_SECRET_PREFIX: z.string().optional(),
-  DESTINATIONS_WEBHOOK_EVENT_ID_HEADER_NAME: z.string().optional(),
-  DESTINATIONS_WEBHOOK_HEADER_PREFIX: z.string().optional(),
-  DESTINATIONS_WEBHOOK_MODE: z.string().optional(),
-  DESTINATIONS_WEBHOOK_PROXY_URL: z.string().optional(),
-  DESTINATIONS_WEBHOOK_SIGNATURE_ALGORITHM: z.string().optional(),
-  DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE: z.string().optional(),
-  DESTINATIONS_WEBHOOK_SIGNATURE_ENCODING: z.string().optional(),
-  DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_NAME: z.string().optional(),
-  DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE: z.string().optional(),
-  DESTINATIONS_WEBHOOK_SIGNATURE_SECRET_ENCODING: z.string().optional(),
-  DESTINATIONS_WEBHOOK_SIGNATURE_SECRET_PREFIX: z.string().optional(),
-  DESTINATIONS_WEBHOOK_SIGNING_SECRET_TEMPLATE: z.string().optional(),
-  DESTINATIONS_WEBHOOK_TIMESTAMP_FORMAT: z.string().optional(),
-  DESTINATIONS_WEBHOOK_TIMESTAMP_HEADER_NAME: z.string().optional(),
-  DESTINATIONS_WEBHOOK_TOPIC_HEADER_NAME: z.string().optional(),
-  HTTP_USER_AGENT: z.string().optional(),
-  IDGEN_ATTEMPT_PREFIX: z.string().optional(),
-  IDGEN_DESTINATION_PREFIX: z.string().optional(),
-  IDGEN_EVENT_PREFIX: z.string().optional(),
-  IDGEN_TYPE: z.string().optional(),
-  MAX_DESTINATIONS_PER_TENANT: z.string().optional(),
-  PORTAL_BRAND_COLOR: z.string().optional(),
-  PORTAL_DISABLE_OUTPOST_BRANDING: z.string().optional(),
-  PORTAL_FAVICON_URL: z.string().optional(),
-  PORTAL_FORCE_THEME: z.string().optional(),
-  PORTAL_LOGO: z.string().optional(),
-  PORTAL_LOGO_DARK: z.string().optional(),
-  PORTAL_ORGANIZATION_NAME: z.string().optional(),
-  PORTAL_REFERER_URL: z.string().optional(),
-  PORTAL_REFRESH_URL: z.string().optional(),
-  PORTAL_ENABLE_DESTINATION_FILTER: z.string().optional(),
-  PORTAL_ENABLE_WEBHOOK_CUSTOM_HEADERS: z.string().optional(),
-  RETRY_INTERVAL_SECONDS: z.string().optional(),
-  MAX_RETRY_LIMIT: z.string().optional(),
-  RETRY_SCHEDULE: z.string().optional(),
-  OTEL_EXPORTER_OTLP_ENDPOINT: z.string().optional(),
-  OTEL_EXPORTER_OTLP_HEADERS: z.string().optional(),
-  OTEL_EXPORTER_OTLP_PROTOCOL: z.string().optional(),
-  OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: z.string().optional(),
-  OTEL_EXPORTER_OTLP_METRICS_ENDPOINT: z.string().optional(),
-  OTEL_EXPORTER_OTLP_LOGS_ENDPOINT: z.string().optional(),
-  OTEL_SERVICE_NAME: z.string().optional(),
-  PUBLISH_AWS_SQS_ACCESS_KEY_ID: z.string().optional(),
-  PUBLISH_AWS_SQS_ENDPOINT: z.string().optional(),
-  PUBLISH_AWS_SQS_QUEUE: z.string().optional(),
-  PUBLISH_AWS_SQS_REGION: z.string().optional(),
-  PUBLISH_AWS_SQS_SECRET_ACCESS_KEY: z.string().optional(),
-  PUBLISH_AZURE_SERVICEBUS_CONNECTION_STRING: z.string().optional(),
-  PUBLISH_AZURE_SERVICEBUS_SUBSCRIPTION: z.string().optional(),
-  PUBLISH_AZURE_SERVICEBUS_TOPIC: z.string().optional(),
-  PUBLISH_GCP_PUBSUB_PROJECT: z.string().optional(),
-  PUBLISH_GCP_PUBSUB_SERVICE_ACCOUNT_CREDENTIALS: z.string().optional(),
-  PUBLISH_GCP_PUBSUB_SUBSCRIPTION: z.string().optional(),
-  PUBLISH_GCP_PUBSUB_TOPIC: z.string().optional(),
-  PUBLISH_RABBITMQ_EXCHANGE: z.string().optional(),
-  PUBLISH_RABBITMQ_QUEUE: z.string().optional(),
-  PUBLISH_RABBITMQ_SERVER_URL: z.string().optional(),
-  TOPICS: z.string().optional(),
-  TOPICS_ALLOW_WILDCARDS: z.string().optional(),
+  ALERT_AUTO_DISABLE_DESTINATION: z.nullable(z.string()).optional(),
+  ALERT_CONSECUTIVE_FAILURE_COUNT: z.nullable(z.string()).optional(),
+  ALERT_EXHAUSTED_RETRIES_WINDOW_SECONDS: z.nullable(z.string()).optional(),
+  DELIVERY_TIMEOUT_SECONDS: z.nullable(z.string()).optional(),
+  DESTINATIONS_AWS_KINESIS_METADATA_IN_PAYLOAD: z.nullable(z.string())
+    .optional(),
+  DESTINATIONS_INCLUDE_MILLISECOND_TIMESTAMP: z.nullable(z.string()).optional(),
+  DESTINATIONS_PROXY_URL: z.nullable(z.string()).optional(),
+  DESTINATIONS_WEBHOOK_COMPAT_HEADERS: z.nullable(z.string()).optional(),
+  DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_ALGORITHM: z.nullable(z.string())
+    .optional(),
+  DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_CONTENT_TEMPLATE: z.nullable(z.string())
+    .optional(),
+  DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_ENCODING: z.nullable(z.string())
+    .optional(),
+  DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_HEADER_NAME: z.nullable(z.string())
+    .optional(),
+  DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_HEADER_TEMPLATE: z.nullable(z.string())
+    .optional(),
+  DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_SECRET_ENCODING: z.nullable(z.string())
+    .optional(),
+  DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_SECRET_PREFIX: z.nullable(z.string())
+    .optional(),
+  DESTINATIONS_WEBHOOK_EVENT_ID_HEADER_NAME: z.nullable(z.string()).optional(),
+  DESTINATIONS_WEBHOOK_HEADER_PREFIX: z.nullable(z.string()).optional(),
+  DESTINATIONS_WEBHOOK_MODE: z.nullable(z.string()).optional(),
+  DESTINATIONS_WEBHOOK_PROXY_URL: z.nullable(z.string()).optional(),
+  DESTINATIONS_WEBHOOK_SIGNATURE_ALGORITHM: z.nullable(z.string()).optional(),
+  DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE: z.nullable(z.string())
+    .optional(),
+  DESTINATIONS_WEBHOOK_SIGNATURE_ENCODING: z.nullable(z.string()).optional(),
+  DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_NAME: z.nullable(z.string()).optional(),
+  DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE: z.nullable(z.string())
+    .optional(),
+  DESTINATIONS_WEBHOOK_SIGNATURE_SECRET_ENCODING: z.nullable(z.string())
+    .optional(),
+  DESTINATIONS_WEBHOOK_SIGNATURE_SECRET_PREFIX: z.nullable(z.string())
+    .optional(),
+  DESTINATIONS_WEBHOOK_SIGNING_SECRET_TEMPLATE: z.nullable(z.string())
+    .optional(),
+  DESTINATIONS_WEBHOOK_TIMESTAMP_FORMAT: z.nullable(z.string()).optional(),
+  DESTINATIONS_WEBHOOK_TIMESTAMP_HEADER_NAME: z.nullable(z.string()).optional(),
+  DESTINATIONS_WEBHOOK_TOPIC_HEADER_NAME: z.nullable(z.string()).optional(),
+  HTTP_USER_AGENT: z.nullable(z.string()).optional(),
+  IDGEN_ATTEMPT_PREFIX: z.nullable(z.string()).optional(),
+  IDGEN_DESTINATION_PREFIX: z.nullable(z.string()).optional(),
+  IDGEN_EVENT_PREFIX: z.nullable(z.string()).optional(),
+  IDGEN_TYPE: z.nullable(z.string()).optional(),
+  MAX_DESTINATIONS_PER_TENANT: z.nullable(z.string()).optional(),
+  PORTAL_BRAND_COLOR: z.nullable(z.string()).optional(),
+  PORTAL_DISABLE_OUTPOST_BRANDING: z.nullable(z.string()).optional(),
+  PORTAL_FAVICON_URL: z.nullable(z.string()).optional(),
+  PORTAL_FORCE_THEME: z.nullable(z.string()).optional(),
+  PORTAL_LOGO: z.nullable(z.string()).optional(),
+  PORTAL_LOGO_DARK: z.nullable(z.string()).optional(),
+  PORTAL_ORGANIZATION_NAME: z.nullable(z.string()).optional(),
+  PORTAL_REFERER_URL: z.nullable(z.string()).optional(),
+  PORTAL_REFRESH_URL: z.nullable(z.string()).optional(),
+  PORTAL_ENABLE_DESTINATION_FILTER: z.nullable(z.string()).optional(),
+  PORTAL_ENABLE_WEBHOOK_CUSTOM_HEADERS: z.nullable(z.string()).optional(),
+  RETRY_INTERVAL_SECONDS: z.nullable(z.string()).optional(),
+  MAX_RETRY_LIMIT: z.nullable(z.string()).optional(),
+  RETRY_SCHEDULE: z.nullable(z.string()).optional(),
+  OTEL_EXPORTER_OTLP_ENDPOINT: z.nullable(z.string()).optional(),
+  OTEL_EXPORTER_OTLP_HEADERS: z.nullable(z.string()).optional(),
+  OTEL_EXPORTER_OTLP_PROTOCOL: z.nullable(z.string()).optional(),
+  OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: z.nullable(z.string()).optional(),
+  OTEL_EXPORTER_OTLP_METRICS_ENDPOINT: z.nullable(z.string()).optional(),
+  OTEL_EXPORTER_OTLP_LOGS_ENDPOINT: z.nullable(z.string()).optional(),
+  OTEL_SERVICE_NAME: z.nullable(z.string()).optional(),
+  PUBLISH_AWS_SQS_ACCESS_KEY_ID: z.nullable(z.string()).optional(),
+  PUBLISH_AWS_SQS_ENDPOINT: z.nullable(z.string()).optional(),
+  PUBLISH_AWS_SQS_QUEUE: z.nullable(z.string()).optional(),
+  PUBLISH_AWS_SQS_REGION: z.nullable(z.string()).optional(),
+  PUBLISH_AWS_SQS_SECRET_ACCESS_KEY: z.nullable(z.string()).optional(),
+  PUBLISH_AZURE_SERVICEBUS_CONNECTION_STRING: z.nullable(z.string()).optional(),
+  PUBLISH_AZURE_SERVICEBUS_SUBSCRIPTION: z.nullable(z.string()).optional(),
+  PUBLISH_AZURE_SERVICEBUS_TOPIC: z.nullable(z.string()).optional(),
+  PUBLISH_GCP_PUBSUB_PROJECT: z.nullable(z.string()).optional(),
+  PUBLISH_GCP_PUBSUB_SERVICE_ACCOUNT_CREDENTIALS: z.nullable(z.string())
+    .optional(),
+  PUBLISH_GCP_PUBSUB_SUBSCRIPTION: z.nullable(z.string()).optional(),
+  PUBLISH_GCP_PUBSUB_TOPIC: z.nullable(z.string()).optional(),
+  PUBLISH_RABBITMQ_EXCHANGE: z.nullable(z.string()).optional(),
+  PUBLISH_RABBITMQ_QUEUE: z.nullable(z.string()).optional(),
+  PUBLISH_RABBITMQ_SERVER_URL: z.nullable(z.string()).optional(),
+  TOPICS: z.nullable(z.string()).optional(),
+  TOPICS_ALLOW_WILDCARDS: z.nullable(z.string()).optional(),
 }).transform((v) => {
   return remap$(v, {
     "ALERT_AUTO_DISABLE_DESTINATION": "alertAutoDisableDestination",
@@ -235,6 +259,7 @@ export const ManagedConfig$inboundSchema: z.ZodType<
       "destinationsAwsKinesisMetadataInPayload",
     "DESTINATIONS_INCLUDE_MILLISECOND_TIMESTAMP":
       "destinationsIncludeMillisecondTimestamp",
+    "DESTINATIONS_PROXY_URL": "destinationsProxyUrl",
     "DESTINATIONS_WEBHOOK_COMPAT_HEADERS": "destinationsWebhookCompatHeaders",
     "DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_ALGORITHM":
       "destinationsWebhookCompatSignatureAlgorithm",
@@ -328,79 +353,92 @@ export const ManagedConfig$inboundSchema: z.ZodType<
 });
 /** @internal */
 export type ManagedConfig$Outbound = {
-  ALERT_AUTO_DISABLE_DESTINATION?: string | undefined;
-  ALERT_CONSECUTIVE_FAILURE_COUNT?: string | undefined;
-  ALERT_EXHAUSTED_RETRIES_WINDOW_SECONDS?: string | undefined;
-  DELIVERY_TIMEOUT_SECONDS?: string | undefined;
-  DESTINATIONS_AWS_KINESIS_METADATA_IN_PAYLOAD?: string | undefined;
-  DESTINATIONS_INCLUDE_MILLISECOND_TIMESTAMP?: string | undefined;
-  DESTINATIONS_WEBHOOK_COMPAT_HEADERS?: string | undefined;
-  DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_ALGORITHM?: string | undefined;
-  DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_CONTENT_TEMPLATE?: string | undefined;
-  DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_ENCODING?: string | undefined;
-  DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_HEADER_NAME?: string | undefined;
-  DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_HEADER_TEMPLATE?: string | undefined;
-  DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_SECRET_ENCODING?: string | undefined;
-  DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_SECRET_PREFIX?: string | undefined;
-  DESTINATIONS_WEBHOOK_EVENT_ID_HEADER_NAME?: string | undefined;
-  DESTINATIONS_WEBHOOK_HEADER_PREFIX?: string | undefined;
-  DESTINATIONS_WEBHOOK_MODE?: string | undefined;
-  DESTINATIONS_WEBHOOK_PROXY_URL?: string | undefined;
-  DESTINATIONS_WEBHOOK_SIGNATURE_ALGORITHM?: string | undefined;
-  DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE?: string | undefined;
-  DESTINATIONS_WEBHOOK_SIGNATURE_ENCODING?: string | undefined;
-  DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_NAME?: string | undefined;
-  DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE?: string | undefined;
-  DESTINATIONS_WEBHOOK_SIGNATURE_SECRET_ENCODING?: string | undefined;
-  DESTINATIONS_WEBHOOK_SIGNATURE_SECRET_PREFIX?: string | undefined;
-  DESTINATIONS_WEBHOOK_SIGNING_SECRET_TEMPLATE?: string | undefined;
-  DESTINATIONS_WEBHOOK_TIMESTAMP_FORMAT?: string | undefined;
-  DESTINATIONS_WEBHOOK_TIMESTAMP_HEADER_NAME?: string | undefined;
-  DESTINATIONS_WEBHOOK_TOPIC_HEADER_NAME?: string | undefined;
-  HTTP_USER_AGENT?: string | undefined;
-  IDGEN_ATTEMPT_PREFIX?: string | undefined;
-  IDGEN_DESTINATION_PREFIX?: string | undefined;
-  IDGEN_EVENT_PREFIX?: string | undefined;
-  IDGEN_TYPE?: string | undefined;
-  MAX_DESTINATIONS_PER_TENANT?: string | undefined;
-  PORTAL_BRAND_COLOR?: string | undefined;
-  PORTAL_DISABLE_OUTPOST_BRANDING?: string | undefined;
-  PORTAL_FAVICON_URL?: string | undefined;
-  PORTAL_FORCE_THEME?: string | undefined;
-  PORTAL_LOGO?: string | undefined;
-  PORTAL_LOGO_DARK?: string | undefined;
-  PORTAL_ORGANIZATION_NAME?: string | undefined;
-  PORTAL_REFERER_URL?: string | undefined;
-  PORTAL_REFRESH_URL?: string | undefined;
-  PORTAL_ENABLE_DESTINATION_FILTER?: string | undefined;
-  PORTAL_ENABLE_WEBHOOK_CUSTOM_HEADERS?: string | undefined;
-  RETRY_INTERVAL_SECONDS?: string | undefined;
-  MAX_RETRY_LIMIT?: string | undefined;
-  RETRY_SCHEDULE?: string | undefined;
-  OTEL_EXPORTER_OTLP_ENDPOINT?: string | undefined;
-  OTEL_EXPORTER_OTLP_HEADERS?: string | undefined;
-  OTEL_EXPORTER_OTLP_PROTOCOL?: string | undefined;
-  OTEL_EXPORTER_OTLP_TRACES_ENDPOINT?: string | undefined;
-  OTEL_EXPORTER_OTLP_METRICS_ENDPOINT?: string | undefined;
-  OTEL_EXPORTER_OTLP_LOGS_ENDPOINT?: string | undefined;
-  OTEL_SERVICE_NAME?: string | undefined;
-  PUBLISH_AWS_SQS_ACCESS_KEY_ID?: string | undefined;
-  PUBLISH_AWS_SQS_ENDPOINT?: string | undefined;
-  PUBLISH_AWS_SQS_QUEUE?: string | undefined;
-  PUBLISH_AWS_SQS_REGION?: string | undefined;
-  PUBLISH_AWS_SQS_SECRET_ACCESS_KEY?: string | undefined;
-  PUBLISH_AZURE_SERVICEBUS_CONNECTION_STRING?: string | undefined;
-  PUBLISH_AZURE_SERVICEBUS_SUBSCRIPTION?: string | undefined;
-  PUBLISH_AZURE_SERVICEBUS_TOPIC?: string | undefined;
-  PUBLISH_GCP_PUBSUB_PROJECT?: string | undefined;
-  PUBLISH_GCP_PUBSUB_SERVICE_ACCOUNT_CREDENTIALS?: string | undefined;
-  PUBLISH_GCP_PUBSUB_SUBSCRIPTION?: string | undefined;
-  PUBLISH_GCP_PUBSUB_TOPIC?: string | undefined;
-  PUBLISH_RABBITMQ_EXCHANGE?: string | undefined;
-  PUBLISH_RABBITMQ_QUEUE?: string | undefined;
-  PUBLISH_RABBITMQ_SERVER_URL?: string | undefined;
-  TOPICS?: string | undefined;
-  TOPICS_ALLOW_WILDCARDS?: string | undefined;
+  ALERT_AUTO_DISABLE_DESTINATION?: string | null | undefined;
+  ALERT_CONSECUTIVE_FAILURE_COUNT?: string | null | undefined;
+  ALERT_EXHAUSTED_RETRIES_WINDOW_SECONDS?: string | null | undefined;
+  DELIVERY_TIMEOUT_SECONDS?: string | null | undefined;
+  DESTINATIONS_AWS_KINESIS_METADATA_IN_PAYLOAD?: string | null | undefined;
+  DESTINATIONS_INCLUDE_MILLISECOND_TIMESTAMP?: string | null | undefined;
+  DESTINATIONS_PROXY_URL?: string | null | undefined;
+  DESTINATIONS_WEBHOOK_COMPAT_HEADERS?: string | null | undefined;
+  DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_ALGORITHM?: string | null | undefined;
+  DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_CONTENT_TEMPLATE?:
+    | string
+    | null
+    | undefined;
+  DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_ENCODING?: string | null | undefined;
+  DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_HEADER_NAME?: string | null | undefined;
+  DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_HEADER_TEMPLATE?:
+    | string
+    | null
+    | undefined;
+  DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_SECRET_ENCODING?:
+    | string
+    | null
+    | undefined;
+  DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_SECRET_PREFIX?:
+    | string
+    | null
+    | undefined;
+  DESTINATIONS_WEBHOOK_EVENT_ID_HEADER_NAME?: string | null | undefined;
+  DESTINATIONS_WEBHOOK_HEADER_PREFIX?: string | null | undefined;
+  DESTINATIONS_WEBHOOK_MODE?: string | null | undefined;
+  DESTINATIONS_WEBHOOK_PROXY_URL?: string | null | undefined;
+  DESTINATIONS_WEBHOOK_SIGNATURE_ALGORITHM?: string | null | undefined;
+  DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE?: string | null | undefined;
+  DESTINATIONS_WEBHOOK_SIGNATURE_ENCODING?: string | null | undefined;
+  DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_NAME?: string | null | undefined;
+  DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE?: string | null | undefined;
+  DESTINATIONS_WEBHOOK_SIGNATURE_SECRET_ENCODING?: string | null | undefined;
+  DESTINATIONS_WEBHOOK_SIGNATURE_SECRET_PREFIX?: string | null | undefined;
+  DESTINATIONS_WEBHOOK_SIGNING_SECRET_TEMPLATE?: string | null | undefined;
+  DESTINATIONS_WEBHOOK_TIMESTAMP_FORMAT?: string | null | undefined;
+  DESTINATIONS_WEBHOOK_TIMESTAMP_HEADER_NAME?: string | null | undefined;
+  DESTINATIONS_WEBHOOK_TOPIC_HEADER_NAME?: string | null | undefined;
+  HTTP_USER_AGENT?: string | null | undefined;
+  IDGEN_ATTEMPT_PREFIX?: string | null | undefined;
+  IDGEN_DESTINATION_PREFIX?: string | null | undefined;
+  IDGEN_EVENT_PREFIX?: string | null | undefined;
+  IDGEN_TYPE?: string | null | undefined;
+  MAX_DESTINATIONS_PER_TENANT?: string | null | undefined;
+  PORTAL_BRAND_COLOR?: string | null | undefined;
+  PORTAL_DISABLE_OUTPOST_BRANDING?: string | null | undefined;
+  PORTAL_FAVICON_URL?: string | null | undefined;
+  PORTAL_FORCE_THEME?: string | null | undefined;
+  PORTAL_LOGO?: string | null | undefined;
+  PORTAL_LOGO_DARK?: string | null | undefined;
+  PORTAL_ORGANIZATION_NAME?: string | null | undefined;
+  PORTAL_REFERER_URL?: string | null | undefined;
+  PORTAL_REFRESH_URL?: string | null | undefined;
+  PORTAL_ENABLE_DESTINATION_FILTER?: string | null | undefined;
+  PORTAL_ENABLE_WEBHOOK_CUSTOM_HEADERS?: string | null | undefined;
+  RETRY_INTERVAL_SECONDS?: string | null | undefined;
+  MAX_RETRY_LIMIT?: string | null | undefined;
+  RETRY_SCHEDULE?: string | null | undefined;
+  OTEL_EXPORTER_OTLP_ENDPOINT?: string | null | undefined;
+  OTEL_EXPORTER_OTLP_HEADERS?: string | null | undefined;
+  OTEL_EXPORTER_OTLP_PROTOCOL?: string | null | undefined;
+  OTEL_EXPORTER_OTLP_TRACES_ENDPOINT?: string | null | undefined;
+  OTEL_EXPORTER_OTLP_METRICS_ENDPOINT?: string | null | undefined;
+  OTEL_EXPORTER_OTLP_LOGS_ENDPOINT?: string | null | undefined;
+  OTEL_SERVICE_NAME?: string | null | undefined;
+  PUBLISH_AWS_SQS_ACCESS_KEY_ID?: string | null | undefined;
+  PUBLISH_AWS_SQS_ENDPOINT?: string | null | undefined;
+  PUBLISH_AWS_SQS_QUEUE?: string | null | undefined;
+  PUBLISH_AWS_SQS_REGION?: string | null | undefined;
+  PUBLISH_AWS_SQS_SECRET_ACCESS_KEY?: string | null | undefined;
+  PUBLISH_AZURE_SERVICEBUS_CONNECTION_STRING?: string | null | undefined;
+  PUBLISH_AZURE_SERVICEBUS_SUBSCRIPTION?: string | null | undefined;
+  PUBLISH_AZURE_SERVICEBUS_TOPIC?: string | null | undefined;
+  PUBLISH_GCP_PUBSUB_PROJECT?: string | null | undefined;
+  PUBLISH_GCP_PUBSUB_SERVICE_ACCOUNT_CREDENTIALS?: string | null | undefined;
+  PUBLISH_GCP_PUBSUB_SUBSCRIPTION?: string | null | undefined;
+  PUBLISH_GCP_PUBSUB_TOPIC?: string | null | undefined;
+  PUBLISH_RABBITMQ_EXCHANGE?: string | null | undefined;
+  PUBLISH_RABBITMQ_QUEUE?: string | null | undefined;
+  PUBLISH_RABBITMQ_SERVER_URL?: string | null | undefined;
+  TOPICS?: string | null | undefined;
+  TOPICS_ALLOW_WILDCARDS?: string | null | undefined;
 };
 
 /** @internal */
@@ -409,79 +447,87 @@ export const ManagedConfig$outboundSchema: z.ZodType<
   z.ZodTypeDef,
   ManagedConfig
 > = z.object({
-  alertAutoDisableDestination: z.string().optional(),
-  alertConsecutiveFailureCount: z.string().optional(),
-  alertExhaustedRetriesWindowSeconds: z.string().optional(),
-  deliveryTimeoutSeconds: z.string().optional(),
-  destinationsAwsKinesisMetadataInPayload: z.string().optional(),
-  destinationsIncludeMillisecondTimestamp: z.string().optional(),
-  destinationsWebhookCompatHeaders: z.string().optional(),
-  destinationsWebhookCompatSignatureAlgorithm: z.string().optional(),
-  destinationsWebhookCompatSignatureContentTemplate: z.string().optional(),
-  destinationsWebhookCompatSignatureEncoding: z.string().optional(),
-  destinationsWebhookCompatSignatureHeaderName: z.string().optional(),
-  destinationsWebhookCompatSignatureHeaderTemplate: z.string().optional(),
-  destinationsWebhookCompatSignatureSecretEncoding: z.string().optional(),
-  destinationsWebhookCompatSignatureSecretPrefix: z.string().optional(),
-  destinationsWebhookEventIdHeaderName: z.string().optional(),
-  destinationsWebhookHeaderPrefix: z.string().optional(),
-  destinationsWebhookMode: z.string().optional(),
-  destinationsWebhookProxyUrl: z.string().optional(),
-  destinationsWebhookSignatureAlgorithm: z.string().optional(),
-  destinationsWebhookSignatureContentTemplate: z.string().optional(),
-  destinationsWebhookSignatureEncoding: z.string().optional(),
-  destinationsWebhookSignatureHeaderName: z.string().optional(),
-  destinationsWebhookSignatureHeaderTemplate: z.string().optional(),
-  destinationsWebhookSignatureSecretEncoding: z.string().optional(),
-  destinationsWebhookSignatureSecretPrefix: z.string().optional(),
-  destinationsWebhookSigningSecretTemplate: z.string().optional(),
-  destinationsWebhookTimestampFormat: z.string().optional(),
-  destinationsWebhookTimestampHeaderName: z.string().optional(),
-  destinationsWebhookTopicHeaderName: z.string().optional(),
-  httpUserAgent: z.string().optional(),
-  idgenAttemptPrefix: z.string().optional(),
-  idgenDestinationPrefix: z.string().optional(),
-  idgenEventPrefix: z.string().optional(),
-  idgenType: z.string().optional(),
-  maxDestinationsPerTenant: z.string().optional(),
-  portalBrandColor: z.string().optional(),
-  portalDisableOutpostBranding: z.string().optional(),
-  portalFaviconUrl: z.string().optional(),
-  portalForceTheme: z.string().optional(),
-  portalLogo: z.string().optional(),
-  portalLogoDark: z.string().optional(),
-  portalOrganizationName: z.string().optional(),
-  portalRefererUrl: z.string().optional(),
-  portalRefreshUrl: z.string().optional(),
-  portalEnableDestinationFilter: z.string().optional(),
-  portalEnableWebhookCustomHeaders: z.string().optional(),
-  retryIntervalSeconds: z.string().optional(),
-  maxRetryLimit: z.string().optional(),
-  retrySchedule: z.string().optional(),
-  otelExporterOtlpEndpoint: z.string().optional(),
-  otelExporterOtlpHeaders: z.string().optional(),
-  otelExporterOtlpProtocol: z.string().optional(),
-  otelExporterOtlpTracesEndpoint: z.string().optional(),
-  otelExporterOtlpMetricsEndpoint: z.string().optional(),
-  otelExporterOtlpLogsEndpoint: z.string().optional(),
-  otelServiceName: z.string().optional(),
-  publishAwsSqsAccessKeyId: z.string().optional(),
-  publishAwsSqsEndpoint: z.string().optional(),
-  publishAwsSqsQueue: z.string().optional(),
-  publishAwsSqsRegion: z.string().optional(),
-  publishAwsSqsSecretAccessKey: z.string().optional(),
-  publishAzureServicebusConnectionString: z.string().optional(),
-  publishAzureServicebusSubscription: z.string().optional(),
-  publishAzureServicebusTopic: z.string().optional(),
-  publishGcpPubsubProject: z.string().optional(),
-  publishGcpPubsubServiceAccountCredentials: z.string().optional(),
-  publishGcpPubsubSubscription: z.string().optional(),
-  publishGcpPubsubTopic: z.string().optional(),
-  publishRabbitmqExchange: z.string().optional(),
-  publishRabbitmqQueue: z.string().optional(),
-  publishRabbitmqServerUrl: z.string().optional(),
-  topics: z.string().optional(),
-  topicsAllowWildcards: z.string().optional(),
+  alertAutoDisableDestination: z.nullable(z.string()).optional(),
+  alertConsecutiveFailureCount: z.nullable(z.string()).optional(),
+  alertExhaustedRetriesWindowSeconds: z.nullable(z.string()).optional(),
+  deliveryTimeoutSeconds: z.nullable(z.string()).optional(),
+  destinationsAwsKinesisMetadataInPayload: z.nullable(z.string()).optional(),
+  destinationsIncludeMillisecondTimestamp: z.nullable(z.string()).optional(),
+  destinationsProxyUrl: z.nullable(z.string()).optional(),
+  destinationsWebhookCompatHeaders: z.nullable(z.string()).optional(),
+  destinationsWebhookCompatSignatureAlgorithm: z.nullable(z.string())
+    .optional(),
+  destinationsWebhookCompatSignatureContentTemplate: z.nullable(z.string())
+    .optional(),
+  destinationsWebhookCompatSignatureEncoding: z.nullable(z.string()).optional(),
+  destinationsWebhookCompatSignatureHeaderName: z.nullable(z.string())
+    .optional(),
+  destinationsWebhookCompatSignatureHeaderTemplate: z.nullable(z.string())
+    .optional(),
+  destinationsWebhookCompatSignatureSecretEncoding: z.nullable(z.string())
+    .optional(),
+  destinationsWebhookCompatSignatureSecretPrefix: z.nullable(z.string())
+    .optional(),
+  destinationsWebhookEventIdHeaderName: z.nullable(z.string()).optional(),
+  destinationsWebhookHeaderPrefix: z.nullable(z.string()).optional(),
+  destinationsWebhookMode: z.nullable(z.string()).optional(),
+  destinationsWebhookProxyUrl: z.nullable(z.string()).optional(),
+  destinationsWebhookSignatureAlgorithm: z.nullable(z.string()).optional(),
+  destinationsWebhookSignatureContentTemplate: z.nullable(z.string())
+    .optional(),
+  destinationsWebhookSignatureEncoding: z.nullable(z.string()).optional(),
+  destinationsWebhookSignatureHeaderName: z.nullable(z.string()).optional(),
+  destinationsWebhookSignatureHeaderTemplate: z.nullable(z.string()).optional(),
+  destinationsWebhookSignatureSecretEncoding: z.nullable(z.string()).optional(),
+  destinationsWebhookSignatureSecretPrefix: z.nullable(z.string()).optional(),
+  destinationsWebhookSigningSecretTemplate: z.nullable(z.string()).optional(),
+  destinationsWebhookTimestampFormat: z.nullable(z.string()).optional(),
+  destinationsWebhookTimestampHeaderName: z.nullable(z.string()).optional(),
+  destinationsWebhookTopicHeaderName: z.nullable(z.string()).optional(),
+  httpUserAgent: z.nullable(z.string()).optional(),
+  idgenAttemptPrefix: z.nullable(z.string()).optional(),
+  idgenDestinationPrefix: z.nullable(z.string()).optional(),
+  idgenEventPrefix: z.nullable(z.string()).optional(),
+  idgenType: z.nullable(z.string()).optional(),
+  maxDestinationsPerTenant: z.nullable(z.string()).optional(),
+  portalBrandColor: z.nullable(z.string()).optional(),
+  portalDisableOutpostBranding: z.nullable(z.string()).optional(),
+  portalFaviconUrl: z.nullable(z.string()).optional(),
+  portalForceTheme: z.nullable(z.string()).optional(),
+  portalLogo: z.nullable(z.string()).optional(),
+  portalLogoDark: z.nullable(z.string()).optional(),
+  portalOrganizationName: z.nullable(z.string()).optional(),
+  portalRefererUrl: z.nullable(z.string()).optional(),
+  portalRefreshUrl: z.nullable(z.string()).optional(),
+  portalEnableDestinationFilter: z.nullable(z.string()).optional(),
+  portalEnableWebhookCustomHeaders: z.nullable(z.string()).optional(),
+  retryIntervalSeconds: z.nullable(z.string()).optional(),
+  maxRetryLimit: z.nullable(z.string()).optional(),
+  retrySchedule: z.nullable(z.string()).optional(),
+  otelExporterOtlpEndpoint: z.nullable(z.string()).optional(),
+  otelExporterOtlpHeaders: z.nullable(z.string()).optional(),
+  otelExporterOtlpProtocol: z.nullable(z.string()).optional(),
+  otelExporterOtlpTracesEndpoint: z.nullable(z.string()).optional(),
+  otelExporterOtlpMetricsEndpoint: z.nullable(z.string()).optional(),
+  otelExporterOtlpLogsEndpoint: z.nullable(z.string()).optional(),
+  otelServiceName: z.nullable(z.string()).optional(),
+  publishAwsSqsAccessKeyId: z.nullable(z.string()).optional(),
+  publishAwsSqsEndpoint: z.nullable(z.string()).optional(),
+  publishAwsSqsQueue: z.nullable(z.string()).optional(),
+  publishAwsSqsRegion: z.nullable(z.string()).optional(),
+  publishAwsSqsSecretAccessKey: z.nullable(z.string()).optional(),
+  publishAzureServicebusConnectionString: z.nullable(z.string()).optional(),
+  publishAzureServicebusSubscription: z.nullable(z.string()).optional(),
+  publishAzureServicebusTopic: z.nullable(z.string()).optional(),
+  publishGcpPubsubProject: z.nullable(z.string()).optional(),
+  publishGcpPubsubServiceAccountCredentials: z.nullable(z.string()).optional(),
+  publishGcpPubsubSubscription: z.nullable(z.string()).optional(),
+  publishGcpPubsubTopic: z.nullable(z.string()).optional(),
+  publishRabbitmqExchange: z.nullable(z.string()).optional(),
+  publishRabbitmqQueue: z.nullable(z.string()).optional(),
+  publishRabbitmqServerUrl: z.nullable(z.string()).optional(),
+  topics: z.nullable(z.string()).optional(),
+  topicsAllowWildcards: z.nullable(z.string()).optional(),
 }).transform((v) => {
   return remap$(v, {
     alertAutoDisableDestination: "ALERT_AUTO_DISABLE_DESTINATION",
@@ -493,6 +539,7 @@ export const ManagedConfig$outboundSchema: z.ZodType<
       "DESTINATIONS_AWS_KINESIS_METADATA_IN_PAYLOAD",
     destinationsIncludeMillisecondTimestamp:
       "DESTINATIONS_INCLUDE_MILLISECOND_TIMESTAMP",
+    destinationsProxyUrl: "DESTINATIONS_PROXY_URL",
     destinationsWebhookCompatHeaders: "DESTINATIONS_WEBHOOK_COMPAT_HEADERS",
     destinationsWebhookCompatSignatureAlgorithm:
       "DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_ALGORITHM",

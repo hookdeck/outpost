@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="color-scheme" content="light dark">
-    <title>SDK Changelog - python</title>
+    <title>SDK Changelog - typescript</title>
     <style>
         :root {
             --bg-color: #ffffff;
@@ -95,244 +95,244 @@
         }
     </style>
 </head>
-<body><h2 id="python-sdk-changes">Python SDK Changes:</h2>
+<body><h2 id="typescript-sdk-changes">Typescript SDK Changes:</h2>
 
 <ul>
-<li><code>outpost.configuration.get_managed_config()</code>: <code>response</code> <strong>Changed</strong> (Breaking ⚠️)
+<li><code>outpost.configuration.getManagedConfig()</code>: <code>response</code> <strong>Changed</strong> (Breaking ⚠️)
 
 <ul>
-<li><code>alert_auto_disable_destination</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>alert_consecutive_failure_count</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>alert_exhausted_retries_window_seconds</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>delivery_timeout_seconds</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinations_aws_kinesis_metadata_in_payload</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinations_include_millisecond_timestamp</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinations_proxy_url</code> <strong>Added</strong></li>
-<li><code>destinations_webhook_compat_headers</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinations_webhook_compat_signature_algorithm</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinations_webhook_compat_signature_content_template</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinations_webhook_compat_signature_encoding</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinations_webhook_compat_signature_header_name</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinations_webhook_compat_signature_header_template</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinations_webhook_compat_signature_secret_encoding</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinations_webhook_compat_signature_secret_prefix</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinations_webhook_event_id_header_name</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinations_webhook_header_prefix</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinations_webhook_mode</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinations_webhook_proxy_url</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinations_webhook_signature_algorithm</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinations_webhook_signature_content_template</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinations_webhook_signature_encoding</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinations_webhook_signature_header_name</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinations_webhook_signature_header_template</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinations_webhook_signature_secret_encoding</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinations_webhook_signature_secret_prefix</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinations_webhook_signing_secret_template</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinations_webhook_timestamp_format</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinations_webhook_timestamp_header_name</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinations_webhook_topic_header_name</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>http_user_agent</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>idgen_attempt_prefix</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>idgen_destination_prefix</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>idgen_event_prefix</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>idgen_type</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>max_destinations_per_tenant</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>max_retry_limit</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>otel_exporter_otlp_endpoint</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>otel_exporter_otlp_headers</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>otel_exporter_otlp_logs_endpoint</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>otel_exporter_otlp_metrics_endpoint</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>otel_exporter_otlp_protocol</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>otel_exporter_otlp_traces_endpoint</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>otel_service_name</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>portal_brand_color</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>portal_disable_outpost_branding</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>portal_enable_destination_filter</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>portal_enable_webhook_custom_headers</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>portal_favicon_url</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>portal_force_theme</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>portal_logo_dark</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>portal_logo</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>portal_organization_name</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>portal_referer_url</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>portal_refresh_url</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>publish_aws_sqs_access_key_id</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>publish_aws_sqs_endpoint</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>publish_aws_sqs_queue</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>publish_aws_sqs_region</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>publish_aws_sqs_secret_access_key</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>publish_azure_servicebus_connection_string</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>publish_azure_servicebus_subscription</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>publish_azure_servicebus_topic</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>publish_gcp_pubsub_project</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>publish_gcp_pubsub_service_account_credentials</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>publish_gcp_pubsub_subscription</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>publish_gcp_pubsub_topic</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>publish_rabbitmq_exchange</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>publish_rabbitmq_queue</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>publish_rabbitmq_server_url</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>retry_interval_seconds</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>retry_schedule</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>topics_allow_wildcards</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>alertAutoDisableDestination</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>alertConsecutiveFailureCount</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>alertExhaustedRetriesWindowSeconds</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>deliveryTimeoutSeconds</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>destinationsAwsKinesisMetadataInPayload</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>destinationsIncludeMillisecondTimestamp</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>destinationsProxyUrl</code> <strong>Added</strong></li>
+<li><code>destinationsWebhookCompatHeaders</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>destinationsWebhookCompatSignatureAlgorithm</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>destinationsWebhookCompatSignatureContentTemplate</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>destinationsWebhookCompatSignatureEncoding</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>destinationsWebhookCompatSignatureHeaderName</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>destinationsWebhookCompatSignatureHeaderTemplate</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>destinationsWebhookCompatSignatureSecretEncoding</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>destinationsWebhookCompatSignatureSecretPrefix</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>destinationsWebhookEventIdHeaderName</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>destinationsWebhookHeaderPrefix</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>destinationsWebhookMode</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>destinationsWebhookProxyUrl</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>destinationsWebhookSignatureAlgorithm</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>destinationsWebhookSignatureContentTemplate</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>destinationsWebhookSignatureEncoding</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>destinationsWebhookSignatureHeaderName</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>destinationsWebhookSignatureHeaderTemplate</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>destinationsWebhookSignatureSecretEncoding</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>destinationsWebhookSignatureSecretPrefix</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>destinationsWebhookSigningSecretTemplate</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>destinationsWebhookTimestampFormat</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>destinationsWebhookTimestampHeaderName</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>destinationsWebhookTopicHeaderName</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>httpUserAgent</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>idgenAttemptPrefix</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>idgenDestinationPrefix</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>idgenEventPrefix</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>idgenType</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>maxDestinationsPerTenant</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>maxRetryLimit</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>otelExporterOtlpEndpoint</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>otelExporterOtlpHeaders</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>otelExporterOtlpLogsEndpoint</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>otelExporterOtlpMetricsEndpoint</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>otelExporterOtlpProtocol</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>otelExporterOtlpTracesEndpoint</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>otelServiceName</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>portalBrandColor</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>portalDisableOutpostBranding</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>portalEnableDestinationFilter</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>portalEnableWebhookCustomHeaders</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>portalFaviconUrl</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>portalForceTheme</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>portalLogoDark</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>portalLogo</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>portalOrganizationName</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>portalRefererUrl</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>portalRefreshUrl</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>publishAwsSqsAccessKeyId</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>publishAwsSqsEndpoint</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>publishAwsSqsQueue</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>publishAwsSqsRegion</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>publishAwsSqsSecretAccessKey</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>publishAzureServicebusConnectionString</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>publishAzureServicebusSubscription</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>publishAzureServicebusTopic</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>publishGcpPubsubProject</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>publishGcpPubsubServiceAccountCredentials</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>publishGcpPubsubSubscription</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>publishGcpPubsubTopic</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>publishRabbitmqExchange</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>publishRabbitmqQueue</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>publishRabbitmqServerUrl</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>retryIntervalSeconds</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>retrySchedule</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>topicsAllowWildcards</code> <strong>Changed</strong> (Breaking ⚠️)</li>
 <li><code>topics</code> <strong>Changed</strong> (Breaking ⚠️)</li>
 </ul></li>
-<li><code>outpost.configuration.update_managed_config()</code>:
+<li><code>outpost.configuration.updateManagedConfig()</code>:
 
 <ul>
 <li><code>request</code> <strong>Changed</strong>
 
 <ul>
-<li><code>alert_auto_disable_destination</code> <strong>Changed</strong></li>
-<li><code>alert_consecutive_failure_count</code> <strong>Changed</strong></li>
-<li><code>alert_exhausted_retries_window_seconds</code> <strong>Changed</strong></li>
-<li><code>delivery_timeout_seconds</code> <strong>Changed</strong></li>
-<li><code>destinations_aws_kinesis_metadata_in_payload</code> <strong>Changed</strong></li>
-<li><code>destinations_include_millisecond_timestamp</code> <strong>Changed</strong></li>
-<li><code>destinations_proxy_url</code> <strong>Added</strong></li>
-<li><code>destinations_webhook_compat_headers</code> <strong>Changed</strong></li>
-<li><code>destinations_webhook_compat_signature_algorithm</code> <strong>Changed</strong></li>
-<li><code>destinations_webhook_compat_signature_content_template</code> <strong>Changed</strong></li>
-<li><code>destinations_webhook_compat_signature_encoding</code> <strong>Changed</strong></li>
-<li><code>destinations_webhook_compat_signature_header_name</code> <strong>Changed</strong></li>
-<li><code>destinations_webhook_compat_signature_header_template</code> <strong>Changed</strong></li>
-<li><code>destinations_webhook_compat_signature_secret_encoding</code> <strong>Changed</strong></li>
-<li><code>destinations_webhook_compat_signature_secret_prefix</code> <strong>Changed</strong></li>
-<li><code>destinations_webhook_event_id_header_name</code> <strong>Changed</strong></li>
-<li><code>destinations_webhook_header_prefix</code> <strong>Changed</strong></li>
-<li><code>destinations_webhook_mode</code> <strong>Changed</strong></li>
-<li><code>destinations_webhook_proxy_url</code> <strong>Changed</strong></li>
-<li><code>destinations_webhook_signature_algorithm</code> <strong>Changed</strong></li>
-<li><code>destinations_webhook_signature_content_template</code> <strong>Changed</strong></li>
-<li><code>destinations_webhook_signature_encoding</code> <strong>Changed</strong></li>
-<li><code>destinations_webhook_signature_header_name</code> <strong>Changed</strong></li>
-<li><code>destinations_webhook_signature_header_template</code> <strong>Changed</strong></li>
-<li><code>destinations_webhook_signature_secret_encoding</code> <strong>Changed</strong></li>
-<li><code>destinations_webhook_signature_secret_prefix</code> <strong>Changed</strong></li>
-<li><code>destinations_webhook_signing_secret_template</code> <strong>Changed</strong></li>
-<li><code>destinations_webhook_timestamp_format</code> <strong>Changed</strong></li>
-<li><code>destinations_webhook_timestamp_header_name</code> <strong>Changed</strong></li>
-<li><code>destinations_webhook_topic_header_name</code> <strong>Changed</strong></li>
-<li><code>http_user_agent</code> <strong>Changed</strong></li>
-<li><code>idgen_attempt_prefix</code> <strong>Changed</strong></li>
-<li><code>idgen_destination_prefix</code> <strong>Changed</strong></li>
-<li><code>idgen_event_prefix</code> <strong>Changed</strong></li>
-<li><code>idgen_type</code> <strong>Changed</strong></li>
-<li><code>max_destinations_per_tenant</code> <strong>Changed</strong></li>
-<li><code>max_retry_limit</code> <strong>Changed</strong></li>
-<li><code>otel_exporter_otlp_endpoint</code> <strong>Changed</strong></li>
-<li><code>otel_exporter_otlp_headers</code> <strong>Changed</strong></li>
-<li><code>otel_exporter_otlp_logs_endpoint</code> <strong>Changed</strong></li>
-<li><code>otel_exporter_otlp_metrics_endpoint</code> <strong>Changed</strong></li>
-<li><code>otel_exporter_otlp_protocol</code> <strong>Changed</strong></li>
-<li><code>otel_exporter_otlp_traces_endpoint</code> <strong>Changed</strong></li>
-<li><code>otel_service_name</code> <strong>Changed</strong></li>
-<li><code>portal_brand_color</code> <strong>Changed</strong></li>
-<li><code>portal_disable_outpost_branding</code> <strong>Changed</strong></li>
-<li><code>portal_enable_destination_filter</code> <strong>Changed</strong></li>
-<li><code>portal_enable_webhook_custom_headers</code> <strong>Changed</strong></li>
-<li><code>portal_favicon_url</code> <strong>Changed</strong></li>
-<li><code>portal_force_theme</code> <strong>Changed</strong></li>
-<li><code>portal_logo_dark</code> <strong>Changed</strong></li>
-<li><code>portal_logo</code> <strong>Changed</strong></li>
-<li><code>portal_organization_name</code> <strong>Changed</strong></li>
-<li><code>portal_referer_url</code> <strong>Changed</strong></li>
-<li><code>portal_refresh_url</code> <strong>Changed</strong></li>
-<li><code>publish_aws_sqs_access_key_id</code> <strong>Changed</strong></li>
-<li><code>publish_aws_sqs_endpoint</code> <strong>Changed</strong></li>
-<li><code>publish_aws_sqs_queue</code> <strong>Changed</strong></li>
-<li><code>publish_aws_sqs_region</code> <strong>Changed</strong></li>
-<li><code>publish_aws_sqs_secret_access_key</code> <strong>Changed</strong></li>
-<li><code>publish_azure_servicebus_connection_string</code> <strong>Changed</strong></li>
-<li><code>publish_azure_servicebus_subscription</code> <strong>Changed</strong></li>
-<li><code>publish_azure_servicebus_topic</code> <strong>Changed</strong></li>
-<li><code>publish_gcp_pubsub_project</code> <strong>Changed</strong></li>
-<li><code>publish_gcp_pubsub_service_account_credentials</code> <strong>Changed</strong></li>
-<li><code>publish_gcp_pubsub_subscription</code> <strong>Changed</strong></li>
-<li><code>publish_gcp_pubsub_topic</code> <strong>Changed</strong></li>
-<li><code>publish_rabbitmq_exchange</code> <strong>Changed</strong></li>
-<li><code>publish_rabbitmq_queue</code> <strong>Changed</strong></li>
-<li><code>publish_rabbitmq_server_url</code> <strong>Changed</strong></li>
-<li><code>retry_interval_seconds</code> <strong>Changed</strong></li>
-<li><code>retry_schedule</code> <strong>Changed</strong></li>
-<li><code>topics_allow_wildcards</code> <strong>Changed</strong></li>
+<li><code>alertAutoDisableDestination</code> <strong>Changed</strong></li>
+<li><code>alertConsecutiveFailureCount</code> <strong>Changed</strong></li>
+<li><code>alertExhaustedRetriesWindowSeconds</code> <strong>Changed</strong></li>
+<li><code>deliveryTimeoutSeconds</code> <strong>Changed</strong></li>
+<li><code>destinationsAwsKinesisMetadataInPayload</code> <strong>Changed</strong></li>
+<li><code>destinationsIncludeMillisecondTimestamp</code> <strong>Changed</strong></li>
+<li><code>destinationsProxyUrl</code> <strong>Added</strong></li>
+<li><code>destinationsWebhookCompatHeaders</code> <strong>Changed</strong></li>
+<li><code>destinationsWebhookCompatSignatureAlgorithm</code> <strong>Changed</strong></li>
+<li><code>destinationsWebhookCompatSignatureContentTemplate</code> <strong>Changed</strong></li>
+<li><code>destinationsWebhookCompatSignatureEncoding</code> <strong>Changed</strong></li>
+<li><code>destinationsWebhookCompatSignatureHeaderName</code> <strong>Changed</strong></li>
+<li><code>destinationsWebhookCompatSignatureHeaderTemplate</code> <strong>Changed</strong></li>
+<li><code>destinationsWebhookCompatSignatureSecretEncoding</code> <strong>Changed</strong></li>
+<li><code>destinationsWebhookCompatSignatureSecretPrefix</code> <strong>Changed</strong></li>
+<li><code>destinationsWebhookEventIdHeaderName</code> <strong>Changed</strong></li>
+<li><code>destinationsWebhookHeaderPrefix</code> <strong>Changed</strong></li>
+<li><code>destinationsWebhookMode</code> <strong>Changed</strong></li>
+<li><code>destinationsWebhookProxyUrl</code> <strong>Changed</strong></li>
+<li><code>destinationsWebhookSignatureAlgorithm</code> <strong>Changed</strong></li>
+<li><code>destinationsWebhookSignatureContentTemplate</code> <strong>Changed</strong></li>
+<li><code>destinationsWebhookSignatureEncoding</code> <strong>Changed</strong></li>
+<li><code>destinationsWebhookSignatureHeaderName</code> <strong>Changed</strong></li>
+<li><code>destinationsWebhookSignatureHeaderTemplate</code> <strong>Changed</strong></li>
+<li><code>destinationsWebhookSignatureSecretEncoding</code> <strong>Changed</strong></li>
+<li><code>destinationsWebhookSignatureSecretPrefix</code> <strong>Changed</strong></li>
+<li><code>destinationsWebhookSigningSecretTemplate</code> <strong>Changed</strong></li>
+<li><code>destinationsWebhookTimestampFormat</code> <strong>Changed</strong></li>
+<li><code>destinationsWebhookTimestampHeaderName</code> <strong>Changed</strong></li>
+<li><code>destinationsWebhookTopicHeaderName</code> <strong>Changed</strong></li>
+<li><code>httpUserAgent</code> <strong>Changed</strong></li>
+<li><code>idgenAttemptPrefix</code> <strong>Changed</strong></li>
+<li><code>idgenDestinationPrefix</code> <strong>Changed</strong></li>
+<li><code>idgenEventPrefix</code> <strong>Changed</strong></li>
+<li><code>idgenType</code> <strong>Changed</strong></li>
+<li><code>maxDestinationsPerTenant</code> <strong>Changed</strong></li>
+<li><code>maxRetryLimit</code> <strong>Changed</strong></li>
+<li><code>otelExporterOtlpEndpoint</code> <strong>Changed</strong></li>
+<li><code>otelExporterOtlpHeaders</code> <strong>Changed</strong></li>
+<li><code>otelExporterOtlpLogsEndpoint</code> <strong>Changed</strong></li>
+<li><code>otelExporterOtlpMetricsEndpoint</code> <strong>Changed</strong></li>
+<li><code>otelExporterOtlpProtocol</code> <strong>Changed</strong></li>
+<li><code>otelExporterOtlpTracesEndpoint</code> <strong>Changed</strong></li>
+<li><code>otelServiceName</code> <strong>Changed</strong></li>
+<li><code>portalBrandColor</code> <strong>Changed</strong></li>
+<li><code>portalDisableOutpostBranding</code> <strong>Changed</strong></li>
+<li><code>portalEnableDestinationFilter</code> <strong>Changed</strong></li>
+<li><code>portalEnableWebhookCustomHeaders</code> <strong>Changed</strong></li>
+<li><code>portalFaviconUrl</code> <strong>Changed</strong></li>
+<li><code>portalForceTheme</code> <strong>Changed</strong></li>
+<li><code>portalLogoDark</code> <strong>Changed</strong></li>
+<li><code>portalLogo</code> <strong>Changed</strong></li>
+<li><code>portalOrganizationName</code> <strong>Changed</strong></li>
+<li><code>portalRefererUrl</code> <strong>Changed</strong></li>
+<li><code>portalRefreshUrl</code> <strong>Changed</strong></li>
+<li><code>publishAwsSqsAccessKeyId</code> <strong>Changed</strong></li>
+<li><code>publishAwsSqsEndpoint</code> <strong>Changed</strong></li>
+<li><code>publishAwsSqsQueue</code> <strong>Changed</strong></li>
+<li><code>publishAwsSqsRegion</code> <strong>Changed</strong></li>
+<li><code>publishAwsSqsSecretAccessKey</code> <strong>Changed</strong></li>
+<li><code>publishAzureServicebusConnectionString</code> <strong>Changed</strong></li>
+<li><code>publishAzureServicebusSubscription</code> <strong>Changed</strong></li>
+<li><code>publishAzureServicebusTopic</code> <strong>Changed</strong></li>
+<li><code>publishGcpPubsubProject</code> <strong>Changed</strong></li>
+<li><code>publishGcpPubsubServiceAccountCredentials</code> <strong>Changed</strong></li>
+<li><code>publishGcpPubsubSubscription</code> <strong>Changed</strong></li>
+<li><code>publishGcpPubsubTopic</code> <strong>Changed</strong></li>
+<li><code>publishRabbitmqExchange</code> <strong>Changed</strong></li>
+<li><code>publishRabbitmqQueue</code> <strong>Changed</strong></li>
+<li><code>publishRabbitmqServerUrl</code> <strong>Changed</strong></li>
+<li><code>retryIntervalSeconds</code> <strong>Changed</strong></li>
+<li><code>retrySchedule</code> <strong>Changed</strong></li>
+<li><code>topicsAllowWildcards</code> <strong>Changed</strong></li>
 <li><code>topics</code> <strong>Changed</strong></li>
 </ul></li>
 <li><code>response</code> <strong>Changed</strong> (Breaking ⚠️)
 
 <ul>
-<li><code>alert_auto_disable_destination</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>alert_consecutive_failure_count</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>alert_exhausted_retries_window_seconds</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>delivery_timeout_seconds</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinations_aws_kinesis_metadata_in_payload</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinations_include_millisecond_timestamp</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinations_proxy_url</code> <strong>Added</strong></li>
-<li><code>destinations_webhook_compat_headers</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinations_webhook_compat_signature_algorithm</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinations_webhook_compat_signature_content_template</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinations_webhook_compat_signature_encoding</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinations_webhook_compat_signature_header_name</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinations_webhook_compat_signature_header_template</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinations_webhook_compat_signature_secret_encoding</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinations_webhook_compat_signature_secret_prefix</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinations_webhook_event_id_header_name</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinations_webhook_header_prefix</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinations_webhook_mode</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinations_webhook_proxy_url</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinations_webhook_signature_algorithm</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinations_webhook_signature_content_template</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinations_webhook_signature_encoding</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinations_webhook_signature_header_name</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinations_webhook_signature_header_template</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinations_webhook_signature_secret_encoding</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinations_webhook_signature_secret_prefix</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinations_webhook_signing_secret_template</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinations_webhook_timestamp_format</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinations_webhook_timestamp_header_name</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinations_webhook_topic_header_name</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>http_user_agent</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>idgen_attempt_prefix</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>idgen_destination_prefix</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>idgen_event_prefix</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>idgen_type</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>max_destinations_per_tenant</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>max_retry_limit</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>otel_exporter_otlp_endpoint</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>otel_exporter_otlp_headers</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>otel_exporter_otlp_logs_endpoint</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>otel_exporter_otlp_metrics_endpoint</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>otel_exporter_otlp_protocol</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>otel_exporter_otlp_traces_endpoint</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>otel_service_name</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>portal_brand_color</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>portal_disable_outpost_branding</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>portal_enable_destination_filter</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>portal_enable_webhook_custom_headers</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>portal_favicon_url</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>portal_force_theme</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>portal_logo_dark</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>portal_logo</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>portal_organization_name</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>portal_referer_url</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>portal_refresh_url</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>publish_aws_sqs_access_key_id</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>publish_aws_sqs_endpoint</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>publish_aws_sqs_queue</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>publish_aws_sqs_region</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>publish_aws_sqs_secret_access_key</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>publish_azure_servicebus_connection_string</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>publish_azure_servicebus_subscription</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>publish_azure_servicebus_topic</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>publish_gcp_pubsub_project</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>publish_gcp_pubsub_service_account_credentials</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>publish_gcp_pubsub_subscription</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>publish_gcp_pubsub_topic</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>publish_rabbitmq_exchange</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>publish_rabbitmq_queue</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>publish_rabbitmq_server_url</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>retry_interval_seconds</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>retry_schedule</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>topics_allow_wildcards</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>alertAutoDisableDestination</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>alertConsecutiveFailureCount</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>alertExhaustedRetriesWindowSeconds</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>deliveryTimeoutSeconds</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>destinationsAwsKinesisMetadataInPayload</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>destinationsIncludeMillisecondTimestamp</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>destinationsProxyUrl</code> <strong>Added</strong></li>
+<li><code>destinationsWebhookCompatHeaders</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>destinationsWebhookCompatSignatureAlgorithm</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>destinationsWebhookCompatSignatureContentTemplate</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>destinationsWebhookCompatSignatureEncoding</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>destinationsWebhookCompatSignatureHeaderName</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>destinationsWebhookCompatSignatureHeaderTemplate</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>destinationsWebhookCompatSignatureSecretEncoding</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>destinationsWebhookCompatSignatureSecretPrefix</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>destinationsWebhookEventIdHeaderName</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>destinationsWebhookHeaderPrefix</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>destinationsWebhookMode</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>destinationsWebhookProxyUrl</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>destinationsWebhookSignatureAlgorithm</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>destinationsWebhookSignatureContentTemplate</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>destinationsWebhookSignatureEncoding</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>destinationsWebhookSignatureHeaderName</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>destinationsWebhookSignatureHeaderTemplate</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>destinationsWebhookSignatureSecretEncoding</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>destinationsWebhookSignatureSecretPrefix</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>destinationsWebhookSigningSecretTemplate</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>destinationsWebhookTimestampFormat</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>destinationsWebhookTimestampHeaderName</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>destinationsWebhookTopicHeaderName</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>httpUserAgent</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>idgenAttemptPrefix</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>idgenDestinationPrefix</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>idgenEventPrefix</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>idgenType</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>maxDestinationsPerTenant</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>maxRetryLimit</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>otelExporterOtlpEndpoint</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>otelExporterOtlpHeaders</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>otelExporterOtlpLogsEndpoint</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>otelExporterOtlpMetricsEndpoint</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>otelExporterOtlpProtocol</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>otelExporterOtlpTracesEndpoint</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>otelServiceName</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>portalBrandColor</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>portalDisableOutpostBranding</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>portalEnableDestinationFilter</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>portalEnableWebhookCustomHeaders</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>portalFaviconUrl</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>portalForceTheme</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>portalLogoDark</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>portalLogo</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>portalOrganizationName</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>portalRefererUrl</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>portalRefreshUrl</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>publishAwsSqsAccessKeyId</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>publishAwsSqsEndpoint</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>publishAwsSqsQueue</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>publishAwsSqsRegion</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>publishAwsSqsSecretAccessKey</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>publishAzureServicebusConnectionString</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>publishAzureServicebusSubscription</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>publishAzureServicebusTopic</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>publishGcpPubsubProject</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>publishGcpPubsubServiceAccountCredentials</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>publishGcpPubsubSubscription</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>publishGcpPubsubTopic</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>publishRabbitmqExchange</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>publishRabbitmqQueue</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>publishRabbitmqServerUrl</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>retryIntervalSeconds</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>retrySchedule</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>topicsAllowWildcards</code> <strong>Changed</strong> (Breaking ⚠️)</li>
 <li><code>topics</code> <strong>Changed</strong> (Breaking ⚠️)</li>
 </ul></li>
 </ul></li>

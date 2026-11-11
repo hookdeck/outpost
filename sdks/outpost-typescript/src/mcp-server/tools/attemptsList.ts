@@ -24,7 +24,7 @@ When authenticated with Admin API Key, returns attempts across all tenants. Use 
     const [result, apiCall] = await attemptsList(
       client,
       args.request,
-      { fetchOptions: { signal: ctx.signal } },
+      { fetchOptions: { signal: ctx.mcpReq.signal } },
     ).$inspect();
 
     if (!result.ok) {

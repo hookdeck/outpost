@@ -26,7 +26,7 @@ When authenticated with Admin API Key, events from any tenant can be accessed.
       client,
       args.eventId,
       args.tenantId,
-      { fetchOptions: { signal: ctx.signal } },
+      { fetchOptions: { signal: ctx.mcpReq.signal } },
     ).$inspect();
 
     if (!result.ok) {

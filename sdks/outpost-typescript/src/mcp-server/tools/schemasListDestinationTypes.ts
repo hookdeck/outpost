@@ -13,7 +13,7 @@ Returns a list of JSON-based input schemas for each available destination type.`
   tool: async (client, ctx) => {
     const [result, apiCall] = await schemasListDestinationTypes(
       client,
-      { fetchOptions: { signal: ctx.signal } },
+      { fetchOptions: { signal: ctx.mcpReq.signal } },
     ).$inspect();
 
     if (!result.ok) {

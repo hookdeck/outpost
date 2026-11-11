@@ -23,7 +23,7 @@ Returns a redirect URL containing a JWT to authenticate the user with the portal
       client,
       args.tenantId,
       args.theme,
-      { fetchOptions: { signal: ctx.signal } },
+      { fetchOptions: { signal: ctx.mcpReq.signal } },
     ).$inspect();
 
     if (!result.ok) {
