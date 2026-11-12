@@ -274,7 +274,7 @@ func (s *basicSuite) TestErrorResponses_LogQueryValidation() {
 				cursor  string
 				message string
 			}{
-				{"cursor of another version", cursor.Encode(list.cursorResource, 2, "1700000000000::id"), cursorVersionMismatch},
+				{"cursor of an unknown version", cursor.Encode(list.cursorResource, 99, "1700000000000::id"), cursorVersionMismatch},
 				{"cursor of another list", cursor.Encode(list.otherResource, 1, "1700000000000::id"), invalidCursor},
 				{"cursor with an empty position", cursor.Encode(list.cursorResource, 1, ""), invalidCursor},
 				{"cursor with a position that is one word", cursor.Encode(list.cursorResource, 1, "yesterday"), invalidCursor},

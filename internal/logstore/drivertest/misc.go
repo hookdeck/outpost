@@ -516,8 +516,10 @@ func testCursorValidation(t *testing.T, ctx context.Context, logStore driver.Log
 
 	t.Run("unreadable cursor returns error", func(t *testing.T) {
 		const (
-			invalidCursor   = "invalid cursor"
-			versionMismatch = "invalid cursor: cursor version mismatch: expected version 01"
+			invalidCursor = "invalid cursor"
+			// The versions a driver reads are its own, so the message names a
+			// different expected version per driver.
+			versionMismatch = "invalid cursor: cursor version mismatch: expected version "
 			// The position format is the driver's own, so which part of a
 			// position is unreadable, and the message detail, differ per driver.
 			invalidPosition = ""
@@ -532,7 +534,7 @@ func testCursorValidation(t *testing.T, ctx context.Context, logStore driver.Log
 				{"completely invalid base62", "!!!invalid!!!", invalidCursor},
 				{"random string", "abcdef123456", invalidCursor},
 				{"cursor of the other list", cursor.Encode(list.other, 1, "1700000000000::id"), invalidCursor},
-				{"cursor of another version", cursor.Encode(list.resource, 2, "1700000000000::id"), versionMismatch},
+				{"cursor of an unknown version", cursor.Encode(list.resource, 99, "1700000000000::id"), versionMismatch},
 				{"empty position", cursor.Encode(list.resource, 1, ""), invalidCursor},
 				{"position that is one word", cursor.Encode(list.resource, 1, "yesterday"), invalidCursor},
 				{"position that is only a number", cursor.Encode(list.resource, 1, "1700000000000"), invalidCursor},
@@ -556,7 +558,10 @@ func testCursorValidation(t *testing.T, ctx context.Context, logStore driver.Log
 						}
 						require.Error(t, err)
 						assert.True(t, errors.Is(err, cursor.ErrInvalidCursor), "expected cursor.ErrInvalidCursor, got: %v", err)
-						if tc.message != invalidPosition {
+						if tc.message == versionMismatch {
+							assert.ErrorIs(t, err, cursor.ErrVersionMismatch)
+							assert.True(t, strings.HasPrefix(err.Error(), versionMismatch), "expected a version mismatch message, got: %v", err)
+						} else if tc.message != invalidPosition {
 							assert.EqualError(t, err, tc.message)
 						} else {
 							assert.True(t, strings.HasPrefix(err.Error(), invalidCursor), "expected an invalid cursor message, got: %v", err)

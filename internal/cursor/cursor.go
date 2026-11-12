@@ -38,6 +38,16 @@ func ParseTimeMs(s string) (int64, error) {
 	return timeMs, nil
 }
 
+// ParseTimeMicro reads the unix microseconds timestamp of a cursor position.
+// The error wraps ErrInvalidCursor.
+func ParseTimeMicro(s string) (int64, error) {
+	timeMicro, err := strconv.ParseInt(s, 10, 64)
+	if err != nil || timeMicro < minTimeMs*1000 || timeMicro > maxTimeMs*1000 {
+		return 0, fmt.Errorf("%w: invalid timestamp", ErrInvalidCursor)
+	}
+	return timeMicro, nil
+}
+
 // Base62Encode encodes a string to base62.
 func Base62Encode(s string) string {
 	if s == "" {

@@ -130,3 +130,10 @@ func TestListLatestAttempts_UndecodableRowFailsOwnKey(t *testing.T) {
 	require.Len(t, got, 1)
 	assert.Equal(t, "att_bad_evt_ok", got[keyOK].Attempt.ID)
 }
+
+func TestCursorFormat(t *testing.T) {
+	testutil.CheckIntegrationTest(t)
+	t.Parallel()
+
+	drivertest.RunCursorFormatTest(t, newHarness)
+}
