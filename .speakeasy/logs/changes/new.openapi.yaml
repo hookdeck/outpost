@@ -56,6 +56,29 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/NotFound"
+    MCPError:
+      description: >-
+        The MCP request failed. `mcp_error` is a JSON-RPC error object with `data` only where the MCP Events spec defines it: `-32602` invalid params (a malformed request body also answers this) has no `data`, `-32023` not found (`data.kind` is `event` or `subscription`), `-32025` resource exhausted (`data.limit`, and `data.max` when there is one), `-32026` unsupported (`data.feature` and `data.value`, such as a delivery mode other than `webhook`), `-32027` callback endpoint error (`data.reason` names the failure category).
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [mcp_error]
+            properties:
+              mcp_error:
+                type: object
+                required: [code, message]
+                properties:
+                  code:
+                    type: integer
+                    example: -32023
+                  message:
+                    type: string
+                    example: "NotFound"
+                  data:
+                    type: object
+                    additionalProperties: true
+                    example: {kind: "event"}
     RequestBodyTooLarge:
       description: Request body is larger than 1 MiB.
       content:
@@ -74,6 +97,13 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/InternalServerError"
+    ServiceUnavailable:
+      description: |
+        A subscription's callback verification could not run (`data.code` is `verification_unavailable`), the subscription is being changed by concurrent requests (retry), or the MCP event definitions are invalid (the reason is in the server log).
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/APIErrorResponse"
     RateLimited:
       description: Status codes relating to the client being rate limited by the server
       content:
@@ -3525,6 +3555,10 @@ components:
           type: [string, "null"]
           description: >-
             Complete name of the topic header. Unset uses the default "<prefix>topic"; an explicit value pins that exact name; an empty string disables the header. Only applies to "default" mode.
+        EXPERIMENTAL_MCP_ENABLED:
+          type: [string, "null"]
+        EXPERIMENTAL_MCP_EVENTS_SCHEMA:
+          type: [string, "null"]
         HTTP_USER_AGENT:
           type: [string, "null"]
         IDGEN_ATTEMPT_PREFIX:
@@ -4702,11 +4736,9 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: Filter tenants by ID(s). Use bracket notation for multiple values (e.g., `id[0]=t1&id[1]=t2` or `id[]=t1&id[]=t2`).
         - name: limit
           in: query
@@ -4916,21 +4948,17 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: Filter events by ID(s). Use bracket notation for multiple values (e.g., `id[0]=abc&id[1]=def`).
         - name: tenant_id
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: |
             Filter events by tenant ID(s). Use bracket notation for multiple values (e.g., `tenant_id[0]=t1&tenant_id[1]=t2`).
             When authenticated with a Tenant JWT, this parameter is ignored and the JWT's tenant is used.
@@ -4949,11 +4977,9 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: Filter events by topic(s). Use bracket notation for multiple values (e.g., `topic[0]=user.created&topic[1]=user.updated`).
         - name: time
           in: query
@@ -5107,11 +5133,9 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: |
             Filter attempts by tenant ID(s). Use bracket notation for multiple values (e.g., `tenant_id[0]=t1&tenant_id[1]=t2`).
             When authenticated with a Tenant JWT, this parameter is ignored and the JWT's tenant is used.
@@ -5120,21 +5144,17 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: Filter attempts by event ID(s). Use bracket notation for multiple values (e.g., `event_id[0]=e1&event_id[1]=e2`).
         - name: destination_id
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: Filter attempts by destination ID(s). Use bracket notation for multiple values (e.g., `destination_id[0]=d1&destination_id[1]=d2`).
         - name: destination_type
           in: query
@@ -5157,11 +5177,9 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: Filter attempts by event topic(s). Use bracket notation for multiple values (e.g., `topic[0]=user.created&topic[1]=user.updated`).
         - name: time
           in: query
@@ -5196,11 +5214,9 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: |
             Fields to include in the response. Use bracket notation for multiple values (e.g., `include[0]=event&include[1]=response_data`).
             - `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
@@ -5321,11 +5337,9 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: |
             Fields to include in the response. Use bracket notation for multiple values (e.g., `include[0]=event&include[1]=response_data`).
             - `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
@@ -5481,21 +5495,17 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - $ref: "#/components/schemas/DestinationType"
-              - type: array
-                items:
-                  $ref: "#/components/schemas/DestinationType"
+            type: array
+            items:
+              $ref: "#/components/schemas/DestinationType"
           description: Filter destinations by type(s). Use bracket notation for multiple values (e.g., `type[0]=webhook&type[1]=aws_sqs`).
         - name: topics
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: Filter destinations by supported topic(s). Use bracket notation for multiple values (e.g., `topics[0]=user.created&topics[1]=user.deleted`).
       responses:
         "200":
@@ -5886,11 +5896,9 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: Filter attempts by event ID(s). Use bracket notation for multiple values (e.g., `event_id[0]=e1&event_id[1]=e2`).
         - name: status
           in: query
@@ -5903,11 +5911,9 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: Filter attempts by event topic(s). Use bracket notation for multiple values (e.g., `topic[0]=user.created&topic[1]=user.updated`).
         - name: time
           in: query
@@ -5942,11 +5948,9 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: |
             Fields to include in the response. Use bracket notation for multiple values (e.g., `include[0]=event&include[1]=response_data`).
             - `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
@@ -6048,11 +6052,9 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: |
             Fields to include in the response. Use bracket notation for multiple values (e.g., `include[0]=event&include[1]=response_data`).
             - `event`: Include event summary
@@ -6459,6 +6461,232 @@ paths:
         '504':
           $ref: '#/components/responses/Timeout'
       x-speakeasy-name-override: list
+  /mcp/events/list:
+    get:
+      tags: [Topics]
+      summary: List MCP Events
+      x-speakeasy-ignore: true
+      description: |
+        **Experimental.** Returns the event definitions configured with `EXPERIMENTAL_MCP_EVENTS_SCHEMA`
+        (`experimental.mcp.events_schema` in YAML), in the shape of an MCP `events/list` result. Admin API key only. Returns 404
+        when MCP is not enabled or no events are defined, and 503 when the definitions are invalid.
+      operationId: listMCPEvents
+      parameters:
+        - name: topics
+          in: query
+          description: Comma-separated event names; only these are returned.
+          schema:
+            type: string
+          example: "order.created,order.refunded"
+        - name: cursor
+          in: query
+          description: The `nextCursor` of the previous page.
+          schema:
+            type: string
+        - name: limit
+          in: query
+          description: Maximum events per page.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+      responses:
+        "200":
+          description: A page of event definitions, in the configured order.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [resultType, events]
+                properties:
+                  resultType:
+                    type: string
+                    enum: [complete]
+                  events:
+                    type: array
+                    items:
+                      type: object
+                      required: [name, inputSchema, payloadSchema, delivery]
+                      properties:
+                        name:
+                          type: string
+                          example: "order.created"
+                        description:
+                          type: string
+                          example: "An order was placed."
+                        inputSchema:
+                          type: object
+                          additionalProperties: true
+                          description: JSON Schema of the `arguments` a subscription accepts, as defined in the event definitions. Derived from `payloadSchema` when the definition has no `inputSchema`.
+                        payloadSchema:
+                          type: object
+                          additionalProperties: true
+                          description: JSON Schema of the event data.
+                        delivery:
+                          type: array
+                          items:
+                            type: string
+                          example: ["webhook"]
+                  nextCursor:
+                    type: string
+                    description: Present when there are more events.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+  /tenants/{tenant_id}/mcp/events/subscribe:
+    parameters:
+      - name: tenant_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The ID of the tenant that holds the subscription. It identifies the subscriber.
+    post:
+      tags: [Destinations]
+      summary: Subscribe (MCP Events)
+      x-speakeasy-ignore: true
+      description: |
+        **Experimental.** Serves the MCP Events `events/subscribe` method for an MCP server that
+        forwards the request `params` as the body. Creates a subscription, or refreshes it when
+        the tenant already holds the same subscription: the same tenant, event, arguments and
+        callback URL always give the same `id`. A new subscription is
+        verified with a challenge to its callback URL before it is stored; one that has expired is
+        replaced by a new one. The tenant is created if it does not exist, even when the subscribe then fails. Admin API key only;
+        answers `404` while MCP is not enabled (`EXPERIMENTAL_MCP_ENABLED`).
+
+        Failures answer `422` with an `mcp_error` the MCP server returns as its JSON-RPC error.
+      operationId: subscribeMCPEvents
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+              description: The `events/subscribe` params, forwarded as received.
+              example:
+                name: "order.created"
+                arguments: {status: "paid"}
+                delivery:
+                  mode: "webhook"
+                  url: "https://example.com/mcp-events/abc123"
+                  secret: "whsec_MfKQ9r8GKYqrTwjUPD8ILPZIo2LaLaSw"
+                ttlMs: 3600000
+      responses:
+        "200":
+          description: The `events/subscribe` result.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [resultType, id, refreshBefore, cursor, truncated]
+                properties:
+                  resultType:
+                    type: string
+                    enum: [complete]
+                  id:
+                    type: string
+                    example: "sub_3f1c2a9e5b7d4c6a8e0f1b2c3d4e5f60"
+                  refreshBefore:
+                    type: [string, "null"]
+                    format: date-time
+                    description: >-
+                      Subscribe again before this time to keep the subscription. Null only when the request sent `ttlMs: null`, which means the subscription does not expire.
+                  cursor:
+                    type: [string, "null"]
+                    description: Always null; events are not replayed.
+                  truncated:
+                    type: boolean
+                    description: Always false; events are not replayed.
+                  deliveryStatus:
+                    type: object
+                    description: Present when an existing subscription was refreshed.
+                    required: [active]
+                    properties:
+                      active:
+                        type: boolean
+                        description: False when the subscription was suspended before this refresh. The refresh re-enables it.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/RequestBodyTooLarge"
+        "422":
+          $ref: "#/components/responses/MCPError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+  /tenants/{tenant_id}/mcp/events/unsubscribe:
+    parameters:
+      - name: tenant_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The ID of the tenant that holds the subscription. It identifies the subscriber.
+    post:
+      tags: [Destinations]
+      summary: Unsubscribe (MCP Events)
+      x-speakeasy-ignore: true
+      description: |
+        **Experimental.** Serves the MCP Events `events/unsubscribe` method: deletes the tenant's
+        subscription for the event, arguments and callback URL in the request body, the `events/unsubscribe` params. Answers `422` with a
+        `NotFound` `mcp_error` when there is none, including when the tenant does not exist.
+        Admin API key only; answers `404` while MCP is not enabled (`EXPERIMENTAL_MCP_ENABLED`).
+      operationId: unsubscribeMCPEvents
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+              description: The `events/unsubscribe` params, forwarded as received.
+              example:
+                name: "order.created"
+                arguments: {status: "paid"}
+                delivery:
+                  url: "https://example.com/mcp-events/abc123"
+      responses:
+        "200":
+          description: The subscription was deleted. The `events/unsubscribe` result.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [resultType]
+                properties:
+                  resultType:
+                    type: string
+                    enum: ["complete"]
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/RequestBodyTooLarge"
+        "422":
+          $ref: "#/components/responses/MCPError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /metrics/events:
     get:
       tags: [Metrics]
