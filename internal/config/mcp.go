@@ -15,10 +15,10 @@ type ExperimentalConfig struct {
 }
 
 type MCPConfig struct {
-	Enabled                bool            `yaml:"enabled" env:"EXPERIMENTAL_MCP_ENABLED" desc:"If true, registers the experimental 'mcp' destination type (MCP Events webhook subscriptions). Admin API key only. While it is off, stored mcp destinations receive no events and lapse at their expiry." required:"N" default:"false"`
+	Enabled                bool            `yaml:"enabled" env:"EXPERIMENTAL_MCP_ENABLED" desc:"If true, enables the experimental MCP Events subscribe endpoints (MCP Events webhook subscriptions), with the Admin API key. While it is off, stored subscriptions receive no events. Those with an expiry lapse at it; those without stay until unsubscribed or their tenant is deleted." required:"N" default:"false"`
 	AllowInsecureCallbacks bool            `yaml:"allow_insecure_callbacks" env:"EXPERIMENTAL_MCP_ALLOW_INSECURE_CALLBACKS" desc:"The MCP Events spec requires https callback URLs. If true, http is also accepted for addresses that are all in DESTINATIONS_PRIVATE_ADDRESS_ALLOWLIST: an exception outside the spec, for development only." required:"N" default:"false"`
 	RetryDelays            []time.Duration `yaml:"-"`
-	VerificationTTLSeconds int             `yaml:"verification_ttl_seconds" env:"EXPERIMENTAL_MCP_VERIFICATION_TTL_SECONDS" desc:"How long, in seconds, a passed callback verification challenge is cached per tenant, principal and callback URL." required:"N" default:"86400"`
+	VerificationTTLSeconds int             `yaml:"verification_ttl_seconds" env:"EXPERIMENTAL_MCP_VERIFICATION_TTL_SECONDS" desc:"How long, in seconds, a passed callback verification challenge is cached per tenant and callback URL." required:"N" default:"86400"`
 	EventsSchema           MCPEventsSchema `yaml:"events_schema" env:"EXPERIMENTAL_MCP_EVENTS_SCHEMA" desc:"Event definitions for MCP subscriptions in the MCP events/list format: {\"events\": [...]}, each with a name, a payloadSchema and an optional inputSchema (JSON Schema 2020-12 objects; without it, every scalar top-level payload property is an optional argument). In YAML a mapping (inline definitions) or a path to a JSON or YAML file (a string is always a path); in the environment inline JSON (a value starting with {) or a file path. Every name must be in TOPICS when TOPICS is set. Invalid definitions don't stop Outpost: it logs the error and MCP Events answers 503." required:"N"`
 }
 

@@ -416,6 +416,20 @@ func TestAPI_Retry(t *testing.T) {
 			assert.Equal(t, "destination_expired", body.Data["error"])
 		})
 
+		t.Run("mcp destination returns 404 like an unknown destination", func(t *testing.T) {
+			h := setup(t)
+			require.NoError(t, h.tenantStore.UpsertDestination(t.Context(), df.Any(df.WithID("d2"), df.WithTenantID("t1"), df.WithType("mcp"), df.WithTopics([]string{"*"}))))
+			e := ef.AnyPointer(ef.WithID("e2"), ef.WithTenantID("t1"), ef.WithTopic("user.created"))
+			require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
+				{Event: e, Attempt: attemptForEvent(e, af.WithDestinationID("d2"))},
+			}))
+
+			resp := h.do(h.withAPIKey(retry(h, "e2", "d2")))
+
+			testutil.RequireErrorResponse(t, resp, http.StatusNotFound, "destination not found")
+			assert.Empty(t, h.deliveryPub.calls)
+		})
+
 		t.Run("topic mismatch returns 400", func(t *testing.T) {
 			h := setup(t)
 			require.NoError(t, h.tenantStore.UpsertDestination(t.Context(), df.Any(df.WithID("d2"), df.WithTenantID("t1"), df.WithTopics([]string{"user.deleted"}))))

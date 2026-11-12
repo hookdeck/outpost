@@ -42,8 +42,9 @@ type RouterConfig struct {
 	PortalConfig         portal.PortalConfig
 	GinMode              string
 
-	// MaxDestinationsPerTenant mirrors the tenant store's limit (0: unknown).
-	MaxDestinationsPerTenant int
+	// MCPSubscribe turns the MCP subscribe endpoints on; they answer 404
+	// while it is false.
+	MCPSubscribe bool
 }
 
 type RouterDeps struct {
@@ -144,13 +145,16 @@ func NewRouter(cfg RouterConfig, deps RouterDeps) http.Handler {
 	displayer := newDestinationDisplayer(cfg.Registry, cfg.TopicsAllowWildcards)
 
 	tenantHandlers := NewTenantHandlers(deps.Logger, deps.Telemetry, cfg.JWTSecret, cfg.DeploymentID, deps.TenantStore, cfg.TopicsAllowWildcards, deps.MCPVerifier)
-	destinationHandlers := NewDestinationHandlers(deps.Logger, deps.Telemetry, deps.TenantStore, deps.SubscriptionEmitter, cfg.Topics, cfg.TopicsAllowWildcards, cfg.Registry, displayer, cfg.MaxDestinationsPerTenant)
+	// Destinations of internal types stay out of the destinations API.
+	publicStore := tenantstore.NewPublicStore(deps.TenantStore)
+	destinationHandlers := NewDestinationHandlers(deps.Logger, deps.Telemetry, publicStore, deps.SubscriptionEmitter, cfg.Topics, cfg.TopicsAllowWildcards, cfg.Registry, displayer)
 	publishHandlers := NewPublishHandlers(deps.Logger, deps.EventHandler)
-	logHandlers := NewLogHandlers(deps.Logger, deps.LogStore, deps.TenantStore, displayer)
-	retryHandlers := NewRetryHandlers(deps.Logger, deps.TenantStore, deps.LogStore, deps.DeliveryPublisher, cfg.TopicsAllowWildcards)
+	logHandlers := NewLogHandlers(deps.Logger, deps.LogStore, publicStore, displayer)
+	retryHandlers := NewRetryHandlers(deps.Logger, publicStore, deps.LogStore, deps.DeliveryPublisher, cfg.TopicsAllowWildcards)
 	topicHandlers := NewTopicHandlers(deps.Logger, cfg.Topics)
 	metricsHandlers := NewMetricsHandlers(deps.Logger, deps.LogStore)
 	mcpEventsHandlers := NewMCPEventsHandlers(deps.Logger, deps.MCPCatalog, deps.MCPEventsError)
+	mcpSubscribeHandlers := NewMCPSubscribeHandlers(deps.TenantStore, destinationHandlers, tenantHandlers, cfg.MCPSubscribe, deps.MCPEventsError)
 
 	routes := []RouteDefinition{
 		// Schemas & Topics
@@ -181,6 +185,10 @@ func NewRouter(cfg RouterConfig, deps RouterDeps) http.Handler {
 		{Method: http.MethodPut, Path: "/tenants/:tenant_id/destinations/:destination_id/disable", Handler: destinationHandlers.Disable, RequireTenant: true},
 		{Method: http.MethodGet, Path: "/tenants/:tenant_id/destinations/:destination_id/attempts", Handler: logHandlers.ListDestinationAttempts, RequireTenant: true},
 		{Method: http.MethodGet, Path: "/tenants/:tenant_id/destinations/:destination_id/attempts/:attempt_id", Handler: logHandlers.RetrieveAttempt, RequireTenant: true},
+
+		// MCP subscribe endpoints
+		{Method: http.MethodPost, Path: "/tenants/:tenant_id/mcp/events/subscribe", Handler: mcpSubscribeHandlers.Subscribe, AdminOnly: true},
+		{Method: http.MethodPost, Path: "/tenants/:tenant_id/mcp/events/unsubscribe", Handler: mcpSubscribeHandlers.Unsubscribe, AdminOnly: true},
 
 		// Events
 		{Method: http.MethodGet, Path: "/events", Handler: logHandlers.ListEvents},

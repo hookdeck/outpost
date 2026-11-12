@@ -19,56 +19,53 @@ func runVerificationStoreSuite(t *testing.T, client internalredis.Cmdable, deplo
 	const url = "https://receiver.example.com/hook"
 
 	t.Run("verified cache", func(t *testing.T) {
-		ok, err := s.Verified(ctx, "t1", "p1", url)
+		ok, err := s.Verified(ctx, "t1", url)
 		require.NoError(t, err)
 		assert.False(t, ok)
 
-		require.NoError(t, s.MarkVerified(ctx, "t1", "p1", url, 2*time.Second))
-		ok, err = s.Verified(ctx, "t1", "p1", url)
+		require.NoError(t, s.MarkVerified(ctx, "t1", url, 2*time.Second))
+		ok, err = s.Verified(ctx, "t1", url)
 		require.NoError(t, err)
 		assert.True(t, ok)
 
-		// Keyed on the whole (tenant, principal, url).
-		for _, k := range [][3]string{{"t2", "p1", url}, {"t1", "p2", url}, {"t1", "p1", url + "x"}, {"t1p", "1", url}, {"t1", "p1\x00" + url, ""}} {
-			ok, err := s.Verified(ctx, k[0], k[1], k[2])
+		// Keyed on the whole (tenant, url).
+		for _, k := range [][2]string{{"t2", url}, {"t1", url + "x"}, {"t1\x00" + url, ""}} {
+			ok, err := s.Verified(ctx, k[0], k[1])
 			require.NoError(t, err)
 			assert.False(t, ok, "%q", k)
 		}
 
 		// NUL bytes can't shift a boundary between parts.
-		require.NoError(t, s.MarkVerified(ctx, "a\x00b", "c", url, time.Minute))
-		ok, err = s.Verified(ctx, "a", "b\x00c", url)
+		require.NoError(t, s.MarkVerified(ctx, "a\x00b", url, time.Minute))
+		ok, err = s.Verified(ctx, "a", "b\x00"+url)
 		require.NoError(t, err)
 		assert.False(t, ok)
 
-		ttl, err := client.TTL(ctx, s.verifiedKey("t1", "p1", url)).Result()
+		ttl, err := client.TTL(ctx, s.verifiedKey("t1", url)).Result()
 		require.NoError(t, err)
 		assert.Greater(t, ttl, time.Duration(0))
 		assert.LessOrEqual(t, ttl, 2*time.Second)
 
 		fastForward(3 * time.Second)
-		ok, err = s.Verified(ctx, "t1", "p1", url)
+		ok, err = s.Verified(ctx, "t1", url)
 		require.NoError(t, err)
 		assert.False(t, ok, "expired")
 	})
 
 	t.Run("attempt counters", func(t *testing.T) {
 		for want := int64(1); want <= 3; want++ {
-			n, err := s.CountAttempt(ctx, "t1", "p1", 1000)
+			n, err := s.CountAttempt(ctx, "t1", 1000)
 			require.NoError(t, err)
 			assert.Equal(t, want, n)
 		}
-		n, err := s.CountAttempt(ctx, "t1", "p1", 1001)
+		n, err := s.CountAttempt(ctx, "t1", 1001)
 		require.NoError(t, err)
 		assert.Equal(t, int64(1), n, "a new window")
-		n, err = s.CountAttempt(ctx, "t1", "p2", 1000)
-		require.NoError(t, err)
-		assert.Equal(t, int64(1), n, "another principal")
-		n, err = s.CountAttempt(ctx, "t2", "p1", 1000)
+		n, err = s.CountAttempt(ctx, "t2", 1000)
 		require.NoError(t, err)
 		assert.Equal(t, int64(1), n, "another tenant")
 
-		ttl, err := client.TTL(ctx, s.attemptKey("t1", "p1", 1000)).Result()
+		ttl, err := client.TTL(ctx, s.attemptKey("t1", 1000)).Result()
 		require.NoError(t, err)
 		assert.Greater(t, ttl, time.Duration(0), "INCR and EXPIRE are atomic: a counter always expires")
 		assert.LessOrEqual(t, ttl, counterTTL)
@@ -101,17 +98,17 @@ func runVerificationStoreSuite(t *testing.T, client internalredis.Cmdable, deplo
 
 	t.Run("purge tenant", func(t *testing.T) {
 		const other = "https://other.example.com/hook"
-		require.NoError(t, s.MarkVerified(ctx, "purge1", "p1", url, time.Minute))
-		require.NoError(t, s.MarkVerified(ctx, "purge1", "p2", other, time.Minute))
-		require.NoError(t, s.MarkVerified(ctx, "purge2", "p1", url, time.Minute))
+		require.NoError(t, s.MarkVerified(ctx, "purge1", url, time.Minute))
+		require.NoError(t, s.MarkVerified(ctx, "purge1", other, time.Minute))
+		require.NoError(t, s.MarkVerified(ctx, "purge2", url, time.Minute))
 
 		require.NoError(t, s.PurgeTenant(ctx, "purge1"))
-		for _, k := range [][2]string{{"p1", url}, {"p2", other}} {
-			ok, err := s.Verified(ctx, "purge1", k[0], k[1])
+		for _, u := range []string{url, other} {
+			ok, err := s.Verified(ctx, "purge1", u)
 			require.NoError(t, err)
-			assert.False(t, ok, k)
+			assert.False(t, ok, u)
 		}
-		ok, err := s.Verified(ctx, "purge2", "p1", url)
+		ok, err := s.Verified(ctx, "purge2", url)
 		require.NoError(t, err)
 		assert.True(t, ok, "another tenant is untouched")
 		n, err := client.Exists(ctx, s.indexKey("purge1")).Result()
@@ -123,15 +120,15 @@ func runVerificationStoreSuite(t *testing.T, client internalredis.Cmdable, deplo
 	})
 
 	t.Run("index outlives its entries", func(t *testing.T) {
-		require.NoError(t, s.MarkVerified(ctx, "idx", "p1", url, time.Hour))
+		require.NoError(t, s.MarkVerified(ctx, "idx", url, time.Hour))
 		ttl, err := client.TTL(ctx, s.indexKey("idx")).Result()
 		require.NoError(t, err)
 		assert.Greater(t, ttl, time.Hour)
 	})
 
 	t.Run("key names", func(t *testing.T) {
-		require.NoError(t, s.MarkVerified(ctx, "tenant_secret", "principal_secret", url, time.Minute))
-		_, err := s.CountAttempt(ctx, "tenant_secret", "principal_secret", 3000)
+		require.NoError(t, s.MarkVerified(ctx, "tenant_secret", url, time.Minute))
+		_, err := s.CountAttempt(ctx, "tenant_secret", 3000)
 		require.NoError(t, err)
 		require.NoError(t, s.CountFailure(ctx, "tenant_secret", "receiver.example.com:443", 3000))
 

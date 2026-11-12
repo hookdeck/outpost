@@ -446,3 +446,34 @@ func TestRedisTenantStoreExcludedTypes(t *testing.T) {
 		return s
 	})
 }
+
+func TestSweepKeepsDestinationExtendedSinceSummaryRead(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	client := miniredisFactory(t)
+	store := redistenantstore.New(client,
+		redistenantstore.WithSecret("test-secret"),
+		redistenantstore.WithAvailableTopics(testutil.TestTopics),
+	)
+
+	tenant := testutil.TenantFactory.Any()
+	require.NoError(t, store.UpsertTenant(ctx, tenant))
+	mcp := func(opts ...func(*models.Destination)) models.Destination {
+		return testutil.DestinationFactory.Any(append([]func(*models.Destination){
+			testutil.DestinationFactory.WithTenantID(tenant.ID),
+			testutil.DestinationFactory.WithType(models.DestinationTypeMCP),
+		}, opts...)...)
+	}
+	stale := mcp(testutil.DestinationFactory.WithExpiresAt(time.Now().Add(-time.Minute)))
+	require.NoError(t, store.CreateDestination(ctx, stale))
+
+	// The summary still says expired; only the hash holds the extension.
+	key := fmt.Sprintf("tenant:{%s}:destination:%s", tenant.ID, stale.ID)
+	require.NoError(t, client.HSet(ctx, key, "expires_at", time.Now().Add(time.Hour).UnixMilli()).Err())
+
+	require.NoError(t, store.CreateDestination(ctx, mcp(testutil.DestinationFactory.WithExpiresAt(time.Now().Add(time.Hour)))))
+
+	kept, err := store.RetrieveDestination(ctx, tenant.ID, stale.ID)
+	require.NoError(t, err)
+	require.NotNil(t, kept)
+}

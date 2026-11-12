@@ -163,7 +163,6 @@ func TestMCPForwardProxy(t *testing.T) {
 
 		err = verifier.Verify(t.Context(), mcpevents.VerifyRequest{
 			TenantID:       "tenant_1",
-			Principal:      "user_1",
 			URL:            receiver.URL + "/challenge",
 			SubscriptionID: "sub_0123456789abcdef0123456789abcdef",
 			Secrets:        []mcpevents.Secret{secret},

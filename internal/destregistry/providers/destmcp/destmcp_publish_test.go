@@ -58,7 +58,7 @@ func localSubscription(t *testing.T, _ *destmcp.Provider, callbackURL string, mu
 	t.Helper()
 	_, normalized, err := mcpevents.NormalizeCallbackURL(callbackURL)
 	require.NoError(t, err)
-	d := subscriptionFor(testPrincipal, normalized, "{}", testSecret(1))
+	d := subscriptionFor(normalized, "{}", testSecret(1))
 	for _, m := range mutate {
 		m(d)
 	}

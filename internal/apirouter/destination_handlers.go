@@ -38,13 +38,9 @@ type DestinationHandlers struct {
 	topicsAllowWildcards bool
 	registry             destregistry.Registry
 	displayer            *destinationDisplayer
-
-	// maxDestinationsPerTenant, when positive, lets Create refuse a full
-	// tenant before a callback verification is sent.
-	maxDestinationsPerTenant int
 }
 
-func NewDestinationHandlers(logger *logging.Logger, telemetry telemetry.Telemetry, tenantStore tenantstore.TenantStore, emitter SubscriptionEmitter, topics []string, topicsAllowWildcards bool, registry destregistry.Registry, displayer *destinationDisplayer, maxDestinationsPerTenant int) *DestinationHandlers {
+func NewDestinationHandlers(logger *logging.Logger, telemetry telemetry.Telemetry, tenantStore tenantstore.TenantStore, emitter SubscriptionEmitter, topics []string, topicsAllowWildcards bool, registry destregistry.Registry, displayer *destinationDisplayer) *DestinationHandlers {
 	return &DestinationHandlers{
 		logger:               logger,
 		telemetry:            telemetry,
@@ -54,8 +50,6 @@ func NewDestinationHandlers(logger *logging.Logger, telemetry telemetry.Telemetr
 		topicsAllowWildcards: topicsAllowWildcards,
 		registry:             registry,
 		displayer:            displayer,
-
-		maxDestinationsPerTenant: maxDestinationsPerTenant,
 	}
 }
 
@@ -109,17 +103,6 @@ func (h *DestinationHandlers) Create(c *gin.Context) {
 		return
 	}
 
-	if input.Type == models.DestinationTypeMCP && h.mcpEnabled() && mustRoleFromContext(c) != RoleAdmin {
-		abortMCPAdminOnly(c)
-		return
-	}
-	if input.ExpiresAt != nil {
-		if err := validateExpiresAt(input.Type, *input.ExpiresAt, now); err != nil {
-			AbortWithValidationError(c, err)
-			return
-		}
-	}
-
 	tenant := mustTenantFromContext(c)
 	prev := h.snapshotTenant(tenant)
 
@@ -128,18 +111,11 @@ func (h *DestinationHandlers) Create(c *gin.Context) {
 		AbortWithValidationError(c, err)
 		return
 	}
-	destination.Topics = destination.Topics.Normalize()
-	if destination.Type == models.DestinationTypeMCP && !h.canCreateDestination(c, &destination) {
+	if models.IsInternalDestinationType(destination.Type) {
+		AbortWithValidationError(c, destregistry.NewErrNoProvider(destination.Type))
 		return
 	}
-	if provider, err := h.registry.ResolveProvider(&destination); err == nil {
-		if v, ok := provider.(destregistry.CreateValidator); ok {
-			if err := v.ValidateCreate(&destination); err != nil {
-				AbortWithValidationError(c, err)
-				return
-			}
-		}
-	}
+	destination.Topics = destination.Topics.Normalize()
 	if err := h.registry.ValidateDestination(c.Request.Context(), &destination); err != nil {
 		AbortWithValidationError(c, err)
 		return
@@ -172,37 +148,6 @@ func (h *DestinationHandlers) Create(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusCreated, display)
-}
-
-// canCreateDestination refuses a duplicate ID or a full tenant before the
-// create sends a verification challenge to a caller-chosen URL. It writes the
-// error response and returns false when the create cannot succeed. The store
-// still enforces both atomically.
-func (h *DestinationHandlers) canCreateDestination(c *gin.Context, destination *models.Destination) bool {
-	ctx := c.Request.Context()
-	if existing, err := h.tenantStore.RetrieveDestination(ctx, destination.TenantID, destination.ID); err == nil && existing != nil {
-		h.handleDestinationWriteError(c, tenantstore.ErrDuplicateDestination)
-		return false
-	}
-	if h.maxDestinationsPerTenant <= 0 {
-		return true
-	}
-	destinations, err := h.tenantStore.ListDestination(ctx, tenantstore.ListDestinationRequest{TenantID: destination.TenantID})
-	if err != nil {
-		return true
-	}
-	now := time.Now()
-	active := 0
-	for i := range destinations {
-		if !destinations[i].IsExpired(now) {
-			active++
-		}
-	}
-	if active >= h.maxDestinationsPerTenant {
-		h.handleDestinationWriteError(c, tenantstore.ErrMaxDestinationsPerTenantReached)
-		return false
-	}
-	return true
 }
 
 func (h *DestinationHandlers) Retrieve(c *gin.Context) {
@@ -284,11 +229,6 @@ func (h *DestinationHandlers) Update(c *gin.Context) {
 // stands now. It answers the request and returns ok=false when the input is
 // invalid for that destination.
 func (h *DestinationHandlers) applyDestinationUpdate(c *gin.Context, input UpdateDestinationRequest, originalDestination *models.Destination) (updated *models.Destination, disabilityChanged bool, ok bool) {
-	if originalDestination.Type == models.DestinationTypeMCP && mustRoleFromContext(c) != RoleAdmin {
-		abortMCPAdminOnly(c)
-		return nil, false, false
-	}
-
 	updatedDestination := *originalDestination
 
 	// Validate.
@@ -391,38 +331,6 @@ func (h *DestinationHandlers) applyDestinationUpdate(c *gin.Context, input Updat
 				updatedDestination.DisabledAt = &ts
 				disabilityChanged = true
 			}
-		}
-	}
-
-	// ExpiresAt
-	//   omitted: leave alone
-	//   null:    clear
-	//   <ts>:    expire at that time
-	if input.ExpiresAt != nil {
-		if isJSONNull(input.ExpiresAt) {
-			updatedDestination.ExpiresAt = nil
-		} else {
-			var ts time.Time
-			if err := json.Unmarshal(input.ExpiresAt, &ts); err != nil {
-				var parseErr *time.ParseError
-				if errors.As(err, &parseErr) {
-					err = errors.New(expectedRFC3339)
-				}
-				AbortWithValidationError(c, fmt.Errorf("invalid expires_at: %w", err))
-				return nil, false, false
-			}
-			if err := validateExpiresAt(originalDestination.Type, ts, time.Now()); err != nil {
-				AbortWithValidationError(c, err)
-				return nil, false, false
-			}
-			updatedDestination.ExpiresAt = &ts
-		}
-	}
-
-	if originalDestination.Type == models.DestinationTypeMCP {
-		if err := checkMCPImmutable(originalDestination, &updatedDestination); err != nil {
-			AbortWithValidationError(c, err)
-			return nil, false, false
 		}
 	}
 
@@ -610,7 +518,6 @@ type CreateDestinationRequest struct {
 	CreatedAt        *time.Time              `json:"created_at,omitempty" binding:"-"`
 	UpdatedAt        *time.Time              `json:"updated_at,omitempty" binding:"-"`
 	DisabledAt       *time.Time              `json:"disabled_at,omitempty" binding:"-"`
-	ExpiresAt        *time.Time              `json:"expires_at,omitempty" binding:"-"`
 }
 
 func (r *CreateDestinationRequest) ToDestination(tenantID string) models.Destination {
@@ -645,7 +552,6 @@ func (r *CreateDestinationRequest) ToDestination(tenantID string) models.Destina
 		CreatedAt:        createdAt,
 		UpdatedAt:        updatedAt,
 		DisabledAt:       r.DisabledAt,
-		ExpiresAt:        r.ExpiresAt,
 		TenantID:         tenantID,
 	}
 }
@@ -659,7 +565,6 @@ type UpdateDestinationRequest struct {
 	DeliveryMetadata json.RawMessage `json:"delivery_metadata" binding:"-"`
 	Metadata         json.RawMessage `json:"metadata" binding:"-"`
 	DisabledAt       json.RawMessage `json:"disabled_at" binding:"-"`
-	ExpiresAt        json.RawMessage `json:"expires_at" binding:"-"`
 }
 
 // isJSONNull checks if raw JSON bytes represent a JSON null literal.

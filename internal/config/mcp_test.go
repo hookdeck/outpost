@@ -150,7 +150,7 @@ func TestMCPConfig_Warnings(t *testing.T) {
 // The MCP settings are documented by hand in the configuration reference and
 // the example files. These tests keep the names and defaults in step.
 
-// envByYAMLPath maps every YAML key path ("mcp.retry_schedule") of typ to
+// envByYAMLPath maps every YAML key path ("experimental.mcp.verification_ttl_seconds") of typ to
 // its env var name.
 func envByYAMLPath(typ reflect.Type, yamlPrefix, envPrefix string, out map[string]string) {
 	for i := 0; i < typ.NumField(); i++ {

@@ -104,3 +104,80 @@ func (s *mcpDisabledSuite) TestExistingDestinationReceivesNothing() {
 	s.Require().NotNil(stored)
 	s.Nil(stored.DisabledAt)
 }
+
+// A stored subscription stays hidden from the destinations API with MCP off.
+func (s *mcpDisabledSuite) TestStoredSubscriptionHidden() {
+	tenant := s.base.createTenant().ID
+	destID := idgen.Destination()
+	writeDestinationToStore(s.T(), s.base.config, models.Destination{
+		ID:          destID,
+		TenantID:    tenant,
+		Type:        "mcp",
+		Topics:      models.Topics{mcpTopic},
+		Config:      models.Config{"url": "https://203.0.113.10/"},
+		Credentials: models.Credentials{"secret": newWhsec()},
+	})
+
+	var list []struct {
+		ID string `json:"id"`
+	}
+	s.Require().Equal(http.StatusOK, s.base.doJSON(http.MethodGet, s.base.apiURL("/tenants/"+tenant+"/destinations"), nil, &list))
+	s.Empty(list)
+	s.Equal(http.StatusNotFound, s.base.doJSON(http.MethodGet, s.base.apiURL("/tenants/"+tenant+"/destinations/"+destID), nil, nil))
+}
+
+func (s *mcpDisabledSuite) publishTo(tenantID, destID string, eventID string) (int, publishResponse) {
+	var resp publishResponse
+	status := s.base.doJSON(http.MethodPost, s.base.apiURL("/publish"), map[string]any{
+		"id":             eventID,
+		"tenant_id":      tenantID,
+		"topic":          mcpTopic,
+		"destination_id": destID,
+		"data":           map[string]any{"n": 1},
+	}, &resp)
+	return status, resp
+}
+
+// Publishing to a stored subscription matches nothing and a manual retry to
+// it answers as for an unknown destination.
+func (s *mcpDisabledSuite) TestPublishAndRetryLikeUnknown() {
+	tenant := s.base.createTenant().ID
+	destID := idgen.Destination()
+	writeDestinationToStore(s.T(), s.base.config, models.Destination{
+		ID:          destID,
+		TenantID:    tenant,
+		Type:        "mcp",
+		Topics:      models.Topics{mcpTopic},
+		Config:      models.Config{"url": "https://203.0.113.10/"},
+		Credentials: models.Credentials{"secret": newWhsec()},
+	})
+
+	status, resp := s.publishTo(tenant, destID, idgen.Event())
+	s.Equal(http.StatusAccepted, status)
+	s.Empty(resp.DestinationIDs)
+
+	writeDestinationToStore(s.T(), s.base.config, models.Destination{
+		ID:       idgen.Destination(),
+		TenantID: tenant,
+		Type:     "webhook",
+		Topics:   models.Topics{mcpTopic},
+		Config:   models.Config{"url": s.base.opeventsServer.GetURL()},
+	})
+	pub := s.base.publish(tenant, mcpTopic, map[string]any{"n": 2}, withRetry())
+	s.base.waitForEventInLogstore(pub.ID)
+
+	retry := func(destinationID string) (int, errorResponse) {
+		var resp errorResponse
+		status := s.base.doJSON(http.MethodPost, s.base.apiURL("/retry"), map[string]any{
+			"event_id": pub.ID, "destination_id": destinationID,
+		}, &resp)
+		return status, resp
+	}
+	status, resp2 := retry(destID)
+	unknownStatus, unknownResp := retry("dst_missing")
+	s.Equal(http.StatusNotFound, status)
+	s.Equal(unknownStatus, status)
+	s.Equal(unknownResp.Message, resp2.Message)
+	time.Sleep(2 * time.Second)
+	s.Empty(s.attempts(tenant, destID))
+}

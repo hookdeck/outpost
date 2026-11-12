@@ -100,8 +100,7 @@ func (s *store) RetrieveTenant(_ context.Context, tenantID string) (*models.Tena
 	}
 
 	t := rec.tenant
-	destIDs := s.destsByTenant[tenantID]
-	t.DestinationsCount = len(destIDs)
+	t.DestinationsCount = s.countPublicLocked(tenantID)
 	t.Topics = s.computeTenantTopics(tenantID)
 	return &t, nil
 }
@@ -222,8 +221,7 @@ func (s *store) ListTenant(ctx context.Context, req driver.ListTenantRequest) (*
 
 	// Enrich with DestinationsCount and Topics
 	for i := range tenants {
-		destIDs := s.destsByTenant[tenants[i].ID]
-		tenants[i].DestinationsCount = len(destIDs)
+		tenants[i].DestinationsCount = s.countPublicLocked(tenants[i].ID)
 		tenants[i].Topics = s.computeTenantTopics(tenants[i].ID)
 	}
 
@@ -292,12 +290,13 @@ func (s *store) ListDestination(_ context.Context, req driver.ListDestinationReq
 	defer s.mu.RUnlock()
 
 	var filter *destinationFilter
-	hasFilter := len(req.Type) > 0 || len(req.Topics) > 0
+	hasFilter := len(req.Type) > 0 || len(req.Topics) > 0 || req.ExcludeInternal
 	if hasFilter {
 		filter = &destinationFilter{
-			Type:           req.Type,
-			Topics:         req.Topics,
-			AllowWildcards: req.AllowWildcards,
+			Type:            req.Type,
+			Topics:          req.Topics,
+			AllowWildcards:  req.AllowWildcards,
+			ExcludeInternal: req.ExcludeInternal,
 		}
 	}
 
@@ -369,24 +368,45 @@ func (s *store) CreateDestination(_ context.Context, destination models.Destinat
 		return driver.ErrDuplicateDestination
 	}
 
-	// Check max destinations; expired destinations are deleted to free a slot.
-	if len(s.destsByTenant[destination.TenantID]) >= s.maxDestinationsPerTenant {
-		s.deleteExpiredLocked(destination.TenantID)
-		if len(s.destsByTenant[destination.TenantID]) >= s.maxDestinationsPerTenant {
-			return driver.ErrMaxDestinationsPerTenantReached
-		}
+	if models.IsInternalDestinationType(destination.Type) {
+		// Nothing else deletes expired internal destinations: they never reach the limit.
+		s.deleteExpiredLocked(destination.TenantID, maxSweepPerCreate)
+	} else if s.countPublicLocked(destination.TenantID) >= s.maxDestinationsPerTenant {
+		return driver.ErrMaxDestinationsPerTenantReached
 	}
 
 	return s.upsertDestinationLocked(destination)
 }
 
-func (s *store) deleteExpiredLocked(tenantID string) {
+// countPublicLocked counts the tenant's destinations of non-internal types.
+func (s *store) countPublicLocked(tenantID string) int {
+	n := 0
+	for destID := range s.destsByTenant[tenantID] {
+		drec, ok := s.destinations[destKey(tenantID, destID)]
+		if !ok || drec.deletedAt != nil || models.IsInternalDestinationType(drec.destination.Type) {
+			continue
+		}
+		n++
+	}
+	return n
+}
+
+// maxSweepPerCreate bounds the expired internal destinations one create deletes.
+const maxSweepPerCreate = 100
+
+// deleteExpiredLocked deletes up to max expired destinations of the tenant.
+func (s *store) deleteExpiredLocked(tenantID string, max int) {
 	now := time.Now()
+	deleted := 0
 	for destID := range s.destsByTenant[tenantID] {
 		drec, ok := s.destinations[destKey(tenantID, destID)]
 		if !ok || !drec.destination.IsExpired(now) {
 			continue
 		}
+		if deleted == max {
+			break
+		}
+		deleted++
 		drec.deletedAt = &now
 		drec.destination.Version++
 		delete(s.destsByTenant[tenantID], destID)
@@ -484,9 +504,10 @@ func (s *store) computeTenantTopics(tenantID string) []string {
 	destIDs := s.destsByTenant[tenantID]
 	all := false
 	topicsSet := make(map[string]struct{})
+	now := time.Now()
 	for destID := range destIDs {
 		drec, ok := s.destinations[destKey(tenantID, destID)]
-		if !ok || drec.deletedAt != nil {
+		if !ok || drec.deletedAt != nil || drec.destination.IsExpired(now) {
 			continue
 		}
 		for _, topic := range drec.destination.Topics {
@@ -512,12 +533,16 @@ func (s *store) computeTenantTopics(tenantID string) []string {
 
 // destinationFilter specifies criteria for filtering destinations (package-private).
 type destinationFilter struct {
-	Type           []string
-	Topics         []string
-	AllowWildcards bool
+	Type            []string
+	Topics          []string
+	AllowWildcards  bool
+	ExcludeInternal bool
 }
 
 func matchDestFilter(filter *destinationFilter, dest models.Destination) bool {
+	if filter.ExcludeInternal && models.IsInternalDestinationType(dest.Type) {
+		return false
+	}
 	if len(filter.Type) > 0 && !slices.Contains(filter.Type, dest.Type) {
 		return false
 	}

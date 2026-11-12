@@ -218,6 +218,10 @@ func (h *eventHandler) matchSpecificDestination(ctx context.Context, event *mode
 		return []string{}, nil
 	}
 
+	if models.IsInternalDestinationType(destination.Type) {
+		return []string{}, nil
+	}
+
 	if !destination.MatchEvent(*event, h.topicsAllowWildcards) {
 		return []string{}, nil
 	}

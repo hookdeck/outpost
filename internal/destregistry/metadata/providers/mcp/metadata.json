@@ -9,14 +9,6 @@
       "required": true
     },
     {
-      "key": "principal",
-      "type": "text",
-      "label": "Principal",
-      "description": "The authenticated subject the subscription belongs to. Callback verification is cached per principal and URL.",
-      "required": false,
-      "maxlength": 512
-    },
-    {
       "key": "arguments",
       "type": "text",
       "label": "Arguments",

@@ -72,9 +72,10 @@ type TenantPaginatedResult struct {
 
 // ListDestinationRequest contains parameters for listing destinations.
 type ListDestinationRequest struct {
-	TenantID       string   // required — destinations are always tenant-scoped
-	IDs            []string // optional — filter to these destination IDs only
-	Type           []string // optional — OR semantics (matches any)
-	Topics         []string // optional — AND semantics ("*" = wildcard-only)
-	AllowWildcards bool     // whether persisted wildcard patterns participate in topic matching
+	TenantID        string   // required — destinations are always tenant-scoped
+	IDs             []string // optional — filter to these destination IDs only
+	Type            []string // optional — OR semantics (matches any)
+	Topics          []string // optional — AND semantics ("*" = wildcard-only)
+	AllowWildcards  bool     // whether persisted wildcard patterns participate in topic matching
+	ExcludeInternal bool     // skip destinations of internal types
 }

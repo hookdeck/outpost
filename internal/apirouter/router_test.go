@@ -71,14 +71,14 @@ type apiTestConfig struct {
 	topicsAllowWildcards bool
 	deploymentID         string
 	mcpVerifier          apirouter.MCPVerifier
-	maxDestinations      int
 	mcpCatalog           *topicschema.Catalog
 	mcpEventsErr         error
+	mcpSubscribe         bool
 }
 
-func withMaxDestinations(n int) apiTestOption {
+func withMCPSubscribe() apiTestOption {
 	return func(cfg *apiTestConfig) {
-		cfg.maxDestinations = n
+		cfg.mcpSubscribe = true
 	}
 }
 
@@ -200,7 +200,7 @@ func newAPITest(t *testing.T, opts ...apiTestOption) *apiTest {
 			Registry:             registry,
 			PortalConfig:         portal.PortalConfig{},
 
-			MaxDestinationsPerTenant: cfg.maxDestinations,
+			MCPSubscribe: cfg.mcpSubscribe,
 		},
 		apirouter.RouterDeps{
 			TenantStore:         ts,
