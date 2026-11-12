@@ -122,6 +122,21 @@ func TestBadDeliveryFails(t *testing.T) {
 			e["timestamp"] = "yesterday"
 			post(t, url, s, goodMsgID, time.Now(), e, map[string]string{"X-MCP-Subscription-Id": "dst_1"})
 		}},
+		"data is a string": {CheckEnvelopeShape, func(t *testing.T, url, s string) {
+			e := event("e")
+			e["data"] = "x"
+			post(t, url, s, goodMsgID, time.Now(), e, map[string]string{"X-MCP-Subscription-Id": "dst_1"})
+		}},
+		"data is null": {CheckEnvelopeShape, func(t *testing.T, url, s string) {
+			e := event("e")
+			e["data"] = nil
+			post(t, url, s, goodMsgID, time.Now(), e, map[string]string{"X-MCP-Subscription-Id": "dst_1"})
+		}},
+		"data is an array": {CheckEnvelopeShape, func(t *testing.T, url, s string) {
+			e := event("e")
+			e["data"] = []int{1}
+			post(t, url, s, goodMsgID, time.Now(), e, map[string]string{"X-MCP-Subscription-Id": "dst_1"})
+		}},
 		"no challenge first": {CheckVerifyFirst, func(t *testing.T, url, s string) {
 			post(t, url, s, goodMsgID, time.Now(), event("e"), map[string]string{"X-MCP-Subscription-Id": "dst_1"})
 		}},
@@ -226,4 +241,172 @@ func TestSentinelsCountAccepts(t *testing.T) {
 	require.NoError(t, err)
 	c.Close()
 	require.Eventually(t, func() bool { return r.SentinelAccepts() == 1 }, time.Second, 10*time.Millisecond)
+}
+
+func listen(t *testing.T, o Options) *Receiver {
+	t.Helper()
+	r, err := Listen(o)
+	require.NoError(t, err)
+	t.Cleanup(r.Close)
+	return r
+}
+
+func local(r *Receiver, path string) string { return "http://" + r.Addr() + path }
+
+var subHeader = map[string]string{"X-MCP-Subscription-Id": "sub_1"}
+
+func TestListenPublicURLAndFallback(t *testing.T) {
+	r := listen(t, Options{PublicURL: "http://host.docker.internal:4501/"})
+	_, url := r.Register(PathConfig{})
+	require.Contains(t, url, "http://host.docker.internal:4501/mcp/")
+	require.Zero(t, r.SentinelV4Port())
+	require.Zero(t, r.SentinelAccepts())
+
+	secret := newSecret(t)
+	var seen []Request
+	r = listen(t, Options{
+		Profile:   ProfileSpec,
+		Fallback:  &PathConfig{Secrets: []string{secret}, Event: Status(202)},
+		OnRequest: func(q Request) { seen = append(seen, q) },
+	})
+	got := post(t, local(r, "/hook"), secret, "msg_verification_x", time.Now(), map[string]any{"type": "verification", "challenge": "c"}, subHeader)
+	require.JSONEq(t, `{"challenge":"c"}`, got.body)
+	require.Equal(t, 202, post(t, local(r, "/hook"), secret, goodMsgID, time.Now(), event("e"), subHeader).status)
+	require.Empty(t, r.Violations())
+	require.Len(t, seen, 2)
+	require.Equal(t, "verification", seen[0].Kind())
+	require.Equal(t, "event", seen[1].Kind())
+	require.Len(t, r.AllRequests(), 2)
+
+	post(t, local(r, "/hook"), newSecret(t), goodMsgID, time.Now(), event("e2"), subHeader)
+	require.True(t, violated(r, CheckSignatureFormula))
+}
+
+func TestRejectUnverified(t *testing.T) {
+	r := listen(t, Options{})
+	secret := newSecret(t)
+	_, url := r.Register(PathConfig{Secrets: []string{secret}, RejectUnverified: true})
+	chal := map[string]any{"type": "verification", "challenge": "c"}
+
+	got := post(t, url, newSecret(t), "msg_verification_x", time.Now(), chal, subHeader)
+	require.Equal(t, 401, got.status)
+	require.Empty(t, got.body)
+	require.Equal(t, 401, post(t, url, secret, goodMsgID, time.Now().Add(-10*time.Minute), event("e"), subHeader).status)
+	require.Equal(t, 200, post(t, url, secret, "msg_verification_x", time.Now(), chal, subHeader).status)
+	require.Equal(t, 200, post(t, url, secret, goodMsgID, time.Now(), event("e"), subHeader).status)
+}
+
+func TestFailFirstPerMessage(t *testing.T) {
+	r := listen(t, Options{})
+	secret := newSecret(t)
+	_, url := r.Register(PathConfig{FailFirst: 1})
+	second := "msg_abcdefghijklmnopqrstuw"
+	var got []int
+	for _, id := range []string{goodMsgID, goodMsgID, second, second, goodMsgID} {
+		got = append(got, post(t, url, secret, id, time.Now(), event("e"), nil).status)
+	}
+	require.Equal(t, []int{500, 200, 500, 200, 200}, got)
+
+	_, url = r.Register(PathConfig{FailFirst: 2, FailStatus: 503})
+	got = nil
+	for range 3 {
+		got = append(got, post(t, url, secret, goodMsgID, time.Now(), event("e"), nil).status)
+	}
+	require.Equal(t, []int{503, 503, 200}, got)
+
+	_, url = r.Register(PathConfig{FailFirst: 1})
+	require.Equal(t, 200, post(t, url, secret, "msg_verification_x", time.Now(), map[string]any{"type": "verification", "challenge": "c"}, nil).status)
+}
+
+func TestControlEnvelopes(t *testing.T) {
+	cases := map[string]struct {
+		id    string
+		body  map[string]any
+		check string
+	}{
+		"good gap":              {"msg_gap_abc", map[string]any{"type": "gap", "cursor": "c9"}, ""},
+		"gap without cursor":    {"msg_gap_abc", map[string]any{"type": "gap"}, CheckEnvelopeShape},
+		"gap with null cursor":  {"msg_gap_abc", map[string]any{"type": "gap", "cursor": nil}, CheckEnvelopeShape},
+		"gap id prefix":         {goodMsgID, map[string]any{"type": "gap", "cursor": "c9"}, CheckWebhookIDFormat},
+		"good terminated":       {"msg_terminated_abc", map[string]any{"type": "terminated", "error": map[string]any{"code": -32024, "message": "Forbidden"}}, ""},
+		"terminated no error":   {"msg_terminated_abc", map[string]any{"type": "terminated"}, CheckEnvelopeShape},
+		"terminated no code":    {"msg_terminated_abc", map[string]any{"type": "terminated", "error": map[string]any{"message": "x"}}, CheckEnvelopeShape},
+		"terminated str code":   {"msg_terminated_abc", map[string]any{"type": "terminated", "error": map[string]any{"code": "1", "message": "x"}}, CheckEnvelopeShape},
+		"unknown type is fine":  {"msg_ping_abc", map[string]any{"type": "ping"}, ""},
+		"unknown type id check": {"msg_abc", map[string]any{"type": "ping"}, CheckWebhookIDFormat},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			r := listen(t, Options{Profile: ProfileSpec})
+			secret := newSecret(t)
+			_, url := r.Register(PathConfig{Secrets: []string{secret}})
+			post(t, url, secret, tc.id, time.Now(), tc.body, subHeader)
+			if tc.check == "" {
+				require.Empty(t, r.Violations())
+			} else {
+				require.True(t, violated(r, tc.check), "%v", r.Violations())
+			}
+		})
+	}
+
+	t.Run("unsigned control", func(t *testing.T) {
+		r := listen(t, Options{})
+		_, url := r.Register(PathConfig{Secrets: []string{newSecret(t)}})
+		post(t, url, newSecret(t), "msg_gap_abc", time.Now(), map[string]any{"type": "gap", "cursor": "c"}, subHeader)
+		require.True(t, violated(r, CheckControlSigned))
+	})
+}
+
+func TestSubscriptionIDHeaderRequired(t *testing.T) {
+	r := listen(t, Options{})
+	secret := newSecret(t)
+	_, url := r.Register(PathConfig{Secrets: []string{secret}})
+	post(t, url, secret, goodMsgID, time.Now(), event("e"), nil)
+	require.True(t, violated(r, CheckHeaders))
+}
+
+func TestProfiles(t *testing.T) {
+	longID := "msg_abcdefghijklmnopqrstuvwxyz0123"
+	secret := newSecret(t)
+	run := func(p Profile, first string, id string, ev map[string]any) *Receiver {
+		r := listen(t, Options{Profile: p})
+		_, url := r.Register(PathConfig{Secrets: []string{secret}})
+		if first == "event" {
+			post(t, url, secret, id, time.Now(), ev, subHeader)
+		} else {
+			post(t, url, secret, "msg_verification_x", time.Now(), map[string]any{"type": "verification", "challenge": "c"}, subHeader)
+			post(t, url, secret, id, time.Now(), ev, subHeader)
+		}
+		return r
+	}
+	withCursor := func(c any) map[string]any { e := event("e"); e["cursor"] = c; return e }
+
+	spec := run(ProfileSpec, "event", longID, withCursor("c1"))
+	require.Empty(t, spec.Violations())
+	spec = run(ProfileSpec, "challenge", "plain-id_1", withCursor(nil))
+	require.Empty(t, spec.Violations())
+	spec = run(ProfileSpec, "challenge", "bad id", withCursor(nil))
+	require.True(t, violated(spec, CheckWebhookIDFormat))
+	spec = run(ProfileSpec, "challenge", "same", map[string]any{"eventId": "same", "name": "n", "timestamp": "2026-10-27T12:00:00Z", "data": 1})
+	require.True(t, violated(spec, CheckWebhookIDFormat))
+	spec = run(ProfileSpec, "challenge", goodMsgID, withCursor(5))
+	require.True(t, violated(spec, CheckEnvelopeShape))
+
+	out := run(ProfileOutpost, "event", longID, withCursor("c1"))
+	require.True(t, violated(out, CheckWebhookIDFormat))
+	require.True(t, violated(out, CheckEnvelopeShape))
+	require.True(t, violated(out, CheckVerifyFirst))
+}
+
+func TestRejectedRequestsDoNotConsumeScriptedFailures(t *testing.T) {
+	r := listen(t, Options{})
+	secret := newSecret(t)
+	_, url := r.Register(PathConfig{Secrets: []string{secret}, RejectUnverified: true, FailFirst: 1})
+	require.Equal(t, 401, post(t, url, newSecret(t), goodMsgID, time.Now(), event("e"), subHeader).status)
+	require.Equal(t, 500, post(t, url, secret, goodMsgID, time.Now(), event("e"), subHeader).status)
+	require.Equal(t, 200, post(t, url, secret, goodMsgID, time.Now(), event("e"), subHeader).status)
+
+	_, url = r.Register(PathConfig{Secrets: []string{secret}, RejectUnverified: true, Event: Sequence(503)})
+	require.Equal(t, 401, post(t, url, newSecret(t), goodMsgID, time.Now(), event("e"), subHeader).status)
+	require.Equal(t, 503, post(t, url, secret, goodMsgID, time.Now(), event("e"), subHeader).status)
 }
