@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/hookdeck/outpost/internal/logging"
@@ -107,7 +108,7 @@ func (h *RetryHandlers) Retry(c *gin.Context) {
 		}
 	}
 
-	// 2. Check destination exists and is enabled
+	// 2. Check destination exists, is enabled and not expired
 	destination, err := h.tenantStore.RetrieveDestination(c.Request.Context(), event.TenantID, req.DestinationID)
 	if err != nil {
 		if errors.Is(err, tenantstore.ErrDestinationDeleted) {
@@ -127,6 +128,17 @@ func (h *RetryHandlers) Retry(c *gin.Context) {
 			Message: "Destination is disabled",
 			Data: map[string]string{
 				"error": "destination_disabled",
+			},
+		})
+		return
+	}
+
+	if destination.IsExpired(time.Now()) {
+		AbortWithError(c, http.StatusBadRequest, ErrorResponse{
+			Code:    http.StatusBadRequest,
+			Message: "Destination is expired",
+			Data: map[string]string{
+				"error": "destination_expired",
 			},
 		})
 		return

@@ -463,6 +463,54 @@ func testCRUD(t *testing.T, newHarness HarnessMaker) {
 		})
 	})
 
+	t.Run("DestinationExpiry", func(t *testing.T) {
+		ctx := context.Background()
+		h, err := newHarness(ctx, t)
+		require.NoError(t, err)
+		t.Cleanup(h.Close)
+
+		store, err := h.MakeDriver(ctx)
+		require.NoError(t, err)
+
+		tenantID := idgen.String()
+		require.NoError(t, store.UpsertTenant(ctx, models.Tenant{ID: tenantID, CreatedAt: time.Now()}))
+		expiresAt := time.Now().Add(time.Hour).Truncate(time.Millisecond)
+		destination := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithTenantID(tenantID),
+			testutil.DestinationFactory.WithExpiresAt(expiresAt),
+		)
+
+		t.Run("persists expires_at", func(t *testing.T) {
+			require.NoError(t, store.CreateDestination(ctx, destination))
+			actual, err := store.RetrieveDestination(ctx, tenantID, destination.ID)
+			require.NoError(t, err)
+			assertEqualDestination(t, destination, *actual)
+			assert.False(t, actual.IsExpired(time.Now()))
+
+			listed, err := store.ListDestination(ctx, driver.ListDestinationRequest{TenantID: tenantID})
+			require.NoError(t, err)
+			require.Len(t, listed, 1)
+			assertEqualTimePtr(t, &expiresAt, listed[0].ExpiresAt, "ExpiresAt")
+		})
+
+		t.Run("an expired destination is still returned", func(t *testing.T) {
+			destination.ExpiresAt = ptr(time.Now().Add(-time.Minute).Truncate(time.Millisecond))
+			require.NoError(t, store.UpsertDestination(ctx, destination))
+			actual, err := store.RetrieveDestination(ctx, tenantID, destination.ID)
+			require.NoError(t, err)
+			assertEqualTimePtr(t, destination.ExpiresAt, actual.ExpiresAt, "ExpiresAt")
+			assert.True(t, actual.IsExpired(time.Now()))
+		})
+
+		t.Run("upsert without expires_at clears it", func(t *testing.T) {
+			destination.ExpiresAt = nil
+			require.NoError(t, store.UpsertDestination(ctx, destination))
+			actual, err := store.RetrieveDestination(ctx, tenantID, destination.ID)
+			require.NoError(t, err)
+			assert.Nil(t, actual.ExpiresAt)
+		})
+	})
+
 	t.Run("FilterPersistence", func(t *testing.T) {
 		ctx := context.Background()
 		h, err := newHarness(ctx, t)
@@ -577,4 +625,7 @@ func assertEqualDestination(t *testing.T, expected, actual models.Destination) {
 	assertEqualTime(t, expected.CreatedAt, actual.CreatedAt, "CreatedAt")
 	assertEqualTime(t, expected.UpdatedAt, actual.UpdatedAt, "UpdatedAt")
 	assertEqualTimePtr(t, expected.DisabledAt, actual.DisabledAt, "DisabledAt")
+	assertEqualTimePtr(t, expected.ExpiresAt, actual.ExpiresAt, "ExpiresAt")
 }
+
+func ptr[T any](v T) *T { return &v }

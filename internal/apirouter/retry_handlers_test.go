@@ -402,6 +402,20 @@ func TestAPI_Retry(t *testing.T) {
 			assert.Equal(t, "destination_disabled", body.Data["error"])
 		})
 
+		t.Run("expired destination returns 400", func(t *testing.T) {
+			h := setup(t)
+			require.NoError(t, h.tenantStore.UpsertDestination(t.Context(), df.Any(df.WithID("d2"), df.WithTenantID("t1"), df.WithTopics([]string{"*"}), df.WithExpiresAt(time.Now().Add(-time.Minute)))))
+
+			resp := h.do(h.withAPIKey(retry(h, "e1", "d2")))
+
+			testutil.RequireErrorResponse(t, resp, http.StatusBadRequest, "Destination is expired")
+			var body struct {
+				Data map[string]string `json:"data"`
+			}
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &body))
+			assert.Equal(t, "destination_expired", body.Data["error"])
+		})
+
 		t.Run("topic mismatch returns 400", func(t *testing.T) {
 			h := setup(t)
 			require.NoError(t, h.tenantStore.UpsertDestination(t.Context(), df.Any(df.WithID("d2"), df.WithTenantID("t1"), df.WithTopics([]string{"user.deleted"}))))
