@@ -44,7 +44,7 @@ services:
   # LOCAL_DEV_CLICKHOUSE=1, LOCAL_DEV_POSTGRES=1 (can enable both)
   clickhouse:
     profiles: ["clickhouse"]
-    image: clickhouse/clickhouse-server:24-alpine
+    image: clickhouse/clickhouse-server:26.8-alpine
     environment:
       CLICKHOUSE_DB: outpost
       CLICKHOUSE_USER: outpost
