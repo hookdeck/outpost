@@ -26,7 +26,7 @@ The events come from the embedded sample, --file (an events/list result) or
 		Flags: append([]cli.Flag{
 			&cli.StringFlag{Name: "tenant", Value: "demo", Usage: "tenant to publish to"},
 			&cli.StringFlag{Name: "file", Usage: "events/list result to read the events from"},
-			&cli.StringFlag{Name: "server", Sources: cli.EnvVars("MCP_SERVER_URL"), Usage: "MCP Events server to read the events from"},
+			&cli.StringFlag{Name: "server", Usage: "MCP Events server to read the events from"},
 			&cli.StringFlag{Name: "token", Sources: cli.EnvVars("MCP_TOKEN"), Usage: "bearer token to send to --server (default: random)"},
 			&cli.StringSliceFlag{Name: "event", Usage: "publish only this event, repeatable"},
 			&cli.IntFlag{Name: "count", Value: 3, Usage: "events to publish per event name (1-1000)"},

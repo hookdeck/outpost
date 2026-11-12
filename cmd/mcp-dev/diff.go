@@ -17,7 +17,7 @@ func diffCommand() *cli.Command {
 		Description: `Compares events by name, ignoring order. Exit status 0 means equal, 1 differences,
 2 a usage or load error. The delivery field is ignored unless --ignore is given.`,
 		Flags: []cli.Flag{
-			&cli.StringFlag{Name: "server", Sources: cli.EnvVars("MCP_SERVER_URL"), Usage: "compare with this server's events/list instead of FILE2"},
+			&cli.StringFlag{Name: "server", Usage: "compare with this server's events/list instead of FILE2"},
 			&cli.StringFlag{Name: "token", Sources: cli.EnvVars("MCP_TOKEN"), Usage: "bearer token to send to --server (default: random)"},
 			&cli.StringSliceFlag{Name: "ignore", Value: mcpcatalog.DefaultIgnore, Usage: "top-level event field to ignore, repeatable"},
 		},
