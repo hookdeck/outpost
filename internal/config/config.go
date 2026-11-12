@@ -25,6 +25,9 @@ const (
 	Namespace = "Outpost"
 )
 
+// DefaultMaxEventSizeBytes is the default maximum event size: 1 MiB.
+const DefaultMaxEventSizeBytes = 1 << 20
+
 func getConfigLocations() []string {
 	return []string{
 		// Relative paths
@@ -92,6 +95,7 @@ type Config struct {
 
 	// Event Delivery
 	MaxDestinationsPerTenant int `yaml:"max_destinations_per_tenant" env:"MAX_DESTINATIONS_PER_TENANT" desc:"Maximum number of destinations allowed per tenant/organization." required:"N"`
+	MaxEventSizeBytes        int `yaml:"max_event_size_bytes" env:"MAX_EVENT_SIZE_BYTES" desc:"Maximum size in bytes of an event, applied to API publish requests (rejected with 413) and publish queue messages (dropped). Keep it well under your message queue's per-message size limit. Default: 1048576 (1 MiB). Set to 0 for no limit." required:"N"`
 	DeliveryTimeoutSeconds   int `yaml:"delivery_timeout_seconds" env:"DELIVERY_TIMEOUT_SECONDS" desc:"Timeout in seconds for HTTP requests made during event delivery to webhook destinations." required:"N"`
 
 	// Idempotency
@@ -193,6 +197,7 @@ func (c *Config) InitDefaults() {
 			LogSubject:      "outpost.log",
 		},
 	}
+	c.MaxEventSizeBytes = DefaultMaxEventSizeBytes
 	c.PublishMaxConcurrency = 1
 	c.PublishMaxRedeliveries = -1
 	c.DeliveryMaxConcurrency = 1

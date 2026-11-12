@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/hookdeck/outpost/internal/idgen"
+	"github.com/hookdeck/outpost/internal/util/testutil"
 )
 
 func (s *basicSuite) TestRequestBody_LargeBodiesAreAccepted() {
@@ -65,6 +66,9 @@ func (s *basicSuite) TestRequestBody_OverLimitIsRejected() {
 			"metadata": metadata,
 		}),
 		tooLarge("destination update", http.MethodPatch, "/tenants/"+tenant.ID+"/destinations/"+dest.ID, admin, map[string]any{"metadata": metadata}),
+		tooLarge("publish", http.MethodPost, "/publish", admin, map[string]any{
+			"tenant_id": tenant.ID, "topic": testutil.TestTopics[0], "data": metadata,
+		}),
 		tooLarge("retry", http.MethodPost, "/retry", admin, map[string]any{"event_id": "evt_missing", "destination_id": dest.ID, "metadata": metadata}),
 		tooLarge("tenant JWT", http.MethodPatch, "/tenants/"+tenant.ID+"/destinations/"+dest.ID, s.tenantAuth(tenant.ID), map[string]any{"metadata": metadata}),
 		tooLarge("no auth header", http.MethodPut, "/tenants/"+tenant.ID, "", map[string]any{"metadata": metadata}),
