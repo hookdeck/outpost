@@ -117,6 +117,19 @@ destinations:
 #     enabled: true
 #     allow_insecure_callbacks: false
 #     verification_ttl_seconds: 86400
+#     events_schema: # or a path to a JSON or YAML file
+#       events:
+#         - name: user.created
+#           description: A user was created.
+#           inputSchema:
+#             type: object
+#             properties:
+#               plan: {type: string, enum: [free, pro]}
+#           payloadSchema:
+#             type: object
+#             properties:
+#               plan: {type: string, enum: [free, pro]}
+#               credits: {type: number}
 
 # Note: OpenTelemetry Configuration
 # It is recommended to configure OpenTelemetry using environment variables as they are better supported by the SDK.

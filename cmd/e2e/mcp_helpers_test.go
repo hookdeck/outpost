@@ -11,6 +11,7 @@ import (
 	"github.com/hookdeck/outpost/internal/redis"
 	"github.com/hookdeck/outpost/internal/tenantstore"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v3"
 )
 
 const (
@@ -24,11 +25,22 @@ const (
 // quick retries.
 var mcpRetrySchedule = []time.Duration{time.Second, time.Second}
 
+// mcpDeliveryEvents defines the one event the delivery suite subscribes to.
+const mcpDeliveryEvents = `
+events:
+  - name: user.created
+    inputSchema: {type: object, properties: {}}
+    payloadSchema: {type: object}
+`
+
 // withMCPDelivery enables MCP with the settings the delivery suite needs.
 func withMCPDelivery(cfg *config.Config) {
 	cfg.Experimental.MCP.Enabled = true
 	cfg.Destinations.PrivateAddressAllowlist = []string{"127.0.0.2/32"}
 	cfg.Experimental.MCP.AllowInsecureCallbacks = true
+	if err := yaml.Unmarshal([]byte(mcpDeliveryEvents), &cfg.Experimental.MCP.EventsSchema); err != nil {
+		panic(err)
+	}
 	cfg.Experimental.MCP.RetryDelays = mcpRetrySchedule
 	cfg.DeliveryTimeoutSeconds = mcpDeliveryTimeoutSeconds
 	cfg.RetryPollBackoffMs = 50

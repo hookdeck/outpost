@@ -98,6 +98,12 @@ type PublisherCacheBypasser interface {
 	BypassPublisherCache() bool
 }
 
+// CreateValidator is an optional Provider interface. ValidateCreate checks a
+// new destination before Validate, which may call it. Updates skip it.
+type CreateValidator interface {
+	ValidateCreate(destination *models.Destination) error
+}
+
 type Delivery struct {
 	Status   string
 	Code     string

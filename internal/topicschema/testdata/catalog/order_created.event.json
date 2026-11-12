@@ -1,0 +1,56 @@
+{
+  "name": "order.created",
+  "description": "Fires when a new order is placed.",
+  "delivery": [
+    "webhook"
+  ],
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "total": {
+        "type": "number",
+        "description": "Order total in major units."
+      },
+      "currency": {
+        "type": "string",
+        "enum": [
+          "USD",
+          "EUR"
+        ]
+      }
+    },
+    "additionalProperties": false
+  },
+  "payloadSchema": {
+    "type": "object",
+    "properties": {
+      "orderId": {
+        "type": "string"
+      },
+      "total": {
+        "type": "number",
+        "description": "Order total in major units."
+      },
+      "currency": {
+        "type": "string",
+        "description": "ISO 4217 currency code.",
+        "x-vendor": [
+          1,
+          2
+        ]
+      },
+      "createdAt": {
+        "type": "string",
+        "format": "date-time"
+      }
+    },
+    "required": [
+      "orderId",
+      "total",
+      "currency"
+    ]
+  },
+  "_meta": {
+    "owner": "billing"
+  }
+}
