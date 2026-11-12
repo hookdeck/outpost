@@ -40,6 +40,9 @@ type RouterConfig struct {
 	Registry             destregistry.Registry
 	PortalConfig         portal.PortalConfig
 	GinMode              string
+
+	// MaxDestinationsPerTenant mirrors the tenant store's limit (0: unknown).
+	MaxDestinationsPerTenant int
 }
 
 type RouterDeps struct {
@@ -50,6 +53,7 @@ type RouterDeps struct {
 	EventHandler        eventHandler
 	Telemetry           telemetry.Telemetry
 	SubscriptionEmitter SubscriptionEmitter // optional — emits tenant.subscription.updated on destination mutations
+	MCPVerifier         MCPVerifier         // optional — set when the mcp destination type is enabled; purged on tenant delete
 }
 
 func (d RouterDeps) validate() error {
@@ -136,8 +140,8 @@ func NewRouter(cfg RouterConfig, deps RouterDeps) http.Handler {
 
 	displayer := newDestinationDisplayer(cfg.Registry, cfg.TopicsAllowWildcards)
 
-	tenantHandlers := NewTenantHandlers(deps.Logger, deps.Telemetry, cfg.JWTSecret, cfg.DeploymentID, deps.TenantStore, cfg.TopicsAllowWildcards)
-	destinationHandlers := NewDestinationHandlers(deps.Logger, deps.Telemetry, deps.TenantStore, deps.SubscriptionEmitter, cfg.Topics, cfg.TopicsAllowWildcards, cfg.Registry, displayer)
+	tenantHandlers := NewTenantHandlers(deps.Logger, deps.Telemetry, cfg.JWTSecret, cfg.DeploymentID, deps.TenantStore, cfg.TopicsAllowWildcards, deps.MCPVerifier)
+	destinationHandlers := NewDestinationHandlers(deps.Logger, deps.Telemetry, deps.TenantStore, deps.SubscriptionEmitter, cfg.Topics, cfg.TopicsAllowWildcards, cfg.Registry, displayer, cfg.MaxDestinationsPerTenant)
 	publishHandlers := NewPublishHandlers(deps.Logger, deps.EventHandler)
 	logHandlers := NewLogHandlers(deps.Logger, deps.LogStore, deps.TenantStore, displayer)
 	retryHandlers := NewRetryHandlers(deps.Logger, deps.TenantStore, deps.LogStore, deps.DeliveryPublisher, cfg.TopicsAllowWildcards)

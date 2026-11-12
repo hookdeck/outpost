@@ -69,6 +69,20 @@ type apiTestConfig struct {
 	topics               []string
 	topicsAllowWildcards bool
 	deploymentID         string
+	mcpVerifier          apirouter.MCPVerifier
+	maxDestinations      int
+}
+
+func withMaxDestinations(n int) apiTestOption {
+	return func(cfg *apiTestConfig) {
+		cfg.maxDestinations = n
+	}
+}
+
+func withMCPVerifier(v apirouter.MCPVerifier) apiTestOption {
+	return func(cfg *apiTestConfig) {
+		cfg.mcpVerifier = v
+	}
 }
 
 func withTenantStore(ts tenantstore.TenantStore) apiTestOption {
@@ -170,6 +184,8 @@ func newAPITest(t *testing.T, opts ...apiTestOption) *apiTest {
 			TopicsAllowWildcards: cfg.topicsAllowWildcards,
 			Registry:             registry,
 			PortalConfig:         portal.PortalConfig{},
+
+			MaxDestinationsPerTenant: cfg.maxDestinations,
 		},
 		apirouter.RouterDeps{
 			TenantStore:         ts,
@@ -179,6 +195,7 @@ func newAPITest(t *testing.T, opts ...apiTestOption) *apiTest {
 			EventHandler:        eh,
 			Telemetry:           &telemetry.NoopTelemetry{},
 			SubscriptionEmitter: subEmitter,
+			MCPVerifier:         cfg.mcpVerifier,
 		},
 	)
 

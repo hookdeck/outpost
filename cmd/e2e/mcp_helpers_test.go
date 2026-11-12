@@ -1,0 +1,75 @@
+package e2e_test
+
+import (
+	"context"
+	"errors"
+	"testing"
+	"time"
+
+	"github.com/hookdeck/outpost/internal/config"
+	"github.com/hookdeck/outpost/internal/models"
+	"github.com/hookdeck/outpost/internal/redis"
+	"github.com/hookdeck/outpost/internal/tenantstore"
+	"github.com/stretchr/testify/require"
+)
+
+const (
+	mcpDeliveryTimeoutSeconds = 2
+	// mcpAutoDisableCount is below the 6 events the non-retryable tests
+	// send, and above the attempts of any fully retried message.
+	mcpAutoDisableCount = "5"
+)
+
+// mcpRetrySchedule replaces the fixed one-to-five-minute MCP schedule with two
+// quick retries.
+var mcpRetrySchedule = []time.Duration{time.Second, time.Second}
+
+// withMCPDelivery enables MCP with the settings the delivery suite needs.
+func withMCPDelivery(cfg *config.Config) {
+	cfg.Experimental.MCP.Enabled = true
+	cfg.Destinations.PrivateAddressAllowlist = []string{"127.0.0.2/32"}
+	cfg.Experimental.MCP.AllowInsecureCallbacks = true
+	cfg.Experimental.MCP.RetryDelays = mcpRetrySchedule
+	cfg.DeliveryTimeoutSeconds = mcpDeliveryTimeoutSeconds
+	cfg.RetryPollBackoffMs = 50
+	cfg.Alert.ConsecutiveFailureCount = config.NewOptionalString(mcpAutoDisableCount)
+}
+
+// withMCPDisabled turns MCP off explicitly.
+func withMCPDisabled(cfg *config.Config) {
+	cfg.Experimental.MCP.Enabled = false
+}
+
+// newTestTenantStore opens the tenant store the running Outpost reads.
+func newTestTenantStore(t *testing.T, cfg config.Config) tenantstore.TenantStore {
+	t.Helper()
+	client, err := redis.New(context.Background(), cfg.Redis.ToConfig())
+	require.NoError(t, err)
+	return tenantstore.New(tenantstore.Config{
+		RedisClient:              client,
+		Secret:                   cfg.AESEncryptionSecret,
+		AvailableTopics:          cfg.Topics,
+		MaxDestinationsPerTenant: cfg.MaxDestinationsPerTenant,
+		DeploymentID:             cfg.DeploymentID,
+	})
+}
+
+// writeDestinationToStore saves a destination straight into the tenant
+// store the running Outpost reads, bypassing API validation.
+func writeDestinationToStore(t *testing.T, cfg config.Config, d models.Destination) {
+	t.Helper()
+	now := time.Now()
+	d.CreatedAt, d.UpdatedAt = now, now
+	require.NoError(t, newTestTenantStore(t, cfg).CreateDestination(context.Background(), d))
+}
+
+// readDestinationFromStore reads a destination straight from the tenant
+// store. It returns nil when the destination does not exist or was deleted.
+func readDestinationFromStore(t *testing.T, cfg config.Config, tenantID, destID string) *models.Destination {
+	t.Helper()
+	d, err := newTestTenantStore(t, cfg).RetrieveDestination(context.Background(), tenantID, destID)
+	if !errors.Is(err, tenantstore.ErrDestinationDeleted) {
+		require.NoError(t, err)
+	}
+	return d
+}

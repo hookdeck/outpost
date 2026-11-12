@@ -3866,6 +3866,8 @@ components:
             Complete name of the topic header. Unset uses the default
             "<prefix>topic"; an explicit value pins that exact name; an empty
             string disables the header. Only applies to "default" mode.
+        EXPERIMENTAL_MCP_ENABLED:
+          type: [string, "null"]
         HTTP_USER_AGENT:
           type: [string, "null"]
         IDGEN_ATTEMPT_PREFIX:

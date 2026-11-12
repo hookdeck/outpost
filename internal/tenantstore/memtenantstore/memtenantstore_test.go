@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/tenantstore/driver"
 	"github.com/hookdeck/outpost/internal/tenantstore/drivertest"
 )
@@ -30,4 +31,13 @@ func newHarness(_ context.Context, _ *testing.T) (drivertest.Harness, error) {
 
 func TestMemTenantStoreConformance(t *testing.T) {
 	drivertest.RunConformanceTests(t, newHarness)
+}
+
+func TestMemTenantStoreExcludedTypes(t *testing.T) {
+	drivertest.RunExcludedTypesTests(t, func(_ *testing.T, excludeMCP bool) driver.TenantStore {
+		if excludeMCP {
+			return New(WithExcludedTypes(models.DestinationTypeMCP))
+		}
+		return New()
+	})
 }

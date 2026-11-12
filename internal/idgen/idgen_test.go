@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 )
 
 // restoreGenerator puts the package-global generator back after a test that
@@ -234,5 +235,15 @@ func BenchmarkEvent_Nanoid(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		Event()
+	}
+}
+
+func TestMessage(t *testing.T) {
+	seen := map[string]bool{}
+	for range 100 {
+		id := Message()
+		assert.Regexp(t, `^msg_[A-Za-z0-9_-]{22}$`, id)
+		assert.False(t, seen[id])
+		seen[id] = true
 	}
 }

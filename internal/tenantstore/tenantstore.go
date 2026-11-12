@@ -40,6 +40,7 @@ type Config struct {
 	AvailableTopics          []string
 	MaxDestinationsPerTenant int
 	DeploymentID             string
+	ExcludedTypes            []string
 }
 
 // New creates a new Redis-backed TenantStore.
@@ -56,6 +57,9 @@ func New(cfg Config) TenantStore {
 	}
 	if cfg.DeploymentID != "" {
 		opts = append(opts, redistenantstore.WithDeploymentID(cfg.DeploymentID))
+	}
+	if len(cfg.ExcludedTypes) > 0 {
+		opts = append(opts, redistenantstore.WithExcludedTypes(cfg.ExcludedTypes...))
 	}
 	return redistenantstore.New(cfg.RedisClient, opts...)
 }
