@@ -15,9 +15,10 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+// The lists order by a timestamptz column, which keeps microseconds.
 var (
-	eventCursor   = driver.NewCursor("evt", driver.CursorFormatTimeIDMillis)
-	attemptCursor = driver.NewCursor("att", driver.CursorFormatTimeIDMillis)
+	eventCursor   = driver.NewCursor("evt", driver.CursorFormatTimeIDMicros)
+	attemptCursor = driver.NewCursor("att", driver.CursorFormatTimeIDMicros)
 )
 
 type logStore struct {
