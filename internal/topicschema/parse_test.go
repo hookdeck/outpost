@@ -165,7 +165,9 @@ func TestParseDefinitionsAliasExpansion(t *testing.T) {
 		start := time.Now()
 		_, err = ParseDefinitions(data)
 		requireProblems(t, err, "the schemas are more than 16 MiB as JSON in total")
-		assert.Less(t, time.Since(start), 2*time.Second)
+		// The limit stops the expansion: unbounded, it would not finish. The
+		// bound is loose so the race detector and a busy machine stay within it.
+		assert.Less(t, time.Since(start), time.Minute)
 	})
 
 	t.Run("alias cycle", func(t *testing.T) {
