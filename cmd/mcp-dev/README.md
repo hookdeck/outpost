@@ -19,7 +19,7 @@ make mcp/dev ARGS=tour                  # the first run builds the image and com
 
 - MCP Events on (`EXPERIMENTAL_MCP_ENABLED`), with five sample events from `cmd/mcp-dev/samples/events.json`
 - http callbacks allowed to the stack's Docker network only, where the `mcp-dev` containers listen
-- retries after 1, 2 and 5 seconds
+- retries after 1, 3, 5 and 5 minutes
 - a tenant `demo`
 
 `make up` turns MCP Events off again.
