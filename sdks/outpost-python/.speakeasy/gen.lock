@@ -1,20 +1,20 @@
 lockVersion: 2.0.0
 id: da774284-22d9-4b6c-bb26-1c3fc9f2c7ee
 management:
-  docChecksum: 20545731403f71a751cad159efafc272
+  docChecksum: 61645293018cce0f8f6bba81dc388a23
   docVersion: 0.0.1
   speakeasyVersion: 1.808.1
   generationVersion: 2.960.8
-  releaseVersion: 1.8.0
-  configChecksum: 676b05f2ae7be24c6bbbe641af180f67
+  releaseVersion: 1.9.0
+  configChecksum: 373be09dc62371605e1cc7296e9586ca
   repoURL: https://github.com/hookdeck/outpost.git
   repoSubDirectory: sdks/outpost-python
   installationURL: https://github.com/hookdeck/outpost.git#subdirectory=sdks/outpost-python
   published: true
 persistentEdits:
-  generation_id: a6477adc-f8c9-42bb-aa1b-9856da89fcff
-  pristine_commit_hash: feeefd436b4ae5ec1c6094010c58f2e50e21c849
-  pristine_tree_hash: 4fb87e57e6031846d6a3d9311650e698de3edd2b
+  generation_id: 33403ec0-2605-4f4c-9a6b-71c5703ca724
+  pristine_commit_hash: cbcc714a44a406527dff39e1013e57bfbdd8e697
+  pristine_tree_hash: b768d5f15ff0317978315fefa17726adbef136cf
 features:
   python:
     additionalDependencies: 1.1.0
@@ -31,6 +31,7 @@ features:
     globalSecurityFlattening: 1.0.0
     globalServerURLs: 3.2.1
     groups: 3.0.1
+    ignores: 3.0.1
     nameOverrides: 3.0.3
     nullables: 1.0.2
     responseFormat: 1.1.0
@@ -912,8 +913,8 @@ trackedFiles:
     pristine_git_object: 14d312b6d1c8a81415b625253eefe05f3f0ad276
   docs/models/managedconfig.md:
     id: 56bc51d52ab0
-    last_write_checksum: sha1:6bbf710fa1cec9cbbab636aacf1030aee38a4d9b
-    pristine_git_object: eed69e96be2898614042aa29c7db80092004af3f
+    last_write_checksum: sha1:3c45505d9e071cfbf047ac09161792e7b1519a6a
+    pristine_git_object: 2af4fbd1bdca168810abd60ba5c40a9933caedd8
   docs/models/metricsdatapoint.md:
     id: 7ab5449287c3
     last_write_checksum: sha1:ed280c92a54e7b8a0d55cb99261bfb689bbc47a1
@@ -1140,8 +1141,8 @@ trackedFiles:
     pristine_git_object: cca330736fb6ecec666b32012a4c346570dd5085
   pyproject.toml:
     id: 5d07e7d72637
-    last_write_checksum: sha1:f985a4fac60e4c831f62d10ef508ec827a4225cb
-    pristine_git_object: 49290f37467743854e8e4e194f163573d83f9803
+    last_write_checksum: sha1:0a9ab7f9f29722f50a84e8f48efdaedf41145c0b
+    pristine_git_object: efa80ea605bee8cde43acc8520dda4d094577edf
   scripts/prepare_readme.py:
     id: e0c5957a6035
     last_write_checksum: sha1:eb460f85c06b287fee629d997b2df75c92fa1cab
@@ -1168,8 +1169,8 @@ trackedFiles:
     pristine_git_object: 5a1791665e43f993bd128bcb5dd3f883623dc2b6
   src/outpost_sdk/_version.py:
     id: 22be68f35ad0
-    last_write_checksum: sha1:8b65fa31a9700a4f735bdc0465bebf7832418559
-    pristine_git_object: f81b27de9f77990360b71d3635dd65f2a825cbd9
+    last_write_checksum: sha1:1c07ba059c1c54558bff863ef738422f11f25bca
+    pristine_git_object: 8321e889d463543bac8df8f4dcba000315f2e9d6
   src/outpost_sdk/attempts.py:
     id: 304ea4e0bbf1
     last_write_checksum: sha1:e3764ab5699b8fe493cee94d3ccb6f9bad44fd9e
@@ -1688,8 +1689,8 @@ trackedFiles:
     pristine_git_object: 35e8f3c76e666b9cba302eba3ae35ece0a17736f
   src/outpost_sdk/models/managedconfig.py:
     id: 6e2467f6cfb6
-    last_write_checksum: sha1:0f5dd72a9e7643c413ac95a4fdfba35ab1427fbe
-    pristine_git_object: d9897dca90f8c3e57606eb34360cdadd79b2042e
+    last_write_checksum: sha1:391d5af35c15064b67c2269b8a0b207063814941
+    pristine_git_object: 1611fdc75d293494ea336a9d7b5363abeb0e0b19
   src/outpost_sdk/models/metricsdatapoint.py:
     id: 402c8bbf628c
     last_write_checksum: sha1:9b9a9f49824f929238f493afdd89c901ec20d24d
@@ -2719,7 +2720,7 @@ examples:
           application/json: {"success": true}
 examplesVersion: 1.0.2
 generatedTests: {}
-releaseNotes: "## Python SDK Changes:\n* `outpost.configuration.get_managed_config()`:  `response` **Changed** (Breaking ⚠️)\n* `outpost.configuration.update_managed_config()`: \n  *  `request` **Changed**\n  *  `response` **Changed** (Breaking ⚠️)\n* `outpost.retry()`:  `error.status[413]` **Added**\n* `outpost.tenants.upsert()`:  `error.status[413]` **Added**\n* `outpost.destinations.create()`:  `error.status[413]` **Added**\n* `outpost.destinations.update()`:  `error` **Changed**\n* `outpost.destinations.enable()`:  `error.status[409]` **Added**\n* `outpost.destinations.disable()`:  `error.status[409]` **Added**\n"
+releaseNotes: "## Python SDK Changes:\n* `outpost.configuration.get_managed_config()`:  `response` **Changed**\n* `outpost.configuration.update_managed_config()`: \n  *  `request` **Changed**\n  *  `response` **Changed**\n"
 generatedFiles:
   - .gitattributes
   - .vscode/settings.json
