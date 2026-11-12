@@ -1,20 +1,20 @@
 lockVersion: 2.0.0
 id: edb58086-83b9-45a3-9095-52bf57a11009
 management:
-  docChecksum: e256243c447bad75163ee8baf5871e78
+  docChecksum: c6902f8eaf5e01e88a026fc82cc84e57
   docVersion: 0.0.1
   speakeasyVersion: 1.808.1
   generationVersion: 2.960.8
-  releaseVersion: 2.0.0
-  configChecksum: 716f610605a48b2e50cd62f72073a9a6
+  releaseVersion: 2.1.0
+  configChecksum: 838f0798c85a97b70cbbfd4f0bbd680d
   repoURL: https://github.com/hookdeck/outpost.git
   repoSubDirectory: sdks/outpost-typescript
   installationURL: https://github.com/hookdeck/outpost
   published: true
 persistentEdits:
-  generation_id: ae9fee41-014c-4dc1-9095-e494e2f6aa48
-  pristine_commit_hash: 4fa64725b76d42515b16d619da073fd0f15d5b58
-  pristine_tree_hash: 27e101d44a12849de5d781dc407af135701503ab
+  generation_id: 3ec20c4f-6319-46fc-9587-1bb73a10fbee
+  pristine_commit_hash: d2697933211dacc9684345dfee2a39a1b252b267
+  pristine_tree_hash: 831441fb8b3337396103b14e88a872d17df47d10
 features:
   typescript:
     additionalDependencies: 0.1.0
@@ -31,6 +31,7 @@ features:
     globalSecurityFlattening: 0.1.1
     globalServerURLs: 2.83.1
     groups: 2.81.3
+    ignores: 2.81.1
     mcpServer: 1.0.0
     nameOverrides: 2.81.4
     nullables: 0.1.1
@@ -409,8 +410,8 @@ trackedFiles:
     pristine_git_object: a059479fd884b79d3d0ece45249299ff92b74047
   docs/models/components/managedconfig.md:
     id: f5084f1c1f7a
-    last_write_checksum: sha1:7645f0b3def3acb15a608fc5a315f6788c769a1f
-    pristine_git_object: b7fc4b0bbc6b6bb2911698dfc138f8f5318fc789
+    last_write_checksum: sha1:2414e31b9d7445eb2536ad887cabdbc0ae64ff84
+    pristine_git_object: 823560a7b838f078ae70c0e7b7fdd5a63008f475
   docs/models/components/metricsdatapoint.md:
     id: dfbc8ed48932
     last_write_checksum: sha1:98cd730d46794e7aef19d65e365d7b6f89176487
@@ -1025,12 +1026,12 @@ trackedFiles:
     pristine_git_object: c9a9042272cbc4b2cf7ae93f82d4ea8a7d25bba2
   jsr.json:
     id: 7f6ab7767282
-    last_write_checksum: sha1:ade1315ce2230ff2641aa33f299c0f63f749e9ae
-    pristine_git_object: 88b9484ef6ff1d77be5673b337cf43e694833bd6
+    last_write_checksum: sha1:f708ebdbf2a685077e6bf725e523d44887c635da
+    pristine_git_object: 71bf4d7508a1aeb3d3ba91bd78e670c27d529625
   package.json:
     id: 7030d0b2f71b
-    last_write_checksum: sha1:3574ef3ff3e91a275e01bc21f7804d3397514f41
-    pristine_git_object: 84d1d0bdb2032ea32967b994c25fa0b1aa768984
+    last_write_checksum: sha1:4ad9b2da300ef05d8a12ae117bbd8b649e885c3f
+    pristine_git_object: 3b386d08a2e46c080abca0ad0b669264d26559a4
   src/core.ts:
     id: f431fdbcd144
     last_write_checksum: sha1:c858d8ea76a86c428e26943bf348319ba0a3c865
@@ -1229,8 +1230,8 @@ trackedFiles:
     pristine_git_object: 0aebd8b0a4867e35cb3348fc52921c3c0b4725b7
   src/lib/config.ts:
     id: 320761608fb3
-    last_write_checksum: sha1:f4e7ed04cae059210b00519e3e8aef361dcd5065
-    pristine_git_object: 77baa56e617006508cedec9d637d8666c5ec82c7
+    last_write_checksum: sha1:fd28d1107fc26c66cf082180b28680abcb9cd643
+    pristine_git_object: b130a7fd9ab1e73baf9a8843e6785205cde3bacc
   src/lib/encodings.ts:
     id: 3bd8ead98afd
     last_write_checksum: sha1:a257d6f6108693db2197617c579400bc8f0da914
@@ -1301,8 +1302,8 @@ trackedFiles:
     pristine_git_object: 0955a573c2ce989d63c737410ab8cc28706d9f74
   src/mcp-server/mcp-server.ts:
     id: aabbc4ab07c1
-    last_write_checksum: sha1:8e5074868135da99c723ffd949f748ff8d376807
-    pristine_git_object: c428721691d1b61cfb9270a86b3c815ea6499e50
+    last_write_checksum: sha1:859b70136f971d700624698d31e5378e7af037b0
+    pristine_git_object: 4d86fcbbd70c8f43741aa0875355e24c0fc54fd0
   src/mcp-server/prompts.ts:
     id: 26f3d73cbf31
     last_write_checksum: sha1:e7a94a006f0e822df7f9f8ff47c8464c88c6157a
@@ -1317,8 +1318,8 @@ trackedFiles:
     pristine_git_object: c25696d4c4f70e081fa5d87ad6891874c509a577
   src/mcp-server/server.ts:
     id: 2784dd48e82a
-    last_write_checksum: sha1:6d0778c3b50495cbf8208dd43ea737c8c2303426
-    pristine_git_object: 9896faaa4c6048ada23f2abf869bff35e451aeed
+    last_write_checksum: sha1:71278a4b23515366aa008afa3657647e66c545e5
+    pristine_git_object: 673d54bb12b3922ac69a6cac40fdd23b012322b3
   src/mcp-server/shared.ts:
     id: 074e80d4be1e
     last_write_checksum: sha1:c4c1d8169a3a283584b8f13ea1533e438fe6fd69
@@ -1817,8 +1818,8 @@ trackedFiles:
     pristine_git_object: 8ef1965cf279a8d8b5aca7093981332e93312c60
   src/models/components/managedconfig.ts:
     id: f3c9dfef76a1
-    last_write_checksum: sha1:430e71232544eb6f745fb098b367dd07405d45e5
-    pristine_git_object: ac962a1c919bf5133b1dae0e5fd8b4f72d52f3f9
+    last_write_checksum: sha1:2607de4b525b02c9f1eba8141a911af0e7fd731a
+    pristine_git_object: 58e5a2a413d9cf3fa55008273bdb886cdb853025
   src/models/components/metricsdatapoint.ts:
     id: 55e9f7c3cc30
     last_write_checksum: sha1:3c1a228845dc83f0b1ea5eb00f807a510fcdd5b4
@@ -3004,7 +3005,7 @@ examples:
           application/json: {"success": true}
 examplesVersion: 1.0.2
 generatedTests: {}
-releaseNotes: "## Typescript SDK Changes:\n* `outpost.configuration.getManagedConfig()`:  `response` **Changed** (Breaking ⚠️)\n* `outpost.configuration.updateManagedConfig()`: \n  *  `request` **Changed**\n  *  `response` **Changed** (Breaking ⚠️)\n* `outpost.retry()`:  `error.status[413]` **Added**\n* `outpost.tenants.upsert()`:  `error.status[413]` **Added**\n* `outpost.destinations.create()`:  `error.status[413]` **Added**\n* `outpost.destinations.update()`:  `error` **Changed**\n* `outpost.destinations.enable()`:  `error.status[409]` **Added**\n* `outpost.destinations.disable()`:  `error.status[409]` **Added**\n"
+releaseNotes: "## Typescript SDK Changes:\n* `outpost.configuration.getManagedConfig()`:  `response` **Changed**\n* `outpost.configuration.updateManagedConfig()`: \n  *  `request` **Changed**\n  *  `response` **Changed**\n"
 generatedFiles:
   - .gitattributes
   - .npmignore

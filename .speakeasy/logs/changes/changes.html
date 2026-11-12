@@ -98,83 +98,11 @@
 <body><h2 id="typescript-sdk-changes">Typescript SDK Changes:</h2>
 
 <ul>
-<li><code>outpost.configuration.getManagedConfig()</code>: <code>response</code> <strong>Changed</strong> (Breaking ⚠️)
+<li><code>outpost.configuration.getManagedConfig()</code>: <code>response</code> <strong>Changed</strong>
 
 <ul>
-<li><code>alertAutoDisableDestination</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>alertConsecutiveFailureCount</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>alertExhaustedRetriesWindowSeconds</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>deliveryTimeoutSeconds</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinationsAwsKinesisMetadataInPayload</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinationsIncludeMillisecondTimestamp</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinationsProxyUrl</code> <strong>Added</strong></li>
-<li><code>destinationsWebhookCompatHeaders</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinationsWebhookCompatSignatureAlgorithm</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinationsWebhookCompatSignatureContentTemplate</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinationsWebhookCompatSignatureEncoding</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinationsWebhookCompatSignatureHeaderName</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinationsWebhookCompatSignatureHeaderTemplate</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinationsWebhookCompatSignatureSecretEncoding</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinationsWebhookCompatSignatureSecretPrefix</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinationsWebhookEventIdHeaderName</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinationsWebhookHeaderPrefix</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinationsWebhookMode</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinationsWebhookProxyUrl</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinationsWebhookSignatureAlgorithm</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinationsWebhookSignatureContentTemplate</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinationsWebhookSignatureEncoding</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinationsWebhookSignatureHeaderName</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinationsWebhookSignatureHeaderTemplate</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinationsWebhookSignatureSecretEncoding</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinationsWebhookSignatureSecretPrefix</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinationsWebhookSigningSecretTemplate</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinationsWebhookTimestampFormat</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinationsWebhookTimestampHeaderName</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinationsWebhookTopicHeaderName</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>httpUserAgent</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>idgenAttemptPrefix</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>idgenDestinationPrefix</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>idgenEventPrefix</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>idgenType</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>maxDestinationsPerTenant</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>maxRetryLimit</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>otelExporterOtlpEndpoint</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>otelExporterOtlpHeaders</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>otelExporterOtlpLogsEndpoint</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>otelExporterOtlpMetricsEndpoint</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>otelExporterOtlpProtocol</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>otelExporterOtlpTracesEndpoint</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>otelServiceName</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>portalBrandColor</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>portalDisableOutpostBranding</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>portalEnableDestinationFilter</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>portalEnableWebhookCustomHeaders</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>portalFaviconUrl</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>portalForceTheme</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>portalLogoDark</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>portalLogo</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>portalOrganizationName</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>portalRefererUrl</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>portalRefreshUrl</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>publishAwsSqsAccessKeyId</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>publishAwsSqsEndpoint</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>publishAwsSqsQueue</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>publishAwsSqsRegion</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>publishAwsSqsSecretAccessKey</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>publishAzureServicebusConnectionString</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>publishAzureServicebusSubscription</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>publishAzureServicebusTopic</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>publishGcpPubsubProject</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>publishGcpPubsubServiceAccountCredentials</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>publishGcpPubsubSubscription</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>publishGcpPubsubTopic</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>publishRabbitmqExchange</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>publishRabbitmqQueue</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>publishRabbitmqServerUrl</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>retryIntervalSeconds</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>retrySchedule</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>topicsAllowWildcards</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>topics</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>experimentalMcpEnabled</code> <strong>Added</strong></li>
+<li><code>experimentalMcpEventsSchema</code> <strong>Added</strong></li>
 </ul></li>
 <li><code>outpost.configuration.updateManagedConfig()</code>:
 
@@ -182,171 +110,16 @@
 <li><code>request</code> <strong>Changed</strong>
 
 <ul>
-<li><code>alertAutoDisableDestination</code> <strong>Changed</strong></li>
-<li><code>alertConsecutiveFailureCount</code> <strong>Changed</strong></li>
-<li><code>alertExhaustedRetriesWindowSeconds</code> <strong>Changed</strong></li>
-<li><code>deliveryTimeoutSeconds</code> <strong>Changed</strong></li>
-<li><code>destinationsAwsKinesisMetadataInPayload</code> <strong>Changed</strong></li>
-<li><code>destinationsIncludeMillisecondTimestamp</code> <strong>Changed</strong></li>
-<li><code>destinationsProxyUrl</code> <strong>Added</strong></li>
-<li><code>destinationsWebhookCompatHeaders</code> <strong>Changed</strong></li>
-<li><code>destinationsWebhookCompatSignatureAlgorithm</code> <strong>Changed</strong></li>
-<li><code>destinationsWebhookCompatSignatureContentTemplate</code> <strong>Changed</strong></li>
-<li><code>destinationsWebhookCompatSignatureEncoding</code> <strong>Changed</strong></li>
-<li><code>destinationsWebhookCompatSignatureHeaderName</code> <strong>Changed</strong></li>
-<li><code>destinationsWebhookCompatSignatureHeaderTemplate</code> <strong>Changed</strong></li>
-<li><code>destinationsWebhookCompatSignatureSecretEncoding</code> <strong>Changed</strong></li>
-<li><code>destinationsWebhookCompatSignatureSecretPrefix</code> <strong>Changed</strong></li>
-<li><code>destinationsWebhookEventIdHeaderName</code> <strong>Changed</strong></li>
-<li><code>destinationsWebhookHeaderPrefix</code> <strong>Changed</strong></li>
-<li><code>destinationsWebhookMode</code> <strong>Changed</strong></li>
-<li><code>destinationsWebhookProxyUrl</code> <strong>Changed</strong></li>
-<li><code>destinationsWebhookSignatureAlgorithm</code> <strong>Changed</strong></li>
-<li><code>destinationsWebhookSignatureContentTemplate</code> <strong>Changed</strong></li>
-<li><code>destinationsWebhookSignatureEncoding</code> <strong>Changed</strong></li>
-<li><code>destinationsWebhookSignatureHeaderName</code> <strong>Changed</strong></li>
-<li><code>destinationsWebhookSignatureHeaderTemplate</code> <strong>Changed</strong></li>
-<li><code>destinationsWebhookSignatureSecretEncoding</code> <strong>Changed</strong></li>
-<li><code>destinationsWebhookSignatureSecretPrefix</code> <strong>Changed</strong></li>
-<li><code>destinationsWebhookSigningSecretTemplate</code> <strong>Changed</strong></li>
-<li><code>destinationsWebhookTimestampFormat</code> <strong>Changed</strong></li>
-<li><code>destinationsWebhookTimestampHeaderName</code> <strong>Changed</strong></li>
-<li><code>destinationsWebhookTopicHeaderName</code> <strong>Changed</strong></li>
-<li><code>httpUserAgent</code> <strong>Changed</strong></li>
-<li><code>idgenAttemptPrefix</code> <strong>Changed</strong></li>
-<li><code>idgenDestinationPrefix</code> <strong>Changed</strong></li>
-<li><code>idgenEventPrefix</code> <strong>Changed</strong></li>
-<li><code>idgenType</code> <strong>Changed</strong></li>
-<li><code>maxDestinationsPerTenant</code> <strong>Changed</strong></li>
-<li><code>maxRetryLimit</code> <strong>Changed</strong></li>
-<li><code>otelExporterOtlpEndpoint</code> <strong>Changed</strong></li>
-<li><code>otelExporterOtlpHeaders</code> <strong>Changed</strong></li>
-<li><code>otelExporterOtlpLogsEndpoint</code> <strong>Changed</strong></li>
-<li><code>otelExporterOtlpMetricsEndpoint</code> <strong>Changed</strong></li>
-<li><code>otelExporterOtlpProtocol</code> <strong>Changed</strong></li>
-<li><code>otelExporterOtlpTracesEndpoint</code> <strong>Changed</strong></li>
-<li><code>otelServiceName</code> <strong>Changed</strong></li>
-<li><code>portalBrandColor</code> <strong>Changed</strong></li>
-<li><code>portalDisableOutpostBranding</code> <strong>Changed</strong></li>
-<li><code>portalEnableDestinationFilter</code> <strong>Changed</strong></li>
-<li><code>portalEnableWebhookCustomHeaders</code> <strong>Changed</strong></li>
-<li><code>portalFaviconUrl</code> <strong>Changed</strong></li>
-<li><code>portalForceTheme</code> <strong>Changed</strong></li>
-<li><code>portalLogoDark</code> <strong>Changed</strong></li>
-<li><code>portalLogo</code> <strong>Changed</strong></li>
-<li><code>portalOrganizationName</code> <strong>Changed</strong></li>
-<li><code>portalRefererUrl</code> <strong>Changed</strong></li>
-<li><code>portalRefreshUrl</code> <strong>Changed</strong></li>
-<li><code>publishAwsSqsAccessKeyId</code> <strong>Changed</strong></li>
-<li><code>publishAwsSqsEndpoint</code> <strong>Changed</strong></li>
-<li><code>publishAwsSqsQueue</code> <strong>Changed</strong></li>
-<li><code>publishAwsSqsRegion</code> <strong>Changed</strong></li>
-<li><code>publishAwsSqsSecretAccessKey</code> <strong>Changed</strong></li>
-<li><code>publishAzureServicebusConnectionString</code> <strong>Changed</strong></li>
-<li><code>publishAzureServicebusSubscription</code> <strong>Changed</strong></li>
-<li><code>publishAzureServicebusTopic</code> <strong>Changed</strong></li>
-<li><code>publishGcpPubsubProject</code> <strong>Changed</strong></li>
-<li><code>publishGcpPubsubServiceAccountCredentials</code> <strong>Changed</strong></li>
-<li><code>publishGcpPubsubSubscription</code> <strong>Changed</strong></li>
-<li><code>publishGcpPubsubTopic</code> <strong>Changed</strong></li>
-<li><code>publishRabbitmqExchange</code> <strong>Changed</strong></li>
-<li><code>publishRabbitmqQueue</code> <strong>Changed</strong></li>
-<li><code>publishRabbitmqServerUrl</code> <strong>Changed</strong></li>
-<li><code>retryIntervalSeconds</code> <strong>Changed</strong></li>
-<li><code>retrySchedule</code> <strong>Changed</strong></li>
-<li><code>topicsAllowWildcards</code> <strong>Changed</strong></li>
-<li><code>topics</code> <strong>Changed</strong></li>
+<li><code>experimentalMcpEnabled</code> <strong>Added</strong></li>
+<li><code>experimentalMcpEventsSchema</code> <strong>Added</strong></li>
 </ul></li>
-<li><code>response</code> <strong>Changed</strong> (Breaking ⚠️)
+<li><code>response</code> <strong>Changed</strong>
 
 <ul>
-<li><code>alertAutoDisableDestination</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>alertConsecutiveFailureCount</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>alertExhaustedRetriesWindowSeconds</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>deliveryTimeoutSeconds</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinationsAwsKinesisMetadataInPayload</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinationsIncludeMillisecondTimestamp</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinationsProxyUrl</code> <strong>Added</strong></li>
-<li><code>destinationsWebhookCompatHeaders</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinationsWebhookCompatSignatureAlgorithm</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinationsWebhookCompatSignatureContentTemplate</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinationsWebhookCompatSignatureEncoding</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinationsWebhookCompatSignatureHeaderName</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinationsWebhookCompatSignatureHeaderTemplate</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinationsWebhookCompatSignatureSecretEncoding</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinationsWebhookCompatSignatureSecretPrefix</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinationsWebhookEventIdHeaderName</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinationsWebhookHeaderPrefix</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinationsWebhookMode</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinationsWebhookProxyUrl</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinationsWebhookSignatureAlgorithm</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinationsWebhookSignatureContentTemplate</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinationsWebhookSignatureEncoding</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinationsWebhookSignatureHeaderName</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinationsWebhookSignatureHeaderTemplate</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinationsWebhookSignatureSecretEncoding</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinationsWebhookSignatureSecretPrefix</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinationsWebhookSigningSecretTemplate</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinationsWebhookTimestampFormat</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinationsWebhookTimestampHeaderName</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>destinationsWebhookTopicHeaderName</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>httpUserAgent</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>idgenAttemptPrefix</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>idgenDestinationPrefix</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>idgenEventPrefix</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>idgenType</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>maxDestinationsPerTenant</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>maxRetryLimit</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>otelExporterOtlpEndpoint</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>otelExporterOtlpHeaders</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>otelExporterOtlpLogsEndpoint</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>otelExporterOtlpMetricsEndpoint</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>otelExporterOtlpProtocol</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>otelExporterOtlpTracesEndpoint</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>otelServiceName</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>portalBrandColor</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>portalDisableOutpostBranding</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>portalEnableDestinationFilter</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>portalEnableWebhookCustomHeaders</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>portalFaviconUrl</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>portalForceTheme</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>portalLogoDark</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>portalLogo</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>portalOrganizationName</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>portalRefererUrl</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>portalRefreshUrl</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>publishAwsSqsAccessKeyId</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>publishAwsSqsEndpoint</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>publishAwsSqsQueue</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>publishAwsSqsRegion</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>publishAwsSqsSecretAccessKey</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>publishAzureServicebusConnectionString</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>publishAzureServicebusSubscription</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>publishAzureServicebusTopic</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>publishGcpPubsubProject</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>publishGcpPubsubServiceAccountCredentials</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>publishGcpPubsubSubscription</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>publishGcpPubsubTopic</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>publishRabbitmqExchange</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>publishRabbitmqQueue</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>publishRabbitmqServerUrl</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>retryIntervalSeconds</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>retrySchedule</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>topicsAllowWildcards</code> <strong>Changed</strong> (Breaking ⚠️)</li>
-<li><code>topics</code> <strong>Changed</strong> (Breaking ⚠️)</li>
+<li><code>experimentalMcpEnabled</code> <strong>Added</strong></li>
+<li><code>experimentalMcpEventsSchema</code> <strong>Added</strong></li>
 </ul></li>
 </ul></li>
-<li><code>outpost.retry()</code>:  <code>error.status[413]</code> <strong>Added</strong></li>
-<li><code>outpost.tenants.upsert()</code>:  <code>error.status[413]</code> <strong>Added</strong></li>
-<li><code>outpost.destinations.create()</code>:  <code>error.status[413]</code> <strong>Added</strong></li>
-<li><code>outpost.destinations.update()</code>: <code>error</code> <strong>Changed</strong>
-
-<ul>
-<li><code>status[409]</code> <strong>Added</strong></li>
-<li><code>status[413]</code> <strong>Added</strong></li>
-</ul></li>
-<li><code>outpost.destinations.enable()</code>:  <code>error.status[409]</code> <strong>Added</strong></li>
-<li><code>outpost.destinations.disable()</code>:  <code>error.status[409]</code> <strong>Added</strong></li>
 </ul>
 </body>
 </html>

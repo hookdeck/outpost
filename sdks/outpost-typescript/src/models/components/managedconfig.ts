@@ -108,6 +108,8 @@ export type ManagedConfig = {
    * Complete name of the topic header. Unset uses the default "<prefix>topic"; an explicit value pins that exact name; an empty string disables the header. Only applies to "default" mode.
    */
   destinationsWebhookTopicHeaderName?: string | null | undefined;
+  experimentalMcpEnabled?: string | null | undefined;
+  experimentalMcpEventsSchema?: string | null | undefined;
   httpUserAgent?: string | null | undefined;
   idgenAttemptPrefix?: string | null | undefined;
   idgenDestinationPrefix?: string | null | undefined;
@@ -203,6 +205,8 @@ export const ManagedConfig$inboundSchema: z.ZodType<
   DESTINATIONS_WEBHOOK_TIMESTAMP_FORMAT: z.nullable(z.string()).optional(),
   DESTINATIONS_WEBHOOK_TIMESTAMP_HEADER_NAME: z.nullable(z.string()).optional(),
   DESTINATIONS_WEBHOOK_TOPIC_HEADER_NAME: z.nullable(z.string()).optional(),
+  EXPERIMENTAL_MCP_ENABLED: z.nullable(z.string()).optional(),
+  EXPERIMENTAL_MCP_EVENTS_SCHEMA: z.nullable(z.string()).optional(),
   HTTP_USER_AGENT: z.nullable(z.string()).optional(),
   IDGEN_ATTEMPT_PREFIX: z.nullable(z.string()).optional(),
   IDGEN_DESTINATION_PREFIX: z.nullable(z.string()).optional(),
@@ -302,6 +306,8 @@ export const ManagedConfig$inboundSchema: z.ZodType<
       "destinationsWebhookTimestampHeaderName",
     "DESTINATIONS_WEBHOOK_TOPIC_HEADER_NAME":
       "destinationsWebhookTopicHeaderName",
+    "EXPERIMENTAL_MCP_ENABLED": "experimentalMcpEnabled",
+    "EXPERIMENTAL_MCP_EVENTS_SCHEMA": "experimentalMcpEventsSchema",
     "HTTP_USER_AGENT": "httpUserAgent",
     "IDGEN_ATTEMPT_PREFIX": "idgenAttemptPrefix",
     "IDGEN_DESTINATION_PREFIX": "idgenDestinationPrefix",
@@ -395,6 +401,8 @@ export type ManagedConfig$Outbound = {
   DESTINATIONS_WEBHOOK_TIMESTAMP_FORMAT?: string | null | undefined;
   DESTINATIONS_WEBHOOK_TIMESTAMP_HEADER_NAME?: string | null | undefined;
   DESTINATIONS_WEBHOOK_TOPIC_HEADER_NAME?: string | null | undefined;
+  EXPERIMENTAL_MCP_ENABLED?: string | null | undefined;
+  EXPERIMENTAL_MCP_EVENTS_SCHEMA?: string | null | undefined;
   HTTP_USER_AGENT?: string | null | undefined;
   IDGEN_ATTEMPT_PREFIX?: string | null | undefined;
   IDGEN_DESTINATION_PREFIX?: string | null | undefined;
@@ -484,6 +492,8 @@ export const ManagedConfig$outboundSchema: z.ZodType<
   destinationsWebhookTimestampFormat: z.nullable(z.string()).optional(),
   destinationsWebhookTimestampHeaderName: z.nullable(z.string()).optional(),
   destinationsWebhookTopicHeaderName: z.nullable(z.string()).optional(),
+  experimentalMcpEnabled: z.nullable(z.string()).optional(),
+  experimentalMcpEventsSchema: z.nullable(z.string()).optional(),
   httpUserAgent: z.nullable(z.string()).optional(),
   idgenAttemptPrefix: z.nullable(z.string()).optional(),
   idgenDestinationPrefix: z.nullable(z.string()).optional(),
@@ -581,6 +591,8 @@ export const ManagedConfig$outboundSchema: z.ZodType<
       "DESTINATIONS_WEBHOOK_TIMESTAMP_HEADER_NAME",
     destinationsWebhookTopicHeaderName:
       "DESTINATIONS_WEBHOOK_TOPIC_HEADER_NAME",
+    experimentalMcpEnabled: "EXPERIMENTAL_MCP_ENABLED",
+    experimentalMcpEventsSchema: "EXPERIMENTAL_MCP_EVENTS_SCHEMA",
     httpUserAgent: "HTTP_USER_AGENT",
     idgenAttemptPrefix: "IDGEN_ATTEMPT_PREFIX",
     idgenDestinationPrefix: "IDGEN_DESTINATION_PREFIX",
