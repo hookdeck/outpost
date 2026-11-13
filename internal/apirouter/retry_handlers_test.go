@@ -416,17 +416,13 @@ func TestAPI_Retry(t *testing.T) {
 			assert.Equal(t, "destination_expired", body.Data["error"])
 		})
 
-		t.Run("mcp destination returns 404 like an unknown destination", func(t *testing.T) {
-			h := setup(t)
+		t.Run("mcp subscription without an attempt returns 400 and queues nothing", func(t *testing.T) {
+			h := setup(t, withMCPSubscribe())
 			require.NoError(t, h.tenantStore.UpsertDestination(t.Context(), df.Any(df.WithID("d2"), df.WithTenantID("t1"), df.WithType("mcp"), df.WithTopics([]string{"*"}))))
-			e := ef.AnyPointer(ef.WithID("e2"), ef.WithTenantID("t1"), ef.WithTopic("user.created"))
-			require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
-				{Event: e, Attempt: attemptForEvent(e, af.WithDestinationID("d2"))},
-			}))
 
-			resp := h.do(h.withAPIKey(retry(h, "e2", "d2")))
+			resp := h.do(h.withAPIKey(retry(h, "e1", "d2")))
 
-			testutil.RequireErrorResponse(t, resp, http.StatusNotFound, "destination not found")
+			testutil.RequireErrorResponse(t, resp, http.StatusBadRequest, "event has no attempt for this destination")
 			assert.Empty(t, h.deliveryPub.calls)
 		})
 
@@ -476,6 +472,58 @@ func TestAPI_Retry(t *testing.T) {
 			resp := h.do(h.withJWT(retry(h, "e1", "d2"), "t2"))
 
 			testutil.RequireErrorResponse(t, resp, http.StatusNotFound, "event not found")
+			assert.Empty(t, h.deliveryPub.calls)
+		})
+	})
+
+	t.Run("MCP subscription", func(t *testing.T) {
+		// setupMCP adds an mcp subscription d2 that has been sent event e2.
+		setupMCP := func(t *testing.T, opts ...apiTestOption) *apiTest {
+			t.Helper()
+			h := setup(t, opts...)
+			require.NoError(t, h.tenantStore.UpsertDestination(t.Context(), df.Any(df.WithID("d2"), df.WithTenantID("t1"), df.WithType("mcp"), df.WithTopics([]string{"*"}))))
+			e := ef.AnyPointer(ef.WithID("e2"), ef.WithTenantID("t1"), ef.WithTopic("user.created"))
+			require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
+				{Event: e, Attempt: attemptForEvent(e, af.WithDestinationID("d2"))},
+			}))
+			return h
+		}
+		retry := func(h *apiTest) *http.Request {
+			return h.jsonReq(http.MethodPost, "/api/v1/retry", map[string]any{
+				"event_id":       "e2",
+				"destination_id": "d2",
+			})
+		}
+
+		t.Run("api key queues manual delivery task", func(t *testing.T) {
+			h := setupMCP(t, withMCPSubscribe())
+
+			resp := h.do(h.withAPIKey(retry(h)))
+
+			require.Equal(t, http.StatusAccepted, resp.Code)
+			require.Len(t, h.deliveryPub.calls, 1)
+			task := h.deliveryPub.calls[0]
+			assert.True(t, task.Manual)
+			assert.Equal(t, "e2", task.Event.ID)
+			assert.Equal(t, "d2", task.DestinationID)
+			assert.Equal(t, 2, task.Attempt)
+		})
+
+		t.Run("jwt returns 404 like an unknown destination", func(t *testing.T) {
+			h := setupMCP(t, withMCPSubscribe())
+
+			resp := h.do(h.withJWT(retry(h), "t1"))
+
+			testutil.RequireErrorResponse(t, resp, http.StatusNotFound, "destination not found")
+			assert.Empty(t, h.deliveryPub.calls)
+		})
+
+		t.Run("returns 404 like an unknown destination while MCP is off", func(t *testing.T) {
+			h := setupMCP(t)
+
+			resp := h.do(h.withAPIKey(retry(h)))
+
+			testutil.RequireErrorResponse(t, resp, http.StatusNotFound, "destination not found")
 			assert.Empty(t, h.deliveryPub.calls)
 		})
 	})

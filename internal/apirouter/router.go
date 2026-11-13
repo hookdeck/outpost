@@ -43,7 +43,7 @@ type RouterConfig struct {
 	GinMode              string
 
 	// MCPSubscribe turns the MCP subscribe endpoints on; they answer 404
-	// while it is false.
+	// while it is false, as does a manual retry to an MCP subscription.
 	MCPSubscribe bool
 }
 
@@ -150,7 +150,9 @@ func NewRouter(cfg RouterConfig, deps RouterDeps) http.Handler {
 	destinationHandlers := NewDestinationHandlers(deps.Logger, deps.Telemetry, publicStore, deps.SubscriptionEmitter, cfg.Topics, cfg.TopicsAllowWildcards, cfg.Registry, displayer)
 	publishHandlers := NewPublishHandlers(deps.Logger, deps.EventHandler)
 	logHandlers := NewLogHandlers(deps.Logger, deps.LogStore, publicStore, displayer)
-	retryHandlers := NewRetryHandlers(deps.Logger, publicStore, deps.LogStore, deps.DeliveryPublisher, cfg.TopicsAllowWildcards)
+	// An admin can retry an MCP subscription's event while MCP is on, so the
+	// retry handler takes the unfiltered store.
+	retryHandlers := NewRetryHandlers(deps.Logger, deps.TenantStore, deps.LogStore, deps.DeliveryPublisher, cfg.TopicsAllowWildcards, cfg.MCPSubscribe)
 	topicHandlers := NewTopicHandlers(deps.Logger, cfg.Topics)
 	metricsHandlers := NewMetricsHandlers(deps.Logger, deps.LogStore)
 	mcpEventsHandlers := NewMCPEventsHandlers(deps.Logger, deps.MCPCatalog, deps.MCPEventsError)

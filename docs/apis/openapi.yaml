@@ -6467,6 +6467,8 @@ paths:
 
         When authenticated with a Tenant JWT, only events belonging to that tenant can be retried.
         When authenticated with Admin API Key, events from any tenant can be retried.
+
+        An MCP Events subscription is retried by its subscription ID as the `destination_id`, with the Admin API Key only. With a Tenant JWT, or while MCP is not enabled, it answers 404 `destination not found`.
       operationId: retryEvent
       requestBody:
         required: true
@@ -6898,10 +6900,14 @@ paths:
                       request sent `ttlMs: null`, which means the subscription does not expire.
                   cursor:
                     type: [string, "null"]
-                    description: Always null; events are not replayed.
+                    description: >-
+                      Always null; Outpost does not replay events. An MCP server that serves replay
+                      from its own event log sets it in the result it returns.
                   truncated:
                     type: boolean
-                    description: Always false; events are not replayed.
+                    description: >-
+                      Always false; Outpost does not replay events. An MCP server that serves replay
+                      from its own event log sets it in the result it returns.
                   deliveryStatus:
                     type: object
                     description: Present when an existing subscription was refreshed.

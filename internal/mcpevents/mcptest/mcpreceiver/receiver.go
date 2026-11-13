@@ -94,6 +94,9 @@ type PathConfig struct {
 	// (by webhook-id) with FailStatus (default 500) before Event applies.
 	FailFirst  int
 	FailStatus int
+	// ManualRetries allows an event to arrive again as a new message, under
+	// another webhook-id, as a manual retry sends it.
+	ManualRetries bool
 }
 
 // Request is one request the receiver got.
@@ -159,8 +162,7 @@ type Profile int
 
 const (
 	// ProfileOutpost adds Outpost's own choices to the spec rules: event
-	// webhook-id is msg_ + 22 chars, cursor is null, verification comes
-	// first.
+	// webhook-id is msg_ + 22 chars, verification comes first.
 	ProfileOutpost Profile = iota
 	// ProfileSpec checks only what SEP-3415 requires.
 	ProfileSpec

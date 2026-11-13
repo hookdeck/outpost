@@ -182,6 +182,17 @@ func TestWebhookIDAcrossMessages(t *testing.T) {
 	post(t, url2, secret, goodMsgID, time.Now(), event("e1"), nil)
 	post(t, url2, secret, "msg_abcdefghijklmnopqrstuw", time.Now(), event("e1"), nil)
 	require.True(t, violated(r2, CheckWebhookIDPerMsg))
+
+	// A path that expects manual retries takes the event again as a new
+	// message, and still not two events under one webhook-id.
+	r3 := newReceiver(t)
+	_, url3 := r3.Register(PathConfig{Secrets: []string{secret}, ManualRetries: true})
+	post(t, url3, secret, "msg_verification_x", time.Now(), map[string]any{"type": "verification", "challenge": "c"}, nil)
+	post(t, url3, secret, goodMsgID, time.Now(), event("e1"), nil)
+	post(t, url3, secret, "msg_abcdefghijklmnopqrstuw", time.Now(), event("e1"), nil)
+	require.False(t, violated(r3, CheckWebhookIDPerMsg))
+	post(t, url3, secret, goodMsgID, time.Now(), event("e2"), nil)
+	require.True(t, violated(r3, CheckWebhookIDPerMsg))
 }
 
 func TestMultipleSignaturesAndRotation(t *testing.T) {
@@ -394,8 +405,10 @@ func TestProfiles(t *testing.T) {
 
 	out := run(ProfileOutpost, "event", longID, withCursor("c1"))
 	require.True(t, violated(out, CheckWebhookIDFormat))
-	require.True(t, violated(out, CheckEnvelopeShape))
+	require.False(t, violated(out, CheckEnvelopeShape), "a string cursor is the publisher's")
 	require.True(t, violated(out, CheckVerifyFirst))
+	out = run(ProfileOutpost, "challenge", goodMsgID, withCursor(5))
+	require.True(t, violated(out, CheckEnvelopeShape))
 }
 
 func TestRejectedRequestsDoNotConsumeScriptedFailures(t *testing.T) {
