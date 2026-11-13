@@ -94,6 +94,9 @@ type PathConfig struct {
 	// (by webhook-id) with FailStatus (default 500) before Event applies.
 	FailFirst  int
 	FailStatus int
+	// ManualRetries allows an event to arrive again as a new message, under
+	// another webhook-id, as a manual retry sends it.
+	ManualRetries bool
 }
 
 // Request is one request the receiver got.

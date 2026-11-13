@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"regexp"
 	"slices"
 	"sort"
@@ -201,21 +202,28 @@ func (r *Receiver) ViolationsOn(only ...string) []Violation {
 	}
 
 	for k, list := range byMsg {
-		ids := map[string]bool{}
+		// The requests of one message, by webhook-id.
+		byID := map[string][]Request{}
 		for _, q := range list {
-			ids[q.Header.Get("webhook-id")] = true
+			id := q.Header.Get("webhook-id")
+			byID[id] = append(byID[id], q)
 		}
-		if len(ids) > 1 {
+		messages := [][]Request{list}
+		if paths[k.path].ManualRetries {
+			messages = slices.Collect(maps.Values(byID))
+		} else if len(byID) > 1 {
 			g[CheckWebhookIDPerMsg].bad("%v: webhook-id changed across %d requests", k, len(list))
 		}
-		for i := 1; i < len(list); i++ {
-			prev, cur := list[i-1], list[i]
-			pts, cts := prev.Header.Get("webhook-timestamp"), cur.Header.Get("webhook-timestamp")
-			switch {
-			case len(cts) < len(pts) || (len(cts) == len(pts) && cts < pts):
-				g[CheckRetryResigns].bad("%v: timestamp went back %s -> %s", k, pts, cts)
-			case cts != pts && strings.Join(SignatureValues(cur.Header), " ") == strings.Join(SignatureValues(prev.Header), " "):
-				g[CheckRetryResigns].bad("%v: retry %d reused the signature", k, i)
+		for _, list := range messages {
+			for i := 1; i < len(list); i++ {
+				prev, cur := list[i-1], list[i]
+				pts, cts := prev.Header.Get("webhook-timestamp"), cur.Header.Get("webhook-timestamp")
+				switch {
+				case len(cts) < len(pts) || (len(cts) == len(pts) && cts < pts):
+					g[CheckRetryResigns].bad("%v: timestamp went back %s -> %s", k, pts, cts)
+				case cts != pts && strings.Join(SignatureValues(cur.Header), " ") == strings.Join(SignatureValues(prev.Header), " "):
+					g[CheckRetryResigns].bad("%v: retry %d reused the signature", k, i)
+				}
 			}
 		}
 	}
