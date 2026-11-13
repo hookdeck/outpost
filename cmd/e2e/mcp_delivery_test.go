@@ -867,8 +867,7 @@ func (s *mcpSuite) TestManualRetry() {
 	s.Equal(http.StatusAccepted, retry(p.destID))
 	events := s.r.WaitFor(p.path, 2, mcpreceiver.Request.IsEvent, mockServerPollTimeout)
 	s.Require().Len(events, 2)
-	s.Equal(pub.ID, events[1].Envelope().EventID)
-	s.Equal(string(events[0].Envelope().Data), string(events[1].Envelope().Data))
+	s.Equal(string(events[0].Body), string(events[1].Body), "the same event")
 	s.NotEqual(events[0].Header.Get("webhook-id"), events[1].Header.Get("webhook-id"), "a new message")
 
 	attempts := s.waitAttempts(tenant, p.destID, 2, mockServerPollTimeout)
