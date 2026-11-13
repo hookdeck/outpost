@@ -29,10 +29,35 @@ func TestEventEnvelope_ByteExact(t *testing.T) {
 		string(got))
 	assert.True(t, json.Valid(got))
 
-	event.Time = time.Date(2026, 10, 9, 16, 58, 12, 123456000, time.UTC)
+	event.Time = time.Date(2026, 10, 9, 16, 58, 12, 123456789, time.UTC)
 	got, err = EventEnvelope(event)
 	require.NoError(t, err)
-	assert.Contains(t, string(got), `"timestamp":"2026-10-09T16:58:12.123456Z"`)
+	assert.Contains(t, string(got), `"timestamp":"2026-10-09T16:58:12.123Z"`)
+}
+
+// A retry reads the event back from the log store, which keeps less of the
+// event time than the first attempt has: its envelope must be the same.
+func TestEventEnvelope_SameAfterLogStore(t *testing.T) {
+	t.Parallel()
+	event := &models.Event{
+		ID:    "evt_01J9ZK",
+		Topic: "order.created",
+		Time:  time.Date(2026, 10, 9, 16, 58, 12, 123456789, time.UTC),
+		Data:  json.RawMessage(`{"a":1}`),
+	}
+	first, err := EventEnvelope(event)
+	require.NoError(t, err)
+
+	for name, precision := range map[string]time.Duration{
+		"clickhouse": time.Millisecond,
+		"postgres":   time.Microsecond,
+	} {
+		stored := *event
+		stored.Time = event.Time.Truncate(precision)
+		retry, err := EventEnvelope(&stored)
+		require.NoError(t, err)
+		assert.Equal(t, string(first), string(retry), name)
+	}
 }
 
 func TestEventEnvelope_StringsAreEncoded(t *testing.T) {
