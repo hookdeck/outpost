@@ -20,6 +20,10 @@ const (
 
 	// EnvelopeVerification is the type of the verification control envelope.
 	EnvelopeVerification = "verification"
+
+	// MetadataCursor is the event metadata key whose value is sent as the
+	// envelope's cursor.
+	MetadataCursor = "mcp-cursor"
 )
 
 var (
@@ -46,12 +50,13 @@ func ValidSubscriptionID(id string) bool {
 }
 
 // EventEnvelope serializes the MCP event body
-// {"eventId","name","timestamp","data","cursor":null}: eventId is the event
-// ID, name the topic, timestamp the event time in RFC 3339 UTC (nanosecond
+// {"eventId","name","timestamp","data","cursor"}: eventId is the event ID,
+// name the topic, timestamp the event time in RFC 3339 UTC (nanosecond
 // precision when present), data the event data spliced in unchanged (bytes,
-// key order and number spelling preserved; empty data is null). Every string
-// is JSON-encoded, so an event ID or topic can't inject members. The result
-// is what gets signed and sent.
+// key order and number spelling preserved; empty data is null), cursor the
+// event's MetadataCursor metadata, or null when the event has none. Every
+// string is JSON-encoded, so an event ID, topic or cursor can't inject
+// members. The result is what gets signed and sent.
 func EventEnvelope(event *models.Event) ([]byte, error) {
 	data := []byte(event.Data)
 	if len(bytes.TrimSpace(data)) == 0 {
@@ -64,7 +69,8 @@ func EventEnvelope(event *models.Event) ([]byte, error) {
 	if !json.Valid(data) {
 		return nil, ErrInvalidEventData
 	}
-	b := make([]byte, 0, len(data)+len(event.ID)+len(event.Topic)+112)
+	cursor, hasCursor := event.Metadata[MetadataCursor]
+	b := make([]byte, 0, len(data)+len(event.ID)+len(event.Topic)+len(cursor)+112)
 	b = append(b, `{"eventId":`...)
 	b = appendJSString(b, event.ID)
 	b = append(b, `,"name":`...)
@@ -73,7 +79,13 @@ func EventEnvelope(event *models.Event) ([]byte, error) {
 	b = appendJSString(b, event.Time.UTC().Format(time.RFC3339Nano))
 	b = append(b, `,"data":`...)
 	b = append(b, data...)
-	b = append(b, `,"cursor":null}`...)
+	b = append(b, `,"cursor":`...)
+	if hasCursor {
+		b = appendJSString(b, cursor)
+	} else {
+		b = append(b, "null"...)
+	}
+	b = append(b, '}')
 	if len(b) > MaxEnvelopeBytes {
 		return nil, ErrEnvelopeTooLarge
 	}

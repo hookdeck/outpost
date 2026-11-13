@@ -394,8 +394,10 @@ func TestProfiles(t *testing.T) {
 
 	out := run(ProfileOutpost, "event", longID, withCursor("c1"))
 	require.True(t, violated(out, CheckWebhookIDFormat))
-	require.True(t, violated(out, CheckEnvelopeShape))
+	require.False(t, violated(out, CheckEnvelopeShape), "a string cursor is the publisher's")
 	require.True(t, violated(out, CheckVerifyFirst))
+	out = run(ProfileOutpost, "challenge", goodMsgID, withCursor(5))
+	require.True(t, violated(out, CheckEnvelopeShape))
 }
 
 func TestRejectedRequestsDoNotConsumeScriptedFailures(t *testing.T) {

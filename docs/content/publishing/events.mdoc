@@ -86,6 +86,8 @@ For webhook destinations, merged metadata is translated into HTTP headers. This 
 
 For destinations that don't natively support metadata (e.g., S3), it is included in the event payload or object metadata.
 
+An [MCP Events](/docs/outpost/features/mcp-events) subscription receives no metadata, except `mcp-cursor`, which becomes the delivery's [`cursor`](/docs/outpost/destinations/mcp#event-format).
+
 ## Event Fanout
 
 When an event is published, Outpost evaluates it against all tenant destinations. Events matching multiple destinations are independently delivered to each — modifications to one delivery do not affect others.

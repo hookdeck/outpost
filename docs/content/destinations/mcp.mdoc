@@ -35,7 +35,18 @@ Each delivery is a `POST` with the MCP Events envelope as a JSON body. `data` is
 }
 ```
 
-`cursor` is always `null`: there is no replay.
+`cursor` is the event's `mcp-cursor` [metadata](/docs/outpost/publishing/events#metadata-and-headers), or `null` when the event has none. Outpost passes the value through unchanged, on every attempt, and keeps no event log of its own. To offer replay, publish each event with its position in your own log as `mcp-cursor`:
+
+```json
+{
+  "tenant_id": "acme",
+  "topic": "order.created",
+  "metadata": { "mcp-cursor": "0000000042" },
+  "data": { "order_id": "ord_1", "status": "paid", "total": 42.5 }
+}
+```
+
+The spec asks a server to be consistent per event: give every `order.created` a cursor, or none.
 
 | Header | Value |
 |--------|-------|

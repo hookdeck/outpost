@@ -159,8 +159,7 @@ type Profile int
 
 const (
 	// ProfileOutpost adds Outpost's own choices to the spec rules: event
-	// webhook-id is msg_ + 22 chars, cursor is null, verification comes
-	// first.
+	// webhook-id is msg_ + 22 chars, verification comes first.
 	ProfileOutpost Profile = iota
 	// ProfileSpec checks only what SEP-3415 requires.
 	ProfileSpec

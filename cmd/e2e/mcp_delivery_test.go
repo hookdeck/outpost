@@ -357,6 +357,26 @@ func (s *mcpSuite) TestRetryResigns() {
 	s.Len(s.r.Events(p.path), 3, "success on the third stops the retries")
 }
 
+// The mcp-cursor metadata of a published event is the envelope's cursor, on
+// the first attempt and on a retry; without it the cursor is null.
+func (s *mcpSuite) TestCursorFromMetadata() {
+	tenant := s.base.createTenant().ID
+	p := s.newPath(tenant, mcpreceiver.PathConfig{Event: mcpreceiver.Sequence(500, 200)})
+	s.mustSubscribe(tenant, p, mcpSubscribeOpts{})
+
+	s.base.publish(tenant, mcpTopic, map[string]any{"n": 1}, withRetry(),
+		withPublishMetadata(map[string]string{mcpevents.MetadataCursor: "0000000042"}))
+	events := s.r.WaitFor(p.path, 2, mcpreceiver.Request.IsEvent, 15*time.Second)
+	s.Require().Len(events, 2, "1 attempt + 1 retry")
+	s.Equal(`"0000000042"`, string(events[0].Envelope().Cursor))
+	s.Equal(`"0000000042"`, string(events[1].Envelope().Cursor), "a retry carries the same cursor")
+
+	s.publishMCP(tenant, map[string]any{"n": 2})
+	events = s.r.WaitFor(p.path, 3, mcpreceiver.Request.IsEvent, mockServerPollTimeout)
+	s.Require().Len(events, 3)
+	s.Equal(`null`, string(events[2].Envelope().Cursor))
+}
+
 // =============================================================================
 // Verification
 // =============================================================================
