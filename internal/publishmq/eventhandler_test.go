@@ -2,6 +2,7 @@ package publishmq_test
 
 import (
 	"context"
+	"encoding/json"
 	"log"
 	"testing"
 	"time"
@@ -50,6 +51,8 @@ func TestEventHandler_DisabledWildcardTopics(t *testing.T) {
 	}
 }
 
+// An event published to an mcp subscription by ID is matched like one
+// published to any destination, unless the type is excluded.
 func TestEventHandler_InternalDestinationType(t *testing.T) {
 	ctx := t.Context()
 	store := tenantstore.NewMemTenantStore()
@@ -58,19 +61,37 @@ func TestEventHandler_InternalDestinationType(t *testing.T) {
 		testutil.DestinationFactory.WithID("destination_1"),
 		testutil.DestinationFactory.WithTenantID("tenant_1"),
 		testutil.DestinationFactory.WithType("mcp"),
-		testutil.DestinationFactory.WithTopics([]string{"*"}),
+		testutil.DestinationFactory.WithTopics([]string{"user.created"}),
+		testutil.DestinationFactory.WithFilter(models.Filter{"data": map[string]any{"plan": "pro"}}),
 	)))
-
-	handler := publishmq.NewEventHandler(testutil.CreateTestLogger(t), nil, store, nil, testutil.TestTopics, false, nil)
-	event := testutil.EventFactory.AnyPointer(
-		testutil.EventFactory.WithTenantID("tenant_1"),
-		testutil.EventFactory.WithDestinationID("destination_1"),
-		testutil.EventFactory.WithTopic("user.created"),
-	)
-
-	result, err := handler.Handle(ctx, event)
+	deliveryMQ := deliverymq.New()
+	cleanup, err := deliveryMQ.Init(ctx)
 	require.NoError(t, err)
-	require.Empty(t, result.DestinationIDs)
+	defer cleanup()
+
+	newHandler := func(opts ...publishmq.EventHandlerOption) publishmq.EventHandler {
+		return publishmq.NewEventHandler(testutil.CreateTestLogger(t), deliveryMQ, store,
+			testutil.NewMockEventTracer(tracetest.NewInMemoryExporter()), testutil.TestTopics, false,
+			idempotence.New(testutil.CreateTestRedisClient(t)), opts...)
+	}
+	publish := func(handler publishmq.EventHandler, topic, plan string) []string {
+		result, err := handler.Handle(ctx, testutil.EventFactory.AnyPointer(
+			testutil.EventFactory.WithTenantID("tenant_1"),
+			testutil.EventFactory.WithDestinationID("destination_1"),
+			testutil.EventFactory.WithTopic(topic),
+			testutil.EventFactory.WithData(json.RawMessage(`{"plan":"`+plan+`"}`)),
+		))
+		require.NoError(t, err)
+		return result.DestinationIDs
+	}
+
+	handler := newHandler()
+	require.Equal(t, []string{"destination_1"}, publish(handler, "user.created", "pro"))
+	require.Empty(t, publish(handler, "user.updated", "pro"), "another topic")
+	require.Empty(t, publish(handler, "user.created", "free"), "outside the filter")
+
+	excluded := newHandler(publishmq.WithExcludedDestinationTypes("mcp"))
+	require.Empty(t, publish(excluded, "user.created", "pro"), "the type is excluded")
 }
 
 func TestIntegrationPublishMQEventHandler_Concurrency(t *testing.T) {

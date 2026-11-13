@@ -318,22 +318,35 @@ func (s *mcpSuite) TestDeliveryBasics() {
 	s.Equal("user.created", events[0].Envelope().Name)
 }
 
-// Publishing to a subscription by ID matches nothing, like an unknown
-// destination.
-func (s *mcpSuite) TestPublishByIDMatchesNothing() {
+// Publishing to a subscription by ID delivers to that subscription alone, and
+// only an event it matches.
+func (s *mcpSuite) TestPublishByID() {
 	tenant := s.base.createTenant().ID
 	p := s.newPath(tenant, mcpreceiver.PathConfig{})
+	other := s.newPath(tenant, mcpreceiver.PathConfig{})
 	s.mustSubscribe(tenant, p, mcpSubscribeOpts{})
+	s.mustSubscribe(tenant, other, mcpSubscribeOpts{})
 
-	var pub publishResponse
-	status := s.base.doJSON(http.MethodPost, s.base.apiURL("/publish"), map[string]any{
-		"tenant_id": tenant, "topic": mcpTopic, "destination_id": p.destID,
-		"data": map[string]any{"n": 1},
-	}, &pub)
-	s.Equal(http.StatusAccepted, status)
-	s.Empty(pub.DestinationIDs)
+	publishTo := func(topic string) publishResponse {
+		var pub publishResponse
+		status := s.base.doJSON(http.MethodPost, s.base.apiURL("/publish"), map[string]any{
+			"tenant_id": tenant, "topic": topic, "destination_id": p.destID,
+			"data": map[string]any{"n": 1},
+		}, &pub)
+		s.Equal(http.StatusAccepted, status)
+		return pub
+	}
+
+	pub := publishTo(mcpTopic)
+	s.Equal([]string{p.destID}, pub.DestinationIDs)
+	events := s.r.WaitFor(p.path, 1, mcpreceiver.Request.IsEvent, mockServerPollTimeout)
+	s.Require().Len(events, 1)
+	s.Equal(pub.ID, events[0].Envelope().EventID)
+
+	s.Empty(publishTo("user.updated").DestinationIDs, "a topic the subscription isn't for")
 	time.Sleep(mcpRetryWait / 2)
-	s.Empty(s.r.Events(p.path))
+	s.Len(s.r.Events(p.path), 1)
+	s.Empty(s.r.Events(other.path), "the tenant's other subscription gets nothing")
 }
 
 // =============================================================================

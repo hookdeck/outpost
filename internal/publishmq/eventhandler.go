@@ -43,6 +43,22 @@ type eventHandler struct {
 	tenantStore          tenantstore.TenantStore
 	topics               []string
 	topicsAllowWildcards bool
+	excludedTypes        map[string]struct{}
+}
+
+// EventHandlerOption configures optional behavior of the event handler.
+type EventHandlerOption func(*eventHandler)
+
+// WithExcludedDestinationTypes makes an event published to a destination of
+// one of the given types match nothing, as the tenant store does for an
+// event matched by topic.
+func WithExcludedDestinationTypes(types ...string) EventHandlerOption {
+	return func(h *eventHandler) {
+		h.excludedTypes = make(map[string]struct{}, len(types))
+		for _, t := range types {
+			h.excludedTypes[t] = struct{}{}
+		}
+	}
 }
 
 func NewEventHandler(
@@ -53,6 +69,7 @@ func NewEventHandler(
 	topics []string,
 	topicsAllowWildcards bool,
 	idempotence idempotence.Idempotence,
+	opts ...EventHandlerOption,
 ) EventHandler {
 	emeter, _ := emetrics.New()
 	eventHandler := &eventHandler{
@@ -64,6 +81,9 @@ func NewEventHandler(
 		topics:               topics,
 		topicsAllowWildcards: topicsAllowWildcards,
 		emeter:               emeter,
+	}
+	for _, opt := range opts {
+		opt(eventHandler)
 	}
 	return eventHandler
 }
@@ -218,7 +238,7 @@ func (h *eventHandler) matchSpecificDestination(ctx context.Context, event *mode
 		return []string{}, nil
 	}
 
-	if models.IsInternalDestinationType(destination.Type) {
+	if _, excluded := h.excludedTypes[destination.Type]; excluded {
 		return []string{}, nil
 	}
 

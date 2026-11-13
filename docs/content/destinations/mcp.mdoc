@@ -7,7 +7,7 @@ description: "Experimental. Deliver events to an agent's MCP Events callback, si
 Experimental. The MCP Events spec ([SEP-3415](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/3415)) is still a draft, so this destination may change without notice.
 {% /callout %}
 
-Delivers one topic's events to an agent's HTTPS callback URL, signed with [Standard Webhooks](https://www.standardwebhooks.com/). The `mcp` destination is created only by the subscribe endpoint, never through the destinations API. To set it up, see [MCP Events](/docs/outpost/features/mcp-events). Publishing to its ID as a `destination_id` matches nothing.
+Delivers one topic's events to an agent's HTTPS callback URL, signed with [Standard Webhooks](https://www.standardwebhooks.com/). The `mcp` destination is created only by the subscribe endpoint, never through the destinations API. To set it up, see [MCP Events](/docs/outpost/features/mcp-events). To send an event to one subscription only, publish with the subscription ID as the `destination_id`: the event is delivered if the subscription matches it, as for any destination.
 
 ## Fields
 
