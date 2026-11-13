@@ -462,6 +462,69 @@ func TestEventHandler_HandleResult(t *testing.T) {
 		require.True(t, result2.Duplicate) // Duplicate due to idempotency
 	})
 
+	t.Run("with destination_id - not a duplicate of the event published by topic", func(t *testing.T) {
+		newDest := func() models.Destination {
+			dest := testutil.DestinationFactory.Any(
+				testutil.DestinationFactory.WithTenantID(tenant.ID),
+				testutil.DestinationFactory.WithTopics([]string{"user.deleted"}),
+			)
+			require.NoError(t, tenantStore.UpsertDestination(ctx, dest))
+			return dest
+		}
+		first := newDest()
+		eventID := idgen.Event()
+		publish := func(destinationID string) *publishmq.HandleResult {
+			result, err := eventHandler.Handle(ctx, testutil.EventFactory.AnyPointer(
+				testutil.EventFactory.WithID(eventID),
+				testutil.EventFactory.WithTenantID(tenant.ID),
+				testutil.EventFactory.WithDestinationID(destinationID),
+				testutil.EventFactory.WithTopic("user.deleted"),
+			))
+			require.NoError(t, err)
+			return result
+		}
+
+		byTopic := publish("")
+		require.False(t, byTopic.Duplicate)
+		require.Contains(t, byTopic.DestinationIDs, first.ID)
+
+		// A destination created after the event was published can still be sent it.
+		second := newDest()
+		toSecond := publish(second.ID)
+		require.False(t, toSecond.Duplicate)
+		require.Equal(t, []string{second.ID}, toSecond.DestinationIDs)
+
+		require.True(t, publish(second.ID).Duplicate, "the same destination again")
+		require.True(t, publish("").Duplicate, "by topic again")
+
+		third := newDest()
+		require.False(t, publish(third.ID).Duplicate, "another destination")
+	})
+
+	t.Run("with destination_id - the event can still be published by topic", func(t *testing.T) {
+		dest := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithTenantID(tenant.ID),
+			testutil.DestinationFactory.WithTopics([]string{"user.deleted"}),
+		)
+		require.NoError(t, tenantStore.UpsertDestination(ctx, dest))
+		eventID := idgen.Event()
+		publish := func(destinationID string) *publishmq.HandleResult {
+			result, err := eventHandler.Handle(ctx, testutil.EventFactory.AnyPointer(
+				testutil.EventFactory.WithID(eventID),
+				testutil.EventFactory.WithTenantID(tenant.ID),
+				testutil.EventFactory.WithDestinationID(destinationID),
+				testutil.EventFactory.WithTopic("user.deleted"),
+			))
+			require.NoError(t, err)
+			return result
+		}
+
+		require.False(t, publish(dest.ID).Duplicate)
+		byTopic := publish("")
+		require.False(t, byTopic.Duplicate, "the other destinations on the topic have not been sent it")
+		require.Contains(t, byTopic.DestinationIDs, dest.ID)
+	})
+
 	t.Run("with destination_id - disabled", func(t *testing.T) {
 		dest := testutil.DestinationFactory.Any(
 			testutil.DestinationFactory.WithTenantID(tenant.ID),

@@ -264,6 +264,13 @@ func (h *eventHandler) enqueueDeliveryTask(ctx context.Context, task models.Deli
 	return nil
 }
 
+// idempotencyKeyFromEvent keys an event published to one destination by the
+// event and that destination, so it is not a duplicate of the same event
+// published by topic or to another destination. The delivery handler's own
+// key still skips a destination whose first attempt for the event succeeded.
 func idempotencyKeyFromEvent(event *models.Event) string {
+	if event.DestinationID != "" {
+		return "idempotency:publishmq:" + event.ID + ":" + event.DestinationID
+	}
 	return "idempotency:publishmq:" + event.ID
 }
