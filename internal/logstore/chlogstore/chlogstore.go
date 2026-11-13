@@ -13,16 +13,15 @@ import (
 	"time"
 
 	"github.com/hookdeck/outpost/internal/clickhouse"
-	"github.com/hookdeck/outpost/internal/cursor"
 	"github.com/hookdeck/outpost/internal/logstore/driver"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/pagination"
 )
 
-const (
-	cursorResourceEvent   = "evt"
-	cursorResourceAttempt = "att"
-	cursorVersion         = 1
+// The lists order by DateTime64(3) columns, which keep milliseconds.
+var (
+	eventCursor   = driver.NewCursor("evt", driver.CursorFormatTimeIDMillis)
+	attemptCursor = driver.NewCursor("att", driver.CursorFormatTimeIDMillis)
 )
 
 type logStoreImpl struct {
@@ -125,7 +124,7 @@ type eventWithPosition struct {
 }
 
 func (e eventWithPosition) cursorPosition() string {
-	return fmt.Sprintf("%d::%s", e.eventTime.UnixMilli(), e.Event.ID)
+	return driver.CursorPosition(e.eventTime, e.Event.ID)
 }
 
 func (s *logStoreImpl) ListEvent(ctx context.Context, req driver.ListEventRequest) (driver.ListEventResponse, error) {
@@ -153,10 +152,10 @@ func (s *logStoreImpl) ListEvent(ctx context.Context, req driver.ListEventReques
 		},
 		Cursor: pagination.Cursor[eventWithPosition]{
 			Encode: func(e eventWithPosition) string {
-				return cursor.Encode(cursorResourceEvent, cursorVersion, e.cursorPosition())
+				return eventCursor.Encode(e.eventTime, e.Event.ID)
 			},
 			Decode: func(c string) (string, error) {
-				return cursor.Decode(c, cursorResourceEvent, cursorVersion)
+				return eventCursor.Decode(c)
 			},
 		},
 	})
@@ -317,7 +316,7 @@ func scanEvents(rows clickhouse.Rows) ([]eventWithPosition, error) {
 }
 
 func buildEventCursorCondition(compare, position string) (string, []any, error) {
-	eventTimeMs, eventID, err := driver.ParseCursorPosition(position)
+	eventTime, eventID, err := driver.ParseCursorPosition(position)
 	if err != nil {
 		return "", nil, err
 	}
@@ -327,7 +326,7 @@ func buildEventCursorCondition(compare, position string) (string, []any, error) 
 		OR (event_time = fromUnixTimestamp64Milli(?) AND event_id %s ?)
 	)`, compare, compare)
 
-	return condition, []any{eventTimeMs, eventTimeMs, eventID}, nil
+	return condition, []any{eventTime.UnixMilli(), eventTime.UnixMilli(), eventID}, nil
 }
 
 // attemptRecordWithPosition wraps an attempt record with its cursor position data.
@@ -344,7 +343,7 @@ func (e *decodeError) Error() string { return e.err.Error() }
 func (e *decodeError) Unwrap() error { return e.err }
 
 func (ar attemptRecordWithPosition) cursorPosition() string {
-	return fmt.Sprintf("%d::%s", ar.attemptTime.UnixMilli(), ar.Attempt.ID)
+	return driver.CursorPosition(ar.attemptTime, ar.Attempt.ID)
 }
 
 func (s *logStoreImpl) ListAttempt(ctx context.Context, req driver.ListAttemptRequest) (driver.ListAttemptResponse, error) {
@@ -372,10 +371,10 @@ func (s *logStoreImpl) ListAttempt(ctx context.Context, req driver.ListAttemptRe
 		},
 		Cursor: pagination.Cursor[attemptRecordWithPosition]{
 			Encode: func(ar attemptRecordWithPosition) string {
-				return cursor.Encode(cursorResourceAttempt, cursorVersion, ar.cursorPosition())
+				return attemptCursor.Encode(ar.attemptTime, ar.Attempt.ID)
 			},
 			Decode: func(c string) (string, error) {
-				return cursor.Decode(c, cursorResourceAttempt, cursorVersion)
+				return attemptCursor.Decode(c)
 			},
 		},
 	})
@@ -953,7 +952,7 @@ func (s *logStoreImpl) InsertMany(ctx context.Context, entries []*models.LogEntr
 }
 
 func buildAttemptCursorCondition(compare, position string) (string, []any, error) {
-	attemptTimeMs, attemptID, err := driver.ParseCursorPosition(position)
+	attemptTime, attemptID, err := driver.ParseCursorPosition(position)
 	if err != nil {
 		return "", nil, err
 	}
@@ -963,7 +962,7 @@ func buildAttemptCursorCondition(compare, position string) (string, []any, error
 		OR (attempt_time = fromUnixTimestamp64Milli(?) AND attempt_id %s ?)
 	)`, compare, compare)
 
-	return condition, []any{attemptTimeMs, attemptTimeMs, attemptID}, nil
+	return condition, []any{attemptTime.UnixMilli(), attemptTime.UnixMilli(), attemptID}, nil
 }
 
 // latencyToCH maps the model's *int64 to the Nullable(UInt32) column, clamping

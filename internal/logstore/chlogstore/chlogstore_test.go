@@ -119,6 +119,13 @@ func (h *harness) MakeDriver(ctx context.Context) (driver.LogStore, error) {
 	return NewLogStore(h.chDB, h.deploymentID), nil
 }
 
+func TestCursorFormat(t *testing.T) {
+	testutil.CheckIntegrationTest(t)
+	t.Parallel()
+
+	drivertest.RunCursorFormatTest(t, newHarness)
+}
+
 func TestConformance_WithDeploymentID(t *testing.T) {
 	testutil.CheckIntegrationTest(t)
 	t.Parallel()

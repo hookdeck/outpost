@@ -36,6 +36,9 @@ func RunConformanceTests(t *testing.T, newHarness HarnessMaker) {
 	t.Run("Pagination", func(t *testing.T) {
 		testPagination(t, newHarness)
 	})
+	t.Run("PaginationTimePrecision", func(t *testing.T) {
+		testPaginationTimePrecision(t, newHarness)
+	})
 	t.Run("Misc", func(t *testing.T) {
 		testMisc(t, newHarness)
 	})

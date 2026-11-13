@@ -384,6 +384,65 @@ func (s *basicSuite) TestLogQueries_Pagination() {
 	})
 }
 
+// Event and attempt times are more precise than a millisecond. Paging through
+// records that are close together returns each of them once, in the order of an
+// unpaged list.
+func (s *basicSuite) TestLogQueries_PaginationSubMillisecond() {
+	tenant := s.createTenant()
+	s.createWebhookDestination(tenant.ID, "*")
+
+	// One event alone in its millisecond, three inside one millisecond, one
+	// more alone. The attempt times are assigned by the server.
+	eventPrefix := idgen.String()[:8]
+	baseTime := time.Now().Add(-1 * time.Hour).Truncate(time.Second)
+	offsets := []time.Duration{1300, 3100, 3500, 3900, 5700}
+	eventIDs := make([]string, len(offsets))
+	for i, offset := range offsets {
+		eventIDs[i] = fmt.Sprintf("%s_event_%d", eventPrefix, i+1)
+		s.publish(tenant.ID, "user.created", map[string]any{"index": i},
+			withEventID(eventIDs[i]), withTime(baseTime.Add(offset*time.Microsecond)))
+	}
+	s.waitForNewAttempts(tenant.ID, len(offsets))
+
+	list := func(resource, query string) (ids []string, next string) {
+		var resp struct {
+			Models     []map[string]any `json:"models"`
+			Pagination map[string]any   `json:"pagination"`
+		}
+		status := s.doJSON(http.MethodGet, s.apiURL("/"+resource+"?tenant_id="+tenant.ID+"&"+query), nil, &resp)
+		s.Require().Equal(http.StatusOK, status)
+		for _, model := range resp.Models {
+			ids = append(ids, model["id"].(string))
+		}
+		next, _ = resp.Pagination["next"].(string)
+		return ids, next
+	}
+
+	for _, resource := range []string{"events", "attempts"} {
+		for _, dir := range []string{"asc", "desc"} {
+			s.Run(resource+" "+dir, func() {
+				unpaged, _ := list(resource, "dir="+dir+"&limit=100")
+				s.Require().Len(unpaged, len(offsets))
+
+				var paged []string
+				page, next := list(resource, "dir="+dir+"&limit=1")
+				paged = append(paged, page...)
+				for next != "" {
+					s.Require().LessOrEqual(len(paged), len(offsets), "paging does not end")
+					page, next = list(resource, "dir="+dir+"&limit=1&next="+next)
+					paged = append(paged, page...)
+				}
+				s.Equal(unpaged, paged)
+			})
+		}
+	}
+
+	s.Run("events are listed in time order", func() {
+		ids, _ := list("events", "dir=asc&limit=100")
+		s.Equal(eventIDs, ids)
+	})
+}
+
 // Deleting a destination closes its own routes, attempts included. Its events
 // and attempts stay readable through the top-level event and attempt routes.
 func (s *basicSuite) TestLogQueries_DeletedDestinationHistory() {
