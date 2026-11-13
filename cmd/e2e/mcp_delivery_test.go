@@ -878,6 +878,74 @@ func (s *mcpSuite) TestManualRetry() {
 	s.Len(s.r.Events(p.path), 2)
 }
 
+// TestReplay walks the replay an MCP server serves from its own event log: an
+// event published by topic reaches a later subscription by a publish to its
+// ID, and a subscription that was already sent it by a manual retry, each
+// under the event's ID, time and cursor.
+func (s *mcpSuite) TestReplay() {
+	tenant := s.base.createTenant().ID
+	first := s.newPath(tenant, mcpreceiver.PathConfig{ManualRetries: true})
+	s.mustSubscribe(tenant, first, mcpSubscribeOpts{})
+
+	eventID := "evt_" + idgen.String()
+	eventTime := time.Now().UTC().Truncate(time.Millisecond)
+	const cursor = "0000000042"
+	publish := func(destinationID string) publishResponse {
+		body := map[string]any{
+			"id": eventID, "tenant_id": tenant, "topic": mcpTopic, "time": eventTime,
+			"metadata": map[string]string{mcpevents.MetadataCursor: cursor},
+			"data":     map[string]any{"n": 1},
+		}
+		if destinationID != "" {
+			body["destination_id"] = destinationID
+		}
+		var pub publishResponse
+		s.Require().Equal(http.StatusAccepted, s.base.doJSON(http.MethodPost, s.base.apiURL("/publish"), body, &pub))
+		return pub
+	}
+	retry := func(destinationID string) int {
+		return s.base.doJSON(http.MethodPost, s.base.apiURL("/retry"), map[string]any{"event_id": eventID, "destination_id": destinationID}, nil)
+	}
+	isTheEvent := func(q mcpreceiver.Request) {
+		env := q.Envelope()
+		s.Equal(eventID, env.EventID)
+		s.Equal(eventTime.Format(time.RFC3339Nano), env.Timestamp)
+		s.Equal(`"`+cursor+`"`, string(env.Cursor))
+	}
+
+	s.Equal([]string{first.destID}, publish("").DestinationIDs)
+	sent := s.r.WaitFor(first.path, 1, mcpreceiver.Request.IsEvent, mockServerPollTimeout)
+	s.Require().Len(sent, 1)
+	isTheEvent(sent[0])
+	s.Require().Len(s.waitAttempts(tenant, first.destID, 1, mockServerPollTimeout), 1)
+
+	// A subscription made after the event has no attempt to retry; a publish
+	// to its ID delivers the event, though the event was already published.
+	later := s.newPath(tenant, mcpreceiver.PathConfig{})
+	s.mustSubscribe(tenant, later, mcpSubscribeOpts{})
+	s.Equal(http.StatusBadRequest, retry(later.destID))
+	pub := publish(later.destID)
+	s.False(pub.Duplicate)
+	s.Equal([]string{later.destID}, pub.DestinationIDs)
+	replayed := s.r.WaitFor(later.path, 1, mcpreceiver.Request.IsEvent, mockServerPollTimeout)
+	s.Require().Len(replayed, 1)
+	isTheEvent(replayed[0])
+
+	// The first subscription was already sent the event. A publish to its ID
+	// sends nothing more; a retry sends it again.
+	publish(first.destID)
+	time.Sleep(time.Second)
+	s.Len(s.r.Events(first.path), 1, "its first attempt succeeded")
+	s.Equal(http.StatusAccepted, retry(first.destID))
+	again := s.r.WaitFor(first.path, 2, mcpreceiver.Request.IsEvent, mockServerPollTimeout)
+	s.Require().Len(again, 2)
+	isTheEvent(again[1])
+
+	time.Sleep(time.Second)
+	s.Len(s.r.Events(later.path), 1)
+	s.Len(s.r.Events(first.path), 2)
+}
+
 func contains(list []string, v string) bool {
 	for _, x := range list {
 		if x == v {

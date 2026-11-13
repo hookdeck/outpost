@@ -6900,10 +6900,14 @@ paths:
                       request sent `ttlMs: null`, which means the subscription does not expire.
                   cursor:
                     type: [string, "null"]
-                    description: Always null; events are not replayed.
+                    description: >-
+                      Always null; Outpost does not replay events. An MCP server that serves replay
+                      from its own event log sets it in the result it returns.
                   truncated:
                     type: boolean
-                    description: Always false; events are not replayed.
+                    description: >-
+                      Always false; Outpost does not replay events. An MCP server that serves replay
+                      from its own event log sets it in the result it returns.
                   deliveryStatus:
                     type: object
                     description: Present when an existing subscription was refreshed.
