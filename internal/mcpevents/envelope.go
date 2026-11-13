@@ -47,11 +47,15 @@ func ValidSubscriptionID(id string) bool {
 
 // EventEnvelope serializes the MCP event body
 // {"eventId","name","timestamp","data","cursor":null}: eventId is the event
-// ID, name the topic, timestamp the event time in RFC 3339 UTC (nanosecond
-// precision when present), data the event data spliced in unchanged (bytes,
-// key order and number spelling preserved; empty data is null). Every string
-// is JSON-encoded, so an event ID or topic can't inject members. The result
-// is what gets signed and sent.
+// ID, name the topic, timestamp the event time in RFC 3339 UTC (truncated to
+// milliseconds), data the event data spliced in unchanged (bytes, key order
+// and number spelling preserved; empty data is null). Every string is
+// JSON-encoded, so an event ID or topic can't inject members. The result is
+// what gets signed and sent.
+//
+// Milliseconds is the precision every log store keeps. A retry reads the
+// event back from the log store, so a finer timestamp would differ between
+// the first attempt and a retry of the same message.
 func EventEnvelope(event *models.Event) ([]byte, error) {
 	data := []byte(event.Data)
 	if len(bytes.TrimSpace(data)) == 0 {
@@ -70,7 +74,7 @@ func EventEnvelope(event *models.Event) ([]byte, error) {
 	b = append(b, `,"name":`...)
 	b = appendJSString(b, event.Topic)
 	b = append(b, `,"timestamp":`...)
-	b = appendJSString(b, event.Time.UTC().Format(time.RFC3339Nano))
+	b = appendJSString(b, event.Time.UTC().Truncate(time.Millisecond).Format(time.RFC3339Nano))
 	b = append(b, `,"data":`...)
 	b = append(b, data...)
 	b = append(b, `,"cursor":null}`...)

@@ -23,7 +23,7 @@ Attempts and events identify a subscription by `destination_id` (the subscriptio
 
 ## Event Format
 
-Each delivery is a `POST` with the MCP Events envelope as a JSON body. `data` is the event's `data`, unchanged:
+Each delivery is a `POST` with the MCP Events envelope as a JSON body. `data` is the event's `data`, unchanged, and `timestamp` is its `time` in UTC, truncated to milliseconds:
 
 ```json
 {

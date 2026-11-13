@@ -346,7 +346,9 @@ func (s *mcpSuite) TestRetryResigns() {
 	s.mustSubscribe(tenant, p, mcpSubscribeOpts{})
 	s.publishMCP(tenant, map[string]any{"n": 1})
 	events := s.r.WaitFor(p.path, 3, mcpreceiver.Request.IsEvent, 15*time.Second)
-	s.Len(events, 3, "1 attempt + 2 retries")
+	s.Require().Len(events, 3, "1 attempt + 2 retries")
+	s.Equal(string(events[0].Body), string(events[1].Body), "a retry sends the same body")
+	s.Equal(string(events[0].Body), string(events[2].Body), "a retry sends the same body")
 	s.check(
 		events[0].Header.Get("webhook-id") != "" &&
 			events[0].Header.Get("webhook-id") == events[1].Header.Get("webhook-id") &&
