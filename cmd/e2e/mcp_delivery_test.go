@@ -849,29 +849,33 @@ func (s *mcpSuite) TestAttemptsKeepSubscriptionID() {
 	s.Equal(pub.ID, events.Models[0].ID)
 }
 
-// TestManualRetryRefusedLikeUnknown checks that a manual retry of a
-// subscription's attempt answers as for an unknown destination, while an
-// automatic retry still reaches the subscription.
-func (s *mcpSuite) TestManualRetryRefusedLikeUnknown() {
+// TestManualRetry checks that a manual retry sends the event to the
+// subscription again, as a new message with the next attempt number.
+func (s *mcpSuite) TestManualRetry() {
 	tenant := s.base.createTenant().ID
-	p := s.newPath(tenant, mcpreceiver.PathConfig{Event: mcpreceiver.Sequence(500, 200)})
+	p := s.newPath(tenant, mcpreceiver.PathConfig{ManualRetries: true})
 	s.mustSubscribe(tenant, p, mcpSubscribeOpts{})
 	pub := s.publishMCP(tenant, map[string]any{"n": 1})
-	s.Require().Len(s.r.WaitFor(p.path, 2, mcpreceiver.Request.IsEvent, 15*time.Second), 2, "the automatic retry reached the subscription")
-	s.Require().Len(s.waitAttempts(tenant, p.destID, 2, mockServerPollTimeout), 2)
+	s.Require().Len(s.r.WaitFor(p.path, 1, mcpreceiver.Request.IsEvent, mockServerPollTimeout), 1)
+	s.Require().Len(s.waitAttempts(tenant, p.destID, 1, mockServerPollTimeout), 1)
 
-	retry := func(destID string) (int, errorResponse) {
-		var resp errorResponse
-		status := s.base.doJSON(http.MethodPost, s.base.apiURL("/retry"), map[string]any{"event_id": pub.ID, "destination_id": destID}, &resp)
-		return status, resp
+	retry := func(destID string) int {
+		return s.base.doJSON(http.MethodPost, s.base.apiURL("/retry"), map[string]any{"event_id": pub.ID, "destination_id": destID}, nil)
 	}
-	status, resp := retry(p.destID)
-	unknownStatus, unknownResp := retry("dst_missing")
-	s.Equal(http.StatusNotFound, status)
-	s.Equal(unknownStatus, status)
-	s.Equal(unknownResp, resp)
+	s.Equal(http.StatusAccepted, retry(p.destID))
+	events := s.r.WaitFor(p.path, 2, mcpreceiver.Request.IsEvent, mockServerPollTimeout)
+	s.Require().Len(events, 2)
+	s.Equal(pub.ID, events[1].Envelope().EventID)
+	s.Equal(string(events[0].Envelope().Data), string(events[1].Envelope().Data))
+	s.NotEqual(events[0].Header.Get("webhook-id"), events[1].Header.Get("webhook-id"), "a new message")
+
+	attempts := s.waitAttempts(tenant, p.destID, 2, mockServerPollTimeout)
+	s.Require().Len(attempts, 2)
+	s.ElementsMatch([]int{1, 2}, []int{attempts[0].AttemptNumber, attempts[1].AttemptNumber})
+
+	s.Equal(http.StatusNotFound, retry("dst_missing"))
 	time.Sleep(time.Second)
-	s.Len(s.r.Events(p.path), 2, "the refused retry sent nothing")
+	s.Len(s.r.Events(p.path), 2)
 }
 
 func contains(list []string, v string) bool {

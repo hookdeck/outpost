@@ -6467,6 +6467,8 @@ paths:
 
         When authenticated with a Tenant JWT, only events belonging to that tenant can be retried.
         When authenticated with Admin API Key, events from any tenant can be retried.
+
+        An MCP Events subscription is retried by its subscription ID as the `destination_id`, with the Admin API Key only. With a Tenant JWT, or while MCP is not enabled, it answers 404 `destination not found`.
       operationId: retryEvent
       requestBody:
         required: true
