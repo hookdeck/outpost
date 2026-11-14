@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"maps"
+	"net"
+	"syscall"
 	"testing"
 
 	"github.com/hookdeck/outpost/internal/destregistry"
@@ -11,6 +13,8 @@ import (
 	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/twmb/franz-go/pkg/kerr"
+	"github.com/twmb/franz-go/pkg/kgo"
 )
 
 func TestKafkaDestination_Validate(t *testing.T) {
@@ -78,6 +82,55 @@ func TestKafkaDestination_Validate(t *testing.T) {
 		assert.ErrorAs(t, err, &validationErr)
 		assert.Equal(t, "config.topic", validationErr.Errors[0].Field)
 		assert.Equal(t, "required", validationErr.Errors[0].Type)
+	})
+
+	t.Run("should validate broker ports", func(t *testing.T) {
+		t.Parallel()
+		testCases := []struct {
+			name        string
+			brokers     string
+			shouldError bool
+		}{
+			{name: "host and port", brokers: "kafka.example.com:9092", shouldError: false},
+			{name: "no port defaults", brokers: "kafka.example.com", shouldError: false},
+			{name: "multiple valid", brokers: "a:9092,b,c:1", shouldError: false},
+			{name: "bracketed ipv6 with port", brokers: "[::1]:9092", shouldError: false},
+			{name: "max port", brokers: "a:65535", shouldError: false},
+			{name: "bare ipv6 literal", brokers: "::1", shouldError: false},
+			{name: "bracketed ipv6 without port", brokers: "[::1]", shouldError: false},
+			{name: "unclosed bracket", brokers: "[::1", shouldError: true},
+			{name: "unclosed bracket host", brokers: "[host", shouldError: true},
+			{name: "junk after bracket", brokers: "[::1]x", shouldError: true},
+			{name: "bad port after bracket", brokers: "[::1]:abc", shouldError: true},
+			{name: "two brackets", brokers: "[a]]:9092", shouldError: true},
+			{name: "non-numeric port", brokers: "a:abc", shouldError: true},
+			{name: "empty port", brokers: "a:", shouldError: true},
+			{name: "zero port", brokers: "a:0", shouldError: true},
+			{name: "port too large", brokers: "a:65536", shouldError: true},
+			{name: "negative port", brokers: "a:-1", shouldError: true},
+			{name: "one bad among several", brokers: "a:9092,b:abc", shouldError: true},
+		}
+
+		for _, tc := range testCases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				dest := validDestination
+				dest.Config = maps.Clone(validDestination.Config)
+				dest.Credentials = maps.Clone(validDestination.Credentials)
+				dest.Config["brokers"] = tc.brokers
+				err := kafkaDestination.Validate(context.Background(), &dest)
+				if tc.shouldError {
+					var validationErr *destregistry.ErrDestinationValidation
+					if !assert.ErrorAs(t, err, &validationErr) {
+						return
+					}
+					assert.Equal(t, "config.brokers", validationErr.Errors[0].Field)
+					assert.Equal(t, "invalid", validationErr.Errors[0].Type)
+				} else {
+					assert.NoError(t, err)
+				}
+			})
+		}
 	})
 
 	t.Run("should validate sasl_mechanism values", func(t *testing.T) {
@@ -286,7 +339,15 @@ func TestClassifyKafkaError(t *testing.T) {
 		{name: "authentication error", err: fmt.Errorf("authentication failed"), expected: "auth_failed"},
 		{name: "connection refused", err: fmt.Errorf("dial tcp: connection refused"), expected: "connection_refused"},
 		{name: "dns error", err: fmt.Errorf("no such host"), expected: "dns_error"},
-		{name: "unknown topic", err: fmt.Errorf("Unknown Topic Or Partition"), expected: "topic_not_found"},
+		{name: "unknown topic", err: fmt.Errorf("UNKNOWN_TOPIC_OR_PARTITION"), expected: "topic_not_found"},
+		{name: "kerr unknown topic", err: fmt.Errorf("no partitions available, last err: %w", kerr.UnknownTopicOrPartition), expected: "topic_not_found"},
+		{name: "kerr message too large", err: kerr.MessageTooLarge, expected: "message_too_large"},
+		{name: "kerr sasl failed", err: kerr.SaslAuthenticationFailed, expected: "auth_failed"},
+		{name: "kerr request timed out", err: kerr.RequestTimedOut, expected: "timeout"},
+		{name: "record timeout", err: kgo.ErrRecordTimeout, expected: "timeout"},
+		{name: "wrapped dns error", err: fmt.Errorf("unable to dial: %w", &net.DNSError{Err: "lookup failed", Name: "x.invalid"}), expected: "dns_error"},
+		{name: "wrapped econnrefused", err: fmt.Errorf("unable to dial: %w", syscall.ECONNREFUSED), expected: "connection_refused"},
+		{name: "record retries with dial cause", err: fmt.Errorf("%w: %w", kgo.ErrRecordRetries, syscall.ECONNREFUSED), expected: "connection_refused"},
 		{name: "message too large", err: fmt.Errorf("MESSAGE_TOO_LARGE"), expected: "message_too_large"},
 		{name: "timeout", err: fmt.Errorf("i/o timeout"), expected: "timeout"},
 		{name: "context deadline", err: fmt.Errorf("context deadline exceeded"), expected: "timeout"},
