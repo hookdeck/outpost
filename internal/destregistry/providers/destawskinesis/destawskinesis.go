@@ -286,8 +286,8 @@ func (p *AWSKinesisPublisher) Publish(ctx context.Context, event *models.Event) 
 		Status: "success",
 		Code:   "OK",
 		Response: map[string]interface{}{
-			"shard_id":        *result.ShardId,
-			"sequence_number": *result.SequenceNumber,
+			"shard_id":        awssdk.ToString(result.ShardId),
+			"sequence_number": awssdk.ToString(result.SequenceNumber),
 			"partition_key":   *input.PartitionKey,
 		},
 	}, nil
