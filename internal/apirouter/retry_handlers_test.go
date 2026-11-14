@@ -527,6 +527,54 @@ func TestAPI_Retry(t *testing.T) {
 			testutil.RequireErrorResponse(t, resp, http.StatusNotFound, "destination not found")
 			assert.Empty(t, h.deliveryPub.calls)
 		})
+
+		// A subscription the admin is refused with a 400 must still answer a
+		// tenant, and an admin while MCP is off, as an unknown destination:
+		// a 400 would tell a real subscription ID from a made-up one.
+		for _, tc := range []struct {
+			name    string
+			state   func(*models.Destination)
+			message string
+		}{
+			{"disabled", df.WithDisabledAt(time.Now()), "Destination is disabled"},
+			{"expired", df.WithExpiresAt(time.Now().Add(-time.Minute)), "Destination is expired"},
+			{"non-matching", df.WithTopics([]string{"user.deleted"}), "destination does not match event"},
+		} {
+			// setupState puts subscription d2 into the state.
+			setupState := func(t *testing.T, opts ...apiTestOption) *apiTest {
+				t.Helper()
+				h := setupMCP(t, opts...)
+				require.NoError(t, h.tenantStore.UpsertDestination(t.Context(), df.Any(df.WithID("d2"), df.WithTenantID("t1"), df.WithType("mcp"), df.WithTopics([]string{"*"}), tc.state)))
+				return h
+			}
+
+			t.Run(tc.name+" subscription returns 400 for the api key", func(t *testing.T) {
+				h := setupState(t, withMCPSubscribe())
+
+				resp := h.do(h.withAPIKey(retry(h)))
+
+				testutil.RequireErrorResponse(t, resp, http.StatusBadRequest, tc.message)
+				assert.Empty(t, h.deliveryPub.calls)
+			})
+
+			t.Run(tc.name+" subscription returns 404 for a jwt like an unknown destination", func(t *testing.T) {
+				h := setupState(t, withMCPSubscribe())
+
+				resp := h.do(h.withJWT(retry(h), "t1"))
+
+				testutil.RequireErrorResponse(t, resp, http.StatusNotFound, "destination not found")
+				assert.Empty(t, h.deliveryPub.calls)
+			})
+
+			t.Run(tc.name+" subscription returns 404 like an unknown destination while MCP is off", func(t *testing.T) {
+				h := setupState(t)
+
+				resp := h.do(h.withAPIKey(retry(h)))
+
+				testutil.RequireErrorResponse(t, resp, http.StatusNotFound, "destination not found")
+				assert.Empty(t, h.deliveryPub.calls)
+			})
+		}
 	})
 
 	t.Run("Delivery task", func(t *testing.T) {
