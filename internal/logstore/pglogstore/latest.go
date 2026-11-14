@@ -25,7 +25,7 @@ func (s *logStore) ListLatestAttempts(ctx context.Context, lookups []driver.Late
 		SELECT
 			l.id, l.event_id, l.tenant_id, l.destination_id, l.destination_type, l.topic,
 			l.status, l.time, l.attempt_number, l.manual, l.code, l.response_data,
-			l.event_time, l.eligible_for_retry, l.event_data, l.event_metadata, l.latency_ms
+			l.event_time, l.eligible_for_retry, l.event_data, l.event_metadata, l.latency_ms, l.message_id
 		FROM unnest($1::text[], $2::text[], $3::text[], $4::timestamptz[]) AS k(t, e, d, nb)
 		CROSS JOIN LATERAL (
 			SELECT * FROM attempts

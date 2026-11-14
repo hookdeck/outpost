@@ -81,16 +81,19 @@ func TestLogEntry_ToMessage_FromMessage_PreservesKeyOrder(t *testing.T) {
 	assert.Equal(t, string(rawData), string(restored.Event.Data))
 }
 
-func TestDeliveryTask_MessageID_NewPerDeliveryAndManualRetry(t *testing.T) {
+func TestDeliveryTask_MessageID_NewPerDeliveryKeptByManualRetry(t *testing.T) {
 	t.Parallel()
 
 	event := testutil.EventFactory.Any()
 	first := models.NewDeliveryTask(event, "dest_1")
 	again := models.NewDeliveryTask(event, "dest_1")
-	manual := models.NewManualDeliveryTask(event, "dest_1", 2)
+	manual := models.NewManualDeliveryTask(event, "dest_1", 2, first.MessageID)
+	unknown := models.NewManualDeliveryTask(event, "dest_1", 2, "")
 
 	require.NotEmpty(t, first.MessageID)
 	assert.NotEqual(t, first.MessageID, again.MessageID)
-	assert.NotEqual(t, first.MessageID, manual.MessageID, "a manual retry gets a new message ID")
+	assert.Equal(t, first.MessageID, manual.MessageID, "a manual retry keeps the message ID of the attempt it retries")
+	require.NotEmpty(t, unknown.MessageID, "a manual retry of an attempt without a message ID gets a new one")
+	assert.NotEqual(t, first.MessageID, unknown.MessageID)
 	assert.NotContains(t, first.MessageID, event.ID, "not derived from the event ID")
 }

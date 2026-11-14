@@ -818,11 +818,11 @@ func (s *mcpSuite) TestAttemptsKeepSubscriptionID() {
 	s.Equal(pub.ID, events.Models[0].ID)
 }
 
-// TestManualRetry checks that a manual retry sends the event to the
-// subscription again, as a new message with the next attempt number.
+// TestManualRetry checks that a manual retry sends the subscription the same
+// message again, with the next attempt number.
 func (s *mcpSuite) TestManualRetry() {
 	tenant := s.base.createTenant().ID
-	p := s.newPath(tenant, mcpreceiver.PathConfig{ManualRetries: true})
+	p := s.newPath(tenant, mcpreceiver.PathConfig{})
 	s.mustSubscribe(tenant, p, mcpSubscribeOpts{})
 	pub := s.publishMCP(tenant, map[string]any{"n": 1})
 	s.Require().Len(s.r.WaitFor(p.path, 1, mcpreceiver.Request.IsEvent, mockServerPollTimeout), 1)
@@ -835,7 +835,7 @@ func (s *mcpSuite) TestManualRetry() {
 	events := s.r.WaitFor(p.path, 2, mcpreceiver.Request.IsEvent, mockServerPollTimeout)
 	s.Require().Len(events, 2)
 	s.Equal(string(events[0].Body), string(events[1].Body), "the same event")
-	s.NotEqual(events[0].Header.Get("webhook-id"), events[1].Header.Get("webhook-id"), "a new message")
+	s.Equal(events[0].Header.Get("webhook-id"), events[1].Header.Get("webhook-id"), "the same message")
 
 	attempts := s.waitAttempts(tenant, p.destID, 2, mockServerPollTimeout)
 	s.Require().Len(attempts, 2)

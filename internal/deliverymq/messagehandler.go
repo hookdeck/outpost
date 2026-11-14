@@ -332,6 +332,7 @@ func (h *messageHandler) logDeliveryResult(ctx context.Context, task *models.Del
 	attempt.TenantID = task.Event.TenantID
 	attempt.AttemptNumber = task.Attempt
 	attempt.Manual = task.Manual
+	attempt.MessageID = task.MessageID
 
 	fields := []zap.Field{
 		zap.String("attempt_id", attempt.ID),

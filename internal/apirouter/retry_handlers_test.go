@@ -51,7 +51,7 @@ func TestAPI_Retry(t *testing.T) {
 		h.tenantStore.UpsertDestination(t.Context(), df.Any(df.WithID("d1"), df.WithTenantID("t1"), df.WithTopics([]string{"*"})))
 		e := ef.AnyPointer(ef.WithID("e1"), ef.WithTenantID("t1"), ef.WithTopic("user.created"), ef.WithData(json.RawMessage(`{"order":"o1"}`)))
 		require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
-			{Event: e, Attempt: attemptForEvent(e, af.WithDestinationID("d1"))},
+			{Event: e, Attempt: attemptForEvent(e, af.WithDestinationID("d1"), af.WithMessageID("msg_first"))},
 		}))
 		return h
 	}
@@ -484,7 +484,7 @@ func TestAPI_Retry(t *testing.T) {
 			require.NoError(t, h.tenantStore.UpsertDestination(t.Context(), df.Any(df.WithID("d2"), df.WithTenantID("t1"), df.WithType("mcp"), df.WithTopics([]string{"*"}))))
 			e := ef.AnyPointer(ef.WithID("e2"), ef.WithTenantID("t1"), ef.WithTopic("user.created"))
 			require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
-				{Event: e, Attempt: attemptForEvent(e, af.WithDestinationID("d2"))},
+				{Event: e, Attempt: attemptForEvent(e, af.WithDestinationID("d2"), af.WithMessageID("msg_sub"))},
 			}))
 			return h
 		}
@@ -507,6 +507,7 @@ func TestAPI_Retry(t *testing.T) {
 			assert.Equal(t, "e2", task.Event.ID)
 			assert.Equal(t, "d2", task.DestinationID)
 			assert.Equal(t, 2, task.Attempt)
+			assert.Equal(t, "msg_sub", task.MessageID, "the retry continues the message of the attempt it retries")
 		})
 
 		t.Run("jwt returns 404 like an unknown destination", func(t *testing.T) {
@@ -548,6 +549,26 @@ func TestAPI_Retry(t *testing.T) {
 			assert.JSONEq(t, `{"order":"o1"}`, string(task.Event.Data))
 			assert.Equal(t, "d1", task.DestinationID)
 			assert.Equal(t, 2, task.Attempt, "should derive attempt_number=2 from 1 prior attempt")
+			assert.Equal(t, "msg_first", task.MessageID, "should keep the message ID of the prior attempt")
+		})
+
+		t.Run("gets a new message ID when the prior attempt has none", func(t *testing.T) {
+			h := setup(t)
+			h.tenantStore.UpsertDestination(t.Context(), df.Any(df.WithID("d3"), df.WithTenantID("t1"), df.WithTopics([]string{"*"})))
+			e := ef.AnyPointer(ef.WithID("e3"), ef.WithTenantID("t1"), ef.WithTopic("user.created"))
+			require.NoError(t, h.logStore.InsertMany(t.Context(), []*models.LogEntry{
+				{Event: e, Attempt: attemptForEvent(e, af.WithDestinationID("d3"))},
+			}))
+
+			req := h.jsonReq(http.MethodPost, "/api/v1/retry", map[string]any{
+				"event_id":       "e3",
+				"destination_id": "d3",
+			})
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusAccepted, resp.Code)
+			require.Len(t, h.deliveryPub.calls, 1)
+			assert.NotEmpty(t, h.deliveryPub.calls[0].MessageID)
 		})
 
 		t.Run("does not look the event up when an attempt exists", func(t *testing.T) {

@@ -1510,16 +1510,17 @@ func TestManualDelivery_DuplicateRetry(t *testing.T) {
 	)
 
 	// Step 1: First manual retry succeeds
-	task1 := models.NewManualDeliveryTask(event, destination.ID, 1)
+	task1 := models.NewManualDeliveryTask(event, destination.ID, 1, "msg_first")
 	mockMsg1, msg1 := newDeliveryMockMessage(task1)
 	err := handler.Handle(context.Background(), msg1)
 	require.NoError(t, err)
 	assert.True(t, mockMsg1.acked, "first manual retry should be acked")
 	assert.Equal(t, 1, publisher.current, "first manual retry should publish")
 	require.Len(t, logPublisher.entries, 1, "first manual retry should log delivery")
+	assert.Equal(t, "msg_first", logPublisher.entries[0].Attempt.MessageID, "the attempt keeps the task's message ID")
 
 	// Step 2: Second manual retry for same event+destination should also execute
-	task2 := models.NewManualDeliveryTask(event, destination.ID, 2)
+	task2 := models.NewManualDeliveryTask(event, destination.ID, 2, "msg_first")
 	mockMsg2, msg2 := newDeliveryMockMessage(task2)
 	err = handler.Handle(context.Background(), msg2)
 	require.NoError(t, err)
