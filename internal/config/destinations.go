@@ -97,6 +97,7 @@ type DestinationWebhookConfig struct {
 	SignatureSecretPrefix    string `yaml:"signature_secret_prefix" env:"DESTINATIONS_WEBHOOK_SIGNATURE_SECRET_PREFIX" desc:"Prefix stripped from the destination secret before decoding (e.g., 'whsec_'). Ignored when DESTINATIONS_WEBHOOK_SIGNATURE_SECRET_ENCODING is 'raw'. Only applies to 'default' mode." required:"N"`
 	SigningSecretTemplate    string `yaml:"signing_secret_template" env:"DESTINATIONS_WEBHOOK_SIGNING_SECRET_TEMPLATE" desc:"Go template for generating webhook signing secrets. Available variables: {{.RandomHex}} (64-char hex), {{.RandomBase64}} (base64-encoded), {{.RandomAlphanumeric}} (32-char alphanumeric). Defaults to 'whsec_{{.RandomHex}}'. Only applies to 'default' mode." required:"N"`
 	MaxResponseBodyBytes     int    `yaml:"max_response_body_bytes" env:"DESTINATIONS_WEBHOOK_MAX_RESPONSE_BODY_BYTES" desc:"Maximum size in bytes of a destination's response body stored on the delivery attempt. Responses larger than this are replaced with a placeholder so the attempt log stays under the event queue's per-message size limit (oversized log messages fail to publish and retry indefinitely). Default: 131072 (128 KiB). Set to 0 to disable the cap." required:"N"`
+	FollowRedirects          bool   `yaml:"follow_redirects" env:"DESTINATIONS_WEBHOOK_FOLLOW_REDIRECTS" desc:"If true, webhook deliveries follow redirects (up to 10) and the attempt succeeds or fails on the final response, as before v1.8.0. Defaults to false: a 3xx response fails the attempt. Meant as a temporary measure while destination URLs are updated." required:"N"`
 
 	Compat DestinationWebhookCompatConfig `yaml:"compat" desc:"A second signature sent alongside the primary one, so receivers verifying an older scheme keep working while they migrate."`
 }
@@ -184,6 +185,7 @@ func (c *DestinationWebhookConfig) toConfig() *destregistrydefault.DestWebhookCo
 		SignatureAlgorithm:       c.SignatureAlgorithm,
 		SigningSecretTemplate:    c.SigningSecretTemplate,
 		MaxResponseBodyBytes:     c.MaxResponseBodyBytes,
+		FollowRedirects:          c.FollowRedirects,
 	}
 	if c.Mode == "standard" {
 		applyStandardWebhooks(cfg)

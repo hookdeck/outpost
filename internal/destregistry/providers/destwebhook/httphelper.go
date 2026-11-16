@@ -90,7 +90,8 @@ func ExecuteHTTPRequest(ctx context.Context, client *http.Client, req *http.Requ
 	}
 	defer resp.Body.Close()
 
-	// Non-2xx fails the attempt. Redirects aren't followed, so a 3xx lands here too.
+	// Non-2xx fails the attempt. Unless WithFollowRedirects is set, redirects
+	// aren't followed, so a 3xx lands here too.
 	if resp.StatusCode >= 300 {
 		delivery := &destregistry.Delivery{
 			Status: "failed",

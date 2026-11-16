@@ -138,6 +138,7 @@ type WebhookDestination struct {
 	rawSigningSecretTemplate string
 	signingSecretTemplate    *template.Template
 	maxResponseBodyBytes     int
+	followRedirects          bool
 
 	// httpClient is shared by every publisher this provider creates. Nothing
 	// in its configuration varies per destination — user agent, proxy and the
@@ -222,6 +223,14 @@ func WithAddressGuard(g *netguard.Guard) Option {
 func WithMaxResponseBodyBytes(maxBytes int) Option {
 	return func(w *WebhookDestination) {
 		w.maxResponseBodyBytes = maxBytes
+	}
+}
+
+// WithFollowRedirects makes deliveries follow redirects (up to 10) and judge
+// the attempt on the final response. Off by default: a 3xx fails the attempt.
+func WithFollowRedirects(follow bool) Option {
+	return func(w *WebhookDestination) {
+		w.followRedirects = follow
 	}
 }
 
@@ -438,8 +447,12 @@ func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePu
 	if err != nil {
 		return nil, err
 	}
-	httpClient.CheckRedirect = func(*http.Request, []*http.Request) error {
-		return http.ErrUseLastResponse
+	// When following redirects, Go's default policy applies (at most 10). The
+	// guard is enforced at dial time, so redirect targets are checked too.
+	if !destination.followRedirects {
+		httpClient.CheckRedirect = func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		}
 	}
 	destination.httpClient = httpClient
 

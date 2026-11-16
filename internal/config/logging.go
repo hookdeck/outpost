@@ -169,6 +169,7 @@ func (c *Config) LogConfigurationSummary() []zap.Field {
 		zap.String("destinations_webhook_signature_header", webhookHeaderSummary(webhookCfg.SignatureHeader)),
 		zap.String("destinations_webhook_timestamp_header", webhookHeaderSummary(webhookCfg.TimestampHeader)),
 		zap.String("destinations_webhook_topic_header", webhookHeaderSummary(webhookCfg.TopicHeader)),
+		zap.Bool("destinations_webhook_follow_redirects", webhookCfg.FollowRedirects),
 
 		// Destinations - AWS EventBridge
 		zap.String("destinations_aws_eventbridge_source", c.Destinations.AWSEventBridge.Source),

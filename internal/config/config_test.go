@@ -447,6 +447,54 @@ destinations:
 	}
 }
 
+func TestDestinationWebhookFollowRedirects(t *testing.T) {
+	tests := []struct {
+		name    string
+		files   map[string][]byte
+		envVars map[string]string
+		want    bool
+	}{
+		{
+			name:    "default is false",
+			files:   map[string][]byte{},
+			envVars: map[string]string{},
+			want:    false,
+		},
+		{
+			name: "yaml config",
+			files: map[string][]byte{
+				"config.yaml": []byte(`
+destinations:
+  webhook:
+    follow_redirects: true
+`),
+			},
+			envVars: map[string]string{"CONFIG": "config.yaml"},
+			want:    true,
+		},
+		{
+			name:    "env config",
+			files:   map[string][]byte{},
+			envVars: map[string]string{"DESTINATIONS_WEBHOOK_FOLLOW_REDIRECTS": "true"},
+			want:    true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockOS := &mockOS{
+				files:   tt.files,
+				envVars: tt.envVars,
+			}
+
+			cfg, err := config.ParseWithoutValidation(config.Flags{}, mockOS)
+			assert.NoError(t, err)
+			assert.Equal(t, tt.want, cfg.Destinations.Webhook.FollowRedirects)
+			assert.Equal(t, tt.want, cfg.Destinations.ToConfig(cfg).Webhook.FollowRedirects)
+		})
+	}
+}
+
 func TestDestinationWebhookMaxResponseBodyBytes(t *testing.T) {
 	tests := []struct {
 		name    string

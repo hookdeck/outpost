@@ -179,6 +179,7 @@ Choose one for event log persistence:
 | `DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_SECRET_PREFIX` | — | Prefix stripped from the destination secret before decoding for the compat signature |
 | `DESTINATIONS_WEBHOOK_COMPAT_HEADERS` | — | Extra headers sent with the compat signature, as comma-separated `name=template` pairs (`{{.EventID}}`, `{{.Topic}}`, `{{.Timestamp}}`). `\,` is a literal comma. |
 | `DESTINATIONS_WEBHOOK_MAX_RESPONSE_BODY_BYTES` | `131072` (128 KiB) | Max bytes of a destination response body stored on the delivery attempt. Larger responses are replaced with a placeholder so the attempt log stays under the event queue's per-message size limit. Set to `0` to disable the cap. |
+| `DESTINATIONS_WEBHOOK_FOLLOW_REDIRECTS` | `false` | Follow redirects (up to 10) on webhook deliveries and judge the attempt on the final response, as before v1.8.0. When `false`, a 3xx response fails the attempt. Meant as a temporary measure while destination URLs are updated. |
 
 {% callout type="warning" %}
 The `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_EVENT_ID_HEADER`, `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_SIGNATURE_HEADER`, `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_TIMESTAMP_HEADER`, and `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_TOPIC_HEADER` flags are deprecated and will be removed in a future version. Disable a header by setting its corresponding `*_HEADER_NAME` variable to an empty string instead. A set `*_HEADER_NAME` always takes precedence over the matching deprecated flag.
