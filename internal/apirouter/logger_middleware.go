@@ -32,7 +32,7 @@ func LoggerMiddlewareWithSanitizer(logger *logging.Logger, sanitizer *RequestBod
 
 		// Buffer the start of the body for the 5xx log. A body that is going to
 		// be rejected for its declared length is left unread.
-		if sanitizer != nil && isBodyLimitedRequest(c) && !declaresOversizedBody(c) {
+		if sanitizer != nil && logsRequestBody(c) {
 			if br, err := NewBufferedReader(c.Request.Body); err == nil {
 				bufferedBody = br
 				// Only the start of the body is buffered; the handler reads it back followed by the rest

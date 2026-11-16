@@ -22,6 +22,7 @@ var (
 	ErrInvalidTopic  = errors.New("invalid topic")
 	ErrRequiredTopic = errors.New("topic is required")
 	ErrInvalidData   = errors.New("data must be a valid JSON object")
+	ErrEventTooLarge = errors.New("event too large")
 )
 
 type EventHandler interface {

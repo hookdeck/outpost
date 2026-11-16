@@ -10,37 +10,53 @@ import (
 // MaxRequestBodyBytes is the largest request body accepted outside the publish endpoint
 const MaxRequestBodyBytes = 1 << 20
 
-// RequestBodyLimitMiddleware rejects request bodies over MaxRequestBodyBytes
-// on write requests other than publish. A declared length over the limit is
+// RequestBodyLimitMiddleware rejects request bodies over the limit on write
+// requests: maxEventSizeBytes for publish (0 means no cap),
+// MaxRequestBodyBytes for the rest. A declared length over the limit is
 // answered without reading the body. Otherwise reading stops at the limit and
 // the handler's bind error is turned into the same response.
-func RequestBodyLimitMiddleware() gin.HandlerFunc {
+func RequestBodyLimitMiddleware(maxEventSizeBytes int64) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if !isBodyLimitedRequest(c) || c.Request.Body == nil {
+		limit := requestBodyLimit(c, maxEventSizeBytes)
+		if limit <= 0 || c.Request.Body == nil {
 			c.Next()
 			return
 		}
-		if declaresOversizedBody(c) {
+		if c.Request.ContentLength > limit {
 			AbortWithError(c, http.StatusRequestEntityTooLarge, NewErrRequestBodyTooLarge())
 			return
 		}
-		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, MaxRequestBodyBytes)
+		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, limit)
 		c.Next()
 	}
 }
 
-// isBodyLimitedRequest reports whether the request is a write other than
-// publish. Those are the requests whose body is capped and, for a 5xx, logged.
-func isBodyLimitedRequest(c *gin.Context) bool {
+func isWriteRequest(c *gin.Context) bool {
 	switch c.Request.Method {
 	case http.MethodPost, http.MethodPut, http.MethodPatch:
-		return c.FullPath() != apiBasePath+publishPath
+		return true
 	}
 	return false
 }
 
-func declaresOversizedBody(c *gin.Context) bool {
-	return c.Request.ContentLength > MaxRequestBodyBytes
+func isPublishRequest(c *gin.Context) bool {
+	return c.FullPath() == apiBasePath+publishPath
+}
+
+func requestBodyLimit(c *gin.Context, maxEventSizeBytes int64) int64 {
+	if !isWriteRequest(c) {
+		return 0
+	}
+	if isPublishRequest(c) {
+		return maxEventSizeBytes
+	}
+	return MaxRequestBodyBytes
+}
+
+// logsRequestBody reports whether the start of the body is buffered for the 5xx
+// log: writes other than publish, unless the declared length is over the limit.
+func logsRequestBody(c *gin.Context) bool {
+	return isWriteRequest(c) && !isPublishRequest(c) && c.Request.ContentLength <= MaxRequestBodyBytes
 }
 
 func isRequestBodyTooLarge(err error) bool {

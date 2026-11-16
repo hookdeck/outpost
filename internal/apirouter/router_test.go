@@ -74,6 +74,7 @@ type apiTestConfig struct {
 	mcpCatalog           *topicschema.Catalog
 	mcpEventsErr         error
 	mcpSubscribe         bool
+	maxEventSizeBytes    int64
 }
 
 func withMCPSubscribe() apiTestOption {
@@ -148,6 +149,12 @@ func withTopicsAllowWildcards(allow bool) apiTestOption {
 	}
 }
 
+func withMaxEventSizeBytes(n int64) apiTestOption {
+	return func(cfg *apiTestConfig) {
+		cfg.maxEventSizeBytes = n
+	}
+}
+
 func withDeploymentID(id string) apiTestOption {
 	return func(cfg *apiTestConfig) {
 		cfg.deploymentID = id
@@ -200,7 +207,8 @@ func newAPITest(t *testing.T, opts ...apiTestOption) *apiTest {
 			Registry:             registry,
 			PortalConfig:         portal.PortalConfig{},
 
-			MCPSubscribe: cfg.mcpSubscribe,
+			MCPSubscribe:      cfg.mcpSubscribe,
+			MaxEventSizeBytes: cfg.maxEventSizeBytes,
 		},
 		apirouter.RouterDeps{
 			TenantStore:         ts,
