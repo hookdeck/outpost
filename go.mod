@@ -1,6 +1,6 @@
 module github.com/hookdeck/outpost
 
-go 1.27.3
+go 1.27.4
 
 require (
 	cloud.google.com/go/pubsub v1.51.0
