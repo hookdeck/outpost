@@ -7,6 +7,7 @@ import (
 
 	"github.com/hookdeck/outpost/internal/clickhouse"
 	"github.com/hookdeck/outpost/internal/util/testutil"
+	"github.com/testcontainers/testcontainers-go"
 	chTestcontainer "github.com/testcontainers/testcontainers-go/modules/clickhouse"
 )
 
@@ -76,6 +77,8 @@ func startCHTestcontainer(cfg *Config) (string, error) {
 		chTestcontainer.WithUsername("default"),
 		chTestcontainer.WithPassword(""),
 		chTestcontainer.WithDatabase("default"),
+		// Keep the passwordless default user reachable over the network.
+		testcontainers.WithEnv(map[string]string{"CLICKHOUSE_SKIP_USER_SETUP": "1"}),
 	)
 	if err != nil {
 		return "", err
