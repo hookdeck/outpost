@@ -89,6 +89,10 @@ func serveHostile(variant string, c net.Conn) {
 		_, _ = c.Write(fakeFrame(r.correlation, body))
 	case "huge-size":
 		_, _ = c.Write([]byte{0x7f, 0xff, 0xff, 0xff})
+	case "big-frame":
+		// A frame size under kgo's default read limit but over ours, with no
+		// body: the client must reject the size before allocating for it.
+		_, _ = c.Write([]byte{0x06, 0x00, 0x00, 0x00})
 	case "sasl":
 		_, _ = c.Write(fakeAPIVersions(r))
 		r2, err := readFakeRequest(c)
@@ -140,7 +144,7 @@ func startHostileBroker(t *testing.T, variant string) (addr string, stop func())
 // A misbehaving or non-Kafka endpoint must not make the client allocate
 // unbounded memory, and the delivery must still fail promptly.
 func TestKafkaPublisher_HostileBroker(t *testing.T) {
-	for _, variant := range []string{"http", "huge-array", "huge-size", "sasl"} {
+	for _, variant := range []string{"http", "huge-array", "huge-size", "big-frame", "sasl"} {
 		t.Run(variant, func(t *testing.T) {
 			defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
 
