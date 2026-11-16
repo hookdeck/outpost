@@ -171,10 +171,6 @@ type Attempt struct {
 	// Provider response time in ms, measured around Publish. Nil when the
 	// attempt never reached the provider or predates latency tracking.
 	LatencyMs *int64 `json:"latency_ms"`
-	// MessageID is the DeliveryTask.MessageID the attempt was made under, kept
-	// so that a manual retry can continue the same message. Empty when the
-	// attempt predates it.
-	MessageID string `json:"message_id,omitempty"`
 }
 
 // ============================== Types ==============================

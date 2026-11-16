@@ -392,29 +392,28 @@ func TestPublish_WebhookID(t *testing.T) {
 	require.NoError(t, err)
 	defer pub.Close()
 
-	send := func(ctx context.Context) {
+	send := func(event *models.Event) {
 		t.Helper()
-		_, err := pub.Publish(ctx, event)
+		_, err := pub.Publish(context.Background(), event)
 		require.NoError(t, err)
 		now.Add(5)
 	}
-	ctx := destregistry.WithMessageID(context.Background(), "msg_fixed")
-	send(ctx)
-	send(ctx)
-	send(context.Background())
-	send(context.Background())
+	other := testEvent()
+	other.ID = event.ID + "_other"
+	send(event)
+	send(event)
+	send(other)
 
 	reqs := rec.Requests()
-	require.Len(t, reqs, 4)
-	assert.Equal(t, "msg_fixed", reqs[0].Header.Get("webhook-id"), "the delivery's id")
-	assert.Equal(t, "msg_fixed", reqs[1].Header.Get("webhook-id"), "stable across attempts")
+	require.Len(t, reqs, 3)
+	id := reqs[0].Header.Get("webhook-id")
+	assert.Equal(t, mcpevents.EventMessageID(event.ID, d.ID), id, "derived from the event and the subscription")
+	assert.Regexp(t, `^msg_[A-Za-z0-9_-]{22}$`, id)
+	assert.NotContains(t, id, event.ID)
+	assert.Equal(t, id, reqs[1].Header.Get("webhook-id"), "stable across attempts")
 	assert.NotEqual(t, reqs[0].Header.Get("webhook-timestamp"), reqs[1].Header.Get("webhook-timestamp"), "fresh timestamp per attempt")
 	assert.NotEqual(t, reqs[0].Header.Get("webhook-signature"), reqs[1].Header.Get("webhook-signature"), "fresh signature per attempt")
-	for _, r := range reqs[2:] {
-		assert.Regexp(t, `^msg_[A-Za-z0-9_-]{22}$`, r.Header.Get("webhook-id"), "minted when the task carries none")
-		assert.NotContains(t, r.Header.Get("webhook-id"), event.ID)
-	}
-	assert.NotEqual(t, reqs[2].Header.Get("webhook-id"), reqs[3].Header.Get("webhook-id"))
+	assert.NotEqual(t, id, reqs[2].Header.Get("webhook-id"), "another event is another message")
 }
 
 func TestPublish_ThroughForwardProxy(t *testing.T) {

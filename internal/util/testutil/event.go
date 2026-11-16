@@ -199,12 +199,6 @@ func (f *mockAttemptFactory) WithLatencyMs(latencyMs int64) func(*models.Attempt
 	}
 }
 
-func (f *mockAttemptFactory) WithMessageID(messageID string) func(*models.Attempt) {
-	return func(attempt *models.Attempt) {
-		attempt.MessageID = messageID
-	}
-}
-
 func (f *mockAttemptFactory) WithTime(time time.Time) func(*models.Attempt) {
 	return func(attempt *models.Attempt) {
 		attempt.Time = time

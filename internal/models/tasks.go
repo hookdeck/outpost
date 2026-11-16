@@ -37,7 +37,7 @@ func (e *Event) ToMessage() (*mqs.Message, error) {
 // This is a message type used by: publishmq -> deliverymq, retry -> deliverymq
 type DeliveryTask struct {
 	// MessageID identifies the event's delivery to the destination across
-	// retries, automatic and manual.
+	// automatic retries; a manual retry gets a new one.
 	MessageID     string             `json:"message_id,omitempty"`
 	Event         Event              `json:"event"`
 	DestinationID string             `json:"destination_id"`
@@ -87,15 +87,9 @@ func NewDeliveryTask(event Event, destinationID string) DeliveryTask {
 
 // NewManualDeliveryTask creates a new DeliveryTask for a manual retry.
 // attemptNumber is the 1-indexed attempt number derived from the count of prior attempts.
-// messageID is the MessageID of the attempt being retried, so that the retry
-// continues the same message; when it is empty (an attempt logged before
-// attempts kept it) the retry gets a new one.
-func NewManualDeliveryTask(event Event, destinationID string, attemptNumber int, messageID string) DeliveryTask {
-	if messageID == "" {
-		messageID = idgen.Message()
-	}
+func NewManualDeliveryTask(event Event, destinationID string, attemptNumber int) DeliveryTask {
 	return DeliveryTask{
-		MessageID:     messageID,
+		MessageID:     idgen.Message(),
 		Event:         event,
 		DestinationID: destinationID,
 		Attempt:       attemptNumber,

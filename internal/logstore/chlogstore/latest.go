@@ -58,7 +58,7 @@ func (s *logStoreImpl) ListLatestAttempts(ctx context.Context, lookups []driver.
 		SELECT
 			event_id, tenant_id, destination_id, destination_type, topic, eligible_for_retry,
 			event_time, metadata, data, attempt_id, status, attempt_time, code, response_data,
-			manual, attempt_number, latency_ms, message_id
+			manual, attempt_number, latency_ms
 		FROM %[1]s
 		WHERE %[2]s%[3]s
 		AND attempt_id IN (

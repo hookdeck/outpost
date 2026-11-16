@@ -93,7 +93,6 @@ One row per delivery attempt. Event fields are copied onto every attempt.
 | `code` | `text` | Response code from the destination, such as an HTTP status. |
 | `response_data` | `text` | Destination response, as a JSON string. |
 | `latency_ms` | `integer` | Time the destination took to respond. `NULL` for attempts written before v1.6. |
-| `message_id` | `text` | ID of the delivery the attempt belongs to, the same on every retry of it. Sent as the `webhook-id` of an MCP event. Empty for attempts written before the column was added. |
 | `event_time` | `timestamptz` | Event time, copied from the event. |
 | `eligible_for_retry` | `boolean` | Copied from the event. |
 | `event_data` | `text` | Event payload, copied from the event. |
@@ -163,7 +162,6 @@ One row per delivery attempt. Event fields are copied onto every attempt.
 | `manual` | `Bool` | Whether the attempt was a manual retry. |
 | `attempt_number` | `UInt32` | Attempt number for this event and destination. |
 | `latency_ms` | `Nullable(UInt32)` | Time the destination took to respond. `NULL` for attempts written before v1.6. |
-| `message_id` | `String` | ID of the delivery the attempt belongs to, the same on every retry of it. Sent as the `webhook-id` of an MCP event. Empty for attempts written before the column was added. |
 
 - Partition: `toYYYYMM(attempt_time)`
 - Order by: `(attempt_time, attempt_id)`

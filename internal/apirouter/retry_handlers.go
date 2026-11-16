@@ -84,13 +84,11 @@ func (h *RetryHandlers) Retry(c *gin.Context) {
 
 	var event *models.Event
 	var attemptNumber int
-	var messageID string
 	hasAttempt := len(attemptResp.Data) > 0
 	if hasAttempt {
 		record := attemptResp.Data[0]
 		event = record.Event
 		attemptNumber = record.Attempt.AttemptNumber + 1
-		messageID = record.Attempt.MessageID
 	} else {
 		// No attempt for the pair: look the event up on its own to tell which part is missing.
 		event, err = h.logStore.RetrieveEvent(c.Request.Context(), logstore.RetrieveEventRequest{
@@ -167,9 +165,8 @@ func (h *RetryHandlers) Retry(c *gin.Context) {
 		return
 	}
 
-	// 3. Create and publish manual delivery task, under the message ID of the
-	// attempt it retries
-	task := models.NewManualDeliveryTask(*event, req.DestinationID, attemptNumber, messageID)
+	// 3. Create and publish manual delivery task
+	task := models.NewManualDeliveryTask(*event, req.DestinationID, attemptNumber)
 
 	if err := h.deliveryPublisher.Publish(c.Request.Context(), task); err != nil {
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))

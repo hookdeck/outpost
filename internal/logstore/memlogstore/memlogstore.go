@@ -524,7 +524,6 @@ func copyAttempt(a *models.Attempt) *models.Attempt {
 		Status:          a.Status,
 		Time:            a.Time,
 		Code:            a.Code,
-		MessageID:       a.MessageID,
 	}
 
 	if a.LatencyMs != nil {

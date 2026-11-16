@@ -43,7 +43,6 @@ func testListLatestAttempts(t *testing.T, ctx context.Context, logStore driver.L
 				testutil.AttemptFactory.WithAttemptNumber(n),
 				testutil.AttemptFactory.WithStatus("failed"),
 				testutil.AttemptFactory.WithTime(at),
-				testutil.AttemptFactory.WithMessageID("msg_"+id),
 			),
 		}
 	}
@@ -87,7 +86,6 @@ func testListLatestAttempts(t *testing.T, ctx context.Context, logStore driver.L
 			assert.Equal(t, "latest_multi_b_0", got[key(multiB.ID, destA)].Attempt.ID)
 			assert.Equal(t, "latest_single_0", got[key(single.ID, destA)].Attempt.ID)
 			assert.Equal(t, multi.ID, got[key(multi.ID, destA)].Event.ID)
-			assert.Equal(t, "msg_latest_multi_2", got[key(multi.ID, destA)].Attempt.MessageID)
 		})
 
 		t.Run("attempt newer than the carried time is found", func(t *testing.T) {

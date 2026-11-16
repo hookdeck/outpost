@@ -1,5 +1,0 @@
-BEGIN;
-
-ALTER TABLE attempts DROP COLUMN IF EXISTS message_id;
-
-COMMIT;

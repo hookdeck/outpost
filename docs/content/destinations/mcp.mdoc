@@ -40,7 +40,7 @@ Each delivery is a `POST` with the MCP Events envelope as a JSON body. `data` is
 | Header | Value |
 |--------|-------|
 | `Content-Type` | `application/json` |
-| `webhook-id` | Message ID, the same on every retry of a delivery |
+| `webhook-id` | Message ID: one for an event and a subscription, the same on every attempt, automatic or manual |
 | `webhook-timestamp` | Unix seconds |
 | `webhook-signature` | `v1,<base64 HMAC-SHA256>` of `<webhook-id>.<webhook-timestamp>.<body>`, one entry per valid secret, space-separated |
 | `X-MCP-Subscription-Id` | The subscription ID |
