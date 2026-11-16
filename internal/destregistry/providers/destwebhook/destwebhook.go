@@ -447,8 +447,9 @@ func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePu
 	if err != nil {
 		return nil, err
 	}
-	// When following redirects, Go's default policy applies (at most 10). The
-	// guard is enforced at dial time, so redirect targets are checked too.
+	// When following redirects, Go's default policy applies (at most 10).
+	// Without a proxy the guard checks every hop at dial time; with one, the
+	// proxy must refuse private targets.
 	if !destination.followRedirects {
 		httpClient.CheckRedirect = func(*http.Request, []*http.Request) error {
 			return http.ErrUseLastResponse
