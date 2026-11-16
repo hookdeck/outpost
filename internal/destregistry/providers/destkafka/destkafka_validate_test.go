@@ -109,6 +109,7 @@ func TestKafkaDestination_Validate(t *testing.T) {
 			{name: "port too large", brokers: "a:65536", shouldError: true},
 			{name: "negative port", brokers: "a:-1", shouldError: true},
 			{name: "one bad among several", brokers: "a:9092,b:abc", shouldError: true},
+			{name: "only separators", brokers: " , ", shouldError: true},
 		}
 
 		for _, tc := range testCases {

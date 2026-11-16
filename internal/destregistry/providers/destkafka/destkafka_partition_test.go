@@ -7,9 +7,8 @@ import (
 	"github.com/twmb/franz-go/pkg/kgo"
 )
 
-// Expected partition per key and count, from the Sarama-compatible FNV-1a
-// placement (fnv32a modulo, negated when negative). Changing it re-routes
-// keys of existing topics.
+// Partition kafka-go's Hash balancer picked for each key and partition count.
+// A change here moves the keys of existing topics to other partitions.
 var partitionCounts = []int{1, 2, 3, 7, 12, 32, 100}
 
 var partitionTable = []struct {

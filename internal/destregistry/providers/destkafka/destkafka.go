@@ -29,9 +29,10 @@ import (
 const (
 	// The read cap keeps a misbehaving or non-Kafka endpoint from making the
 	// client allocate unbounded memory. A producer only reads ApiVersions,
-	// SASL, single-topic Metadata and Produce responses, all far below it.
+	// SASL and single-topic Metadata responses, all far below it.
 	maxBrokerReadBytes = 1 << 20
-	// The broker default message.max.bytes.
+	// The broker default message.max.bytes. With acks off the broker drops a
+	// larger batch without replying, so the client has to reject it.
 	maxBatchBytes = 1048588
 	dialTimeout   = 10 * time.Second
 )
@@ -101,15 +102,15 @@ func (d *KafkaDestination) Validate(ctx context.Context, destination *models.Des
 		})
 	}
 
-	// A broker without a port defaults to 9092; one with a port needs a valid one.
-	for _, broker := range parseBrokers(destination.Config["brokers"]) {
+	// At least one broker. A broker without a port defaults to 9092; one with
+	// a port needs a valid one.
+	brokers := parseBrokers(destination.Config["brokers"])
+	if len(brokers) == 0 {
+		return errInvalidBrokers()
+	}
+	for _, broker := range brokers {
 		if !validBrokerAddr(broker) {
-			return destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{
-				{
-					Field: "config.brokers",
-					Type:  "invalid",
-				},
-			})
+			return errInvalidBrokers()
 		}
 	}
 
@@ -126,6 +127,15 @@ func (d *KafkaDestination) Validate(ctx context.Context, destination *models.Des
 	}
 
 	return nil
+}
+
+func errInvalidBrokers() error {
+	return destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{
+		{
+			Field: "config.brokers",
+			Type:  "invalid",
+		},
+	})
 }
 
 // validBrokerAddr accepts what kgo can parse, with a port in 1-65535 when
@@ -196,7 +206,9 @@ func (d *KafkaDestination) CreatePublisher(ctx context.Context, destination *mod
 	}
 	client, err := kgo.NewClient(opts...)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create kafka client: %w", err)
+		// A validation error records a failed attempt; a plain error would
+		// requeue the event without one.
+		return nil, errInvalidBrokers()
 	}
 
 	return &KafkaPublisher{
@@ -219,8 +231,8 @@ func newPartitioner() kgo.Partitioner {
 	}))
 }
 
-// dialErrs remembers the latest dial error. kgo drops the cause of a failed
-// produce-path dial and reports only ErrRecordRetries.
+// dialErrs remembers the latest dial error, for Publish to attach to
+// ErrRecordRetries.
 type dialErrs struct {
 	mu  sync.Mutex
 	err error

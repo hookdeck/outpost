@@ -265,7 +265,7 @@ func TestKafkaPublisher_ConnectionErrors(t *testing.T) {
 	}
 }
 
-// TestKafkaPublisher_TopicNotFoundIntegration tests that publishing to a missing topic fails within the delivery timeout.
+// TestKafkaPublisher_TopicNotFoundIntegration tests that publishing to a missing topic fails with topic_not_found.
 func TestKafkaPublisher_TopicNotFoundIntegration(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
