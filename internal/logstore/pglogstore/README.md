@@ -86,19 +86,7 @@ CREATE INDEX idx_attempts_id ON attempts (id);
 
 ## Cursor Format
 
-Cursors encode pagination position as `{time_ms}::{id}` (matching chlogstore):
-
-```go
-// Encode: time milliseconds + "::" + id
-position := fmt.Sprintf("%d::%s", event.Time.UnixMilli(), event.ID)
-cursor := cursor.Encode("evt", 1, position)  // base62 encoded
-
-// Decode: parse back to time and id
-position, _ := cursor.Decode(encoded, "evt", 1)
-parts := strings.SplitN(position, "::", 2)
-timeMs, _ := strconv.ParseInt(parts[0], 10, 64)
-id := parts[1]
-```
+Cursors are `driver.Cursor` values (`internal/logstore/driver`) in the `CursorFormatTimeIDMicros` format: the position is `{unix microseconds}::{id}`, the precision of a `timestamptz` column. Cursors in the millisecond format, issued by v1.8.0 and earlier, are still read.
 
 Resources:
 - Events: `evt` prefix

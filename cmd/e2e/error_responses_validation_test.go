@@ -3,6 +3,7 @@ package e2e_test
 import (
 	"net/http"
 
+	"github.com/hookdeck/outpost/cmd/e2e/configs"
 	"github.com/hookdeck/outpost/internal/cursor"
 	"github.com/hookdeck/outpost/internal/idgen"
 )
@@ -267,6 +268,13 @@ func (s *basicSuite) TestErrorResponses_LogQueryValidation() {
 		{"invalid prev cursor", "prev=not-a-cursor", http.StatusBadRequest, invalidCursor, ""},
 	}
 
+	// The message names the cursor format the log store issues: version 2
+	// (microseconds) on Postgres, version 1 (milliseconds) on ClickHouse.
+	logCursorVersionMismatch := cursorVersionMismatch
+	if s.logStorageType == configs.LogStorageTypePostgres {
+		logCursorVersionMismatch = "invalid cursor: cursor version mismatch: expected version 02"
+	}
+
 	for _, list := range lists {
 		s.Run(list.name, func() {
 			cursors := []struct {
@@ -274,7 +282,7 @@ func (s *basicSuite) TestErrorResponses_LogQueryValidation() {
 				cursor  string
 				message string
 			}{
-				{"cursor of another version", cursor.Encode(list.cursorResource, 2, "1700000000000::id"), cursorVersionMismatch},
+				{"cursor of an unknown version", cursor.Encode(list.cursorResource, 99, "1700000000000::id"), logCursorVersionMismatch},
 				{"cursor of another list", cursor.Encode(list.otherResource, 1, "1700000000000::id"), invalidCursor},
 				{"cursor with an empty position", cursor.Encode(list.cursorResource, 1, ""), invalidCursor},
 				{"cursor with a position that is one word", cursor.Encode(list.cursorResource, 1, "yesterday"), invalidCursor},
