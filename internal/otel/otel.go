@@ -5,7 +5,6 @@ import (
 	"errors"
 
 	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/log/global"
 	"go.opentelemetry.io/otel/propagation"
 )
 
@@ -70,7 +69,7 @@ func SetupOTelSDK(ctx context.Context, config *OpenTelemetryConfig) (shutdown fu
 	}
 	if loggerProvider != nil {
 		shutdownFuncs = append(shutdownFuncs, loggerProvider.Shutdown)
-		global.SetLoggerProvider(loggerProvider)
+		otel.SetLoggerProvider(loggerProvider)
 	}
 
 	return
