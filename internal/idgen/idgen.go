@@ -1,8 +1,6 @@
 package idgen
 
 import (
-	"crypto/rand"
-	"encoding/base64"
 	"fmt"
 	"sync/atomic"
 
@@ -148,13 +146,4 @@ func Installation() string {
 
 func String() string {
 	return globalGenerator.Load().generate("")
-}
-
-// Message returns an identifier for one delivery of an event to a destination:
-// "msg_" and 22 base64url characters of 128 random bits. It is independent of
-// the configured ID type.
-func Message() string {
-	var b [16]byte
-	_, _ = rand.Read(b[:]) // never fails
-	return "msg_" + base64.RawURLEncoding.EncodeToString(b[:])
 }
