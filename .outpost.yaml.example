@@ -109,6 +109,7 @@ destinations:
     # signature_header_template: t={{.Timestamp.UnixMilli}},v0={{.Signatures | join ","}}
     # signature_encoding: hex
     # signature_algorithm: hmac-sha256
+    # follow_redirects: false # Follow redirects (up to 10) on webhook deliveries
 
 ## MCP Events
 # Experimental. Enables the MCP subscribe endpoints.
