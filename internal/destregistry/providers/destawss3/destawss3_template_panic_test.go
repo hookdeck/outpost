@@ -17,8 +17,8 @@ import (
 // A key_template can compile and still panic when it is evaluated: go-jmespath's
 // merge() type-asserts its arguments, so merge() over an array panics on the
 // first event. The destination passes validation, and the delivery must come
-// back as a failed attempt instead of a panic.
-func TestAWSS3_KeyTemplatePanicIsFailedAttempt(t *testing.T) {
+// back as an error with no attempt, so the message is nacked, instead of a panic.
+func TestAWSS3_KeyTemplatePanicIsContained(t *testing.T) {
 	t.Parallel()
 
 	destination := testutil.DestinationFactory.Any(
@@ -55,55 +55,6 @@ func TestAWSS3_KeyTemplatePanicIsFailedAttempt(t *testing.T) {
 		attempt, publishErr = registry.PublishEvent(context.Background(), &destination, &event)
 	})
 
-	require.NotNil(t, attempt, "a failed attempt must be recorded so the message is acked")
-	assert.Equal(t, "failed", attempt.Status)
-	assert.Equal(t, "ERR", attempt.Code)
-
-	var pubErr *destregistry.ErrDestinationPublishAttempt
-	require.ErrorAs(t, publishErr, &pubErr)
-	assert.Equal(t, "format_failed", pubErr.Data["error"])
-	assert.Equal(t, "key_template could not be evaluated: the expression failed on an unsupported value", attempt.ResponseData["error"])
-}
-
-func TestAWSS3Publisher_Publish_TemplateEvaluationErrorMessage(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name     string
-		template string
-		want     string
-	}{
-		{
-			name:     "panic in merge",
-			template: `to_string(merge([{a: data}]))`,
-			want:     "key_template could not be evaluated: the expression failed on an unsupported value",
-		},
-		{
-			name:     "panic in contains",
-			template: "contains(`[{}]`, `{}`)",
-			want:     "key_template could not be evaluated: the expression failed on an unsupported value",
-		},
-		{
-			name:     "ordinary evaluation error",
-			template: `join('/', ['prefix', metadata.operationId])`,
-			want:     "could not format event for delivery",
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			publisher := destawss3.NewAWSS3Publisher(destregistry.NewBasePublisher(), nil, "my-bucket", tt.template, "STANDARD")
-			event := models.Event{ID: "evt_1", Time: time.Now(), Data: json.RawMessage(`{}`)}
-
-			var delivery *destregistry.Delivery
-			var err error
-			require.NotPanics(t, func() {
-				delivery, err = publisher.Publish(context.Background(), &event)
-			})
-			require.NotNil(t, delivery)
-			assert.Equal(t, "failed", delivery.Status)
-			require.Error(t, err)
-			assert.Equal(t, tt.want, delivery.Response["error"])
-		})
-	}
+	assert.Nil(t, attempt, "no attempt is recorded for a panic")
+	require.ErrorContains(t, publishErr, "panic publishing to aws_s3 destination")
 }

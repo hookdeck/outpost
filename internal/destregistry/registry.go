@@ -14,7 +14,6 @@ import (
 
 	"github.com/hookdeck/outpost/internal/backoff"
 	"github.com/hookdeck/outpost/internal/destregistry/metadata"
-	"github.com/hookdeck/outpost/internal/destregistry/safejmespath"
 	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/lru"
@@ -207,11 +206,11 @@ func (r *registry) ValidateDestination(ctx context.Context, destination *models.
 func (r *registry) PublishEvent(ctx context.Context, destination *models.Destination, event *models.Event) (attempt *models.Attempt, err error) {
 	var publisher Publisher
 	var cached bool
-	// A panic while creating the publisher or publishing becomes a failed
-	// attempt, so the message is acked and retried like any other failure.
+	// A panic while creating the publisher or publishing returns an error and
+	// no attempt, so the message is nacked instead of the process exiting.
 	defer func() {
 		if rec := recover(); rec != nil {
-			attempt, err = r.publishPanicAttempt(destination, event, publisher, cached, rec)
+			attempt, err = nil, r.handlePublishPanic(destination, event, publisher, cached, rec)
 		}
 	}()
 
@@ -262,8 +261,6 @@ func (r *registry) PublishEvent(ctx context.Context, destination *models.Destina
 	deliveryData, err := publisher.Publish(timeoutCtx, event)
 	latencyMs := time.Since(publishStart).Milliseconds()
 	if err != nil {
-		r.logTemplatePanic(destination, event, err)
-
 		// Context canceled = system shutdown, return nil attempt to trigger nack → requeue.
 		// This is handled centrally so individual publishers don't need to check for it.
 		// See: https://github.com/hookdeck/outpost/issues/571
@@ -338,27 +335,10 @@ func (r *registry) PublishEvent(ctx context.Context, destination *models.Destina
 	return attempt, nil
 }
 
-// logTemplatePanic logs the stack of a template panic that a publisher
-// recovered and reported as a failed attempt.
-func (r *registry) logTemplatePanic(destination *models.Destination, event *models.Event, err error) {
-	var pubErr *ErrDestinationPublishAttempt
-	if errors.As(err, &pubErr) {
-		err = pubErr.Err
-	}
-	var panicErr *safejmespath.PanicError
-	if !errors.As(err, &panicErr) {
-		return
-	}
-	r.logger.Error("panic evaluating destination template",
-		zap.String("destination_id", destination.ID),
-		zap.String("destination_type", destination.Type),
-		zap.String("event_id", event.ID),
-		zap.Any("panic", panicErr.Value),
-		zap.ByteString("stack", panicErr.Stack),
-	)
-}
-
-func (r *registry) publishPanicAttempt(destination *models.Destination, event *models.Event, publisher Publisher, cached bool, rec interface{}) (*models.Attempt, error) {
+// handlePublishPanic logs the panic and drops the publisher. It returns no
+// attempt: the panic is unexpected, so the caller nacks the message and the
+// queue's redelivery and dead-letter settings apply.
+func (r *registry) handlePublishPanic(destination *models.Destination, event *models.Event, publisher Publisher, cached bool, rec interface{}) error {
 	r.logger.Error("panic publishing event",
 		zap.String("destination_id", destination.ID),
 		zap.String("destination_type", destination.Type),
@@ -374,21 +354,7 @@ func (r *registry) publishPanicAttempt(destination *models.Destination, event *m
 		r.publishers.RemoveIf(MakePublisherKey(destination), func(p Publisher) bool { return p == publisher })
 	}
 
-	const message = "internal error while delivering the event"
-	return &models.Attempt{
-			ID:              idgen.Attempt(),
-			DestinationID:   destination.ID,
-			DestinationType: destination.Type,
-			EventID:         event.ID,
-			Time:            time.Now(),
-			Status:          "failed",
-			Code:            "ERR",
-			ResponseData:    map[string]interface{}{"error": message},
-		}, &ErrDestinationPublishAttempt{
-			Err:      fmt.Errorf("panic: %v", rec),
-			Provider: destination.Type,
-			Data:     map[string]interface{}{"error": "unexpected", "message": message},
-		}
+	return fmt.Errorf("panic publishing to %s destination: %v", destination.Type, rec)
 }
 
 func (r *registry) RegisterProvider(destinationType string, provider Provider) error {

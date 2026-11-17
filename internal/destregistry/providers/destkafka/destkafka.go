@@ -17,7 +17,6 @@ import (
 	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/hookdeck/outpost/internal/destregistry/metadata"
 	"github.com/hookdeck/outpost/internal/destregistry/partitionkey"
-	"github.com/hookdeck/outpost/internal/destregistry/safejmespath"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/proxychain"
 	"github.com/jmespath/go-jmespath"
@@ -424,11 +423,6 @@ func (p *KafkaPublisher) Publish(ctx context.Context, event *models.Event) (*des
 	// Evaluate partition key
 	key, err := partitionkey.Evaluate(p.partitionKeyTemplate, payload, event.ID)
 	if err != nil {
-		// A template that panics fails the attempt; other evaluation errors
-		// fall back to the event ID.
-		if message := safejmespath.MessageFor(err); message != "" {
-			return destregistry.NewFormatError("kafka", message, err)
-		}
 		key = event.ID
 	}
 

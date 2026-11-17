@@ -2,6 +2,7 @@ package destregistry_test
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -90,28 +91,15 @@ func newPanicRegistry(t *testing.T, cfg *destregistry.Config, provider *panicPro
 	return registry
 }
 
-func requirePanicAttempt(t *testing.T, attempt *models.Attempt, err error, dest *models.Destination, event *models.Event) {
+// requirePanicError checks what PublishEvent returns for a recovered panic:
+// no attempt and a plain error, which the delivery handler nacks.
+func requirePanicError(t *testing.T, attempt *models.Attempt, err error, dest *models.Destination) {
 	t.Helper()
 
-	require.NotNil(t, attempt, "a nil attempt would nack the message")
-	assert.NotEmpty(t, attempt.ID)
-	assert.Equal(t, dest.ID, attempt.DestinationID)
-	assert.Equal(t, dest.Type, attempt.DestinationType)
-	assert.Equal(t, event.ID, attempt.EventID)
-	assert.False(t, attempt.Time.IsZero(), "retry scheduling reads the attempt time")
-	assert.WithinDuration(t, time.Now(), attempt.Time, time.Minute)
-	assert.Equal(t, "failed", attempt.Status)
-	assert.Equal(t, "ERR", attempt.Code)
-	respErr, _ := attempt.ResponseData["error"].(string)
-	assert.NotEmpty(t, respErr)
-	assert.NotContains(t, respErr, "blew up", "panic text stays out of the tenant-facing response")
-	assert.NotContains(t, respErr, "goroutine")
-
+	assert.Nil(t, attempt, "a panic records no attempt")
+	require.ErrorContains(t, err, "panic publishing to "+dest.Type+" destination")
 	var pubErr *destregistry.ErrDestinationPublishAttempt
-	require.ErrorAs(t, err, &pubErr)
-	assert.Equal(t, dest.Type, pubErr.Provider)
-	assert.False(t, pubErr.NonRetryable)
-	assert.False(t, pubErr.SkipFailureCount)
+	assert.False(t, errors.As(err, &pubErr), "an attempt error would ack the message")
 }
 
 func TestPublishEventRecoversFromPanics(t *testing.T) {
@@ -130,7 +118,7 @@ func TestPublishEventRecoversFromPanics(t *testing.T) {
 		require.NotPanics(t, func() {
 			attempt, err = registry.PublishEvent(context.Background(), dest, event)
 		})
-		requirePanicAttempt(t, attempt, err, dest, event)
+		requirePanicError(t, attempt, err, dest)
 
 		pubs := provider.publishers()
 		require.Len(t, pubs, 1)
@@ -155,7 +143,7 @@ func TestPublishEventRecoversFromPanics(t *testing.T) {
 		require.NotPanics(t, func() {
 			attempt, err = registry.PublishEvent(context.Background(), dest, event)
 		})
-		requirePanicAttempt(t, attempt, err, dest, event)
+		requirePanicError(t, attempt, err, dest)
 		assert.Equal(t, 1, provider.publishers()[0].closeCount())
 	})
 
@@ -169,7 +157,7 @@ func TestPublishEventRecoversFromPanics(t *testing.T) {
 		require.NotPanics(t, func() {
 			attempt, err = registry.PublishEvent(context.Background(), dest, event)
 		})
-		requirePanicAttempt(t, attempt, err, dest, event)
+		requirePanicError(t, attempt, err, dest)
 	})
 
 	t.Run("cache bypass: panic in Publish closes the publisher once", func(t *testing.T) {
@@ -182,7 +170,7 @@ func TestPublishEventRecoversFromPanics(t *testing.T) {
 		require.NotPanics(t, func() {
 			attempt, err = registry.PublishEvent(context.Background(), dest, event)
 		})
-		requirePanicAttempt(t, attempt, err, dest, event)
+		requirePanicError(t, attempt, err, dest)
 		pubs := provider.publishers()
 		require.Len(t, pubs, 1)
 		assert.Equal(t, 1, pubs[0].closeCount())

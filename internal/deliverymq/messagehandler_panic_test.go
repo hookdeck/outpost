@@ -36,7 +36,7 @@ func (panickingProvider) CreatePublisher(context.Context, *models.Destination) (
 	return panickingPublisher{}, nil
 }
 
-func TestMessageHandler_PublisherPanic_IsFailedAttemptWithRetry(t *testing.T) {
+func TestMessageHandler_PublisherPanic_NacksMessage(t *testing.T) {
 	t.Parallel()
 
 	tenant := models.Tenant{ID: idgen.String()}
@@ -71,17 +71,11 @@ func TestMessageHandler_PublisherPanic_IsFailedAttemptWithRetry(t *testing.T) {
 	mockMsg, msg := newDeliveryMockMessage(task)
 
 	require.NotPanics(t, func() {
-		require.NoError(t, handler.Handle(context.Background(), msg))
+		require.Error(t, handler.Handle(context.Background(), msg))
 	})
 
-	assert.True(t, mockMsg.acked, "the message is acked")
-	assert.False(t, mockMsg.nacked)
-	assert.Len(t, retryScheduler.schedules, 1, "a retry is scheduled under the normal policy")
-	require.Len(t, logPublisher.entries, 1, "the failed attempt is logged")
-	attempt := logPublisher.entries[0].Attempt
-	assert.Equal(t, models.AttemptStatusFailed, attempt.Status)
-	assert.False(t, attempt.Time.IsZero())
-	var scheduled deliverymq.RetryTask
-	require.NoError(t, scheduled.FromString(retryScheduler.schedules[0]))
-	assert.True(t, attempt.Time.Equal(scheduled.AttemptTime))
+	assert.True(t, mockMsg.nacked, "the message is nacked, so the queue redelivers and dead-letters it")
+	assert.False(t, mockMsg.acked)
+	assert.Empty(t, retryScheduler.schedules, "no retry is scheduled")
+	assert.Empty(t, logPublisher.entries, "no attempt is logged")
 }
