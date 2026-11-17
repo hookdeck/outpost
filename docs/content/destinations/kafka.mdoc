@@ -101,7 +101,7 @@ By default, the event ID is used as the partition key. Customize it with a JMESP
 }
 ```
 
-If the template is empty, fails to evaluate, or returns an empty value, the event ID is used as the fallback key.
+If the template is empty, fails to evaluate, or returns an empty value, the event ID is used as the fallback key. Templates may use field paths, string literals, `join`, `to_string`, `not_null` and `||`.
 
 ## SASL Authentication
 

@@ -71,7 +71,7 @@ The AWS S3 destination supports the following configuration options:
 
 ### Optional Configuration
 
-- **Object Key Template**: JMESPath expression for generating S3 object keys. Default: `join('', [time.rfc3339_nano, '_', metadata."event-id", '.json'])`. This will result in object keys like `2025-09-02T22:01:25.918524Z_fb20727a-d41b-4002-b55d-0de461be0cf2.json`.
+- **Object Key Template**: JMESPath expression for generating S3 object keys. Default: `join('', [time.rfc3339_nano, '_', metadata."event-id", '.json'])`. This will result in object keys like `2025-09-02T22:01:25.918524Z_fb20727a-d41b-4002-b55d-0de461be0cf2.json`. Templates may use field paths, string literals, `join`, `to_string`, `not_null` and `||`.
 - **S3 Storage Class**: The storage class for objects (e.g., `STANDARD`, `INTELLIGENT_TIERING`, `GLACIER`)
 
 ### Storage Classes

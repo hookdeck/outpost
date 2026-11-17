@@ -16,7 +16,6 @@ import (
 	"github.com/hookdeck/outpost/internal/destregistry/metadata"
 	"github.com/hookdeck/outpost/internal/destregistry/partitionkey"
 	"github.com/hookdeck/outpost/internal/models"
-	"github.com/jmespath/go-jmespath"
 )
 
 // Configuration types
@@ -74,29 +73,17 @@ func (p *AWSKinesisProvider) Validate(ctx context.Context, destination *models.D
 	if _, _, err := p.resolveConfig(ctx, destination); err != nil {
 		return err
 	}
-	return validatePartitionKeyTemplate(destination)
-}
-
-// validatePartitionKeyTemplate runs on create and update only. A stored
-// destination whose template does not compile keeps delivering with the event
-// ID as its partition key.
-func validatePartitionKeyTemplate(destination *models.Destination) error {
-	if template := destination.Config["partition_key_template"]; template != "" {
-		if _, err := jmespath.Compile(template); err != nil {
-			return destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{
-				{
-					Field: "config.partition_key_template",
-					Type:  "pattern",
-				},
-			})
-		}
-	}
-	return nil
+	return partitionkey.Validate(destination.Config["partition_key_template"])
 }
 
 // CreatePublisher creates a new publisher instance
 func (p *AWSKinesisProvider) CreatePublisher(ctx context.Context, destination *models.Destination) (destregistry.Publisher, error) {
 	config, credentials, err := p.resolveConfig(ctx, destination)
+	if err != nil {
+		return nil, err
+	}
+
+	partitionKeyTemplate, err := partitionkey.New(config.PartitionKeyTemplate)
 	if err != nil {
 		return nil, err
 	}
@@ -125,7 +112,7 @@ func (p *AWSKinesisProvider) CreatePublisher(ctx context.Context, destination *m
 		BasePublisher:        p.BaseProvider.NewPublisher(destregistry.WithDeliveryMetadata(destination.DeliveryMetadata)),
 		client:               kinesisClient,
 		streamName:           config.StreamName,
-		partitionKeyTemplate: config.PartitionKeyTemplate,
+		partitionKeyTemplate: partitionKeyTemplate,
 		metadataInPayload:    p.metadataInPayload,
 	}, nil
 }
@@ -191,7 +178,7 @@ type AWSKinesisPublisher struct {
 	*destregistry.BasePublisher
 	client               *kinesis.Client
 	streamName           string
-	partitionKeyTemplate string
+	partitionKeyTemplate *partitionkey.Template
 	metadataInPayload    bool
 }
 
@@ -254,7 +241,7 @@ func (p *AWSKinesisPublisher) Format(ctx context.Context, event *models.Event) (
 	}
 
 	// Get partition key from template or use event ID as default
-	partitionKey, err := partitionkey.Evaluate(p.partitionKeyTemplate, payload, event.ID)
+	partitionKey, err := p.partitionKeyTemplate.Evaluate(payload, event.ID)
 	if err != nil {
 		// If template evaluation fails, log the error and fall back to event ID
 		partitionKey = event.ID
@@ -329,11 +316,15 @@ func formatAWSError(err error) string {
 
 // NewAWSKinesisPublisher creates a new publisher for testing purposes
 func NewAWSKinesisPublisher(client *kinesis.Client, streamName, partitionKeyTemplate string, metadataInPayload bool) *AWSKinesisPublisher {
+	template, err := partitionkey.New(partitionKeyTemplate)
+	if err != nil {
+		panic(fmt.Sprintf("invalid partition key template: %v", err))
+	}
 	return &AWSKinesisPublisher{
 		BasePublisher:        &destregistry.BasePublisher{},
 		client:               client,
 		streamName:           streamName,
-		partitionKeyTemplate: partitionKeyTemplate,
+		partitionKeyTemplate: template,
 		metadataInPayload:    metadataInPayload,
 	}
 }

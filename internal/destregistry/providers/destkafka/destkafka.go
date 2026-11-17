@@ -19,7 +19,6 @@ import (
 	"github.com/hookdeck/outpost/internal/destregistry/partitionkey"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/proxychain"
-	"github.com/jmespath/go-jmespath"
 	"github.com/twmb/franz-go/pkg/kerr"
 	"github.com/twmb/franz-go/pkg/kgo"
 	"github.com/twmb/franz-go/pkg/sasl"
@@ -88,21 +87,7 @@ func (d *KafkaDestination) Validate(ctx context.Context, destination *models.Des
 	if err := d.validateConfig(ctx, destination); err != nil {
 		return err
 	}
-
-	// On create and update only: a stored destination whose template does not
-	// compile keeps delivering with the event ID as its key.
-	if template := destination.Config["partition_key_template"]; template != "" {
-		if _, err := jmespath.Compile(template); err != nil {
-			return destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{
-				{
-					Field: "config.partition_key_template",
-					Type:  "pattern",
-				},
-			})
-		}
-	}
-
-	return nil
+	return partitionkey.Validate(destination.Config["partition_key_template"])
 }
 
 func (d *KafkaDestination) validateConfig(ctx context.Context, destination *models.Destination) error {
@@ -193,6 +178,11 @@ func (d *KafkaDestination) CreatePublisher(ctx context.Context, destination *mod
 		return nil, err
 	}
 
+	partitionKeyTemplate, err := partitionkey.New(config.PartitionKeyTemplate)
+	if err != nil {
+		return nil, err
+	}
+
 	// Build SASL mechanism
 	var mechanism sasl.Mechanism
 	if config.SASLMechanism != "" {
@@ -237,7 +227,7 @@ func (d *KafkaDestination) CreatePublisher(ctx context.Context, destination *mod
 		BasePublisher:        d.BaseProvider.NewPublisher(destregistry.WithDeliveryMetadata(destination.DeliveryMetadata)),
 		client:               client,
 		dials:                dials,
-		partitionKeyTemplate: config.PartitionKeyTemplate,
+		partitionKeyTemplate: partitionKeyTemplate,
 		proxied:              d.proxyDial != nil,
 		brokerHosts:          brokerHosts(config.Brokers),
 	}, nil
@@ -383,7 +373,7 @@ type KafkaPublisher struct {
 	*destregistry.BasePublisher
 	client               *kgo.Client
 	dials                *dialErrs
-	partitionKeyTemplate string
+	partitionKeyTemplate *partitionkey.Template
 	proxied              bool
 	brokerHosts          string
 }
@@ -421,7 +411,7 @@ func (p *KafkaPublisher) Publish(ctx context.Context, event *models.Event) (*des
 	}
 
 	// Evaluate partition key
-	key, err := partitionkey.Evaluate(p.partitionKeyTemplate, payload, event.ID)
+	key, err := p.partitionKeyTemplate.Evaluate(payload, event.ID)
 	if err != nil {
 		key = event.ID
 	}

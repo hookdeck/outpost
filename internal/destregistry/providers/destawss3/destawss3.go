@@ -16,6 +16,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/hookdeck/outpost/internal/destregistry/metadata"
+	"github.com/hookdeck/outpost/internal/destregistry/safejmespath"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/jmespath/go-jmespath"
 )
@@ -132,8 +133,8 @@ func (p *AWSS3Provider) resolveConfig(ctx context.Context, destination *models.D
 		keyTemplate = defaultKeyTemplate
 	}
 
-	// Validate the JMESPath expression by compiling it
-	if _, err := jmespath.Compile(keyTemplate); err != nil {
+	// The template must parse and be one of the accepted forms
+	if err := safejmespath.Check(keyTemplate); err != nil {
 		return nil, nil, destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{
 			{
 				Field: "config.key_template",
@@ -354,7 +355,7 @@ func NewAWSS3Publisher(
 	bucket, keyTemplateStr, storageClass string,
 ) *AWSS3Publisher {
 	// Compile the JMESPath expression (we assume it's already validated)
-	tmpl, err := jmespath.Compile(keyTemplateStr)
+	tmpl, err := safejmespath.Compile(keyTemplateStr)
 	if err != nil {
 		// This should not happen as template is validated in resolveConfig
 		panic(fmt.Sprintf("invalid key template: %v", err))

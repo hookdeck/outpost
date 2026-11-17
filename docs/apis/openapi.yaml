@@ -499,7 +499,7 @@ components:
           example: "https://kinesis.us-east-1.amazonaws.com"
         partition_key_template:
           type: string
-          description: Optional. JMESPath template to extract the partition key from the event payload (e.g., `metadata."event-id"`). Defaults to event ID.
+          description: Optional. JMESPath template to extract the partition key from the event payload (e.g., `metadata."event-id"`). Defaults to event ID. Templates may use field paths, string literals, `join`, `to_string`, `not_null` and `||`.
           maxLength: 1024
           example: 'data."user_id"'
     AWSKinesisCredentials:
@@ -550,7 +550,7 @@ components:
           example: "us-east-1"
         key_template:
           type: string
-          description: JMESPath expression for generating S3 object keys. Default is join('', [time.rfc3339_nano, '_', metadata."event-id", '.json']).
+          description: JMESPath expression for generating S3 object keys. Default is join('', [time.rfc3339_nano, '_', metadata."event-id", '.json']). Templates may use field paths, string literals, `join`, `to_string`, `not_null` and `||`.
           maxLength: 1024
           example: 'join(''/'', [time.year, time.month, time.day, metadata."event-id", ''.json''])'
         storage_class:
@@ -622,7 +622,7 @@ components:
           example: "true"
         partition_key_template:
           type: string
-          description: Optional JMESPath template to extract the partition key from the event payload. Defaults to the event ID.
+          description: Optional JMESPath template to extract the partition key from the event payload. Defaults to the event ID. Templates may use field paths, string literals, `join`, `to_string`, `not_null` and `||`.
           maxLength: 1024
           example: "data.customer_id"
     KafkaCredentials:
@@ -2448,7 +2448,7 @@ components:
           description: Optional. Custom AWS endpoint URL (e.g., for LocalStack or VPC endpoints).
         partition_key_template:
           type: string
-          description: Optional. JMESPath template to extract the partition key from the event payload.
+          description: Optional. JMESPath template to extract the partition key from the event payload. Templates may use field paths, string literals, `join`, `to_string`, `not_null` and `||`.
           maxLength: 1024
     AWSKinesisCredentialsUpdate:
       type: object
@@ -2490,7 +2490,7 @@ components:
           description: The AWS region where your bucket is located.
         key_template:
           type: string
-          description: JMESPath expression for generating S3 object keys.
+          description: JMESPath expression for generating S3 object keys. Templates may use field paths, string literals, `join`, `to_string`, `not_null` and `||`.
           maxLength: 1024
         storage_class:
           type: string
@@ -2548,7 +2548,7 @@ components:
           description: Whether to enable TLS for the connection.
         partition_key_template:
           type: string
-          description: Optional JMESPath template to extract the partition key from the event payload.
+          description: Optional JMESPath template to extract the partition key from the event payload. Templates may use field paths, string literals, `join`, `to_string`, `not_null` and `||`.
           maxLength: 1024
     KafkaCredentialsUpdate:
       type: object
