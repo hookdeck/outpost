@@ -3,12 +3,15 @@ package deliverymq
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sort"
 	"sync"
 	"time"
 
+	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/logstore"
 	"github.com/hookdeck/outpost/internal/scheduler"
+	"go.uber.org/zap"
 )
 
 const (
@@ -49,9 +52,9 @@ func effectiveLookupBatchSize(size, maxConcurrency int) int {
 
 // newRetryLookup returns the lookup the retry executor uses, with its batcher
 // when batching is enabled and the getter supports it.
-func newRetryLookup(getter RetryEventGetter, batchSize int, batchWait time.Duration) (func(context.Context, RetryTask) (*logstore.AttemptRecord, error), *attemptLookupBatcher) {
+func newRetryLookup(getter RetryEventGetter, batchSize int, batchWait time.Duration, logger *logging.Logger) (func(context.Context, RetryTask) (*logstore.AttemptRecord, error), *attemptLookupBatcher) {
 	if batchGetter, ok := getter.(retryAttemptBatchGetter); ok && batchSize > 1 {
-		batcher := newAttemptLookupBatcher(getter, batchGetter, batchSize, batchWait)
+		batcher := newAttemptLookupBatcher(getter, batchGetter, batchSize, batchWait, logger)
 		return batcher.Lookup, batcher
 	}
 	return func(ctx context.Context, task RetryTask) (*logstore.AttemptRecord, error) {
@@ -80,6 +83,7 @@ type attemptLookupBatcher struct {
 	batch  retryAttemptBatchGetter
 	size   int
 	wait   time.Duration
+	logger *logging.Logger
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -92,13 +96,14 @@ type attemptLookupBatcher struct {
 	closed  bool
 }
 
-func newAttemptLookupBatcher(single RetryEventGetter, batch retryAttemptBatchGetter, size int, wait time.Duration) *attemptLookupBatcher {
+func newAttemptLookupBatcher(single RetryEventGetter, batch retryAttemptBatchGetter, size int, wait time.Duration, logger *logging.Logger) *attemptLookupBatcher {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &attemptLookupBatcher{
 		single: single,
 		batch:  batch,
 		size:   min(size, maxRetryLookupBatchSize),
 		wait:   wait,
+		logger: logger,
 		ctx:    ctx,
 		cancel: cancel,
 	}
@@ -186,6 +191,24 @@ func (b *attemptLookupBatcher) Close() {
 
 func (b *attemptLookupBatcher) execute(batch []*lookupWaiter) {
 	defer b.wg.Done()
+	defer func() {
+		if p := recover(); p != nil {
+			if b.logger != nil {
+				b.logger.Error("panic while looking up retry attempts",
+					zap.Any("panic", p),
+					zap.Int("count", len(batch)),
+					zap.Stack("stack"))
+			}
+			// The send is non-blocking, so a waiter that already has a buffered
+			// result keeps it.
+			for _, w := range batch {
+				select {
+				case w.done <- lookupResult{err: fmt.Errorf("retry lookup panicked: %v", p)}:
+				default:
+				}
+			}
+		}
+	}()
 
 	live := batch[:0]
 	for _, w := range batch {
@@ -259,7 +282,7 @@ func (b *attemptLookupBatcher) executeGroup(group []*lookupWaiter) {
 			continue
 		}
 		record := found[lookupKey(w.task)]
-		if record != nil && record.Attempt.Time.Before(w.task.AttemptTime.Add(-retryLookupSkew)) {
+		if record != nil && record.Attempt != nil && record.Attempt.Time.Before(w.task.AttemptTime.Add(-retryLookupSkew)) {
 			record = nil
 		}
 		w.done <- lookupResult{record: record}

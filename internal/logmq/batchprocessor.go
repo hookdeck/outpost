@@ -160,7 +160,7 @@ func NewBatchProcessor(ctx context.Context, logger *logging.Logger, logStore Log
 		MaxItems:    max(cfg.ItemCountThreshold, 0), // negative: no count limit, as before
 		MaxWait:     cfg.DelayThreshold,
 		MaxInFlight: 1,
-	}, func(_ context.Context, msgs []*mqs.Message) { bp.processBatch(msgs) })
+	}, func(_ context.Context, msgs []*mqs.Message) { bp.flush(msgs) })
 	if err != nil {
 		return nil, err
 	}
@@ -184,6 +184,24 @@ func (bp *BatchProcessor) Shutdown() {
 		bp.batcher.Close()
 		bp.inflight.Wait()
 	})
+}
+
+// flush processes a batch and turns a panic into a nack of every message, so
+// the broker's redelivery and dead-letter limits apply instead of the process
+// exiting. Messages already settled ignore the nack.
+func (bp *BatchProcessor) flush(msgs []*mqs.Message) {
+	defer func() {
+		if p := recover(); p != nil {
+			bp.logger.Ctx(bp.ctx).Error("panic while processing log batch",
+				zap.Any("panic", p),
+				zap.Int("count", len(msgs)),
+				zap.Stack("stack"))
+			for _, msg := range msgs {
+				msg.Nack()
+			}
+		}
+	}()
+	bp.processBatch(msgs)
 }
 
 // processBatch processes a batch of messages.
@@ -322,6 +340,15 @@ func (bp *BatchProcessor) processBatch(msgs []*mqs.Message) {
 // alert state and alert-event dedup only, so when every signal is disabled the
 // failed path skips it too and just emits attempt.failed.
 func (bp *BatchProcessor) processEntry(ctx context.Context, entry *models.LogEntry, msg *mqs.Message) {
+	defer func() {
+		if p := recover(); p != nil {
+			bp.logger.Ctx(ctx).Error("panic while processing log entry",
+				zap.Any("panic", p),
+				zap.String("message_id", msg.LoggableID),
+				zap.Stack("stack"))
+			msg.Nack()
+		}
+	}()
 	attempt := alert.Attempt{
 		TenantID:         entry.Destination.TenantID,
 		DestinationID:    entry.Destination.ID,
@@ -422,7 +449,18 @@ type deliveryEvent struct {
 func (bp *BatchProcessor) sendAll(ctx context.Context, events []deliveryEvent, entry *models.LogEntry) error {
 	g, gctx := errgroup.WithContext(ctx)
 	for _, de := range events {
-		g.Go(func() error {
+		// Runs on the errgroup's goroutine, out of reach of processEntry's recover.
+		g.Go(func() (err error) {
+			defer func() {
+				if p := recover(); p != nil {
+					bp.logger.Ctx(ctx).Error("panic while sending operator event",
+						zap.Any("panic", p),
+						zap.String("topic", de.event.Topic),
+						zap.String("attempt_id", entry.Attempt.ID),
+						zap.Stack("stack"))
+					err = fmt.Errorf("panic while sending operator event: %v", p)
+				}
+			}()
 			sendCtx, cancel := context.WithTimeout(gctx, bp.emitTimeout)
 			defer cancel()
 			if err := bp.send(sendCtx, de); err != nil {

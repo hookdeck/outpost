@@ -2,11 +2,13 @@ package deliverymq_test
 
 import (
 	"context"
+	"sync/atomic"
 	"testing"
 	"testing/synctest"
 	"time"
 
 	"github.com/hookdeck/outpost/internal/deliverymq"
+	"github.com/hookdeck/outpost/internal/logstore"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/mqs"
 	iredis "github.com/hookdeck/outpost/internal/redis"
@@ -97,4 +99,39 @@ func TestRetryScheduler_MissingAttemptWithoutAttemptTimeIsCounted(t *testing.T) 
 		receiveDLQ(t, client)
 		assert.EqualValues(t, 2, getter.calls.Load())
 	})
+}
+
+// incompleteRecordGetter returns a record that lacks its event or attempt.
+type incompleteRecordGetter struct {
+	calls   atomic.Int64
+	records []*logstore.AttemptRecord
+}
+
+func (g *incompleteRecordGetter) ListAttempt(context.Context, logstore.ListAttemptRequest) (logstore.ListAttemptResponse, error) {
+	g.calls.Add(1)
+	return logstore.ListAttemptResponse{Data: g.records}, nil
+}
+
+func TestRetryScheduler_RecordWithoutEventOrAttemptIsCounted(t *testing.T) {
+	t.Parallel()
+	cases := map[string]*logstore.AttemptRecord{
+		"nil event":   {Attempt: &models.Attempt{ID: "a", AttemptNumber: 1}},
+		"nil attempt": {Event: &models.Event{ID: "e"}},
+	}
+	for name, record := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			synctest.Test(t, func(t *testing.T) {
+				getter := &incompleteRecordGetter{records: []*logstore.AttemptRecord{record}}
+				client, schedule := startNotReadyScheduler(t, getter,
+					deliverymq.WithRetryVisibilityTimeout(1),
+					deliverymq.WithRetryMaxReceiveCount(2))
+
+				schedule(deliverymq.RetryTask{EventID: "e", TenantID: "t", DestinationID: "d", AttemptTime: time.Now()})
+
+				receiveDLQ(t, client)
+				assert.EqualValues(t, 2, getter.calls.Load(), "dead-lettered after max receive count")
+			})
+		})
+	}
 }

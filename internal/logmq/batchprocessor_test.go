@@ -486,3 +486,143 @@ func TestMessageHandler_NacksAfterShutdown(t *testing.T) {
 	assert.True(t, mock.nacked.Load(), "a message the batcher no longer accepts is nacked")
 	assert.False(t, mock.acked.Load())
 }
+
+// settleCountingMessage counts settles at the underlying queue message so a
+// test can check each message reaches the broker once: gocloud-backed queues
+// panic on a second settle.
+type settleCountingMessage struct {
+	acks  atomic.Int32
+	nacks atomic.Int32
+}
+
+func (m *settleCountingMessage) Ack()  { m.acks.Add(1) }
+func (m *settleCountingMessage) Nack() { m.nacks.Add(1) }
+
+func newSettleCountingMessage(t *testing.T) (*settleCountingMessage, *mqs.Message) {
+	t.Helper()
+	event := testutil.EventFactory.Any()
+	attempt := testutil.AttemptFactory.Any()
+	dest := testutil.DestinationFactory.Any()
+	body, err := json.Marshal(models.LogEntry{Event: &event, Attempt: &attempt, Destination: &dest})
+	require.NoError(t, err)
+	mock := &settleCountingMessage{}
+	return mock, &mqs.Message{QueueMessage: mock, Body: body, LoggableID: "test-msg"}
+}
+
+// panicOnceLogStore panics on the first InsertMany and records later ones.
+type panicOnceLogStore struct {
+	mockLogStore
+	panicked atomic.Bool
+}
+
+func (s *panicOnceLogStore) InsertMany(ctx context.Context, entries []*models.LogEntry) error {
+	if s.panicked.CompareAndSwap(false, true) {
+		panic("bad batch")
+	}
+	return s.mockLogStore.InsertMany(ctx, entries)
+}
+
+func TestBatchProcessor_PanicInBatchNacksOnceAndKeepsProcessing(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctx := context.Background()
+		logStore := &panicOnceLogStore{}
+		bp, err := logmq.NewBatchProcessor(ctx, testutil.CreateTestLogger(t), logStore, testAlertPipeline(t, &mockAlertEvaluator{}), logmq.BatchProcessorConfig{
+			ItemCountThreshold: 2,
+			DelayThreshold:     time.Second,
+		})
+		require.NoError(t, err)
+		defer shutdownBounded(t, bp)
+
+		first, firstMsg := newSettleCountingMessage(t)
+		second, secondMsg := newSettleCountingMessage(t)
+		require.NoError(t, bp.Add(ctx, firstMsg))
+		require.NoError(t, bp.Add(ctx, secondMsg))
+		synctest.Wait()
+
+		for _, m := range []*settleCountingMessage{first, second} {
+			assert.EqualValues(t, 1, m.nacks.Load(), "message nacked exactly once")
+			assert.EqualValues(t, 0, m.acks.Load())
+		}
+
+		later, laterMsg := newSettleCountingMessage(t)
+		require.NoError(t, bp.Add(ctx, laterMsg))
+		synctest.Wait()
+		time.Sleep(time.Second)
+		synctest.Wait()
+
+		assert.EqualValues(t, 1, later.acks.Load(), "later batches are still processed")
+		assert.EqualValues(t, 0, later.nacks.Load())
+	})
+}
+
+// panickingEvaluator panics on the first Evaluate and passes later ones.
+type panickingEvaluator struct {
+	mockAlertEvaluator
+	panicked atomic.Bool
+}
+
+func (e *panickingEvaluator) Evaluate(ctx context.Context, attempt alert.Attempt) (alert.Evaluation, error) {
+	if e.panicked.CompareAndSwap(false, true) {
+		panic("bad entry")
+	}
+	return e.mockAlertEvaluator.Evaluate(ctx, attempt)
+}
+
+func TestBatchProcessor_PanicInEntryNacksOnlyThatEntry(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctx := context.Background()
+		logStore := &mockLogStore{}
+		evaluator := &panickingEvaluator{}
+		bp, err := logmq.NewBatchProcessor(ctx, testutil.CreateTestLogger(t), logStore, testAlertPipeline(t, evaluator), logmq.BatchProcessorConfig{
+			ItemCountThreshold: 1,
+			DelayThreshold:     time.Second,
+		})
+		require.NoError(t, err)
+		defer shutdownBounded(t, bp)
+
+		bad, badMsg := newSettleCountingMessage(t)
+		require.NoError(t, bp.Add(ctx, badMsg))
+		synctest.Wait()
+		assert.EqualValues(t, 1, bad.nacks.Load(), "panicking entry nacked exactly once")
+		assert.EqualValues(t, 0, bad.acks.Load())
+
+		good, goodMsg := newSettleCountingMessage(t)
+		require.NoError(t, bp.Add(ctx, goodMsg))
+		synctest.Wait()
+		assert.EqualValues(t, 1, good.acks.Load(), "later entries are still processed")
+		assert.EqualValues(t, 0, good.nacks.Load())
+	})
+}
+
+type panickingSink struct{}
+
+func (panickingSink) Init(context.Context) error { return nil }
+func (panickingSink) Close() error               { return nil }
+func (panickingSink) Send(context.Context, *opevents.OperatorEvent) error {
+	panic("bad sink")
+}
+
+func TestBatchProcessor_PanicInOperatorEventSendNacksOnce(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctx := context.Background()
+		logger := testutil.CreateTestLogger(t)
+		pipeline := logmq.AlertPipeline{
+			Evaluator:      &mockAlertEvaluator{},
+			Emitter:        opevents.NewEmitter(panickingSink{}, "test-deploy", []string{"*"}, logger),
+			ProcessedIdemp: idempotence.New(synctestRedis(t)),
+		}
+		bp, err := logmq.NewBatchProcessor(ctx, logger, &mockLogStore{}, pipeline, logmq.BatchProcessorConfig{
+			ItemCountThreshold: 1,
+			DelayThreshold:     time.Second,
+		})
+		require.NoError(t, err)
+		defer shutdownBounded(t, bp)
+
+		mock, msg := newSettleCountingMessage(t)
+		require.NoError(t, bp.Add(ctx, msg))
+		synctest.Wait()
+
+		assert.EqualValues(t, 1, mock.nacks.Load(), "message nacked exactly once")
+		assert.EqualValues(t, 0, mock.acks.Load())
+	})
+}

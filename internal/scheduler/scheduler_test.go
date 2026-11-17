@@ -532,6 +532,53 @@ func TestScheduler_MaxReceiveCountMovesToDLQ(t *testing.T) {
 	})
 }
 
+func TestScheduler_ExecPanicIsFailedExecution(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		rsmqClient := createRSMQClient(t)
+		immediateClient := &immediateVisibilityRSMQ{
+			Client:             rsmqClient,
+			visibilityTimeouts: make(chan uint, 2),
+		}
+		logger := testutil.CreateTestLogger(t)
+
+		var execCount atomic.Int64
+		var healthy atomic.Bool
+		exec := func(_ context.Context, id string) error {
+			if id == "healthy_task" {
+				healthy.Store(true)
+				return nil
+			}
+			execCount.Add(1)
+			panic("bad task")
+		}
+
+		ctx, cancel := context.WithCancel(context.Background())
+		s := scheduler.New("scheduler", immediateClient, exec,
+			scheduler.WithVisibilityTimeout(1),
+			scheduler.WithPollBackoff(10*time.Millisecond),
+			scheduler.WithMaxReceiveCount(2),
+			scheduler.WithRandForTest(func() float64 { return 0.5 }),
+			scheduler.WithLogger(logger))
+		require.NoError(t, s.Init(ctx))
+		waitMonitor := startMonitor(ctx, s)
+		defer func() { cancel(); waitMonitor(); s.Shutdown() }()
+
+		require.NoError(t, s.Schedule(ctx, "panic_task", 0))
+
+		advance(time.Second)
+		dlqMsg, err := rsmqClient.ReceiveMessage("scheduler-dlq", rsmq.UnsetVt)
+		require.NoError(t, err)
+		require.NotNil(t, dlqMsg, "panicking task should land in the DLQ")
+		require.Equal(t, "panic_task", dlqMsg.Message)
+		require.EqualValues(t, 2, execCount.Load(), "executor should run exactly maxReceiveCount times")
+
+		require.NoError(t, s.Schedule(ctx, "healthy_task", 0))
+		advance(time.Second)
+		require.True(t, healthy.Load(), "scheduler should keep running after a panic")
+	})
+}
+
 func TestScheduler_RescheduleDuringExecSurvives(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {

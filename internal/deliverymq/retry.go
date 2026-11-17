@@ -39,6 +39,8 @@ const maxNotReadyDelay = 5 * time.Minute
 
 var errNoPriorAttempt = errors.New("no prior attempt found in logstore")
 
+var errIncompleteAttemptRecord = errors.New("attempt record is missing its event or attempt")
+
 // RetrySchedulerOption is a functional option for configuring the retry scheduler.
 type RetrySchedulerOption func(*retrySchedulerConfig)
 
@@ -124,7 +126,7 @@ func NewRetryScheduler(deliverymq *DeliveryMQ, redisConfig *redis.RedisConfig, d
 		rsmqClient = rsmq.NewRedisSMQ(adapter, namespace)
 	}
 
-	lookup, batcher := newRetryLookup(eventGetter, effectiveLookupBatchSize(cfg.lookupBatchSize, cfg.maxConcurrency), cfg.lookupBatchWait)
+	lookup, batcher := newRetryLookup(eventGetter, effectiveLookupBatchSize(cfg.lookupBatchSize, cfg.maxConcurrency), cfg.lookupBatchWait, logger)
 
 	exec := func(ctx context.Context, msg string) error {
 		retryTask := RetryTask{}
@@ -148,6 +150,18 @@ func NewRetryScheduler(deliverymq *DeliveryMQ, redisConfig *redis.RedisConfig, d
 		}
 		if record == nil {
 			return noAttemptResult(ctx, logger, retryTask, cfg.notReadyDelay)
+		}
+		// A record without its event or attempt can't be retried.
+		if record.Event == nil || record.Attempt == nil {
+			if logger != nil {
+				logger.Ctx(ctx).Error("attempt record is missing its event or attempt",
+					zap.Bool("has_event", record.Event != nil),
+					zap.Bool("has_attempt", record.Attempt != nil),
+					zap.String("event_id", retryTask.EventID),
+					zap.String("tenant_id", retryTask.TenantID),
+					zap.String("destination_id", retryTask.DestinationID))
+			}
+			return errIncompleteAttemptRecord
 		}
 
 		deliveryTask := retryTask.ToDeliveryTask(*record.Event, record.Attempt.AttemptNumber+1)

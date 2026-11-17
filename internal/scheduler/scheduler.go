@@ -335,7 +335,7 @@ func (s *schedulerImpl) drain(inflight *sync.WaitGroup, cancelTasks context.Canc
 // The delete and the backoff are conditional on the message's receipt: if the
 // task was rescheduled under the same ID while it ran, the new message stays.
 func (s *schedulerImpl) handle(ctx context.Context, msg *rsmq.QueueMessage) {
-	if err := s.exec(ctx, msg.Message); err != nil {
+	if err := s.safeExec(ctx, msg); err != nil {
 		var later *retryLaterError
 		if errors.As(err, &later) {
 			s.requeueMessage(ctx, msg, later.delay)
@@ -360,6 +360,23 @@ func (s *schedulerImpl) handle(ctx context.Context, msg *rsmq.QueueMessage) {
 			zap.String("queue", s.name),
 			zap.String("message_id", msg.ID))
 	}
+}
+
+// safeExec runs exec, turning a panic into an error so the task takes the
+// normal failure path (backoff, dead-letter after the max receive count)
+// instead of the process exiting.
+func (s *schedulerImpl) safeExec(ctx context.Context, msg *rsmq.QueueMessage) (err error) {
+	defer func() {
+		if p := recover(); p != nil {
+			s.config.logger.Ctx(ctx).Error("panic while executing task",
+				zap.Any("panic", p),
+				zap.String("queue", s.name),
+				zap.String("message_id", msg.ID),
+				zap.Stack("stack"))
+			err = fmt.Errorf("task panicked: %v", p)
+		}
+	}()
+	return s.exec(ctx, msg.Message)
 }
 
 // isSuperseded reports that the message is gone or was re-created or received
