@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"runtime/debug"
 	"time"
 
 	"github.com/hookdeck/outpost/internal/consumer"
@@ -67,8 +68,7 @@ func (h *messageHandler) Handle(ctx context.Context, msg *mqs.Message) error {
 		return h.reject(ctx, msg, ErrInvalidData)
 	}
 	event := publishedEvent.toEvent()
-	_, err := h.eventHandler.Handle(ctx, &event)
-	if err != nil {
+	if err := h.handleEvent(ctx, &event); err != nil {
 		// A missing topic never succeeds. Other errors, including
 		// ErrInvalidTopic, are redelivered: adding the topic to TOPICS fixes it.
 		if errors.Is(err, ErrRequiredTopic) {
@@ -78,6 +78,18 @@ func (h *messageHandler) Handle(ctx context.Context, msg *mqs.Message) error {
 	}
 	msg.Ack()
 	return nil
+}
+
+// handleEvent turns a panic in the event handler into an error, so the
+// message takes the nack path and PUBLISH_MAX_REDELIVERIES still bounds it.
+func (h *messageHandler) handleEvent(ctx context.Context, event *models.Event) (err error) {
+	defer func() {
+		if rec := recover(); rec != nil {
+			err = fmt.Errorf("event handler panic: %v\n%s", rec, debug.Stack())
+		}
+	}()
+	_, err = h.eventHandler.Handle(ctx, event)
+	return err
 }
 
 func (h *messageHandler) nack(ctx context.Context, msg *mqs.Message, err error) error {

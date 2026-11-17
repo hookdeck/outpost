@@ -375,3 +375,28 @@ func TestMessageHandler_MaxEventSize(t *testing.T) {
 		assert.Len(t, eh.calls, 1)
 	})
 }
+
+type panickingEventHandler struct{}
+
+func (panickingEventHandler) Handle(context.Context, *models.Event) (*publishmq.HandleResult, error) {
+	panic("bad event")
+}
+
+func TestMessageHandler_EventHandlerPanicCountsAsRedelivery(t *testing.T) {
+	counter := &fakeRedeliveryCounter{}
+	handler := publishmq.NewMessageHandler(
+		panickingEventHandler{},
+		publishmq.WithMaxRedeliveries(1, counter),
+	)
+	body := []byte(`{"tenant_id":"t1","topic":"user.created","data":{}}`)
+
+	first := &mockQueueMessage{}
+	err := handler.Handle(context.Background(), &mqs.Message{QueueMessage: first, ID: "msg_1", Body: body})
+	require.ErrorContains(t, err, "event handler panic")
+	assert.True(t, first.nacked, "a panic is redelivered like any other failure")
+
+	second := &mockQueueMessage{}
+	err = handler.Handle(context.Background(), &mqs.Message{QueueMessage: second, ID: "msg_1", Body: body})
+	require.Error(t, err)
+	assert.True(t, second.rejected, "past the cap the message is rejected")
+}
