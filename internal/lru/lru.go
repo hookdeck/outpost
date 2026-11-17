@@ -188,6 +188,18 @@ func (c *Cache[K, V]) Get(key K) (value V, ok bool) {
 	return value, false
 }
 
+func (c *Cache[K, V]) Remove(key K) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	e, ok := c.items[key]
+	if !ok {
+		return false
+	}
+	c.remove(e)
+	return true
+}
+
 func (c *Cache[K, V]) moveToFront(e *entry[K, V]) {
 	if e == c.head {
 		return

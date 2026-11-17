@@ -622,3 +622,32 @@ func BenchmarkLRU_Freq_WithExpire(b *testing.B) {
 	}
 	b.Logf("hit: %d miss: %d ratio: %f", hit, miss, float64(hit)/float64(hit+miss))
 }
+
+func TestRemove(t *testing.T) {
+	for _, ttl := range []time.Duration{0, time.Minute} {
+		var evicted []string
+		c := New[string, int](3, ttl, func(k string, v int) { evicted = append(evicted, k) })
+		defer c.Close()
+
+		c.Add("a", 1)
+		c.Add("b", 2)
+		c.Add("c", 3)
+
+		assert.True(t, c.Remove("b"))
+		assert.False(t, c.Remove("b"), "second remove finds nothing")
+		assert.False(t, c.Remove("missing"))
+		assert.Equal(t, []string{"b"}, evicted, "callback runs once for the removed key")
+		assert.Equal(t, 2, c.Len())
+
+		_, ok := c.Get("b")
+		assert.False(t, ok)
+		for _, k := range []string{"a", "c"} {
+			_, ok := c.Get(k)
+			assert.True(t, ok, k)
+		}
+
+		c.Add("d", 4)
+		c.Add("e", 5)
+		assert.Equal(t, 3, c.Len(), "list and size accounting stay consistent after a remove")
+	}
+}
