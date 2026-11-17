@@ -138,7 +138,17 @@ func (i *IdempotenceImpl) Exec(ctx context.Context, key string, exec func(contex
 	}
 
 	execCtx, span := i.tracer.Start(ctx, "Idempotence.Exec")
+	completed := false
+	// exec panicked: clear the claim so a redelivery runs, and let the panic
+	// continue. WithoutCancel so the clear runs even when ctx is canceled.
+	defer func() {
+		if !completed {
+			_ = i.clearIdempotency(context.WithoutCancel(ctx), prefixedKey)
+			span.End()
+		}
+	}()
 	err = exec(execCtx)
+	completed = true
 	if err != nil {
 		// Known edge case: when exec failed because ctx itself was canceled,
 		// this clear fails too and the key lingers as "processing" until the

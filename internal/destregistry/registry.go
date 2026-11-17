@@ -144,12 +144,21 @@ func NewRegistry(cfg *Config, logger *logging.Logger) Registry {
 	}
 
 	onEvict := func(key string, p Publisher) {
+		// Log only the destination ID prefix, not the full key: the key
+		// folds credentials and delivery metadata into an FNV hash, so the
+		// hash suffix is a secret-derived value that should stay out of logs.
+		destID, _, _ := strings.Cut(key, ".")
+		defer func() {
+			if rec := recover(); rec != nil {
+				logger.Error("panic closing publisher on eviction",
+					zap.String("destination_id", destID),
+					zap.Any("panic", rec),
+					zap.Stack("stack"),
+				)
+			}
+		}()
 		if err := p.Close(); err != nil {
 			// TODO: consider how to get context for OTEL logging
-			// Log only the destination ID prefix, not the full key: the key now
-			// folds credentials and delivery metadata into an FNV hash, so the
-			// hash suffix is a secret-derived value that should stay out of logs.
-			destID, _, _ := strings.Cut(key, ".")
 			logger.Error("failed to close publisher on eviction",
 				zap.String("destination_id", destID),
 				zap.Error(err),
@@ -194,15 +203,25 @@ func (r *registry) ValidateDestination(ctx context.Context, destination *models.
 	return nil
 }
 
-func (r *registry) PublishEvent(ctx context.Context, destination *models.Destination, event *models.Event) (*models.Attempt, error) {
-	publisher, cached, err := r.resolvePublisher(ctx, destination)
+func (r *registry) PublishEvent(ctx context.Context, destination *models.Destination, event *models.Event) (attempt *models.Attempt, err error) {
+	var publisher Publisher
+	var cached bool
+	// A panic while creating the publisher or publishing returns an error and
+	// no attempt, so the message is nacked instead of the process exiting.
+	defer func() {
+		if rec := recover(); rec != nil {
+			attempt, err = nil, r.handlePublishPanic(destination, event, publisher, cached, rec)
+		}
+	}()
+
+	publisher, cached, err = r.resolvePublisher(ctx, destination)
 	if err != nil {
 		// If the provider already signaled a delivery error, create a failed attempt
 		// so it's visible to the customer (instead of silently nacking into DLQ).
 		var pubErr *ErrDestinationPublishAttempt
 		var valErr *ErrDestinationValidation
 		if errors.As(err, &pubErr) || errors.As(err, &valErr) {
-			attempt := &models.Attempt{
+			attempt = &models.Attempt{
 				ID:              idgen.Attempt(),
 				DestinationID:   destination.ID,
 				DestinationType: destination.Type,
@@ -227,7 +246,7 @@ func (r *registry) PublishEvent(ctx context.Context, destination *models.Destina
 		defer r.closeUncachedPublisher(destination, publisher)
 	}
 
-	attempt := &models.Attempt{
+	attempt = &models.Attempt{
 		ID:              idgen.Attempt(),
 		DestinationID:   destination.ID,
 		DestinationType: destination.Type,
@@ -316,6 +335,28 @@ func (r *registry) PublishEvent(ctx context.Context, destination *models.Destina
 	return attempt, nil
 }
 
+// handlePublishPanic logs the panic and drops the publisher. It returns no
+// attempt: the panic is unexpected, so the caller nacks the message and the
+// queue's redelivery and dead-letter settings apply.
+func (r *registry) handlePublishPanic(destination *models.Destination, event *models.Event, publisher Publisher, cached bool, rec interface{}) error {
+	r.logger.Error("panic publishing event",
+		zap.String("destination_id", destination.ID),
+		zap.String("destination_type", destination.Type),
+		zap.String("event_id", event.ID),
+		zap.Any("panic", rec),
+		zap.Stack("stack"),
+	)
+
+	// The publisher may be left broken: drop it so the next delivery creates a
+	// new one. Only this publisher is dropped, since another delivery may have
+	// replaced it already. RemoveIf closes it through the eviction callback.
+	if cached && publisher != nil {
+		r.publishers.RemoveIf(MakePublisherKey(destination), func(p Publisher) bool { return p == publisher })
+	}
+
+	return fmt.Errorf("panic publishing to %s destination: %v", destination.Type, rec)
+}
+
 func (r *registry) RegisterProvider(destinationType string, provider Provider) error {
 	r.providers[destinationType] = provider
 	r.metadata[destinationType] = provider.Metadata()
@@ -401,6 +442,15 @@ func (r *registry) resolvePublisher(ctx context.Context, destination *models.Des
 }
 
 func (r *registry) closeUncachedPublisher(destination *models.Destination, publisher Publisher) {
+	defer func() {
+		if rec := recover(); rec != nil {
+			r.logger.Error("panic closing publisher",
+				zap.String("destination_id", destination.ID),
+				zap.Any("panic", rec),
+				zap.Stack("stack"),
+			)
+		}
+	}()
 	if err := publisher.Close(); err != nil {
 		r.logger.Error("failed to close publisher",
 			zap.String("destination_id", destination.ID),

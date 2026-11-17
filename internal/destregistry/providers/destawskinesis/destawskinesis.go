@@ -16,6 +16,7 @@ import (
 	"github.com/hookdeck/outpost/internal/destregistry/metadata"
 	"github.com/hookdeck/outpost/internal/destregistry/partitionkey"
 	"github.com/hookdeck/outpost/internal/models"
+	"github.com/jmespath/go-jmespath"
 )
 
 // Configuration types
@@ -70,8 +71,27 @@ func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePu
 
 // Validate performs destination-specific validation
 func (p *AWSKinesisProvider) Validate(ctx context.Context, destination *models.Destination) error {
-	_, _, err := p.resolveConfig(ctx, destination)
-	return err
+	if _, _, err := p.resolveConfig(ctx, destination); err != nil {
+		return err
+	}
+	return validatePartitionKeyTemplate(destination)
+}
+
+// validatePartitionKeyTemplate runs on create and update only. A stored
+// destination whose template does not compile keeps delivering with the event
+// ID as its partition key.
+func validatePartitionKeyTemplate(destination *models.Destination) error {
+	if template := destination.Config["partition_key_template"]; template != "" {
+		if _, err := jmespath.Compile(template); err != nil {
+			return destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{
+				{
+					Field: "config.partition_key_template",
+					Type:  "pattern",
+				},
+			})
+		}
+	}
+	return nil
 }
 
 // CreatePublisher creates a new publisher instance

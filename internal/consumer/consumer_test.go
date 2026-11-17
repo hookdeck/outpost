@@ -322,3 +322,96 @@ func TestConsumer_ReceivesOnlyWithFreeSlot(t *testing.T) {
 		assert.Equal(t, int32(3), receives.Load(), "nothing received after shutdown")
 	})
 }
+
+type settleCounter struct {
+	acks, nacks atomic.Int32
+}
+
+func (s *settleCounter) Ack()  { s.acks.Add(1) }
+func (s *settleCounter) Nack() { s.nacks.Add(1) }
+
+type concurrentSubscription struct {
+	*fakeSubscription
+}
+
+func (concurrentSubscription) SupportsConcurrency() bool { return true }
+
+func TestConsumer_HandlerPanic(t *testing.T) {
+	t.Parallel()
+
+	for _, mode := range []struct {
+		name       string
+		concurrent bool
+	}{
+		{"semaphore", false},
+		{"concurrent", true},
+	} {
+		t.Run(mode.name, func(t *testing.T) {
+			t.Parallel()
+			synctest.Test(t, func(t *testing.T) {
+				ctx, cancel := context.WithCancel(t.Context())
+
+				unsettled := &settleCounter{}
+				settledThenPanic := &settleCounter{}
+				normal := &settleCounter{}
+				queue := []*mqs.Message{
+					{Body: []byte("unsettled"), QueueMessage: unsettled},
+					{Body: []byte("settled"), QueueMessage: settledThenPanic},
+					{Body: []byte("normal"), QueueMessage: normal},
+				}
+				var next atomic.Int32
+				var sub mqs.Subscription = &fakeSubscription{
+					receive: func(ctx context.Context) (*mqs.Message, error) {
+						i := int(next.Add(1)) - 1
+						if i < len(queue) {
+							return queue[i], nil
+						}
+						<-ctx.Done()
+						return nil, ctx.Err()
+					},
+				}
+				if mode.concurrent {
+					sub = concurrentSubscription{sub.(*fakeSubscription)}
+				}
+
+				var handled atomic.Int32
+				handler := &handlerImpl{
+					handle: func(ctx context.Context, msg *mqs.Message) error {
+						handled.Add(1)
+						switch string(msg.Body) {
+						case "unsettled":
+							panic("handler blew up")
+						case "settled":
+							msg.Ack()
+							panic("handler blew up after ack")
+						}
+						msg.Ack()
+						return nil
+					},
+				}
+
+				done := make(chan error, 1)
+				csm := consumer.New(sub, handler,
+					consumer.WithName("test"),
+					consumer.WithConcurrency(1),
+					consumer.WithLogger(testutil.CreateTestLogger(t)),
+				)
+				require.NotPanics(t, func() {
+					go func() { done <- csm.Run(ctx) }()
+					synctest.Wait()
+				})
+
+				assert.Equal(t, int32(3), handled.Load(), "the consumer keeps processing after a panic")
+				assert.Equal(t, int32(1), unsettled.nacks.Load(), "an unsettled message is nacked once")
+				assert.Equal(t, int32(0), unsettled.acks.Load())
+				assert.Equal(t, int32(1), settledThenPanic.acks.Load())
+				assert.Equal(t, int32(0), settledThenPanic.nacks.Load(), "a settled message is not settled again")
+				assert.Equal(t, int32(1), normal.acks.Load())
+				assert.Equal(t, int32(0), normal.nacks.Load())
+
+				cancel()
+				assert.ErrorIs(t, <-done, context.Canceled)
+			})
+		})
+	}
+}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"go.opentelemetry.io/otel"
@@ -84,6 +85,27 @@ type Message struct {
 	// the message has none.
 	ID   string
 	Body []byte
+
+	settled atomic.Bool
+}
+
+// Ack, Nack and Reject settle the message. Only the first call reaches the
+// broker: the gocloud client panics when a message is settled twice.
+func (m *Message) Ack() {
+	if m.settled.CompareAndSwap(false, true) {
+		m.QueueMessage.Ack()
+	}
+}
+
+func (m *Message) Nack() {
+	if m.settled.CompareAndSwap(false, true) {
+		m.QueueMessage.Nack()
+	}
+}
+
+// Settled reports whether Ack, Nack or Reject was called on the message.
+func (m *Message) Settled() bool {
+	return m.settled.Load()
 }
 
 // Rejecter is implemented by queue messages whose broker can stop redelivering
@@ -98,11 +120,14 @@ type Rejecter interface {
 // dead-letters it. Other brokers have no such option, so the message is
 // nacked and their own redelivery policy applies.
 func (m *Message) Reject() {
+	if !m.settled.CompareAndSwap(false, true) {
+		return
+	}
 	if r, ok := m.QueueMessage.(Rejecter); ok {
 		r.Reject()
 		return
 	}
-	m.Nack()
+	m.QueueMessage.Nack()
 }
 
 // Rejectable reports whether Reject stops redelivery.

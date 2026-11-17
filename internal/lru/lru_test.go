@@ -622,3 +622,46 @@ func BenchmarkLRU_Freq_WithExpire(b *testing.B) {
 	}
 	b.Logf("hit: %d miss: %d ratio: %f", hit, miss, float64(hit)/float64(hit+miss))
 }
+
+func TestRemoveIf(t *testing.T) {
+	for _, ttl := range []time.Duration{0, time.Minute} {
+		var evicted []string
+		c := New[string, int](3, ttl, func(k string, v int) { evicted = append(evicted, k) })
+		defer c.Close()
+
+		c.Add("a", 1)
+		c.Add("b", 2)
+		c.Add("c", 3)
+
+		any := func(int) bool { return true }
+		assert.False(t, c.RemoveIf("b", func(v int) bool { return v != 2 }), "a value that does not match stays")
+		assert.True(t, c.RemoveIf("b", any))
+		assert.False(t, c.RemoveIf("b", any), "second remove finds nothing")
+		assert.False(t, c.RemoveIf("missing", any))
+		assert.Equal(t, []string{"b"}, evicted, "callback runs once for the removed key")
+		assert.Equal(t, 2, c.Len())
+
+		_, ok := c.Get("b")
+		assert.False(t, ok)
+		for _, k := range []string{"a", "c"} {
+			_, ok := c.Get(k)
+			assert.True(t, ok, k)
+		}
+
+		c.Add("d", 4)
+		c.Add("e", 5)
+		assert.Equal(t, 3, c.Len(), "list and size accounting stay consistent after a remove")
+	}
+}
+
+func TestRemoveIf_CallbackRunsOutsideLock(t *testing.T) {
+	var c *Cache[string, int]
+	c = New[string, int](3, 0, func(string, int) {
+		// Deadlocks if the callback still holds the cache lock.
+		c.Len()
+	})
+	defer c.Close()
+
+	c.Add("a", 1)
+	assert.True(t, c.RemoveIf("a", func(int) bool { return true }))
+}
