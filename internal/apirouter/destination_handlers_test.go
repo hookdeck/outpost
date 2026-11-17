@@ -577,7 +577,7 @@ func TestAPI_Destinations(t *testing.T) {
 		t.Run("stored filter over the depth limit doesn't block other updates", func(t *testing.T) {
 			h := newAPITest(t)
 			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
-			deep := models.Filter{"status": "paid"}
+			deep := models.Filter{"status": "paid"} // ends up one level over the limit
 			for i := 0; i < models.MaxFilterDepth; i++ {
 				deep = models.Filter{"data": map[string]any(deep)}
 			}

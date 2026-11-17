@@ -234,6 +234,7 @@ func (h *DestinationHandlers) applyDestinationUpdate(c *gin.Context, input Updat
 	// Validate.
 	if input.Topics != nil {
 		updatedDestination.Topics = input.Topics
+		// Topics only: a stored filter over the depth limit must not block other updates.
 		if err := updatedDestination.Topics.Validate(h.topics, h.topicsAllowWildcards); err != nil {
 			AbortWithValidationError(c, err)
 			return nil, false, false

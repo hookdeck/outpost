@@ -74,26 +74,27 @@ func (f Filter) Validate() error {
 	return nil
 }
 
-// filterDepthExceeds reports whether v nests objects and arrays more than max
-// levels deep. It stops descending once the limit is passed.
-func filterDepthExceeds(v any, max int) bool {
-	var children []any
+// filterDepthExceeds reports whether v nests objects and arrays more than
+// limit levels deep. It stops descending once the limit is passed.
+func filterDepthExceeds(v any, limit int) bool {
 	switch v := v.(type) {
 	case map[string]any:
+		if limit == 0 {
+			return true
+		}
 		for _, child := range v {
-			children = append(children, child)
+			if filterDepthExceeds(child, limit-1) {
+				return true
+			}
 		}
 	case []any:
-		children = v
-	default:
-		return false
-	}
-	if max == 0 {
-		return true
-	}
-	for _, child := range children {
-		if filterDepthExceeds(child, max-1) {
+		if limit == 0 {
 			return true
+		}
+		for _, child := range v {
+			if filterDepthExceeds(child, limit-1) {
+				return true
+			}
 		}
 	}
 	return false

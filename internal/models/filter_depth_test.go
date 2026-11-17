@@ -38,6 +38,8 @@ func TestFilter_Validate(t *testing.T) {
 		{name: "objects over the limit", filter: nestedObjects(models.MaxFilterDepth + 1), err: models.ErrFilterTooDeep},
 		{name: "arrays at the limit", filter: nestedArrays(models.MaxFilterDepth)},
 		{name: "arrays over the limit", filter: nestedArrays(models.MaxFilterDepth + 1), err: models.ErrFilterTooDeep},
+		{name: "objects and arrays at the limit", filter: models.Filter{"$or": []any{map[string]any(nestedObjects(models.MaxFilterDepth - 2))}}},
+		{name: "objects and arrays over the limit", filter: models.Filter{"$or": []any{map[string]any(nestedObjects(models.MaxFilterDepth - 1))}}, err: models.ErrFilterTooDeep},
 		{name: "far over the limit", filter: nestedObjects(5000), err: models.ErrFilterTooDeep},
 		{name: "deep branch beside a shallow one", filter: models.Filter{"topic": "orders", "data": map[string]any(nestedObjects(models.MaxFilterDepth))}, err: models.ErrFilterTooDeep},
 	}
