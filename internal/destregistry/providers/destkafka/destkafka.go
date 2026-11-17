@@ -17,8 +17,10 @@ import (
 	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/hookdeck/outpost/internal/destregistry/metadata"
 	"github.com/hookdeck/outpost/internal/destregistry/partitionkey"
+	"github.com/hookdeck/outpost/internal/destregistry/safejmespath"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/proxychain"
+	"github.com/jmespath/go-jmespath"
 	"github.com/twmb/franz-go/pkg/kerr"
 	"github.com/twmb/franz-go/pkg/kgo"
 	"github.com/twmb/franz-go/pkg/sasl"
@@ -121,6 +123,17 @@ func (d *KafkaDestination) Validate(ctx context.Context, destination *models.Des
 				{
 					Field: "config.tls",
 					Type:  "invalid",
+				},
+			})
+		}
+	}
+
+	if template := destination.Config["partition_key_template"]; template != "" {
+		if _, err := jmespath.Compile(template); err != nil {
+			return destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{
+				{
+					Field: "config.partition_key_template",
+					Type:  "pattern",
 				},
 			})
 		}
@@ -401,6 +414,9 @@ func (p *KafkaPublisher) Publish(ctx context.Context, event *models.Event) (*des
 	// Evaluate partition key
 	key, err := partitionkey.Evaluate(p.partitionKeyTemplate, payload, event.ID)
 	if err != nil {
+		if message := safejmespath.MessageFor(err); message != "" {
+			return destregistry.NewFormatError("kafka", message, err)
+		}
 		key = event.ID
 	}
 

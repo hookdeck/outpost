@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/hookdeck/outpost/internal/destregistry/partitionkey"
+	"github.com/hookdeck/outpost/internal/destregistry/safejmespath"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -115,4 +116,27 @@ func TestEvaluate(t *testing.T) {
 			assert.Equal(t, tt.expected, result)
 		})
 	}
+}
+
+func TestEvaluate_PanicingTemplateReturnsError(t *testing.T) {
+	t.Parallel()
+
+	payload := map[string]interface{}{"data": map[string]interface{}{"a": "b"}}
+	for _, template := range []string{`to_string(merge([{a: data}]))`, "contains(`[{}]`, `{}`)"} {
+		var err error
+		require.NotPanics(t, func() {
+			_, err = partitionkey.Evaluate(template, payload, "evt_1")
+		})
+		require.Error(t, err)
+		assert.ErrorIs(t, err, safejmespath.ErrPanic)
+		assert.NotEmpty(t, safejmespath.MessageFor(err))
+	}
+}
+
+func TestEvaluate_OrdinaryErrorIsNotATemplateError(t *testing.T) {
+	t.Parallel()
+
+	_, err := partitionkey.Evaluate(`length(data.missing)`, map[string]interface{}{}, "evt_1")
+	require.Error(t, err)
+	assert.Empty(t, safejmespath.MessageFor(err), "callers keep falling back to the event ID")
 }

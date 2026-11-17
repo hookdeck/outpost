@@ -30,7 +30,8 @@
       "type": "text",
       "label": "Partition Key Template",
       "description": "JMESPath template to extract the partition key from the event payload (e.g., metadata.\"event-id\"). Default is event ID, which is also used as fallback if template evaluation fails or returns empty.",
-      "required": false
+      "required": false,
+      "maxlength": 1024
     },
     {
       "key": "sasl_mechanism",

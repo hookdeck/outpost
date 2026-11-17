@@ -16,6 +16,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/hookdeck/outpost/internal/destregistry/metadata"
+	"github.com/hookdeck/outpost/internal/destregistry/safejmespath"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/jmespath/go-jmespath"
 )
@@ -223,9 +224,9 @@ func (p *AWSS3Publisher) makeKey(event *models.Event, metadata map[string]string
 	}
 
 	// Evaluate the JMESPath expression
-	result, err := p.keyTemplate.Search(templateData)
+	result, err := safejmespath.SearchCompiled(p.keyTemplate, templateData)
 	if err != nil {
-		return "", fmt.Errorf("failed to evaluate key template: %w", err)
+		return "", &safejmespath.TemplateError{Field: "key_template", Err: err}
 	}
 
 	// Convert result to string
@@ -304,7 +305,7 @@ func (p *AWSS3Publisher) Publish(ctx context.Context, event *models.Event) (*des
 
 	input, err := p.Format(ctx, event)
 	if err != nil {
-		return destregistry.NewFormatError("aws_s3", "", err)
+		return destregistry.NewFormatError("aws_s3", safejmespath.MessageFor(err), err)
 	}
 
 	_, err = p.client.PutObject(ctx, input)

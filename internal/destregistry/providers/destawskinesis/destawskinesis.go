@@ -15,7 +15,9 @@ import (
 	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/hookdeck/outpost/internal/destregistry/metadata"
 	"github.com/hookdeck/outpost/internal/destregistry/partitionkey"
+	"github.com/hookdeck/outpost/internal/destregistry/safejmespath"
 	"github.com/hookdeck/outpost/internal/models"
+	"github.com/jmespath/go-jmespath"
 )
 
 // Configuration types
@@ -130,6 +132,17 @@ func (p *AWSKinesisProvider) resolveConfig(ctx context.Context, destination *mod
 		}
 	}
 
+	if template := destination.Config["partition_key_template"]; template != "" {
+		if _, err := jmespath.Compile(template); err != nil {
+			return nil, nil, destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{
+				{
+					Field: "config.partition_key_template",
+					Type:  "pattern",
+				},
+			})
+		}
+	}
+
 	return &AWKKinesisConfig{
 			StreamName:           destination.Config["stream_name"],
 			Region:               destination.Config["region"],
@@ -236,7 +249,9 @@ func (p *AWSKinesisPublisher) Format(ctx context.Context, event *models.Event) (
 	// Get partition key from template or use event ID as default
 	partitionKey, err := partitionkey.Evaluate(p.partitionKeyTemplate, payload, event.ID)
 	if err != nil {
-		// If template evaluation fails, log the error and fall back to event ID
+		if safejmespath.MessageFor(err) != "" {
+			return nil, err
+		}
 		partitionKey = event.ID
 	}
 
@@ -258,7 +273,7 @@ func (p *AWSKinesisPublisher) Publish(ctx context.Context, event *models.Event) 
 	// Format the event into a PutRecordInput
 	input, err := p.Format(ctx, event)
 	if err != nil {
-		return destregistry.NewFormatError("aws_kinesis", "", err)
+		return destregistry.NewFormatError("aws_kinesis", safejmespath.MessageFor(err), err)
 	}
 
 	// Send the record to Kinesis

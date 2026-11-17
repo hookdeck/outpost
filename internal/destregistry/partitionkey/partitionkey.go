@@ -1,9 +1,10 @@
 package partitionkey
 
 import (
+	"errors"
 	"fmt"
 
-	"github.com/jmespath/go-jmespath"
+	"github.com/hookdeck/outpost/internal/destregistry/safejmespath"
 )
 
 // Evaluate extracts a partition key from payload using a JMESPath template.
@@ -13,8 +14,11 @@ func Evaluate(template string, payload map[string]interface{}, fallbackKey strin
 		return fallbackKey, nil
 	}
 
-	result, err := jmespath.Search(template, payload)
+	result, err := safejmespath.Search(template, payload)
 	if err != nil {
+		if errors.Is(err, safejmespath.ErrPanic) {
+			return "", &safejmespath.TemplateError{Field: "partition_key_template", Err: err}
+		}
 		return "", fmt.Errorf("error evaluating partition key template: %w", err)
 	}
 

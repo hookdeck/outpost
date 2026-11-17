@@ -5,11 +5,13 @@ import (
 	"fmt"
 	"maps"
 	"net"
+	"strings"
 	"syscall"
 	"testing"
 
 	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destkafka"
+	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -39,6 +41,38 @@ func TestKafkaDestination_Validate(t *testing.T) {
 	t.Run("should validate valid destination", func(t *testing.T) {
 		t.Parallel()
 		assert.NoError(t, kafkaDestination.Validate(context.Background(), &validDestination))
+	})
+
+	withTemplate := func(template string) *models.Destination {
+		dest := validDestination
+		dest.Config = maps.Clone(validDestination.Config)
+		dest.Credentials = maps.Clone(validDestination.Credentials)
+		dest.Config["partition_key_template"] = template
+		return &dest
+	}
+
+	t.Run("should reject a partition key template that does not compile", func(t *testing.T) {
+		t.Parallel()
+		err := kafkaDestination.Validate(context.Background(), withTemplate("invalid[template"))
+		var validationErr *destregistry.ErrDestinationValidation
+		require.ErrorAs(t, err, &validationErr)
+		assert.Equal(t, "config.partition_key_template", validationErr.Errors[0].Field)
+		assert.Equal(t, "pattern", validationErr.Errors[0].Type)
+	})
+
+	t.Run("should reject a partition key template over the length limit", func(t *testing.T) {
+		t.Parallel()
+		err := kafkaDestination.Validate(context.Background(), withTemplate("join('', ['"+strings.Repeat("a", 1024)+"'])"))
+		var validationErr *destregistry.ErrDestinationValidation
+		require.ErrorAs(t, err, &validationErr)
+		assert.Equal(t, "config.partition_key_template", validationErr.Errors[0].Field)
+		assert.Equal(t, "maxlength", validationErr.Errors[0].Type)
+	})
+
+	t.Run("should accept valid and omitted partition key templates", func(t *testing.T) {
+		t.Parallel()
+		assert.NoError(t, kafkaDestination.Validate(context.Background(), withTemplate(`data."user_id"`)))
+		assert.NoError(t, kafkaDestination.Validate(context.Background(), withTemplate("")))
 	})
 
 	t.Run("should validate invalid type", func(t *testing.T) {
