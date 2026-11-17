@@ -6,6 +6,7 @@ import (
 	"github.com/hookdeck/outpost/cmd/e2e/configs"
 	"github.com/hookdeck/outpost/internal/cursor"
 	"github.com/hookdeck/outpost/internal/idgen"
+	"github.com/hookdeck/outpost/internal/models"
 )
 
 const (
@@ -16,6 +17,15 @@ const (
 	cursorInvalidTimestamp = "invalid cursor: invalid timestamp"
 	expectedRFC3339        = "expected RFC3339 (e.g. 2024-01-15T09:30:00Z or 2024-01-15T09:30:00.123Z)"
 )
+
+// nestedFilter returns a filter nested depth levels deep.
+func nestedFilter(depth int) map[string]any {
+	filter := map[string]any{"status": "paid"}
+	for i := 1; i < depth; i++ {
+		filter = map[string]any{"data": filter}
+	}
+	return filter
+}
 
 func (s *basicSuite) TestErrorResponses_PublishValidation() {
 	tenant := s.createTenant()
@@ -164,6 +174,7 @@ func (s *basicSuite) TestErrorResponses_CreateDestinationValidation() {
 		create("empty topics", webhook(map[string]any{"topics": []string{}}), unprocessable, "validation failed: invalid topics", ""),
 		create("unknown topic", webhook(map[string]any{"topics": []string{"nope"}}), unprocessable, "validation failed: invalid topics", ""),
 		create("topics of the wrong type", webhook(map[string]any{"topics": 1}), unprocessable, "validation failed: invalid topics format", ""),
+		create("filter nested too deeply", webhook(map[string]any{"filter": nestedFilter(models.MaxFilterDepth + 1)}), unprocessable, models.ErrFilterTooDeep.Error(), ""),
 		create("unknown type", webhook(map[string]any{"type": "nope"}), unprocessable, "no provider registered for destination type: nope", ""),
 		create("missing config", webhook(map[string]any{"config": nil}), unprocessable, validationError, "config.url is required"),
 		create("invalid url", webhook(map[string]any{"config": map[string]any{"url": "not a url"}}), unprocessable, validationError, "config.url"),
@@ -219,6 +230,7 @@ func (s *basicSuite) TestErrorResponses_UpdateDestinationValidation() {
 		update("config of the wrong type", map[string]any{"config": "text"}, invalidJSON, ""),
 		update("credentials of the wrong type", map[string]any{"credentials": "text"}, invalidJSON, ""),
 		update("filter of the wrong type", map[string]any{"filter": "text"}, invalidJSON, ""),
+		update("filter nested too deeply", map[string]any{"filter": nestedFilter(models.MaxFilterDepth + 1)}, models.ErrFilterTooDeep.Error(), ""),
 		update("delivery_metadata of the wrong type", map[string]any{"delivery_metadata": "text"}, invalidJSON, ""),
 		update("metadata of the wrong type", map[string]any{"metadata": "text"}, invalidJSON, ""),
 		update("disabled_at of the wrong type", map[string]any{"disabled_at": 1}, invalidJSON, ""),

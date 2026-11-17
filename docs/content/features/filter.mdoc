@@ -47,6 +47,8 @@ Nested objects are supported:
 { "data": { "customer": { "tier": "premium" } } }
 ```
 
+A filter can be nested up to 16 levels deep. The filter object is level 1, and each nested object or array adds one. Creating or updating a destination with a deeper filter fails with a validation error.
+
 Arrays match if they contain the specified value:
 
 ```json

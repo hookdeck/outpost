@@ -574,6 +574,34 @@ func TestAPI_Destinations(t *testing.T) {
 			assert.Equal(t, models.Topics{"user.deleted"}, dest.Topics)
 		})
 
+		t.Run("stored filter over the depth limit doesn't block other updates", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+			deep := models.Filter{"status": "paid"}
+			for i := 0; i < models.MaxFilterDepth; i++ {
+				deep = models.Filter{"data": map[string]any(deep)}
+			}
+			h.tenantStore.CreateDestination(t.Context(), df.Any(
+				df.WithID("d1"), df.WithTenantID("t1"), df.WithTopics([]string{"user.created"}), df.WithFilter(deep),
+			))
+
+			req := h.jsonReq(http.MethodPatch, "/api/v1/tenants/t1/destinations/d1", map[string]any{
+				"topics": []string{"user.deleted"},
+			})
+			require.Equal(t, http.StatusOK, h.do(h.withAPIKey(req)).Code)
+
+			req = h.jsonReq(http.MethodPatch, "/api/v1/tenants/t1/destinations/d1", map[string]any{
+				"filter": deep,
+			})
+			require.Equal(t, http.StatusUnprocessableEntity, h.do(h.withAPIKey(req)).Code)
+
+			req = h.jsonReq(http.MethodPatch, "/api/v1/tenants/t1/destinations/d1", map[string]any{
+				"topics": []string{"user.created"},
+				"filter": map[string]any{"data": map[string]any{"status": "paid"}},
+			})
+			require.Equal(t, http.StatusOK, h.do(h.withAPIKey(req)).Code)
+		})
+
 		t.Run("duplicate topics are normalized", func(t *testing.T) {
 			h := newAPITest(t)
 			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))

@@ -3,6 +3,7 @@ package models
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"slices"
 	"strings"
 	"time"
@@ -13,6 +14,7 @@ import (
 var (
 	ErrInvalidTopics       = errors.New("validation failed: invalid topics")
 	ErrInvalidTopicsFormat = errors.New("validation failed: invalid topics format")
+	ErrFilterTooDeep       = fmt.Errorf("validation failed: filter is nested more than %d levels deep", MaxFilterDepth)
 )
 
 type Tenant struct {
@@ -69,7 +71,7 @@ func (d *Destination) Validate(topics []string, allowWildcards bool) error {
 	if err := d.Topics.Validate(topics, allowWildcards); err != nil {
 		return err
 	}
-	return nil
+	return d.Filter.Validate()
 }
 
 // MatchEvent checks if the destination matches the given event.
