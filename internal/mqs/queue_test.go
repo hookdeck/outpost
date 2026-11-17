@@ -159,3 +159,32 @@ func testMQ(t *testing.T, makeConfig func() mqs.QueueConfig) {
 		receivedMsg.Ack()
 	})
 }
+
+type recordingQueueMessage struct{ acks, nacks int }
+
+func (r *recordingQueueMessage) Ack()  { r.acks++ }
+func (r *recordingQueueMessage) Nack() { r.nacks++ }
+
+func TestMessage_Settled(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		settle func(*mqs.Message)
+	}{
+		{"ack", func(m *mqs.Message) { m.Ack() }},
+		{"nack", func(m *mqs.Message) { m.Nack() }},
+		{"reject", func(m *mqs.Message) { m.Reject() }},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			rec := &recordingQueueMessage{}
+			msg := &mqs.Message{QueueMessage: rec}
+			assert.False(t, msg.Settled())
+			tt.settle(msg)
+			assert.True(t, msg.Settled())
+			assert.Equal(t, 1, rec.acks+rec.nacks, "the broker message is settled once")
+		})
+	}
+}

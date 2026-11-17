@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"go.opentelemetry.io/otel"
@@ -84,6 +85,22 @@ type Message struct {
 	// the message has none.
 	ID   string
 	Body []byte
+
+	settled atomic.Bool
+}
+
+func (m *Message) Ack() {
+	m.settled.Store(true)
+	m.QueueMessage.Ack()
+}
+
+func (m *Message) Nack() {
+	m.settled.Store(true)
+	m.QueueMessage.Nack()
+}
+
+func (m *Message) Settled() bool {
+	return m.settled.Load()
 }
 
 // Rejecter is implemented by queue messages whose broker can stop redelivering
@@ -98,6 +115,7 @@ type Rejecter interface {
 // dead-letters it. Other brokers have no such option, so the message is
 // nacked and their own redelivery policy applies.
 func (m *Message) Reject() {
+	m.settled.Store(true)
 	if r, ok := m.QueueMessage.(Rejecter); ok {
 		r.Reject()
 		return
