@@ -80,6 +80,8 @@ type RegisterDefaultDestinationOptions struct {
 	BlockPrivateAddresses   bool
 	PrivateAddressAllowlist []string
 
+	AllowCustomEndpoints bool
+
 	// DeliveryMaxConcurrency is the delivery worker pool size. It bounds how
 	// many deliveries can be in flight, and therefore how many connections a
 	// single destination could need. 0 leaves Go's per-host default in place.
@@ -190,13 +192,13 @@ func RegisterDefault(registry destregistry.Registry, opts RegisterDefaultDestina
 	}
 	registry.RegisterProvider("hookdeck", hookdeck)
 
-	awsSQS, err := destawssqs.New(loader, basePublisherOpts)
+	awsSQS, err := destawssqs.New(loader, basePublisherOpts, destawssqs.WithAllowCustomEndpoints(opts.AllowCustomEndpoints))
 	if err != nil {
 		return err
 	}
 	registry.RegisterProvider("aws_sqs", awsSQS)
 
-	awsEventBridgeOpts := []destawseventbridge.Option{}
+	awsEventBridgeOpts := []destawseventbridge.Option{destawseventbridge.WithAllowCustomEndpoints(opts.AllowCustomEndpoints)}
 	if opts.AWSEventBridge != nil {
 		awsEventBridgeOpts = append(awsEventBridgeOpts,
 			destawseventbridge.WithSource(opts.AWSEventBridge.Source),
@@ -208,7 +210,7 @@ func RegisterDefault(registry destregistry.Registry, opts RegisterDefaultDestina
 	}
 	registry.RegisterProvider("aws_eventbridge", awsEventBridge)
 
-	awsKinesisOpts := []destawskinesis.Option{}
+	awsKinesisOpts := []destawskinesis.Option{destawskinesis.WithAllowCustomEndpoints(opts.AllowCustomEndpoints)}
 	if opts.AWSKinesis != nil {
 		awsKinesisOpts = append(awsKinesisOpts,
 			destawskinesis.WithMetadataInPayload(opts.AWSKinesis.MetadataInPayload),
@@ -220,13 +222,13 @@ func RegisterDefault(registry destregistry.Registry, opts RegisterDefaultDestina
 	}
 	registry.RegisterProvider("aws_kinesis", awsKinesis)
 
-	awsS3, err := destawss3.New(loader, basePublisherOpts)
+	awsS3, err := destawss3.New(loader, basePublisherOpts, destawss3.WithAllowCustomEndpoints(opts.AllowCustomEndpoints))
 	if err != nil {
 		return err
 	}
 	registry.RegisterProvider("aws_s3", awsS3)
 
-	gcpPubSub, err := destgcppubsub.New(loader, basePublisherOpts)
+	gcpPubSub, err := destgcppubsub.New(loader, basePublisherOpts, destgcppubsub.WithAllowCustomEndpoints(opts.AllowCustomEndpoints))
 	if err != nil {
 		return err
 	}

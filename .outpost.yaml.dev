@@ -96,6 +96,7 @@ log_batch_threshold_seconds: 1
 
 # Destinations
 destinations:
+  allow_custom_endpoints: true
   webhook:
     signing_secret_template: "whsec_{{.RandomHex}}"
 

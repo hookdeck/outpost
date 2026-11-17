@@ -23,7 +23,8 @@ func init() {
 			SignatureAlgorithm:       destwebhook.DefaultAlgorithm,
 			SigningSecretTemplate:    destwebhook.DefaultSigningSecretTmpl,
 		},
-		AWSEventBridge: &destregistrydefault.DestAWSEventBridgeConfig{Source: "outpost"},
+		AWSEventBridge:       &destregistrydefault.DestAWSEventBridgeConfig{Source: "outpost"},
+		AllowCustomEndpoints: true,
 	})
 	if err != nil {
 		panic(err)

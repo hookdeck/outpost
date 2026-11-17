@@ -65,6 +65,7 @@ func TestE2E_Regression_FormatErrorIsDeliveredAttempt(t *testing.T) {
 	// exhausts quickly: schedule length 2 => 2 retries => 3 total attempts.
 	cfg := configs.Basic(t, configs.BasicOpts{LogStorage: configs.LogStorageTypeClickHouse})
 	cfg.RetrySchedule = []int{1, 1}
+	cfg.Destinations.AllowCustomEndpoints = true
 	cfg.RetryPollBackoffMs = 50
 	cfg.LogBatchThresholdSeconds = 0 // immediate flush so /attempts is reliable
 	require.NoError(t, cfg.Validate(config.Flags{}))

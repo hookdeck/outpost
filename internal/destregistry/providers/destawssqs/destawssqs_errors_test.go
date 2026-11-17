@@ -27,7 +27,7 @@ func TestAWSSQSPublisher_APIErrorMessage(t *testing.T) {
 				}))
 				defer srv.Close()
 				t.Setenv("AWS_MAX_ATTEMPTS", "1")
-				p, err := destawssqs.New(testutil.Registry.MetadataLoader(), nil)
+				p, err := destawssqs.New(testutil.Registry.MetadataLoader(), nil, destawssqs.WithAllowCustomEndpoints(true))
 				require.NoError(t, err)
 				d := testutil.DestinationFactory.Any(
 					testutil.DestinationFactory.WithType("aws_sqs"),

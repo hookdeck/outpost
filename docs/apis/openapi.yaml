@@ -365,7 +365,7 @@ components:
         endpoint:
           type: string
           format: url
-          description: Optional. Custom AWS endpoint URL (e.g., for LocalStack or specific regions).
+          description: Optional. Custom AWS endpoint URL for emulators such as LocalStack. Requires `DESTINATIONS_ALLOW_CUSTOM_ENDPOINTS=true` on the Outpost deployment; otherwise a destination that sets it is rejected.
           example: "https://sqs.us-east-1.amazonaws.com" # Corrected Example
         queue_url:
           type: string
@@ -425,7 +425,7 @@ components:
         endpoint:
           type: string
           format: url
-          description: Optional. Custom AWS endpoint URL (e.g., for LocalStack or VPC endpoints).
+          description: Optional. Custom AWS endpoint URL for emulators such as LocalStack. Requires `DESTINATIONS_ALLOW_CUSTOM_ENDPOINTS=true` on the Outpost deployment; otherwise a destination that sets it is rejected.
           example: "https://events.us-east-1.amazonaws.com"
     AWSEventBridgeCredentials:
       type: object
@@ -495,7 +495,7 @@ components:
         endpoint:
           type: string
           format: url
-          description: Optional. Custom AWS endpoint URL (e.g., for LocalStack or VPC endpoints).
+          description: Optional. Custom AWS endpoint URL for emulators such as LocalStack. Requires `DESTINATIONS_ALLOW_CUSTOM_ENDPOINTS=true` on the Outpost deployment; otherwise a destination that sets it is rejected.
           example: "https://kinesis.us-east-1.amazonaws.com"
         partition_key_template:
           type: string
@@ -587,7 +587,7 @@ components:
           example: "events-topic"
         endpoint:
           type: string
-          description: Optional. Custom endpoint URL (e.g., localhost:8085 for emulator).
+          description: Optional. Custom endpoint (e.g., localhost:8085 for the Pub/Sub emulator), connected without TLS or authentication. Requires `DESTINATIONS_ALLOW_CUSTOM_ENDPOINTS=true` on the Outpost deployment; otherwise a destination that sets it is rejected.
           example: "pubsub.googleapis.com:443"
     GCPPubSubCredentials:
       type: object
@@ -2381,7 +2381,7 @@ components:
         endpoint:
           type: string
           format: url
-          description: Optional. Custom AWS endpoint URL (e.g., for LocalStack or specific regions).
+          description: Optional. Custom AWS endpoint URL for emulators such as LocalStack. Requires `DESTINATIONS_ALLOW_CUSTOM_ENDPOINTS=true` on the Outpost deployment; otherwise a destination that sets it is rejected.
           example: "https://sqs.us-east-1.amazonaws.com"
         queue_url:
           type: string
@@ -2445,7 +2445,7 @@ components:
         endpoint:
           type: string
           format: url
-          description: Optional. Custom AWS endpoint URL (e.g., for LocalStack or VPC endpoints).
+          description: Optional. Custom AWS endpoint URL for emulators such as LocalStack. Requires `DESTINATIONS_ALLOW_CUSTOM_ENDPOINTS=true` on the Outpost deployment; otherwise a destination that sets it is rejected.
         partition_key_template:
           type: string
           description: Optional. JMESPath template to extract the partition key from the event payload.
@@ -2520,7 +2520,7 @@ components:
           description: The Pub/Sub topic name.
         endpoint:
           type: string
-          description: Optional. Custom endpoint URL (e.g., localhost:8085 for emulator).
+          description: Optional. Custom endpoint (e.g., localhost:8085 for the Pub/Sub emulator), connected without TLS or authentication. Requires `DESTINATIONS_ALLOW_CUSTOM_ENDPOINTS=true` on the Outpost deployment; otherwise a destination that sets it is rejected.
     GCPPubSubCredentialsUpdate:
       type: object
       description: Partial GCP Pub/Sub credentials for PATCH updates (RFC 7396 merge-patch).
@@ -2592,7 +2592,7 @@ components:
         endpoint:
           type: string
           format: url
-          description: Optional. Custom AWS endpoint URL (e.g., for LocalStack or VPC endpoints).
+          description: Optional. Custom AWS endpoint URL for emulators such as LocalStack. Requires `DESTINATIONS_ALLOW_CUSTOM_ENDPOINTS=true` on the Outpost deployment; otherwise a destination that sets it is rejected.
     AWSEventBridgeCredentialsUpdate:
       type: object
       description: Partial AWS EventBridge credentials for PATCH updates (RFC 7396 merge-patch).

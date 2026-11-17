@@ -194,7 +194,7 @@ func (s *S3PublishSuite) SetupSuite() {
 	require.NoError(t, err)
 
 	// Create provider
-	provider, err := destawss3.New(testutil.Registry.MetadataLoader(), nil)
+	provider, err := destawss3.New(testutil.Registry.MetadataLoader(), nil, destawss3.WithAllowCustomEndpoints(true))
 	require.NoError(t, err)
 
 	// Create destination configuration

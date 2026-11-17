@@ -36,7 +36,8 @@ type AWSKinesisCredentials struct {
 // Provider implementation
 type AWSKinesisProvider struct {
 	*destregistry.BaseProvider
-	metadataInPayload bool
+	metadataInPayload    bool
+	allowCustomEndpoints bool
 }
 
 var _ destregistry.Provider = (*AWSKinesisProvider)(nil) // Ensure interface compliance
@@ -48,6 +49,12 @@ type Option func(*AWSKinesisProvider)
 func WithMetadataInPayload(include bool) Option {
 	return func(p *AWSKinesisProvider) {
 		p.metadataInPayload = include
+	}
+}
+
+func WithAllowCustomEndpoints(allow bool) Option {
+	return func(p *AWSKinesisProvider) {
+		p.allowCustomEndpoints = allow
 	}
 }
 
@@ -64,6 +71,10 @@ func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePu
 
 	for _, opt := range opts {
 		opt(provider)
+	}
+
+	if !provider.allowCustomEndpoints {
+		provider.OmitConfigField(destregistry.ConfigKeyEndpoint)
 	}
 
 	return provider, nil
@@ -134,6 +145,10 @@ func (p *AWSKinesisProvider) CreatePublisher(ctx context.Context, destination *m
 func (p *AWSKinesisProvider) resolveConfig(ctx context.Context, destination *models.Destination) (*AWKKinesisConfig, *AWSKinesisCredentials, error) {
 	// Validate basic requirements using the base provider
 	if err := p.BaseProvider.Validate(ctx, destination); err != nil {
+		return nil, nil, err
+	}
+
+	if err := destregistry.ValidateCustomEndpointAllowed(p.allowCustomEndpoints, destination); err != nil {
 		return nil, nil, err
 	}
 

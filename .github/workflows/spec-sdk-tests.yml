@@ -149,6 +149,9 @@ jobs:
             destination_prefix: "des_"
             event_prefix: "evt_"
             delivery_prefix: "del_"
+
+          destinations:
+            allow_custom_endpoints: true
           EOF
 
       - name: Run migrations

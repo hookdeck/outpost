@@ -41,7 +41,8 @@ type AWSEventBridgeCredentials struct {
 // Provider implementation
 type AWSEventBridgeProvider struct {
 	*destregistry.BaseProvider
-	source string
+	source               string
+	allowCustomEndpoints bool
 }
 
 var _ destregistry.Provider = (*AWSEventBridgeProvider)(nil)
@@ -56,6 +57,12 @@ func WithSource(source string) Option {
 	}
 }
 
+func WithAllowCustomEndpoints(allow bool) Option {
+	return func(p *AWSEventBridgeProvider) {
+		p.allowCustomEndpoints = allow
+	}
+}
+
 // New constructs an AWSEventBridgeProvider.
 func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePublisherOption, opts ...Option) (*AWSEventBridgeProvider, error) {
 	base, err := destregistry.NewBaseProvider(loader, "aws_eventbridge", basePublisherOpts...)
@@ -66,6 +73,10 @@ func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePu
 	provider := &AWSEventBridgeProvider{BaseProvider: base}
 	for _, opt := range opts {
 		opt(provider)
+	}
+
+	if !provider.allowCustomEndpoints {
+		provider.OmitConfigField(destregistry.ConfigKeyEndpoint)
 	}
 
 	if provider.source == "" {
@@ -116,6 +127,10 @@ func (p *AWSEventBridgeProvider) CreatePublisher(ctx context.Context, destinatio
 
 func (p *AWSEventBridgeProvider) resolveConfig(ctx context.Context, destination *models.Destination) (*AWSEventBridgeConfig, *AWSEventBridgeCredentials, error) {
 	if err := p.BaseProvider.Validate(ctx, destination); err != nil {
+		return nil, nil, err
+	}
+
+	if err := destregistry.ValidateCustomEndpointAllowed(p.allowCustomEndpoints, destination); err != nil {
 		return nil, nil, err
 	}
 

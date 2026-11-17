@@ -27,7 +27,7 @@ func TestAWSKinesisPublisher_APIErrorMessage(t *testing.T) {
 				}))
 				defer srv.Close()
 				t.Setenv("AWS_MAX_ATTEMPTS", "1")
-				p, err := destawskinesis.New(testutil.Registry.MetadataLoader(), nil)
+				p, err := destawskinesis.New(testutil.Registry.MetadataLoader(), nil, destawskinesis.WithAllowCustomEndpoints(true))
 				require.NoError(t, err)
 				d := testutil.DestinationFactory.Any(
 					testutil.DestinationFactory.WithType("aws_kinesis"),

@@ -21,6 +21,7 @@ import (
 
 type AWSSQSDestination struct {
 	*destregistry.BaseProvider
+	allowCustomEndpoints bool
 }
 
 type AWSSQSDestinationConfig struct {
@@ -36,15 +37,30 @@ type AWSSQSDestinationCredentials struct {
 
 var _ destregistry.Provider = (*AWSSQSDestination)(nil)
 
-func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePublisherOption) (*AWSSQSDestination, error) {
+type Option func(*AWSSQSDestination)
+
+func WithAllowCustomEndpoints(allow bool) Option {
+	return func(p *AWSSQSDestination) {
+		p.allowCustomEndpoints = allow
+	}
+}
+
+func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePublisherOption, opts ...Option) (*AWSSQSDestination, error) {
 	base, err := destregistry.NewBaseProvider(loader, "aws_sqs", basePublisherOpts...)
 	if err != nil {
 		return nil, err
 	}
 
-	return &AWSSQSDestination{
+	provider := &AWSSQSDestination{
 		BaseProvider: base,
-	}, nil
+	}
+	for _, opt := range opts {
+		opt(provider)
+	}
+	if !provider.allowCustomEndpoints {
+		base.OmitConfigField(destregistry.ConfigKeyEndpoint)
+	}
+	return provider, nil
 }
 
 func (d *AWSSQSDestination) Validate(ctx context.Context, destination *models.Destination) error {
@@ -98,6 +114,10 @@ func (p *AWSSQSDestination) CreatePublisher(ctx context.Context, destination *mo
 
 func (d *AWSSQSDestination) resolveMetadata(ctx context.Context, destination *models.Destination) (*AWSSQSDestinationConfig, *AWSSQSDestinationCredentials, error) {
 	if err := d.BaseProvider.Validate(ctx, destination); err != nil {
+		return nil, nil, err
+	}
+
+	if err := destregistry.ValidateCustomEndpointAllowed(d.allowCustomEndpoints, destination); err != nil {
 		return nil, nil, err
 	}
 
