@@ -65,6 +65,11 @@ publishmq:
     # Optional.
     # Useful for local development or when using a non-standard SQS endpoint.
     endpoint: <URL>
+
+    # Optional. See "Assuming an IAM role".
+    role_arn: <ROLE_ARN>
+    external_id: <EXTERNAL_ID>
+    role_session_name: <SESSION_NAME>
 ```
 
 #### Example
@@ -78,9 +83,13 @@ publishmq:
     secret_access_key: REDACTED
 ```
 
+### Assuming an IAM role
+
+To read the queue through an IAM role, set `PUBLISH_AWS_SQS_ROLE_ARN` (`role_arn` in YAML). Outpost assumes the role with the access key, or with the AWS SDK default credential chain when no key is set. If the role's trust policy requires an external ID, set `PUBLISH_AWS_SQS_EXTERNAL_ID` (`external_id` in YAML). The session is named `outpost` in the role account's CloudTrail logs; set `PUBLISH_AWS_SQS_ROLE_SESSION_NAME` (`role_session_name` in YAML) to change it.
+
 ### Required Permissions
 
-The following permissions are required for the provided access key:
+The following permissions are required for the provided access key. When a role is set, they go on the role instead: the access key (or default credentials) needs `sts:AssumeRole` on the role, and the role's trust policy must allow that principal.
 
 - `sqs:ChangeMessageVisibility`
 - `sqs:DeleteMessage`
