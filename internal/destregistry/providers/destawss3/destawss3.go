@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -226,7 +227,10 @@ func (p *AWSS3Publisher) makeKey(event *models.Event, metadata map[string]string
 	// Evaluate the JMESPath expression
 	result, err := safejmespath.SearchCompiled(p.keyTemplate, templateData)
 	if err != nil {
-		return "", &safejmespath.TemplateError{Field: "key_template", Err: err}
+		if errors.Is(err, safejmespath.ErrPanic) {
+			return "", &safejmespath.TemplateError{Field: "key_template", Err: err}
+		}
+		return "", fmt.Errorf("failed to evaluate key template: %w", err)
 	}
 
 	// Convert result to string

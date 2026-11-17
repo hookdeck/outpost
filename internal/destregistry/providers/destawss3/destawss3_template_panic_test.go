@@ -3,8 +3,6 @@ package destawss3_test
 import (
 	"context"
 	"encoding/json"
-	"net/http"
-	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -23,17 +21,11 @@ import (
 func TestAWSS3_KeyTemplatePanicIsFailedAttempt(t *testing.T) {
 	t.Parallel()
 
-	s3Server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer s3Server.Close()
-
 	destination := testutil.DestinationFactory.Any(
 		testutil.DestinationFactory.WithType("aws_s3"),
 		testutil.DestinationFactory.WithConfig(map[string]string{
 			"bucket":       "my-bucket",
 			"region":       "us-east-1",
-			"endpoint":     s3Server.URL,
 			"key_template": `to_string(merge([{a: data}]))`,
 		}),
 		testutil.DestinationFactory.WithCredentials(map[string]string{
@@ -94,6 +86,7 @@ func TestAWSS3Publisher_Publish_TemplateEvaluationErrorMessage(t *testing.T) {
 		{
 			name:     "ordinary evaluation error",
 			template: `join('/', ['prefix', metadata.operationId])`,
+			want:     "could not format event for delivery",
 		},
 	}
 	for _, tt := range tests {
@@ -110,11 +103,7 @@ func TestAWSS3Publisher_Publish_TemplateEvaluationErrorMessage(t *testing.T) {
 			require.NotNil(t, delivery)
 			assert.Equal(t, "failed", delivery.Status)
 			require.Error(t, err)
-			if tt.want != "" {
-				assert.Equal(t, tt.want, delivery.Response["error"])
-			} else {
-				assert.Contains(t, delivery.Response["error"], "key_template could not be evaluated: ")
-			}
+			assert.Equal(t, tt.want, delivery.Response["error"])
 		})
 	}
 }

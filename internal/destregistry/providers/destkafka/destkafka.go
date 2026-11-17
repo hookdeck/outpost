@@ -86,6 +86,27 @@ func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePu
 }
 
 func (d *KafkaDestination) Validate(ctx context.Context, destination *models.Destination) error {
+	if err := d.validateConfig(ctx, destination); err != nil {
+		return err
+	}
+
+	// On create and update only: a stored destination whose template does not
+	// compile keeps delivering with the event ID as its key.
+	if template := destination.Config["partition_key_template"]; template != "" {
+		if _, err := jmespath.Compile(template); err != nil {
+			return destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{
+				{
+					Field: "config.partition_key_template",
+					Type:  "pattern",
+				},
+			})
+		}
+	}
+
+	return nil
+}
+
+func (d *KafkaDestination) validateConfig(ctx context.Context, destination *models.Destination) error {
 	if err := d.BaseProvider.Validate(ctx, destination); err != nil {
 		return err
 	}
@@ -123,17 +144,6 @@ func (d *KafkaDestination) Validate(ctx context.Context, destination *models.Des
 				{
 					Field: "config.tls",
 					Type:  "invalid",
-				},
-			})
-		}
-	}
-
-	if template := destination.Config["partition_key_template"]; template != "" {
-		if _, err := jmespath.Compile(template); err != nil {
-			return destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{
-				{
-					Field: "config.partition_key_template",
-					Type:  "pattern",
 				},
 			})
 		}
@@ -299,7 +309,7 @@ func brokerDialer(proxyDial proxychain.DialFunc, useTLS bool, rec *dialErrs) fun
 }
 
 func (d *KafkaDestination) resolveConfig(ctx context.Context, destination *models.Destination) (*KafkaConfig, *KafkaCredentials, error) {
-	if err := d.Validate(ctx, destination); err != nil {
+	if err := d.validateConfig(ctx, destination); err != nil {
 		return nil, nil, err
 	}
 
@@ -414,6 +424,8 @@ func (p *KafkaPublisher) Publish(ctx context.Context, event *models.Event) (*des
 	// Evaluate partition key
 	key, err := partitionkey.Evaluate(p.partitionKeyTemplate, payload, event.ID)
 	if err != nil {
+		// A template that panics fails the attempt; other evaluation errors
+		// fall back to the event ID.
 		if message := safejmespath.MessageFor(err); message != "" {
 			return destregistry.NewFormatError("kafka", message, err)
 		}

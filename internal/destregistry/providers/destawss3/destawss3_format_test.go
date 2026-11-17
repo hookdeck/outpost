@@ -232,6 +232,8 @@ func TestAWSS3Publisher_Publish_FormatError(t *testing.T) {
 	require.ErrorAs(t, err, &pubErr)
 	assert.Equal(t, "aws_s3", pubErr.Provider)
 	assert.Equal(t, "format_failed", pubErr.Data["error"])
+	assert.Equal(t, "could not format event for delivery", delivery.Response["error"],
+		"an ordinary evaluation error keeps the generic message; library error text stays out of the attempt")
 }
 
 func TestAWSS3Publisher_Format_EmptyResult(t *testing.T) {

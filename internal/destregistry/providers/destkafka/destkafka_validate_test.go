@@ -464,3 +464,30 @@ func TestKafkaDestination_Preprocess(t *testing.T) {
 		assert.Equal(t, "broker1:9092,broker2:9092", dest.Config["brokers"])
 	})
 }
+
+func TestKafkaDestination_CreatePublisher_StoredTemplateThatDoesNotCompile(t *testing.T) {
+	t.Parallel()
+
+	kafkaDestination, err := destkafka.New(testutil.Registry.MetadataLoader(), nil)
+	require.NoError(t, err)
+
+	dest := testutil.DestinationFactory.Any(
+		testutil.DestinationFactory.WithType("kafka"),
+		testutil.DestinationFactory.WithConfig(map[string]string{
+			"brokers":                "localhost:9092",
+			"topic":                  "test-topic",
+			"sasl_mechanism":         "plain",
+			"partition_key_template": "data.[",
+		}),
+		testutil.DestinationFactory.WithCredentials(map[string]string{
+			"username": "testuser",
+			"password": "testpass",
+		}),
+	)
+
+	require.Error(t, kafkaDestination.Validate(context.Background(), &dest), "rejected on create and update")
+
+	publisher, err := kafkaDestination.CreatePublisher(context.Background(), &dest)
+	require.NoError(t, err, "a stored destination still gets a publisher and falls back to the event ID")
+	publisher.Close()
+}

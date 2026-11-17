@@ -72,8 +72,27 @@ func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePu
 
 // Validate performs destination-specific validation
 func (p *AWSKinesisProvider) Validate(ctx context.Context, destination *models.Destination) error {
-	_, _, err := p.resolveConfig(ctx, destination)
-	return err
+	if _, _, err := p.resolveConfig(ctx, destination); err != nil {
+		return err
+	}
+	return validatePartitionKeyTemplate(destination)
+}
+
+// validatePartitionKeyTemplate runs on create and update only. A stored
+// destination whose template does not compile keeps delivering with the event
+// ID as its partition key.
+func validatePartitionKeyTemplate(destination *models.Destination) error {
+	if template := destination.Config["partition_key_template"]; template != "" {
+		if _, err := jmespath.Compile(template); err != nil {
+			return destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{
+				{
+					Field: "config.partition_key_template",
+					Type:  "pattern",
+				},
+			})
+		}
+	}
+	return nil
 }
 
 // CreatePublisher creates a new publisher instance
@@ -126,17 +145,6 @@ func (p *AWSKinesisProvider) resolveConfig(ctx context.Context, destination *mod
 			return nil, nil, destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{
 				{
 					Field: "config.endpoint",
-					Type:  "pattern",
-				},
-			})
-		}
-	}
-
-	if template := destination.Config["partition_key_template"]; template != "" {
-		if _, err := jmespath.Compile(template); err != nil {
-			return nil, nil, destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{
-				{
-					Field: "config.partition_key_template",
 					Type:  "pattern",
 				},
 			})
@@ -249,6 +257,8 @@ func (p *AWSKinesisPublisher) Format(ctx context.Context, event *models.Event) (
 	// Get partition key from template or use event ID as default
 	partitionKey, err := partitionkey.Evaluate(p.partitionKeyTemplate, payload, event.ID)
 	if err != nil {
+		// A template that panics fails the attempt; other evaluation errors
+		// fall back to the event ID.
 		if safejmespath.MessageFor(err) != "" {
 			return nil, err
 		}

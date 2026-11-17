@@ -499,6 +499,7 @@ components:
         partition_key_template:
           type: string
           description: Optional. JMESPath template to extract the partition key from the event payload (e.g., `metadata."event-id"`). Defaults to event ID.
+          maxLength: 1024
           example: 'data."user_id"'
     AWSKinesisCredentials:
       type: object
@@ -549,6 +550,7 @@ components:
         key_template:
           type: string
           description: JMESPath expression for generating S3 object keys. Default is join('', [time.rfc3339_nano, '_', metadata."event-id", '.json']).
+          maxLength: 1024
           example: 'join(''/'', [time.year, time.month, time.day, metadata."event-id", ''.json''])'
         storage_class:
           type: string
@@ -620,6 +622,7 @@ components:
         partition_key_template:
           type: string
           description: Optional JMESPath template to extract the partition key from the event payload. Defaults to the event ID.
+          maxLength: 1024
           example: "data.customer_id"
     KafkaCredentials:
       type: object
@@ -2445,6 +2448,7 @@ components:
         partition_key_template:
           type: string
           description: Optional. JMESPath template to extract the partition key from the event payload.
+          maxLength: 1024
     AWSKinesisCredentialsUpdate:
       type: object
       description: Partial AWS Kinesis credentials for PATCH updates (RFC 7396 merge-patch).
@@ -2486,6 +2490,7 @@ components:
         key_template:
           type: string
           description: JMESPath expression for generating S3 object keys.
+          maxLength: 1024
         storage_class:
           type: string
           description: The storage class for the S3 objects.
@@ -2543,6 +2548,7 @@ components:
         partition_key_template:
           type: string
           description: Optional JMESPath template to extract the partition key from the event payload.
+          maxLength: 1024
     KafkaCredentialsUpdate:
       type: object
       description: Partial Kafka credentials for PATCH updates (RFC 7396 merge-patch).

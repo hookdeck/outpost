@@ -173,3 +173,29 @@ func TestAWSKinesisDestination_ComputeTarget(t *testing.T) {
 		assert.Equal(t, "my-stream in us-east-1", target.Target)
 	})
 }
+
+func TestAWSKinesisDestination_CreatePublisher_StoredTemplateThatDoesNotCompile(t *testing.T) {
+	t.Parallel()
+
+	provider, err := destawskinesis.New(testutil.Registry.MetadataLoader(), nil)
+	require.NoError(t, err)
+
+	dest := testutil.DestinationFactory.Any(
+		testutil.DestinationFactory.WithType("aws_kinesis"),
+		testutil.DestinationFactory.WithConfig(map[string]string{
+			"stream_name":            "my-stream",
+			"region":                 "us-east-1",
+			"partition_key_template": "data.[",
+		}),
+		testutil.DestinationFactory.WithCredentials(map[string]string{
+			"key":    "test-key",
+			"secret": "test-secret",
+		}),
+	)
+
+	require.Error(t, provider.Validate(context.Background(), &dest), "rejected on create and update")
+
+	publisher, err := provider.CreatePublisher(context.Background(), &dest)
+	require.NoError(t, err, "a stored destination still gets a publisher and falls back to the event ID")
+	publisher.Close()
+}
