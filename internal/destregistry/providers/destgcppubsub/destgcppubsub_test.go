@@ -192,6 +192,18 @@ func TestValidate(t *testing.T) {
 			errContains: "credentials.service_account_json",
 		},
 		{
+			name: "credential type other than service_account",
+			config: map[string]string{
+				"project_id": "my-project",
+				"topic":      "my-topic",
+			},
+			credentials: map[string]string{
+				"service_account_json": `{"type":"authorized_user"}`,
+			},
+			wantErr:     true,
+			errContains: "credentials.service_account_json",
+		},
+		{
 			name: "missing type field - but passes with emulator endpoint",
 			config: map[string]string{
 				"project_id": "my-project",

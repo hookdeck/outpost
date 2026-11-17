@@ -139,6 +139,15 @@ func (d *GCPPubSubDestination) resolveMetadata(ctx context.Context, destination 
 				},
 			})
 		}
+		// This provider only supports service account keys; reject any other credential type.
+		if credType, _ := jsonCheck["type"].(string); credType != "service_account" {
+			return nil, nil, destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{
+				{
+					Field: "credentials.service_account_json",
+					Type:  "invalid_type",
+				},
+			})
+		}
 	}
 
 	return &GCPPubSubDestinationConfig{
