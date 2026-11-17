@@ -62,7 +62,7 @@ const value: components.DestinationCreateAWSSQS = {
     },
   },
   config: {
-    endpoint: "https://sqs.us-east-1.amazonaws.com",
+    endpoint: "http://localhost:4566",
     queueUrl: "https://sqs.us-east-1.amazonaws.com/123456789012/my-queue",
   },
   credentials: {

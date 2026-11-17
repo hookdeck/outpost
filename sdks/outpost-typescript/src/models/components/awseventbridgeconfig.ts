@@ -18,7 +18,7 @@ export type AWSEventBridgeConfig = {
    */
   region: string;
   /**
-   * Optional. Custom AWS endpoint URL (e.g., for LocalStack or VPC endpoints).
+   * Optional. Custom AWS endpoint URL for emulators such as LocalStack. Only accepted when the Outpost deployment sets DESTINATIONS_ALLOW_CUSTOM_ENDPOINTS=true.
    */
   endpoint?: string | undefined;
 };

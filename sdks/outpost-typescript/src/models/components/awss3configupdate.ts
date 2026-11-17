@@ -21,7 +21,7 @@ export type Awss3ConfigUpdate = {
    */
   region?: string | undefined;
   /**
-   * JMESPath expression for generating S3 object keys.
+   * JMESPath expression for generating S3 object keys. Templates may use field paths, string literals, `join`, `to_string`, `not_null` and `||`.
    */
   keyTemplate?: string | undefined;
   /**

@@ -57,7 +57,7 @@ export type KafkaConfigUpdate = {
    */
   tls?: KafkaConfigUpdateTls | undefined;
   /**
-   * Optional JMESPath template to extract the partition key from the event payload.
+   * Optional JMESPath template to extract the partition key from the event payload. Templates may use field paths, string literals, `join`, `to_string`, `not_null` and `||`.
    */
   partitionKeyTemplate?: string | undefined;
 };
