@@ -44,6 +44,9 @@ on:
       - "cmd/outpost-server/**"
       - ".github/workflows/spec-sdk-tests.yml"
 
+permissions:
+  contents: read
+
 jobs:
   spec-sdk-tests:
     runs-on: ubuntu-latest
@@ -197,6 +200,8 @@ jobs:
       - name: Regenerate + build TypeScript SDK from this PR's spec
         env:
           SPEAKEASY_API_KEY: ${{ secrets.SPEAKEASY_API_KEY }}
+          # `speakeasy run` looks up the latest CLI version through the GitHub API.
+          GH_TOKEN: ${{ github.token }}
         # Same script developers run locally — keeps CI and local in sync.
         run: ./spec-sdk-tests/scripts/regenerate-sdk.sh TS
 
