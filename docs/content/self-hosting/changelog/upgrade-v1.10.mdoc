@@ -3,76 +3,39 @@ title: "Upgrade to v1.10"
 description: "Breaking changes and behavior changes when upgrading Outpost from v1.9 to v1.10."
 ---
 
-This guide covers what changes when upgrading from v1.9 to v1.10. There are four breaking changes to review before upgrading, each of which can make existing destinations fail or events get rejected.
+This guide covers what changes when upgrading from v1.9 to v1.10. There is one breaking change to review before upgrading, and a few stricter checks on destination configuration.
 
-There are no new PostgreSQL or ClickHouse migrations. Upgrade by replacing the image in place. Retries scheduled by v1.9 run normally on v1.10, and you can roll back to v1.9.0 the same way.
+There are no new PostgreSQL or ClickHouse migrations. Upgrade by replacing the image in place. Retries scheduled by v1.9 run normally on v1.10.
 
 | Change | Impact | Action Required |
 | --- | --- | --- |
-| [Custom endpoints are off by default](#custom-endpoints-are-off-by-default) | AWS and Pub/Sub destinations with `config.endpoint`, and `aws_sqs` destinations with a `queue_url` that is not an AWS host | Set `DESTINATIONS_ALLOW_CUSTOM_ENDPOINTS=true` |
-| [Key and partition key templates accept fewer forms](#key-and-partition-key-templates-accept-fewer-forms) | `aws_s3` `key_template`, `kafka` and `aws_kinesis` `partition_key_template` | Rewrite templates that use other JMESPath features |
 | [Events have a size limit](#events-have-a-size-limit) | Publishing events larger than 1 MiB | Set `MAX_EVENT_SIZE_BYTES` |
-| [`gcp_pubsub` accepts only service account keys](#gcp_pubsub-accepts-only-service-account-keys) | `gcp_pubsub` destinations with another Google credential type | Switch to a service account key |
 
 For new features and fixes, see the [v1.10.0 release notes](https://github.com/hookdeck/outpost/releases/tag/v1.10.0).
 
 ## Breaking Changes
 
-### Custom endpoints are off by default
-
-A destination can no longer send events to a server of its own choosing unless you allow it. This covers `config.endpoint` on `aws_eventbridge`, `aws_kinesis`, `aws_s3`, `aws_sqs` and `gcp_pubsub`, and an `aws_sqs` `queue_url` that is not an `https` URL on an AWS SQS host. You are affected if you use LocalStack, the Pub/Sub emulator, S3-compatible storage or VPC endpoints.
-
-To keep them working, set `DESTINATIONS_ALLOW_CUSTOM_ENDPOINTS=true` (`destinations.allow_custom_endpoints` in YAML) before upgrading. The default is `false`. With it on, the destination owner chooses the server Outpost sends to, and `gcp_pubsub` connects to a custom endpoint without TLS or authentication, so leave it off when people outside your organization create destinations. See [Outbound Network Access](/docs/outpost/self-hosting/deployment#outbound-network-access).
-
-With it off:
-
-- Creating or updating such a destination returns `422` with `config.endpoint` or `config.queue_url` marked `forbidden`.
-- Existing destinations fail every attempt with a validation error that lists the field. Failed attempts are retried on the normal schedule and count toward consecutive failure alerts and auto-disable.
-- The destination type metadata no longer lists `endpoint`.
-
-Once you turn the option on, these destinations deliver again, including their pending retries. See the [configuration reference](/docs/outpost/self-hosting/configuration#destinations).
-
-### Key and partition key templates accept fewer forms
-
-`key_template` on [`aws_s3`](/docs/outpost/destinations/aws-s3#object-key) and `partition_key_template` on [`kafka`](/docs/outpost/destinations/kafka#partition-key) and [`aws_kinesis`](/docs/outpost/destinations/aws-kinesis#partition-key) now accept only these forms:
-
-- field paths, with integer indexes such as `data.items[0].id`
-- string, number, boolean and `null` literals
-- `join('<literal>', [ ... ])`, with a literal separator and a list of the other forms
-- `to_string(...)` and `not_null(...)`
-- `||`
-
-A template can be at most 1024 bytes and contain at most 32 field paths, where a path inside `to_string` counts as 6. Pipes, projections such as `[*]`, filters, slices, any other function, and a list outside `join` are rejected. That includes joining an array taken from the event, such as `join(',', data.items[*].id)`. The default S3 template is accepted.
-
-Creating or updating a destination with a template outside these limits returns `422` with `pattern` (or `maxlength` for the length) on the field. Existing destinations behave as follows until you change the template:
-
-- `aws_s3`: every attempt fails with a validation error.
-- `kafka` and `aws_kinesis`: every attempt fails with a validation error if the template is valid JMESPath but not an accepted form, or is over 1024 bytes. A template that is not valid JMESPath keeps delivering with the event ID as the key, as before.
-
-Rewrite templates into the accepted forms:
-
-| Before | After |
-| --- | --- |
-| `data.items[0].id \| to_string(@)` | `to_string(data.items[0].id)` |
-| `data.order.id \| join('-', [@, 'x'])` | `join('-', [data.order.id, 'x'])` |
-| `join(',', data.items[*].id)` | `join(',', [data.items[0].id, data.items[1].id])` |
-
 ### Events have a size limit
 
-Publishing now enforces `MAX_EVENT_SIZE_BYTES` (`max_event_size_bytes` in YAML), 1 MiB by default. A publish API request over the limit gets a `413`. A larger message on the publish queue is never redelivered: RabbitMQ and Azure Service Bus reject it, so it is dead-lettered if the queue has dead-lettering configured, and other brokers acknowledge it and it is deleted.
+Publishing now enforces `MAX_EVENT_SIZE_BYTES` (`max_event_size_bytes` in YAML), 1 MiB by default. v1.9 had no limit.
 
-If you publish events larger than 1 MiB, raise `MAX_EVENT_SIZE_BYTES`, or set it to `0` for no limit. See the [configuration reference](/docs/outpost/self-hosting/configuration#destinations).
+- A publish API request over the limit gets a `413`.
+- A larger message on the publish queue is never redelivered: RabbitMQ and Azure Service Bus reject it, so it is dead-lettered if the queue has dead-lettering configured, and other brokers acknowledge it and it is deleted.
 
-### `gcp_pubsub` accepts only service account keys
-
-`credentials.service_account_json` must be a service account key, with `"type": "service_account"`. Creating or updating a destination with another Google credential type returns `422` on `credentials.service_account_json`. Existing destinations that use one fail every attempt with a validation error until you replace the credentials with a service account key. See [GCP Pub/Sub](/docs/outpost/destinations/gcp-pubsub).
-
-This check does not apply to a destination that uses a custom endpoint, such as the Pub/Sub emulator.
+If you publish events larger than 1 MiB, raise `MAX_EVENT_SIZE_BYTES` before upgrading, or set it to `0` for no limit. Keep it well under your message queue's per-message size limit. See the [configuration reference](/docs/outpost/self-hosting/configuration#destinations).
 
 ## Behavior Changes
 
-- A `kafka` destination whose `brokers` value is malformed, for example a port outside 1 to 65535, fails every attempt with a validation error on `config.brokers`. The Kafka client changed, so brokers now see the client ID `outpost` and error messages differ. Error codes are unchanged.
-- Destination filters can be nested up to 16 levels. Creating or updating a destination with a deeper filter returns `422`. See [Destination Filters](/docs/outpost/features/filter).
+Destination configuration is checked more strictly. A destination that no longer passes is rejected with a `422` on create and update, and an existing one fails each attempt with a validation error that lists the field until it is changed.
+
+- A custom `config.endpoint` on `aws_eventbridge`, `aws_kinesis`, `aws_s3`, `aws_sqs` and `gcp_pubsub` destinations, and an `aws_sqs` `queue_url` that is not an AWS SQS host, need `DESTINATIONS_ALLOW_CUSTOM_ENDPOINTS=true`. It is off by default. Set it if you use LocalStack, the Pub/Sub emulator, S3-compatible storage or VPC endpoints. See [Outbound Network Access](/docs/outpost/self-hosting/deployment#outbound-network-access).
+- `key_template` on [`aws_s3`](/docs/outpost/destinations/aws-s3#object-key) and `partition_key_template` on [`kafka`](/docs/outpost/destinations/kafka#partition-key) and [`aws_kinesis`](/docs/outpost/destinations/aws-kinesis#partition-key) accept field paths, literals, `join`, `to_string`, `not_null` and `||`, up to 1024 bytes. Other JMESPath features, such as pipes, filters and `[*]`, are rejected. The default S3 template is accepted. A `kafka` or `aws_kinesis` template that is not valid JMESPath keeps using the event ID as the key, as before.
+- [`gcp_pubsub`](/docs/outpost/destinations/gcp-pubsub) destinations accept only a service account key in `credentials.service_account_json`.
+- A `kafka` destination whose `brokers` value is malformed, for example a port outside 1 to 65535, is rejected. The Kafka client changed, so brokers now see the client ID `outpost` and error messages differ. Error codes are unchanged.
+- [Destination filters](/docs/outpost/features/filter) can be nested up to 16 levels. A deeper filter is rejected on create and update; existing filters keep working.
+
+Other changes:
+
 - On the PostgreSQL log store, event and attempt lists no longer repeat or skip records at page boundaries. Cursors issued before the upgrade still work. During a rolling upgrade, a node still on v1.9 answers a cursor issued by a v1.10 node with `400 invalid cursor`.
 - The `timestamp` of an [MCP](/docs/outpost/destinations/mcp) event is now truncated to milliseconds, and a retry sends the same body as the first attempt.
 - Log records exported over OTLP name the caller attributes `code.function.name`, `code.file.path` and `code.line.number`. v1.9 used `code.function`, `code.filepath` and `code.lineno`. Update any queries or dashboards that use the old names.
@@ -82,6 +45,6 @@ This check does not apply to a destination that uses a custom endpoint, such as 
 
 See the [configuration reference](/docs/outpost/self-hosting/configuration) for defaults and details.
 
-- [`DESTINATIONS_ALLOW_CUSTOM_ENDPOINTS`](/docs/outpost/self-hosting/configuration#destinations): allow custom endpoints on AWS and Pub/Sub destinations. Off by default.
 - [`MAX_EVENT_SIZE_BYTES`](/docs/outpost/self-hosting/configuration#destinations): maximum event size. Default 1 MiB.
+- [`DESTINATIONS_ALLOW_CUSTOM_ENDPOINTS`](/docs/outpost/self-hosting/configuration#destinations): allow custom endpoints on AWS and Pub/Sub destinations. Off by default.
 - [`DESTINATIONS_WEBHOOK_FOLLOW_REDIRECTS`](/docs/outpost/self-hosting/configuration#webhook-behavior): follow up to 10 redirects on webhook deliveries again, for destinations that still answer with a redirect. Off by default, so a 3xx stays a failed attempt as in v1.8.
