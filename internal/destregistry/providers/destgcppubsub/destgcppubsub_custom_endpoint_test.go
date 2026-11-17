@@ -44,8 +44,7 @@ func TestGCPPubSub_CustomEndpoint(t *testing.T) {
 
 		_, err = provider.CreatePublisher(context.Background(), build("localhost:8085"))
 		require.Error(t, err)
-		var attemptErr *destregistry.ErrDestinationPublishAttempt
-		assert.ErrorAs(t, err, &attemptErr)
+		assert.ErrorAs(t, err, &validationErr)
 	})
 
 	t.Run("not allowed accepts destination without endpoint", func(t *testing.T) {

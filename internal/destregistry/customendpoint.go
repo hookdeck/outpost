@@ -1,12 +1,13 @@
 package destregistry
 
 import (
-	"github.com/hookdeck/outpost/internal/destregistry/metadata"
 	"github.com/hookdeck/outpost/internal/models"
 )
 
+// ConfigKeyEndpoint is the config key that points a destination at a server other than the cloud service.
 const ConfigKeyEndpoint = "endpoint"
 
+// ValidateCustomEndpointAllowed rejects a destination that sets config.endpoint unless allowed is true.
 func ValidateCustomEndpointAllowed(allowed bool, destination *models.Destination) error {
 	if allowed || destination.Config[ConfigKeyEndpoint] == "" {
 		return nil
@@ -15,14 +16,4 @@ func ValidateCustomEndpointAllowed(allowed bool, destination *models.Destination
 		Field: "config." + ConfigKeyEndpoint,
 		Type:  "forbidden",
 	}})
-}
-
-func (p *BaseProvider) OmitConfigField(key string) {
-	fields := make([]metadata.FieldSchema, 0, len(p.metadata.ConfigFields))
-	for _, f := range p.metadata.ConfigFields {
-		if f.Key != key {
-			fields = append(fields, f)
-		}
-	}
-	p.metadata.ConfigFields = fields
 }

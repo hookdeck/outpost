@@ -99,8 +99,42 @@ func TestRegistry_CustomEndpointOff_StoredDestinationFailsAttempt(t *testing.T) 
 			assert.Equal(t, "failed", attempt.Status)
 			assert.Equal(t, "ERR", attempt.Code)
 			assert.Contains(t, attempt.ResponseData["error"], "validation failed")
+			assert.Equal(t, []destregistry.ValidationErrorDetail{{Field: "config.endpoint", Type: "forbidden"}}, attempt.ResponseData["errors"])
+
+			var attemptErr *destregistry.ErrDestinationPublishAttempt
+			require.ErrorAs(t, err, &attemptErr)
+			assert.Equal(t, "validation_failed", attemptErr.Data["error"])
+			assert.Equal(t, []destregistry.ValidationErrorDetail{{Field: "config.endpoint", Type: "forbidden"}}, attemptErr.Data["errors"])
 		})
 	}
+}
+
+func TestRegistry_CustomEndpointOff_SQSQueueURL(t *testing.T) {
+	sqsConfig := func(queueURL string) map[string]string { return map[string]string{"queue_url": queueURL} }
+	localStack := "http://localhost:4566/000000000000/q"
+
+	t.Run("off rejects a non-AWS queue_url on validate and fails the stored attempt", func(t *testing.T) {
+		registry := newCustomEndpointRegistry(t, false)
+		want := []destregistry.ValidationErrorDetail{{Field: "config.queue_url", Type: "forbidden"}}
+		for _, queueURL := range []string{localStack, "https://sqs.us-east-1.amazonaws.com.evil.example/1/q", "https://queue.example.com/1/q"} {
+			dest := customEndpointDestination("aws_sqs", sqsConfig(queueURL))
+			err := registry.ValidateDestination(context.Background(), dest)
+			var validationErr *destregistry.ErrDestinationValidation
+			require.ErrorAs(t, err, &validationErr, queueURL)
+			assert.Equal(t, want, validationErr.Errors, queueURL)
+
+			event := testutil.EventFactory.Any()
+			attempt, err := registry.PublishEvent(context.Background(), dest, &event)
+			require.Error(t, err, queueURL)
+			require.NotNil(t, attempt)
+			assert.Equal(t, want, attempt.ResponseData["errors"], queueURL)
+		}
+	})
+
+	t.Run("on accepts a non-AWS queue_url without endpoint", func(t *testing.T) {
+		registry := newCustomEndpointRegistry(t, true)
+		assert.NoError(t, registry.ValidateDestination(context.Background(), customEndpointDestination("aws_sqs", sqsConfig(localStack))))
+	})
 }
 
 func TestRegistry_CustomEndpointOff_OmitsEndpointFromMetadata(t *testing.T) {

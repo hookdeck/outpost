@@ -53,7 +53,7 @@ func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePu
 		opt(provider)
 	}
 	if !provider.allowCustomEndpoints {
-		base.OmitConfigField(destregistry.ConfigKeyEndpoint)
+		provider.OmitConfigField(destregistry.ConfigKeyEndpoint)
 	}
 	return provider, nil
 }
@@ -69,10 +69,7 @@ func (d *GCPPubSubDestination) Validate(ctx context.Context, destination *models
 func (d *GCPPubSubDestination) CreatePublisher(ctx context.Context, destination *models.Destination) (destregistry.Publisher, error) {
 	cfg, creds, err := d.resolveMetadata(ctx, destination)
 	if err != nil {
-		return nil, destregistry.NewErrDestinationPublishAttempt(err, "gcp_pubsub", map[string]interface{}{
-			"error":   "validation_failed",
-			"message": err.Error(),
-		})
+		return nil, err
 	}
 
 	opts := []option.ClientOption{option.WithTelemetryDisabled()}
