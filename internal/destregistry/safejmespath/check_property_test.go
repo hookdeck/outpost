@@ -107,7 +107,10 @@ func (r *accepted) scalar(x *g) bool {
 	case "fn":
 		switch x.s {
 		case "to_string":
-			return len(x.kids) == 1 && r.scalar(x.kids[0])
+			before := r.refs
+			ok := len(x.kids) == 1 && r.scalar(x.kids[0])
+			r.refs += (toStringWeight - 1) * (r.refs - before)
+			return ok
 		case "not_null":
 			return len(x.kids) >= 1 && r.all(x.kids)
 		case "join":

@@ -8,7 +8,12 @@ import (
 )
 
 // MaxReferences is the largest number of field paths a template may contain.
+// A path inside to_string counts toStringWeight times.
 const MaxReferences = 32
+
+// toStringWeight is how much to_string can enlarge a value: JSON-encoding an
+// object or array writes some characters as six-byte escapes.
+const toStringWeight = 6
 
 // ErrNotAccepted marks a template that parses but is outside the accepted
 // forms. A template that does not parse yields the parser's error instead.
@@ -23,11 +28,12 @@ var ErrNotAccepted = errors.New("template is outside the accepted forms")
 //	literal  = 'string' or a JSON string, number, boolean or null
 //
 // go-jmespath cannot be interrupted and has no limits, so templates are held
-// to forms that cannot grow a value. Every field path returns at most the
-// whole input and nothing else enlarges a value, so with at most
-// MaxReferences paths the result and every intermediate value are bounded by
-// that many copies of the input plus the template's literals, and evaluation
-// time is linear in the template and the input.
+// to forms whose result stays proportional to the input. A field path returns
+// at most the whole input, to_string enlarges it at most toStringWeight
+// times, and join adds its literal separator once per item. With paths
+// counted against MaxReferences, the result and every intermediate value are
+// bounded by that many copies of the input plus what the template's literals
+// add, and evaluation time is linear in the input.
 func Check(expression string) (err error) {
 	defer func() {
 		if recover() != nil {
@@ -150,7 +156,10 @@ func (c *checker) function(n astNode) bool {
 	args := n.children()
 	switch name {
 	case "to_string":
-		return len(args) == 1 && c.scalar(args[0])
+		before := c.refs
+		ok := len(args) == 1 && c.scalar(args[0])
+		c.refs += (toStringWeight - 1) * (c.refs - before)
+		return ok
 	case "not_null":
 		if len(args) == 0 {
 			return false

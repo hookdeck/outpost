@@ -147,6 +147,8 @@ func TestCheck_Accepts(t *testing.T) {
 		`join('', ['prefix-', data.a, '-suffix'])`,
 		`join(` + "`\"/\"`" + `, [data.a, data.b])`,
 		`join('/', [to_string(data.n), not_null(data.a, 'x'), data.b || 'y'])`,
+		// A path inside to_string counts six times: five fit in the limit of 32.
+		`join('', [to_string(data), to_string(data), to_string(data), to_string(data), to_string(data), data.a, data.b])`,
 		"`1`",
 		"`true`",
 		"`null`",
@@ -232,6 +234,8 @@ func TestCheck_Rejects(t *testing.T) {
 		`data.a.to_string(data.b)`,
 		"`1`(data)",
 		// Arity.
+		// Six paths inside to_string exceed the limit of 32.
+		`join('', [to_string(data), to_string(data), to_string(data), to_string(data), to_string(data), to_string(data)])`,
 		`to_string()`,
 		`to_string(data.a, data.b)`,
 		`not_null()`,
