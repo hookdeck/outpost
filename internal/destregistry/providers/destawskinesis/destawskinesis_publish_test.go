@@ -309,7 +309,7 @@ func (s *AWSKinesisSuite) SetupSuite() {
 		o.BaseEndpoint = aws.String(s.localstackEndpoint)
 	})
 
-	s.provider, err = destawskinesis.New(testutil.Registry.MetadataLoader(), nil)
+	s.provider, err = destawskinesis.New(testutil.Registry.MetadataLoader(), nil, destawskinesis.WithAllowCustomEndpoints(true))
 	require.NoError(t, err)
 }
 

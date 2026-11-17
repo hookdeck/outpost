@@ -44,18 +44,31 @@ type AWSS3Credentials struct {
 // AWSS3Provider is the S3 Provider implementation
 type AWSS3Provider struct {
 	*destregistry.BaseProvider
+	allowCustomEndpoints bool
 }
 
 var _ destregistry.Provider = (*AWSS3Provider)(nil)
 
+type Option func(*AWSS3Provider)
+
+func WithAllowCustomEndpoints(allow bool) Option {
+	return func(p *AWSS3Provider) {
+		p.allowCustomEndpoints = allow
+	}
+}
+
 // New creates a new AWSS3Provider
-func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePublisherOption) (*AWSS3Provider, error) {
+func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePublisherOption, opts ...Option) (*AWSS3Provider, error) {
 	base, err := destregistry.NewBaseProvider(loader, "aws_s3", basePublisherOpts...)
 	if err != nil {
 		return nil, err
 	}
 
-	return &AWSS3Provider{BaseProvider: base}, nil
+	provider := &AWSS3Provider{BaseProvider: base}
+	for _, opt := range opts {
+		opt(provider)
+	}
+	return provider, nil
 }
 
 // Validate checks if the destination configuration is valid
@@ -113,6 +126,10 @@ func (p *AWSS3Provider) CreatePublisher(ctx context.Context, destination *models
 // resolveConfig resolves the configuration and credentials for the S3 destination
 func (p *AWSS3Provider) resolveConfig(ctx context.Context, destination *models.Destination) (*AWSS3Config, *AWSS3Credentials, error) {
 	if err := p.BaseProvider.Validate(ctx, destination); err != nil {
+		return nil, nil, err
+	}
+
+	if err := destregistry.ValidateCustomEndpointAllowed(p.allowCustomEndpoints, destination); err != nil {
 		return nil, nil, err
 	}
 

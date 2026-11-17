@@ -71,6 +71,8 @@ go run cmd/outpost/main.go
 
 The server should now be running and accessible at `http://localhost:3333`.
 
+The GCP Pub/Sub tests set `config.endpoint`, so start the server with `DESTINATIONS_ALLOW_CUSTOM_ENDPOINTS=true`.
+
 ### Option 2: Targeting a Remote Instance
 
 If you are running tests against a remote Outpost server, you must configure the `API_BASE_URL` in the test suite's `.env` file to point to your server's address.

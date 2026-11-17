@@ -24,7 +24,7 @@ func TestAWSKinesisPublisher_ResponseWithoutShardID(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	provider, err := destawskinesis.New(testutil.Registry.MetadataLoader(), nil)
+	provider, err := destawskinesis.New(testutil.Registry.MetadataLoader(), nil, destawskinesis.WithAllowCustomEndpoints(true))
 	require.NoError(t, err)
 
 	destination := testutil.DestinationFactory.Any(

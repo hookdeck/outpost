@@ -67,6 +67,7 @@ func TestE2E_Regression_FormatErrorIsDeliveredAttempt(t *testing.T) {
 	cfg.RetrySchedule = []int{1, 1}
 	cfg.RetryPollBackoffMs = 50
 	cfg.LogBatchThresholdSeconds = 0 // immediate flush so /attempts is reliable
+	cfg.Destinations.AllowCustomEndpoints = true
 	require.NoError(t, cfg.Validate(config.Flags{}))
 	configs.ApplyMigrations(t, &cfg)
 

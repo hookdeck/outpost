@@ -234,10 +234,11 @@ func (r *registry) PublishEvent(ctx context.Context, destination *models.Destina
 			if pubErr != nil {
 				return attempt, pubErr
 			}
+			attempt.ResponseData["errors"] = valErr.Errors
 			return attempt, &ErrDestinationPublishAttempt{
 				Err:      err,
 				Provider: destination.Type,
-				Data:     map[string]interface{}{"error": "validation_failed", "message": err.Error()},
+				Data:     map[string]interface{}{"error": "validation_failed", "message": err.Error(), "errors": valErr.Errors},
 			}
 		}
 		return nil, err

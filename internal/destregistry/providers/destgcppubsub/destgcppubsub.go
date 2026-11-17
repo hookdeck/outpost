@@ -17,6 +17,7 @@ import (
 
 type GCPPubSubDestination struct {
 	*destregistry.BaseProvider
+	allowCustomEndpoints bool
 }
 
 type GCPPubSubDestinationConfig struct {
@@ -31,15 +32,30 @@ type GCPPubSubDestinationCredentials struct {
 
 var _ destregistry.Provider = (*GCPPubSubDestination)(nil)
 
-func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePublisherOption) (*GCPPubSubDestination, error) {
+type Option func(*GCPPubSubDestination)
+
+func WithAllowCustomEndpoints(allow bool) Option {
+	return func(p *GCPPubSubDestination) {
+		p.allowCustomEndpoints = allow
+	}
+}
+
+func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePublisherOption, opts ...Option) (*GCPPubSubDestination, error) {
 	base, err := destregistry.NewBaseProvider(loader, "gcp_pubsub", basePublisherOpts...)
 	if err != nil {
 		return nil, err
 	}
 
-	return &GCPPubSubDestination{
+	provider := &GCPPubSubDestination{
 		BaseProvider: base,
-	}, nil
+	}
+	for _, opt := range opts {
+		opt(provider)
+	}
+	if !provider.allowCustomEndpoints {
+		provider.OmitConfigField(destregistry.ConfigKeyEndpoint)
+	}
+	return provider, nil
 }
 
 func (d *GCPPubSubDestination) Validate(ctx context.Context, destination *models.Destination) error {
@@ -53,10 +69,7 @@ func (d *GCPPubSubDestination) Validate(ctx context.Context, destination *models
 func (d *GCPPubSubDestination) CreatePublisher(ctx context.Context, destination *models.Destination) (destregistry.Publisher, error) {
 	cfg, creds, err := d.resolveMetadata(ctx, destination)
 	if err != nil {
-		return nil, destregistry.NewErrDestinationPublishAttempt(err, "gcp_pubsub", map[string]interface{}{
-			"error":   "validation_failed",
-			"message": err.Error(),
-		})
+		return nil, err
 	}
 
 	opts := []option.ClientOption{option.WithTelemetryDisabled()}
@@ -95,6 +108,10 @@ func (d *GCPPubSubDestination) CreatePublisher(ctx context.Context, destination 
 
 func (d *GCPPubSubDestination) resolveMetadata(ctx context.Context, destination *models.Destination) (*GCPPubSubDestinationConfig, *GCPPubSubDestinationCredentials, error) {
 	if err := d.BaseProvider.Validate(ctx, destination); err != nil {
+		return nil, nil, err
+	}
+
+	if err := destregistry.ValidateCustomEndpointAllowed(d.allowCustomEndpoints, destination); err != nil {
 		return nil, nil, err
 	}
 

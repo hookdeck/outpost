@@ -52,6 +52,17 @@ func (p *BaseProvider) Metadata() *metadata.ProviderMetadata {
 	return p.metadata
 }
 
+// OmitConfigField removes the config field with the given key from the provider metadata.
+func (p *BaseProvider) OmitConfigField(key string) {
+	fields := make([]metadata.FieldSchema, 0, len(p.metadata.ConfigFields))
+	for _, f := range p.metadata.ConfigFields {
+		if f.Key != key {
+			fields = append(fields, f)
+		}
+	}
+	p.metadata.ConfigFields = fields
+}
+
 // ObfuscateDestination returns a copy of the destination with sensitive fields masked
 func (p *BaseProvider) ObfuscateDestination(destination *models.Destination) *models.Destination {
 	result := *destination // shallow copy

@@ -33,7 +33,7 @@ curl '{% $OUTPOST_API_BASE_URL %}/tenants/<TENANT_ID>/destinations' \
 |-------|------|----------|-------------|
 | `config.event_bus_name` | string | No | The event bus name or ARN. Defaults to the account's default event bus. |
 | `config.region` | string | Yes | AWS region (e.g., `us-east-1`) |
-| `config.endpoint` | string | No | Custom endpoint URL (for LocalStack, etc.) |
+| `config.endpoint` | string | No | Custom endpoint URL for emulators such as LocalStack. Requires [`DESTINATIONS_ALLOW_CUSTOM_ENDPOINTS`](/docs/outpost/self-hosting/configuration#destinations). |
 
 ### Credentials
 

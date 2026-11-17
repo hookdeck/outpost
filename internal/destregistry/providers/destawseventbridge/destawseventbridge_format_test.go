@@ -16,7 +16,7 @@ import (
 
 func newPublisher(t *testing.T, eventBusName string) *destawseventbridge.AWSEventBridgePublisher {
 	t.Helper()
-	provider, err := destawseventbridge.New(testutil.Registry.MetadataLoader(), nil, destawseventbridge.WithSource("outpost"))
+	provider, err := destawseventbridge.New(testutil.Registry.MetadataLoader(), nil, destawseventbridge.WithSource("outpost"), destawseventbridge.WithAllowCustomEndpoints(true))
 	require.NoError(t, err)
 
 	config := map[string]string{"region": "us-east-1"}

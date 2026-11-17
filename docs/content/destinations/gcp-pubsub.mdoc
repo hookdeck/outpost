@@ -32,7 +32,7 @@ curl '{% $OUTPOST_API_BASE_URL %}/tenants/<TENANT_ID>/destinations' \
 |-------|------|----------|-------------|
 | `config.project_id` | string | Yes | GCP project ID |
 | `config.topic` | string | Yes | Pub/Sub topic name |
-| `config.endpoint` | string | No | Custom endpoint for the Pub/Sub emulator |
+| `config.endpoint` | string | No | Custom endpoint for the Pub/Sub emulator, connected without TLS or authentication. Requires [`DESTINATIONS_ALLOW_CUSTOM_ENDPOINTS`](/docs/outpost/self-hosting/configuration#destinations). |
 
 ### Credentials
 
@@ -86,6 +86,8 @@ Results in a Pub/Sub message with:
 5. Use the JSON file contents as `credentials.service_account_json`
 
 ## Local Development with the Pub/Sub Emulator
+
+Set `DESTINATIONS_ALLOW_CUSTOM_ENDPOINTS=true` on the Outpost deployment, then set `config.endpoint` to the emulator's host and port:
 
 ```json
 {
