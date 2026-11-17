@@ -17,19 +17,19 @@ class AWSSQSConfigUpdateTypedDict(TypedDict):
     r"""Partial AWS SQS config for PATCH updates (RFC 7396 merge-patch)."""
 
     endpoint: NotRequired[str]
-    r"""Optional. Custom AWS endpoint URL (e.g., for LocalStack or specific regions)."""
+    r"""Optional. Custom AWS endpoint URL for emulators such as LocalStack. Only accepted when the Outpost deployment sets DESTINATIONS_ALLOW_CUSTOM_ENDPOINTS=true."""
     queue_url: NotRequired[str]
-    r"""The URL of the SQS queue."""
+    r"""The URL of the SQS queue. A URL that is not an AWS SQS endpoint is only accepted when the Outpost deployment sets DESTINATIONS_ALLOW_CUSTOM_ENDPOINTS=true."""
 
 
 class AWSSQSConfigUpdate(BaseModel):
     r"""Partial AWS SQS config for PATCH updates (RFC 7396 merge-patch)."""
 
     endpoint: Optional[str] = None
-    r"""Optional. Custom AWS endpoint URL (e.g., for LocalStack or specific regions)."""
+    r"""Optional. Custom AWS endpoint URL for emulators such as LocalStack. Only accepted when the Outpost deployment sets DESTINATIONS_ALLOW_CUSTOM_ENDPOINTS=true."""
 
     queue_url: Optional[str] = None
-    r"""The URL of the SQS queue."""
+    r"""The URL of the SQS queue. A URL that is not an AWS SQS endpoint is only accepted when the Outpost deployment sets DESTINATIONS_ALLOW_CUSTOM_ENDPOINTS=true."""
 
     @model_serializer(mode="wrap")
     def _serialize_model_with_info(self, handler, info):
