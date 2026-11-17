@@ -234,7 +234,8 @@ func (h *DestinationHandlers) applyDestinationUpdate(c *gin.Context, input Updat
 	// Validate.
 	if input.Topics != nil {
 		updatedDestination.Topics = input.Topics
-		if err := updatedDestination.Validate(h.topics, h.topicsAllowWildcards); err != nil {
+		// Topics only: a stored filter over the depth limit must not block other updates.
+		if err := updatedDestination.Topics.Validate(h.topics, h.topicsAllowWildcards); err != nil {
 			AbortWithValidationError(c, err)
 			return nil, false, false
 		}
@@ -276,6 +277,10 @@ func (h *DestinationHandlers) applyDestinationUpdate(c *gin.Context, input Updat
 			var filter models.Filter
 			if err := json.Unmarshal(input.Filter, &filter); err != nil {
 				AbortWithValidationError(c, fmt.Errorf("invalid filter: %w", err))
+				return nil, false, false
+			}
+			if err := filter.Validate(); err != nil {
+				AbortWithValidationError(c, err)
 				return nil, false, false
 			}
 			updatedDestination.Filter = filter

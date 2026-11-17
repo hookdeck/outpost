@@ -178,6 +178,8 @@ curl '{% $OUTPOST_API_BASE_URL %}/tenants/<TENANT_ID>/destinations' \
 }'
 ```
 
+A filter can be nested up to 16 levels deep, counting the filter object as level 1 and each nested object or array as one more. Creating or updating a destination with a deeper filter fails with a validation error.
+
 To remove a filter, set it to an empty object:
 
 ```sh
