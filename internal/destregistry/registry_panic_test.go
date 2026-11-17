@@ -230,3 +230,94 @@ func TestPublisherCacheEvictionContainsClosePanic(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "success", attempt.Status, "the cache still works after the panic")
 }
+
+// gatedPublisher blocks each Publish until released, then panics.
+type gatedPublisher struct {
+	panicPublisher
+	entered chan struct{}
+	release chan struct{}
+}
+
+func (p *gatedPublisher) Publish(ctx context.Context, event *models.Event) (*destregistry.Delivery, error) {
+	p.entered <- struct{}{}
+	<-p.release
+	panic("publish blew up")
+}
+
+// gatedProvider hands out one gatedPublisher, then healthy publishers.
+type gatedProvider struct {
+	*mockProvider
+	mu      sync.Mutex
+	first   *gatedPublisher
+	healthy []*panicPublisher
+
+	handedOutFirst bool
+}
+
+func newGatedProvider(base *mockProvider) *gatedProvider {
+	return &gatedProvider{
+		mockProvider: base,
+		first:        &gatedPublisher{entered: make(chan struct{}, 2), release: make(chan struct{})},
+	}
+}
+
+func (p *gatedProvider) CreatePublisher(ctx context.Context, dest *models.Destination) (destregistry.Publisher, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if !p.handedOutFirst {
+		p.handedOutFirst = true
+		return p.first, nil
+	}
+	pub := &panicPublisher{}
+	p.healthy = append(p.healthy, pub)
+	return pub, nil
+}
+
+func TestPublishEventLatePanicKeepsReplacementPublisher(t *testing.T) {
+	t.Parallel()
+
+	base, err := newMockProvider()
+	require.NoError(t, err)
+	provider := newGatedProvider(base)
+	registry := destregistry.NewRegistry(&destregistry.Config{}, testutil.CreateTestLogger(t))
+	t.Cleanup(func() { destregistry.CloseForTest(registry) })
+	require.NoError(t, registry.RegisterProvider("test", provider))
+
+	dest := &models.Destination{ID: "dest_1", Type: "test"}
+	event := &models.Event{ID: "evt_1"}
+
+	// Two publishes in flight on the same cached publisher. The second starts
+	// once the first is inside Publish, so it finds the publisher in the cache.
+	var wg sync.WaitGroup
+	for i := 0; i < 2; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, _ = registry.PublishEvent(context.Background(), dest, event)
+		}()
+		<-provider.first.entered
+	}
+
+	// The first panic drops the gated publisher from the cache.
+	provider.first.release <- struct{}{}
+	require.Eventually(t, func() bool { return provider.first.closeCount() == 1 }, 5*time.Second, 5*time.Millisecond)
+
+	attempt, err := registry.PublishEvent(context.Background(), dest, event)
+	require.NoError(t, err)
+	require.Equal(t, "success", attempt.Status)
+
+	// The second panic comes from the old publisher and must leave its
+	// replacement in the cache.
+	provider.first.release <- struct{}{}
+	wg.Wait()
+
+	attempt, err = registry.PublishEvent(context.Background(), dest, event)
+	require.NoError(t, err)
+	require.Equal(t, "success", attempt.Status)
+
+	provider.mu.Lock()
+	defer provider.mu.Unlock()
+	require.Len(t, provider.healthy, 1, "the replacement is reused, not rebuilt")
+	assert.Equal(t, 0, provider.healthy[0].closeCount())
+	assert.Equal(t, 1, provider.first.closeCount())
+}

@@ -14,6 +14,7 @@ import (
 
 	"github.com/hookdeck/outpost/internal/backoff"
 	"github.com/hookdeck/outpost/internal/destregistry/metadata"
+	"github.com/hookdeck/outpost/internal/destregistry/safejmespath"
 	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/lru"
@@ -144,7 +145,7 @@ func NewRegistry(cfg *Config, logger *logging.Logger) Registry {
 	}
 
 	onEvict := func(key string, p Publisher) {
-		// Log only the destination ID prefix, not the full key: the key now
+		// Log only the destination ID prefix, not the full key: the key
 		// folds credentials and delivery metadata into an FNV hash, so the
 		// hash suffix is a secret-derived value that should stay out of logs.
 		destID, _, _ := strings.Cut(key, ".")
@@ -206,6 +207,8 @@ func (r *registry) ValidateDestination(ctx context.Context, destination *models.
 func (r *registry) PublishEvent(ctx context.Context, destination *models.Destination, event *models.Event) (attempt *models.Attempt, err error) {
 	var publisher Publisher
 	var cached bool
+	// A panic while creating the publisher or publishing becomes a failed
+	// attempt, so the message is acked and retried like any other failure.
 	defer func() {
 		if rec := recover(); rec != nil {
 			attempt, err = r.publishPanicAttempt(destination, event, publisher, cached, rec)
@@ -259,6 +262,8 @@ func (r *registry) PublishEvent(ctx context.Context, destination *models.Destina
 	deliveryData, err := publisher.Publish(timeoutCtx, event)
 	latencyMs := time.Since(publishStart).Milliseconds()
 	if err != nil {
+		r.logTemplatePanic(destination, event, err)
+
 		// Context canceled = system shutdown, return nil attempt to trigger nack → requeue.
 		// This is handled centrally so individual publishers don't need to check for it.
 		// See: https://github.com/hookdeck/outpost/issues/571
@@ -333,6 +338,26 @@ func (r *registry) PublishEvent(ctx context.Context, destination *models.Destina
 	return attempt, nil
 }
 
+// logTemplatePanic logs the stack of a template panic that a publisher
+// recovered and reported as a failed attempt.
+func (r *registry) logTemplatePanic(destination *models.Destination, event *models.Event, err error) {
+	var pubErr *ErrDestinationPublishAttempt
+	if errors.As(err, &pubErr) {
+		err = pubErr.Err
+	}
+	var panicErr *safejmespath.PanicError
+	if !errors.As(err, &panicErr) {
+		return
+	}
+	r.logger.Error("panic evaluating destination template",
+		zap.String("destination_id", destination.ID),
+		zap.String("destination_type", destination.Type),
+		zap.String("event_id", event.ID),
+		zap.Any("panic", panicErr.Value),
+		zap.ByteString("stack", panicErr.Stack),
+	)
+}
+
 func (r *registry) publishPanicAttempt(destination *models.Destination, event *models.Event, publisher Publisher, cached bool, rec interface{}) (*models.Attempt, error) {
 	r.logger.Error("panic publishing event",
 		zap.String("destination_id", destination.ID),
@@ -342,8 +367,11 @@ func (r *registry) publishPanicAttempt(destination *models.Destination, event *m
 		zap.Stack("stack"),
 	)
 
+	// The publisher may be left broken: drop it so the next attempt creates a
+	// new one. Only this publisher is dropped, since another attempt may have
+	// replaced it already. RemoveIf closes it through the eviction callback.
 	if cached && publisher != nil {
-		r.publishers.Remove(MakePublisherKey(destination))
+		r.publishers.RemoveIf(MakePublisherKey(destination), func(p Publisher) bool { return p == publisher })
 	}
 
 	const message = "internal error while delivering the event"
