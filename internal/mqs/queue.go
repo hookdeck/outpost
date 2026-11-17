@@ -90,7 +90,7 @@ type Message struct {
 }
 
 // Ack, Nack and Reject settle the message. Only the first call reaches the
-// broker: some brokers panic when a message is settled twice.
+// broker: the gocloud client panics when a message is settled twice.
 func (m *Message) Ack() {
 	if m.settled.CompareAndSwap(false, true) {
 		m.QueueMessage.Ack()

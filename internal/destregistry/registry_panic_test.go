@@ -45,7 +45,7 @@ func (p *panicPublisher) closeCount() int {
 }
 
 // panicProvider hands out panicPublishers. The first publisher it creates
-// panics in Publish when firstPanicsPublish is set, in Close when
+// panics in Publish when firstPanicsPub is set, in Close when
 // firstPanicsClose is set; later ones behave.
 type panicProvider struct {
 	*mockProvider

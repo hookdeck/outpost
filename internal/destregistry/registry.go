@@ -347,8 +347,8 @@ func (r *registry) handlePublishPanic(destination *models.Destination, event *mo
 		zap.Stack("stack"),
 	)
 
-	// The publisher may be left broken: drop it so the next attempt creates a
-	// new one. Only this publisher is dropped, since another attempt may have
+	// The publisher may be left broken: drop it so the next delivery creates a
+	// new one. Only this publisher is dropped, since another delivery may have
 	// replaced it already. RemoveIf closes it through the eviction callback.
 	if cached && publisher != nil {
 		r.publishers.RemoveIf(MakePublisherKey(destination), func(p Publisher) bool { return p == publisher })

@@ -14,11 +14,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// A key_template can compile and still panic when it is evaluated: go-jmespath's
+// A key_template can compile and still panic when evaluated: go-jmespath's
 // merge() type-asserts its arguments, so merge() over an array panics on the
-// first event. The destination passes validation, and the delivery must come
-// back as an error with no attempt, so the message is nacked, instead of a panic.
-func TestAWSS3_KeyTemplatePanicIsContained(t *testing.T) {
+// first event. The destination passes validation; PublishEvent must return an
+// error and no attempt, so the delivery handler nacks the message.
+func TestAWSS3_KeyTemplatePanicReturnsError(t *testing.T) {
 	t.Parallel()
 
 	destination := testutil.DestinationFactory.Any(
