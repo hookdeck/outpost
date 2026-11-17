@@ -188,3 +188,16 @@ func TestMessage_Settled(t *testing.T) {
 		})
 	}
 }
+
+func TestMessage_FirstSettleWins(t *testing.T) {
+	t.Parallel()
+
+	rec := &recordingQueueMessage{}
+	msg := &mqs.Message{QueueMessage: rec}
+	msg.Ack()
+	msg.Nack()
+	msg.Reject()
+	msg.Ack()
+	assert.Equal(t, 1, rec.acks)
+	assert.Equal(t, 0, rec.nacks, "a settle after the first never reaches the broker")
+}

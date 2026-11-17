@@ -7,6 +7,7 @@ package safejmespath
 import (
 	"errors"
 	"fmt"
+	"runtime/debug"
 
 	"github.com/jmespath/go-jmespath"
 )
@@ -23,9 +24,20 @@ func SearchCompiled(compiled *jmespath.JMESPath, data interface{}) (result inter
 	return compiled.Search(data)
 }
 
+// PanicError is the error for a recovered panic. It matches ErrPanic and
+// keeps the panic value and stack for logging.
+type PanicError struct {
+	Value interface{}
+	Stack []byte
+}
+
+func (e *PanicError) Error() string { return fmt.Sprintf("%v: %v", ErrPanic, e.Value) }
+
+func (e *PanicError) Unwrap() error { return ErrPanic }
+
 func recoverPanic(err *error) {
 	if r := recover(); r != nil {
-		*err = fmt.Errorf("%w: %v", ErrPanic, r)
+		*err = &PanicError{Value: r, Stack: debug.Stack()}
 	}
 }
 
@@ -40,6 +52,8 @@ func (e *TemplateError) Error() string {
 
 func (e *TemplateError) Unwrap() error { return e.Err }
 
+// Message is the text shown on the failed attempt. It leaves out the panic
+// value, which names Go types.
 func (e *TemplateError) Message() string {
 	if errors.Is(e.Err, ErrPanic) {
 		return fmt.Sprintf("%s could not be evaluated: the expression failed on an unsupported value", e.Field)
@@ -47,6 +61,8 @@ func (e *TemplateError) Message() string {
 	return e.Error()
 }
 
+// MessageFor returns the attempt message for a TemplateError in err's chain,
+// or "" when there is none.
 func MessageFor(err error) string {
 	var te *TemplateError
 	if errors.As(err, &te) {

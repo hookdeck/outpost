@@ -16,6 +16,8 @@ func Evaluate(template string, payload map[string]interface{}, fallbackKey strin
 
 	result, err := safejmespath.Search(template, payload)
 	if err != nil {
+		// Only a panic is a TemplateError: callers fail the attempt on it and
+		// fall back to the event ID on any other error.
 		if errors.Is(err, safejmespath.ErrPanic) {
 			return "", &safejmespath.TemplateError{Field: "partition_key_template", Err: err}
 		}
