@@ -10,7 +10,9 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"gocloud.dev/pubsub"
 	"gocloud.dev/pubsub/awssnssqs"
 	"gocloud.dev/pubsub/batcher"
@@ -27,6 +29,12 @@ type AWSSQSConfig struct {
 	ServiceAccountCredentials string
 	Topic                     string
 	WaitTime                  time.Duration // optional - defaults to 20s if not set
+	// RoleARN, when set, is assumed with the base credentials (static keys or
+	// the default chain) and the queue is accessed as that role.
+	RoleARN    string
+	ExternalID string // optional - sent with the AssumeRole call
+	// RoleSessionName names the assumed-role session; defaults to "outpost".
+	RoleSessionName string
 }
 
 // ToCredentials returns a static credentials provider, or (nil, nil) when no
@@ -122,6 +130,24 @@ func (q *AWSQueue) InitSDK(ctx context.Context) error {
 	sdkConfig, err := config.LoadDefaultConfig(ctx, opts...)
 	if err != nil {
 		return err
+	}
+
+	if q.config.RoleARN != "" {
+		// STS uses the regional AWS endpoint: Endpoint is SQS-only. AWS_ENDPOINT_URL_STS overrides it.
+		provider := stscreds.NewAssumeRoleProvider(sts.NewFromConfig(sdkConfig), q.config.RoleARN, func(o *stscreds.AssumeRoleOptions) {
+			o.RoleSessionName = "outpost"
+			if q.config.RoleSessionName != "" {
+				o.RoleSessionName = q.config.RoleSessionName
+			}
+			if q.config.ExternalID != "" {
+				o.ExternalID = aws.String(q.config.ExternalID)
+			}
+		})
+		// Renew ahead of expiry so a request never goes out with credentials
+		// that expire in flight.
+		sdkConfig.Credentials = aws.NewCredentialsCache(provider, func(o *aws.CredentialsCacheOptions) {
+			o.ExpiryWindow = time.Minute
+		})
 	}
 
 	sqsClient := sqs.NewFromConfig(sdkConfig, func(o *sqs.Options) {

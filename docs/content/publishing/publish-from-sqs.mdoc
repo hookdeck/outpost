@@ -65,6 +65,11 @@ publishmq:
     # Optional.
     # Useful for local development or when using a non-standard SQS endpoint.
     endpoint: <URL>
+
+    # Optional. See "Assuming an IAM role".
+    role_arn: <ROLE_ARN>
+    external_id: <EXTERNAL_ID>
+    role_session_name: <SESSION_NAME>
 ```
 
 #### Example
@@ -78,9 +83,61 @@ publishmq:
     secret_access_key: REDACTED
 ```
 
+### Assuming an IAM role
+
+Outpost can read the queue through an IAM role. It assumes the role with the access key, or with the AWS SDK default credential chain (environment variables, shared config, or the role of the instance, task or pod it runs on) when no key is set.
+
+1. Create an IAM role with a trust policy that names the identity Outpost runs as. The `Condition` is optional; include it to require an external ID.
+
+   ```json
+   {
+     "Version": "2012-10-17",
+     "Statement": [
+       {
+         "Effect": "Allow",
+         "Principal": { "AWS": "<ARN of the user or role Outpost runs as>" },
+         "Action": "sts:AssumeRole",
+         "Condition": { "StringEquals": { "sts:ExternalId": "<EXTERNAL_ID>" } }
+       }
+     ]
+   }
+   ```
+
+2. Give the role the [required permissions](#required-permissions) on the queue:
+
+   ```json
+   {
+     "Version": "2012-10-17",
+     "Statement": [
+       {
+         "Effect": "Allow",
+         "Action": [
+           "sqs:ChangeMessageVisibility",
+           "sqs:DeleteMessage",
+           "sqs:GetQueueUrl",
+           "sqs:ReceiveMessage"
+         ],
+         "Resource": "arn:aws:sqs:<REGION>:<ACCOUNT_ID>:<QUEUE_NAME>"
+       }
+     ]
+   }
+   ```
+
+3. If Outpost runs in a different AWS account from the role, also allow its identity to call `sts:AssumeRole` on the role.
+4. Configure Outpost with the role. Leave out the access key to use the default credential chain. Set the external ID only if the trust policy requires one.
+
+   ```
+   PUBLISH_AWS_SQS_REGION="<REGION>"
+   PUBLISH_AWS_SQS_QUEUE="<QUEUE_NAME>"
+   PUBLISH_AWS_SQS_ROLE_ARN="arn:aws:iam::<ACCOUNT_ID>:role/<ROLE_NAME>"
+   PUBLISH_AWS_SQS_EXTERNAL_ID="<EXTERNAL_ID>"
+   ```
+
+The session is named `outpost` in the role account's CloudTrail logs; set `PUBLISH_AWS_SQS_ROLE_SESSION_NAME` to change it.
+
 ### Required Permissions
 
-The following permissions are required for the provided access key:
+The following permissions are required for the provided access key. When a role is set, they go on the role instead.
 
 - `sqs:ChangeMessageVisibility`
 - `sqs:DeleteMessage`
