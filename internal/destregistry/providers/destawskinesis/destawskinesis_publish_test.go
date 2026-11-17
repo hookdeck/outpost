@@ -190,7 +190,11 @@ type KinesisAsserter struct {
 
 // evaluateTemplate is a test helper that evaluates a JMESPath template against payload data
 func (a *KinesisAsserter) evaluateTemplate(payload map[string]interface{}, eventID string) (string, error) {
-	return partitionkey.Evaluate(a.partitionKeyTemplate, payload, eventID)
+	template, err := partitionkey.New(a.partitionKeyTemplate)
+	if err != nil {
+		return "", err
+	}
+	return template.Evaluate(payload, eventID)
 }
 
 func (a *KinesisAsserter) AssertMessage(t testsuite.TestingT, msg testsuite.Message, event models.Event) {
