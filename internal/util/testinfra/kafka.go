@@ -12,10 +12,10 @@ import (
 
 	"github.com/moby/moby/api/types/container"
 	"github.com/moby/moby/api/types/network"
-	"github.com/segmentio/kafka-go"
-	"github.com/segmentio/kafka-go/sasl/plain"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
+	"github.com/twmb/franz-go/pkg/kgo"
+	"github.com/twmb/franz-go/pkg/sasl/plain"
 )
 
 // kafkaJaasPath is where the broker's JAAS config lands inside the container,
@@ -34,17 +34,18 @@ func EnsureKafka(t testing.TB) string {
 	return kafkaService.ensure(t, cfg.KafkaURL,
 		func() (string, error) { return startKafkaTestContainer(cfg) },
 		func(endpoint string) error {
-			dialer := &kafka.Dialer{
-				SASLMechanism: plain.Mechanism{Username: "admin", Password: "admin-secret"},
-				Timeout:       5 * time.Second,
-			}
-			conn, err := dialer.DialContext(context.Background(), "tcp", endpoint)
+			client, err := kgo.NewClient(
+				kgo.SeedBrokers(endpoint),
+				kgo.SASL(plain.Auth{User: "admin", Pass: "admin-secret"}.AsMechanism()),
+				kgo.DialTimeout(5*time.Second),
+			)
 			if err != nil {
 				return err
 			}
-			defer conn.Close()
-			_, err = conn.Brokers()
-			return err
+			defer client.Close()
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			return client.Ping(ctx)
 		})
 }
 

@@ -124,8 +124,8 @@ func TestKafkaPublisher_Proxy(t *testing.T) {
 
 // The bootstrap broker is reached as 127.0.0.1 and advertises itself as
 // localhost, so the produce request opens a second tunnel after metadata.
-// Rejecting only that one exercises the produce path, where kafka-go reports
-// errors per message.
+// Rejecting only that one exercises the produce path, where the client reports
+// a failed dial without its cause.
 func TestKafkaPublisher_ProxyRejectsLeaderIntegration(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")

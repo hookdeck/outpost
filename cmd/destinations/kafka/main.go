@@ -4,15 +4,15 @@ import (
 	"context"
 	"errors"
 	"log"
-	"net"
 	"os"
 	"os/signal"
-	"strconv"
 	"syscall"
 	"time"
 
-	"github.com/segmentio/kafka-go"
-	"github.com/segmentio/kafka-go/sasl/plain"
+	"github.com/twmb/franz-go/pkg/kadm"
+	"github.com/twmb/franz-go/pkg/kerr"
+	"github.com/twmb/franz-go/pkg/kgo"
+	"github.com/twmb/franz-go/pkg/sasl/plain"
 
 	"github.com/hookdeck/outpost/cmd/destinations/internal/destenv"
 )
@@ -35,22 +35,31 @@ func main() {
 }
 
 func run() error {
-	dialer := &kafka.Dialer{Timeout: 5 * time.Second}
+	opts := []kgo.Opt{
+		kgo.SeedBrokers(brokerAddr),
+		kgo.DialTimeout(5 * time.Second),
+	}
 	if username != "" {
-		dialer.SASLMechanism = plain.Mechanism{Username: username, Password: password}
+		opts = append(opts, kgo.SASL(plain.Auth{User: username, Pass: password}.AsMechanism()))
 	}
 
-	if err := createTopic(dialer); err != nil {
+	admin, err := kgo.NewClient(opts...)
+	if err != nil {
+		return err
+	}
+	defer admin.Close()
+	if err := createTopic(kadm.NewClient(admin)); err != nil {
 		return err
 	}
 
-	reader := kafka.NewReader(kafka.ReaderConfig{
-		Brokers:     []string{brokerAddr},
-		Topic:       topic,
-		Dialer:      dialer,
-		StartOffset: kafka.LastOffset,
-	})
-	defer reader.Close()
+	consumer, err := kgo.NewClient(append(opts,
+		kgo.ConsumeTopics(topic),
+		kgo.ConsumeResetOffset(kgo.NewOffset().AtEnd()),
+	)...)
+	if err != nil {
+		return err
+	}
+	defer consumer.Close()
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
@@ -59,24 +68,28 @@ func run() error {
 	log.Printf("[*] In a destination of the make up stack use brokers dest-kafka:29094 (SASL PLAIN %s/%s) or dest-kafka:29092 (plaintext)", username, password)
 	log.Printf("[*] Waiting for messages. To exit press CTRL+C")
 	for {
-		m, err := reader.ReadMessage(ctx)
-		if err != nil {
-			if ctx.Err() != nil {
-				return nil
-			}
-			return err
+		fetches := consumer.PollFetches(ctx)
+		if fetches.IsClientClosed() || ctx.Err() != nil {
+			return nil
 		}
-		log.Printf("[x] partition %d offset %d key %q: %s", m.Partition, m.Offset, m.Key, m.Value)
+		fetches.EachError(func(t string, p int32, err error) {
+			log.Printf("[!] fetch %s/%d: %v", t, p, err)
+		})
+		fetches.EachRecord(func(m *kgo.Record) {
+			log.Printf("[x] partition %d offset %d key %q: %s", m.Partition, m.Offset, m.Key, m.Value)
+		})
 	}
 }
 
 // createTopic creates the topic through the controller, waiting for the
 // broker while it starts. An existing topic is fine.
-func createTopic(dialer *kafka.Dialer) error {
+func createTopic(admin *kadm.Client) error {
 	deadline := time.Now().Add(60 * time.Second)
 	for {
-		err := tryCreateTopic(dialer)
-		if err == nil || errors.Is(err, kafka.TopicAlreadyExists) {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		_, err := admin.CreateTopic(ctx, 1, 1, nil, topic)
+		cancel()
+		if err == nil || errors.Is(err, kerr.TopicAlreadyExists) {
 			return nil
 		}
 		if time.Now().After(deadline) {
@@ -85,34 +98,4 @@ func createTopic(dialer *kafka.Dialer) error {
 		log.Printf("[*] waiting for Kafka at %s: %v", brokerAddr, err)
 		time.Sleep(2 * time.Second)
 	}
-}
-
-func tryCreateTopic(dialer *kafka.Dialer) error {
-	ctx := context.Background()
-	conn, err := dialer.DialContext(ctx, "tcp", brokerAddr)
-	if err != nil {
-		return err
-	}
-	defer conn.Close()
-	controller, err := conn.Controller()
-	if err != nil {
-		return err
-	}
-	cconn, err := dialer.DialContext(ctx, "tcp", net.JoinHostPort(brokerHost(), strconv.Itoa(controller.Port)))
-	if err != nil {
-		return err
-	}
-	defer cconn.Close()
-	return cconn.CreateTopics(kafka.TopicConfig{Topic: topic, NumPartitions: 1, ReplicationFactor: 1})
-}
-
-// brokerHost is the host part of brokerAddr. The controller reports its
-// advertised host, which for the stack's host listener is localhost anyway;
-// using ours keeps a remote DEST_KAFKA_BROKER working.
-func brokerHost() string {
-	host, _, err := net.SplitHostPort(brokerAddr)
-	if err != nil {
-		return brokerAddr
-	}
-	return host
 }
