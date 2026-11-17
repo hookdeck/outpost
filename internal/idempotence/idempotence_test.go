@@ -680,3 +680,56 @@ func startQueueWithVisibilityTimeout(ctx context.Context, t *testing.T, visibili
 	require.NoError(t, err)
 	return mq
 }
+
+func TestIdempotence_PanicClearsKey(t *testing.T) {
+	t.Parallel()
+
+	opts := []func(*idempotence.IdempotenceImplOptions){
+		idempotence.WithTimeout(time.Minute),
+		idempotence.WithSuccessfulTTL(24 * time.Hour),
+	}
+
+	runInBubble(t, "an immediate re-run executes and the panic propagates", func(t *testing.T) {
+		i := newIdempotence(t, opts...)
+		key := testutil.RandomString(5)
+
+		assert.PanicsWithValue(t, "exec blew up", func() {
+			_ = i.Exec(context.Background(), key, func(context.Context) error {
+				panic("exec blew up")
+			})
+		})
+
+		runs := 0
+		err := i.Exec(context.Background(), key, func(context.Context) error {
+			runs++
+			return nil
+		})
+		require.NoError(t, err)
+		assert.Equal(t, 1, runs, "the claim was cleared, so the redelivery ran instead of conflicting")
+
+		processed, err := i.Processed(context.Background(), key)
+		require.NoError(t, err)
+		assert.True(t, processed)
+	})
+
+	runInBubble(t, "the key is cleared even when the context is canceled", func(t *testing.T) {
+		i := newIdempotence(t, opts...)
+		key := testutil.RandomString(5)
+		ctx, cancel := context.WithCancel(context.Background())
+
+		assert.Panics(t, func() {
+			_ = i.Exec(ctx, key, func(context.Context) error {
+				cancel()
+				panic("exec blew up")
+			})
+		})
+
+		runs := 0
+		err := i.Exec(context.Background(), key, func(context.Context) error {
+			runs++
+			return nil
+		})
+		require.NoError(t, err)
+		assert.Equal(t, 1, runs)
+	})
+}
