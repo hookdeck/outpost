@@ -14,6 +14,7 @@ import (
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/pagination"
 	"github.com/hookdeck/outpost/internal/redis"
+	"github.com/hookdeck/outpost/internal/rediskey"
 	"github.com/hookdeck/outpost/internal/tenantstore/driver"
 )
 
@@ -117,15 +118,15 @@ func (s *store) deploymentPrefix() string {
 }
 
 func (s *store) redisTenantID(tenantID string) string {
-	return fmt.Sprintf("%stenant:{%s}:tenant", s.deploymentPrefix(), tenantID)
+	return fmt.Sprintf("%stenant:%s:tenant", s.deploymentPrefix(), rediskey.Tag(tenantID))
 }
 
 func (s *store) redisTenantDestinationSummaryKey(tenantID string) string {
-	return fmt.Sprintf("%stenant:{%s}:destinations", s.deploymentPrefix(), tenantID)
+	return fmt.Sprintf("%stenant:%s:destinations", s.deploymentPrefix(), rediskey.Tag(tenantID))
 }
 
 func (s *store) redisDestinationID(destinationID, tenantID string) string {
-	return fmt.Sprintf("%stenant:{%s}:destination:%s", s.deploymentPrefix(), tenantID, destinationID)
+	return fmt.Sprintf("%stenant:%s:destination:%s", s.deploymentPrefix(), rediskey.Tag(tenantID), rediskey.Escape(destinationID))
 }
 
 func (s *store) tenantIndexName() string {

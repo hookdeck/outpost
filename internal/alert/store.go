@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/hookdeck/outpost/internal/rediskey"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -93,5 +94,5 @@ func (s *redisAlertStore) deploymentPrefix() string {
 }
 
 func (s *redisAlertStore) getFailuresKey(tenantID, destinationID string) string {
-	return fmt.Sprintf("%s%s:%s:%s:%s", s.deploymentPrefix(), keyPrefixAlert, tenantID, destinationID, keyFailures)
+	return fmt.Sprintf("%s%s:%s:%s", s.deploymentPrefix(), keyPrefixAlert, rediskey.IDs(tenantID, destinationID), keyFailures)
 }

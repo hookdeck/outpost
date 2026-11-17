@@ -94,3 +94,17 @@ func TestDeliveryTask_MessageID_NewPerDeliveryAndManualRetry(t *testing.T) {
 	assert.NotEqual(t, first.MessageID, manual.MessageID, "a manual retry gets a new message ID")
 	assert.NotContains(t, first.MessageID, event.ID, "not derived from the event ID")
 }
+
+func TestDeliveryKeys_IDsWithColons(t *testing.T) {
+	t.Parallel()
+
+	a := models.DeliveryTask{Event: models.Event{ID: "evt:1"}, DestinationID: "dest", Attempt: 1}
+	b := models.DeliveryTask{Event: models.Event{ID: "evt"}, DestinationID: "1:dest", Attempt: 1}
+
+	assert.NotEqual(t, a.IdempotencyKey(), b.IdempotencyKey())
+	assert.NotEqual(t, models.RetryID("evt:1", "dest"), models.RetryID("evt", "1:dest"))
+
+	plain := models.DeliveryTask{Event: models.Event{ID: "evt_1"}, DestinationID: "des_1", Attempt: 2}
+	assert.Equal(t, "evt_1:des_1:2", plain.IdempotencyKey(), "IDs without special characters keep their key")
+	assert.Equal(t, "evt_1:des_1", models.RetryID("evt_1", "des_1"))
+}
