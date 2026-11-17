@@ -97,7 +97,7 @@ portal:
 destinations:
   metadata_path: "config/outpost/destinations" # Path to destination metadata
   # proxy_url: "http://user:pass@proxy:10000" # Forward proxy for webhook, RabbitMQ and Kafka destinations
-  # allow_custom_endpoints: false # Allow a custom 'endpoint' on AWS and GCP destinations (emulators, local development)
+  # allow_custom_endpoints: false # Allow a custom 'endpoint' (and a non-AWS SQS 'queue_url') on AWS and GCP Pub/Sub destinations (emulators, local development)
   # aws_eventbridge:
   #   source: "outpost" # EventBridge Source set on every event
   webhook:
