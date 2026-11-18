@@ -6,7 +6,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/logstore"
 	"github.com/hookdeck/outpost/internal/models"
@@ -15,10 +14,9 @@ import (
 )
 
 type mockPublisher struct {
-	responses  []error
-	current    int
-	messageIDs []string
-	mu         sync.Mutex
+	responses []error
+	current   int
+	mu        sync.Mutex
 }
 
 func newMockPublisher(responses []error) *mockPublisher {
@@ -28,7 +26,6 @@ func newMockPublisher(responses []error) *mockPublisher {
 func (m *mockPublisher) PublishEvent(ctx context.Context, destination *models.Destination, event *models.Event) (*models.Attempt, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.messageIDs = append(m.messageIDs, destregistry.MessageIDFrom(ctx))
 
 	if m.current >= len(m.responses) {
 		m.current++

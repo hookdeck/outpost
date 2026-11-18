@@ -3,6 +3,8 @@ package mcpevents
 import (
 	"bytes"
 	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -90,6 +92,19 @@ func VerificationEnvelope(challenge string) []byte {
 	b = append(b, `{"type":"verification","challenge":`...)
 	b = appendJSString(b, challenge)
 	return append(b, '}')
+}
+
+// EventMessageID returns the webhook-id of an event's delivery to a
+// subscription: "msg_" and 22 base64url characters, the first 128 bits of the
+// SHA-256 of the event ID and the subscription ID. An event has one message
+// per subscription, so every attempt to send it there, the first, an automatic
+// retry or a manual one, is under the same webhook-id, with nothing stored.
+func EventMessageID(eventID, subscriptionID string) string {
+	h := sha256.New()
+	h.Write([]byte(eventID))
+	h.Write([]byte{0})
+	h.Write([]byte(subscriptionID))
+	return "msg_" + base64.RawURLEncoding.EncodeToString(h.Sum(nil)[:16])
 }
 
 // MessageID returns a random control-envelope webhook-id,

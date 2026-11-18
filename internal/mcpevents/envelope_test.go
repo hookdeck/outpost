@@ -126,6 +126,19 @@ func TestControlEnvelopes(t *testing.T) {
 	assert.Equal(t, `{"type":"verification","challenge":"abc-_"}`, string(VerificationEnvelope("abc-_")))
 }
 
+func TestEventMessageID(t *testing.T) {
+	t.Parallel()
+	id := EventMessageID("evt_1", "sub_a")
+	assert.Regexp(t, `^msg_[A-Za-z0-9_-]{22}$`, id)
+	assert.Equal(t, id, EventMessageID("evt_1", "sub_a"), "the same for an event and a subscription")
+	assert.NotEqual(t, id, EventMessageID("evt_1", "sub_b"), "another subscription is another message")
+	assert.NotEqual(t, id, EventMessageID("evt_2", "sub_a"), "another event is another message")
+	assert.NotEqual(t, EventMessageID("a", "b_c"), EventMessageID("a_b", "c"), "the IDs are hashed apart")
+
+	// Header-safe whatever the event ID holds.
+	assert.Regexp(t, `^msg_[A-Za-z0-9_-]{22}$`, EventMessageID("evt.1 \r\n\x00é", "sub_a"))
+}
+
 func TestMessageIDs(t *testing.T) {
 	t.Parallel()
 	re := regexp.MustCompile(`^msg_verification_[0-9a-f]{24}$`)
