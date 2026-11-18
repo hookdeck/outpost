@@ -1,0 +1,66 @@
+syntax = "proto3";
+
+package outpost.v1;
+
+option go_package = "github.com/hookdeck/outpost/gen/outpost/v1;outpostv1";
+
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+
+// PublishService accepts events from external applications and queues delivery
+// to the Outpost destinations that match each event.
+service PublishService {
+  // Publishes one event using the same fields and processing behavior as
+  // POST /api/v1/publish. A successful response contains the event ID, whether
+  // it was a duplicate, and the IDs of matched destinations.
+  rpc Publish(PublishEventRequest) returns (PublishEventResponse);
+}
+
+// PublishEventRequest describes an event submitted to Outpost for delivery to
+// matching destinations. Its fields correspond to the JSON object accepted by
+// the HTTP POST /api/v1/publish endpoint.
+message PublishEventRequest {
+  // Tenant that owns the event. This field is required and must not be empty.
+  string tenant_id = 1;
+
+  // Optional caller-supplied event ID. Outpost generates an ID when omitted or
+  // empty. Reusing an ID with the same event provides idempotent publishing.
+  optional string id = 2;
+
+  // Optional destination ID. When set, Outpost routes the event to this
+  // destination instead of matching destinations by topic.
+  optional string destination_id = 3;
+
+  // Optional event topic. A topic may be required and validated according to
+  // Outpost's configured topic rules.
+  optional string topic = 4;
+
+  // Whether failed deliveries are eligible for automatic retry. When omitted,
+  // Outpost defaults this value to true.
+  optional bool eligible_for_retry = 5;
+
+  // Event timestamp. When omitted, Outpost uses the current time.
+  google.protobuf.Timestamp time = 6;
+
+  // Optional string-valued metadata. Outpost makes event metadata available to
+  // the destination when delivering the event.
+  map<string, string> metadata = 7;
+
+  // Event payload as a JSON object. This field is required; scalar, array, and
+  // null values are not valid event payloads.
+  google.protobuf.Struct data = 8;
+}
+
+// PublishEventResponse reports the outcome returned after Outpost accepts an
+// event.
+message PublishEventResponse {
+  // ID assigned to or supplied for the published event.
+  string id = 1;
+
+  // True when this event was recognized as a duplicate and was not enqueued
+  // again.
+  bool duplicate = 2;
+
+  // IDs of destinations that matched the event.
+  repeated string destination_ids = 3;
+}
