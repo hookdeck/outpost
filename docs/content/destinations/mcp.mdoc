@@ -7,7 +7,7 @@ description: "Experimental. Deliver events to an agent's MCP Events callback, si
 Experimental. The MCP Events spec ([SEP-3415](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/3415)) is still a draft, so this destination may change without notice.
 {% /callout %}
 
-Delivers one topic's events to an agent's HTTPS callback URL, signed with [Standard Webhooks](https://www.standardwebhooks.com/). The `mcp` destination is created only by the subscribe endpoint, never through the destinations API. To set it up, see [MCP Events](/docs/outpost/features/mcp-events). Publishing to its ID as a `destination_id` matches nothing.
+Delivers one topic's events to an agent's HTTPS callback URL, signed with [Standard Webhooks](https://www.standardwebhooks.com/). The `mcp` destination is created only by the subscribe endpoint, never through the destinations API. To set it up, see [MCP Events](/docs/outpost/features/mcp-events). To send an event to one subscription only, publish with the subscription ID as the `destination_id`: the event is delivered if the subscription matches it, as for any destination.
 
 ## Fields
 
@@ -35,7 +35,18 @@ Each delivery is a `POST` with the MCP Events envelope as a JSON body. `data` is
 }
 ```
 
-`cursor` is always `null`: there is no replay.
+`cursor` is the event's `mcp-cursor` [metadata](/docs/outpost/publishing/events#metadata-and-headers), or `null` when the event has none. Outpost passes the value through unchanged, on every attempt, and keeps no event log of its own. To offer replay, publish each event with its position in your own log as `mcp-cursor`:
+
+```json
+{
+  "tenant_id": "acme",
+  "topic": "order.created",
+  "metadata": { "mcp-cursor": "0000000042" },
+  "data": { "order_id": "ord_1", "status": "paid", "total": 42.5 }
+}
+```
+
+The spec asks a server to be consistent per event: give every `order.created` a cursor, or none.
 
 | Header | Value |
 |--------|-------|
@@ -57,4 +68,6 @@ The secret is `whsec_` followed by the base64 of 24 to 64 bytes. When a refresh 
 
 ## Retries
 
-Failed deliveries retry automatically, 1, 3, 5 and 5 minutes after the previous attempt: five attempts in all, over 14 minutes. `RETRY_SCHEDULE` and `MAX_RETRY_LIMIT` don't apply, and a manual retry of a subscription's attempt answers `404`. A `410` or `413` response isn't retried and doesn't count toward the consecutive-failure count.
+Failed deliveries retry automatically, 1, 3, 5 and 5 minutes after the previous attempt: five attempts in all, over 14 minutes. `RETRY_SCHEDULE` and `MAX_RETRY_LIMIT` don't apply. A `410` or `413` response isn't retried and doesn't count toward the consecutive-failure count.
+
+To send a subscription an event it has already been sent, [retry it](/docs/outpost/api#retryevent) with the Admin API key, the event ID and the subscription ID as the `destination_id`. The retry is a new message: the same event under a new `webhook-id`. A tenant's JWT can't retry a subscription's event: the call answers `404`, as for an unknown destination.

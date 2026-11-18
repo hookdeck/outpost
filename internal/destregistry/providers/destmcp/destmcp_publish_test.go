@@ -196,6 +196,26 @@ func TestPublish_RequestOnTheWire(t *testing.T) {
 	assert.NoError(t, wh.Verify(req.body, req.header), "Standard Webhooks libraries verify it unchanged")
 }
 
+func TestPublish_Cursor(t *testing.T) {
+	t.Parallel()
+	rec := newRecorder(t, nil)
+	p := localProvider(t)
+	d := localSubscription(t, p, rec.URL+"/hook")
+
+	event := testEvent()
+	event.Metadata = map[string]string{mcpevents.MetadataCursor: "0000000042", "trace-id": "abc"}
+	_, err := publish(t, p, d, event)
+	require.NoError(t, err)
+	_, err = publish(t, p, d, testEvent())
+	require.NoError(t, err)
+
+	reqs := rec.Requests()
+	require.Len(t, reqs, 2)
+	assert.JSONEq(t, `{"eventId":"evt_01J9ZK4Q0V","name":"order.created","timestamp":"2026-10-09T16:58:12Z","data":{"order_id":"ord_42","total":180,"currency":"USD"},"cursor":"0000000042"}`,
+		string(reqs[0].Body), "the event's cursor metadata is the envelope's cursor, and other metadata stays out")
+	assert.Contains(t, string(reqs[1].Body), `"cursor":null`, "an event without one has a null cursor")
+}
+
 func TestPublish_Signatures(t *testing.T) {
 	t.Parallel()
 

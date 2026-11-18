@@ -210,6 +210,7 @@ func (b *ServiceBuilder) BuildAPIWorkers(baseRouter *gin.Engine) error {
 		b.cfg.Topics,
 		b.cfg.TopicsAllowWildcards,
 		publishIdempotence,
+		publishmq.WithExcludedDestinationTypes(excludedDestinationTypes(b.cfg)...),
 	)
 
 	// Create operator events emitter for subscription updates

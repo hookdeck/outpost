@@ -86,6 +86,41 @@ func TestEventEnvelope_StringsAreEncoded(t *testing.T) {
 	assert.Contains(t, string(got), `t<script>\"&'`, "no HTML escaping")
 }
 
+func TestEventEnvelope_Cursor(t *testing.T) {
+	t.Parallel()
+	event := func(metadata map[string]string) *models.Event {
+		return &models.Event{ID: "evt_1", Topic: "t", Time: time.Unix(0, 0), Metadata: metadata, Data: json.RawMessage(`{}`)}
+	}
+	const prefix = `{"eventId":"evt_1","name":"t","timestamp":"1970-01-01T00:00:00Z","data":{},"cursor":`
+
+	for name, tc := range map[string]struct {
+		metadata map[string]string
+		cursor   string
+	}{
+		"no metadata":    {nil, `null`},
+		"other metadata": {map[string]string{"cursor": "7", "trace-id": "abc"}, `null`},
+		"cursor":         {map[string]string{MetadataCursor: "0000000042", "trace-id": "abc"}, `"0000000042"`},
+		"empty cursor":   {map[string]string{MetadataCursor: ""}, `""`},
+		// Full of JSON syntax: encoded, never spliced.
+		"encoded": {map[string]string{MetadataCursor: `x"},"data":{"forged":true},"y":"` + "\n"}, `"x\"},\"data\":{\"forged\":true},\"y\":\"\n"`},
+	} {
+		got, err := EventEnvelope(event(tc.metadata))
+		require.NoError(t, err, name)
+		assert.Equal(t, prefix+tc.cursor+`}`, string(got), name)
+		assert.True(t, json.Valid(got), name)
+	}
+
+	// The cursor counts toward the size limit.
+	overhead := len(prefix + `""}`)
+	e := event(map[string]string{MetadataCursor: strings.Repeat("c", MaxEnvelopeBytes-overhead)})
+	got, err := EventEnvelope(e)
+	require.NoError(t, err)
+	assert.Len(t, got, MaxEnvelopeBytes)
+	e.Metadata[MetadataCursor] += "c"
+	_, err = EventEnvelope(e)
+	assert.ErrorIs(t, err, ErrEnvelopeTooLarge)
+}
+
 func TestEventEnvelope_Errors(t *testing.T) {
 	t.Parallel()
 	base := func() *models.Event {

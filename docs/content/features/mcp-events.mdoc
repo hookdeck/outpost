@@ -136,6 +136,31 @@ Your MCP server returns that JSON as the result of `events/subscribe`. `refreshB
 
 The subscribe and unsubscribe calls answer `404` while MCP Events is off, and `503` while your event definitions are invalid or verification is temporarily unavailable. See the [API reference](/docs/outpost/api) for every request and response.
 
+## Replay
+
+The spec lets an agent resume a subscription from a `cursor`, and makes replay optional per event. Outpost keeps a log of deliveries, not of your events, so it doesn't replay: `cursor` is `null` and `truncated` is `false` in every subscribe response. To offer replay, your MCP server serves it from its own event log:
+
+1. **Publish each event with its position** in your log as the `mcp-cursor` metadata. Outpost sends it as the delivery's [`cursor`](/docs/outpost/destinations/mcp#event-format).
+2. **Answer the subscribe.** When the `events/subscribe` params carry a `cursor`, forward them as usual. In the result you return, set `cursor` to the position the subscription resumes from, and `truncated` to `true` if your log no longer holds every event after it.
+3. **Send the missed events to that subscription only.** [Retry](/docs/outpost/api#retryevent) each event with the subscription ID as the `destination_id`: that sends it again to a subscription that was already sent it. If the retry answers `400` or `404`, there is no earlier delivery to repeat: publish the event again with the subscription ID as the `destination_id`, and its original `id`, `time` and `mcp-cursor`.
+
+```sh
+curl -X POST '{% $OUTPOST_API_BASE_URL %}/publish' \
+--header 'Authorization: Bearer <API_KEY>' \
+--header 'Content-Type: application/json' \
+--data '{
+  "id": "evt_123",
+  "tenant_id": "acme",
+  "destination_id": "sub_3f9a1c2e7b4d4e6a8c0b5d1f2a3e4b6c",
+  "topic": "order.created",
+  "time": "2026-11-11T12:00:00Z",
+  "metadata": { "mcp-cursor": "0000000042" },
+  "data": { "order_id": "ord_1", "status": "paid", "total": 42.5 }
+}'
+```
+
+A replayed event is delivered only if the subscription still matches it, and it can arrive beside live events, in any order, or twice. Agents deduplicate on `eventId`.
+
 ## Reference
 
 - **Refresh.** Subscribing again with the same tenant, event, arguments and callback URL refreshes the subscription: the same `id`, a new expiry, and the new `secret`, which signs alongside the old one for 24 hours.

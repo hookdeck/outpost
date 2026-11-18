@@ -318,22 +318,35 @@ func (s *mcpSuite) TestDeliveryBasics() {
 	s.Equal("user.created", events[0].Envelope().Name)
 }
 
-// Publishing to a subscription by ID matches nothing, like an unknown
-// destination.
-func (s *mcpSuite) TestPublishByIDMatchesNothing() {
+// Publishing to a subscription by ID delivers to that subscription alone, and
+// only an event it matches.
+func (s *mcpSuite) TestPublishByID() {
 	tenant := s.base.createTenant().ID
 	p := s.newPath(tenant, mcpreceiver.PathConfig{})
+	other := s.newPath(tenant, mcpreceiver.PathConfig{})
 	s.mustSubscribe(tenant, p, mcpSubscribeOpts{})
+	s.mustSubscribe(tenant, other, mcpSubscribeOpts{})
 
-	var pub publishResponse
-	status := s.base.doJSON(http.MethodPost, s.base.apiURL("/publish"), map[string]any{
-		"tenant_id": tenant, "topic": mcpTopic, "destination_id": p.destID,
-		"data": map[string]any{"n": 1},
-	}, &pub)
-	s.Equal(http.StatusAccepted, status)
-	s.Empty(pub.DestinationIDs)
+	publishTo := func(topic string) publishResponse {
+		var pub publishResponse
+		status := s.base.doJSON(http.MethodPost, s.base.apiURL("/publish"), map[string]any{
+			"tenant_id": tenant, "topic": topic, "destination_id": p.destID,
+			"data": map[string]any{"n": 1},
+		}, &pub)
+		s.Equal(http.StatusAccepted, status)
+		return pub
+	}
+
+	pub := publishTo(mcpTopic)
+	s.Equal([]string{p.destID}, pub.DestinationIDs)
+	events := s.r.WaitFor(p.path, 1, mcpreceiver.Request.IsEvent, mockServerPollTimeout)
+	s.Require().Len(events, 1)
+	s.Equal(pub.ID, events[0].Envelope().EventID)
+
+	s.Empty(publishTo("user.updated").DestinationIDs, "a topic the subscription isn't for")
 	time.Sleep(mcpRetryWait / 2)
-	s.Empty(s.r.Events(p.path))
+	s.Len(s.r.Events(p.path), 1)
+	s.Empty(s.r.Events(other.path), "the tenant's other subscription gets nothing")
 }
 
 // =============================================================================
@@ -357,6 +370,26 @@ func (s *mcpSuite) TestRetryResigns() {
 		"webhook-ids %q %q %q", events[0].Header.Get("webhook-id"), events[1].Header.Get("webhook-id"), events[2].Header.Get("webhook-id"))
 	time.Sleep(mcpRetryWait)
 	s.Len(s.r.Events(p.path), 3, "success on the third stops the retries")
+}
+
+// The mcp-cursor metadata of a published event is the envelope's cursor, on
+// the first attempt and on a retry; without it the cursor is null.
+func (s *mcpSuite) TestCursorFromMetadata() {
+	tenant := s.base.createTenant().ID
+	p := s.newPath(tenant, mcpreceiver.PathConfig{Event: mcpreceiver.Sequence(500, 200)})
+	s.mustSubscribe(tenant, p, mcpSubscribeOpts{})
+
+	s.base.publish(tenant, mcpTopic, map[string]any{"n": 1}, withRetry(),
+		withPublishMetadata(map[string]string{mcpevents.MetadataCursor: "0000000042"}))
+	events := s.r.WaitFor(p.path, 2, mcpreceiver.Request.IsEvent, 15*time.Second)
+	s.Require().Len(events, 2, "1 attempt + 1 retry")
+	s.Equal(`"0000000042"`, string(events[0].Envelope().Cursor))
+	s.Equal(`"0000000042"`, string(events[1].Envelope().Cursor), "a retry carries the same cursor")
+
+	s.publishMCP(tenant, map[string]any{"n": 2})
+	events = s.r.WaitFor(p.path, 3, mcpreceiver.Request.IsEvent, mockServerPollTimeout)
+	s.Require().Len(events, 3)
+	s.Equal(`null`, string(events[2].Envelope().Cursor))
 }
 
 // =============================================================================
@@ -818,29 +851,100 @@ func (s *mcpSuite) TestAttemptsKeepSubscriptionID() {
 	s.Equal(pub.ID, events.Models[0].ID)
 }
 
-// TestManualRetryRefusedLikeUnknown checks that a manual retry of a
-// subscription's attempt answers as for an unknown destination, while an
-// automatic retry still reaches the subscription.
-func (s *mcpSuite) TestManualRetryRefusedLikeUnknown() {
+// TestManualRetry checks that a manual retry sends the event to the
+// subscription again, as a new message with the next attempt number.
+func (s *mcpSuite) TestManualRetry() {
 	tenant := s.base.createTenant().ID
-	p := s.newPath(tenant, mcpreceiver.PathConfig{Event: mcpreceiver.Sequence(500, 200)})
+	p := s.newPath(tenant, mcpreceiver.PathConfig{ManualRetries: true})
 	s.mustSubscribe(tenant, p, mcpSubscribeOpts{})
 	pub := s.publishMCP(tenant, map[string]any{"n": 1})
-	s.Require().Len(s.r.WaitFor(p.path, 2, mcpreceiver.Request.IsEvent, 15*time.Second), 2, "the automatic retry reached the subscription")
-	s.Require().Len(s.waitAttempts(tenant, p.destID, 2, mockServerPollTimeout), 2)
+	s.Require().Len(s.r.WaitFor(p.path, 1, mcpreceiver.Request.IsEvent, mockServerPollTimeout), 1)
+	s.Require().Len(s.waitAttempts(tenant, p.destID, 1, mockServerPollTimeout), 1)
 
-	retry := func(destID string) (int, errorResponse) {
-		var resp errorResponse
-		status := s.base.doJSON(http.MethodPost, s.base.apiURL("/retry"), map[string]any{"event_id": pub.ID, "destination_id": destID}, &resp)
-		return status, resp
+	retry := func(destID string) int {
+		return s.base.doJSON(http.MethodPost, s.base.apiURL("/retry"), map[string]any{"event_id": pub.ID, "destination_id": destID}, nil)
 	}
-	status, resp := retry(p.destID)
-	unknownStatus, unknownResp := retry("dst_missing")
-	s.Equal(http.StatusNotFound, status)
-	s.Equal(unknownStatus, status)
-	s.Equal(unknownResp, resp)
+	s.Equal(http.StatusAccepted, retry(p.destID))
+	events := s.r.WaitFor(p.path, 2, mcpreceiver.Request.IsEvent, mockServerPollTimeout)
+	s.Require().Len(events, 2)
+	s.Equal(string(events[0].Body), string(events[1].Body), "the same event")
+	s.NotEqual(events[0].Header.Get("webhook-id"), events[1].Header.Get("webhook-id"), "a new message")
+
+	attempts := s.waitAttempts(tenant, p.destID, 2, mockServerPollTimeout)
+	s.Require().Len(attempts, 2)
+	s.ElementsMatch([]int{1, 2}, []int{attempts[0].AttemptNumber, attempts[1].AttemptNumber})
+
+	s.Equal(http.StatusNotFound, retry("dst_missing"))
 	time.Sleep(time.Second)
-	s.Len(s.r.Events(p.path), 2, "the refused retry sent nothing")
+	s.Len(s.r.Events(p.path), 2)
+}
+
+// TestReplay walks the replay an MCP server serves from its own event log: an
+// event published by topic reaches a later subscription by a publish to its
+// ID, and a subscription that was already sent it by a manual retry, each
+// under the event's ID, time and cursor.
+func (s *mcpSuite) TestReplay() {
+	tenant := s.base.createTenant().ID
+	first := s.newPath(tenant, mcpreceiver.PathConfig{ManualRetries: true})
+	s.mustSubscribe(tenant, first, mcpSubscribeOpts{})
+
+	eventID := "evt_" + idgen.String()
+	eventTime := time.Now().UTC().Truncate(time.Millisecond)
+	const cursor = "0000000042"
+	publish := func(destinationID string) publishResponse {
+		body := map[string]any{
+			"id": eventID, "tenant_id": tenant, "topic": mcpTopic, "time": eventTime,
+			"metadata": map[string]string{mcpevents.MetadataCursor: cursor},
+			"data":     map[string]any{"n": 1},
+		}
+		if destinationID != "" {
+			body["destination_id"] = destinationID
+		}
+		var pub publishResponse
+		s.Require().Equal(http.StatusAccepted, s.base.doJSON(http.MethodPost, s.base.apiURL("/publish"), body, &pub))
+		return pub
+	}
+	retry := func(destinationID string) int {
+		return s.base.doJSON(http.MethodPost, s.base.apiURL("/retry"), map[string]any{"event_id": eventID, "destination_id": destinationID}, nil)
+	}
+	isTheEvent := func(q mcpreceiver.Request) {
+		env := q.Envelope()
+		s.Equal(eventID, env.EventID)
+		s.Equal(eventTime.Format(time.RFC3339Nano), env.Timestamp)
+		s.Equal(`"`+cursor+`"`, string(env.Cursor))
+	}
+
+	s.Equal([]string{first.destID}, publish("").DestinationIDs)
+	sent := s.r.WaitFor(first.path, 1, mcpreceiver.Request.IsEvent, mockServerPollTimeout)
+	s.Require().Len(sent, 1)
+	isTheEvent(sent[0])
+	s.Require().Len(s.waitAttempts(tenant, first.destID, 1, mockServerPollTimeout), 1)
+
+	// A subscription made after the event has no attempt to retry; a publish
+	// to its ID delivers the event, though the event was already published.
+	later := s.newPath(tenant, mcpreceiver.PathConfig{})
+	s.mustSubscribe(tenant, later, mcpSubscribeOpts{})
+	s.Equal(http.StatusBadRequest, retry(later.destID))
+	pub := publish(later.destID)
+	s.False(pub.Duplicate)
+	s.Equal([]string{later.destID}, pub.DestinationIDs)
+	replayed := s.r.WaitFor(later.path, 1, mcpreceiver.Request.IsEvent, mockServerPollTimeout)
+	s.Require().Len(replayed, 1)
+	isTheEvent(replayed[0])
+
+	// The first subscription was already sent the event. A publish to its ID
+	// sends nothing more; a retry sends it again.
+	publish(first.destID)
+	time.Sleep(time.Second)
+	s.Len(s.r.Events(first.path), 1, "its first attempt succeeded")
+	s.Equal(http.StatusAccepted, retry(first.destID))
+	again := s.r.WaitFor(first.path, 2, mcpreceiver.Request.IsEvent, mockServerPollTimeout)
+	s.Require().Len(again, 2)
+	isTheEvent(again[1])
+
+	time.Sleep(time.Second)
+	s.Len(s.r.Events(later.path), 1)
+	s.Len(s.r.Events(first.path), 2)
 }
 
 func contains(list []string, v string) bool {

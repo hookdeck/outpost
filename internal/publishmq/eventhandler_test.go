@@ -2,6 +2,7 @@ package publishmq_test
 
 import (
 	"context"
+	"encoding/json"
 	"log"
 	"testing"
 	"time"
@@ -50,6 +51,8 @@ func TestEventHandler_DisabledWildcardTopics(t *testing.T) {
 	}
 }
 
+// An event published to an mcp subscription by ID is matched like one
+// published to any destination, unless the type is excluded.
 func TestEventHandler_InternalDestinationType(t *testing.T) {
 	ctx := t.Context()
 	store := tenantstore.NewMemTenantStore()
@@ -58,19 +61,37 @@ func TestEventHandler_InternalDestinationType(t *testing.T) {
 		testutil.DestinationFactory.WithID("destination_1"),
 		testutil.DestinationFactory.WithTenantID("tenant_1"),
 		testutil.DestinationFactory.WithType("mcp"),
-		testutil.DestinationFactory.WithTopics([]string{"*"}),
+		testutil.DestinationFactory.WithTopics([]string{"user.created"}),
+		testutil.DestinationFactory.WithFilter(models.Filter{"data": map[string]any{"plan": "pro"}}),
 	)))
-
-	handler := publishmq.NewEventHandler(testutil.CreateTestLogger(t), nil, store, nil, testutil.TestTopics, false, nil)
-	event := testutil.EventFactory.AnyPointer(
-		testutil.EventFactory.WithTenantID("tenant_1"),
-		testutil.EventFactory.WithDestinationID("destination_1"),
-		testutil.EventFactory.WithTopic("user.created"),
-	)
-
-	result, err := handler.Handle(ctx, event)
+	deliveryMQ := deliverymq.New()
+	cleanup, err := deliveryMQ.Init(ctx)
 	require.NoError(t, err)
-	require.Empty(t, result.DestinationIDs)
+	defer cleanup()
+
+	newHandler := func(opts ...publishmq.EventHandlerOption) publishmq.EventHandler {
+		return publishmq.NewEventHandler(testutil.CreateTestLogger(t), deliveryMQ, store,
+			testutil.NewMockEventTracer(tracetest.NewInMemoryExporter()), testutil.TestTopics, false,
+			idempotence.New(testutil.CreateTestRedisClient(t)), opts...)
+	}
+	publish := func(handler publishmq.EventHandler, topic, plan string) []string {
+		result, err := handler.Handle(ctx, testutil.EventFactory.AnyPointer(
+			testutil.EventFactory.WithTenantID("tenant_1"),
+			testutil.EventFactory.WithDestinationID("destination_1"),
+			testutil.EventFactory.WithTopic(topic),
+			testutil.EventFactory.WithData(json.RawMessage(`{"plan":"`+plan+`"}`)),
+		))
+		require.NoError(t, err)
+		return result.DestinationIDs
+	}
+
+	handler := newHandler()
+	require.Equal(t, []string{"destination_1"}, publish(handler, "user.created", "pro"))
+	require.Empty(t, publish(handler, "user.updated", "pro"), "another topic")
+	require.Empty(t, publish(handler, "user.created", "free"), "outside the filter")
+
+	excluded := newHandler(publishmq.WithExcludedDestinationTypes("mcp"))
+	require.Empty(t, publish(excluded, "user.created", "pro"), "the type is excluded")
 }
 
 func TestIntegrationPublishMQEventHandler_Concurrency(t *testing.T) {
@@ -439,6 +460,69 @@ func TestEventHandler_HandleResult(t *testing.T) {
 		result2, err := eventHandler.Handle(ctx, event)
 		require.NoError(t, err)
 		require.True(t, result2.Duplicate) // Duplicate due to idempotency
+	})
+
+	t.Run("with destination_id - not a duplicate of the event published by topic", func(t *testing.T) {
+		newDest := func() models.Destination {
+			dest := testutil.DestinationFactory.Any(
+				testutil.DestinationFactory.WithTenantID(tenant.ID),
+				testutil.DestinationFactory.WithTopics([]string{"user.deleted"}),
+			)
+			require.NoError(t, tenantStore.UpsertDestination(ctx, dest))
+			return dest
+		}
+		first := newDest()
+		eventID := idgen.Event()
+		publish := func(destinationID string) *publishmq.HandleResult {
+			result, err := eventHandler.Handle(ctx, testutil.EventFactory.AnyPointer(
+				testutil.EventFactory.WithID(eventID),
+				testutil.EventFactory.WithTenantID(tenant.ID),
+				testutil.EventFactory.WithDestinationID(destinationID),
+				testutil.EventFactory.WithTopic("user.deleted"),
+			))
+			require.NoError(t, err)
+			return result
+		}
+
+		byTopic := publish("")
+		require.False(t, byTopic.Duplicate)
+		require.Contains(t, byTopic.DestinationIDs, first.ID)
+
+		// A destination created after the event was published can still be sent it.
+		second := newDest()
+		toSecond := publish(second.ID)
+		require.False(t, toSecond.Duplicate)
+		require.Equal(t, []string{second.ID}, toSecond.DestinationIDs)
+
+		require.True(t, publish(second.ID).Duplicate, "the same destination again")
+		require.True(t, publish("").Duplicate, "by topic again")
+
+		third := newDest()
+		require.False(t, publish(third.ID).Duplicate, "another destination")
+	})
+
+	t.Run("with destination_id - the event can still be published by topic", func(t *testing.T) {
+		dest := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithTenantID(tenant.ID),
+			testutil.DestinationFactory.WithTopics([]string{"user.deleted"}),
+		)
+		require.NoError(t, tenantStore.UpsertDestination(ctx, dest))
+		eventID := idgen.Event()
+		publish := func(destinationID string) *publishmq.HandleResult {
+			result, err := eventHandler.Handle(ctx, testutil.EventFactory.AnyPointer(
+				testutil.EventFactory.WithID(eventID),
+				testutil.EventFactory.WithTenantID(tenant.ID),
+				testutil.EventFactory.WithDestinationID(destinationID),
+				testutil.EventFactory.WithTopic("user.deleted"),
+			))
+			require.NoError(t, err)
+			return result
+		}
+
+		require.False(t, publish(dest.ID).Duplicate)
+		byTopic := publish("")
+		require.False(t, byTopic.Duplicate, "the other destinations on the topic have not been sent it")
+		require.Contains(t, byTopic.DestinationIDs, dest.ID)
 	})
 
 	t.Run("with destination_id - disabled", func(t *testing.T) {

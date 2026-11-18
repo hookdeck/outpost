@@ -24,6 +24,9 @@ type RetryHandlers struct {
 	logStore             logstore.LogStore
 	deliveryPublisher    deliveryPublisher
 	topicsAllowWildcards bool
+	// retryInternal is whether a destination of an internal type can be
+	// retried, by an admin; otherwise it answers as an unknown destination.
+	retryInternal bool
 }
 
 func NewRetryHandlers(
@@ -32,6 +35,7 @@ func NewRetryHandlers(
 	logStore logstore.LogStore,
 	deliveryPublisher deliveryPublisher,
 	topicsAllowWildcards bool,
+	retryInternal bool,
 ) *RetryHandlers {
 	return &RetryHandlers{
 		logger:               logger,
@@ -39,6 +43,7 @@ func NewRetryHandlers(
 		logStore:             logStore,
 		deliveryPublisher:    deliveryPublisher,
 		topicsAllowWildcards: topicsAllowWildcards,
+		retryInternal:        retryInternal,
 	}
 }
 
@@ -118,7 +123,7 @@ func (h *RetryHandlers) Retry(c *gin.Context) {
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return
 	}
-	if destination == nil {
+	if destination == nil || h.hidden(c, destination) {
 		AbortWithError(c, http.StatusNotFound, NewErrNotFound("destination"))
 		return
 	}
@@ -177,4 +182,14 @@ func (h *RetryHandlers) Retry(c *gin.Context) {
 	c.JSON(http.StatusAccepted, gin.H{
 		"success": true,
 	})
+}
+
+// hidden reports whether the destination answers as an unknown one: a
+// destination of an internal type is managed by the admin, not by the tenant,
+// so only an admin can retry it, and only while its type is on.
+func (h *RetryHandlers) hidden(c *gin.Context, destination *models.Destination) bool {
+	if !models.IsInternalDestinationType(destination.Type) {
+		return false
+	}
+	return !h.retryInternal || mustRoleFromContext(c) != RoleAdmin
 }
