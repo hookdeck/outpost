@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"time"
 
@@ -70,12 +71,19 @@ func WithConnectionObserver(fn func(reused bool)) ProviderOption {
 	}
 }
 
+const (
+	configSourceID   = "source_id"
+	configSourceName = "source_name"
+)
+
 // Constructor
 func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePublisherOption, opts ...ProviderOption) (*HookdeckProvider, error) {
 	base, err := destregistry.NewBaseProvider(loader, "hookdeck", basePublisherOpts...)
 	if err != nil {
 		return nil, err
 	}
+
+	base.AllowConfigKeys(configSourceID, configSourceName)
 
 	provider := &HookdeckProvider{
 		BaseProvider: base,
@@ -205,8 +213,8 @@ func (p *HookdeckProvider) CreatePublisher(ctx context.Context, destination *mod
 func (p *HookdeckProvider) ComputeTarget(destination *models.Destination) destregistry.DestinationTarget {
 	// Check if we have the source information in config
 	if destination.Config != nil {
-		sourceName, hasName := destination.Config["source_name"]
-		sourceID, hasID := destination.Config["source_id"]
+		sourceName, hasName := destination.Config[configSourceName]
+		sourceID, hasID := destination.Config[configSourceID]
 
 		if hasName && sourceName != "" && hasID && sourceID != "" {
 			return destregistry.DestinationTarget{
@@ -266,6 +274,23 @@ func (p *HookdeckProvider) Preprocess(newDestination *models.Destination, origin
 	shouldVerify := originalDestination == nil || // New destination
 		(originalDestination.Credentials["token"] != token) // Updated token
 
+	// source_id and source_name are set only by token verification: start from
+	// the request's config, drop its source values, then restore the stored ones.
+	config := maps.Clone(newDestination.Config)
+	delete(config, configSourceID)
+	delete(config, configSourceName)
+	if originalDestination != nil {
+		if config == nil {
+			config = make(models.MapStringString)
+		}
+		if value, ok := originalDestination.Config[configSourceID]; ok {
+			config[configSourceID] = value
+		}
+		if value, ok := originalDestination.Config[configSourceName]; ok {
+			config[configSourceName] = value
+		}
+	}
+
 	if shouldVerify {
 		// TODO: Preprocess should receive a context?
 		// Create a background context for the verification request
@@ -283,16 +308,16 @@ func (p *HookdeckProvider) Preprocess(newDestination *models.Destination, origin
 			})
 		}
 
-		// Initialize config map if nil
-		if newDestination.Config == nil {
-			newDestination.Config = make(models.MapStringString)
+		if config == nil {
+			config = make(models.MapStringString)
 		}
 
 		// Store source information in the destination config
 		// These are hidden configs that won't be shown in the form
-		newDestination.Config["source_name"] = sourceResponse.Name
-		newDestination.Config["source_id"] = parsedToken.ID
+		config[configSourceName] = sourceResponse.Name
+		config[configSourceID] = parsedToken.ID
 	}
+	newDestination.Config = config
 
 	return nil
 }

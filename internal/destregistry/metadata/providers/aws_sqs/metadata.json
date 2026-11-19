@@ -26,6 +26,14 @@
       "description": "AWS Secret Access Key",
       "required": true,
       "sensitive": true
+    },
+    {
+      "key": "session",
+      "type": "text",
+      "label": "Session Token",
+      "description": "AWS Session Token (optional)",
+      "required": false,
+      "sensitive": true
     }
   ],
   "label": "AWS SQS",

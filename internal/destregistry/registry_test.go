@@ -1153,11 +1153,11 @@ func TestPreprocessDestination(t *testing.T) {
 			destination: &models.Destination{
 				Type: "mock",
 				Config: map[string]string{
-					"key": "value",
+					"public_key": "value",
 				},
 			},
 			preprocess: func(newDestination *models.Destination, originalDestination *models.Destination, opts *destregistry.PreprocessDestinationOpts) error {
-				newDestination.Config["processed"] = "true"
+				newDestination.Config["public_key"] = "processed"
 				return nil
 			},
 			wantErr: false,
@@ -1201,8 +1201,88 @@ func TestPreprocessDestination(t *testing.T) {
 
 			assert.NoError(t, err)
 			if tt.name == "modify config" {
-				assert.Equal(t, "true", tt.destination.Config["processed"])
+				assert.Equal(t, "processed", tt.destination.Config["public_key"])
 			}
 		})
 	}
+}
+
+func TestPreprocessDestination_DropsUndeclaredKeys(t *testing.T) {
+	t.Parallel()
+
+	newRegistry := func(t *testing.T) (destregistry.Registry, *mockProviderWithConfig) {
+		registry := destregistry.NewRegistry(&destregistry.Config{}, testutil.CreateTestLogger(t))
+		provider, err := newMockProviderWithConfig("mock")
+		require.NoError(t, err)
+		require.NoError(t, registry.RegisterProvider("mock", provider))
+		return registry, provider
+	}
+
+	t.Run("request keys", func(t *testing.T) {
+		t.Parallel()
+		registry, _ := newRegistry(t)
+		config := models.MapStringString{"public_key": "pk", "extra": "x"}
+		credentials := models.MapStringString{"api_key": "ak", "extra": "x"}
+		destination := &models.Destination{
+			Type:             "mock",
+			Config:           config,
+			Credentials:      credentials,
+			DeliveryMetadata: models.MapStringString{"anything": "kept"},
+			Metadata:         models.MapStringString{"anything": "kept"},
+		}
+
+		require.NoError(t, registry.PreprocessDestination(destination, nil, &destregistry.PreprocessDestinationOpts{}))
+
+		assert.Equal(t, models.MapStringString{"public_key": "pk"}, destination.Config)
+		assert.Equal(t, models.MapStringString{"api_key": "ak"}, destination.Credentials)
+		assert.Equal(t, models.MapStringString{"anything": "kept"}, destination.DeliveryMetadata)
+		assert.Equal(t, models.MapStringString{"anything": "kept"}, destination.Metadata)
+		// The maps passed in are never modified.
+		assert.Equal(t, models.MapStringString{"public_key": "pk", "extra": "x"}, config)
+		assert.Equal(t, models.MapStringString{"api_key": "ak", "extra": "x"}, credentials)
+	})
+
+	t.Run("key written by the provider", func(t *testing.T) {
+		t.Parallel()
+		registry, provider := newRegistry(t)
+		provider.preprocessFn = func(newDestination, _ *models.Destination, _ *destregistry.PreprocessDestinationOpts) error {
+			newDestination.Config["written"] = "x"
+			return nil
+		}
+		destination := &models.Destination{Type: "mock", Config: models.MapStringString{"public_key": "pk"}}
+
+		require.NoError(t, registry.PreprocessDestination(destination, nil, &destregistry.PreprocessDestinationOpts{}))
+
+		assert.Equal(t, models.MapStringString{"public_key": "pk"}, destination.Config)
+	})
+
+	t.Run("allowed keys", func(t *testing.T) {
+		t.Parallel()
+		registry, provider := newRegistry(t)
+		provider.AllowConfigKeys("allowed")
+		provider.AllowCredentialKeys("allowed")
+		destination := &models.Destination{
+			Type:        "mock",
+			Config:      models.MapStringString{"allowed": "x", "extra": "x"},
+			Credentials: models.MapStringString{"allowed": "x", "extra": "x"},
+		}
+
+		require.NoError(t, registry.PreprocessDestination(destination, nil, &destregistry.PreprocessDestinationOpts{}))
+
+		assert.Equal(t, models.MapStringString{"allowed": "x"}, destination.Config)
+		assert.Equal(t, models.MapStringString{"allowed": "x"}, destination.Credentials)
+	})
+
+	t.Run("preprocess error leaves the destination as is", func(t *testing.T) {
+		t.Parallel()
+		registry, provider := newRegistry(t)
+		provider.preprocessFn = func(_, _ *models.Destination, _ *destregistry.PreprocessDestinationOpts) error {
+			return errors.New("preprocess error")
+		}
+		destination := &models.Destination{Type: "mock", Config: models.MapStringString{"extra": "x"}}
+
+		require.Error(t, registry.PreprocessDestination(destination, nil, &destregistry.PreprocessDestinationOpts{}))
+
+		assert.Equal(t, models.MapStringString{"extra": "x"}, destination.Config)
+	})
 }

@@ -349,3 +349,103 @@ func TestPreprocess_Timeout(t *testing.T) {
 		assert.False(t, hasSourceID, "source_id should not exist in config after timeout")
 	}
 }
+
+func TestPreprocess_SourceConfigFromVerificationOnly(t *testing.T) {
+	const tokenValue = "src_Verified123:random_string"
+	token := base64.StdEncoding.EncodeToString([]byte(tokenValue))
+	otherToken := base64.StdEncoding.EncodeToString([]byte("src_Other456:other_string"))
+
+	verifications := 0
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		verifications++
+		now := time.Now().UTC().Format(time.RFC3339)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, fmt.Sprintf(`{"name":"verified-name","url":"https://events.hookdeck.com/e/x","created_at":"%s","updated_at":"%s","disabled_at":null}`, now, now))
+	})
+	provider, err := desthookdeck.New(
+		testutil.Registry.MetadataLoader(),
+		nil,
+		desthookdeck.WithHTTPClient(&http.Client{Transport: &CustomRoundTripper{handler: handler, t: t}}),
+	)
+	require.NoError(t, err)
+
+	stored := func(config map[string]string) *models.Destination {
+		return &models.Destination{
+			ID:          "dest123",
+			Type:        "hookdeck",
+			Config:      config,
+			Credentials: map[string]string{"token": token},
+		}
+	}
+	request := func(token string, config map[string]string) *models.Destination {
+		return &models.Destination{
+			ID:          "dest123",
+			Type:        "hookdeck",
+			Config:      config,
+			Credentials: map[string]string{"token": token},
+		}
+	}
+	requested := map[string]string{"source_id": "src_Requested", "source_name": "requested"}
+	verified := map[string]string{"source_id": "src_Verified123", "source_name": "verified-name"}
+
+	t.Run("create ignores request values", func(t *testing.T) {
+		verifications = 0
+		dest := request(token, requested)
+		require.NoError(t, provider.Preprocess(dest, nil, &destregistry.PreprocessDestinationOpts{}))
+		assert.Equal(t, models.MapStringString(verified), dest.Config)
+		assert.Equal(t, 1, verifications)
+	})
+
+	t.Run("update with the same token restores stored values", func(t *testing.T) {
+		verifications = 0
+		dest := request(token, requested)
+		require.NoError(t, provider.Preprocess(dest, stored(verified), &destregistry.PreprocessDestinationOpts{}))
+		assert.Equal(t, models.MapStringString(verified), dest.Config)
+		assert.Equal(t, 0, verifications)
+	})
+
+	t.Run("update with the same token and values removed restores stored values", func(t *testing.T) {
+		verifications = 0
+		dest := request(token, map[string]string{})
+		require.NoError(t, provider.Preprocess(dest, stored(verified), &destregistry.PreprocessDestinationOpts{}))
+		assert.Equal(t, models.MapStringString(verified), dest.Config)
+		assert.Equal(t, 0, verifications)
+	})
+
+	t.Run("update with the same token and no stored values sets none", func(t *testing.T) {
+		verifications = 0
+		dest := request(token, requested)
+		require.NoError(t, provider.Preprocess(dest, stored(nil), &destregistry.PreprocessDestinationOpts{}))
+		assert.Empty(t, dest.Config)
+		assert.Equal(t, 0, verifications)
+	})
+
+	t.Run("update with a new token uses the verified values", func(t *testing.T) {
+		verifications = 0
+		original := stored(map[string]string{"source_id": "src_Old", "source_name": "old"})
+		original.Credentials["token"] = otherToken
+		dest := request(token, requested)
+		require.NoError(t, provider.Preprocess(dest, original, &destregistry.PreprocessDestinationOpts{}))
+		assert.Equal(t, models.MapStringString(verified), dest.Config)
+		assert.Equal(t, 1, verifications)
+	})
+
+	t.Run("other request config keys are kept", func(t *testing.T) {
+		verifications = 0
+		dest := request(token, map[string]string{"source_id": "src_Requested", "other": "value"})
+		require.NoError(t, provider.Preprocess(dest, stored(verified), &destregistry.PreprocessDestinationOpts{}))
+		assert.Equal(t, models.MapStringString{"source_id": "src_Verified123", "source_name": "verified-name", "other": "value"}, dest.Config)
+
+		dest = request(token, map[string]string{"other": "value"})
+		require.NoError(t, provider.Preprocess(dest, nil, &destregistry.PreprocessDestinationOpts{}))
+		assert.Equal(t, "value", dest.Config["other"])
+		assert.Equal(t, "src_Verified123", dest.Config["source_id"])
+	})
+
+	t.Run("the stored destination is not modified", func(t *testing.T) {
+		original := stored(map[string]string{"source_id": "src_Old", "source_name": "old"})
+		original.Credentials["token"] = otherToken
+		require.NoError(t, provider.Preprocess(request(token, nil), original, &destregistry.PreprocessDestinationOpts{}))
+		assert.Equal(t, models.MapStringString{"source_id": "src_Old", "source_name": "old"}, original.Config)
+	})
+}

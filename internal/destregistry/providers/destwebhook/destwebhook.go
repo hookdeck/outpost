@@ -341,6 +341,7 @@ func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePu
 	if err != nil {
 		return nil, err
 	}
+	base.AllowCredentialKeys("secret", "previous_secret", "previous_secret_invalid_at")
 	destination.BaseProvider = base
 
 	// Validate all required configuration is provided
