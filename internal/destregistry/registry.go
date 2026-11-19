@@ -87,6 +87,8 @@ type Provider interface {
 	ComputeTarget(destination *models.Destination) DestinationTarget
 	// Preprocess modifies the destination before it is stored in the DB
 	Preprocess(newDestination *models.Destination, originalDestination *models.Destination, opts *PreprocessDestinationOpts) error
+	// DropUndeclaredKeys removes config and credential keys the provider does not declare or allow
+	DropUndeclaredKeys(destination *models.Destination)
 }
 
 // PublisherCacheBypasser is an optional Provider interface. A provider that
@@ -508,13 +510,18 @@ func (r *registry) DisplayDestination(destination *models.Destination) (*Destina
 	}, nil
 }
 
-// PreprocessDestination resolves the provider and calls its Preprocess method
+// PreprocessDestination resolves the provider, calls its Preprocess method, then
+// drops config and credential keys the provider does not declare.
 func (r *registry) PreprocessDestination(newDestination *models.Destination, originalDestination *models.Destination, opts *PreprocessDestinationOpts) error {
 	provider, err := r.ResolveProvider(newDestination)
 	if err != nil {
 		return err
 	}
-	return provider.Preprocess(newDestination, originalDestination, opts)
+	if err := provider.Preprocess(newDestination, originalDestination, opts); err != nil {
+		return err
+	}
+	provider.DropUndeclaredKeys(newDestination)
+	return nil
 }
 
 var (

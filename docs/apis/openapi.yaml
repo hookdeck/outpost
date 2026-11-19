@@ -5883,7 +5883,7 @@ paths:
     post:
       tags: [Destinations]
       summary: Create Destination
-      description: Creates a new destination for the tenant. The request body structure depends on the `type`.
+      description: Creates a new destination for the tenant. The request body structure depends on the `type`. Keys in `config` and `credentials` that the destination type does not define are ignored and not stored.
       operationId: createTenantDestination
       requestBody:
         required: true
@@ -5988,7 +5988,7 @@ paths:
     patch:
       tags: [Destinations]
       summary: Update Destination
-      description: Updates the configuration of an existing destination. The request body structure depends on the destination's `type`. Type itself cannot be updated. May return an OAuth redirect URL for certain types.
+      description: Updates the configuration of an existing destination. The request body structure depends on the destination's `type`. Type itself cannot be updated. May return an OAuth redirect URL for certain types. Keys in `config` and `credentials` that the destination type does not define are ignored, and any such keys stored earlier are removed.
       operationId: updateTenantDestination
       requestBody:
         required: true

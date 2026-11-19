@@ -64,6 +64,7 @@ func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePu
 		return nil, err
 	}
 
+	base.AllowConfigKeys(destregistry.ConfigKeyEndpoint)
 	provider := &AWSS3Provider{BaseProvider: base}
 	for _, opt := range opts {
 		opt(provider)
