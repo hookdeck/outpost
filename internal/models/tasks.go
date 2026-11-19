@@ -62,18 +62,20 @@ func (t *DeliveryTask) ToMessage() (*mqs.Message, error) {
 }
 
 // IdempotencyKey returns the key used for idempotency checks.
-// Uses event_id:destination_id:attempt_number so that:
+// Uses tenant_id:event_id:destination_id:attempt_number so that:
 //   - Manual and auto retries with the same attempt_number are deduplicated (race protection)
 //   - Each new attempt gets a fresh key (no need to clear on failure)
 //   - MQ redeliveries of the same message are still deduplicated
+//   - Tenants never share a key: event and destination IDs can repeat across tenants
 func (t *DeliveryTask) IdempotencyKey() string {
-	return rediskey.IDs(t.Event.ID, t.DestinationID) + ":" + strconv.Itoa(t.Attempt)
+	return rediskey.IDs(t.Event.TenantID, t.Event.ID, t.DestinationID) + ":" + strconv.Itoa(t.Attempt)
 }
 
 // RetryID returns the ID used for scheduling and canceling retries.
-// Uses event_id:destination_id to allow manual retries to cancel pending automatic retries.
-func RetryID(eventID, destinationID string) string {
-	return rediskey.IDs(eventID, destinationID)
+// Uses tenant_id:event_id:destination_id so a manual retry replaces or cancels the pending automatic retry
+// for the same tenant, event and destination.
+func RetryID(tenantID, eventID, destinationID string) string {
+	return rediskey.IDs(tenantID, eventID, destinationID)
 }
 
 // NewDeliveryTask creates a new DeliveryTask for an event and destination.

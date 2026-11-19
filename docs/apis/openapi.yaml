@@ -3238,7 +3238,7 @@ components:
       properties:
         id:
           type: string
-          description: Optional. A unique identifier for the event. If not provided, a ID will be generated.
+          description: Optional. An identifier for the event, unique within its tenant. If not provided, an ID is generated. An event published again with the same `id` for the same tenant within the idempotency window (`PUBLISH_IDEMPOTENCY_KEY_TTL`, 1 hour by default) is not queued again. Different tenants can use the same `id`.
           example: "evt_custom_123"
         tenant_id:
           type: string
@@ -3284,7 +3284,7 @@ components:
           example: "evt_abc123xyz789"
         duplicate:
           type: boolean
-          description: Whether this event was already processed (idempotency hit). If true, the event was not queued again.
+          description: Whether this tenant already published an event with this ID within the idempotency window. If true, the event was not queued again.
           example: false
         destination_ids:
           type: array

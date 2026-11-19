@@ -141,8 +141,9 @@ func (s *memLogStore) QueryAttemptMetrics(ctx context.Context, req driver.Metric
 	start := time.Now()
 
 	var matched []attemptWithEvent
-	for _, a := range s.attempts {
-		event := s.events[a.EventID]
+	for _, sa := range s.attempts {
+		a := sa.Attempt
+		event := s.eventOf(sa)
 		if event == nil {
 			continue
 		}

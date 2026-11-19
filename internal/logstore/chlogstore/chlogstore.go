@@ -147,7 +147,7 @@ func (s *logStoreImpl) ListEvent(ctx context.Context, req driver.ListEventReques
 			return fetchAndDedup(ctx, s.chDB, q, func(qi pagination.QueryInput) (string, []any, error) {
 				return buildEventQuery(s.eventsTable, req, qi)
 			}, scanEvents, func(e eventWithPosition) string {
-				return e.Event.ID
+				return e.Event.TenantID + "\x00" + e.Event.ID
 			}, eventWithPosition.cursorPosition)
 		},
 		Cursor: pagination.Cursor[eventWithPosition]{
@@ -836,13 +836,13 @@ func (s *logStoreImpl) InsertMany(ctx context.Context, entries []*models.LogEntr
 	// transient duplicate reads until compaction runs.
 	entries = driver.DedupeEntriesByAttemptID(entries)
 
-	// Extract and dedupe events by ID, skipping retry attempts.
+	// Extract and dedupe events by tenant and ID, skipping retry attempts.
 	// Retries (AttemptNumber > 1) carry identical event data — the event row
 	// already exists from the first attempt's batch.
-	eventMap := make(map[string]*models.Event)
+	eventMap := make(map[[2]string]*models.Event)
 	for _, entry := range entries {
 		if entry.Attempt.AttemptNumber <= 1 {
-			eventMap[entry.Event.ID] = entry.Event
+			eventMap[[2]string{entry.Event.TenantID, entry.Event.ID}] = entry.Event
 		}
 	}
 

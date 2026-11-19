@@ -36,6 +36,12 @@ func testMisc(t *testing.T, newHarness HarnessMaker) {
 	t.Run("EdgeCases", func(t *testing.T) {
 		testEdgeCases(t, ctx, logStore, h)
 	})
+	t.Run("SameEventIDAcrossTenants", func(t *testing.T) {
+		testSameEventIDAcrossTenants(t, ctx, logStore, h)
+	})
+	t.Run("SameEventIDAndTimeAcrossTenants", func(t *testing.T) {
+		testSameEventIDAndTimeAcrossTenants(t, ctx, logStore, h)
+	})
 	t.Run("CursorValidation", func(t *testing.T) {
 		testCursorValidation(t, ctx, logStore, h)
 	})
