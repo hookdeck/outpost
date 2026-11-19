@@ -244,7 +244,7 @@ func TestMessageHandler_PublishError_EligibleForRetry(t *testing.T) {
 	assert.False(t, mockMsg.nacked, "message should not be nacked when scheduling retry")
 	assert.True(t, mockMsg.acked, "message should be acked when scheduling retry")
 	assert.Len(t, retryScheduler.schedules, 1, "retry should be scheduled")
-	assert.Equal(t, models.RetryID(task.Event.ID, task.DestinationID), retryScheduler.taskIDs[0],
+	assert.Equal(t, models.RetryID(task.Event.TenantID, task.Event.ID, task.DestinationID), retryScheduler.taskIDs[0],
 		"should use GetRetryID for task ID")
 	require.Len(t, logPublisher.entries, 1, "should have one delivery")
 	var scheduled deliverymq.RetryTask
@@ -909,7 +909,7 @@ func TestMessageHandler_PublishAttemptErrorAndLogError_Nacks(t *testing.T) {
 	require.Len(t, logPublisher.entries, 2, "attempt log should be published on redelivery")
 	assert.Equal(t, models.AttemptStatusFailed, logPublisher.entries[1].Attempt.Status)
 	require.Len(t, retryScheduler.taskIDs, 2, "retry should be rescheduled on redelivery")
-	assert.Equal(t, models.RetryID(task.Event.ID, task.DestinationID), retryScheduler.taskIDs[0])
+	assert.Equal(t, models.RetryID(task.Event.TenantID, task.Event.ID, task.DestinationID), retryScheduler.taskIDs[0])
 	assert.Equal(t, retryScheduler.taskIDs[0], retryScheduler.taskIDs[1], "retry should be rescheduled under the same ID")
 }
 
@@ -1158,7 +1158,7 @@ func TestManualDelivery_PublishError(t *testing.T) {
 		testutil.EventFactory.WithEligibleForRetry(true),
 	)
 
-	retryID := models.RetryID(event.ID, destination.ID)
+	retryID := models.RetryID(event.TenantID, event.ID, destination.ID)
 
 	// Setup mocks
 	destGetter := &mockDestinationGetter{dest: &destination}
@@ -1244,7 +1244,7 @@ func TestManualDelivery_PublishError_BudgetExhausted(t *testing.T) {
 		testutil.EventFactory.WithEligibleForRetry(true),
 	)
 
-	retryID := models.RetryID(event.ID, destination.ID)
+	retryID := models.RetryID(event.TenantID, event.ID, destination.ID)
 
 	// Setup mocks
 	destGetter := &mockDestinationGetter{dest: &destination}
@@ -1354,7 +1354,7 @@ func TestManualDelivery_CancelError(t *testing.T) {
 	assert.False(t, mockMsg.acked, "message should not be acked on retry cancel error")
 	assert.Equal(t, 1, publisher.current, "should publish once")
 	assert.Len(t, retryScheduler.canceled, 1, "should attempt to cancel retry")
-	assert.Equal(t, models.RetryID(task.Event.ID, task.DestinationID), retryScheduler.canceled[0], "should cancel with correct retry ID")
+	assert.Equal(t, models.RetryID(task.Event.TenantID, task.Event.ID, task.DestinationID), retryScheduler.canceled[0], "should cancel with correct retry ID")
 	require.Len(t, logPublisher.entries, 1, "should have one delivery")
 	assert.Equal(t, models.AttemptStatusSuccess, logPublisher.entries[0].Attempt.Status, "delivery status should be OK despite cancel error")
 }

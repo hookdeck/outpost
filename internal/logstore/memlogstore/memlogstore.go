@@ -27,16 +27,33 @@ const (
 // It serves as a reference implementation and is useful for testing.
 type memLogStore struct {
 	mu       sync.RWMutex
-	events   map[string]*models.Event // keyed by event ID
-	attempts []*models.Attempt        // list of all attempts
+	events   map[eventKey]*models.Event // keyed by tenant ID and event ID
+	attempts []*storedAttempt           // list of all attempts
+}
+
+// eventKey identifies an event. Event IDs are only unique within a tenant.
+type eventKey struct {
+	tenantID string
+	eventID  string
+}
+
+// storedAttempt is an attempt with the tenant of its log entry's event.
+// Like the SQL stores, the store takes an attempt's tenant from its event.
+type storedAttempt struct {
+	*models.Attempt
+	tenantID string
+}
+
+func (s *memLogStore) eventOf(a *storedAttempt) *models.Event {
+	return s.events[eventKey{a.tenantID, a.EventID}]
 }
 
 var _ driver.LogStore = (*memLogStore)(nil)
 
 func NewLogStore() driver.LogStore {
 	return &memLogStore{
-		events:   make(map[string]*models.Event),
-		attempts: make([]*models.Attempt, 0),
+		events:   make(map[eventKey]*models.Event),
+		attempts: make([]*storedAttempt, 0),
 	}
 }
 
@@ -199,18 +216,18 @@ func (s *memLogStore) InsertMany(ctx context.Context, entries []*models.LogEntry
 	defer s.mu.Unlock()
 
 	for _, entry := range entries {
-		// Insert event (dedupe by ID, skip retries)
+		// Insert event (dedupe by tenant and ID, skip retries)
 		if entry.Attempt.AttemptNumber <= 1 {
-			s.events[entry.Event.ID] = copyEvent(entry.Event)
+			s.events[eventKey{entry.Event.TenantID, entry.Event.ID}] = copyEvent(entry.Event)
 		}
 
-		// Insert attempt (idempotent upsert: match on event_id + attempt_id)
+		// Insert attempt (idempotent upsert: match on tenant + event_id + attempt_id)
 		a := entry.Attempt
-		copied := copyAttempt(a)
+		copied := &storedAttempt{Attempt: copyAttempt(a), tenantID: entry.Event.TenantID}
 
 		found := false
 		for i, existing := range s.attempts {
-			if existing.EventID == a.EventID && existing.ID == a.ID {
+			if existing.tenantID == copied.tenantID && existing.EventID == a.EventID && existing.ID == a.ID {
 				s.attempts[i] = copied
 				found = true
 				break
@@ -240,8 +257,9 @@ func (s *memLogStore) ListAttempt(ctx context.Context, req driver.ListAttemptReq
 
 	// Filter attempts and build records with events
 	var allRecords []*driver.AttemptRecord
-	for _, a := range s.attempts {
-		event := s.events[a.EventID]
+	for _, sa := range s.attempts {
+		a := sa.Attempt
+		event := s.eventOf(sa)
 		if event == nil {
 			continue // skip orphan attempts
 		}
@@ -358,8 +376,9 @@ func (s *memLogStore) ListLatestAttempts(ctx context.Context, lookups []driver.L
 	}
 
 	latest := make(map[driver.AttemptKey]*models.Attempt, len(notBefore))
-	for _, a := range s.attempts {
-		event := s.events[a.EventID]
+	for _, sa := range s.attempts {
+		a := sa.Attempt
+		event := s.eventOf(sa)
 		if event == nil {
 			continue
 		}
@@ -375,7 +394,7 @@ func (s *memLogStore) ListLatestAttempts(ctx context.Context, lookups []driver.L
 
 	result := make(map[driver.AttemptKey]*driver.AttemptRecord, len(latest))
 	for key, a := range latest {
-		result[key] = &driver.AttemptRecord{Attempt: copyAttempt(a), Event: copyEvent(s.events[a.EventID])}
+		result[key] = &driver.AttemptRecord{Attempt: copyAttempt(a), Event: copyEvent(s.events[eventKey{key.TenantID, a.EventID}])}
 	}
 	return result, nil
 }
@@ -384,24 +403,27 @@ func (s *memLogStore) RetrieveEvent(ctx context.Context, req driver.RetrieveEven
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	event := s.events[req.EventID]
-	if event == nil {
-		return nil, nil
+	if req.TenantID != "" {
+		return copyEvent(s.events[eventKey{req.TenantID, req.EventID}]), nil
 	}
 
-	if req.TenantID != "" && event.TenantID != req.TenantID {
-		return nil, nil
+	// Without a tenant, return any one event with this ID.
+	for key, event := range s.events {
+		if key.eventID == req.EventID {
+			return copyEvent(event), nil
+		}
 	}
-	return copyEvent(event), nil
+	return nil, nil
 }
 
 func (s *memLogStore) RetrieveAttempt(ctx context.Context, req driver.RetrieveAttemptRequest) (*driver.AttemptRecord, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	for _, a := range s.attempts {
+	for _, sa := range s.attempts {
+		a := sa.Attempt
 		if a.ID == req.AttemptID {
-			event := s.events[a.EventID]
+			event := s.eventOf(sa)
 			if event == nil {
 				continue
 			}
@@ -478,6 +500,9 @@ func (s *memLogStore) matchesAttemptFilter(a *models.Attempt, event *models.Even
 }
 
 func copyEvent(e *models.Event) *models.Event {
+	if e == nil {
+		return nil
+	}
 	copied := &models.Event{
 		ID:               e.ID,
 		TenantID:         e.TenantID,

@@ -123,12 +123,12 @@ func (s *logStoreImpl) QueryEventMetrics(ctx context.Context, req driver.Metrics
 		}
 	}
 
-	// Measures — use uniqExact(event_id) instead of count() to handle
+	// Measures — use uniqExact(tenant_id, event_id) instead of count() to handle
 	// ReplacingMergeTree duplicates from unmerged parts without FINAL.
 	for _, measure := range req.Measures {
 		switch measure {
 		case "count":
-			selectExprs = append(selectExprs, "uniqExact(event_id)")
+			selectExprs = append(selectExprs, "uniqExact(tenant_id, event_id)")
 			order = append(order, sfCount)
 		}
 	}
@@ -159,7 +159,7 @@ func (s *logStoreImpl) QueryEventMetrics(ctx context.Context, req driver.Metrics
 		}
 	}
 
-	// Build SQL — no FINAL needed; uniqExact(event_id) handles dedup from
+	// Build SQL — no FINAL needed; uniqExact(tenant_id, event_id) handles dedup from
 	// unmerged ReplacingMergeTree parts.
 	sourceExpr := s.eventsTable
 	if needsUnnest {

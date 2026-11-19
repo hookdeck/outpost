@@ -69,6 +69,10 @@ func newHarness(_ context.Context, t *testing.T) (drivertest.Harness, error) {
 	}, nil
 }
 
+func (h *harness) SameKeyEvents() drivertest.SameKeyEvents {
+	return drivertest.KeepsOneEvent
+}
+
 func (h *harness) Close() {
 	h.closer()
 }
