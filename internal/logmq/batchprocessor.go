@@ -13,6 +13,7 @@ import (
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/mqs"
 	"github.com/hookdeck/outpost/internal/opevents"
+	"github.com/hookdeck/outpost/internal/rediskey"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 )
@@ -543,5 +544,5 @@ func processedKey(attemptID string) string {
 // user-supplied destination IDs. Format is stable — changing it resets live
 // windows.
 func exhaustedRetriesKey(tenantID, destinationID string) string {
-	return "opevents:exhausted:" + tenantID + ":" + destinationID
+	return "opevents:exhausted:" + rediskey.IDs(tenantID, destinationID)
 }

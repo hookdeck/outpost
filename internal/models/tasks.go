@@ -6,6 +6,7 @@ import (
 
 	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/mqs"
+	"github.com/hookdeck/outpost/internal/rediskey"
 )
 
 type EventTelemetry struct {
@@ -66,13 +67,13 @@ func (t *DeliveryTask) ToMessage() (*mqs.Message, error) {
 //   - Each new attempt gets a fresh key (no need to clear on failure)
 //   - MQ redeliveries of the same message are still deduplicated
 func (t *DeliveryTask) IdempotencyKey() string {
-	return t.Event.ID + ":" + t.DestinationID + ":" + strconv.Itoa(t.Attempt)
+	return rediskey.IDs(t.Event.ID, t.DestinationID) + ":" + strconv.Itoa(t.Attempt)
 }
 
 // RetryID returns the ID used for scheduling and canceling retries.
 // Uses event_id:destination_id to allow manual retries to cancel pending automatic retries.
 func RetryID(eventID, destinationID string) string {
-	return eventID + ":" + destinationID
+	return rediskey.IDs(eventID, destinationID)
 }
 
 // NewDeliveryTask creates a new DeliveryTask for an event and destination.

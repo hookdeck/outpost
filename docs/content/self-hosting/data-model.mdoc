@@ -177,6 +177,8 @@ Redis is the source of truth for tenant and destination configuration. Back it u
 
 The `{<tenant_id>}` braces in tenant keys are a Redis Cluster hash tag. They place all of a tenant's keys in the same slot, which lets Outpost update a tenant and its destinations in a single transaction on clustered Redis.
 
+Tenant, destination and event IDs are percent-encoded in keys: `%`, `:`, `{` and `}` become `%25`, `%3A`, `%7B` and `%7D`. An ID without those characters appears as it is.
+
 ### Tenants and destinations
 
 | Key | Type | TTL | Contents |

@@ -237,3 +237,26 @@ func TestAlertStoreIsolation(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 2, count2, "Store 2 should be unaffected by store 1 reset")
 }
+
+func TestRedisAlertStore_IDsWithColons(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	redisClient := testutil.CreateTestRedisClient(t)
+	store := alert.NewRedisAlertStore(redisClient, "")
+
+	// The two pairs differ only in where the colon falls.
+	count, _, err := store.RecordConsecutiveFailure(ctx, "org", "123:webhook", "att_1", 1000)
+	require.NoError(t, err)
+	assert.Equal(t, 1, count)
+
+	count, _, err = store.RecordConsecutiveFailure(ctx, "org:123", "webhook", "att_2", 1000)
+	require.NoError(t, err)
+	assert.Equal(t, 1, count, "the second pair has its own streak")
+
+	require.NoError(t, store.ResetConsecutiveFailureCount(ctx, "org:123", "webhook"))
+
+	count, _, err = store.RecordConsecutiveFailure(ctx, "org", "123:webhook", "att_3", 1000)
+	require.NoError(t, err)
+	assert.Equal(t, 2, count, "a reset of the second pair leaves the first pair's streak")
+}

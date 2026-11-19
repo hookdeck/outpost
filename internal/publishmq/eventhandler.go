@@ -13,6 +13,7 @@ import (
 	"github.com/hookdeck/outpost/internal/idempotence"
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/models"
+	"github.com/hookdeck/outpost/internal/rediskey"
 	"github.com/hookdeck/outpost/internal/tenantstore"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
@@ -246,5 +247,5 @@ func (h *eventHandler) enqueueDeliveryTask(ctx context.Context, task models.Deli
 }
 
 func idempotencyKeyFromEvent(event *models.Event) string {
-	return "idempotency:publishmq:" + event.ID
+	return "idempotency:publishmq:" + rediskey.Escape(event.ID)
 }
