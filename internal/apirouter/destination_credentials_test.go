@@ -496,7 +496,7 @@ func TestDestinationCredentials_CustomHeaders(t *testing.T) {
 				assert.JSONEq(t, `{"Authorization":"Bearer sk_live_123"}`, stored(t, "credentials"))
 			})
 
-			for _, field := range []string{"credentials"} {
+			for _, field := range []string{"config", "credentials"} {
 				saved := map[string]string{"config": `{"X-Tenant":"acme"}`, "credentials": `{"Authorization":"Bearer sk_live_123"}`}[field]
 				savedName := map[string]string{"config": "X-Tenant", "credentials": "Authorization"}[field]
 

@@ -1018,13 +1018,25 @@ func (d *WebhookDestination) Preprocess(newDestination *models.Destination, orig
 		newDestination.Credentials = make(map[string]string)
 	}
 
-	// credentials.custom_headers merges header by header (see mergeHeaders).
-	// It's tenant-editable and independent of the signing secret, which the
-	// handling below rebuilds; it's added back after.
-	var savedCredentialHeaders string
+	// Both header maps merge header by header; see mergeHeaders.
+	var savedConfigHeaders, savedCredentialHeaders string
 	if originalDestination != nil {
+		savedConfigHeaders = originalDestination.Config[customHeadersKey]
 		savedCredentialHeaders = originalDestination.Credentials[customHeadersKey]
 	}
+	if raw, ok := newDestination.Config[customHeadersKey]; ok {
+		merged, err := mergeHeaders("config."+customHeadersKey, savedConfigHeaders, raw)
+		if err != nil {
+			return err
+		}
+		if merged != "" {
+			newDestination.Config[customHeadersKey] = merged
+		} else {
+			delete(newDestination.Config, customHeadersKey)
+		}
+	}
+	// credentials.custom_headers is tenant-editable and independent of the
+	// signing secret, which the handling below rebuilds; it's added back after.
 	credentialHeaders, err := mergeHeaders("credentials."+customHeadersKey, savedCredentialHeaders, newDestination.Credentials[customHeadersKey])
 	if err != nil {
 		return err

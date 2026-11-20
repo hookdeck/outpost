@@ -128,6 +128,7 @@ const DestinationSettings = ({
     );
     // Key/value maps are sent as the changes only; see keyValueMapUpdate.
     for (const [values, fields, saved] of [
+      [config, type.config_fields, destination.config],
       [credentials, type.credential_fields, destination.credentials],
     ] as const) {
       for (const field of fields) {

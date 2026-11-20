@@ -2359,8 +2359,8 @@ components:
           example: "https://example.com/webhooks/user"
         custom_headers:
           type: string
-          description: JSON string of custom HTTP headers to include with every webhook request.
-          example: '{"x-api-key":"secret123","x-tenant-id":"customer-456"}'
+          description: JSON string of custom HTTP headers to include with every webhook request, merged header by header. A header not sent keeps its saved value, a header sent with a value gets that value, and a header sent as null is removed. Set the field to null to remove all.
+          example: '{"x-tenant-id":"customer-456","x-old-header":null}'
     WebhookCredentialsUpdate:
       type: object
       description: Partial Webhook credentials for PATCH updates (RFC 7396 merge-patch).
@@ -2380,7 +2380,7 @@ components:
           description: Set to true to rotate the secret. The current secret becomes the previous_secret, and a new secret is generated. `previous_secret_invalid_at` defaults to 24h if not provided.
         custom_headers:
           type: string
-          description: JSON string of HTTP headers with secret values, merged header by header. A header not sent keeps its saved value, a header sent with a value gets that value, and a header sent as null is removed. Set the field to null to remove all.
+          description: JSON string of HTTP headers with secret values, merged header by header like `config.custom_headers`. A header not sent keeps its saved value, a header sent with a value gets that value, and a header sent as null is removed. Set the field to null to remove all.
           example: '{"X-Api-Key":"new-key","X-Old-Key":null}'
     AWSSQSConfigUpdate:
       type: object
