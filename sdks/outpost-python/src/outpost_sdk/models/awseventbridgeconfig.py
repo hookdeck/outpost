@@ -19,7 +19,7 @@ class AWSEventBridgeConfigTypedDict(TypedDict):
     event_bus_name: NotRequired[str]
     r"""Optional. The name or ARN of the EventBridge event bus. Defaults to the account's default event bus."""
     endpoint: NotRequired[str]
-    r"""Optional. Custom AWS endpoint URL (e.g., for LocalStack or VPC endpoints)."""
+    r"""Optional. Custom AWS endpoint URL for emulators such as LocalStack. Only accepted when the Outpost deployment sets DESTINATIONS_ALLOW_CUSTOM_ENDPOINTS=true."""
 
 
 class AWSEventBridgeConfig(BaseModel):
@@ -30,7 +30,7 @@ class AWSEventBridgeConfig(BaseModel):
     r"""Optional. The name or ARN of the EventBridge event bus. Defaults to the account's default event bus."""
 
     endpoint: Optional[str] = None
-    r"""Optional. Custom AWS endpoint URL (e.g., for LocalStack or VPC endpoints)."""
+    r"""Optional. Custom AWS endpoint URL for emulators such as LocalStack. Only accepted when the Outpost deployment sets DESTINATIONS_ALLOW_CUSTOM_ENDPOINTS=true."""
 
     @model_serializer(mode="wrap")
     def _serialize_model_with_info(self, handler, info):

@@ -21,9 +21,9 @@ class AWSKinesisConfigUpdateTypedDict(TypedDict):
     region: NotRequired[str]
     r"""The AWS region where the Kinesis stream is located."""
     endpoint: NotRequired[str]
-    r"""Optional. Custom AWS endpoint URL (e.g., for LocalStack or VPC endpoints)."""
+    r"""Optional. Custom AWS endpoint URL for emulators such as LocalStack. Only accepted when the Outpost deployment sets DESTINATIONS_ALLOW_CUSTOM_ENDPOINTS=true."""
     partition_key_template: NotRequired[str]
-    r"""Optional. JMESPath template to extract the partition key from the event payload."""
+    r"""Optional. JMESPath template to extract the partition key from the event payload. Templates may use field paths, string literals, `join`, `to_string`, `not_null` and `||`."""
 
 
 class AWSKinesisConfigUpdate(BaseModel):
@@ -36,10 +36,10 @@ class AWSKinesisConfigUpdate(BaseModel):
     r"""The AWS region where the Kinesis stream is located."""
 
     endpoint: Optional[str] = None
-    r"""Optional. Custom AWS endpoint URL (e.g., for LocalStack or VPC endpoints)."""
+    r"""Optional. Custom AWS endpoint URL for emulators such as LocalStack. Only accepted when the Outpost deployment sets DESTINATIONS_ALLOW_CUSTOM_ENDPOINTS=true."""
 
     partition_key_template: Optional[str] = None
-    r"""Optional. JMESPath template to extract the partition key from the event payload."""
+    r"""Optional. JMESPath template to extract the partition key from the event payload. Templates may use field paths, string literals, `join`, `to_string`, `not_null` and `||`."""
 
     @model_serializer(mode="wrap")
     def _serialize_model_with_info(self, handler, info):
