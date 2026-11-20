@@ -17,6 +17,10 @@ var JWT = jsonwebtoken{}
 
 var (
 	ErrInvalidToken = errors.New("invalid token")
+	// ErrNoJWTSecret is returned when a JWT operation is attempted without a
+	// signing secret configured. Tenant JWT auth is opt-in: with no secret,
+	// tokens are neither issued nor accepted.
+	ErrNoJWTSecret = errors.New("JWT secret not configured")
 )
 
 // JWTClaims contains the custom claims for JWT tokens
@@ -26,6 +30,9 @@ type JWTClaims struct {
 }
 
 func (_ jsonwebtoken) New(jwtSecret string, claims JWTClaims) (string, error) {
+	if jwtSecret == "" {
+		return "", ErrNoJWTSecret
+	}
 	now := time.Now()
 	mapClaims := jwt.MapClaims{
 		"iss": issuer,
@@ -41,12 +48,20 @@ func (_ jsonwebtoken) New(jwtSecret string, claims JWTClaims) (string, error) {
 }
 
 func (_ jsonwebtoken) Extract(jwtSecret string, tokenString string) (JWTClaims, error) {
+	// An empty secret means tenant JWT auth is not configured. Without this
+	// guard, golang-jwt would verify HMAC against an empty key, which anyone
+	// can reproduce — a forged token for any tenant would be accepted.
+	if jwtSecret == "" {
+		return JWTClaims{}, ErrInvalidToken
+	}
 	token, err := jwt.Parse(
 		tokenString,
 		func(token *jwt.Token) (interface{}, error) {
 			return []byte(jwtSecret), nil
 		},
+		jwt.WithValidMethods([]string{signingMethod.Alg()}),
 		jwt.WithIssuer(issuer),
+		jwt.WithExpirationRequired(),
 	)
 	if err != nil || !token.Valid {
 		return JWTClaims{}, ErrInvalidToken
@@ -74,13 +89,18 @@ func (_ jsonwebtoken) Extract(jwtSecret string, tokenString string) (JWTClaims, 
 }
 
 func (_ jsonwebtoken) Verify(jwtSecret string, tokenString string, tenantID string) (bool, error) {
+	if jwtSecret == "" {
+		return false, ErrInvalidToken
+	}
 	token, err := jwt.Parse(
 		tokenString,
 		func(token *jwt.Token) (interface{}, error) {
 			return []byte(jwtSecret), nil
 		},
+		jwt.WithValidMethods([]string{signingMethod.Alg()}),
 		jwt.WithIssuer(issuer),
 		jwt.WithSubject(tenantID),
+		jwt.WithExpirationRequired(),
 	)
 	if err != nil || !token.Valid {
 		return false, ErrInvalidToken
