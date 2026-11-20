@@ -165,9 +165,9 @@ const Destination = () => {
                       )}
                       {Object.entries(destination.config)
                         .filter(([key]) => {
-                          // Filter out custom_headers if the feature flag is not enabled
+                          // Filter out header fields if the feature flag is not enabled
                           if (
-                            key === "custom_headers" &&
+                            isHeaderField(key) &&
                             CONFIGS.ENABLE_WEBHOOK_CUSTOM_HEADERS !== "true"
                           ) {
                             return false;
@@ -183,8 +183,13 @@ const Destination = () => {
                             value={value}
                           />
                         ))}
-                      {Object.entries(destination.credentials).map(
-                        ([key, value]) => (
+                      {Object.entries(destination.credentials)
+                        .filter(
+                          ([key]) =>
+                            !isHeaderField(key) ||
+                            CONFIGS.ENABLE_WEBHOOK_CUSTOM_HEADERS === "true",
+                        )
+                        .map(([key, value]) => (
                           <DestinationDetailsField
                             key={key}
                             fieldType="credentials"
@@ -192,8 +197,7 @@ const Destination = () => {
                             type={type}
                             value={value}
                           />
-                        ),
-                      )}
+                        ))}
                       <li>
                         <span className="body-m">Created At</span>
                         <span className="body-m">
@@ -246,6 +250,11 @@ const Destination = () => {
 export default Destination;
 
 const TRUNCATION_LENGTH = 32;
+
+// Webhook header fields, shown only when the portal enables custom headers.
+function isHeaderField(key: string): boolean {
+  return key === "custom_headers";
+}
 
 // Fallback safety check: treat values with 3+ consecutive asterisks as obfuscated.
 // This catches cases where the API obfuscated the value but metadata doesn't indicate sensitivity.

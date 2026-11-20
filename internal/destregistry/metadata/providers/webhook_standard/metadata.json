@@ -19,7 +19,18 @@
       "value_placeholder": "Header value"
     }
   ],
-  "credential_fields": [],
+  "credential_fields": [
+    {
+      "key": "custom_headers",
+      "type": "key_value_map",
+      "label": "Secret Headers",
+      "description": "Headers with secret values, such as tokens or API keys. Stored encrypted.",
+      "required": false,
+      "sensitive": true,
+      "key_placeholder": "Header name",
+      "value_placeholder": "Header value"
+    }
+  ],
   "label": "Webhook",
   "link": "https://hookdeck.com/webhooks/guides/what-are-webhooks-how-they-work",
   "description": "Send events as webhooks (HTTP POST).",

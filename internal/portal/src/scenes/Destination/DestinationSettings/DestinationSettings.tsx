@@ -26,7 +26,12 @@ import type {
 import DestinationConfigFields from "../../../common/DestinationConfigFields/DestinationConfigFields";
 import FilterField from "../../../common/FilterField/FilterField";
 import CONFIGS from "../../../config";
-import { getFormValues } from "../../../utils/formHelper";
+import {
+  CREDENTIAL_FIELD_PREFIX,
+  getFormValues,
+  keyValueMapUpdate,
+  pickFieldValues,
+} from "../../../utils/formHelper";
 
 const DestinationSettings = ({
   destination,
@@ -112,17 +117,35 @@ const DestinationSettings = ({
     const form = e.target as HTMLFormElement;
     const formValues = getFormValues(form);
 
-    // Split values into config and credentials
-    const config: Record<string, string> = {};
-    const credentials: Record<string, string> = {};
-
-    Object.entries(formValues).forEach(([key, value]) => {
-      if (type.credential_fields.some((field) => field.key === key)) {
-        credentials[key] = String(value);
-      } else {
-        config[key] = String(value);
+    const config: Record<string, string | null> = pickFieldValues(
+      formValues,
+      type.config_fields,
+    );
+    const credentials: Record<string, string | null> = pickFieldValues(
+      formValues,
+      type.credential_fields,
+      CREDENTIAL_FIELD_PREFIX,
+    );
+    // Key/value maps are sent as the changes only; see keyValueMapUpdate.
+    for (const [values, fields, saved] of [
+      [credentials, type.credential_fields, destination.credentials],
+    ] as const) {
+      for (const field of fields) {
+        if (field.type !== "key_value_map" || !(field.key in values)) {
+          continue;
+        }
+        const update = keyValueMapUpdate(
+          saved[field.key],
+          values[field.key] ?? "",
+          "sensitive" in field && field.sensitive === true,
+        );
+        if (update === undefined) {
+          delete values[field.key];
+        } else {
+          values[field.key] = update;
+        }
       }
-    });
+    }
 
     apiClient
       .fetch(`destinations/${destination.id}`, {
